@@ -11,10 +11,11 @@ extern(C) {
 
 string tmpnam(string base = "fcc") {
   string name = base ~ "XXXXXX";
-  auto fd = mkstemp(toStringz(name));
+  auto p = toStringz(name);
+  auto fd = mkstemp(p);
   assert(fd != -1);
   close(fd);
-  return name;
+  return toString(p);
 }
 
 bool isAlpha(dchar d) {
@@ -222,6 +223,11 @@ void applyPass(Entity ent, string name) {
 
 string compile(string file) {
   auto srcname = tmpnam("fcc_src"), objname = tmpnam("fcc_obj");
+  scope(exit) {
+    unlink(srcname.toStringz());
+    // TODO move to linker when actually linkable
+    unlink(objname.toStringz());
+  }
   auto fe = new FileEntity;
   fe.text = FracString([file.read().castLike("")]);
   fe.filename = file;
