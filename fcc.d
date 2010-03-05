@@ -2,8 +2,6 @@ module fcc; // feep's crazed compiler
 
 import tools.base, tools.log, tools.compat;
 
-import fraclist;
-
 extern(C) {
   int mkstemp(char* tmpl);
   int close(int fd);
@@ -64,8 +62,7 @@ class Entity {
 }
 
 class FileEntity : Entity {
-  string filename;
-  FracString text;
+  string filename, text;
 }
 
 void delegate(Entity) normPass(C)(C c) {
@@ -111,8 +108,7 @@ string ctDefCon(string vars) {
 }
 
 class Section : Entity {
-  string name;
-  FracString text;
+  string name, text;
   mixin(ctDefCon("name text"));
   mixin Placeholder!(string function(), "generate");
   string toString() {
@@ -120,22 +116,42 @@ class Section : Entity {
   }
 }
 
-class MetaSection : Section {
-  FracString[] lines;
+// lexers are not required to match across comment boundaries.
+bool delegate(ref string, string)[string] lexer_list;
+
+bool simple_comments_lex(ref string text, string match) {
+  while (text.strip().startsWith("#"))
+    text = text.between("\n", ""); // remove rest of line
+  return text.strip().startsWith(match);
+}
+
+static this() {
+  lexer_list["simple_comments"] = &simple_comments_lex /todg;
+}
+
+class ConfigSection : Section {
+  string[] lines;
+  bool delegate(ref string, string) lexdg;
   mixin(ctDefCon("!nosupcon lines"));
   this(Section s) {
     super(s);
     lines = text.split("\n");
+    foreach (line; lines) {
+      line = line.strip();
+      if (auto rest = line.startsWith("set-lexer ")) {
+        lexdg = lexer_list[rest];
+      }
+    }
   }
   string toString() {
     return Format(super.toString(), ": ", lines);
   }
   static void pass(Section s) {
-    if (s.name != "meta") return;
-    s.overwrite(new MetaSection(s));
+    if (s.name != "config") return;
+    s.overwrite(new ConfigSection(s));
   }
   static this() {
-    passes["meta-section"] = normPass(&pass);
+    passes["config-section"] = normPass(&pass);
   }
 }
 
@@ -164,8 +180,7 @@ class SectionFile : FileEntity {
     auto nfe = new SectionFile;
     nfe.filename = fe.filename;
     auto text = nfe.text = fe.text;
-    string secname;
-    FracString rest;
+    string secname, rest;
     if (text.startsWith("%", rest)) {
       secname = cast(string) rest.slice("\n");
       text = text[1+secname.length .. $]; // include newline!
@@ -229,12 +244,12 @@ string compile(string file) {
     unlink(objname.toStringz());
   }
   auto fe = new FileEntity;
-  fe.text = FracString([file.read().castLike("")]);
+  fe.text = file.read().castLike("");
   fe.filename = file;
   {
     Entity ent = new Root(fe);
     applyPass(ent, "section-file");
-    applyPass(ent, "meta-section");
+    applyPass(ent, "config-section");
     fe = cast(typeof(fe)) (cast(Root) ent).child;
   }
   logln("Product: ", fe);
