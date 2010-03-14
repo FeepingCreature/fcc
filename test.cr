@@ -1,4 +1,3 @@
-%config
-foobar baz
-%body
-stuff goes here
+void main() {
+  puts("Hello World");
+}
