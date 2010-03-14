@@ -25,215 +25,132 @@ bool isAlphanum(dchar d) {
   return isAlpha(d) || d >= '0' && d <= '9';
 }
 
-template Placeholder(T, string Name) {
-  mixin(`Ret!(T) `~Name~`(Params!(T) p) { assert(false, Format(this, " doesn't implement `~Name~`()! ")); }`);
+/*void main() {
+  puts("Hello World");
+}*/
+
+/+
+  What do we expect of a type system?
+  Nothing.
++/
+
+enum Type {
+  None = -1,
+  Void,
+  CharPtr
 }
 
-struct EntParIter {
-  Entity start;
-  int opApply(int delegate(Entity) dg) {
-    auto ent = start;
-    while (ent) {
-      if (auto res = dg(ent)) return res;
-      ent = ent.parent;
-    }
-    return 0;
-  }
-}
-
-class Entity {
-  char* text_start;
-  Entity parent;
-  Entity setParent(Entity par) {
-    assert(!parent); // cannot replant
-    parent = par;
-    return this;
-  }
-  mixin Placeholder!(void function(Entity what, Entity newEnt), "replace");
-  void overwrite(Entity newEnt) {
-    assert(parent);
-    parent.replace(this, newEnt.setParent(parent));
-  }
-  void iterate(void delegate(Entity) dg) { }
-  EntParIter par_iter() { return EntParIter(this); }
-  string toString() {
-    return Format(super.toString(), "(", cast(void*) parent, ")");
+class ParseException {
+  string where, info;
+  this(string where, string info) {
+    this.where = where; this.info = info;
   }
 }
 
-class FileEntity : Entity {
-  string filename, text;
+bool gotType(ref string text, out Type type) {
+  if (text.accept("void")) return type = Type.Void, true;
+  return false;
 }
 
-void delegate(Entity) normPass(C)(C c) {
-  return c /apply/ (C c, Entity ent) { // close over c
-    alias Params!(C)[0] T;
-    if (auto te = cast(T) ent) {
-      c(te);
-      ent = te;
-    }
-  };
-}
-
-void delegate(Entity)[string] passes;
-
-import tools.ctfe;
-// default constructors
-string ctDefCon(string vars) {
-  bool placeSupCon = true;
-  string res = "
-  this() { }
-  this(typeof(this) n) {";
-  while (vars.length) {
-    string var = vars.ctSlice(" ").ctStrip();
-    // allow ", " separation
-    if (var.length && var[$-1] == ',')
-      var = var[0 .. $-1];
-    if (var == "!nosupcon") {
-      placeSupCon = false;
-      continue;
-    }
-    res ~= "this."~var~" = n."~var~"; ";
+struct AsmFile {
+  void[][string] constants;
+  string code;
+  void loadStack(string addr) {
+    code ~= Format("movl "~addr~", (%esp)");
   }
-  res ~= "}";
-  if (placeSupCon) {
-    res ~= "
-  // fuck me I've landed in Lisp Land
-  // if super copy constructs, forward to it
-  static if (is(typeof(new typeof(super)(Init!(typeof(super))))))
-    this(typeof(super) s) { super(s); }
-    ";
-  }
-  return res;
-}
-
-class Section : Entity {
-  string name, text;
-  mixin(ctDefCon("name text"));
-  mixin Placeholder!(string function(), "generate");
-  string toString() {
-    return Format(super.toString(), ": \"", text, "\"");
+  void put(T...)(T t) {
+    code ~= Format(t, "\n");
   }
 }
 
-// lexers are not required to match across comment boundaries.
-bool delegate(ref string, string)[string] lexer_list;
-
-bool simple_comments_lex(ref string text, string match) {
-  while (text.strip().startsWith("#"))
-    text = text.between("\n", ""); // remove rest of line
-  return text.strip().startsWith(match);
+struct Tree {
+  const Type = 0;
+  int type;
+  // default action
+  void function(ref AsmFile) emitAsm;
 }
 
-static this() {
-  lexer_list["simple_comments"] = &simple_comments_lex /todg;
+struct Expr {
+  const Type = 2;
+  Tree tree;
+  Type valueType;
 }
 
-class ConfigSection : Section {
-  string[] lines;
-  bool delegate(ref string, string) lexdg;
-  mixin(ctDefCon("!nosupcon lines"));
-  this(Section s) {
-    super(s);
-    lines = text.split("\n");
-    foreach (line; lines) {
-      line = line.strip();
-      if (auto rest = line.startsWith("set-lexer ")) {
-        lexdg = lexer_list[rest];
-      }
-    }
+struct StringExpr {
+  const Type = 3;
+  Expr expr;
+  string str;
+  // default action: place in string segment, load address on stack
+  void genAsm(ref AsmFile af) {
+    auto name = Format("Cons"~af.constants.length);
+    af.constants[name] = str;
+    af.loadStack(name);
   }
-  string toString() {
-    return Format(super.toString(), ": ", lines);
-  }
-  static void pass(Section s) {
-    if (s.name != "config") return;
-    s.overwrite(new ConfigSection(s));
-  }
-  static this() {
-    passes["config-section"] = normPass(&pass);
+  StringExpr genStringExpr() {
+    StringExpr res;
+    res.expr.tree.emitAsm = &genAsm;
+    res.expr.tree.type = Type;
+    res.valueType = Type.CharPtr;
+    return res;
   }
 }
 
-class Root : Entity {
-  mixin(ctDefCon("child"));
-  this(Entity ent) { child = ent.setParent(this); }
-  Entity child;
-  void iterate(void delegate(Entity) dg) { dg(child); }
-  void replace(Entity a, Entity b) {
-    if (child is a) child = b;
+void callFunction(Function* fun, Expr*[] params, ref AsmFile dest) {
+  assert(params.length == 1, "TODO: basics");
+  // ripped off from gcc hello world
+  dest.put("pushl %ebp");
+  dest.put("movl %esp, %ebp");
+  dest.put("andl $-16, %esp");
+  dest.put("subl $16, %esp");
+  // TODO type conversion
+  assert(fun.paramType.length == 1);
+  assert(params[0].tree.type == fun.paramType[0]);
+  assert(fun.retType == Type.Void);
+  params[0].tree.emitAsm(dest);
+  dest.put("call "~fun.name);
+}
+
+struct Function {
+  const Type = 1;
+  Tree tree;
+  string name;
+  Type retType;
+  Type[] paramType;
+  Statement Body;
+}
+
+bool bjoin(lazy bool c1, lazy bool c2, void delegate() dg) {
+  if (!c1) return true;
+  dg();
+  while (true) {
+    if (!c2) return true;
+    if (!c1) return false;
+    dg();
   }
 }
 
-class SectionFile : FileEntity {
-  Section[string] entries;
-  void iterate(void delegate(Entity) dg) {
-    foreach (key, value; entries) dg(value);
-  }
-  void replace(Entity what, Entity n) {
-    assert(cast(Section) n);
-    foreach (key, ref value; entries)
-      if (value is what)
-        value = cast(Section) n;
-  }
-  static void pass(FileEntity fe) {
-    auto nfe = new SectionFile;
-    nfe.filename = fe.filename;
-    auto text = nfe.text = fe.text;
-    string secname, rest;
-    if (text.startsWith("%", rest)) {
-      secname = cast(string) rest.slice("\n");
-      text = text[1+secname.length .. $]; // include newline!
-    } else return; // not a sectioned file
-    scope(success) fe.overwrite(nfe);
-    while (true) {
-      auto sec_end = text.find("\n%");
-      if (sec_end == -1) {
-        auto ns = new Section;
-        ns.parent = nfe;
-        ns.text = text[1 .. $];
-        nfe.entries[ns.name = secname] = ns;
-        break;
-      }
-      auto ns = new Section;
-      ns.parent = nfe;
-      ns.text = text[1 .. sec_end + 1];
-      nfe.entries[ns.name = secname] = ns;
-      text = text[sec_end + 1 .. $];
-      auto temp = text[1 .. $];
-      secname = cast(string) temp.slice("\n");
-      text = text[1+secname.length .. $];
-    }
-  }
-  static this() {
-    passes["section-file"] = normPass(&pass);
-  }
-  string toString() {
-    return Format(super.toString(), " (", entries, ")");
-  }
+bool gotIdentifier(ref string text, out string ident) {
+  if (!text.length || !isAlphanum(text[0])) return false;
+  do {
+    ident ~= text.take();
+  } while (text.length && isAlphanum(text[0]));
+  return true;
 }
 
-struct DepthFirst {
-  Entity root;
-  int opApply(int delegate(ref Entity) dg) {
-    int recurse(Entity ent) {
-      int res;
-      ent.iterate((Entity e) {
-        if (!res) res = recurse(e);
-      });
-      if (!res) res = dg(ent);
-      return res;
-    }
-    return recurse(root);
-  }
+bool gotStatement(ref string text, out Statement stmt) {
+  
 }
 
-void applyPass(Entity ent, string name) {
-  auto dg = passes[name];
-  foreach (ent; DepthFirst(ent)) {
-    // logln("apply ", name, " to ", ent);
-    dg(ent);
-  }
+bool gotFunDef(ref string text, out Function fun) {
+  Type ptype; string ident;
+  string t2 = text;
+  return t2.gotType(fun.retType)
+    && t2.gotIdentifier(fun.name)
+    && t2.accept("(")
+    && bjoin(t2.gotType(ptype), t2.accept(","), {
+      fun.paramType ~= ptype;
+    }) && t2.accept(")") && t2.gotStatement(fun.Body)
+    && ((text = t2), true);
 }
 
 string compile(string file) {
