@@ -1,6 +1,6 @@
 module test;
-void test() {
-  puts("Hello World");
+void test(size_t foo) {
+  printf("Hello World: %i\n", foo);
 }
 void main() {
   test(); test();

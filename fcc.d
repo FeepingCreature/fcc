@@ -25,7 +25,13 @@ bool isAlphanum(dchar d) {
   return isAlpha(d) || d >= '0' && d <= '9';
 }
 
+string next_text(string s) {
+  if (s.length > 100) s = s[0 .. 100];
+  return s.replace("\n", "\\");
+}
+
 bool accept(ref string s, string t) {
+  logln("accept ", t, " on ", s.next_text());
   auto s2 = s.strip();
   t = t.strip();
   // logln("accept ", t, " from ", s2, "? ", !!s2.startsWith(t));
@@ -37,10 +43,63 @@ bool accept(ref string s, string t) {
   Nothing.
 +/
 
-enum Type {
-  None = -1,
-  Void,
-  CharPtr
+class Type {
+  int size;
+  int opEquals(Object obj) {
+    // specialize where needed
+    return this.classinfo is obj.classinfo &&
+      size == (cast(Type) cast(void*) obj).size;
+  }
+  void match(ref Expr[] params) {
+    if (!params.length)
+      throw new Exception(Format("Missing parameter of ", this));
+    if (params[0].valueType() !is this)
+      throw new Exception(Format("Expected ", this, ", got ", params[0]));
+    params.take();
+  }
+}
+
+class Void : Type {
+  this() { size = 4; }
+}
+
+class Variadic : Type {
+  this() { size = 0; }
+  void match(ref Expr[] params) {
+    params = null; // match all
+  }
+}
+
+class Char : Type {
+  this() { size = 1; }
+}
+
+const nativeIntSize = 4, nativePtrSize = 4;
+
+class SizeT : Type {
+  this() { size = nativeIntSize; }
+}
+
+class Pointer : Type {
+  Type target;
+  this(Type t) { target = t; size = nativePtrSize; }
+  int opEquals(Object obj) {
+    if (obj.classinfo !is this.classinfo) return false;
+    auto p = cast(Pointer) cast(void*) obj;
+    return target == p.target;
+  }
+}
+
+Type[] type_memofield;
+
+// TODO: memoize better
+Type tmemo(Type t) {
+  foreach (entry; type_memofield) {
+    if (entry.classinfo is t.classinfo && entry == t) return entry;
+  }
+  logln("no match");
+  type_memofield ~= t;
+  return t;
 }
 
 class ParseException {
@@ -51,7 +110,8 @@ class ParseException {
 }
 
 bool gotType(ref string text, out Type type) {
-  if (text.accept("void")) return type = Type.Void, true;
+  if (text.accept("void")) return type = tmemo(new Void), true;
+  if (text.accept("size_t")) return type = tmemo(new SizeT), true;
   return false;
 }
 
@@ -97,7 +157,7 @@ class StringExpr : Expr {
     af.constants[name] = cast(ubyte[]) str;
     af.loadStack("$"~name);
   }
-  override Type valueType() { return Type.CharPtr; }
+  override Type valueType() { return tmemo(new Pointer(new Char)); }
 }
 
 bool gotStringExpr(ref string text, out Expr ex) {
@@ -105,40 +165,62 @@ bool gotStringExpr(ref string text, out Expr ex) {
   StringExpr se;
   return t2.accept("\"") &&
     (se = new StringExpr, true) &&
-    (se.str = t2.slice("\""), true) &&
+    (se.str = t2.slice("\"").replace("\\n", "\n"), true) &&
     (text = t2, true) &&
     (ex = se, true);
 }
 
 void callFunction(Function fun, Expr[] params, ref AsmFile dest) {
-  assert(params.length == 0 /or/ 1, "TODO: basics");
-  // ripped off from gcc hello world
-  dest.put("pushl %ebp");
-  dest.put("movl %esp, %ebp");
-  assert(!params.length || params[0].valueType() == fun.paramType[0]);
   if (params.length) {
     // dest.put("andl $-16, %esp");
     // dest.put("subl $16, %esp");
     dest.put("subl $4, %esp");
-    // TODO type conversion
-    assert(fun.paramType.length == 1);
-    assert(fun.retType == Type.Void);
-    params[0].emitAsm(dest);
+    auto p2 = params;
+    foreach (entry; fun.paramType)
+      entry.match(p2);
+    assert(!p2.length);
+    assert(cast(Void) fun.retType);
+    foreach_reverse (param; params)
+      param.emitAsm(dest);
   }
   dest.put("call "~fun.name);
-  dest.put("leave");
+  // dest.put("leave");
+}
+
+// information about active stack frame
+// built while generating function
+class FrameState {
+  Variable[] vars;
+  string toString() {
+    return Format(
+      super.toString(), " - ", size(), " in ", vars
+    );
+  }
+  int size() {
+    int res;
+    // TODO: alignment
+    foreach (var; vars)
+      res += var.type.size;
+    return res;
+  }
 }
 
 class Function : Tree {
   string name;
   Type retType;
   Type[] paramType;
+  FrameState frame;
   Statement _body;
   override void emitAsm(ref AsmFile af) {
     af.put(".globl "~name);
     af.put(".type "~name~", @function");
     af.put(name~": ");
+    af.put("pushl %ebp");
+    af.put("movl %esp, %ebp");
+    // af.put("subl $", frame.size, ", %esp");
     _body.emitAsm(af);
+    af.put("movl %ebp, %esp");
+    af.put("popl %ebp");
     af.put("ret");
   }
 }
@@ -180,10 +262,16 @@ Function[string] fundb;
 
 static this() {
   auto puts = new Function;
-  puts.retType = Type.Void;
-  puts.paramType ~= Type.CharPtr;
+  puts.retType = tmemo(new Void);
+  puts.paramType ~= tmemo(new Pointer(new Char));
   puts.name = "puts";
   fundb["puts"] = puts;
+  auto printf = new Function;
+  printf.retType = tmemo(new Void);
+  printf.paramType ~= tmemo(new Pointer(new Char));
+  printf.paramType ~= tmemo(new Variadic);
+  printf.name = "printf";
+  fundb["printf"] = printf;
 }
 
 Function lookup(string s) {
@@ -212,19 +300,37 @@ bool gotIdentifier(ref string text, out string ident) {
   return true;
 }
 
-bool gotFuncall(ref string text, out Expr expr) {
+bool gotFuncall(ref string text, out Expr expr, FrameState fs) {
   auto fc = new FunCall;
   string t2 = text;
   Expr ex;
   return t2.gotIdentifier(fc.name)
     && t2.accept("(")
-    && bjoin(t2.gotExpr(ex), t2.accept(","), { fc.params ~= ex; })
+    && bjoin(t2.gotExpr(ex, fs), t2.accept(","), { fc.params ~= ex; })
     && t2.accept(")") && t2.accept(";")
     && ((text = t2), (expr = fc), true);
 }
 
-bool gotExpr(ref string text, out Expr expr) {
-  return text.gotFuncall(expr) || text.gotStringExpr(expr);
+bool gotVariable(ref string text, out Expr expr, FrameState fs) {
+  Variable var;
+  string name, t2 = text;
+  return t2.gotIdentifier(name)
+    && {
+      foreach (var; fs.vars)
+        if (var.name == name) {
+          expr = var;
+          text = t2;
+          return true;
+        }
+      return false;
+    }();
+}
+
+bool gotExpr(ref string text, out Expr expr, FrameState fs) {
+  return
+       text.gotFuncall(expr, fs)
+    || text.gotStringExpr(expr)
+    || text.gotVariable(expr, fs);
 }
 
 class AggrStatement : Statement {
@@ -235,33 +341,80 @@ class AggrStatement : Statement {
   }
 }
 
-bool gotAggregateStmt(ref string text, out AggrStatement as) {
+bool gotAggregateStmt(ref string text, out AggrStatement as, FrameState fs) {
   auto t2 = text;
   
   Statement st;
   return t2.accept("{") && (as = new AggrStatement, true) &&
-    many(t2.gotStatement(st), { if (!st) asm { int 3; } as.stmts ~= st; }) &&
+    many(t2.gotStatement(st, fs), { if (!st) asm { int 3; } as.stmts ~= st; }) &&
     t2.accept("}") && (text = t2, true);
 }
 
-bool gotStatement(ref string text, out Statement stmt) {
+class Variable : Expr {
+  override void emitAsm(ref AsmFile af) {
+    assert(type.size == 4);
+    af.put(Format("subl $4, %esp"));
+    af.put(Format("movl %ebp, %eax"));
+    af.put(Format("subl $", baseOffset, ", %eax"));
+    // af.put(Format("movl (%eax), (%esp)"));
+    af.put(Format("movl (%eax), %edx"));
+    af.put(Format("movl %edx, (%esp)"));
+  }
+  override Type valueType() {
+    return type;
+  }
+  Type type;
+  string name;
+  int baseOffset;
+}
+
+class VarDecl : Statement {
+  override void emitAsm(ref AsmFile af) {
+    af.put("subl $4, %esp");
+  }
+  Variable var;
+}
+
+bool gotVarDecl(ref string text, out VarDecl vd, FrameState fs) {
+  auto t2 = text;
+  auto var = new Variable;
+  return
+    t2.gotType(var.type)
+    && t2.gotIdentifier(var.name)
+    && t2.accept(";")
+    && {
+      var.baseOffset = fs.size;
+      New(vd);
+      vd.var = var;
+      fs.vars ~= var;
+      text = t2;
+      return true;
+    }();
+}
+
+bool gotStatement(ref string text, out Statement stmt, FrameState fs) {
   Expr ex;
   AggrStatement as;
+  VarDecl vd;
   return
-    (text.gotExpr(ex) && (stmt = ex, true)) ||
-    (text.gotAggregateStmt(as) && (stmt = as, true));
+    (text.gotExpr(ex, fs) && (stmt = ex, true)) ||
+    (text.gotVarDecl(vd, fs) && (stmt = vd, true)) ||
+    (text.gotAggregateStmt(as, fs) && (stmt = as, true));
 }
 
 bool gotFunDef(ref string text, out Function fun) {
   Type ptype;
   string t2 = text;
   fun = new Function;
+  fun.frame = new FrameState;
+  scope(exit) logln("frame state ", fun.frame);
   return t2.gotType(fun.retType)
     && t2.gotIdentifier(fun.name)
     && t2.accept("(")
+    // TODO: function parameters belong on the stackframe
     && bjoin(t2.gotType(ptype), t2.accept(","), {
       fun.paramType ~= ptype;
-    }) && t2.accept(")") && t2.gotStatement(fun._body)
+    }) && t2.accept(")") && t2.gotStatement(fun._body, fun.frame)
     && ((text = t2), (fundb[fun.name] = fun), true);
 }
 
@@ -280,7 +433,8 @@ string compile(string file, bool saveTemps = false) {
   srcname.write(af.genAsm());
   auto cmdline = Format("as -o ", objname, " ", srcname);
   writefln("> ", cmdline);
-  system(cmdline.toStringz()) == 0 || assert(false);
+  system(cmdline.toStringz()) == 0
+    || assert(false, "Compilation failed! ");
   return objname;
 }
 
