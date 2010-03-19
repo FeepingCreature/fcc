@@ -176,8 +176,8 @@ void callFunction(Function fun, Expr[] params, ref AsmFile dest) {
     // dest.put("subl $16, %esp");
     dest.put("subl $4, %esp");
     auto p2 = params;
-    foreach (entry; fun.paramType)
-      entry.match(p2);
+    foreach (entry; fun.params)
+      entry._0.match(p2);
     assert(!p2.length);
     assert(cast(Void) fun.retType);
     foreach_reverse (param; params)
@@ -208,9 +208,19 @@ class FrameState {
 class Function : Tree {
   string name;
   Type retType;
-  Type[] paramType;
+  Stuple!(Type, string)[] params;
   FrameState frame;
   Statement _body;
+  // declare parameters as variables
+  void fixup() {
+    // cdecl: -4 old ebp, -8 return address, -12 parameters .. I think. TODO: check
+    int cur = -12;
+    // TODO: alignment
+    foreach (param; params) {
+      if (param._1) frame.vars ~= new Variable(param._0, param._1, cur);
+      cur -= param._0.size;
+    }
+  }
   override void emitAsm(ref AsmFile af) {
     af.put(".globl "~name);
     af.put(".type "~name~", @function");
@@ -263,13 +273,13 @@ Function[string] fundb;
 static this() {
   auto puts = new Function;
   puts.retType = tmemo(new Void);
-  puts.paramType ~= tmemo(new Pointer(new Char));
+  puts.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
   puts.name = "puts";
   fundb["puts"] = puts;
   auto printf = new Function;
   printf.retType = tmemo(new Void);
-  printf.paramType ~= tmemo(new Pointer(new Char));
-  printf.paramType ~= tmemo(new Variadic);
+  printf.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
+  printf.params ~= stuple(tmemo(new Variadic), cast(string) null);
   printf.name = "printf";
   fundb["printf"] = printf;
 }
@@ -354,10 +364,7 @@ class Variable : Expr {
   override void emitAsm(ref AsmFile af) {
     assert(type.size == 4);
     af.put(Format("subl $4, %esp"));
-    af.put(Format("movl %ebp, %eax"));
-    af.put(Format("subl $", baseOffset, ", %eax"));
-    // af.put(Format("movl (%eax), (%esp)"));
-    af.put(Format("movl (%eax), %edx"));
+    af.put(Format("movl ", baseOffset, "(%ebp), %edx"));
     af.put(Format("movl %edx, (%esp)"));
   }
   override Type valueType() {
@@ -365,7 +372,10 @@ class Variable : Expr {
   }
   Type type;
   string name;
+  // offset off ebp
   int baseOffset;
+  this(Type t, string s, int i) { type = t; name = s; baseOffset = i; }
+  this() { }
 }
 
 class VarDecl : Statement {
@@ -408,14 +418,15 @@ bool gotFunDef(ref string text, out Function fun) {
   fun = new Function;
   fun.frame = new FrameState;
   scope(exit) logln("frame state ", fun.frame);
+  string parname;
   return t2.gotType(fun.retType)
     && t2.gotIdentifier(fun.name)
     && t2.accept("(")
     // TODO: function parameters belong on the stackframe
-    && bjoin(t2.gotType(ptype), t2.accept(","), {
-      fun.paramType ~= ptype;
+    && bjoin(t2.gotType(ptype) && (t2.gotIdentifier(parname) || ((parname=null), true)), t2.accept(","), {
+      fun.params ~= stuple(ptype, parname);
     }) && t2.accept(")") && t2.gotStatement(fun._body, fun.frame)
-    && ((text = t2), (fundb[fun.name] = fun), true);
+    && ((text = t2), (fundb[fun.name] = fun), fun.fixup, true);
 }
 
 string compile(string file, bool saveTemps = false) {
