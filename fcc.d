@@ -55,6 +55,7 @@ bool accept(ref string s, string t) {
 
 class Type {
   int size;
+  abstract string mangle();
   int opEquals(Object obj) {
     // specialize where needed
     return this.classinfo is obj.classinfo &&
@@ -71,6 +72,7 @@ class Type {
 
 class Void : Type {
   this() { size = 4; }
+  override string mangle() { return "void"; }
 }
 
 class Variadic : Type {
@@ -78,10 +80,12 @@ class Variadic : Type {
   void match(ref Expr[] params) {
     params = null; // match all
   }
+  override string mangle() { return "variadic"; }
 }
 
 class Char : Type {
   this() { size = 1; }
+  override string mangle() { return "char"; }
 }
 
 const nativeIntSize = 4, nativePtrSize = 4;
@@ -89,14 +93,17 @@ const nativeIntSize = 4, nativePtrSize = 4;
 class Class : Type {
   Stuple!(Type, string)[] members;
   this() { size = nativePtrSize; }
+  abstract override string mangle() { return "class"; }
 }
 
 class SizeT : Type {
   this() { size = nativeIntSize; }
+  override string mangle() { return "size_t"; }
 }
 
 class SysInt : Type {
   this() { size = nativeIntSize; }
+  override string mangle() { return "sys_int"; }
 }
 
 class Pointer : Type {
@@ -107,6 +114,7 @@ class Pointer : Type {
     auto p = cast(Pointer) cast(void*) obj;
     return target == p.target;
   }
+  override string mangle() { return "ptrto_"~target.mangle(); }
 }
 
 Type[] type_memofield;
@@ -132,7 +140,8 @@ class Namespace {
   Stuple!(string, Class)[] classes;
   Stuple!(string, Function)[] functions;
   void addClass(string name, Class cl) { classes ~= stuple(name, cl); }
-  void addFun(Function fun) { functions ~= stuple(fun.name, fun); }
+  void addFun(Function fun) { fun.sup = this; functions ~= stuple(fun.name, fun); }
+  abstract string mangle(string name, Type type);
   Class lookupClass(string name) {
     foreach (cl; classes)
       if (name == cl._0) return cl._1;
@@ -278,33 +287,61 @@ class FrameState {
   }
 }
 
+class FunctionType : Type {
+  Type ret;
+  Stuple!(Type, string)[] params;
+  this() { size = -1; } // functions are not values
+  override {
+    string mangle() {
+      string res = "function_to_"~ret.mangle();
+      if (!params.length) return res;
+      foreach (i, param; params) {
+        if (!i) res ~= "_of_";
+        else res ~= "_and_";
+        res ~= param._0.mangle();
+      }
+      return res;
+    }
+  }
+}
+
 class Function : Namespace, Tree {
   string name;
-  Type retType;
-  Stuple!(Type, string)[] params;
+  FunctionType type;
   FrameState frame;
   Statement _body;
+  bool extern_c = false;
   // declare parameters as variables
   void fixup() {
     // cdecl: 0 old ebp, 4 return address, 8 parameters .. I think.
     int cur = 8;
     // TODO: alignment
-    foreach (param; params) {
+    foreach (param; type.params) {
       if (param._1) frame.vars ~= new Variable(param._0, param._1, cur);
       cur += param._0.size;
     }
   }
-  override void emitAsm(ref AsmFile af) {
-    af.put(".globl "~name);
-    af.put(".type "~name~", @function");
-    af.put(name~": ");
-    af.put("pushl %ebp");
-    af.put("movl %esp, %ebp");
-    // af.put("subl $", frame.size, ", %esp");
-    _body.emitAsm(af);
-    af.put("movl %ebp, %esp");
-    af.put("popl %ebp");
-    af.put("ret");
+  string mangleSelf() {
+    if (extern_c || name == "main")
+      return name;
+    else
+      return sup.mangle(name, type);
+  }
+  override {
+    void emitAsm(ref AsmFile af) {
+      af.put(".globl "~mangleSelf);
+      af.put(".type "~mangleSelf~", @function");
+      af.put(mangleSelf~": ");
+      af.put("pushl %ebp");
+      af.put("movl %esp, %ebp");
+      _body.emitAsm(af);
+      af.put("movl %ebp, %esp");
+      af.put("popl %ebp");
+      af.put("ret");
+    }
+    string mangle(string name, Type type) {
+      return sup.mangle(name, type)~"_in_"~name;
+    }
   }
 }
 
@@ -312,25 +349,30 @@ class Module : Namespace, Tree {
   string name;
   Module[] imports;
   Tree[] entries;
-  void emitAsm(ref AsmFile af) {
-    foreach (entry; entries)
-      entry.emitAsm(af);
-  }
-  Class lookupClass(string name) {
-    if (auto res = super.lookupClass(name)) return res;
-    if (auto lname = name.startsWith(this.name~"."))
-      if (auto res = super.lookupClass(lname)) return res;
-    foreach (mod; imports)
-      if (auto res = mod.lookupClass(name)) return res;
-    return null;
-  }
-  Function lookupFun(string name) {
-    if (auto res = super.lookupFun(name)) return res;
-    if (auto lname = name.startsWith(this.name~"."))
-      if (auto res = super.lookupFun(lname)) return res;
-    foreach (mod; imports)
-      if (auto res = mod.lookupFun(name)) return res;
-    return null;
+  override {
+    void emitAsm(ref AsmFile af) {
+      foreach (entry; entries)
+        entry.emitAsm(af);
+    }
+    string mangle(string name, Type type) {
+      return "module_"~this.name~"_"~name~"_of_"~type.mangle();
+    }
+    Class lookupClass(string name) {
+      if (auto res = super.lookupClass(name)) return res;
+      if (auto lname = name.startsWith(this.name~"."))
+        if (auto res = super.lookupClass(lname)) return res;
+      foreach (mod; imports)
+        if (auto res = mod.lookupClass(name)) return res;
+      return null;
+    }
+    Function lookupFun(string name) {
+      if (auto res = super.lookupFun(name)) return res;
+      if (auto lname = name.startsWith(this.name~"."))
+        if (auto res = super.lookupFun(lname)) return res;
+      foreach (mod; imports)
+        if (auto res = mod.lookupFun(name)) return res;
+      return null;
+    }
   }
 }
 
@@ -359,8 +401,8 @@ bool bjoin(lazy bool c1, lazy bool c2, void delegate() dg) {
 }
 
 // while expr
-bool many(lazy bool b, void delegate() dg) {
-  while (b()) dg();
+bool many(lazy bool b, void delegate() dg = null) {
+  while (b()) { if (dg) dg(); }
   return true;
 }
 
@@ -608,7 +650,7 @@ string compile(string file, bool saveTemps = false) {
   auto text = file.read().castLike("");
   Module mod;
   if (!text.gotModule(mod)) assert(false, "unable to eat module from "~file~": "~error);
-  if (text.strip().length) assert(false, "this text confuses me: "~text~": "~error);
+  if (text.strip().length) assert(false, "this text confuses me: "~text.next_text()~": "~error);
   AsmFile af;
   mod.emitAsm(af);
   srcname.write(af.genAsm());
@@ -662,6 +704,7 @@ void main(string[] args) {
   objects.link(output, largs);
 }
 
+// class graph gen
 import std.moduleinit;
 static this() {
   ClassInfo[string] classfield;
