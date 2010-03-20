@@ -336,11 +336,16 @@ class Module : Namespace, Tree {
 
 bool gotModule(ref string text, out Module mod) {
   auto t2 = text;
-  Function fp;
-  return t2.accept("module ") && (mod = new Module, true) &&
-    t2.gotIdentifier(mod.name) && t2.accept(";") &&
-    many(t2.gotFunDef(fp), { mod.funs ~= fp; }) &&
-    (text = t2, true);
+  Function fn;
+  Tree tr;
+  return t2.accept("module ") && (New(mod), true) &&
+    t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
+    many(
+      t2.gotFunDef(fn, mod) && (tr = fn, true) ||
+      t2.gotImportStatement(mod) && (tr = null, true),
+    {
+      if (tr) mod.entries ~= tr;
+    }) && (text = t2, true);
 }
 
 bool bjoin(lazy bool c1, lazy bool c2, void delegate() dg) {
@@ -528,7 +533,15 @@ bool gotVarDecl(ref string text, out VarDecl vd, FrameState fs) {
     }();
 }
 
-bool gotStatement(ref string text, out Statement stmt, FrameState fs) {
+bool gotImportStatement(ref string text, Module mod) {
+  string m;
+  // import a, b, c;
+  return text.accept("import") && bjoin(text.gotIdentifier(m, true), text.accept(","), {
+    mod.imports ~= lookupMod(m);
+  }) && text.accept(";");
+}
+
+bool gotStatement(ref string text, out Statement stmt, FrameState fs, Module mod) {
   // logln("match statement from ", text.next_text());
   Expr ex;
   AggrStatement as;
