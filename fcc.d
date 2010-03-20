@@ -35,6 +35,10 @@ string next_text(string s) {
 bool accept(ref string s, string t) {
   auto s2 = s.strip();
   t = t.strip();
+  while (true) {
+    if (auto rest = s2.startsWith("/*")) { rest.slice("*/"); s2 = rest.strip(); }
+    else break;
+  }
   // logln("accept ", t, " from ", s2.next_text(), "? ", !!s2.startsWith(t));
   return s2.startsWith(t) && (s = s2[t.length .. $], true);
 }
