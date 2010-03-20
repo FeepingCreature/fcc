@@ -166,8 +166,10 @@ bool gotType(ref string text, out Type type) {
 struct AsmFile {
   ubyte[][string] constants;
   string code;
-  void loadStack(string addr) {
-    code ~= Format("movl "~addr~", (%esp)\n");
+  void pushStack(string addr, Type type) {
+    assert(type.size == 4);
+    put("subl $", type.size, ", %esp");
+    put("movl ", addr, ", (%esp)");
   }
   void put(T...)(T t) {
     code ~= Format(t, "\n");
@@ -203,7 +205,7 @@ class StringExpr : Expr {
   override void emitAsm(ref AsmFile af) {
     auto name = Format("cons_", af.constants.length);
     af.constants[name] = cast(ubyte[]) str;
-    af.loadStack("$"~name);
+    af.pushStack("$"~name, valueType());
   }
   override Type valueType() { return tmemo(new Pointer(new Char)); }
 }
