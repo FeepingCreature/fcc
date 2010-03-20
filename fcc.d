@@ -364,55 +364,80 @@ bool many(lazy bool b, void delegate() dg) {
   return true;
 }
 
-Function[string] fundb;
+Module sysmod;
 
-static this() {
-  auto puts = new Function;
-  puts.retType = tmemo(new Void);
-  puts.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
-  puts.name = "puts";
-  fundb["puts"] = puts;
-  auto printf = new Function;
-  printf.retType = tmemo(new Void);
-  printf.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
-  printf.params ~= stuple(tmemo(new Variadic), cast(string) null);
-  printf.name = "printf";
-  fundb["printf"] = printf;
+Module lookupMod(string name) {
+  if (name == "sys") {
+    return sysmod;
+  }
+  assert(false, "TODO");
 }
 
-Function lookup(string s) {
-  assert(s in fundb, "Unknown function: "~s);
-  return fundb[s];
+static this() {
+  New(sysmod);
+  sysmod.name = "sys";
+  {
+    auto puts = new Function;
+    puts.retType = tmemo(new Void);
+    puts.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
+    puts.name = "puts";
+    sysmod.addFun(puts);
+  }
+  
+  {
+    auto printf = new Function;
+    printf.retType = tmemo(new Void);
+    printf.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
+    printf.params ~= stuple(tmemo(new Variadic), cast(string) null);
+    printf.name = "printf";
+    sysmod.addFun(printf);
+  }
+}
+
+Function lookupFun(Namespace ns, string name) {
+  if (auto res = ns.lookupFun(name)) return res;
+  assert(false, "No such identifier: "~name);
+}
+
+Class lookupClass(Namespace ns, string name) {
+  if (auto res = ns.lookupClass(name)) return res;
+  assert(false, "No such identifier: "~name);
 }
 
 class FunCall : Expr {
   string name;
   Expr[] params;
+  Namespace context;
   override void emitAsm(ref AsmFile af) {
-    callFunction(lookup(name), params, af);
+    callFunction(lookupFun(context, name), params, af);
   }
   override Type valueType() {
-    return lookup(name).retType;
+    return lookupFun(context, name).retType;
   }
 }
 
-bool gotIdentifier(ref string text, out string ident) {
+bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   auto t2 = text.strip();
-  if (!t2.length || !isAlphanum(t2[0])) return false;
+  t2.eatComments();
+  bool isValid(char c) {
+    return isAlphanum(c) || (acceptDots && c == '.');
+  }
+  if (!t2.length || !isValid(t2[0])) return false;
   do {
     ident ~= t2.take();
-  } while (t2.length && isAlphanum(t2[0]));
+  } while (t2.length && isValid(t2[0]));
   text = t2;
   return true;
 }
 
-bool gotFuncall(ref string text, out Expr expr, FrameState fs) {
+bool gotFuncall(ref string text, out Expr expr, FrameState fs, Module mod) {
   auto fc = new FunCall;
+  fc.context = mod;
   string t2 = text;
   Expr ex;
-  return t2.gotIdentifier(fc.name)
+  return t2.gotIdentifier(fc.name, true)
     && t2.accept("(")
-    && bjoin(t2.gotExpr(ex, fs), t2.accept(","), { fc.params ~= ex; })
+    && bjoin(t2.gotExpr(ex, fs, mod), t2.accept(","), { fc.params ~= ex; })
     && t2.accept(")")
     && ((text = t2), (expr = fc), true);
 }
@@ -421,9 +446,10 @@ bool gotVariable(ref string text, out Variable v, FrameState fs) {
   // logln("Match variable off ", text.next_text());
   Variable var;
   string name, t2 = text;
-  return t2.gotIdentifier(name)
+  return t2.gotIdentifier(name, true)
     && {
       // logln("Look for ", name, " in ", fs.vars);
+      // TODO: global variable lookup here
       foreach (var; fs.vars)
         if (var.name == name) {
           v = var;
@@ -435,10 +461,10 @@ bool gotVariable(ref string text, out Variable v, FrameState fs) {
     }();
 }
 
-bool gotExpr(ref string text, out Expr expr, FrameState fs) {
+bool gotExpr(ref string text, out Expr expr, FrameState fs, Module mod) {
   Variable var;
   return
-       text.gotFuncall(expr, fs)
+       text.gotFuncall(expr, fs, mod)
     || text.gotStringExpr(expr)
     || text.gotIntExpr(expr)
     || text.gotVariable(var, fs) && (expr = var, true);
@@ -452,12 +478,12 @@ class AggrStatement : Statement {
   }
 }
 
-bool gotAggregateStmt(ref string text, out AggrStatement as, FrameState fs) {
+bool gotAggregateStmt(ref string text, out AggrStatement as, FrameState fs, Module mod) {
   auto t2 = text;
   
   Statement st;
   return t2.accept("{") && (as = new AggrStatement, true) &&
-    many(t2.gotStatement(st, fs), { if (!st) asm { int 3; } as.stmts ~= st; }) &&
+    many(t2.gotStatement(st, fs, mod), { if (!st) asm { int 3; } as.stmts ~= st; }) &&
     t2.accept("}") && (text = t2, true);
 }
 
@@ -475,10 +501,10 @@ class Assignment : Statement {
   }
 }
 
-bool gotAssignment(ref string text, out Assignment as, FrameState fs) {
+bool gotAssignment(ref string text, out Assignment as, FrameState fs, Module mod) {
   auto t2 = text;
   New(as);
-  return t2.gotVariable(as.target, fs) && t2.accept("=") && t2.gotExpr(as.value, fs) && t2.accept(";") && {
+  return t2.gotVariable(as.target, fs) && t2.accept("=") && t2.gotExpr(as.value, fs, mod) && t2.accept(";") && {
     text = t2;
     return true;
   }();
@@ -511,14 +537,14 @@ class VarDecl : Statement {
   Variable var;
 }
 
-bool gotVarDecl(ref string text, out VarDecl vd, FrameState fs) {
+bool gotVarDecl(ref string text, out VarDecl vd, FrameState fs, Module mod) {
   auto t2 = text;
   auto var = new Variable;
   Expr testInit;
   return
     t2.gotType(var.type)
     && t2.gotIdentifier(var.name)
-    && (t2.accept("=") && t2.gotExpr(testInit, fs) && {
+    && (t2.accept("=") && t2.gotExpr(testInit, fs, mod) && {
       var.initAss = new Assignment(var, testInit);
       return true;
     }() || true)
@@ -549,27 +575,28 @@ bool gotStatement(ref string text, out Statement stmt, FrameState fs, Module mod
   Assignment ass;
   auto t2 = text;
   return
-    (t2.gotExpr(ex, fs) && t2.accept(";") && (text = t2, stmt = ex, true)) ||
-    (text.gotVarDecl(vd, fs) && (stmt = vd, true)) ||
-    (text.gotAggregateStmt(as, fs) && (stmt = as, true)) ||
-    (text.gotAssignment(ass, fs) && (stmt = ass, true));
+    (t2.gotExpr(ex, fs, mod) && t2.accept(";") && (text = t2, stmt = ex, true)) ||
+    (text.gotVarDecl(vd, fs, mod) && (stmt = vd, true)) ||
+    (text.gotAggregateStmt(as, fs, mod) && (stmt = as, true)) ||
+    (text.gotAssignment(ass, fs, mod) && (stmt = ass, true));
 }
 
-bool gotFunDef(ref string text, out Function fun) {
+bool gotFunDef(ref string text, out Function fun, Module mod) {
   Type ptype;
   string t2 = text;
   fun = new Function;
   fun.frame = new FrameState;
   // scope(exit) logln("frame state ", fun.frame);
   string parname;
+  error = null;
   return t2.gotType(fun.retType)
     && t2.gotIdentifier(fun.name)
     && t2.accept("(")
     // TODO: function parameters belong on the stackframe
     && bjoin(t2.gotType(ptype) && (t2.gotIdentifier(parname) || ((parname=null), true)), t2.accept(","), {
       fun.params ~= stuple(ptype, parname);
-    }) && t2.accept(")") && (fun.fixup, true) && t2.gotStatement(fun._body, fun.frame)
-    && ((text = t2), (fundb[fun.name] = fun), true);
+    }) && t2.accept(")") && (fun.fixup, true) && t2.gotStatement(fun._body, fun.frame, mod)
+    && ((text = t2), (mod.addFun(fun), true));
 }
 
 string compile(string file, bool saveTemps = false) {
