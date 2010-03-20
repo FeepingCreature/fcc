@@ -158,14 +158,14 @@ struct AsmFile {
   }
 }
 
-class Tree {
-  abstract void emitAsm(ref AsmFile);
+interface Tree {
+  void emitAsm(ref AsmFile);
 }
 
-class Statement : Tree { }
+interface Statement : Tree { }
 
-class Expr : Statement {
-  abstract Type valueType();
+interface Expr : Statement {
+  Type valueType();
 }
 
 class StringExpr : Expr {
