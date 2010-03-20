@@ -3,7 +3,7 @@ import sys;
 
 void test(int foo) {
   int bar = 17;
-  printf("Hello World: %i, %i\n", foo, bar);
+  sys.printf("Hello World: %i, %i\n", foo * (2 + 2), bar);
 }
 
 /*
