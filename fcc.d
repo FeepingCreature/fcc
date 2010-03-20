@@ -127,6 +127,26 @@ class ParseException {
   }
 }
 
+class Namespace {
+  Namespace sup;
+  Stuple!(string, Class)[] classes;
+  Stuple!(string, Function)[] functions;
+  void addClass(string name, Class cl) { classes ~= stuple(name, cl); }
+  void addFun(Function fun) { functions ~= stuple(fun.name, fun); }
+  Class lookupClass(string name) {
+    foreach (cl; classes)
+      if (name == cl._0) return cl._1;
+    if (sup) return sup.lookupClass(name);
+    return null;
+  }
+  Function lookupFun(string name) {
+    foreach (fn; functions)
+      if (name == fn._0) return fn._1;
+    if (sup) return sup.lookupFun(name);
+    return null;
+  }
+}
+
 bool gotType(ref string text, out Type type) {
   if (text.accept("void")) return type = tmemo(new Void), true;
   if (text.accept("size_t")) return type = tmemo(new SizeT), true;
@@ -258,7 +278,7 @@ class FrameState {
   }
 }
 
-class Function : Tree {
+class Function : Namespace, Tree {
   string name;
   Type retType;
   Stuple!(Type, string)[] params;
@@ -288,11 +308,29 @@ class Function : Tree {
   }
 }
 
-class Module : Tree {
+class Module : Namespace, Tree {
   string name;
-  Function[] funs;
-  override void emitAsm(ref AsmFile af) {
-    foreach (fun; funs) fun.emitAsm(af);
+  Module[] imports;
+  Tree[] entries;
+  void emitAsm(ref AsmFile af) {
+    foreach (entry; entries)
+      entry.emitAsm(af);
+  }
+  Class lookupClass(string name) {
+    if (auto res = super.lookupClass(name)) return res;
+    if (auto lname = name.startsWith(this.name~"."))
+      if (auto res = super.lookupClass(lname)) return res;
+    foreach (mod; imports)
+      if (auto res = mod.lookupClass(name)) return res;
+    return null;
+  }
+  Function lookupFun(string name) {
+    if (auto res = super.lookupFun(name)) return res;
+    if (auto lname = name.startsWith(this.name~"."))
+      if (auto res = super.lookupFun(lname)) return res;
+    foreach (mod; imports)
+      if (auto res = mod.lookupFun(name)) return res;
+    return null;
   }
 }
 
