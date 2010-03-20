@@ -32,13 +32,18 @@ string next_text(string s) {
   return s.replace("\n", "\\");
 }
 
+void eatComments(ref string s) {
+  s = s.strip();
+  while (true) {
+    if (auto rest = s.startsWith("/*")) { rest.slice("*/"); s = rest.strip(); }
+    else break;
+  }
+}
+
 bool accept(ref string s, string t) {
   auto s2 = s.strip();
   t = t.strip();
-  while (true) {
-    if (auto rest = s2.startsWith("/*")) { rest.slice("*/"); s2 = rest.strip(); }
-    else break;
-  }
+  s2.eatComments();
   // logln("accept ", t, " from ", s2.next_text(), "? ", !!s2.startsWith(t));
   return s2.startsWith(t) && (s = s2[t.length .. $], true);
 }
