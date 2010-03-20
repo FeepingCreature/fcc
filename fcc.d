@@ -555,7 +555,7 @@ void main(string[] args) {
       largs ~= arg;
       continue;
     }
-    if (arg == "-save-temps") {
+    if (arg == "-save-temps" || arg == "-S") {
       saveTemps = true;
       continue;
     }
