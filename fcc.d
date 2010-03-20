@@ -86,6 +86,11 @@ class Char : Type {
 
 const nativeIntSize = 4, nativePtrSize = 4;
 
+class Class : Type {
+  Stuple!(Type, string)[] members;
+  this() { size = nativePtrSize; }
+}
+
 class SizeT : Type {
   this() { size = nativeIntSize; }
 }
