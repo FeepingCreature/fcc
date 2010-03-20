@@ -223,11 +223,76 @@ bool gotStringExpr(ref string text, out Expr ex) {
 class IntExpr : Expr {
   int num;
   override void emitAsm(ref AsmFile af) {
-    af.loadStack(Format("$", num));
+    af.pushStack(Format("$", num), valueType());
   }
   override Type valueType() { return tmemo(new SysInt); }
   this(int i) { num = i; }
 }
+
+bool ckbranch(ref string s, bool delegate()[] dgs...) {
+  auto s2 = s;
+  foreach (dg; dgs) {
+    if (dg()) return true;
+    s = s2;
+  }
+  return false;
+}
+
+class AsmBinopExpr(string OP) : Expr {
+  Expr e1, e2;
+  mixin This!("e1, e2");
+  override {
+    Type valueType() {
+      assert(e1.valueType() is e2.valueType());
+      return e1.valueType();
+    }
+    void emitAsm(ref AsmFile af) {
+      assert(e1.valueType().size == 4);
+      e2.emitAsm(af);
+      e1.emitAsm(af);
+      af.put("movl (%esp), %eax");
+      
+      static if (OP == "idivl") af.put("cdq");
+      
+      af.put(Format("addl $", e1.valueType().size, ", %esp"));
+      
+      static if (OP == "idivl") af.put("idivl (%esp)");
+      else af.put(OP~" (%esp), %eax");
+      
+      af.put("movl %eax, (%esp)");
+    }
+  }
+}
+
+bool gotMathExpr(ref string text, out Expr ex, FrameState fs, Module mod, int level = 0) {
+  auto t2 = text;
+  Expr par;
+  scope(success) text = t2;
+  bool addMath(string op) {
+    switch (op) {
+      case "+": ex = new AsmBinopExpr!("addl")(ex, par); break;
+      case "-": ex = new AsmBinopExpr!("subl")(ex, par); break;
+      case "*": ex = new AsmBinopExpr!("imull")(ex, par); break;
+      case "/": ex = new AsmBinopExpr!("idivl")(ex, par); break;
+    }
+    return true;
+  }
+  switch (level) {
+    case -2: return t2.gotBaseExpr(ex, fs, mod);
+    case -1:
+      return t2.gotMathExpr(ex, fs, mod, level-1) && many(t2.ckbranch(
+        t2.accept("*") && t2.gotMathExpr(par, fs, mod, level-1) && addMath("*"),
+        t2.accept("/") && t2.gotMathExpr(par, fs, mod, level-1) && addMath("/")
+      ));
+    case 0:
+      return t2.gotMathExpr(ex, fs, mod, level-1) && many(t2.ckbranch(
+        t2.accept("+") && t2.gotMathExpr(par, fs, mod, level-1) && addMath("+"),
+        t2.accept("-") && t2.gotMathExpr(par, fs, mod, level-1) && addMath("-")
+      ));
+  }
+}
+
+alias gotMathExpr gotExpr;
 
 bool gotIntExpr(ref string text, out Expr ex) {
   auto t2 = text.strip();
@@ -255,16 +320,15 @@ void callFunction(Function fun, Expr[] params, ref AsmFile dest) {
   // dest.put("int $3");
   if (params.length) {
     auto p2 = params;
-    foreach (entry; fun.params)
+    foreach (entry; fun.type.params)
       entry._0.match(p2);
     assert(!p2.length);
-    assert(cast(Void) fun.retType);
+    assert(cast(Void) fun.type.ret);
     foreach_reverse (param; params) {
-      dest.put(Format("subl $", param.valueType().size, ", %esp"));
       param.emitAsm(dest);
     }
-  } else assert(!fun.params.length, Format("Expected ", fun.params, "!"));
-  dest.put("call "~fun.name);
+  } else assert(!fun.type.params.length, Format("Expected ", fun.type.params, "!"));
+  dest.put("call "~fun.mangleSelf);
   foreach (param; params) {
     dest.put(Format("addl $", param.valueType().size, ", %esp"));
   }
@@ -422,17 +486,21 @@ static this() {
   sysmod.name = "sys";
   {
     auto puts = new Function;
-    puts.retType = tmemo(new Void);
-    puts.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
+    puts.extern_c = true;
+    New(puts.type);
+    puts.type.ret = tmemo(new Void);
+    puts.type.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
     puts.name = "puts";
     sysmod.addFun(puts);
   }
   
   {
     auto printf = new Function;
-    printf.retType = tmemo(new Void);
-    printf.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
-    printf.params ~= stuple(tmemo(new Variadic), cast(string) null);
+    printf.extern_c = true;
+    New(printf.type);
+    printf.type.ret = tmemo(new Void);
+    printf.type.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
+    printf.type.params ~= stuple(tmemo(new Variadic), cast(string) null);
     printf.name = "printf";
     sysmod.addFun(printf);
   }
@@ -456,7 +524,7 @@ class FunCall : Expr {
     callFunction(lookupFun(context, name), params, af);
   }
   override Type valueType() {
-    return lookupFun(context, name).retType;
+    return lookupFun(context, name).type.ret;
   }
 }
 
@@ -505,13 +573,14 @@ bool gotVariable(ref string text, out Variable v, FrameState fs) {
     }();
 }
 
-bool gotExpr(ref string text, out Expr expr, FrameState fs, Module mod) {
+bool gotBaseExpr(ref string text, out Expr expr, FrameState fs, Module mod) {
   Variable var;
   return
        text.gotFuncall(expr, fs, mod)
     || text.gotStringExpr(expr)
     || text.gotIntExpr(expr)
-    || text.gotVariable(var, fs) && (expr = var, true);
+    || text.gotVariable(var, fs) && (expr = var, true)
+    || { auto t2 = text; return t2.accept("(") && t2.gotExpr(expr, fs, mod) && t2.accept(")") && (text = t2, true); }();
 }
 
 class AggrStatement : Statement {
@@ -557,9 +626,9 @@ bool gotAssignment(ref string text, out Assignment as, FrameState fs, Module mod
 class Variable : Expr {
   override void emitAsm(ref AsmFile af) {
     assert(type.size == 4);
-    af.put(Format("movl ", baseOffset, "(%ebp), %edx"));
-    af.put(Format("movl %edx, (%esp)"));
-    if (initAss) initAss.emitAsm(af);
+    af.put("subl $", type.size, ", %esp");
+    af.put("movl ", baseOffset, "(%ebp), %edx");
+    af.put("movl %edx, (%esp)");
   }
   override Type valueType() {
     return type;
@@ -576,7 +645,12 @@ class Variable : Expr {
 
 class VarDecl : Statement {
   override void emitAsm(ref AsmFile af) {
-    af.put("subl $4, %esp");
+    assert(var.type.size == 4);
+    if (var.initAss) {
+      var.initAss.emitAsm(af);
+    } else {
+      af.put("subl $4, %esp");
+    }
   }
   Variable var;
 }
@@ -628,17 +702,19 @@ bool gotStatement(ref string text, out Statement stmt, FrameState fs, Module mod
 bool gotFunDef(ref string text, out Function fun, Module mod) {
   Type ptype;
   string t2 = text;
-  fun = new Function;
-  fun.frame = new FrameState;
+  New(fun);
+  New(fun.frame);
+  New(fun.type);
+  fun.sup = mod;
   // scope(exit) logln("frame state ", fun.frame);
   string parname;
   error = null;
-  return t2.gotType(fun.retType)
+  return t2.gotType(fun.type.ret)
     && t2.gotIdentifier(fun.name)
     && t2.accept("(")
     // TODO: function parameters belong on the stackframe
     && bjoin(t2.gotType(ptype) && (t2.gotIdentifier(parname) || ((parname=null), true)), t2.accept(","), {
-      fun.params ~= stuple(ptype, parname);
+      fun.type.params ~= stuple(ptype, parname);
     }) && t2.accept(")") && (fun.fixup, true) && t2.gotStatement(fun._body, fun.frame, mod)
     && ((text = t2), (mod.addFun(fun), true));
 }
