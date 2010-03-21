@@ -143,9 +143,8 @@ class Namespace {
     mixin(`
       Stuple!(string, T)[] $NAMEfield;
       void add$NAME(T t) {
-        static if (is(typeof(t._scope)))
-          if (t._scope)
-            t._scope.sup = this;
+        static if (is(typeof(t.sup)))
+          t.sup = this;
         $NAMEfield ~= stuple(t.name, t);
       }
       T lookup$NAME(string name) {
@@ -330,16 +329,19 @@ void callFunction(Function fun, Expr[] params, ref AsmFile dest) {
     foreach (entry; fun.type.params)
       entry._0.match(p2);
     assert(!p2.length);
-    assert(cast(Void) fun.type.ret);
+    assert(fun.type.ret.size == 4);
     foreach_reverse (param; params) {
       param.emitAsm(dest);
     }
   } else assert(!fun.type.params.length, Format("Expected ", fun.type.params, "!"));
   dest.put("call "~fun.mangleSelf);
   foreach (param; params) {
-    dest.put(Format("addl $", param.valueType().size, ", %esp"));
+    dest.put("addl $", param.valueType().size, ", %esp");
   }
-  // dest.put("leave");
+  if (!cast(Void) fun.type.ret) {
+    dest.put("subl $", fun.type.ret.size, ", %esp");
+    dest.put("movl %eax, (%esp)");
+  }
 }
 
 class FunctionType : Type {
@@ -369,6 +371,7 @@ class Scope : Namespace, Tree {
   ulong id;
   string entry() { return Format(fun.mangleSelf(), "_entry", id); }
   string exit() { return Format(fun.mangleSelf(), "_exit", id); }
+  string toString() { return Format("scope <- ", sup); }
   this() { id = getuid(); }
   int framesize() {
     // TODO: alignment
@@ -387,12 +390,13 @@ class Scope : Namespace, Tree {
       af.put(exit(), ":");
     }
     string mangle(string name, Type type) {
-      return sup.mangle(name, type)~"_in_"~fun.name;
+      return sup.mangle(name, type) ~ "_local";
     }
   }
 }
 
 Function findFun(Namespace ns) {
+  logln("find function in ", ns);
   if (auto res = cast(Function) ns) return res;
   else return findFun(ns.sup);
 }
@@ -410,6 +414,7 @@ class Function : Namespace, Tree {
   Scope _scope;
   bool extern_c = false;
   // declare parameters as variables
+  string toString() { return Format("fun ", name, " <- ", sup); }
   void fixup() {
     // cdecl: 0 old ebp, 4 return address, 8 parameters .. I think.
     int cur = 8;
@@ -425,11 +430,11 @@ class Function : Namespace, Tree {
     if (extern_c || name == "main")
       return name;
     else
-      return _scope.sup.mangle(name, type);
+      return sup.mangle(name, type);
   }
   override {
     string mangle(string name, Type type) {
-      return mangleSelf() ~ "_" ~ _scope.mangle(name, type);
+      return mangleSelf() ~ "_" ~ name;
     }
     void emitAsm(ref AsmFile af) {
       af.put(".globl "~mangleSelf);
@@ -753,20 +758,40 @@ bool gotIfStmt(ref string text, out IfStatement ifs, Namespace ns) {
     ) && (text = t2, true);
 }
 
+class ReturnStmt : Statement {
+  Expr value;
+  Namespace ns;
+  override void emitAsm(ref AsmFile af) {
+    logln(" -- ");
+    auto fun = findFun(ns);
+    assert(value.valueType().size == 4);
+    value.emitAsm(af);
+    af.put("movl (%esp), %eax");
+    af.put("jmp ", fun._scope.exit());
+  }
+}
+
+bool gotRetStmt(ref string text, out ReturnStmt rs, Namespace ns) {
+  auto t2 = text;
+  return
+    t2.accept("return") && (New(rs), rs.ns = ns, true) &&
+    t2.gotExpr(rs.value, ns) && t2.accept(";")
+    & (text = t2, true);
+}
+
 bool gotStatement(ref string text, out Statement stmt, Namespace ns) {
   // logln("match statement from ", text.next_text());
-  Expr ex;
-  AggrStatement as;
-  VarDecl vd;
-  Assignment ass;
-  IfStatement ifs;
+  Expr ex; AggrStatement as;
+  VarDecl vd; Assignment ass;
+  IfStatement ifs; ReturnStmt rs;
   auto t2 = text;
   return
     (t2.gotExpr(ex, ns) && t2.accept(";") && (text = t2, stmt = ex, true)) ||
     (text.gotVarDecl(vd, ns) && (stmt = vd, true)) ||
     (text.gotAggregateStmt(as, ns) && (stmt = as, true)) ||
     (text.gotAssignment(ass, ns) && (stmt = ass, true)) ||
-    (text.gotIfStmt(ifs, ns) && (stmt = ifs, true));
+    (text.gotIfStmt(ifs, ns) && (stmt = ifs, true)) ||
+    (text.gotRetStmt(rs, ns) && (stmt = rs, true));
 }
 
 bool gotFunDef(ref string text, out Function fun, Module mod) {
