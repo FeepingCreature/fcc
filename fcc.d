@@ -91,8 +91,9 @@ class Char : Type {
 const nativeIntSize = 4, nativePtrSize = 4;
 
 class Class : Type {
+  string name;
   Stuple!(Type, string)[] members;
-  this() { size = nativePtrSize; }
+  this(string name) { this.name = name; size = nativePtrSize; }
   abstract override string mangle() { return "class"; }
 }
 
@@ -135,25 +136,31 @@ class ParseException {
   }
 }
 
+import tools.ctfe;
 class Namespace {
   Namespace sup;
-  Stuple!(string, Class)[] classes;
-  Stuple!(string, Function)[] functions;
-  void addClass(string name, Class cl) { classes ~= stuple(name, cl); }
-  void addFun(Function fun) { fun.sup = this; functions ~= stuple(fun.name, fun); }
+  template Kind(T, string Name) {
+    mixin(`
+      Stuple!(string, T)[] $NAMEfield;
+      void add$NAME(T t) {
+        static if (is(typeof(t._scope)))
+          if (t._scope)
+            t._scope.sup = this;
+        $NAMEfield ~= stuple(t.name, t);
+      }
+      T lookup$NAME(string name) {
+        // logln("Lookup ", name, " as $NAME in ", $NAMEfield);
+        foreach (entry; $NAMEfield)
+          if (entry._0 == name) return entry._1;
+        if (sup) return sup.lookup$NAME(name);
+        return null;
+      }
+    `.ctReplace("$NAME", Name));
+  }
+  mixin Kind!(Class, "Class");
+  mixin Kind!(Function, "Fun");
+  mixin Kind!(Variable, "Var");
   abstract string mangle(string name, Type type);
-  Class lookupClass(string name) {
-    foreach (cl; classes)
-      if (name == cl._0) return cl._1;
-    if (sup) return sup.lookupClass(name);
-    return null;
-  }
-  Function lookupFun(string name) {
-    foreach (fn; functions)
-      if (name == fn._0) return fn._1;
-    if (sup) return sup.lookupFun(name);
-    return null;
-  }
 }
 
 bool gotType(ref string text, out Type type) {
@@ -264,7 +271,7 @@ class AsmBinopExpr(string OP) : Expr {
   }
 }
 
-bool gotMathExpr(ref string text, out Expr ex, FrameState fs, Module mod, int level = 0) {
+bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
   auto t2 = text;
   Expr par;
   scope(success) text = t2;
@@ -278,16 +285,16 @@ bool gotMathExpr(ref string text, out Expr ex, FrameState fs, Module mod, int le
     return true;
   }
   switch (level) {
-    case -2: return t2.gotBaseExpr(ex, fs, mod);
+    case -2: return t2.gotBaseExpr(ex, ns);
     case -1:
-      return t2.gotMathExpr(ex, fs, mod, level-1) && many(t2.ckbranch(
-        t2.accept("*") && t2.gotMathExpr(par, fs, mod, level-1) && addMath("*"),
-        t2.accept("/") && t2.gotMathExpr(par, fs, mod, level-1) && addMath("/")
+      return t2.gotMathExpr(ex, ns, level-1) && many(t2.ckbranch(
+        t2.accept("*") && t2.gotMathExpr(par, ns, level-1) && addMath("*"),
+        t2.accept("/") && t2.gotMathExpr(par, ns, level-1) && addMath("/")
       ));
     case 0:
-      return t2.gotMathExpr(ex, fs, mod, level-1) && many(t2.ckbranch(
-        t2.accept("+") && t2.gotMathExpr(par, fs, mod, level-1) && addMath("+"),
-        t2.accept("-") && t2.gotMathExpr(par, fs, mod, level-1) && addMath("-")
+      return t2.gotMathExpr(ex, ns, level-1) && many(t2.ckbranch(
+        t2.accept("+") && t2.gotMathExpr(par, ns, level-1) && addMath("+"),
+        t2.accept("-") && t2.gotMathExpr(par, ns, level-1) && addMath("-")
       ));
   }
 }
@@ -335,24 +342,6 @@ void callFunction(Function fun, Expr[] params, ref AsmFile dest) {
   // dest.put("leave");
 }
 
-// information about active stack frame
-// built while generating function
-class FrameState {
-  Variable[] vars;
-  string toString() {
-    return Format(
-      super.toString(), " - ", size(), " in ", vars
-    );
-  }
-  int size() {
-    int res;
-    // TODO: alignment
-    foreach (var; vars)
-      res += var.type.size;
-    return res;
-  }
-}
-
 class FunctionType : Type {
   Type ret;
   Stuple!(Type, string)[] params;
@@ -371,11 +360,54 @@ class FunctionType : Type {
   }
 }
 
+ulong uid;
+ulong getuid() { synchronized return uid++; }
+
+class Scope : Namespace, Tree {
+  Function fun;
+  Statement _body;
+  ulong id;
+  string entry() { return Format(fun.mangleSelf(), "_entry", id); }
+  string exit() { return Format(fun.mangleSelf(), "_exit", id); }
+  this() { id = getuid(); }
+  int framesize() {
+    // TODO: alignment
+    int res;
+    foreach (var; Varfield) {
+      res += var._1.type.size;
+    }
+    if (auto sc = cast(Scope) sup)
+      res += sc.framesize();
+    return res;
+  }
+  override {
+    void emitAsm(ref AsmFile af) {
+      af.put(entry(), ":");
+      _body.emitAsm(af);
+      af.put(exit(), ":");
+    }
+    string mangle(string name, Type type) {
+      return sup.mangle(name, type)~"_in_"~fun.name;
+    }
+  }
+}
+
+Function findFun(Namespace ns) {
+  if (auto res = cast(Function) ns) return res;
+  else return findFun(ns.sup);
+}
+
+bool gotScope(ref string text, out Scope sc, Namespace ns) {
+  New(sc);
+  sc.sup = ns;
+  sc.fun = findFun(ns);
+  return text.gotStatement(sc._body, sc);
+}
+
 class Function : Namespace, Tree {
   string name;
   FunctionType type;
-  FrameState frame;
-  Statement _body;
+  Scope _scope;
   bool extern_c = false;
   // declare parameters as variables
   void fixup() {
@@ -383,7 +415,9 @@ class Function : Namespace, Tree {
     int cur = 8;
     // TODO: alignment
     foreach (param; type.params) {
-      if (param._1) frame.vars ~= new Variable(param._0, param._1, cur);
+      if (param._1) {
+        addVar(new Variable(param._0, param._1, cur));
+      }
       cur += param._0.size;
     }
   }
@@ -391,22 +425,22 @@ class Function : Namespace, Tree {
     if (extern_c || name == "main")
       return name;
     else
-      return sup.mangle(name, type);
+      return _scope.sup.mangle(name, type);
   }
   override {
+    string mangle(string name, Type type) {
+      return mangleSelf() ~ "_" ~ _scope.mangle(name, type);
+    }
     void emitAsm(ref AsmFile af) {
       af.put(".globl "~mangleSelf);
       af.put(".type "~mangleSelf~", @function");
       af.put(mangleSelf~": ");
       af.put("pushl %ebp");
       af.put("movl %esp, %ebp");
-      _body.emitAsm(af);
+      _scope.emitAsm(af);
       af.put("movl %ebp, %esp");
       af.put("popl %ebp");
       af.put("ret");
-    }
-    string mangle(string name, Type type) {
-      return sup.mangle(name, type)~"_in_"~name;
     }
   }
 }
@@ -423,22 +457,21 @@ class Module : Namespace, Tree {
     string mangle(string name, Type type) {
       return "module_"~this.name~"_"~name~"_of_"~type.mangle();
     }
-    Class lookupClass(string name) {
-      if (auto res = super.lookupClass(name)) return res;
-      if (auto lname = name.startsWith(this.name~"."))
-        if (auto res = super.lookupClass(lname)) return res;
-      foreach (mod; imports)
-        if (auto res = mod.lookupClass(name)) return res;
-      return null;
+    template Kind(T, string Name) {
+      mixin(`
+        T lookup$NAME(string name) {
+          if (auto res = super.lookup$NAME(name)) return res;
+          if (auto lname = name.startsWith(this.name~"."))
+            if (auto res = super.lookup$NAME(lname)) return res;
+          foreach (mod; imports)
+            if (auto res = mod.lookup$NAME(name)) return res;
+          return null;
+        }
+        `.ctReplace("$NAME", Name));
     }
-    Function lookupFun(string name) {
-      if (auto res = super.lookupFun(name)) return res;
-      if (auto lname = name.startsWith(this.name~"."))
-        if (auto res = super.lookupFun(lname)) return res;
-      foreach (mod; imports)
-        if (auto res = mod.lookupFun(name)) return res;
-      return null;
-    }
+    mixin Kind!(Class, "Class");
+    mixin Kind!(Function, "Fun");
+    mixin Kind!(Variable, "Var");
   }
 }
 
@@ -516,6 +549,11 @@ Class lookupClass(Namespace ns, string name) {
   assert(false, "No such identifier: "~name);
 }
 
+Variable lookupVar(Namespace ns, string name) {
+  if (auto res = ns.lookupVar(name)) return res;
+  assert(false, "No such identifier: "~name);
+}
+
 class FunCall : Expr {
   string name;
   Expr[] params;
@@ -542,45 +580,43 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   return true;
 }
 
-bool gotFuncall(ref string text, out Expr expr, FrameState fs, Module mod) {
+bool gotFuncall(ref string text, out Expr expr, Namespace ns) {
   auto fc = new FunCall;
-  fc.context = mod;
+  fc.context = ns;
   string t2 = text;
   Expr ex;
   return t2.gotIdentifier(fc.name, true)
     && t2.accept("(")
-    && bjoin(t2.gotExpr(ex, fs, mod), t2.accept(","), { fc.params ~= ex; })
+    && bjoin(t2.gotExpr(ex, ns), t2.accept(","), { fc.params ~= ex; })
     && t2.accept(")")
     && ((text = t2), (expr = fc), true);
 }
 
-bool gotVariable(ref string text, out Variable v, FrameState fs) {
+bool gotVariable(ref string text, out Variable v, Namespace ns) {
   // logln("Match variable off ", text.next_text());
-  Variable var;
   string name, t2 = text;
   return t2.gotIdentifier(name, true)
     && {
       // logln("Look for ", name, " in ", fs.vars);
-      // TODO: global variable lookup here
-      foreach (var; fs.vars)
-        if (var.name == name) {
-          v = var;
-          text = t2;
-          return true;
-        }
+      if (auto res = ns.lookupVar(name)) {
+        v = res;
+        text = t2;
+        return true;
+      }
       error = "unknown identifier "~name;
       return false;
     }();
 }
 
-bool gotBaseExpr(ref string text, out Expr expr, FrameState fs, Module mod) {
+bool gotBaseExpr(ref string text, out Expr expr, Namespace ns) {
   Variable var;
+  int i;
   return
-       text.gotFuncall(expr, fs, mod)
+       text.gotFuncall(expr, ns)
     || text.gotStringExpr(expr)
     || text.gotIntExpr(expr)
-    || text.gotVariable(var, fs) && (expr = var, true)
-    || { auto t2 = text; return t2.accept("(") && t2.gotExpr(expr, fs, mod) && t2.accept(")") && (text = t2, true); }();
+    || text.gotVariable(var, ns) && (expr = var, true)
+    || { auto t2 = text; return t2.accept("(") && t2.gotExpr(expr, ns) && t2.accept(")") && (text = t2, true); }();
 }
 
 class AggrStatement : Statement {
@@ -591,12 +627,12 @@ class AggrStatement : Statement {
   }
 }
 
-bool gotAggregateStmt(ref string text, out AggrStatement as, FrameState fs, Module mod) {
+bool gotAggregateStmt(ref string text, out AggrStatement as, Namespace ns) {
   auto t2 = text;
   
   Statement st;
   return t2.accept("{") && (as = new AggrStatement, true) &&
-    many(t2.gotStatement(st, fs, mod), { if (!st) asm { int 3; } as.stmts ~= st; }) &&
+    many(t2.gotStatement(st, ns), { if (!st) asm { int 3; } as.stmts ~= st; }) &&
     t2.accept("}") && (text = t2, true);
 }
 
@@ -614,10 +650,10 @@ class Assignment : Statement {
   }
 }
 
-bool gotAssignment(ref string text, out Assignment as, FrameState fs, Module mod) {
+bool gotAssignment(ref string text, out Assignment as, Namespace ns) {
   auto t2 = text;
   New(as);
-  return t2.gotVariable(as.target, fs) && t2.accept("=") && t2.gotExpr(as.value, fs, mod) && t2.accept(";") && {
+  return t2.gotVariable(as.target, ns) && t2.accept("=") && t2.gotExpr(as.value, ns) && t2.accept(";") && {
     text = t2;
     return true;
   }();
@@ -637,7 +673,7 @@ class Variable : Expr {
   string name;
   // offset off ebp
   int baseOffset;
-  Assignment initAss;
+  Expr initval;
   this(Type t, string s, int i) { type = t; name = s; baseOffset = i; }
   this() { }
   string toString() { return Format("[ var ", name, " of ", type, " at ", baseOffset, "]"); }
@@ -646,8 +682,8 @@ class Variable : Expr {
 class VarDecl : Statement {
   override void emitAsm(ref AsmFile af) {
     assert(var.type.size == 4);
-    if (var.initAss) {
-      var.initAss.emitAsm(af);
+    if (var.initval) {
+      var.initval.emitAsm(af);
     } else {
       af.put("subl $4, %esp");
     }
@@ -655,23 +691,24 @@ class VarDecl : Statement {
   Variable var;
 }
 
-bool gotVarDecl(ref string text, out VarDecl vd, FrameState fs, Module mod) {
+bool gotVarDecl(ref string text, out VarDecl vd, Namespace ns) {
   auto t2 = text;
   auto var = new Variable;
-  Expr testInit;
+  Expr iv;
   return
     t2.gotType(var.type)
     && t2.gotIdentifier(var.name)
-    && (t2.accept("=") && t2.gotExpr(testInit, fs, mod) && {
-      var.initAss = new Assignment(var, testInit);
+    && (t2.accept("=") && t2.gotExpr(iv, ns) && {
+      var.initval = iv;
       return true;
     }() || true)
     && t2.accept(";")
     && {
-      var.baseOffset = -fs.size; // TODO: check
+      var.baseOffset =
+        -(cast(Scope) ns).framesize() - var.type.size; // TODO: check
       New(vd);
       vd.var = var;
-      fs.vars ~= var;
+      ns.addVar(var);
       text = t2;
       return true;
     }();
@@ -685,27 +722,58 @@ bool gotImportStatement(ref string text, Module mod) {
   }) && text.accept(";");
 }
 
-bool gotStatement(ref string text, out Statement stmt, FrameState fs, Module mod) {
+class IfStatement : Statement {
+  Scope branch1, branch2;
+  Expr test;
+  override void emitAsm(ref AsmFile af) {
+    test.emitAsm(af);
+    assert(test.valueType().size == 4);
+    af.put("movl (%esp), %ecx");
+    af.put("addl $4, %esp");
+    if (branch2)
+      af.put("jecxz ", branch2.entry());
+    else
+      af.put("jecxz ", branch1.exit());
+    
+    branch1.emitAsm(af);
+    if (branch2) {
+      af.put("jmp ", branch2.exit());
+      branch2.emitAsm(af);
+    }
+  }
+}
+
+bool gotIfStmt(ref string text, out IfStatement ifs, Namespace ns) {
+  auto t2 = text;
+  return
+    t2.accept("if") && (New(ifs), true) &&
+    t2.gotExpr(ifs.test, ns) && t2.gotScope(ifs.branch1, ns) && (
+      t2.accept("else") && t2.gotScope(ifs.branch2, ns)
+      || true
+    ) && (text = t2, true);
+}
+
+bool gotStatement(ref string text, out Statement stmt, Namespace ns) {
   // logln("match statement from ", text.next_text());
   Expr ex;
   AggrStatement as;
   VarDecl vd;
   Assignment ass;
+  IfStatement ifs;
   auto t2 = text;
   return
-    (t2.gotExpr(ex, fs, mod) && t2.accept(";") && (text = t2, stmt = ex, true)) ||
-    (text.gotVarDecl(vd, fs, mod) && (stmt = vd, true)) ||
-    (text.gotAggregateStmt(as, fs, mod) && (stmt = as, true)) ||
-    (text.gotAssignment(ass, fs, mod) && (stmt = ass, true));
+    (t2.gotExpr(ex, ns) && t2.accept(";") && (text = t2, stmt = ex, true)) ||
+    (text.gotVarDecl(vd, ns) && (stmt = vd, true)) ||
+    (text.gotAggregateStmt(as, ns) && (stmt = as, true)) ||
+    (text.gotAssignment(ass, ns) && (stmt = ass, true)) ||
+    (text.gotIfStmt(ifs, ns) && (stmt = ifs, true));
 }
 
 bool gotFunDef(ref string text, out Function fun, Module mod) {
   Type ptype;
   string t2 = text;
   New(fun);
-  New(fun.frame);
   New(fun.type);
-  fun.sup = mod;
   // scope(exit) logln("frame state ", fun.frame);
   string parname;
   error = null;
@@ -715,7 +783,8 @@ bool gotFunDef(ref string text, out Function fun, Module mod) {
     // TODO: function parameters belong on the stackframe
     && bjoin(t2.gotType(ptype) && (t2.gotIdentifier(parname) || ((parname=null), true)), t2.accept(","), {
       fun.type.params ~= stuple(ptype, parname);
-    }) && t2.accept(")") && (fun.fixup, true) && t2.gotStatement(fun._body, fun.frame, mod)
+    }) && t2.accept(")") && (fun.sup = mod, fun.fixup, true)
+    && t2.gotScope(fun._scope, fun)
     && ((text = t2), (mod.addFun(fun), true));
 }
 
