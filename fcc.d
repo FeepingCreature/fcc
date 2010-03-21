@@ -239,18 +239,20 @@ class Transcache {
     }
     return Transsection!(C)(this, cond, 0, 0, false);
   }
+  void opCatAssign(Transaction t) { list ~= t; }
 }
 
 import tools.functional: map;
-struct AsmFile {
+class AsmFile {
   ubyte[][string] constants;
   string code;
+  this() { New(cache); }
   void pushStack(string addr, Type type) {
     assert(type.size == 4);
     salloc(type.size);
     mmove4(addr, "(%esp)");
   }
-  Transaction[] cache;
+  Transcache cache;
   // migratory move; contents of source become irrelevant
   void mmove4(string from, string to) {
     Transaction t;
@@ -279,10 +281,7 @@ struct AsmFile {
   }
   // opts
   void collapseAllocFrees() {
-    scope tc = new Transcache;
-    tc.list = cache;
-    scope(success) cache = tc.list;
-    auto match = tc.findMatch((Transaction[] list) {
+    auto match = cache.findMatch((Transaction[] list) {
       auto match = Transaction.Kind.SAlloc /or/ Transaction.Kind.SFree;
       if (list.length >= 2 && list[0].kind == match && list[1].kind == match)
         return 2;
@@ -307,10 +306,7 @@ struct AsmFile {
     } while (match.advance());
   }
   void collapseAdjacentMoves() {
-    scope tc = new Transcache;
-    tc.list = cache;
-    scope(success) cache = tc.list;
-    auto match = tc.findMatch((Transaction[] list) {
+    auto match = cache.findMatch((Transaction[] list) {
       auto match = Transaction.Kind.Mov;
       if (list.length >= 2 && list[0].kind == match && list[1].kind == match && list[0].to == list[1].from)
         return 2;
@@ -333,10 +329,7 @@ struct AsmFile {
   }
   // add esp, move, sub esp; or reverse
   void collapsePointlessRegMove() {
-    scope tc = new Transcache;
-    tc.list = cache;
-    scope(success) cache = tc.list;
-    auto match = tc.findMatch((Transaction[] list) {
+    auto match = cache.findMatch((Transaction[] list) {
       auto match = Transaction.Kind.Mov;
       if (list.length < 3) return 0;
       if ( list[0].kind == Transaction.Kind.SFree
@@ -358,10 +351,7 @@ struct AsmFile {
     } while (match.advance());
   }
   void binOpMathSpeedup() {
-    scope tc = new Transcache;
-    tc.list = cache;
-    scope(success) cache = tc.list;
-    auto match = tc.findMatch((Transaction[] list) {
+    auto match = cache.findMatch((Transaction[] list) {
       if (list.length < 3) return 0;
       if ( list[0].kind == Transaction.Kind.Mov && list[0].to == "(%esp)"
         && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1])
@@ -382,10 +372,7 @@ struct AsmFile {
     return t.from.find("%esp") != -1 || t.to.find("%esp") != -1;
   }
   void sortByEspDependency() {
-    scope tc = new Transcache;
-    tc.list = cache;
-    scope(success) cache = tc.list;
-    auto match = tc.findMatch((Transaction[] list) {
+    auto match = cache.findMatch((Transaction[] list) {
       auto match = Transaction.Kind.Mov;
       if (list.length < 2) return 0;
       if ( list[0].kind == Transaction.Kind.SFree /or/ Transaction.Kind.SAlloc
@@ -399,20 +386,16 @@ struct AsmFile {
     } while (match.advance());
   }
   void flush() {
-    if (cache.length)
-      logln("to flush: ", cache /map/ ex!("t -> t.toAsm()"));
     collapseAllocFrees();
     collapseAdjacentMoves();
     collapsePointlessRegMove();
     sortByEspDependency();
     collapseAllocFrees(); // rerun
     binOpMathSpeedup();
-    if (cache.length)
-      logln("post-tweak: ", cache /map/ ex!("t -> t.toAsm()"));
-    foreach (t; cache) {
+    foreach (t; cache.list) {
       _put(t.toAsm());
     }
-    cache = null;
+    cache.list = null;
   }
   void put(T...)(T t) {
     flush();
@@ -438,7 +421,7 @@ struct AsmFile {
 }
 
 interface Tree {
-  void emitAsm(ref AsmFile);
+  void emitAsm(AsmFile);
 }
 
 interface Statement : Tree { }
@@ -450,7 +433,7 @@ interface Expr : Statement {
 class StringExpr : Expr {
   string str;
   // default action: place in string segment, load address on stack
-  override void emitAsm(ref AsmFile af) {
+  override void emitAsm(AsmFile af) {
     auto name = Format("cons_", af.constants.length);
     af.constants[name] = cast(ubyte[]) str;
     af.pushStack("$"~name, valueType());
@@ -470,7 +453,7 @@ bool gotStringExpr(ref string text, out Expr ex) {
 
 class IntExpr : Expr {
   int num;
-  override void emitAsm(ref AsmFile af) {
+  override void emitAsm(AsmFile af) {
     af.pushStack(Format("$", num), valueType());
   }
   override Type valueType() { return tmemo(new SysInt); }
@@ -494,7 +477,7 @@ class AsmBinopExpr(string OP) : Expr {
       assert(e1.valueType() is e2.valueType());
       return e1.valueType();
     }
-    void emitAsm(ref AsmFile af) {
+    void emitAsm(AsmFile af) {
       assert(e1.valueType().size == 4);
       e2.emitAsm(af);
       e1.emitAsm(af);
@@ -564,7 +547,7 @@ bool gotIntExpr(ref string text, out Expr ex) {
   return true;
 }
 
-void callFunction(Function fun, Expr[] params, ref AsmFile dest) {
+void callFunction(Function fun, Expr[] params, AsmFile dest) {
   // dest.put("int $3");
   if (params.length) {
     auto p2 = params;
@@ -626,7 +609,7 @@ class Scope : Namespace, Tree {
     return res;
   }
   override {
-    void emitAsm(ref AsmFile af) {
+    void emitAsm(AsmFile af) {
       af.put(entry(), ":");
       _body.emitAsm(af);
       af.put(exit(), ":");
@@ -677,7 +660,7 @@ class Function : Namespace, Tree {
     string mangle(string name, Type type) {
       return mangleSelf() ~ "_" ~ name;
     }
-    void emitAsm(ref AsmFile af) {
+    void emitAsm(AsmFile af) {
       af.put(".globl "~mangleSelf);
       af.put(".type "~mangleSelf~", @function");
       af.put(mangleSelf~": ");
@@ -696,7 +679,7 @@ class Module : Namespace, Tree {
   Module[] imports;
   Tree[] entries;
   override {
-    void emitAsm(ref AsmFile af) {
+    void emitAsm(AsmFile af) {
       foreach (entry; entries)
         entry.emitAsm(af);
     }
@@ -804,7 +787,7 @@ class FunCall : Expr {
   string name;
   Expr[] params;
   Namespace context;
-  override void emitAsm(ref AsmFile af) {
+  override void emitAsm(AsmFile af) {
     callFunction(lookupFun(context, name), params, af);
   }
   override Type valueType() {
@@ -867,7 +850,7 @@ bool gotBaseExpr(ref string text, out Expr expr, Namespace ns) {
 
 class AggrStatement : Statement {
   Statement[] stmts;
-  override void emitAsm(ref AsmFile af) {
+  override void emitAsm(AsmFile af) {
     foreach (stmt; stmts)
       stmt.emitAsm(af);
   }
@@ -887,7 +870,7 @@ class Assignment : Statement {
   Expr value;
   this(Variable v, Expr e) { target = v; value = e; }
   this() { }
-  override void emitAsm(ref AsmFile af) {
+  override void emitAsm(AsmFile af) {
     assert(value.valueType().size == 4);
     value.emitAsm(af);
     af.mmove4("(%esp)", "%edx");
@@ -906,7 +889,7 @@ bool gotAssignment(ref string text, out Assignment as, Namespace ns) {
 }
 
 class Variable : Expr {
-  override void emitAsm(ref AsmFile af) {
+  override void emitAsm(AsmFile af) {
     assert(type.size == 4);
     af.salloc(type.size);
     af.mmove4(Format(baseOffset, "(%ebp)"), "%edx");
@@ -926,7 +909,7 @@ class Variable : Expr {
 }
 
 class VarDecl : Statement {
-  override void emitAsm(ref AsmFile af) {
+  override void emitAsm(AsmFile af) {
     assert(var.type.size == 4);
     if (var.initval) {
       var.initval.emitAsm(af);
@@ -971,7 +954,7 @@ bool gotImportStatement(ref string text, Module mod) {
 class IfStatement : Statement {
   Scope branch1, branch2;
   Expr test;
-  override void emitAsm(ref AsmFile af) {
+  override void emitAsm(AsmFile af) {
     test.emitAsm(af);
     assert(test.valueType().size == 4);
     af.mmove4("(%esp)", "%eax");
@@ -1003,7 +986,7 @@ bool gotIfStmt(ref string text, out IfStatement ifs, Namespace ns) {
 class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
-  override void emitAsm(ref AsmFile af) {
+  override void emitAsm(AsmFile af) {
     auto fun = findFun(ns);
     assert(value.valueType().size == 4);
     value.emitAsm(af);
@@ -1065,7 +1048,7 @@ string compile(string file, bool saveTemps = false) {
   Module mod;
   if (!text.gotModule(mod)) assert(false, "unable to eat module from "~file~": "~error);
   if (text.strip().length) assert(false, "this text confuses me: "~text.next_text()~": "~error);
-  AsmFile af;
+  auto af = new AsmFile;
   mod.emitAsm(af);
   srcname.write(af.genAsm());
   auto cmdline = Format("as -o ", objname, " ", srcname);
