@@ -10,6 +10,13 @@ void test(int foo) {
   sys.printf("Hello World: %i, %i\n", foo * add(2, bar), bar);
 }
 
+int acker(int m, int n) {
+  if (m) {
+    if (n) return acker(m - 1, acker(m, n - 1));
+    else return acker(m - 1, 1);
+  } else return n + 1;
+}
+
 /*
 void test2(A a) {
   printf("A test: %i\n", a.x);
@@ -43,4 +50,5 @@ void main() {
   test2(a);*/
   test(2);
   test(0);
+  printf("a(3, 12) = %i\n", acker(3, 12));
 }

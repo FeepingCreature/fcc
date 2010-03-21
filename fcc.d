@@ -733,12 +733,13 @@ class IfStatement : Statement {
   override void emitAsm(ref AsmFile af) {
     test.emitAsm(af);
     assert(test.valueType().size == 4);
-    af.put("movl (%esp), %ecx");
+    af.put("movl (%esp), %eax");
     af.put("addl $4, %esp");
+    af.put("cmpl $0, %eax");
     if (branch2)
-      af.put("jecxz ", branch2.entry());
+      af.put("jz ", branch2.entry());
     else
-      af.put("jecxz ", branch1.exit());
+      af.put("jz ", branch1.exit());
     
     branch1.emitAsm(af);
     if (branch2) {
