@@ -1,9 +1,13 @@
 module test;
 import sys;
 
+int add(int a, int b) { return a + b; }
+
 void test(int foo) {
   int bar = 17;
-  sys.printf("Hello World: %i, %i\n", foo * (2 + 2), bar);
+  if (foo) sys.printf("meep\n");
+  else sys.printf("moop\n");
+  sys.printf("Hello World: %i, %i\n", foo * add(2, bar), bar);
 }
 
 /*
@@ -38,5 +42,5 @@ void main() {
   a.x = 5;
   test2(a);*/
   test(2);
-  test(3);
+  test(0);
 }
