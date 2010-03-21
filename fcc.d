@@ -48,11 +48,6 @@ bool accept(ref string s, string t) {
   return s2.startsWith(t) && (s = s2[t.length .. $], true);
 }
 
-/+
-  What do we expect of a type system?
-  Nothing.
-+/
-
 class Type {
   int size;
   abstract string mangle();
@@ -169,18 +164,265 @@ bool gotType(ref string text, out Type type) {
   return false;
 }
 
+bool isRelative(string reg) {
+  return reg.find("(") != -1;
+}
+
+struct Transaction {
+  enum Kind {
+    Mov, SAlloc, SFree, MathOp
+  }
+  Kind kind;
+  string toAsm() {
+    switch (kind) {
+      case Kind.Mov:
+        if (from.isRelative() && to.isRelative()) {
+          assert(usableScratch, "Cannot do relative memmove without scratch register! ");
+          return Format("movl ", from, ", ", usableScratch, "\nmovl ", usableScratch, ", ", to);
+        } else {
+          return Format("movl ", from, ", ", to);
+        }
+      case Kind.SAlloc: return Format("subl $", size, ", %esp");
+      case Kind.SFree: return Format("addl $", size, ", %esp");
+      case Kind.MathOp:
+        if (opName == "addl" && op1 == "$1") return Format("incl ", op2);
+        if (opName == "subl" && op1 == "$1") return Format("decl ", op2);
+        return Format(opName, " ", op1, ", ", op2);
+    }
+  }
+  union {
+    struct { // Mov
+      string from, to;
+      string usableScratch;
+    }
+    struct {
+      int size;
+    }
+    struct {
+      string opName;
+      string op1, op2;
+    }
+  }
+}
+
+struct Transsection(C) {
+  Transcache parent;
+  C cond;
+  int from, to;
+  bool modded;
+  Transaction opIndex(int i) { return parent.list[from + i]; }
+  size_t length() { return to - from; }
+  void replaceWith(Transaction[] withWhat) {
+    parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
+    to = from + withWhat.length;
+    modded = true;
+  }
+  void replaceWith(Transaction withWhat) {
+    parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
+    to = from + 1;
+    modded = true;
+  }
+  bool advance() {
+    auto start = from;
+    // don't recheck if not modified
+    if (!modded) start = to;
+    *this = parent.findMatch(cond, start);
+    return from != to;
+  }
+}
+
+class Transcache {
+  Transaction[] list;
+  Transsection!(C) findMatch(C)(C cond, int from = 0) {
+    for (int base = from; base < list.length; ++base) {
+      if (auto len = cond(list[base .. $])) return Transsection!(C)(this, cond, base, base + len, false);
+    }
+    return Transsection!(C)(this, cond, 0, 0, false);
+  }
+}
+
+import tools.functional: map;
 struct AsmFile {
   ubyte[][string] constants;
   string code;
   void pushStack(string addr, Type type) {
     assert(type.size == 4);
-    put("subl $", type.size, ", %esp");
-    put("movl ", addr, ", (%esp)");
+    salloc(type.size);
+    mmove4(addr, "(%esp)");
+  }
+  Transaction[] cache;
+  // migratory move; contents of source become irrelevant
+  void mmove4(string from, string to) {
+    Transaction t;
+    t.kind = Transaction.Kind.Mov;
+    t.from = from; t.to = to;
+    cache ~= t;
+  }
+  void salloc(int sz) { // alloc stack space
+    Transaction t;
+    t.kind = Transaction.Kind.SAlloc;
+    t.size = sz;
+    cache ~= t;
+  }
+  void sfree(int sz) { // alloc stack space
+    Transaction t;
+    t.kind = Transaction.Kind.SFree;
+    t.size = sz;
+    cache ~= t;
+  }
+  void mathOp(string which, string op1, string op2) {
+    Transaction t;
+    t.kind = Transaction.Kind.MathOp;
+    t.opName = which;
+    t.op1 = op1; t.op2 = op2;
+    cache ~= t;
+  }
+  // opts
+  void collapseAllocFrees() {
+    scope tc = new Transcache;
+    tc.list = cache;
+    scope(success) cache = tc.list;
+    auto match = tc.findMatch((Transaction[] list) {
+      auto match = Transaction.Kind.SAlloc /or/ Transaction.Kind.SFree;
+      if (list.length >= 2 && list[0].kind == match && list[1].kind == match)
+        return 2;
+      else return cast(int) false;
+    });
+    if (!match.length) return;
+    do {
+      int sum_inc;
+      auto l1 = match[0], l2 = match[1];
+      if (l1.kind == Transaction.Kind.SAlloc) sum_inc += l1.size;
+      else sum_inc -= l1.size;
+      if (l2.kind == Transaction.Kind.SAlloc) sum_inc += l2.size;
+      else sum_inc -= l2.size;
+      if (!sum_inc) match.replaceWith(null);
+      else {
+        Transaction res;
+        if (sum_inc > 0) res.kind = Transaction.Kind.SAlloc;
+        else res.kind = Transaction.Kind.SFree;
+        res.size = abs(sum_inc);
+        match.replaceWith(res);
+      }
+    } while (match.advance());
+  }
+  void collapseAdjacentMoves() {
+    scope tc = new Transcache;
+    tc.list = cache;
+    scope(success) cache = tc.list;
+    auto match = tc.findMatch((Transaction[] list) {
+      auto match = Transaction.Kind.Mov;
+      if (list.length >= 2 && list[0].kind == match && list[1].kind == match && list[0].to == list[1].from)
+        return 2;
+      else return cast(int) false;
+    });
+    if (!match.length) return;
+    do {
+      // circular.
+      if (match[0].from == match[1].to) {
+        match.replaceWith(null);
+        continue;
+      }
+      Transaction res;
+      res.kind = Transaction.Kind.Mov;
+      res.from = match[0].from; res.to = match[1].to;
+      if (!match[0].to.isRelative())
+        res.usableScratch = match[0].to;
+      match.replaceWith(res);
+    } while (match.advance());
+  }
+  // add esp, move, sub esp; or reverse
+  void collapsePointlessRegMove() {
+    scope tc = new Transcache;
+    tc.list = cache;
+    scope(success) cache = tc.list;
+    auto match = tc.findMatch((Transaction[] list) {
+      auto match = Transaction.Kind.Mov;
+      if (list.length < 3) return 0;
+      if ( list[0].kind == Transaction.Kind.SFree
+        && list[1].kind == Transaction.Kind.Mov && list[1].to == "(%esp)"
+        && list[2].kind == Transaction.Kind.SAlloc && list[2].size == list[0].size)
+      {
+        return 3;
+      }
+      else return 0;
+    });
+    if (!match.length) return;
+    do {
+      Transaction res;
+      res.kind = Transaction.Kind.Mov;
+      res.from = match[1].from;
+      res.usableScratch = match[1].usableScratch;
+      res.to = Format(match[0].size, "(%esp)");
+      match.replaceWith(res);
+    } while (match.advance());
+  }
+  void binOpMathSpeedup() {
+    scope tc = new Transcache;
+    tc.list = cache;
+    scope(success) cache = tc.list;
+    auto match = tc.findMatch((Transaction[] list) {
+      if (list.length < 3) return 0;
+      if ( list[0].kind == Transaction.Kind.Mov && list[0].to == "(%esp)"
+        && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1])
+        && list[2].kind == Transaction.Kind.MathOp && list[2].op1 == "(%esp)")
+      {
+        return 3;
+      }
+      else return 0;
+    });
+    if (match.length) do {
+      auto subst = match[2];
+      subst.op1 = match[0].from;
+      match.replaceWith([match[1], subst]);
+    } while (match.advance);
+  }
+  static bool dependsOnEsp(Transaction t) {
+    assert(t.kind == Transaction.Kind.Mov);
+    return t.from.find("%esp") != -1 || t.to.find("%esp") != -1;
+  }
+  void sortByEspDependency() {
+    scope tc = new Transcache;
+    tc.list = cache;
+    scope(success) cache = tc.list;
+    auto match = tc.findMatch((Transaction[] list) {
+      auto match = Transaction.Kind.Mov;
+      if (list.length < 2) return 0;
+      if ( list[0].kind == Transaction.Kind.SFree /or/ Transaction.Kind.SAlloc
+        && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1]))
+      {
+        return 2;
+      } else return 0;
+    });
+    if (match.length) do {
+      match.replaceWith([match[1], match[0]]);
+    } while (match.advance());
+  }
+  void flush() {
+    if (cache.length)
+      logln("to flush: ", cache /map/ ex!("t -> t.toAsm()"));
+    collapseAllocFrees();
+    collapseAdjacentMoves();
+    collapsePointlessRegMove();
+    sortByEspDependency();
+    collapseAllocFrees(); // rerun
+    binOpMathSpeedup();
+    if (cache.length)
+      logln("post-tweak: ", cache /map/ ex!("t -> t.toAsm()"));
+    foreach (t; cache) {
+      _put(t.toAsm());
+    }
+    cache = null;
   }
   void put(T...)(T t) {
+    flush();
+    _put(t);
+  }
+  void _put(T...)(T t) {
     code ~= Format(t, "\n");
   }
   string genAsm() {
+    flush();
     string res;
     res ~= ".data\n";
     foreach (name, c; constants) {
@@ -256,16 +498,16 @@ class AsmBinopExpr(string OP) : Expr {
       assert(e1.valueType().size == 4);
       e2.emitAsm(af);
       e1.emitAsm(af);
-      af.put("movl (%esp), %eax");
+      af.mmove4("(%esp)", "%eax");
       
       static if (OP == "idivl") af.put("cdq");
       
-      af.put(Format("addl $", e1.valueType().size, ", %esp"));
+      af.sfree(e1.valueType().size);
       
       static if (OP == "idivl") af.put("idivl (%esp)");
-      else af.put(OP~" (%esp), %eax");
+      else af.mathOp(OP, "(%esp)", "%eax");
       
-      af.put("movl %eax, (%esp)");
+      af.mmove4("%eax", "(%esp)");
     }
   }
 }
@@ -336,11 +578,11 @@ void callFunction(Function fun, Expr[] params, ref AsmFile dest) {
   } else assert(!fun.type.params.length, Format("Expected ", fun.type.params, "!"));
   dest.put("call "~fun.mangleSelf);
   foreach (param; params) {
-    dest.put("addl $", param.valueType().size, ", %esp");
+    dest.sfree(param.valueType().size);
   }
   if (!cast(Void) fun.type.ret) {
-    dest.put("subl $", fun.type.ret.size, ", %esp");
-    dest.put("movl %eax, (%esp)");
+    dest.salloc(fun.type.ret.size);
+    dest.mmove4("%eax", "(%esp)");
   }
 }
 
@@ -396,7 +638,6 @@ class Scope : Namespace, Tree {
 }
 
 Function findFun(Namespace ns) {
-  logln("find function in ", ns);
   if (auto res = cast(Function) ns) return res;
   else return findFun(ns.sup);
 }
@@ -649,9 +890,9 @@ class Assignment : Statement {
   override void emitAsm(ref AsmFile af) {
     assert(value.valueType().size == 4);
     value.emitAsm(af);
-    af.put(Format("movl (%esp), %edx"));
-    af.put(Format("movl %edx, ", target.baseOffset, "(%ebp)"));
-    af.put(Format("addl $4, %esp"));
+    af.mmove4("(%esp)", "%edx");
+    af.mmove4("%edx", Format(target.baseOffset, "(%ebp)"));
+    af.sfree(value.valueType().size);
   }
 }
 
@@ -667,9 +908,9 @@ bool gotAssignment(ref string text, out Assignment as, Namespace ns) {
 class Variable : Expr {
   override void emitAsm(ref AsmFile af) {
     assert(type.size == 4);
-    af.put("subl $", type.size, ", %esp");
-    af.put("movl ", baseOffset, "(%ebp), %edx");
-    af.put("movl %edx, (%esp)");
+    af.salloc(type.size);
+    af.mmove4(Format(baseOffset, "(%ebp)"), "%edx");
+    af.mmove4("%edx", "(%esp)");
   }
   override Type valueType() {
     return type;
@@ -690,7 +931,7 @@ class VarDecl : Statement {
     if (var.initval) {
       var.initval.emitAsm(af);
     } else {
-      af.put("subl $4, %esp");
+      af.salloc(4);
     }
   }
   Variable var;
@@ -733,13 +974,13 @@ class IfStatement : Statement {
   override void emitAsm(ref AsmFile af) {
     test.emitAsm(af);
     assert(test.valueType().size == 4);
-    af.put("movl (%esp), %eax");
-    af.put("addl $4, %esp");
+    af.mmove4("(%esp)", "%eax");
+    af.sfree(test.valueType().size);
     af.put("cmpl $0, %eax");
     if (branch2)
-      af.put("jz ", branch2.entry());
+      af.put("je ", branch2.entry());
     else
-      af.put("jz ", branch1.exit());
+      af.put("je ", branch1.exit());
     
     branch1.emitAsm(af);
     if (branch2) {
@@ -763,11 +1004,11 @@ class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
   override void emitAsm(ref AsmFile af) {
-    logln(" -- ");
     auto fun = findFun(ns);
     assert(value.valueType().size == 4);
     value.emitAsm(af);
-    af.put("movl (%esp), %eax");
+    af.mmove4("(%esp)", "%eax");
+    // TODO: stack cleanup token here
     af.put("jmp ", fun._scope.exit());
   }
 }
