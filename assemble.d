@@ -12,7 +12,7 @@ bool isRelative(string reg) {
 
 struct Transaction {
   enum Kind {
-    Mov, SAlloc, SFree, MathOp, Push, Pop
+    Mov, SAlloc, SFree, MathOp, Push, Pop, Compare
   }
   Kind kind;
   string toAsm() {
@@ -32,6 +32,7 @@ struct Transaction {
         return Format(opName, " ", op1, ", ", op2);
       case Kind.Push: return Format("pushl ", source);
       case Kind.Pop: return Format("popl ", dest);
+      case Kind.Compare: return Format("cmpl ", op1, ", ", op2);
     }
   }
   union {
@@ -92,6 +93,7 @@ class AsmFile {
   ubyte[][string] constants;
   string code;
   this() { New(cache); }
+  Transcache cache;
   void pushStack(string expr, Type type) {
     assert(type.size == 4, Format("Can't push: ", type));
     Transaction t;
@@ -106,7 +108,12 @@ class AsmFile {
     t.dest = dest;
     cache ~= t;
   }
-  Transcache cache;
+  void compare(string op1, string op2) {
+    Transaction t;
+    t.kind = Transaction.Kind.Compare;
+    t.op1 = op1; t.op2 = op2;
+    cache ~= t;
+  }
   // migratory move; contents of source become irrelevant
   void mmove4(string from, string to) {
     Transaction t;
@@ -211,6 +218,26 @@ class AsmFile {
       match.replaceWith(res);
     } while (match.advance());
   }
+  void collapseCompares() {
+    auto match = cache.findMatch((Transaction[] list) {
+      if (list.length >= 2 && list[0].kind == Transaction.Kind.Mov && list[1].kind == Transaction.Kind.Compare &&
+        !list[0].dest.isRelative() && (list[1].op1 /or/ list[1].op2 == list[0].dest)
+      ) {
+        return 2;
+      }
+      else return cast(int) false;
+    });
+    if (!match.length) return;
+    do {
+      Transaction res;
+      res.kind = Transaction.Kind.Compare;
+      if (match[1].op1 == match[0].dest) res.op1 = match[0].source;
+      else res.op1 = match[1].op1;
+      if (match[1].op2 == match[0].dest) res.op2 = match[0].source;
+      else res.op2 = match[1].op2;
+      match.replaceWith(res);
+    } while (match.advance());
+  }
   // add esp, move, sub esp; or reverse
   void collapsePointlessRegMove() {
     auto match = cache.findMatch((Transaction[] list) {
@@ -273,6 +300,7 @@ class AsmFile {
     collapseScratchMove();
     collapseScratchPush();
     collapsePointlessRegMove();
+    collapseCompares();
     sortByEspDependency();
     collapseAllocFrees(); // rerun
     binOpMathSpeedup();

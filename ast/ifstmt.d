@@ -9,7 +9,7 @@ class IfStatement : Statement {
     test.emitAsm(af);
     assert(test.valueType().size == 4);
     af.popStack("%eax", test.valueType());
-    af.put("cmpl $0, %eax");
+    af.compare("$0", "%eax");
     if (branch2)
       af.put("je ", branch2.entry());
     else
