@@ -73,8 +73,7 @@ void callFunction(Function fun, Expr[] params, AsmFile dest) {
     dest.sfree(param.valueType().size);
   }
   if (!cast(Void) fun.type.ret) {
-    dest.salloc(fun.type.ret.size);
-    dest.mmove4("%eax", "(%esp)");
+    dest.pushStack("%eax", fun.type.ret);
   }
 }
 

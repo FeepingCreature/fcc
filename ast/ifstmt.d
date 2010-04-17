@@ -8,8 +8,7 @@ class IfStatement : Statement {
   override void emitAsm(AsmFile af) {
     test.emitAsm(af);
     assert(test.valueType().size == 4);
-    af.mmove4("(%esp)", "%eax");
-    af.sfree(test.valueType().size);
+    af.popStack("%eax", test.valueType());
     af.put("cmpl $0, %eax");
     if (branch2)
       af.put("je ", branch2.entry());

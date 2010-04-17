@@ -5,9 +5,7 @@ import ast.base;
 class Variable : Expr {
   override void emitAsm(AsmFile af) {
     assert(type.size == 4);
-    af.salloc(type.size);
-    af.mmove4(Format(baseOffset, "(%ebp)"), "%edx");
-    af.mmove4("%edx", "(%esp)");
+    af.pushStack(Format(baseOffset, "(%ebp)"), type);
   }
   override Type valueType() {
     return type;

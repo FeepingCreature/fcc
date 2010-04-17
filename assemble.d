@@ -2,8 +2,9 @@ module assemble;
 
 import ast.types;
 
-import tools.base: Format, New, or;
+import tools.base: Format, New, or, and;
 import tools.compat: find, abs;
+import tools.log;
 
 bool isRelative(string reg) {
   return reg.find("(") != -1;
@@ -11,7 +12,7 @@ bool isRelative(string reg) {
 
 struct Transaction {
   enum Kind {
-    Mov, SAlloc, SFree, MathOp
+    Mov, SAlloc, SFree, MathOp, Push, Pop
   }
   Kind kind;
   string toAsm() {
@@ -29,6 +30,8 @@ struct Transaction {
         if (opName == "addl" && op1 == "$1") return Format("incl ", op2);
         if (opName == "subl" && op1 == "$1") return Format("decl ", op2);
         return Format(opName, " ", op1, ", ", op2);
+      case Kind.Push: return Format("pushl ", source);
+      case Kind.Pop: return Format("popl ", dest);
     }
   }
   union {
@@ -36,8 +39,9 @@ struct Transaction {
       string from, to;
       string usableScratch;
     }
+    int size;
     struct {
-      int size;
+      string source, dest;
     }
     struct {
       string opName;
@@ -88,10 +92,19 @@ class AsmFile {
   ubyte[][string] constants;
   string code;
   this() { New(cache); }
-  void pushStack(string addr, Type type) {
-    assert(type.size == 4);
-    salloc(type.size);
-    mmove4(addr, "(%esp)");
+  void pushStack(string expr, Type type) {
+    assert(type.size == 4, Format("Can't push: ", type));
+    Transaction t;
+    t.kind = Transaction.Kind.Push;
+    t.source = expr;
+    cache ~= t;
+  }
+  void popStack(string dest, Type type) {
+    assert(type.size == 4, Format("Can't pop: ", type));
+    Transaction t;
+    t.kind = Transaction.Kind.Pop;
+    t.dest = dest;
+    cache ~= t;
   }
   Transcache cache;
   // migratory move; contents of source become irrelevant
@@ -146,20 +159,25 @@ class AsmFile {
       }
     } while (match.advance());
   }
-  void collapseAdjacentMoves() {
+  // Using stack as scratchpad is silly and pointless
+  void collapseScratchMove() {
     auto match = cache.findMatch((Transaction[] list) {
-      auto match = Transaction.Kind.Mov;
-      if (list.length >= 2 && list[0].kind == match && list[1].kind == match && list[0].to == list[1].from)
+      if (list.length > 2 && list[0].kind /and/ list[1].kind == Transaction.Kind.Mov && (
+        (list[0].to == "(%esp)" && list[1].from == "(%esp)" && list[2].kind == Transaction.Kind.SFree) ||
+        (!list[0].to.isRelative() && list[0].to == list[1].from) // second mode .. remember, moves are MOVEs, not COPYs
+      )) {
         return 2;
+      }
       else return cast(int) false;
     });
     if (!match.length) return;
     do {
-      // circular.
+      // what the fuck
       if (match[0].from == match[1].to) {
         match.replaceWith(null);
         continue;
       }
+      logln("Collapse ", match[0], " into ", match[1]);
       Transaction res;
       res.kind = Transaction.Kind.Mov;
       res.from = match[0].from; res.to = match[1].to;
@@ -168,10 +186,34 @@ class AsmFile {
       match.replaceWith(res);
     } while (match.advance());
   }
+  // same
+  void collapseScratchPush() {
+    auto match = cache.findMatch((Transaction[] list) {
+      if (list.length >= 2 && list[0].kind == Transaction.Kind.Push && list[1].kind == Transaction.Kind.Pop &&
+        !list[1].dest.isRelative()
+      ) {
+        return 2;
+      }
+      else return cast(int) false;
+    });
+    if (!match.length) return;
+    do {
+      // what the fuck
+      if (match[0].source == match[1].dest) {
+        logln("Who the fuck produced this retarded bytecode");
+        match.replaceWith(null);
+        continue;
+      }
+      logln("Collapse ", match[0], " into ", match[1]);
+      Transaction res;
+      res.kind = Transaction.Kind.Mov;
+      res.from = match[0].source; res.to = match[1].dest;
+      match.replaceWith(res);
+    } while (match.advance());
+  }
   // add esp, move, sub esp; or reverse
   void collapsePointlessRegMove() {
     auto match = cache.findMatch((Transaction[] list) {
-      auto match = Transaction.Kind.Mov;
       if (list.length < 3) return 0;
       if ( list[0].kind == Transaction.Kind.SFree
         && list[1].kind == Transaction.Kind.Mov && list[1].to == "(%esp)"
@@ -228,7 +270,8 @@ class AsmFile {
   }
   void flush() {
     collapseAllocFrees();
-    collapseAdjacentMoves();
+    collapseScratchMove();
+    collapseScratchPush();
     collapsePointlessRegMove();
     sortByEspDependency();
     collapseAllocFrees(); // rerun

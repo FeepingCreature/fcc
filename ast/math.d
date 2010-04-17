@@ -13,14 +13,13 @@ class AsmBinopExpr(string OP) : Expr {
       return e1.valueType();
     }
     void emitAsm(AsmFile af) {
-      assert(e1.valueType().size == 4);
+      assert(e2.valueType().size == 4);
       e2.emitAsm(af);
       e1.emitAsm(af);
-      af.mmove4("(%esp)", "%eax");
+      assert(e1.valueType().size == 4);
+      af.popStack("%eax", e1.valueType());
       
       static if (OP == "idivl") af.put("cdq");
-      
-      af.sfree(e1.valueType().size);
       
       static if (OP == "idivl") af.put("idivl (%esp)");
       else af.mathOp(OP, "(%esp)", "%eax");
