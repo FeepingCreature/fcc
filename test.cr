@@ -8,6 +8,11 @@ void test(int foo) {
   if (foo) sys.printf("meep\n");
   else sys.printf("moop\n");
   sys.printf("Hello World: %i, %i\n", foo * add(2, bar), bar);
+  int temp = 5;
+  loop:
+  sys.printf("Countdown with %i\n", temp);
+  temp = temp - 1;
+  if (temp) { goto loop; }
 }
 
 int acker(int m, int n) {

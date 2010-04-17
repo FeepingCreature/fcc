@@ -123,6 +123,7 @@ bool gotStatement(ref string text, out Statement stmt, Namespace ns) {
   Expr ex; AggrStatement as;
   VarDecl vd; Assignment ass;
   IfStatement ifs; ReturnStmt rs;
+  Label l; GotoStmt gs;
   auto t2 = text;
   return
     (t2.gotExpr(ex, ns) && t2.accept(";") && (text = t2, stmt = ex, true)) ||
@@ -130,7 +131,9 @@ bool gotStatement(ref string text, out Statement stmt, Namespace ns) {
     (text.gotAggregateStmt(as, ns) && (stmt = as, true)) ||
     (text.gotAssignment(ass, ns) && (stmt = ass, true)) ||
     (text.gotIfStmt(ifs, ns) && (stmt = ifs, true)) ||
-    (text.gotRetStmt(rs, ns) && (stmt = rs, true));
+    (text.gotRetStmt(rs, ns) && (stmt = rs, true)) ||
+    (text.gotGotoStmt(gs, ns) && (stmt = gs, true)) ||
+    (text.gotLabel(l, ns) && (stmt = l, true));
 }
 
 bool gotFunDef(ref string text, out Function fun, Module mod) {
@@ -201,4 +204,30 @@ bool gotIfStmt(ref string text, out IfStatement ifs, Namespace ns) {
       t2.accept("else") && t2.gotScope(ifs.branch2, ns)
       || true
     ) && (text = t2, true);
+}
+
+class GotoStmt : Statement {
+  string target;
+  override void emitAsm(AsmFile af) {
+    af.put("jmp "~target);
+  }
+}
+
+bool gotGotoStmt(ref string text, out GotoStmt gs, Namespace ns) {
+  auto t2 = text;
+  return
+    t2.accept("goto") && (New(gs), true) && t2.gotIdentifier(gs.target) && t2.accept(";") && (text = t2, true);
+}
+
+class Label : Statement {
+  string name;
+  override void emitAsm(AsmFile af) {
+    af.put(name~": ");
+  }
+}
+
+bool gotLabel(ref string text, out Label l, Namespace ns) {
+  auto t2 = text;
+  New(l);
+  return t2.gotIdentifier(l.name) && t2.accept(":") && (text = t2, true);
 }
