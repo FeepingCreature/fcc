@@ -25,6 +25,7 @@ void eatComments(ref string s) {
   s = s.strip();
   while (true) {
     if (auto rest = s.startsWith("/*")) { rest.slice("*/"); s = rest.strip(); }
+    else if (auto rest = s.startsWith("//")) { rest.slice("\n"); s = rest.strip(); }
     else break;
   }
 }
