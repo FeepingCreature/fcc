@@ -9,7 +9,7 @@ module ast.parse;
 
 import ast.base, ast.namespace, ast.scopes, ast.modules, ast.math;
 import ast.literals, ast.aggregate, ast.assign, ast.ifstmt;
-import ast.fun, ast.returns, ast.variable;
+import ast.fun, ast.returns, ast.variable, ast.jumps;
 import tools.base: New, Stuple, stuple;
 
 bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
@@ -206,24 +206,10 @@ bool gotIfStmt(ref string text, out IfStatement ifs, Namespace ns) {
     ) && (text = t2, true);
 }
 
-class GotoStmt : Statement {
-  string target;
-  override void emitAsm(AsmFile af) {
-    af.put("jmp "~target);
-  }
-}
-
 bool gotGotoStmt(ref string text, out GotoStmt gs, Namespace ns) {
   auto t2 = text;
   return
     t2.accept("goto") && (New(gs), true) && t2.gotIdentifier(gs.target) && t2.accept(";") && (text = t2, true);
-}
-
-class Label : Statement {
-  string name;
-  override void emitAsm(AsmFile af) {
-    af.put(name~": ");
-  }
 }
 
 bool gotLabel(ref string text, out Label l, Namespace ns) {
