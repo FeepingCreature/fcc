@@ -39,7 +39,7 @@ string compile(string file, bool saveTemps = false) {
   auto af = new AsmFile;
   mod.emitAsm(af);
   srcname.write(af.genAsm());
-  auto cmdline = Format("as -o ", objname, " ", srcname);
+  auto cmdline = Format("as --32 -o ", objname, " ", srcname);
   writefln("> ", cmdline);
   system(cmdline.toStringz()) == 0
     || assert(false, "Compilation failed! ");
@@ -50,7 +50,7 @@ void link(string[] objects, string output, string[] largs) {
   scope(success)
     foreach (obj; objects)
       unlink(obj.toStringz());
-  string cmdline = "gcc -o "~output~" ";
+  string cmdline = "gcc -m32 -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
   foreach (larg; largs) cmdline ~= larg ~ " ";
   writefln("> ", cmdline);
