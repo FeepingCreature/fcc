@@ -9,7 +9,7 @@ module ast.parse;
 
 import ast.base, ast.namespace, ast.scopes, ast.modules, ast.math;
 import ast.literals, ast.aggregate, ast.assign, ast.ifstmt;
-import ast.fun, ast.returns, ast.variable, ast.jumps;
+import ast.fun, ast.returns, ast.variable, ast.jumps, ast.loops;
 import tools.base: New, Stuple, stuple;
 
 bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
@@ -120,11 +120,10 @@ bool gotVariable(ref string text, out Variable v, Namespace ns) {
 }
 
 bool gotStatement(ref string text, out Statement stmt, Namespace ns) {
-  // logln("match statement from ", text.next_text());
   Expr ex; AggrStatement as;
   VarDecl vd; Assignment ass;
   IfStatement ifs; ReturnStmt rs;
-  Label l; GotoStmt gs;
+  Label l; GotoStmt gs; WhileStatement ws;
   auto t2 = text;
   return
     (t2.gotExpr(ex, ns) && t2.accept(";") && (text = t2, stmt = ex, true)) ||
@@ -134,7 +133,9 @@ bool gotStatement(ref string text, out Statement stmt, Namespace ns) {
     (text.gotIfStmt(ifs, ns) && (stmt = ifs, true)) ||
     (text.gotRetStmt(rs, ns) && (stmt = rs, true)) ||
     (text.gotGotoStmt(gs, ns) && (stmt = gs, true)) ||
-    (text.gotLabel(l, ns) && (stmt = l, true));
+    (text.gotLabel(l, ns) && (stmt = l, true)) ||
+    (text.gotWhileStmt(ws, ns) && (stmt = ws, true))
+    ;
 }
 
 bool gotFunDef(ref string text, out Function fun, Module mod) {
@@ -215,6 +216,14 @@ bool gotGotoStmt(ref string text, out GotoStmt gs, Namespace ns) {
   auto t2 = text;
   return
     t2.accept("goto") && (New(gs), true) && t2.gotIdentifier(gs.target) && t2.accept(";") && (text = t2, true);
+}
+
+bool gotWhileStmt(ref string text, out WhileStatement ws, Namespace ns) {
+  auto t2 = text;
+  return
+    t2.accept("while") && (New(ws), true) &&
+    t2.gotExpr(ws.cond, ns) && t2.gotScope(ws._body, ns) &&
+    (text = t2, true);
 }
 
 bool gotLabel(ref string text, out Label l, Namespace ns) {
