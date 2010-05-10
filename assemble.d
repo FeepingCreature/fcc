@@ -140,6 +140,12 @@ class AsmFile {
     t.op1 = op1; t.op2 = op2;
     cache ~= t;
   }
+  int labelCounter; // Limited to 2^31 labels, le omg.
+  string genLabel() {
+    auto name = Format("label", labelCounter++);
+    put(name, ":");
+    return name;
+  }
   // opts
   void collapseAllocFrees() {
     auto match = cache.findMatch((Transaction[] list) {
