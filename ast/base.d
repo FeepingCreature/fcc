@@ -38,6 +38,11 @@ bool accept(ref string s, string t) {
   return s2.startsWith(t) && (s = s2[t.length .. $], true);
 }
 
+bool mustAccept(ref string s, string t, string err) {
+  if (s.accept(t)) return true;
+  throw new Exception(err);
+}
+
 class ParseException {
   string where, info;
   this(string where, string info) {

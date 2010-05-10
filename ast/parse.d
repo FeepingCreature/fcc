@@ -56,7 +56,8 @@ bool gotScope(ref string text, out Scope sc, Namespace ns) {
   New(sc);
   sc.sup = ns;
   sc.fun = findFun(ns);
-  return text.gotStatement(sc._body, sc);
+  if (text.gotStatement(sc._body, sc)) return true;
+  throw new Exception("Couldn't match scope off "~text.next_text());
 }
 
 bool gotImportStatement(ref string text, Module mod) {
@@ -141,18 +142,21 @@ bool gotFunDef(ref string text, out Function fun, Module mod) {
   string t2 = text;
   New(fun);
   New(fun.type);
-  // scope(exit) logln("frame state ", fun.frame);
   string parname;
   error = null;
-  return t2.gotType(fun.type.ret)
+  return
+    t2.gotType(fun.type.ret)
     && t2.gotIdentifier(fun.name)
     && t2.accept("(")
     // TODO: function parameters belong on the stackframe
     && bjoin(t2.gotType(ptype) && (t2.gotIdentifier(parname) || ((parname=null), true)), t2.accept(","), {
       fun.type.params ~= stuple(ptype, parname);
-    }) && t2.accept(")") && (fun.sup = mod, fun.fixup, true)
+    })
+    && t2.accept(")")
+    && (fun.sup = mod, fun.fixup, true)
     && t2.gotScope(fun._scope, fun)
-    && ((text = t2), (mod.addFun(fun), true));
+    && ((text = t2), (mod.addFun(fun), true))
+    ;
 }
 
 bool gotVarDecl(ref string text, out VarDecl vd, Namespace ns) {
@@ -183,8 +187,9 @@ bool gotAggregateStmt(ref string text, out AggrStatement as, Namespace ns) {
   
   Statement st;
   return t2.accept("{") && (as = new AggrStatement, true) &&
-    many(t2.gotStatement(st, ns), { if (!st) asm { int 3; } as.stmts ~= st; }) &&
-    t2.accept("}") && (text = t2, true);
+    many(t2.gotStatement(st, ns), { if (!st) asm { int 3; } as.stmts ~= st; })
+    && t2.mustAccept("}", Format("Encountered unknown statement at ", t2.next_text()))
+    && (text = t2, true);
 }
 
 bool gotAssignment(ref string text, out Assignment as, Namespace ns) {
