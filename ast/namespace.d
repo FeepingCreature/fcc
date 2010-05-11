@@ -13,6 +13,8 @@ class Namespace {
           t.sup = this;
         $NAMEfield ~= stuple(t.name, t);
       }
+      Stuple!(string, T)[] $NAMEGetCheckpt() { return $NAMEfield; }
+      void $NAMESetCheckpt(Stuple!(string, T)[] field) { $NAMEfield = field.dup; /* prevent clobbering */ }
       T lookup$NAME(string name) {
         // logln("Lookup ", name, " as $NAME in ", $NAMEfield);
         foreach (entry; $NAMEfield)

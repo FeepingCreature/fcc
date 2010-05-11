@@ -1,16 +1,18 @@
 module ast.loops;
 
-import ast.base, ast.scopes, ast.testTruth;
+import ast.base, ast.scopes, ast.variable, ast.cond;
 
 class WhileStatement : Statement {
   Scope _body;
-  Expr cond;
+  Cond cond;
   override void emitAsm(AsmFile af) {
-    assert(cond.valueType().size == 4);
-    auto test = af.genLabel();
-    testFalse(af, cond, _body.exit());
+    auto start = af.genLabel(), done = af.genLabel();
+    af.emitLabel(start);
+    cond.emitAsm(af);
+    cond.jumpFalse(af, done);
     _body.emitAsm(af);
     // TODO: rerun cond? check complexity?
-    af.put("jmp ", test);
+    af.put("jmp ", start);
+    af.emitLabel(done);
   }
 }

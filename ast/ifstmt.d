@@ -1,20 +1,25 @@
 module ast.ifstmt;
 
-import ast.base, ast.scopes, ast.testTruth;
+import ast.base, ast.scopes, ast.cond;
 
 class IfStatement : Statement {
   Scope branch1, branch2;
-  Expr test;
+  Cond test;
   override void emitAsm(AsmFile af) {
+    test.emitAsm(af);
+    auto past1 = af.genLabel();
     if (branch2) {
-      testFalse(af, test, branch2.entry());
+      test.jumpFalse(af, branch2.entry());
     } else {
-      testFalse(af, test, branch1.exit());
+      test.jumpFalse(af, past1);
     }
     branch1.emitAsm(af);
-    if (branch2) {
-      af.put("jmp ", branch2.exit());
+    if (!branch2) af.emitLabel(past1);
+    else {
+      auto past2 = af.genLabel();
+      af.put("jmp ", past2);
       branch2.emitAsm(af);
+      af.emitLabel(past2);
     }
   }
 }

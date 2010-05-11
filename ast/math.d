@@ -28,3 +28,21 @@ class AsmBinopExpr(string OP) : Expr {
     }
   }
 }
+
+class CondWrap : Expr {
+  Cond cd;
+  mixin This!("cd");
+  override {
+    Type valueType() {
+      return tmemo(new SysInt); // TODO: bool type
+    }
+    void emitAsm(AsmFile af) {
+      cd.emitAsm(af);
+      auto past = af.genLabel();
+      af.put("xorl %eax, %eax");
+      cd.jumpFalse(af, past);
+      af.mmove4("$1", "%eax");
+      af.emitLabel(past);
+    }
+  }
+}

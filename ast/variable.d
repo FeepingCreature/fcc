@@ -21,6 +21,7 @@ class Variable : Expr {
 }
 
 class VarDecl : Statement {
+  Variable var;
   override void emitAsm(AsmFile af) {
     assert(var.type.size == 4);
     if (var.initval) {
@@ -29,5 +30,4 @@ class VarDecl : Statement {
       af.salloc(4);
     }
   }
-  Variable var;
 }

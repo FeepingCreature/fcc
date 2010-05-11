@@ -23,8 +23,10 @@ class Scope : Namespace, Tree {
   override {
     void emitAsm(AsmFile af) {
       af.put(entry(), ":");
+      auto backup = af.checkptStack();
       _body.emitAsm(af);
       af.put(exit(), ":");
+      af.restoreCheckptStack(backup);
     }
     string mangle(string name, Type type) {
       return sup.mangle(name, type) ~ "_local";

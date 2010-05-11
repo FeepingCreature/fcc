@@ -7,7 +7,8 @@ module ast.parse;
  ** they have been consolidated.
  **/
 
-import ast.base, ast.namespace, ast.scopes, ast.modules, ast.math;
+import ast.base, ast.namespace, ast.scopes, ast.modules;
+import ast.math, ast.cond;
 import ast.literals, ast.aggregate, ast.assign, ast.ifstmt;
 import ast.fun, ast.returns, ast.variable, ast.jumps, ast.loops;
 import tools.base: New, Stuple, stuple;
@@ -15,7 +16,6 @@ import tools.base: New, Stuple, stuple;
 bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
   auto t2 = text;
   Expr par;
-  scope(success) text = t2;
   bool addMath(string op) {
     switch (op) {
       case "+": ex = new AsmBinopExpr!("addl")(ex, par); break;
@@ -26,19 +26,56 @@ bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
     return true;
   }
   switch (level) {
-    case -2: return t2.gotBaseExpr(ex, ns);
+    case -2: return t2.gotBaseExpr(ex, ns) && (text = t2, true);
     case -1:
       return t2.gotMathExpr(ex, ns, level-1) && many(t2.ckbranch(
         t2.accept("*") && t2.gotMathExpr(par, ns, level-1) && addMath("*"),
         t2.accept("/") && t2.gotMathExpr(par, ns, level-1) && addMath("/")
-      ));
+      )) && (text = t2, true);
     case 0:
       return t2.gotMathExpr(ex, ns, level-1) && many(t2.ckbranch(
         t2.accept("+") && t2.gotMathExpr(par, ns, level-1) && addMath("+"),
         t2.accept("-") && t2.gotMathExpr(par, ns, level-1) && addMath("-")
-      ));
+      )) && (text = t2, true);
   }
 }
+
+// TODO: rework this properly
+alias gotMathExpr gotExpr;
+
+bool gotGenericExpr(ref string text, out Expr ex, Namespace ns) {
+  Cond cd;
+  return
+    text.gotExpr(ex, ns) ||
+    text.gotCond(cd, ns) && {
+      ex = new CondWrap(cd);
+      return true;
+    }();
+}
+
+bool gotCompare(ref string text, out Cond cd, Namespace ns) {
+  auto t2 = text;
+  bool not, smaller, equal, greater;
+  Expr ex1, ex2;
+  logln("get compare off ", t2.next_text());
+  scope(exit) logln("; left ", t2.next_text(), " => ", cd);
+  return t2.gotExpr(ex1, ns) && (
+    (
+      (t2.accept("!") && (not = true)),
+      (t2.accept("<") && (smaller = true)),
+      ((not || smaller || t2.accept("=")) && t2.accept("=") && (equal = true)),
+      (t2.accept(">") && (greater = true)),
+      (smaller || equal || greater)
+    ) && t2.gotExpr(ex2, ns) && {
+      cd = new Compare(ex1, not, smaller, equal, greater, ex2);
+      text = t2;
+      return true;
+    }()
+    || { cd = new ExprWrap(ex1); text = t2; return true; }()
+  );
+}
+
+alias gotCompare gotCond;
 
 bool gotFuncall(ref string text, out Expr expr, Namespace ns) {
   auto fc = new FunCall;
@@ -90,17 +127,14 @@ bool gotBaseExpr(ref string text, out Expr expr, Namespace ns) {
     || text.gotStringExpr(expr)
     || text.gotIntExpr(expr)
     || text.gotVariable(var, ns) && (expr = var, true)
-    || { auto t2 = text; return t2.accept("(") && t2.gotExpr(expr, ns) && t2.accept(")") && (text = t2, true); }();
+    || { auto t2 = text; return t2.accept("(") && t2.gotGenericExpr(expr, ns) && t2.accept(")") && (text = t2, true); }();
 }
-
-alias gotMathExpr gotExpr;
 
 bool gotRetStmt(ref string text, out ReturnStmt rs, Namespace ns) {
   auto t2 = text;
   return
     t2.accept("return") && (New(rs), rs.ns = ns, true) &&
-    t2.gotExpr(rs.value, ns) && t2.accept(";")
-    & (text = t2, true);
+    t2.gotExpr(rs.value, ns) && (text = t2, true);
 }
 
 bool gotVariable(ref string text, out Variable v, Namespace ns) {
@@ -108,7 +142,7 @@ bool gotVariable(ref string text, out Variable v, Namespace ns) {
   string name, t2 = text;
   return t2.gotIdentifier(name, true)
     && {
-      // logln("Look for ", name, " in ", fs.vars);
+      // logln("Look for ", name, " in ", ns.Varfield);
       if (auto res = ns.lookupVar(name)) {
         v = res;
         text = t2;
@@ -119,22 +153,36 @@ bool gotVariable(ref string text, out Variable v, Namespace ns) {
     }();
 }
 
-bool gotStatement(ref string text, out Statement stmt, Namespace ns) {
-  Expr ex; AggrStatement as;
-  VarDecl vd; Assignment ass;
+bool gotSemicolonizedStatement(ref string text, out Statement stmt, Namespace ns) {
+  Expr ex; ReturnStmt rs; GotoStmt gs;
+  Assignment ass; VarDecl vd;
+  auto t2 = text;
+  logln("get semicolonized off ", t2.next_text());
+  scope(exit) logln(" => ", stmt);
+  return
+    (text.gotRetStmt(rs, ns) && (stmt = rs, true)) ||
+    (text.gotGotoStmt(gs, ns) && (stmt = gs, true)) ||
+    (text.gotAssignment(ass, ns) && (stmt = ass, true)) ||
+    (text.gotVarDecl(vd, ns) && (stmt = vd, true)) ||
+    (t2.gotExpr(ex, ns) && (text = t2, stmt = ex, true)) // least grubby
+  ;
+}
+
+bool gotStatement(ref string text, out Statement stmt, Namespace ns, bool needSemicolon = true) {
+  AggrStatement as;
+  VarDecl vd; Assignment ass; ForStatement fs;
   IfStatement ifs; ReturnStmt rs;
   Label l; GotoStmt gs; WhileStatement ws;
   auto t2 = text;
   return
-    (t2.gotExpr(ex, ns) && t2.accept(";") && (text = t2, stmt = ex, true)) ||
-    (text.gotVarDecl(vd, ns) && (stmt = vd, true)) ||
     (text.gotAggregateStmt(as, ns) && (stmt = as, true)) ||
-    (text.gotAssignment(ass, ns) && (stmt = ass, true)) ||
     (text.gotIfStmt(ifs, ns) && (stmt = ifs, true)) ||
-    (text.gotRetStmt(rs, ns) && (stmt = rs, true)) ||
-    (text.gotGotoStmt(gs, ns) && (stmt = gs, true)) ||
     (text.gotLabel(l, ns) && (stmt = l, true)) ||
-    (text.gotWhileStmt(ws, ns) && (stmt = ws, true))
+    (text.gotWhileStmt(ws, ns) && (stmt = ws, true)) ||
+    (text.gotForStmt(fs, ns) && (stmt = fs, true)) ||
+    (t2.gotSemicolonizedStatement(stmt, ns)
+      && (!needSemicolon || t2.accept(";"))
+      && (text = t2, true))
     ;
 }
 
@@ -171,7 +219,6 @@ bool gotVarDecl(ref string text, out VarDecl vd, Namespace ns) {
       var.initval = iv;
       return true;
     }() || true)
-    && t2.accept(";")
     && {
       var.baseOffset =
         -(cast(Scope) ns).framesize() - var.type.size; // TODO: check
@@ -193,10 +240,11 @@ bool gotAggregateStmt(ref string text, out AggrStatement as, Namespace ns) {
     && (text = t2, true);
 }
 
+import tools.log;
 bool gotAssignment(ref string text, out Assignment as, Namespace ns) {
   auto t2 = text;
   New(as);
-  return t2.gotVariable(as.target, ns) && t2.accept("=") && t2.gotExpr(as.value, ns) && t2.accept(";") && {
+  return t2.gotVariable(as.target, ns) && t2.accept("=") && t2.gotExpr(as.value, ns) && {
     text = t2;
     return true;
   }();
@@ -206,7 +254,7 @@ bool gotIfStmt(ref string text, out IfStatement ifs, Namespace ns) {
   auto t2 = text;
   return
     t2.accept("if") && (New(ifs), true) &&
-    t2.gotExpr(ifs.test, ns) && t2.gotScope(ifs.branch1, ns) && (
+    t2.gotCond(ifs.test, ns) && t2.gotScope(ifs.branch1, ns) && (
       t2.accept("else") && t2.gotScope(ifs.branch2, ns)
       || true
     ) && (text = t2, true);
@@ -215,15 +263,40 @@ bool gotIfStmt(ref string text, out IfStatement ifs, Namespace ns) {
 bool gotGotoStmt(ref string text, out GotoStmt gs, Namespace ns) {
   auto t2 = text;
   return
-    t2.accept("goto") && (New(gs), true) && t2.gotIdentifier(gs.target) && t2.accept(";") && (text = t2, true);
+    t2.accept("goto") && (New(gs), true) && t2.gotIdentifier(gs.target) && (text = t2, true);
 }
 
 bool gotWhileStmt(ref string text, out WhileStatement ws, Namespace ns) {
   auto t2 = text;
   return
     t2.accept("while") && (New(ws), true) &&
-    t2.gotExpr(ws.cond, ns) && t2.gotScope(ws._body, ns) &&
+    t2.gotCond(ws.cond, ns) && t2.gotScope(ws._body, ns) &&
     (text = t2, true);
+}
+
+bool gotForStmt(ref string text, out ForStatement fs, Namespace ns) {
+  auto t2 = text;
+  typeof(ns.VarGetCheckpt()) check;
+  return
+    t2.accept("for (") && {
+      New(fs);
+      check = ns.VarGetCheckpt();
+      return true;
+    }() && (
+        t2.gotVarDecl(fs.decl, ns)
+      && t2.accept(";")
+      && t2.gotCond(fs.cond, ns)
+      && t2.accept(";")
+      && t2.gotStatement(fs.step, ns, false)
+      && t2.accept(")")
+      && t2.gotScope(fs._body, ns)
+      && (text = t2, ns.VarSetCheckpt(check), true)
+      || {
+        throw new Exception(
+          "Unable to match for statement; stumbled over " ~ t2.next_text());
+        return true;
+      }()
+    );
 }
 
 bool gotLabel(ref string text, out Label l, Namespace ns) {

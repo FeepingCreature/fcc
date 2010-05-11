@@ -3,7 +3,7 @@ module assemble;
 import ast.types;
 
 import tools.base: Format, New, or, and;
-import tools.compat: find, abs;
+import tools.compat: find, abs, replace;
 import tools.log;
 
 bool isRelative(string reg) {
@@ -12,7 +12,7 @@ bool isRelative(string reg) {
 
 struct Transaction {
   enum Kind {
-    Mov, SAlloc, SFree, MathOp, Push, Pop, Compare
+    Mov, Mov2, SAlloc, SFree, MathOp, Push, Pop, Compare
   }
   Kind kind;
   string toAsm() {
@@ -23,6 +23,13 @@ struct Transaction {
           return Format("movl ", from, ", ", usableScratch, "\nmovl ", usableScratch, ", ", to);
         } else {
           return Format("movl ", from, ", ", to);
+        }
+      case Kind.Mov2:
+        if (from.isRelative() && to.isRelative()) {
+          assert(usableScratch, "Cannot do relative memmove without scratch register! ");
+          return Format("movw ", from, ", ", usableScratch, "\nmovw ", usableScratch, ", ", to);
+        } else {
+          return Format("movw ", from, ", ", to);
         }
       case Kind.SAlloc: return Format("subl $", size, ", %esp");
       case Kind.SFree: return Format("addl $", size, ", %esp");
@@ -94,8 +101,10 @@ class AsmFile {
   string code;
   this() { New(cache); }
   Transcache cache;
+  int currentStackDepth;
   void pushStack(string expr, Type type) {
     assert(type.size == 4, Format("Can't push: ", type));
+    currentStackDepth += type.size;
     Transaction t;
     t.kind = Transaction.Kind.Push;
     t.source = expr;
@@ -103,10 +112,19 @@ class AsmFile {
   }
   void popStack(string dest, Type type) {
     assert(type.size == 4, Format("Can't pop: ", type));
+    currentStackDepth -= type.size;
     Transaction t;
     t.kind = Transaction.Kind.Pop;
     t.dest = dest;
     cache ~= t;
+  }
+  int checkptStack() {
+    return currentStackDepth;
+  }
+  void restoreCheckptStack(int i) {
+    if (currentStackDepth < i)
+      throw new Exception("Tried to unwind stack while unwound further - logic error");
+    sfree(currentStackDepth - i);
   }
   void compare(string op1, string op2) {
     Transaction t;
@@ -121,17 +139,50 @@ class AsmFile {
     t.from = from; t.to = to;
     cache ~= t;
   }
+  void mmove2(string from, string to) {
+    Transaction t;
+    t.kind = Transaction.Kind.Mov2;
+    t.from = from; t.to = to;
+    cache ~= t;
+  }
   void salloc(int sz) { // alloc stack space
     Transaction t;
+    currentStackDepth += sz;
     t.kind = Transaction.Kind.SAlloc;
     t.size = sz;
     cache ~= t;
   }
   void sfree(int sz) { // alloc stack space
     Transaction t;
+    currentStackDepth -= sz;
     t.kind = Transaction.Kind.SFree;
     t.size = sz;
     cache ~= t;
+  }
+  void jump(string label) {
+    put("jmp ", label);
+  }
+  import tools.ctfe;
+  void jumpOn(bool smaller, bool equal, bool greater, string label) {
+    // TODO: unsigned?
+    mixin(`
+      cond | instruction
+       fff | nop
+       fft | jg dest
+       ftf | je dest
+       ftt | jge dest
+       tff | jl dest
+       tft | jne dest
+       ttf | jle dest
+       ttt | jmp dest`
+      .ctTableUnroll(`
+        if (
+          (("$cond"[0] == 't') == smaller) &&
+          (("$cond"[1] == 't') == equal) &&
+          (("$cond"[2] == 't') == greater)
+        ) { put("$instruction".replace("dest", label)); return; }
+    `));
+    throw new Exception("Impossibility yay");
   }
   void mathOp(string which, string op1, string op2) {
     Transaction t;
@@ -142,9 +193,10 @@ class AsmFile {
   }
   int labelCounter; // Limited to 2^31 labels, le omg.
   string genLabel() {
-    auto name = Format("label", labelCounter++);
+    return Format("label", labelCounter++);
+  }
+  void emitLabel(string name) {
     put(name, ":");
-    return name;
   }
   // opts
   void collapseAllocFrees() {

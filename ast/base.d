@@ -60,6 +60,12 @@ interface Expr : Statement {
   Type valueType();
 }
 
+/// Emitting this sets up FLAGS.
+/// TODO: how does this work on non-x86?
+interface Cond : Statement {
+  void jumpFalse(AsmFile af, string dest);
+}
+
 bool ckbranch(ref string s, bool delegate()[] dgs...) {
   auto s2 = s;
   foreach (dg; dgs) {
