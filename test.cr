@@ -13,6 +13,8 @@ void test(int foo) {
     sys.printf("Countdown with %i\n", temp);
     temp = temp - 1;
   }
+  for (int x = 0; x < 10; x = x + 1)
+    sys.printf("Test: %i\n", x);
 }
 
 int acker(int m, int n) {
