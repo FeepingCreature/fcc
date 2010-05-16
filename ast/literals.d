@@ -1,6 +1,6 @@
 module ast.literals;
 
-import ast.base, tools.base: slice, replace, startsWith;
+import ast.base, ast.pointer, tools.base: slice, replace, startsWith;
 
 class StringExpr : Expr {
   string str;
@@ -10,7 +10,7 @@ class StringExpr : Expr {
     af.constants[name] = cast(ubyte[]) str;
     af.pushStack("$"~name, valueType());
   }
-  override Type valueType() { return tmemo(new Pointer(new Char)); }
+  override Type valueType() { return Single!(Pointer, Single!(Char)); }
 }
 
 bool gotStringExpr(ref string text, out Expr ex) {
@@ -28,7 +28,7 @@ class IntExpr : Expr {
   override void emitAsm(AsmFile af) {
     af.pushStack(Format("$", num), valueType());
   }
-  override Type valueType() { return tmemo(new SysInt); }
+  override Type valueType() { return Single!(SysInt); }
   this(int i) { num = i; }
 }
 

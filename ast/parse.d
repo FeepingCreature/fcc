@@ -11,7 +11,40 @@ import ast.base, ast.namespace, ast.scopes, ast.modules;
 import ast.math, ast.cond;
 import ast.literals, ast.aggregate, ast.assign, ast.ifstmt;
 import ast.fun, ast.returns, ast.variable, ast.jumps, ast.loops;
+import ast.pointer;
 import tools.base: New, Stuple, stuple;
+
+alias gotExtType gotType;
+
+// alias gotBaseExpr gotMath_Expr; // next on up
+alias gotBaseExpr gotDeref_Expr;
+alias gotDerefExpr gotRef_Expr;
+alias gotRefExpr gotMath_Expr;
+
+bool gotRefExpr(ref string text, out Expr ex, Namespace ns) {
+  auto t2 = text;
+  
+  if (!t2.accept("&")) return text.gotRef_Expr(ex, ns);
+  if (!t2.gotExpr(ex, ns)) return false;
+  
+  auto lv = cast(LValue) ex;
+  if (!lv) throw new Exception(Format("Can't take reference: ", ex, " not an lvalue at ", t2.next_text()));
+  
+  text = t2;
+  ex = new RefExpr(lv);
+  return true;
+}
+
+bool gotDerefExpr(ref string text, out Expr ex, Namespace ns) {
+  auto t2 = text;
+  
+  if (!t2.accept("*")) return text.gotDeref_Expr(ex, ns);
+  if (!t2.gotExpr(ex, ns)) return false;
+  
+  text = t2;
+  ex = new DerefExpr(ex);
+  return true;
+}
 
 bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
   auto t2 = text;
@@ -26,7 +59,7 @@ bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
     return true;
   }
   switch (level) {
-    case -2: return t2.gotBaseExpr(ex, ns) && (text = t2, true);
+    case -2: return t2.gotMath_Expr(ex, ns) && (text = t2, true);
     case -1:
       return t2.gotMathExpr(ex, ns, level-1) && many(t2.ckbranch(
         t2.accept("*") && t2.gotMathExpr(par, ns, level-1) && addMath("*"),

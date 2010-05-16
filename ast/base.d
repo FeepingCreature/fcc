@@ -118,3 +118,15 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   text = t2;
   return true;
 }
+
+import tools.log;
+// quick and dirty singleton
+template _Single(T, U...) {
+  T value;
+  static this() { logln("Running constructor for ", T.stringof); value = new T(U); }
+}
+
+template Single(T, U...) {
+  static assert(is(T: Object));
+  alias _Single!(T, U).value Single;
+}

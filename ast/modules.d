@@ -43,15 +43,17 @@ Module lookupMod(string name) {
   assert(false, "TODO");
 }
 
-static this() {
+import ast.pointer;
+// not static this() to work around a precedence bug in phobos. called from fcc.
+void setupSysmods() {
   New(sysmod);
   sysmod.name = "sys";
   {
     auto puts = new Function;
     puts.extern_c = true;
     New(puts.type);
-    puts.type.ret = tmemo(new Void);
-    puts.type.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
+    puts.type.ret = Single!(Void);
+    puts.type.params ~= stuple(cast(Type) Single!(Pointer, Single!(Char)), cast(string) null);
     puts.name = "puts";
     sysmod.addFun(puts);
   }
@@ -60,9 +62,9 @@ static this() {
     auto printf = new Function;
     printf.extern_c = true;
     New(printf.type);
-    printf.type.ret = tmemo(new Void);
-    printf.type.params ~= stuple(tmemo(new Pointer(new Char)), cast(string) null);
-    printf.type.params ~= stuple(tmemo(new Variadic), cast(string) null);
+    printf.type.ret = Single!(Void);
+    printf.type.params ~= stuple(cast(Type) Single!(Pointer, Single!(Char)), cast(string) null);
+    printf.type.params ~= stuple(cast(Type) Single!(Variadic), cast(string) null);
     printf.name = "printf";
     sysmod.addFun(printf);
   }

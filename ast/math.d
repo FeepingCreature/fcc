@@ -8,7 +8,7 @@ class AsmBinopExpr(string OP) : Expr {
   mixin This!("e1, e2");
   override {
     Type valueType() {
-      assert(e1.valueType() is e2.valueType());
+      assert(e1.valueType() == e2.valueType());
       return e1.valueType();
     }
     void emitAsm(AsmFile af) {
@@ -33,7 +33,7 @@ class CondWrap : Expr {
   mixin This!("cd");
   override {
     Type valueType() {
-      return tmemo(new SysInt); // TODO: bool type
+      return Single!(SysInt); // TODO: bool type
     }
     void emitAsm(AsmFile af) {
       cd.emitAsm(af);

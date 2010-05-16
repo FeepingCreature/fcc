@@ -1,8 +1,8 @@
 module ast.types;
 
-import ast.base;
-
 import tools.base: Stuple, take;
+
+import ast.base;
 
 class Type {
   int size;
@@ -15,8 +15,8 @@ class Type {
   void match(ref Expr[] params) {
     if (!params.length)
       throw new Exception(Format("Missing parameter of ", this));
-    if (params[0].valueType() !is this)
-      throw new Exception(Format("Expected ", this, ", got ", params[0]));
+    if (params[0].valueType() != this)
+      throw new Exception(Format("Expected ", this, ", got ", params[0], " of ", params));
     params.take();
   }
 }
@@ -58,31 +58,24 @@ class SysInt : Type {
   override string mangle() { return "sys_int"; }
 }
 
-class Pointer : Type {
-  Type target;
-  this(Type t) { target = t; size = nativePtrSize; }
-  int opEquals(Object obj) {
-    if (obj.classinfo !is this.classinfo) return false;
-    auto p = cast(Pointer) cast(void*) obj;
-    return target == p.target;
-  }
-  override string mangle() { return "ptrto_"~target.mangle(); }
-}
+// postfix type modifiers
+Type delegate(ref string text, Type cur)[] typeModlist;
 
-Type[] type_memofield;
-
-// TODO: memoize better
-Type tmemo(Type t) {
-  foreach (entry; type_memofield) {
-    if (entry.classinfo is t.classinfo && entry == t) return entry;
-  }
-  type_memofield ~= t;
-  return t;
-}
-
-bool gotType(ref string text, out Type type) {
-  if (text.accept("void")) return type = tmemo(new Void), true;
-  if (text.accept("size_t")) return type = tmemo(new SizeT), true;
-  if (text.accept("int")) return type = tmemo(new SysInt), true;
+bool gotBasicType(ref string text, out Type type) {
+  if (text.accept("void")) return type = new Void, true;
+  if (text.accept("size_t")) return type = new SizeT, true;
+  if (text.accept("int")) return type = new SysInt, true;
   return false;
+}
+
+bool gotExtType(ref string text, out Type type) {
+  if (!text.gotBasicType(type)) return false;
+  restart:
+  foreach (dg; typeModlist) {
+    if (auto nt = dg(text, type)) {
+      type = nt;
+      goto restart;
+    }
+  }
+  return true;
 }
