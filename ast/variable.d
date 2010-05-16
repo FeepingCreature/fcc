@@ -1,6 +1,6 @@
 module ast.variable;
 
-import ast.base;
+import ast.base, ast.math, ast.literals;
 
 class Variable : LValue {
   string address() { return Format(baseOffset, "(%ebp)"); }

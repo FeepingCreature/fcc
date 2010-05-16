@@ -1,8 +1,7 @@
 module ast.math;
 
 import ast.base, ast.namespace;
-import tools.base;
-alias ast.types.Type Type;
+import tools.base: This, This_fn, rmSpace;
 
 class AsmBinopExpr(string OP) : Expr {
   Expr e1, e2;

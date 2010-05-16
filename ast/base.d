@@ -23,7 +23,7 @@ interface Cond : Statement {
 }
 
 class Register(string Reg) : Expr {
-  override Type valueType() { return Single!(SysInt); }
+  override Type valueType() { return new SysInt; }
   override void emitAsm(AsmFile af) {
     af.pushStack("%"~Reg, valueType());
   }
