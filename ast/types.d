@@ -62,9 +62,9 @@ class SysInt : Type {
 Type delegate(ref string text, Type cur)[] typeModlist;
 
 bool gotBasicType(ref string text, out Type type) {
-  if (text.accept("void")) return type = new Void, true;
-  if (text.accept("size_t")) return type = new SizeT, true;
-  if (text.accept("int")) return type = new SysInt, true;
+  if (text.accept("void")) return type = Single!(Void), true;
+  if (text.accept("size_t")) return type = Single!(SizeT), true;
+  if (text.accept("int")) return type = Single!(SysInt), true;
   return false;
 }
 
