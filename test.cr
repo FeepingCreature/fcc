@@ -57,5 +57,8 @@ void main() {
   test2(a);*/
   test(2);
   test(0);
+  int e = 5;
   printf("a(3, 12) = %i\n", acker(3, 12));
+  int* x = &e;
+  printf("pointer to e: %p. e: %i, also %i.\n", x, *x, *&e);
 }
