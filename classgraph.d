@@ -5,7 +5,10 @@ import tools.compat: replace, write;
 
 // class graph gen
 import std.moduleinit, tools.log;
-static this() {
+
+void genGraph(string filename, bool drawModules = true, bool drawClasses = true, bool nested = true) {
+  nested &= drawClasses && drawModules;
+  
   ClassInfo[string] classfield;
   string[][string] imports;
   bool[string] modules;
@@ -34,7 +37,7 @@ static this() {
     rankdir=LR; compound=true;
     "/*concentrate=true; disabled because it crashes dot*/"
     remincross=true;\n";
-  scope(success) "fcc.dot".write(res);
+  scope(success) filename.write(res);
   scope(success) res ~= "}\n";
   
   string[][string] mod2class;
@@ -61,32 +64,58 @@ static this() {
   string cluster(string mod) {
     return "cluster_"~mod.replace(".", "_");
   }
-  foreach (key, value; modules) {
-    if (!key) continue;
-    res ~= "subgraph " ~ key.cluster() ~ " {\n";
-    res ~= "label=\"" ~ key ~ "\"; ";
-    if (key in import_relevant)
-      res ~= key.marker() ~ " [style=invis, width=0, height=0, fontsize=0]; \n";
-    if (auto p = key in mod2class)
-      foreach (cl; *p) {
-        res ~= cl ~ " [label=\"" ~ name2label[cl]~"\", shape=box]; \n";
+  auto nestClasses = drawClasses && nested;
+  if (drawModules) {
+    if (nestClasses) {
+      foreach (key, value; modules) {
+        if (!key) continue;
+        res ~= "subgraph " ~ key.cluster() ~ " {\n";
+        res ~= "label=\"" ~ key ~ "\"; \n";
+        if (key in import_relevant)
+          res ~= key.marker() ~ " [style=invis, width=0, height=0, fontsize=0]; \n";
+        if (auto p = key in mod2class)
+          foreach (cl; *p) {
+            res ~= cl ~ " [label=\"" ~ name2label[cl]~"\", shape=box]; \n";
+          }
+        res ~= "}\n";
       }
-    res ~= "}\n";
+    } else {
+      foreach (key, value; modules) {
+        if (!key) continue;
+        if (!(key in import_relevant)) continue;
+        res ~= key.marker() ~ " [label=\"" ~ key ~ "\"]; \n";
+      }
+    }
+    foreach (key, value; modules) {
+      if (auto p = key in imports)
+        foreach (mod2; *p) {
+          res ~= key.marker() ~ " -> " ~ mod2.marker()
+            ~ " [color=blue"/*constraint=false,*/;
+          if (nestClasses)
+            res ~= ", style=dotted, ltail=" ~ key.cluster() ~ ", lhead=" ~ mod2.cluster();
+          res ~= "];\n";
+        }
+    }
   }
-  foreach (key, value; modules) {
-    if (auto p = key in imports)
-      foreach (mod2; *p)
-        res ~= key.marker() ~ " -> " ~ mod2.marker()
-          ~ " [style=dotted, width=1, "/*constraint=false,*/ ~ 
-          "ltail=" ~ key.cluster() ~ ", lhead=" ~ mod2.cluster()~"];\n";
-  }
-  foreach (cl; classes) {
-    auto name = cl.name;
-    if (cl.base && !cl.base.name.ignore())
-      res ~= filterName(name) ~ " -> " ~ filterName(cl.base.name) ~ "; \n";
-    foreach (i2; cl.interfaces) {
-      if (!i2.classinfo.name.ignore())
-        res ~= filterName(name) ~ " -> "~filterName(i2.classinfo.name)~" [style=dashed]; \n";
+  if (drawClasses) {
+    if (!nestClasses) {
+      foreach (key, value; modules) {
+        if (!key) continue;
+        if (!(key in import_relevant)) continue;
+        if (auto p = key in mod2class) {
+          foreach (cl; *p)
+            res ~= cl ~ " [label=\"" ~ name2label[cl]~"\"]; \n";
+        }
+      }
+    }
+    foreach (cl; classes) {
+      auto name = cl.name;
+      if (cl.base && !cl.base.name.ignore())
+        res ~= filterName(name) ~ " -> " ~ filterName(cl.base.name) ~ " [color=red]; \n";
+      foreach (i2; cl.interfaces) {
+        if (!i2.classinfo.name.ignore())
+          res ~= filterName(name) ~ " -> "~filterName(i2.classinfo.name)~" [color=red,style=dashed]; \n";
+      }
     }
   }
 }

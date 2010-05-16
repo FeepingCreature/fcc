@@ -57,7 +57,16 @@ void link(string[] objects, string output, string[] largs) {
   system(cmdline.toStringz());
 }
 
+void init() {
+  setupSysmods();
+  genGraph("fcc.mods.dot", true, false);
+  genGraph("fcc.classes.dot", false, true);
+  genGraph("fcc.mixed.dot", true, true);
+  genGraph("fcc.both.dot", true, true, false);
+}
+
 void main(string[] args) {
+  init();
   auto exec = args.take();
   string[] objects;
   string output;
