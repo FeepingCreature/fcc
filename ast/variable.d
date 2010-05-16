@@ -3,11 +3,14 @@ module ast.variable;
 import ast.base;
 
 class Variable : LValue {
+  string address() { return Format(baseOffset, "(%ebp)"); }
   override {
-    string location() { return Format(baseOffset, "(%ebp)"); }
     void emitAsm(AsmFile af) {
       assert(type.size == 4);
       af.pushStack(location, type);
+    }
+    void emitLocation(AsmFile af) {
+      (new AsmBinopExpr!("addl")(new Register!("ebp"), new IntExpr(baseOffset))).emitAsm(af);
     }
     Type valueType() {
       return type;

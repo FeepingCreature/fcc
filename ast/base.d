@@ -2,6 +2,33 @@ module ast.base;
 
 public import assemble, ast.types;
 
+interface Tree {
+  void emitAsm(AsmFile);
+}
+
+interface Statement : Tree { }
+
+interface Expr : Statement {
+  Type valueType();
+}
+
+interface LValue : Expr {
+  void emitLocation(AsmFile);
+}
+
+/// Emitting this sets up FLAGS.
+/// TODO: how does this work on non-x86?
+interface Cond : Statement {
+  void jumpFalse(AsmFile af, string dest);
+}
+
+class Register(string Reg) : Expr {
+  override Type valueType() { return Single!(SysInt); }
+  override void emitAsm(AsmFile af) {
+    af.pushStack("%"~Reg, valueType());
+  }
+}
+
 string error; // TODO: tls
 
 bool isAlpha(dchar d) {
@@ -48,26 +75,6 @@ class ParseException {
   this(string where, string info) {
     this.where = where; this.info = info;
   }
-}
-
-interface Tree {
-  void emitAsm(AsmFile);
-}
-
-interface Statement : Tree { }
-
-interface Expr : Statement {
-  Type valueType();
-}
-
-interface LValue : Expr {
-  string location();
-}
-
-/// Emitting this sets up FLAGS.
-/// TODO: how does this work on non-x86?
-interface Cond : Statement {
-  void jumpFalse(AsmFile af, string dest);
 }
 
 bool ckbranch(ref string s, bool delegate()[] dgs...) {
