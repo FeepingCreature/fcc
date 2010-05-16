@@ -60,6 +60,10 @@ interface Expr : Statement {
   Type valueType();
 }
 
+interface LValue : Expr {
+  string location();
+}
+
 /// Emitting this sets up FLAGS.
 /// TODO: how does this work on non-x86?
 interface Cond : Statement {

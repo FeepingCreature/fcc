@@ -2,13 +2,16 @@ module ast.variable;
 
 import ast.base;
 
-class Variable : Expr {
-  override void emitAsm(AsmFile af) {
-    assert(type.size == 4);
-    af.pushStack(Format(baseOffset, "(%ebp)"), type);
-  }
-  override Type valueType() {
-    return type;
+class Variable : LValue {
+  override {
+    string location() { return Format(baseOffset, "(%ebp)"); }
+    void emitAsm(AsmFile af) {
+      assert(type.size == 4);
+      af.pushStack(location, type);
+    }
+    Type valueType() {
+      return type;
+    }
   }
   Type type;
   string name;
