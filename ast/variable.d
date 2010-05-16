@@ -29,11 +29,10 @@ class Variable : LValue {
 class VarDecl : Statement {
   Variable var;
   override void emitAsm(AsmFile af) {
-    assert(var.type.size == 4);
     if (var.initval) {
       var.initval.emitAsm(af);
     } else {
-      af.salloc(4);
+      af.salloc(var.type.size);
     }
   }
 }

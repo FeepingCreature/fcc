@@ -89,19 +89,26 @@ bool ckbranch(ref string s, bool delegate()[] dgs...) {
 ulong uid;
 ulong getuid() { synchronized return uid++; }
 
-bool bjoin(lazy bool c1, lazy bool c2, void delegate() dg) {
-  if (!c1) return true;
+bool bjoin(ref string s, lazy bool c1, lazy bool c2, void delegate() dg, bool allowEmpty = true) {
+  auto s2 = s;
+  if (!c1) { s = s2; return allowEmpty; }
   dg();
   while (true) {
-    if (!c2) return true;
-    if (!c1) return false;
+    s2 = s;
+    if (!c2) { s = s2; return true; }
+    s2 = s;
+    if (!c1) { s = s2; return false; }
     dg();
   }
 }
 
 // while expr
-bool many(lazy bool b, void delegate() dg = null) {
-  while (b()) { if (dg) dg(); }
+bool many(ref string s, lazy bool b, void delegate() dg = null) {
+  while (true) {
+    auto s2 = s;
+    if (!b()) { s = s2; break; }
+    if (dg) dg();
+  }
   return true;
 }
 
@@ -119,11 +126,10 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   return true;
 }
 
-import tools.log;
 // quick and dirty singleton
 template _Single(T, U...) {
   T value;
-  static this() { logln("Running constructor for ", T.stringof); value = new T(U); }
+  static this() { value = new T(U); }
 }
 
 template Single(T, U...) {

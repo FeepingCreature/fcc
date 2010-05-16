@@ -51,6 +51,11 @@ class A {
   }
 }*/
 
+struct X {
+  int a, b;
+  int c;
+}
+
 void main() {
   /*A a = new A;
   a.x = 5;
@@ -59,7 +64,10 @@ void main() {
   test(0);
   int e = 5;
   printf("a(3, 12) = %i\n", acker(3, 12));
-  int* x = &e;
-  *x = 7;
-  printf("pointer to e: %p. e: %i, also %i.\n", x, *x, *&e);
+  int* ptr = &e;
+  *ptr = 7;
+  X x;
+  x.a = 5; x.b = 6; x.c = 3;
+  printf("yo .. %i, %i, %i\n", x.a, x.b, x.c);
+  printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&e);
 }

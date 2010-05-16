@@ -1,6 +1,6 @@
 module ast.namespace;
 
-import ast.types, ast.fun, ast.variable;
+import ast.types, ast.fun, ast.variable, ast.structure;
 
 import tools.ctfe, tools.base: stuple;
 class Namespace {
@@ -25,6 +25,7 @@ class Namespace {
     `.ctReplace("$NAME", Name));
   }
   mixin Kind!(Class, "Class");
+  mixin Kind!(Structure, "Struct");
   mixin Kind!(Function, "Fun");
   mixin Kind!(Variable, "Var");
   abstract string mangle(string name, Type type);
@@ -32,15 +33,20 @@ class Namespace {
 
 Function lookupFun(Namespace ns, string name) {
   if (auto res = ns.lookupFun(name)) return res;
-  assert(false, "No such identifier: "~name);
+  assert(false, "No such function identifier: "~name);
 }
 
 Class lookupClass(Namespace ns, string name) {
   if (auto res = ns.lookupClass(name)) return res;
-  assert(false, "No such identifier: "~name);
+  assert(false, "No such class identifier: "~name);
+}
+
+Structure lookupStruct(Namespace ns, string name) {
+  if (auto res = ns.lookupStruct(name)) return res;
+  assert(false, "No such struct identifier: "~name);
 }
 
 Variable lookupVar(Namespace ns, string name) {
   if (auto res = ns.lookupVar(name)) return res;
-  assert(false, "No such identifier: "~name);
+  assert(false, "No such variable identifier: "~name);
 }

@@ -60,22 +60,3 @@ class SysInt : Type {
 
 // postfix type modifiers
 Type delegate(ref string text, Type cur)[] typeModlist;
-
-bool gotBasicType(ref string text, out Type type) {
-  if (text.accept("void")) return type = Single!(Void), true;
-  if (text.accept("size_t")) return type = Single!(SizeT), true;
-  if (text.accept("int")) return type = Single!(SysInt), true;
-  return false;
-}
-
-bool gotExtType(ref string text, out Type type) {
-  if (!text.gotBasicType(type)) return false;
-  restart:
-  foreach (dg; typeModlist) {
-    if (auto nt = dg(text, type)) {
-      type = nt;
-      goto restart;
-    }
-  }
-  return true;
-}

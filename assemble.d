@@ -242,7 +242,7 @@ class AsmFile {
         match.replaceWith(null);
         continue;
       }
-      logln("Collapse ", match[0], " into ", match[1]);
+      // logln("Collapse ", match[0], " into ", match[1]);
       Transaction res;
       res.kind = Transaction.Kind.Mov;
       res.from = match[0].from; res.to = match[1].to;
@@ -269,7 +269,7 @@ class AsmFile {
         match.replaceWith(null);
         continue;
       }
-      logln("Collapse ", match[0], " into ", match[1]);
+      // logln("Collapse ", match[0], " into ", match[1]);
       Transaction res;
       res.kind = Transaction.Kind.Mov;
       res.from = match[0].source; res.to = match[1].dest;

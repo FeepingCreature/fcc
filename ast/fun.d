@@ -61,7 +61,6 @@ void callFunction(Function fun, Expr[] params, AsmFile dest) {
   // dest.put("int $3");
   if (params.length) {
     auto p2 = params;
-    logln("fun type ", fun.type);
     foreach (entry; fun.type.params)
       entry._0.match(p2);
     assert(!p2.length);

@@ -11,7 +11,7 @@ import ast.base, ast.namespace, ast.scopes, ast.modules;
 import ast.math, ast.cond;
 import ast.literals, ast.aggregate, ast.assign, ast.ifstmt;
 import ast.fun, ast.returns, ast.variable, ast.jumps, ast.loops;
-import ast.pointer;
+import ast.pointer, ast.structure;
 import tools.base: New, Stuple, stuple;
 
 alias gotExtType gotType;
@@ -19,7 +19,8 @@ alias gotExtType gotType;
 // alias gotBaseExpr gotMath_Expr; // next on up
 alias gotBaseExpr gotDeref_Expr;
 alias gotDerefExpr gotRef_Expr;
-alias gotRefExpr gotMath_Expr;
+alias gotRefExpr gotMember_Expr;
+alias gotMemberExpr gotMath_Expr;
 
 bool gotRefExpr(ref string text, out Expr ex, Namespace ns) {
   auto t2 = text;
@@ -46,6 +47,21 @@ bool gotDerefExpr(ref string text, out Expr ex, Namespace ns) {
   return true;
 }
 
+bool gotMemberExpr(ref string text, out Expr ex, Namespace ns) {
+  auto t2 = text;
+  logln("try to gotRefExpr off ", t2.next_text());
+  if (!t2.gotMember_Expr(ex, ns)) return false;
+  string member;
+  logln("Getting member expr; left is ", t2.next_text());
+  return t2.many(t2.accept(".") && t2.gotIdentifier(member), {
+    if (!cast(Structure) ex.valueType())
+      throw new Exception(Format("Can't access member of non-structure: ", ex));
+    
+    if (auto lv = cast(LValue) ex) ex = new MemberAccess_LValue(lv, member);
+    else ex = new MemberAccess_Expr(ex, member);
+  }) && (text = t2, true);
+}
+
 bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
   auto t2 = text;
   Expr par;
@@ -61,12 +77,12 @@ bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
   switch (level) {
     case -2: return t2.gotMath_Expr(ex, ns) && (text = t2, true);
     case -1:
-      return t2.gotMathExpr(ex, ns, level-1) && many(t2.ckbranch(
+      return t2.gotMathExpr(ex, ns, level-1) && t2.many(t2.ckbranch(
         t2.accept("*") && t2.gotMathExpr(par, ns, level-1) && addMath("*"),
         t2.accept("/") && t2.gotMathExpr(par, ns, level-1) && addMath("/")
       )) && (text = t2, true);
     case 0:
-      return t2.gotMathExpr(ex, ns, level-1) && many(t2.ckbranch(
+      return t2.gotMathExpr(ex, ns, level-1) && t2.many(t2.ckbranch(
         t2.accept("+") && t2.gotMathExpr(par, ns, level-1) && addMath("+"),
         t2.accept("-") && t2.gotMathExpr(par, ns, level-1) && addMath("-")
       )) && (text = t2, true);
@@ -90,8 +106,6 @@ bool gotCompare(ref string text, out Cond cd, Namespace ns) {
   auto t2 = text;
   bool not, smaller, equal, greater;
   Expr ex1, ex2;
-  logln("get compare off ", t2.next_text());
-  scope(exit) logln("; left ", t2.next_text(), " => ", cd);
   return t2.gotExpr(ex1, ns) && (
     (
       (t2.accept("!") && (not = true)),
@@ -117,7 +131,7 @@ bool gotFuncall(ref string text, out Expr expr, Namespace ns) {
   Expr ex;
   return t2.gotIdentifier(fc.name, true)
     && t2.accept("(")
-    && bjoin(t2.gotExpr(ex, ns), t2.accept(","), { fc.params ~= ex; })
+    && t2.bjoin(t2.gotExpr(ex, ns), t2.accept(","), { fc.params ~= ex; })
     && t2.accept(")")
     && ((text = t2), (expr = fc), true);
 }
@@ -133,19 +147,40 @@ bool gotScope(ref string text, out Scope sc, Namespace ns) {
 bool gotImportStatement(ref string text, Module mod) {
   string m;
   // import a, b, c;
-  return text.accept("import") && bjoin(text.gotIdentifier(m, true), text.accept(","), {
+  return text.accept("import") && text.bjoin(text.gotIdentifier(m, true), text.accept(","), {
     mod.imports ~= lookupMod(m);
   }) && text.accept(";");
+}
+
+bool gotStructDef(ref string text, out Structure st, Namespace ns) {
+  auto t2 = text;
+  if (!t2.accept("struct")) return false;
+  string name;
+  Structure.Member[] ms;
+  // New(st, comps);
+  Structure.Member sm;
+  return t2.gotIdentifier(name) && t2.accept("{") && t2.many(
+    t2.gotType(sm.type, ns) &&
+    t2.bjoin(
+      t2.gotIdentifier(sm.name),
+      t2.accept(",")
+      ,{ ms ~= sm; }
+    ) &&
+    t2.accept(";")
+  ) && t2.accept("}")
+    && (New(st, name, ms), text = t2, true);
 }
 
 bool gotModule(ref string text, out Module mod) {
   auto t2 = text;
   Function fn;
+  Structure st;
   Tree tr;
   return t2.accept("module ") && (New(mod), true) &&
     t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
-    many(
+    t2.many(
       t2.gotFunDef(fn, mod) && (tr = fn, true) ||
+      t2.gotStructDef(st, mod) && (mod.addStruct(st), tr = null, true) ||
       t2.gotImportStatement(mod) && (tr = null, true),
     {
       if (tr) mod.entries ~= tr;
@@ -170,16 +205,22 @@ bool gotRetStmt(ref string text, out ReturnStmt rs, Namespace ns) {
     t2.gotExpr(rs.value, ns) && (text = t2, true);
 }
 
+import tools.compat: rfind;
 bool gotVariable(ref string text, out Variable v, Namespace ns) {
   // logln("Match variable off ", text.next_text());
   string name, t2 = text;
   return t2.gotIdentifier(name, true)
     && {
-      // logln("Look for ", name, " in ", ns.Varfield);
+      logln("Look for ", name, " in ", ns.Varfield);
+      retry:
       if (auto res = ns.lookupVar(name)) {
         v = res;
-        text = t2;
+        if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
         return true;
+      }
+      if (name.rfind(".") != -1) {
+        name = name[0 .. name.rfind(".")];
+        goto retry;
       }
       error = "unknown identifier "~name;
       return false;
@@ -190,8 +231,6 @@ bool gotSemicolonizedStatement(ref string text, out Statement stmt, Namespace ns
   Expr ex; ReturnStmt rs; GotoStmt gs;
   Assignment ass; VarDecl vd;
   auto t2 = text;
-  logln("get semicolonized off ", t2.next_text());
-  scope(exit) logln(" => ", stmt);
   return
     (text.gotRetStmt(rs, ns) && (stmt = rs, true)) ||
     (text.gotGotoStmt(gs, ns) && (stmt = gs, true)) ||
@@ -227,11 +266,11 @@ bool gotFunDef(ref string text, out Function fun, Module mod) {
   string parname;
   error = null;
   return
-    t2.gotType(fun.type.ret)
+    t2.gotType(fun.type.ret, mod)
     && t2.gotIdentifier(fun.name)
     && t2.accept("(")
     // TODO: function parameters belong on the stackframe
-    && bjoin(t2.gotType(ptype) && (t2.gotIdentifier(parname) || ((parname=null), true)), t2.accept(","), {
+    && t2.bjoin(t2.gotType(ptype, mod) && (t2.gotIdentifier(parname) || ((parname=null), true)), t2.accept(","), {
       fun.type.params ~= stuple(ptype, parname);
     })
     && t2.accept(")")
@@ -246,7 +285,7 @@ bool gotVarDecl(ref string text, out VarDecl vd, Namespace ns) {
   auto var = new Variable;
   Expr iv;
   return
-    t2.gotType(var.type)
+    t2.gotType(var.type, ns)
     && t2.gotIdentifier(var.name)
     && (t2.accept("=") && t2.gotExpr(iv, ns) && {
       var.initval = iv;
@@ -268,7 +307,7 @@ bool gotAggregateStmt(ref string text, out AggrStatement as, Namespace ns) {
   
   Statement st;
   return t2.accept("{") && (as = new AggrStatement, true) &&
-    many(t2.gotStatement(st, ns), { if (!st) asm { int 3; } as.stmts ~= st; })
+    t2.many(t2.gotStatement(st, ns), { as.stmts ~= st; })
     && t2.mustAccept("}", Format("Encountered unknown statement at ", t2.next_text()))
     && (text = t2, true);
 }
@@ -278,6 +317,7 @@ bool gotAssignment(ref string text, out Assignment as, Namespace ns) {
   auto t2 = text;
   New(as);
   Expr ex;
+  logln("get assign off ", t2.next_text());
   return t2.gotExpr(ex, ns) && t2.accept("=") && {
     auto lv = cast(LValue) ex;
     if (!lv) throw new Exception(Format("Assignment target is not an lvalue: ", ex, " at ", t2.next_text()));
@@ -342,4 +382,31 @@ bool gotLabel(ref string text, out Label l, Namespace ns) {
   auto t2 = text;
   New(l);
   return t2.gotIdentifier(l.name) && t2.accept(":") && (text = t2, true);
+}
+
+bool gotBasicType(ref string text, out Type type, Namespace ns) {
+  if (text.accept("void")) return type = Single!(Void), true;
+  if (text.accept("size_t")) return type = Single!(SizeT), true;
+  if (text.accept("int")) return type = Single!(SysInt), true;
+  string id, t2 = text;
+  if (t2.gotIdentifier(id)) {
+    if (auto st = ns.lookupStruct(id)) {
+      type = st;
+      text = t2;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool gotExtType(ref string text, out Type type, Namespace ns) {
+  if (!text.gotBasicType(type, ns)) return false;
+  restart:
+  foreach (dg; typeModlist) {
+    if (auto nt = dg(text, type)) {
+      type = nt;
+      goto restart;
+    }
+  }
+  return true;
 }
