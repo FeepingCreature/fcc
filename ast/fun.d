@@ -92,5 +92,6 @@ class FunctionType : Type {
       }
       return res;
     }
+    string toString() { return Format("Function of ", params, " => ", ret); }
   }
 }
