@@ -277,7 +277,13 @@ import tools.log;
 bool gotAssignment(ref string text, out Assignment as, Namespace ns) {
   auto t2 = text;
   New(as);
-  return t2.gotVariable(as.target, ns) && t2.accept("=") && t2.gotExpr(as.value, ns) && {
+  Expr ex;
+  return t2.gotExpr(ex, ns) && t2.accept("=") && {
+    auto lv = cast(LValue) ex;
+    if (!lv) throw new Exception(Format("Assignment target is not an lvalue: ", ex, " at ", t2.next_text()));
+    as.target = lv;
+    return true;
+  }() && t2.gotExpr(as.value, ns) && {
     text = t2;
     return true;
   }();

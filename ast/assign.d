@@ -1,17 +1,17 @@
 module ast.assign;
 
-import ast.base, ast.variable;
+import ast.base, ast.variable, ast.pointer;
 
 class Assignment : Statement {
-  Variable target;
+  LValue target;
   Expr value;
-  this(Variable v, Expr e) { target = v; value = e; }
+  this(LValue t, Expr e) { target = t; value = e; }
   this() { }
   override void emitAsm(AsmFile af) {
     assert(value.valueType().size == 4);
     value.emitAsm(af);
-    af.mmove4("(%esp)", "%edx");
-    af.mmove4("%edx", Format(target.baseOffset, "(%ebp)"));
-    af.sfree(value.valueType().size);
+    target.emitLocation(af);
+    af.popStack("%eax", new Pointer(target.valueType()));
+    af.popStack("(%eax)", value.valueType());
   }
 }

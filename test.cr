@@ -60,5 +60,6 @@ void main() {
   int e = 5;
   printf("a(3, 12) = %i\n", acker(3, 12));
   int* x = &e;
+  *x = 7;
   printf("pointer to e: %p. e: %i, also %i.\n", x, *x, *&e);
 }
