@@ -7,7 +7,7 @@ class Variable : LValue {
   override {
     void emitAsm(AsmFile af) {
       assert(type.size == 4);
-      af.pushStack(location, type);
+      af.pushStack(address, type);
     }
     void emitLocation(AsmFile af) {
       (new AsmBinopExpr!("addl")(new Register!("ebp"), new IntExpr(baseOffset))).emitAsm(af);
