@@ -1,6 +1,10 @@
 module ast.base;
 
-public import assemble, ast.types, parseBase;
+public import asmfile, ast.types, parseBase;
+
+static import tools.base;
+alias tools.base.Format Format;
+alias tools.base.New New;
 
 interface Tree {
   void emitAsm(AsmFile);
