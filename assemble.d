@@ -10,6 +10,7 @@ bool isRelative(string reg) {
   return reg.find("(") != -1;
 }
 
+import parseBase; // int parsing
 struct Transaction {
   enum Kind {
     Mov, Mov2, SAlloc, SFree, MathOp, Push, Pop, Compare
@@ -37,8 +38,33 @@ struct Transaction {
         if (opName == "addl" && op1 == "$1") return Format("incl ", op2);
         if (opName == "subl" && op1 == "$1") return Format("decl ", op2);
         return Format(opName, " ", op1, ", ", op2);
-      case Kind.Push: return Format("pushl ", source);
-      case Kind.Pop: return Format("popl ", dest);
+      case Kind.Push, Kind.Pop:
+        auto size = type.size;
+        string res;
+        void addLine(string s) { if (res) res ~= "\n"; res ~= s; }
+        auto mnemo = (kind == Kind.Push) ? "push" : "pop";
+        void doOp(int sz, string pf) {
+          while (size >= sz) {
+            auto op = (kind == Kind.Push) ? source : dest;
+            addLine(Format(mnemo, pf, " ", op));
+            auto s2 = op;
+            string reg; int offs, num; string ident;
+            if (s2.accept("%") && s2.gotIdentifier(reg) && !s2.length || (s2 = op, false)) {
+              auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
+              if (size != regsize) throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
+            } else if (kind == Kind.Push && s2.accept("$") && (s2.gotInt(num) || s2.gotIdentifier(ident)) || (s2 = op, false)) {
+              if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
+            } else if ((s2.gotInt(offs) || (offs = 0, true)) && s2.accept("(%") && s2.gotIdentifier(reg) && s2.accept(")") || (s2 = op, false)) {
+              op = Format(sz + offs, "(%", reg, ")");
+            } else throw new Exception("Unknown address format: '"~op~"'");
+            logln("op set to '", op, "'");
+            size -= sz;
+          }
+        }
+        doOp(4, "l");
+        doOp(2, "w");
+        doOp(1, "b");
+        return res;
       case Kind.Compare: return Format("cmpl ", op1, ", ", op2);
     }
   }
@@ -50,6 +76,7 @@ struct Transaction {
     int size;
     struct {
       string source, dest;
+      Type type;
     }
     struct {
       string opName;
@@ -103,19 +130,19 @@ class AsmFile {
   Transcache cache;
   int currentStackDepth;
   void pushStack(string expr, Type type) {
-    assert(type.size == 4, Format("Can't push: ", type));
     currentStackDepth += type.size;
     Transaction t;
     t.kind = Transaction.Kind.Push;
     t.source = expr;
+    t.type = type;
     cache ~= t;
   }
   void popStack(string dest, Type type) {
-    assert(type.size == 4, Format("Can't pop: ", type));
     currentStackDepth -= type.size;
     Transaction t;
     t.kind = Transaction.Kind.Pop;
     t.dest = dest;
+    t.type = type;
     cache ~= t;
   }
   int checkptStack() {

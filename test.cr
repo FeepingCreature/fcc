@@ -56,6 +56,11 @@ struct X {
   int c;
 }
 
+struct Y {
+  X x;
+  int i;
+}
+
 void main() {
   /*A a = new A;
   a.x = 5;
@@ -68,6 +73,10 @@ void main() {
   *ptr = 7;
   X x;
   x.a = 5; x.b = 6; x.c = 3;
+  Y y;
+  y.x = x;
+  y.x.c = 5;
+  printf("It's a %i! ", y.x.c);
   printf("yo .. %i, %i, %i\n", x.a, x.b, x.c);
   printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&e);
 }

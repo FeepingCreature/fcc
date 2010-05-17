@@ -33,23 +33,6 @@ class IntExpr : Expr {
 }
 
 bool gotIntExpr(ref string text, out Expr ex) {
-  auto t2 = text.strip();
-  if (auto rest = t2.startsWith("-")) {
-    return gotIntExpr(rest, ex)
-      && (
-        ((cast(IntExpr) ex).num = -(cast(IntExpr) ex).num),
-        (text = rest),
-        true
-      );
-    }
-  bool isNum(char c) { return c >= '0' && c <= '9'; }
-  if (!t2.length || !isNum(t2[0])) return false;
-  int res = t2.take() - '0';
-  while (t2.length) {
-    if (!isNum(t2[0])) break;
-    res = res * 10 + t2.take() - '0'; 
-  }
-  ex = new IntExpr(res);
-  text = t2;
-  return true;
+  int i;
+  return text.gotInt(i) && (ex = new IntExpr(i), true);
 }
