@@ -43,24 +43,45 @@ struct Transaction {
         string res;
         void addLine(string s) { if (res) res ~= "\n"; res ~= s; }
         auto mnemo = (kind == Kind.Push) ? "push" : "pop";
+        // %eax
+        string matchRegister(string s) {
+          string reg;
+          if (s.accept("%") && s.gotIdentifier(reg) && !s.length) return reg;
+          else return null;
+        }
+        // $5 or $constant_string
+        bool gotLiteral(string s, ref int num, ref string ident) {
+          return s.accept("$") && (s.gotInt(num) || (s.find("(") == -1) && (ident = s, s = null, true)) && !s.length;
+        }
+        // 8(%eax)
+        string gotMemoryOffset(string s, ref int offs) {
+          string reg;
+          if ((s.gotInt(offs) || (offs = 0, true)) && s.accept("(%") && s.gotIdentifier(reg) && s.accept(")")) return reg;
+          else return null;
+        }
+        // push/pop as far as possible at that size sz, using instruction postfix pf.
         void doOp(int sz, string pf) {
           while (size >= sz) {
             auto op = (kind == Kind.Push) ? source : dest;
             addLine(Format(mnemo, pf, " ", op));
             auto s2 = op;
-            string reg; int offs, num; string ident;
-            if (s2.accept("%") && s2.gotIdentifier(reg) && !s2.length || (s2 = op, false)) {
+            int offs, num; string ident;
+            if (auto reg = op.matchRegister()) {
               auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
               if (size != regsize) throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
-            } else if (kind == Kind.Push && s2.accept("$") && (s2.gotInt(num) || s2.gotIdentifier(ident)) || (s2 = op, false)) {
+            }
+            else if (kind == Kind.Push && op.gotLiteral(num, ident)) {
               if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
-            } else if ((s2.gotInt(offs) || (offs = 0, true)) && s2.accept("(%") && s2.gotIdentifier(reg) && s2.accept(")") || (s2 = op, false)) {
+            }
+            else if (auto reg = op.gotMemoryOffset(offs)) {
               op = Format(sz + offs, "(%", reg, ")");
-            } else throw new Exception("Unknown address format: '"~op~"'");
-            logln("op set to '", op, "'");
+            }
+            else
+              throw new Exception("Unknown address format: '"~op~"'");
             size -= sz;
           }
         }
+        // doOp(8, "r");
         doOp(4, "l");
         doOp(2, "w");
         doOp(1, "b");
