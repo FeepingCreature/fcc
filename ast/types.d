@@ -5,7 +5,7 @@ import tools.base: Stuple, take;
 import ast.base;
 
 class Type {
-  int size;
+  abstract int size();
   abstract string mangle();
   int opEquals(Object obj) {
     // specialize where needed
@@ -22,12 +22,12 @@ class Type {
 }
 
 class Void : Type {
-  this() { size = 4; }
+  override int size() { return 4; } // for arrays
   override string mangle() { return "void"; }
 }
 
 class Variadic : Type {
-  this() { size = 0; }
+  override int size() { assert(false); }
   void match(ref Expr[] params) {
     params = null; // match all
   }
@@ -35,7 +35,7 @@ class Variadic : Type {
 }
 
 class Char : Type {
-  this() { size = 1; }
+  override int size() { return 1; }
   override string mangle() { return "char"; }
 }
 
@@ -44,17 +44,18 @@ const nativeIntSize = 4, nativePtrSize = 4;
 class Class : Type {
   string name;
   Stuple!(Type, string)[] members;
-  this(string name) { this.name = name; size = nativePtrSize; }
+  this(string name) { this.name = name; }
+  override int size() { return nativePtrSize; }
   abstract override string mangle() { return "class"; }
 }
 
 class SizeT : Type {
-  this() { size = nativeIntSize; }
+  override int size() { return nativeIntSize; }
   override string mangle() { return "size_t"; }
 }
 
 class SysInt : Type {
-  this() { size = nativeIntSize; }
+  override int size() { return nativeIntSize; }
   override string mangle() { return "sys_int"; }
 }
 

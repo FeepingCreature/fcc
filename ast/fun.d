@@ -81,7 +81,7 @@ void callFunction(Function fun, Expr[] params, AsmFile dest) {
 class FunctionType : Type {
   Type ret;
   Stuple!(Type, string)[] params;
-  this() { size = -1; } // functions are not values
+  override int size() { assert(false); }
   override {
     string mangle() {
       string res = "function_to_"~ret.mangle();

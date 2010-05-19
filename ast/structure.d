@@ -2,6 +2,14 @@ module ast.structure;
 
 import ast.types, ast.base, ast.namespace; // yay, more cycles
 
+import tools.base: ex;
+int sum(S, T)(S s, T t) {
+  int res;
+  foreach (entry; s)
+    res += t(entry);
+  return res;
+}
+
 class Structure : Type {
   string name;
   struct Member {
@@ -18,10 +26,12 @@ class Structure : Type {
     foreach (member; members[0 .. id]) offs += member.type.size;
     return offs;
   }
+  override int size() {
+    return members.sum(ex!("t -> t.type.size()"));
+  }
   this(string name, Member[] members) {
     this.name = name;
     this.members = members;
-    foreach (member; members) this.size += member.type.size;
   }
   override string mangle() { return "struct_"~name; }
 }

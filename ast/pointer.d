@@ -4,12 +4,13 @@ import ast.types, ast.base, tools.base: This, This_fn, rmSpace;
 
 class Pointer : Type {
   Type target;
-  this(Type t) { target = t; size = nativePtrSize; }
+  this(Type t) { target = t; }
   int opEquals(Object obj) {
     if (obj.classinfo !is this.classinfo) return false;
     auto p = cast(Pointer) cast(void*) obj;
     return target == p.target;
   }
+  override int size() { return nativePtrSize; }
   override string mangle() { return "ptrto_"~target.mangle(); }
 }
 
