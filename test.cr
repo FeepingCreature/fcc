@@ -68,7 +68,7 @@ void main() {
   test(2);
   test(0);
   int e = 5;
-  printf("a(3, 12) = %i\n", acker(3, 12));
+  // printf("a(3, 12) = %i\n", acker(3, 12));
   int* ptr = &e;
   *ptr = 7;
   X x;
@@ -80,5 +80,7 @@ void main() {
   printf("yo .. %i, %i, %i\n", x.a, x.b, x.c);
   printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&*&e);
   int m = 5;
+  int n = 8;
   printf("post inc test: %i, %i\n", m++, m++);
+  printf("test: %i\n", *(&m - 1));
 }

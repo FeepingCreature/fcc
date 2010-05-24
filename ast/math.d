@@ -1,14 +1,31 @@
 module ast.math;
 
 import ast.base, ast.namespace, parseBase;
-import tools.base: This, This_fn, rmSpace;
+import tools.base: This, This_fn, rmSpace, and;
+
+void handlePointers(ref Expr op1, ref Expr op2) {
+  if (cast(Pointer) op2.valueType()) {
+    swap(op1, op2);
+  }
+  if (cast(Pointer) op1.valueType()) {
+    if (cast(Pointer) op2.valueType())
+      throw new Exception("Pointer/pointer addition is undefined! ");
+    auto mul = (cast(Pointer) op1.valueType()).target.size;
+    op2 = new AsmBinopExpr!("imull")(new IntExpr(mul), op2);
+  }
+}
 
 class AsmBinopExpr(string OP) : Expr {
   Expr e1, e2;
-  mixin This!("e1, e2");
+  this(Expr e1, Expr e2) {
+    static if (OP == "addl" || OP == "subl")
+      handlePointers(e1, e2);
+    this.e1 = e1;
+    this.e2 = e2;
+  }
   override {
     Type valueType() {
-      assert(e1.valueType() == e2.valueType());
+      assert(e1.valueType().size == e2.valueType().size /and/ 4);
       return e1.valueType();
     }
     void emitAsm(AsmFile af) {
@@ -30,6 +47,7 @@ class AsmBinopExpr(string OP) : Expr {
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "1"); }
 
+import ast.pointer, ast.literals, tools.base: swap;
 Object gotAddSubExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr op;
   auto t2 = text;
