@@ -2,7 +2,7 @@ module ast.unary;
 
 import ast.base, ast.math, ast.assign, ast.literals, parseBase;
 
-class PostOpExpr(bool Inc) : Expr {
+class PrePostOpExpr(bool Post, bool Inc) : LValue {
   LValue a; Assignment b;
   this(LValue a) {
     this.a = a;
@@ -12,9 +12,17 @@ class PostOpExpr(bool Inc) : Expr {
     Type valueType() {
       return a.valueType();
     }
+    void emitLocation(AsmFile af) {
+      a.emitLocation(af);
+    }
     void emitAsm(AsmFile af) {
-      a.emitAsm(af);
-      b.emitAsm(af);
+      static if (Post) {
+        a.emitAsm(af);
+        b.emitAsm(af);
+      } else {
+        b.emitAsm(af);
+        a.emitAsm(af);
+      }
     }
   }
 }
@@ -27,12 +35,34 @@ Object gotPostIncExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto lv = cast(LValue) op;
     if (!lv) throw new Exception(Format("Can't post-increment ", op, ": not an lvalue"));
     text = t2;
-    return new PostOpExpr!(true)(lv);
+    return new PrePostOpExpr!(true, true)(lv);
   } else if (t2.accept("--")) {
     auto lv = cast(LValue) op;
     if (!lv) throw new Exception(Format("Can't post-decrement ", op, ": not an lvalue"));
     text = t2;
-    return new PostOpExpr!(false)(lv);
+    return new PrePostOpExpr!(true, false)(lv);
   } else return null;
 }
-mixin DefaultParser!(gotPostIncExpr, "tree.expr.arith.postinc", "25");
+mixin DefaultParser!(gotPostIncExpr, "tree.expr.arith.postincdec", "25");
+
+Object gotPreIncExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr op;
+  auto t2 = text;
+  
+  if (t2.accept("++")) {
+    if (!cont(t2, &op))
+      throw new Exception(Format("Can't find expression for pre-inc at '"~t2.next_text()~"'"));
+    auto lv = cast(LValue) op;
+    if (!lv) throw new Exception(Format("Can't post-increment ", op, ": not an lvalue"));
+    text = t2;
+    return new PrePostOpExpr!(false, true)(lv);
+  } else if (t2.accept("--")) {
+    if (!cont(t2, &op))
+      throw new Exception(Format("Can't find expression for pre-inc at '"~t2.next_text()~"'"));
+    auto lv = cast(LValue) op;
+    if (!lv) throw new Exception(Format("Can't post-decrement ", op, ": not an lvalue"));
+    text = t2;
+    return new PrePostOpExpr!(false, false)(lv);
+  } else return null;
+}
+mixin DefaultParser!(gotPreIncExpr, "tree.expr.arith.preincdec", "26");
