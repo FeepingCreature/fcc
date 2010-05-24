@@ -60,3 +60,26 @@ class SysInt : Type {
 
 // postfix type modifiers
 Type delegate(ref string text, Type cur)[] typeModlist;
+
+import parseBase;
+Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
+  if (text.accept("void")) return Single!(Void);
+  if (text.accept("size_t")) return Single!(SizeT);
+  if (text.accept("int")) return Single!(SysInt);
+  return null;
+}
+mixin DefaultParser!(gotBasicType, "type.basic", "5");
+
+Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
+  auto type = cast(Type) cont(text);
+  if (!type) return null;
+  restart:
+  foreach (dg; typeModlist) {
+    if (auto nt = dg(text, type)) {
+      type = nt;
+      goto restart;
+    }
+  }
+  return type;
+}
+mixin DefaultParser!(gotExtType, "type.ext", "1");

@@ -4,6 +4,18 @@ import tools.base, tools.log, tools.compat;
 alias ast.types.Type Type;
 import classgraph;
 
+import
+  ast.aggregate, ast.returns, ast.ifstmt, ast.loops, ast.assign,
+  ast.structure, ast.variable, ast.fun;
+
+// placed here to resolve circular dependency issues
+import ast.parse, ast.namespace, ast.scopes;
+// from ast.namespace
+mixin DefaultParser!(gotNamed, "tree.expr.named", "4");
+static this() { New(namespace, { return cast(Namespace) null; }); }
+// from ast.scopes
+mixin DefaultParser!(gotScope, "tree.scope");
+
 extern(C) {
   int mkstemp(char* tmpl);
   int close(int fd);

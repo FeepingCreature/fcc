@@ -36,3 +36,11 @@ bool gotIntExpr(ref string text, out Expr ex) {
   int i;
   return text.gotInt(i) && (ex = new IntExpr(i), true);
 }
+
+import parseBase;
+Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  if (text.gotStringExpr(ex) || text.gotIntExpr(ex)) return cast(Object) ex;
+  else return null;
+}
+mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "5");

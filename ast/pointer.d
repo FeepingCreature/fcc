@@ -1,6 +1,6 @@
 module ast.pointer;
 
-import ast.types, ast.base, tools.base: This, This_fn, rmSpace;
+import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace;
 
 class Pointer : Type {
   Type target;
@@ -57,3 +57,28 @@ static this() {
     else return null;
   };
 }
+
+Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (!text.accept("&")) return null;
+  
+  Expr ex;
+  if (!rest(text, "tree.expr >tree.expr.arith", &ex))
+    throw new Exception("Address operator found but nothing to take address matched at '"~text.next_text()~"'");
+  
+  auto lv = cast(LValue) ex;
+  if (!lv) throw new Exception(Format("Can't take reference: ", ex, " not an lvalue at ", text.next_text()));
+  
+  return new RefExpr(lv);
+}
+mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "21");
+
+Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (!text.accept("*")) return null;
+  
+  Expr ex;
+  if (!rest(text, "tree.expr >tree.expr.arith", &ex))
+    throw new Exception("Dereference operator found but no expression matched at '"~text.next_text()~"'");
+  
+  return new DerefExpr(ex);
+}
+mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "22");
