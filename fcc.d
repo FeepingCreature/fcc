@@ -1,4 +1,5 @@
 module fcc; // feep's crazed compiler
+// fcc is licensed under the terms of the GNU General Public License v3 or GPLv3.
 
 import tools.base, tools.log, tools.compat;
 alias ast.types.Type Type;
