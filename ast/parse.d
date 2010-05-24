@@ -1,406 +1,379 @@
 module ast.parse;
 
-/**
- ** This is a single module because theoretically,
- ** all parser funs found here can exhibit codependence.
- ** For that reason, and to avoid circular imports,
- ** they have been consolidated.
- **/
+import
+  ast.base, ast.namespace, ast.fun, ast.structure, ast.assign,
+  ast.modules, ast.scopes, ast.aggregate, ast.ifstmt, ast.returns,
+  ast.math, ast.variable, ast.literals, ast.cond, ast.loops,
+  ast.pointer;
 
-import ast.base, ast.namespace, ast.scopes, ast.modules;
-import ast.math, ast.cond;
-import ast.literals, ast.aggregate, ast.assign, ast.ifstmt;
-import ast.fun, ast.returns, ast.variable, ast.jumps, ast.loops;
-import ast.pointer, ast.structure;
-import tools.base: New, Stuple, stuple;
+import quicksort, tools.threads;
+import tools.base: min, swap, apply, New;
 
-alias gotExtType gotType;
+bool verboseParser = false;
 
-// alias gotBaseExpr gotMath_Expr; // next on up
-alias gotBaseExpr gotDeref_Expr;
-alias gotDerefExpr gotRef_Expr;
-alias gotRefExpr gotMember_Expr;
-alias gotMemberExpr gotMath_Expr;
-
-bool gotRefExpr(ref string text, out Expr ex, Namespace ns) {
-  auto t2 = text;
-  
-  if (!t2.accept("&")) return text.gotRef_Expr(ex, ns);
-  if (!t2.gotExpr(ex, ns)) return false;
-  
-  auto lv = cast(LValue) ex;
-  if (!lv) throw new Exception(Format("Can't take reference: ", ex, " not an lvalue at ", t2.next_text()));
-  
-  text = t2;
-  ex = new RefExpr(lv);
-  return true;
-}
-
-bool gotDerefExpr(ref string text, out Expr ex, Namespace ns) {
-  auto t2 = text;
-  
-  if (!t2.accept("*")) return text.gotDeref_Expr(ex, ns);
-  if (!t2.gotExpr(ex, ns)) return false;
-  
-  text = t2;
-  ex = new DerefExpr(ex);
-  return true;
-}
-
-bool gotMemberExpr(ref string text, out Expr ex, Namespace ns) {
-  auto t2 = text;
-  logln("try to gotRefExpr off ", t2.next_text());
-  if (!t2.gotMember_Expr(ex, ns)) return false;
-  string member;
-  logln("Getting member expr; left is ", t2.next_text());
-  return t2.many(t2.accept(".") && t2.gotIdentifier(member), {
-    if (!cast(Structure) ex.valueType())
-      throw new Exception(Format("Can't access member of non-structure: ", ex));
-    
-    if (auto lv = cast(LValue) ex) ex = new MemberAccess_LValue(lv, member);
-    else ex = new MemberAccess_Expr(ex, member);
-  }) && (text = t2, true);
-}
-
-bool gotMathExpr(ref string text, out Expr ex, Namespace ns, int level = 0) {
-  auto t2 = text;
-  Expr par;
-  bool addMath(string op) {
-    switch (op) {
-      case "+": ex = new AsmBinopExpr!("addl")(ex, par); break;
-      case "-": ex = new AsmBinopExpr!("subl")(ex, par); break;
-      case "*": ex = new AsmBinopExpr!("imull")(ex, par); break;
-      case "/": ex = new AsmBinopExpr!("idivl")(ex, par); break;
+struct ParseCb {
+  Object delegate(ref string text, bool delegate(string)) dg;
+  bool delegate(string) cur; string curstr;
+  Object opCall(T...)(ref string text, T t) {
+    static if (!T.length) {
+      try return this.dg(text, cur);
+      catch (Exception ex) throw new Exception(Format("Continuing after '"~curstr~"': ", ex));
+    } else static if (T.length == 1) {
+      static if (is(T[0]: string))
+        return this.dg(text, matchrule = t[0]);
+      else static if (is(typeof(*t[0])))
+        return this.opCall(text, cast(string) null, t[0]);
+      else
+        return this.dg(text, t[0]);
+    } else {
+      Object pre;
+      string pattern = t[0];
+      if (pattern) {
+        try pre = this.opCall(text, matchrule = pattern);
+        catch (Exception ex) throw new Exception(Format("Matching rule '"~pattern~"' off '"~text.next_text(16)~"': ", ex));
+      } else {
+        pre = this.opCall(text);
+      }
+      static if (is(typeof(*t[1]))) {
+        *t[1] = cast(typeof(*t[1])) pre;
+        /*if (pre && !*t[1])
+          logln("WARN: res ", pre, " isn't a ", typeof(*t[1]).stringof, "!");*/
+        return cast(Object) *t[1];
+      } else assert(false, Format("Pointer to object expected: ", t));
     }
-    return true;
-  }
-  switch (level) {
-    case -2: return t2.gotMath_Expr(ex, ns) && (text = t2, true);
-    case -1:
-      return t2.gotMathExpr(ex, ns, level-1) && t2.many(t2.ckbranch(
-        t2.accept("*") && t2.gotMathExpr(par, ns, level-1) && addMath("*"),
-        t2.accept("/") && t2.gotMathExpr(par, ns, level-1) && addMath("/")
-      )) && (text = t2, true);
-    case 0:
-      return t2.gotMathExpr(ex, ns, level-1) && t2.many(t2.ckbranch(
-        t2.accept("+") && t2.gotMathExpr(par, ns, level-1) && addMath("+"),
-        t2.accept("-") && t2.gotMathExpr(par, ns, level-1) && addMath("-")
-      )) && (text = t2, true);
   }
 }
 
-// TODO: rework this properly
-alias gotMathExpr gotExpr;
-
-bool gotGenericExpr(ref string text, out Expr ex, Namespace ns) {
-  Cond cd;
-  return
-    text.gotExpr(ex, ns) ||
-    text.gotCond(cd, ns) && {
-      ex = new CondWrap(cd);
-      return true;
-    }();
+interface Parser {
+  string getId();
+  Object match(ref string text, ParseCb cont, ParseCb restart);
 }
 
-bool gotCompare(ref string text, out Cond cd, Namespace ns) {
-  auto t2 = text;
-  bool not, smaller, equal, greater;
-  Expr ex1, ex2;
-  return t2.gotExpr(ex1, ns) && (
-    (
-      (t2.accept("!") && (not = true)),
-      (t2.accept("<") && (smaller = true)),
-      ((not || smaller || t2.accept("=")) && t2.accept("=") && (equal = true)),
-      (t2.accept(">") && (greater = true)),
-      (smaller || equal || greater)
-    ) && t2.gotExpr(ex2, ns) && {
-      cd = new Compare(ex1, not, smaller, equal, greater, ex2);
-      text = t2;
-      return true;
-    }()
-    || { cd = new ExprWrap(ex1); text = t2; return true; }()
-  );
+template DefaultParser(alias Fn, string Id, string Prec = null) {
+  class DefaultParser : Parser {
+    static this() {
+      static if (Prec) parsecon.addParser(new DefaultParser, Prec);
+      else parsecon.addParser(new DefaultParser);
+    }
+    override string getId() { return Id; }
+    override Object match(ref string text, ParseCb cont, ParseCb rest) {
+      return Fn(text, cont, rest);
+    }
+  }
 }
 
-alias gotCompare gotCond;
-
-bool gotFuncall(ref string text, out Expr expr, Namespace ns) {
-  auto fc = new FunCall;
-  fc.context = ns;
-  string t2 = text;
-  Expr ex;
-  return t2.gotIdentifier(fc.name, true)
-    && t2.accept("(")
-    && t2.bjoin(t2.gotExpr(ex, ns), t2.accept(","), { fc.params ~= ex; })
-    && t2.accept(")")
-    && ((text = t2), (expr = fc), true);
+import tools.log;
+struct SplitIter(T) {
+  T data, sep;
+  T front, frontIncl, all;
+  T pop() {
+    for (int i = 0; i <= cast(int) data.length - cast(int) sep.length; ++i) {
+      if (data[i .. i + sep.length] == sep) {
+        auto res = data[0 .. i];
+        data = data[i + sep.length .. $];
+        front = all[0 .. $ - data.length - sep.length - res.length];
+        frontIncl = all[0 .. front.length + res.length];
+        return res;
+      }
+    }
+    auto res = data;
+    data = null;
+    front = null;
+    frontIncl = all;
+    return res;
+  }
 }
 
-bool gotScope(ref string text, out Scope sc, Namespace ns) {
-  New(sc);
-  sc.sup = ns;
-  sc.fun = findFun(ns);
-  if (text.gotStatement(sc._body, sc)) return true;
-  throw new Exception("Couldn't match scope off "~text.next_text());
+SplitIter!(T) splitIter(T)(T d, T s) {
+  SplitIter!(T) res;
+  res.data = d; res.sep = s;
+  res.all = res.data;
+  return res;
 }
 
-bool gotImportStatement(ref string text, Module mod) {
-  string m;
-  // import a, b, c;
-  return text.accept("import") && text.bjoin(text.gotIdentifier(m, true), text.accept(","), {
-    mod.imports ~= lookupMod(m);
-  }) && text.accept(";");
+class ParseContext {
+  Parser[] parsers;
+  string[string] prec; // precedence mapping
+  void addPrecedence(string id, string val) { synchronized(this) { prec[id] = val; } }
+  string lookupPrecedence(string id) {
+    synchronized(this)
+      if (auto p = id in prec) return *p;
+    return null;
+  }
+  string dumpInfo() {
+    resort;
+    string res;
+    int maxlen;
+    foreach (parser; parsers) {
+      auto id = parser.getId();
+      if (id.length > maxlen) maxlen = id.length;
+    }
+    auto reserved = maxlen + 2;
+    foreach (parser; parsers) {
+      auto id = parser.getId();
+      res ~= id;
+      for (int i = 0; i < reserved - id.length; ++i)
+        res ~= " ";
+      if (auto p = id in prec) {
+        res ~= ":" ~ *p;;
+      }
+      res ~= "\n";
+    }
+    return res;
+  }
+  bool idSmaller(Parser pa, Parser pb) {
+    auto a = splitIter(pa.getId(), "."), b = splitIter(pb.getId(), ".");
+    string ap, bp;
+    while (true) {
+      ap = a.pop(); bp = b.pop();
+      if (!ap && !bp) return false; // equal
+      if (ap && !bp) return true; // longer before shorter
+      if (bp && !ap) return false;
+      if (ap == bp) continue; // no information here
+      auto aprec = lookupPrecedence(a.frontIncl), bprec = lookupPrecedence(b.frontIncl);
+      if (!aprec && bprec)
+        throw new Exception("Patterns "~a.frontIncl~" vs. "~b.frontIncl~": first is missing precedence info! ");
+      if (!bprec && aprec)
+        throw new Exception("Patterns "~a.frontIncl~" vs. "~b.frontIncl~": second is missing precedence info! ");
+      if (!aprec && !bprec) return ap < bp; // lol
+      if (aprec == bprec) throw new Exception("Error: patterns '"~a.frontIncl~"' and '"~b.frontIncl~"' have the same precedence! ");
+      for (int i = 0; i < min(aprec.length, bprec.length); ++i) {
+        // precedence needs to be _inverted_, ie. lower-precedence rules must come first
+        // this is because "higher-precedence" means it binds tighter.
+        // if (aprec[i] > bprec[i]) return true;
+        // if (aprec[i] < bprec[i]) return false;
+        if (aprec[i] < bprec[i]) return true;
+        if (aprec[i] > bprec[i]) return false;
+      }
+      bool flip;
+      // this gets a bit hairy
+      // 50 before 5, but 51 after 5.
+      if (aprec.length < bprec.length) { swap(aprec, bprec); flip = true; }
+      for (int i = bprec.length; i < aprec.length; ++i) {
+        if (aprec[i] != '0') return flip;
+      }
+      return !flip;
+    }
+  }
+  void addParser(Parser p) {
+    parsers ~= p;
+    listModified = true;
+  }
+  void addParser(Parser p, string pred) {
+    addParser(p);
+    addPrecedence(p.getId(), pred);
+  }
+  bool listModified;
+  void resort() {
+    if (listModified) { // NOT in addParser - precedence info might not be registered yet!
+      parsers.qsort(&idSmaller);
+      listModified = false;
+    }
+  }
+  Object parse(ref string text, bool delegate(string) cond, int offs = 0) {
+    resort;
+    bool matched;
+    foreach (i, parser; parsers[offs .. $]) {
+      if (cond(parser.getId())) {
+        if (verboseParser) logln("TRY PARSER [", parser.getId(), "] for '", text.next_text(16), "'");
+        matched = true;
+        ParseCb cont, rest;
+        cont.dg = (ref string text, bool delegate(string) cond) {
+          return this.parse(text, cond, offs + i + 1);
+        };
+        cont.cur = cond;
+        cont.curstr = parser.getId();
+        
+        rest.dg = (ref string text, bool delegate(string) cond) {
+          return this.parse(text, cond);
+        };
+        rest.cur = cond;
+        rest.curstr = parser.getId();
+        
+        if (auto res = parser.match(text, cont, rest)) {
+          if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
+          return res;
+        }
+        if (verboseParser) logln("    PARSER [", parser.getId(), "] failed");
+      }
+    }
+    if (!matched) throw new Exception("Found no patterns to match condition! ");
+    return null;
+  }
+  Object parse(ref string text, string cond) {
+    try return parse(text, matchrule=cond);
+    catch (Exception ex) throw new Exception(Format("Matching rule '"~cond~"': ", ex));
+  }
 }
 
-bool gotStructDef(ref string text, out Structure st, Namespace ns) {
-  auto t2 = text;
-  if (!t2.accept("struct")) return false;
-  string name;
-  Structure.Member[] ms;
-  // New(st, comps);
-  Structure.Member sm;
-  return t2.gotIdentifier(name) && t2.accept("{") && t2.many(
-    t2.gotType(sm.type, ns) &&
-    t2.bjoin(
-      t2.gotIdentifier(sm.name),
-      t2.accept(",")
-      ,{ ms ~= sm; }
-    ) &&
-    t2.accept(";")
-  ) && t2.accept("}")
-    && (New(st, name, ms), text = t2, true);
+bool delegate(string) matchrule(string rules) {
+  bool delegate(string) res;
+  while (rules.length) {
+    auto rule = rules.slice(" ");
+    res = stuple(rule, res) /apply/ (string rule, bool delegate(string) op1, string text) {
+      if (op1 && !op1(text)) return false;
+      
+      bool smaller, greater, equal;
+      if (auto rest = rule.startsWith("<")) { smaller = true; rule = rest; }
+      if (auto rest = rule.startsWith(">")) { greater = true; rule = rest; }
+      if (auto rest = rule.startsWith("=")) { equal = true; rule = rest; }
+      
+      if (!smaller && !greater && !equal)
+        smaller = equal = true; // default
+      
+      // logln(smaller?"<":"", greater?">":"", equal?"=":"", " ", text, " against ", rule);
+      if (smaller && text.startsWith(rule~".")) // all "below" in the tree
+        return true;
+      if (equal && text == rule)
+        return true;
+      if (greater && !text.startsWith(rule)) // arguable
+        return true;
+      return false;
+    };
+  }
+  return res;
 }
 
-bool gotModule(ref string text, out Module mod) {
+TLS!(Namespace) namespace;
+ParseContext parsecon;
+static this() { New(namespace, { return cast(Namespace) null; }); New(parsecon); }
+
+bool test(T)(T t) { if (t) return true; else return false; }
+
+Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   auto t2 = text;
   Function fn;
   Structure st;
   Tree tr;
-  return t2.accept("module ") && (New(mod), true) &&
-    t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
-    t2.many(
-      t2.gotFunDef(fn, mod) && (tr = fn, true) ||
-      t2.gotStructDef(st, mod) && (mod.addStruct(st), tr = null, true) ||
-      t2.gotImportStatement(mod) && (tr = null, true),
-    {
-      if (tr) mod.entries ~= tr;
-    }) && (text = t2, true);
+  Module mod;
+  auto backup = namespace.ptr();
+  scope(exit) namespace.set(backup);
+  if (t2.accept("module ") && (New(mod), namespace.set(mod), true) &&
+      t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
+      t2.many(
+        !!restart(t2, "tree.toplevel", &tr),
+        { mod.entries ~= tr; }
+      ) &&
+      (text = t2, true)
+    ) return mod;
+  else return null;
 }
+mixin DefaultParser!(gotModule, "tree.module");
 
-bool gotBaseExpr(ref string text, out Expr expr, Namespace ns) {
-  Variable var;
-  int i;
-  return
-       text.gotFuncall(expr, ns)
-    || text.gotStringExpr(expr)
-    || text.gotIntExpr(expr)
-    || text.gotVariable(var, ns) && (expr = var, true)
-    || { auto t2 = text; return t2.accept("(") && t2.gotGenericExpr(expr, ns) && t2.accept(")") && (text = t2, true); }();
+Object gotToplevel(ref string text, ParseCb cont, ParseCb rest) {
+  if (auto res = rest(text, "tree.fundef")) return res;
+  if (auto res = rest(text, "tree.typedef")) return res;
+  if (auto res = rest(text, "tree.import")) return res;
+  return null;
 }
+mixin DefaultParser!(gotToplevel, "tree.toplevel");
 
-bool gotRetStmt(ref string text, out ReturnStmt rs, Namespace ns) {
-  auto t2 = text;
-  return
-    t2.accept("return") && (New(rs), rs.ns = ns, true) &&
-    t2.gotExpr(rs.value, ns) && (text = t2, true);
-}
-
-import tools.compat: rfind;
-bool gotVariable(ref string text, out Variable v, Namespace ns) {
-  // logln("Match variable off ", text.next_text());
-  string name, t2 = text;
-  return t2.gotIdentifier(name, true)
-    && {
-      logln("Look for ", name, " in ", ns.Varfield);
-      retry:
-      if (auto res = ns.lookupVar(name)) {
-        v = res;
-        if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
-        return true;
-      }
-      if (name.rfind(".") != -1) {
-        name = name[0 .. name.rfind(".")];
-        goto retry;
-      }
-      error = "unknown identifier "~name;
-      return false;
-    }();
-}
-
-bool gotSemicolonizedStatement(ref string text, out Statement stmt, Namespace ns) {
-  Expr ex; ReturnStmt rs; GotoStmt gs;
-  Assignment ass; VarDecl vd;
-  auto t2 = text;
-  return
-    (text.gotRetStmt(rs, ns) && (stmt = rs, true)) ||
-    (text.gotGotoStmt(gs, ns) && (stmt = gs, true)) ||
-    (text.gotAssignment(ass, ns) && (stmt = ass, true)) ||
-    (text.gotVarDecl(vd, ns) && (stmt = vd, true)) ||
-    (t2.gotExpr(ex, ns) && (text = t2, stmt = ex, true)) // least grubby
-  ;
-}
-
-bool gotStatement(ref string text, out Statement stmt, Namespace ns, bool needSemicolon = true) {
-  AggrStatement as;
-  VarDecl vd; Assignment ass; ForStatement fs;
-  IfStatement ifs; ReturnStmt rs;
-  Label l; GotoStmt gs; WhileStatement ws;
-  auto t2 = text;
-  return
-    (text.gotAggregateStmt(as, ns) && (stmt = as, true)) ||
-    (text.gotIfStmt(ifs, ns) && (stmt = ifs, true)) ||
-    (text.gotLabel(l, ns) && (stmt = l, true)) ||
-    (text.gotWhileStmt(ws, ns) && (stmt = ws, true)) ||
-    (text.gotForStmt(fs, ns) && (stmt = fs, true)) ||
-    (t2.gotSemicolonizedStatement(stmt, ns)
-      && (!needSemicolon || t2.accept(";"))
-      && (text = t2, true))
-    ;
-}
-
-bool gotFunDef(ref string text, out Function fun, Module mod) {
+Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
   Type ptype;
-  string t2 = text;
+  auto t2 = text;
+  Function fun;
   New(fun);
   New(fun.type);
   string parname;
   error = null;
-  return
-    t2.gotType(fun.type.ret, mod)
-    && t2.gotIdentifier(fun.name)
-    && t2.accept("(")
-    // TODO: function parameters belong on the stackframe
-    && t2.bjoin(t2.gotType(ptype, mod) && (t2.gotIdentifier(parname) || ((parname=null), true)), t2.accept(","), {
-      fun.type.params ~= stuple(ptype, parname);
-    })
-    && t2.accept(")")
-    && (fun.sup = mod, fun.fixup, true)
-    && t2.gotScope(fun._scope, fun)
-    && ((text = t2), (mod.addFun(fun), true))
-    ;
-}
-
-bool gotVarDecl(ref string text, out VarDecl vd, Namespace ns) {
-  auto t2 = text;
-  auto var = new Variable;
-  Expr iv;
-  return
-    t2.gotType(var.type, ns)
-    && t2.gotIdentifier(var.name)
-    && (t2.accept("=") && t2.gotExpr(iv, ns) && {
-      var.initval = iv;
-      return true;
-    }() || true)
-    && {
-      var.baseOffset =
-        -(cast(Scope) ns).framesize() - var.type.size; // TODO: check
-      New(vd);
-      vd.var = var;
-      ns.addVar(var);
-      text = t2;
-      return true;
-    }();
-}
-
-bool gotAggregateStmt(ref string text, out AggrStatement as, Namespace ns) {
-  auto t2 = text;
-  
-  Statement st;
-  return t2.accept("{") && (as = new AggrStatement, true) &&
-    t2.many(t2.gotStatement(st, ns), { as.stmts ~= st; })
-    && t2.mustAccept("}", Format("Encountered unknown statement at ", t2.next_text()))
-    && (text = t2, true);
-}
-
-import tools.log;
-bool gotAssignment(ref string text, out Assignment as, Namespace ns) {
-  auto t2 = text;
-  New(as);
-  Expr ex;
-  logln("get assign off ", t2.next_text());
-  return t2.gotExpr(ex, ns) && t2.accept("=") && {
-    auto lv = cast(LValue) ex;
-    if (!lv) throw new Exception(Format("Assignment target is not an lvalue: ", ex, " at ", t2.next_text()));
-    as.target = lv;
-    return true;
-  }() && t2.gotExpr(as.value, ns) && {
+  auto mod = cast(Module) namespace();
+  assert(mod);
+  if (test(fun.type.ret = cast(Type) rest(t2, "type")) &&
+      t2.gotIdentifier(fun.name) &&
+      t2.accept("(") &&
+      // TODO: function parameters belong on the stackframe
+      t2.bjoin(
+        test(ptype = cast(Type) rest(t2, "type")) && (t2.gotIdentifier(parname) || ((parname = null), true)),
+        t2.accept(","),
+        { fun.type.params ~= stuple(ptype, parname); }
+      ) &&
+      t2.accept(")")
+    )
+  {
+    fun.fixup;
+    auto backup = namespace();
+    scope(exit) namespace.set(backup); 
+    namespace.set(fun);
+    mod.addFun(fun);
     text = t2;
-    return true;
-  }();
+    if (rest(text, "tree.scope", &fun._scope)) return fun;
+    else throw new Exception("Couldn't parse function scope at '"~text.next_text()~"'");
+  } else return null;
 }
+mixin DefaultParser!(gotFunDef, "tree.fundef");
 
-bool gotIfStmt(ref string text, out IfStatement ifs, Namespace ns) {
+Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
+  auto sc = new Scope;
+  sc.sup = namespace();
+  sc.fun = namespace().get!(Function);
+  namespace.set(sc);
+  scope(exit) namespace.set(sc.sup);
   auto t2 = text;
-  return
-    t2.accept("if") && (New(ifs), true) &&
-    t2.gotCond(ifs.test, ns) && t2.gotScope(ifs.branch1, ns) && (
-      t2.accept("else") && t2.gotScope(ifs.branch2, ns)
-      || true
-    ) && (text = t2, true);
+  if (rest(t2, "tree.stmt", &sc._body)) { text = t2; return sc; }
+  throw new Exception("Couldn't match scope off "~text.next_text());
 }
+mixin DefaultParser!(gotScope, "tree.scope");
 
-bool gotGotoStmt(ref string text, out GotoStmt gs, Namespace ns) {
+Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
+  string m;
+  // import a, b, c;
+  if (!text.accept("import ")) return null;
+  auto mod = namespace().get!(Module);
+  if (!(
+    text.bjoin(text.gotIdentifier(m, true), text.accept(","),
+    { mod.imports ~= lookupMod(m); },
+    true) &&
+    text.accept(";")
+  )) throw new Exception("Unexpected text while parsing import statement: "~text.next_text());
+  return Single!(NoOp);
+}
+mixin DefaultParser!(gotImport, "tree.import");
+
+Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  return
-    t2.accept("goto") && (New(gs), true) && t2.gotIdentifier(gs.target) && (text = t2, true);
+  if (!t2.accept("struct ")) return null;
+  string name;
+  Structure.Member[] ms;
+  Structure.Member sm;
+  if (t2.gotIdentifier(name) && t2.accept("{") &&
+      t2.many(
+        test(sm.type = cast(Type) rest(t2, "type")) &&
+        t2.bjoin(
+          t2.gotIdentifier(sm.name),
+          t2.accept(",")
+          ,{ ms ~= sm; }
+        ) &&
+        t2.accept(";")
+      ) &&
+      t2.accept("}")
+    )
+  {
+    text = t2;
+    auto st = new Structure(name, ms);
+    namespace().addStruct(st);
+    return Single!(NoOp);
+  } else return null;
 }
+mixin DefaultParser!(gotStructDef, "tree.typedef.struct");
 
-bool gotWhileStmt(ref string text, out WhileStatement ws, Namespace ns) {
-  auto t2 = text;
-  return
-    t2.accept("while") && (New(ws), true) &&
-    t2.gotCond(ws.cond, ns) && t2.gotScope(ws._body, ns) &&
-    (text = t2, true);
-}
-
-bool gotForStmt(ref string text, out ForStatement fs, Namespace ns) {
-  auto t2 = text;
-  typeof(ns.VarGetCheckpt()) check;
-  return
-    t2.accept("for (") && {
-      New(fs);
-      check = ns.VarGetCheckpt();
-      return true;
-    }() && (
-        t2.gotVarDecl(fs.decl, ns)
-      && t2.accept(";")
-      && t2.gotCond(fs.cond, ns)
-      && t2.accept(";")
-      && t2.gotStatement(fs.step, ns, false)
-      && t2.accept(")")
-      && t2.gotScope(fs._body, ns)
-      && (text = t2, ns.VarSetCheckpt(check), true)
-      || {
-        throw new Exception(
-          "Unable to match for statement; stumbled over " ~ t2.next_text());
-        return true;
-      }()
-    );
-}
-
-bool gotLabel(ref string text, out Label l, Namespace ns) {
-  auto t2 = text;
-  New(l);
-  return t2.gotIdentifier(l.name) && t2.accept(":") && (text = t2, true);
-}
-
-bool gotBasicType(ref string text, out Type type, Namespace ns) {
-  if (text.accept("void")) return type = Single!(Void), true;
-  if (text.accept("size_t")) return type = Single!(SizeT), true;
-  if (text.accept("int")) return type = Single!(SysInt), true;
+Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
+  if (text.accept("void")) return Single!(Void);
+  if (text.accept("size_t")) return Single!(SizeT);
+  if (text.accept("int")) return Single!(SysInt);
   string id, t2 = text;
   if (t2.gotIdentifier(id)) {
-    if (auto st = ns.lookupStruct(id)) {
-      type = st;
+    if (auto st = namespace().lookupStruct(id)) {
       text = t2;
-      return true;
+      return st;
     }
   }
-  return false;
+  return null;
 }
+mixin DefaultParser!(gotBasicType, "type.basic", "5");
 
-bool gotExtType(ref string text, out Type type, Namespace ns) {
-  if (!text.gotBasicType(type, ns)) return false;
+Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
+  auto type = cast(Type) cont(text);
+  if (!type) return null;
   restart:
   foreach (dg; typeModlist) {
     if (auto nt = dg(text, type)) {
@@ -408,5 +381,305 @@ bool gotExtType(ref string text, out Type type, Namespace ns) {
       goto restart;
     }
   }
-  return true;
+  return type;
 }
+mixin DefaultParser!(gotExtType, "type.ext", "1");
+
+Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  AggrStatement as;
+  Statement st;
+  if (t2.accept("{") && (New(as), true) &&
+      t2.many(!!rest(t2, "tree.stmt", &st), { as.stmts ~= st; }) &&
+      t2.mustAccept("}", Format("Encountered unknown statement at ", t2.next_text()))
+    ) { text = t2; return as; }
+  else return null;
+}
+mixin DefaultParser!(gotAggregateStmt, "tree.stmt.aggregate");
+
+Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
+  string t2 = text, t3;
+  IfStatement ifs;
+  if (t2.accept("if ") && (New(ifs), true) &&
+      rest(t2, "tree.cond", &ifs.test) && rest(t2, "tree.scope", &ifs.branch1) && (
+        ((t3 = t2, true) && t3.accept("else") && rest(t3, "tree.scope", &ifs.branch2) && (t2 = t3, true))
+        || true
+      )
+    ) { text = t2; return ifs; }
+  else return null;
+}
+mixin DefaultParser!(gotIfStmt, "tree.stmt.if");
+
+Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (t2.accept("return ")) {
+    auto rs = new ReturnStmt;
+    rs.ns = namespace();
+    if (rest(t2, "tree.expr", &rs.value)) {
+      text = t2;
+      return rs;
+    } else throw new Exception("Error parsing return expression at "~t2.next_text());
+  } else return null;
+}
+mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return");
+
+import tools.compat: rfind;
+Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
+  // logln("Match variable off ", text.next_text());
+  string name, t2 = text;
+  if (t2.gotIdentifier(name, true)) {
+    retry:
+    if (auto res = namespace().lookup(name)) {
+      if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
+      return res;
+    }
+    if (name.rfind(".") != -1) {
+      name = name[0 .. name.rfind(".")]; // chop up what _may_ be members!
+      goto retry;
+    }
+    error = "unknown identifier "~name;
+  }
+  return null;
+}
+mixin DefaultParser!(gotNamed, "tree.expr.named", "4");
+
+Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  if (text.gotStringExpr(ex) || text.gotIntExpr(ex)) return cast(Object) ex;
+  else return null;
+}
+mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "5");
+
+Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  if (text.accept("(") &&
+      rest(text, "tree.expr", &ex)
+    ) {
+    text.mustAccept(")", Format("Missing closing brace at ", text.next_text()));
+    return cast(Object) ex;
+  } else return null;
+}
+mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
+
+Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text, sup = cont(t2);
+  if (auto fun = cast(Function) sup) {
+    auto fc = new FunCall;
+    fc.fun = fun;
+    Expr ex;
+    if (t2.accept("(") &&
+        t2.bjoin(!!rest(t2, "tree.expr", &ex), t2.accept(","), { fc.params ~= ex; }, false) &&
+        t2.accept(")"))
+    {
+      text = t2;
+      return fc;
+    }
+    else throw new Exception("While expecting function call: "~t2.next_text());
+  } else return null;
+}
+mixin DefaultParser!(gotCallExpr, "tree.expr.funcall", "2");
+
+Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text, var = new Variable;
+  if (rest(t2, "type", &var.type) && t2.gotIdentifier(var.name)) {
+    if (t2.accept("=")) {
+      if (!rest(t2, "tree.expr", &var.initval))
+        throw new Exception(Format("Couldn't read expression at ", t2.next_text()));
+    }
+    t2.mustAccept(";", Format("Missed trailing semicolon at ", t2.next_text()));
+    var.baseOffset = -(cast(Scope) namespace()).framesize() - var.type.size;
+    auto vd = new VarDecl;
+    vd.var = var;
+    namespace().addVar(var);
+    text = t2;
+    return vd;
+  } else return null;
+}
+mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl");
+
+static this() { parsecon.addPrecedence("tree.expr.arith", "1"); }
+
+Object gotAddSubExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr op;
+  auto t2 = text;
+  if (!cont(t2, &op)) return null;
+  auto old_op = op;
+  retry:
+  Expr op2;
+  if (t2.accept("+") && cont(t2, &op2)) {
+    op = new AsmBinopExpr!("addl")(op, op2);
+    goto retry;
+  }
+  if (t2.accept("-") && cont(t2, &op2)) {
+    op = new AsmBinopExpr!("subl")(op, op2);
+    goto retry;
+  }
+  if (op is old_op) return null;
+  text = t2;
+  return cast(Object) op;
+}
+mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "1");
+
+Object gotMulDivExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr op;
+  auto t2 = text;
+  if (!cont(t2, &op)) return null;
+  auto old_op = op;
+  retry:
+  Expr op2;
+  if (t2.accept("*") && cont(t2, &op2)) {
+    op = new AsmBinopExpr!("imull")(op, op2);
+    goto retry;
+  }
+  if (t2.accept("/") && cont(t2, &op2)) {
+    op = new AsmBinopExpr!("idivl")(op, op2);
+    goto retry;
+  }
+  if (op is old_op) return null;
+  text = t2;
+  return cast(Object) op;
+}
+mixin DefaultParser!(gotMulDivExpr, "tree.expr.arith.muldiv", "2");
+
+Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  bool not, smaller, equal, greater;
+  Expr ex1, ex2;
+  if (rest(t2, "tree.expr", &ex1) &&
+      (
+        (t2.accept("!") && (not = true)),
+        (t2.accept("<") && (smaller = true)),
+        (t2.accept(">") && (greater = true)),
+        ((not || smaller || t2.accept("=")) && t2.accept("=") && (equal = true)),
+        (smaller || equal || greater)
+      ) && rest(t2, "tree.expr", &ex2)
+  ) {
+    text = t2;
+    return new Compare(ex1, not, smaller, equal, greater, ex2);
+  } else return null;
+}
+mixin DefaultParser!(gotCompare, "tree.cond.compare", "1");
+
+Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  if (rest(text, "<tree.expr >tree.expr.cond", &ex)) {
+    return new Compare(ex, true, false, true, false, new IntExpr(0));
+  } else return null;
+}
+mixin DefaultParser!(gotExprAsCond, "tree.cond.expr", "9");
+
+Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
+  // TODO: break expr/statement inheritance. it's silly.
+  Expr ex;
+  auto t2 = text;
+  if (rest(t2, "tree.expr", &ex)) {
+    text = t2;
+    return cast(Object) ex;
+  } else return null;
+}
+mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr");
+
+Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (t2.accept("while ")) {
+    auto ws = new WhileStatement;
+    if (rest(t2, "tree.cond", &ws.cond) && rest(t2, "tree.scope", &ws._body)) {
+      text = t2;
+      return ws;
+    } else throw new Exception("Couldn't parse while loop at '"~t2.next_text()~"'");
+  } else return null;
+}
+mixin DefaultParser!(gotWhileStmt, "tree.stmt.while");
+
+Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  auto as = new Assignment;
+  Expr ex;
+  if (rest(t2, "tree.expr >tree.expr.arith", &ex) && t2.accept("=")) {
+    auto lv = cast(LValue) ex;
+    if (!lv) throw new Exception(Format("Assignment target is not an lvalue: ", ex, " at ", t2.next_text()));
+    as.target = lv;
+    if (rest(t2, "tree.expr", &as.value)) {
+      text = t2;
+      return as;
+    } else throw new Exception("While grabbing assignment value at '"~t2.next_text()~"'");
+  } else return null;
+}
+mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign");
+
+Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
+  if (auto obj = rest(text, "tree.semicol_stmt")) {
+    text.mustAccept(";", "Missing terminating semicolon at '"~text.next_text()~"'");
+    return obj;
+  } else return null;
+}
+mixin DefaultParser!(gotSemicolStmt, "tree.stmt.semicolonized");
+
+Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (t2.accept("for (")) {
+    auto fs = new ForStatement, check = namespace().VarGetCheckpt();
+    if (rest(t2, "tree.stmt.vardecl", &fs.decl) &&
+        rest(t2, "tree.cond", &fs.cond) && t2.accept(";") &&
+        rest(t2, "tree.semicol_stmt", &fs.step) && t2.accept(")") &&
+        rest(t2, "tree.scope", &fs._body)
+      )
+    {
+      text = t2;
+      namespace().VarSetCheckpt(check);
+      return fs;
+    } else throw new Exception("Failed to parse for statement at '"~t2.next_text()~"'");
+  } else return null;
+}
+mixin DefaultParser!(gotForStmt, "tree.stmt.for");
+
+Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (!text.accept("&")) return null;
+  
+  Expr ex;
+  if (!rest(text, "tree.expr >tree.expr.arith", &ex))
+    throw new Exception("Address operator found but nothing to take address matched at '"~text.next_text()~"'");
+  
+  auto lv = cast(LValue) ex;
+  if (!lv) throw new Exception(Format("Can't take reference: ", ex, " not an lvalue at ", text.next_text()));
+  
+  return new RefExpr(lv);
+}
+mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "31");
+
+Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (!text.accept("*")) return null;
+  
+  Expr ex;
+  if (!rest(text, "tree.expr >tree.expr.arith", &ex))
+    throw new Exception("Dereference operator found but no expression matched at '"~text.next_text()~"'");
+  
+  return new DerefExpr(ex);
+}
+mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "32");
+
+Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  
+  Expr ex;
+  if (!cont(t2, &ex)) return null;
+  
+  string member;
+  
+  auto pre_ex = ex;
+  while (t2.accept(".") && t2.gotIdentifier(member)) {
+    if (!cast(Structure) ex.valueType())
+      throw new Exception(Format("Can't access member of non-structure: ", ex, " at ", t2.next_text()));
+    
+    if (auto lv = cast(LValue) ex)
+      ex = new MemberAccess_LValue(lv, member);
+    else
+      ex = new MemberAccess_Expr(ex, member);
+  }
+  if (ex is pre_ex) return null;
+  else {
+    text = t2;
+    return cast(Object) ex;
+  }
+}
+mixin DefaultParser!(gotMemberExpr, "tree.expr.member", "35");

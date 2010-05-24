@@ -10,6 +10,10 @@ interface Tree {
   void emitAsm(AsmFile);
 }
 
+class NoOp : Tree {
+  override void emitAsm(AsmFile af) { }
+}
+
 interface Statement : Tree { }
 
 interface Expr : Statement {
