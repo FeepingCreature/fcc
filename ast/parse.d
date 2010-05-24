@@ -43,13 +43,23 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
 
+class ExprStatement : Statement {
+  Expr ex;
+  this(Expr ex) { this.ex = ex; }
+  override void emitAsm(AsmFile af) {
+    auto cs = af.checkptStack();
+    scope(exit) af.restoreCheckptStack(cs);
+    ex.emitAsm(af);
+  }
+}
+
 Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
   // TODO: break expr/statement inheritance. it's silly.
   Expr ex;
   auto t2 = text;
   if (rest(t2, "tree.expr", &ex)) {
     text = t2;
-    return cast(Object) ex;
+    return new ExprStatement(ex);
   } else return null;
 }
 mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr");

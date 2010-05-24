@@ -1,6 +1,6 @@
 module ast.namespace;
 
-import ast.base, ast.types, ast.fun, ast.variable, ast.structure;
+import ast.base;
 
 import tools.ctfe, tools.base: stuple, Format, Repeat;
 class Namespace {
