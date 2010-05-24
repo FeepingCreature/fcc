@@ -79,4 +79,6 @@ void main() {
   printf("It's a %i! ", y.x.c);
   printf("yo .. %i, %i, %i\n", x.a, x.b, x.c);
   printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&*&e);
+  int m = 5;
+  printf("post inc test: %i, %i\n", m++, m++);
 }
