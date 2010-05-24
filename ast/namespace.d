@@ -2,9 +2,16 @@ module ast.namespace;
 
 import ast.types, ast.fun, ast.variable, ast.structure;
 
-import tools.ctfe, tools.base: stuple;
+import tools.ctfe, tools.base: stuple, Format, Repeat;
 class Namespace {
   Namespace sup;
+  T get(T)() {
+    auto cur = this;
+    do {
+      if (auto res = cast(T) cur) return res;
+    } while (null !is (cur = cur.sup));
+    throw new Exception(Format("No ", T.stringof, " above ", this, "!"));
+  }
   template Kind(T, string Name) {
     mixin(`
       Stuple!(string, T)[] $NAMEfield;
@@ -24,10 +31,25 @@ class Namespace {
       }
     `.ctReplace("$NAME", Name));
   }
-  mixin Kind!(Class, "Class");
-  mixin Kind!(Structure, "Struct");
-  mixin Kind!(Function, "Fun");
-  mixin Kind!(Variable, "Var");
+  template _Kinds(T...) {
+    mixin Kind!(T[0], T[1]);
+    static if (T.length > 2) mixin _Kinds!(T[2 .. $]);
+  }
+  template Kinds(T...) {
+    mixin _Kinds!(T);
+    Object lookup(string name) {
+      foreach (i, bogus; Repeat!(void, T.length / 2)) {
+        mixin(`
+          foreach (entry; $NAMEfield)
+            if (entry._0 == name) return cast(Object) entry._1;
+          `.ctReplace("$NAME", T[2*i+1])
+        );
+      }
+      if (sup) return sup.lookup(name);
+      return null;
+    }
+  }
+  mixin Kinds!(Class, "Class", Structure, "Struct", Function, "Fun", Variable, "Var");
   abstract string mangle(string name, Type type);
 }
 

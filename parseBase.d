@@ -33,8 +33,8 @@ bool isAlphanum(dchar d) {
 
 import tools.compat: replace, strip;
 import tools.base;
-string next_text(string s) {
-  if (s.length > 100) s = s[0 .. 100];
+string next_text(string s, int i = 100) {
+  if (s.length > i) s = s[0 .. i];
   return s.replace("\n", "\\");
 }
 

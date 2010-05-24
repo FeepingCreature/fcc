@@ -45,14 +45,13 @@ class Function : Namespace, Tree {
 }
 
 class FunCall : Expr {
-  string name;
   Expr[] params;
-  Namespace context;
+  Function fun;
   override void emitAsm(AsmFile af) {
-    callFunction(lookupFun(context, name), params, af);
+    callFunction(fun, params, af);
   }
   override Type valueType() {
-    return lookupFun(context, name).type.ret;
+    return fun.type.ret;
   }
 }
 

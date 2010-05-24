@@ -1,12 +1,12 @@
 module ast.returns;
 
-import ast.base, ast.namespace, ast.scopes;
+import ast.base, ast.namespace, ast.scopes, ast.fun;
 
 class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
   override void emitAsm(AsmFile af) {
-    auto fun = findFun(ns);
+    auto fun = ns.get!(Function);
     assert(value.valueType().size == 4);
     value.emitAsm(af);
     af.mmove4("(%esp)", "%eax");

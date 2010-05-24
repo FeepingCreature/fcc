@@ -34,7 +34,10 @@ string compile(string file, bool saveTemps = false) {
   }
   auto text = file.read().castLike("");
   Module mod;
-  if (!text.gotModule(mod)) assert(false, "unable to eat module from "~file~": "~error);
+  // if (!text.gotModule(mod)) assert(false, "unable to eat module from "~file~": "~error);
+  if (auto mt = parsecon.parse(text, "tree.module"))
+    mod = cast(Module) mt;
+  else assert(false, "unable to eat module from "~file~": "~error);
   if (text.strip().length) assert(false, "this text confuses me: "~text.next_text()~": "~error);
   auto af = new AsmFile;
   mod.emitAsm(af);
@@ -63,6 +66,7 @@ void init() {
   genGraph("fcc.classes.dot", false, true);
   genGraph("fcc.mixed.dot", true, true);
   genGraph("fcc.both.dot", true, true, false);
+  write("parsers.txt", parsecon.dumpInfo());
 }
 
 void main(string[] args) {

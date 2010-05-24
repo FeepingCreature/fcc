@@ -33,8 +33,3 @@ class Scope : Namespace, Tree {
     }
   }
 }
-
-Function findFun(Namespace ns) {
-  if (auto res = cast(Function) ns) return res;
-  else return findFun(ns.sup);
-}

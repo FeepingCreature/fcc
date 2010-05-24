@@ -1,6 +1,6 @@
 module ast.modules;
 
-import ast.base, ast.namespace, ast.fun, ast.variable;
+import ast.base, ast.namespace, ast.fun, ast.variable, ast.structure;
 
 import tools.ctfe, tools.base: startsWith;
 
@@ -16,6 +16,7 @@ class Module : Namespace, Tree {
     string mangle(string name, Type type) {
       return "module_"~this.name~"_"~name~"_of_"~type.mangle();
     }
+    // WARN: copypasted from ast.namespace, prone to breaking on updates
     template Kind(T, string Name) {
       mixin(`
         T lookup$NAME(string name) {
@@ -26,11 +27,24 @@ class Module : Namespace, Tree {
             if (auto res = mod.lookup$NAME(name)) return res;
           return null;
         }
-        `.ctReplace("$NAME", Name));
+      `.ctReplace("$NAME", Name));
     }
-    mixin Kind!(Class, "Class");
-    mixin Kind!(Function, "Fun");
-    mixin Kind!(Variable, "Var");
+    template _Kinds(T...) {
+      mixin Kind!(T[0], T[1]);
+      static if (T.length > 2) mixin _Kinds!(T[2 .. $]);
+    }
+    template Kinds(T...) {
+      mixin _Kinds!(T);
+      Object lookup(string name) {
+        if (auto res = super.lookup(name)) return res;
+        if (auto lname = name.startsWith(this.name~"."))
+          if (auto res = super.lookup(lname)) return res;
+        foreach (mod; imports)
+          if (auto res = mod.lookup(name)) return res;
+        return null;
+      }
+    }
+    mixin Kinds!(Class, "Class", Structure, "Struct", Function, "Fun", Variable, "Var");
   }
 }
 
