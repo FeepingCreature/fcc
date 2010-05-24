@@ -1,6 +1,6 @@
 module classgraph;
 
-import tools.base: startsWith, or, rslice, Format;
+import tools.base: startsWith, or, rslice, Format, stuple, Stuple;
 import tools.compat: replace, write;
 
 // class graph gen
@@ -86,11 +86,14 @@ void genGraph(string filename, bool drawModules = true, bool drawClasses = true,
         res ~= key.marker() ~ " [label=\"" ~ key ~ "\"]; \n";
       }
     }
+    bool[string] linkAdded;
     foreach (key, value; modules) {
       if (auto p = key in imports)
         foreach (mod2; *p) {
+          if (key.marker()~"!"~mod2.marker() in linkAdded) continue;
+          else linkAdded[key.marker()~"!"~mod2.marker()] = true;
           res ~= key.marker() ~ " -> " ~ mod2.marker()
-            ~ " [color=blue"/*constraint=false,*/;
+            ~ " [color=blue,penwidth=1.9"/*constraint=false,*/;
           if (nestClasses)
             res ~= ", style=dotted, ltail=" ~ key.cluster() ~ ", lhead=" ~ mod2.cluster();
           res ~= "];\n";
@@ -111,10 +114,10 @@ void genGraph(string filename, bool drawModules = true, bool drawClasses = true,
     foreach (cl; classes) {
       auto name = cl.name;
       if (cl.base && !cl.base.name.ignore())
-        res ~= filterName(name) ~ " -> " ~ filterName(cl.base.name) ~ " [color=red]; \n";
+        res ~= filterName(name) ~ " -> " ~ filterName(cl.base.name) ~ " [color=red,penwidth=1.8]; \n";
       foreach (i2; cl.interfaces) {
         if (!i2.classinfo.name.ignore())
-          res ~= filterName(name) ~ " -> "~filterName(i2.classinfo.name)~" [color=red,style=dashed]; \n";
+          res ~= filterName(name) ~ " -> "~filterName(i2.classinfo.name)~" [color=red,style=dashed,penwidth=1.8]; \n";
       }
     }
   }
