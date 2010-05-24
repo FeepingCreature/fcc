@@ -336,6 +336,26 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotImport, "tree.import");
 
+TLS!(Object) lhs_partial;
+static this() { New(lhs_partial, { return cast(Object) null; }); }
+
+Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
+  auto sup = cont(text);
+  if (!sup) return null;
+  
+  auto backup = lhs_partial();
+  scope(exit) lhs_partial.set(backup);
+  
+  lhs_partial.set(sup);
+  while (true) {
+    if (auto nl = rest(text, "tree.rhs_partial")) {
+      lhs_partial.set(nl);
+    } else break;
+  }
+  return lhs_partial();
+}
+mixin DefaultParser!(gotProperties, "tree.expr.gotProperties", "3");
+
 Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("struct ")) return null;
@@ -469,7 +489,9 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
 
 Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text, sup = cont(t2);
+  assert(lhs_partial());
+  auto t2 = text, sup = lhs_partial();
+  
   if (auto fun = cast(Function) sup) {
     auto fc = new FunCall;
     fc.fun = fun;
@@ -484,7 +506,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     else throw new Exception("While expecting function call: "~t2.next_text());
   } else return null;
 }
-mixin DefaultParser!(gotCallExpr, "tree.expr.funcall", "2");
+mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall");
 
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text, var = new Variable;
@@ -652,7 +674,7 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   return new RefExpr(lv);
 }
-mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "31");
+mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "21");
 
 Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("*")) return null;
@@ -663,18 +685,19 @@ Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   return new DerefExpr(ex);
 }
-mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "32");
+mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "22");
 
 Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
-  Expr ex;
-  if (!cont(t2, &ex)) return null;
+  assert(lhs_partial());
+  auto ex = cast(Expr) lhs_partial();
+  if (!ex) return null;
   
   string member;
   
   auto pre_ex = ex;
-  while (t2.accept(".") && t2.gotIdentifier(member)) {
+  if (t2.accept(".") && t2.gotIdentifier(member)) {
     if (!cast(Structure) ex.valueType())
       throw new Exception(Format("Can't access member of non-structure: ", ex, " at ", t2.next_text()));
     
@@ -689,4 +712,4 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     return cast(Object) ex;
   }
 }
-mixin DefaultParser!(gotMemberExpr, "tree.expr.member", "35");
+mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_member");

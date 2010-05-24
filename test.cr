@@ -78,5 +78,5 @@ void main() {
   y.x.c = 5;
   printf("It's a %i! ", y.x.c);
   printf("yo .. %i, %i, %i\n", x.a, x.b, x.c);
-  printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&e);
+  printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&*&e);
 }
