@@ -100,6 +100,7 @@ class ParseContext {
       if (auto p = id in prec) return *p;
     return null;
   }
+  import tools.compat: split, join;
   string dumpInfo() {
     resort;
     string res;
@@ -109,9 +110,15 @@ class ParseContext {
       if (id.length > maxlen) maxlen = id.length;
     }
     auto reserved = maxlen + 2;
+    string[] prevId;
     foreach (parser; parsers) {
       auto id = parser.getId();
-      res ~= id;
+      auto n = id.dup.split(".");
+      foreach (i, str; n[0 .. min(n.length, prevId.length)]) {
+        if (str == prevId[i]) foreach (ref ch; str) ch = ' ';
+      }
+      prevId = id.split(".");
+      res ~= n.join(".");
       for (int i = 0; i < reserved - id.length; ++i)
         res ~= " ";
       if (auto p = id in prec) {
