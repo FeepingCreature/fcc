@@ -7,7 +7,8 @@ import tools.base: between, slice, startsWith;
 class AsmFile {
   ubyte[][string] constants;
   string code;
-  this() { New(cache); }
+  bool optimize;
+  this(bool optimize) { New(cache); this.optimize = optimize; }
   Transcache cache;
   int currentStackDepth;
   void pushStack(string expr, Type type) {
@@ -108,7 +109,7 @@ class AsmFile {
   }
   // opts
   void collapseAllocFrees() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapseAllocFrees", (Transaction[] list) {
       auto match = Transaction.Kind.SAlloc /or/ Transaction.Kind.SFree;
       if (list.length >= 2 && list[0].kind == match && list[1].kind == match)
         return 2;
@@ -134,7 +135,7 @@ class AsmFile {
   }
   // Using stack as scratchpad is silly and pointless
   void collapseScratchMove() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapseScratchMove", (Transaction[] list) {
       if (list.length > 2 && list[0].kind /and/ list[1].kind == Transaction.Kind.Mov && (
         (list[0].to == "(%esp)" && list[1].from == "(%esp)" && list[2].kind == Transaction.Kind.SFree) ||
         (!list[0].to.isRelative() && list[0].to == list[1].from) // second mode .. remember, moves are MOVEs, not COPYs
@@ -161,7 +162,7 @@ class AsmFile {
   }
   // same
   void collapseScratchPush() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapseScratchPush", (Transaction[] list) {
       if (list.length >= 2 && list[0].kind == Transaction.Kind.Push && list[1].kind == Transaction.Kind.Pop &&
         !list[1].dest.isRelative()
       ) {
@@ -185,7 +186,7 @@ class AsmFile {
     } while (match.advance());
   }
   void collapseCompares() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapseCompares", (Transaction[] list) {
       if (list.length >= 2 && list[0].kind == Transaction.Kind.Mov && list[1].kind == Transaction.Kind.Compare &&
         !list[0].dest.isRelative() && (list[1].op1 /or/ list[1].op2 == list[0].dest)
       ) {
@@ -206,7 +207,7 @@ class AsmFile {
   }
   // add esp, move, sub esp; or reverse
   void collapsePointlessRegMove() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapsePointlessRegMove", (Transaction[] list) {
       if (list.length < 3) return 0;
       if ( list[0].kind == Transaction.Kind.SFree
         && list[1].kind == Transaction.Kind.Mov && list[1].to == "(%esp)"
@@ -227,10 +228,10 @@ class AsmFile {
     } while (match.advance());
   }
   void binOpMathSpeedup() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("binOpMathSpeedup", (Transaction[] list) {
       if (list.length < 3) return 0;
       if ( list[0].kind == Transaction.Kind.Mov && list[0].to == "(%esp)"
-        && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1])
+        && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1]) && list[1].to != list[0].from
         && list[2].kind == Transaction.Kind.MathOp && list[2].op1 == "(%esp)")
       {
         return 3;
@@ -243,7 +244,7 @@ class AsmFile {
       match.replaceWith([match[1], subst]);
     } while (match.advance);
     
-    auto match2 = cache.findMatch((Transaction[] list) {
+    auto match2 = cache.findMatch("binOpMathSpeedup2", (Transaction[] list) {
       if (list.length < 3) return 0;
       if (list[0].kind == Transaction.Kind.Push && list[0].type.size == 4 &&
           list[1].kind == Transaction.Kind.MathOp && list[1].op1 == "(%esp)")
@@ -287,7 +288,7 @@ class AsmFile {
     return reg1 == reg2;
   }
   void sortByEspDependency() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("sortByEspDependency", (Transaction[] list) {
       auto match = Transaction.Kind.Mov;
       if (list.length < 2) return 0;
       if (
@@ -309,7 +310,7 @@ class AsmFile {
     } while (match.advance());
   }
   void removeRedundantPop() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("removeRedundantPop", (Transaction[] list) {
       if (list.length < 2) return 0;
       // movl [FOO], (%esp)
       // popl [FOO]
@@ -333,7 +334,7 @@ class AsmFile {
     return !!n.startsWith("$");
   }
   void MathToIndirectAddressing() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("MathToIndirectAddressing", (Transaction[] list) {
       if (list.length < 3) return 0;
       // movl [FOO], [REG]
       // addl [VAL], [REG]
@@ -364,21 +365,22 @@ class AsmFile {
       else
         res.source = op;
       
-      logln("Replace ", match[0], ", ", match[1], ", ", match[2], " with ", res);
       match.replaceWith(res);
     } while (match.advance());
   }
   void flush() {
-    collapseAllocFrees();
-    collapseScratchMove();
-    collapseScratchPush();
-    collapsePointlessRegMove();
-    collapseCompares();
-    sortByEspDependency();
-    collapseAllocFrees(); // rerun
-    removeRedundantPop();
-    binOpMathSpeedup();
-    MathToIndirectAddressing();
+    if (optimize) {
+      collapseAllocFrees();
+      collapseScratchMove();
+      collapseScratchPush();
+      collapsePointlessRegMove();
+      collapseCompares();
+      sortByEspDependency();
+      collapseAllocFrees(); // rerun
+      removeRedundantPop();
+      binOpMathSpeedup();
+      MathToIndirectAddressing();
+    }
     foreach (t; cache.list) {
       _put(t.toAsm());
     }
