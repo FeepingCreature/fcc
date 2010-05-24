@@ -16,6 +16,18 @@ struct Transaction {
     Mov, Mov2, SAlloc, SFree, MathOp, Push, Pop, Compare
   }
   Kind kind;
+  string toString() {
+    switch (kind) {
+      case Kind.Mov:     return Format("[movl ", from, " -> ", to, "]");
+      case Kind.Mov2:    return Format("[movw ", from, " -> ", to, "]");
+      case Kind.SAlloc:  return Format("[salloc ", size, "]");
+      case Kind.SFree:   return Format("[sfree ", size, "]");
+      case Kind.MathOp:  return Format("[math:", opName, " ", op1, ", ", op2, "]");
+      case Kind.Push:    return Format("[push ", source, "]");
+      case Kind.Pop:     return Format("[pop ", dest, "]");
+      case Kind.Compare: return Format("[cmp ", op1, ", ", op2, "]");
+    }
+  }
   string toAsm() {
     switch (kind) {
       case Kind.Mov:
