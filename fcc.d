@@ -40,7 +40,7 @@ import ast.modules;
 import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 
 string compile(string file, bool saveTemps = false, bool optimize = false) {
-  auto srcname = tmpnam("fcc_src"), objname = tmpnam("fcc_obj");
+  auto srcname = tmpnam("fcc_src") ~ ".s", objname = tmpnam("fcc_obj");
   scope(success) {
     if (!saveTemps)
       unlink(srcname.toStringz());
