@@ -35,10 +35,11 @@ class AsmFile {
       throw new Exception("Tried to unwind stack while unwound further - logic error");
     sfree(currentStackDepth - i);
   }
-  void compare(string op1, string op2) {
+  void compare(string op1, string op2, bool test = false) {
     Transaction t;
     t.kind = Transaction.Kind.Compare;
     t.op1 = op1; t.op2 = op2;
+    t.test = test;
     cache ~= t;
   }
   // migratory move; contents of source become irrelevant
@@ -163,9 +164,16 @@ class AsmFile {
   // same
   void collapseScratchPush() {
     auto match = cache.findMatch("collapseScratchPush", (Transaction[] list) {
-      if (list.length >= 2 && list[0].kind == Transaction.Kind.Push && list[1].kind == Transaction.Kind.Pop &&
-        !list[1].dest.isRelative()
-      ) {
+      if (list.length >= 2 &&
+          list[0].kind == Transaction.Kind.Push &&
+          list[1].kind == Transaction.Kind.Pop &&
+          (
+            !list[0].source.isRelative()
+            ||
+            !list[1].dest.isRelative()
+          )
+        )
+      {
         return 2;
       }
       else return cast(int) false;
@@ -187,8 +195,15 @@ class AsmFile {
   }
   void collapseCompares() {
     auto match = cache.findMatch("collapseCompares", (Transaction[] list) {
-      if (list.length >= 2 && list[0].kind == Transaction.Kind.Mov && list[1].kind == Transaction.Kind.Compare &&
-        !list[0].dest.isRelative() && (list[1].op1 /or/ list[1].op2 == list[0].dest)
+      if (list.length >= 2 &&
+          list[0].kind == Transaction.Kind.Mov &&
+          list[1].kind == Transaction.Kind.Compare &&
+          (
+            list[1].op1 != list[0].to
+            ||
+            !list[0].from.isRelative()
+          ) &&
+          (list[1].op1 /or/ list[1].op2 == list[0].to)
       ) {
         return 2;
       }
@@ -196,11 +211,10 @@ class AsmFile {
     });
     if (!match.length) return;
     do {
-      Transaction res;
-      res.kind = Transaction.Kind.Compare;
-      if (match[1].op1 == match[0].dest) res.op1 = match[0].source;
+      Transaction res = match[1];
+      if (match[1].op1 == match[0].to) res.op1 = match[0].from;
       else res.op1 = match[1].op1;
-      if (match[1].op2 == match[0].dest) res.op2 = match[0].source;
+      if (match[1].op2 == match[0].to) res.op2 = match[0].from;
       else res.op2 = match[1].op2;
       match.replaceWith(res);
     } while (match.advance());
@@ -314,8 +328,10 @@ class AsmFile {
       if (list.length < 2) return 0;
       // movl [FOO], (%esp)
       // popl [FOO]
-      if (list[0].kind == Transaction.Kind.Mov && list[0].to == "(%esp)" &&
-          list[1].kind == Transaction.Kind.Pop && list[1].dest == list[0].from)
+      if (
+          list[0].kind == Transaction.Kind.Mov && list[0].to == "(%esp)" &&
+          list[1].kind == Transaction.Kind.Pop && list[1].dest == list[0].from
+        )
       {
         return 2;
       } else return 0;
@@ -325,6 +341,59 @@ class AsmFile {
       res.kind = Transaction.Kind.SFree;
       res.size = nativePtrSize;
       match.replaceWith(res);
+    } while (match.advance());
+  }
+  void removeRedundantPushPop() {
+    auto match = cache.findMatch("removeRedundantPushPop", (Transaction[] list) {
+      if (list.length < 2) return 0;
+      if (
+          list[0].kind == Transaction.Kind.Push &&
+          list[1].kind == Transaction.Kind.Pop &&
+          list[1].type.size() == list[0].type.size() /and/ 4
+        )
+      {
+        return 2;
+      } else return 0;
+    });
+    if (match.length) do {
+      Transaction res;
+      res.kind = Transaction.Kind.Mov;
+      res.from = match[0].source;
+      res.to = match[1].dest;
+      match.replaceWith(res);
+    } while (match.advance());
+  }
+  void removePointlessPushFree() {
+    auto match = cache.findMatch("removePointlessPushFree", (Transaction[] list) {
+      if (list.length < 2) return 0;
+      if (
+          list[0].kind == Transaction.Kind.Push &&
+          list[1].kind == Transaction.Kind.SFree &&
+          list[1].size == list[0].type.size()
+        )
+      {
+        return 2;
+      } else return 0;
+    });
+    if (match.length) do {
+      match.replaceWith(null);
+    } while (match.advance());
+  }
+  void removePointlessPushMov() {
+    auto match = cache.findMatch("removePointlessPushFree", (Transaction[] list) {
+      if (list.length < 2) return 0;
+      if (
+          list[0].kind == Transaction.Kind.Push &&
+          list[1].kind == Transaction.Kind.Mov &&
+          list[0].type.size() == 4 &&
+          list[1].from == "(%esp)" && list[1].to == list[0].source
+        )
+      {
+        return 2;
+      } else return 0;
+    });
+    if (match.length) do {
+      match.replaceWith(match[0]);
     } while (match.advance());
   }
   static bool isIndirect(string addr) {
@@ -370,19 +439,24 @@ class AsmFile {
   }
   void flush() {
     if (optimize) {
-      collapseAllocFrees();
-      collapseScratchMove();
-      collapseScratchPush();
-      collapsePointlessRegMove();
-      collapseCompares();
-      sortByEspDependency();
-      collapseAllocFrees(); // rerun
-      removeRedundantPop();
-      binOpMathSpeedup();
-      MathToIndirectAddressing();
+      collapseAllocFrees;
+      collapseScratchMove;
+      collapseScratchPush;
+      collapsePointlessRegMove;
+      collapseCompares;
+      sortByEspDependency;
+      collapseAllocFrees; // rerun
+      removeRedundantPop;
+      removeRedundantPushPop;
+      binOpMathSpeedup;
+      MathToIndirectAddressing;
+      collapseScratchPush; // rerun
+      removePointlessPushFree;
+      removePointlessPushMov;
     }
     foreach (t; cache.list) {
-      _put(t.toAsm());
+      if (auto line = t.toAsm())
+          _put(line);
     }
     cache.list = null;
   }

@@ -10,7 +10,7 @@ class ExprWrap : Cond {
       assert(ex.valueType().size == 4);
       ex.emitAsm(af);
       af.popStack("%eax", ex.valueType());
-      af.compare("$0", "%eax");
+      af.compare("%eax", "%eax", true);
     }
     void jumpFalse(AsmFile af, string dest) {
       af.jumpOn(false, true, false, dest); // jump on 0.
@@ -31,18 +31,37 @@ class Compare : Cond {
     this.smaller = smaller; this.equal = equal; this.greater = greater;
     this.e2 = e2;
   }
+  void flip() {
+    swap(e1, e2);
+    swap(smaller, greater);
+  }
   override {
     void emitAsm(AsmFile af) {
       assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
-      e2.emitAsm(af);
-      e1.emitAsm(af);
-      af.popStack("%ebx", e1.valueType());
-      af.popStack("%eax", e2.valueType());
-      af.put("cmpl %eax, %ebx");
+      
+      if (cast(IntExpr) e1 && !cast(IntExpr) e2)
+        flip;
+      
+      if (auto ie = cast(IntExpr) e2) {
+        e1.emitAsm(af);
+        af.popStack("%eax", e1.valueType());
+        // remember: at&t order is inverted
+        af.compare(Format("$", ie.num), "%eax");
+      } else {
+        e2.emitAsm(af);
+        e1.emitAsm(af);
+        af.popStack("%ebx", e1.valueType());
+        af.popStack("%eax", e2.valueType());
+        af.compare("%eax", "%ebx");
+      }
     }
     void jumpFalse(AsmFile af, string dest) {
-      af.jumpOn(!smaller, !equal, !greater, dest);
+      auto s = smaller, e = equal, g = greater;
+      swap(s, g);
+      if (s + g == 1)
+        e = !e;
+      af.jumpOn(s, e, g, dest);
     }
   }
 }
@@ -70,7 +89,7 @@ import ast.literals;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (rest(text, "<tree.expr >tree.expr.cond", &ex)) {
-    return new Compare(ex, true, false, true, false, new IntExpr(0));
+    return new ExprWrap(ex);
   } else return null;
 }
 mixin DefaultParser!(gotExprAsCond, "tree.cond.expr", "9");

@@ -37,6 +37,8 @@ class ForStatement : Statement {
   Scope _body;
   override void emitAsm(AsmFile af) {
     auto backup = af.checkptStack();
+    scope(exit)
+      af.restoreCheckptStack(backup);
     decl.emitAsm(af);
     auto start = af.genLabel(), done = af.genLabel();
     logln("for start is ", start, ", done is ", done);

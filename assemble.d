@@ -25,7 +25,9 @@ struct Transaction {
       case Kind.MathOp:  return Format("[math:", opName, " ", op1, ", ", op2, "]");
       case Kind.Push:    return Format("[push ", source, "]");
       case Kind.Pop:     return Format("[pop ", dest, "]");
-      case Kind.Compare: return Format("[cmp ", op1, ", ", op2, "]");
+      case Kind.Compare:
+        if (test) return Format("[cmp/test ", op1, ", ", op2, "]");
+        else return Format("[cmp ", op1, ", ", op2, "]");
     }
   }
   string toAsm() {
@@ -44,8 +46,12 @@ struct Transaction {
         } else {
           return Format("movw ", from, ", ", to);
         }
-      case Kind.SAlloc: return Format("subl $", size, ", %esp");
-      case Kind.SFree: return Format("addl $", size, ", %esp");
+      case Kind.SAlloc:
+          if (!size) return null;
+          return Format("subl $", size, ", %esp");
+      case Kind.SFree:
+          if (!size) return null;
+          return Format("addl $", size, ", %esp");
       case Kind.MathOp:
         if (opName == "addl" && op1 == "$1") return Format("incl ", op2);
         if (opName == "subl" && op1 == "$1") return Format("decl ", op2);
@@ -98,7 +104,9 @@ struct Transaction {
         doOp(2, "w");
         doOp(1, "b");
         return res;
-      case Kind.Compare: return Format("cmpl ", op1, ", ", op2);
+      case Kind.Compare:
+        if (test) return Format("testl ", op1, ", ", op2);
+        else return Format("cmpl ", op1, ", ", op2);
     }
   }
   union {
@@ -114,6 +122,7 @@ struct Transaction {
     struct {
       string opName;
       string op1, op2;
+      bool test;
     }
   }
 }

@@ -68,7 +68,7 @@ void main() {
   test(2);
   test(0);
   int e = 5;
-  // printf("a(3, 12) = %i\n", acker(3, 12));
+  printf("a(3, 12) = %i\n", acker(3, 12));
   int* ptr = &e;
   *ptr = 7;
   X x;
