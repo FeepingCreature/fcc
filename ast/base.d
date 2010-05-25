@@ -26,8 +26,8 @@ interface LValue : Expr {
 
 /// Emitting this sets up FLAGS.
 /// TODO: how does this work on non-x86?
-interface Cond : Tree {
-  void jumpFalse(AsmFile af, string dest);
+interface Cond {
+  void jumpOn(AsmFile af, bool cond, string dest);
 }
 
 class Register(string Reg) : Expr {

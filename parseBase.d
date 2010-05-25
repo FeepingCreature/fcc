@@ -251,9 +251,9 @@ class ParseContext {
       }
       prevId = id.split(".");
       res ~= n.join(".");
-      for (int i = 0; i < reserved - id.length; ++i)
-        res ~= " ";
       if (auto p = id in prec) {
+        for (int i = 0; i < reserved - id.length; ++i)
+          res ~= " ";
         res ~= ":" ~ *p;;
       }
       res ~= "\n";

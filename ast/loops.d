@@ -8,8 +8,7 @@ class WhileStatement : Statement {
   override void emitAsm(AsmFile af) {
     auto start = af.genLabel(), done = af.genLabel();
     af.emitLabel(start);
-    cond.emitAsm(af);
-    cond.jumpFalse(af, done);
+    cond.jumpOn(af, false, done);
     _body.emitAsm(af);
     // TODO: rerun cond? check complexity?
     af.put("jmp ", start);
@@ -21,7 +20,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (t2.accept("while ")) {
     auto ws = new WhileStatement;
-    if (rest(t2, "tree.cond", &ws.cond) && rest(t2, "tree.scope", &ws._body)) {
+    if (rest(t2, "cond", &ws.cond) && rest(t2, "tree.scope", &ws._body)) {
       text = t2;
       return ws;
     } else throw new Exception("Couldn't parse while loop at '"~t2.next_text()~"'");
@@ -43,8 +42,7 @@ class ForStatement : Statement {
     auto start = af.genLabel(), done = af.genLabel();
     logln("for start is ", start, ", done is ", done);
     af.emitLabel(start);
-    cond.emitAsm(af);
-    cond.jumpFalse(af, done);
+    cond.jumpOn(af, false, done);
     _body.emitAsm(af);
     step.emitAsm(af);
     af.put("jmp ", start);
@@ -58,7 +56,7 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("for (")) {
     auto fs = new ForStatement, check = namespace().getCheckpt();
     if (rest(t2, "tree.stmt.vardecl", &fs.decl) &&
-        rest(t2, "tree.cond", &fs.cond) && t2.accept(";") &&
+        rest(t2, "cond", &fs.cond) && t2.accept(";") &&
         rest(t2, "tree.semicol_stmt", &fs.step) && t2.accept(")") &&
         rest(t2, "tree.scope", &fs._body)
       )

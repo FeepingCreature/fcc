@@ -6,14 +6,15 @@ class ExprWrap : Cond {
   Expr ex;
   mixin This!("ex");
   override {
-    void emitAsm(AsmFile af) {
+    void jumpOn(AsmFile af, bool cond, string dest) {
       assert(ex.valueType().size == 4);
       ex.emitAsm(af);
       af.popStack("%eax", ex.valueType());
       af.compare("%eax", "%eax", true);
-    }
-    void jumpFalse(AsmFile af, string dest) {
-      af.jumpOn(false, true, false, dest); // jump on 0.
+      if (cond)
+        af.jumpOn(true, false, true, dest); // Jump on !=0
+      else
+        af.jumpOn(false, true, false, dest); // jump on 0.
     }
   }
 }
@@ -36,7 +37,7 @@ class Compare : Cond {
     swap(smaller, greater);
   }
   override {
-    void emitAsm(AsmFile af) {
+    void jumpOn(AsmFile af, bool cond, string dest) {
       assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
       
@@ -55,12 +56,12 @@ class Compare : Cond {
         af.popStack("%eax", e2.valueType());
         af.compare("%eax", "%ebx");
       }
-    }
-    void jumpFalse(AsmFile af, string dest) {
       auto s = smaller, e = equal, g = greater;
-      swap(s, g);
-      if (s + g == 1)
-        e = !e;
+      if (!cond) { // negate
+        swap(s, g);
+        if (s + g == 1)
+          e = !e;
+      }
       af.jumpOn(s, e, g, dest);
     }
   }
@@ -83,7 +84,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     return new Compare(ex1, not, smaller, equal, greater, ex2);
   } else return null;
 }
-mixin DefaultParser!(gotCompare, "tree.cond.compare", "1");
+mixin DefaultParser!(gotCompare, "cond.compare", "1");
 
 import ast.literals;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
@@ -92,4 +93,55 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
     return new ExprWrap(ex);
   } else return null;
 }
-mixin DefaultParser!(gotExprAsCond, "tree.cond.expr", "9");
+mixin DefaultParser!(gotExprAsCond, "cond.expr", "9");
+
+class BooleanOp(string Which) : Cond {
+  Cond c1, c2;
+  mixin This!("c1, c2");
+  override {
+    void jumpOn(AsmFile af, bool cond, string dest) {
+      static if (Which == "&&") {
+        if (cond) {
+          auto past = af.genLabel();
+          c1.jumpOn(af, false, past);
+          c2.jumpOn(af, true, dest);
+          af.emitLabel(past);
+        } else {
+          c1.jumpOn(af, false, dest);
+          c2.jumpOn(af, false, dest);
+        }
+      } else
+      static if (Which == "||") {
+        if (cond) {
+          c1.jumpOn(af, true, dest);
+          c2.jumpOn(af, true, dest);
+        } else {
+          auto past = af.genLabel();
+          c1.jumpOn(af, true, past);
+          c2.jumpOn(af, false, dest);
+          af.emitLabel(past);
+        }
+      } else
+      static assert(false, "unknown boolean op: "~Which);
+    }
+  }
+}
+
+Object gotBoolOp(string Op)(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Cond cd;
+  if (!rest(t2, &cd)) return null;
+  auto old_cd = cd;
+  while (t2.accept(Op)) {
+    Cond cd2;
+    if (!rest(t2, &cd2))
+      throw new Exception("Couldn't get second cond after '"
+        ~ Op ~ "' at '"~t2.next_text()~"'");
+    cd = new BooleanOp!(Op)(cd, cd2);
+  }
+  if (old_cd is cd) return null;
+  text = t2;
+  return cast(Object) cd;
+}
+mixin DefaultParser!(gotBoolOp!("&&"), "cond.bool_and", "6");
+mixin DefaultParser!(gotBoolOp!("||"), "cond.bool_or", "5");

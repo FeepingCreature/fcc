@@ -6,12 +6,11 @@ class IfStatement : Statement {
   Scope branch1, branch2;
   Cond test;
   override void emitAsm(AsmFile af) {
-    test.emitAsm(af);
     auto past1 = af.genLabel();
     if (branch2) {
-      test.jumpFalse(af, branch2.entry());
+      test.jumpOn(af, false, branch2.entry());
     } else {
-      test.jumpFalse(af, past1);
+      test.jumpOn(af, false, past1);
     }
     branch1.emitAsm(af);
     if (!branch2) af.emitLabel(past1);
@@ -28,7 +27,7 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, t3;
   IfStatement ifs;
   if (t2.accept("if ") && (New(ifs), true) &&
-      rest(t2, "tree.cond", &ifs.test) && rest(t2, "tree.scope", &ifs.branch1) && (
+      rest(t2, "cond", &ifs.test) && rest(t2, "tree.scope", &ifs.branch1) && (
         ((t3 = t2, true) && t3.accept("else") && rest(t3, "tree.scope", &ifs.branch2) && (t2 = t3, true))
         || true
       )

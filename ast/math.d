@@ -99,10 +99,9 @@ class CondWrap : Expr {
       return Single!(SysInt); // TODO: bool type
     }
     void emitAsm(AsmFile af) {
-      cd.emitAsm(af);
       auto past = af.genLabel();
       af.put("xorl %eax, %eax");
-      cd.jumpFalse(af, past);
+      cd.jumpOn(af, false, past);
       af.mmove4("$1", "%eax");
       af.emitLabel(past);
     }
