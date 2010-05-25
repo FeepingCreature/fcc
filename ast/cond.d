@@ -93,7 +93,7 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
     return new ExprWrap(ex);
   } else return null;
 }
-mixin DefaultParser!(gotExprAsCond, "cond.expr", "9");
+mixin DefaultParser!(gotExprAsCond, "cond.expr", "8");
 
 class BooleanOp(string Which) : Cond {
   Cond c1, c2;
@@ -130,11 +130,11 @@ class BooleanOp(string Which) : Cond {
 Object gotBoolOp(string Op)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond cd;
-  if (!rest(t2, &cd)) return null;
+  if (!cont(t2, &cd)) return null;
   auto old_cd = cd;
   while (t2.accept(Op)) {
     Cond cd2;
-    if (!rest(t2, &cd2))
+    if (!cont(t2, &cd2))
       throw new Exception("Couldn't get second cond after '"
         ~ Op ~ "' at '"~t2.next_text()~"'");
     cd = new BooleanOp!(Op)(cd, cd2);
@@ -145,3 +145,13 @@ Object gotBoolOp(string Op)(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotBoolOp!("&&"), "cond.bool_and", "6");
 mixin DefaultParser!(gotBoolOp!("||"), "cond.bool_or", "5");
+
+Object gotBraces(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Cond cd;
+  if (t2.accept("(") && rest(t2, "cond", &cd) && t2.accept(")")) {
+    text = t2;
+    return cast(Object) cd;
+  } else return null;
+}
+mixin DefaultParser!(gotBraces, "cond.braces", "9");

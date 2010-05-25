@@ -61,6 +61,11 @@ struct Y {
   int i;
 }
 
+int s(int i, int k) {
+  printf("meep %i: %i\n", i, k);
+  return k;
+}
+
 void main() {
   /*A a = new A;
   a.x = 5;
@@ -83,4 +88,6 @@ void main() {
   int n = 8;
   printf("post inc test: %i, %i\n", m++, m++);
   printf("test: %i\n", *(&m - 1));
+  if (s(0, 1) && s(1, 0) && s(2, 1)) printf("yes\n"); else printf("no\n");
+  if (s(0, 1) && s(1, 0) && s(2, 1) || s(3, 1)) printf("yes\n"); else printf("no\n");
 }

@@ -34,10 +34,12 @@ mixin DefaultParser!(gotProperties, "tree.expr.properties", "3");
 
 Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (text.accept("(") &&
-      rest(text, "tree.expr", &ex)
+  auto t2 = text;
+  if (t2.accept("(") &&
+      rest(t2, "tree.expr", &ex) &&
+      t2.accept(")")
     ) {
-    text.mustAccept(")", Format("Missing closing brace at ", text.next_text()));
+    text = t2;
     return cast(Object) ex;
   } else return null;
 }
