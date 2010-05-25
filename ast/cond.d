@@ -1,6 +1,6 @@
 module ast.cond;
 
-import ast.base, ast.namespace, tools.base;
+import ast.base, ast.namespace, ast.parse, tools.base;
 
 class ExprWrap : Cond {
   Expr ex;
@@ -46,3 +46,31 @@ class Compare : Cond {
     }
   }
 }
+
+Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  bool not, smaller, equal, greater;
+  Expr ex1, ex2;
+  if (rest(t2, "tree.expr", &ex1) &&
+      (
+        (t2.accept("!") && (not = true)),
+        (t2.accept("<") && (smaller = true)),
+        (t2.accept(">") && (greater = true)),
+        ((not || smaller || t2.accept("=")) && t2.accept("=") && (equal = true)),
+        (smaller || equal || greater)
+      ) && rest(t2, "tree.expr", &ex2)
+  ) {
+    text = t2;
+    return new Compare(ex1, not, smaller, equal, greater, ex2);
+  } else return null;
+}
+mixin DefaultParser!(gotCompare, "tree.cond.compare", "1");
+
+import ast.literals;
+Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  if (rest(text, "<tree.expr >tree.expr.cond", &ex)) {
+    return new Compare(ex, true, false, true, false, new IntExpr(0));
+  } else return null;
+}
+mixin DefaultParser!(gotExprAsCond, "tree.cond.expr", "9");

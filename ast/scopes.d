@@ -1,6 +1,6 @@
 module ast.scopes;
 
-import ast.base, ast.namespace, ast.fun;
+import ast.base, ast.namespace, ast.fun, ast.variable, parseBase;
 
 class Scope : Namespace, Tree {
   Function fun;
@@ -13,8 +13,10 @@ class Scope : Namespace, Tree {
   int framesize() {
     // TODO: alignment
     int res;
-    foreach (var; Varfield) {
-      res += var._1.type.size;
+    foreach (obj; field) {
+      if (auto var = cast(Variable) obj._1) {
+        res += var.type.size;
+      }
     }
     if (auto sc = cast(Scope) sup)
       res += sc.framesize();
@@ -32,4 +34,15 @@ class Scope : Namespace, Tree {
       return sup.mangle(name, type) ~ "_local";
     }
   }
+}
+
+Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
+  auto sc = new Scope;
+  sc.sup = namespace();
+  sc.fun = namespace().get!(Function);
+  namespace.set(sc);
+  scope(exit) namespace.set(sc.sup);
+  auto t2 = text;
+  if (rest(t2, "tree.stmt", &sc._body)) { text = t2; return sc; }
+  throw new Exception("Couldn't match scope off "~text.next_text());
 }

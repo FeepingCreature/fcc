@@ -16,7 +16,7 @@ class NoOp : Tree {
 
 interface Statement : Tree { }
 
-interface Expr : Statement {
+interface Expr : Tree {
   Type valueType();
 }
 
@@ -26,7 +26,7 @@ interface LValue : Expr {
 
 /// Emitting this sets up FLAGS.
 /// TODO: how does this work on non-x86?
-interface Cond : Statement {
+interface Cond : Tree {
   void jumpFalse(AsmFile af, string dest);
 }
 

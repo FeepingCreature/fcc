@@ -1,6 +1,6 @@
 module ast.modules;
 
-import ast.base, ast.namespace, ast.fun, ast.variable, ast.structure;
+import ast.base, ast.namespace, ast.fun, ast.variable, ast.structure, ast.parse;
 
 import tools.ctfe, tools.base: startsWith;
 
@@ -16,35 +16,15 @@ class Module : Namespace, Tree {
     string mangle(string name, Type type) {
       return "module_"~this.name~"_"~name~"_of_"~type.mangle();
     }
-    // WARN: copypasted from ast.namespace, prone to breaking on updates
-    template Kind(T, string Name) {
-      mixin(`
-        T lookup$NAME(string name) {
-          if (auto res = super.lookup$NAME(name)) return res;
-          if (auto lname = name.startsWith(this.name~"."))
-            if (auto res = super.lookup$NAME(lname)) return res;
-          foreach (mod; imports)
-            if (auto res = mod.lookup$NAME(name)) return res;
-          return null;
-        }
-      `.ctReplace("$NAME", Name));
+    Object lookup(string name) {
+      if (auto res = super.lookup(name)) return res;
+      if (auto lname = name.startsWith(this.name~"."))
+        if (auto res = super.lookup(lname)) return res;
+      
+      foreach (mod; imports)
+        if (auto res = mod.lookup(name)) return res;
+      return null;
     }
-    template _Kinds(T...) {
-      mixin Kind!(T[0], T[1]);
-      static if (T.length > 2) mixin _Kinds!(T[2 .. $]);
-    }
-    template Kinds(T...) {
-      mixin _Kinds!(T);
-      Object lookup(string name) {
-        if (auto res = super.lookup(name)) return res;
-        if (auto lname = name.startsWith(this.name~"."))
-          if (auto res = super.lookup(lname)) return res;
-        foreach (mod; imports)
-          if (auto res = mod.lookup(name)) return res;
-        return null;
-      }
-    }
-    mixin Kinds!(Class, "Class", Structure, "Struct", Function, "Fun", Variable, "Var");
   }
 }
 
@@ -69,7 +49,7 @@ void setupSysmods() {
     puts.type.ret = Single!(Void);
     puts.type.params ~= stuple(cast(Type) Single!(Pointer, Single!(Char)), cast(string) null);
     puts.name = "puts";
-    sysmod.addFun(puts);
+    sysmod.add(puts);
   }
   
   {
@@ -80,6 +60,41 @@ void setupSysmods() {
     printf.type.params ~= stuple(cast(Type) Single!(Pointer, Single!(Char)), cast(string) null);
     printf.type.params ~= stuple(cast(Type) Single!(Variadic), cast(string) null);
     printf.name = "printf";
-    sysmod.addFun(printf);
+    sysmod.add(printf);
   }
 }
+
+Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
+  string m;
+  // import a, b, c;
+  if (!text.accept("import ")) return null;
+  auto mod = namespace().get!(Module);
+  if (!(
+    text.bjoin(text.gotIdentifier(m, true), text.accept(","),
+    { mod.imports ~= lookupMod(m); },
+    true) &&
+    text.accept(";")
+  )) throw new Exception("Unexpected text while parsing import statement: "~text.next_text());
+  return Single!(NoOp);
+}
+mixin DefaultParser!(gotImport, "tree.import");
+
+Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
+  auto t2 = text;
+  Function fn;
+  Structure st;
+  Tree tr;
+  Module mod;
+  auto backup = namespace.ptr();
+  scope(exit) namespace.set(backup);
+  if (t2.accept("module ") && (New(mod), namespace.set(mod), true) &&
+      t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
+      t2.many(
+        !!restart(t2, "tree.toplevel", &tr),
+        { mod.entries ~= tr; }
+      ) &&
+      (text = t2, true)
+    ) return mod;
+  else return null;
+}
+mixin DefaultParser!(gotModule, "tree.module");

@@ -1,12 +1,14 @@
 module asmfile;
 
-import assemble, ast.types;
+import assemble, ast.types, ast.base;
 
 import tools.log, tools.functional: map;
+import tools.base: between, slice, startsWith;
 class AsmFile {
   ubyte[][string] constants;
   string code;
-  this() { New(cache); }
+  bool optimize;
+  this(bool optimize) { New(cache); this.optimize = optimize; }
   Transcache cache;
   int currentStackDepth;
   void pushStack(string expr, Type type) {
@@ -107,7 +109,7 @@ class AsmFile {
   }
   // opts
   void collapseAllocFrees() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapseAllocFrees", (Transaction[] list) {
       auto match = Transaction.Kind.SAlloc /or/ Transaction.Kind.SFree;
       if (list.length >= 2 && list[0].kind == match && list[1].kind == match)
         return 2;
@@ -133,7 +135,7 @@ class AsmFile {
   }
   // Using stack as scratchpad is silly and pointless
   void collapseScratchMove() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapseScratchMove", (Transaction[] list) {
       if (list.length > 2 && list[0].kind /and/ list[1].kind == Transaction.Kind.Mov && (
         (list[0].to == "(%esp)" && list[1].from == "(%esp)" && list[2].kind == Transaction.Kind.SFree) ||
         (!list[0].to.isRelative() && list[0].to == list[1].from) // second mode .. remember, moves are MOVEs, not COPYs
@@ -160,7 +162,7 @@ class AsmFile {
   }
   // same
   void collapseScratchPush() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapseScratchPush", (Transaction[] list) {
       if (list.length >= 2 && list[0].kind == Transaction.Kind.Push && list[1].kind == Transaction.Kind.Pop &&
         !list[1].dest.isRelative()
       ) {
@@ -184,7 +186,7 @@ class AsmFile {
     } while (match.advance());
   }
   void collapseCompares() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapseCompares", (Transaction[] list) {
       if (list.length >= 2 && list[0].kind == Transaction.Kind.Mov && list[1].kind == Transaction.Kind.Compare &&
         !list[0].dest.isRelative() && (list[1].op1 /or/ list[1].op2 == list[0].dest)
       ) {
@@ -205,7 +207,7 @@ class AsmFile {
   }
   // add esp, move, sub esp; or reverse
   void collapsePointlessRegMove() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("collapsePointlessRegMove", (Transaction[] list) {
       if (list.length < 3) return 0;
       if ( list[0].kind == Transaction.Kind.SFree
         && list[1].kind == Transaction.Kind.Mov && list[1].to == "(%esp)"
@@ -226,10 +228,10 @@ class AsmFile {
     } while (match.advance());
   }
   void binOpMathSpeedup() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("binOpMathSpeedup", (Transaction[] list) {
       if (list.length < 3) return 0;
       if ( list[0].kind == Transaction.Kind.Mov && list[0].to == "(%esp)"
-        && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1])
+        && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1]) && list[1].to != list[0].from
         && list[2].kind == Transaction.Kind.MathOp && list[2].op1 == "(%esp)")
       {
         return 3;
@@ -241,17 +243,64 @@ class AsmFile {
       subst.op1 = match[0].from;
       match.replaceWith([match[1], subst]);
     } while (match.advance);
+    
+    auto match2 = cache.findMatch("binOpMathSpeedup2", (Transaction[] list) {
+      if (list.length < 3) return 0;
+      if (list[0].kind == Transaction.Kind.Push && list[0].type.size == 4 &&
+          list[1].kind == Transaction.Kind.MathOp && list[1].op1 == "(%esp)")
+      {
+        return 3;
+      } else return 0;
+    });
+    if (match2.length) do {
+      auto temp = match2[1];
+      temp.op1 = match2[0].source;
+      if (match2[2].kind == Transaction.Kind.SFree && match2[2].size == 4) {
+        match2.replaceWith(temp);
+      } else {
+        if (match2[2].kind == Transaction.Kind.Mov && !dependsOnEsp(match2[2].from) && match2[2].to == "(%esp)") {
+          Transaction npush;
+          npush.kind = Transaction.Kind.Push;
+          npush.source = match2[2].from;
+          npush.type = Single!(SizeT);
+          match2.replaceWith([temp, npush]);
+        }/* else {
+          match2.replaceWith([temp, match2[0], match2[2]]);
+        }*/
+      }
+    } while (match2.advance);
+  }
+  static bool dependsOnEsp(string s) {
+    return s.find("%esp") != -1;
   }
   static bool dependsOnEsp(Transaction t) {
-    assert(t.kind == Transaction.Kind.Mov);
-    return t.from.find("%esp") != -1 || t.to.find("%esp") != -1;
+    if (t.kind == Transaction.Kind.Mov)
+      return dependsOnEsp(t.from) || dependsOnEsp(t.to);
+    if (t.kind == Transaction.Kind.Push)
+      return dependsOnEsp(t.source);
+    if (t.kind == Transaction.Kind.Pop)
+      return dependsOnEsp(t.dest);
+    assert(false, Format("Cannot determine %esp dependency of ", t, ": unknown type of operation"));
+  }
+  static bool related(string reg1, string reg2) {
+    if (auto b = reg1.between("(", ")")) reg1 = b;
+    if (auto b = reg2.between("(", ")")) reg2 = b;
+    return reg1 == reg2;
   }
   void sortByEspDependency() {
-    auto match = cache.findMatch((Transaction[] list) {
+    auto match = cache.findMatch("sortByEspDependency", (Transaction[] list) {
       auto match = Transaction.Kind.Mov;
       if (list.length < 2) return 0;
-      if ( list[0].kind == Transaction.Kind.SFree /or/ Transaction.Kind.SAlloc
-        && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1]))
+      if (
+          (
+            list[0].kind == Transaction.Kind.SFree /or/ Transaction.Kind.SAlloc
+            ||
+            list[0].kind == Transaction.Kind.Push /or/ Transaction.Kind.Pop
+              && !dependsOnEsp(list[0])
+              && !related((list[0].kind == Transaction.Kind.Push)?list[0].source:list[0].dest, list[1].to)
+          )
+          && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1])
+        )
       {
         return 2;
       } else return 0;
@@ -260,15 +309,78 @@ class AsmFile {
       match.replaceWith([match[1], match[0]]);
     } while (match.advance());
   }
+  void removeRedundantPop() {
+    auto match = cache.findMatch("removeRedundantPop", (Transaction[] list) {
+      if (list.length < 2) return 0;
+      // movl [FOO], (%esp)
+      // popl [FOO]
+      if (list[0].kind == Transaction.Kind.Mov && list[0].to == "(%esp)" &&
+          list[1].kind == Transaction.Kind.Pop && list[1].dest == list[0].from)
+      {
+        return 2;
+      } else return 0;
+    });
+    if (match.length) do {
+      Transaction res;
+      res.kind = Transaction.Kind.SFree;
+      res.size = nativePtrSize;
+      match.replaceWith(res);
+    } while (match.advance());
+  }
+  static bool isIndirect(string addr) {
+    return addr.find("(") != -1;
+  }
+  static bool isNum(string n) {
+    return !!n.startsWith("$");
+  }
+  void MathToIndirectAddressing() {
+    auto match = cache.findMatch("MathToIndirectAddressing", (Transaction[] list) {
+      if (list.length < 3) return 0;
+      // movl [FOO], [REG]
+      // addl [VAL], [REG]
+      // popl ([REG])
+      // ->
+      // popl [VAL]([FOO])
+      if (list[0].kind == Transaction.Kind.Mov && !isIndirect(list[0].from) &&
+          list[1].kind == Transaction.Kind.MathOp && list[1].opName == "addl" && isNum(list[1].op1) && list[1].op2 == list[0].to &&
+          (
+            list[2].kind == Transaction.Kind.Pop && list[2].dest == "("~list[0].to~")"
+            ||
+            list[2].kind == Transaction.Kind.Push && list[2].source == "("~list[0].to~")"
+          )
+        )
+      {
+        return 3;
+      } else return 0;
+    });
+    if (match.length) do {
+      Transaction res;
+      res.kind = match[2].kind;
+      res.type = match[2].type;
+      auto op = match[1].op1;
+      op.slice("$");
+      op ~= "("~match[0].from~")";
+      if (res.kind == Transaction.Kind.Pop)
+        res.dest = op;
+      else
+        res.source = op;
+      
+      match.replaceWith(res);
+    } while (match.advance());
+  }
   void flush() {
-    collapseAllocFrees();
-    collapseScratchMove();
-    collapseScratchPush();
-    collapsePointlessRegMove();
-    collapseCompares();
-    sortByEspDependency();
-    collapseAllocFrees(); // rerun
-    binOpMathSpeedup();
+    if (optimize) {
+      collapseAllocFrees();
+      collapseScratchMove();
+      collapseScratchPush();
+      collapsePointlessRegMove();
+      collapseCompares();
+      sortByEspDependency();
+      collapseAllocFrees(); // rerun
+      removeRedundantPop();
+      binOpMathSpeedup();
+      MathToIndirectAddressing();
+    }
     foreach (t; cache.list) {
       _put(t.toAsm());
     }

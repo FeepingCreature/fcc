@@ -1,6 +1,6 @@
 module ast.namespace;
 
-import ast.types, ast.fun, ast.variable, ast.structure;
+import ast.base;
 
 import tools.ctfe, tools.base: stuple, Format, Repeat;
 class Namespace {
@@ -12,63 +12,46 @@ class Namespace {
     } while (null !is (cur = cur.sup));
     throw new Exception(Format("No ", T.stringof, " above ", this, "!"));
   }
-  template Kind(T, string Name) {
-    mixin(`
-      Stuple!(string, T)[] $NAMEfield;
-      void add$NAME(T t) {
-        static if (is(typeof(t.sup)))
-          t.sup = this;
-        $NAMEfield ~= stuple(t.name, t);
-      }
-      Stuple!(string, T)[] $NAMEGetCheckpt() { return $NAMEfield; }
-      void $NAMESetCheckpt(Stuple!(string, T)[] field) { $NAMEfield = field.dup; /* prevent clobbering */ }
-      T lookup$NAME(string name) {
-        // logln("Lookup ", name, " as $NAME in ", $NAMEfield);
-        foreach (entry; $NAMEfield)
-          if (entry._0 == name) return entry._1;
-        if (sup) return sup.lookup$NAME(name);
-        return null;
-      }
-    `.ctReplace("$NAME", Name));
+  Stuple!(string, Object)[] field;
+  void add(T)(T t) {
+    static if (is(typeof(t.sup)))
+      t.sup = this;
+    field ~= stuple(t.name, cast(Object) t);
   }
-  template _Kinds(T...) {
-    mixin Kind!(T[0], T[1]);
-    static if (T.length > 2) mixin _Kinds!(T[2 .. $]);
+  typeof(field) getCheckpt() { return field; }
+  void setCheckpt(typeof(field) field) { this.field = field.dup; /* prevent clobbering */ }
+  Object lookup(string name) {
+    foreach (entry; field)
+      if (entry._0 == name) return entry._1;
+    if (sup) return sup.lookup(name);
+    return null;
   }
-  template Kinds(T...) {
-    mixin _Kinds!(T);
-    Object lookup(string name) {
-      foreach (i, bogus; Repeat!(void, T.length / 2)) {
-        mixin(`
-          foreach (entry; $NAMEfield)
-            if (entry._0 == name) return cast(Object) entry._1;
-          `.ctReplace("$NAME", T[2*i+1])
-        );
-      }
-      if (sup) return sup.lookup(name);
-      return null;
-    }
-  }
-  mixin Kinds!(Class, "Class", Structure, "Struct", Function, "Fun", Variable, "Var");
   abstract string mangle(string name, Type type);
 }
 
-Function lookupFun(Namespace ns, string name) {
-  if (auto res = ns.lookupFun(name)) return res;
-  assert(false, "No such function identifier: "~name);
+T lookup(T)(Namespace ns, string name) {
+  if (auto res = cast(T) ns.lookup(name)) return res;
+  assert(false, "No such "~T.stringof~": "~name);
 }
 
-Class lookupClass(Namespace ns, string name) {
-  if (auto res = ns.lookupClass(name)) return res;
-  assert(false, "No such class identifier: "~name);
-}
+import tools.threads;
+TLS!(Namespace) namespace;
 
-Structure lookupStruct(Namespace ns, string name) {
-  if (auto res = ns.lookupStruct(name)) return res;
-  assert(false, "No such struct identifier: "~name);
-}
-
-Variable lookupVar(Namespace ns, string name) {
-  if (auto res = ns.lookupVar(name)) return res;
-  assert(false, "No such variable identifier: "~name);
+import parseBase;
+Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
+  // logln("Match variable off ", text.next_text());
+  string name, t2 = text;
+  if (t2.gotIdentifier(name, true)) {
+    retry:
+    if (auto res = namespace().lookup(name)) {
+      if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
+      return res;
+    }
+    if (name.rfind(".") != -1) {
+      name = name[0 .. name.rfind(".")]; // chop up what _may_ be members!
+      goto retry;
+    }
+    error = "unknown identifier "~name;
+  }
+  return null;
 }

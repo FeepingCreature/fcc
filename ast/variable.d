@@ -1,6 +1,6 @@
 module ast.variable;
 
-import ast.base, ast.math, ast.literals;
+import ast.base, ast.math, ast.literals, parseBase;
 
 class Variable : LValue {
   string address() { return Format(baseOffset, "(%ebp)"); }
@@ -35,3 +35,22 @@ class VarDecl : Statement {
     }
   }
 }
+
+import ast.namespace, ast.scopes;
+Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text, var = new Variable;
+  if (rest(t2, "type", &var.type) && t2.gotIdentifier(var.name)) {
+    if (t2.accept("=")) {
+      if (!rest(t2, "tree.expr", &var.initval))
+        throw new Exception(Format("Couldn't read expression at ", t2.next_text()));
+    }
+    t2.mustAccept(";", Format("Missed trailing semicolon at ", t2.next_text()));
+    var.baseOffset = -(cast(Scope) namespace()).framesize() - var.type.size;
+    auto vd = new VarDecl;
+    vd.var = var;
+    namespace().add(var);
+    text = t2;
+    return vd;
+  } else return null;
+}
+mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl");

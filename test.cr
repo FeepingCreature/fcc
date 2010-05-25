@@ -13,7 +13,7 @@ void test(int foo) {
     sys.printf("Countdown with %i\n", temp);
     temp = temp - 1;
   }
-  for (int x = 0; x < 10; x = x + 1)
+  for (int x = 0; x < 10; ++x)
     sys.printf("Test: %i\n", x);
 }
 
@@ -68,7 +68,7 @@ void main() {
   test(2);
   test(0);
   int e = 5;
-  printf("a(3, 12) = %i\n", acker(3, 12));
+  // printf("a(3, 12) = %i\n", acker(3, 12));
   int* ptr = &e;
   *ptr = 7;
   X x;
@@ -78,5 +78,9 @@ void main() {
   y.x.c = 5;
   printf("It's a %i! ", y.x.c);
   printf("yo .. %i, %i, %i\n", x.a, x.b, x.c);
-  printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&e);
+  printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&*&e);
+  int m = 5;
+  int n = 8;
+  printf("post inc test: %i, %i\n", m++, m++);
+  printf("test: %i\n", *(&m - 1));
 }

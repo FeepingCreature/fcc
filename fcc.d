@@ -1,8 +1,21 @@
 module fcc; // feep's crazed compiler
+// fcc is licensed under the terms of the GNU General Public License v3 or GPLv3.
 
 import tools.base, tools.log, tools.compat;
 alias ast.types.Type Type;
 import classgraph;
+
+import
+  ast.aggregate, ast.returns, ast.ifstmt, ast.loops, ast.assign,
+  ast.structure, ast.variable, ast.fun, ast.unary;
+
+// placed here to resolve circular dependency issues
+import ast.parse, ast.namespace, ast.scopes;
+// from ast.namespace
+mixin DefaultParser!(gotNamed, "tree.expr.named", "4");
+static this() { New(namespace, { return cast(Namespace) null; }); }
+// from ast.scopes
+mixin DefaultParser!(gotScope, "tree.scope");
 
 extern(C) {
   int mkstemp(char* tmpl);
@@ -26,7 +39,7 @@ import ast.modules;
 
 import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 
-string compile(string file, bool saveTemps = false) {
+string compile(string file, bool saveTemps = false, bool optimize = false) {
   auto srcname = tmpnam("fcc_src"), objname = tmpnam("fcc_obj");
   scope(success) {
     if (!saveTemps)
@@ -39,7 +52,7 @@ string compile(string file, bool saveTemps = false) {
     mod = cast(Module) mt;
   else assert(false, "unable to eat module from "~file~": "~error);
   if (text.strip().length) assert(false, "this text confuses me: "~text.next_text()~": "~error);
-  auto af = new AsmFile;
+  auto af = new AsmFile(optimize);
   mod.emitAsm(af);
   srcname.write(af.genAsm());
   auto cmdline = Format("as --32 -o ", objname, " ", srcname);
@@ -69,6 +82,7 @@ void init() {
   write("parsers.txt", parsecon.dumpInfo());
 }
 
+import assemble: debugOpts;
 void main(string[] args) {
   init();
   auto exec = args.take();
@@ -76,7 +90,7 @@ void main(string[] args) {
   string output;
   auto ar = args;
   string[] largs;
-  bool saveTemps;
+  bool saveTemps, optimize;
   while (ar.length) {
     auto arg = ar.take();
     if (arg == "-o") {
@@ -91,9 +105,17 @@ void main(string[] args) {
       saveTemps = true;
       continue;
     }
+    if (arg == "-O") {
+      optimize = true;
+      continue;
+    }
+    if (arg == "-debug-opts") {
+      debugOpts = true;
+      continue;
+    }
     if (auto base = arg.endsWith(".cr")) {
       if (!output) output = arg[0 .. $-3];
-      objects ~= arg.compile(saveTemps);
+      objects ~= arg.compile(saveTemps, optimize);
       continue;
     }
     return logln("Invalid argument: ", arg);

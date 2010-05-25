@@ -16,6 +16,18 @@ struct Transaction {
     Mov, Mov2, SAlloc, SFree, MathOp, Push, Pop, Compare
   }
   Kind kind;
+  string toString() {
+    switch (kind) {
+      case Kind.Mov:     return Format("[movl ", from, " -> ", to, "]");
+      case Kind.Mov2:    return Format("[movw ", from, " -> ", to, "]");
+      case Kind.SAlloc:  return Format("[salloc ", size, "]");
+      case Kind.SFree:   return Format("[sfree ", size, "]");
+      case Kind.MathOp:  return Format("[math:", opName, " ", op1, ", ", op2, "]");
+      case Kind.Push:    return Format("[push ", source, "]");
+      case Kind.Pop:     return Format("[pop ", dest, "]");
+      case Kind.Compare: return Format("[cmp ", op1, ", ", op2, "]");
+    }
+  }
   string toAsm() {
     switch (kind) {
       case Kind.Mov:
@@ -106,19 +118,24 @@ struct Transaction {
   }
 }
 
+bool debugOpts;
+
 struct Transsection(C) {
   Transcache parent;
+  string opName;
   C cond;
   int from, to;
   bool modded;
   Transaction opIndex(int i) { return parent.list[from + i]; }
   size_t length() { return to - from; }
   void replaceWith(Transaction[] withWhat) {
+    if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", withWhat);
     parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
     to = from + withWhat.length;
     modded = true;
   }
   void replaceWith(Transaction withWhat) {
+    if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", withWhat);
     parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
     to = from + 1;
     modded = true;
@@ -127,18 +144,18 @@ struct Transsection(C) {
     auto start = from;
     // don't recheck if not modified
     if (!modded) start = to;
-    *this = parent.findMatch(cond, start);
+    *this = parent.findMatch(opName, cond, start);
     return from != to;
   }
 }
 
 class Transcache {
   Transaction[] list;
-  Transsection!(C) findMatch(C)(C cond, int from = 0) {
+  Transsection!(C) findMatch(C)(string opName, C cond, int from = 0) {
     for (int base = from; base < list.length; ++base) {
-      if (auto len = cond(list[base .. $])) return Transsection!(C)(this, cond, base, base + len, false);
+      if (auto len = cond(list[base .. $])) return Transsection!(C)(this, opName, cond, base, base + len, false);
     }
-    return Transsection!(C)(this, cond, 0, 0, false);
+    return Transsection!(C)(this, opName, cond, 0, 0, false);
   }
   void opCatAssign(Transaction t) { list ~= t; }
 }

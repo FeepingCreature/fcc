@@ -18,3 +18,19 @@ class Assignment : Statement {
     af.popStack("(%eax)", value.valueType());
   }
 }
+
+Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  auto as = new Assignment;
+  Expr ex;
+  if (rest(t2, "tree.expr >tree.expr.arith", &ex) && t2.accept("=")) {
+    auto lv = cast(LValue) ex;
+    if (!lv) throw new Exception(Format("Assignment target is not an lvalue: ", ex, " at ", t2.next_text()));
+    as.target = lv;
+    if (rest(t2, "tree.expr", &as.value)) {
+      text = t2;
+      return as;
+    } else throw new Exception("While grabbing assignment value at '"~t2.next_text()~"'");
+  } else return null;
+}
+mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign");

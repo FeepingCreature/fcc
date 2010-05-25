@@ -1,6 +1,6 @@
 module ast.fun;
 
-import ast.namespace, ast.base, ast.scopes, ast.variable;
+import ast.namespace, ast.base, ast.scopes, ast.variable, asmfile, ast.types;
 
 class Function : Namespace, Tree {
   string name;
@@ -15,7 +15,7 @@ class Function : Namespace, Tree {
     // TODO: alignment
     foreach (param; type.params) {
       if (param._1) {
-        addVar(new Variable(param._0, param._1, cur));
+        add(new Variable(param._0, param._1, cur));
       }
       cur += param._0.size;
     }
@@ -95,3 +95,59 @@ class FunctionType : Type {
     string toString() { return Format("Function of ", params, " => ", ret); }
   }
 }
+
+import parseBase;
+Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
+  Type ptype;
+  auto t2 = text;
+  Function fun;
+  New(fun);
+  New(fun.type);
+  string parname;
+  error = null;
+  auto mod = namespace();
+  assert(mod);
+  if (test(fun.type.ret = cast(Type) rest(t2, "type")) &&
+      t2.gotIdentifier(fun.name) &&
+      t2.accept("(") &&
+      // TODO: function parameters belong on the stackframe
+      t2.bjoin(
+        test(ptype = cast(Type) rest(t2, "type")) && (t2.gotIdentifier(parname) || ((parname = null), true)),
+        t2.accept(","),
+        { fun.type.params ~= stuple(ptype, parname); }
+      ) &&
+      t2.accept(")")
+    )
+  {
+    fun.fixup;
+    auto backup = namespace();
+    scope(exit) namespace.set(backup); 
+    namespace.set(fun);
+    mod.add(fun);
+    text = t2;
+    if (rest(text, "tree.scope", &fun._scope)) return fun;
+    else throw new Exception("Couldn't parse function scope at '"~text.next_text()~"'");
+  } else return null;
+}
+mixin DefaultParser!(gotFunDef, "tree.fundef");
+
+import ast.parse;
+Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
+  assert(lhs_partial());
+  auto t2 = text, sup = lhs_partial();
+  
+  if (auto fun = cast(Function) sup) {
+    auto fc = new FunCall;
+    fc.fun = fun;
+    Expr ex;
+    if (t2.accept("(") &&
+        t2.bjoin(!!rest(t2, "tree.expr", &ex), t2.accept(","), { fc.params ~= ex; }, false) &&
+        t2.accept(")"))
+    {
+      text = t2;
+      return fc;
+    }
+    else throw new Exception("While expecting function call: "~t2.next_text());
+  } else return null;
+}
+mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall");

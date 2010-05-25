@@ -1,6 +1,6 @@
 module ast.structure;
 
-import ast.types, ast.base, ast.namespace; // yay, more cycles
+import ast.types, ast.base, ast.namespace, parseBase;
 
 import tools.base: ex;
 int sum(S, T)(S s, T t) {
@@ -35,6 +35,33 @@ class Structure : Type {
   }
   override string mangle() { return "struct_"~name; }
 }
+
+Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("struct ")) return null;
+  string name;
+  Structure.Member[] ms;
+  Structure.Member sm;
+  if (t2.gotIdentifier(name) && t2.accept("{") &&
+      t2.many(
+        test(sm.type = cast(Type) rest(t2, "type")) &&
+        t2.bjoin(
+          t2.gotIdentifier(sm.name),
+          t2.accept(",")
+          ,{ ms ~= sm; }
+        ) &&
+        t2.accept(";")
+      ) &&
+      t2.accept("}")
+    )
+  {
+    text = t2;
+    auto st = new Structure(name, ms);
+    namespace().add(st);
+    return Single!(NoOp);
+  } else return null;
+}
+mixin DefaultParser!(gotStructDef, "tree.typedef.struct");
 
 import ast.pointer;
 class MemberAccess(T) : T {
@@ -72,3 +99,43 @@ class MemberAccess(T) : T {
 
 alias MemberAccess!(Expr) MemberAccess_Expr;
 alias MemberAccess!(LValue) MemberAccess_LValue;
+
+import ast.parse;
+Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  
+  assert(lhs_partial());
+  auto ex = cast(Expr) lhs_partial();
+  if (!ex) return null;
+  
+  string member;
+  
+  auto pre_ex = ex;
+  if (t2.accept(".") && t2.gotIdentifier(member)) {
+    if (!cast(Structure) ex.valueType())
+      throw new Exception(Format("Can't access member of non-structure: ", ex, " at ", t2.next_text()));
+    
+    if (auto lv = cast(LValue) ex)
+      ex = new MemberAccess_LValue(lv, member);
+    else
+      ex = new MemberAccess_Expr(ex, member);
+  }
+  if (ex is pre_ex) return null;
+  else {
+    text = t2;
+    return cast(Object) ex;
+  }
+}
+mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_member");
+
+Object gotStructName(ref string text, ParseCb cont, ParseCb rest) {
+  string id, t2 = text;
+  if (t2.gotIdentifier(id)) {
+    if (auto st = cast(Structure) namespace().lookup(id)) {
+      text = t2;
+      return st;
+    }
+  }
+  return null;
+}
+mixin DefaultParser!(gotStructName, "type.struct", "4");
