@@ -73,7 +73,7 @@ void main() {
   test(2);
   test(0);
   int e = 5;
-  printf("a(3, 12) = %i\n", acker(3, 12));
+  // printf("a(3, 12) = %i\n", acker(3, 12));
   int* ptr = &e;
   *ptr = 7;
   X x;
@@ -90,4 +90,5 @@ void main() {
   printf("test: %i\n", *(&m - 1));
   if (s(0, 1) && s(1, 0) && s(2, 1)) printf("yes\n"); else printf("no\n");
   if (s(0, 1) && s(1, 0) && s(2, 1) || s(3, 1)) printf("yes\n"); else printf("no\n");
+  int[5] ifield;
 }

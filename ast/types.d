@@ -59,9 +59,6 @@ class SysInt : Type {
   override string mangle() { return "sys_int"; }
 }
 
-// postfix type modifiers
-Type delegate(ref string text, Type cur)[] typeModlist;
-
 import parseBase;
 Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   if (text.accept("void")) return Single!(Void);
@@ -70,6 +67,9 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   return null;
 }
 mixin DefaultParser!(gotBasicType, "type.basic", "5");
+
+// postfix type modifiers
+Type delegate(ref string text, Type cur)[] typeModlist;
 
 Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
   auto type = cast(Type) cont(text);
