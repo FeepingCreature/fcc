@@ -119,12 +119,9 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       ex = new MemberAccess_LValue(lv, member);
     else
       ex = new MemberAccess_Expr(ex, member);
-  }
-  if (ex is pre_ex) return null;
-  else {
     text = t2;
     return cast(Object) ex;
-  }
+  } else return null;
 }
 mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_member");
 
