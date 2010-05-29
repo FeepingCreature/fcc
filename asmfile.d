@@ -182,7 +182,7 @@ class AsmFile {
     do {
       // what the fuck
       if (match[0].source == match[1].dest) {
-        logln("Who the fuck produced this retarded bytecode");
+        logln("Who the fuck produced this retarded bytecode: ", cache.list);
         match.replaceWith(null);
         continue;
       }

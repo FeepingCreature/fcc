@@ -164,7 +164,7 @@ struct ParseCb {
         /*if (pre && !*t[1])
           logln("WARN: res ", pre, " isn't a ", typeof(*t[1]).stringof, "!");*/
         return cast(Object) *t[1];
-      } else assert(false, Format("Pointer to object expected: ", t));
+      } else assert(false, Format("Pointer to object expected: ", t, ". YOU FUCKED UP THE ParseCb SYNTAX. *AGAIN*. "));
     }
   }
 }
