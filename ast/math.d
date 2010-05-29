@@ -44,6 +44,8 @@ class AsmBinopExpr(string OP) : Expr {
     }
   }
 }
+alias AsmBinopExpr!("addl") AddExpr;
+alias AsmBinopExpr!("subl") SubExpr;
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "1"); }
 
