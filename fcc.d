@@ -8,7 +8,7 @@ import classgraph;
 import
   ast.aggregate, ast.returns, ast.ifstmt, ast.loops, ast.assign,
   ast.structure, ast.variable, ast.fun, ast.unary,
-  ast.arrays;
+  ast.arrays, ast.index;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;

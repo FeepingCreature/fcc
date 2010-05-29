@@ -93,4 +93,6 @@ void main() {
   int[5] ifield;
   ifield[3] = 15;
   printf("field access %i\n", ifield[3]);
+  int* ip = &ifield[3];
+  printf("field access via ptr %i\n", ip[0]);
 }
