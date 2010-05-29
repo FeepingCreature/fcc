@@ -91,4 +91,6 @@ void main() {
   if (s(0, 1) && s(1, 0) && s(2, 1)) printf("yes\n"); else printf("no\n");
   if (s(0, 1) && s(1, 0) && s(2, 1) || s(3, 1)) printf("yes\n"); else printf("no\n");
   int[5] ifield;
+  ifield[3] = 15;
+  printf("field access %i\n", ifield[3]);
 }
