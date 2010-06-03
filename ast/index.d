@@ -27,18 +27,19 @@ class SA_Access(T) : T {
 }
 
 Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
-  auto lp = lhs_partial();
-  if (cast(Expr) lp && cast(StaticArray) (cast(Expr) lp).valueType()) {
-    if (!cast(LValue) lp)
-      throw new Exception("LHS of array access must be lvalue for now, not "~(cast(Object) lp).toString());
+  return lhs_partial.using = delegate Object(Expr ex) {
+    if (!cast(StaticArray) ex.valueType())
+      return null;
+    if (!cast(LValue) ex)
+      throw new Exception("LHS of array access must be lvalue for now, not "~(cast(Object) ex).toString());
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       // TODO typecheck pos here
       text = t2;
-      return new SA_Access!(LValue) (cast(LValue) lhs_partial(), pos);
+      return new SA_Access!(LValue) (cast(LValue) ex, pos);
     } else return null;
-  } else return null;
+  };
 }
 mixin DefaultParser!(gotArrayIndexAccess, "tree.rhs_partial.array_access");
 
@@ -65,15 +66,15 @@ class PA_Access : LValue {
 }
 
 Object gotPointerIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
-  auto lp = lhs_partial(), lpe = cast(Expr) lp;
-  if (lpe && cast(Pointer) lpe.valueType()) {
+  return lhs_partial.using = delegate Object(Expr ex) {
+    if (!cast(Pointer) ex.valueType()) return null;
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       if (pos.valueType().size() != 4) throw new Exception(Format("Invalid index: ", pos));
       text = t2;
-      return new PA_Access (lpe, pos);
+      return new PA_Access (ex, pos);
     } else return null;
-  } else return null;
+  };
 }
 mixin DefaultParser!(gotPointerIndexAccess, "tree.rhs_partial.pointer_index_access");

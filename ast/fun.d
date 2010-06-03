@@ -7,8 +7,8 @@ class Function : Namespace, Tree {
   FunctionType type;
   Scope _scope;
   bool extern_c = false;
-  // declare parameters as variables
   string toString() { return Format("fun ", name, " <- ", sup); }
+  // add parameters to namespace
   void fixup() {
     // cdecl: 0 old ebp, 4 return address, 8 parameters .. I think.
     int cur = 8;
@@ -133,10 +133,8 @@ mixin DefaultParser!(gotFunDef, "tree.fundef");
 
 import ast.parse;
 Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
-  assert(lhs_partial());
-  auto t2 = text, sup = lhs_partial();
-  
-  if (auto fun = cast(Function) sup) {
+  auto t2 = text;
+  return lhs_partial.using = delegate Object(Function fun) {
     auto fc = new FunCall;
     fc.fun = fun;
     Expr ex;
@@ -148,6 +146,6 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       return fc;
     }
     else throw new Exception("While expecting function call: "~t2.next_text());
-  } else return null;
+  };
 }
 mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall");

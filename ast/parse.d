@@ -12,8 +12,22 @@ Object gotToplevel(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotToplevel, "tree.toplevel");
 
-TLS!(Object) lhs_partial;
-static this() { New(lhs_partial, { return cast(Object) null; }); }
+TLS!(Object) _lhs_partial;
+static this() { New(_lhs_partial, { return cast(Object) null; }); }
+
+struct lhs_partial {
+  static Object using(T)(Object delegate(T) dg) {
+    if (!_lhs_partial()) return null;
+    if (auto c = cast(T) _lhs_partial()) {
+      auto backup = c;
+      scope(exit) _lhs_partial.set(cast(Object) backup);
+      _lhs_partial.set(null);
+      return dg(c);
+    } else return null;
+  }
+  static Object opCall() { return _lhs_partial(); }
+  static void set(T)(T t) { _lhs_partial.set(t); }
+}
 
 Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   auto sup = cont(text);
