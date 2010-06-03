@@ -145,7 +145,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       text = t2;
       return fc;
     }
-    else throw new Exception("While expecting function call: "~t2.next_text());
+    else throw new Exception("While expecting function call to "~fun.toString()~": "~t2.next_text());
   };
 }
 mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall");

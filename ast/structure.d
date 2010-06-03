@@ -107,14 +107,13 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   assert(lhs_partial());
   auto ex = cast(Expr) lhs_partial();
   if (!ex) return null;
+  if (!cast(Structure) ex.valueType())
+    return null;
   
   string member;
   
   auto pre_ex = ex;
   if (t2.accept(".") && t2.gotIdentifier(member)) {
-    if (!cast(Structure) ex.valueType())
-      throw new Exception(Format("Can't access member of non-structure: ", ex, " at ", t2.next_text()));
-    
     if (auto lv = cast(LValue) ex)
       ex = new MemberAccess_LValue(lv, member);
     else
