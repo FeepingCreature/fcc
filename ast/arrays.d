@@ -29,3 +29,17 @@ static this() {
     } else return null;
   };
 }
+
+import ast.parse, ast.literals;
+Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
+  auto lhs = lhs_partial(), le = cast(Expr) lhs;
+  if (!le) return null;
+  
+  return lhs_partial.using = delegate Object(Expr ex) {
+    if (auto sa = cast(StaticArray) ex.valueType()) {
+      if (!text.accept(".length")) return null;
+      return new IntExpr(sa.length);
+    } else return null;
+  };
+}
+mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length");

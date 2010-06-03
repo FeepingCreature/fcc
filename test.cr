@@ -67,5 +67,7 @@ void main() {
   ifield[3] = 15;
   printf("field access %i\n", ifield[3]);
   int* ip = &ifield[3];
-  printf("field access via ptr %i\n", ip[0]);
+  printf("field access via ptr %i, oh btw %i\n", ip[0], ifield.length);
+  // will fail
+  // ifield.length = 8;
 }
