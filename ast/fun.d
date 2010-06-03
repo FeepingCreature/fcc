@@ -139,7 +139,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     fc.fun = fun;
     Expr ex;
     if (t2.accept("(") &&
-        t2.bjoin(!!rest(t2, "tree.expr", &ex), t2.accept(","), { fc.params ~= ex; }, false) &&
+        t2.bjoin(!!rest(t2, "tree.expr", &ex), t2.accept(","), { fc.params ~= ex; }, true) &&
         t2.accept(")"))
     {
       text = t2;
