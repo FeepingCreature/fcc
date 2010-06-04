@@ -41,6 +41,24 @@ Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length");
 
+// static array literal
+class DataExpr : Expr {
+  ubyte[] data;
+  this(ubyte[] ub) { data = ub; }
+  override Type valueType() { return new StaticArray(Single!(Char), data.length); }
+  override void emitAsm(AsmFile af) {
+    auto d2 = data;
+    while (d2.length >= 4) {
+      auto i = (cast(int[]) d2.take(4))[0];
+      af.pushStack(Format("$", i), Single!(SysInt)); // TODO: use 4-byte type
+    }
+    while (d2.length) {
+      auto c = d2.take();
+      af.pushStack(Format("$", c), Single!(Char));
+    }
+  }
+}
+
 class Array : Type {
   Type elemType;
   this() { }
@@ -112,21 +130,3 @@ Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length");
-
-// kind of a static array literal
-class DataExpr : Expr {
-  ubyte[] data;
-  this(ubyte[] ub) { data = ub; }
-  override Type valueType() { return new StaticArray(Single!(Char), data.length); }
-  override void emitAsm(AsmFile af) {
-    auto d2 = data;
-    while (d2.length >= 4) {
-      auto i = (cast(int[]) d2.take(4))[0];
-      af.pushStack(Format("$", i), Single!(SysInt)); // TODO: use 4-byte type
-    }
-    while (d2.length) {
-      auto c = d2.take();
-      af.pushStack(Format("$", c), Single!(Char));
-    }
-  }
-}
