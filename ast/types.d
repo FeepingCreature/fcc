@@ -7,6 +7,7 @@ import ast.base;
 class Type {
   abstract int size();
   abstract string mangle();
+  ubyte[] initval() { return new ubyte[size()]; }
   int opEquals(Object obj) {
     // specialize where needed
     return this.classinfo is obj.classinfo &&
@@ -24,6 +25,7 @@ class Type {
 class Void : Type {
   override int size() { return 4; } // for arrays
   override string mangle() { return "void"; }
+  override ubyte[] initval() { return null; }
 }
 
 class Variadic : Type {
@@ -32,6 +34,7 @@ class Variadic : Type {
     params = null; // match all
   }
   override string mangle() { return "variadic"; }
+  override ubyte[] initval() { assert(false); } // wtf variadic variable?
 }
 
 class Char : Type {

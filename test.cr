@@ -39,6 +39,12 @@ int s(int i, int k) {
   return k;
 }
 
+struct Z {
+  int i;
+}
+
+Z ztest() { Z z; z.i = 5; return z; }
+
 void main() {
   /*A a = new A;
   a.x = 5;
@@ -68,6 +74,8 @@ void main() {
   printf("field access %i\n", ifield[3]);
   int* ip = &ifield[3];
   printf("field access via ptr %i, oh btw %i\n", ip[0], ifield.length);
-  // will fail
-  // ifield.length = 8;
+  // ifield.length = 8; // will fail
+  // ztest().i = 5; // correctly doesn't work
+  int[] arr;
+  printf("proper array test: %i\n", arr.length);
 }

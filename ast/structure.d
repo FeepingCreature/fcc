@@ -19,7 +19,7 @@ class Structure : Type {
   Member[] members;
   int lookupMember(string name) {
     foreach (i, m; members) if (m.name == name) return i;
-    throw new Exception(Format(name, " is not a member of ", this.name, "!"));
+    return -1;
   }
   int getMemberOffset(int id) {
     int offs;
@@ -114,6 +114,11 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   auto pre_ex = ex;
   if (t2.accept(".") && t2.gotIdentifier(member)) {
+    auto st = cast(Structure) ex.valueType();
+    if (st.lookupMember(member) == -1) {
+      error = Format(member, " is not a member of ", st.name, "!");
+      return null;
+    }
     if (auto lv = cast(LValue) ex)
       ex = new MemberAccess_LValue(lv, member);
     else

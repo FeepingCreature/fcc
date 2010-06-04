@@ -4,6 +4,8 @@ import ast.base, ast.pointer, tools.base: slice, replace, startsWith;
 
 class StringExpr : Expr {
   string str;
+  this() { }
+  this(string s) { str = s; }
   // default action: place in string segment, load address on stack
   override void emitAsm(AsmFile af) {
     auto name = Format("cons_", af.constants.length);

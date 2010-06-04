@@ -1,6 +1,6 @@
 module ast.variable;
 
-import ast.base, ast.math, ast.literals, parseBase;
+import ast.base, ast.math, ast.literals, parseBase, ast.arrays: DataExpr;
 
 class Variable : LValue {
   string address() { return Format(baseOffset, "(%ebp)"); }
@@ -20,8 +20,18 @@ class Variable : LValue {
   // offset off ebp
   int baseOffset;
   Expr initval;
-  this(Type t, string s, int i) { type = t; name = s; baseOffset = i; }
+  void initInit() {
+    if (initval) return;
+    if (auto field = type.initval())
+      initval = new DataExpr(field);
+  }
   this() { }
+  this(Type t, string s, int i) {
+    type = t;
+    name = s;
+    baseOffset = i;
+    initInit();
+  }
   string toString() { return Format("[ var ", name, " of ", type, " at ", baseOffset, "]"); }
 }
 
@@ -44,6 +54,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       if (!rest(t2, "tree.expr", &var.initval))
         throw new Exception(Format("Couldn't read expression at ", t2.next_text()));
     }
+    var.initInit();
     t2.mustAccept(";", Format("Missed trailing semicolon at ", t2.next_text()));
     var.baseOffset = -(cast(Scope) namespace()).framesize() - var.type.size;
     auto vd = new VarDecl;

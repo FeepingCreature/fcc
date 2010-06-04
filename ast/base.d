@@ -24,6 +24,11 @@ interface LValue : Expr {
   void emitLocation(AsmFile);
 }
 
+// more than rvalue, less than lvalue
+interface MValue : Expr {
+  void emitAssignment(AsmFile); // eat value from stack and store
+}
+
 /// Emitting this sets up FLAGS.
 /// TODO: how does this work on non-x86?
 interface Cond {
