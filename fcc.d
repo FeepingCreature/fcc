@@ -84,7 +84,7 @@ void init() {
 }
 
 import assemble: debugOpts;
-void main(string[] args) {
+int main(string[] args) {
   init();
   auto exec = args.take();
   string[] objects;
@@ -119,8 +119,10 @@ void main(string[] args) {
       objects ~= arg.compile(saveTemps, optimize);
       continue;
     }
-    return logln("Invalid argument: ", arg);
+    logln("Invalid argument: ", arg);
+    return 1;
   }
   if (!output) output = "exec";
   objects.link(output, largs);
+  return 0;
 }
