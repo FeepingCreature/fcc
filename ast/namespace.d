@@ -14,6 +14,8 @@ class Namespace {
   }
   Stuple!(string, Object)[] field;
   void add(T)(T t) {
+    if (lookup(t.name))
+      throw new Exception(Format(t.name, " already defined in ", this, ": ", lookup(t.name)));
     static if (is(typeof(t.sup)))
       t.sup = this;
     field ~= stuple(t.name, cast(Object) t);
