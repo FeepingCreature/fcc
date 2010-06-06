@@ -114,6 +114,10 @@ int main(string[] args) {
       debugOpts = true;
       continue;
     }
+    if (arg == "-debug-parser") {
+      verboseParser = true;
+      continue;
+    }
     if (auto base = arg.endsWith(".cr")) {
       if (!output) output = arg[0 .. $-3];
       objects ~= arg.compile(saveTemps, optimize);
