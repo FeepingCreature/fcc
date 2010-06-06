@@ -1,6 +1,6 @@
 module ast.index;
 
-import ast.parse, ast.base, ast.math, ast.pointer, ast.casting, ast.arrays;
+import ast.parse, ast.base, ast.math, ast.pointer, ast.casting, ast.static_arrays;
 
 class SA_Access(T) : T {
   T array; Expr pos;
