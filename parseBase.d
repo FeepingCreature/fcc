@@ -171,7 +171,11 @@ struct ParseCb {
     }
     
     static if (Rest2.length == 1 && is(typeof(*rest2[0]))) {
-      *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, accept);
+      // only accept-test objects that match the type
+      *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, (Object obj) {
+        if (!cast(typeof(*rest2[0]))) return false;
+        return accept(obj);
+      });
       return cast(Object) *rest2[0];
     } else {
       static assert(!Rest2.length, "Left: "~Rest2.stringof~" of "~T.stringof);
