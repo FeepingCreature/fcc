@@ -1,6 +1,6 @@
 module ast.variable;
 
-import ast.base, ast.math, ast.literals, parseBase, ast.static_arrays: DataExpr;
+import ast.base, ast.math, ast.literals, parseBase, ast.casting, ast.static_arrays: DataExpr;
 
 class Variable : LValue {
   string address() { return Format(baseOffset, "(%ebp)"); }
@@ -23,7 +23,7 @@ class Variable : LValue {
   void initInit() {
     if (initval) return;
     if (auto field = type.initval())
-      initval = new DataExpr(field);
+      initval = new ReinterpretCast!(Expr) (valueType(), new DataExpr(field));
   }
   this() { }
   this(Type t, string s, int i) {
@@ -34,34 +34,3 @@ class Variable : LValue {
   }
   string toString() { return Format("[ var ", name, " of ", type, " at ", baseOffset, "]"); }
 }
-
-class VarDecl : Statement {
-  Variable var;
-  override void emitAsm(AsmFile af) {
-    if (var.initval) {
-      var.initval.emitAsm(af);
-    } else {
-      af.salloc(var.type.size);
-    }
-  }
-}
-
-import ast.namespace, ast.scopes;
-Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text, var = new Variable;
-  if (rest(t2, "type", &var.type) && t2.gotIdentifier(var.name)) {
-    if (t2.accept("=")) {
-      if (!rest(t2, "tree.expr", &var.initval))
-        throw new Exception(Format("Couldn't read expression at ", t2.next_text()));
-    }
-    var.initInit();
-    t2.mustAccept(";", Format("Missed trailing semicolon at ", t2.next_text()));
-    var.baseOffset = -(cast(Scope) namespace()).framesize() - var.type.size;
-    auto vd = new VarDecl;
-    vd.var = var;
-    namespace().add(var);
-    text = t2;
-    return vd;
-  } else return null;
-}
-mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl");

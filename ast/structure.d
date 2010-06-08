@@ -34,6 +34,11 @@ class Structure : Type {
     this.members = members;
   }
   override string mangle() { return "struct_"~name; }
+  string toString() {
+    auto res = super.toString() ~ " { ";
+    foreach (member; members) res ~= Format(member.name, ": ", member.type, "; ");
+    return res ~ " }";
+  }
 }
 
 Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {

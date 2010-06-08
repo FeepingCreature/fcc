@@ -2,17 +2,23 @@ module ast.literals;
 
 import ast.base, ast.pointer, tools.base: slice, replace, startsWith;
 
+public import ast.int_literal;
+
+import ast.static_arrays, parseBase;
+
 class StringExpr : Expr {
   string str;
   this() { }
   this(string s) { str = s; }
+  string name_used;
   // default action: place in string segment, load address on stack
   override void emitAsm(AsmFile af) {
-    auto name = Format("cons_", af.constants.length);
-    af.constants[name] = cast(ubyte[]) str;
-    af.pushStack("$"~name, valueType());
+    assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");
+    name_used = Format("cons_", af.constants.length);
+    af.constants[name_used] = cast(ubyte[]) str;
+    // af.pushStack("$"~name, valueType());
   }
-  override Type valueType() { return Single!(Pointer, Single!(Char)); }
+  override Type valueType() { return new StaticArray(Single!(Char), str.length); }
 }
 
 bool gotStringExpr(ref string text, out Expr ex) {
@@ -25,21 +31,6 @@ bool gotStringExpr(ref string text, out Expr ex) {
     (ex = se, true);
 }
 
-class IntExpr : Expr {
-  int num;
-  override void emitAsm(AsmFile af) {
-    af.pushStack(Format("$", num), valueType());
-  }
-  override Type valueType() { return Single!(SysInt); }
-  this(int i) { num = i; }
-}
-
-bool gotIntExpr(ref string text, out Expr ex) {
-  int i;
-  return text.gotInt(i) && (ex = new IntExpr(i), true);
-}
-
-import parseBase;
 Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (text.gotStringExpr(ex) || text.gotIntExpr(ex)) return cast(Object) ex;

@@ -13,13 +13,6 @@ class Type {
     return this.classinfo is obj.classinfo &&
       size == (cast(Type) cast(void*) obj).size;
   }
-  void match(ref Expr[] params) {
-    if (!params.length)
-      throw new Exception(Format("Missing parameter of ", this));
-    if (params[0].valueType() != this)
-      throw new Exception(Format("Expected ", this, ", got ", params[0], " of ", params));
-    params.take();
-  }
 }
 
 class Void : Type {
@@ -30,9 +23,8 @@ class Void : Type {
 
 class Variadic : Type {
   override int size() { assert(false); }
-  void match(ref Expr[] params) {
-    params = null; // match all
-  }
+  /// BAH
+  // TODO: redesign parameter match system to account for automatic conversions in variadics.
   override string mangle() { return "variadic"; }
   override ubyte[] initval() { assert(false); } // wtf variadic variable?
 }
@@ -67,6 +59,7 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   if (text.accept("void")) return Single!(Void);
   if (text.accept("size_t")) return Single!(SizeT);
   if (text.accept("int")) return Single!(SysInt);
+  if (text.accept("char")) return Single!(Char);
   return null;
 }
 mixin DefaultParser!(gotBasicType, "type.basic", "5");

@@ -58,16 +58,13 @@ class FunCall : Expr {
 import tools.log;
 void callFunction(Function fun, Expr[] params, AsmFile dest) {
   // dest.put("int $3");
+  assert(fun.type.ret.size == 4);
   if (params.length) {
     auto p2 = params;
-    foreach (entry; fun.type.params)
-      entry._0.match(p2);
-    assert(!p2.length);
-    assert(fun.type.ret.size == 4);
     foreach_reverse (param; params) {
       param.emitAsm(dest);
     }
-  } else assert(!fun.type.params.length, Format("Expected ", fun.type.params, "!"));
+  }
   dest.put("call "~fun.mangleSelf);
   foreach (param; params) {
     dest.sfree(param.valueType().size);
@@ -138,8 +135,12 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto fc = new FunCall;
     fc.fun = fun;
     Expr ex;
+    int param_offset;
     if (t2.accept("(") &&
-        t2.bjoin(!!rest(t2, "tree.expr", &ex), t2.accept(","), { fc.params ~= ex; }, true) &&
+        t2.bjoin(!!rest(t2, "tree.expr", &ex), t2.accept(","), {
+          // TODO: check param type
+          fc.params ~= ex;
+        }, true) &&
         t2.accept(")"))
     {
       text = t2;

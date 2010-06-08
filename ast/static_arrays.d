@@ -30,7 +30,7 @@ static this() {
   };
 }
 
-import ast.parse, ast.literals;
+import ast.parse, ast.int_literal;
 Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (auto sa = cast(StaticArray) ex.valueType()) {

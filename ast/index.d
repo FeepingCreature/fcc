@@ -30,11 +30,11 @@ Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (!cast(StaticArray) ex.valueType())
       return null;
-    if (!cast(LValue) ex)
-      throw new Exception("LHS of array access must be lvalue for now, not "~(cast(Object) ex).toString());
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
+      if (!cast(LValue) ex)
+        throw new Exception("LHS of array access must be lvalue for now, not "~(cast(Object) ex).toString());
       // TODO typecheck pos here
       text = t2;
       return new SA_Access!(LValue) (cast(LValue) ex, pos);

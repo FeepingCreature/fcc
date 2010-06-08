@@ -1,6 +1,6 @@
 module ast.arrays;
 
-import ast.base, ast.types, tools.base: This, This_fn, rmSpace;
+import ast.base, ast.types, ast.static_arrays, tools.base: This, This_fn, rmSpace;
 
 class Array : Type {
   Type elemType;
@@ -14,12 +14,21 @@ class Array : Type {
   }
 }
 
+Type arrayAsStruct;
+
+import ast.structure;
 static this() {
   typeModlist ~= delegate Type(ref string text, Type cur) {
     if (text.accept("[]")) {
       return new Array(cur);
     } else return null;
   };
+  arrayAsStruct = new Structure(null,
+    [
+      Structure.Member("length", Single!(SizeT)),
+      Structure.Member("ptr", new Pointer(Single!(Void)))
+    ]
+  );
 }
 
 import ast.pointer, ast.casting;
@@ -33,26 +42,14 @@ class ArrayLength(T) : T {
   Expr len_expr;
   this(AT at) {
     array = at;
-    static if (is(AT == LValue)) {
-      len_expr = new DerefExpr(new ReinterpretCast!(Expr) (new Pointer(Single!(SizeT)), new RefExpr(array)));
-    } else {
-      assert(false, "TODO");
-    }
+    len_expr = new MemberAccess!(Expr) (new ReinterpretCast!(Expr) (arrayAsStruct, array), "length");
   }
   override {
     Type valueType() {
-      static if (is(AT == LValue)) {
-        return len_expr.valueType();
-      } else {
-        assert(false, "TODO");
-      }
+      return Single!(SizeT);
     }
     void emitAsm(AsmFile af) {
-      static if (is(AT == LValue)) {
-        len_expr.emitAsm(af);
-      } else {
-        assert(false, "TODO");
-      }
+      len_expr.emitAsm(af);
     }
     static if (is(T == MValue)) void emitAssignment(AsmFile af) {
       assert(false, "TODO");
@@ -60,11 +57,39 @@ class ArrayLength(T) : T {
   }
 }
 
+class SA_AsDynamic : Expr {
+  Expr sa;
+  this(Expr e) { sa = e; }
+  import ast.vardecl, ast.assign;
+  override Type valueType() {
+    return new Array((cast(StaticArray) sa.valueType()).elemType);
+  }
+  override void emitAsm(AsmFile af) {
+    // so it's like we're declaring an array-like struct ..
+    mkVar(af, arrayAsStruct, (Variable var) {
+      // then assign our static pointer to ptr ..
+      (new Assignment((new MemberAccess_LValue(var, "ptr")), sa)).emitAsm(af);
+      // and our known length to length.
+      (new Assignment((new MemberAccess_LValue(var, "length")), new IntExpr((cast(StaticArray) sa.valueType()).length))).emitAsm(af);
+    });
+  }
+}
+
+Object gotStaticArrayAsDynamic(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  auto ex = cast(Expr) cont(t2);
+  if (!ex) return null;
+  auto sa = cast(StaticArray) ex.valueType();
+  if (!sa) return null;
+  text = t2;
+  return new SA_AsDynamic(ex);
+}
+mixin DefaultParser!(gotStaticArrayAsDynamic, "tree.expr.sa_dynamic", "205");
+
 import tools.log;
 import ast.parse, ast.literals;
 Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    logln("checking on ", text.next_text(), ": lhs ", ex);
     if (auto sa = cast(Array) ex.valueType()) {
       if (!text.accept(".length")) return null;
       if (auto lv = cast(LValue) ex) return new ArrayLength!(MValue) (lv);

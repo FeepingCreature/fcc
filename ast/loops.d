@@ -1,6 +1,6 @@
 module ast.loops;
 
-import ast.base, ast.scopes, ast.variable, ast.cond, ast.parse;
+import ast.base, ast.scopes, ast.vardecl, ast.cond, ast.parse;
 
 class WhileStatement : Statement {
   Scope _body;

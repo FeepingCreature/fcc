@@ -76,6 +76,6 @@ void main() {
   printf("field access via ptr %i, oh btw %i\n", ip[0], ifield.length);
   // ifield.length = 8; // will fail
   // ztest().i = 5; // correctly doesn't work
-  int[] arr;
+  char[] arr = "foo";
   printf("proper array test: %i\n", arr.length);
 }
