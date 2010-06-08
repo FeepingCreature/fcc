@@ -128,25 +128,59 @@ Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 
-import ast.parse;
+import ast.parse, ast.static_arrays;
 Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Function fun) {
+    logln("Get call: ", t2.next_text());
     auto fc = new FunCall;
     fc.fun = fun;
     Expr ex;
     int param_offset;
     if (t2.accept("(") &&
-        t2.bjoin(!!rest(t2, "tree.expr", &ex), t2.accept(","), {
-          // TODO: check param type
-          fc.params ~= ex;
-        }, true) &&
-        t2.accept(")"))
+        t2.bjoin(
+          !!rest(t2, "tree.expr", &ex, (Object obj) {
+            auto ex = cast(Expr) obj;
+            if (!ex) return false;
+            if (param_offset !< fun.type.params.length)
+              throw new Exception(Format(
+                "Extraneous parameter for ", fun, ": ", ex
+              ));
+            logln("Try ", ex, " into ", fun.type.params[param_offset]);
+            if (cast(Variadic) fun.type.params[param_offset]._0) {
+              // why are you using static arrays as parameters anyway?
+              return !cast(StaticArray) ex.valueType();
+            } else {
+              if (ex.valueType() != fun.type.params[param_offset]._0)
+                // TODO: set error
+                return false;
+              param_offset ++;
+              return true;
+            }
+          }),
+          t2.accept(","),
+          { fc.params ~= ex; },
+          true
+        ))
     {
+      if (fun.type.params.length &&
+        cast(Variadic) fun.type.params[$-1]._0
+      ) {
+        param_offset ++;
+      }
+      
+      if (param_offset < fun.type.params.length) {
+        throw new Exception(Format(
+          "Not enough parameters for ", fc, ": ",
+          fc.params, " at ", t2.next_text(), "!"
+        ));
+      }
+      if (!t2.accept(")"))
+        throw new Exception("Missing closing bracket at "~t2.next_text());
       text = t2;
       return fc;
     }
     else throw new Exception("While parsing arguments for call to "~fun.toString()~": "~t2.next_text());
   };
 }
-mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall");
+mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall", null, true);

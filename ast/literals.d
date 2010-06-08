@@ -12,11 +12,13 @@ class StringExpr : Expr {
   this(string s) { str = s; }
   string name_used;
   // default action: place in string segment, load address on stack
-  override void emitAsm(AsmFile af) {
-    assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");
+  void loadConst(AsmFile af) {
     name_used = Format("cons_", af.constants.length);
     af.constants[name_used] = cast(ubyte[]) str;
-    // af.pushStack("$"~name, valueType());
+  }
+  override void emitAsm(AsmFile af) {
+    assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");
+    af.pushStack("$"~name, valueType());
   }
   override Type valueType() { return new StaticArray(Single!(Char), str.length); }
 }
@@ -37,3 +39,21 @@ Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   else return null;
 }
 mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "5");
+
+/// "foo": char[3] -> char*
+class StringAsPointer : Expr {
+  StringExpr sup;
+  mixin This!("sup");
+  override Type valueType() { return Single!(Pointer, Single!(Char)); }
+  override void emitAsm(AsmFile af) {
+    sup.loadConst(af);
+    af.pushStack("$"~sup.name_used, valueType());
+  }
+}
+
+Object gotStringAsPointer(ref string st, ParseCb cont, ParseCb rest) {
+  auto res = cast(StringExpr) cont(st);
+  if (!res) return null;
+  return new StringAsPointer(res);
+}
+mixin DefaultParser!(gotStringAsPointer, "tree.expr.str_as_ptr", "208");

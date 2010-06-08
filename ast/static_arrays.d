@@ -13,6 +13,11 @@ class StaticArray : Type {
   override string mangle() {
     return Format("Static_", length, "_of_", elemType.mangle());
   }
+  override int opEquals(Object obj) {
+    return super.opEquals(obj) &&
+      (cast(StaticArray) obj).elemType == elemType &&
+      (cast(StaticArray) obj).length == length;
+  }
 }
 
 static this() {

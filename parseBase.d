@@ -124,7 +124,9 @@ bool delegate(string) matchrule(string rules) {
         smaller = equal = true; // default
       
       // logln(smaller?"<":"", greater?">":"", equal?"=":"", " ", text, " against ", rule);
-      if (smaller && text.startsWith(rule~".")) // all "below" in the tree
+      auto tsw = text.startsWith(rule);
+      // avoid allocation from ~"."
+      if (smaller && tsw.length && tsw[0] == '.') // all "below" in the tree
         return true;
       if (equal && text == rule)
         return true;
@@ -137,34 +139,43 @@ bool delegate(string) matchrule(string rules) {
 }
 
 struct ParseCb {
-  Object delegate(ref string text, bool delegate(string)) dg;
+  Object delegate(ref string text,
+    bool delegate(string),
+    bool delegate(Object) accept
+  ) dg;
   bool delegate(string) cur; string curstr;
   Object opCall(T...)(ref string text, T t) {
-    static if (!T.length) {
-      try return this.dg(text, cur);
-      catch (Exception ex) throw new Exception(Format("Continuing after '"~curstr~"': ", ex));
-    } else static if (T.length == 1) {
-      static if (is(T[0]: string))
-        return this.dg(text, matchrule = t[0]);
-      else static if (is(typeof(*t[0])))
-        return this.opCall(text, cast(string) null, t[0]);
-      else
-        return this.dg(text, t[0]);
+    bool delegate(string) matchdg;
+    static if (T.length && is(T[0]: char[])) {
+      alias T[1..$] Rest1;
+      matchdg = matchrule = t[0];
+      auto rest1 = t[1..$];
+    } else static if (T.length && is(T[0] == bool delegate(string))) {
+      alias T[1..$] Rest1;
+      matchdg = t[1];
+      auto rest1 = t[1..$];
     } else {
-      Object pre;
-      string pattern = t[0];
-      if (pattern) {
-        try pre = this.opCall(text, matchrule = pattern);
-        catch (Exception ex) throw new Exception(Format("Matching rule '"~pattern~"' off '"~text.next_text(16)~"': ", ex));
-      } else {
-        pre = this.opCall(text);
-      }
-      static if (is(typeof(*t[1]))) {
-        *t[1] = cast(typeof(*t[1])) pre;
-        /*if (pre && !*t[1])
-          logln("WARN: res ", pre, " isn't a ", typeof(*t[1]).stringof, "!");*/
-        return cast(Object) *t[1];
-      } else assert(false, Format("Pointer to object expected: ", t, ". YOU FUCKED UP THE ParseCb SYNTAX. *AGAIN*. "));
+      matchdg = cur;
+      alias T Rest1;
+      alias t rest1;
+    }
+    
+    bool delegate(Object) accept;
+    static if (Rest1.length && is(Rest1[$-1] == bool delegate(Object))) {
+      alias Rest1[0 .. $-1] Rest2;
+      accept = rest1[$-1];
+      auto rest2 = rest1[0 .. $-1];
+    } else {
+      alias Rest1 Rest2;
+      alias rest1 rest2;
+    }
+    
+    static if (Rest2.length == 1 && is(typeof(*rest2[0]))) {
+      *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, accept);
+      return cast(Object) *rest2[0];
+    } else {
+      static assert(!Rest2.length, "Left: "~Rest2.stringof~" of "~T.stringof);
+      return dg(text, matchdg, accept);
     }
   }
 }
@@ -174,11 +185,25 @@ interface Parser {
   Object match(ref string text, ParseCb cont, ParseCb restart);
 }
 
-template DefaultParserImpl(alias Fn, string Id) {
+template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
   class DefaultParserImpl : Parser {
     override string getId() { return Id; }
-    override Object match(ref string text, ParseCb cont, ParseCb rest) {
-      return Fn(text, cont, rest);
+    static if (!Memoize) {
+      override Object match(ref string text, ParseCb cont, ParseCb rest) {
+        return Fn(text, cont, rest);
+      }
+    } else {
+      Stuple!(Object, string) [char*] cache;
+      override Object match(ref string text, ParseCb cont, ParseCb rest) {
+        auto ptr = text.ptr;
+        if (auto p = ptr in cache) {
+          text = p._1;
+          return p._0;
+        }
+        auto res = Fn(text, cont, rest);
+        cache[ptr] = stuple(res, text);
+        return res;
+      }
     }
   }
 }
@@ -187,10 +212,10 @@ import tools.threads, tools.compat: rfind;
 ParseContext parsecon;
 static this() { New(parsecon); }
 
-template DefaultParser(alias Fn, string Id, string Prec = null) {
+template DefaultParser(alias Fn, string Id, string Prec = null, bool Memoize = true) {
   static this() {
-    static if (Prec) parsecon.addParser(new DefaultParserImpl!(Fn, Id), Prec);
-    else parsecon.addParser(new DefaultParserImpl!(Fn, Id));
+    static if (Prec) parsecon.addParser(new DefaultParserImpl!(Fn, Id, Memoize), Prec);
+    else parsecon.addParser(new DefaultParserImpl!(Fn, Id, Memoize));
   }
 }
 
@@ -310,29 +335,48 @@ class ParseContext {
       listModified = false;
     }
   }
-  Object parse(ref string text, bool delegate(string) cond, int offs = 0) {
+  Object parse(ref string text, bool delegate(string) cond,
+      bool delegate(Object) accept) {
+    return parse(text, cond, 0, accept);
+  }
+  Object parse(ref string text, bool delegate(string) cond,
+      int offs = 0, bool delegate(Object) accept = null) {
     resort;
     bool matched;
+    if (verboseParser)
+      logln("BEGIN PARSE '", text.next_text(16), "'");
     foreach (i, parser; parsers[offs .. $]) {
       if (cond(parser.getId())) {
         if (verboseParser) logln("TRY PARSER [", parser.getId(), "] for '", text.next_text(16), "'");
         matched = true;
         ParseCb cont, rest;
-        cont.dg = (ref string text, bool delegate(string) cond) {
-          return this.parse(text, cond, offs + i + 1);
+        cont.dg = (ref string text, bool delegate(string) cond,
+          bool delegate(Object) accept) {
+          return this.parse(text, cond, offs + i + 1, accept);
         };
         cont.cur = cond;
         cont.curstr = parser.getId();
         
-        rest.dg = (ref string text, bool delegate(string) cond) {
-          return this.parse(text, cond);
+        rest.dg = (ref string text, bool delegate(string) cond,
+          bool delegate(Object) accept) {
+          return this.parse(text, cond, accept);
         };
         rest.cur = cond;
         rest.curstr = parser.getId();
         
-        if (auto res = parser.match(text, cont, rest)) {
-          if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
-          return res;
+        auto t2 = text;
+        if (auto res = parser.match(t2, cont, rest)) {
+          if (accept) {
+            if (accept(res)) {
+              text = t2;
+              if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
+              return res;
+            }
+          } else {
+            text = t2;
+            if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
+            return res;
+          }
         }
         if (verboseParser) logln("    PARSER [", parser.getId(), "] failed");
       }
