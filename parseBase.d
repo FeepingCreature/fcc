@@ -155,11 +155,12 @@ struct ParseCb {
     bool delegate(Object) accept
   ) dg;
   bool delegate(string) cur; string curstr;
+  string selfrule;
   Object opCall(T...)(ref string text, T t) {
     bool delegate(string) matchdg;
     static if (T.length && is(T[0]: char[])) {
       alias T[1..$] Rest1;
-      matchdg = matchrule = t[0];
+      matchdg = matchrule = t[0].replace("selfrule", selfrule);;
       auto rest1 = t[1..$];
     } else static if (T.length && is(T[0] == bool delegate(string))) {
       alias T[1..$] Rest1;
@@ -387,6 +388,7 @@ class ParseContext {
         };
         cont.cur = cond;
         cont.curstr = parser.getId();
+        cont.selfrule = parser.getId();
         
         rest.dg = (ref string text, bool delegate(string) cond,
           bool delegate(Object) accept) {
@@ -394,6 +396,7 @@ class ParseContext {
         };
         rest.cur = cond;
         rest.curstr = parser.getId();
+        rest.selfrule = parser.getId();
         
         auto t2 = text;
         if (auto res = parser.match(t2, cont, rest)) {

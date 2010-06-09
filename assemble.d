@@ -78,9 +78,9 @@ struct Transaction {
           else return null;
         }
         // push/pop as far as possible at that size sz, using instruction postfix pf.
+        auto op = (kind == Kind.Push) ? source : dest;
         void doOp(int sz, string pf) {
           while (size >= sz) {
-            auto op = (kind == Kind.Push) ? source : dest;
             addLine(Format(mnemo, pf, " ", op));
             auto s2 = op;
             int offs, num; string ident;
@@ -92,7 +92,7 @@ struct Transaction {
               if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
             }
             else if (auto reg = op.gotMemoryOffset(offs)) {
-              op = Format(sz + offs, "(%", reg, ")");
+              op = Format(offs - sz, "(%", reg, ")");
             }
             else
               throw new Exception("Unknown address format: '"~op~"'");

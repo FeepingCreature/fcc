@@ -108,6 +108,9 @@ class AsmFile {
   void emitLabel(string name) {
     put(name, ":");
   }
+  void comment(T...)(T t) {
+    if (!optimize) put("# "~Format(t));
+  }
   // opts
   void collapseAllocFrees() {
     auto match = cache.findMatch("collapseAllocFrees", (Transaction[] list) {

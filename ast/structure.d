@@ -81,15 +81,21 @@ class MemberAccess(T) : T {
       auto st = cast(Structure) base.valueType();
       static if (is(T: LValue)) {
         assert(st.members[which].type.size == 4);
+        af.comment("emit location of ", base, " for member access");
         base.emitLocation(af);
+        af.comment("pop and dereference");
         af.popStack("%eax", new Pointer(st));
         af.mmove4(Format(st.getMemberOffset(which), "(%eax)"), "%eax");
+        af.comment("push back");
         af.pushStack("%eax", st.members[which].type);
       } else {
         assert(st.members[which].type.size == 4);
+        af.comment("emit struct ", base, " for member access");
         base.emitAsm(af);
+        af.comment("store member and free");
         af.mmove4(Format(st.getMemberOffset(which), "(%esp)"), "%eax");
         af.sfree(st.size);
+        af.comment("repush member");
         af.pushStack("%eax", st.members[which].type);
       }
     }

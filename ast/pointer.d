@@ -10,8 +10,11 @@ class Pointer : Type {
     auto p = cast(Pointer) cast(void*) obj;
     return target == p.target;
   }
-  override int size() { return nativePtrSize; }
-  override string mangle() { return "ptrto_"~target.mangle(); }
+  override {
+    int size() { return nativePtrSize; }
+    string mangle() { return "ptrto_"~target.mangle(); }
+    string toString() { return Format(super.toString(), "<", target, ">"); }
+  }
 }
 
 // &foo

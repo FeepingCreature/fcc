@@ -60,7 +60,7 @@ class CValueAsPointer : Expr {
 
 Object gotCValueAsPointer(ref string st, ParseCb cont, ParseCb rest) {
   CValue cv;
-  if (!rest(st, "tree.expr ^tree.expr.str_as_ptr", &cv))
+  if (!rest(st, "tree.expr ^selfrule", &cv))
     return null;
   return new CValueAsPointer(cv);
 }

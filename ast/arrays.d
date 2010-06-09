@@ -14,7 +14,16 @@ class Array : Type {
   }
 }
 
-Type arrayAsStruct;
+Type arrayAsStruct(Type base) {
+  return new Structure(null,
+    [
+      // TODO: fix when int promotion is supported
+      // Structure.Member("length", Single!(SizeT)),
+      Structure.Member("length", Single!(SysInt)),
+      Structure.Member("ptr", new Pointer(base))
+    ]
+  );
+}
 
 import ast.structure;
 static this() {
@@ -23,12 +32,6 @@ static this() {
       return new Array(cur);
     } else return null;
   };
-  arrayAsStruct = new Structure(null,
-    [
-      Structure.Member("length", Single!(SizeT)),
-      Structure.Member("ptr", new Pointer(Single!(Void)))
-    ]
-  );
 }
 
 import ast.pointer, ast.casting;
@@ -42,7 +45,7 @@ class ArrayLength(T) : T {
   Expr len_expr;
   this(AT at) {
     array = at;
-    len_expr = new MemberAccess!(Expr) (new ReinterpretCast!(Expr) (arrayAsStruct, array), "length");
+    len_expr = new MemberAccess!(Expr) (new ReinterpretCast!(Expr) (arrayAsStruct(Single!(Void)), array), "length");
   }
   override {
     Type valueType() {
@@ -61,25 +64,31 @@ class SA_CVal_AsDynamic : Expr {
   Expr sa;
   this(Expr e) { sa = e; }
   import ast.vardecl, ast.assign;
+  Type elemType() {
+    return (cast(StaticArray) sa.valueType()).elemType;
+  }
   override Type valueType() {
-    return new Array((cast(StaticArray) sa.valueType()).elemType);
+    return new Array(elemType());
   }
   override void emitAsm(AsmFile af) {
     auto cv = cast(CValue) sa;
     // so it's like we're declaring an array-like struct ..
-    mkVar(af, arrayAsStruct, (Variable var) {
+    mkVar(af, arrayAsStruct(elemType()), (Variable var) {
+      logln(var, " .ptr <- &", cv);
+      logln("CVal as dynamic: ", (cast(StaticArray) sa.valueType()).length);
       // then assign our static pointer to ptr ..
       (new Assignment((new MemberAccess_LValue(var, "ptr")),
-                      new RefExpr(cv))).emitAsm(af);
+                      new CValueAsPointer(cv))).emitAsm(af);
       // and our known length to length.
-      (new Assignment((new MemberAccess_LValue(var, "length")), new IntExpr((cast(StaticArray) sa.valueType()).length))).emitAsm(af);
+      (new Assignment((new MemberAccess_LValue(var, "length")),
+                      new IntExpr((cast(StaticArray) sa.valueType()).length))).emitAsm(af);
     });
   }
 }
 
 Object gotStaticArrayCValAsDynamic(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto ex = cast(Expr) rest(t2, "tree.expr ^tree.expr.sa_dynamic",
+  auto ex = cast(Expr) rest(t2, "tree.expr ^selfrule",
     delegate bool(Expr ex) {
       return cast(StaticArray) ex.valueType() && cast(CValue) ex;
     }

@@ -77,5 +77,5 @@ void main() {
   // ifield.length = 8; // will fail
   // ztest().i = 5; // correctly doesn't work
   char[] arr = "foo";
-  // printf("proper array test: %i\n", arr.length);
+  printf("proper array test: %i\n", arr.length);
 }
