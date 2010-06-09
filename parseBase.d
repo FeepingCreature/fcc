@@ -112,18 +112,22 @@ bool delegate(string) matchrule(string rules) {
   bool delegate(string) res;
   while (rules.length) {
     auto rule = rules.slice(" ");
-    res = stuple(rule, res) /apply/ (string rule, bool delegate(string) op1, string text) {
+    res = stuple(rule, res, false) /apply/
+    (string rule, bool delegate(string) op1, ref bool hit, string text) {
       if (op1 && !op1(text)) return false;
       
-      bool smaller, greater, equal;
+      bool smaller, greater, equal, before;
       if (auto rest = rule.startsWith("<")) { smaller = true; rule = rest; }
       if (auto rest = rule.startsWith(">")) { greater = true; rule = rest; }
       if (auto rest = rule.startsWith("=")) { equal = true; rule = rest; }
+      if (auto rest = rule.startsWith("^")) { before = true; rule = rest; }
       
-      if (!smaller && !greater && !equal)
+      if (!smaller && !greater && !equal && !before)
         smaller = equal = true; // default
       
-      // logln(smaller?"<":"", greater?">":"", equal?"=":"", " ", text, " against ", rule);
+      // different modes
+      assert((smaller || greater || equal) ^ before);
+      
       auto tsw = text.startsWith(rule);
       // avoid allocation from ~"."
       if (smaller && tsw.length && tsw[0] == '.') // all "below" in the tree
@@ -132,6 +136,13 @@ bool delegate(string) matchrule(string rules) {
         return true;
       if (greater && !text.startsWith(rule)) // arguable
         return true;
+      
+      if (before) {
+        if (!hit && text.startsWith(rule))
+          hit = true;
+        if (hit) return false;
+        return true;
+      }
       return false;
     };
   }
@@ -401,7 +412,10 @@ class ParseContext {
         if (verboseParser) logln("    PARSER [", parser.getId(), "] failed");
       }
     }
-    if (!matched) throw new Exception("Found no patterns to match condition! ");
+    // okay to not match anything if we're just continuing
+    if (!offs && !matched) throw new Exception(Format(
+      "Found no patterns to match condition after ", offs
+    ));
     return null;
   }
   Object parse(ref string text, string cond) {

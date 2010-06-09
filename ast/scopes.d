@@ -26,7 +26,7 @@ class Scope : Namespace, Tree {
     void emitAsm(AsmFile af) {
       af.put(entry(), ":");
       auto backup = af.checkptStack();
-      _body.emitAsm(af);
+      withTLS(namespace, this, _body.emitAsm(af));
       af.put(exit(), ":");
       af.restoreCheckptStack(backup);
     }

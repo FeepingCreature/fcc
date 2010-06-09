@@ -57,7 +57,7 @@ class ArrayLength(T) : T {
   }
 }
 
-class SA_AsDynamic : Expr {
+class SA_CVal_AsDynamic : Expr {
   Expr sa;
   this(Expr e) { sa = e; }
   import ast.vardecl, ast.assign;
@@ -65,27 +65,30 @@ class SA_AsDynamic : Expr {
     return new Array((cast(StaticArray) sa.valueType()).elemType);
   }
   override void emitAsm(AsmFile af) {
+    auto cv = cast(CValue) sa;
     // so it's like we're declaring an array-like struct ..
     mkVar(af, arrayAsStruct, (Variable var) {
       // then assign our static pointer to ptr ..
-      (new Assignment((new MemberAccess_LValue(var, "ptr")), sa)).emitAsm(af);
+      (new Assignment((new MemberAccess_LValue(var, "ptr")),
+                      new RefExpr(cv))).emitAsm(af);
       // and our known length to length.
       (new Assignment((new MemberAccess_LValue(var, "length")), new IntExpr((cast(StaticArray) sa.valueType()).length))).emitAsm(af);
     });
   }
 }
 
-Object gotStaticArrayAsDynamic(ref string text, ParseCb cont, ParseCb rest) {
+Object gotStaticArrayCValAsDynamic(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto ex = cast(Expr) cont(t2, delegate bool(Expr ex) {
-    return !! cast(StaticArray) ex.valueType();
-  });
+  auto ex = cast(Expr) rest(t2, "tree.expr ^tree.expr.sa_dynamic",
+    delegate bool(Expr ex) {
+      return cast(StaticArray) ex.valueType() && cast(CValue) ex;
+    }
+  );
   if (!ex) return null;
-  auto sa = cast(StaticArray) ex.valueType();
   text = t2;
-  return new SA_AsDynamic(ex);
+  return new SA_CVal_AsDynamic(ex);
 }
-mixin DefaultParser!(gotStaticArrayAsDynamic, "tree.expr.sa_dynamic", "205");
+mixin DefaultParser!(gotStaticArrayCValAsDynamic, "tree.expr.sa_cval_dynamic", "905");
 
 import tools.log;
 import ast.parse, ast.literals;

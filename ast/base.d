@@ -10,6 +10,12 @@ interface Tree {
   void emitAsm(AsmFile);
 }
 
+// has setup to do on asmfile that are unrelated to pushing value on stack
+// example: literals that have to move stuff to the text segment
+interface Setupable {
+  void setup(AsmFile);
+}
+
 class NoOp : Tree {
   override void emitAsm(AsmFile af) { }
 }
@@ -20,8 +26,13 @@ interface Expr : Tree {
   Type valueType();
 }
 
-interface LValue : Expr {
+// has a pointer, but please don't modify it - ie. string literals
+interface CValue : Expr {
   void emitLocation(AsmFile);
+}
+
+// free to modify
+interface LValue : CValue {
 }
 
 // more than rvalue, less than lvalue
@@ -63,4 +74,13 @@ template _Single(T, U...) {
 template Single(T, U...) {
   static assert(is(T: Object));
   alias _Single!(T, U).value Single;
+}
+
+void withTLS(T, U, V)(T obj, U value, lazy V vee) {
+  auto backup = obj();
+  scope(exit) obj.set(backup);
+  obj.set(value);
+  static if (is(typeof(vee()()))) vee()();
+  else static if (is(typeof(vee()))) vee();
+  else static assert(false, "Can't call "~V.stringof);
 }

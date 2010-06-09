@@ -6,19 +6,21 @@ public import ast.int_literal;
 
 import ast.static_arrays, parseBase;
 
-class StringExpr : Expr {
+class StringExpr : CValue, Setupable {
   string str;
   this() { }
   this(string s) { str = s; }
   string name_used;
   // default action: place in string segment, load address on stack
-  void loadConst(AsmFile af) {
+  override void setup(AsmFile af) {
     name_used = Format("cons_", af.constants.length);
     af.constants[name_used] = cast(ubyte[]) str;
   }
   override void emitAsm(AsmFile af) {
     assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");
-    af.pushStack("$"~name_used, valueType());
+  }
+  override void emitLocation(AsmFile af) {
+    af.pushStack("$"~name_used, Single!(Pointer, Single!(Char)));
   }
   override Type valueType() { return new StaticArray(Single!(Char), str.length); }
 }
@@ -41,19 +43,25 @@ Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "5");
 
 /// "foo": char[3] -> char*
-class StringAsPointer : Expr {
-  StringExpr sup;
+class CValueAsPointer : Expr {
+  CValue sup;
   mixin This!("sup");
-  override Type valueType() { return Single!(Pointer, Single!(Char)); }
+  override Type valueType() {
+    if (auto sa = cast(StaticArray) sup.valueType())
+      return new Pointer(sa.elemType);
+    throw new Exception(Format("The CValue ", sup, " has confused me. "));
+  }
   override void emitAsm(AsmFile af) {
-    sup.loadConst(af);
-    af.pushStack("$"~sup.name_used, valueType());
+    if (auto s = cast(Setupable) sup)
+      s.setup(af);
+    sup.emitLocation(af);
   }
 }
 
-Object gotStringAsPointer(ref string st, ParseCb cont, ParseCb rest) {
-  auto res = cast(StringExpr) cont(st);
-  if (!res) return null;
-  return new StringAsPointer(res);
+Object gotCValueAsPointer(ref string st, ParseCb cont, ParseCb rest) {
+  CValue cv;
+  if (!rest(st, "tree.expr ^tree.expr.str_as_ptr", &cv))
+    return null;
+  return new CValueAsPointer(cv);
 }
-mixin DefaultParser!(gotStringAsPointer, "tree.expr.str_as_ptr", "908");
+mixin DefaultParser!(gotCValueAsPointer, "tree.expr.cv_as_ptr", "908");

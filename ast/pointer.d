@@ -16,7 +16,7 @@ class Pointer : Type {
 
 // &foo
 class RefExpr : Expr {
-  LValue src;
+  CValue src;
   mixin This!("src");
   override {
     Type valueType() {
@@ -66,10 +66,10 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(text, "tree.expr >tree.expr.arith", &ex))
     throw new Exception("Address operator found but nothing to take address matched at '"~text.next_text()~"'");
   
-  auto lv = cast(LValue) ex;
-  if (!lv) throw new Exception(Format("Can't take reference: ", ex, " not an lvalue at ", text.next_text()));
+  auto cv = cast(CValue) ex;
+  if (!cv) throw new Exception(Format("Can't take reference: ", ex, " not an lvalue at ", text.next_text()));
   
-  return new RefExpr(lv);
+  return new RefExpr(cv);
 }
 mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "21");
 

@@ -36,7 +36,7 @@ class Function : Namespace, Tree {
       af.put(mangleSelf~": ");
       af.put("pushl %ebp");
       af.put("movl %esp, %ebp");
-      _scope.emitAsm(af);
+      withTLS(namespace, this, _scope.emitAsm(af));
       af.put("movl %ebp, %esp");
       af.put("popl %ebp");
       af.put("ret");
@@ -132,7 +132,6 @@ import ast.parse, ast.static_arrays;
 Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Function fun) {
-    logln("Get call: ", t2.next_text());
     auto fc = new FunCall;
     fc.fun = fun;
     Expr ex;
@@ -144,11 +143,11 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
               throw new Exception(Format(
                 "Extraneous parameter for ", fun, ": ", ex
               ));
-            // logln("Try ", ex, " into ", fun.type.params[param_offset]);
             if (cast(Variadic) fun.type.params[param_offset]._0) {
               // why are you using static arrays as parameters anyway?
               return !cast(StaticArray) ex.valueType();
             } else {
+              // logln("Try ", ex.valueType(), " into ", fun.type.params[param_offset]._0);
               if (ex.valueType() != fun.type.params[param_offset]._0)
                 // TODO: set error
                 return false;
