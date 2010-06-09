@@ -5,9 +5,11 @@ public import ast.variable;
 
 class VarDecl : Statement {
   Variable var;
+  bool dontInit;
   override void emitAsm(AsmFile af) {
     af.salloc(var.type.size);
-    (new Assignment(var, var.initval)).emitAsm(af);
+    if (!dontInit)
+      (new Assignment(var, var.initval)).emitAsm(af);
   }
 }
 
@@ -18,10 +20,11 @@ int boffs(Type t) {
 }
 
 static int x;
-void mkVar(AsmFile af, Type type, void delegate(Variable) dg) {
+void mkVar(AsmFile af, Type type, bool dontInit, void delegate(Variable) dg) {
   auto var = new Variable(type, Format("__temp_var_", x++, "__"), boffs(type));
   auto vd = new VarDecl;
   vd.var = var;
+  vd.dontInit = dontInit;
   vd.emitAsm(af);
   dg(var);
 }

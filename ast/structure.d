@@ -101,8 +101,11 @@ class MemberAccess(T) : T {
     }
     static if (is(T: LValue)) {
       void emitLocation(AsmFile af) {
+        af.comment("emit location of ", base, " for member address");
         base.emitLocation(af);
-        af.mathOp("addl", Format("$", (cast(Structure) base.valueType()).getMemberOffset(which)), "(%esp)");
+        auto offs = (cast(Structure) base.valueType()).getMemberOffset(which);
+        af.comment("add offset ", offs);
+        af.mathOp("addl", Format("$", offs), "(%esp)");
       }
     }
   }

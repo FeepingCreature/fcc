@@ -78,4 +78,5 @@ void main() {
   // ztest().i = 5; // correctly doesn't work
   char[] arr = "foo";
   printf("proper array test: %i\n", arr.length);
+  printf("contents: %.*s\n", arr);
 }

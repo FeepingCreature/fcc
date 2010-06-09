@@ -72,13 +72,14 @@ class SA_CVal_AsDynamic : Expr {
   }
   override void emitAsm(AsmFile af) {
     auto cv = cast(CValue) sa;
+    af.comment("start converting cval to dynamic");
     // so it's like we're declaring an array-like struct ..
-    mkVar(af, arrayAsStruct(elemType()), (Variable var) {
-      logln(var, " .ptr <- &", cv);
-      logln("CVal as dynamic: ", (cast(StaticArray) sa.valueType()).length);
+    mkVar(af, arrayAsStruct(elemType()), true, (Variable var) {
       // then assign our static pointer to ptr ..
+      af.comment("setting ptr");
       (new Assignment((new MemberAccess_LValue(var, "ptr")),
                       new CValueAsPointer(cv))).emitAsm(af);
+      af.comment("setting length");
       // and our known length to length.
       (new Assignment((new MemberAccess_LValue(var, "length")),
                       new IntExpr((cast(StaticArray) sa.valueType()).length))).emitAsm(af);

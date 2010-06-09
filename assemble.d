@@ -79,22 +79,32 @@ struct Transaction {
         }
         // push/pop as far as possible at that size sz, using instruction postfix pf.
         auto op = (kind == Kind.Push) ? source : dest;
+        int first_offs = -1;
         void doOp(int sz, string pf) {
           while (size >= sz) {
+            bool m_offs_push; int offs;
+            if (kind == Kind.Push)
+              if (auto reg = op.gotMemoryOffset(offs)) {
+                if (first_offs != -1) offs = first_offs;
+                else first_offs = offs;
+                // logln("rewrite op ", op, " to ", Format(first_offs + size - sz, "(%", reg, ")"), ": ", first_offs, " + ", size, " - ", sz); 
+                op = Format(first_offs + size - sz, "(%", reg, ")");
+                m_offs_push = true;
+              }
             addLine(Format(mnemo, pf, " ", op));
             auto s2 = op;
-            int offs, num; string ident;
-            if (auto reg = op.matchRegister()) {
+            int num; string ident, reg;
+            if (null !is (reg = op.matchRegister())) {
               auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
               if (size != regsize) throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
             }
             else if (kind == Kind.Push && op.gotLiteral(num, ident)) {
               if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
             }
-            else if (auto reg = op.gotMemoryOffset(offs)) {
-              op = Format(offs - sz, "(%", reg, ")");
+            else if (kind == Kind.Pop && null !is (reg = op.gotMemoryOffset(offs))) {
+              op = Format(offs + sz, "(%", reg, ")");
             }
-            else
+            else if (!m_offs_push)
               throw new Exception("Unknown address format: '"~op~"'");
             size -= sz;
           }
