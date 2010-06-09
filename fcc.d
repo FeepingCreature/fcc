@@ -19,19 +19,23 @@ static this() { New(namespace, { return cast(Namespace) null; }); }
 mixin DefaultParser!(gotScope, "tree.scope");
 
 extern(C) {
-  int mkstemp(char* tmpl);
+  int open(char* filename, int flags, size_t mode);
   int close(int fd);
+  const O_CREAT = 0100, O_EXCL = 0200;
 }
 
 string error;
 
-string tmpnam(string base = "fcc") {
-  string name = base ~ "XXXXXX";
-  auto p = toStringz(name);
-  auto fd = mkstemp(p);
-  assert(fd != -1);
-  close(fd);
-  return toString(p);
+import tools.mersenne;
+string tmpnam(string base, string ext) {
+  while (true) {
+    auto name = Format(base, rand(), ext), namep = toStringz(name);
+    auto fd = open(namep, O_CREAT | O_EXCL, 0600);
+    if (fd != -1) {
+      close(fd);
+      return name;
+    }
+  }
 }
 
 import ast.parse;
@@ -41,7 +45,7 @@ import ast.modules;
 import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 
 string compile(string file, bool saveTemps = false, bool optimize = false) {
-  auto srcname = tmpnam("fcc_src") ~ ".s", objname = tmpnam("fcc_obj");
+  auto srcname = tmpnam("fcc_src", ".s"), objname = tmpnam("fcc_obj", ".o");
   scope(success) {
     if (!saveTemps)
       unlink(srcname.toStringz());
