@@ -18,7 +18,7 @@ class StringExpr : Expr {
   }
   override void emitAsm(AsmFile af) {
     assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");
-    af.pushStack("$"~name, valueType());
+    af.pushStack("$"~name_used, valueType());
   }
   override Type valueType() { return new StaticArray(Single!(Char), str.length); }
 }
@@ -56,4 +56,4 @@ Object gotStringAsPointer(ref string st, ParseCb cont, ParseCb rest) {
   if (!res) return null;
   return new StringAsPointer(res);
 }
-mixin DefaultParser!(gotStringAsPointer, "tree.expr.str_as_ptr", "208");
+mixin DefaultParser!(gotStringAsPointer, "tree.expr.str_as_ptr", "908");

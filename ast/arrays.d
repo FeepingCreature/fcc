@@ -77,10 +77,11 @@ class SA_AsDynamic : Expr {
 
 Object gotStaticArrayAsDynamic(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto ex = cast(Expr) cont(t2);
+  auto ex = cast(Expr) cont(t2, delegate bool(Expr ex) {
+    return !! cast(StaticArray) ex.valueType();
+  });
   if (!ex) return null;
   auto sa = cast(StaticArray) ex.valueType();
-  if (!sa) return null;
   text = t2;
   return new SA_AsDynamic(ex);
 }

@@ -160,26 +160,42 @@ struct ParseCb {
       alias t rest1;
     }
     
-    bool delegate(Object) accept;
-    static if (Rest1.length && is(Rest1[$-1] == bool delegate(Object))) {
+    static if (Rest1.length && is(Rest1[$-1] == delegate)) {
+      static assert(is(typeof(rest1[$-1](null)) == bool), "Bad accept return type: "~typeof(rest1[$-1](null)).stringof);
+      static assert(is(typeof(cast(Params!(Rest1[$-1])[0]) new Object)), "Bad accept params: "~Params!(Rest1[$-1]).stringof);
+      alias Params!(Rest1[$-1])[0] MustType;
       alias Rest1[0 .. $-1] Rest2;
-      accept = rest1[$-1];
+      auto accept = rest1[$-1];
       auto rest2 = rest1[0 .. $-1];
+      static if (Rest2.length == 1 && is(typeof(*rest2[0])))
+        static assert(is(Params!(Rest1[$-1]) == Tuple!(typeof(*rest2[0]))), "ParseCb mismatch: "~Params!(Rest1[$-1]).stringof~" != "~Tuple!(typeof(*rest2[0])).stringof);
     } else {
+      bool delegate(Object) accept;
       alias Rest1 Rest2;
       alias rest1 rest2;
     }
     
+    static if (Rest2.length == 1 && is(typeof(*rest2[0])) && !is(MustType))
+      alias typeof(*rest2[0]) MustType;
+    bool delegate(Object) myAccept;
+    if (accept) myAccept = delegate bool(Object obj) {
+      static if (is(MustType)) {
+        auto casted = cast(MustType) obj;
+      } else {
+        auto casted = obj;
+      }
+      if (!casted) return false;
+      static if (is(typeof(accept(casted))))
+        return accept(casted);
+      return true;
+    };
     static if (Rest2.length == 1 && is(typeof(*rest2[0]))) {
       // only accept-test objects that match the type
-      *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, (Object obj) {
-        if (!cast(typeof(*rest2[0]))) return false;
-        return accept(obj);
-      });
+      *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, myAccept);
       return cast(Object) *rest2[0];
     } else {
       static assert(!Rest2.length, "Left: "~Rest2.stringof~" of "~T.stringof);
-      return dg(text, matchdg, accept);
+      return dg(text, matchdg, myAccept);
     }
   }
 }

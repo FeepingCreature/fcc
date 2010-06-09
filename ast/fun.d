@@ -139,14 +139,12 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     int param_offset;
     if (t2.accept("(") &&
         t2.bjoin(
-          !!rest(t2, "tree.expr", &ex, (Object obj) {
-            auto ex = cast(Expr) obj;
-            if (!ex) return false;
+          !!rest(t2, "tree.expr", &ex, (Expr ex) {
             if (param_offset !< fun.type.params.length)
               throw new Exception(Format(
                 "Extraneous parameter for ", fun, ": ", ex
               ));
-            logln("Try ", ex, " into ", fun.type.params[param_offset]);
+            // logln("Try ", ex, " into ", fun.type.params[param_offset]);
             if (cast(Variadic) fun.type.params[param_offset]._0) {
               // why are you using static arrays as parameters anyway?
               return !cast(StaticArray) ex.valueType();

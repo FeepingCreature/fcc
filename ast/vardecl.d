@@ -30,14 +30,15 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text, var = new Variable;
   if (rest(t2, "type", &var.type) && t2.gotIdentifier(var.name)) {
     if (t2.accept("=")) {
-      if (!rest(t2, "tree.expr", &var.initval))
+      if (!rest(t2, "tree.expr", &var.initval, delegate bool(Expr ex) {
+        return !!(var.type == ex.valueType());
+      }))
         throw new Exception(Format("Couldn't read expression at ", t2.next_text()));
     }
     var.initInit();
     t2.mustAccept(";", Format("Missed trailing semicolon at ", t2.next_text()));
-    if (var.valueType() != var.initval.valueType()) {
-      error = Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType());
-      return null;
+    if (var.type != var.initval.valueType()) {
+      throw new Exception(Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType()));
     }
     var.baseOffset = boffs(var.type);
     auto vd = new VarDecl;

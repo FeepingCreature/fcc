@@ -29,15 +29,18 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue target;
   Expr ex;
-  if (rest(t2, "tree.expr >tree.expr.arith", &ex) && t2.accept("=")) {
+  logln("try on ", t2.next_text());
+  auto forb = rest(t2, "tree.expr >tree.expr.arith", &ex);
+  logln("got ", ex, " and ", forb);
+  if (ex && t2.accept("=")) {
+    logln("murble ", t2.next_text());
     auto lv = cast(LValue) ex;
     if (!lv) throw new Exception(Format("Assignment target is not an lvalue: ", ex, " at ", t2.next_text()));
     target = lv;
     Expr value;
     if (rest(t2, "tree.expr", &value)) {
       if (target.valueType() != value.valueType()) {
-        error = Format("Mismatching types in assignment: ", target, " <- ", value.valueType());
-        return null;
+        throw new Exception(Format("Mismatching types in assignment: ", target, " <- ", value.valueType()));
       }
       text = t2;
       return new Assignment(target, value);
