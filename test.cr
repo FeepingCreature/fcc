@@ -76,7 +76,19 @@ void main() {
   printf("field access via ptr %i, oh btw %i\n", ip[0], ifield.length);
   // ifield.length = 8; // will fail
   // ztest().i = 5; // correctly doesn't work
-  char[] arr = "foo";
-  printf("proper array test: %i\n", arr.length);
-  printf("contents: %.*s\n", arr);
+  char[] arr = "foob";
+  printf("proper array test: %i; contents %.*s\n", arr.length, arr);
+  printf("slice: %.*s\n", arr[1 .. 4]);
+  printf("via ptr: %.*s\n", arr.ptr[1 .. 4]);
+  printf("slice: %i·%p\n", arr[1 .. 4]);
+  printf("via ptr: %i·%p\n", arr.ptr[1 .. 4]);
+  printf("slice1: %i·%i·%i·%i\n", arr[1 .. 4], arr.ptr[1 .. 4]);
+  printf("slice2: %i·%i·%i·%i\n", arr.ptr[1 .. 4], arr[1 .. 4]);
+  int len1 = arr.ptr[1 .. 4].length;
+  int len2 = arr[1 .. 4].length;
+  char* ptr1 = arr.ptr[1 .. 4].ptr;
+  char* ptr2 = arr[1 .. 4].ptr;
+  printf("slice3: %i·%i·%i·%i\n", len1, ptr1, len2, ptr2);
+  printf("slice4: %i·%i·%i·%i\n", 0, 3, arr.ptr[1 .. 4]);
+  printf("slice: %.*s, via ptr: %.*s\n", arr[1 .. 4], arr.ptr[1 .. 4]);
 }

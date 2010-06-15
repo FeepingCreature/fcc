@@ -10,7 +10,7 @@ class ReinterpretCast(T) : T {
     void emitAsm(AsmFile af) {
       from.emitAsm(af);
     }
-    static if (is(typeof(from.emitLocation())))
+    static if (is(typeof(&from.emitLocation)))
       void emitLocation(AsmFile af) {
         from.emitLocation(af);
       }

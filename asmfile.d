@@ -108,8 +108,10 @@ class AsmFile {
   void emitLabel(string name) {
     put(name, ":");
   }
+  int lastStackDepth;
   void comment(T...)(T t) {
-    if (!optimize) put("# "~Format(t));
+    if (!optimize) put("# [", currentStackDepth - lastStackDepth, "]: ", t);
+    lastStackDepth = currentStackDepth;
   }
   // opts
   void collapseAllocFrees() {

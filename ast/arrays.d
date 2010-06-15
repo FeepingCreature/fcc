@@ -25,6 +25,10 @@ Type arrayAsStruct(Type base) {
   );
 }
 
+T arrayToStruct(T)(T array) {
+  return new ReinterpretCast!(T) (arrayAsStruct((cast(Array) array.valueType()).elemType), array);
+}
+
 import ast.structure;
 static this() {
   typeModlist ~= delegate Type(ref string text, Type cur) {
@@ -45,7 +49,7 @@ class ArrayLength(T) : T {
   Expr len_expr;
   this(AT at) {
     array = at;
-    len_expr = new MemberAccess!(Expr) (new ReinterpretCast!(Expr) (arrayAsStruct(Single!(Void)), array), "length");
+    len_expr = new MemberAccess_Expr(arrayToStruct(array), "length");
   }
   override {
     Type valueType() {
@@ -60,29 +64,24 @@ class ArrayLength(T) : T {
   }
 }
 
-class SA_CVal_AsDynamic : Expr {
-  Expr sa;
-  this(Expr e) { sa = e; }
-  import ast.vardecl, ast.assign;
+// construct array from two expressions
+class ArrayMaker : Expr {
+  Expr ptr, length;
+  mixin This!("ptr, length");
   Type elemType() {
-    return (cast(StaticArray) sa.valueType()).elemType;
+    return (cast(Pointer) ptr.valueType()).target;
   }
   override Type valueType() {
     return new Array(elemType());
   }
+  import ast.vardecl, ast.assign;
   override void emitAsm(AsmFile af) {
-    auto cv = cast(CValue) sa;
-    af.comment("start converting cval to dynamic");
-    // so it's like we're declaring an array-like struct ..
+    af.comment("start constructing array");
     mkVar(af, arrayAsStruct(elemType()), true, (Variable var) {
-      // then assign our static pointer to ptr ..
       af.comment("setting ptr");
-      (new Assignment((new MemberAccess_LValue(var, "ptr")),
-                      new CValueAsPointer(cv))).emitAsm(af);
+      (new Assignment((new MemberAccess_LValue(var, "ptr")), ptr)).emitAsm(af);
       af.comment("setting length");
-      // and our known length to length.
-      (new Assignment((new MemberAccess_LValue(var, "length")),
-                      new IntExpr((cast(StaticArray) sa.valueType()).length))).emitAsm(af);
+      (new Assignment((new MemberAccess_LValue(var, "length")), length)).emitAsm(af);
     });
   }
 }
@@ -96,7 +95,7 @@ Object gotStaticArrayCValAsDynamic(ref string text, ParseCb cont, ParseCb rest) 
   );
   if (!ex) return null;
   text = t2;
-  return new SA_CVal_AsDynamic(ex);
+  return new ArrayMaker(new CValueAsPointer(cast(CValue) ex), new IntExpr((cast(StaticArray) ex.valueType()).length));
 }
 mixin DefaultParser!(gotStaticArrayCValAsDynamic, "tree.expr.sa_cval_dynamic", "905");
 
@@ -112,3 +111,14 @@ Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length");
+
+Object gotArrayPtr(ref string text, ParseCb cont, ParseCb rest) {
+  return lhs_partial.using = delegate Object(Expr ex) {
+    if (auto sa = cast(Array) ex.valueType()) {
+      if (!text.accept(".ptr")) return null;
+      if (auto lv = cast(LValue) ex) return new MemberAccess_LValue(arrayToStruct(lv), "ptr");
+      else return new MemberAccess_Expr(arrayToStruct(ex), "ptr");
+    } else return null;
+  };
+}
+mixin DefaultParser!(gotArrayPtr, "tree.rhs_partial.array_ptr");
