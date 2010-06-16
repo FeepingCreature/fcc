@@ -61,7 +61,6 @@ void callFunction(Function fun, Expr[] params, AsmFile dest) {
   assert(fun.type.ret.size == 4);
   dest.comment("Begin call to ", fun);
   if (params.length) {
-    auto p2 = params;
     foreach_reverse (param; params) {
       dest.comment("Push ", param);
       param.emitAsm(dest);

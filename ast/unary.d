@@ -2,7 +2,8 @@ module ast.unary;
 
 import ast.base, ast.math, ast.assign, ast.literals, parseBase;
 
-class PrePostOpExpr(bool Post, bool Inc) : LValue {
+// definitely not an lvalue
+class PrePostOpExpr(bool Post, bool Inc) : Expr {
   LValue a; Assignment b;
   this(LValue a) {
     this.a = a;
@@ -11,9 +12,6 @@ class PrePostOpExpr(bool Post, bool Inc) : LValue {
   override {
     Type valueType() {
       return a.valueType();
-    }
-    void emitLocation(AsmFile af) {
-      a.emitLocation(af);
     }
     void emitAsm(AsmFile af) {
       static if (Post) {

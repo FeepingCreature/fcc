@@ -37,7 +37,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     target = lv;
     Expr value;
     if (rest(t2, "tree.expr", &value)) {
-      logln(target.valueType(), " <- ", value.valueType());
+      // logln(target.valueType(), " <- ", value.valueType());
       if (target.valueType() != value.valueType()) {
         throw new Exception(Format("Mismatching types in assignment: ", target, " <- ", value.valueType()));
       }

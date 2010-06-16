@@ -41,10 +41,8 @@ TLS!(Namespace) namespace;
 
 import parseBase, tools.log;
 Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
-  logln("Match variable off ", text.next_text());
   string name, t2 = text;
   if (t2.gotIdentifier(name, true)) {
-    logln(" -> ", name);
     retry:
     if (auto res = namespace().lookup(name)) {
       if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
@@ -56,6 +54,5 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
     }
     error = "unknown identifier "~name;
   }
-  logln("Oh well. ");
   return null;
 }
