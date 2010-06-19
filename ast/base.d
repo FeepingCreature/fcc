@@ -16,11 +16,11 @@ interface Setupable {
   void setup(AsmFile);
 }
 
-class NoOp : Tree {
+interface Statement : Tree { }
+
+class NoOp : Statement {
   override void emitAsm(AsmFile af) { }
 }
-
-interface Statement : Tree { }
 
 interface Expr : Tree {
   Type valueType();

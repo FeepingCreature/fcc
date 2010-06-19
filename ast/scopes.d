@@ -22,6 +22,19 @@ class Scope : Namespace, Tree {
       res += sc.framesize();
     return res;
   }
+  // frame offset caused by parameters
+  int framestart() {
+    return fun.framestart();
+  }
+  Stuple!(Type, string, int)[] members() {
+    Stuple!(Type, string, int)[] res;
+    if (auto sc = cast(Scope) sup)
+      res = sc.members();
+    foreach (obj; field)
+      if (auto var = cast(Variable) obj._1)
+        res ~= stuple(var.type, var.name, var.baseOffset);
+    return res;
+  }
   override {
     void emitAsm(AsmFile af) {
       af.put(entry(), ":");

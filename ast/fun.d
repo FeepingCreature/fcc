@@ -9,22 +9,30 @@ class Function : Namespace, Tree {
   bool extern_c = false;
   string toString() { return Format("fun ", name, " <- ", sup); }
   // add parameters to namespace
-  void fixup() {
+  int _framestart;
+  int fixup() {
     // cdecl: 0 old ebp, 4 return address, 8 parameters .. I think.
-    int cur = 8;
+    add(new Variable(Single!(SizeT), "__old_ebp", 0));
+    add(new Variable(Single!(SizeT), "__fun_ret", 4));
+    int cur = _framestart = 8;
     // TODO: alignment
     foreach (param; type.params) {
       if (param._1) {
+        _framestart += param._0.size;
         add(new Variable(param._0, param._1, cur));
       }
       cur += param._0.size;
     }
+    return cur;
   }
   string mangleSelf() {
     if (extern_c || name == "main")
       return name;
     else
       return sup.mangle(name, type);
+  }
+  int framestart() {
+    return _framestart;
   }
   override {
     string mangle(string name, Type type) {
@@ -96,16 +104,15 @@ class FunctionType : Type {
 }
 
 import parseBase;
-Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
+// generalized to reuse for nested funs
+Object gotGenericFunDef(T)(T fun, ref string text, ParseCb cont, ParseCb rest) {
   Type ptype;
   auto t2 = text;
-  Function fun;
-  New(fun);
   New(fun.type);
   string parname;
   error = null;
-  auto mod = namespace();
-  assert(mod);
+  auto ns = namespace();
+  assert(ns);
   if (test(fun.type.ret = cast(Type) rest(t2, "type")) &&
       t2.gotIdentifier(fun.name) &&
       t2.accept("(") &&
@@ -122,12 +129,18 @@ Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
     auto backup = namespace();
     scope(exit) namespace.set(backup); 
     namespace.set(fun);
-    mod.add(fun);
+    ns.add(fun);
     text = t2;
     if (rest(text, "tree.scope", &fun._scope)) return fun;
     else throw new Exception("Couldn't parse function scope at '"~text.next_text()~"'");
   } else return null;
 }
+
+Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
+  auto fun = new Function;
+  return gotGenericFunDef(fun, text, cont, rest);
+}
+
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 
 import ast.parse, ast.static_arrays;

@@ -16,7 +16,7 @@ class VarDecl : Statement {
 // base offset
 import tools.log;
 int boffs(Type t) {
-  return -(cast(Scope) namespace()).framesize() - t.size;
+  return (cast(Scope) namespace()).framestart() -(cast(Scope) namespace()).framesize() - t.size;
 }
 
 static int x;
