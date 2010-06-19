@@ -29,6 +29,10 @@ struct lhs_partial {
   static void set(T)(T t) { _lhs_partial.set(t); }
 }
 
+static this() {
+  globalStateMatchers ~= matchrule("tree.rhs_partial");
+}
+
 Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   auto sup = cont(text);
   if (!sup) return null;

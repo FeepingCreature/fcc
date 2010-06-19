@@ -83,6 +83,7 @@ class ArrayMaker : Expr {
       af.comment("setting length");
       (new Assignment((new MemberAccess_LValue(var, "length")), length)).emitAsm(af);
     });
+    af.comment("done constructing array");
   }
 }
 

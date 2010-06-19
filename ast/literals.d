@@ -14,7 +14,7 @@ class StringExpr : CValue, Setupable {
   // default action: place in string segment, load address on stack
   override void setup(AsmFile af) {
     name_used = Format("cons_", af.constants.length);
-    af.constants[name_used] = cast(ubyte[]) (str ~ "\0");
+    af.constants[name_used] = cast(ubyte[]) str;
   }
   override void emitAsm(AsmFile af) {
     assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");

@@ -2,13 +2,6 @@ module ast.slice;
 
 import ast.base, ast.arrays, ast.pointer, ast.math, ast.structure, ast.parse;
 
-Expr mkArraySlice(Expr array, Expr from, Expr to) {
-  return new ArrayMaker(
-    new AddExpr(new MemberAccess_Expr(arrayToStruct(array), "ptr"), from),
-    new SubExpr(to, from)
-  );
-}
-
 Expr mkPointerSlice(Expr ptr, Expr from, Expr to) {
   return new ArrayMaker(
     new AddExpr(ptr, from),
@@ -16,7 +9,14 @@ Expr mkPointerSlice(Expr ptr, Expr from, Expr to) {
   );
 }
 
-Object gotArraySliceExpr(ref string text, ParseCb cont, ParseCb rest) {
+Expr mkArraySlice(Expr array, Expr from, Expr to) {
+  return new ArrayMaker(
+    new AddExpr(new MemberAccess_Expr(arrayToStruct(array), "ptr"), from),
+    new SubExpr(to, from)
+  );
+}
+
+Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (!cast(Array) ex.valueType() && !cast(Pointer) ex.valueType()) return null;
     auto t2 = text;
@@ -30,4 +30,4 @@ Object gotArraySliceExpr(ref string text, ParseCb cont, ParseCb rest) {
     } else return null;
   };
 }
-mixin DefaultParser!(gotArraySliceExpr, "tree.rhs_partial.slice");
+mixin DefaultParser!(gotSliceExpr, "tree.rhs_partial.slice");

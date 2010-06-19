@@ -40,7 +40,6 @@ class ForStatement : Statement {
       af.restoreCheckptStack(backup);
     decl.emitAsm(af);
     auto start = af.genLabel(), done = af.genLabel();
-    logln("for start is ", start, ", done is ", done);
     af.emitLabel(start);
     cond.jumpOn(af, false, done);
     _body.emitAsm(af);

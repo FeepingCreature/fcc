@@ -160,7 +160,7 @@ struct ParseCb {
     bool delegate(string) matchdg;
     static if (T.length && is(T[0]: char[])) {
       alias T[1..$] Rest1;
-      matchdg = matchrule = t[0].replace("selfrule", selfrule);;
+      matchdg = matchrule = t[0].replace("selfrule", selfrule);
       auto rest1 = t[1..$];
     } else static if (T.length && is(T[0] == bool delegate(string))) {
       alias T[1..$] Rest1;
@@ -197,8 +197,9 @@ struct ParseCb {
         auto casted = obj;
       }
       if (!casted) return false;
-      static if (is(typeof(accept(casted))))
+      static if (is(typeof(accept(casted)))) {
         return accept(casted);
+      }
       return true;
     };
     static if (Rest2.length == 1 && is(typeof(*rest2[0]))) {
@@ -217,8 +218,16 @@ interface Parser {
   Object match(ref string text, ParseCb cont, ParseCb restart);
 }
 
+// stuff that it's unsafe to memoize due to side effects
+bool delegate(string)[] globalStateMatchers;
+
 template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
   class DefaultParserImpl : Parser {
+    bool dontMemoMe;
+    this() {
+      foreach (dg; globalStateMatchers) 
+        if (dg(Id)) { dontMemoMe = true; break; }
+    }
     override string getId() { return Id; }
     static if (!Memoize) {
       override Object match(ref string text, ParseCb cont, ParseCb rest) {
@@ -227,6 +236,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
     } else {
       Stuple!(Object, string) [char*] cache;
       override Object match(ref string text, ParseCb cont, ParseCb rest) {
+        if (dontMemoMe) return Fn(text, cont, rest);
         auto ptr = text.ptr;
         if (auto p = ptr in cache) {
           text = p._1;

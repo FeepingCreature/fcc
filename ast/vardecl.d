@@ -7,21 +7,27 @@ class VarDecl : Statement {
   Variable var;
   bool dontInit;
   override void emitAsm(AsmFile af) {
+    af.comment("declare ", var, " at ", var.baseOffset);
     af.salloc(var.type.size);
+    assert(-var.baseOffset == af.currentStackDepth, "Variable mispositioned: LOGIC ERROR");
+    af.comment("init ", var);
     if (!dontInit)
       (new Assignment(var, var.initval)).emitAsm(af);
+    af.comment("init done");
   }
 }
 
 // base offset
 import tools.log;
-int boffs(Type t) {
-  return (cast(Scope) namespace()).framestart() -(cast(Scope) namespace()).framesize() - t.size;
+int boffs(Type t, int cursize = -1) {
+  if (cursize == -1) cursize = (cast(Scope) namespace()).framesize();
+  return (cast(Scope) namespace()).framestart() - cursize - t.size;
 }
 
 static int x;
 void mkVar(AsmFile af, Type type, bool dontInit, void delegate(Variable) dg) {
-  auto var = new Variable(type, Format("__temp_var_", x++, "__"), boffs(type));
+  auto var = new Variable(type, Format("__temp_var_", x++, "__"),
+                          boffs(type, af.currentStackDepth));
   auto vd = new VarDecl;
   vd.var = var;
   vd.dontInit = dontInit;
@@ -35,9 +41,12 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   if (rest(t2, "type", &var.type) && t2.gotIdentifier(var.name)) {
     if (t2.accept("=")) {
       if (!rest(t2, "tree.expr", &var.initval, delegate bool(Expr ex) {
+        if (var.type != ex.valueType()) {
+          error = Format("mismatched types in init: ", var.type, " = ", ex.valueType());
+        }
         return !!(var.type == ex.valueType());
       }))
-        throw new Exception(Format("Couldn't read expression at ", t2.next_text()));
+        throw new Exception(Format("Couldn't read expression at ", t2.next_text(), ": ", error));
     }
     var.initInit();
     t2.mustAccept(";", Format("Missed trailing semicolon at ", t2.next_text()));
