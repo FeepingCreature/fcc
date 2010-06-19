@@ -16,7 +16,7 @@ class Module : Namespace, Tree {
     string mangle(string name, Type type) {
       return "module_"~this.name~"_"~name~"_of_"~type.mangle();
     }
-    Object lookup(string name) {
+    Object lookup(string name, bool local = false) {
       if (auto res = super.lookup(name)) return res;
       if (auto lname = name.startsWith(this.name~"."))
         if (auto res = super.lookup(lname)) return res;
@@ -26,6 +26,7 @@ class Module : Namespace, Tree {
       return null;
     }
   }
+  override Stuple!(Type, string, int)[] stackframe() { assert(false); }
 }
 
 Module sysmod;

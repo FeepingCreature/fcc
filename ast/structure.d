@@ -72,8 +72,18 @@ import ast.pointer;
 class MemberAccess(T) : T {
   T base;
   int which;
-  this(T t, string name) { base = t; which = (cast(Structure) base.valueType()).lookupMember(name); }
+  string name;
+  this(T t, string name) {
+    base = t;
+    this.name = name;
+    which = (cast(Structure) base.valueType()).lookupMember(name);
+    if (which == -1) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
+  }
   override {
+    import tools.log;
+    string toString() {
+      return Format("(", base, ").", name);
+    }
     Type valueType() {
       return (cast(Structure) base.valueType()).members[which].type;
     }

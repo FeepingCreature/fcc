@@ -22,13 +22,14 @@ class Namespace {
   }
   typeof(field) getCheckpt() { return field; }
   void setCheckpt(typeof(field) field) { this.field = field.dup; /* prevent clobbering */ }
-  Object lookup(string name) {
+  Object lookup(string name, bool local = false) {
     foreach (entry; field)
       if (entry._0 == name) return entry._1;
-    if (sup) return sup.lookup(name);
+    if (sup) return sup.lookup(name, local);
     return null;
   }
   abstract string mangle(string name, Type type);
+  abstract Stuple!(Type, string, int)[] stackframe();
 }
 
 T lookup(T)(Namespace ns, string name) {

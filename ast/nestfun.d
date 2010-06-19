@@ -19,48 +19,46 @@ class NestedFunction : Function {
     }
     int fixup() {
       auto cur = super.fixup();
-      logln("add base pointer in fixup");
       add(new Variable(Single!(Pointer, Single!(Void)), "__base_ptr", cur));
       cur += 4;
       return cur;
     }
-    Object lookup(string name) { return lookup(name, null); }
+    Object lookup(string name, bool local = false) { return lookup(name, local, null, null); }
   }
-  Object lookup(string name, Expr baseptr) {
-    foreach (entry; field)
-      if (entry._0 == name) {
-        auto var = cast(Variable) entry._1;
-        if (baseptr && var) {
-          return new MemberAccess_LValue(
-            scopeToStruct(context, baseptr),
-            var.name
-          );
-        } else return entry._1;
-      }
-    if (name == "__base_ptr"
-    || name == "__old_ebp"
-    || name == "__fun_ret") return null; // never recurse those
-    assert(context);
-    if (!baseptr) baseptr = cast(Expr) lookup("__base_ptr", null);
-    assert(!!baseptr, Format("Cannot lookup base pointer @", this.name, " looking up ", name));
+  import tools.log;
+  Object lookup(string name, bool local, Expr mybase, Scope context_override = null) {
+    { // local lookup first
+      Object res;
+      if (context_override) res = context_override.lookup(name, true);
+      else res = super.lookup(name, true);
+      auto var = cast(Variable) res;
+      if (mybase && var) {
+        return new MemberAccess_LValue(
+          namespaceToStruct(context_override?context_override:this, mybase),
+          var.name
+        );
+      } else if (res) return res;
+    }
+    if (local
+     || name == "__base_ptr"
+     || name == "__old_ebp"
+     || name == "__fun_ret") return null; // never recurse those
+    assert(!!context);
     
     if (auto nf = cast(NestedFunction) context.fun) {
-      return nf.lookup(name, cast(Expr) nf.lookup("__base_ptr", baseptr));
+      return nf.lookup(name, false, cast(Expr) lookup("__base_ptr", true, mybase), context);
     } else {
       auto sn = context.lookup(name),
             var = cast(Variable) sn;
       if (!var) return sn;
-      logln("resolve via baseptr ", baseptr, ": ", var);
-      logln("scope as struct: ", scopeToStruct(context, baseptr)); 
       return new MemberAccess_LValue(
-        scopeToStruct(context, baseptr),
+        namespaceToStruct(context, cast(Expr) lookup("__base_ptr", true, mybase)),
         var.name
       );
     }
   }
 }
 
-import tools.log;
 void callNested(NestedFunction nf, Expr[] params, AsmFile dest) {
   assert(nf.type.ret.size == 4 || cast(Void) nf.type.ret);
   dest.comment("Begin nested call to ", nf);
@@ -87,13 +85,16 @@ class NestedCall : FunCall {
   }
 }
 
-import parseBase, ast.modules;
+import parseBase, ast.modules, tools.log;
 Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto sc = cast(Scope) namespace();
   if (!sc) return null;
   auto nf = new NestedFunction(sc);
-  if (auto res = gotGenericFunDef(nf, text, cont, rest)) {
-    namespace().get!(Module)().entries ~= cast(Tree) res;
+  // sup of nested funs isn't the surrounding function .. that's what context is for.
+  auto mod = namespace().get!(Module)();
+  if (auto res = cast(NestedFunction) gotGenericFunDef(nf, mod, text, cont, rest)) {
+    logln("got nested fun def, setting sup to ", mod);
+    mod.entries ~= cast(Tree) res;
     return Single!(NoOp);
   } else return null;
 }

@@ -13,7 +13,6 @@ class Function : Namespace, Tree {
   FunCall mkCall() { return new FunCall; }
   int fixup() {
     // cdecl: 0 old ebp, 4 return address, 8 parameters .. I think.
-    logln("fixup");
     add(new Variable(Single!(SizeT), "__old_ebp", 0));
     add(new Variable(Single!(SizeT), "__fun_ret", 4));
     int cur = _framestart = 8;
@@ -50,6 +49,13 @@ class Function : Namespace, Tree {
       af.put("movl %ebp, %esp");
       af.put("popl %ebp");
       af.put("ret");
+    }
+    Stuple!(Type, string, int)[] stackframe() {
+      Stuple!(Type, string, int)[] res;
+      foreach (obj; field)
+        if (auto var = cast(Variable) obj._1)
+          res ~= stuple(var.type, var.name, var.baseOffset);
+      return res;
     }
   }
 }
@@ -106,7 +112,7 @@ class FunctionType : Type {
 
 import parseBase;
 // generalized to reuse for nested funs
-Object gotGenericFunDef(T)(T fun, ref string text, ParseCb cont, ParseCb rest) {
+Object gotGenericFunDef(T)(T fun, Namespace sup_override, ref string text, ParseCb cont, ParseCb rest) {
   Type ptype;
   auto t2 = text;
   New(fun.type);
@@ -128,9 +134,10 @@ Object gotGenericFunDef(T)(T fun, ref string text, ParseCb cont, ParseCb rest) {
   {
     fun.fixup;
     auto backup = namespace();
-    scope(exit) namespace.set(backup); 
+    scope(exit) namespace.set(backup);
     namespace.set(fun);
     ns.add(fun);
+    fun.sup = sup_override?sup_override:ns;
     text = t2;
     if (rest(text, "tree.scope", &fun._scope)) return fun;
     else throw new Exception("Couldn't parse function scope at '"~text.next_text()~"'");
@@ -139,7 +146,7 @@ Object gotGenericFunDef(T)(T fun, ref string text, ParseCb cont, ParseCb rest) {
 
 Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto fun = new Function;
-  return gotGenericFunDef(fun, text, cont, rest);
+  return gotGenericFunDef(fun, cast(Namespace) null, text, cont, rest);
 }
 
 mixin DefaultParser!(gotFunDef, "tree.fundef");

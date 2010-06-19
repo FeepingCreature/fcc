@@ -27,15 +27,6 @@ class Scope : Namespace, Tree {
   int framestart() {
     return fun.framestart();
   }
-  Stuple!(Type, string, int)[] members() {
-    Stuple!(Type, string, int)[] res;
-    if (auto sc = cast(Scope) sup)
-      res = sc.members();
-    foreach (obj; field)
-      if (auto var = cast(Variable) obj._1)
-        res ~= stuple(var.type, var.name, var.baseOffset);
-    return res;
-  }
   override {
     void emitAsm(AsmFile af) {
       af.put(entry(), ":");
@@ -46,6 +37,14 @@ class Scope : Namespace, Tree {
     }
     string mangle(string name, Type type) {
       return sup.mangle(name, type) ~ "_local";
+    }
+    Stuple!(Type, string, int)[] stackframe() {
+      auto res = fun.stackframe();
+      if (auto sc = cast(Scope) sup) res ~= sc.stackframe();
+      foreach (obj; field)
+        if (auto var = cast(Variable) obj._1)
+          res ~= stuple(var.type, var.name, var.baseOffset);
+      return res;
     }
   }
 }
