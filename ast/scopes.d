@@ -10,6 +10,7 @@ class Scope : Namespace, Tree {
   string exit() { return Format(fun.mangleSelf(), "_exit", id); }
   string toString() { return Format("scope <- ", sup); }
   this() { id = getuid(); }
+  import tools.log;
   int framesize() {
     // TODO: alignment
     int res;

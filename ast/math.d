@@ -24,6 +24,12 @@ class AsmBinopExpr(string OP) : Expr {
     this.e2 = e2;
   }
   override {
+    string toString() {
+           static if (OP == "addl")  return Format("(", e1, " + ", e2, ")");
+      else static if (OP == "subl")  return Format("(", e1, " - ", e2, ")");
+      else static if (OP == "imull") return Format("(", e1, " * ", e2, ")");
+      else                           return Format("(", e1, " {", OP, "} ", e2, ")");
+    }
     Type valueType() {
       assert(e1.valueType().size == e2.valueType().size /and/ 4);
       return e1.valueType();

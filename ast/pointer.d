@@ -53,6 +53,7 @@ class DerefExpr : LValue {
       src.emitAsm(af);
     }
   }
+  string toString() { return Format("*", src); }
 }
 
 static this() {

@@ -87,7 +87,7 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   auto t2 = text.strip();
   t2.eatComments();
   bool isValid(char c) {
-    return isAlphanum(c) || (acceptDots && c == '.');
+    return isAlphanum(c) || "_".find(c) != -1 || (acceptDots && c == '.');
   }
   if (!t2.length || !isValid(t2[0])) return false;
   do {

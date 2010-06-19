@@ -10,8 +10,10 @@ class Function : Namespace, Tree {
   string toString() { return Format("fun ", name, " <- ", sup); }
   // add parameters to namespace
   int _framestart;
+  FunCall mkCall() { return new FunCall; }
   int fixup() {
     // cdecl: 0 old ebp, 4 return address, 8 parameters .. I think.
+    logln("fixup");
     add(new Variable(Single!(SizeT), "__old_ebp", 0));
     add(new Variable(Single!(SizeT), "__fun_ret", 4));
     int cur = _framestart = 8;
@@ -66,7 +68,7 @@ class FunCall : Expr {
 import tools.log;
 void callFunction(Function fun, Expr[] params, AsmFile dest) {
   // dest.put("int $3");
-  assert(fun.type.ret.size == 4);
+  assert(fun.type.ret.size == 4 || cast(Void) fun.type.ret, Format("Can't return ", fun.type, "!"));
   dest.comment("Begin call to ", fun);
   if (params.length) {
     foreach_reverse (param; params) {
@@ -146,7 +148,7 @@ import ast.parse, ast.static_arrays;
 Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Function fun) {
-    auto fc = new FunCall;
+    auto fc = fun.mkCall();
     fc.fun = fun;
     Expr ex;
     int param_offset;

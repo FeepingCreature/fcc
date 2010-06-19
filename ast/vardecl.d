@@ -9,7 +9,7 @@ class VarDecl : Statement {
   override void emitAsm(AsmFile af) {
     af.comment("declare ", var, " at ", var.baseOffset);
     af.salloc(var.type.size);
-    assert(-var.baseOffset == af.currentStackDepth, "Variable mispositioned: LOGIC ERROR");
+    assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; ", -var.baseOffset, " vs. ", af.currentStackDepth, ": ", var));
     af.comment("init ", var);
     if (!dontInit)
       (new Assignment(var, var.initval)).emitAsm(af);
@@ -19,9 +19,11 @@ class VarDecl : Statement {
 
 // base offset
 import tools.log;
-int boffs(Type t, int cursize = -1) {
-  if (cursize == -1) cursize = (cast(Scope) namespace()).framesize();
-  return (cast(Scope) namespace()).framestart() - cursize - t.size;
+int boffs(Type t, int curdepth = -1) {
+  auto sc = cast(Scope) namespace();
+  if (curdepth == -1)
+    curdepth = sc.framesize();
+  return - curdepth - t.size;
 }
 
 static int x;

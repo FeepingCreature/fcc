@@ -79,4 +79,7 @@ void main() {
   char[] arr = "foob";
   printf("proper array test: %i; contents %.*s\n", arr.length, arr);
   printf("slice: %.*s, via ptr: %.*s\n", arr[1 .. 4], arr.ptr[1 .. 4]);
+  int nest_test = 13;
+  void nestfun() { int a; a = 7; nest_test = a; }
+  nestfun(); printf("nest test: %i. \n", nest_test);
 }

@@ -4,10 +4,13 @@ import ast.base;
 
 class IntExpr : Expr {
   int num;
-  override void emitAsm(AsmFile af) {
-    af.pushStack(Format("$", num), valueType());
+  override {
+    void emitAsm(AsmFile af) {
+      af.pushStack(Format("$", num), valueType());
+    }
+    Type valueType() { return Single!(SysInt); }
+    string toString() { return Format(num); }
   }
-  override Type valueType() { return Single!(SysInt); }
   this(int i) { num = i; }
 }
 

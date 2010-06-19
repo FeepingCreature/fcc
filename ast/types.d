@@ -16,7 +16,7 @@ class Type {
 }
 
 class Void : Type {
-  override int size() { return 4; } // for arrays
+  override int size() { return 1; } // for arrays
   override string mangle() { return "void"; }
   override ubyte[] initval() { return null; }
 }
