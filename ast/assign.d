@@ -6,11 +6,12 @@ class Assignment : Statement {
   LValue target;
   Expr value;
   import tools.log;
-  this(LValue t, Expr e) {
-    if (t.valueType() != e.valueType())
+  this(LValue t, Expr e, bool force = false) {
+    if (!force && t.valueType() != e.valueType()) {
       throw new Exception(Format(
         "Can't assign: ", t, " of ", t.valueType(), " <- ", e.valueType()
       ));
+    }
     target = t;
     value = e;
   }

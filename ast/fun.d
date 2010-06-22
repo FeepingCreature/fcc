@@ -94,7 +94,10 @@ void callFunction(Function fun, Expr[] params, AsmFile dest) {
 class FunctionType : Type {
   Type ret;
   Stuple!(Type, string)[] params;
-  override int size() { assert(false); }
+  override int size() {
+    asm { int 3; }
+    assert(false);
+  }
   override {
     string mangle() {
       string res = "function_to_"~ret.mangle();
@@ -151,52 +154,68 @@ Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
 
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 
+Expr[] matchCall(ref string text, string info, Type[] params, ParseCb rest) {
+  Expr[] res;
+  auto t2 = text;
+  int param_offset;
+  Expr ex;
+  if (t2.bjoin(
+    !!rest(t2, "tree.expr", &ex, (Expr ex) {
+      if (param_offset !< params.length)
+        throw new Exception(Format(
+          "Extraneous parameter for ", info, ": ", ex
+        ));
+      if (cast(Variadic) params[param_offset]) {
+        // why are you using static arrays as parameters anyway?
+        return !cast(StaticArray) ex.valueType();
+      } else {
+        // logln("Try ", ex.valueType(), " into ", fun.type.params[param_offset]._0);
+        if (ex.valueType() != params[param_offset])
+          // TODO: set error
+          return false;
+        param_offset ++;
+        return true;
+      }
+    }),
+    t2.accept(","),
+    { res ~= ex; },
+    true
+  )) {
+    if (params.length && cast(Variadic) params[$-1]) {
+      param_offset ++;
+    }
+    
+    if (param_offset < params.length) {
+      throw new Exception(Format(
+        "Not enough parameters for ", info, ": ",
+        res, " at ", t2.next_text(), "!"
+      ));
+    }
+    
+    if (!t2.accept(")")) {
+      throw new Exception(Format(
+        "Unidentified text in call to ", info, ": ",
+        "'", t2.next_text(), "'"
+      ));
+    }
+    
+    text = t2;
+    
+    return res;
+  } else return null;
+}
+
 import ast.parse, ast.static_arrays;
 Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Function fun) {
     auto fc = fun.mkCall();
     fc.fun = fun;
-    Expr ex;
-    int param_offset;
-    if (t2.accept("(") &&
-        t2.bjoin(
-          !!rest(t2, "tree.expr", &ex, (Expr ex) {
-            if (param_offset !< fun.type.params.length)
-              throw new Exception(Format(
-                "Extraneous parameter for ", fun, ": ", ex
-              ));
-            if (cast(Variadic) fun.type.params[param_offset]._0) {
-              // why are you using static arrays as parameters anyway?
-              return !cast(StaticArray) ex.valueType();
-            } else {
-              // logln("Try ", ex.valueType(), " into ", fun.type.params[param_offset]._0);
-              if (ex.valueType() != fun.type.params[param_offset]._0)
-                // TODO: set error
-                return false;
-              param_offset ++;
-              return true;
-            }
-          }),
-          t2.accept(","),
-          { fc.params ~= ex; },
-          true
-        ))
-    {
-      if (fun.type.params.length &&
-        cast(Variadic) fun.type.params[$-1]._0
-      ) {
-        param_offset ++;
-      }
-      
-      if (param_offset < fun.type.params.length) {
-        throw new Exception(Format(
-          "Not enough parameters for ", fc, ": ",
-          fc.params, " at ", t2.next_text(), "!"
-        ));
-      }
-      if (!t2.accept(")"))
-        throw new Exception("Missing closing bracket at "~t2.next_text());
+    
+    if (t2.accept("(")) {
+      scope params = new Type[fun.type.params.length];
+      foreach (i, ref p; params) p = fun.type.params[i]._0;
+      fc.params = matchCall(t2, fun.name, params, rest);
       text = t2;
       return fc;
     }
