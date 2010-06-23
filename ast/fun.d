@@ -1,6 +1,7 @@
 module ast.fun;
 
-import ast.namespace, ast.base, ast.scopes, ast.variable, asmfile, ast.types;
+import ast.namespace, ast.base, ast.scopes, ast.variable, asmfile, ast.types,
+  ast.constant;
 
 class Function : Namespace, Tree {
   string name;
@@ -64,7 +65,7 @@ class FunCall : Expr {
   Expr[] params;
   Function fun;
   override void emitAsm(AsmFile af) {
-    callFunction(fun, params, af);
+    callFunction(af, fun.type.ret, params, fun.mangleSelf());
   }
   override Type valueType() {
     return fun.type.ret;
@@ -72,22 +73,28 @@ class FunCall : Expr {
 }
 
 import tools.log;
-void callFunction(Function fun, Expr[] params, AsmFile dest) {
+void callFunction(AsmFile dest, Type ret, Expr[] params, string name, Expr fp = null) {
   // dest.put("int $3");
-  assert(fun.type.ret.size == 4 || cast(Void) fun.type.ret, Format("Can't return ", fun.type, "!"));
-  dest.comment("Begin call to ", fun);
+  assert(ret.size == 4 || cast(Void) ret, Format("Return bug: ", ret, " from ", name, "!"));
+  dest.comment("Begin call to ", name);
   if (params.length) {
     foreach_reverse (param; params) {
       dest.comment("Push ", param);
       param.emitAsm(dest);
     }
   }
-  dest.put("call "~fun.mangleSelf);
+  if (fp) {
+    fp.emitAsm(dest);
+    dest.popStack("%eax", Single!(SizeT));
+    dest.put("call %eax");
+  } else {
+    dest.put("call "~name);
+  }
   foreach (param; params) {
     dest.sfree(param.valueType().size);
   }
-  if (!cast(Void) fun.type.ret) {
-    dest.pushStack("%eax", fun.type.ret);
+  if (!cast(Void) ret) {
+    dest.pushStack("%eax", ret);
   }
 }
 
@@ -223,3 +230,85 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall", null, true);
+
+// ensuing code gleefully copypasted from nestfun
+// yes I wrote delegates first. how about that.
+class FunctionPointer : Type {
+  Type ret;
+  Type[] args;
+  this() { }
+  this(Function fun) {
+    ret = fun.type.ret;
+    foreach (p; fun.type.params)
+      args ~= p._0;
+  }
+  override int size() {
+    return nativePtrSize;
+  }
+  override string mangle() {
+    auto res = "fp_ret_"~ret.mangle()~"_args";
+    if (!args.length) res ~= "_none";
+    else foreach (arg; args)
+      res ~= "_"~arg.mangle();
+    return res;
+  }
+}
+
+class FpCall : Expr {
+  Expr fp;
+  Expr[] params;
+  override void emitAsm(AsmFile af) {
+    auto fntype = cast(FunctionPointer) fp.valueType();
+    callFunction(af, fntype.ret, params, "fp", fp);
+  }
+  override Type valueType() {
+    return (cast(FunctionPointer) fp.valueType()).ret;
+  }
+}
+
+Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  return lhs_partial.using = delegate Object(Expr ex) {
+    auto fptype = cast(FunctionPointer) ex.valueType();
+    if (!fptype) return null;
+    
+    auto fc = new FpCall;
+    fc.fp = ex;
+    
+    if (t2.accept("(")) {
+      fc.params = matchCall(t2, Format("delegate ", ex), fptype.args, rest);
+      text = t2;
+      return fc;
+    } else return null;
+  };
+}
+mixin DefaultParser!(gotFpCallExpr, "tree.rhs_partial.fpcall", null, true);
+
+// &fun
+class FunRefExpr : Expr {
+  Function fun;
+  this(Function fun) { this.fun = fun; }
+  override {
+    Type valueType() {
+      return new FunctionPointer(fun);
+    }
+    void emitAsm(AsmFile af) {
+      (new Constant(fun.mangleSelf())).emitAsm(af);
+    }
+  }
+}
+
+Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("&")) return null;
+  
+  string ident;
+  if (!t2.gotIdentifier(ident, true)) return null;
+  auto fun = cast(Function) namespace().lookup(ident);
+  if (!fun) return null;
+  
+  text = t2;
+  
+  return new FunRefExpr(fun);
+}
+mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref", "2101");

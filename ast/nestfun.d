@@ -198,7 +198,7 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall", null, true);
 
 // &fun
-class FunRefExpr : Expr {
+class NestFunRefExpr : Expr {
   NestedFunction fun;
   mixin This!("fun");
   override {
@@ -227,6 +227,6 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   text = t2;
   
-  return new FunRefExpr(nf);
+  return new NestFunRefExpr(nf);
 }
 mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210");

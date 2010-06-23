@@ -83,4 +83,5 @@ void main() {
   void nestfun() { int a; a = 7; void nestfun2() { nest_test = a; } nestfun2(); }
   (&nestfun) ();
   printf("nest test: %i. \n", nest_test);
+  printf("s test %i\n", (&s) (4, 5));
 }
