@@ -81,7 +81,8 @@ void main() {
   printf("slice: %.*s, via ptr: %.*s\n", arr[1 .. 4], arr.ptr[1 .. 4]);
   int nest_test = 13;
   void nestfun() { int a; a = 7; void nestfun2() { nest_test = a; } nestfun2(); }
-  (&nestfun) ();
+  void delegate() nf = &nestfun; nf();
   printf("nest test: %i. \n", nest_test);
-  printf("s test %i\n", (&s) (4, 5));
+  int function(int, int x) fp = &s;
+  printf("s test %i\n", fp(4, 5));
 }

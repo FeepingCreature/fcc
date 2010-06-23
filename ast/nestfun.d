@@ -230,3 +230,21 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   return new NestFunRefExpr(nf);
 }
 mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210");
+
+// stolen in turn from ast.fun
+static this() {
+  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb rest) {
+    Type ptype;
+    Stuple!(Type, string)[] list;
+    auto t2 = text;
+    if (t2.accept("delegate") &&
+      t2.gotParlist(list, rest)
+    ) {
+      text = t2;
+      auto res = new Delegate;
+      res.ret = cur;
+      foreach (entry; list) res.args ~= entry._0;
+      return res;
+    } else return null;
+  };
+}

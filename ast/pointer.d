@@ -57,7 +57,7 @@ class DerefExpr : LValue {
 }
 
 static this() {
-  typeModlist ~= delegate Type(ref string text, Type cur) {
+  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb) {
     if (text.accept("*")) { return new Pointer(cur); }
     else return null;
   };

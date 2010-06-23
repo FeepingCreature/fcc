@@ -21,7 +21,7 @@ class StaticArray : Type {
 }
 
 static this() {
-  typeModlist ~= delegate Type(ref string text, Type cur) {
+  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb) {
     auto t2 = text;
     int len;
     if (t2.accept("[") &&

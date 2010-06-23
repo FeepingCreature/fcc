@@ -31,7 +31,7 @@ T arrayToStruct(T)(T array) {
 
 import ast.structure;
 static this() {
-  typeModlist ~= delegate Type(ref string text, Type cur) {
+  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb) {
     if (text.accept("[]")) {
       return new Array(cur);
     } else return null;

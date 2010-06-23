@@ -65,14 +65,15 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotBasicType, "type.basic", "5");
 
 // postfix type modifiers
-Type delegate(ref string text, Type cur)[] typeModlist;
+Type delegate(ref string text, Type cur, ParseCb cont, ParseCb rest)[]
+  typeModlist;
 
 Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
   auto type = cast(Type) cont(text);
   if (!type) return null;
   restart:
   foreach (dg; typeModlist) {
-    if (auto nt = dg(text, type)) {
+    if (auto nt = dg(text, type, cont, rest)) {
       type = nt;
       goto restart;
     }

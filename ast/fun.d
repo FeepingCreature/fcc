@@ -120,6 +120,23 @@ class FunctionType : Type {
   }
 }
 
+bool gotParlist(ref string str, ref Stuple!(Type, string)[] res, ParseCb rest) {
+  auto t2 = str;
+  Type ptype;
+  string parname;
+  if (t2.accept("(") &&
+      t2.bjoin(
+        test(ptype = cast(Type) rest(t2, "type")) && (t2.gotIdentifier(parname) || ((parname = null), true)),
+        t2.accept(","),
+        { res ~= stuple(ptype, parname); }
+      ) &&
+      t2.accept(")")
+  ) {
+    str = t2;
+    return true;
+  } else return false;
+}
+
 import parseBase;
 // generalized to reuse for nested funs
 Object gotGenericFunDef(T)(T fun, Namespace sup_override, ref string text, ParseCb cont, ParseCb rest) {
@@ -132,14 +149,7 @@ Object gotGenericFunDef(T)(T fun, Namespace sup_override, ref string text, Parse
   assert(ns);
   if (test(fun.type.ret = cast(Type) rest(t2, "type")) &&
       t2.gotIdentifier(fun.name) &&
-      t2.accept("(") &&
-      // TODO: function parameters belong on the stackframe
-      t2.bjoin(
-        test(ptype = cast(Type) rest(t2, "type")) && (t2.gotIdentifier(parname) || ((parname = null), true)),
-        t2.accept(","),
-        { fun.type.params ~= stuple(ptype, parname); }
-      ) &&
-      t2.accept(")")
+      t2.gotParlist(fun.type.params, rest)
     )
   {
     fun.fixup;
@@ -312,3 +322,20 @@ Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   return new FunRefExpr(fun);
 }
 mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref", "2101");
+
+static this() {
+  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb rest) {
+    Type ptype;
+    Stuple!(Type, string)[] list;
+    auto t2 = text;
+    if (t2.accept("function") &&
+      t2.gotParlist(list, rest)
+    ) {
+      text = t2;
+      auto res = new FunctionPointer;
+      res.ret = cur;
+      foreach (entry; list) res.args ~= entry._0;
+      return res;
+    } else return null;
+  };
+}
