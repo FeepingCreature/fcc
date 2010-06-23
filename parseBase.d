@@ -353,11 +353,9 @@ class ParseContext {
       }
       bool flip;
       // this gets a bit hairy
-      // 50 before 5, but 51 after 5.
+      // 50 before 5, 509 before 5, but 51 after 5.
       if (aprec.length < bprec.length) { swap(aprec, bprec); flip = true; }
-      for (int i = bprec.length; i < aprec.length; ++i) {
-        if (aprec[i] != '0') return flip;
-      }
+      if (aprec[bprec.length] != '0') return flip;
       return !flip;
     }
   }
