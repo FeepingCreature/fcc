@@ -61,7 +61,7 @@ class NestedFunction : Function {
   }
 }
 
-void callNested(AsmFile dest, Type ret, Expr[] params, string callName, Expr dg = null) {
+void callNested(AsmFile dest, Type ret, Expr[] params, string callName, Expr data = null, Expr dg = null) {
   assert(ret.size == 4 || cast(Void) ret);
   dest.comment("Begin nested call to ", callName);
   
@@ -69,7 +69,7 @@ void callNested(AsmFile dest, Type ret, Expr[] params, string callName, Expr dg 
   if (dg) dgs = dgAsStruct(dg);
   
   if (dg) params ~= new MemberAccess_Expr(dgs, "data");
-  else params ~= new Register!("ebp");
+  else params ~= data;
   
   foreach_reverse (param; params) {
     dest.comment("Push ", param);
@@ -93,7 +93,7 @@ void callNested(AsmFile dest, Type ret, Expr[] params, string callName, Expr dg 
 
 class NestedCall : FunCall {
   override void emitAsm(AsmFile af) {
-    callNested(af, fun.type.ret, params, fun.mangleSelf);
+    callNested(af, fun.type.ret, params, fun.mangleSelf, new Register!("ebp"));
   }
   override Type valueType() {
     return fun.type.ret;
@@ -114,6 +114,26 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef");
+
+// &fun
+class NestFunRefExpr : Expr {
+  NestedFunction fun;
+  mixin This!("fun");
+  mixin defaultIterate!();
+  override {
+    Type valueType() {
+      return new Delegate(fun);
+    }
+    void emitAsm(AsmFile af) {
+      mkVar(af, dgAsStructType(cast(Delegate) valueType()), true, (Variable var) {
+        (new Assignment((new MemberAccess_LValue(var, "fun")),
+          new Constant(fun.mangleSelf()))).emitAsm(af);
+        (new Assignment((new MemberAccess_LValue(var, "data")),
+          new Register!("ebp"), true)).emitAsm(af);
+      });
+    }
+  }
+}
 
 class Delegate : Type {
   Type ret;
@@ -173,7 +193,7 @@ class DgCall : Expr {
   mixin defaultIterate!(dg, params);
   override void emitAsm(AsmFile af) {
     auto dgtype = cast(Delegate) dg.valueType();
-    callNested(af, dgtype.ret, params, "delegate", dg);
+    callNested(af, dgtype.ret, params, "delegate", null, dg);
   }
   override Type valueType() {
     return (cast(Delegate) dg.valueType()).ret;
@@ -197,26 +217,6 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall", null, true);
-
-// &fun
-class NestFunRefExpr : Expr {
-  NestedFunction fun;
-  mixin This!("fun");
-  mixin defaultIterate!();
-  override {
-    Type valueType() {
-      return new Delegate(fun);
-    }
-    void emitAsm(AsmFile af) {
-      mkVar(af, dgAsStructType(cast(Delegate) valueType()), true, (Variable var) {
-        (new Assignment((new MemberAccess_LValue(var, "fun")),
-          new Constant(fun.mangleSelf()))).emitAsm(af);
-        (new Assignment((new MemberAccess_LValue(var, "data")),
-          new Register!("ebp"), true)).emitAsm(af);
-      });
-    }
-  }
-}
 
 Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
