@@ -8,6 +8,7 @@ class Function : Namespace, Tree {
   FunctionType type;
   Scope _scope;
   bool extern_c = false;
+  mixin defaultIterate!(_scope);
   string toString() { return Format("fun ", name, " <- ", sup); }
   // add parameters to namespace
   int _framestart;
@@ -64,6 +65,7 @@ class Function : Namespace, Tree {
 class FunCall : Expr {
   Expr[] params;
   Function fun;
+  mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {
     callFunction(af, fun.type.ret, params, fun.mangleSelf());
   }
@@ -267,6 +269,7 @@ class FunctionPointer : Type {
 class FpCall : Expr {
   Expr fp;
   Expr[] params;
+  mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {
     auto fntype = cast(FunctionPointer) fp.valueType();
     callFunction(af, fntype.ret, params, "fp", fp);
@@ -298,6 +301,7 @@ mixin DefaultParser!(gotFpCallExpr, "tree.rhs_partial.fpcall", null, true);
 class FunRefExpr : Expr {
   Function fun;
   this(Function fun) { this.fun = fun; }
+  mixin defaultIterate!();
   override {
     Type valueType() {
       return new FunctionPointer(fun);

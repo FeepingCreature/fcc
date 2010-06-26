@@ -6,6 +6,7 @@ class Scope : Namespace, Tree {
   Function fun;
   Statement _body;
   ulong id;
+  mixin defaultIterate!(_body);
   string entry() { return Format(fun.mangleSelf(), "_entry", id); }
   string exit() { return Format(fun.mangleSelf(), "_exit", id); }
   string toString() { return Format("scope <- ", sup); }

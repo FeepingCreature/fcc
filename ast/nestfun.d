@@ -170,6 +170,7 @@ mixin DefaultParser!(gotDgAsStruct, "tree.expr.dg_struct", "912");
 class DgCall : Expr {
   Expr dg;
   Expr[] params;
+  mixin defaultIterate!(dg, params);
   override void emitAsm(AsmFile af) {
     auto dgtype = cast(Delegate) dg.valueType();
     callNested(af, dgtype.ret, params, "delegate", dg);
@@ -201,6 +202,7 @@ mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall", null, true);
 class NestFunRefExpr : Expr {
   NestedFunction fun;
   mixin This!("fun");
+  mixin defaultIterate!();
   override {
     Type valueType() {
       return new Delegate(fun);

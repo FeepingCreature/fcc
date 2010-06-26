@@ -79,6 +79,7 @@ class MemberAccess(T) : T {
     which = (cast(Structure) base.valueType()).lookupMember(name);
     if (which == -1) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
   }
+  mixin defaultIterate!(base);
   override {
     import tools.log;
     string toString() {

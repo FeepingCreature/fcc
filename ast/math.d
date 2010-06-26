@@ -23,6 +23,7 @@ class AsmBinopExpr(string OP) : Expr {
     this.e1 = e1;
     this.e2 = e2;
   }
+  mixin defaultIterate!(e1, e2);
   override {
     string toString() {
            static if (OP == "addl")  return Format("(", e1, " + ", e2, ")");
@@ -102,6 +103,7 @@ mixin DefaultParser!(gotMulDivExpr, "tree.expr.arith.muldiv", "2");
 class CondWrap : Expr {
   Cond cd;
   mixin This!("cd");
+  mixin defaultIterate!(cd);
   override {
     Type valueType() {
       return Single!(SysInt); // TODO: bool type

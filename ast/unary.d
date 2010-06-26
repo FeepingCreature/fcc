@@ -4,22 +4,23 @@ import ast.base, ast.math, ast.assign, ast.literals, parseBase;
 
 // definitely not an lvalue
 class PrePostOpExpr(bool Post, bool Inc) : Expr {
-  LValue a; Assignment b;
-  this(LValue a) {
-    this.a = a;
-    b = new Assignment(a, new AsmBinopExpr!(Inc?"addl":"subl")(a, new IntExpr(1)));
+  LValue lv;
+  this(LValue lv) {
+    this.lv = lv;
   }
+  mixin defaultIterate!(lv);
   override {
     Type valueType() {
-      return a.valueType();
+      return lv.valueType();
     }
     void emitAsm(AsmFile af) {
+      auto as = new Assignment(lv, new AsmBinopExpr!(Inc?"addl":"subl")(lv, new IntExpr(1)));
       static if (Post) {
-        a.emitAsm(af);
-        b.emitAsm(af);
+        lv.emitAsm(af);
+        as.emitAsm(af);
       } else {
-        b.emitAsm(af);
-        a.emitAsm(af);
+        as.emitAsm(af);
+        lv.emitAsm(af);
       }
     }
   }

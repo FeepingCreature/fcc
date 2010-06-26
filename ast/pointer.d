@@ -21,6 +21,7 @@ class Pointer : Type {
 class RefExpr : Expr {
   CValue src;
   mixin This!("src");
+  mixin defaultIterate!(src);
   override {
     Type valueType() {
       return new Pointer(src.valueType());
@@ -39,6 +40,7 @@ class DerefExpr : LValue {
     if (!cast(Pointer) src.valueType())
       throw new Exception(Format("Can't dereference non-pointer: ", src));
   }
+  mixin defaultIterate!(src);
   override {
     Type valueType() {
       return (cast(Pointer) src.valueType()).target;

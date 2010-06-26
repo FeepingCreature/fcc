@@ -46,17 +46,16 @@ class ArrayLength(T) : T {
     alias Expr AT;
   }
   AT array;
-  Expr len_expr;
   this(AT at) {
     array = at;
-    len_expr = new MemberAccess_Expr(arrayToStruct(array), "length");
   }
+  mixin defaultIterate!(array);
   override {
     Type valueType() {
       return Single!(SizeT);
     }
     void emitAsm(AsmFile af) {
-      len_expr.emitAsm(af);
+      (new MemberAccess_Expr(arrayToStruct(array), "length")).emitAsm(af);
     }
     static if (is(T == MValue)) void emitAssignment(AsmFile af) {
       assert(false, "TODO");
@@ -68,6 +67,7 @@ class ArrayLength(T) : T {
 class ArrayMaker : Expr {
   Expr ptr, length;
   mixin This!("ptr, length");
+  mixin defaultIterate!(ptr, length);
   Type elemType() {
     return (cast(Pointer) ptr.valueType()).target;
   }

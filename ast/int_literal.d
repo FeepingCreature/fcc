@@ -12,6 +12,7 @@ class IntExpr : Expr {
     string toString() { return Format(num); }
   }
   this(int i) { num = i; }
+  mixin defaultIterate!();
 }
 
 bool gotIntExpr(ref string text, out Expr ex) {

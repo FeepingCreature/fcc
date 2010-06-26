@@ -5,6 +5,7 @@ import ast.base, ast.namespace, ast.scopes, ast.fun, ast.parse;
 class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
+  mixin defaultIterate!(value);
   override void emitAsm(AsmFile af) {
     auto fun = ns.get!(Function);
     assert(value.valueType().size == 4);

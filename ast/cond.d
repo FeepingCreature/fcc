@@ -5,6 +5,7 @@ import ast.base, ast.namespace, ast.parse, tools.base;
 class ExprWrap : Cond {
   Expr ex;
   mixin This!("ex");
+  mixin defaultIterate!(ex);
   override {
     void jumpOn(AsmFile af, bool cond, string dest) {
       assert(ex.valueType().size == 4);
@@ -21,6 +22,7 @@ class ExprWrap : Cond {
 
 class Compare : Cond {
   Expr e1; bool smaller, equal, greater; Expr e2;
+  mixin defaultIterate!(e1, e2);
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
     if (not) {
       not = !not;
@@ -98,6 +100,7 @@ mixin DefaultParser!(gotExprAsCond, "cond.expr", "8");
 class BooleanOp(string Which) : Cond {
   Cond c1, c2;
   mixin This!("c1, c2");
+  mixin defaultIterate!(c1, c2);
   override {
     void jumpOn(AsmFile af, bool cond, string dest) {
       static if (Which == "&&") {

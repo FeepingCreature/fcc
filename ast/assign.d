@@ -15,6 +15,7 @@ class Assignment : Statement {
     target = t;
     value = e;
   }
+  mixin defaultIterate!(target, value);
   override void emitAsm(AsmFile af) {
     value.emitAsm(af);
     target.emitLocation(af);

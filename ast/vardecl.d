@@ -6,6 +6,7 @@ public import ast.variable;
 class VarDecl : Statement {
   Variable var;
   bool dontInit;
+  mixin defaultIterate!(var);
   override void emitAsm(AsmFile af) {
     af.comment("declare ", var, " at ", var.baseOffset);
     af.salloc(var.type.size);

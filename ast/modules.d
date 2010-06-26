@@ -8,6 +8,7 @@ class Module : Namespace, Tree {
   string name;
   Module[] imports;
   Tree[] entries;
+  mixin defaultIterate!(imports, entries);
   override {
     void emitAsm(AsmFile af) {
       foreach (entry; entries)

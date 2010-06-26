@@ -10,6 +10,7 @@ class StringExpr : CValue, Setupable {
   string str;
   this() { }
   this(string s) { str = s; }
+  mixin defaultIterate!();
   string name_used;
   // default action: place in string segment, load address on stack
   override void setup(AsmFile af) {
@@ -46,6 +47,7 @@ mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "5");
 class CValueAsPointer : Expr {
   CValue sup;
   mixin This!("sup");
+  mixin defaultIterate!(sup);
   override Type valueType() {
     if (auto sa = cast(StaticArray) sup.valueType())
       return new Pointer(sa.elemType);

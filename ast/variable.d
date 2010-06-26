@@ -32,5 +32,6 @@ class Variable : LValue {
     baseOffset = i;
     initInit();
   }
+  mixin defaultIterate!(initval);
   string toString() { return Format("[ var ", name, " of ", type, " at ", baseOffset, "]"); }
 }

@@ -5,6 +5,7 @@ import ast.base, ast.scopes, ast.vardecl, ast.cond, ast.parse;
 class WhileStatement : Statement {
   Scope _body;
   Cond cond;
+  mixin defaultIterate!(cond, _body);
   override void emitAsm(AsmFile af) {
     auto start = af.genLabel(), done = af.genLabel();
     af.emitLabel(start);
@@ -34,6 +35,7 @@ class ForStatement : Statement {
   Cond cond;
   Statement step;
   Scope _body;
+  mixin defaultIterate!(decl, cond, step, _body);
   override void emitAsm(AsmFile af) {
     auto backup = af.checkptStack();
     scope(exit)

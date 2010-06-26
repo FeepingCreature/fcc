@@ -50,6 +50,7 @@ mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length");
 class DataExpr : Expr {
   ubyte[] data;
   this(ubyte[] ub) { data = ub; }
+  mixin defaultIterate!();
   override Type valueType() { return new StaticArray(Single!(Char), data.length); }
   override void emitAsm(AsmFile af) {
     auto d2 = data;
