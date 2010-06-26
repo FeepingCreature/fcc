@@ -88,7 +88,7 @@ void callFunction(AsmFile dest, Type ret, Expr[] params, string name, Expr fp = 
   if (fp) {
     fp.emitAsm(dest);
     dest.popStack("%eax", Single!(SizeT));
-    dest.put("call %eax");
+    dest.put("call *%eax");
   } else {
     dest.put("call "~name);
   }

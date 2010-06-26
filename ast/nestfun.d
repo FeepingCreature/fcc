@@ -79,7 +79,7 @@ void callNested(AsmFile dest, Type ret, Expr[] params, string callName, Expr dg 
   if (dg) {
     (new MemberAccess_Expr(dgs, "fun")).emitAsm(dest);
     dest.popStack("%eax", Single!(SizeT));
-    dest.put("call %eax");
+    dest.put("call *%eax");
   } else {
     dest.put("call "~callName);
   }
