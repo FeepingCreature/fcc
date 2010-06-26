@@ -165,3 +165,70 @@ Object gotStructName(ref string text, ParseCb cont, ParseCb rest) {
   return null;
 }
 mixin DefaultParser!(gotStructName, "type.struct", "4");
+
+class NestedCall : FunCall {
+  override void emitAsm(AsmFile af) {
+    callNested(af, fun.type.ret, params, fun.mangleSelf, new Register!("ebp"));
+  }
+  override Type valueType() {
+    return fun.type.ret;
+  }
+}
+
+class StructMemberFunction : Function {
+  Expr strct;
+  this(Expr ex) {
+    strct = ex;
+    assert(!!cast(Structure) strct.valueType());
+  }
+  mixin defaultIterate(strct);
+  override {
+    string mangleSelf() {
+      return (strct.valueType()).mangleSelf() ~ "_" ~ super.mangleSelf();
+    }
+    string mangle(string name, Type type) {
+      return mangleSelf() ~ "_" ~ type.mangle(name);
+    }
+    FunCall mkCall() {
+      return new MemberCall;
+    }
+    int fixup() {
+      auto cur = super.fixup();
+      add(new Variable(Single!(Pointer, Single!(Void)), "__base_ptr", cur));
+      return cur + 4;
+    }
+    Object lookup(string name, bool local = false) { return lookup(name, local, null, null); }
+  }
+  import tools.log;
+  Object lookup(string name, bool local, Expr mybase) {
+    { // local lookup first
+      Object res;
+      if (context_override) res = context_override.lookup(name, true);
+      else res = super.lookup(name, true);
+      auto var = cast(Variable) res;
+      if (mybase && var) {
+        return new MemberAccess_LValue(
+          namespaceToStruct(context_override?context_override:this, mybase),
+          var.name
+        );
+      } else if (res) return res;
+    }
+    if (local
+     || name == "__base_ptr"
+     || name == "__old_ebp"
+     || name == "__fun_ret") return null; // never recurse those
+    assert(!!context);
+    
+    if (auto nf = cast(NestedFunction) context.fun) {
+      return nf.lookup(name, false, cast(Expr) lookup("__base_ptr", true, mybase), context);
+    } else {
+      auto sn = context.lookup(name),
+            var = cast(Variable) sn;
+      if (!var) return sn;
+      return new MemberAccess_LValue(
+        namespaceToStruct(context, cast(Expr) lookup("__base_ptr", true, mybase)),
+        var.name
+      );
+    }
+  }
+}
