@@ -3,8 +3,8 @@ module ast.casting;
 import ast.base, ast.parse;
 
 class ReinterpretCast(T) : T {
-  T from; Type to;
-  this(Type to, T from) { this.from = from; this.to = to; }
+  T from; IType to;
+  this(IType to, T from) { this.from = from; this.to = to; }
   mixin defaultIterate!(from);
   override {
     string toString() { return Format("reinterpret_cast<", to, "> ", from); }

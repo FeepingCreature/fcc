@@ -127,7 +127,7 @@ struct Transaction {
     int size;
     struct {
       string source, dest;
-      Type type;
+      IType type;
     }
     struct {
       string opName;

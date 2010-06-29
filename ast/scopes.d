@@ -36,10 +36,10 @@ class Scope : Namespace, Tree {
       af.put(exit(), ":");
       af.restoreCheckptStack(backup);
     }
-    string mangle(string name, Type type) {
+    string mangle(string name, IType type) {
       return sup.mangle(name, type) ~ "_local";
     }
-    Stuple!(Type, string, int)[] stackframe() {
+    Stuple!(IType, string, int)[] stackframe() {
       auto res = fun.stackframe();
       if (auto sc = cast(Scope) sup) res ~= sc.stackframe();
       foreach (obj; field)

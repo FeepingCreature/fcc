@@ -71,7 +71,7 @@ class NoOp : Statement {
 }
 
 interface Expr : Tree {
-  Type valueType();
+  IType valueType();
 }
 
 // has a pointer, but please don't modify it - ie. string literals

@@ -15,7 +15,7 @@ class Variable : LValue {
       return type;
     }
   }
-  Type type;
+  IType type;
   string name;
   // offset off ebp
   int baseOffset;
@@ -26,7 +26,7 @@ class Variable : LValue {
       initval = new ReinterpretCast!(Expr) (valueType(), new DataExpr(field));
   }
   this() { }
-  this(Type t, string s, int i) {
+  this(IType t, string s, int i) {
     type = t;
     name = s;
     baseOffset = i;

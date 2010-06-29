@@ -25,7 +25,7 @@ class StructMemberFunction : Function {
     string mangleSelf() {
       return (strct.valueType()).mangle() ~ "_" ~ super.mangleSelf();
     }
-    string mangle(string name, Type type) {
+    string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ type.mangle()~"_"~name;
     }
     FunCall mkCall() {
@@ -42,9 +42,44 @@ class StructMemberFunction : Function {
       else if (local) return null;
       
       auto strt = cast(Structure) strct.valueType();
-      if (strt.lookupMember(name) == -1) return null;
+      if (!strt.lookup(name)) return null;
       
       return cast(Object) mkMemberAccess(strct, name);
     }
   }
 }
+/*
+import ast.parse;
+Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  
+  return lhs_partial.using = delegate Object(Expr ex) {
+    auto strtype = cast(Structure) ex.valueType();
+    if (!strtype) return null;
+    string member;
+    if (t2.accept(".") && t2.gotIdentifier(member)) {
+      auto entry = 
+    }
+  };
+  
+  auto ex = cast(Expr) lhs_partial();
+  if (!ex) return null;
+  if (!cast(Structure) ex.valueType())
+    return null;
+  
+  string member;
+  
+  auto pre_ex = ex;
+  if (t2.accept(".") && t2.gotIdentifier(member)) {
+    auto st = cast(Structure) ex.valueType();
+    if (st.lookupMember(member) == -1) {
+      error = Format(member, " is not a member of ", st.name, "!");
+      return null;
+    }
+    ex = mkMemberAccess(ex, member);
+    text = t2;
+    return cast(Object) ex;
+  } else return null;
+}
+mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_member");
+*/

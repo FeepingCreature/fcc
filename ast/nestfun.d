@@ -13,7 +13,7 @@ class NestedFunction : Function {
     string mangleSelf() {
       return context.fun.mangleSelf() ~ "_subfun_" ~ context.fun.mangle(name, type);
     }
-    string mangle(string name, Type type) {
+    string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;
     }
     FunCall mkCall() {
@@ -61,7 +61,7 @@ class NestedFunction : Function {
   }
 }
 
-void callNested(AsmFile dest, Type ret, Expr[] params, string callName, Expr data = null, Expr dg = null) {
+void callNested(AsmFile dest, IType ret, Expr[] params, string callName, Expr data = null, Expr dg = null) {
   assert(ret.size == 4 || cast(Void) ret);
   dest.comment("Begin nested call to ", callName);
   
@@ -136,8 +136,8 @@ class NestFunRefExpr : Expr {
 }
 
 class Delegate : Type {
-  Type ret;
-  Type[] args;
+  IType ret;
+  IType[] args;
   this() { }
   this(NestedFunction nf) {
     ret = nf.type.ret;
@@ -156,14 +156,12 @@ class Delegate : Type {
   }
 }
 
-Type dgAsStructType(Delegate dgtype) {
-  return new Structure(null,
-    [
-      // TODO: Extend once function pointers are supported
-      Structure.Member("fun", Single!(Pointer, Single!(Void))),
-      Structure.Member("data", Single!(Pointer, Single!(Void)))
-    ]
-  );
+IType dgAsStructType(Delegate dgtype) {
+  auto res = new Structure(null);
+  // TODO: Extend once function pointers are supported
+  new StructMember("fun", Single!(Pointer, Single!(Void)), res);
+  new StructMember("data", Single!(Pointer, Single!(Void)), res);
+  return res;
 }
 
 import ast.casting;
@@ -235,9 +233,9 @@ mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210");
 
 // stolen in turn from ast.fun
 static this() {
-  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb rest) {
-    Type ptype;
-    Stuple!(Type, string)[] list;
+  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
+    IType ptype;
+    Stuple!(IType, string)[] list;
     auto t2 = text;
     if (t2.accept("delegate") &&
       t2.gotParlist(list, rest)

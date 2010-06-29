@@ -38,7 +38,7 @@ class Function : Namespace, Tree {
     return _framestart;
   }
   override {
-    string mangle(string name, Type type) {
+    string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;
     }
     void emitAsm(AsmFile af) {
@@ -52,8 +52,8 @@ class Function : Namespace, Tree {
       af.put("popl %ebp");
       af.put("ret");
     }
-    Stuple!(Type, string, int)[] stackframe() {
-      Stuple!(Type, string, int)[] res;
+    Stuple!(IType, string, int)[] stackframe() {
+      Stuple!(IType, string, int)[] res;
       foreach (obj; field)
         if (auto var = cast(Variable) obj._1)
           res ~= stuple(var.type, var.name, var.baseOffset);
@@ -75,7 +75,7 @@ class FunCall : Expr {
 }
 
 import tools.log;
-void callFunction(AsmFile dest, Type ret, Expr[] params, string name, Expr fp = null) {
+void callFunction(AsmFile dest, IType ret, Expr[] params, string name, Expr fp = null) {
   // dest.put("int $3");
   assert(ret.size == 4 || cast(Void) ret, Format("Return bug: ", ret, " from ", name, "!"));
   dest.comment("Begin call to ", name);
@@ -101,8 +101,8 @@ void callFunction(AsmFile dest, Type ret, Expr[] params, string name, Expr fp = 
 }
 
 class FunctionType : Type {
-  Type ret;
-  Stuple!(Type, string)[] params;
+  IType ret;
+  Stuple!(IType, string)[] params;
   override int size() {
     asm { int 3; }
     assert(false);
@@ -122,13 +122,13 @@ class FunctionType : Type {
   }
 }
 
-bool gotParlist(ref string str, ref Stuple!(Type, string)[] res, ParseCb rest) {
+bool gotParlist(ref string str, ref Stuple!(IType, string)[] res, ParseCb rest) {
   auto t2 = str;
-  Type ptype;
+  IType ptype;
   string parname;
   if (t2.accept("(") &&
       t2.bjoin(
-        test(ptype = cast(Type) rest(t2, "type")) && (t2.gotIdentifier(parname) || ((parname = null), true)),
+        test(ptype = cast(IType) rest(t2, "type")) && (t2.gotIdentifier(parname) || ((parname = null), true)),
         t2.accept(","),
         { res ~= stuple(ptype, parname); }
       ) &&
@@ -142,14 +142,14 @@ bool gotParlist(ref string str, ref Stuple!(Type, string)[] res, ParseCb rest) {
 import parseBase;
 // generalized to reuse for nested funs
 Object gotGenericFunDef(T)(T fun, Namespace sup_override, ref string text, ParseCb cont, ParseCb rest) {
-  Type ptype;
+  IType ptype;
   auto t2 = text;
   New(fun.type);
   string parname;
   error = null;
   auto ns = namespace();
   assert(ns);
-  if (test(fun.type.ret = cast(Type) rest(t2, "type")) &&
+  if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
       t2.gotIdentifier(fun.name) &&
       t2.gotParlist(fun.type.params, rest)
     )
@@ -173,7 +173,7 @@ Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
 
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 
-Expr[] matchCall(ref string text, string info, Type[] params, ParseCb rest) {
+Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
   Expr[] res;
   auto t2 = text;
   int param_offset;
@@ -189,7 +189,7 @@ Expr[] matchCall(ref string text, string info, Type[] params, ParseCb rest) {
         return !cast(StaticArray) ex.valueType();
       } else {
         // logln("Try ", ex.valueType(), " into ", fun.type.params[param_offset]._0);
-        if (ex.valueType() != params[param_offset])
+        if (ex.valueType() != cast(Object) params[param_offset])
           // TODO: set error
           return false;
         param_offset ++;
@@ -232,7 +232,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     fc.fun = fun;
     
     if (t2.accept("(")) {
-      scope params = new Type[fun.type.params.length];
+      scope params = new IType[fun.type.params.length];
       foreach (i, ref p; params) p = fun.type.params[i]._0;
       fc.params = matchCall(t2, fun.name, params, rest);
       text = t2;
@@ -246,8 +246,8 @@ mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall", null, true);
 // ensuing code gleefully copypasted from nestfun
 // yes I wrote delegates first. how about that.
 class FunctionPointer : Type {
-  Type ret;
-  Type[] args;
+  IType ret;
+  IType[] args;
   this() { }
   this(Function fun) {
     ret = fun.type.ret;
@@ -328,9 +328,9 @@ Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref", "2101");
 
 static this() {
-  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb rest) {
-    Type ptype;
-    Stuple!(Type, string)[] list;
+  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
+    IType ptype;
+    Stuple!(IType, string)[] list;
     auto t2 = text;
     if (t2.accept("function") &&
       t2.gotParlist(list, rest)

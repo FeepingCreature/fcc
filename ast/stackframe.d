@@ -7,10 +7,10 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   auto frame = ns.stackframe().dup;
   qsort(frame, ex!("a, b -> a._2 < b._2"));
   assert(frame[0]._2 < frame[1]._2);
-  Structure.Member[] field;
+  auto str = new Structure(null);
   auto cur = -1;
   foreach (member; frame) {
-    field ~= Structure.Member(member._1, member._0);
+    new StructMember(member._1, member._0, str);
     if (cur == -1) cur = member._2;
     else assert(cur == member._2);
     cur += member._0.size;
@@ -19,7 +19,7 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   // return *(stack_struct_type*) (ebp - lowestvar_offset);
   return new DerefExpr(
     new ReinterpretCast!(Expr)(
-      new Pointer(new Structure(null, field)),
+      new Pointer(str),
       new SubExpr(baseptr, new IntExpr(-frame[0]._2))
     )
   );

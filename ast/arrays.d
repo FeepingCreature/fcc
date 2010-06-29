@@ -3,9 +3,9 @@ module ast.arrays;
 import ast.base, ast.types, ast.static_arrays, tools.base: This, This_fn, rmSpace;
 
 class Array : Type {
-  Type elemType;
+  IType elemType;
   this() { }
-  this(Type et) { elemType = et; }
+  this(IType et) { elemType = et; }
   override int size() {
     return nativePtrSize + nativeIntSize;
   }
@@ -14,15 +14,13 @@ class Array : Type {
   }
 }
 
-Type arrayAsStruct(Type base) {
-  return new Structure(null,
-    [
-      // TODO: fix when int promotion is supported
-      // Structure.Member("length", Single!(SizeT)),
-      Structure.Member("length", Single!(SysInt)),
-      Structure.Member("ptr", new Pointer(base))
-    ]
-  );
+IType arrayAsStruct(IType base) {
+  auto res = new Structure(null);
+  // TODO: fix when int promotion is supported
+  // Structure.Member("length", Single!(SizeT)),
+  new StructMember("length", Single!(SysInt), res);
+  new StructMember("ptr", new Pointer(base), res);
+  return res;
 }
 
 T arrayToStruct(T)(T array) {
@@ -31,7 +29,7 @@ T arrayToStruct(T)(T array) {
 
 import ast.structure;
 static this() {
-  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb) {
+  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
     if (text.accept("[]")) {
       return new Array(cur);
     } else return null;
@@ -68,10 +66,10 @@ class ArrayMaker : Expr {
   Expr ptr, length;
   mixin This!("ptr, length");
   mixin defaultIterate!(ptr, length);
-  Type elemType() {
+  IType elemType() {
     return (cast(Pointer) ptr.valueType()).target;
   }
-  override Type valueType() {
+  override IType valueType() {
     return new Array(elemType());
   }
   import ast.vardecl, ast.assign;

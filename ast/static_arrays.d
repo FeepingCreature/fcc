@@ -3,10 +3,10 @@ module ast.static_arrays;
 import ast.base, ast.types;
 
 class StaticArray : Type {
-  Type elemType;
+  IType elemType;
   int length;
   this() { }
-  this(Type et, int len) { elemType = et; length = len; }
+  this(IType et, int len) { elemType = et; length = len; }
   override int size() {
     return length * elemType.size();
   }
@@ -15,13 +15,13 @@ class StaticArray : Type {
   }
   override int opEquals(Object obj) {
     return super.opEquals(obj) &&
-      (cast(StaticArray) obj).elemType == elemType &&
+      (cast(StaticArray) obj).elemType == cast(Object) elemType &&
       (cast(StaticArray) obj).length == length;
   }
 }
 
 static this() {
-  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb) {
+  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
     auto t2 = text;
     int len;
     if (t2.accept("[") &&

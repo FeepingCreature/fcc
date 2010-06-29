@@ -20,7 +20,7 @@ class VarDecl : Statement {
 
 // base offset
 import tools.log;
-int boffs(Type t, int curdepth = -1) {
+int boffs(IType t, int curdepth = -1) {
   auto sc = cast(Scope) namespace();
   if (curdepth == -1)
     curdepth = sc.framesize();
@@ -28,7 +28,7 @@ int boffs(Type t, int curdepth = -1) {
 }
 
 static int x;
-void mkVar(AsmFile af, Type type, bool dontInit, void delegate(Variable) dg) {
+void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
   auto var = new Variable(type, Format("__temp_var_", x++, "__"),
                           boffs(type, af.currentStackDepth));
   auto vd = new VarDecl;
@@ -44,16 +44,16 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   if (rest(t2, "type", &var.type) && t2.gotIdentifier(var.name)) {
     if (t2.accept("=")) {
       if (!rest(t2, "tree.expr", &var.initval, delegate bool(Expr ex) {
-        if (var.type != ex.valueType()) {
+        if (var.type != cast(Object) ex.valueType()) {
           error = Format("mismatched types in init: ", var.type, " = ", ex.valueType());
         }
-        return !!(var.type == ex.valueType());
+        return !!(var.type == cast(Object) ex.valueType());
       }))
         throw new Exception(Format("Couldn't read expression at ", t2.next_text(), ": ", error));
     }
     var.initInit();
     t2.mustAccept(";", Format("Missed trailing semicolon at ", t2.next_text()));
-    if (var.type != var.initval.valueType()) {
+    if (var.type != cast(Object) var.initval.valueType()) {
       throw new Exception(Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType()));
     }
     var.baseOffset = boffs(var.type);

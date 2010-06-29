@@ -3,12 +3,12 @@ module ast.pointer;
 import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace;
 
 class Pointer : Type {
-  Type target;
-  this(Type t) { target = t; }
+  IType target;
+  this(IType t) { target = t; }
   int opEquals(Object obj) {
     if (obj.classinfo !is this.classinfo) return false;
     auto p = cast(Pointer) cast(void*) obj;
-    return target == p.target;
+    return cast(Object) target == cast(Object) p.target;
   }
   override {
     int size() { return nativePtrSize; }
@@ -42,7 +42,7 @@ class DerefExpr : LValue {
   }
   mixin defaultIterate!(src);
   override {
-    Type valueType() {
+    IType valueType() {
       return (cast(Pointer) src.valueType()).target;
     }
     void emitAsm(AsmFile af) {
@@ -59,7 +59,7 @@ class DerefExpr : LValue {
 }
 
 static this() {
-  typeModlist ~= delegate Type(ref string text, Type cur, ParseCb, ParseCb) {
+  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
     if (text.accept("*")) { return new Pointer(cur); }
     else return null;
   };

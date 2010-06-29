@@ -14,7 +14,7 @@ class Module : Namespace, Tree {
       foreach (entry; entries)
         entry.emitAsm(af);
     }
-    string mangle(string name, Type type) {
+    string mangle(string name, IType type) {
       return "module_"~this.name~"_"~name~"_of_"~type.mangle();
     }
     Object lookup(string name, bool local = false) {
@@ -27,7 +27,7 @@ class Module : Namespace, Tree {
       return null;
     }
   }
-  override Stuple!(Type, string, int)[] stackframe() { assert(false); }
+  override Stuple!(IType, string, int)[] stackframe() { assert(false); }
 }
 
 Module sysmod;
@@ -49,7 +49,7 @@ void setupSysmods() {
     puts.extern_c = true;
     New(puts.type);
     puts.type.ret = Single!(Void);
-    puts.type.params ~= stuple(cast(Type) Single!(Pointer, Single!(Char)), cast(string) null);
+    puts.type.params ~= stuple(cast(IType) Single!(Pointer, Single!(Char)), cast(string) null);
     puts.name = "puts";
     sysmod.add(puts);
   }
@@ -59,8 +59,8 @@ void setupSysmods() {
     printf.extern_c = true;
     New(printf.type);
     printf.type.ret = Single!(Void);
-    printf.type.params ~= stuple(cast(Type) Single!(Pointer, Single!(Char)), cast(string) null);
-    printf.type.params ~= stuple(cast(Type) Single!(Variadic), cast(string) null);
+    printf.type.params ~= stuple(cast(IType) Single!(Pointer, Single!(Char)), cast(string) null);
+    printf.type.params ~= stuple(cast(IType) Single!(Variadic), cast(string) null);
     printf.name = "printf";
     sysmod.add(printf);
   }

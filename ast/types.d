@@ -4,15 +4,26 @@ import tools.base: Stuple, take;
 
 import ast.base;
 
-class Type {
-  abstract int size();
-  abstract string mangle();
+interface IType {
+  int size();
+  string mangle();
+  ubyte[] initval();
+  int opEquals(Object obj);
+}
+
+template TypeDefaults() {
   ubyte[] initval() { return new ubyte[size()]; }
   int opEquals(Object obj) {
     // specialize where needed
     return this.classinfo is obj.classinfo &&
       size == (cast(Type) cast(void*) obj).size;
   }
+}
+
+class Type : IType {
+  mixin TypeDefaults!();
+  abstract int size();
+  abstract string mangle();
 }
 
 class Void : Type {
@@ -65,11 +76,11 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotBasicType, "type.basic", "5");
 
 // postfix type modifiers
-Type delegate(ref string text, Type cur, ParseCb cont, ParseCb rest)[]
+IType delegate(ref string text, IType cur, ParseCb cont, ParseCb rest)[]
   typeModlist;
 
 Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
-  auto type = cast(Type) cont(text);
+  auto type = cast(IType) cont(text);
   if (!type) return null;
   restart:
   foreach (dg; typeModlist) {
@@ -78,6 +89,6 @@ Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
       goto restart;
     }
   }
-  return type;
+  return cast(Object) type;
 }
 mixin DefaultParser!(gotExtType, "type.ext", "1");

@@ -13,6 +13,11 @@ class Namespace {
     throw new Exception(Format("No ", T.stringof, " above ", this, "!"));
   }
   Stuple!(string, Object)[] field;
+  void select(T)(void delegate(string, T) dg) {
+    foreach (entry; field)
+      if (auto t = cast(T) entry._1)
+        dg(entry._0, t);
+  }
   void add(T)(T t) {
     if (lookup(t.name))
       throw new Exception(Format(t.name, " already defined in ", this, ": ", lookup(t.name)));
@@ -28,8 +33,8 @@ class Namespace {
     if (sup) return sup.lookup(name, local);
     return null;
   }
-  abstract string mangle(string name, Type type);
-  abstract Stuple!(Type, string, int)[] stackframe();
+  abstract string mangle(string name, IType type);
+  abstract Stuple!(IType, string, int)[] stackframe();
 }
 
 T lookup(T)(Namespace ns, string name) {
