@@ -63,6 +63,10 @@ interface Setupable {
   void setup(AsmFile);
 }
 
+interface Named {
+  string getIdentifier();
+}
+
 interface Statement : Tree { }
 
 class NoOp : Statement {

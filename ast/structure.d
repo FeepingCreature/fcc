@@ -10,11 +10,20 @@ int sum(S, T)(S s, T t) {
   return res;
 }
 
+/// can be transformed into an obj relative to a base
+interface RelTransformable {
+  Object transform(Expr base);
+}
+
 import tools.log;
-class StructMember {
+class StructMember : Named, RelTransformable {
   string name;
   IType type;
   int offset;
+  override string getIdentifier() { return name; }
+  override Object transform(Expr base) {
+    return cast(Object) mkMemberAccess(base, name);
+  }
   this(string name, IType type, Structure strct) {
     logln("struct member: ", name, " of ", type);
     this.name = name;
@@ -24,7 +33,7 @@ class StructMember {
   }
 }
 
-class Structure : Namespace, IType {
+class Structure : Namespace, IType, Named {
   mixin TypeDefaults!();
   string name;
   int size() {
@@ -36,10 +45,27 @@ class Structure : Namespace, IType {
     this.name = name;
   }
   string mangle() { return "struct_"~name; }
+  override string getIdentifier() { return name; }
   override string mangle(string name, IType type) { return "struct_"~name~"_"~type.mangle()~"_"~name; }
   override Stuple!(IType, string, int)[] stackframe() {
     Stuple!(IType, string, int)[] res;
     select((string, StructMember member) { res ~= stuple(member.type, member.name, member.offset); });
+    return res;
+  }
+  Object lookupRel(string str, Expr base) {
+    auto res = super.lookup(str);
+    if (auto rt = cast(RelTransformable) res)
+      return cast(Object) rt.transform(base);
+    return res;
+  }
+  override Object lookup(string str, bool local = false) {
+    auto res = super.lookup(str, local);
+    if (cast(RelTransformable) res) {
+      asm { int 3; }
+      throw new Exception(Format(
+        "Please use the rel-transformable lookup path for ", str, " => ", res, "!"
+      ));
+    }
     return res;
   }
   string toString() {
@@ -55,22 +81,35 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   string name;
   Structure st;
   string strname; IType strtype;
-  if (t2.gotIdentifier(name) && t2.accept("{") && (New(st, name), true) &&
+  if (t2.gotIdentifier(name) && t2.accept("{")) {
+    New(st, name);
+    st.sup = namespace();
+    
+    auto backup = namespace();
+    namespace.set(st);
+    scope(exit) namespace.set(backup);
+    
+    Named smem;
+    if (
       t2.many(
         test(strtype = cast(IType) rest(t2, "type")) &&
         t2.bjoin(
           t2.gotIdentifier(strname),
-          t2.accept(",")
-          ,{ auto sm = new StructMember(strname, strtype, st); }
-        ) &&
-        t2.accept(";")
-      ) &&
-      t2.accept("}")
+          t2.accept(","),
+          { auto sm = new StructMember(strname, strtype, st); }
+        ) && t2.accept(";")
+        ||
+        rest(t2, "struct_member", &smem)
+        && (st.add(smem), true)
+      ) && t2.accept("}")
     )
-  {
-    text = t2;
-    namespace().add(st);
-    return Single!(NoOp);
+    {
+      text = t2;
+      st.sup.add(st);
+      return Single!(NoOp);
+    } else {
+      throw new Exception("Error matching struct definition at "~t2.next_text());
+    }
   } else return null;
 }
 mixin DefaultParser!(gotStructDef, "tree.typedef.struct");
@@ -151,11 +190,13 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto pre_ex = ex;
   if (t2.accept(".") && t2.gotIdentifier(member)) {
     auto st = cast(Structure) ex.valueType();
-    if (!st.lookup(member)) {
-      error = Format(member, " is not a member of ", st.name, "!");
+    auto m = st.lookupRel(member, ex);
+    ex = cast(Expr) m;
+    if (!ex) {
+      if (m) error = Format(member, " is not a struct var: ", m);
+      else error = Format(member, " is not a member of ", st.name, "!");
       return null;
     }
-    ex = mkMemberAccess(ex, member);
     text = t2;
     return cast(Object) ex;
   } else return null;

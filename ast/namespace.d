@@ -18,12 +18,13 @@ class Namespace {
       if (auto t = cast(T) entry._1)
         dg(entry._0, t);
   }
-  void add(T)(T t) {
-    if (lookup(t.name))
-      throw new Exception(Format(t.name, " already defined in ", this, ": ", lookup(t.name)));
-    static if (is(typeof(t.sup)))
-      t.sup = this;
-    field ~= stuple(t.name, cast(Object) t);
+  void add(Named n) {
+    auto name = n.getIdentifier();
+    if (lookup(name))
+      throw new Exception(Format(name, " already defined in ", this, ": ", lookup(name)));
+    if (auto ns = cast(Namespace) n)
+      ns.sup = this;
+    field ~= stuple(name, cast(Object) n);
   }
   typeof(field) getCheckpt() { return field; }
   void setCheckpt(typeof(field) field) { this.field = field.dup; /* prevent clobbering */ }

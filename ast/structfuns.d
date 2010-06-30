@@ -1,7 +1,7 @@
 module ast.structfuns;
 
 import ast.fun, ast.nestfun, ast.base, ast.structure, ast.variable, ast.pointer,
-  tools.base: This, This_fn, rmSpace;
+  ast.namespace, tools.base: This, This_fn, rmSpace;
 
 class StructMemberCall : FunCall {
   Expr strct;
@@ -14,11 +14,14 @@ class StructMemberCall : FunCall {
   }
 }
 
-class StructMemberFunction : Function {
+class StructMemberFunction : Function, RelTransformable {
   Expr strct;
-  this(Expr ex) {
-    strct = ex;
+  this() { }
+  Object transform(Expr base) {
+    assert(!strct || strct is base);
+    strct = base;
     assert(!!cast(Structure) strct.valueType());
+    return this;
   }
   mixin defaultIterate!(strct);
   override {
@@ -48,8 +51,14 @@ class StructMemberFunction : Function {
     }
   }
 }
-/*
-import ast.parse;
+
+Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
+  auto fun = new StructMemberFunction;
+  return gotGenericFunDef(fun, cast(Namespace) null, text, cont, rest);
+}
+mixin DefaultParser!(gotStructFunDef, "struct_member.struct_fundef");
+
+import ast.parse, tools.log;
 Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
@@ -58,28 +67,14 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
     if (!strtype) return null;
     string member;
     if (t2.accept(".") && t2.gotIdentifier(member)) {
-      auto entry = 
-    }
+      auto mvar = strtype.lookup(member);
+      if (!mvar) return null;
+      logln("Got a struct fun? ", mvar);
+      auto smf = cast(StructMemberFunction) mvar;
+      if (!smf) return null;
+      smf.strct = ex;
+      return smf;
+    } else return null;
   };
-  
-  auto ex = cast(Expr) lhs_partial();
-  if (!ex) return null;
-  if (!cast(Structure) ex.valueType())
-    return null;
-  
-  string member;
-  
-  auto pre_ex = ex;
-  if (t2.accept(".") && t2.gotIdentifier(member)) {
-    auto st = cast(Structure) ex.valueType();
-    if (st.lookupMember(member) == -1) {
-      error = Format(member, " is not a member of ", st.name, "!");
-      return null;
-    }
-    ex = mkMemberAccess(ex, member);
-    text = t2;
-    return cast(Object) ex;
-  } else return null;
 }
-mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_member");
-*/
+mixin DefaultParser!(gotStructFun, "tree.rhs_partial.structfun");

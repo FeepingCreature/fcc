@@ -3,7 +3,7 @@ module ast.fun;
 import ast.namespace, ast.base, ast.scopes, ast.variable, asmfile, ast.types,
   ast.constant;
 
-class Function : Namespace, Tree {
+class Function : Namespace, Tree, Named {
   string name;
   FunctionType type;
   Scope _scope;
@@ -41,6 +41,7 @@ class Function : Namespace, Tree {
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;
     }
+    string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
       af.put(".globl "~mangleSelf);
       af.put(".type "~mangleSelf~", @function");
@@ -155,7 +156,7 @@ Object gotGenericFunDef(T)(T fun, Namespace sup_override, ref string text, Parse
     )
   {
     fun.fixup;
-    auto backup = namespace();
+    auto backup = ns;
     scope(exit) namespace.set(backup);
     namespace.set(fun);
     ns.add(fun);
@@ -170,7 +171,6 @@ Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto fun = new Function;
   return gotGenericFunDef(fun, cast(Namespace) null, text, cont, rest);
 }
-
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 
 Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {

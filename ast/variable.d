@@ -2,7 +2,7 @@ module ast.variable;
 
 import ast.base, ast.math, ast.literals, parseBase, ast.casting, ast.static_arrays: DataExpr;
 
-class Variable : LValue {
+class Variable : LValue, Named {
   string address() { return Format(baseOffset, "(%ebp)"); }
   override {
     void emitAsm(AsmFile af) {
@@ -32,6 +32,7 @@ class Variable : LValue {
     baseOffset = i;
     initInit();
   }
+  override string getIdentifier() { return name; }
   mixin defaultIterate!(initval);
   string toString() { return Format("[ var ", name, " of ", type, " at ", baseOffset, "]"); }
 }

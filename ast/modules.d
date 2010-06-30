@@ -4,12 +4,13 @@ import ast.base, ast.namespace, ast.fun, ast.variable, ast.structure, ast.parse;
 
 import tools.ctfe, tools.base: startsWith;
 
-class Module : Namespace, Tree {
+class Module : Namespace, Tree, Named {
   string name;
   Module[] imports;
   Tree[] entries;
   mixin defaultIterate!(imports, entries);
   override {
+    string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
       foreach (entry; entries)
         entry.emitAsm(af);
