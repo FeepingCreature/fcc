@@ -96,7 +96,7 @@ interface Cond : Iterable {
 
 class Register(string Reg) : Expr {
   mixin defaultIterate!();
-  override Type valueType() { return Single!(SysInt); }
+  override IType valueType() { return Single!(SysInt); }
   override void emitAsm(AsmFile af) {
     af.pushStack("%"~Reg, valueType());
   }

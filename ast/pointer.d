@@ -23,7 +23,7 @@ class RefExpr : Expr {
   mixin This!("src");
   mixin defaultIterate!(src);
   override {
-    Type valueType() {
+    IType valueType() {
       return new Pointer(src.valueType());
     }
     void emitAsm(AsmFile af) {

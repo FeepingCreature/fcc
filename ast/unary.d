@@ -10,7 +10,7 @@ class PrePostOpExpr(bool Post, bool Inc) : Expr {
   }
   mixin defaultIterate!(lv);
   override {
-    Type valueType() {
+    IType valueType() {
       return lv.valueType();
     }
     void emitAsm(AsmFile af) {

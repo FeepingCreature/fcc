@@ -51,7 +51,7 @@ class DataExpr : Expr {
   ubyte[] data;
   this(ubyte[] ub) { data = ub; }
   mixin defaultIterate!();
-  override Type valueType() { return new StaticArray(Single!(Char), data.length); }
+  override IType valueType() { return new StaticArray(Single!(Char), data.length); }
   override void emitAsm(AsmFile af) {
     auto d2 = data;
     while (d2.length >= 4) {

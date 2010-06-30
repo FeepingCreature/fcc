@@ -7,7 +7,7 @@ class SA_Access(T) : T {
   mixin This!("array, pos");
   mixin defaultIterate!(array, pos);
   override {
-    Type valueType() { return (cast(StaticArray) array.valueType()).elemType; }
+    IType valueType() { return (cast(StaticArray) array.valueType()).elemType; }
     static assert(is(T: LValue));
     // TODO generic case
     static if (is(T: LValue)) {
@@ -44,7 +44,7 @@ class PA_Access : LValue {
   mixin This!("ptr, pos");
   mixin defaultIterate!(ptr, pos);
   override {
-    Type valueType() { return (cast(Pointer) ptr.valueType()).target; }
+    IType valueType() { return (cast(Pointer) ptr.valueType()).target; }
     // TODO generic case
     void emitAsm(AsmFile af) {
       (new DerefExpr(new AddExpr(ptr, pos))).emitAsm(af);

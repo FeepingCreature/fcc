@@ -92,7 +92,7 @@ class MemberAccess(T) : T {
     string toString() {
       return Format("(", base, ").", name);
     }
-    Type valueType() { return stm.type; }
+    IType valueType() { return stm.type; }
     void emitAsm(AsmFile af) {
       auto st = cast(Structure) base.valueType();
       static if (is(T: LValue)) {

@@ -31,7 +31,7 @@ class AsmBinopExpr(string OP) : Expr {
       else static if (OP == "imull") return Format("(", e1, " * ", e2, ")");
       else                           return Format("(", e1, " {", OP, "} ", e2, ")");
     }
-    Type valueType() {
+    IType valueType() {
       assert(e1.valueType().size == e2.valueType().size /and/ 4);
       return e1.valueType();
     }
@@ -105,7 +105,7 @@ class CondWrap : Expr {
   mixin This!("cd");
   mixin defaultIterate!(cd);
   override {
-    Type valueType() {
+    IType valueType() {
       return Single!(SysInt); // TODO: bool type
     }
     void emitAsm(AsmFile af) {

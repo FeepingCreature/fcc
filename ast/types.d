@@ -16,7 +16,7 @@ template TypeDefaults() {
   int opEquals(Object obj) {
     // specialize where needed
     return this.classinfo is obj.classinfo &&
-      size == (cast(Type) cast(void*) obj).size;
+      size == (cast(typeof(this)) cast(void*) obj).size;
   }
 }
 

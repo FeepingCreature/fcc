@@ -9,7 +9,7 @@ class StructMemberCall : FunCall {
   override void emitAsm(AsmFile af) {
     callNested(af, fun.type.ret, params, fun.mangleSelf, strct);
   }
-  override Type valueType() {
+  override IType valueType() {
     return fun.type.ret;
   }
 }

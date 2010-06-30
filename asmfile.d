@@ -11,7 +11,7 @@ class AsmFile {
   this(bool optimize) { New(cache); this.optimize = optimize; }
   Transcache cache;
   int currentStackDepth;
-  void pushStack(string expr, Type type) {
+  void pushStack(string expr, IType type) {
     currentStackDepth += type.size;
     Transaction t;
     t.kind = Transaction.Kind.Push;
@@ -19,7 +19,7 @@ class AsmFile {
     t.type = type;
     cache ~= t;
   }
-  void popStack(string dest, Type type) {
+  void popStack(string dest, IType type) {
     currentStackDepth -= type.size;
     Transaction t;
     t.kind = Transaction.Kind.Pop;

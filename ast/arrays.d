@@ -49,7 +49,7 @@ class ArrayLength(T) : T {
   }
   mixin defaultIterate!(array);
   override {
-    Type valueType() {
+    IType valueType() {
       return Single!(SizeT);
     }
     void emitAsm(AsmFile af) {

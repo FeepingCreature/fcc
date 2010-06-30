@@ -95,7 +95,7 @@ class NestedCall : FunCall {
   override void emitAsm(AsmFile af) {
     callNested(af, fun.type.ret, params, fun.mangleSelf, new Register!("ebp"));
   }
-  override Type valueType() {
+  override IType valueType() {
     return fun.type.ret;
   }
 }
@@ -121,7 +121,7 @@ class NestFunRefExpr : Expr {
   mixin This!("fun");
   mixin defaultIterate!();
   override {
-    Type valueType() {
+    IType valueType() {
       return new Delegate(fun);
     }
     void emitAsm(AsmFile af) {
@@ -193,7 +193,7 @@ class DgCall : Expr {
     auto dgtype = cast(Delegate) dg.valueType();
     callNested(af, dgtype.ret, params, "delegate", null, dg);
   }
-  override Type valueType() {
+  override IType valueType() {
     return (cast(Delegate) dg.valueType()).ret;
   }
 }

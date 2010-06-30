@@ -8,7 +8,7 @@ class ReinterpretCast(T) : T {
   mixin defaultIterate!(from);
   override {
     string toString() { return Format("reinterpret_cast<", to, "> ", from); }
-    Type valueType() { return to; }
+    IType valueType() { return to; }
     void emitAsm(AsmFile af) {
       from.emitAsm(af);
     }

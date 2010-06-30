@@ -8,7 +8,7 @@ class IntExpr : Expr {
     void emitAsm(AsmFile af) {
       af.pushStack(Format("$", num), valueType());
     }
-    Type valueType() { return Single!(SysInt); }
+    IType valueType() { return Single!(SysInt); }
     string toString() { return Format(num); }
   }
   this(int i) { num = i; }

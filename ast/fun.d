@@ -69,7 +69,7 @@ class FunCall : Expr {
   override void emitAsm(AsmFile af) {
     callFunction(af, fun.type.ret, params, fun.mangleSelf());
   }
-  override Type valueType() {
+  override IType valueType() {
     return fun.type.ret;
   }
 }
@@ -274,7 +274,7 @@ class FpCall : Expr {
     auto fntype = cast(FunctionPointer) fp.valueType();
     callFunction(af, fntype.ret, params, "fp", fp);
   }
-  override Type valueType() {
+  override IType valueType() {
     return (cast(FunctionPointer) fp.valueType()).ret;
   }
 }
@@ -303,7 +303,7 @@ class FunRefExpr : Expr {
   this(Function fun) { this.fun = fun; }
   mixin defaultIterate!();
   override {
-    Type valueType() {
+    IType valueType() {
       return new FunctionPointer(fun);
     }
     void emitAsm(AsmFile af) {

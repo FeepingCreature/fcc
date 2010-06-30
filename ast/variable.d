@@ -11,7 +11,7 @@ class Variable : LValue {
     void emitLocation(AsmFile af) {
       (new AsmBinopExpr!("addl")(new Register!("ebp"), new IntExpr(baseOffset))).emitAsm(af);
     }
-    Type valueType() {
+    IType valueType() {
       return type;
     }
   }

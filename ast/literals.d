@@ -23,7 +23,7 @@ class StringExpr : CValue, Setupable {
   override void emitLocation(AsmFile af) {
     af.pushStack("$"~name_used, Single!(Pointer, Single!(Char)));
   }
-  override Type valueType() { return new StaticArray(Single!(Char), str.length); }
+  override IType valueType() { return new StaticArray(Single!(Char), str.length); }
 }
 
 bool gotStringExpr(ref string text, out Expr ex) {
@@ -48,7 +48,7 @@ class CValueAsPointer : Expr {
   CValue sup;
   mixin This!("sup");
   mixin defaultIterate!(sup);
-  override Type valueType() {
+  override IType valueType() {
     if (auto sa = cast(StaticArray) sup.valueType())
       return new Pointer(sa.elemType);
     throw new Exception(Format("The CValue ", sup, " has confused me. "));
