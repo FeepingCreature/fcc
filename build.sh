@@ -3,7 +3,7 @@ MAIN=fcc
 	echo 'LDFLAGS='
 	echo 'DFLAGS=-g -femit-templates=all'
 	gdc ${MAIN}.d -fd-verbose -c -o /dev/null \
-		|grep import \
+		|grep "^import\b" \
 		|grep -v "(/" \
 		|sed -e "s@.*(@@" -e "s@).*@@" \
 		|xargs echo SOURCES=${MAIN}.d
