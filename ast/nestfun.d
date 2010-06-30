@@ -107,8 +107,7 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto nf = new NestedFunction(sc);
   // sup of nested funs isn't the surrounding function .. that's what context is for.
   auto mod = namespace().get!(Module)();
-  if (auto res = cast(NestedFunction) gotGenericFunDef(nf, mod, text, cont, rest)) {
-    logln("got nested fun def, setting sup to ", mod);
+  if (auto res = cast(NestedFunction) gotGenericFunDef(nf, mod, true, text, cont, rest)) {
     mod.entries ~= cast(Tree) res;
     return Single!(NoOp);
   } else return null;

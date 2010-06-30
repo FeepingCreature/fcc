@@ -53,6 +53,10 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     }
     var.initInit();
     t2.mustAccept(";", Format("Missed trailing semicolon at ", t2.next_text()));
+    if (!var.initval) {
+      logln("No init val for ", var);
+      asm { int 3; }
+    }
     if (var.type != cast(Object) var.initval.valueType()) {
       throw new Exception(Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType()));
     }

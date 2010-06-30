@@ -36,6 +36,12 @@ class Scope : Namespace, Tree {
       af.put(exit(), ":");
       af.restoreCheckptStack(backup);
     }
+    Object lookup(string name, bool local = false) {
+      auto res = super.lookup(name, local);
+      if (!res || cast(Scope) sup)
+        res = sup.lookup(name, local);
+      return res;
+    }
     string mangle(string name, IType type) {
       return sup.mangle(name, type) ~ "_local";
     }

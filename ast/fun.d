@@ -142,7 +142,8 @@ bool gotParlist(ref string str, ref Stuple!(IType, string)[] res, ParseCb rest) 
 
 import parseBase;
 // generalized to reuse for nested funs
-Object gotGenericFunDef(T)(T fun, Namespace sup_override, ref string text, ParseCb cont, ParseCb rest) {
+Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace,
+                           ref string text, ParseCb cont, ParseCb rest) {
   IType ptype;
   auto t2 = text;
   New(fun.type);
@@ -159,7 +160,7 @@ Object gotGenericFunDef(T)(T fun, Namespace sup_override, ref string text, Parse
     auto backup = ns;
     scope(exit) namespace.set(backup);
     namespace.set(fun);
-    ns.add(fun);
+    if (addToNamespace) ns.add(fun);
     fun.sup = sup_override?sup_override:ns;
     text = t2;
     if (rest(text, "tree.scope", &fun._scope)) return fun;
@@ -169,7 +170,7 @@ Object gotGenericFunDef(T)(T fun, Namespace sup_override, ref string text, Parse
 
 Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto fun = new Function;
-  return gotGenericFunDef(fun, cast(Namespace) null, text, cont, rest);
+  return gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest);
 }
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 

@@ -7,7 +7,10 @@ class StructMemberCall : FunCall {
   Expr strct;
   mixin This!("strct");
   override void emitAsm(AsmFile af) {
-    callNested(af, fun.type.ret, params, fun.mangleSelf, strct);
+    // TODO: make temporary
+    auto lv = cast(LValue) strct;
+    assert(lv);
+    callNested(af, fun.type.ret, params, fun.mangleSelf, new RefExpr(lv));
   }
   override IType valueType() {
     return fun.type.ret;
@@ -16,7 +19,8 @@ class StructMemberCall : FunCall {
 
 class StructMemberFunction : Function, RelTransformable {
   Expr strct;
-  this() { }
+  Structure context;
+  this(Structure st) { context = st; }
   Object transform(Expr base) {
     assert(!strct || strct is base);
     strct = base;
@@ -36,7 +40,7 @@ class StructMemberFunction : Function, RelTransformable {
     }
     int fixup() {
       auto cur = super.fixup();
-      add(new Variable(Single!(Pointer, Single!(Void)), "__base_ptr", cur));
+      add(new Variable(new Pointer(context), "__base_ptr", cur));
       return cur + 4;
     }
     Object lookup(string name, bool local = false) {
@@ -44,17 +48,28 @@ class StructMemberFunction : Function, RelTransformable {
       if (res) return res;
       else if (local) return null;
       
-      auto strt = cast(Structure) strct.valueType();
-      if (!strt.lookup(name)) return null;
+      if (auto res = context.lookupRel(
+        name,
+        new DerefExpr(cast(Expr) lookup("__base_ptr", true))
+      ))
+        return res;
       
-      return cast(Object) mkMemberAccess(strct, name);
+      return null;
     }
   }
 }
 
+import ast.modules;
 Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
-  auto fun = new StructMemberFunction;
-  return gotGenericFunDef(fun, cast(Namespace) null, text, cont, rest);
+  auto sns = cast(Structure) namespace();
+  if (!sns)
+    throw new Exception(Format("Fail: namespace is ", namespace(), ". "));
+  auto fun = new StructMemberFunction(sns);
+  
+  if (auto res = gotGenericFunDef(fun, cast(Namespace) null, false, text, cont, rest)) {
+    namespace().get!(Module).entries ~= cast(Tree) res;
+    return res;
+  } else return null;
 }
 mixin DefaultParser!(gotStructFunDef, "struct_member.struct_fundef");
 
@@ -63,6 +78,7 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
   return lhs_partial.using = delegate Object(Expr ex) {
+    logln("match a struct fun @", t2.next_text());
     auto strtype = cast(Structure) ex.valueType();
     if (!strtype) return null;
     string member;
@@ -72,6 +88,7 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
       logln("Got a struct fun? ", mvar);
       auto smf = cast(StructMemberFunction) mvar;
       if (!smf) return null;
+      text = t2;
       smf.strct = ex;
       return smf;
     } else return null;

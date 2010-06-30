@@ -20,8 +20,9 @@ class Namespace {
   }
   void add(Named n) {
     auto name = n.getIdentifier();
-    if (lookup(name))
+    if (lookup(name, true)) {
       throw new Exception(Format(name, " already defined in ", this, ": ", lookup(name)));
+    }
     if (auto ns = cast(Namespace) n)
       ns.sup = this;
     field ~= stuple(name, cast(Object) n);
@@ -31,7 +32,7 @@ class Namespace {
   Object lookup(string name, bool local = false) {
     foreach (entry; field)
       if (entry._0 == name) return entry._1;
-    if (sup) return sup.lookup(name, local);
+    if (!local && sup) return sup.lookup(name, local);
     return null;
   }
   abstract string mangle(string name, IType type);

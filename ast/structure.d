@@ -58,16 +58,6 @@ class Structure : Namespace, IType, Named {
       return cast(Object) rt.transform(base);
     return res;
   }
-  override Object lookup(string str, bool local = false) {
-    auto res = super.lookup(str, local);
-    if (cast(RelTransformable) res) {
-      asm { int 3; }
-      throw new Exception(Format(
-        "Please use the rel-transformable lookup path for ", str, " => ", res, "!"
-      ));
-    }
-    return res;
-  }
   string toString() {
     auto res = super.toString() ~ " { ";
     select((string, StructMember member) { res ~= Format(member.name, ": ", member.type, "; "); });
@@ -90,17 +80,27 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
     scope(exit) namespace.set(backup);
     
     Named smem;
+    string t3;
+    string[] names; IType[] types;
     if (
       t2.many(
-        test(strtype = cast(IType) rest(t2, "type")) &&
-        t2.bjoin(
+        (t3 = t2, true)
+        && rest(t2, "struct_member", &smem)
+        && (st.add(smem), true)
+        ||
+        (t2 = t3, true)
+        && test(strtype = cast(IType) rest(t2, "type"))
+        && t2.bjoin(
           t2.gotIdentifier(strname),
           t2.accept(","),
-          { auto sm = new StructMember(strname, strtype, st); }
+          { names ~= strname; types ~= strtype; }
         ) && t2.accept(";")
-        ||
-        rest(t2, "struct_member", &smem)
-        && (st.add(smem), true)
+        && {
+          foreach (i, strname; names)
+            new StructMember(strname, types[i], st);
+          names = null; types = null;
+          return true;
+        }()
       ) && t2.accept("}")
     )
     {

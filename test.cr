@@ -45,6 +45,14 @@ struct Z {
 
 Z ztest() { Z z; z.i = 5; return z; }
 
+struct W {
+  int i;
+  int test2(int k) { return i + k; }
+  void test() {
+    printf("Hello W; i = %i, i + 3 = %i\n", i, test2(3));
+  }
+}
+
 void main() {
   /*A a = new A;
   a.x = 5;
@@ -85,4 +93,8 @@ void main() {
   printf("nest test: %i. \n", nest_test);
   int function(int, int x) fp = &s;
   printf("s test %i\n", fp(4, 5));
+  W w;
+  w.i = 5;
+  w.test();
+  printf("And done. \n");
 }

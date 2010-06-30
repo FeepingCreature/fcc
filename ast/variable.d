@@ -22,8 +22,10 @@ class Variable : LValue, Named {
   Expr initval;
   void initInit() {
     if (initval) return;
-    if (auto field = type.initval())
-      initval = new ReinterpretCast!(Expr) (valueType(), new DataExpr(field));
+    else initval = new ReinterpretCast!(Expr) (
+      valueType(),
+      new DataExpr(type.initval())
+    );
   }
   this() { }
   this(IType t, string s, int i) {
