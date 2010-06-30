@@ -32,4 +32,11 @@ link: msg $(OBJECTS)
 	@echo -n $<\ 
 	@gdc $(DFLAGS) $< -c -o $@
 ') > Makefile
-make
+make || (
+	OBJS=""
+	make 2>&1 |(grep -B1 "undefined reference" || exit) \
+	|head -n 1 |sed -e "s@:.*@@" |(grep "\\.o$" || exit) \
+	|while read OBJ; do OBJS="$OBJS,$OBJ"; rm "$OBJ"; done
+	echo "Remove $OBJS; retry"
+	$0 $@
+)
