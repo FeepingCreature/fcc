@@ -60,27 +60,44 @@ class Compare : Cond {
       }
       auto s = smaller, e = equal, g = greater;
       if (!cond) { // negate
-        swap(s, g);
+        s = !s; e = !e; g = !g; // TODO: validate
+        /*swap(s, g);
         if (s + g == 1)
-          e = !e;
+          e = !e;*/
       }
       af.jumpOn(s, e, g, dest);
     }
   }
 }
 
+Object gotIntExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr res;
+  Expr[] exs;
+  if (auto res = rest(text, "tree.expr", &res, (Expr ex) {
+    exs ~= ex;
+    return ex.valueType().size() == 4;
+  }))
+    return res;
+  else {
+    error = Format("Neither of those was int sized: ", exs, " at ", text.next_text());
+    logln(error);
+    return null;
+  }
+}
+mixin DefaultParser!(gotIntExpr, "tree.int_expr");
+
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool not, smaller, equal, greater;
   Expr ex1, ex2;
-  if (rest(t2, "tree.expr", &ex1) &&
+  if (rest(t2, "tree.int_expr", &ex1) &&
       (
         (t2.accept("!") && (not = true)),
         (t2.accept("<") && (smaller = true)),
         (t2.accept(">") && (greater = true)),
         ((not || smaller || t2.accept("=")) && t2.accept("=") && (equal = true)),
         (smaller || equal || greater)
-      ) && rest(t2, "tree.expr", &ex2)
+      ) && rest(t2, "tree.int_expr", &ex2)
   ) {
     text = t2;
     return new Compare(ex1, not, smaller, equal, greater, ex2);

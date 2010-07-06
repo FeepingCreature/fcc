@@ -49,10 +49,13 @@ void eatComments(ref string s) {
 
 bool accept(ref string s, string t) {
   auto s2 = s.strip();
+  bool sep = t.length && t[$-1] == ' ';
   t = t.strip();
   s2.eatComments();
   // logln("accept ", t, " from ", s2.next_text(), "? ", !!s2.startsWith(t));
-  return s2.startsWith(t) && (s = s2[t.length .. $], true);
+  return s2.startsWith(t) && (s = s2[t.length .. $], true) && (
+    !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
+  );
 }
 
 bool mustAccept(ref string s, string t, string err) {

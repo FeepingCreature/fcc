@@ -67,6 +67,25 @@ void setupSysmods() {
   }
 }
 
+Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("extern(C)")) return null;
+  auto fun = new Function;
+  fun.extern_c = true;
+  New(fun.type);
+  if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
+      t2.gotIdentifier(fun.name) &&
+      t2.gotParlist(fun.type.params, rest) &&
+      t2.accept(";")
+    )
+  {
+    text = t2;
+    namespace().add(fun);
+    return Single!(NoOp);
+  } else assert(false);
+}
+mixin DefaultParser!(gotExtern, "tree.toplevel.extern_c");
+
 Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   string m;
   // import a, b, c;

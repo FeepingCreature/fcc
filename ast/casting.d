@@ -34,3 +34,60 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   return new ReinterpretCast!(Expr)(dest, ex);
 }
 mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "7");
+
+class ShortToIntCast : Expr {
+  Expr sh;
+  this(Expr sh) { this.sh = sh; }
+  mixin defaultIterate!();
+  override {
+    IType valueType() { return Single!(SysInt); }
+    void emitAsm(AsmFile af) {
+      sh.emitAsm(af);
+      af.comment("short to int cast");
+      af.put("xorl %eax, %eax");
+      af.popStack("%ax", sh.valueType());
+      af.pushStack("%eax", valueType());
+    }
+  }
+}
+
+class CharToShortCast : Expr {
+  Expr sh;
+  this(Expr sh) { this.sh = sh; }
+  mixin defaultIterate!();
+  override {
+    IType valueType() { return Single!(Short); }
+    void emitAsm(AsmFile af) {
+      sh.emitAsm(af);
+      // lol.
+      af.comment("byte to short cast lol");
+      af.popStack("%ax", sh.valueType());
+      af.pushStack("%ax", valueType());
+    }
+  }
+}
+
+Object gotCharToShortExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  auto t2 = text;
+  if (!rest(t2, "tree.expr ^selfrule", &ex, (Expr ex) {
+    return ex.valueType().size() == 1;
+  }))
+    return null;
+  text = t2;
+  return new CharToShortCast(ex);
+}
+mixin DefaultParser!(gotCharToShortExpr, "tree.expr.char_to_short", "951");
+
+import tools.log;
+Object gotShortToIntExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  auto t2 = text;
+  if (!rest(t2, "tree.expr ^selfrule", &ex, (Expr ex) {
+    return ex.valueType().size() == 2;
+  }))
+    return null;
+  text = t2;
+  return new ShortToIntCast(ex);
+}
+mixin DefaultParser!(gotShortToIntExpr, "tree.expr.short_to_int", "952");

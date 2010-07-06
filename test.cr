@@ -53,6 +53,39 @@ struct W {
   }
 }
 
+extern(C) void* malloc(int);
+extern(C) int SDL_Init(int);
+struct SDL_Surface {
+  int flags;
+  void* format;
+  int w, h;
+  short pitch, alignfill;
+  int* pixels;
+}
+struct SDL_Event {
+  char type;
+  int[64] filler;
+}
+extern(C) SDL_Surface* SDL_SetVideoMode(int width, int height, int bpp, int flags);
+extern(C) int SDL_Flip(SDL_Surface*);
+extern(C) int usleep(int secs);
+extern(C) int SDL_WaitEvent(SDL_Event*);
+extern(C) int SDL_PollEvent(SDL_Event*);
+extern(C) int rand();
+void sdlfun() {
+  SDL_Init(32); // video
+  SDL_Surface* surface = SDL_SetVideoMode(640, 480, 32, 0);
+  for (int k = 0; k < (*surface).h; ++k)
+    for (int i = 0; i < (*surface).w; ++i)
+      (*surface).pixels[k * (*surface).w + i] = rand();
+  SDL_Flip(surface);
+  SDL_Event ev;
+  printf("Event loop! \n");
+  while 1 if SDL_PollEvent(&ev)
+    if ev.type == 12 return; // QUIT
+    else SDL_WaitEvent(cast(SDL_Event*) 0);
+}
+
 void main() {
   /*A a = new A;
   a.x = 5;
@@ -97,4 +130,5 @@ void main() {
   w.i = 5;
   w.test();
   printf("And done. \n");
+  sdlfun();
 }

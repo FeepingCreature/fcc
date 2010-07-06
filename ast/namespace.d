@@ -39,8 +39,9 @@ class Namespace {
   typeof(field) getCheckpt() { return field; }
   void setCheckpt(typeof(field) field) { this.field = field.dup; /* prevent clobbering */ }
   Object lookup(string name, bool local = false) {
-    foreach (entry; field)
+    foreach (entry; field) {
       if (entry._0 == name) return entry._1;
+    }
     if (!local && sup) return sup.lookup(name, local);
     return null;
   }
@@ -64,6 +65,8 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
     if (auto res = namespace().lookup(name)) {
       if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
       return res;
+    } else {
+      logln("No ", name, " in ", namespace());
     }
     if (name.rfind(".") != -1) {
       name = name[0 .. name.rfind(".")]; // chop up what _may_ be members!

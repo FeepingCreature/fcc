@@ -13,6 +13,7 @@ class AsmFile {
   int currentStackDepth;
   void pushStack(string expr, IType type) {
     currentStackDepth += type.size;
+    if (type.size == 1) currentStackDepth ++;
     Transaction t;
     t.kind = Transaction.Kind.Push;
     t.source = expr;
@@ -21,6 +22,7 @@ class AsmFile {
   }
   void popStack(string dest, IType type) {
     currentStackDepth -= type.size;
+    if (type.size == 1) currentStackDepth --;
     Transaction t;
     t.kind = Transaction.Kind.Pop;
     t.dest = dest;
@@ -52,6 +54,12 @@ class AsmFile {
   void mmove2(string from, string to) {
     Transaction t;
     t.kind = Transaction.Kind.Mov2;
+    t.from = from; t.to = to;
+    cache ~= t;
+  }
+  void mmove1(string from, string to) {
+    Transaction t;
+    t.kind = Transaction.Kind.Mov1;
     t.from = from; t.to = to;
     cache ~= t;
   }
@@ -92,7 +100,9 @@ class AsmFile {
           (("$cond"[2] == 't') == greater)
         ) { put("$instruction".replace("dest", label)); return; }
     `));
-    throw new Exception("Impossibility yay");
+    throw new Exception(Format(
+      "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
+    ));
   }
   void mathOp(string which, string op1, string op2) {
     Transaction t;

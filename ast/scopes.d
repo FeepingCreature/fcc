@@ -11,7 +11,6 @@ class Scope : Namespace, Tree {
   string exit() { return Format(fun.mangleSelf(), "_exit", id); }
   string toString() { return Format("scope <- ", sup); }
   this() { id = getuid(); }
-  import tools.log;
   int framesize() {
     // TODO: alignment
     int res;
@@ -38,7 +37,8 @@ class Scope : Namespace, Tree {
     }
     Object lookup(string name, bool local = false) {
       auto res = super.lookup(name, local);
-      if (!res || cast(Scope) sup)
+      // TODO: &&? ||? WHO KNOWS =D
+      if (!res && cast(Scope) sup)
         res = sup.lookup(name, local);
       return res;
     }

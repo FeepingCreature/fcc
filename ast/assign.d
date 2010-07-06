@@ -21,9 +21,6 @@ class Assignment : Statement {
     target.emitLocation(af);
     af.popStack("%eax", new Pointer(target.valueType()));
     
-    auto size = value.valueType().size;
-    assert(0 == (size % 4));
-    
     af.popStack("(%eax)", value.valueType());
   }
 }

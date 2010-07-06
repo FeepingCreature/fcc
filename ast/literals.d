@@ -64,6 +64,8 @@ Object gotCValueAsPointer(ref string st, ParseCb cont, ParseCb rest) {
   CValue cv;
   if (!rest(st, "tree.expr ^selfrule", &cv))
     return null;
+  if (!cast(StaticArray) cv.valueType())
+    return null;
   return new CValueAsPointer(cv);
 }
 mixin DefaultParser!(gotCValueAsPointer, "tree.expr.cv_as_ptr", "908");

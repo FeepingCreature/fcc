@@ -9,7 +9,7 @@ import
   ast.aggregate, ast.returns, ast.ifstmt, ast.loops, ast.assign,
   ast.structure, ast.variable, ast.fun, ast.unary,
   ast.arrays, ast.index, ast.slice, ast.nestfun,
-  ast.structfuns;
+  ast.structfuns, ast.type_of;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;

@@ -10,16 +10,61 @@ bool isRelative(string reg) {
   return reg.find("(") != -1;
 }
 
+enum RegState {
+  Undefined, Value, Relation, Deref, IndexDeref
+}
+
+// delta state optimizer
+struct Register {
+  string name;
+  RegState state;
+    Register* src;
+    union { int offset, value; }
+  bool scrap;
+  string dependsOnMe; // target for my computation
+  void flush(void delegate(string) dg) {
+    switch (state) {
+      case RegState.Undefined: break;
+      case RegState.Value: dg(Format("movl $", value, ", %", name)); break;
+      case RegState.Relation:
+        src.flush(dg);
+        dg(Format("movl %", src.name, ", %", name));
+        break;
+      case RegState.Deref:
+        
+        
+    }
+  }
+}
+
+/*
+// wip
+class x86 {
+  Register[5] regs;
+  Register[] stackframe;
+  this() {
+    reg[0].name = "eax";
+    reg[1].name = "ebx";
+    reg[2].name = "ecx";
+    reg[3].name = "edx";
+    reg[4].name = "esp";
+  }
+  void execute(Transaction t) {
+  }
+}
+*/
+
 import parseBase; // int parsing
 struct Transaction {
   enum Kind {
-    Mov, Mov2, SAlloc, SFree, MathOp, Push, Pop, Compare
+    Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare
   }
   Kind kind;
   string toString() {
     switch (kind) {
       case Kind.Mov:     return Format("[movl ", from, " -> ", to, "]");
       case Kind.Mov2:    return Format("[movw ", from, " -> ", to, "]");
+      case Kind.Mov1:    return Format("[movb ", from, " -> ", to, "]");
       case Kind.SAlloc:  return Format("[salloc ", size, "]");
       case Kind.SFree:   return Format("[sfree ", size, "]");
       case Kind.MathOp:  return Format("[math:", opName, " ", op1, ", ", op2, "]");
@@ -45,6 +90,13 @@ struct Transaction {
           return Format("movw ", from, ", ", usableScratch, "\nmovw ", usableScratch, ", ", to);
         } else {
           return Format("movw ", from, ", ", to);
+        }
+      case Kind.Mov1:
+        if (from.isRelative() && to.isRelative()) {
+          assert(usableScratch, "Cannot do relative memmove without scratch register! ");
+          return Format("movb ", from, ", ", usableScratch, "\nmovw ", usableScratch, ", ", to);
+        } else {
+          return Format("movb ", from, ", ", to);
         }
       case Kind.SAlloc:
           if (!size) return null;
@@ -96,7 +148,9 @@ struct Transaction {
             int num; string ident, reg;
             if (null !is (reg = op.matchRegister())) {
               auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
-              if (size != regsize) throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
+              if (type.size == 1) {
+              } else if (size != regsize)
+                throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
             }
             else if (kind == Kind.Push && op.gotLiteral(num, ident)) {
               if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
@@ -112,7 +166,7 @@ struct Transaction {
         // doOp(8, "r");
         doOp(4, "l");
         doOp(2, "w");
-        doOp(1, "b");
+        doOp(1, "w"); // push wide as well.
         return res;
       case Kind.Compare:
         if (test) return Format("testl ", op1, ", ", op2);

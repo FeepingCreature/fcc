@@ -27,12 +27,18 @@ class IfStatement : Statement {
 Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, t3;
   IfStatement ifs;
-  if (t2.accept("if ") && (New(ifs), true) &&
-      rest(t2, "cond", &ifs.test) && rest(t2, "tree.scope", &ifs.branch1) && (
-        ((t3 = t2, true) && t3.accept("else") && rest(t3, "tree.scope", &ifs.branch2) && (t2 = t3, true))
-        || true
-      )
-    ) { text = t2; return ifs; }
-  else return null;
+  if (t2.accept("if ")) {
+    New(ifs);
+    if (!rest(t2, "cond", &ifs.test))
+      throw new Exception("Couldn't get if condition at "~t2.next_text());
+    if (!rest(t2, "tree.scope", &ifs.branch1))
+      throw new Exception("Couldn't get if branch1 at "~t2.next_text());
+    if (t2.accept("else")) {
+      if (!rest(t2, "tree.scope", &ifs.branch2))
+        throw new Exception("Couldn't get if branch2 at "~t2.next_text());
+    }
+    text = t2;
+    return ifs;
+  } else return null;
 }
 mixin DefaultParser!(gotIfStmt, "tree.stmt.if");

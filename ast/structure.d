@@ -132,17 +132,29 @@ class MemberAccess(T) : T {
       return Format("(", base, ").", name);
     }
     IType valueType() { return stm.type; }
+    import tools.base;
     void emitAsm(AsmFile af) {
       auto st = cast(Structure) base.valueType();
       static if (is(T: LValue)) {
-        assert(stm.type.size == 4);
+        assert(stm.type.size == 4 /or/ 2 /or/ 1);
         af.comment("emit location of ", base, " for member access");
         base.emitLocation(af);
         af.comment("pop and dereference");
         af.popStack("%eax", new Pointer(st));
-        af.mmove4(Format(stm.offset, "(%eax)"), "%eax");
-        af.comment("push back");
-        af.pushStack("%eax", stm.type);
+        string reg;
+        if (stm.type.size == 4) {
+          reg = "%eax";
+          af.mmove4(Format(stm.offset, "(%eax)"), reg);
+        } else if (stm.type.size == 2) {
+          reg = "%ax";
+          af.mmove2(Format(stm.offset, "(%eax)"), reg);
+        } else {
+          reg = "%bx";
+          af.put("xorw %bx, %bx");
+          af.mmove1(Format(stm.offset, "(%eax)"), "%bl");
+        }
+        af.comment("push back ", reg);
+        af.pushStack(reg, stm.type);
       } else {
         assert(stm.type.size == 4);
         af.comment("emit struct ", base, " for member access");

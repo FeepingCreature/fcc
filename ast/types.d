@@ -60,6 +60,11 @@ class SizeT : Type {
   override string mangle() { return "size_t"; }
 }
 
+class Short : Type {
+  override int size() { return 2; }
+  override string mangle() { return "short"; }
+}
+
 class SysInt : Type {
   override int size() { return nativeIntSize; }
   override string mangle() { return "sys_int"; }
@@ -70,6 +75,7 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   if (text.accept("void")) return Single!(Void);
   if (text.accept("size_t")) return Single!(SizeT);
   if (text.accept("int")) return Single!(SysInt);
+  if (text.accept("short")) return Single!(Short);
   if (text.accept("char")) return Single!(Char);
   return null;
 }
