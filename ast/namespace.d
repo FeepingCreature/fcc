@@ -18,8 +18,17 @@ class Namespace {
       if (auto t = cast(T) entry._1)
         dg(entry._0, t);
   }
-  void add(Named n) {
-    auto name = n.getIdentifier();
+  void add(T...)(T t) {
+    static if (T.length == 1) {
+      alias t[0] n;
+      static assert(is(typeof(n.getIdentifier()): string),
+        T[0].stringof~" not named identifier and no name given. ");
+      string name = n.getIdentifier();
+    } else static if (T.length == 2) {
+      alias t[1] n;
+      string name = t[0];
+    } else static assert(false, "wtfux");
+    
     if (lookup(name, true)) {
       throw new Exception(Format(name, " already defined in ", this, ": ", lookup(name)));
     }
@@ -63,4 +72,31 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
     error = "unknown identifier "~name;
   }
   return null;
+}
+
+class MiniNamespace : Namespace {
+  string id;
+  this(string id) { this.id = id; }
+  override string mangle(string name, IType type) {
+    return id~"_"~name~"_of_"~type.mangle();
+  }
+  override Stuple!(IType, string, int)[] stackframe() {
+    assert(false); // wtfux.
+  }
+}
+
+// internal miniparse wrapper
+template iparse(R, string id, string rule) {
+  R iparse(T...)(string text, T t) {
+    static assert(T.length % 2 == 0);
+    auto myns = new MiniNamespace(id);
+    // compile-time for loop LALZ
+    foreach (i, bogus; T[0 .. $/2]) {
+      myns.add(t[i*2], t[i*2+1]);
+    }
+    auto backup = namespace();
+    namespace.set(myns);
+    scope(exit) namespace.set(backup);
+    return cast(R) parsecon.parse(text, rule);
+  }
 }

@@ -46,6 +46,21 @@ Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length");
 
+import ast.parse, ast.int_literal, ast.pointer;
+Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
+  return lhs_partial.using = delegate Object(Expr ex) {
+    if (auto sa = cast(StaticArray) ex.valueType()) {
+      if (!text.accept(".ptr")) return null;
+      auto cv = cast(CValue) ex;
+      if (!cv) throw new Exception(
+        Format("Tried to reference non-lvalue: ", ex)
+      );
+      return new RefExpr(cv);
+    } else return null;
+  };
+}
+mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr");
+
 // static array literal
 class DataExpr : Expr {
   ubyte[] data;

@@ -125,10 +125,12 @@ class NestFunRefExpr : Expr {
     }
     void emitAsm(AsmFile af) {
       mkVar(af, dgAsStructType(cast(Delegate) valueType()), true, (Variable var) {
-        (new Assignment((new MemberAccess_LValue(var, "fun")),
-          new Constant(fun.mangleSelf()))).emitAsm(af);
-        (new Assignment((new MemberAccess_LValue(var, "data")),
-          new Register!("ebp"), true)).emitAsm(af);
+        iparse!(Statement, "_nestfun_ref", "tree.stmt")
+        ("{ var.fun = cons; var.data = cast(typeof(var.data)) base; }",
+          "var", var,
+          "cons", new Constant(fun.mangleSelf()),
+          "base", new Register!("ebp")
+        ).emitAsm(af);
       });
     }
   }

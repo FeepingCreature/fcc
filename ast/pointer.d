@@ -29,6 +29,9 @@ class RefExpr : Expr {
     void emitAsm(AsmFile af) {
       src.emitLocation(af);
     }
+    string toString() {
+      return Format("&", src);
+    }
   }
 }
 

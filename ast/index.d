@@ -1,6 +1,7 @@
 module ast.index;
 
-import ast.parse, ast.base, ast.math, ast.pointer, ast.casting, ast.static_arrays;
+import ast.parse, ast.base, ast.math, ast.pointer, ast.casting,
+  ast.static_arrays, ast.namespace;
 
 class SA_Access(T) : T {
   T array; Expr pos;
@@ -14,8 +15,11 @@ class SA_Access(T) : T {
       void emitAsm(AsmFile af) {
         (new DerefExpr(new RefExpr(this))).emitAsm(af);
       }
+      import tools.log;
       void emitLocation(AsmFile af) {
-        (new AddExpr(new ReinterpretCast!(Expr) (new Pointer((cast(StaticArray) array.valueType()).elemType), new RefExpr(cast(LValue) array)), pos)).emitAsm(af);
+        iparse!(Expr, "_static_array_location", "tree.expr")
+        ("array.ptr + pos", "array", array, "pos", pos)
+        .emitAsm(af);
       }
     }
   }
