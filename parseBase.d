@@ -379,6 +379,7 @@ class ParseContext {
       bool delegate(Object) accept) {
     return parse(text, cond, 0, accept);
   }
+  string condStr;
   Object parse(ref string text, bool delegate(string) cond,
       int offs = 0, bool delegate(Object) accept = null) {
     resort;
@@ -424,12 +425,18 @@ class ParseContext {
       }
     }
     // okay to not match anything if we're just continuing
-    if (!offs && !matched) throw new Exception(Format(
-      "Found no patterns to match condition after ", offs
-    ));
+    if (!offs && !matched)
+      if (condStr) throw new Exception(Format(
+        "Found no patterns to match condition \"", condStr, "\" after ", offs
+      ));
+      else throw new Exception(Format(
+        "Found no patterns to match condition after ", offs
+      ));
     return null;
   }
   Object parse(ref string text, string cond) {
+    condStr = cond;
+    scope(exit) condStr = null;
     try return parse(text, matchrule=cond);
     catch (Exception ex) throw new Exception(Format("Matching rule '"~cond~"': ", ex));
   }
