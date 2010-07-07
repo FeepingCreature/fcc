@@ -15,6 +15,23 @@ interface RelTransformable {
   Object transform(Expr base);
 }
 
+// next power of two
+int np2(int i) {
+  int p = 1;
+  while (p < i) p *= 2;
+  return p;
+}
+
+int roundTo(int i, int to) {
+  auto i2 = (i / to) * to;
+  if (i2 != i) return i2 + to;
+  else return i;
+}
+
+void doAlign(ref int offset, IType type) {
+  offset = roundTo(offset, np2(type.size()));
+}
+
 import tools.log;
 class StructMember : Named, RelTransformable {
   string name;
@@ -29,6 +46,8 @@ class StructMember : Named, RelTransformable {
     this.name = name;
     this.type = type;
     offset = strct.size();
+    // alignment
+    doAlign(offset, type);
     strct.add(this);
   }
 }
@@ -38,7 +57,10 @@ class Structure : Namespace, IType, Named {
   string name;
   int size() {
     int res;
-    select((string, StructMember member) { res += member.type.size; });
+    select((string, StructMember member) {
+      auto end = member.offset + member.type.size;
+      if (end > res) res = end;
+    });
     return res;
   }
   this(string name) {

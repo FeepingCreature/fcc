@@ -59,7 +59,7 @@ struct SDL_Surface {
   int flags;
   void* format;
   int w, h;
-  short pitch, alignfill;
+  short pitch;
   int* pixels;
 }
 struct SDL_Event {
@@ -81,9 +81,10 @@ void sdlfun() {
   SDL_Flip(surface);
   SDL_Event ev;
   printf("Event loop! \n");
-  while 1 if SDL_PollEvent(&ev)
+  while SDL_WaitEvent(cast(SDL_Event*) 0) {
+    SDL_PollEvent(&ev);
     if ev.type == 12 return; // QUIT
-    else SDL_WaitEvent(cast(SDL_Event*) 0);
+  }
 }
 
 void main() {
