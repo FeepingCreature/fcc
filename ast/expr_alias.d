@@ -3,11 +3,10 @@ module ast.expr_alias;
 import ast.base, ast.parse, ast.structure, ast.namespace,
   tools.base: This, This_fn, rmSpace;
 
-class ExprAlias : Expr, RelTransformable, Named {
+class ExprAlias : RelTransformable, Named {
   Expr base;
   string name;
   mixin This!("base, name");
-  mixin defaultIterate!(base);
   override {
     string getIdentifier() { return name; }
     Object transform(Expr relbase) {
@@ -20,15 +19,11 @@ class ExprAlias : Expr, RelTransformable, Named {
       auto it = cast(Iterable) base;
       dg(it);
       it.iterate(dg);
-      logln("transform ", name, " with ", base, ": ", it);
       return cast(Object) it;
     }
     string toString() {
       return Format("alias ", base, " ", name);
     }
-    IType valueType() { return base.valueType(); }
-    import tools.base;
-    void emitAsm(AsmFile af) { assert(false); }
   }
 }
 
