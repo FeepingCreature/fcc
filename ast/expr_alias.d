@@ -53,8 +53,9 @@ Object gotExprAlias(ref string text, ParseCb cont, ParseCb rest) {
     Expr ex;
     string id;
     
-    if (!(rest(t2, "tree.expr", &ex) &&
-          t2.gotIdentifier(id) &&
+    if (!(t2.gotIdentifier(id) &&
+          t2.accept("=") &&
+          rest(t2, "tree.expr", &ex) &&
           t2.accept(";"))) {
       throw new Exception("Couldn't parse expr alias at "~t2.next_text());
     }

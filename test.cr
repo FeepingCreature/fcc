@@ -27,7 +27,7 @@ int acker(int m, int n) {
 struct X {
   int a, b;
   int c;
-  alias a+b*c foo;
+  alias foo = a+b*c;
 }
 
 struct Y {
