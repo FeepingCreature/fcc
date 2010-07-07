@@ -149,9 +149,9 @@ class MemberAccess(T) : T {
           reg = "%ax";
           af.mmove2(Format(stm.offset, "(%eax)"), reg);
         } else {
-          reg = "%bx";
+          reg = "%bl";
           af.put("xorw %bx, %bx");
-          af.mmove1(Format(stm.offset, "(%eax)"), "%bl");
+          af.mmove1(Format(stm.offset, "(%eax)"), reg);
         }
         af.comment("push back ", reg);
         af.pushStack(reg, stm.type);

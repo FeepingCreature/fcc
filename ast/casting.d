@@ -61,7 +61,8 @@ class CharToShortCast : Expr {
       sh.emitAsm(af);
       // lol.
       af.comment("byte to short cast lol");
-      af.popStack("%ax", sh.valueType());
+      af.put("xorw %ax, %ax");
+      af.popStack("%al", sh.valueType());
       af.pushStack("%ax", valueType());
     }
   }

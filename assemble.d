@@ -143,13 +143,27 @@ struct Transaction {
                 op = Format(first_offs + size - sz, "(%", reg, ")");
                 m_offs_push = true;
               }
-            addLine(Format(mnemo, pf, " ", op));
+            if (sz == 1) { // not supported in hardware
+              // hackaround
+              addLine("pushw %bx");
+              if (kind == Kind.Push) {
+                addLine("movb "~op~", %bl");
+                addLine("decl %esp");
+                addLine("movb %bl, (%esp)");
+              } else {
+                addLine("movb (%esp), %bl");
+                addLine("incl %esp");
+                addLine("movb %bl, "~op);
+              }
+              addLine("popw %bx");
+            } else {
+              addLine(Format(mnemo, pf, " ", op));
+            }
             auto s2 = op;
             int num; string ident, reg;
             if (null !is (reg = op.matchRegister())) {
               auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
-              if (type.size == 1) {
-              } else if (size != regsize)
+              if (size != regsize)
                 throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
             }
             else if (kind == Kind.Push && op.gotLiteral(num, ident)) {
@@ -166,7 +180,7 @@ struct Transaction {
         // doOp(8, "r");
         doOp(4, "l");
         doOp(2, "w");
-        doOp(1, "w"); // push wide as well.
+        doOp(1, "b");
         return res;
       case Kind.Compare:
         if (test) return Format("testl ", op1, ", ", op2);
