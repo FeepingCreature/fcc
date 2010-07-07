@@ -3,8 +3,8 @@ module ast.expr_alias;
 import ast.base, ast.parse, ast.structure, ast.namespace,
   tools.base: This, This_fn, rmSpace;
 
-class ExprAlias(T) : T, RelTransformable, Named {
-  T base;
+class ExprAlias : Expr, RelTransformable, Named {
+  Expr base;
   string name;
   mixin This!("base, name");
   mixin defaultIterate!(base);
@@ -28,22 +28,8 @@ class ExprAlias(T) : T, RelTransformable, Named {
     }
     IType valueType() { return base.valueType(); }
     import tools.base;
-    void emitAsm(AsmFile af) {
-      base.emitAsm(af);
-    }
-    static if (is(T: LValue)) {
-      void emitLocation(AsmFile af) {
-        base.emitLocation(af);
-      }
-    }
+    void emitAsm(AsmFile af) { assert(false); }
   }
-}
-
-Object mkExprAlias(Expr ex, string id) {
-  if (auto lv = cast(LValue) ex)
-    return new ExprAlias!(LValue)(lv, id);
-  else
-    return new ExprAlias!(Expr)(ex, id);
 }
 
 import ast.modules;
@@ -61,7 +47,7 @@ Object gotExprAlias(ref string text, ParseCb cont, ParseCb rest) {
     }
     
     text = t2;
-    return mkExprAlias(ex, id);
+    return new ExprAlias(ex, id);
   } else return null;
 }
 mixin DefaultParser!(gotExprAlias, "struct_member.struct_expr_alias");
