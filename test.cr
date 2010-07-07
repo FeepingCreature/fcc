@@ -27,6 +27,7 @@ int acker(int m, int n) {
 struct X {
   int a, b;
   int c;
+  alias a+b*c foo;
 }
 
 struct Y {
@@ -99,10 +100,11 @@ void main() {
   *ptr = 7;
   X x;
   x.a = 5; x.b = 6; x.c = 3;
+  printf("expression alias! %i\n", x.foo);
   Y y;
   y.x = x;
   y.x.c = 5;
-  printf("It's a %i! ", y.x.c);
+  printf("It's a %i! \n", y.x.c);
   printf("yo .. %i, %i, %i\n", x.a, x.b, x.c);
   printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&*&e);
   int m = 5;

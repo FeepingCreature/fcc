@@ -137,3 +137,8 @@ void withTLS(T, U, V)(T obj, U value, lazy V vee) {
   else static if (is(typeof(vee()))) vee();
   else static assert(false, "Can't call "~V.stringof);
 }
+
+/// can be transformed into an obj relative to a base
+interface RelTransformable {
+  Object transform(Expr base);
+}

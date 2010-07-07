@@ -10,11 +10,6 @@ int sum(S, T)(S s, T t) {
   return res;
 }
 
-/// can be transformed into an obj relative to a base
-interface RelTransformable {
-  Object transform(Expr base);
-}
-
 // next power of two
 int np2(int i) {
   int p = 1;
@@ -33,10 +28,15 @@ void doAlign(ref int offset, IType type) {
 }
 
 import tools.log;
-class StructMember : Named, RelTransformable {
+class StructMember : Expr, Named, RelTransformable {
   string name;
   IType type;
   int offset;
+  override IType valueType() { return type; }
+  override void emitAsm(AsmFile af) {
+    assert(false, "Struct member untransformed: cannot emit. ");
+  }
+  mixin defaultIterate!();
   override string getIdentifier() { return name; }
   override Object transform(Expr base) {
     return cast(Object) mkMemberAccess(base, name);
@@ -158,7 +158,8 @@ class MemberAccess(T) : T {
     void emitAsm(AsmFile af) {
       auto st = cast(Structure) base.valueType();
       static if (is(T: LValue)) {
-        assert(stm.type.size == 4 /or/ 2 /or/ 1);
+        assert(stm.type.size == 4 /or/ 2 /or/ 1,
+          Format("Invalid struct member type: ", stm.type));
         af.comment("emit location of ", base, " for member access");
         base.emitLocation(af);
         af.comment("pop and dereference");
