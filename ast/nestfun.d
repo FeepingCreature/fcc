@@ -159,9 +159,14 @@ class Delegate : Type {
 
 IType dgAsStructType(Delegate dgtype) {
   auto res = new Structure(null);
-  // TODO: Extend once function pointers are supported
-  new StructMember("fun", Single!(Pointer, Single!(Void)), res);
-  new StructMember("data", Single!(Pointer, Single!(Void)), res);
+  new RelMember("fun",
+    new FunctionPointer(
+      dgtype.ret,
+      dgtype.args ~ cast(IType) Single!(Pointer, Single!(Void))
+    ),
+    res
+  );
+  new RelMember("data", Single!(Pointer, Single!(Void)), res);
   return res;
 }
 

@@ -28,27 +28,26 @@ void doAlign(ref int offset, IType type) {
 }
 
 import tools.log;
-class StructMember : Expr, Named, RelTransformable {
+class RelMember : Expr, Named, RelTransformable {
   string name;
   IType type;
   int offset;
   override IType valueType() { return type; }
   override void emitAsm(AsmFile af) {
-    assert(false, "Struct member untransformed: cannot emit. ");
+    assert(false, "Rel member untransformed: cannot emit. ");
   }
   mixin defaultIterate!();
   override string getIdentifier() { return name; }
   override Object transform(Expr base) {
     return cast(Object) mkMemberAccess(base, name);
   }
-  this(string name, IType type, Structure strct) {
-    logln("struct member: ", name, " of ", type);
+  this(string name, IType type, Namespace ns) {
     this.name = name;
     this.type = type;
-    offset = strct.size();
+    offset = (cast(IType) ns).size();
     // alignment
     doAlign(offset, type);
-    strct.add(this);
+    ns.add(this);
   }
 }
 
@@ -57,7 +56,7 @@ class Structure : Namespace, IType, Named {
   string name;
   int size() {
     int res;
-    select((string, StructMember member) {
+    select((string, RelMember member) {
       auto end = member.offset + member.type.size;
       if (end > res) res = end;
     });
@@ -71,7 +70,7 @@ class Structure : Namespace, IType, Named {
   override string mangle(string name, IType type) { return "struct_"~name~"_"~type.mangle()~"_"~name; }
   override Stuple!(IType, string, int)[] stackframe() {
     Stuple!(IType, string, int)[] res;
-    select((string, StructMember member) { res ~= stuple(member.type, member.name, member.offset); });
+    select((string, RelMember member) { res ~= stuple(member.type, member.name, member.offset); });
     return res;
   }
   Object lookupRel(string str, Expr base) {
@@ -82,9 +81,42 @@ class Structure : Namespace, IType, Named {
   }
   string toString() {
     auto res = super.toString() ~ " { ";
-    select((string, StructMember member) { res ~= Format(member.name, ": ", member.type, "; "); });
+    select((string, RelMember member) { res ~= Format(member.name, ": ", member.type, "; "); });
     return res ~ " }";
   }
+}
+
+bool matchStructBody(ref string text, Namespace ns,
+                     ParseCb cont, ParseCb rest) {
+  auto backup = namespace();
+  namespace.set(ns);
+  scope(exit) namespace.set(backup);
+  
+  Named smem;
+  string t2;
+  string[] names; IType[] types;
+  string strname; IType strtype;
+  return (
+    text.many(
+      (t2 = text, true)
+      && rest(text, "struct_member", &smem)
+      && (ns.add(smem), true)
+      ||
+      (text = t2, true)
+      && test(strtype = cast(IType) rest(text, "type"))
+      && text.bjoin(
+        text.gotIdentifier(strname),
+        text.accept(","),
+        { names ~= strname; types ~= strtype; }
+      ) && text.accept(";")
+      && {
+        foreach (i, strname; names)
+          new RelMember(strname, types[i], ns);
+        names = null; types = null;
+        return true;
+      }()
+    )
+  );
 }
 
 Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
@@ -92,45 +124,18 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("struct ")) return null;
   string name;
   Structure st;
-  string strname; IType strtype;
   if (t2.gotIdentifier(name) && t2.accept("{")) {
+    logln("In a struct: ", name);
     New(st, name);
     st.sup = namespace();
-    
-    auto backup = namespace();
-    namespace.set(st);
-    scope(exit) namespace.set(backup);
-    
-    Named smem;
-    string t3;
-    string[] names; IType[] types;
-    if (
-      t2.many(
-        (t3 = t2, true)
-        && rest(t2, "struct_member", &smem)
-        && (st.add(smem), true)
-        ||
-        (t2 = t3, true)
-        && test(strtype = cast(IType) rest(t2, "type"))
-        && t2.bjoin(
-          t2.gotIdentifier(strname),
-          t2.accept(","),
-          { names ~= strname; types ~= strtype; }
-        ) && t2.accept(";")
-        && {
-          foreach (i, strname; names)
-            new StructMember(strname, types[i], st);
-          names = null; types = null;
-          return true;
-        }()
-      ) && t2.accept("}")
-    )
-    {
+    if (matchStructBody(t2, st, cont, rest)) {
+      if (!t2.accept("}"))
+        throw new Exception("Missing closing bracket at "~t2.next_text());
+      namespace().add(st);
       text = t2;
-      st.sup.add(st);
-      return Single!(NoOp);
+      return st;
     } else {
-      throw new Exception("Error matching struct definition at "~t2.next_text());
+      throw new Exception("Couldn't match structure body at "~t2.next_text());
     }
   } else return null;
 }
@@ -139,12 +144,12 @@ mixin DefaultParser!(gotStructDef, "tree.typedef.struct");
 import ast.pointer;
 class MemberAccess(T) : T {
   T base;
-  StructMember stm;
+  RelMember stm;
   string name;
   this(T t, string name) {
     base = t;
     this.name = name;
-    stm = cast(StructMember) (cast(Structure) base.valueType()).lookup(name);
+    stm = cast(RelMember) (cast(Namespace) base.valueType()).lookup(name);
     if (!stm) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
   }
   mixin defaultIterate!(base);

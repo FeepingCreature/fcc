@@ -10,7 +10,7 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   auto str = new Structure(null);
   auto cur = -1;
   foreach (member; frame) {
-    new StructMember(member._1, member._0, str);
+    new RelMember(member._1, member._0, str);
     if (cur == -1) cur = member._2;
     else assert(cur == member._2);
     cur += member._0.size;

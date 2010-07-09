@@ -18,8 +18,8 @@ IType arrayAsStruct(IType base) {
   auto res = new Structure(null);
   // TODO: fix when int promotion is supported
   // Structure.Member("length", Single!(SizeT)),
-  new StructMember("length", Single!(SysInt), res);
-  new StructMember("ptr", new Pointer(base), res);
+  new RelMember("length", Single!(SysInt), res);
+  new RelMember("ptr", new Pointer(base), res);
   return res;
 }
 

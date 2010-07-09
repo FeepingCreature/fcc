@@ -250,6 +250,10 @@ class FunctionPointer : Type {
   IType ret;
   IType[] args;
   this() { }
+  this(IType ret, IType[] args) {
+    this.ret = ret;
+    this.args = args.dup;
+  }
   this(Function fun) {
     ret = fun.type.ret;
     foreach (p; fun.type.params)
