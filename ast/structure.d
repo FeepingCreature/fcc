@@ -51,7 +51,7 @@ class RelMember : Expr, Named, RelTransformable {
   }
 }
 
-class Structure : Namespace, IType, Named {
+class Structure : Namespace, RelNamespace, IType, Named {
   mixin TypeDefaults!();
   string name;
   int size() {
@@ -66,23 +66,25 @@ class Structure : Namespace, IType, Named {
     this.name = name;
   }
   string mangle() { return "struct_"~name; }
-  override string getIdentifier() { return name; }
-  override string mangle(string name, IType type) { return "struct_"~name~"_"~type.mangle()~"_"~name; }
-  override Stuple!(IType, string, int)[] stackframe() {
-    Stuple!(IType, string, int)[] res;
-    select((string, RelMember member) { res ~= stuple(member.type, member.name, member.offset); });
-    return res;
-  }
-  Object lookupRel(string str, Expr base) {
-    auto res = super.lookup(str);
-    if (auto rt = cast(RelTransformable) res)
-      return cast(Object) rt.transform(base);
-    return res;
-  }
-  string toString() {
-    auto res = super.toString() ~ " { ";
-    select((string, RelMember member) { res ~= Format(member.name, ": ", member.type, "; "); });
-    return res ~ " }";
+  override {
+    string getIdentifier() { return name; }
+    string mangle(string name, IType type) { return "struct_"~name~"_"~type.mangle()~"_"~name; }
+    Stuple!(IType, string, int)[] stackframe() {
+      Stuple!(IType, string, int)[] res;
+      select((string, RelMember member) { res ~= stuple(member.type, member.name, member.offset); });
+      return res;
+    }
+    Object lookupRel(string str, Expr base) {
+      auto res = super.lookup(str);
+      if (auto rt = cast(RelTransformable) res)
+        return cast(Object) rt.transform(base);
+      return res;
+    }
+    string toString() {
+      auto res = super.toString() ~ " { ";
+      select((string, RelMember member) { res ~= Format(member.name, ": ", member.type, "; "); });
+      return res ~ " }";
+    }
   }
 }
 

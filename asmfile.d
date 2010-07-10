@@ -13,7 +13,6 @@ class AsmFile {
   int currentStackDepth;
   void pushStack(string expr, IType type) {
     currentStackDepth += type.size;
-    if (type.size == 1) currentStackDepth ++;
     Transaction t;
     t.kind = Transaction.Kind.Push;
     t.source = expr;
@@ -22,7 +21,6 @@ class AsmFile {
   }
   void popStack(string dest, IType type) {
     currentStackDepth -= type.size;
-    if (type.size == 1) currentStackDepth --;
     Transaction t;
     t.kind = Transaction.Kind.Pop;
     t.dest = dest;

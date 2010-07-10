@@ -18,6 +18,17 @@ class Namespace {
       if (auto t = cast(T) entry._1)
         dg(entry._0, t);
   }
+  void _add(string name, Object obj) {
+    if (lookup(name, true)) {
+      throw new Exception(Format(
+        name, " already defined in ",
+        this, ": ", lookup(name)
+      ));
+    }
+    if (auto ns = cast(Namespace) obj)
+      ns.sup = this;
+    field ~= stuple(name, obj);
+  }
   void add(T...)(T t) {
     static if (T.length == 1) {
       alias t[0] n;
@@ -28,13 +39,7 @@ class Namespace {
       alias t[1] n;
       string name = t[0];
     } else static assert(false, "wtfux");
-    
-    if (lookup(name, true)) {
-      throw new Exception(Format(name, " already defined in ", this, ": ", lookup(name)));
-    }
-    if (auto ns = cast(Namespace) n)
-      ns.sup = this;
-    field ~= stuple(name, cast(Object) n);
+    _add(name, cast(Object) n);
   }
   typeof(field) getCheckpt() { return field; }
   void setCheckpt(typeof(field) field) { this.field = field.dup; /* prevent clobbering */ }
@@ -47,6 +52,10 @@ class Namespace {
   }
   abstract string mangle(string name, IType type);
   abstract Stuple!(IType, string, int)[] stackframe();
+}
+
+interface RelNamespace {
+  Object lookupRel(string str, Expr base);
 }
 
 T lookup(T)(Namespace ns, string name) {
