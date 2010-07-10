@@ -126,7 +126,10 @@ class NestFunRefExpr : Expr {
     void emitAsm(AsmFile af) {
       mkVar(af, dgAsStructType(cast(Delegate) valueType()), true, (Variable var) {
         iparse!(Statement, "_nestfun_ref", "tree.stmt")
-        ("{ var.fun = cons; var.data = cast(typeof(var.data)) base; }",
+        ("{
+            var.fun  = cast(typeof(var.fun )) cons;
+            var.data = cast(typeof(var.data)) base;
+          }",
           "var", var,
           "cons", new Constant(fun.mangleSelf()),
           "base", new Register!("ebp")

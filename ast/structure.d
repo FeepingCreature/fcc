@@ -125,7 +125,6 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   string name;
   Structure st;
   if (t2.gotIdentifier(name) && t2.accept("{")) {
-    logln("In a struct: ", name);
     New(st, name);
     st.sup = namespace();
     if (matchStructBody(t2, st, cont, rest)) {
@@ -133,7 +132,7 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
         throw new Exception("Missing closing bracket at "~t2.next_text());
       namespace().add(st);
       text = t2;
-      return st;
+      return Single!(NoOp);
     } else {
       throw new Exception("Couldn't match structure body at "~t2.next_text());
     }
