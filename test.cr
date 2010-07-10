@@ -73,12 +73,18 @@ extern(C) int usleep(int secs);
 extern(C) int SDL_WaitEvent(SDL_Event*);
 extern(C) int SDL_PollEvent(SDL_Event*);
 extern(C) int rand();
+
+// 1.4.28
+int fixedpoint_mult(int a, int b) {
+  a = a & ~(1 << 31);
+}
+
 void sdlfun() {
   SDL_Init(32); // video
   SDL_Surface* surface = SDL_SetVideoMode(640, 480, 32, 0);
-  for (int k = 0; k < (*surface).h; ++k)
-    for (int i = 0; i < (*surface).w; ++i)
-      (*surface).pixels[k * (*surface).w + i] = rand();
+  for (int k = 0; k < surface.h; ++k)
+    for (int i = 0; i < surface.w; ++i)
+      surface.pixels[k * surface.w + i] = rand();
   SDL_Flip(surface);
   SDL_Event ev;
   printf("Event loop! \n");

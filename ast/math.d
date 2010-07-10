@@ -53,51 +53,39 @@ class AsmBinopExpr(string OP) : Expr {
 }
 alias AsmBinopExpr!("addl") AddExpr;
 alias AsmBinopExpr!("subl") SubExpr;
+alias AsmBinopExpr!("andl") AndExpr;
+alias AsmBinopExpr!("orl")  OrExpr;
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "1"); }
 
 import ast.pointer, ast.literals, tools.base: swap;
-Object gotAddSubExpr(ref string text, ParseCb cont, ParseCb rest) {
+Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
   Expr op;
   auto t2 = text;
   if (!cont(t2, &op)) return null;
   auto old_op = op;
   retry:
   Expr op2;
-  if (t2.accept("+") && cont(t2, &op2)) {
-    op = new AsmBinopExpr!("addl")(op, op2);
-    goto retry;
-  }
-  if (t2.accept("-") && cont(t2, &op2)) {
-    op = new AsmBinopExpr!("subl")(op, op2);
-    goto retry;
+  foreach (i, bogus; Ops[0 .. $/2]) {
+    if (t2.accept(Ops[i*2]) && cont(t2, &op2)) {
+      op = new AsmBinopExpr!(Ops[i*2+1])(op, op2);
+      goto retry;
+    }
   }
   if (op is old_op) return null;
   text = t2;
   return cast(Object) op;
 }
-mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "1");
 
-Object gotMulDivExpr(ref string text, ParseCb cont, ParseCb rest) {
-  Expr op;
-  auto t2 = text;
-  if (!cont(t2, &op)) return null;
-  auto old_op = op;
-  retry:
-  Expr op2;
-  if (t2.accept("*") && cont(t2, &op2)) {
-    op = new AsmBinopExpr!("imull")(op, op2);
-    goto retry;
-  }
-  if (t2.accept("/") && cont(t2, &op2)) {
-    op = new AsmBinopExpr!("idivl")(op, op2);
-    goto retry;
-  }
-  if (op is old_op) return null;
-  text = t2;
-  return cast(Object) op;
-}
+alias gotMathExpr!("+", "addl", "-", "subl") gotAddSubExpr;
+mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "1");
+alias gotMathExpr!("*", "imull", "/", "idivl") gotMulDivExpr;
 mixin DefaultParser!(gotMulDivExpr, "tree.expr.arith.muldiv", "2");
+
+alias gotMathExpr!("|", "orl") gotOrExpr;
+mixin DefaultParser!(gotOrExpr, "tree.expr.arith.or", "31");
+alias gotMathExpr!("&", "andl") gotAndExpr;
+mixin DefaultParser!(gotAndExpr, "tree.expr.arith.and", "32");
 
 // TODO: hook into parser
 class CondWrap : Expr {
