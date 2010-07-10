@@ -1,16 +1,23 @@
 module ast.oop;
 
 class VTable {
-  Stuple!(Delegate, string)[] funs;
-  Delegate lookup(string name) {
-    foreach (fun; funs)
-      if (fun._1 == name) return fun._0;
+  VTableData[] data;
+  Delegate lookup(string name, Expr infoptr) {
+    foreach (fun; data.funs)
+      if (fun.name == name) {
+        // TODO: embed micro env here, git pull
+      }
   }
   int getOffset(Delegate dg) {
     foreach (i, fun; funs)
       if (fun._0 is dg) return i;
     assert(false);
   }
+}
+
+class VTableData {
+  RelFunction[] funs;
+  
 }
 
 class Class : Namespace, Named, IType {
@@ -28,6 +35,9 @@ class Class : Namespace, Named, IType {
     }
     int size() { return data.size; }
     void _add(string name, Object obj) {
+      if (auto rf = cast(RelFunction) obj) {
+        myfuns.funs ~= 
+      }
     }
   }
 }
