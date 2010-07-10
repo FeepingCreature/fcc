@@ -223,6 +223,12 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   assert(lhs_partial());
   auto ex = cast(Expr) lhs_partial();
   if (!ex) return null;
+  // pointers get dereferenced for struct access
+  while (true) {
+    if (auto ptr = cast(Pointer) ex.valueType()) {
+      ex = new DerefExpr(ex);
+    } else break;
+  }
   if (!cast(Structure) ex.valueType())
     return null;
   
