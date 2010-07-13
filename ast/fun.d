@@ -78,7 +78,8 @@ class FunCall : Expr {
 import tools.log;
 void callFunction(AsmFile dest, IType ret, Expr[] params, string name, Expr fp = null) {
   // dest.put("int $3");
-  assert(ret.size == 4 || cast(Void) ret, Format("Return bug: ", ret, " from ", name, "!"));
+  assert(ret.size == 4 || ret.size == 8 || cast(Void) ret,
+    Format("Return bug: ", ret, " from ", name, "!"));
   dest.comment("Begin call to ", name);
   if (params.length) {
     foreach_reverse (param; params) {
@@ -97,7 +98,9 @@ void callFunction(AsmFile dest, IType ret, Expr[] params, string name, Expr fp =
     dest.sfree(param.valueType().size);
   }
   if (!cast(Void) ret) {
-    dest.pushStack("%eax", ret);
+    if (ret.size == 8)
+      dest.pushStack("%edx", Single!(SizeT));
+    dest.pushStack("%eax", Single!(SizeT));
   }
 }
 

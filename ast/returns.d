@@ -9,9 +9,16 @@ class ReturnStmt : Statement {
   override void emitAsm(AsmFile af) {
     auto fun = ns.get!(Function);
     if (value) {
-      assert(value.valueType().size == 4);
-      value.emitAsm(af);
-      af.popStack("%eax", value.valueType());
+      if (value.valueType().size == 4) {
+        value.emitAsm(af);
+        af.popStack("%eax", value.valueType());
+      } else if (value.valueType().size == 8) {
+        value.emitAsm(af);
+        af.popStack("%eax", Single!(SizeT));
+        af.popStack("%edx", Single!(SizeT));
+      } else {
+        assert(false, Format("Unsupported return type ", value.valueType()));
+      }
     }
     // TODO: stack cleanup token here
     af.put("jmp ", fun._scope.exit());
