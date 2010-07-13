@@ -78,7 +78,7 @@ extern(C) int rand();
 int fixedpoint_mult(int a, int b) {
   a = a / 256; // >> 8
   b = b / 256;
-  return (a * b) & 2147483647;
+  return a * b;
 }
 
 struct ComplexI {
@@ -110,7 +110,7 @@ int num_to_fp(int i) {
 void sdlfun() {
   SDL_Init(32); // video
   SDL_Surface* surface = SDL_SetVideoMode(640, 480, 32, 0);
-  for (int y = 0; y < surface.h; ++y)
+  for (int y = 0; y < surface.h; ++y) {
     for (int x = 0; x < surface.w; ++x) {
       ComplexI c;
       ComplexI p;
@@ -132,13 +132,17 @@ void sdlfun() {
       else
         surface.pixels[y * surface.w + x] = 0;
     }
-  SDL_Flip(surface);
-  SDL_Event ev;
-  printf("Event loop! \n");
-  while SDL_WaitEvent(cast(SDL_Event*) 0) {
-    SDL_PollEvent(&ev);
-    if ev.type == 12 return; // QUIT
+    SDL_Flip(surface);
+    SDL_Event ev;
+    while SDL_PollEvent(&ev) {
+      if ev.type == 12 return; // QUIT
+    }
   }
+}
+
+class Class {
+  int i;
+  void foo() { }
 }
 
 void main() {
@@ -186,5 +190,6 @@ void main() {
   w.i = 5;
   w.test();
   printf("And done. \n");
+  Class cl;
   sdlfun();
 }

@@ -1,7 +1,7 @@
 module ast.structfuns;
 
-import ast.fun, ast.nestfun, ast.base, ast.structure, ast.variable, ast.pointer,
-  ast.namespace, tools.base: This, This_fn, rmSpace;
+import ast.fun, ast.nestfun, ast.base, ast.structure, ast.variable,
+  ast.pointer, ast.dg, ast.namespace, tools.base: This, This_fn, rmSpace;
 
 class RelFunCall : FunCall {
   Expr baseptr;
@@ -10,7 +10,7 @@ class RelFunCall : FunCall {
     // TODO: make temporary
     auto lv = cast(LValue) baseptr;
     assert(lv);
-    callNested(af, fun.type.ret, params, fun.mangleSelf, new RefExpr(lv));
+    callDg(af, fun.type.ret, params, fun.mangleSelf, new RefExpr(lv));
   }
   override IType valueType() {
     return fun.type.ret;

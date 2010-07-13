@@ -1,6 +1,6 @@
 module ast.nestfun;
 
-import ast.fun, ast.stackframe, ast.scopes, ast.base,
+import ast.fun, ast.stackframe, ast.scopes, ast.base, ast.dg,
        ast.variable, ast.pointer, ast.structure, ast.namespace,
        ast.vardecl, ast.parse, ast.assign, ast.constant;
 
@@ -61,39 +61,9 @@ class NestedFunction : Function {
   }
 }
 
-void callNested(AsmFile dest, IType ret, Expr[] params, string callName, Expr data = null, Expr dg = null) {
-  assert(ret.size == 4 || cast(Void) ret);
-  dest.comment("Begin nested call to ", callName);
-  
-  Expr dgs;
-  if (dg) dgs = dgAsStruct(dg);
-  
-  if (dg) params ~= new MemberAccess_Expr(dgs, "data");
-  else params ~= data;
-  
-  foreach_reverse (param; params) {
-    dest.comment("Push ", param);
-    param.emitAsm(dest);
-  }
-  
-  if (dg) {
-    (new MemberAccess_Expr(dgs, "fun")).emitAsm(dest);
-    dest.popStack("%eax", Single!(SizeT));
-    dest.put("call *%eax");
-  } else {
-    dest.put("call "~callName);
-  }
-  foreach (param; params) {
-    dest.sfree(param.valueType().size);
-  }
-  if (!cast(Void) ret) {
-    dest.pushStack("%eax", ret);
-  }
-}
-
 class NestedCall : FunCall {
   override void emitAsm(AsmFile af) {
-    callNested(af, fun.type.ret, params, fun.mangleSelf, new Register!("ebp"));
+    callDg(af, fun.type.ret, params, fun.mangleSelf, new Register!("ebp"));
   }
   override IType valueType() {
     return fun.type.ret;
@@ -113,147 +83,3 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef");
-
-// &fun
-class NestFunRefExpr : Expr {
-  NestedFunction fun;
-  mixin This!("fun");
-  mixin defaultIterate!();
-  override {
-    IType valueType() {
-      return new Delegate(fun);
-    }
-    void emitAsm(AsmFile af) {
-      mkVar(af, dgAsStructType(cast(Delegate) valueType()), true, (Variable var) {
-        iparse!(Statement, "_nestfun_ref", "tree.stmt")
-        ("{
-            var.fun  = cast(typeof(var.fun )) cons;
-            var.data = cast(typeof(var.data)) base;
-          }",
-          "var", var,
-          "cons", new Constant(fun.mangleSelf()),
-          "base", new Register!("ebp")
-        ).emitAsm(af);
-      });
-    }
-  }
-}
-
-class Delegate : Type {
-  IType ret;
-  IType[] args;
-  this() { }
-  this(NestedFunction nf) {
-    ret = nf.type.ret;
-    foreach (p; nf.type.params)
-      args ~= p._0;
-  }
-  override int size() {
-    return nativePtrSize * 2;
-  }
-  override string mangle() {
-    auto res = "dg_ret_"~ret.mangle()~"_args";
-    if (!args.length) res ~= "_none";
-    else foreach (arg; args)
-      res ~= "_"~arg.mangle();
-    return res;
-  }
-}
-
-IType dgAsStructType(Delegate dgtype) {
-  auto res = new Structure(null);
-  new RelMember("fun",
-    new FunctionPointer(
-      dgtype.ret,
-      dgtype.args ~ cast(IType) Single!(Pointer, Single!(Void))
-    ),
-    res
-  );
-  new RelMember("data", Single!(Pointer, Single!(Void)), res);
-  return res;
-}
-
-import ast.casting;
-Expr dgAsStruct(Expr ex) {
-  auto dgtype = cast(Delegate) ex.valueType();
-  assert(!!dgtype);
-  if (auto lv = cast(LValue) ex) {
-    return new ReinterpretCast!(LValue) (dgAsStructType(dgtype), lv);
-  } else {
-    return new ReinterpretCast!(Expr) (dgAsStructType(dgtype), ex);
-  }
-}
-
-Object gotDgAsStruct(ref string st, ParseCb cont, ParseCb rest) {
-  Expr ex;
-  if (!rest(st, "tree.expr ^selfrule", &ex))
-    return null;
-  if (!cast(Delegate) ex.valueType())
-    return null;
-  return cast(Object) dgAsStruct(ex);
-}
-mixin DefaultParser!(gotDgAsStruct, "tree.expr.dg_struct", "912");
-
-class DgCall : Expr {
-  Expr dg;
-  Expr[] params;
-  mixin defaultIterate!(dg, params);
-  override void emitAsm(AsmFile af) {
-    auto dgtype = cast(Delegate) dg.valueType();
-    callNested(af, dgtype.ret, params, "delegate", null, dg);
-  }
-  override IType valueType() {
-    return (cast(Delegate) dg.valueType()).ret;
-  }
-}
-
-Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  return lhs_partial.using = delegate Object(Expr ex) {
-    auto dgtype = cast(Delegate) ex.valueType();
-    if (!dgtype) return null;
-    
-    auto dc = new DgCall;
-    dc.dg = ex;
-    
-    if (t2.accept("(")) {
-      dc.params = matchCall(t2, Format("delegate ", ex), dgtype.args, rest);
-      text = t2;
-      return dc;
-    } else return null;
-  };
-}
-mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall", null, true);
-
-Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  if (!t2.accept("&")) return null;
-  
-  string ident;
-  if (!t2.gotIdentifier(ident, true)) return null;
-  auto nf = cast(NestedFunction) namespace().lookup(ident);
-  if (!nf) return null;
-  
-  text = t2;
-  
-  return new NestFunRefExpr(nf);
-}
-mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210");
-
-// stolen in turn from ast.fun
-static this() {
-  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
-    IType ptype;
-    Stuple!(IType, string)[] list;
-    auto t2 = text;
-    if (t2.accept("delegate") &&
-      t2.gotParlist(list, rest)
-    ) {
-      text = t2;
-      auto res = new Delegate;
-      res.ret = cur;
-      foreach (entry; list) res.args ~= entry._0;
-      return res;
-    } else return null;
-  };
-}
