@@ -145,7 +145,7 @@ class Class {
   void foo() { }
 }
 
-void main() {
+int main(int argc, char** argv) {
   /*A a = new A;
   a.x = 5;
   test2(a);*/
