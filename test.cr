@@ -74,17 +74,64 @@ extern(C) int SDL_WaitEvent(SDL_Event*);
 extern(C) int SDL_PollEvent(SDL_Event*);
 extern(C) int rand();
 
-// 1.4.28
+// 15.16
 int fixedpoint_mult(int a, int b) {
-  a = a & ~(1 << 31);
+  a = a / 256; // >> 8
+  b = b / 256;
+  return (a * b) & 2147483647;
+}
+
+struct ComplexI {
+  int re, im;
+}
+
+ComplexI complex_mult(ComplexI a, ComplexI b) {
+  ComplexI res;
+  res.re = fixedpoint_mult(a.re, b.re) - fixedpoint_mult(a.im, b.im);
+  res.im = fixedpoint_mult(a.re, b.im) + fixedpoint_mult(a.im, b.re);
+  return res;
+}
+
+ComplexI complex_add(ComplexI a, ComplexI b) {
+  ComplexI res;
+  res.re = a.re + b.re;
+  res.im = a.im + b.im;
+  return res;
+}
+
+int lensq(ComplexI c) {
+  return fixedpoint_mult(c.re, c.re) + fixedpoint_mult(c.im, c.im);
+}
+
+int num_to_fp(int i) {
+  return i * 65536;
 }
 
 void sdlfun() {
   SDL_Init(32); // video
   SDL_Surface* surface = SDL_SetVideoMode(640, 480, 32, 0);
-  for (int k = 0; k < surface.h; ++k)
-    for (int i = 0; i < surface.w; ++i)
-      surface.pixels[k * surface.w + i] = rand();
+  for (int y = 0; y < surface.h; ++y)
+    for (int x = 0; x < surface.w; ++x) {
+      ComplexI c;
+      ComplexI p;
+      c.re = num_to_fp(x - surface.w / 2) / 200;
+      c.im = num_to_fp(y - surface.h / 2) / 200;
+      p = c;
+      int exceeded = 0;
+      for (int i = 0; i < 64; ++i) {
+        p = complex_add(complex_mult(p, p), c);
+        if (lensq(p) > num_to_fp(2)) {
+          exceeded = i;
+          i = 64;
+        }
+      }
+      int expix = exceeded * 8;
+      expix = expix + expix * 256 + expix * 2 * 65536;
+      if (exceeded)
+        surface.pixels[y * surface.w + x] = expix;
+      else
+        surface.pixels[y * surface.w + x] = 0;
+    }
   SDL_Flip(surface);
   SDL_Event ev;
   printf("Event loop! \n");
