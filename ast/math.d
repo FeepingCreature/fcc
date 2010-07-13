@@ -67,8 +67,13 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
   retry:
   Expr op2;
   foreach (i, bogus; Ops[0 .. $/2]) {
-    if (t2.accept(Ops[i*2]) && cont(t2, &op2)) {
+    auto t3 = t2;
+    bool accepted = t3.accept(Ops[i*2]);
+    if (t3.startsWith(Ops[i*2]))
+      accepted = false; // a && b != a & &b (!)
+    if (accepted && cont(t3, &op2)) {
       op = new AsmBinopExpr!(Ops[i*2+1])(op, op2);
+      t2 = t3;
       goto retry;
     }
   }
