@@ -2,8 +2,6 @@ module ast.types;
 
 import tools.base: Stuple, take;
 
-import ast.base;
-
 interface IType {
   int size();
   string mangle();
@@ -68,6 +66,17 @@ class Short : Type {
 class SysInt : Type {
   override int size() { return nativeIntSize; }
   override string mangle() { return "sys_int"; }
+}
+
+// quick and dirty singleton
+template _Single(T, U...) {
+  T value;
+  static this() { value = new T(U); }
+}
+
+template Single(T, U...) {
+  static assert(is(T: Object));
+  alias _Single!(T, U).value Single;
 }
 
 import parseBase;

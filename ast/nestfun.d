@@ -1,8 +1,8 @@
 module ast.nestfun;
 
-import ast.fun, ast.stackframe, ast.scopes, ast.base, ast.dg,
+import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.variable, ast.pointer, ast.structure, ast.namespace,
-       ast.vardecl, ast.parse, ast.assign, ast.constant;
+       ast.vardecl, ast.parse, ast.assign, ast.constant, ast.dg;
 
 class NestedFunction : Function {
   Scope context;
@@ -61,15 +61,6 @@ class NestedFunction : Function {
   }
 }
 
-class NestedCall : FunCall {
-  override void emitAsm(AsmFile af) {
-    callDg(af, fun.type.ret, params, fun.mangleSelf, new Register!("ebp"));
-  }
-  override IType valueType() {
-    return fun.type.ret;
-  }
-}
-
 import parseBase, ast.modules, tools.log;
 Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto sc = cast(Scope) namespace();
@@ -83,3 +74,40 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef");
+
+class NestedCall : FunCall {
+  override void emitAsm(AsmFile af) {
+    callDg(af, fun.type.ret, params,
+      new DgConstructExpr(fun.getPointer(), new Register!("ebp")));
+  }
+  override IType valueType() {
+    return fun.type.ret;
+  }
+}
+
+// &fun
+class NestFunRefExpr : mkDelegate {
+  NestedFunction fun;
+  this(NestedFunction fun) {
+    this.fun = fun;
+    super(new Symbol(fun.mangleSelf()), new Register!("ebp"));
+  }
+  override IType valueType() {
+    return new Delegate(fun.type.ret, fun.type.params /map/ ex!("a, b -> a"));
+  }
+}
+
+Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("&")) return null;
+  
+  string ident;
+  if (!t2.gotIdentifier(ident, true)) return null;
+  auto nf = cast(NestedFunction) namespace().lookup(ident);
+  if (!nf) return null;
+  
+  text = t2;
+  
+  return new NestFunRefExpr(nf);
+}
+mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210");

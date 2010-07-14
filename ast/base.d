@@ -106,6 +106,16 @@ class Register(string Reg) : Expr {
   }
 }
 
+class Symbol : Expr {
+  string name;
+  this(string name) { this.name = name; }
+  mixin defaultIterate!();
+  override IType valueType() { return Single!(SysInt); }
+  override void emitAsm(AsmFile af) {
+    af.pushStack(name, valueType());
+  }
+}
+
 string error; // TODO: tls
 
 class ParseException {
@@ -117,17 +127,6 @@ class ParseException {
 
 ulong uid;
 ulong getuid() { synchronized return uid++; }
-
-// quick and dirty singleton
-template _Single(T, U...) {
-  T value;
-  static this() { value = new T(U); }
-}
-
-template Single(T, U...) {
-  static assert(is(T: Object));
-  alias _Single!(T, U).value Single;
-}
 
 void withTLS(T, U, V)(T obj, U value, lazy V vee) {
   auto backup = obj();

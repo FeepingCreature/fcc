@@ -2,14 +2,14 @@ module ast.oop;
 
 import ast.parse, ast.base, ast.dg, ast.int_literal,
   ast.namespace, ast.structure, ast.structfuns;
-
+/+
 class VTable {
-  VTableData data;
-  Delegate lookup(string name, Expr classptr) {
+  RelFunction[] funs;
+  Expr lookup(string name, Expr classptr) {
     foreach (id, fun; data.funs)
       if (fun.name == name) {
         return iparse!(Expr, "vtable_lookup", "tree.expr")(
-          "(cast(dgtype*) infoptr)[id]",
+          "(cast(fntype*) infoptr)[id].toDg(*cast(void**)classptr)",
           "classptr", classptr,
           "id", new IntExpr(id),
           "dgtype", new Delegate(fun)
@@ -23,11 +23,7 @@ class VTable {
   }
 }
 
-class VTableData {
-  RelFunction[] funs;
-}
-
-class Class : Namespace, Named, IType {
+class Class : RelNamespace, Named, IType {
   VTable myfuns;
   Structure data;
   string name;
@@ -44,6 +40,8 @@ class Class : Namespace, Named, IType {
     void _add(string name, Object obj) {
       if (auto rf = cast(RelFunction) obj) {
         myfuns.funs ~= rf;
+      } else {
+        super._add(name, obj);
       }
     }
   }
@@ -70,3 +68,4 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotClassDef, "tree.typedef.class");
++/
