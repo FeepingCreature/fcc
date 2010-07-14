@@ -75,7 +75,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
       if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
       return res;
     } else {
-      logln("No ", name, " in ", namespace());
+      // logln("No ", name, " in ", namespace());
     }
     if (name.rfind(".") != -1) {
       name = name[0 .. name.rfind(".")]; // chop up what _may_ be members!

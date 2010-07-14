@@ -112,7 +112,7 @@ class Symbol : Expr {
   mixin defaultIterate!();
   override IType valueType() { return Single!(SysInt); }
   override void emitAsm(AsmFile af) {
-    af.pushStack(name, valueType());
+    af.pushStack("$"~name, valueType());
   }
 }
 

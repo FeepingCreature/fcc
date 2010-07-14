@@ -140,10 +140,10 @@ void sdlfun() {
   }
 }
 
-class Class {
+/*class Class {
   int i;
   void foo() { }
-}
+}*/
 
 void main() {
   /*A a = new A;
@@ -190,6 +190,6 @@ void main() {
   w.i = 5;
   w.test();
   printf("And done. \n");
-  Class cl;
+  // Class cl;
   sdlfun();
 }
