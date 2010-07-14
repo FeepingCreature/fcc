@@ -33,20 +33,40 @@ static this() {
   globalStateMatchers ~= matchrule("tree.rhs_partial");
 }
 
+import tools.log;
 Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
-  auto sup = cont(text);
-  if (!sup) return null;
+  Object res;
+  string farthest = text;
+  // check all possible continuations, accepting none .. 
+  cont(text, (Object sup) {
+    auto backup = lhs_partial();
+    scope(exit) lhs_partial.set(backup);
+    
+    lhs_partial.set(sup);
+    auto t2 = text;
+    bool matched;
+    while (true) {
+      if (auto nl = rest(t2, "tree.rhs_partial")) {
+        matched = true;
+        lhs_partial.set(nl);
+      } else break;
+    }
+    
+    if (matched && t2.ptr > farthest.ptr) {
+      farthest = t2;
+      res = lhs_partial();
+    }
+    
+    return false;
+  });
   
-  auto backup = lhs_partial();
-  scope(exit) lhs_partial.set(backup);
-  
-  lhs_partial.set(sup);
-  while (true) {
-    if (auto nl = rest(text, "tree.rhs_partial")) {
-      lhs_partial.set(nl);
-    } else break;
+  if (farthest.ptr > text.ptr) {
+    // logln("farthest ", farthest.next_text(), "; text ", text.next_text(), "; res ", res);
+    text = farthest;
+    return res;
+  } else {
+    return null;
   }
-  return lhs_partial();
 }
 mixin DefaultParser!(gotProperties, "tree.expr.properties", "3");
 
