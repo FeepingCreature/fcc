@@ -145,6 +145,16 @@ void sdlfun() {
   void foo() { }
 }*/
 
+void nesttest() {
+  int nest_test = 13;
+  void nestfun() { int a; a = 7; void nestfun2() { nest_test = a; } nestfun2(); }
+  void delegate() nf = &nestfun;
+  nf();
+  printf("nest test: %i. \n", nest_test);
+  int function(int, int x) fp = &s;
+  printf("s test %i\n", fp(4, 5));
+}
+
 int main(int argc, char** argv) {
   /*A a = new A;
   a.x = 5;
@@ -180,12 +190,7 @@ int main(int argc, char** argv) {
   char[] arr = "foob";
   printf("proper array test: %i; contents %.*s\n", arr.length, arr);
   printf("slice: %.*s, via ptr: %.*s\n", arr[1 .. 4], arr.ptr[1 .. 4]);
-  int nest_test = 13;
-  void nestfun() { int a; a = 7; void nestfun2() { nest_test = a; } nestfun2(); }
-  void delegate() nf = &nestfun; nf();
-  printf("nest test: %i. \n", nest_test);
-  int function(int, int x) fp = &s;
-  printf("s test %i\n", fp(4, 5));
+  nesttest();
   W w;
   w.i = 5;
   w.test();
