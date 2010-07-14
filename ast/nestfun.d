@@ -90,7 +90,7 @@ class NestFunRefExpr : mkDelegate {
   NestedFunction fun;
   this(NestedFunction fun) {
     this.fun = fun;
-    super(new Symbol(fun.mangleSelf()), new Register!("ebp"));
+    super(fun.getPointer(), new Register!("ebp"));
   }
   override IType valueType() {
     return new Delegate(fun.type.ret, fun.type.params /map/ ex!("a, b -> a"));

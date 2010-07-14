@@ -22,7 +22,6 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
   return lhs_partial.using = delegate Object(Expr ex) {
-    logln("match a struct fun @", t2.next_text());
     auto strtype = cast(Structure) ex.valueType();
     if (!strtype) return null;
     string member;
@@ -55,27 +54,40 @@ class RelFunCall : FunCall {
 }
 
 class RelFunction : Function, RelTransformable {
-  Expr baseptr;
+  Expr baseptr; // unique per instance
+  IType basetype; // for mangling purposes
   RelNamespace context;
+  private this() { }
   this(RelNamespace rn) { context = rn; }
-  Object transform(Expr base) {
-    assert(!baseptr);
-    baseptr = base;
-    assert(!!cast(RelNamespace) baseptr.valueType());
-    return this;
+  RelFunction alloc() { return new RelFunction; }
+  RelFunction dup() {
+    auto res = cast(RelFunction) super.dup();
+    res.context = context;
+    res.baseptr = baseptr;
+    res.basetype = basetype;
+    return res;
+  }
+  override Object transform(Expr base) {
+    assert(!baseptr, Format("RelFun was pretransformed: ", baseptr));
+    logln("transform ", this, " with ", base);
+    basetype = base.valueType();
+    assert(!!cast(RelNamespace) basetype);
+    auto res = dup();
+    res.baseptr = base;
+    return res;
   }
   FunctionPointer typeAsFp() {
     auto res = new FunctionPointer;
     res.ret = type.ret;
     foreach (param; type.params)
       res.args ~= param._0;
-    res.args ~= baseptr.valueType();
+    res.args ~= basetype;
     return res;
   }
   mixin defaultIterate!(baseptr);
   override {
     string mangleSelf() {
-      return (baseptr.valueType()).mangle() ~ "_" ~ super.mangleSelf();
+      return basetype.mangle() ~ "_" ~ super.mangleSelf();
     }
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ type.mangle()~"_"~name;

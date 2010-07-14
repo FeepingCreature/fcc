@@ -3,10 +3,27 @@ module ast.fun;
 import ast.namespace, ast.base, ast.scopes, ast.variable, asmfile, ast.types,
   ast.constant;
 
+import tools.functional;
+
+class FunSymbol : Symbol {
+  Function fun;
+  this(Function fun) {
+    this.fun = fun;
+    super(fun.mangleSelf());
+  }
+  override IType valueType() {
+    auto res = new FunctionPointer;
+    res.ret = fun.type.ret;
+    res.args = fun.type.params /map/ ex!("a, b -> a");
+    res.args ~= Single!(SysInt);
+    return res;
+  }
+}
+
 class Function : Namespace, Tree, Named {
   string name;
   Expr getPointer() {
-    return new Symbol(mangleSelf());
+    return new FunSymbol(this);
   }
   FunctionType type;
   Scope _scope;
@@ -15,6 +32,18 @@ class Function : Namespace, Tree, Named {
   string toString() { return Format("fun ", name, " <- ", sup); }
   // add parameters to namespace
   int _framestart;
+  Function alloc() { return new Function; }
+  Function dup() {
+    auto res = alloc();
+    res.name = name;
+    res.type = type;
+    res.extern_c = extern_c;
+    res._scope = _scope;
+    res._framestart = _framestart;
+    res.sup = sup;
+    res.field = field;
+    return res;
+  }
   FunCall mkCall() { return new FunCall; }
   int fixup() {
     // cdecl: 0 old ebp, 4 return address, 8 parameters .. I think.
@@ -81,7 +110,11 @@ class FunCall : Expr {
 import tools.log;
 void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
   // dest.put("int $3");
-  auto name = (cast(Symbol) fp).name;
+  
+  string name;
+  if (auto s = cast(Symbol) fp) name = s.name;
+  else name = "(nil)";
+  
   assert(ret.size == 4 || ret.size == 8 || cast(Void) ret,
     Format("Return bug: ", ret, " from ", name, "!"));
   dest.comment("Begin call to ", name);
@@ -104,7 +137,7 @@ void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
   }
 }
 
-class FunctionType : Type {
+class FunctionType : ast.types.Type {
   IType ret;
   Stuple!(IType, string)[] params;
   override int size() {
@@ -249,7 +282,7 @@ mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall", null, true);
 
 // ensuing code gleefully copypasted from nestfun
 // yes I wrote delegates first. how about that.
-class FunctionPointer : Type {
+class FunctionPointer : ast.types.Type {
   IType ret;
   IType[] args;
   this() { }

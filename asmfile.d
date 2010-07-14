@@ -1,6 +1,6 @@
 module asmfile;
 
-import assemble, ast.types, ast.base;
+import assemble, ast.types;
 
 import tools.log, tools.functional: map;
 import tools.base: between, slice, startsWith;

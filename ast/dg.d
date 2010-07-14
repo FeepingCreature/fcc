@@ -23,6 +23,7 @@ class mkDelegate : Expr {
   }
 }
 
+import tools.log;
 // type-deduced!
 class DgConstructExpr : mkDelegate {
   this(Expr fun, Expr base) {
@@ -30,8 +31,9 @@ class DgConstructExpr : mkDelegate {
   }
   override IType valueType() {
     auto ft = cast(FunctionPointer) ptr.valueType();
+    // logln("ptr is ", ptr, ", data ", data);
     assert(ft.args.length);
-    assert(ft.args[$-1] == cast(Object) data.valueType());
+    assert(ft.args[$-1].size == data.valueType().size);
     return new Delegate(ft.ret, ft.args[0 .. $-1]);
   }
 }
