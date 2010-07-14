@@ -111,8 +111,13 @@ bool ckbranch(ref string s, bool delegate()[] dgs...) {
 
 bool verboseParser = false;
 
+string[bool delegate(string)] condInfo;
+
+const RULEPTR_SIZE_HAX = (Stuple!(string, void delegate(), bool)).sizeof + (void delegate()).sizeof;
+
 bool delegate(string) matchrule(string rules) {
   bool delegate(string) res;
+  auto rules_backup = rules;
   while (rules.length) {
     auto rule = rules.slice(" ");
     res = stuple(rule, res, false) /apply/
@@ -149,6 +154,7 @@ bool delegate(string) matchrule(string rules) {
       return false;
     };
   }
+  condInfo[res] = rules_backup;
   return res;
 }
 
@@ -389,6 +395,8 @@ class ParseContext {
     bool matched;
     if (verboseParser)
       logln("BEGIN PARSE '", text.next_text(16), "'");
+    // make copy
+    cond.ptr = (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX].dup.ptr;
     foreach (i, parser; parsers[offs .. $]) {
       if (cond(parser.getId())) {
         if (verboseParser) logln("TRY PARSER [", parser.getId(), "] for '", text.next_text(16), "'");
@@ -410,21 +418,26 @@ class ParseContext {
         rest.curstr = parser.getId();
         rest.selfrule = parser.getId();
         
-        auto t2 = text;
-        if (auto res = parser.match(t2, cont, rest)) {
+        auto backup = text;
+        if (auto res = parser.match(text, cont, rest)) {
           if (accept) {
             if (accept(res)) {
-              text = t2;
               if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
               return res;
+            } else {
+              if (verboseParser) logln("    PARSER [", parser.getId(), "] rejected");
+              text = backup;
             }
           } else {
-            text = t2;
             if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
             return res;
           }
+        } else {
+          text = backup;
+          if (verboseParser) logln("    PARSER [", parser.getId(), "] failed");
         }
-        if (verboseParser) logln("    PARSER [", parser.getId(), "] failed");
+      } else if (verboseParser) {
+        logln("   PARSER [", parser.getId(), "] - refuse outright");
       }
     }
     // okay to not match anything if we're just continuing

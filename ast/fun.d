@@ -11,6 +11,7 @@ class FunSymbol : Symbol {
     this.fun = fun;
     super(fun.mangleSelf());
   }
+  string toString() { return Format("symbol<", name, ">"); }
   override IType valueType() {
     auto res = new FunctionPointer;
     res.ret = fun.type.ret;

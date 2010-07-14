@@ -100,6 +100,7 @@ class MiniNamespace : Namespace {
 // internal miniparse wrapper
 template iparse(R, string id, string rule) {
   R iparse(T...)(string text, T t) {
+    text = text.dup; // circumvent the memoizer TODO: Better way?
     static assert(T.length % 2 == 0);
     auto myns = new MiniNamespace(id);
     // compile-time for loop LALZ
