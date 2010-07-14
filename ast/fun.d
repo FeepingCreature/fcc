@@ -5,6 +5,9 @@ import ast.namespace, ast.base, ast.scopes, ast.variable, asmfile, ast.types,
 
 class Function : Namespace, Tree, Named {
   string name;
+  Expr getPointer() {
+    return new Symbol(mangleSelf());
+  }
   FunctionType type;
   Scope _scope;
   bool extern_c = false;
@@ -68,7 +71,7 @@ class FunCall : Expr {
   Function fun;
   mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {
-    callFunction(af, fun.type.ret, params, fun.mangleSelf());
+    callFunction(af, fun.type.ret, params, fun.getPointer());
   }
   override IType valueType() {
     return fun.type.ret;
@@ -76,8 +79,9 @@ class FunCall : Expr {
 }
 
 import tools.log;
-void callFunction(AsmFile dest, IType ret, Expr[] params, string name, Expr fp = null) {
+void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
   // dest.put("int $3");
+  auto name = (cast(Symbol) fp).name;
   assert(ret.size == 4 || ret.size == 8 || cast(Void) ret,
     Format("Return bug: ", ret, " from ", name, "!"));
   dest.comment("Begin call to ", name);
@@ -87,13 +91,9 @@ void callFunction(AsmFile dest, IType ret, Expr[] params, string name, Expr fp =
       param.emitAsm(dest);
     }
   }
-  if (fp) {
-    fp.emitAsm(dest);
-    dest.popStack("%eax", Single!(SizeT));
-    dest.put("call *%eax");
-  } else {
-    dest.put("call "~name);
-  }
+  fp.emitAsm(dest);
+  dest.popStack("%eax", Single!(SizeT));
+  dest.put("call *%eax");
   foreach (param; params) {
     dest.sfree(param.valueType().size);
   }
@@ -280,7 +280,7 @@ class FpCall : Expr {
   mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {
     auto fntype = cast(FunctionPointer) fp.valueType();
-    callFunction(af, fntype.ret, params, "fp", fp);
+    callFunction(af, fntype.ret, params, fp);
   }
   override IType valueType() {
     return (cast(FunctionPointer) fp.valueType()).ret;
