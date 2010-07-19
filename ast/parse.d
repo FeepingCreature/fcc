@@ -35,15 +35,15 @@ static this() {
 
 import tools.log;
 Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
-  Object res;
-  string farthest = text;
-  // check all possible continuations, accepting none .. 
+  // check all possible continuations
+  string longest; Object res;
   cont(text, (Object sup) {
     auto backup = lhs_partial();
     scope(exit) lhs_partial.set(backup);
     
     lhs_partial.set(sup);
     auto t2 = text;
+    
     bool matched;
     while (true) {
       if (auto nl = rest(t2, "tree.rhs_partial")) {
@@ -52,21 +52,16 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
       } else break;
     }
     
-    if (matched && t2.ptr > farthest.ptr) {
-      farthest = t2;
-      res = lhs_partial();
-    }
-    
-    return false;
+    if (matched) {
+      if (t2.ptr > longest.ptr) {
+        longest = t2;
+        res = lhs_partial();
+      }
+      return ParseCtl.AcceptCont;
+    } else return ParseCtl.RejectCont;
   });
-  
-  if (farthest.ptr > text.ptr) {
-    // logln("farthest ", farthest.next_text(), "; text ", text.next_text(), "; res ", res);
-    text = farthest;
-    return res;
-  } else {
-    return null;
-  }
+  if (longest) text = longest;
+  return res;
 }
 mixin DefaultParser!(gotProperties, "tree.expr.properties", "3");
 

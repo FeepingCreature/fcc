@@ -48,6 +48,7 @@ class PA_Access : LValue {
   mixin This!("ptr, pos");
   mixin defaultIterate!(ptr, pos);
   override {
+    string toString() { return Format(ptr, "[", pos, "]"); }
     IType valueType() { return (cast(Pointer) ptr.valueType()).target; }
     // TODO generic case
     void emitAsm(AsmFile af) {

@@ -73,7 +73,7 @@ class RelFunction : Function, RelTransformable {
   }
   override Object transform(Expr base) {
     assert(!baseptr, Format("RelFun was pretransformed: ", baseptr));
-    logln("transform ", this, " with ", base);
+    // logln("transform ", this, " with ", base);
     assert(!!cast(RelNamespace) basetype);
     auto res = dup();
     res.baseptr = base;
@@ -84,7 +84,10 @@ class RelFunction : Function, RelTransformable {
     res.ret = type.ret;
     foreach (param; type.params)
       res.args ~= param._0;
-    res.args ~= basetype;
+    if (auto rnfb = cast(RelNamespaceFixupBase) context)
+      res.args ~= rnfb.genCtxType(context);
+    else
+      res.args ~= new Pointer(basetype);
     return res;
   }
   mixin defaultIterate!(baseptr);

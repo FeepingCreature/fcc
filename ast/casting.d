@@ -21,17 +21,19 @@ class ReinterpretCast(T) : T {
 
 Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  IType dest;
   Expr ex;
-  if (!(
-    t2.accept("cast(") &&
-    rest(t2, "type", &dest) &&
-    t2.accept(")") &&
-    rest(t2, "tree.expr", &ex)
-  ))
-    return null;
-  text = t2;
-  return new ReinterpretCast!(Expr)(dest, ex);
+  if (t2.accept("cast(")) {
+    IType dest;
+    if (!rest(t2, "type", &dest))
+      throw new Exception("No type matched in cast expression: "~t2.next_text());
+    if (!t2.accept(")"))
+      throw new Exception("Missed closing bracket in cast at "~t2.next_text());
+    if (!rest(t2, "tree.expr", &ex))
+      throw new Exception("Expression not matched in cast: "~t2.next_text());
+    
+    text = t2;
+    return new ReinterpretCast!(Expr)(dest, ex);
+  } else return null;
 }
 mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "7");
 

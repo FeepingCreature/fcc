@@ -248,16 +248,4 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     return cast(Object) ex;
   } else return null;
 }
-mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_member");
-
-Object gotStructName(ref string text, ParseCb cont, ParseCb rest) {
-  string id, t2 = text;
-  if (t2.gotIdentifier(id)) {
-    if (auto st = cast(Structure) namespace().lookup(id)) {
-      text = t2;
-      return st;
-    }
-  }
-  return null;
-}
-mixin DefaultParser!(gotStructName, "type.struct", "4");
+mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_struct_member");

@@ -1,21 +1,23 @@
 module ast.oop;
 
-import ast.parse, ast.base, ast.dg, ast.int_literal,
+import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.namespace, ast.structure, ast.structfuns, ast.pointer;
 
 import tools.log;
 class VTable {
   RelFunction[] funs;
-  Expr lookup(string name, Expr classptr) {
+  Function lookup(string name, Expr classptr) {
+    logln("vtable lookup ", name, " in ", funs);
     foreach (id, fun; funs)
       if (fun.name == name) {
-        return iparse!(Expr, "vtable_lookup", "tree.expr")(
-          "(*cast(fntype**) classptr)[id].toDg(cast(void*)classptr)",
+        return iparse!(Function, "vtable_lookup", "tree.expr")(
+          "*(*cast(fntype**) classptr)[id].toDg(cast(void*)classptr)",
           "classptr", classptr,
           "id", new IntExpr(id),
           "fntype", fun.typeAsFp()
         );
       }
+    return null;
   }
   int getOffset(Delegate dg) {
     foreach (i, fun; funs)
@@ -112,4 +114,37 @@ Object gotClassRef(ref string text, ParseCb cont, ParseCb rest) {
   }
   return null;
 }
-mixin DefaultParser!(gotClassRef, "type.class", "6");
+mixin DefaultParser!(gotClassRef, "type.class", "35"); // before type.named
+
+// ruefully copypasted from ast.structure
+Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  
+  assert(lhs_partial());
+  auto ex = cast(Expr) lhs_partial();
+  if (!ex) return null;
+  auto cr = cast(ClassRef) ex.valueType();
+  if (!cr) return null;
+  auto cl = cr.myClass;
+  
+  string member;
+  
+  // logln("match class member off ", t2.next_text());
+  auto pre_ex = ex;
+  if (t2.accept(".") && t2.gotIdentifier(member)) {
+    logln("lookupRel on ", cl);
+    auto m = cl.lookupRel(member, ex);
+    logln("m is ", m);
+    /*ex = cast(Expr) m;
+    if (!ex) {
+      if (m) throw new Exception(Format(member, " is not a class member: ", m));
+      else throw new Exception(Format(member, " is not a member of class ", cl.name, "!"));
+      return null;
+    }
+    text = t2;
+    return cast(Object) ex;*/
+    text = t2;
+    return m;
+  } else return null;
+}
+mixin DefaultParser!(gotClassMemberExpr, "tree.rhs_partial.access_class_member");

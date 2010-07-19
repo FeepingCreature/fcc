@@ -109,7 +109,7 @@ bool ckbranch(ref string s, bool delegate()[] dgs...) {
   return false;
 }
 
-bool verboseParser = false;
+bool verboseParser = false, verboseXML = false;
 
 string[bool delegate(string)] condInfo;
 
@@ -158,13 +158,16 @@ bool delegate(string) matchrule(string rules) {
   return res;
 }
 
+enum ParseCtl { AcceptAbort, RejectAbort, AcceptCont, RejectCont }
+
 struct ParseCb {
   Object delegate(ref string text,
     bool delegate(string),
-    bool delegate(Object) accept
+    ParseCtl delegate(Object) accept
   ) dg;
   bool delegate(string) cur; string curstr;
   string selfrule;
+  void delegate() blockMemo;
   Object opCall(T...)(ref string text, T t) {
     bool delegate(string) matchdg;
     static if (T.length && is(T[0]: char[])) {
@@ -179,10 +182,13 @@ struct ParseCb {
       matchdg = cur;
       alias T Rest1;
       alias t rest1;
+      // TODO: check if really necessary
+      // blockMemo(); // callback depends on a parent's filter rule. cannot reliably memoize.
     }
     
     static if (Rest1.length && is(Rest1[$-1] == delegate)) {
-      static assert(is(typeof(rest1[$-1](null)) == bool), "Bad accept return type: "~typeof(rest1[$-1](null)).stringof);
+      static assert(is(typeof(rest1[$-1](null)) == bool) || is(typeof(rest1[$-1](null)) == ParseCtl),
+        "Bad accept return type: "~typeof(rest1[$-1](null)).stringof);
       static assert(is(typeof(cast(Params!(Rest1[$-1])[0]) new Object)), "Bad accept params: "~Params!(Rest1[$-1]).stringof);
       alias Params!(Rest1[$-1])[0] MustType;
       alias Rest1[0 .. $-1] Rest2;
@@ -198,19 +204,26 @@ struct ParseCb {
     
     static if (Rest2.length == 1 && is(typeof(*rest2[0])) && !is(MustType))
       alias typeof(*rest2[0]) MustType;
-    bool delegate(Object) myAccept;
-    if (accept) myAccept = delegate bool(Object obj) {
+    ParseCtl delegate(Object) myAccept;
+    if (accept) myAccept = delegate ParseCtl(Object obj) {
       static if (is(MustType)) {
         auto casted = cast(MustType) obj;
       } else {
         auto casted = obj;
       }
-      if (!casted) return false;
-      static if (is(typeof(accept(casted)))) {
+      if (!casted) {
+        static if (is(MustType)) logln("Reject ", obj, "; is not ", MustType.stringof);
+        return ParseCtl.RejectCont;
+      }
+      static if (is(typeof(accept(casted)) == bool)) {
+        return accept(casted)?ParseCtl.AcceptAbort:ParseCtl.RejectCont;
+      }
+      static if (is(typeof(accept(casted)) == ParseCtl)) {
         return accept(casted);
       }
-      return true;
+      return ParseCtl.AcceptAbort;
     };
+    
     static if (Rest2.length == 1 && is(typeof(*rest2[0]))) {
       // only accept-test objects that match the type
       *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, myAccept);
@@ -225,6 +238,7 @@ struct ParseCb {
 interface Parser {
   string getId();
   Object match(ref string text, ParseCb cont, ParseCb restart);
+  void blockNextMemo();
 }
 
 // stuff that it's unsafe to memoize due to side effects
@@ -238,6 +252,11 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
         if (dg(Id)) { dontMemoMe = true; break; }
     }
     override string getId() { return Id; }
+    bool doBlock;
+    override void blockNextMemo() {
+      if (verboseParser) logln("Block ", Id, " memo due to pass-through cont/next");
+      doBlock = true;
+    }
     static if (!Memoize) {
       override Object match(ref string text, ParseCb cont, ParseCb rest) {
         return Fn(text, cont, rest);
@@ -252,7 +271,9 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
           return p._0;
         }
         auto res = Fn(text, cont, rest);
-        cache[ptr] = stuple(res, text);
+        if (!doBlock) cache[ptr] = stuple(res, text);
+        // else logln("Memoization blocked! ");
+        doBlock = false;
         return res;
       }
     }
@@ -385,60 +406,84 @@ class ParseContext {
     }
   }
   Object parse(ref string text, bool delegate(string) cond,
-      bool delegate(Object) accept) {
+      ParseCtl delegate(Object) accept) {
     return parse(text, cond, 0, accept);
   }
   string condStr;
   Object parse(ref string text, bool delegate(string) cond,
-      int offs = 0, bool delegate(Object) accept = null) {
+      int offs = 0, ParseCtl delegate(Object) accept = null) {
     resort;
     bool matched;
+    string xmlmark(string x) {
+      return x.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "?");
+    }
     if (verboseParser)
-      logln("BEGIN PARSE '", text.next_text(16), "'");
+      logln("BEGIN PARSE '", text.next_text(16).xmlmark(), "'");
     // make copy
     cond.ptr = (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX].dup.ptr;
+    Object longestMatchRes;
+    string longestMatchStr;
     foreach (i, parser; parsers[offs .. $]) {
+      auto xid = parser.getId().replace(".", "_");
+      if (verboseXML) logln("<", xid, " text='", text.next_text(16).xmlmark(), "'>");
+      scope(failure) if (verboseXML) logln("Exception</", xid, ">");
       if (cond(parser.getId())) {
         if (verboseParser) logln("TRY PARSER [", parser.getId(), "] for '", text.next_text(16), "'");
         matched = true;
         ParseCb cont, rest;
         cont.dg = (ref string text, bool delegate(string) cond,
-          bool delegate(Object) accept) {
+          ParseCtl delegate(Object) accept) {
           return this.parse(text, cond, offs + i + 1, accept);
         };
         cont.cur = cond;
         cont.curstr = parser.getId();
         cont.selfrule = parser.getId();
+        cont.blockMemo = &parser.blockNextMemo;
         
         rest.dg = (ref string text, bool delegate(string) cond,
-          bool delegate(Object) accept) {
+          ParseCtl delegate(Object) accept) {
           return this.parse(text, cond, accept);
         };
         rest.cur = cond;
         rest.curstr = parser.getId();
         rest.selfrule = parser.getId();
+        rest.blockMemo = &parser.blockNextMemo;
         
         auto backup = text;
         if (auto res = parser.match(text, cont, rest)) {
+          auto ctl = ParseCtl.AcceptAbort;
           if (accept) {
-            if (accept(res)) {
-              if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
-              return res;
-            } else {
-              if (verboseParser) logln("    PARSER [", parser.getId(), "] rejected");
+            ctl = accept(res);
+            if (ctl == ParseCtl.RejectAbort || ctl == ParseCtl.RejectCont) {
+              if (verboseParser) logln("    PARSER [", parser.getId(), "] rejected ", Format(res));
+              if (verboseXML) logln("Reject</", xid, ">");
               text = backup;
+              if (ctl == ParseCtl.RejectAbort) return null;
+              continue;
             }
-          } else {
-            if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
-            return res;
+          }
+          if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
+          if (verboseXML) logln("Success</", xid, ">");
+          if (ctl == ParseCtl.AcceptAbort) return res;
+          if (text.ptr > longestMatchStr.ptr) {
+            longestMatchStr = text;
+            logln("update res to ", res, " at ", text.next_text());
+            longestMatchRes = res;
           }
         } else {
-          text = backup;
           if (verboseParser) logln("    PARSER [", parser.getId(), "] failed");
+          if (verboseXML) logln("Fail</", xid, ">");
         }
-      } else if (verboseParser) {
-        logln("   PARSER [", parser.getId(), "] - refuse outright");
-      }
+        text = backup;
+      }/* else {
+        if (verboseParser) logln("   PARSER [", parser.getId(), "] - refuse outright");
+        if (verboseXML) logln("Ignore</", xid, ">");
+      }*/
+    }
+    if (longestMatchStr) {
+      text = longestMatchStr;
+      logln("longest match is ", longestMatchRes, " at ", text.next_text());
+      return longestMatchRes;
     }
     // okay to not match anything if we're just continuing
     if (!offs && !matched)

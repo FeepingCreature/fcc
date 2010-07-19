@@ -12,6 +12,7 @@ class StringExpr : CValue, Setupable {
   this(string s) { str = s; }
   mixin defaultIterate!();
   string name_used;
+  override string toString() { return '"'~str~'"'; }
   // default action: place in string segment, load address on stack
   override void setup(AsmFile af) {
     name_used = Format("cons_", af.constants.length);

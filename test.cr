@@ -142,7 +142,7 @@ void sdlfun() {
 
 class Class {
   int i;
-  void foo() { }
+  void foo(int k) { }
 }
 
 void nesttest() {
@@ -196,6 +196,10 @@ int main(int argc, char** argv) {
   w.test();
   printf("And done. \n");
   Class cl;
-  printf("class size is %i\n", sizeof(cl));
+  printf("class size is %i; method is %.*s\n", sizeof(cl), typeof(&cl.foo).stringof);
+  printf("forble %.*s\n", (&cl.foo).stringof);
+  typeof(&cl.foo) dgtest_ = &cl.foo;
+  printf("test 2\n");
+  printf("test 2 %s\n", typeof(cl).stringof);
   sdlfun();
 }

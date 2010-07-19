@@ -217,25 +217,29 @@ Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
   int param_offset;
   Expr ex;
   if (t2.bjoin(
-    !!rest(t2, "tree.expr", &ex, (Expr ex) {
+    !!rest(t2, "tree.expr", &ex, delegate ParseCtl(Expr ex) {
       if (param_offset !< params.length)
         throw new Exception(Format(
-          "Extraneous parameter for ", info, ": ", ex
+          "Extraneous parameter for ", info, ": ", ex, "; already got ", res
         ));
       if (cast(Variadic) params[param_offset]) {
         // why are you using static arrays as parameters anyway?
-        return !cast(StaticArray) ex.valueType();
+        logln("type: ", ex.valueType(), " -- ", ex);
+        return (cast(StaticArray) ex.valueType()) ? ParseCtl.RejectCont : ParseCtl.AcceptCont;
       } else {
         // logln("Try ", ex.valueType(), " into ", fun.type.params[param_offset]._0);
         if (ex.valueType() != cast(Object) params[param_offset])
           // TODO: set error
-          return false;
-        param_offset ++;
-        return true;
+          return ParseCtl.RejectCont;
+        return ParseCtl.AcceptCont;
       }
     }),
     t2.accept(","),
-    { res ~= ex; },
+    {
+      res ~= ex;
+      if (!cast(Variadic) params[param_offset])
+        param_offset ++;
+    },
     true
   )) {
     if (params.length && cast(Variadic) params[$-1]) {
@@ -275,8 +279,8 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       fc.params = matchCall(t2, fun.name, params, rest);
       text = t2;
       return fc;
-    }
-    else throw new Exception("While parsing arguments for call to "~fun.toString()~": "~t2.next_text());
+    } else return null;
+    // else throw new Exception("While parsing arguments for call to "~fun.toString()~": "~t2.next_text());
   };
 }
 mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall", null, true);
@@ -287,6 +291,7 @@ class FunctionPointer : ast.types.Type {
   IType ret;
   IType[] args;
   this() { }
+  string toString() { return Format(ret, " function(", args, ")"); }
   this(IType ret, IType[] args) {
     this.ret = ret;
     this.args = args.dup;

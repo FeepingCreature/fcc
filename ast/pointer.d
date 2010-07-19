@@ -13,7 +13,7 @@ class Pointer : Type {
   override {
     int size() { return nativePtrSize; }
     string mangle() { return "ptrto_"~target.mangle(); }
-    string toString() { return Format(super.toString(), "<", target, ">"); }
+    string toString() { return Format(target, "*"); }
   }
 }
 

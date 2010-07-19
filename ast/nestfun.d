@@ -92,6 +92,9 @@ class NestFunRefExpr : mkDelegate {
     this.fun = fun;
     super(fun.getPointer(), new Register!("ebp"));
   }
+  override string toString() {
+    return Format("&", fun);
+  }
   override IType valueType() {
     return new Delegate(fun.type.ret, fun.type.params /map/ ex!("a, b -> a"));
   }
@@ -102,8 +105,12 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("&")) return null;
   
   string ident;
-  if (!t2.gotIdentifier(ident, true)) return null;
-  auto nf = cast(NestedFunction) namespace().lookup(ident);
+  Object obj;
+  if (!rest(t2, "tree.expr", &obj)) return null;
+  auto nf = cast(NestedFunction) obj;
+  // if (!t2.gotIdentifier(ident, true)) return null;
+  // auto nf = cast(NestedFunction) namespace().lookup(ident);
+  // logln(nf, "; was ", obj);
   if (!nf) return null;
   
   text = t2;
@@ -111,3 +118,42 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   return new NestFunRefExpr(nf);
 }
 mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210");
+
+// *fp
+// TODO: this cannot work; it's too simple.
+class PointerFunction(T) : T {
+  Expr ptr;
+  this(Expr ptr) {
+    static if (is(typeof(super(null)))) super(null);
+    this.ptr = ptr;
+    New(type);
+    auto dg = cast(Delegate) ptr.valueType();
+    if (dg) {
+      type.ret = dg.ret;
+      type.params = dg.args /map/ (IType it) { return stuple(it, ""); };
+    } else logln("TYPE ", ptr.valueType());
+  }
+  override {
+    string mangleSelf() { asm { int 3; } }
+    Expr getPointer() { return ptr; }
+    string toString() {
+      return Format("*", ptr);
+    }
+  }
+}
+
+Object gotFpDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("*")) return null;
+  
+  Expr ex;
+  if (!rest(t2, "tree.expr", &ex)) return null;
+  auto fp = cast(FunctionPointer) ex.valueType(), dg = cast(Delegate) ex.valueType();
+  if (!fp && !dg) return null;
+  
+  text = t2;
+  
+  if(dg) return new PointerFunction!(NestedFunction) (ex);
+  else return new PointerFunction!(Function) (ex);
+}
+mixin DefaultParser!(gotFpDerefExpr, "tree.expr.fp_deref", "2102");

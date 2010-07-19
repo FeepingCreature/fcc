@@ -9,7 +9,7 @@ import
   ast.aggregate, ast.returns, ast.ifstmt, ast.loops, ast.assign,
   ast.structure, ast.variable, ast.fun, ast.unary,
   ast.arrays, ast.index, ast.slice, ast.nestfun,
-  ast.structfuns, ast.type_of, ast.expr_alias,
+  ast.structfuns, ast.type_info, ast.expr_alias,
   ast.oop, ast.dg;
 
 // placed here to resolve circular dependency issues
@@ -91,6 +91,12 @@ void init() {
 
 import assemble: debugOpts;
 int main(string[] args) {
+  /*
+  log_threads = false;
+  logln("<?xml version=\"1.0\" ?><body>");
+  scope(exit) logln("</body>");
+  verboseXML = true;
+  */
   init();
   auto exec = args.take();
   string[] objects;
@@ -122,6 +128,10 @@ int main(string[] args) {
     }
     if (arg == "-debug-parser") {
       verboseParser = true;
+      continue;
+    }
+    if (arg == "-debug-parser-xml") {
+      verboseXML = true;
       continue;
     }
     if (auto base = arg.endsWith(".cr")) {

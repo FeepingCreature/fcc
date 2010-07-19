@@ -69,6 +69,7 @@ class ArrayMaker : Expr {
   IType elemType() {
     return (cast(Pointer) ptr.valueType()).target;
   }
+  override string toString() { return Format("array(ptr=", ptr, ", length=", length, ")"); }
   override IType valueType() {
     return new Array(elemType());
   }

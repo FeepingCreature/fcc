@@ -8,6 +8,7 @@ class mkDelegate : Expr {
   Expr ptr, data;
   this(Expr ptr, Expr data) { this.ptr = ptr; this.data = data; }
   mixin defaultIterate!(ptr, data);
+  override string toString() { return Format("dg(ptr=", ptr, ", data=", data, ")"); }
   override void emitAsm(AsmFile af) {
     mkVar(af, dgAsStructType(cast(Delegate) valueType()), true, (Variable var) {
       iparse!(Statement, "mkdg_assign", "tree.stmt")
@@ -31,7 +32,7 @@ class DgConstructExpr : mkDelegate {
   }
   override IType valueType() {
     auto ft = cast(FunctionPointer) ptr.valueType();
-    // logln("ptr is ", ptr, ", data ", data);
+    // logln("ptr is ", ptr, ", data ", data, ", ft ", ft);
     assert(ft.args.length);
     assert(ft.args[$-1].size == data.valueType().size);
     return new Delegate(ft.ret, ft.args[0 .. $-1]);
@@ -63,15 +64,20 @@ class Delegate : Type {
   IType[] args;
   this() { }
   this(IType ret, IType[] args) { this.ret = ret; this.args = args; }
-  override int size() {
-    return nativePtrSize * 2;
-  }
-  override string mangle() {
-    auto res = "dg_ret_"~ret.mangle()~"_args";
-    if (!args.length) res ~= "_none";
-    else foreach (arg; args)
-      res ~= "_"~arg.mangle();
-    return res;
+  override {
+    string toString() {
+      return Format(ret, " delegate ", args);
+    }
+    int size() {
+      return nativePtrSize * 2;
+    }
+    string mangle() {
+      auto res = "dg_ret_"~ret.mangle()~"_args";
+      if (!args.length) res ~= "_none";
+      else foreach (arg; args)
+        res ~= "_"~arg.mangle();
+      return res;
+    }
   }
 }
 

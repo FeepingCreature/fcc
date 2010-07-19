@@ -58,6 +58,11 @@ interface RelNamespace {
   Object lookupRel(string str, Expr base);
 }
 
+// applies whenever the base ptr parameter is different from "namespace*"; ie. classref.
+interface RelNamespaceFixupBase : RelNamespace {
+  IType genCtxType(RelNamespace context);
+}
+
 T lookup(T)(Namespace ns, string name) {
   if (auto res = cast(T) ns.lookup(name)) return res;
   assert(false, "No such "~T.stringof~": "~name);
@@ -110,6 +115,22 @@ template iparse(R, string id, string rule) {
     auto backup = namespace();
     namespace.set(myns);
     scope(exit) namespace.set(backup);
-    return cast(R) parsecon.parse(text, rule);
+    auto res = parsecon.parse(text, rule);
+    if (!res) throw new Exception(Format("Failed to parse ", id, " at ", text.next_text()));
+    auto rc = cast(R) res;
+    if (!rc) throw new Exception(Format("Wrong result type in ", id, ": wanted ", R.stringof, "; got ", res));
+    return rc;
   }
 }
+
+Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
+  string id, t2 = text;
+  if (t2.gotIdentifier(id)) {
+    if (auto type = cast(IType) namespace().lookup(id)) {
+      text = t2;
+      return cast(Object) type;
+    }
+  }
+  return null;
+}
+mixin DefaultParser!(gotNamedType, "type.named", "4");
