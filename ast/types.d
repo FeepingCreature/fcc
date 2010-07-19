@@ -45,14 +45,6 @@ class Char : Type {
 
 const nativeIntSize = 4, nativePtrSize = 4;
 
-class Class : Type {
-  string name;
-  Stuple!(Type, string)[] members;
-  this(string name) { this.name = name; }
-  override int size() { return nativePtrSize; }
-  abstract override string mangle() { return "class"; }
-}
-
 class SizeT : Type {
   override int size() { return nativeIntSize; }
   override string mangle() { return "size_t"; }
