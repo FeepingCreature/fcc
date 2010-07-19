@@ -5,10 +5,10 @@ import ast.fun, ast.nestfun, ast.base, ast.structure, ast.variable,
 
 import ast.modules;
 Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
-  auto sns = cast(Structure) namespace();
-  if (!sns)
+  auto rs = cast(RelNamespace) namespace();
+  if (!rs)
     throw new Exception(Format("Fail: namespace is ", namespace(), ". "));
-  auto fun = new RelFunction(sns);
+  auto fun = new RelFunction(rs);
   
   if (auto res = gotGenericFunDef(fun, cast(Namespace) null, false, text, cont, rest)) {
     namespace().get!(Module).entries ~= cast(Tree) res;
@@ -58,7 +58,11 @@ class RelFunction : Function, RelTransformable {
   IType basetype; // for mangling purposes
   RelNamespace context;
   private this() { }
-  this(RelNamespace rn) { context = rn; }
+  this(RelNamespace rn) {
+    context = rn;
+    basetype = cast(IType) rn;
+    assert(!!basetype);
+  }
   RelFunction alloc() { return new RelFunction; }
   RelFunction dup() {
     auto res = cast(RelFunction) super.dup();
@@ -70,7 +74,6 @@ class RelFunction : Function, RelTransformable {
   override Object transform(Expr base) {
     assert(!baseptr, Format("RelFun was pretransformed: ", baseptr));
     logln("transform ", this, " with ", base);
-    basetype = base.valueType();
     assert(!!cast(RelNamespace) basetype);
     auto res = dup();
     res.baseptr = base;

@@ -140,10 +140,10 @@ void sdlfun() {
   }
 }
 
-/*class Class {
+class Class {
   int i;
   void foo() { }
-}*/
+}
 
 void nesttest() {
   int nest_test = 13;
@@ -195,6 +195,7 @@ int main(int argc, char** argv) {
   w.i = 5;
   w.test();
   printf("And done. \n");
-  // Class cl;
+  Class cl;
+  printf("class size is %i\n", sizeof(cl));
   sdlfun();
 }
