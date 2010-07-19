@@ -116,6 +116,7 @@ template iparse(R, string id, string rule) {
     namespace.set(myns);
     scope(exit) namespace.set(backup);
     auto res = parsecon.parse(text, rule);
+    if (text.length) throw new Exception(Format("Unknown text in ", id, ": ", text));
     if (!res) throw new Exception(Format("Failed to parse ", id, " at ", text.next_text()));
     auto rc = cast(R) res;
     if (!rc) throw new Exception(Format("Wrong result type in ", id, ": wanted ", R.stringof, "; got ", res));
