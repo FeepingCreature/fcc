@@ -212,7 +212,6 @@ struct ParseCb {
         auto casted = obj;
       }
       if (!casted) {
-        static if (is(MustType)) logln("Reject ", obj, "; is not ", MustType.stringof);
         return ParseCtl.RejectCont;
       }
       static if (is(typeof(accept(casted)) == bool)) {
@@ -467,7 +466,6 @@ class ParseContext {
           if (ctl == ParseCtl.AcceptAbort) return res;
           if (text.ptr > longestMatchStr.ptr) {
             longestMatchStr = text;
-            logln("update res to ", res, " at ", text.next_text());
             longestMatchRes = res;
           }
         } else {
@@ -482,7 +480,6 @@ class ParseContext {
     }
     if (longestMatchStr) {
       text = longestMatchStr;
-      logln("longest match is ", longestMatchRes, " at ", text.next_text());
       return longestMatchRes;
     }
     // okay to not match anything if we're just continuing

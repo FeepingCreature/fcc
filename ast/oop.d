@@ -19,11 +19,6 @@ class VTable {
       }
     return null;
   }
-  int getOffset(Delegate dg) {
-    foreach (i, fun; funs)
-      if (fun == dg) return i;
-    assert(false);
-  }
 }
 
 class ClassRef : Type {

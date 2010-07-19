@@ -145,6 +145,8 @@ class Class {
   void foo(int k) { }
 }
 
+void extfoo(int k) { printf("extfoo %i\n", k); }
+
 void nesttest() {
   int nest_test = 13;
   void nestfun() { int a; a = 7; void nestfun2() { nest_test = a; } nestfun2(); }
@@ -195,11 +197,13 @@ int main(int argc, char** argv) {
   w.i = 5;
   w.test();
   printf("And done. \n");
-  Class cl;
+  void* vtable = malloc(4);
+  (cast(void function (int, Class)*) vtable)[0] = &extfoo;
+  void* classptr = malloc(8);
+  *cast(void**) classptr = vtable;
+  Class cl = cast(Class) classptr;
   printf("class size is %i; method is %.*s\n", sizeof(cl), typeof(&cl.foo).stringof);
   printf("forble %.*s\n", (&cl.foo).stringof);
-  typeof(&cl.foo) dgtest_ = &cl.foo;
-  printf("test 2\n");
-  printf("test 2 %s\n", typeof(cl).stringof);
+  cl.foo(2);
   sdlfun();
 }

@@ -28,11 +28,14 @@ import tools.log;
 // type-deduced!
 class DgConstructExpr : mkDelegate {
   this(Expr fun, Expr base) {
+    if (auto dg = cast(Delegate) fun.valueType())
+      fun = iparse!(Expr, "dg_to_fun", "tree.expr")("fun.fun", "fun", fun);
     super(fun, base);
   }
   override IType valueType() {
     auto ft = cast(FunctionPointer) ptr.valueType();
-    // logln("ptr is ", ptr, ", data ", data, ", ft ", ft);
+    logln("ptr is ", ptr, ", data ", data, ", ft ", ft);
+    logln("ptr type is ", ptr.valueType());
     assert(ft.args.length);
     assert(ft.args[$-1].size == data.valueType().size);
     return new Delegate(ft.ret, ft.args[0 .. $-1]);

@@ -28,7 +28,7 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
     if (t2.accept(".") && t2.gotIdentifier(member)) {
       auto mvar = strtype.lookup(member);
       if (!mvar) return null;
-      logln("Got a struct fun? ", mvar);
+      // logln("Got a struct fun? ", mvar);
       auto smf = cast(RelFunction) mvar;
       if (!smf) return null;
       text = t2;
