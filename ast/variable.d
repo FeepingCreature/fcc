@@ -6,6 +6,7 @@ class Variable : LValue, Named {
   string address() { return Format(baseOffset, "(%ebp)"); }
   override {
     void emitAsm(AsmFile af) {
+      mixin(mustOffset("type.size"));
       af.pushStack(address, type);
     }
     void emitLocation(AsmFile af) {

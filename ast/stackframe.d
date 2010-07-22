@@ -15,7 +15,7 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
     else assert(cur == member._2);
     cur += member._0.size;
   }
-  logln("final cur: ", cur, ", start ", -frame[0]._2);
+  // logln("final cur: ", cur, ", start ", -frame[0]._2);
   // return *(stack_struct_type*) (ebp - lowestvar_offset);
   return new DerefExpr(
     new ReinterpretCast!(Expr)(

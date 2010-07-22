@@ -9,9 +9,9 @@ interface IType {
   int opEquals(Object obj);
 }
 
-template TypeDefaults() {
-  ubyte[] initval() { return new ubyte[size()]; }
-  int opEquals(Object obj) {
+template TypeDefaults(bool INITVAL = true, bool OPEQUALS = true) {
+  static if (INITVAL) ubyte[] initval() { return new ubyte[size()]; }
+  static if (OPEQUALS) int opEquals(Object obj) {
     // specialize where needed
     return this.classinfo is obj.classinfo &&
       size == (cast(typeof(this)) cast(void*) obj).size;

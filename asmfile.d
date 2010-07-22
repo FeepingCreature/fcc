@@ -3,9 +3,10 @@ module asmfile;
 import assemble, ast.types;
 
 import tools.log, tools.functional: map;
-import tools.base: between, slice, startsWith;
+import tools.base: between, slice, startsWith, atoi;
 class AsmFile {
   ubyte[][string] constants;
+  string[][string] longstants; // sorry
   string code;
   bool optimize;
   this(bool optimize) { New(cache); this.optimize = optimize; }
@@ -118,359 +119,163 @@ class AsmFile {
   }
   int lastStackDepth;
   void comment(T...)(T t) {
-    if (!optimize) put("# [", currentStackDepth - lastStackDepth, "]: ", t);
+    if (!optimize)
+      put("# [", currentStackDepth, ": ", currentStackDepth - lastStackDepth, "]: ", t);
     lastStackDepth = currentStackDepth;
   }
-  // opts
-  void collapseAllocFrees() {
-    auto match = cache.findMatch("collapseAllocFrees", (Transaction[] list) {
-      auto match = Transaction.Kind.SAlloc /or/ Transaction.Kind.SFree;
-      if (list.length >= 2 && list[0].kind == match && list[1].kind == match)
-        return 2;
-      else return cast(int) false;
-    });
-    if (!match.length) return;
-    do {
-      int sum_inc;
-      auto l1 = match[0], l2 = match[1];
-      if (l1.kind == Transaction.Kind.SAlloc) sum_inc += l1.size;
-      else sum_inc -= l1.size;
-      if (l2.kind == Transaction.Kind.SAlloc) sum_inc += l2.size;
-      else sum_inc -= l2.size;
-      if (!sum_inc) match.replaceWith(null);
-      else {
-        Transaction res;
-        if (sum_inc > 0) res.kind = Transaction.Kind.SAlloc;
-        else res.kind = Transaction.Kind.SFree;
-        res.size = abs(sum_inc);
-        match.replaceWith(res);
+  static struct onceThenCall {
+    void delegate(Transaction) dg;
+    int opApply(int delegate(ref Transaction) _body) {
+      Transaction tr;
+      _body(tr);
+      dg(tr);
+      return 0;
+    }
+  }
+  static string opt(string name, string s) {
+    string src = s.ctSlice("=>"), dest = s;
+    string stmt_match = src.ctSlice(":");
+    int instrs = 0;
+    {
+      string temp = stmt_match;
+      while (temp.ctSlice(",").length) {
+        src = src  .ctReplace("$"~ctToString(instrs), "match["~ctToString(instrs)~"]");
+        dest = dest.ctReplace("$"~ctToString(instrs), "match["~ctToString(instrs)~"]");
+        instrs ++;
       }
-    } while (match.advance());
+    }
+    string res;
+    res ~= `void `~name~`() {
+      auto match = cache.findMatch("`~name~`", (Transaction[] list) {
+        // logln("cond for `~name~`: ", list);
+        if (list.length >= ` ~ ctToString(instrs);
+    {
+      string temp = stmt_match, merp; int i;
+      while ((merp=temp.ctSlice(",")).length)
+        res ~= ` && (` ~ merp.ctStrip().ctReplace("^", `list[` ~ ctToString(i++) ~ `].kind == Transaction.Kind.`) ~ `)`;
+    }
+    res ~= `) {
+          return ` ~ ctToString(instrs) ~ `;
+        }
+        else return 0;
+      });
+      if (match.length) _loophead:do { `;
+    if (src.ctStrip().length) res ~= `
+        if (!(`~src~`)) continue;`;
+    res ~= dest.ctReplace(
+          "$SUBSTWITH", `foreach (ref $T res; onceThenCall(($T t) { match.replaceWith(t); })) with (res)`,
+          "$SUBST", `match.replaceWith`,
+          "$TK", `Transaction.Kind`,
+          "$T", `Transaction`,
+          "$RESET", `{ if (!match.reset()) break; goto _loophead; }`);
+    res ~= `
+      } while (match.advance());
+    }
+    `~name~`();
+    `;
+    return res;
   }
-  // Using stack as scratchpad is silly and pointless
-  void collapseScratchMove() {
-    auto match = cache.findMatch("collapseScratchMove", (Transaction[] list) {
-      if (list.length > 2 && list[0].kind /and/ list[1].kind == Transaction.Kind.Mov && (
-        (list[0].to == "(%esp)" && list[1].from == "(%esp)" && list[2].kind == Transaction.Kind.SFree) ||
-        (!list[0].to.isRelative() && list[0].to == list[1].from) // second mode .. remember, moves are MOVEs, not COPYs
-      )) {
-        return 2;
-      }
-      else return cast(int) false;
-    });
-    if (!match.length) return;
-    do {
-      // what the fuck
-      if (match[0].from == match[1].to) {
-        match.replaceWith(null);
-        continue;
-      }
-      // logln("Collapse ", match[0], " into ", match[1]);
-      Transaction res;
-      res.kind = Transaction.Kind.Mov;
-      res.from = match[0].from; res.to = match[1].to;
-      if (!match[0].to.isRelative())
-        res.usableScratch = match[0].to;
-      match.replaceWith(res);
-    } while (match.advance());
+  static bool isRegister(string s) {
+    return s.length > 2 && s[0] == '%' && s[1] != '(';
   }
-  // same
-  void collapseScratchPush() {
-    auto match = cache.findMatch("collapseScratchPush", (Transaction[] list) {
-      if (list.length >= 2 &&
-          list[0].kind == Transaction.Kind.Push &&
-          list[1].kind == Transaction.Kind.Pop &&
-          (
-            !list[0].source.isRelative()
-            ||
-            !list[1].dest.isRelative()
-          )
-        )
-      {
-        return 2;
-      }
-      else return cast(int) false;
-    });
-    if (!match.length) return;
-    do {
-      // what the fuck
-      if (match[0].source == match[1].dest) {
-        logln("Who the fuck produced this retarded bytecode: ", cache.list);
-        match.replaceWith(null);
-        continue;
-      }
-      // logln("Collapse ", match[0], " into ", match[1]);
-      Transaction res;
-      res.kind = Transaction.Kind.Mov;
-      res.from = match[0].source; res.to = match[1].dest;
-      match.replaceWith(res);
-    } while (match.advance());
+  static bool isLiteral(string s) {
+    return s.length && s[0] == '$';
   }
-  void collapseCompares() {
-    auto match = cache.findMatch("collapseCompares", (Transaction[] list) {
-      if (list.length >= 2 &&
-          list[0].kind == Transaction.Kind.Mov &&
-          list[1].kind == Transaction.Kind.Compare &&
-          (
-            list[1].op1 != list[0].to
-            ||
-            !list[0].from.isRelative()
-          ) &&
-          (list[1].op1 /or/ list[1].op2 == list[0].to)
-      ) {
-        return 2;
-      }
-      else return cast(int) false;
-    });
-    if (!match.length) return;
-    do {
-      Transaction res = match[1];
-      if (match[1].op1 == match[0].to) res.op1 = match[0].from;
-      else res.op1 = match[1].op1;
-      if (match[1].op2 == match[0].to) res.op2 = match[0].from;
-      else res.op2 = match[1].op2;
-      match.replaceWith(res);
-    } while (match.advance());
-  }
-  // add esp, move, sub esp; or reverse
-  void collapsePointlessRegMove() {
-    auto match = cache.findMatch("collapsePointlessRegMove", (Transaction[] list) {
-      if (list.length < 3) return 0;
-      if ( list[0].kind == Transaction.Kind.SFree
-        && list[1].kind == Transaction.Kind.Mov && list[1].to == "(%esp)"
-        && list[2].kind == Transaction.Kind.SAlloc && list[2].size == list[0].size)
-      {
-        return 3;
-      }
-      else return 0;
-    });
-    if (!match.length) return;
-    do {
-      Transaction res;
-      res.kind = Transaction.Kind.Mov;
-      res.from = match[1].from;
-      res.usableScratch = match[1].usableScratch;
-      res.to = Format(match[0].size, "(%esp)");
-      match.replaceWith(res);
-    } while (match.advance());
-  }
-  void binOpMathSpeedup() {
-    auto match = cache.findMatch("binOpMathSpeedup", (Transaction[] list) {
-      if (list.length < 3) return 0;
-      if ( list[0].kind == Transaction.Kind.Mov && list[0].to == "(%esp)"
-        && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1]) && list[1].to != list[0].from
-        && list[2].kind == Transaction.Kind.MathOp && list[2].op1 == "(%esp)")
-      {
-        return 3;
-      }
-      else return 0;
-    });
-    if (match.length) do {
-      auto subst = match[2];
-      subst.op1 = match[0].from;
-      match.replaceWith([match[1], subst]);
-    } while (match.advance);
-    
-    auto match2 = cache.findMatch("binOpMathSpeedup2", (Transaction[] list) {
-      if (list.length < 3) return 0;
-      if (list[0].kind == Transaction.Kind.Push && list[0].type.size == 4 &&
-          list[1].kind == Transaction.Kind.MathOp && list[1].op1 == "(%esp)")
-      {
-        return 3;
-      } else return 0;
-    });
-    if (match2.length) do {
-      auto temp = match2[1];
-      temp.op1 = match2[0].source;
-      if (match2[2].kind == Transaction.Kind.SFree && match2[2].size == 4) {
-        match2.replaceWith(temp);
-      } else {
-        if (match2[2].kind == Transaction.Kind.Mov && !dependsOnEsp(match2[2].from) && match2[2].to == "(%esp)") {
-          Transaction npush;
-          npush.kind = Transaction.Kind.Push;
-          npush.source = match2[2].from;
-          npush.type = Single!(SizeT);
-          match2.replaceWith([temp, npush]);
-        }/* else {
-          match2.replaceWith([temp, match2[0], match2[2]]);
-        }*/
-      }
-    } while (match2.advance);
-  }
-  static bool dependsOnEsp(string s) {
-    return s.find("%esp") != -1;
-  }
-  static bool dependsOnEsp(Transaction t) {
-    if (t.kind == Transaction.Kind.Mov)
-      return dependsOnEsp(t.from) || dependsOnEsp(t.to);
-    if (t.kind == Transaction.Kind.Push)
-      return dependsOnEsp(t.source);
-    if (t.kind == Transaction.Kind.Pop)
-      return dependsOnEsp(t.dest);
-    assert(false, Format("Cannot determine %esp dependency of ", t, ": unknown type of operation"));
-  }
-  static bool related(string reg1, string reg2) {
-    if (auto b = reg1.between("(", ")")) reg1 = b;
-    if (auto b = reg2.between("(", ")")) reg2 = b;
-    return reg1 == reg2;
-  }
-  void sortByEspDependency() {
-    auto match = cache.findMatch("sortByEspDependency", (Transaction[] list) {
-      auto match = Transaction.Kind.Mov;
-      if (list.length < 2) return 0;
-      if (
-          (
-            list[0].kind == Transaction.Kind.SFree /or/ Transaction.Kind.SAlloc
-            ||
-            list[0].kind == Transaction.Kind.Push /or/ Transaction.Kind.Pop
-              && !dependsOnEsp(list[0])
-              && !related((list[0].kind == Transaction.Kind.Push)?list[0].source:list[0].dest, list[1].to)
-          )
-          && list[1].kind == Transaction.Kind.Mov && !dependsOnEsp(list[1])
-        )
-      {
-        return 2;
-      } else return 0;
-    });
-    if (match.length) do {
-      match.replaceWith([match[1], match[0]]);
-    } while (match.advance());
-  }
-  void removeRedundantPop() {
-    auto match = cache.findMatch("removeRedundantPop", (Transaction[] list) {
-      if (list.length < 2) return 0;
-      // movl [FOO], (%esp)
-      // popl [FOO]
-      if (
-          list[0].kind == Transaction.Kind.Mov && list[0].to == "(%esp)" &&
-          list[1].kind == Transaction.Kind.Pop && list[1].dest == list[0].from
-        )
-      {
-        return 2;
-      } else return 0;
-    });
-    if (match.length) do {
-      Transaction res;
-      res.kind = Transaction.Kind.SFree;
-      res.size = nativePtrSize;
-      match.replaceWith(res);
-    } while (match.advance());
-  }
-  void removeRedundantPushPop() {
-    auto match = cache.findMatch("removeRedundantPushPop", (Transaction[] list) {
-      if (list.length < 2) return 0;
-      if (
-          list[0].kind == Transaction.Kind.Push &&
-          list[1].kind == Transaction.Kind.Pop &&
-          list[1].type.size() == list[0].type.size() /and/ 4
-        )
-      {
-        return 2;
-      } else return 0;
-    });
-    if (match.length) do {
-      Transaction res;
-      res.kind = Transaction.Kind.Mov;
-      res.from = match[0].source;
-      res.to = match[1].dest;
-      match.replaceWith(res);
-    } while (match.advance());
-  }
-  void removePointlessPushFree() {
-    auto match = cache.findMatch("removePointlessPushFree", (Transaction[] list) {
-      if (list.length < 2) return 0;
-      if (
-          list[0].kind == Transaction.Kind.Push &&
-          list[1].kind == Transaction.Kind.SFree &&
-          list[1].size == list[0].type.size()
-        )
-      {
-        return 2;
-      } else return 0;
-    });
-    if (match.length) do {
-      match.replaceWith(null);
-    } while (match.advance());
-  }
-  void removePointlessPushMov() {
-    auto match = cache.findMatch("removePointlessPushFree", (Transaction[] list) {
-      if (list.length < 2) return 0;
-      if (
-          list[0].kind == Transaction.Kind.Push &&
-          list[1].kind == Transaction.Kind.Mov &&
-          list[0].type.size() == 4 &&
-          list[1].from == "(%esp)" && list[1].to == list[0].source
-        )
-      {
-        return 2;
-      } else return 0;
-    });
-    if (match.length) do {
-      match.replaceWith(match[0]);
-    } while (match.advance());
-  }
-  static bool isIndirect(string addr) {
-    return addr.find("(") != -1;
-  }
-  static bool isNum(string n) {
-    return !!n.startsWith("$");
-  }
-  void MathToIndirectAddressing() {
-    auto match = cache.findMatch("MathToIndirectAddressing", (Transaction[] list) {
-      if (list.length < 3) return 0;
-      // movl [FOO], [REG]
-      // addl [VAL], [REG]
-      // popl ([REG])
-      // ->
-      // popl [VAL]([FOO])
-      if (list[0].kind == Transaction.Kind.Mov && !isIndirect(list[0].from) &&
-          list[1].kind == Transaction.Kind.MathOp && list[1].opName == "addl" && isNum(list[1].op1) && list[1].op2 == list[0].to &&
-          (
-            list[2].kind == Transaction.Kind.Pop && list[2].dest == "("~list[0].to~")"
-            ||
-            list[2].kind == Transaction.Kind.Push && list[2].source == "("~list[0].to~")"
-          )
-        )
-      {
-        return 3;
-      } else return 0;
-    });
-    if (match.length) do {
-      Transaction res;
-      res.kind = match[2].kind;
-      res.type = match[2].type;
-      auto op = match[1].op1;
-      op.slice("$");
-      op ~= "("~match[0].from~")";
-      if (res.kind == Transaction.Kind.Pop)
-        res.dest = op;
-      else
-        res.source = op;
-      
-      match.replaceWith(res);
-    } while (match.advance());
+  static int literalToInt(string s) {
+    assert(isLiteral(s));
+    return s[1 .. $].atoi();
   }
   void flush() {
+    bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
     if (optimize) {
-      collapseAllocFrees;
-      collapseScratchMove;
-      collapseScratchPush;
-      collapsePointlessRegMove;
-      collapseCompares;
-      sortByEspDependency;
-      collapseAllocFrees; // rerun
-      removeRedundantPop;
-      removeRedundantPushPop;
-      binOpMathSpeedup;
-      MathToIndirectAddressing;
-      collapseScratchPush; // rerun
-      removePointlessPushFree;
-      removePointlessPushMov;
+      mixin(opt("collapse_alloc_frees", `^SAlloc || ^SFree, ^SAlloc || ^SFree =>
+        int sum_inc;
+        if ($0.kind == $TK.SAlloc) sum_inc += $0.size;
+        else sum_inc -= $0.size;
+        if ($1.kind == $TK.SAlloc) sum_inc += $1.size;
+        else sum_inc -= $1.size;
+        if (!sum_inc) $SUBST(null);
+        else $SUBSTWITH {
+          if (sum_inc > 0) kind = $TK.SAlloc;
+          else kind = $TK.SFree;
+          size = abs(sum_inc);
+        }
+      `));
+      mixin(opt("collapse_push_pop", `^Push, ^Pop: ($0.type.size == $1.type.size) && (!$0.source.isRelative() || !$1.dest.isRelative()) && goodMovSize($0.type.size) =>
+        if ($0.source == $1.dest) { /*logln("Who the fuck produced this retarded bytecode: ", match[]);*/ $SUBST(null); continue; }
+        $SUBSTWITH {
+          kind = $0.type.size == 4 ? $TK.Mov : ($0.type.size == 2 ? $TK.Mov2 : $TK.Mov1);
+          from = $0.source; to = $1.dest;
+        }
+      `));
+      mixin(opt("add_mov", `^MathOp, ^Mov: $0.opName == "addl" && $0.op2 == "%eax" && $0.op2 == $1.from && $0.op1 == $1.to =>
+        $SUBSTWITH {
+          kind = $TK.MathOp;
+          opName = $0.opName; op1 = "%eax"; op2 = $0.op1;
+        }
+      `));
+      mixin(opt("mov_and_math", `^Mov, ^MathOp: $0.to == $1.op1 && !isRelative($0.from) =>
+        $SUBSTWITH {
+          kind = $TK.MathOp;
+          opName = $1.opName; op1 = $0.from; op2 = $1.op2;
+        }
+      `));
+      mixin(opt("add_and_pop_reg", `^MathOp, ^Pop: $0.op2 == "(%esp)" && ($0.op1.find($1.to) == -1) =>
+        $T res = $0;
+        res.op2 = $1.to;
+        $SUBST([$1, res]);
+        $RESET;
+      `));
+      collapse_push_pop(); // rerun
+      mixin(opt("literals_first", `^MathOp, ^MathOp: $0.op2 == $1.op2 && $0.op1.isRegister() && $1.op1.isLiteral() =>
+        $SUBST([$1, $0]);
+        $RESET;
+      `));
+      mixin(opt("fold_math", `^Mov, ^MathOp: $1.opName == "addl" && $0.to == $1.op2 && $0.from.isLiteral() && $1.op1.isLiteral() =>
+        $SUBSTWITH {
+          kind = $TK.Mov;
+          from = Format("$", $0.from.literalToInt() + $1.op1.literalToInt());
+          to = $0.to;
+        }
+      `));
+      mixin(opt("fold_math_push_add", `^Push, ^MathOp: $0.source.isLiteral() && $1.op1.isLiteral() && $1.op2 == "(%esp)" =>
+        $SUBSTWITH {
+          res = $0;
+          int i1 = $0.source.literalToInt(), i2 = $1.op1.literalToInt();
+          switch ($1.opName) {
+            case "addl": source = Format("$", i1+i2); break;
+            case "subl": source = Format("$", i1-i2); break;
+            case "imull": source = Format("$", i1*i2); break;
+            default: assert(false, "Unsupported op: "~$1.opName);
+          }
+        }
+      `));
+      mixin(opt("fold_mul", `^Push, ^Mov, ^MathOp, ^Mov:
+        $0.source.isLiteral() && $0.type.size == 4 &&
+        $1.from.isLiteral() && $1.to == $2.op2 &&
+        $2.op1 == "(%esp)" && $2.op2 == $3.from && $2.opName == "imull" &&
+        $3.to == "(%esp)"
+        =>
+        $SUBSTWITH {
+          res = $0;
+          auto i1 = $0.source.literalToInt(), i2 = $1.from.literalToInt();
+          source = Format("$", i1*i2);
+        }
+      `));
+      /// location access to a struct can be translated into an offset instruction
+      mixin(opt("indirect_access", `^Mov, ^MathOp, ^Pop:
+        $0.from.isLiteral() && $1.opName == "addl" && $1.op1.isRegister() &&
+        $0.to == $1.op2 && $0.to == "%eax" && $2.dest == "(%eax)"
+        =>
+        $SUBSTWITH {
+          kind = $TK.Pop;
+          type = $2.type;
+          dest = Format($0.from.literalToInt(), "(", $1.op1, ")");
+        }
+      `));
+      collapse_push_pop(); // again!
     }
-    foreach (t; cache.list) {
-      if (auto line = t.toAsm())
-          _put(line);
-    }
+    foreach (entry; cache.list) if (auto line = entry.toAsm()) _put(line);
     cache.list = null;
   }
   void put(T...)(T t) {
@@ -488,6 +293,12 @@ class AsmFile {
       res ~= Format(name, ":\n");
       res ~= ".byte ";
       foreach (val; c) res ~= Format(cast(ubyte) val, ", ");
+      res ~= "0\n";
+    }
+    foreach (name, array; longstants) { // lol
+      res ~= Format(name, ":\n");
+      res ~= ".long ";
+      foreach (val; array) res ~= Format(val, ", ");
       res ~= "0\n";
     }
     res ~= ".text\n";

@@ -32,14 +32,17 @@ class RelMember : Expr, Named, RelTransformable {
   string name;
   IType type;
   int offset;
-  override IType valueType() { return type; }
-  override void emitAsm(AsmFile af) {
-    assert(false, "Rel member untransformed: cannot emit. ");
-  }
-  mixin defaultIterate!();
-  override string getIdentifier() { return name; }
-  override Object transform(Expr base) {
-    return cast(Object) mkMemberAccess(base, name);
+  override {
+    string toString() { return Format("[", name, ": ", type, " @", offset, "]"); }
+    IType valueType() { return type; }
+    void emitAsm(AsmFile af) {
+      assert(false, "Rel member untransformed: cannot emit. ");
+    }
+    mixin defaultIterate!();
+    string getIdentifier() { return name; }
+    Object transform(Expr base) {
+      return cast(Object) mkMemberAccess(base, name);
+    }
   }
   this(string name, IType type, Namespace ns) {
     this.name = name;
@@ -166,7 +169,7 @@ class MemberAccess(T) : T {
       static if (is(T: LValue)) {
         assert(stm.type.size == 4 /or/ 2 /or/ 1,
           Format("Invalid struct member type: ", stm.type));
-        af.comment("emit location of ", base, " for member access");
+        af.comment("emit location of ", base, " for member access to ", stm.name, " @", stm.offset);
         base.emitLocation(af);
         af.comment("pop and dereference");
         af.popStack("%eax", new Pointer(st));
@@ -188,7 +191,7 @@ class MemberAccess(T) : T {
         assert(stm.type.size == 4);
         af.comment("emit struct ", base, " for member access");
         base.emitAsm(af);
-        af.comment("store member and free");
+        af.comment("store member and free: ", stm.name);
         af.mmove4(Format(stm.offset, "(%esp)"), "%eax");
         af.sfree(st.size);
         af.comment("repush member");
@@ -197,9 +200,9 @@ class MemberAccess(T) : T {
     }
     static if (is(T: LValue)) {
       void emitLocation(AsmFile af) {
-        af.comment("emit location of ", base, " for member address");
+        if (!af.optimize) af.comment("emit location of ", base, " for member address of ", stm.name, " @", stm.offset);
         base.emitLocation(af);
-        af.comment("add offset ", stm.offset);
+        if (!af.optimize) af.comment("add offset ", stm.offset);
         af.mathOp("addl", Format("$", stm.offset), "(%esp)");
       }
     }

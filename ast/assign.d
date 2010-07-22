@@ -17,8 +17,15 @@ class Assignment : Statement {
   }
   mixin defaultIterate!(target, value);
   override void emitAsm(AsmFile af) {
-    value.emitAsm(af);
-    target.emitLocation(af);
+    mixin(mustOffset("0"));
+    {
+      mixin(mustOffset("value.valueType().size"));
+      value.emitAsm(af);
+    }
+    {
+      mixin(mustOffset("nativePtrSize"));
+      target.emitLocation(af);
+    }
     af.popStack("%eax", new Pointer(target.valueType()));
     
     af.popStack("(%eax)", value.valueType());

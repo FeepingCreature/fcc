@@ -224,7 +224,6 @@ Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
         ));
       if (cast(Variadic) params[param_offset]) {
         // why are you using static arrays as parameters anyway?
-        logln("type: ", ex.valueType(), " -- ", ex);
         return (cast(StaticArray) ex.valueType()) ? ParseCtl.RejectCont : ParseCtl.AcceptCont;
       } else {
         // logln("Try ", ex.valueType(), " into ", fun.type.params[param_offset]._0);
@@ -366,7 +365,7 @@ Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   if (!t2.gotIdentifier(ident, true)) return null;
   auto fun = cast(Function) namespace().lookup(ident);
-  logln("fun is ", fun, " <- ", namespace().lookup(ident), " <- ", ident);
+  // logln("fun is ", fun, " <- ", namespace().lookup(ident), " <- ", ident);
   if (!fun) return null;
   
   text = t2;

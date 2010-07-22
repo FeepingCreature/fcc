@@ -11,7 +11,7 @@ void handlePointers(ref Expr op1, ref Expr op2) {
     if (cast(Pointer) op2.valueType())
       throw new Exception("Pointer/pointer addition is undefined! ");
     auto mul = (cast(Pointer) op1.valueType()).target.size;
-    op2 = new AsmBinopExpr!("imull")(new IntExpr(mul), op2);
+    op2 = new AsmBinopExpr!("imull")(op2, new IntExpr(mul));
   }
 }
 

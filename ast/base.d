@@ -27,7 +27,7 @@ string genIterates(int params) {
   for (int i = 0; i < params; ++i) {
     res ~= `
       {
-        static if (is(typeof($A[0]))) {
+        static if (is(typeof({ foreach (i, ref entry; $A) {} }))) {
           foreach (i, ref entry; $A) {
             Iterable iter = entry;
             dg(iter);
@@ -140,4 +140,21 @@ void withTLS(T, U, V)(T obj, U value, lazy V vee) {
 /// can be transformed into an obj relative to a base
 interface RelTransformable {
   Object transform(Expr base);
+}
+
+// ctfe
+string mustOffset(string value) {
+  
+  string hash;
+  foreach (ch; value)
+    if (ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z')
+      hash ~= ch;
+  if (hash.length) hash = "__start_offs_"~hash;
+  else hash = "__start_offs";
+  
+  return (`
+    auto OFFS = af.currentStackDepth;
+    scope(success) assert(af.currentStackDepth == OFFS + `~value~`,
+      Format("Stack offset violated: got ", af.currentStackDepth, "; expected ", OFFS + `~value~`)
+    );`).ctReplace("\n", "", "OFFS", hash); // fix up line numbers!
 }

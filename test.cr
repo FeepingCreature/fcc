@@ -145,7 +145,7 @@ class Class {
   void foo(int k) { }
 }
 
-void extfoo(int k) { printf("extfoo %i\n", k); }
+void extfoo(int k, Class self) { printf("extfoo %i\n", k + self.i); }
 
 void nesttest() {
   int nest_test = 13;
@@ -204,6 +204,10 @@ int main(int argc, char** argv) {
   Class cl = cast(Class) classptr;
   printf("class size is %i; method is %.*s\n", sizeof(cl), typeof(&cl.foo).stringof);
   printf("forble %.*s\n", (&cl.foo).stringof);
+  cl.i = 3;
   cl.foo(2);
+  void delegate(int) dgx = &cl.foo;
+  dgx(3);
+  (&cl.foo)(4);
   sdlfun();
 }

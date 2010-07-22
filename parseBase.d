@@ -159,6 +159,7 @@ bool delegate(string) matchrule(string rules) {
 }
 
 enum ParseCtl { AcceptAbort, RejectAbort, AcceptCont, RejectCont }
+const ParseCtlDecode = ["AcceptAbort", "RejectAbort", "AcceptCont", "RejectCont"];
 
 struct ParseCb {
   Object delegate(ref string text,
@@ -225,7 +226,9 @@ struct ParseCb {
     
     static if (Rest2.length == 1 && is(typeof(*rest2[0]))) {
       // only accept-test objects that match the type
+      auto backup = text;
       *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, myAccept);
+      if (!*rest2[0]) text = backup;
       return cast(Object) *rest2[0];
     } else {
       static assert(!Rest2.length, "Left: "~Rest2.stringof~" of "~T.stringof);
@@ -421,7 +424,7 @@ class ParseContext {
     // make copy
     cond.ptr = (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX].dup.ptr;
     Object longestMatchRes;
-    string longestMatchStr;
+    string longestMatchStr = text;
     foreach (i, parser; parsers[offs .. $]) {
       auto xid = parser.getId().replace(".", "_");
       if (verboseXML) logln("<", xid, " text='", text.next_text(16).xmlmark(), "'>");
@@ -453,6 +456,7 @@ class ParseContext {
           auto ctl = ParseCtl.AcceptAbort;
           if (accept) {
             ctl = accept(res);
+            if (verboseParser) logln("    PARSER [", parser.getId(), "]: control flow ", ParseCtlDecode[ctl]);
             if (ctl == ParseCtl.RejectAbort || ctl == ParseCtl.RejectCont) {
               if (verboseParser) logln("    PARSER [", parser.getId(), "] rejected ", Format(res));
               if (verboseXML) logln("Reject</", xid, ">");
@@ -478,7 +482,7 @@ class ParseContext {
         if (verboseXML) logln("Ignore</", xid, ">");
       }*/
     }
-    if (longestMatchStr) {
+    if (longestMatchRes) {
       text = longestMatchStr;
       return longestMatchRes;
     }

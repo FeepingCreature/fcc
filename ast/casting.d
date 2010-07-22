@@ -4,12 +4,17 @@ import ast.base, ast.parse;
 
 class ReinterpretCast(T) : T {
   T from; IType to;
-  this(IType to, T from) { this.from = from; this.to = to; }
+  this(IType to, T from) {
+    this.from = from;
+    this.to = to;
+    assert(to.size == from.valueType().size, Format("Can't cast ", from, " to ", to, "!"));
+  }
   mixin defaultIterate!(from);
   override {
     string toString() { return Format("reinterpret_cast<", to, "> ", from); }
     IType valueType() { return to; }
     void emitAsm(AsmFile af) {
+      mixin(mustOffset("to.size"));
       from.emitAsm(af);
     }
     static if (is(typeof(&from.emitLocation)))

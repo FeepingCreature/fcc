@@ -76,8 +76,12 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef");
 
 class NestedCall : FunCall {
+  Expr dg;
   override void emitAsm(AsmFile af) {
-    callDg(af, fun.type.ret, params,
+    // if (dg) logln("call ", dg);
+    // else logln("call {", fun.getPointer(), " @ebp");
+    if (dg) callDg(af, fun.type.ret, params, dg);
+    else callDg(af, fun.type.ret, params,
       new DgConstructExpr(fun.getPointer(), new Register!("ebp")));
   }
   override IType valueType() {
@@ -95,6 +99,7 @@ class NestFunRefExpr : mkDelegate {
   override string toString() {
     return Format("&", fun);
   }
+  // TODO: emit asm directly in case of PointerFunction.
   override IType valueType() {
     return new Delegate(fun.type.ret, fun.type.params /map/ ex!("a, b -> a"));
   }
@@ -114,7 +119,8 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!nf) return null;
   
   text = t2;
-  
+  if (auto pnf = cast(PointerFunction!(NestedFunction)) nf) return cast(Object) pnf.ptr;
+  if (auto  pf = cast(PointerFunction!(Function)) nf)       return cast(Object)  pf.ptr;
   return new NestFunRefExpr(nf);
 }
 mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210");
@@ -134,6 +140,8 @@ class PointerFunction(T) : T {
     } else logln("TYPE ", ptr.valueType());
   }
   override {
+    // edit: TOLD YA. Forgot this. Chased bugs for a good night.
+    FunCall mkCall() { auto res = new NestedCall; res.dg = ptr; return res; }
     string mangleSelf() { asm { int 3; } }
     Expr getPointer() { return ptr; }
     string toString() {

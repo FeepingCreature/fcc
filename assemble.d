@@ -10,55 +10,12 @@ bool isRelative(string reg) {
   return reg.find("(") != -1;
 }
 
-enum RegState {
-  Undefined, Value, Relation, Deref, IndexDeref
-}
-
-// delta state optimizer
-struct Register {
-  string name;
-  RegState state;
-    Register* src;
-    union { int offset, value; }
-  bool scrap;
-  string dependsOnMe; // target for my computation
-  void flush(void delegate(string) dg) {
-    switch (state) {
-      case RegState.Undefined: break;
-      case RegState.Value: dg(Format("movl $", value, ", %", name)); break;
-      case RegState.Relation:
-        src.flush(dg);
-        dg(Format("movl %", src.name, ", %", name));
-        break;
-      case RegState.Deref:
-        
-        
-    }
-  }
-}
-
-/*
-// wip
-class x86 {
-  Register[5] regs;
-  Register[] stackframe;
-  this() {
-    reg[0].name = "eax";
-    reg[1].name = "ebx";
-    reg[2].name = "ecx";
-    reg[3].name = "edx";
-    reg[4].name = "esp";
-  }
-  void execute(Transaction t) {
-  }
-}
-*/
-
 import parseBase; // int parsing
 struct Transaction {
   enum Kind {
     Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare
   }
+  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare"];
   Kind kind;
   string toString() {
     switch (kind) {
@@ -68,8 +25,8 @@ struct Transaction {
       case Kind.SAlloc:  return Format("[salloc ", size, "]");
       case Kind.SFree:   return Format("[sfree ", size, "]");
       case Kind.MathOp:  return Format("[math:", opName, " ", op1, ", ", op2, "]");
-      case Kind.Push:    return Format("[push ", source, "]");
-      case Kind.Pop:     return Format("[pop ", dest, "]");
+      case Kind.Push:    return Format("[push ", source, ": ", type.size, "]");
+      case Kind.Pop:     return Format("[pop ", dest, ": ", type.size, "]");
       case Kind.Compare:
         if (test) return Format("[cmp/test ", op1, ", ", op2, "]");
         else return Format("[cmp ", op1, ", ", op2, "]");
@@ -214,6 +171,7 @@ struct Transsection(C) {
   int from, to;
   bool modded;
   Transaction opIndex(int i) { return parent.list[from + i]; }
+  Transaction[] opSlice() { return parent.list[from .. to]; }
   size_t length() { return to - from; }
   void replaceWith(Transaction[] withWhat) {
     if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", withWhat);
@@ -227,12 +185,16 @@ struct Transsection(C) {
     to = from + 1;
     modded = true;
   }
+  bool reset() {
+    *this = parent.findMatch(opName, cond);
+    return !!length;
+  }
   bool advance() {
     auto start = from;
     // don't recheck if not modified
     if (!modded) start = to;
     *this = parent.findMatch(opName, cond, start);
-    return from != to;
+    return !!length;
   }
 }
 

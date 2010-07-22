@@ -29,13 +29,17 @@ int boffs(IType t, int curdepth = -1) {
 
 static int x;
 void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
+  mixin(mustOffset("type.size"));
   auto var = new Variable(type, Format("__temp_var_", x++, "__"),
                           boffs(type, af.currentStackDepth));
   auto vd = new VarDecl;
   vd.var = var;
   vd.dontInit = dontInit;
   vd.emitAsm(af);
-  dg(var);
+  {
+    mixin(mustOffset("0"));
+    dg(var);
+  }
 }
 
 import ast.namespace, ast.scopes;

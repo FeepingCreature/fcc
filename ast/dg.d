@@ -6,11 +6,22 @@ import ast.base, ast.parse, ast.vardecl, ast.namespace, ast.structure,
 class mkDelegate : Expr {
   abstract IType valueType();
   Expr ptr, data;
-  this(Expr ptr, Expr data) { this.ptr = ptr; this.data = data; }
+  this(Expr ptr, Expr data) {
+    if (ptr.valueType().size != 4) {
+      asm { int 3; }
+      throw new Exception(Format("Cannot construct delegate from ", ptr, " (data ", data, ")!"));
+    }
+    this.ptr = ptr;
+    this.data = data;
+  }
   mixin defaultIterate!(ptr, data);
   override string toString() { return Format("dg(ptr=", ptr, ", data=", data, ")"); }
   override void emitAsm(AsmFile af) {
+    mixin(mustOffset("nativePtrSize * 2"));
+    // data.emitAsm(af);
+    // ptr.emitAsm(af);
     mkVar(af, dgAsStructType(cast(Delegate) valueType()), true, (Variable var) {
+      mixin(mustOffset("0"));
       iparse!(Statement, "mkdg_assign", "tree.stmt")
       ("{
           var.fun  = cast(typeof(var.fun )) fun;
@@ -28,14 +39,16 @@ import tools.log;
 // type-deduced!
 class DgConstructExpr : mkDelegate {
   this(Expr fun, Expr base) {
-    if (auto dg = cast(Delegate) fun.valueType())
+    if (auto dg = cast(Delegate) fun.valueType()) {
+      assert(false);
       fun = iparse!(Expr, "dg_to_fun", "tree.expr")("fun.fun", "fun", fun);
+    }
     super(fun, base);
   }
   override IType valueType() {
     auto ft = cast(FunctionPointer) ptr.valueType();
-    logln("ptr is ", ptr, ", data ", data, ", ft ", ft);
-    logln("ptr type is ", ptr.valueType());
+    // logln("ptr is ", ptr, ", data ", data, ", ft ", ft);
+    // logln("ptr type is ", ptr.valueType());
     assert(ft.args.length);
     assert(ft.args[$-1].size == data.valueType().size);
     return new Delegate(ft.ret, ft.args[0 .. $-1]);
@@ -171,15 +184,14 @@ void callDg(AsmFile dest, IType ret, Expr[] params, Expr dg) {
   dest.comment("Begin delegate call");
   
   auto dgs = dgAsStruct(dg);
-  
-  params ~= new MemberAccess_Expr(dgs, "data");
+  params ~= mkMemberAccess(dgs, "data");
   
   foreach_reverse (param; params) {
     dest.comment("Push ", param);
     param.emitAsm(dest);
   }
   
-  (new MemberAccess_Expr(dgs, "fun")).emitAsm(dest);
+  mkMemberAccess(dgs, "fun").emitAsm(dest);
   dest.popStack("%eax", Single!(SizeT));
   dest.put("call *%eax");
   

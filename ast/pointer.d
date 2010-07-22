@@ -72,8 +72,10 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("&")) return null;
   
   Expr ex;
-  if (!rest(text, "tree.expr >tree.expr.arith", &ex))
-    throw new Exception("Address operator found but nothing to take address matched at '"~text.next_text()~"'");
+  if (!rest(text, "tree.expr >tree.expr.arith", &ex)) {
+    error = "Address operator found but nothing to take address matched at '"~text.next_text()~"'";
+    return null;
+  }
   
   auto cv = cast(CValue) ex;
   if (!cv) throw new Exception(Format("Can't take reference: ", ex, " not an lvalue at ", text.next_text()));
