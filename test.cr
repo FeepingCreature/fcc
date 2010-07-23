@@ -180,8 +180,7 @@ int main(int argc, char** argv) {
   printf("It's a %i! \n", y.x.c);
   printf("yo .. %i, %i, %i\n", x.a, x.b, x.c);
   printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&*&e);
-  int m = 5;
-  int n = 8;
+  int m = 5, n = 8;
   printf("post inc test: %i, %i\n", m++, m++);
   printf("test: %i\n", *(&m - 1));
   if (s(0, 1) && s(1, 0) && s(2, 1)) printf("yes\n"); else printf("no\n");
@@ -212,5 +211,7 @@ int main(int argc, char** argv) {
   (&cl.foo)(4);
   Class sup = cast(Class) new Subclass;
   sup.foo(-5);
+  auto forb = cast(char[]) "test";
+  // printf("forb is %.*s\n", typeof(forb).stringof);
   sdlfun();
 }
