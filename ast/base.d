@@ -106,16 +106,6 @@ class Register(string Reg) : Expr {
   }
 }
 
-class Symbol : Expr {
-  string name;
-  this(string name) { this.name = name; }
-  mixin defaultIterate!();
-  override IType valueType() { return Single!(SysInt); }
-  override void emitAsm(AsmFile af) {
-    af.pushStack("$"~name, valueType());
-  }
-}
-
 string error; // TODO: tls
 
 class ParseException {

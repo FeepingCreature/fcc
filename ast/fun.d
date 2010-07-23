@@ -1,7 +1,7 @@
 module ast.fun;
 
 import ast.namespace, ast.base, ast.scopes, ast.variable, asmfile, ast.types,
-  ast.constant;
+  ast.constant, ast.pointer;
 
 import tools.functional;
 
