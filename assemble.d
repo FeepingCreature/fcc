@@ -13,9 +13,9 @@ bool isRelative(string reg) {
 import parseBase; // int parsing
 struct Transaction {
   enum Kind {
-    Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare
+    Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call
   }
-  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare"];
+  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call"];
   Kind kind;
   string toString() {
     switch (kind) {
@@ -27,6 +27,7 @@ struct Transaction {
       case Kind.MathOp:  return Format("[math:", opName, " ", op1, ", ", op2, "]");
       case Kind.Push:    return Format("[push ", source, ": ", type.size, "]");
       case Kind.Pop:     return Format("[pop ", dest, ": ", type.size, "]");
+      case Kind.Call:    return Format("[call ", dest, "]");
       case Kind.Compare:
         if (test) return Format("[cmp/test ", op1, ", ", op2, "]");
         else return Format("[cmp ", op1, ", ", op2, "]");
@@ -124,7 +125,8 @@ struct Transaction {
                 throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
             }
             else if (kind == Kind.Push && op.gotLiteral(num, ident)) {
-              if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
+              // just duplicate the number
+              // if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
             }
             else if (kind == Kind.Pop && null !is (reg = op.gotMemoryOffset(offs))) {
               op = Format(offs + sz, "(%", reg, ")");
@@ -142,6 +144,10 @@ struct Transaction {
       case Kind.Compare:
         if (test) return Format("testl ", op1, ", ", op2);
         else return Format("cmpl ", op1, ", ", op2);
+      case Kind.Call:
+        if (dest.find("%") != -1) return Format("call *", dest);
+        if (dest[0] == '$') return Format("call ", dest[1 .. $]);
+        assert(false, "::"~dest);
     }
   }
   union {

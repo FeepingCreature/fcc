@@ -193,7 +193,7 @@ void callDg(AsmFile dest, IType ret, Expr[] params, Expr dg) {
   
   mkMemberAccess(dgs, "fun").emitAsm(dest);
   dest.popStack("%eax", Single!(SizeT));
-  dest.put("call *%eax");
+  dest.call("%eax");
   
   foreach (param; params) {
     dest.sfree(param.valueType().size);

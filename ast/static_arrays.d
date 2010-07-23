@@ -68,6 +68,12 @@ class DataExpr : Expr {
   mixin defaultIterate!();
   override IType valueType() { return new StaticArray(Single!(Char), data.length); }
   override void emitAsm(AsmFile af) {
+    bool allNull = true;
+    foreach (val; data) if (val) { allNull = false; break; }
+    if (allNull) {
+      af.pushStack(Format("$", 0), new StaticArray(Single!(Char), data.length)); // better optimizable
+      return;
+    }
     auto d2 = data;
     while (d2.length >= 4) {
       auto i = (cast(int[]) d2.take(4))[0];

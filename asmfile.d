@@ -110,6 +110,12 @@ class AsmFile {
     t.op1 = op1; t.op2 = op2;
     cache ~= t;
   }
+  void call(string what) {
+    Transaction t;
+    t.kind = Transaction.Kind.Call;
+    t.dest = what;
+    cache ~= t;
+  }
   int labelCounter; // Limited to 2^31 labels, le omg.
   string genLabel() {
     return Format("label", labelCounter++);
@@ -162,18 +168,17 @@ class AsmFile {
       if (match.length) _loophead:do { `;
     if (src.ctStrip().length) res ~= `
         if (!(`~src~`)) continue;`;
-    res ~= dest.ctReplace(
+    res ~= dest~`
+      } while (match.advance());
+    }
+    `~name~`();
+    `;
+    return res.ctReplace(
           "$SUBSTWITH", `foreach (ref $T res; onceThenCall(($T t) { match.replaceWith(t); })) with (res)`,
           "$SUBST", `match.replaceWith`,
           "$TK", `Transaction.Kind`,
           "$T", `Transaction`,
           "$RESET", `{ if (!match.reset()) break; goto _loophead; }`);
-    res ~= `
-      } while (match.advance());
-    }
-    `~name~`();
-    `;
-    return res;
   }
   static bool isRegister(string s) {
     return s.length > 2 && s[0] == '%' && s[1] != '(';
@@ -201,12 +206,41 @@ class AsmFile {
           size = abs(sum_inc);
         }
       `));
-      mixin(opt("collapse_push_pop", `^Push, ^Pop: ($0.type.size == $1.type.size) && (!$0.source.isRelative() || !$1.dest.isRelative()) && goodMovSize($0.type.size) =>
+      mixin(opt("collapse_push_pop", `^Push, ^Pop: ($0.type.size == $1.type.size) && (!$0.source.isRelative() || !$1.dest.isRelative()) =>
         if ($0.source == $1.dest) { /*logln("Who the fuck produced this retarded bytecode: ", match[]);*/ $SUBST(null); continue; }
-        $SUBSTWITH {
-          kind = $0.type.size == 4 ? $TK.Mov : ($0.type.size == 2 ? $TK.Mov2 : $TK.Mov1);
-          from = $0.source; to = $1.dest;
+        $T[] movs;
+        int size = $0.type.size;
+        string source = $0.source, dest = $1.dest;
+        void incr(ref string s, int sz) {
+          if (s.length && !s.startsWith("$") && !s.startsWith("%") && !s.startsWith("(")) {
+            // num(reg)
+            auto num = s.slice("(").atoi();
+            s = Format(num + sz, "(", s);
+            return;
+          }
+          if (s.length && s[0] == '$') { // number; repeat
+            return;
+          }
+          logln(":: ", s);
+          assert(false);
         }
+        void doMov($TK kind, int sz) {
+          while (size >= sz) {
+            $T mv;
+            mv.kind = $TK.Mov;
+            mv.from = source; mv.to = dest;
+            size -= sz;
+            if (size) {
+              mv.from.incr(sz);
+              mv.to.incr(sz);
+            }
+            movs ~= mv;
+          }
+        }
+        doMov($TK.Mov, 4);
+        doMov($TK.Mov2, 2);
+        doMov($TK.Mov1, 1);
+        $SUBST(movs);
       `));
       mixin(opt("add_mov", `^MathOp, ^Mov: $0.opName == "addl" && $0.op2 == "%eax" && $0.op2 == $1.from && $0.op1 == $1.to =>
         $SUBSTWITH {
@@ -273,6 +307,25 @@ class AsmFile {
           dest = Format($0.from.literalToInt(), "(", $1.op1, ")");
         }
       `));
+      mixin(opt("fold_rel_access", `^Mov, ^MathOp, ^Mov:
+        $0.from.isLiteral() &&
+        $1.opName == "addl" && $1.op1.isRegister() && $1.op2 == $0.to &&
+        $2.from.isRelative()
+        =>
+        $SUBSTWITH {
+          res = $2;
+          auto i1 = $0.from.literalToInt(), i2 = $2.from.slice("(").atoi();
+          from = Format(i1 + i2, "(", $1.op1, ")");
+        }
+      `));
+      mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest =>
+        $SUBSTWITH {
+          kind = $TK.Call;
+          dest = $0.from;
+        }
+      `));
+      mixin(opt("fold_mov_push", `^Mov, ^Push: $0.to == $1.source => $SUBSTWITH { kind = $TK.Push; type = $1.type; source = $0.from; }`));
+      mixin(opt("fold_mov_pop",  `^Mov, ^Pop : $0.from == $1.dest && $1.to == "(%esp)" => $SUBSTWITH { kind = $TK.SFree; size = $1.type.size; assert(size == nativeIntSize); }`));
       collapse_push_pop(); // again!
     }
     foreach (entry; cache.list) if (auto line = entry.toAsm()) _put(line);
