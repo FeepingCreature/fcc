@@ -318,12 +318,7 @@ class AsmFile {
           from = Format(i1 + i2, "(", $1.op1, ")");
         }
       `));
-      mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest =>
-        $SUBSTWITH {
-          kind = $TK.Call;
-          dest = $0.from;
-        }
-      `));
+      mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
       mixin(opt("fold_mov_push", `^Mov, ^Push: $0.to == $1.source => $SUBSTWITH { kind = $TK.Push; type = $1.type; source = $0.from; }`));
       mixin(opt("fold_mov_pop",  `^Mov, ^Pop : $0.from == $1.dest && $1.to == "(%esp)" => $SUBSTWITH { kind = $TK.SFree; size = $1.type.size; assert(size == nativeIntSize); }`));
       collapse_push_pop(); // again!
