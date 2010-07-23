@@ -143,6 +143,12 @@ void sdlfun() {
 class Class {
   int i;
   void foo(int k) { printf("foo %i; btw this is %p\n", k + i, this); }
+  void bar() { printf("bar here"); }
+}
+
+class Subclass : Class {
+  int k;
+  void foo(int l) { printf("subfoo %i\n", i + k + l); }
 }
 
 void nesttest() {
@@ -204,5 +210,7 @@ int main(int argc, char** argv) {
   void delegate(int) dgx = &cl.foo;
   dgx(3);
   (&cl.foo)(4);
+  Class sup = cast(Class) new Subclass;
+  sup.foo(-5);
   sdlfun();
 }

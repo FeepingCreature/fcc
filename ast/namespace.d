@@ -100,6 +100,11 @@ class MiniNamespace : Namespace {
   override Stuple!(IType, string, int)[] stackframe() {
     assert(false); // wtfux.
   }
+  override Object lookup(string name, bool local = false) {
+    auto res = super.lookup(name, local);
+    // logln("mini lookup ", name, " => ", res);
+    return res;
+  }
 }
 
 // internal miniparse wrapper
@@ -117,9 +122,11 @@ template iparse(R, string id, string rule) {
     scope(exit) namespace.set(backup);
     
     {
-      string str = "extern(C) void* malloc(int); extern(C) void* calloc(int); ";
-      assert(parsecon.parse(str, "tree.toplevel.extern_c"), "malloc failed to parse at "~str);
-      assert(parsecon.parse(str, "tree.toplevel.extern_c"), "calloc failed to parse at "~str);
+      string str = "extern(C) void* malloc(int); extern(C) void* calloc(int); ".dup; // TODO: likewise
+      auto
+        obj1 = parsecon.parse(str, "tree.toplevel.extern_c"),
+        obj2 = parsecon.parse(str, "tree.toplevel.extern_c");
+      assert(obj1 && obj2, "mini externs failed to parse at "~str);
     }
     
     auto res = parsecon.parse(text, rule);

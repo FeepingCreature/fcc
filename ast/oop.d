@@ -49,7 +49,6 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
     new RelMember("classinfo", Single!(Pointer, Single!(Void)), data);
   }
   mixin TypeDefaults!();
-  string[] classinfo_cache;
     // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
   string[] getClassinfo(RelFunction[string] loverrides = null) { // local overrides
     
@@ -57,21 +56,20 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
     foreach (key, value; loverrides)
       copy[key] = value;
     foreach (key, value; overrides)
-      if (!(key in loverrides))
-        loverrides[key] = value;
+      if (!(key in copy))
+        copy[key] = value;
     
-    if (classinfo_cache) return classinfo_cache;
     string[] res;
     // Liskov at work
     if (parent) res = parent.getClassinfo(copy);
     
-    foreach (fun; myfuns.funs)
+    foreach (fun; myfuns.funs) {
       if (auto p = fun.name in copy) // if a superclass overrode this, use its relfun
         res ~= p.mangleSelf();
       else
         res ~= fun.mangleSelf();
+    }
     
-    classinfo_cache = res;
     return res;
   }
   bool funAlreadyDefined(string name) {
@@ -92,14 +90,12 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
     int size() { return (parent?parent.size():0) + data.size(); }
     string mangle() { return "classdata_of_"~name; }
     void _add(string name, Object obj) {
-      classinfo_cache = null;
       if (auto rf = cast(RelFunction) obj) {
         if (funAlreadyDefined(name))
           overrides[name] = rf;
         else
           myfuns.funs ~= rf;
       } else {
-        // logln("add ", obj, " under ", name);
         data._add(name, obj);
       }
     }
@@ -130,6 +126,9 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
       if (auto res = myfuns.lookup(str, base)) {
         return cast(Object) res;
       }
+      if (parent) if (auto res = parent.lookupRel(str, base)) {
+        return res;
+      }
       return sup.lookup(str, false); // defer
     }
   }
@@ -141,20 +140,28 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("class ")) return null;
   string name;
   Class cl;
-  if (t2.gotIdentifier(name) && t2.accept("{")) {
-    New(cl, name);
-    cl.sup = namespace();
-    if (matchStructBody(t2, cl, cont, rest)) {
-      if (!t2.accept("}"))
-        throw new Exception("Missing closing bracket at "~t2.next_text());
-      // logln("register class ", cl.name);
-      namespace().add(cl);
-      text = t2;
-      return cl;
-    } else {
-      throw new Exception("Couldn't match structure body at "~t2.next_text());
-    }
-  } else return null;
+  if (!t2.gotIdentifier(name)) return null;
+  auto t3 = t2;
+  string sup; Class supclass;
+  if (t3.accept(":") && t3.gotIdentifier(sup)) {
+    t2 = t3;
+    supclass = cast(Class) namespace().lookup(sup);
+    if (!supclass) throw new Exception("Cannot inherit from "~sup~": not a class. ");
+  }
+  if (!t2.accept("{")) throw new Exception("Missing opening bracket for class def! ");
+  New(cl, name);
+  cl.parent = supclass;
+  cl.sup = namespace();
+  if (matchStructBody(t2, cl, cont, rest)) {
+    if (!t2.accept("}"))
+      throw new Exception("Missing closing bracket at "~t2.next_text());
+    // logln("register class ", cl.name);
+    namespace().add(cl);
+    text = t2;
+    return cl;
+  } else {
+    throw new Exception("Couldn't match structure body at "~t2.next_text());
+  }
 }
 mixin DefaultParser!(gotClassDef, "tree.typedef.class");
 

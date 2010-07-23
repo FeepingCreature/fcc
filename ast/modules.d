@@ -67,6 +67,7 @@ void setupSysmods() {
   }
 }
 
+import tools.log;
 Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("extern(C)")) return null;
