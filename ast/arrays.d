@@ -75,14 +75,9 @@ class ArrayMaker : Expr {
   }
   import ast.vardecl, ast.assign;
   override void emitAsm(AsmFile af) {
-    af.comment("start constructing array");
-    mkVar(af, arrayAsStruct(elemType()), true, (Variable var) {
-      af.comment("setting ptr");
-      (new Assignment((new MemberAccess_LValue(var, "ptr")), ptr)).emitAsm(af);
-      af.comment("setting length");
-      (new Assignment((new MemberAccess_LValue(var, "length")), length)).emitAsm(af);
-    });
-    af.comment("done constructing array");
+    // TODO: stack direction/order
+    ptr.emitAsm(af);
+    length.emitAsm(af);
   }
 }
 

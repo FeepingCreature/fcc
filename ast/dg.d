@@ -18,20 +18,9 @@ class mkDelegate : Expr {
   override string toString() { return Format("dg(ptr=", ptr, ", data=", data, ")"); }
   override void emitAsm(AsmFile af) {
     mixin(mustOffset("nativePtrSize * 2"));
-    // data.emitAsm(af);
-    // ptr.emitAsm(af);
-    mkVar(af, dgAsStructType(cast(Delegate) valueType()), true, (Variable var) {
-      mixin(mustOffset("0"));
-      iparse!(Statement, "mkdg_assign", "tree.stmt")
-      ("{
-          var.fun  = cast(typeof(var.fun )) fun;
-          var.data = cast(typeof(var.data)) data;
-        }",
-        "var", var,
-        "fun", ptr,
-        "data", data
-      ).emitAsm(af);
-    });
+    // TODO: stack growth order
+    data.emitAsm(af);
+    ptr.emitAsm(af);
   }
 }
 
