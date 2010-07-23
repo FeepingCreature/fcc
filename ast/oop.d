@@ -115,11 +115,11 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
       return res;
     }
     Object lookupRel(string str, Expr base) {
-      logln("rel lookup for ", str, " in ", base);
+      // logln("rel lookup for ", str, " in ", base);
       if (str == "this") return new RefExpr(cast(CValue) base);
       if (auto res = data.lookup(str, true)) {
         if (auto rm = cast(RelMember) res) {
-          logln("transform ", rm, " with ", base);
+          // logln("transform ", rm, " with ", base);
           return rm.transform(
             iparse!(Expr, "rel_struct_cast", "tree.expr")
             ("*cast(data*) &base", "data", data, "base", base)
@@ -130,7 +130,6 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
       if (auto res = myfuns.lookup(str, base)) {
         return cast(Object) res;
       }
-      logln("defer to sup ns");
       return sup.lookup(str, false); // defer
     }
   }
