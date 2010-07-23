@@ -115,6 +115,13 @@ template iparse(R, string id, string rule) {
     auto backup = namespace();
     namespace.set(myns);
     scope(exit) namespace.set(backup);
+    
+    {
+      string str = "extern(C) void* malloc(int); extern(C) void* calloc(int); ";
+      assert(parsecon.parse(str, "tree.toplevel.extern_c"), "malloc failed to parse at "~str);
+      assert(parsecon.parse(str, "tree.toplevel.extern_c"), "calloc failed to parse at "~str);
+    }
+    
     auto res = parsecon.parse(text, rule);
     if (text.length) throw new Exception(Format("Unknown text in ", id, ": ", text));
     if (!res) throw new Exception(Format("Failed to parse ", id, " at ", text.next_text()));

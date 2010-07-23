@@ -11,13 +11,13 @@ class VTable {
     foreach (fun; funs) if (fun.name == name) return true;
     return false;
   }
-  Function lookup(string name, Expr classptr) {
+  Function lookup(string name, Expr classref) {
     int base = (parent.parent?parent.parent.getClassinfo().length:0);
     foreach (id, fun; funs)
       if (fun.name == name) {
         return iparse!(Function, "vtable_lookup", "tree.expr")(
-          "*(*cast(fntype**) classptr)[id + base].toDg(cast(void*)classptr)",
-          "classptr", classptr,
+          "*(*cast(fntype**) &classref)[id + base].toDg(cast(void*) &classref)",
+          "classref", classref,
           "id", new IntExpr(id), "base", new IntExpr(base),
           "fntype", fun.typeAsFp()
         );
@@ -81,13 +81,13 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
   }
   // TODO
   mixin defaultIterate!();
-  string cl_name() { return "classinfo_"~name; }
+  string ci_name() { return "classinfo_"~name; }
   override {
     string getIdentifier() {
       return name;
     }
     void emitAsm(AsmFile af) {
-      af.longstants[cl_name()] = getClassinfo();
+      af.longstants[ci_name()] = getClassinfo();
     }
     int size() { return (parent?parent.size():0) + data.size(); }
     string mangle() { return "classdata_of_"~name; }
@@ -115,22 +115,23 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
       return res;
     }
     Object lookupRel(string str, Expr base) {
-      // logln("data lookup for ", str, "; locally");
+      logln("rel lookup for ", str, " in ", base);
+      if (str == "this") return new RefExpr(cast(CValue) base);
       if (auto res = data.lookup(str, true)) {
         if (auto rm = cast(RelMember) res) {
-          // logln("transform ", rm, " with ", base);
+          logln("transform ", rm, " with ", base);
           return rm.transform(
             iparse!(Expr, "rel_struct_cast", "tree.expr")
-            ("*cast(data*) base", "data", data, "base", base)
+            ("*cast(data*) &base", "data", data, "base", base)
           );
         }
         return cast(Object) res;
       }
-      // logln("no hit");
       if (auto res = myfuns.lookup(str, base)) {
         return cast(Object) res;
       }
-      return null;
+      logln("defer to sup ns");
+      return sup.lookup(str, false); // defer
     }
   }
 }
@@ -185,17 +186,7 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   auto pre_ex = ex;
   if (t2.accept(".") && t2.gotIdentifier(member)) {
-    // logln("check for member ", member);
-    auto m = cl.lookupRel(member, ex);
-    // logln("result: ", m);
-    /*ex = cast(Expr) m;
-    if (!ex) {
-      if (m) throw new Exception(Format(member, " is not a class member: ", m));
-      else throw new Exception(Format(member, " is not a member of class ", cl.name, "!"));
-      return null;
-    }
-    text = t2;
-    return cast(Object) ex;*/
+    auto m = cl.lookupRel(member, iparse!(Expr, "class_ptr_access", "tree.expr")("*cast(Cl*) hdl", "Cl", cl, "hdl", ex));
     text = t2;
     return m;
   } else return null;

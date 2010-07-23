@@ -78,6 +78,7 @@ class Structure : Namespace, RelNamespace, IType, Named {
       return res;
     }
     Object lookupRel(string str, Expr base) {
+      logln("struct rel base is ", base);
       auto res = super.lookup(str);
       if (auto rt = cast(RelTransformable) res)
         return cast(Object) rt.transform(base);

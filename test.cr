@@ -142,10 +142,8 @@ void sdlfun() {
 
 class Class {
   int i;
-  void foo(int k) { }
+  void foo(int k) { printf("foo %i; btw this is %p\n", k + i, this); }
 }
-
-void extfoo(int k, Class self) { printf("extfoo %i\n", k + self.i); }
 
 void nesttest() {
   int nest_test = 13;
@@ -197,13 +195,10 @@ int main(int argc, char** argv) {
   w.i = 5;
   w.test();
   printf("And done. \n");
-  void* vtable = malloc(4);
-  (cast(void function (int, Class)*) vtable)[0] = &extfoo;
-  void* classptr = malloc(8);
-  *cast(void**) classptr = vtable;
-  Class cl = cast(Class) classptr;
+  Class cl = new Class;
   printf("class size is %i; method is %.*s\n", sizeof(cl), typeof(&cl.foo).stringof);
   printf("forble %.*s\n", (&cl.foo).stringof);
+  printf("class is at %p, i %p\n", cl, &(cl.i));
   cl.i = 3;
   cl.foo(2);
   void delegate(int) dgx = &cl.foo;
