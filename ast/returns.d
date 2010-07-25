@@ -6,7 +6,12 @@ class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
   mixin defaultIterate!(value);
+  Statement[] guards;
   override void emitAsm(AsmFile af) {
+    
+    foreach_reverse(stmt; guards)
+      stmt.emitAsm(af);
+    
     auto fun = ns.get!(Function);
     if (value) {
       if (value.valueType().size == 4) {
@@ -21,15 +26,21 @@ class ReturnStmt : Statement {
       }
     }
     // TODO: stack cleanup token here
-    af.put("jmp ", fun._scope.exit());
+    af.put("jmp ", fun.exit());
   }
 }
 
 Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (t2.accept("return")) {
+    
     auto rs = new ReturnStmt;
     rs.ns = namespace();
+    
+    auto sc = cast(Scope) namespace();
+    assert(sc, Format("::", namespace()));
+    rs.guards = sc.getGuards();
+    
     auto fun = namespace().get!(Function)();
     text = t2;
     if (fun.type.ret == Single!(Void))

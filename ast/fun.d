@@ -70,6 +70,7 @@ class Function : Namespace, Tree, Named {
   int framestart() {
     return _framestart;
   }
+  string exit() { return mangleSelf() ~ "_exit_label"; }
   override {
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;
@@ -82,6 +83,7 @@ class Function : Namespace, Tree, Named {
       af.put("pushl %ebp");
       af.put("movl %esp, %ebp");
       withTLS(namespace, this, _scope.emitAsm(af));
+      af.put(exit()~":");
       af.put("movl %ebp, %esp");
       af.put("popl %ebp");
       af.put("ret");

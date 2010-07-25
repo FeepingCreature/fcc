@@ -214,5 +214,12 @@ int main(int argc, char** argv) {
   auto forb = cast(char[]) "test";
   // printf("forb is %.*s\n", typeof(forb).stringof);
   do int i = rand() % 10; while (i) printf("::%i\n", i);
-  sdlfun();
+  atexit printf("Exit. \n");
+  atexit printf("Exit 2. \n");
+  {
+    atexit printf("Exit 3. \n");
+    sdlfun();
+    return 0;
+    atexit printf("Exit 4. \n");
+  }
 }

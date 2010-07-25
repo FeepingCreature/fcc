@@ -5,8 +5,13 @@ import ast.base, ast.namespace, ast.fun, ast.variable, parseBase, tools.base: ap
 class Scope : Namespace, Tree {
   Function fun;
   Statement _body;
+  Statement[] guards;
   ulong id;
-  mixin defaultIterate!(_body);
+  mixin defaultIterate!(_body, guards);
+  Statement[] getGuards() {
+    if (auto sc = cast(Scope) sup) return sc.getGuards() ~ guards;
+    else return guards;
+  }
   string entry() { return Format(fun.mangleSelf(), "_entry", id); }
   string exit() { return Format(fun.mangleSelf(), "_exit", id); }
   string toString() { return Format("scope <- ", sup); }
@@ -36,6 +41,10 @@ class Scope : Namespace, Tree {
       that._body.emitAsm(af);
       return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af) {
         af.put(that.exit(), ":");
+        
+        foreach_reverse(guard; that.guards)
+          guard.emitAsm(af);
+        
         af.restoreCheckptStack(checkpt);
         namespace.set(backup);
       };

@@ -10,7 +10,7 @@ import
   ast.structure, ast.variable, ast.fun, ast.unary,
   ast.arrays, ast.index, ast.slice, ast.nestfun,
   ast.structfuns, ast.type_info, ast.expr_alias,
-  ast.oop, ast.dg, ast.newexpr;
+  ast.oop, ast.dg, ast.newexpr, ast.guard;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
