@@ -1,6 +1,6 @@
 module ast.scopes;
 
-import ast.base, ast.namespace, ast.fun, ast.variable, parseBase;
+import ast.base, ast.namespace, ast.fun, ast.variable, parseBase, tools.base: apply;
 
 class Scope : Namespace, Tree {
   Function fun;
@@ -27,13 +27,23 @@ class Scope : Namespace, Tree {
   int framestart() {
     return fun.framestart();
   }
+  // continuations good
+  void delegate() delegate() open(AsmFile af) {
+    af.put(entry(), ":");
+    auto checkpt = af.checkptStack(), backup = namespace();
+    namespace.set(this);
+    return stuple(checkpt, backup, this, af) /apply/ (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af) {
+      that._body.emitAsm(af);
+      return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af) {
+        af.put(that.exit(), ":");
+        af.restoreCheckptStack(checkpt);
+        namespace.set(backup);
+      };
+    };
+  }
   override {
     void emitAsm(AsmFile af) {
-      af.put(entry(), ":");
-      auto backup = af.checkptStack();
-      withTLS(namespace, this, _body.emitAsm(af));
-      af.put(exit(), ":");
-      af.restoreCheckptStack(backup);
+      open(af)()(); // lol
     }
     Object lookup(string name, bool local = false) {
       auto res = super.lookup(name, local);
