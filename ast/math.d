@@ -42,12 +42,13 @@ class AsmBinopExpr(string OP) : Expr {
       assert(e1.valueType().size == 4);
       af.popStack("%eax", e1.valueType());
       
-      static if (OP == "idivl") af.put("cdq");
+      static if (OP == "idivl" || OP == "imodl") af.put("cdq");
       
-      static if (OP == "idivl") af.put("idivl (%esp)");
+      static if (OP == "idivl" || OP == "imodl") af.put("idivl (%esp)");
       else af.mathOp(OP, "(%esp)", "%eax");
       
-      af.mmove4("%eax", "(%esp)");
+      static if (OP == "imodl") af.mmove4("%edx", "(%esp)");
+      else af.mmove4("%eax", "(%esp)");
     }
   }
 }
@@ -82,15 +83,18 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
   return cast(Object) op;
 }
 
+alias gotMathExpr!("%", "imodl") gotModExpr;
+mixin DefaultParser!(gotModExpr, "tree.expr.arith.mod", "21");
+
 alias gotMathExpr!("+", "addl", "-", "subl") gotAddSubExpr;
-mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "1");
+mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "31");
 alias gotMathExpr!("*", "imull", "/", "idivl") gotMulDivExpr;
-mixin DefaultParser!(gotMulDivExpr, "tree.expr.arith.muldiv", "2");
+mixin DefaultParser!(gotMulDivExpr, "tree.expr.arith.muldiv", "32");
 
 alias gotMathExpr!("|", "orl") gotOrExpr;
-mixin DefaultParser!(gotOrExpr, "tree.expr.arith.or", "31");
+mixin DefaultParser!(gotOrExpr, "tree.expr.arith.or", "51");
 alias gotMathExpr!("&", "andl") gotAndExpr;
-mixin DefaultParser!(gotAndExpr, "tree.expr.arith.and", "32");
+mixin DefaultParser!(gotAndExpr, "tree.expr.arith.and", "52");
 
 // TODO: hook into parser
 class CondWrap : Expr {
