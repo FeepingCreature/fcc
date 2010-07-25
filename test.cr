@@ -213,5 +213,6 @@ int main(int argc, char** argv) {
   sup.foo(-5);
   auto forb = cast(char[]) "test";
   // printf("forb is %.*s\n", typeof(forb).stringof);
+  do int i = rand() % 10; while (i) printf("::%i\n", i);
   sdlfun();
 }

@@ -69,3 +69,34 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotForStmt, "tree.stmt.for");
+
+class DoWhileExt : Statement {
+  Scope first, second;
+  Cond cond;
+  mixin defaultIterate!(first, second, cond);
+  override void emitAsm(AsmFile af) {
+    auto fdg = first.open(af)(); // open and body
+    cond.jumpOn(af, false, first.exit());
+    second.emitAsm(af);
+    af.jump(first.entry());
+    fdg(); // close
+  }
+}
+
+Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (t2.accept("do ")) {
+    auto dw = new DoWhileExt;
+    if (!rest(t2, "tree.scope", &dw.first)) throw new Exception("Couldn't parse scope after do at "~t2.next_text());
+    auto backup = namespace();
+    namespace.set(dw.first);
+    scope(exit) namespace.set(backup);
+    if (!t2.accept("while")) return null; // not a do/while extloop
+    if (!rest(t2, "cond", &dw.cond)) throw new Exception("Could not match do/while cond at "~t2.next_text());
+    if (!rest(t2, "tree.scope", &dw.second))
+      throw new Exception("do/while extended second scope not matched at "~t2.next_text());
+    text = t2;
+    return dw;
+  } else return null;
+}
+mixin DefaultParser!(gotDoWhileExtStmt, "tree.stmt.do_while_ext");
