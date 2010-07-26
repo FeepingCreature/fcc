@@ -219,8 +219,10 @@ int main(int argc, char** argv) {
   auto forb = cast(char[]) "test";
   // printf("forb is %.*s\n", typeof(forb).stringof);
   Blarg blg;
-  with (blg) i = 7;
-  blg.i = 7;
+  {
+    with blg::
+    i = 7;
+  }
   blg.fun();
   do int i = rand() % 10; while (i) printf("::%i\n", i);
   atexit printf("Exit. \n");
