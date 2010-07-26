@@ -161,6 +161,11 @@ void nesttest() {
   printf("s test %i\n", fp(4, 5));
 }
 
+struct Blarg {
+  int i;
+  void fun() { printf("%i!\n", i); }
+}
+
 int main(int argc, char** argv) {
   /*A a = new A;
   a.x = 5;
@@ -213,6 +218,10 @@ int main(int argc, char** argv) {
   sup.foo(-5);
   auto forb = cast(char[]) "test";
   // printf("forb is %.*s\n", typeof(forb).stringof);
+  Blarg blg;
+  with (blg) i = 7;
+  blg.i = 7;
+  blg.fun();
   do int i = rand() % 10; while (i) printf("::%i\n", i);
   atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");
