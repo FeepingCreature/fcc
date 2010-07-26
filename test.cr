@@ -228,12 +228,13 @@ int main(int argc, char** argv) {
   }
   blg.fun();
   do int i = rand() % 10; while (i) printf("::%i\n", i);
-  atexit printf("Exit. \n");
+  /*atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");
   {
     atexit printf("Exit 3. \n");
     sdlfun();
     return 0;
     atexit printf("Exit 4. \n");
-  }
+  }*/
+  sdlfun();
 }
