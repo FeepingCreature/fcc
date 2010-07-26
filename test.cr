@@ -220,8 +220,11 @@ int main(int argc, char** argv) {
   // printf("forb is %.*s\n", typeof(forb).stringof);
   Blarg blg;
   {
+    Blarg lolz() { Blarg res; return res; }
     with blg::
     i = 7;
+    with lolz()::
+    i = 5;
   }
   blg.fun();
   do int i = rand() % 10; while (i) printf("::%i\n", i);

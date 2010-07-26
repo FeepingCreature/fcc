@@ -21,7 +21,8 @@ class VarDecl : Statement {
 // base offset
 import tools.log;
 int boffs(IType t, int curdepth = -1) {
-  auto sc = cast(Scope) namespace();
+  auto sc = namespace().get!(Scope);
+  assert(sc);
   if (curdepth == -1)
     curdepth = sc.framesize();
   return - curdepth - t.size;
