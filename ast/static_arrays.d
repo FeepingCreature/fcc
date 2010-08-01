@@ -21,16 +21,16 @@ class StaticArray : Type {
 }
 
 static this() {
-  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
+  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb cont, ParseCb rest) {
     auto t2 = text;
-    int len;
+    IntExpr len;
     if (t2.accept("[") &&
-        t2.gotInt(len) &&
+        rest(t2, "tree.expr", &len) &&
         t2.accept("]")
       )
     {
       text = t2;
-      return new StaticArray(cur, len);
+      return new StaticArray(cur, len.num);
     } else return null;
   };
 }

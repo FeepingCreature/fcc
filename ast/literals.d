@@ -37,6 +37,16 @@ bool gotStringExpr(ref string text, out Expr ex) {
     (ex = se, true);
 }
 
+Object gotLiteralSuffixExpr(ref string text, ParseCb cont, ParseCb rest) {
+  IntExpr res;
+  if (!rest(text, "tree.expr.literal", &res)) return null;
+  if (text.accept("K")) return new IntExpr(res.num * 1024);
+  else if (text.accept("M")) return new IntExpr(res.num * 1024 * 1024);
+  else if (text.accept("G")) return new IntExpr(res.num * 1024 * 1024 * 1024);
+  else return null;
+}
+mixin DefaultParser!(gotLiteralSuffixExpr, "tree.expr.literal_suffix", "50");
+
 Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (text.gotStringExpr(ex) || text.gotIntExpr(ex)) return cast(Object) ex;

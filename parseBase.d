@@ -505,3 +505,10 @@ class ParseContext {
 }
 
 bool test(T)(T t) { if (t) return true; else return false; }
+
+string getHeredoc(ref string text) {
+  if (!text.accept("<<")) throw new Exception("Expected heredoc, got '"~text.next_text()~"'");
+  string sep;
+  if (!text.gotIdentifier(sep)) throw new Exception("Could not get heredoc separator at '"~text.next_text()~"'");
+  return text.slice(sep);
+}

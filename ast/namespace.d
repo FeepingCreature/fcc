@@ -100,6 +100,10 @@ class MiniNamespace : Namespace {
   override Stuple!(IType, string, int)[] stackframe() {
     assert(false); // wtfux.
   }
+  override void _add(string name, Object obj) {
+    if (sup) sup._add(name, obj);
+    else super._add(name, obj);
+  }
   override Object lookup(string name, bool local = false) {
     auto res = super.lookup(name, local);
     // logln("mini lookup ", name, " => ", res);

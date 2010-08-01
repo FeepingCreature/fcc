@@ -166,6 +166,12 @@ struct Blarg {
   void fun() { printf("%i!\n", i); }
 }
 
+template Blorg(T) <<EOT
+  struct Blorg {
+    T t;
+  }
+EOT
+
 int main(int argc, char** argv) {
   /*A a = new A;
   a.x = 5;
@@ -228,6 +234,8 @@ int main(int argc, char** argv) {
   }
   blg.fun();
   do int i = rand() % 10; while (i) printf("::%i\n", i);
+  Blorg!int foo;
+  printf("template test: %.*s\n", typeof(foo.t).stringof);
   atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");
   {
