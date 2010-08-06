@@ -10,7 +10,9 @@ class Namespace {
     do {
       if (auto res = cast(T) cur) return res;
     } while (null !is (cur = cur.sup));
-    throw new Exception(Format("No ", T.stringof, " above ", this, "!"));
+    // throw new Exception(Format("No ", T.stringof, " above ", this, "!"));
+    // logln("No ", T.stringof, " above ", this, "!");
+    return null;
   }
   Stuple!(string, Object)[] field;
   void select(T)(void delegate(string, T) dg) {

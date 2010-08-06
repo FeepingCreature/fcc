@@ -172,6 +172,12 @@ template Blorg(T) <<EOT
   }
 EOT
 
+template FunTemp(T) <<EOT
+  void FunTemp(T t) {
+    printf("T::%.*s\n", t.stringof);
+  }
+EOT
+
 int main(int argc, char** argv) {
   /*A a = new A;
   a.x = 5;
@@ -236,6 +242,7 @@ int main(int argc, char** argv) {
   do int i = rand() % 10; while (i) printf("::%i\n", i);
   Blorg!int foo;
   printf("template test: %.*s\n", typeof(foo.t).stringof);
+  FunTemp!int(5);
   atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");
   {

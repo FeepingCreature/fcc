@@ -1,6 +1,6 @@
 module ast.templ;
 
-import ast.base, ast.parse, ast.modules, ast.namespace;
+import ast.base, ast.parse, ast.modules, ast.namespace, ast.fun;
 
 class Template : Named {
   string name;
@@ -38,11 +38,11 @@ class TemplateInstance : Namespace {
   Module context;
   IType type;
   this(Template parent, IType type, ParseCb rest) {
-    sup = context;
     this.type = type;
     scope mns = new MiniNamespace(parent.name~"_mini");
     mns.add(parent.param, type);
     mns.sup = this;
+    this.sup = context = parent.context;
     withTLS(namespace, mns, {
       auto t2 = parent.source;
       Tree tr;
@@ -53,7 +53,11 @@ class TemplateInstance : Namespace {
           if (cast(NoOp) tr) return;
           auto n = cast(Named) tr;
           if (!n) throw new Exception(Format("Not named: ", tr));
-          add(n.getIdentifier(), n);
+          if (auto fn = cast(Function) n) {// already added itself
+            fn.sup = this;
+            context.entries ~= fn;
+          } else
+            add(n.getIdentifier(), n);
         }
       ) || t2.strip().length)
         throw new Exception("Failed to parse template content at '"~t2.next_text()~"'");
