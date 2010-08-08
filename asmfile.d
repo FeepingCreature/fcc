@@ -5,8 +5,10 @@ import assemble, ast.types;
 import tools.log, tools.functional: map;
 import tools.base: between, slice, startsWith, atoi;
 class AsmFile {
+  int[string] globals;
   ubyte[][string] constants;
   string[][string] longstants; // sorry
+  int[string] globvars;
   string code;
   bool optimize;
   this(bool optimize) { New(cache); this.optimize = optimize; }
@@ -336,6 +338,9 @@ class AsmFile {
   string genAsm() {
     flush();
     string res;
+    foreach (name, size; globvars) {
+      res ~= Format(".comm\t", name, ",", size, "\n");
+    }
     res ~= ".data\n";
     foreach (name, c; constants) {
       res ~= Format(name, ":\n");

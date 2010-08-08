@@ -178,6 +178,8 @@ template FunTemp(T) <<EOT
   }
 EOT
 
+int globvar;
+
 int main(int argc, char** argv) {
   /*A a = new A;
   a.x = 5;
@@ -243,6 +245,8 @@ int main(int argc, char** argv) {
   Blorg!int foo;
   printf("template test: %.*s\n", typeof(foo.t).stringof);
   FunTemp!int(5);
+  globvar = 17;
+  atexit printf("global is %i\n", globvar);
   atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");
   {

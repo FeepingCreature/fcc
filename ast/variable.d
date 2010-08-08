@@ -2,6 +2,7 @@ module ast.variable;
 
 import ast.base, ast.math, ast.literals, parseBase, ast.casting, ast.static_arrays: DataExpr;
 
+import tools.log;
 class Variable : LValue, Named {
   string address() { return Format(baseOffset, "(%ebp)"); }
   override {

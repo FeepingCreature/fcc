@@ -131,7 +131,7 @@ struct Transaction {
             else if (kind == Kind.Pop && null !is (reg = op.gotMemoryOffset(offs))) {
               op = Format(offs + sz, "(%", reg, ")");
             }
-            else if (!m_offs_push)
+            else if (!m_offs_push && (op.find("%") != -1 || op.find("(") != -1))
               throw new Exception("Unknown address format: '"~op~"'");
             size -= sz;
           }

@@ -11,7 +11,7 @@ import
   ast.arrays, ast.index, ast.slice, ast.nestfun,
   ast.structfuns, ast.type_info, ast.expr_alias,
   ast.oop, ast.dg, ast.newexpr, ast.guard, ast.withstmt,
-  ast.templ;
+  ast.templ, ast.globvars;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
