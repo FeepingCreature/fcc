@@ -85,3 +85,4 @@ Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
   if (rest(t2, "tree.stmt", &sc._body)) { text = t2; return sc; }
   throw new Exception("Couldn't match scope off "~text.next_text());
 }
+mixin DefaultParser!(gotScope, "tree.scope");

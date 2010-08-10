@@ -1,6 +1,6 @@
 module ast.fun;
 
-import ast.namespace, ast.base, ast.scopes, ast.variable, asmfile, ast.types,
+import ast.namespace, ast.base, ast.variable, asmfile, ast.types,
   ast.constant, ast.pointer;
 
 import tools.functional;
@@ -27,9 +27,9 @@ class Function : Namespace, Tree, Named {
     return new FunSymbol(this);
   }
   FunctionType type;
-  Scope _scope;
+  Tree tree;
   bool extern_c = false;
-  mixin defaultIterate!(_scope);
+  mixin defaultIterate!(tree);
   string toString() { return Format("fun ", name, " <- ", sup); }
   // add parameters to namespace
   int _framestart;
@@ -39,7 +39,7 @@ class Function : Namespace, Tree, Named {
     res.name = name;
     res.type = type;
     res.extern_c = extern_c;
-    res._scope = _scope;
+    res.tree = tree;
     res._framestart = _framestart;
     res.sup = sup;
     res.field = field;
@@ -82,7 +82,7 @@ class Function : Namespace, Tree, Named {
       af.put(mangleSelf~": ");
       af.put("pushl %ebp");
       af.put("movl %esp, %ebp");
-      withTLS(namespace, this, _scope.emitAsm(af));
+      withTLS(namespace, this, tree.emitAsm(af));
       af.put(exit()~":");
       af.put("movl %ebp, %esp");
       af.put("popl %ebp");
@@ -202,7 +202,7 @@ Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace,
     if (addToNamespace) ns.add(fun);
     fun.sup = sup_override?sup_override:ns;
     text = t2;
-    if (rest(text, "tree.scope", &fun._scope)) return fun;
+    if (rest(text, "tree.scope", &fun.tree)) return fun;
     else throw new Exception("Couldn't parse function scope at '"~text.next_text()~"'");
   } else return null;
 }

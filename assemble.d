@@ -74,8 +74,14 @@ struct Transaction {
         // %eax
         string matchRegister(string s) {
           string reg;
-          if (s.accept("%") && s.gotIdentifier(reg) && !s.length) return reg;
-          else return null;
+          if (s.accept("%") && s.gotIdentifier(reg)) {
+            if (s.length && s[0] == ':') {
+              reg ~= s;
+              s = null;
+            }
+            if (!s.length) return reg;
+          }
+          return null;
         }
         // $5 or $constant_string
         bool gotLiteral(string s, ref int num, ref string ident) {
@@ -121,6 +127,7 @@ struct Transaction {
             int num; string ident, reg;
             if (null !is (reg = op.matchRegister())) {
               auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
+              if (reg.length >= 2 && reg[0 .. 2] == "gs") regsize = nativePtrSize;
               if (size != regsize)
                 throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
             }

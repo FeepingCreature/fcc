@@ -8,7 +8,7 @@ class AsmFile {
   int[string] globals;
   ubyte[][string] constants;
   string[][string] longstants; // sorry
-  int[string] globvars;
+  int[string] globvars, tlsvars;
   string code;
   bool optimize;
   this(bool optimize) { New(cache); this.optimize = optimize; }
@@ -341,7 +341,13 @@ class AsmFile {
     foreach (name, size; globvars) {
       res ~= Format(".comm\t", name, ",", size, "\n");
     }
-    res ~= ".data\n";
+    res ~= ".section\t.tbss,\"awT\",@nobits\n";
+    foreach (name, size; tlsvars) {
+      res ~= Format("\t.globl ", name, "\n");
+      res ~= Format("\t.align ", size, "\n\t.type ", name, ", @object\n\t.size ", name, ", ", size, "\n");
+      res ~= Format("\t", name, ":\n\t.zero ", size, "\n");
+    }
+    res ~= ".section\t.rodata\n";
     foreach (name, c; constants) {
       res ~= Format(name, ":\n");
       res ~= ".byte ";

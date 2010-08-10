@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
   printf("template test: %.*s\n", typeof(foo.t).stringof);
   FunTemp!int(5);
   globvar = 17;
-  atexit printf("global is %i\n", globvar);
+  atexit printf("global is %i, %p, %i\n", globvar, &globvar, *&globvar);
   atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");
   {

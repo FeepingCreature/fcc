@@ -70,10 +70,11 @@ string compile(string file, bool saveTemps = false, bool optimize = false) {
   return objname;
 }
 
-void link(string[] objects, string output, string[] largs) {
+void link(string[] objects, string output, string[] largs, bool saveTemps = false) {
   scope(success)
-    foreach (obj; objects)
-      unlink(obj.toStringz());
+    if (!saveTemps)
+      foreach (obj; objects)
+        unlink(obj.toStringz());
   string cmdline = "gcc -m32 -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
   foreach (larg; largs) cmdline ~= larg ~ " ";
@@ -144,6 +145,6 @@ int main(string[] args) {
     return 1;
   }
   if (!output) output = "exec";
-  objects.link(output, largs);
+  objects.link(output, largs, saveTemps);
   return 0;
 }
