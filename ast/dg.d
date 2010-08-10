@@ -91,11 +91,11 @@ IType dgAsStructType(Delegate dgtype) {
   new RelMember("fun",
     new FunctionPointer(
       dgtype.ret,
-      dgtype.args ~ cast(IType) Single!(Pointer, Single!(Void))
+      dgtype.args ~ cast(IType) voidp
     ),
     res
   );
-  new RelMember("data", Single!(Pointer, Single!(Void)), res);
+  new RelMember("data", voidp, res);
   return res;
 }
 

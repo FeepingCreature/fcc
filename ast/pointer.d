@@ -17,6 +17,8 @@ class Pointer : Type {
   }
 }
 
+alias Single!(Pointer, Single!(Void)) voidp;
+
 // &foo
 class RefExpr : Expr {
   CValue src;
@@ -99,7 +101,7 @@ class Symbol : Expr {
   string name;
   this(string name) { this.name = name; }
   mixin defaultIterate!();
-  override IType valueType() { return Single!(Pointer, Single!(Void)); }
+  override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
     af.pushStack("$"~name, valueType());
   }

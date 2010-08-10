@@ -21,7 +21,7 @@ class NestedFunction : Function {
     }
     int fixup() {
       auto cur = super.fixup();
-      add(new Variable(Single!(Pointer, Single!(Void)), "__base_ptr", cur));
+      add(new Variable(voidp, "__base_ptr", cur));
       cur += 4;
       return cur;
     }

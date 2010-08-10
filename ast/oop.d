@@ -46,7 +46,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
     New(data, cast(string) null);
     New(myfuns);
     myfuns.parent = this;
-    new RelMember("classinfo", Single!(Pointer, Single!(Void)), data);
+    new RelMember("classinfo", voidp, data);
   }
   mixin TypeDefaults!();
     // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
