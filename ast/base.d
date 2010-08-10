@@ -1,6 +1,6 @@
 module ast.base;
 
-public import asmfile, ast.types, parseBase;
+public import asmfile, ast.types, parseBase, tools.log: logln;
 
 static import tools.base;
 alias tools.base.Format Format;
@@ -90,6 +90,15 @@ interface LValue : CValue {
 // more than rvalue, less than lvalue
 interface MValue : Expr {
   void emitAssignment(AsmFile); // eat value from stack and store
+}
+
+// used as assignment source placeholder in emitAssignment
+class Placeholder : Expr {
+  IType type;
+  mixin defaultIterate!();
+  this(IType type) { this.type = type; }
+  override IType valueType() { return type; }
+  override void emitAsm(AsmFile af) { }
 }
 
 /// Emitting this sets up FLAGS.
