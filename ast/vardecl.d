@@ -8,8 +8,10 @@ class VarDecl : Statement {
   bool dontInit;
   mixin defaultIterate!(vars);
   override void emitAsm(AsmFile af) {
+    logln("emit at ", af.currentStackDepth, ": ", vars);
     foreach (var; vars) {
       af.salloc(var.type.size);
+      // if (-var.baseOffset != af.currentStackDepth) asm { int 3; }
       assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; ", -var.baseOffset, " vs. ", af.currentStackDepth, ": ", var));
       af.comment("init ", var);
       if (!dontInit)
@@ -21,10 +23,10 @@ class VarDecl : Statement {
 // base offset
 import tools.log;
 int boffs(IType t, int curdepth = -1) {
-  auto sc = namespace().get!(Scope);
-  assert(sc);
+  auto sl = namespace().get!(ScopeLike);
+  assert(!!sl);
   if (curdepth == -1)
-    curdepth = sc.framesize();
+    curdepth = sl.framesize();
   return - curdepth - t.size;
 }
 

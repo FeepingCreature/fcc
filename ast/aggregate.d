@@ -9,6 +9,7 @@ class AggrStatement : Statement {
     foreach (stmt; stmts)
       stmt.emitAsm(af);
   }
+  string toString() { return Format(stmts); }
 }
 
 Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {

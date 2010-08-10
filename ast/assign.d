@@ -5,8 +5,10 @@ import ast.base, ast.variable, ast.pointer;
 class Assignment : Statement {
   LValue target;
   Expr value;
+  bool blind;
   import tools.log;
-  this(LValue t, Expr e, bool force = false) {
+  this(LValue t, Expr e, bool force = false, bool blind = false) {
+    this.blind = blind;
     if (!force && t.valueType() != cast(Object) e.valueType()) {
       throw new Exception(Format(
         "Can't assign: ", t, " of ", t.valueType(), " <- ", e.valueType()
@@ -16,19 +18,26 @@ class Assignment : Statement {
     value = e;
   }
   mixin defaultIterate!(target, value);
+  override string toString() { return Format(target, " := ", value, "; "); }
   override void emitAsm(AsmFile af) {
-    mixin(mustOffset("0"));
-    {
-      mixin(mustOffset("value.valueType().size"));
+    if (blind) {
       value.emitAsm(af);
-    }
-    {
-      mixin(mustOffset("nativePtrSize"));
       target.emitLocation(af);
+      af.popStack("%eax", new Pointer(target.valueType()));
+      af.popStack("(%eax)", value.valueType());
+    } else {
+      mixin(mustOffset("0"));
+      {
+        mixin(mustOffset("value.valueType().size"));
+        value.emitAsm(af);
+      }
+      {
+        mixin(mustOffset("nativePtrSize"));
+        target.emitLocation(af);
+      }
+      af.popStack("%eax", new Pointer(target.valueType()));
+      af.popStack("(%eax)", value.valueType());
     }
-    af.popStack("%eax", new Pointer(target.valueType()));
-    
-    af.popStack("(%eax)", value.valueType());
   }
 }
 

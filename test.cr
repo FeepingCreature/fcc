@@ -162,8 +162,8 @@ void nesttest() {
 }
 
 struct Blarg {
-  int i;
-  void fun() { printf("%i!\n", i); }
+  int ib;
+  void fun() { printf("%i!\n", ib); }
 }
 
 template Blorg(T) <<EOT
@@ -179,6 +179,10 @@ template FunTemp(T) <<EOT
 EOT
 
 int globvar;
+
+context ctest {
+  int var;
+}
 
 int main(int argc, char** argv) {
   /*A a = new A;
@@ -236,9 +240,9 @@ int main(int argc, char** argv) {
   {
     Blarg lolz() { Blarg res; return res; }
     using blg::
-    i = 7;
+    ib = 7;
     using lolz()::
-    i = 5;
+    ib = 5;
   }
   blg.fun();
   do int i = rand() % 10; while (i) printf("::%i\n", i);
@@ -246,6 +250,13 @@ int main(int argc, char** argv) {
   printf("template test: %.*s\n", typeof(foo.t).stringof);
   FunTemp!int(5);
   globvar = 17;
+  ctest.var = 17;
+  using scoped ctest {
+    printf("var: %i, ", var);
+    var = 14;
+    printf("now it's %i; ", var);
+  }
+  printf("now back to %i. \n", ctest.var);
   atexit printf("global is %i, %p, %i\n", globvar, &globvar, *&globvar);
   atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");

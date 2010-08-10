@@ -2,7 +2,11 @@ module ast.scopes;
 
 import ast.base, ast.namespace, ast.fun, ast.variable, parseBase, tools.base: apply;
 
-class Scope : Namespace, Tree {
+interface ScopeLike {
+  int framesize();
+}
+
+class Scope : Namespace, Tree, ScopeLike {
   Function fun;
   Statement _body;
   Statement[] guards;
@@ -16,7 +20,7 @@ class Scope : Namespace, Tree {
   string exit() { return Format(fun.mangleSelf(), "_exit", id); }
   string toString() { return Format("scope <- ", sup); }
   this() { id = getuid(); }
-  int framesize() {
+  override int framesize() {
     // TODO: alignment
     int res;
     foreach (obj; field) {
@@ -24,8 +28,8 @@ class Scope : Namespace, Tree {
         res += var.type.size;
       }
     }
-    if (auto sc = cast(Scope) sup)
-      res += sc.framesize();
+    if (auto sl = cast(ScopeLike) sup)
+      res += sl.framesize();
     return res;
   }
   // frame offset caused by parameters
