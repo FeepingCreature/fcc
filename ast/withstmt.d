@@ -45,7 +45,8 @@ class WithStmt : Namespace, Statement {
 
 Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("with")) return null;
+  // if (!t2.accept("with")) return null;
+  if (!t2.accept("using")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr", &ex)) throw new Exception("Couldn't match with-expr at "~t2.next_text());
   auto backup = namespace();

@@ -235,9 +235,9 @@ int main(int argc, char** argv) {
   Blarg blg;
   {
     Blarg lolz() { Blarg res; return res; }
-    with blg::
+    using blg::
     i = 7;
-    with lolz()::
+    using lolz()::
     i = 5;
   }
   blg.fun();
