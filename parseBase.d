@@ -118,7 +118,7 @@ bool verboseParser = false, verboseXML = false;
 
 string[bool delegate(string)] condInfo;
 
-const RULEPTR_SIZE_HAX = (Stuple!(string, void delegate(), bool)).sizeof + (void delegate()).sizeof;
+const RULEPTR_SIZE_HAX = (Stuple!(void delegate(), bool, bool, bool, bool, string, void delegate(), bool)).sizeof;
 
 bool delegate(string) matchrule(string rules) {
   bool delegate(string) res;
@@ -158,7 +158,7 @@ bool delegate(string) matchrule(string rules) {
       return false;
     };
   }
-  condInfo[res] = rules_backup;
+  // condInfo[res] = rules_backup;
   return res;
 }
 
@@ -491,13 +491,16 @@ class ParseContext {
       return longestMatchRes;
     }
     // okay to not match anything if we're just continuing
-    if (!offs && !matched)
+    if (!offs && !matched) {
+      string[] ids; foreach (parser; parsers) ids ~= parser.getId();
+      logln("Parsers: ", ids);
       if (condStr) throw new Exception(Format(
         "Found no patterns to match condition \"", condStr, "\" after ", offs
       ));
       else throw new Exception(Format(
         "Found no patterns to match condition after ", offs
       ));
+    }
     return null;
   }
   Object parse(ref string text, string cond) {
