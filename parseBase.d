@@ -425,16 +425,21 @@ class ParseContext {
     }
     if (verboseParser)
       logln("BEGIN PARSE '", text.next_text(16).xmlmark(), "'");
+    
     // make copy
-    cond.ptr = (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX].dup.ptr;
+    ubyte[RULEPTR_SIZE_HAX] cond_copy =
+      (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX];
+    cond.ptr = cond_copy.ptr;
+    
     Object longestMatchRes;
     string longestMatchStr = text;
     foreach (i, parser; parsers[offs .. $]) {
-      auto xid = parser.getId().replace(".", "_");
+      auto id = parser.getId();
+      string xid() { return id.replace(".", "_"); }
       if (verboseXML) logln("<", xid, " text='", text.next_text(16).xmlmark(), "'>");
       scope(failure) if (verboseXML) logln("Exception</", xid, ">");
-      if (cond(parser.getId())) {
-        if (verboseParser) logln("TRY PARSER [", parser.getId(), "] for '", text.next_text(16), "'");
+      if (cond(id)) {
+        if (verboseParser) logln("TRY PARSER [", id, "] for '", text.next_text(16), "'");
         matched = true;
         ParseCb cont, rest;
         cont.dg = (ref string text, bool delegate(string) cond,
@@ -442,8 +447,8 @@ class ParseContext {
           return this.parse(text, cond, offs + i + 1, accept);
         };
         cont.cur = cond;
-        cont.curstr = parser.getId();
-        cont.selfrule = parser.getId();
+        cont.curstr = id;
+        cont.selfrule = id;
         cont.blockMemo = &parser.blockNextMemo;
         
         rest.dg = (ref string text, bool delegate(string) cond,
@@ -451,8 +456,8 @@ class ParseContext {
           return this.parse(text, cond, accept);
         };
         rest.cur = cond;
-        rest.curstr = parser.getId();
-        rest.selfrule = parser.getId();
+        rest.curstr = id;
+        rest.selfrule = id;
         rest.blockMemo = &parser.blockNextMemo;
         
         auto backup = text;
@@ -460,16 +465,16 @@ class ParseContext {
           auto ctl = ParseCtl.AcceptAbort;
           if (accept) {
             ctl = accept(res);
-            if (verboseParser) logln("    PARSER [", parser.getId(), "]: control flow ", ParseCtlDecode[ctl]);
+            if (verboseParser) logln("    PARSER [", id, "]: control flow ", ParseCtlDecode[ctl]);
             if (ctl == ParseCtl.RejectAbort || ctl == ParseCtl.RejectCont) {
-              if (verboseParser) logln("    PARSER [", parser.getId(), "] rejected ", Format(res));
+              if (verboseParser) logln("    PARSER [", id, "] rejected ", Format(res));
               if (verboseXML) logln("Reject</", xid, ">");
               text = backup;
               if (ctl == ParseCtl.RejectAbort) return null;
               continue;
             }
           }
-          if (verboseParser) logln("    PARSER [", parser.getId(), "] succeeded with ", res, ", left '", text.next_text(16), "'");
+          if (verboseParser) logln("    PARSER [", id, "] succeeded with ", res, ", left '", text.next_text(16), "'");
           if (verboseXML) logln("Success</", xid, ">");
           if (ctl == ParseCtl.AcceptAbort) return res;
           if (text.ptr > longestMatchStr.ptr) {
@@ -477,12 +482,12 @@ class ParseContext {
             longestMatchRes = res;
           }
         } else {
-          if (verboseParser) logln("    PARSER [", parser.getId(), "] failed");
+          if (verboseParser) logln("    PARSER [", id, "] failed");
           if (verboseXML) logln("Fail</", xid, ">");
         }
         text = backup;
       }/* else {
-        if (verboseParser) logln("   PARSER [", parser.getId(), "] - refuse outright");
+        if (verboseParser) logln("   PARSER [", id, "] - refuse outright");
         if (verboseXML) logln("Ignore</", xid, ">");
       }*/
     }
