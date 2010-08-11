@@ -1,6 +1,6 @@
 module ast.literals;
 
-import ast.base, ast.pointer, tools.base: slice, replace, startsWith;
+import ast.base, ast.pointer, tools.base: slice, replace;
 
 public import ast.int_literal;
 

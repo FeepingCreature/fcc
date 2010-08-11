@@ -1,7 +1,7 @@
 module ast.parse;
 
 import ast.base, tools.threads;
-import tools.base: min, swap, apply, New, slice, startsWith, stuple;
+import tools.base: min, swap, apply, New, slice, stuple;
 public import parseBase;
 
 Object gotToplevel(ref string text, ParseCb cont, ParseCb rest) {

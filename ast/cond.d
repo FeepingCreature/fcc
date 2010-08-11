@@ -1,6 +1,6 @@
 module ast.cond;
 
-import ast.base, ast.namespace, ast.parse, tools.base;
+import ast.base, ast.namespace, ast.parse, tools.base: This, This_fn, rmSpace;
 
 class ExprWrap : Cond {
   Expr ex;

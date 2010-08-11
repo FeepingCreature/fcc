@@ -2,9 +2,7 @@ module ast.base;
 
 public import asmfile, ast.types, parseBase, tools.log: logln;
 
-static import tools.base;
-alias tools.base.Format Format;
-alias tools.base.New New;
+import tools.base: Format, New;
 
 interface Iterable {
   void iterate(void delegate(ref Iterable) dg);

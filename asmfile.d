@@ -1,9 +1,9 @@
 module asmfile;
 
-import assemble, ast.types;
+import assemble, ast.types, parseBase: startsWith;
 
 import tools.log, tools.functional: map;
-import tools.base: between, slice, startsWith, atoi;
+import tools.base: between, slice, atoi;
 class AsmFile {
   int[string] globals;
   ubyte[][string] constants;

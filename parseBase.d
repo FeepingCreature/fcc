@@ -1,5 +1,6 @@
 module parseBase;
 
+import tools.base;
 bool gotInt(ref string text, out int i) {
   auto t2 = text.strip();
   if (auto rest = t2.startsWith("-")) {
@@ -32,7 +33,8 @@ bool isAlphanum(dchar d) {
 }
 
 import tools.compat: replace, strip;
-import tools.base;
+import tools.base: Stuple, stuple;
+
 string next_text(string s, int i = 100) {
   if (s.length > i) s = s[0 .. i];
   return s.replace("\n", "\\");
@@ -93,9 +95,12 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
     return isAlphanum(c) || "_".find(c) != -1 || (acceptDots && c == '.');
   }
   if (!t2.length || !isValid(t2[0])) return false;
+  auto identlen = 0, backup = t2;
   do {
-    ident ~= t2.take();
+    t2.take();
+    identlen ++;
   } while (t2.length && isValid(t2[0]));
+  ident = backup[0 .. identlen];
   text = t2;
   return true;
 }
@@ -120,22 +125,21 @@ bool delegate(string) matchrule(string rules) {
   auto rules_backup = rules;
   while (rules.length) {
     auto rule = rules.slice(" ");
-    res = stuple(rule, res, false) /apply/
-    (string rule, bool delegate(string) op1, ref bool hit, string text) {
+    bool smaller, greater, equal, before;
+    if (auto rest = rule.startsWith("<")) { smaller = true; rule = rest; }
+    if (auto rest = rule.startsWith(">")) { greater = true; rule = rest; }
+    if (auto rest = rule.startsWith("=")) { equal = true; rule = rest; }
+    if (auto rest = rule.startsWith("^")) { before = true; rule = rest; }
+    
+    if (!smaller && !greater && !equal && !before)
+      smaller = equal = true; // default
+    // different modes
+    assert((smaller || greater || equal) ^ before);
+    
+    res = stuple(smaller, greater, equal, before, rule, res, false) /apply/
+    (bool smaller, bool greater, bool equal, bool before,
+    string rule, bool delegate(string) op1, ref bool hit, string text) {
       if (op1 && !op1(text)) return false;
-      
-      bool smaller, greater, equal, before;
-      if (auto rest = rule.startsWith("<")) { smaller = true; rule = rest; }
-      if (auto rest = rule.startsWith(">")) { greater = true; rule = rest; }
-      if (auto rest = rule.startsWith("=")) { equal = true; rule = rest; }
-      if (auto rest = rule.startsWith("^")) { before = true; rule = rest; }
-      
-      if (!smaller && !greater && !equal && !before)
-        smaller = equal = true; // default
-      
-      // different modes
-      assert((smaller || greater || equal) ^ before);
-      
       auto tsw = text.startsWith(rule);
       // avoid allocation from ~"."
       if (smaller && tsw.length && tsw[0] == '.') // all "below" in the tree
@@ -511,4 +515,12 @@ string getHeredoc(ref string text) {
   string sep;
   if (!text.gotIdentifier(sep)) throw new Exception("Could not get heredoc separator at '"~text.next_text()~"'");
   return text.slice(sep);
+}
+
+string startsWith(string text, string match) {
+  if (!text) return null;
+  if (!match) return text;
+  if (text.length < match.length) return null;
+  if (text[0 .. match.length] != match) return null;
+  return text[match.length .. $];
 }

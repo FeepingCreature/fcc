@@ -1,6 +1,6 @@
 module ast.math;
 
-import ast.base, ast.namespace, parseBase;
+import ast.base, ast.namespace, ast.parse;
 import tools.base: This, This_fn, rmSpace, and;
 
 void handlePointers(ref Expr op1, ref Expr op2) {

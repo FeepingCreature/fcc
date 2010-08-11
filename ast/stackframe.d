@@ -2,7 +2,7 @@ module ast.stackframe;
 
 import ast.namespace, ast.structure, ast.namespace, ast.base, ast.int_literal, ast.casting, ast.pointer, ast.math;
 
-import tools.base, quicksort;
+import quicksort;
 LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   auto frame = ns.stackframe().dup;
   qsort(frame, ex!("a, b -> a._2 < b._2"));

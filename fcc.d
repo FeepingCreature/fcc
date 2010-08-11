@@ -1,7 +1,7 @@
 module fcc; // feep's crazed compiler
 // fcc is licensed under the terms of the GNU General Public License v3 or GPLv3.
 
-import tools.base, tools.log, tools.compat;
+import tools.log, tools.compat;
 alias ast.types.Type Type;
 import classgraph;
 
@@ -20,6 +20,7 @@ mixin DefaultParser!(gotNamed, "tree.expr.named", "4");
 static this() { New(namespace, { return cast(Namespace) null; }); }
 // from ast.scopes
 mixin DefaultParser!(gotScope, "tree.scope");
+alias ast.parse.startsWith startsWith;
 
 extern(C) {
   int open(char* filename, int flags, size_t mode);
