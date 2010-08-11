@@ -176,7 +176,9 @@ bool gotParlist(ref string str, ref Stuple!(IType, string)[] res, ParseCb rest) 
   ) {
     str = t2;
     return true;
-  } else return false;
+  } else {
+    return false;
+  }
 }
 
 import parseBase;

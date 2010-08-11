@@ -43,28 +43,11 @@ Module lookupMod(string name) {
 import ast.pointer;
 // not static this() to work around a precedence bug in phobos. called from fcc.
 void setupSysmods() {
-  New(sysmod);
-  sysmod.name = "sys";
-  {
-    auto puts = new Function;
-    puts.extern_c = true;
-    New(puts.type);
-    puts.type.ret = Single!(Void);
-    puts.type.params ~= stuple(cast(IType) Single!(Pointer, Single!(Char)), cast(string) null);
-    puts.name = "puts";
-    sysmod.add(puts);
-  }
-  
-  {
-    auto printf = new Function;
-    printf.extern_c = true;
-    New(printf.type);
-    printf.type.ret = Single!(Void);
-    printf.type.params ~= stuple(cast(IType) Single!(Pointer, Single!(Char)), cast(string) null);
-    printf.type.params ~= stuple(cast(IType) Single!(Variadic), cast(string) null);
-    printf.name = "printf";
-    sysmod.add(printf);
-  }
+  string src = `
+    module sys;
+    extern(C) void puts(char*);
+    extern(C) void printf(char*, ...);`;
+  sysmod = cast(Module) parsecon.parse(src, "tree.module");
 }
 
 import tools.log;
@@ -83,7 +66,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     text = t2;
     namespace().add(fun);
     return Single!(NoOp);
-  } else assert(false);
+  } else assert(false, "extern parsing failed at '"~t2.next_text()~"'.");
 }
 mixin DefaultParser!(gotExtern, "tree.toplevel.extern_c");
 

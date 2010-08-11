@@ -35,7 +35,7 @@ class Variadic : Type {
   /// BAH
   // TODO: redesign parameter match system to account for automatic conversions in variadics.
   override string mangle() { return "variadic"; }
-  override ubyte[] initval() { assert(false); } // wtf variadic variable?
+  override ubyte[] initval() { assert(false, "Cannot declare variadic variable. "); } // wtf variadic variable?
 }
 
 class Char : Type {
@@ -81,6 +81,13 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   return null;
 }
 mixin DefaultParser!(gotBasicType, "type.basic", "5");
+
+import tools.log;
+Object gotVariadic(ref string text, ParseCb cont, ParseCb rest) {
+  if (text.accept("...")) return Single!(Variadic);
+  return null;
+}
+mixin DefaultParser!(gotVariadic, "type.variadic", "9");
 
 // postfix type modifiers
 IType delegate(ref string text, IType cur, ParseCb cont, ParseCb rest)[]
