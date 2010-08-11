@@ -54,7 +54,6 @@ struct W {
   }
 }
 
-extern(C) void* malloc(int);
 extern(C) int SDL_Init(int);
 struct SDL_Surface {
   int flags;
@@ -109,7 +108,8 @@ int num_to_fp(int i) {
 
 void sdlfun() {
   SDL_Init(32); // video
-  SDL_Surface* surface = SDL_SetVideoMode(640, 480, 32, 0);
+  //                                                  SDL_ANYFORMAT
+  SDL_Surface* surface = SDL_SetVideoMode(640, 480, 0, 268435456);
   for (int y = 0; y < surface.h; ++y) {
     for (int x = 0; x < surface.w; ++x) {
       ComplexI c;
