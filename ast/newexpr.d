@@ -31,7 +31,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       mixin(mustOffset("0"));
       iparse!(Statement, "new_class", "tree.stmt")
       ("{
-          var = cast(typeof(var)) calloc(size * nps);
+          var = cast(typeof(var)) calloc(size, nps);
           (cast(void**) var)[0] = _classinfo;
         }",
         "var", var,

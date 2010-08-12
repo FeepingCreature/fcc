@@ -128,7 +128,9 @@ template iparse(R, string id, string rule) {
     scope(exit) namespace.set(backup);
     
     {
-      string str = "extern(C) void* malloc(int); extern(C) void* calloc(int); ".dup; // TODO: likewise
+      string str = "
+        extern(C) void* malloc(int);
+        extern(C) void* calloc(int, int); ".dup; // TODO: likewise
       auto
         obj1 = parsecon.parse(str, "tree.toplevel.extern_c"),
         obj2 = parsecon.parse(str, "tree.toplevel.extern_c");
