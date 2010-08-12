@@ -6,13 +6,14 @@ interface IType {
   int size();
   string mangle();
   ubyte[] initval();
-  int opEquals(Object obj);
+  int opEquals(IType);
 }
 
 template TypeDefaults(bool INITVAL = true, bool OPEQUALS = true) {
   static if (INITVAL) ubyte[] initval() { return new ubyte[size()]; }
-  static if (OPEQUALS) int opEquals(Object obj) {
+  static if (OPEQUALS) int opEquals(IType ty) {
     // specialize where needed
+    auto obj = cast(Object) ty;
     return this.classinfo is obj.classinfo &&
       size == (cast(typeof(this)) cast(void*) obj).size;
   }

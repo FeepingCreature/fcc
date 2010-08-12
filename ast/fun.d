@@ -231,7 +231,7 @@ Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
         return (cast(StaticArray) ex.valueType()) ? ParseCtl.RejectCont : ParseCtl.AcceptCont;
       } else {
         // logln("Try ", ex.valueType(), " into ", fun.type.params[param_offset]._0);
-        if (ex.valueType() != cast(Object) params[param_offset])
+        if (ex.valueType() != params[param_offset])
           // TODO: set error
           return ParseCtl.RejectCont;
         return ParseCtl.AcceptCont;

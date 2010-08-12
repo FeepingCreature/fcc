@@ -13,10 +13,10 @@ class StaticArray : Type {
   override string mangle() {
     return Format("Static_", length, "_of_", elemType.mangle());
   }
-  override int opEquals(Object obj) {
-    return super.opEquals(obj) &&
-      (cast(StaticArray) obj).elemType == cast(Object) elemType &&
-      (cast(StaticArray) obj).length == length;
+  override int opEquals(IType ty) {
+    return super.opEquals(ty) &&
+      (cast(StaticArray) ty).elemType == elemType &&
+      (cast(StaticArray) ty).length == length;
   }
 }
 

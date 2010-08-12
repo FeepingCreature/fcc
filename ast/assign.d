@@ -9,7 +9,7 @@ class Assignment : Statement {
   import tools.log;
   this(LValue t, Expr e, bool force = false, bool blind = false) {
     this.blind = blind;
-    if (!force && t.valueType() != cast(Object) e.valueType()) {
+    if (!force && t.valueType() != e.valueType()) {
       throw new Exception(Format(
         "Can't assign: ", t, " of ", t.valueType(), " <- ", e.valueType()
       ));
@@ -53,7 +53,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     Expr value;
     if (rest(t2, "tree.expr", &value)) {
       // logln(target.valueType(), " <- ", value.valueType());
-      if (target.valueType() != cast(Object) value.valueType()) {
+      if (target.valueType() != value.valueType()) {
         throw new Exception(Format("Mismatching types in assignment: ", target, " <- ", value.valueType()));
       }
       text = t2;

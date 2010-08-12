@@ -56,16 +56,16 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       var.type = type;
       if (t2.accept("=")) {
         if (!rest(t2, "tree.expr", &var.initval, delegate bool(Expr ex) {
-          if (var.type != cast(Object) ex.valueType()) {
+          if (var.type != ex.valueType()) {
             error = Format("mismatched types in init: ", var.type, " = ", ex.valueType());
           }
-          return !!(var.type == cast(Object) ex.valueType());
+          return !!(var.type == ex.valueType());
         }))
           throw new Exception(Format("Couldn't read expression at ", t2.next_text(), ": ", error));
       }
       var.initInit();
       assert(var.initval);
-      if (var.type != cast(Object) var.initval.valueType())
+      if (var.type != var.initval.valueType())
         throw new Exception(Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType()));
       var.baseOffset = boffs(var.type);
       vd.vars ~= var;
