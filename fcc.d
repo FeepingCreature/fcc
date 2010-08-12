@@ -48,6 +48,7 @@ import ast.modules;
 
 import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 
+import tools.time;
 string compile(string file, bool saveTemps = false, bool optimize = false) {
   auto srcname = tmpnam("fcc_src", ".s"), objname = tmpnam("fcc_obj", ".o");
   scope(success) {
@@ -57,12 +58,15 @@ string compile(string file, bool saveTemps = false, bool optimize = false) {
   auto text = file.read().castLike("");
   Module mod;
   // if (!text.gotModule(mod)) assert(false, "unable to eat module from "~file~": "~error);
+  auto start_parse = sec();
   if (auto mt = parsecon.parse(text, "tree.module"))
     mod = cast(Module) mt;
   else assert(false, "unable to eat module from "~file~": "~error);
+  auto len_parse = sec() - start_parse;
   if (text.strip().length) assert(false, "this text confuses me: "~text.next_text()~": "~error);
   auto af = new AsmFile(optimize);
-  mod.emitAsm(af);
+  auto len_gen = time(mod.emitAsm(af)) / 1_000_000f;
+  writefln(len_parse, " to parse, ", len_gen, " to emit. ");
   srcname.write(af.genAsm());
   auto cmdline = Format("as --32 -o ", objname, " ", srcname);
   writefln("> ", cmdline);
