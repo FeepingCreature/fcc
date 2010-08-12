@@ -8,7 +8,21 @@ class GlobVar : LValue, Named {
   bool tls;
   Namespace ns;
   mixin defaultIterate!();
-  this(IType t, string n, Namespace ns, bool tls) { this.type = t; this.name = n; this.ns = ns; this.tls = tls; }
+  Expr initval;
+  string getInit() {
+    logln("initval is ", initval);
+    if (!initval) return null;
+    auto l = cast(Literal) initval;
+    assert(!!l, Format(initval, " is not constant! "));
+    return l.getValue();
+  }
+  this(IType t, string n, Namespace ns, bool tls, Expr initval) {
+    this.type = t;
+    this.name = n;
+    this.ns = ns;
+    this.tls = tls;
+    this.initval = initval;
+  }
   string mangled() {
     return (tls?"tls_":"")~"global_"~ns.mangle(name, type);
   }
@@ -40,12 +54,13 @@ class GlobVarDecl : Statement {
   bool tls;
   mixin defaultIterate!();
   override void emitAsm(AsmFile af) {
+    logln("globvar emitasm on ", vars);
     if (tls) {
       foreach (var; vars)
-        af.tlsvars[var.mangled()] = var.type.size;
+        af.tlsvars[var.mangled()] = stuple(var.type.size, var.getInit());
     } else {
       foreach (var; vars)
-        af.globvars[var.mangled()] = var.type.size;
+        af.globvars[var.mangled()] = stuple(var.type.size, var.getInit());
     }
   }
 }
@@ -59,9 +74,29 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto gvd = new GlobVarDecl;
   gvd.tls = true;
   auto ns = namespace();
-  if (!t2.bjoin(t2.gotIdentifier(name), t2.accept(","), {
-    gvd.vars ~= new GlobVar(ty, name, ns, gvd.tls);
-  }, false) || !t2.accept(";"))
+  string t3; Expr initval;
+  if (
+    !t2.bjoin(
+      t2.gotIdentifier(name) &&
+      (
+        (
+          t3 = t2, t3.accept(" = ")
+          && rest(t3, "tree.expr", &initval, (Expr ex) {
+            return ex.valueType() == ty
+                   && !! cast(Literal) ex;
+          })
+          && (t2 = t3, true)
+        ) || true
+      ),
+      t2.accept(","),
+      {
+        gvd.vars ~= new GlobVar(ty, name, ns, gvd.tls, initval);
+        initval = null;
+      },
+      false
+    )
+    || !t2.accept(";")
+  )
     return null;
   
   foreach (var; gvd.vars)

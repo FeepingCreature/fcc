@@ -348,7 +348,7 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotFpCallExpr, "tree.rhs_partial.fpcall", null, true);
 
 // &fun
-class FunRefExpr : Expr {
+class FunRefExpr : Expr, Literal {
   Function fun;
   this(Function fun) { this.fun = fun; }
   mixin defaultIterate!();
@@ -358,6 +358,9 @@ class FunRefExpr : Expr {
     }
     void emitAsm(AsmFile af) {
       (new Constant(fun.mangleSelf())).emitAsm(af);
+    }
+    string getValue() {
+      return fun.mangleSelf();
     }
   }
 }

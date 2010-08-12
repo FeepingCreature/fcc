@@ -8,10 +8,9 @@ class VarDecl : Statement {
   bool dontInit;
   mixin defaultIterate!(vars);
   override void emitAsm(AsmFile af) {
-    logln("emit at ", af.currentStackDepth, ": ", vars);
+    // logln("emit at ", af.currentStackDepth, ": ", vars);
     foreach (var; vars) {
       af.salloc(var.type.size);
-      // if (-var.baseOffset != af.currentStackDepth) asm { int 3; }
       assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; ", -var.baseOffset, " vs. ", af.currentStackDepth, ": ", var));
       af.comment("init ", var);
       if (!dontInit)

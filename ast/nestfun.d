@@ -113,9 +113,6 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   Object obj;
   if (!rest(t2, "tree.expr", &obj)) return null;
   auto nf = cast(NestedFunction) obj;
-  // if (!t2.gotIdentifier(ident, true)) return null;
-  // auto nf = cast(NestedFunction) namespace().lookup(ident);
-  // logln(nf, "; was ", obj);
   if (!nf) return null;
   
   text = t2;
@@ -124,6 +121,52 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   return new NestFunRefExpr(nf);
 }
 mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210");
+
+import ast.int_literal;
+// &fun as dg
+class FunPtrAsDgExpr(T) : T {
+  Expr ex;
+  FunctionPointer fp;
+  this(Expr ex) {
+    this.ex = ex;
+    fp = cast(FunctionPointer) ex.valueType();
+    assert(!!fp);
+    super(ex, new IntExpr(0));
+  }
+  override string toString() {
+    return Format("dg(", fp, ")");
+  }
+  // TODO: emit asm directly in case of PointerFunction.
+  override IType valueType() {
+    return new Delegate(fp.ret, fp.args);
+  }
+  static if (is(T: Literal)) {
+    override string getValue() {
+      auto l2 = cast(Literal) ex;
+      assert(!!l2, Format("Not a literal: ", ex));
+      return l2.getValue()~", 0";
+    }
+  }
+}
+
+class LitTemp : mkDelegate, Literal {
+  this(Expr a, Expr b) { super(a, b); }
+  abstract override string getValue();
+}
+
+Object gotFunAsDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  auto t2 = text;
+  if (!rest(t2, "tree.expr ^selfrule", &ex)) return null;
+  auto fp = cast(FunctionPointer) ex.valueType();
+  if (!fp) return null;
+  text = t2;
+  if (cast(Literal) ex)
+    return new FunPtrAsDgExpr!(LitTemp)(ex);
+  else
+    return new FunPtrAsDgExpr!(mkDelegate)(ex);
+}
+mixin DefaultParser!(gotFunAsDgRefExpr, "tree.expr.fun_as_dg", "903");
 
 // *fp
 // TODO: this cannot work; it's too simple.

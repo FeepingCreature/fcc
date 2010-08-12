@@ -25,7 +25,7 @@ class Context : Namespace, MValue, Named {
     string getIdentifier() { return name; }
     void iterate(void delegate(ref Iterable) dg) { assert(false); }
     string mangle(string name, IType type) {
-      return Format(mangleSelf(), "_", name, "_of_", type);
+      return Format(mangleSelf(), "_", name, "_of_", type.mangle());
     }
     Stuple!(IType, string, int)[] stackframe() {
       assert(false);

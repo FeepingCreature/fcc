@@ -3,12 +3,12 @@ module asmfile;
 import assemble, ast.types, parseBase: startsWith;
 
 import tools.log, tools.functional: map;
-import tools.base: between, slice, atoi;
+import tools.base: between, slice, atoi, split;
 class AsmFile {
   int[string] globals;
   ubyte[][string] constants;
   string[][string] longstants; // sorry
-  int[string] globvars, tlsvars;
+  Stuple!(int, string)[string] globvars, tlsvars;
   string code;
   bool optimize;
   this(bool optimize) { New(cache); this.optimize = optimize; }
@@ -338,14 +338,29 @@ class AsmFile {
   string genAsm() {
     flush();
     string res;
-    foreach (name, size; globvars) {
-      res ~= Format(".comm\t", name, ",", size, "\n");
+    foreach (name, data; globvars) {
+      res ~= Format(".comm\t", name, ",", data._0, "\n");
+      assert(!data._1);
     }
     res ~= ".section\t.tbss,\"awT\",@nobits\n";
-    foreach (name, size; tlsvars) {
+    foreach (name, data; tlsvars) {
       res ~= Format("\t.globl ", name, "\n");
-      res ~= Format("\t.align ", size, "\n\t.type ", name, ", @object\n\t.size ", name, ", ", size, "\n");
-      res ~= Format("\t", name, ":\n\t.zero ", size, "\n");
+      res ~= Format("\t.align ", data._0, "\n\t.type ", name, ", @object\n");
+      res ~= Format("\t.size ", name, ", ", data._0, "\n");
+      res ~= Format("\t", name, ":\n");
+      if (data._1) {
+        auto parts = data._1.split(",");
+        assert(parts.length * nativePtrSize == data._0,
+               Format("Length mismatch: ", parts.length, " * ", 
+                      nativePtrSize, " != ", data._0, " for ", data._1));
+        res ~= "\t.long ";
+        foreach (i, part; parts) {
+          if (i) res ~= ", ";
+          res ~= part;
+        }
+        res ~= "\n";
+      } else
+        res ~= Format("\t.zero ", data._0, "\n");
     }
     res ~= ".section\t.rodata\n";
     foreach (name, c; constants) {

@@ -67,6 +67,10 @@ interface Named {
 
 interface Statement : Tree { }
 
+interface Literal {
+  string getValue(); // as assembler literal
+}
+
 class NoOp : Statement {
   override void emitAsm(AsmFile af) { }
   mixin defaultIterate!();
