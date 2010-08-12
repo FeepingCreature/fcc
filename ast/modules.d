@@ -45,8 +45,17 @@ import ast.pointer;
 void setupSysmods() {
   string src = `
     module sys;
-    extern(C) void puts(char*);
-    extern(C) void printf(char*, ...);`;
+    extern(C) {
+      void puts(char*);
+      void printf(char*, ...);
+      void* malloc(int);
+      void free(void*);
+    }
+    context mem {
+      void delegate() malloc_dg = &malloc;
+      void delegate() free_dg = &free;
+    }
+  `;
   sysmod = cast(Module) parsecon.parse(src, "tree.module");
 }
 
@@ -54,19 +63,31 @@ import tools.log;
 Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("extern(C)")) return null;
-  auto fun = new Function;
-  fun.extern_c = true;
-  New(fun.type);
-  if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
-      t2.gotIdentifier(fun.name) &&
-      t2.gotParlist(fun.type.params, rest) &&
-      t2.accept(";")
-    )
-  {
-    text = t2;
-    namespace().add(fun);
-    return Single!(NoOp);
-  } else assert(false, "extern parsing failed at '"~t2.next_text()~"'.");
+  bool grabFun() {
+    auto fun = new Function;
+    fun.extern_c = true;
+    New(fun.type);
+    if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
+        t2.gotIdentifier(fun.name) &&
+        t2.gotParlist(fun.type.params, rest) &&
+        t2.accept(";")
+      )
+    {
+      namespace().add(fun);
+      return true;
+    } else {
+      return false;
+    }
+  }
+  void fail() {
+    assert(false, "extern parsing failed at '"~t2.next_text()~"'.");
+  }
+  if (t2.accept("{")) {
+    while (grabFun()) { }
+    if (!t2.accept("}")) fail;
+  } else if (!grabFun()) fail;
+  text = t2;
+  return Single!(NoOp);
 }
 mixin DefaultParser!(gotExtern, "tree.toplevel.extern_c");
 
