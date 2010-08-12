@@ -5,6 +5,8 @@ import tools.log, tools.compat;
 alias ast.types.Type Type;
 import classgraph;
 
+const string EXT = ".cr";
+
 import
   ast.aggregate, ast.returns, ast.ifstmt, ast.loops, ast.assign,
   ast.structure, ast.variable, ast.fun, ast.unary,
@@ -49,8 +51,12 @@ import ast.modules;
 import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 
 string compile(string file, bool saveTemps = false, bool optimize = false) {
-  auto srcname = tmpnam("fcc_src", ".s"), objname = tmpnam("fcc_obj", ".o");
-  scope(success) {
+  string srcname, objname;
+  if (auto end = file.endsWith(EXT)) {
+    srcname = end ~ ".s";
+    objname = end ~ ".o";
+  } else assert(false);
+  scope(exit) {
     if (!saveTemps)
       unlink(srcname.toStringz());
   }
@@ -62,6 +68,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false) {
   else assert(false, "unable to eat module from "~file~": "~error);
   if (text.strip().length) assert(false, "this text confuses me: "~text.next_text()~": "~error);
   auto af = new AsmFile(optimize);
+  sysmod.emitAsm(af);
   mod.emitAsm(af);
   srcname.write(af.genAsm());
   auto cmdline = Format("as --32 -o ", objname, " ", srcname);
