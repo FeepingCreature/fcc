@@ -87,6 +87,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
     t2.gotIdentifier(varname, true) && t2.accept("=") && rest(t2, "tree.expr", &ex),
     t2.accept(","), {
       auto var = new Variable;
+      var.name = varname;
       var.initval = ex; var.type = ex.valueType();
       var.baseOffset = boffs(var.type);
       vd.vars ~= var;

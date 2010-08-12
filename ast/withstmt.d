@@ -8,6 +8,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
   VarDecl vd;
   Expr context;
   Scope sc;
+  IScoped isc;
   void delegate(AsmFile) pre, post;
   mixin defaultIterate!(vd, sc);
   string toString() { return Format("with ", context, " ", sc._body); }
@@ -25,6 +26,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
     sc.fun = get!(Function);
     
     if (auto isc = cast(IScoped) ex) {
+      this.isc = isc;
       ex = isc.getSup;
       pre = &isc.emitAsmStart;
       temps += ex.valueType().size;
@@ -92,3 +94,24 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   return ws;
 }
 mixin DefaultParser!(gotWithStmt, "tree.stmt.withstmt");
+
+Object gotBackupOf(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("backupof(")) return null;
+  string name;
+  if (t2.gotIdentifier(name) && t2.accept(")")) {
+    auto ws = namespace().get!(WithStmt);
+    string[] names;
+    do {
+      if (!ws.isc) continue;
+      auto n = cast(Named) ws.isc.getSup();
+      if (!n) continue;
+      auto ident = n.getIdentifier();
+      if (ident == name)
+        return ws.vd.vars[0];
+      names ~= ident;
+    } while (test(ws = ws.get!(WithStmt)));
+    throw new Exception(Format("No backup for ", name, ", only ", names, ". "));
+  } else throw new Exception("Failed to parse backupof() at '"~t2.next_text()~"'. ");
+}
+mixin DefaultParser!(gotBackupOf, "tree.expr.backupof", "52");

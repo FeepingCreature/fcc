@@ -257,6 +257,23 @@ int main(int argc, char** argv) {
     printf("now it's %i; ", var);
   }
   printf("now back to %i. \n", ctest.var);
+  void memtest() using sys.mem {
+    printf("memtest!\n");
+    auto p = malloc(16);
+    free(p);
+  }
+  memtest();
+  auto old_malloc = sys.mem.malloc_dg;
+  using scoped sys.mem {
+    void* fun(int i) {
+      printf("malloc(%i)\n", i);
+      return old_malloc(i);
+    }
+    malloc_dg = &fun;
+    memtest();
+  }
+  memtest();
+  auto testp = sys.mem.malloc(15);
   atexit printf("global is %i, %p, %i\n", globvar, &globvar, *&globvar);
   atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");

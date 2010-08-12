@@ -155,6 +155,7 @@ class MemberAccess(T) : T {
     base = t;
     this.name = name;
     stm = cast(RelMember) (cast(Namespace) base.valueType()).lookup(name);
+    if (!stm) asm { int 3; }
     if (!stm) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
   }
   mixin defaultIterate!(base);

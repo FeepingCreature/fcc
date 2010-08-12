@@ -1,6 +1,7 @@
 module ast.context;
 
-import ast.base, ast.parse, ast.static_arrays, ast.namespace, ast.assign, ast.globvars, ast.modules;
+import ast.base, ast.parse, ast.static_arrays, ast.namespace,
+  ast.assign, ast.globvars, ast.modules, ast.fun;
 
 class Context : Namespace, MValue, Named {
   string name;
@@ -66,11 +67,8 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(st, "tree.toplevel", &tr)) return false;
     logln("tr is ", tr);
     namespace().get!(Module).entries ~= tr;
-    if (auto gvd = cast(GlobVarDecl) tr) {
-      // already added
-      // foreach (var; gvd.vars)
-      //   ctx.add(var);
-    } else assert(!!cast(NoOp) tr);
+    if (cast(GlobVarDecl) tr || cast(Function) tr) {
+    } else assert(!!cast(NoOp) tr, Format(tr));
     return true;
   }
   auto t3 = t2;

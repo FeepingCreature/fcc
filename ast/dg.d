@@ -83,6 +83,13 @@ class Delegate : Type {
         res ~= "_"~arg.mangle();
       return res;
     }
+    int opEquals(IType ty) {
+      if (!super.opEquals(ty)) return false;
+      auto dg = cast(Delegate) ty;
+      if (dg.ret != ret) return false;
+      if (dg.args != args) return false;
+      return true;
+    }
   }
 }
 

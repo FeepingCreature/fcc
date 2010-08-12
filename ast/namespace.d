@@ -21,7 +21,7 @@ class Namespace {
         dg(entry._0, t);
   }
   void _add(string name, Object obj) {
-    if (lookup(name, true)) {
+    if (name && lookup(name, true)) {
       throw new Exception(Format(
         name, " already defined in ",
         this, ": ", lookup(name)
