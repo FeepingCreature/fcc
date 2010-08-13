@@ -46,13 +46,16 @@ class NestedFunction : Function {
      || name == "__old_ebp"
      || name == "__fun_ret") return null; // never recurse those
     assert(!!context);
+    // logln("continuing lookup to ", name);
     
     if (auto nf = cast(NestedFunction) context.fun) {
       return nf.lookup(name, false, cast(Expr) lookup("__base_ptr", true, mybase), context);
     } else {
-      auto sn = context.lookup(name),
+      auto sn = context.lookup(name, true),
             var = cast(Variable) sn;
-      if (!var) return sn;
+      // logln("var: ", var, ", sn: ", sn, "; test ", context.lookup(name));
+      // logln("context is ", context, " below fun ", context.fun);
+      if (!var) return sn?sn:context.lookup(name, false);
       return new MemberAccess_LValue(
         namespaceToStruct(context, cast(Expr) lookup("__base_ptr", true, mybase)),
         var.name

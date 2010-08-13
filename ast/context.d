@@ -65,7 +65,6 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   bool matchOne(ref string st) {
     Tree tr;
     if (!rest(st, "tree.toplevel", &tr)) return false;
-    logln("tr is ", tr);
     namespace().get!(Module).entries ~= tr;
     if (cast(GlobVarDecl) tr || cast(Function) tr) {
     } else assert(!!cast(NoOp) tr, Format(tr));
@@ -92,7 +91,6 @@ Object gotContextMember(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept(".") && t2.gotIdentifier(ident)) {
     auto m = ctx.lookup(ident);
     if (!m) throw new Exception("No '"~ident~"' in "~ctx.toString()~"!");
-    logln("got ", m);
     text = t2;
     return m;
   } else return null;

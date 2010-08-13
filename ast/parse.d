@@ -60,6 +60,7 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
       return ParseCtl.AcceptCont;
     } else return ParseCtl.RejectCont;
   });
+  assert(!res || longest);
   if (longest) text = longest;
   return res;
 }

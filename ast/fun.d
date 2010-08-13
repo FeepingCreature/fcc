@@ -266,7 +266,7 @@ Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
     text = t2;
     
     return res;
-  } else return null;
+  } else throw new Exception("Couldn't match function call at '"~t2.next_text()~"'. ");
 }
 
 import ast.parse, ast.static_arrays;

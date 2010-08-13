@@ -61,16 +61,16 @@ class Scope : Namespace, Tree, ScopeLike {
     Object lookup(string name, bool local = false) {
       auto res = super.lookup(name, local);
       // TODO: &&? ||? WHO KNOWS =D
-      if (!res && cast(Scope) sup)
-        res = sup.lookup(name, local);
-      return res;
+      // if (!res && cast(Scope) sup)
+      if (res) return res;
+      return sup.lookup(name, local);
     }
     string mangle(string name, IType type) {
       return sup.mangle(name, type) ~ "_local";
     }
     Stuple!(IType, string, int)[] stackframe() {
-      auto res = fun.stackframe();
-      if (auto sc = cast(Scope) sup) res ~= sc.stackframe();
+      typeof(sup.stackframe()) res;
+      if (sup) res = sup.stackframe();
       foreach (obj; field)
         if (auto var = cast(Variable) obj._1)
           res ~= stuple(var.type, var.name, var.baseOffset);

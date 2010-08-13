@@ -130,11 +130,13 @@ template iparse(R, string id, string rule) {
     {
       string str = "
         extern(C) void* malloc(int);
-        extern(C) void* calloc(int, int); ".dup; // TODO: likewise
+        extern(C) void* calloc(int, int);
+        extern(C) void* memcpy(void* dest, void* src, int n); ".dup; // TODO: likewise
       auto
         obj1 = parsecon.parse(str, "tree.toplevel.extern_c"),
-        obj2 = parsecon.parse(str, "tree.toplevel.extern_c");
-      assert(obj1 && obj2, "mini externs failed to parse at "~str);
+        obj2 = parsecon.parse(str, "tree.toplevel.extern_c"),
+        obj3 = parsecon.parse(str, "tree.toplevel.extern_c");
+      assert(obj1 && obj2 && obj3, "mini externs failed to parse at "~str);
     }
     
     auto res = parsecon.parse(text, rule);

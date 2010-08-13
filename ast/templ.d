@@ -46,7 +46,7 @@ class TemplateInstance : Namespace {
     withTLS(namespace, mns, {
       auto t2 = parent.source;
       Tree tr;
-      logln("rest toplevel match on ", t2);
+      // logln("rest toplevel match on ", t2);
       if (!t2.many(
         !!rest(t2, "tree.toplevel", &tr),
         {

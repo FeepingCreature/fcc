@@ -1,6 +1,6 @@
 module ast.structure;
 
-import ast.types, ast.base, ast.namespace, parseBase;
+import ast.types, ast.base, ast.namespace, ast.vardecl, ast.int_literal, parseBase;
 
 import tools.base: ex;
 int sum(S, T)(S s, T t) {
@@ -155,7 +155,7 @@ class MemberAccess(T) : T {
     base = t;
     this.name = name;
     stm = cast(RelMember) (cast(Namespace) base.valueType()).lookup(name);
-    if (!stm) asm { int 3; }
+    // if (!stm) asm { int 3; }
     if (!stm) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
   }
   mixin defaultIterate!(base);
@@ -169,26 +169,38 @@ class MemberAccess(T) : T {
     void emitAsm(AsmFile af) {
       auto st = cast(Structure) base.valueType();
       static if (is(T: LValue)) {
-        assert(stm.type.size == 4 /or/ 2 /or/ 1,
-          Format("Invalid struct member type: ", stm.type));
-        af.comment("emit location of ", base, " for member access to ", stm.name, " @", stm.offset);
-        base.emitLocation(af);
-        af.comment("pop and dereference");
-        af.popStack("%eax", new Pointer(st));
-        string reg;
-        if (stm.type.size == 4) {
-          reg = "%eax";
-          af.mmove4(Format(stm.offset, "(%eax)"), reg);
-        } else if (stm.type.size == 2) {
-          reg = "%ax";
-          af.mmove2(Format(stm.offset, "(%eax)"), reg);
+        if (stm.type.size == 4 /or/ 2 /or/ 1) {
+          af.comment("emit location of ", base, " for member access to ", stm.name, " @", stm.offset);
+          base.emitLocation(af);
+          af.comment("pop and dereference");
+          af.popStack("%eax", new Pointer(st));
+          string reg;
+          if (stm.type.size == 4) {
+            reg = "%eax";
+            af.mmove4(Format(stm.offset, "(%eax)"), reg);
+          } else if (stm.type.size == 2) {
+            reg = "%ax";
+            af.mmove2(Format(stm.offset, "(%eax)"), reg);
+          } else {
+            reg = "%bl";
+            af.put("xorw %bx, %bx");
+            af.mmove1(Format(stm.offset, "(%eax)"), reg);
+          }
+          af.comment("push back ", reg);
+          af.pushStack(reg, stm.type);
         } else {
-          reg = "%bl";
-          af.put("xorw %bx, %bx");
-          af.mmove1(Format(stm.offset, "(%eax)"), reg);
+          mkVar(af, stm.type, true, (Variable var) {
+            iparse!(Statement, "copy_struct_member", "tree.stmt")
+            ("{
+                memcpy(cast(char*) &tempvar, (cast(char*) &var) + offset, size);
+              }",
+              "tempvar", var,
+              "var", base,
+              "size", new IntExpr(stm.type.size),
+              "offset", new IntExpr(stm.offset)
+            ).emitAsm(af);
+          });
         }
-        af.comment("push back ", reg);
-        af.pushStack(reg, stm.type);
       } else {
         assert(stm.type.size == 4);
         af.comment("emit struct ", base, " for member access");

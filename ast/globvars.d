@@ -10,7 +10,6 @@ class GlobVar : LValue, Named {
   mixin defaultIterate!();
   Expr initval;
   string getInit() {
-    logln("initval is ", initval);
     if (!initval) return null;
     auto l = cast(Literal) initval;
     assert(!!l, Format(initval, " is not constant! "));
@@ -54,10 +53,9 @@ class GlobVarDecl : Statement {
   bool tls;
   mixin defaultIterate!();
   override void emitAsm(AsmFile af) {
-    logln("globvar emitasm on ", vars);
     if (tls) {
       foreach (var; vars)
-        af.tlsvars[var.mangled()] = stuple(var.type.size, var.getInit());
+        with (var) af.addTLS(mangled(), type.size, getInit());
     } else {
       foreach (var; vars)
         af.globvars[var.mangled()] = stuple(var.type.size, var.getInit());

@@ -11,7 +11,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
   IScoped isc;
   void delegate(AsmFile) pre, post;
   mixin defaultIterate!(vd, sc);
-  string toString() { return Format("with ", context, " ", sc._body); }
+  string toString() { return Format("with ", context, " ", sc._body, " <- ", sup); }
   int temps;
   override int framesize() {
     return (cast(ScopeLike) sup).framesize() + temps;
@@ -31,6 +31,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       pre = &isc.emitAsmStart;
       temps += ex.valueType().size;
       post = &isc.emitAsmEnd;
+      assert(!!cast(LValue) ex || !!cast(MValue) ex, Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
     
     rns = cast(RelNamespace) ex.valueType();
@@ -39,14 +40,15 @@ class WithStmt : Namespace, Statement, ScopeLike {
     
     if (auto lv = cast(LValue) ex) {
       context = lv;
+    } else if (auto mv = cast(MValue) ex) {
+      context = mv;
     } else {
       auto var = new Variable;
       var.type = ex.valueType();
       var.initval = ex;
       // temps += var.type.size;
-      logln("temps now ", temps);
+      // logln("temps now ", temps);
       var.baseOffset = boffs(var.type);
-      logln("base offs for ", ex, " temp var is ", var.baseOffset);
       context = var;
       New(vd);
       vd.vars ~= var;
@@ -64,7 +66,13 @@ class WithStmt : Namespace, Statement, ScopeLike {
       dg()();
     }
     string mangle(string name, IType type) { assert(false); }
-    Stuple!(IType, string, int)[] stackframe() { assert(false); }
+    Stuple!(IType, string, int)[] stackframe() {
+      auto res = sup.stackframe();
+      if (vd)
+        foreach (var; vd.vars)
+          res ~= stuple(var.type, var.name, var.baseOffset);
+      return res;
+    }
     Object lookup(string name, bool local = false) {
       if (rns)
         if (auto res = rns.lookupRel(name, context))
@@ -72,7 +80,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       if (ns)
         if (auto res = ns.lookup(name, true))
           return res;
-      if (local) return null;
+      // if (local) return null;
       return sup.lookup(name);
     }
   }

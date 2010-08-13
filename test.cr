@@ -110,6 +110,14 @@ void sdlfun() {
   SDL_Init(32); // video
   //                                                  SDL_ANYFORMAT
   SDL_Surface* surface = SDL_SetVideoMode(640, 480, 0, 268435456);
+  int update() {
+    SDL_Flip(surface);
+    SDL_Event ev;
+    while SDL_PollEvent(&ev) {
+      if ev.type == 12 return 1; // QUIT
+    }
+    return 0;
+  }
   for (int y = 0; y < surface.h; ++y) {
     for (int x = 0; x < surface.w; ++x) {
       ComplexI c;
@@ -132,11 +140,7 @@ void sdlfun() {
       else
         surface.pixels[y * surface.w + x] = 0;
     }
-    SDL_Flip(surface);
-    SDL_Event ev;
-    while SDL_PollEvent(&ev) {
-      if ev.type == 12 return; // QUIT
-    }
+    if y%16 == 0 && update() return;
   }
 }
 
@@ -266,7 +270,7 @@ int main(int argc, char** argv) {
   auto old_malloc = sys.mem.malloc_dg;
   using scoped sys.mem {
     void* fun(int i) {
-      printf("malloc(%i)\n", i);
+      printf("malloc(%i)\n");
       return old_malloc(i);
     }
     malloc_dg = &fun;
