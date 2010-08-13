@@ -84,7 +84,7 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
 }
 
 alias gotMathExpr!("%", "imodl") gotModExpr;
-mixin DefaultParser!(gotModExpr, "tree.expr.arith.mod", "21");
+mixin DefaultParser!(gotModExpr, "tree.expr.arith.mod", "33");
 
 alias gotMathExpr!("+", "addl", "-", "subl") gotAddSubExpr;
 mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "31");

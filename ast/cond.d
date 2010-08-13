@@ -103,7 +103,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     return new Compare(ex1, not, smaller, equal, greater, ex2);
   } else return null;
 }
-mixin DefaultParser!(gotCompare, "cond.compare", "1");
+mixin DefaultParser!(gotCompare, "cond.compare", "7");
 
 import ast.literals;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
