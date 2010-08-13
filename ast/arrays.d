@@ -2,12 +2,13 @@ module ast.arrays;
 
 import ast.base, ast.types, ast.static_arrays, tools.base: This, This_fn, rmSpace;
 
+// ptr, length, capacity
 class Array : Type {
   IType elemType;
   this() { }
   this(IType et) { elemType = et; }
   override int size() {
-    return nativePtrSize + nativeIntSize;
+    return nativePtrSize + nativeIntSize * 2;
   }
   override string mangle() {
     return "array_of_"~elemType.mangle();
@@ -18,13 +19,17 @@ IType arrayAsStruct(IType base) {
   auto res = new Structure(null);
   // TODO: fix when int promotion is supported
   // Structure.Member("length", Single!(SizeT)),
+  new RelMember("capacity", Single!(SysInt), res);
   new RelMember("length", Single!(SysInt), res);
   new RelMember("ptr", new Pointer(base), res);
   return res;
 }
 
 T arrayToStruct(T)(T array) {
-  return new ReinterpretCast!(T) (arrayAsStruct((cast(Array) array.valueType()).elemType), array);
+  return new ReinterpretCast!(T) (
+    arrayAsStruct((cast(Array) array.valueType()).elemType),
+    array
+  );
 }
 
 import ast.structure;
@@ -63,9 +68,9 @@ class ArrayLength(T) : T {
 
 // construct array from two expressions
 class ArrayMaker : Expr {
-  Expr ptr, length;
-  mixin This!("ptr, length");
-  mixin defaultIterate!(ptr, length);
+  Expr ptr, length, cap;
+  mixin This!("ptr, length, cap");
+  mixin defaultIterate!(ptr, length, cap);
   IType elemType() {
     return (cast(Pointer) ptr.valueType()).target;
   }
@@ -78,9 +83,11 @@ class ArrayMaker : Expr {
     // TODO: stack direction/order
     ptr.emitAsm(af);
     length.emitAsm(af);
+    cap.emitAsm(af);
   }
 }
 
+import ast.literals;
 Object gotStaticArrayCValAsDynamic(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto ex = cast(Expr) rest(t2, "tree.expr ^selfrule",
@@ -90,12 +97,16 @@ Object gotStaticArrayCValAsDynamic(ref string text, ParseCb cont, ParseCb rest) 
   );
   if (!ex) return null;
   text = t2;
-  return new ArrayMaker(new CValueAsPointer(cast(CValue) ex), new IntExpr((cast(StaticArray) ex.valueType()).length));
+  return new ArrayMaker(
+    new CValueAsPointer(cast(CValue) ex),
+    new IntExpr((cast(StaticArray) ex.valueType()).length),
+    new IntExpr(0)
+  );
 }
 mixin DefaultParser!(gotStaticArrayCValAsDynamic, "tree.expr.sa_cval_dynamic", "905");
 
-import tools.log;
-import ast.parse, ast.literals;
+import ast.parse;
+// separate because does clever allocation mojo .. eventually
 Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (auto sa = cast(Array) ex.valueType()) {
@@ -107,13 +118,16 @@ Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length");
 
-Object gotArrayPtr(ref string text, ParseCb cont, ParseCb rest) {
-  return lhs_partial.using = delegate Object(Expr ex) {
-    if (auto sa = cast(Array) ex.valueType()) {
-      if (!text.accept(".ptr")) return null;
-      if (auto lv = cast(LValue) ex) return new MemberAccess_LValue(arrayToStruct(lv), "ptr");
-      else return new MemberAccess_Expr(arrayToStruct(ex), "ptr");
-    } else return null;
-  };
+
+Object gotArrayAsStruct(ref string st, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  if (!rest(st, "tree.expr ^selfrule", &ex))
+    return null;
+  if (!cast(Array) ex.valueType())
+    return null;
+  if (auto lv = cast(LValue) ex)
+    return cast(Object) arrayToStruct!(LValue) (lv);
+  else
+    return cast(Object) arrayToStruct!(Expr) (ex);
 }
-mixin DefaultParser!(gotArrayPtr, "tree.rhs_partial.array_ptr");
+mixin DefaultParser!(gotArrayAsStruct, "tree.expr.array_struct", "915");

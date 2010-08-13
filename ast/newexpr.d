@@ -44,4 +44,28 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNewClassExpr, "tree.expr.new.class");
 
+Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("new")) return null;
+  
+  IType ty;
+  Expr sz;
+  if (!t2.accept("(")) return null;
+  if (!rest(t2, "tree.expr", &sz, (Expr ex) {
+    logln("consider ", ex);
+    return !!cast(SysInt) ex.valueType();
+  })) return null;
+  if (!t2.accept(")") || !rest(t2, "type", &ty))
+    throw new Exception("Malformed array-new at '"~t2.next_text()~"'");
+  
+  text = t2;
+  
+  return cast(Object) iparse!(Expr, "new_array", "tree.expr")
+    ("(cast(type*) calloc(len, sizeof(type)))[0 .. len]",
+     "type", ty,
+     "len", sz
+    );
+}
+mixin DefaultParser!(gotNewArrayExpr, "tree.expr.new.array");
+
 static this() { parsecon.addPrecedence("tree.expr.new", "25"); }

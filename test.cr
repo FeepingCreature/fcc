@@ -183,7 +183,7 @@ EOT
 
 template FunTemp(T) <<EOT
   void FunTemp(T t) {
-    printf("T::%.*s\n", t.stringof);
+    printf("T::%i %.*s\n", t.stringof);
   }
 EOT
 
@@ -222,16 +222,16 @@ int main(int argc, char** argv) {
   // ifield.length = 8; // will fail
   // ztest().i = 5; // correctly doesn't work
   char[] arr = "foob";
-  printf("proper array test: %i; contents %.*s\n", arr.length, arr);
-  printf("slice: %.*s, via ptr: %.*s\n", arr[1 .. 4], arr.ptr[1 .. 4]);
+  printf("proper array test: %i; contents %i %.*s\n", arr.length, arr);
+  printf("slice: %i %.*s, via ptr: %i %.*s\n", arr[1 .. 4], arr.ptr[1 .. 4]);
   nesttest();
   W w;
   w.i = 5;
   w.test();
   printf("And done. \n");
   Class cl = new Class;
-  printf("class size is %i; method is %.*s\n", sizeof(cl), typeof(&cl.foo).stringof);
-  printf("forble %.*s\n", (&cl.foo).stringof);
+  printf("class size is %i; method is %i %.*s\n", sizeof(cl), typeof(&cl.foo).stringof);
+  printf("forble %i %.*s\n", (&cl.foo).stringof);
   printf("class is at %p, i %p\n", cl, &(cl.i));
   cl.i = 3;
   cl.foo(2);
@@ -241,7 +241,7 @@ int main(int argc, char** argv) {
   Class sup = cast(Class) new Subclass;
   sup.foo(-5);
   auto forb = cast(char[]) "test";
-  // printf("forb is %.*s\n", typeof(forb).stringof);
+  // printf("forb is %i %.*s\n", typeof(forb).stringof);
   Blarg blg;
   {
     Blarg lolz() { Blarg res; return res; }
@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
   blg.fun();
   do int i = rand() % 10; while (i) printf("::%i\n", i);
   Blorg!int foo;
-  printf("template test: %.*s\n", typeof(foo.t).stringof);
+  printf("template test: %i %.*s\n", typeof(foo.t).stringof);
   FunTemp!int(5);
   globvar = 17;
   ctest.var = 17;
@@ -272,7 +272,7 @@ int main(int argc, char** argv) {
   auto old_malloc = sys.mem.malloc_dg;
   using scoped sys.mem {
     void* fun(int i) {
-      printf("malloc(%i)\n");
+      printf("malloc(%i)\n", i);
       return old_malloc(i);
     }
     malloc_dg = &fun;
@@ -280,6 +280,9 @@ int main(int argc, char** argv) {
   }
   memtest();
   auto testp = sys.mem.malloc(15);
+  auto artest = new(3) int;
+  artest[2] = 15;
+  printf("test is %i, %i, %i\n", artest.length, artest[1], artest[2]);
   atexit printf("global is %i, %p, %i\n", globvar, &globvar, *&globvar);
   atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");

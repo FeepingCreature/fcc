@@ -1,18 +1,21 @@
 module ast.slice;
 
-import ast.base, ast.arrays, ast.pointer, ast.math, ast.structure, ast.parse;
+import ast.base, ast.arrays, ast.pointer, ast.math,
+  ast.structure, ast.parse, ast.int_literal;
 
 Expr mkPointerSlice(Expr ptr, Expr from, Expr to) {
   return new ArrayMaker(
     new AddExpr(ptr, from),
-    new SubExpr(to, from)
+    new SubExpr(to, from),
+    new IntExpr(0)
   );
 }
 
 Expr mkArraySlice(Expr array, Expr from, Expr to) {
   return new ArrayMaker(
     new AddExpr(new MemberAccess_Expr(arrayToStruct(array), "ptr"), from),
-    new SubExpr(to, from)
+    new SubExpr(to, from),
+    new IntExpr(0)
   );
 }
 
