@@ -94,7 +94,6 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
 }
 
 void init() {
-  setupSysmods();
   genGraph("fcc.mods.dot", true, false);
   genGraph("fcc.classes.dot", false, true);
   genGraph("fcc.mixed.dot", true, true);
@@ -117,6 +116,12 @@ int main(string[] args) {
   auto ar = args;
   string[] largs;
   bool saveTemps, optimize;
+  bool initedSysmod;
+  void lazySysmod() {
+    if (initedSysmod) return;
+    initedSysmod = true;
+    setupSysmods();
+  }
   while (ar.length) {
     auto arg = ar.take();
     if (arg == "-o") {
@@ -149,6 +154,7 @@ int main(string[] args) {
     }
     if (auto base = arg.endsWith(".cr")) {
       if (!output) output = arg[0 .. $-3];
+      lazySysmod();
       objects ~= arg.compile(saveTemps, optimize);
       continue;
     }
