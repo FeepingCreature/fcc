@@ -3,12 +3,17 @@ module asmfile;
 import assemble, ast.types, parseBase: startsWith;
 
 import tools.log, tools.functional: map;
-import tools.base: between, slice, atoi, split;
+import tools.base: between, slice, atoi, split, stuple;
 class AsmFile {
   int[string] globals;
   ubyte[][string] constants;
   string[][string] longstants; // sorry
+  int[string] uninit_tlsvars; // different segment in ELF
   Stuple!(int, string)[string] globvars, tlsvars;
+  void addTLS(string name, int size, string init) {
+    if (init) tlsvars[name] = stuple(size, init);
+    else uninit_tlsvars[name] = size;
+  }
   string code;
   bool optimize;
   this(bool optimize) { New(cache); this.optimize = optimize; }
@@ -189,7 +194,7 @@ class AsmFile {
     return s.length && s[0] == '$';
   }
   static int literalToInt(string s) {
-    assert(isLiteral(s));
+    assert(isLiteral(s), "1");
     return s[1 .. $].atoi();
   }
   void flush() {
@@ -223,8 +228,8 @@ class AsmFile {
           if (s.length && s[0] == '$') { // number; repeat
             return;
           }
-          logln(":: ", s);
-          assert(false);
+          logln(":: ", s, "; ", $0.source, " -> ", $1.dest);
+          assert(false, "2");
         }
         void doMov($TK kind, int sz) {
           while (size >= sz) {
@@ -322,7 +327,7 @@ class AsmFile {
       `));
       mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
       mixin(opt("fold_mov_push", `^Mov, ^Push: $0.to == $1.source => $SUBSTWITH { kind = $TK.Push; type = $1.type; source = $0.from; }`));
-      mixin(opt("fold_mov_pop",  `^Mov, ^Pop : $0.from == $1.dest && $1.to == "(%esp)" => $SUBSTWITH { kind = $TK.SFree; size = $1.type.size; assert(size == nativeIntSize); }`));
+      mixin(opt("fold_mov_pop",  `^Mov, ^Pop : $0.from == $1.dest && $1.to == "(%esp)" => $SUBSTWITH { kind = $TK.SFree; size = $1.type.size; assert(size == nativeIntSize, "3"); }`));
       collapse_push_pop(); // again!
     }
     foreach (entry; cache.list) if (auto line = entry.toAsm()) _put(line);
@@ -340,27 +345,33 @@ class AsmFile {
     string res;
     foreach (name, data; globvars) {
       res ~= Format(".comm\t", name, ",", data._0, "\n");
-      assert(!data._1);
+      assert(!data._1, "4");
     }
     res ~= ".section\t.tbss,\"awT\",@nobits\n";
+    foreach (name, size; uninit_tlsvars) {
+      res ~= Format("\t.globl ", name, "\n");
+      res ~= Format("\t.align ", size, "\n\t.type ", name, ", @object\n");
+      res ~= Format("\t.size ", name, ", ", size, "\n");
+      res ~= Format("\t", name, ":\n");
+      res ~= Format("\t.zero ", size, "\n");
+    }
+    res ~= ".section\t.tdata,\"awT\",@progbits\n";
     foreach (name, data; tlsvars) {
       res ~= Format("\t.globl ", name, "\n");
       res ~= Format("\t.align ", data._0, "\n\t.type ", name, ", @object\n");
       res ~= Format("\t.size ", name, ", ", data._0, "\n");
       res ~= Format("\t", name, ":\n");
-      if (data._1) {
-        auto parts = data._1.split(",");
-        assert(parts.length * nativePtrSize == data._0,
-               Format("Length mismatch: ", parts.length, " * ", 
-                      nativePtrSize, " != ", data._0, " for ", data._1));
-        res ~= "\t.long ";
-        foreach (i, part; parts) {
-          if (i) res ~= ", ";
-          res ~= part;
-        }
-        res ~= "\n";
-      } else
-        res ~= Format("\t.zero ", data._0, "\n");
+      assert(data._1);
+      auto parts = data._1.split(",");
+      assert(parts.length * nativePtrSize == data._0,
+              Format("Length mismatch: ", parts.length, " * ", 
+                    nativePtrSize, " != ", data._0, " for ", data._1));
+      res ~= "\t.long ";
+      foreach (i, part; parts) {
+        if (i) res ~= ", ";
+        res ~= part;
+      }
+      res ~= "\n";
     }
     res ~= ".section\t.rodata\n";
     foreach (name, c; constants) {
