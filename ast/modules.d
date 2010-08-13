@@ -56,9 +56,12 @@ void setupSysmods() {
       void* delegate(int)            malloc_dg = &malloc;
       void delegate(void*)             free_dg = &free;
       void* delegate(void*, size_t) realloc_dg = &realloc;
-      void* malloc(int i) { return malloc_dg(i); }
-      void free(void* p) { free_dg(p); }
+      void* malloc (int i)             { return malloc_dg(i); }
+      void  free   (void* p)           { free_dg(p); }
       void* realloc(void* p, size_t s) { return realloc_dg(p, s); }
+      void append(char[] target, char[] text) {
+        
+      }
     }
   `;
   sysmod = cast(Module) parsecon.parse(src, "tree.module");

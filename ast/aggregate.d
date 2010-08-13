@@ -17,7 +17,7 @@ Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
   AggrStatement as;
   Statement st;
   if (t2.accept("{") && (New(as), true) &&
-      t2.many(!!rest(t2, "tree.stmt", &st), { as.stmts ~= st; }) &&
+      t2.many(!!rest(t2, "tree.stmt", &st), { as.stmts ~= st; }, "}") &&
       t2.mustAccept("}", Format("Encountered unknown statement at ", t2.next_text()))
     ) { text = t2; return as; }
   else return null;

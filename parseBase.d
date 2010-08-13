@@ -65,7 +65,8 @@ bool mustAccept(ref string s, string t, string err) {
   throw new Exception(err);
 }
 
-bool bjoin(ref string s, lazy bool c1, lazy bool c2, void delegate() dg, bool allowEmpty = true) {
+bool bjoin(ref string s, lazy bool c1, lazy bool c2, void delegate() dg,
+           bool allowEmpty = true) {
   auto s2 = s;
   if (!c1) { s = s2; return allowEmpty; }
   dg();
@@ -79,10 +80,16 @@ bool bjoin(ref string s, lazy bool c1, lazy bool c2, void delegate() dg, bool al
 }
 
 // while expr
-bool many(ref string s, lazy bool b, void delegate() dg = null) {
+bool many(ref string s, lazy bool b, void delegate() dg = null, string abort = null) {
   while (true) {
-    auto s2 = s;
-    if (!b()) { s = s2; break; }
+    auto s2 = s, s3 = s2;
+    if (abort && s3.accept(abort)
+        ||
+        !b()
+    ) {
+      s = s2;
+      break;
+    }
     if (dg) dg();
   }
   return true;
@@ -118,7 +125,31 @@ bool verboseParser = false, verboseXML = false;
 
 string[bool delegate(string)] condInfo;
 
-const RULEPTR_SIZE_HAX = (Stuple!(void delegate(), bool, bool, bool, bool, string, void delegate(), bool)).sizeof;
+alias Tuple!(bool, bool, bool, bool, string, bool delegate(string), bool)
+  RuleData;
+
+const RULEPTR_SIZE_HAX = (Stuple!(RuleData)).sizeof;
+void[] slab;
+
+struct RuleStruct(alias A) {
+  RuleData tuple;
+  bool fun(Params!(typeof(&A))[RuleData.length .. $] rest) {
+    return A(tuple, rest);
+  }
+}
+
+template allocRuleData(alias A) {
+  bool delegate(Params!(typeof(&A))[RuleData.length .. $])
+  allocRuleData(RuleData rd) {
+    if (!slab.length)
+      slab = new void[RULEPTR_SIZE_HAX * 1024];
+    auto res = slab.take(RULEPTR_SIZE_HAX);
+    foreach (i, v; rd)
+      (cast(Stuple!(RuleData)*) res.ptr).tupleof[i] = v;
+    auto strp = cast(RuleStruct!(A)*) res.ptr;
+    return &strp.fun;
+  }
+}
 
 bool delegate(string) matchrule(string rules) {
   bool delegate(string) res;
@@ -126,18 +157,22 @@ bool delegate(string) matchrule(string rules) {
   while (rules.length) {
     auto rule = rules.slice(" ");
     bool smaller, greater, equal, before;
-    if (auto rest = rule.startsWith("<")) { smaller = true; rule = rest; }
-    if (auto rest = rule.startsWith(">")) { greater = true; rule = rest; }
-    if (auto rest = rule.startsWith("=")) { equal = true; rule = rest; }
-    if (auto rest = rule.startsWith("^")) { before = true; rule = rest; }
+    assert(rule.length);
+    auto first = rule[0], rest = rule[1 .. $];
+    switch (first) {
+      case '<': smaller = true; rule = rest; break;
+      case '>': greater = true; rule = rest; break;
+      case '=': equal = true; rule = rest; break;
+      case '^': before = true; rule = rest; break;
+      default: break;
+    }
     
     if (!smaller && !greater && !equal && !before)
       smaller = equal = true; // default
     // different modes
     assert((smaller || greater || equal) ^ before);
     
-    res = stuple(smaller, greater, equal, before, rule, res, false) /apply/
-    (bool smaller, bool greater, bool equal, bool before,
+    static bool fun(bool smaller, bool greater, bool equal, bool before,
     string rule, bool delegate(string) op1, ref bool hit, string text) {
       if (op1 && !op1(text)) return false;
       auto tsw = text.startsWith(rule);
@@ -157,6 +192,8 @@ bool delegate(string) matchrule(string rules) {
       }
       return false;
     };
+    alias allocRuleData!(fun) ard;
+    res = ard(smaller, greater, equal, before, rule, res, false);
   }
   // condInfo[res] = rules_backup;
   return res;
