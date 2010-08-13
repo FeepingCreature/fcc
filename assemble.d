@@ -2,12 +2,12 @@ module assemble;
 
 import ast.types;
 
-import tools.base: Format, New, or, and;
-import tools.compat: find, abs, replace;
+import tools.base: Format, New, or, and, slice, between;
+import tools.compat: find, abs, replace, atoi;
 import tools.log;
 
 bool isRelative(string reg) {
-  return reg.find("(") != -1;
+  return reg.find("(") != -1 || reg.find("@NTPOFF") != -1;
 }
 
 import parseBase; // int parsing
@@ -99,7 +99,17 @@ struct Transaction {
         void doOp(int sz, string pf) {
           while (size >= sz) {
             bool m_offs_push; int offs;
-            if (kind == Kind.Push)
+            if (kind == Kind.Push) {
+              if (op.startsWith("%gs:") && op.find("@") != -1) {
+                offs = op.between("+", "").atoi();
+                string varname = op.between(":", "@");;
+                if (first_offs != -1) offs = first_offs;
+                else first_offs = offs;
+                // logln("tls rewrite op ", op, " to ", "%gs:", varname, "@NTPOFF+", first_offs + size - sz, ": ", first_offs, " + ", size, " - ", sz); 
+                op = Format("%gs:", varname, "@NTPOFF+", first_offs + size - sz);
+                m_offs_push = true;
+                
+              }
               if (auto reg = op.gotMemoryOffset(offs)) {
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
@@ -107,6 +117,7 @@ struct Transaction {
                 op = Format(first_offs + size - sz, "(%", reg, ")");
                 m_offs_push = true;
               }
+            }
             if (sz == 1) { // not supported in hardware
               // hackaround
               addLine("pushw %bx");
@@ -126,10 +137,16 @@ struct Transaction {
             auto s2 = op;
             int num; string ident, reg;
             if (null !is (reg = op.matchRegister())) {
-              auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
-              if (reg.length >= 2 && reg[0 .. 2] == "gs") regsize = nativePtrSize;
-              if (size != regsize)
-                throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
+              if (reg.startsWith("gs:") && reg.find("@") != -1) {
+                auto temp = reg, reg_offs = temp.slice("+").atoi(), varname = reg.between(":", "@");
+                assert(reg.between("@", "").startsWith("NTPOFF"));
+                op = Format("%gs:", varname, "@NTPOFF+", reg_offs + sz);
+              } else {
+                auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
+                if (reg.startsWith("gs:")) regsize = nativePtrSize;
+                if (size != regsize)
+                  throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
+              }
             }
             else if (kind == Kind.Push && op.gotLiteral(num, ident)) {
               // just duplicate the number
