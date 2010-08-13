@@ -78,7 +78,12 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
       goto retry;
     }
   }
-  if (op is old_op) return null;
+  if (op is old_op) {
+    // Why would we want arithmetic, but not single values?
+    // return null;
+    if (op) text = t2;
+    return cast(Object) op;
+  }
   text = t2;
   return cast(Object) op;
 }

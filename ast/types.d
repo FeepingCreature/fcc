@@ -81,7 +81,7 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   if (text.accept("char")) return Single!(Char);
   return null;
 }
-mixin DefaultParser!(gotBasicType, "type.basic", "5");
+mixin DefaultParser!(gotBasicType, "type.basic", "3");
 
 import tools.log;
 Object gotVariadic(ref string text, ParseCb cont, ParseCb rest) {
