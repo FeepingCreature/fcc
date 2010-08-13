@@ -66,12 +66,14 @@ struct SDL_Event {
   char type;
   int[64] filler;
 }
-extern(C) SDL_Surface* SDL_SetVideoMode(int width, int height, int bpp, int flags);
-extern(C) int SDL_Flip(SDL_Surface*);
-extern(C) int usleep(int secs);
-extern(C) int SDL_WaitEvent(SDL_Event*);
-extern(C) int SDL_PollEvent(SDL_Event*);
-extern(C) int rand();
+extern(C) {
+  SDL_Surface* SDL_SetVideoMode(int width, int height, int bpp, int flags);
+  int SDL_Flip(SDL_Surface*);
+  int usleep(int secs);
+  int SDL_WaitEvent(SDL_Event*);
+  int SDL_PollEvent(SDL_Event*);
+  int rand();
+}
 
 // 15.16
 int fixedpoint_mult(int a, int b) {
@@ -140,7 +142,10 @@ void sdlfun() {
       else
         surface.pixels[y * surface.w + x] = 0;
     }
-    if y%16 == 0 && update() return;
+  }
+  while 1 {
+    usleep(64K);
+    if update() return;
   }
 }
 
@@ -189,9 +194,6 @@ context ctest {
 }
 
 int main(int argc, char** argv) {
-  /*A a = new A;
-  a.x = 5;
-  test2(a);*/
   test(2);
   test(0);
   int e = 5;
