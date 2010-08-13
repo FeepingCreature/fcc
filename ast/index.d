@@ -1,14 +1,21 @@
 module ast.index;
 
 import ast.parse, ast.base, ast.math, ast.pointer, ast.casting,
-  ast.static_arrays, ast.namespace;
+  ast.static_arrays, ast.arrays, ast.namespace;
 
-class SA_Access(T) : T {
+class ArrayAccess(T) : T {
   T array; Expr pos;
   mixin This!("array, pos");
   mixin defaultIterate!(array, pos);
   override {
-    IType valueType() { return (cast(StaticArray) array.valueType()).elemType; }
+    IType valueType() {
+      auto
+        ar = cast(Array) array.valueType(),
+        sa = cast(StaticArray) array.valueType();
+      assert((ar || sa) && !(ar && sa));
+      if (ar) return ar.elemType;
+      else return sa.elemType;
+    }
     static assert(is(T: LValue));
     // TODO generic case
     static if (is(T: LValue)) {
@@ -17,7 +24,7 @@ class SA_Access(T) : T {
       }
       import tools.log;
       void emitLocation(AsmFile af) {
-        iparse!(Expr, "_static_array_location", "tree.expr")
+        iparse!(Expr, "array_location", "tree.expr")
         ("array.ptr + pos", "array", array, "pos", pos)
         .emitAsm(af);
       }
@@ -27,16 +34,19 @@ class SA_Access(T) : T {
 
 Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (!cast(StaticArray) ex.valueType())
+    if (!cast(StaticArray) ex.valueType() && !cast(Array) ex.valueType())
       return null;
+    logln("lhs is ", ex, " at ", text.next_text());
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
+      // if (!cast(LValue) ex)
+      //   throw new Exception("LHS of array access must be lvalue for now, not "~(cast(Object) ex).toString());
       if (!cast(LValue) ex)
-        throw new Exception("LHS of array access must be lvalue for now, not "~(cast(Object) ex).toString());
+        return null;
       // TODO typecheck pos here
       text = t2;
-      return new SA_Access!(LValue) (cast(LValue) ex, pos);
+      return new ArrayAccess!(LValue) (cast(LValue) ex, pos);
     } else return null;
   };
 }
