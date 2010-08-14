@@ -31,7 +31,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       mixin(mustOffset("0"));
       iparse!(Statement, "new_class", "tree.stmt")
       ("{
-          var = cast(typeof(var)) calloc(size, nps);
+          var = cast(typeof(var)) mem.calloc(size, nps);
           (cast(void**) var)[0] = _classinfo;
         }",
         "var", var,
@@ -52,7 +52,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr sz;
   if (!t2.accept("(")) return null;
   if (!rest(t2, "tree.expr", &sz, (Expr ex) {
-    logln("consider ", ex);
+    logln("consider ", ex, "; ", ex.valueType());
     return !!cast(SysInt) ex.valueType();
   })) return null;
   if (!t2.accept(")") || !rest(t2, "type", &ty))
@@ -61,7 +61,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   
   return cast(Object) iparse!(Expr, "new_array", "tree.expr")
-    ("(cast(type*) calloc(len, sizeof(type)))[0 .. len]",
+    ("(cast(type*) mem.calloc(len, sizeof(type)))[0 .. len]",
      "type", ty,
      "len", sz
     );

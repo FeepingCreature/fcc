@@ -282,7 +282,12 @@ int main(int argc, char** argv) {
   auto testp = sys.mem.malloc(15);
   auto artest = new(3) int;
   artest[2] = 15;
+  artest[0 .. 2] = artest[1 .. 3];
   printf("test is %i, %i, %i\n", artest.length, artest[1], artest[2]);
+  {
+    char[] s1 = "foo", s2 = "bar", s3 = s1 ~ s2;
+    printf("s3: %.*s\n", s3.length, s3.ptr);
+  }
   atexit printf("global is %i, %p, %i\n", globvar, &globvar, *&globvar);
   atexit printf("Exit. \n");
   atexit printf("Exit 2. \n");

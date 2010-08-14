@@ -75,11 +75,15 @@ class DoWhileExt : Statement {
   Cond cond;
   mixin defaultIterate!(first, second, cond);
   override void emitAsm(AsmFile af) {
+    mixin(mustOffset("0"));
     auto fdg = first.open(af)(); // open and body
+    auto atJump = af.checkptStack();
     cond.jumpOn(af, false, first.exit());
     second.emitAsm(af);
+    fdg(true); // close before jump! variables must be cleaned up .. don't set the label though
     af.jump(first.entry());
-    fdg(); // close
+    af.restoreCheckptStack(atJump, true);
+    fdg(); // close for real
   }
 }
 

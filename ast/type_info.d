@@ -5,12 +5,9 @@ import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals;
 Object gotTypeof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!(
-    t2.accept("typeof(") &&
-    rest(t2, "tree.expr", &ex) &&
-    t2.accept(")")
-  ))
-    return null;
+  if (!t2.accept("typeof(")) return null;
+  if (!(rest(t2, "tree.expr", &ex) && t2.accept(")")))
+    throw new Exception("Failed to parse typeof expression at '"~t2.next_text()~"'");
   text = t2;
   return cast(Object) ex.valueType();
 }

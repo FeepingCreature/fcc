@@ -21,6 +21,7 @@ class Variable : LValue, Named {
   string name;
   // offset off ebp
   int baseOffset;
+  bool dontInit;
   Expr initval;
   void initInit() {
     if (initval) return;

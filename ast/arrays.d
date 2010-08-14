@@ -55,7 +55,7 @@ class ArrayLength(T) : T {
   mixin defaultIterate!(array);
   override {
     IType valueType() {
-      return Single!(SizeT);
+      return Single!(SysInt); // TODO: size_t when unsigned conversion works
     }
     void emitAsm(AsmFile af) {
       (new MemberAccess_Expr(arrayToStruct(array), "length")).emitAsm(af);
@@ -74,7 +74,7 @@ class ArrayMaker : Expr {
   IType elemType() {
     return (cast(Pointer) ptr.valueType()).target;
   }
-  override string toString() { return Format("array(ptr=", ptr, ", length=", length, ")"); }
+  override string toString() { return Format("array(ptr=", ptr, ", length=", length, ", cap=", cap, ")"); }
   override IType valueType() {
     return new Array(elemType());
   }
@@ -87,6 +87,14 @@ class ArrayMaker : Expr {
   }
 }
 
+Expr staticToArray(Expr sa) {
+  return new ArrayMaker(
+    new CValueAsPointer(cast(CValue) sa),
+    new IntExpr((cast(StaticArray) sa.valueType()).length),
+    new IntExpr(0)
+  );
+}
+
 import ast.literals;
 Object gotStaticArrayCValAsDynamic(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -97,13 +105,14 @@ Object gotStaticArrayCValAsDynamic(ref string text, ParseCb cont, ParseCb rest) 
   );
   if (!ex) return null;
   text = t2;
-  return new ArrayMaker(
-    new CValueAsPointer(cast(CValue) ex),
-    new IntExpr((cast(StaticArray) ex.valueType()).length),
-    new IntExpr(0)
-  );
+  return cast(Object) staticToArray(ex);
 }
 mixin DefaultParser!(gotStaticArrayCValAsDynamic, "tree.expr.sa_cval_dynamic", "905");
+
+Expr getArrayLength(Expr ex) {
+  if (auto lv = cast(LValue) ex) return new ArrayLength!(MValue) (lv);
+  else return new ArrayLength!(Expr) (ex);
+}
 
 import ast.parse;
 // separate because does clever allocation mojo .. eventually
@@ -111,8 +120,7 @@ Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (auto sa = cast(Array) ex.valueType()) {
       if (!text.accept(".length")) return null;
-      if (auto lv = cast(LValue) ex) return new ArrayLength!(MValue) (lv);
-      else return new ArrayLength!(Expr) (ex);
+      return cast(Object) getArrayLength(ex);
     } else return null;
   };
 }

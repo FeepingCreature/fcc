@@ -207,7 +207,7 @@ Object gotFpDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   text = t2;
   
-  if(dg) return new PointerFunction!(NestedFunction) (ex);
+  if (dg) return new PointerFunction!(NestedFunction) (ex);
   else return new PointerFunction!(Function) (ex);
 }
 mixin DefaultParser!(gotFpDerefExpr, "tree.expr.fp_deref", "2102");

@@ -13,15 +13,13 @@ import
   ast.arrays, ast.index, ast.slice, ast.nestfun,
   ast.structfuns, ast.type_info, ast.expr_alias,
   ast.oop, ast.dg, ast.newexpr, ast.guard, ast.withstmt,
-  ast.templ, ast.globvars, ast.context;
+  ast.templ, ast.globvars, ast.context, ast.concat;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
 // from ast.namespace
 mixin DefaultParser!(gotNamed, "tree.expr.named", "4");
 static this() { New(namespace, { return cast(Namespace) null; }); }
-// from ast.scopes
-mixin DefaultParser!(gotScope, "tree.scope");
 alias ast.parse.startsWith startsWith;
 
 extern(C) {

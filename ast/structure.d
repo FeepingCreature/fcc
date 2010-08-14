@@ -190,10 +190,8 @@ class MemberAccess(T) : T {
           af.pushStack(reg, stm.type);
         } else {
           mkVar(af, stm.type, true, (Variable var) {
-            iparse!(Statement, "copy_struct_member", "tree.stmt")
-            ("{
-                memcpy(cast(char*) &tempvar, (cast(char*) &var) + offset, size);
-              }",
+            iparse!(Statement, "copy_struct_member", "tree.semicol_stmt.expr")
+            ("memcpy(cast(char*) &tempvar, (cast(char*) &var) + offset, size);",
               "tempvar", var,
               "var", base,
               "size", new IntExpr(stm.type.size),

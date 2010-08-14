@@ -6,7 +6,7 @@ interface ScopeLike {
   int framesize();
 }
 
-class Scope : Namespace, Tree, ScopeLike {
+class Scope : Namespace, Tree, ScopeLike, Statement {
   Function fun;
   Statement _body;
   Statement[] guards;
@@ -16,10 +16,18 @@ class Scope : Namespace, Tree, ScopeLike {
     if (auto sc = cast(Scope) sup) return sc.getGuards() ~ guards;
     else return guards;
   }
-  string entry() { return Format(fun.mangleSelf(), "_entry", id); }
-  string exit() { return Format(fun.mangleSelf(), "_exit", id); }
+  string base() {
+    if (fun) return fun.mangleSelf();
+    return sup.mangle("scope", null);
+  }
+  string entry() { return Format(base, "_entry", id); }
+  string exit() { return Format(base, "_exit", id); }
   string toString() { return Format("scope <- ", sup); }
-  this() { id = getuid(); }
+  this() {
+    id = getuid();
+    sup = namespace();
+    fun = sup.get!(Function);
+  }
   override int framesize() {
     // TODO: alignment
     int res;
@@ -34,23 +42,24 @@ class Scope : Namespace, Tree, ScopeLike {
   }
   // frame offset caused by parameters
   int framestart() {
+    assert(!!fun);
     return fun.framestart();
   }
   // continuations good
-  void delegate() delegate() open(AsmFile af) {
+  void delegate(bool=false) delegate() open(AsmFile af) {
     af.put(entry(), ":");
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
     return stuple(checkpt, backup, this, af) /apply/ (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af) {
       that._body.emitAsm(af);
-      return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af) {
-        af.put(that.exit(), ":");
+      return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, bool onlyCleanup) {
+        if (!onlyCleanup) af.put(that.exit(), ":");
         
         foreach_reverse(guard; that.guards)
           guard.emitAsm(af);
         
         af.restoreCheckptStack(checkpt);
-        namespace.set(backup);
+        if (!onlyCleanup) namespace.set(backup);
       };
     };
   }
@@ -80,9 +89,8 @@ class Scope : Namespace, Tree, ScopeLike {
 }
 
 Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
+  if (auto res = rest(text, "tree.stmt.aggregate")) return res; // always scope anyway
   auto sc = new Scope;
-  sc.sup = namespace();
-  sc.fun = namespace().get!(Function);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   auto t2 = text;

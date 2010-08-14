@@ -61,4 +61,4 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     } else throw new Exception("While grabbing assignment value at '"~t2.next_text()~"'");
   } else return null;
 }
-mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign");
+mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign", "1");

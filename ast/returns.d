@@ -50,4 +50,4 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     } else throw new Exception("Error parsing return expression at "~text.next_text());
   } else return null;
 }
-mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return");
+mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return", "3");

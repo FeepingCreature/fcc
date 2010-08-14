@@ -33,6 +33,7 @@ class Module : Namespace, Tree, Named {
 
 Module sysmod;
 
+extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace
 Module lookupMod(string name) {
   if (name == "sys") {
     return sysmod;
@@ -49,21 +50,36 @@ void setupSysmods() {
       void puts(char*);
       void printf(char*, ...);
       void* malloc(int);
+      void* calloc(int, int);
       void free(void*);
       void* realloc(void* ptr, size_t size);
     }
     context mem {
       void* delegate(int)            malloc_dg = &malloc;
+      void* delegate(int, int )      calloc_dg = &calloc;
       void delegate(void*)             free_dg = &free;
       void* delegate(void*, size_t) realloc_dg = &realloc;
       void* malloc (int i)             { return malloc_dg(i); }
+      void* calloc (int i, int k)      { return calloc_dg(i, k); }
       void  free   (void* p)           { free_dg(p); }
       void* realloc(void* p, size_t s) { return realloc_dg(p, s); }
+      /*MARKER*/
       void append(char[] target, char[] text) {
-        
+        int newsize = target.length + text.length;
+        char[] newtarget;
+        if newsize <= target.capacity newtarget = target;
+        else {
+          newtarget = new(newsize) char;
+          newtarget[0 .. target.length] = target;
+        }
+        newtarget[target.length .. newsize] = text;
       }
     }
   `;
+  // parse first half
+  string base = src.between("", "/*MARKER*/") ~ "}";
+  sysmod = cast(Module) parsecon.parse(base, "tree.module");
+  // parse complete
   sysmod = cast(Module) parsecon.parse(src, "tree.module");
 }
 

@@ -93,11 +93,14 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   return null;
 }
 
+extern(C) Namespace __getSysmod();
+
 class MiniNamespace : Namespace {
   string id;
   this(string id) { this.id = id; }
   override string mangle(string name, IType type) {
-    return id~"_"~name~"_of_"~type.mangle();
+    if (type) return id~"_"~name~"_of_"~type.mangle();
+    else return id~"_"~name;
   }
   override Stuple!(IType, string, int)[] stackframe() {
     assert(false); // wtfux.
@@ -108,6 +111,10 @@ class MiniNamespace : Namespace {
   }
   override Object lookup(string name, bool local = false) {
     auto res = super.lookup(name, local);
+    if (!res && !local) {
+      auto sysmod = __getSysmod();
+      if (sysmod) res = sysmod.lookup(name, local);
+    }
     // logln("mini lookup ", name, " => ", res);
     return res;
   }
@@ -131,12 +138,14 @@ template iparse(R, string id, string rule) {
       string str = "
         extern(C) void* malloc(int);
         extern(C) void* calloc(int, int);
+        extern(C) int printf(char*, ...);
         extern(C) void* memcpy(void* dest, void* src, int n); ".dup; // TODO: likewise
       auto
         obj1 = parsecon.parse(str, "tree.toplevel.extern_c"),
         obj2 = parsecon.parse(str, "tree.toplevel.extern_c"),
-        obj3 = parsecon.parse(str, "tree.toplevel.extern_c");
-      assert(obj1 && obj2 && obj3, "mini externs failed to parse at "~str);
+        obj3 = parsecon.parse(str, "tree.toplevel.extern_c"),
+        obj4 = parsecon.parse(str, "tree.toplevel.extern_c");
+      assert(obj1 && obj2 && obj3 && obj4, "mini externs failed to parse at "~str);
     }
     
     auto res = parsecon.parse(text, rule);

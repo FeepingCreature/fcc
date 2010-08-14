@@ -38,8 +38,8 @@ class AsmFile {
   int checkptStack() {
     return currentStackDepth;
   }
-  void restoreCheckptStack(int i) {
-    if (currentStackDepth < i)
+  void restoreCheckptStack(int i, bool mayBeBigger = false /* used in loops/break/continue */) {
+    if (!mayBeBigger && currentStackDepth < i)
       throw new Exception("Tried to unwind stack while unwound further - logic error");
     sfree(currentStackDepth - i);
   }
@@ -238,8 +238,8 @@ class AsmFile {
             mv.from = source; mv.to = dest;
             size -= sz;
             if (size) {
-              mv.from.incr(sz);
-              mv.to.incr(sz);
+              source.incr(sz);
+              dest.incr(sz);
             }
             movs ~= mv;
           }

@@ -11,7 +11,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
   IScoped isc;
   void delegate(AsmFile) pre, post;
   mixin defaultIterate!(vd, sc);
-  string toString() { return Format("with ", context, " ", sc._body, " <- ", sup); }
+  string toString() { return Format("with ", context, " <- ", sup); }
   int temps;
   override int framesize() {
     return (cast(ScopeLike) sup).framesize() + temps;
@@ -22,8 +22,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
     scope(exit) namespace.set(this.sup);
     
     sc = new Scope;
-    sc.sup = this;
-    sc.fun = get!(Function);
+    assert(!!sc.fun);
     
     if (auto isc = cast(IScoped) ex) {
       this.isc = isc;

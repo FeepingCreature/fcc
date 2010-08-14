@@ -5,7 +5,6 @@ public import ast.variable;
 
 class VarDecl : Statement {
   Variable[] vars;
-  bool dontInit;
   mixin defaultIterate!(vars);
   override void emitAsm(AsmFile af) {
     // logln("emit at ", af.currentStackDepth, ": ", vars);
@@ -13,7 +12,8 @@ class VarDecl : Statement {
       af.salloc(var.type.size);
       assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; ", -var.baseOffset, " vs. ", af.currentStackDepth, ": ", var));
       af.comment("init ", var);
-      if (!dontInit)
+      logln("init ", var, ": ", !var.dontInit, " with ", var.initval);
+      if (!var.dontInit)
         (new Assignment(var, var.initval)).emitAsm(af);
     }
   }
@@ -34,9 +34,9 @@ void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
   mixin(mustOffset("type.size"));
   auto var = new Variable(type, Format("__temp_var_", x++, "__"),
                           boffs(type, af.currentStackDepth));
+  var.dontInit = dontInit;
   auto vd = new VarDecl;
   vd.vars ~= var;
-  vd.dontInit = dontInit;
   vd.emitAsm(af);
   {
     mixin(mustOffset("0"));

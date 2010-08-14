@@ -99,7 +99,7 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
     return new ExprStatement(ex);
   } else return null;
 }
-mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr");
+mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr", "2");
 
 Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (auto obj = rest(text, "tree.semicol_stmt")) {
