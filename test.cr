@@ -50,7 +50,7 @@ struct W {
   int i;
   int test2(int k) { return i + k; }
   void test() {
-    writeln("Hello W; i = $i, i + 3 = $(test2(3))");
+    writeln("Hello W; i = $i, i + 3 = $$test2(3)");
   }
 }
 
@@ -167,7 +167,7 @@ void nesttest() {
   nf();
   writeln("nest test: $nest_test. ");
   int function(int, int x) fp = &s;
-  writeln("s test $(fp(4, 5))");
+  writeln("s test $$fp(4, 5)");
 }
 
 struct Blarg {
@@ -197,42 +197,42 @@ int main(int argc, char** argv) {
   test(2);
   test(0);
   int e = 5;
-  // writeln("a(3, 12) = $(acker(3, 12))");
+  // writeln("a(3, 12) = $$acker(3, 12)");
   int* ptr = &e;
   *ptr = 7;
   X x;
   x.a = 5; x.b = 6; x.c = 3;
-  writeln("expression alias! $(x.foo)");
+  writeln("expression alias! $$x.foo");
   Y y;
   y.x = x;
   y.x.c = 5;
   writeln("It's a $(y.x.c)!");
-  writeln("yo .. $(x.a), $(x.b), $(x.c)");
+  writeln("yo .. $(x.a), $$(x.b), $(x.c)");
   writeln("pointer to e: $ptr. e: $(*ptr), also $(*&*&e).");
   int m = 5, n = 8;
   writeln("post inc test: $(m++), $(m++)");
-  writeln("test: $(*(&m - 1))");
+  writeln("test: $$*(&m - 1)");
   if (s(0, 1) && s(1, 0) && s(2, 1)) writeln("yes"); else writeln("no");
   if (s(0, 1) && s(1, 0) && s(2, 1) || s(3, 1)) writeln("yes"); else writeln("no");
   int[5] ifield;
   ifield[3] = 15;
-  writeln("field access $(ifield[3])");
+  writeln("field access $$ifield[3]");
   int* ip = &ifield[3];
-  writeln("field access via ptr $(ip[0]), oh btw $(ifield.length)");
+  writeln("field access via ptr $$ip[0], oh btw $$ifield.length");
   // ifield.length = 8; // will fail
   // ztest().i = 5; // correctly doesn't work
   char[] arr = "foob";
-  writeln("proper array test: $(arr.length), contents $arr");
-  writeln("slice: $(arr[1 .. 4]), via ptr $(arr.ptr[1 .. 4])");
+  writeln("proper array test: $$arr.length, contents $arr");
+  writeln("slice: $$arr[1 .. 4], via ptr $$arr.ptr[1 .. 4]");
   nesttest();
   W w;
   w.i = 5;
   w.test();
   writeln("And done. ");
   Class cl = new Class;
-  writeln("class size is $(typeof(cl).sizeof); method is $(typeof(&cl.foo).stringof)");
-  writeln("forble $((&cl.foo).stringof)");
-  writeln("class is at $(cast(void*) cl), i $(&(cl.i))");
+  writeln("class size is $$typeof(cl).sizeof; method is $$typeof(&cl.foo).stringof");
+  writeln("forble $$(&cl.foo).stringof");
+  writeln("class is at $$cast(void*) cl, i $$&(cl.i)");
   cl.i = 3;
   cl.foo(2);
   void delegate(int) dgx = &cl.foo;
@@ -261,7 +261,7 @@ int main(int argc, char** argv) {
     var = 14;
     writeln("now it's $var");
   }
-  writeln("now back to $(ctest.var). ");
+  writeln("now back to $$ctest.var. ");
   void memtest() using sys.mem {
     writeln("memtest! ");
     auto p = malloc(16);
@@ -285,9 +285,9 @@ int main(int argc, char** argv) {
   writeln("test is $$artest.length, $$artest[1], $$artest[2]");
   {
     char[] s1 = "foo", s2 = "bar", s3 = s1 ~ s2;
-    writeln("s3 is $s3, or $(s1 ~ s2), length $(s3.length)");
+    writeln("s3 is $s3, or $$s1 ~ s2, length $$s3.length");
   }
-  atexit writeln("global is $globvar, $(&globvar), $(*&globvar)");
+  atexit writeln("global is $globvar, $$&globvar, $$*&globvar");
   atexit writeln("Exit. ");
   atexit writeln("Exit 2. ");
   {
