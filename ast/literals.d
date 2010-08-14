@@ -29,12 +29,18 @@ class StringExpr : CValue {
   override IType valueType() { return new StaticArray(Single!(Char), str.length); }
 }
 
-bool gotStringExpr(ref string text, out Expr ex) {
+string subst(string s, string kind) {
+  if (kind == "`") return s;
+  assert(kind == "\"");
+  return s.replace(`\n`, "\n");
+}
+
+bool gotStringExpr(ref string text, out Expr ex, string sep = "\"") {
   auto t2 = text;
   StringExpr se;
-  return t2.accept("\"") &&
+  return t2.accept(sep) &&
     (se = new StringExpr, true) &&
-    (se.str = t2.slice("\"").replace("\\n", "\n"), true) &&
+    (se.str = t2.slice(sep).subst(sep), true) &&
     (text = t2, true) &&
     (ex = se, true);
 }
@@ -51,9 +57,8 @@ mixin DefaultParser!(gotLiteralSuffixExpr, "tree.expr.literal_suffix", "54");
 
 Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  // handled in ast.stringex now.
-  // if (text.gotStringExpr(ex) || text.gotIntExpr(ex)) return cast(Object) ex;
-  if (text.gotIntExpr(ex)) return cast(Object) ex;
+  // "" handled in ast.stringex now.
+  if (text.gotStringExpr(ex, "`") || text.gotIntExpr(ex)) return cast(Object) ex;
   else return null;
 }
 mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "55");
