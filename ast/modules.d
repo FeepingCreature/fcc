@@ -2,7 +2,7 @@ module ast.modules;
 
 import ast.base, ast.namespace, ast.fun, ast.variable, ast.structure, ast.parse;
 
-import tools.ctfe, tools.base: startsWith;
+import tools.ctfe;
 
 class Module : Namespace, Tree, Named {
   string name;
@@ -53,6 +53,8 @@ void setupSysmods() {
       void* calloc(int, int);
       void free(void*);
       void* realloc(void* ptr, size_t size);
+      void* memcpy(void* dest, void* src, int n);
+      int snprintf(char* str, int size, char* format, ...);
     }
     context mem {
       void* delegate(int)            malloc_dg = &malloc;
@@ -74,6 +76,26 @@ void setupSysmods() {
         }
         newtarget[target.length .. newsize] = text;
       }
+    }
+    char[] itoa(int i) {
+      if i < 0 return "-" ~ itoa(-i);
+      if i == 0 return "0";
+      char[] res;
+      while i {
+        char[1] temp;
+        temp[0] = "0123456789"[i%10];
+        res = temp ~ res;
+        i = i / 10;
+      }
+      return res;
+    }
+    char[] ptoa(void* p) {
+      auto res = new(size_t.sizeof * 2 + 2 + 1) char;
+      snprintf(res.ptr, res.length, "%p", p);
+      return res[0 .. res.length - 1];
+    }
+    void writeln(char[] line) {
+      printf("%.*s\n", line.length, line.ptr);
     }
   `;
   // parse first half

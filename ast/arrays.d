@@ -7,11 +7,13 @@ class Array : Type {
   IType elemType;
   this() { }
   this(IType et) { elemType = et; }
-  override int size() {
-    return nativePtrSize + nativeIntSize * 2;
-  }
-  override string mangle() {
-    return "array_of_"~elemType.mangle();
+  override {
+    int size() {
+      return nativePtrSize + nativeIntSize * 2;
+    }
+    string mangle() {
+      return "array_of_"~elemType.mangle();
+    }
   }
 }
 
@@ -54,6 +56,7 @@ class ArrayLength(T) : T {
   }
   mixin defaultIterate!(array);
   override {
+    string toString() { return Format("length(", array, ")"); }
     IType valueType() {
       return Single!(SysInt); // TODO: size_t when unsigned conversion works
     }
@@ -112,6 +115,10 @@ mixin DefaultParser!(gotStaticArrayCValAsDynamic, "tree.expr.sa_cval_dynamic", "
 Expr getArrayLength(Expr ex) {
   if (auto lv = cast(LValue) ex) return new ArrayLength!(MValue) (lv);
   else return new ArrayLength!(Expr) (ex);
+}
+
+Expr getArrayPtr(Expr ex) {
+  return mkMemberAccess(arrayToStruct!(Expr) (ex), "ptr");
 }
 
 import ast.parse;

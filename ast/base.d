@@ -55,12 +55,6 @@ string genIterates(int params) {
 
 mixin(genIterates(9));
 
-// has setup to do on asmfile that are unrelated to pushing value on stack
-// example: literals that have to move stuff to the text segment
-interface Setupable {
-  void setup(AsmFile);
-}
-
 interface Named {
   string getIdentifier();
 }
@@ -101,6 +95,11 @@ class Placeholder : Expr {
   this(IType type) { this.type = type; }
   override IType valueType() { return type; }
   override void emitAsm(AsmFile af) { }
+}
+
+// can be printed as string
+interface Formatable {
+  Expr format(Expr ex);
 }
 
 /// Emitting this sets up FLAGS.
@@ -158,4 +157,17 @@ string mustOffset(string value) {
     scope(success) assert(af.currentStackDepth == OFFS + `~value~`,
       Format("Stack offset violated: got ", af.currentStackDepth, "; expected ", OFFS + `~value~`)
     );`).ctReplace("\n", "", "OFFS", hash); // fix up line numbers!
+}
+
+class CallbackExpr : Expr {
+  IType type;
+  void delegate(AsmFile) dg;
+  this(IType type, void delegate(AsmFile) dg) {
+    this.type = type; this.dg = dg;
+  }
+  override {
+    IType valueType() { return type; }
+    void emitAsm(AsmFile af) { dg(af); }
+    mixin defaultIterate!(); // TODO
+  }
 }

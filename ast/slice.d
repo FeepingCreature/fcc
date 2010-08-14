@@ -1,7 +1,7 @@
 module ast.slice;
 
-import ast.base, ast.arrays, ast.pointer, ast.math,
-  ast.structure, ast.parse, ast.int_literal;
+import ast.base, ast.arrays, ast.pointer, ast.math, ast.modules, ast.fun,
+  ast.structure, ast.parse, ast.int_literal, ast.static_arrays;
 
 Expr mkPointerSlice(Expr ptr, Expr from, Expr to) {
   return new ArrayMaker(
@@ -29,7 +29,8 @@ Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
     ) {
       if (!from) from = new IntExpr(0);
       if (!to) {
-        assert(!!cast(Array) ex.valueType(), "Cannot take \"full slice\" over pointer! ");
+        if (!cast(Array) ex.valueType()) return null;
+        // assert(!!cast(Array) ex.valueType(), "Cannot take \"full slice\" over pointer! ");
         to = getArrayLength(ex);
       }
       if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: ", from));
@@ -41,6 +42,22 @@ Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotSliceExpr, "tree.rhs_partial.slice");
+
+Statement getSliceAssign(Expr slice, Expr array) {
+  IType elemtype;
+  if (auto sa = cast(StaticArray) array.valueType())
+    elemtype = sa.elemType;
+  else if (auto ar = cast(Array) array.valueType())
+    elemtype = ar.elemType;
+  else
+    throw new Exception(Format("Can't assign to slice: ", array));
+  
+  auto fc = (cast(Function) sysmod.lookup("memcpy")).mkCall;
+  fc.params ~= getArrayPtr(slice);
+  fc.params ~= getArrayPtr(array);
+  fc.params ~= new MulExpr(getArrayLength(array), new IntExpr(elemtype.size));
+  return new ExprStatement(fc);
+}
 
 import ast.namespace, tools.log;
 Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
@@ -56,12 +73,7 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
       }
       text = t2;
       // TODO: assert on size
-      logln("src is ", src, "; ", src.valueType());
-      return cast(Object) iparse!(Statement, "slice_assign_as_memcpy", "tree.semicol_stmt.expr")
-        ("memcpy(dest.ptr, src.ptr, src.length * sizeof(typeof(src[0])))",
-          "dest", dest,
-          "src", src
-        );
+      return cast(Object) getSliceAssign(dest, src);
     } else throw new Exception("Failed to parse slice-assignment value at '"~t2.next_text()~"'");
   } else return null;
 }

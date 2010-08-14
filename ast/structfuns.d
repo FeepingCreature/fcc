@@ -99,7 +99,9 @@ class RelFunction : Function, RelTransformable {
       return mangleSelf() ~ "_" ~ type.mangle()~"_"~name;
     }
     FunCall mkCall() {
-      return new RelFunCall(baseptr);
+      auto res = new RelFunCall(baseptr);
+      res.fun = this;
+      return res;
     }
     int fixup() {
       auto cur = super.fixup();

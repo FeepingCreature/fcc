@@ -135,7 +135,7 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
     st.sup = namespace();
     if (matchStructBody(t2, st, cont, rest)) {
       if (!t2.accept("}"))
-        throw new Exception("Missing closing bracket at "~t2.next_text());
+        throw new Exception("Missing closing struct bracket at "~t2.next_text());
       namespace().add(st);
       text = t2;
       return Single!(NoOp);

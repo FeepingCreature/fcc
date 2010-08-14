@@ -3,6 +3,15 @@ module ast.index;
 import ast.parse, ast.base, ast.math, ast.pointer, ast.casting,
   ast.static_arrays, ast.arrays, ast.namespace;
 
+LValue getIndex(Expr array, Expr pos) {
+  Expr ptr;
+  if (auto sa = cast(StaticArray) array.valueType())
+    ptr = getSAPtr(array);
+  else
+    ptr = getArrayPtr(array);
+  return new DerefExpr(new AddExpr(ptr, pos));
+}
+
 Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (!cast(StaticArray) ex.valueType() && !cast(Array) ex.valueType())
@@ -11,8 +20,7 @@ Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       text = t2;
-      return cast(Object) iparse!(Expr, "array_access", "tree.expr")
-      ("*(array.ptr + pos)", "array", ex, "pos", pos);
+      return cast(Object) getIndex(ex, pos);
     } else return null;
   };
 }

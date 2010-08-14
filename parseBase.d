@@ -151,6 +151,13 @@ template allocRuleData(alias A) {
   }
 }
 
+bool sectionStartsWith(string section, string rule) {
+  if (section == rule) return true;
+  auto match = section.startsWith(rule);
+  // only count hits that match a complete section
+  return match.length && match[0] == '.';
+}
+
 bool delegate(string) matchrule(string rules) {
   bool delegate(string) res;
   auto rules_backup = rules;
@@ -175,17 +182,16 @@ bool delegate(string) matchrule(string rules) {
     static bool fun(bool smaller, bool greater, bool equal, bool before,
     string rule, bool delegate(string) op1, ref bool hit, string text) {
       if (op1 && !op1(text)) return false;
-      auto tsw = text.startsWith(rule);
       // avoid allocation from ~"."
-      if (smaller && tsw.length && tsw[0] == '.') // all "below" in the tree
+      if (smaller && text.sectionStartsWith(rule)) // all "below" in the tree
         return true;
       if (equal && text == rule)
         return true;
-      if (greater && !text.startsWith(rule)) // arguable
+      if (greater && !text.sectionStartsWith(rule)) // arguable
         return true;
       
       if (before) {
-        if (!hit && text.startsWith(rule))
+        if (!hit && text.sectionStartsWith(rule))
           hit = true;
         if (hit) return false;
         return true;
@@ -194,6 +200,7 @@ bool delegate(string) matchrule(string rules) {
     };
     alias allocRuleData!(fun) ard;
     res = ard(smaller, greater, equal, before, rule, res, false);
+    // res = res /apply/ (bool delegate(string) dg, string s) { auto res = dg(s); logln(s, " -> ", res); return res; };
   }
   // condInfo[res] = rules_backup;
   return res;

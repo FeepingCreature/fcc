@@ -45,7 +45,11 @@ class Function : Namespace, Tree, Named {
     res.field = field;
     return res;
   }
-  FunCall mkCall() { return new FunCall; }
+  FunCall mkCall() {
+    auto res = new FunCall;
+    res.fun = this;
+    return res;
+  }
   int fixup() {
     // cdecl: 0 old ebp, 4 return address, 8 parameters .. I think.
     add(new Variable(Single!(SizeT), "__old_ebp", 0));
@@ -105,6 +109,7 @@ class FunCall : Expr {
   override void emitAsm(AsmFile af) {
     callFunction(af, fun.type.ret, params, fun.getPointer());
   }
+  override string toString() { return Format("call(", fun, params, ")"); }
   override IType valueType() {
     return fun.type.ret;
   }
@@ -118,7 +123,7 @@ void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
   if (auto s = cast(Symbol) fp) name = s.name;
   else name = "(nil)";
   
-  assert(ret.size == 4 || ret.size == 8 || cast(Void) ret,
+  assert(ret.size == 4 || ret.size == 8 || ret.size == 12 || cast(Void) ret,
     Format("Return bug: ", ret, " from ", name, "!"));
   dest.comment("Begin call to ", name);
   if (params.length) {
@@ -134,8 +139,10 @@ void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
     dest.sfree(param.valueType().size);
   }
   if (!cast(Void) ret) {
-    if (ret.size == 8)
+    if (ret.size >= 8)
       dest.pushStack("%edx", Single!(SizeT));
+    if (ret.size == 12)
+      dest.pushStack("%ecx", Single!(SizeT));
     dest.pushStack("%eax", Single!(SizeT));
   }
 }
@@ -274,7 +281,6 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Function fun) {
     auto fc = fun.mkCall();
-    fc.fun = fun;
     
     if (t2.accept("(")) {
       scope params = new IType[fun.type.params.length];

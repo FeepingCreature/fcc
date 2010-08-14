@@ -121,8 +121,12 @@ class MiniNamespace : Namespace {
 }
 
 // internal miniparse wrapper
+float[string] bench;
+import tools.time;
 template iparse(R, string id, string rule) {
   R iparse(T...)(string text, T t) {
+    auto start = sec();
+    scope(exit) bench[id] += sec() - start;
     text = text.dup; // circumvent the memoizer TODO: Better way?
     static assert(T.length % 2 == 0);
     auto myns = new MiniNamespace(id);
@@ -138,14 +142,12 @@ template iparse(R, string id, string rule) {
       string str = "
         extern(C) void* malloc(int);
         extern(C) void* calloc(int, int);
-        extern(C) int printf(char*, ...);
-        extern(C) void* memcpy(void* dest, void* src, int n); ".dup; // TODO: likewise
+        extern(C) int printf(char*, ...); ".dup; // TODO: likewise
       auto
         obj1 = parsecon.parse(str, "tree.toplevel.extern_c"),
         obj2 = parsecon.parse(str, "tree.toplevel.extern_c"),
-        obj3 = parsecon.parse(str, "tree.toplevel.extern_c"),
-        obj4 = parsecon.parse(str, "tree.toplevel.extern_c");
-      assert(obj1 && obj2 && obj3 && obj4, "mini externs failed to parse at "~str);
+        obj3 = parsecon.parse(str, "tree.toplevel.extern_c");
+      assert(obj1 && obj2 && obj3, "mini externs failed to parse at "~str);
     }
     
     auto res = parsecon.parse(text, rule);

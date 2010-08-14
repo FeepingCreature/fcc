@@ -15,21 +15,13 @@ mixin DefaultParser!(gotTypeof, "type.of", "45");
 
 Object gotSizeof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (t2.accept("sizeof(")) {
-    auto t3 = t2;
-    Type ty; Expr ex;
-    if (rest(t3, "type", &ty) && t3.accept(")")) {
-      text = t3;
-      return new IntExpr(ty.size);
-    }
-    if (rest(t3, "tree.expr", &ex) && t3.accept(")")) {
-      text = t3;
-      return new IntExpr(ex.valueType().size);
-    }
-    throw new Exception(Format(
-      "Failed to match parameter for sizeof expression at ", t2.next_text()
-    ));
-  } else return null;
+  IType ty;
+  if (!rest(t2, "type", &ty))
+    return null;
+  if (!t2.accept(".sizeof"))
+    return null;
+  text = t2;
+  return new IntExpr(ty.size);
 }
 mixin DefaultParser!(gotSizeof, "tree.expr.sizeof", "51");
 

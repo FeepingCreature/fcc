@@ -6,22 +6,24 @@ public import ast.int_literal;
 
 import ast.static_arrays, parseBase;
 
-class StringExpr : CValue, Setupable {
+class StringExpr : CValue {
   string str;
   this() { }
   this(string s) { str = s; }
   mixin defaultIterate!();
   string name_used;
-  override string toString() { return '"'~str~'"'; }
-  // default action: place in string segment, load address on stack
-  override void setup(AsmFile af) {
+  void setup(AsmFile af) {
+    if (name_used) return;
     name_used = Format("cons_", af.constants.length);
     af.constants[name_used] = cast(ubyte[]) str;
   }
+  override string toString() { return '"'~str~'"'; }
+  // default action: place in string segment, load address on stack
   override void emitAsm(AsmFile af) {
     assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");
   }
   override void emitLocation(AsmFile af) {
+    setup(af);
     af.pushStack("$"~name_used, Single!(Pointer, Single!(Char)));
   }
   override IType valueType() { return new StaticArray(Single!(Char), str.length); }
@@ -45,14 +47,16 @@ Object gotLiteralSuffixExpr(ref string text, ParseCb cont, ParseCb rest) {
   else if (text.accept("G")) return new IntExpr(res.num * 1024 * 1024 * 1024);
   else return null;
 }
-mixin DefaultParser!(gotLiteralSuffixExpr, "tree.expr.literal_suffix", "50");
+mixin DefaultParser!(gotLiteralSuffixExpr, "tree.expr.literal_suffix", "54");
 
 Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (text.gotStringExpr(ex) || text.gotIntExpr(ex)) return cast(Object) ex;
+  // handled in ast.stringex now.
+  // if (text.gotStringExpr(ex) || text.gotIntExpr(ex)) return cast(Object) ex;
+  if (text.gotIntExpr(ex)) return cast(Object) ex;
   else return null;
 }
-mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "5");
+mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "55");
 
 /// "foo": char[3] -> char*
 class CValueAsPointer : Expr {
@@ -65,8 +69,6 @@ class CValueAsPointer : Expr {
     throw new Exception(Format("The CValue ", sup, " has confused me. "));
   }
   override void emitAsm(AsmFile af) {
-    if (auto s = cast(Setupable) sup)
-      s.setup(af);
     sup.emitLocation(af);
   }
 }

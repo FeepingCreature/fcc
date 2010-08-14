@@ -5,16 +5,16 @@ int add(int a, int b) { return a + b; }
 
 void test(int foo) {
   int bar = 17;
-  if (foo) sys.printf("meep\n");
-  else sys.printf("moop\n");
-  sys.printf("Hello World: %i, %i\n", foo * add(2, bar), bar);
+  if (foo) writeln("meep");
+  else writeln("moop");
+  writeln("Hello World: $(foo * add(2, bar)), $bar");
   int temp = 5;
   while (temp) {
-    sys.printf("Countdown with %i\n", temp);
+    writeln("Countdown with $temp");
     temp = temp - 1;
   }
   for (int x = 0; x < 10; ++x)
-    sys.printf("Test: %i\n", x);
+    writeln("Test: $x");
 }
 
 int acker(int m, int n) {
@@ -36,7 +36,7 @@ struct Y {
 }
 
 int s(int i, int k) {
-  printf("meep %i: %i\n", i, k);
+  writeln("meep $i, $k");
   return k;
 }
 
@@ -50,7 +50,7 @@ struct W {
   int i;
   int test2(int k) { return i + k; }
   void test() {
-    printf("Hello W; i = %i, i + 3 = %i\n", i, test2(3));
+    writeln("Hello W; i = $i, i + 3 = $(test2(3))");
   }
 }
 
@@ -151,13 +151,13 @@ void sdlfun() {
 
 class Class {
   int i;
-  void foo(int k) { printf("foo %i; btw this is %p\n", k + i, this); }
-  void bar() { printf("bar here"); }
+  void foo(int k) { writeln("foo $(k+i); btw this is $this"); }
+  void bar() { writeln("bar here"); }
 }
 
 class Subclass : Class {
   int k;
-  void foo(int l) { printf("subfoo %i\n", i + k + l); }
+  void foo(int l) { writeln("subfoo $(i + k + l)"); }
 }
 
 void nesttest() {
@@ -165,14 +165,14 @@ void nesttest() {
   void nestfun() { int a; a = 7; void nestfun2() { nest_test = a; } nestfun2(); }
   void delegate() nf = &nestfun;
   nf();
-  printf("nest test: %i. \n", nest_test);
+  writeln("nest test: $nest_test. ");
   int function(int, int x) fp = &s;
-  printf("s test %i\n", fp(4, 5));
+  writeln("s test $(fp(4, 5))");
 }
 
 struct Blarg {
   int ib;
-  void fun() { printf("%i!\n", ib); }
+  void fun() { writeln("$ib!"); }
 }
 
 template Blorg(T) <<EOT
@@ -183,7 +183,7 @@ EOT
 
 template FunTemp(T) <<EOT
   void FunTemp(T t) {
-    printf("T::%i %.*s\n", t.stringof);
+    writeln("T::$(t.stringof)");
   }
 EOT
 
@@ -197,42 +197,42 @@ int main(int argc, char** argv) {
   test(2);
   test(0);
   int e = 5;
-  // printf("a(3, 12) = %i\n", acker(3, 12));
+  // writeln("a(3, 12) = $(acker(3, 12))");
   int* ptr = &e;
   *ptr = 7;
   X x;
   x.a = 5; x.b = 6; x.c = 3;
-  printf("expression alias! %i\n", x.foo);
+  writeln("expression alias! $(x.foo)");
   Y y;
   y.x = x;
   y.x.c = 5;
-  printf("It's a %i! \n", y.x.c);
-  printf("yo .. %i, %i, %i\n", x.a, x.b, x.c);
-  printf("pointer to e: %p. e: %i, also %i.\n", ptr, *ptr, *&*&e);
+  writeln("It's a $(y.x.c)!");
+  writeln("yo .. $(x.a), $(x.b), $(x.c)");
+  writeln("pointer to e: $ptr. e: $(*ptr), also $(*&*&e).");
   int m = 5, n = 8;
-  printf("post inc test: %i, %i\n", m++, m++);
-  printf("test: %i\n", *(&m - 1));
-  if (s(0, 1) && s(1, 0) && s(2, 1)) printf("yes\n"); else printf("no\n");
-  if (s(0, 1) && s(1, 0) && s(2, 1) || s(3, 1)) printf("yes\n"); else printf("no\n");
+  writeln("post inc test: $(m++), $(m++)");
+  writeln("test: $(*(&m - 1))");
+  if (s(0, 1) && s(1, 0) && s(2, 1)) writeln("yes"); else writeln("no");
+  if (s(0, 1) && s(1, 0) && s(2, 1) || s(3, 1)) writeln("yes"); else writeln("no");
   int[5] ifield;
   ifield[3] = 15;
-  printf("field access %i\n", ifield[3]);
+  writeln("field access $(ifield[3])");
   int* ip = &ifield[3];
-  printf("field access via ptr %i, oh btw %i\n", ip[0], ifield.length);
+  writeln("field access via ptr $(ip[0]), oh btw $(ifield.length)");
   // ifield.length = 8; // will fail
   // ztest().i = 5; // correctly doesn't work
   char[] arr = "foob";
-  printf("proper array test: %i; contents %i %.*s\n", arr.length, arr);
-  printf("slice: %i %.*s, via ptr: %i %.*s\n", arr[1 .. 4], arr.ptr[1 .. 4]);
+  writeln("proper array test: $(arr.length), contents $arr");
+  writeln("slice: $(arr[1 .. 4]), via ptr $(arr.ptr[1 .. 4])");
   nesttest();
   W w;
   w.i = 5;
   w.test();
-  printf("And done. \n");
+  writeln("And done. ");
   Class cl = new Class;
-  printf("class size is %i; method is %i %.*s\n", sizeof(cl), typeof(&cl.foo).stringof);
-  printf("forble %i %.*s\n", (&cl.foo).stringof);
-  printf("class is at %p, i %p\n", cl, &(cl.i));
+  writeln("class size is $(typeof(cl).sizeof); method is $(typeof(&cl.foo).stringof)");
+  writeln("forble $((&cl.foo).stringof)");
+  writeln("class is at $(cast(void*) cl), i $(&(cl.i))");
   cl.i = 3;
   cl.foo(2);
   void delegate(int) dgx = &cl.foo;
@@ -241,7 +241,6 @@ int main(int argc, char** argv) {
   Class sup = cast(Class) new Subclass;
   sup.foo(-5);
   auto forb = cast(char[]) "test";
-  // printf("forb is %i %.*s\n", typeof(forb).stringof);
   Blarg blg;
   {
     Blarg lolz() { Blarg res; return res; }
@@ -251,20 +250,20 @@ int main(int argc, char** argv) {
     ib = 5;
   }
   blg.fun();
-  do int i = rand() % 10; while (i) printf("::%i\n", i);
+  do int i = rand() % 10; while (i) writeln("::$i");
   Blorg!int foo;
-  printf("template test: %i %.*s\n", typeof(foo.t).stringof);
+  writeln("template test: $$typeof(foo.t).stringof");
   FunTemp!int(5);
   globvar = 17;
   ctest.var = 17;
   using scoped ctest {
-    printf("var: %i, ", var);
+    writeln("var: $var");
     var = 14;
-    printf("now it's %i; ", var);
+    writeln("now it's $var");
   }
-  printf("now back to %i. \n", ctest.var);
+  writeln("now back to $(ctest.var). ");
   void memtest() using sys.mem {
-    printf("memtest!\n");
+    writeln("memtest! ");
     auto p = malloc(16);
     free(p);
   }
@@ -272,7 +271,7 @@ int main(int argc, char** argv) {
   auto old_malloc = sys.mem.malloc_dg;
   using scoped sys.mem {
     void* fun(int i) {
-      printf("malloc(%i)\n", i);
+      writeln("malloc($i)");
       return old_malloc(i);
     }
     malloc_dg = &fun;
@@ -283,18 +282,18 @@ int main(int argc, char** argv) {
   auto artest = new(3) int;
   artest[2] = 15;
   artest[0 .. 2] = artest[1 .. 3];
-  printf("test is %i, %i, %i\n", artest.length, artest[1], artest[2]);
+  writeln("test is $$artest.length, $$artest[1], $$artest[2]");
   {
     char[] s1 = "foo", s2 = "bar", s3 = s1 ~ s2;
-    printf("s3: %.*s\n", s3.length, s3.ptr);
+    writeln("s3 is $s3, or $(s1 ~ s2), length $(s3.length)");
   }
-  atexit printf("global is %i, %p, %i\n", globvar, &globvar, *&globvar);
-  atexit printf("Exit. \n");
-  atexit printf("Exit 2. \n");
+  atexit writeln("global is $globvar, $(&globvar), $(*&globvar)");
+  atexit writeln("Exit. ");
+  atexit writeln("Exit 2. ");
   {
-    atexit printf("Exit 3. \n");
+    atexit writeln("Exit 3. ");
     sdlfun();
     return 0;
-    atexit printf("Exit 4. \n");
+    atexit writeln("Exit 4. ");
   }
 }

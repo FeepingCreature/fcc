@@ -46,7 +46,12 @@ Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length");
 
-import ast.parse, ast.namespace, ast.int_literal, ast.pointer;
+Expr getSAPtr(Expr sa) {
+  auto vt = cast(StaticArray) sa.valueType();
+  return new ReinterpretCast!(Expr) (new Pointer(vt.elemType), new RefExpr(cast(CValue) sa));
+}
+
+import ast.parse, ast.namespace, ast.int_literal, ast.pointer, ast.casting;
 Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (auto sa = cast(StaticArray) ex.valueType()) {
@@ -55,7 +60,7 @@ Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
       if (!cv) throw new Exception(
         Format("Tried to reference non-lvalue: ", ex)
       );
-      return cast(Object) iparse!(Expr, "sa_ptr", "tree.expr")("cast(T*) &ex", "T", sa.elemType, "ex", ex);
+      return cast(Object) getSAPtr(ex);
     } else return null;
   };
 }

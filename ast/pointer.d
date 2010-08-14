@@ -53,7 +53,6 @@ class DerefExpr : LValue {
     void emitAsm(AsmFile af) {
       src.emitAsm(af);
       af.popStack("%eax", src.valueType());
-      assert(valueType().size == 4, "Weird dereference: "~(cast(Object) valueType()).toString); // TODO: multi-step push
       af.pushStack("(%eax)", valueType());
     }
     void emitLocation(AsmFile af) {

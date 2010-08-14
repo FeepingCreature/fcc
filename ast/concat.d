@@ -1,8 +1,9 @@
 module ast.concat;
 
 import
-  ast.base, ast.parse, ast.arrays, ast.static_arrays,
-  ast.vardecl, ast.scopes, ast.aggregate, ast.namespace;
+  ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal,
+  ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index,
+  ast.assign, ast.math, ast.slice;
 
 class ConcatChain : Expr {
   Array type;
@@ -24,6 +25,7 @@ class ConcatChain : Expr {
   }
   override {
     IType valueType() { return type; }
+    string toString() { return Format("~", arrays); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("valueType().size"));
       mkVar(af, type, true, (Variable var) {
@@ -36,21 +38,24 @@ class ConcatChain : Expr {
         auto dg = sc.open(af);
         scope(exit) dg()();
         
+        auto sa = new StaticArray(valueType(), arrays.length);
         auto
           offset = new Variable(Single!(SysInt), null, boffs(Single!(SysInt), af.currentStackDepth)),
-          total = new Variable(Single!(SysInt), null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize));
+          total  = new Variable(Single!(SysInt), null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize)),
+          cache  = new Variable(sa,              null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
         {
           auto vd = new VarDecl;
           vd.vars ~= offset;
           vd.vars ~= total;
+          vd.vars ~= cache;
           vd.emitAsm(af);
         }
-        foreach (array; arrays) {
-          auto len = getArrayLength(array);
+        foreach (i, array; arrays) {
+          (new Assignment(getIndex(cache, new IntExpr(i)), array)).emitAsm(af);
           iparse!(Statement, "gather_array_length", "tree.semicol_stmt.assign")
           (
-            "total = total + array.length",
-            "total", total, "array", array
+            "total = total + cache[i].length",
+            "total", total, "i", new IntExpr(i), "cache", cache
           ).emitAsm(af);
         }
         iparse!(Statement, "alloc_array", "tree.semicol_stmt.assign")
@@ -59,19 +64,12 @@ class ConcatChain : Expr {
           "var", var, "T", type,
           "total", total
         ).emitAsm(af);
-        foreach (array; arrays) {
-          auto len = getArrayLength(array);
-          iparse!(Scope, "set_result_array", "tree.scope")
-          (
-            "{
-                printf(\"var[%i .. %i + %i] = %i %.*s; \n\", offset, offset, len, array);
-                var[offset .. offset + len] = array;
-                printf(\"var: %i %i %p @%p\n\", var, &var);
-                offset = offset + len;
-              }",
-            "var", var, "offset", offset,
-            "len", len, "array", array
-          ).emitAsm(af);
+        foreach (i, array; arrays) {
+          auto c = getIndex(cache, new IntExpr(i)), len = getArrayLength(c);
+          /// var[offset .. offset + cache[i].length] = cache[i];
+          (getSliceAssign(mkArraySlice(var, offset, new AddExpr(offset, len)), c)).emitAsm(af);
+          /// offset = offset + cache[i].length;
+          (new Assignment(offset, new AddExpr(offset, len))).emitAsm(af);
         }
       });
     }

@@ -13,7 +13,8 @@ import
   ast.arrays, ast.index, ast.slice, ast.nestfun,
   ast.structfuns, ast.type_info, ast.expr_alias,
   ast.oop, ast.dg, ast.newexpr, ast.guard, ast.withstmt,
-  ast.templ, ast.globvars, ast.context, ast.concat;
+  ast.templ, ast.globvars, ast.context, ast.concat,
+  ast.stringex;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -71,6 +72,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false) {
   auto af = new AsmFile(optimize);
   auto len_gen = time({sysmod.emitAsm(af); mod.emitAsm(af); }) / 1_000_000f;
   writefln(len_parse, " to parse, ", len_gen, " to emit. ");
+  writefln("Subsegments: ", ast.namespace.bench);
   srcname.write(af.genAsm());
   auto cmdline = Format("as --32 -o ", objname, " ", srcname);
   writefln("> ", cmdline);

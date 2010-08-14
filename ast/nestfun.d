@@ -17,7 +17,9 @@ class NestedFunction : Function {
       return mangleSelf() ~ "_" ~ name;
     }
     FunCall mkCall() {
-      return new NestedCall;
+      auto res = new NestedCall;
+      res.fun = this;
+      return res;
     }
     int fixup() {
       auto cur = super.fixup();
@@ -187,7 +189,7 @@ class PointerFunction(T) : T {
   }
   override {
     // edit: TOLD YA. Forgot this. Chased bugs for a good night.
-    FunCall mkCall() { auto res = new NestedCall; res.dg = ptr; return res; }
+    FunCall mkCall() { auto res = new NestedCall; res.fun = this; res.dg = ptr; return res; }
     string mangleSelf() { asm { int 3; } }
     Expr getPointer() { return ptr; }
     string toString() {

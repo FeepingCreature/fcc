@@ -2,19 +2,6 @@ module ast.newexpr;
 
 import ast.oop, ast.base, ast.namespace, ast.parse, ast.vardecl, ast.int_literal, ast.pointer;
 
-class CallbackExpr : Expr {
-  IType type;
-  void delegate(AsmFile) dg;
-  this(IType type, void delegate(AsmFile) dg) {
-    this.type = type; this.dg = dg;
-  }
-  override {
-    IType valueType() { return type; }
-    void emitAsm(AsmFile af) { dg(af); }
-    mixin defaultIterate!(); // TODO
-  }
-}
-
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("new")) return null;
@@ -54,14 +41,15 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr", &sz, (Expr ex) {
     logln("consider ", ex, "; ", ex.valueType());
     return !!cast(SysInt) ex.valueType();
-  })) return null;
+  }))
+    throw new Exception("Fail to parse new() size expression at '"~t2.next_text()~"'");
   if (!t2.accept(")") || !rest(t2, "type", &ty))
     throw new Exception("Malformed array-new at '"~t2.next_text()~"'");
   
   text = t2;
   
   return cast(Object) iparse!(Expr, "new_array", "tree.expr")
-    ("(cast(type*) mem.calloc(len, sizeof(type)))[0 .. len]",
+    ("(cast(type*) mem.calloc(len, type.sizeof))[0 .. len]",
      "type", ty,
      "len", sz
     );

@@ -12,7 +12,6 @@ class VarDecl : Statement {
       af.salloc(var.type.size);
       assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; ", -var.baseOffset, " vs. ", af.currentStackDepth, ": ", var));
       af.comment("init ", var);
-      logln("init ", var, ": ", !var.dontInit, " with ", var.initval);
       if (!var.dontInit)
         (new Assignment(var, var.initval)).emitAsm(af);
     }
@@ -82,9 +81,11 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, varname;
   Expr ex;
   auto vd = new VarDecl;
+  string t3;
   if (t2.accept("auto")) {
     if (!t2.bjoin(
-    t2.gotIdentifier(varname, true) && t2.accept("=") && rest(t2, "tree.expr", &ex),
+    (t3 = t2, true) &&
+    t3.gotIdentifier(varname, true) && t3.accept("=") && rest(t3, "tree.expr", &ex) && (t2 = t3, true),
     t2.accept(","), {
       auto var = new Variable;
       var.name = varname;
@@ -93,7 +94,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
       vd.vars ~= var;
       namespace().add(var);
     }, false)) {
-      throw new Exception("Syntax error in auto decl at "~t2.next_text());
+      throw new Exception("Syntax error in auto decl at '"~t3.next_text()~"'");
     }
     if (!t2.accept(";")) throw new Exception("auto decl not terminated at "~t2.next_text());
     text = t2;

@@ -3,8 +3,10 @@ module ast.math;
 import ast.base, ast.namespace, ast.parse;
 import tools.base: This, This_fn, rmSpace, and;
 
-void handlePointers(ref Expr op1, ref Expr op2) {
+void handlePointers(ref Expr op1, ref Expr op2, bool wtf) {
   if (cast(Pointer) op2.valueType()) {
+    if (wtf)
+      throw new Exception(Format(op1, " - ", op2, "; wtf kind of bs is that? o.O"));
     swap(op1, op2);
   }
   if (cast(Pointer) op1.valueType()) {
@@ -19,7 +21,7 @@ class AsmBinopExpr(string OP) : Expr {
   Expr e1, e2;
   this(Expr e1, Expr e2) {
     static if (OP == "addl" || OP == "subl")
-      handlePointers(e1, e2);
+      handlePointers(e1, e2, OP == "subl");
     this.e1 = e1;
     this.e2 = e2;
   }
@@ -56,6 +58,7 @@ alias AsmBinopExpr!("addl") AddExpr;
 alias AsmBinopExpr!("subl") SubExpr;
 alias AsmBinopExpr!("andl") AndExpr;
 alias AsmBinopExpr!("orl")  OrExpr;
+alias AsmBinopExpr!("imull") MulExpr;
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "1"); }
 
@@ -119,3 +122,13 @@ class CondWrap : Expr {
     }
   }
 }
+
+Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("-")) return null;
+  Expr ex;
+  if (!rest(t2, "tree.expr", &ex, (Expr ex) { return !!(ex.valueType() == Single!(SysInt)); }))
+    throw new Exception("Found no type match for negation at '"~t2.next_text()~"'");
+  return new SubExpr(new IntExpr(0), ex);
+}
+mixin DefaultParser!(gotNegExpr, "tree.expr.arith.neg", "315");
