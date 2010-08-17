@@ -265,8 +265,11 @@ int main(int argc, char** argv) {
   sub.ibfun();
   sub.icfun();
   sub.idfun();
-  auto ia = cast(IA) (cast(void*) sub + int.sizeof * 3);
+  // auto ia = cast(IA) (cast(void*) sub + int.sizeof * 3);
+  IA ia = sub;
   ia.iafun();
+  // IC ic = ia; // fails, correctly
+  // ic.icfun();
   auto forb = cast(char[]) "test";
   Blarg blg;
   {

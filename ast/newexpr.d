@@ -17,10 +17,10 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
     mkVar(af, new ClassRef(cl), true, (Variable var) {
       mixin(mustOffset("0"));
       iparse!(Statement, "new_class", "tree.stmt")
-      ("{
+      (`{
           var = cast(typeof(var)) mem.calloc(size, nps);
           (cast(void**) var)[0] = _classinfo;
-        }",
+        }`,
         "var", var,
         "size", new IntExpr(cl.getClassinfo().length),
         "nps", new IntExpr(nativePtrSize),

@@ -33,6 +33,7 @@ class Intf : Named, IType, Tree {
   override int size() { assert(false); }
   mixin defaultIterate!();
   override void emitAsm(AsmFile af) { }
+  string toString() { return "interface "~name; }
   string mangle() { return "intf_"~name; }
   Function[] funs;
   Intf[] parents;
@@ -55,7 +56,6 @@ class Intf : Named, IType, Tree {
   void initOffset() { own_offset = clsize() - funs.length; }
   // offset is size of preceding data, in steps of nativePtrSize
   string[] genClassinfo(ref int offset, RelFunction[string] overrides) {
-    logln("gen intf classinfo for ", name, "; offset ", offset);
     string[] res;
     if (!parents.length)
       res ~= Format("-", offset++);
@@ -77,7 +77,6 @@ class Intf : Named, IType, Tree {
     assert(own_offset);
     foreach (id, fun; funs) {
       if (fun.name == name) {
-        logln("intf:in ", this.name, " ", name, ": *(*cast(", fun.getPointer.valueType(), "**) intp)[", id, " + ", own_offset, "].toDg(cast(void**) intp + **cast(int**) intp)");
         return iparse!(Function, "intf_vtable_lookup", "tree.expr")
         ( "
             *(*cast(fntype**) intp)[id].toDg(cast(void**) intp + **cast(int**) intp)
@@ -93,7 +92,6 @@ class Intf : Named, IType, Tree {
     assert(own_offset, this.name~": interface lookup for "~name~" but classinfo uninitialized. ");
     foreach (id, fun; funs) {
       if (fun.name == name) {
-        logln("in ", this.name, " ", name, ": *(*cast(", fun.getPointer.valueType(), "**) &classref)[", id, " + ", own_offset, " + ", offs, "].toDg(cast(void*) &classref)");
         return iparse!(Function, "intf_vtable_lookup2", "tree.expr")
         ( "
             *(*cast(fntype**) &classref)[id + offs].toDg(cast(void*) &classref)
@@ -119,8 +117,13 @@ class ClassRef : Type {
   Class myClass;
   this(Class cl) { myClass = cl; }
   override {
+    string toString() { return Format("ref ", myClass); }
     int size() { return nativePtrSize; }
     string mangle() { return "class_"~myClass.name; }
+    int opEquals(IType type) {
+      if (!super.opEquals(type)) return false;
+      return myClass is (cast(ClassRef) type).myClass;
+    }
   }
 }
 
@@ -128,11 +131,17 @@ class IntfRef : Type {
   Intf myIntf;
   this(Intf i) { myIntf = i; }
   override {
+    string toString() { return Format("ref ", myIntf); }
     int size() { return nativePtrSize; }
     string mangle() { return "intf_"~myIntf.name; }
+    int opEquals(IType type) {
+      if (!super.opEquals(type)) return false;
+      return myIntf is (cast(IntfRef) type).myIntf;
+    }
   }
 }
 
+import ast.modules;
 class Class : Namespace, RelNamespace, Named, IType, Tree {
   VTable myfuns;
   Structure data;
@@ -146,6 +155,15 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
   }
   RelFunction[string] overrides;
   this(string name, Class parent) {
+    auto root = cast(Class) (sysmod?sysmod.lookup("Object"):null);
+    if (root) {
+      if (name == "Object")
+        throw new Exception("Can't redefine Object! ");
+    } else {
+      if (name != "Object")
+        throw new Exception("Object must be first class defined! ");
+    }
+    if (!parent) parent = root;
     this.name = name;
     New(data, cast(string) null);
     New(myfuns);
@@ -159,6 +177,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
   void finalize() {
     finalized = true;
     getClassinfo; // no-op to generate stuff
+    logln(name, ": ", data, " - ", size);
   }
   mixin TypeDefaults!();
   int ownClassinfoLength;
@@ -166,10 +185,8 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
   string[] getClassinfo(RelFunction[string] loverrides = null) { // local overrides
     
     RelFunction[string] copy;
-    foreach (key, value; loverrides) {
-      logln(key, " -> ", value);
+    foreach (key, value; loverrides)
       copy[key] = value;
-    }
     foreach (key, value; overrides)
       if (!(key in copy))
         copy[key] = value;
@@ -204,7 +221,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
     foreach (ipar; iparents) if (ipar.declares(name)) return true;
     return false;
   }
-  int mainSize() { logln(name, "!!", parent?parent.size():0, " + ", data.size, ": ", data); return (parent?parent.size():0) + data.size(); }
+  int mainSize() { return (parent?parent.size():0) + data.size(); }
   // TODO
   mixin defaultIterate!();
   string ci_name() { return "classinfo_"~name; }
@@ -217,14 +234,13 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
     }
     int size() {
       // HAAAAAAAAAAAAAAAAAAX
-      if (!finalized) return data.size;
-      auto res = mainSize();
+      // we return mainsize so the struct thinks we contain our parent's struct
+      // and thus puts its members after the parent's
+      if (!finalized) return mainSize;
+      auto res = data.size; // already includes parent's size
       if (iparents.length) {
-        logln(name, ":align ", res);
         doAlign(res, voidp);
-        logln(name, ":res => ", res);
         getIntfLeaves((Intf) { res += voidp.size; });
-        logln(name, ":plus leaves ", res);
       }
       return res;
     }
@@ -315,11 +331,11 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   New(cl, name, supclass);
   cl.iparents = supints;
   cl.sup = namespace();
+  namespace().add(cl); // add here so as to allow self-refs in body
   if (matchStructBody(t2, cl, cont, rest)) {
     if (!t2.accept("}"))
       throw new Exception("Missing closing bracket at "~t2.next_text());
     // logln("register class ", cl.name);
-    namespace().add(cl);
     text = t2;
     cl.finalize;
     return cl;
@@ -417,3 +433,60 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotClassMemberExpr, "tree.rhs_partial.access_class_member");
+
+import ast.casting, ast.math;
+
+alias ReinterpretCast!(Expr) RCE;
+alias Single!(Pointer, Single!(Pointer, Single!(Void))) voidpp;
+
+Object gotImplicitClassCast(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!rest(t2, "tree.expr ^selfrule", &ex)) return null;
+  auto cr = cast(ClassRef) ex.valueType(), ir = cast(IntfRef) ex.valueType();
+  if (!cr && !ir) return null;
+  bool abort;
+  Expr testIntf(Expr ex) {
+    auto ac = accept(cast(Object) ex);
+    if (ac == ParseCtl.AcceptCont || ac == ParseCtl.AcceptAbort) return ex;
+    if (ac == ParseCtl.RejectAbort) { abort = true; return null; }
+    auto intf = (cast(IntfRef) ex.valueType()).myIntf;
+    int offs = 0;
+    foreach (id, par; intf.parents) {
+      auto nex = new RCE(new IntfRef(par), new AddExpr(new RCE(voidpp, ex), new IntExpr(offs)));
+      par.getLeaves((Intf) { offs++; });
+      if (auto res = testIntf(nex)) return res;
+      if (abort) break;
+    }
+    return null;
+  }
+  Expr testClass(Expr ex) {
+    auto ac = accept(cast(Object) ex);
+    if (ac == ParseCtl.AcceptCont || ac == ParseCtl.AcceptAbort) return ex;
+    if (ac == ParseCtl.RejectAbort) { abort = true; return null; }
+    auto cl = (cast(ClassRef) ex.valueType()).myClass;
+    if (cl.parent) {
+      auto pex = new RCE(new ClassRef(cl.parent), ex);
+      if (auto res = testClass(pex))
+        return res;
+      if (abort) return null;
+    }
+    int offs = cl.mainSize();
+    doAlign(offs, voidp);
+    offs /= 4;
+    foreach (id, par; cl.iparents) {
+      auto iex = new RCE(new IntfRef(par), new AddExpr(new RCE(voidpp, ex), new IntExpr(offs)));
+      par.getLeaves((Intf) { offs++; });
+      if (auto res = testIntf(iex)) return res;
+      if (abort) break;
+    }
+    return null;
+  }
+  if (cr) {
+    if (auto res = testClass(ex)) { text = t2; return cast(Object)res; }
+  } else {
+    if (auto res = testIntf(ex)) { text = t2; return cast(Object)res; }
+  }
+  return null;
+}
+mixin DefaultParser!(gotImplicitClassCast, "tree.expr.implicit_class_cast", "902");

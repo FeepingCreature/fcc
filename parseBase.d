@@ -287,7 +287,7 @@ struct ParseCb {
 
 interface Parser {
   string getId();
-  Object match(ref string text, ParseCb cont, ParseCb restart);
+  Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb restart);
   void blockNextMemo();
 }
 
@@ -307,20 +307,30 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
       if (verboseParser) logln("Block ", Id, " memo due to pass-through cont/next");
       doBlock = true;
     }
-    static if (!Memoize) {
-      override Object match(ref string text, ParseCb cont, ParseCb rest) {
+    Object fnredir(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+      static if (is(typeof((&Fn)(text, accept, cont, rest))))
+        return Fn(text, accept, cont, rest);
+      else
         return Fn(text, cont, rest);
+    }
+    static if (!Memoize) {
+      override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+        return fnredir(text, accept, cont, rest);
       }
     } else {
       Stuple!(Object, string) [char*] cache;
-      override Object match(ref string text, ParseCb cont, ParseCb rest) {
-        if (dontMemoMe) return Fn(text, cont, rest);
+      override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+        bool acceptRelevant;
+        static if (is(typeof((&Fn)(text, accept, cont, rest))))
+          acceptRelevant = true;
+        acceptRelevant &= !!accept;
+        if (acceptRelevant || dontMemoMe) return fnredir(text, accept, cont, rest);
         auto ptr = text.ptr;
         if (auto p = ptr in cache) {
           text = p._1;
           return p._0;
         }
-        auto res = Fn(text, cont, rest);
+        auto res = fnredir(text, accept, cont, rest);
         if (!doBlock) cache[ptr] = stuple(res, text);
         // else logln("Memoization blocked! ");
         doBlock = false;
@@ -505,7 +515,7 @@ class ParseContext {
         rest.blockMemo = &parser.blockNextMemo;
         
         auto backup = text;
-        if (auto res = parser.match(text, cont, rest)) {
+        if (auto res = parser.match(text, accept, cont, rest)) {
           auto ctl = ParseCtl.AcceptAbort;
           if (accept) {
             ctl = accept(res);

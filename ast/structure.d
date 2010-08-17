@@ -86,7 +86,7 @@ class Structure : Namespace, RelNamespace, IType, Named {
     }
     string toString() {
       auto res = super.toString() ~ " { ";
-      select((string, RelMember member) { res ~= Format(member.name, ": ", member.type, "; "); });
+      select((string, RelMember member) { res ~= Format(member.name, ": ", member.type, " @", member.offset); });
       return res ~ " }";
     }
   }

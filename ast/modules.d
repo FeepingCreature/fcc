@@ -97,6 +97,12 @@ void setupSysmods() {
     void writeln(char[] line) {
       printf("%.*s\n", line.length, line.ptr);
     }
+    class Object {
+      Object dynamicCastTo(char[] mangled) {
+        writeln("Tried to cast Object: not meaningful. ");
+        return 0;
+      }
+    }
   `;
   // parse first half
   string base = src.between("", "/*MARKER*/") ~ "}";
