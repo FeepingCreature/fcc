@@ -190,7 +190,7 @@ bool gotParlist(ref string str, ref Stuple!(IType, string)[] res, ParseCb rest) 
 
 import parseBase;
 // generalized to reuse for nested funs
-Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace,
+Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToNamespace,
                            ref string text, ParseCb cont, ParseCb rest) {
   IType ptype;
   auto t2 = text;
@@ -211,9 +211,21 @@ Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace,
     if (addToNamespace) ns.add(fun);
     fun.sup = sup_override?sup_override:ns;
     text = t2;
-    if (rest(text, "tree.scope", &fun.tree)) return fun;
-    else throw new Exception("Couldn't parse function scope at '"~text.next_text()~"'");
+    static if (Decl) {
+      if (text.accept(";")) return fun;
+      else throw new Exception("Expected ; at '"~t2.next_text()~"'");
+    } else {
+      if (rest(text, "tree.scope", &fun.tree)) return fun;
+      else throw new Exception("Couldn't parse function scope at '"~text.next_text()~"'");
+    }
   } else return null;
+}
+
+Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest) {
+  return gotGenericFun!(T, false)(fun, sup_override, addToNamespace, text, cont, rest);
+}
+Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest) {
+  return gotGenericFun!(T, true)(fun, sup_override, addToNamespace, text, cont, rest);
 }
 
 Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
