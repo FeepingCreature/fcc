@@ -129,6 +129,7 @@ Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(t2, "tree.expr", &ex, (Expr ex) { return !!(ex.valueType() == Single!(SysInt)); }))
     throw new Exception("Found no type match for negation at '"~t2.next_text()~"'");
+  text = t2;
   return new SubExpr(new IntExpr(0), ex);
 }
 mixin DefaultParser!(gotNegExpr, "tree.expr.arith.neg", "315");
