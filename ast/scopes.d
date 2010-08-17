@@ -2,10 +2,6 @@ module ast.scopes;
 
 import ast.base, ast.namespace, ast.fun, ast.variable, parseBase, tools.base: apply;
 
-interface ScopeLike {
-  int framesize();
-}
-
 class Scope : Namespace, Tree, ScopeLike, Statement {
   Function fun;
   Statement _body;

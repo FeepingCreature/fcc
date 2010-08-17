@@ -95,7 +95,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
 
 extern(C) Namespace __getSysmod();
 
-class MiniNamespace : Namespace {
+class MiniNamespace : Namespace, ScopeLike {
   string id;
   this(string id) { this.id = id; }
   override string mangle(string name, IType type) {
@@ -108,6 +108,10 @@ class MiniNamespace : Namespace {
   override void _add(string name, Object obj) {
     if (sup) sup._add(name, obj);
     else super._add(name, obj);
+  }
+  int fs;
+  override int framesize() {
+    return fs;
   }
   override Object lookup(string name, bool local = false) {
     auto res = super.lookup(name, local);
@@ -128,12 +132,20 @@ template iparse(R, string id, string rule) {
     auto start = sec();
     scope(exit) bench[id] += sec() - start;
     text = text.dup; // circumvent the memoizer TODO: Better way?
-    static assert(T.length % 2 == 0);
+    
+    static if (is(T[$-1] == AsmFile)) alias T[0 .. $-1] T2;
+    else alias T T2;
+    static assert(T2.length % 2 == 0);
+    
     auto myns = new MiniNamespace(id);
     // compile-time for loop LALZ
     foreach (i, bogus; T[0 .. $/2]) {
       myns.add(t[i*2], t[i*2+1]);
     }
+    
+    static if (is(T[$-1] == AsmFile))
+      myns.fs = t[$-1].currentStackDepth;
+    
     auto backup = namespace();
     namespace.set(myns);
     scope(exit) namespace.set(backup);

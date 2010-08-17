@@ -171,3 +171,7 @@ class CallbackExpr : Expr {
     mixin defaultIterate!(); // TODO
   }
 }
+
+interface ScopeLike {
+  int framesize();
+}
