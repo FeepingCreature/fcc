@@ -149,14 +149,34 @@ void sdlfun() {
   }
 }
 
+interface IA {
+  void iafun();
+}
+
+interface IB {
+  void ibfun();
+}
+
+interface IC : IA, IB {
+  void icfun();
+}
+
+interface ID {
+  void idfun();
+}
+
 class Class {
   int i;
   void foo(int k) { writeln("foo $(k+i); btw this is $this"); }
   void bar() { writeln("bar here"); }
 }
 
-class Subclass : Class {
+class Subclass : Class, IC, ID {
   int k;
+  void iafun() { writeln("IA in Sub: this $this"); }
+  void ibfun() { writeln("IB in Sub: this $this"); }
+  void icfun() { writeln("IC in Sub: this $this"); }
+  void idfun() { writeln("ID in Sub: this $this"); }
   void foo(int l) { writeln("subfoo $(i + k + l)"); }
 }
 
@@ -238,8 +258,15 @@ int main(int argc, char** argv) {
   void delegate(int) dgx = &cl.foo;
   dgx(3);
   (&cl.foo)(4);
-  Class sup = cast(Class) new Subclass;
+  auto sub = new Subclass, sup = cast(Class) sub;
   sup.foo(-5);
+  writeln("sub is $$cast(void*) sub");
+  sub.iafun();
+  sub.ibfun();
+  sub.icfun();
+  sub.idfun();
+  auto ia = cast(IA) (cast(void*) sub + int.sizeof * 3);
+  ia.iafun();
   auto forb = cast(char[]) "test";
   Blarg blg;
   {
@@ -283,6 +310,7 @@ int main(int argc, char** argv) {
   artest[2] = 15;
   artest[0 .. 2] = artest[1 .. 3];
   writeln("test is $$artest.length, $$artest[1], $$artest[2]");
+  writeln("Array test: $artest");
   {
     char[] s1 = "foo", s2 = "bar", s3 = s1 ~ s2;
     writeln("s3 is $s3, or $$s1 ~ s2, length $$s3.length");

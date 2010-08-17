@@ -33,7 +33,7 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
       throw new Exception("No type matched in cast expression: "~t2.next_text());
     if (!t2.accept(")"))
       throw new Exception("Missed closing bracket in cast at "~t2.next_text());
-    if (!rest(t2, "tree.expr", &ex, (Expr ex) { return ex.valueType().size == dest.size; }))
+    if (!rest(t2, "tree.expr >tree.expr.arith", &ex, (Expr ex) { return ex.valueType().size == dest.size; }))
       throw new Exception("Expression not matched in cast: "~t2.next_text());
     
     text = t2;

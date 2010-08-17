@@ -91,7 +91,7 @@ void setupSysmods() {
     }
     char[] ptoa(void* p) {
       auto res = new(size_t.sizeof * 2 + 2 + 1) char;
-      snprintf(res.ptr, res.length, "%p", p);
+      snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
       return res[0 .. res.length - 1];
     }
     void writeln(char[] line) {

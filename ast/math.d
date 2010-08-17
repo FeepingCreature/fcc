@@ -132,4 +132,4 @@ Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return new SubExpr(new IntExpr(0), ex);
 }
-mixin DefaultParser!(gotNegExpr, "tree.expr.arith.neg", "315");
+mixin DefaultParser!(gotNegExpr, "tree.expr.neg", "213");

@@ -1,6 +1,6 @@
 module ast.newexpr;
 
-import ast.oop, ast.base, ast.namespace, ast.parse, ast.vardecl, ast.int_literal, ast.pointer;
+import ast.oop, ast.base, ast.namespace, ast.parse, ast.vardecl, ast.int_literal, ast.pointer, ast.structure: doAlign;
 
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -26,6 +26,20 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         "nps", new IntExpr(nativePtrSize),
         "_classinfo", new Symbol(cl.ci_name())
       ).emitAsm(af);
+      auto offs = cl.ownClassinfoLength, base = cl.mainSize();
+      doAlign(base, voidp);
+      base /= 4;
+      int id = 0;
+      cl.getIntfLeaves((Intf intf) {
+        iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
+        (`(cast(void**) var)[base + id] = (cast(void**) _classinfo) + offs`,
+          "var", var,
+          "base", new IntExpr(base), "id", new IntExpr(id++),
+          "_classinfo", new Symbol(cl.ci_name()),
+          "offs", new IntExpr(offs)
+        ).emitAsm(af);
+        offs += intf.clsize();
+      });
     });
   });
 }
@@ -39,7 +53,6 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr sz;
   if (!t2.accept("(")) return null;
   if (!rest(t2, "tree.expr", &sz, (Expr ex) {
-    logln("consider ", ex, "; ", ex.valueType());
     return !!cast(SysInt) ex.valueType();
   }))
     throw new Exception("Fail to parse new() size expression at '"~t2.next_text()~"'");

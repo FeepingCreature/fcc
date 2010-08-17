@@ -11,7 +11,6 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   if (!gotStringExpr(t2, strlit)) return null;
   text = t2;
   auto str = (cast(StringExpr) strlit).str;
-  logln("exstr ", str);
   auto res = new ConcatChain(new StringExpr(""));
   string buf;
   void flush() { if (!buf) return; res.addArray(new StringExpr(buf)); buf = null; }
@@ -58,6 +57,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotStringEx, "tree.expr.literal.stringex", "550");
 
+import ast.dg;
 Expr simpleFormat(Expr ex) {
   auto type = ex.valueType();
   if (Single!(SysInt) == type) {
@@ -72,6 +72,12 @@ Expr simpleFormat(Expr ex) {
     ex = staticToArray(ex);
     type = ex.valueType();
   }
+  if (auto dg = cast(Delegate) type) {
+    return iparse!(Expr, "gen_dg_format", "tree.expr")
+      (`"dg(fun $(cast(void*) dg.fun), data $(cast(void*) dg.data))"`,
+        "dg", ex
+      );
+  }
   if (auto ar = cast(Array) type) {
     if (Single!(Char) == ar.elemType) {
       return ex;
@@ -81,15 +87,16 @@ Expr simpleFormat(Expr ex) {
       mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
         iparse!(Scope, "gen_array_format", "tree.scope")
         (`{
-            var = "[";
+            var = "["[];
             for (int i = 0; i < array.length; ++i) {
-              if i var ~= ", ";
+              if i var = var ~ ", ";
               auto elem = array[i];
-              var ~= "$elem";
+              var = var ~ "$elem";
             }
-            var ~= "]";
+            var = var ~ "]";
           }`,
-          "var", var, "array", ex
+          "var", var, "array", ex,
+          af
         ).emitAsm(af);
       });
     });

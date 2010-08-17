@@ -2,5 +2,6 @@ module test;
 import sys;
 
 int main(int argc, char** argv) {
-  printf("Hello World! \n");
+  auto artest = new(3) int;
+  writeln("Array test: $artest");
 }
