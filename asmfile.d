@@ -20,10 +20,6 @@ class AsmFile {
   Transcache cache;
   int currentStackDepth;
   void pushStack(string expr, IType type) {
-    if (expr == "$") {
-      logln("pushStack(", expr, " of ", type, ")");
-      asm { int 3; }
-    }
     currentStackDepth += type.size;
     Transaction t;
     t.kind = Transaction.Kind.Push;
