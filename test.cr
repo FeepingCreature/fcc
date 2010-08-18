@@ -75,38 +75,29 @@ extern(C) {
   int rand();
 }
 
-// 15.16
-int fixedpoint_mult(int a, int b) {
-  a = a / 256; // >> 8
-  b = b / 256;
-  return a * b;
+struct Complex {
+  float re, im;
 }
 
-struct ComplexI {
-  int re, im;
-}
-
-ComplexI complex_mult(ComplexI a, ComplexI b) {
-  ComplexI res;
-  res.re = fixedpoint_mult(a.re, b.re) - fixedpoint_mult(a.im, b.im);
-  res.im = fixedpoint_mult(a.re, b.im) + fixedpoint_mult(a.im, b.re);
+Complex complex_mult(Complex a, Complex b) {
+  Complex res;
+  res.re = a.re * b.re - a.im * b.im;
+  res.im = a.re * b.im + a.im * b.re;
   return res;
 }
 
-ComplexI complex_add(ComplexI a, ComplexI b) {
-  ComplexI res;
+Complex complex_add(Complex a, Complex b) {
+  Complex res;
   res.re = a.re + b.re;
   res.im = a.im + b.im;
   return res;
 }
 
-int lensq(ComplexI c) {
-  return fixedpoint_mult(c.re, c.re) + fixedpoint_mult(c.im, c.im);
+float lensq(Complex c) {
+  return c.re * c.re + c.im * c.im;
 }
 
-int num_to_fp(int i) {
-  return i * 65536;
-}
+float itof(int i) { float f = i; return f; }
 
 void sdlfun() {
   SDL_Init(32); // video
@@ -122,15 +113,15 @@ void sdlfun() {
   }
   for (int y = 0; y < surface.h; ++y) {
     for (int x = 0; x < surface.w; ++x) {
-      ComplexI c;
-      ComplexI p;
-      c.re = num_to_fp(x - surface.w / 2) / 200;
-      c.im = num_to_fp(y - surface.h / 2) / 200;
+      Complex c;
+      Complex p;
+      c.re = itof(x - surface.w / 2) / 200;
+      c.im = itof(y - surface.h / 2) / 200;
       p = c;
       int exceeded = 0;
       for (int i = 0; i < 64; ++i) {
         p = complex_add(complex_mult(p, p), c);
-        if (lensq(p) > num_to_fp(2)) {
+        if (lensq(p) > 2) {
           exceeded = i;
           i = 64;
         }
