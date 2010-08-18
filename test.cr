@@ -99,6 +99,8 @@ float lensq(Complex c) {
 
 float itof(int i) { float f = i; return f; }
 
+extern(C) float log2f(float);
+extern(C) float sqrtf(float);
 void sdlfun() {
   SDL_Init(32); // video
   //                                                  SDL_ANYFORMAT
@@ -119,19 +121,25 @@ void sdlfun() {
       c.im = itof(y - surface.h / 2) / 200;
       p = c;
       int exceeded = 0;
+      float lv;
       for (int i = 0; i < 64; ++i) {
         p = complex_add(complex_mult(p, p), c);
-        if (lensq(p) > 2) {
+        lv = lensq(p);
+        if (lv >= 10) {
           exceeded = i;
           i = 64;
         }
       }
-      int expix = exceeded * 8;
-      expix = expix + expix * 256 + expix * 2 * 65536;
-      if (exceeded)
+      if (exceeded) {
+        // float color = (exceeded - log2f(log2f(sqrtf(lv))));
+        float color = exceeded - log2f(log2f(sqrtf(lv)));
+        if (color < 0) color = 0;
+        int expix = color * 16;
+        expix = expix + expix * 256 + expix * 65536;
         surface.pixels[y * surface.w + x] = expix;
-      else
+      } else {
         surface.pixels[y * surface.w + x] = 0;
+      }
     }
   }
   while 1 {
