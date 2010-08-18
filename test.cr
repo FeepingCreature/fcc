@@ -324,6 +324,14 @@ int main(int argc, char** argv) {
   float fl = 2;
   fl = fl + 10;
   writeln("fl is $fl");
+  void testfl(float cmp) {
+    if (fl > cmp) writeln("fl > $cmp");
+    if (fl < cmp) writeln("fl < $cmp");
+    if (fl == cmp) writeln("fl == $cmp");
+  }
+  testfl(11);
+  testfl(12);
+  testfl(13);
   {
     atexit writeln("Exit 3. ");
     sdlfun();

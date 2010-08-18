@@ -1,6 +1,6 @@
 module ast.cond;
 
-import ast.base, ast.namespace, ast.parse, tools.base: This, This_fn, rmSpace;
+import ast.base, ast.namespace, ast.parse, ast.math, tools.base: This, This_fn, rmSpace;
 
 class ExprWrap : Cond {
   Expr ex;
@@ -36,7 +36,12 @@ class Compare : Cond {
   }
   void flip() {
     swap(e1, e2);
-    swap(smaller, greater);
+    smaller = !smaller;
+    greater = !greater;
+    equal = !equal;
+  }
+  bool isFloat() {
+    return !!(Single!(Float) == e1.valueType());
   }
   override {
     void jumpOn(AsmFile af, bool cond, string dest) {
@@ -46,7 +51,26 @@ class Compare : Cond {
       if (cast(IntExpr) e1 && !cast(IntExpr) e2)
         flip;
       
-      if (auto ie = cast(IntExpr) e2) {
+      if (Single!(Float) == e1.valueType() && Single!(Float) != e2.valueType()) {
+        assert(Single!(SysInt) == e2.valueType());
+        e2 = new IntAsFloat(e2);
+      }
+      if (Single!(Float) == e2.valueType() && Single!(Float) != e1.valueType()) {
+        assert(Single!(SysInt) == e1.valueType());
+        e1 = new IntAsFloat(e1);
+      }
+      
+      if (isFloat) {
+        e2.emitAsm(af);
+        af.put("flds (%esp)");
+        af.sfree(4);
+        e1.emitAsm(af);
+        af.put("flds (%esp)");
+        af.sfree(4);
+        af.put("fucompp");
+        af.put("fnstsw %ax");
+        af.put("sahf");
+      } else if (auto ie = cast(IntExpr) e2) {
         e1.emitAsm(af);
         af.popStack("%eax", e1.valueType());
         // remember: at&t order is inverted
@@ -65,7 +89,8 @@ class Compare : Cond {
         if (s + g == 1)
           e = !e;*/
       }
-      af.jumpOn(s, e, g, dest);
+      if (isFloat) af.jumpOnFloat(s, e, g, dest);
+      else af.jumpOn(s, e, g, dest);
     }
   }
 }

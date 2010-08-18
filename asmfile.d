@@ -110,6 +110,29 @@ class AsmFile {
       "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
     ));
   }
+  void jumpOnFloat(bool smaller, bool equal, bool greater, string label) {
+    put("fnstsw %ax");
+    put("sahf");
+    mixin(`
+      cond | instruction
+       fff | xorb %al, %al
+       fft | seta %al
+       ftf | sete %al
+       ftt | setae %al
+       tff | setb %al
+       tft | setne %al
+       ttf | setbe %al
+       ttt | movb $1, %al`
+      .ctTableUnroll(`
+        if (
+          (("$cond"[0] == 't') == smaller) &&
+          (("$cond"[1] == 't') == equal) &&
+          (("$cond"[2] == 't') == greater)
+        ) { put("$instruction"); }
+    `));
+    put("testb %al, %al");
+    put("jne ", label);
+  }
   void mathOp(string which, string op1, string op2) {
     Transaction t;
     t.kind = Transaction.Kind.MathOp;
