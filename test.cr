@@ -259,6 +259,7 @@ int main(int argc, char** argv) {
   dgx(3);
   (&cl.foo)(4);
   auto sub = new Subclass, sup = cast(Class) sub;
+  writeln("sup is $$cast(void*) sup");
   sup.foo(-5);
   writeln("sub is $$cast(void*) sub");
   sub.iafun();
@@ -268,13 +269,7 @@ int main(int argc, char** argv) {
   // auto ia = cast(IA) (cast(void*) sub + int.sizeof * 3);
   IA ia = sub;
   ia.iafun();
-  // IC ic = ia; // fails, correctly
-  // ic.icfun();
-  IC ic;
-  {
-    Object obj = ia;
-    ic = cast(IC) (obj.dynamicCastTo("module_test_IC_of_"));
-  }
+  auto ic = cast(IC) ia;
   ic.icfun();
   auto forb = cast(char[]) "test";
   Blarg blg;

@@ -2,7 +2,7 @@ module ast.oop;
 
 import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.namespace, ast.structure, ast.structfuns, ast.pointer,
-  ast.arrays, ast.aggregate, ast.literals;
+  ast.arrays, ast.aggregate, ast.literals, ast.slice;
 
 import tools.log;
 class VTable {
@@ -35,7 +35,7 @@ class Intf : Named, IType, Tree {
   mixin defaultIterate!();
   override void emitAsm(AsmFile af) { }
   string toString() { return "interface "~name; }
-  string mangle() { return mangle_id; }
+  string mangle() { return "interface"; }
   Function[] funs;
   Intf[] parents;
   string mangle_id;
@@ -162,7 +162,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
   }
   RelFunction[string] overrides;
   string mangle_id;
-  override string mangle() { return mangle_id; }
+  override string mangle() { return "class"; }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, this);
     auto root = cast(Class) (sysmod?sysmod.lookup("Object"):null);
@@ -197,6 +197,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
     scope(exit) namespace.set(backup);
     // TODO: switch
     auto as = new AggrStatement;
+    as.stmts ~= iparse!(Statement, "cast_log", "tree.stmt")(`writeln("cast $$typeof(this).stringof to id. "); `, rf);
     int intf_offset = mainSize();
     doAlign(intf_offset, voidp);
     intf_offset /= 4;
@@ -204,19 +205,20 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
     assert(!!strcmp);
     void handleIntf(Intf intf) {
       as.stmts ~= iparse!(Statement, "cast_intf_class", "tree.stmt")("if (strcmp(id, _test) != 0) return cast(void*) (cast(void**) this + offs); ",
-        rf, "_test", new StringExpr(intf.mangle()), "offs", new IntExpr(intf_offset)
+        rf, "_test", new StringExpr(intf.mangle_id), "offs", new IntExpr(intf_offset)
       );
       intf_offset ++;
     }
     void handleClass(Class cl) {
       as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (strcmp(id, _test) != 0) return cast(void*) this; ",
-        rf, "_test", new StringExpr(cl.mangle())
+        rf, "_test", new StringExpr(cl.mangle_id)
       );
       if (cl.parent) handleClass(cl.parent);
       foreach (intf; cl.iparents)
         handleIntf(intf);
     }
     handleClass(this);
+    as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return cast(void*) 0; ", rf);
     rf.tree = as;
     get!(Module).entries ~= rf;
   }
@@ -485,12 +487,23 @@ import ast.casting, ast.math;
 alias ReinterpretCast!(Expr) RCE;
 alias Single!(Pointer, Single!(Pointer, Single!(Void))) voidpp;
 
-Object gotImplicitClassCast(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+Expr intfToClass(Expr ex) {
+  auto intpp = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
+  return new RCE(new ClassRef(cast(Class) sysmod.lookup("Object")), new AddExpr(new RCE(voidpp, ex), new DerefExpr(new DerefExpr(new RCE(intpp, ex)))));
+}
+
+Object gotImplicitCastToObject(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr ^selfrule", &ex)) return null;
-  auto cr = cast(ClassRef) ex.valueType(), ir = cast(IntfRef) ex.valueType();
-  if (!cr && !ir) return null;
+  if (!rest(t2, "tree.expr ^selfrule", &ex, (Expr ex) { return !!cast(IntfRef) ex.valueType(); }))
+    return null;
+  text = t2;
+  // any object is an Object.
+  return cast(Object) intfToClass(ex);
+}
+mixin DefaultParser!(gotImplicitCastToObject, "tree.expr.implicit_intf_cast_to_obj", "9020");
+
+Object doImplicitClassCast(Expr ex, ParseCtl delegate(Object) accept) {
   bool abort;
   Expr testIntf(Expr ex) {
     auto ac = accept(cast(Object) ex);
@@ -529,16 +542,58 @@ Object gotImplicitClassCast(ref string text, ParseCtl delegate(Object) accept, P
     }
     return null;
   }
+  auto cr = cast(ClassRef) ex.valueType(), ir = cast(IntfRef) ex.valueType();
   if (cr) {
-    if (auto res = testClass(ex)) { text = t2; return cast(Object)res; }
-  } else {
-    auto intpp = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
-    auto base = new RCE(new ClassRef(cast(Class) sysmod.lookup("Object")), new AddExpr(new RCE(voidpp, ex), new DerefExpr(new DerefExpr(new RCE(intpp, ex)))));
-    // any object is an Object.
-    if (auto res = testClass(base)) { text = t2; return cast(Object) res; }
-    // otherwise parent interfaces
-    if (auto res = testIntf(ex)) { text = t2; return cast(Object)res; }
+    if (auto res = testClass(ex)) return cast(Object) res;
+  }
+  if (ir) {
+    if (auto res = testIntf(ex)) return cast(Object) res;
   }
   return null;
 }
+
+Object gotImplicitClassCast(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!rest(t2, "tree.expr ^selfrule", &ex)) return null;
+  if (auto res = doImplicitClassCast(ex, accept)) { text = t2; return res; }
+  return null;
+}
 mixin DefaultParser!(gotImplicitClassCast, "tree.expr.implicit_class_cast", "902");
+
+Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  auto t2 = text;
+  if (!t2.accept("cast(")) return null;
+  IType dest;
+  if (!rest(t2, "type", &dest))
+    return null;
+  if (!t2.accept(")"))
+    throw new Exception("Missed closing bracket in class cast at '"~t2.next_text()~"'");
+  if (!cast(ClassRef) dest && !cast(IntfRef) dest)
+    return null;
+  if (!rest(t2, "tree.expr >tree.expr.arith", &ex))
+    return null;
+  if (!cast(ClassRef) ex.valueType() && !cast(IntfRef) ex.valueType())
+    return null;
+  text = t2;
+  
+  if (auto res = doImplicitClassCast(ex, (Object obj) {
+    auto ex = cast(Expr) obj;
+    if (ex.valueType() == dest)
+      return ParseCtl.AcceptAbort;
+    else
+      return ParseCtl.RejectCont;
+  })) return res;
+  
+  string dest_id;
+  if (auto cr = cast(ClassRef) dest) dest_id = cr.myClass.mangle_id;
+  else dest_id = (cast(IntfRef) dest).myIntf.mangle_id;
+  
+  if (cast(IntfRef) ex.valueType()) ex = intfToClass(ex);
+  return cast(Object) iparse!(Expr, "cast_call", "tree.expr")
+    ("cast(Dest) ex.dynamicCastTo(id)", "ex",
+      ex, "Dest", dest, "id", new StringExpr(dest_id)
+    );
+}
+mixin DefaultParser!(gotDynCast, "tree.expr.dynamic_class_cast", "70");

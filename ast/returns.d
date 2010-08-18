@@ -44,9 +44,9 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     auto rs = new ReturnStmt;
     rs.ns = namespace();
     
-    auto sc = cast(Scope) namespace();
-    assert(sc, Format("::", namespace()));
-    rs.guards = sc.getGuards();
+    // TODO: gather guards from all scopes
+    if (auto sc = cast(Scope) namespace())
+      rs.guards = sc.getGuards();
     
     auto fun = namespace().get!(Function)();
     text = t2;

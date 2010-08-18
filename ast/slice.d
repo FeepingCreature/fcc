@@ -11,7 +11,7 @@ Expr mkPointerSlice(Expr ptr, Expr from, Expr to) {
   );
 }
 
-Expr mkArraySlice(Expr array, Expr from, Expr to) {
+Expr mkArraySlice(Expr array, Expr from = null, Expr to = null) {
   return new ArrayMaker(
     new AddExpr(new MemberAccess_Expr(arrayToStruct(array), "ptr"), from),
     new SubExpr(to, from),
