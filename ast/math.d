@@ -1,7 +1,7 @@
 module ast.math;
 
 import ast.base, ast.namespace, ast.parse;
-import tools.base: This, This_fn, rmSpace, and;
+import tools.base: This, This_fn, rmSpace, and, or;
 
 void handlePointers(ref Expr op1, ref Expr op2, bool wtf) {
   if (cast(Pointer) op2.valueType()) {
@@ -17,15 +17,89 @@ void handlePointers(ref Expr op1, ref Expr op2, bool wtf) {
   }
 }
 
+bool xor(T)(T a, T b) { return a != b; }
+
+class IntAsFloat : Expr {
+  Expr i;
+  mixin defaultIterate!(i);
+  this(Expr i) { this.i = i; assert(i.valueType() == Single!(SysInt)); }
+  override {
+    IType valueType() { return Single!(Float); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("4"));
+      i.emitAsm(af);
+      // TODO better way
+      af.put("fildl (%esp)");
+      af.put("fstps (%esp)");
+    }
+  }
+}
+
+Object gotIntAsFloat(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!rest(t2, "tree.expr ^selfrule", &ex))
+    return null;
+  if (Single!(SysInt) != ex.valueType())
+    return null;
+  
+  text = t2;
+  return new IntAsFloat(ex);
+}
+mixin DefaultParser!(gotIntAsFloat, "tree.expr.int_to_float", "950");
+
+class FloatAsDouble : Expr {
+  Expr f;
+  mixin defaultIterate!(f);
+  this(Expr f) { this.f = f; assert(f.valueType() == Single!(Float)); }
+  override {
+    IType valueType() { return Single!(Double); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("8"));
+      f.emitAsm(af);
+      // TODO better way
+      af.put("flds (%esp)");
+      af.salloc(4);
+      af.put("fstpl (%esp)");
+    }
+  }
+}
+
+Object gotFloatAsDouble(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!rest(t2, "tree.expr ^selfrule", &ex))
+    return null;
+  if (Single!(Float) != ex.valueType())
+    return null;
+  
+  text = t2;
+  return new FloatAsDouble(ex);
+}
+mixin DefaultParser!(gotFloatAsDouble, "tree.expr.float_to_double", "9501");
+
 class AsmBinopExpr(string OP) : Expr {
   Expr e1, e2;
   this(Expr e1, Expr e2) {
     static if (OP == "addl" || OP == "subl")
       handlePointers(e1, e2, OP == "subl");
+    if (xor(e1.valueType() == Single!(Float), e2.valueType() == Single!(Float))) {
+      if (e1.valueType() == Single!(Float))
+        e2 = new IntAsFloat(e2);
+      else
+        e1 = new IntAsFloat(e1);
+    }
     this.e1 = e1;
     this.e2 = e2;
   }
+  bool isValid() {
+    return
+      e1.valueType() == e2.valueType() && e1.valueType() /and/ e2.valueType() == Single!(SysInt) /or/ Single!(Float)
+      || cast(Pointer) e1.valueType() && e2.valueType() == Single!(SysInt)
+    ;
+  }
   mixin defaultIterate!(e1, e2);
+  bool isFloatOp() { return !!(e1.valueType() == Single!(Float)); }
   override {
     string toString() {
            static if (OP == "addl")  return Format("(", e1, " + ", e2, ")");
@@ -34,23 +108,34 @@ class AsmBinopExpr(string OP) : Expr {
       else                           return Format("(", e1, " {", OP, "} ", e2, ")");
     }
     IType valueType() {
-      assert(e1.valueType().size == e2.valueType().size /and/ 4);
+      assert(isValid, Format("invalid types: ", e1.valueType(), ", ", e2.valueType()));
       return e1.valueType();
     }
     void emitAsm(AsmFile af) {
+      assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
       e2.emitAsm(af);
       e1.emitAsm(af);
-      assert(e1.valueType().size == 4);
-      af.popStack("%eax", e1.valueType());
-      
-      static if (OP == "idivl" || OP == "imodl") af.put("cdq");
-      
-      static if (OP == "idivl" || OP == "imodl") af.put("idivl (%esp)");
-      else af.mathOp(OP, "(%esp)", "%eax");
-      
-      static if (OP == "imodl") af.mmove4("%edx", "(%esp)");
-      else af.mmove4("%eax", "(%esp)");
+      if (isFloatOp) {
+        af.put("flds (%esp)");
+        af.sfree(e1.valueType().size);
+        static if (OP == "addl")  af.put("fadds (%esp)");
+        static if (OP == "subl")  af.put("fsubs (%esp)");
+        static if (OP == "imull") af.put("fmuls (%esp)");
+        static if (OP == "idivl") af.put("fdivs (%esp)");
+        static if (OP == "imodl") assert(false, "Modulo not supported on floats. ");
+        af.put("fstps (%esp)");
+      } else {
+        af.popStack("%eax", e1.valueType());
+        
+        static if (OP == "idivl" || OP == "imodl") af.put("cdq");
+        
+        static if (OP == "idivl" || OP == "imodl") af.put("idivl (%esp)");
+        else af.mathOp(OP, "(%esp)", "%eax");
+        
+        static if (OP == "imodl") af.mmove4("%edx", "(%esp)");
+        else af.mmove4("%eax", "(%esp)");
+      }
     }
   }
 }
@@ -76,7 +161,12 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
     if (t3.startsWith(Ops[i*2]))
       accepted = false; // a && b != a & &b (!)
     if (accepted && cont(t3, &op2)) {
-      op = new AsmBinopExpr!(Ops[i*2+1])(op, op2);
+      auto binop = new AsmBinopExpr!(Ops[i*2+1])(op, op2);
+      if (!binop.isValid()) {
+        error = Format("Invalid math op at '", t2.next_text(), "': ", op, " and ", op2);
+        continue;
+      }
+      op = binop;
       t2 = t3;
       goto retry;
     }

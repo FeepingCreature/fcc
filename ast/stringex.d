@@ -64,6 +64,10 @@ Expr simpleFormat(Expr ex) {
     return iparse!(Expr, "gen_int_format", "tree.expr")
     ("itoa(ex)", "ex", ex);
   }
+  if (Single!(Float) == type) {
+    return iparse!(Expr, "gen_float_format", "tree.expr")
+    ("ftoa(ex)", "ex", ex);
+  }
   if (auto p = cast(Pointer) type) {
     return iparse!(Expr, "gen_ptr_format", "tree.expr")
     ("ptoa(cast(void*) ex)", "ex", ex);

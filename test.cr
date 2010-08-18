@@ -266,7 +266,6 @@ int main(int argc, char** argv) {
   sub.ibfun();
   sub.icfun();
   sub.idfun();
-  // auto ia = cast(IA) (cast(void*) sub + int.sizeof * 3);
   IA ia = sub;
   ia.iafun();
   auto ic = cast(IC) ia;
@@ -322,6 +321,9 @@ int main(int argc, char** argv) {
   atexit writeln("global is $globvar, $$&globvar, $$*&globvar");
   atexit writeln("Exit. ");
   atexit writeln("Exit 2. ");
+  float fl = 2;
+  fl = fl + 10;
+  writeln("fl is $fl");
   {
     atexit writeln("Exit 3. ");
     sdlfun();

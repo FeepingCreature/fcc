@@ -104,6 +104,13 @@ void setupSysmods() {
     void writeln(char[] line) {
       printf("%.*s\n", line.length, line.ptr);
     }
+    char[] ftoa(float f) {
+      auto res = new(20) char;
+      double d = f;
+      int len = snprintf(res.ptr, res.length, "%f", d);
+      if len > res.length len = res.length;
+      return res[0 .. len - 1]; // omit \0
+    }
     class Object {
     }
   `;

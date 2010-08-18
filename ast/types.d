@@ -61,6 +61,21 @@ class SysInt : Type {
   override string mangle() { return "sys_int"; }
 }
 
+class Float : Type {
+  override int size() { return 4; }
+  override string mangle() { return "float"; }
+}
+
+class Double : Type {
+  override int size() { return 8; }
+  override string mangle() { return "double"; }
+}
+
+class Real : Type {
+  override int size() { return 10; }
+  override string mangle() { return "real"; }
+}
+
 // quick and dirty singleton
 template _Single(T, U...) {
   T value;
@@ -79,6 +94,9 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   if (text.accept("int")) return Single!(SysInt);
   if (text.accept("short")) return Single!(Short);
   if (text.accept("char")) return Single!(Char);
+  if (text.accept("float")) return Single!(Float);
+  if (text.accept("double")) return Single!(Double);
+  if (text.accept("real")) return Single!(Real);
   return null;
 }
 mixin DefaultParser!(gotBasicType, "type.basic", "3");
