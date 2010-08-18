@@ -115,6 +115,21 @@ class FunCall : Expr {
   }
 }
 
+void handleReturn(IType ret, AsmFile dest) {
+  if (Single!(Float) == ret) {
+    dest.salloc(4);
+    dest.put("fstps (%esp)");
+    return;
+  }
+  if (!cast(Void) ret) {
+    if (ret.size >= 8)
+      dest.pushStack("%edx", Single!(SizeT));
+    if (ret.size == 12)
+      dest.pushStack("%ecx", Single!(SizeT));
+    dest.pushStack("%eax", Single!(SizeT));
+  }
+}
+
 import tools.log;
 void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
   // dest.put("int $3");
@@ -138,13 +153,7 @@ void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
   foreach (param; params) {
     dest.sfree(param.valueType().size);
   }
-  if (!cast(Void) ret) {
-    if (ret.size >= 8)
-      dest.pushStack("%edx", Single!(SizeT));
-    if (ret.size == 12)
-      dest.pushStack("%ecx", Single!(SizeT));
-    dest.pushStack("%eax", Single!(SizeT));
-  }
+  handleReturn(ret, dest);
 }
 
 class FunctionType : ast.types.Type {

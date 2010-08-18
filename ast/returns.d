@@ -14,7 +14,11 @@ class ReturnStmt : Statement {
     
     auto fun = ns.get!(Function);
     if (value) {
-      if (value.valueType().size == 4) {
+      if (Single!(Float) == value.valueType()) {
+        value.emitAsm(af);
+        af.put("flds (%esp)");
+        af.sfree(4);
+      } else if (value.valueType().size == 4) {
         value.emitAsm(af);
         af.popStack("%eax", value.valueType());
       } else if (value.valueType().size == 8) {

@@ -194,7 +194,5 @@ void callDg(AsmFile dest, IType ret, Expr[] params, Expr dg) {
   foreach (param; params) {
     dest.sfree(param.valueType().size);
   }
-  if (!cast(Void) ret) {
-    dest.pushStack("%eax", ret);
-  }
+  handleReturn(ret, dest);
 }
