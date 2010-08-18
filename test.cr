@@ -270,6 +270,12 @@ int main(int argc, char** argv) {
   ia.iafun();
   // IC ic = ia; // fails, correctly
   // ic.icfun();
+  IC ic;
+  {
+    Object obj = ia;
+    ic = cast(IC) (obj.dynamicCastTo("module_test_IC_of_"));
+  }
+  ic.icfun();
   auto forb = cast(char[]) "test";
   Blarg blg;
   {

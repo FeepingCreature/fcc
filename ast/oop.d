@@ -1,7 +1,8 @@
 module ast.oop;
 
 import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
-  ast.namespace, ast.structure, ast.structfuns, ast.pointer;
+  ast.namespace, ast.structure, ast.structfuns, ast.pointer,
+  ast.arrays, ast.aggregate, ast.literals;
 
 import tools.log;
 class VTable {
@@ -34,9 +35,15 @@ class Intf : Named, IType, Tree {
   mixin defaultIterate!();
   override void emitAsm(AsmFile af) { }
   string toString() { return "interface "~name; }
-  string mangle() { return "intf_"~name; }
+  string mangle() { return mangle_id; }
   Function[] funs;
   Intf[] parents;
+  string mangle_id;
+  this(string name) {
+    this.name = name;
+    mangle_id = namespace().mangle(name, this);
+    logln(name, " => ", mangle_id);
+  }
   bool declares(string name) {
     foreach (fun; funs) if (fun.name == name) return true;
     foreach (par; parents) if (par.declares(name)) return true;
@@ -154,7 +161,10 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
       intf.getLeaves(dg);
   }
   RelFunction[string] overrides;
+  string mangle_id;
+  override string mangle() { return mangle_id; }
   this(string name, Class parent) {
+    mangle_id = namespace().mangle(name, this);
     auto root = cast(Class) (sysmod?sysmod.lookup("Object"):null);
     if (root) {
       if (name == "Object")
@@ -173,8 +183,46 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
       new RelMember("classinfo", voidp, data);
   }
   bool finalized;
+  void genDynCast() {
+    auto rf = new RelFunction(this);
+    New(rf.type);
+    rf.name = "dynamicCastTo";
+    rf.type.ret = voidp;
+    rf.type.params ~= stuple(cast(IType) Single!(Array, Single!(Char)), "id");
+    rf.sup = this;
+    rf.fixup;
+    add(rf);
+    auto backup = namespace();
+    namespace.set(rf);
+    scope(exit) namespace.set(backup);
+    // TODO: switch
+    auto as = new AggrStatement;
+    int intf_offset = mainSize();
+    doAlign(intf_offset, voidp);
+    intf_offset /= 4;
+    auto strcmp = sysmod.lookup("strcmp");
+    assert(!!strcmp);
+    void handleIntf(Intf intf) {
+      as.stmts ~= iparse!(Statement, "cast_intf_class", "tree.stmt")("if (strcmp(id, _test) != 0) return cast(void*) (cast(void**) this + offs); ",
+        rf, "_test", new StringExpr(intf.mangle()), "offs", new IntExpr(intf_offset)
+      );
+      intf_offset ++;
+    }
+    void handleClass(Class cl) {
+      as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (strcmp(id, _test) != 0) return cast(void*) this; ",
+        rf, "_test", new StringExpr(cl.mangle())
+      );
+      if (cl.parent) handleClass(cl.parent);
+      foreach (intf; cl.iparents)
+        handleIntf(intf);
+    }
+    handleClass(this);
+    rf.tree = as;
+    get!(Module).entries ~= rf;
+  }
   // add interface refs
   void finalize() {
+    genDynCast;
     finalized = true;
     getClassinfo; // no-op to generate stuff
     logln(name, ": ", data, " - ", size);
@@ -244,7 +292,6 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
       }
       return res;
     }
-    string mangle() { return "classdata_of_"~name; }
     void _add(string name, Object obj) {
       assert(!finalized, "Adding "~name~" to already-finalized class. ");
       if (auto rf = cast(RelFunction) obj) {
@@ -368,8 +415,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
     )) throw new Exception("Invalid interface inheritance spec at '"~t3.next_text()~"'");
   }
   if (!t2.accept("{")) throw new Exception("Missing opening bracket for class def! ");
-  auto intf = new Intf;
-  intf.name = name;
+  auto intf = new Intf(name);
   intf.parents = supints;
   intf.initOffset;
   while (true) {
@@ -465,6 +511,7 @@ Object gotImplicitClassCast(ref string text, ParseCtl delegate(Object) accept, P
     if (ac == ParseCtl.AcceptCont || ac == ParseCtl.AcceptAbort) return ex;
     if (ac == ParseCtl.RejectAbort) { abort = true; return null; }
     auto cl = (cast(ClassRef) ex.valueType()).myClass;
+    if (!cl.parent && !cl.iparents) return null; // just to clarify
     if (cl.parent) {
       auto pex = new RCE(new ClassRef(cl.parent), ex);
       if (auto res = testClass(pex))
@@ -485,6 +532,11 @@ Object gotImplicitClassCast(ref string text, ParseCtl delegate(Object) accept, P
   if (cr) {
     if (auto res = testClass(ex)) { text = t2; return cast(Object)res; }
   } else {
+    auto intpp = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
+    auto base = new RCE(new ClassRef(cast(Class) sysmod.lookup("Object")), new AddExpr(new RCE(voidpp, ex), new DerefExpr(new DerefExpr(new RCE(intpp, ex)))));
+    // any object is an Object.
+    if (auto res = testClass(base)) { text = t2; return cast(Object) res; }
+    // otherwise parent interfaces
     if (auto res = testIntf(ex)) { text = t2; return cast(Object)res; }
   }
   return null;

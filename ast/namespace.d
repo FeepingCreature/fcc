@@ -105,8 +105,9 @@ class MiniNamespace : Namespace, ScopeLike {
   override Stuple!(IType, string, int)[] stackframe() {
     assert(false); // wtfux.
   }
+  bool internalMode;
   override void _add(string name, Object obj) {
-    if (sup) sup._add(name, obj);
+    if (sup && !internalMode) sup._add(name, obj);
     else super._add(name, obj);
   }
   int fs;
@@ -128,16 +129,32 @@ class MiniNamespace : Namespace, ScopeLike {
 float[string] bench;
 import tools.time;
 template iparse(R, string id, string rule) {
-  R iparse(T...)(string text, T t) {
+  R iparse(T...)(string text, T _t) {
     auto start = sec();
     scope(exit) bench[id] += sec() - start;
     text = text.dup; // circumvent the memoizer TODO: Better way?
     
     static if (is(T[$-1] == AsmFile)) alias T[0 .. $-1] T2;
     else alias T T2;
-    static assert(T2.length % 2 == 0);
+    
+    static if (T2.length && is(T2[0]: Namespace)) alias T[1 .. $] T3;
+    else alias T2 T3;
+    
+    static assert(T3.length % 2 == 0);
     
     auto myns = new MiniNamespace(id);
+    
+    auto backup = namespace();
+    namespace.set(myns);
+    scope(exit) namespace.set(backup);
+    static if (T2.length && is(T2[0]: Namespace)) {
+      myns.sup = _t[0];
+      auto t = _t[1 .. $];
+    } else {
+      auto t = _t;
+    }
+    
+    myns.internalMode = true;
     // compile-time for loop LALZ
     foreach (i, bogus; T[0 .. $/2]) {
       myns.add(t[i*2], t[i*2+1]);
@@ -145,10 +162,6 @@ template iparse(R, string id, string rule) {
     
     static if (is(T[$-1] == AsmFile))
       myns.fs = t[$-1].currentStackDepth;
-    
-    auto backup = namespace();
-    namespace.set(myns);
-    scope(exit) namespace.set(backup);
     
     {
       string str = "
@@ -161,6 +174,7 @@ template iparse(R, string id, string rule) {
         obj3 = parsecon.parse(str, "tree.toplevel.extern_c");
       assert(obj1 && obj2 && obj3, "mini externs failed to parse at "~str);
     }
+    myns.internalMode = false;
     
     auto res = parsecon.parse(text, rule);
     if (text.length) throw new Exception(Format("Unknown text in ", id, ": ", text));

@@ -56,6 +56,13 @@ void setupSysmods() {
       void* memcpy(void* dest, void* src, int n);
       int snprintf(char* str, int size, char* format, ...);
     }
+    // before marker
+    int strcmp(char[] a, char[] b) {
+      if a.length != b.length return 0;
+      for (int i = 0; i < a.length; ++i)
+        if a[i] != b[i] return 0;
+      return 1;
+    }
     context mem {
       void* delegate(int)            malloc_dg = &malloc;
       void* delegate(int, int )      calloc_dg = &calloc;
@@ -98,10 +105,6 @@ void setupSysmods() {
       printf("%.*s\n", line.length, line.ptr);
     }
     class Object {
-      Object dynamicCastTo(char[] mangled) {
-        writeln("Tried to cast Object: not meaningful. ");
-        return 0;
-      }
     }
   `;
   // parse first half
