@@ -109,7 +109,7 @@ void setupSysmods() {
       double d = f;
       int len = snprintf(res.ptr, res.length, "%f", d);
       if len > res.length len = res.length;
-      return res[0 .. len - 1]; // omit \0
+      return res[0 .. len];
     }
     class Object {
     }

@@ -146,6 +146,31 @@ class AsmFile {
     t.dest = what;
     cache ~= t;
   }
+  int floatStackDepth;
+  void loadFloat(string mem) {
+    floatStackDepth ++;
+    if (floatStackDepth == 8)
+      throw new Exception("Floating point stack overflow .. that was unexpected. Simplify your expressions. ");
+    Transaction t;
+    t.kind = Transaction.Kind.FloatLoad;
+    t.source = mem;
+    t.stackdepth = currentStackDepth;
+    cache ~= t;
+  }
+  void storeFloat(string mem) {
+    floatStackDepth --;
+    Transaction t;
+    t.kind = Transaction.Kind.FloatPop;
+    t.dest = mem;
+    cache ~= t;
+  }
+  void floatMath(string op) {
+    floatStackDepth --;
+    Transaction t;
+    t.kind = Transaction.Kind.FloatMath;
+    t.opName = op;
+    cache ~= t;
+  }
   int labelCounter; // Limited to 2^31 labels, le omg.
   string genLabel() {
     return Format("label", labelCounter++);
@@ -236,7 +261,7 @@ class AsmFile {
           size = abs(sum_inc);
         }
       `));
-      mixin(opt("collapse_push_pop", `^Push, ^Pop: ($0.type.size == $1.type.size) && (!$0.source.isRelative() || !$1.dest.isRelative()) =>
+      mixin(opt("collapse_push_pop", `^Push, ^Pop: ($0.type.size == $1.type.size) && (!$0.source.isMemRef() || !$1.dest.isMemRef()) =>
         if ($0.source == $1.dest) { /*logln("Who the fuck produced this retarded bytecode: ", match[]);*/ $SUBST(null); continue; }
         $T[] movs;
         int size = $0.type.size;
@@ -337,6 +362,17 @@ class AsmFile {
           dest = Format($0.from.literalToInt(), "(", $1.op1, ")");
         }
       `));
+      mixin(opt("indirect_access_push", `^Mov, ^MathOp, ^Push || ^FloatLoad:
+        $0.from.isLiteral() && $1.opName == "addl" && $1.op1.isRegister() &&
+        $0.to == $1.op2 && $0.to == "%eax" && $2.source == "(%eax)"
+        =>
+        $SUBSTWITH {
+          kind = $2.kind;
+          type = $2.type;
+          stackdepth = $2.stackdepth;
+          source = Format($0.from.literalToInt(), "(", $1.op1, ")");
+        }
+      `));
       mixin(opt("fold_rel_access", `^Mov, ^MathOp, ^Mov:
         $0.from.isLiteral() &&
         $1.opName == "addl" && $1.op1.isRegister() && $1.op2 == $0.to &&
@@ -348,10 +384,50 @@ class AsmFile {
           from = Format(i1 + i2, "(", $1.op1, ")");
         }
       `));
+      mixin(opt("load_rewrite_ebp_to_esp", `^FloatLoad:
+        $0.stackdepth && $0.source.between("(", ")") == "%ebp"
+        =>
+        $SUBSTWITH {
+          kind = $0.kind;
+          auto src = $0.source;
+          auto ebp_offs = -src.between("", "(").atoi();
+          if (ebp_offs == $0.stackdepth) {
+            src = Format("(%esp)");
+          } else if (ebp_offs == $0.stackdepth - 4) {
+            src = Format("4(%esp)");
+          }
+          source = src;
+        }
+      `));
+      mixin(opt("load_from_push", `^Push, ^FloatLoad:
+        $1.source == "(%esp)"
+        =>
+        $T a1 = $1, a2;
+        a1.source = $0.source;
+        a1.stackdepth = 0;
+        a2.kind = $TK.SAlloc;
+        a2.size = 4;
+        $SUBST([a1, a2]);
+      `));
+      mixin(opt("fold_fpop_and_pop", `^FloatPop, ^Pop:
+        $0.dest == "(%esp)" && $1.type.size == 4
+        =>
+        $T a1, a2;
+        a1.kind = $TK.FloatPop;
+        a1.dest = $1.dest;
+        a2.kind = $TK.SFree;
+        a2.size = 4;
+        $SUBST([a1, a2]);
+      `));
+      mixin(opt("sort_load_alloc", `^FloatLoad, ^SAlloc: $0.source.find("esp") == -1 => $0.stackdepth = 0; $SUBST([$1, $0]); `));
+      mixin(opt("fold_float_pop_load", `^FloatPop, ^FloatLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 4 => $SUBST([$2]);`));
+      mixin(opt("fold_float_pop_load_to_store", `^FloatPop, ^FloatLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.FloatStore; dest = $0.dest; }`));
+      sort_load_alloc(); // again!
+      collapse_alloc_frees();
       mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
       mixin(opt("fold_mov_push", `^Mov, ^Push: $0.to == $1.source => $SUBSTWITH { kind = $TK.Push; type = $1.type; source = $0.from; }`));
       mixin(opt("fold_mov_pop",  `^Mov, ^Pop : $0.from == $1.dest && $1.to == "(%esp)" => $SUBSTWITH { kind = $TK.SFree; size = $1.type.size; assert(size == nativeIntSize, "3"); }`));
-      collapse_push_pop(); // again!
+      collapse_push_pop();
     }
     foreach (entry; cache.list) if (auto line = entry.toAsm()) _put(line);
     cache.list = null;

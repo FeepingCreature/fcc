@@ -51,7 +51,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (!lv) throw new Exception(Format("Assignment target is not an lvalue: ", ex, " at ", t2.next_text()));
     target = lv;
     Expr value;
-    if (rest(t2, "tree.expr", &value)) {
+    if (rest(t2, "tree.expr", &value, (Expr ex) { return test(ex.valueType() == target.valueType()); })) {
       // logln(target.valueType(), " <- ", value.valueType());
       if (target.valueType() != value.valueType()) {
         throw new Exception(Format("Mismatching types in assignment: ", target, " <- ", value.valueType()));

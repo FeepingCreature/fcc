@@ -29,6 +29,51 @@ class StringExpr : CValue {
   override IType valueType() { return new StaticArray(Single!(Char), str.length); }
 }
 
+class FloatExpr : Expr {
+  union {
+    float f;
+    uint f_as_i;
+  }
+  this(float f) { this.f = f; }
+  string name_used;
+  mixin defaultIterate!();
+  override {
+    string toString() { return Format(f); }
+    IType valueType() { return Single!(Float); }
+    void emitAsm(AsmFile af) {
+      if (!name_used) {
+        name_used = Format("cons_", af.constants.length);
+        af.constants[name_used] = cast(ubyte[]) (&f_as_i)[0 .. 1];
+      }
+      af.pushStack(name_used, valueType());
+    }
+  }
+}
+
+Object gotFloatExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  int i;
+  if (!t2.gotInt(i)) return null;
+  float f = i;
+  if (!t2.length || t2[0] != '.') return null;
+  t2.take();
+  float weight = 0.1;
+  bool gotDigit;
+  while (t2.length) {
+    auto digit = t2[0];
+    if (digit < '0' || digit > '9') break;
+    gotDigit = true;
+    int d = t2.take() - '0';
+    if (f < 0) f -= weight * d;
+    else f += weight * d;
+    weight /= 10;
+  }
+  if (!gotDigit) return null;
+  text = t2;
+  return new FloatExpr(f);
+}
+mixin DefaultParser!(gotFloatExpr, "tree.expr.literal.float", "54");
+
 string subst(string s, string kind) {
   if (kind == "`") return s;
   assert(kind == "\"");

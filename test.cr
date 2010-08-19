@@ -75,33 +75,17 @@ extern(C) {
   int rand();
 }
 
-struct Complex {
-  float re, im;
+extern(C) {
+  float log2f(float);
+  float sqrtf(float);
+  float fabsf(float);
+  float atan2f(float, float);
+  float floorf(float);
+  float cosf(float);
+  float sinf(float);
+  int time(int*);
 }
-
-Complex complex_mult(Complex a, Complex b) {
-  Complex res;
-  res.re = a.re * b.re - a.im * b.im;
-  res.im = a.re * b.im + a.im * b.re;
-  return res;
-}
-
-Complex complex_add(Complex a, Complex b) {
-  Complex res;
-  res.re = a.re + b.re;
-  res.im = a.im + b.im;
-  return res;
-}
-
-float lensq(Complex c) {
-  return c.re * c.re + c.im * c.im;
-}
-
-float itof(int i) { float f = i; return f; }
-
-extern(C) float log2f(float);
-extern(C) float sqrtf(float);
-void sdlfun() {
+void sdlfun(float[3] delegate(float, float) dg) {
   SDL_Init(32); // video
   //                                                  SDL_ANYFORMAT
   SDL_Surface* surface = SDL_SetVideoMode(640, 480, 0, 268435456);
@@ -113,33 +97,17 @@ void sdlfun() {
     }
     return 0;
   }
+  auto start = time(cast(int*) 0);
+  int limit = 16384;
   for (int y = 0; y < surface.h; ++y) {
     for (int x = 0; x < surface.w; ++x) {
-      Complex c;
-      Complex p;
-      c.re = itof(x - surface.w / 2) / 200;
-      c.im = itof(y - surface.h / 2) / 200;
-      p = c;
-      int exceeded = 0;
-      float lv;
-      for (int i = 0; i < 64; ++i) {
-        p = complex_add(complex_mult(p, p), c);
-        lv = lensq(p);
-        if (lv >= 10) {
-          exceeded = i;
-          i = 64;
-        }
-      }
-      if (exceeded) {
-        // float color = (exceeded - log2f(log2f(sqrtf(lv))));
-        float color = exceeded - log2f(log2f(sqrtf(lv)));
-        if (color < 0) color = 0;
-        int expix = color * 16;
-        expix = expix + expix * 256 + expix * 65536;
-        surface.pixels[y * surface.w + x] = expix;
-      } else {
-        surface.pixels[y * surface.w + x] = 0;
-      }
+      auto f = dg(cast(float) x / surface.w, cast(float) y / surface.h);
+      int expix = cast(int) (f[2] * 255) + cast(int) (f[1] * 256 * 255) & (256 * 255) + cast(int) (f[0] * 256 * 256 * 255) & (256 * 256 * 255);
+      surface.pixels[y * surface.w + x] = expix;
+    }
+    if time(cast(int*) 0) != start {
+      start = time(cast(int*) 0);
+      if update() return;
     }
   }
   while 1 {
@@ -333,7 +301,121 @@ int main(int argc, char** argv) {
   testfl(13);
   {
     atexit writeln("Exit 3. ");
-    sdlfun();
+    // 2d simplex noise; see http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf
+    int[512] perm;
+    for (int i = 0; i < 256; ++i)   perm[i] = rand() % 256;
+    for (int i = 256; i < 512; ++i) perm[i] = perm[i - 256];
+    int[3][12] grad3;
+    {
+      int i;
+      char[] str = "pp0np0pn0nn0p0pn0pp0nn0n0pp0np0pn0nn";
+      auto chp = str[0], chn = str[3];
+      for (int k = 0; k < 12; ++k) {
+        for (int l = 0; l < 3; ++l) {
+          auto ch = str[i++];
+          if (ch == chp) grad3[k][l] = 1;
+          else if (ch == chn) grad3[k][l] = -1;
+        }
+      }
+    }
+    float dot(int[3] whee, float a, float b) {
+      return whee[0] * a + whee[1] * b;
+    }
+    float noise2(float fx, float fy) {
+      int fastfloor(float f) {
+        // TODO: check FP env
+        return cast(int) (floorf(f) + 0.1);
+      }
+      float[3] n;
+      
+      float f2 = 0.5 * (sqrtf(3) - 1);
+      float s = (fx + fy) * f2;
+      int i = fastfloor(fx + s), j = fastfloor(fy + s);
+      
+      float g2 = (3 - sqrtf(3)) / 6;
+      float t = (i + j) * g2;
+      float[3] x, y;
+      x[0] = fx - (i - t);
+      y[0] = fy - (j - t);
+      
+      int i1, j1;
+      if x[0] > y[0] { i1 = 1; j1 = 0; }
+      else { i1 = 0; j1 = 1; }
+      
+      x[1] = x[0] - i1 + g2;
+      y[1] = y[0] - j1 + g2;
+      x[2] = x[0] - 1 + 2 * g2;
+      y[2] = y[0] - 1 + 2 * g2;
+      int ii = i & 255, jj = j & 255;
+      
+      int[3] gi;
+      gi[0] = perm[ii + perm[jj]] % 12;
+      gi[1] = perm[ii + i1 + perm[jj + j1]] % 12;
+      gi[2] = perm[ii + 1  + perm[jj + 1 ]] % 12;
+      
+      for (int k = 0; k < 3; ++k) {
+        float ft = 0.5 - x[k]*x[k] - y[k]*y[k];
+        if ft < 0 n[k] = 0;
+        else {
+          ft = ft * ft;
+          n[k] = ft * ft * dot(grad3[gi[k]], x[k], y[k]);
+        }
+      }
+      return 70 * (n[0] + n[1] + n[2]);
+    }
+    float clamp(float from, float to, float f) {
+      if (f <= from) return from;
+      if (f >= to) return to;
+      return f;
+    }
+    // http://en.wikipedia.org/wiki/Smoothstep
+    float smoothstep(float edge0, float edge1, float x) {
+      float old_x = x;
+      x = (x - edge0) / (edge1 - edge0);
+      if (x <= 0) return 0;
+      if (x >= 1) return 1;
+      return x * x * (3 - 2 * x);
+    }
+    float[3] rgb(float r, float g, float b) {
+      float[3] res;
+      res[0] = r;
+      res[1] = g;
+      res[2] = b;
+      return res;
+    }
+    float[3] transition(float[3]* a, float[3]* b, float f) {
+      float finv = 1 - f;
+      return rgb(
+        (*a)[0] * finv + (*b)[0] * f,
+        (*a)[1] * finv + (*b)[1] * f,
+        (*a)[2] * finv + (*b)[2] * f
+      );
+    }
+    float PI = 3.1415926538;
+    float fun1(float x, float y) {
+      float rx = 2 * (x - 0.5) * 1.333;
+      float ry = 2 * (y - 0.5);
+      float h = 3 * sqrtf(x*x*x);
+      h = h * (1 - x);
+      float e = fabsf(ry) - h;
+      float f = smoothstep(0, 0.01, e);
+      return f;
+    }
+    float[3] fun2(float x, float y) {
+      x = x - 0.5;
+      y = y - 0.5;
+      float f = fun1(x + 0.5, y + 0.5);
+      float angle = 15 * PI / 180.0;
+      for (int i = 0; i < 24; ++i) {
+        float x2 = x * cosf(angle) - y * sinf(angle);
+        float y2 = y * cosf(angle) + x * sinf(angle);
+        x = x2; y = y2;
+        f = f * 0.8 + 0.2 * fun1(x + 0.5, y + 0.5);
+      }
+      return rgb(f, f, f);
+    }
+    fun1(0, 0);
+    sdlfun(&fun2);
     return 0;
     atexit writeln("Exit 4. ");
   }

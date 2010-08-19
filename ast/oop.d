@@ -197,7 +197,6 @@ class Class : Namespace, RelNamespace, Named, IType, Tree {
     scope(exit) namespace.set(backup);
     // TODO: switch
     auto as = new AggrStatement;
-    as.stmts ~= iparse!(Statement, "cast_log", "tree.stmt")(`writeln("cast $$typeof(this).stringof to id. "); `, rf);
     int intf_offset = mainSize();
     doAlign(intf_offset, voidp);
     intf_offset /= 4;
@@ -484,7 +483,6 @@ mixin DefaultParser!(gotClassMemberExpr, "tree.rhs_partial.access_class_member")
 
 import ast.casting, ast.math;
 
-alias ReinterpretCast!(Expr) RCE;
 alias Single!(Pointer, Single!(Pointer, Single!(Void))) voidpp;
 
 Expr intfToClass(Expr ex) {

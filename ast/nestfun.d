@@ -41,7 +41,13 @@ class NestedFunction : Function {
           namespaceToStruct(context_override?context_override:this, mybase),
           var.name
         );
-      } else if (res) return res;
+      } else if (res) {
+        if (auto nf = cast(NestedFunction) res) {
+          logln("got ", nf, " in ", this, "; base ", mybase);
+          return new PointerFunction!(NestedFunction) (new NestFunRefExpr(nf, mybase));
+        }
+        return res;
+      }
     }
     if (local
      || name == "__base_ptr"
@@ -57,6 +63,11 @@ class NestedFunction : Function {
             var = cast(Variable) sn;
       // logln("var: ", var, ", sn: ", sn, "; test ", context.lookup(name));
       // logln("context is ", context, " below fun ", context.fun);
+      if (auto nf = cast(NestedFunction) sn) {
+        mybase = cast(Expr) lookup("__base_ptr", true, mybase);
+        // see above
+        return new PointerFunction!(NestedFunction) (new NestFunRefExpr(nf, mybase));
+      }
       if (!var) return sn?sn:context.lookup(name, false);
       return new MemberAccess_LValue(
         namespaceToStruct(context, cast(Expr) lookup("__base_ptr", true, mybase)),
@@ -97,9 +108,10 @@ class NestedCall : FunCall {
 // &fun
 class NestFunRefExpr : mkDelegate {
   NestedFunction fun;
-  this(NestedFunction fun) {
+  this(NestedFunction fun, Expr base = null) {
+    if (!base) base = new Register!("ebp");
     this.fun = fun;
-    super(fun.getPointer(), new Register!("ebp"));
+    super(fun.getPointer(), base);
   }
   override string toString() {
     return Format("&", fun);

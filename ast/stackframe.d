@@ -9,6 +9,7 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   qsort(frame, ex!("a, b -> a._2 < b._2"));
   assert(frame[0]._2 < frame[1]._2);
   auto str = new Structure(null);
+  str.packed = true; // !!
   auto cur = -1;
   foreach (member; frame) {
     new RelMember(member._1, member._0, str);

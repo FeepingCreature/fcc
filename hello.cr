@@ -2,6 +2,7 @@ module test;
 import sys;
 
 int main(int argc, char** argv) {
-  auto artest = new(3) int;
-  writeln("Array test: $artest");
+  auto x = cast(float) 1 / 2;
+  float y = 1;
+  writeln("x: $x, y: $y");
 }

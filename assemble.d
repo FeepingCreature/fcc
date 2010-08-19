@@ -10,12 +10,18 @@ bool isRelative(string reg) {
   return reg.find("(") != -1 || reg.find("@NTPOFF") != -1;
 }
 
+bool isMemRef(string mem) {
+  if (isRelative(mem)) return true;
+  return !mem.startsWith("%") && !mem.startsWith("$");
+}
+
 import parseBase; // int parsing
 struct Transaction {
   enum Kind {
-    Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call
+    Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
+    FloatLoad, FloatStore, FloatPop, FloatMath
   }
-  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call"];
+  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call", "FloatLoad", "FloatStore", "FloatPop", "FloatMath"];
   Kind kind;
   string toString() {
     switch (kind) {
@@ -31,6 +37,10 @@ struct Transaction {
       case Kind.Compare:
         if (test) return Format("[cmp/test ", op1, ", ", op2, "]");
         else return Format("[cmp ", op1, ", ", op2, "]");
+      case Kind.FloatLoad: return Format("[float load ", source, "]");
+      case Kind.FloatStore: return Format("[float store ", dest, "]");
+      case Kind.FloatPop:  return Format("[float pop ", dest, "]");
+      case Kind.FloatMath: return Format("[float math ", opName, "]");
     }
   }
   string toAsm() {
@@ -172,23 +182,34 @@ struct Transaction {
         if (dest.find("%") != -1) return Format("call *", dest);
         if (dest[0] == '$') return Format("call ", dest[1 .. $]);
         assert(false, "::"~dest);
+      case Kind.FloatLoad:
+        return Format("flds ", source);
+      case Kind.FloatPop:
+        return Format("fstps ", dest);
+      case Kind.FloatStore:
+        return Format("fsts ", dest);
+      case Kind.FloatMath:
+        return Format(opName~"p %st, %st(1)");
     }
   }
-  union {
-    struct { // Mov
-      string from, to;
-      string usableScratch;
+  struct {
+    union {
+      struct { // Mov
+        string from, to;
+        string usableScratch;
+      }
+      int size;
+      struct {
+        string source, dest;
+        IType type;
+      }
+      struct {
+        string opName;
+        string op1, op2, op3;
+        bool test;
+      }
     }
-    int size;
-    struct {
-      string source, dest;
-      IType type;
-    }
-    struct {
-      string opName;
-      string op1, op2;
-      bool test;
-    }
+    int stackdepth;
   }
 }
 

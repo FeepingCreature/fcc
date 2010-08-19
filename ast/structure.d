@@ -49,7 +49,13 @@ class RelMember : Expr, Named, RelTransformable {
     this.type = type;
     offset = (cast(IType) ns).size();
     // alignment
-    doAlign(offset, type);
+    bool aligned = true;
+    if (auto st = cast(Structure) ns)
+      if (st.packed) aligned = false;
+    
+    if (aligned)
+      doAlign(offset, type);
+    
     ns.add(this);
   }
 }
@@ -57,6 +63,7 @@ class RelMember : Expr, Named, RelTransformable {
 class Structure : Namespace, RelNamespace, IType, Named {
   mixin TypeDefaults!();
   string name;
+  bool packed;
   int size() {
     int res;
     select((string, RelMember member) {

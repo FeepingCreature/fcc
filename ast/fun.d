@@ -21,6 +21,8 @@ class FunSymbol : Symbol {
   }
 }
 
+extern(C) Object nf_fixup__(Object obj, Expr mybase);
+
 class Function : Namespace, Tree, Named {
   string name;
   Expr getPointer() {
@@ -118,7 +120,7 @@ class FunCall : Expr {
 void handleReturn(IType ret, AsmFile dest) {
   if (Single!(Float) == ret) {
     dest.salloc(4);
-    dest.put("fstps (%esp)");
+    dest.storeFloat("(%esp)");
     return;
   }
   if (!cast(Void) ret) {
@@ -140,6 +142,7 @@ void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
   
   assert(ret.size == 4 || ret.size == 8 || ret.size == 12 || cast(Void) ret,
     Format("Return bug: ", ret, " from ", name, "!"));
+  // TODO: backup FP stack
   dest.comment("Begin call to ", name);
   if (params.length) {
     foreach_reverse (param; params) {

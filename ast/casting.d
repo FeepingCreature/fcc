@@ -7,7 +7,7 @@ class ReinterpretCast(T) : T {
   this(IType to, T from) {
     this.from = from;
     this.to = to;
-    assert(to.size == from.valueType().size, Format("Can't cast ", from, " to ", to, "!"));
+    assert(to.size == from.valueType().size, Format("Can't cast ", from, " to ", to, "; ", from.valueType().size, " vs. ", to.size, "!"));
   }
   mixin defaultIterate!(from);
   override {
@@ -23,6 +23,62 @@ class ReinterpretCast(T) : T {
       }
   }
 }
+alias ReinterpretCast!(Expr) RCE;
+
+// casts to types that'd be implicit-converted anyway
+Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!t2.accept("cast(")) return null;
+  IType dest;
+  if (!rest(t2, "type", &dest))
+    throw new Exception("No type matched in cast expression: "~t2.next_text());
+  if (!t2.accept(")"))
+    throw new Exception("Missed closing bracket in cast at "~t2.next_text());
+  char* longest;
+  Expr match;
+  if (!rest(t2, "tree.expr >tree.expr.arith", &ex, (Expr ex) {
+    if (t2.ptr > longest) {
+      longest = t2.ptr;
+      match = ex;
+      return ParseCtl.AcceptCont; // always accept lengthenings
+    }
+    if (ex.valueType() == dest)
+      match = ex;
+    
+    return (ex.valueType() == dest) ? ParseCtl.AcceptCont : ParseCtl.RejectCont;
+  }))
+    return null;
+  
+  // confirm
+  if (match.valueType() != dest) return null;
+  
+  text = t2;
+  return cast(Object) new RCE(dest, match);
+}
+mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default", "701");
+
+// casts to types that have conversion defined
+Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!t2.accept("cast(")) return null;
+  IType dest;
+  if (!rest(t2, "type", &dest))
+    throw new Exception("No type matched in cast expression: "~t2.next_text());
+  if (!t2.accept(")"))
+    throw new Exception("Missed closing bracket in cast at "~t2.next_text());
+  char* longest;
+  if (!rest(t2, "tree.convert", &ex, (Expr ex) {
+    return !!(ex.valueType() == dest);
+  }))
+    return null;
+  
+  text = t2;
+  // override type
+  return cast(Object) new RCE(dest, ex);
+}
+mixin DefaultParser!(gotConversionCast, "tree.expr.cast_convert", "702");
 
 Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

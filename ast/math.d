@@ -30,7 +30,8 @@ class IntAsFloat : Expr {
       i.emitAsm(af);
       // TODO better way
       af.put("fildl (%esp)");
-      af.put("fstps (%esp)");
+      af.floatStackDepth ++;
+      af.storeFloat("(%esp)");
     }
   }
 }
@@ -38,15 +39,45 @@ class IntAsFloat : Expr {
 Object gotIntAsFloat(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr ^selfrule", &ex))
+  if (!rest(t2, "tree.expr >tree.expr.arith ^selfrule", &ex))
     return null;
+  
   if (Single!(SysInt) != ex.valueType())
     return null;
   
   text = t2;
   return new IntAsFloat(ex);
 }
-mixin DefaultParser!(gotIntAsFloat, "tree.expr.int_to_float", "950");
+mixin DefaultParser!(gotIntAsFloat, "tree.expr.int_to_float", "9021");
+
+class FloatAsInt : Expr {
+  Expr f;
+  mixin defaultIterate!(f);
+  this(Expr f) { this.f = f; assert(f.valueType() == Single!(Float)); }
+  override {
+    IType valueType() { return Single!(SysInt); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("4"));
+      f.emitAsm(af);
+      af.loadFloat("(%esp)");
+      af.put("fistpl (%esp)");
+      af.floatStackDepth --;
+    }
+  }
+}
+
+Object gotFloatAsInt(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!rest(t2, "tree.expr >tree.expr.arith", &ex))
+    return null;
+  if (Single!(Float) != ex.valueType())
+    return null;
+  
+  text = t2;
+  return new FloatAsInt(ex);
+}
+mixin DefaultParser!(gotFloatAsInt, "tree.convert.float_to_int");
 
 class FloatAsDouble : Expr {
   Expr f;
@@ -57,10 +88,10 @@ class FloatAsDouble : Expr {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("8"));
       f.emitAsm(af);
-      // TODO better way
-      af.put("flds (%esp)");
+      af.loadFloat("(%esp)");
       af.salloc(4);
       af.put("fstpl (%esp)");
+      af.floatStackDepth --;
     }
   }
 }
@@ -77,6 +108,18 @@ Object gotFloatAsDouble(ref string text, ParseCb cont, ParseCb rest) {
   return new FloatAsDouble(ex);
 }
 mixin DefaultParser!(gotFloatAsDouble, "tree.expr.float_to_double", "9501");
+
+void loadFloatEx(Expr ex, AsmFile af) {
+  if (auto lv = cast(CValue) ex) {
+    lv.emitLocation(af);
+    af.popStack("%eax", voidp);
+    af.loadFloat("(%eax)");
+  } else {
+    ex.emitAsm(af);
+    af.loadFloat("(%esp)");
+    af.sfree(4);
+  }
+}
 
 class AsmBinopExpr(string OP) : Expr {
   Expr e1, e2;
@@ -114,18 +157,19 @@ class AsmBinopExpr(string OP) : Expr {
     void emitAsm(AsmFile af) {
       assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
-      e2.emitAsm(af);
-      e1.emitAsm(af);
       if (isFloatOp) {
-        af.put("flds (%esp)");
-        af.sfree(e1.valueType().size);
-        static if (OP == "addl")  af.put("fadds (%esp)");
-        static if (OP == "subl")  af.put("fsubs (%esp)");
-        static if (OP == "imull") af.put("fmuls (%esp)");
-        static if (OP == "idivl") af.put("fdivs (%esp)");
+        loadFloatEx(e2, af);
+        loadFloatEx(e1, af);
+        af.salloc(4);
+        static if (OP == "addl")  af.floatMath("fadd");
+        static if (OP == "subl")  af.floatMath("fsub");
+        static if (OP == "imull") af.floatMath("fmul");
+        static if (OP == "idivl") af.floatMath("fdiv");
         static if (OP == "imodl") assert(false, "Modulo not supported on floats. ");
-        af.put("fstps (%esp)");
+        af.storeFloat("(%esp)");
       } else {
+        e2.emitAsm(af);
+        e1.emitAsm(af);
         af.popStack("%eax", e1.valueType());
         
         static if (OP == "idivl" || OP == "imodl") af.put("cdq");
@@ -217,7 +261,7 @@ Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("-")) return null;
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex, (Expr ex) { return !!(ex.valueType() == Single!(SysInt)); }))
+  if (!rest(t2, "tree.expr", &ex, (Expr ex) { return !!(ex.valueType() == Single!(SysInt) || ex.valueType() == Single!(Float)); }))
     throw new Exception("Found no type match for negation at '"~t2.next_text()~"'");
   text = t2;
   return new SubExpr(new IntExpr(0), ex);
