@@ -5,13 +5,13 @@ import ast.base;
 class Label : Statement {
   string name;
   override void emitAsm(AsmFile af) {
-    af.put(name~": ");
+    af.emitLabel(name);
   }
 }
 
 class GotoStmt : Statement {
   string target;
   override void emitAsm(AsmFile af) {
-    af.put("jmp "~target);
+    af.jump(target);
   }
 }

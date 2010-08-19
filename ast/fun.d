@@ -85,13 +85,20 @@ class Function : Namespace, Tree, Named {
     void emitAsm(AsmFile af) {
       af.put(".globl "~mangleSelf);
       af.put(".type "~mangleSelf~", @function");
-      af.put(mangleSelf~": ");
-      af.put("pushl %ebp");
-      af.put("movl %esp, %ebp");
+      af.put(mangleSelf() ~ ":"); // not really a label
+      af.jump_barrier();
+      af.pushStack("%ebp", voidp);
+      af.mmove4("%esp", "%ebp");
+      
+      auto backup = af.currentStackDepth;
+      scope(exit) af.currentStackDepth = backup;
+      af.currentStackDepth = 0;
+      
       withTLS(namespace, this, tree.emitAsm(af));
-      af.put(exit()~":");
-      af.put("movl %ebp, %esp");
-      af.put("popl %ebp");
+      af.emitLabel(exit());
+      af.mmove4("%ebp", "%esp");
+      af.popStack("%ebp", voidp);
+      af.jump_barrier();
       af.put("ret");
     }
     Stuple!(IType, string, int)[] stackframe() {

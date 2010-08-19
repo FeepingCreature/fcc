@@ -83,11 +83,9 @@ class AsmFile {
     t.size = sz;
     cache ~= t;
   }
-  void jump(string label) {
-    put("jmp ", label);
-  }
   import tools.ctfe;
   void jumpOn(bool smaller, bool equal, bool greater, string label) {
+    labels_refcount[label]++;
     // TODO: unsigned?
     mixin(`
       cond | instruction
@@ -111,6 +109,7 @@ class AsmFile {
     ));
   }
   void jumpOnFloat(bool smaller, bool equal, bool greater, string label) {
+    labels_refcount[label]++;
     put("fnstsw %ax");
     put("sahf");
     mixin(`
@@ -188,8 +187,31 @@ class AsmFile {
   string genLabel() {
     return Format("label", labelCounter++);
   }
+  void jump(string label) {
+    labels_refcount[label] ++;
+    Transaction t;
+    t.kind = Transaction.Kind.Jump;
+    t.dest = label;
+    cache ~= t;
+  }
   void emitLabel(string name) {
-    put(name, ":");
+    Transaction t;
+    t.kind = Transaction.Kind.Label;
+    t.names ~= name;
+    cache ~= t;
+  }
+  int[string] labels_refcount;
+  // no jumps past this point
+  // removes unused labels
+  void jump_barrier() {
+    if (optimize) runOpts; // clean up
+    Transaction[] newlist;
+    foreach (t; cache.list) {
+      if (t.kind != Transaction.Kind.Label) newlist ~= t;
+      else foreach (name; t.names) if (name in labels_refcount && labels_refcount[name] > 0) { newlist ~= t; break; }
+    }
+    cache.list = newlist;
+    labels_refcount = null;
   }
   int lastStackDepth;
   void comment(T...)(T t) {
@@ -316,6 +338,7 @@ class AsmFile {
         size = abs(sum_inc);
       }
     `));
+    mixin(opt("collapse_alloc_free_nop", `^SAlloc || ^SFree => if (!$0.size) $SUBST(null); `));
     mixin(opt("collapse_push_pop", `^Push, ^Pop: ($0.type.size == $1.type.size) && (!$0.source.isMemRef() || !$1.dest.isMemRef()) =>
       if ($0.source == $1.dest) { /+logln("Who the fuck produced this retarded bytecode: ", match[]);+/ $SUBST(null); continue; }
       $T[] movs;
@@ -490,6 +513,7 @@ class AsmFile {
     // some very special cases
     mixin(opt("float_meh",  `^SFree, ^FloatSwap, ^SAlloc: $0.size == $2.size => $SUBST([$1]); `));
     mixin(opt("float_meh_2",  `^FloatStore, ^FloatMath, ^FloatStore: $0.dest == $2.dest => $SUBST([$1, $2]); `));
+    mixin(opt("float_meh_3",  `^FloatStore, ^FloatLoad, ^FloatMath, ^FloatStore: $0.dest != $1.source && $0.dest == $3.dest => $SUBST([$1, $2, $3]); `));
     mixin(opt("float_pointless_swap",  `^FloatSwap, ^FloatMath: $1.opName == "fadd" || $1.opName == "fmul" => $SUBST([$1]); `));
     mixin(opt("float_pointless_store",  `^FloatStore, ^FloatPop: $0.dest == $1.dest => $SUBST([$1]); `));
     
@@ -528,44 +552,55 @@ class AsmFile {
       t2.size = 4;
       $SUBST([t1, t2]);
     `));
+    
+    // jump opts
+    mixin(opt("join_labels", `^Label, ^Label => auto t = $0; t.names = t.names ~ $1.names; $SUBST([t]); `));
+    mixin(opt("pointless_jump", `^Jump, ^Label:
+      $1.hasLabel($0.dest)
+      =>
+      labels_refcount[$0.dest] --;
+      $SUBST([$1]);
+    `));
   }
   bool optsSetup;
   string[] goodOpts;
-  void flush() {
-    if (optimize) {
-      if (!optsSetup) {
-        setupOpts;
-        optsSetup = true;
-      }
-      string optstr;
-      bool[string] unused;
-      foreach (opt; goodOpts) {
-        unused.remove(opt);
-        opts[opt]();
-      }
-      while (true) {
-        bool anyChange;
-        foreach (name, opt; opts) {
-          if (opt()) {
-            unused.remove(name);
-            
-            if (optstr.length) optstr ~= ", ";
-            optstr ~= name;
-            
-            goodOpts ~= name;
-            anyChange = true;
-          }
-        }
-        if (!anyChange) break;
-        logln("optstr now ", optstr, ", omitted: ", unused.keys);
-      }
-      string join(string[] s) {
-        string res;
-        foreach (str; s) { if (res) res ~= ", "; res ~= str; }
-        return res;
-      }
-      if (optstr) logln("Opt: ", goodOpts.join(), " + ", optstr);
+  void runOpts() {
+    if (!optsSetup) {
+      setupOpts;
+      optsSetup = true;
     }
+    string optstr;
+    bool[string] unused;
+    foreach (name, opt; opts) unused[name] = true;
+    foreach (opt; goodOpts) {
+      unused.remove(opt);
+      opts[opt]();
+    }
+    while (true) {
+      bool anyChange;
+      foreach (name, opt; opts) {
+        if (opt()) {
+          unused.remove(name);
+          
+          if (optstr.length) optstr ~= ", ";
+          optstr ~= name;
+          
+          goodOpts ~= name;
+          anyChange = true;
+        }
+      }
+      if (!anyChange) break;
+      // logln("optstr now ", optstr, ", omitted: ", unused.keys);
+    }
+    string join(string[] s) {
+      string res;
+      foreach (str; s) { if (res) res ~= ", "; res ~= str; }
+      return res;
+    }
+    // if (optstr) logln("Opt: ", goodOpts.join(), " + ", optstr, " - ", unused.keys);
+  }
+  void flush() {
+    if (optimize) runOpts;
     foreach (entry; cache.list) if (auto line = entry.toAsm()) _put(line);
     cache.list = null;
   }

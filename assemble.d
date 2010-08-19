@@ -25,9 +25,12 @@ import parseBase; // int parsing
 struct Transaction {
   enum Kind {
     Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
-    FloatLoad, FloatStore, FloatPop, FloatMath, FloatSwap
+    FloatLoad, FloatStore, FloatPop, FloatMath, FloatSwap,
+    Jump, Label
   }
-  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call", "FloatLoad", "FloatStore", "FloatPop", "FloatMath", "FloatSwap"];
+  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
+    "FloatLoad", "FloatStore", "FloatPop", "FloatMath", "FloatSwap",
+    "Jump", "Label"];
   Kind kind;
   string toString() {
     switch (kind) {
@@ -48,6 +51,8 @@ struct Transaction {
       case Kind.FloatPop:  return Format("[float pop ", dest, "]");
       case Kind.FloatMath: return Format("[float math ", opName, "]");
       case Kind.FloatSwap: return Format("[float swap]");
+      case Kind.Jump:      return Format("[jmp ", dest, "]");
+      case Kind.Label:     return Format("[label ", names, "]");
     }
   }
   string toAsm() {
@@ -199,6 +204,13 @@ struct Transaction {
         return Format(opName~"p %st, %st(1)");
       case Kind.FloatSwap:
         return Format("fxch");
+      case Kind.Jump:
+        return Format("jmp ", dest);
+      case Kind.Label:
+        assert(names.length);
+        string res;
+        foreach (name; names) res ~= name ~ ":\n";
+        return res[0 .. $-1];
     }
   }
   struct {
@@ -217,6 +229,8 @@ struct Transaction {
         string op1, op2, op3;
         bool test;
       }
+      string[] names; // label
+      bool hasLabel(string s) { foreach (name; names) if (name == s) return true; return false; }
     }
     int stackdepth;
   }

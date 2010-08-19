@@ -12,7 +12,7 @@ class WhileStatement : Statement {
     cond.jumpOn(af, false, done);
     _body.emitAsm(af);
     // TODO: rerun cond? check complexity?
-    af.put("jmp ", start);
+    af.jump(start);
     af.emitLabel(done);
   }
 }
@@ -46,7 +46,7 @@ class ForStatement : Statement {
     cond.jumpOn(af, false, done);
     _body.emitAsm(af);
     step.emitAsm(af);
-    af.put("jmp ", start);
+    af.jump(start);
     af.emitLabel(done);
   }
 }

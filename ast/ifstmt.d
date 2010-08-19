@@ -17,7 +17,7 @@ class IfStatement : Statement {
     if (!branch2) af.emitLabel(past1);
     else {
       auto past2 = af.genLabel();
-      af.put("jmp ", past2);
+      af.jump(past2);
       branch2.emitAsm(af);
       af.emitLabel(past2);
     }

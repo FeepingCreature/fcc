@@ -43,13 +43,13 @@ class Scope : Namespace, Tree, ScopeLike, Statement {
   }
   // continuations good
   void delegate(bool=false) delegate() open(AsmFile af) {
-    af.put(entry(), ":");
+    af.emitLabel(entry());
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
     return stuple(checkpt, backup, this, af) /apply/ (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af) {
       that._body.emitAsm(af);
       return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, bool onlyCleanup) {
-        if (!onlyCleanup) af.put(that.exit(), ":");
+        if (!onlyCleanup) af.emitLabel(that.exit());
         
         foreach_reverse(guard; that.guards)
           guard.emitAsm(af);

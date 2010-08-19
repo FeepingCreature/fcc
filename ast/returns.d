@@ -36,7 +36,7 @@ class ReturnStmt : Statement {
       }
     }
     // TODO: stack cleanup token here
-    af.put("jmp ", fun.exit());
+    af.jump(fun.exit());
   }
 }
 
