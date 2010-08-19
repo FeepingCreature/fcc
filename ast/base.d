@@ -108,7 +108,12 @@ interface Cond : Iterable {
   void jumpOn(AsmFile af, bool cond, string dest);
 }
 
-class Register(string Reg) : Expr {
+interface IRegister {
+  string getReg();
+}
+
+class Register(string Reg) : Expr, IRegister {
+  override string getReg() { return Reg; }
   mixin defaultIterate!();
   override IType valueType() { return Single!(SysInt); }
   override void emitAsm(AsmFile af) {

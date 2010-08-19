@@ -1,7 +1,7 @@
 module ast.math;
 
 import ast.base, ast.namespace, ast.parse;
-import tools.base: This, This_fn, rmSpace, and, or;
+import tools.base: This, This_fn, rmSpace, and, or, find;
 
 void handlePointers(ref Expr op1, ref Expr op2, bool wtf) {
   if (cast(Pointer) op2.valueType()) {
@@ -121,6 +121,21 @@ void loadFloatEx(Expr ex, AsmFile af) {
   }
 }
 
+string fold(Expr ex) {
+  if (auto ie = cast(IntExpr) ex) {
+    return Format("$", ie.num);
+  }
+  if (auto re = cast(IRegister) ex) {
+    return "%"~re.getReg();
+  }
+  if (auto me = cast(MulExpr) ex) {
+    string f1 = fold(me.e1), f2 = fold(me.e2);
+    if (!f1.startsWith("$") || !f2.startsWith("$")) return null;
+    return Format("$", f1[1 .. $].atoi() * f2[1 .. $].atoi());
+  }
+  return null;
+}
+
 class AsmBinopExpr(string OP) : Expr {
   Expr e1, e2;
   this(Expr e1, Expr e2) {
@@ -158,6 +173,12 @@ class AsmBinopExpr(string OP) : Expr {
       assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
       if (isFloatOp) {
+        bool commutative = OP == "addl" || OP == "imull";
+        if (commutative) {
+          // hackaround for circular dep avoidance
+          if ((cast(Object) e2).classinfo.name.find("Variable") != -1 || cast(FloatExpr) e2 || cast(IntAsFloat) e2)
+            swap(e1, e2); // try to eval simpler expr last
+        }
         loadFloatEx(e2, af);
         loadFloatEx(e1, af);
         af.salloc(4);
@@ -168,17 +189,36 @@ class AsmBinopExpr(string OP) : Expr {
         static if (OP == "imodl") assert(false, "Modulo not supported on floats. ");
         af.storeFloat("(%esp)");
       } else {
-        e2.emitAsm(af);
-        e1.emitAsm(af);
-        af.popStack("%eax", e1.valueType());
-        
-        static if (OP == "idivl" || OP == "imodl") af.put("cdq");
-        
-        static if (OP == "idivl" || OP == "imodl") af.put("idivl (%esp)");
-        else af.mathOp(OP, "(%esp)", "%eax");
-        
-        static if (OP == "imodl") af.mmove4("%edx", "(%esp)");
-        else af.mmove4("%eax", "(%esp)");
+        static if (OP == "idivl" || OP == "imodl") {
+          e2.emitAsm(af);
+          e1.emitAsm(af);
+          af.popStack("%eax", e1.valueType());
+          af.put("cdq");
+          af.put("idivl (%esp)");
+          static if (OP == "imodl") af.mmove4("%edx", "(%esp)");
+          else af.mmove4("%eax", "(%esp)");
+        } else {
+          string op1, op2;
+          bool late_alloc;
+          if (auto c2 = fold(e2)) {
+            op2 = c2;
+            late_alloc = true;
+          } else {
+            op2 = "(%esp)";
+            e2.emitAsm(af);
+          }
+          if (auto c1 = fold(e1)) {
+            op1 = c1;
+            af.mmove4(op1, "%eax");
+          } else {
+            e1.emitAsm(af);
+            af.popStack("%eax", e1.valueType());
+          }
+          
+          af.mathOp(OP, op2, "%eax");
+          if (late_alloc) af.salloc(4);
+          af.mmove4("%eax", "(%esp)");
+        }
       }
     }
   }

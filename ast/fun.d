@@ -120,6 +120,7 @@ class FunCall : Expr {
 void handleReturn(IType ret, AsmFile dest) {
   if (Single!(Float) == ret) {
     dest.salloc(4);
+    dest.floatStackDepth ++; // not locally produced
     dest.storeFloat("(%esp)");
     return;
   }
@@ -144,6 +145,10 @@ void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
     Format("Return bug: ", ret, " from ", name, "!"));
   // TODO: backup FP stack
   dest.comment("Begin call to ", name);
+  
+  auto restore = dest.floatStackDepth;
+  while (dest.floatStackDepth) dest.floatToStack();
+  
   if (params.length) {
     foreach_reverse (param; params) {
       dest.comment("Push ", param);
@@ -156,6 +161,13 @@ void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
   foreach (param; params) {
     dest.sfree(param.valueType().size);
   }
+  
+  while (restore--) {
+    dest.stackToFloat();
+    if (ret == Single!(Float))
+      dest.swapFloats;
+  }
+  
   handleReturn(ret, dest);
 }
 
@@ -261,7 +273,7 @@ Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
         // why are you using static arrays as parameters anyway?
         return (cast(StaticArray) ex.valueType()) ? ParseCtl.RejectCont : ParseCtl.AcceptCont;
       } else {
-        // logln("Try ", ex.valueType(), " into ", fun.type.params[param_offset]._0);
+        // logln("While calling ", info, ", try ", ex.valueType(), " into ", params[param_offset], ": ", ex.valueType() == params[param_offset]);
         if (ex.valueType() != params[param_offset])
           // TODO: set error
           return ParseCtl.RejectCont;

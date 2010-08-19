@@ -16,6 +16,7 @@ class ReturnStmt : Statement {
     if (value) {
       if (Single!(Float) == value.valueType()) {
         loadFloatEx(value, af);
+        af.floatStackDepth --; // doesn't count
       } else if (value.valueType().size == 4) {
         value.emitAsm(af);
         af.popStack("%eax", value.valueType());

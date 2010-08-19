@@ -32,7 +32,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       int id = 0;
       cl.getIntfLeaves((Intf intf) {
         iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
-        (`(cast(void**) var)[base + id] = (cast(void**) _classinfo) + offs`,
+        (`(cast(void**) var)[base + id] = cast(void*) ((cast(void**) _classinfo) + offs)`,
           "var", var,
           "base", new IntExpr(base), "id", new IntExpr(id++),
           "_classinfo", new Symbol(cl.ci_name()),

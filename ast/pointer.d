@@ -5,12 +5,12 @@ import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace;
 class Pointer : Type {
   IType target;
   this(IType t) { target = t; }
-  int opEquals(Object obj) {
-    if (obj.classinfo !is this.classinfo) return false;
-    auto p = cast(Pointer) cast(void*) obj;
-    return cast(Object) target == cast(Object) p.target;
-  }
   override {
+    int opEquals(IType ty) {
+      if (!super.opEquals(ty)) return false;
+      auto p = cast(Pointer) ty;
+      return target == p.target;
+    }
     int size() { return nativePtrSize; }
     string mangle() { return "ptrto_"~target.mangle(); }
     string toString() { return Format(target, "*"); }

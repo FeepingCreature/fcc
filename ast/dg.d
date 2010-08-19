@@ -87,7 +87,8 @@ class Delegate : Type {
       if (!super.opEquals(ty)) return false;
       auto dg = cast(Delegate) ty;
       if (dg.ret != ret) return false;
-      if (dg.args != args) return false;
+      foreach (i, arg; dg.args)
+        if (arg != args[i]) return false;
       return true;
     }
   }

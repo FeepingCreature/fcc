@@ -15,8 +15,8 @@ class StaticArray : Type {
   }
   override int opEquals(IType ty) {
     return super.opEquals(ty) &&
-      (cast(StaticArray) ty).elemType == elemType &&
-      (cast(StaticArray) ty).length == length;
+      ((cast(StaticArray) ty).elemType == elemType) &&
+      ((cast(StaticArray) ty).length == length);
   }
 }
 

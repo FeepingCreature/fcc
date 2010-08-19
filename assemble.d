@@ -15,13 +15,19 @@ bool isMemRef(string mem) {
   return !mem.startsWith("%") && !mem.startsWith("$");
 }
 
+// if false, is either a literal or a register (not esp)
+bool mayNeedStack(string str) {
+  if (str.find("%esp") != -1) return true;
+  return isRelative(str);
+}
+
 import parseBase; // int parsing
 struct Transaction {
   enum Kind {
     Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
-    FloatLoad, FloatStore, FloatPop, FloatMath
+    FloatLoad, FloatStore, FloatPop, FloatMath, FloatSwap
   }
-  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call", "FloatLoad", "FloatStore", "FloatPop", "FloatMath"];
+  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call", "FloatLoad", "FloatStore", "FloatPop", "FloatMath", "FloatSwap"];
   Kind kind;
   string toString() {
     switch (kind) {
@@ -41,6 +47,7 @@ struct Transaction {
       case Kind.FloatStore: return Format("[float store ", dest, "]");
       case Kind.FloatPop:  return Format("[float pop ", dest, "]");
       case Kind.FloatMath: return Format("[float math ", opName, "]");
+      case Kind.FloatSwap: return Format("[float swap]");
     }
   }
   string toAsm() {
@@ -190,6 +197,8 @@ struct Transaction {
         return Format("fsts ", dest);
       case Kind.FloatMath:
         return Format(opName~"p %st, %st(1)");
+      case Kind.FloatSwap:
+        return Format("fxch");
     }
   }
   struct {
@@ -257,5 +266,7 @@ class Transcache {
     }
     return Transsection!(C)(this, opName, cond, 0, 0, false);
   }
-  void opCatAssign(Transaction t) { list ~= t; }
+  void opCatAssign(Transaction t) {
+    list ~= t;
+  }
 }

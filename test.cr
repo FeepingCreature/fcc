@@ -85,7 +85,7 @@ extern(C) {
   float sinf(float);
   int time(int*);
 }
-void sdlfun(float[3] delegate(float, float) dg) {
+void sdlfun(float[3] delegate(float, float, float) dg) {
   SDL_Init(32); // video
   //                                                  SDL_ANYFORMAT
   SDL_Surface* surface = SDL_SetVideoMode(640, 480, 0, 268435456);
@@ -99,20 +99,20 @@ void sdlfun(float[3] delegate(float, float) dg) {
   }
   auto start = time(cast(int*) 0);
   int limit = 16384;
-  for (int y = 0; y < surface.h; ++y) {
-    for (int x = 0; x < surface.w; ++x) {
-      auto f = dg(cast(float) x / surface.w, cast(float) y / surface.h);
-      int expix = cast(int) (f[2] * 255) + cast(int) (f[1] * 256 * 255) & (256 * 255) + cast(int) (f[0] * 256 * 256 * 255) & (256 * 256 * 255);
-      surface.pixels[y * surface.w + x] = expix;
-    }
-    if time(cast(int*) 0) != start {
-      start = time(cast(int*) 0);
-      if update() return;
+  float t = 0;
+  void run() {
+    t = t + 0.05;
+    for (int y = 0; y < surface.h; ++y) {
+      for (int x = 0; x < surface.w; ++x) {
+        auto f = dg(cast(float) x / surface.w, cast(float) y / surface.h, t);
+        int expix = cast(int) (f[2] * 255) + cast(int) (f[1] * 256 * 255) & (256 * 255) + cast(int) (f[0] * 256 * 256 * 255) & (256 * 256 * 255);
+        surface.pixels[y * surface.w + x] = expix;
+      }
     }
   }
   while 1 {
-    usleep(64K);
-    if update() return;
+    run();
+    if (update()) return;
   }
 }
 
@@ -321,6 +321,8 @@ int main(int argc, char** argv) {
     float dot(int[3] whee, float a, float b) {
       return whee[0] * a + whee[1] * b;
     }
+    float sqrt3 = sqrtf(3);
+    float f2 = 0.5 * (sqrt3 - 1), g2 = (3 - sqrt3) / 6;
     float noise2(float fx, float fy) {
       int fastfloor(float f) {
         // TODO: check FP env
@@ -328,19 +330,17 @@ int main(int argc, char** argv) {
       }
       float[3] n;
       
-      float f2 = 0.5 * (sqrtf(3) - 1);
       float s = (fx + fy) * f2;
       int i = fastfloor(fx + s), j = fastfloor(fy + s);
       
-      float g2 = (3 - sqrtf(3)) / 6;
       float t = (i + j) * g2;
       float[3] x, y;
       x[0] = fx - (i - t);
       y[0] = fy - (j - t);
       
       int i1, j1;
-      if x[0] > y[0] { i1 = 1; j1 = 0; }
-      else { i1 = 0; j1 = 1; }
+      if x[0] > y[0] i1 = 1;
+      else j1 = 1;
       
       x[1] = x[0] - i1 + g2;
       y[1] = y[0] - j1 + g2;
@@ -414,8 +414,20 @@ int main(int argc, char** argv) {
       }
       return rgb(f, f, f);
     }
+    float[3] fun3(float x, float y, float t) {
+      // auto f2 = fun2(x, y);
+      x = x - 0.5;
+      y = y - 0.5;
+      auto dist = sqrtf(x * x + y * y);
+      // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
+      auto n = 0.5 * noise2(x * 4 + t, y * 4);
+      n = clamp(0, 1, n);
+      float[3] n2 = rgb(n, n, n);
+      return n2;
+      // return transition(&f2, &n2, smoothstep(0.3, 0.5, dist + noise2(x * 2 + 100, y * 2) * 0.1));
+    }
     fun1(0, 0);
-    sdlfun(&fun2);
+    sdlfun(&fun3);
     return 0;
     atexit writeln("Exit 4. ");
   }
