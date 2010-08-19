@@ -3,17 +3,28 @@ module ast.vardecl;
 import ast.assign, ast.base;
 public import ast.variable;
 
+import ast.pointer;
 class VarDecl : Statement {
   Variable[] vars;
   mixin defaultIterate!(vars);
   override void emitAsm(AsmFile af) {
     // logln("emit at ", af.currentStackDepth, ": ", vars);
     foreach (var; vars) {
-      af.salloc(var.type.size);
+      if (var.dontInit)
+        af.salloc(var.type.size);
+      else {
+        mixin(mustOffset("var.type.size"));
+        int sz = var.type.size;
+        // TODO: investigate why necessary for chars
+        if (sz == 1) af.salloc(var.type.size);
+        var.initval.emitAsm(af);
+        if (sz == 1) {
+          var.emitLocation(af);
+          af.popStack("%eax", new Pointer(var.valueType()));
+          af.popStack("(%eax)", var.initval.valueType());
+        }
+      }
       assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; ", -var.baseOffset, " vs. ", af.currentStackDepth, ": ", var));
-      af.comment("init ", var);
-      if (!var.dontInit)
-        (new Assignment(var, var.initval)).emitAsm(af);
     }
   }
 }
@@ -53,19 +64,24 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       auto var = new Variable;
       var.name = name;
       var.type = type;
+      bool dontInit;
       if (t2.accept("=")) {
         if (!rest(t2, "tree.expr", &var.initval, delegate bool(Expr ex) {
           if (var.type != ex.valueType()) {
             error = Format("mismatched types in init: ", var.type, " = ", ex.valueType());
           }
           return !!(var.type == ex.valueType());
-        }))
+        }) && !(t2.accept("void"), dontInit = true))
           throw new Exception(Format("Couldn't read expression at ", t2.next_text(), ": ", error));
       }
-      var.initInit();
-      assert(var.initval);
-      if (var.type != var.initval.valueType())
-        throw new Exception(Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType()));
+      if (dontInit) {
+        var.dontInit = true;
+      } else {
+        var.initInit();
+        assert(var.initval);
+        if (var.type != var.initval.valueType())
+          throw new Exception(Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType()));
+      }
       var.baseOffset = boffs(var.type);
       vd.vars ~= var;
       namespace().add(var);
