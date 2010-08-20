@@ -268,7 +268,7 @@ class AsmFile {
         return changed;
       }
     }
-    opts["`~name~`"] = this /apply/ &`~name~`;
+    opts ~= stuple(this /apply/ &`~name~`, "`~name~`", true);
     /* `~name~`();*/
     `;
     return res.ctReplace(
@@ -320,8 +320,12 @@ class AsmFile {
     with (Transaction.Kind)
       return t.kind == Pop || t.kind == Call || t.kind == FloatStore || t.kind == FloatPop;
   }
-  bool delegate()[string] opts;
+  // dg, name, allow
+  Stuple!(bool delegate(), string, bool)[] opts;
+  bool optsSetup;
   void setupOpts() {
+    if (optsSetup) return;
+    optsSetup = true;
     bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
     // alloc can be shuffled down past _anything_ that doesn't reference ESP.
     mixin(opt("sort_mem", `*, ^SAlloc || ^SFree: !referencesESP($0) => $SUBST([$1, $0]); `));
@@ -379,6 +383,17 @@ class AsmFile {
       $SUBSTWITH {
         kind = $TK.MathOp;
         opName = $0.opName; op1 = "%eax"; op2 = $0.op1;
+      }
+    `));
+    mixin(opt("fold_add_sub", `^MathOp, ^MathOp:
+      $0.op2 == $1.op2 && $0.op1.isNumLiteral() && $1.op1.isNumLiteral()
+      && $0.opName == "subl" && $1.opName == "addl"
+      =>
+      $SUBSTWITH {
+        kind = $TK.MathOp;
+        opName = "addl";
+        op1 = Format("$", - $0.op1.literalToInt() + $1.op1.literalToInt());
+        op2 = $0.op2;
       }
     `));
     mixin(opt("mov_and_math", `^Mov, ^MathOp: $0.to == $1.op1 && !isRelative($0.from) =>
@@ -512,7 +527,7 @@ class AsmFile {
     `));
     // some very special cases
     mixin(opt("float_meh",  `^SFree, ^FloatSwap, ^SAlloc: $0.size == $2.size => $SUBST([$1]); `));
-    mixin(opt("float_meh_2",  `^FloatStore, ^FloatMath, ^FloatStore: $0.dest == $2.dest => $SUBST([$1, $2]); `));
+    mixin(opt("float_meh_2",  `^FloatStore, ^FloatMath, ^FloatStore || ^FloatPop: $0.dest == $2.dest => $SUBST([$1, $2]); `));
     mixin(opt("float_meh_3",  `^FloatStore, ^FloatLoad, ^FloatMath, ^FloatStore: $0.dest != $1.source && $0.dest == $3.dest => $SUBST([$1, $2, $3]); `));
     mixin(opt("float_pointless_swap",  `^FloatSwap, ^FloatMath: $1.opName == "fadd" || $1.opName == "fmul" => $SUBST([$1]); `));
     mixin(opt("float_pointless_store",  `^FloatStore, ^FloatPop: $0.dest == $1.dest => $SUBST([$1]); `));
@@ -531,7 +546,7 @@ class AsmFile {
         dest = $1.source;
       }
     `));
-    mixin(opt("indirect_access_2", `^Mov, ^MathOp, ^FloatLoad:
+    mixin(opt("indirect_access_2", `^Mov, ^MathOp, *:
       (hasDest($2) || hasSource($2)) &&
       $0.from.isRegister() && $1.opName == "addl" && $1.op1.isLiteral() &&
       $0.to == $1.op2 && $0.to == "%eax" && (hasDest($2) && $2.dest == "(%eax)" || hasSource($2) && $2.source == "(%eax)")
@@ -541,7 +556,14 @@ class AsmFile {
         t.dest  = Format($1.op1.literalToInt(), "(", $0.from, ")");
       else
         t.source = Format($1.op1.literalToInt(), "(", $0.from, ")");
-      $SUBST([$0, $1, t]);
+      $SUBST([t]);
+    `));
+    mixin(opt("indirect_access_3", `^MathOp, *:
+      hasSource($1) && $1.source == "(" ~ $0.op2 ~ ")" && $0.op1.isNumLiteral()
+      =>
+      auto t = $1;
+      t.source = Format($0.op1.literalToInt(), $1.source);
+      $SUBST([t]);
     `));
     mixin(opt("store_float_direct", `^FloatPop, ^Pop:
       $0.dest == "(%esp)" && $1.type.size == 4
@@ -562,23 +584,24 @@ class AsmFile {
       $SUBST([$1]);
     `));
   }
-  bool optsSetup;
   string[] goodOpts;
   void runOpts() {
-    if (!optsSetup) {
-      setupOpts;
-      optsSetup = true;
-    }
+    setupOpts;
     string optstr;
     bool[string] unused;
-    foreach (name, opt; opts) unused[name] = true;
+    bool delegate()[string] map;
+    foreach (entry; opts) if (entry._2) {
+      unused[entry._1] = true;
+      map[entry._1] = entry._0;
+    }
     foreach (opt; goodOpts) {
       unused.remove(opt);
-      opts[opt]();
+      map[opt]();
     }
     while (true) {
       bool anyChange;
-      foreach (name, opt; opts) {
+      foreach (entry; opts) if (entry._2) {
+        auto opt = entry._0, name = entry._1;
         if (opt()) {
           unused.remove(name);
           
@@ -597,7 +620,7 @@ class AsmFile {
       foreach (str; s) { if (res) res ~= ", "; res ~= str; }
       return res;
     }
-    // if (optstr) logln("Opt: ", goodOpts.join(), " + ", optstr, " - ", unused.keys);
+    if (optstr && debugOpts) logln("Opt: ", goodOpts.join(), " + ", optstr, " - ", unused.keys);
   }
   void flush() {
     if (optimize) runOpts;

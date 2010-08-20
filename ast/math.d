@@ -24,6 +24,7 @@ class IntAsFloat : Expr {
   mixin defaultIterate!(i);
   this(Expr i) { this.i = i; assert(i.valueType() == Single!(SysInt)); }
   override {
+    string toString() { return Format("float(", i, ")"); }
     IType valueType() { return Single!(Float); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("4"));
@@ -136,6 +137,19 @@ string fold(Expr ex) {
   return null;
 }
 
+void opt(Expr ex) {
+  void delegate(ref Iterable) dg;
+  dg = (ref Iterable it) {
+    it.iterate(dg);
+    if (auto iaf = cast(IntAsFloat) it) {
+      if (auto ie = cast(IntExpr) iaf.i) {
+        it = new FloatExpr(ie.num);
+      }
+    }
+  };
+  ex.iterate(dg);
+}
+
 class AsmBinopExpr(string OP) : Expr {
   Expr e1, e2;
   this(Expr e1, Expr e2) {
@@ -147,6 +161,7 @@ class AsmBinopExpr(string OP) : Expr {
       else
         e1 = new IntAsFloat(e1);
     }
+    opt(e1); opt(e2);
     this.e1 = e1;
     this.e2 = e2;
   }

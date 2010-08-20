@@ -98,15 +98,15 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
     return 0;
   }
   auto start = time(cast(int*) 0);
-  int limit = 16384;
   float t = 0;
   void run() {
     t = t + 0.05;
+    int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
     for (int y = 0; y < surface.h; ++y) {
+      auto p = &(surface.pixels[y * cast(int) surface.w]);
       for (int x = 0; x < surface.w; ++x) {
         auto f = dg(cast(float) x / surface.w, cast(float) y / surface.h, t);
-        int expix = cast(int) (f[2] * 255) + cast(int) (f[1] * 256 * 255) & (256 * 255) + cast(int) (f[0] * 256 * 256 * 255) & (256 * 256 * 255);
-        surface.pixels[y * surface.w + x] = expix;
+        *(p++) = cast(int) (factor1 * f[2]) + cast(int) (factor2 * f[1]) & factor2 + cast(int) (factor3 * f[0]) & factor3;
       }
     }
   }
@@ -328,13 +328,13 @@ int main(int argc, char** argv) {
         // TODO: check FP env
         return cast(int) (floorf(f) + 0.1);
       }
-      float[3] n;
+      float[3] n = void;
       
       float s = (fx + fy) * f2;
       int i = fastfloor(fx + s), j = fastfloor(fy + s);
       
       float t = (i + j) * g2;
-      float[3] x, y;
+      float[3] x = void, y = void;
       x[0] = fx - (i - t);
       y[0] = fy - (j - t);
       
@@ -348,7 +348,7 @@ int main(int argc, char** argv) {
       y[2] = y[0] - 1 + 2 * g2;
       int ii = i & 255, jj = j & 255;
       
-      int[3] gi;
+      int[3] gi = void;
       gi[0] = perm[ii + perm[jj]] % 12;
       gi[1] = perm[ii + i1 + perm[jj + j1]] % 12;
       gi[2] = perm[ii + 1  + perm[jj + 1 ]] % 12;
@@ -377,7 +377,7 @@ int main(int argc, char** argv) {
       return x * x * (3 - 2 * x);
     }
     float[3] rgb(float r, float g, float b) {
-      float[3] res;
+      float[3] res = void;
       res[0] = r;
       res[1] = g;
       res[2] = b;
@@ -418,7 +418,7 @@ int main(int argc, char** argv) {
       // auto f2 = fun2(x, y);
       x = x - 0.5;
       y = y - 0.5;
-      auto dist = sqrtf(x * x + y * y);
+      // auto dist = sqrtf(x * x + y * y);
       // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
       auto n = 0.5 * noise2(x * 4 + t, y * 4);
       n = clamp(0, 1, n);

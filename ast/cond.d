@@ -62,12 +62,12 @@ class Compare : Cond {
       
       if (isFloat) {
         e2.emitAsm(af);
-        af.put("flds (%esp)");
+        af.loadFloat("(%esp)");
         af.sfree(4);
         e1.emitAsm(af);
-        af.put("flds (%esp)");
+        af.loadFloat("(%esp)");
         af.sfree(4);
-        af.put("fucompp");
+        af.put("fucompp"); af.floatStackDepth -= 2;
         af.put("fnstsw %ax");
         af.put("sahf");
       } else if (auto ie = cast(IntExpr) e2) {

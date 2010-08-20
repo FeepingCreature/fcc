@@ -49,8 +49,29 @@ import ast.modules;
 
 import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 
+extern(C) void exit(int);
+
 import tools.time;
-string compile(string file, bool saveTemps = false, bool optimize = false) {
+string compile(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
+  auto af = new AsmFile(optimize);
+  if (configOpts) {
+    af.setupOpts();
+    auto cmds = configOpts.split(",");
+    foreach (cmd; cmds) {
+      if (cmd == "info") {
+        writefln("count: ", af.opts.length);
+        foreach (i, opt; af.opts) {
+          writefln("id:", i, " name:", opt._1, " ", opt._2?"on":"off");
+        }
+        exit(1);
+      }
+      if (auto rest = cmd.startsWith("disable ")) {
+        int which = rest.atoi();
+        af.opts[which]._2 = false;
+        continue;
+      }
+    }
+  }
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
     srcname = end ~ ".s";
@@ -69,7 +90,6 @@ string compile(string file, bool saveTemps = false, bool optimize = false) {
   else assert(false, "unable to eat module from "~file~": "~error);
   auto len_parse = sec() - start_parse;
   if (text.strip().length) assert(false, "this text confuses me: "~text.next_text()~": "~error);
-  auto af = new AsmFile(optimize);
   auto len_gen = time({sysmod.emitAsm(af); mod.emitAsm(af); }) / 1_000_000f;
   writefln(len_parse, " to parse, ", len_gen, " to emit. ");
   writefln("Subsegments: ", ast.namespace.bench);
@@ -122,6 +142,7 @@ int main(string[] args) {
     initedSysmod = true;
     setupSysmods();
   }
+  string configOpts;
   while (ar.length) {
     auto arg = ar.take();
     if (arg == "-o") {
@@ -144,6 +165,10 @@ int main(string[] args) {
       debugOpts = true;
       continue;
     }
+    if (arg == "-config-opts") {
+      configOpts = ar.take();
+      continue;
+    }
     if (arg == "-debug-parser") {
       verboseParser = true;
       continue;
@@ -155,7 +180,7 @@ int main(string[] args) {
     if (auto base = arg.endsWith(".cr")) {
       if (!output) output = arg[0 .. $-3];
       lazySysmod();
-      objects ~= arg.compile(saveTemps, optimize);
+      objects ~= arg.compile(saveTemps, optimize, configOpts);
       continue;
     }
     logln("Invalid argument: ", arg);

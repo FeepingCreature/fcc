@@ -28,6 +28,7 @@ string genIterates(int params) {
         static if (is(typeof({ foreach (i, ref entry; $A) {} }))) {
           foreach (i, ref entry; $A) {
             Iterable iter = entry;
+            if (!iter) continue;
             dg(iter);
             if (iter !is entry) {
               auto res = cast(typeof(entry)) iter;
@@ -36,12 +37,13 @@ string genIterates(int params) {
             }
           }
         } else {
-          Iterable iter = $A;
-          dg(iter);
-          if (iter !is $A) {
-            auto res = cast(typeof($A)) iter;
-            if (!res) throw new Exception(Format("Cannot substitute ", $A, " with ", res, ": ", typeof($A).stringof, " expected! "));
-            $A = res;
+          if (Iterable iter = $A) {
+            dg(iter);
+            if (iter !is $A) {
+              auto res = cast(typeof($A)) iter;
+              if (!res) throw new Exception(Format("Cannot substitute ", $A, " with ", res, ": ", typeof($A).stringof, " expected! "));
+              $A = res;
+            }
           }
         }
       }`.ctReplace("$A", "A"~ctToString(i));
