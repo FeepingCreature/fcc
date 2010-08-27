@@ -68,8 +68,6 @@ class Compare : Cond {
         af.loadFloat("(%esp)");
         af.sfree(4);
         af.put("fucompp"); af.floatStackDepth -= 2;
-        af.put("fnstsw %ax");
-        af.put("sahf");
       } else if (auto ie = cast(IntExpr) e2) {
         e1.emitAsm(af);
         af.popStack("%eax", e1.valueType());

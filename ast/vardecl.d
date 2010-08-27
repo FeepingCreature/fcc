@@ -16,7 +16,7 @@ class VarDecl : Statement {
         mixin(mustOffset("var.type.size"));
         int sz = var.type.size;
         // TODO: investigate why necessary for chars
-        if (sz == 1) af.salloc(var.type.size);
+        if (sz == 1) af.salloc(1);
         var.initval.emitAsm(af);
         if (sz == 1) {
           var.emitLocation(af);

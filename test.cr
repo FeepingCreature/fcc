@@ -73,6 +73,7 @@ extern(C) {
   int SDL_WaitEvent(SDL_Event*);
   int SDL_PollEvent(SDL_Event*);
   int rand();
+  int fesetround(int direction);
 }
 
 extern(C) {
@@ -88,7 +89,7 @@ extern(C) {
 void sdlfun(float[3] delegate(float, float, float) dg) {
   SDL_Init(32); // video
   //                                                  SDL_ANYFORMAT
-  SDL_Surface* surface = SDL_SetVideoMode(640, 480, 0, 268435456);
+  SDL_Surface* surface = SDL_SetVideoMode(320, 240, 0, 268435456);
   int update() {
     SDL_Flip(surface);
     SDL_Event ev;
@@ -99,7 +100,9 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
   }
   auto start = time(cast(int*) 0);
   float t = 0;
+  int fps;
   void run() {
+    fesetround(1024); // FE_DOWNWARD
     t = t + 0.05;
     int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
     for (int y = 0; y < surface.h; ++y) {
@@ -109,10 +112,17 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
         *(p++) = cast(int) (factor1 * f[2]) + cast(int) (factor2 * f[1]) & factor2 + cast(int) (factor3 * f[0]) & factor3;
       }
     }
+    fps ++;
   }
+  auto last = time(cast(int*) 0);
   while 1 {
     run();
     if (update()) return;
+    if time(cast(int*) 0) > last {
+      last = time(cast(int*) 0);
+      writeln("FPS: $fps");
+      fps = 0;
+    }
   }
 }
 
@@ -324,14 +334,10 @@ int main(int argc, char** argv) {
     float sqrt3 = sqrtf(3);
     float f2 = 0.5 * (sqrt3 - 1), g2 = (3 - sqrt3) / 6;
     float noise2(float fx, float fy) {
-      int fastfloor(float f) {
-        // TODO: check FP env
-        return cast(int) (floorf(f) + 0.1);
-      }
       float[3] n = void;
       
       float s = (fx + fy) * f2;
-      int i = fastfloor(fx + s), j = fastfloor(fy + s);
+      int i = cast(int) (fx + s), j = cast(int) (fy + s);
       
       float t = (i + j) * g2;
       float[3] x = void, y = void;
@@ -419,10 +425,10 @@ int main(int argc, char** argv) {
       x = x - 0.5;
       y = y - 0.5;
       // auto dist = sqrtf(x * x + y * y);
-      // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
-      auto n = 0.5 * noise2(x * 4 + t, y * 4);
+      auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
+      // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.5;
       n = clamp(0, 1, n);
-      float[3] n2 = rgb(n, n, n);
+      float[3] n2 = rgb(n, n * n, n * 2);
       return n2;
       // return transition(&f2, &n2, smoothstep(0.3, 0.5, dist + noise2(x * 2 + 100, y * 2) * 0.1));
     }
