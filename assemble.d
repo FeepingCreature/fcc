@@ -232,7 +232,6 @@ struct Transaction {
       string[] names; // label
       bool hasLabel(string s) { foreach (name; names) if (name == s) return true; return false; }
     }
-    int stackdepth;
   }
 }
 
@@ -249,13 +248,21 @@ struct Transsection(C) {
   size_t length() { return to - from; }
   void replaceWith(Transaction[] withWhat) {
     if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", withWhat);
-    parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
+    if (withWhat.length == length) {
+      parent.list[from .. to] = withWhat;
+    } else {
+      parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
+    }
     to = from + withWhat.length;
     modded = true;
   }
   void replaceWith(Transaction withWhat) {
     if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", withWhat);
-    parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
+    if (length == 1) {
+      parent.list[from] = withWhat;
+    } else {
+      parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
+    }
     to = from + 1;
     modded = true;
   }

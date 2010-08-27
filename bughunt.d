@@ -1,7 +1,7 @@
 // isolate errors in the peephole optimizer
 module bughunt;
 
-import qd, SDL_ttf, tools.base, tools.compat, tools.time;
+import qd, SDL_ttf, tools.base, tools.compat, tools.time, tools.threadpool, tools.mersenne, tools.functional;
 
 extern(C) {
   int pipe(int*);
@@ -33,7 +33,7 @@ string readback(string cmd) {
 }
 
 enum State {
-  On, Testing, KnownBad
+  On, Testing, KnownGood
 }
 
 int main(string[] args) {
@@ -44,7 +44,7 @@ int main(string[] args) {
   }
   auto info = readback("./fcc -config-opts \"info\" "~args[0]~" -o bughunt_test").split("\n");
   void build(string flags) {
-    auto line = Format("./fcc -config-opts \""~flags~"\" "~args[0]~" -o bughunt_test");
+    auto line = Format("./fcc -config-opts \""~flags~"\" "~args[0]~" -o bughunt_test >/dev/null");
     logln("> ", line);
     system(toStringz(line));
   }
@@ -59,6 +59,8 @@ int main(string[] args) {
   foreach (i, name; names) left ~= i;
   
   auto rowheight = 20;
+  void delegate() maindg;
+  auto tp = new Threadpool(1), mainpool = new Threadpool(0);
   void render() {
     auto offs = 24;
     foreach (i, state; states) {
@@ -68,13 +70,8 @@ int main(string[] args) {
       offs += rowheight;
     }
   }
-  void update() { render; flip; events; }
+  void update() { mainpool.future({ render; }).eval; }
   
-  void setupTest(int from, int to, bool undo) {
-    for (int i = from; i < to; ++i) {
-      states[left[i]] = undo?State.On:State.Testing;
-    }
-  }
   string genFlags() {
     string res;
     foreach (i, state; states) if (state != State.On) {
@@ -84,39 +81,68 @@ int main(string[] args) {
     return res;
   }
   // does it work with that range knocked out?
-  bool works(int from, int to) {
-    setupTest(from, to, false);
+  bool works() {
+    update;
     build(genFlags());
     system("./bughunt_test");
-    setupTest(from, to, true);
-    for (int i = 0; i < 50; ++i) { sleep(0.1); flip; events; }
-    while (true) {
-      writefln("Did it work? Y/N");
-      auto line = readln().chomp();
-      if (line == "Y") return true;
-      if (line == "N") return false;
-    }
+    auto dialog = display.select(300, 20, 150, 40);
+    
+    bool forb, res;
+    synchronized(SyncObj!(maindg)) maindg = {
+      line(dialog.tl, dialog.br, Box=White, Fill=Black);
+      print(dialog, "Did it work?", Top);
+      print(dialog, "Yes", Left|Bottom);
+      print(dialog, "No", Right|Bottom);
+      if (mouse in dialog && mouse.clicked) {
+        res = mouse.pos.x < (dialog.tl.x + dialog.br.x) / 2;
+        synchronized(SyncObj!(maindg)) maindg = null;
+        cls;
+        forb = true;
+      }
+    };
+    while (!forb) slowyield; // idlespin lol
+    logln("You clicked ", res?"Yes":"No", ".");
+    return res;
   }
+  float threshold = 0.5;
   int bisect() {
-    int from = 0, to = left.length;
-    while (from != to) {
-      update;
-      auto pivot = from + (to - from) / 2;
-      if (works(0, pivot)) {
-        to = pivot;
-      } else {
-        assert(works(0, to));
-        from = pivot;
+    while (true) {
+      for (int i = 0; i < left.length; ++i) {
+        states[left[i]] = ((rand() * 1f / typeof(rand()).max) < threshold)  ? State.On : State.Testing;
+      }
+      if (works) { threshold = (threshold + 1) / 2; continue; }
+      else {
+        threshold = threshold * 0.8;
+        for (int i = 0; i < left.length; ++i) {
+          if (states[left[i]] == State.On) continue;
+          else {
+            states[left[i]] = State.KnownGood;
+          }
+        }
+      }
+      {
+        auto newleft = left.dup[0 .. 0];
+        for (int i = 0; i < left.length; ++i) {
+          if (states[left[i]] == State.KnownGood) continue;
+          else newleft ~= left[i];
+        }
+        left = newleft;
       }
     }
-    logln("required ", names[from]);
-    exit(1);
+    logln("required to fail: ", left /map/ ex!("a -> b -> a[b]")(names));
     return 0;
   }
   
   screen(640, 24 + rowheight * names.length);
   render;
-  bisect();
-  while (true) { flip; events; }
+  tp.addTask({
+    bisect();
+  });
+  while (true) {
+    synchronized(SyncObj!(maindg)) if (maindg) maindg();
+    mainpool.idle();
+    flip;
+    events;
+  }
   return 0;
 }
