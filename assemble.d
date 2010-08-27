@@ -46,7 +46,7 @@ struct Transaction {
       case Kind.Compare:
         if (test) return Format("[cmp/test ", op1, ", ", op2, "]");
         else return Format("[cmp ", op1, ", ", op2, "]");
-      case Kind.FloatLoad: return Format("[float load ", source, "]");
+      case Kind.FloatLoad: return Format("[float load ", source, stackinfo, "]");
       case Kind.FloatStore: return Format("[float store ", dest, "]");
       case Kind.FloatPop:  return Format("[float pop ", dest, "]");
       case Kind.FloatMath: return Format("[float math ", opName, "]");
@@ -235,6 +235,7 @@ struct Transaction {
     int stackdepth = -1;
   }
   bool hasStackdepth() { return stackdepth != -1; }
+  string stackinfo() { return stackdepth == -1 ? "" : Format("@", stackdepth); }
   Transaction dup() {
     Transaction res = *this;
     res.stackdepth = -1;

@@ -597,7 +597,12 @@ class AsmFile {
     mixin(opt("ebp_to_esp", `*:
       hasSource($0) && $0.source.between("(", ")") == "%ebp" && $0.hasStackdepth
       =>
-      $0.source = Format(- $0.stackdepth - $0.source.between("", "(").atoi(), "(%ebp)");
+      auto offs = $0.source.between("", "(").atoi();
+      auto new_offs = offs + $0.stackdepth;
+      if (offs < 0) $SUBSTWITH {
+        res = $0.dup;
+        source = Format(new_offs, "(%esp)");
+      }
     `));
     
     // jump opts
