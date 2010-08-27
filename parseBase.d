@@ -59,7 +59,6 @@ bool gotInt(ref string text, out int i) {
     if (!getDigits(Scheme.Decimal)) return false;
   }
   i = res;
-  logln(text.next_text(), " => ", i);
   text = t2;
   return true;
 }
