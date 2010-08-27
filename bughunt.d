@@ -1,7 +1,8 @@
 // isolate errors in the peephole optimizer
 module bughunt;
 
-import qd, SDL_ttf, tools.base, tools.compat, tools.time;
+import qd, SDL_ttf;
+import tools.base, tools.compat, tools.time, tools.threads;
 
 extern(C) {
   int pipe(int*);
@@ -58,7 +59,7 @@ int main(string[] args) {
   int[] left;
   foreach (i, name; names) left ~= i;
   
-  auto rowheight = 20;
+  auto rowheight = 12;
   void render() {
     auto offs = 24;
     foreach (i, state; states) {

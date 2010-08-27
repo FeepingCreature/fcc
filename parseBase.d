@@ -1,6 +1,7 @@
 module parseBase;
 
 import tools.base;
+enum Scheme { Binary, Octal, Decimal, Hex }
 bool gotInt(ref string text, out int i) {
   auto t2 = text.strip();
   if (auto rest = t2.startsWith("-")) {
@@ -10,13 +11,51 @@ bool gotInt(ref string text, out int i) {
         (text = rest),
         true
       );
+  }
+  ubyte ub;
+  bool accept(ubyte from, ubyte to = 0xff) {
+    if (!t2.length) return false;
+    ub = t2[0];
+    if (ub < from) return false;
+    if (to != 0xff) { if (ub > to) return false; }
+    else { if (ub > from) return false; }
+    ub -= from;
+    t2.take();
+    return true;
+  }
+  
+  int res;
+  bool getDigits(Scheme scheme) {
+    int[4] factor = [2, 8, 10, 16];
+    bool gotSomeDigits = false;
+    outer:while (true) {
+      while (accept('_')) { }
+      switch (scheme) {
+        case Scheme.Hex:
+          if (accept('a', 'f')) { ub += 10; break; }
+          if (accept('A', 'F')) { ub += 10; break; }
+        case Scheme.Decimal: if (accept('8', '9')) break;
+        case Scheme.Octal:   if (accept('2', '7')) break;
+        case Scheme.Binary:  if (accept('0', '1')) break;
+        default: break outer;
+      }
+      gotSomeDigits = true;
+      assert(ub < factor[scheme]);
+      res = res * factor[scheme] + ub;
     }
-  bool isNum(char c) { return c >= '0' && c <= '9'; }
-  if (!t2.length || !isNum(t2[0])) return false;
-  int res = t2.take() - '0';
-  while (t2.length) {
-    if (!isNum(t2[0])) break;
-    res = res * 10 + t2.take() - '0'; 
+    return gotSomeDigits;
+  }
+
+  if (accept('0')) {
+    if (accept('b') || accept('B')) {
+      if (!getDigits(Scheme.Binary)) return false;
+    } else if (accept('x') || accept('X')) {
+      if (!getDigits(Scheme.Hex)) return false;
+    } else {
+      if (!getDigits(Scheme.Octal)) res = 0;
+    }
+  } else {
+    if (!getDigits(Scheme.Decimal)) return false;
   }
   i = res;
   text = t2;
