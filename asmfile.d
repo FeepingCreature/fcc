@@ -153,6 +153,7 @@ class AsmFile {
     Transaction t;
     t.kind = Transaction.Kind.FloatLoad;
     t.source = mem;
+    t.stackdepth = currentStackDepth;
     cache ~= t;
   }
   void storeFloat(string mem) {
@@ -274,8 +275,7 @@ class AsmFile {
           "$SUBSTWITH", `foreach (ref $T res; onceThenCall(($T t) { match.replaceWith(t); })) with (res)`,
           "$SUBST", `match.replaceWith`,
           "$TK", `Transaction.Kind`,
-          "$T", `Transaction`,
-          "$RESET", `{ if (!match.reset()) break; goto _loophead; }`);
+          "$T", `Transaction`);
   }
   static bool isRegister(string s) {
     return s.length > 2 && s[0] == '%' && s[1] != '(';
@@ -324,7 +324,6 @@ class AsmFile {
     bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
     // alloc can be shuffled down past _anything_ that doesn't reference ESP.
     mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !referencesESP($1) => $SUBST([$1, $0]); `));
-    pragma(msg, opt("sort_mem", `^SAlloc || ^SFree, *: !referencesESP($1) => $SUBST([$1, $0]); `));
     mixin(opt("collapse_alloc_frees", `^SAlloc || ^SFree, ^SAlloc || ^SFree =>
       int sum_inc;
       if ($0.kind == $TK.SAlloc) sum_inc += $0.size;
@@ -401,14 +400,12 @@ class AsmFile {
       }
     `));
     mixin(opt("add_and_pop_reg", `^MathOp, ^Pop: $0.op2 == "(%esp)" && ($0.op1.find($1.to) == -1) =>
-      $T res = $0;
+      auto res = $0.dup;
       res.op2 = $1.to;
       $SUBST([$1, res]);
-      $RESET;
     `));
     mixin(opt("literals_first", `^MathOp, ^MathOp: $0.op2 == $1.op2 && $0.op1.isRegister() && $1.op1.isLiteral() =>
       $SUBST([$1, $0]);
-      $RESET;
     `));
     mixin(opt("fold_math", `^Mov, ^MathOp: $1.opName == "addl" && $0.to == $1.op2 && $0.from.isNumLiteral() && $1.op1.isNumLiteral() =>
       $SUBSTWITH {
@@ -517,8 +514,9 @@ class AsmFile {
     mixin(opt("load_from_push", `^Push, ^FloatLoad:
       !$0.source.isRegister() && $1.source == "(%esp)"
       =>
-      $T a1 = $1, a2;
+      $T a1 = $1.dup, a2;
       a1.source = $0.source;
+      if ($1.hasStackdepth) a1.stackdepth = $1.stackdepth - 4;
       a2.kind = $TK.SAlloc;
       a2.size = 4;
       $SUBST([a1, a2]);
@@ -596,6 +594,11 @@ class AsmFile {
       t2.size = 4;
       $SUBST([t1, t2]);
     `));
+    mixin(opt("ebp_to_esp", `*:
+      hasSource($0) && $0.source.between("(", ")") == "%ebp" && $0.hasStackdepth
+      =>
+      $0.source = Format(- $0.stackdepth - $0.source.between("", "(").atoi(), "(%ebp)");
+    `));
     
     // jump opts
     mixin(opt("join_labels", `^Label, ^Label => auto t = $0; t.names = t.names ~ $1.names; $SUBST([t]); `));
@@ -633,11 +636,13 @@ class AsmFile {
           goodOpts ~= name;
           anyChange = true;
         }
+        // logln("Executed ", name, " => ", anyChange, "; ", cache.list);
       }
+      // logln("::", anyChange, "; ", cache.list);
       if (!anyChange) break;
       // logln("optstr now ", optstr, ", omitted: ", unused.keys);
     }
-    if (cache.list) logln("After opts: ", cache.list);
+    
     string join(string[] s) {
       string res;
       foreach (str; s) { if (res) res ~= ", "; res ~= str; }

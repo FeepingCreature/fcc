@@ -232,6 +232,13 @@ struct Transaction {
       string[] names; // label
       bool hasLabel(string s) { foreach (name; names) if (name == s) return true; return false; }
     }
+    int stackdepth = -1;
+  }
+  bool hasStackdepth() { return stackdepth != -1; }
+  Transaction dup() {
+    Transaction res = *this;
+    res.stackdepth = -1;
+    return res;
   }
 }
 
