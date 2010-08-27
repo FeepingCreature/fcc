@@ -84,7 +84,7 @@ int main(string[] args) {
   bool works() {
     update;
     build(genFlags());
-    system("./bughunt_test >/dev/null");
+    system("./bughunt_test");
     auto dialog = display.select(300, 20, 150, 40);
     
     bool forb, res;

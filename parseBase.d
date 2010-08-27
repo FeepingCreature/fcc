@@ -15,12 +15,13 @@ bool gotInt(ref string text, out int i) {
   ubyte ub;
   bool accept(ubyte from, ubyte to = 0xff) {
     if (!t2.length) return false;
-    ub = t2[0];
-    if (ub < from) return false;
-    if (to != 0xff) { if (ub > to) return false; }
-    else { if (ub > from) return false; }
-    ub -= from;
+    ubyte nub = t2[0];
+    if (nub < from) return false;
+    if (to != 0xff) { if (nub > to) return false; }
+    else { if (nub > from) return false; }
+    nub -= from;
     t2.take();
+    ub = nub;
     return true;
   }
   
@@ -34,8 +35,8 @@ bool gotInt(ref string text, out int i) {
         case Scheme.Hex:
           if (accept('a', 'f')) { ub += 10; break; }
           if (accept('A', 'F')) { ub += 10; break; }
-        case Scheme.Decimal: if (accept('8', '9')) break;
-        case Scheme.Octal:   if (accept('2', '7')) break;
+        case Scheme.Decimal: if (accept('0', '9')) break;
+        case Scheme.Octal:   if (accept('0', '7')) break;
         case Scheme.Binary:  if (accept('0', '1')) break;
         default: break outer;
       }
@@ -58,6 +59,7 @@ bool gotInt(ref string text, out int i) {
     if (!getDigits(Scheme.Decimal)) return false;
   }
   i = res;
+  logln(text.next_text(), " => ", i);
   text = t2;
   return true;
 }
