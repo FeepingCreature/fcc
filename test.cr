@@ -86,10 +86,12 @@ extern(C) {
   float sinf(float);
   int time(int*);
 }
+
+alias SDL_ANYFORMAT = 0x10_000_000;
+
 void sdlfun(float[3] delegate(float, float, float) dg) {
   SDL_Init(32); // video
-  //                                                   SDL_ANYFORMAT
-  SDL_Surface* surface = SDL_SetVideoMode(640, 480, 0, 0x10_000_000);
+  SDL_Surface* surface = SDL_SetVideoMode(320, 240, 0, SDL_ANYFORMAT);
   int update() {
     SDL_Flip(surface);
     SDL_Event ev;

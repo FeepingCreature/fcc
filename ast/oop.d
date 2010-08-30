@@ -27,7 +27,7 @@ class VTable {
   }
 }
 
-class Intf : Named, IType, Tree {
+class Intf : Named, IType, Tree, SelfAdding {
   string name;
   override string getIdentifier() { return name; }
   mixin TypeDefaults!();
