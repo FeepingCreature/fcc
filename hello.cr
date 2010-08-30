@@ -1,6 +1,8 @@
 module hello;
 import sys;
 
+alias FF = 0xff;
+
 int main(int argc, char** argv) {
   writeln("Hello World");
   int a = 1_024;

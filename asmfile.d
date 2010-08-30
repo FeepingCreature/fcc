@@ -20,12 +20,13 @@ class AsmFile {
   Transcache cache;
   int currentStackDepth;
   void pushStack(string expr, IType type) {
-    currentStackDepth += type.size;
     Transaction t;
     t.kind = Transaction.Kind.Push;
     t.source = expr;
     t.type = type;
+    t.stackdepth = currentStackDepth;
     cache ~= t;
+    currentStackDepth += type.size;
   }
   void popStack(string dest, IType type) {
     currentStackDepth -= type.size;
@@ -293,8 +294,8 @@ class AsmFile {
     assert(isLiteral(s), "1");
     return s[1 .. $].atoi();
   }
-  static bool referencesESP(ref Transaction t) {
-    bool foo(string s) { return s.find("%esp") != -1; }
+  static bool referencesStack(ref Transaction t) {
+    bool foo(string s) { return s.find("%esp") != -1 || s.find("%ebp") != -1; }
     with (Transaction.Kind) switch (t.kind) {
       case   SAlloc, SFree, Pop, Push : return true;
       case                       Call : return true;
@@ -309,11 +310,25 @@ class AsmFile {
   }
   static bool hasSource(ref Transaction t) {
     with (Transaction.Kind)
-      return t.kind == Push || t.kind == FloatLoad;
+      return !!(t.kind == Push /or/ FloatLoad);
   }
   static bool hasDest(ref Transaction t) {
     with (Transaction.Kind)
-      return t.kind == Pop || t.kind == Call || t.kind == FloatStore || t.kind == FloatPop;
+      return !!(t.kind == Pop /or/ Call /or/ FloatStore /or/ FloatPop);
+  }
+  static bool hasSize(ref Transaction t) {
+    with (Transaction.Kind)
+      return !!(t.kind == Push /or/ Pop /or/ Mov /or/ Mov2 /or/ Mov1);
+  }
+  static int size(ref Transaction t) {
+    with (Transaction.Kind) switch (t.kind) {
+      case Push: return t.type.size;
+      case Pop: return t.type.size;
+      case Mov: return 4;
+      case Mov2: return 2;
+      case Mov1: return 1;
+    }
+    assert(false);
   }
   // dg, name, allow
   Stuple!(bool delegate(), string, bool)[] opts;
@@ -323,7 +338,7 @@ class AsmFile {
     optsSetup = true;
     bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
     // alloc can be shuffled down past _anything_ that doesn't reference ESP.
-    mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !referencesESP($1) => $SUBST([$1, $0]); `));
+    mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !referencesStack($1) => $SUBST([$1, $0]); `));
     mixin(opt("collapse_alloc_frees", `^SAlloc || ^SFree, ^SAlloc || ^SFree =>
       int sum_inc;
       if ($0.kind == $TK.SAlloc) sum_inc += $0.size;
@@ -595,11 +610,17 @@ class AsmFile {
       $SUBST([t1, t2]);
     `));
     mixin(opt("ebp_to_esp", `*:
-      hasSource($0) && $0.source.between("(", ")") == "%ebp" && $0.hasStackdepth
+      hasSource($0) && $0.source.between("(", ")") == "%ebp" && $0.hasStackdepth && (!hasSize($0) || size($0) != 1)
       =>
       auto offs = $0.source.between("", "(").atoi();
       auto new_offs = offs + $0.stackdepth;
-      if (offs < 0) $SUBSTWITH {
+      bool skip;
+      if ($0.kind == $TK.Push) {
+        // if we can't do the push in one step
+        if ($0.type.size != 4 /or/ 2 /or/ 1) 
+          skip = true;
+      }
+      if (!skip) $SUBSTWITH {
         res = $0.dup;
         source = Format(new_offs, "(%esp)");
       }

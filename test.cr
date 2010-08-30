@@ -88,8 +88,8 @@ extern(C) {
 }
 void sdlfun(float[3] delegate(float, float, float) dg) {
   SDL_Init(32); // video
-  //                                                  SDL_ANYFORMAT
-  SDL_Surface* surface = SDL_SetVideoMode(320, 240, 0, 268435456);
+  //                                                   SDL_ANYFORMAT
+  SDL_Surface* surface = SDL_SetVideoMode(640, 480, 0, 0x10_000_000);
   int update() {
     SDL_Flip(surface);
     SDL_Event ev;
@@ -425,8 +425,8 @@ int main(int argc, char** argv) {
       x = x - 0.5;
       y = y - 0.5;
       // auto dist = sqrtf(x * x + y * y);
-      auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
-      // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.5;
+      // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
+      auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.5;
       n = clamp(0, 1, n);
       float[3] n2 = rgb(n, n * n, n * 2);
       return n2;
