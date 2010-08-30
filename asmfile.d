@@ -162,6 +162,7 @@ class AsmFile {
     Transaction t;
     t.kind = Transaction.Kind.FloatPop;
     t.dest = mem;
+    t.stackdepth = currentStackDepth;
     cache ~= t;
   }
   void floatToStack() {
@@ -308,6 +309,10 @@ class AsmFile {
     }
     return true;
   }
+  static bool changesESP(ref Transaction t) {
+    with (Transaction.Kind)
+      return !!(t.kind == Push /or/ Pop);
+  }
   static bool hasSource(ref Transaction t) {
     with (Transaction.Kind)
       return !!(t.kind == Push /or/ FloatLoad);
@@ -316,6 +321,11 @@ class AsmFile {
     with (Transaction.Kind)
       return !!(t.kind == Pop /or/ Call /or/ FloatStore /or/ FloatPop);
   }
+  static bool hasFrom(ref Transaction t) {
+    with (Transaction.Kind)
+      return !!(t.kind == Mov /or/ Mov2 /or/ Mov1);
+  }
+  alias hasFrom hasTo;
   static bool hasSize(ref Transaction t) {
     with (Transaction.Kind)
       return !!(t.kind == Push /or/ Pop /or/ Mov /or/ Mov2 /or/ Mov1);
@@ -337,8 +347,34 @@ class AsmFile {
     if (optsSetup) return;
     optsSetup = true;
     bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
-    // alloc can be shuffled down past _anything_ that doesn't reference ESP.
+    // alloc/free can be shuffled down past _anything_ that doesn't reference stack.
     mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !referencesStack($1) => $SUBST([$1, $0]); `));
+    mixin(opt("sort_pointless_mem", `^SAlloc || ^SFree, *:
+      (hasSource($1) || hasDest($1) || hasFrom($1) || hasTo($1)) && !changesESP($1)
+      =>
+      string* sp;
+      $T t = $1.dup;
+      bool used;
+      void doStuff(ref string s) {
+        if (s.between("(", ")") != "%esp") return;
+        auto offs = s.between("", "(").atoi();
+        if ($0.kind == $TK.SAlloc) {
+          if (offs > $0.size) { // will be unaffected
+            s = Format(offs - $0.size, "(%esp)");
+            used =  true;
+          }
+        } else {
+          s = Format(offs + $0.size, "(%esp)");
+          used = true;
+        }
+      }
+      if (hasSource($1)) doStuff(t.source);
+      if (hasDest  ($1)) doStuff(t.dest);
+      if (hasFrom  ($1)) doStuff(t.from);
+      if (hasTo    ($1)) doStuff(t.to);
+      if (used)
+        $SUBST([t, $0]);
+    `));
     mixin(opt("collapse_alloc_frees", `^SAlloc || ^SFree, ^SAlloc || ^SFree =>
       int sum_inc;
       if ($0.kind == $TK.SAlloc) sum_inc += $0.size;
@@ -378,6 +414,7 @@ class AsmFile {
           $T mv;
           mv.kind = $TK.Mov;
           mv.from = source; mv.to = dest;
+          mv.stackdepth = $0.stackdepth;
           size -= sz;
           if (size) {
             source.incr(sz);
@@ -542,6 +579,7 @@ class AsmFile {
       $T a1, a2;
       a1.kind = $TK.FloatPop;
       a1.dest = $1.dest;
+      a1.stackdepth = $0.stackdepth;
       a2.kind = $TK.SFree;
       a2.size = 4;
       $SUBST([a1, a2]);
@@ -566,6 +604,7 @@ class AsmFile {
     mixin(opt("float_meh_3",  `^FloatStore, ^FloatLoad, ^FloatMath, ^FloatStore: $0.dest != $1.source && $0.dest == $3.dest => $SUBST([$1, $2, $3]); `));
     mixin(opt("float_pointless_swap",  `^FloatSwap, ^FloatMath: $1.opName == "fadd" || $1.opName == "fmul" => $SUBST([$1]); `));
     mixin(opt("float_pointless_store",  `^FloatStore, ^FloatPop: $0.dest == $1.dest => $SUBST([$1]); `));
+    mixin(opt("float_addition_is_commutative", `^FloatPop, ^FloatLoad, ^FloatLoad, ^FloatMath: $3.opName == "fadd" => auto t = $0; t.kind = $TK.FloatStore; $SUBST([t, $1, $3]); `));
     
     // typical for delegates
     mixin(opt("member_access_1", `^Push, ^Push, ^Mov, ^SFree, ^Push:
@@ -610,19 +649,31 @@ class AsmFile {
       $SUBST([t1, t2]);
     `));
     mixin(opt("ebp_to_esp", `*:
-      hasSource($0) && $0.source.between("(", ")") == "%ebp" && $0.hasStackdepth && (!hasSize($0) || size($0) != 1)
+      (  hasSource($0) && $0.source.between("(", ")") == "%ebp"
+      || hasDest  ($0) && $0.dest  .between("(", ")") == "%ebp"
+      || hasFrom  ($0) && $0.from  .between("(", ")") == "%ebp"
+      )
+      && $0.hasStackdepth && (!hasSize($0) || size($0) != 1)
       =>
-      auto offs = $0.source.between("", "(").atoi();
-      auto new_offs = offs + $0.stackdepth;
+      $T t = $0;
+      void doStuff(ref string str) {
+        auto offs = str.between("", "(").atoi(); 
+        auto new_offs = offs + t.stackdepth;
+        if (new_offs) str = Format(new_offs, "(%esp)");
+        else str = "(%esp)";
+        $SUBST([t]);
+      }
       bool skip;
-      if ($0.kind == $TK.Push) {
+      if ($0.kind == $TK.Push /or/ $TK.Pop) {
         // if we can't do the push in one step
         if ($0.type.size != 4 /or/ 2 /or/ 1) 
           skip = true;
       }
-      if (!skip) $SUBSTWITH {
-        res = $0.dup;
-        source = Format(new_offs, "(%esp)");
+      if (!skip) {
+        if (hasSource(t) && t.source.between("(", ")") == "%ebp") doStuff(t.source);
+        if (hasDest  (t) && t.dest  .between("(", ")") == "%ebp") doStuff(t.dest);
+        if (hasFrom  (t) && t.from  .between("(", ")") == "%ebp") doStuff(t.from);
+        if (hasTo    (t) && t.to    .between("(", ")") == "%ebp") doStuff(t.to);
       }
     `));
     
