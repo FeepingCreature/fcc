@@ -180,7 +180,12 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
       t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
       t2.many(
         !!restart(t2, "tree.toplevel", &tr),
-        { mod.entries ~= tr; }
+        {
+          if (auto n = cast(Named) tr)
+            if (!cast(SelfAdding) tr)
+              mod.add(n);
+          mod.entries ~= tr;
+        }
       ) &&
       (text = t2, true)
     ) return mod;

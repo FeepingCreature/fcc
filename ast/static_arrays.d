@@ -20,17 +20,21 @@ class StaticArray : Type {
   }
 }
 
+import ast.fold;
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb cont, ParseCb rest) {
     auto t2 = text;
-    IntExpr len;
+    Expr len_ex;
     if (t2.accept("[") &&
-        rest(t2, "tree.expr", &len) &&
+        rest(t2, "tree.expr", &len_ex) &&
         t2.accept("]")
       )
     {
       text = t2;
-      return new StaticArray(cur, len.num);
+      auto len = fold(len_ex);
+      if (auto ie = cast(IntExpr) len) 
+        return new StaticArray(cur, ie.num);
+      throw new Exception(Format("Not a constant: ", len));
     } else return null;
   };
 }

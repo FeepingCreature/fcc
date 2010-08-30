@@ -23,7 +23,7 @@ class FunSymbol : Symbol {
 
 extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
-class Function : Namespace, Tree, Named {
+class Function : Namespace, Tree, Named, SelfAdding {
   string name;
   Expr getPointer() {
     return new FunSymbol(this);

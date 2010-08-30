@@ -61,6 +61,8 @@ interface Named {
   string getIdentifier();
 }
 
+interface SelfAdding { } // adds themselves to the respective namespace
+
 interface Statement : Tree { }
 
 interface Literal {

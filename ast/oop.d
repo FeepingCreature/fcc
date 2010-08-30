@@ -149,7 +149,7 @@ class IntfRef : Type {
 }
 
 import ast.modules;
-class Class : Namespace, RelNamespace, Named, IType, Tree {
+class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding {
   VTable myfuns;
   Structure data;
   string name;
