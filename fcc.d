@@ -52,22 +52,23 @@ import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 extern(C) void exit(int);
 
 import tools.time;
+import optimizer;
 string compile(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
   auto af = new AsmFile(optimize);
   if (configOpts) {
-    af.setupOpts();
+    setupOpts();
     auto cmds = configOpts.split(",");
     foreach (cmd; cmds) {
       if (cmd == "info") {
-        writefln("count: ", af.opts.length);
-        foreach (i, opt; af.opts) {
+        writefln("count: ", opts.length);
+        foreach (i, opt; opts) {
           writefln("id:", i, " name:", opt._1, " ", opt._2?"on":"off");
         }
         exit(1);
       }
       if (auto rest = cmd.startsWith("disable ")) {
         int which = rest.atoi();
-        af.opts[which]._2 = false;
+        opts[which]._2 = false;
         continue;
       }
     }

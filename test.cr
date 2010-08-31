@@ -350,10 +350,13 @@ int main(int argc, char** argv) {
       if x[0] > y[0] i1 = 1;
       else j1 = 1;
       
-      x[1] = x[0] - i1 + g2;
-      y[1] = y[0] - j1 + g2;
-      x[2] = x[0] - 1 + 2 * g2;
-      y[2] = y[0] - 1 + 2 * g2;
+      {
+        auto temp = 1 - 2 * g2;
+        x[1] = x[0] - i1 + g2;
+        y[1] = y[0] - j1 + g2;
+        x[2] = x[0] - temp;
+        y[2] = y[0] - temp;
+      }
       int ii = i & 255, jj = j & 255;
       
       int[3] gi = void;
