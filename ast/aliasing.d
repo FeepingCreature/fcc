@@ -3,7 +3,7 @@ module ast.aliasing;
 import ast.base, ast.parse, ast.structure, ast.namespace,
   tools.base: This, This_fn, rmSpace;
 
-class ExprAlias : RelTransformable, Named, Expr {
+class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
   Expr base;
   string name;
   mixin This!("base, name");
@@ -32,7 +32,7 @@ class ExprAlias : RelTransformable, Named, Expr {
   }
 }
 
-class TypeAlias : Named, IType, TypeProxy {
+class TypeAlias : Named, IType, TypeProxy, SelfAdding {
   IType base;
   string name;
   mixin This!("base, name");
@@ -82,10 +82,11 @@ Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
       }
     }
     
+    assert(ex || ty);
     text = t2;
-    if (ex) return new ExprAlias(ex, id);
-    if (ty) return new TypeAlias(ty, id);
-    assert(false);
+    if (ex) namespace().add(new ExprAlias(ex, id));
+    if (ty) namespace().add(new TypeAlias(ty, id));
+    return Single!(NoOp);
   } else return null;
 }
 mixin DefaultParser!(gotAlias, "struct_member.struct_alias");

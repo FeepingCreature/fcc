@@ -57,6 +57,9 @@ import ast.pointer;
 void setupSysmods() {
   string src = `
     module sys;
+    alias bool = int;
+    alias true = cast(bool) 1;
+    alias false = cast(bool) 0;
     extern(C) {
       void puts(char*);
       void printf(char*, ...);
@@ -187,8 +190,10 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   Module mod;
   auto backup = namespace.ptr();
   scope(exit) namespace.set(backup);
-  if (t2.accept("module ") && (New(mod), namespace.set(mod), true) &&
-      t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
+  if (t2.accept("module ")) {
+    New(mod);
+    namespace.set(mod);
+    if (t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
       t2.many(
         !!restart(t2, "tree.toplevel", &tr),
         {
@@ -197,9 +202,13 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
               mod.add(n);
           mod.entries ~= tr;
         }
-      ) &&
-      (text = t2, true)
-    ) return mod;
-  else return null;
+      )
+    ) {
+      text = t2;
+      if (text.strip().length)
+        throw new Exception("Unknown statement at '"~text.next_text()~"'");
+      return mod;
+    } else throw new Exception("Failed to parse module at '"~t2.next_text()~"'! ");
+  } else return null;
 }
 mixin DefaultParser!(gotModule, "tree.module");
