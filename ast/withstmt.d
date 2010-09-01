@@ -33,6 +33,13 @@ class WithStmt : Namespace, Statement, ScopeLike {
       assert(!!cast(LValue) ex || !!cast(MValue) ex, Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
     
+    if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr")("ex.onUsing()", "ex", ex)) {
+      pre = stuple(pre, onUsing) /apply/ (typeof(pre) pre, Statement st, AsmFile af) { if (pre) pre(af); st.emitAsm(af); };
+    }
+    if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr")("ex.onExit()", "ex", ex)) {
+      post = stuple(post, onExit) /apply/ (typeof(post) post, Statement st, AsmFile af) { st.emitAsm(af); if (post) post(af); };
+    }
+    
     rns = cast(RelNamespace) ex.valueType();
     ns = cast(Namespace) ex; // say, context
     assert(rns || ns, Format("Cannot with-expr a non-[rel]ns: ", ex)); // TODO: select in gotWithStmt

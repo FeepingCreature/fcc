@@ -29,22 +29,32 @@ int initGL() {
   return true;
 }
 
+context Quads {
+  void onUsing() { glBegin(GL_QUADS); }
+  void onExit() { glEnd(); }
+}
+
+context Triangles {
+  void onUsing() { glBegin(GL_TRIANGLES); }
+  void onExit() { glEnd(); }
+}
+
 void drawScene() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glLoadIdentity();
   glTranslatef(-1.5, 0, -6.0);
-  glBegin(GL_TRIANGLES);
+  using Triangles {
     glVertex3f( 0,  1, 0);
     glVertex3f(-1, -1, 0);
     glVertex3f( 1, -1, 0);
-  glEnd();
+  }
   glTranslatef(3, 0, 0);
-  glBegin(GL_QUADS);
+  using Quads {
     glVertex3f(-1,  1, 0);
     glVertex3f( 1,  1, 0);
     glVertex3f( 1, -1, 0);
     glVertex3f(-1, -1, 0);
-  glEnd();
+  }
   SDL_GL_SwapBuffers();
 }
 
