@@ -35,8 +35,10 @@ string readback(string cmd) {
   return readStream(fs);
 }
 
-import ast.aliasing, ast.pointer, ast.fun, ast.namespace;
+import ast.aliasing, ast.pointer, ast.fun, ast.namespace, ast.int_literal;
+import tools.time;
 void parseHeader(string filename, string src, ParseCb rest) {
+  auto start_time = sec();
   string newsrc;
   foreach (line; src.split("\n")) {
     if (line.startsWith("#define")) { newsrc ~= line; newsrc ~= ";"; }
@@ -47,6 +49,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
   auto statements = newsrc.split(";") /map/ &strip;
   // mini parser
   Named[] res;
+  Named[string] cache;
   IType matchSimpleType(ref string text) {
     bool accept(string s) {
       auto t2 = text;
@@ -66,13 +69,14 @@ void parseHeader(string filename, string src, ParseCb rest) {
     if (accept("void")) return Single!(Void);
     if (accept("float")) return Single!(Float);
     if (accept("double")) return Single!(Double);
-    foreach (entry; res)
-      if (accept(entry.getIdentifier())) return cast(IType) entry;
+    string id;
     if (accept("struct")) {
       string type;
       text.gotIdentifier(type); // ~Meh.
       return Single!(Void);
     }
+    if (!text.gotIdentifier(id)) return null;
+    if (auto p = id in cache) return cast(IType) *p;
     return null;
   }
   IType matchType(ref string text) {
@@ -101,15 +105,28 @@ void parseHeader(string filename, string src, ParseCb rest) {
       if (!stmt.strip().length) continue; // ignore this kind of #define.
       // logln("parse expr ", stmt);
       auto backup = stmt;
-      try {
-        if (!rest(stmt, "tree.expr.literal", &ex) || stmt.strip().length) {
-          stmt = backup;
+      if (!gotIntExpr(stmt, ex) || stmt.strip().length) {
+        stmt = backup;
+        bool isMacroParams(string s) {
+          if (!s.accept("(")) return false;
+          while (true) {
+            string id;
+            if (!s.gotIdentifier(id) || !s.accept(",")) break;
+          }
+          if (!s.accept(")")) return false;
+          return true;
+        }
+        if (isMacroParams(stmt)) goto giveUp;
+        // logln("full-parse ", stmt, " | ", start);
+        try {
           if (!rest(stmt, "tree.expr", &ex))
             goto giveUp;
-        }
-      } catch (Exception ex)
-        goto giveUp; // On Error Fuck You
-      res ~= new ExprAlias(ex, id);
+        } catch (Exception ex)
+          goto giveUp; // On Error Fuck You
+      }
+      auto ea = new ExprAlias(ex, id);
+      res ~= ea;
+      cache[id] = ea;
       continue;
     }
     if (stmt.accept("typedef")) {
@@ -131,7 +148,9 @@ void parseHeader(string filename, string src, ParseCb rest) {
         if (!gotIdentifier(stmt, name) || stmt.strip().length)
           goto giveUp;
         res ~= elems;
-        res ~= new TypeAlias(Single!(SysInt), name);
+        foreach (elem; elems) cache[elem.getIdentifier()] = elem;
+        auto ta = new TypeAlias(Single!(SysInt), name);
+        res ~= ta; cache[name] = ta;
         continue;
       }
       auto target = matchType(stmt);
@@ -151,7 +170,8 @@ void parseHeader(string filename, string src, ParseCb rest) {
         // logln("Skip type ", name, " for duplicate. ");
         continue;
       }
-      res ~= new TypeAlias(target, name);
+      auto ta = new TypeAlias(target, name);
+      res ~= ta; cache[name] = ta;
       continue;
     }
     
@@ -177,7 +197,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       fun.type = new FunctionType;
       fun.type.ret = ret;
       fun.type.params = args /map/ ex!(`a -> stuple(a, "")`);
-      res ~= fun;
+      res ~= fun; cache[name] = fun;
       continue;
     }
     giveUp:;
@@ -193,7 +213,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     // logln("Add ", thing);
     ns.add(thing);
   }
-  logln("Got ", res.length, " definitions from ", filename, ". ");
+  logln("Got ", res.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
 }
 
 import ast.fold, ast.literals;

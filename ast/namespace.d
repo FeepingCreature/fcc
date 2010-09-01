@@ -2,6 +2,12 @@ module ast.namespace;
 
 import ast.base;
 
+T aadup(T)(T t) {
+  T res;
+  foreach (key, value; t) res[key] = value;
+  return res;
+}
+
 import tools.ctfe, tools.base: stuple, Format, Repeat;
 class Namespace {
   Namespace sup;
@@ -15,6 +21,11 @@ class Namespace {
     return null;
   }
   Stuple!(string, Object)[] field;
+  Object[string] field_cache;
+  void rebuildCache() {
+    field_cache = null;
+    foreach (entry; field) field_cache[entry._0] = entry._1;
+  }
   void select(T)(void delegate(string, T) dg) {
     foreach (entry; field)
       if (auto t = cast(T) entry._1)
@@ -30,6 +41,7 @@ class Namespace {
     if (auto ns = cast(Namespace) obj)
       ns.sup = this;
     field ~= stuple(name, obj);
+    field_cache[name] = obj;
   }
   void add(T...)(T t) {
     static if (T.length == 1) {
@@ -44,11 +56,9 @@ class Namespace {
     _add(name, cast(Object) n);
   }
   typeof(field) getCheckpt() { return field; }
-  void setCheckpt(typeof(field) field) { this.field = field.dup; /* prevent clobbering */ }
+  void setCheckpt(typeof(field) field) { this.field = field.dup; rebuildCache(); /* prevent clobbering */ }
   Object lookup(string name, bool local = false) {
-    foreach (entry; field) {
-      if (entry._0 == name) return entry._1;
-    }
+    if (auto p = name in field_cache) return *p;
     if (!local && sup) return sup.lookup(name, local);
     return null;
   }
