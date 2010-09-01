@@ -1,7 +1,7 @@
 module ast.context;
 
 import ast.base, ast.parse, ast.static_arrays, ast.namespace,
-  ast.assign, ast.globvars, ast.modules, ast.fun;
+  ast.assign, ast.globvars, ast.modules, ast.fun, ast.aliasing;
 
 class Context : Namespace, MValue, Named {
   string name;
@@ -12,8 +12,8 @@ class Context : Namespace, MValue, Named {
   void iterValid(void delegate(Expr) dg, bool reverse = false) {
     void _body(Object entry) {
       if (auto ex = cast(Expr) entry) {
-        auto lv = cast(LValue) entry, mv = cast(MValue) entry;
-        if (!lv && !mv)
+        auto lv = cast(LValue) entry, mv = cast(MValue) entry, ea = cast(ExprAlias) entry;
+        if (!lv && !mv && !ea)
           throw new Exception(Format("Cannot use ", ex, " in context! "));
         dg(ex);
       }

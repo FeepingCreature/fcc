@@ -14,7 +14,7 @@ import
   ast.structfuns, ast.type_info, ast.aliasing,
   ast.oop, ast.dg, ast.newexpr, ast.guard, ast.withstmt,
   ast.templ, ast.globvars, ast.context, ast.concat,
-  ast.stringex, ast.c_bind;
+  ast.stringex, ast.c_bind, ast.eval;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;

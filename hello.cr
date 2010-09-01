@@ -29,14 +29,14 @@ int initGL() {
   return true;
 }
 
-context Quads {
-  void onUsing() { glBegin(GL_QUADS); }
-  void onExit() { glEnd(); }
+context Triangles {
+  alias onUsing = glBegin(GL_TRIANGLES);
+  alias onExit = glEnd();
 }
 
-context Triangles {
-  void onUsing() { glBegin(GL_TRIANGLES); }
-  void onExit() { glEnd(); }
+context Quads {
+  alias onUsing = glBegin(GL_QUADS);
+  alias onExit = glEnd();
 }
 
 void drawScene() {
