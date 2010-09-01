@@ -9,13 +9,26 @@ interface IType {
   int opEquals(IType);
 }
 
+interface TypeProxy {
+  IType actualType();
+}
+
 template TypeDefaults(bool INITVAL = true, bool OPEQUALS = true) {
   static if (INITVAL) ubyte[] initval() { return new ubyte[size()]; }
-  static if (OPEQUALS) int opEquals(IType ty) {
-    // specialize where needed
-    auto obj = cast(Object) ty;
-    return this.classinfo is obj.classinfo &&
-      size == (cast(typeof(this)) cast(void*) obj).size;
+  static if (OPEQUALS) {
+    int opEquals(IType ty) {
+      // specialize where needed
+      while (true) {
+        if (auto tp = cast(TypeProxy) ty)
+          ty = tp.actualType();
+        else break;
+      }
+      auto obj = cast(Object) ty;
+      return
+        (this.classinfo is obj.classinfo)
+        &&
+        (size == (cast(typeof(this)) cast(void*) obj).size);
+    }
   }
 }
 
