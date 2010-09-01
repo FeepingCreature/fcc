@@ -34,11 +34,22 @@ class Module : Namespace, Tree, Named {
 Module sysmod;
 
 extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace
+
+Module[string] cache;
+
+import tools.compat: read, castLike;
 Module lookupMod(string name) {
   if (name == "sys") {
     return sysmod;
   }
-  assert(false, "TODO");
+  if (auto p = name in cache) return *p;
+  auto file = (name.replace(".", "/") ~ ".cr").read().castLike("");
+  auto mod = cast(Module) parsecon.parse(file, "tree.module");
+  if (!mod) throw new Exception("Could not parse module: '"~file.next_text()~"' !");
+  if (file.strip().length)
+    throw new Exception("Failed to parse module at '"~file.next_text()~"' !");
+  cache[name] = mod;
+  return mod;
 }
 
 import ast.pointer;
