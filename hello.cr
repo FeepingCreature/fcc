@@ -16,7 +16,7 @@ int resizeWindow(int w, int h) {
   gluPerspective(45.0, ratio, 0.1, 100.0);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
-  return 1;
+  return true;
 }
 
 int initGL() {
@@ -26,7 +26,7 @@ int initGL() {
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LEQUAL);
   glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-  return 1;
+  return true;
 }
 
 void drawScene() {
@@ -73,10 +73,8 @@ int main(int argc, char** argv) {
   if !surf quit(1);
   initGL();
   resizeWindow(640, 480);
-  int done;
-  while !done {
+  while true {
     drawScene();
     if update(surf) quit(0);
   }
-  quit(0);
 }
