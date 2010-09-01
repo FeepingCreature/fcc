@@ -1,5 +1,5 @@
 module test;
-import sys;
+import sys, opengl;
 
 int add(int a, int b) { return a + b; }
 
