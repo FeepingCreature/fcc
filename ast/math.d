@@ -100,9 +100,7 @@ class FloatAsDouble : Expr {
 Object gotFloatAsDouble(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr ^selfrule", &ex))
-    return null;
-  if (Single!(Float) != ex.valueType())
+  if (!rest(t2, "tree.expr ^selfrule", &ex, (Expr ex) { return !!(Single!(Float) == ex.valueType()); }))
     return null;
   
   text = t2;
@@ -259,15 +257,18 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
     bool accepted = t3.accept(Ops[i*2]);
     if (t3.startsWith(Ops[i*2]))
       accepted = false; // a && b != a & &b (!)
-    if (accepted && cont(t3, &op2)) {
-      auto binop = new AsmBinopExpr!(Ops[i*2+1])(op, op2);
-      if (!binop.isValid()) {
-        error = Format("Invalid math op at '", t2.next_text(), "': ", op, " and ", op2);
-        continue;
-      }
-      op = binop;
-      t2 = t3;
-      goto retry;
+    if (accepted) {
+      if (cont(t3, &op2)) {
+        auto binop = new AsmBinopExpr!(Ops[i*2+1])(op, op2);
+        if (!binop.isValid()) {
+          error = Format("Invalid math op at '", t2.next_text(), "': ", op, " and ", op2);
+          continue;
+        }
+        op = binop;
+        t2 = t3;
+        goto retry;
+      } else
+        throw new Exception("Could not find operand for '"~Ops[i*2]~"' at '"~t3.next_text()~"'! ");
     }
   }
   if (op is old_op) {

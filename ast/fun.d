@@ -32,7 +32,7 @@ class Function : Namespace, Tree, Named, SelfAdding {
   Tree tree;
   bool extern_c = false;
   mixin defaultIterate!(tree);
-  string toString() { return Format("fun ", name, " <- ", sup); }
+  string toString() { return Format("fun ", name, " ", type, " <- ", sup); }
   // add parameters to namespace
   int _framestart;
   Function alloc() { return new Function; }
