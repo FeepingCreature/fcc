@@ -109,6 +109,26 @@ Object gotIntExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIntExpr, "tree.int_expr");
 
+class NegCond : Cond {
+  Cond c;
+  mixin defaultIterate!(c);
+  this(Cond c) { this.c = c; }
+  override void jumpOn(AsmFile af, bool cond, string dest) {
+    c.jumpOn(af, !cond, dest);
+  }
+}
+
+Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("!")) return null;
+  Cond c;
+  if (!rest(t2, "cond", &c))
+    throw new Exception("Couldn't match condition to negate at '"~t2.next_text()~"'! ");
+  text = t2;
+  return new NegCond(c);
+}
+mixin DefaultParser!(gotNegate, "cond.negate", "72");
+
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool not, smaller, equal, greater;
@@ -126,7 +146,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     return new Compare(ex1, not, smaller, equal, greater, ex2);
   } else return null;
 }
-mixin DefaultParser!(gotCompare, "cond.compare", "7");
+mixin DefaultParser!(gotCompare, "cond.compare", "71");
 
 import ast.literals;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
@@ -135,7 +155,7 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
     return new ExprWrap(ex);
   } else return null;
 }
-mixin DefaultParser!(gotExprAsCond, "cond.expr", "8");
+mixin DefaultParser!(gotExprAsCond, "cond.expr", "73");
 
 class BooleanOp(string Which) : Cond {
   Cond c1, c2;
