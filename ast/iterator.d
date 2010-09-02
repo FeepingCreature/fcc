@@ -135,10 +135,10 @@ class ForIter(I) : Type, I {
     return fold(iparse!(Expr, "foriter_get_subexpr", "tree.expr")
                        ("ex.subiter", "ex", ex));
   }
-  Expr update(Expr ex, Expr var) {
+  Expr update(Expr ex, Expr newvar) {
     auto sex = ex.dup;
     void subst(ref Iterable it) {
-      if (it is var) it = cast(Iterable) var;
+      if (it is var) it = cast(Iterable) newvar;
       it.iterate(&subst);
     }
     sex.iterate(&subst);
@@ -215,34 +215,53 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr sub, main;
   auto t2 = text;
   if (!t2.accept("[for")) return null;
-  // TODO: allow iteration variable
+  string ivarname;
+  auto t3 = t2;
+  if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
+    t2 = t3;
+  } else ivarname = null;
   if (!rest(t2, "tree.expr", &sub, (Expr ex) { return !!cast(Iterator) ex.valueType(); }))
     throw new Exception("Cannot find sub-iterator at '"~t2.next_text()~"'! ");
   if (!t2.accept(":"))
     throw new Exception("Expected ':' at '"~t2.next_text()~"'! ");
+  
+  auto it = cast(Iterator) sub.valueType();
+  auto ph = new Placeholder(it.elemType());
+  
+  Namespace backup;
+  if (ivarname) {
+    backup = namespace();
+    auto mns = new MiniNamespace("for_iter_var");
+    mns.sup = backup;
+    mns.add(ivarname, ph);
+  }
+  
+  scope(exit)
+    if (backup)
+      namespace.set(backup);
+  
   if (!rest(t2, "tree.expr", &main))
     throw new Exception("Cannot find iterator expression at '"~t2.next_text()~"'! ");
   if (!t2.accept("]"))
     throw new Exception("Expected ']' at '"~t2.next_text()~"'! ");
   text = t2;
   auto wrapped = new Structure(null);
-  new RelMember("var", (cast(Iterator) sub.valueType()).elemType(), wrapped);
+  new RelMember("var", it.elemType(), wrapped);
   new RelMember("subiter", sub.valueType(), wrapped);
-  if (auto ri = cast(RichIterator) sub.valueType()) {
+  if (auto ri = cast(RichIterator) it) {
     auto foriter = new ForIter!(RichIterator);
     foriter.wrapper = wrapped;
     foriter.itertype = ri;
     foriter.ex = main;
-    foriter.var = new Placeholder(ri.elemType());
+    foriter.var = ph;
     return new RCE(foriter, new StructLiteral(wrapped,
       [cast(Expr) new Filler(ri.elemType()), sub]));
   } else {
-    auto it = cast(Iterator) sub.valueType();
     auto foriter = new ForIter!(Iterator);
     foriter.wrapper = wrapped;
     foriter.itertype = it;
     foriter.ex = main;
-    foriter.var = new Placeholder(it.elemType());
+    foriter.var = ph;
     return new RCE(foriter, new StructLiteral(wrapped,
       [cast(Expr) new Filler(it.elemType()), sub]));
   }
