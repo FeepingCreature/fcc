@@ -8,13 +8,13 @@ import classgraph;
 const string EXT = ".cr";
 
 import
-  ast.aggregate, ast.returns, ast.ifstmt, ast.loops, ast.assign,
+  ast.aggregate_parse, ast.returns, ast.ifstmt, ast.loops, ast.assign,
   ast.structure, ast.variable, ast.fun, ast.unary,
   ast.arrays, ast.index, ast.slice, ast.nestfun,
   ast.structfuns, ast.type_info, ast.aliasing,
   ast.oop, ast.dg, ast.newexpr, ast.guard, ast.withstmt,
   ast.templ, ast.globvars, ast.context, ast.concat,
-  ast.stringex, ast.c_bind, ast.eval;
+  ast.stringex, ast.c_bind, ast.eval, ast.iterator;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;

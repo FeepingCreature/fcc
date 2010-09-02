@@ -67,14 +67,14 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotProperties, "tree.expr.properties", "3");
 
 Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex;
+  Object obj; // not Expr - namespaces count too!
   auto t2 = text;
   if (t2.accept("(") &&
-      rest(t2, "tree.expr", &ex) &&
+      rest(t2, "tree.expr", &obj) &&
       t2.accept(")")
     ) {
     text = t2;
-    return cast(Object) ex;
+    return obj;
   } else return null;
 }
 mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");

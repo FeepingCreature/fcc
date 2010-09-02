@@ -29,6 +29,7 @@ class VTable {
 
 class Intf : Named, IType, Tree, SelfAdding {
   string name;
+  override bool addsSelf() { return true; }
   override string getIdentifier() { return name; }
   mixin TypeDefaults!();
   override int size() { assert(false); }
@@ -163,6 +164,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding {
   RelFunction[string] overrides;
   string mangle_id;
   override string mangle() { return "class"; }
+  override bool addsSelf() { return true; }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, this);
     auto root = cast(Class) (sysmod?sysmod.lookup("Object"):null);
@@ -378,7 +380,6 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("{")) throw new Exception("Missing opening bracket for class def! ");
   New(cl, name, supclass);
   cl.iparents = supints;
-  cl.sup = namespace();
   namespace().add(cl); // add here so as to allow self-refs in body
   if (matchStructBody(t2, cl, cont, rest)) {
     if (!t2.accept("}"))

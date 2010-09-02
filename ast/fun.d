@@ -78,6 +78,7 @@ class Function : Namespace, Tree, Named, SelfAdding {
   }
   string exit() { return mangleSelf() ~ "_exit_label"; }
   override {
+    bool addsSelf() { return true; }
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;
     }

@@ -61,7 +61,11 @@ interface Named {
   string getIdentifier();
 }
 
-interface SelfAdding { } // adds themselves to the respective namespace
+interface SelfAdding { // may add themselves to the respective namespace
+  bool addsSelf();
+}
+
+bool addsSelf(T)(T t) { auto sa = cast(SelfAdding) t; return sa && sa.addsSelf(); }
 
 interface Statement : Tree { }
 
@@ -164,7 +168,7 @@ string mustOffset(string value) {
   return (`
     auto OFFS = af.currentStackDepth;
     scope(success) assert(af.currentStackDepth == OFFS + `~value~`,
-      Format("Stack offset violated: got ", af.currentStackDepth, "; expected ", OFFS + `~value~`)
+      Format("Stack offset violated: got ", af.currentStackDepth, "; expected ", OFFS, " + ", `~value~`)
     );`).ctReplace("\n", "", "OFFS", hash); // fix up line numbers!
 }
 

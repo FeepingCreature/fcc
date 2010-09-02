@@ -2,7 +2,7 @@ module ast.structure;
 
 import ast.types, ast.base, ast.namespace, ast.vardecl, ast.int_literal, parseBase;
 
-import tools.base: ex;
+import tools.base: ex, This, This_fn, rmSpace;
 int sum(S, T)(S s, T t) {
   int res;
   foreach (entry; s)
@@ -92,9 +92,9 @@ class Structure : Namespace, RelNamespace, IType, Named {
       return res;
     }
     string toString() {
-      auto res = super.toString() ~ " { ";
-      select((string, RelMember member) { res ~= Format(member.name, ": ", member.type, " @", member.offset); });
-      return res ~ " }";
+      auto res = "struct "~name~" { ";
+      select((string, RelMember member) { res ~= Format(member.name, ": ", member.type, " @", member.offset, " "); });
+      return res ~ " } <- "~Format(sup);
     }
   }
 }
@@ -113,7 +113,7 @@ bool matchStructBody(ref string text, Namespace ns,
     text.many(
       (t2 = text, true)
       && rest(text, "struct_member", &smem)
-      && (ns.add(smem), true)
+      && { if (!addsSelf(smem)) ns.add(smem); return true; }()
       ||
       (text = t2, true)
       && test(strtype = cast(IType) rest(text, "type"))
@@ -139,11 +139,10 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   Structure st;
   if (t2.gotIdentifier(name) && t2.accept("{")) {
     New(st, name);
-    st.sup = namespace();
+    namespace().add(st); // gotta do this here so the sup is set
     if (matchStructBody(t2, st, cont, rest)) {
       if (!t2.accept("}"))
         throw new Exception("Missing closing struct bracket at "~t2.next_text());
-      namespace().add(st);
       text = t2;
       return Single!(NoOp);
     } else {
@@ -152,6 +151,38 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotStructDef, "tree.typedef.struct");
+
+class StructLiteral : Expr {
+  Structure st;
+  Expr[] exprs;
+  mixin This!("st, exprs");
+  mixin defaultIterate!(exprs);
+  override {
+    IType valueType() { return st; }
+    void emitAsm(AsmFile af) {
+      auto sf = st.stackframe();
+      mixin(mustOffset("st.size"));
+      int offset;
+      // structs are pushed on the stack in reverse order.
+      // This makes things .. complicated.
+      foreach_reverse (i, entry; sf) {
+        auto rev_offs = st.size - entry._2 - entry._0.size; // end of variable
+        if (rev_offs > offset) {
+          af.salloc(rev_offs - offset);
+          offset = rev_offs;
+        }
+        auto ex = exprs[i];
+        if (ex.valueType() != entry._0)
+          throw new Exception(Format("Cannot use ", ex, " in struct literal: doesn't match ", entry._0, "!"));
+        {
+          mixin(mustOffset("ex.valueType().size"));
+          ex.emitAsm(af);
+        }
+        offset += ex.valueType().size;
+      }
+    }
+  }
+}
 
 import ast.pointer;
 class MemberAccess(T) : T {

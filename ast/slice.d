@@ -19,14 +19,21 @@ Expr mkArraySlice(Expr array, Expr from = null, Expr to = null) {
   );
 }
 
+import ast.iterator, ast.casting;
 Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (!cast(Array) ex.valueType() && !cast(Pointer) ex.valueType()) return null;
     auto t2 = text;
-    Expr from, to;
+    Expr range;
     if (t2.accept("[") && t2.accept("]") || (t2 = text, true) &&
-        t2.accept("[") && rest(t2, "tree.expr", &from) && t2.accept("..") && rest(t2, "tree.expr", &to) && t2.accept("]")
+        t2.accept("[") && rest(t2, "tree.expr", &range, (Expr ex) { return !!cast(Range) ex.valueType(); }) && t2.accept("]")
     ) {
+      Expr from, to;
+      if (range) {
+        auto casted = new RCE((cast(Range) range.valueType()).wrapper, range);
+        from = iparse!(Expr, "slice_range_from", "tree.expr")("ex.cur", "ex", casted);
+        to   = iparse!(Expr, "slice_range_to",   "tree.expr")("ex.end", "ex", casted);
+      }
       if (!from) from = new IntExpr(0);
       if (!to) {
         if (!cast(Array) ex.valueType()) return null;
@@ -37,7 +44,9 @@ Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: ", from));
       text = t2;
       if (cast(Array) ex.valueType()) return cast(Object) mkArraySlice(ex, from, to);
-      else return cast(Object) mkPointerSlice(ex, from, to);
+      else {
+        return cast(Object) mkPointerSlice(ex, from, to);
+      }
     } else return null;
   };
 }

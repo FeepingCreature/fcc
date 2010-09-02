@@ -6,6 +6,7 @@ import ast.base, ast.parse, ast.static_arrays, ast.namespace,
 class Context : Namespace, MValue, Named {
   string name;
   this(string name) { this.name = name; }
+  string toString() { return Format("context ", name, " <- ", sup); }
   string mangleSelf() {
     return sup.mangle(name, null);
   }
@@ -58,6 +59,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   if (!(t2.accept("context") && t2.gotIdentifier(name))) return null;
   auto ctx = new Context(name);
   namespace().add(ctx);
+  logln("got context ", name, ", sup is ", namespace());
   ctx.sup = namespace();
   namespace.set(ctx);
   scope(exit) namespace.set(ctx.sup);
@@ -90,7 +92,8 @@ Object gotContextMember(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   if (t2.accept(".") && t2.gotIdentifier(ident)) {
     auto m = ctx.lookup(ident);
-    if (!m) throw new Exception("No '"~ident~"' in "~ctx.toString()~"!");
+    if (!m) return null;
+    // if (!m) throw new Exception("No '"~ident~"' in "~ctx.toString()~"!");
     text = t2;
     return m;
   } else return null;

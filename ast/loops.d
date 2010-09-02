@@ -21,9 +21,13 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (t2.accept("while ")) {
     auto ws = new WhileStatement;
+    auto sc = new Scope;
+    namespace.set(sc);
+    scope(exit) namespace.set(sc.sup);
     if (rest(t2, "cond", &ws.cond) && rest(t2, "tree.scope", &ws._body)) {
+      sc.addStatement(ws);
       text = t2;
-      return ws;
+      return sc;
     } else throw new Exception("Couldn't parse while loop at '"~t2.next_text()~"'");
   } else return null;
 }
@@ -91,16 +95,34 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (t2.accept("do ")) {
     auto dw = new DoWhileExt;
+    
+    auto sc = new Scope;
+    namespace.set(sc);
+    scope(exit) namespace.set(sc.sup);
+    
     if (!rest(t2, "tree.scope", &dw.first)) throw new Exception("Couldn't parse scope after do at "~t2.next_text());
     auto backup = namespace();
     namespace.set(dw.first);
     scope(exit) namespace.set(backup);
     if (!t2.accept("while")) return null; // not a do/while extloop
-    if (!rest(t2, "cond", &dw.cond)) throw new Exception("Could not match do/while cond at "~t2.next_text());
+    
+    // You are not expected to understand this.
+    {
+      namespace.set(sc);
+      dw.first.sup = sc.sup;
+      sc.sup = dw.first;
+      scope(exit) {
+        namespace.set(dw.first);
+        sc.sup = dw.first.sup;
+        dw.first.sup = sc;
+      }
+      if (!rest(t2, "cond", &dw.cond)) throw new Exception("Could not match do/while cond at "~t2.next_text());
+    }
     if (!rest(t2, "tree.scope", &dw.second))
       throw new Exception("do/while extended second scope not matched at "~t2.next_text());
     text = t2;
-    return dw;
+    sc.addStatement(dw);
+    return sc;
   } else return null;
 }
 mixin DefaultParser!(gotDoWhileExtStmt, "tree.stmt.do_while_ext");

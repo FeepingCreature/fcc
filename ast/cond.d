@@ -8,7 +8,6 @@ class ExprWrap : Cond {
   mixin defaultIterate!(ex);
   override {
     void jumpOn(AsmFile af, bool cond, string dest) {
-      assert(ex.valueType().size == 4);
       ex.emitAsm(af);
       af.popStack("%eax", ex.valueType());
       af.compare("%eax", "%eax", true);
@@ -151,7 +150,10 @@ mixin DefaultParser!(gotCompare, "cond.compare", "71");
 import ast.literals;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (rest(text, "<tree.expr >tree.expr.cond", &ex)) {
+  auto t2 = text;
+  if (rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
+    assert(ex.valueType().size == 4, Format(ex, " is a bad cond expr to test for at '", text.next_text(), "'. "));
+    text = t2;
     return new ExprWrap(ex);
   } else return null;
 }

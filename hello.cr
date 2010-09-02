@@ -1,6 +1,8 @@
 module hello;
 import sys, sdl, opengl;
 
+c_include "stdio.h";
+
 void quit(int code) {
   SDL_Quit();
   exit(code);

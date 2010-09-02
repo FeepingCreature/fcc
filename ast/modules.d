@@ -27,6 +27,7 @@ class Module : Namespace, Tree, Named {
         if (auto res = mod.lookup(name)) return res;
       return null;
     }
+    string toString() { return "module "~name; }
   }
   override Stuple!(IType, string, int)[] stackframe() { assert(false); }
 }
@@ -98,6 +99,9 @@ void setupSysmods() {
         newtarget[target.length .. newsize] = text;
       }
     }
+    template init(T) <<EOT
+      T init;
+    EOT
     char[] itoa(int i) {
       if i < 0 return "-" ~ itoa(-i);
       if i == 0 return "0";
@@ -128,10 +132,10 @@ void setupSysmods() {
     class Object {
     }
   `;
-  // parse first half
+  // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
   string base = src.between("", "/*MARKER*/") ~ "}";
   sysmod = cast(Module) parsecon.parse(base, "tree.module");
-  // parse complete
+  // we can now use the first half to parse the entirety.
   sysmod = cast(Module) parsecon.parse(src, "tree.module");
 }
 
@@ -198,7 +202,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
         !!restart(t2, "tree.toplevel", &tr),
         {
           if (auto n = cast(Named) tr)
-            if (!cast(SelfAdding) tr)
+            if (!addsSelf(tr))
               mod.add(n);
           mod.entries ~= tr;
         }

@@ -10,7 +10,7 @@ Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception(Format("Fail: namespace is ", namespace(), ". "));
   auto fun = new RelFunction(rs);
   
-  if (auto res = gotGenericFunDef(fun, cast(Namespace) null, false, text, cont, rest)) {
+  if (auto res = gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest)) {
     namespace().get!(Module).entries ~= cast(Tree) res;
     return res;
   } else return null;
@@ -63,6 +63,7 @@ class RelFunction : Function, RelTransformable {
     basetype = cast(IType) rn;
     assert(!!basetype);
   }
+  // override bool addsSelf() { return false; }
   RelFunction alloc() { return new RelFunction; }
   RelFunction dup() {
     auto res = cast(RelFunction) super.dup();

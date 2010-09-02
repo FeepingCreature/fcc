@@ -8,6 +8,7 @@ class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
   string name;
   mixin This!("base, name");
   override {
+    bool addsSelf() { return true; }
     string getIdentifier() { return name; }
     Object transform(Expr relbase) {
       void delegate(ref Iterable) dg;
@@ -37,6 +38,7 @@ class TypeAlias : Named, IType, TypeProxy, SelfAdding {
   string name;
   mixin This!("base, name");
   override {
+    bool addsSelf() { return true; }
     string getIdentifier() { return name; }
     int size() { return base.size; }
     string mangle() { return base.mangle; }
@@ -56,6 +58,11 @@ static this() {
       return ea.base;
     } else return null;
   };
+}
+
+class NamedNull : NoOp, Named, SelfAdding {
+  override string getIdentifier() { return null; }
+  override bool addsSelf() { return true; }
 }
 
 import ast.modules;
@@ -86,7 +93,7 @@ Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
     text = t2;
     if (ex) namespace().add(new ExprAlias(ex, id));
     if (ty) namespace().add(new TypeAlias(ty, id));
-    return Single!(NoOp);
+    return Single!(NamedNull);
   } else return null;
 }
 mixin DefaultParser!(gotAlias, "struct_member.struct_alias");

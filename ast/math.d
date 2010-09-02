@@ -179,7 +179,7 @@ class AsmBinopExpr(string OP) : Expr {
       else                           return Format("(", e1, " {", OP, "} ", e2, ")");
     }
     IType valueType() {
-      assert(isValid, Format("invalid types: ", e1.valueType(), ", ", e2.valueType()));
+      assert(isValid, Format("invalid types: ", e1.valueType(), ", ", e2.valueType(), " in ", e1, " ", OP, " ", e2));
       return e1.valueType();
     }
     void emitAsm(AsmFile af) {
@@ -242,7 +242,7 @@ alias AsmBinopExpr!("andl") AndExpr;
 alias AsmBinopExpr!("orl")  OrExpr;
 alias AsmBinopExpr!("imull") MulExpr;
 
-static this() { parsecon.addPrecedence("tree.expr.arith", "1"); }
+static this() { parsecon.addPrecedence("tree.expr.arith", "12"); }
 
 import ast.pointer, ast.literals, tools.base: swap;
 Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {

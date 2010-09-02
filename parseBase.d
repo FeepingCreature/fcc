@@ -275,7 +275,7 @@ struct ParseCb {
       // blockMemo(); // callback depends on a parent's filter rule. cannot reliably memoize.
     }
     
-    static if (Rest1.length && is(Rest1[$-1] == delegate)) {
+    static if (Rest1.length && is(Rest1[$-1] == delegate) && !is(Ret!(Rest1[$-1]) == void)) {
       static assert(is(typeof(rest1[$-1](null)) == bool) || is(typeof(rest1[$-1](null)) == ParseCtl),
         "Bad accept return type: "~typeof(rest1[$-1](null)).stringof);
       static assert(is(typeof(cast(Params!(Rest1[$-1])[0]) new Object)), "Bad accept params: "~Params!(Rest1[$-1]).stringof);
@@ -293,6 +293,10 @@ struct ParseCb {
     
     static if (Rest2.length == 1 && is(typeof(*rest2[0])) && !is(MustType))
       alias typeof(*rest2[0]) MustType;
+    static if (Rest2.length == 1 && is(Rest2[0] == delegate)) {
+      alias Params!(Rest2[0])[0] MustType;
+      auto callback = rest2[0];
+    }
     ParseCtl delegate(Object) myAccept;
     if (accept) myAccept = delegate ParseCtl(Object obj) {
       static if (is(MustType)) {
@@ -301,6 +305,7 @@ struct ParseCb {
         auto casted = obj;
       }
       if (!casted) {
+        // logln("Reject ", obj, "; doesn't match ", typeof(casted).stringof, ".");
         return ParseCtl.RejectCont;
       }
       static if (is(typeof(accept(casted)) == bool)) {
@@ -312,12 +317,19 @@ struct ParseCb {
       return ParseCtl.AcceptAbort;
     };
     
-    static if (Rest2.length == 1 && is(typeof(*rest2[0]))) {
+    static if (Rest2.length == 1 && is(typeof(*rest2[0])) || is(typeof(callback))) {
       // only accept-test objects that match the type
       auto backup = text;
-      *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, myAccept);
-      if (!*rest2[0]) text = backup;
-      return cast(Object) *rest2[0];
+      static if (is(typeof(callback))) {
+        auto res = cast(MustType) dg(text, matchdg, myAccept);
+        if (!res) text = backup;
+        else callback(res);
+        return cast(Object) res;
+      } else {
+        *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, myAccept);
+        if (!*rest2[0]) text = backup;
+        return cast(Object) *rest2[0];
+      }
     } else {
       static assert(!Rest2.length, "Left: "~Rest2.stringof~" of "~T.stringof);
       return dg(text, matchdg, myAccept);

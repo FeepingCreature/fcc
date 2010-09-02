@@ -24,18 +24,25 @@ class IfStatement : Statement {
   }
 }
 
+import ast.namespace;
 Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, t3;
   IfStatement ifs;
   if (t2.accept("if ")) {
     New(ifs);
-    if (!rest(t2, "cond", &ifs.test))
-      throw new Exception("Couldn't get if condition at "~t2.next_text());
-    if (!rest(t2, "tree.scope", &ifs.branch1))
-      throw new Exception("Couldn't get if branch1 at "~t2.next_text());
+    {
+      auto sc = new Scope; // wrapper scope of first body
+      namespace.set(sc);
+      scope(exit) namespace.set(sc.sup);
+      ifs.branch1 = sc;
+      if (!rest(t2, "cond", &ifs.test))
+        throw new Exception("Couldn't get if condition at "~t2.next_text());
+      if (!rest(t2, "tree.scope", (Statement st) { sc.addStatement(st); }))
+        throw new Exception("Couldn't get if branch at "~t2.next_text());
+    }
     if (t2.accept("else")) {
       if (!rest(t2, "tree.scope", &ifs.branch2))
-        throw new Exception("Couldn't get if branch2 at "~t2.next_text());
+        throw new Exception("Couldn't get else branch at "~t2.next_text());
     }
     text = t2;
     return ifs;

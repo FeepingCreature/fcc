@@ -2,6 +2,7 @@ module ast.scopes;
 
 import ast.base, ast.namespace, ast.fun, ast.variable, parseBase, tools.base: apply;
 
+import ast.aggregate;
 class Scope : Namespace, Tree, ScopeLike, Statement {
   Function fun;
   Statement _body;
@@ -11,6 +12,16 @@ class Scope : Namespace, Tree, ScopeLike, Statement {
   Statement[] getGuards() {
     if (auto sc = cast(Scope) sup) return sc.getGuards() ~ guards;
     else return guards;
+  }
+  void addStatement(Statement st) {
+    if (auto as = cast(AggrStatement) _body) as.stmts ~= st;
+    else if (!_body) _body = st;
+    else {
+      auto as = new AggrStatement;
+      as.stmts ~= _body;
+      as.stmts ~= st;
+      _body = as;
+    }
   }
   string base() {
     if (fun) return fun.mangleSelf();

@@ -14,6 +14,7 @@ class Template : Named {
   }
   override {
     string getIdentifier() { return name; }
+    string toString() { return Format("template ", name); }
   }
 }
 
@@ -37,14 +38,14 @@ import tools.log;
 class TemplateInstance : Namespace {
   Module context;
   IType type;
+  Template parent;
   this(Template parent, IType type, ParseCb rest) {
     this.type = type;
-    scope mns = new MiniNamespace(parent.name~"_mini");
-    mns.add(parent.param, type);
-    mns.sup = this;
+    this.parent = parent;
+    add(parent.param, type);
     this.sup = context = parent.context;
-    withTLS(namespace, mns, {
-      auto t2 = parent.source;
+    withTLS(namespace, this, {
+      auto t2 = parent.source.dup; // prevent memoizer confusion. 
       Tree tr;
       // logln("rest toplevel match on ", t2);
       if (!t2.many(
@@ -52,30 +53,32 @@ class TemplateInstance : Namespace {
         {
           if (cast(NoOp) tr) return;
           auto n = cast(Named) tr;
-          if (!n) throw new Exception(Format("Not named: ", tr));
-          if (auto fn = cast(Function) n) {// already added itself
-            fn.sup = this;
-            context.entries ~= fn;
-          } else
-            add(n.getIdentifier(), n);
+          // if (!n) throw new Exception(Format("Not named: ", tr));
+          if (n && !addsSelf(n)) add(n.getIdentifier(), n);
+          if (auto ns = cast(Namespace) tr) { // now reset sup to correct target.
+            ns.sup = this;
+          }
+          context.entries ~= tr;
         }
       ) || t2.strip().length)
         throw new Exception("Failed to parse template content at '"~t2.next_text()~"'");
-        
+      
     });
   }
   override {
+    string toString() { return Format("Instance of ", parent); }
     string mangle(string name, IType type) {
       return "templinst_"~type.mangle();
     }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
+    
   }
 }
 
 Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string id;
-  if (!t2.gotIdentifier(id) || !t2.accept("!")) return null;
+  if (!t2.gotIdentifier(id, true) || !t2.accept("!")) return null;
   auto _t = namespace().lookup(id), t = cast(Template) _t;
   // if (!_t) throw new Exception("'"~id~"' not found for template instantiation. ");
   if (!_t) return null;
@@ -84,8 +87,8 @@ Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type", &ty)) throw new Exception("Couldn't match type for instantiation at '"~t2.next_text()~"'");
   auto inst = t.getInstance(ty, rest);
   text = t2;
-  if (auto res = inst.lookup(id)) return res;
-  else throw new Exception("Template '"~id~"' contains no self-named anything. ");
+  if (auto res = inst.lookup(t.name, true)) return res;
+  else throw new Exception("Template '"~id~"' contains no self-named '"~t.name~"'. ");
 }
 mixin DefaultParser!(gotTemplateInst, "type.templ_inst", "2");
 mixin DefaultParser!(gotTemplateInst, "tree.expr.templ_expr", "45"); // I wonder if this will Just Work™

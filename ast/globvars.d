@@ -44,8 +44,8 @@ class GlobVar : LValue, Named {
         af.pushStack("$"~mangled(), voidp);
       }
     }
+    string toString() { return Format("global ", name, " of ", type); }
   }
-  string toString() { return Format("global ", type, " ", name); }
 }
 
 class GlobVarDecl : Statement {

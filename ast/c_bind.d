@@ -63,9 +63,10 @@ void parseHeader(string filename, string src, ParseCb rest) {
       text = t2;
       return true;
     }
-    if (accept("unsigned int") || accept("signed int") || accept("int")) return Single!(SysInt);
+    if (auto rest = text.strip().startsWith("...")) { text = rest; return Single!(Variadic); }
+    if (accept("unsigned int") || accept("signed int") || accept("long int") || accept("int")) return Single!(SysInt);
     if (accept("unsigned char") || accept("signed char") || accept("char")) return Single!(Char);
-    if (accept("unsigned short") || accept("short")) return Single!(Short);
+    if (accept("signed short int") || accept("unsigned short") || accept("short")) return Single!(Short);
     if (accept("void")) return Single!(Void);
     if (accept("float")) return Single!(Float);
     if (accept("double")) return Single!(Double);
@@ -81,6 +82,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
   }
   IType matchType(ref string text) {
     text.accept("const");
+    text.accept("__const");
     if (auto ty = matchSimpleType(text)) {
       while (text.accept("*")) ty = new Pointer(ty);
       return ty;
@@ -89,6 +91,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
   IType matchParam(ref string text) {
     IType ty = matchType(text);
     if (!ty) return null;
+    text.accept("__restrict");
     string id;
     gotIdentifier(text, id);
     text.accept(",");

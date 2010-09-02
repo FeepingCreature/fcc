@@ -31,17 +31,23 @@ class Namespace {
       if (auto t = cast(T) entry._1)
         dg(entry._0, t);
   }
-  void _add(string name, Object obj) {
+  void __add(string name, Object obj) {
     if (name && lookup(name, true)) {
       throw new Exception(Format(
         name, " already defined in ",
         this, ": ", lookup(name)
       ));
     }
-    if (auto ns = cast(Namespace) obj)
-      ns.sup = this;
     field ~= stuple(name, obj);
     field_cache[name] = obj;
+  }
+  void _add(string name, Object obj) {
+    if (auto ns = cast(Namespace) obj) {
+      if (ns.sup) asm { int 3; }
+      assert(!ns.sup, Format("While adding ", obj, " to ", name, ": object already in ", ns.sup, "! "));
+      ns.sup = this;
+    }
+    __add(name, obj);
   }
   void add(T...)(T t) {
     static if (T.length == 1) {
@@ -116,8 +122,10 @@ class MiniNamespace : Namespace, ScopeLike {
     assert(false); // wtfux.
   }
   bool internalMode;
+  override string toString() { return "mini["~id~"]"; }
   override void _add(string name, Object obj) {
     if (sup && !internalMode) sup._add(name, obj);
+    else if (internalMode) super.__add(name, obj);
     else super._add(name, obj);
   }
   int fs;
@@ -138,7 +146,8 @@ class MiniNamespace : Namespace, ScopeLike {
 // internal miniparse wrapper
 float[string] bench;
 import tools.time;
-template iparse(R, string id, string rule) {
+const bool canFail = false;
+template iparse(R, string id, string rule, bool mustParse = true) {
   R iparse(T...)(string text, T _t) {
     auto start = sec();
     scope(exit) bench[id] += sec() - start;
@@ -156,7 +165,9 @@ template iparse(R, string id, string rule) {
     
     auto backup = namespace();
     namespace.set(myns);
-    scope(exit) namespace.set(backup);
+    scope(exit) {
+      namespace.set(backup);
+    }
     static if (T2.length && is(T2[0]: Namespace)) {
       myns.sup = _t[0];
       auto t = _t[1 .. $];
@@ -173,24 +184,17 @@ template iparse(R, string id, string rule) {
     static if (is(T[$-1] == AsmFile))
       myns.fs = t[$-1].currentStackDepth;
     
-    {
-      string str = "
-        extern(C) void* malloc(int);
-        extern(C) void* calloc(int, int);
-        extern(C) int printf(char*, ...); ".dup; // TODO: likewise
-      auto
-        obj1 = parsecon.parse(str, "tree.toplevel.extern_c"),
-        obj2 = parsecon.parse(str, "tree.toplevel.extern_c"),
-        obj3 = parsecon.parse(str, "tree.toplevel.extern_c");
-      assert(obj1 && obj2 && obj3, "mini externs failed to parse at "~str);
-    }
     myns.internalMode = false;
     
     auto res = parsecon.parse(text, rule);
-    if (text.length) throw new Exception(Format("Unknown text in ", id, ": ", text));
-    if (!res) throw new Exception(Format("Failed to parse ", id, " at ", text.next_text()));
     auto rc = cast(R) res;
-    if (!rc) throw new Exception(Format("Wrong result type in ", id, ": wanted ", R.stringof, "; got ", res));
+    static if (mustParse) {
+      if (text.length) throw new Exception(Format("Unknown text in ", id, ": ", text));
+      if (!res)        throw new Exception(Format("Failed to parse ", id, " at ", text.next_text()));
+      if (!rc)         throw new Exception(Format("Wrong result type in ", id, ": wanted ", R.stringof, "; got ", res));
+    } else {
+      if (text.length || !rc) return null;
+    }
     return rc;
   }
 }
