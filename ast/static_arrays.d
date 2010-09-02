@@ -74,6 +74,8 @@ mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr");
 class DataExpr : Expr {
   ubyte[] data;
   this(ubyte[] ub) { data = ub; }
+  this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
   override IType valueType() { return new StaticArray(Single!(Char), data.length); }
   override void emitAsm(AsmFile af) {

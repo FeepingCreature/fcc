@@ -6,6 +6,7 @@ public import ast.variable;
 import ast.pointer;
 class VarDecl : Statement {
   Variable[] vars;
+  mixin DefaultDup!();
   mixin defaultIterate!(vars);
   override void emitAsm(AsmFile af) {
     // logln("emit at ", af.currentStackDepth, ": ", vars);

@@ -6,6 +6,7 @@ import ast.base, ast.parse, ast.static_arrays, ast.namespace,
 class Context : Namespace, MValue, Named {
   string name;
   this(string name) { this.name = name; }
+  Context dup() { assert(false, "weird shit. "); }
   string toString() { return Format("context ", name, " <- ", sup); }
   string mangleSelf() {
     return sup.mangle(name, null);

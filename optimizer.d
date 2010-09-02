@@ -481,3 +481,21 @@ void setupOpts() {
     $SUBST([$1]);
   `));
 }
+
+// Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
+// what's necessary to uniquely identify an opt
+string unique(string s) {
+  string res;
+  int count() {
+    int c;
+    foreach (entry; opts)
+      if (entry._1.startsWith(res)) c++;
+    return c;
+  }
+  while (count > 1) {
+    if (!s.length)
+      return res; // give up
+    res ~= s.take();
+  }
+  return res;
+}

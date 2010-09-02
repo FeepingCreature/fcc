@@ -12,6 +12,8 @@ class IntExpr : Expr {
     string toString() { return Format(num); }
   }
   this(int i) { num = i; }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
 }
 

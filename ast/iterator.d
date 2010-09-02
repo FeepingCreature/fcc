@@ -5,13 +5,24 @@ import ast.base, ast.parse, ast.types, ast.namespace, ast.structure, ast.casting
 interface Iterator {
   IType elemType();
   Expr yieldAdvance(LValue);
-  Cond terminateCond(LValue); // false => can't yield more values
+  Cond terminateCond(Expr); // false => can't yield more values
 }
 
-class Range : Type, Iterator {
+interface RichIterator : Iterator {
+  Expr length(Expr);
+  Expr index(Expr, Expr pos);
+  Expr slice(Expr, Expr from, Expr to);
+}
+
+class Range : Type, RichIterator {
   IType wrapper;
-  Expr castToWrapper(LValue lv) {
-    return iparse!(Expr, "range_cast_to_wrapper", "tree.expr")("*cast(wrapper*) &lv", "lv", lv, "wrapper", wrapper);
+  LValue castToWrapper(LValue lv) {
+    return iparse!(LValue, "range_cast_to_wrapper", "tree.expr")
+                  ("*cast(wrapper*) &lv", "lv", lv, "wrapper", wrapper);
+  }
+  Expr castExprToWrapper(Expr ex) {
+    return iparse!(Expr, "range_cast_expr_to_wrapper", "tree.expr")
+                  ("cast(wrapper) ex", "ex", ex, "wrapper", wrapper);
   }
   override {
     IType elemType() { return iparse!(IType, "elem_type_range", "type")("typeof(sys.init!wrapper.cur)", "wrapper", wrapper); }
@@ -20,10 +31,28 @@ class Range : Type, Iterator {
     string mangle() { return "range_over_"~wrapper.mangle(); }
     ubyte[] initval() { return wrapper.initval(); }
     Expr yieldAdvance(LValue lv) {
-      return iparse!(Expr, "yield_advance_range", "tree.expr")("ex.cur++", "ex", castToWrapper(lv));
+      return iparse!(Expr, "yield_advance_range", "tree.expr")
+                    ("lv.cur++", "lv", castToWrapper(lv));
     }
-    Cond terminateCond(LValue lv) {
-      return iparse!(Cond, "terminate_cond_range", "cond")("ex.cur != ex.end", "ex", castToWrapper(lv));
+    Cond terminateCond(Expr ex) {
+      return iparse!(Cond, "terminate_cond_range", "cond")
+                    ("ex.cur != ex.end", "ex", castExprToWrapper(ex));
+    }
+    Expr length(Expr ex) {
+      return iparse!(Expr, "length_range", "tree.expr")
+                    ("ex.end - ex.cur", "ex", castExprToWrapper(ex));
+    }
+    Expr index(Expr ex, Expr pos) {
+      return iparse!(Expr, "index_range", "tree.expr")
+                    ("lv.cur + pos",
+                     "ex", castExprToWrapper(ex),
+                     "pos", pos);
+    }
+    Expr slice(Expr ex, Expr from, Expr to) {
+      return iparse!(Expr, "slice_range", "tree.expr")
+                    ("(ex.cur + from) .. (ex.cur + from + to)",
+                     "ex", castExprToWrapper(ex),
+                     "from", from, "to", to);
     }
   }
 }
@@ -43,9 +72,7 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   range.wrapper = wrapped;
   return new RCE(range, new StructLiteral(wrapped, [from, to]));
 }
-mixin DefaultParser!(gotRangeIter, "tree.expr.iter.range");
-
-static this() { parsecon.addPrecedence("tree.expr.iter", "11"); }
+mixin DefaultParser!(gotRangeIter, "tree.expr.iter_range", "11");
 
 // auto iter = [for 0..256: 5] for x <- iter { }
 // ==
@@ -57,7 +84,8 @@ import tools.base: This, This_fn, rmSpace;
 class StatementAndExpr : Expr {
   Statement first;
   Expr second;
-  mixin This!("first, second");
+  mixin MyThis!("first, second");
+  mixin DefaultDup!();
   mixin defaultIterate!(first, second);
   override {
     IType valueType() { return second.valueType(); }
@@ -71,7 +99,8 @@ class StatementAndExpr : Expr {
 class StatementAndCond : Cond {
   Statement first;
   Cond second;
-  mixin This!("first, second");
+  mixin MyThis!("first, second");
+  mixin DefaultDup!();
   mixin defaultIterate!(first, second);
   override {
     void jumpOn(AsmFile af, bool cond, string dest) {
@@ -81,15 +110,39 @@ class StatementAndCond : Cond {
   }
 }
 
-class ForIter : Type, Iterator {
+import ast.fold;
+class ForIter(I) : Type, I {
   IType wrapper;
-  Iterator itertype;
+  I itertype;
   Expr ex;
+  Placeholder var;
   LValue castToWrapper(LValue lv) {
-    return iparse!(LValue, "foriter_cast_to_wrapper", "tree.expr")("*cast(wrapper*) &lv", "lv", lv, "wrapper", wrapper);
+    return iparse!(LValue, "foriter_cast_to_wrapper", "tree.expr")
+                  ("*cast(wrapper*) &lv", "lv", lv, "wrapper", wrapper);
+  }
+  Expr castToWrapper(Expr ex) {
+    if (auto lv = cast(LValue) ex) return castToWrapper(lv);
+    return iparse!(Expr, "foriter_cast_ex_to_wrapper", "tree.expr")
+                  ("cast(wrapper) ex", "ex", ex, "wrapper", wrapper);
   }
   LValue subexpr(LValue lv) {
-    return iparse!(LValue, "foriter_get_subexpr", "tree.expr")("lv.subiter", "lv", lv);
+    return iparse!(LValue, "foriter_get_subexpr_lv", "tree.expr")
+                  ("lv.subiter", "lv", lv);
+  }
+  Expr subexpr(Expr ex) {
+    if (auto lv = cast(LValue) ex) return subexpr(lv);
+    // optimize subexpr of literal
+    return fold(iparse!(Expr, "foriter_get_subexpr", "tree.expr")
+                       ("ex.subiter", "ex", ex));
+  }
+  Expr update(Expr ex, Expr var) {
+    auto sex = ex.dup;
+    void subst(ref Iterable it) {
+      if (it is var) it = cast(Iterable) var;
+      it.iterate(&subst);
+    }
+    sex.iterate(&subst);
+    return sex;
   }
   override {
     string toString() { return Format("ForIter(", itertype, ": ", ex, ")"); }
@@ -99,15 +152,39 @@ class ForIter : Type, Iterator {
     ubyte[] initval() { return wrapper.initval(); }
     Expr yieldAdvance(LValue lv) {
       auto wlv = castToWrapper(lv);
+      auto var = iparse!(LValue, "foriter_wlv_var_advance", "tree.expr")
+                        ("wlv.var", "wlv", wlv);
       auto stmt = iparse!(Statement, "foriter_assign_advance", "tree.semicol_stmt.assign")
-        ("wlv.var = ya",
-        "wlv", wlv,
-        "ya", itertype.yieldAdvance(subexpr(wlv))
+        ("var = ya",
+         "var", var,
+         "ya", itertype.yieldAdvance(subexpr(wlv))
         );
-      return new StatementAndExpr(stmt, this.ex);
+      return new StatementAndExpr(stmt, update(this.ex, var));
     }
-    Cond terminateCond(LValue lv) {
-      return itertype.terminateCond(subexpr(castToWrapper(lv)));
+    Cond terminateCond(Expr ex) {
+      return itertype.terminateCond(subexpr(castToWrapper(ex)));
+    }
+    static if (is(I: RichIterator)) {
+      Expr length(Expr ex) {
+        return itertype.length(subexpr(castToWrapper(ex)));
+      }
+      Expr index(Expr ex, Expr pos) {
+        auto wlv = castToWrapper(lvize(ex));
+        auto var = iparse!(LValue, "foriter_wlv_var", "tree.expr")
+                          ("wlv.var", "wlv", wlv);
+        auto stmt = iparse!(Statement, "foriter_assign_index", "tree.semicol_stmt.assign")
+                           ("var = ya",
+                            "var", var,
+                            "ya", itertype.index(subexpr(wlv), pos));
+        return new StatementAndExpr(stmt, update(this.ex, var));
+      }
+      Expr slice(Expr ex, Expr from, Expr to) {
+        auto wr = castToWrapper(ex);
+        return new RCE(this,
+          new StructLiteral(cast(Structure) wrapper, 
+            [cast(Expr) new Filler(itertype.elemType()),
+              itertype.slice(subexpr(wr), from, to)]));
+      }
     }
   }
 }
@@ -115,11 +192,22 @@ class ForIter : Type, Iterator {
 class Filler : Expr {
   IType type;
   this(IType type) { this.type = type; }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
     void emitAsm(AsmFile af) { af.salloc(type.size); }
   }
+}
+
+class Placeholder : Expr {
+  IType type;
+  this(IType type) { this.type = type; }
+  Placeholder dup() { return this; } // IMPORTANT.
+  mixin defaultIterate!();
+  IType valueType() { return type; }
+  void emitAsm(AsmFile af) { assert(false); }
 }
 
 import ast.literals: DataExpr;
@@ -140,25 +228,39 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   auto wrapped = new Structure(null);
   new RelMember("var", (cast(Iterator) sub.valueType()).elemType(), wrapped);
   new RelMember("subiter", sub.valueType(), wrapped);
-  auto foriter = new ForIter;
-  foriter.wrapper = wrapped;
-  foriter.itertype = cast(Iterator) sub.valueType();
-  foriter.ex = main;
-  return new RCE(foriter, new StructLiteral(wrapped, [cast(Expr) new Filler(foriter.itertype.elemType()), sub]));
+  if (auto ri = cast(RichIterator) sub.valueType()) {
+    auto foriter = new ForIter!(RichIterator);
+    foriter.wrapper = wrapped;
+    foriter.itertype = ri;
+    foriter.ex = main;
+    foriter.var = new Placeholder(ri.elemType());
+    return new RCE(foriter, new StructLiteral(wrapped,
+      [cast(Expr) new Filler(ri.elemType()), sub]));
+  } else {
+    auto it = cast(Iterator) sub.valueType();
+    auto foriter = new ForIter!(Iterator);
+    foriter.wrapper = wrapped;
+    foriter.itertype = it;
+    foriter.ex = main;
+    foriter.var = new Placeholder(it.elemType());
+    return new RCE(foriter, new StructLiteral(wrapped,
+      [cast(Expr) new Filler(it.elemType()), sub]));
+  }
 }
-mixin DefaultParser!(gotForIter, "tree.expr.iter.for");
+mixin DefaultParser!(gotForIter, "tree.expr.iter_for", "441");
 
 import ast.variable, ast.assign;
 class IterLetCond : Cond {
   LValue target;
   Expr iter;
-  Variable ivar;
-  mixin This!("target, iter, ivar");
+  LValue iref;
+  mixin MyThis!("target, iter, iref");
+  mixin DefaultDup!();
   mixin defaultIterate!(iter);
   override void jumpOn(AsmFile af, bool cond, string dest) {
     auto itype = cast(Iterator) iter.valueType();
-    auto step = itype.yieldAdvance(ivar);
-    auto itercond = itype.terminateCond(ivar);
+    auto step = itype.yieldAdvance(iref);
+    auto itercond = itype.terminateCond(iref);
     itercond.jumpOn(af, cond, dest);
     if (target) (new Assignment(target, step)).emitAsm(af);
     else {
@@ -169,6 +271,25 @@ class IterLetCond : Cond {
 }
 
 import ast.scopes, ast.vardecl;
+
+// create temporary if needed
+LValue lvize(Expr ex) {
+  if (auto lv = cast(LValue) ex) return lv;
+  
+  auto sc = cast(Scope) namespace();
+  if (!sc)
+    throw new Exception("Can't create temporary in "~namespace().toString()~"!");
+  
+  auto var = new Variable(ex.valueType(), null, boffs(ex.valueType()));
+  var.initval = ex;
+  
+  auto decl = new VarDecl;
+  decl.vars ~= var;
+  sc.addStatement(decl);
+  sc.add(var);
+  return var;
+}
+
 Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue lv;
@@ -202,15 +323,34 @@ withoutIterator:
     sc.addStatement(decl);
     sc.add(newvar);
   }
-  
-  auto ivar = new Variable(iter.valueType(), null, boffs(iter.valueType()));
-  ivar.initval = iter;
-  {
-    auto decl = new VarDecl;
-    decl.vars ~= ivar;
-    sc.addStatement(decl);
-    sc.add(ivar);
-  }
-  return new IterLetCond(lv, iter, ivar);
+  return new IterLetCond(lv, iter, lvize(iter));
 }
 mixin DefaultParser!(gotIterCond, "cond.iter", "705");
+
+Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
+  return lhs_partial.using = delegate Object(Expr ex) {
+    auto iter = cast(RichIterator) ex.valueType();
+    if (!iter) return null;
+    auto t2 = text;
+    Expr pos;
+    if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
+      text = t2;
+      auto ri = cast(RichIterator) iter;
+      if (!ri)
+        throw new Exception(Format("Cannot access by index ",
+          ex, " at ", text.next_text(), ": not a rich iterator! "));
+      
+      if (auto range = cast(Range) pos.valueType()) {
+        auto ps = new RCE(range.wrapper, pos);
+        auto from = iparse!(Expr, "iter_slice_from", "tree.expr")
+                           ("ps.cur", "ps", ps);
+        auto to   = iparse!(Expr, "iter_slice_to",   "tree.expr")
+                           ("ps.end", "ps", ps);
+        return cast(Object) iter.slice(ex, from, to);
+      } else {
+        return cast(Object) iter.index(ex, pos);
+      }
+    } else return null;
+  };
+}
+mixin DefaultParser!(gotIterIndex, "tree.rhs_partial.iter_index");

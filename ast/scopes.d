@@ -35,6 +35,7 @@ class Scope : Namespace, Tree, ScopeLike, Statement {
     sup = namespace();
     fun = sup.get!(Function);
   }
+  mixin DefaultDup!();
   override int framesize() {
     // TODO: alignment
     int res;

@@ -5,6 +5,8 @@ import ast.base, ast.namespace, ast.scopes, ast.fun, ast.parse, ast.math: loadFl
 class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(value);
   Statement[] guards;
   override void emitAsm(AsmFile af) {

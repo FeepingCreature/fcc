@@ -23,8 +23,10 @@ interface IScoped {
 
 class Scoped(T) : T, IScoped {
   T sup;
-  this(T t) { sup = t; }
   static assert(is(T: LValue) || is(T: MValue));
+  this(T t) { sup = t; }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(sup);
   override {
     void emitAsm(AsmFile af) { assert(false); }

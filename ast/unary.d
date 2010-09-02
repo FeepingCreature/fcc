@@ -8,6 +8,8 @@ class PrePostOpExpr(bool Post, bool Inc) : Expr {
   this(LValue lv) {
     this.lv = lv;
   }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(lv);
   override {
     IType valueType() {

@@ -9,6 +9,7 @@ class GlobVar : LValue, Named {
   Namespace ns;
   mixin defaultIterate!();
   Expr initval;
+  GlobVar dup() { assert(false, "hey stop it"); }
   string getInit() {
     if (!initval) return null;
     auto l = cast(Literal) initval;
@@ -52,6 +53,7 @@ class GlobVarDecl : Statement {
   GlobVar[] vars;
   bool tls;
   mixin defaultIterate!();
+  override typeof(this) dup() { assert(false, "hey now.."); }
   override void emitAsm(AsmFile af) {
     if (tls) {
       foreach (var; vars)

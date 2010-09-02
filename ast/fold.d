@@ -2,8 +2,6 @@ module ast.fold;
 
 import ast.base;
 
-Expr delegate(Expr)[] opts;
-
 Expr fold(Expr ex) {
   Expr cur = ex;
   while (true) {

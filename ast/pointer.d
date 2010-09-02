@@ -22,7 +22,8 @@ alias Single!(Pointer, Single!(Void)) voidp;
 // &foo
 class RefExpr : Expr {
   CValue src;
-  mixin This!("src");
+  mixin MyThis!("src");
+  mixin DefaultDup!();
   mixin defaultIterate!(src);
   override {
     IType valueType() {
@@ -45,6 +46,8 @@ class DerefExpr : LValue {
     if (!cast(Pointer) src.valueType())
       throw new Exception(Format("Can't dereference non-pointer: ", src));
   }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(src);
   override {
     IType valueType() {
@@ -99,6 +102,8 @@ mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "22");
 class Symbol : Expr {
   string name;
   this(string name) { this.name = name; }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {

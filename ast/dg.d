@@ -4,7 +4,7 @@ import ast.base, ast.parse, ast.vardecl, ast.namespace, ast.structure,
   ast.pointer, ast.fun;
 
 class mkDelegate : Expr {
-  abstract IType valueType();
+  IType valueType() { assert(false); }
   Expr ptr, data;
   this(Expr ptr, Expr data) {
     if (ptr.valueType().size != 4) {
@@ -14,6 +14,8 @@ class mkDelegate : Expr {
     this.ptr = ptr;
     this.data = data;
   }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(ptr, data);
   override string toString() { return Format("dg(ptr=", ptr, ", data=", data, ")"); }
   override void emitAsm(AsmFile af) {
@@ -131,6 +133,7 @@ mixin DefaultParser!(gotDgAsStruct, "tree.expr.dg_struct", "912");
 class DgCall : Expr {
   Expr dg;
   Expr[] params;
+  mixin DefaultDup!();
   mixin defaultIterate!(dg, params);
   override void emitAsm(AsmFile af) {
     auto dgtype = cast(Delegate) dg.valueType();

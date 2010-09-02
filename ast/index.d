@@ -31,7 +31,8 @@ mixin DefaultParser!(gotArrayIndexAccess, "tree.rhs_partial.array_access");
 // Pointer access as array
 class PA_Access : LValue {
   Expr ptr, pos;
-  mixin This!("ptr, pos");
+  mixin MyThis!("ptr, pos");
+  mixin DefaultDup!();
   mixin defaultIterate!(ptr, pos);
   override {
     string toString() { return Format(ptr, "[", pos, "]"); }

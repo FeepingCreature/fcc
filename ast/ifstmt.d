@@ -5,6 +5,7 @@ import ast.base, ast.scopes, ast.cond, ast.parse;
 class IfStatement : Statement {
   Scope branch1, branch2;
   Cond test;
+  mixin DefaultDup!();
   mixin defaultIterate!(test, branch1, branch2);
   override void emitAsm(AsmFile af) {
     auto past1 = af.genLabel();

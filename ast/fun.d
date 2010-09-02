@@ -11,6 +11,8 @@ class FunSymbol : Symbol {
     this.fun = fun;
     super(fun.mangleSelf());
   }
+  private this() { }
+  mixin DefaultDup!();
   string toString() { return Format("symbol<", name, ">"); }
   override IType valueType() {
     auto res = new FunctionPointer;
@@ -41,10 +43,11 @@ class Function : Namespace, Tree, Named, SelfAdding {
     res.name = name;
     res.type = type;
     res.extern_c = extern_c;
-    res.tree = tree;
+    res.tree = tree.dup;
     res._framestart = _framestart;
     res.sup = sup;
     res.field = field;
+    res.rebuildCache;
     return res;
   }
   FunCall mkCall() {
@@ -115,6 +118,8 @@ class Function : Namespace, Tree, Named, SelfAdding {
 class FunCall : Expr {
   Expr[] params;
   Function fun;
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {
     callFunction(af, fun.type.ret, params, fun.getPointer());
@@ -369,6 +374,8 @@ class FunctionPointer : ast.types.Type {
 class FpCall : Expr {
   Expr fp;
   Expr[] params;
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {
     auto fntype = cast(FunctionPointer) fp.valueType();
@@ -401,6 +408,8 @@ mixin DefaultParser!(gotFpCallExpr, "tree.rhs_partial.fpcall", null, true);
 class FunRefExpr : Expr, Literal {
   Function fun;
   this(Function fun) { this.fun = fun; }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
   override {
     IType valueType() {

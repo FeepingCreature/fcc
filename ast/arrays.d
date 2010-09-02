@@ -54,6 +54,8 @@ class ArrayLength(T) : T {
   this(AT at) {
     array = at;
   }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(array);
   override {
     string toString() { return Format("length(", array, ")"); }
@@ -72,7 +74,8 @@ class ArrayLength(T) : T {
 // construct array from two expressions
 class ArrayMaker : Expr {
   Expr ptr, length, cap;
-  mixin This!("ptr, length, cap");
+  mixin MyThis!("ptr, length, cap");
+  mixin DefaultDup!();
   mixin defaultIterate!(ptr, length, cap);
   IType elemType() {
     return (cast(Pointer) ptr.valueType()).target;

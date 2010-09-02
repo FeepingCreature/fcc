@@ -8,7 +8,6 @@ import
 class ConcatChain : Expr {
   Array type;
   Expr[] arrays;
-  mixin defaultIterate!(arrays);
   this(Expr base) {
     auto sa = cast(StaticArray) base.valueType();
     if (sa) {
@@ -19,6 +18,9 @@ class ConcatChain : Expr {
     }
     addArray(base);
   }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(arrays);
   void addArray(Expr ex) {
     if (cast(StaticArray) ex.valueType()) arrays ~= staticToArray(ex);
     else arrays ~= ex;

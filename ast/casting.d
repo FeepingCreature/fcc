@@ -9,6 +9,8 @@ class ReinterpretCast(T) : T {
     this.to = to;
     assert(to.size == from.valueType().size, Format("Can't cast ", from, " to ", to, "; ", from.valueType().size, " vs. ", to.size, "!"));
   }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(from);
   override {
     string toString() { return Format("reinterpret_cast<", to, "> ", from); }
@@ -24,6 +26,24 @@ class ReinterpretCast(T) : T {
   }
 }
 alias ReinterpretCast!(Expr) RCE;
+
+static this() {
+  opts ~= delegate Expr(Expr ex) {
+    if (auto rce1 = cast(RCE) ex) {
+      if (auto rce2 = cast(RCE) rce1.from) {
+        return new RCE(rce1.to, rce2.from);
+      }
+    }
+    return null;
+  };
+  opts ~= delegate Expr(Expr ex) {
+    if (auto rce = cast(RCE) ex) {
+      if (rce.from.valueType() == rce.to)
+        return rce.from;
+    }
+    return null;
+  };
+}
 
 // casts to types that'd be implicit-converted anyway
 Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -101,6 +121,8 @@ mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "7");
 class ShortToIntCast : Expr {
   Expr sh;
   this(Expr sh) { this.sh = sh; }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
   override {
     IType valueType() { return Single!(SysInt); }
@@ -117,6 +139,8 @@ class ShortToIntCast : Expr {
 class CharToShortCast : Expr {
   Expr sh;
   this(Expr sh) { this.sh = sh; }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
   override {
     IType valueType() { return Single!(Short); }

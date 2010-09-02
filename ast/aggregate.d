@@ -9,5 +9,6 @@ class AggrStatement : Statement {
     foreach (stmt; stmts)
       stmt.emitAsm(af);
   }
+  mixin DefaultDup!();
   string toString() { return Format(stmts); }
 }

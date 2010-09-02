@@ -11,6 +11,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
   IScoped isc;
   void delegate(AsmFile) pre, post;
   mixin defaultIterate!(vd, sc);
+  override WithStmt dup() { assert(false, "wth"); }
   string toString() { return Format("with ", context, " <- ", sup); }
   int temps;
   override int framesize() {

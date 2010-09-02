@@ -5,6 +5,8 @@ import ast.base, ast.pointer;
 class Constant : Expr {
   string name;
   this(string name) { this.name = name; }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {

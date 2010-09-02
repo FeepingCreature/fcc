@@ -224,7 +224,7 @@ class AsmFile {
   string[] goodOpts;
   void runOpts() {
     setupOpts;
-    string optstr;
+    string[] newOpts;
     bool[string] unused;
     bool delegate(Transcache, ref int[string])[string] map;
     foreach (entry; opts) if (entry._2) {
@@ -242,9 +242,7 @@ class AsmFile {
         if (opt(cache, labels_refcount)) {
           unused.remove(name);
           
-          if (optstr.length) optstr ~= ", ";
-          optstr ~= name;
-          
+          newOpts ~= name;
           goodOpts ~= name;
           anyChange = true;
         }
@@ -252,7 +250,8 @@ class AsmFile {
       }
       // logln("::", anyChange, "; ", cache.list);
       if (!anyChange) break;
-      // logln("optstr now ", optstr, ", omitted: ", unused.keys);
+      foreach (opt; newOpts)
+        log("[", unique(opt), "]");
     }
     
     string join(string[] s) {
@@ -260,7 +259,7 @@ class AsmFile {
       foreach (str; s) { if (res) res ~= ", "; res ~= str; }
       return res;
     }
-    if (optstr && debugOpts) logln("Opt: ", goodOpts.join(), " + ", optstr, " - ", unused.keys);
+    if (newOpts && debugOpts) logln("Opt: ", goodOpts.join(), " + ", newOpts, " - ", unused.keys);
   }
   void flush() {
     if (optimize) runOpts;

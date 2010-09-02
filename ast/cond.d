@@ -4,7 +4,8 @@ import ast.base, ast.namespace, ast.parse, ast.math, tools.base: This, This_fn, 
 
 class ExprWrap : Cond {
   Expr ex;
-  mixin This!("ex");
+  mixin MyThis!("ex");
+  mixin DefaultDup!();
   mixin defaultIterate!(ex);
   override {
     void jumpOn(AsmFile af, bool cond, string dest) {
@@ -21,6 +22,8 @@ class ExprWrap : Cond {
 
 class Compare : Cond {
   Expr e1; bool smaller, equal, greater; Expr e2;
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(e1, e2);
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
     if (not) {
@@ -110,6 +113,8 @@ mixin DefaultParser!(gotIntExpr, "tree.int_expr");
 
 class NegCond : Cond {
   Cond c;
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(c);
   this(Cond c) { this.c = c; }
   override void jumpOn(AsmFile af, bool cond, string dest) {
@@ -161,7 +166,8 @@ mixin DefaultParser!(gotExprAsCond, "cond.expr", "73");
 
 class BooleanOp(string Which) : Cond {
   Cond c1, c2;
-  mixin This!("c1, c2");
+  mixin MyThis!("c1, c2");
+  mixin DefaultDup!();
   mixin defaultIterate!(c1, c2);
   override {
     void jumpOn(AsmFile af, bool cond, string dest) {

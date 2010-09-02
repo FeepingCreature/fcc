@@ -10,6 +10,7 @@ class StringExpr : CValue {
   string str;
   this() { }
   this(string s) { str = s; }
+  mixin DefaultDup!();
   mixin defaultIterate!();
   string name_used;
   void setup(AsmFile af) {
@@ -35,8 +36,10 @@ class FloatExpr : Expr {
     uint f_as_i;
   }
   this(float f) { this.f = f; }
-  string name_used;
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
+  string name_used;
   override {
     string toString() { return Format(f); }
     IType valueType() { return Single!(Float); }
@@ -111,7 +114,8 @@ mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "55");
 /// "foo": char[3] -> char*
 class CValueAsPointer : Expr {
   CValue sup;
-  mixin This!("sup");
+  mixin MyThis!("sup");
+  mixin DefaultDup!();
   mixin defaultIterate!(sup);
   override IType valueType() {
     if (auto sa = cast(StaticArray) sup.valueType())

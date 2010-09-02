@@ -58,6 +58,8 @@ class RelMember : Expr, Named, RelTransformable {
     
     ns.add(this);
   }
+  private this() { }
+  mixin DefaultDup!();
 }
 
 class Structure : Namespace, RelNamespace, IType, Named {
@@ -92,9 +94,14 @@ class Structure : Namespace, RelNamespace, IType, Named {
       return res;
     }
     string toString() {
-      auto res = "struct "~name~" { ";
-      select((string, RelMember member) { res ~= Format(member.name, ": ", member.type, " @", member.offset, " "); });
-      return res ~ " } <- "~Format(sup);
+      string res = "struct ";
+      if (name) res ~= name;
+      else res ~= Format(cast(void*) this);
+      res ~= " { ";
+      select((string, RelMember member) {
+        res ~= Format(member.name, ": ", member.type, " @", member.offset, " ");
+      });
+      return res ~ " }";
     }
   }
 }
@@ -155,9 +162,17 @@ mixin DefaultParser!(gotStructDef, "tree.typedef.struct");
 class StructLiteral : Expr {
   Structure st;
   Expr[] exprs;
-  mixin This!("st, exprs");
+  mixin MyThis!("st, exprs");
   mixin defaultIterate!(exprs);
   override {
+    string toString() { return Format(st, " {", exprs, "}"); }
+    StructLiteral dup() {
+      auto res = new StructLiteral;
+      res.st = st;
+      res.exprs = exprs.dup;
+      foreach (ref entry; res.exprs) entry = entry.dup;
+      return res;
+    }
     IType valueType() { return st; }
     void emitAsm(AsmFile af) {
       auto sf = st.stackframe();
@@ -196,6 +211,8 @@ class MemberAccess(T) : T {
     // if (!stm) asm { int 3; }
     if (!stm) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
   }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(base);
   override {
     import tools.log;
@@ -229,7 +246,7 @@ class MemberAccess(T) : T {
         } else {
           mkVar(af, stm.type, true, (Variable var) {
             iparse!(Statement, "copy_struct_member", "tree.semicol_stmt.expr")
-            ("memcpy(cast(char*) &tempvar, (cast(char*) &var) + offset, size);",
+            ("memcpy(cast(void*) &tempvar, (cast(void*) &var) + offset, size)",
               "tempvar", var,
               "var", base,
               "size", new IntExpr(stm.type.size),
@@ -238,7 +255,7 @@ class MemberAccess(T) : T {
           });
         }
       } else {
-        assert(stm.type.size == 4);
+        assert(stm.type.size == 4, Format("Asked for ", stm, " in ", base, "; bad size. "));
         af.comment("emit struct ", base, " for member access");
         base.emitAsm(af);
         af.comment("store member and free: ", stm.name);
@@ -261,6 +278,28 @@ class MemberAccess(T) : T {
 
 alias MemberAccess!(Expr) MemberAccess_Expr;
 alias MemberAccess!(LValue) MemberAccess_LValue;
+
+import ast.fold;
+static this() {
+  opts ~= delegate Expr(Expr ex) {
+    if (auto mae = cast(MemberAccess_Expr) ex) {
+      auto base = fold(mae.base);
+      // logln("fold ", mae.base);
+      if (auto sl = cast(StructLiteral) base) {
+        Expr res;
+        int i;
+        auto st = cast(Structure) mae.base.valueType();
+        if (st) st.select((string, RelMember member) {
+          if (member is mae.stm)
+            res = sl.exprs[i];
+          i++;
+        });
+        return res;
+      }
+    }
+    return null;
+  };
+}
 
 Expr mkMemberAccess(Expr strct, string name) {
   if (auto lv = cast(LValue) strct)

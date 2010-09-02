@@ -38,6 +38,7 @@ class Variable : LValue, Named {
     initInit();
   }
   override string getIdentifier() { return name; }
+  mixin DefaultDup!();
   mixin defaultIterate!(initval);
   string toString() { return Format("[ var ", name, " of ", type, " at ", baseOffset, "]"); }
 }

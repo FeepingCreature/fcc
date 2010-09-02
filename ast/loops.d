@@ -5,6 +5,7 @@ import ast.base, ast.scopes, ast.vardecl, ast.cond, ast.parse;
 class WhileStatement : Statement {
   Scope _body;
   Cond cond;
+  mixin DefaultDup!();
   mixin defaultIterate!(cond, _body);
   override void emitAsm(AsmFile af) {
     auto start = af.genLabel(), done = af.genLabel();
@@ -39,6 +40,7 @@ class ForStatement : Statement {
   Cond cond;
   Statement step;
   Scope _body;
+  mixin DefaultDup!();
   mixin defaultIterate!(decl, cond, step, _body);
   override void emitAsm(AsmFile af) {
     auto backup = af.checkptStack();
@@ -77,6 +79,7 @@ mixin DefaultParser!(gotForStmt, "tree.stmt.for");
 class DoWhileExt : Statement {
   Scope first, second;
   Cond cond;
+  mixin DefaultDup!();
   mixin defaultIterate!(first, second, cond);
   override void emitAsm(AsmFile af) {
     mixin(mustOffset("0"));

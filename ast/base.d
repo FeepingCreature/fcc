@@ -6,10 +6,34 @@ import tools.base: Format, New;
 
 interface Iterable {
   void iterate(void delegate(ref Iterable) dg);
+  Iterable dup();
 }
 
 interface Tree : Iterable {
   void emitAsm(AsmFile);
+  Tree dup();
+}
+
+template MyThis(string S) {
+  mixin(This_fn(rmSpace!(S)));
+  private this() { }
+}
+
+template DefaultDup() {
+  override typeof(this) dup() {
+    auto res = new typeof(this);
+    foreach (i, v; this.tupleof) {
+      static if (is(typeof(v[0].dup))) {
+        res.tupleof[i] = new typeof(v[0])[this.tupleof[i].length];
+        foreach (k, ref entry; res.tupleof[i])
+          entry = this.tupleof[i][k].dup;
+      } else static if (is(typeof(v.dup)))
+        res.tupleof[i] = this.tupleof[i].dup;
+      else
+        res.tupleof[i] = this.tupleof[i];
+    }
+    return res;
+  }
 }
 
 import tools.ctfe;
@@ -67,33 +91,40 @@ interface SelfAdding { // may add themselves to the respective namespace
 
 bool addsSelf(T)(T t) { auto sa = cast(SelfAdding) t; return sa && sa.addsSelf(); }
 
-interface Statement : Tree { }
+interface Statement : Tree {
+  override Statement dup();
+}
 
 interface Literal {
   string getValue(); // as assembler literal
 }
 
 class NoOp : Statement {
+  NoOp dup() { return this; }
   override void emitAsm(AsmFile af) { }
   mixin defaultIterate!();
 }
 
 interface Expr : Tree {
   IType valueType();
+  override Expr dup();
 }
 
 // has a pointer, but please don't modify it - ie. string literals
 interface CValue : Expr {
   void emitLocation(AsmFile);
+  override CValue dup();
 }
 
 // free to modify
 interface LValue : CValue {
+  override LValue dup();
 }
 
 // more than rvalue, less than lvalue
 interface MValue : Expr {
   void emitAssignment(AsmFile); // eat value from stack and store
+  override MValue dup();
 }
 
 // used as assignment source placeholder in emitAssignment
@@ -103,6 +134,8 @@ class Placeholder : Expr {
   this(IType type) { this.type = type; }
   override IType valueType() { return type; }
   override void emitAsm(AsmFile af) { }
+  private this() { }
+  mixin DefaultDup!();
 }
 
 // can be printed as string
@@ -114,6 +147,7 @@ interface Formatable {
 /// TODO: how does this work on non-x86?
 interface Cond : Iterable {
   void jumpOn(AsmFile af, bool cond, string dest);
+  override Cond dup();
 }
 
 interface IRegister {
@@ -127,6 +161,7 @@ class Register(string Reg) : Expr, IRegister {
   override void emitAsm(AsmFile af) {
     af.pushStack("%"~Reg, valueType());
   }
+  override Register dup() { return this; }
 }
 
 string error; // TODO: tls
@@ -183,8 +218,12 @@ class CallbackExpr : Expr {
     void emitAsm(AsmFile af) { dg(af); }
     mixin defaultIterate!(); // TODO
   }
+  private this() { }
+  mixin DefaultDup!();
 }
 
 interface ScopeLike {
   int framesize();
 }
+
+Expr delegate(Expr)[] opts;

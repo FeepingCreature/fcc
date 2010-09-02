@@ -33,6 +33,8 @@ class Intf : Named, IType, Tree, SelfAdding {
   override string getIdentifier() { return name; }
   mixin TypeDefaults!();
   override int size() { assert(false); }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!();
   override void emitAsm(AsmFile af) { }
   string toString() { return "interface "~name; }
@@ -165,6 +167,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding {
   string mangle_id;
   override string mangle() { return "class"; }
   override bool addsSelf() { return true; }
+  override Class dup() { assert(false, "wetfux! "); }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, this);
     auto root = cast(Class) (sysmod?sysmod.lookup("Object"):null);

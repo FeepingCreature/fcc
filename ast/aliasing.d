@@ -6,7 +6,9 @@ import ast.base, ast.parse, ast.structure, ast.namespace,
 class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
   Expr base;
   string name;
-  mixin This!("base, name");
+  mixin MyThis!("base, name");
+  mixin DefaultDup!();
+  mixin defaultIterate!(base);
   override {
     bool addsSelf() { return true; }
     string getIdentifier() { return name; }
@@ -26,7 +28,6 @@ class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
       base.emitAsm(af); // may work .. or not.
     }
     IType valueType() { return base.valueType(); }
-    mixin defaultIterate!(base);
     string toString() {
       return Format("expr-alias ", name, " = ", base);
     }
@@ -51,9 +52,8 @@ class TypeAlias : Named, IType, TypeProxy, SelfAdding {
   }
 }
 
-static import ast.fold;
 static this() {
-  ast.fold.opts ~= delegate Expr(Expr ex) {
+  opts ~= delegate Expr(Expr ex) {
     if (auto ea = cast(ExprAlias) ex) {
       return ea.base;
     } else return null;

@@ -82,6 +82,8 @@ mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
 class ExprStatement : Statement {
   Expr ex;
   this(Expr ex) { this.ex = ex; }
+  private this() { }
+  mixin DefaultDup!();
   mixin defaultIterate!(ex);
   override void emitAsm(AsmFile af) {
     auto cs = af.checkptStack();

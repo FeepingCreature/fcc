@@ -10,6 +10,7 @@ class Module : Namespace, Tree, Named {
   Tree[] entries;
   mixin defaultIterate!(imports, entries);
   override {
+    Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
       foreach (entry; entries)

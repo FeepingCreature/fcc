@@ -21,8 +21,10 @@ bool xor(T)(T a, T b) { return a != b; }
 
 class IntAsFloat : Expr {
   Expr i;
-  mixin defaultIterate!(i);
   this(Expr i) { this.i = i; assert(i.valueType() == Single!(SysInt)); }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(i);
   override {
     string toString() { return Format("float(", i, ")"); }
     IType valueType() { return Single!(Float); }
@@ -53,8 +55,10 @@ mixin DefaultParser!(gotIntAsFloat, "tree.expr.int_to_float", "9021");
 
 class FloatAsInt : Expr {
   Expr f;
-  mixin defaultIterate!(f);
   this(Expr f) { this.f = f; assert(f.valueType() == Single!(Float)); }
+  private this() { }
+  mixin DefaultDup;
+  mixin defaultIterate!(f);
   override {
     IType valueType() { return Single!(SysInt); }
     void emitAsm(AsmFile af) {
@@ -82,8 +86,10 @@ mixin DefaultParser!(gotFloatAsInt, "tree.convert.float_to_int");
 
 class FloatAsDouble : Expr {
   Expr f;
-  mixin defaultIterate!(f);
   this(Expr f) { this.f = f; assert(f.valueType() == Single!(Float)); }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(f);
   override {
     IType valueType() { return Single!(Double); }
     void emitAsm(AsmFile af) {
@@ -163,6 +169,8 @@ class AsmBinopExpr(string OP) : Expr {
     this.e1 = e1;
     this.e2 = e2;
   }
+  private this() { }
+  mixin DefaultDup!();
   bool isValid() {
     return
       e1.valueType() == e2.valueType() && e1.valueType() /and/ e2.valueType() == Single!(SysInt) /or/ Single!(Float)
@@ -297,7 +305,8 @@ mixin DefaultParser!(gotAndExpr, "tree.expr.arith.and", "52");
 // TODO: hook into parser
 class CondWrap : Expr {
   Cond cd;
-  mixin This!("cd");
+  mixin MyThis!("cd");
+  mixin DefaultDup!();
   mixin defaultIterate!(cd);
   override {
     IType valueType() {

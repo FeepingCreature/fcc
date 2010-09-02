@@ -165,7 +165,7 @@ bool verboseParser = false, verboseXML = false;
 
 string[bool delegate(string)] condInfo;
 
-alias Tuple!(bool, bool, bool, bool, string, bool delegate(string), bool)
+alias Tuple!(bool, bool, bool, bool, bool, string, bool delegate(string), bool)
   RuleData;
 
 const RULEPTR_SIZE_HAX = (Stuple!(RuleData)).sizeof;
@@ -203,7 +203,7 @@ bool delegate(string) matchrule(string rules) {
   auto rules_backup = rules;
   while (rules.length) {
     auto rule = rules.slice(" ");
-    bool smaller, greater, equal, before;
+    bool smaller, greater, equal, before, after;
     assert(rule.length);
     auto first = rule[0], rest = rule[1 .. $];
     switch (first) {
@@ -211,15 +211,17 @@ bool delegate(string) matchrule(string rules) {
       case '>': greater = true; rule = rest; break;
       case '=': equal = true; rule = rest; break;
       case '^': before = true; rule = rest; break;
+      case '_': after = true; rule = rest; break;
       default: break;
     }
     
-    if (!smaller && !greater && !equal && !before)
+    if (!smaller && !greater && !equal && !before && !after)
       smaller = equal = true; // default
     // different modes
-    assert((smaller || greater || equal) ^ before);
+    assert((smaller || greater || equal) ^ before ^ after);
     
-    static bool fun(bool smaller, bool greater, bool equal, bool before,
+    static bool fun(bool smaller, bool greater, bool equal,
+    bool before, bool after,
     string rule, bool delegate(string) op1, ref bool hit, string text) {
       if (op1 && !op1(text)) return false;
       // avoid allocation from ~"."
@@ -231,15 +233,19 @@ bool delegate(string) matchrule(string rules) {
         return true;
       
       if (before) {
-        if (!hit && text.sectionStartsWith(rule))
+        if (text.sectionStartsWith(rule))
           hit = true;
-        if (hit) return false;
-        return true;
+        return !hit;
+      }
+      if (after) {
+        if (text.sectionStartsWith(rule))
+          hit = true;
+        else return hit;
       }
       return false;
     };
     alias allocRuleData!(fun) ard;
-    res = ard(smaller, greater, equal, before, rule, res, false);
+    res = ard(smaller, greater, equal, before, after, rule, res, false);
     // res = res /apply/ (bool delegate(string) dg, string s) { auto res = dg(s); logln(s, " -> ", res); return res; };
   }
   // condInfo[res] = rules_backup;
