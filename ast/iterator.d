@@ -50,7 +50,7 @@ class Range : Type, RichIterator {
     }
     Expr slice(Expr ex, Expr from, Expr to) {
       return iparse!(Expr, "slice_range", "tree.expr")
-                    ("(ex.cur + from) .. (ex.cur + from + to)",
+                    ("(ex.cur + from) .. (ex.cur + to)",
                      "ex", castExprToWrapper(ex),
                      "from", from, "to", to);
     }
