@@ -78,7 +78,8 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (cast(LValue) dest) return null; // leave to normal assignment
     if (rest(t2, "tree.expr", &src)) {
       if (dest.valueType() != src.valueType()) {
-        throw new Exception(Format("Mismatching types in assignment: ", dest, " <- ", src.valueType()));
+        error = Format("Mismatching types in slice assignment: ", dest, " <- ", src.valueType());
+        return null;
       }
       text = t2;
       // TODO: assert on size

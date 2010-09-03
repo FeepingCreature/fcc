@@ -315,7 +315,7 @@ int main(int argc, char** argv) {
     atexit writeln("Exit 3. ");
     // 2d simplex noise; see http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf
     int[512] perm;
-    perm[0 .. 256] = [for 0..256: rand() % 256].flatten;
+    perm[0 .. 256] = [for 0..256: rand() % 256];
     perm[256 .. 512] = perm[0 .. 256];
     int[3][12] grad3;
     {

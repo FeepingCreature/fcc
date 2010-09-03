@@ -50,17 +50,16 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (rest(t2, "tree.expr >tree.expr.arith", &ex) && t2.accept("=")) {
     auto lv = cast(LValue) ex;
-    if (!lv) throw new Exception(Format("Assignment target is not an lvalue: ", ex, " at ", t2.next_text()));
+    if (!lv) return null;
     target = lv;
     Expr value;
-    if (rest(t2, "tree.expr", &value, (Expr ex) { return test(ex.valueType() == target.valueType()); })) {
-      // logln(target.valueType(), " <- ", value.valueType());
-      if (target.valueType() != value.valueType()) {
-        throw new Exception(Format("Mismatching types in assignment: ", target, " <- ", value.valueType()));
-      }
-      text = t2;
-      return new Assignment(target, value);
-    } else throw new Exception("While grabbing assignment value at '"~t2.next_text()~"'");
+    if (!rest(t2, "tree.expr", &value, (Expr ex) { return test(ex.valueType() == target.valueType()); })) {
+      error = Format("Mismatching types in assignment: ", target, " <- ", value.valueType());
+      return null;
+    }
+    // logln(target.valueType(), " <- ", value.valueType());
+    text = t2;
+    return new Assignment(target, value);
   } else return null;
 }
 mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign", "1");

@@ -374,30 +374,39 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotIterIndex, "tree.rhs_partial.iter_index");
 
 import ast.arrays;
-class FlattenIterator : Expr {
+// Statement with target, Expr without. Lol.
+class FlattenIterator : Expr, Statement {
   Expr ex;
   RichIterator iter;
-  mixin MyThis!("ex, iter");
+  Expr target; // optional
+  this() { }
+  this(Expr ex, RichIterator ri) { this.ex = ex; this.iter = ri; }
+  this(Expr ex, RichIterator ri, Expr target) { this(ex, ri); this.target = target; }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
   override {
     IType valueType() { return new Array(iter.elemType()); }
     void emitAsm(AsmFile af) {
-      mkVar(af, valueType(), true, (Variable var) {
-        iparse!(Statement, "initVar", "tree.stmt")
-               (` {
-                    printf("Len: %i\n", len);
-                    var = new(len) elem;
-                    int i;
-                    while var[i++] <- _iter { }
-                  }`,
+      if (target) {
+        iparse!(Statement, "assign_iter_to_array", "tree.stmt")
+              (` { printf("Len2: %i\n", len); int i; while var[i++] <- _iter { } }`,
                   namespace(),
-                  "len", iter.length(ex),
-                  "elem", iter.elemType(),
-                  "_iter", ex,
-                  "var", var,
-                  af).emitAsm(af);
-      });
+                  "len", iter.length(ex), "_iter", ex, "var", target, af).emitAsm(af);
+      } else {
+        mkVar(af, valueType(), true, (Variable var) {
+          iparse!(Statement, "initVar", "tree.stmt")
+                (` {
+                      printf("Len: %i\n", len);
+                      var = new(len) elem;
+                      int i;
+                      while var[i++] <- _iter { }
+                    }`,
+                    namespace(),
+                    "len", iter.length(ex), "elem", iter.elemType(),
+                    "_iter", ex, "var", var,
+                    af).emitAsm(af);
+        });
+      }
     }
   }
 }
@@ -411,3 +420,24 @@ Object gotIterFlatten(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotIterFlatten, "tree.rhs_partial.iter_flatten");
+
+import tools.log;
+Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr target;
+  if (rest(t2, "tree.expr >tree.expr.arith", &target) && t2.accept("=")) {
+    Expr value;
+    if (!rest(t2, "tree.expr", &value, (Expr ex) {
+      auto it = cast(RichIterator) ex.valueType();
+      return it && target.valueType() == new Array(it.elemType());
+    })) {
+      error = Format("Mismatching types in iterator assignment: ", target, " <- ", value.valueType());
+      logln("faiil");
+      return null;
+    }
+    text = t2;
+    auto it = cast(RichIterator) value.valueType();
+    return new FlattenIterator(value, it, target);
+  } else return null;
+}
+mixin DefaultParser!(gotIteratorAssign, "tree.semicol_stmt.assign_iterator", "11");
