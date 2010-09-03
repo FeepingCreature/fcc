@@ -132,7 +132,7 @@ class StructFunRefExpr : mkDelegate {
     this.fun = fun;
     logln("base ptr is ", fun.baseptr);
     assert(fun.baseptr);
-    super(fun.getPointer(), fun.baseptr);
+    super(fun.getPointer(), new RefExpr(cast(CValue) fun.baseptr));
   }
   override string toString() {
     return Format("&", fun.baseptr, ".", fun);
