@@ -28,7 +28,7 @@ class ReinterpretCast(T) : T {
 alias ReinterpretCast!(Expr) RCE;
 
 static this() {
-  opts ~= delegate Expr(Expr ex) {
+  foldopt ~= delegate Expr(Expr ex) {
     if (auto rce1 = cast(RCE) ex) {
       if (auto rce2 = cast(RCE) rce1.from) {
         return new RCE(rce1.to, rce2.from);
@@ -36,7 +36,7 @@ static this() {
     }
     return null;
   };
-  opts ~= delegate Expr(Expr ex) {
+  foldopt ~= delegate Expr(Expr ex) {
     if (auto rce = cast(RCE) ex) {
       if (rce.from.valueType() == rce.to)
         return rce.from;

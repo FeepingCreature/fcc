@@ -165,7 +165,7 @@ class StructLiteral : Expr {
   mixin MyThis!("st, exprs");
   mixin defaultIterate!(exprs);
   override {
-    string toString() { return Format(st, " {", exprs, "}"); }
+    string toString() { return Format("literal ", st, " {", exprs, "}"); }
     StructLiteral dup() {
       auto res = new StructLiteral;
       res.st = st;
@@ -281,7 +281,7 @@ alias MemberAccess!(LValue) MemberAccess_LValue;
 
 import ast.fold;
 static this() {
-  opts ~= delegate Expr(Expr ex) {
+  foldopt ~= delegate Expr(Expr ex) {
     if (auto mae = cast(MemberAccess_Expr) ex) {
       auto base = fold(mae.base);
       // logln("fold ", mae.base);

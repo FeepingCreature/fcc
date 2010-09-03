@@ -92,9 +92,10 @@ Expr simpleFormat(Expr ex) {
         iparse!(Scope, "gen_array_format", "tree.scope")
         (`{
             var = "["[];
-            for (int i = 0; i < array.length; ++i) {
+            auto ar = array;
+            for (int i = 0; i < ar.length; ++i) {
               if i var = var ~ ", ";
-              auto elem = array[i];
+              auto elem = ar[i];
               var = var ~ "$elem";
             }
             var = var ~ "]";

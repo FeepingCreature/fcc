@@ -156,7 +156,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     static if (is(T[$-1] == AsmFile)) alias T[0 .. $-1] T2;
     else alias T T2;
     
-    static if (T2.length && is(T2[0]: Namespace)) alias T[1 .. $] T3;
+    static if (T2.length && is(T2[0]: Namespace)) alias T2[1 .. $] T3;
     else alias T2 T3;
     
     static assert(T3.length % 2 == 0);
@@ -177,7 +177,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     
     myns.internalMode = true;
     // compile-time for loop LALZ
-    foreach (i, bogus; T[0 .. $/2]) {
+    foreach (i, bogus; T2[0 .. $/2]) {
       myns.add(t[i*2], t[i*2+1]);
     }
     

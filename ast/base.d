@@ -226,4 +226,4 @@ interface ScopeLike {
   int framesize();
 }
 
-Expr delegate(Expr)[] opts;
+Expr delegate(Expr)[] foldopt; // a thing that flattens

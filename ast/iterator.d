@@ -74,10 +74,6 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotRangeIter, "tree.expr.iter_range", "11");
 
-// auto iter = [for 0..256: 5] for x <- iter { }
-// ==
-// for x <- 0..256 { }
-
 import ast.loops;
 
 import tools.base: This, This_fn, rmSpace;
@@ -233,7 +229,9 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     backup = namespace();
     auto mns = new MiniNamespace("for_iter_var");
     mns.sup = backup;
+    mns.internalMode = true;
     mns.add(ivarname, ph);
+    namespace.set(mns);
   }
   
   scope(exit)
@@ -281,8 +279,9 @@ class IterLetCond : Cond {
     auto step = itype.yieldAdvance(iref);
     auto itercond = itype.terminateCond(iref);
     itercond.jumpOn(af, cond, dest);
-    if (target) (new Assignment(target, step)).emitAsm(af);
-    else {
+    if (target) {
+      (new Assignment(target, step)).emitAsm(af);
+    } else {
       step.emitAsm(af);
       af.sfree(step.valueType().size);
     }
@@ -321,10 +320,10 @@ Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
     newvar = new Variable(ty, name, boffs(ty));
     newvar.initInit();
     lv = newvar;
-    if (!t2.accept("<-"))
-      return null;
-    needIterator = true;
   }
+  if (!t2.accept("<-"))
+    return null;
+  needIterator = true;
 withoutIterator:
   Expr iter;
   if (!rest(t2, "tree.expr", &iter, (Expr ex) { return !!cast(Iterator) ex.valueType(); }))
@@ -348,7 +347,7 @@ mixin DefaultParser!(gotIterCond, "cond.iter", "705");
 
 Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto iter = cast(RichIterator) ex.valueType();
+    auto iter = cast(Iterator) ex.valueType();
     if (!iter) return null;
     auto t2 = text;
     Expr pos;
@@ -365,11 +364,50 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
                            ("ps.cur", "ps", ps);
         auto to   = iparse!(Expr, "iter_slice_to",   "tree.expr")
                            ("ps.end", "ps", ps);
-        return cast(Object) iter.slice(ex, from, to);
+        return cast(Object) ri.slice(ex, from, to);
       } else {
-        return cast(Object) iter.index(ex, pos);
+        return cast(Object) ri.index(ex, pos);
       }
     } else return null;
   };
 }
 mixin DefaultParser!(gotIterIndex, "tree.rhs_partial.iter_index");
+
+import ast.arrays;
+class FlattenIterator : Expr {
+  Expr ex;
+  RichIterator iter;
+  mixin MyThis!("ex, iter");
+  mixin DefaultDup!();
+  mixin defaultIterate!(ex);
+  override {
+    IType valueType() { return new Array(iter.elemType()); }
+    void emitAsm(AsmFile af) {
+      mkVar(af, valueType(), true, (Variable var) {
+        iparse!(Statement, "initVar", "tree.stmt")
+               (` {
+                    printf("Len: %i\n", len);
+                    var = new(len) elem;
+                    int i;
+                    while var[i++] <- _iter { }
+                  }`,
+                  namespace(),
+                  "len", iter.length(ex),
+                  "elem", iter.elemType(),
+                  "_iter", ex,
+                  "var", var,
+                  af).emitAsm(af);
+      });
+    }
+  }
+}
+
+Object gotIterFlatten(ref string text, ParseCb cont, ParseCb rest) {
+  return lhs_partial.using = delegate Object(Expr ex) {
+    auto iter = cast(RichIterator) ex.valueType();
+    if (!iter) return null;
+    if (!text.accept(".flatten")) return null;
+    return new FlattenIterator(ex, iter);
+  };
+}
+mixin DefaultParser!(gotIterFlatten, "tree.rhs_partial.iter_flatten");

@@ -53,7 +53,7 @@ class TypeAlias : Named, IType, TypeProxy, SelfAdding {
 }
 
 static this() {
-  opts ~= delegate Expr(Expr ex) {
+  foldopt ~= delegate Expr(Expr ex) {
     if (auto ea = cast(ExprAlias) ex) {
       return ea.base;
     } else return null;
