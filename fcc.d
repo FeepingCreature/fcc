@@ -52,7 +52,18 @@ import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 extern(C) void exit(int);
 
 import tools.time;
-import optimizer;
+import optimizer, ast.fold;
+
+Module optimize(Module mod) {
+  void fun(ref Iterable iter) {
+    if (auto ex = cast(Expr) iter)
+      iter = cast(Iterable) fold(ex);
+    iter.iterate(&fun);
+  }
+  mod.iterate(&fun);
+  return mod;
+}
+
 string compile(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
   auto af = new AsmFile(optimize);
   if (configOpts) {
@@ -90,9 +101,21 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     mod = cast(Module) mt;
   else assert(false, "unable to eat module from "~file~": "~error);
   auto len_parse = sec() - start_parse;
-  if (text.strip().length) assert(false, "this text confuses me: "~text.next_text()~": "~error);
-  auto len_gen = time({sysmod.emitAsm(af); mod.emitAsm(af); }) / 1_000_000f;
-  writefln(len_parse, " to parse, ", len_gen, " to emit. ");
+  if (text.strip().length)
+    assert(false, "this text confuses me: "~text.next_text()~": "~error);
+  double len_opt;
+  if (optimize) len_opt = time({
+    sysmod = .optimize(sysmod);
+    mod    = .optimize(mod);
+  });
+  auto len_gen = time({
+    sysmod.emitAsm(af);
+    mod.emitAsm(af);
+  }) / 1_000_000f;
+  if (optimize)
+    writefln(len_parse, " to parse, ", len_gen, " to emit, ", len_opt, " to opt. ");
+  else
+    writefln(len_parse, " to parse, ", len_gen, " to emit. ");
   writefln("Subsegments: ", ast.namespace.bench);
   srcname.write(af.genAsm());
   auto cmdline = Format("as --32 -o ", objname, " ", srcname);

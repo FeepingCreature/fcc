@@ -212,13 +212,15 @@ class FunctionType : ast.types.Type {
 
 bool gotParlist(ref string str, ref Stuple!(IType, string)[] res, ParseCb rest) {
   auto t2 = str;
-  IType ptype;
+  IType ptype, lastType;
   string parname;
   if (t2.accept("(") &&
       t2.bjoin(
-        test(ptype = cast(IType) rest(t2, "type")) && (t2.gotIdentifier(parname) || ((parname = null), true)),
+        ( // can omit types for subsequent parameters
+          test(ptype = cast(IType) rest(t2, "type")) || test(ptype = lastType)
+        ) && (t2.gotIdentifier(parname) || ((parname = null), true)),
         t2.accept(","),
-        { res ~= stuple(ptype, parname); }
+        { lastType = ptype; res ~= stuple(ptype, parname); }
       ) &&
       t2.accept(")")
   ) {

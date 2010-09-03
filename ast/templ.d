@@ -42,7 +42,7 @@ class TemplateInstance : Namespace {
   this(Template parent, IType type, ParseCb rest) {
     this.type = type;
     this.parent = parent;
-    add(parent.param, type);
+    __add(parent.param, cast(Object) type);
     this.sup = context = parent.context;
     withTLS(namespace, this, {
       auto t2 = parent.source.dup; // prevent memoizer confusion. 

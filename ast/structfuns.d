@@ -22,6 +22,7 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
   return lhs_partial.using = delegate Object(Expr ex) {
+    ex = depointer(ex);
     auto strtype = cast(Structure) ex.valueType();
     if (!strtype) return null;
     string member;
@@ -124,3 +125,33 @@ class RelFunction : Function, RelTransformable {
     }
   }
 }
+// &foo.fun, stolen from ast.nestfun
+class StructFunRefExpr : mkDelegate {
+  RelFunction fun;
+  this(RelFunction fun) {
+    this.fun = fun;
+    logln("base ptr is ", fun.baseptr);
+    assert(fun.baseptr);
+    super(fun.getPointer(), fun.baseptr);
+  }
+  override string toString() {
+    return Format("&", fun.baseptr, ".", fun);
+  }
+  // TODO: emit asm directly in case of PointerFunction.
+  override IType valueType() {
+    return new Delegate(fun.type.ret, fun.type.params /map/ ex!("a, b -> a"));
+  }
+}
+
+Object gotStructfunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("&")) return null;
+  
+  string ident;
+  RelFunction rf;
+  if (!rest(t2, "tree.expr", &rf)) return null;
+  
+  text = t2;
+  return new StructFunRefExpr(rf);
+}
+mixin DefaultParser!(gotStructfunRefExpr, "tree.expr.dg_struct_ref", "21015");

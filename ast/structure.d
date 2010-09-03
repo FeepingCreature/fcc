@@ -317,6 +317,15 @@ Expr mkMemberAccess(Expr strct, string name) {
     return new MemberAccess_Expr(strct, name);
 }
 
+Expr depointer(Expr ex) {
+  while (true) {
+    if (auto ptr = cast(Pointer) ex.valueType()) {
+      ex = new DerefExpr(ex);
+    } else break;
+  }
+  return ex;
+}
+
 import ast.parse;
 Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -325,11 +334,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto ex = cast(Expr) lhs_partial();
   if (!ex) return null;
   // pointers get dereferenced for struct access
-  while (true) {
-    if (auto ptr = cast(Pointer) ex.valueType()) {
-      ex = new DerefExpr(ex);
-    } else break;
-  }
+  ex = depointer(ex);
   if (!cast(Structure) ex.valueType())
     return null;
   

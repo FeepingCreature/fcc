@@ -10,6 +10,7 @@ class NestedFunction : Function {
     this.context = context;
   }
   override {
+    string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
       return context.fun.mangleSelf() ~ "_subfun_" ~ context.fun.mangle(name, type);
     }
@@ -43,7 +44,6 @@ class NestedFunction : Function {
         );
       } else if (res) {
         if (auto nf = cast(NestedFunction) res) {
-          logln("got ", nf, " in ", this, "; base ", mybase);
           return new PointerFunction!(NestedFunction) (new NestFunRefExpr(nf, mybase));
         }
         return res;
@@ -129,6 +129,7 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   Object obj;
   if (!rest(t2, "tree.expr", &obj)) return null;
+  
   auto nf = cast(NestedFunction) obj;
   if (!nf) return null;
   

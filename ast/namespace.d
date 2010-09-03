@@ -43,8 +43,8 @@ class Namespace {
   }
   void _add(string name, Object obj) {
     if (auto ns = cast(Namespace) obj) {
-      if (ns.sup) asm { int 3; }
-      assert(!ns.sup, Format("While adding ", obj, " to ", name, ": object already in ", ns.sup, "! "));
+      // if (ns.sup) asm { int 3; }
+      assert(!ns.sup, Format("While adding ", obj, " to ", this, ": object already in ", ns.sup, "! "));
       ns.sup = this;
     }
     __add(name, obj);
