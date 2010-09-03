@@ -389,14 +389,13 @@ class FlattenIterator : Expr, Statement {
     void emitAsm(AsmFile af) {
       if (target) {
         iparse!(Statement, "assign_iter_to_array", "tree.stmt")
-              (` { printf("Len2: %i\n", len); int i; while var[i++] <- _iter { } }`,
+              (` { int i; while var[i++] <- _iter { } }`,
                   namespace(),
                   "len", iter.length(ex), "_iter", ex, "var", target, af).emitAsm(af);
       } else {
         mkVar(af, valueType(), true, (Variable var) {
           iparse!(Statement, "initVar", "tree.stmt")
                 (` {
-                      printf("Len: %i\n", len);
                       var = new(len) elem;
                       int i;
                       while var[i++] <- _iter { }
