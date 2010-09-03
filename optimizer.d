@@ -384,7 +384,7 @@ void setupOpts() {
   mixin(opt("fold_float_alloc_load_store", `^SAlloc, ^FloatLoad, ^FloatPop: $0.size == 4 && $2.dest == "(%esp)" => $SUBSTWITH { kind = $TK.Push; source = $1.source; type = Single!(Float); }`));
   mixin(opt("fold_float_pop_load_to_store", `^FloatPop, ^FloatLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.FloatStore; dest = $0.dest; }`));
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
-  mixin(opt("fold_mov_push", `^Mov, ^Push: $0.to == $1.source => $T t; with (t) { kind = $TK.Push; type = $1.type; source = $0.from; } $SUBST([t, $0]); `));
+  mixin(opt("fold_mov_push", `^Mov, ^Push: $0.to == $1.source && !referencesStack($0) => $T t; with (t) { kind = $TK.Push; type = $1.type; source = $0.from; } $SUBST([t, $0]); `));
   mixin(opt("fold_mov_pop",  `^Mov, ^Pop : $0.from == $1.dest && $0.to == "(%esp)"
     =>
     $SUBSTWITH {
