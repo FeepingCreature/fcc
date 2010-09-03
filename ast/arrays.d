@@ -2,8 +2,23 @@ module ast.arrays;
 
 import ast.base, ast.types, ast.static_arrays, tools.base: This, This_fn, rmSpace;
 
-// ptr, length, capacity
+// ptr, length
 class Array : Type {
+  IType elemType;
+  this() { }
+  this(IType et) { elemType = et; }
+  override {
+    int size() {
+      return nativePtrSize + nativeIntSize;
+    }
+    string mangle() {
+      return "array_of_"~elemType.mangle();
+    }
+  }
+}
+
+// ptr, length, capacity
+class ExtArray : Type {
   IType elemType;
   this() { }
   this(IType et) { elemType = et; }
@@ -12,26 +27,31 @@ class Array : Type {
       return nativePtrSize + nativeIntSize * 2;
     }
     string mangle() {
-      return "array_of_"~elemType.mangle();
+      return "rich_array_of_"~elemType.mangle();
     }
   }
 }
 
-IType arrayAsStruct(IType base) {
+IType arrayAsStruct(IType base, bool rich) {
   auto res = new Structure(null);
+  if (rich)
+    new RelMember("capacity", Single!(SysInt), res);
   // TODO: fix when int promotion is supported
   // Structure.Member("length", Single!(SizeT)),
-  new RelMember("capacity", Single!(SysInt), res);
   new RelMember("length", Single!(SysInt), res);
   new RelMember("ptr", new Pointer(base), res);
   return res;
 }
 
 T arrayToStruct(T)(T array) {
-  return new ReinterpretCast!(T) (
-    arrayAsStruct((cast(Array) array.valueType()).elemType),
-    array
-  );
+  auto
+    ar = cast(Array) array.valueType(),
+    ea = cast(ExtArray) array.valueType();
+  if (ar)
+    return new ReinterpretCast!(T) (arrayAsStruct(ar.elemType, false), array);
+  if (ea)
+    return new ReinterpretCast!(T) (arrayAsStruct(ea.elemType, true),  array);
+  assert(false);
 }
 
 import ast.structure;
@@ -39,6 +59,8 @@ static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
     if (text.accept("[]")) {
       return new Array(cur);
+    } else if (text.accept("[~]")) {
+      return new ExtArray(cur);
     } else return null;
   };
 }
@@ -73,14 +95,14 @@ class ArrayLength(T) : T {
 
 // construct array from two expressions
 class ArrayMaker : Expr {
-  Expr ptr, length, cap;
-  mixin MyThis!("ptr, length, cap");
+  Expr ptr, length;
+  mixin MyThis!("ptr, length");
   mixin DefaultDup!();
-  mixin defaultIterate!(ptr, length, cap);
+  mixin defaultIterate!(ptr, length);
   IType elemType() {
     return (cast(Pointer) ptr.valueType()).target;
   }
-  override string toString() { return Format("array(ptr=", ptr, ", length=", length, ", cap=", cap, ")"); }
+  override string toString() { return Format("array(ptr=", ptr, ", length=", length, ")"); }
   override IType valueType() {
     return new Array(elemType());
   }
@@ -89,15 +111,13 @@ class ArrayMaker : Expr {
     // TODO: stack direction/order
     ptr.emitAsm(af);
     length.emitAsm(af);
-    cap.emitAsm(af);
   }
 }
 
 Expr staticToArray(Expr sa) {
   return new ArrayMaker(
     new CValueAsPointer(cast(CValue) sa),
-    new IntExpr((cast(StaticArray) sa.valueType()).length),
-    new IntExpr(0)
+    new IntExpr((cast(StaticArray) sa.valueType()).length)
   );
 }
 

@@ -45,6 +45,7 @@ class ConcatChain : Expr {
           offset = new Variable(Single!(SysInt), null, boffs(Single!(SysInt), af.currentStackDepth)),
           total  = new Variable(Single!(SysInt), null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize)),
           cache  = new Variable(sa,              null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
+        cache.dontInit = true;
         {
           auto vd = new VarDecl;
           vd.vars ~= offset;

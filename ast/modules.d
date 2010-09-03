@@ -91,12 +91,8 @@ void setupSysmods() {
       /*MARKER*/
       void append(char[] target, char[] text) {
         int newsize = target.length + text.length;
-        char[] newtarget;
-        if newsize <= target.capacity newtarget = target;
-        else {
-          newtarget = new(newsize) char;
-          newtarget[0 .. target.length] = target;
-        }
+        auto newtarget = new(newsize) char;
+        newtarget[0 .. target.length] = target;
         newtarget[target.length .. newsize] = text;
       }
     }

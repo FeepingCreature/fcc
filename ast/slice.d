@@ -6,16 +6,14 @@ import ast.base, ast.arrays, ast.pointer, ast.math, ast.modules, ast.fun,
 Expr mkPointerSlice(Expr ptr, Expr from, Expr to) {
   return new ArrayMaker(
     new AddExpr(ptr, from),
-    new SubExpr(to, from),
-    new IntExpr(0)
+    new SubExpr(to, from)
   );
 }
 
 Expr mkArraySlice(Expr array, Expr from = null, Expr to = null) {
   return new ArrayMaker(
     new AddExpr(new MemberAccess_Expr(arrayToStruct(array), "ptr"), from),
-    new SubExpr(to, from),
-    new IntExpr(0)
+    new SubExpr(to, from)
   );
 }
 
