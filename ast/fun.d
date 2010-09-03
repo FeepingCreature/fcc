@@ -118,8 +118,12 @@ class Function : Namespace, Tree, Named, SelfAdding {
 class FunCall : Expr {
   Expr[] params;
   Function fun;
-  private this() { }
-  mixin DefaultDup!();
+  FunCall dup() {
+    auto res = new FunCall;
+    res.fun = fun;
+    foreach (param; params) res.params ~= param.dup;
+    return res;
+  }
   mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {
     callFunction(af, fun.type.ret, params, fun.getPointer());

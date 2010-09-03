@@ -35,7 +35,14 @@ class Scope : Namespace, Tree, ScopeLike, Statement {
     sup = namespace();
     fun = sup.get!(Function);
   }
-  mixin DefaultDup!();
+  override Scope dup() {
+    auto res = new Scope;
+    res.fun = fun;
+    res._body = _body.dup;
+    foreach (guard; guards) res.guards ~= guard.dup;
+    res.id = id;
+    return res;
+  }
   override int framesize() {
     // TODO: alignment
     int res;
