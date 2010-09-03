@@ -207,7 +207,7 @@ void setupOpts() {
     void doMov($TK kind, int sz) {
       while (size >= sz) {
         $T mv;
-        mv.kind = $TK.Mov;
+        mv.kind = kind;
         mv.from = source; mv.to = dest;
         mv.stackdepth = $0.stackdepth;
         size -= sz;
