@@ -192,6 +192,11 @@ context ctest {
   int var;
 }
 
+union U {
+  int I;
+  float F;
+}
+
 int main(int argc, char** argv) {
   test(2);
   test(0);
@@ -439,6 +444,10 @@ int main(int argc, char** argv) {
     }
     fun1(0, 0);
     sdlfun(&fun3);
+    U u;
+    u.F = 15;
+    printf("comparison 0x%08x\n", cast(float) 15);
+    writeln("u.i is $$cast(void*) u.I");
     return 0;
     atexit writeln("Exit 4. ");
   }

@@ -47,11 +47,14 @@ class RelMember : Expr, Named, RelTransformable {
   this(string name, IType type, Namespace ns) {
     this.name = name;
     this.type = type;
-    offset = (cast(IType) ns).size();
+    auto st = cast(Structure) ns;
+    
+    if (st && st.isUnion) offset = 0;
+    else offset = (cast(IType) ns).size();
+    
     // alignment
     bool aligned = true;
-    if (auto st = cast(Structure) ns)
-      if (st.packed) aligned = false;
+    if (st && st.packed) aligned = false;
     
     if (aligned)
       doAlign(offset, type);
@@ -65,7 +68,7 @@ class RelMember : Expr, Named, RelTransformable {
 class Structure : Namespace, RelNamespace, IType, Named {
   mixin TypeDefaults!();
   string name;
-  bool packed;
+  bool packed, isUnion;
   int size() {
     int res;
     select((string, RelMember member) {
@@ -141,11 +144,17 @@ bool matchStructBody(ref string text, Namespace ns,
 
 Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("struct ")) return null;
+  bool isUnion;
+  if (!t2.accept("struct ")) {
+    if (!t2.accept("union "))
+      return null;
+    isUnion = true;
+  }
   string name;
   Structure st;
   if (t2.gotIdentifier(name) && t2.accept("{")) {
     New(st, name);
+    st.isUnion = isUnion;
     namespace().add(st); // gotta do this here so the sup is set
     if (matchStructBody(t2, st, cont, rest)) {
       if (!t2.accept("}"))
