@@ -39,19 +39,13 @@ class IntAsFloat : Expr {
   }
 }
 
-Object gotIntAsFloat(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Expr ex;
-  if (!rest(t2, "tree.expr >tree.expr.arith ^selfrule", &ex))
-    return null;
-  
-  if (Single!(SysInt) != ex.valueType())
-    return null;
-  
-  text = t2;
-  return new IntAsFloat(ex);
+import ast.casting;
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (Single!(SysInt) != ex.valueType()) return null;
+    return new IntAsFloat(ex);
+  };
 }
-mixin DefaultParser!(gotIntAsFloat, "tree.expr.int_to_float", "9021");
 
 class FloatAsInt : Expr {
   Expr f;
@@ -103,16 +97,12 @@ class FloatAsDouble : Expr {
   }
 }
 
-Object gotFloatAsDouble(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Expr ex;
-  if (!rest(t2, "tree.expr ^selfrule", &ex, (Expr ex) { return !!(Single!(Float) == ex.valueType()); }))
-    return null;
-  
-  text = t2;
-  return new FloatAsDouble(ex);
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (Single!(Float) != ex.valueType()) return null;
+    return new FloatAsDouble(ex);
+  };
 }
-mixin DefaultParser!(gotFloatAsDouble, "tree.expr.float_to_double", "9501");
 
 void loadFloatEx(Expr ex, AsmFile af) {
   if (auto lv = cast(CValue) ex) {
@@ -267,6 +257,7 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
       accepted = false; // a && b != a & &b (!)
     if (accepted) {
       if (cont(t3, &op2)) {
+        // logln(Ops[i*2+1], " of (", op, ", ", op2, ") ?");
         auto binop = new AsmBinopExpr!(Ops[i*2+1])(op, op2);
         if (!binop.isValid()) {
           error = Format("Invalid math op at '", t2.next_text(), "': ", op, " and ", op2);

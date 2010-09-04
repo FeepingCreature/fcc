@@ -120,6 +120,8 @@ void setupSysmods() {
       printf("%.*s\n", line.length, line.ptr);
     }
     char[] ftoa(float f) {
+      // printf("ftoa(%f)\n", f);
+      // printf("ftoa(%f)\n", cast(double) 16);
       auto res = new(20) char;
       double d = f;
       int len = snprintf(res.ptr, res.length, "%f", d);

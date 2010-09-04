@@ -14,6 +14,7 @@ class Array : Type {
     string mangle() {
       return "array_of_"~elemType.mangle();
     }
+    string toString() { return Format(elemType, "[]"); }
   }
 }
 
@@ -121,19 +122,14 @@ Expr staticToArray(Expr sa) {
   );
 }
 
-import ast.literals;
-Object gotStaticArrayCValAsDynamic(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  auto ex = cast(Expr) rest(t2, "tree.expr ^selfrule",
-    delegate bool(Expr ex) {
-      return cast(StaticArray) ex.valueType() && cast(CValue) ex;
-    }
-  );
-  if (!ex) return null;
-  text = t2;
-  return cast(Object) staticToArray(ex);
+import ast.literals, ast.casting;
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (!cast(StaticArray) ex.valueType() || !cast(CValue) ex)
+      return null;
+    return staticToArray(ex);
+  };
 }
-mixin DefaultParser!(gotStaticArrayCValAsDynamic, "tree.expr.sa_cval_dynamic", "905");
 
 Expr getArrayLength(Expr ex) {
   if (auto lv = cast(LValue) ex) return new ArrayLength!(MValue) (lv);
@@ -156,16 +152,13 @@ Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length");
 
-
-Object gotArrayAsStruct(ref string st, ParseCb cont, ParseCb rest) {
-  Expr ex;
-  if (!rest(st, "tree.expr ^selfrule", &ex))
-    return null;
-  if (!cast(Array) ex.valueType())
-    return null;
-  if (auto lv = cast(LValue) ex)
-    return cast(Object) arrayToStruct!(LValue) (lv);
-  else
-    return cast(Object) arrayToStruct!(Expr) (ex);
+import ast.casting;
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (!cast(Array) ex.valueType()) return null;
+    if (auto lv = cast(LValue) ex)
+      return arrayToStruct!(LValue) (lv);
+    else
+      return arrayToStruct!(Expr) (ex);
+  };
 }
-mixin DefaultParser!(gotArrayAsStruct, "tree.expr.array_struct", "915");

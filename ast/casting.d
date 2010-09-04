@@ -55,26 +55,14 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception("No type matched in cast expression: "~t2.next_text());
   if (!t2.accept(")"))
     throw new Exception("Missed closing bracket in cast at "~t2.next_text());
-  char* longest;
-  Expr match;
-  if (!rest(t2, "tree.expr >tree.expr.arith", &ex, (Expr ex) {
-    if (t2.ptr > longest) {
-      longest = t2.ptr;
-      match = ex;
-      return ParseCtl.AcceptCont; // always accept lengthenings
-    }
-    if (ex.valueType() == dest)
-      match = ex;
-    
-    return (ex.valueType() == dest) ? ParseCtl.AcceptCont : ParseCtl.RejectCont;
-  }))
+  if (!rest(t2, "tree.expr >tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { return test(it == dest); }))
     return null;
   
   // confirm
-  if (match.valueType() != dest) return null;
+  if (ex.valueType() != dest) return null;
   
   text = t2;
-  return cast(Object) new RCE(dest, match);
+  return cast(Object) new RCE(dest, ex);
 }
 mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default", "701");
 
@@ -110,13 +98,69 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (!t2.accept(")"))
       throw new Exception("Missed closing bracket in cast at "~t2.next_text());
     if (!rest(t2, "tree.expr >tree.expr.arith", &ex, (Expr ex) { return ex.valueType().size == dest.size; }))
-      throw new Exception("Expression not matched in cast: "~t2.next_text());
+      return null;
+      // throw new Exception("Expression not matched in cast: "~t2.next_text());
     
     text = t2;
     return new ReinterpretCast!(Expr)(dest, ex);
   } else return null;
 }
 mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "7");
+
+import tools.base: toDg;
+
+// implicit conversions
+struct implicits { static {
+  void delegate(Expr, void delegate(Expr))[] dgs;
+  void opCatAssign(void delegate(Expr, void delegate(Expr)) dg) {
+    dgs ~= dg;
+  }
+  void opCatAssign(Expr delegate(Expr) dg) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, void delegate(Expr) dg2) {
+      if (auto res = dg(ex)) dg2(res);
+    };
+  }
+  void opCatAssign(Expr function(Expr) fn) {
+    opCatAssign(toDg(fn));
+  }
+  int opApply(int delegate(ref typeof(dgs[0])) callback) {
+    foreach (dg; dgs)
+      if (auto res = callback(dg)) return res;
+    return 0;
+  }
+}}
+
+bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
+  IType[] visited;
+  bool haveVisited(Expr ex) {
+    auto t1 = ex.valueType();
+    foreach (t2; visited) if (t1 == t2) return true;
+    return false;
+  }
+  Expr recurse(Expr ex) {
+    Expr[] recurseInto;
+    foreach (dg; implicits) {
+      Expr res;
+      dg(ex, (Expr ce) {
+        if (res || haveVisited(ce)) return;
+        visited ~= ce.valueType();
+        if (accept(ce)) res = ce;
+        recurseInto ~= ce;
+      });
+      if (res) return res;
+    }
+    foreach (entry; recurseInto)
+      if (auto res = recurse(entry)) return res;
+    return null;
+  }
+  if (accept(ex)) return true;
+  if (auto res = recurse(ex)) { ex = res; return true; }
+  else return false;
+}
+
+bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept) {
+  return gotImplicitCast(ex, (Expr ex) { return accept(ex.valueType()); });
+}
 
 class ShortToIntCast : Expr {
   Expr sh;
@@ -155,27 +199,17 @@ class CharToShortCast : Expr {
   }
 }
 
-Object gotCharToShortExpr(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex;
-  auto t2 = text;
-  if (!rest(t2, "tree.expr ^selfrule", &ex, (Expr ex) {
-    return ex.valueType().size() == 1;
-  }))
-    return null;
-  text = t2;
-  return new CharToShortCast(ex);
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (ex.valueType() == Single!(Char))
+      return new CharToShortCast(ex);
+    else
+      return null;
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (ex.valueType() == Single!(Short))
+      return new ShortToIntCast(ex);
+    else
+      return null;
+  };
 }
-mixin DefaultParser!(gotCharToShortExpr, "tree.expr.char_to_short", "951");
-
-import tools.log;
-Object gotShortToIntExpr(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex;
-  auto t2 = text;
-  if (!rest(t2, "tree.expr ^selfrule", &ex, (Expr ex) {
-    return ex.valueType().size() == 2;
-  }))
-    return null;
-  text = t2;
-  return new ShortToIntCast(ex);
-}
-mixin DefaultParser!(gotShortToIntExpr, "tree.expr.short_to_int", "952");

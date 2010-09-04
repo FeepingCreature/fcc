@@ -127,11 +127,8 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("&")) return null;
   
   string ident;
-  Object obj;
-  if (!rest(t2, "tree.expr", &obj)) return null;
-  
-  auto nf = cast(NestedFunction) obj;
-  if (!nf) return null;
+  NestedFunction nf;
+  if (!rest(t2, "tree.expr", &nf)) return null;
   
   text = t2;
   if (auto pnf = cast(PointerFunction!(NestedFunction)) nf) return cast(Object) pnf.ptr;
@@ -172,19 +169,17 @@ class LitTemp : mkDelegate, Literal {
   abstract override string getValue();
 }
 
-Object gotFunAsDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex;
-  auto t2 = text;
-  if (!rest(t2, "tree.expr ^selfrule", &ex)) return null;
-  auto fp = cast(FunctionPointer) ex.valueType();
-  if (!fp) return null;
-  text = t2;
-  if (cast(Literal) ex)
-    return new FunPtrAsDgExpr!(LitTemp)(ex);
-  else
-    return new FunPtrAsDgExpr!(mkDelegate)(ex);
+import ast.casting: implicits;
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    auto fp = cast(FunctionPointer) ex.valueType();
+    if (!fp) return null;
+    if (cast(Literal) ex)
+      return new FunPtrAsDgExpr!(LitTemp)(ex);
+    else
+      return new FunPtrAsDgExpr!(mkDelegate)(ex);
+  };
 }
-mixin DefaultParser!(gotFunAsDgRefExpr, "tree.expr.fun_as_dg", "903");
 
 // *fp
 // TODO: this cannot work; it's too simple.

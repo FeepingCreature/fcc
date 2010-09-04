@@ -252,9 +252,27 @@ bool delegate(string) matchrule(string rules) {
   return res;
 }
 
-enum ParseCtl { AcceptAbort, RejectAbort, AcceptCont, RejectCont }
-const ParseCtlDecode = ["AcceptAbort", "RejectAbort", "AcceptCont", "RejectCont"];
+struct ParseCtl {
+  int state;
+  string reason;
+  const ParseCtl AcceptAbort = {0}, RejectAbort = {1}, AcceptCont = {2};
+  static ParseCtl RejectCont(string reason) {
+    ParseCtl res;
+    res.state = 3;
+    res.reason = reason;
+    return res;
+  }
+  string decode() {
+    switch (state) {
+      case 0: return "AcceptAbort";
+      case 1: return "RejectAbort";
+      case 2: return "AcceptCont";
+      case 3: return "RejectCont:"~reason;
+    }
+  }
+}
 
+import tools.functional;
 struct ParseCb {
   Object delegate(ref string text,
     bool delegate(string),
@@ -281,7 +299,7 @@ struct ParseCb {
       // blockMemo(); // callback depends on a parent's filter rule. cannot reliably memoize.
     }
     
-    static if (Rest1.length && is(Rest1[$-1] == delegate) && !is(Ret!(Rest1[$-1]) == void)) {
+    static if (Rest1.length && is(typeof(rest1[$-1](null))) && !is(Ret!(Rest1[$-1]) == void)) {
       static assert(is(typeof(rest1[$-1](null)) == bool) || is(typeof(rest1[$-1](null)) == ParseCtl),
         "Bad accept return type: "~typeof(rest1[$-1](null)).stringof);
       static assert(is(typeof(cast(Params!(Rest1[$-1])[0]) new Object)), "Bad accept params: "~Params!(Rest1[$-1]).stringof);
@@ -303,8 +321,7 @@ struct ParseCb {
       alias Params!(Rest2[0])[0] MustType;
       auto callback = rest2[0];
     }
-    ParseCtl delegate(Object) myAccept;
-    if (accept) myAccept = delegate ParseCtl(Object obj) {
+    auto myAccept = delegate ParseCtl(Object obj) {
       static if (is(MustType)) {
         auto casted = cast(MustType) obj;
       } else {
@@ -312,13 +329,13 @@ struct ParseCb {
       }
       if (!casted) {
         // logln("Reject ", obj, "; doesn't match ", typeof(casted).stringof, ".");
-        return ParseCtl.RejectCont;
+        return ParseCtl.RejectCont(Format(obj, " doesn't match ", typeof(casted).stringof));;
       }
       static if (is(typeof(accept(casted)) == bool)) {
-        return accept(casted)?ParseCtl.AcceptAbort:ParseCtl.RejectCont;
+        return (!accept || accept(casted))?ParseCtl.AcceptAbort:ParseCtl.RejectCont(Format("accept dg to bool returned false"));
       }
       static if (is(typeof(accept(casted)) == ParseCtl)) {
-        return accept(casted);
+        return accept?accept(casted):ParseCtl.AcceptAbort;
       }
       return ParseCtl.AcceptAbort;
     };
@@ -528,6 +545,7 @@ class ParseContext {
     return parse(text, cond, 0, accept);
   }
   string condStr;
+  Stuple!(string, string)[] rulestack;
   Object parse(ref string text, bool delegate(string) cond,
       int offs = 0, ParseCtl delegate(Object) accept = null) {
     resort;
@@ -546,7 +564,12 @@ class ParseContext {
     Object longestMatchRes;
     string longestMatchStr = text;
     foreach (i, parser; parsers[offs .. $]) {
+      
       auto id = parser.getId();
+      
+      rulestack ~= stuple(id, text);
+      scope(exit) rulestack = rulestack[0 .. $-1];
+      
       string xid() { return id.replace(".", "_"); }
       if (verboseXML) logln("<", xid, " text='", text.next_text(16).xmlmark(), "'>");
       scope(failure) if (verboseXML) logln("Exception</", xid, ">");
@@ -577,9 +600,10 @@ class ParseContext {
           auto ctl = ParseCtl.AcceptAbort;
           if (accept) {
             ctl = accept(res);
-            if (verboseParser) logln("    PARSER [", id, "]: control flow ", ParseCtlDecode[ctl]);
-            if (ctl == ParseCtl.RejectAbort || ctl == ParseCtl.RejectCont) {
-              if (verboseParser) logln("    PARSER [", id, "] rejected ", Format(res));
+            if (verboseParser) logln("    PARSER [", id, "]: control flow ", ctl.decode);
+            if (ctl == ParseCtl.RejectAbort || ctl.state == 3) {
+              if (verboseParser) logln("    PARSER [", id, "] rejected (", ctl.reason, "): ", Format(res));
+              if (verboseParser) logln("    PARSER [", id, "] @", rulestack /map/ ex!("a, b -> a"));
               if (verboseXML) logln("Reject</", xid, ">");
               text = backup;
               if (ctl == ParseCtl.RejectAbort) return null;

@@ -79,11 +79,12 @@ class ConcatChain : Expr {
   }
 }
 
+import ast.casting;
 Object gotConcatChain(ref string text, ParseCb cont, ParseCb rest) {
   Expr op;
   auto t2 = text;
   IType elemtype;
-  if (!cont(t2, &op)) return null;
+  if (!cont(t2, &op) || !gotImplicitCast(op, (IType it) { return !!cast(Array) it || !!cast(StaticArray) it; })) return null;
   if (auto ar = cast(Array) op.valueType()) {
     elemtype = ar.elemType;
   } else if (auto sa = cast(StaticArray) op.valueType()) {
@@ -93,13 +94,11 @@ Object gotConcatChain(ref string text, ParseCb cont, ParseCb rest) {
   string t3;
   if (t2.many(
     (t3 = t2, true) &&
-    t2.accept("~") && cont(t2, &op,
-      (Expr ex) {
-        if (auto ar = cast(Array) ex.valueType()) {
-          return !!(elemtype == ar.elemType);
-        } else return false;
-      }
-    ),
+    t2.accept("~") && cont(t2, &op) && gotImplicitCast(op, (IType it) {
+      if (auto ar = cast(Array) it)
+        return !!(elemtype == ar.elemType);
+      else return false;
+    }),
     { cc.addArray(op); }
   )) {
     if (cc.arrays.length == 1) return null; // many matches on none

@@ -112,7 +112,7 @@ IType dgAsStructType(Delegate dgtype) {
 import ast.casting;
 Expr dgAsStruct(Expr ex) {
   auto dgtype = cast(Delegate) ex.valueType();
-  assert(!!dgtype);
+  if (!dgtype) return null;
   if (auto lv = cast(LValue) ex) {
     return new ReinterpretCast!(LValue) (dgAsStructType(dgtype), lv);
   } else {
@@ -120,15 +120,9 @@ Expr dgAsStruct(Expr ex) {
   }
 }
 
-Object gotDgAsStruct(ref string st, ParseCb cont, ParseCb rest) {
-  Expr ex;
-  if (!rest(st, "tree.expr ^selfrule", &ex))
-    return null;
-  if (!cast(Delegate) ex.valueType())
-    return null;
-  return cast(Object) dgAsStruct(ex);
+static this() {
+  implicits ~= &dgAsStruct;
 }
-mixin DefaultParser!(gotDgAsStruct, "tree.expr.dg_struct", "912");
 
 class DgCall : Expr {
   Expr dg;

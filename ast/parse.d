@@ -33,39 +33,6 @@ static this() {
   globalStateMatchers ~= matchrule("tree.rhs_partial");
 }
 
-import tools.log;
-Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
-  // check all possible continuations
-  string longest; Object res;
-  cont(text, (Object sup) {
-    auto backup = lhs_partial();
-    scope(exit) lhs_partial.set(backup);
-    
-    lhs_partial.set(sup);
-    auto t2 = text;
-    
-    bool matched;
-    while (true) {
-      if (auto nl = rest(t2, "tree.rhs_partial")) {
-        matched = true;
-        lhs_partial.set(nl);
-      } else break;
-    }
-    
-    if (matched) {
-      if (t2.ptr > longest.ptr) {
-        longest = t2;
-        res = lhs_partial();
-      }
-      return ParseCtl.AcceptCont;
-    } else return ParseCtl.RejectCont;
-  });
-  assert(!res || longest);
-  if (longest) text = longest;
-  return res;
-}
-mixin DefaultParser!(gotProperties, "tree.expr.properties", "3");
-
 Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
   Object obj; // not Expr - namespaces count too!
   auto t2 = text;

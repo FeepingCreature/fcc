@@ -277,28 +277,26 @@ Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 
+import ast.casting, tools.log;
 Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
   Expr[] res;
   auto t2 = text;
   int param_offset;
   Expr ex;
   if (t2.bjoin(
-    !!rest(t2, "tree.expr", &ex, delegate ParseCtl(Expr ex) {
+    (rest(t2, "tree.expr", &ex) && gotImplicitCast(ex, (IType it) {
       if (param_offset !< params.length)
         throw new Exception(Format(
-          "Extraneous parameter for ", info, ": ", ex, "; already got ", res
+          "Extraneous parameter for ", info, ": ", it, "; already got ", res
         ));
       if (cast(Variadic) params[param_offset]) {
         // why are you using static arrays as parameters anyway?
-        return (cast(StaticArray) ex.valueType()) ? ParseCtl.RejectCont : ParseCtl.AcceptCont;
+        return !cast(StaticArray) it;
       } else {
         // logln("While calling ", info, ", try ", ex.valueType(), " into ", params[param_offset], ": ", ex.valueType() == params[param_offset]);
-        if (ex.valueType() != params[param_offset])
-          // TODO: set error
-          return ParseCtl.RejectCont;
-        return ParseCtl.AcceptCont;
+        return test(it == params[param_offset]);
       }
-    }),
+    })),
     t2.accept(","),
     {
       res ~= ex;

@@ -97,17 +97,14 @@ class Compare : Cond {
 
 Object gotIntExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr res;
-  Expr[] exs;
-  if (auto res = rest(text, "tree.expr", &res, (Expr ex) {
-    exs ~= ex;
-    return ex.valueType().size() == 4;
-  }))
-    return res;
-  else {
-    error = Format("Neither of those was int sized: ", exs, " at ", text.next_text());
-    // logln(error);
+  IType[] its;
+  if (!rest(text, "tree.expr", &res))
+    return null;
+  if (!gotImplicitCast(res, (IType it) { its ~= it; return it.size == 4; })) {
+    error = Format("Neither of those was int sized: ", its, " at ", text.next_text());
     return null;
   }
+  return cast(Object) res;
 }
 mixin DefaultParser!(gotIntExpr, "tree.int_expr");
 
@@ -152,12 +149,12 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
 
-import ast.literals;
+import ast.literals, ast.casting;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
-  if (rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
-    assert(ex.valueType().size == 4, Format(ex, " is a bad cond expr to test for at '", text.next_text(), "'. "));
+  if (rest(t2, "<tree.expr >tree.expr.cond", &ex) && gotImplicitCast(ex, (IType it) { return it.size == 4; })) {
+    // assert(ex.valueType().size == 4, Format(ex, ", being ", ex.valueType(), ", is a bad cond expr to test for at '", text.next_text(), "'. "));
     text = t2;
     return new ExprWrap(ex);
   } else return null;

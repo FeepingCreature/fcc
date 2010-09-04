@@ -3,7 +3,7 @@ module ast.vardecl;
 import ast.assign, ast.base;
 public import ast.variable;
 
-import ast.pointer;
+import ast.pointer, ast.casting;
 class VarDecl : Statement {
   Variable[] vars;
   mixin DefaultDup!();
@@ -67,13 +67,14 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       var.type = type;
       bool dontInit;
       if (t2.accept("=")) {
-        if (!rest(t2, "tree.expr", &var.initval, delegate bool(Expr ex) {
-          if (var.type != ex.valueType()) {
-            error = Format("mismatched types in init: ", var.type, " = ", ex.valueType());
-          }
-          return !!(var.type == ex.valueType());
-        }) && !(t2.accept("void"), dontInit = true))
-          throw new Exception(Format("Couldn't read expression at ", t2.next_text(), ": ", error));
+        IType[] its;
+        auto t3 = t2;
+        if ((!rest(t2, "tree.expr", &var.initval) || !gotImplicitCast(var.initval, (IType it) {
+          its ~= it;
+          return test(var.type == it);
+        }) && (t2 = t3, true)) && !(t2.accept("void"), dontInit = true))
+          if (its.length) throw new Exception(Format("Couldn't init var at ", t2.next_text(), ": none of ", its, " matched ", var.type));
+          else throw new Exception(Format("Couldn't read expression at '", t2.next_text(), "' !"));
       }
       if (dontInit) {
         var.dontInit = true;

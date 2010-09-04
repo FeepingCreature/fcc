@@ -24,7 +24,7 @@ Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto t2 = text;
     Expr range;
     if (t2.accept("[") && t2.accept("]") || (t2 = text, true) &&
-        t2.accept("[") && rest(t2, "tree.expr", &range, (Expr ex) { return !!cast(Range) ex.valueType(); }) && t2.accept("]")
+        t2.accept("[") && rest(t2, "tree.expr", &range) && t2.accept("]")
     ) {
       Expr from, to;
       if (range) {

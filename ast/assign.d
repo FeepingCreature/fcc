@@ -43,7 +43,7 @@ class Assignment : Statement {
   }
 }
 
-import tools.log;
+import ast.casting;
 Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue target;
@@ -53,8 +53,9 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (!lv) return null;
     target = lv;
     Expr value;
-    if (!rest(t2, "tree.expr", &value, (Expr ex) { return test(ex.valueType() == target.valueType()); })) {
-      error = Format("Mismatching types in assignment: ", target, " <- ", value.valueType());
+    IType[] its;
+    if (!rest(t2, "tree.expr", &value) || !gotImplicitCast(value, (IType it) { its ~= it; return test(it == target.valueType()); })) {
+      throw new Exception(Format("Mismatching types in assignment: ", target.valueType(), " <- ", its, " @'", t2.next_text(), "'"));
       return null;
     }
     // logln(target.valueType(), " <- ", value.valueType());

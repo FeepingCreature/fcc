@@ -91,4 +91,4 @@ Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
   else throw new Exception("Template '"~id~"' contains no self-named '"~t.name~"'. ");
 }
 mixin DefaultParser!(gotTemplateInst, "type.templ_inst", "2");
-mixin DefaultParser!(gotTemplateInst, "tree.expr.templ_expr", "45"); // I wonder if this will Just Work™
+mixin DefaultParser!(gotTemplateInst, "tree.expr.templ_expr", "40");

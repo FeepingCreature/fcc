@@ -494,44 +494,23 @@ Expr intfToClass(Expr ex) {
   return new RCE(new ClassRef(cast(Class) sysmod.lookup("Object")), new AddExpr(new RCE(voidpp, ex), new DerefExpr(new DerefExpr(new RCE(intpp, ex)))));
 }
 
-Object gotImplicitCastToObject(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Expr ex;
-  if (!rest(t2, "tree.expr ^selfrule", &ex, (Expr ex) { return !!cast(IntfRef) ex.valueType(); }))
-    return null;
-  text = t2;
-  // any object is an Object.
-  return cast(Object) intfToClass(ex);
-}
-mixin DefaultParser!(gotImplicitCastToObject, "tree.expr.implicit_intf_cast_to_obj", "9020");
-
-Object doImplicitClassCast(Expr ex, ParseCtl delegate(Object) accept) {
-  bool abort;
-  Expr testIntf(Expr ex) {
-    auto ac = accept(cast(Object) ex);
-    if (ac == ParseCtl.AcceptCont || ac == ParseCtl.AcceptAbort) return ex;
-    if (ac == ParseCtl.RejectAbort) { abort = true; return null; }
+void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
+  void testIntf(Expr ex) {
+    dg(ex);
     auto intf = (cast(IntfRef) ex.valueType()).myIntf;
     int offs = 0;
     foreach (id, par; intf.parents) {
       auto nex = new RCE(new IntfRef(par), new AddExpr(new RCE(voidpp, ex), new IntExpr(offs)));
       par.getLeaves((Intf) { offs++; });
-      if (auto res = testIntf(nex)) return res;
-      if (abort) break;
+      testIntf(nex);
     }
-    return null;
   }
-  Expr testClass(Expr ex) {
-    auto ac = accept(cast(Object) ex);
-    if (ac == ParseCtl.AcceptCont || ac == ParseCtl.AcceptAbort) return ex;
-    if (ac == ParseCtl.RejectAbort) { abort = true; return null; }
+  void testClass(Expr ex) {
+    dg(ex);
     auto cl = (cast(ClassRef) ex.valueType()).myClass;
-    if (!cl.parent && !cl.iparents) return null; // just to clarify
+    if (!cl.parent && !cl.iparents) return; // just to clarify
     if (cl.parent) {
-      auto pex = new RCE(new ClassRef(cl.parent), ex);
-      if (auto res = testClass(pex))
-        return res;
-      if (abort) return null;
+      testClass(new RCE(new ClassRef(cl.parent), ex));
     }
     int offs = cl.mainSize();
     doAlign(offs, voidp);
@@ -539,29 +518,23 @@ Object doImplicitClassCast(Expr ex, ParseCtl delegate(Object) accept) {
     foreach (id, par; cl.iparents) {
       auto iex = new RCE(new IntfRef(par), new AddExpr(new RCE(voidpp, ex), new IntExpr(offs)));
       par.getLeaves((Intf) { offs++; });
-      if (auto res = testIntf(iex)) return res;
-      if (abort) break;
+      testIntf(iex);
     }
-    return null;
   }
   auto cr = cast(ClassRef) ex.valueType(), ir = cast(IntfRef) ex.valueType();
-  if (cr) {
-    if (auto res = testClass(ex)) return cast(Object) res;
-  }
-  if (ir) {
-    if (auto res = testIntf(ex)) return cast(Object) res;
-  }
-  return null;
+  if (cr) testClass(ex);
+  if (ir) testIntf(ex);
 }
 
-Object gotImplicitClassCast(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Expr ex;
-  if (!rest(t2, "tree.expr ^selfrule", &ex)) return null;
-  if (auto res = doImplicitClassCast(ex, accept)) { text = t2; return res; }
-  return null;
+import ast.casting, tools.base: todg;
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (cast(IntfRef) ex.valueType())
+      return intfToClass(ex);
+    return null;
+  };
+  implicits ~= &doImplicitClassCast /todg;
 }
-mixin DefaultParser!(gotImplicitClassCast, "tree.expr.implicit_class_cast", "902");
 
 Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
@@ -574,19 +547,21 @@ Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception("Missed closing bracket in class cast at '"~t2.next_text()~"'");
   if (!cast(ClassRef) dest && !cast(IntfRef) dest)
     return null;
-  if (!rest(t2, "tree.expr >tree.expr.arith", &ex))
+  if (!rest(t2, "tree.expr >tree.expr.arith", &ex)) {
     return null;
+  }
   if (!cast(ClassRef) ex.valueType() && !cast(IntfRef) ex.valueType())
     return null;
   text = t2;
   
-  if (auto res = doImplicitClassCast(ex, (Object obj) {
-    auto ex = cast(Expr) obj;
-    if (ex.valueType() == dest)
-      return ParseCtl.AcceptAbort;
-    else
-      return ParseCtl.RejectCont;
-  })) return res;
+  {
+    Expr res;
+    doImplicitClassCast(ex, (Expr ex) {
+      if (res) return;
+      if (ex.valueType() == dest) res = ex;
+    });
+    if (res) return cast(Object) res;
+  }
   
   string dest_id;
   if (auto cr = cast(ClassRef) dest) dest_id = cr.myClass.mangle_id;

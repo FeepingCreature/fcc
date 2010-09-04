@@ -89,12 +89,19 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "21");
 
 Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
-  if (!text.accept("*")) return null;
+  auto t2 = text;
+  if (!t2.accept("*")) return null;
   
   Expr ex;
-  if (!rest(text, "tree.expr >tree.expr.arith", &ex))
+  if (!rest(t2, "tree.expr >tree.expr.arith", &ex))
     throw new Exception("Dereference operator found but no expression matched at '"~text.next_text()~"'");
   
+  if (!cast(Pointer) ex.valueType()) {
+    return null;
+    /*logln("Expected pointer at ", text.next_text(), ", left '", t2.next_text(), "'");
+    logln("but got ", ex.valueType());*/
+  }
+  text = t2;
   return new DerefExpr(ex);
 }
 mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "22");

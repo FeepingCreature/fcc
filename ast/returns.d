@@ -42,6 +42,7 @@ class ReturnStmt : Statement {
   }
 }
 
+import ast.casting;
 Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (t2.accept("return")) {
@@ -57,9 +58,7 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     text = t2;
     if (fun.type.ret == Single!(Void))
       return rs; // don't expect a value.
-    if (rest(text, "tree.expr", &rs.value, (Expr ex) {
-      return !!(ex.valueType() == fun.type.ret);
-    })) {
+    if (rest(text, "tree.expr", &rs.value) && gotImplicitCast(rs.value, (IType it) { return test(it == fun.type.ret); })) {
       return rs;
     } else throw new Exception("Error parsing return expression at "~text.next_text());
   } else return null;
