@@ -1,19 +1,19 @@
 module ast.slice;
 
-import ast.base, ast.arrays, ast.pointer, ast.math, ast.modules, ast.fun,
+import ast.base, ast.arrays, ast.pointer, ast.opers, ast.modules, ast.fun,
   ast.structure, ast.parse, ast.int_literal, ast.static_arrays;
 
 Expr mkPointerSlice(Expr ptr, Expr from, Expr to) {
   return new ArrayMaker(
-    new AddExpr(ptr, from),
-    new SubExpr(to, from)
+    lookupOp("+", ptr, from),
+    lookupOp("-", to, from)
   );
 }
 
 Expr mkArraySlice(Expr array, Expr from = null, Expr to = null) {
   return new ArrayMaker(
-    new AddExpr(new MemberAccess_Expr(arrayToStruct(array), "ptr"), from),
-    new SubExpr(to, from)
+    lookupOp("+", new MemberAccess_Expr(arrayToStruct(array), "ptr"), from),
+    lookupOp("-", to, from)
   );
 }
 
@@ -62,7 +62,7 @@ Statement getSliceAssign(Expr slice, Expr array) {
   auto fc = (cast(Function) sysmod.lookup("memcpy")).mkCall;
   fc.params ~= getArrayPtr(slice);
   fc.params ~= getArrayPtr(array);
-  fc.params ~= new MulExpr(getArrayLength(array), new IntExpr(elemtype.size));
+  fc.params ~= lookupOp("*", getArrayLength(array), new IntExpr(elemtype.size));
   return new ExprStatement(fc);
 }
 

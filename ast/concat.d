@@ -3,7 +3,7 @@ module ast.concat;
 import
   ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal,
   ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index,
-  ast.assign, ast.math, ast.slice;
+  ast.assign, ast.opers, ast.slice;
 
 class ConcatChain : Expr {
   Array type;
@@ -70,9 +70,9 @@ class ConcatChain : Expr {
         foreach (i, array; arrays) {
           auto c = getIndex(cache, new IntExpr(i)), len = getArrayLength(c);
           /// var[offset .. offset + cache[i].length] = cache[i];
-          (getSliceAssign(mkArraySlice(var, offset, new AddExpr(offset, len)), c)).emitAsm(af);
+          (getSliceAssign(mkArraySlice(var, offset, lookupOp("+", offset, len)), c)).emitAsm(af);
           /// offset = offset + cache[i].length;
-          (new Assignment(offset, new AddExpr(offset, len))).emitAsm(af);
+          (new Assignment(offset, lookupOp("+", offset, len))).emitAsm(af);
         }
       });
     }

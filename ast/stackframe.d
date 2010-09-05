@@ -1,6 +1,6 @@
 module ast.stackframe;
 
-import ast.namespace, ast.structure, ast.namespace, ast.base, ast.int_literal, ast.casting, ast.pointer, ast.math;
+import ast.namespace, ast.structure, ast.namespace, ast.base, ast.int_literal, ast.casting, ast.pointer, ast.opers;
 
 import quicksort;
 LValue namespaceToStruct(Namespace ns, Expr baseptr) {
@@ -22,7 +22,7 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   return new DerefExpr(
     new ReinterpretCast!(Expr)(
       new Pointer(str),
-      new SubExpr(baseptr, new IntExpr(-frame[0]._2))
+      lookupOp("-", baseptr, new IntExpr(-frame[0]._2))
     )
   );
 }

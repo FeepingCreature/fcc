@@ -1,6 +1,6 @@
 module ast.variable;
 
-import ast.base, ast.math, ast.literals, parseBase, ast.casting, ast.static_arrays: DataExpr;
+import ast.base, ast.opers, ast.literals, parseBase, ast.casting, ast.static_arrays: DataExpr;
 
 import tools.log;
 class Variable : LValue, Named {
@@ -11,7 +11,7 @@ class Variable : LValue, Named {
       af.pushStack(address, type);
     }
     void emitLocation(AsmFile af) {
-      (new AsmBinopExpr!("addl")(new Register!("ebp"), new IntExpr(baseOffset))).emitAsm(af);
+      lookupOp("+", new Register!("ebp"), new IntExpr(baseOffset)).emitAsm(af);
     }
     IType valueType() {
       return type;

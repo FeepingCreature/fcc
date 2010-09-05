@@ -1,6 +1,6 @@
 module ast.index;
 
-import ast.parse, ast.base, ast.math, ast.pointer, ast.casting,
+import ast.parse, ast.base, ast.opers, ast.pointer, ast.casting,
   ast.static_arrays, ast.arrays, ast.namespace;
 
 import ast.iterator: Range;
@@ -10,7 +10,7 @@ LValue getIndex(Expr array, Expr pos) {
     ptr = getSAPtr(array);
   else
     ptr = getArrayPtr(array);
-  return new DerefExpr(new AddExpr(ptr, pos));
+  return new DerefExpr(lookupOp("+", ptr, pos));
 }
 
 Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
@@ -39,10 +39,10 @@ class PA_Access : LValue {
     IType valueType() { return (cast(Pointer) ptr.valueType()).target; }
     // TODO generic case
     void emitAsm(AsmFile af) {
-      (new DerefExpr(new AddExpr(ptr, pos))).emitAsm(af);
+      (new DerefExpr(lookupOp("+", ptr, pos))).emitAsm(af);
     }
     void emitLocation(AsmFile af) {
-      (new AddExpr(ptr, pos)).emitAsm(af);
+      (lookupOp("+", ptr, pos)).emitAsm(af);
     }
   }
 }

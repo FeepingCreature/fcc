@@ -1,6 +1,6 @@
 module ast.unary;
 
-import ast.base, ast.math, ast.assign, ast.literals, parseBase;
+import ast.base, ast.opers, ast.assign, ast.literals, parseBase;
 
 // definitely not an lvalue
 class PrePostOpExpr(bool Post, bool Inc) : Expr {
@@ -16,7 +16,7 @@ class PrePostOpExpr(bool Post, bool Inc) : Expr {
       return lv.valueType();
     }
     void emitAsm(AsmFile af) {
-      auto as = new Assignment(lv, new AsmBinopExpr!(Inc?"addl":"subl")(lv, new IntExpr(1)));
+      auto as = new Assignment(lv, lookupOp(Inc?"+":"-", lv, new IntExpr(1)));
       static if (Post) {
         lv.emitAsm(af);
         as.emitAsm(af);

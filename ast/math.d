@@ -3,22 +3,6 @@ module ast.math;
 import ast.base, ast.namespace, ast.parse;
 import tools.base: This, This_fn, rmSpace, and, or, find;
 
-void handlePointers(ref Expr op1, ref Expr op2, bool wtf) {
-  if (cast(Pointer) op2.valueType()) {
-    if (wtf)
-      throw new Exception(Format(op1, " - ", op2, "; wtf kind of bs is that? o.O"));
-    swap(op1, op2);
-  }
-  if (cast(Pointer) op1.valueType()) {
-    if (cast(Pointer) op2.valueType())
-      throw new Exception("Pointer/pointer addition is undefined! ");
-    auto mul = (cast(Pointer) op1.valueType()).target.size;
-    op2 = new AsmBinopExpr!("imull")(op2, new IntExpr(mul));
-  }
-}
-
-bool xor(T)(T a, T b) { return a != b; }
-
 class IntAsFloat : Expr {
   Expr i;
   this(Expr i) { this.i = i; assert(i.valueType() == Single!(SysInt)); }
@@ -123,10 +107,12 @@ string fold(Expr ex) {
   if (auto re = cast(IRegister) ex) {
     return "%"~re.getReg();
   }
-  if (auto me = cast(MulExpr) ex) {
-    string f1 = fold(me.e1), f2 = fold(me.e2);
-    if (!f1.startsWith("$") || !f2.startsWith("$")) return null;
-    return Format("$", f1[1 .. $].atoi() * f2[1 .. $].atoi());
+  if (auto be = cast(BinopExpr) ex) {
+    if (be.op == "*") {
+      string f1 = fold(be.e1), f2 = fold(be.e2);
+      if (!f1.startsWith("$") || !f2.startsWith("$")) return null;
+      return Format("$", f1[1 .. $].atoi() * f2[1 .. $].atoi());
+    }
   }
   return null;
 }
@@ -144,105 +130,151 @@ void opt(Expr ex) {
   ex.iterate(dg);
 }
 
-class AsmBinopExpr(string OP) : Expr {
+abstract class BinopExpr : Expr {
   Expr e1, e2;
-  this(Expr e1, Expr e2) {
-    static if (OP == "addl" || OP == "subl")
-      handlePointers(e1, e2, OP == "subl");
-    if (xor(e1.valueType() == Single!(Float), e2.valueType() == Single!(Float))) {
-      if (e1.valueType() == Single!(Float))
-        e2 = new IntAsFloat(e2);
-      else
-        e1 = new IntAsFloat(e1);
-    }
-    opt(e1); opt(e2);
+  string op;
+  this(Expr e1, Expr e2, string op) {
+    if (!e1 || !e2)
+      asm { int 3; }
+    opt(e1);
+    opt(e2);
     this.e1 = e1;
     this.e2 = e2;
+    this.op = op;
   }
-  private this() { }
-  mixin DefaultDup!();
-  bool isValid() {
-    return
-      e1.valueType() == e2.valueType() && e1.valueType() /and/ e2.valueType() == Single!(SysInt) /or/ Single!(Float)
-      || cast(Pointer) e1.valueType() && e2.valueType() == Single!(SysInt)
-    ;
-  }
+  private this() {}
   mixin defaultIterate!(e1, e2);
-  bool isFloatOp() { return !!(e1.valueType() == Single!(Float)); }
   override {
     string toString() {
-           static if (OP == "addl")  return Format("(", e1, " + ", e2, ")");
-      else static if (OP == "subl")  return Format("(", e1, " - ", e2, ")");
-      else static if (OP == "imull") return Format("(", e1, " * ", e2, ")");
-      else                           return Format("(", e1, " {", OP, "} ", e2, ")");
+      return Format("(", e1, " ", op, " ", e2, ")");
     }
-    IType valueType() {
-      assert(isValid, Format("invalid types: ", e1.valueType(), ", ", e2.valueType(), " in ", e1, " ", OP, " ", e2));
+    IType valueType() { // TODO: merge e1, e2
+      assert(e1.valueType() == e2.valueType());
       return e1.valueType();
     }
+    abstract BinopExpr dup();
+    abstract void emitAsm(AsmFile af);
+  }
+}
+
+class AsmIntBinopExpr : BinopExpr {
+  this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
+  private this() { super(); }
+  AsmIntBinopExpr dup() { return new AsmIntBinopExpr(e1.dup, e2.dup, op); }
+  override {
     void emitAsm(AsmFile af) {
       assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
-      if (isFloatOp) {
-        bool commutative = OP == "addl" || OP == "imull";
-        if (commutative) {
-          // hackaround for circular dep avoidance
-          if ((cast(Object) e2).classinfo.name.find("Variable") != -1 || cast(FloatExpr) e2 || cast(IntAsFloat) e2)
-            swap(e1, e2); // try to eval simpler expr last
-        }
-        loadFloatEx(e2, af);
-        loadFloatEx(e1, af);
-        af.salloc(4);
-        static if (OP == "addl")  af.floatMath("fadd");
-        static if (OP == "subl")  af.floatMath("fsub");
-        static if (OP == "imull") af.floatMath("fmul");
-        static if (OP == "idivl") af.floatMath("fdiv");
-        static if (OP == "imodl") assert(false, "Modulo not supported on floats. ");
-        af.storeFloat("(%esp)");
+      if (op == "/" || op == "%") {
+        e2.emitAsm(af);
+        e1.emitAsm(af);
+        af.popStack("%eax", e1.valueType());
+        af.put("cdq");
+        af.put("idivl (%esp)");
+        if (op == "%") af.mmove4("%edx", "(%esp)");
+        else af.mmove4("%eax", "(%esp)");
       } else {
-        static if (OP == "idivl" || OP == "imodl") {
+        string op1, op2;
+        bool late_alloc;
+        if (auto c2 = fold(e2)) {
+          op2 = c2;
+          late_alloc = true;
+        } else {
+          op2 = "(%esp)";
           e2.emitAsm(af);
+        }
+        if (auto c1 = fold(e1)) {
+          op1 = c1;
+          af.mmove4(op1, "%eax");
+        } else {
           e1.emitAsm(af);
           af.popStack("%eax", e1.valueType());
-          af.put("cdq");
-          af.put("idivl (%esp)");
-          static if (OP == "imodl") af.mmove4("%edx", "(%esp)");
-          else af.mmove4("%eax", "(%esp)");
-        } else {
-          string op1, op2;
-          bool late_alloc;
-          if (auto c2 = fold(e2)) {
-            op2 = c2;
-            late_alloc = true;
-          } else {
-            op2 = "(%esp)";
-            e2.emitAsm(af);
-          }
-          if (auto c1 = fold(e1)) {
-            op1 = c1;
-            af.mmove4(op1, "%eax");
-          } else {
-            e1.emitAsm(af);
-            af.popStack("%eax", e1.valueType());
-          }
-          
-          af.mathOp(OP, op2, "%eax");
-          if (late_alloc) af.salloc(4);
-          af.mmove4("%eax", "(%esp)");
         }
+        auto asm_op = ["+"[]: "addl"[], "-": "subl", "*": "imull", "/": "idivl", "&": "andl", "|": "orl", "%": "imodl"][op];
+        af.mathOp(asm_op, op2, "%eax");
+        if (late_alloc) af.salloc(4);
+        af.mmove4("%eax", "(%esp)");
       }
     }
   }
 }
-alias AsmBinopExpr!("addl") AddExpr;
-alias AsmBinopExpr!("subl") SubExpr;
-alias AsmBinopExpr!("andl") AndExpr;
-alias AsmBinopExpr!("orl")  OrExpr;
-alias AsmBinopExpr!("imull") MulExpr;
+
+class AsmFloatBinopExpr : BinopExpr {
+  this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
+  private this() { super(); }
+  mixin DefaultDup!();
+  override {
+    void emitAsm(AsmFile af) {
+      assert(e1.valueType().size == 4);
+      assert(e2.valueType().size == 4);
+      // TODO: belongs in optimizer
+      bool commutative = op == "+" || op == "*";
+      if (commutative) {
+        // hackaround for circular dep avoidance
+        if ((cast(Object) e2).classinfo.name.find("Variable") != -1 || cast(FloatExpr) e2 || cast(IntAsFloat) e2)
+          swap(e1, e2); // try to eval simpler expr last
+      }
+      loadFloatEx(e2, af);
+      loadFloatEx(e1, af);
+      af.salloc(4);
+      switch (op) {
+        case "+": af.floatMath("fadd"); break;
+        case "-": af.floatMath("fsub"); break;
+        case "*": af.floatMath("fmul"); break;
+        case "/": af.floatMath("fdiv"); break;
+        case "%": assert(false, "Modulo not supported on floats. ");
+      }
+      af.storeFloat("(%esp)");
+    }
+  }
+}
+
+static this() {
+  bool isInt(IType it) { return test(it == Single!(SysInt)); }
+  bool isFloat(IType it) { return test(it == Single!(Float)); }
+  bool isPointer(IType it) { return test(cast(Pointer) it); }
+  Expr handleIntMath(string op, Expr ex1, Expr ex2) {
+    if (!gotImplicitCast(ex1, &isInt) || !gotImplicitCast(ex2, &isInt))
+      return null;
+    return new AsmIntBinopExpr(ex1, ex2, op);
+  }
+  Expr handlePointerMath(string op, Expr ex1, Expr ex2) {
+    if (isPointer(ex2.valueType())) {
+      if (op == "-") throw new Exception(Format("WTF R U DOING THAR :( ", ex1, ", ", ex2));
+      swap(ex1, ex2);
+    }
+    if (isPointer(ex1.valueType())) {
+      assert(!isPointer(ex2.valueType()));
+      auto mul = (cast(Pointer) ex1.valueType()).target.size;
+      ex2 = handleIntMath("*", ex2, new IntExpr(mul));
+      return new RCE(ex1.valueType(), handleIntMath(op, new RCE(Single!(SysInt), ex1), ex2));
+    }
+    return null;
+  }
+  Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
+    if (ex1.valueType() != Single!(Float) && ex2.valueType() != Single!(Float))
+      return null;
+    
+    if (!gotImplicitCast(ex1, &isFloat) || !gotImplicitCast(ex2, &isFloat))
+      return null;
+    
+    return new AsmFloatBinopExpr(ex1, ex2, op);
+  }
+  void defineOps(Expr delegate(string op, Expr, Expr) dg, bool reduced = false) {
+    string[] ops;
+    if (reduced) ops = ["+", "-"]; // pointer math
+    else ops = ["+", "-", "&", "|", "*", "/", "%"];
+    foreach (op; ops)
+      defineOp(op, op /apply/ dg);
+  }
+  defineOps(&handleIntMath);
+  defineOps(&handlePointerMath, true);
+  defineOps(&handleFloatMath);
+}
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "12"); }
 
-import ast.pointer, ast.literals, tools.base: swap;
+import ast.pointer, ast.literals, ast.opers, tools.base: swap;
 Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
   Expr op;
   auto t2 = text;
@@ -258,12 +290,7 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
     if (accepted) {
       if (cont(t3, &op2)) {
         // logln(Ops[i*2+1], " of (", op, ", ", op2, ") ?");
-        auto binop = new AsmBinopExpr!(Ops[i*2+1])(op, op2);
-        if (!binop.isValid()) {
-          error = Format("Invalid math op at '", t2.next_text(), "': ", op, " and ", op2);
-          continue;
-        }
-        op = binop;
+        op = lookupOp(Ops[i*2], op, op2);
         t2 = t3;
         goto retry;
       } else
@@ -320,6 +347,6 @@ Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr", &ex, (Expr ex) { return !!(ex.valueType() == Single!(SysInt) || ex.valueType() == Single!(Float)); }))
     throw new Exception("Found no type match for negation at '"~t2.next_text()~"'");
   text = t2;
-  return new SubExpr(new IntExpr(0), ex);
+  return cast(Object) lookupOp("-", new IntExpr(0), ex);
 }
 mixin DefaultParser!(gotNegExpr, "tree.expr.neg", "213");

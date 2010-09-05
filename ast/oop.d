@@ -485,13 +485,13 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotClassMemberExpr, "tree.rhs_partial.access_class_member");
 
-import ast.casting, ast.math;
+import ast.casting, ast.opers;
 
 alias Single!(Pointer, Single!(Pointer, Single!(Void))) voidpp;
 
 Expr intfToClass(Expr ex) {
   auto intpp = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
-  return new RCE(new ClassRef(cast(Class) sysmod.lookup("Object")), new AddExpr(new RCE(voidpp, ex), new DerefExpr(new DerefExpr(new RCE(intpp, ex)))));
+  return new RCE(new ClassRef(cast(Class) sysmod.lookup("Object")), lookupOp("+", new RCE(voidpp, ex), new DerefExpr(new DerefExpr(new RCE(intpp, ex)))));
 }
 
 void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
@@ -500,7 +500,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
     auto intf = (cast(IntfRef) ex.valueType()).myIntf;
     int offs = 0;
     foreach (id, par; intf.parents) {
-      auto nex = new RCE(new IntfRef(par), new AddExpr(new RCE(voidpp, ex), new IntExpr(offs)));
+      auto nex = new RCE(new IntfRef(par), lookupOp("+", new RCE(voidpp, ex), new IntExpr(offs)));
       par.getLeaves((Intf) { offs++; });
       testIntf(nex);
     }
@@ -516,7 +516,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
     doAlign(offs, voidp);
     offs /= 4;
     foreach (id, par; cl.iparents) {
-      auto iex = new RCE(new IntfRef(par), new AddExpr(new RCE(voidpp, ex), new IntExpr(offs)));
+      auto iex = new RCE(new IntfRef(par), lookupOp("+", new RCE(voidpp, ex), new IntExpr(offs)));
       par.getLeaves((Intf) { offs++; });
       testIntf(iex);
     }
