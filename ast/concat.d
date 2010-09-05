@@ -3,12 +3,14 @@ module ast.concat;
 import
   ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal,
   ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index,
-  ast.assign, ast.opers, ast.slice;
+  ast.assign, ast.opers, ast.slice, tools.base: take;
 
 class ConcatChain : Expr {
   Array type;
   Expr[] arrays;
-  this(Expr base) {
+  this(Expr[] exprs...) {
+    if (!exprs.length) return;
+    auto base = exprs.take();
     auto sa = cast(StaticArray) base.valueType();
     if (sa) {
       type = new Array(sa.elemType);
@@ -17,8 +19,9 @@ class ConcatChain : Expr {
       assert(!!type, Format(base, " is not array or static array! "));
     }
     addArray(base);
+    foreach (expr; exprs)
+      addArray(expr);
   }
-  private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(arrays);
   void addArray(Expr ex) {
@@ -79,35 +82,42 @@ class ConcatChain : Expr {
   }
 }
 
+static this() {
+  bool isArray(IType it) { return !!cast(Array) it; }
+  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+    auto cc = cast(ConcatChain) ex1;
+    if (!cc || !gotImplicitCast(ex2, &isArray))
+      return null;
+    return new ConcatChain(cc.arrays ~ ex2);
+  });
+  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+    if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
+      return null;
+    return new ConcatChain(ex1, ex2);
+  });
+  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+    logln("ex1: ", ex1.valueType());
+    logln("ex2: ", ex2.valueType());
+    asm { int 3;}
+    return null;
+  });
+}
+
 import ast.casting;
 Object gotConcatChain(ref string text, ParseCb cont, ParseCb rest) {
-  Expr op;
+  Expr op, op2;
   auto t2 = text;
   IType elemtype;
-  if (!cont(t2, &op) || !gotImplicitCast(op, (IType it) { return !!cast(Array) it || !!cast(StaticArray) it; })) return null;
-  if (auto ar = cast(Array) op.valueType()) {
-    elemtype = ar.elemType;
-  } else if (auto sa = cast(StaticArray) op.valueType()) {
-    elemtype = sa.elemType;
-  } else return null;
-  auto cc = new ConcatChain(op);
-  string t3;
-  if (t2.many(
-    (t3 = t2, true) &&
-    t2.accept("~") && cont(t2, &op) && gotImplicitCast(op, (IType it) {
-      if (auto ar = cast(Array) it)
-        return !!(elemtype == ar.elemType);
-      else return false;
-    }),
-    { cc.addArray(op); }
-  )) {
-    if (cc.arrays.length == 1) return null; // many matches on none
-    text = t2;
-    return cc;
-  } else {
-    if (t3.accept("~"))
-      throw new Exception("Failed to parse concatenation at '"~t2.next_text()~"'");
-    return null;
+  if (!cont(t2, &op)) return null;
+  auto first = op;
+  retry:
+  if (t2.accept("~") && cont(t2, &op2)) {
+    op = lookupOp("~", op, op2);
+    if (!op) return null;
+    goto retry;
   }
+  if (op is first) return null;
+  text = t2;
+  return cast(Object) op;
 }
 mixin DefaultParser!(gotConcatChain, "tree.expr.arith.concat", "305");
