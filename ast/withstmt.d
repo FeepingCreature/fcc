@@ -12,7 +12,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
   void delegate(AsmFile) pre, post;
   mixin defaultIterate!(vd, sc);
   override WithStmt dup() { assert(false, "wth"); }
-  string toString() { return Format("with ", context, " <- ", sup); }
+  string toString() { return Format("with (", context, ") <- ", sup); }
   int temps;
   override int framesize() {
     return (cast(ScopeLike) sup).framesize() + temps;

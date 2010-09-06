@@ -19,7 +19,7 @@ class Assignment : Statement {
   }
   private this() { }
   mixin DefaultDup!();
-  mixin defaultIterate!(target, value);
+  mixin defaultIterate!(value);
   override string toString() { return Format(target, " := ", value, "; "); }
   override void emitAsm(AsmFile af) {
     if (blind) {
@@ -48,7 +48,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue target;
   Expr ex;
-  if (rest(t2, "tree.expr >tree.expr.arith", &ex) && t2.accept("=")) {
+  if (rest(t2, "tree.expr _tree.expr.arith", &ex) && t2.accept("=")) {
     auto lv = cast(LValue) ex;
     if (!lv) return null;
     target = lv;

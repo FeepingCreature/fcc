@@ -2,7 +2,7 @@ module ast.stringex;
 
 import
   ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays,
-  ast.literals, ast.arrays, ast.vardecl, ast.pointer, tools.base: take;
+  ast.literals, ast.arrays, ast.vardecl, ast.pointer, ast.casting, tools.base: take;
 
 Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   Expr strlit;
@@ -43,11 +43,20 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
           if (!ex)
             throw new Exception("No such variable: "~id);
         }
-        if (auto sf = simpleFormat(ex)) {
-          res.addArray(sf);
-        } else if (auto fe = cast(Formatable) ex.valueType()) {
-          res.addArray(fe.format(ex));
-        } else throw new Exception(Format("Can't format ", ex, " of ", ex.valueType()));
+        bool tryFormat(Expr ex) {
+          if (auto sf = simpleFormat(ex)) {
+            res.addArray(sf);
+            return true;
+          } else if (auto fe = cast(Formatable) ex.valueType()) {
+            res.addArray(fe.format(ex));
+            return true;
+          } else return false;
+        }
+        bool foundMatch;
+        auto ex2 = ex;
+        gotImplicitCast(ex2,  &tryFormat);
+        if (!ex2)
+          throw new Exception(Format("Can't format ", ex, " of ", ex.valueType()));
       }
     }
   }
@@ -57,7 +66,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotStringEx, "tree.expr.literal.stringex", "550");
 
-import ast.dg;
+import ast.dg, ast.tuples;
 Expr simpleFormat(Expr ex) {
   auto type = ex.valueType();
   if (Single!(SysInt) == type) {
@@ -82,11 +91,19 @@ Expr simpleFormat(Expr ex) {
         "dg", ex
       );
   }
+  if (auto tup = cast(Tuple) type) {
+    auto res = new ConcatChain(new StringExpr("{"));
+    foreach (i, entry; getTupleEntries(ex)) {
+      if (i) res.addArray(new StringExpr(", "));
+      res.addArray(iparse!(Expr, "gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
+    }
+    res.addArray(new StringExpr("}"));
+    return res;
+  }
   if (auto ar = cast(Array) type) {
     if (Single!(Char) == ar.elemType) {
       return ex;
     }
-    auto res = new ConcatChain(new StringExpr("["));
     return new CallbackExpr(Single!(Array, Single!(Char)), ex /apply/ (Expr ex, AsmFile af) {
       mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
         iparse!(Scope, "gen_array_format", "tree.scope")

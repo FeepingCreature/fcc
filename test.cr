@@ -448,6 +448,15 @@ int main(int argc, char** argv) {
     u.F = 15;
     printf("comparison 0x%08x\n", cast(float) 15);
     writeln("u.i is $$cast(void*) u.I");
+    auto tuple = (2, 3);
+    writeln("Tuple is $$tuple[0], $$tuple[1]. ");
+    int pow2(int i) {
+      int res = 1;
+      while (i--) res = res * 2;
+      return res;
+    }
+    auto test = [for bin <- [for tuple <- cross [0,1]^4: cast(int[4]) tuple]: sum [for tup <- zip (bin, [for z <- 0..4: pow2(3-z)]): tup[0] * tup[1]]].flatten;
+    writeln("test is $$typeof(test).stringof: $test");
     return 0;
     atexit writeln("Exit 4. ");
   }

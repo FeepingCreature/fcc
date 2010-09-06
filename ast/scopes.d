@@ -3,7 +3,7 @@ module ast.scopes;
 import ast.base, ast.namespace, ast.fun, ast.variable, parseBase, tools.base: apply;
 
 import ast.aggregate;
-class Scope : Namespace, Tree, ScopeLike, Statement {
+class Scope : Namespace, ScopeLike, Statement {
   Function fun;
   Statement _body;
   Statement[] guards;
@@ -29,7 +29,7 @@ class Scope : Namespace, Tree, ScopeLike, Statement {
   }
   string entry() { return Format(base, "_entry", id); }
   string exit() { return Format(base, "_exit", id); }
-  string toString() { return Format("scope <- ", sup); }
+  string toString() { /*return Format(_body);*/ return Format("scope <- ", sup); }
   this() {
     id = getuid();
     sup = namespace();
@@ -37,8 +37,9 @@ class Scope : Namespace, Tree, ScopeLike, Statement {
   }
   override Scope dup() {
     auto res = new Scope;
+    res.field = field.dup;
     res.fun = fun;
-    res._body = _body.dup;
+    if (_body) res._body = _body.dup;
     foreach (guard; guards) res.guards ~= guard.dup;
     res.id = id;
     return res;
@@ -66,7 +67,7 @@ class Scope : Namespace, Tree, ScopeLike, Statement {
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
     return stuple(checkpt, backup, this, af) /apply/ (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af) {
-      that._body.emitAsm(af);
+      if (that._body) that._body.emitAsm(af);
       return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, bool onlyCleanup) {
         if (!onlyCleanup) af.emitLabel(that.exit());
         

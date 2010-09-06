@@ -14,6 +14,21 @@ interface Tree : Iterable {
   Tree dup();
 }
 
+interface NeedsConfig {
+  // must be called after the expression has been selected for sure
+  // used to set up temporary variables
+  void configure();
+}
+
+void configure(Iterable it) {
+  void fun(ref Iterable it) {
+    if (auto nc = cast(NeedsConfig) it)
+      nc.configure();
+    else it.iterate(&fun);
+  }
+  fun(it);
+}
+
 template MyThis(string S) {
   mixin(This_fn(rmSpace!(S)));
   private this() { }
@@ -27,10 +42,12 @@ template DefaultDup() {
         res.tupleof[i] = new typeof(v[0])[this.tupleof[i].length];
         foreach (k, ref entry; res.tupleof[i])
           entry = this.tupleof[i][k].dup;
-      } else static if (is(typeof(v.dup)))
-        res.tupleof[i] = this.tupleof[i].dup;
-      else
+      } else static if (is(typeof(v.dup))) {
+        if (this.tupleof[i])
+          res.tupleof[i] = this.tupleof[i].dup;
+      } else {
         res.tupleof[i] = this.tupleof[i];
+      }
     }
     return res;
   }

@@ -25,7 +25,8 @@ Expr lookupOp(string op, Expr[] exprs...) {
     foreach (dg; *p)
       if (auto res = dg(exprs))
         return res;
-    throw new Exception(Format("No matching operators (", op, ") defined for ", exprs));
+    asm { int 3; }
+    throw new Exception(Format("No matching operators (", op, ") defined for ", exprs /map/ ex!("e -> e.valueType()"), ", exs being ", exprs));
   } else
     throw new Exception("No such operator defined: "~op);
 }

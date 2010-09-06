@@ -144,7 +144,7 @@ import ast.parse;
 // separate because does clever allocation mojo .. eventually
 Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (auto sa = cast(Array) ex.valueType()) {
+    if (auto ar = cast(Array) ex.valueType()) {
       if (!text.accept(".length")) return null;
       return cast(Object) getArrayLength(ex);
     } else return null;

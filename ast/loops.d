@@ -16,6 +16,7 @@ class WhileStatement : Statement {
     af.jump(start);
     af.emitLabel(done);
   }
+  override string toString() { return Format("while(", cond, ") { ", _body._body, "}"); }
 }
 
 Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
@@ -25,7 +26,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     auto sc = new Scope;
     namespace.set(sc);
     scope(exit) namespace.set(sc.sup);
-    if (rest(t2, "cond", &ws.cond) && rest(t2, "tree.scope", &ws._body)) {
+    if (rest(t2, "cond", &ws.cond) && (configure(ws.cond), true) && rest(t2, "tree.scope", &ws._body)) {
       sc.addStatement(ws);
       text = t2;
       return sc;
@@ -63,7 +64,7 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("for (")) {
     auto fs = new ForStatement, check = namespace().getCheckpt();
     if (rest(t2, "tree.stmt.vardecl", &fs.decl) &&
-        rest(t2, "cond", &fs.cond) && t2.accept(";") &&
+        rest(t2, "cond", &fs.cond) && (configure(fs.cond), true) && t2.accept(";") &&
         rest(t2, "tree.semicol_stmt", &fs.step) && t2.accept(")") &&
         rest(t2, "tree.scope", &fs._body)
       )
@@ -120,6 +121,7 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
         dw.first.sup = sc;
       }
       if (!rest(t2, "cond", &dw.cond)) throw new Exception("Could not match do/while cond at "~t2.next_text());
+      configure(dw.cond);
     }
     if (!rest(t2, "tree.scope", &dw.second))
       throw new Exception("do/while extended second scope not matched at "~t2.next_text());

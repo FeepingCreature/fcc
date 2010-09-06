@@ -7,6 +7,7 @@ class StaticArray : Type {
   int length;
   this() { }
   this(IType et, int len) { elemType = et; length = len; }
+  override string toString() { return Format(elemType, "[", length, "]"); }
   override int size() {
     return length * elemType.size();
   }
@@ -52,6 +53,7 @@ mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length");
 
 Expr getSAPtr(Expr sa) {
   auto vt = cast(StaticArray) sa.valueType();
+  assert(cast(CValue) sa);
   return new ReinterpretCast!(Expr) (new Pointer(vt.elemType), new RefExpr(cast(CValue) sa));
 }
 
@@ -70,7 +72,7 @@ Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr");
 
-// static array literal
+// static array literal 1
 class DataExpr : Expr {
   ubyte[] data;
   this(ubyte[] ub) { data = ub; }
@@ -96,3 +98,42 @@ class DataExpr : Expr {
     }
   }
 }
+
+class SALiteralExpr : Expr {
+  Expr[] exs;
+  mixin DefaultDup!();
+  mixin defaultIterate!(exs);
+  IType type;
+  override {
+    IType valueType() { return new StaticArray(type, exs.length); }
+    void emitAsm(AsmFile af) {
+      // stack emit order: reverse!
+      // TODO: Alignment.
+      foreach_reverse (ex; exs)
+        ex.emitAsm(af);
+    }
+    string toString() { return Format("SA ", exs); }
+  }
+}
+
+Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("[")) return null;
+  Expr ex;
+  auto res = new SALiteralExpr;
+  if (!t2.bjoin(
+    !!rest(t2, "tree.expr", &ex),
+    t2.accept(","),
+    {
+      if (!res.type) res.type = ex.valueType();
+      else if (!gotImplicitCast(ex, (IType it) { return test(it == res.type); }))
+        throw new Exception("Invalid SA literal member at '"~t2.next_text()~"', doesn't match "~Format(res.type)~". ");
+      res.exs ~= ex;
+    }
+  )) throw new Exception("Failed to parse array literal at '"~t2.next_text()~"'. ");
+  if (!t2.accept("]"))
+    throw new Exception("Expected closing ']' at '"~t2.next_text()~"'. ");
+  text = t2;
+  return res;
+}
+mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array", "52");

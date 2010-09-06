@@ -122,7 +122,7 @@ class MiniNamespace : Namespace, ScopeLike {
     assert(false); // wtfux.
   }
   bool internalMode;
-  override string toString() { return "mini["~id~"]"; }
+  override string toString() { return Format("mini[", id, "] <- ", sup); }
   override void _add(string name, Object obj) {
     if (sup && !internalMode) sup._add(name, obj);
     else if (internalMode) super.__add(name, obj);
@@ -130,7 +130,14 @@ class MiniNamespace : Namespace, ScopeLike {
   }
   int fs;
   override int framesize() {
-    return fs;
+    if (auto sl = cast(ScopeLike) sup) {
+      if (fs) return fs + sl.framesize();
+      else return sl.framesize();
+    } else if (fs) return fs;
+    else {
+      logln("no metric for framesize of ", id);
+      assert(false);
+    }
   }
   override Object lookup(string name, bool local = false) {
     auto res = super.lookup(name, local);
@@ -159,7 +166,10 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     static if (T2.length && is(T2[0]: Namespace)) alias T2[1 .. $] T3;
     else alias T2 T3;
     
-    static assert(T3.length % 2 == 0);
+    static if (T3.length && is(T3[0]: int)) alias T3[1 .. $] T4;
+    else alias T3 T4;
+    
+    static assert(T4.length % 2 == 0);
     
     auto myns = new MiniNamespace(id);
     
@@ -170,14 +180,19 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     }
     static if (T2.length && is(T2[0]: Namespace)) {
       myns.sup = _t[0];
-      auto t = _t[1 .. $];
+      static if (T2.length > 1 && is(T2[1]: int)) {
+        myns.fs = _t[1];
+        auto t = _t[2 .. $];
+      } else {
+        auto t = _t[1 .. $];
+      }
     } else {
       auto t = _t;
     }
     
     myns.internalMode = true;
     // compile-time for loop LALZ
-    foreach (i, bogus; T2[0 .. $/2]) {
+    foreach (i, bogus; T4[0 .. $/2]) {
       myns.add(t[i*2], t[i*2+1]);
     }
     

@@ -33,19 +33,6 @@ static this() {
   globalStateMatchers ~= matchrule("tree.rhs_partial");
 }
 
-Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
-  Object obj; // not Expr - namespaces count too!
-  auto t2 = text;
-  if (t2.accept("(") &&
-      rest(t2, "tree.expr", &obj) &&
-      t2.accept(")")
-    ) {
-    text = t2;
-    return obj;
-  } else return null;
-}
-mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
-
 class ExprStatement : Statement {
   Expr ex;
   this(Expr ex) { this.ex = ex; }

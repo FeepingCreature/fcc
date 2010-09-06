@@ -108,9 +108,11 @@ class NestedCall : FunCall {
 // &fun
 class NestFunRefExpr : mkDelegate {
   NestedFunction fun;
+  Expr base;
   this(NestedFunction fun, Expr base = null) {
     if (!base) base = new Register!("ebp");
     this.fun = fun;
+    this.base = base;
     super(fun.getPointer(), base);
   }
   override string toString() {
@@ -120,6 +122,7 @@ class NestFunRefExpr : mkDelegate {
   override IType valueType() {
     return new Delegate(fun.type.ret, fun.type.params /map/ ex!("a, b -> a"));
   }
+  override NestFunRefExpr dup() { return new NestFunRefExpr(fun, base); }
 }
 
 Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -128,7 +131,7 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   string ident;
   NestedFunction nf;
-  if (!rest(t2, "tree.expr", &nf)) return null;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &nf)) return null;
   
   text = t2;
   if (auto pnf = cast(PointerFunction!(NestedFunction)) nf) return cast(Object) pnf.ptr;
@@ -155,6 +158,7 @@ class FunPtrAsDgExpr(T) : T {
   override IType valueType() {
     return new Delegate(fp.ret, fp.args);
   }
+  override FunPtrAsDgExpr dup() { return new FunPtrAsDgExpr(ex); }
   static if (is(T: Literal)) {
     override string getValue() {
       auto l2 = cast(Literal) ex;

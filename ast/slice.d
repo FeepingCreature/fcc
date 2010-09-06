@@ -70,7 +70,7 @@ import ast.namespace, tools.log;
 Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr dest, src;
-  if (rest(t2, "tree.expr >tree.expr.arith", &dest) && t2.accept("=")) {
+  if (rest(t2, "tree.expr _tree.expr.arith", &dest) && t2.accept("=")) {
     auto ar = cast(Array) dest.valueType();
     if (!ar) return null;
     if (cast(LValue) dest) return null; // leave to normal assignment

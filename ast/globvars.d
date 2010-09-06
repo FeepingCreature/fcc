@@ -54,6 +54,7 @@ class GlobVarDecl : Statement {
   bool tls;
   mixin defaultIterate!();
   override typeof(this) dup() { assert(false, "hey now.."); }
+  override string toString() { return Format("declare ", tls?"tls ":"", vars); }
   override void emitAsm(AsmFile af) {
     if (tls) {
       foreach (var; vars)

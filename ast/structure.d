@@ -61,8 +61,7 @@ class RelMember : Expr, Named, RelTransformable {
     
     ns.add(this);
   }
-  private this() { }
-  mixin DefaultDup!();
+  override RelMember dup() { return this; }
 }
 
 class Structure : Namespace, RelNamespace, IType, Named {
@@ -75,6 +74,25 @@ class Structure : Namespace, RelNamespace, IType, Named {
       auto end = member.offset + member.type.size;
       if (end > res) res = end;
     });
+    return res;
+  }
+  RelMember selectMember(int offs) {
+    int i;
+    RelMember res;
+    select((string, RelMember member) { if (i++ == offs) res = member; });
+    return res;
+  }
+  Structure slice(int from, int to) {
+    assert(!isUnion);
+    auto res = new Structure(null);
+    res.packed = packed;
+    int i;
+    select((string, RelMember member) { if (i !< from && i < to) new RelMember(member.name, member.type, res); i++; });
+    return res;
+  }
+  IType[] types() {
+    IType[] res;
+    select((string, RelMember member) { res ~= member.type; });
     return res;
   }
   this(string name) {
@@ -100,11 +118,13 @@ class Structure : Namespace, RelNamespace, IType, Named {
       string res = "struct ";
       if (name) res ~= name;
       else res ~= Format(cast(void*) this);
-      res ~= " { ";
+      string res2;
       select((string, RelMember member) {
-        res ~= Format(member.name, ": ", member.type, " @", member.offset, " ");
+        if (res2.length) res2 ~= ", ";
+        if (member.name) res2 ~= member.name;
+        else res2 ~= Format(member.type);
       });
-      return res ~ " }";
+      return res ~ " { " ~ res2 ~ " }";
     }
   }
 }
@@ -171,7 +191,12 @@ mixin DefaultParser!(gotStructDef, "tree.typedef.struct");
 class StructLiteral : Expr {
   Structure st;
   Expr[] exprs;
-  mixin MyThis!("st, exprs");
+  this(Structure st, Expr[] exprs...) {
+    this.st = st;
+    foreach (ex; exprs) assert(ex);
+    this.exprs = exprs.dup;
+  }
+  private this() { }
   mixin defaultIterate!(exprs);
   override {
     string toString() { return Format("literal ", st, " {", exprs, "}"); }
@@ -209,19 +234,25 @@ class StructLiteral : Expr {
 }
 
 import ast.pointer;
-class MemberAccess(T) : T {
-  T base;
+class MemberAccess_Expr : Expr {
+  Expr base;
   RelMember stm;
   string name;
-  this(T t, string name) {
-    base = t;
+  this(Expr base, string name) {
+    this.base = base;
     this.name = name;
     stm = cast(RelMember) (cast(Namespace) base.valueType()).lookup(name);
-    // if (!stm) asm { int 3; }
     if (!stm) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
   }
-  private this() { }
-  mixin DefaultDup!();
+  this() { }
+  MemberAccess_Expr create() { return new MemberAccess_Expr; }
+  MemberAccess_Expr dup() {
+    auto res = create();
+    res.base = base.dup;
+    res.stm = stm.dup;
+    res.name = name;
+    return res;
+  }
   mixin defaultIterate!(base);
   override {
     import tools.log;
@@ -232,10 +263,10 @@ class MemberAccess(T) : T {
     import tools.base;
     void emitAsm(AsmFile af) {
       auto st = cast(Structure) base.valueType();
-      static if (is(T: LValue)) {
+      if (auto lv = cast(LValue) base) {
         if (stm.type.size == 4 /or/ 2 /or/ 1) {
-          af.comment("emit location of ", base, " for member access to ", stm.name, " @", stm.offset);
-          base.emitLocation(af);
+          af.comment("emit location of ", lv, " for member access to ", stm.name, " @", stm.offset);
+          lv.emitLocation(af);
           af.comment("pop and dereference");
           af.popStack("%eax", new Pointer(st));
           string reg;
@@ -257,14 +288,14 @@ class MemberAccess(T) : T {
             iparse!(Statement, "copy_struct_member", "tree.semicol_stmt.expr")
             ("memcpy(cast(void*) &tempvar, (cast(void*) &var) + offset, size)",
               "tempvar", var,
-              "var", base,
+              "var", lv,
               "size", new IntExpr(stm.type.size),
               "offset", new IntExpr(stm.offset)
             ).emitAsm(af);
           });
         }
       } else {
-        assert(stm.type.size == 4, Format("Asked for ", stm, " in ", base, "; bad size. "));
+        assert(stm.type.size == 4, Format("Asked for ", stm, " in ", base, "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !cast(LValue) base, ") of ", base.valueType().size(), ". "));
         af.comment("emit struct ", base, " for member access");
         base.emitAsm(af);
         af.comment("store member and free: ", stm.name);
@@ -274,26 +305,31 @@ class MemberAccess(T) : T {
         af.pushStack("%eax", stm.type);
       }
     }
-    static if (is(T: LValue)) {
-      void emitLocation(AsmFile af) {
-        if (!af.optimize) af.comment("emit location of ", base, " for member address of ", stm.name, " @", stm.offset);
-        base.emitLocation(af);
-        if (!af.optimize) af.comment("add offset ", stm.offset);
-        af.mathOp("addl", Format("$", stm.offset), "(%esp)");
-      }
+  }
+}
+
+class MemberAccess_LValue : MemberAccess_Expr, LValue {
+  this(LValue base, string name) {
+    super(cast(Expr) base, name);
+  }
+  this() { }
+  override {
+    MemberAccess_LValue create() { return new MemberAccess_LValue; }
+    MemberAccess_LValue dup() { return cast(MemberAccess_LValue) super.dup(); }
+    void emitLocation(AsmFile af) {
+      if (!af.optimize) af.comment("emit location of ", base, " for member address of ", stm.name, " @", stm.offset);
+      (cast(LValue) base).emitLocation(af);
+      if (!af.optimize) af.comment("add offset ", stm.offset);
+      af.mathOp("addl", Format("$", stm.offset), "(%esp)");
     }
   }
 }
 
-alias MemberAccess!(Expr) MemberAccess_Expr;
-alias MemberAccess!(LValue) MemberAccess_LValue;
-
-import ast.fold;
+import ast.fold, ast.casting;
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
     if (auto mae = cast(MemberAccess_Expr) ex) {
-      auto base = fold(mae.base);
-      // logln("fold ", mae.base);
+      auto base = opt(mae.base);
       if (auto sl = cast(StructLiteral) base) {
         Expr res;
         int i;
@@ -303,6 +339,7 @@ static this() {
             res = sl.exprs[i];
           i++;
         });
+        assert(res);
         return res;
       }
     }
@@ -311,10 +348,8 @@ static this() {
 }
 
 Expr mkMemberAccess(Expr strct, string name) {
-  if (auto lv = cast(LValue) strct)
-    return new MemberAccess_LValue(lv, name);
-  else
-    return new MemberAccess_Expr(strct, name);
+  if (auto lv = cast(LValue) strct) return new MemberAccess_LValue(lv, name);
+  else                              return new MemberAccess_Expr  (strct, name);
 }
 
 Expr depointer(Expr ex) {

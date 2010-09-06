@@ -13,8 +13,9 @@ class Module : Namespace, Tree, Named {
     Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
-      foreach (entry; entries)
+      foreach (i, entry; entries) {
         entry.emitAsm(af);
+      }
     }
     string mangle(string name, IType type) {
       return "module_"~this.name~"_"~name~(type?("_of_"~type.mangle()):"");
@@ -79,6 +80,9 @@ void setupSysmods() {
         if a[i] != b[i] return 0;
       return 1;
     }
+    template init(T) <<EOT
+      T init;
+    EOT
     context mem {
       void* delegate(int)            malloc_dg = &malloc;
       void* delegate(int, int )      calloc_dg = &calloc;
@@ -96,9 +100,6 @@ void setupSysmods() {
         newtarget[target.length .. newsize] = text;
       }
     }
-    template init(T) <<EOT
-      T init;
-    EOT
     char[] itoa(int i) {
       if i < 0 return "-" ~ itoa(-i);
       if i == 0 return "0";

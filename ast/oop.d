@@ -547,7 +547,7 @@ Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception("Missed closing bracket in class cast at '"~t2.next_text()~"'");
   if (!cast(ClassRef) dest && !cast(IntfRef) dest)
     return null;
-  if (!rest(t2, "tree.expr >tree.expr.arith", &ex)) {
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
     return null;
   }
   if (!cast(ClassRef) ex.valueType() && !cast(IntfRef) ex.valueType())

@@ -25,8 +25,8 @@ class Range : Type, RichIterator {
                   ("cast(wrapper) ex", "ex", ex, "wrapper", wrapper);
   }
   override {
-    IType elemType() { return iparse!(IType, "elem_type_range", "type")("typeof(sys.init!wrapper.cur)", "wrapper", wrapper); }
-    string toString() { return Format("RangeIter(", wrapper, ")"); }
+    IType elemType() { return iparse!(IType, "elem_type_range", "type")("typeof((cast(wrapper*) 0).cur)", "wrapper", wrapper); }
+    string toString() { return Format("RangeIter[", size, "](", wrapper, ")"); }
     int size() { return wrapper.size; }
     string mangle() { return "range_over_"~wrapper.mangle(); }
     ubyte[] initval() { return wrapper.initval(); }
@@ -44,7 +44,7 @@ class Range : Type, RichIterator {
     }
     Expr index(Expr ex, Expr pos) {
       return iparse!(Expr, "index_range", "tree.expr")
-                    ("lv.cur + pos",
+                    ("ex.cur + pos",
                      "ex", castExprToWrapper(ex),
                      "pos", pos);
     }
@@ -76,7 +76,7 @@ mixin DefaultParser!(gotRangeIter, "tree.expr.iter_range", "11");
 
 import ast.loops;
 
-import tools.base: This, This_fn, rmSpace;
+import tools.base: This, This_fn, rmSpace, PTuple, Stuple, ptuple, stuple;
 class StatementAndExpr : Expr {
   Statement first;
   Expr second;
@@ -111,7 +111,7 @@ class ForIter(I) : Type, I {
   IType wrapper;
   I itertype;
   Expr ex;
-  Placeholder var;
+  Placeholder var, extra;
   LValue castToWrapper(LValue lv) {
     return iparse!(LValue, "foriter_cast_to_wrapper", "tree.expr")
                   ("*cast(wrapper*) &lv", "lv", lv, "wrapper", wrapper);
@@ -127,35 +127,50 @@ class ForIter(I) : Type, I {
   }
   Expr subexpr(Expr ex) {
     if (auto lv = cast(LValue) ex) return subexpr(lv);
+    ex = opt(ex);
     // optimize subexpr of literal
-    return fold(iparse!(Expr, "foriter_get_subexpr", "tree.expr")
-                       ("ex.subiter", "ex", ex));
+    auto res = opt(iparse!(Expr, "foriter_get_subexpr", "tree.expr")
+                           ("ex.subiter", "ex", ex));
+    return res;
   }
-  Expr update(Expr ex, Expr newvar) {
+  Expr update(Expr ex, Placeholder var, Expr newvar) {
     auto sex = ex.dup;
     void subst(ref Iterable it) {
       if (it is var) it = cast(Iterable) newvar;
-      it.iterate(&subst);
+      else it.iterate(&subst);
     }
     sex.iterate(&subst);
     return sex;
   }
+  Expr update(Expr ex, LValue lv) {
+    auto var = iparse!(LValue, "foriter_lv_var_lookup", "tree.expr")
+                      ("lv.var", "lv", lv);
+    ex = update(ex, this.var, var);
+    if (this.extra) {
+      auto extra = iparse!(LValue, "foriter_lv_extra_lookup", "tree.expr")
+                      ("lv.extra", "lv", lv);
+      ex = update(ex, this.extra, extra);
+    }
+    return ex;
+  }
+  Statement mkForIterAssign(LValue lv, ref LValue wlv) {
+    wlv = castToWrapper(lv);
+    auto var = iparse!(LValue, "foriter_wlv_var", "tree.expr")
+                      ("wlv.var", "wlv", wlv);
+    auto stmt = iparse!(Statement, "foriter_assign", "tree.semicol_stmt.assign")
+                        ("var = ya", "var", var, "ya", itertype.yieldAdvance(subexpr(wlv)));
+    return stmt;
+  }
   override {
-    string toString() { return Format("ForIter(", itertype, ": ", ex, ")"); }
+    string toString() { return Format("ForIter[", size, "](", itertype, ": ", ex.valueType(), ")"); }
     IType elemType() { return ex.valueType(); }
     int size() { return wrapper.size; }
     string mangle() { return "for_range_over_"~wrapper.mangle(); }
     ubyte[] initval() { return wrapper.initval(); }
     Expr yieldAdvance(LValue lv) {
-      auto wlv = castToWrapper(lv);
-      auto var = iparse!(LValue, "foriter_wlv_var_advance", "tree.expr")
-                        ("wlv.var", "wlv", wlv);
-      auto stmt = iparse!(Statement, "foriter_assign_advance", "tree.semicol_stmt.assign")
-        ("var = ya",
-         "var", var,
-         "ya", itertype.yieldAdvance(subexpr(wlv))
-        );
-      return new StatementAndExpr(stmt, update(this.ex, var));
+      LValue wlv;
+      auto stmt = mkForIterAssign(lv, wlv);
+      return update(new StatementAndExpr(stmt, this.ex), wlv);
     }
     Cond terminateCond(Expr ex) {
       return itertype.terminateCond(subexpr(castToWrapper(ex)));
@@ -165,21 +180,19 @@ class ForIter(I) : Type, I {
         return itertype.length(subexpr(castToWrapper(ex)));
       }
       Expr index(Expr ex, Expr pos) {
-        auto wlv = castToWrapper(lvize(ex));
-        auto var = iparse!(LValue, "foriter_wlv_var", "tree.expr")
-                          ("wlv.var", "wlv", wlv);
-        auto stmt = iparse!(Statement, "foriter_assign_index", "tree.semicol_stmt.assign")
-                           ("var = ya",
-                            "var", var,
-                            "ya", itertype.index(subexpr(wlv), pos));
-        return new StatementAndExpr(stmt, update(this.ex, var));
+        auto lv = cast(LValue) ex;
+        if (!lv) throw new Exception(Format("Cannot take index of non-lvalue: ", ex));
+        LValue wlv;
+        auto stmt = mkForIterAssign(lv, wlv);
+        return new StatementAndExpr(stmt, update(this.ex, wlv));
       }
       Expr slice(Expr ex, Expr from, Expr to) {
         auto wr = castToWrapper(ex);
+        Expr[] field = [cast(Expr) itertype.slice(subexpr(wr), from, to),
+                        new Filler(itertype.elemType())];
+        if (extra) field ~= extra;
         return new RCE(this,
-          new StructLiteral(cast(Structure) wrapper, 
-            [cast(Expr) new Filler(itertype.elemType()),
-              itertype.slice(subexpr(wr), from, to)]));
+          new StructLiteral(cast(Structure) wrapper, field));
       }
     }
   }
@@ -197,16 +210,42 @@ class Filler : Expr {
   }
 }
 
-class Placeholder : Expr {
+class Placeholder : LValue {
   IType type;
-  this(IType type) { this.type = type; }
+  string info;
+  this(IType type, string info) { this.type = type; this.info = info; }
   Placeholder dup() { return this; } // IMPORTANT.
   mixin defaultIterate!();
-  IType valueType() { return type; }
-  void emitAsm(AsmFile af) { assert(false); }
+  override {
+    IType valueType() { return type; }
+    void emitAsm(AsmFile af) { logln("DIAF ", info); asm { int 3; } assert(false); }
+    void emitLocation(AsmFile af) { assert(false); }
+    string toString() { return Format("Placeholder(", info, ")"); }
+  }
 }
 
-import ast.literals: DataExpr;
+import ast.scopes;
+class ScopeWithExpr : Expr {
+  Scope sc;
+  Expr ex;
+  this(Scope sc, Expr ex) { this.sc = sc; this.ex = ex; }
+  mixin defaultIterate!(sc, ex);
+  override {
+    ScopeWithExpr dup() { return new ScopeWithExpr(sc.dup, ex.dup); }
+    IType valueType() { return ex.valueType(); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("ex.valueType().size"));
+      mkVar(af, ex.valueType(), true, (Variable var) {
+        sc.id = getuid();
+        auto dg = sc.open(af)();
+        (new Assignment(var, ex)).emitAsm(af);
+        dg();
+      });
+    }
+  }
+}
+
+import ast.aggregate, ast.literals: DataExpr;
 Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr sub, main;
   auto t2 = text;
@@ -218,25 +257,36 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   } else ivarname = null;
   if (!rest(t2, "tree.expr", &sub, (Expr ex) { return !!cast(Iterator) ex.valueType(); }))
     throw new Exception("Cannot find sub-iterator at '"~t2.next_text()~"'! ");
+  Placeholder extra;
+  Expr exEx, exBind;
+  if (t2.accept("extra")) {
+    if (!rest(t2, "tree.expr", &exEx))
+      throw new Exception("Couldn't match extra at '"~t2.next_text()~"'. ");
+    extra = new Placeholder(exEx.valueType(), "exEx.valueType()");
+    if (auto dc = cast(DontCastMeExpr) exEx)
+      exBind = new DontCastMeExpr(extra); // propagate outwards
+    else
+      exBind = extra;
+  }
   if (!t2.accept(":"))
     throw new Exception("Expected ':' at '"~t2.next_text()~"'! ");
   
   auto it = cast(Iterator) sub.valueType();
-  auto ph = new Placeholder(it.elemType());
+  auto ph = new Placeholder(it.elemType(), "it.elemType()");
   
-  Namespace backup;
-  if (ivarname) {
-    backup = namespace();
-    auto mns = new MiniNamespace("for_iter_var");
-    mns.sup = backup;
-    mns.internalMode = true;
-    mns.add(ivarname, ph);
-    namespace.set(mns);
+  auto backup = namespace();
+  auto mns = new MiniNamespace("for_iter_var");
+  with (mns) {
+    sup = backup;
+    internalMode = true;
+    if (ivarname) add(ivarname, ph);
+    if (extra)    add("extra", exBind);
   }
+  namespace.set(mns);
+  scope(exit) namespace.set(backup);
   
-  scope(exit)
-    if (backup)
-      namespace.set(backup);
+  auto sc = new Scope;
+  namespace.set(sc);
   
   if (!rest(t2, "tree.expr", &main))
     throw new Exception("Cannot find iterator expression at '"~t2.next_text()~"'! ");
@@ -244,40 +294,49 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception("Expected ']' at '"~t2.next_text()~"'! ");
   text = t2;
   auto wrapped = new Structure(null);
-  new RelMember("var", it.elemType(), wrapped);
   new RelMember("subiter", sub.valueType(), wrapped);
+  new RelMember("var", it.elemType(), wrapped);
+  if (extra)
+    new RelMember("extra", extra.valueType(), wrapped);
+  Expr res;
+  PTuple!(IType, Expr, Placeholder, Placeholder) ipt;
+  Iterator restype;
   if (auto ri = cast(RichIterator) it) {
     auto foriter = new ForIter!(RichIterator);
-    foriter.wrapper = wrapped;
+    with (foriter) ipt = ptuple(wrapper, ex, var, extra);
     foriter.itertype = ri;
-    foriter.ex = main;
-    foriter.var = ph;
-    return new RCE(foriter, new StructLiteral(wrapped,
-      [cast(Expr) new Filler(ri.elemType()), sub]));
+    restype = foriter;
   } else {
     auto foriter = new ForIter!(Iterator);
-    foriter.wrapper = wrapped;
+    with (foriter) ipt = ptuple(wrapper, ex, var, extra);
     foriter.itertype = it;
-    foriter.ex = main;
-    foriter.var = ph;
-    return new RCE(foriter, new StructLiteral(wrapped,
-      [cast(Expr) new Filler(it.elemType()), sub]));
+    restype = foriter;
   }
+  ipt = stuple(wrapped, new ScopeWithExpr(sc, main), ph, extra);
+  Expr[] field = [cast(Expr) sub, new Filler(it.elemType())];
+  if (extra) field ~= exEx;
+  return new RCE(cast(IType) restype, new StructLiteral(wrapped, field));
 }
-mixin DefaultParser!(gotForIter, "tree.expr.iter_for", "441");
+mixin DefaultParser!(gotForIter, "tree.expr.iter.for");
+static this() {
+  parsecon.addPrecedence("tree.expr.iter", "441");
+}
 
 import ast.variable, ast.assign;
-class IterLetCond : Cond {
+class IterLetCond : Cond, NeedsConfig {
   LValue target;
   Expr iter;
   LValue iref;
-  mixin MyThis!("target, iter, iref");
+  Expr iref_pre;
+  mixin MyThis!("target, iter, iref_pre");
   mixin DefaultDup!();
-  mixin defaultIterate!(iter);
+  mixin defaultIterate!(iter, target, iref);
+  override void configure() { iref = lvize(iref_pre); }
   override void jumpOn(AsmFile af, bool cond, string dest) {
     auto itype = cast(Iterator) iter.valueType();
     auto step = itype.yieldAdvance(iref);
     auto itercond = itype.terminateCond(iref);
+    assert(!cond); // must jump only on _fail_.
     itercond.jumpOn(af, cond, dest);
     if (target) {
       (new Assignment(target, step)).emitAsm(af);
@@ -285,6 +344,10 @@ class IterLetCond : Cond {
       step.emitAsm(af);
       af.sfree(step.valueType().size);
     }
+  }
+  override string toString() {
+    if (target) return Format(target, " <- ", iter);
+    else return Format("eval ", iter);
   }
 }
 
@@ -294,15 +357,14 @@ import ast.scopes, ast.vardecl;
 LValue lvize(Expr ex) {
   if (auto lv = cast(LValue) ex) return lv;
   
+  auto var = new Variable(ex.valueType(), "__lol", boffs(ex.valueType()));
   auto sc = cast(Scope) namespace();
-  if (!sc)
-    throw new Exception("Can't create temporary in "~namespace().toString()~"!");
-  
-  auto var = new Variable(ex.valueType(), null, boffs(ex.valueType()));
+  assert(!!sc);
   var.initval = ex;
   
   auto decl = new VarDecl;
   decl.vars ~= var;
+  var.baseOffset = -sc.framesize - ex.valueType().size;
   sc.addStatement(decl);
   sc.add(var);
   return var;
@@ -341,14 +403,27 @@ withoutIterator:
     sc.addStatement(decl);
     sc.add(newvar);
   }
-  return new IterLetCond(lv, iter, lvize(iter));
+  return new IterLetCond(lv, iter, iter);
 }
 mixin DefaultParser!(gotIterCond, "cond.iter", "705");
+
+Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  LValue lv;
+  if (!t2.accept("eval")) return null;
+  if (!rest(t2, "tree.expr", &lv)) return null;
+  auto it = cast(Iterator) lv.valueType();
+  if (!it) return null;
+  text = t2;
+  return cast(Object) it.yieldAdvance(lv);
+}
+mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "270");
 
 Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     auto iter = cast(Iterator) ex.valueType();
     if (!iter) return null;
+    if (!cast(LValue) ex) return null;
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
@@ -373,37 +448,53 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIterIndex, "tree.rhs_partial.iter_index");
 
-import ast.arrays;
+import ast.arrays, ast.modules, ast.aggregate;
 // Statement with target, Expr without. Lol.
 class FlattenIterator : Expr, Statement {
   Expr ex;
   RichIterator iter;
   Expr target; // optional
-  this() { }
-  this(Expr ex, RichIterator ri) { this.ex = ex; this.iter = ri; }
-  this(Expr ex, RichIterator ri, Expr target) { this(ex, ri); this.target = target; }
-  mixin DefaultDup!();
-  mixin defaultIterate!(ex);
+  private this() { }
+  this(Expr ex, RichIterator ri) {
+    this.ex = ex;
+    this.iter = ri;
+  }
+  this(Expr ex, RichIterator ri, Expr target) {
+    this(ex, ri);
+    this.target = target;
+  }
+  FlattenIterator dup() {
+    auto res = new FlattenIterator;
+    res.ex = ex.dup;
+    res.iter = iter;
+    res.target = target;
+    return res;
+  }
+  mixin defaultIterate!(ex, target);
   override {
     IType valueType() { return new Array(iter.elemType()); }
+    string toString() { return Format("flatten(", ex, ")"); }
     void emitAsm(AsmFile af) {
+      int offs;
+      void emitStmt(Expr var) {
+        if (auto lv = cast(LValue) ex) {
+          iparse!(Statement, "iter_array_flatten_step_1", "tree.stmt")
+                 (` { int i; while var[i++] <- _iter { } }`,
+                  "var", var, "_iter", lv, af).emitAsm(af);
+        } else {
+          iparse!(Statement, "iter_array_flatten_step_2", "tree.stmt")
+                 (` { int i; auto temp = _iter; while var[i++] <- temp { } }`,
+                  "var", var, "_iter", ex, af).emitAsm(af);
+        }
+      }
       if (target) {
-        iparse!(Statement, "assign_iter_to_array", "tree.stmt")
-              (` { int i; while var[i++] <- _iter { } }`,
-                  namespace(),
-                  "len", iter.length(ex), "_iter", ex, "var", target, af).emitAsm(af);
+        emitStmt(target);
       } else {
         mkVar(af, valueType(), true, (Variable var) {
-          iparse!(Statement, "initVar", "tree.stmt")
-                (` {
-                      var = new(len) elem;
-                      int i;
-                      while var[i++] <- _iter { }
-                    }`,
-                    namespace(),
-                    "len", iter.length(ex), "elem", iter.elemType(),
-                    "_iter", ex, "var", var,
-                    af).emitAsm(af);
+          iparse!(Statement, "initVar", "tree.semicol_stmt.assign")
+                (`var = new(len) elem`,
+                 "var", var, "len", iter.length(ex), "elem", iter.elemType()).emitAsm(af);
+          emitStmt(var);
         });
       }
     }
@@ -424,14 +515,13 @@ import tools.log;
 Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr target;
-  if (rest(t2, "tree.expr >tree.expr.arith", &target) && t2.accept("=")) {
+  if (rest(t2, "tree.expr _tree.expr.arith", &target) && t2.accept("=")) {
     Expr value;
     if (!rest(t2, "tree.expr", &value, (Expr ex) {
       auto it = cast(RichIterator) ex.valueType();
       return it && target.valueType() == new Array(it.elemType());
     })) {
       error = Format("Mismatching types in iterator assignment: ", target, " <- ", value.valueType());
-      logln("faiil");
       return null;
     }
     text = t2;

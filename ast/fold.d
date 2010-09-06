@@ -11,3 +11,16 @@ Expr fold(Expr ex) {
   }
   return cur;
 }
+
+Expr opt(Expr ex) {
+  ex = ex.dup;
+  void fun(ref Iterable it) {
+    if (auto ex = cast(Expr) it) {
+      it = cast(Iterable) fold(ex);
+    }
+    it.iterate(&fun);
+  }
+  auto it = cast(Iterable) ex;
+  fun(it);
+  return cast(Expr) it;
+}

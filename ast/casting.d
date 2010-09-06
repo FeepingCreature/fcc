@@ -26,6 +26,7 @@ class ReinterpretCast(T) : T {
   }
 }
 alias ReinterpretCast!(Expr) RCE;
+alias ReinterpretCast!(LValue) RCL;
 
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
@@ -55,7 +56,7 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception("No type matched in cast expression: "~t2.next_text());
   if (!t2.accept(")"))
     throw new Exception("Missed closing bracket in cast at "~t2.next_text());
-  if (!rest(t2, "tree.expr >tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { return test(it == dest); }))
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { return test(it == dest); }))
     return null;
   
   // confirm
@@ -97,7 +98,7 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
       throw new Exception("No type matched in cast expression: "~t2.next_text());
     if (!t2.accept(")"))
       throw new Exception("Missed closing bracket in cast at "~t2.next_text());
-    if (!rest(t2, "tree.expr >tree.expr.arith", &ex, (Expr ex) { return ex.valueType().size == dest.size; }))
+    if (!rest(t2, "tree.expr _tree.expr.arith", &ex, (Expr ex) { return ex.valueType().size == dest.size; }))
       return null;
       // throw new Exception("Expression not matched in cast: "~t2.next_text());
     
@@ -130,6 +131,29 @@ struct implicits { static {
   }
 }}
 
+class DontCastMeExpr : Expr {
+  Expr sup;
+  this(Expr sup) { this.sup = sup; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(sup);
+  override {
+    IType valueType() { return sup.valueType(); }
+    void emitAsm(AsmFile af) { sup.emitAsm(af); }
+    string toString() { return Format("__dcm(", sup, ")"); }
+  }
+}
+
+Object gotDCMExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (t2.accept("__dcm(") && rest(t2, "tree.expr", &ex) && t2.accept(")")) {
+    text = t2;
+    return new DontCastMeExpr(ex);
+  } else return null;
+}
+mixin DefaultParser!(gotDCMExpr, "tree.expr.dcm", "53");
+
 bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
   IType[] visited;
   bool haveVisited(Expr ex) {
@@ -153,7 +177,9 @@ bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
       if (auto res = recurse(entry)) return res;
     return null;
   }
+  auto dcme = cast(DontCastMeExpr) ex;
   if (accept(ex)) return true;
+  if (dcme) return false;
   if (auto res = recurse(ex)) { ex = res; return true; }
   else return false;
 }

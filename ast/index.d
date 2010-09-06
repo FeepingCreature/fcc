@@ -21,6 +21,9 @@ Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       if (cast(Range) pos.valueType()) return null; // belongs to slice
+      if (auto dcme = cast(DontCastMeExpr) ex) ex = dcme.sup;
+      if (cast(StaticArray) ex.valueType() && !cast(CValue) ex)
+        return null; // can't handle this.
       text = t2;
       return cast(Object) getIndex(ex, pos);
     } else return null;

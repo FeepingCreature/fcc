@@ -22,7 +22,8 @@ alias Single!(Pointer, Single!(Void)) voidp;
 // &foo
 class RefExpr : Expr {
   CValue src;
-  mixin MyThis!("src");
+  this(CValue cv) { assert(cv); this.src = cv; }
+  private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
   override {
@@ -70,19 +71,32 @@ static this() {
     if (text.accept("*")) { return new Pointer(cur); }
     else return null;
   };
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto re = cast(RefExpr) ex) {
+      if (auto de = cast(DerefExpr) re.src) {
+        return de.src;
+      }
+    }
+    return null;
+  };
 }
 
+import ast.fold, ast.casting;
 Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("&")) return null;
   
   Expr ex;
-  if (!rest(text, "tree.expr >tree.expr.arith", &ex)) {
+  if (!rest(text, "tree.expr _tree.expr.arith", &ex)) {
     error = "Address operator found but nothing to take address matched at '"~text.next_text()~"'";
     return null;
   }
   
-  auto cv = cast(CValue) ex;
-  if (!cv) throw new Exception(Format("Can't take reference: ", ex, " not an lvalue at ", text.next_text()));
+  if (!gotImplicitCast(ex, (Expr ex) {
+    return test(cast(CValue) fold(ex));
+  })) throw new Exception(Format("Can't take reference: ", ex, " does not become a cvalue at ", text.next_text()));
+  
+  auto cv = cast(CValue) fold(ex);
+  assert(!!cv);
   
   return new RefExpr(cv);
 }
@@ -93,13 +107,11 @@ Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("*")) return null;
   
   Expr ex;
-  if (!rest(t2, "tree.expr >tree.expr.arith", &ex))
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     throw new Exception("Dereference operator found but no expression matched at '"~text.next_text()~"'");
   
-  if (!cast(Pointer) ex.valueType()) {
+  if (!gotImplicitCast(ex, (IType it) { return !!cast(Pointer) it; })) {
     return null;
-    /*logln("Expected pointer at ", text.next_text(), ", left '", t2.next_text(), "'");
-    logln("but got ", ex.valueType());*/
   }
   text = t2;
   return new DerefExpr(ex);

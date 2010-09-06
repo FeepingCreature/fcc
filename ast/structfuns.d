@@ -134,6 +134,7 @@ class StructFunRefExpr : mkDelegate {
     assert(fun.baseptr);
     super(fun.getPointer(), new RefExpr(cast(CValue) fun.baseptr));
   }
+  override typeof(this) dup() { return new typeof(this)(fun); }
   override string toString() {
     return Format("&", fun.baseptr, ".", fun);
   }
@@ -149,7 +150,7 @@ Object gotStructfunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   string ident;
   RelFunction rf;
-  if (!rest(t2, "tree.expr", &rf)) return null;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &rf)) return null;
   
   text = t2;
   return new StructFunRefExpr(rf);

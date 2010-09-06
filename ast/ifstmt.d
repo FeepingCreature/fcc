@@ -38,6 +38,7 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
       ifs.branch1 = sc;
       if (!rest(t2, "cond", &ifs.test))
         throw new Exception("Couldn't get if condition at "~t2.next_text());
+      configure(ifs.test);
       if (!rest(t2, "tree.scope", (Statement st) { sc.addStatement(st); }))
         throw new Exception("Couldn't get if branch at "~t2.next_text());
     }

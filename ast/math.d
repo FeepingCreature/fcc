@@ -52,9 +52,12 @@ class FloatAsInt : Expr {
 Object gotFloatAsInt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr >tree.expr.arith", &ex))
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     return null;
-  if (Single!(Float) != ex.valueType())
+  auto ex2 = ex;
+  // something that casts to float, but not int by itself.
+  if (gotImplicitCast(ex2, (IType it) { return test(Single!(SysInt) == it); })
+   ||!gotImplicitCast(ex, (IType it) { return test(Single!(Float) == it); }))
     return null;
   
   text = t2;
@@ -199,11 +202,28 @@ class AsmIntBinopExpr : BinopExpr {
   }
 }
 
+static this() {
+  foldopt ~= delegate Expr(Expr ex) {
+    auto aibe = cast(AsmIntBinopExpr) ex;
+    if (!aibe) return null;
+    auto i1 = cast(IntExpr) ast.fold.fold(aibe.e1), i2 = cast(IntExpr) ast.fold.fold(aibe.e2);
+    if (!i1 || !i2) return null;
+    switch (aibe.op) {
+      case "+": return new IntExpr(i1.num + i2.num);
+      case "-": return new IntExpr(i1.num - i2.num);
+      case "*": return new IntExpr(i1.num * i2.num);
+      case "/": return new IntExpr(i1.num / i2.num);
+      default: break;
+    }
+    return null;
+  };
+}
+
 class AsmFloatBinopExpr : BinopExpr {
   this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
   private this() { super(); }
-  mixin DefaultDup!();
   override {
+    AsmFloatBinopExpr dup() { return new AsmFloatBinopExpr(e1.dup, e2.dup, op); }
     void emitAsm(AsmFile af) {
       assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
@@ -239,11 +259,11 @@ static this() {
     return new AsmIntBinopExpr(ex1, ex2, op);
   }
   Expr handlePointerMath(string op, Expr ex1, Expr ex2) {
-    if (isPointer(ex2.valueType())) {
+    if (gotImplicitCast(ex2, &isPointer)) {
       if (op == "-") throw new Exception(Format("WTF R U DOING THAR :( ", ex1, ", ", ex2));
       swap(ex1, ex2);
     }
-    if (isPointer(ex1.valueType())) {
+    if (gotImplicitCast(ex1, &isPointer)) {
       assert(!isPointer(ex2.valueType()));
       auto mul = (cast(Pointer) ex1.valueType()).target.size;
       ex2 = handleIntMath("*", ex2, new IntExpr(mul));
@@ -252,9 +272,6 @@ static this() {
     return null;
   }
   Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
-    if (ex1.valueType() != Single!(Float) && ex2.valueType() != Single!(Float))
-      return null;
-    
     if (!gotImplicitCast(ex1, &isFloat) || !gotImplicitCast(ex2, &isFloat))
       return null;
     
@@ -282,19 +299,18 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
   auto old_op = op;
   retry:
   Expr op2;
-  foreach (i, bogus; Ops[0 .. $/2]) {
+  foreach (i, bogus; Ops) {
     auto t3 = t2;
-    bool accepted = t3.accept(Ops[i*2]);
-    if (t3.startsWith(Ops[i*2]))
+    bool accepted = t3.accept(Ops[i]);
+    if (t3.startsWith(Ops[i]))
       accepted = false; // a && b != a & &b (!)
     if (accepted) {
       if (cont(t3, &op2)) {
-        // logln(Ops[i*2+1], " of (", op, ", ", op2, ") ?");
-        op = lookupOp(Ops[i*2], op, op2);
+        op = lookupOp(Ops[i], op, op2);
         t2 = t3;
         goto retry;
       } else
-        throw new Exception("Could not find operand for '"~Ops[i*2]~"' at '"~t3.next_text()~"'! ");
+        throw new Exception("Could not find operand for '"~Ops[i]~"' at '"~t3.next_text()~"'! ");
     }
   }
   if (op is old_op) {
@@ -307,18 +323,21 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
   return cast(Object) op;
 }
 
-alias gotMathExpr!("%", "imodl") gotModExpr;
+alias gotMathExpr!("%") gotModExpr;
 mixin DefaultParser!(gotModExpr, "tree.expr.arith.mod", "33");
 
-alias gotMathExpr!("+", "addl", "-", "subl") gotAddSubExpr;
+alias gotMathExpr!("+", "-") gotAddSubExpr;
 mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "31");
-alias gotMathExpr!("*", "imull", "/", "idivl") gotMulDivExpr;
+alias gotMathExpr!("*", "/") gotMulDivExpr;
 mixin DefaultParser!(gotMulDivExpr, "tree.expr.arith.muldiv", "32");
 
-alias gotMathExpr!("|", "orl") gotOrExpr;
+alias gotMathExpr!("|") gotOrExpr;
 mixin DefaultParser!(gotOrExpr, "tree.expr.arith.or", "51");
-alias gotMathExpr!("&", "andl") gotAndExpr;
+alias gotMathExpr!("&") gotAndExpr;
 mixin DefaultParser!(gotAndExpr, "tree.expr.arith.and", "52");
+
+alias gotMathExpr!("^") gotPowExpr;
+mixin DefaultParser!(gotPowExpr, "tree.expr.arith.pow", "34");
 
 // TODO: hook into parser
 class CondWrap : Expr {

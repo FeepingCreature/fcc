@@ -28,6 +28,7 @@ class VarDecl : Statement {
       assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; ", -var.baseOffset, " vs. ", af.currentStackDepth, ": ", var));
     }
   }
+  override string toString() { return Format("declare ", vars); }
 }
 
 // base offset
