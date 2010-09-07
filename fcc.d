@@ -15,7 +15,8 @@ import
   ast.oop, ast.dg, ast.newexpr, ast.guard, ast.withstmt,
   ast.templ, ast.globvars, ast.context, ast.concat,
   ast.stringex, ast.c_bind, ast.eval, ast.iterator,
-  ast.properties, ast.tuples, ast.iterator_ext;
+  ast.properties, ast.tuples, ast.iterator_ext,
+  ast.tuple_access;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -52,7 +53,7 @@ import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 
 extern(C) void exit(int);
 
-import tools.time;
+import tools.time, quicksort;
 import optimizer, ast.fold;
 
 Module optimize(Module mod) {
@@ -96,7 +97,6 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   }
   auto text = file.read().castLike("");
   Module mod;
-  // if (!text.gotModule(mod)) assert(false, "unable to eat module from "~file~": "~error);
   auto start_parse = sec();
   if (auto mt = parsecon.parse(text, "tree.module"))
     mod = cast(Module) mt;
@@ -108,7 +108,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   if (optimize) len_opt = time({
     sysmod = .optimize(sysmod);
     mod    = .optimize(mod);
-  });
+  }) / 1_000_000f;
   auto len_gen = time({
     sysmod.emitAsm(af);
     mod.emitAsm(af);
@@ -117,7 +117,10 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     writefln(len_parse, " to parse, ", len_gen, " to emit, ", len_opt, " to opt. ");
   else
     writefln(len_parse, " to parse, ", len_gen, " to emit. ");
-  writefln("Subsegments: ", ast.namespace.bench);
+  Stuple!(string, float)[] entries;
+  foreach (key, value; ast.namespace.bench) entries ~= stuple(key, value);
+  entries.qsort(ex!("a, b -> a._1 > b._1"));
+  writefln("Subsegments: ", entries);
   srcname.write(af.genAsm());
   auto cmdline = Format("as --32 -o ", objname, " ", srcname);
   writefln("> ", cmdline);

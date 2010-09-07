@@ -6,11 +6,12 @@ bool delegate(IType) isRichIterator;
 
 import
   ast.casting, ast.int_literal, ast.opers, ast.modules,
-  ast.fold, ast.namespace, ast.arrays, ast.static_arrays;
+  ast.fold, ast.namespace, ast.arrays, ast.static_arrays,
+  ast.tuples, ast.tuple_access;
 static this() {
   isRichIterator = delegate bool(IType it) { return !!cast(RichIterator) it; };
   defineOp("^", delegate Expr(Expr ex1, Expr ex2) {
-    if (!gotImplicitCast(ex1, isRichIterator)
+    if (!forb(ex1) || !gotImplicitCast(ex1, isRichIterator)
       ||!gotImplicitCast(ex2, (Expr ex) { return !!cast(IntExpr) fold(ex); }))
       return null;
     auto count = (cast(IntExpr) fold(ex2)).num;
@@ -22,7 +23,12 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (!cast(Array) ex.valueType() && !cast(StaticArray) ex.valueType()) return null;
     if (!sysmod) return null; // required
-    return iparse!(Expr, "array_iterate", "tree.expr")(`[for i <- 0..arr.length extra arr: extra[i]]`, "arr", new DontCastMeExpr(ex));
+    auto tagged = cast(Tagged) ex;
+    if (!tagged || tagged.tag != "want-iterator") return null;
+    ex = tagged.ex;
+    auto dcme = new DontCastMeExpr(ex);
+    auto range = iparse!(Expr, "array_iterate_range", "tree.expr")(`0..arr.length`, "arr", dcme);
+    return iparse!(Expr, "array_iterate", "tree.expr.iter.for")(`[for i <- iter extra arr: extra[i]]`, "arr", dcme, "iter", range);
   };
 }
 
@@ -44,7 +50,7 @@ class StatementExpr : Expr {
   }
 }
 
-import ast.tuples, ast.ifstmt, ast.cond;
+import ast.ifstmt, ast.cond;
 class Cross : Type, RichIterator {
   Tuple tup; // bool inited, then first third current values, second third running state, last third original iterators
   LValue castToTuple(LValue lv) {
@@ -155,7 +161,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
       ex2 = fold(ex2);
-      if (!gotImplicitCast(ex2, isRichIterator))
+      if (!forb(ex2) || !gotImplicitCast(ex2, isRichIterator))
         return false;
     }
     return true;
@@ -165,6 +171,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
     entry = fold(entry);
+    forb(entry);
     gotImplicitCast(entry, isRichIterator);
   }
   return cast(Object) mkCross(list);
@@ -263,7 +270,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
       ex2 = fold(ex2);
-      if (!gotImplicitCast(ex2, isRichIterator))
+      if (!forb(ex2) || !gotImplicitCast(ex2, isRichIterator))
         return false;
     }
     return true;
@@ -273,6 +280,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
     entry = fold(entry);
+    forb(entry);
     gotImplicitCast(entry, isRichIterator);
   }
   return cast(Object) mkZip(list);
@@ -303,7 +311,7 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(text, "tree.expr", &ex))
     throw new Exception("Could not match expr for cross at '"~text.next_text()~"'");
-  if (!gotImplicitCast(ex, (IType it) { return !!cast(RichIterator) it; }))
+  if (!forb(ex) || !gotImplicitCast(ex, (IType it) { return !!cast(RichIterator) it; }))
     throw new Exception(Format("Cannot convert ", ex, " to valid iterator at '", text.next_text(), "'. "));
   
   return new SumExpr(cast(RichIterator) ex.valueType(), ex);

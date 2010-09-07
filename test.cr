@@ -91,7 +91,7 @@ alias SDL_ANYFORMAT = 0x10_000_000;
 
 void sdlfun(float[3] delegate(float, float, float) dg) {
   SDL_Init(32); // video
-  SDL_Surface* surface = SDL_SetVideoMode(320, 240, 0, SDL_ANYFORMAT);
+  SDL_Surface* surface = SDL_SetVideoMode(640, 480, 0, SDL_ANYFORMAT);
   int update() {
     SDL_Flip(surface);
     SDL_Event ev;
@@ -107,11 +107,12 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
     fesetround(1024); // FE_DOWNWARD
     t = t + 0.05;
     int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
+    float f1f = factor1, f2f = factor2, f3f = factor3;
     for (int y = 0; y < surface.h; ++y) {
       auto p = &(surface.pixels[y * cast(int) surface.w]);
       for (int x = 0; x < surface.w; ++x) {
         auto f = dg(cast(float) x / surface.w, cast(float) y / surface.h, t);
-        *(p++) = cast(int) (factor1 * f[2]) + cast(int) (factor2 * f[1]) & factor2 + cast(int) (factor3 * f[0]) & factor3;
+        *(p++) = cast(int) (f1f * f[2]) + cast(int) (f2f * f[1]) & factor2 + cast(int) (f3f * f[0]) & factor3;
       }
     }
     fps ++;
@@ -341,6 +342,7 @@ int main(int argc, char** argv) {
     float sqrt3 = sqrtf(3);
     float f2 = 0.5 * (sqrt3 - 1), g2 = (3 - sqrt3) / 6;
     float noise2(float fx, float fy) {
+      fesetround(1024);
       float[3] n = void;
       
       float s = (fx + fy) * f2;
@@ -436,7 +438,7 @@ int main(int argc, char** argv) {
       y = y - 0.5;
       // auto dist = sqrtf(x * x + y * y);
       auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
-      // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.5;
+      // auto n = 0.5 * noise2(x * 4 + t, y * 4)+0.25;
       n = clamp(0, 1, n);
       float[3] n2 = rgb(n, n * n, n * 2);
       return n2;

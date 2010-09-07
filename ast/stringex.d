@@ -66,7 +66,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotStringEx, "tree.expr.literal.stringex", "550");
 
-import ast.dg, ast.tuples;
+import ast.dg, ast.tuples, ast.tuple_access;
 Expr simpleFormat(Expr ex) {
   auto type = ex.valueType();
   if (Single!(SysInt) == type) {

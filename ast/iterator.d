@@ -57,6 +57,7 @@ class Range : Type, RichIterator {
   }
 }
 
+import ast.tuples;
 Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr from, to;
   auto t2 = text;
@@ -65,6 +66,9 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   if (!cont(t2, &to))
     throw new Exception("Unable to acquire second half of range def at '"~t2.next_text()~"'");
   text = t2;
+  bool notATuple(IType it) { return !cast(Tuple) it; }
+  gotImplicitCast(from, &notATuple);
+  gotImplicitCast(to  , &notATuple);
   auto wrapped = new Structure(null);
   new RelMember("cur", from.valueType(), wrapped);
   new RelMember("end", to.valueType(), wrapped);
@@ -245,6 +249,26 @@ class ScopeWithExpr : Expr {
   }
 }
 
+import ast.static_arrays;
+class Tagged : Expr {
+  Expr ex;
+  string tag;
+  this(Expr ex, string tag) { this.ex = ex; this.tag = tag; }
+  mixin defaultIterate!(ex);
+  override {
+    Tagged dup() { return new Tagged(ex.dup, tag); }
+    IType valueType() { return ex.valueType(); }
+    void emitAsm(AsmFile af) { ex.emitAsm(af); }
+  }
+}
+
+bool forb(ref Expr ex) {
+  auto ar = cast(Array) ex.valueType(), sa = cast(StaticArray) ex.valueType();
+  if (ar || sa)
+    ex = new Tagged(ex, "want-iterator");
+  return true;
+}
+
 import ast.aggregate, ast.literals: DataExpr;
 Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr sub, main;
@@ -255,7 +279,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
     t2 = t3;
   } else ivarname = null;
-  if (!rest(t2, "tree.expr", &sub, (Expr ex) { return !!cast(Iterator) ex.valueType(); }))
+  if (!rest(t2, "tree.expr", &sub) || !forb(sub) || !gotImplicitCast(sub, (IType it) { return !!cast(Iterator) it; }))
     throw new Exception("Cannot find sub-iterator at '"~t2.next_text()~"'! ");
   Placeholder extra;
   Expr exEx, exBind;
@@ -313,8 +337,9 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     restype = foriter;
   }
   ipt = stuple(wrapped, new ScopeWithExpr(sc, main), ph, extra);
-  Expr[] field = [cast(Expr) sub, new Filler(it.elemType())];
-  if (extra) field ~= exEx;
+  Expr[] field;
+  if (extra) field = [cast(Expr) sub, new Filler(it.elemType()), exEx];
+  else field = [cast(Expr) sub, new Filler(it.elemType())];
   return new RCE(cast(IType) restype, new StructLiteral(wrapped, field));
 }
 mixin DefaultParser!(gotForIter, "tree.expr.iter.for");
@@ -341,6 +366,7 @@ class IterLetCond : Cond, NeedsConfig {
     if (target) {
       (new Assignment(target, step)).emitAsm(af);
     } else {
+      logln("emit step for ", itype);
       step.emitAsm(af);
       af.sfree(step.valueType().size);
     }
@@ -388,7 +414,7 @@ Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
   needIterator = true;
 withoutIterator:
   Expr iter;
-  if (!rest(t2, "tree.expr", &iter, (Expr ex) { return !!cast(Iterator) ex.valueType(); }))
+  if (!rest(t2, "tree.expr", &iter) || !forb(iter) || !gotImplicitCast(iter, (IType it) { return !!cast(Iterator) it; }))
     if (needIterator) throw new Exception("Can't find iterator at '"~t2.next_text()~"'! ");
     else return null;
   text = t2;
@@ -423,7 +449,7 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     auto iter = cast(Iterator) ex.valueType();
     if (!iter) return null;
-    if (!cast(LValue) ex) return null;
+    // if (!cast(LValue) ex) return null;
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
@@ -517,9 +543,9 @@ Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
   Expr target;
   if (rest(t2, "tree.expr _tree.expr.arith", &target) && t2.accept("=")) {
     Expr value;
-    if (!rest(t2, "tree.expr", &value, (Expr ex) {
-      auto it = cast(RichIterator) ex.valueType();
-      return it && target.valueType() == new Array(it.elemType());
+    if (!rest(t2, "tree.expr", &value) || !forb(value) || !gotImplicitCast(value, (IType it) {
+      auto ri = cast(RichIterator) it;
+      return ri && target.valueType() == new Array(ri.elemType());
     })) {
       error = Format("Mismatching types in iterator assignment: ", target, " <- ", value.valueType());
       return null;
