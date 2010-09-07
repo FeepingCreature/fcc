@@ -42,8 +42,14 @@ import tools.time;
 void parseHeader(string filename, string src, ParseCb rest) {
   auto start_time = sec();
   string newsrc;
+  bool inEnum;
+  string[] buffer;
+  void flushBuffer() { foreach (def; buffer) newsrc ~= def ~ ";"; buffer = null; }
   foreach (line; src.split("\n")) {
-    if (line.startsWith("#define")) { newsrc ~= line; newsrc ~= ";"; }
+    // special handling for fenv.h; shuffle #defines past the enum
+    if (line.startsWith("enum")) inEnum = true;
+    if (line.startsWith("}")) { inEnum = false; flushBuffer; }
+    if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else {  newsrc ~= line; newsrc ~= ";"; } }
     if (line.startsWith("#")) continue;
     newsrc ~= line;
   }
@@ -122,7 +128,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
   }
   while (statements.length) {
     auto stmt = statements.take(), start = stmt;
-    // logln("> ", stmt);
+    // logln("> ", stmt.replace("\n", "\\"));
     stmt.accept("__extension__");
     if (stmt.accept("#define")) {
       if (stmt.accept("__")) continue; // internal
@@ -155,38 +161,43 @@ void parseHeader(string filename, string src, ParseCb rest) {
       add(id, ea);
       continue;
     }
-    if (stmt.accept("typedef")) {
-      if (stmt.accept("enum")) {
-        auto entries = stmt.between("{", "}").split(",");
-        Expr cur = new IntExpr(0);
-        Named[] elems;
-        foreach (entry; entries) {
-          string id;
-          if (!gotIdentifier(entry, id)) {
-            stmt = entry;
+    bool isTypedef;
+    if (stmt.accept("typedef")) isTypedef = true;
+    if (stmt.accept("enum")) {
+      auto entries = stmt.between("{", "}").split(",");
+      Expr cur = new IntExpr(0);
+      Named[] elems;
+      foreach (entry; entries) {
+        // logln("> ", entry);
+        string id;
+        if (!gotIdentifier(entry, id)) {
+          stmt = entry;
+          goto giveUp;
+        }
+        if (entry.accept("=")) {
+          Expr ex;
+          if (!rest(entry, "tree.expr", &ex) || entry.strip().length) {
+            // logln("--", entry);
             goto giveUp;
           }
-          if (entry.accept("=")) {
-            Expr ex;
-            if (!rest(entry, "tree.expr", &ex) || entry.strip().length) {
-              logln("--", entry);
-              asm { int 3; }
-            }
-            cur = opt(ex);
-          }
-          elems ~= new ExprAlias(cur, id);
-          cur = opt(lookupOp("+", cur, new IntExpr(1)));
+          cur = opt(ex);
         }
-        // logln("Got from enum: ", elems);
-        stmt = stmt.between("}", "");
-        string name;
-        if (!gotIdentifier(stmt, name) || stmt.strip().length)
-          goto giveUp;
-        foreach (elem; elems) add(elem.getIdentifier(), elem);
-        auto ta = new TypeAlias(Single!(SysInt), name);
-        add(name, ta);
-        continue;
+        elems ~= new ExprAlias(cur, id);
+        cur = opt(lookupOp("+", cur, new IntExpr(1)));
       }
+      // logln("Got from enum: ", elems);
+      stmt = stmt.between("}", "");
+      string name;
+      if (stmt.strip().length && (!gotIdentifier(stmt, name) || stmt.strip().length)) {
+        logln("fail on '", stmt, "'");
+        goto giveUp;
+      }
+      foreach (elem; elems) add(elem.getIdentifier(), elem);
+      if (name)
+        add(name, new TypeAlias(Single!(SysInt), name));
+      continue;
+    }
+    if (isTypedef) {
       bool isUnion;
       auto st2 = stmt;
       if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {

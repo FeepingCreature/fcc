@@ -54,22 +54,11 @@ struct W {
   }
 }
 
-extern(C) {
-  int usleep(int secs);
-  int rand();
-  int fesetround(int direction);
-}
-
-extern(C) {
-  float log2f(float);
-  float sqrtf(float);
-  float fabsf(float);
-  float atan2f(float, float);
-  float floorf(float);
-  float cosf(float);
-  float sinf(float);
-  int time(int*);
-}
+c_include "stdlib.h";
+c_include "math.h";
+c_include "fenv.h";
+c_include "unistd.h";
+c_include "time.h";
 
 void sdlfun(float[3] delegate(float, float, float) dg) {
   SDL_Init(32); // video
@@ -86,7 +75,7 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
   float t = 0;
   int fps;
   void run() {
-    fesetround(1024); // FE_DOWNWARD
+    fesetround(FE_DOWNWARD);
     t = t + 0.05;
     int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
     float f1f = factor1, f2f = factor2, f3f = factor3;
