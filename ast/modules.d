@@ -89,7 +89,7 @@ void setupSysmods() {
     EOT
     context mem {
       void* delegate(int)            malloc_dg = &malloc;
-      void* delegate(int, int )      calloc_dg = &calloc;
+      void* delegate(int, int)      calloc_dg = &calloc;
       void delegate(void*)             free_dg = &free;
       void* delegate(void*, size_t) realloc_dg = &realloc;
       void* malloc (int i)             { return malloc_dg(i); }

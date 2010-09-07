@@ -59,21 +59,21 @@ struct Transaction {
     switch (kind) {
       case Kind.Mov:
         if (from.isRelative() && to.isRelative()) {
-          assert(usableScratch, "Cannot do relative memmove without scratch register! ");
+          assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
           return Format("movl ", from, ", ", usableScratch, "\nmovl ", usableScratch, ", ", to);
         } else {
           return Format("movl ", from, ", ", to);
         }
       case Kind.Mov2:
         if (from.isRelative() && to.isRelative()) {
-          assert(usableScratch, "Cannot do relative memmove without scratch register! ");
+          assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
           return Format("movw ", from, ", ", usableScratch, "\nmovw ", usableScratch, ", ", to);
         } else {
           return Format("movw ", from, ", ", to);
         }
       case Kind.Mov1:
         if (from.isRelative() && to.isRelative()) {
-          assert(usableScratch, "Cannot do relative memmove without scratch register! ");
+          assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
           return Format("movb ", from, ", ", usableScratch, "\nmovw ", usableScratch, ", ", to);
         } else {
           return Format("movb ", from, ", ", to);

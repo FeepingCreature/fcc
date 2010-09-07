@@ -58,8 +58,8 @@ void parseHeader(string filename, string src, ParseCb rest) {
   namespace.set(myNS);
   scope(exit) namespace.set(myNS.sup);
   void add(string name, Named n) {
+    if (myNS.lookup(name)) return; // duplicate definition. meh.
     auto ea = cast(ExprAlias) n;
-    if (ea && myNS.lookup(name)) return; // duplicate definition. meh.
     if (ea) {
       if (!gotImplicitCast(ea.base, (IType it) { return !cast(AstTuple) it; })) {
         logln("Weird thing ", ea);
@@ -197,15 +197,18 @@ void parseHeader(string filename, string src, ParseCb rest) {
           auto st = new Structure(ident);
           st.isUnion = isUnion;
           while (true) {
-            auto miew = st2;
+            // auto miew = st2;
             auto ty = matchType(st2);
             // if (!ty) logln("No match off ", miew);
             if (!ty) goto giveUp1;
-            new RelMember(st2.strip(), ty, st);
+            if (st2.find("(") != -1) goto giveUp1; // can't handle yet
+            foreach (var; st2.split(",")) {
+              new RelMember(var.strip(), ty, st);
+            }
             st2 = statements.take();
             if (st2.accept("}")) break;
           }
-          // logln(st2.strip(), " = ", st);
+          // logln(st2.strip(), " => ", st, "; ", st.size);
           add(st2.strip(), st);
           continue;
           giveUp1:
@@ -260,7 +263,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       fun.type = new FunctionType;
       fun.type.ret = ret;
       fun.type.params = args /map/ ex!(`a -> stuple(a, "")`);
-      res ~= fun; cache[name] = fun;
+      add(name, fun);
       continue;
     }
     giveUp:;

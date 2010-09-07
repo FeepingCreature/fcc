@@ -82,10 +82,12 @@ int literalToInt(string s) {
   return s[1 .. $].atoi();
 }
 
-bool referencesStack(ref Transaction t) {
+bool referencesStack(ref Transaction t, bool affects = false) {
   bool foo(string s) { return s.find("%esp") != -1 || s.find("%ebp") != -1; }
   with (Transaction.Kind) switch (t.kind) {
-    case   SAlloc, SFree, Pop, Push : return true;
+    case   SAlloc, SFree            : return true;
+    case                        Pop : if (affects) return true; return t.dest.foo();
+    case                       Push : if (affects) return true; return t.source.foo();
     case                       Call : return true;
     case                        Mov : return t.from.foo() || t.to.foo();
     case                     MathOp : return t.op1.foo() || t.op2.foo();
@@ -96,6 +98,8 @@ bool referencesStack(ref Transaction t) {
   }
   return true;
 }
+
+bool affectsStack(ref Transaction t) { return referencesStack(t, true); }
 
 bool changesESP(ref Transaction t) {
   with (Transaction.Kind)
@@ -134,6 +138,14 @@ int size(ref Transaction t) {
   assert(false);
 }
 
+bool isMemRef(string s) {
+  if (s.find("(") != -1) return true;
+  if (s.startsWith("$")) return false;
+  if (s == "%eax" /or/ "%ebx" /or/ "%ebp" /or/ "%ecx" /or/ "%edx") return false;
+  if (s.startsWith("%gs:")) return true;
+  return true;
+}
+
 // dg, name, allow
 Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
 bool optsSetup;
@@ -143,7 +155,7 @@ void setupOpts() {
   optsSetup = true;
   bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
   // alloc/free can be shuffled down past _anything_ that doesn't reference stack.
-  mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !referencesStack($1) => $SUBST([$1, $0]); `));
+  mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !affectsStack($1) => $SUBST([$1, $0]); `));
   mixin(opt("sort_pointless_mem", `^SAlloc || ^SFree, *:
     (hasSource($1) || hasDest($1) || hasFrom($1) || hasTo($1)) && !changesESP($1)
     =>
@@ -184,6 +196,15 @@ void setupOpts() {
     }
   `));
   mixin(opt("collapse_alloc_free_nop", `^SAlloc || ^SFree => if (!$0.size) $SUBST(null); `));
+  mixin(opt("pointless_free", `^SFree, ^Push:
+    $0.size == $1.type.size && $0.size == 4 && !isMemRef($1.source) && $1.source != "%esp"
+    =>
+    $SUBSTWITH {
+      kind = $TK.Mov;
+      from = $1.source;
+      to = "(%esp)";
+    }
+  `));
   mixin(opt("collapse_push_pop", `^Push, ^Pop:
     ($0.type.size == $1.type.size) && (!$0.source.isMemRef() || !$1.dest.isMemRef())
     =>
@@ -384,7 +405,7 @@ void setupOpts() {
   mixin(opt("fold_float_alloc_load_store", `^SAlloc, ^FloatLoad, ^FloatPop: $0.size == 4 && $2.dest == "(%esp)" => $SUBSTWITH { kind = $TK.Push; source = $1.source; type = Single!(Float); }`));
   mixin(opt("fold_float_pop_load_to_store", `^FloatPop, ^FloatLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.FloatStore; dest = $0.dest; }`));
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
-  mixin(opt("fold_mov_push", `^Mov, ^Push: $0.to == $1.source && !referencesStack($0) => $T t; with (t) { kind = $TK.Push; type = $1.type; source = $0.from; } $SUBST([t, $0]); `));
+  mixin(opt("fold_mov_push", `^Mov, ^Push: $0.to == $1.source && !affectsStack($0) => $T t; with (t) { kind = $TK.Push; type = $1.type; source = $0.from; } $SUBST([t, $0]); `));
   mixin(opt("fold_mov_pop",  `^Mov, ^Pop : $0.from == $1.dest && $0.to == "(%esp)"
     =>
     $SUBSTWITH {

@@ -80,6 +80,7 @@ class DataExpr : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!();
   override IType valueType() { return new StaticArray(Single!(Char), data.length); }
+  override string toString() { return Format(data); }
   override void emitAsm(AsmFile af) {
     bool allNull = true;
     foreach (val; data) if (val) { allNull = false; break; }

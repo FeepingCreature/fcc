@@ -283,6 +283,7 @@ Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
   auto t2 = text;
   int param_offset;
   Expr ex;
+  string err;
   if (t2.bjoin(
     (rest(t2, "tree.expr", &ex) && gotImplicitCast(ex, (IType it) {
       if (param_offset !< params.length)
@@ -293,8 +294,10 @@ Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
         // why are you using static arrays as parameters anyway?
         return !cast(StaticArray) it;
       } else {
-        // logln("While calling ", info, ", try ", ex.valueType(), " into ", params[param_offset], ": ", ex.valueType() == params[param_offset]);
-        return test(it == params[param_offset]);
+        auto res = test(it == params[param_offset]);
+        if (!res)
+          err = Format("While calling ", info, ", can't fit ", ex.valueType(), " into ", params[param_offset], ": ", ex.valueType() == params[param_offset]);
+        return res;
       }
     })),
     t2.accept(","),
@@ -312,7 +315,7 @@ Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
     if (param_offset < params.length) {
       throw new Exception(Format(
         "Not enough parameters for ", info, ": ",
-        res, " at ", t2.next_text(), "!"
+        res, " at ", t2.next_text(), "; ", err, "!"
       ));
     }
     
@@ -326,7 +329,7 @@ Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
     text = t2;
     
     return res;
-  } else throw new Exception("Couldn't match function call at '"~t2.next_text()~"'. ");
+  } else throw new Exception("Couldn't match function call at '"~t2.next_text()~"': "~err~". ");
 }
 
 import ast.parse, ast.static_arrays;

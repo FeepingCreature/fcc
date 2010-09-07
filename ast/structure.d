@@ -23,30 +23,20 @@ int roundTo(int i, int to) {
   else return i;
 }
 
-int gcd(int a, int b) {
-  while (b) {
-    auto t = b;
-    b = a % b;
-    a = t;
-  }
-  return a;
-}
-
-int lcm(int a, int b) {
-  return (a * b) / gcd(a, b);
-}
-
 int needsAlignmentStruct(Structure st) {
   int al = 1;
   foreach (type; st.types) {
-    al = lcm(al, needsAlignment(type));
+    auto ta = needsAlignment(type);
+    if (ta > al) al = ta;
   }
   return al;
 }
 
 int needsAlignment(IType it) {
   if (auto st = cast(Structure) it) return needsAlignmentStruct(st);
-  return it.size;
+  const limit = 4;
+  if (it.size > limit) return limit;
+  else return it.size;
 }
 
 void doAlign(ref int offset, IType type) {
@@ -76,8 +66,10 @@ class RelMember : Expr, Named, RelTransformable {
     this.type = type;
     auto st = cast(Structure) ns;
     
-    if (st && st.isUnion) offset = 0;
-    else offset = (cast(IType) ns).size();
+    if (st) {
+      if (st.isUnion) offset = 0;
+      else offset = st._size();
+    } else offset = (cast(IType) ns).size();
     
     // alignment
     bool isAligned = true;
@@ -96,12 +88,18 @@ class Structure : Namespace, RelNamespace, IType, Named {
   string name;
   bool isUnion;
   bool packed;
-  int size() {
+  int _size() {
     int res;
     select((string, RelMember member) {
       auto end = member.offset + member.type.size;
       if (end > res) res = end;
     });
+    return res;
+  }
+  int size() {
+    auto res = _size(); //, pre = res;
+    doAlign(res, this);
+    // if (res != pre) logln(pre, " -> ", res, ": ", this);
     return res;
   }
   RelMember selectMember(int offs) {
@@ -116,6 +114,11 @@ class Structure : Namespace, RelNamespace, IType, Named {
     res.packed = packed;
     int i;
     select((string, RelMember member) { if (i !< from && i < to) new RelMember(member.name, member.type, res); i++; });
+    return res;
+  }
+  string[] names() {
+    string[] res;
+    select((string, RelMember member) { res ~= member.name; });
     return res;
   }
   IType[] types() {
@@ -151,6 +154,7 @@ class Structure : Namespace, RelNamespace, IType, Named {
         if (res2.length) res2 ~= ", ";
         if (member.name) res2 ~= member.name;
         else res2 ~= Format(member.type);
+        res2 ~= Format(" @", member.offset);
       });
       return res ~ " { " ~ res2 ~ " }";
     }
@@ -357,7 +361,7 @@ import ast.fold, ast.casting;
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
     if (auto mae = cast(MemberAccess_Expr) ex) {
-      auto base = opt(mae.base);
+      auto base = fold(mae.base);
       if (auto sl = cast(StructLiteral) base) {
         Expr res;
         int i;
@@ -371,6 +375,7 @@ static this() {
         return res;
       }
     }
+    // logln("foldopt? ", ex);
     return null;
   };
 }
@@ -411,7 +416,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (!ex) {
       if (m) error = Format(member, " is not a struct var: ", m);
       else {
-        error = Format(member, " is not a member of ", st.name, "!");
+        error = Format(member, " is not a member of ", st.name, ", containing ", st.names, "!");
         if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit") // list of keywords
           throw new Exception(error);
       }

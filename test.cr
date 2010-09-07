@@ -1,5 +1,5 @@
 module test;
-import sys, opengl;
+import sys, sdl;
 
 int add(int a, int b) { return a + b; }
 
@@ -54,24 +54,8 @@ struct W {
   }
 }
 
-extern(C) int SDL_Init(int);
-struct SDL_Surface {
-  int flags;
-  void* format;
-  int w, h;
-  short pitch;
-  int* pixels;
-}
-struct SDL_Event {
-  char type;
-  int[64] filler;
-}
 extern(C) {
-  SDL_Surface* SDL_SetVideoMode(int width, int height, int bpp, int flags);
-  int SDL_Flip(SDL_Surface*);
   int usleep(int secs);
-  int SDL_WaitEvent(SDL_Event*);
-  int SDL_PollEvent(SDL_Event*);
   int rand();
   int fesetround(int direction);
 }
@@ -87,11 +71,9 @@ extern(C) {
   int time(int*);
 }
 
-alias SDL_ANYFORMAT = 0x10_000_000;
-
 void sdlfun(float[3] delegate(float, float, float) dg) {
   SDL_Init(32); // video
-  SDL_Surface* surface = SDL_SetVideoMode(640, 480, 0, SDL_ANYFORMAT);
+  SDL_Surface* surface = cast(SDL_Surface*) SDL_SetVideoMode(320, 240, 0, SDL_ANYFORMAT);
   int update() {
     SDL_Flip(surface);
     SDL_Event ev;
@@ -109,7 +91,7 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
     int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
     float f1f = factor1, f2f = factor2, f3f = factor3;
     for (int y = 0; y < surface.h; ++y) {
-      auto p = &(surface.pixels[y * cast(int) surface.w]);
+      auto p = &((cast(int*) surface.pixels)[y * cast(int) surface.w]);
       for (int x = 0; x < surface.w; ++x) {
         auto f = dg(cast(float) x / surface.w, cast(float) y / surface.h, t);
         *(p++) = cast(int) (f1f * f[2]) + cast(int) (f2f * f[1]) & factor2 + cast(int) (f3f * f[0]) & factor3;
@@ -198,7 +180,22 @@ union U {
   float F;
 }
 
+// c_include "gc.h";
+
 int main(int argc, char** argv) {
+  // use Boehm GC
+  /* mem.malloc_dg = &GC_malloc;
+  void* myCalloc(int a, b) {
+    auto len = a * b;
+    auto res = sys.mem.malloc(len);
+    char ch;
+    (cast(char*) res)[0 .. len] = [for 0..len: ch];
+    return res;
+  }
+  void* myRealloc(void* a, size_t b) { return GC_realloc(a, cast(int) b); }
+  mem.calloc_dg = &myCalloc;
+  mem.realloc_dg = &myRealloc;
+  mem.free_dg = &GC_free;*/
   test(2);
   test(0);
   int e = 5;
@@ -281,12 +278,13 @@ int main(int argc, char** argv) {
     writeln("memtest! ");
     auto p = malloc(16);
     free(p);
+    writeln("again.. ");
   }
   memtest();
   auto old_malloc = sys.mem.malloc_dg;
   using scoped sys.mem {
     void* fun(int i) {
-      writeln("malloc($i)");
+      writeln("malloc()");
       return old_malloc(i);
     }
     malloc_dg = &fun;
