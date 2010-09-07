@@ -389,7 +389,7 @@ Expr depointer(Expr ex) {
   return ex;
 }
 
-import ast.parse;
+import ast.parse, tools.base: or;
 Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
@@ -398,7 +398,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!ex) return null;
   // pointers get dereferenced for struct access
   ex = depointer(ex);
-  if (!cast(Structure) ex.valueType())
+  if (!gotImplicitCast(ex, (IType it) { return !!cast(Structure) it; }))
     return null;
   
   string member;
@@ -410,7 +410,11 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     ex = cast(Expr) m;
     if (!ex) {
       if (m) error = Format(member, " is not a struct var: ", m);
-      else error = Format(member, " is not a member of ", st.name, "!");
+      else {
+        error = Format(member, " is not a member of ", st.name, "!");
+        if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit") // list of keywords
+          throw new Exception(error);
+      }
       return null;
     }
     text = t2;

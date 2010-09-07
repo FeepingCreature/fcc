@@ -13,7 +13,9 @@ class Module : Namespace, Tree, Named {
     Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
-      foreach (i, entry; entries) {
+      int i; // NOTE: not a foreach! entries may yet grow.
+      while (i < entries.length) {
+        auto entry = entries[i++];
         entry.emitAsm(af);
       }
     }
@@ -102,6 +104,27 @@ void setupSysmods() {
         newtarget[target.length .. newsize] = text;
       }
     }
+    template append2(T) <<EOT
+      T[~] append2(T[~]* l, T[] r) {
+        // printf("append2 %i to %i, cap %i\n", r.length, l.length, l.capacity);
+        if (l.capacity < l.length + r.length) {
+          auto size = l.length + r.length, size2 = l.length * 2;
+          auto newsize = size;
+          if (size2 > newsize) newsize = size2;
+          T[~] res = (new(newsize) T)[0 .. size];
+          res[0 .. l.length] = (*l)[];
+          res[l.length .. res.length] = r;
+          res.capacity = newsize;
+          return res;
+        } else {
+          T[~] res = l.ptr[0 .. l.length + r.length]; // make space
+          res.capacity = l.capacity;
+          l.capacity = 0; // claimed!
+          res[l.length .. res.length] = r;
+          return res;
+        }
+      }
+    EOT
     char[] itoa(int i) {
       if i < 0 return "-" ~ itoa(-i);
       if i == 0 return "0";

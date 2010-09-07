@@ -128,13 +128,13 @@ class MiniNamespace : Namespace, ScopeLike {
     else if (internalMode) super.__add(name, obj);
     else super._add(name, obj);
   }
-  int fs;
+  int fs, fs2;
   override int framesize() {
+    if (fs) return fs;
     if (auto sl = cast(ScopeLike) sup) {
-      if (fs) return fs + sl.framesize();
+      if (fs2) return fs2 + sl.framesize();
       else return sl.framesize();
-    } else if (fs) return fs;
-    else {
+    } else {
       logln("no metric for framesize of ", id);
       assert(false);
     }
@@ -181,7 +181,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     static if (T2.length && is(T2[0]: Namespace)) {
       myns.sup = _t[0];
       static if (T2.length > 1 && is(T2[1]: int)) {
-        myns.fs = _t[1];
+        myns.fs2 = _t[1];
         auto t = _t[2 .. $];
       } else {
         auto t = _t[1 .. $];

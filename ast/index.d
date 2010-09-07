@@ -15,7 +15,7 @@ LValue getIndex(Expr array, Expr pos) {
 
 Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (!cast(StaticArray) ex.valueType() && !cast(Array) ex.valueType())
+    if (!cast(StaticArray) ex.valueType() && !cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType())
       return null;
     auto t2 = text;
     Expr pos;

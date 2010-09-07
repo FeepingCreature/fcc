@@ -20,7 +20,7 @@ Expr mkArraySlice(Expr array, Expr from = null, Expr to = null) {
 import ast.iterator, ast.casting;
 Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (!cast(Array) ex.valueType() && !cast(Pointer) ex.valueType()) return null;
+    if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType() && !cast(Pointer) ex.valueType()) return null;
     auto t2 = text;
     Expr range;
     if (t2.accept("[") && t2.accept("]") || (t2 = text, true) &&
@@ -34,17 +34,17 @@ Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
       }
       if (!from) from = new IntExpr(0);
       if (!to) {
-        if (!cast(Array) ex.valueType()) return null;
+        if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
         // assert(!!cast(Array) ex.valueType(), "Cannot take \"full slice\" over pointer! ");
         to = getArrayLength(ex);
       }
       if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: ", from));
       if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: ", from));
       text = t2;
-      if (cast(Array) ex.valueType()) return cast(Object) mkArraySlice(ex, from, to);
-      else {
+      if (cast(Array) ex.valueType() || cast(ExtArray) ex.valueType())
+        return cast(Object) mkArraySlice(ex, from, to);
+      else
         return cast(Object) mkPointerSlice(ex, from, to);
-      }
     } else return null;
   };
 }
@@ -76,7 +76,9 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (cast(LValue) dest) return null; // leave to normal assignment
     if (rest(t2, "tree.expr", &src)) {
       if (dest.valueType() != src.valueType()) {
-        error = Format("Mismatching types in slice assignment: ", dest, " <- ", src.valueType());
+        error = Format("Mismatching types in slice assignment: ", dest.valueType(), " <- ", src.valueType());
+        if (cast(Array) src.valueType() || cast(ExtArray) src.valueType())
+          throw new Exception(error);
         return null;
       }
       text = t2;

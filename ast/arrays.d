@@ -94,24 +94,28 @@ class ArrayLength(T) : T {
   }
 }
 
-// construct array from two expressions
+// construct array from two (three?) expressions
 class ArrayMaker : Expr {
   Expr ptr, length;
-  mixin MyThis!("ptr, length");
+  Expr cap;
+  mixin MyThis!("ptr, length, cap = null");
   mixin DefaultDup!();
-  mixin defaultIterate!(ptr, length);
+  mixin defaultIterate!(ptr, length, cap);
   IType elemType() {
     return (cast(Pointer) ptr.valueType()).target;
   }
-  override string toString() { return Format("array(ptr=", ptr, ", length=", length, ")"); }
+  override string toString() { return Format("array(ptr=", ptr, ", length=", length, cap?Format(", cap=", cap):"", ")"); }
   override IType valueType() {
-    return new Array(elemType());
+    if (cap) return new ExtArray(elemType());
+    else return new Array(elemType());
   }
   import ast.vardecl, ast.assign;
   override void emitAsm(AsmFile af) {
     // TODO: stack direction/order
     ptr.emitAsm(af);
     length.emitAsm(af);
+    if (cap)
+      cap.emitAsm(af);
   }
 }
 
@@ -144,7 +148,7 @@ import ast.parse;
 // separate because does clever allocation mojo .. eventually
 Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (auto ar = cast(Array) ex.valueType()) {
+    if (cast(Array) ex.valueType() || cast(ExtArray) ex.valueType()) {
       if (!text.accept(".length")) return null;
       return cast(Object) getArrayLength(ex);
     } else return null;
@@ -155,10 +159,14 @@ mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length");
 import ast.casting;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (!cast(Array) ex.valueType()) return null;
+    if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
     if (auto lv = cast(LValue) ex)
       return arrayToStruct!(LValue) (lv);
     else
       return arrayToStruct!(Expr) (ex);
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (!cast(Array) ex.valueType()) return null;
+    return new ArrayMaker(getArrayPtr(ex), getArrayLength(ex), new IntExpr(0));
   };
 }

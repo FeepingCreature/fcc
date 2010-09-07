@@ -84,6 +84,7 @@ class ConcatChain : Expr {
 
 static this() {
   bool isArray(IType it) { return !!cast(Array) it; }
+  bool isExtArray(IType it) { return !!cast(ExtArray) it; }
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
     auto cc = cast(ConcatChain) ex1;
     if (!cc || !gotImplicitCast(ex2, &isArray))
@@ -96,6 +97,20 @@ static this() {
     return new ConcatChain(ex1, ex2);
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+    if (!isExtArray(ex1.valueType()) || !gotImplicitCast(ex2, &isArray))
+      return null;
+    if (!cast(LValue) ex1) {
+      logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: ", ex1, ex2);
+      asm { int 3; }
+    }
+    auto elemtype = (cast(ExtArray) ex1.valueType()).elemType;
+    return iparse!(Expr, "concat_into_ext", "tree.expr")
+                  (`sys.append2!T(&l, r)`,
+                   namespace(),
+                   "T", elemtype, "l", ex1, "r", ex2);
+  });
+  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+    logln("op: concat");
     logln("ex1: ", ex1.valueType());
     logln("ex2: ", ex2.valueType());
     asm { int 3;}

@@ -108,15 +108,18 @@ Expr simpleFormat(Expr ex) {
       mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
         iparse!(Scope, "gen_array_format", "tree.scope")
         (`{
-            var = "["[];
+            char[~] res;
+            res = res ~ "[";
             auto ar = array;
             for (int i = 0; i < ar.length; ++i) {
-              if i var = var ~ ", ";
+              if i res = res ~ ", ";
               auto elem = ar[i];
-              var = var ~ "$elem";
+              res = res ~ "$elem";
             }
-            var = var ~ "]";
+            res = res ~ "]";
+            var = res[0 .. res.length];
           }`,
+          namespace(),
           "var", var, "array", ex,
           af
         ).emitAsm(af);

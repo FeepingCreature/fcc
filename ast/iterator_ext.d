@@ -21,7 +21,7 @@ static this() {
     return mkTupleExpr(rep);
   });
   implicits ~= delegate Expr(Expr ex) {
-    if (!cast(Array) ex.valueType() && !cast(StaticArray) ex.valueType()) return null;
+    if (!cast(Array) ex.valueType() && !cast(StaticArray) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
     if (!sysmod) return null; // required
     auto tagged = cast(Tagged) ex;
     if (!tagged || tagged.tag != "want-iterator") return null;

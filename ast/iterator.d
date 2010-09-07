@@ -263,8 +263,8 @@ class Tagged : Expr {
 }
 
 bool forb(ref Expr ex) {
-  auto ar = cast(Array) ex.valueType(), sa = cast(StaticArray) ex.valueType();
-  if (ar || sa)
+  auto ar = cast(Array) ex.valueType(), sa = cast(StaticArray) ex.valueType(), ea = cast(ExtArray) ex.valueType();
+  if (ar || sa || ea)
     ex = new Tagged(ex, "want-iterator");
   return true;
 }
