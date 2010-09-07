@@ -1,7 +1,7 @@
 module ast.c_bind;
 
-// Optimized for GL.h; may not work for others!! 
-import ast.base, ast.modules;
+// Optimized for GL.h and SDL.h; may not work for others!! 
+import ast.base, ast.modules, ast.structure, ast.casting, ast.tuples: AstTuple = Tuple;
 
 import tools.compat, tools.functional;
 alias asmfile.startsWith startsWith;
@@ -35,7 +35,9 @@ string readback(string cmd) {
   return readStream(fs);
 }
 
-import ast.aliasing, ast.pointer, ast.fun, ast.namespace, ast.int_literal;
+import
+  ast.aliasing, ast.pointer, ast.fun, ast.namespace, ast.int_literal,
+  ast.fold, ast.opers;
 import tools.time;
 void parseHeader(string filename, string src, ParseCb rest) {
   auto start_time = sec();
@@ -50,6 +52,26 @@ void parseHeader(string filename, string src, ParseCb rest) {
   // mini parser
   Named[] res;
   Named[string] cache;
+  auto myNS = new MiniNamespace("parse_header");
+  myNS.sup = namespace();
+  myNS.internalMode = true;
+  namespace.set(myNS);
+  scope(exit) namespace.set(myNS.sup);
+  void add(string name, Named n) {
+    auto ea = cast(ExprAlias) n;
+    if (ea && myNS.lookup(name)) return; // duplicate definition. meh.
+    if (ea) {
+      if (!gotImplicitCast(ea.base, (IType it) { return !cast(AstTuple) it; })) {
+        logln("Weird thing ", ea);
+        asm { int 3; }
+      }
+    }
+    // logln("add ", name, " <- ", n);
+    myNS._add(name, cast(Object) n);
+    res ~= n;
+    cache[name] = n;
+  }
+  
   IType matchSimpleType(ref string text) {
     bool accept(string s) {
       auto t2 = text;
@@ -66,16 +88,17 @@ void parseHeader(string filename, string src, ParseCb rest) {
     if (auto rest = text.strip().startsWith("...")) { text = rest; return Single!(Variadic); }
     if (accept("unsigned int") || accept("signed int") || accept("long int") || accept("int")) return Single!(SysInt);
     if (accept("unsigned char") || accept("signed char") || accept("char")) return Single!(Char);
-    if (accept("signed short int") || accept("unsigned short") || accept("short")) return Single!(Short);
+    if (accept("signed short int") || accept("unsigned short int") || accept("unsigned short") || accept("short")) return Single!(Short);
     if (accept("void")) return Single!(Void);
     if (accept("float")) return Single!(Float);
+    // TODO: work out packing for double
     if (accept("double")) return Single!(Double);
-    string id;
     if (accept("struct")) {
-      string type;
-      text.gotIdentifier(type); // ~Meh.
+      string name;
+      text.gotIdentifier(name); // ~Meh.
       return Single!(Void);
     }
+    string id;
     if (!text.gotIdentifier(id)) return null;
     if (auto p = id in cache) return cast(IType) *p;
     return null;
@@ -99,6 +122,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
   }
   while (statements.length) {
     auto stmt = statements.take(), start = stmt;
+    // logln("> ", stmt);
     stmt.accept("__extension__");
     if (stmt.accept("#define")) {
       if (stmt.accept("__")) continue; // internal
@@ -128,44 +152,80 @@ void parseHeader(string filename, string src, ParseCb rest) {
           goto giveUp; // On Error Fuck You
       }
       auto ea = new ExprAlias(ex, id);
-      res ~= ea;
-      cache[id] = ea;
+      add(id, ea);
       continue;
     }
     if (stmt.accept("typedef")) {
       if (stmt.accept("enum")) {
         auto entries = stmt.between("{", "}").split(",");
-        int count;
+        Expr cur = new IntExpr(0);
         Named[] elems;
         foreach (entry; entries) {
           string id;
-          if (!gotIdentifier(entry, id) || entry.strip().length) {
+          if (!gotIdentifier(entry, id)) {
             stmt = entry;
             goto giveUp;
           }
-          elems ~= new ExprAlias(new IntExpr(count++), id);
+          if (entry.accept("=")) {
+            Expr ex;
+            if (!rest(entry, "tree.expr", &ex) || entry.strip().length) {
+              logln("--", entry);
+              asm { int 3; }
+            }
+            cur = opt(ex);
+          }
+          elems ~= new ExprAlias(cur, id);
+          cur = opt(lookupOp("+", cur, new IntExpr(1)));
         }
         // logln("Got from enum: ", elems);
         stmt = stmt.between("}", "");
         string name;
         if (!gotIdentifier(stmt, name) || stmt.strip().length)
           goto giveUp;
-        res ~= elems;
-        foreach (elem; elems) cache[elem.getIdentifier()] = elem;
+        foreach (elem; elems) add(elem.getIdentifier(), elem);
         auto ta = new TypeAlias(Single!(SysInt), name);
-        res ~= ta; cache[name] = ta;
+        add(name, ta);
         continue;
+      }
+      bool isUnion;
+      auto st2 = stmt;
+      if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
+        string ident;
+        gotIdentifier(st2, ident);
+        if (st2.accept("{")) {
+          auto startstr = st2;
+          auto st = new Structure(ident);
+          st.isUnion = isUnion;
+          while (true) {
+            auto miew = st2;
+            auto ty = matchType(st2);
+            // if (!ty) logln("No match off ", miew);
+            if (!ty) goto giveUp1;
+            new RelMember(st2.strip(), ty, st);
+            st2 = statements.take();
+            if (st2.accept("}")) break;
+          }
+          // logln(st2.strip(), " = ", st);
+          add(st2.strip(), st);
+          continue;
+          giveUp1:
+          while (true) {
+            // logln("stmt: ", st2, " in ", startstr);
+            st2 = statements.take();
+            if (st2.accept("}")) break;
+          }
+          // logln(">>> ", st2);
+          continue;
+        }
       }
       auto target = matchType(stmt);
       string name;
       if (!target) goto giveUp;
-      // TODO: handle structs properly
       if (stmt.accept("{")) {
         while (true) {
           stmt = statements.take();
           if (stmt.accept("}")) break;
         }
-        // logln(">>> ", stmt);
       }
       if (!gotIdentifier(stmt, name)) goto giveUp;
       string typename = name;
@@ -206,7 +266,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     giveUp:;
     // logln("Giving up on |", stmt, "| ", start);
   }
-  auto ns = namespace();
+  auto ns = myNS.sup;
   // logln("Got ", res /map/ ex!("a -> a.getIdentifier()"));
   foreach (thing; res) {
     if (ns.lookup(thing.getIdentifier())) {

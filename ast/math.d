@@ -193,7 +193,13 @@ class AsmIntBinopExpr : BinopExpr {
           e1.emitAsm(af);
           af.popStack("%eax", e1.valueType());
         }
-        auto asm_op = ["+"[]: "addl"[], "-": "subl", "*": "imull", "/": "idivl", "&": "andl", "|": "orl", "%": "imodl"][op];
+        auto asm_op = [
+          "+"[]: "addl"[], "-": "subl",
+          "*": "imull", "/": "idivl",
+          "&": "andl", "|": "orl",
+          "%": "imodl",
+          "<<": "shl", ">>": "shr"
+        ][op];
         af.mathOp(asm_op, op2, "%eax");
         if (late_alloc) af.salloc(4);
         af.mmove4("%eax", "(%esp)");
@@ -280,7 +286,7 @@ static this() {
   void defineOps(Expr delegate(string op, Expr, Expr) dg, bool reduced = false) {
     string[] ops;
     if (reduced) ops = ["+", "-"]; // pointer math
-    else ops = ["+", "-", "&", "|", "*", "/", "%"];
+    else ops = ["+", "-", "&", "|", "*", "/", "%", "<<", ">>"];
     foreach (op; ops)
       defineOp(op, op /apply/ dg);
   }
@@ -330,6 +336,8 @@ alias gotMathExpr!("+", "-") gotAddSubExpr;
 mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "31");
 alias gotMathExpr!("*", "/") gotMulDivExpr;
 mixin DefaultParser!(gotMulDivExpr, "tree.expr.arith.muldiv", "32");
+alias gotMathExpr!("<<", ">>") gotShiftExpr;
+mixin DefaultParser!(gotShiftExpr, "tree.expr.arith.shift", "34");
 
 alias gotMathExpr!("|") gotOrExpr;
 mixin DefaultParser!(gotOrExpr, "tree.expr.arith.or", "51");
@@ -337,7 +345,7 @@ alias gotMathExpr!("&") gotAndExpr;
 mixin DefaultParser!(gotAndExpr, "tree.expr.arith.and", "52");
 
 alias gotMathExpr!("^") gotPowExpr;
-mixin DefaultParser!(gotPowExpr, "tree.expr.arith.pow", "34");
+mixin DefaultParser!(gotPowExpr, "tree.expr.arith.pow", "35");
 
 // TODO: hook into parser
 class CondWrap : Expr {

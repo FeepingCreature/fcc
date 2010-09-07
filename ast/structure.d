@@ -23,8 +23,35 @@ int roundTo(int i, int to) {
   else return i;
 }
 
+int gcd(int a, int b) {
+  while (b) {
+    auto t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
+}
+
+int lcm(int a, int b) {
+  return (a * b) / gcd(a, b);
+}
+
+int needsAlignmentStruct(Structure st) {
+  int al = 1;
+  foreach (type; st.types) {
+    al = lcm(al, needsAlignment(type));
+  }
+  return al;
+}
+
+int needsAlignment(IType it) {
+  if (auto st = cast(Structure) it) return needsAlignmentStruct(st);
+  return it.size;
+}
+
 void doAlign(ref int offset, IType type) {
-  offset = roundTo(offset, np2(type.size()));
+  int to = needsAlignment(type);
+  offset = roundTo(offset, to);
 }
 
 import tools.log;
@@ -53,10 +80,10 @@ class RelMember : Expr, Named, RelTransformable {
     else offset = (cast(IType) ns).size();
     
     // alignment
-    bool aligned = true;
-    if (st && st.packed) aligned = false;
+    bool isAligned = true;
+    if (st && st.packed) isAligned = false;
     
-    if (aligned)
+    if (isAligned)
       doAlign(offset, type);
     
     ns.add(this);
@@ -67,7 +94,8 @@ class RelMember : Expr, Named, RelTransformable {
 class Structure : Namespace, RelNamespace, IType, Named {
   mixin TypeDefaults!();
   string name;
-  bool packed, isUnion;
+  bool isUnion;
+  bool packed;
   int size() {
     int res;
     select((string, RelMember member) {

@@ -25,8 +25,10 @@ class Module : Namespace, Tree, Named {
       if (auto lname = name.startsWith(this.name~"."))
         if (auto res = super.lookup(lname)) return res;
       
-      foreach (mod; imports)
-        if (auto res = mod.lookup(name)) return res;
+      if (local) return null;
+      foreach (mod; imports) {
+        if (auto res = mod.lookup(name, true)) return res;
+      }
       return null;
     }
     string toString() { return "module "~name; }

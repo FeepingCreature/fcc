@@ -1,8 +1,6 @@
 module hello;
 import sys, sdl, opengl;
 
-c_include "stdio.h";
-
 void quit(int code) {
   SDL_Quit();
   exit(code);
@@ -59,13 +57,6 @@ void drawScene() {
   }
   SDL_GL_SwapBuffers();
 }
-
-struct SDL_Event {
-  char type;
-  int[64] filler;
-}
-
-extern(C) int SDL_PollEvent(SDL_Event*);
 
 int update(SDL_Surface* surface) {
   SDL_Flip(surface);
