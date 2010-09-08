@@ -6,17 +6,16 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
   auto wrapped = (cast(Tuple) tuple.valueType()).wrapped;
   RelMember[] temps;
   wrapped.select((string, RelMember rm) { temps ~= rm; });
+  MemberAccess_Expr res;
   if (auto lv = cast(LValue) tuple) {
-    auto ma = new MemberAccess_LValue;
-    ma.base = new RCL(wrapped, lv);
-    ma.stm = temps[pos];
-    return ma;
+    res = new MemberAccess_LValue;
+    res.base = new RCL(wrapped, lv);
   } else {
-    auto ma = new MemberAccess_Expr;
-    ma.base = new RCE(wrapped, tuple);
-    ma.stm = temps[pos];
-    return ma;
+    res = new MemberAccess_Expr;
+    res.base = new RCE(wrapped, tuple);
   }
+  res.stm = temps[pos];
+  return fold(res);
 }
 
 Expr[] getTupleEntries(Expr tuple) {

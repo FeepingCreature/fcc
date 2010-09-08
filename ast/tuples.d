@@ -22,7 +22,7 @@ class Tuple : Type {
     int size() { return wrapped.size; }
     string mangle() { return "tuple_"~wrapped.mangle(); }
     ubyte[] initval() { return wrapped.initval(); }
-    string toString() { return Format("Tuple[", wrapped, "]"); }
+    string toString() { return Format("Tuple", (cast(Structure) wrapped).members); }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
       while (true) {
@@ -33,8 +33,10 @@ class Tuple : Type {
       auto tup = cast(Tuple) it;
       assert(tup);
       auto sf1 = wrapped.stackframe, sf2 = tup.wrapped.stackframe;
-      foreach (i, entry; sf1)
-        if (entry != sf2[i]) return false;
+      foreach (i, entry; sf1) {
+        // can't compare byte-wise! bad!
+        if (entry._0 != sf2[i]._0 || entry._2 != sf2[i]._2) return false;
+      }
       return true;
     }
   }

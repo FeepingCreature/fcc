@@ -126,9 +126,10 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
     !!rest(t2, "tree.expr", &ex),
     t2.accept(","),
     {
+      IType[] types;
       if (!res.type) res.type = ex.valueType();
-      else if (!gotImplicitCast(ex, (IType it) { return test(it == res.type); }))
-        throw new Exception("Invalid SA literal member at '"~t2.next_text()~"', doesn't match "~Format(res.type)~". ");
+      else if (!gotImplicitCast(ex, (IType it) { types ~= it; return test(it == res.type); }))
+        throw new Exception("Invalid SA literal member at '"~t2.next_text()~"'; none of "~Format(types)~" match "~Format(res.type)~". ");
       res.exs ~= ex;
     }
   )) throw new Exception("Failed to parse array literal at '"~t2.next_text()~"'. ");

@@ -141,10 +141,6 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
   system(cmdline.toStringz());
 }
 
-void init() {
-  write("parsers.txt", parsecon.dumpInfo());
-}
-
 import assemble: debugOpts;
 int main(string[] args) {
   /*
@@ -153,7 +149,6 @@ int main(string[] args) {
   scope(exit) logln("</body>");
   verboseXML = true;
   */
-  init();
   auto exec = args.take();
   string[] objects;
   string output;
@@ -192,6 +187,9 @@ int main(string[] args) {
     if (arg == "-config-opts") {
       configOpts = ar.take();
       continue;
+    }
+    if (arg == "-dump-info" || "parsers.txt".exists()) {
+      write("parsers.txt", parsecon.dumpInfo());
     }
     if (arg == "-dump-graphs") {
       genGraph("fcc.mods.dot", true, false);
