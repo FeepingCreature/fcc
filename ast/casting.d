@@ -7,6 +7,7 @@ class ReinterpretCast(T) : T {
   this(IType to, T from) {
     this.from = from;
     this.to = to;
+    // if (to.size != from.valueType().size) asm { int 3; }
     assert(to.size == from.valueType().size, Format("Can't cast ", from, " to ", to, "; ", from.valueType().size, " vs. ", to.size, "!"));
   }
   private this() { }

@@ -128,9 +128,9 @@ class MiniNamespace : Namespace, ScopeLike {
     else if (internalMode) super.__add(name, obj);
     else super._add(name, obj);
   }
-  int fs, fs2;
+  int fs = -1, fs2;
   override int framesize() {
-    if (fs) return fs;
+    if (fs != -1) return fs;
     if (auto sl = cast(ScopeLike) sup) {
       if (fs2) return fs2 + sl.framesize();
       else return sl.framesize();
@@ -196,8 +196,9 @@ template iparse(R, string id, string rule, bool mustParse = true) {
       myns.add(t[i*2], t[i*2+1]);
     }
     
-    static if (is(T[$-1] == AsmFile))
+    static if (is(T[$-1] == AsmFile)) {
       myns.fs = t[$-1].currentStackDepth;
+    }
     
     myns.internalMode = false;
     

@@ -445,7 +445,7 @@ int main(int argc, char** argv) {
       return res;
     }
     alias size = 4;
-    auto test = [for bin <- [for tuple <- cross [0,1]^size: cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].flatten;
+    auto test = [for bin <- [for tuple <- cross [0,1]^size: cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
     writeln("test is $$typeof(test).stringof: $test");
     return 0;
     atexit writeln("Exit 4. ");

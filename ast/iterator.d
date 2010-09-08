@@ -238,13 +238,20 @@ class ScopeWithExpr : Expr {
     ScopeWithExpr dup() { return new ScopeWithExpr(sc.dup, ex.dup); }
     IType valueType() { return ex.valueType(); }
     void emitAsm(AsmFile af) {
-      mixin(mustOffset("ex.valueType().size"));
-      mkVar(af, ex.valueType(), true, (Variable var) {
-        sc.id = getuid();
+      sc.id = getuid();
+      if (ex.valueType() == Single!(Void)) {
+        mixin(mustOffset("0"));
         auto dg = sc.open(af)();
-        (new Assignment(var, ex)).emitAsm(af);
+        ex.emitAsm(af);
         dg();
-      });
+      } else {
+        mixin(mustOffset("ex.valueType().size"));
+        mkVar(af, ex.valueType(), true, (Variable var) {
+          auto dg = sc.open(af)();
+          (new Assignment(var, ex)).emitAsm(af);
+          dg();
+        });
+      }
     }
   }
 }
@@ -368,7 +375,8 @@ class IterLetCond : Cond, NeedsConfig {
     } else {
       logln("emit step for ", itype);
       step.emitAsm(af);
-      af.sfree(step.valueType().size);
+      if (step.valueType() != Single!(Void))
+        af.sfree(step.valueType().size);
     }
   }
   override string toString() {
@@ -401,7 +409,7 @@ Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
   LValue lv;
   Variable newvar;
   bool needIterator;
-  if (!rest(t2, "tree.expr", &lv)) {
+  if (!rest(t2, "tree.expr", &lv, (LValue lv) { return !cast(Iterator) lv.valueType(); })) {
     IType ty; string name;
     if (!rest(t2, "type", &ty) || !t2.gotIdentifier(name))
       goto withoutIterator;
@@ -476,7 +484,7 @@ mixin DefaultParser!(gotIterIndex, "tree.rhs_partial.iter_index");
 
 import ast.arrays, ast.modules, ast.aggregate;
 // Statement with target, Expr without. Lol.
-class FlattenIterator : Expr, Statement {
+class EvalIterator : Expr, Statement {
   Expr ex;
   RichIterator iter;
   Expr target; // optional
@@ -489,8 +497,8 @@ class FlattenIterator : Expr, Statement {
     this(ex, ri);
     this.target = target;
   }
-  FlattenIterator dup() {
-    auto res = new FlattenIterator;
+  EvalIterator dup() {
+    auto res = new EvalIterator;
     res.ex = ex.dup;
     res.iter = iter;
     res.target = target;
@@ -498,44 +506,57 @@ class FlattenIterator : Expr, Statement {
   }
   mixin defaultIterate!(ex, target);
   override {
-    IType valueType() { return new Array(iter.elemType()); }
-    string toString() { return Format("flatten(", ex, ")"); }
+    IType valueType() {
+      if (iter.elemType() == Single!(Void))
+        return Single!(Void);
+      else
+        return new Array(iter.elemType());
+    }
+    string toString() { return Format("Eval(", ex, ")"); }
     void emitAsm(AsmFile af) {
       int offs;
       void emitStmt(Expr var) {
         if (auto lv = cast(LValue) ex) {
-          iparse!(Statement, "iter_array_flatten_step_1", "tree.stmt")
+          iparse!(Statement, "iter_array_eval_step_1", "tree.stmt")
                  (` { int i; while var[i++] <- _iter { } }`,
                   "var", var, "_iter", lv, af).emitAsm(af);
-        } else {
-          iparse!(Statement, "iter_array_flatten_step_2", "tree.stmt")
+        } else if (var) {
+          iparse!(Statement, "iter_array_eval_step_2", "tree.stmt")
                  (` { int i; auto temp = _iter; while var[i++] <- temp { } }`,
                   "var", var, "_iter", ex, af).emitAsm(af);
+        } else {
+          iparse!(Statement, "iter_eval_step_3", "tree.stmt")
+                 (` { auto temp = _iter; while temp { } }`,
+                  "_iter", ex, af).emitAsm(af);
         }
       }
       if (target) {
         emitStmt(target);
       } else {
-        mkVar(af, valueType(), true, (Variable var) {
-          iparse!(Statement, "initVar", "tree.semicol_stmt.assign")
-                (`var = new(len) elem`,
-                 "var", var, "len", iter.length(ex), "elem", iter.elemType()).emitAsm(af);
-          emitStmt(var);
-        });
+        if (valueType() == Single!(Void))
+          emitStmt(null);
+        else {
+          mkVar(af, valueType(), true, (Variable var) {
+            iparse!(Statement, "initVar", "tree.semicol_stmt.assign")
+                  (`var = new(len) elem`,
+                  "var", var, "len", iter.length(ex), "elem", iter.elemType()).emitAsm(af);
+            emitStmt(var);
+          });
+        }
       }
     }
   }
 }
 
-Object gotIterFlatten(ref string text, ParseCb cont, ParseCb rest) {
+Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     auto iter = cast(RichIterator) ex.valueType();
     if (!iter) return null;
-    if (!text.accept(".flatten")) return null;
-    return new FlattenIterator(ex, iter);
+    if (!text.accept(".eval")) return null;
+    return new EvalIterator(ex, iter);
   };
 }
-mixin DefaultParser!(gotIterFlatten, "tree.rhs_partial.iter_flatten");
+mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval");
 
 import tools.log;
 Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
@@ -552,7 +573,7 @@ Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
     }
     text = t2;
     auto it = cast(RichIterator) value.valueType();
-    return new FlattenIterator(value, it, target);
+    return new EvalIterator(value, it, target);
   } else return null;
 }
 mixin DefaultParser!(gotIteratorAssign, "tree.semicol_stmt.assign_iterator", "11");

@@ -126,38 +126,6 @@ static this() {
   implicits ~= &dgAsStruct;
 }
 
-class DgCall : Expr {
-  Expr dg;
-  Expr[] params;
-  mixin DefaultDup!();
-  mixin defaultIterate!(dg, params);
-  override void emitAsm(AsmFile af) {
-    auto dgtype = cast(Delegate) dg.valueType();
-    callDg(af, dgtype.ret, params, dg);
-  }
-  override IType valueType() {
-    return (cast(Delegate) dg.valueType()).ret;
-  }
-}
-
-Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  return lhs_partial.using = delegate Object(Expr ex) {
-    auto dgtype = cast(Delegate) ex.valueType();
-    if (!dgtype) return null;
-    
-    auto dc = new DgCall;
-    dc.dg = ex;
-    
-    if (t2.accept("(")) {
-      dc.params = matchCall(t2, Format("delegate ", ex), dgtype.args, rest);
-      text = t2;
-      return dc;
-    } else return null;
-  };
-}
-mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall", null, true);
-
 // stolen in turn from ast.fun
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {

@@ -101,7 +101,7 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   
   foreach (var; gvd.vars)
-    ns.add(name, var);
+    ns.add(var.name, var);
   text = t2;
   return gvd;
 }

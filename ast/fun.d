@@ -277,79 +277,6 @@ Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 
-import ast.casting, tools.log;
-Expr[] matchCall(ref string text, string info, IType[] params, ParseCb rest) {
-  Expr[] res;
-  auto t2 = text;
-  int param_offset;
-  Expr ex;
-  string err;
-  if (t2.bjoin(
-    (rest(t2, "tree.expr", &ex) && gotImplicitCast(ex, (IType it) {
-      if (param_offset !< params.length)
-        throw new Exception(Format(
-          "Extraneous parameter for ", info, ": ", it, "; already got ", res
-        ));
-      if (cast(Variadic) params[param_offset]) {
-        // why are you using static arrays as parameters anyway?
-        return !cast(StaticArray) it;
-      } else {
-        auto res = test(it == params[param_offset]);
-        if (!res)
-          err = Format("While calling ", info, ", can't fit ", ex.valueType(), " into ", params[param_offset], ": ", ex.valueType() == params[param_offset]);
-        return res;
-      }
-    })),
-    t2.accept(","),
-    {
-      res ~= ex;
-      if (!cast(Variadic) params[param_offset])
-        param_offset ++;
-    },
-    true
-  )) {
-    if (params.length && cast(Variadic) params[$-1]) {
-      param_offset ++;
-    }
-    
-    if (param_offset < params.length) {
-      throw new Exception(Format(
-        "Not enough parameters for ", info, ": ",
-        res, " at ", t2.next_text(), "; ", err, "!"
-      ));
-    }
-    
-    if (!t2.accept(")")) {
-      throw new Exception(Format(
-        "Unidentified text in call to ", info, ": ",
-        "'", t2.next_text(), "'"
-      ));
-    }
-    
-    text = t2;
-    
-    return res;
-  } else throw new Exception("Couldn't match function call at '"~t2.next_text()~"': "~err~". ");
-}
-
-import ast.parse, ast.static_arrays;
-Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  return lhs_partial.using = delegate Object(Function fun) {
-    auto fc = fun.mkCall();
-    
-    if (t2.accept("(")) {
-      scope params = new IType[fun.type.params.length];
-      foreach (i, ref p; params) p = fun.type.params[i]._0;
-      fc.params = matchCall(t2, fun.name, params, rest);
-      text = t2;
-      return fc;
-    } else return null;
-    // else throw new Exception("While parsing arguments for call to "~fun.toString()~": "~t2.next_text());
-  };
-}
-mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall", null, true);
-
 // ensuing code gleefully copypasted from nestfun
 // yes I wrote delegates first. how about that.
 class FunctionPointer : ast.types.Type {
@@ -377,39 +304,6 @@ class FunctionPointer : ast.types.Type {
     return res;
   }
 }
-
-class FpCall : Expr {
-  Expr fp;
-  Expr[] params;
-  private this() { }
-  mixin DefaultDup!();
-  mixin defaultIterate!(params);
-  override void emitAsm(AsmFile af) {
-    auto fntype = cast(FunctionPointer) fp.valueType();
-    callFunction(af, fntype.ret, params, fp);
-  }
-  override IType valueType() {
-    return (cast(FunctionPointer) fp.valueType()).ret;
-  }
-}
-
-Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  return lhs_partial.using = delegate Object(Expr ex) {
-    auto fptype = cast(FunctionPointer) ex.valueType();
-    if (!fptype) return null;
-    
-    auto fc = new FpCall;
-    fc.fp = ex;
-    
-    if (t2.accept("(")) {
-      fc.params = matchCall(t2, Format("delegate ", ex), fptype.args, rest);
-      text = t2;
-      return fc;
-    } else return null;
-  };
-}
-mixin DefaultParser!(gotFpCallExpr, "tree.rhs_partial.fpcall", null, true);
 
 // &fun
 class FunRefExpr : Expr, Literal {

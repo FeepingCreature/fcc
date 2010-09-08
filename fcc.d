@@ -16,7 +16,7 @@ import
   ast.templ, ast.globvars, ast.context, ast.concat,
   ast.stringex, ast.c_bind, ast.eval, ast.iterator,
   ast.properties, ast.tuples, ast.iterator_ext,
-  ast.tuple_access;
+  ast.tuple_access, ast.funcall;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -142,10 +142,6 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
 }
 
 void init() {
-  genGraph("fcc.mods.dot", true, false);
-  genGraph("fcc.classes.dot", false, true);
-  genGraph("fcc.mixed.dot", true, true);
-  genGraph("fcc.both.dot", true, true, false);
   write("parsers.txt", parsecon.dumpInfo());
 }
 
@@ -195,6 +191,13 @@ int main(string[] args) {
     }
     if (arg == "-config-opts") {
       configOpts = ar.take();
+      continue;
+    }
+    if (arg == "-dump-graphs") {
+      genGraph("fcc.mods.dot", true, false);
+      genGraph("fcc.classes.dot", false, true);
+      genGraph("fcc.mixed.dot", true, true);
+      genGraph("fcc.both.dot", true, true, false);
       continue;
     }
     if (arg == "-debug-parser") {
