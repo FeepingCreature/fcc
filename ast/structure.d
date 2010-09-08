@@ -61,9 +61,13 @@ class RelMember : Expr, Named, RelTransformable {
       return cast(Object) mkMemberAccess(base, name);
     }
   }
-  this(string name, IType type, Namespace ns) {
+  this(string name, IType type, int offset) {
     this.name = name;
     this.type = type;
+    this.offset = offset;
+  }
+  this(string name, IType type, Namespace ns) {
+    this(name, type, 0);
     auto st = cast(Structure) ns;
     
     if (st) {
@@ -154,7 +158,7 @@ class Structure : Namespace, RelNamespace, IType, Named {
         if (res2.length) res2 ~= ", ";
         if (member.name) res2 ~= member.name;
         else res2 ~= Format(member.type);
-        res2 ~= Format(" @", member.offset);
+        res2 ~= Format(" ", member.type.size, "@", member.offset);
       });
       return res ~ " { " ~ res2 ~ " }";
     }
@@ -267,6 +271,9 @@ class StructLiteral : Expr {
 
 import ast.pointer;
 class MemberAccess_Expr : Expr {
+  // be warned: if this is constructed manually, does _not_ have to be a struct!
+  // this specifically applies when optimizing away recursive member accesses,
+  // in which case this may become a RelMember access to .. any type.
   Expr base;
   RelMember stm;
   string name;
@@ -294,7 +301,7 @@ class MemberAccess_Expr : Expr {
     IType valueType() { return stm.type; }
     import tools.base;
     void emitAsm(AsmFile af) {
-      auto st = cast(Structure) base.valueType();
+      auto st = base.valueType();
       if (auto lv = cast(LValue) base) {
         if (stm.type.size == 4 /or/ 2 /or/ 1) {
           af.comment("emit location of ", lv, " for member access to ", stm.name, " @", stm.offset);
@@ -327,14 +334,19 @@ class MemberAccess_Expr : Expr {
           });
         }
       } else {
-        assert(stm.type.size == 4, Format("Asked for ", stm, " in ", base, "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !cast(LValue) base, ") of ", base.valueType().size(), ". "));
-        af.comment("emit struct ", base, " for member access");
+        // if (stm.type.size != 4) asm { int 3; }
+        assert(stm.type.size == 4 /or/ 8, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !cast(LValue) base, ") of ", base.valueType().size(), ". "));
+        af.comment("emit semi-structure ", base, " for member access");
         base.emitAsm(af);
         af.comment("store member and free: ", stm.name);
         af.mmove4(Format(stm.offset, "(%esp)"), "%eax");
+        if (stm.type.size == 8)
+          af.mmove4(Format(stm.offset + 4, "(%esp)"), "%ebx");
         af.sfree(st.size);
         af.comment("repush member");
-        af.pushStack("%eax", stm.type);
+        if (stm.type.size == 8)
+          af.pushStack("%ebx", Single!(SysInt));
+        af.pushStack("%eax", Single!(SysInt));
       }
     }
   }
@@ -374,6 +386,22 @@ static this() {
         assert(res);
         return res;
       }
+      Expr from;
+      if (auto mae2 = cast(MemberAccess_Expr) base) from = base; // lol direct
+      if (auto c = cast(RCL) base) from = fold(c.from);
+      if (auto c = cast(RCE) base) from = fold(c.from);
+      if (from) {
+        if (auto m2 = cast(MemberAccess_Expr) from) {
+          MemberAccess_Expr weird;
+          if (cast(MemberAccess_LValue) from) weird = new MemberAccess_LValue;
+          else New(weird);
+          weird.base = m2.base;
+          weird.stm = new RelMember(null, mae.stm.type, mae.stm.offset + m2.stm.offset);
+          return weird;
+        }
+        return null;
+      }
+      // logln("?? ", (cast(Object) base).classinfo.name);
     }
     // logln("foldopt? ", ex);
     return null;
