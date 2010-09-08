@@ -50,8 +50,11 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto fc = fun.mkCall();
     IType[] params;
     foreach (entry; fun.type.params) params ~= entry._0;
-    if (!matchCall(t2, fun.name, params, rest, fc.params))
-      return null;
+    if (!matchCall(t2, fun.name, params, rest, fc.params)) {
+      auto t3 = t2;
+      if (params.length || !t3.accept(";"))
+        return null;
+    }
     text = t2;
     return fc;
   };
