@@ -166,7 +166,10 @@ class ForIter(I) : Type, I {
     return stmt;
   }
   override {
-    string toString() { return Format("ForIter[", size, "](", itertype, ": ", ex.valueType(), ")"); }
+    string toString() {
+      auto sizeinfo = Format(size, ":");
+      foreach (type; (cast(Structure) wrapper).types) sizeinfo ~= Format(" ", type.size);
+      return Format("ForIter[", sizeinfo, "](", itertype, ": ", ex.valueType(), ")"); }
     IType elemType() { return ex.valueType(); }
     int size() { return wrapper.size; }
     string mangle() { return "for_range_over_"~wrapper.mangle(); }
@@ -324,11 +327,6 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("]"))
     throw new Exception("Expected ']' at '"~t2.next_text()~"'! ");
   text = t2;
-  auto wrapped = new Structure(null);
-  new RelMember("subiter", sub.valueType(), wrapped);
-  new RelMember("var", it.elemType(), wrapped);
-  if (extra)
-    new RelMember("extra", extra.valueType(), wrapped);
   Expr res;
   PTuple!(IType, Expr, Placeholder, Placeholder) ipt;
   Iterator restype;
@@ -343,11 +341,40 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     foriter.itertype = it;
     restype = foriter;
   }
-  ipt = stuple(wrapped, new ScopeWithExpr(sc, main), ph, extra);
+  // This probably won't help any but I'm gonna do it anyway.
+  Structure best;
+  int[] bsorting;
+  void tryIt(int[] sorting) {
+    auto test = new Structure(null);
+    void add(int i) {
+      switch (i) {
+        case 0: new RelMember("subiter", sub.valueType(), test); break;
+        case 1: new RelMember("var", it.elemType(), test); break;
+        case 2: new RelMember("extra", extra.valueType(), test); break;
+      }
+    }
+    foreach (entry; sorting) add(entry);
+    if (!best) { best = test; bsorting = sorting; }
+    else if (test.size < best.size) { best = test; bsorting = sorting; }
+  }
+  if (extra) {
+    foreach (tri; [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]])
+      tryIt(tri);
+  } else {
+    tryIt([0, 1]);
+    tryIt([1, 0]);
+  }
   Expr[] field;
-  if (extra) field = [cast(Expr) sub, new Filler(it.elemType()), exEx];
-  else field = [cast(Expr) sub, new Filler(it.elemType())];
-  return new RCE(cast(IType) restype, new StructLiteral(wrapped, field));
+  void add(int i) {
+    switch (i) {
+      case 0: field ~= sub; break;
+      case 1: field ~= new Filler(it.elemType()); break;
+      case 2: field ~= exEx; break;
+    }
+  }
+  foreach (entry; bsorting) add(entry);
+  ipt = stuple(best, new ScopeWithExpr(sc, main), ph, extra);
+  return new RCE(cast(IType) restype, new StructLiteral(best, field));
 }
 mixin DefaultParser!(gotForIter, "tree.expr.iter.for");
 static this() {
@@ -373,7 +400,6 @@ class IterLetCond : Cond, NeedsConfig {
     if (target) {
       (new Assignment(target, step)).emitAsm(af);
     } else {
-      logln("emit step for ", itype);
       step.emitAsm(af);
       if (step.valueType() != Single!(Void))
         af.sfree(step.valueType().size);
