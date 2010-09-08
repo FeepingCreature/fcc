@@ -112,6 +112,11 @@ class Structure : Namespace, RelNamespace, IType, Named {
     select((string, RelMember member) { if (i++ == offs) res = member; });
     return res;
   }
+  RelMember[] members() {
+    RelMember[] res;
+    select((string, RelMember member) { res ~= member; });
+    return res;
+  }
   Structure slice(int from, int to) {
     assert(!isUnion);
     auto res = new Structure(null);
@@ -374,18 +379,36 @@ static this() {
   foldopt ~= delegate Expr(Expr ex) {
     if (auto mae = cast(MemberAccess_Expr) ex) {
       auto base = fold(mae.base);
+      // logln("::", mae.stm.type.size, " vs. ", base.valueType().size);
+      if (mae.stm.type.size == base.valueType().size) {
+        if (auto lv = cast(LValue) base)
+          return new RCL(mae.stm.type, lv);
+        else
+          return new RCE(mae.stm.type, base);
+      }
+    }
+    return null;
+  };
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto mae = cast(MemberAccess_Expr) ex) {
+      auto base = fold(mae.base);
       if (auto sl = cast(StructLiteral) base) {
         Expr res;
         int i;
-        auto st = cast(Structure) mae.base.valueType();
+        auto st = cast(Structure) base.valueType();
         if (st) st.select((string, RelMember member) {
           if (member is mae.stm)
             res = sl.exprs[i];
           i++;
         });
-        assert(res);
-        return res;
+        return res; // may be null - that's okay!
       }
+    }
+    return null;
+  };
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto mae = cast(MemberAccess_Expr) ex) {
+      auto base = fold(mae.base);
       Expr from;
       if (auto mae2 = cast(MemberAccess_Expr) base) from = base; // lol direct
       if (auto c = cast(RCL) base) from = fold(c.from);
@@ -399,11 +422,8 @@ static this() {
           weird.stm = new RelMember(null, mae.stm.type, mae.stm.offset + m2.stm.offset);
           return weird;
         }
-        return null;
       }
-      // logln("?? ", (cast(Object) base).classinfo.name);
     }
-    // logln("foldopt? ", ex);
     return null;
   };
 }
