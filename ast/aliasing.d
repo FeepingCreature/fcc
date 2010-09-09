@@ -72,17 +72,27 @@ Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
     Expr ex;
     IType ty;
     string id;
+    bool notDone;
     
+redo:
     if (!(t2.gotIdentifier(id) &&
           t2.accept("=")))
       throw new Exception("Couldn't parse alias at "~t2.next_text());
     auto t3 = t2;
-    if (rest(t3, "tree.expr", &ex) && t3.accept(";")) {
+    bool gotTerm() {
+      if (t3.accept(";")) return true;
+      if (t3.accept(",")) {
+        notDone = true;
+        return true;
+      }
+      return false;
+    }
+    if (rest(t3, "tree.expr", &ex) && gotTerm()) {
       t2 = t3;
     } else {
       t3 = t2;
       ex = null;
-      if (rest(t3, "type", &ty) && t3.accept(";")) {
+      if (rest(t3, "type", &ty) && gotTerm()) {
         t2 = t3;
       } else {
         throw new Exception("Couldn't parse alias target at "~t2.next_text());
@@ -93,6 +103,10 @@ Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
     text = t2;
     if (ex) namespace().add(new ExprAlias(ex, id));
     if (ty) namespace().add(new TypeAlias(ty, id));
+    if (notDone) {
+      notDone = false;
+      goto redo;
+    }
     return Single!(NamedNull);
   } else return null;
 }
