@@ -72,7 +72,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       if (vd) vd.emitAsm(af);
       dg()();
     }
-    string mangle(string name, IType type) { assert(false); }
+    string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() {
       auto res = sup.stackframe();
       if (vd)

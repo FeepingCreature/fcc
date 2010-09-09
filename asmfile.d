@@ -282,16 +282,20 @@ class AsmFile {
     }
     res ~= ".section\t.tbss,\"awT\",@nobits\n";
     foreach (name, size; uninit_tlsvars) {
+      auto alignment = size;
+      if (alignment > 16) alignment = 16;
       res ~= Format("\t.globl ", name, "\n");
-      res ~= Format("\t.align ", size, "\n\t.type ", name, ", @object\n");
+      res ~= Format("\t.align ", alignment, "\n\t.type ", name, ", @object\n");
       res ~= Format("\t.size ", name, ", ", size, "\n");
       res ~= Format("\t", name, ":\n");
       res ~= Format("\t.zero ", size, "\n");
     }
     res ~= ".section\t.tdata,\"awT\",@progbits\n";
     foreach (name, data; tlsvars) {
+      auto alignment = data._0;
+      if (alignment > 16) alignment = 16;
       res ~= Format("\t.globl ", name, "\n");
-      res ~= Format("\t.align ", data._0, "\n\t.type ", name, ", @object\n");
+      res ~= Format("\t.align ", alignment, "\n\t.type ", name, ", @object\n");
       res ~= Format("\t.size ", name, ", ", data._0, "\n");
       res ~= Format("\t", name, ":\n");
       assert(data._1);

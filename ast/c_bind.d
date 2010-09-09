@@ -212,7 +212,11 @@ void parseHeader(string filename, string src, ParseCb rest) {
             auto ty = matchType(st2);
             // if (!ty) logln("No match off ", miew);
             if (!ty) goto giveUp1;
-            if (st2.find("(") != -1) goto giveUp1; // can't handle yet
+            if (st2.find("(") != -1) {
+              // alias to void for now.
+              add(ident, new TypeAlias(Single!(Void), ident));
+              goto giveUp1; // can't handle yet
+            }
             foreach (var; st2.split(",")) {
               new RelMember(var.strip(), ty, st);
             }
