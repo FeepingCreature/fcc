@@ -96,9 +96,7 @@ void initGL() {
   glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 }
 
-context timing {
-  int t0, frames;
-}
+int t0, frames;
 
 alias X = (1, 0, 0), Y = (0, 1, 0), Z = (0, 0, 1);
 
@@ -145,9 +143,9 @@ void drawGLScene() {
   }
   
   SDL_GL_SwapBuffers;
-  timing.frames++;
+  frames++;
   auto t = SDL_GetTicks;
-  if (t - timing.t0 >= 5000) using timing {
+  if (t - t0 >= 5000) {
     auto seconds = (t - t0) / 1000.0;
     auto fps = frames / seconds;
     writeln("$frames frames in $seconds seconds = $fps fps. ");
