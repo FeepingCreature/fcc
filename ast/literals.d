@@ -127,7 +127,7 @@ class CValueAsPointer : Expr {
   }
 }
 
-import ast.casting;
+import ast.casting, ast.fold;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto cv = cast(CValue) ex;

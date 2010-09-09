@@ -377,6 +377,16 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
 import ast.fold, ast.casting;
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
+    if (auto r = cast(RCE) ex) {
+      if (auto lit = cast(StructLiteral) r.from) {
+        if (lit.exprs.length == 1 &&
+            lit.exprs[0].valueType() == r.to)
+          return lit.exprs[0]; // pointless keeping a cast
+      }
+    }
+    return null;
+  };
+  foldopt ~= delegate Expr(Expr ex) {
     if (auto mae = cast(MemberAccess_Expr) ex) {
       auto base = fold(mae.base);
       // logln("::", mae.stm.type.size, " vs. ", base.valueType().size);
