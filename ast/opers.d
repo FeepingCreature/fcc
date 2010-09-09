@@ -36,7 +36,7 @@ Expr lookupOp(string op, Expr[] exprs...) {
       if (auto res = dg(exprs)) {
         if (reassign) {
           return new StatementAndExpr(
-            new Assignment(cast(LValue) exprs[0], res), res);
+            new Assignment(cast(LValue) exprs[0], res), exprs[0]);
         } else {
           return res;
         }
