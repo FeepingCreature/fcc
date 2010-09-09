@@ -20,9 +20,7 @@ c_include "GL/gl.h";
 c_include "GL/glu.h";
 c_include "SDL/SDL.h";
 
-alias SCREEN_WIDTH = 640;
-alias SCREEN_HEIGHT = 480;
-alias SCREEN_BPP = 16;
+alias SCREEN_WIDTH = 640, SCREEN_HEIGHT = 480, SCREEN_BPP = 16;
 alias NumStars = 256;
 bool twinkle;
 
@@ -102,9 +100,7 @@ context timing {
   int t0, frames;
 }
 
-alias X = (1, 0, 0);
-alias Y = (0, 1, 0);
-alias Z = (0, 0, 1);
+alias X = (1, 0, 0), Y = (0, 1, 0), Z = (0, 0, 1);
 
 void drawGLScene() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -137,9 +133,9 @@ void drawGLScene() {
         glVertex3f (tup[1], 0);
       }
     glEnd;
-    spin += 0.02;
-    angle += i * 0.05 / NumStars;
-    dist -= 0.005;
+    spin += 0.2;
+    angle += i * 0.5 / NumStars;
+    dist -= 0.05;
     if dist < 0 {
       dist += 5;
       r = rand() % 256;
