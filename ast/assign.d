@@ -1,6 +1,6 @@
 module ast.assign;
 
-import ast.base, ast.variable, ast.pointer;
+import ast.base, ast.pointer;
 
 class Assignment : Statement {
   LValue target;

@@ -311,7 +311,15 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
     if (t3.startsWith(Ops[i]))
       accepted = false; // a && b != a & &b (!)
     if (accepted) {
+      bool isAssignment;
+      if (t3.accept("="))
+        isAssignment = true;
       if (cont(t3, &op2)) {
+        if (isAssignment) {
+          op = lookupOp(Ops[i]~"=", op, op2);
+          t2 = t3;
+          break;
+        }
         op = lookupOp(Ops[i], op, op2);
         t2 = t3;
         goto retry;

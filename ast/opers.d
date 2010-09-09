@@ -1,6 +1,6 @@
 module ast.opers; // generalized operator handling
 
-import ast.base, tools.base;
+import ast.base, ast.assign, tools.base;
 
 Expr delegate(Expr[])[][string] operdb;
 
@@ -21,10 +21,26 @@ void defineOp(string op, Expr delegate(Expr, Expr, Expr) dg) {
 }
 
 Expr lookupOp(string op, Expr[] exprs...) {
+  bool reassign;
+  if (auto pre = op.endsWith("=")) {
+    if (!cast(LValue) exprs[0]) {
+      throw new Exception(Format(
+        "Cannot ", op, " since exprs[0]: ", exprs[0], " is not an lvalue! "
+      ));
+    }
+    reassign = true;
+    op = pre;
+  }
   if (auto p = op in operdb) {
     foreach (dg; *p)
-      if (auto res = dg(exprs))
-        return res;
+      if (auto res = dg(exprs)) {
+        if (reassign) {
+          return new StatementAndExpr(
+            new Assignment(cast(LValue) exprs[0], res), res);
+        } else {
+          return res;
+        }
+      }
     throw new Exception(Format("No matching operators (", op, ") defined for ", exprs /map/ ex!("e -> e.valueType()"), ", exs being ", exprs));
   } else
     throw new Exception("No such operator defined: "~op);

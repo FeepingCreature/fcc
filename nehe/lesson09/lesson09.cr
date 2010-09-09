@@ -73,10 +73,10 @@ void handleKeyPress(SDL_keysym* keysym )
   if (keysym.sym == SDLK_ESCAPE) quit 0;
   if (keysym.sym == SDLK_F1) SDL_WM_ToggleFullScreen(surface);
   if (keysym.sym == SDLK_t) twinkle = 1-twinkle;
-  if (keysym.sym == SDLK_UP) tilt = tilt - 0.5;
-  if (keysym.sym == SDLK_DOWN) tilt = tilt + 0.5;
-  if (keysym.sym == SDLK_PAGEUP) zoom = zoom - 0.2;
-  if (keysym.sym == SDLK_PAGEDOWN) zoom = zoom + 0.2;
+  if (keysym.sym == SDLK_UP) tilt -= 0.5;
+  if (keysym.sym == SDLK_DOWN) tilt += 0.5;
+  if (keysym.sym == SDLK_PAGEUP) zoom -= 0.2;
+  if (keysym.sym == SDLK_PAGEDOWN) zoom += 0.2;
 }
 
 void initGL() {
@@ -137,11 +137,11 @@ void drawGLScene() {
         glVertex3f (tup[1], 0);
       }
     glEnd;
-    spin = spin + 0.02;
-    angle = angle + i * 0.05 / NumStars;
-    dist = dist - 0.005;
+    spin += 0.02;
+    angle += i * 0.05 / NumStars;
+    dist -= 0.005;
     if dist < 0 {
-      dist = dist + 5;
+      dist += 5;
       r = rand() % 256;
       g = rand() % 256;
       b = rand() % 256;

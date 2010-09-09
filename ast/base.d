@@ -2,7 +2,7 @@ module ast.base;
 
 public import asmfile, ast.types, parseBase, tools.log: logln;
 
-import tools.base: Format, New;
+import tools.base: Format, New, This_fn, rmSpace;
 
 interface Iterable {
   void iterate(void delegate(ref Iterable) dg);
@@ -244,3 +244,18 @@ interface ScopeLike {
 }
 
 Expr delegate(Expr)[] foldopt; // a thing that flattens
+
+class StatementAndExpr : Expr {
+  Statement first;
+  Expr second;
+  mixin MyThis!("first, second");
+  mixin DefaultDup!();
+  mixin defaultIterate!(first, second);
+  override {
+    IType valueType() { return second.valueType(); }
+    void emitAsm(AsmFile af) {
+      first.emitAsm(af);
+      second.emitAsm(af);
+    }
+  }
+}

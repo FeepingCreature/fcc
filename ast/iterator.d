@@ -81,20 +81,6 @@ mixin DefaultParser!(gotRangeIter, "tree.expr.iter_range", "11");
 import ast.loops;
 
 import tools.base: This, This_fn, rmSpace, PTuple, Stuple, ptuple, stuple;
-class StatementAndExpr : Expr {
-  Statement first;
-  Expr second;
-  mixin MyThis!("first, second");
-  mixin DefaultDup!();
-  mixin defaultIterate!(first, second);
-  override {
-    IType valueType() { return second.valueType(); }
-    void emitAsm(AsmFile af) {
-      first.emitAsm(af);
-      second.emitAsm(af);
-    }
-  }
-}
 
 class StatementAndCond : Cond {
   Statement first;
