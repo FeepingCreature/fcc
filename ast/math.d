@@ -23,8 +23,32 @@ class IntAsFloat : Expr {
   }
 }
 
-import ast.casting;
+import ast.int_literal;
+class IntAsFloatLiteral : IntAsFloat, Literal {
+  this(IntExpr ie) { super(ie); }
+  private this() { super(); }
+  override typeof(this) dup() { return new typeof(this) (cast(IntExpr) i); }
+  override string getValue() {
+    auto ie = cast(IntExpr) i;
+    assert(!!ie);
+    auto f = cast(float) ie.num;
+    return Format(*cast(uint*) &f);
+  }
+}
+
+import ast.casting, ast.fold;
 static this() {
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto iaf = cast(IntAsFloat) ex) {
+      // department of redundancy department
+      if (cast(IntAsFloatLiteral) iaf) return null;
+      auto i = ast.fold.fold(iaf.i);
+      if (auto ie = cast(IntExpr) i) {
+        return new IntAsFloatLiteral(ie);
+      }
+    }
+    return null;
+  };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != ex.valueType()) return null;
     return new IntAsFloat(ex);

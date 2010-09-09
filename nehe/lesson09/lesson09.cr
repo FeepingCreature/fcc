@@ -31,8 +31,7 @@ struct Star {
 
 Star[NumStars] stars;
 
-float zoom;
-float tilt;
+float zoom = -15, tilt = 90;
 
 SDL_Surface* surface;
 
@@ -159,8 +158,6 @@ char[] toString(char* p) {
 }
 
 int main(int argc, char** argv) {
-  zoom = -15;
-  tilt = 90;
   SDL_Init(SDL_INIT_VIDEO);
   auto videoFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_HWPALETTE | SDL_RESIZABLE | SDL_HWSURFACE | SDL_HWACCEL;
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);

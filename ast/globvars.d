@@ -66,7 +66,7 @@ class GlobVarDecl : Statement {
   }
 }
 
-import ast.casting;
+import ast.casting, ast.fold;
 Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   string name;
@@ -84,14 +84,14 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
           t3 = t2, t3.accept(" = ")
           && rest(t3, "tree.expr", &initval) && gotImplicitCast(initval, (Expr ex) {
             return ex.valueType() == ty
-                   && !! cast(Literal) ex;
+                   && !! cast(Literal) fold(ex);
           })
           && (t2 = t3, true)
         ) || true
       ),
       t2.accept(","),
       {
-        gvd.vars ~= new GlobVar(ty, name, ns, gvd.tls, initval);
+        gvd.vars ~= new GlobVar(ty, name, ns, gvd.tls, fold(initval));
         initval = null;
       },
       false
