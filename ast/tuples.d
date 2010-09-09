@@ -6,7 +6,7 @@ import ast.base, ast.structure, ast.casting;
   1. A tuple behaves like a struct
   2. A tuple accepts index and slice notation.
   2.1. Excepting tuples with a size of one.
-  3. A tuple autocasts to its first entry.
+  3. Size-one tuples autocast to their only entry.
   4. A tuple is matched via '()' and ','.
 ++/
 

@@ -95,7 +95,7 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto tup = cast(Tuple) ex.valueType();
     if (!tup) return null;
-    if (!tup.size) return null;
+    if (tup.types.length != 1) return null;
     return fold(mkTupleIndexAccess(ex, 0));
   };
 }
