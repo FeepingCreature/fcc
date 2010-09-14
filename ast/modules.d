@@ -160,6 +160,7 @@ void setupSysmods() {
       }
       return res;
     }
+    alias vec3f = vec(float, 3);
     char[] ptoa(void* p) {
       auto res = new(size_t.sizeof * 2 + 2 + 1) char;
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
