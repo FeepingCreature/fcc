@@ -185,6 +185,16 @@ int main(int argc, char** argv) {
   mem.calloc_dg = &myCalloc;
   mem.realloc_dg = &myRealloc;
   mem.free_dg = &GC_free;*/
+  auto cdg = mem.calloc_dg;
+  void* myCalloc(int a, b) {
+    // printf("Allocate %i, %i\n", a, b);
+    if (a*b > 65536) {
+      printf("Excessive allocation: %i, %i\n", a, b);
+      *cast(int*) 0=0;
+    }
+    return cdg(a, b);
+  }
+  mem.calloc_dg = &myCalloc;
   test(2);
   test(0);
   int e = 5;
@@ -281,7 +291,7 @@ int main(int argc, char** argv) {
   }
   memtest();
   auto testp = sys.mem.malloc(15);
-  auto artest = new(3) int;
+  auto artest = new int[3];
   artest[2] = 15;
   artest[0 .. 2] = artest[1 .. 3];
   writeln("test is $$artest.length, $$artest[1], $$artest[2]");

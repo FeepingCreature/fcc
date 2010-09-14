@@ -99,7 +99,7 @@ void setupSysmods() {
       /*MARKER*/
       void append(char[] target, char[] text) {
         int newsize = target.length + text.length;
-        auto newtarget = new(newsize) char;
+        auto newtarget = new char[newsize];
         newtarget[0 .. target.length] = target;
         newtarget[target.length .. newsize] = text;
       }
@@ -111,9 +111,9 @@ void setupSysmods() {
           auto size = l.length + r.length, size2 = l.length * 2;
           auto newsize = size;
           if (size2 > newsize) newsize = size2;
-          T[~] res = (new(newsize) T)[0 .. size];
+          T[~] res = (new T[newsize])[0 .. size];
           res[0 .. l.length] = (*l)[];
-          res[l.length .. res.length] = r;
+          res[l.length .. size] = r;
           res.capacity = newsize;
           return res;
         } else {
@@ -162,7 +162,7 @@ void setupSysmods() {
     }
     alias vec3f = vec(float, 3);
     char[] ptoa(void* p) {
-      auto res = new(size_t.sizeof * 2 + 2 + 1) char;
+      auto res = new char[size_t.sizeof * 2 + 2 + 1];
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
       return res[0 .. res.length - 1];
     }
@@ -172,7 +172,7 @@ void setupSysmods() {
     char[] ftoa(float f) {
       // printf("ftoa(%f)\n", f);
       // printf("ftoa(%f)\n", cast(double) 16);
-      auto res = new(20) char;
+      auto res = new char[20];
       double d = f;
       int len = snprintf(res.ptr, res.length, "%f", d);
       if len > res.length len = res.length;
