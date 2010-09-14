@@ -73,9 +73,10 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
         if ((!rest(t2, "tree.expr", &var.initval) || !gotImplicitCast(var.initval, (IType it) {
           its ~= it;
           return test(var.type == it);
-        }) && (t2 = t3, true)) && !(t2.accept("void"), dontInit = true))
+        })) && (t2 = t3, true) && !(t2.accept("void") && (dontInit = true, true))) {
           if (its.length) throw new Exception(Format("Couldn't init var at ", t2.next_text(), ": none of ", its, " matched ", var.type));
           else throw new Exception(Format("Couldn't read expression at '", t2.next_text(), "' !"));
+        }
       }
       if (dontInit) {
         var.dontInit = true;

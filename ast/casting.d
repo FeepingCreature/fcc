@@ -148,6 +148,23 @@ class DontCastMeExpr : Expr {
   }
 }
 
+class DontCastMeCValue : DontCastMeExpr, CValue {
+  this(CValue cv) { super(cv); }
+  typeof(this) dup() { return new typeof(this)(cast(CValue) sup); }
+  override void emitLocation(AsmFile af) { (cast(CValue) sup).emitLocation(af); }
+}
+
+class DontCastMeLValue : DontCastMeCValue, LValue {
+  this(LValue lv) { super(lv); }
+  typeof(this) dup() { return new typeof(this)(cast(LValue) sup); }
+}
+
+Expr dcm(Expr ex) {
+  if (auto lv = cast(LValue) ex) return new DontCastMeLValue(lv);
+  else if (auto cv = cast(CValue) ex) return new DontCastMeCValue(cv);
+  else return new DontCastMeExpr(ex);
+}
+
 Object gotDCMExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;

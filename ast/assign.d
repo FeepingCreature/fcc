@@ -55,7 +55,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     Expr value;
     IType[] its;
     if (!rest(t2, "tree.expr", &value) || !gotImplicitCast(value, (IType it) { its ~= it; return test(it == target.valueType()); })) {
-      throw new Exception(Format("Mismatching types in assignment: ", target.valueType(), " <- ", its, " @'", t2.next_text(), "'"));
+      throw new Exception(Format("Mismatching types in assignment: ", target.valueType(), " <- ", its, " @'", text.next_text(), "'"));
       return null;
     }
     // logln(target.valueType(), " <- ", value.valueType());

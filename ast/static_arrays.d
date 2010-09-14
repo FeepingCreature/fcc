@@ -31,11 +31,13 @@ static this() {
         t2.accept("]")
       )
     {
-      text = t2;
       auto len = fold(len_ex);
-      if (auto ie = cast(IntExpr) len) 
+      if (auto ie = cast(IntExpr) len) {
+        text = t2;
         return new StaticArray(cur, ie.num);
-      throw new Exception(Format("Not a constant: ", len));
+      }
+      return null;
+      // throw new Exception(Format("Not a constant: ", len));
     } else return null;
   };
 }
@@ -64,7 +66,7 @@ Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
       if (!text.accept(".ptr")) return null;
       auto cv = cast(CValue) ex;
       if (!cv) throw new Exception(
-        Format("Tried to reference non-lvalue: ", ex)
+        Format("Tried to reference non-cvalue for .ptr: ", ex)
       );
       return cast(Object) getSAPtr(ex);
     } else return null;
@@ -139,3 +141,13 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   return res;
 }
 mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array", "52");
+
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    auto sa = cast(StaticArray) ex.valueType();
+    if (!sa || !cast(CValue) ex) return null;
+    return iparse!(Expr, "sa_to_array", "tree.expr")
+                  (`sa.ptr[0..len]`,
+                   "sa", dcm(ex), "len", new IntExpr(sa.length));
+  };
+}
