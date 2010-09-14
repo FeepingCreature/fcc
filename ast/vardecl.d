@@ -57,7 +57,7 @@ void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
   }
 }
 
-import ast.namespace, ast.scopes;
+import ast.namespace, ast.scopes, tools.compat: find;
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text, vd = new VarDecl;
   string name; IType type;

@@ -99,9 +99,12 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
       throw new Exception("No type matched in cast expression: "~t2.next_text());
     if (!t2.accept(")"))
       throw new Exception("Missed closing bracket in cast at "~t2.next_text());
-    if (!rest(t2, "tree.expr _tree.expr.arith", &ex, (Expr ex) { return ex.valueType().size == dest.size; }))
-      return null;
-      // throw new Exception("Expression not matched in cast: "~t2.next_text());
+    IType[] types;
+    if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; }))
+      throw new Exception(Format(
+        "Expression not matched in cast @'", t2.next_text(), "'; none of ", types, " matched ", dest.size, ". "
+      ));
+      // return null;
     
     text = t2;
     return new ReinterpretCast!(Expr)(dest, ex);

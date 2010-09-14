@@ -15,20 +15,41 @@ class Array : Type {
       return "array_of_"~elemType.mangle();
     }
     string toString() { return Format(elemType, "[]"); }
+    int opEquals(IType ty) {
+      if (!super.opEquals(ty)) return false;
+      while (true) {
+        if (auto tp = cast(TypeProxy) ty) ty = tp.actualType();
+        else break;
+      }
+      return (cast(Array) ty).elemType == elemType;
+    }
   }
 }
 
 // ptr, length, capacity
 class ExtArray : Type {
   IType elemType;
+  bool freeOnResize;
   this() { }
-  this(IType et) { elemType = et; }
+  this(IType et, bool fOR) { elemType = et; freeOnResize = fOR; }
   override {
     int size() {
       return nativePtrSize + nativeIntSize * 2;
     }
     string mangle() {
       return "rich_array_of_"~elemType.mangle();
+    }
+    int opEquals(IType ty) {
+      if (!super.opEquals(ty)) return false;
+      while (true) {
+        if (auto tp = cast(TypeProxy) ty) ty = tp.actualType();
+        else break;
+      }
+      auto ea = cast(ExtArray) ty;
+      return ea.elemType == elemType && ea.freeOnResize == freeOnResize;
+    }
+    string toString() {
+      return Format(elemType, "[", freeOnResize?"auto ":"", "~]");
     }
   }
 }
@@ -61,8 +82,10 @@ static this() {
     if (text.accept("[]")) {
       return new Array(cur);
     } else if (text.accept("[~]")) {
-      return new ExtArray(cur);
-    } else return null;
+      return new ExtArray(cur, false);
+    } else if (text.accept("[auto ~]") || text.accept("[auto~]"))
+      return new ExtArray(cur, true);
+    else return null;
   };
 }
 
@@ -106,7 +129,7 @@ class ArrayMaker : Expr {
   }
   override string toString() { return Format("array(ptr=", ptr, ", length=", length, cap?Format(", cap=", cap):"", ")"); }
   override IType valueType() {
-    if (cap) return new ExtArray(elemType());
+    if (cap) return new ExtArray(elemType(), false);
     else return new Array(elemType());
   }
   import ast.vardecl, ast.assign;

@@ -125,6 +125,29 @@ void setupSysmods() {
         }
       }
     EOT
+    // maybe just a lil' copypaste
+    template append3(T) <<EOT
+      T[auto ~] append3(T[auto ~]* l, T[] r) {
+        // printf("append3 %i to %i, cap %i\n", r.length, l.length, l.capacity);
+        if (l.capacity < l.length + r.length) {
+          auto size = l.length + r.length, size2 = l.length * 2;
+          auto newsize = size;
+          if (size2 > newsize) newsize = size2;
+          T[auto ~] res = cast(T[auto~]) ((new T[newsize])[0 .. size]);
+          res[0 .. l.length] = (*l)[];
+          mem.free(cast(void*) l.ptr);
+          res[l.length .. size] = r;
+          res.capacity = newsize;
+          return res;
+        } else {
+          T[auto ~] res = cast(T[auto~]) l.ptr[0 .. l.length + r.length]; // make space
+          res.capacity = l.capacity;
+          l.capacity = 0; // claimed!
+          res[l.length .. res.length] = r;
+          return res;
+        }
+      }
+    EOT
     char[] itoa(int i) {
       if i < 0 return "-" ~ itoa(-i);
       if i == 0 return "0";

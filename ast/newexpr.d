@@ -1,6 +1,8 @@
 module ast.newexpr;
 
-import ast.oop, ast.base, ast.namespace, ast.parse, ast.vardecl, ast.int_literal, ast.pointer, ast.structure: doAlign;
+import
+  ast.oop, ast.base, ast.static_arrays, ast.namespace, ast.parse,
+  ast.vardecl, ast.int_literal, ast.pointer, ast.structure: doAlign;
 
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

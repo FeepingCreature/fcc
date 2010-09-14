@@ -103,11 +103,18 @@ static this() {
       logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: ", ex1, ex2);
       asm { int 3; }
     }
-    auto elemtype = (cast(ExtArray) ex1.valueType()).elemType;
-    return iparse!(Expr, "concat_into_ext", "tree.expr")
-                  (`sys.append2!T(&l, r)`,
-                   namespace(),
-                   "T", elemtype, "l", ex1, "r", ex2);
+    auto ea = cast(ExtArray) ex1.valueType();
+    if (ea.freeOnResize) {
+      return iparse!(Expr, "concat_into_ext_fOR", "tree.expr")
+                    (`sys.append3!T(&l, r)`,
+                    namespace(),
+                    "T", ea.elemType, "l", ex1, "r", ex2);
+    } else {
+      return iparse!(Expr, "concat_into_ext", "tree.expr")
+                    (`sys.append2!T(&l, r)`,
+                    namespace(),
+                    "T", ea.elemType, "l", ex1, "r", ex2);
+    }
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
     logln("op: concat");
