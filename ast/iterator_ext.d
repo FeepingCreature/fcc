@@ -298,7 +298,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr", &ex))
     throw new Exception("Could not match expr for cross at '"~t2.next_text()~"'");
   text = t2;
-  bool rich;
+  bool rich = true;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = cast(Tuple) ex.valueType();
     if (!tup) return false;
@@ -306,8 +306,11 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
       ex2 = fold(ex2);
       if (!forb(ex2) || !gotImplicitCast(ex2, isIterator))
         return false;
-      if (!cast(RichIterator) ex2.valueType())
+      auto test = ex2;
+      if (!gotImplicitCast(test, isRichIterator))
         rich = false;
+      else
+        ex2 = test;
     }
     return true;
   }))
@@ -317,7 +320,8 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   foreach (ref entry; list) {// cast for rilz
     entry = fold(entry);
     forb(entry);
-    gotImplicitCast(entry, isIterator);
+    if (rich) gotImplicitCast(entry, isRichIterator);
+    else gotImplicitCast(entry, isIterator);
   }
   return cast(Object) mkZip(list, rich);
 }
@@ -347,8 +351,9 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(text, "tree.expr", &ex))
     throw new Exception("Could not match expr for cross at '"~text.next_text()~"'");
-  if (!forb(ex) || !gotImplicitCast(ex, (IType it) { return !!cast(RichIterator) it; }))
-    throw new Exception(Format("Cannot convert ", ex, " to valid iterator at '", text.next_text(), "'. "));
+  IType[] tried;
+  if (!forb(ex) || !gotImplicitCast(ex, (IType it) { tried ~= it; return !!cast(RichIterator) it; }))
+    throw new Exception(Format("Cannot convert ", ex, " to valid iterator at '", text.next_text(), "', tried ", tried, ". "));
   
   return new SumExpr(cast(RichIterator) ex.valueType(), ex);
 }
