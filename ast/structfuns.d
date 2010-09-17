@@ -11,7 +11,7 @@ Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto fun = new RelFunction(rs);
   
   if (auto res = gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest)) {
-    namespace().get!(Module).entries ~= cast(Tree) res;
+    current_module().entries ~= cast(Tree) res;
     return res;
   } else return null;
 }

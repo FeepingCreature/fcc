@@ -71,6 +71,7 @@ Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("alias ")) {
     Expr ex;
     IType ty;
+    Object obj;
     string id;
     bool notDone;
     
@@ -95,11 +96,16 @@ redo:
       if (rest(t3, "type", &ty) && gotTerm()) {
         t2 = t3;
       } else {
-        throw new Exception("Couldn't parse alias target at "~t2.next_text());
+        t3 = t2;
+        if (rest(t3, "tree.expr", &obj) && gotTerm()) {
+          t2 = t3;
+          namespace().__add(id, obj); // for instance, function alias
+        } else
+          throw new Exception("Couldn't parse alias target at "~t2.next_text());
       }
     }
     
-    assert(ex || ty);
+    assert(ex || ty || obj);
     text = t2;
     if (ex) namespace().add(new ExprAlias(ex, id));
     if (ty) namespace().add(new TypeAlias(ty, id));

@@ -2,7 +2,7 @@ module ast.stringex;
 
 import
   ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays,
-  ast.literals, ast.arrays, ast.vardecl, ast.pointer, ast.casting, tools.base: take;
+  ast.literal_string, ast.arrays, ast.vardecl, ast.pointer, ast.casting, tools.base: take;
 
 Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   Expr strlit;

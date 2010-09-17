@@ -32,7 +32,7 @@ Object gotTypeStringof(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   if (!t2.accept(".stringof")) return null;
   text = t2;
-  return new StringExpr(Format(ty));
+  return cast(Object) mkString(Format(ty));
 }
 mixin DefaultParser!(gotTypeStringof, "tree.expr.type_stringof", "30");
 
@@ -41,7 +41,7 @@ Object gotPartialStringof(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (text.accept(".stringof")) {
       // logln("got ", Format(ex));
-      return new StringExpr(Format(ex));
+      return cast(Object) mkString(Format(ex));
     }
     else return null;
   };

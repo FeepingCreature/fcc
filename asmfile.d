@@ -316,12 +316,14 @@ class AsmFile {
       res ~= ".byte ";
       foreach (val; c) res ~= Format(cast(ubyte) val, ", ");
       res ~= "0\n";
+      res ~= Format(".global ", name, "\n");
     }
     foreach (name, array; longstants) { // lol
       res ~= Format(name, ":\n");
       res ~= ".long ";
       foreach (val; array) res ~= Format(val, ", ");
       res ~= "0\n";
+      res ~= Format(".global ", name, "\n");
     }
     res ~= ".text\n";
     res ~= code;

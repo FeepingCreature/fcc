@@ -209,13 +209,13 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding {
     assert(!!strcmp);
     void handleIntf(Intf intf) {
       as.stmts ~= iparse!(Statement, "cast_intf_class", "tree.stmt")("if (strcmp(id, _test) != 0) return cast(void*) (cast(void**) this + offs); ",
-        rf, "_test", new StringExpr(intf.mangle_id), "offs", new IntExpr(intf_offset)
+        rf, "_test", mkString(intf.mangle_id), "offs", new IntExpr(intf_offset)
       );
       intf_offset ++;
     }
     void handleClass(Class cl) {
       as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (strcmp(id, _test) != 0) return cast(void*) this; ",
-        rf, "_test", new StringExpr(cl.mangle_id)
+        rf, "_test", mkString(cl.mangle_id)
       );
       if (cl.parent) handleClass(cl.parent);
       foreach (intf; cl.iparents)
@@ -570,7 +570,7 @@ Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
   if (cast(IntfRef) ex.valueType()) ex = intfToClass(ex);
   return cast(Object) iparse!(Expr, "cast_call", "tree.expr")
     ("cast(Dest) ex.dynamicCastTo(id)", "ex",
-      ex, "Dest", dest, "id", new StringExpr(dest_id)
+      ex, "Dest", dest, "id", mkString(dest_id)
     );
 }
 mixin DefaultParser!(gotDynCast, "tree.expr.dynamic_class_cast", "70");

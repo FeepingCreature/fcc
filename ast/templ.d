@@ -40,10 +40,6 @@ class TemplateInstance : Namespace {
   IType type;
   Template parent;
   this(Template parent, IType type, ParseCb rest) {
-    // auto mod = namespace().get!(Module);
-    auto mod = current_module();
-    if (!mod)
-      throw new Exception(Format("No module for template instance below ", namespace(), "!"));
     this.type = type;
     this.parent = parent;
     __add(parent.param, cast(Object) type);
@@ -62,7 +58,7 @@ class TemplateInstance : Namespace {
           if (auto ns = cast(Namespace) tr) { // now reset sup to correct target.
             ns.sup = this;
           }
-          mod.entries ~= tr;
+          current_module().entries ~= tr;
         }
       ) || t2.strip().length)
         throw new Exception("Failed to parse template content at '"~t2.next_text()~"'");
@@ -72,7 +68,7 @@ class TemplateInstance : Namespace {
   override {
     string toString() { return Format("Instance of ", parent); }
     string mangle(string name, IType type) {
-      return "templinst_"~type.mangle();
+      return "templinst_"~name~"_"~type.mangle();
     }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     

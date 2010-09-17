@@ -14,6 +14,10 @@ interface Tree : Iterable {
   Tree dup();
 }
 
+interface Setupable {
+  void setup(AsmFile); // register globals and such
+}
+
 interface NeedsConfig {
   // must be called after the expression has been selected for sure
   // used to set up temporary variables

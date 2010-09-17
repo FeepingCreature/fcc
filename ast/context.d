@@ -68,7 +68,8 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   bool matchOne(ref string st) {
     Tree tr;
     if (!rest(st, "tree.toplevel", &tr)) return false;
-    namespace().get!(Module).entries ~= tr;
+    // namespace().get!(Module).entries ~= tr;
+    current_module().entries ~= tr;
     if (cast(GlobVarDecl) tr || cast(Function) tr) {
     } else assert(!!cast(NoOp) tr, Format(tr));
     return true;

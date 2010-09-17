@@ -296,7 +296,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("zip")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr", &ex))
-    throw new Exception("Could not match expr for cross at '"~t2.next_text()~"'");
+    throw new Exception("Could not match expr for zip at '"~t2.next_text()~"'");
   text = t2;
   bool rich = true;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {

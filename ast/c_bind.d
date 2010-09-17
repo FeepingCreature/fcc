@@ -297,7 +297,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
   logln("Got ", res.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
 }
 
-import ast.fold, ast.literals;
+import ast.fold, ast.literal_string;
 Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("c_include")) return null;
   Expr ex;

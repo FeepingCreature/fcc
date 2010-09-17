@@ -15,8 +15,8 @@ import
   ast.oop, ast.dg, ast.newexpr, ast.guard, ast.withstmt,
   ast.templ, ast.globvars, ast.context, ast.concat,
   ast.stringex, ast.c_bind, ast.eval, ast.iterator,
-  ast.properties, ast.tuples, ast.iterator_ext,
-  ast.tuple_access, ast.funcall, ast.vector;
+  ast.properties, ast.tuples, ast.iterator_ext, ast.literal_string,
+  ast.tuple_access, ast.funcall, ast.vector, ast.externs;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -69,6 +69,8 @@ Module optimize(Module mod) {
   return mod;
 }
 
+bool ematSysmod;
+
 string compile(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
   auto af = new AsmFile(optimize);
   if (configOpts) {
@@ -98,22 +100,21 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     if (!saveTemps)
       unlink(srcname.toStringz());
   }
-  auto text = file.read().castLike("");
-  Module mod;
+  auto modname = file.replace("/", ".")[0..$-3];
   auto start_parse = sec();
-  if (auto mt = parsecon.parse(text, "tree.module"))
-    mod = cast(Module) mt;
-  else assert(false, "unable to eat module from "~file~": "~error);
+  auto mod = lookupMod(modname);
   auto len_parse = sec() - start_parse;
-  if (text.strip().length)
-    assert(false, "this text confuses me: "~text.next_text()~": "~error);
   double len_opt;
   if (optimize) len_opt = time({
-    sysmod = .optimize(sysmod);
+    if (!ematSysmod)
+      sysmod = .optimize(sysmod);
     mod    = .optimize(mod);
   }) / 1_000_000f;
   auto len_gen = time({
-    sysmod.emitAsm(af);
+    if (!ematSysmod) {
+      sysmod.emitAsm(af);
+      ematSysmod = true;
+    }
     mod.emitAsm(af);
   }) / 1_000_000f;
   if (optimize)

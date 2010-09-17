@@ -1,6 +1,6 @@
 module ast.modules;
 
-import ast.base, ast.namespace, ast.fun, ast.variable, ast.structure, ast.parse;
+import ast.base, ast.namespace, ast.structure, ast.parse;
 
 import tools.ctfe, tools.threads;
 
@@ -8,6 +8,12 @@ class Module : Namespace, Tree, Named {
   string name;
   Module[] imports;
   Tree[] entries;
+  Setupable[] setupable;
+  AsmFile inProgress; // late to the party;
+  void addSetupable(Setupable s) {
+    setupable ~= s;
+    if (inProgress) s.setup(inProgress);
+  }
   mixin defaultIterate!(imports, entries);
   override {
     Module dup() { assert(false, "What the hell are you doing, man. "); }
@@ -16,6 +22,9 @@ class Module : Namespace, Tree, Named {
       auto backup = current_module();
       current_module.set(this);
       scope(exit) current_module.set(backup);
+      foreach (s; setupable) s.setup(af);
+      inProgress = af;
+      scope(exit) inProgress = null;
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
@@ -23,7 +32,7 @@ class Module : Namespace, Tree, Named {
       }
     }
     string mangle(string name, IType type) {
-      return "module_"~this.name~"_"~name~(type?("_of_"~type.mangle()):"");
+      return "module_"~this.name.replace(".", "_")~"_"~name~(type?("_of_"~type.mangle()):"");
     }
     Object lookup(string name, bool local = false) {
       if (auto res = super.lookup(name)) return res;
@@ -205,38 +214,6 @@ void setupSysmods() {
   sysmod = cast(Module) parsecon.parse(src, "tree.module");
 }
 
-import tools.log;
-Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  if (!t2.accept("extern(C)")) return null;
-  bool grabFun() {
-    auto fun = new Function;
-    fun.extern_c = true;
-    New(fun.type);
-    if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
-        t2.gotIdentifier(fun.name) &&
-        t2.gotParlist(fun.type.params, rest) &&
-        t2.accept(";")
-      )
-    {
-      namespace().add(fun);
-      return true;
-    } else {
-      return false;
-    }
-  }
-  void fail() {
-    assert(false, "extern parsing failed at '"~t2.next_text()~"'.");
-  }
-  if (t2.accept("{")) {
-    while (grabFun()) { }
-    if (!t2.accept("}")) fail;
-  } else if (!grabFun()) fail;
-  text = t2;
-  return Single!(NoOp);
-}
-mixin DefaultParser!(gotExtern, "tree.toplevel.extern_c");
-
 Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   string m;
   // import a, b, c;
@@ -254,7 +231,6 @@ mixin DefaultParser!(gotImport, "tree.import");
 
 Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   auto t2 = text;
-  Function fn;
   Structure st;
   Tree tr;
   Module mod;
