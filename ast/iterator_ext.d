@@ -2,7 +2,7 @@ module ast.iterator_ext;
 
 import ast.base, ast.iterator;
 
-bool delegate(IType) isRichIterator;
+bool delegate(IType) isRichIterator, isIterator;
 
 import
   ast.casting, ast.int_literal, ast.opers, ast.modules,
@@ -10,6 +10,7 @@ import
   ast.tuples, ast.tuple_access;
 static this() {
   isRichIterator = delegate bool(IType it) { return !!cast(RichIterator) it; };
+  isIterator = delegate bool(IType it) { return !!cast(Iterator) it; };
   defineOp("^", delegate Expr(Expr ex1, Expr ex2) {
     if (!forb(ex1) || !gotImplicitCast(ex1, isRichIterator)
       ||!gotImplicitCast(ex2, (Expr ex) { return !!cast(IntExpr) fold(ex); }))
@@ -203,7 +204,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotIteratorCross, "tree.expr.iter.cross");
 
 import ast.aggregate;
-class Zip : Type, RichIterator {
+class Zip(T) : Type, T {
   Tuple tup; // half iterators, half current values
   LValue castToTuple(LValue lv) {
     return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
@@ -242,44 +243,52 @@ class Zip : Type, RichIterator {
                            (`tup[i]`, "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
         auto cond = (cast(Iterator) entry.valueType()).terminateCond(entry);
         if (!res) res = cond;
-        else res = new BooleanOp!("||")(res, cond);
+        else res = new BooleanOp!("&&")(res, cond);
       }
       assert(res);
       return res;
     }
-    Expr length(Expr ex) {
-      // TODO: min
-      auto types = myTypes();
-      auto entry = iparse!(Expr, "zip_simple_len", "tree.expr")
-                          (`tup[0]`, "tup", castToTuple(ex));
-      return (cast(RichIterator) entry.valueType()).length(entry);
-    }
-    Expr index(LValue lv, Expr pos) {
-      auto types = myTypes(), tup = castToTuple(lv);
-      Expr[] exprs;
-      foreach (i, type; types) {
-        exprs ~= iparse!(Expr, "zip_index", "tree.expr")
-                        (`tup[i][pos]`,
-                        "tup", tup, "i", new IntExpr(i),
-                        "len", new IntExpr(types.length),
-                        "pos", pos);
+    static if (is(T: RichIterator)) {
+      Expr length(Expr ex) {
+        // TODO: min
+        auto types = myTypes();
+        auto entry = iparse!(Expr, "zip_simple_len", "tree.expr")
+                            (`tup[0]`, "tup", castToTuple(ex));
+        return (cast(RichIterator) entry.valueType()).length(entry);
       }
-      return mkTupleExpr(exprs);
-    }
-    Expr slice(Expr ex, Expr from, Expr to) {
-      assert(false); // moar meh
+      Expr index(LValue lv, Expr pos) {
+        auto types = myTypes(), tup = castToTuple(lv);
+        Expr[] exprs;
+        foreach (i, type; types) {
+          exprs ~= iparse!(Expr, "zip_index", "tree.expr")
+                          (`tup[i][pos]`,
+                          "tup", tup, "i", new IntExpr(i),
+                          "len", new IntExpr(types.length),
+                          "pos", pos);
+        }
+        return mkTupleExpr(exprs);
+      }
+      Expr slice(Expr ex, Expr from, Expr to) {
+        assert(false); // moar meh
+      }
     }
   }
 }
 
-Expr mkZip(Expr[] exprs) {
+Expr mkZip(Expr[] exprs, bool rich) {
   Expr[] inits;
   foreach (ex; exprs)
     inits ~= new Filler((cast(Iterator) ex.valueType()).elemType());
   auto tup = mkTupleExpr(exprs ~ inits);
-  auto zip = new Zip;
-  zip.tup = cast(Tuple) tup.valueType();
-  return new RCE(zip, tup);
+  if (rich) {
+    auto zip = new Zip!(RichIterator);
+    zip.tup = cast(Tuple) tup.valueType();
+    return new RCE(zip, tup);
+  } else {
+    auto zip = new Zip!(Iterator);
+    zip.tup = cast(Tuple) tup.valueType();
+    return new RCE(zip, tup);
+  }
 }
 
 Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
@@ -289,13 +298,16 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr", &ex))
     throw new Exception("Could not match expr for cross at '"~t2.next_text()~"'");
   text = t2;
+  bool rich;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = cast(Tuple) ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
       ex2 = fold(ex2);
-      if (!forb(ex2) || !gotImplicitCast(ex2, isRichIterator))
+      if (!forb(ex2) || !gotImplicitCast(ex2, isIterator))
         return false;
+      if (!cast(RichIterator) ex2.valueType())
+        rich = false;
     }
     return true;
   }))
@@ -305,9 +317,9 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   foreach (ref entry; list) {// cast for rilz
     entry = fold(entry);
     forb(entry);
-    gotImplicitCast(entry, isRichIterator);
+    gotImplicitCast(entry, isIterator);
   }
-  return cast(Object) mkZip(list);
+  return cast(Object) mkZip(list, rich);
 }
 mixin DefaultParser!(gotIteratorZip, "tree.expr.iter.zip");
 
