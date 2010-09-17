@@ -110,6 +110,7 @@ Expr simpleFormat(Expr ex) {
     if (Single!(Char) == et) {
       return ex;
     }
+    logln("et is ", et);
     return new CallbackExpr(Single!(Array, Single!(Char)), ex /apply/ (Expr ex, AsmFile af) {
       mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
         iparse!(Scope, "gen_array_format", "tree.scope")

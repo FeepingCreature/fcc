@@ -39,9 +39,12 @@ class ExprStatement : Statement {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
+  override string toString() { return Format(ex); }
   override void emitAsm(AsmFile af) {
     auto cs = af.checkptStack();
     scope(exit) af.restoreCheckptStack(cs);
+    auto type = ex.valueType(), size = (type == Single!(Void))?0:type.size;
+    mixin(mustOffset("size"));
     ex.emitAsm(af);
   }
 }

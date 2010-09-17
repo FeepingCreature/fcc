@@ -387,7 +387,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   namespace.set(sc);
   
   if (!rest(t2, "tree.expr", &main))
-    throw new Exception("Cannot find iterator expression at '"~t2.next_text()~"'! ");
+    throw new Exception("Cannot find iterator expression at '"~t2.next_text()~"' in '"~text.next_text(32)~"'! ");
   if (!t2.accept("]"))
     throw new Exception("Expected ']' at '"~t2.next_text()~"'! ");
   text = t2;

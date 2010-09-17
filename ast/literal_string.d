@@ -6,7 +6,7 @@ class StringExpr : Expr, Setupable {
   string str;
   Module forb;
   this() { forb = current_module(); current_module().addSetupable(this); }
-  this(string s) { this(); str = s; }
+  this(string s) { str = s; this(); }
   mixin defaultIterate!();
   string name_used;
   override {
@@ -20,8 +20,8 @@ class StringExpr : Expr, Setupable {
     // default action: place in string segment, load address on stack
     void emitAsm(AsmFile af) {
       assert(!!name_used, Format("\"", str, "\" not set up (in ", forb, " vs. ", current_module(), ")"));
-      auto ptr = new Symbol(name_used);
-      (new ArrayMaker(ptr, new IntExpr(str.length))).emitAsm(af);
+      (new Symbol(name_used)).emitAsm(af);
+      (new IntExpr(str.length)).emitAsm(af);
     }
     // IType valueType() { return new StaticArray(Single!(Char), str.length); }
     IType valueType() { return Single!(Array, Single!(Char)); }
@@ -34,12 +34,21 @@ static this() {
 
 bool gotStringExpr(ref string text, out Expr ex, string sep = "\"") {
   auto t2 = text;
-  StringExpr se;
-  return t2.accept(sep) &&
-    (se = new StringExpr, true) &&
-    (se.str = t2.slice(sep).subst(sep), true) &&
-    (text = t2, true) &&
-    (ex = se, true);
+  if (!t2.accept(sep)) return false;
+  string s;
+  while (true) {
+    assert(t2.length);
+    if (t2.accept(sep)) break;
+    auto ch = t2.take();
+    if (ch == '\\') {
+      auto ch2 = t2.take();
+      if (ch2 == 'n') { s ~= "\n"; }
+      else s ~= ch2;
+    } else s ~= ch;
+  }
+  auto se = new StringExpr(s);
+  text = t2; ex = se;
+  return true;
 }
 
 Object gotStringLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
