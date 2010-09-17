@@ -34,11 +34,12 @@ class VarDecl : Statement {
 // base offset
 import tools.log;
 int boffs(IType t, int curdepth = -1) {
-  auto sl = namespace().get!(ScopeLike);
-  if (!sl) asm { int 3; }
-  assert(!!sl, Format("no ScopeLike beneath ", namespace(), " for placing a ", t));
-  if (curdepth == -1)
+  if (curdepth == -1) {
+    auto sl = namespace().get!(ScopeLike);
+    if (!sl) asm { int 3; }
+    assert(!!sl, Format("no ScopeLike beneath ", namespace(), " for placing a ", t));
     curdepth = sl.framesize();
+  }
   return - curdepth - t.size;
 }
 

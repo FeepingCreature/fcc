@@ -2,6 +2,7 @@ module ast.returns;
 
 import ast.base, ast.namespace, ast.scopes, ast.fun, ast.parse, ast.math: loadFloatEx;
 
+import ast.vardecl, ast.assign;
 class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
@@ -11,11 +12,18 @@ class ReturnStmt : Statement {
   Statement[] guards;
   override void emitAsm(AsmFile af) {
     
-    foreach_reverse(stmt; guards)
-      stmt.emitAsm(af);
-    
     auto fun = ns.get!(Function);
     if (value) {
+      auto value = new Variable(value.valueType(), null, boffs(value.valueType(), af.currentStackDepth));
+      {
+        auto vd = new VarDecl;
+        vd.vars ~= value;
+        vd.emitAsm(af);
+      }
+      (new Assignment(value, this.value)).emitAsm(af);
+      foreach_reverse(stmt; guards)
+        stmt.emitAsm(af);
+      
       if (Single!(Float) == value.valueType()) {
         loadFloatEx(value, af);
         af.floatStackDepth --; // doesn't count
@@ -36,6 +44,9 @@ class ReturnStmt : Statement {
       } else {
         assert(false, Format("Unsupported return type ", value.valueType()));
       }
+    } else {
+      foreach_reverse(stmt; guards)
+        stmt.emitAsm(af);
     }
     // TODO: stack cleanup token here
     af.jump(fun.exit());
