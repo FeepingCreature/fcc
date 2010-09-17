@@ -22,7 +22,8 @@ void defineOp(string op, Expr delegate(Expr, Expr, Expr) dg) {
 
 Expr lookupOp(string op, Expr[] exprs...) {
   bool reassign;
-  if (auto pre = op.endsWith("=")) {
+  auto pre = op.endsWith("=");
+  if (pre && op[0] != '=' /or/ '!') {
     if (!cast(LValue) exprs[0]) {
       throw new Exception(Format(
         "Cannot ", op, " since exprs[0]: ", exprs[0], " is not an lvalue! "
@@ -43,5 +44,5 @@ Expr lookupOp(string op, Expr[] exprs...) {
       }
     throw new Exception(Format("No matching operators (", op, ") defined for ", exprs /map/ ex!("e -> e.valueType()"), ", exs being ", exprs));
   } else
-    throw new Exception("No such operator defined: "~op);
+    throw new Exception(Format("No such operator defined: ", op, " (tried for ", exprs /map/ ex!("e -> e.valueType()"), ")"));
 }

@@ -18,7 +18,7 @@ class StringExpr : CValue {
     name_used = Format("cons_", af.constants.length);
     af.constants[name_used] = cast(ubyte[]) str;
   }
-  override string toString() { return '"'~str~'"'; }
+  override string toString() { return '"'~str.replace("\n", "\\n")~'"'; }
   // default action: place in string segment, load address on stack
   override void emitAsm(AsmFile af) {
     assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");
