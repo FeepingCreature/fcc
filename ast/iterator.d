@@ -78,6 +78,84 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotRangeIter, "tree.expr.iter_range", "11");
 
+class StructIterator : Type, Iterator {
+  IType wrapped;
+  this(IType it) { wrapped = it; }
+  override {
+    int size() { return wrapped.size; }
+    string mangle() { return "struct_iterator_"~wrapped.mangle(); }
+    ubyte[] initval() { return wrapped.initval; }
+    IType elemType() {
+      return iparse!(IType, "si_elemtype", "type")
+                    (`typeof(eval ((*cast(wrapped*) 0).step))`,
+                     "wrapped", wrapped);
+    }
+    Expr yieldAdvance(LValue lv) {
+      return iparse!(Expr, "si_step", "tree.expr")
+                    (`eval (lv.step)`,
+                     "lv", lv, "W", wrapped);
+    }
+    Cond terminateCond(Expr ex) {
+      return iparse!(Cond, "si_ivalid", "cond")
+                    (`eval (ex.ivalid)`,
+                     "ex", ex, "W", wrapped);
+    }
+  }
+}
+
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (auto si = cast(StructIterator) ex.valueType()) {
+      return reinterpret_cast(si.wrapped, ex);
+    }
+    return null;
+  };
+}
+
+import ast.templ;
+Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  return lhs_partial.using = delegate Object(Template templ) {
+    Expr nex;
+    if (!rest(t2, "tree.expr", &nex)) return null;
+    auto inst = iparse!(Expr, "si_call_test", "tree.expr")
+                      (`templ!typeof(nex)(nex)`,
+                        namespace(),
+                        "templ", templ, "nex", nex);
+    if (!inst) { logln("no template :("); return null; }
+    auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
+                        (`eval inst`, "inst", inst);
+    auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
+                        (`eval (inst.ivalid)`, "inst", inst);
+    if (!test1 || !test2) {
+      logln("test failed: ", !test1, ", ", !test2);
+      return null;
+    }
+    text = t2;
+    auto si = new StructIterator(inst.valueType());
+    auto res = cast(Object)
+      iparse!(Expr, "si_final_cast", "tree.expr")
+            (`cast(SI) inst`,
+              "SI", si, "inst", inst);
+    // logln(" => ", res);
+    return res;
+  };
+}
+mixin DefaultParser!(gotStructIterator, "tree.rhs_partial.struct_iter");
+
+Object gotIterIvalid(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("__ivalid")) return null;
+  Expr ex;
+  IType[] tried;
+  if (!rest(t2, "tree.expr", &ex) || !gotImplicitCast(ex, (IType it) { return !!cast(Iterator) it; }))
+    throw new Exception(Format("Couldn't find iter expr for eoi at '", text.next_text(), "'; tried ", tried, ". "));
+  auto it = cast(Iterator) ex.valueType();
+  text = t2;
+  return cast(Object) it.terminateCond(ex);
+}
+mixin DefaultParser!(gotIterIvalid, "cond.ivalid", "76");
+
 import ast.loops;
 
 import tools.base: This, This_fn, rmSpace, PTuple, Stuple, ptuple, stuple;
@@ -437,7 +515,8 @@ withoutIterator:
   // insert declaration into current scope.
   // NOTE: this here is the reason why everything that tests a cond has to have its own scope.
   auto sc = cast(Scope) namespace();
-  if (!sc) throw new Exception("Bad place for an iter cond: "~Format(namespace())~"!");
+  // if (!sc) throw new Exception("Bad place for an iter cond: "~Format(namespace())~"!");
+  if (!sc) return null;
   
   if (newVarName) {
     if (!newVarType) newVarType = (cast(Iterator) iter.valueType()).elemType();
@@ -455,9 +534,10 @@ mixin DefaultParser!(gotIterCond, "cond.iter", "705");
 
 Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  LValue lv;
   if (!t2.accept("eval")) return null;
-  if (!rest(t2, "tree.expr", &lv)) return null;
+  Object obj;
+  if (!rest(t2, "tree.expr", &obj) || !cast(LValue) obj) return null;
+  auto lv = cast(LValue) obj;
   auto it = cast(Iterator) lv.valueType();
   if (!it) return null;
   text = t2;
@@ -469,8 +549,6 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     auto iter = cast(Iterator) ex.valueType();
     if (!iter) return null;
-    auto lv = cast(LValue) ex;
-    if (!lv) return null;
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
@@ -488,6 +566,8 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
                            ("ps.end", "ps", ps);
         return cast(Object) ri.slice(ex, from, to);
       } else {
+        auto lv = cast(LValue) ex;
+        if (!lv) return null;
         return cast(Object) ri.index(lv, pos);
       }
     } else return null;
@@ -497,17 +577,17 @@ mixin DefaultParser!(gotIterIndex, "tree.rhs_partial.iter_index");
 
 import ast.arrays, ast.modules, ast.aggregate;
 // Statement with target, Expr without. Lol.
-class EvalIterator : Expr, Statement {
+class EvalIterator(T) : Expr, Statement {
   Expr ex;
-  RichIterator iter;
+  T iter;
   Expr target; // optional
   private this() { }
-  this(Expr ex, RichIterator ri) {
+  this(Expr ex, T t) {
     this.ex = ex;
-    this.iter = ri;
+    this.iter = t;
   }
-  this(Expr ex, RichIterator ri, Expr target) {
-    this(ex, ri);
+  this(Expr ex, T t, Expr target) {
+    this(ex, t);
     this.target = target;
   }
   EvalIterator dup() {
@@ -523,12 +603,15 @@ class EvalIterator : Expr, Statement {
       if (iter.elemType() == Single!(Void))
         return Single!(Void);
       else
-        return new Array(iter.elemType());
+        static if (is(T == RichIterator))
+          return new Array(iter.elemType());
+        else
+          return new ExtArray(iter.elemType(), true);
     }
     string toString() { return Format("Eval(", ex, ")"); }
     void emitAsm(AsmFile af) {
       int offs;
-      void emitStmt(Expr var) {
+      void emitStmtInto(Expr var) {
         if (auto lv = cast(LValue) ex) {
           iparse!(Statement, "iter_array_eval_step_1", "tree.stmt")
                  (` { int i; while var[i++] <- _iter { } }`,
@@ -543,18 +626,41 @@ class EvalIterator : Expr, Statement {
                   "_iter", ex, af).emitAsm(af);
         }
       }
+      void emitStmtConcat(Expr var) {
+        if (auto lv = cast(LValue) ex) {
+          iparse!(Statement, "iter_array_eval_step_4", "tree.stmt")
+                 (` { typeof(eval _iter) temp; while temp <- _iter { var ~= temp; } }`,
+                  namespace(),
+                  "var", var, "_iter", lv, af).emitAsm(af);
+        } else if (var) {
+          iparse!(Statement, "iter_array_eval_step_5", "tree.stmt")
+                 (` { auto temp = _iter; typeof(eval temp) temp2; while temp2 <- temp { var ~= temp2; } }`,
+                  namespace(),
+                  "var", var, "_iter", ex, af).emitAsm(af);
+        } else {
+          iparse!(Statement, "iter_eval_step_6", "tree.stmt")
+                 (` { auto temp = _iter; while temp { } }`,
+                  "_iter", ex, af).emitAsm(af);
+        }
+      }
       if (target) {
-        emitStmt(target);
+        emitStmtInto(target);
       } else {
         if (valueType() == Single!(Void))
-          emitStmt(null);
+          emitStmtInto(null);
         else {
-          mkVar(af, valueType(), true, (Variable var) {
-            iparse!(Statement, "initVar", "tree.semicol_stmt.assign")
-                  (`var = new elem[len]`,
-                  "var", var, "len", iter.length(ex), "elem", iter.elemType()).emitAsm(af);
-            emitStmt(var);
-          });
+          static if (is(T == RichIterator)) {
+            mkVar(af, valueType(), true, (Variable var) {
+              iparse!(Statement, "initVar", "tree.semicol_stmt.assign")
+                    (`var = new elem[len]`,
+                    "var", var, "len", iter.length(ex), "elem", iter.elemType()).emitAsm(af);
+              emitStmtInto(var);
+            });
+          } else {
+            mkVar(af, new ExtArray(iter.elemType(), true), false, (Variable var) {
+              emitStmtConcat(var);
+            });
+          }
         }
       }
     }
@@ -563,10 +669,16 @@ class EvalIterator : Expr, Statement {
 
 Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto iter = cast(RichIterator) ex.valueType();
+    auto t2 = text;
+    if (!t2.accept(".eval")) return null;
+    auto iter = cast(Iterator) ex.valueType();
     if (!iter) return null;
-    if (!text.accept(".eval")) return null;
-    return new EvalIterator(ex, iter);
+    text = t2;
+    if (auto ri = cast(RichIterator) iter) {
+      return new EvalIterator!(RichIterator) (ex, ri);
+    } else {
+      return new EvalIterator!(Iterator) (ex, iter);
+    }
   };
 }
 mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval");
@@ -596,7 +708,7 @@ Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
     }
     text = t2;
     auto it = cast(RichIterator) value.valueType();
-    return new EvalIterator(value, it, target);
+    return new EvalIterator!(RichIterator) (value, it, target);
   } else return null;
 }
 mixin DefaultParser!(gotIteratorAssign, "tree.semicol_stmt.assign_iterator", "11");
