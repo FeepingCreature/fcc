@@ -193,3 +193,17 @@ static this() {
     return new ArrayMaker(getArrayPtr(ex), getArrayLength(ex), new IntExpr(0));
   };
 }
+
+import ast.opers, ast.namespace;
+static this() {
+  defineOp("==", delegate Expr(Expr ex1, Expr ex2) {
+    bool isArray(IType it) { return !!cast(Array) it; }
+    if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
+      return null;
+    auto res = iparse!(Expr, "array_eq", "tree.expr")
+                  (`eval memcmp(cast(void*) ex1.ptr, cast(void*) ex2.ptr, ex1.length * typeof(ex1[0]).sizeof) == 0`,
+                   "ex1", ex1, "ex2", ex2);
+    assert(!!res);
+    return res;
+  });
+}

@@ -97,7 +97,11 @@ static this() {
     return new ConcatChain(ex1, ex2);
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
-    if (!isExtArray(ex1.valueType()) || !gotImplicitCast(ex2, &isArray))
+    if (
+      !isExtArray(ex1.valueType()) ||
+      !gotImplicitCast(ex2, (IType it) {
+        return test(new Array((cast(ExtArray) ex1.valueType()).elemType) == it);
+      }))
       return null;
     if (!cast(LValue) ex1) {
       logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: ", ex1, ex2);
@@ -113,6 +117,26 @@ static this() {
       return iparse!(Expr, "concat_into_ext", "tree.expr")
                     (`sys.append2!T(&l, r)`,
                     namespace(),
+                    "T", ea.elemType, "l", ex1, "r", ex2);
+    }
+  });
+  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+    if (!isExtArray(ex1.valueType())) return null;
+    auto et = (cast(ExtArray) ex1.valueType()).elemType;
+    if (!gotImplicitCast(ex2, (IType it) { return !!(it == et); }))
+      return null;
+    if (!cast(LValue) ex1) {
+      logln("Cannot concatenate ext+elem: ext is not lvalue; cannot invalidate: ", ex1, ex2);
+      asm { int 3; }
+    }
+    auto ea = cast(ExtArray) ex1.valueType();
+    if (ea.freeOnResize) {
+      return iparse!(Expr, "concat_into_ext_fOR_elem", "tree.expr")
+                    (`sys.append3e!T(&l, r)`, namespace(),
+                    "T", ea.elemType, "l", ex1, "r", ex2);
+    } else {
+      return iparse!(Expr, "concat_into_ext_elem", "tree.expr")
+                    (`sys.append2e!T(&l, r)`, namespace(),
                     "T", ea.elemType, "l", ex1, "r", ex2);
     }
   });
@@ -133,6 +157,13 @@ Object gotConcatChain(ref string text, ParseCb cont, ParseCb rest) {
   if (!cont(t2, &op)) return null;
   auto first = op;
   retry:
+  auto t3 = t2;
+  if (t3.accept("~=") && cont(t3, &op2)) {
+    op = lookupOp("~=", op, op2);
+    if (!op) return null;
+    t2 = t3;
+    goto retry;
+  }
   if (t2.accept("~") && cont(t2, &op2)) {
     op = lookupOp("~", op, op2);
     if (!op) return null;

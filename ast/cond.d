@@ -130,21 +130,41 @@ Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNegate, "cond.negate", "72");
 
+import ast.casting, ast.opers;
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool not, smaller, equal, greater;
   Expr ex1, ex2;
-  if (rest(t2, "tree.int_expr", &ex1) &&
+  if (rest(t2, "tree.expr >tree.expr.cond", &ex1) &&
       (
         (t2.accept("!") && (not = true)),
         (t2.accept("<") && (smaller = true)),
         (t2.accept(">") && (greater = true)),
         ((not || smaller || t2.accept("=")) && t2.accept("=") && (equal = true)),
         (smaller || equal || greater)
-      ) && rest(t2, "tree.int_expr", &ex2)
+      ) && rest(t2, "tree.expr >tree.expr.cond", &ex2)
   ) {
     text = t2;
-    return new Compare(ex1, not, smaller, equal, greater, ex2);
+    {
+      auto ie1 = ex1, ie2 = ex2;
+      bool isInt(IType it) { return !!cast(SysInt) it; }
+      if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
+        return new Compare(ie1, not, smaller, equal, greater, ie2);
+      }
+    }
+    {
+      auto fe1 = ex1, fe2 = ex2;
+      bool isFloat(IType it) { return !!cast(Float) it; }
+      if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
+        return new Compare(fe1, not, smaller, equal, greater, fe2);
+      }
+    }
+    auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
+    if (op == "=") op = "==";
+    auto res = lookupOp(op, ex1, ex2);
+    if (auto ce = cast(CondExpr) res) return cast(Object) ce.cd;
+    logln("::", res);
+    assert(false);
   } else return null;
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
@@ -223,3 +243,44 @@ Object gotBraces(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotBraces, "cond.braces", "9");
+
+// pretty much only needed for iparses that use conds
+Object gotNamedCond(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  string id;
+  if (!t2.gotIdentifier(id)) return null;
+  if (auto cd = cast(Cond) namespace().lookup(id)) {
+    text = t2;
+    return cast(Object) cd;
+  } else return null;
+}
+mixin DefaultParser!(gotNamedCond, "cond.named", "75");
+
+import ast.vardecl;
+class CondExpr : Expr {
+  Cond cd;
+  this(Cond cd) { this.cd = cd; }
+  mixin defaultIterate!(cd);
+  override {
+    IType valueType() { return Single!(SysInt); }
+    CondExpr dup() { return new CondExpr(cd.dup); }
+    void emitAsm(AsmFile af) {
+      mkVar(af, Single!(SysInt), true, (Variable var) {
+        iparse!(Statement, "cond_expr_ifstmt", "tree.stmt")
+              (`if !cond var = false; else var = true; `,
+                "cond", cd, "var", var).emitAsm(af);
+      });
+    }
+  }
+}
+
+Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Cond cd;
+  if (t2.accept("eval") && rest(t2, "cond", &cd)) {
+    if (cast(ExprWrap) cd) return null;
+    text = t2;
+    return new CondExpr(cd);
+  } else return null;
+}
+mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval_cond", "2701");
