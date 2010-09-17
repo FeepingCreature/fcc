@@ -5,16 +5,17 @@ import ast.fun, ast.base;
 import ast.tuple_access, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
 bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref Expr[] res) {
   Expr arg;
+  auto backup_text = text;
   if (!rest(text, "tree.expr _tree.expr.arith", &arg))
     return false;
   Expr[] args;
-  void flatten(Expr ex) {
-    if (cast(AstTuple) ex.valueType()) {
-      foreach (entry; getTupleEntries(ex))
-        flatten(entry);
-    } else args ~= fold(ex);
+  args ~= arg;
+  Expr[] flatten(Expr ex) {
+    if (cast(AstTuple) ex.valueType())
+      return getTupleEntries(ex);
+    else
+      return null;
   }
-  flatten(arg);
   foreach (i, type; params) {
     if (cast(Variadic) type) {
       foreach (ref rest_arg; args)
@@ -27,17 +28,29 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
     if (!args.length) {
       throw new Exception(Format("Not enough parameters for ", info, "!"));
     }
+    IType[] tried;
+  retry:
     auto ex = args.take();
     auto backup = ex;
-    IType[] tried;
     if (!gotImplicitCast(ex, (IType it) {
       tried ~= it;
       return test(it == type);
     }))
-      throw new Exception(Format("Couldn't match ", backup.valueType(), " to function call ", info, " ", params, "[", i, "]; tried ", tried, ". "));
+      if (auto list = flatten(ex)) {
+        args = list ~ args;
+        goto retry;
+      } else
+        throw new Exception(Format("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params, "[", i, "]; tried ", tried, " at ", backup_text.next_text()));
     res ~= ex;
   }
-  if (args.length) {
+  Expr[] flat;
+  void recurse(Expr ex) {
+    if (cast(AstTuple) ex.valueType())
+      foreach (entry; flatten(ex)) recurse(entry);
+    else flat ~= ex;
+  }
+  foreach (arg2; args) recurse(arg2);
+  if (flat.length) {
     throw new Exception(Format("Extraneous parameters to ", info, ": ", args));
   }
   return true;
