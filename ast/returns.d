@@ -41,6 +41,12 @@ class ReturnStmt : Statement {
         af.popStack("%eax", Single!(SizeT));
         af.popStack("%ecx", Single!(SizeT));
         af.popStack("%edx", Single!(SizeT));
+      } else if (value.valueType().size == 16) {
+        value.emitAsm(af);
+        af.popStack("%eax", Single!(SizeT));
+        af.popStack("%ebx", Single!(SizeT));
+        af.popStack("%ecx", Single!(SizeT));
+        af.popStack("%edx", Single!(SizeT));
       } else {
         assert(false, Format("Unsupported return type ", value.valueType()));
       }
