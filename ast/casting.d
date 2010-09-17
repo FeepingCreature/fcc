@@ -246,7 +246,28 @@ class CharToShortCast : Expr {
   }
 }
 
+LValue reinterpret_cast(IType to, LValue from) {
+  return new RCL(to, from);
+}
+
+Expr reinterpret_cast(IType to, Expr from) {
+  if (auto lv = cast(LValue) from)
+    return reinterpret_cast(to, lv);
+  return new RCE(to, from);
+}
+
 static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (auto tp = cast(TypeProxy) ex.valueType()) {
+      auto ty = tp.actualType();
+      while (true) {
+        if (auto tp2 = cast(TypeProxy) ty) ty = tp2.actualType();
+        else break;
+      }
+      return reinterpret_cast(ty, ex);
+    }
+    return null;
+  };
   implicits ~= delegate Expr(Expr ex) {
     if (ex.valueType() == Single!(Char))
       return new CharToShortCast(ex);
