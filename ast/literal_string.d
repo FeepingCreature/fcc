@@ -7,24 +7,26 @@ class StringExpr : CValue, Setupable {
   Module forb;
   this() { forb = current_module(); current_module().addSetupable(this); }
   this(string s) { this(); str = s; }
-  mixin DefaultDup!();
   mixin defaultIterate!();
   string name_used;
-  override void setup(AsmFile af) {
-    if (name_used) return;
-    name_used = Format("cons_", af.constants.length);
-    af.constants[name_used] = cast(ubyte[]) str;
+  override {
+    StringExpr dup() { return this; }
+    void setup(AsmFile af) {
+      if (name_used) return;
+      name_used = Format("cons_", af.constants.length);
+      af.constants[name_used] = cast(ubyte[]) str;
+    }
+    string toString() { return '"'~str.replace("\n", "\\n")~'"'; }
+    // default action: place in string segment, load address on stack
+    void emitAsm(AsmFile af) {
+      assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");
+    }
+    void emitLocation(AsmFile af) {
+      assert(!!name_used, Format("\"", str, "\" not set up (in ", forb, " vs. ", current_module(), ")"));
+      af.pushStack("$"~name_used, Single!(Pointer, Single!(Char)));
+    }
+    IType valueType() { return new StaticArray(Single!(Char), str.length); }
   }
-  override string toString() { return '"'~str.replace("\n", "\\n")~'"'; }
-  // default action: place in string segment, load address on stack
-  override void emitAsm(AsmFile af) {
-    assert(false, "Why are you pushing a string on the stack? This seems iffy to me. ");
-  }
-  override void emitLocation(AsmFile af) {
-    assert(!!name_used, Format("\"", str, "\" not set up (in ", forb, " vs. ", current_module(), ")"));
-    af.pushStack("$"~name_used, Single!(Pointer, Single!(Char)));
-  }
-  override IType valueType() { return new StaticArray(Single!(Char), str.length); }
 }
 
 static this() {

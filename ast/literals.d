@@ -82,7 +82,7 @@ mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "55");
 class CValueAsPointer : Expr {
   CValue sup;
   mixin MyThis!("sup");
-  mixin DefaultDup!();
+  override typeof(this) dup() { return new typeof(this) (sup.dup); }
   mixin defaultIterate!(sup);
   override IType valueType() {
     if (auto sa = cast(StaticArray) sup.valueType())
@@ -92,6 +92,7 @@ class CValueAsPointer : Expr {
   override void emitAsm(AsmFile af) {
     sup.emitLocation(af);
   }
+  override string toString() { return Format("cvalue& ", sup); }
 }
 
 import ast.casting, ast.fold;
