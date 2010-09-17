@@ -29,7 +29,6 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
     if (t2.accept(".") && t2.gotIdentifier(member)) {
       auto mvar = strtype.lookup(member);
       if (!mvar) return null;
-      // logln("Got a struct fun? ", mvar);
       auto smf = cast(RelFunction) mvar;
       if (!smf) return null;
       text = t2;
@@ -39,15 +38,33 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotStructFun, "tree.rhs_partial.structfun");
 
+import ast.vardecl, ast.assign;
 class RelFunCall : FunCall {
   Expr baseptr;
-  mixin This!("baseptr");
+  this(Expr ex) {
+    baseptr = ex;
+  }
   override void emitAsm(AsmFile af) {
-    // TODO: make temporary
-    auto lv = cast(LValue) baseptr;
-    assert(lv);
-    callDg(af, fun.type.ret, params,
-      new DgConstructExpr(fun.getPointer(), new RefExpr(lv)));
+    if (auto lv = cast(LValue) baseptr) {
+      callDg(af, fun.type.ret, params,
+        new DgConstructExpr(fun.getPointer(), new RefExpr(lv)));
+    } else {
+      mkVar(af, valueType(), true, (Variable var) {
+        auto backup = af.checkptStack();
+        scope(exit) af.restoreCheckptStack(backup);
+        auto temp = new Variable(baseptr.valueType(), null, boffs(baseptr.valueType(), af.currentStackDepth));
+        {
+          auto vd = new VarDecl;
+          vd.vars ~= temp;
+          vd.emitAsm(af);
+        }
+        (new Assignment(temp, baseptr)).emitAsm(af);
+        auto res = new Variable(valueType(), null, boffs(valueType(), af.currentStackDepth));
+        callDg(af, fun.type.ret, params,
+          new DgConstructExpr(fun.getPointer(), new RefExpr(temp)));
+        (new Assignment(var, res)).emitAsm(af);
+      });
+    }
   }
   override IType valueType() {
     return fun.type.ret;
