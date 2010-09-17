@@ -40,7 +40,8 @@ class TemplateInstance : Namespace {
   IType type;
   Template parent;
   this(Template parent, IType type, ParseCb rest) {
-    auto mod = namespace().get!(Module);
+    // auto mod = namespace().get!(Module);
+    auto mod = current_module();
     if (!mod)
       throw new Exception(Format("No module for template instance below ", namespace(), "!"));
     this.type = type;
@@ -88,6 +89,7 @@ Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
   if (!t) throw new Exception("'"~id~"' is not a template! ");
   IType ty;
   if (!rest(t2, "type", &ty)) throw new Exception("Couldn't match type for instantiation at '"~t2.next_text()~"'");
+  // logln("instantiate ", t.name, " with ", ty);
   auto inst = t.getInstance(ty, rest);
   text = t2;
   if (auto res = inst.lookup(t.name, true)) return res;

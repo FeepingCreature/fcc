@@ -22,7 +22,10 @@ import
 import ast.parse, ast.namespace, ast.scopes;
 // from ast.namespace
 mixin DefaultParser!(gotNamed, "tree.expr.named", "4");
-static this() { New(namespace, { return cast(Namespace) null; }); }
+static this() {
+  New(namespace, { return cast(Namespace) null; });
+  New(current_module, { return cast(Module) null; });
+}
 alias ast.parse.startsWith startsWith;
 
 extern(C) {

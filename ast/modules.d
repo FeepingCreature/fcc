@@ -2,7 +2,7 @@ module ast.modules;
 
 import ast.base, ast.namespace, ast.fun, ast.variable, ast.structure, ast.parse;
 
-import tools.ctfe;
+import tools.ctfe, tools.threads;
 
 class Module : Namespace, Tree, Named {
   string name;
@@ -13,6 +13,9 @@ class Module : Namespace, Tree, Named {
     Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
+      auto backup = current_module();
+      current_module.set(this);
+      scope(exit) current_module.set(backup);
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
@@ -37,6 +40,7 @@ class Module : Namespace, Tree, Named {
   }
   override Stuple!(IType, string, int)[] stackframe() { assert(false); }
 }
+TLS!(Module) current_module;
 
 Module sysmod;
 
@@ -67,6 +71,7 @@ void setupSysmods() {
     alias bool = int;
     alias true = cast(bool) 1;
     alias false = cast(bool) 0;
+    alias null = cast(void*) 0;
     extern(C) {
       void puts(char*);
       void printf(char*, ...);
@@ -74,15 +79,17 @@ void setupSysmods() {
       void* calloc(int, int);
       void free(void*);
       void* realloc(void* ptr, size_t size);
-      void* memcpy(void* dest, void* src, int n);
+      void* memcpy(void* dest, src, int n);
+      int memcmp(void* s1, s2, int n);
       int snprintf(char* str, int size, char* format, ...);
     }
     // before marker
-    int strcmp(char[] a, char[] b) {
-      if a.length != b.length return 0;
+    alias string = char[];
+    bool strcmp(string a, b) {
+      if a.length != b.length return false;
       for (int i = 0; i < a.length; ++i)
-        if a[i] != b[i] return 0;
-      return 1;
+        if a[i] != b[i] return false;
+      return true;
     }
     template init(T) <<EOT
       T init;
@@ -97,7 +104,7 @@ void setupSysmods() {
       void  free   (void* p)           { free_dg(p); }
       void* realloc(void* p, size_t s) { return realloc_dg(p, s); }
       /*MARKER*/
-      void append(char[] target, char[] text) {
+      void append(string target, string text) {
         int newsize = target.length + text.length;
         auto newtarget = new char[newsize];
         newtarget[0 .. target.length] = target;
@@ -125,6 +132,11 @@ void setupSysmods() {
         }
       }
     EOT
+    template append2e(T) <<EOT
+      T[~] append2e(T[~]* l, T r) {
+        return append2!T(l, (&r)[0..1]);
+      }
+    EOT
     // maybe just a lil' copypaste
     template append3(T) <<EOT
       T[auto ~] append3(T[auto ~]* l, T[] r) {
@@ -148,10 +160,15 @@ void setupSysmods() {
         }
       }
     EOT
-    char[] itoa(int i) {
+    template append3e(T) <<EOT
+      T[auto ~] append3e(T[auto ~]* l, T r) {
+        return append3!T(l, (&r)[0..1]);
+      }
+    EOT
+    string itoa(int i) {
       if i < 0 return "-" ~ itoa(-i);
       if i == 0 return "0";
-      char[] res;
+      string res;
       while i {
         char[1] temp;
         temp[0] = "0123456789"[i%10];
@@ -161,15 +178,15 @@ void setupSysmods() {
       return res;
     }
     alias vec3f = vec(float, 3);
-    char[] ptoa(void* p) {
+    string ptoa(void* p) {
       auto res = new char[size_t.sizeof * 2 + 2 + 1];
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
       return res[0 .. res.length - 1];
     }
-    void writeln(char[] line) {
+    void writeln(string line) {
       printf("%.*s\n", line.length, line.ptr);
     }
-    char[] ftoa(float f) {
+    string ftoa(float f) {
       // printf("ftoa(%f)\n", f);
       // printf("ftoa(%f)\n", cast(double) 16);
       auto res = new char[20];
@@ -246,6 +263,9 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   if (t2.accept("module ")) {
     New(mod);
     namespace.set(mod);
+    auto backup_mod = current_module();
+    current_module.set(mod);
+    scope(exit) current_module.set(backup_mod);
     if (t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
       t2.many(
         !!restart(t2, "tree.toplevel", &tr),
