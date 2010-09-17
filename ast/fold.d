@@ -1,12 +1,19 @@
 module ast.fold;
 
-import ast.base;
+import ast.base, tools.base: and;
 
 Expr fold(Expr ex) {
+  if (!ex) return null;
   Expr cur = ex;
   while (true) {
     auto start = cur;
-    foreach (dg; foldopt) if (auto res = dg(cur)) cur = res;
+    foreach (dg; foldopt) {
+      if (auto res = dg(cur)) cur = res;
+      // logln("TEST ", (cast(Object) cur.valueType()).classinfo.name, " != ", (cast(Object) start.valueType()).classinfo.name, ": ", cur.valueType() != start.valueType());
+      if (cur.valueType() != start.valueType()) {
+        throw new Exception(Format("Fold has violated type consistency: ", start, " => ", cur));
+      }
+    }
     if (cur is start) break;
   }
   return cur;

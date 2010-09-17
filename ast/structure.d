@@ -88,7 +88,7 @@ class RelMember : Expr, Named, RelTransformable {
 }
 
 class Structure : Namespace, RelNamespace, IType, Named {
-  mixin TypeDefaults!();
+  mixin TypeDefaults!(true, false);
   string name;
   bool isUnion;
   bool packed;
@@ -153,6 +153,10 @@ class Structure : Namespace, RelNamespace, IType, Named {
       if (auto rt = cast(RelTransformable) res)
         return cast(Object) rt.transform(base);
       return res;
+    }
+    int opEquals(IType it) {
+      auto str = cast(Structure) it;
+      return str is this;
     }
     string toString() {
       string res = "struct ";
@@ -452,7 +456,7 @@ Expr depointer(Expr ex) {
   return ex;
 }
 
-import ast.parse, tools.base: or;
+import ast.parse, ast.fun, tools.base: or;
 Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
@@ -470,12 +474,13 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept(".") && t2.gotIdentifier(member)) {
     auto st = cast(Structure) ex.valueType();
     auto m = st.lookupRel(member, ex);
+    if (cast(Function) m) { text = t2; return m; }
     ex = cast(Expr) m;
     if (!ex) {
       if (m) error = Format(member, " is not a struct var: ", m);
       else {
-        error = Format(member, " is not a member of ", st.name, ", containing ", st.names, "!");
-        if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit") // list of keywords
+        error = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names, "!");
+        if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval") // list of keywords
           throw new Exception(error);
       }
       return null;
