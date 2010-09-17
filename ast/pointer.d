@@ -79,6 +79,13 @@ static this() {
     }
     return null;
   };
+  implicits ~= delegate Expr(Expr ex) {
+    if (auto p = cast(Pointer) ex.valueType()) {
+      if (p.target != Single!(Void))
+        return reinterpret_cast(voidp, ex);
+    }
+    return null;
+  };
 }
 
 import ast.fold, ast.casting;
