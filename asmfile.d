@@ -5,6 +5,7 @@ import assemble, optimizer, ast.types, parseBase: startsWith;
 import tools.log, tools.functional: map;
 import tools.base: between, slice, atoi, split, stuple, apply, swap;
 class AsmFile {
+  string id;
   int[string] globals;
   ubyte[][string] constants;
   string[][string] longstants; // sorry
@@ -16,7 +17,7 @@ class AsmFile {
   }
   string code;
   bool optimize;
-  this(bool optimize) { New(cache); this.optimize = optimize; }
+  this(bool optimize, string id) { New(cache); this.optimize = optimize; this.id = id; }
   Transcache cache;
   int currentStackDepth;
   void pushStack(string expr, IType type) {
@@ -187,7 +188,7 @@ class AsmFile {
   }
   int labelCounter; // Limited to 2^31 labels, le omg.
   string genLabel() {
-    return Format("label", labelCounter++);
+    return Format(".Label", labelCounter++);
   }
   void jump(string label) {
     labels_refcount[label] ++;

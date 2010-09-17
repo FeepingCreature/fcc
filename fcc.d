@@ -72,7 +72,7 @@ Module optimize(Module mod) {
 bool ematSysmod;
 
 string compile(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
-  auto af = new AsmFile(optimize);
+  auto af = new AsmFile(optimize, file.replace("/", "_").replace(".cr", ""));
   if (configOpts) {
     setupOpts();
     auto cmds = configOpts.split(",");

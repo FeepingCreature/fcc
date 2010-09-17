@@ -149,16 +149,18 @@ void setupSysmods() {
     // maybe just a lil' copypaste
     template append3(T) <<EOT
       T[auto ~] append3(T[auto ~]* l, T[] r) {
-        // printf("append3 %i to %i, cap %i\n", r.length, l.length, l.capacity);
+        if !r.length return *l;
         if (l.capacity < l.length + r.length) {
           auto size = l.length + r.length, size2 = l.length * 2;
           auto newsize = size;
           if (size2 > newsize) newsize = size2;
-          T[auto ~] res = cast(T[auto~]) ((new T[newsize])[0 .. size]);
-          res[0 .. l.length] = (*l)[];
-          mem.free(cast(void*) l.ptr);
-          res[l.length .. size] = r;
+          auto full = new T[newsize];
+          T[auto ~] res = cast(T[auto~]) ((full)[0 .. size]);
           res.capacity = newsize;
+          res[0 .. l.length] = (*l)[];
+          if l.capacity // otherwise, initialized from slice
+            mem.free(cast(void*) l.ptr);
+          res[l.length .. size] = r;
           return res;
         } else {
           T[auto ~] res = cast(T[auto~]) l.ptr[0 .. l.length + r.length]; // make space

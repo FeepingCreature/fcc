@@ -6,7 +6,7 @@ public import ast.int_literal;
 
 import ast.static_arrays, parseBase;
 
-CValue delegate(string) mkString; // defined in literal_string
+Expr delegate(string) mkString; // defined in literal_string
 
 class FloatExpr : Expr {
   union {
@@ -93,13 +93,4 @@ class CValueAsPointer : Expr {
     sup.emitLocation(af);
   }
   override string toString() { return Format("cvalue& ", sup); }
-}
-
-import ast.casting, ast.fold;
-static this() {
-  implicits ~= delegate Expr(Expr ex) {
-    auto cv = cast(CValue) ex;
-    if (!cv || !cast(StaticArray) cv.valueType()) return null;
-    return new CValueAsPointer(cv);
-  };
 }

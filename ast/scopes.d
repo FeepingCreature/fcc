@@ -27,8 +27,10 @@ class Scope : Namespace, ScopeLike, Statement {
     if (fun) return fun.mangleSelf();
     return sup.mangle("scope", null);
   }
-  string entry() { return Format(base, "_entry", id); }
-  string exit() { return Format(base, "_exit", id); }
+  // string entry() { return Format(base, "_entry", id); }
+  // string exit() { return Format(base, "_exit", id); }
+  string entry() { return Format(".L", id, "_entry"); }
+  string exit() { return Format(".L", id, "_exit"); }
   string toString() { /*return Format(_body);*/ return Format("scope <- ", sup); }
   this() {
     id = getuid();

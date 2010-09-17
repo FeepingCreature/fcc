@@ -9,17 +9,17 @@ int find(string text, string match) {
   return -1;
 }
 
-template readlines(T) <<EOF
-  struct iter {
+template splitAt(T) <<EOF
+  class iter {
     T sup;
-    char[] buffer;
+    char[auto~] buffer;
     // Expr yieldAdvance(LValue);
     string step() {
       int pos;
-      do pos = find(buffer[], "\n");
+      do pos = find(buffer[], sup[0]);
       while pos == -1 {
         string supstep;
-        if (supstep <- sup) { } else return new char[0];
+        if (supstep <- sup[1]) { } else return new char[0];
         buffer ~= supstep;
       }
       auto res = buffer[0 .. pos];
@@ -28,11 +28,11 @@ template readlines(T) <<EOF
     }
     // Cond terminateCond(Expr); // false => can't yield more values
     bool ivalid() {
-      return sup.ivalid();
+      return sup[1].ivalid();
     }
   }
-  iter readlines(T t) {
-    iter res;
+  iter splitAt(T t) {
+    auto res = new iter;
     res.sup = t;
     return res;
   }

@@ -95,6 +95,7 @@ class Structure : Namespace, RelNamespace, IType, Named {
   int _size() {
     int res;
     select((string, RelMember member) {
+      if (Single!(Void) == member.type) return;
       auto end = member.offset + member.type.size;
       if (end > res) res = end;
     });
@@ -269,7 +270,8 @@ class StructLiteral : Expr {
         if (ex.valueType() != entry._0)
           throw new Exception(Format("Cannot use ", ex, " in struct literal: doesn't match ", entry._0, "!"));
         {
-          mixin(mustOffset("ex.valueType().size"));
+          auto type = ex.valueType(), size = (Single!(Void) == type)?0:type.size;
+          mixin(mustOffset("size"));
           ex.emitAsm(af);
         }
         offset += ex.valueType().size;
