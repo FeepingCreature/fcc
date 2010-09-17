@@ -17,6 +17,41 @@ Expr mkArraySlice(Expr array, Expr from = null, Expr to = null) {
   );
 }
 
+class FullSlice : Expr {
+  Expr sup;
+  IType type;
+  this(Expr ex) {
+    sup = ex;
+    if (auto ar = cast(Array) sup.valueType()) type = ar;
+    else if (auto ea = cast(ExtArray) sup.valueType()) type = new Array(ea.elemType);
+    else {
+      logln("full slice value type on ", sup.valueType(), " .. huh. ");
+      assert(false);
+    }
+  }
+  mixin defaultIterate!(sup);
+  override {
+    FullSlice dup() { return new FullSlice(sup.dup); }
+    IType valueType() { return type; }
+    import ast.vardecl, ast.assign;
+    void emitAsm(AsmFile af) {
+      mkVar(af, valueType(), true, (Variable var) {
+        auto backup = af.checkptStack();
+        scope(exit) af.restoreCheckptStack(backup);
+        
+        auto temp = new Variable(sup.valueType(), null, boffs(sup.valueType(), af.currentStackDepth));
+        { auto vd = new VarDecl; vd.vars ~= temp; vd.emitAsm(af); }
+        
+        (new Assignment(temp, sup)).emitAsm(af);
+        
+        iparse!(Statement, "fullslice_assign", "tree.semicol_stmt.assign")
+               (`var = temp[0 .. temp.length]`,
+                "var", var, "temp", temp).emitAsm(af);
+      });
+    }
+  }
+}
+
 import ast.iterator, ast.casting;
 Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
@@ -31,6 +66,10 @@ Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
         auto casted = new RCE((cast(Range) range.valueType()).wrapper, range);
         from = iparse!(Expr, "slice_range_from", "tree.expr")("ex.cur", "ex", casted);
         to   = iparse!(Expr, "slice_range_to",   "tree.expr")("ex.end", "ex", casted);
+      }
+      if (!from && !to && !cast(LValue) ex) {
+        text = t2;
+        return new FullSlice(ex);
       }
       if (!from) from = new IntExpr(0);
       if (!to) {
@@ -52,12 +91,15 @@ mixin DefaultParser!(gotSliceExpr, "tree.rhs_partial.slice");
 
 Statement getSliceAssign(Expr slice, Expr array) {
   IType elemtype;
+  IType[] tried;
+  if (!gotImplicitCast(array, (IType it) { tried ~= it; return cast(StaticArray) it || cast(Array) it; })) {
+    throw new Exception(Format("Can't assign to slice: ", array, "; none of ", tried, " fit. "));
+  }
   if (auto sa = cast(StaticArray) array.valueType())
     elemtype = sa.elemType;
   else if (auto ar = cast(Array) array.valueType())
     elemtype = ar.elemType;
-  else
-    throw new Exception(Format("Can't assign to slice: ", array));
+  else assert(false);
   
   auto fc = (cast(Function) sysmod.lookup("memcpy")).mkCall;
   fc.params ~= getArrayPtr(slice);
