@@ -81,7 +81,6 @@ class RelFunction : Function, RelTransformable {
     basetype = cast(IType) rn;
     assert(!!basetype);
   }
-  // override bool addsSelf() { return false; }
   RelFunction alloc() { return new RelFunction; }
   RelFunction dup() {
     auto res = cast(RelFunction) super.dup();
@@ -92,7 +91,6 @@ class RelFunction : Function, RelTransformable {
   }
   override Object transform(Expr base) {
     assert(!baseptr, Format("RelFun was pretransformed: ", baseptr));
-    // logln("transform ", this, " with ", base);
     assert(!!cast(RelNamespace) basetype);
     auto res = dup();
     res.baseptr = base;
@@ -142,6 +140,7 @@ class RelFunction : Function, RelTransformable {
     }
   }
 }
+
 // &foo.fun, stolen from ast.nestfun
 class StructFunRefExpr : mkDelegate {
   RelFunction fun;
@@ -155,7 +154,6 @@ class StructFunRefExpr : mkDelegate {
   override string toString() {
     return Format("&", fun.baseptr, ".", fun);
   }
-  // TODO: emit asm directly in case of PointerFunction.
   override IType valueType() {
     return new Delegate(fun.type.ret, fun.type.params /map/ ex!("a, b -> a"));
   }

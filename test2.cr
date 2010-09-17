@@ -62,7 +62,7 @@ template readfile(T) <<EOF
     int hdl;
     bool done;
     string step() {
-      auto buf = new char[64];
+      auto buf = new char[256];
       auto size = read(hdl, buf.ptr, buf.length);
       if size <= 0 { done = true; return new char[0]; }
       return buf[0 .. size];
