@@ -15,6 +15,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   string buf;
   void flush() { if (!buf) return; res.addArray(new StringExpr(buf)); buf = null; }
   bool extended;
+  auto backup = str;
   while (str.length) {
     auto ch = str.take();
     if (ch == '\\') buf ~= str.take();
@@ -33,7 +34,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
           if (!rest(left, "tree.expr", &ex))
             throw new Exception("Failed to parse expr from '"~left.next_text()~"'");
           if (!left.accept(")"))
-            throw new Exception("Unmatched expr in '"~left.next_text()~"'");
+            throw new Exception("Unmatched expr in '"~left.next_text()~"' of '"~backup~"'");
           str = left;
         } else {
           string id;
@@ -100,8 +101,13 @@ Expr simpleFormat(Expr ex) {
     res.addArray(new StringExpr("}"));
     return res;
   }
-  if (auto ar = cast(Array) type) {
-    if (Single!(Char) == ar.elemType) {
+  auto ar = cast(Array) type;
+  auto ea = cast(ExtArray) type;
+  if (ar || ea) {
+    IType et;
+    if (ar) et = ar.elemType;
+    if (ea) et = ea.elemType;
+    if (Single!(Char) == et) {
       return ex;
     }
     return new CallbackExpr(Single!(Array, Single!(Char)), ex /apply/ (Expr ex, AsmFile af) {
@@ -111,13 +117,14 @@ Expr simpleFormat(Expr ex) {
             char[auto ~] res;
             res = res ~ "[";
             auto ar = array;
+            printf("dump array of %i\n", ar.length);
             for (int i = 0; i < ar.length; ++i) {
               if i res = res ~ ", ";
               auto elem = ar[i];
               res = res ~ "$elem";
             }
             res = res ~ "]";
-            var = res[0 .. res.length];
+            var = res[];
           }`,
           namespace(),
           "var", var, "array", ex,
