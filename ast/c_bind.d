@@ -1,7 +1,7 @@
 module ast.c_bind;
 
 // Optimized for GL.h and SDL.h; may not work for others!! 
-import ast.base, ast.modules, ast.structure, ast.casting, ast.tuples: AstTuple = Tuple;
+import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays, ast.tuples: AstTuple = Tuple;
 
 import tools.compat, tools.functional;
 alias asmfile.startsWith startsWith;
@@ -48,7 +48,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
   foreach (line; src.split("\n")) {
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
-    if (line.startsWith("}")) { inEnum = false; flushBuffer; }
+    if (line.startsWith("}")) { inEnum = false; newsrc ~= line; flushBuffer; continue; }
     if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else {  newsrc ~= line; newsrc ~= ";"; } }
     if (line.startsWith("#")) continue;
     newsrc ~= line;
@@ -64,7 +64,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
   namespace.set(myNS);
   scope(exit) namespace.set(myNS.sup);
   void add(string name, Named n) {
-    if (myNS.lookup(name)) return; // duplicate definition. meh.
+    if (myNS.lookup(name)) { return; } // duplicate definition. meh.
     auto ea = cast(ExprAlias) n;
     if (ea) {
       if (!gotImplicitCast(ea.base, (IType it) { return !cast(AstTuple) it; })) {
@@ -101,8 +101,9 @@ void parseHeader(string filename, string src, ParseCb rest) {
     if (accept("double")) return Single!(Double);
     if (accept("struct")) {
       string name;
-      text.gotIdentifier(name); // ~Meh.
-      return Single!(Void);
+      text.gotIdentifier(name);
+      if (auto p = name in cache) return cast(IType) *p;
+      else return Single!(Void);
     }
     string id;
     if (!text.gotIdentifier(id)) return null;
@@ -121,6 +122,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     IType ty = matchType(text);
     if (!ty) return null;
     text.accept("__restrict");
+    text.accept("__const");
     string id;
     gotIdentifier(text, id);
     text.accept(",");
@@ -136,7 +138,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       Expr ex;
       if (!stmt.gotIdentifier(id)) goto giveUp;
       if (!stmt.strip().length) continue; // ignore this kind of #define.
-      // logln("parse expr ", stmt);
+      // logln("parse expr ", stmt, "; id '", id, "'");
       auto backup = stmt;
       if (!gotIntExpr(stmt, ex) || stmt.strip().length) {
         stmt = backup;
@@ -158,6 +160,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
           goto giveUp; // On Error Fuck You
       }
       auto ea = new ExprAlias(ex, id);
+      // logln("got ", ea);
       add(id, ea);
       continue;
     }
@@ -189,7 +192,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       stmt = stmt.between("}", "");
       string name;
       if (stmt.strip().length && (!gotIdentifier(stmt, name) || stmt.strip().length)) {
-        logln("fail on '", stmt, "'");
+        // logln("fail on '", stmt, "'");
         goto giveUp;
       }
       foreach (elem; elems) add(elem.getIdentifier(), elem);
@@ -197,45 +200,72 @@ void parseHeader(string filename, string src, ParseCb rest) {
         add(name, new TypeAlias(Single!(SysInt), name));
       continue;
     }
-    if (isTypedef) {
-      bool isUnion;
-      auto st2 = stmt;
-      if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
-        string ident;
-        gotIdentifier(st2, ident);
-        if (st2.accept("{")) {
-          auto startstr = st2;
-          auto st = new Structure(ident);
-          st.isUnion = isUnion;
+    bool isUnion;
+    auto st2 = stmt;
+    if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
+      string ident;
+      gotIdentifier(st2, ident);
+      if (st2.accept("{")) {
+        auto startstr = st2;
+        auto st = new Structure(ident);
+        st.isUnion = isUnion;
+        while (true) {
+          if (st2.startsWith("#define"))
+            goto skip;
+          auto ty = matchType(st2);
+          if (!ty) goto giveUp1;
           while (true) {
-            // auto miew = st2;
-            auto ty = matchType(st2);
-            // if (!ty) logln("No match off ", miew);
-            if (!ty) goto giveUp1;
-            if (st2.find("(") != -1) {
-              // alias to void for now.
-              add(ident, new TypeAlias(Single!(Void), ident));
-              goto giveUp1; // can't handle yet
+            auto pos = st2.find("sizeof");
+            if (pos == -1) break;
+            auto block = st2[pos .. $].between("(", ")");
+            auto sty = matchType(block);
+            if (!sty) {
+              goto giveUp1;
             }
-            foreach (var; st2.split(",")) {
-              new RelMember(var.strip(), ty, st);
+            auto translated = Format(sty.size);
+            st2 = st2[0 .. pos] ~ translated ~ st2[pos .. $].between(")", "");
+          }
+          string name3;
+          auto st3 = st2;
+          Expr size;
+          st3 = st3.replace("(int)", ""); // hax
+          if (gotIdentifier(st3, name3) && st3.accept("[") && rest(st3, "tree.expr", &size) && st3.accept("]")) {
+            size = fold(size);
+            auto ie = cast(IntExpr) size;
+            if (!ie) goto giveUp1;
+            new RelMember(name3, new StaticArray(ty, ie.num), st);
+            if (st3.strip().length) {
+              goto giveUp1;
             }
-            st2 = statements.take();
-            if (st2.accept("}")) break;
+            goto skip;
           }
-          // logln(st2.strip(), " => ", st, "; ", st.size);
-          add(st2.strip(), st);
-          continue;
-          giveUp1:
-          while (true) {
-            // logln("stmt: ", st2, " in ", startstr);
-            st2 = statements.take();
-            if (st2.accept("}")) break;
+          if (st2.find("(") != -1) {
+            // alias to void for now.
+            add(ident, new TypeAlias(Single!(Void), ident));
+            goto giveUp1; // can't handle yet
           }
-          // logln(">>> ", st2);
-          continue;
+          foreach (var; st2.split(",")) {
+            new RelMember(var.strip(), ty, st);
+          }
+        skip:
+          st2 = statements.take();
+          if (st2.accept("}")) break;
         }
+        auto name = st2.strip();
+        if (!name.length) name = ident;
+        add(name, st);
+        continue;
+        giveUp1:
+        while (true) {
+          // logln("stmt: ", st2, " in ", startstr);
+          st2 = statements.take();
+          if (st2.accept("}")) break;
+        }
+        // logln(">>> ", st2);
+        continue;
       }
+    }
+    if (isTypedef) {
       auto target = matchType(stmt);
       string name;
       if (!target) goto giveUp;
