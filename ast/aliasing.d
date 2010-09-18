@@ -47,7 +47,7 @@ class TypeAlias : Named, IType, TypeProxy, SelfAdding {
     int opEquals(IType ty) { return base.opEquals(ty); }
     IType actualType() { return base; }
     string toString() {
-      return name;
+      return Format(name, "<-", base);
     }
   }
 }
