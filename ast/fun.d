@@ -155,7 +155,10 @@ void handleReturn(IType ret, AsmFile af) {
       af.pushStack("%ecx", Single!(SizeT));
     if (ret.size == 16)
       af.pushStack("%ebx", Single!(SizeT));
-    af.pushStack("%eax", Single!(SizeT));
+    if (ret.size >= 4)
+      af.pushStack("%eax", Single!(SizeT));
+    else if (ret.size == 2)
+      af.pushStack("%ax", Single!(Short));
   }
 }
 
@@ -168,7 +171,7 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
     if (auto s = cast(Symbol) fp) name = s.name;
     else name = "(nil)";
     
-    assert(ret.size == 4 || ret.size == 8 || ret.size == 12 || ret.size == 16 || cast(Void) ret,
+    assert(ret.size == 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret,
       Format("Return bug: ", ret, " from ", name, "!"));
     af.comment("Begin call to ", name);
     

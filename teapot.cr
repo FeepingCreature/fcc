@@ -103,7 +103,7 @@ void drawScene(DataSet ds) {
     glColor3f(f, f, f);
     using Quads {
       // lol
-      while auto id <- [for i <- cross ([0, 1, 2, 4, 5, 6, 8, 9, 10], 0..4): [for i <- 0..16: [i, i+1, i+5, i+4]][i[0]][i[1]]] {
+      while auto id <- [for i <- cross ([0, 1, 2, 4, 5, 6, 8, 9, 10], 0..4): [for i <- 0..16: [for k <- [0,1,5,4] extra i: i+k]][i[0]][i[1]]] {
         glVertex3f ds.vecs[ind[id] - 1];
       }
     }
