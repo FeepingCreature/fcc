@@ -127,6 +127,22 @@ class DoubleAsFloat : Expr {
   }
 }
 
+class IntLiteralAsShort : Expr {
+  IntExpr ie;
+  this(IntExpr ie) { this.ie = ie; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(ie);
+  override {
+    IType valueType() { return Single!(Short); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("2"));
+      af.mmove2(Format("$", ie.num), "%ax");
+      af.pushStack("%ax", valueType());
+    }
+  }
+}
+
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(Float) != ex.valueType()) return null;
@@ -136,6 +152,12 @@ static this() {
     if (Single!(Double) != ex.valueType()) return null;
     if (cast(FloatAsDouble) ex) return null; // lol
     return new DoubleAsFloat(ex);
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (Single!(SysInt) != ex.valueType()) return null;
+    auto ie = cast(IntExpr) ast.fold.fold(ex);
+    if (!ie || ie.num > 65535 || ie.num < 32767) return null;
+    return new IntLiteralAsShort(ie);
   };
 }
 
