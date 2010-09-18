@@ -24,6 +24,25 @@ class Vector : Type {
   }
 }
 
+import ast.casting, ast.static_arrays;
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (auto vec = cast(Vector) ex.valueType()) {
+      return reinterpret_cast(new StaticArray(vec.base, vec.len), ex);
+    }
+    return null;
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (auto vec = cast(Vector) ex.valueType()) {
+      IType[] types;
+      for (int i = 0; i < vec.len; ++i)
+        types ~= vec.base;
+      return reinterpret_cast(mkTuple(types), ex);
+    }
+    return null;
+  };
+}
+
 import ast.parse, ast.int_literal;
 Object gotVecType(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

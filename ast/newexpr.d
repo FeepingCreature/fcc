@@ -56,7 +56,18 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   
   if (auto sa = cast(StaticArray) ty) {
-    auto base = sa.elemType, len = new IntExpr(sa.length);
+    IType base = sa.elemType;
+    Expr len = new IntExpr(sa.length);
+    auto t3 = t2;
+    Expr newlen;
+    if (t3.accept("[") &&
+        rest(t3, "tree.expr", &newlen) &&
+        gotImplicitCast(newlen, (IType it) { return !!cast(SysInt) it; }) &&
+        t3.accept("]")) {
+      t2 = t3;
+      len = newlen;
+      base = sa;
+    }
     text = t2;
     // logln("new1 ", base, " [", len, "]");
     return cast(Object)

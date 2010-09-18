@@ -7,10 +7,13 @@ class Template : Named {
   string param;
   string source; // HAX
   Module context;
-  TemplateInstance[IType] emat; // past tense of emit
+  Stuple!(TemplateInstance, IType)[] emat; // past tense of emit
   TemplateInstance getInstance(IType type, ParseCb rest) {
-    if (auto p = type in emat) return *p;
-    return emat[type] = new TemplateInstance(this, type, rest);
+    foreach (entry; emat)
+      if (entry._1 == type) return entry._0;
+    auto ti = new TemplateInstance(this, type, rest);
+    emat ~= stuple(ti, type);
+    return ti;
   }
   override {
     string getIdentifier() { return name; }

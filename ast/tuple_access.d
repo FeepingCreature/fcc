@@ -48,7 +48,8 @@ Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     index = fold(index);
     auto ie = cast(IntExpr) index;
     if (!ie) {
-      throw new Exception(Format(index, " could not be simplified to an int in tuple index access at '"~text.next_text()~"'. "));
+      error = Format(index, " could not be simplified to an int in tuple index access at '"~text.next_text()~"'. ");
+      return null;
     }
     if (ie.num < 0 || ie.num !< count)
       throw new Exception(Format(ie.num, " out of bounds for tuple access at '"~text.next_text()~"'. "));

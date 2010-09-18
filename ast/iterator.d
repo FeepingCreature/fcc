@@ -202,12 +202,31 @@ class ForIter(I) : Type, I {
     return res;
   }
   Expr update(Expr ex, Placeholder var, Expr newvar) {
-    auto sex = ex.dup;
+    Expr[] todo;
     void subst(ref Iterable it) {
       if (it is var) it = cast(Iterable) newvar;
-      else it.iterate(&subst);
+      else {
+        auto ex = cast(Expr) it;
+        if (ex) {
+          if (auto fi = cast(ForIter!(Iterator)) ex.valueType()) {
+            todo ~= fi.ex;
+          }
+          if (auto fi = cast(ForIter!(RichIterator)) ex.valueType()) {
+            todo ~= fi.ex;
+          }
+        }
+        it.iterate(&subst);
+      }
     }
-    sex.iterate(&subst);
+    auto sex = ex.dup;
+    todo ~= sex;
+    bool[Expr] done;
+    while (todo.length) {
+      auto cur_ex = todo.take();
+      if (cur_ex in done) continue;
+      done[cur_ex] = true;
+      cur_ex.iterate(&subst);
+    }
     return sex;
   }
   Expr update(Expr ex, LValue lv) {
@@ -302,6 +321,7 @@ class ScopeAndExpr : Expr {
   this(Scope sc, Expr ex) { this.sc = sc; this.ex = ex; }
   mixin defaultIterate!(sc, ex);
   override {
+    string toString() { return Format(sc._body, ", ", ex); }
     ScopeAndExpr dup() { return new ScopeAndExpr(sc.dup, ex.dup); }
     IType valueType() { return ex.valueType(); }
     void emitAsm(AsmFile af) {
@@ -370,7 +390,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception("Expected ':' at '"~t2.next_text()~"'! ");
   
   auto it = cast(Iterator) sub.valueType();
-  auto ph = new Placeholder(it.elemType(), "it.elemType()");
+  auto ph = new Placeholder(it.elemType(), "it.elemType()"~ivarname);
   
   auto backup = namespace();
   auto mns = new MiniNamespace("for_iter_var");
@@ -389,7 +409,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr", &main))
     throw new Exception("Cannot find iterator expression at '"~t2.next_text()~"' in '"~text.next_text(32)~"'! ");
   if (!t2.accept("]"))
-    throw new Exception("Expected ']' at '"~t2.next_text()~"'! ");
+    throw new Exception("Expected ']' at '"~t2.next_text()~"'; partial is "~Format(main.valueType())~". ");
   text = t2;
   Expr res;
   PTuple!(IType, Expr, Placeholder, Placeholder) ipt;
@@ -545,6 +565,31 @@ Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "270");
 
+
+class TempIndex : Expr {
+  RichIterator ri; Expr ex, pos;
+  this(RichIterator ri, Expr ex, Expr pos) {
+    this.ri = ri;
+    this.ex = ex;
+    this.pos = pos;
+  }
+  mixin defaultIterate!(ex, pos);
+  override {
+    TempIndex dup() { return new TempIndex(ri, ex.dup, pos.dup); }
+    IType valueType() { return ri.elemType(); }
+    import ast.vardecl, ast.assign;
+    void emitAsm(AsmFile af) {
+      mkVar(af, valueType(), true, (Variable var) {
+        auto v2 = new Variable(ex.valueType(), null, boffs(ex.valueType(), af.currentStackDepth));
+        ex.emitAsm(af);
+        (new Assignment(var, ri.index(v2, pos))).emitAsm(af);
+        af.sfree(ex.valueType().size);
+      });
+    }
+  }
+}
+
+
 Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     auto iter = cast(Iterator) ex.valueType();
@@ -552,12 +597,11 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
-      text = t2;
       auto ri = cast(RichIterator) iter;
       if (!ri)
         throw new Exception(Format("Cannot access by index ",
           ex, " at ", text.next_text(), ": not a rich iterator! "));
-      
+      text = t2;
       if (auto range = cast(Range) pos.valueType()) {
         auto ps = new RCE(range.wrapper, pos);
         auto from = iparse!(Expr, "iter_slice_from", "tree.expr")
@@ -567,7 +611,9 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
         return cast(Object) ri.slice(ex, from, to);
       } else {
         auto lv = cast(LValue) ex;
-        if (!lv) return null;
+        if (!lv) {
+          return new TempIndex(ri, ex, pos);
+        }
         return cast(Object) ri.index(lv, pos);
       }
     } else return null;

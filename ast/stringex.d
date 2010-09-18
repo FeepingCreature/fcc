@@ -118,7 +118,6 @@ Expr simpleFormat(Expr ex) {
             char[auto ~] res;
             res = res ~ "[";
             auto ar = array;
-            printf("dump array of %i\n", ar.length);
             for (int i = 0; i < ar.length; ++i) {
               if i res = res ~ ", ";
               auto elem = ar[i];

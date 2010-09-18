@@ -13,18 +13,43 @@ LValue getIndex(Expr array, Expr pos) {
   return new DerefExpr(lookupOp("+", ptr, pos));
 }
 
+class SAIndexExpr : Expr {
+  Expr ex, pos;
+  this(Expr ex, Expr pos) { this.ex = ex; this.pos = pos; }
+  mixin defaultIterate!(ex, pos);
+  override {
+    SAIndexExpr dup() { return new SAIndexExpr(ex.dup, pos.dup); }
+    IType valueType() { return (cast(StaticArray) ex.valueType()).elemType; }
+    import ast.vardecl, ast.assign;
+    void emitAsm(AsmFile af) {
+      mkVar(af, valueType(), true, (Variable var) {
+        auto v2 = new Variable(ex.valueType(), null, boffs(ex.valueType(), af.currentStackDepth));
+        ex.emitAsm(af);
+        (new Assignment(var, getIndex(v2, pos))).emitAsm(af);
+        af.sfree(ex.valueType().size);
+      });
+    }
+  }
+}
+
 Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
+    // logln("access ", ex.valueType(), " @", text.next_text());
     if (!cast(StaticArray) ex.valueType() && !cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType())
       return null;
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       if (cast(Range) pos.valueType()) return null; // belongs to slice
-      if (auto dcme = cast(DontCastMeExpr) ex) ex = dcme.sup;
-      if (cast(StaticArray) ex.valueType() && !cast(CValue) ex)
-        return null; // can't handle this.
+      IType[] tried;
+      if (!gotImplicitCast(pos, (IType it) { tried ~= it; return !!(it == Single!(SysInt)); })) {
+        throw new Exception(Format("Invalid array index: ", pos.valueType(), " @'", text.next_text()~"'; tried ", tried, ". "));
+      }
       text = t2;
+      if (auto dcme = cast(DontCastMeExpr) ex) ex = dcme.sup;
+      if (cast(StaticArray) ex.valueType() && !cast(CValue) ex) {
+        return new SAIndexExpr(ex, pos);
+      }
       return cast(Object) getIndex(ex, pos);
     } else return null;
   };

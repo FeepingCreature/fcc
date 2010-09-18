@@ -44,6 +44,13 @@ class RelFunCall : FunCall {
   this(Expr ex) {
     baseptr = ex;
   }
+  override RelFunCall dup() {
+    auto res = new RelFunCall(baseptr.dup);
+    res.fun = fun;
+    res.params = params.dup;
+    foreach (ref entry; params) entry = entry.dup;
+    return res;
+  }
   override void emitAsm(AsmFile af) {
     if (auto lv = cast(LValue) baseptr) {
       callDg(af, fun.type.ret, params,

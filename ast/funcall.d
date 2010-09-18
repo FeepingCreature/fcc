@@ -2,7 +2,7 @@ module ast.funcall;
 
 import ast.fun, ast.base;
 
-import ast.tuple_access, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
+import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
 bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref Expr[] res) {
   Expr arg;
   auto backup_text = text;
@@ -35,12 +35,14 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
     if (!gotImplicitCast(ex, (IType it) {
       tried ~= it;
       return test(it == type);
-    }))
-      if (auto list = flatten(ex)) {
+    })) {
+      Expr[] list;
+      if (gotImplicitCast(ex, (IType it) { return !!cast(Tuple) it; }) && (list = flatten(ex), !!list)) {
         args = list ~ args;
         goto retry;
       } else
         throw new Exception(Format("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params, "[", i, "]; tried ", tried, " at ", backup_text.next_text()));
+    }
     res ~= ex;
   }
   Expr[] flat;
@@ -51,7 +53,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   }
   foreach (arg2; args) recurse(arg2);
   if (flat.length) {
-    throw new Exception(Format("Extraneous parameters to ", info, ": ", args));
+    throw new Exception(Format("Extraneous parameters to '", info, "' of ", params, ": ", args, " at '", backup_text.next_text(), "'. "));
   }
   return true;
 }

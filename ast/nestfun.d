@@ -93,6 +93,14 @@ mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef");
 
 class NestedCall : FunCall {
   Expr dg;
+  override NestedCall dup() {
+    auto res = new NestedCall;
+    res.fun = fun;
+    res.params = params.dup;
+    foreach (ref entry; params) entry = entry.dup;
+    if (dg) res.dg = dg.dup;
+    return res;
+  }
   override void emitAsm(AsmFile af) {
     // if (dg) logln("call ", dg);
     // else logln("call {", fun.getPointer(), " @ebp");

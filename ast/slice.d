@@ -52,7 +52,7 @@ class FullSlice : Expr {
   }
 }
 
-import ast.iterator, ast.casting;
+import ast.iterator, ast.casting, ast.fold;
 Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType() && !cast(Pointer) ex.valueType()) return null;
@@ -77,13 +77,20 @@ Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
         // assert(!!cast(Array) ex.valueType(), "Cannot take \"full slice\" over pointer! ");
         to = getArrayLength(ex);
       }
+      from = fold(from);
+      to = fold(to);
       if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: ", from));
       if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: ", from));
       text = t2;
+      Expr res;
       if (cast(Array) ex.valueType() || cast(ExtArray) ex.valueType())
-        return cast(Object) mkArraySlice(ex, from, to);
+        res = mkArraySlice(ex, from, to);
       else
-        return cast(Object) mkPointerSlice(ex, from, to);
+        res = mkPointerSlice(ex, from, to);
+      if (cast(IntExpr) from && cast(IntExpr) to) {
+        // TODO: emit array as static
+      }
+      return cast(Object) res;
     } else return null;
   };
 }

@@ -2,7 +2,7 @@ module ast.returns;
 
 import ast.base, ast.namespace, ast.scopes, ast.fun, ast.parse, ast.math: loadFloatEx;
 
-import ast.vardecl, ast.assign;
+import ast.vardecl, ast.assign, ast.math;
 class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
@@ -26,6 +26,9 @@ class ReturnStmt : Statement {
       
       if (Single!(Float) == value.valueType()) {
         loadFloatEx(value, af);
+        af.floatStackDepth --; // doesn't count
+      } else if (Single!(Double) == value.valueType()) {
+        loadFloatEx(new DoubleAsFloat(value), af);
         af.floatStackDepth --; // doesn't count
       } else if (value.valueType().size == 4) {
         value.emitAsm(af);

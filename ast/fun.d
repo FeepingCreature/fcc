@@ -126,6 +126,8 @@ class FunCall : Expr {
   }
   mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {
+    auto size = (fun.type.ret == Single!(Void))?0:fun.type.ret.size;
+    mixin(mustOffset("size"));
     callFunction(af, fun.type.ret, params, fun.getPointer());
   }
   override string toString() { return Format("call(", fun, params, ")"); }
@@ -134,60 +136,73 @@ class FunCall : Expr {
   }
 }
 
-void handleReturn(IType ret, AsmFile dest) {
+void handleReturn(IType ret, AsmFile af) {
   if (Single!(Float) == ret) {
-    dest.salloc(4);
-    dest.floatStackDepth ++; // not locally produced
-    dest.storeFloat("(%esp)");
+    af.salloc(4);
+    af.floatStackDepth ++; // not locally produced
+    af.storeFloat("(%esp)");
+    return;
+  }
+  if (Single!(Double) == ret) {
+    af.salloc(8);
+    af.put("fstpl (%esp)");
     return;
   }
   if (!cast(Void) ret) {
     if (ret.size >= 8)
-      dest.pushStack("%edx", Single!(SizeT));
+      af.pushStack("%edx", Single!(SizeT));
     if (ret.size >= 12)
-      dest.pushStack("%ecx", Single!(SizeT));
+      af.pushStack("%ecx", Single!(SizeT));
     if (ret.size == 16)
-      dest.pushStack("%ebx", Single!(SizeT));
-    dest.pushStack("%eax", Single!(SizeT));
+      af.pushStack("%ebx", Single!(SizeT));
+    af.pushStack("%eax", Single!(SizeT));
   }
 }
 
 import tools.log;
-void callFunction(AsmFile dest, IType ret, Expr[] params, Expr fp) {
-  // dest.put("int $3");
-  
-  string name;
-  if (auto s = cast(Symbol) fp) name = s.name;
-  else name = "(nil)";
-  
-  assert(ret.size == 4 || ret.size == 8 || ret.size == 12 || ret.size == 16 || cast(Void) ret,
-    Format("Return bug: ", ret, " from ", name, "!"));
-  // TODO: backup FP stack
-  dest.comment("Begin call to ", name);
-  
-  auto restore = dest.floatStackDepth;
-  while (dest.floatStackDepth) dest.floatToStack();
-  
-  if (params.length) {
-    foreach_reverse (param; params) {
-      dest.comment("Push ", param);
-      param.emitAsm(dest);
+void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
+  // af.put("int $3");
+  {
+    mixin(mustOffset("0", "outer"));
+    string name;
+    if (auto s = cast(Symbol) fp) name = s.name;
+    else name = "(nil)";
+    
+    assert(ret.size == 4 || ret.size == 8 || ret.size == 12 || ret.size == 16 || cast(Void) ret,
+      Format("Return bug: ", ret, " from ", name, "!"));
+    af.comment("Begin call to ", name);
+    
+    auto restore = af.floatStackDepth;
+    while (af.floatStackDepth) af.floatToStack();
+    {
+      mixin(mustOffset("0", "innerer"));
+      foreach_reverse (param; params) {
+        af.comment("Push ", param);
+        param.emitAsm(af);
+      }
+      
+      {
+        mixin(mustOffset("nativePtrSize", "innerest"));
+        if (fp.valueType().size > nativePtrSize) asm { int 3; }
+        fp.emitAsm(af);
+      }
+      af.popStack("%eax", Single!(SizeT));
+      af.call("%eax");
+      foreach (param; params) {
+        af.sfree(param.valueType().size);
+      }
+    }
+    
+    while (restore--) {
+      af.stackToFloat();
+      if (ret == Single!(Float) || ret == Single!(Double))
+        af.swapFloats;
     }
   }
-  fp.emitAsm(dest);
-  dest.popStack("%eax", Single!(SizeT));
-  dest.call("%eax");
-  foreach (param; params) {
-    dest.sfree(param.valueType().size);
-  }
   
-  while (restore--) {
-    dest.stackToFloat();
-    if (ret == Single!(Float))
-      dest.swapFloats;
-  }
-  
-  handleReturn(ret, dest);
+  auto size = (ret == Single!(Void))?0:ret.size;
+  mixin(mustOffset("size"));
+  handleReturn(ret, af);
 }
 
 class FunctionType : ast.types.Type {

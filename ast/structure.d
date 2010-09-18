@@ -139,7 +139,11 @@ class Structure : Namespace, RelNamespace, IType, Named {
   this(string name) {
     this.name = name;
   }
-  string mangle() { return "struct_"~name; }
+  string mangle() {
+    auto res = "struct_"~name~"_";
+    select((string, RelMember member) { res ~= member.type.mangle ~ "_" ~ member.name ~ "_"; });
+    return res[0 .. $-1];
+  }
   override {
     string getIdentifier() { return name; }
     string mangle(string name, IType type) { return "struct_"~name~"_"~type.mangle()~"_"~name; }

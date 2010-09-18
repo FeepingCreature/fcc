@@ -108,10 +108,34 @@ class FloatAsDouble : Expr {
   }
 }
 
+class DoubleAsFloat : Expr {
+  Expr d;
+  this(Expr d) { this.d = d; assert(d.valueType() == Single!(Double)); }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(d);
+  override {
+    IType valueType() { return Single!(Float); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("4"));
+      d.emitAsm(af);
+      af.put("fldl (%esp)");
+      af.floatStackDepth ++;
+      af.sfree(4);
+      af.storeFloat("(%esp)");
+    }
+  }
+}
+
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(Float) != ex.valueType()) return null;
     return new FloatAsDouble(ex);
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (Single!(Double) != ex.valueType()) return null;
+    if (cast(FloatAsDouble) ex) return null; // lol
+    return new DoubleAsFloat(ex);
   };
 }
 
@@ -295,6 +319,8 @@ static this() {
     }
     if (gotImplicitCast(ex1, &isPointer)) {
       assert(!isPointer(ex2.valueType()));
+      if (cast(Float) ex2.valueType()) asm { int 3; }
+      assert(!isFloat(ex2.valueType()));
       auto mul = (cast(Pointer) ex1.valueType()).target.size;
       ex2 = handleIntMath("*", ex2, new IntExpr(mul));
       return new RCE(ex1.valueType(), handleIntMath(op, new RCE(Single!(SysInt), ex1), ex2));

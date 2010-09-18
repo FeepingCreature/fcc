@@ -212,9 +212,9 @@ interface RelTransformable {
 }
 
 // ctfe
-string mustOffset(string value) {
+string mustOffset(string value, string _hash = null) {
   
-  string hash;
+  string hash = _hash;
   foreach (ch; value)
     if (ch >= '0' && ch <= '9' || ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z')
       hash ~= ch;
