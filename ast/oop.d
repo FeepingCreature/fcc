@@ -4,7 +4,7 @@ import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.namespace, ast.structure, ast.structfuns, ast.pointer,
   ast.arrays, ast.aggregate, ast.literals, ast.slice;
 
-import tools.log;
+import tools.log, tools.compat: max;
 class VTable {
   RelFunction[] funs;
   Class parent;
@@ -275,7 +275,8 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding {
     foreach (ipar; iparents) if (ipar.declares(name)) return true;
     return false;
   }
-  int mainSize() { return (parent?parent.size():0) + data.size(); }
+  // everything after this is interface handles - I think
+  int mainSize() { return max(voidp.size, parent?parent.mainSize():0, data.size()); }
   // TODO
   mixin defaultIterate!();
   string ci_name() { return "classinfo_"~name; }

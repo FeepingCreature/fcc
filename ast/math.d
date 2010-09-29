@@ -62,6 +62,7 @@ class FloatAsInt : Expr {
   mixin DefaultDup;
   mixin defaultIterate!(f);
   override {
+    string toString() { return Format("int(", f, ")"); }
     IType valueType() { return Single!(SysInt); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("4"));

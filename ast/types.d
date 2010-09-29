@@ -39,9 +39,12 @@ class Type : IType {
 }
 
 class Void : Type {
-  override int size() { return 1; } // for arrays
-  override string mangle() { return "void"; }
-  override ubyte[] initval() { return null; }
+  override {
+    int size() { return 1; } // for arrays
+    string mangle() { return "void"; }
+    ubyte[] initval() { return null; }
+    string toString() { return "void"; }
+  }
 }
 
 class Variadic : Type {

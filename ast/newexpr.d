@@ -27,19 +27,33 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         "size", new IntExpr(cl.size),
         "_classinfo", new Symbol(cl.ci_name())
       ).emitAsm(af);
-      auto offs = cl.ownClassinfoLength, base = cl.mainSize();
+      auto base = cl.mainSize();
       doAlign(base, voidp);
       base /= 4;
       int id = 0;
-      cl.getIntfLeaves((Intf intf) {
+      void iterLeaves(void delegate(Intf, int) dg) {
+        void recurse(Intf intf, int myOffs) {
+          if (intf.parents.length) foreach (i, intf2; intf.parents) {
+            recurse(intf2, myOffs);
+            myOffs += intf2.clsize();
+          }
+          else dg(intf, myOffs);
+        }
+        auto offs = cl.ownClassinfoLength;
+        foreach (i, intf; cl.iparents) {
+          recurse(intf, offs);
+          offs += intf.clsize();
+        }
+      }
+      iterLeaves((Intf intf, int offs) {
+        logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
         iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
-        (`(cast(void**) var)[base + id] = cast(void*) ((cast(void**) _classinfo) + offs)`,
+        (`(cast(void**) var)[base + id] = (cast(void**) _classinfo + offs)`,
           "var", var,
           "base", new IntExpr(base), "id", new IntExpr(id++),
           "_classinfo", new Symbol(cl.ci_name()),
           "offs", new IntExpr(offs)
         ).emitAsm(af);
-        offs += intf.clsize();
       });
     });
   });

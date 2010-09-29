@@ -239,7 +239,10 @@ int main(int argc, char** argv) {
   void delegate(int) dgx = &cl.foo;
   dgx(3);
   (&cl.foo)(4);
-  auto sub = new Subclass, sup = cast(Class) sub;
+  writeln "Alloc subclass. ";
+  auto sub = new Subclass;
+  writeln "Do sup cast";
+  auto sup = cast(Class) sub;
   writeln("sup is $$cast(void*) sup");
   sup.foo(-5);
   writeln("sub is $$cast(void*) sub");
@@ -248,6 +251,7 @@ int main(int argc, char** argv) {
   sub.icfun();
   sub.idfun();
   IA ia = sub;
+  writeln "call ia on implicit IA cast from sub; ia is $(cast(void*) ia), sub is $(cast(void*) sub), iafun is $(&ia.iafun), on sub would be $(&sub.iafun). ";
   ia.iafun();
   auto ic = cast(IC) ia;
   ic.icfun();
