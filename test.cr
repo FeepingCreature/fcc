@@ -1,5 +1,5 @@
 module test;
-import sys, sdl;
+import sys/*, sdl*/;
 
 int add(int a, int b) { return a + b; }
 
@@ -16,7 +16,7 @@ void test(int foo) {
   for (int x = 0; x < 10; ++x)
     writeln("Test: $x");
 }
-
+/*
 int acker(int m, int n) {
   if (m) {
     if (n) return acker(m - 1, acker(m, n - 1));
@@ -170,6 +170,7 @@ union U {
 }
 
 // c_include "gc.h";
+*/
 
 int main(int argc, char** argv) {
   // use Boehm GC
@@ -185,7 +186,7 @@ int main(int argc, char** argv) {
   mem.calloc_dg = &myCalloc;
   mem.realloc_dg = &myRealloc;
   mem.free_dg = &GC_free;*/
-  auto cdg = mem.calloc_dg;
+  /*auto cdg = mem.calloc_dg;
   void* myCalloc(int a, b) {
     // printf("Allocate %i, %i\n", a, b);
     if (a*b > 65536) {
@@ -194,10 +195,10 @@ int main(int argc, char** argv) {
     }
     return cdg(a, b);
   }
-  mem.calloc_dg = &myCalloc;
+  mem.calloc_dg = &myCalloc;*/
   test(2);
   test(0);
-  int e = 5;
+  /*int e = 5;
   // writeln("a(3, 12) = $$acker(3, 12)");
   int* ptr = &e;
   *ptr = 7;
@@ -463,5 +464,5 @@ int main(int argc, char** argv) {
     writeln("test is $$typeof(test).stringof: $test");
     return 0;
     atexit writeln("Exit 4. ");
-  }
+  }*/
 }
