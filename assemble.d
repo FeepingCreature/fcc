@@ -21,16 +21,20 @@ bool mayNeedStack(string str) {
   return isRelative(str);
 }
 
+interface ExtToken {
+  string toAsm();
+}
+
 import parseBase; // int parsing
 struct Transaction {
   enum Kind {
     Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
     FloatLoad, FloatStore, FloatPop, FloatMath, FloatSwap,
-    Jump, Label
+    Jump, Label, Extended
   }
   const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
     "FloatLoad", "FloatStore", "FloatPop", "FloatMath", "FloatSwap",
-    "Jump", "Label"];
+    "Jump", "Label", "Extended"];
   Kind kind;
   string toString() {
     switch (kind) {
@@ -53,6 +57,7 @@ struct Transaction {
       case Kind.FloatSwap: return Format("[float swap]");
       case Kind.Jump:      return Format("[jmp ", dest, "]");
       case Kind.Label:     return Format("[label ", names, "]");
+      case Kind.Extended:  return Format("[extended ", obj, "]");
     }
   }
   string toAsm() {
@@ -211,6 +216,8 @@ struct Transaction {
         string res;
         foreach (name; names) res ~= name ~ ":\n";
         return res[0 .. $-1];
+      case Kind.Extended:
+        return obj.toAsm();
     }
   }
   struct {
@@ -231,6 +238,7 @@ struct Transaction {
       }
       string[] names; // label
       bool hasLabel(string s) { foreach (name; names) if (name == s) return true; return false; }
+      ExtToken obj;
     }
     int stackdepth = -1;
   }
@@ -281,7 +289,7 @@ struct Transsection(C) {
   bool advance() {
     auto start = from;
     // don't recheck if not modified
-    if (!modded) start = to;
+    if (!modded) start = start + 1;
     *this = parent.findMatch(opName, cond, start);
     return !!length;
   }

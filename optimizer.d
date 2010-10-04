@@ -44,11 +44,14 @@ string opt(string name, string s) {
       }
       else return 0;
     });
-    if (match.length) _loophead:do { `;
+    if (match.length) _loophead:do {
+      match.modded = false;`;
   if (src.ctStrip().length) res ~= `
       if (!(`~src~`)) continue;`;
   res ~= dest~`
-      if (match.modded) changed = true;
+      if (match.modded) {
+        changed = true;
+      }
     } while (match.advance());
     return changed;
   }
@@ -157,10 +160,133 @@ bool isMemRef(string s) {
 Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
 bool optsSetup;
 
+// track processor state
+// obsoletes about a dozen peephole opts
+class ProcTrack : ExtToken {
+  string[string] known;
+  string[] stack; // nativePtr-sized
+  // in use by this set of transactions
+  // emit before overwriting
+  bool[string] use;
+  string toString() {
+    return Format("cpu(", known, ", stack ", stack, ", used ", use.keys, ")");
+  }
+  bool update(ref Transaction t) {
+    logln("update ", t);
+    auto pre1 = known.values, pre2 = stack.dup, pre3 = use.keys;
+    scope(exit)
+      if (pre1 == known.values && pre2 == stack && pre3 == use.keys)
+        logln("reject");
+      else
+        logln("=> ", this);
+    with (Transaction.Kind) switch (t.kind) {
+      case MathOp:
+        string op2 = t.op2;
+        if (auto p = op2 in known) op2 = *p;
+        
+        if (t.op1.isLiteral() && t.op2 in known) {
+          known[t.op2] = "+(" ~ known[t.op2] ~ ", " ~ t.op1 ~ ")";
+          return true;
+        }
+        break;
+      case SAlloc:
+        if (t.size == 4) {
+          stack ~= null;
+          return true;
+        } else break;
+      case Mov:
+        if (t.from.find("%esp") != -1)
+          return false; // TODO: can this ever be handled?
+        if (t.from.isRegister()) {
+          if (t.to in use) break; // lol
+          string src = t.from;
+          if (auto p = src in known)
+            src = *p;
+          if (src.isRegister())
+            use[src] = true;
+          if (t.to.isRegister()) {
+            known[t.to] = src;
+          } else if (t.to == "(%esp)") {
+            stack[$-1] = src;
+          } else break;
+          return true;
+        } else if (t.length >= 2 && t[0] == '(' && t[$-1] == ')') {
+          auto deref = t.between("(", ")");
+          if (deref in known) {
+            auto val = known[deref];
+            if (val.startsWith("+(")) {
+              auto op2 = val.between("(", ")"), op1 = op2.slice(",");
+              if (op1.isRegister() && op2.isNumLiteral()) {
+                auto op2i = op2.literalToInt();
+                if (t.to in use)
+                  break;
+                // to indirect access
+                known[t.to] = Format(op2i, "(", op1, ")");
+                return true;
+              } else break;
+            }
+          } else break;
+        }
+        break;
+      case Label: return false;
+      case Push:
+        if (t.source.isRegister() && t.type.size == nativePtrSize) {
+          stack ~= t.source;
+          return true;
+        }
+        break;
+      case Pop:
+        if (t.dest.isRegister() && t.type.size == nativePtrSize) {
+          known[t.dest] = stack[$-1];
+          stack = stack[0 .. $-1];
+          return true;
+        }
+        break;
+      default: break;
+    }
+    logln("Unsupported: ", t);
+    logln("reg state ", known);
+    logln("stack ", stack.length, ", ", stack);
+    logln("in use ", use);
+    assert(false);
+  }
+  string toAsm() {
+    assert(false);
+  }
+}
+
 void setupOpts() {
   if (optsSetup) return;
   optsSetup = true;
   bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
+  mixin(opt("rewrite_zero_ref", `*:
+    hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0)
+    =>
+    auto t = $0;
+    if (hasSource(t) && t.source.startsWith("0("))
+      { t.source = t.source[1..$]; $SUBST([t]); }
+    if (hasDest  (t) && t.dest  .startsWith("0("))
+      { t.dest   = t.dest  [1..$]; $SUBST([t]); }
+    if (hasFrom  (t) && t.from  .startsWith("0("))
+      { t.from   = t.from  [1..$]; $SUBST([t]); }
+    if (hasTo    (t) && t.to    .startsWith("0("))
+      { t.to     = t.to    [1..$]; $SUBST([t]); }
+  `));
+  mixin(opt("ext_step", `*, *
+    =>
+    ProcTrack obj;
+    $T t;
+    t.kind = $TK.Extended;
+    if ($0.kind == $TK.Extended) {
+      obj = cast(ProcTrack) $0.obj;
+      t.obj = obj;
+      if (obj.update($1)) $SUBST([t]);
+    } else {
+      New(obj);
+      t.obj = obj;
+      if (obj.update($0)) $SUBST([t, $1]);
+    }
+  `));
   // alloc/free can be shuffled down past _anything_ that doesn't reference stack.
   mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !affectsStack($1) => $SUBST([$1, $0]); `));
   mixin(opt("sort_pointless_mem", `^SAlloc || ^SFree, *:
