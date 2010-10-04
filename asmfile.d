@@ -253,6 +253,7 @@ class AsmFile {
       if (!anyChange) break;
       foreach (opt; newOpts)
         log("[", unique(opt), "]");
+      logln();
     }
     
     string join(string[] s) {

@@ -122,6 +122,13 @@ bool hasFrom(ref Transaction t) {
 }
 alias hasFrom hasTo;
 
+bool willOverwrite(ref Transaction t, string what) {
+  if (!what.isRegister()) return false;
+  if (hasDest(t)) return t.dest == what;
+  if (hasTo(t)) return t.to == what;
+  return false;
+}
+
 bool hasSize(ref Transaction t) {
   with (Transaction.Kind)
     return !!(t.kind == Push /or/ Pop /or/ Mov /or/ Mov2 /or/ Mov1);
@@ -359,9 +366,12 @@ void setupOpts() {
     }
   `));
   mixin(opt("fold_rel_access", `^Mov, ^MathOp, ^Mov:
-    $0.from.isLiteral() &&
-    $1.opName == "addl" && $1.op1.isRegister() && $1.op2 == $0.to &&
-    $2.from.isRelative()
+    $1.opName == "addl" && $1.op2 == $0.to &&
+    (
+      $0.from.isLiteral() && $1.op1.isRegister()
+      ||
+      $0.from.isRegister() && $1.op1.isLiteral()
+    ) && $2.from.isRelative()
     =>
     $SUBSTWITH {
       res = $2;
@@ -446,13 +456,14 @@ void setupOpts() {
       t.dest  = Format($1.op1.literalToInt(), "(", $0.from, ")");
     else
       t.source = Format($1.op1.literalToInt(), "(", $0.from, ")");
-    $SUBST([t]);
+    $SUBST([$0, $1, t]);
   `));
   mixin(opt("indirect_access_3", `^MathOp, *:
     hasSource($1) && $1.source == "(" ~ $0.op2 ~ ")" && $0.op1.isNumLiteral()
+    && ($0.opName == "addl" /or/ "subl")
     =>
     auto t = $1;
-    t.source = Format($0.op1.literalToInt(), $1.source);
+    t.source = Format(($0.opName == "addl")?"":"-", $0.op1.literalToInt(), $1.source);
     $SUBST([t]);
   `));
   mixin(opt("store_float_direct", `^FloatPop, ^Pop:
@@ -500,6 +511,35 @@ void setupOpts() {
     =>
     labels_refcount[$0.dest] --;
     $SUBST([$1]);
+  `));
+  mixin(opt("remove_zero", `*:
+    hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0)
+    =>
+    auto t = $0;
+    if (hasSource(t) && t.source.startsWith("0(")) { t.source = t.source[1 .. $]; $SUBST([t]); }
+    if (hasDest(t) && t.dest.startsWith("0(")) { t.dest = t.dest[1 .. $]; $SUBST([t]); }
+    if (hasFrom(t) && t.from.startsWith("0(")) { t.from = t.from[1 .. $]; $SUBST([t]); }
+    if (hasTo(t) && t.to.startsWith("0(")) { t.to = t.to[1 .. $]; $SUBST([t]); }
+  `));
+  mixin(opt("remove_redundant_mov", `^Mov, ^Mov || ^Pop:
+    $0.to == "%eax" && (hasTo($1) && ($1.to == "%eax") || hasDest($1) && ($1.dest == "%eax")) && (hasFrom($1) && ($1.from.find("%eax") == -1))
+    =>
+    $SUBST([$1]);
+  `));
+  mixin(opt("shorten_redundant_mov", `^Mov, ^Mov, *:
+    $0.to == $1.from && willOverwrite($2, $0.to)
+    =>
+    auto t = $0;
+    t.to = $1.to;
+    $SUBST([t, $2]);
+  `));
+  mixin(opt("indirect_access_mov", `^Mov, ^MathOp, ^Mov:
+    $0.from.isRegister() && $1.opName == "addl" && $1.op1.isLiteral() &&
+    $0.to == $1.op2 && $0.to == "%eax" && $2.from == "(%eax)" && $2.to == "%eax" /* this ensures we don't need to preserve eax */
+    =>
+    auto t = $2;
+    t.from = Format($1.op1.literalToInt(), "(", $0.from, ")");
+    $SUBST([t]);
   `));
 }
 

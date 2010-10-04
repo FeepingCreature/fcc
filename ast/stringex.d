@@ -1,7 +1,7 @@
 module ast.stringex;
 
 import
-  ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays,
+  ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays, ast.assign,
   ast.literal_string, ast.arrays, ast.vardecl, ast.pointer, ast.casting, tools.base: take;
 
 Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
@@ -93,13 +93,25 @@ Expr simpleFormat(Expr ex) {
       );
   }
   if (auto tup = cast(Tuple) type) {
-    auto res = new ConcatChain(new StringExpr("{"));
-    foreach (i, entry; getTupleEntries(ex)) {
-      if (i) res.addArray(new StringExpr(", "));
-      res.addArray(iparse!(Expr, "gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
-    }
-    res.addArray(new StringExpr("}"));
-    return res;
+    auto res = new ConcatChain(new StringExpr("{")); // put here for type
+    return new CallbackExpr(res.valueType(), stuple(ex, res) /apply/ (Expr ex, ConcatChain res, AsmFile af) {
+      Expr build(LValue lv) {
+        foreach (i, entry; getTupleEntries(lv)) {
+          if (i) res.addArray(new StringExpr(", "));
+          res.addArray(iparse!(Expr, "gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
+        }
+        res.addArray(new StringExpr("}"));
+        return res;
+      }
+      if (auto lv = cast(LValue) ex) build(lv).emitAsm(af);
+      else mkVar(af, res.valueType(), true, (Variable outer) {
+        mkVar(af, ex.valueType(), true, (Variable var) {
+          (new Assignment(var, ex)).emitAsm(af);
+          (new Assignment(outer, build(var))).emitAsm(af);
+        });
+        af.sfree(ex.valueType().size); // cheat
+      });
+    });
   }
   auto ar = cast(Array) type;
   auto ea = cast(ExtArray) type;

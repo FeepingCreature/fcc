@@ -60,6 +60,11 @@ class Char : Type {
   override string mangle() { return "char"; }
 }
 
+class Byte : Type {
+  override int size() { return 1; }
+  override string mangle() { return "byte"; }
+}
+
 const nativeIntSize = 4, nativePtrSize = 4;
 
 class SizeT : Type {
@@ -110,6 +115,7 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   if (text.accept("int")) return Single!(SysInt);
   if (text.accept("short")) return Single!(Short);
   if (text.accept("char")) return Single!(Char);
+  if (text.accept("byte")) return Single!(Byte);
   if (text.accept("float")) return Single!(Float);
   if (text.accept("double")) return Single!(Double);
   if (text.accept("real")) return Single!(Real);

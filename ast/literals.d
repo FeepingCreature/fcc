@@ -81,7 +81,10 @@ mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "55");
 /// "foo": char[3] -> char*
 class CValueAsPointer : Expr {
   CValue sup;
-  mixin MyThis!("sup");
+  this(CValue sup) {
+    this.sup = sup;
+    if (!sup) asm { int 3; }
+  }
   override typeof(this) dup() { return new typeof(this) (sup.dup); }
   mixin defaultIterate!(sup);
   override IType valueType() {

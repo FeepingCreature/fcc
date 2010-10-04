@@ -102,14 +102,14 @@ class Cross : Type, RichIterator {
                          (`if (!tup[0]) { tup[0] = true; } else {}`, "tup", tup);
       foreach (i, type; types) {
         root.branch1.addStatement(iparse!(Statement, "cross_iterate_init_specific", "tree.stmt")
-                                         (`tup[i+1] = eval tup[i+len+1]; `,
+                                         (`{ tup[1+i] = __istep tup[1+len+i]; printf("init %i to %i. \n", 1+i, tup[1+i]); }`,
                                           "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length)));
       }
       IfStatement current;
       // build if tree
       foreach_reverse (i, type; types) {
         auto myIf = iparse!(IfStatement, "cross_iterate_step", "tree.stmt")
-                           (`if (tup[i+1] <- tup[i+len+1]) {} else { tup[i+len+1] = tup[i+len*2+1]; tup[i+1] = eval tup[i+len+1]; }`,
+                           (`if (tup[1+i] <- tup[1+len+i]) { } else { tup[1+len+i] = tup[1+len*2+i]; tup[1+i] = __istep tup[1+len+i]; }`,
                             "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
         if (!current) {
           root.branch2.addStatement(myIf);
@@ -154,7 +154,7 @@ class Cross : Type, RichIterator {
     Expr index(LValue lv, Expr pos) {
       return new CrossIndexExpr(this, lv, pos);
     }
-    Expr slice(Expr ex, Expr from, Expr to) { assert(false); /* even meh-er */ }
+    Expr slice(Expr ex, Expr from, Expr to) { assert(false); /* meh */ }
   }
 }
 
@@ -166,8 +166,9 @@ Expr mkCross(Expr[] exprs) {
     _false = iparse!(Expr, "get_false", "tree.expr")(`sys.false`);
   }
   Expr[] inits;
-  foreach (ex; exprs)
+  foreach (ex; exprs) {
     inits ~= new Filler((cast(Iterator) ex.valueType()).elemType());
+  }
   auto tup = mkTupleExpr([_false] ~ inits ~ exprs ~ exprs);
   auto cross = new Cross;
   cross.tup = cast(Tuple) tup.valueType();
@@ -227,7 +228,7 @@ class Zip(T) : Type, T {
       auto root = new AggrStatement;
       foreach (i, type; types) {
         root.stmts ~= iparse!(Statement, "zip_iterate_step", "tree.stmt")
-                             (`tup[i+len] = eval tup[i]; `,
+                             (`tup[i+len] = __istep tup[i]; `,
                               "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
       }
       auto expr = iparse!(Expr, "zip_result", "tree.expr")
@@ -239,7 +240,7 @@ class Zip(T) : Type, T {
       Cond res;
       auto types = myTypes(), tup = castToTuple(ex);
       foreach (i, type; types) {
-        auto entry = iparse!(Expr, "cross_subcond", "tree.expr")
+        auto entry = iparse!(Expr, "zip_subcond", "tree.expr")
                            (`tup[i]`, "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
         auto cond = (cast(Iterator) entry.valueType()).terminateCond(entry);
         if (!res) res = cond;

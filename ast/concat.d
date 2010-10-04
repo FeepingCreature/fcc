@@ -73,7 +73,7 @@ class ConcatChain : Expr {
         foreach (i, array; arrays) {
           auto c = getIndex(cache, new IntExpr(i)), len = getArrayLength(c);
           /// var[offset .. offset + cache[i].length] = cache[i];
-          (getSliceAssign(mkArraySlice(var, offset, lookupOp("+", offset, len)), c)).emitAsm(af);
+          (getSliceAssign(mkArraySlice(var, offset, lookupOp("+", offset, len)), c.dup)).emitAsm(af);
           /// offset = offset + cache[i].length;
           (new Assignment(offset, lookupOp("+", offset, len))).emitAsm(af);
         }

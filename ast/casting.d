@@ -227,20 +227,20 @@ class ShortToIntCast : Expr {
   }
 }
 
-class CharToShortCast : Expr {
-  Expr sh;
-  this(Expr sh) { this.sh = sh; }
+class ByteToShortCast : Expr {
+  Expr b;
+  this(Expr b) { this.b = b; }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!();
   override {
     IType valueType() { return Single!(Short); }
     void emitAsm(AsmFile af) {
-      sh.emitAsm(af);
+      b.emitAsm(af);
       // lol.
       af.comment("byte to short cast lol");
       af.put("xorw %ax, %ax");
-      af.popStack("%al", sh.valueType());
+      af.popStack("%al", b.valueType());
       af.pushStack("%ax", valueType());
     }
   }
@@ -269,8 +269,8 @@ static this() {
     return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (ex.valueType() == Single!(Char))
-      return new CharToShortCast(ex);
+    if (ex.valueType() == Single!(Byte) || ex.valueType() == Single!(Char))
+      return new ByteToShortCast(ex);
     else
       return null;
   };

@@ -67,3 +67,9 @@ Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotSemicolStmt, "tree.stmt.semicolonized");
+
+Object gotBreakStmt(ref string text, ParseCb cont, ParseCb rest) {
+  if (!text.accept("break")) return null;
+  return new Break;
+}
+mixin DefaultParser!(gotBreakStmt, "tree.semicol_stmt.break", "31");

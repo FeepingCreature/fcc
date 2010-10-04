@@ -459,8 +459,19 @@ int main(int argc, char** argv) {
       return res;
     }
     alias size = 4;
-    auto test = [for bin <- [for tuple <- cross [0,1]^size: cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
+    auto test = [for bin <- [for tuple <- cross [for i <- 0..2: i]^size: cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
     writeln("test is $$typeof(test).stringof: $test");
+    auto frobbly = cross [for i <- 0..2: i]^3; // THAT'S IT: i ref is wrong under power!!
+    // writeln "Initial frobbly == $((cast(byte*) &frobbly)[0..44]). ";
+    writeln "Test: $$__istep frobbly";
+    // writeln "In-between state: $((cast(byte*) &frobbly)[0..44]). "; // 180
+    break;
+    __istep frobbly;
+    break;
+    writeln "And $$__istep frobbly. ";
+    // writeln "After this, frobbly is $((cast(byte*) &frobbly)[0..44]). "; // 180
+    typeof(__istep frobbly) i;
+    while i <- frobbly writeln "i => $i";
     return 0;
     atexit writeln("Exit 4. ");
   }

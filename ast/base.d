@@ -126,6 +126,12 @@ class NoOp : Statement {
   mixin defaultIterate!();
 }
 
+class Break : Statement {
+  Break dup() { return this; }
+  override void emitAsm(AsmFile af) { af.put("int $3"); }
+  mixin defaultIterate!();
+}
+
 interface Expr : Tree {
   IType valueType();
   override Expr dup();
@@ -253,11 +259,19 @@ class StatementAndExpr : Expr {
   Statement first;
   Expr second;
   mixin MyThis!("first, second");
-  mixin DefaultDup!();
   mixin defaultIterate!(first, second);
+  bool once;
   override {
+    StatementAndExpr dup() {
+      return new StatementAndExpr(first.dup, second.dup);
+    }
     IType valueType() { return second.valueType(); }
     void emitAsm(AsmFile af) {
+      if (once) {
+        logln("Double emit S&E. NOT SAFE. Expr is ", second);
+        asm { int 3; }
+      }
+      once = true;
       first.emitAsm(af);
       second.emitAsm(af);
     }

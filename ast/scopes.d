@@ -2,6 +2,8 @@ module ast.scopes;
 
 import ast.base, ast.namespace, ast.fun, ast.variable, parseBase, tools.base: apply;
 
+bool[void*] emat;
+
 import ast.aggregate;
 class Scope : Namespace, ScopeLike, Statement {
   Function fun;
@@ -65,6 +67,8 @@ class Scope : Namespace, ScopeLike, Statement {
   }
   // continuations good
   void delegate(bool=false) delegate() open(AsmFile af) {
+    if (cast(void*) this in emat) { logln("Double emit ", id, "; in ", fun, ": ", _body, ". "); asm { int 3; } }
+    emat[cast(void*) this] = true;
     af.emitLabel(entry());
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);

@@ -205,7 +205,10 @@ class PointerFunction(T) : T {
     if (dg) {
       type.ret = dg.ret;
       type.params = dg.args /map/ (IType it) { return stuple(it, ""); };
-    } else logln("TYPE ", ptr.valueType());
+    } else {
+      logln("TYPE ", ptr.valueType());
+      asm { int 3; }
+    }
   }
   override {
     // edit: TOLD YA. Forgot this. Chased bugs for a good night.

@@ -87,17 +87,17 @@ class StructIterator : Type, Iterator {
     ubyte[] initval() { return wrapped.initval; }
     IType elemType() {
       return iparse!(IType, "si_elemtype", "type")
-                    (`typeof(eval ((*cast(wrapped*) 0).step))`,
+                    (`typeof(__istep ((*cast(wrapped*) 0).step))`,
                      "wrapped", wrapped);
     }
     Expr yieldAdvance(LValue lv) {
       return iparse!(Expr, "si_step", "tree.expr")
-                    (`eval (lv.step)`,
+                    (`__istep (lv.step)`,
                      "lv", lv, "W", wrapped);
     }
     Cond terminateCond(Expr ex) {
       return iparse!(Cond, "si_ivalid", "cond")
-                    (`eval (ex.ivalid)`,
+                    (`__istep (ex.ivalid)`,
                      "ex", ex, "W", wrapped);
     }
   }
@@ -124,9 +124,9 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
                         "templ", templ, "nex", nex);
     if (!inst) { logln("no template :("); return null; }
     auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
-                        (`eval inst`, "inst", inst);
+                        (`__istep inst`, "inst", inst);
     auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
-                        (`eval (inst.ivalid)`, "inst", inst);
+                        (`__istep (inst.ivalid)`, "inst", inst);
     if (!test1 || !test2) {
       logln("test failed: ", !test1, ", ", !test2);
       return null;
@@ -261,6 +261,7 @@ class ForIter(I) : Type, I {
     Expr yieldAdvance(LValue lv) {
       LValue wlv;
       auto stmt = mkForIterAssign(lv, wlv);
+      // logln("!! this.ex is ", this.ex);
       return update(new StatementAndExpr(stmt, this.ex), wlv);
     }
     Cond terminateCond(Expr ex) {
@@ -321,7 +322,7 @@ class ScopeAndExpr : Expr {
   this(Scope sc, Expr ex) { this.sc = sc; this.ex = ex; }
   mixin defaultIterate!(sc, ex);
   override {
-    string toString() { return Format(sc._body, ", ", ex); }
+    string toString() { return Format("sae(", sc._body, ", ", ex, ")"); }
     ScopeAndExpr dup() { return new ScopeAndExpr(sc.dup, ex.dup); }
     IType valueType() { return ex.valueType(); }
     void emitAsm(AsmFile af) {
@@ -390,7 +391,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception("Expected ':' at '"~t2.next_text()~"'! ");
   
   auto it = cast(Iterator) sub.valueType();
-  auto ph = new Placeholder(it.elemType(), "it.elemType()"~ivarname);
+  auto ph = new Placeholder(it.elemType(), "it.elemType() "~ivarname);
   
   auto backup = namespace();
   auto mns = new MiniNamespace("for_iter_var");
@@ -405,6 +406,8 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   
   auto sc = new Scope;
   namespace.set(sc);
+  
+  logln("@", t2.next_text());
   
   if (!rest(t2, "tree.expr", &main))
     throw new Exception("Cannot find iterator expression at '"~t2.next_text()~"' in '"~text.next_text(32)~"'! ");
@@ -457,6 +460,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     }
   }
   foreach (entry; bsorting) add(entry);
+  logln("?? sc is ", sc._body);
   ipt = stuple(best, new ScopeAndExpr(sc, main), ph, extra);
   return new RCE(cast(IType) restype, new StructLiteral(best, field));
 }
@@ -491,7 +495,7 @@ class IterLetCond : Cond, NeedsConfig {
   }
   override string toString() {
     if (target) return Format(target, " <- ", iter);
-    else return Format("eval ", iter);
+    else return Format("test ", iter);
   }
 }
 
@@ -554,7 +558,7 @@ mixin DefaultParser!(gotIterCond, "cond.iter", "705");
 
 Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("eval")) return null;
+  if (!t2.accept("__istep")) return null;
   Object obj;
   if (!rest(t2, "tree.expr", &obj) || !cast(LValue) obj) return null;
   auto lv = cast(LValue) obj;
@@ -564,7 +568,6 @@ Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   return cast(Object) it.yieldAdvance(lv);
 }
 mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "270");
-
 
 class TempIndex : Expr {
   RichIterator ri; Expr ex, pos;
@@ -675,12 +678,12 @@ class EvalIterator(T) : Expr, Statement {
       void emitStmtConcat(Expr var) {
         if (auto lv = cast(LValue) ex) {
           iparse!(Statement, "iter_array_eval_step_4", "tree.stmt")
-                 (` { typeof(eval _iter) temp; while temp <- _iter { var ~= temp; } }`,
+                 (` { typeof(__istep _iter) temp; while temp <- _iter { var ~= temp; } }`,
                   namespace(),
                   "var", var, "_iter", lv, af).emitAsm(af);
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_5", "tree.stmt")
-                 (` { auto temp = _iter; typeof(eval temp) temp2; while temp2 <- temp { var ~= temp2; } }`,
+                 (` { auto temp = _iter; typeof(__istep temp) temp2; while temp2 <- temp { var ~= temp2; } }`,
                   namespace(),
                   "var", var, "_iter", ex, af).emitAsm(af);
         } else {
