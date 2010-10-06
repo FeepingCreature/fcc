@@ -81,7 +81,8 @@ bool isNumLiteral(string s) {
 }
 
 int literalToInt(string s) {
-  assert(isLiteral(s), "1");
+  if (!isLiteral(s)) asm { int 3; }
+  assert(isLiteral(s), "not a literal: "~s);
   return s[1 .. $].atoi();
 }
 
@@ -168,8 +169,10 @@ class ProcTrack : ExtToken {
   // in use by this set of transactions
   // emit before overwriting
   bool[string] use;
+  // backup
+  Transaction[] original;
   string toString() {
-    return Format("cpu(", known, ", stack ", stack, ", used ", use.keys, ")");
+    return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", used ", use.keys, ")");
   }
   bool update(ref Transaction t) {
     logln("update ", t);
@@ -177,15 +180,44 @@ class ProcTrack : ExtToken {
     scope(exit)
       if (pre1 == known.values && pre2 == stack && pre3 == use.keys)
         logln("reject");
-      else
+      else {
         logln("=> ", this);
+        original ~= t;
+      }
+    string isIndirectSimple(string s) {
+      if (s.length >= 2 && s[0] == '(' && s[$-1] == ')')
+        return s[1..$-1];
+      else return null;
+    }
+    string mkIndirect(string val) {
+      if (val.startsWith("+(")) {
+        auto op2 = val.between("(", ")"), op1 = op2.slice(",").strip();
+        op2 = op2.strip();
+        if (op1.isRegister() && op2.isNumLiteral()) {
+          auto op2i = op2.literalToInt();
+          if (t.to in use)
+            return null;
+          // to indirect access
+          return Format(op2i, "(", op1, ")");
+        }
+      }
+      return null;
+    }
+    void set(string mem, string val) {
+      if (mem == val) known.remove(mem);
+      else known[mem] = val;
+    }
     with (Transaction.Kind) switch (t.kind) {
+      case Compare: return false;
       case MathOp:
         string op2 = t.op2;
         if (auto p = op2 in known) op2 = *p;
         
         if (t.op1.isLiteral() && t.op2 in known) {
-          known[t.op2] = "+(" ~ known[t.op2] ~ ", " ~ t.op1 ~ ")";
+          auto stuf = known[t.op2];
+          if (stuf.isRegister())
+            set(t.op2, "+(" ~ known[t.op2] ~ ", " ~ t.op1 ~ ")");
+          else break;
           return true;
         }
         break;
@@ -205,53 +237,90 @@ class ProcTrack : ExtToken {
           if (src.isRegister())
             use[src] = true;
           if (t.to.isRegister()) {
-            known[t.to] = src;
+            set(t.to, src);
           } else if (t.to == "(%esp)") {
+            if (!stack.length) break;
             stack[$-1] = src;
           } else break;
           return true;
-        } else if (t.length >= 2 && t[0] == '(' && t[$-1] == ')') {
-          auto deref = t.between("(", ")");
+        } else if (auto deref = t.from.isIndirectSimple()) {
           if (deref in known) {
             auto val = known[deref];
-            if (val.startsWith("+(")) {
-              auto op2 = val.between("(", ")"), op1 = op2.slice(",");
-              if (op1.isRegister() && op2.isNumLiteral()) {
-                auto op2i = op2.literalToInt();
-                if (t.to in use)
-                  break;
-                // to indirect access
-                known[t.to] = Format(op2i, "(", op1, ")");
-                return true;
-              } else break;
-            }
+            if (auto indir = mkIndirect(val)) {
+              set(t.to, indir);
+              return true;
+            } else break;
           } else break;
         }
         break;
       case Label: return false;
       case Push:
         if (t.source.isRegister() && t.type.size == nativePtrSize) {
+          auto val = t.source;
+          if (auto p = t.source in known)
+            val = *p;
+          if (val.isRegister()) use[val] = true;
+          stack ~= val;
+          return true;
+        }
+        if (t.source.isLiteral()) {
           stack ~= t.source;
           return true;
         }
         break;
+      case Nevermind:
+        if (t.dest in known) {
+          known.remove(t.dest);
+          return true;
+        }
+        break;
       case Pop:
+        if (!stack.length) break;
         if (t.dest.isRegister() && t.type.size == nativePtrSize) {
-          known[t.dest] = stack[$-1];
+          set(t.dest, stack[$-1]);
           stack = stack[0 .. $-1];
           return true;
+        }
+        if (auto dest = t.dest.isIndirectSimple()) {
+          if (dest in known) {
+            if (auto indir = mkIndirect(known[dest])) {
+              set(indir, stack[$-1]);
+              stack = stack[0 .. $-1];
+              return true;
+            }
+          }
+          return false;
         }
         break;
       default: break;
     }
-    logln("Unsupported: ", t);
-    logln("reg state ", known);
-    logln("stack ", stack.length, ", ", stack);
-    logln("in use ", use);
+    return false;
+    logln("---- Unsupported: ", t);
+    logln("state ", this);
     assert(false);
   }
+  bool isValid() {
+    logln("valid? ", this);
+    foreach (entry; stack) {
+      if (entry.startsWith("+(")) return false;
+      if (!entry.strip().length) return false;
+    }
+    foreach (reg, value; known) if (value.startsWith("+(")) return false;
+    return true;
+  }
   string toAsm() {
-    assert(false);
+    logln("wut ", this);
+    string res;
+    foreach (reg, value; known) {
+      if (res.length) res ~= "\n";
+      res ~= "movl "~value~", "~reg;
+    }
+    foreach (entry; stack) {
+      if (res.length) res ~= "\n";
+      res ~= "pushl "~entry;
+    }
+    logln(" => ", res);
+    return res;
   }
 }
 
@@ -281,6 +350,10 @@ void setupOpts() {
       obj = cast(ProcTrack) $0.obj;
       t.obj = obj;
       if (obj.update($1)) $SUBST([t]);
+      else if (!obj.isValid()) {
+        $SUBST(obj.original);
+        match.modded = false; // These are not the updates you're looking for.
+      }
     } else {
       New(obj);
       t.obj = obj;
@@ -415,7 +488,7 @@ void setupOpts() {
       to = $0.to;
     }
   `));
-  mixin(opt("fold_math_push_add", `^Push, ^MathOp: $0.source.isLiteral() && $1.op1.isLiteral() && $1.op2 == "(%esp)" =>
+  mixin(opt("fold_math_push_add", `^Push, ^MathOp: $0.source.isNumLiteral() && $1.op1.isNumLiteral() && $1.op2 == "(%esp)" =>
     $SUBSTWITH {
       res = $0;
       int i1 = $0.source.literalToInt(), i2 = $1.op1.literalToInt();
@@ -428,8 +501,8 @@ void setupOpts() {
     }
   `));
   mixin(opt("fold_mul", `^Push, ^Mov, ^MathOp, ^Mov:
-    $0.source.isLiteral() && $0.type.size == 4 &&
-    $1.from.isLiteral() && $1.to == $2.op2 &&
+    $0.source.isNumLiteral() && $0.type.size == 4 &&
+    $1.from.isNumLiteral() && $1.to == $2.op2 &&
     $2.op1 == "(%esp)" && $2.op2 == $3.from && $2.opName == "imull" &&
     $3.to == "(%esp)"
     =>
@@ -441,7 +514,7 @@ void setupOpts() {
   `));
   /// location access to a struct can be translated into an offset instruction
   mixin(opt("indirect_access", `^Mov, ^MathOp, ^Pop:
-    $0.from.isLiteral() && $1.opName == "addl" && $1.op1.isRegister() &&
+    $0.from.isNumLiteral() && $1.opName == "addl" && $1.op1.isRegister() &&
     $0.to == $1.op2 && $0.to == "%eax" && $2.dest == "(%eax)"
     =>
     $SUBSTWITH {
@@ -461,7 +534,7 @@ void setupOpts() {
     $SUBST([t1, t2]);
   `));
   mixin(opt("indirect_access_push", `^Mov, ^MathOp, ^Push || ^FloatLoad:
-    $0.from.isLiteral() && $1.opName == "addl" && $1.op1.isRegister() &&
+    $0.from.isNumLiteral() && $1.opName == "addl" && $1.op1.isRegister() &&
     $0.to == $1.op2 && $0.to == "%eax" && $2.source == "(%eax)"
     =>
     $SUBSTWITH {
@@ -471,7 +544,7 @@ void setupOpts() {
     }
   `));
   mixin(opt("indirect_access_sub_fload", `^MathOp, ^FloatLoad:
-    $0.opName == "subl" && $0.op1.isLiteral() && $0.op2 == "%eax"
+    $0.opName == "subl" && $0.op1.isNumLiteral() && $0.op2 == "%eax"
     && $1.source.between("(", ")") == "%eax"
     =>
     $SUBSTWITH {
@@ -481,7 +554,7 @@ void setupOpts() {
   `));
   mixin(opt("merge_literal_adds", `^MathOp, ^MathOp:
     $0.opName == "addl" && $1.opName == "addl" &&
-    $0.op1.isLiteral() && $1.op1.isLiteral() &&
+    $0.op1.isNumLiteral() && $1.op1.isNumLiteral() &&
     $0.op2 == "%eax" && $1.op2 == "%eax"
     =>
     $SUBSTWITH {
@@ -489,20 +562,6 @@ void setupOpts() {
       opName = "addl";
       op1 = Format("$", $0.op1.literalToInt() + $1.op1.literalToInt());
       op2 = "%eax";
-    }
-  `));
-  mixin(opt("fold_rel_access", `^Mov, ^MathOp, ^Mov:
-    $1.opName == "addl" && $1.op2 == $0.to &&
-    (
-      $0.from.isLiteral() && $1.op1.isRegister()
-      ||
-      $0.from.isRegister() && $1.op1.isLiteral()
-    ) && $2.from.isRelative()
-    =>
-    $SUBSTWITH {
-      res = $2;
-      auto i1 = $0.from.literalToInt(), i2 = $2.from.slice("(").atoi();
-      from = Format(i1 + i2, "(", $1.op1, ")");
     }
   `));
   // cleanup
@@ -574,7 +633,7 @@ void setupOpts() {
   `));
   mixin(opt("indirect_access_2", `^Mov, ^MathOp, *:
     (hasDest($2) || hasSource($2)) &&
-    $0.from.isRegister() && $1.opName == "addl" && $1.op1.isLiteral() &&
+    $0.from.isRegister() && $1.opName == "addl" && $1.op1.isNumLiteral() &&
     $0.to == $1.op2 && $0.to == "%eax" && (hasDest($2) && $2.dest == "(%eax)" || hasSource($2) && $2.source == "(%eax)")
     =>
     $T t = $2;
@@ -638,15 +697,6 @@ void setupOpts() {
     labels_refcount[$0.dest] --;
     $SUBST([$1]);
   `));
-  mixin(opt("remove_zero", `*:
-    hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0)
-    =>
-    auto t = $0;
-    if (hasSource(t) && t.source.startsWith("0(")) { t.source = t.source[1 .. $]; $SUBST([t]); }
-    if (hasDest(t) && t.dest.startsWith("0(")) { t.dest = t.dest[1 .. $]; $SUBST([t]); }
-    if (hasFrom(t) && t.from.startsWith("0(")) { t.from = t.from[1 .. $]; $SUBST([t]); }
-    if (hasTo(t) && t.to.startsWith("0(")) { t.to = t.to[1 .. $]; $SUBST([t]); }
-  `));
   mixin(opt("remove_redundant_mov", `^Mov, ^Mov || ^Pop:
     $0.to == "%eax" && (hasTo($1) && ($1.to == "%eax") || hasDest($1) && ($1.dest == "%eax")) && (hasFrom($1) && ($1.from.find("%eax") == -1))
     =>
@@ -660,7 +710,7 @@ void setupOpts() {
     $SUBST([t, $2]);
   `));
   mixin(opt("indirect_access_mov", `^Mov, ^MathOp, ^Mov:
-    $0.from.isRegister() && $1.opName == "addl" && $1.op1.isLiteral() &&
+    $0.from.isRegister() && $1.opName == "addl" && $1.op1.isNumLiteral() &&
     $0.to == $1.op2 && $0.to == "%eax" && $2.from == "(%eax)" && $2.to == "%eax" /* this ensures we don't need to preserve eax */
     =>
     auto t = $2;

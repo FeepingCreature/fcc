@@ -23,6 +23,7 @@ class VarDecl : Statement {
           var.emitLocation(af);
           af.popStack("%eax", new Pointer(var.valueType()));
           af.popStack("(%eax)", var.initval.valueType());
+          af.nvm("%eax");
         }
       }
       assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; ", -var.baseOffset, " vs. ", af.currentStackDepth, ": ", var));

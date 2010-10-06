@@ -45,6 +45,12 @@ class AsmFile {
       throw new Exception("Tried to unwind stack while unwound further - logic error");
     sfree(currentStackDepth - i);
   }
+  void nvm(string mem) {
+    Transaction t;
+    t.kind = Transaction.Kind.Nevermind;
+    t.dest = mem;
+    cache ~= t;
+  }
   void compare(string op1, string op2, bool test = false) {
     Transaction t;
     t.kind = Transaction.Kind.Compare;

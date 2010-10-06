@@ -30,11 +30,11 @@ struct Transaction {
   enum Kind {
     Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
     FloatLoad, FloatStore, FloatPop, FloatMath, FloatSwap,
-    Jump, Label, Extended
+    Jump, Label, Extended, Nevermind
   }
   const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
     "FloatLoad", "FloatStore", "FloatPop", "FloatMath", "FloatSwap",
-    "Jump", "Label", "Extended"];
+    "Jump", "Label", "Extended", "Nevermind"];
   Kind kind;
   string toString() {
     switch (kind) {
@@ -58,6 +58,7 @@ struct Transaction {
       case Kind.Jump:      return Format("[jmp ", dest, "]");
       case Kind.Label:     return Format("[label ", names, "]");
       case Kind.Extended:  return Format("[extended ", obj, "]");
+      case Kind.Nevermind: return Format("[nvm ", dest, "]");
     }
   }
   string toAsm() {
@@ -218,6 +219,8 @@ struct Transaction {
         return res[0 .. $-1];
       case Kind.Extended:
         return obj.toAsm();
+      case Kind.Nevermind:
+        return null;
     }
   }
   struct {

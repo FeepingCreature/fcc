@@ -39,6 +39,7 @@ class Assignment : Statement {
       }
       af.popStack("%eax", new Pointer(target.valueType()));
       af.popStack("(%eax)", value.valueType());
+      af.nvm("%eax");
     }
   }
 }
