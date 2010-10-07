@@ -175,15 +175,8 @@ class ProcTrack : ExtToken {
     return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", used ", use.keys, ")");
   }
   bool update(ref Transaction t) {
-    logln("update ", t);
-    auto pre1 = known.values, pre2 = stack.dup, pre3 = use.keys;
-    scope(exit)
-      if (pre1 == known.values && pre2 == stack && pre3 == use.keys)
-        logln("reject");
-      else {
-        logln("=> ", this);
-        original ~= t;
-      }
+    // #define .. lol
+    const string Success = "{ original ~= t; return true; }";
     string isIndirectSimple(string s) {
       if (s.length >= 2 && s[0] == '(' && s[$-1] == ')')
         return s[1..$-1];
@@ -218,13 +211,13 @@ class ProcTrack : ExtToken {
           if (stuf.isRegister())
             set(t.op2, "+(" ~ known[t.op2] ~ ", " ~ t.op1 ~ ")");
           else break;
-          return true;
+          mixin(Success);
         }
         break;
       case SAlloc:
         if (t.size == 4) {
           stack ~= null;
-          return true;
+          mixin(Success);
         } else break;
       case Mov:
         if (t.from.find("%esp") != -1)
@@ -242,13 +235,13 @@ class ProcTrack : ExtToken {
             if (!stack.length) break;
             stack[$-1] = src;
           } else break;
-          return true;
+          mixin(Success);
         } else if (auto deref = t.from.isIndirectSimple()) {
           if (deref in known) {
             auto val = known[deref];
             if (auto indir = mkIndirect(val)) {
               set(t.to, indir);
-              return true;
+              mixin(Success);
             } else break;
           } else break;
         }
@@ -261,35 +254,40 @@ class ProcTrack : ExtToken {
             val = *p;
           if (val.isRegister()) use[val] = true;
           stack ~= val;
-          return true;
+          mixin(Success);
         }
         if (t.source.isLiteral()) {
-          stack ~= t.source;
-          return true;
-        }
-        break;
-      case Nevermind:
-        if (t.dest in known) {
-          known.remove(t.dest);
-          return true;
+          if (t.type.size % nativePtrSize != 0)
+            return false; // not a case we can handle
+          auto steps = t.type.size / nativePtrSize;
+          for (int i = 0; i < steps; ++i)
+            stack ~= t.source;
+          mixin(Success);
         }
         break;
       case Pop:
         if (!stack.length) break;
         if (t.dest.isRegister() && t.type.size == nativePtrSize) {
+          if (t.dest != stack[$-1] && t.dest in use) return false;
           set(t.dest, stack[$-1]);
           stack = stack[0 .. $-1];
-          return true;
+          mixin(Success);
         }
         if (auto dest = t.dest.isIndirectSimple()) {
           if (dest in known) {
             if (auto indir = mkIndirect(known[dest])) {
               set(indir, stack[$-1]);
               stack = stack[0 .. $-1];
-              return true;
+              mixin(Success);
             }
           }
           return false;
+        }
+        break;
+      case Nevermind:
+        if (t.dest in known) {
+          known.remove(t.dest);
+          mixin(Success);
         }
         break;
       default: break;
@@ -300,29 +298,33 @@ class ProcTrack : ExtToken {
     assert(false);
   }
   bool isValid() {
-    logln("valid? ", this);
     foreach (entry; stack) {
       if (entry.startsWith("+(")) return false;
       if (!entry.strip().length) return false;
     }
-    foreach (reg, value; known) if (value.startsWith("+(")) return false;
+    foreach (mem, value; known) {
+      if (value.startsWith("+(")) return false;
+      // TODO: move over eax or something
+      if (mem.isRelative() && value.isRelative()) return false;
+    }
     return true;
   }
   string toAsm() {
-    logln("wut ", this);
     string res;
-    foreach (reg, value; known) {
-      if (res.length) res ~= "\n";
-      res ~= "movl "~value~", "~reg;
-    }
     foreach (entry; stack) {
       if (res.length) res ~= "\n";
       res ~= "pushl "~entry;
     }
-    logln(" => ", res);
+    foreach (reg, value; known) {
+      if (res.length) res ~= "\n";
+      res ~= "movl "~value~", "~reg;
+    }
+    logln(" => ", res.replace("\n", "\\"), " (", original, ")");
     return res;
   }
 }
+
+bool delegate(Transcache, ref int[string]) ext_step;
 
 void setupOpts() {
   if (optsSetup) return;
@@ -346,22 +348,37 @@ void setupOpts() {
     ProcTrack obj;
     $T t;
     t.kind = $TK.Extended;
+    logln("ext_step(", $0, ", ", $1, ")");
     if ($0.kind == $TK.Extended) {
       obj = cast(ProcTrack) $0.obj;
       t.obj = obj;
-      if (obj.update($1)) $SUBST([t]);
-      else if (!obj.isValid()) {
-        $SUBST(obj.original);
-        match.modded = false; // These are not the updates you're looking for.
+      bool couldUpdate = obj.update($1);
+      if (couldUpdate) {
+        $SUBST([t]);
+        if (match.to != match.parent.list.length) {
+          goto skip; // ------v
+        }
       }
+      if (!obj.isValid()) {
+        auto restore = obj.original;
+        if (!couldUpdate) restore ~= $1;
+        $SUBST(restore);
+        match.modded = false; // These are not the updates you're looking for.
+        changed = true; // secretly
+      }
+      skip:; //            <---v
     } else {
       New(obj);
       t.obj = obj;
-      if (obj.update($0)) $SUBST([t, $1]);
+      if (obj.update($0)) { $SUBST([t, $1]); }
+      
     }
   `));
+  .ext_step = &ext_step; // export
+  opts = opts[0 .. $-1]; // only do ext_step once
+  
   // alloc/free can be shuffled down past _anything_ that doesn't reference stack.
-  mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !affectsStack($1) => $SUBST([$1, $0]); `));
+  /+mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !affectsStack($1) => $SUBST([$1, $0]); `));
   mixin(opt("sort_pointless_mem", `^SAlloc || ^SFree, *:
     (hasSource($1) || hasDest($1) || hasFrom($1) || hasTo($1)) && !changesESP($1)
     =>
@@ -711,12 +728,12 @@ void setupOpts() {
   `));
   mixin(opt("indirect_access_mov", `^Mov, ^MathOp, ^Mov:
     $0.from.isRegister() && $1.opName == "addl" && $1.op1.isNumLiteral() &&
-    $0.to == $1.op2 && $0.to == "%eax" && $2.from == "(%eax)" && $2.to == "%eax" /* this ensures we don't need to preserve eax */
+    $0.to == $1.op2 && $0.to == "%eax" && $2.from == "(%eax)" && $2.to == "%eax" /+ this ensures we don't need to preserve eax +/
     =>
     auto t = $2;
     t.from = Format($1.op1.literalToInt(), "(", $0.from, ")");
     $SUBST([t]);
-  `));
+  `));+/
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;

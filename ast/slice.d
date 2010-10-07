@@ -108,7 +108,7 @@ Statement getSliceAssign(Expr slice, Expr array) {
     elemtype = ar.elemType;
   else assert(false);
   
-  auto fc = (cast(Function) sysmod.lookup("memcpy")).mkCall;
+  auto fc = (cast(Function) sysmod.lookup("memcpy2")).mkCall;
   fc.params ~= getArrayPtr(slice);
   fc.params ~= getArrayPtr(array);
   fc.params ~= lookupOp("*", getArrayLength(array), new IntExpr(elemtype.size));

@@ -61,6 +61,26 @@ struct Transaction {
       case Kind.Nevermind: return Format("[nvm ", dest, "]");
     }
   }
+  int opEquals(ref Transaction t2) {
+    if (kind != t2.kind) return false;
+    with (Kind) switch (kind) {
+      case Mov, Mov2, Mov1:  return from == t2.from && to == t2.to;
+      case SAlloc, SFree: return size == t2.size;
+      case MathOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
+      case Push: return source == t2.source && type == t2.type;
+      case Pop: return dest == t2.dest && type == t2.type;
+      case FloatStore, FloatPop: return dest == t2.dest;
+      case Call, Jump: return dest == t2.dest;
+      case Compare: return op1 == t2.op1 && op2 == t2.op2;
+      case FloatLoad: return source == t2.source;
+      case FloatMath: return opName == t2.opName;
+      case FloatSwap: return true;
+      case Label: return names == t2.names;
+      case Extended: return obj == t2.obj;
+      case Nevermind: return dest == t2.dest;
+    }
+    assert(false);
+  }
   string toAsm() {
     switch (kind) {
       case Kind.Mov:
@@ -266,6 +286,9 @@ struct Transsection(C) {
   Transaction[] opSlice() { return parent.list[from .. to]; }
   size_t length() { return to - from; }
   void replaceWith(Transaction[] withWhat) {
+    static int i;
+    i++;
+    if (i > 574) return;
     if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", withWhat);
     if (withWhat.length == length) {
       parent.list[from .. to] = withWhat;
@@ -276,14 +299,7 @@ struct Transsection(C) {
     modded = true;
   }
   void replaceWith(Transaction withWhat) {
-    if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", withWhat);
-    if (length == 1) {
-      parent.list[from] = withWhat;
-    } else {
-      parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
-    }
-    to = from + 1;
-    modded = true;
+    replaceWith([withWhat]);
   }
   bool reset() {
     *this = parent.findMatch(opName, cond);

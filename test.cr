@@ -13,8 +13,15 @@ void test(int foo) {
     writeln("Countdown with $temp");
     temp = temp - 1;
   }
-  for (int x = 0; x < 10; ++x)
-    writeln("Test: $x");
+  int x = 0;
+  /*for (int x = 0; x < 10; ++x)
+    writeln("Test: $x");*/
+  writeln("Countdown with -- $(0)");
+  writeln("Countdown with -- $(1)");
+  while (x < 10) {
+    break;
+    ++x;
+  }
 }
 /*
 int acker(int m, int n) {

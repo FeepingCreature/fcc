@@ -58,7 +58,7 @@ int main(string[] args) {
   int[] left;
   foreach (i, name; names) left ~= i;
   
-  auto rowheight = 20;
+  auto rowheight = 11;
   void delegate() maindg;
   auto tp = new Threadpool(1), mainpool = new Threadpool(0);
   void render() {

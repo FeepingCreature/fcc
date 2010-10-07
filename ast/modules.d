@@ -103,6 +103,10 @@ void setupSysmods() {
     template init(T) <<EOT
       T init;
     EOT
+    void* memcpy2(void* dest, src, int n) {
+      // printf("memcpy(%p, %p, %i)\n", dest, src, n);
+      return memcpy(dest, src, n);
+    }
     context mem {
       void* delegate(int)            malloc_dg = &malloc;
       void* delegate(int, int)      calloc_dg = &calloc;
