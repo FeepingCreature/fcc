@@ -1,5 +1,5 @@
 module test;
-import sys/*, sdl*/;
+import sys, sdl;
 
 int add(int a, int b) { return a + b; }
 
@@ -13,17 +13,10 @@ void test(int foo) {
     writeln("Countdown with $temp");
     temp = temp - 1;
   }
-  int x = 0;
-  /*for (int x = 0; x < 10; ++x)
-    writeln("Test: $x");*/
-  writeln("Countdown with -- $(0)");
-  writeln("Countdown with -- $(1)");
-  while (x < 10) {
-    break;
-    ++x;
-  }
+  for (int x = 0; x < 10; ++x)
+    writeln("Test: $x");
 }
-/*
+
 int acker(int m, int n) {
   if (m) {
     if (n) return acker(m - 1, acker(m, n - 1));
@@ -177,7 +170,6 @@ union U {
 }
 
 // c_include "gc.h";
-*/
 
 int main(int argc, char** argv) {
   // use Boehm GC
@@ -193,7 +185,7 @@ int main(int argc, char** argv) {
   mem.calloc_dg = &myCalloc;
   mem.realloc_dg = &myRealloc;
   mem.free_dg = &GC_free;*/
-  /*auto cdg = mem.calloc_dg;
+  auto cdg = mem.calloc_dg;
   void* myCalloc(int a, b) {
     // printf("Allocate %i, %i\n", a, b);
     if (a*b > 65536) {
@@ -202,10 +194,10 @@ int main(int argc, char** argv) {
     }
     return cdg(a, b);
   }
-  mem.calloc_dg = &myCalloc;*/
+  mem.calloc_dg = &myCalloc;
   test(2);
   test(0);
-  /*int e = 5;
+  int e = 5;
   // writeln("a(3, 12) = $$acker(3, 12)");
   int* ptr = &e;
   *ptr = 7;
@@ -469,7 +461,7 @@ int main(int argc, char** argv) {
     alias size = 4;
     auto test = [for bin <- [for tuple <- cross [for i <- 0..2: i]^size: cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
     writeln("test is $$typeof(test).stringof: $test");
-    auto frobbly = cross [for i <- 0..2: i]^3; // THAT'S IT: i ref is wrong under power!!
+    auto frobbly = cross [for i <- 0..2: i]^3;
     // writeln "Initial frobbly == $((cast(byte*) &frobbly)[0..44]). ";
     writeln "Test: $$__istep frobbly";
     // writeln "In-between state: $((cast(byte*) &frobbly)[0..44]). "; // 180
@@ -482,5 +474,5 @@ int main(int argc, char** argv) {
     while i <- frobbly writeln "i => $i";
     return 0;
     atexit writeln("Exit 4. ");
-  }*/
+  }
 }

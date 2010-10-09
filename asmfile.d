@@ -242,7 +242,6 @@ class AsmFile {
       unused.remove(opt);
       map[opt](cache, labels_refcount);
     }
-    logln("ext step on ", cache.list);
     ext_step(cache, labels_refcount); // run this first
     while (true) {
       bool anyChange;

@@ -267,7 +267,8 @@ class ProcTrack : ExtToken {
         break;
       case Pop:
         if (!stack.length) break;
-        if (t.dest.isRegister() && t.type.size == nativePtrSize) {
+        if (t.type.size != nativePtrSize) return false;
+        if (t.dest.isRegister()) {
           if (t.dest != stack[$-1] && t.dest in use) return false;
           set(t.dest, stack[$-1]);
           stack = stack[0 .. $-1];
@@ -319,7 +320,7 @@ class ProcTrack : ExtToken {
       if (res.length) res ~= "\n";
       res ~= "movl "~value~", "~reg;
     }
-    logln(" => ", res.replace("\n", "\\"), " (", original, ")");
+    // logln(" => ", res.replace("\n", "\\"), " (", original, ")");
     return res;
   }
 }
@@ -348,7 +349,6 @@ void setupOpts() {
     ProcTrack obj;
     $T t;
     t.kind = $TK.Extended;
-    logln("ext_step(", $0, ", ", $1, ")");
     if ($0.kind == $TK.Extended) {
       obj = cast(ProcTrack) $0.obj;
       t.obj = obj;
@@ -378,7 +378,7 @@ void setupOpts() {
   opts = opts[0 .. $-1]; // only do ext_step once
   
   // alloc/free can be shuffled down past _anything_ that doesn't reference stack.
-  /+mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !affectsStack($1) => $SUBST([$1, $0]); `));
+  mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !affectsStack($1) => $SUBST([$1, $0]); `));
   mixin(opt("sort_pointless_mem", `^SAlloc || ^SFree, *:
     (hasSource($1) || hasDest($1) || hasFrom($1) || hasTo($1)) && !changesESP($1)
     =>
@@ -733,7 +733,7 @@ void setupOpts() {
     auto t = $2;
     t.from = Format($1.op1.literalToInt(), "(", $0.from, ")");
     $SUBST([t]);
-  `));+/
+  `));
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;

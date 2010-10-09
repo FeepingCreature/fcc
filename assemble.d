@@ -276,6 +276,8 @@ struct Transaction {
 
 bool debugOpts;
 
+import tools.compat: max;
+
 struct Transsection(C) {
   Transcache parent;
   string opName;
@@ -286,14 +288,23 @@ struct Transsection(C) {
   Transaction[] opSlice() { return parent.list[from .. to]; }
   size_t length() { return to - from; }
   void replaceWith(Transaction[] withWhat) {
-    static int i;
-    i++;
-    if (i > 574) return;
     if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", withWhat);
     if (withWhat.length == length) {
       parent.list[from .. to] = withWhat;
     } else {
-      parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
+      with (parent) {
+        auto f1 = to, t1 = list.length, f2 = from + withWhat.length, t2 = f2 + (t1 - f1);
+        list.length = max(list.length, t2);
+        if (f2 < f1) // forward copy
+          for (int i = f1; i < t1; ++i)
+            list[f2 - f1 + i] = list[i];
+        else // backward copy
+          for (int i = t1 - 1; i >= f1; --i)
+            list[f2 - f1 + i] = list[i];
+        list[from .. f2] = withWhat;
+        list.length = t2;
+      }
+      // parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
     }
     to = from + withWhat.length;
     modded = true;
