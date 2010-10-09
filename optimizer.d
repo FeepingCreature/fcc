@@ -484,19 +484,10 @@ void setupOpts() {
       op2 = $0.op2;
     }
   `));
-  mixin(opt("mov_and_math", `^Mov, ^MathOp: $0.to == $1.op1 && !isRelative($0.from) =>
-    $SUBSTWITH {
-      kind = $TK.MathOp;
-      opName = $1.opName; op1 = $0.from; op2 = $1.op2;
-    }
-  `));
   mixin(opt("add_and_pop_reg", `^MathOp, ^Pop: $0.op2 == "(%esp)" && ($0.op1.find($1.to) == -1) =>
     auto res = $0.dup;
     res.op2 = $1.to;
     $SUBST([$1, res]);
-  `));
-  mixin(opt("literals_first", `^MathOp, ^MathOp: $0.op2 == $1.op2 && $0.op1.isRegister() && $1.op1.isLiteral() =>
-    $SUBST([$1, $0]);
   `));
   mixin(opt("fold_math", `^Mov, ^MathOp: $1.opName == "addl" && $0.to == $1.op2 && $0.from.isNumLiteral() && $1.op1.isNumLiteral() =>
     $SUBSTWITH {
@@ -505,41 +496,7 @@ void setupOpts() {
       to = $0.to;
     }
   `));
-  mixin(opt("fold_math_push_add", `^Push, ^MathOp: $0.source.isNumLiteral() && $1.op1.isNumLiteral() && $1.op2 == "(%esp)" =>
-    $SUBSTWITH {
-      res = $0;
-      int i1 = $0.source.literalToInt(), i2 = $1.op1.literalToInt();
-      switch ($1.opName) {
-        case "addl": source = Format("$", i1+i2); break;
-        case "subl": source = Format("$", i1-i2); break;
-        case "imull": source = Format("$", i1*i2); break;
-        default: assert(false, "Unsupported op: "~$1.opName);
-      }
-    }
-  `));
-  mixin(opt("fold_mul", `^Push, ^Mov, ^MathOp, ^Mov:
-    $0.source.isNumLiteral() && $0.type.size == 4 &&
-    $1.from.isNumLiteral() && $1.to == $2.op2 &&
-    $2.op1 == "(%esp)" && $2.op2 == $3.from && $2.opName == "imull" &&
-    $3.to == "(%esp)"
-    =>
-    $SUBSTWITH {
-      res = $0;
-      auto i1 = $0.source.literalToInt(), i2 = $1.from.literalToInt();
-      source = Format("$", i1*i2);
-    }
-  `));
   /// location access to a struct can be translated into an offset instruction
-  mixin(opt("indirect_access", `^Mov, ^MathOp, ^Pop:
-    $0.from.isNumLiteral() && $1.opName == "addl" && $1.op1.isRegister() &&
-    $0.to == $1.op2 && $0.to == "%eax" && $2.dest == "(%eax)"
-    =>
-    $SUBSTWITH {
-      kind = $TK.Pop;
-      type = $2.type;
-      dest = Format($0.from.literalToInt(), "(", $1.op1, ")");
-    }
-  `));
   mixin(opt("add_into_pop", `^MathOp, ^Pop:
     $0.opName == "addl" && $0.op1 == $1.dest &&
     $0.op2 == "(%esp)" && $1.type.size == 4
@@ -549,16 +506,6 @@ void setupOpts() {
     t2.kind = $TK.SFree;
     t2.size = 4;
     $SUBST([t1, t2]);
-  `));
-  mixin(opt("indirect_access_push", `^Mov, ^MathOp, ^Push || ^FloatLoad:
-    $0.from.isNumLiteral() && $1.opName == "addl" && $1.op1.isRegister() &&
-    $0.to == $1.op2 && $0.to == "%eax" && $2.source == "(%eax)"
-    =>
-    $SUBSTWITH {
-      kind = $2.kind;
-      type = $2.type;
-      source = Format($0.from.literalToInt(), "(", $1.op1, ")");
-    }
   `));
   mixin(opt("indirect_access_sub_fload", `^MathOp, ^FloatLoad:
     $0.opName == "subl" && $0.op1.isNumLiteral() && $0.op2 == "%eax"
@@ -581,16 +528,6 @@ void setupOpts() {
       op2 = "%eax";
     }
   `));
-  // cleanup
-  mixin(opt("alloc_move_to_push", `^SAlloc, ^Mov:
-    $0.size == 4 && $1.to == "(%esp)"
-    =>
-    $SUBSTWITH {
-      kind = $TK.Push;
-      type = Single!(SysInt);
-      source = $1.from;
-    }
-  `));
   mixin(opt("load_from_push", `^Push, ^FloatLoad:
     !$0.source.isRegister() && $1.source == "(%esp)"
     =>
@@ -601,23 +538,10 @@ void setupOpts() {
     a2.size = 4;
     $SUBST([a1, a2]);
   `));
-  mixin(opt("fold_fpop_and_pop", `^FloatPop, ^Pop:
-    $0.dest == "(%esp)" && $1.type.size == 4
-    =>
-    $T a1, a2;
-    a1.kind = $TK.FloatPop;
-    a1.dest = $1.dest;
-    a1.stackdepth = $0.stackdepth;
-    a2.kind = $TK.SFree;
-    a2.size = 4;
-    $SUBST([a1, a2]);
-  `));
   
   mixin(opt("fold_float_pop_load", `^FloatPop, ^FloatLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 4 => $SUBST([$2]);`));
-  mixin(opt("fold_float_alloc_load_store", `^SAlloc, ^FloatLoad, ^FloatPop: $0.size == 4 && $2.dest == "(%esp)" => $SUBSTWITH { kind = $TK.Push; source = $1.source; type = Single!(Float); }`));
   mixin(opt("fold_float_pop_load_to_store", `^FloatPop, ^FloatLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.FloatStore; dest = $0.dest; }`));
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
-  mixin(opt("fold_mov_push", `^Mov, ^Push: $0.to == $1.source && !affectsStack($0) => $T t; with (t) { kind = $TK.Push; type = $1.type; source = $0.from; } $SUBST([t, $0]); `));
   mixin(opt("fold_mov_pop",  `^Mov, ^Pop : $0.from == $1.dest && $0.to == "(%esp)"
     =>
     $SUBSTWITH {
@@ -627,27 +551,11 @@ void setupOpts() {
     }
   `));
   // some very special cases
-  mixin(opt("float_meh",  `^SFree, ^FloatSwap, ^SAlloc: $0.size == $2.size => $SUBST([$1]); `));
   mixin(opt("float_meh_2",  `^FloatStore, ^FloatMath, ^FloatStore || ^FloatPop: $0.dest == $2.dest => $SUBST([$1, $2]); `));
   mixin(opt("float_meh_3",  `^FloatStore, ^FloatLoad, ^FloatMath, ^FloatStore: $0.dest != $1.source && $0.dest == $3.dest => $SUBST([$1, $2, $3]); `));
-  mixin(opt("float_pointless_swap",  `^FloatSwap, ^FloatMath: $1.opName == "fadd" || $1.opName == "fmul" => $SUBST([$1]); `));
   mixin(opt("float_pointless_store",  `^FloatStore, ^FloatPop: $0.dest == $1.dest => $SUBST([$1]); `));
-  mixin(opt("float_addition_is_commutative", `^FloatPop, ^FloatLoad, ^FloatLoad, ^FloatMath: $3.opName == "fadd" => auto t = $0; t.kind = $TK.FloatStore; $SUBST([t, $1, $3]); `));
   
   // typical for delegates
-  mixin(opt("member_access_1", `^Push, ^Push, ^Mov, ^SFree, ^Push:
-    $0.type.size /and/ $1.type.size /and/ $4.type.size == 4 && $2.from == "4(%esp)" && $3.size == 8 && $2.to == $4.source
-    =>
-    $SUBST([$0]);
-  `));
-  mixin(opt("member_access_2", `^Push, ^Push, ^Mov, ^SFree, ^Call:
-    $0.type.size /and/ $1.type.size == 4 && $2.from == "0(%esp)" && $3.size == 8 && $2.to == $4.dest
-    =>
-    $SUBSTWITH {
-      kind = $TK.Call;
-      dest = $1.source;
-    }
-  `));
   mixin(opt("indirect_access_2", `^Mov, ^MathOp, *:
     (hasDest($2) || hasSource($2)) &&
     $0.from.isRegister() && $1.opName == "addl" && $1.op1.isNumLiteral() &&
@@ -667,15 +575,6 @@ void setupOpts() {
     auto t = $1;
     t.source = Format(($0.opName == "addl")?"":"-", $0.op1.literalToInt(), $1.source);
     $SUBST([t]);
-  `));
-  mixin(opt("store_float_direct", `^FloatPop, ^Pop:
-    $0.dest == "(%esp)" && $1.type.size == 4
-    =>
-    $T t1 = $0, t2;
-    t1.dest = $1.dest;
-    t2.kind = $TK.SFree;
-    t2.size = 4;
-    $SUBST([t1, t2]);
   `));
   mixin(opt("ebp_to_esp", `*:
     (  hasSource($0) && $0.source.between("(", ")") == "%ebp"
@@ -713,26 +612,6 @@ void setupOpts() {
     =>
     labels_refcount[$0.dest] --;
     $SUBST([$1]);
-  `));
-  mixin(opt("remove_redundant_mov", `^Mov, ^Mov || ^Pop:
-    $0.to == "%eax" && (hasTo($1) && ($1.to == "%eax") || hasDest($1) && ($1.dest == "%eax")) && (hasFrom($1) && ($1.from.find("%eax") == -1))
-    =>
-    $SUBST([$1]);
-  `));
-  mixin(opt("shorten_redundant_mov", `^Mov, ^Mov, *:
-    $0.to == $1.from && willOverwrite($2, $0.to)
-    =>
-    auto t = $0;
-    t.to = $1.to;
-    $SUBST([t, $2]);
-  `));
-  mixin(opt("indirect_access_mov", `^Mov, ^MathOp, ^Mov:
-    $0.from.isRegister() && $1.opName == "addl" && $1.op1.isNumLiteral() &&
-    $0.to == $1.op2 && $0.to == "%eax" && $2.from == "(%eax)" && $2.to == "%eax" /+ this ensures we don't need to preserve eax +/
-    =>
-    auto t = $2;
-    t.from = Format($1.op1.literalToInt(), "(", $0.from, ")");
-    $SUBST([t]);
   `));
 }
 
