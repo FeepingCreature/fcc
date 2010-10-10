@@ -458,6 +458,9 @@ int main(int argc, char** argv) {
       while (i--) res = res * 2;
       return res;
     }
+    (int, int) frob;
+    frob[0] = 15;
+    writeln "frob is $frob";
     alias size = 4;
     auto test = [for bin <- [for tuple <- cross [for i <- 0..2: i]^size: cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
     writeln("test is $$typeof(test).stringof: $test");

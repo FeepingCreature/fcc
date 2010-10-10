@@ -63,6 +63,24 @@ Tuple mkTuple(IType[] types...) {
   return tup;
 }
 
+Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  IType ty;
+  IType[] types;
+  if (t2.accept("(") &&
+      t2.bjoin(
+        !!rest(t2, "type", &ty),
+        t2.accept(","),
+        { types ~= ty; }
+      ) &&
+      t2.accept(")")
+    ) {
+    text = t2;
+    return mkTuple(types);
+  } else return null;
+}
+mixin DefaultParser!(gotTupleType, "type.tuple", "37");
+
 Expr mkTupleExpr(Expr[] exprs...) {
   auto tup = mkTuple(exprs /map/ (Expr ex) { return ex.valueType(); });
   return new RCE(tup, new StructLiteral(tup.wrapped, exprs));
