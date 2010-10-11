@@ -80,24 +80,26 @@ mixin DefaultParser!(gotRangeIter, "tree.expr.iter_range", "11");
 
 class StructIterator : Type, Iterator {
   IType wrapped;
-  this(IType it) { wrapped = it; }
+  IType _elemType;
+  this(IType it) {
+    wrapped = it;
+    _elemType = iparse!(IType, "si_elemtype", "type")
+                       (`typeof(eval ((*cast(wrapped*) 0).step))`,
+                        "wrapped", wrapped);
+  }
   override {
     int size() { return wrapped.size; }
     string mangle() { return "struct_iterator_"~wrapped.mangle(); }
     ubyte[] initval() { return wrapped.initval; }
-    IType elemType() {
-      return iparse!(IType, "si_elemtype", "type")
-                    (`typeof(__istep ((*cast(wrapped*) 0).step))`,
-                     "wrapped", wrapped);
-    }
+    IType elemType() { return _elemType; }
     Expr yieldAdvance(LValue lv) {
       return iparse!(Expr, "si_step", "tree.expr")
-                    (`__istep (lv.step)`,
+                    (`eval (lv.step)`,
                      "lv", lv, "W", wrapped);
     }
     Cond terminateCond(Expr ex) {
       return iparse!(Cond, "si_ivalid", "cond")
-                    (`__istep (ex.ivalid)`,
+                    (`eval (ex.ivalid)`,
                      "ex", ex, "W", wrapped);
     }
   }
@@ -124,9 +126,9 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
                         "templ", templ, "nex", nex);
     if (!inst) { logln("no template :("); return null; }
     auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
-                        (`__istep inst`, "inst", inst);
+                        (`eval (inst.step)`, "inst", inst);
     auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
-                        (`__istep (inst.ivalid)`, "inst", inst);
+                        (`eval (inst.ivalid)`, "inst", inst);
     if (!test1 || !test2) {
       logln("test failed: ", !test1, ", ", !test2);
       return null;
@@ -573,12 +575,17 @@ Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("__istep")) return null;
   Object obj;
-  if (!rest(t2, "tree.expr", &obj) || !cast(LValue) obj) return null;
+  if (!rest(t2, "tree.expr", &obj) || !cast(LValue) obj) {
+    logln("refusing istep - nothing matched or not lvalue: ", obj);
+    return null;
+  }
   auto lv = cast(LValue) obj;
   auto it = cast(Iterator) lv.valueType();
-  if (!it) return null;
+  if (!it) {
+    logln("refusing istep: not an iterator ", lv.valueType());
+    return null;
+  }
   text = t2;
-  // short offender
   return cast(Object) it.yieldAdvance(lv);
 }
 mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "270");

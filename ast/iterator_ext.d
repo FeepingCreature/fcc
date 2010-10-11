@@ -102,7 +102,7 @@ class Cross : Type, RichIterator {
                          (`if (!tup[0]) { tup[0] = true; } else {}`, "tup", tup);
       foreach (i, type; types) {
         root.branch1.addStatement(iparse!(Statement, "cross_iterate_init_specific", "tree.stmt")
-                                         (`{ tup[1+i] = __istep tup[1+len+i]; printf("init %i to %i. \n", 1+i, tup[1+i]); }`,
+                                         (`{ tup[1+i] = __istep tup[1+len+i]; }`,
                                           "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length)));
       }
       IfStatement current;
