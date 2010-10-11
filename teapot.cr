@@ -68,16 +68,16 @@ DataSet parse(string fn) {
   auto res = new DataSet;
   auto lines = splitAt("\n", readfile open fn).eval[];
   {
-    auto idcount = atoi(toStringz(lines[0]));
+    auto idcount = atoi toStringz lines[0];
     while auto id <- lines[1 .. idcount + 1] {
       int[16] temp;
-      temp[] = [for st <- splitAt(",", iter_one id): atoi(toStringz(st))].eval[];
+      temp[] = [for st <- splitAt(",", iter_one id): atoi toStringz st].eval[];
       res.indices ~= temp;
     }
     lines = lines[idcount + 1 .. lines.length];
   }
   {
-    auto vertcount = atoi(toStringz(lines[0]));
+    auto vertcount = atoi toStringz lines[0];
     while auto vert <- lines[1 .. vertcount + 1] {
       auto split = splitAt(",", iter_one vert).eval;
       vec3f temp;
@@ -86,16 +86,16 @@ DataSet parse(string fn) {
       res.vecs ~= temp;
     }
   }
-  writeln("Read from $fn: $(res.indices.length) index sets, $(res.vecs.length) vertices. ");
+  writeln "Read from $fn: $(res.indices.length) index sets, $(res.vecs.length) vertices. ";
   return res;
 }
 
 float t;
 void drawScene(DataSet ds) {
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  glLoadIdentity();
-  glTranslatef(0, 0, -6);
-  glRotatef(t, 0.1, 1, 0);
+  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glLoadIdentity;
+  glTranslatef (0, 0, -6);
+  glRotatef (t, 0.1, 1, 0);
   t += 0.01;
   int i;
   while auto ind <- ds.indices {
@@ -112,8 +112,8 @@ void drawScene(DataSet ds) {
 }
 
 int update(SDL_Surface* surface) {
-  SDL_Flip(surface);
-  SDL_Event ev;
+  SDL_Flip surface;
+  SDL_Event ev = void;
   while SDL_PollEvent(&ev) {
     if ev.type == 12 return 1; // QUIT
   }
@@ -123,13 +123,13 @@ int update(SDL_Surface* surface) {
 int main(int argc, char** argv) {
   t = 0;
   auto ds = parse("newell_teaset/teapot");
-  SDL_Init(SDL_INIT_VIDEO);
+  SDL_Init (SDL_INIT_VIDEO);
   auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_HWPALETTE | SDL_RESIZABLE | SDL_HWSURFACE | SDL_HWACCEL;
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  auto surf = SDL_SetVideoMode(640, 480, 0, SDL_OPENGL);
+  auto surf = SDL_SetVideoMode (640, 480, 0, SDL_OPENGL);
   if !surf quit(1);
-  initGL();
-  resizeWindow(640, 480);
+  initGL;
+  resizeWindow (640, 480);
   while true {
     drawScene(ds);
     if update(surf) quit(0);
