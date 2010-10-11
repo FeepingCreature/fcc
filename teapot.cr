@@ -95,16 +95,49 @@ void drawScene(DataSet ds) {
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glLoadIdentity;
   glTranslatef (0, 0, -6);
-  glRotatef (t, 0.1, 1, 0);
-  t += 0.01;
+  glRotatef (t, 1, 0.1, 0);
+  t += 1;
   int i;
   while auto ind <- ds.indices {
     float f = (i++) * 1.0 / ds.indices.length;
-    glColor3f(f, f, f);
+    glColor3f (f, f, f);
+    float blend(float from, float to, float u) {
+      return from + (to - from) * u;
+    }
+    void bezier2(float u, vec3f[] field, vec3f* dest) {
+      vec3f[5] temp = void;
+      while int k <- 0..3 {
+        temp[0][k] = blend(field[0][k], field[1][k], u);
+        temp[1][k] = blend(field[1][k], field[2][k], u);
+        temp[2][k] = blend(field[2][k], field[3][k], u);
+        temp[3][k] = blend(temp[0][k], temp[1][k], u);
+        temp[4][k] = blend(temp[1][k], temp[2][k], u);
+        dest[0][k] = blend(temp[3][k], temp[4][k], u);
+      }
+    }
+    vec3f[16] input = void;
+    while auto k <- 0..16 {
+      input[k] = ds.vecs[ind[k] - 1];
+    }
+    void bezier3(float u, float v, vec3f* dest) {
+      vec3f[4] temp = void;
+      bezier2(u, input[0..4], &temp[0]);
+      bezier2(u, input[4..8], &temp[1]);
+      bezier2(u, input[8..12], &temp[2]);
+      bezier2(u, input[12..16], &temp[3]);
+      bezier2(v, temp[], dest);
+    }
     using Quads {
-      // lol
-      while auto id <- [for i <- cross ([0, 1, 2, 4, 5, 6, 8, 9, 10], 0..4): [for i <- 0..16: [i, i+1, i+5, i+4]][i[0]][i[1]]] {
-        glVertex3f ds.vecs[ind[id] - 1];
+      int x, y;
+      while (x, y) <- cross (0..8, 0..8) {
+        float u = x / 8.0, v = y / 8.0;
+        int x2, y2;
+        while (x2, y2) <- [for id <- [0, 1, 3, 2]: (cross (0..2, 0..2))[id]] {
+          float u2 = u + 0.125 * x2, v2 = v + 0.125 * y2;
+          vec3f pos = void;
+          bezier3(u2, v2, &pos);
+          glVertex3f pos;
+        }
       }
     }
   }

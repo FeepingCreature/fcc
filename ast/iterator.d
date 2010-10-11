@@ -485,8 +485,8 @@ static this() {
 }
 
 import ast.variable, ast.assign;
-class IterLetCond : Cond, NeedsConfig {
-  LValue target;
+class IterLetCond(T) : Cond, NeedsConfig {
+  T target;
   Expr iter;
   LValue iref;
   Expr iref_pre;
@@ -501,7 +501,9 @@ class IterLetCond : Cond, NeedsConfig {
     assert(!cond); // must jump only on _fail_.
     itercond.jumpOn(af, cond, dest);
     if (target) {
-      (new Assignment(target, step)).emitAsm(af);
+      static if (is(T: MValue))
+        (new _Assignment!(MValue) (target, step)).emitAsm(af);
+      else (new Assignment(target, step)).emitAsm(af);
     } else {
       step.emitAsm(af);
       if (step.valueType() != Single!(Void))
@@ -536,11 +538,14 @@ LValue lvize(Expr ex) {
 Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue lv;
+  MValue mv;
   string newVarName; IType newVarType;
   bool needIterator;
   if (!rest(t2, "tree.expr", &lv, (LValue lv) { return !cast(Iterator) lv.valueType(); })) {
-    if (!t2.accept("auto") && !rest(t2, "type", &newVarType) || !t2.gotIdentifier(newVarName))
-      goto withoutIterator;
+    if (!rest(t2, "tree.expr", &mv, (MValue mv) { return !cast(Iterator) mv.valueType(); })) {
+      if (!t2.accept("auto") && !rest(t2, "type", &newVarType) || !t2.gotIdentifier(newVarName))
+        goto withoutIterator;
+    }
   }
   if (!t2.accept("<-"))
     return null;
@@ -567,7 +572,8 @@ withoutIterator:
     sc.addStatement(decl);
     sc.add(newvar);
   }
-  return new IterLetCond(lv, iter, iter);
+  if (lv) return new IterLetCond!(LValue) (lv, iter, iter);
+  else return new IterLetCond!(MValue) (mv, iter, iter);
 }
 mixin DefaultParser!(gotIterCond, "cond.iter", "705");
 
