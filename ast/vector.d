@@ -1,15 +1,24 @@
 module ast.vector;
 
 import ast.base, ast.tuples, ast.tuple_access, ast.types, ast.fold;
+import ast.structure;
 
 class Vector : Type {
   IType base;
+  Tuple asTup;
   int len;
-  this(IType it, int i) { this.base = it; this.len = i; }
+  this(IType it, int i) {
+    this.base = it;
+    this.len = i;
+    IType[] mew;
+    for (int k = 0; k < i; ++k)
+      mew ~= it;
+    asTup = mkTuple(mew);
+  }
   override {
-    int size() { return base.size * len; }
+    int size() { return asTup.size; }
     string mangle() { return Format("vec_", len, "_", base.mangle()); }
-    ubyte[] initval() { ubyte[] res; for (int i = 0; i < len; ++i) res ~= base.initval(); return res; }
+    ubyte[] initval() { return asTup.initval(); }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
       while (true) {
@@ -23,6 +32,44 @@ class Vector : Type {
     }
   }
 }
+
+Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  IType ty;
+  if (!rest(t2, "type", &ty))
+    return null;
+  auto vec = cast(Vector) ty;
+  if (!vec)
+    return null;
+  logln("got ", ty, ", left ", t2.next_text());
+  Expr ex;
+  if (!rest(t2, "tree.expr", &ex)) return null;
+  auto ex2 = ex;
+  if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
+    Expr[] exs;
+    for (int i = 0; i < vec.len; ++i)
+      exs ~= ex2.dup;
+    text = t2;
+    return cast(Object)
+      reinterpret_cast(vec, new StructLiteral(vec.asTup.wrapped, exs));
+  }
+  auto tup = cast(Tuple) ex.valueType();
+  if (tup) {
+    if (tup.types.length != vec.len)
+      throw new Exception("Insufficient elements in vec initializer! ");
+    Expr[] exs;
+    foreach (entry; getTupleEntries(ex)) {
+      if (!gotImplicitCast(entry, (IType it) { return test(it == vec.base); }))
+        throw new Exception(Format("Invalid type in vec initializer: ", entry));
+      exs ~= entry;
+    }
+    text = t2;
+    return cast(Object)
+      reinterpret_cast(vec, new StructLiteral(vec.asTup.wrapped, exs));
+  }
+  assert(false);
+}
+mixin DefaultParser!(gotVecConstructor, "tree.expr.veccon", "251");
 
 import ast.casting, ast.static_arrays;
 static this() {
@@ -61,3 +108,48 @@ Object gotVecType(ref string text, ParseCb cont, ParseCb rest) {
   return new Vector(it, ie.num);
 }
 mixin DefaultParser!(gotVecType, "type.vector", "34");
+
+import ast.opers;
+static this() {
+  Expr handleVecOp(string op, Expr lhs, Expr rhs) {
+    auto v1 = lhs.valueType(), v2 = rhs.valueType();
+    bool pretransform(ref Expr ex, ref IType it) {
+      if (auto tp = cast(TypeProxy) it) {
+        it = tp.actualType;
+        return true;
+      }
+      if (auto tup = cast(Tuple) it) {
+        if (tup.types.length == 1) {
+          ex = getTupleEntries(ex)[0];
+          it = tup.types[0];
+          return true;
+        }
+      }
+      return false;
+    }
+    while (true) {
+      if (pretransform(lhs, v1)) continue;
+      if (pretransform(rhs, v2)) continue;
+      break;
+    }
+    auto v1v = cast(Vector) v1, v2v = cast(Vector) v2;
+    if (!v1v && !v2v) return null;
+    
+    assert(!v1v || !v2v || v1v == v2v);
+    Vector vt;
+    if (v1v) vt = v1v;
+    else vt = v2v;
+    Expr[] list;
+    for (int i = 0; i < vt.asTup.types.length; ++i) {
+      auto exl = lhs, exr = rhs;
+      if (v1v) exl = getTupleEntries(reinterpret_cast(v1v.asTup, exl))[i];
+      if (v2v) exr = getTupleEntries(reinterpret_cast(v2v.asTup, exr))[i];
+      list ~= lookupOp(op, exl, exr);
+    }
+    return reinterpret_cast(vt, new StructLiteral(vt.asTup.wrapped, list));
+  }
+  defineOp("-", "-" /apply/ &handleVecOp);
+  defineOp("+", "+" /apply/ &handleVecOp);
+  defineOp("*", "*" /apply/ &handleVecOp);
+  defineOp("/", "/" /apply/ &handleVecOp);
+}

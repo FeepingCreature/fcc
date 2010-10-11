@@ -96,24 +96,22 @@ void drawScene(DataSet ds) {
   glLoadIdentity;
   glTranslatef (0, 0, -6);
   glRotatef (t, 1, 0.1, 0);
-  t += 1;
+  t -= 1;
   int i;
   while auto ind <- ds.indices {
     float f = (i++) * 1.0 / ds.indices.length;
     glColor3f (f, f, f);
-    float blend(float from, float to, float u) {
+    vec3f blend(vec3f from, vec3f to, float u) {
       return from + (to - from) * u;
     }
     void bezier2(float u, vec3f[] field, vec3f* dest) {
       vec3f[5] temp = void;
-      while int k <- 0..3 {
-        temp[0][k] = blend(field[0][k], field[1][k], u);
-        temp[1][k] = blend(field[1][k], field[2][k], u);
-        temp[2][k] = blend(field[2][k], field[3][k], u);
-        temp[3][k] = blend(temp[0][k], temp[1][k], u);
-        temp[4][k] = blend(temp[1][k], temp[2][k], u);
-        dest[0][k] = blend(temp[3][k], temp[4][k], u);
-      }
+      temp[0] = blend(field[0], field[1], u);
+      temp[1] = blend(field[1], field[2], u);
+      temp[2] = blend(field[2], field[3], u);
+      temp[3] = blend(temp[0], temp[1], u);
+      temp[4] = blend(temp[1], temp[2], u);
+      *dest = blend(temp[3], temp[4], u);
     }
     vec3f[16] input = void;
     while auto k <- 0..16 {
