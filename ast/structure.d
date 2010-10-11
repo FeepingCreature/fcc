@@ -374,11 +374,9 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
   int id;
   static int count;
   this(LValue base, string name) {
-    id = count++;
-    if (id == 388) asm { int 3; }
     super(cast(Expr) base, name);
   }
-  this() { id = count++; if (id == 388) asm { int 3; } }
+  this() { }
   override {
     MemberAccess_LValue create() { return new MemberAccess_LValue; }
     MemberAccess_LValue dup() { return cast(MemberAccess_LValue) super.dup(); }
@@ -387,9 +385,6 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
       int[] offs;
       if (st) st.select((string, RelMember member) { offs ~= member.offset; });
       if (!af.optimize) af.comment("emit location of ", base, " for member address of '", stm.name, "' @", stm.offset, " of ", offs);
-      static int i;
-      if (i == 478) { logln(i, ": break on ", id, ". "); asm { int 3; } }
-      logln(i++, ": emit location for member address of '", stm.name, "' @", stm.offset, " of ", offs);
       (cast(LValue) base).emitLocation(af);
       if (!af.optimize) af.comment("add offset ", stm.offset);
       af.mathOp("addl", Format("$", stm.offset), "(%esp)");
@@ -430,8 +425,11 @@ static this() {
         int i;
         auto st = cast(Structure) base.valueType();
         if (st) st.select((string, RelMember member) {
-          if (member is mae.stm)
+          if (member is mae.stm) {
             res = sl.exprs[i];
+            if (mae.valueType() != res.valueType())
+              logln("Type mismatch: ", mae.valueType(), " vs. ", res.valueType());
+          }
           i++;
         });
         return res; // may be null - that's okay!

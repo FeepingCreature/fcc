@@ -96,8 +96,7 @@ class NestedCall : FunCall {
   override NestedCall dup() {
     auto res = new NestedCall;
     res.fun = fun;
-    res.params = params.dup;
-    foreach (ref entry; params) entry = entry.dup;
+    foreach (entry; params) res.params ~= entry.dup;
     if (dg) res.dg = dg.dup;
     return res;
   }

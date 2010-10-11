@@ -180,6 +180,14 @@ class ForIter(I) : Type, I {
   I itertype;
   Expr ex;
   Placeholder var, extra;
+  ForIter dup() {
+    auto res = new ForIter;
+    res.wrapper = wrapper;
+    res.itertype = itertype;
+    res.ex = ex.dup;
+    res.var = var; res.extra = extra;
+    return res;
+  }
   LValue castToWrapper(LValue lv) {
     return iparse!(LValue, "foriter_cast_to_wrapper", "tree.expr")
                   ("*cast(wrapper*) &lv", "lv", lv, "wrapper", wrapper);
@@ -201,6 +209,7 @@ class ForIter(I) : Type, I {
                            ("ex.subiter", "ex", ex));
     return res;
   }
+  import ast.literal_string;
   Expr update(Expr ex, Placeholder var, Expr newvar) {
     Expr[] todo;
     void subst(ref Iterable it) {
@@ -208,11 +217,18 @@ class ForIter(I) : Type, I {
       else {
         auto ex = cast(Expr) it;
         if (ex) {
-          if (auto fi = cast(ForIter!(Iterator)) ex.valueType()) {
-            todo ~= fi.ex;
-          }
           if (auto fi = cast(ForIter!(RichIterator)) ex.valueType()) {
-            todo ~= fi.ex;
+            auto fi2 = fi.dup;
+            todo ~= fi2.ex;
+            it = cast(Iterable) reinterpret_cast(fi2, ex);
+            (cast(Iterable) ex).iterate(&subst);
+            return;
+          } else if (auto fi = cast(ForIter!(Iterator)) ex.valueType()) {
+            auto fi2 = fi.dup;
+            todo ~= fi2.ex;
+            it = cast(Iterable) reinterpret_cast(fi2, ex);
+            (cast(Iterable) ex).iterate(&subst);
+            return;
           }
         }
         it.iterate(&subst);
@@ -245,7 +261,7 @@ class ForIter(I) : Type, I {
     auto var = iparse!(LValue, "foriter_wlv_var", "tree.expr")
                       ("wlv.var", "wlv", wlv);
     auto stmt = iparse!(Statement, "foriter_assign", "tree.semicol_stmt.assign")
-                        ("var = ya", "var", var, "ya", itertype.yieldAdvance(subexpr(wlv)));
+                        ("var = ya", "var", var, "ya", itertype.yieldAdvance(subexpr(wlv.dup)));
     return stmt;
   }
   override {
@@ -265,21 +281,21 @@ class ForIter(I) : Type, I {
       return update(new StatementAndExpr(stmt, this.ex.dup), wlv);
     }
     Cond terminateCond(Expr ex) {
-      return itertype.terminateCond(subexpr(castToWrapper(ex)));
+      return itertype.terminateCond(subexpr(castToWrapper(ex).dup));
     }
     static if (is(I: RichIterator)) {
       Expr length(Expr ex) {
-        return itertype.length(subexpr(castToWrapper(ex)));
+        return itertype.length(subexpr(castToWrapper(ex).dup));
       }
       Expr index(LValue lv, Expr pos) {
         auto wlv = castToWrapper(lv);
         auto stmt = iparse!(Statement, "foriter_assign", "tree.semicol_stmt.assign")
-                            ("wlv.var = id", "wlv", wlv, "id", itertype.index(subexpr(wlv), pos));
+                            ("wlv.var = id", "wlv", wlv, "id", itertype.index(subexpr(wlv.dup), pos));
         return new StatementAndExpr(stmt, update(this.ex.dup, wlv));
       }
       Expr slice(Expr ex, Expr from, Expr to) {
         auto wr = castToWrapper(ex);
-        Expr[] field = [cast(Expr) itertype.slice(subexpr(wr), from, to),
+        Expr[] field = [cast(Expr) itertype.slice(subexpr(wr.dup), from, to),
                         new Filler(itertype.elemType())];
         if (extra) field ~= extra;
         return new RCE(this,
@@ -562,6 +578,7 @@ Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   auto it = cast(Iterator) lv.valueType();
   if (!it) return null;
   text = t2;
+  // short offender
   return cast(Object) it.yieldAdvance(lv);
 }
 mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "270");
