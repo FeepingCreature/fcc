@@ -83,7 +83,7 @@ mixin DefaultParser!(gotTupleType, "type.tuple", "37");
 
 Expr mkTupleExpr(Expr[] exprs...) {
   auto tup = mkTuple(exprs /map/ (Expr ex) { return ex.valueType(); });
-  return new RCE(tup, new StructLiteral(tup.wrapped, exprs));
+  return new RCE(tup, new StructLiteral(tup.wrapped, exprs.dup));
 }
 
 /// 4.

@@ -262,7 +262,7 @@ class ForIter(I) : Type, I {
       LValue wlv;
       auto stmt = mkForIterAssign(lv, wlv);
       // logln("!! this.ex is ", this.ex);
-      return update(new StatementAndExpr(stmt, this.ex), wlv);
+      return update(new StatementAndExpr(stmt, this.ex.dup), wlv);
     }
     Cond terminateCond(Expr ex) {
       return itertype.terminateCond(subexpr(castToWrapper(ex)));
@@ -275,7 +275,7 @@ class ForIter(I) : Type, I {
         auto wlv = castToWrapper(lv);
         auto stmt = iparse!(Statement, "foriter_assign", "tree.semicol_stmt.assign")
                             ("wlv.var = id", "wlv", wlv, "id", itertype.index(subexpr(wlv), pos));
-        return new StatementAndExpr(stmt, update(this.ex, wlv));
+        return new StatementAndExpr(stmt, update(this.ex.dup, wlv));
       }
       Expr slice(Expr ex, Expr from, Expr to) {
         auto wr = castToWrapper(ex);
@@ -407,8 +407,6 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   auto sc = new Scope;
   namespace.set(sc);
   
-  logln("@", t2.next_text());
-  
   if (!rest(t2, "tree.expr", &main))
     throw new Exception("Cannot find iterator expression at '"~t2.next_text()~"' in '"~text.next_text(32)~"'! ");
   if (!t2.accept("]"))
@@ -460,7 +458,6 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     }
   }
   foreach (entry; bsorting) add(entry);
-  logln("?? sc is ", sc._body);
   ipt = stuple(best, new ScopeAndExpr(sc, main), ph, extra);
   return new RCE(cast(IType) restype, new StructLiteral(best, field));
 }

@@ -70,9 +70,11 @@ class RelMember : Expr, Named, RelTransformable {
     this(name, type, 0);
     auto st = cast(Structure) ns;
     
+    string stname;
     if (st) {
       if (st.isUnion) offset = 0;
       else offset = st._size();
+      stname = st.name;
     } else offset = (cast(IType) ns).size();
     
     // alignment
@@ -377,7 +379,11 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
     MemberAccess_LValue create() { return new MemberAccess_LValue; }
     MemberAccess_LValue dup() { return cast(MemberAccess_LValue) super.dup(); }
     void emitLocation(AsmFile af) {
-      if (!af.optimize) af.comment("emit location of ", base, " for member address of ", stm.name, " @", stm.offset);
+      auto st = cast(Structure) base.valueType();
+      int[] offs;
+      if (st) st.select((string, RelMember member) { offs ~= member.offset; });
+      if (!af.optimize) af.comment("emit location of ", base, " for member address of '", stm.name, "' @", stm.offset, " of ", offs);
+      logln("emit location for member address of '", stm.name, "' @", stm.offset, " of ", offs);
       (cast(LValue) base).emitLocation(af);
       if (!af.optimize) af.comment("add offset ", stm.offset);
       af.mathOp("addl", Format("$", stm.offset), "(%esp)");

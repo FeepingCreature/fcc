@@ -18,7 +18,7 @@ static this() {
     auto count = (cast(IntExpr) fold(ex2)).num;
     assert(count > 0);
     Expr[] rep;
-    while (count--) rep ~= ex1;
+    while (count--) rep ~= ex1.dup;
     return mkTupleExpr(rep);
   });
   implicits ~= delegate Expr(Expr ex) {
@@ -187,6 +187,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
       ex2 = fold(ex2);
+      // logln("got tuple entry ", ex2);
       if (!forb(ex2) || !gotImplicitCast(ex2, isRichIterator))
         return false;
     }

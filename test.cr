@@ -462,15 +462,19 @@ int main(int argc, char** argv) {
     frob[0] = 15;
     writeln "frob is $frob";
     alias size = 4;
-    auto test = [for bin <- [for tuple <- cross [for i <- 0..2: i]^size: cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
+    // auto test = [for bin <- [for tuple <- cross ([for i <- 0..2: i]^size): cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
+    auto test = [for bin <- [for tuple <- cross ([for i <- 0..2: i], [for i <- 0..2: i], [for i <- 0..2: i], [for i <- 0..2: i]): cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
     writeln("test is $$typeof(test).stringof: $test");
-    auto frobbly = cross [for i <- 0..2: i]^3;
+    auto ferk = [for i <- 0..2: i]^3;
+    writeln "Meep. $(&(ferk[0])), $(&(ferk[1])), $(&(ferk[2])). ";
+    // auto frobbly = cross ([for i <- 0..2: i], [for i <- 0..2: i], [for i <- 0..2: i]);
+    auto frobbly = cross([for i <- 0..2: i]^3);
     // writeln "Initial frobbly == $((cast(byte*) &frobbly)[0..44]). ";
     writeln "Test: $$__istep frobbly";
     // writeln "In-between state: $((cast(byte*) &frobbly)[0..44]). "; // 180
-    break;
+    // break;
     __istep frobbly;
-    break;
+    // break;
     writeln "And $$__istep frobbly. ";
     // writeln "After this, frobbly is $((cast(byte*) &frobbly)[0..44]). "; // 180
     typeof(__istep frobbly) i;
