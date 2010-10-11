@@ -2,12 +2,12 @@ module ast.assign;
 
 import ast.base, ast.pointer;
 
-class Assignment : Statement {
-  LValue target;
+class _Assignment(T) : Statement {
+  T target;
   Expr value;
   bool blind;
   import tools.log;
-  this(LValue t, Expr e, bool force = false, bool blind = false) {
+  this(T t, Expr e, bool force = false, bool blind = false) {
     this.blind = blind;
     if (!force && t.valueType() != e.valueType()) {
       throw new Exception(Format(
@@ -24,35 +24,50 @@ class Assignment : Statement {
   override void emitAsm(AsmFile af) {
     if (blind) {
       value.emitAsm(af);
-      target.emitLocation(af);
-      af.popStack("%eax", new Pointer(target.valueType()));
-      af.popStack("(%eax)", value.valueType());
+      static if (is(T: MValue))
+        target.emitAssignment(af);
+      else {
+        target.emitLocation(af);
+        af.popStack("%eax", new Pointer(target.valueType()));
+        af.popStack("(%eax)", value.valueType());
+      }
     } else {
       mixin(mustOffset("0"));
       {
         mixin(mustOffset("value.valueType().size"));
         value.emitAsm(af);
       }
-      {
-        mixin(mustOffset("nativePtrSize"));
-        target.emitLocation(af);
+      static if (is(T: MValue)) {
+        mixin(mustOffset("-value.valueType().size"));
+        target.emitAssignment(af);
+      } else {
+        {
+          mixin(mustOffset("nativePtrSize"));
+          target.emitLocation(af);
+        }
+        af.popStack("%eax", new Pointer(target.valueType()));
+        af.popStack("(%eax)", value.valueType());
+        af.nvm("%eax");
       }
-      af.popStack("%eax", new Pointer(target.valueType()));
-      af.popStack("(%eax)", value.valueType());
-      af.nvm("%eax");
     }
   }
 }
 
+alias _Assignment!(LValue) Assignment;
+
 import ast.casting;
 Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  LValue target;
+  LValue lv; MValue mv;
   Expr ex;
   if (rest(t2, "tree.expr _tree.expr.arith", &ex) && t2.accept("=")) {
-    auto lv = cast(LValue) ex;
-    if (!lv) return null;
-    target = lv;
+    lv = cast(LValue) ex; mv = cast(MValue) ex;
+    if (!lv && !mv) return null;
+    
+    Expr target;
+    if (lv) target = lv;
+    else target = mv;
+    
     Expr value;
     IType[] its;
     if (!rest(t2, "tree.expr", &value) || !gotImplicitCast(value, (IType it) { its ~= it; return test(it == target.valueType()); })) {
@@ -61,7 +76,10 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     }
     // logln(target.valueType(), " <- ", value.valueType());
     text = t2;
-    return new Assignment(target, value);
+    if (lv)
+      return new Assignment(lv, value);
+    else
+      return new _Assignment!(MValue)(mv, value);
   } else return null;
 }
 mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign", "1");

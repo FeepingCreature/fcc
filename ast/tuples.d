@@ -18,6 +18,11 @@ class Tuple : Type {
     wrapped.select((string, RelMember rm) { res ~= rm.type; });
     return res;
   }
+  int[] offsets() {
+    int[] res;
+    wrapped.select((string, RelMember rm) { res ~= rm.offset; });
+    return res;
+  }
   override {
     int size() { return wrapped.size; }
     string mangle() { return "tuple_"~wrapped.mangle(); }
@@ -81,9 +86,65 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotTupleType, "type.tuple", "37");
 
-Expr mkTupleExpr(Expr[] exprs...) {
+class RefTuple : MValue {
+  import ast.assign;
+  IType baseTupleType;
+  LValue[] lvs;
+  mixin defaultIterate!(lvs);
+  this(IType btt, LValue[] lvs...) {
+    baseTupleType = btt;
+    this.lvs = lvs.dup;
+  }
+  override {
+    RefTuple dup() {
+      auto newlist = lvs.dup;
+      foreach (ref entry; newlist) entry = entry.dup;
+      return new RefTuple(baseTupleType, newlist);
+    }
+    IType valueType() { return baseTupleType; }
+    void emitAsm(AsmFile af) {
+      Expr[] exprs;
+      foreach (lv; lvs) exprs ~= lv;
+      mkTupleValueExpr(exprs).emitAsm(af);
+    }
+    void emitAssignment(AsmFile af) {
+      auto tup = cast(Tuple) baseTupleType;
+      
+      auto offsets = tup.offsets();
+      int data_offs;
+      foreach (i, target; lvs) {
+        if (offsets[i] != data_offs) {
+          assert(offsets[i] > data_offs);
+          af.sfree(offsets[i] - data_offs);
+        }
+        (new Assignment(
+          target,
+          new Placeholder(target.valueType()),
+          false, true
+        )).emitAsm(af);
+        data_offs += target.valueType().size;
+      }
+    }
+  }
+}
+
+Expr mkTupleValueExpr(Expr[] exprs...) {
   auto tup = mkTuple(exprs /map/ (Expr ex) { return ex.valueType(); });
   return new RCE(tup, new StructLiteral(tup.wrapped, exprs.dup));
+}
+
+Expr mkTupleExpr(Expr[] exprs...) {
+  bool allLValues = true;
+  LValue[] arr;
+  foreach (ex; exprs)
+    if (!cast(LValue) ex) {
+      allLValues = false;
+      break;
+    } else arr ~= cast(LValue) ex;
+  
+  auto vt = mkTupleValueExpr(exprs);
+  if (!allLValues) return vt;
+  else return new RefTuple(vt.valueType(), arr);
 }
 
 /// 4.
