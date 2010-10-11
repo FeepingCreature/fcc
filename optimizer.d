@@ -171,6 +171,8 @@ class ProcTrack : ExtToken {
   bool[string] use;
   // backup
   Transaction[] original;
+  int overfree;
+  string callDest;
   string toString() {
     return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", used ", use.keys, ")");
   }
@@ -200,6 +202,7 @@ class ProcTrack : ExtToken {
       if (mem == val) known.remove(mem);
       else known[mem] = val;
     }
+    if (callDest) return false;
     with (Transaction.Kind) switch (t.kind) {
       case Compare: return false;
       case MathOp:
@@ -215,11 +218,21 @@ class ProcTrack : ExtToken {
         }
         break;
       case SAlloc:
+        if (overfree) return false;
         if (t.size == 4) {
           stack ~= null;
           mixin(Success);
         } else break;
+      case SFree:
+        if (t.size % nativePtrSize != 0) return false;
+        for (int i = 0; i < t.size / nativePtrSize; ++i)
+          if (stack.length) stack = stack[0 .. $-1];
+          else overfree += nativePtrSize;
+        mixin(Success);
       case Mov:
+        if (t.from.startsWith("0("))
+          t.from = t.from[1 .. $];
+        
         if (t.from.find("%esp") != -1)
           return false; // TODO: can this ever be handled?
         if (t.from.isRegister()) {
@@ -248,6 +261,7 @@ class ProcTrack : ExtToken {
         break;
       case Label: return false;
       case Push:
+        if (overfree) return false;
         if (t.source.isRegister() && t.type.size == nativePtrSize) {
           auto val = t.source;
           if (auto p = t.source in known)
@@ -262,6 +276,10 @@ class ProcTrack : ExtToken {
           auto steps = t.type.size / nativePtrSize;
           for (int i = 0; i < steps; ++i)
             stack ~= t.source;
+          mixin(Success);
+        }
+        if (t.source in known && t.type.size == nativePtrSize) {
+          stack ~= known[t.source];
           mixin(Success);
         }
         break;
@@ -291,6 +309,17 @@ class ProcTrack : ExtToken {
           mixin(Success);
         }
         break;
+      case Call:
+        auto dest = t.dest;
+        if (auto rest = dest.startsWith("*")) {
+          if (rest in known && known[rest].startsWith("$")) {
+            callDest = known[rest][1..$];
+            use[rest] = true;
+            mixin(Success);
+          }
+        }
+        return false;
+      case Jump: return false;
       default: break;
     }
     return false;
@@ -319,6 +348,14 @@ class ProcTrack : ExtToken {
     foreach (reg, value; known) {
       if (res.length) res ~= "\n";
       res ~= "movl "~value~", "~reg;
+    }
+    if (overfree) {
+      if (res.length) res ~= "\n";
+      res ~= Format("addl $", overfree, ", %esp");
+    }
+    if (callDest) {
+      if (res.length) res ~= "\n";
+      res ~= Format("call ", callDest);
     }
     // logln(" => ", res.replace("\n", "\\"), " (", original, ")");
     return res;
