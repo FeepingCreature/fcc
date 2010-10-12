@@ -537,7 +537,6 @@ void setupOpts() {
       size = abs(sum_inc);
     }
   `));
-  mixin(opt("collapse_alloc_free_nop", `^SAlloc || ^SFree => if (!$0.size) $SUBST(null); `));
   mixin(opt("pointless_free", `^SFree, ^Push:
     $0.size == $1.type.size && $0.size == 4 && !isMemRef($1.source) && $1.source != "%esp"
     =>
@@ -592,17 +591,6 @@ void setupOpts() {
       opName = $0.opName; op1 = "%eax"; op2 = $0.op1;
     }
   `));
-  mixin(opt("fold_add_sub", `^MathOp, ^MathOp:
-    $0.op2 == $1.op2 && $0.op1.isNumLiteral() && $1.op1.isNumLiteral()
-    && $0.opName == "subl" && $1.opName == "addl"
-    =>
-    $SUBSTWITH {
-      kind = $TK.MathOp;
-      opName = "addl";
-      op1 = Format("$", - $0.op1.literalToInt() + $1.op1.literalToInt());
-      op2 = $0.op2;
-    }
-  `));
   mixin(opt("add_and_pop_reg", `^MathOp, ^Pop: $0.op2 == "(%esp)" && ($0.op1.find($1.to) == -1) =>
     auto res = $0.dup;
     res.op2 = $1.to;
@@ -625,15 +613,6 @@ void setupOpts() {
     t2.kind = $TK.SFree;
     t2.size = 4;
     $SUBST([t1, t2]);
-  `));
-  mixin(opt("indirect_access_sub_fload", `^MathOp, ^FloatLoad:
-    $0.opName == "subl" && $0.op1.isNumLiteral() && $0.op2 == "%eax"
-    && $1.source.between("(", ")") == "%eax"
-    =>
-    $SUBSTWITH {
-      kind = $1.kind;
-      source = Format($1.source.between("", "(").atoi() - $0.op1.literalToInt(), "(%eax)");
-    }
   `));
   mixin(opt("merge_literal_adds", `^MathOp, ^MathOp:
     $0.opName == "addl" && $1.opName == "addl" &&
@@ -671,8 +650,6 @@ void setupOpts() {
   `));
   // some very special cases
   mixin(opt("float_meh_2",  `^FloatStore, ^FloatMath, ^FloatStore || ^FloatPop: $0.dest == $2.dest => $SUBST([$1, $2]); `));
-  mixin(opt("float_meh_3",  `^FloatStore, ^FloatLoad, ^FloatMath, ^FloatStore: $0.dest != $1.source && $0.dest == $3.dest => $SUBST([$1, $2, $3]); `));
-  mixin(opt("float_pointless_store",  `^FloatStore, ^FloatPop: $0.dest == $1.dest => $SUBST([$1]); `));
   
   // typical for delegates
   mixin(opt("indirect_access_2", `^Mov, ^MathOp, *:
@@ -686,14 +663,6 @@ void setupOpts() {
     else
       t.source = Format($1.op1.literalToInt(), "(", $0.from, ")");
     $SUBST([$0, $1, t]);
-  `));
-  mixin(opt("indirect_access_3", `^MathOp, *:
-    hasSource($1) && $1.source == "(" ~ $0.op2 ~ ")" && $0.op1.isNumLiteral()
-    && ($0.opName == "addl" /or/ "subl")
-    =>
-    auto t = $1;
-    t.source = Format(($0.opName == "addl")?"":"-", $0.op1.literalToInt(), $1.source);
-    $SUBST([t]);
   `));
   mixin(opt("ebp_to_esp", `*:
     (  hasSource($0) && $0.source.between("(", ")") == "%ebp"
