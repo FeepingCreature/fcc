@@ -173,6 +173,8 @@ class ProcTrack : ExtToken {
   Transaction[] backup, knownGood;
   int overfree;
   string callDest;
+  // not safe to mix foo(%ebp) and foo(%esp) in the same proc chunk
+  int ebp_mode = -1;
   string toString() {
     return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", used ", use.keys, ")");
   }
@@ -217,9 +219,18 @@ class ProcTrack : ExtToken {
       }
       return null;
     }
-    void set(string mem, string val) {
+    bool set(string mem, string val) {
+      if (mem.find("esp") != -1) {
+        if (ebp_mode == -1) ebp_mode = false;
+        else if (ebp_mode == true) return false;
+      }
+      if (mem.find("ebp") != -1) {
+        if (ebp_mode == -1) ebp_mode = true;
+        else if (ebp_mode == false) return false;
+      }
       if (mem == val) known.remove(mem);
       else known[mem] = val;
+      return true;
     }
     if (callDest) return false;
     with (Transaction.Kind) switch (t.kind) {
@@ -235,8 +246,10 @@ class ProcTrack : ExtToken {
         
         if (t.op1.isLiteral() && t.op2 in known) {
           auto stuf = known[t.op2];
-          if (stuf.isRegister())
-            set(t.op2, "+(" ~ known[t.op2] ~ ", " ~ t.op1 ~ ")");
+          if (stuf.isRegister()) {
+            if (!set(t.op2, "+(" ~ known[t.op2] ~ ", " ~ t.op1 ~ ")"))
+              return false;
+          }
           else break;
           mixin(Success);
         }
@@ -262,15 +275,18 @@ class ProcTrack : ExtToken {
         if (t.from.find("%esp") != -1)
           return false; // TODO: can this ever be handled?
         int delta;
+        if (t.to in use) break; // lol
+        if (t.to.isIndirect() == "%esp")
+          use["%esp"] = true;
         if (t.from.isRegister()) {
-          if (t.to in use) break; // lol
           string src = t.from;
           if (auto p = src in known)
             src = *p;
           if (src.isRegister())
             use[src] = true;
           if (t.to.isRegister()) {
-            set(t.to, src);
+            if (!set(t.to, src))
+              return false;
           } else if (t.to == "(%esp)") {
             if (!stack.length) break;
             stack[$-1] = src;
@@ -280,36 +296,42 @@ class ProcTrack : ExtToken {
           if (deref in known) {
             auto val = known[deref];
             if (auto indir = mkIndirect(val)) {
-              set(t.to, indir);
+              if (!set(t.to, indir))
+                return false;
               mixin(Success);
             }
           } else return false;
           break;
         } else if (auto deref = t.from.isIndirectComplex(delta)) {
-          logln("complex case: ", this, " and ", deref);
           if (deref in known) {
             auto val = known[deref];
             if (auto indir = mkIndirect(val, delta)) {
-              set(t.to, indir);
+              if (!set(t.to, indir))
+                return false;
               mixin(Success);
             }
           } else return false;
           break;
         } else if (t.from.isLiteral()) {
-          set(t.to, t.from);
+          if (!set(t.to, t.from))
+            return false;
           mixin(Success);
         }
         break;
       case Label: return false;
       case Push:
-        if (overfree) return false;
+        // TODO: flush esp-using instrs
+        if (overfree || "%esp" in use) return false;
         if (t.type.size == nativePtrSize) {
           auto val = t.source;
           if (auto p = t.source in known)
             val = *p;
-          if (val.isRegister()) use[val] = true;
+          // Be VERY careful changing this
+          // remember, push is evaluated before mov!
           if (auto reg = val.isIndirect())
-            use[reg] = true;
+            return false;
+            // use[reg] = true; // broken
+          if (val.isRegister()) use[val] = true;
           stack ~= val;
           mixin(Success);
         }
@@ -327,14 +349,16 @@ class ProcTrack : ExtToken {
         if (t.type.size != nativePtrSize) return false;
         if (t.dest.isRegister()) {
           if (t.dest != stack[$-1] && t.dest in use) return false;
-          set(t.dest, stack[$-1]);
+          if (!set(t.dest, stack[$-1]))
+            return false;
           stack = stack[0 .. $-1];
           mixin(Success);
         }
         if (auto dest = t.dest.isIndirectSimple()) {
           if (dest in known) {
             if (auto indir = mkIndirect(known[dest])) {
-              set(indir, stack[$-1]);
+              if (!set(indir, stack[$-1]))
+                return false;
               stack = stack[0 .. $-1];
               mixin(Success);
             }
@@ -441,20 +465,15 @@ void setupOpts() {
       changed = true; //      v secretly
       skip:; //   < < < < < < /
     } else {
-      static int xx;
-      xx++;
-      logln(xx);
-      if (xx < 12000) {
-        New(obj);
-        t.obj = obj;
-        if (obj.update($0)) { $SUBST([t, $1]); }
-      }
+      New(obj);
+      t.obj = obj;
+      if (obj.update($0)) { $SUBST([t, $1]); }
     }
   `));
   .ext_step = &ext_step; // export
   opts = opts[0 .. $-1]; // only do ext_step once
   
-  /+mixin(opt("rewrite_zero_ref", `*:
+  mixin(opt("rewrite_zero_ref", `*:
     hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0)
     =>
     auto t = $0;
@@ -712,7 +731,7 @@ void setupOpts() {
     =>
     labels_refcount[$0.dest] --;
     $SUBST([$1]);
-  `));+/
+  `));
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;

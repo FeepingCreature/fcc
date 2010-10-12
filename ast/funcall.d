@@ -5,7 +5,8 @@ import ast.fun, ast.base;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
 bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref Expr[] res) {
   Expr arg;
-  auto backup_text = text;
+  auto backup_text = text; 
+  if (!backup_text.length) return false; // wat
   if (!rest(text, "tree.expr _tree.expr.arith", &arg))
     return false;
   Expr[] args;
@@ -53,6 +54,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   }
   foreach (arg2; args) recurse(arg2);
   if (flat.length) {
+    logln("flattened to ", flat);
     throw new Exception(Format("Extraneous parameters to '", info, "' of ", params, ": ", args, " at '", backup_text.next_text(), "'. "));
   }
   return true;
