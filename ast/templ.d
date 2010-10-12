@@ -84,7 +84,8 @@ Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.gotIdentifier(id, true) || !t2.accept("!")) return null;
   auto _t = namespace().lookup(id), t = cast(Template) _t;
   if (!_t) return null;
-  if (!t) throw new Exception("'"~id~"' is not a template! ");
+  // if (!t) throw new Exception("'"~id~"' is not a template! ");
+  if (!t) return null;
   IType ty;
   if (!rest(t2, "type", &ty)) throw new Exception("Couldn't match type for instantiation at '"~t2.next_text()~"'");
   // logln("instantiate ", t.name, " with ", ty);
