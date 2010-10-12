@@ -1,6 +1,9 @@
 module teapot;
 import sys, sdl, opengl;
 
+c_include "math.h";
+c_include "time.h";
+
 void quit(int code) {
   SDL_Quit();
   exit(code);
@@ -90,17 +93,32 @@ DataSet parse(string fn) {
   return res;
 }
 
+int fps, last_time;
 float t;
 void drawScene(DataSet ds) {
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glLoadIdentity;
   glTranslatef (0, 0, -6);
-  glRotatef (t, 1, 0.1, 0);
+  // glRotatef (t, 1, 0.1, 0);
+  // glRotatef (180, 1, 0, 0);
+  glRotatef (t, 0, 1, 0);
   t -= 1;
   int i;
   while auto ind <- ds.indices {
     float f = (i++) * 1.0 / ds.indices.length;
     glColor3f (f, f, f);
+    vec3f vcross(vec3f a, vec3f b) {
+      return vec3f(a[1]*b[2] - b[1]*a[2], a[2]*b[0] - b[2]*a[0], a[0]*b[1] - b[0]*a[1]);
+    }
+    float vdot(vec3f a, vec3f b) {
+      return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+    }
+    float vlength(vec3f a) {
+      return sqrtf(vdot(a, a));
+    }
+    vec3f vnormal(vec3f a) {
+      return a / vlength(a);
+    }
     vec3f blend(vec3f from, vec3f to, float u) {
       return from + (to - from) * u;
     }
@@ -127,19 +145,33 @@ void drawScene(DataSet ds) {
     }
     using Quads {
       int x, y;
-      while (x, y) <- cross (0..8, 0..8) {
-        float u = x / 8.0, v = y / 8.0;
+      alias subdiv = 8;
+      auto factor = 1.0 / subdiv;
+      while (x, y) <- cross (0..subdiv, 0..subdiv) {
+        float u = x * 1.0 / subdiv, v = y * 1.0 / subdiv;
         int x2, y2;
+        vec3f[4] quad = void;
+        int k;
         while (x2, y2) <- [for id <- [0, 1, 3, 2]: (cross (0..2, 0..2))[id]] {
-          float u2 = u + 0.125 * x2, v2 = v + 0.125 * y2;
-          vec3f pos = void;
-          bezier3(u2, v2, &pos);
-          glVertex3f pos;
+          float u2 = u + factor * x2, v2 = v + factor * y2;
+          bezier3(u2, v2, &quad[k++]);
         }
+        auto normal = vcross(quad[1]-quad[0], quad[3]-quad[0]);
+        auto angle = vdot(vnormal(normal), vnormal(vec3f(0.6, 0.3, -1)));
+        if (angle < 0) angle = 0;
+        glColor3f vec3f(angle);
+        [for v <- quad: glVertex3f v].eval;
       }
     }
   }
   SDL_GL_SwapBuffers();
+  fps ++;
+  auto ct = time(cast(time_t*) 0);
+  if ct != last_time {
+    last_time = ct;
+    writeln "FPS: $fps";
+    fps = 0;
+  }
 }
 
 int update(SDL_Surface* surface) {

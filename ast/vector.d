@@ -38,6 +38,13 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   if (!rest(t2, "type", &ty))
     return null;
+  while (true) {
+    if (auto tp = cast(TypeProxy) ty) {
+      ty = tp.actualType;
+      continue;
+    }
+    break;
+  }
   auto vec = cast(Vector) ty;
   if (!vec)
     return null;
