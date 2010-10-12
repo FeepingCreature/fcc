@@ -189,7 +189,21 @@ class ProcTrack : ExtToken {
         return s[1..$-1];
       else return null;
     }
-    string mkIndirect(string val) {
+    string isIndirectComplex(string s, ref int delta) {
+      auto betw = s.between("(", ")");
+      if (betw && betw.isRegister()) {
+        delta = s.between("", "(").atoi();
+        return betw;
+      }
+      return null;
+    }
+    string isIndirect(string s) {
+      int bogus;
+      if (auto res = isIndirectSimple(s)) return res;
+      if (auto res = isIndirectComplex(s, bogus)) return res;
+      return null;
+    }
+    string mkIndirect(string val, int delta = 0 /* additional delta */) {
       if (val.startsWith("+(")) {
         auto op2 = val.between("(", ")"), op1 = op2.slice(",").strip();
         op2 = op2.strip();
@@ -198,7 +212,7 @@ class ProcTrack : ExtToken {
           if (t.to in use)
             return null;
           // to indirect access
-          return Format(op2i, "(", op1, ")");
+          return Format(op2i + delta, "(", op1, ")");
         }
       }
       return null;
@@ -211,6 +225,11 @@ class ProcTrack : ExtToken {
     with (Transaction.Kind) switch (t.kind) {
       case Compare: return false;
       case MathOp:
+        if (t.opName == "imull" && t.op1 == "$1"
+         || t.opName == "addl" && t.op1 == "$0"
+         || t.opName == "subl" && t.op1 == "$0") {
+          mixin(Success);
+        }
         string op2 = t.op2;
         if (auto p = op2 in known) op2 = *p;
         
@@ -242,6 +261,7 @@ class ProcTrack : ExtToken {
         
         if (t.from.find("%esp") != -1)
           return false; // TODO: can this ever be handled?
+        int delta;
         if (t.from.isRegister()) {
           if (t.to in use) break; // lol
           string src = t.from;
@@ -262,18 +282,34 @@ class ProcTrack : ExtToken {
             if (auto indir = mkIndirect(val)) {
               set(t.to, indir);
               mixin(Success);
-            } else break;
-          } else break;
+            }
+          } else return false;
+          break;
+        } else if (auto deref = t.from.isIndirectComplex(delta)) {
+          logln("complex case: ", this, " and ", deref);
+          if (deref in known) {
+            auto val = known[deref];
+            if (auto indir = mkIndirect(val, delta)) {
+              set(t.to, indir);
+              mixin(Success);
+            }
+          } else return false;
+          break;
+        } else if (t.from.isLiteral()) {
+          set(t.to, t.from);
+          mixin(Success);
         }
         break;
       case Label: return false;
       case Push:
         if (overfree) return false;
-        if (t.source.isRegister() && t.type.size == nativePtrSize) {
+        if (t.type.size == nativePtrSize) {
           auto val = t.source;
           if (auto p = t.source in known)
             val = *p;
           if (val.isRegister()) use[val] = true;
+          if (auto reg = val.isIndirect())
+            use[reg] = true;
           stack ~= val;
           mixin(Success);
         }
@@ -283,10 +319,6 @@ class ProcTrack : ExtToken {
           auto steps = t.type.size / nativePtrSize;
           for (int i = 0; i < steps; ++i)
             stack ~= t.source;
-          mixin(Success);
-        }
-        if (t.source in known && t.type.size == nativePtrSize) {
-          stack ~= known[t.source];
           mixin(Success);
         }
         break;
@@ -387,7 +419,6 @@ void setupOpts() {
   if (optsSetup) return;
   optsSetup = true;
   bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
-  static int xx;
   mixin(opt("ext_step", `*, *
     =>
     ProcTrack obj;
@@ -410,15 +441,20 @@ void setupOpts() {
       changed = true; //      v secretly
       skip:; //   < < < < < < /
     } else {
-      New(obj);
-      t.obj = obj;
-      if (obj.update($0)) { $SUBST([t, $1]); }
+      static int xx;
+      xx++;
+      logln(xx);
+      if (xx < 12000) {
+        New(obj);
+        t.obj = obj;
+        if (obj.update($0)) { $SUBST([t, $1]); }
+      }
     }
   `));
   .ext_step = &ext_step; // export
   opts = opts[0 .. $-1]; // only do ext_step once
   
-  mixin(opt("rewrite_zero_ref", `*:
+  /+mixin(opt("rewrite_zero_ref", `*:
     hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0)
     =>
     auto t = $0;
@@ -676,7 +712,7 @@ void setupOpts() {
     =>
     labels_refcount[$0.dest] --;
     $SUBST([$1]);
-  `));
+  `));+/
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;

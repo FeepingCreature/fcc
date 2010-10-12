@@ -48,7 +48,6 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   auto vec = cast(Vector) ty;
   if (!vec)
     return null;
-  logln("got ", ty, ", left ", t2.next_text());
   Expr ex;
   if (!rest(t2, "tree.expr", &ex)) return null;
   auto ex2 = ex;
