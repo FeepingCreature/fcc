@@ -170,15 +170,20 @@ class ProcTrack : ExtToken {
   // emit before overwriting
   bool[string] use;
   // backup
-  Transaction[] original;
+  Transaction[] backup, knownGood;
   int overfree;
   string callDest;
   string toString() {
     return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", used ", use.keys, ")");
   }
   bool update(ref Transaction t) {
+    scope(exit)
+      if (isValid) {
+        knownGood = translate();
+        backup = null;
+      }
     // #define .. lol
-    const string Success = "{ original ~= t; return true; }";
+    const string Success = "{ backup ~= t; return true; }";
     string isIndirectSimple(string s) {
       if (s.length >= 2 && s[0] == '(' && s[$-1] == ')')
         return s[1..$-1];
@@ -230,6 +235,8 @@ class ProcTrack : ExtToken {
           else overfree += nativePtrSize;
         mixin(Success);
       case Mov:
+        if (t.to == "%esp")
+          return false;
         if (t.from.startsWith("0("))
           t.from = t.from[1 .. $];
         
@@ -339,27 +346,39 @@ class ProcTrack : ExtToken {
     }
     return true;
   }
-  string toAsm() {
-    string res;
+  Transaction[] translate() {
+    if (!isValid()) return knownGood ~ backup;
+    Transaction[] res;
+    void addTransaction(Transaction.Kind tk, void delegate(ref Transaction) dg) {
+      Transaction t;
+      t.kind = tk;
+      dg(t);
+      res ~= t;
+    }
     foreach (entry; stack) {
-      if (res.length) res ~= "\n";
-      res ~= "pushl "~entry;
+      addTransaction(Transaction.Kind.Push, (ref Transaction t) {
+        t.source = entry;
+        t.type = Single!(SysInt);
+      });
     }
     foreach (reg, value; known) {
-      if (res.length) res ~= "\n";
-      res ~= "movl "~value~", "~reg;
+      addTransaction(Transaction.Kind.Mov, (ref Transaction t) {
+        t.from = value; t.to = reg;
+      });
     }
     if (overfree) {
-      if (res.length) res ~= "\n";
-      res ~= Format("addl $", overfree, ", %esp");
+      addTransaction(Transaction.Kind.SFree, (ref Transaction t) {
+        t.size = overfree;
+      });
     }
     if (callDest) {
-      if (res.length) res ~= "\n";
-      res ~= Format("call ", callDest);
+      addTransaction(Transaction.Kind.Call, (ref Transaction t) {
+        t.dest = callDest;
+      });
     }
-    // logln(" => ", res.replace("\n", "\\"), " (", original, ")");
     return res;
   }
+  string toAsm() { assert(false); }
 }
 
 bool delegate(Transcache, ref int[string]) ext_step;
@@ -368,6 +387,37 @@ void setupOpts() {
   if (optsSetup) return;
   optsSetup = true;
   bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
+  static int xx;
+  mixin(opt("ext_step", `*, *
+    =>
+    ProcTrack obj;
+    $T t;
+    t.kind = $TK.Extended;
+    if ($0.kind == $TK.Extended) {
+      obj = cast(ProcTrack) $0.obj;
+      t.obj = obj;
+      bool couldUpdate = obj.update($1);
+      if (couldUpdate) {
+        $SUBST([t]);
+        if (match.to != match.parent.list.length) {
+          goto skip; // > > > \
+        } //                  v
+      } //                    v
+      auto res = obj./*       v */translate();
+      if (!couldUpdate) res/* v */ ~= $1;
+      $SUBST(res); //         v
+      match.modded = false;// v meh. just skip one
+      changed = true; //      v secretly
+      skip:; //   < < < < < < /
+    } else {
+      New(obj);
+      t.obj = obj;
+      if (obj.update($0)) { $SUBST([t, $1]); }
+    }
+  `));
+  .ext_step = &ext_step; // export
+  opts = opts[0 .. $-1]; // only do ext_step once
+  
   mixin(opt("rewrite_zero_ref", `*:
     hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0)
     =>
@@ -381,41 +431,18 @@ void setupOpts() {
     if (hasTo    (t) && t.to    .startsWith("0("))
       { t.to     = t.to    [1..$]; $SUBST([t]); }
   `));
-  mixin(opt("ext_step", `*, *
-    =>
-    ProcTrack obj;
-    $T t;
-    t.kind = $TK.Extended;
-    if ($0.kind == $TK.Extended) {
-      obj = cast(ProcTrack) $0.obj;
-      t.obj = obj;
-      bool couldUpdate = obj.update($1);
-      if (couldUpdate) {
-        $SUBST([t]);
-        if (match.to != match.parent.list.length) {
-          goto skip; // ------v
-        }
-      }
-      if (!obj.isValid()) {
-        auto restore = obj.original;
-        if (!couldUpdate) restore ~= $1;
-        $SUBST(restore);
-        match.modded = false; // These are not the updates you're looking for.
-        changed = true; // secretly
-      }
-      skip:; //            <---v
-    } else {
-      New(obj);
-      t.obj = obj;
-      if (obj.update($0)) { $SUBST([t, $1]); }
-      
-    }
-  `));
-  .ext_step = &ext_step; // export
-  opts = opts[0 .. $-1]; // only do ext_step once
-  
   // alloc/free can be shuffled down past _anything_ that doesn't reference stack.
-  mixin(opt("sort_mem", `^SAlloc || ^SFree, *: !affectsStack($1) => $SUBST([$1, $0]); `));
+  mixin(opt("sort_mem", `^SAlloc || ^SFree, *:
+    !affectsStack($1)
+    =>
+    int delta;
+    if ($0.kind == $TK.SAlloc) delta = $0.size;
+    else if ($0.kind == $TK.SFree) delta = -$0.size;
+    else assert(false);
+    auto t2 = $1;
+    if (t2.hasStackdepth) t2.stackdepth -= delta;
+    $SUBST([t2, $0]);
+  `));
   mixin(opt("sort_pointless_mem", `^SAlloc || ^SFree, *:
     (hasSource($1) || hasDest($1) || hasFrom($1) || hasTo($1)) && !changesESP($1)
     =>
