@@ -90,18 +90,23 @@ static this() {
 
 import ast.fold, ast.casting;
 Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
-  if (!text.accept("&")) return null;
+  auto t2 = text;
+  if (!t2.accept("&")) return null;
   
   Expr ex;
-  if (!rest(text, "tree.expr _tree.expr.arith", &ex)) {
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
     error = "Address operator found but nothing to take address matched at '"~text.next_text()~"'";
     return null;
   }
   
+  IType[] tried;
   if (!gotImplicitCast(ex, (Expr ex) {
-    return test(cast(CValue) fold(ex));
-  })) throw new Exception(Format("Can't take reference: ", ex, " does not become a cvalue at ", text.next_text()));
+    auto f = fold(ex);
+    tried ~= f.valueType();
+    return test(cast(CValue) f);
+  })) throw new Exception(Format("Can't take reference: ", ex, " does not become a cvalue (", tried, ") at ", text.next_text()));
   
+  text = t2;
   auto cv = cast(CValue) fold(ex);
   assert(!!cv);
   

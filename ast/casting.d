@@ -29,11 +29,12 @@ class ReinterpretCast(T) : T {
 alias ReinterpretCast!(Expr) RCE;
 alias ReinterpretCast!(LValue) RCL;
 
+import ast.fold;
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
     if (auto rce1 = cast(RCE) ex) {
-      if (auto rce2 = cast(RCE) rce1.from) {
-        return new RCE(rce1.to, rce2.from);
+      if (auto rce2 = cast(RCE) fold(rce1.from)) {
+        return fold(new RCE(rce1.to, fold(rce2.from)));
       }
     }
     return null;
@@ -41,7 +42,7 @@ static this() {
   foldopt ~= delegate Expr(Expr ex) {
     if (auto rce = cast(RCE) ex) {
       if (rce.from.valueType() == rce.to)
-        return rce.from;
+        return fold(rce.from);
     }
     return null;
   };

@@ -97,6 +97,7 @@ static this() {
     auto tup = cast(Tuple) ex.valueType();
     if (!tup) return null;
     if (tup.types.length != 1) return null;
-    return fold(mkTupleIndexAccess(ex, 0));
+    auto res = mkTupleIndexAccess(ex, 0);
+    return res;
   };
 }

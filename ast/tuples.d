@@ -91,21 +91,27 @@ class RefTuple : MValue {
   IType baseTupleType;
   LValue[] lvs;
   mixin defaultIterate!(lvs);
-  this(IType btt, LValue[] lvs...) {
-    baseTupleType = btt;
+  Expr[] getAsExprs() {
+    Expr[] exprs;
+    foreach (lv; lvs) exprs ~= lv;
+    return exprs;
+  }
+  this(LValue[] lvs...) {
     this.lvs = lvs.dup;
+    baseTupleType = mkTupleValueExpr(getAsExprs()).valueType();
   }
   override {
     RefTuple dup() {
       auto newlist = lvs.dup;
       foreach (ref entry; newlist) entry = entry.dup;
-      return new RefTuple(baseTupleType, newlist);
+      return new RefTuple(newlist);
     }
     IType valueType() { return baseTupleType; }
     void emitAsm(AsmFile af) {
-      Expr[] exprs;
-      foreach (lv; lvs) exprs ~= lv;
-      mkTupleValueExpr(exprs).emitAsm(af);
+      mkTupleValueExpr(getAsExprs).emitAsm(af);
+    }
+    string toString() {
+      return Format("reftuple(", lvs, ")");
     }
     void emitAssignment(AsmFile af) {
       auto tup = cast(Tuple) baseTupleType;
@@ -144,7 +150,7 @@ Expr mkTupleExpr(Expr[] exprs...) {
   
   auto vt = mkTupleValueExpr(exprs);
   if (!allLValues) return vt;
-  else return new RefTuple(vt.valueType(), arr);
+  else return new RefTuple(arr);
 }
 
 /// 4.
@@ -166,3 +172,13 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60");
+
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (auto rt = cast(RefTuple) ex) {
+      if (rt.lvs.length == 1)
+        return rt.lvs[0];
+    }
+    return null;
+  };
+}
