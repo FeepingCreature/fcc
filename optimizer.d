@@ -96,7 +96,7 @@ bool referencesStack(ref Transaction t, bool affects = false) {
     case                     MathOp : return t.op1.foo() || t.op2.foo();
     case                  FloatLoad : return t.source.foo();
     case       FloatPop, FloatStore : return t.dest.foo();
-    case                  FloatMath : return false;
+    case       FloatMath, FloatSwap : return false;
     case Call, Compare, Label, Jump : return true; // not safe to move stuff past
     case                  Nevermind : return t.dest.foo();
     default: break;
