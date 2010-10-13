@@ -339,7 +339,7 @@ class MemberAccess_Expr : Expr {
           }
           af.comment("push back ", reg);
           af.pushStack(reg, stm.type);
-          af.nvm(reg);
+          af.nvm("%eax");
         } else {
           mkVar(af, stm.type, true, (Variable var) {
             iparse!(Statement, "copy_struct_member", "tree.semicol_stmt.expr")

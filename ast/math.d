@@ -167,6 +167,7 @@ void loadFloatEx(Expr ex, AsmFile af) {
     lv.emitLocation(af);
     af.popStack("%eax", voidp);
     af.loadFloat("(%eax)");
+    af.nvm("%eax");
   } else {
     ex.emitAsm(af);
     af.loadFloat("(%esp)");
@@ -245,8 +246,14 @@ class AsmIntBinopExpr : BinopExpr {
         af.popStack("%eax", e1.valueType());
         af.put("cdq");
         af.put("idivl (%esp)");
-        if (op == "%") af.mmove4("%edx", "(%esp)");
-        else af.mmove4("%eax", "(%esp)");
+        af.sfree(4);
+        if (op == "%") {
+          af.pushStack("%edx", Single!(SysInt));
+          af.nvm("%edx");
+        } else {
+          af.pushStack("%eax", Single!(SysInt));
+          af.nvm("%eax");
+        }
       } else {
         string op1, op2;
         bool late_alloc;
@@ -272,8 +279,9 @@ class AsmIntBinopExpr : BinopExpr {
           "<<": "shl", ">>": "shr"
         ][op];
         af.mathOp(asm_op, op2, "%eax");
-        if (late_alloc) af.salloc(4);
-        af.mmove4("%eax", "(%esp)");
+        if (!late_alloc) af.sfree(4);
+        af.pushStack("%eax", Single!(SysInt));
+        af.nvm("%eax");
       }
     }
   }

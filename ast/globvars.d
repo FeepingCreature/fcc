@@ -41,6 +41,7 @@ class GlobVar : LValue, Named {
         af.popStack("%eax", voidp);
         af.put("leal ", mangled()~"@NTPOFF(%eax), %eax");
         af.pushStack("%eax", voidp);
+        af.nvm("%eax");
       } else {
         af.pushStack("$"~mangled(), voidp);
       }

@@ -191,6 +191,7 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       }
       af.popStack("%eax", Single!(SizeT));
       af.call("%eax");
+      af.nvm("%eax");
       foreach (param; params) {
         af.sfree(param.valueType().size);
       }

@@ -144,23 +144,24 @@ static this() {
   };
 }
 
-void callDg(AsmFile dest, IType ret, Expr[] params, Expr dg) {
-  dest.comment("Begin delegate call");
+void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
+  af.comment("Begin delegate call");
   
   auto dgs = dgAsStruct(dg);
   params ~= mkMemberAccess(dgs, "data");
   
   foreach_reverse (param; params) {
-    dest.comment("Push ", param);
-    param.emitAsm(dest);
+    af.comment("Push ", param);
+    param.emitAsm(af);
   }
   
-  mkMemberAccess(dgs, "fun").emitAsm(dest);
-  dest.popStack("%eax", Single!(SizeT));
-  dest.call("%eax");
+  mkMemberAccess(dgs, "fun").emitAsm(af);
+  af.popStack("%eax", Single!(SizeT));
+  af.call("%eax");
+  af.nvm("%eax");
   
   foreach (param; params) {
-    dest.sfree(param.valueType().size);
+    af.sfree(param.valueType().size);
   }
-  handleReturn(ret, dest);
+  handleReturn(ret, af);
 }

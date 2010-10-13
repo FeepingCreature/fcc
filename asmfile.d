@@ -217,7 +217,9 @@ class AsmFile {
     Transaction[] newlist;
     foreach (t; cache.list) {
       if (t.kind != Transaction.Kind.Label) newlist ~= t;
-      else foreach (name; t.names) if (name in labels_refcount && labels_refcount[name] > 0) { newlist ~= t; break; }
+      else
+        foreach (name; t.names)
+          if (name in labels_refcount && labels_refcount[name] > 0) { newlist ~= t; break; }
     }
     cache.list = newlist;
     labels_refcount = null;
@@ -228,12 +230,12 @@ class AsmFile {
       put("# [", currentStackDepth, ": ", currentStackDepth - lastStackDepth, "]: ", t);
     lastStackDepth = currentStackDepth;
   }
-  string[] goodOpts;
+  static string[] goodOpts;
   void runOpts() {
     setupOpts;
     string[] newOpts;
-    bool[string] unused;
-    bool delegate(Transcache, ref int[string])[string] map;
+    static bool[string] unused;
+    static bool delegate(Transcache, ref int[string])[string] map;
     foreach (entry; opts) if (entry._2) {
       unused[entry._1] = true;
       map[entry._1] = entry._0;
@@ -242,7 +244,7 @@ class AsmFile {
       unused.remove(opt);
       map[opt](cache, labels_refcount);
     }
-    ext_step(cache, labels_refcount); // run this first
+    // ext_step(cache, labels_refcount); // run this first
     while (true) {
       bool anyChange;
       foreach (entry; opts) if (entry._2) {
@@ -258,17 +260,17 @@ class AsmFile {
       }
       // logln("::", anyChange, "; ", cache.list);
       if (!anyChange) break;
-      foreach (opt; newOpts)
-        log("[", unique(opt), "]");
-      logln();
     }
-    
+    foreach (opt; newOpts)
+      log("[", unique(opt), "]");
+      
     string join(string[] s) {
       string res;
       foreach (str; s) { if (res) res ~= ", "; res ~= str; }
       return res;
     }
-    if (newOpts && debugOpts) logln("Opt: ", goodOpts.join(), " + ", newOpts, " - ", unused.keys);
+    if (newOpts && debugOpts) logln("Opt: ", goodOpts.join(), " + ", newOpts/+, " - ", unused.keys+/);
+    if (newOpts) logln("Unused: ", unused.keys);
   }
   void flush() {
     if (optimize) runOpts;

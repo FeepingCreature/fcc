@@ -12,6 +12,7 @@ class ExprWrap : Cond {
       ex.emitAsm(af);
       af.popStack("%eax", ex.valueType());
       af.compare("%eax", "%eax", true);
+      af.nvm("%eax");
       if (cond)
         af.jumpOn(true, false, true, dest); // Jump on !=0
       else

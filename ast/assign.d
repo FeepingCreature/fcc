@@ -30,6 +30,7 @@ class _Assignment(T) : Statement {
         target.emitLocation(af);
         af.popStack("%eax", new Pointer(target.valueType()));
         af.popStack("(%eax)", value.valueType());
+        af.nvm("%eax");
       }
     } else {
       mixin(mustOffset("0"));
