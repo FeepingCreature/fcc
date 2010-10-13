@@ -92,15 +92,16 @@ bool referencesStack(ref Transaction t, bool affects = false) {
     case   SAlloc, SFree            : return true;
     case                        Pop : if (affects) return true; return t.dest.foo();
     case                       Push : if (affects) return true; return t.source.foo();
-    case                       Call : return true;
     case                        Mov : return t.from.foo() || t.to.foo();
     case                     MathOp : return t.op1.foo() || t.op2.foo();
     case                  FloatLoad : return t.source.foo();
     case       FloatPop, FloatStore : return t.dest.foo();
     case                  FloatMath : return false;
+    case Call, Compare, Label, Jump : return true; // not safe to move stuff past
+    case                  Nevermind : return t.dest.foo();
     default: break;
   }
-  return true;
+  assert(false, Format("huh? ", t));
 }
 
 bool affectsStack(ref Transaction t) { return referencesStack(t, true); }
@@ -167,6 +168,7 @@ class ProcTrack : ExtToken {
   string[string] known;
   string[] stack; // nativePtr-sized
   string[] latepop;
+  string floatldsource; // TODO: fpu
   // in use by this set of transactions
   // emit before overwriting
   bool[string] use, nvmed;
@@ -178,7 +180,8 @@ class ProcTrack : ExtToken {
   int ebp_mode = -1;
   int eaten;
   string toString() {
-    return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", pop ", latepop, ", used ", use.keys, " valid ", isValid(), ")");
+    return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", pop ", latepop, ", used ", use.keys, " valid ", isValid(), ")")
+      ~ (overfree?Format(" overfree ", overfree):"");
   }
   bool update(Transaction t) {
     scope(exit) {
@@ -229,6 +232,14 @@ class ProcTrack : ExtToken {
       }
       return null;
     }
+    bool used(string s) {
+      foreach (entry; stack)
+        if (entry.find(s) != -1) return true;
+      foreach (key, value; known) {
+        if (value.find(s) != -1) return true;
+      }
+      return false;
+    }
     bool set(string mem, string val) {
       if (mem.find("esp") != -1) {
         if (ebp_mode == -1) ebp_mode = false;
@@ -239,14 +250,19 @@ class ProcTrack : ExtToken {
         else if (ebp_mode == false) return false;
       }
       if (mem == val) known.remove(mem);
-      else known[mem] = val;
+      else {
+        if (mem.isRelative() && val.isRelative())
+          return false;
+        known[mem] = val;
+      }
       nvmed.remove(mem);
       return true;
     }
-    if (callDest && t.kind != Transaction.Kind.Nevermind)
-      return false;
-    if (latepop  && t.kind != Transaction.Kind.Nevermind)
-      return false;
+    if (t.kind != Transaction.Kind.Nevermind) {
+      if (callDest)      return false;
+      if (latepop)       return false;
+      if (floatldsource) return false;
+    }
     with (Transaction.Kind) switch (t.kind) {
       case Compare: return false;
       case MathOp:
@@ -259,14 +275,24 @@ class ProcTrack : ExtToken {
         if (auto p = op2 in known) op2 = *p;
         
         if (t.opName != "addl") break;
-        if (t.op1.isLiteral() && t.op2 in known) {
+        if (t.op1.isNumLiteral() && t.op2 in known) {
           auto stuf = known[t.op2];
           if (stuf.isRegister()) {
             if (!set(t.op2, "+(" ~ known[t.op2] ~ ", " ~ t.op1 ~ ")"))
               return false;
+            mixin(Success);
+          } else if (t.op1.isNumLiteral() && stuf.startsWith("+(")) {
+            auto mop2 = stuf.between("+(", ")"), mop1 = mop2.slice(", ");
+            if (mop2.isNumLiteral()) {
+              if (!set(t.op2, Format("+(",
+                mop1,
+                ", $", mop2.literalToInt() + t.op1.literalToInt(),
+              ")")))
+                return false;
+              mixin(Success);
+            }
           }
-          else break;
-          mixin(Success);
+          break;
         }
         if (t.op1.isNumLiteral() && t.op2 == "(%esp)" && stack.length && stack[$-1].startsWith("+(")) {
           auto mop2 = stack[$-1].between("+(", ")"), mop1 = mop2.slice(", ");
@@ -297,10 +323,10 @@ class ProcTrack : ExtToken {
         
         if (t.from == "%esp")
           return false; // TODO: can this ever be handled?
-        int delta;
-        if (t.to in use) break; // lol
+        if (used(t.to)) break; // lol
         if (t.to.isIndirect() == "%esp")
           use["%esp"] = true;
+        int delta;
         if (t.from.isRegister()) {
           string src = t.from;
           if (auto p = src in known)
@@ -314,7 +340,8 @@ class ProcTrack : ExtToken {
             if (!stack.length) break;
             stack[$-1] = src;
           } else {
-            set(t.to, src);
+            if (!set(t.to, src))
+              return false;
           }
           mixin(Success);
         } else if (t.from in known && known[t.from].isLiteral()) {
@@ -419,7 +446,6 @@ class ProcTrack : ExtToken {
         if (auto dest = t.dest.isIndirectSimple()) {
           if (dest in known) {
             if (auto indir = mkIndirect(known[dest])) {
-              logln("hi! ", !!stack.length, !!latepop.length);
               if (!stack.length && latepop.length) break;
               if (stack.length) {
                 if (!set(indir, stack[$-1]))
@@ -457,6 +483,16 @@ class ProcTrack : ExtToken {
         }
         return false;
       case Jump: return false;
+      case FloatLoad:
+        if (auto src = t.source.isIndirectSimple()) {
+          if (src in known) {
+            if (auto indir = mkIndirect(known[src])) {
+              floatldsource = indir;
+              mixin(Success);
+            }
+          }
+        }
+        break;
       default: break;
     }
     return false;
@@ -514,6 +550,11 @@ class ProcTrack : ExtToken {
     if (callDest) {
       addTransaction(Transaction.Kind.Call, (ref Transaction t) {
         t.dest = callDest;
+      });
+    }
+    if (floatldsource) {
+      addTransaction(Transaction.Kind.FloatLoad, (ref Transaction t) {
+        t.source = floatldsource;
       });
     }
     foreach (key, value; nvmed) {
@@ -705,12 +746,14 @@ void setupOpts() {
   mixin(opt("load_from_push", `^Push, ^FloatLoad:
     !$0.source.isRegister() && $1.source == "(%esp)"
     =>
-    $T a1 = $1.dup, a2;
+    $T a1 = $1.dup, a2, a3;
     a1.source = $0.source;
     if ($1.hasStackdepth) a1.stackdepth = $1.stackdepth - 4;
-    a2.kind = $TK.SAlloc;
-    a2.size = 4;
-    $SUBST([a1, a2]);
+    a2.kind = $TK.Nevermind;
+    a2.dest = $0.source;
+    a3.kind = $TK.SAlloc;
+    a3.size = 4;
+    $SUBST([a1, a2, a3]);
   `));
   mixin(opt("fold_float_pop_load", `^FloatPop, ^FloatLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 4 => $SUBST([$2]);`));
   mixin(opt("fold_float_pop_load_to_store", `^FloatPop, ^FloatLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.FloatStore; dest = $0.dest; }`));
