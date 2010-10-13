@@ -187,9 +187,9 @@ int main(int argc, char** argv) {
   t = 0;
   auto ds = parse("newell_teaset/teapot");
   SDL_Init (SDL_INIT_VIDEO);
-  auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_HWPALETTE | SDL_RESIZABLE | SDL_HWSURFACE | SDL_HWACCEL;
+  auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  auto surf = SDL_SetVideoMode (640, 480, 0, SDL_OPENGL);
+  auto surf = SDL_SetVideoMode (640, 480, 0, flags);
   if !surf quit(1);
   initGL;
   resizeWindow (640, 480);
