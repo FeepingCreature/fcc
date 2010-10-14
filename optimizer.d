@@ -86,22 +86,34 @@ int literalToInt(string s) {
   return s[1 .. $].atoi();
 }
 
-bool referencesStack(ref Transaction t, bool affects = false) {
-  bool foo(string s) { return s.find("%esp") != -1 || s.find("%ebp") != -1; }
+void testParams(ref Transaction t, void delegate(string) dg) {
   with (Transaction.Kind) switch (t.kind) {
-    case   SAlloc, SFree            : return true;
-    case                        Pop : if (affects) return true; return t.dest.foo();
-    case                       Push : if (affects) return true; return t.source.foo();
-    case                        Mov : return t.from.foo() || t.to.foo();
-    case                     MathOp : return t.op1.foo() || t.op2.foo();
-    case                  FloatLoad : return t.source.foo();
-    case       FloatPop, FloatStore : return t.dest.foo();
-    case       FloatMath, FloatSwap : return false;
-    case Call, Compare, Label, Jump : return true; // not safe to move stuff past
-    case                  Nevermind : return t.dest.foo();
+    case SAlloc, SFree, FloatMath, FloatSwap: return;
+    case Call, Nevermind, FloatStore, FloatPop, Pop: dg(t.dest); return;
+    case FloatLoad, Push: dg(t.source); return;
+    case LoadAddress, Mov, Mov2, Mov1: dg(t.from); dg(t.to); return;
+    case Compare, MathOp: dg(t.op1); dg(t.op2); return;
+    case Label, Jump: return;
     default: break;
   }
   assert(false, Format("huh? ", t));
+}
+
+ bool referencesStack(ref Transaction t, bool affects = false) {
+  bool foo(string s) { return s.find("%esp") != -1 || s.find("%ebp") != -1; }
+  with (Transaction.Kind)
+    if (t.kind == SAlloc /or/ SFree /or/ Call /or/ Compare /or/ Label /or/ Jump)
+      return true;
+    else if (t.kind == FloatMath /or/ FloatSwap)
+      return false;
+    else if (affects && t.kind == Pop /or/ Push)
+      return true;
+  bool res;
+  testParams(t, (string s) {
+    if (s.find("%esp") != -1 || s.find("%ebp") != -1)
+      res = true;
+  });
+  return res;
 }
 
 bool affectsStack(ref Transaction t) { return referencesStack(t, true); }
@@ -123,7 +135,7 @@ bool hasDest(ref Transaction t) {
 
 bool hasFrom(ref Transaction t) {
   with (Transaction.Kind)
-    return !!(t.kind == Mov /or/ Mov2 /or/ Mov1);
+    return !!(t.kind == Mov /or/ Mov2 /or/ Mov1 /or/ LoadAddress);
 }
 alias hasFrom hasTo;
 
@@ -158,6 +170,31 @@ bool isMemRef(string s) {
   return true;
 }
 
+string isIndirectSimple(string s) {
+  if (s.length >= 2 && s[0] == '(' && s[$-1] == ')')
+    return s[1..$-1];
+  else return null;
+}
+string isIndirectComplex(string s, ref int delta) {
+  if (s.between(")", "").length) return null;
+  auto betw = s.between("(", ")");
+  if (betw && betw.isRegister()) {
+    delta = s.between("", "(").atoi();
+    return betw;
+  }
+  return null;
+}
+string isIndirect2(string s, ref int delta) {
+  delta = 0;
+  if (auto res = isIndirectSimple(s)) return res;
+  if (auto res = isIndirectComplex(s, delta)) return res;
+  return null;
+}
+string isIndirect(string s) {
+  int bogus;
+  return isIndirect2(s, bogus);
+}
+
 // dg, name, allow
 Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
 bool optsSetup;
@@ -174,14 +211,26 @@ class ProcTrack : ExtToken {
   bool[string] use, nvmed;
   // backup
   Transaction[] backup, knownGood;
-  int overfree;
   string callDest;
   // not safe to mix foo(%ebp) and foo(%esp) in the same proc chunk
   int ebp_mode = -1;
   int eaten;
   string toString() {
-    return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", pop ", latepop, ", used ", use.keys, " valid ", isValid(), ")")
-      ~ (overfree?Format(" overfree ", overfree):"");
+    return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", pop ", latepop, ", used ", use.keys, " valid ", isValid(), ")");
+  }
+  string mkIndirect(string val, int delta = 0 /* additional delta */) {
+    if (val.startsWith("+(")) {
+      auto op2 = val.between("(", ")"), op1 = op2.slice(",").strip();
+      op2 = op2.strip();
+      if (op1.isRegister() && op2.isNumLiteral()) {
+        auto op2i = op2.literalToInt();
+        /*if (t.to in use)
+          return null;*/
+        // to indirect access
+        return Format(op2i + delta, "(", op1, ")");
+      }
+    }
+    return null;
   }
   bool update(Transaction t) {
     scope(exit) {
@@ -194,44 +243,6 @@ class ProcTrack : ExtToken {
     }
     // #define .. lol
     const string Success = "{ backup ~= t; eaten ++; return true; }";
-    string isIndirectSimple(string s) {
-      if (s.length >= 2 && s[0] == '(' && s[$-1] == ')')
-        return s[1..$-1];
-      else return null;
-    }
-    string isIndirectComplex(string s, ref int delta) {
-      if (s.between(")", "").length) return null;
-      auto betw = s.between("(", ")");
-      if (betw && betw.isRegister()) {
-        delta = s.between("", "(").atoi();
-        return betw;
-      }
-      return null;
-    }
-    string isIndirect2(string s, ref int delta) {
-      delta = 0;
-      if (auto res = isIndirectSimple(s)) return res;
-      if (auto res = isIndirectComplex(s, delta)) return res;
-      return null;
-    }
-    string isIndirect(string s) {
-      int bogus;
-      return isIndirect2(s, bogus);
-    }
-    string mkIndirect(string val, int delta = 0 /* additional delta */) {
-      if (val.startsWith("+(")) {
-        auto op2 = val.between("(", ")"), op1 = op2.slice(",").strip();
-        op2 = op2.strip();
-        if (op1.isRegister() && op2.isNumLiteral()) {
-          auto op2i = op2.literalToInt();
-          /*if (t.to in use)
-            return null;*/
-          // to indirect access
-          return Format(op2i + delta, "(", op1, ")");
-        }
-      }
-      return null;
-    }
     bool used(string s) {
       foreach (entry; stack)
         if (entry.find(s) != -1) return true;
@@ -265,6 +276,15 @@ class ProcTrack : ExtToken {
     }
     with (Transaction.Kind) switch (t.kind) {
       case Compare: return false;
+      case LoadAddress:
+        if (t.to.isRegister()) {
+          int delta;
+          if (auto reg = t.from.isIndirect2(delta)) {
+            set(t.to, Format("+(", reg, ", $", delta, ")"));
+            mixin(Success);
+          }
+        }
+        break;
       case MathOp:
         if (t.opName == "imull" && t.op1 == "$1"
          || t.opName == "addl" && t.op1 == "$0"
@@ -303,7 +323,6 @@ class ProcTrack : ExtToken {
         }
         break;
       case SAlloc:
-        if (overfree) return false;
         if (t.size == 4) {
           stack ~= null;
           mixin(Success);
@@ -312,10 +331,7 @@ class ProcTrack : ExtToken {
         if (t.size % nativePtrSize != 0) return false;
         for (int i = 0; i < t.size / nativePtrSize; ++i)
           if (stack.length) stack = stack[0 .. $-1];
-          else {
-            if (latepop) return false;
-            overfree += nativePtrSize;
-          }
+          else return false;
         mixin(Success);
       case Mov:
         if (t.to == "%esp")
@@ -384,8 +400,6 @@ class ProcTrack : ExtToken {
       case Label: return false;
       case Push:
       restart_push:
-        if (overfree)
-          return false;
         /+static int xx;
         xx++;
         // 1727 .. 1728
@@ -507,7 +521,13 @@ class ProcTrack : ExtToken {
     }
     foreach (mem, value; known) {
       if (mem in nvmed) continue;
-      if (value.startsWith("+(")) return false;
+      if (value.startsWith("+("))
+        if (!mem.isRegister())
+          return false;
+        else if (value.find("gs") != -1)
+          return false;
+        else
+          continue;
       // TODO: move over eax or something
       if (mem.isRelative() && value.isRelative()) return false;
     }
@@ -532,14 +552,15 @@ class ProcTrack : ExtToken {
     }
     foreach (reg, value; known) {
       if (reg in nvmed) continue;
-      addTransaction(Transaction.Kind.Mov, (ref Transaction t) {
-        t.from = value; t.to = reg;
-      });
-    }
-    if (overfree) {
-      addTransaction(Transaction.Kind.SFree, (ref Transaction t) {
-        t.size = overfree;
-      });
+      if (auto indir = mkIndirect(value)) {
+        addTransaction(Transaction.Kind.LoadAddress, (ref Transaction t) {
+          t.from = indir; t.to = reg;
+        });
+      } else {
+        addTransaction(Transaction.Kind.Mov, (ref Transaction t) {
+          t.from = value; t.to = reg;
+        });
+      }
     }
     foreach (entry; latepop) {
       addTransaction(Transaction.Kind.Pop, (ref Transaction t) {
@@ -620,42 +641,61 @@ void setupOpts() {
       { t.to     = t.to    [1..$]; $SUBST([t]); }
   `));
   // alloc/free can be shuffled down past _anything_ that doesn't reference stack.
-  mixin(opt("sort_mem", `^SAlloc || ^SFree, *:
-    !affectsStack($1)
+  mixin(opt("sort_mem", `*, ^SAlloc || ^SFree:
+    !affectsStack($0)
     =>
     int delta;
-    if ($0.kind == $TK.SAlloc) delta = $0.size;
-    else if ($0.kind == $TK.SFree) delta = -$0.size;
+    if ($1.kind == $TK.SAlloc) delta = $1.size;
+    else if ($1.kind == $TK.SFree) delta = -$1.size;
     else assert(false);
-    auto t2 = $1;
-    if (t2.hasStackdepth) t2.stackdepth -= delta;
-    $SUBST([t2, $0]);
+    auto t2 = $0;
+    if (t2.hasStackdepth) t2.stackdepth += delta;
+    $SUBST([$1, t2]);
   `));
-  mixin(opt("sort_pointless_mem", `^SAlloc || ^SFree, *:
-    (hasSource($1) || hasDest($1) || hasFrom($1) || hasTo($1)) && !changesESP($1)
+  mixin(opt("sort_pointless_mem", `*, ^SAlloc || ^SFree:
+    (hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0))
+    && !changesESP($0)
     =>
-    string* sp;
-    $T t = $1.dup;
-    bool used;
-    void doStuff(ref string s) {
+    int shift = -1;
+    $T t = $0.dup;
+    void detShift(string s) {
       if (s.between("(", ")") != "%esp") return;
       auto offs = s.between("", "(").atoi();
-      if ($0.kind == $TK.SAlloc) {
-        if (offs > $0.size) { // will be unaffected
-          s = Format(offs - $0.size, "(%esp)");
-          used =  true;
-        }
+      if ($1.kind == $TK.SAlloc) {
+        shift = $1.size; // move it all to front
       } else {
-        s = Format(offs + $0.size, "(%esp)");
-        used = true;
+        if (shift == -1) shift = min($1.size, offs);
+        else shift = min(shift, offs);
       }
     }
-    if (hasSource($1)) doStuff(t.source);
-    if (hasDest  ($1)) doStuff(t.dest);
-    if (hasFrom  ($1)) doStuff(t.from);
-    if (hasTo    ($1)) doStuff(t.to);
-    if (used)
-      $SUBST([t, $0]);
+    void applyShift(ref string s) {
+      if (s.between("(", ")") != "%esp") return;
+      auto offs = s.between("", "(").atoi();
+      if ($1.kind == $TK.SAlloc) {
+        s = Format(offs + shift, "(%esp)");
+      } else {
+        s = Format(offs - shift, "(%esp)");
+      }
+    }
+    if (hasSource($0)) detShift(t.source);
+    if (hasDest  ($0)) detShift(t.dest);
+    if (hasFrom  ($0)) detShift(t.from);
+    if (hasTo    ($0)) detShift(t.to);
+    // ------------------------------
+    if (hasSource($0)) applyShift(t.source);
+    if (hasDest  ($0)) applyShift(t.dest);
+    if (hasFrom  ($0)) applyShift(t.from);
+    if (hasTo    ($0)) applyShift(t.to);
+    if (shift > 0) {
+      auto t0 = $1, t2 = $1;
+      t0.size = shift; t2.size -= shift;
+      if (t.hasStackdepth)
+        t.stackdepth -= shift;
+      $T[] res = [t];
+      if (t0.size) res = [t0] ~ res;
+      if (t2.size) res = res ~ [t2];
+      $SUBST(res);
+    }//  else logln("sort_pointless_mem .. ", [$0, $1], ": no shift");
   `));
   mixin(opt("collapse_alloc_frees", `^SAlloc || ^SFree, ^SAlloc || ^SFree =>
     int sum_inc;
@@ -679,7 +719,7 @@ void setupOpts() {
       to = "(%esp)";
     }
   `));
-  mixin(opt("collapse_push_pop", `^Push, ^Pop:
+  /+mixin(opt("collapse_push_pop", `^Push, ^Pop:
     ($0.type.size == $1.type.size) && (!$0.source.isMemRef() || !$1.dest.isMemRef())
     =>
     if ($0.source == $1.dest) { /*logln("Who the fuck produced this retarded bytecode: ", match[]);*/ $SUBST(null); continue; }
@@ -754,7 +794,7 @@ void setupOpts() {
     a3.kind = $TK.SAlloc;
     a3.size = 4;
     $SUBST([a1, a2, a3]);
-  `));
+  `));+/
   mixin(opt("fold_float_pop_load", `^FloatPop, ^FloatLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 4 => $SUBST([$2]);`));
   mixin(opt("fold_float_pop_load_to_store", `^FloatPop, ^FloatLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.FloatStore; dest = $0.dest; }`));
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
@@ -796,7 +836,90 @@ void setupOpts() {
     labels_refcount[$0.dest] --;
     $SUBST([$1]);
   `));
-  mixin(opt("silly_mov", `^Mov, ^Mov: $0.to == $1.from && $1.to == $0.from && $0.to.isRegister() => $SUBST([$1]); `));
+  mixin(opt("silly_mov", `^Mov, ^Mov:
+    $0.to == $1.from && $1.to == $0.from
+    &&
+    $0.to.isRegister()
+    =>
+    $SUBST([$0]);
+  `));
+  mixin(opt("silly_push", `^Push, ^Mov, ^SFree:
+    $0.type.size == 4 && $1.to.isRegister() && $2.size > 4
+    && $1.from == "(%esp)"
+    =>
+    int delta;
+    if ($0.source.isIndirect2(delta) == "%ebp" && delta >= 0) {
+      $T t1 = $2, t2 = $2;
+      t1.size -= 4; t2.size = 4;
+      $SUBST([t1, $0, $1, t2]);
+    }
+  `));
+  mixin(opt("sort_nevermind", `*, ^Nevermind
+    =>
+    bool refsMe;
+    with ($TK)
+      if ($0.kind == Label /or/ Jump /or/ Call /or/ SAlloc /or/ SFree)
+        refsMe = true;
+      else testParams($0, (string s) { if (s.find($1.dest) != -1) refsMe = true; });
+    if (!refsMe) {
+      $SUBST([$1, $0]);
+    }
+  `));
+  mixin(opt("combine_nevermind", `^Nevermind, ^Nevermind:
+    $0.dest == $1.dest => $SUBST([$0]);
+  `));
+  mixin(opt("pop_mov_order", `^Pop, ^Mov:
+    $0.type.size == 4 &&
+    $0.dest == $1.from &&
+    $1.to.isRegister() && !$1.from.isRegister()
+    =>
+    auto t1 = $0, t2 = $1;
+    t1.dest = $1.to;
+    t2.from = $1.to;
+    t2.to = $0.dest;
+    $SUBST([t1, t2]);
+  `));
+  mixin(opt("add_pop_order", `^MathOp, ^Nevermind, ^Pop:
+    $0.opName == "addl" &&
+    $0.op2 == "(%esp)" &&
+    $2.dest == $0.op1
+    =>
+    $T t1 = $0, t2;
+    swap(t1.op1, t1.op2);
+    t2.kind = $TK.SFree;
+    t2.size = 4;
+    $SUBST([t1, t2]);
+  `));
+  /+mixin(opt("break_up_push", `^Push: $0.type.size > 4 && ($0.type.size % 4) == 0
+    =>
+    int delta;
+    if (auto reg = $0.source.isIndirect2(delta)) {
+      $T[] ts;
+      for (int i = 0; i < $0.type.size / 4; ++i) {
+        $T t;
+        t.kind = $TK.Push;
+        t.type = Single!(SysInt);
+        t.source = Format(delta, "(", reg, ")");
+        ts = t ~ ts;
+        delta += 4;
+      }
+      $SUBST(ts);
+    }
+  `));+/
+  /+mixin(opt("move_push_downwards", `^Push, ^Mov:
+    $0.type.size == 4 && $1.to.isRegister()
+    =>
+    int movd;
+    if (auto reg = $1.source.isIndirect2(movd)) {
+      if ($0.source.isIndirect() == $1.to) {
+        // logln("Bad luck: ", $0, ", ", $1);
+      } else if (reg == "%esp" && movd >= 4) {
+        $T t = $1;
+        t.from = Format(movd-4, "(", reg, ")");
+        $SUBST([t, $0]);
+      }
+    }
+  `));+/
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
