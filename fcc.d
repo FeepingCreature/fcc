@@ -158,7 +158,7 @@ int main(string[] args) {
   string output;
   auto ar = args;
   string[] largs;
-  bool saveTemps, optimize;
+  bool saveTemps, optimize, runMe;
   bool initedSysmod;
   void lazySysmod() {
     if (initedSysmod) return;
@@ -186,6 +186,10 @@ int main(string[] args) {
     }
     if (arg == "-debug-opts") {
       debugOpts = true;
+      continue;
+    }
+    if (arg == "-run") {
+      runMe = true;
       continue;
     }
     if (arg == "-config-opts") {
@@ -221,5 +225,6 @@ int main(string[] args) {
   }
   if (!output) output = "exec";
   objects.link(output, largs, saveTemps);
+  if (runMe) system(toStringz("./"~output));
   return 0;
 }
