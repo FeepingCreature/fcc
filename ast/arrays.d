@@ -128,9 +128,13 @@ class ArrayMaker : Expr {
     return (cast(Pointer) ptr.valueType()).target;
   }
   override string toString() { return Format("array(ptr=", ptr, ", length=", length, cap?Format(", cap=", cap):"", ")"); }
+  IType cachedType;
   override IType valueType() {
-    if (cap) return new ExtArray(elemType(), false);
-    else return new Array(elemType());
+    if (!cachedType) {
+      if (cap) cachedType = new ExtArray(elemType(), false);
+      else cachedType = new Array(elemType());
+    }
+    return cachedType;
   }
   import ast.vardecl, ast.assign;
   override void emitAsm(AsmFile af) {

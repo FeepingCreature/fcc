@@ -357,18 +357,18 @@ class MemberAccess_Expr : Expr {
         af.comment("emit semi-structure ", base, " for member access");
         base.emitAsm(af);
         af.comment("store member and free: ", stm.name);
-        af.mmove4(Format(stm.offset, "(%esp)"), "%eax");
+        af.mmove4(Format(stm.offset, "(%esp)"), "%edx");
         if (stm.type.size >= 8)
-          af.mmove4(Format(stm.offset + 4, "(%esp)"), "%ebx");
+          af.mmove4(Format(stm.offset + 4, "(%esp)"), "%ecx");
         if (stm.type.size == 12)
-          af.mmove4(Format(stm.offset + 8, "(%esp)"), "%ecx");
+          af.mmove4(Format(stm.offset + 8, "(%esp)"), "%ebx");
         af.sfree(st.size);
         af.comment("repush member");
         if (stm.type.size == 12)
-          af.pushStack("%ecx", Single!(SysInt));
-        if (stm.type.size >= 8)
           af.pushStack("%ebx", Single!(SysInt));
-        af.pushStack("%eax", Single!(SysInt));
+        if (stm.type.size >= 8)
+          af.pushStack("%ecx", Single!(SysInt));
+        af.pushStack("%edx", Single!(SysInt));
       }
     }
   }

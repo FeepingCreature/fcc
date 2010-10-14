@@ -30,11 +30,11 @@ struct Transaction {
   enum Kind {
     Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
     FloatLoad, FloatStore, FloatPop, FloatMath, FloatSwap,
-    Jump, Label, Extended, Nevermind
+    Jump, Label, Extended, Nevermind, LoadAddress
   }
   const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
     "FloatLoad", "FloatStore", "FloatPop", "FloatMath", "FloatSwap",
-    "Jump", "Label", "Extended", "Nevermind"];
+    "Jump", "Label", "Extended", "Nevermind", "LoadAddress"];
   Kind kind;
   string toString() {
     switch (kind) {
@@ -59,6 +59,7 @@ struct Transaction {
       case Kind.Label:     return Format("[label ", names, "]");
       case Kind.Extended:  return Format("[extended ", obj, "]");
       case Kind.Nevermind: return Format("[nvm ", dest, "]");
+      case Kind.LoadAddress: return Format("[lea ", from, " -> ", to, "]");
     }
   }
   int opEquals(ref Transaction t2) {
@@ -78,6 +79,7 @@ struct Transaction {
       case Label: return names == t2.names;
       case Extended: return obj == t2.obj;
       case Nevermind: return dest == t2.dest;
+      case LoadAddress: return from == t2.from && to == t2.to;
     }
     assert(false);
   }
@@ -240,7 +242,9 @@ struct Transaction {
       case Kind.Extended:
         return obj.toAsm();
       case Kind.Nevermind:
-        return null;
+        return "#forget "~dest~". ";
+      case Kind.LoadAddress:
+        return Format("leal ", from, ", ", to);
     }
   }
   struct {

@@ -27,7 +27,7 @@ bool gotInt(ref string text, out int i) {
   
   int res;
   bool getDigits(Scheme scheme) {
-    int[4] factor = [2, 8, 10, 16];
+    static int[4] factor = [2, 8, 10, 16];
     bool gotSomeDigits = false;
     outer:while (true) {
       while (accept('_')) { }

@@ -11,16 +11,21 @@ extern(C) {
   int close(int);
 }
 
+string buf;
 string readStream(InputStream IS) {
-  string res;
-  ubyte[512] buffer;
+  if (!buf) buf = new char[1024*1024];
+  int reslen;
+  ubyte[1024] buffer;
   int i;
   do {
     i = IS.read(buffer);
     if (i < 0) throw new Exception(Format("Read error: ", i));
-    res ~= cast(string) buffer[0 .. i];
+    if (buf.length < reslen + i)
+      buf.length = cast(int) (buf.length * 1.5);
+    buf[reslen .. reslen + i] = cast(string) buffer[0 .. i];
+    reslen += i;
   } while (i);
-  return res;
+  return buf[0 .. reslen].dup;
 }
 
 string readback(string cmd) {

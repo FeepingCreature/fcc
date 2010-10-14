@@ -137,3 +137,15 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotSliceAssignment, "tree.semicol_stmt.assign_slice", "10");
+
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    auto sa = cast(StaticArray) ex.valueType();
+    if (!sa || !cast(CValue) ex) return null;
+    return mkPointerSlice(
+      getSAPtr(dcm(ex)),
+      new IntExpr(0),
+      new IntExpr(sa.length)
+    );
+  };
+}

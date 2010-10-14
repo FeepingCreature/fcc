@@ -141,13 +141,3 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   return res;
 }
 mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array", "52");
-
-static this() {
-  implicits ~= delegate Expr(Expr ex) {
-    auto sa = cast(StaticArray) ex.valueType();
-    if (!sa || !cast(CValue) ex) return null;
-    return iparse!(Expr, "sa_to_array", "tree.expr")
-                  (`sa.ptr[0..len]`,
-                   "sa", dcm(ex), "len", new IntExpr(sa.length));
-  };
-}
