@@ -89,20 +89,20 @@ mixin DefaultParser!(gotTupleType, "type.tuple", "37");
 class RefTuple : MValue {
   import ast.assign;
   IType baseTupleType;
-  LValue[] lvs;
-  mixin defaultIterate!(lvs);
+  MValue[] mvs;
+  mixin defaultIterate!(mvs);
   Expr[] getAsExprs() {
     Expr[] exprs;
-    foreach (lv; lvs) exprs ~= lv;
+    foreach (mv; mvs) exprs ~= mv;
     return exprs;
   }
-  this(LValue[] lvs...) {
-    this.lvs = lvs.dup;
+  this(MValue[] mvs...) {
+    this.mvs = mvs.dup;
     baseTupleType = mkTupleValueExpr(getAsExprs()).valueType();
   }
   override {
     RefTuple dup() {
-      auto newlist = lvs.dup;
+      auto newlist = mvs.dup;
       foreach (ref entry; newlist) entry = entry.dup;
       return new RefTuple(newlist);
     }
@@ -111,23 +111,19 @@ class RefTuple : MValue {
       mkTupleValueExpr(getAsExprs).emitAsm(af);
     }
     string toString() {
-      return Format("reftuple(", lvs, ")");
+      return Format("reftuple(", mvs, ")");
     }
     void emitAssignment(AsmFile af) {
       auto tup = cast(Tuple) baseTupleType;
       
       auto offsets = tup.offsets();
       int data_offs;
-      foreach (i, target; lvs) {
+      foreach (i, target; mvs) {
         if (offsets[i] != data_offs) {
           assert(offsets[i] > data_offs);
           af.sfree(offsets[i] - data_offs);
         }
-        (new Assignment(
-          target,
-          new Placeholder(target.valueType()),
-          false, true
-        )).emitAsm(af);
+        target.emitAssignment(af);
         data_offs += target.valueType().size;
       }
     }
@@ -139,17 +135,41 @@ Expr mkTupleValueExpr(Expr[] exprs...) {
   return new RCE(tup, new StructLiteral(tup.wrapped, exprs.dup));
 }
 
+class LValueAsMValue : MValue {
+  LValue sup;
+  mixin MyThis!("sup");
+  mixin defaultIterate!(sup);
+  override {
+    LValueAsMValue dup() { return new LValueAsMValue(sup.dup); }
+    string toString() { return Format("lvtomv(", sup, ")"); }
+    void emitAsm(AsmFile af) { sup.emitAsm(af); }
+    IType valueType() { return sup.valueType(); }
+    import ast.assign;
+    void emitAssignment(AsmFile af) {
+      (new Assignment(
+        sup,
+        new Placeholder(sup.valueType()),
+        false, true
+      )).emitAsm(af);
+    }
+  }
+}
+
 Expr mkTupleExpr(Expr[] exprs...) {
-  bool allLValues = true;
-  LValue[] arr;
-  foreach (ex; exprs)
-    if (!cast(LValue) ex) {
-      allLValues = false;
-      break;
-    } else arr ~= cast(LValue) ex;
-  
+  bool allMValues = true;
+  MValue[] arr;
+  foreach (ex; exprs) {
+    if (!cast(MValue) ex) {
+      auto lv = cast(LValue) ex;
+      if (!lv) {
+        allMValues = false;
+        break;
+      }
+      arr ~= new LValueAsMValue(lv);
+    } else arr ~= cast(MValue) ex;
+  }
   auto vt = mkTupleValueExpr(exprs);
-  if (!allLValues) return vt;
+  if (!allMValues) return vt;
   else return new RefTuple(arr);
 }
 
@@ -176,8 +196,11 @@ mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60");
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (auto rt = cast(RefTuple) ex) {
-      if (rt.lvs.length == 1)
-        return rt.lvs[0];
+      if (rt.mvs.length == 1) {
+        if (auto lvamv = cast(LValueAsMValue) rt.mvs[0])
+          return lvamv.sup;
+        return rt.mvs[0];
+      }
     }
     return null;
   };
