@@ -87,7 +87,13 @@ class DataExpr : Expr {
     bool allNull = true;
     foreach (val; data) if (val) { allNull = false; break; }
     if (allNull) {
+      af.flush();
+      auto backup = af.optimize;
+      // don't even try to opt this
+      af.optimize = false;
       af.pushStack(Format("$", 0), new StaticArray(Single!(Char), data.length)); // better optimizable
+      af.flush();
+      af.optimize = backup;
       return;
     }
     auto d2 = data;

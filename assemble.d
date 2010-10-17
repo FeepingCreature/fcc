@@ -90,7 +90,7 @@ struct Transaction {
           assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
           return Format("movl ", from, ", ", usableScratch, "\nmovl ", usableScratch, ", ", to);
         } else {
-          return Format("movl ", from, ", ", to);
+          return Format("movl ", from, ", ", to, " #mov4.2");
         }
       case Kind.Mov2:
         if (from.isRelative() && to.isRelative()) {
@@ -111,7 +111,7 @@ struct Transaction {
           return Format("subl $", size, ", %esp");
       case Kind.SFree:
           if (!size) return null;
-          return Format("addl $", size, ", %esp");
+          return Format("addl $", size, ", %esp # sfree");
       case Kind.MathOp:
         if (opName == "addl" && op1 == "$1") return Format("incl ", op2);
         if (opName == "subl" && op1 == "$1") return Format("decl ", op2);

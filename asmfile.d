@@ -19,6 +19,7 @@ class AsmFile {
   bool optimize;
   this(bool optimize, string id) { New(cache); this.optimize = optimize; this.id = id; }
   Transcache cache;
+  Transaction[] finalized;
   int currentStackDepth;
   void pushStack(string expr, IType type) {
     Transaction t;
@@ -221,7 +222,8 @@ class AsmFile {
         foreach (name; t.names)
           if (name in labels_refcount && labels_refcount[name] > 0) { newlist ~= t; break; }
     }
-    cache.list = newlist;
+    finalized ~= newlist;
+    cache.list = null;
     labels_refcount = null;
   }
   int lastStackDepth;
@@ -274,7 +276,8 @@ class AsmFile {
   }
   void flush() {
     if (optimize) runOpts;
-    foreach (entry; cache.list) if (auto line = entry.toAsm()) _put(line);
+    foreach (entry; finalized ~ cache.list) if (auto line = entry.toAsm()) _put(line);
+    finalized = null;
     cache.list = null;
   }
   void put(T...)(T t) {
