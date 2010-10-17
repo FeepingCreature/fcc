@@ -95,6 +95,7 @@ DataSet parse(string fn) {
 
 int fps, last_time;
 float t;
+vec3f[] temp;
 void drawScene(DataSet ds) {
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glLoadIdentity;
@@ -144,17 +145,22 @@ void drawScene(DataSet ds) {
       bezier2(v, temp[], dest);
     }
     using Quads {
-      int x, y;
-      alias subdiv = 8;
-      auto factor = 1.0 / subdiv;
+      int x, y, k;
+      alias subdiv = 24;
+      auto subdivp = subdiv + 1;
+      if (!temp.ptr) temp = new vec3f[subdivp * subdivp];
+      while ((x, y), k) <- zip (cross (0 .. subdivp, 0 .. subdivp), 0 .. subdivp * subdivp) {
+        float u = x * 1.0 / subdiv, v = y * 1.0 / subdiv;
+        bezier3(u, v, &temp[k]);
+      }
       while (x, y) <- cross (0..subdiv, 0..subdiv) {
         float u = x * 1.0 / subdiv, v = y * 1.0 / subdiv;
         int x2, y2;
         vec3f[4] quad = void;
-        int k;
-        while (x2, y2) <- [for id <- [0, 1, 3, 2]: (cross (0..2, 0..2))[id]] {
-          float u2 = u + factor * x2, v2 = v + factor * y2;
-          bezier3(u2, v2, &quad[k++]);
+        int l;
+        while ((x2, y2), l) <- zip([for id <- [0, 1, 3, 2]: (cross (0..2, 0..2))[id]], 0..4) {
+          auto x3 = x2 + x, y3 = y2 + y;
+          quad[l] = temp[y3 * subdivp + x3];
         }
         auto normal = vcross(quad[1]-quad[0], quad[3]-quad[0]);
         auto angle = vdot(vnormal(normal), vnormal(vec3f(0.6, 0.3, -1)));
