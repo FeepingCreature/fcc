@@ -89,7 +89,7 @@ class RelMember : Expr, Named, RelTransformable {
   override RelMember dup() { return this; }
 }
 
-class Structure : Namespace, RelNamespace, IType, Named {
+class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   mixin TypeDefaults!(true, false);
   string name;
   bool isUnion;
@@ -147,6 +147,7 @@ class Structure : Namespace, RelNamespace, IType, Named {
     return res[0 .. $-1];
   }
   override {
+    IType getRefType() { return new Pointer(this); }
     string getIdentifier() { return name; }
     string mangle(string name, IType type) { return "struct_"~name~"_"~type.mangle()~"_"~name; }
     Stuple!(IType, string, int)[] stackframe() {

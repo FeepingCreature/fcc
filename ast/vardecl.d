@@ -26,7 +26,7 @@ class VarDecl : Statement {
           af.nvm("%eax");
         }
       }
-      assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; ", -var.baseOffset, " vs. ", af.currentStackDepth, ": ", var));
+      assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; variable at ", -var.baseOffset, " vs. stack at ", af.currentStackDepth, ": ", var));
     }
   }
   override string toString() { return Format("declare ", vars); }

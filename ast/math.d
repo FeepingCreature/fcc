@@ -157,7 +157,7 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != ex.valueType()) return null;
     auto ie = cast(IntExpr) ast.fold.fold(ex);
-    if (!ie || ie.num > 65535 || ie.num < 32767) return null;
+    if (!ie || ie.num > 65535 || ie.num < -32767) return null;
     return new IntLiteralAsShort(ie);
   };
 }

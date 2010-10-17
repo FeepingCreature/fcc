@@ -76,6 +76,10 @@ interface RelNamespace {
   Object lookupRel(string str, Expr base);
 }
 
+interface SemiRelNamespace {
+  RelNamespace resolve();
+}
+
 // applies whenever the base ptr parameter is different from "namespace*"; ie. classref.
 interface RelNamespaceFixupBase : RelNamespace {
   IType genCtxType(RelNamespace context);

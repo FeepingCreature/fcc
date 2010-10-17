@@ -24,6 +24,11 @@ interface NeedsConfig {
   void configure();
 }
 
+// pointer for structs, ref for classes
+interface hasRefType {
+  IType getRefType();
+}
+
 void configure(Iterable it) {
   void fun(ref Iterable it) {
     if (auto nc = cast(NeedsConfig) it)

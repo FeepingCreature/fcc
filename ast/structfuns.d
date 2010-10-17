@@ -129,7 +129,9 @@ class RelFunction : Function, RelTransformable {
     }
     int fixup() {
       auto cur = super.fixup();
-      add(new Variable(new Pointer(cast(IType) context), "__base_ptr", cur));
+      if (!cast(hasRefType) context)
+        logln("bad context: ", context, " is not reftype");
+      add(new Variable((cast(hasRefType) context).getRefType(), "__base_ptr", cur));
       return cur + 4;
     }
     Object lookup(string name, bool local = false) {
@@ -137,10 +139,9 @@ class RelFunction : Function, RelTransformable {
       if (res) return res;
       else if (local) return null;
       
-      if (auto res = context.lookupRel(
-        name,
-        new DerefExpr(cast(Expr) lookup("__base_ptr", true))
-      ))
+      auto bp = cast(Expr) lookup("__base_ptr", true);
+      if (auto ptr = cast(Pointer) bp.valueType()) bp = new DerefExpr(bp);
+      if (auto res = context.lookupRel(name, bp))
         return res;
       
       return null;

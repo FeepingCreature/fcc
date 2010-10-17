@@ -17,7 +17,7 @@ class VTable {
     foreach (id, fun; funs)
       if (fun.name == name) {
         return iparse!(Function, "vtable_lookup", "tree.expr")(
-          "*(*cast(fntype**) &classref)[id + base].toDg(cast(void*) &classref)",
+          "*(*cast(fntype**) classref)[id + base].toDg(cast(void*) classref)",
           "classref", classref,
           "id", new IntExpr(id), "base", new IntExpr(base),
           "fntype", fun.typeAsFp()
@@ -27,7 +27,10 @@ class VTable {
   }
 }
 
-class Intf : Named, IType, Tree, SelfAdding {
+// lookupRel in interfaces/classes takes the class *reference*.
+// This is IMPORTANT for compat with using.
+
+class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
   string name;
   override bool addsSelf() { return true; }
   override string getIdentifier() { return name; }
@@ -98,13 +101,27 @@ class Intf : Named, IType, Tree, SelfAdding {
     }
     return null;
   }
+  override Object lookupRel(string name, Expr base) {
+    if (!cast(IntfRef) base.valueType()) {
+      logln("Bad intf ref: ", base);
+      asm { int 3; }
+    }
+    logln("intf lookup ", name, " in ", this.name);
+    if (name == "this") return cast(Object) base;
+    auto cv = cast(CValue) base;
+    if (!cv) {
+      logln("intf lookupRel fail ", base);
+    }
+    auto self = new RefExpr(cv);
+    return lookupIntf(name, self);
+  }
   Function lookupClass(string name, int offs, Expr classref) {
     assert(own_offset, this.name~": interface lookup for "~name~" but classinfo uninitialized. ");
     foreach (id, fun; funs) {
       if (fun.name == name) {
         return iparse!(Function, "intf_vtable_lookup2", "tree.expr")
         ( "
-            *(*cast(fntype**) &classref)[id + offs].toDg(cast(void*) &classref)
+            *(*cast(fntype**) classref)[id + offs].toDg(cast(void*) classref)
           ",
           "fntype", fun.getPointer().valueType(), "classref", classref,
           "id", new IntExpr(id + own_offset), "offs", new IntExpr(offs)
@@ -123,13 +140,14 @@ class Intf : Named, IType, Tree, SelfAdding {
   }
 }
 
-class ClassRef : Type {
+class ClassRef : Type, SemiRelNamespace {
   Class myClass;
   this(Class cl) { myClass = cl; }
   override {
+    RelNamespace resolve() { return myClass; }
     string toString() { return Format("ref ", myClass); }
     int size() { return nativePtrSize; }
-    string mangle() { return "class_"~myClass.name; }
+    string mangle() { return "ref_"~myClass.mangle(); }
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
       return myClass is (cast(ClassRef) type).myClass;
@@ -137,13 +155,14 @@ class ClassRef : Type {
   }
 }
 
-class IntfRef : Type {
+class IntfRef : Type, SemiRelNamespace {
   Intf myIntf;
   this(Intf i) { myIntf = i; }
   override {
+    RelNamespace resolve() { return myIntf; }
     string toString() { return Format("ref ", myIntf); }
     int size() { return nativePtrSize; }
-    string mangle() { return "intf_"~myIntf.name; }
+    string mangle() { return "intfref_"~myIntf.mangle(); }
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
       return myIntf is (cast(IntfRef) type).myIntf;
@@ -152,7 +171,7 @@ class IntfRef : Type {
 }
 
 import ast.modules;
-class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding {
+class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefType {
   VTable myfuns;
   Structure data;
   string name;
@@ -165,7 +184,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding {
   }
   RelFunction[string] overrides;
   string mangle_id;
-  override string mangle() { return "class"; }
+  override string mangle() { return mangle_id; }
   override bool addsSelf() { return true; }
   override Class dup() { assert(false, "wetfux! "); }
   this(string name, Class parent) {
@@ -279,8 +298,11 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding {
   int mainSize() { return max(voidp.size, parent?parent.mainSize():0, data.size()); }
   // TODO
   mixin defaultIterate!();
-  string ci_name() { return "classinfo_"~name; }
+  string ci_name() { return "classinfo_"~mangle(); }
   override {
+    IType getRefType() {
+      return new ClassRef(this);
+    }
     string getIdentifier() {
       return name;
     }
@@ -322,14 +344,17 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding {
       return res;
     }
     Object lookupRel(string str, Expr base) {
-      // logln("rel lookup for ", str, " in ", base);
-      if (str == "this") return new RefExpr(cast(CValue) base);
+      if (!cast(ClassRef) base.valueType()) {
+        logln("Bad class ref: ", base, " of ", base.valueType());
+        asm { int 3; }
+      }
+      if (str == "this") return cast(Object) base;
       if (auto res = data.lookup(str, true)) {
         if (auto rm = cast(RelMember) res) {
           // logln("transform ", rm, " with ", base);
           return rm.transform(
             iparse!(Expr, "rel_struct_cast", "tree.expr")
-            ("*cast(data*) &base", "data", data, "base", base)
+            ("*cast(data*) base", "data", data, "base", base)
           );
         }
         return cast(Object) res;
@@ -382,12 +407,13 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
       false
   )) throw new Exception("Invalid inheritance spec at '"~t3.next_text()~"'");
   if (!t2.accept("{")) throw new Exception("Missing opening bracket for class def! ");
+  logln("alloc cl");
   New(cl, name, supclass);
   cl.iparents = supints;
   namespace().add(cl); // add here so as to allow self-refs in body
   if (matchStructBody(t2, cl, cont, rest)) {
     if (!t2.accept("}"))
-      throw new Exception("Missing closing bracket at "~t2.next_text());
+      throw new Exception("Failed to parse struct body at "~t2.next_text());
     // logln("register class ", cl.name);
     text = t2;
     cl.finalize;
@@ -478,7 +504,7 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   if (t2.accept(".") && t2.gotIdentifier(member)) {
     Object m;
-    if (cl) m = cl.lookupRel(member, iparse!(Expr, "class_ptr_access", "tree.expr")("*cast(Cl*) hdl", "Cl", cl, "hdl", ex));
+    if (cl) m = cl.lookupRel(member, ex);
     else m = intf.lookupIntf(member, ex);
     text = t2;
     return m;

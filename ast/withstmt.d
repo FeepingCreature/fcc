@@ -42,6 +42,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
     }
     
     rns = cast(RelNamespace) ex.valueType();
+    
+    if (auto srns = cast(SemiRelNamespace) ex.valueType()) rns = srns.resolve();
     ns = cast(Namespace) ex; // say, context
     assert(rns || ns, Format("Cannot with-expr a non-[rel]ns: ", ex)); // TODO: select in gotWithStmt
     
@@ -53,9 +55,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
       auto var = new Variable;
       var.type = ex.valueType();
       var.initval = ex;
-      // temps += var.type.size;
-      // logln("temps now ", temps);
       var.baseOffset = boffs(var.type);
+      temps += var.type.size;
       context = var;
       New(vd);
       vd.vars ~= var;
