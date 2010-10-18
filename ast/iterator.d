@@ -112,54 +112,49 @@ static this() {
     }
     return null;
   };
-  implicits ~= delegate Expr(Expr ex) {
-    logln("hi, implicit here with ", ex);
-    auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
-                        (`eval (ex.step)`, "ex", ex);
-    auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
-                        (`eval (ex.ivalid)`, "ex", ex);
-    logln("=> ", !!test1, ", ", !!test2);
-    if (!test1 || !test2) {
-      return null;
-    }
-    auto si = new StructIterator(ex.valueType());
-    auto res = iparse!(Expr, "si_final_cast", "tree.expr")
-                      (`cast(SI) ex`,
-                       "SI", si, "ex", ex);
-    logln(res);
-    return res;
-  };
 }
 
 import ast.templ;
 Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
+  if (text == ".step)" || text == ".ivalid)")
+    return null; // prevent the tests below from looping. HAX.
   auto t2 = text;
-  return lhs_partial.using = delegate Object(Template templ) {
-    Expr nex;
-    if (!rest(t2, "tree.expr", &nex)) return null;
-    auto inst = iparse!(Expr, "si_call_test", "tree.expr")
-                      (`templ!typeof(nex)(nex)`,
-                        namespace(),
-                        "templ", templ, "nex", nex);
-    if (!inst) {
-      logln("no template :(");
-      
+  return lhs_partial.using = delegate Object(Object obj) {
+    Expr iter;
+    if (auto templ = cast(Template) obj) {
+      Expr nex;
+      if (!rest(t2, "tree.expr", &nex)) return null;
+      iter = iparse!(Expr, "si_call_test", "tree.expr")
+                         (`templ!typeof(nex)(nex)`,
+                          namespace(),
+                          "templ", templ, "nex", nex);
+      if (!iter) {
+        logln("no template :(");
+        
+        return null;
+      }
+    } else {
+      // logln("else ", obj);
+      // asm { int 3; }
       return null;
     }
-    auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
-                        (`eval (inst.step)`, "inst", inst);
-    auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
-                        (`eval (inst.ivalid)`, "inst", inst);
-    if (!test1 || !test2) {
-      logln("test failed: ", !test1, ", ", !test2);
+    // logln("try ", t2.next_text(), "; ", iter);
+    try {
+      auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
+                        (`eval (iter.step)`, "iter", iter);
+      auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
+                        (`eval (iter.ivalid)`, "iter", iter);
+      if (!test1 || !test2) {
+        // logln("test failed: ", !test1, ", ", !test2);
+        return null;
+      }
+    } catch (Exception ex) {
+      // logln("reject due to ", ex);
       return null;
     }
     text = t2;
-    auto si = new StructIterator(inst.valueType());
-    auto res = cast(Object)
-      iparse!(Expr, "si_final_cast", "tree.expr")
-            (`cast(SI) inst`,
-              "SI", si, "inst", inst);
+    auto si = new StructIterator(iter.valueType());
+    auto res = cast(Object) reinterpret_cast(si, iter);
     // logln(" => ", res);
     return res;
   };
@@ -763,6 +758,22 @@ class EvalIterator(T) : Expr, Statement {
     }
   }
 }
+
+Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
+  return lhs_partial.using = delegate Object(Expr ex) {
+    auto t2 = text;
+    if (!t2.accept(".eval")) return null;
+    auto iter = cast(Iterator) ex.valueType();
+    if (!iter) return null;
+    text = t2;
+    if (auto ri = cast(RichIterator) iter) {
+      return new EvalIterator!(RichIterator) (ex, ri);
+    } else {
+      return new EvalIterator!(Iterator) (ex, iter);
+    }
+  };
+}
+mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval");
 
 Object gotIterLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {

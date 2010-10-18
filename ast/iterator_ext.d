@@ -361,26 +361,30 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSum, "tree.expr.iter.sum");
 
-import ast.slice: FullSlice;
-Object gotIterFlatten(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  if (!t2.accept("flatten"))
-    return null;
-  bool fullslice;
-  if (t2.accept("[]")) fullslice = true;
-  Expr ex;
-  logln("get flattener from ", t2.next_text());
-  if (!rest(t2, "tree.expr", &ex) || !gotImplicitCast(ex, (IType it) { return test(cast(Iterator) it); }))
-    return null;
-  auto iter = cast(Iterator) ex.valueType();
-  text = t2;
-  Expr res;
-  if (auto ri = cast(RichIterator) iter) {
-    res = new EvalIterator!(RichIterator) (ex, ri);
-  } else {
-    res = new EvalIterator!(Iterator) (ex, iter);
-  }
-  if (fullslice) return new FullSlice(res);
-  else return cast(Object) res;
+import ast.templ, ast.parse, ast.structure, ast.oop;
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    auto mns = namespace().get!(MiniNamespace);
+    // TODO: allow this implicit cast in templated code
+    if (mns) return null; // only allow this conversion in user code
+    auto st = cast(Structure) ex.valueType();
+    auto cr = cast(ClassRef) ex.valueType();
+    // auto ir = cast(IntfRef) ex.valueType();
+    IntfRef ir = null;
+    if (!st && !cr && !ir)
+      return null;
+    if (st && !(
+      st.lookupRel("step", ex) &&
+      st.lookupRel("ivalid", ex)))
+      return null;
+    if (cr && !(
+      cr.myClass.lookupRel("step", ex) &&
+      cr.myClass.lookupRel("ivalid", ex)))
+      return null;
+    auto si = new StructIterator(ex.valueType());
+    Expr res = reinterpret_cast(si, ex);
+    // logln(" => ", res);
+    return res;
+  };
 }
-mixin DefaultParser!(gotIterFlatten, "tree.expr.iter_flatten", "28");
+mixin DefaultParser!(gotStructIterator, "tree.rhs_partial.struct_iter");

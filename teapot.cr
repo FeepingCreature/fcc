@@ -69,12 +69,12 @@ class DataSet {
 import std.file, std.string;
 DataSet parse(string fn) {
   auto res = new DataSet;
-  auto lines = flatten[] splitAt("\n", readfile open fn);
+  auto lines = splitAt("\n", readfile open fn).eval[];
   {
     auto idcount = atoi toStringz lines[0];
     while auto id <- lines[1 .. idcount + 1] {
       int[16] temp;
-      temp[] = flatten[] [for st <- splitAt(",", iter_one id): atoi toStringz st];
+      temp[] = [for st <- splitAt(",", iter_one id): atoi toStringz st].eval[];
       res.indices ~= temp;
     }
     lines = lines[idcount + 1 .. lines.length];
@@ -82,7 +82,7 @@ DataSet parse(string fn) {
   {
     auto vertcount = atoi toStringz lines[0];
     while auto vert <- lines[1 .. vertcount + 1] {
-      auto split = flatten[] splitAt(",", iter_one vert);
+      auto split = splitAt(",", iter_one vert).eval[];
       vec3f temp;
       while int i <- 0..3
         temp[i] = std.string.atof(split[i]);
@@ -146,7 +146,7 @@ void drawScene(DataSet ds) {
     }
     using Quads {
       int x, y, k;
-      alias subdiv = 24;
+      alias subdiv = 12;
       auto subdivp = subdiv + 1;
       if (!temp.ptr) temp = new vec3f[subdivp * subdivp];
       while ((x, y), k) <- zip (cross (0 .. subdivp, 0 .. subdivp), 0 .. subdivp * subdivp) {
@@ -166,7 +166,7 @@ void drawScene(DataSet ds) {
         auto angle = vdot(vnormal(normal), vnormal(vec3f(0.6, 0.3, -1)));
         if (angle < 0) angle = 0;
         glColor3f vec3f(angle);
-        flatten [for v <- quad: glVertex3f v];
+        [for v <- quad: glVertex3f v].eval;
       }
     }
   }
