@@ -112,6 +112,23 @@ static this() {
     }
     return null;
   };
+  implicits ~= delegate Expr(Expr ex) {
+    logln("hi, implicit here with ", ex);
+    auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
+                        (`eval (ex.step)`, "ex", ex);
+    auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
+                        (`eval (ex.ivalid)`, "ex", ex);
+    logln("=> ", !!test1, ", ", !!test2);
+    if (!test1 || !test2) {
+      return null;
+    }
+    auto si = new StructIterator(ex.valueType());
+    auto res = iparse!(Expr, "si_final_cast", "tree.expr")
+                      (`cast(SI) ex`,
+                       "SI", si, "ex", ex);
+    logln(res);
+    return res;
+  };
 }
 
 import ast.templ;
@@ -124,7 +141,11 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
                       (`templ!typeof(nex)(nex)`,
                         namespace(),
                         "templ", templ, "nex", nex);
-    if (!inst) { logln("no template :("); return null; }
+    if (!inst) {
+      logln("no template :(");
+      
+      return null;
+    }
     auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
                         (`eval (inst.step)`, "inst", inst);
     auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
@@ -742,22 +763,6 @@ class EvalIterator(T) : Expr, Statement {
     }
   }
 }
-
-Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
-  return lhs_partial.using = delegate Object(Expr ex) {
-    auto t2 = text;
-    if (!t2.accept(".eval")) return null;
-    auto iter = cast(Iterator) ex.valueType();
-    if (!iter) return null;
-    text = t2;
-    if (auto ri = cast(RichIterator) iter) {
-      return new EvalIterator!(RichIterator) (ex, ri);
-    } else {
-      return new EvalIterator!(Iterator) (ex, iter);
-    }
-  };
-}
-mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval");
 
 Object gotIterLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {

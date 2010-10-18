@@ -43,6 +43,8 @@ bool gotStringExpr(ref string text, out Expr ex, string sep = "\"") {
     if (ch == '\\') {
       auto ch2 = t2.take();
       if (ch2 == 'n') { s ~= "\n"; }
+      else if (ch2 == 'r') { s ~= "\r"; }
+      else if (ch2 == 't') { s ~= "\t"; }
       else s ~= ch2;
     } else s ~= ch;
   }

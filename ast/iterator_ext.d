@@ -360,3 +360,27 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
   return new SumExpr(cast(RichIterator) ex.valueType(), ex);
 }
 mixin DefaultParser!(gotSum, "tree.expr.iter.sum");
+
+import ast.slice: FullSlice;
+Object gotIterFlatten(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("flatten"))
+    return null;
+  bool fullslice;
+  if (t2.accept("[]")) fullslice = true;
+  Expr ex;
+  logln("get flattener from ", t2.next_text());
+  if (!rest(t2, "tree.expr", &ex) || !gotImplicitCast(ex, (IType it) { return test(cast(Iterator) it); }))
+    return null;
+  auto iter = cast(Iterator) ex.valueType();
+  text = t2;
+  Expr res;
+  if (auto ri = cast(RichIterator) iter) {
+    res = new EvalIterator!(RichIterator) (ex, ri);
+  } else {
+    res = new EvalIterator!(Iterator) (ex, iter);
+  }
+  if (fullslice) return new FullSlice(res);
+  else return cast(Object) res;
+}
+mixin DefaultParser!(gotIterFlatten, "tree.expr.iter_flatten", "28");

@@ -55,12 +55,6 @@ Object gotFloatExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotFloatExpr, "tree.expr.literal.float", "54");
 
-string subst(string s, string kind) {
-  if (kind == "`") return s;
-  assert(kind == "\"");
-  return s.replace(`\n`, "\n");
-}
-
 Object gotLiteralSuffixExpr(ref string text, ParseCb cont, ParseCb rest) {
   IntExpr res;
   if (!rest(text, "tree.expr.literal", &res)) return null;

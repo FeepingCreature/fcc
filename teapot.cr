@@ -69,12 +69,12 @@ class DataSet {
 import std.file, std.string;
 DataSet parse(string fn) {
   auto res = new DataSet;
-  auto lines = splitAt("\n", readfile open fn).eval[];
+  auto lines = flatten[] splitAt("\n", readfile open fn);
   {
     auto idcount = atoi toStringz lines[0];
     while auto id <- lines[1 .. idcount + 1] {
       int[16] temp;
-      temp[] = [for st <- splitAt(",", iter_one id): atoi toStringz st].eval[];
+      temp[] = flatten[] [for st <- splitAt(",", iter_one id): atoi toStringz st];
       res.indices ~= temp;
     }
     lines = lines[idcount + 1 .. lines.length];
@@ -82,7 +82,7 @@ DataSet parse(string fn) {
   {
     auto vertcount = atoi toStringz lines[0];
     while auto vert <- lines[1 .. vertcount + 1] {
-      auto split = splitAt(",", iter_one vert).eval;
+      auto split = flatten[] splitAt(",", iter_one vert);
       vec3f temp;
       while int i <- 0..3
         temp[i] = std.string.atof(split[i]);
@@ -166,7 +166,7 @@ void drawScene(DataSet ds) {
         auto angle = vdot(vnormal(normal), vnormal(vec3f(0.6, 0.3, -1)));
         if (angle < 0) angle = 0;
         glColor3f vec3f(angle);
-        [for v <- quad: glVertex3f v].eval;
+        flatten [for v <- quad: glVertex3f v];
       }
     }
   }

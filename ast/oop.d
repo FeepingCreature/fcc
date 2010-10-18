@@ -407,7 +407,6 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
       false
   )) throw new Exception("Invalid inheritance spec at '"~t3.next_text()~"'");
   if (!t2.accept("{")) throw new Exception("Missing opening bracket for class def! ");
-  logln("alloc cl");
   New(cl, name, supclass);
   cl.iparents = supints;
   namespace().add(cl); // add here so as to allow self-refs in body
@@ -506,6 +505,10 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     Object m;
     if (cl) m = cl.lookupRel(member, ex);
     else m = intf.lookupIntf(member, ex);
+    if (!m) {
+      error = Format("No '", member, "' in ", cl?cl:intf, "!");
+      return null;
+    }
     text = t2;
     return m;
   } else return null;
