@@ -1,7 +1,7 @@
 module ast.math;
 
 import ast.base, ast.namespace, ast.parse;
-import tools.base: This, This_fn, rmSpace, and, or, find;
+import tools.base: This, This_fn, rmSpace, and, or, find, todg;
 
 class IntAsFloat : Expr {
   Expr i;
@@ -74,21 +74,19 @@ class FloatAsInt : Expr {
   }
 }
 
-Object gotFloatAsInt(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
-    return null;
+Expr floatToInt(Expr ex, IType) {
   auto ex2 = ex;
   // something that casts to float, but not int by itself.
   if (gotImplicitCast(ex2, (IType it) { return test(Single!(SysInt) == it); })
    ||!gotImplicitCast(ex, (IType it) { return test(Single!(Float) == it); }))
     return null;
   
-  text = t2;
   return new FloatAsInt(ex);
 }
-mixin DefaultParser!(gotFloatAsInt, "tree.convert.float_to_int");
+
+static this() {
+  converts ~= &floatToInt /todg;
+}
 
 class FloatAsDouble : Expr {
   Expr f;

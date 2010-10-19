@@ -69,25 +69,32 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default", "701");
 
+// IType parameter is just advisory!
+// Functions may ignore it.
+Expr delegate(Expr, IType)[] converts;
+
 // casts to types that have conversion defined
 Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  Expr ex;
   if (!t2.accept("cast(")) return null;
   IType dest;
   if (!rest(t2, "type", &dest))
     throw new Exception("No type matched in cast expression: "~t2.next_text());
   if (!t2.accept(")"))
     throw new Exception("Missed closing bracket in cast at "~t2.next_text());
-  char* longest;
-  if (!rest(t2, "tree.convert", &ex, (Expr ex) {
-    return !!(ex.valueType() == dest);
-  }))
-    return null;
-  
-  text = t2;
-  // override type
-  return cast(Object) new RCE(dest, ex);
+  Expr ex;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+    throw new Exception("Unable to parse cast source at "~t2.next_text());
+  Expr res;
+  foreach (dg; converts) {
+    auto ex2 = dg(ex, dest);
+    if (ex2 && ex2.valueType() == dest) {
+      res = ex2;
+      break;
+    }
+  }
+  if (res) text = t2;
+  return cast(Object) res;
 }
 mixin DefaultParser!(gotConversionCast, "tree.expr.cast_convert", "702");
 
