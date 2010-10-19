@@ -124,6 +124,20 @@ void setupSysmods() {
         newtarget[target.length .. newsize] = text;
       }
     }
+    template sys_array_cast(T) <<EOT
+      T sys_array_cast(void* ptr, int len, int sz1, int sz2) {
+        auto destlen = len * sz1;
+        if destlen % sz2 {
+          writeln "Array cast failed: size/alignment mismatch. ";
+          _interrupt 3;
+        }
+        destlen /= sz2;
+        T res;
+        auto resptr = cast(typeof(res[0])*) ptr;
+        res = resptr[0 .. destlen];
+        return res;
+      }
+    EOT
     template append2(T) <<EOT
       T[~] append2(T[~]* l, T[] r) {
         // printf("append2 %i to %i, cap %i\n", r.length, l.length, l.capacity);

@@ -198,8 +198,20 @@ static this() {
   };
 }
 
+Expr arrayCast(Expr ex, IType it) {
+  auto ar1 = cast(Array) ex.valueType(), ar2 = cast(Array) it;
+  if (!ar1 || !ar2) return null;
+  return iparse!(Expr, "array_cast_convert_call", "tree.expr")
+                (`sys_array_cast!Res(from.ptr, from.length, sz1, sz2)`,
+                 "Res", ar2, "from", ex,
+                 "sz1", new IntExpr(ar1.elemType.size),
+                 "sz2", new IntExpr(ar2.elemType.size));
+}
+
+import tools.base: todg;
 import ast.opers, ast.namespace;
 static this() {
+  converts ~= &arrayCast /todg;
   defineOp("==", delegate Expr(Expr ex1, Expr ex2) {
     bool isArray(IType it) { return !!cast(Array) it; }
     if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))

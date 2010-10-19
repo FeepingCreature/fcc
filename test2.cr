@@ -16,6 +16,9 @@ void main() {
   writeln("$(squares.eval)");
   while auto line <- zip (0..-1, splitAt("\n", readfile open "parsers.txt"))
     writeln "$(line[0]): $(line[1])";
+  auto foo = new int[4];
+  foo[0] = 1000;
+  writeln "$(cast(byte[]) foo)";
   auto sock = new Socket;
   sock.open tcpAddress ("google.de", 80);
   sock.send cast(void[]) "GET / HTTP/1.0\r\n\r\n";

@@ -16,7 +16,8 @@ import
   ast.templ, ast.globvars, ast.context, ast.concat,
   ast.stringex, ast.c_bind, ast.eval, ast.iterator,
   ast.properties, ast.tuples, ast.iterator_ext, ast.literal_string,
-  ast.tuple_access, ast.funcall, ast.vector, ast.externs;
+  ast.tuple_access, ast.funcall, ast.vector, ast.externs,
+  ast.intr;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
