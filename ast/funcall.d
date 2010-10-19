@@ -7,8 +7,9 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   Expr arg;
   auto backup_text = text; 
   if (!backup_text.length) return false; // wat
-  if (!rest(text, "tree.expr _tree.expr.arith", &arg))
+  if (!rest(text, "tree.expr _tree.expr.arith", &arg)) {
     return false;
+  }
   Expr[] args;
   args ~= arg;
   Expr[] flatten(Expr ex) {

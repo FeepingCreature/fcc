@@ -62,7 +62,7 @@ mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr", "2");
 
 Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (auto obj = rest(text, "tree.semicol_stmt")) {
-    text.mustAccept(";", "Missing terminating semicolon at '"~text.next_text()~"'");
+    text.mustAccept(";", Format("Missing semicolon to terminate ", obj, " at '", text.next_text(), "'"));
     return obj;
   } else return null;
 }

@@ -108,7 +108,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
       name = name[0 .. name.rfind(".")]; // chop up what _may_ be members!
       goto retry;
     }
-    error = "unknown identifier "~name;
+    error = "unknown identifier "~name~". ";
   }
   return null;
 }

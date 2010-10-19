@@ -105,6 +105,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto vd = new VarDecl;
   string t3;
+  error = null;
   if (t2.accept("auto")) {
     if (!t2.bjoin(
     (t3 = t2, true) &&
@@ -117,7 +118,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
       vd.vars ~= var;
       namespace().add(var);
     }, false)) {
-      throw new Exception("Syntax error in auto decl at '"~t3.next_text()~"'");
+      throw new Exception("Syntax error in auto decl at '"~t3.next_text()~"': '"~error~"'");
     }
     if (!t2.accept(";")) throw new Exception("auto decl not terminated at "~t2.next_text());
     text = t2;

@@ -243,7 +243,7 @@ Object gotBraces(ref string text, ParseCb cont, ParseCb rest) {
     return cast(Object) cd;
   } else return null;
 }
-mixin DefaultParser!(gotBraces, "cond.braces", "9");
+mixin DefaultParser!(gotBraces, "cond.braces", "74");
 
 // pretty much only needed for iparses that use conds
 Object gotNamedCond(ref string text, ParseCb cont, ParseCb rest) {

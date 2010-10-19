@@ -17,13 +17,13 @@ template splitAt(T) <<EOF
     // Expr yieldAdvance(LValue);
     string step() {
       int pos;
-      do pos = find(buffer[], sup[0]);
+      do pos = find (buffer[], sup[0]);
       while pos == -1 {
         string supstep; // TODO: investigate why auto fails here.
         if (supstep <- sup[1]) { buffer ~= supstep; } else { done = true; return buffer[]; }
       }
       auto res = buffer[0 .. pos];
-      buffer = cast(typeof(buffer)) buffer[pos + 1 .. buffer.length];
+      buffer = cast(typeof(buffer)) buffer[pos + sup[0].length .. buffer.length];
       return res;
     }
     // Cond terminateCond(Expr); // false => can't yield more values

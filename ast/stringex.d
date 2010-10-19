@@ -98,7 +98,7 @@ Expr simpleFormat(Expr ex) {
       Expr build(LValue lv) {
         foreach (i, entry; getTupleEntries(lv)) {
           if (i) res.addArray(new StringExpr(", "));
-          res.addArray(iparse!(Expr, "gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
+          res.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
         }
         res.addArray(new StringExpr("}"));
         return res;
@@ -125,7 +125,7 @@ Expr simpleFormat(Expr ex) {
     logln("et is ", et);
     return new CallbackExpr(Single!(Array, Single!(Char)), ex /apply/ (Expr ex, AsmFile af) {
       mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
-        iparse!(Scope, "gen_array_format", "tree.scope")
+        iparse!(Scope, "!safecode_gen_array_format", "tree.scope")
         (`{
             char[auto ~] res;
             res = res ~ "[";

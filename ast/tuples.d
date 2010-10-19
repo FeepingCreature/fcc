@@ -50,13 +50,17 @@ class Tuple : Type {
 Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
   Object obj; // exclusively for non-exprs.
   auto t2 = text;
-  if (t2.accept("(") &&
-      rest(t2, "tree.expr", &obj, (Object obj) { return !cast(Expr) obj; }) &&
-      t2.accept(")")
-    ) {
+  if (!t2.accept("(")
+   || !rest(t2, "tree.expr", &obj, (Object obj) { return !cast(Expr) obj; }))
+    return null;
+  if (t2.accept(")")) {
     text = t2;
     return obj;
-  } else return null;
+  } else {
+    if (!t2.accept(","))
+      error = "Failed to match single-tuple at '"~t2.next_text()~"'. ";
+    return null;
+  }
 }
 mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
 
@@ -179,17 +183,20 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr[] exprs;
   Expr ex;
   auto t2 = text;
-  if (t2.accept("(") &&
-    t2.bjoin(
+  if (!t2.accept("(")) return null;
+  if (!t2.bjoin(
       !!rest(t2, "tree.expr", &ex),
       t2.accept(","),
       {
         exprs ~= ex;
       }
-    ) && t2.accept(")")) {
-    text = t2;
-    return cast(Object) mkTupleExpr(exprs);
-  } else return null;
+    ) || !t2.accept(")")) {
+    // logln(exprs.length, "; ", exprs[$-1].valueType());
+    error = Format("Unknown identifier at '"~t2.next_text()~"'. ");
+    return null;
+  }
+  text = t2;
+  return cast(Object) mkTupleExpr(exprs);
 }
 mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60");
 

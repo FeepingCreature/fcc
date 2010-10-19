@@ -121,7 +121,7 @@ class SALiteralExpr : Expr {
       foreach_reverse (ex; exs)
         ex.emitAsm(af);
     }
-    string toString() { return Format("SA ", exs); }
+    string toString() { return Format("SA literal ", exs); }
   }
 }
 

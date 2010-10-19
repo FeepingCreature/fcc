@@ -365,8 +365,8 @@ import ast.templ, ast.parse, ast.structure, ast.oop;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto mns = namespace().get!(MiniNamespace);
-    // TODO: allow this implicit cast in templated code
-    if (mns) return null; // only allow this conversion in user code
+    if (mns && !mns.id.startsWith("!safecode"))
+      return null; // only allow this conversion in user code
     auto st = cast(Structure) ex.valueType();
     auto cr = cast(ClassRef) ex.valueType();
     // auto ir = cast(IntfRef) ex.valueType();
