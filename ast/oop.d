@@ -17,10 +17,11 @@ class VTable {
     foreach (id, fun; funs)
       if (fun.name == name) {
         return iparse!(Function, "vtable_lookup", "tree.expr")(
-          "*(*cast(fntype**) classref)[id + base].toDg(cast(void*) classref)",
-          "classref", classref,
-          "id", new IntExpr(id), "base", new IntExpr(base),
-          "fntype", fun.typeAsFp()
+          "*(*classref_fp)[idbase].toDg(classrefp)",
+          "classref_fp",
+            reinterpret_cast(new Pointer(new Pointer(fun.typeAsFp())), classref),
+          "classrefp", reinterpret_cast(voidp, classref),
+          "idbase", new IntExpr(id+base)
         );
       }
     return null;
