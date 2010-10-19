@@ -125,7 +125,9 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   Stuple!(string, float)[] entries;
   foreach (key, value; ast.namespace.bench) entries ~= stuple(key, value);
   entries.qsort(ex!("a, b -> a._1 > b._1"));
-  writefln("Subsegments: ", entries);
+  float total = 0;
+  foreach (entry; entries) total += entry._1;
+  writefln("Subsegments: ", entries, "; total ", total);
   srcname.write(af.genAsm());
   auto cmdline = Format("as --32 -o ", objname, " ", srcname);
   writefln("> ", cmdline);

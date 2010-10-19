@@ -37,6 +37,21 @@ class Compare : Cond {
     this.smaller = smaller; this.equal = equal; this.greater = greater;
     this.e2 = e2;
   }
+  this(Expr e1, string str, Expr e2) {
+    auto backup = str;
+    bool not, smaller, greater, equal;
+    if (auto rest = str.startsWith("!")) { not =      true; str = rest; }
+    if (auto rest = str.startsWith("<")) { smaller =  true; str = rest; }
+    if (auto rest = str.startsWith(">")) { greater =  true; str = rest; }
+    if (!not && !smaller && !greater) {
+      if (auto rest = str.startsWith("==")) { equal = true; str = rest; }
+    } else {
+      if (auto rest = str.startsWith("=")) { equal =  true; str = rest; }
+    }
+    if (str.length)
+      throw new Exception("Not a valid condition string: "~backup~". ");
+    this(e1, not, smaller, equal, greater, e2);
+  }
   void flip() {
     swap(e1, e2);
     smaller = !smaller;

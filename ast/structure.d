@@ -344,9 +344,9 @@ class MemberAccess_Expr : Expr {
         } else {
           mkVar(af, stm.type, true, (Variable var) {
             iparse!(Statement, "copy_struct_member", "tree.semicol_stmt.expr")
-            ("memcpy(cast(void*) &tempvar, (cast(void*) &var) + offset, size)",
-              "tempvar", var,
-              "var", lv,
+            ("memcpy(tempvarp, varp + offset, size)",
+              "tempvarp", reinterpret_cast(voidp, new RefExpr(var)),
+              "varp", reinterpret_cast(voidp, new RefExpr(lv)),
               "size", new IntExpr(stm.type.size),
               "offset", new IntExpr(stm.offset)
             ).emitAsm(af);

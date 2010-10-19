@@ -162,7 +162,8 @@ template iparse(R, string id, string rule, bool mustParse = true) {
   R iparse(T...)(string text, T _t) {
     auto start = sec();
     scope(exit) bench[id] += sec() - start;
-    text = text.dup; // circumvent the memoizer TODO: Better way?
+    pushCache();
+    scope(exit) popCache();
     
     static if (is(T[$-1] == AsmFile)) alias T[0 .. $-1] T2;
     else alias T T2;

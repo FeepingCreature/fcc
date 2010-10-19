@@ -375,12 +375,30 @@ interface Parser {
 // stuff that it's unsafe to memoize due to side effects
 bool delegate(string)[] globalStateMatchers;
 
+void delegate()[] _pushCache, _popCache;
+
+void pushCache() {
+  foreach (dg; _pushCache) dg();
+}
+
+void popCache() {
+  foreach (dg; _popCache) dg();
+}
+
 template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
   class DefaultParserImpl : Parser {
     bool dontMemoMe;
     this() {
       foreach (dg; globalStateMatchers) 
         if (dg(Id)) { dontMemoMe = true; break; }
+      _pushCache ~= this /apply/ (typeof(this) that) {
+        that.stack ~= that.cache;
+        that.cache = null;
+      };
+      _popCache ~= this /apply/ (typeof(this) that) {
+        that.cache = that.stack[$-1];
+        that.stack = that.stack[0 .. $-1];
+      };
     }
     override string getId() { return Id; }
     bool doBlock;
@@ -400,6 +418,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
       }
     } else {
       Stuple!(Object, string) [char*] cache;
+      typeof(cache)[] stack;
       override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         bool acceptRelevant;
         static if (is(typeof((&Fn)(text, accept, cont, rest))))
