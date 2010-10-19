@@ -71,7 +71,8 @@ class TemplateInstance : Namespace {
   override {
     string toString() { return Format("Instance of ", parent); }
     string mangle(string name, IType type) {
-      return "templinst_"~name~"_"~type.mangle();
+      return "templinst_"~parent.name~"_with_"~this.type.mangle()
+        ~"__"~sup.mangle(name, type);
     }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     
