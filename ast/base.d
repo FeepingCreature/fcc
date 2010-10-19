@@ -131,12 +131,6 @@ class NoOp : Statement {
   mixin defaultIterate!();
 }
 
-class Break : Statement {
-  Break dup() { return this; }
-  override void emitAsm(AsmFile af) { af.put("int $3"); }
-  mixin defaultIterate!();
-}
-
 interface Expr : Tree {
   IType valueType();
   override Expr dup();
