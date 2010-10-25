@@ -136,23 +136,30 @@ void drawScene(DataSet ds) {
     while auto k <- 0..16 {
       input[k] = ds.vecs[ind[k] - 1];
     }
-    void bezier3(float u, float v, vec3f* dest) {
-      vec3f[4] temp = void;
-      bezier2(u, input[0..4], &temp[0]);
-      bezier2(u, input[4..8], &temp[1]);
-      bezier2(u, input[8..12], &temp[2]);
-      bezier2(u, input[12..16], &temp[3]);
-      bezier2(v, temp[], dest);
+    vec3f[4] bezier_temp = void;
+    void setup_row(float v) {
+      bezier2(v, input[0..4], &bezier_temp[0]);
+      bezier2(v, input[4..8], &bezier_temp[1]);
+      bezier2(v, input[8..12], &bezier_temp[2]);
+      bezier2(v, input[12..16], &bezier_temp[3]);
+    }
+    void bezier3(float u, vec3f* dest) {
+      bezier2(u, bezier_temp[], dest);
     }
     using Quads {
-      int x, y, k;
       alias subdiv = 12;
       auto subdivp = subdiv + 1;
       if (!temp.ptr) temp = new vec3f[subdivp * subdivp];
-      while ((x, y), k) <- zip (cross (0 .. subdivp, 0 .. subdivp), 0 .. subdivp * subdivp) {
-        float u = x * 1.0 / subdiv, v = y * 1.0 / subdiv;
-        bezier3(u, v, &temp[k]);
+      int k;
+      for (int y = 0; y < subdivp; ++y) {
+        float v = y * 1.0 / subdiv;
+        setup_row(v);
+        for (int x = 0; x < subdivp; ++x) {
+          float u = x * 1.0 / subdiv;
+          bezier3(u, &temp[k++]);
+        }
       }
+      int x, y;
       while (x, y) <- cross (0..subdiv, 0..subdiv) {
         float u = x * 1.0 / subdiv, v = y * 1.0 / subdiv;
         int x2, y2;
