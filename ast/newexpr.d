@@ -60,7 +60,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNewClassExpr, "tree.expr.new.class", "11");
 
-import ast.casting;
+import ast.casting, ast.slice: mkPointerSlice;
 Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("new")) return null;
@@ -85,10 +85,13 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
     text = t2;
     // logln("new1 ", base, " [", len, "]");
     return cast(Object)
-      iparse!(Expr, "new_static_array", "tree.expr")
-             ("((cast(base*) mem.calloc(len, base.sizeof)))[0 .. len]",
-              "len", len, "base", base
-             );
+      mkPointerSlice(
+        reinterpret_cast(
+          new Pointer(base),
+          iparse!(Expr, "do_calloc", "tree.expr")
+                ("mem.calloc(len, basesz)",
+                  "len", len, "basesz", new IntExpr(base.size))),
+        new IntExpr(0), len);
   } else {
     Expr len;
     if (!t2.accept("[") ||
@@ -124,4 +127,4 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNewValueExpr, "tree.expr.new.value", "2");
 
-static this() { parsecon.addPrecedence("tree.expr.new", "25"); }
+static this() { parsecon.addPrecedence("tree.expr.new", "20"); }

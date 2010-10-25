@@ -67,10 +67,22 @@ mixin DefaultParser!(gotLiteralSuffixExpr, "tree.expr.literal_suffix", "54");
 
 Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (text.gotIntExpr(ex)) return cast(Object) ex;
-  else return null;
+  auto t2 = text;
+  if (t2.gotIntExpr(ex)) {
+    auto t3 = t2;
+    // allow for a .. b .. HAX!
+    if (t3.accept(".") && !t3.accept("."))
+      return null;
+    text = t2;
+    return cast(Object) ex;
+  } else return null;
 }
-mixin DefaultParser!(gotLiteralExpr, "tree.expr.literal", "55");
+
+static this() {
+  parsecon.addPrecedence("tree.expr.literal", "55");
+}
+
+mixin DefaultParser!(gotLiteralExpr, "tree.expr.int_literal", "23");
 
 /// "foo": char[3] -> char*
 class CValueAsPointer : Expr {

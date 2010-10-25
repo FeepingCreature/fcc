@@ -45,4 +45,4 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   if (longest) text = longest;
   return res;
 }
-mixin DefaultParser!(gotProperties, "tree.expr.properties", "3");
+mixin DefaultParser!(gotProperties, "tree.expr.properties", "240");

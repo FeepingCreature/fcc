@@ -1004,7 +1004,7 @@ string unique(string s) {
   int count() {
     int c;
     foreach (entry; opts)
-      if (entry._1.startsWith(res)) c++;
+      if (!res || entry._1.startsWith(res)) c++;
     return c;
   }
   while (count > 1) {

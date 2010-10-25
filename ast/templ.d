@@ -33,7 +33,8 @@ Object gotTemplate(ref string text, ParseCb cont, ParseCb rest) {
   namespace().add(tmpl.name, tmpl);
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotTemplate, "tree.toplevel.template");
+// a_ so this comes first .. lol
+mixin DefaultParser!(gotTemplate, "tree.toplevel.a_template");
 
 import tools.log;
 
@@ -96,4 +97,4 @@ Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
   else throw new Exception("Template '"~id~"' contains no self-named '"~t.name~"'. ");
 }
 mixin DefaultParser!(gotTemplateInst, "type.templ_inst", "2");
-mixin DefaultParser!(gotTemplateInst, "tree.expr.templ_expr", "40");
+mixin DefaultParser!(gotTemplateInst, "tree.expr.templ_expr", "2401");

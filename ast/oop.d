@@ -2,7 +2,7 @@ module ast.oop;
 
 import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.namespace, ast.structure, ast.structfuns, ast.pointer,
-  ast.arrays, ast.aggregate, ast.literals, ast.slice;
+  ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun;
 
 import tools.log, tools.compat: max;
 class VTable {
@@ -16,13 +16,16 @@ class VTable {
     int base = (parent.parent?parent.parent.getClassinfo().length:0);
     foreach (id, fun; funs)
       if (fun.name == name) {
-        return iparse!(Function, "vtable_lookup", "tree.expr")(
-          "*(*classref_fp)[idbase].toDg(classrefp)",
-          "classref_fp",
-            reinterpret_cast(new Pointer(new Pointer(fun.typeAsFp())), classref),
-          "classrefp", reinterpret_cast(voidp, classref),
-          "idbase", new IntExpr(id+base)
-        );
+        return new PointerFunction!(NestedFunction) (
+          new DgConstructExpr(
+            new DerefExpr(
+              lookupOp("+",
+                new DerefExpr(
+                  reinterpret_cast(
+                    new Pointer(new Pointer(fun.typeAsFp())),
+                    classref)),
+                new IntExpr(id+base))),
+            reinterpret_cast(voidp, classref)));
       }
     return null;
   }

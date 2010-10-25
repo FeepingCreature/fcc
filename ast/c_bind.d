@@ -158,9 +158,17 @@ void parseHeader(string filename, string src, ParseCb rest) {
         }
         if (isMacroParams(stmt)) goto giveUp;
         // logln("full-parse ", stmt, " | ", start);
+        // muahaha
         try {
-          if (!rest(stmt, "tree.expr", &ex))
-            goto giveUp;
+          try {
+            if (!rest(stmt, "tree.expr.literal", &ex) || stmt.strip().length) {
+              goto alternative;
+            }
+          } catch (Exception ex)
+            goto alternative;
+          if (false) alternative:
+            if (!rest(stmt, "tree.expr", &ex))
+              goto giveUp;
         } catch (Exception ex)
           goto giveUp; // On Error Fuck You
       }

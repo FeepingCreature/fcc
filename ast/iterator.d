@@ -88,9 +88,10 @@ class StructIterator : Type, Iterator {
   IType _elemType;
   this(IType it) {
     wrapped = it;
-    _elemType = iparse!(IType, "si_elemtype", "type")
-                       (`typeof(eval ((*cast(wrapped*) 0).step))`,
-                        "wrapped", wrapped);
+    _elemType = iparse!(Expr, "si_elemtype", "tree.expr")
+                       (`eval (bogus.step)`,
+                        "bogus", new Placeholder(wrapped, "si_elemtype_ph")
+                       ).valueType();
   }
   override {
     int size() { return wrapped.size; }

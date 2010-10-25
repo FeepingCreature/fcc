@@ -22,7 +22,7 @@ import
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
 // from ast.namespace
-mixin DefaultParser!(gotNamed, "tree.expr.named", "4");
+mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
 static this() {
   New(namespace, { return cast(Namespace) null; });
   New(current_module, { return cast(Module) null; });

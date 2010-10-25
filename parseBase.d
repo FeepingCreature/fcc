@@ -171,7 +171,7 @@ bool verboseParser = false, verboseXML = false;
 
 string[bool delegate(string)] condInfo;
 
-alias Tuple!(bool, bool, bool, bool, bool, string, bool delegate(string), bool)
+alias Tuple!(string, bool delegate(string), ubyte, bool)
   RuleData;
 
 const RULEPTR_SIZE_HAX = (Stuple!(RuleData)).sizeof;
@@ -226,24 +226,24 @@ bool delegate(string) matchrule(string rules) {
     // different modes
     assert((smaller || greater || equal) ^ before ^ after);
     
-    static bool fun(bool smaller, bool greater, bool equal,
-    bool before, bool after,
-    string rule, bool delegate(string) op1, ref bool hit, string text) {
+    // cases: smaller, greater, equal, before, after
+    static bool fun(string rule,
+      bool delegate(string) op1, ubyte cases, ref bool hit, string text) {
       if (op1 && !op1(text)) return false;
       // avoid allocation from ~"."
-      if (smaller && text.sectionStartsWith(rule)) // all "below" in the tree
+      if ((cases&1) && text.sectionStartsWith(rule)) // all "below" in the tree
         return true;
-      if (equal && text == rule)
+      if ((cases&4) && text == rule)
         return true;
-      if (greater && !text.sectionStartsWith(rule)) // arguable
+      if ((cases&2) && !text.sectionStartsWith(rule)) // arguable
         return true;
       
-      if (before) {
+      if (cases&8) {
         if (text.sectionStartsWith(rule))
           hit = true;
         return !hit;
       }
-      if (after) {
+      if (cases&16) {
         if (text.sectionStartsWith(rule))
           hit = true;
         else return hit;
@@ -251,7 +251,11 @@ bool delegate(string) matchrule(string rules) {
       return false;
     };
     alias allocRuleData!(fun) ard;
-    res = ard(smaller, greater, equal, before, after, rule, res, false);
+    res = ard(
+      rule, res,
+      (smaller<<0) | (greater<<1) | (equal<<2) | (before<<3) | (after<<4),
+      false
+    );
     // res = res /apply/ (bool delegate(string) dg, string s) { auto res = dg(s); logln(s, " -> ", res); return res; };
   }
   // condInfo[res] = rules_backup;
@@ -284,9 +288,8 @@ struct ParseCb {
     bool delegate(string),
     ParseCtl delegate(Object) accept
   ) dg;
-  bool delegate(string) cur; string curstr;
+  bool delegate(string) cur;
   string selfrule;
-  void delegate() blockMemo;
   Object opCall(T...)(ref string text, T t) {
     bool delegate(string) matchdg;
     static if (T.length && is(T[0]: char[])) {
@@ -301,8 +304,6 @@ struct ParseCb {
       matchdg = cur;
       alias T Rest1;
       alias t rest1;
-      // TODO: check if really necessary
-      // blockMemo(); // callback depends on a parent's filter rule. cannot reliably memoize.
     }
     
     static if (Rest1.length && is(typeof(rest1[$-1](null))) && !is(Ret!(Rest1[$-1]) == void)) {
@@ -369,7 +370,6 @@ struct ParseCb {
 interface Parser {
   string getId();
   Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb restart);
-  void blockNextMemo();
 }
 
 // stuff that it's unsafe to memoize due to side effects
@@ -401,11 +401,6 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
       };
     }
     override string getId() { return Id; }
-    bool doBlock;
-    override void blockNextMemo() {
-      if (verboseParser) logln("Block ", Id, " memo due to pass-through cont/next");
-      doBlock = true;
-    }
     Object fnredir(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
       static if (is(typeof((&Fn)(text, accept, cont, rest))))
         return Fn(text, accept, cont, rest);
@@ -431,9 +426,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
           return p._0;
         }
         auto res = fnredir(text, accept, cont, rest);
-        if (!doBlock) cache[ptr] = stuple(res, text);
-        // else logln("Memoization blocked! ");
-        doBlock = false;
+        cache[ptr] = stuple(res, text);
         return res;
       }
     }
@@ -570,7 +563,7 @@ class ParseContext {
     return parse(text, cond, 0, accept);
   }
   string condStr;
-  Stuple!(string, string)[] rulestack;
+  import tools.time: sec;
   Object parse(ref string text, bool delegate(string) cond,
       int offs = 0, ParseCtl delegate(Object) accept = null) {
     resort;
@@ -588,12 +581,38 @@ class ParseContext {
     
     Object longestMatchRes;
     string longestMatchStr = text;
-    foreach (i, parser; parsers[offs .. $]) {
-      
+    ParseCb cont = void, rest = void;
+    int i;
+    cont.dg = (ref string text, bool delegate(string) cond,
+      ParseCtl delegate(Object) accept) {
+      return this.parse(text, cond, offs + i + 1, accept);
+    };
+    cont.cur = cond;
+    rest.dg = (ref string text, bool delegate(string) cond,
+      ParseCtl delegate(Object) accept) {
+      return this.parse(text, cond, accept);
+    };
+    rest.cur = cond;
+    /*auto start_time = sec();
+    auto start_text = text;
+    static float min_speed = float.infinity;
+    scope(exit) if (text.ptr !is start_text.ptr) {
+      auto delta = (sec() - start_time) * 1000;
+      auto speed = (text.ptr - start_text.ptr) / delta;
+      if (speed < min_speed) {
+        min_speed = speed;
+        logln("New worst slowdown: '",
+          condStr, "' at '", start_text.next_text(), "'"
+          ": ", speed, " characters/ms "
+          "(", (text.ptr - start_text.ptr), " in ", delta, "ms). ");
+      }
+    }*/
+    foreach (j, parser; parsers[offs .. $]) {
+      i = j;
       auto id = parser.getId();
       
-      rulestack ~= stuple(id, text);
-      scope(exit) rulestack = rulestack[0 .. $-1];
+      // rulestack ~= stuple(id, text);
+      // scope(exit) rulestack = rulestack[0 .. $-1];
       
       string xid() { return id.replace(".", "_"); }
       if (verboseXML) logln("<", xid, " text='", text.next_text(16).xmlmark(), "'>");
@@ -601,24 +620,9 @@ class ParseContext {
       if (cond(id)) {
         if (verboseParser) logln("TRY PARSER [", id, "] for '", text.next_text(16), "'");
         matched = true;
-        ParseCb cont, rest;
-        cont.dg = (ref string text, bool delegate(string) cond,
-          ParseCtl delegate(Object) accept) {
-          return this.parse(text, cond, offs + i + 1, accept);
-        };
-        cont.cur = cond;
-        cont.curstr = id;
-        cont.selfrule = id;
-        cont.blockMemo = &parser.blockNextMemo;
         
-        rest.dg = (ref string text, bool delegate(string) cond,
-          ParseCtl delegate(Object) accept) {
-          return this.parse(text, cond, accept);
-        };
-        rest.cur = cond;
-        rest.curstr = id;
+        cont.selfrule = id;
         rest.selfrule = id;
-        rest.blockMemo = &parser.blockNextMemo;
         
         auto backup = text;
         if (auto res = parser.match(text, accept, cont, rest)) {
@@ -628,7 +632,7 @@ class ParseContext {
             if (verboseParser) logln("    PARSER [", id, "]: control flow ", ctl.decode);
             if (ctl == ParseCtl.RejectAbort || ctl.state == 3) {
               if (verboseParser) logln("    PARSER [", id, "] rejected (", ctl.reason, "): ", Format(res));
-              if (verboseParser) logln("    PARSER [", id, "] @", rulestack /map/ ex!("a, b -> a"));
+              // if (verboseParser) logln("    PARSER [", id, "] @", rulestack /map/ ex!("a, b -> a"));
               if (verboseXML) logln("Reject</", xid, ">");
               text = backup;
               if (ctl == ParseCtl.RejectAbort) return null;
@@ -688,7 +692,8 @@ string getHeredoc(ref string text) {
 
 string startsWith(string text, string match) {
   if (!text) return null;
-  if (!match) return text;
+  if (!match)
+    asm { int 3; }
   if (text.length < match.length) return null;
   if (text[0 .. match.length] != match) return null;
   return text[match.length .. $];

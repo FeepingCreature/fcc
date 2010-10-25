@@ -7,6 +7,13 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   Expr arg;
   auto backup_text = text; 
   if (!backup_text.length) return false; // wat
+  // speed opt - a call can only begin
+  // with one of those separating tokens
+  const string valid_call_start_tokens = "({[ ";
+  bool token_match;
+  foreach (ch; valid_call_start_tokens)
+    if (text.startsWith([ch])) { token_match = true; break; }
+  if (!token_match) return false;
   if (!rest(text, "tree.expr _tree.expr.arith", &arg)) {
     return false;
   }
