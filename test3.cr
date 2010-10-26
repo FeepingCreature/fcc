@@ -1,7 +1,6 @@
 module test3;
 
-import sys;
-c_include "setjmp.h";
+import sys, std.c.setjmp;
 
 void main(int argc, char** argv) {
 	jmp_buf buffer;
