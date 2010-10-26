@@ -178,21 +178,20 @@ const RULEPTR_SIZE_HAX = (Stuple!(RuleData)).sizeof;
 void[] slab;
 
 struct RuleStruct(alias A) {
-  RuleData tuple;
-  bool fun(Params!(typeof(&A))[RuleData.length .. $] rest) {
-    return A(tuple, rest);
+  Stuple!(RuleData) tuple;
+  bool fun(Params!(typeof(&A))[1 .. $] rest) {
+    return A(&tuple, rest);
   }
 }
 
 template allocRuleData(alias A) {
-  bool delegate(Params!(typeof(&A))[RuleData.length .. $])
+  bool delegate(Params!(typeof(&A))[1 .. $])
   allocRuleData(RuleData rd) {
     if (!slab.length)
       slab = new void[RULEPTR_SIZE_HAX * 1024];
     auto res = slab.take(RULEPTR_SIZE_HAX);
-    foreach (i, v; rd)
-      (cast(Stuple!(RuleData)*) res.ptr).tupleof[i] = v;
     auto strp = cast(RuleStruct!(A)*) res.ptr;
+    strp.tuple = stuple(rd);
     return &strp.fun;
   }
 }
@@ -227,10 +226,11 @@ bool delegate(string) matchrule(string rules) {
     assert((smaller || greater || equal) ^ before ^ after);
     
     // cases: smaller, greater, equal, before, after
-    static bool fun(string rule,
-      bool delegate(string) op1, ubyte cases, ref bool hit, string text) {
+    static bool fun(Stuple!(RuleData)* data, string text) {
+      auto op1 = data._1;
       if (op1 && !op1(text)) return false;
       // avoid allocation from ~"."
+      auto rule = data._0, cases = data._2;
       if ((cases&1) && text.sectionStartsWith(rule)) // all "below" in the tree
         return true;
       if ((cases&4) && text == rule)
@@ -238,15 +238,16 @@ bool delegate(string) matchrule(string rules) {
       if ((cases&2) && !text.sectionStartsWith(rule)) // arguable
         return true;
       
+      auto hit = &data._3;
       if (cases&8) {
         if (text.sectionStartsWith(rule))
-          hit = true;
-        return !hit;
+          *hit = true;
+        return !*hit;
       }
       if (cases&16) {
         if (text.sectionStartsWith(rule))
-          hit = true;
-        else return hit;
+          *hit = true;
+        else return *hit;
       }
       return false;
     };
