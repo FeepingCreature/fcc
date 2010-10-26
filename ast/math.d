@@ -269,13 +269,13 @@ class AsmIntBinopExpr : BinopExpr {
           e1.emitAsm(af);
           af.popStack("%eax", e1.valueType());
         }
-        auto asm_op = [
+        auto asm_op = ([
           "+"[]: "addl"[], "-": "subl",
           "*": "imull", "/": "idivl",
           "&": "andl", "|": "orl",
           "%": "imodl",
           "<<": "shl", ">>": "shr"
-        ][op];
+        ])[op];
         af.mathOp(asm_op, op2, "%eax");
         if (!late_alloc) af.sfree(4);
         af.pushStack("%eax", Single!(SysInt));

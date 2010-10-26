@@ -104,9 +104,9 @@ void drawScene(DataSet ds) {
   // glRotatef (180, 1, 0, 0);
   glRotatef (t, 0, 1, 0);
   t -= 1;
-  int i;
-  while auto ind <- ds.indices {
-    float f = (i++) * 1.0 / ds.indices.length;
+  int vertices;
+  while auto ind <- zip (0..-1, ds.indices) {
+    float f = ind[0] * 1.0 / ds.indices.length;
     glColor3f (f, f, f);
     vec3f vcross(vec3f a, vec3f b) {
       return vec3f(a[1]*b[2] - b[1]*a[2], a[2]*b[0] - b[2]*a[0], a[0]*b[1] - b[0]*a[1]);
@@ -134,7 +134,7 @@ void drawScene(DataSet ds) {
     }
     vec3f[16] input = void;
     while auto k <- 0..16 {
-      input[k] = ds.vecs[ind[k] - 1];
+      input[k] = ds.vecs[ind[1][k] - 1];
     }
     vec3f[4] bezier_temp = void;
     void setup_row(float v) {
@@ -147,8 +147,8 @@ void drawScene(DataSet ds) {
       bezier2(u, bezier_temp[], dest);
     }
     using Quads {
-      alias subdiv = 12;
-      auto subdivp = subdiv + 1;
+      alias subdiv = 16;
+      int subdivp = subdiv + 1;
       if (!temp.ptr) temp = new vec3f[subdivp * subdivp];
       int k;
       for (int y = 0; y < subdivp; ++y) {
@@ -159,21 +159,29 @@ void drawScene(DataSet ds) {
           bezier3(u, &temp[k++]);
         }
       }
+      vec3f get(int x, int y) { return temp[y * subdivp + x]; }
       int x, y;
       while (x, y) <- cross (0..subdiv, 0..subdiv) {
         float u = x * 1.0 / subdiv, v = y * 1.0 / subdiv;
         int x2, y2;
         vec3f[4] quad = void;
+        float[4] angles = void;
         int l;
         while ((x2, y2), l) <- zip([for id <- [0, 1, 3, 2]: (cross (0..2, 0..2))[id]], 0..4) {
-          auto x3 = x2 + x, y3 = y2 + y;
-          quad[l] = temp[y3 * subdivp + x3];
+          quad[l] = get(x2 + x, y2 + y);
+          int xshift = 1, yshift = 1;
+          if (u > 0.5) xshift = -1;
+          if (v > 0.5) yshift = -1;
+          auto normal = vcross(get(x2 + x + xshift, y2 + y) - quad[l], get(x2 + x, y2 + y + xshift) - quad[l]);
+          auto angle = vdot(vnormal(normal), vnormal(vec3f(0.6, 0.3, -1)));
+          if (angle < 0) angle = -angle;
+          angles[l] = angle;
         }
-        auto normal = vcross(quad[1]-quad[0], quad[3]-quad[0]);
-        auto angle = vdot(vnormal(normal), vnormal(vec3f(0.6, 0.3, -1)));
-        if (angle < 0) angle = 0;
-        glColor3f vec3f(angle);
-        [for v <- quad: glVertex3f v].eval;
+        // :(
+        // vec3f vert = void; float angle = void;
+        // [for (vert, angle) <- zip (quad, angles): (glColor3f vec3f(angle), glVertex3f vert)].eval;
+        while int i <- 0..4 { glColor3f vec3f(angles[i]); glVertex3f quad[i]; }
+        vertices += 4;
       }
     }
   }
@@ -182,7 +190,7 @@ void drawScene(DataSet ds) {
   auto ct = time(cast(time_t*) 0);
   if ct != last_time {
     last_time = ct;
-    writeln "FPS: $fps";
+    writeln "FPS: $fps, vertices per scene $vertices";
     fps = 0;
   }
 }

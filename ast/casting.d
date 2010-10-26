@@ -183,11 +183,21 @@ Object gotDCMExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotDCMExpr, "tree.expr.dcm", "53");
 
+import tools.threads: TLS;
+TLS!(IType[]) gotImplicitCast_visited_cache; // we go in here a lot, so this pays off
+static this() { New(gotImplicitCast_visited_cache, { return &(new Stuple!(IType[]))._0; }); }
 bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
-  IType[] visited;
+  auto visited = *(gotImplicitCast_visited_cache.ptr());
+  scope(exit) *(gotImplicitCast_visited_cache.ptr()) = visited;
+  int visited_offs;
+  void addVisitor(IType it) {
+    if (visited_offs < visited.length)
+      visited[visited_offs++] = it;
+    else { visited ~= it; visited_offs ++; }
+  }
   bool haveVisited(Expr ex) {
     auto t1 = ex.valueType();
-    foreach (t2; visited) if (t1 == t2) return true;
+    foreach (t2; visited[0 .. visited_offs]) if (t1 == t2) return true;
     return false;
   }
   Expr recurse(Expr ex) {
@@ -196,7 +206,7 @@ bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
       Expr res;
       dg(ex, (Expr ce) {
         if (res || haveVisited(ce)) return;
-        visited ~= ce.valueType();
+        addVisitor(ce.valueType());
         if (accept(ce)) res = ce;
         recurseInto ~= ce;
       });
