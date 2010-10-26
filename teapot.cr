@@ -147,7 +147,7 @@ void drawScene(DataSet ds) {
       bezier2(u, bezier_temp[], dest);
     }
     using Quads {
-      alias subdiv = 16;
+      alias subdiv = 8;
       int subdivp = subdiv + 1;
       if (!temp.ptr) temp = new vec3f[subdivp * subdivp];
       int k;
@@ -159,7 +159,7 @@ void drawScene(DataSet ds) {
           bezier3(u, &temp[k++]);
         }
       }
-      vec3f get(int x, int y) { return temp[y * subdivp + x]; }
+      vec3f get(int x, int y) { return temp[x * subdivp + y]; }
       int x, y;
       while (x, y) <- cross (0..subdiv, 0..subdiv) {
         float u = x * 1.0 / subdiv, v = y * 1.0 / subdiv;
@@ -172,14 +172,16 @@ void drawScene(DataSet ds) {
           int xshift = 1, yshift = 1;
           if (u > 0.5) xshift = -1;
           if (v > 0.5) yshift = -1;
-          auto normal = vcross(get(x2 + x + xshift, y2 + y) - quad[l], get(x2 + x, y2 + y + xshift) - quad[l]);
+          auto normal = vcross(
+            get(x2 + x + xshift, y2 + y) - quad[l],
+            get(x2 + x, y2 + y + yshift) - quad[l]
+          );
+          if ((u > 0.5 || v > 0.5) && !(u > 0.5 && v > 0.5))
+            normal = vec3f(-normal[0], -normal[1], -normal[2]);
           auto angle = vdot(vnormal(normal), vnormal(vec3f(0.6, 0.3, -1)));
           if (angle < 0) angle = -angle;
           angles[l] = angle;
         }
-        // :(
-        // vec3f vert = void; float angle = void;
-        // [for (vert, angle) <- zip (quad, angles): (glColor3f vec3f(angle), glVertex3f vert)].eval;
         while int i <- 0..4 { glColor3f vec3f(angles[i]); glVertex3f quad[i]; }
         vertices += 4;
       }
