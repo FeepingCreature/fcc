@@ -453,15 +453,15 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   auto intf = new Intf(name);
   intf.parents = supints;
   intf.initOffset;
+  namespace().add(intf); // support interface A { A foo(); }
+  text = t2;
   while (true) {
     auto fun = new Function;
-    if (t2.accept("}")) break;
-    if (!gotGenericFunDecl(fun, cast(Namespace) null, false, t2, cont, rest))
-      throw new Exception("Error parsing interface at '"~t2.next_text()~"'");
+    if (text.accept("}")) break;
+    if (!gotGenericFunDecl(fun, cast(Namespace) null, false, text, cont, rest))
+      throw new Exception("Error parsing interface at '"~text.next_text()~"'");
     intf.funs ~= fun;
   }
-  namespace().add(intf);
-  text = t2;
   return intf;
 }
 mixin DefaultParser!(gotIntfDef, "tree.typedef.intf");
