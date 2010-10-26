@@ -97,6 +97,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       return true;
     }
     if (auto rest = text.strip().startsWith("...")) { text = rest; return Single!(Variadic); }
+    if (accept("unsigned long int"))  return Single!(SysInt);
     if (accept("unsigned int") || accept("signed int") || accept("long int") || accept("int")) return Single!(SysInt);
     if (accept("unsigned char") || accept("signed char") || accept("char")) return Single!(Char);
     if (accept("signed short int") || accept("unsigned short int") || accept("unsigned short") || accept("short")) return Single!(Short);
@@ -226,6 +227,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
           if (st2.startsWith("#define"))
             goto skip;
           auto ty = matchType(st2);
+          // logln("match type @", st2, " = ", ty);
           if (!ty) goto giveUp1;
           while (true) {
             auto pos = st2.find("sizeof");
@@ -237,21 +239,32 @@ void parseHeader(string filename, string src, ParseCb rest) {
             }
             auto translated = Format(sty.size);
             st2 = st2[0 .. pos] ~ translated ~ st2[pos .. $].between(")", "");
+            // logln("st2 => ", st2);
           }
           string name3;
           auto st3 = st2;
           Expr size;
           st3 = st3.replace("(int)", ""); // hax
           if (gotIdentifier(st3, name3) && st3.accept("[") && rest(st3, "tree.expr", &size) && st3.accept("]")) {
+            redo:
             size = fold(size);
+            if (cast(AstTuple) size.valueType()) {
+              // unwrap "(foo)"
+              size = (cast(StructLiteral) (cast(RCE) size).from)
+                .exprs[$-1];
+              goto redo;
+            }
             auto ie = cast(IntExpr) size;
+            // logln("size: ", size);
             if (!ie) goto giveUp1;
             new RelMember(name3, new StaticArray(ty, ie.num), st);
+            // logln("rest: ", st3);
             if (st3.strip().length) {
               goto giveUp1;
             }
             goto skip;
           }
+          // logln(">> ", st2);
           if (st2.find("(") != -1) {
             // alias to void for now.
             add(ident, new TypeAlias(Single!(Void), ident));
@@ -293,6 +306,14 @@ void parseHeader(string filename, string src, ParseCb rest) {
       if (matchSimpleType(typename) && !typename.strip().length) {
         // logln("Skip type ", name, " for duplicate. ");
         continue;
+      }
+      // TODO: differentiate between funcall/declare case
+      // typedef int foo[1]
+      // foo bar; behaves differently from void test(foo);
+      // first is array, second is pointer
+      if (stmt.startsWith("[")) {
+        target = new Pointer(target);
+        stmt.slice("]");
       }
       auto ta = new TypeAlias(target, name);
       res ~= ta; cache[name] = ta;
