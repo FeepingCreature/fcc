@@ -13,6 +13,16 @@ interface TypeProxy {
   IType actualType();
 }
 
+IType resolveType(IType t) {
+  while (true) {
+    if (auto tp = cast(TypeProxy) t) {
+      t = tp.actualType();
+      continue;
+    }
+    return t;
+  }
+}
+
 template TypeDefaults(bool INITVAL = true, bool OPEQUALS = true) {
   static if (INITVAL) ubyte[] initval() { return new ubyte[size()]; }
   static if (OPEQUALS) {

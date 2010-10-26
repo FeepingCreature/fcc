@@ -7,6 +7,7 @@ class Pointer : Type {
   this(IType t) { target = t; }
   override {
     int opEquals(IType ty) {
+      ty = resolveType(ty);
       if (!super.opEquals(ty)) return false;
       auto p = cast(Pointer) ty;
       return target == p.target;

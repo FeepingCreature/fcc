@@ -15,6 +15,7 @@ class StaticArray : Type {
     return Format("Static_", length, "_of_", elemType.mangle());
   }
   override int opEquals(IType ty) {
+    ty = resolveType(ty);
     return super.opEquals(ty) &&
       ((cast(StaticArray) ty).elemType == elemType) &&
       ((cast(StaticArray) ty).length == length);
@@ -39,6 +40,11 @@ static this() {
       return null;
       // throw new Exception(Format("Not a constant: ", len));
     } else return null;
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (!cast(StaticArray) ex.valueType() || !cast(CValue) ex)
+      return null;
+    return getSAPtr(ex);
   };
 }
 

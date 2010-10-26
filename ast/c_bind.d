@@ -131,6 +131,14 @@ void parseHeader(string filename, string src, ParseCb rest) {
     text.accept("__const");
     string id;
     gotIdentifier(text, id);
+    if (auto sa = cast(StaticArray) resolveType(ty)) {
+      ty = new Pointer(sa.elemType);
+    }
+    redo:if (text.startsWith("[")) {
+      ty = new Pointer(ty);
+      text.slice("]");
+      goto redo;
+    }
     text.accept(",");
     return ty;
   }
@@ -307,14 +315,23 @@ void parseHeader(string filename, string src, ParseCb rest) {
         // logln("Skip type ", name, " for duplicate. ");
         continue;
       }
-      // TODO: differentiate between funcall/declare case
-      // typedef int foo[1]
-      // foo bar; behaves differently from void test(foo);
-      // first is array, second is pointer
-      if (stmt.startsWith("[")) {
-        target = new Pointer(target);
-        stmt.slice("]");
+      Expr size;
+      redo2:
+      auto st3 = stmt;
+      if (st3.accept("[") && rest(st3, "tree.expr", &size) && st3.accept("]")) {
+        redo3:
+        size = fold(size);
+        // unwrap "(bar)" again
+        if (cast(AstTuple) size.valueType()) {
+          size = (cast(StructLiteral) (cast(RCE) size).from).exprs[$-1];
+          goto redo3;
+        }
+        if (!cast(IntExpr) size) goto giveUp;
+        target = new StaticArray(target, (cast(IntExpr) size).num);
+        stmt = st3;
+        goto redo2;
       }
+      if (stmt.accept("[")) goto giveUp;
       auto ta = new TypeAlias(target, name);
       res ~= ta; cache[name] = ta;
       continue;
