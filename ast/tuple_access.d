@@ -83,7 +83,7 @@ Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto start = tup.wrapped.selectMember(ifrom.num).offset;
     auto restype = mkTuple(tup.wrapped.slice(ifrom.num, ito.num).types);
     auto res = iparse!(Expr, "tuple_slice", "tree.expr")
-                      (`*cast(restype*) (cast(void*) &lv + base)`,
+                      (`*restype*:(void*:&lv + base)`,
                        "restype", restype, "lv", cast(LValue) ex,
                        "base", new IntExpr(start));
     return cast(Object) res;

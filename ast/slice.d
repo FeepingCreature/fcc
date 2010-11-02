@@ -26,6 +26,7 @@ class FullSlice : Expr {
     else if (auto ea = cast(ExtArray) sup.valueType()) type = new Array(ea.elemType);
     else {
       logln("full slice value type on ", sup.valueType(), " .. huh. ");
+      asm { int 3; }
       assert(false);
     }
   }
@@ -68,6 +69,9 @@ Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
         to   = iparse!(Expr, "slice_range_to",   "tree.expr")("ex.end", "ex", casted);
       }
       if (!from && !to && !cast(LValue) ex) {
+        if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType())
+          return null;
+          // logln("!!! ", text.next_text(), ": ", ex);
         text = t2;
         return new FullSlice(ex);
       }

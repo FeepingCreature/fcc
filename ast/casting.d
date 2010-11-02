@@ -52,12 +52,9 @@ static this() {
 Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!t2.accept("cast(")) return null;
   IType dest;
-  if (!rest(t2, "type", &dest))
-    throw new Exception("No type matched in cast expression: "~t2.next_text());
-  if (!t2.accept(")"))
-    throw new Exception("Missed closing bracket in cast at "~t2.next_text());
+  if (!rest(t2, "type", &dest) || !t2.accept(":"))
+    return null;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { return test(it == dest); }))
     return null;
   
@@ -76,12 +73,9 @@ Expr delegate(Expr, IType)[] converts;
 // casts to types that have conversion defined
 Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("cast(")) return null;
   IType dest;
-  if (!rest(t2, "type", &dest))
-    throw new Exception("No type matched in cast expression: "~t2.next_text());
-  if (!t2.accept(")"))
-    throw new Exception("Missed closing bracket in cast at "~t2.next_text());
+  if (!rest(t2, "type", &dest) || !t2.accept(":"))
+    return null;
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     throw new Exception("Unable to parse cast source at "~t2.next_text());
@@ -101,22 +95,18 @@ mixin DefaultParser!(gotConversionCast, "tree.expr.cast_convert", "702");
 Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (t2.accept("cast(")) {
-    IType dest;
-    if (!rest(t2, "type", &dest))
-      throw new Exception("No type matched in cast expression: "~t2.next_text());
-    if (!t2.accept(")"))
-      throw new Exception("Missed closing bracket in cast at "~t2.next_text());
-    IType[] types;
-    if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; }))
-      throw new Exception(Format(
-        "Expression not matched in cast @'", t2.next_text(), "'; none of ", types, " matched ", dest.size, ". "
-      ));
-      // return null;
-    
-    text = t2;
-    return new ReinterpretCast!(Expr)(dest, ex);
-  } else return null;
+  IType dest;
+  if (!rest(t2, "type", &dest) || !t2.accept(":"))
+    return null;
+  IType[] types;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; }))
+    throw new Exception(Format(
+      "Expression not matched in cast @'", t2.next_text(), "'; none of ", types, " matched ", dest.size, ". "
+    ));
+    // return null;
+  
+  text = t2;
+  return new ReinterpretCast!(Expr)(dest, ex);
 }
 mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "7");
 
@@ -187,6 +177,7 @@ import tools.threads: TLS;
 TLS!(IType[]) gotImplicitCast_visited_cache; // we go in here a lot, so this pays off
 static this() { New(gotImplicitCast_visited_cache, { return &(new Stuple!(IType[]))._0; }); }
 bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
+  if (!ex) asm { int 3; }
   auto visited = *(gotImplicitCast_visited_cache.ptr());
   scope(exit) *(gotImplicitCast_visited_cache.ptr()) = visited;
   int visited_offs;

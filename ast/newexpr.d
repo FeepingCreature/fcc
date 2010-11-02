@@ -20,8 +20,8 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       mixin(mustOffset("0"));
       iparse!(Statement, "new_class", "tree.stmt")
       (`{
-          var = cast(typeof(var)) mem.calloc(size, 1);
-          (cast(void**) var)[0] = _classinfo;
+          var = typeof(var): mem.calloc(size, 1);
+          (void**:var)[0] = _classinfo;
         }`,
         "var", var,
         "size", new IntExpr(cl.size),
@@ -48,7 +48,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       iterLeaves((Intf intf, int offs) {
         logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
         iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
-        (`(cast(void**) var)[base + id] = (cast(void**) _classinfo + offs)`,
+        (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
           "var", var,
           "base", new IntExpr(base), "id", new IntExpr(id++),
           "_classinfo", new Symbol(cl.ci_name()),
@@ -103,7 +103,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
     // logln("new2 ", ty, " [", len, "]");
     return cast(Object)
       iparse!(Expr, "new_dynamic_array", "tree.expr")
-             ("(cast(ty*) mem.calloc(len, ty.sizeof))[0 .. len]",
+             ("(ty*:mem.calloc(len, ty.sizeof))[0 .. len]",
               "len", len, "ty", ty
              );
   }
@@ -121,7 +121,7 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   
   return cast(Object) iparse!(Expr, "new_array", "tree.expr")
-    ("cast(type*) mem.calloc(1, type.sizeof)",
+    ("type*:mem.calloc(1, type.sizeof)",
      "type", ty
     );
 }

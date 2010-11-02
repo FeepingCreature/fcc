@@ -80,7 +80,7 @@ Expr simpleFormat(Expr ex) {
   }
   if (auto p = cast(Pointer) type) {
     return iparse!(Expr, "gen_ptr_format", "tree.expr")
-    ("ptoa(cast(void*) ex)", "ex", ex);
+    ("ptoa(void*:ex)", "ex", ex);
   }
   if (auto sa = cast(StaticArray) type) {
     ex = staticToArray(ex);
@@ -88,7 +88,7 @@ Expr simpleFormat(Expr ex) {
   }
   if (auto dg = cast(Delegate) type) {
     return iparse!(Expr, "gen_dg_format", "tree.expr")
-      (`"dg(fun $(cast(void*) dg.fun), data $(cast(void*) dg.data))"`,
+      (`"dg(fun $(void*:dg.fun), data $(void*:dg.data))"`,
         "dg", ex
       );
   }

@@ -189,7 +189,7 @@ void drawScene(DataSet ds) {
   }
   SDL_GL_SwapBuffers();
   fps ++;
-  auto ct = time(cast(time_t*) 0);
+  auto ct = time(time_t*:null);
   if ct != last_time {
     last_time = ct;
     writeln "FPS: $fps, vertices per scene $vertices";

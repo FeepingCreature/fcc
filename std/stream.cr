@@ -8,10 +8,10 @@ class iter {
   bool done;
   // Expr yieldAdvance(LValue);
   string step() {
-    int pos = dg(cast(void[]) buffer);
+    int pos = dg(void[]:buffer);
     if pos == -1 {
       done = true;
-      return cast(string) (null, null);
+      return string:(null, null);
     }
     return buffer[0..pos];
   }

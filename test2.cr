@@ -18,10 +18,10 @@ void main() {
     writeln "$(line[0]): $(line[1])";
   auto foo = new int[4];
   foo[0] = 1000;
-  writeln "$(cast(byte[]) foo)";
+  writeln "$(byte[]:foo)";
   auto sock = new Socket;
   sock.open tcpAddress ("google.de", 80);
-  sock.send cast(void[]) "GET / HTTP/1.0\r\n\r\n";
+  sock.send void[]:"GET / HTTP/1.0\r\n\r\n";
   auto iter2 = splitAt ("\r\n", readDg &sock.recv);
   writeln "$(iter2.eval)";
 }

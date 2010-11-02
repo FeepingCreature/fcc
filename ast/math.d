@@ -342,16 +342,20 @@ static this() {
     return new AsmIntBinopExpr(ex1, ex2, op);
   }
   Expr handlePointerMath(string op, Expr ex1, Expr ex2) {
-    if (gotImplicitCast(ex2, &isPointer)) {
-      if (op == "-") throw new Exception(Format("WTF R U DOING THAR :( ", ex1, ", ", ex2));
+    auto ex22 = ex2;
+    if (gotImplicitCast(ex22, &isPointer)) {
+      if (op == "-") {
+        return null; // wut
+      }
       swap(ex1, ex2);
     }
     if (gotImplicitCast(ex1, &isPointer)) {
-      assert(!isPointer(ex2.valueType()));
+      if (isPointer(ex2.valueType())) return null;
       if (cast(Float) ex2.valueType()) asm { int 3; }
       assert(!isFloat(ex2.valueType()));
       auto mul = (cast(Pointer) ex1.valueType()).target.size;
       ex2 = handleIntMath("*", ex2, new IntExpr(mul));
+      if (!ex2) return null;
       return new RCE(ex1.valueType(), handleIntMath(op, new RCE(Single!(SysInt), ex1), ex2));
     }
     return null;

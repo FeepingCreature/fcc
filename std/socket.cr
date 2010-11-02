@@ -12,7 +12,7 @@ class TcpAddress : Address {
 TcpAddress tcpAddress(string dns, short port) using new TcpAddress {
   auto he = gethostbyname(toStringz(dns));
   using saddr {
-    sin_addr.s_addr = *cast(uint*) he.h_addr_list[0];
+    sin_addr.s_addr = * uint*:he.h_addr_list[0];
     sin_family = AF_INET;
     sin_port = htons(port);
   }
@@ -30,7 +30,7 @@ class Socket {
     writeln "create fd";
     sockfd = socket (AF_INET, SOCK_STREAM, 0);
     writeln "connect";
-    std.c.sys.socket.connect (sockfd, cast(sockaddr*) &ta.saddr, typeof(ta.saddr).sizeof);
+    std.c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, typeof(ta.saddr).sizeof);
     writeln "done";
   }
   int recv(void[] buf) {

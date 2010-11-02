@@ -9,7 +9,7 @@ struct LiteralHolder {
 
 template Alloc(T) <<EOH
   T* Alloc() {
-    return cast(T*) sys.mem.malloc(T.sizeof);
+    return T*:sys.mem.malloc(T.sizeof);
   }
 EOH
 

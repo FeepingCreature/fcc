@@ -78,12 +78,12 @@ class Cross : Type, RichIterator {
   Tuple tup; // bool inited, then first third current values, second third running state, last third original iterators
   LValue castToTuple(LValue lv) {
     return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
-                  ("*cast(tup*) &lv", "lv", lv, "tup", tup);
+                  ("*tup*:&lv", "lv", lv, "tup", tup);
   }
   Expr castToTuple(Expr ex) {
     if (auto lv = cast(LValue) ex) return castToTuple(lv);
     return iparse!(Expr, "cross_cast_expr_to_tuple", "tree.expr")
-                  ("cast(tup) ex", "ex", ex, "tup", tup);
+                  ("tup:ex", "ex", ex, "tup", tup);
   }
   IType[] myTypes() {
     return tup.types[1 .. ($-1)/3 + 1];
@@ -210,12 +210,12 @@ class Zip(T) : Type, T {
   Tuple tup; // half iterators, half current values
   LValue castToTuple(LValue lv) {
     return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
-                  ("*cast(tup*) &lv", "lv", lv, "tup", tup);
+                  ("*tup*:&lv", "lv", lv, "tup", tup);
   }
   Expr castToTuple(Expr ex) {
     if (auto lv = cast(LValue) ex) return castToTuple(lv);
     return iparse!(Expr, "cross_cast_expr_to_tuple", "tree.expr")
-                  ("cast(tup) ex", "ex", ex, "tup", tup);
+                  ("tup:ex", "ex", ex, "tup", tup);
   }
   IType[] myTypes() { return tup.types[$/2 .. $]; }
   override {

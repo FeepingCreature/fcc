@@ -62,7 +62,7 @@ c_include "time.h";
 
 void sdlfun(float[3] delegate(float, float, float) dg) {
   SDL_Init(32); // video
-  SDL_Surface* surface = cast(SDL_Surface*) SDL_SetVideoMode(320, 240, 0, SDL_ANYFORMAT);
+  SDL_Surface* surface = SDL_Surface*: SDL_SetVideoMode(320, 240, 0, SDL_ANYFORMAT);
   int update() {
     SDL_Flip(surface);
     SDL_Event ev;
@@ -71,7 +71,7 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
     }
     return 0;
   }
-  auto start = time(cast(int*) 0);
+  auto start = time(int*: null);
   float t = 0;
   int fps;
   void run() {
@@ -80,20 +80,20 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
     int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
     float f1f = factor1, f2f = factor2, f3f = factor3;
     for (int y = 0; y < surface.h; ++y) {
-      auto p = &((cast(int*) surface.pixels)[y * cast(int) surface.w]);
+      auto p = &((int*:surface.pixels)[y * int:surface.w]);
       for (int x = 0; x < surface.w; ++x) {
-        auto f = dg(cast(float) x / surface.w, cast(float) y / surface.h, t);
-        *(p++) = cast(int) (f1f * f[2]) + cast(int) (f2f * f[1]) & factor2 + cast(int) (f3f * f[0]) & factor3;
+        auto f = dg(float:x / surface.w, float:y / surface.h, t);
+        *(p++) = int:(f1f * f[2]) + int:(f2f * f[1]) & factor2 + int:(f3f * f[0]) & factor3;
       }
     }
     fps ++;
   }
-  auto last = time(cast(int*) 0);
+  auto last = time(int*:null);
   while 1 {
     run();
     if (update()) return;
-    if time(cast(int*) 0) > last {
-      last = time(cast(int*) 0);
+    if time(int*:null) > last {
+      last = time(int*:null);
       writeln("FPS: $fps");
       fps = 0;
     }
@@ -178,10 +178,10 @@ int main(int argc, char** argv) {
     auto len = a * b;
     auto res = sys.mem.malloc(len);
     char ch;
-    (cast(char*) res)[0 .. len] = [for 0..len: ch];
+    (char*:res)[0 .. len] = [for 0..len: ch];
     return res;
   }
-  void* myRealloc(void* a, size_t b) { return GC_realloc(a, cast(int) b); }
+  void* myRealloc(void* a, size_t b) { return GC_realloc(a, int:b); }
   mem.calloc_dg = &myCalloc;
   mem.realloc_dg = &myRealloc;
   mem.free_dg = &GC_free;*/
@@ -190,7 +190,7 @@ int main(int argc, char** argv) {
     // printf("Allocate %i, %i\n", a, b);
     if (a*b > 65536) {
       printf("Excessive allocation: %i, %i\n", a, b);
-      *cast(int*) 0=0;
+      *(int*:null)=0;
     }
     return cdg(a, b);
   }
@@ -233,7 +233,7 @@ int main(int argc, char** argv) {
   Class cl = new Class;
   writeln("class size is $$typeof(cl).sizeof; method is $$typeof(&cl.foo).stringof");
   writeln("forble $$(&cl.foo).stringof");
-  writeln("class is at $$cast(void*) cl, i $$&(cl.i)");
+  writeln("class is at $$void*:cl, i $$&(cl.i)");
   cl.i = 3;
   cl.foo(2);
   void delegate(int) dgx = &cl.foo;
@@ -242,20 +242,20 @@ int main(int argc, char** argv) {
   writeln "Alloc subclass. ";
   auto sub = new Subclass;
   writeln "Do sup cast";
-  auto sup = cast(Class) sub;
-  writeln("sup is $$cast(void*) sup");
+  auto sup = Class:sub;
+  writeln("sup is $$void*:sup");
   sup.foo(-5);
-  writeln("sub is $$cast(void*) sub");
+  writeln("sub is $$void*:sub");
   sub.iafun();
   sub.ibfun();
   sub.icfun();
   sub.idfun();
   IA ia = sub;
-  writeln "call ia on implicit IA cast from sub; ia is $(cast(void*) ia), sub is $(cast(void*) sub), iafun is $(&ia.iafun), on sub would be $(&sub.iafun). ";
+  writeln "call ia on implicit IA cast from sub; ia is $(void*:ia), sub is $(void*:sub), iafun is $(&ia.iafun), on sub would be $(&sub.iafun). ";
   ia.iafun();
-  auto ic = cast(IC) ia;
+  auto ic = IC:ia;
   ic.icfun();
-  auto forb = cast(char[]) "test";
+  auto forb = char[]:"test";
   Blarg blg;
   {
     Blarg lolz() { Blarg res; return res; }
@@ -347,7 +347,7 @@ int main(int argc, char** argv) {
       float[3] n = void;
       
       float s = (fx + fy) * f2;
-      int i = cast(int) (fx + s), j = cast(int) (fy + s);
+      int i = int:(fx + s), j = int:(fy + s);
       
       float t = (i + j) * g2;
       float[3] x = void, y = void;
@@ -449,8 +449,8 @@ int main(int argc, char** argv) {
     sdlfun(&fun3);
     U u;
     u.F = 15;
-    printf("comparison 0x%08x\n", cast(float) 15);
-    writeln("u.i is $$cast(void*) u.I");
+    printf("comparison 0x%08x\n", float:15);
+    writeln("u.i is $$void*:u.I");
     auto tuple = (2, 3);
     writeln("Tuple is $$tuple[0], $$tuple[1]. ");
     int pow2(int i) {
@@ -462,7 +462,7 @@ int main(int argc, char** argv) {
     frob[0] = 15;
     writeln "frob is $frob";
     alias size = 4;
-    auto test = [for bin <- [for tuple <- cross ([for i <- 0..2: i]^size): cast(int[size]) tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
+    auto test = [for bin <- [for tuple <- cross ([for i <- 0..2: i]^size): int[size]:tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
     writeln("test is $$typeof(test).stringof: $test");
     return 0;
     atexit writeln("Exit 4. ");

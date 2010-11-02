@@ -23,7 +23,7 @@ template splitAt(T) <<EOF
         if (supstep <- sup[1]) { buffer ~= supstep; } else { done = true; return buffer[]; }
       }
       auto res = buffer[0 .. pos];
-      buffer = cast(typeof(buffer)) buffer[pos + sup[0].length .. buffer.length];
+      buffer = typeof(buffer):buffer[pos + sup[0].length .. buffer.length];
       return res;
     }
     // Cond terminateCond(Expr); // false => can't yield more values
@@ -65,5 +65,5 @@ int atoi(string s) {
 float atof(string s) {
   char* p = toStringz(s);
   atexit free(p);
-  return cast(float) c_atof(p);
+  return float:c_atof(p);
 }

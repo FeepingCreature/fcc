@@ -78,9 +78,9 @@ void setupSysmods() {
   string src = `
     module sys;
     alias bool = int;
-    alias true = cast(bool) 1;
-    alias false = cast(bool) 0;
-    alias null = cast(void*) 0;
+    alias true = bool:1;
+    alias false = bool:0;
+    alias null = void*:0;
     extern(C) {
       void puts(char*);
       void printf(char*, ...);
@@ -133,7 +133,7 @@ void setupSysmods() {
         }
         destlen /= sz2;
         T res;
-        auto resptr = cast(typeof(res[0])*) ptr;
+        auto resptr = typeof(res[0])*:ptr;
         res = resptr[0 .. destlen];
         return res;
       }
@@ -173,15 +173,15 @@ void setupSysmods() {
           auto newsize = size;
           if (size2 > newsize) newsize = size2;
           auto full = new T[newsize];
-          T[auto ~] res = cast(T[auto~]) ((full)[0 .. size]);
+          T[auto ~] res = T[auto~]:(full[0 .. size]);
           res.capacity = newsize;
           res[0 .. l.length] = (*l)[];
           if l.capacity // otherwise, initialized from slice
-            mem.free(cast(void*) l.ptr);
+            mem.free(void*:l.ptr);
           res[l.length .. size] = r;
           return res;
         } else {
-          T[auto ~] res = cast(T[auto~]) l.ptr[0 .. l.length + r.length]; // make space
+          T[auto ~] res = T[auto~]:l.ptr[0 .. l.length + r.length]; // make space
           res.capacity = l.capacity;
           l.capacity = 0; // claimed!
           res[l.length .. res.length] = r;
@@ -217,7 +217,7 @@ void setupSysmods() {
     }
     string ftoa(float f) {
       // printf("ftoa(%f)\n", f);
-      // printf("ftoa(%f)\n", cast(double) 16);
+      // printf("ftoa(%f)\n", double:16);
       auto res = new char[20];
       double d = f;
       int len = snprintf(res.ptr, res.length, "%f", d);

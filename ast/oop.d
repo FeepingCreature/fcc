@@ -96,7 +96,7 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
       if (fun.name == name) {
         return iparse!(Function, "intf_vtable_lookup", "tree.expr")
         ( "
-            *(*cast(fntype**) intp)[id].toDg(cast(void**) intp + **cast(int**) intp)
+            *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
           ",
           "fntype", fun.getPointer().valueType(), "intp", intp,
           "id", new IntExpr(id + own_offset)
@@ -125,7 +125,7 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
       if (fun.name == name) {
         return iparse!(Function, "intf_vtable_lookup2", "tree.expr")
         ( "
-            *(*cast(fntype**) classref)[id + offs].toDg(cast(void*) classref)
+            *(*fntype**:classref)[id + offs].toDg(void*:classref)
           ",
           "fntype", fun.getPointer().valueType(), "classref", classref,
           "id", new IntExpr(id + own_offset), "offs", new IntExpr(offs)
@@ -231,13 +231,13 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     auto strcmp = sysmod.lookup("strcmp");
     assert(!!strcmp);
     void handleIntf(Intf intf) {
-      as.stmts ~= iparse!(Statement, "cast_intf_class", "tree.stmt")("if (strcmp(id, _test) != 0) return cast(void*) (cast(void**) this + offs); ",
+      as.stmts ~= iparse!(Statement, "cast_intf_class", "tree.stmt")("if (strcmp(id, _test) != 0) return void*:(void**:this + offs); ",
         rf, "_test", mkString(intf.mangle_id), "offs", new IntExpr(intf_offset)
       );
       intf_offset ++;
     }
     void handleClass(Class cl) {
-      as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (strcmp(id, _test) != 0) return cast(void*) this; ",
+      as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (strcmp(id, _test) != 0) return void*:this; ",
         rf, "_test", mkString(cl.mangle_id)
       );
       if (cl.parent) handleClass(cl.parent);
@@ -245,7 +245,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
         handleIntf(intf);
     }
     handleClass(this);
-    as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return cast(void*) 0; ", rf);
+    as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return null; ", rf);
     rf.tree = as;
     get!(Module).entries ~= rf;
   }
@@ -358,7 +358,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
           // logln("transform ", rm, " with ", base);
           return rm.transform(
             iparse!(Expr, "rel_struct_cast", "tree.expr")
-            ("*cast(data*) base", "data", data, "base", base)
+            ("*data*:base", "data", data, "base", base)
           );
         }
         return cast(Object) res;
@@ -573,12 +573,9 @@ static this() {
 Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
-  if (!t2.accept("cast(")) return null;
   IType dest;
-  if (!rest(t2, "type", &dest))
+  if (!rest(t2, "type", &dest) || !t2.accept(":"))
     return null;
-  if (!t2.accept(")"))
-    throw new Exception("Missed closing bracket in class cast at '"~t2.next_text()~"'");
   if (!cast(ClassRef) dest && !cast(IntfRef) dest)
     return null;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
@@ -603,7 +600,7 @@ Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
   
   if (cast(IntfRef) ex.valueType()) ex = intfToClass(ex);
   return cast(Object) iparse!(Expr, "cast_call", "tree.expr")
-    ("cast(Dest) ex.dynamicCastTo(id)", "ex",
+    ("Dest:ex.dynamicCastTo(id)", "ex",
       ex, "Dest", dest, "id", mkString(dest_id)
     );
 }

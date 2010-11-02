@@ -18,14 +18,14 @@ class Range : Type, RichIterator {
   IType wrapper;
   LValue castToWrapper(LValue lv) {
     return iparse!(LValue, "range_cast_to_wrapper", "tree.expr")
-                  ("*cast(wrapper*) &lv", "lv", lv, "wrapper", wrapper);
+                  ("*wrapper*:&lv", "lv", lv, "wrapper", wrapper);
   }
   Expr castExprToWrapper(Expr ex) {
     return iparse!(Expr, "range_cast_expr_to_wrapper", "tree.expr")
-                  ("cast(wrapper) ex", "ex", ex, "wrapper", wrapper);
+                  ("wrapper:ex", "ex", ex, "wrapper", wrapper);
   }
   override {
-    IType elemType() { return iparse!(IType, "elem_type_range", "type")("typeof((cast(wrapper*) 0).cur)", "wrapper", wrapper); }
+    IType elemType() { return iparse!(IType, "elem_type_range", "type")("typeof((wrapper*:null).cur)", "wrapper", wrapper); }
     string toString() { return Format("RangeIter[", size, "](", wrapper, ")"); }
     int size() { return wrapper.size; }
     string mangle() { return "range_over_"~wrapper.mangle(); }
@@ -214,12 +214,12 @@ class ForIter(I) : Type, I {
   }
   LValue castToWrapper(LValue lv) {
     return iparse!(LValue, "foriter_cast_to_wrapper", "tree.expr")
-                  ("*cast(wrapper*) &lv", "lv", lv, "wrapper", wrapper);
+                  ("*wrapper*:&lv", "lv", lv, "wrapper", wrapper);
   }
   Expr castToWrapper(Expr ex) {
     if (auto lv = cast(LValue) ex) return castToWrapper(lv);
     return iparse!(Expr, "foriter_cast_ex_to_wrapper", "tree.expr")
-                  ("cast(wrapper) ex", "ex", ex, "wrapper", wrapper);
+                  ("wrapper:ex", "ex", ex, "wrapper", wrapper);
   }
   LValue subexpr(LValue lv) {
     return iparse!(LValue, "foriter_get_subexpr_lv", "tree.expr")
