@@ -1,14 +1,22 @@
 module ast.properties;
 
-import ast.base, ast.parse, ast.casting;
+import ast.base, ast.parse, ast.casting, ast.tuples;
 
 import tools.log;
-Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
+Object gotProperties(bool withTuple)(ref string text, ParseCb cont, ParseCb rest) {
   // check all possible continuations
   string longest; Object res;
   Object obj;
   cont(text, &obj);
   if (!obj) return null;
+  auto ex = cast(Expr) obj;
+  static if (withTuple) {
+    if (!ex || !cast(Tuple) ex.valueType())
+      return null; // don't.
+  } else {
+    if (ex && cast(Tuple) ex.valueType())
+      return null; // just .. don't.
+  }
   
   void check(Object sup, string text) {
     auto backup = lhs_partial();
@@ -45,4 +53,6 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   if (longest) text = longest;
   return res;
 }
-mixin DefaultParser!(gotProperties, "tree.expr.properties", "240");
+mixin DefaultParser!(gotProperties!(true), "tree.expr.properties.tup", "0");
+mixin DefaultParser!(gotProperties!(false), "tree.expr.properties.no_tup", "1");
+static this() { parsecon.addPrecedence("tree.expr.properties", "240"); }
