@@ -14,7 +14,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   foreach (ch; valid_call_start_tokens)
     if (text.startsWith([ch])) { token_match = true; break; }
   if (!token_match) return false;
-  if (!rest(text, "tree.expr _tree.expr.arith", &arg)) {
+  if (!rest(text, "tree.expr _tree.expr.arith >tree.expr.properties.tup", &arg)) {
     return false;
   }
   Expr[] args;

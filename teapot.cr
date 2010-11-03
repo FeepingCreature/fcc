@@ -208,7 +208,7 @@ int update(SDL_Surface* surface) {
 
 int main(int argc, char** argv) {
   t = 0;
-  auto ds = parse("newell_teaset/teapot");
+  auto ds = parse "newell_teaset/teapot";
   SDL_Init (SDL_INIT_VIDEO);
   auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);

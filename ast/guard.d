@@ -1,16 +1,43 @@
 module ast.guard;
 
-import ast.parse, ast.base, ast.namespace, ast.scopes, ast.assign;
+import
+  ast.parse, ast.base, ast.namespace, ast.scopes,
+  ast.assign, ast.nestfun, ast.modules;
 
 Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("atexit")) return null;
+  if (!t2.accept("onExit")) return null;
+  string type = "onExit";
   Statement st;
-  if (!rest(t2, "tree.stmt", &st)) throw new Exception("No statement matched for atexit: "~t2.next_text());
+  auto t3 = t2, t4 = t2;
   auto sc = cast(Scope) namespace();
   assert(sc, Format("::", namespace()));
-  sc.guards ~= st;
-  text = t2;
+  
+  if (type == "onSuccess" || type == "onExit") {
+    if (!rest(t3, "tree.stmt", &st))
+      throw new Exception("No statement matched for "~type~" in scope context: "~t3.next_text());
+    sc.guards ~= st;
+  }
+  if (type == "onFailure" || type == "onExit") {
+    auto nf = new NestedFunction(sc), mod = sc.get!(Module)();
+    New(nf.type);
+    nf.type.ret = Single!(Void);
+    nf.fixup;
+    nf.sup = mod;
+    static int funId;
+    nf.name = Format("guardfn_", funId++);
+    auto backup = sc;
+    scope(exit) namespace.set(backup);
+    namespace.set(nf);
+    if (!rest(t4, "tree.scope", &nf.tree))
+      throw new Exception("No statement matched for "~type~" in exception guard context: "~t4.next_text());
+    mod.entries ~= cast(Tree) nf;
+    // TODO: build linked list here
+    // TODO: remove from stack on scope exit (add guard, lol)
+  }
+  
+  assert(t3 is t4);
+  text = t3;
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotGuard, "tree.stmt.guard");

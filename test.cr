@@ -304,9 +304,9 @@ int main(int argc, char** argv) {
     char[] s1 = "foo", s2 = "bar", s3 = s1 ~ s2;
     writeln("s3 is $s3, or $$s1 ~ s2, length $$s3.length");
   }
-  atexit writeln("global is $globvar, $$&globvar, $$*&globvar");
-  atexit writeln("Exit. ");
-  atexit writeln("Exit 2. ");
+  onExit writeln("global is $globvar, $$&globvar, $$*&globvar");
+  onExit writeln("Exit. ");
+  onExit writeln("Exit 2. ");
   float fl = 2;
   fl = fl + 10;
   writeln("fl is $fl");
@@ -319,7 +319,7 @@ int main(int argc, char** argv) {
   testfl(12);
   testfl(13);
   {
-    atexit writeln("Exit 3. ");
+    onExit writeln("Exit 3. ");
     // 2d simplex noise; see http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf
     int[512] perm;
     perm[0 .. 256] = [for 0..256: rand() % 256];
@@ -465,6 +465,6 @@ int main(int argc, char** argv) {
     auto test = [for bin <- [for tuple <- cross ([for i <- 0..2: i]^size): int[size]:tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
     writeln("test is $$typeof(test).stringof: $test");
     return 0;
-    atexit writeln("Exit 4. ");
+    onExit writeln("Exit 4. ");
   }
 }

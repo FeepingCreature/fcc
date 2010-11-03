@@ -28,6 +28,6 @@ alias c_open = open;
 import std.string;
 int open(string file) {
   auto ptr = toStringz(file);
-  atexit mem.free(ptr);
+  onExit mem.free(ptr);
   return c_open(ptr, O_RDONLY);
 }

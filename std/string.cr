@@ -58,12 +58,12 @@ alias c_atof = atof;
 
 int atoi(string s) {
   auto p = toStringz(s);
-  atexit free(p);
+  onExit mem.free(p);
   return c_atoi(p);
 }
 
 float atof(string s) {
   char* p = toStringz(s);
-  atexit free(p);
+  onExit mem.free(p);
   return float:c_atof(p);
 }
