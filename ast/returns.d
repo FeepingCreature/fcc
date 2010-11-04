@@ -11,9 +11,10 @@ class ReturnStmt : Statement {
   mixin defaultIterate!(value);
   Statement[] guards;
   override void emitAsm(AsmFile af) {
-    
     auto fun = ns.get!(Function);
     if (value) {
+      scope(failure) logln("while returning ", value);
+      mixin(mustOffset("0"));
       auto value = new Variable(value.valueType(), null, boffs(value.valueType(), af.currentStackDepth));
       {
         auto vd = new VarDecl;
@@ -53,6 +54,7 @@ class ReturnStmt : Statement {
       } else {
         assert(false, Format("Unsupported return type ", value.valueType()));
       }
+      af.sfree(value.valueType().size); // pro forma
     } else {
       foreach_reverse(stmt; guards)
         stmt.emitAsm(af);

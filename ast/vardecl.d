@@ -1,6 +1,6 @@
 module ast.vardecl;
 
-import ast.assign, ast.base;
+import ast.assign, ast.base, tools.base: Range;
 public import ast.variable;
 
 import ast.pointer, ast.casting;
@@ -11,6 +11,20 @@ class VarDecl : Statement {
   override void emitAsm(AsmFile af) {
     // logln("emit at ", af.currentStackDepth, ": ", vars);
     foreach (var; vars) {
+      // sanity checking start!
+      if (var.baseOffset + var.type.size != -af.currentStackDepth) {
+        logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var);
+        foreach (elem; namespace().field) {
+          if (auto var = cast(Variable) elem._1) {
+            auto csd = af.currentStackDepth;
+            if (csd in
+              Range[var.baseOffset .. var.baseOffset + var.type.size].endIncl)
+              logln("Clobbered by ", var, ". ");
+          }
+        }
+        assert(false);
+      }
+      // sanity checking end!
       if (var.dontInit)
         af.salloc(var.type.size);
       else {
@@ -26,7 +40,6 @@ class VarDecl : Statement {
           af.nvm("%eax");
         }
       }
-      assert(-var.baseOffset == af.currentStackDepth, Format("Variable mispositioned: LOGIC ERROR; variable at ", -var.baseOffset, " vs. stack at ", af.currentStackDepth, ": ", var));
     }
   }
   override string toString() { return Format("declare ", vars); }
@@ -37,8 +50,10 @@ import tools.log;
 int boffs(IType t, int curdepth = -1) {
   if (curdepth == -1) {
     auto sl = namespace().get!(ScopeLike);
-    if (!sl) asm { int 3; }
-    assert(!!sl, Format("no ScopeLike beneath ", namespace(), " for placing a ", t));
+    if (!sl) {
+      logln("no ScopeLike beneath ", namespace(), " for placing a ", t);
+      asm { int 3; }
+    }
     curdepth = sl.framesize();
   }
   return - curdepth - t.size;

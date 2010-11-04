@@ -226,6 +226,11 @@ void setupSysmods() {
     }
     class Object {
     }
+    struct GuardRecord {
+      void delegate() dg;
+      GuardRecord* prev;
+    }
+    GuardRecord* _record;
   `;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
   string base = src.between("", "/*MARKER*/") ~ "}";

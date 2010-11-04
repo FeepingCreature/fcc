@@ -2,16 +2,20 @@ module ast.guard;
 
 import
   ast.parse, ast.base, ast.namespace, ast.scopes,
-  ast.assign, ast.nestfun, ast.modules;
+  ast.assign, ast.nestfun, ast.modules,
+  ast.variable, ast.vardecl;
 
 Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("onExit")) return null;
-  string type = "onExit";
+  string type;
+  if (t2.accept("onExit")) type = "onExit";
+  else if (t2.accept("onSuccess")) type = "onSuccess";
+  else if (t2.accept("onFailure")) type = "onFailure";
+  else return null;
   Statement st;
   auto t3 = t2, t4 = t2;
-  auto sc = cast(Scope) namespace();
-  assert(sc, Format("::", namespace()));
+  auto sc = namespace().get!(Scope)();
+  assert(!!sc, Format("::", namespace()));
   
   if (type == "onSuccess" || type == "onExit") {
     if (!rest(t3, "tree.stmt", &st))
@@ -26,17 +30,51 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     nf.sup = mod;
     static int funId;
     nf.name = Format("guardfn_", funId++);
-    auto backup = sc;
-    scope(exit) namespace.set(backup);
-    namespace.set(nf);
-    if (!rest(t4, "tree.scope", &nf.tree))
-      throw new Exception("No statement matched for "~type~" in exception guard context: "~t4.next_text());
+    {
+      auto backup = namespace();
+      scope(exit) namespace.set(backup);
+      namespace.set(nf);
+      if (!rest(t4, "tree.scope", &nf.tree))
+        throw new Exception("No statement matched for "~type~" in exception guard context: "~t4.next_text());
+    }
     mod.entries ~= cast(Tree) nf;
-    // TODO: build linked list here
-    // TODO: remove from stack on scope exit (add guard, lol)
+    auto grtype = cast(IType) sysmod.lookup("GuardRecord");
+    assert(grtype);
+    {
+      auto gr = new Variable(grtype, null, boffs(grtype));
+      gr.initInit;
+      auto decl = new VarDecl;
+      decl.vars ~= gr;
+      sc.addStatement(decl);
+      auto sl = namespace().get!(ScopeLike);
+      namespace().add(gr);
+      {
+        auto setup_st =
+          iparse!(Statement, "gr_setup_1", "tree.stmt")
+                 (`
+                 {
+                   var.dg = &fun;
+                   var.prev = _record;
+                   _record = &var;
+                 }`,
+                 "var", gr, "fun", nf);
+        assert(setup_st);
+        sc.addStatement(setup_st);
+      }
+      {
+        auto setup_st =
+          iparse!(Statement, "gr_setup_2", "tree.stmt")
+                 (`onSuccess _record = _record.prev; `, namespace());
+        assert(setup_st);
+        // no need to add, is NoOp
+      }
+    }
   }
   
-  assert(t3 is t4);
+  assert(type != "onExit" || t3 is t4,
+    Format("Mismatch: First case matched to '", t3.next_text(), "', "
+           "second to '", t4.next_text(), "'. ")
+  );
   text = t3;
   return Single!(NoOp);
 }
