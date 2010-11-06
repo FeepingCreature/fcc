@@ -7,6 +7,7 @@ import classgraph;
 
 const string EXT = ".cr";
 
+// What I wouldn't give for "import ast.*; "
 import
   ast.aggregate_parse, ast.returns, ast.ifstmt, ast.loops, ast.assign,
   ast.structure, ast.variable, ast.fun, ast.unary,
@@ -17,7 +18,8 @@ import
   ast.stringex, ast.c_bind, ast.eval, ast.iterator,
   ast.properties, ast.tuples, ast.iterator_ext, ast.literal_string,
   ast.tuple_access, ast.funcall, ast.vector, ast.externs,
-  ast.intr;
+  ast.intr, ast.conditionals, ast.opers, ast.cond, ast.casting,
+  ast.pointer;
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -28,6 +30,25 @@ static this() {
   New(current_module, { return cast(Module) null; });
 }
 alias ast.parse.startsWith startsWith;
+// from ast.fun
+static this() {
+  // Assumption: SysInt is size_t.
+  Expr fpeq(bool neg, Expr ex1, Expr ex2) {
+    auto fp1 = cast(FunctionPointer) ex1.valueType(), fp2 = cast(FunctionPointer) ex2.valueType();
+    if (!fp1 || !fp2) return null;
+    return new CondExpr(new Compare(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
+  }
+  Expr ptreq(bool neg, Expr ex1, Expr ex2) {
+    auto p1 = cast(Pointer) ex1.valueType(), p2 = cast(Pointer) ex2.valueType();
+    if (!p1 || !p2) return null;
+    assert(p1.target == p2.target);
+    return new CondExpr(new Compare(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
+  }
+  defineOp("==", false /apply/  &fpeq);
+  defineOp("==", false /apply/ &ptreq);
+  defineOp("!=",  true /apply/  &fpeq);
+  defineOp("!=",  true /apply/ &ptreq);
+}
 
 extern(C) {
   int open(char* filename, int flags, size_t mode);
