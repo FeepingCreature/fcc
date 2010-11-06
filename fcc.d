@@ -1,25 +1,20 @@
 module fcc; // feep's crazed compiler
 // fcc is licensed under the terms of the GNU General Public License v3 or GPLv3.
 
-import tools.log, tools.compat;
+import tools.log, tools.compat, tools.smart_import;
 alias ast.types.Type Type;
 import classgraph;
 
 const string EXT = ".cr";
 
-// What I wouldn't give for "import ast.*; "
-import
-  ast.aggregate_parse, ast.returns, ast.ifstmt, ast.loops, ast.assign,
-  ast.structure, ast.variable, ast.fun, ast.unary,
-  ast.arrays, ast.index, ast.slice, ast.nestfun,
-  ast.structfuns, ast.type_info, ast.aliasing,
-  ast.oop, ast.dg, ast.newexpr, ast.guard, ast.withstmt,
-  ast.templ, ast.globvars, ast.context, ast.concat,
-  ast.stringex, ast.c_bind, ast.eval, ast.iterator,
-  ast.properties, ast.tuples, ast.iterator_ext, ast.literal_string,
-  ast.tuple_access, ast.funcall, ast.vector, ast.externs,
-  ast.intr, ast.conditionals, ast.opers, ast.cond, ast.casting,
-  ast.pointer;
+mixin(expandImport(`ast.[
+  aggregate_parse, returns, ifstmt, loops, assign,
+  structure, variable, fun, unary, arrays, index, slice,
+  nestfun, structfuns, type_info, aliasing, oop, dg,
+  newexpr, guard, withstmt, templ, globvars, context,
+  concat, stringex, c_bind, eval, iterator[,_ext], properties,
+  tuples, tuple_access, literal_string, funcall, vector, externs,
+  intr, conditionals, opers, cond, casting, pointer]`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
