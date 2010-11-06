@@ -404,8 +404,8 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
 
 import ast.fold, ast.casting;
 static this() {
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto r = cast(RCE) ex) {
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto r = cast(RCE) it) {
       if (auto lit = cast(StructLiteral) r.from) {
         if (lit.exprs.length == 1 &&
             lit.exprs[0].valueType() == r.to)
@@ -414,9 +414,9 @@ static this() {
     }
     return null;
   };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = cast(MemberAccess_Expr) ex) {
-      auto base = fold(mae.base);
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto mae = cast(MemberAccess_Expr) it) {
+      auto base = foldex(mae.base);
       // logln("::", mae.stm.type.size, " vs. ", base.valueType().size);
       if (mae.stm.type.size == base.valueType().size) {
         if (auto lv = cast(LValue) base)
@@ -427,9 +427,9 @@ static this() {
     }
     return null;
   };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = cast(MemberAccess_Expr) ex) {
-      auto base = fold(mae.base);
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto mae = cast(MemberAccess_Expr) it) {
+      auto base = foldex(mae.base);
       if (auto sl = cast(StructLiteral) base) {
         Expr res;
         int i;
@@ -447,13 +447,13 @@ static this() {
     }
     return null;
   };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = cast(MemberAccess_Expr) ex) {
-      auto base = fold(mae.base);
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto mae = cast(MemberAccess_Expr) it) {
+      auto base = foldex(mae.base);
       Expr from;
       if (auto mae2 = cast(MemberAccess_Expr) base) from = base; // lol direct
-      if (auto c = cast(RCL) base) from = fold(c.from);
-      if (auto c = cast(RCE) base) from = fold(c.from);
+      if (auto c = cast(RCL) base) from = foldex(c.from);
+      if (auto c = cast(RCE) base) from = foldex(c.from);
       if (from) {
         if (auto m2 = cast(MemberAccess_Expr) from) {
           MemberAccess_Expr weird;

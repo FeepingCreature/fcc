@@ -15,7 +15,7 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
     res.base = new RCE(wrapped, tuple);
   }
   res.stm = temps[pos];
-  return fold(res);
+  return foldex(res);
 }
 
 Expr[] getTupleEntries(Expr tuple) {
@@ -45,7 +45,7 @@ Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
       !gotImplicitCast(index, (IType it) { return test(Single!(SysInt) == it); }) ||
       !t2.accept("]")) return null;
     text = t2;
-    index = fold(index);
+    index = foldex(index);
     auto ie = cast(IntExpr) index;
     if (!ie) {
       error = Format(index, " could not be simplified to an int in tuple index access at '"~text.next_text()~"'. ");

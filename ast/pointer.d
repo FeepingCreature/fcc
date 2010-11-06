@@ -102,7 +102,7 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   IType[] tried;
   if (!gotImplicitCast(ex, (Expr ex) {
-    auto f = fold(ex);
+    auto f = foldex(ex);
     tried ~= f.valueType();
     return test(cast(CValue) f);
   })) throw new Exception(Format("Can't take reference: ", ex, " does not become a cvalue (", tried, ") at ", text.next_text()));

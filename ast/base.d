@@ -252,7 +252,30 @@ interface ScopeLike {
   int framesize();
 }
 
-Expr delegate(Expr)[] foldopt; // a thing that flattens
+private alias Iterable Itr;
+
+Itr delegate(Itr)[] _foldopt; // a thing that flattens
+
+struct foldopt {
+  static {
+    void opCatAssign(Itr delegate(Itr) dg) {
+      _foldopt ~= dg;
+    }
+    void opCatAssign(Expr delegate(Expr) dg) {
+      _foldopt ~= dg /apply/ delegate Itr(typeof(dg) dg, Itr it) {
+        auto ex = cast(Expr) it;
+        if (!ex) return null;
+        auto res = dg(ex);
+        return cast(Itr) res;
+      };
+    }
+    int opApply(int delegate(ref Itr delegate(Itr)) dg) {
+      foreach (dg2; _foldopt)
+        if (auto res = dg(dg2)) return res;
+      return 0;
+    }
+  }
+}
 
 class StatementAndExpr : Expr {
   Statement first;

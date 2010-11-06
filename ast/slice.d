@@ -81,8 +81,8 @@ Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
         // assert(!!cast(Array) ex.valueType(), "Cannot take \"full slice\" over pointer! ");
         to = getArrayLength(ex);
       }
-      from = fold(from);
-      to = fold(to);
+      from = foldex(from);
+      to = foldex(to);
       if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: ", from));
       if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: ", from));
       text = t2;

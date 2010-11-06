@@ -122,7 +122,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   auto mod = lookupMod(modname);
   auto len_parse = sec() - start_parse;
   double len_opt;
-  if (optimize) len_opt = time({
+  len_opt = time({
     if (!ematSysmod)
       sysmod = .optimize(sysmod);
     mod    = .optimize(mod);

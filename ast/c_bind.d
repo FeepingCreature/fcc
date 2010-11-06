@@ -205,10 +205,10 @@ void parseHeader(string filename, string src, ParseCb rest) {
             // logln("--", entry);
             goto giveUp;
           }
-          cur = opt(ex);
+          cur = foldex(ex);
         }
         elems ~= new ExprAlias(cur, id);
-        cur = opt(lookupOp("+", cur, new IntExpr(1)));
+        cur = foldex(lookupOp("+", cur, new IntExpr(1)));
       }
       // logln("Got from enum: ", elems);
       stmt = stmt.between("}", "");
@@ -255,7 +255,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
           st3 = st3.replace("(int)", ""); // hax
           if (gotIdentifier(st3, name3) && st3.accept("[") && rest(st3, "tree.expr", &size) && st3.accept("]")) {
             redo:
-            size = fold(size);
+            size = foldex(size);
             if (cast(AstTuple) size.valueType()) {
               // unwrap "(foo)"
               size = (cast(StructLiteral) (cast(RCE) size).from)
@@ -320,7 +320,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       auto st3 = stmt;
       if (st3.accept("[") && rest(st3, "tree.expr", &size) && st3.accept("]")) {
         redo3:
-        size = fold(size);
+        size = foldex(size);
         // unwrap "(bar)" again
         if (cast(AstTuple) size.valueType()) {
           size = (cast(StructLiteral) (cast(RCE) size).from).exprs[$-1];
@@ -384,8 +384,8 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(text, "tree.expr", &ex)) throw new Exception("Couldn't find expr at '"~text.next_text()~"'!");
   if (!text.accept(";")) throw new Exception("Missing trailing semicolon at '"~text.next_text()~"'! ");
-  auto str = cast(StringExpr) fold(ex);
-  if (!str) throw new Exception(Format(fold(ex), " is not a string at '", text.next_text(), "'!"));
+  auto str = cast(StringExpr) foldex(ex);
+  if (!str) throw new Exception(Format(foldex(ex), " is not a string at '", text.next_text(), "'!"));
   auto name = str.str;
   // prevent injection attacks
   foreach (ch; name)

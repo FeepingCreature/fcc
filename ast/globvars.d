@@ -92,7 +92,7 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       ),
       t2.accept(","),
       {
-        gvd.vars ~= new GlobVar(ty, name, ns, gvd.tls, fold(initval));
+        gvd.vars ~= new GlobVar(ty, name, ns, gvd.tls, foldex(initval));
         initval = null;
       },
       false

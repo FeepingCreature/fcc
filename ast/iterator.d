@@ -227,9 +227,9 @@ class ForIter(I) : Type, I {
   }
   Expr subexpr(Expr ex) {
     if (auto lv = cast(LValue) ex) return subexpr(lv);
-    ex = opt(ex);
+    ex = optex(ex);
     // optimize subexpr of literal
-    auto res = opt(iparse!(Expr, "foriter_get_subexpr", "tree.expr")
+    auto res = optex(iparse!(Expr, "foriter_get_subexpr", "tree.expr")
                            ("ex.subiter", "ex", ex));
     return res;
   }

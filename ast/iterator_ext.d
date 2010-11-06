@@ -186,7 +186,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
     auto tup = cast(Tuple) ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
-      ex2 = fold(ex2);
+      ex2 = foldex(ex2);
       // logln("got tuple entry ", ex2);
       if (!forb(ex2) || !gotImplicitCast(ex2, isRichIterator))
         return false;
@@ -197,7 +197,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
-    entry = fold(entry);
+    entry = foldex(entry);
     forb(entry);
     gotImplicitCast(entry, isRichIterator);
   }
@@ -305,7 +305,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     auto tup = cast(Tuple) ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
-      ex2 = fold(ex2);
+      ex2 = foldex(ex2);
       if (!forb(ex2) || !gotImplicitCast(ex2, isIterator))
         return false;
       auto test = ex2;
@@ -320,7 +320,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
-    entry = fold(entry);
+    entry = foldex(entry);
     forb(entry);
     if (rich) gotImplicitCast(entry, isRichIterator);
     else gotImplicitCast(entry, isIterator);
