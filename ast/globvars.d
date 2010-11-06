@@ -9,7 +9,7 @@ class GlobVar : LValue, Named {
   Namespace ns;
   mixin defaultIterate!();
   Expr initval;
-  GlobVar dup() { assert(false, "hey stop it"); }
+  GlobVar dup() { return this; /* invariant */ }
   string getInit() {
     if (!initval) return null;
     auto l = cast(Literal) initval;
