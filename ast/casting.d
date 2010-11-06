@@ -218,6 +218,32 @@ bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept) {
   return gotImplicitCast(ex, (Expr ex) { return accept(ex.valueType()); });
 }
 
+Expr[] getAllImplicitCasts(Expr ex) {
+  IType[] visited;
+  bool haveVisited(Expr ex) {
+    auto t1 = ex.valueType();
+    foreach (t2; visited) if (t1 == t2) return true;
+    return false;
+  }
+  Expr[] res;
+  void recurse(Expr ex) {
+    auto start = res.length;
+    foreach (dg; implicits) {
+      dg(ex, (Expr ce) {
+        if (haveVisited(ce)) return;
+        visited ~= ce.valueType();
+        res ~= ce;
+      });
+    }
+    foreach (entry; res[start .. $])
+      recurse(entry);
+  }
+  auto dcme = cast(DontCastMeExpr) ex;
+  res ~= ex;
+  if (!dcme) recurse(ex);
+  return res;
+}
+
 class ShortToIntCast : Expr {
   Expr sh;
   this(Expr sh) { this.sh = sh; }

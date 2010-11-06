@@ -36,6 +36,17 @@ Object gotTypeStringof(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotTypeStringof, "tree.expr.type_stringof", "30");
 
+Object gotTypeMangle(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  IType ty;
+  if (!rest(t2, "type", &ty))
+    return null;
+  if (!t2.accept(".mangleof")) return null;
+  text = t2;
+  return cast(Object) mkString(ty.mangle());
+}
+mixin DefaultParser!(gotTypeMangle, "tree.expr.type_mangleof", "301");
+
 import tools.log;
 Object gotPartialStringof(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {

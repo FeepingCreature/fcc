@@ -231,6 +231,27 @@ void setupSysmods() {
       GuardRecord* prev;
     }
     GuardRecord* _record;
+    interface IExprValue {
+      IExprValue take(string type, void* target);
+      bool isEmpty();
+    }
+    interface ITupleValue : IExprValue {
+      int getLength();
+      IExprValue getMember(int which);
+    }
+    template takeValue(T) <<EOF
+      (T, IExprValue) takeValue(IExprValue iev) {
+        T res = void;
+        auto niev = iev.take(T.mangleof, &res);
+        return (res, niev);
+      }
+    EOF
+    import std.c.setjmp; // for conditions
+    struct CondMarker {
+      string name;
+      void delegate(IExprValue) dg;
+      CondMarker* prev;
+    }
   `;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
   string base = src.between("", "/*MARKER*/") ~ "}";
