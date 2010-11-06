@@ -226,11 +226,11 @@ void setupSysmods() {
     }
     class Object {
     }
-    struct GuardRecord {
+    struct _GuardRecord {
       void delegate() dg;
-      GuardRecord* prev;
+      _GuardRecord* prev;
     }
-    GuardRecord* _record;
+    _GuardRecord* _record;
     interface IExprValue {
       IExprValue take(string type, void* target);
       bool isEmpty();
@@ -247,10 +247,34 @@ void setupSysmods() {
       }
     EOF
     import std.c.setjmp; // for conditions
-    struct CondMarker {
+    struct _CondMarker {
       string name;
-      void delegate(IExprValue) dg;
-      CondMarker* prev;
+      void delegate() guard_id;
+      _CondMarker* prev;
+      jmp_buf target;
+      void jump() {
+        // TODO: pointer comparisons, dg comparisons
+        if (!guard_id.fun) {
+          while _record { _record.dg(); _record = _record.prev; }
+        } else {
+          while (_record.dg.fun != guard_id.fun) && (_record.dg.data != guard_id.data) {
+            _record.dg();
+            _record = _record.prev;
+          }
+        }
+        longjmp (target, 1);
+      }
+    }
+    
+    _CondMarker* _cm;
+    
+    _CondMarker* _lookupCM(string s) {
+      auto cur = _cm;
+      while (cur) {
+        if (cur.name == s) return cur;
+        cur = cur.prev;
+      }
+      return _CondMarker*:null;
     }
   `;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.

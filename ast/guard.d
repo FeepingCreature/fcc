@@ -38,7 +38,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
         throw new Exception("No statement matched for "~type~" in exception guard context: "~t4.next_text());
     }
     mod.entries ~= cast(Tree) nf;
-    auto grtype = cast(IType) sysmod.lookup("GuardRecord");
+    auto grtype = cast(IType) sysmod.lookup("_GuardRecord");
     assert(grtype);
     {
       auto gr = new Variable(grtype, null, boffs(grtype));
