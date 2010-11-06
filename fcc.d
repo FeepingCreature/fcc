@@ -76,15 +76,7 @@ extern(C) void exit(int);
 import tools.time, quicksort;
 import optimizer, ast.fold;
 
-Module optimize(Module mod) {
-  void fun(ref Iterable iter) {
-    if (auto ex = cast(Expr) iter)
-      iter = cast(Iterable) fold(ex);
-    iter.iterate(&fun);
-  }
-  mod.iterate(&fun);
-  return mod;
-}
+void optimize(Module mod) { ast.fold.opt(mod); }
 
 bool ematSysmod;
 
@@ -124,8 +116,8 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   double len_opt;
   len_opt = time({
     if (!ematSysmod)
-      sysmod = .optimize(sysmod);
-    mod    = .optimize(mod);
+      .optimize(sysmod);
+    .optimize(mod);
   }) / 1_000_000f;
   auto len_gen = time({
     if (!ematSysmod) {
@@ -134,10 +126,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     }
     mod.emitAsm(af);
   }) / 1_000_000f;
-  if (optimize)
-    writefln(len_parse, " to parse, ", len_gen, " to emit, ", len_opt, " to opt. ");
-  else
-    writefln(len_parse, " to parse, ", len_gen, " to emit. ");
+  writefln(len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
   Stuple!(string, float)[] entries;
   foreach (key, value; ast.namespace.bench) entries ~= stuple(key, value);
   entries.qsort(ex!("a, b -> a._1 > b._1"));

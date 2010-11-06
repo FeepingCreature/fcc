@@ -227,10 +227,11 @@ class ForIter(I) : Type, I {
   }
   Expr subexpr(Expr ex) {
     if (auto lv = cast(LValue) ex) return subexpr(lv);
-    ex = optex(ex);
+    opt(ex);
     // optimize subexpr of literal
-    auto res = optex(iparse!(Expr, "foriter_get_subexpr", "tree.expr")
-                           ("ex.subiter", "ex", ex));
+    auto res = iparse!(Expr, "foriter_get_subexpr", "tree.expr")
+                      ("ex.subiter", "ex", ex);
+    opt(res);
     return res;
   }
   import ast.literal_string;

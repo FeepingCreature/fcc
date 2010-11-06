@@ -27,18 +27,13 @@ Expr foldex(Expr ex) {
   return res;
 }
 
-Itr opt(Itr obj) {
-  obj = obj.dup;
+void opt(T)(ref T t) {
   void fun(ref Itr it) {
     it = fold(it);
     it.iterate(&fun);
   }
-  fun(obj);
-  return obj;
-}
-
-Expr optex(Expr ex) {
-  auto res = cast(Expr) opt(ex);
-  assert(!!res);
-  return res;
+  Itr it = cast(Itr) t;
+  fun(it);
+  t = cast(T) it;
+  assert(!!t);
 }

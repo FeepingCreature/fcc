@@ -177,10 +177,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     }
     auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
     if (op == "=") op = "==";
-    auto res = lookupOp(op, ex1, ex2);
-    if (auto ce = cast(CondExpr) res) return cast(Object) ce.cd;
-    logln("::", res);
-    assert(false);
+    return new ExprWrap(lookupOp(op, ex1, ex2));
   } else return null;
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
@@ -300,3 +297,13 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval_cond", "2701");
+
+static this() {
+  foldopt ~= delegate Itr(Itr it) {
+    auto ew = cast(ExprWrap) it;
+    if (!ew) return null;
+    auto ce = cast(CondExpr) ew.ex;
+    if (!ce) return null;
+    return ce.cd;
+  };
+}
