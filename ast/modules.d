@@ -323,6 +323,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
         }
       )
     ) {
+      eatComments(t2);
       text = t2;
       if (text.strip().length)
         throw new Exception("Unknown statement at '"~text.next_text()~"'");
