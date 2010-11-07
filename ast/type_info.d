@@ -1,6 +1,6 @@
 module ast.type_of;
 
-import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals;
+import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop;
 
 Object gotTypeof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -46,6 +46,22 @@ Object gotTypeMangle(ref string text, ParseCb cont, ParseCb rest) {
   return cast(Object) mkString(ty.mangle());
 }
 mixin DefaultParser!(gotTypeMangle, "tree.expr.type_mangleof", "301");
+
+Object gotClassId(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  IType ty;
+  if (!rest(t2, "type", &ty))
+    return null;
+  auto cr = cast(ClassRef) ty, ir = cast(IntfRef) ty;
+  Class cl; Intf it;
+  if (cr) cl = cr.myClass;
+  if (ir) it = ir.myIntf;
+  if (!cl && !it) return null;
+  if (!t2.accept(".classid")) return null;
+  text = t2;
+  return cast(Object) mkString(cl?cl.mangle_id:it.mangle_id);
+}
+mixin DefaultParser!(gotClassId, "tree.expr.classid", "302");
 
 import tools.log;
 Object gotPartialStringof(ref string text, ParseCb cont, ParseCb rest) {
