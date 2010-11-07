@@ -15,7 +15,7 @@ Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
     ) { text = t2; return sc; }
   else return null;
 }
-mixin DefaultParser!(gotAggregateStmt, "tree.stmt.aggregate");
+mixin DefaultParser!(gotAggregateStmt, "tree.stmt.aggregate", "131");
 
 Object gotRestStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -32,4 +32,4 @@ Object gotRestStmt(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return sc;
 }
-mixin DefaultParser!(gotRestStmt, "tree.stmt.aggregate.rest");
+mixin DefaultParser!(gotRestStmt, "tree.stmt.aggregate.rest", "132");

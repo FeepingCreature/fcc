@@ -276,6 +276,23 @@ void setupSysmods() {
       }
       return _CondMarker*:null;
     }
+    
+    struct _Handler {
+      string id;
+      _Handler* prev;
+      void delegate(Object) dg;
+      bool accepts(Object obj) {
+        return eval !!obj.dynamicCastTo(id);
+      }
+    }
+
+    _Handler* _hdl;
+    
+    /*
+    int main(int argc, char** argv) {
+      
+    }
+    */
   `;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
   string base = src.between("", "/*MARKER*/") ~ "}";

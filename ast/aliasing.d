@@ -117,5 +117,5 @@ redo:
   } else return null;
 }
 mixin DefaultParser!(gotAlias, "struct_member.struct_alias");
-mixin DefaultParser!(gotAlias, "tree.stmt.alias");
+mixin DefaultParser!(gotAlias, "tree.stmt.alias", "16");
 mixin DefaultParser!(gotAlias, "tree.toplevel.alias");

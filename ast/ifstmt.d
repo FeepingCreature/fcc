@@ -1,6 +1,6 @@
 module ast.ifstmt;
 
-import ast.base, ast.scopes, ast.cond, ast.parse;
+import ast.base, ast.scopes, ast.conditionals, ast.parse;
 
 class IfStatement : Statement {
   Scope branch1, branch2;
@@ -50,4 +50,4 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
     return ifs;
   } else return null;
 }
-mixin DefaultParser!(gotIfStmt, "tree.stmt.if");
+mixin DefaultParser!(gotIfStmt, "tree.stmt.if", "19");

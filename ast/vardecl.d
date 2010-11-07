@@ -113,7 +113,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     return vd;
   } else return null;
 }
-mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl");
+mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl", "21");
 
 Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, varname;
@@ -140,4 +140,4 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
     return vd;
   } else return null;
 }
-mixin DefaultParser!(gotAutoDecl, "tree.stmt.autodecl");
+mixin DefaultParser!(gotAutoDecl, "tree.stmt.autodecl", "22");

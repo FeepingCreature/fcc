@@ -66,4 +66,4 @@ Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
     return obj;
   } else return null;
 }
-mixin DefaultParser!(gotSemicolStmt, "tree.stmt.semicolonized");
+mixin DefaultParser!(gotSemicolStmt, "tree.stmt.semicolonized", "5");

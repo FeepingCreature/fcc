@@ -111,7 +111,7 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return ws;
 }
-mixin DefaultParser!(gotWithStmt, "tree.stmt.withstmt");
+mixin DefaultParser!(gotWithStmt, "tree.stmt.withstmt", "11");
 
 Object gotBackupOf(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

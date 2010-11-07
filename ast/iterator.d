@@ -34,7 +34,7 @@ class Range : Type, RichIterator {
       return iparse!(Expr, "yield_advance_range", "tree.expr")
                     ("lv.cur++", "lv", castToWrapper(lv));
     }
-    import ast.cond: Compare;
+    import ast.conditionals: Compare;
     Cond terminateCond(Expr ex) {
       ex = castExprToWrapper(ex);
       return new Compare(

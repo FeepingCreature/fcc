@@ -73,7 +73,7 @@ class CrossIndexExpr : Expr {
   }
 }
 
-import ast.ifstmt, ast.cond, ast.scopes;
+import ast.ifstmt, ast.conditionals, ast.scopes;
 class Cross : Type, RichIterator {
   Tuple tup; // bool inited, then first third current values, second third running state, last third original iterators
   LValue castToTuple(LValue lv) {

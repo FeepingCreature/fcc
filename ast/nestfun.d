@@ -89,7 +89,7 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
     return Single!(NoOp);
   } else return null;
 }
-mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef");
+mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef", "20");
 
 class NestedCall : FunCall {
   Expr dg;

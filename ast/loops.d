@@ -1,6 +1,6 @@
 module ast.loops;
 
-import ast.base, ast.scopes, ast.vardecl, ast.cond, ast.parse;
+import ast.base, ast.scopes, ast.vardecl, ast.conditionals, ast.parse;
 
 class WhileStatement : Statement {
   Scope _body;
@@ -33,7 +33,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     } else throw new Exception("Couldn't parse while loop at '"~t2.next_text()~"'");
   } else return null;
 }
-mixin DefaultParser!(gotWhileStmt, "tree.stmt.while");
+mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141");
 
 import tools.log;
 class ForStatement : Statement {
@@ -75,7 +75,7 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
     } else throw new Exception("Failed to parse for statement at '"~t2.next_text()~"'");
   } else return null;
 }
-mixin DefaultParser!(gotForStmt, "tree.stmt.for");
+mixin DefaultParser!(gotForStmt, "tree.stmt.for", "142");
 
 class DoWhileExt : Statement {
   Scope first, second;
@@ -130,4 +130,4 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
     return sc;
   } else return null;
 }
-mixin DefaultParser!(gotDoWhileExtStmt, "tree.stmt.do_while_ext");
+mixin DefaultParser!(gotDoWhileExtStmt, "tree.stmt.do_while_ext", "143");

@@ -78,7 +78,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   text = t3;
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotGuard, "tree.stmt.guard");
+mixin DefaultParser!(gotGuard, "tree.stmt.guard", "17");
 
 interface IScoped {
   Expr getSup();
