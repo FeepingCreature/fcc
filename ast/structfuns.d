@@ -127,12 +127,16 @@ class RelFunction : Function, RelTransformable {
       res.fun = this;
       return res;
     }
+    import ast.aliasing;
     int fixup() {
       auto cur = super.fixup();
       if (!cast(hasRefType) context)
         logln("bad context: ", context, " is not reftype");
-      add(new Variable((cast(hasRefType) context).getRefType(), "__base_ptr", cur));
-      return cur + 4;
+      auto bp = new Variable((cast(hasRefType) context).getRefType(), "__base_ptr", cur);
+      add(bp); cur += 4;
+      if (cast(Pointer) bp.valueType())
+        add(new ExprAlias(new DerefExpr(bp), "this"));
+      return cur;
     }
     Object lookup(string name, bool local = false) {
       auto res = super.lookup(name, true);
