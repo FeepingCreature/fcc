@@ -288,6 +288,21 @@ void setupSysmods() {
       }
       return _CondMarker*:null;
     }
+    
+    _Handler* _findHandler(Object obj) {
+      auto cur = _hdl;
+      while cur {
+        if cur.accepts(obj) return cur;
+        cur = cur.prev;
+      }
+      return _Handler*:null;
+      // writeln "No handler found to match $obj. ";
+      // _interrupt 3;
+    }
+
+    void _signalHandler(Object obj) {
+      _findHandler(obj).dg(obj);
+    }
     /*
     int main(int argc, char** argv) {
       

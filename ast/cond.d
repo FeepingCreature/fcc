@@ -93,7 +93,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
       type.ret = Single!(Void);
       type.params ~= stuple(cast(IType) Single!(Array, Single!(Char)), "n");
       fixup;
-      name = "invoke-exit";
+      name = "_invokeExit";
       auto backup2 = namespace();
       scope(exit) namespace.set(backup2);
       namespace.set(nf2);

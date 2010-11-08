@@ -97,11 +97,18 @@ import parseBase, tools.log;
 Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   string name, t2 = text;
   // Yes, special handling. Don't like it? Don't care.
-  if (t2.accept("invoke-exit")) name = "invoke-exit";
-  if (name || t2.gotIdentifier(name, true)) {
+  bool special;
+  if (t2.accept("invoke-exit")) name = "_invokeExit";
+  else if (t2.accept("raise-signal")) name = "_signalHandler";
+  if (name) special = true;
+  if (special || t2.gotIdentifier(name, true)) {
     retry:
     if (auto res = namespace().lookup(name)) {
-      if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
+      if (special) {
+        text = t2;
+      } else {
+        if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
+      }
       return res;
     } else {
       // logln("No ", name, " in ", namespace());
