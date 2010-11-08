@@ -100,6 +100,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   bool special;
   if (t2.accept("invoke-exit")) name = "_invokeExit";
   else if (t2.accept("raise-signal")) name = "_signalHandler";
+  else if (t2.accept("raise-error")) name = "_signalErrorHandler";
   if (name) special = true;
   if (special || t2.gotIdentifier(name, true)) {
     retry:

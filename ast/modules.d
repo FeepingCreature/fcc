@@ -247,42 +247,46 @@ void setupSysmods() {
       }
     EOF
     import std.c.setjmp; // for conditions
-    struct _CondMarker {
-      string name;
-      void delegate() guard_id;
-      _CondMarker* prev;
-      jmp_buf target;
-      void jump() {
-        // TODO: pointer comparisons, dg comparisons
-        if (!guard_id.fun) {
-          while _record { _record.dg(); _record = _record.prev; }
-        } else {
-          while (_record.dg.fun != guard_id.fun) && (_record.dg.data != guard_id.data) {
-            _record.dg();
-            _record = _record.prev;
-          }
-        }
-        longjmp (target, 1);
-      }
-    }
-    
-    _CondMarker* _cm;
     
     struct _Handler {
       string id;
       _Handler* prev;
-      _CondMarker* delimit;
+      void* delimit;
       void delegate(Object) dg;
       bool accepts(Object obj) {
         return eval !!obj.dynamicCastTo(id);
       }
     }
 
-    _Handler* _hdl;
+    _Handler* __hdl__;
+    
+    void* _cm;
+    struct _CondMarker {
+      string name;
+      void delegate() guard_id;
+      _Handler* old_hdl;
+      _CondMarker* prev;
+      jmp_buf target;
+      void jump() {
+        if (!guard_id.fun) {
+          while _record { _record.dg(); _record = _record.prev; }
+        } else {
+          // TODO: dg comparisons
+          while (_record.dg.fun != guard_id.fun) && (_record.dg.data != guard_id.data) {
+            _record.dg();
+            _record = _record.prev;
+          }
+        }
+        _cm = &this;
+        __hdl__ = old_hdl;
+        
+        longjmp (target, 1);
+      }
+    }
     
     _CondMarker* _lookupCM(string s, _Handler* h) {
-      auto cur = _cm;
-      while (cur && (!h || cur != h.delimit)) {
+      auto cur = _CondMarker*:_cm;
+      while (cur && (!h || void*:cur != h.delimit)) {
         if (cur.name == s) return cur;
         cur = cur.prev;
       }
@@ -290,7 +294,7 @@ void setupSysmods() {
     }
     
     _Handler* _findHandler(Object obj) {
-      auto cur = _hdl;
+      auto cur = __hdl__;
       while cur {
         if cur.accepts(obj) return cur;
         cur = cur.prev;
@@ -301,13 +305,21 @@ void setupSysmods() {
     }
 
     void _signalHandler(Object obj) {
-      _findHandler(obj).dg(obj);
+      auto cur = __hdl__;
+      while cur {
+        if cur.accepts(obj) cur.dg(obj);
+        cur = cur.prev;
+      }
     }
-    /*
-    int main(int argc, char** argv) {
-      
+    void _signalErrorHandler(Object obj) {
+      auto cur = __hdl__;
+      while cur {
+        if cur.accepts(obj) cur.dg(obj);
+        cur = cur.prev;
+      }
+      writeln "Unhandled condition $obj. ";
+      _interrupt 3;
     }
-    */
   `;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
   string base = src.between("", "/*MARKER*/") ~ "}";

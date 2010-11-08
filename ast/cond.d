@@ -31,7 +31,6 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto nf = new NestedFunction(csc), mod = csc.get!(Module)();
   New(nf.type);
   nf.type.ret = Single!(Void);
-  // nf.type.params ~= stuple(it, pname);
   nf.type.params ~= stuple(objtype, "_obj");
   nf.fixup;
   static int hdlId;
@@ -78,10 +77,10 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
              (`
              {
                var.id = type.classid;
-               var.prev = _hdl;
+               var.prev = __hdl__;
                var.dg = &fn;
                var.delimit = _cm;
-               _hdl = &var;
+               __hdl__ = &var;
              }`,
              "var", hdlvar, "type", it, "fn", nf);
     assert(setup_st);
@@ -90,7 +89,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   {
     auto guard_st =
       iparse!(Statement, "hdl_undo", "tree.stmt")
-              (`onSuccess _hdl = _hdl.prev; `, csc);
+              (`onSuccess __hdl__ = __hdl__.prev; `, csc);
     assert(guard_st);
     // again, no need to add (is NoOp)
   }
@@ -125,6 +124,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                var.prev = _cm;
                var.name = nex;
                if (_record) var.guard_id = _record.dg;
+               var.old_hdl = __hdl__;
                _cm = &var;
              }`,
              "var", cmvar, "nex", ex);

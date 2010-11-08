@@ -36,7 +36,7 @@ static this() {
   Expr ptreq(bool neg, Expr ex1, Expr ex2) {
     auto p1 = cast(Pointer) ex1.valueType(), p2 = cast(Pointer) ex2.valueType();
     if (!p1 || !p2) return null;
-    assert(p1.target == p2.target);
+    assert(p1.target == p2.target, Format("Cannot compare ", p1, " and ", p2));
     return new CondExpr(new Compare(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
   }
   defineOp("==", false /apply/  &fpeq);
