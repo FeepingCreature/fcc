@@ -23,21 +23,14 @@ class Garble : Forble { }
 void main(int argc, char** argv) {
   int i;
   set-handler (Garble g) {
-    if (i < 4) _lookupCM("start").jump();
+    // writeln "Garble handler; $i. ";
+    if (i < 4) invoke-exit("start");
   }
   
-  auto forb = new Forble, garb = new Garble;
-  writeln "Handlers: forb $(findHandler(forb)), garb $(findHandler(garb))";
-  
-  _CondMarker cm;
-  cm.prev = _cm;
-  cm.name = "start";
-  if (_record) cm.guard_id = _record.dg;
-  _cm = &cm;
-  if setjmp _lookupCM("start").target
+  define-exit "start" {
     writeln "Nonlocal entry. ";
-  i++;
-  writeln "$i";
+  }
+  writeln "$(i++)";
   onExit writeln ("Failure guard called! ");
   callHandler(new Garble);
 }

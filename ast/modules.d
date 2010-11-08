@@ -268,18 +268,10 @@ void setupSysmods() {
     
     _CondMarker* _cm;
     
-    _CondMarker* _lookupCM(string s) {
-      auto cur = _cm;
-      while (cur) {
-        if (cur.name == s) return cur;
-        cur = cur.prev;
-      }
-      return _CondMarker*:null;
-    }
-    
     struct _Handler {
       string id;
       _Handler* prev;
+      _CondMarker* delimit;
       void delegate(Object) dg;
       bool accepts(Object obj) {
         return eval !!obj.dynamicCastTo(id);
@@ -288,6 +280,14 @@ void setupSysmods() {
 
     _Handler* _hdl;
     
+    _CondMarker* _lookupCM(string s, _Handler* h) {
+      auto cur = _cm;
+      while (cur && (!h || cur != h.delimit)) {
+        if (cur.name == s) return cur;
+        cur = cur.prev;
+      }
+      return _CondMarker*:null;
+    }
     /*
     int main(int argc, char** argv) {
       

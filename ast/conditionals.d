@@ -140,7 +140,7 @@ Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("!")) return null;
   Cond c;
-  if (!rest(t2, "cond", &c))
+  if (!rest(t2, "cond >cond.bin", &c))
     throw new Exception("Couldn't match condition to negate at '"~t2.next_text()~"'! ");
   text = t2;
   return new NegCond(c);
@@ -245,8 +245,11 @@ Object gotBoolOp(string Op)(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return cast(Object) cd;
 }
-mixin DefaultParser!(gotBoolOp!("&&"), "cond.bool_and", "6");
-mixin DefaultParser!(gotBoolOp!("||"), "cond.bool_or", "5");
+mixin DefaultParser!(gotBoolOp!("&&"), "cond.bin.and", "2");
+mixin DefaultParser!(gotBoolOp!("||"), "cond.bin.or", "1");
+static this() {
+  parsecon.addPrecedence("cond.bin", "5");
+}
 
 Object gotBraces(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

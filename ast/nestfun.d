@@ -12,7 +12,8 @@ class NestedFunction : Function {
   override {
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
-      return context.fun.mangleSelf() ~ "_subfun_" ~ context.fun.mangle(name, type);
+      auto res = context.fun.mangleSelf() ~ "_subfun_" ~ context.fun.mangle(name, type);
+      return res.replace("-", "_"); // for invoke-exit
     }
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;

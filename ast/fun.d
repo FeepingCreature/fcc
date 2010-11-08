@@ -113,6 +113,9 @@ class Function : Namespace, Tree, Named, SelfAdding {
       return res;
     }
   }
+  override Object lookup(string name, bool local = false) {
+    return super.lookup(name, local);
+  }
 }
 
 class FunCall : Expr {

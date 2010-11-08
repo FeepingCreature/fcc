@@ -96,7 +96,9 @@ TLS!(Namespace) namespace;
 import parseBase, tools.log;
 Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   string name, t2 = text;
-  if (t2.gotIdentifier(name, true)) {
+  // Yes, special handling. Don't like it? Don't care.
+  if (t2.accept("invoke-exit")) name = "invoke-exit";
+  if (name || t2.gotIdentifier(name, true)) {
     retry:
     if (auto res = namespace().lookup(name)) {
       if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
