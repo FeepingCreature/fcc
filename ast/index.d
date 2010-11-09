@@ -32,6 +32,7 @@ class SAIndexExpr : Expr {
   }
 }
 
+import ast.tuples, ast.tuple_access;
 static this() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
     auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
@@ -47,6 +48,16 @@ static this() {
     if (cast(Pointer) e1v)
       return new DerefExpr(lookupOp("+", e1, e2));
     return getIndex(e1, e2);
+  });
+  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+    auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
+    if (!cast(StaticArray) e1v && !cast(Array) e1v && !cast(ExtArray) e1v && !cast(Pointer) e1v)
+      return null;
+    auto tup = cast(Tuple) e2v;
+    if (!tup) return null;
+    Expr[] exprs;
+    foreach (entry; getTupleEntries(e2)) exprs ~= lookupOp("index", e1, entry);
+    return mkTupleExpr(exprs);
   });
 }
 
