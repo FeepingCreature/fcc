@@ -167,19 +167,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       auto str = cast(Structure) it;
       return str is this;
     }
-    string toString() {
-      string res = "struct ";
-      if (name) res ~= name;
-      else res ~= Format(cast(void*) this);
-      string res2;
-      select((string, RelMember member) {
-        if (res2.length) res2 ~= ", ";
-        if (member.name) res2 ~= member.name;
-        else res2 ~= Format(member.type);
-        res2 ~= Format(" ", member.type.size, "@", member.offset);
-      });
-      return res ~ " { " ~ res2 ~ " }";
-    }
+    string toString() { return name; }
   }
 }
 
