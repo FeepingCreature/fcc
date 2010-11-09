@@ -92,6 +92,11 @@ class SysInt : Type {
   override string mangle() { return "sys_int"; }
 }
 
+class Long : Type {
+  override int size() { return 8; }
+  override string mangle() { return "long"; }
+}
+
 class Float : Type {
   override int size() { return 4; }
   override string mangle() { return "float"; }

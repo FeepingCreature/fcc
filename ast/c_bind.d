@@ -11,6 +11,12 @@ extern(C) {
   int close(int);
 }
 
+string[] include_path;
+
+static this() {
+  include_path ~= "/usr/include";
+}
+
 string buf;
 string readStream(InputStream IS) {
   if (!buf) buf = new char[1024*1024];
@@ -56,7 +62,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     if (line.startsWith("}")) { inEnum = false; newsrc ~= line; flushBuffer; continue; }
     if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else {  newsrc ~= line; newsrc ~= ";"; } }
     if (line.startsWith("#")) continue;
-    newsrc ~= line;
+    newsrc ~= line ~ " ";
   }
   // no need to remove comments; the preprocessor already did that
   auto statements = newsrc.split(";") /map/ &strip;
@@ -98,6 +104,10 @@ void parseHeader(string filename, string src, ParseCb rest) {
     }
     if (auto rest = text.strip().startsWith("...")) { text = rest; return Single!(Variadic); }
     if (accept("unsigned long int"))  return Single!(SysInt);
+    if (accept("unsigned long long int") || accept("unsigned long long"))
+      return Single!(Long);
+    if (accept("long long int") || accept("long long"))
+      return Single!(Long);
     if (accept("unsigned int") || accept("signed int") || accept("long int") || accept("int")) return Single!(SysInt);
     if (accept("unsigned char") || accept("signed char") || accept("char")) return Single!(Char);
     if (accept("signed short int") || accept("unsigned short int") || accept("unsigned short") || accept("short int") || accept("short")) return Single!(Short);
@@ -363,7 +373,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       continue;
     }
     giveUp:;
-    // logln("Giving up on |", stmt, "| ", start);
+    // logln("Gave up on |", stmt, "| ", start);
   }
   auto ns = myNS.sup;
   // logln("Got ", res /map/ ex!("a -> a.getIdentifier()"));
@@ -401,9 +411,21 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   
   string filename;
   if (name.exists()) filename = name;
-  else if (("/usr/include/"~name).exists()) filename = "/usr/include/"~name;
-  else throw new Exception("Couldn't find "~name~"!");
-  auto src = readback("gcc -m32 -Xpreprocessor -dD -E "~filename);
+  else {
+    foreach (path; include_path) {
+      auto combined = path.sub(name);
+      if (combined.exists()) { filename = combined; break; }
+    }
+  }
+  if (!filename) throw new Exception("Couldn't find "~name~"!");
+  auto cmdline = 
+    "gcc -m32 -Xpreprocessor -dD -E "
+    ~ (include_path
+      /map/ (string s) { return "-I"~s; }
+      ).join(" ")
+    ~ " " ~ filename;
+  logln("? ", cmdline);
+  auto src = readback(cmdline);
   parseHeader(filename, src, rest);
   return Single!(NoOp);
 }

@@ -180,8 +180,23 @@ int main(string[] args) {
       output = ar.take();
       continue;
     }
-    if (arg.startsWith("-l")) {
-      largs ~= arg;
+    if (auto rest = arg.startsWith("-l").strip()) {
+      if (!rest.length) rest = ar.take();
+      largs ~= "-l"~rest;
+      continue;
+    }
+    if (auto rest = arg.startsWith("-L").strip()) {
+      if (!rest.length) rest = ar.take();
+      largs ~= "-L"~rest;
+      continue;
+    }
+    if (auto rest = arg.startsWith("-Wl,")) {
+      largs ~= rest;
+      continue;
+    }
+    if (auto rest = arg.startsWith("-I").strip()) {
+      if (!rest.length) rest = ar.take();
+      include_path ~= rest;
       continue;
     }
     if (arg == "-save-temps" || arg == "-S") {
