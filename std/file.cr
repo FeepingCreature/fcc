@@ -1,15 +1,15 @@
 module std.file;
 
-import sys, std.c.unistd, std.c.fcntl;
+import sys, std.c.stdio, std.c.fcntl;
 
 template readfile(T) <<EOF
   class reader {
-    int hdl;
+    FILE* hdl;
     bool done;
-    char[256] buf;
-    string step() {
-      auto size = read(hdl, buf.ptr, buf.length);
-      if size <= 0 { done = true; return new char[0]; }
+    byte[256] buf;
+    byte[] step() {
+      auto size = fread(buf.ptr, 1, buf.length, hdl);
+      if size <= 0 { done = true; return new byte[0]; }
       return buf[0 .. size];
     }
     bool ivalid() {
@@ -23,11 +23,28 @@ template readfile(T) <<EOF
   }
 EOF
 
-alias c_open = open;
-
 import std.string;
-int open(string file) {
+FILE* open(string file) {
   auto ptr = toStringz(file);
   onExit mem.free(ptr);
-  return c_open(ptr, O_RDONLY);
+  return fopen(ptr, "r");
+}
+
+class WriterError {
+}
+
+class writer {
+  FILE* hdl;
+  void step(byte[] data) {
+    while data.length {
+      auto res = fwrite(data.ptr, data.length, 1, hdl);
+      if res < 0 raise-error (new WriterError);
+      data = data[res .. data.length];
+    }
+  }
+}
+
+void delegate(byte[]) writefile(FILE* _hdl) using new writer {
+  hdl = _hdl;
+  return &step;
 }
