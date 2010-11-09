@@ -54,7 +54,11 @@ class ExtArray : Type {
   }
 }
 
+import ast.structfuns, ast.modules;
+Stuple!(IType, bool, IType)[] cache;
 IType arrayAsStruct(IType base, bool rich) {
+  foreach (entry; cache)
+    if (entry._0 == base && entry._1 == rich) return entry._2;
   auto res = new Structure(null);
   if (rich)
     new RelMember("capacity", Single!(SysInt), res);
@@ -62,6 +66,32 @@ IType arrayAsStruct(IType base, bool rich) {
   // Structure.Member("length", Single!(SizeT)),
   new RelMember("length", Single!(SysInt), res);
   new RelMember("ptr", new Pointer(base), res);
+  res.name = base.mangle()~"_array_as_struct"~(rich?"_rich":"");
+  auto mod = namespace().get!(Module);
+  if (!mod || !sysmod) return res;
+  
+  auto backup = namespace();
+  scope(exit) namespace.set(backup);
+  namespace.set(res);
+  
+  auto fun = new RelFunction(res);
+  New(fun.type);
+  fun.type.ret = Single!(Void);
+  fun.name = "free";
+  fun.fixup;
+  {
+    auto backup2 = namespace();
+    scope(exit) namespace.set(backup2);
+    namespace.set(fun);
+    fun.tree = iparse!(Statement, "array_free", "tree.stmt")
+                      (`mem.free(void*:ptr);`, fun);
+  }
+  
+  res.add(fun);
+  
+  mod.entries ~= cast(Tree) fun;
+  
+  cache ~= stuple(base, rich, cast(IType) res);
   return res;
 }
 

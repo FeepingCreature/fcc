@@ -402,7 +402,7 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
     if (!(ch in Range['a'..'z'].endIncl)
       &&!(ch in Range['A'..'Z'].endIncl)
       &&!(ch in Range['0' .. '9'].endIncl)
-      &&("/_.".find(ch) == -1)
+      &&("/_-.".find(ch) == -1)
     )
       throw new Exception("Invalid character in "~name~": "~ch~"!");
   // prevent snooping
@@ -424,7 +424,7 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
       /map/ (string s) { return "-I"~s; }
       ).join(" ")
     ~ " " ~ filename;
-  logln("? ", cmdline);
+  // logln("? ", cmdline);
   auto src = readback(cmdline);
   parseHeader(filename, src, rest);
   return Single!(NoOp);

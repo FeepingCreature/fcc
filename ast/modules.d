@@ -92,9 +92,7 @@ void setupSysmods() {
       int memcmp(void* s1, s2, int n);
       int snprintf(char* str, int size, char* format, ...);
     }
-    // before marker
-    alias string = char[];
-    bool strcmp(string a, b) {
+    bool strcmp(char[] a, b) {
       if a.length != b.length return false;
       for (int i = 0; i < a.length; ++i)
         if a[i] != b[i] return false;
@@ -117,13 +115,14 @@ void setupSysmods() {
       void  free   (void* p)           { free_dg(p); }
       void* realloc(void* p, size_t s) { return realloc_dg(p, s); }
       /*MARKER*/
-      void append(string target, string text) {
+      void append(char[] target, char[] text) {
         int newsize = target.length + text.length;
         auto newtarget = new char[newsize];
         newtarget[0 .. target.length] = target;
         newtarget[target.length .. newsize] = text;
       }
     }
+    alias string = char[]; // must be post-marker for free() to work properly
     template sys_array_cast(T) <<EOT
       T sys_array_cast(void* ptr, int len, int sz1, int sz2) {
         auto destlen = len * sz1;
