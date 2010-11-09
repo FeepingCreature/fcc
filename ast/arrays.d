@@ -66,13 +66,15 @@ IType arrayAsStruct(IType base, bool rich) {
 }
 
 T arrayToStruct(T)(T array) {
+  auto avt = resolveType(array.valueType());
   auto
-    ar = cast(Array) array.valueType(),
-    ea = cast(ExtArray) array.valueType();
+    ar = cast(Array) avt,
+    ea = cast(ExtArray) avt;
   if (ar)
     return new ReinterpretCast!(T) (arrayAsStruct(ar.elemType, false), array);
   if (ea)
     return new ReinterpretCast!(T) (arrayAsStruct(ea.elemType, true),  array);
+  asm { int 3; }
   assert(false);
 }
 
@@ -163,6 +165,8 @@ static this() {
 }
 
 Expr getArrayLength(Expr ex) {
+  if (auto sa = cast(StaticArray) resolveType(ex.valueType()))
+    return new IntExpr(sa.length);
   if (auto lv = cast(LValue) ex) return new ArrayLength!(MValue) (lv);
   else return new ArrayLength!(Expr) (ex);
 }

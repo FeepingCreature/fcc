@@ -22,8 +22,9 @@ class FullSlice : Expr {
   IType type;
   this(Expr ex) {
     sup = ex;
-    if (auto ar = cast(Array) sup.valueType()) type = ar;
-    else if (auto ea = cast(ExtArray) sup.valueType()) type = new Array(ea.elemType);
+    auto svt = resolveType(sup.valueType());
+    if (auto ar = cast(Array) svt) type = ar;
+    else if (auto ea = cast(ExtArray) svt) type = new Array(ea.elemType);
     else {
       logln("full slice value type on ", sup.valueType(), " .. huh. ");
       asm { int 3; }
@@ -44,61 +45,61 @@ class FullSlice : Expr {
         { auto vd = new VarDecl; vd.vars ~= temp; vd.emitAsm(af); }
         
         (new Assignment(temp, sup)).emitAsm(af);
-        
-        iparse!(Statement, "fullslice_assign", "tree.semicol_stmt.assign")
-               (`var = temp[0 .. temp.length]`,
-                "var", var, "temp", temp).emitAsm(af);
+        Expr slice;
+        (new Assignment(var, mkArraySlice(temp, new IntExpr(0), foldex(getArrayLength(temp))))).emitAsm(af);
       });
     }
   }
 }
 
+static this() {
+  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+    auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
+    if (cast(StaticArray) e1v) {
+      assert(!!cast(LValue) e1);
+      e1 = mkFullSlice(e1);
+      e1v = resolveType(e1.valueType());
+    }
+    if (!cast(Array) e1v && !cast(ExtArray) e1v && !cast(Pointer) e1v)
+      return null;
+    auto range = cast(Range) e2v;
+    if (!range) return null;
+    auto casted = new RCE(range.wrapper, e2);
+    auto from = foldex(iparse!(Expr, "slice_range_from", "tree.expr")("ex.cur", "ex", casted));
+    auto to   = foldex(iparse!(Expr, "slice_range_to",   "tree.expr")("ex.end", "ex", casted));
+    if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: ", from));
+    if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: ", from));
+    
+    if (cast(Array) e1v || cast(ExtArray) e1v)
+      return mkArraySlice(e1, from, to);
+    else
+      return mkPointerSlice(e1, from, to);
+  });
+}
+
+Expr mkFullSlice(Expr ex) {
+  auto evt = resolveType(ex.valueType());
+  if (auto sa = cast(StaticArray) evt) {
+    auto cv = cast(CValue) ex;
+    assert(!!cv);
+    return mkPointerSlice(
+      reinterpret_cast(new Pointer(sa.elemType), new RefExpr(cv)),
+      new IntExpr(0), foldex(getArrayLength(ex))
+    );
+  } else return new FullSlice(ex);
+}
+
 import ast.iterator, ast.casting, ast.fold;
-Object gotSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
+Object gotFullSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType() && !cast(Pointer) ex.valueType()) return null;
+    if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
     auto t2 = text;
-    Expr range;
-    if (t2.accept("[") && t2.accept("]") || (t2 = text, true) &&
-        t2.accept("[") && rest(t2, "tree.expr", &range) && t2.accept("]")
-    ) {
-      Expr from, to;
-      if (range) {
-        auto casted = new RCE((cast(Range) range.valueType()).wrapper, range);
-        from = iparse!(Expr, "slice_range_from", "tree.expr")("ex.cur", "ex", casted);
-        to   = iparse!(Expr, "slice_range_to",   "tree.expr")("ex.end", "ex", casted);
-      }
-      if (!from && !to && !cast(LValue) ex) {
-        if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType())
-          return null;
-          // logln("!!! ", text.next_text(), ": ", ex);
-        text = t2;
-        return new FullSlice(ex);
-      }
-      if (!from) from = new IntExpr(0);
-      if (!to) {
-        if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
-        // assert(!!cast(Array) ex.valueType(), "Cannot take \"full slice\" over pointer! ");
-        to = getArrayLength(ex);
-      }
-      from = foldex(from);
-      to = foldex(to);
-      if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: ", from));
-      if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: ", from));
-      text = t2;
-      Expr res;
-      if (cast(Array) ex.valueType() || cast(ExtArray) ex.valueType())
-        res = mkArraySlice(ex, from, to);
-      else
-        res = mkPointerSlice(ex, from, to);
-      if (cast(IntExpr) from && cast(IntExpr) to) {
-        // TODO: emit array as static
-      }
-      return cast(Object) res;
-    } else return null;
+    if (!t2.accept("[]")) return null;
+    text = t2;
+    return cast(Object) mkFullSlice(ex);
   };
 }
-mixin DefaultParser!(gotSliceExpr, "tree.rhs_partial.slice");
+mixin DefaultParser!(gotFullSliceExpr, "tree.rhs_partial.full_slice");
 
 Statement getSliceAssign(Expr slice, Expr array) {
   IType elemtype;

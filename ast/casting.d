@@ -14,7 +14,7 @@ class ReinterpretCast(T) : T {
   mixin DefaultDup!();
   mixin defaultIterate!(from);
   override {
-    string toString() { return Format("reinterpret_cast<", to, "> ", from); }
+    string toString() { return Format("(", to, ": ", from, ")"); }
     IType valueType() { return to; }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("to.size"));

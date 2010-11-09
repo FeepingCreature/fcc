@@ -2,7 +2,7 @@ module ast.structure;
 
 import ast.types, ast.base, ast.namespace, ast.vardecl, ast.int_literal, parseBase;
 
-import tools.base: ex, This, This_fn, rmSpace;
+import tools.base: ex, This, This_fn, rmSpace, join;
 int sum(S, T)(S s, T t) {
   int res;
   foreach (entry; s)
@@ -167,7 +167,14 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       auto str = cast(Structure) it;
       return str is this;
     }
-    string toString() { return name; }
+    string toString() {
+      if (!name) {
+        string[] names;
+        foreach (elem; field) if (auto n = cast(Named) elem._1) names ~= n.getIdentifier();
+        return Format("{struct ", names.join(", "), "}");
+      }
+      return name;
+    }
   }
 }
 

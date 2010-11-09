@@ -32,29 +32,43 @@ class SAIndexExpr : Expr {
   }
 }
 
-Object gotArrayIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
+static this() {
+  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+    auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
+    if (!cast(StaticArray) e1v && !cast(Array) e1v && !cast(ExtArray) e1v && !cast(Pointer) e1v)
+      return null;
+    IType[] tried;
+    if (!gotImplicitCast(e2, (IType it) { tried ~= it; return !!(it == Single!(SysInt)); }))
+      return null;
+    if (auto dcme = cast(DontCastMeExpr) e2) e2 = dcme.sup;
+    if (cast(StaticArray) e1v && !cast(CValue) e1) {
+      return new SAIndexExpr(e1, e2);
+    }
+    if (cast(Pointer) e1v)
+      return new DerefExpr(lookupOp("+", e1, e2));
+    return getIndex(e1, e2);
+  });
+}
+
+Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     // logln("access ", ex.valueType(), " @", text.next_text());
-    if (!cast(StaticArray) ex.valueType() && !cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType())
+    auto exv = resolveType(ex.valueType());
+    if (!cast(Array) exv && !cast(ExtArray) exv && !cast(StaticArray) exv && !cast(Pointer) exv)
       return null;
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
-      if (cast(Range) pos.valueType()) return null; // belongs to slice
-      IType[] tried;
-      if (!gotImplicitCast(pos, (IType it) { tried ~= it; return !!(it == Single!(SysInt)); })) {
-        throw new Exception(Format("Invalid array index: ", pos.valueType(), " @'", text.next_text()~"'; tried ", tried, ". "));
+      auto res = lookupOp("index", ex, pos);
+      if (!res) {
+        throw new Exception(Format("Invalid array index: ", pos.valueType(), " @'", text.next_text()));
       }
       text = t2;
-      if (auto dcme = cast(DontCastMeExpr) ex) ex = dcme.sup;
-      if (cast(StaticArray) ex.valueType() && !cast(CValue) ex) {
-        return new SAIndexExpr(ex, pos);
-      }
-      return cast(Object) getIndex(ex, pos);
+      return cast(Object) res;
     } else return null;
   };
 }
-mixin DefaultParser!(gotArrayIndexAccess, "tree.rhs_partial.array_access");
+mixin DefaultParser!(gotArrayAccess, "tree.rhs_partial.array_access");
 
 // Pointer access as array
 class PA_Access : LValue {
