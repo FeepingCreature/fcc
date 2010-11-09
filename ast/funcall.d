@@ -35,7 +35,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
       break;
     }
     if (!args.length) {
-      throw new Exception(Format("Not enough parameters for ", info, "!"));
+      throw new Exception(Format("Not enough parameters for ", info, "; left over ", type, "!"));
     }
     IType[] tried;
   retry:

@@ -155,7 +155,7 @@ Expr staticToArray(Expr sa) {
   );
 }
 
-import ast.literals, ast.casting;
+import ast.literals;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (!cast(StaticArray) ex.valueType() || !cast(CValue) ex)
@@ -187,7 +187,6 @@ Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length");
 
-import ast.casting;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
@@ -198,6 +197,7 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     if (!cast(Array) ex.valueType()) return null;
+    // equiv to extended with 0 cap
     return new ArrayMaker(getArrayPtr(ex), getArrayLength(ex), new IntExpr(0));
   };
 }

@@ -502,7 +502,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (m) error = Format(member, " is not a struct var: ", m);
       else {
         error = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names, "!");
-        if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval") // list of keywords
+        if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length") // list of keywords
           throw new Exception(error);
       }
       return null;

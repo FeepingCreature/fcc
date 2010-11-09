@@ -79,7 +79,7 @@ Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
       to   = iparse!(Expr, "range_to",   "tree.expr")("ex2.end", "ex2", ex2);
     text = t2;
     auto ifrom = cast(IntExpr) fold(from), ito = cast(IntExpr) fold(to);
-    assert(ifrom && ito);
+    assert(ifrom && ito, Format("fail @", text.next_text()));
     auto start = tup.wrapped.selectMember(ifrom.num).offset;
     auto restype = mkTuple(tup.wrapped.slice(ifrom.num, ito.num).types);
     auto res = iparse!(Expr, "tuple_slice", "tree.expr")
