@@ -55,6 +55,30 @@ static this() {
   };
 }
 
+class IntAsLong : Expr {
+  Expr i;
+  this(Expr i) { this.i = i; assert(i.valueType() == Single!(SysInt)); }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(i);
+  override {
+    string toString() { return Format("float(", i, ")"); }
+    IType valueType() { return Single!(Long); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("8"));
+      (new IntExpr(0)).emitAsm(af);
+      i.emitAsm(af);
+    }
+  }
+}
+
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (Single!(SysInt) != ex.valueType()) return null;
+    return new IntAsLong(ex);
+  };
+}
+
 class FloatAsInt : Expr {
   Expr f;
   this(Expr f) { this.f = f; assert(f.valueType() == Single!(Float)); }

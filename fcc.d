@@ -190,7 +190,10 @@ int main(string[] args) {
       largs ~= "-L"~rest;
       continue;
     }
-    if (auto rest = arg.startsWith("-Wl,")) {
+    if (auto rest = arg.startsWith("-Wl")) {
+      rest.accept(",");
+      rest = rest.strip();
+      if (!rest.length) rest = ar.take();
       largs ~= rest;
       continue;
     }
