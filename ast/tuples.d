@@ -191,7 +191,6 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
         exprs ~= ex;
       }
     ) || !t2.accept(")")) {
-    // logln(exprs.length, "; ", exprs[$-1].valueType());
     error = Format("Unknown identifier at '"~t2.next_text()~"'. ");
     return null;
   }

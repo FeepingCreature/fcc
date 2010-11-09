@@ -34,6 +34,23 @@ class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
   }
 }
 
+class CValueAlias : ExprAlias, CValue {
+  mixin MyThis!("super(base, name)");
+  override void emitLocation(AsmFile af) { (cast(CValue) base).emitLocation(af); }
+  override CValueAlias dup() { return new CValueAlias(base.dup, name); }
+}
+
+class LValueAlias : CValueAlias, LValue {
+  mixin MyThis!("super(base, name)");
+  override LValueAlias dup() { return new LValueAlias(base.dup, name); }
+}
+
+class MValueAlias : ExprAlias, MValue {
+  mixin MyThis!("super(base, name)");
+  override void emitAssignment(AsmFile af) { (cast(MValue) base).emitAssignment(af); }
+  override MValueAlias dup() { return new MValueAlias(base.dup, name); }
+}
+
 class TypeAlias : Named, IType, TypeProxy, SelfAdding {
   IType base;
   string name;
@@ -46,9 +63,7 @@ class TypeAlias : Named, IType, TypeProxy, SelfAdding {
     ubyte[] initval() { return base.initval; }
     int opEquals(IType ty) { return base.opEquals(ty); }
     IType actualType() { return base; }
-    string toString() {
-      return Format(name, "<-", base);
-    }
+    string toString() { return name; }
   }
 }
 
@@ -107,7 +122,15 @@ redo:
     
     assert(ex || ty || obj);
     text = t2;
-    if (ex) namespace().add(new ExprAlias(ex, id));
+    auto cv = cast(CValue) ex, mv = cast(MValue) ex, lv = cast(LValue) ex;
+    if (ex) {
+      ExprAlias res;
+      if (lv) res = new LValueAlias(lv, id);
+      else if (mv) res = new MValueAlias(mv, id);
+      else if (cv) res = new CValueAlias(cv, id);
+      else res = new ExprAlias(ex, id);
+      namespace().add(res);
+    }
     if (ty) namespace().add(new TypeAlias(ty, id));
     if (notDone) {
       notDone = false;
