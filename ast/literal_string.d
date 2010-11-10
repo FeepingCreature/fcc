@@ -38,7 +38,8 @@ bool gotStringExpr(ref string text, out Expr ex, string sep = "\"") {
   string s;
   while (true) {
     assert(t2.length);
-    if (t2.accept(sep)) break;
+    // if (t2.accept(sep)) break; // eats comments in strings
+    if (auto rest = t2.startsWith(sep)) { t2 = rest; break; }
     auto ch = t2.take();
     if (ch == '\\') {
       auto ch2 = t2.take();

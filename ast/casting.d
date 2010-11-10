@@ -186,7 +186,7 @@ mixin DefaultParser!(gotDCMExpr, "tree.expr.dcm", "53");
 import tools.threads: TLS;
 TLS!(IType[]) gotImplicitCast_visited_cache; // we go in here a lot, so this pays off
 static this() { New(gotImplicitCast_visited_cache, { return &(new Stuple!(IType[]))._0; }); }
-bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept, IType want = null) {
+bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
   if (!ex) asm { int 3; }
   auto visited = *(gotImplicitCast_visited_cache.ptr());
   scope(exit) *(gotImplicitCast_visited_cache.ptr()) = visited;
@@ -224,8 +224,16 @@ bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept, IType want = null)
   else return false;
 }
 
-bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept, IType want = null) {
-  return gotImplicitCast(ex, (Expr ex) { return accept(ex.valueType()); }, want);
+bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
+  return gotImplicitCast(ex, null, accept);
+}
+
+bool gotImplicitCast(ref Expr ex, IType want, bool delegate(IType) accept) {
+  return gotImplicitCast(ex, want, (Expr ex) { return accept(ex.valueType()); });
+}
+
+bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept) {
+  return gotImplicitCast(ex, null, (Expr ex) { return accept(ex.valueType()); });
 }
 
 Expr[] getAllImplicitCasts(Expr ex) {

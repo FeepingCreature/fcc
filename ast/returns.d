@@ -80,7 +80,7 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     text = t2;
     if (fun.type.ret == Single!(Void))
       return rs; // don't expect a value.
-    if (rest(text, "tree.expr", &rs.value) && gotImplicitCast(rs.value, (IType it) { /*logln(it, " vs. ", fun.type.ret);*/ return test(it == fun.type.ret); })) {
+    if (rest(text, "tree.expr", &rs.value) && gotImplicitCast(rs.value, fun.type.ret, (IType it) { /*logln(it, " vs. ", fun.type.ret);*/ return test(it == fun.type.ret); })) {
       return rs;
     } else throw new Exception("Error parsing return expression at "~text.next_text());
   } else return null;
