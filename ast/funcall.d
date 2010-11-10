@@ -41,10 +41,11 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   retry:
     auto ex = args.take();
     auto backup = ex;
+    
     if (!gotImplicitCast(ex, (IType it) {
       tried ~= it;
       return test(it == type);
-    })) {
+    }, type)) {
       Expr[] list;
       if (gotImplicitCast(ex, (IType it) { return !!cast(Tuple) it; }) && (list = flatten(ex), !!list)) {
         args = list ~ args;

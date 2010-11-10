@@ -381,3 +381,22 @@ static this() {
     } else return null;
   };
 }
+
+import ast.casting, ast.int_literal;
+bool isNull(Expr ex) {
+  auto rce = cast(RCE) ex;
+  if (!rce) return false;
+  ex = rce.from;
+  auto ie = cast(IntExpr) ex;
+  if (!ie) return false;
+  return ie.num == 0;
+}
+
+static this() {
+  implicits ~= delegate Expr(Expr ex, IType expect) {
+    if (isNull(ex) && cast(FunctionPointer) expect) {
+      return reinterpret_cast(expect, ex);
+    }
+    return null;
+  };
+}

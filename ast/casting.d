@@ -114,13 +114,23 @@ import tools.base: toDg;
 
 // implicit conversions
 struct implicits { static {
-  void delegate(Expr, void delegate(Expr))[] dgs;
-  void opCatAssign(void delegate(Expr, void delegate(Expr)) dg) {
+  void delegate(Expr, IType, void delegate(Expr))[] dgs;
+  void opCatAssign(void delegate(Expr, IType, void delegate(Expr)) dg) {
     dgs ~= dg;
   }
+  void opCatAssign(void delegate(Expr, void delegate(Expr)) dg) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, void delegate(Expr) dg2) {
+      dg(ex, dg2);
+    };
+  }
   void opCatAssign(Expr delegate(Expr) dg) {
-    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, void delegate(Expr) dg2) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, void delegate(Expr) dg2) {
       if (auto res = dg(ex)) dg2(res);
+    };
+  }
+  void opCatAssign(Expr delegate(Expr, IType) dg) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, void delegate(Expr) dg2) {
+      if (auto res = dg(ex, it)) dg2(res);
     };
   }
   void opCatAssign(Expr function(Expr) fn) {
@@ -176,7 +186,7 @@ mixin DefaultParser!(gotDCMExpr, "tree.expr.dcm", "53");
 import tools.threads: TLS;
 TLS!(IType[]) gotImplicitCast_visited_cache; // we go in here a lot, so this pays off
 static this() { New(gotImplicitCast_visited_cache, { return &(new Stuple!(IType[]))._0; }); }
-bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
+bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept, IType want = null) {
   if (!ex) asm { int 3; }
   auto visited = *(gotImplicitCast_visited_cache.ptr());
   scope(exit) *(gotImplicitCast_visited_cache.ptr()) = visited;
@@ -195,7 +205,7 @@ bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
     Expr[] recurseInto;
     foreach (dg; implicits) {
       Expr res;
-      dg(ex, (Expr ce) {
+      dg(ex, want, (Expr ce) {
         if (res || haveVisited(ce)) return;
         addVisitor(ce.valueType());
         if (accept(ce)) res = ce;
@@ -214,8 +224,8 @@ bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
   else return false;
 }
 
-bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept) {
-  return gotImplicitCast(ex, (Expr ex) { return accept(ex.valueType()); });
+bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept, IType want = null) {
+  return gotImplicitCast(ex, (Expr ex) { return accept(ex.valueType()); }, want);
 }
 
 Expr[] getAllImplicitCasts(Expr ex) {
@@ -229,7 +239,7 @@ Expr[] getAllImplicitCasts(Expr ex) {
   void recurse(Expr ex) {
     auto start = res.length;
     foreach (dg; implicits) {
-      dg(ex, (Expr ce) {
+      dg(ex, null, (Expr ce) {
         if (haveVisited(ce)) return;
         visited ~= ce.valueType();
         res ~= ce;

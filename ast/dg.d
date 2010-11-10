@@ -166,3 +166,13 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
   }
   handleReturn(ret, af);
 }
+
+import ast.tuples;
+static this() {
+  implicits ~= delegate Expr(Expr ex, IType expect) {
+    if (isNull(ex) && cast(Delegate) expect) {
+      return reinterpret_cast(expect, mkTupleExpr(ex, ex));
+    }
+    return null;
+  };
+}

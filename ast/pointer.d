@@ -83,7 +83,13 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (auto p = cast(Pointer) ex.valueType()) {
       if (p.target != Single!(Void))
-        return reinterpret_cast(voidp, ex);
+        return dcm(reinterpret_cast(voidp, ex));
+    }
+    return null;
+  };
+  implicits ~= delegate Expr(Expr ex, IType expect) {
+    if (ex.valueType() == voidp && cast(Pointer) expect) {
+      return reinterpret_cast(expect, ex);
     }
     return null;
   };
