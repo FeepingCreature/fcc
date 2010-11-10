@@ -57,12 +57,16 @@ class ConcatChain : Expr {
           vd.emitAsm(af);
         }
         foreach (i, array; arrays) {
-          (new Assignment(getIndex(cache, new IntExpr(i)), array)).emitAsm(af);
-          iparse!(Statement, "gather_array_length", "tree.semicol_stmt.assign")
-          (
-            "total = total + cache[i].length",
-            "total", total, "i", new IntExpr(i), "cache", cache
-          ).emitAsm(af);
+          if (array.valueType() == type.elemType) {
+            iparse!(Statement, "inc_array_length", "tree.stmt")
+                   (`total ++; `, "total", total).emitAsm(af);
+          } else {
+            (new Assignment(getIndex(cache, new IntExpr(i)), array)).emitAsm(af);
+            iparse!(Statement, "gather_array_length", "tree.semicol_stmt.assign")
+            (`total = total + cache[i].length`,
+             "total", total, "i", new IntExpr(i), "cache", cache)
+            .emitAsm(af);
+          }
         }
         iparse!(Statement, "alloc_array", "tree.semicol_stmt.assign")
         (
@@ -71,11 +75,19 @@ class ConcatChain : Expr {
           "total", total
         ).emitAsm(af);
         foreach (i, array; arrays) {
-          auto c = getIndex(cache, new IntExpr(i)), len = getArrayLength(c);
-          /// var[offset .. offset + cache[i].length] = cache[i];
-          (getSliceAssign(mkArraySlice(var, offset, lookupOp("+", offset, len)), c.dup)).emitAsm(af);
-          /// offset = offset + cache[i].length;
-          (new Assignment(offset, lookupOp("+", offset, len))).emitAsm(af);
+          auto c = getIndex(cache, new IntExpr(i));
+          if (array.valueType() == type.elemType) {
+            /// var[offset] = cache[i];
+            (new Assignment(getIndex(var, offset), array)).emitAsm(af);
+            /// offset = offset + 1
+            (new Assignment(offset, lookupOp("+", offset, new IntExpr(1)))).emitAsm(af);
+          } else {
+            auto len = getArrayLength(c);
+            /// var[offset .. offset + cache[i].length] = cache[i];
+            (getSliceAssign(mkArraySlice(var, offset, lookupOp("+", offset, len)), c.dup)).emitAsm(af);
+            /// offset = offset + cache[i].length;
+            (new Assignment(offset, lookupOp("+", offset, len))).emitAsm(af);
+          }
         }
       });
     }
@@ -85,15 +97,25 @@ class ConcatChain : Expr {
 static this() {
   bool isArray(IType it) { return !!cast(Array) it; }
   bool isExtArray(IType it) { return !!cast(ExtArray) it; }
+  bool isEqual(IType i1, IType i2) { return test(i1 == i2); }
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
-    auto cc = cast(ConcatChain) ex1;
-    if (!cc || !gotImplicitCast(ex2, &isArray))
+    auto cc = cast(ConcatChain) ex1, ex22 = ex2; // lol
+    if (!cc || !gotImplicitCast(ex2, &isArray) && !gotImplicitCast(ex22, cc.type.elemType /apply/ &isEqual))
       return null;
+    if (!ex2) ex2 = ex22;
     return new ConcatChain(cc.arrays ~ ex2);
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
-    if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
+    auto ex22 = ex2;
+    if (
+      !gotImplicitCast(ex1, &isArray)
+      ||
+        !gotImplicitCast(ex2, &isArray)
+        &&
+        !gotImplicitCast(ex22, (cast(Array) ex1.valueType()).elemType /apply/ &isEqual)
+      )
       return null;
+    if (!ex2) ex2 = ex22;
     return new ConcatChain(ex1, ex2);
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
