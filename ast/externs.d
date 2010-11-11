@@ -24,6 +24,7 @@ class ExternCGlobVar : Expr, Named {
 Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("extern(C)")) return null;
+  string tx;
   bool grabFun() {
     auto fun = new Function;
     fun.extern_c = true;
@@ -39,6 +40,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
       namespace().add(fun);
       return true;
     } else {
+      tx = t3;
       return false;
     }
   }
@@ -51,11 +53,12 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
       namespace().add(gv);
       return true;
     } else {
+      tx = t3;
       return false;
     }
   }
   void fail() {
-    assert(false, "extern parsing failed at '"~t2.next_text()~"'.");
+    assert(false, "extern parsing failed at '"~tx.next_text()~"'.");
   }
   if (t2.accept("{")) {
     while (grabFun() || grabVar()) { }

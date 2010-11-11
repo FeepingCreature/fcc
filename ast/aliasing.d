@@ -63,7 +63,7 @@ class TypeAlias : Named, IType, TypeProxy, SelfAdding {
     ubyte[] initval() { return base.initval; }
     int opEquals(IType ty) { return base.opEquals(ty); }
     IType actualType() { return base; }
-    string toString() { return name; }
+    string toString() { return Format(name, "(", base, ")"); }
   }
 }
 

@@ -51,7 +51,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
         args = list ~ args;
         goto retry;
       } else
-        throw new Exception(Format("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params, "[", i, "]; tried ", tried, " at ", backup_text.next_text()));
+        throw new Exception(Format("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params[i], " (", i, "); tried ", tried, " at ", backup_text.next_text()));
     }
     res ~= ex;
   }

@@ -128,18 +128,24 @@ static this() {
 }
 
 // stolen in turn from ast.fun
+import ast.tuples;
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
     IType ptype;
-    Stuple!(IType, string)[] list;
+    Stuple!(IType, string)[] _list;
+    IType[] list;
     auto t2 = text;
     if (t2.accept("delegate") &&
-      t2.gotParlist(list, rest)
+      t2.gotParlist(_list, rest)
     ) {
+      foreach (entry; _list) list ~= entry._0;
+      if (list.length == 1 && cast(Tuple) list[0]) {
+        list = (cast(Tuple) list[0]).types();
+      }
       text = t2;
       auto res = new Delegate;
       res.ret = cur;
-      foreach (entry; list) res.args ~= entry._0;
+      res.args = list;
       return res;
     } else return null;
   };

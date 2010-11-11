@@ -11,9 +11,8 @@ import
 static this() {
   isRichIterator = delegate bool(IType it) { return !!cast(RichIterator) it; };
   isIterator = delegate bool(IType it) { return !!cast(Iterator) it; };
-  defineOp("^", delegate Expr(Expr ex1, Expr ex2) {
-    if (!forb(ex1) || !gotImplicitCast(ex1, isRichIterator)
-      ||!gotImplicitCast(ex2, (Expr ex) { return !!cast(IntExpr) fold(ex); }))
+  defineOp("x", delegate Expr(Expr ex1, Expr ex2) {
+    if (!gotImplicitCast(ex2, (Expr ex) { return !!cast(IntExpr) fold(ex); }))
       return null;
     auto count = (cast(IntExpr) fold(ex2)).num;
     assert(count > 0);

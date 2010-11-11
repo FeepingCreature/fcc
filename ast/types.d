@@ -128,6 +128,7 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   if (text.accept("void")) return Single!(Void);
   if (text.accept("size_t")) return Single!(SizeT);
   if (text.accept("int")) return Single!(SysInt);
+  if (text.accept("long")) return Single!(Long);
   if (text.accept("short")) return Single!(Short);
   if (text.accept("char")) return Single!(Char);
   if (text.accept("byte")) return Single!(Byte);
