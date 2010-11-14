@@ -27,16 +27,23 @@ template dgwrapper(T) <<EOF
   }
 EOF
 
+void check_res (int i) {
+  if (i != 0) {
+    writeln "Failed with $i! ";
+    _interrupt 3;
+  }
+}
+
 cl_context createContextFromType(cl_context_properties[] props, cl_device_type type, void delegate(char* errinfo, void* private_info, size_t cb) notify) {
   cl_int ret;
   auto tup = dgwrapper!(char*, void*, size_t)(notify);
   props ~= cl_context_properties:0;
   auto res = clCreateContextFromType(props.ptr, type, tup, &ret);
-  if (ret < 0) _interrupt 3;
+  check_res (ret);
   return res;
 }
 
-void main() {
+int main() {
   auto openclSource = [
     "__kernel void VectorAdd(__global int* c, __global int* a, __global int* b)\n"[],
     "{\n"[],
@@ -47,21 +54,26 @@ void main() {
     "}\n"[]
   ];
   auto initialData1 = [37, 50, 54, 50, 56, 0, 79, 112, 101, 110, 67, 76, 32, 43, 56, 100, 50, 25, 15, 17];
-  auto initialData2 = [35, 51, 54, 58, 55,32, 0, 0, 0, 0, 0, 0, 0, 44, 55, 14, 58, 75, 18, 15];
+  auto initialData2 = [35, 51, 54, 58, 55, 32, 0,   0,   0,   0,  0,  0,  0, 44, 55,  14, 58, 75, 18, 15];
+  int[] data1, data2;
   alias SIZE = 2048;
+  while (data1.length < SIZE) data1 ~= initialData1;
+  data1 = data1[0 .. SIZE];
+  while (data2.length < SIZE) data2 ~= initialData2;
+  data2 = data2[0 .. SIZE];
   
-   int ids;
-  clGetPlatformIDs(0, cl_platform_id*:null, &ids);
+  int ids;
+  check_res clGetPlatformIDs(0, null, &ids);
   auto platforms = new cl_platform_id[ids];
-  clGetPlatformIDs(ids, platforms.ptr, cl_uint*:null);
+  check_res clGetPlatformIDs(ids, platforms.ptr, null);
   writeln "$ids platform(s). ";
   int i; cl_platform_id platform;
   cl_device_id[] getDevices(cl_platform_id platform) {
     int devs;
-    clGetDeviceIDs (platform, CL_DEVICE_TYPE_ALL, 0, cl_device_id*:null, &devs);
+    check_res clGetDeviceIDs (platform, CL_DEVICE_TYPE_ALL, 0, null, &devs);
     if (!devs) return null;
     auto devlist = new cl_device_id[devs];
-    clGetDeviceIDs (platform, CL_DEVICE_TYPE_ALL, devs, devlist.ptr, int*:null);
+    check_res clGetDeviceIDs (platform, CL_DEVICE_TYPE_ALL, devs, devlist.ptr, null);
     return devlist;
   }
   while (i, platform) <- [for i <- 0..ids: (i, platforms[i])] {
@@ -74,10 +86,10 @@ void main() {
      ("Extensions"[], CL_PLATFORM_EXTENSIONS)]
     {
       int size;
-      clGetPlatformInfo (platform, enum, 0, null, &size);
+      check_res clGetPlatformInfo (platform, enum, 0, null, &size);
       auto store = new char[size];
       onExit store.free();
-      clGetPlatformInfo (platform, enum, size, store.ptr, int*:null);
+      check_res clGetPlatformInfo (platform, enum, size, store.ptr, int*:null);
       writeln "$i: $info = $store";
     }
     auto devlist = getDevices(platform);
@@ -97,10 +109,10 @@ void main() {
         ("DriverVersion"[], CL_DRIVER_VERSION)])
       {
         int size;
-        clGetDeviceInfo (dev, enum2, 0, null, &size);
+        check_res clGetDeviceInfo (dev, enum2, 0, null, &size);
         auto devstore = new char[size];
         onExit devstore.free;
-        clGetDeviceInfo (dev, enum2, size, devstore.ptr, int*:null);
+        check_res clGetDeviceInfo (dev, enum2, size, devstore.ptr, int*:null);
         writeln "  $k: $devinfo = $devstore ($size)";
       }
     }
@@ -111,20 +123,52 @@ void main() {
   props ~= CL_CONTEXT_PLATFORM;
   props ~= cl_context_properties: platform;
   auto ctx = createContextFromType(props, CL_DEVICE_TYPE_ALL, null);
-  writeln "ctx res is $ctx";
+  onExit clReleaseContext (ctx);
+  writeln "Context created. ";
   auto dev = getDevices(platform)[device];
-  auto queue = clCreateCommandQueue(ctx, dev, 0, null);
+  int error;
+  auto queue = clCreateCommandQueue(ctx, dev, 0, &error);
+  check_res error;
   writeln "Command queue created. ";
   auto gpuvec1 = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-    int.sizeof * SIZE, initialData1.ptr, null);
+    int.sizeof * SIZE, data1.ptr, &error);
+  check_res error;
+  onExit clReleaseMemObject (gpuvec1);
   auto gpuvec2 = clCreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-    int.sizeof * SIZE, initialData2.ptr, null);
+    int.sizeof * SIZE, data2.ptr, &error);
+  check_res error;
+  onExit clReleaseMemObject (gpuvec2);
   auto outvec = clCreateBuffer(ctx, CL_MEM_WRITE_ONLY,
-    int.sizeof * SIZE, null, null);
+    int.sizeof * SIZE, null, &error);
+  onExit clReleaseMemObject (outvec);
+  check_res error;
   writeln "Buffers created. ";
   auto prog = clCreateProgramWithSource(ctx, openclSource.length,
     [for line <- openclSource: line.ptr].eval.ptr, null, null);
-  {
-    auto err = clBuildProgram (prog, 0, null x 4);
+  onExit clReleaseProgram (prog);
+  check_res clBuildProgram (prog, 0, null x 4);
+  writeln "Program built. ";
+  auto addKernel = clCreateKernel(prog, "VectorAdd", &error);
+  onExit clReleaseKernel (addKernel);
+  check_res error;
+  writeln "Kernel created. ";
+  check_res clSetKernelArg (addKernel, 0, typeof(outvec).sizeof, void*:&outvec);
+  check_res clSetKernelArg (addKernel, 1, typeof(gpuvec1).sizeof, void*:&gpuvec1);
+  check_res clSetKernelArg (addKernel, 2, typeof(gpuvec2).sizeof, void*:&gpuvec2);
+  writeln "Args set. ";
+  int[1] workSize = [SIZE];
+  check_res clEnqueueNDRangeKernel (queue, addKernel, 1, null, workSize.ptr, null, 0, null, null);
+  writeln "Task queued. ";
+  // read-back
+  auto output = new int[SIZE];
+  check_res clEnqueueReadBuffer (queue, outvec, CL_TRUE, 0, int.sizeof * SIZE, output.ptr, 0, null, null);
+  writeln "Read back. ";
+  int rows, c;
+  while rows <- 0..(SIZE/20) {
+    while c <- 0..20 {
+      printf ("%c", output[rows * 20 + c]);
+    }
+    printf "\n";
   }
+  return 0;
 }
