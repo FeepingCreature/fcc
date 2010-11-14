@@ -21,6 +21,7 @@ class ExternCGlobVar : Expr, Named {
   }
 }
 
+import ast.modules;
 Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("extern(C)")) return null;
@@ -57,13 +58,23 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
       return false;
     }
   }
+  bool grabFunDef() {
+    auto t3 = t2;
+    Function fun;
+    if (!rest(t3, "tree.fundef", &fun)) return false;
+    fun.extern_c = true;
+    logln("got fundef ", fun.name);
+    namespace().get!(Module).entries ~= fun;
+    t2 = t3;
+    return true;
+  }
   void fail() {
     assert(false, "extern parsing failed at '"~tx.next_text()~"'.");
   }
   if (t2.accept("{")) {
-    while (grabFun() || grabVar()) { }
+    while (grabFun() || grabVar() || grabFunDef()) { }
     if (!t2.accept("}")) fail;
-  } else if (!grabFun() && !grabVar()) fail;
+  } else if (!grabFun() && !grabVar() && !grabFunDef()) fail;
   text = t2;
   return Single!(NoOp);
 }
