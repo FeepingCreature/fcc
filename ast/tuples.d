@@ -67,6 +67,7 @@ mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
 Tuple mkTuple(IType[] types...) {
   auto tup = new Tuple;
   New(tup.wrapped, cast(string) null);
+  tup.wrapped.packed = true;
   foreach (type; types)
     new RelMember(null, type, tup.wrapped);
   return tup;
