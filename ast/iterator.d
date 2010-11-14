@@ -120,53 +120,6 @@ static this() {
   };
 }
 
-import ast.templ;
-Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
-  if (text == ".step)" || text == ".ivalid)")
-    return null; // prevent the tests below from looping. HAX.
-  auto t2 = text;
-  return lhs_partial.using = delegate Object(Object obj) {
-    Expr iter;
-    if (auto templ = cast(Template) obj) {
-      Expr nex;
-      if (!rest(t2, "tree.expr", &nex)) return null;
-      iter = iparse!(Expr, "si_call_test", "tree.expr")
-                         (`templ!typeof(nex)(nex)`,
-                          namespace(),
-                          "templ", templ, "nex", nex);
-      if (!iter) {
-        logln("no template :(");
-        
-        return null;
-      }
-    } else {
-      // logln("else ", obj);
-      // asm { int 3; }
-      return null;
-    }
-    // logln("try ", t2.next_text(), "; ", iter);
-    try {
-      auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
-                        (`eval (iter.step)`, "iter", iter);
-      auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
-                        (`eval (iter.ivalid)`, "iter", iter);
-      if (!test1 || !test2) {
-        // logln("test failed: ", !test1, ", ", !test2);
-        return null;
-      }
-    } catch (Exception ex) {
-      // logln("reject due to ", ex);
-      return null;
-    }
-    text = t2;
-    auto si = new StructIterator(iter.valueType());
-    auto res = cast(Object) reinterpret_cast(si, iter);
-    // logln(" => ", res);
-    return res;
-  };
-}
-mixin DefaultParser!(gotStructIterator, "tree.rhs_partial.struct_iter");
-
 Object gotIterIvalid(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("__ivalid")) return null;

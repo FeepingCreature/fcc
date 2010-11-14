@@ -360,6 +360,43 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSum, "tree.expr.iter.sum");
 
+import ast.templ, ast.iterator;
+Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
+  if (text == ".step)" || text == ".ivalid)")
+    return null; // prevent the tests below from looping. HAX.
+  auto t2 = text;
+  return lhs_partial.using = delegate Object(Object obj) {
+    auto iter = cast(Expr) obj;
+    if (!iter) return null;
+    auto thingy = cast(Object) iter.valueType();
+    bool delegate(string) lookup;
+    if (auto srn = cast(SemiRelNamespace) thingy) thingy = cast(Object) srn.resolve();
+    if (auto ns = cast(Namespace) thingy) lookup = ns /apply/ (Namespace ns, string id) { return test(ns.lookup(id)); };
+    else if (auto rn = cast(RelNamespace) thingy) lookup = rn /apply/ (RelNamespace rn, string id) { return test(rn.lookupRel(id, null)); };
+    if (!lookup || !lookup("step") || !lookup("ivalid")) return null;
+    logln("try ", t2.next_text(), "; ", thingy);
+    try {
+      auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
+                        (`eval (iter.step)`, "iter", iter);
+      auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
+                        (`eval (iter.ivalid)`, "iter", iter);
+      if (!test1 || !test2) {
+        // logln("test failed: ", !test1, ", ", !test2);
+        return null;
+      }
+    } catch (Exception ex) {
+      // logln("reject due to ", ex);
+      return null;
+    }
+    text = t2;
+    auto si = new StructIterator(iter.valueType());
+    auto res = cast(Object) reinterpret_cast(si, iter);
+    // logln(" => ", res);
+    return res;
+  };
+}
+mixin DefaultParser!(gotStructIterator, "tree.rhs_partial.struct_iter");
+
 import ast.templ, ast.parse, ast.structure, ast.oop;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
@@ -386,4 +423,3 @@ static this() {
     return res;
   };
 }
-mixin DefaultParser!(gotStructIterator, "tree.rhs_partial.struct_iter");

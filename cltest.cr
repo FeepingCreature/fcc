@@ -34,12 +34,21 @@ void check_res (int i) {
   }
 }
 
+template clCheckCall(alias A) <<EOF
+  template clCheckCall(T) <<EO2
+    typeof(A(init!T, null)) clCheckCall(T t) {
+      int error;
+      onExit check_res (error);
+      return A(t, &error);
+    }
+  EO2
+EOF
+
 cl_context createContextFromType(cl_context_properties[] props, cl_device_type type, void delegate(char* errinfo, void* private_info, size_t cb) notify) {
   cl_int ret;
   auto tup = dgwrapper!(char*, void*, size_t)(notify);
   props ~= cl_context_properties:0;
-  auto res = clCreateContextFromType(props.ptr, type, tup, &ret);
-  check_res (ret);
+  auto res = clCheckCall!clCreateContextFromType (props.ptr, type, tup);
   return res;
 }
 

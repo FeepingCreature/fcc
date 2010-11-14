@@ -94,6 +94,7 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
     assert(own_offset);
     foreach (id, fun; funs) {
       if (fun.name == name) {
+        if (!intp) return fun;
         return iparse!(Function, "intf_vtable_lookup", "tree.expr")
         ( "
             *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
@@ -106,6 +107,7 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
     return null;
   }
   override Object lookupRel(string name, Expr base) {
+    if (!base) return lookupIntf(name, null);
     if (!cast(IntfRef) base.valueType()) {
       logln("Bad intf ref: ", base);
       asm { int 3; }
@@ -494,7 +496,7 @@ mixin DefaultParser!(gotIntfRef, "type.intf", "36"); // before type.named
 Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
-  assert(lhs_partial());
+  assert(!!lhs_partial(), Format("got class member expr? but we're at ", t2.next_text(), "!"));
   auto ex = cast(Expr) lhs_partial();
   if (!ex) return null;
   auto cr = cast(ClassRef) ex.valueType(), ir = cast(IntfRef) ex.valueType();

@@ -21,6 +21,7 @@ mixin(expandImport(`ast.[
 import ast.parse, ast.namespace, ast.scopes;
 // from ast.namespace
 mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
+
 static this() {
   New(namespace, { return cast(Namespace) null; });
   New(current_module, { return cast(Module) null; });
