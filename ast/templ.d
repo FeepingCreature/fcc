@@ -104,10 +104,10 @@ class TemplateInstance : Namespace {
       if (parent.isAlias) {
         if (auto fun = cast(Function) tr) {
           mangl = fun.mangleSelf();
+          // logln("mangl => ", mangl);
         } else assert(false, Format(tr));
       } else mangl = this.type.mangle();
-      return "templinst_"~parent.name~"_with_"~mangl
-        ~"__"~sup.mangle(name, type);
+      return sup.mangle(name, type)~"__"~"templinst_"~parent.name~"_with_"~mangl;
     }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     
@@ -146,7 +146,6 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     Expr iter;
     auto templ = cast(Template) obj;
     if (!templ) return null;
-    logln("miew ", t2.next_text());
     Expr nex;
     if (!rest(t2, "tree.expr", &nex)) return null;
     iter = iparse!(Expr, "ifti_call_test", "tree.expr")
