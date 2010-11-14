@@ -298,6 +298,7 @@ class AsmFile {
     foreach (name, size; uninit_tlsvars) {
       auto alignment = size;
       if (alignment > 16) alignment = 16;
+      if (alignment == 12) alignment = 16; // TODO: powers-of-two properly
       res ~= Format("\t.globl ", name, "\n");
       res ~= Format("\t.align ", alignment, "\n\t.type ", name, ", @object\n");
       res ~= Format("\t.size ", name, ", ", size, "\n");
