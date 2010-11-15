@@ -14,7 +14,7 @@ Object gotProperties(bool withTuple)(ref string text, ParseCb cont, ParseCb rest
     if (!ex || !cast(Tuple) ex.valueType())
       return null; // don't.
   } else {
-    if (!ex || cast(Tuple) ex.valueType())
+    if (ex && cast(Tuple) ex.valueType())
       return null; // just .. don't.
   }
   
