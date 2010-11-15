@@ -75,7 +75,7 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   }
   assert(false);
 }
-mixin DefaultParser!(gotVecConstructor, "tree.expr.veccon", "251");
+mixin DefaultParser!(gotVecConstructor, "tree.expr.veccon", "8");
 
 import ast.casting, ast.static_arrays;
 static this() {

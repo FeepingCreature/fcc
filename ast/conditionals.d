@@ -300,7 +300,7 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
     return new CondExpr(cd);
   } else return null;
 }
-mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval_cond", "2701");
+mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond");
 
 static this() {
   foldopt ~= delegate Itr(Itr it) {

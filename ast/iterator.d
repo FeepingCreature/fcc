@@ -88,7 +88,7 @@ class StructIterator : Type, Iterator {
   IType _elemType;
   this(IType it) {
     wrapped = it;
-    _elemType = iparse!(Expr, "si_elemtype", "tree.expr")
+    _elemType = iparse!(Expr, "si_elemtype", "tree.expr.eval")
                        (`eval (bogus.step)`,
                         "bogus", new Placeholder(wrapped, "si_elemtype_ph")
                        ).valueType();
@@ -570,7 +570,7 @@ Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return cast(Object) it.yieldAdvance(lv);
 }
-mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "270");
+mixin DefaultParser!(gotIterEval, "tree.expr.eval.iter");
 
 class TempIndex : Expr {
   RichIterator ri; Expr ex, pos;
