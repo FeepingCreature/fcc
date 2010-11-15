@@ -48,8 +48,7 @@ cl_context createContextFromType(cl_context_properties[] props, cl_device_type t
   cl_int ret;
   auto tup = dgwrapper!(char*, void*, size_t)(notify);
   props ~= cl_context_properties:0;
-  auto res = clCheckCall!clCreateContextFromType (props.ptr, type, tup);
-  return res;
+  return clCheckCall!clCreateContextFromType (props.ptr, type, tup);
 }
 
 int main() {
