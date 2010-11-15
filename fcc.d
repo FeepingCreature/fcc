@@ -157,8 +157,8 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
 
 import assemble: debugOpts;
 int main(string[] args) {
-  /*
   log_threads = false;
+  /*
   logln("<?xml version=\"1.0\" ?><body>");
   scope(exit) logln("</body>");
   verboseXML = true;
@@ -245,7 +245,8 @@ int main(string[] args) {
     if (auto base = arg.endsWith(".cr")) {
       if (!output) output = arg[0 .. $-3];
       lazySysmod();
-      objects ~= arg.compile(saveTemps, optimize, configOpts);
+      try objects ~= arg.compile(saveTemps, optimize, configOpts);
+      catch (Exception ex) { logln(ex.toString()); return 1; }
       continue;
     }
     logln("Invalid argument: ", arg);

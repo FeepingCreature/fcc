@@ -58,7 +58,7 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
     return obj;
   } else {
     if (!t2.accept(","))
-      error = "Failed to match single-tuple at '"~t2.next_text()~"'. ";
+      t2.setError("Failed to match single-tuple");
     return null;
   }
 }
@@ -192,7 +192,7 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
         exprs ~= ex;
       }
     ) || !t2.accept(")")) {
-    error = Format("Unknown identifier at '"~t2.next_text()~"'. ");
+    t2.setError("Unknown identifier");
     return null;
   }
   text = t2;

@@ -91,8 +91,8 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
           its ~= it;
           return test(var.type == it);
         })) && (t2 = t3, true) && !(t2.accept("void") && (dontInit = true, true))) {
-          if (its.length) throw new Exception(Format("Couldn't init var at ", t2.next_text(), ": none of ", its, " matched ", var.type));
-          else throw new Exception(Format("Couldn't read expression at '", t2.next_text(), "' !"));
+          if (its.length) t2.failparse("Couldn't init var; none of ", its, " matched ", var.type);
+          else t2.failparse("Couldn't read expression");
         }
       }
       if (dontInit) {
@@ -107,8 +107,8 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       vd.vars ~= var;
       namespace().add(var);
     }, false))
-      throw new Exception("Couldn't parse variable declaration at "~t2.next_text());
-    t2.mustAccept(";", Format("Missed trailing semicolon at ", t2.next_text()));
+      t2.failparse("Couldn't parse variable declaration");
+    t2.mustAccept(";", "Missed trailing semicolon");
     text = t2;
     return vd;
   } else return null;
@@ -120,7 +120,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto vd = new VarDecl;
   string t3;
-  error = null;
+  error = stuple("", "");
   if (t2.accept("auto")) {
     if (!t2.bjoin(
     (t3 = t2, true) &&
@@ -133,9 +133,10 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
       vd.vars ~= var;
       namespace().add(var);
     }, false)) {
-      throw new Exception("Syntax error in auto decl at '"~t3.next_text()~"': '"~error~"'");
+      t3.failparse("Syntax error in auto decl: ", error);
     }
-    if (!t2.accept(";")) throw new Exception("auto decl not terminated at "~t2.next_text());
+    if (!t2.accept(";"))
+      t2.failparse("auto decl not terminated");
     text = t2;
     return vd;
   } else return null;

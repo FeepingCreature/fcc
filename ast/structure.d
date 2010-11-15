@@ -229,11 +229,11 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
     namespace().add(st); // gotta do this here so the sup is set
     if (matchStructBody(t2, st, cont, rest)) {
       if (!t2.accept("}"))
-        throw new Exception("Missing closing struct bracket at "~t2.next_text());
+        t2.failparse("Missing closing struct bracket");
       text = t2;
       return Single!(NoOp);
     } else {
-      throw new Exception("Couldn't match structure body at "~t2.next_text());
+      t2.failparse("Couldn't match structure body");
     }
   } else return null;
 }
@@ -501,11 +501,13 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (cast(Function) m) { text = t2; return m; }
     ex = cast(Expr) m;
     if (!ex) {
-      if (m) error = Format(member, " is not a struct var: ", m);
+      if (m) text.setError(member, " is not a struct var: ", m);
       else {
-        error = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names, "!");
+        auto mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names, "!");
         if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length") // list of keywords
-          throw new Exception(error);
+          text.failparse(mesg);
+        else
+          text.setError(mesg);
       }
       return null;
     }

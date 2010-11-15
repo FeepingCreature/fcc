@@ -263,7 +263,7 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
   auto t2 = text;
   New(fun.type);
   string parname;
-  error = null;
+  error = stuple("", "");
   auto ns = namespace();
   assert(ns);
   if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
@@ -280,10 +280,10 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
     text = t2;
     static if (Decl) {
       if (text.accept(";")) return fun;
-      else throw new Exception("Expected ; at '"~t2.next_text()~"'");
+      else t2.failparse("Expected ';'");
     } else {
       if (rest(text, "tree.scope", &fun.tree)) return fun;
-      else throw new Exception("Couldn't parse function scope at '"~text.next_text()~"'");
+      else text.failparse("Couldn't parse function scope");
     }
   } else return null;
 }

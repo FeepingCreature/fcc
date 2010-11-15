@@ -93,7 +93,7 @@ Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
 redo:
     if (!(t2.gotIdentifier(id) &&
           t2.accept("=")))
-      throw new Exception("Couldn't parse alias at "~t2.next_text());
+      t2.failparse("Couldn't parse alias");
     auto t3 = t2;
     bool gotTerm() {
       if (t3.accept(";")) return true;
@@ -116,7 +116,7 @@ redo:
           t2 = t3;
           namespace().__add(id, obj); // for instance, function alias
         } else
-          throw new Exception("Couldn't parse alias target at "~t2.next_text());
+          t2.failparse("Couldn't parse alias target");
       }
     }
     

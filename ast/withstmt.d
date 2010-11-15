@@ -102,12 +102,14 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   // if (!t2.accept("with")) return null;
   if (!t2.accept("using")) return null;
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex)) throw new Exception("Couldn't match with-expr at "~t2.next_text());
+  if (!rest(t2, "tree.expr", &ex))
+    t2.failparse("Couldn't match with-expr");
   auto backup = namespace();
   scope(exit) namespace.set(backup);
   auto ws = new WithStmt(ex);
   namespace.set(ws.sc);
-  if (!rest(t2, "tree.stmt", &ws.sc._body)) throw new Exception("Couldn't match with-body at "~t2.next_text());
+  if (!rest(t2, "tree.stmt", &ws.sc._body))
+    t2.failparse("Couldn't match with-body");
   text = t2;
   return ws;
 }
@@ -130,6 +132,7 @@ Object gotBackupOf(ref string text, ParseCb cont, ParseCb rest) {
       names ~= ident;
     } while (test(ws = ws.get!(WithStmt)));
     throw new Exception(Format("No backup for ", name, ", only ", names, ". "));
-  } else throw new Exception("Failed to parse backupof() at '"~t2.next_text()~"'. ");
+  } else
+    t2.failparse("Failed to parse backupof()");
 }
 mixin DefaultParser!(gotBackupOf, "tree.expr.backupof", "52");

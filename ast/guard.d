@@ -19,7 +19,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   
   if (type == "onSuccess" || type == "onExit") {
     if (!rest(t3, "tree.stmt", &st))
-      throw new Exception("No statement matched for "~type~" in scope context: "~t3.next_text());
+      t3.failparse("No statement matched for ", type, " in scope context");
     sc.guards ~= st;
   }
   if (type == "onFailure" || type == "onExit") {
@@ -35,7 +35,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
       scope(exit) namespace.set(backup);
       namespace.set(nf);
       if (!rest(t4, "tree.scope", &nf.tree))
-        throw new Exception("No statement matched for "~type~" in exception guard context: "~t4.next_text());
+        t4.failparse("No statement matched for ", type, " in exception guard context");
     }
     mod.entries ~= cast(Tree) nf;
     auto grtype = cast(IType) sysmod.lookup("_GuardRecord");
@@ -71,9 +71,9 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     }
   }
   
-  assert(type != "onExit" || t3 is t4,
-    Format("Mismatch: First case matched to '", t3.next_text(), "', "
-           "second to '", t4.next_text(), "'. ")
+  t3.passert(type != "onExit" || t3 is t4,
+    "Mismatch: First case matched to '", t3.nextText(), "', "
+           "second to '", t4.nextText(), "'. "
   );
   text = t3;
   return Single!(NoOp);
@@ -125,7 +125,7 @@ Object gotScoped(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("scoped")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr", &ex))
-    throw new Exception("Failed to match expr for scoped at '"~t2.next_text()~"'. ");
+    t2.failparse("Failed to match expr for scoped");
   text = t2;
   return cast(Object) genScoped(ex);
 }

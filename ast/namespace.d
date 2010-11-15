@@ -108,7 +108,8 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
       if (special) {
         text = t2;
       } else {
-        if (!text.accept(name)) throw new Exception("WTF! "~name~" at "~text.next_text());
+        if (!text.accept(name))
+          text.failparse("WTF ", name);
       }
       return res;
     } else {
@@ -118,7 +119,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
       name = name[0 .. name.rfind(".")]; // chop up what _may_ be members!
       goto retry;
     }
-    error = "unknown identifier "~name~". ";
+    t2.setError("unknown identifier: '", name, "'");
   }
   return null;
 }
@@ -217,12 +218,14 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     
     myns.internalMode = false;
     
+    sourcefiles["<internal:"~id~">"] = text;
+    
     auto res = parsecon.parse(text, rule);
     auto rc = cast(R) res;
     static if (mustParse) {
-      if (text.length) throw new Exception(Format("Unknown text in ", id, ": ", text));
-      if (!res)        throw new Exception(Format("Failed to parse ", id, " at ", text.next_text()));
-      if (!rc)         throw new Exception(Format("Wrong result type in ", id, ": wanted ", R.stringof, "; got ", res));
+      if (text.length) text.failparse("Unknown text");
+      if (!res)        text.failparse("Failed to parse");
+      if (!rc)         text.failparse("Wrong result type: wanted ", R.stringof, ", got ", res);
     } else {
       if (text.length || !rc) return null;
     }

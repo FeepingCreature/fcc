@@ -116,7 +116,7 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   IType ty;
   if (!rest(t2, "type", &ty))
-    throw new Exception("Malformed value-new at '"~t2.next_text()~"'");
+    t2.failparse("Malformed value-new");
   
   text = t2;
   

@@ -28,13 +28,13 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
         Expr ex;
         if (auto left = str.startsWith("$")) {
           if (!rest(left, "tree.expr", &ex))
-            throw new Exception("Failed to parse expr from '"~left.next_text()~"'");
+            left.failparse("Failed to parse expr");
           str = left;
         } else if (auto left = str.startsWith("(")) {
           if (!rest(left, "tree.expr", &ex))
-            throw new Exception("Failed to parse expr from '"~left.next_text()~"'");
+            left.failparse("Failed to parse expr");
           if (!left.accept(")"))
-            throw new Exception("Unmatched expr in '"~left.next_text()~"' of '"~backup~"'");
+            left.failparse("Unmatched expr");
           str = left;
         } else {
           string id;

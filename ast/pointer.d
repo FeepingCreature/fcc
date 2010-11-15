@@ -102,7 +102,7 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
-    error = "Address operator found but nothing to take address matched at '"~text.next_text()~"'";
+    text.setError("Address operator found but nothing to take address matched");
     return null;
   }
   
@@ -111,7 +111,8 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto f = foldex(ex);
     tried ~= f.valueType();
     return test(cast(CValue) f);
-  })) throw new Exception(Format("Can't take reference: ", ex, " does not become a cvalue (", tried, ") at ", text.next_text()));
+  })) text.failparse("Can't take reference: ", ex,
+    " does not become a cvalue (", tried, ")");
   
   text = t2;
   auto cv = cast(CValue) fold(ex);
@@ -127,7 +128,7 @@ Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
-    throw new Exception("Dereference operator found but no expression matched at '"~text.next_text()~"'");
+    t2.failparse("Dereference operator found but no expression matched");
   
   if (!gotImplicitCast(ex, (IType it) { return !!cast(Pointer) it; })) {
     return null;

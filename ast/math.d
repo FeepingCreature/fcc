@@ -431,7 +431,7 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
         t2 = t3;
         goto retry;
       } else
-        throw new Exception("Could not find operand for '"~Ops[i]~"' at '"~t3.next_text()~"'! ");
+        t3.failparse("Could not find operand for '", Ops[i], "'");
     }
   }
   if (op is old_op) {
@@ -489,7 +489,7 @@ Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("-")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr", &ex, (Expr ex) { return !!(ex.valueType() == Single!(SysInt) || ex.valueType() == Single!(Float)); }))
-    throw new Exception("Found no type match for negation at '"~t2.next_text()~"'");
+    t2.failparse("Found no type match for negation");
   text = t2;
   return cast(Object) lookupOp("-", new IntExpr(0), ex);
 }

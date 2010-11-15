@@ -106,10 +106,10 @@ Object gotVecType(ref string text, ParseCb cont, ParseCb rest) {
       !t2.accept(",") ||
       !rest(t2, "tree.expr", &len) ||
       !t2.accept(")"))
-    throw new Exception("Fail to parse vector at '"~t2.next_text());
+    t2.failparse("Fail to parse vector");
   auto ie = cast(IntExpr) fold(len);
   if (!ie)
-    throw new Exception("Size parameter to vec not foldable or int: '"~text.next_text()~"'! ");
+    text.failparse("Size parameter to vec not foldable or int");
   text = t2;
   return new Vector(it, ie.num);
 }

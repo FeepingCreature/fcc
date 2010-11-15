@@ -117,6 +117,6 @@ Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(sc.sup);
   auto t2 = text;
   if (rest(t2, "tree.stmt", &sc._body)) { text = t2; return sc; }
-  throw new Exception("Couldn't match scope off "~text.next_text());
+  t2.failparse("Couldn't match scope");
 }
 mixin DefaultParser!(gotScope, "tree.scope");

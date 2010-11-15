@@ -30,7 +30,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
       sc.addStatement(ws);
       text = t2;
       return sc;
-    } else throw new Exception("Couldn't parse while loop at '"~t2.next_text()~"'");
+    } else t2.failparse("Couldn't parse while loop");
   } else return null;
 }
 mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141");
@@ -72,7 +72,7 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
       text = t2;
       namespace().setCheckpt(check);
       return fs;
-    } else throw new Exception("Failed to parse for statement at '"~t2.next_text()~"'");
+    } else t2.failparse("Failed to parse for statement");
   } else return null;
 }
 mixin DefaultParser!(gotForStmt, "tree.stmt.for", "142");
@@ -104,7 +104,8 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
     namespace.set(sc);
     scope(exit) namespace.set(sc.sup);
     
-    if (!rest(t2, "tree.scope", &dw.first)) throw new Exception("Couldn't parse scope after do at "~t2.next_text());
+    if (!rest(t2, "tree.scope", &dw.first))
+      t2.failparse("Couldn't parse scope after do");
     auto backup = namespace();
     namespace.set(dw.first);
     scope(exit) namespace.set(backup);
@@ -120,11 +121,12 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
         sc.sup = dw.first.sup;
         dw.first.sup = sc;
       }
-      if (!rest(t2, "cond", &dw.cond)) throw new Exception("Could not match do/while cond at "~t2.next_text());
+      if (!rest(t2, "cond", &dw.cond))
+        t2.failparse("Could not match do/while cond");
       configure(dw.cond);
     }
     if (!rest(t2, "tree.scope", &dw.second))
-      throw new Exception("do/while extended second scope not matched at "~t2.next_text());
+      t2.failparse("do/while extended second scope not matched");
     text = t2;
     sc.addStatement(dw);
     return sc;

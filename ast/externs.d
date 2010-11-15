@@ -69,7 +69,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     return true;
   }
   void fail() {
-    assert(false, "extern parsing failed at '"~tx.next_text()~"'.");
+    tx.failparse("extern parsing failed");
   }
   if (t2.accept("{")) {
     while (grabFun() || grabVar() || grabFunDef()) { }

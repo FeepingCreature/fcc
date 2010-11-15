@@ -7,7 +7,7 @@ Object gotTypeof(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!t2.accept("typeof(")) return null;
   if (!(rest(t2, "tree.expr", &ex) && t2.accept(")")))
-    throw new Exception("Failed to parse typeof expression at '"~t2.next_text()~"'");
+    t2.failparse("Failed to parse typeof expression");
   text = t2;
   return cast(Object) ex.valueType();
 }

@@ -78,7 +78,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   if (t3.accept("{")) {
     t3.many(t3.matchOne());
     if (!t3.accept("}"))
-      throw new Exception("Unable to parse context block at '"~t3.next_text()~"'");
+      t3.failparse("Unable to parse context block");
     t2 = t3;
   } else t2.matchOne();
   text = t2;

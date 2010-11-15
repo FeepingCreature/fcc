@@ -37,14 +37,14 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
       scope(exit) namespace.set(sc.sup);
       ifs.branch1 = sc;
       if (!rest(t2, "cond", &ifs.test))
-        throw new Exception("Couldn't get if condition at "~t2.next_text());
+        t2.failparse("Couldn't get if condition");
       configure(ifs.test);
       if (!rest(t2, "tree.scope", (Statement st) { sc.addStatement(st); }))
-        throw new Exception("Couldn't get if branch at "~t2.next_text());
+        t2.failparse("Couldn't get if branch");
     }
     if (t2.accept("else")) {
       if (!rest(t2, "tree.scope", &ifs.branch2))
-        throw new Exception("Couldn't get else branch at "~t2.next_text());
+        t2.failparse("Couldn't get else branch");
     }
     text = t2;
     return ifs;

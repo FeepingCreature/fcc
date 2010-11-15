@@ -58,9 +58,7 @@ Object gotFpCloseExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (t2.accept(".toDg(")) {
       Expr dataptr;
       if (!(rest(t2, "tree.expr", &dataptr) && t2.accept(")")))
-        throw new Exception(Format(
-          "Invalid syntax for toDg at ", t2.next_text()
-        ));
+        t2.failparse("Invalid syntax for toDg");
       text = t2;
       return new DgConstructExpr(ex, dataptr);
     } else return null;

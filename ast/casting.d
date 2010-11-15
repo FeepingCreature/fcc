@@ -78,7 +78,7 @@ Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
-    throw new Exception("Unable to parse cast source at "~t2.next_text());
+    t2.failparse("Unable to parse cast source");
   Expr res;
   foreach (dg; converts) {
     auto ex2 = dg(ex, dest);
@@ -100,9 +100,9 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   IType[] types;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; }))
-    throw new Exception(Format(
-      "Expression not matched in cast @'", t2.next_text(), "'; none of ", types, " matched ", dest.size, ". "
-    ));
+    t2.failparse(
+      "Expression not matched in cast; none of ", types, " matched ", dest.size, ". "
+    );
     // return null;
   
   text = t2;

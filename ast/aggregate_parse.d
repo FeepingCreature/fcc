@@ -11,7 +11,7 @@ Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
   sc._body = as;
   Statement st;
   if (t2.many(!!rest(t2, "tree.stmt", &st), { as.stmts ~= st; }, "}") &&
-      t2.mustAccept("}", Format("Encountered unknown statement at ", t2.next_text()))
+      t2.mustAccept("}", "Encountered unknown statement")
     ) { text = t2; return sc; }
   else return null;
 }
@@ -28,7 +28,8 @@ Object gotRestStmt(ref string text, ParseCb cont, ParseCb rest) {
   Statement st;
   t2.many(!!rest(t2, "tree.stmt", &st), { as.stmts ~= st; });
   auto t3 = t2;
-  if (t3.strip().length) t3.mustAccept("}", "Unterminated rest statement: "~t3.next_text());
+  if (t3.strip().length)
+    t3.mustAccept("}", "Unterminated rest statement: ");
   text = t2;
   return sc;
 }

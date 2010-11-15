@@ -179,7 +179,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("cross")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr", &ex))
-    throw new Exception("Could not match expr for cross at '"~t2.next_text()~"'");
+    t2.failparse("Could not match expr for cross");
   text = t2;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = cast(Tuple) ex.valueType();
@@ -192,7 +192,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
     }
     return true;
   }))
-    throw new Exception(Format("Cannot convert ", ex, " into acceptable tuple form at '", t2.next_text(), "'. "));
+    t2.failparse("Cannot convert ", ex, " into acceptable tuple form");
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
@@ -297,7 +297,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("zip")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr", &ex))
-    throw new Exception("Could not match expr for zip at '"~t2.next_text()~"'");
+    t2.failparse("Could not match expr for zip");
   text = t2;
   bool rich = true;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
@@ -315,7 +315,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     }
     return true;
   }))
-    throw new Exception(Format("Cannot convert ", ex, " into acceptable tuple form at '", t2.next_text(), "'. "));
+    t2.failparse("Cannot convert ", ex, " into acceptable tuple form");
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
@@ -351,10 +351,10 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("sum")) return null;
   Expr ex;
   if (!rest(text, "tree.expr", &ex))
-    throw new Exception("Could not match expr for cross at '"~text.next_text()~"'");
+    text.failparse("Could not match expr for cross");
   IType[] tried;
   if (!forb(ex) || !gotImplicitCast(ex, (IType it) { tried ~= it; return !!cast(RichIterator) it; }))
-    throw new Exception(Format("Cannot convert ", ex, " to valid iterator at '", text.next_text(), "', tried ", tried, ". "));
+    text.failparse("Cannot convert ", ex, " to valid iterator");
   
   return new SumExpr(cast(RichIterator) ex.valueType(), ex);
 }
@@ -374,7 +374,7 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
     if (auto ns = cast(Namespace) thingy) lookup = ns /apply/ (Namespace ns, string id) { return test(ns.lookup(id)); };
     else if (auto rn = cast(RelNamespace) thingy) lookup = rn /apply/ (RelNamespace rn, string id) { return test(rn.lookupRel(id, null)); };
     if (!lookup || !lookup("step") || !lookup("ivalid")) return null;
-    logln("try ", t2.next_text(), "; ", thingy);
+    logln("try ", t2.nextText(), "; ", thingy);
     try {
       auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
                         (`eval (iter.step)`, "iter", iter);

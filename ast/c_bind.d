@@ -392,10 +392,12 @@ import ast.fold, ast.literal_string;
 Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("c_include")) return null;
   Expr ex;
-  if (!rest(text, "tree.expr", &ex)) throw new Exception("Couldn't find expr at '"~text.next_text()~"'!");
-  if (!text.accept(";")) throw new Exception("Missing trailing semicolon at '"~text.next_text()~"'! ");
+  if (!rest(text, "tree.expr", &ex))
+    text.failparse("Couldn't find c_import string expr");
+  if (!text.accept(";")) text.failparse("Missing trailing semicolon");
   auto str = cast(StringExpr) foldex(ex);
-  if (!str) throw new Exception(Format(foldex(ex), " is not a string at '", text.next_text(), "'!"));
+  if (!str)
+    text.failparse(foldex(ex), " is not a string");
   auto name = str.str;
   // prevent injection attacks
   foreach (ch; name)

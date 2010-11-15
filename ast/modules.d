@@ -63,11 +63,14 @@ Module lookupMod(string name) {
     return sysmod;
   }
   if (auto p = name in cache) return *p;
-  auto file = (name.replace(".", "/") ~ ".cr").read().castLike("");
+  auto fn = (name.replace(".", "/") ~ ".cr");
+  auto file = fn.read().castLike("");
+  sourcefiles[fn] = file;
   auto mod = cast(Module) parsecon.parse(file, "tree.module");
-  if (!mod) throw new Exception("Could not parse module: '"~file.next_text()~"' !");
+  if (!mod)
+    file.failparse("Could not parse module");
   if (file.strip().length)
-    throw new Exception("Failed to parse module at '"~file.next_text()~"' !");
+    file.failparse("Failed to parse module");
   cache[name] = mod;
   return mod;
 }
@@ -320,8 +323,10 @@ void setupSysmods() {
       _interrupt 3;
     }
   `;
+  sourcefiles["<internal:sys>"] = src;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
   string base = src.between("", "/*MARKER*/") ~ "}";
+  sourcefiles["<internal:sys,pre>"] = base;
   sysmod = cast(Module) parsecon.parse(base, "tree.module");
   // we can now use the first half to parse the entirety.
   sysmod = cast(Module) parsecon.parse(src, "tree.module");
@@ -337,7 +342,7 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
     { mod.imports ~= lookupMod(m); },
     true) &&
     text.accept(";")
-  )) throw new Exception("Unexpected text while parsing import statement: "~text.next_text());
+  )) text.failparse("Unexpected text while parsing import statement");
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotImport, "tree.import");
@@ -369,9 +374,9 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
       eatComments(t2);
       text = t2;
       if (text.strip().length)
-        throw new Exception("Unknown statement at '"~text.next_text()~"'");
+        text.failparse("Unknown statement");
       return mod;
-    } else throw new Exception("Failed to parse module at '"~t2.next_text()~"'! ");
+    } else t2.failparse("Failed to parse module");
   } else return null;
 }
 mixin DefaultParser!(gotModule, "tree.module");

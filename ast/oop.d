@@ -405,26 +405,26 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
         if (!cl && !intf) throw new Exception("Cannot inherit from "~sup~": not a class or interface. ");
         if (intf) supints ~= intf;
         else {
-          if (intf) throw new Exception("Class must come first in inheritance spec: '"~t3.next_text()~"'");
-          if (supclass) throw new Exception("Multiple inheritance is not supported: '"~t3.next_text()~"'");
+          if (intf) t3.failparse("Class must come first in inheritance spec");
+          if (supclass) t3.failparse("Multiple inheritance is not supported");
           supclass = cl;
         }
       },
       false
-  )) throw new Exception("Invalid inheritance spec at '"~t3.next_text()~"'");
-  if (!t2.accept("{")) throw new Exception("Missing opening bracket for class def! ");
+  )) t3.failparse("Invalid inheritance spec");
+  if (!t2.accept("{")) t2.failparse("Missing opening bracket for class def");
   New(cl, name, supclass);
   cl.iparents = supints;
   namespace().add(cl); // add here so as to allow self-refs in body
   if (matchStructBody(t2, cl, cont, rest)) {
     if (!t2.accept("}"))
-      throw new Exception("Failed to parse struct body at "~t2.next_text());
+      t2.failparse("Failed to parse struct body");
     // logln("register class ", cl.name);
     text = t2;
     cl.finalize;
     return cl;
   } else {
-    throw new Exception("Couldn't match structure body at "~t2.next_text());
+    t2.failparse("Couldn't match structure body");
   }
 }
 mixin DefaultParser!(gotClassDef, "tree.typedef.class");
@@ -449,9 +449,9 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
         else supints ~= intf;
       },
       false
-    )) throw new Exception("Invalid interface inheritance spec at '"~t3.next_text()~"'");
+    )) t3.failparse("Invalid interface inheritance spec");
   }
-  if (!t2.accept("{")) throw new Exception("Missing opening bracket for class def! ");
+  if (!t2.accept("{")) t2.failparse("Missing opening bracket for class def");
   auto intf = new Intf(name);
   intf.parents = supints;
   intf.initOffset;
@@ -461,7 +461,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
     auto fun = new Function;
     if (text.accept("}")) break;
     if (!gotGenericFunDecl(fun, cast(Namespace) null, false, text, cont, rest))
-      throw new Exception("Error parsing interface at '"~text.next_text()~"'");
+      text.failparse("Error parsing interface");
     intf.funs ~= fun;
   }
   return intf;
@@ -496,7 +496,8 @@ mixin DefaultParser!(gotIntfRef, "type.intf", "36"); // before type.named
 Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
-  assert(!!lhs_partial(), Format("got class member expr? but we're at ", t2.next_text(), "!"));
+  t2.passert(!!lhs_partial(),
+    "got class member expr? weird");
   auto ex = cast(Expr) lhs_partial();
   if (!ex) return null;
   auto cr = cast(ClassRef) ex.valueType(), ir = cast(IntfRef) ex.valueType();
@@ -512,7 +513,7 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (cl) m = cl.lookupRel(member, ex);
     else m = intf.lookupIntf(member, ex);
     if (!m) {
-      error = Format("No '", member, "' in ", cl?cl:intf, "!");
+      text.setError("No '", member, "' in ", cl?cl:intf, "!");
       return null;
     }
     text = t2;

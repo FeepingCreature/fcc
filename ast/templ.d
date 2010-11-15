@@ -39,7 +39,7 @@ Object gotTemplate(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("template")) return null;
   auto tmpl = new Template;
   if (!(t2.gotIdentifier(tmpl.name) && t2.accept("(") && (t2.accept("alias") && test(tmpl.isAlias = true) || true) && t2.gotIdentifier(tmpl.param) && t2.accept(")")))
-    throw new Exception("Failed parsing template header: '"~t2.next_text()~"'");
+    t2.failparse("Failed parsing template header");
   tmpl.source = t2.getHeredoc();
   tmpl.context = namespace();
   text = t2;
@@ -93,7 +93,7 @@ class TemplateInstance : Namespace {
           current_module().entries ~= tr;
         }
       ) || t2.strip().length)
-        throw new Exception("Failed to parse template content at '"~t2.next_text()~"'");
+        t2.failparse("Failed to parse template content");
       
     });
   }
@@ -125,11 +125,13 @@ Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
   TemplateInstance inst;
   if (t.isAlias) {
     Tree tr;
-    if (!rest(t2, "tree.expr.named", &tr)) throw new Exception("Couldn't match tree object for instantiation at '"~t2.next_text()~"'");
+    if (!rest(t2, "tree.expr.named", &tr))
+      t2.failparse("Couldn't match tree object for instantiation");
     inst = t.getInstance(tr, rest);
   } else {
     IType ty;
-    if (!rest(t2, "type", &ty)) throw new Exception("Couldn't match type for instantiation at '"~t2.next_text()~"'");
+    if (!rest(t2, "type", &ty))
+      t2.failparse("Couldn't match type for instantiation");
     inst = t.getInstance(ty, rest);
   }
   // logln("instantiate ", t.name, " with ", ty);

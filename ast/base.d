@@ -1,6 +1,6 @@
 module ast.base;
 
-public import asmfile, ast.types, parseBase, tools.log: logln;
+public import asmfile, ast.types, parseBase, errors, tools.log: logln;
 
 import tools.base: Format, New, This_fn, rmSpace;
 
@@ -189,8 +189,6 @@ class Register(string Reg) : Expr, IRegister {
   }
   override Register dup() { return this; }
 }
-
-string error; // TODO: tls
 
 class ParseException {
   string where, info;

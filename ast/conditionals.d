@@ -118,7 +118,7 @@ Object gotIntExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(text, "tree.expr", &res))
     return null;
   if (!gotImplicitCast(res, (IType it) { its ~= it; return it.size == 4; })) {
-    error = Format("Neither of those was int sized: ", its, " at ", text.next_text());
+    text.setError("Neither of those was int sized: ", its);
     return null;
   }
   return cast(Object) res;
@@ -141,7 +141,7 @@ Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("!")) return null;
   Cond c;
   if (!rest(t2, "cond >cond.bin", &c))
-    throw new Exception("Couldn't match condition to negate at '"~t2.next_text()~"'! ");
+    t2.failparse("Couldn't match condition to negate");
   text = t2;
   return new NegCond(c);
 }
@@ -188,7 +188,8 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
   if (rest(t2, "<tree.expr >tree.expr.cond", &ex) && gotImplicitCast(ex, (IType it) { return it.size == 4; })) {
-    // assert(ex.valueType().size == 4, Format(ex, ", being ", ex.valueType(), ", is a bad cond expr to test for at '", text.next_text(), "'. "));
+    text.passert(ex.valueType().size == 4,
+      ex, ", being ", ex.valueType(), ", is a bad cond expr to test for");
     text = t2;
     return new ExprWrap(ex);
   } else return null;
@@ -237,8 +238,7 @@ Object gotBoolOp(string Op)(ref string text, ParseCb cont, ParseCb rest) {
   while (t2.accept(Op)) {
     Cond cd2;
     if (!cont(t2, &cd2))
-      throw new Exception("Couldn't get second cond after '"
-        ~ Op ~ "' at '"~t2.next_text()~"'");
+      t2.failparse("Couldn't get second cond after '", Op, "'");
     cd = new BooleanOp!(Op)(cd, cd2);
   }
   if (old_cd is cd) return null;

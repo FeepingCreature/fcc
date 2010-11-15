@@ -63,7 +63,7 @@ static this() {
 
 Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    // logln("access ", ex.valueType(), " @", text.next_text());
+    // logln("access ", ex.valueType(), " @", text.nextText());
     auto exv = resolveType(ex.valueType());
     if (!cast(Array) exv && !cast(ExtArray) exv && !cast(StaticArray) exv && !cast(Pointer) exv)
       return null;
@@ -72,7 +72,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       auto res = lookupOp("index", ex, pos);
       if (!res) {
-        throw new Exception(Format("Invalid array index: ", pos.valueType(), " @'", text.next_text()));
+        text.failparse("Invalid array index: ", pos.valueType());
       }
       text = t2;
       return cast(Object) res;

@@ -51,7 +51,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
         args = list ~ args;
         goto retry;
       } else
-        throw new Exception(Format("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params[i], " (", i, "); tried ", tried, " at ", backup_text.next_text()));
+        backup_text.failparse("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params[i], " (", i, "); tried ", tried);
     }
     res ~= ex;
   }
@@ -64,7 +64,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   foreach (arg2; args) recurse(arg2);
   if (flat.length) {
     logln("flattened to ", flat);
-    throw new Exception(Format("Extraneous parameters to '", info, "' of ", params, ": ", args, " at '", backup_text.next_text(), "'. "));
+    backup_text.failparse("Extraneous parameters to '", info, "' of ", params, ": ", args);
   }
   return true;
 }

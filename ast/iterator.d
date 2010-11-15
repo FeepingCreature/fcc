@@ -69,7 +69,7 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   if (!cont(t2, &from)) return null;
   if (!t2.accept("..")) return null;
   if (!cont(t2, &to))
-    throw new Exception("Unable to acquire second half of range def at '"~t2.next_text()~"'");
+    t2.failparse("Unable to acquire second half of range def");
   text = t2;
   bool notATuple(IType it) { return !cast(Tuple) it; }
   gotImplicitCast(from, &notATuple);
@@ -126,7 +126,7 @@ Object gotIterIvalid(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   IType[] tried;
   if (!rest(t2, "tree.expr", &ex) || !gotImplicitCast(ex, (IType it) { return !!cast(Iterator) it; }))
-    throw new Exception(Format("Couldn't find iter expr for eoi at '", text.next_text(), "'; tried ", tried, ". "));
+    text.failparse("Couldn't find iter expr for eoi; tried ", tried);
   auto it = cast(Iterator) ex.valueType();
   text = t2;
   return cast(Object) it.terminateCond(ex);
@@ -369,12 +369,12 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     t2 = t3;
   } else ivarname = null;
   if (!rest(t2, "tree.expr", &sub) || !forb(sub) || !gotImplicitCast(sub, (IType it) { return !!cast(Iterator) it; }))
-    throw new Exception("Cannot find sub-iterator at '"~t2.next_text()~"'! ");
+    t2.failparse("Cannot find sub-iterator");
   Placeholder extra;
   Expr exEx, exBind;
   if (t2.accept("extra")) {
     if (!rest(t2, "tree.expr", &exEx))
-      throw new Exception("Couldn't match extra at '"~t2.next_text()~"'. ");
+      t2.failparse("Couldn't match extra");
     extra = new Placeholder(exEx.valueType(), "exEx.valueType()");
     if (auto dc = cast(DontCastMeExpr) exEx)
       exBind = new DontCastMeExpr(extra); // propagate outwards
@@ -382,7 +382,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
       exBind = extra;
   }
   if (!t2.accept(":"))
-    throw new Exception("Expected ':' at '"~t2.next_text()~"'! ");
+    t2.failparse("Expected ':'");
   
   auto it = cast(Iterator) sub.valueType();
   auto ph = new Placeholder(it.elemType(), "it.elemType() "~ivarname);
@@ -402,9 +402,9 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   namespace.set(sc);
   
   if (!rest(t2, "tree.expr", &main))
-    throw new Exception("Cannot find iterator expression at '"~t2.next_text()~"' in '"~text.next_text(32)~"'! ");
+    t2.failparse("Cannot find iterator expression");
   if (!t2.accept("]"))
-    throw new Exception("Expected ']' at '"~t2.next_text()~"'; partial is "~Format(main.valueType())~". ");
+    t2.failparse("Expected ']', partial is ", main.valueType());
   text = t2;
   Expr res;
   PTuple!(IType, Expr, Placeholder, Placeholder) ipt;
@@ -529,7 +529,7 @@ Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
 withoutIterator:
   Expr iter;
   if (!rest(t2, "tree.expr", &iter) || !forb(iter) || !gotImplicitCast(iter, (IType it) { return !!cast(Iterator) it; }))
-    if (needIterator) throw new Exception("Can't find iterator at '"~t2.next_text()~"'! ");
+    if (needIterator) t2.failparse("Can't find iterator");
     else return null;
   text = t2;
   // insert declaration into current scope.
@@ -605,8 +605,7 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       auto ri = cast(RichIterator) iter;
       if (!ri)
-        throw new Exception(Format("Cannot access by index ",
-          ex, " at ", text.next_text(), ": not a rich iterator! "));
+        text.failparse("Cannot access by index: ", ex, " not a rich iterator");
       text = t2;
       if (auto range = cast(Range) pos.valueType()) {
         auto ps = new RCE(range.wrapper, pos);
@@ -755,7 +754,7 @@ Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
       auto ri = cast(RichIterator) it;
       return ri && target.valueType() == new Array(ri.elemType());
     })) {
-      error = Format("Mismatching types in iterator assignment: ", target, " <- ", value.valueType());
+      text.setError("Mismatching types in iterator assignment: ", target, " <- ", value.valueType());
       return null;
     }
     text = t2;

@@ -68,7 +68,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
     auto sl = namespace().get!(ScopeLike)();
     Scope sc2;
     if (!rest(t2, "tree.scope", &sc2))
-      throw new Exception("No statement matched in handler context: "~t2.next_text());
+      t2.failparse("No statement matched in handler context");
     sc.addStatement(sc2);
   }
   {
@@ -144,7 +144,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   assert(!!ifs.test);
   configure(ifs.test);
   if (!rest(t2, "tree.scope", &ifs.branch1))
-    throw new Exception("Couldn't get if branch at "~t2.next_text());
+    t2.failparse("Couldn't get cond_exit branch");
   text = t2;
   return ifs;
 }

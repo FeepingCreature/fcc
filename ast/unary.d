@@ -52,16 +52,16 @@ Object gotPreIncExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   if (t2.accept("++")) {
     if (!cont(t2, &op))
-      throw new Exception(Format("Can't find expression for pre-inc at '"~t2.next_text()~"'"));
+      t2.failparse("Can't find expression for pre-inc");
     auto lv = cast(LValue) op;
-    if (!lv) throw new Exception(Format("Can't pre-increment ", op, ": not an lvalue"));
+    if (!lv) text.failparse("Can't pre-increment ", op, ": not an lvalue");
     text = t2;
     return new PrePostOpExpr!(false, true)(lv);
   } else if (t2.accept("--")) {
     if (!cont(t2, &op))
-      throw new Exception(Format("Can't find expression for pre-inc at '"~t2.next_text()~"'"));
+      t2.failparse("Can't find expression for pre-inc");
     auto lv = cast(LValue) op;
-    if (!lv) throw new Exception(Format("Can't pre-decrement ", op, ": not an lvalue"));
+    if (!lv) text.failparse("Can't pre-decrement ", op, ": not an lvalue");
     text = t2;
     return new PrePostOpExpr!(false, false)(lv);
   } else return null;

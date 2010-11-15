@@ -8,7 +8,7 @@ Object gotEval(ref string text, ParseCb cont, ParseCb rest) {
   Object obj;
   if (!rest(t2, "tree.expr", &obj))
     return null;
-    // throw new Exception("Could not parse expr at '"~t2.next_text()~"'. ");
+    // t2.failparse("Could not parse expr");
   text = t2;
   if (auto fun = cast(Function) obj) {
     if (fun.type.params.length)

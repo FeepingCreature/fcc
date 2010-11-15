@@ -1,6 +1,6 @@
 module parseBase;
 
-import tools.base;
+import tools.base, errors;
 enum Scheme { Binary, Octal, Decimal, Hex }
 bool gotInt(ref string text, out int i) {
   auto t2 = text.strip();
@@ -75,11 +75,6 @@ bool isAlphanum(dchar d) {
 import tools.compat: replace, strip;
 import tools.base: Stuple, stuple;
 
-string next_text(string s, int i = 100) {
-  if (s.length > i) s = s[0 .. i];
-  return s.replace("\n", "\\");
-}
-
 void eatComments(ref string s) {
   s = s.strip();
   while (true) {
@@ -108,7 +103,7 @@ bool accept(ref string s, string t) {
 
 bool mustAccept(ref string s, string t, string err) {
   if (s.accept(t)) return true;
-  throw new Exception(err);
+  s.failparse(err);
 }
 
 bool bjoin(ref string s, lazy bool c1, lazy bool c2, void delegate() dg,
@@ -573,7 +568,7 @@ class ParseContext {
       return x.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "?");
     }
     if (verboseParser)
-      logln("BEGIN PARSE '", text.next_text(16).xmlmark(), "'");
+      logln("BEGIN PARSE '", text.nextText(16).xmlmark(), "'");
     
     // make copy
     ubyte[RULEPTR_SIZE_HAX] cond_copy =
@@ -603,7 +598,7 @@ class ParseContext {
       if (speed < min_speed) {
         min_speed = speed;
         logln("New worst slowdown: '",
-          condStr, "' at '", start_text.next_text(), "'"
+          condStr, "' at '", start_text.nextText(), "'"
           ": ", speed, " characters/ms "
           "(", (text.ptr - start_text.ptr), " in ", delta, "ms). ");
       }
@@ -616,10 +611,10 @@ class ParseContext {
       // scope(exit) rulestack = rulestack[0 .. $-1];
       
       string xid() { return id.replace(".", "_"); }
-      if (verboseXML) logln("<", xid, " text='", text.next_text(16).xmlmark(), "'>");
+      if (verboseXML) logln("<", xid, " text='", text.nextText(16).xmlmark(), "'>");
       scope(failure) if (verboseXML) logln("Exception</", xid, ">");
       if (cond(id)) {
-        if (verboseParser) logln("TRY PARSER [", id, "] for '", text.next_text(16), "'");
+        if (verboseParser) logln("TRY PARSER [", id, "] for '", text.nextText(16), "'");
         matched = true;
         
         cont.selfrule = id;
@@ -640,7 +635,7 @@ class ParseContext {
               continue;
             }
           }
-          if (verboseParser) logln("    PARSER [", id, "] succeeded with ", res, ", left '", text.next_text(16), "'");
+          if (verboseParser) logln("    PARSER [", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
           if (verboseXML) logln("Success</", xid, ">");
           if (ctl == ParseCtl.AcceptAbort) return res;
           if (text.ptr > longestMatchStr.ptr) {
@@ -678,6 +673,7 @@ class ParseContext {
     condStr = cond;
     scope(exit) condStr = null;
     try return parse(text, matchrule=cond);
+    catch (ParseEx pe) { pe.addRule(cond); throw pe; }
     catch (Exception ex) throw new Exception(Format("Matching rule '"~cond~"': ", ex));
   }
 }
@@ -685,9 +681,11 @@ class ParseContext {
 bool test(T)(T t) { if (t) return true; else return false; }
 
 string getHeredoc(ref string text) {
-  if (!text.accept("<<")) throw new Exception("Expected heredoc, got '"~text.next_text()~"'");
+  if (!text.accept("<<"))
+    text.failparse("Expected heredoc");
   string sep;
-  if (!text.gotIdentifier(sep)) throw new Exception("Could not get heredoc separator at '"~text.next_text()~"'");
+  if (!text.gotIdentifier(sep))
+    text.failparse("Could not get heredoc separator");
   return text.slice(sep);
 }
 

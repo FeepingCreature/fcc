@@ -130,15 +130,17 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (cast(LValue) dest) return null; // leave to normal assignment
     if (rest(t2, "tree.expr", &src)) {
       if (dest.valueType() != src.valueType()) {
-        error = Format("Mismatching types in slice assignment: ", dest.valueType(), " <- ", src.valueType());
+        auto mesg = Format("Mismatching types in slice assignment: ", dest.valueType(), " <- ", src.valueType());
         if (cast(Array) src.valueType() || cast(ExtArray) src.valueType())
-          throw new Exception(error);
+          text.failparse(mesg);
+        else
+          text.setError(mesg);
         return null;
       }
       text = t2;
       // TODO: assert on size
       return cast(Object) getSliceAssign(dest, src);
-    } else throw new Exception("Failed to parse slice-assignment value at '"~t2.next_text()~"'");
+    } else t2.failparse("Failed to parse slice-assignment value");
   } else return null;
 }
 mixin DefaultParser!(gotSliceAssignment, "tree.semicol_stmt.assign_slice", "10");
