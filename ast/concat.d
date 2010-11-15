@@ -61,11 +61,13 @@ class ConcatChain : Expr {
             iparse!(Statement, "inc_array_length", "tree.stmt")
                    (`total ++; `, "total", total).emitAsm(af);
           } else {
-            (new Assignment(getIndex(cache, new IntExpr(i)), array)).emitAsm(af);
-            iparse!(Statement, "gather_array_length", "tree.semicol_stmt.assign")
-            (`total = total + cache[i].length`,
-             "total", total, "i", new IntExpr(i), "cache", cache)
-            .emitAsm(af);
+            // cache[i] = array
+            auto cachepos = getIndex(cache, new IntExpr(i));
+            (new Assignment(cachepos, array)).emitAsm(af);
+            // total = total + cache[i].length
+            (new Assignment(total,
+              lookupOp("+", total, getArrayLength(cachepos))
+            )).emitAsm(af);
           }
         }
         iparse!(Statement, "alloc_array", "tree.semicol_stmt.assign")

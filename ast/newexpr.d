@@ -102,10 +102,13 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
     text = t2;
     // logln("new2 ", ty, " [", len, "]");
     return cast(Object)
-      iparse!(Expr, "new_dynamic_array", "tree.expr")
-             ("(ty*:mem.calloc(len, ty.sizeof))[0 .. len]",
-              "len", len, "ty", ty
-             );
+      mkPointerSlice(
+        reinterpret_cast(new Pointer(ty),
+          iparse!(Expr, "new_dynamic_array", "tree.expr")
+                 ("mem.calloc(len, ty.sizeof)", "len", len, "ty", ty)
+        ),
+        new IntExpr(0), len
+      );
   }
 }
 mixin DefaultParser!(gotNewArrayExpr, "tree.expr.new.array", "12");
