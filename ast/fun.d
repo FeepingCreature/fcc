@@ -258,7 +258,7 @@ bool gotParlist(ref string str, ref Stuple!(IType, string)[] res, ParseCb rest) 
 import parseBase;
 // generalized to reuse for nested funs
 Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToNamespace,
-                           ref string text, ParseCb cont, ParseCb rest) {
+                           ref string text, ParseCb cont, ParseCb rest, bool noname = false) {
   IType ptype;
   auto t2 = text;
   New(fun.type);
@@ -267,7 +267,7 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
   auto ns = namespace();
   assert(ns);
   if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
-      t2.gotIdentifier(fun.name) &&
+      (noname || t2.gotIdentifier(fun.name)) &&
       t2.gotParlist(fun.type.params, rest)
     )
   {
@@ -288,11 +288,11 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
   } else return null;
 }
 
-Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest) {
-  return gotGenericFun!(T, false)(fun, sup_override, addToNamespace, text, cont, rest);
+Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, bool noname = false) {
+  return gotGenericFun!(T, false)(fun, sup_override, addToNamespace, text, cont, rest, noname);
 }
-Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest) {
-  return gotGenericFun!(T, true)(fun, sup_override, addToNamespace, text, cont, rest);
+Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, bool noname = false) {
+  return gotGenericFun!(T, true)(fun, sup_override, addToNamespace, text, cont, rest, noname);
 }
 
 Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {

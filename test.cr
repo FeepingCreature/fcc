@@ -186,15 +186,14 @@ int main(int argc, char** argv) {
   mem.realloc_dg = &myRealloc;
   mem.free_dg = &GC_free;*/
   auto cdg = mem.calloc_dg;
-  void* myCalloc(int a, b) {
+  mem.calloc_dg = delegate void*(int a, b) {
     // printf("Allocate %i, %i\n", a, b);
     if (a*b > 65536) {
       printf("Excessive allocation: %i, %i\n", a, b);
       *(int*:null)=0;
     }
     return cdg(a, b);
-  }
-  mem.calloc_dg = &myCalloc;
+  };
   test(2);
   test(0);
   int e = 5;
