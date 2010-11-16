@@ -4,6 +4,12 @@ import ast.base, ast.namespace, ast.structure, ast.parse;
 
 import tools.ctfe, tools.threads;
 
+string[] include_path;
+
+static this() {
+  include_path ~= "/usr/include";
+}
+
 class Module : Namespace, Tree, Named {
   string name;
   Module[] imports;
@@ -57,13 +63,22 @@ extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace
 
 Module[string] cache;
 
-import tools.compat: read, castLike;
+import tools.compat: read, castLike, exists, sub;
 Module lookupMod(string name) {
   if (name == "sys") {
     return sysmod;
   }
   if (auto p = name in cache) return *p;
   auto fn = (name.replace(".", "/") ~ ".cr");
+  if (!fn.exists()) {
+    foreach (path; include_path) {
+      auto combined = path.sub(fn);
+      if (combined.exists()) {
+        fn = combined;
+        break;
+      }
+    }
+  }
   auto file = fn.read().castLike("");
   sourcefiles[fn] = file;
   auto mod = cast(Module) parsecon.parse(file, "tree.module");

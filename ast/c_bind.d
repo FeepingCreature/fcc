@@ -11,12 +11,6 @@ extern(C) {
   int close(int);
 }
 
-string[] include_path;
-
-static this() {
-  include_path ~= "/usr/include";
-}
-
 string buf;
 string readStream(InputStream IS) {
   if (!buf) buf = new char[1024*1024];
