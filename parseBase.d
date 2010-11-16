@@ -385,7 +385,7 @@ void popCache() {
   foreach (dg; _popCache) dg();
 }
 
-template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
+template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
   class DefaultParserImpl : Parser {
     bool dontMemoMe;
     this() {
@@ -415,17 +415,26 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
       Stuple!(Object, char*)[char*] cache;
       typeof(cache)[] stack;
       override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+        auto t2 = text;
+        static if (Key) {
+          if (!.accept(t2, Key)) return null;
+        }
         bool acceptRelevant;
-        static if (is(typeof((&Fn)(text, accept, cont, rest))))
+        static if (is(typeof((&Fn)(t2, accept, cont, rest))))
           acceptRelevant = true;
         acceptRelevant &= !!accept;
-        if (acceptRelevant || dontMemoMe) return fnredir(text, accept, cont, rest);
+        if (acceptRelevant || dontMemoMe) {
+          auto res = fnredir(t2, accept, cont, rest);
+          if (res) text = t2;
+          return res;
+        }
         auto ptr = text.ptr;
         if (auto p = ptr in cache) {
           text = p._1[0 .. text.ptr + text.length - p._1];
           return p._0;
         }
-        auto res = fnredir(text, accept, cont, rest);
+        auto res = fnredir(t2, accept, cont, rest);
+        if (res) text = t2;
         cache[ptr] = stuple(res, text.ptr);
         return res;
       }
@@ -437,10 +446,10 @@ import tools.threads, tools.compat: rfind;
 ParseContext parsecon;
 static this() { New(parsecon); }
 
-template DefaultParser(alias Fn, string Id, string Prec = null, bool Memoize = true) {
+template DefaultParser(alias Fn, string Id, string Prec = null, string Key = null, bool Memoize = true) {
   static this() {
-    static if (Prec) parsecon.addParser(new DefaultParserImpl!(Fn, Id, Memoize), Prec);
-    else parsecon.addParser(new DefaultParserImpl!(Fn, Id, Memoize));
+    static if (Prec) parsecon.addParser(new DefaultParserImpl!(Fn, Id, Memoize, Key), Prec);
+    else parsecon.addParser(new DefaultParserImpl!(Fn, Id, Memoize, Key));
   }
 }
 

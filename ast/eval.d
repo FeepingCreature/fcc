@@ -4,7 +4,6 @@ import ast.base, ast.fun;
 
 Object gotEval(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("eval")) return null;
   Object obj;
   if (!rest(t2, "tree.expr", &obj))
     return null;
@@ -17,4 +16,4 @@ Object gotEval(ref string text, ParseCb cont, ParseCb rest) {
   }
   return obj;
 }
-mixin DefaultParser!(gotEval, "tree.expr.eval", "27");
+mixin DefaultParser!(gotEval, "tree.expr.eval", "27", "eval");

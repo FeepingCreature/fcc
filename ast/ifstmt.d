@@ -28,26 +28,23 @@ class IfStatement : Statement {
 import ast.namespace;
 Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, t3;
-  IfStatement ifs;
-  if (t2.accept("if ")) {
-    New(ifs);
-    {
-      auto sc = new Scope; // wrapper scope of first body
-      namespace.set(sc);
-      scope(exit) namespace.set(sc.sup);
-      ifs.branch1 = sc;
-      if (!rest(t2, "cond", &ifs.test))
-        t2.failparse("Couldn't get if condition");
-      configure(ifs.test);
-      if (!rest(t2, "tree.scope", (Statement st) { sc.addStatement(st); }))
-        t2.failparse("Couldn't get if branch");
-    }
-    if (t2.accept("else")) {
-      if (!rest(t2, "tree.scope", &ifs.branch2))
-        t2.failparse("Couldn't get else branch");
-    }
-    text = t2;
-    return ifs;
-  } else return null;
+  auto ifs = new IfStatement;
+  {
+    auto sc = new Scope; // wrapper scope of first body
+    namespace.set(sc);
+    scope(exit) namespace.set(sc.sup);
+    ifs.branch1 = sc;
+    if (!rest(t2, "cond", &ifs.test))
+      t2.failparse("Couldn't get if condition");
+    configure(ifs.test);
+    if (!rest(t2, "tree.scope", (Statement st) { sc.addStatement(st); }))
+      t2.failparse("Couldn't get if branch");
+  }
+  if (t2.accept("else")) {
+    if (!rest(t2, "tree.scope", &ifs.branch2))
+      t2.failparse("Couldn't get else branch");
+  }
+  text = t2;
+  return ifs;
 }
-mixin DefaultParser!(gotIfStmt, "tree.stmt.if", "19");
+mixin DefaultParser!(gotIfStmt, "tree.stmt.if", "19", "if");

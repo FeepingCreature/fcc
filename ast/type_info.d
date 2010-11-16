@@ -5,13 +5,12 @@ import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop;
 Object gotTypeof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!t2.accept("typeof(")) return null;
   if (!(rest(t2, "tree.expr", &ex) && t2.accept(")")))
     t2.failparse("Failed to parse typeof expression");
   text = t2;
   return cast(Object) ex.valueType();
 }
-mixin DefaultParser!(gotTypeof, "type.of", "45");
+mixin DefaultParser!(gotTypeof, "type.of", "45", "typeof(");
 
 Object gotSizeof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

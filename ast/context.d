@@ -57,7 +57,7 @@ import tools.log;
 Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
-  if (!(t2.accept("context") && t2.gotIdentifier(name))) return null;
+  if (!t2.gotIdentifier(name)) return null;
   auto ctx = new Context(name);
   namespace().add(ctx);
   logln("got context ", name, ", sup is ", namespace());
@@ -84,7 +84,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotContext, "tree.toplevel.context");
+mixin DefaultParser!(gotContext, "tree.toplevel.context", null, "context");
 
 Object gotContextMember(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text;

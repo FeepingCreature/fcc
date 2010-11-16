@@ -6,7 +6,6 @@ import
 
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("new")) return null;
   
   string id;
   if (!t2.gotIdentifier(id)) return null;
@@ -58,12 +57,11 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
     });
   });
 }
-mixin DefaultParser!(gotNewClassExpr, "tree.expr.new.class", "11");
+mixin DefaultParser!(gotNewClassExpr, "tree.expr.new.class", "11", "new");
 
 import ast.casting, ast.slice: mkPointerSlice;
 Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("new")) return null;
   
   IType ty;
   if (!rest(t2, "type", &ty))
@@ -111,11 +109,10 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
       );
   }
 }
-mixin DefaultParser!(gotNewArrayExpr, "tree.expr.new.array", "12");
+mixin DefaultParser!(gotNewArrayExpr, "tree.expr.new.array", "12", "new");
 
 Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("new")) return null;
   
   IType ty;
   if (!rest(t2, "type", &ty))
@@ -128,6 +125,6 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
      "type", ty
     );
 }
-mixin DefaultParser!(gotNewValueExpr, "tree.expr.new.value", "2");
+mixin DefaultParser!(gotNewValueExpr, "tree.expr.new.value", "2", "new");
 
 static this() { parsecon.addPrecedence("tree.expr.new", "20"); }

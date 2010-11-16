@@ -99,8 +99,6 @@ class WithStmt : Namespace, Statement, ScopeLike {
 import tools.log;
 Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  // if (!t2.accept("with")) return null;
-  if (!t2.accept("using")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr", &ex))
     t2.failparse("Couldn't match with-expr");
@@ -113,11 +111,10 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return ws;
 }
-mixin DefaultParser!(gotWithStmt, "tree.stmt.withstmt", "11");
+mixin DefaultParser!(gotWithStmt, "tree.stmt.withstmt", "11", /*"with"*/"using");
 
 Object gotBackupOf(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("backupof(")) return null;
   string name;
   if (t2.gotIdentifier(name) && t2.accept(")")) {
     auto ws = namespace().get!(WithStmt);
@@ -135,4 +132,4 @@ Object gotBackupOf(ref string text, ParseCb cont, ParseCb rest) {
   } else
     t2.failparse("Failed to parse backupof()");
 }
-mixin DefaultParser!(gotBackupOf, "tree.expr.backupof", "52");
+mixin DefaultParser!(gotBackupOf, "tree.expr.backupof", "52", "backupof(");

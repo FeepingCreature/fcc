@@ -98,7 +98,6 @@ static this() {
 import ast.fold, ast.casting;
 Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("&")) return null;
   
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
@@ -120,11 +119,10 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   return new RefExpr(cv);
 }
-mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "21");
+mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "21", "&");
 
 Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("*")) return null;
   
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
@@ -136,7 +134,7 @@ Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return new DerefExpr(ex);
 }
-mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "22");
+mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "22", "*");
 
 class Symbol : Expr {
   string name;

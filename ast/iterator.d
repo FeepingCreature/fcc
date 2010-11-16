@@ -122,7 +122,6 @@ static this() {
 
 Object gotIterIvalid(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("__ivalid")) return null;
   Expr ex;
   IType[] tried;
   if (!rest(t2, "tree.expr", &ex) || !gotImplicitCast(ex, (IType it) { return !!cast(Iterator) it; }))
@@ -131,7 +130,7 @@ Object gotIterIvalid(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return cast(Object) it.terminateCond(ex);
 }
-mixin DefaultParser!(gotIterIvalid, "cond.ivalid", "76");
+mixin DefaultParser!(gotIterIvalid, "cond.ivalid", "76", "__ivalid");
 
 import ast.loops;
 
@@ -362,7 +361,6 @@ import ast.aggregate, ast.literals: DataExpr;
 Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr sub, main;
   auto t2 = text;
-  if (!t2.accept("[for")) return null;
   string ivarname;
   auto t3 = t2;
   if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
@@ -455,7 +453,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   ipt = stuple(best, new ScopeAndExpr(sc, main), ph, extra);
   return new RCE(cast(IType) restype, new StructLiteral(best, field));
 }
-mixin DefaultParser!(gotForIter, "tree.expr.iter.for");
+mixin DefaultParser!(gotForIter, "tree.expr.iter.for", "for[");
 static this() {
   parsecon.addPrecedence("tree.expr.iter", "441");
 }
@@ -555,7 +553,6 @@ mixin DefaultParser!(gotIterCond, "cond.iter", "705");
 
 Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("__istep")) return null;
   Object obj;
   if (!rest(t2, "tree.expr", &obj) || !cast(LValue) obj) {
     logln("refusing istep - nothing matched or not lvalue: ", obj);
@@ -570,7 +567,7 @@ Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return cast(Object) it.yieldAdvance(lv);
 }
-mixin DefaultParser!(gotIterEval, "tree.expr.eval.iter");
+mixin DefaultParser!(gotIterEval, "tree.expr.eval.iter", "__istep");
 
 class TempIndex : Expr {
   RichIterator ri; Expr ex, pos;
@@ -720,11 +717,8 @@ class EvalIterator(T) : Expr, Statement {
 
 Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto t2 = text;
-    if (!t2.accept(".eval")) return null;
     auto iter = cast(Iterator) ex.valueType();
     if (!iter) return null;
-    text = t2;
     if (auto ri = cast(RichIterator) iter) {
       return new EvalIterator!(RichIterator) (ex, ri);
     } else {
@@ -732,17 +726,16 @@ Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
     }
   };
 }
-mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval");
+mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval", ".eval");
 
 Object gotIterLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     auto iter = cast(RichIterator) ex.valueType();
     if (!iter) return null;
-    if (!text.accept(".length")) return null;
     return cast(Object) iter.length(ex);
   };
 }
-mixin DefaultParser!(gotIterLength, "tree.rhs_partial.iter_length");
+mixin DefaultParser!(gotIterLength, "tree.rhs_partial.iter_length", ".length");
 
 import tools.log;
 Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {

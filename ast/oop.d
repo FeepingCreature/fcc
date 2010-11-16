@@ -391,7 +391,6 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
 // copypaste from ast/structure.d :(
 Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("class ")) return null;
   string name;
   Class cl;
   if (!t2.gotIdentifier(name)) return null;
@@ -433,11 +432,10 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't match structure body");
   }
 }
-mixin DefaultParser!(gotClassDef, "tree.typedef.class");
+mixin DefaultParser!(gotClassDef, "tree.typedef.class", null, "class");
 
 Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("interface ")) return null;
   string name;
   if (!t2.gotIdentifier(name)) return null;
   auto t3 = t2;
@@ -472,7 +470,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   }
   return intf;
 }
-mixin DefaultParser!(gotIntfDef, "tree.typedef.intf");
+mixin DefaultParser!(gotIntfDef, "tree.typedef.intf", null, "interface");
 
 Object gotClassRef(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;

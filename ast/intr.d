@@ -11,7 +11,6 @@ class Interrupt : Statement {
 }
 
 Object gotIntrStmt(ref string text, ParseCb cont, ParseCb rest) {
-  if (!text.accept("_interrupt")) return null;
   Expr ex;
   if (!rest(text, "tree.expr", &ex))
     throw new Exception("Couldn't match interrupt number! ");
@@ -20,4 +19,4 @@ Object gotIntrStmt(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception("Interrupt number must be a literal constant! ");
   return new Interrupt(ie.num);
 }
-mixin DefaultParser!(gotIntrStmt, "tree.semicol_stmt.intr", "31");
+mixin DefaultParser!(gotIntrStmt, "tree.semicol_stmt.intr", "31", "_interrupt");

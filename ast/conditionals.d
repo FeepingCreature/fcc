@@ -138,14 +138,13 @@ class NegCond : Cond {
 
 Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("!")) return null;
   Cond c;
   if (!rest(t2, "cond >cond.bin", &c))
     t2.failparse("Couldn't match condition to negate");
   text = t2;
   return new NegCond(c);
 }
-mixin DefaultParser!(gotNegate, "cond.negate", "72");
+mixin DefaultParser!(gotNegate, "cond.negate", "72", "!");
 
 import ast.casting, ast.opers;
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
@@ -254,12 +253,12 @@ static this() {
 Object gotBraces(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond cd;
-  if (t2.accept("(") && rest(t2, "cond", &cd) && t2.accept(")")) {
+  if (rest(t2, "cond", &cd) && t2.accept(")")) {
     text = t2;
     return cast(Object) cd;
   } else return null;
 }
-mixin DefaultParser!(gotBraces, "cond.braces", "74");
+mixin DefaultParser!(gotBraces, "cond.braces", "74", "(");
 
 // pretty much only needed for iparses that use conds
 Object gotNamedCond(ref string text, ParseCb cont, ParseCb rest) {
@@ -296,13 +295,13 @@ class CondExpr : Expr {
 Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond cd;
-  if (t2.accept("eval") && rest(t2, "cond", &cd)) {
+  if (rest(t2, "cond", &cd)) {
     if (cast(ExprWrap) cd) return null;
     text = t2;
     return new CondExpr(cd);
   } else return null;
 }
-mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond");
+mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", "eval");
 
 static this() {
   foldopt ~= delegate Itr(Itr it) {

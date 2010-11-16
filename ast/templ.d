@@ -36,7 +36,6 @@ class Template : Named {
 
 Object gotTemplate(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("template")) return null;
   auto tmpl = new Template;
   if (!(t2.gotIdentifier(tmpl.name) && t2.accept("(") && (t2.accept("alias") && test(tmpl.isAlias = true) || true) && t2.gotIdentifier(tmpl.param) && t2.accept(")")))
     t2.failparse("Failed parsing template header");
@@ -47,7 +46,7 @@ Object gotTemplate(ref string text, ParseCb cont, ParseCb rest) {
   return Single!(NoOp);
 }
 // a_ so this comes first .. lol
-mixin DefaultParser!(gotTemplate, "tree.toplevel.a_template");
+mixin DefaultParser!(gotTemplate, "tree.toplevel.a_template", null, "template");
 
 import tools.log;
 

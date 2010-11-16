@@ -83,62 +83,60 @@ class NamedNull : NoOp, Named, SelfAdding {
 import ast.modules;
 Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (t2.accept("alias ")) {
-    Expr ex;
-    IType ty;
-    Object obj;
-    string id;
-    bool notDone;
-    
+  Expr ex;
+  IType ty;
+  Object obj;
+  string id;
+  bool notDone;
+  
 redo:
-    if (!(t2.gotIdentifier(id) &&
-          t2.accept("=")))
-      t2.failparse("Couldn't parse alias");
-    auto t3 = t2;
-    bool gotTerm() {
-      if (t3.accept(";")) return true;
-      if (t3.accept(",")) {
-        notDone = true;
-        return true;
-      }
-      return false;
+  if (!(t2.gotIdentifier(id) &&
+        t2.accept("=")))
+    t2.failparse("Couldn't parse alias");
+  auto t3 = t2;
+  bool gotTerm() {
+    if (t3.accept(";")) return true;
+    if (t3.accept(",")) {
+      notDone = true;
+      return true;
     }
-    if (rest(t3, "tree.expr", &ex) && gotTerm()) {
+    return false;
+  }
+  if (rest(t3, "tree.expr", &ex) && gotTerm()) {
+    t2 = t3;
+  } else {
+    t3 = t2;
+    ex = null;
+    if (rest(t3, "type", &ty) && gotTerm()) {
       t2 = t3;
     } else {
       t3 = t2;
-      ex = null;
-      if (rest(t3, "type", &ty) && gotTerm()) {
+      if (rest(t3, "tree.expr", &obj) && gotTerm()) {
         t2 = t3;
-      } else {
-        t3 = t2;
-        if (rest(t3, "tree.expr", &obj) && gotTerm()) {
-          t2 = t3;
-          namespace().__add(id, obj); // for instance, function alias
-        } else
-          t2.failparse("Couldn't parse alias target");
-      }
+        namespace().__add(id, obj); // for instance, function alias
+      } else
+        t2.failparse("Couldn't parse alias target");
     }
-    
-    assert(ex || ty || obj);
-    text = t2;
-    auto cv = cast(CValue) ex, mv = cast(MValue) ex, lv = cast(LValue) ex;
-    if (ex) {
-      ExprAlias res;
-      if (lv) res = new LValueAlias(lv, id);
-      else if (mv) res = new MValueAlias(mv, id);
-      else if (cv) res = new CValueAlias(cv, id);
-      else res = new ExprAlias(ex, id);
-      namespace().add(res);
-    }
-    if (ty) namespace().add(new TypeAlias(ty, id));
-    if (notDone) {
-      notDone = false;
-      goto redo;
-    }
-    return Single!(NamedNull);
-  } else return null;
+  }
+  
+  assert(ex || ty || obj);
+  text = t2;
+  auto cv = cast(CValue) ex, mv = cast(MValue) ex, lv = cast(LValue) ex;
+  if (ex) {
+    ExprAlias res;
+    if (lv) res = new LValueAlias(lv, id);
+    else if (mv) res = new MValueAlias(mv, id);
+    else if (cv) res = new CValueAlias(cv, id);
+    else res = new ExprAlias(ex, id);
+    namespace().add(res);
+  }
+  if (ty) namespace().add(new TypeAlias(ty, id));
+  if (notDone) {
+    notDone = false;
+    goto redo;
+  }
+  return Single!(NamedNull);
 }
-mixin DefaultParser!(gotAlias, "struct_member.struct_alias");
-mixin DefaultParser!(gotAlias, "tree.stmt.alias", "16");
-mixin DefaultParser!(gotAlias, "tree.toplevel.alias");
+mixin DefaultParser!(gotAlias, "struct_member.struct_alias", null, "alias");
+mixin DefaultParser!(gotAlias, "tree.stmt.alias", "16", "alias");
+mixin DefaultParser!(gotAlias, "tree.toplevel.alias", null, "alias");

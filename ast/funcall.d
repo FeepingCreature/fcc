@@ -97,7 +97,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     return fc;
   };
 }
-mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall", null, true);
+mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall");
 
 class FpCall : Expr {
   Expr fp;
@@ -130,7 +130,7 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     return fc;
   };
 }
-mixin DefaultParser!(gotFpCallExpr, "tree.rhs_partial.fpcall", null, true);
+mixin DefaultParser!(gotFpCallExpr, "tree.rhs_partial.fpcall");
 
 import ast.dg;
 class DgCall : Expr {
@@ -161,4 +161,4 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     return dc;
   };
 }
-mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall", null, true);
+mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall");

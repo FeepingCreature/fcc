@@ -21,19 +21,17 @@ class WhileStatement : Statement {
 
 Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (t2.accept("while ")) {
-    auto ws = new WhileStatement;
-    auto sc = new Scope;
-    namespace.set(sc);
-    scope(exit) namespace.set(sc.sup);
-    if (rest(t2, "cond", &ws.cond) && (configure(ws.cond), true) && rest(t2, "tree.scope", &ws._body)) {
-      sc.addStatement(ws);
-      text = t2;
-      return sc;
-    } else t2.failparse("Couldn't parse while loop");
-  } else return null;
+  auto ws = new WhileStatement;
+  auto sc = new Scope;
+  namespace.set(sc);
+  scope(exit) namespace.set(sc.sup);
+  if (rest(t2, "cond", &ws.cond) && (configure(ws.cond), true) && rest(t2, "tree.scope", &ws._body)) {
+    sc.addStatement(ws);
+    text = t2;
+    return sc;
+  } else t2.failparse("Couldn't parse while loop");
 }
-mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141");
+mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141", "while");
 
 import tools.log;
 class ForStatement : Statement {
@@ -61,21 +59,19 @@ class ForStatement : Statement {
 import ast.namespace;
 Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (t2.accept("for (")) {
-    auto fs = new ForStatement, check = namespace().getCheckpt();
-    if (rest(t2, "tree.stmt.vardecl", &fs.decl) &&
-        rest(t2, "cond", &fs.cond) && (configure(fs.cond), true) && t2.accept(";") &&
-        rest(t2, "tree.semicol_stmt", &fs.step) && t2.accept(")") &&
-        rest(t2, "tree.scope", &fs._body)
-      )
-    {
-      text = t2;
-      namespace().setCheckpt(check);
-      return fs;
-    } else t2.failparse("Failed to parse for statement");
-  } else return null;
+  auto fs = new ForStatement, check = namespace().getCheckpt();
+  if (rest(t2, "tree.stmt.vardecl", &fs.decl) &&
+      rest(t2, "cond", &fs.cond) && (configure(fs.cond), true) && t2.accept(";") &&
+      rest(t2, "tree.semicol_stmt", &fs.step) && t2.accept(")") &&
+      rest(t2, "tree.scope", &fs._body)
+    )
+  {
+    text = t2;
+    namespace().setCheckpt(check);
+    return fs;
+  } else t2.failparse("Failed to parse for statement");
 }
-mixin DefaultParser!(gotForStmt, "tree.stmt.for", "142");
+mixin DefaultParser!(gotForStmt, "tree.stmt.for", "142", "for (");
 
 class DoWhileExt : Statement {
   Scope first, second;
@@ -97,39 +93,37 @@ class DoWhileExt : Statement {
 
 Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (t2.accept("do ")) {
-    auto dw = new DoWhileExt;
-    
-    auto sc = new Scope;
+  auto dw = new DoWhileExt;
+  
+  auto sc = new Scope;
+  namespace.set(sc);
+  scope(exit) namespace.set(sc.sup);
+  
+  if (!rest(t2, "tree.scope", &dw.first))
+    t2.failparse("Couldn't parse scope after do");
+  auto backup = namespace();
+  namespace.set(dw.first);
+  scope(exit) namespace.set(backup);
+  if (!t2.accept("while")) return null; // not a do/while extloop
+  
+  // You are not expected to understand this.
+  {
     namespace.set(sc);
-    scope(exit) namespace.set(sc.sup);
-    
-    if (!rest(t2, "tree.scope", &dw.first))
-      t2.failparse("Couldn't parse scope after do");
-    auto backup = namespace();
-    namespace.set(dw.first);
-    scope(exit) namespace.set(backup);
-    if (!t2.accept("while")) return null; // not a do/while extloop
-    
-    // You are not expected to understand this.
-    {
-      namespace.set(sc);
-      dw.first.sup = sc.sup;
-      sc.sup = dw.first;
-      scope(exit) {
-        namespace.set(dw.first);
-        sc.sup = dw.first.sup;
-        dw.first.sup = sc;
-      }
-      if (!rest(t2, "cond", &dw.cond))
-        t2.failparse("Could not match do/while cond");
-      configure(dw.cond);
+    dw.first.sup = sc.sup;
+    sc.sup = dw.first;
+    scope(exit) {
+      namespace.set(dw.first);
+      sc.sup = dw.first.sup;
+      dw.first.sup = sc;
     }
-    if (!rest(t2, "tree.scope", &dw.second))
-      t2.failparse("do/while extended second scope not matched");
-    text = t2;
-    sc.addStatement(dw);
-    return sc;
-  } else return null;
+    if (!rest(t2, "cond", &dw.cond))
+      t2.failparse("Could not match do/while cond");
+    configure(dw.cond);
+  }
+  if (!rest(t2, "tree.scope", &dw.second))
+    t2.failparse("do/while extended second scope not matched");
+  text = t2;
+  sc.addStatement(dw);
+  return sc;
 }
-mixin DefaultParser!(gotDoWhileExtStmt, "tree.stmt.do_while_ext", "143");
+mixin DefaultParser!(gotDoWhileExtStmt, "tree.stmt.do_while_ext", "143", "do");

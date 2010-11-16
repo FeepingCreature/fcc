@@ -370,7 +370,6 @@ void setupSysmods() {
 Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   string m;
   // import a, b, c;
-  if (!text.accept("import ")) return null;
   auto mod = current_module();
   if (!(
     text.bjoin(text.gotIdentifier(m, true), text.accept(","),
@@ -380,7 +379,7 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   )) text.failparse("Unexpected text while parsing import statement");
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotImport, "tree.import");
+mixin DefaultParser!(gotImport, "tree.import", null, "import");
 
 Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   auto t2 = text;
@@ -389,29 +388,27 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   Module mod;
   auto backup = namespace.ptr();
   scope(exit) namespace.set(backup);
-  if (t2.accept("module ")) {
-    New(mod);
-    namespace.set(mod);
-    auto backup_mod = current_module();
-    current_module.set(mod);
-    scope(exit) current_module.set(backup_mod);
-    if (t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
-      t2.many(
-        !!restart(t2, "tree.toplevel", &tr),
-        {
-          if (auto n = cast(Named) tr)
-            if (!addsSelf(tr))
-              mod.add(n);
-          mod.entries ~= tr;
-        }
-      )
-    ) {
-      eatComments(t2);
-      text = t2;
-      if (text.strip().length)
-        text.failparse("Unknown statement");
-      return mod;
-    } else t2.failparse("Failed to parse module");
-  } else return null;
+  New(mod);
+  namespace.set(mod);
+  auto backup_mod = current_module();
+  current_module.set(mod);
+  scope(exit) current_module.set(backup_mod);
+  if (t2.gotIdentifier(mod.name, true) && t2.accept(";") &&
+    t2.many(
+      !!restart(t2, "tree.toplevel", &tr),
+      {
+        if (auto n = cast(Named) tr)
+          if (!addsSelf(tr))
+            mod.add(n);
+        mod.entries ~= tr;
+      }
+    )
+  ) {
+    eatComments(t2);
+    text = t2;
+    if (text.strip().length)
+      text.failparse("Unknown statement");
+    return mod;
+  } else t2.failparse("Failed to parse module");
 }
-mixin DefaultParser!(gotModule, "tree.module");
+mixin DefaultParser!(gotModule, "tree.module", null, "module");

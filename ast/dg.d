@@ -64,7 +64,7 @@ Object gotFpCloseExpr(ref string text, ParseCb cont, ParseCb rest) {
     } else return null;
   };
 }
-mixin DefaultParser!(gotFpCloseExpr, "tree.rhs_partial.fpclose", null, true);
+mixin DefaultParser!(gotFpCloseExpr, "tree.rhs_partial.fpclose", null, null, true);
 
 class Delegate : Type {
   IType ret;

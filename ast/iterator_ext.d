@@ -175,12 +175,9 @@ Expr mkCross(Expr[] exprs) {
 }
 
 Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  if (!t2.accept("cross")) return null;
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex))
-    t2.failparse("Could not match expr for cross");
-  text = t2;
+  if (!rest(text, "tree.expr", &ex))
+    text.failparse("Could not match expr for cross");
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = cast(Tuple) ex.valueType();
     if (!tup) return false;
@@ -202,7 +199,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   }
   return cast(Object) mkCross(list);
 }
-mixin DefaultParser!(gotIteratorCross, "tree.expr.iter.cross");
+mixin DefaultParser!(gotIteratorCross, "tree.expr.iter.cross", null, "cross");
 
 import ast.aggregate;
 class Zip(T) : Type, T {
@@ -293,12 +290,9 @@ Expr mkZip(Expr[] exprs, bool rich) {
 }
 
 Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  if (!t2.accept("zip")) return null;
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex))
-    t2.failparse("Could not match expr for zip");
-  text = t2;
+  if (!rest(text, "tree.expr", &ex))
+    text.failparse("Could not match expr for zip");
   bool rich = true;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = cast(Tuple) ex.valueType();
@@ -315,7 +309,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     }
     return true;
   }))
-    t2.failparse("Cannot convert ", ex, " into acceptable tuple form");
+    text.failparse("Cannot convert ", ex, " into acceptable tuple form");
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
@@ -326,7 +320,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   }
   return cast(Object) mkZip(list, rich);
 }
-mixin DefaultParser!(gotIteratorZip, "tree.expr.iter.zip");
+mixin DefaultParser!(gotIteratorZip, "tree.expr.iter.zip", null, "zip");
 
 class SumExpr : Expr {
   Iterator iter;
@@ -348,7 +342,6 @@ class SumExpr : Expr {
 
 import ast.vardecl;
 Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
-  if (!text.accept("sum")) return null;
   Expr ex;
   if (!rest(text, "tree.expr", &ex))
     text.failparse("Could not match expr for cross");
@@ -358,7 +351,7 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
   
   return new SumExpr(cast(RichIterator) ex.valueType(), ex);
 }
-mixin DefaultParser!(gotSum, "tree.expr.iter.sum");
+mixin DefaultParser!(gotSum, "tree.expr.iter.sum", null, "sum");
 
 import ast.templ, ast.iterator;
 Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {

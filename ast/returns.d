@@ -67,22 +67,19 @@ class ReturnStmt : Statement {
 import ast.casting;
 Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (t2.accept("return")) {
-    
-    auto rs = new ReturnStmt;
-    rs.ns = namespace();
-    
-    // TODO: gather guards from all scopes
-    if (auto sc = cast(Scope) namespace())
-      rs.guards = sc.getGuards();
-    
-    auto fun = namespace().get!(Function)();
-    text = t2;
-    if (fun.type.ret == Single!(Void))
-      return rs; // don't expect a value.
-    if (rest(text, "tree.expr", &rs.value) && gotImplicitCast(rs.value, fun.type.ret, (IType it) { /*logln(it, " vs. ", fun.type.ret);*/ return test(it == fun.type.ret); })) {
-      return rs;
-    } else text.failparse("Error parsing return expression");
-  } else return null;
+  auto rs = new ReturnStmt;
+  rs.ns = namespace();
+  
+  // TODO: gather guards from all scopes
+  if (auto sc = cast(Scope) namespace())
+    rs.guards = sc.getGuards();
+  
+  auto fun = namespace().get!(Function)();
+  text = t2;
+  if (fun.type.ret == Single!(Void))
+    return rs; // don't expect a value.
+  if (rest(text, "tree.expr", &rs.value) && gotImplicitCast(rs.value, fun.type.ret, (IType it) { /*logln(it, " vs. ", fun.type.ret);*/ return test(it == fun.type.ret); })) {
+    return rs;
+  } else text.failparse("Error parsing return expression");
 }
-mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return", "3");
+mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return", "3", "return");
