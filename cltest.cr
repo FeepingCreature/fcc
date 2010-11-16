@@ -1,7 +1,7 @@
 module cltest;
 
 c_include "CL/cl.h";
-import sys;
+import sys, std.string;
 
 extern(C) cl_context clCreateContextFromType(
   cl_context_properties *properties,
@@ -51,25 +51,32 @@ cl_context createContextFromType(cl_context_properties[] props, cl_device_type t
   return clCheckCall!clCreateContextFromType (props.ptr, type, tup);
 }
 
+import sdl;
+
 int main() {
-  auto openclSource = [
-    "__kernel void VectorAdd(__global int* c, __global int* a, __global int* b)\n"[],
-    "{\n"[],
-    "               // Index of the elements to add\n"[],
-    "               unsigned int n = get_global_id(0);\n"[],
-    "               // Sum the n’th element of vectors a and b and store in c\n"[],
-    "               c[n] = a[n] + b[n];\n"[],
-    "}\n"[]
-  ];
-  auto initialData1 = [37, 50, 54, 50, 56, 0, 79, 112, 101, 110, 67, 76, 32, 43, 56, 100, 50, 25, 15, 17];
-  auto initialData2 = [35, 51, 54, 58, 55, 32, 0,   0,   0,   0,  0,  0,  0, 44, 55,  14, 58, 75, 18, 15];
-  int[] data1, data2;
-  alias SIZE = 2048;
-  while (data1.length < SIZE) data1 ~= initialData1;
-  data1 = data1[0 .. SIZE];
-  while (data2.length < SIZE) data2 ~= initialData2;
-  data2 = data2[0 .. SIZE];
-  
+  auto openclSource = "
+  __kernel void mandel(__global int* res, int2 size, int iters, float4 rect) {
+      float blend = 0;
+      int aa = 4;
+      int ix = get_global_id(0), iy = get_global_id(1);
+      for (int sy = 0; sy < aa; sy++) {
+        for (int sx = 0; sx < aa; sx++) {
+          float x = ix + (float) sx / aa, y = iy + (float) sy / aa;
+          float2 c = (float2) (x, y) / (float2) (size.x, size.y);
+          float2 rectsize = rect.zw - rect.xy;
+          c = rect.xy + c * rectsize;
+          float2 z = c;
+          int i;
+          for (i = 0; i < iters; ++i) {
+            float2 p = z * z;
+            if (p.x + p.y > 4) break;
+            z = (float2) (p.x - p.y, 2 * z.x * z.y) + c;
+          }
+          blend += i;
+        }
+      }
+      res[iy * size.x + ix] = (int) (blend / (aa * aa));
+    }"[];
   int ids;
   clCheckRes clGetPlatformIDs(0, null, &ids);
   auto platforms = new cl_platform_id[ids];
@@ -126,7 +133,7 @@ int main() {
     }
   }
   platform = platforms[0];
-  int device = 0;
+  int device = 1;
   cl_context_properties[] props;
   props ~= CL_CONTEXT_PLATFORM;
   props ~= cl_context_properties: platform;
@@ -137,46 +144,78 @@ int main() {
   auto queue = clCheckCall!clCreateCommandQueue (ctx, dev, 0);
   writeln "Command queue created. ";
   
-  auto gpuvec1 = clCheckCall!clCreateBuffer (ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-    int.sizeof * SIZE, data1.ptr);
-  onExit clReleaseMemObject (gpuvec1);
-  
-  auto gpuvec2 = clCheckCall!clCreateBuffer (ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-    int.sizeof * SIZE, data2.ptr);
-  onExit clReleaseMemObject (gpuvec2);
+  auto rect = vec(float, 4)(-2, -2, 2, 2);
+  auto iters = cl_int:512, size = (cl_int:800, cl_int:600), output = new int[size[0]*size[1]];
   
   auto outvec = clCheckCall!clCreateBuffer (ctx, CL_MEM_WRITE_ONLY,
-    int.sizeof * SIZE, null);
+    int.sizeof * size[0] * size[1], null);
   onExit clReleaseMemObject (outvec);
   
   writeln "Buffers created. ";
-  auto prog = clCreateProgramWithSource(ctx, openclSource.length,
-    [for line <- openclSource: line.ptr].eval.ptr, null, null);
+  auto sourcelines = [for line <- splitAt("\n", iterOnce openclSource): line ~ "\n\x00"].eval[];
+  auto prog = clCreateProgramWithSource(ctx, sourcelines.length,
+    [for line <- sourcelines: line.ptr].eval.ptr, null, null);
   onExit clReleaseProgram (prog);
-  clCheckRes clBuildProgram (prog, 0, null x 4);
+  writeln "Building. ";
+  {
+    auto err = clBuildProgram (prog, 0, null x 4);
+    if err {
+      int len;
+      clGetProgramBuildInfo (prog, dev, CL_PROGRAM_BUILD_LOG, 0, null, &len);
+      auto str = new char[len];
+      clGetProgramBuildInfo (prog, dev, CL_PROGRAM_BUILD_LOG, len, str.ptr, null);
+      writeln "Failed to build: $str";
+      _interrupt 3;
+    }
+  }
   writeln "Program built. ";
-  auto addKernel = clCheckCall!clCreateKernel (prog, "VectorAdd".ptr);
+  auto addKernel = clCheckCall!clCreateKernel (prog, "mandel".ptr);
   onExit clReleaseKernel (addKernel);
   
   writeln "Kernel created. ";
   
-  clCheckRes clSetKernelArg (addKernel, 0, typeof(outvec).sizeof, void*:&outvec);
-  clCheckRes clSetKernelArg (addKernel, 1, typeof(gpuvec1).sizeof, void*:&gpuvec1);
-  clCheckRes clSetKernelArg (addKernel, 2, typeof(gpuvec2).sizeof, void*:&gpuvec2);
-  writeln "Args set. ";
-  int[1] workSize = [SIZE];
-  clCheckRes clEnqueueNDRangeKernel (queue, addKernel, 1, null, workSize.ptr, null, 0, null, null);
-  writeln "Task queued. ";
-  // read-back
-  auto output = new int[SIZE];
-  clCheckRes clEnqueueReadBuffer (queue, outvec, CL_TRUE, 0, int.sizeof * SIZE, output.ptr, 0, null, null);
-  writeln "Read back. ";
-  int rows, c;
-  while rows <- 0..(SIZE/20) {
-    while c <- 0..20 {
-      printf ("%c", output[rows * 20 + c]);
-    }
-    printf "\n";
+  void calc() {
+    clCheckRes clSetKernelArg (addKernel, 0, typeof(outvec).sizeof, void*:&outvec);
+    clCheckRes clSetKernelArg (addKernel, 1, typeof(size).sizeof, void*:&size);
+    clCheckRes clSetKernelArg (addKernel, 2, int.sizeof, void*:&iters);
+    clCheckRes clSetKernelArg (addKernel, 3, typeof(rect).sizeof, void*:&rect);
+    
+    int[2] workSize = [size[0], size[1]];
+    clCheckRes clEnqueueNDRangeKernel (queue, addKernel, 2, null, workSize.ptr, null, 0, null, null);
+    // read-back
+    clCheckRes clEnqueueReadBuffer (queue, outvec, CL_TRUE, 0, int.sizeof * size[0] * size[1], output.ptr, 0, null, null);
   }
+  SDL_Init(32); // video
+  auto surface = SDL_Surface*: SDL_SetVideoMode(size, 0, SDL_ANYFORMAT);
+  bool update() {
+    SDL_Flip(surface);
+    SDL_Event ev;
+    while SDL_PollEvent(&ev) {
+      if ev.type == SDL_KEYDOWN {
+        auto sym = (*(SDL_KeyboardEvent*:&ev)).keysym.sym;
+             if (sym == 273) using rect { auto dist = (w - y) * 0.1; y -= dist; w -= dist; }
+        else if (sym == 274) using rect { auto dist = (w - y) * 0.1; y += dist; w += dist; }
+        else if (sym == 275) using rect { auto dist = (z - x) * 0.1; x += dist; z += dist; }
+        else if (sym == 276) using rect { auto dist = (z - x) * 0.1; x -= dist; z -= dist; }
+        else if (sym == 43) using rect { auto dist = zw - xy, half = 0.5 * (xy + zw); dist *= 0.8; (x,y) = half - dist * 0.5; (z,w) = half + dist * 0.5; }
+        else if (sym == 45) using rect { auto dist = zw - xy, half = 0.5 * (xy + zw); dist /= 0.8; (x,y) = half - dist * 0.5; (z,w) = half + dist * 0.5; }
+        else writeln "Key $(int:sym)";
+      }
+      if ev.type == SDL_QUIT return true; // QUIT
+    }
+    return false;
+  }
+  void draw() {
+    int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
+    auto f1f = float:factor1, f2f = float:factor2, f3f = float:factor3;
+    for (int y = 0; y < size[1]; y++) {
+      auto p = &((int*:surface.pixels)[y * int:surface.w]);
+      for (int x = 0; x < size[0]; x++) {
+        auto f = vec3f(output[y * size[0] + x] / 512.0);
+        *(p++) = int:(f1f * f[2]) + int:(f2f * f[1]) & factor2 + int:(f3f * f[0]) & factor3;
+      }
+    }
+  }
+  while !update() { calc(); draw(); }
   return 0;
 }
