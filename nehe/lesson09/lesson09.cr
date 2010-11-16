@@ -20,7 +20,7 @@ c_include "GL/gl.h";
 c_include "GL/glu.h";
 c_include "SDL/SDL.h";
 
-alias SCREEN_WIDTH = 640, SCREEN_HEIGHT = 480, SCREEN_BPP = 16;
+alias SCREEN_SIZE = (640, 480), SCREEN_BPP = 16;
 alias NumStars = 256;
 bool twinkle;
 
@@ -157,25 +157,25 @@ int main(int argc, char** argv) {
   SDL_Init(SDL_INIT_VIDEO);
   auto videoFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_HWPALETTE | SDL_RESIZABLE | SDL_HWSURFACE | SDL_HWACCEL;
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  surface = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_BPP, videoFlags);
+  surface = SDL_SetVideoMode(SCREEN_SIZE, SCREEN_BPP, videoFlags);
   if (!surface) {
     writeln("Video mode set failed: $(toString(SDL_GetError()))");
     quit(1);
   }
   initGL;
-  resizeWindow(SCREEN_WIDTH, SCREEN_HEIGHT);
+  resizeWindow SCREEN_SIZE;
   bool done;
   while !done {
     SDL_Event ev;
-    while SDL_PollEvent(&ev) {
-      if (ev.type == SDL_VIDEORESIZE) {
-        surface = SDL_SetVideoMode(ev.resize.w, ev.resize.h, 16, videoFlags);
-        resizeWindow(ev.resize.w, ev.resize.h);
+    while SDL_PollEvent(&ev) using ev {
+      if (type == SDL_VIDEORESIZE) using resize {
+        surface = SDL_SetVideoMode(w, h, 16, videoFlags);
+        resizeWindow (w, h);
       }
-      if (ev.type == SDL_KEYDOWN) {
-        handleKeyPress(&ev.key.keysym);
+      if (type == SDL_KEYDOWN) {
+        handleKeyPress(&key.keysym);
       }
-      if (ev.type == SDL_QUIT) {
+      if (type == SDL_QUIT) {
         done = true;
       }
     }
