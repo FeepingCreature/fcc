@@ -5,7 +5,7 @@ import ast.base, ast.modules, ast.literals, ast.pointer, ast.arrays;
 class StringExpr : Expr, Setupable {
   string str;
   Module forb;
-  this() { forb = current_module(); current_module().addSetupable(this); }
+  this() { forb = current_module(); forb.addSetupable(this); }
   this(string s) { str = s; this(); }
   mixin defaultIterate!();
   string name_used;
@@ -46,6 +46,16 @@ bool gotStringExpr(ref string text, out Expr ex, string sep = "\"") {
       if (ch2 == 'n') { s ~= "\n"; }
       else if (ch2 == 'r') { s ~= "\r"; }
       else if (ch2 == 't') { s ~= "\t"; }
+      else if (ch2 == 'x') {
+        int h2i(char c) {
+          if (c >= '0' && c <= '9') return c - '0';
+          if (c >= 'a' && c <= 'f') return c - 'a';
+          if (c >= 'A' && c <= 'F') return c - 'A';
+          assert(false);
+        }
+        auto h1 = t2.take(), h2 = t2.take(); 
+        s ~= h2i(h1) * 16 + h2i(h2);
+      }
       else s ~= ch2;
     } else s ~= ch;
   }

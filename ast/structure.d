@@ -489,22 +489,29 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!ex) return null;
   // pointers get dereferenced for struct access
   ex = depointer(ex);
-  if (!gotImplicitCast(ex, (IType it) { return !!cast(Structure) it; }))
+  if (!gotImplicitCast(ex, (IType it) { return !!cast(RelNamespace) it; }))
     return null;
   
   string member;
   
   auto pre_ex = ex;
   if (t2.accept(".") && t2.gotIdentifier(member)) {
-    auto st = cast(Structure) ex.valueType();
-    auto m = st.lookupRel(member, ex);
+    auto rn = cast(RelNamespace) ex.valueType();
+    auto m = rn.lookupRel(member, ex);
     if (cast(Function) m) { text = t2; return m; }
     ex = cast(Expr) m;
     if (!ex) {
-      if (m) text.setError(member, " is not a struct var: ", m);
+      if (m) text.setError(member, " is not a rel var: ", m);
       else {
-        auto mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names, "!");
-        if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length") // list of keywords
+        string mesg, name;
+        if (auto st = cast(Structure) rn) {
+          name = st.name;
+          mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names);
+        } else
+          mesg = Format(member, " is not a member of ", pre_ex.valueType());
+        
+        if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length" // list of keywords
+          && (!name || !name.startsWith("__array_as_struct__")))
           text.failparse(mesg);
         else
           text.setError(mesg);
@@ -515,4 +522,4 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     return cast(Object) ex;
   } else return null;
 }
-mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_struct_member");
+mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_rel_member");

@@ -23,7 +23,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     sc.guards ~= st;
   }
   if (type == "onFailure" || type == "onExit") {
-    auto nf = new NestedFunction(sc), mod = sc.get!(Module)();
+    auto nf = new NestedFunction(sc), mod = current_module();
     New(nf.type);
     nf.type.ret = Single!(Void);
     nf.fixup;

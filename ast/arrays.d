@@ -66,8 +66,8 @@ IType arrayAsStruct(IType base, bool rich) {
   // Structure.Member("length", Single!(SizeT)),
   new RelMember("length", Single!(SysInt), res);
   new RelMember("ptr", new Pointer(base), res);
-  res.name = base.mangle()~"_array_as_struct"~(rich?"_rich":"");
-  auto mod = namespace().get!(Module);
+  res.name = "__array_as_struct__"~base.mangle()~(rich?"_rich":"");
+  auto mod = current_module();
   if (!mod || !sysmod) return res;
   
   auto backup = namespace();

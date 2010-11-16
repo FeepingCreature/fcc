@@ -22,8 +22,8 @@ class Module : Namespace, Tree, Named {
       auto backup = current_module();
       current_module.set(this);
       scope(exit) current_module.set(backup);
-      foreach (s; setupable) s.setup(af);
       inProgress = af;
+      foreach (s; setupable) s.setup(af);
       scope(exit) inProgress = null;
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
@@ -322,6 +322,24 @@ void setupSysmods() {
       writeln "Unhandled condition $obj. ";
       _interrupt 3;
     }
+    template iterOnce(T) <<EOF
+      class one {
+        T t;
+        bool done;
+        T step() {
+          done = true;
+          return t;
+        }
+        bool ivalid() {
+          return eval !done;
+        }
+      }
+      one iterOnce(T t) {
+        auto res = new one;
+        res.t = t;
+        return res;
+      }
+    EOF
   `;
   sourcefiles["<internal:sys>"] = src;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
@@ -336,7 +354,7 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   string m;
   // import a, b, c;
   if (!text.accept("import ")) return null;
-  auto mod = namespace().get!(Module);
+  auto mod = current_module();
   if (!(
     text.bjoin(text.gotIdentifier(m, true), text.accept(","),
     { mod.imports ~= lookupMod(m); },

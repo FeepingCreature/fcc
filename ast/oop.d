@@ -249,7 +249,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     handleClass(this);
     as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return null; ", rf);
     rf.tree = as;
-    get!(Module).entries ~= rf;
+    current_module().entries ~= rf;
   }
   // add interface refs
   void finalize() {

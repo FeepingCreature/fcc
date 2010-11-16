@@ -1,9 +1,9 @@
 module ast.vector;
 
 import ast.base, ast.tuples, ast.tuple_access, ast.types, ast.fold;
-import ast.structure;
+import ast.structure, ast.namespace;
 
-class Vector : Type {
+class Vector : Type, RelNamespace {
   IType base;
   Tuple asTup;
   int len;
@@ -29,6 +29,29 @@ class Vector : Type {
       auto vec = cast(Vector) it;
       assert(vec);
       return vec.base == base && vec.len == len;
+    }
+    Object lookupRel(string str, Expr base) {
+      if (!base) return null;
+      if (len > 4) return null;
+      bool isValidChar(char c) {
+        if (len >= 1 && c == 'x') return true;
+        if (len >= 2 && c == 'y') return true;
+        if (len >= 3 && c == 'z') return true;
+        if (len == 4 && c == 'w') return true;
+        return false;
+      }
+      foreach (ch; str) if (!isValidChar(ch)) return null;
+      auto parts = getTupleEntries(reinterpret_cast(asTup, base));
+      Expr[] exprs;
+      foreach (ch; str) {
+             if (ch == 'x') exprs ~= parts[0];
+        else if (ch == 'y') exprs ~= parts[1];
+        else if (ch == 'z') exprs ~= parts[2];
+        else if (ch == 'w') exprs ~= parts[3];
+        else assert(false);
+      }
+      if (exprs.length == 1) return cast(Object) exprs[0];
+      return cast(Object) reinterpret_cast(new Vector(this.base, exprs.length), mkTupleExpr(exprs));
     }
   }
 }

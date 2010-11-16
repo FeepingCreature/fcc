@@ -83,7 +83,7 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   if (!sc) return null;
   auto nf = new NestedFunction(sc);
   // sup of nested funs isn't the surrounding function .. that's what context is for.
-  auto mod = namespace().get!(Module)();
+  auto mod = current_module();
   if (auto res = cast(NestedFunction) gotGenericFunDef(nf, mod, true, text, cont, rest)) {
     mod.entries ~= cast(Tree) res;
     return Single!(NoOp);
@@ -97,7 +97,7 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto sc = cast(Scope) namespace();
   if (!sc) return null;
   auto nf = new NestedFunction(sc);
-  auto mod = namespace().get!(Module)();
+  auto mod = current_module();
   auto res = cast(NestedFunction)
     gotGenericFunDef(nf, mod, true, t2, cont, rest, true /* noname */);
   if (!res)

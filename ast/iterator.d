@@ -1,6 +1,6 @@
 module ast.iterator;
 
-import ast.base, ast.parse, ast.types, ast.namespace, ast.structure, ast.casting;
+import ast.base, ast.parse, ast.types, ast.namespace, ast.structure, ast.casting, ast.pointer;
 
 interface Iterator {
   IType elemType();
@@ -25,7 +25,7 @@ class Range : Type, RichIterator {
                   ("wrapper:ex", "ex", ex, "wrapper", wrapper);
   }
   override {
-    IType elemType() { return iparse!(IType, "elem_type_range", "type")("typeof((wrapper*:null).cur)", "wrapper", wrapper); }
+    IType elemType() { return mkMemberAccess(new ast.base.Placeholder(wrapper), "cur").valueType(); }
     string toString() { return Format("RangeIter[", size, "](", wrapper, ")"); }
     int size() { return wrapper.size; }
     string mangle() { return "range_over_"~wrapper.mangle(); }
