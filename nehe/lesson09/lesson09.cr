@@ -65,20 +65,20 @@ void resizeWindow(int width, height) {
   glLoadIdentity;
 }
 
-void handleKeyPress(SDL_keysym* keysym )
+void handleKeyPress(SDL_keysym* keysym) using *keysym
 {
-  if (keysym.sym == SDLK_ESCAPE) quit 0;
-  if (keysym.sym == SDLK_F1) SDL_WM_ToggleFullScreen(surface);
-  if (keysym.sym == SDLK_t) twinkle = 1-twinkle;
-  if (keysym.sym == SDLK_UP) tilt -= 0.5;
-  if (keysym.sym == SDLK_DOWN) tilt += 0.5;
-  if (keysym.sym == SDLK_PAGEUP) zoom -= 0.2;
-  if (keysym.sym == SDLK_PAGEDOWN) zoom += 0.2;
+  if (sym == SDLK_ESCAPE) quit 0;
+  if (sym == SDLK_F1) SDL_WM_ToggleFullScreen(surface);
+  if (sym == SDLK_t) twinkle = 1-twinkle;
+  if (sym == SDLK_UP) tilt -= 0.5;
+  if (sym == SDLK_DOWN) tilt += 0.5;
+  if (sym == SDLK_PAGEUP) zoom -= 0.2;
+  if (sym == SDLK_PAGEDOWN) zoom += 0.2;
 }
 
 void initGL() {
   glShadeModel GL_SMOOTH;
-  glClearColor(0, 0, 0, 0);
+  glClearColor vec4f(0);
   glClearDepth(1);
   loadGLtextures;
   glEnable GL_TEXTURE_2D;
@@ -87,9 +87,7 @@ void initGL() {
   while int i <- 0..NumStars using stars[i] {
     angle = 0;
     dist = i * 5.0 / NumStars;
-    r = rand() % 256;
-    g = rand() % 256;
-    b = rand() % 256;
+    (r, g, b) = (rand() % 256) x 3;
   }
   glDepthFunc GL_LEQUAL;
   glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
@@ -135,9 +133,7 @@ void drawGLScene() {
     dist -= 0.05;
     if dist < 0 {
       dist += 5;
-      r = rand() % 256;
-      g = rand() % 256;
-      b = rand() % 256;
+      (r, g, b) = (rand() % 256) x 3;
     }
   }
   

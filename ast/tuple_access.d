@@ -100,4 +100,32 @@ static this() {
     auto res = mkTupleIndexAccess(ex, 0);
     return res;
   };
+  // cast into tuples
+  implicits ~= delegate void(Expr ex, IType it, void delegate(Expr) dg) {
+    if (!it || !cast(Tuple) it) return null;
+    if (auto tup = cast(Tuple) ex.valueType()) {
+      if ((cast(Tuple) it).types.length != tup.types.length)
+        return null;
+      auto exprs = getTupleEntries(ex);
+      Expr[] stack;
+      Expr[][] casts;
+      foreach (entry; exprs) {
+        stack ~= entry;
+        casts ~= getAllImplicitCasts(entry);
+      }
+      auto offs = new int[exprs.length];
+      int inc(int i) {
+        stack[i] = casts[i][offs[i]++];
+        if (offs[i] == casts[i].length) offs[i] = 0;
+        return offs[i];
+      }
+      while (true) {
+        int i;
+        while (i < exprs.length && !inc(i)) i++;
+        if (i == exprs.length) break;
+        auto t = mkTupleExpr(stack);
+        if (it == t.valueType()) dg(t);
+      }
+    }
+  };
 }

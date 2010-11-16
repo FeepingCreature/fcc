@@ -74,8 +74,9 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, "tree.expr", &value)) {
       t2.failparse("Could not parse assignment source");
     }
-    if (!gotImplicitCast(value, (IType it) { its ~= it; return test(it == target.valueType()); })) {
-      text.failparse("Mismatching types in assignment: ", target.valueType(), " <- ", its);
+    auto tv = target.valueType();
+    if (!gotImplicitCast(value, tv, (IType it) { its ~= it; return test(it == tv); })) {
+      text.failparse("Mismatching types in assignment: ", tv, " <- ", its);
     }
     // logln(target.valueType(), " <- ", value.valueType());
     text = t2;
