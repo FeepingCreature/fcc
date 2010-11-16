@@ -7,10 +7,21 @@ string nextText(string s, int i = 100) {
   return s.replace("\n", "\\");
 }
 
+void eatComments(ref string s) {
+  s = s.strip();
+  while (true) {
+    if (auto rest = s.startsWith("/*")) { rest.slice("*/"); s = rest.strip(); }
+    else if (auto rest = s.startsWith("//")) { rest.slice("\n"); s = rest.strip(); }
+    else break;
+  }
+}
+
 string[string] sourcefiles;
 
 // row, col, file
-Stuple!(int, int, string) lookupPos(string text) {
+Stuple!(int, ptrdiff_t, string) lookupPos(string text) {
+  eatComments(text);
+  text = text.strip();
   foreach (key, value; sourcefiles) {
     // yes, >. Not >=. Think about it.
     if (text.ptr < value.ptr || text.ptr > value.ptr + value.length)
@@ -26,7 +37,7 @@ Stuple!(int, int, string) lookupPos(string text) {
     }
     assert(false);
   }
-  return stuple(0, 0, "<unknown>");
+  return stuple(0, cast(ptrdiff_t) 0, "<unknown>");
 }
 
 class ParseEx : Exception {

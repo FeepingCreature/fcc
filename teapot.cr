@@ -42,25 +42,6 @@ context Quads {
   alias onExit = glEnd();
 }
 
-template iter_one(T) <<EOF
-  class one {
-    T t;
-    bool done;
-    T step() {
-      done = true;
-      return t;
-    }
-    bool ivalid() {
-      return eval !done;
-    }
-  }
-  one iter_one(T t) {
-    auto res = new one;
-    res.t = t;
-    return res;
-  }
-EOF
-
 class DataSet {
   int[16][auto~] indices;
   vec3f[auto~] vecs;
@@ -74,7 +55,7 @@ DataSet parse(string fn) {
     auto idcount = atoi toStringz lines[0];
     while auto id <- lines[1 .. idcount + 1] {
       int[16] temp;
-      temp[] = [for st <- splitAt(",", iter_one id): atoi toStringz st].eval[];
+      temp[] = [for st <- splitAt(",", iterOnce id): atoi toStringz st].eval[];
       res.indices ~= temp;
     }
     lines = lines[idcount + 1 .. lines.length];
@@ -82,7 +63,7 @@ DataSet parse(string fn) {
   {
     auto vertcount = atoi toStringz lines[0];
     while auto vert <- lines[1 .. vertcount + 1] {
-      auto split = splitAt(",", iter_one vert).eval[];
+      auto split = splitAt(",", iterOnce vert).eval[];
       vec3f temp;
       while int i <- 0..3
         temp[i] = std.string.atof(split[i]);

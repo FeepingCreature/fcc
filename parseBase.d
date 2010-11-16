@@ -75,15 +75,6 @@ bool isAlphanum(dchar d) {
 import tools.compat: replace, strip;
 import tools.base: Stuple, stuple;
 
-void eatComments(ref string s) {
-  s = s.strip();
-  while (true) {
-    if (auto rest = s.startsWith("/*")) { rest.slice("*/"); s = rest.strip(); }
-    else if (auto rest = s.startsWith("//")) { rest.slice("\n"); s = rest.strip(); }
-    else break;
-  }
-}
-
 bool accept(ref string s, string t) {
   auto s2 = s.strip();
   bool sep = t.length && t[$-1] == ' ';
@@ -408,7 +399,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
         return fnredir(text, accept, cont, rest);
       }
     } else {
-      Stuple!(Object, string) [char*] cache;
+      Stuple!(Object, char*)[char*] cache;
       typeof(cache)[] stack;
       override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         bool acceptRelevant;
@@ -418,11 +409,11 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize) {
         if (acceptRelevant || dontMemoMe) return fnredir(text, accept, cont, rest);
         auto ptr = text.ptr;
         if (auto p = ptr in cache) {
-          text = p._1;
+          text = p._1[0 .. text.ptr + text.length - p._1];
           return p._0;
         }
         auto res = fnredir(text, accept, cont, rest);
-        cache[ptr] = stuple(res, text);
+        cache[ptr] = stuple(res, text.ptr);
         return res;
       }
     }
