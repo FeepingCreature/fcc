@@ -2,21 +2,7 @@ module ast.funcall;
 
 import ast.fun, ast.base;
 
-import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
-bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref Expr[] res) {
-  Expr arg;
-  auto backup_text = text; 
-  if (!backup_text.length) return false; // wat
-  // speed opt - a call can only begin
-  // with one of those separating tokens
-  const string valid_call_start_tokens = "({[ ";
-  bool token_match;
-  foreach (ch; valid_call_start_tokens)
-    if (text.startsWith([ch])) { token_match = true; break; }
-  if (!token_match) return false;
-  if (!rest(text, "tree.expr _tree.expr.arith >tree.expr.properties.tup", &arg)) {
-    return false;
-  }
+void matchCallWith(Expr arg, IType[] params, ref Expr[] res, string info = null, string text = null) {
   Expr[] args;
   args ~= arg;
   Expr[] flatten(Expr ex) {
@@ -35,7 +21,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
       break;
     }
     if (!args.length) {
-      throw new Exception(Format("Not enough parameters for ", info, "; left over ", type, "!"));
+      throw new Exception(Format("Not enough parameters for '", info, "'; left over ", type, "!"));
     }
     IType[] tried;
   retry:
@@ -51,7 +37,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
         args = list ~ args;
         goto retry;
       } else
-        backup_text.failparse("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params[i], " (", i, "); tried ", tried);
+        text.failparse("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params[i], " (", i, "); tried ", tried);
     }
     res ~= ex;
   }
@@ -64,9 +50,35 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   foreach (arg2; args) recurse(arg2);
   if (flat.length) {
     logln("flattened to ", flat);
-    backup_text.failparse("Extraneous parameters to '", info, "' of ", params, ": ", args);
+    text.failparse("Extraneous parameters to '", info, "' of ", params, ": ", args);
   }
+}
+
+import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
+bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref Expr[] res) {
+  Expr arg;
+  auto backup_text = text; 
+  if (!backup_text.length) return false; // wat
+  // speed opt - a call can only begin
+  // with one of those separating tokens
+  const string valid_call_start_tokens = "({[ ";
+  bool token_match;
+  foreach (ch; valid_call_start_tokens)
+    if (text.startsWith([ch])) { token_match = true; break; }
+  if (!token_match) return false;
+  if (!rest(text, "tree.expr _tree.expr.arith >tree.expr.properties.tup", &arg)) {
+    return false;
+  }
+  matchCallWith(arg, params, res, info, backup_text);
   return true;
+}
+
+Expr buildFunCall(Function fun, Expr arg) {
+  auto fc = fun.mkCall();
+  IType[] params;
+  foreach (entry; fun.type.params) params ~= entry._0;
+  matchCallWith(arg, params, fc.params);
+  return fc;
 }
 
 import ast.parse, ast.static_arrays;

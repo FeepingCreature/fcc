@@ -67,20 +67,17 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotStringEx, "tree.expr.literal.stringex", "550");
 
-import ast.dg, ast.tuples, ast.tuple_access;
+import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules;
 Expr simpleFormat(Expr ex) {
   auto type = ex.valueType();
   if (Single!(SysInt) == type) {
-    return iparse!(Expr, "gen_int_format", "tree.expr")
-    ("itoa(ex)", "ex", ex);
+    return buildFunCall(cast(Function) sysmod.lookup("itoa"), ex);
   }
   if (Single!(Float) == type) {
-    return iparse!(Expr, "gen_float_format", "tree.expr")
-    ("ftoa(ex)", "ex", ex);
+    return buildFunCall(cast(Function) sysmod.lookup("ftoa"), ex);
   }
   if (auto p = cast(Pointer) type) {
-    return iparse!(Expr, "gen_ptr_format", "tree.expr")
-    ("ptoa(void*:ex)", "ex", ex);
+    return buildFunCall(cast(Function) sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex));
   }
   if (auto sa = cast(StaticArray) type) {
     ex = staticToArray(ex);

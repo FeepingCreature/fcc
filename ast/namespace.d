@@ -223,9 +223,9 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     auto res = parsecon.parse(text, rule);
     auto rc = cast(R) res;
     static if (mustParse) {
-      if (text.length) text.failparse("Unknown text");
-      if (!res)        text.failparse("Failed to parse");
-      if (!rc)         text.failparse("Wrong result type: wanted ", R.stringof, ", got ", res);
+      if (text.strip().length) text.failparse("Unknown text: '"~text~"'");
+      if (!res)                text.failparse("Failed to parse");
+      if (!rc)                 text.failparse("Wrong result type: wanted ", R.stringof, ", got ", res);
     } else {
       if (text.length || !rc) return null;
     }

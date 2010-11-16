@@ -90,17 +90,24 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
     
     return res;
   }
+  import ast.index;
   Function lookupIntf(string name, Expr intp) {
     assert(own_offset);
     foreach (id, fun; funs) {
       if (fun.name == name) {
         if (!intp) return fun;
-        return iparse!(Function, "intf_vtable_lookup", "tree.expr")
-        ( "
-            *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
-          ",
-          "fntype", fun.getPointer().valueType(), "intp", intp,
-          "id", new IntExpr(id + own_offset)
+        auto fntype = fun.getPointer().valueType();
+        auto pp_fntype = new Pointer(new Pointer(fntype));
+        auto pp_int = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
+        // *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
+        return new PointerFunction!(NestedFunction)(
+          new DgConstructExpr(
+            new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, intp)), new IntExpr(id + own_offset)),
+            lookupOp("+",
+              reinterpret_cast(new Pointer(voidp), intp),
+              new DerefExpr(new DerefExpr(reinterpret_cast(pp_int, intp)))
+            )
+          )
         );
       }
     }
@@ -125,12 +132,14 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
     assert(own_offset, this.name~": interface lookup for "~name~" but classinfo uninitialized. ");
     foreach (id, fun; funs) {
       if (fun.name == name) {
-        return iparse!(Function, "intf_vtable_lookup2", "tree.expr")
-        ( "
-            *(*fntype**:classref)[id + offs].toDg(void*:classref)
-          ",
-          "fntype", fun.getPointer().valueType(), "classref", classref,
-          "id", new IntExpr(id + own_offset), "offs", new IntExpr(offs)
+        // *(*fntype**:classref)[id + offs].toDg(void*:classref)
+        auto fntype = fun.getPointer().valueType();
+        auto pp_fntype = new Pointer(new Pointer(fntype));
+        return new PointerFunction!(NestedFunction)(
+          new DgConstructExpr(
+            new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, classref)), new IntExpr(id + own_offset + offs)),
+            reinterpret_cast(voidp, classref)
+          )
         );
       }
     }
@@ -358,10 +367,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
       if (auto res = data.lookup(str, true)) {
         if (auto rm = cast(RelMember) res) {
           // logln("transform ", rm, " with ", base);
-          return rm.transform(
-            iparse!(Expr, "rel_struct_cast", "tree.expr")
-            ("*data*:base", "data", data, "base", base)
-          );
+          return rm.transform(new DerefExpr(reinterpret_cast(new Pointer(data), base)));
         }
         return cast(Object) res;
       }

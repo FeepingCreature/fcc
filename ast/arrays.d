@@ -104,6 +104,7 @@ T arrayToStruct(T)(T array) {
     return new ReinterpretCast!(T) (arrayAsStruct(ar.elemType, false), array);
   if (ea)
     return new ReinterpretCast!(T) (arrayAsStruct(ea.elemType, true),  array);
+  logln(T.stringof, ": ", array.valueType(), ": ", array);
   asm { int 3; }
   assert(false);
 }
