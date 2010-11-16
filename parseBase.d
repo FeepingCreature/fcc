@@ -174,7 +174,8 @@ alias Tuple!(string, bool delegate(string), ubyte, bool)
   RuleData;
 
 const RULEPTR_SIZE_HAX = (Stuple!(RuleData)).sizeof;
-void[] slab;
+void[RULEPTR_SIZE_HAX][] slab;
+int slab_freeptr = -1, slab_top;
 
 struct RuleStruct(alias A) {
   Stuple!(RuleData) tuple;
@@ -185,14 +186,28 @@ struct RuleStruct(alias A) {
 
 template allocRuleData(alias A) {
   bool delegate(Params!(typeof(&A))[1 .. $])
-  allocRuleData(RuleData rd) {
-    if (!slab.length)
-      slab = new void[RULEPTR_SIZE_HAX * 1024];
-    auto res = slab.take(RULEPTR_SIZE_HAX);
-    auto strp = cast(RuleStruct!(A)*) res.ptr;
+  allocRuleData(RuleData rd, out int id) {
+    void* res;
+    if (slab_freeptr != -1) {
+      res = slab[slab_freeptr].ptr;
+      id = slab_freeptr;
+      slab_freeptr = *cast(int*) res;
+    } else {
+      if (!slab) slab = new void[RULEPTR_SIZE_HAX][1024];
+      if (slab_top >= slab.length) slab.length = slab.length * 2;
+      id = slab_top;
+      res = slab[slab_top++].ptr;
+    }
+    auto strp = cast(RuleStruct!(A)*) res;
     strp.tuple = stuple(rd);
     return &strp.fun;
   }
+}
+
+void freeRuleData(int offs) {
+  auto ptr = slab[offs].ptr;
+  *cast(int*) ptr = slab_freeptr;
+  slab_freeptr = offs;
 }
 
 bool sectionStartsWith(string section, string rule) {
@@ -202,7 +217,7 @@ bool sectionStartsWith(string section, string rule) {
   return match.length && match[0] == '.';
 }
 
-bool delegate(string) matchrule(string rules) {
+bool delegate(string) matchrule(string rules, out int id) {
   bool delegate(string) res;
   auto rules_backup = rules;
   while (rules.length) {
@@ -254,7 +269,7 @@ bool delegate(string) matchrule(string rules) {
     res = ard(
       rule, res,
       (smaller<<0) | (greater<<1) | (equal<<2) | (before<<3) | (after<<4),
-      false
+      false, id
     );
     // res = res /apply/ (bool delegate(string) dg, string s) { auto res = dg(s); logln(s, " -> ", res); return res; };
   }
@@ -289,12 +304,13 @@ struct ParseCb {
     ParseCtl delegate(Object) accept
   ) dg;
   bool delegate(string) cur;
-  string selfrule;
   Object opCall(T...)(ref string text, T t) {
     bool delegate(string) matchdg;
+    int delid = -1;
+    scope(exit) if (delid != -1) freeRuleData(delid);
     static if (T.length && is(T[0]: char[])) {
       alias T[1..$] Rest1;
-      matchdg = matchrule = t[0].replace("selfrule", selfrule);
+      matchdg = matchrule(t[0], delid);
       auto rest1 = t[1..$];
     } else static if (T.length && is(T[0] == bool delegate(string))) {
       alias T[1..$] Rest1;
@@ -352,6 +368,10 @@ struct ParseCb {
       auto backup = text;
       static if (is(typeof(callback))) {
         auto res = cast(MustType) dg(text, matchdg, myAccept);
+        if (delid != -1) {
+          freeRuleData(delid);
+          delid = -1;
+        }
         if (!res) text = backup;
         else callback(res);
         return cast(Object) res;
@@ -428,14 +448,14 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
           if (res) text = t2;
           return res;
         }
-        auto ptr = text.ptr;
+        auto ptr = t2.ptr;
         if (auto p = ptr in cache) {
-          text = p._1[0 .. text.ptr + text.length - p._1];
+          text = p._1[0 .. t2.ptr + t2.length - p._1];
           return p._0;
         }
         auto res = fnredir(t2, accept, cont, rest);
+        cache[ptr] = stuple(res, t2.ptr);
         if (res) text = t2;
-        cache[ptr] = stuple(res, text.ptr);
         return res;
       }
     }
@@ -630,9 +650,6 @@ class ParseContext {
         if (verboseParser) logln("TRY PARSER [", id, "] for '", text.nextText(16), "'");
         matched = true;
         
-        cont.selfrule = id;
-        rest.selfrule = id;
-        
         auto backup = text;
         if (auto res = parser.match(text, accept, cont, rest)) {
           auto ctl = ParseCtl.AcceptAbort;
@@ -685,7 +702,9 @@ class ParseContext {
   Object parse(ref string text, string cond) {
     condStr = cond;
     scope(exit) condStr = null;
-    try return parse(text, matchrule=cond);
+    int delid = -1;
+    scope(exit) if (delid != -1) freeRuleData(delid);
+    try return parse(text, matchrule(cond, delid));
     catch (ParseEx pe) { pe.addRule(cond); throw pe; }
     catch (Exception ex) throw new Exception(Format("Matching rule '"~cond~"': ", ex));
   }

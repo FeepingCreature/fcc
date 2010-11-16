@@ -187,8 +187,19 @@ class ForIter(I) : Type, I {
     return res;
   }
   import ast.literal_string;
+  Expr[] todocache;
   Expr update(Expr ex, Placeholder var, Expr newvar) {
-    Expr[] todo;
+    auto todo = todocache;
+    int size;
+    void add(Expr ex) {
+      if (!todo) todo = new Expr[16];
+      if (size == todo.length) todo.length = todo.length * 2;
+      todo[size++] = ex;
+    }
+    Expr take() {
+      return todo[--size];
+    }
+    scope(exit) todocache = todo;
     void subst(ref Iterable it) {
       if (it is var) it = cast(Iterable) newvar;
       else {
@@ -196,13 +207,13 @@ class ForIter(I) : Type, I {
         if (ex) {
           if (auto fi = cast(ForIter!(RichIterator)) ex.valueType()) {
             auto fi2 = fi.dup;
-            todo ~= fi2.ex;
+            add(fi2.ex);
             it = cast(Iterable) reinterpret_cast(fi2, ex);
             (cast(Iterable) ex).iterate(&subst);
             return;
           } else if (auto fi = cast(ForIter!(Iterator)) ex.valueType()) {
             auto fi2 = fi.dup;
-            todo ~= fi2.ex;
+            add(fi2.ex);
             it = cast(Iterable) reinterpret_cast(fi2, ex);
             (cast(Iterable) ex).iterate(&subst);
             return;
@@ -212,10 +223,10 @@ class ForIter(I) : Type, I {
       }
     }
     auto sex = ex.dup;
-    todo ~= sex;
+    add(sex);
     bool[Expr] done;
-    while (todo.length) {
-      auto cur_ex = todo.take();
+    while (size) {
+      auto cur_ex = take();
       if (cur_ex in done) continue;
       done[cur_ex] = true;
       cur_ex.iterate(&subst);
@@ -244,7 +255,7 @@ class ForIter(I) : Type, I {
   override {
     string toString() {
       auto sizeinfo = Format(size, ":");
-      foreach (type; (cast(Structure) wrapper).types) sizeinfo ~= Format(" ", type.size);
+      (cast(Structure) wrapper).select((string, RelMember rm) { sizeinfo ~= Format(" ", rm.type.size); });
       return Format("ForIter[", sizeinfo, "](", itertype, ": ", ex.valueType(), ")");
     }
     IType elemType() { return ex.valueType(); }
@@ -453,7 +464,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   ipt = stuple(best, new ScopeAndExpr(sc, main), ph, extra);
   return new RCE(cast(IType) restype, new StructLiteral(best, field));
 }
-mixin DefaultParser!(gotForIter, "tree.expr.iter.for", "for[");
+mixin DefaultParser!(gotForIter, "tree.expr.iter.for", null, "[for");
 static this() {
   parsecon.addPrecedence("tree.expr.iter", "441");
 }
@@ -567,7 +578,7 @@ Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return cast(Object) it.yieldAdvance(lv);
 }
-mixin DefaultParser!(gotIterEval, "tree.expr.eval.iter", "__istep");
+mixin DefaultParser!(gotIterEval, "tree.expr.eval.iter", null, "__istep");
 
 class TempIndex : Expr {
   RichIterator ri; Expr ex, pos;
@@ -726,7 +737,7 @@ Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
     }
   };
 }
-mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval", ".eval");
+mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval", null, ".eval");
 
 Object gotIterLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
@@ -735,7 +746,7 @@ Object gotIterLength(ref string text, ParseCb cont, ParseCb rest) {
     return cast(Object) iter.length(ex);
   };
 }
-mixin DefaultParser!(gotIterLength, "tree.rhs_partial.iter_length", ".length");
+mixin DefaultParser!(gotIterLength, "tree.rhs_partial.iter_length", null, ".length");
 
 import tools.log;
 Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {

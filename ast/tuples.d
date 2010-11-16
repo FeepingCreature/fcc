@@ -13,16 +13,8 @@ import ast.base, ast.structure, ast.casting;
 class Tuple : Type {
   /// 1.
   Structure wrapped;
-  IType[] types() {
-    IType[] res;
-    wrapped.select((string, RelMember rm) { res ~= rm.type; });
-    return res;
-  }
-  int[] offsets() {
-    int[] res;
-    wrapped.select((string, RelMember rm) { res ~= rm.offset; });
-    return res;
-  }
+  IType[] types() { return wrapped.selectMap!(RelMember, "$.type"); }
+  int[] offsets() { return wrapped.selectMap!(RelMember, "$.offset"); }
   override {
     int size() { return wrapped.size; }
     string mangle() { return "tuple_"~wrapped.mangle(); }
@@ -37,10 +29,32 @@ class Tuple : Type {
       }
       auto tup = cast(Tuple) it;
       assert(tup);
-      auto sf1 = wrapped.stackframe, sf2 = tup.wrapped.stackframe;
-      foreach (i, entry; sf1) {
-        // can't compare byte-wise! bad!
-        if (entry._0 != sf2[i]._0 || entry._2 != sf2[i]._2) return false;
+      // Lockstep iteration. Yummy.
+      int[2] offs;
+      Structure[2] sf;
+      sf[0] = wrapped;
+      sf[1] = tup.wrapped;
+      bool[2] bailcond;
+      void advance(int i) {
+        do {
+          if (offs[i] == sf[i].field.length) break;
+        } while (!cast(RelMember) sf[i].field[offs[i]++]._1);
+        bailcond[i] = offs[i] == sf[i].field.length;
+      }
+      
+      advance(0); advance(1);
+      if (bailcond[0] || bailcond[1]) return bailcond[0] == bailcond[1];
+      
+      Stuple!(IType, int) get(int i) {
+        auto cur = cast(RelMember) sf[i].field[offs[i]++]._1;
+        advance(i);
+        return stuple(cur.type, cur.offset);
+      }
+      while (true) {
+        auto elem1 = get(0), elem2 = get(1);
+        if (elem1._0 != elem2._0 || elem1._1 != elem2._1)
+          return false;
+        if (bailcond[0] || bailcond[1]) return bailcond[0] == bailcond[1];
       }
       return true;
     }

@@ -4,8 +4,7 @@ import ast.base, ast.tuples, ast.structure;
 
 Expr mkTupleIndexAccess(Expr tuple, int pos) {
   auto wrapped = (cast(Tuple) tuple.valueType()).wrapped;
-  RelMember[] temps;
-  wrapped.select((string, RelMember rm) { temps ~= rm; });
+  auto temps = wrapped.selectMap!(RelMember, "$");
   MemberAccess_Expr res;
   if (auto lv = cast(LValue) tuple) {
     res = new MemberAccess_LValue;

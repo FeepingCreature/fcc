@@ -301,7 +301,7 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
     return new CondExpr(cd);
   } else return null;
 }
-mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", "eval");
+mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", null, "eval");
 
 static this() {
   foldopt ~= delegate Itr(Itr it) {

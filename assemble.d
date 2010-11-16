@@ -297,8 +297,8 @@ struct Transsection(C) {
       parent.list[from .. to] = withWhat;
     } else {
       with (parent) {
-        auto f1 = to, t1 = list.length, f2 = from + withWhat.length, t2 = f2 + (t1 - f1);
-        list.length = max(list.length, t2);
+        auto f1 = to, t1 = size, f2 = from + withWhat.length, t2 = f2 + (t1 - f1);
+        size = max(size, t2);
         if (f2 < f1) // forward copy
           for (int i = f1; i < t1; ++i)
             list[f2 - f1 + i] = list[i];
@@ -306,7 +306,7 @@ struct Transsection(C) {
           for (int i = t1 - 1; i >= f1; --i)
             list[f2 - f1 + i] = list[i];
         list[from .. f2] = withWhat;
-        list.length = t2;
+        size = t2;
       }
       // parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
     }
@@ -330,14 +330,25 @@ struct Transsection(C) {
 }
 
 class Transcache {
-  Transaction[] list;
+  Transaction[] _list;
+  int size;
+  Transaction[] list() { return _list[0 .. size]; }
   Transsection!(C) findMatch(C)(string opName, C cond, int from = 0) {
     for (int base = from; base < list.length; ++base) {
       if (auto len = cond(list[base .. $])) return Transsection!(C)(this, opName, cond, base, base + len, false);
     }
     return Transsection!(C)(this, opName, cond, 0, 0, false);
   }
+  void clear() { size = 0; }
   void opCatAssign(Transaction t) {
-    list ~= t;
+    if (!_list.length) _list = new Transaction[1024];
+    if (size == _list.length) _list.length = _list.length * 2;
+    _list[size++] = t;
   }
+  void opCatAssign(Transaction[] newlist) {
+    if (!_list.length) { _list = newlist.dup; size = newlist.length; return; }
+    while (size + newlist.length > _list.length) _list.length = _list.length * 2;
+    _list[size .. size + newlist.length] = newlist;
+    size += newlist.length;
+  } 
 }

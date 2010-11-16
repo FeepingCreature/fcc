@@ -26,11 +26,25 @@ class Namespace {
     field_cache = null;
     foreach (entry; field) field_cache[entry._0] = entry._1;
   }
+  typeof(mixin(S.ctReplace("$", "(cast(T) field[0]._1)")))[] selectMap(T, string S)() {
+    int count;
+    foreach (entry; field) if (cast(T) entry._1) count++;
+    alias typeof(mixin(S.ctReplace("$", "(cast(T) field[0]._1)"))) restype;
+    auto res = new restype[count];
+    int i;
+    foreach (entry; field)
+      if (auto t = cast(T) entry._1)
+        res[i++] = mixin(S.ctReplace("$", "t"));
+    return res;
+  }
   void select(T)(void delegate(string, T) dg) {
     foreach (entry; field)
       if (auto t = cast(T) entry._1)
         dg(entry._0, t);
   }
+  
+  const int cachepoint = 6;
+  
   void __add(string name, Object obj) {
     if (name && lookup(name, true)) {
       throw new Exception(Format(
@@ -38,8 +52,9 @@ class Namespace {
         this, ": ", lookup(name)
       ));
     }
+    if (field.length == cachepoint) rebuildCache;
     field ~= stuple(name, obj);
-    field_cache[name] = obj;
+    if (field.length > cachepoint) field_cache[name] = obj;
   }
   void _add(string name, Object obj) {
     if (auto ns = cast(Namespace) obj) {
@@ -64,7 +79,11 @@ class Namespace {
   typeof(field) getCheckpt() { return field; }
   void setCheckpt(typeof(field) field) { this.field = field.dup; rebuildCache(); /* prevent clobbering */ }
   Object lookup(string name, bool local = false) {
-    if (auto p = name in field_cache) return *p;
+    if (field.length > cachepoint) {
+      if (auto p = name in field_cache) return *p;
+    } else {
+      foreach (entry; field) if (entry._0 == name) return entry._1;
+    }
     if (!local && sup) return sup.lookup(name, local);
     return null;
   }

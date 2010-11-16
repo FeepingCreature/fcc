@@ -135,7 +135,11 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   float total = 0;
   foreach (entry; entries) total += entry._1;
   writefln("Subsegments: ", entries, "; total ", total);
-  srcname.write(af.genAsm());
+  {
+    scope f = new File(srcname, FileMode.OutNew);
+    af.genAsm((string s) { f.write(cast(ubyte[]) s); });
+    f.close;
+  }
   auto cmdline = Format("as --32 -o ", objname, " ", srcname);
   writefln("> ", cmdline);
   system(cmdline.toStringz()) == 0

@@ -17,9 +17,8 @@ class AsmFile {
   }
   string code;
   bool optimize;
-  this(bool optimize, string id) { New(cache); this.optimize = optimize; this.id = id; }
-  Transcache cache;
-  Transaction[] finalized;
+  this(bool optimize, string id) { New(cache); New(finalized); this.optimize = optimize; this.id = id; }
+  Transcache cache, finalized;
   int currentStackDepth;
   void pushStack(string expr, IType type) {
     Transaction t;
@@ -216,14 +215,16 @@ class AsmFile {
   void jump_barrier() {
     if (optimize) runOpts; // clean up
     Transaction[] newlist;
-    foreach (t; cache.list) {
+    /*foreach (t; cache.list) {
       if (t.kind != Transaction.Kind.Label) newlist ~= t;
       else
         foreach (name; t.names)
           if (name in labels_refcount && labels_refcount[name] > 0) { newlist ~= t; break; }
-    }
+    }*/
+    newlist = cache.list();
     finalized ~= newlist;
-    cache.list = null;
+    
+    cache.clear;
     labels_refcount = null;
   }
   int lastStackDepth;
@@ -276,9 +277,10 @@ class AsmFile {
   }
   void flush() {
     if (optimize) runOpts;
-    foreach (entry; finalized ~ cache.list) if (auto line = entry.toAsm()) _put(line);
-    finalized = null;
-    cache.list = null;
+    foreach (entry; finalized.list) if (auto line = entry.toAsm()) _put(line);
+    foreach (entry; cache.list)     if (auto line = entry.toAsm()) _put(line);
+    finalized.clear;
+    cache.clear;
   }
   void put(T...)(T t) {
     flush();
@@ -287,61 +289,59 @@ class AsmFile {
   void _put(T...)(T t) {
     code ~= Format(t, "\n");
   }
-  string genAsm() {
+  void genAsm(void delegate(string) dg) {
     flush();
-    string res;
     foreach (name, data; globvars) {
-      res ~= Format(".comm\t", name, ",", data._0, "\n");
+      dg(Format(".comm\t", name, ",", data._0, "\n"));
       assert(!data._1, "4");
     }
-    res ~= ".section\t.tbss,\"awT\",@nobits\n";
+    dg(".section\t.tbss,\"awT\",@nobits\n");
     foreach (name, size; uninit_tlsvars) {
       auto alignment = size;
       if (alignment > 16) alignment = 16;
       if (alignment == 12) alignment = 16; // TODO: powers-of-two properly
-      res ~= Format("\t.globl ", name, "\n");
-      res ~= Format("\t.align ", alignment, "\n\t.type ", name, ", @object\n");
-      res ~= Format("\t.size ", name, ", ", size, "\n");
-      res ~= Format("\t", name, ":\n");
-      res ~= Format("\t.zero ", size, "\n");
+      dg("\t.globl "); dg(name); dg("\n");
+      dg(Format("\t.align ", alignment, "\n\t.type ")); dg(name); dg(", @object\n");
+      dg(Format("\t.size ", name, ", ", size, "\n"));
+      dg("\t"); dg(name); dg(":\n");
+      dg(Format("\t.zero ", size, "\n"));
     }
-    res ~= ".section\t.tdata,\"awT\",@progbits\n";
+    dg(".section\t.tdata,\"awT\",@progbits\n");
     foreach (name, data; tlsvars) {
       auto alignment = data._0;
       if (alignment > 16) alignment = 16;
-      res ~= Format("\t.globl ", name, "\n");
-      res ~= Format("\t.align ", alignment, "\n\t.type ", name, ", @object\n");
-      res ~= Format("\t.size ", name, ", ", data._0, "\n");
-      res ~= Format("\t", name, ":\n");
+      dg("\t.globl "); dg(name); dg("\n");
+      dg(Format("\t.align ", alignment, "\n\t.type ", name, ", @object\n"));
+      dg(Format("\t.size ", name, ", ", data._0, "\n"));
+      dg("\t"); dg(name); dg(":\n");
       assert(data._1);
       auto parts = data._1.split(",");
       assert(parts.length * nativePtrSize == data._0,
               Format("Length mismatch: ", parts.length, " * ", 
                     nativePtrSize, " != ", data._0, " for ", data._1));
-      res ~= "\t.long ";
+      dg("\t.long ");
       foreach (i, part; parts) {
-        if (i) res ~= ", ";
-        res ~= part;
+        if (i) dg(", ");
+        dg(part);
       }
-      res ~= "\n";
+      dg("\n");
     }
-    res ~= ".section\t.rodata\n";
+    dg(".section\t.rodata\n");
     foreach (name, c; constants) {
-      res ~= Format(name, ":\n");
-      res ~= ".byte ";
-      foreach (val; c) res ~= Format(cast(ubyte) val, ", ");
-      res ~= "0\n";
-      res ~= Format(".global ", name, "\n");
+      dg(name); dg(":\n");
+      dg(".byte ");
+      foreach (val; c) dg(Format(cast(ubyte) val, ", "));
+      dg("0\n");
+      dg(".global "); dg(name); dg("\n");
     }
     foreach (name, array; longstants) { // lol
-      res ~= Format(name, ":\n");
-      res ~= ".long ";
-      foreach (val; array) res ~= Format(val, ", ");
-      res ~= "0\n";
-      res ~= Format(".global ", name, "\n");
+      dg(name); dg(":\n");
+      dg(".long ");
+      foreach (val; array) dg(Format(val, ", "));
+      dg("0\n");
+      dg(".global "); dg(name); dg("\n");
     }
-    res ~= ".text\n";
-    res ~= code;
-    return res;
+    dg(".text\n");
+    dg(code);
   }
 }

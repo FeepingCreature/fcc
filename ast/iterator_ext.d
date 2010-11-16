@@ -189,7 +189,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
     }
     return true;
   }))
-    t2.failparse("Cannot convert ", ex, " into acceptable tuple form");
+    text.failparse("Cannot convert ", ex, " into acceptable tuple form");
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz

@@ -25,10 +25,10 @@ int roundTo(int i, int to) {
 
 int needsAlignmentStruct(Structure st) {
   int al = 1;
-  foreach (type; st.types) {
-    auto ta = needsAlignment(type);
+  st.select((string s, RelMember rm) {
+    auto ta = needsAlignment(rm.type);
     if (ta > al) al = ta;
-  }
+  });
   return al;
 }
 
@@ -115,11 +115,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     select((string, RelMember member) { if (i++ == offs) res = member; });
     return res;
   }
-  RelMember[] members() {
-    RelMember[] res;
-    select((string, RelMember member) { res ~= member; });
-    return res;
-  }
+  RelMember[] members() { return selectMap!(RelMember, "$"); }
   Structure slice(int from, int to) {
     assert(!isUnion);
     auto res = new Structure(null);
@@ -128,16 +124,8 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     select((string, RelMember member) { if (i !< from && i < to) new RelMember(member.name, member.type, res); i++; });
     return res;
   }
-  string[] names() {
-    string[] res;
-    select((string, RelMember member) { res ~= member.name; });
-    return res;
-  }
-  IType[] types() {
-    IType[] res;
-    select((string, RelMember member) { res ~= member.type; });
-    return res;
-  }
+  string[] names() { return selectMap!(RelMember, "$.name")(); }
+  IType[] types() { return selectMap!(RelMember, "$.type")(); }
   this(string name) {
     this.name = name;
   }
@@ -154,9 +142,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     string getIdentifier() { return name; }
     string mangle(string name, IType type) { return "struct_"~name~"_"~type.mangle()~"_"~name; }
     Stuple!(IType, string, int)[] stackframe() {
-      Stuple!(IType, string, int)[] res;
-      select((string, RelMember member) { res ~= stuple(member.type, member.name, member.offset); });
-      return res;
+      return selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
     }
     Object lookupRel(string str, Expr base) {
       // logln("struct rel base is ", base);
@@ -320,7 +306,7 @@ class MemberAccess_Expr : Expr {
       auto st = base.valueType();
       if (auto lv = cast(LValue) base) {
         if (stm.type.size == 4 /or/ 2 /or/ 1) {
-          af.comment("emit location of ", lv, " for member access to ", stm.name, " @", stm.offset);
+          af.comment("emit location for member access to ", stm.name, " @", stm.offset);
           lv.emitLocation(af);
           af.comment("pop and dereference");
           af.popStack("%eax", new Pointer(st));
@@ -390,8 +376,8 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
     void emitLocation(AsmFile af) {
       auto st = cast(Structure) base.valueType();
       int[] offs;
-      if (st) st.select((string, RelMember member) { offs ~= member.offset; });
-      if (!af.optimize) af.comment("emit location of ", base, " for member address of '", stm.name, "' @", stm.offset, " of ", offs);
+      if (st) offs = st.selectMap!(RelMember, "$.offset");
+      if (!af.optimize) af.comment("emit location for member address of '", stm.name, "' @", stm.offset, " of ", offs);
       (cast(LValue) base).emitLocation(af);
       if (!af.optimize) af.comment("add offset ", stm.offset);
       af.mathOp("addl", Format("$", stm.offset), "(%esp)");

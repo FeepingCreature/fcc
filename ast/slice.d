@@ -64,9 +64,9 @@ static this() {
       return null;
     auto range = cast(Range) e2v;
     if (!range) return null;
-    auto casted = new RCE(range.wrapper, e2);
-    auto from = foldex(iparse!(Expr, "slice_range_from", "tree.expr")("ex.cur", "ex", casted));
-    auto to   = foldex(iparse!(Expr, "slice_range_to",   "tree.expr")("ex.end", "ex", casted));
+    auto casted = reinterpret_cast(range.wrapper, e2);
+    auto from = foldex(mkMemberAccess(casted, "cur"));
+    auto to   = foldex(mkMemberAccess(casted, "end"));
     if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: ", from));
     if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: ", from));
     

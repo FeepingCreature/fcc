@@ -353,9 +353,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     Stuple!(IType, string, int)[] stackframe() {
       Stuple!(IType, string, int)[] res;
       if (parent) res = parent.stackframe();
-      select((string, RelMember rm) {
-        res ~= stuple(rm.type, rm.name, rm.offset);
-      });
+      res ~= selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
       return res;
     }
     Object lookupRel(string str, Expr base) {
