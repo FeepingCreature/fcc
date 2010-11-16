@@ -144,7 +144,7 @@ int main() {
   auto queue = clCheckCall!clCreateCommandQueue (ctx, dev, 0);
   writeln "Command queue created. ";
   
-  auto rect = vec(float, 4)(-2, -2, 2, 2);
+  auto rect = vec4f(-2, -2, 2, 2);
   auto iters = cl_int:512, size = (cl_int:800, cl_int:600), output = new int[size[0]*size[1]];
   
   auto outvec = clCheckCall!clCreateBuffer (ctx, CL_MEM_WRITE_ONLY,
