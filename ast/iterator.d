@@ -108,6 +108,7 @@ class StructIterator : Type, Iterator {
                     (`eval (ex.ivalid)`,
                      "ex", ex, "W", wrapped);
     }
+    string toString() { return Format(wrapped); }
   }
 }
 
@@ -411,7 +412,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   namespace.set(sc);
   
   if (!rest(t2, "tree.expr", &main))
-    t2.failparse("Cannot find iterator expression");
+    t2.failparse("Cannot parse iterator expression");
   if (!t2.accept("]"))
     t2.failparse("Expected ']', partial is ", main.valueType());
   text = t2;
@@ -475,7 +476,12 @@ class IterLetCond(T) : Cond, NeedsConfig {
   Expr iter;
   LValue iref;
   Expr iref_pre;
-  mixin MyThis!("target, iter, iref_pre");
+  this() { }
+  this(T target, Expr iter, Expr iref_pre) {
+    this.target = target;
+    this.iter = iter;
+    this.iref_pre = iref_pre;
+  }
   mixin DefaultDup!();
   mixin defaultIterate!(iter, target, iref);
   override void configure() { iref = lvize(iref_pre); }
@@ -486,6 +492,9 @@ class IterLetCond(T) : Cond, NeedsConfig {
     assert(!cond); // must jump only on _fail_.
     itercond.jumpOn(af, cond, dest);
     if (target) {
+      auto tv = target.valueType;
+      if (!gotImplicitCast(step, tv, (IType it) { return test(it == tv); }))
+        asm { int 3; }
       static if (is(T: MValue))
         (new _Assignment!(MValue) (target, step)).emitAsm(af);
       else (new Assignment(target, step)).emitAsm(af);
@@ -540,7 +549,6 @@ withoutIterator:
   if (!rest(t2, "tree.expr", &iter) || !forb(iter) || !gotImplicitCast(iter, (IType it) { return !!cast(Iterator) it; }))
     if (needIterator) t2.failparse("Can't find iterator");
     else return null;
-  text = t2;
   // insert declaration into current scope.
   // NOTE: this here is the reason why everything that tests a cond has to have its own scope.
   auto sc = cast(Scope) namespace();
@@ -557,6 +565,18 @@ withoutIterator:
     sc.addStatement(decl);
     sc.add(newvar);
   }
+  
+  Expr ex;
+  if (lv) ex = lv; else ex = mv;
+  auto vt = ex.valueType(), it = cast(Iterator) iter.valueType(), et = it.elemType();
+  Expr temp = new Placeholder(cast(IType) et, null);
+  if (!gotImplicitCast(temp, (IType it) { return test(it == vt); })) {
+    logln(text.nextText()); 
+    text.failparse("Can't iterate ", it, " (elem type ", et, "), into variable of ",  vt);
+  }
+  
+  text = t2;
+  
   if (lv) return new IterLetCond!(LValue) (lv, iter, iter);
   else return new IterLetCond!(MValue) (mv, iter, iter);
 }

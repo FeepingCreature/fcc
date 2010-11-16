@@ -76,7 +76,9 @@ class TemplateInstance : Namespace {
   }
   this(ParseCb rest) {
     withTLS(namespace, this, {
-      auto t2 = parent.source.dup; // prevent memoizer confusion. 
+      auto t2 = parent.source;
+      pushCache(); // open new memoizer level
+      scope(exit) popCache();
       Tree tr;
       // logln("rest toplevel match on ", t2);
       if (!t2.many(
