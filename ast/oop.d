@@ -477,10 +477,11 @@ mixin DefaultParser!(gotIntfDef, "tree.typedef.intf");
 Object gotClassRef(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
   if (t2.gotIdentifier(id)) {
+    retry:
     if (auto cl = cast(Class) namespace().lookup(id)) {
       text = t2;
       return new ClassRef(cl);
-    }
+    } else if (t2.eatDash(id)) goto retry;
   }
   return null;
 }
@@ -489,10 +490,11 @@ mixin DefaultParser!(gotClassRef, "type.class", "35"); // before type.named
 Object gotIntfRef(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
   if (t2.gotIdentifier(id)) {
+    retry:
     if (auto i = cast(Intf) namespace().lookup(id)) {
       text = t2;
       return new IntfRef(i);
-    }
+    } else if (t2.eatDash(id)) goto retry;
   }
   return null;
 }
@@ -516,9 +518,11 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   if (t2.accept(".") && t2.gotIdentifier(member)) {
     Object m;
+    retry:
     if (cl) m = cl.lookupRel(member, ex);
     else m = intf.lookupIntf(member, ex);
     if (!m) {
+      if (t2.eatDash(member)) goto retry;
       text.setError("No '", member, "' in ", cl?cl:intf, "!");
       return null;
     }

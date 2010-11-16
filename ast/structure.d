@@ -497,12 +497,14 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto pre_ex = ex;
   if (t2.accept(".") && t2.gotIdentifier(member)) {
     auto rn = cast(RelNamespace) ex.valueType();
+    retry:
     auto m = rn.lookupRel(member, ex);
     if (cast(Function) m) { text = t2; return m; }
     ex = cast(Expr) m;
     if (!ex) {
       if (m) text.setError(member, " is not a rel var: ", m);
       else {
+        if (t2.eatDash(member)) goto retry;
         string mesg, name;
         if (auto st = cast(Structure) rn) {
           name = st.name;

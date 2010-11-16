@@ -131,7 +131,7 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   auto t2 = text.strip();
   t2.eatComments();
   bool isValid(char c) {
-    return isAlphanum(c) || "_".find(c) != -1 || (acceptDots && c == '.');
+    return isAlphanum(c) || "_-".find(c) != -1 || (acceptDots && c == '.');
   }
   if (!t2.length || !isValid(t2[0])) return false;
   auto identlen = 0, backup = t2;
@@ -141,6 +141,19 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   } while (t2.length && isValid(t2[0]));
   ident = backup[0 .. identlen];
   text = t2;
+  return true;
+}
+
+// This isn't a symbol! Maybe I was wrong about the dash .. 
+// Remove the last dash part from "id" that was taken from "text"
+// and re-add it to "text" via dark pointer magic.
+bool eatDash(ref string text, ref string id) {
+  auto dp = id.rfind("-");
+  if (dp == -1) return false;
+  auto removed = id.length - dp;
+  id = id[0 .. dp];
+  // give back
+  text = (text.ptr - removed)[0 .. text.length + removed];
   return true;
 }
 

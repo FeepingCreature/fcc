@@ -115,10 +115,20 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
     } else {
       // logln("No ", name, " in ", namespace());
     }
-    if (name.rfind(".") != -1) {
-      name = name[0 .. name.rfind(".")]; // chop up what _may_ be members!
+    int dotpos = name.rfind("."), dashpos = name.rfind("-");
+    if (dotpos != -1 && dashpos != -1)
+      if (dotpos > dashpos) goto checkDot;
+      else goto checkDash;
+    
+    checkDash:
+    if (t2.eatDash(name)) goto retry;
+    
+    checkDot:
+    if (dotpos != -1) {
+      name = name[0 .. dotpos]; // chop up what _may_ be members!
       goto retry;
     }
+    
     t2.setError("unknown identifier: '", name, "'");
   }
   return null;
@@ -236,10 +246,11 @@ template iparse(R, string id, string rule, bool mustParse = true) {
 Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
   if (t2.gotIdentifier(id)) {
+    retry:
     if (auto type = cast(IType) namespace().lookup(id)) {
       text = t2;
       return cast(Object) type;
-    }
+    } else if (t2.eatDash(id)) goto retry;
   }
   return null;
 }

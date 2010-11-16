@@ -40,9 +40,11 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
           string id;
           if (!str.gotIdentifier(id))
             throw new Exception("Can't parse identifier from expansion string at '"~str~"'");
+          retry:
           ex = cast(Expr) namespace().lookup(id);
           if (!ex)
-            throw new Exception("No such variable: "~id);
+            if (str.eatDash(id)) goto retry;
+            else throw new Exception("No such variable: "~id);
         }
         bool tryFormat(Expr ex) {
           if (auto sf = simpleFormat(ex)) {

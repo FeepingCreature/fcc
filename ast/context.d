@@ -92,9 +92,13 @@ Object gotContextMember(ref string text, ParseCb cont, ParseCb rest) {
   auto ctx = cast(Context) lhs_partial();
   if (!ctx) return null;
   string ident;
-  if (t2.accept(".") && t2.gotIdentifier(ident)) {
+  if (!t2.accept(".")) return null;
+  if (t2.gotIdentifier(ident)) {
+    retry:
     auto m = ctx.lookup(ident);
-    if (!m) return null;
+    if (!m)
+      if (t2.eatDash(ident)) goto retry;
+      else return null;
     // if (!m) throw new Exception("No '"~ident~"' in "~ctx.toString()~"!");
     text = t2;
     return m;

@@ -27,8 +27,11 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
     if (!strtype) return null;
     string member;
     if (t2.accept(".") && t2.gotIdentifier(member)) {
+      retry:
       auto mvar = strtype.lookup(member);
-      if (!mvar) return null;
+      if (!mvar)
+        if (t2.eatDash(member)) goto retry;
+        else return null;
       auto smf = cast(RelFunction) mvar;
       if (!smf) return null;
       text = t2;

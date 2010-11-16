@@ -355,9 +355,12 @@ Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   string ident;
   if (!t2.gotIdentifier(ident, true)) return null;
+  retry:
   auto fun = cast(Function) namespace().lookup(ident);
   // logln("fun is ", fun, " <- ", namespace().lookup(ident), " <- ", ident);
-  if (!fun) return null;
+  if (!fun)
+    if (t2.eatDash(ident)) goto retry;
+    else return null;
   
   text = t2;
   

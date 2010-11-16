@@ -266,10 +266,12 @@ Object gotNamedCond(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string id;
   if (!t2.gotIdentifier(id)) return null;
+  retry:
   if (auto cd = cast(Cond) namespace().lookup(id)) {
     text = t2;
     return cast(Object) cd;
-  } else return null;
+  } else if (t2.eatDash(id)) goto retry;
+  else return null;
 }
 mixin DefaultParser!(gotNamedCond, "cond.named", "75");
 
