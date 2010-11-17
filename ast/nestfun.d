@@ -93,7 +93,6 @@ mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef", "20");
 
 Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("delegate")) return null;
   auto sc = cast(Scope) namespace();
   if (!sc) return null;
   auto nf = new NestedFunction(sc);
@@ -108,7 +107,24 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   mod.entries ~= cast(Tree) res;
   return new NestFunRefExpr(res);
 }
-mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral", "211");
+mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral", "211", "delegate");
+
+Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  auto fun = new Function();
+  auto mod = current_module();
+  auto res = cast(Function)
+    gotGenericFunDef(fun, mod, true, t2, cont, rest, true /* noname */);
+  
+  if (!res)
+    t2.failparse("Could not parse delegate literal");
+  static int i;
+  synchronized res.name = Format("__nested_fn_literal_", i++);
+  text = t2;
+  mod.entries ~= cast(Tree) res;
+  return new FunRefExpr(res);
+}
+mixin DefaultParser!(gotNestedFnLiteral, "tree.expr.fnliteral", "2111", "function");
 
 class NestedCall : FunCall {
   Expr dg;

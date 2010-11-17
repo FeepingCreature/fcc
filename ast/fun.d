@@ -350,24 +350,21 @@ class FunRefExpr : Expr, Literal {
   }
 }
 
+import ast.casting;
 Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("&")) return null;
-  
   string ident;
-  if (!t2.gotIdentifier(ident, true)) return null;
-  retry:
-  auto fun = cast(Function) namespace().lookup(ident);
-  // logln("fun is ", fun, " <- ", namespace().lookup(ident), " <- ", ident);
-  if (!fun)
-    if (t2.eatDash(ident)) goto retry;
-    else return null;
+  Object obj;
+  if (!rest(t2, "tree.expr", &obj))
+    return null;
+  auto fun = cast(Function) obj;
+  if (!fun) return null;
   
   text = t2;
   
   return new FunRefExpr(fun);
 }
-mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref", "2101");
+mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref", "2101", "&");
 
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
