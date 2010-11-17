@@ -182,46 +182,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
 
-import ast.literals, ast.casting, ast.modules;
-Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex;
-  auto t2 = text;
-  if (rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
-    auto ex2 = ex; // test for int-like
-    if (gotImplicitCast(ex2, (IType it) { return test(it == Single!(SysInt)); })) {
-      text = t2;
-      return new Compare(ex2, true, false, true, false, new IntExpr(0));
-    }
-    auto n = cast(Expr) sysmod.lookup("null");
-    if (!n) return null;
-    auto ev = ex.valueType();
-    Expr cmp1, cmp2;
-    Stuple!(IType, IType)[] overlaps;
-    void test(Expr e1, Expr e2) {
-      auto i1 = e1.valueType(), i2 = e2.valueType();
-      Expr e1t;
-      if (gotImplicitCast(e1, i2, (IType it) {
-        auto e2t = e2;
-        auto res = gotImplicitCast(e2t, it, (IType it2) {
-          overlaps ~= stuple(it,  it2);
-          return .test(it == it2);
-        });
-        if (res) cmp2 = e2t;
-        return res;
-      })) { cmp1 = e1; cmp2 = e2; }
-    }
-    test(ex, n);
-    if (!cmp1) test(n, ex);
-    if (cmp1 && cmp2) {
-      text = t2;
-      return new Compare(cmp1, true, false, true, false, cmp2);
-    }
-    // logln("Failed overlaps: ", overlaps);
-    return null;
-  } else return null;
-}
-mixin DefaultParser!(gotExprAsCond, "cond.expr", "73");
-
+import ast.literals;
 class BooleanOp(string Which) : Cond {
   Cond c1, c2;
   mixin MyThis!("c1, c2");
@@ -338,4 +299,10 @@ static this() {
     if (!ce) return null;
     return ce.cd;
   };
+  defineOp("!=", delegate Expr(Expr ex1, Expr ex2) {
+    if (auto op = lookupOp("==", true, ex1, ex2)) {
+      return new CondExpr(new NegCond(new ExprWrap(op)));
+    }
+    return null;
+  });
 }

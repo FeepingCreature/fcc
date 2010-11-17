@@ -9,19 +9,21 @@ int find(string text, string match) {
   return -1;
 }
 
-bool startsWith(string s, string m) {
-  if s.length < m.length return false;
-  return eval (s[0 .. m.length] == m);
+string startsWith(string s, string m) {
+  if s.length < m.length return null;
+  if (s[0 .. m.length] != m)
+    return null;
+  return s[m.length .. s.length];
 }
 
 string between(string s, string from, string to) {
   int pos1, pos2;
   if (from.length) pos1 = find(s, from);
-  if (pos1 == -1) return "";
+  if (pos1 == -1) return null;
   s = s[pos1 + from.length .. s.length];
   
   if (to.length) pos2 = find(s, to);
-  if (pos2 == -1) return "";
+  if (pos2 == -1) return null;
   s = s[0 .. pos2];
   
   return s;

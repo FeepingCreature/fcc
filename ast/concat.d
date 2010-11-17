@@ -99,7 +99,9 @@ class ConcatChain : Expr {
 static this() {
   bool isArray(IType it) { return !!cast(Array) it; }
   bool isExtArray(IType it) { return !!cast(ExtArray) it; }
-  bool isEqual(IType i1, IType i2) { return test(i1 == i2); }
+  bool isEqual(IType i1, IType i2) {
+    return test(resolveType(i1) == resolveType(i2));
+  }
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
     auto cc = cast(ConcatChain) ex1, ex22 = ex2; // lol
     if (!cc || !gotImplicitCast(ex2, &isArray) && !gotImplicitCast(ex22, cc.type.elemType /apply/ &isEqual))
@@ -121,17 +123,18 @@ static this() {
     return new ConcatChain(ex1, ex2);
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+    auto e1vt = resolveType(ex1.valueType());
     if (
-      !isExtArray(ex1.valueType()) ||
+      !isExtArray(e1vt) ||
       !gotImplicitCast(ex2, (IType it) {
-        return test(new Array((cast(ExtArray) ex1.valueType()).elemType) == it);
+        return test(new Array((cast(ExtArray) e1vt).elemType) == it);
       }))
       return null;
     if (!cast(LValue) ex1) {
       logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: ", ex1, ex2);
       asm { int 3; }
     }
-    auto ea = cast(ExtArray) ex1.valueType();
+    auto ea = cast(ExtArray) e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR", "tree.expr")
                     (`sys.append3!T(&l, r)`,
@@ -145,15 +148,17 @@ static this() {
     }
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
-    if (!isExtArray(ex1.valueType())) return null;
-    auto et = (cast(ExtArray) ex1.valueType()).elemType;
+    auto e1vt = resolveType(ex1.valueType());
+    if (!isExtArray(e1vt)) return null;
+    auto et = resolveType((cast(ExtArray) e1vt).elemType);
+    logln("cast ", ex2, " to ", et, "?");
     if (!gotImplicitCast(ex2, (IType it) { return !!(it == et); }))
       return null;
     if (!cast(LValue) ex1) {
       logln("Cannot concatenate ext+elem: ext is not lvalue; cannot invalidate: ", ex1, ex2);
       asm { int 3; }
     }
-    auto ea = cast(ExtArray) ex1.valueType();
+    auto ea = cast(ExtArray) e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR_elem", "tree.expr")
                     (`sys.append3e!T(&l, r)`, namespace(),

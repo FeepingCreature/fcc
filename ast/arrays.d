@@ -234,7 +234,7 @@ static this() {
 }
 
 Expr arrayCast(Expr ex, IType it) {
-  auto ar1 = cast(Array) ex.valueType(), ar2 = cast(Array) it;
+  auto ar1 = cast(Array) resolveType(ex.valueType()), ar2 = cast(Array) it;
   if (!ar1 || !ar2) return null;
   return iparse!(Expr, "array_cast_convert_call", "tree.expr")
                 (`sys_array_cast!Res(from.ptr, from.length, sz1, sz2)`,
@@ -248,7 +248,8 @@ import ast.opers, ast.namespace;
 static this() {
   converts ~= &arrayCast /todg;
   defineOp("==", delegate Expr(Expr ex1, Expr ex2) {
-    bool isArray(IType it) { return !!cast(Array) it; }
+    logln(ex1, " - ", ex2);
+    bool isArray(IType it) { logln("? is ", it, "; ", (cast(Object) it).classinfo.name); return !!cast(Array) it; }
     if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
       return null;
     auto res = iparse!(Expr, "array_eq", "tree.expr")

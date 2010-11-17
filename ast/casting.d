@@ -18,7 +18,9 @@ class ReinterpretCast(T) : T, HasInfo {
     string toString() { return Format("(", to, ": ", from, ")"); }
     IType valueType() { return to; }
     void emitAsm(AsmFile af) {
-      mixin(mustOffset("to.size"));
+      int size = to.size;
+      if (Single!(Void) == to) size = 0;
+      mixin(mustOffset("size"));
       from.emitAsm(af);
     }
     static if (is(typeof(&from.emitLocation)))
@@ -197,6 +199,7 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
       visited[visited_offs++] = it;
     else { visited ~= it; visited_offs ++; }
   }
+  want = resolveType(want);
   bool haveVisited(Expr ex) {
     auto t1 = ex.valueType();
     foreach (t2; visited[0 .. visited_offs]) if (t1 == t2) return true;
@@ -229,12 +232,23 @@ bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
   return gotImplicitCast(ex, null, accept);
 }
 
+void resolveExpr(ref Expr ex) {
+  auto et = ex.valueType();
+  auto re = resolveType(et);
+  if (re is et) return;
+  ex = reinterpret_cast(re, ex);
+}
+
 bool gotImplicitCast(ref Expr ex, IType want, bool delegate(IType) accept) {
-  return gotImplicitCast(ex, want, (Expr ex) { return accept(ex.valueType()); });
+  return gotImplicitCast(ex, want, (Expr ex) {
+    return accept(resolveType(ex.valueType()));
+  }) && (resolveExpr(ex), true);
 }
 
 bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept) {
-  return gotImplicitCast(ex, null, (Expr ex) { return accept(ex.valueType()); });
+  return gotImplicitCast(ex, null, (Expr ex) {
+    return accept(resolveType(ex.valueType()));
+  }) && (resolveExpr(ex), true);
 }
 
 Expr[] getAllImplicitCasts(Expr ex) {
@@ -312,15 +326,9 @@ Expr reinterpret_cast(IType to, Expr from) {
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (auto tp = cast(TypeProxy) ex.valueType()) {
-      auto ty = tp.actualType();
-      while (true) {
-        if (auto tp2 = cast(TypeProxy) ty) ty = tp2.actualType();
-        else break;
-      }
-      return reinterpret_cast(ty, ex);
-    }
-    return null;
+    auto tp = cast(TypeProxy) ex.valueType();
+    if (!tp) return null;
+    return reinterpret_cast(resolveType(cast(IType) tp), ex);
   };
   implicits ~= delegate Expr(Expr ex) {
     if (ex.valueType() == Single!(Byte) || ex.valueType() == Single!(Char))

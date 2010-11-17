@@ -107,11 +107,12 @@ Statement getSliceAssign(Expr slice, Expr array) {
   if (!gotImplicitCast(array, (IType it) { tried ~= it; return cast(StaticArray) it || cast(Array) it; })) {
     throw new Exception(Format("Can't assign to slice: ", array, "; none of ", tried, " fit. "));
   }
-  if (auto sa = cast(StaticArray) array.valueType())
+  auto avt = resolveType(array.valueType());
+  if (auto sa = cast(StaticArray) avt)
     elemtype = sa.elemType;
-  else if (auto ar = cast(Array) array.valueType())
+  else if (auto ar = cast(Array) avt)
     elemtype = ar.elemType;
-  else assert(false);
+  else asm { int 3; }
   
   auto fc = (cast(Function) sysmod.lookup("memcpy2")).mkCall;
   fc.params ~= getArrayPtr(slice);
@@ -125,13 +126,14 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr dest, src;
   if (rest(t2, "tree.expr _tree.expr.arith", &dest) && t2.accept("=")) {
-    auto ar = cast(Array) dest.valueType();
+    auto ar = cast(Array) resolveType(dest.valueType());
     if (!ar) return null;
     if (cast(LValue) dest) return null; // leave to normal assignment
     if (rest(t2, "tree.expr", &src)) {
-      if (dest.valueType() != src.valueType()) {
+      if (ar != resolveType(src.valueType())) {
         auto mesg = Format("Mismatching types in slice assignment: ", dest.valueType(), " <- ", src.valueType());
-        if (cast(Array) src.valueType() || cast(ExtArray) src.valueType())
+        if (cast(Array) resolveType(src.valueType())
+         || cast(ExtArray) resolveType(src.valueType()))
           text.failparse(mesg);
         else
           text.setError(mesg);

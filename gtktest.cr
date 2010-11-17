@@ -94,8 +94,8 @@ int main (int argc, char **argv) {
     while line <- splitAt("\n",
         [for chunk <- readfile open "xmldump.txt": (string: chunk)]) {
       // writeln "> $line";
-      if (startsWith(line, "----module ")) {
-        auto restp = toStringz line["----module ".length .. line.length];
+      if (auto rest = startsWith(line, "----module ")) {
+        auto restp = toStringz rest;
         GtkTreeIter iter;
         iters ~= iter;
         gtk_tree_store_append (model, current(), null);
@@ -108,8 +108,7 @@ int main (int argc, char **argv) {
         reading = false;
       }
       if (reading) {
-        alias xmlstart = "<node";
-        if (startsWith(line, xmlstart)) {
+        if (startsWith(line, "<node")) {
           auto classnamep = toStringz between(line, " classname=\"", "\"");
           auto namep = toStringz between(line, " name=\"", "\" ");
           auto infop = toStringz between(line, " info=\"", "\" ");

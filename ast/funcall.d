@@ -12,6 +12,7 @@ void matchCallWith(Expr arg, IType[] params, ref Expr[] res, string info = null,
       return null;
   }
   foreach (i, type; params) {
+    type = resolveType(type);
     if (cast(Variadic) type) {
       foreach (ref rest_arg; args)
         if (!gotImplicitCast(rest_arg, (IType it) { return !cast(StaticArray) it; }))
