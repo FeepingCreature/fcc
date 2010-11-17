@@ -151,7 +151,6 @@ static this() {
     auto e1vt = resolveType(ex1.valueType());
     if (!isExtArray(e1vt)) return null;
     auto et = resolveType((cast(ExtArray) e1vt).elemType);
-    logln("cast ", ex2, " to ", et, "?");
     if (!gotImplicitCast(ex2, (IType it) { return !!(it == et); }))
       return null;
     if (!cast(LValue) ex1) {

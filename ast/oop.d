@@ -52,7 +52,6 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
   this(string name) {
     this.name = name;
     mangle_id = namespace().mangle(name, this);
-    logln(name, " => ", mangle_id);
   }
   bool declares(string name) {
     foreach (fun; funs) if (fun.name == name) return true;
@@ -119,7 +118,6 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
       logln("Bad intf ref: ", base);
       asm { int 3; }
     }
-    logln("intf lookup ", name, " in ", this.name);
     if (name == "this") return cast(Object) base;
     auto cv = cast(CValue) base;
     if (!cv) {
@@ -265,7 +263,6 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     genDynCast;
     finalized = true;
     getClassinfo; // no-op to generate stuff
-    logln(name, ": ", data, " - ", size);
   }
   mixin TypeDefaults!();
   int ownClassinfoLength;
