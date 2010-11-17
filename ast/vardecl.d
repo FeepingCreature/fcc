@@ -28,6 +28,11 @@ class VarDecl : Statement {
       if (var.dontInit)
         af.salloc(var.type.size);
       else {
+        if (var.type == Single!(Void)) {
+          mixin(mustOffset("0"));
+          var.initval.emitAsm(af);
+          continue;
+        }
         mixin(mustOffset("var.type.size"));
         int sz = var.type.size;
         // TODO: investigate why necessary for chars

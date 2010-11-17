@@ -7,6 +7,7 @@ class Variable : LValue, Named {
   string address() { return Format(baseOffset, "(%ebp)"); }
   override {
     void emitAsm(AsmFile af) {
+      if (type == Single!(Void)) return;
       mixin(mustOffset("type.size"));
       af.pushStack(address, type);
     }
@@ -24,6 +25,7 @@ class Variable : LValue, Named {
   bool dontInit;
   Expr initval;
   void initInit() {
+    if (type == Single!(Void)) return;
     if (!type.initval.length)
       throw new Exception("Cannot declare an unsized variable: '"~name~"' being "~Format(type)~"! ");
     if (initval) return;

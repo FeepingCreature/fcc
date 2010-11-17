@@ -12,7 +12,16 @@ class ReturnStmt : Statement {
   Statement[] guards;
   override void emitAsm(AsmFile af) {
     auto fun = ns.get!(Function);
-    if (value) {
+    void emitGuards() {
+      foreach_reverse(stmt; guards)
+        stmt.emitAsm(af);
+    }
+    if (value.valueType() == Single!(Void)) {
+      scope(failure) logln("While returning ", value, " of ", value.valueType());
+      mixin(mustOffset("0"));
+      value.emitAsm(af);
+      emitGuards();
+    } else if (value) {
       scope(failure) logln("while returning ", value);
       mixin(mustOffset("0"));
       auto value = new Variable(value.valueType(), null, boffs(value.valueType(), af.currentStackDepth));
@@ -22,8 +31,7 @@ class ReturnStmt : Statement {
         vd.emitAsm(af);
       }
       (new Assignment(value, this.value)).emitAsm(af);
-      foreach_reverse(stmt; guards)
-        stmt.emitAsm(af);
+      emitGuards();
       
       if (Single!(Float) == value.valueType()) {
         loadFloatEx(value, af);
@@ -55,10 +63,7 @@ class ReturnStmt : Statement {
         assert(false, Format("Unsupported return type ", value.valueType()));
       }
       af.sfree(value.valueType().size); // pro forma
-    } else {
-      foreach_reverse(stmt; guards)
-        stmt.emitAsm(af);
-    }
+    } else emitGuards();
     // TODO: stack cleanup token here
     af.jump(fun.exit());
   }
@@ -76,10 +81,10 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   auto fun = namespace().get!(Function)();
   text = t2;
-  if (fun.type.ret == Single!(Void))
-    return rs; // don't expect a value.
-  if (rest(text, "tree.expr", &rs.value) && gotImplicitCast(rs.value, fun.type.ret, (IType it) { /*logln(it, " vs. ", fun.type.ret);*/ return test(it == fun.type.ret); })) {
+  if (rest(text, "tree.expr", &rs.value) && gotImplicitCast(rs.value, fun.type.ret, (IType it) { /*logln(it, " vs. ", fun.type.ret);*/ return test(it == fun.type.ret); }))
     return rs;
-  } else text.failparse("Error parsing return expression");
+  if (fun.type.ret == Single!(Void))
+    return rs; // permit no expr
+  text.failparse("Error parsing return expression");
 }
 mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return", "3", "return");
