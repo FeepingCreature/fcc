@@ -729,3 +729,7 @@ string startsWith(string text, string match) {
   if (text[0 .. match.length] != match) return null;
   return text[match.length .. $];
 }
+
+string cleanup(string s) {
+  return s.replace("-", "_dash_");
+}

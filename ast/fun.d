@@ -70,11 +70,12 @@ class Function : Namespace, Tree, Named, SelfAdding {
     }
     return cur;
   }
+  string cleaned_name() { return name.cleanup(); }
   string mangleSelf() {
     if (extern_c || name == "main")
-      return name;
+      return cleaned_name;
     else
-      return sup.mangle(name, type);
+      return sup.mangle(cleaned_name, type);
   }
   int framestart() {
     return _framestart;

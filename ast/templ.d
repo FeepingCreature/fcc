@@ -108,7 +108,7 @@ class TemplateInstance : Namespace {
           // logln("mangl => ", mangl);
         } else assert(false, Format(tr));
       } else mangl = this.type.mangle();
-      return sup.mangle(name, type)~"__"~"templinst_"~parent.name~"_with_"~mangl;
+      return sup.mangle(name, type)~"__"~"templinst_"~parent.name.cleanup()~"_with_"~mangl;
     }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     
