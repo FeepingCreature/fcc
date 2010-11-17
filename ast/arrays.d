@@ -249,7 +249,7 @@ static this() {
   converts ~= &arrayCast /todg;
   defineOp("==", delegate Expr(Expr ex1, Expr ex2) {
     logln(ex1, " - ", ex2);
-    bool isArray(IType it) { logln("? is ", it, "; ", (cast(Object) it).classinfo.name); return !!cast(Array) it; }
+    bool isArray(IType it) { return !!cast(Array) it; }
     if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
       return null;
     auto res = iparse!(Expr, "array_eq", "tree.expr")

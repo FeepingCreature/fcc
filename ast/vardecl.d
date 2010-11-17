@@ -156,15 +156,13 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotAutoDecl, "tree.stmt.autodecl", "22");
 
 Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text, vd = new VarDecl;
+  auto t2 = text;
   string name;
   IType type;
   if (!rest(t2, "type", &type))
     if (!t2.accept("auto"))
       return null;
   if (!t2.gotIdentifier(name)) return null;
-  auto var = new Variable;
-  var.name = name;
   bool dontInit;
   if (!t2.accept("=")) {
     t2.setError("Vardecl exprs must be initialized. ");
@@ -181,13 +179,13 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Could not parse variable initializer; tried ", its);
   if (!type) type = initval.valueType();
   
-  var.type = type;
+  auto var = new Variable(type, name, boffs(type));
+  namespace().get!(Scope).add(var);
   var.dontInit = true;
   auto setVar = new Assignment(var, initval);
-  var.baseOffset = boffs(var.type);
+  auto vd = new VarDecl;
   vd.vars ~= var;
   namespace().get!(Scope).addStatement(vd);
-  namespace().get!(Scope).add(var);
   text = t2;
   return new StatementAndExpr(setVar, var);
 }
