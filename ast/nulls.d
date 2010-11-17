@@ -1,4 +1,4 @@
-module ast.nullcasts;
+module ast.nulls;
 
 import ast.base, ast.casting, ast.int_literal, ast.aliasing, ast.tuples;
 import ast.arrays, ast.dg, ast.fun, ast.oop;
