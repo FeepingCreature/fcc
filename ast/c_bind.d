@@ -105,6 +105,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     if (accept("unsigned int") || accept("signed int") || accept("long int") || accept("int")) return Single!(SysInt);
     if (accept("unsigned char") || accept("signed char") || accept("char")) return Single!(Char);
     if (accept("signed short int") || accept("unsigned short int") || accept("unsigned short") || accept("short int") || accept("short")) return Single!(Short);
+    if (accept("unsigned long")) return Single!(SizeT);
     if (accept("void")) return Single!(Void);
     if (accept("float")) return Single!(Float);
     // TODO: work out packing for double
