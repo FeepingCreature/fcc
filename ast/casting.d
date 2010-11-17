@@ -2,7 +2,7 @@ module ast.casting;
 
 import ast.base, ast.parse;
 
-class ReinterpretCast(T) : T {
+class ReinterpretCast(T) : T, HasInfo {
   T from; IType to;
   this(IType to, T from) {
     this.from = from;
@@ -14,6 +14,7 @@ class ReinterpretCast(T) : T {
   mixin DefaultDup!();
   mixin defaultIterate!(from);
   override {
+    string getInfo() { return Format(to, ":"); }
     string toString() { return Format("(", to, ": ", from, ")"); }
     IType valueType() { return to; }
     void emitAsm(AsmFile af) {

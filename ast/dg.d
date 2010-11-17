@@ -149,24 +149,41 @@ static this() {
   };
 }
 
+import ast.assign;
 void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
   af.comment("Begin delegate call");
-  
+  int retsize = ret.size;
+  if (ret == Single!(Void))
+    retsize = 0;
+  mixin(mustOffset("retsize"));
   auto dgs = dgAsStruct(dg);
-  params ~= mkMemberAccess(dgs, "data");
-  
-  foreach_reverse (param; params) {
-    af.comment("Push ", param);
-    param.emitAsm(af);
-  }
-  
-  mkMemberAccess(dgs, "fun").emitAsm(af);
-  af.popStack("%eax", Single!(SizeT));
-  af.call("%eax");
-  af.nvm("%eax");
-  
-  foreach (param; params) {
-    af.sfree(param.valueType().size);
-  }
-  handleReturn(ret, af);
+  mkVar(af, ret, true, (Variable retvar) {
+    mixin(mustOffset("0"));
+    mkVar(af, dgs.valueType(), true, (Variable dgvar) {
+      mixin(mustOffset("0"));
+      (new Assignment(dgvar, dgs)).emitAsm(af);
+      params ~= mkMemberAccess(dgvar, "data");
+      foreach_reverse (param; params) {
+        af.comment("Push ", param);
+        param.emitAsm(af);
+      }
+      mkMemberAccess(dgvar, "fun").emitAsm(af);
+      af.popStack("%eax", Single!(SizeT));
+      af.call("%eax");
+      af.nvm("%eax");
+      foreach (param; params) {
+        af.sfree(param.valueType().size);
+      }
+      {
+        mixin(mustOffset("0", "forble"));
+        handleReturn(ret, af);
+        if (ret != Single!(Void))
+          (new Assignment(retvar, new Placeholder(ret), false, true)).emitAsm(af);
+        // Assignment, assuming Placeholder was "really"
+        // emitted, has already done this.
+        // if (ret != Single!(Void)) af.sfree(ret.size);
+      }
+    });
+    af.sfree(dgs.valueType().size);
+  });
 }

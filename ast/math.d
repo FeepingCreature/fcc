@@ -227,7 +227,7 @@ void opt(Expr ex) {
   ex.iterate(dg);
 }
 
-abstract class BinopExpr : Expr {
+abstract class BinopExpr : Expr, HasInfo {
   Expr e1, e2;
   string op;
   this(Expr e1, Expr e2, string op) {
@@ -245,6 +245,7 @@ abstract class BinopExpr : Expr {
     string toString() {
       return Format("(", e1, " ", op, " ", e2, ")");
     }
+    string getInfo() { return op; }
     IType valueType() { // TODO: merge e1, e2
       assert(e1.valueType() == e2.valueType());
       return e1.valueType();

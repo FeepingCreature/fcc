@@ -120,7 +120,7 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   text = t2;
   
-  return cast(Object) iparse!(Expr, "new_array", "tree.expr")
+  return cast(Object) iparse!(Expr, "new_value", "tree.expr")
     ("type*:mem.calloc(1, type.sizeof)",
      "type", ty
     );

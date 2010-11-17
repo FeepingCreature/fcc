@@ -296,8 +296,8 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond cd;
   if (rest(t2, "cond", &cd)) {
-    if (cast(ExprWrap) cd) return null;
     text = t2;
+    if (auto ew = cast(ExprWrap) cd) return cast(Object) ew.ex;
     return new CondExpr(cd);
   } else return null;
 }

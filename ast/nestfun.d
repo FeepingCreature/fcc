@@ -107,7 +107,7 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   mod.entries ~= cast(Tree) res;
   return new NestFunRefExpr(res);
 }
-mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral", "211", "delegate");
+mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral", "2402", "delegate");
 
 Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -124,7 +124,7 @@ Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
   mod.entries ~= cast(Tree) res;
   return new FunRefExpr(res);
 }
-mixin DefaultParser!(gotNestedFnLiteral, "tree.expr.fnliteral", "2111", "function");
+mixin DefaultParser!(gotNestedFnLiteral, "tree.expr.fnliteral", "2403", "function");
 
 class NestedCall : FunCall {
   Expr dg;

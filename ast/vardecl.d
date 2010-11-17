@@ -30,7 +30,7 @@ class VarDecl : Statement {
       else {
         if (var.type == Single!(Void)) {
           mixin(mustOffset("0"));
-          var.initval.emitAsm(af);
+          if (var.initval) var.initval.emitAsm(af);
           continue;
         }
         mixin(mustOffset("var.type.size"));
@@ -66,13 +66,18 @@ int boffs(IType t, int curdepth = -1) {
 
 static int x;
 void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
-  mixin(mustOffset("type.size"));
+  int size = type.size;
+  // void vars are fucking weird.
+  if (type == Single!(Void)) size = 0;
+  mixin(mustOffset("size"));
   auto var = new Variable(type, Format("__temp_var_", x++, "__"),
                           boffs(type, af.currentStackDepth));
   var.dontInit = dontInit;
-  auto vd = new VarDecl;
-  vd.vars ~= var;
-  vd.emitAsm(af);
+  if (size) {
+    auto vd = new VarDecl;
+    vd.vars ~= var;
+    vd.emitAsm(af);
+  }
   {
     mixin(mustOffset("0"));
     dg(var);
@@ -104,9 +109,11 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
         var.dontInit = true;
       } else {
         var.initInit();
-        assert(var.initval);
-        if (var.type != var.initval.valueType())
-          throw new Exception(Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType()));
+        if (var.type != Single!(Void)) {
+          assert(!!var.initval);
+          if (var.type != var.initval.valueType())
+            throw new Exception(Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType()));
+        }
       }
       var.baseOffset = boffs(var.type);
       vd.vars ~= var;
@@ -147,3 +154,41 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotAutoDecl, "tree.stmt.autodecl", "22");
+
+Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text, vd = new VarDecl;
+  string name;
+  IType type;
+  if (!rest(t2, "type", &type))
+    if (!t2.accept("auto"))
+      return null;
+  if (!t2.gotIdentifier(name)) return null;
+  auto var = new Variable;
+  var.name = name;
+  bool dontInit;
+  if (!t2.accept("=")) {
+    t2.setError("Vardecl exprs must be initialized. ");
+    return null;
+  }
+  
+  IType[] its;
+  Expr initval;
+  if (!rest(t2, "tree.expr", &initval)
+    || type && !gotImplicitCast(initval, type, (IType it) {
+    its ~= it;
+    return test(type == it);
+  }))
+    t2.failparse("Could not parse variable initializer; tried ", its);
+  if (!type) type = initval.valueType();
+  
+  var.type = type;
+  var.dontInit = true;
+  auto setVar = new Assignment(var, initval);
+  var.baseOffset = boffs(var.type);
+  vd.vars ~= var;
+  namespace().get!(Scope).addStatement(vd);
+  namespace().get!(Scope).add(var);
+  text = t2;
+  return new StatementAndExpr(setVar, var);
+}
+mixin DefaultParser!(gotVarDeclExpr, "tree.expr.vardecl", "28");

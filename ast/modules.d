@@ -6,6 +6,8 @@ import tools.ctfe, tools.threads;
 
 string[] include_path;
 
+bool dumpXMLRep;
+
 static this() {
   include_path ~= "/usr/include";
 }
@@ -35,6 +37,23 @@ class Module : Namespace, Tree, Named {
       while (i < entries.length) {
         auto entry = entries[i++];
         entry.emitAsm(af);
+      }
+      void callback(ref Iterable it) {
+        if (cast(NoOp) it) return;
+        string info = Format("<node classname=\"", (cast(Object) it).classinfo.name, "\"");
+        if (auto n = cast(Named) it)
+          info ~= Format(" name=\"", n.getIdentifier(), "\"");
+        if (auto i = cast(HasInfo) it)
+          info ~= Format( " info=\"", i.getInfo(), "\"");
+        info ~= ">";
+        logln(info);
+        it.iterate(&callback);
+        logln("</node>");
+      }
+      if (dumpXMLRep) {
+        logln("----module ", name);
+        iterate(&callback);
+        logln("----done");
       }
     }
     string mangle(string name, IType type) {

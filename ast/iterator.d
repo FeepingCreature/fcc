@@ -568,11 +568,13 @@ withoutIterator:
   
   Expr ex;
   if (lv) ex = lv; else ex = mv;
-  auto vt = ex.valueType(), it = cast(Iterator) iter.valueType(), et = it.elemType();
-  Expr temp = new Placeholder(cast(IType) et, null);
-  if (!gotImplicitCast(temp, (IType it) { return test(it == vt); })) {
-    logln(text.nextText()); 
-    text.failparse("Can't iterate ", it, " (elem type ", et, "), into variable of ",  vt);
+  if (ex) { // yes, no-iterator iteration is possible.
+    auto vt = ex.valueType(), it = cast(Iterator) iter.valueType(), et = it.elemType();
+    Expr temp = new Placeholder(cast(IType) et, null);
+    if (!gotImplicitCast(temp, (IType it) { return test(it == vt); })) {
+      logln(text.nextText()); 
+      text.failparse("Can't iterate ", it, " (elem type ", et, "), into variable of ",  vt);
+    }
   }
   
   text = t2;

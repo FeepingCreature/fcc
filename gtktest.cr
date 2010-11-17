@@ -3,7 +3,7 @@ module gtktest;
 
 c_include "gtk/gtk.h";
 
-import sys, std.string;
+import sys, std.string, std.file;
 
 extern(C) size_t g_signal_connect_data (gpointer instance, char*, void*, void*, void*, GConnectFlags);
 
@@ -21,6 +21,18 @@ GtkButton* gtkCastButton(GtkWidget* gw) {
 
 GtkButton* gtkCastBox(GtkWidget* gw) {
   return g_type_check_instance_cast (gw, gtk_box_get_type());
+}
+
+GtkScrolledWindow* gtkCastScrolledWindow(GtkWidget* gw) {
+  return g_type_check_instance_cast (gw, gtk_scrolled_window_get_type());
+}
+
+GtkTreeView* gtkCastTreeView(GtkWidget* gw) {
+  return g_type_check_instance_cast (gw, gtk_tree_view_get_type());
+}
+
+GtkTreeView* gtkCastTreeModel(GtkWidget* gw) {
+  return g_type_check_instance_cast (gw, gtk_tree_model_get_type());
 }
 
 (void*, void*)[~] store;
@@ -58,6 +70,9 @@ bool delete_event(void* widget, void* event, gpointer data) {
     return true;
 }
 
+alias G_TYPE_STRING = GType:(16 << 2);
+
+extern(C) FILE* stdout;
 int main (int argc, char **argv) {
     /* This is called in all GTK applications. Arguments are parsed
      * from the command line and are returned to the application. */
@@ -68,43 +83,83 @@ int main (int argc, char **argv) {
     
     gtk_window_set_title(gtkCastWindow(window), "Hello Buttons!");
     
-    /* When the window is given the "delete-event" signal (this is given
-     * by the window manager, usually by the "close" option, or on the
-     * titlebar), we ask it to call the delete_event () function
-     * as defined above. The data passed to the callback
-     * function is NULL and is ignored in the callback function. */
-    g_signal_connect_data (window, "delete-event", void*:function bool(void* widget, event, data) { return false; }, null, null, 0);
+    auto model = gtk_tree_store_new (2, G_TYPE_STRING, G_TYPE_STRING);
     
-    /* Here we connect the "destroy" event to a signal handler.  
-     * This event occurs when we call gtk_widget_destroy() on the window,
-     * or if we return FALSE in the "delete-event" callback. */
+    string line;
+    GtkTreeIter[auto~] iters;
+    GtkTreeIter* current() { return &iters[iters.length-1]; }
+    GtkTreeIter* prev() { return &iters[iters.length-2]; }
+    bool reading;
+    writeln "Building model. ";
+    while line <- splitAt("\n",
+        [for chunk <- readfile open "xmldump.txt": (string: chunk)]) {
+      // writeln "> $line";
+      if (startsWith(line, "----module ")) {
+        auto restp = toStringz line["----module ".length .. line.length];
+        GtkTreeIter iter;
+        iters ~= iter;
+        gtk_tree_store_append (model, current(), null);
+        gtk_tree_store_set (model, current(), 0, restp, 1, null, -1);
+        int st = (current().stamp);
+        reading = true;
+      }
+      if (startsWith(line, "----done")) {
+        iters = typeof(iters):iters[0 .. iters.length-1];
+        reading = false;
+      }
+      if (reading) {
+        alias xmlstart = "<node";
+        if (startsWith(line, xmlstart)) {
+          auto classnamep = toStringz between(line, " classname=\"", "\"");
+          auto namep = toStringz between(line, " name=\"", "\"");
+          auto infop = toStringz between(line, " info=\"", "\"");
+          if (find(line, " info=") == -1) infop = namep;
+          GtkTreeIter iter;
+          iters ~= iter;
+          gtk_tree_store_append (model, current(), prev());
+          gtk_tree_store_set (model, current(), 0, classnamep, 1, infop, -1);
+        }
+        if (line == "</node>") {
+          iters = typeof(iters):iters[0 .. iters.length-1];
+        }
+      }
+    }
+    
+    auto sw = gtk_scrolled_window_new (null, null);
+    gtk_scrolled_window_set_policy (
+      gtkCastScrolledWindow(sw), 
+      GTK_POLICY_AUTOMATIC x 2
+    );
+    
+    auto tree = gtk_tree_view_new ();
+    gtk_tree_view_set_headers_visible (gtkCastTreeView(tree), true);
+    
+    gtk_container_add (gtkCastContainer(sw), tree);
+    gtk_container_add (gtkCastContainer(window), sw);
+    
+    {
+      auto renderer = gtk_cell_renderer_text_new ();
+      auto column = gtk_tree_view_column_new_with_attributes ("Class",
+                      renderer, "text".ptr, 0, null);
+      gtk_tree_view_append_column (gtkCastTreeView (tree), column);
+      column = gtk_tree_view_column_new_with_attributes ("Info",
+                      renderer, "text".ptr, 1, null);
+      gtk_tree_view_append_column (gtkCastTreeView (tree), column);
+      gtk_tree_view_set_model (gtkCastTreeView (tree), gtkCastTreeModel (model));
+      g_object_unref (model);
+    }
+    
+    g_signal_connect_data (
+      window, "delete-event",
+      void*:function bool(void* widget, event, data) { return false; },
+      null, null, 0
+    );
+    
     g_signal_connect (window, "destroy", delegate void(GtkWidget*) { gtk_main_quit(); });
     
-    // #define _G_TYPE_CIC(ip,gt,ct) ((ct*) g_type_check_instance_cast ((GTypeInstance*) ip, gt))
-    /* Sets the border width of the window. */
     gtk_container_set_border_width (gtkCastContainer(window), 10);
     
-    auto box1 = gtk_hbox_new(false, 0);
-    
-    gtk_container_add(gtkCastContainer(window), box1);
-    {
-      auto button = gtk_button_new_with_label ("Button 1");
-      g_signal_connect (button, "clicked", delegate void(GtkWidget* widget) { g_print "Hello World button1\n"; });
-      gtk_box_pack_start (gtkCastBox(box1), button, true, true, 0);
-      gtk_widget_show (button);
-    }
-    
-    {
-      auto button = gtk_button_new_with_label ("Button 2");
-      g_signal_connect (button, "clicked", delegate void(GtkWidget* widget) { g_print "Hello World button2\n"; });
-      gtk_box_pack_start (gtkCastBox(box1), button, true, true, 0);
-      gtk_widget_show (button);
-    }
-    
-    gtk_widget_show (box1);
-    
-    /* and the window */
-    gtk_widget_show (window);
+    gtk_widget_show_all (window);
     
     /* All GTK applications must have a gtk_main(). Control ends here
      * and waits for an event to occur (like a key press or

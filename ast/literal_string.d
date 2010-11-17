@@ -2,7 +2,7 @@ module ast.literal_string;
 
 import ast.base, ast.modules, ast.literals, ast.pointer, ast.arrays;
 
-class StringExpr : Expr, Setupable {
+class StringExpr : Expr, Setupable, HasInfo {
   string str;
   Module forb;
   this() { forb = current_module(); forb.addSetupable(this); }
@@ -10,6 +10,7 @@ class StringExpr : Expr, Setupable {
   mixin defaultIterate!();
   string name_used;
   override {
+    string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }
     StringExpr dup() { return this; }
     void setup(AsmFile af) {
       if (name_used) return;

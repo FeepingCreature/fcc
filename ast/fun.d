@@ -152,7 +152,7 @@ void handleReturn(IType ret, AsmFile af) {
     af.put("fstpl (%esp)");
     return;
   }
-  if (!cast(Void) ret) {
+  if (ret != Single!(Void)) {
     if (ret.size >= 8)
       af.pushStack("%edx", Single!(SizeT));
     if (ret.size >= 12)
@@ -197,7 +197,8 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       af.call("%eax");
       af.nvm("%eax");
       foreach (param; params) {
-        af.sfree(param.valueType().size);
+        if (param.valueType() != Single!(Void))
+          af.sfree(param.valueType().size);
       }
     }
     
@@ -355,7 +356,7 @@ Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string ident;
   Object obj;
-  if (!rest(t2, "tree.expr", &obj))
+  if (!rest(t2, "tree.expr _tree.expr.arith", &obj))
     return null;
   auto fun = cast(Function) obj;
   if (!fun) return null;

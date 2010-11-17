@@ -44,6 +44,27 @@ import
   ast.aliasing, ast.pointer, ast.fun, ast.namespace, ast.int_literal,
   ast.fold, ast.opers;
 import tools.time;
+
+class LateType : IType, TypeProxy {
+  IType me;
+  void delegate() tryResolve;
+  this() { }
+  void needMe() {
+    if (!me) tryResolve();
+    assert(!!me);
+  }
+  override {
+    int size() { needMe; return me.size; }
+    ubyte[] initval() { needMe; return me.initval; }
+    int opEquals(IType it) {
+      needMe;
+      return it == me;
+    }
+    string mangle() { needMe; return me.mangle(); }
+    IType actualType() { needMe; return me; }
+  }
+}
+
 void parseHeader(string filename, string src, ParseCb rest) {
   auto start_time = sec();
   string newsrc;
@@ -83,6 +104,10 @@ void parseHeader(string filename, string src, ParseCb rest) {
     cache[name] = n;
   }
   
+  void delegate()[] resolves;
+  scope(success)
+    foreach (dg; resolves)
+      dg();
   IType matchSimpleType(ref string text) {
     bool accept(string s) {
       auto t2 = text;
@@ -112,9 +137,21 @@ void parseHeader(string filename, string src, ParseCb rest) {
     if (accept("double")) return Single!(Double);
     if (accept("struct")) {
       string name;
-      text.gotIdentifier(name);
+      if (!text.gotIdentifier(name))
+        return Single!(Void);
       if (auto p = name in cache) return cast(IType) *p;
-      else return Single!(Void);
+      else {
+        auto lt = new LateType;
+        auto dg = stuple(lt, name, &cache) /apply/
+        delegate void(LateType lt, string name, typeof(cache)* cachep) {
+          if (auto p = name in *cachep) lt.me = cast(IType) *p;
+          // else assert(false, "'"~name~"' didn't resolve! ");
+          else lt.me = Single!(Void);
+        };
+        lt.tryResolve = dg;
+        resolves ~= dg;
+        return lt;
+      }
     }
     string id;
     if (!text.gotIdentifier(id)) return null;
@@ -284,6 +321,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
             goto giveUp1; // can't handle yet
           }
           foreach (var; st2.split(",")) {
+            if (ty == Single!(Void)) goto giveUp1;
             new RelMember(var.strip(), ty, st);
           }
         skip:
@@ -421,7 +459,7 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
       /map/ (string s) { return "-I"~s; }
       ).join(" ")
     ~ " " ~ filename;
-  // logln("? ", cmdline);
+  logln("? ", cmdline);
   auto src = readback(cmdline);
   parseHeader(filename, src, rest);
   return Single!(NoOp);

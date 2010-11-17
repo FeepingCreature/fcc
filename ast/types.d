@@ -50,7 +50,7 @@ class Type : IType {
 
 class Void : Type {
   override {
-    int size() { return 1; } // for arrays
+    int size() { return 1; }
     string mangle() { return "void"; }
     ubyte[] initval() { return null; }
     string toString() { return "void"; }

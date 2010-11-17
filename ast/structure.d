@@ -272,7 +272,7 @@ class StructLiteral : Expr {
 }
 
 import ast.pointer;
-class MemberAccess_Expr : Expr {
+class MemberAccess_Expr : Expr, HasInfo {
   // be warned: if this is constructed manually, does _not_ have to be a struct!
   // this specifically applies when optimizing away recursive member accesses,
   // in which case this may become a RelMember access to .. any type.
@@ -286,6 +286,7 @@ class MemberAccess_Expr : Expr {
     if (!stm) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
   }
   this() { }
+  string getInfo() { return "."~name; }
   MemberAccess_Expr create() { return new MemberAccess_Expr; }
   MemberAccess_Expr dup() {
     auto res = create();
@@ -486,8 +487,8 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     retry:
     auto m = rn.lookupRel(member, ex);
     if (cast(Function) m) { text = t2; return m; }
-    ex = cast(Expr) m;
-    if (!ex) {
+    auto ex2 = cast(Expr) m;
+    if (!ex2) {
       if (m) text.setError(member, " is not a rel var: ", m);
       else {
         if (t2.eatDash(member)) goto retry;
@@ -507,7 +508,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       return null;
     }
     text = t2;
-    return cast(Object) ex;
+    return cast(Object) ex2;
   } else return null;
 }
 mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_rel_member");

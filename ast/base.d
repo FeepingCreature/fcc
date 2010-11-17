@@ -111,6 +111,10 @@ interface Named {
   string getIdentifier();
 }
 
+interface HasInfo {
+  string getInfo();
+}
+
 interface SelfAdding { // may add themselves to the respective namespace
   bool addsSelf();
 }
@@ -288,7 +292,7 @@ class StatementAndExpr : Expr {
     IType valueType() { return second.valueType(); }
     void emitAsm(AsmFile af) {
       if (once) {
-        logln("Double emit S&E. NOT SAFE. Expr is ", second);
+        logln("Double emit S&E. NOT SAFE. Expr is ", second, "; statement is ", first);
         asm { int 3; }
       }
       once = true;
