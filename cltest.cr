@@ -133,7 +133,7 @@ int main() {
     }
   }
   platform = platforms[0];
-  int device = 1;
+  int device = 0;
   cl_context_properties[] props;
   props ~= CL_CONTEXT_PLATFORM;
   props ~= cl_context_properties: platform;
@@ -158,8 +158,7 @@ int main() {
   onExit clReleaseProgram (prog);
   writeln "Building. ";
   {
-    auto err = clBuildProgram (prog, 0, null x 4);
-    if err {
+    if auto err = clBuildProgram (prog, 0, null x 4) {
       int len;
       clGetProgramBuildInfo (prog, dev, CL_PROGRAM_BUILD_LOG, 0, null, &len);
       auto str = new char[len];

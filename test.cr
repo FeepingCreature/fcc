@@ -92,8 +92,8 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
   while 1 {
     run();
     if (update()) return;
-    if time(int*:null) > last {
-      last = time(int*:null);
+    if (auto tvar = time(null)) > last {
+      last = tvar;
       writeln("FPS: $fps");
       fps = 0;
     }

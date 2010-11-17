@@ -182,15 +182,42 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
 
-import ast.literals, ast.casting;
+import ast.literals, ast.casting, ast.modules;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
-  if (rest(t2, "<tree.expr >tree.expr.cond", &ex) && gotImplicitCast(ex, (IType it) { return it.size == 4; })) {
-    text.passert(ex.valueType().size == 4,
-      ex, ", being ", ex.valueType(), ", is a bad cond expr to test for");
-    text = t2;
-    return new ExprWrap(ex);
+  if (rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
+    auto ex2 = ex; // test for int-like
+    if (gotImplicitCast(ex2, (IType it) { return test(it == Single!(SysInt)); })) {
+      text = t2;
+      return new Compare(ex2, true, false, true, false, new IntExpr(0));
+    }
+    auto n = cast(Expr) sysmod.lookup("null");
+    if (!n) return null;
+    auto ev = ex.valueType();
+    Expr cmp1, cmp2;
+    Stuple!(IType, IType)[] overlaps;
+    void test(Expr e1, Expr e2) {
+      auto i1 = e1.valueType(), i2 = e2.valueType();
+      Expr e1t;
+      if (gotImplicitCast(e1, i2, (IType it) {
+        auto e2t = e2;
+        auto res = gotImplicitCast(e2t, it, (IType it2) {
+          overlaps ~= stuple(it,  it2);
+          return .test(it == it2);
+        });
+        if (res) cmp2 = e2t;
+        return res;
+      })) { cmp1 = e1; cmp2 = e2; }
+    }
+    test(ex, n);
+    if (!cmp1) test(n, ex);
+    if (cmp1 && cmp2) {
+      text = t2;
+      return new Compare(cmp1, true, false, true, false, cmp2);
+    }
+    // logln("Failed overlaps: ", overlaps);
+    return null;
   } else return null;
 }
 mixin DefaultParser!(gotExprAsCond, "cond.expr", "73");

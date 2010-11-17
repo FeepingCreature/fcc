@@ -111,8 +111,8 @@ int main (int argc, char **argv) {
         alias xmlstart = "<node";
         if (startsWith(line, xmlstart)) {
           auto classnamep = toStringz between(line, " classname=\"", "\"");
-          auto namep = toStringz between(line, " name=\"", "\"");
-          auto infop = toStringz between(line, " info=\"", "\"");
+          auto namep = toStringz between(line, " name=\"", "\" ");
+          auto infop = toStringz between(line, " info=\"", "\" ");
           if (find(line, " info=") == -1) infop = namep;
           GtkTreeIter iter;
           iters ~= iter;

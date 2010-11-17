@@ -247,6 +247,10 @@ int main(string[] args) {
       verboseXML = true;
       continue;
     }
+    if (arg == "-dump-xml") {
+      dumpXMLRep = true;
+      continue;
+    }
     if (auto base = arg.endsWith(".cr")) {
       if (!output) output = arg[0 .. $-3];
       lazySysmod();

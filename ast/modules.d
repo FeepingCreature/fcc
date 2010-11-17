@@ -45,7 +45,7 @@ class Module : Namespace, Tree, Named {
           info ~= Format(" name=\"", n.getIdentifier(), "\"");
         if (auto i = cast(HasInfo) it)
           info ~= Format( " info=\"", i.getInfo(), "\"");
-        info ~= ">";
+        info ~= " >";
         logln(info);
         it.iterate(&callback);
         logln("</node>");

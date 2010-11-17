@@ -41,8 +41,10 @@ class AsmFile {
     return currentStackDepth;
   }
   void restoreCheckptStack(int i, bool mayBeBigger = false /* used in loops/break/continue */) {
-    if (!mayBeBigger && currentStackDepth < i)
-      throw new Exception("Tried to unwind stack while unwound further - logic error");
+    if (!mayBeBigger && currentStackDepth < i) {
+      logln("Tried to unwind stack while unwound further - logic error");
+      asm { int 3; }
+    }
     sfree(currentStackDepth - i);
   }
   void nvm(string mem) {

@@ -1,7 +1,7 @@
 module ast.nullcasts;
 
 import ast.base, ast.casting, ast.int_literal, ast.aliasing, ast.tuples;
-import ast.arrays, ast.dg, ast.fun;
+import ast.arrays, ast.dg, ast.fun, ast.oop;
 bool isNull(Expr ex) {
   auto ea = cast(ExprAlias) ex;
   if (ea) ex = ea.base;
@@ -29,6 +29,12 @@ static this() {
   implicits ~= delegate Expr(Expr ex, IType expect) {
     if (isNull(ex) && cast(Array) expect) {
       return reinterpret_cast(expect, mkTupleExpr(ex, ex));
+    }
+    return null;
+  };
+  implicits ~= delegate Expr(Expr ex, IType expect) {
+    if (isNull(ex) && (cast(ClassRef) expect || cast(IntfRef) expect)) {
+      return reinterpret_cast(expect, ex);
     }
     return null;
   };
