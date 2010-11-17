@@ -73,3 +73,33 @@ Object gotPartialStringof(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotPartialStringof, "tree.rhs_partial.stringof");
+
+import ast.fun, ast.dg, ast.casting;
+Object gotRetType(ref string text, ParseCb cont, ParseCb rest) {
+  IType ty;
+  if (!rest(text, "type", &ty))
+    return null;
+  Expr temp = new Placeholder(ty);
+  IType[] tried;
+  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!cast(FunctionPointer) it || !!cast(Delegate) it; }))
+    text.failparse(ty, " is not function-like; tried ", tried);
+  auto fun = cast(FunctionPointer) temp.valueType(), dg = cast(Delegate) temp.valueType();
+  if (fun) return cast(Object) fun.ret;
+  else     return cast(Object) dg .ret;
+}
+mixin DefaultParser!(gotRetType, "type.fun_ret_type", "51", "ReturnType");
+
+import ast.tuples;
+Object gotParamTypes(ref string text, ParseCb cont, ParseCb rest) {
+  IType ty;
+  if (!rest(text, "type", &ty))
+    return null;
+  Expr temp = new Placeholder(ty);
+  IType[] tried;
+  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!cast(FunctionPointer) it || !! cast(Delegate) it; }))
+    text.failparse(ty, " is not function-like; tried ", tried);
+  auto fun = cast(FunctionPointer) temp.valueType(), dg = cast(Delegate) temp.valueType();
+  if (fun) return mkTuple(fun.args);
+  else     return mkTuple(dg .args);
+}
+mixin DefaultParser!(gotParamTypes, "type.fun_param_type", "52", "ParamTypes");

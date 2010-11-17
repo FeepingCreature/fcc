@@ -182,6 +182,7 @@ int main(string[] args) {
   string configOpts;
   while (ar.length) {
     auto arg = ar.take();
+    if (arg == "-pthread") continue; // silently ignore;
     if (arg == "-o") {
       output = ar.take();
       continue;
