@@ -2,7 +2,9 @@ module ast.modules;
 
 import ast.base, ast.namespace, ast.structure, ast.parse;
 
-import tools.ctfe, tools.threads;
+import tools.ctfe, tools.threads, tools.threadpool;
+
+alias asmfile.startsWith startsWith;
 
 string[] include_path;
 
@@ -11,6 +13,8 @@ bool dumpXMLRep;
 static this() {
   include_path ~= "/usr/include";
 }
+
+Threadpool tp;
 
 class Module : Namespace, Tree, Named {
   string name;
@@ -26,9 +30,13 @@ class Module : Namespace, Tree, Named {
   override {
     Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
+    import ast.fun;
     void emitAsm(AsmFile af) {
       auto backup = current_module();
       current_module.set(this);
+      scope(exit) {
+        fflush(stdout);
+      }
       scope(exit) current_module.set(backup);
       inProgress = af;
       foreach (s; setupable) s.setup(af);
@@ -82,12 +90,37 @@ extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace
 
 Module[string] cache;
 
+Lock cachelock; // also covers currentlyParsing
+bool[string] currentlyParsing;
+
+static this() { New(cachelock); }
+
 import tools.compat: read, castLike, exists, sub;
 Module lookupMod(string name) {
   if (name == "sys") {
     return sysmod;
   }
-  if (auto p = name in cache) return *p;
+  Module res;
+  cachelock.Synchronized = {
+    while (true) {
+      if (name in currentlyParsing) {
+        cachelock.Unsynchronized = { slowyield(); };
+        continue;
+      }
+      break;
+    }
+    if (auto p = name in cache) {
+      // return *p; // BAD!
+      res = *p;
+      return;
+    }
+    currentlyParsing[name] = true;
+  };
+  if (res) return res;
+  
+  scope(exit) cachelock.Synchronized = {
+    currentlyParsing.remove(name);
+  };
   auto fn = (name.replace(".", "/") ~ ".cr");
   if (!fn.exists()) {
     foreach (path; include_path) {
@@ -106,7 +139,9 @@ Module lookupMod(string name) {
     file.failparse("Could not parse module");
   if (file.strip().length)
     file.failparse("Failed to parse module");
-  cache[name] = mod;
+  cachelock.Synchronized = {
+    cache[name] = mod;
+  };
   return mod;
 }
 

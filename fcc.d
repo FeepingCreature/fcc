@@ -162,6 +162,7 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
 import assemble: debugOpts;
 int main(string[] args) {
   log_threads = false;
+  New(tp, 1);
   /*
   logln("<?xml version=\"1.0\" ?><body>");
   scope(exit) logln("</body>");
