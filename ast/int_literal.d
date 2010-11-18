@@ -2,7 +2,7 @@ module ast.int_literal;
 
 import ast.base;
 
-class IntExpr : Expr, Literal {
+class IntExpr : Expr, Literal, HasInfo {
   int num;
   override {
     void emitAsm(AsmFile af) {
@@ -11,6 +11,7 @@ class IntExpr : Expr, Literal {
     IType valueType() { return Single!(SysInt); }
     string toString() { return Format(num); }
     string getValue() { return Format(num); }
+    string getInfo()  { return Format(num); }
   }
   this(int i) { num = i; }
   private this() { }
