@@ -99,7 +99,8 @@ Module lookupMod(string name) {
     }
   }
   auto file = fn.read().castLike("");
-  sourcefiles[fn] = file;
+  synchronized(SyncObj!(sourcefiles))
+    sourcefiles[fn] = file;
   auto mod = cast(Module) parsecon.parse(file, "tree.module");
   if (!mod)
     file.failparse("Could not parse module");
@@ -377,10 +378,12 @@ void setupSysmods() {
       }
     EOF
   `;
-  sourcefiles["<internal:sys>"] = src;
+  synchronized(SyncObj!(sourcefiles))
+    sourcefiles["<internal:sys>"] = src;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
   string base = src.between("", "/*MARKER*/") ~ "}";
-  sourcefiles["<internal:sys,pre>"] = base;
+  synchronized(SyncObj!(sourcefiles))
+    sourcefiles["<internal:sys,pre>"] = base;
   sysmod = cast(Module) parsecon.parse(base, "tree.module");
   // we can now use the first half to parse the entirety.
   sysmod = cast(Module) parsecon.parse(src, "tree.module");

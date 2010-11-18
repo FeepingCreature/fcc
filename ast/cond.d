@@ -34,7 +34,8 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   nf.type.params ~= stuple(objtype, "_obj");
   nf.fixup;
   static int hdlId;
-  nf.name = Format("hdlfn_", hdlId++);
+  synchronized
+    nf.name = Format("hdlfn_", hdlId++);
   mod.entries ~= cast(Tree) nf;
   {
     auto backup = namespace();

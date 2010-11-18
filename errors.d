@@ -16,13 +16,15 @@ void eatComments(ref string s) {
   }
 }
 
+public import tools.threads: SyncObj;
+
 string[string] sourcefiles;
 
 // row, col, file
 Stuple!(int, ptrdiff_t, string) lookupPos(string text) {
   eatComments(text);
   text = text.strip();
-  foreach (key, value; sourcefiles) {
+  synchronized(SyncObj!(sourcefiles)) foreach (key, value; sourcefiles) {
     // yes, >. Not >=. Think about it.
     if (text.ptr < value.ptr || text.ptr > value.ptr + value.length)
       continue;
@@ -57,11 +59,16 @@ void failparse(T...)(string text, T t) {
   throw new ParseEx(text, Format(t));
 }
 
+import tools.threads: TLS;
+import tools.base: New;
+
 // source, mesg
-Stuple!(string, string) error; // TODO: tls
+TLS!(Stuple!(string, string)) error;
+
+static this() { New(error); }
 
 void setError(T...)(string text, T t) {
-  error = stuple(text, Format(t));
+  *error.ptr() = stuple(text, Format(t));
 }
 
 void passert(T...)(string text, bool b, T t) {

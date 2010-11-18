@@ -29,7 +29,8 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     nf.fixup;
     nf.sup = mod;
     static int funId;
-    nf.name = Format("guardfn_", funId++);
+    synchronized
+      nf.name = Format("guardfn_", funId++);
     {
       auto backup = namespace();
       scope(exit) namespace.set(backup);

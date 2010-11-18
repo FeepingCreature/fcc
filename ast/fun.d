@@ -265,7 +265,7 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
   auto t2 = text;
   New(fun.type);
   string parname;
-  error = stuple("", "");
+  *error.ptr() = stuple("", "");
   auto ns = namespace();
   assert(ns);
   if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&

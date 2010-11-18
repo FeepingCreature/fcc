@@ -91,7 +91,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     foreach (entry; fun.type.params) params ~= entry._0;
     if (!matchCall(t2, fun.name, params, rest, fc.params)) {
       if (t2.accept("("))
-        text.failparse("Failed to call function: ", error._1);
+        text.failparse("Failed to call function: ", error()._1);
       auto t3 = t2;
       if (params.length || !t3.accept(";"))
         return null;

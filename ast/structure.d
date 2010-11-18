@@ -366,7 +366,6 @@ class MemberAccess_Expr : Expr, HasInfo {
 
 class MemberAccess_LValue : MemberAccess_Expr, LValue {
   int id;
-  static int count;
   this(LValue base, string name) {
     super(cast(Expr) base, name);
   }

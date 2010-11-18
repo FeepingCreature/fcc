@@ -64,13 +64,15 @@ int boffs(IType t, int curdepth = -1) {
   return - curdepth - t.size;
 }
 
-static int x;
 void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
   int size = type.size;
   // void vars are fucking weird.
   if (type == Single!(Void)) size = 0;
   mixin(mustOffset("size"));
-  auto var = new Variable(type, Format("__temp_var_", x++, "__"),
+  string name;
+  static int x;
+  synchronized name = Format("__temp_var_", x++, "__");
+  auto var = new Variable(type, name,
                           boffs(type, af.currentStackDepth));
   var.dontInit = dontInit;
   if (size) {
@@ -132,7 +134,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto vd = new VarDecl;
   string t3;
-  error = stuple("", "");
+  *error.ptr() = stuple("", "");
   if (t2.accept("auto")) {
     if (!t2.bjoin(
     (t3 = t2, true) &&
@@ -145,7 +147,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
       vd.vars ~= var;
       namespace().add(var);
     }, false)) {
-      t3.failparse("Syntax error in auto decl: ", error);
+      t3.failparse("Syntax error in auto decl: ", error()._1);
     }
     if (!t2.accept(";"))
       t2.failparse("auto decl not terminated");

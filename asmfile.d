@@ -236,27 +236,35 @@ class AsmFile {
     lastStackDepth = currentStackDepth;
   }
   static string[] goodOpts;
+  import tools.threads: SyncObj;
   void runOpts() {
     setupOpts;
     string[] newOpts;
     static bool[string] unused;
     static bool delegate(Transcache, ref int[string])[string] map;
-    foreach (entry; opts) if (entry._2) {
-      unused[entry._1] = true;
-      map[entry._1] = entry._0;
-    }
-    foreach (opt; goodOpts) {
-      unused.remove(opt);
-      map[opt](cache, labels_refcount);
-    }
+    synchronized(SyncObj!(unused))
+    synchronized(SyncObj!(map))
+      foreach (entry; opts) if (entry._2) {
+        unused[entry._1] = true;
+        map[entry._1] = entry._0;
+      }
+    // LOL
+    synchronized(SyncObj!(goodOpts))
+    synchronized(SyncObj!(unused))
+    synchronized(SyncObj!(map))
+      foreach (opt; goodOpts) {
+        unused.remove(opt);
+        map[opt](cache, labels_refcount);
+      }
     // ext_step(cache, labels_refcount); // run this first
     while (true) {
       bool anyChange;
+      synchronized(SyncObj!(goodOpts))
+      synchronized(SyncObj!(unused))
       foreach (entry; opts) if (entry._2) {
         auto opt = entry._0, name = entry._1;
         if (opt(cache, labels_refcount)) {
           unused.remove(name);
-          
           newOpts ~= name;
           goodOpts ~= name;
           anyChange = true;
