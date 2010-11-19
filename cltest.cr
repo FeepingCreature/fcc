@@ -36,7 +36,7 @@ void clCheckRes (int i) {
 
 template clCheckCall(alias A) <<EOF
   template clCheckCall(T) <<EO2
-    typeof(A(init!T, null)) clCheckCall(T t) {
+    type-of A(init!T, null) clCheckCall(T t) {
       int error;
       onExit clCheckRes (error);
       return A(t, &error);
@@ -82,7 +82,6 @@ int main() {
   auto platforms = new cl_platform_id[ids];
   clCheckRes clGetPlatformIDs(ids, platforms.ptr, null);
   writeln "$ids platform(s). ";
-  int i; cl_platform_id platform;
   cl_device_id[] getDevices(cl_platform_id platform) {
     int devs;
     clCheckRes clGetDeviceIDs (platform, CL_DEVICE_TYPE_ALL, 0, null, &devs);
@@ -91,9 +90,8 @@ int main() {
     clCheckRes clGetDeviceIDs (platform, CL_DEVICE_TYPE_ALL, devs, devlist.ptr, null);
     return devlist;
   }
-  while (i, platform) <- [for i <- 0..ids: (i, platforms[i])] {
-    string info; int enum;
-    while (info, enum) <- [
+  while (int i, cl_platform_id platform) <- [for k <- 0..ids: (k, platforms[k])] {
+    while (string info, int enum) <- [
      ("Profile"[], CL_PLATFORM_PROFILE),
      ("Version"[], CL_PLATFORM_VERSION),
      ("Name"[],    CL_PLATFORM_NAME),
@@ -132,7 +130,7 @@ int main() {
       }
     }
   }
-  platform = platforms[0];
+  auto platform = platforms[0];
   int device = 0;
   cl_context_properties[] props;
   props ~= CL_CONTEXT_PLATFORM;
@@ -148,7 +146,7 @@ int main() {
   auto iters = cl_int:512, size = (cl_int:800, cl_int:600), output = new int[size[0]*size[1]];
   
   auto outvec = clCheckCall!clCreateBuffer (ctx, CL_MEM_WRITE_ONLY,
-    int.sizeof * size[0] * size[1], null);
+    (size-of int) * size[0] * size[1], null);
   onExit clReleaseMemObject (outvec);
   
   writeln "Buffers created. ";
@@ -174,15 +172,15 @@ int main() {
   writeln "Kernel created. ";
   
   void calc() {
-    clCheckRes clSetKernelArg (addKernel, 0, typeof(outvec).sizeof, void*:&outvec);
-    clCheckRes clSetKernelArg (addKernel, 1, typeof(size).sizeof, void*:&size);
-    clCheckRes clSetKernelArg (addKernel, 2, int.sizeof, void*:&iters);
-    clCheckRes clSetKernelArg (addKernel, 3, typeof(rect).sizeof, void*:&rect);
+    clCheckRes clSetKernelArg (addKernel, 0, size-of type-of outvec, void*:&outvec);
+    clCheckRes clSetKernelArg (addKernel, 1, size-of type-of size, void*:&size);
+    clCheckRes clSetKernelArg (addKernel, 2, size-of int, void*:&iters);
+    clCheckRes clSetKernelArg (addKernel, 3, size-of type-of rect, void*:&rect);
     
     int[2] workSize = [size[0], size[1]];
     clCheckRes clEnqueueNDRangeKernel (queue, addKernel, 2, null, workSize.ptr, null, 0, null, null);
     // read-back
-    clCheckRes clEnqueueReadBuffer (queue, outvec, CL_TRUE, 0, int.sizeof * size[0] * size[1], output.ptr, 0, null, null);
+    clCheckRes clEnqueueReadBuffer (queue, outvec, CL_TRUE, 0, (size-of int) * size[0] * size[1], output.ptr, 0, null, null);
   }
   SDL_Init(32); // video
   auto surface = SDL_Surface*: SDL_SetVideoMode(size, 0, SDL_ANYFORMAT);

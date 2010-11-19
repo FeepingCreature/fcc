@@ -43,7 +43,7 @@ template splitAt(T) <<EOF
         if (supstep <- sup[1]) { buffer ~= supstep; } else { done = true; return buffer[]; }
       }
       auto res = buffer[0 .. pos];
-      buffer = typeof(buffer):buffer[pos + sup[0].length .. buffer.length];
+      buffer = type-of buffer: buffer[pos + sup[0].length .. buffer.length];
       return res;
     }
     // Cond terminateCond(Expr); // false => can't yield more values

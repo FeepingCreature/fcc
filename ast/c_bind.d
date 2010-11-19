@@ -65,6 +65,10 @@ class LateType : IType, TypeProxy {
   }
 }
 
+const c_tree_expr = "tree.expr"
+  " >tree.expr.vardecl >tree.expr.type_stringof >tree.expr.type_mangleof"
+  " >tree.expr.classid >tree.expr.iter >tree.expr.iter_range";
+
 void parseHeader(string filename, string src, ParseCb rest) {
   auto start_time = sec();
   string newsrc;
@@ -217,9 +221,11 @@ void parseHeader(string filename, string src, ParseCb rest) {
             }
           } catch (Exception ex)
             goto alternative;
-          if (false) alternative:
-            if (!rest(stmt, "tree.expr", &ex))
+          if (false) {
+            alternative:
+            if (!rest(stmt, c_tree_expr, &ex))
               goto giveUp;
+          }
         } catch (Exception ex)
           goto giveUp; // On Error Fuck You
       }
@@ -243,7 +249,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
         }
         if (entry.accept("=")) {
           Expr ex;
-          if (!rest(entry, "tree.expr", &ex) || entry.strip().length) {
+          if (!rest(entry, c_tree_expr, &ex) || entry.strip().length) {
             // logln("--", entry);
             goto giveUp;
           }
@@ -295,7 +301,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
           auto st3 = st2;
           Expr size;
           st3 = st3.replace("(int)", ""); // hax
-          if (gotIdentifier(st3, name3) && st3.accept("[") && rest(st3, "tree.expr", &size) && st3.accept("]")) {
+          if (gotIdentifier(st3, name3) && st3.accept("[") && rest(st3, c_tree_expr, &size) && st3.accept("]")) {
             redo:
             size = foldex(size);
             if (cast(AstTuple) size.valueType()) {
@@ -361,7 +367,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       Expr size;
       redo2:
       auto st3 = stmt;
-      if (st3.accept("[") && rest(st3, "tree.expr", &size) && st3.accept("]")) {
+      if (st3.accept("[") && rest(st3, c_tree_expr, &size) && st3.accept("]")) {
         redo3:
         size = foldex(size);
         // unwrap "(bar)" again

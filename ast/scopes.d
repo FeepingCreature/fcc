@@ -90,7 +90,7 @@ class Scope : Namespace, ScopeLike, Statement {
       open(af)()(); // lol
     }
     Object lookup(string name, bool local = false) {
-      auto res = super.lookup(name, local);
+      auto res = super.lookup(name, true);
       // TODO: &&? ||? WHO KNOWS =D
       // if (!res && cast(Scope) sup)
       if (res) return res;

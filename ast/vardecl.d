@@ -161,34 +161,37 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
   IType type;
-  if (!rest(t2, "type", &type))
-    if (!t2.accept("auto"))
-      return null;
+  if (!t2.accept("auto"))
+    if (!rest(t2, "type", &type)) return null;
   if (!t2.gotIdentifier(name)) return null;
   bool dontInit;
-  if (!t2.accept("=")) {
-    t2.setError("Vardecl exprs must be initialized. ");
-    return null;
-  }
-  
-  IType[] its;
   Expr initval;
-  if (!rest(t2, "tree.expr", &initval)
-    || type && !gotImplicitCast(initval, type, (IType it) {
-    its ~= it;
-    return test(type == it);
-  }))
-    t2.failparse("Could not parse variable initializer; tried ", its);
-  if (!type) type = initval.valueType();
+  if (t2.accept("=")) {
+    IType[] its;
+    if (!rest(t2, "tree.expr", &initval)
+      || type && !gotImplicitCast(initval, type, (IType it) {
+      its ~= it;
+      return test(type == it);
+    }))
+      t2.failparse("Could not parse variable initializer; tried ", its);
+    if (!type) type = initval.valueType();
+  } else {
+    if (!type) {
+      t2.setError("Auto vardecl exprs must be initialized. ");
+      return null;
+    }
+  }
   
   auto var = new Variable(type, name, boffs(type));
   namespace().get!(Scope).add(var);
-  var.dontInit = true;
-  auto setVar = new Assignment(var, initval);
   auto vd = new VarDecl;
   vd.vars ~= var;
   namespace().get!(Scope).addStatement(vd);
+
   text = t2;
+  if (!initval) { var.initInit; return var; }
+  var.dontInit = true;
+  auto setVar = new Assignment(var, initval);
   return new StatementAndExpr(setVar, var);
 }
 mixin DefaultParser!(gotVarDeclExpr, "tree.expr.vardecl", "28");

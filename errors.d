@@ -49,6 +49,7 @@ class ParseEx : Exception {
   void addRule(string s) { rules ~= s; }
   string toString() {
     auto info = lookupPos(pos);
+    if (info._2 == "<unknown>") info._2 = "@`"~pos.nextText()~"`";
     auto res = Format(info._2, ":", info._0, ":", info._1, ": ", msg);
     if (rules) res ~= Format(" ", rules);
     return res;

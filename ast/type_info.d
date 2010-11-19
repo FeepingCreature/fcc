@@ -2,49 +2,48 @@ module ast.type_of;
 
 import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop;
 
+// Most of those must come before tree.expr.named
+// due to dash-parsing rules!
+
 Object gotTypeof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!(rest(t2, "tree.expr", &ex) && t2.accept(")")))
+  if (!rest(t2, "tree.expr", &ex))
     t2.failparse("Failed to parse typeof expression");
   text = t2;
   return cast(Object) ex.valueType();
 }
-mixin DefaultParser!(gotTypeof, "type.of", "45", "typeof(");
+mixin DefaultParser!(gotTypeof, "type.of", "45", "type-of");
 
 Object gotSizeof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;
   if (!rest(t2, "type", &ty))
-    return null;
-  if (!t2.accept(".sizeof"))
-    return null;
+    t2.failparse("Could not get sizeof type");
   text = t2;
   return new IntExpr(ty.size);
 }
-mixin DefaultParser!(gotSizeof, "tree.expr.sizeof", "51");
+mixin DefaultParser!(gotSizeof, "tree.expr.sizeof", "231", "size-of");
 
 Object gotTypeStringof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  IType ty;
-  if (!rest(t2, "type", &ty))
+  Object obj;
+  if (!rest(t2, "type", &obj) && !rest(t2, "tree.expr", &obj))
     return null;
-  if (!t2.accept(".stringof")) return null;
   text = t2;
-  return cast(Object) mkString(Format(ty));
+  return cast(Object) mkString(Format(obj));
 }
-mixin DefaultParser!(gotTypeStringof, "tree.expr.type_stringof", "30");
+mixin DefaultParser!(gotTypeStringof, "tree.expr.stringof", "232", "string-of");
 
 Object gotTypeMangle(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;
   if (!rest(t2, "type", &ty))
-    return null;
-  if (!t2.accept(".mangleof")) return null;
+    t2.failparse("Could not get type for mangle-of");
   text = t2;
   return cast(Object) mkString(ty.mangle());
 }
-mixin DefaultParser!(gotTypeMangle, "tree.expr.type_mangleof", "301");
+mixin DefaultParser!(gotTypeMangle, "tree.expr.type_mangleof", "233", "mangle-of");
 
 Object gotClassId(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -56,23 +55,10 @@ Object gotClassId(ref string text, ParseCb cont, ParseCb rest) {
   if (cr) cl = cr.myClass;
   if (ir) it = ir.myIntf;
   if (!cl && !it) return null;
-  if (!t2.accept(".classid")) return null;
   text = t2;
   return cast(Object) mkString(cl?cl.mangle_id:it.mangle_id);
 }
-mixin DefaultParser!(gotClassId, "tree.expr.classid", "302");
-
-import tools.log;
-Object gotPartialStringof(ref string text, ParseCb cont, ParseCb rest) {
-  return lhs_partial.using = delegate Object(Expr ex) {
-    if (text.accept(".stringof")) {
-      // logln("got ", Format(ex));
-      return cast(Object) mkString(Format(ex));
-    }
-    else return null;
-  };
-}
-mixin DefaultParser!(gotPartialStringof, "tree.rhs_partial.stringof");
+mixin DefaultParser!(gotClassId, "tree.expr.classid", "234", "class-id");
 
 import ast.fun, ast.dg, ast.casting;
 Object gotRetType(ref string text, ParseCb cont, ParseCb rest) {

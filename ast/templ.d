@@ -152,7 +152,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     Expr nex;
     if (!rest(t2, "tree.expr", &nex)) return null;
     iter = iparse!(Expr, "ifti_call_test", "tree.expr")
-                  (`templ!typeof(nex)(nex)`,
+                  (`(templ! type-of nex)(nex)`,
                    namespace(),
                    "templ", templ, "nex", nex);
     if (!iter) { logln("wat"); return null; }

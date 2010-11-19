@@ -378,6 +378,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
     t2 = t3;
   } else ivarname = null;
+  logln("get subiter from ", t2.nextText());
   if (!rest(t2, "tree.expr", &sub) || !forb(sub) || !gotImplicitCast(sub, (IType it) { return !!cast(Iterator) it; }))
     t2.failparse("Cannot find sub-iterator");
   Placeholder extra;
@@ -710,12 +711,12 @@ class EvalIterator(T) : Expr, Statement {
       void emitStmtConcat(Expr var) {
         if (auto lv = cast(LValue) ex) {
           iparse!(Statement, "iter_array_eval_step_4", "tree.stmt")
-                 (` { typeof(__istep _iter) temp; while temp <- _iter { var ~= temp; } }`,
+                 (` { type-of __istep _iter temp; while temp <- _iter { var ~= temp; } }`,
                   namespace(),
                   "var", var, "_iter", lv, af).emitAsm(af);
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_5", "tree.stmt")
-                 (` { auto temp = _iter; typeof(__istep temp) temp2; while temp2 <- temp { var ~= temp2; } }`,
+                 (` { auto temp = _iter; type-of __istep temp temp2; while temp2 <- temp { var ~= temp2; } }`,
                   namespace(),
                   "var", var, "_iter", ex, af).emitAsm(af);
         } else {

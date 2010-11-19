@@ -30,7 +30,7 @@ class Socket {
     writeln "create fd";
     sockfd = socket (AF_INET, SOCK_STREAM, 0);
     writeln "connect";
-    std.c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, typeof(ta.saddr).sizeof);
+    std.c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
     writeln "done";
   }
   int recv(void[] buf) {

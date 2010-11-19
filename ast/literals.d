@@ -2,7 +2,7 @@ module ast.literals;
 
 import ast.base, ast.pointer, tools.base: slice, replace;
 
-public import ast.int_literal;
+public import ast.int_literal, ast.float_literal;
 
 import ast.static_arrays, parseBase;
 
@@ -32,26 +32,9 @@ class FloatExpr : Expr {
 }
 
 Object gotFloatExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  int i;
-  if (!t2.gotInt(i)) return null;
-  float f = i;
-  if (!t2.length || t2[0] != '.') return null;
-  t2.take();
-  float weight = 0.1;
-  bool gotDigit;
-  while (t2.length) {
-    auto digit = t2[0];
-    if (digit < '0' || digit > '9') break;
-    gotDigit = true;
-    int d = t2.take() - '0';
-    if (f < 0) f -= weight * d;
-    else f += weight * d;
-    weight /= 10;
-  }
-  if (!gotDigit) return null;
-  text = t2;
-  return new FloatExpr(f);
+  float f;
+  if (gotFloat(text, f)) return new FloatExpr(f);
+  return null;
 }
 mixin DefaultParser!(gotFloatExpr, "tree.expr.literal.float", "54");
 

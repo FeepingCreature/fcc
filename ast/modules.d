@@ -282,7 +282,7 @@ void setupSysmods() {
     alias vec3f = vec(float, 3);
     alias vec4f = vec(float, 4);
     string ptoa(void* p) {
-      auto res = new char[size_t.sizeof * 2 + 2 + 1];
+      auto res = new char[(size-of size_t) * 2 + 2 + 1];
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
       return res[0 .. res.length - 1];
     }

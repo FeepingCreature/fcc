@@ -19,7 +19,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       mixin(mustOffset("0"));
       iparse!(Statement, "new_class", "tree.stmt")
       (`{
-          var = typeof(var): mem.calloc(size, 1);
+          var = type-of var: mem.calloc(size, 1);
           (void**:var)[0] = _classinfo;
         }`,
         "var", var,
@@ -103,7 +103,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
       mkPointerSlice(
         reinterpret_cast(new Pointer(ty),
           iparse!(Expr, "new_dynamic_array", "tree.expr")
-                 ("mem.calloc(len, ty.sizeof)", "len", len, "ty", ty)
+                 ("mem.calloc(len, size-of ty)", "len", len, "ty", ty)
         ),
         new IntExpr(0), len
       );
@@ -121,7 +121,7 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   
   return cast(Object) iparse!(Expr, "new_value", "tree.expr")
-    ("type*:mem.calloc(1, type.sizeof)",
+    ("type*:mem.calloc(1, size-of type)",
      "type", ty
     );
 }

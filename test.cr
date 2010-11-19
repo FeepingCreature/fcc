@@ -154,7 +154,7 @@ EOT
 
 template FunTemp(T) <<EOT
   void FunTemp(T t) {
-    writeln("T::$(t.stringof)");
+    writeln("T::$(string-of t)");
   }
 EOT
 
@@ -230,8 +230,8 @@ int main(int argc, char** argv) {
   w.test();
   writeln("And done. ");
   Class cl = new Class;
-  writeln("class size is $$typeof(cl).sizeof; method is $$typeof(&cl.foo).stringof");
-  writeln("forble $$(&cl.foo).stringof");
+  writeln("class size is $$size-of type-of cl; method is $$string-of type-of &cl.foo");
+  writeln("forble $$string-of &cl.foo");
   writeln("class is at $$void*:cl, i $$&(cl.i)");
   cl.i = 3;
   cl.foo(2);
@@ -266,7 +266,7 @@ int main(int argc, char** argv) {
   blg.fun();
   do int i = rand() % 10; while (i) writeln("::$i");
   Blorg!int foo;
-  writeln("template test: $$typeof(foo.t).stringof");
+  writeln("template test: $$string-of type-of foo.t");
   FunTemp!int(5);
   globvar = 17;
   ctest.var = 17;
@@ -462,7 +462,7 @@ int main(int argc, char** argv) {
     writeln "frob is $frob";
     alias size = 4;
     auto test = [for bin <- [for tuple <- cross ([for i <- 0..2: i] x size): int[size]:tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
-    writeln("test is $$typeof(test).stringof: $test");
+    writeln("test is $$string-of type-of test: $test");
     return 0;
     onExit writeln("Exit 4. ");
   }

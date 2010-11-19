@@ -8,7 +8,14 @@ T aadup(T)(T t) {
   return res;
 }
 
+bool[string] reserved;
+static this() {
+  reserved["auto"] = true;
+  reserved["return"] = true;
+}
+
 import tools.ctfe, tools.base: stuple, Format, Repeat;
+import ast.int_literal, ast.float_literal;
 class Namespace {
   Namespace sup;
   T get(T)() {
@@ -79,6 +86,9 @@ class Namespace {
   typeof(field) getCheckpt() { return field; }
   void setCheckpt(typeof(field) field) { this.field = field.dup; rebuildCache(); /* prevent clobbering */ }
   Object lookup(string name, bool local = false) {
+    if (name in reserved) return null;
+    { int temp; if (name.gotInt(temp)) return null; }
+    { float temp; if (name.gotFloat(temp)) return null; }
     if (field.length > cachepoint) {
       if (auto p = name in field_cache) return *p;
     } else {
@@ -155,9 +165,10 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
 
 extern(C) Namespace __getSysmod();
 
-class MiniNamespace : Namespace, ScopeLike {
+class MiniNamespace : Namespace, ScopeLike, Named {
   string id;
   this(string id) { this.id = id; }
+  override string getIdentifier() { return id; }
   override string mangle(string name, IType type) {
     if (type) return id~"_"~name~"_of_"~type.mangle();
     else return id~"_"~name;
@@ -179,8 +190,9 @@ class MiniNamespace : Namespace, ScopeLike {
       if (fs2) return fs2 + sl.framesize();
       else return sl.framesize();
     } else {
-      logln("no metric for framesize of ", id);
       assert(false);
+      /*logln("no metric for framesize of ", id);
+      asm { int 3; }*/
     }
   }
   override Object lookup(string name, bool local = false) {
