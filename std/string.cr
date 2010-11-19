@@ -87,3 +87,20 @@ float atof(string s) {
   onExit mem.free(p);
   return float:c_atof(p);
 }
+
+template castIter(T) <<EOF
+  template castIter(U) <<EO2
+    class caster {
+      U sup;
+      T step() {
+        return T: sup.step();
+      }
+      bool ivalid() { return sup.ivalid(); }
+    }
+    caster castIter(U u) {
+      auto res = new caster;
+      res.sup = u;
+      return res;
+    }
+  EO2
+EOF

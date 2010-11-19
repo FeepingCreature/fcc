@@ -92,7 +92,7 @@ int main (int argc, char **argv) {
     bool reading;
     writeln "Building model. ";
     while line <- splitAt("\n",
-        [for chunk <- readfile open "xmldump.txt": (string: chunk)]) {
+        castIter!string readfile open "xmldump.txt") {
       // writeln "> $line";
       if (auto rest = startsWith(line, "----module ")) {
         auto restp = toStringz rest;

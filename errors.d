@@ -55,15 +55,17 @@ class ParseEx : Exception {
   } 
 }
 
-void failparse(T...)(string text, T t) {
-  throw new ParseEx(text, Format(t));
-}
-
 import tools.threads: TLS;
 import tools.base: New;
 
 // source, mesg
 TLS!(Stuple!(string, string)) error;
+
+void failparse(T...)(string text, T t) {
+  auto str = Format(t);
+  if (auto mesg = error()._1) str ~= ": "~mesg;
+  throw new ParseEx(text, str);
+}
 
 static this() { New(error); }
 
