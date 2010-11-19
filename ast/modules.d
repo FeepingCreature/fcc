@@ -435,11 +435,8 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
     true) &&
     text.accept(";")
   )) text.failparse("Unexpected text while parsing import statement");
-  logln(">>>>>>>>>>>>>> schedule imports for ", newImports);
-  int i;
   foreach (str; newImports)
-    tp.addTask(str /apply/ (string s) { auto m = lookupMod(s); synchronized(mod) mod.imports ~= m; synchronized(SyncObj!(i)) i++; });
-  while (i < newImports.length) slowyield();
+    mod.imports ~= lookupMod(str);
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotImport, "tree.import", null, "import");
@@ -458,8 +455,6 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   scope(exit) current_module.set(backup_mod);
   if (!t2.gotIdentifier(mod.name, true) || !t2.accept(";"))
     t2.failparse("Failed to parse module header, 'module' expected! ");
-  logln("Start parsing ", mod.name);
-  scope(success) logln(" Done parsing ", mod.name, ": ", mod.lookup("FILE"));
   if (t2.many(
       !!restart(t2, "tree.toplevel", &tr),
       {

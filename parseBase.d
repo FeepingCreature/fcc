@@ -418,17 +418,15 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
   class DefaultParserImpl : Parser {
     bool dontMemoMe;
     this() {
-      New(_cache);
-      New(_stack);
       foreach (dg; globalStateMatchers) 
         if (dg(Id)) { dontMemoMe = true; break; }
       _pushCache ~= this /apply/ (typeof(this) that) {
-        *that._stack.ptr() ~= *that._cache.ptr();
-        *that._cache.ptr() = null;
+        that.stack ~= that.cache;
+        that.cache = null;
       };
       _popCache ~= this /apply/ (typeof(this) that) {
-        *that._cache.ptr() = (*that._stack.ptr())[$-1];
-        *that._stack.ptr() = (*that._stack.ptr())[0 .. $-1];
+        that.cache = that.stack[$-1];
+        that.stack = that.stack[0 .. $-1];
       };
     }
     override string getId() { return Id; }
@@ -443,8 +441,8 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
         return fnredir(text, accept, cont, rest);
       }
     } else {
-      TLS!(Stuple!(Object, char*)[char*]) _cache;
-      TLS!(Stuple!(Object, char*)[char*][]) _stack;
+      Stuple!(Object, char*)[char*] cache;
+      Stuple!(Object, char*)[char*][] stack;
       override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         auto t2 = text;
         static if (Key) {
@@ -460,8 +458,6 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
           return res;
         }
         auto ptr = t2.ptr;
-        auto cache = *_cache.ptr();
-        scope(exit) *_cache.ptr() = cache;
         if (auto p = ptr in cache) {
           text = p._1[0 .. t2.ptr + t2.length - p._1];
           return p._0;
