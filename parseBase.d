@@ -204,10 +204,15 @@ template allocRuleData(alias A) {
   }
 }
 
+Object ardlock;
+static this() { New(ardlock); }
+
 void freeRuleData(int offs) {
-  auto ptr = slab[offs].ptr;
-  *cast(int*) ptr = slab_freeptr;
-  slab_freeptr = offs;
+  synchronized(ardlock) {
+    auto ptr = slab[offs].ptr;
+    *cast(int*) ptr = slab_freeptr;
+    slab_freeptr = offs;
+  }
 }
 
 bool sectionStartsWith(string section, string rule) {
@@ -266,11 +271,13 @@ bool delegate(string) matchrule(string rules, out int id) {
       return false;
     };
     alias allocRuleData!(fun) ard;
-    res = ard(
-      rule, res,
-      (smaller<<0) | (greater<<1) | (equal<<2) | (before<<3) | (after<<4),
-      false, id
-    );
+    synchronized(ardlock) {
+      res = ard(
+        rule, res,
+        (smaller<<0) | (greater<<1) | (equal<<2) | (before<<3) | (after<<4),
+        false, id
+      );
+    }
     // res = res /apply/ (bool delegate(string) dg, string s) { auto res = dg(s); logln(s, " -> ", res); return res; };
   }
   // condInfo[res] = rules_backup;
@@ -307,7 +314,8 @@ struct ParseCb {
   Object opCall(T...)(ref string text, T t) {
     bool delegate(string) matchdg;
     int delid = -1;
-    scope(exit) if (delid != -1) freeRuleData(delid);
+    scope(exit) if (delid != -1)
+      synchronized(ardlock) freeRuleData(delid);
     static if (T.length && is(T[0]: char[])) {
       alias T[1..$] Rest1;
       matchdg = matchrule(t[0], delid);
@@ -369,7 +377,8 @@ struct ParseCb {
       static if (is(typeof(callback))) {
         auto res = cast(MustType) dg(text, matchdg, myAccept);
         if (delid != -1) {
-          freeRuleData(delid);
+          synchronized(ardlock)
+            freeRuleData(delid);
           delid = -1;
         }
         if (!res) text = backup;
@@ -409,15 +418,17 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
   class DefaultParserImpl : Parser {
     bool dontMemoMe;
     this() {
+      New(_cache);
+      New(_stack);
       foreach (dg; globalStateMatchers) 
         if (dg(Id)) { dontMemoMe = true; break; }
       _pushCache ~= this /apply/ (typeof(this) that) {
-        that.stack ~= that.cache;
-        that.cache = null;
+        *that._stack.ptr() ~= *that._cache.ptr();
+        *that._cache.ptr() = null;
       };
       _popCache ~= this /apply/ (typeof(this) that) {
-        that.cache = that.stack[$-1];
-        that.stack = that.stack[0 .. $-1];
+        *that._cache.ptr() = (*that._stack.ptr())[$-1];
+        *that._stack.ptr() = (*that._stack.ptr())[0 .. $-1];
       };
     }
     override string getId() { return Id; }
@@ -432,8 +443,8 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
         return fnredir(text, accept, cont, rest);
       }
     } else {
-      Stuple!(Object, char*)[char*] cache;
-      typeof(cache)[] stack;
+      TLS!(Stuple!(Object, char*)[char*]) _cache;
+      TLS!(Stuple!(Object, char*)[char*][]) _stack;
       override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         auto t2 = text;
         static if (Key) {
@@ -449,6 +460,8 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
           return res;
         }
         auto ptr = t2.ptr;
+        auto cache = *_cache.ptr();
+        scope(exit) *_cache.ptr() = cache;
         if (auto p = ptr in cache) {
           text = p._1[0 .. t2.ptr + t2.length - p._1];
           return p._0;
@@ -703,7 +716,8 @@ class ParseContext {
     condStr = cond;
     scope(exit) condStr = null;
     int delid = -1;
-    scope(exit) if (delid != -1) freeRuleData(delid);
+    scope(exit) if (delid != -1)
+      synchronized(ardlock) freeRuleData(delid);
     try return parse(text, matchrule(cond, delid));
     catch (ParseEx pe) { pe.addRule(cond); throw pe; }
     catch (Exception ex) throw new Exception(Format("Matching rule '"~cond~"': ", ex));
