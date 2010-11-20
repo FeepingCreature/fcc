@@ -34,9 +34,6 @@ class Module : Namespace, Tree, Named {
     void emitAsm(AsmFile af) {
       auto backup = current_module();
       current_module.set(this);
-      scope(exit) {
-        fflush(stdout);
-      }
       scope(exit) current_module.set(backup);
       inProgress = af;
       foreach (s; setupable) s.setup(af);
@@ -44,6 +41,9 @@ class Module : Namespace, Tree, Named {
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
+        if (auto fun = cast(Function) entry) {
+          logln("emit![", i - 1, "/", entries.length, "]: ", fun.name, " in ", cast(void*) this);
+        }
         entry.emitAsm(af);
       }
       void callback(ref Iterable it) {
