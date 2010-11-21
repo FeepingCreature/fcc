@@ -235,18 +235,32 @@ class PointerFunction(T) : T {
     static if (is(typeof(super(null)))) super(null);
     this.ptr = ptr;
     New(type);
-    auto dg = cast(Delegate) ptr.valueType();
+    auto dg = cast(Delegate) ptr.valueType(), fp = cast(FunctionPointer) ptr.valueType();
     if (dg) {
       type.ret = dg.ret;
       type.params = dg.args /map/ (IType it) { return stuple(it, ""); };
+    } else if (fp) {
+      type.ret = fp.ret;
+      type.params = fp.args /map/ (IType it) { return stuple(it, ""); };
     } else {
       logln("TYPE ", ptr.valueType());
       asm { int 3; }
     }
   }
   override {
-    // edit: TOLD YA. Forgot this. Chased bugs for a good night.
-    FunCall mkCall() { auto res = new NestedCall; res.fun = this; res.dg = ptr; return res; }
+    FunCall mkCall() {
+      if (cast(Delegate) ptr.valueType()) {
+        auto res = new NestedCall;
+        res.fun = this;
+        res.dg = ptr;
+        return res;
+      } else {
+        auto res = new FunCall;
+        res.fun = this;
+        return res;
+      }
+      assert(false);
+    }
     string mangleSelf() { asm { int 3; } }
     Expr getPointer() { return ptr; }
     string toString() {
