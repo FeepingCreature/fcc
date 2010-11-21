@@ -2,25 +2,24 @@ module ast.literal_string;
 
 import ast.base, ast.modules, ast.literals, ast.pointer, ast.arrays;
 
-class StringExpr : Expr, Setupable, HasInfo {
+int string_id;
+class StringExpr : Expr, HasInfo {
   string str;
   Module forb;
-  this() { forb = current_module(); forb.addSetupable(this); }
+  this() {
+    forb = current_module();
+    name_used = Format("string_constant_", string_id++);
+  }
   this(string s) { str = s; this(); }
   mixin defaultIterate!();
   string name_used;
   override {
     string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }
     StringExpr dup() { return this; }
-    void setup(AsmFile af) {
-      if (name_used) return;
-      name_used = Format(af.id, "_cons_", af.constants.length);
-      af.constants[name_used] = cast(ubyte[]) str;
-    }
     string toString() { return '"'~str.replace("\n", "\\n")~'"'; }
     // default action: place in string segment, load address on stack
     void emitAsm(AsmFile af) {
-      assert(!!name_used, Format("\"", str, "\" not set up (in ", forb, " vs. ", current_module(), ")"));
+      if (af is forb) af.constants[name_used] = cast(ubyte[]) str;
       (new Symbol(name_used)).emitAsm(af);
       (new IntExpr(str.length)).emitAsm(af);
     }
