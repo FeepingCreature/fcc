@@ -190,7 +190,7 @@ int main(int argc, char** argv) {
     // printf("Allocate %i, %i\n", a, b);
     if (a*b > 65536) {
       printf("Excessive allocation: %i, %i\n", a, b);
-      *(int*:null)=0;
+      _interrupt 3;
     }
     return cdg(a, b);
   };
@@ -461,7 +461,10 @@ int main(int argc, char** argv) {
     frob[0] = 15;
     writeln "frob is $frob";
     alias size = 4;
-    auto test = [for bin <- [for tuple <- cross ([for i <- 0..2: i] x size): int[size]:tuple]: sum [for tup <- zip (bin, [for z <- 0..size: pow2(size-z-1)]): tup[0] * tup[1]]].eval;
+    auto test = [for bin <-
+      [for tuple <- cross ([for i <- 0..2: i] x size): int[size]:tuple]:
+      sum [for tup <- zip (bin, [for z <- 0..size:
+      pow2(size-z-1)]): tup[0] * tup[1]]].eval;
     writeln("test is $$string-of type-of test: $test");
     return 0;
     onExit writeln("Exit 4. ");

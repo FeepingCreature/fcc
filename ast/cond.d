@@ -77,7 +77,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
       iparse!(Statement, "gr_setup_1", "tree.stmt")
              (`
              {
-               var.id = type.classid;
+               var.id = class-id type;
                var.prev = __hdl__;
                var.dg = &fn;
                var.delimit = _cm;
@@ -135,7 +135,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   {
     auto guard_st =
       iparse!(Statement, "cm_undo", "tree.stmt")
-             (`onSuccess _cm = _cm.prev; `, csc);
+             (`onSuccess _cm = (_CondMarker*:_cm).prev; `, csc);
     assert(guard_st);
   }
   auto ifs = new IfStatement;

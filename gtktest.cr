@@ -50,7 +50,7 @@ template g_signal_connect(T) <<EOF
   // void g_signal_connect (GtkWidget* w, string s, void delegate(GtkWidget*) dg) {
   void g_signal_connect (T t) {
     store ~= (void*, void*): t[2];
-    auto dgvalue = &(call-dg!typeof(t[2]));
+    auto dgvalue = &(call-dg!type-of t[2]);
     g_signal_connect_data (t[0], toStringz(t[1]), void*:dgvalue, &store[store.length - 1], null, 0);
   }
 EOF
@@ -104,7 +104,7 @@ int main (int argc, char **argv) {
         reading = true;
       }
       if (startsWith(line, "----done")) {
-        iters = typeof(iters):iters[0 .. iters.length-1];
+        iters = type-of iters: iters[0 .. iters.length-1];
         reading = false;
       }
       if (reading) {
@@ -119,7 +119,7 @@ int main (int argc, char **argv) {
           gtk_tree_store_set (model, current(), 0, classnamep, 1, infop, -1);
         }
         if (line == "</node>") {
-          iters = typeof(iters):iters[0 .. iters.length-1];
+          iters = type-of iters: iters[0 .. iters.length-1];
         }
       }
     }

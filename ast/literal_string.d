@@ -7,9 +7,9 @@ class StringExpr : Expr, HasInfo, Setupable {
   string str;
   Module forb;
   this() {
+    name_used = Format("string_constant_", string_id++);
     forb = current_module();
     forb.addSetupable(this);
-    name_used = Format("string_constant_", string_id++);
   }
   this(string s) { str = s; this(); }
   mixin defaultIterate!();

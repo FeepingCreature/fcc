@@ -41,9 +41,9 @@ class Module : Namespace, Tree, Named {
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
-        if (auto fun = cast(Function) entry) {
+        /*if (auto fun = cast(Function) entry) {
           logln("emit![", i - 1, "/", entries.length, "]: ", fun.name, " in ", cast(void*) this);
-        }
+        }*/
         entry.emitAsm(af);
       }
       void callback(ref Iterable it) {

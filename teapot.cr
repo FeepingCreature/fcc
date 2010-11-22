@@ -50,7 +50,7 @@ class DataSet {
 import std.file, std.string;
 DataSet parse(string fn) {
   auto res = new DataSet;
-  auto lines = splitAt("\n", [for chunk <- readfile open fn: (string: chunk)]).eval[];
+  auto lines = splitAt("\n", castIter!string readfile open fn).eval[];
   {
     auto idcount = atoi toStringz lines[0];
     while auto id <- lines[1 .. idcount + 1] {
@@ -65,6 +65,7 @@ DataSet parse(string fn) {
     while auto vert <- lines[1 .. vertcount + 1] {
       auto split = splitAt(",", iterOnce vert).eval[];
       vec3f temp;
+      
       while int i <- 0..3
         temp[i] = std.string.atof(split[i]);
       res.vecs ~= temp;

@@ -378,7 +378,6 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
     t2 = t3;
   } else ivarname = null;
-  logln("get subiter from ", t2.nextText());
   if (!rest(t2, "tree.expr", &sub) || !forb(sub) || !gotImplicitCast(sub, (IType it) { return !!cast(Iterator) it; }))
     t2.failparse("Cannot find sub-iterator");
   Placeholder extra;

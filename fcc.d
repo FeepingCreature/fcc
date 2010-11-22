@@ -127,6 +127,9 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
       ematSysmod = true;
     }
     mod.emitAsm(af);
+    // TODO: reset mod for fccd build
+    // auto afx = new AsmFile(optimize, file.replace("/", "_").replace(".cr", ""));
+    // mod.emitAsm(afx);
   }) / 1_000_000f;
   writefln(len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
   Stuple!(string, float)[] entries;

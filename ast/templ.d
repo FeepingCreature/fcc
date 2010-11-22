@@ -91,9 +91,9 @@ class TemplateInstance : Namespace {
           if (auto ns = cast(Namespace) tr) { // now reset sup to correct target.
             ns.sup = this;
           }
-          if (auto fun = cast(Function) tr)
+          /*if (auto fun = cast(Function) tr)
             logln("add ", fun.mangleSelf(), " to ", current_module().name,
-              ", at ", current_module().entries.length, "; ", cast(void*) current_module());
+              ", at ", current_module().entries.length, "; ", cast(void*) current_module());*/
           current_module().entries ~= tr;
         }
       ) || t2.strip().length)
