@@ -105,7 +105,7 @@ mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall");
 class FpCall : Expr {
   Expr fp;
   Expr[] params;
-  private this() { }
+  this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {

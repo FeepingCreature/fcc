@@ -37,6 +37,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
       namespace.set(nf);
       if (!rest(t4, "tree.scope", &nf.tree))
         t4.failparse("No statement matched for ", type, " in exception guard context");
+      if (type == "onExit") nf.tree = nf.tree.dup; // already used in onSuccess branch
     }
     mod.entries ~= cast(Tree) nf;
     auto grtype = cast(IType) sysmod.lookup("_GuardRecord");

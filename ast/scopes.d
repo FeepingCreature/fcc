@@ -45,7 +45,7 @@ class Scope : Namespace, ScopeLike, Statement {
     res.fun = fun;
     if (_body) res._body = _body.dup;
     foreach (guard; guards) res.guards ~= guard.dup;
-    res.id = id;
+    res.id = getuid();
     return res;
   }
   override int framesize() {
