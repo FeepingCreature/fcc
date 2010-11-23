@@ -14,6 +14,9 @@ static this() {
   defineOp("x", delegate Expr(Expr ex1, Expr ex2) {
     if (!gotImplicitCast(ex2, (Expr ex) { return !!cast(IntExpr) fold(ex); }))
       return null;
+    auto ex22 = ex2;
+    if (gotImplicitCast(ex22, (Expr ex) { return !!cast(ast.iterator.Range) fold(ex); }))
+      ex2 = ex22;
     auto count = (cast(IntExpr) fold(ex2)).num;
     assert(count > 0);
     Expr[] rep;

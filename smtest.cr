@@ -42,7 +42,7 @@ void drawScene() {
   glRotatef (t, 0, 1, 0);
   t -= 1;
   void drawCube() {
-    auto points = cross ([-1, 1] x 3);
+    auto points = cross ((0..2) x 3);
     using Quads {
       while int idx <- [
         0, 1, 3, 2,  4, 5, 7, 6, // top, bottom
