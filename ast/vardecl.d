@@ -134,7 +134,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto vd = new VarDecl;
   string t3;
-  *error.ptr() = stuple("", "");
+  resetError();
   if (t2.accept("auto")) {
     if (!t2.bjoin(
     (t3 = t2, true) &&

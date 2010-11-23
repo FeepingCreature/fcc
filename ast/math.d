@@ -489,9 +489,13 @@ Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("-")) return null;
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex, (Expr ex) { return !!(ex.valueType() == Single!(SysInt) || ex.valueType() == Single!(Float)); }))
-    t2.failparse("Found no type match for negation");
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+    t2.failparse("Found no expression for negation");
   text = t2;
-  return cast(Object) lookupOp("-", new IntExpr(0), ex);
+  if (auto lop = lookupOp("-", true, new IntExpr(0), ex))
+    return cast(Object) lop;
+  if (auto lop = lookupOp("-", true, ex))
+    return cast(Object) lop;
+  t2.failparse("Found no lookup match for negation of ", ex.valueType());
 }
 mixin DefaultParser!(gotNegExpr, "tree.expr.neg", "213");

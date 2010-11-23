@@ -535,8 +535,9 @@ Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
   MValue mv;
   string newVarName; IType newVarType;
   bool needIterator;
-  if (!rest(t2, "tree.expr", &lv, (LValue lv) { return !cast(Iterator) lv.valueType(); })) {
-    if (!rest(t2, "tree.expr", &mv, (MValue mv) { return !cast(Iterator) mv.valueType(); })) {
+  const string myTE = "tree.expr >tree.expr.vardecl";
+  if (!rest(t2, myTE, &lv, (LValue lv) { return !cast(Iterator) lv.valueType(); })) {
+    if (!rest(t2, myTE, &mv, (MValue mv) { return !cast(Iterator) mv.valueType(); })) {
       if (!t2.accept("auto") && !rest(t2, "type", &newVarType) || !t2.gotIdentifier(newVarName))
         goto withoutIterator;
     }
@@ -546,6 +547,7 @@ Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
   needIterator = true;
 withoutIterator:
   Expr iter;
+  resetError();
   if (!rest(t2, "tree.expr", &iter) || !forb(iter) || !gotImplicitCast(iter, (IType it) { return !!cast(Iterator) it; }))
     if (needIterator) t2.failparse("Can't find iterator");
     else return null;

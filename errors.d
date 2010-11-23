@@ -74,6 +74,10 @@ void setError(T...)(string text, T t) {
   *error.ptr() = stuple(text, Format(t));
 }
 
+void resetError() {
+  *error.ptr() = stuple(cast(string) null, cast(string) null);
+}
+
 void passert(T...)(string text, bool b, T t) {
   if (!b) text.failparse(t);
 }

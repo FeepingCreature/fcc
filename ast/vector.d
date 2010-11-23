@@ -61,14 +61,7 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   if (!rest(t2, "type", &ty))
     return null;
-  while (true) {
-    if (auto tp = cast(TypeProxy) ty) {
-      ty = tp.actualType;
-      continue;
-    }
-    break;
-  }
-  auto vec = cast(Vector) ty;
+  auto vec = cast(Vector) resolveType(ty);
   if (!vec)
     return null;
   Expr ex;
@@ -82,7 +75,12 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
     return cast(Object)
       reinterpret_cast(vec, new StructLiteral(vec.asTup.wrapped, exs));
   }
+  retryTup:
   auto tup = cast(Tuple) ex.valueType();
+  if (tup.types.length == 1) {
+    ex = getTupleEntries(ex)[0];
+    goto retryTup;
+  }
   if (tup) {
     if (tup.types.length != vec.len)
       throw new Exception("Insufficient elements in vec initializer! ");
@@ -177,6 +175,19 @@ static this() {
     }
     return reinterpret_cast(vt, new StructLiteral(vt.asTup.wrapped, list));
   }
+  Expr negate(Expr ex) {
+    auto ty = resolveType(ex.valueType());
+    logln("negate? ", ty);
+    auto vt = cast(Vector) ty;
+    if (!vt) return null;
+    
+    Expr[] list;
+    foreach (ex2; getTupleEntries(reinterpret_cast(vt.asTup, ex))) {
+      list ~= lookupOp("-", ex2);
+    }
+    return reinterpret_cast(vt, new StructLiteral(vt.asTup.wrapped, list));
+  }
+  defineOp("-", &negate);
   defineOp("-", "-" /apply/ &handleVecOp);
   defineOp("+", "+" /apply/ &handleVecOp);
   defineOp("*", "*" /apply/ &handleVecOp);

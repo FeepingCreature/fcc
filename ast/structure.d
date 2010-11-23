@@ -339,11 +339,14 @@ class MemberAccess_Expr : Expr, HasInfo {
         }
       } else {
         // if (stm.type.size != 4) asm { int 3; }
-        assert(stm.type.size == 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !cast(LValue) base, ") of ", base.valueType().size(), ". "));
+        assert(stm.type.size == 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !cast(LValue) base, ") of ", base.valueType().size(), ". "));
         af.comment("emit semi-structure ", base, " for member access");
         base.emitAsm(af);
         af.comment("store member and free: ", stm.name);
-        af.mmove4(Format(stm.offset, "(%esp)"), "%edx");
+        if (stm.type.size == 2)
+          af.mmove2(Format(stm.offset, "(%esp)"), "%dx");
+        if (stm.type.size >= 4)
+          af.mmove4(Format(stm.offset, "(%esp)"), "%edx");
         if (stm.type.size >= 8)
           af.mmove4(Format(stm.offset + 4, "(%esp)"), "%ecx");
         if (stm.type.size >= 12)
@@ -358,7 +361,10 @@ class MemberAccess_Expr : Expr, HasInfo {
           af.pushStack("%ebx", Single!(SysInt));
         if (stm.type.size >= 8)
           af.pushStack("%ecx", Single!(SysInt));
-        af.pushStack("%edx", Single!(SysInt));
+        if (stm.type.size >= 4)
+          af.pushStack("%edx", Single!(SysInt));
+        if (stm.type.size == 2)
+          af.pushStack("%dx", Single!(Short));
       }
     }
   }
