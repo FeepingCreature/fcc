@@ -506,16 +506,12 @@ class ProcTrack : ExtToken {
         }
         break;
       case Nevermind:
-        if (!stack.length && !known.length)
+        if (!stack.length || !known.length)
           return false;
-        bool useful;
-        foreach (entry; stack)
-          if (entry == t.dest) { useful = true; break; }
-        foreach (reg, value; known)
-          if (reg == t.dest) { useful = true; break; }
-        if (useful) {
-          nvmed[t.dest] = true;
-          use[t.dest] = true; // don't reuse in this block (because nvm are emitted at the end)
+        nvmed[t.dest] = true;
+        if (!(t.dest in use)) {
+          known.remove(t.dest);
+          use[t.dest] = true;
         }
         mixin(Success);
       case Call:
