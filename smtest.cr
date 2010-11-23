@@ -53,8 +53,13 @@ void drawScene() {
     }
   }
   
+  glScalef (0.2 x 3);
   glTranslatef (0, 2 * sin(t / 64), 0);
-  drawCube();
+  while auto vec <- cross (-5 .. 5) x 3 {
+    glTranslatef vec;
+    drawCube();
+    glTranslatef -vec3f(vec);
+  }
   SDL_GL_SwapBuffers();
   fps ++;
   auto ct = time(time_t*:null);
@@ -65,22 +70,40 @@ void drawScene() {
   }
 }
 
-int update(SDL_Surface* surface) {
-  SDL_Flip surface;
+void delegate(int, int) regenSurf;
+
+(int, int) mousepos;
+
+bool update(SDL_Surface* surface) {
   SDL_Event ev = void;
-  while SDL_PollEvent(&ev) {
-    if ev.type == 12 return 1; // QUIT
+  while SDL_PollEvent(&ev) using ev {
+    if type == SDL_QUIT return true;
+    if type == SDL_VIDEORESIZE using resize {
+      regenSurf (w, h);
+      resizeWindow (w, h);
+      return false;
+    }
+    if type == SDL_MOUSEMOTION using motion {
+      mousepos = (x, y);
+    }
+    // writeln "type $(ev.type)";
   }
-  return 0;
+  return false;
 }
 
 int main(int argc, char** argv) {
   t = 0;
   
+  // this has issues; why?!
   SDL_Init (SDL_INIT_VIDEO);
   auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
+  SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
   SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  auto surf = SDL_SetVideoMode (640, 480, 0, flags);
+  SDL_Surface* surf;
+  regenSurf = delegate void(int w, int h) {
+    surf = SDL_SetVideoMode (w, h, 0, flags);
+  };
+  regenSurf(640, 480);
   if !surf quit(1);
   initGL;
   // IMPORTANT: init gl FIRST

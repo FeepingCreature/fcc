@@ -18,3 +18,8 @@ context Quads {
   alias onUsing = glBegin GL_QUADS;
   alias onExit = glEnd;
 }
+
+context glMatrix {
+  alias onUsing = glPushMatrix();
+  alias onExit  = glPopMatrix ();
+}
