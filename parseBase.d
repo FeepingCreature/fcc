@@ -4,6 +4,7 @@ import tools.base, errors;
 enum Scheme { Binary, Octal, Decimal, Hex }
 bool gotInt(ref string text, out int i) {
   auto t2 = text.strip();
+  t2.eatComments();
   if (auto rest = t2.startsWith("-")) {
     return gotInt(rest, i)
       && (
