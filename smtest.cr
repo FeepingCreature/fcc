@@ -40,7 +40,7 @@ void drawScene() {
   // glRotatef (t, 1, 0.1, 0);
   // glRotatef (180, 1, 0, 0);
   glRotatef (t, 0, 1, 0);
-  t -= 1;
+  t -= 0.01;
   void drawCube() {
     auto points = cross ((0..2) x 3);
     using Quads {
@@ -92,8 +92,6 @@ bool update(SDL_Surface* surface) {
 }
 
 int main(int argc, char** argv) {
-  t = 0;
-  
   // this has issues; why?!
   SDL_Init (SDL_INIT_VIDEO);
   auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
