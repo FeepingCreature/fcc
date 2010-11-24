@@ -81,14 +81,20 @@ Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr");
 
 // static array literal 1
-class DataExpr : Expr {
+class DataExpr : CValue, Setupable {
   ubyte[] data;
-  this(ubyte[] ub) { data = ub; }
-  this() { }
+  string name;
+  static int de_id;
+  this(ubyte[] ub) { data = ub; this(); }
+  this() {
+    name = Format("data_expr_", de_id++);
+    registerSetupable(this);
+  }
   mixin DefaultDup!();
   mixin defaultIterate!();
   override IType valueType() { return new StaticArray(Single!(Char), data.length); }
   override string toString() { return Format(data); }
+  override void setup(AsmFile af) { af.constants[name] = data; }
   override void emitAsm(AsmFile af) {
     bool allNull = true;
     foreach (val; data) if (val) { allNull = false; break; }
@@ -112,6 +118,9 @@ class DataExpr : Expr {
       af.pushStack(Format("$", c), Single!(Char));
     }
   }
+  override void emitLocation(AsmFile af) {
+    af.pushStack("$"~name, voidp);
+  }
 }
 
 class SALiteralExpr : Expr {
@@ -134,22 +143,35 @@ class SALiteralExpr : Expr {
 Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("[")) return null;
+  Expr[] exs;
+  int[] statics;
+  bool isStatic = true;
+  IType type;
   Expr ex;
-  auto res = new SALiteralExpr;
   if (!t2.bjoin(
     !!rest(t2, "tree.expr", &ex),
     t2.accept(","),
     {
       IType[] types;
-      if (!res.type) res.type = ex.valueType();
-      else if (!gotImplicitCast(ex, (IType it) { types ~= it; return test(it == res.type); }))
-        t2.failparse("Invalid SA literal member; none of ", types, " match ", res.type);
-      res.exs ~= ex;
+      if (!type) type = ex.valueType();
+      else if (!gotImplicitCast(ex, (IType it) { types ~= it; return test(it == type); }))
+        t2.failparse("Invalid SA literal member; none of ", types, " match ", type);
+      if (auto ie = cast(IntExpr) fold(ex)) statics ~= ie.num;
+      else isStatic = false;
+      exs ~= ex;
     }
   )) t2.failparse("Failed to parse array literal");
   if (!t2.accept("]"))
     t2.failparse("Expected closing ']'");
+  if (!exs.length)
+    return null;
   text = t2;
+  if (isStatic) {
+    return cast(Object) reinterpret_cast(cast(IType) new StaticArray(type, exs.length), cast(CValue) new DataExpr(cast(ubyte[]) statics));
+  }
+  auto res = new SALiteralExpr;
+  res.type = type;
+  res.exs = exs;
   return res;
 }
 mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array", "52");

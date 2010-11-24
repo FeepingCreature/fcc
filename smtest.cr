@@ -40,14 +40,15 @@ void drawScene() {
   // glRotatef (t, 1, 0.1, 0);
   // glRotatef (180, 1, 0, 0);
   glRotatef (t, 0, 1, 0);
-  t -= 0.01;
+  t -= 1;
+  auto points = (cross ((0..2) x 3)).eval;
   void drawCube() {
-    auto points = cross ((0..2) x 3);
     using Quads {
+      auto cols = [for i <- 0..8: i / 8.0].eval;
       while int idx <- [
         0, 1, 3, 2,  4, 5, 7, 6, // top, bottom
         0, 1, 5, 4,  1, 3, 7, 5,  3, 2, 6, 7,  2, 0, 4, 6] { // sides
-        glColor3f ((idx / 7.0) x 3);
+        glColor3f (cols[idx] x 3);
         glVertex3f points[idx];
       }
     }
@@ -55,10 +56,10 @@ void drawScene() {
   
   glScalef (0.2 x 3);
   glTranslatef (0, 2 * sin(t / 64), 0);
-  while auto vec <- cross (-5 .. 5) x 3 {
+  while auto vec <- cross (-5 .. 5) x 3 using glMatrix {
     glTranslatef vec;
     drawCube();
-    glTranslatef -vec3f(vec);
+    // glCallList(cube);
   }
   SDL_GL_SwapBuffers();
   fps ++;

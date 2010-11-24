@@ -350,23 +350,17 @@ class ScopeAndExpr : Expr {
 }
 
 import ast.static_arrays;
-class Tagged : Expr {
-  Expr ex;
-  string tag;
-  this(Expr ex, string tag) { this.ex = ex; this.tag = tag; }
-  mixin defaultIterate!(ex);
-  override {
-    Tagged dup() { return new Tagged(ex.dup, tag); }
-    IType valueType() { return ex.valueType(); }
-    void emitAsm(AsmFile af) { ex.emitAsm(af); }
-  }
-}
 
-bool forb(ref Expr ex) {
-  auto ar = cast(Array) ex.valueType(), sa = cast(StaticArray) ex.valueType(), ea = cast(ExtArray) ex.valueType();
-  if (ar || sa || ea)
-    ex = new Tagged(ex, "want-iterator");
-  return true;
+class BogusIterator : Iterator, IType { // tag
+  override {
+    IType elemType() { assert(false); }
+    Expr yieldAdvance(LValue) { assert(false); }
+    Cond terminateCond(Expr) { assert(false); }
+    int size() { assert(false); }
+    string mangle() { assert(false); }
+    ubyte[] initval() { assert(false); }
+    int opEquals(IType it) { assert(false); }
+  }
 }
 
 import ast.aggregate, ast.literals: DataExpr;
@@ -378,7 +372,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
     t2 = t3;
   } else ivarname = null;
-  if (!rest(t2, "tree.expr", &sub) || !forb(sub) || !gotImplicitCast(sub, (IType it) { return !!cast(Iterator) it; }))
+  if (!rest(t2, "tree.expr", &sub) || !gotImplicitCast(sub, Single!(BogusIterator), (IType it) { return !!cast(Iterator) it; }))
     t2.failparse("Cannot find sub-iterator");
   Placeholder extra;
   Expr exEx, exBind;
@@ -548,7 +542,7 @@ Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
 withoutIterator:
   Expr iter;
   resetError();
-  if (!rest(t2, "tree.expr", &iter) || !forb(iter) || !gotImplicitCast(iter, (IType it) { return !!cast(Iterator) it; }))
+  if (!rest(t2, "tree.expr", &iter) || !gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!cast(Iterator) it; }))
     if (needIterator) t2.failparse("Can't find iterator");
     else return null;
   // insert declaration into current scope.
@@ -778,7 +772,7 @@ Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
   Expr target;
   if (rest(t2, "tree.expr _tree.expr.arith", &target) && t2.accept("=")) {
     Expr value;
-    if (!rest(t2, "tree.expr", &value) || !forb(value) || !gotImplicitCast(value, (IType it) {
+    if (!rest(t2, "tree.expr", &value) || !gotImplicitCast(value, Single!(BogusIterator), (IType it) {
       auto ri = cast(RichIterator) it;
       return ri && target.valueType() == new Array(ri.elemType());
     })) {

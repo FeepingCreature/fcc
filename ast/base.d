@@ -17,6 +17,7 @@ interface Tree : Iterable {
 interface Setupable {
   void setup(AsmFile); // register globals and such
 }
+void delegate(Setupable) registerSetupable;
 
 interface NeedsConfig {
   // must be called after the expression has been selected for sure

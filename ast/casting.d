@@ -30,6 +30,7 @@ class ReinterpretCast(T) : T, HasInfo {
   }
 }
 alias ReinterpretCast!(Expr) RCE;
+alias ReinterpretCast!(CValue) RCC;
 alias ReinterpretCast!(LValue) RCL;
 
 import ast.fold;
@@ -318,9 +319,15 @@ LValue reinterpret_cast(IType to, LValue from) {
   return new RCL(to, from);
 }
 
+CValue reinterpret_cast(IType to, CValue from) {
+  return new RCC(to, from);
+}
+
 Expr reinterpret_cast(IType to, Expr from) {
   if (auto lv = cast(LValue) from)
     return reinterpret_cast(to, lv);
+  if (auto cv = cast(CValue) from)
+    return reinterpret_cast(to, cv);
   return new RCE(to, from);
 }
 

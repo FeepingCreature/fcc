@@ -82,7 +82,12 @@ class Module : Namespace, Tree, Named {
   }
   override Stuple!(IType, string, int)[] stackframe() { assert(false); }
 }
+
 TLS!(Module) current_module;
+
+static this() {
+  registerSetupable = (Setupable s) { current_module().addSetupable(s); };
+}
 
 Module sysmod;
 
