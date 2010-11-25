@@ -41,11 +41,11 @@ void drawScene() {
   // glRotatef (180, 1, 0, 0);
   glRotatef (t, 0, 1, 0);
   t -= 1;
-  auto points = (cross ((0..2) x 3)).eval;
   void drawCube() {
     using Quads {
-      auto cols = [for i <- 0..8: i / 8.0].eval;
-      while int idx <- [
+      alias points = cross ((0..2) x 3);
+      alias cols = [for i <- 0..8: i / 8.0];
+      static while int idx <- [
         0, 1, 3, 2,  4, 5, 7, 6, // top, bottom
         0, 1, 5, 4,  1, 3, 7, 5,  3, 2, 6, 7,  2, 0, 4, 6] { // sides
         glColor3f (cols[idx] x 3);

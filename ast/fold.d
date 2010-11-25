@@ -33,6 +33,7 @@ void opt(T)(ref T t) {
     it.iterate(&fun);
   }
   Itr it = cast(Itr) t;
+  if (!it) asm { int 3; }
   fun(it);
   t = cast(T) it;
   assert(!!t);

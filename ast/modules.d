@@ -26,8 +26,13 @@ class Module : Namespace, Tree, Named {
     setupable ~= s;
     if (inProgress) s.setup(inProgress);
   }
-  mixin defaultIterate!(imports, entries);
   override {
+    void iterate(void delegate(ref Iterable) dg) {
+      auto backup = current_module();
+      scope(exit) current_module.set(backup);
+      current_module.set(this);
+      defaultIterate!(imports, entries).iterate(dg);
+    }
     Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
     import ast.fun;

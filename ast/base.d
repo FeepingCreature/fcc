@@ -63,6 +63,14 @@ template DefaultDup() {
   }
 }
 
+void checkType(Iterable it, void delegate(ref Iterable) dg) {
+  if (auto ex = cast(Expr) it) {
+    if (auto it = cast(Iterable) ex.valueType()) {
+      it.iterate(dg);
+    }
+  }
+}
+
 import tools.ctfe;
 string genIterates(int params) {
   if (params < 0) return null;
@@ -81,6 +89,7 @@ string genIterates(int params) {
             Iterable iter = entry;
             if (!iter) continue;
             dg(iter);
+            // checkType(iter, dg);
             if (iter !is entry) {
               auto res = cast(typeof(entry)) iter;
               if (!res) throw new Exception(Format("Cannot substitute ", $A, "[", i, "] with ", res, ": ", typeof(entry).stringof, " expected! "));
@@ -90,6 +99,7 @@ string genIterates(int params) {
         } else {
           if (Iterable iter = $A) {
             dg(iter);
+            // checkType(iter, dg);
             if (iter !is $A) {
               auto res = cast(typeof($A)) iter;
               if (!res) throw new Exception(Format("Cannot substitute ", $A, " with ", res, ": ", typeof($A).stringof, " expected! "));
@@ -301,4 +311,23 @@ class StatementAndExpr : Expr {
       second.emitAsm(af);
     }
   }
+}
+
+class PlaceholderToken : Expr {
+  IType type;
+  string info;
+  this(IType type, string info) { this.type = type; this.info = info; }
+  PlaceholderToken dup() { return this; } // IMPORTANT.
+  mixin defaultIterate!();
+  override {
+    IType valueType() { return type; }
+    void emitAsm(AsmFile af) { logln("DIAF ", info); asm { int 3; } assert(false); }
+    string toString() { return Format("Placeholder(", info, ")"); }
+  }
+}
+
+class PlaceholderTokenLV : PlaceholderToken, LValue {
+  PlaceholderTokenLV dup() { return this; }
+  this(IType type, string info) { super(type, info); }
+  override void emitLocation(AsmFile af) { assert(false); }
 }

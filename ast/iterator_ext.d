@@ -37,6 +37,7 @@ static this() {
   };
 }
 
+import ast.assign;
 class CrossIndexExpr : Expr {
   Cross cross;
   Expr ex, idx;
@@ -51,22 +52,32 @@ class CrossIndexExpr : Expr {
       auto root = iparse!(Scope, "cross_index_init", "tree.stmt")
                          (`{ auto count = idx; }`,
                           "tup", tup, "idx", idx, af);
-      auto count = root.lookup("count");
+      auto count = cast(LValue) root.lookup("count");
       assert(!!count);
       for (int i = len - 1; i >= 0; --i) {
         auto iex = new IntExpr(i);
-        root.addStatement(iparse!(Statement, "cross_index_subset", "tree.semicol_stmt.assign")
-                                 (`tup[1+i+len] = tup[1+i+len*2]`,
-                                  "tup", tup, "i", iex, "len", lenex));
-        // root.addStatement(iparse!(Statement, "cross_index_subset", "tree.stmt")
-        //                          (`printf("%i: tup[%i+1] = tup[1+i+len][%i %% %i = %i] = %i\n", idx, i, count, tup[1+i+len*2].length, count % tup[1+i+len*2].length, tup[1+i+len][count % tup[1+i+len*2].length]); `,
-        //                           "tup", tup, "i", iex, "len", lenex, "count", count, "idx", idx));
-        root.addStatement(iparse!(Statement, "cross_index_subset", "tree.stmt")
-                                 (`tup[1+i] = tup[1+i+len][count % tup[1+i+len*2].length]; `,
-                                  "tup", tup, "i", iex, "len", lenex, "count", count));
-        root.addStatement(iparse!(Statement, "cross_index_subset", "tree.stmt")
-                                 (`count = count / tup[1+i+len*2].length; `,
-                                  "tup", tup, "i", iex, "len", lenex, "count", count));
+        auto iter = cast(LValue) mkTupleIndexAccess(tup, 1 + i + len);
+        auto orig = mkTupleIndexAccess(tup, 1 + i + len * 2);
+        auto itype = cast(RichIterator) iter.valueType();
+        auto origtype = cast(RichIterator) orig.valueType();
+        assert(!!itype && !!origtype);
+        // iter = orig
+        root.addStatement(new Assignment(iter, orig));
+        // value = iter[count % orig.length]
+        root.addStatement(new Assignment(
+          cast(LValue) mkTupleIndexAccess(tup, 1 + i),
+          itype.index(iter,
+            lookupOp("%",
+              count,
+              origtype.length(orig)
+            )
+          )
+        ));
+        // count /= orig.length
+        root.addStatement(new Assignment(
+          count,
+          lookupOp("/", count, origtype.length(orig))
+        ));
       }
       root.emitAsm(af);
       // tuple result
@@ -74,6 +85,36 @@ class CrossIndexExpr : Expr {
              (`tup[1..len+1]`,
               "tup", tup, "len", lenex).emitAsm(af);
     }
+  }
+  static this() {
+    foldopt ~= delegate Itr(Itr it) {
+      auto cie = cast(CrossIndexExpr) it;
+      if (!cie) return null;
+      auto ide = cast(IntExpr) foldex(cie.idx);
+      if (!ide) return null;
+      auto idx = ide.num;
+      
+      int[] lengths;
+      auto iters = cie.cross.myIters(cie.ex);
+      foreach (iter; iters) {
+        auto ri = cast(RichIterator) iter.valueType();
+        if (!ri) return null;
+        auto lex = cast(IntExpr)
+          foldex(ri.length(iter));
+        if (!lex) return null;
+        lengths ~= lex.num;
+      }
+      Expr[] res;
+      auto orig_idx = idx;
+      foreach_reverse (i, iter; iters) {
+        auto ri = cast(RichIterator) iter.valueType();
+        auto lidx = idx % lengths[i];
+        res = foldex(ri.index(iter, new IntExpr(lidx))) ~ res;
+        idx /= lengths[i];
+      }
+      
+      return mkTupleExpr(res);
+    };
   }
 }
 
@@ -90,7 +131,11 @@ class Cross : Type, RichIterator {
                   ("tup:ex", "ex", ex, "tup", tup);
   }
   IType[] myTypes() {
-    return tup.types[1 .. ($-1)/3 + 1];
+    return tup.types[1..$][0..$/3];
+  }
+  Expr[] myIters(Expr ex) {
+    return getTupleEntries(castToTuple(ex))
+                [1 .. $][$/3..2*$/3];
   }
   override {
     IType elemType() {
@@ -145,18 +190,28 @@ class Cross : Type, RichIterator {
     Expr length(Expr ex) {
       Expr res;
       auto types = myTypes(), tup = castToTuple(ex);
+      int staticlength = 1;
       foreach (i, type; types) {
         auto entry = iparse!(Expr, "cross_subcond_for_len", "tree.expr")
                            (`tup[i + len*2 + 1]`, "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
         auto len = (cast(RichIterator) entry.valueType()).length(entry);
+        if (staticlength != -1) {
+          if (auto ie = cast(IntExpr) foldex(len)) {
+            staticlength *= ie.num;
+          } else {
+            staticlength = -1;
+          }
+        }
         if (!res) res = len;
         else res = lookupOp("*", res, len);
       }
+      if (staticlength != -1)
+        return new IntExpr(staticlength);
       assert(res);
       return res;
     }
-    Expr index(LValue lv, Expr pos) {
-      return new CrossIndexExpr(this, lv, pos);
+    Expr index(Expr ex, Expr pos) {
+      return new CrossIndexExpr(this, ex, pos);
     }
     Expr slice(Expr ex, Expr from, Expr to) { assert(false); /* meh */ }
   }
@@ -258,8 +313,8 @@ class Zip(T) : Type, T {
                             (`tup[0]`, "tup", castToTuple(ex));
         return (cast(RichIterator) entry.valueType()).length(entry);
       }
-      Expr index(LValue lv, Expr pos) {
-        auto types = myTypes(), tup = castToTuple(lv);
+      Expr index(Expr ex, Expr pos) {
+        auto types = myTypes(), tup = castToTuple(ex);
         Expr[] exprs;
         foreach (i, type; types) {
           exprs ~= iparse!(Expr, "zip_index", "tree.expr")

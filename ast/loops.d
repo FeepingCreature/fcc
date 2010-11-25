@@ -5,9 +5,18 @@ import ast.base, ast.scopes, ast.vardecl, ast.conditionals, ast.parse;
 class WhileStatement : Statement {
   Scope _body;
   Cond cond;
+  bool isStatic;
+  Scope sup;
+  PlaceholderToken[] holders;
   mixin DefaultDup!();
   mixin defaultIterate!(cond, _body);
   override void emitAsm(AsmFile af) {
+    if (isStatic) { // should not happen
+      logln("could not resolve static while! ");
+      logln("cond is ", (cast(Object) cond).classinfo.name, ": ", cond);
+      logln("body is ", (cast(Object) _body).classinfo.name, ": ", _body);
+      asm { int 3; }
+    }
     auto start = af.genLabel(), done = af.genLabel();
     af.emitLabel(start);
     cond.jumpOn(af, false, done);
@@ -21,17 +30,37 @@ class WhileStatement : Statement {
 
 Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
+  bool isStatic;
+  if (t2.accept("static")) isStatic = true;
+  if (!t2.accept("while")) return null;
   auto ws = new WhileStatement;
   auto sc = new Scope;
+  ws.isStatic = isStatic;
+  ws.sup = sc;
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
-  if (rest(t2, "cond", &ws.cond) && (configure(ws.cond), true) && rest(t2, "tree.scope", &ws._body)) {
-    sc.addStatement(ws);
-    text = t2;
-    return sc;
-  } else t2.failparse("Couldn't parse while loop");
+  if (!rest(t2, "cond", &ws.cond))
+    t2.failparse("Couldn't parse while cond");
+  configure(ws.cond);
+  if (isStatic)
+    foreach (ref entry; sc.field) {
+      if (auto v = cast(Variable) entry._1) {
+        if (v.name) {
+          // will be substituted with actual value in loop unroller
+          auto ph = new PlaceholderToken(v.valueType(), "static loop var "~v.name);
+          ws.holders ~= ph;
+          entry = stuple(v.name, cast(Object) ph);
+        }
+      }
+    }
+  sc.rebuildCache;
+  if (!rest(t2, "tree.scope", &ws._body))
+    t2.failparse("Couldn't parse while body");
+  sc.addStatement(ws);
+  text = t2;
+  return sc;
 }
-mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141", "while");
+mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141");
 
 import tools.log;
 class ForStatement : Statement {

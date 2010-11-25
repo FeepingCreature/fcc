@@ -94,6 +94,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   string name;
   bool isUnion;
   bool packed;
+  int cached_length, cached_size;
   int _size() {
     int res;
     select((string, RelMember member) {
@@ -104,9 +105,13 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     return res;
   }
   int size() {
+    if (field.length == cached_length)
+      if (cached_size) return cached_size;
     auto res = _size(); //, pre = res;
     doAlign(res, this);
     // if (res != pre) logln(pre, " -> ", res, ": ", this);
+    cached_size = res;
+    cached_length = field.length;
     return res;
   }
   RelMember selectMember(int offs) {
@@ -419,10 +424,19 @@ static this() {
   foldopt ~= delegate Itr(Itr it) {
     if (auto mae = cast(MemberAccess_Expr) it) {
       auto base = foldex(mae.base);
+      Structure st;
+      if (auto rce = cast(RCE) base) {
+        base = rce.from;
+        st = cast(Structure) rce.to;
+      }
       if (auto sl = cast(StructLiteral) base) {
         Expr res;
         int i;
-        auto st = cast(Structure) base.valueType();
+        if (!st)
+          st = cast(Structure) base.valueType();
+        else {
+          // TODO: assert: struct member offsets identical!
+        }
         if (st) st.select((string, RelMember member) {
           if (member is mae.stm) {
             res = sl.exprs[i];

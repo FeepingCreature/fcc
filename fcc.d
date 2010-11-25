@@ -15,7 +15,7 @@ mixin(expandImport(`ast.[
   concat, stringex, c_bind, eval, iterator[,_ext], properties,
   tuples, tuple_access, literal_string, funcall, vector, externs,
   intr, conditionals, opers, conditionals, cond, casting,
-  pointer, nulls]`));
+  pointer, nulls, unroll, sa_index_opt]`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;

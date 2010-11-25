@@ -9,6 +9,7 @@ class Scope : Namespace, ScopeLike, Statement {
   Function fun;
   Statement _body;
   Statement[] guards;
+  bool mayMultiEmit;
   ulong id;
   mixin defaultIterate!(_body, guards);
   Statement[] getGuards() {
@@ -43,6 +44,7 @@ class Scope : Namespace, ScopeLike, Statement {
     auto res = new Scope;
     res.field = field.dup;
     res.fun = fun;
+    res.mayMultiEmit = mayMultiEmit;
     if (_body) res._body = _body.dup;
     foreach (guard; guards) res.guards ~= guard.dup;
     res.id = getuid();
@@ -67,8 +69,13 @@ class Scope : Namespace, ScopeLike, Statement {
   }
   // continuations good
   void delegate(bool=false) delegate() open(AsmFile af) {
-    if (cast(void*) this in emat) { logln("Double emit ", id, "; in ", fun, ": ", _body, ". "); asm { int 3; } }
-    emat[cast(void*) this] = true;
+    if (!mayMultiEmit) {
+      if (cast(void*) this in emat) {
+        logln("Double emit ", id, "; in ", fun, ": ", _body, ". ");
+        asm { int 3; }
+      }
+      emat[cast(void*) this] = true;
+    }
     af.emitLabel(entry());
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);

@@ -8,7 +8,7 @@ import ast.static_arrays, parseBase;
 
 Expr delegate(string) mkString; // defined in literal_string
 
-class FloatExpr : Expr {
+class FloatExpr : Expr, Literal {
   union {
     float f;
     uint f_as_i;
@@ -21,6 +21,7 @@ class FloatExpr : Expr {
   override {
     string toString() { return Format(f); }
     IType valueType() { return Single!(Float); }
+    string getValue() { return Format(f_as_i); }
     void emitAsm(AsmFile af) {
       if (!name_used) {
         name_used = Format("cons_", af.constants.length);

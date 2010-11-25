@@ -345,9 +345,7 @@ class FunRefExpr : Expr, Literal {
     void emitAsm(AsmFile af) {
       (new Constant(fun.mangleSelf())).emitAsm(af);
     }
-    string getValue() {
-      return fun.mangleSelf();
-    }
+    string getValue() { return fun.mangleSelf(); }
   }
 }
 

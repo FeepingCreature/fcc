@@ -23,28 +23,13 @@ class IntAsFloat : Expr {
   }
 }
 
-import ast.int_literal;
-class IntAsFloatLiteral : IntAsFloat, Literal {
-  this(IntExpr ie) { super(ie); }
-  private this() { super(); }
-  override typeof(this) dup() { return new typeof(this) (cast(IntExpr) i); }
-  override string getValue() {
-    auto ie = cast(IntExpr) i;
-    assert(!!ie);
-    auto f = cast(float) ie.num;
-    return Format(*cast(uint*) &f);
-  }
-}
-
-import ast.casting, ast.fold;
+import ast.casting, ast.fold, ast.literals;
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
     if (auto iaf = cast(IntAsFloat) ex) {
-      // department of redundancy department
-      if (cast(IntAsFloatLiteral) iaf) return null;
-      auto i = ast.fold.fold(iaf.i);
+      auto i = fold(iaf.i);
       if (auto ie = cast(IntExpr) i) {
-        return new IntAsFloatLiteral(ie);
+        return new FloatExpr(ie.num);
       }
     }
     return null;
@@ -178,7 +163,7 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != ex.valueType()) return null;
-    auto ie = cast(IntExpr) ast.fold.fold(ex);
+    auto ie = cast(IntExpr) fold(ex);
     if (!ie || ie.num > 65535 || ie.num < -32767) return null;
     return new IntLiteralAsShort(ie);
   };
@@ -195,23 +180,6 @@ void loadFloatEx(Expr ex, AsmFile af) {
     af.loadFloat("(%esp)");
     af.sfree(4);
   }
-}
-
-string fold(Expr ex) {
-  if (auto ie = cast(IntExpr) ex) {
-    return Format("$", ie.num);
-  }
-  if (auto re = cast(IRegister) ex) {
-    return "%"~re.getReg();
-  }
-  if (auto be = cast(BinopExpr) ex) {
-    if (be.op == "*") {
-      string f1 = fold(be.e1), f2 = fold(be.e2);
-      if (!f1.startsWith("$") || !f2.startsWith("$")) return null;
-      return Format("$", f1[1 .. $].atoi() * f2[1 .. $].atoi());
-    }
-  }
-  return null;
 }
 
 void opt(Expr ex) {
@@ -280,15 +248,15 @@ class AsmIntBinopExpr : BinopExpr {
       } else {
         string op1, op2;
         bool late_alloc;
-        if (auto c2 = fold(e2)) {
-          op2 = c2;
+        if (auto c2 = cast(IntExpr) foldex(e2)) {
+          op2 = Format("$", c2.num);
           late_alloc = true;
         } else {
           op2 = "(%esp)";
           e2.emitAsm(af);
         }
-        if (auto c1 = fold(e1)) {
-          op1 = c1;
+        if (auto c1 = cast(IntExpr) foldex(e1)) {
+          op1 = Format("$", c1.num);
           af.mmove4(op1, "%eax");
         } else {
           e1.emitAsm(af);
@@ -308,13 +276,35 @@ class AsmIntBinopExpr : BinopExpr {
       }
     }
   }
+  static this() {
+    foldopt ~= delegate Itr(Itr it) {
+      auto aibe = cast(AsmIntBinopExpr) it;
+      if (!aibe) return null;
+      auto
+        e1 = cast(IntExpr) foldex(aibe.e1),
+        e2 = cast(IntExpr) foldex(aibe.e2);
+      if (!e1 || !e2) return null;
+      switch (aibe.op) {
+        case "+": return new IntExpr(e1.num + e2.num);
+        case "-": return new IntExpr(e1.num - e2.num);
+        case "*": return new IntExpr(e1.num * e2.num);
+        case "/": return new IntExpr(e1.num / e2.num);
+        case "%": return new IntExpr(e1.num % e2.num);
+        case "<<": return new IntExpr(e1.num << e2.num);
+        case ">>": return new IntExpr(e1.num >> e2.num);
+        case "&": return new IntExpr(e1.num & e2.num);
+        case "|": return new IntExpr(e1.num | e2.num);
+        default: assert(false, "can't opt "~aibe.op);
+      }
+    };
+  }
 }
 
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
     auto aibe = cast(AsmIntBinopExpr) ex;
     if (!aibe) return null;
-    auto i1 = cast(IntExpr) ast.fold.fold(aibe.e1), i2 = cast(IntExpr) ast.fold.fold(aibe.e2);
+    auto i1 = cast(IntExpr) fold(aibe.e1), i2 = cast(IntExpr) fold(aibe.e2);
     if (!i1 || !i2) return null;
     switch (aibe.op) {
       case "+": return new IntExpr(i1.num + i2.num);
@@ -405,7 +395,7 @@ static this() {
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "12"); }
 
-import ast.pointer, ast.literals, ast.opers, tools.base: swap;
+import ast.pointer, ast.opers, tools.base: swap;
 Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
   Expr op;
   auto t2 = text;
