@@ -7,7 +7,8 @@ import tools.compat: find, abs, replace, atoi;
 import tools.log;
 
 bool isRelative(string reg) {
-  return reg.find("(") != -1 || reg.find("@NTPOFF") != -1;
+  if (!reg.length) { asm { int 3; } }
+  return reg.find("(") != -1 || reg.find("@NTPOFF") != -1 || ("%$".find(reg[0]) == -1);
 }
 
 bool isMemRef(string mem) {

@@ -294,27 +294,10 @@ class AsmIntBinopExpr : BinopExpr {
         case ">>": return new IntExpr(e1.num >> e2.num);
         case "&": return new IntExpr(e1.num & e2.num);
         case "|": return new IntExpr(e1.num | e2.num);
-        default: assert(false, "can't opt "~aibe.op);
+        default: assert(false, "can't opt/eval (int) "~aibe.op);
       }
     };
   }
-}
-
-static this() {
-  foldopt ~= delegate Expr(Expr ex) {
-    auto aibe = cast(AsmIntBinopExpr) ex;
-    if (!aibe) return null;
-    auto i1 = cast(IntExpr) fold(aibe.e1), i2 = cast(IntExpr) fold(aibe.e2);
-    if (!i1 || !i2) return null;
-    switch (aibe.op) {
-      case "+": return new IntExpr(i1.num + i2.num);
-      case "-": return new IntExpr(i1.num - i2.num);
-      case "*": return new IntExpr(i1.num * i2.num);
-      case "/": return new IntExpr(i1.num / i2.num);
-      default: break;
-    }
-    return null;
-  };
 }
 
 class AsmFloatBinopExpr : BinopExpr {
@@ -344,6 +327,24 @@ class AsmFloatBinopExpr : BinopExpr {
       }
       af.storeFloat("(%esp)");
     }
+  }
+  static this() {
+    foldopt ~= delegate Expr(Expr ex) {
+      auto afbe = cast(AsmFloatBinopExpr) ex;
+      if (!afbe) return null;
+      auto
+        e1 = cast(FloatExpr) foldex(afbe.e1),
+        e2 = cast(FloatExpr) foldex(afbe.e2);
+      if (!e1 || !e2) return null;
+      switch (afbe.op) {
+        case "+": return new FloatExpr(e1.f + e2.f);
+        case "-": return new FloatExpr(e1.f - e2.f);
+        case "*": return new FloatExpr(e1.f * e2.f);
+        case "/": return new FloatExpr(e1.f / e2.f);
+        default: assert(false, "can't opt/eval (float) "~afbe.op);;
+      }
+      return null;
+    };
   }
 }
 

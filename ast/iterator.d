@@ -351,8 +351,32 @@ class ScopeAndExpr : Expr {
     foldopt ~= delegate Itr(Itr it) {
       auto sae = cast(ScopeAndExpr) it;
       if (!sae) return null;
+      if (!sae.sc) return null;
+      auto stmt = sae.sc._body;
+      assert(!stmt); // must be no statements in SAE
+      return null;
+    };
+    foldopt ~= delegate Itr(Itr it) {
+      auto sae = cast(ScopeAndExpr) it;
+      if (!sae) return null;
+      bool visible(Itr it2) {
+        if (sae.ex is it2) return true;
+        bool res;
+        void check(ref Itr it) {
+          if (it is it2) { res = true; return; }
+          it.iterate(&check);
+        }
+        sae.ex.iterate(&check);
+        return res;
+      }
+      bool allUnused = true;
+      foreach (entry; sae.sc.field) {
+        if (auto it = cast(Itr) entry._1) {
+          if (visible(it)) { allUnused = false; break; }
+        }
+      }
       with (sae.sc) {
-        if (!fun && !_body && !guards)
+        if (!_body && !guards && allUnused)
           return sae.ex;
       }
       return null;

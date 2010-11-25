@@ -246,7 +246,7 @@ class ProcTrack : ExtToken {
   int eaten;
   bool noStack; // assumed no stack use; don't challenge this
   string toString() {
-    return Format("cpu(", known, ", stack ", stack.length, "; ", stack, ", pop ", latepop, ", used ", use.keys, " valid ", isValid(), ")");
+    return Format("cpu(", isValid?"[OK]":"[BAD]", " ", known, ", stack ", stack.length, "; ", stack, ", pop ", latepop, ", used ", use.keys, ", nvm ", nvmed, ")");
   }
   string mkIndirect(string val, int delta = 0 /* additional delta */) {
     if (val.startsWith("+(")) {
@@ -293,16 +293,19 @@ class ProcTrack : ExtToken {
       }
       if (mem == val) known.remove(mem);
       else {
-        if (mem.isRelative() && val.isRelative())
-          return false;
-        known[mem] = val;
+        if (val) { // if val is null, this is equivalent to void assignment. do nothing.
+          if (mem.isRelative() && val.isRelative())
+            return false;
+          known[mem] = val;
+        } else return false;
       }
       nvmed.remove(mem);
       return true;
     }
     if (t.kind != Transaction.Kind.Nevermind) {
       if (callDest)      return false;
-      if (latepop)       return false;
+      if (latepop && t.kind != Transaction.Kind.Pop)
+                         return false;
       if (floatldsource) return false;
     }
     with (Transaction.Kind) switch (t.kind) {
@@ -427,8 +430,8 @@ class ProcTrack : ExtToken {
             }
           }
           if (t.to.isUtilityRegister() && !(deref in known) && deref != "%esp") {
-            known[t.to] = t.from;
-            use[deref] = true;
+            if (!set(t.to, t.from))
+              return false;
             mixin(Success);
           }
           return false;
@@ -446,6 +449,15 @@ class ProcTrack : ExtToken {
         if (noStack)
           return false;
         if (t.type.size == nativePtrSize) {
+          int offs;
+          if (auto src = t.source.isIndirect2(offs)) {
+            if (src in known) {
+              if (auto indir = mkIndirect(known[src], offs)) {
+                stack ~= indir;
+                mixin(Success);
+              }
+            }
+          }
           auto val = t.source;
           if (auto p = t.source in known)
             val = *p;
@@ -490,7 +502,7 @@ class ProcTrack : ExtToken {
         if (auto dest = t.dest.isIndirect2(offs)) {
           if (dest in known) {
             if (auto indir = mkIndirect(known[dest], offs)) {
-              if (!stack.length && latepop.length) break;
+              // if (!stack.length && latepop.length) break;
               if (stack.length) {
                 if (!set(indir, stack[$-1]))
                   return false;
@@ -506,12 +518,12 @@ class ProcTrack : ExtToken {
         }
         break;
       case Nevermind:
-        if (!stack.length || !known.length)
+        if (!stack.length && !known.length)
           return false;
         nvmed[t.dest] = true;
         if (!(t.dest in use)) {
+          if (t.dest in known) use[t.dest] = true;
           known.remove(t.dest);
-          use[t.dest] = true;
         }
         mixin(Success);
       case Call:
@@ -605,11 +617,11 @@ class ProcTrack : ExtToken {
         t.source = floatldsource;
       });
     }
-    foreach (key, value; nvmed) {
+    /*foreach (key, value; nvmed) {
       addTransaction(Transaction.Kind.Nevermind, (ref Transaction t) {
         t.dest = key;
       });
-    }
+    }*/
     return res;
   }
   string toAsm() { assert(false); }
@@ -773,45 +785,6 @@ void setupOpts() {
       from = $1.source;
       to = "(%esp)";
     }
-  `));
-  mixin(opt("collapse_push_pop", `^Push, ^Pop:
-    ($0.type.size == $1.type.size) && (!$0.source.isMemRef() || !$1.dest.isMemRef())
-    =>
-    if ($0.source == $1.dest) { /*logln("Who the fuck produced this retarded bytecode: ", match[]);*/ $SUBST(null); continue; }
-    $T[] movs;
-    int size = $0.type.size;
-    string source = $0.source, dest = $1.dest;
-    void incr(ref string s, int sz) {
-      if (s.length && !s.startsWith("$") && !s.startsWith("%") && !s.startsWith("(")) {
-        // num(reg)
-        auto num = s.slice("(").atoi();
-        s = Format(num + sz, "(", s);
-        return;
-      }
-      if (s.length && s[0] == '$') { // number; repeat
-        return;
-      }
-      logln(":: ", s, "; ", $0.source, " -> ", $1.dest);
-      assert(false, "2");
-    }
-    void doMov($TK kind, int sz) {
-      while (size >= sz) {
-        $T mv;
-        mv.kind = kind;
-        mv.from = source; mv.to = dest;
-        mv.stackdepth = $0.stackdepth;
-        size -= sz;
-        if (size) {
-          source.incr(sz);
-          dest.incr(sz);
-        }
-        movs ~= mv;
-      }
-    }
-    doMov($TK.Mov, 4);
-    doMov($TK.Mov2, 2);
-    doMov($TK.Mov1, 1);
-    $SUBST(movs);
   `));
   mixin(opt("fold_add_push", `^MathOp, ^Push:
     $0.opName == "addl" && $0.op1.isNumLiteral() && $0.op2.isUtilityRegister() &&
@@ -986,6 +959,22 @@ void setupOpts() {
         t.type = Single!(SysInt);
         t.source = Format(delta, "(", reg, ")");
         ts = t ~ ts;
+        delta += 4;
+      }
+      $SUBST(ts);
+    }
+  `));
+  mixin(opt("break_up_pop", `^Pop: $0.type.size > 4 && ($0.type.size % 4) == 0
+    =>
+    int delta;
+    if (auto reg = $0.dest.isIndirect2(delta)) {
+      $T[] ts;
+      for (int i = 0; i < $0.type.size / 4; ++i) {
+        $T t;
+        t.kind = $TK.Pop;
+        t.type = Single!(SysInt);
+        t.dest = Format(delta, "(", reg, ")");
+        ts ~= t;
         delta += 4;
       }
       $SUBST(ts);

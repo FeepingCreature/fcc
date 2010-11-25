@@ -269,7 +269,7 @@ class AsmFile {
           goodOpts ~= name;
           anyChange = true;
         }
-        // logln("Executed ", name, " => ", anyChange, "; ", cache.list);
+        // logln("Executed ", name, " => ", anyChange, "; ", cache.list.length);
       }
       // logln("::", anyChange, "; ", cache.list);
       if (!anyChange) break;
