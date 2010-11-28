@@ -55,10 +55,10 @@ class ExtArray : Type {
 }
 
 import ast.structfuns, ast.modules;
-Stuple!(IType, bool, IType)[] cache;
+Stuple!(IType, bool, IType, Module)[] cache;
 IType arrayAsStruct(IType base, bool rich) {
   foreach (entry; cache)
-    if (entry._0 == base && entry._1 == rich) return entry._2;
+    if (entry._0 == base && entry._1 == rich && entry._3.isValid) return entry._2;
   auto res = new Structure(null);
   if (rich)
     new RelMember("capacity", Single!(SysInt), res);
@@ -91,7 +91,7 @@ IType arrayAsStruct(IType base, bool rich) {
   
   mod.entries ~= cast(Tree) fun;
   
-  cache ~= stuple(base, rich, cast(IType) res);
+  cache ~= stuple(base, rich, cast(IType) res, mod);
   return res;
 }
 

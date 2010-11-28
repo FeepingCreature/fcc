@@ -92,8 +92,7 @@ class RelMember : Expr, Named, RelTransformable {
 class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   mixin TypeDefaults!(true, false);
   string name;
-  bool isUnion;
-  bool packed;
+  bool isUnion, packed, isTempStruct;
   int cached_length, cached_size;
   int _size() {
     int res;
@@ -512,13 +511,15 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       else {
         if (t2.eatDash(member)) goto retry;
         string mesg, name;
+        bool dontFail;
         if (auto st = cast(Structure) rn) {
           name = st.name;
           mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names);
+          if (st.isTempStruct) dontFail = true;
         } else
           mesg = Format(member, " is not a member of ", pre_ex.valueType());
         
-        if (member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length" // list of keywords
+        if (!dontFail && member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length" // list of keywords
           && (!name || !name.startsWith("__array_as_struct__")))
           text.failparse(mesg);
         else

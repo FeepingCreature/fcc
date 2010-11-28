@@ -1,11 +1,14 @@
 module ast.vector;
 
-import ast.base, ast.tuples, ast.tuple_access, ast.types, ast.fold;
-import ast.structure, ast.namespace;
+import
+  ast.base, ast.tuples, ast.tuple_access, ast.types, ast.fold,
+  ast.fun, ast.funcall,
+  ast.structure, ast.namespace, ast.modules, ast.structfuns, ast.returns;
 
 class Vector : Type, RelNamespace {
   IType base;
   Tuple asTup;
+  Structure asStruct;
   int len;
   this(IType it, int i) {
     this.base = it;
@@ -14,6 +17,7 @@ class Vector : Type, RelNamespace {
     for (int k = 0; k < i; ++k)
       mew ~= it;
     asTup = mkTuple(mew);
+    asStruct = mkVecStruct(this);
   }
   override {
     int size() { return asTup.size; }
@@ -98,11 +102,67 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotVecConstructor, "tree.expr.veccon", "8");
 
+Stuple!(Structure, Vector, Module)[] cache;
+Structure mkVecStruct(Vector vec) {
+  foreach (entry; cache) if (entry._2.isValid && entry._1 == vec) return entry._0;
+  auto res = new Structure(null);
+  res.isTempStruct = true;
+  for (int i = 0; i < vec.len; ++i)
+    new RelMember(["xyzw"[i]], vec.base, res);
+  
+  Expr sqr(Expr ex) { return lookupOp("*", ex, ex); }
+  
+  auto lensq = new RelFunction(res);
+  with (lensq) {
+    New(type);
+    type.ret = Single!(Float);
+    name = "lensq";
+    fixup;
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(lensq);
+    Expr length = sqr(cast(Expr) lookup("x"));
+    for (int i = 1; i < vec.len; ++i)
+      length = lookupOp("+", length, sqr(cast(Expr) lookup(["xyzw"[i]])));
+    tree = new ReturnStmt(length);
+  }
+  res.add(lensq);
+  current_module().entries ~= lensq;
+  
+  auto len = new RelFunction(res);
+  with (len) {
+    New(type);
+    type.ret = Single!(Float);
+    name = "length";
+    fixup;
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(len);
+    Expr length = sqr(cast(Expr) lookup("x"));
+    for (int i = 1; i < vec.len; ++i)
+      length = lookupOp("+", length, sqr(cast(Expr) lookup(["xyzw"[i]])));
+    tree = new ReturnStmt(buildFunCall(
+      cast(Function) sysmod.lookup("sqrtf"), length
+    ));
+  }
+  res.add(len);
+  current_module().entries ~= len;
+  
+  cache ~= stuple(res, vec, current_module());
+  return res;
+}
+
 import ast.casting, ast.static_arrays;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (auto vec = cast(Vector) ex.valueType()) {
       return reinterpret_cast(new StaticArray(vec.base, vec.len), ex);
+    }
+    return null;
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (auto vec = cast(Vector) ex.valueType()) {
+      return reinterpret_cast(vec.asStruct, ex);
     }
     return null;
   };

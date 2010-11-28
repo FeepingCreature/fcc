@@ -117,8 +117,6 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   auto len_parse = sec() - start_parse;
   double len_opt;
   len_opt = time({
-    if (!ematSysmod)
-      .optimize(sysmod);
     .optimize(mod);
   }) / 1_000_000f;
   auto len_gen = time({
@@ -162,6 +160,119 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
   system(cmdline.toStringz());
 }
 
+import std.file;
+void loop(string start, string output, string[] largs, bool optimize, bool runMe) {
+  string toModule(string file) { return file.replace("/", ".").endsWith(".cr"); }
+  string undo(string mod) {
+    return mod.replace(".", "/") ~ ".cr";
+  }
+  void translate(string file, ref string obj, ref string src) {
+    if (auto pre = file.endsWith(EXT)) {
+      src = pre ~ ".s";
+      obj = pre ~ ".o";
+    } else assert(false);
+  }
+  bool isUpToDate(string file) {
+    string obj, src;
+    file.translate(obj, src);
+    if (!obj.exists()) return false;
+    long created1, accessed1, modified1, created2, accessed2, modified2;
+    file.getTimes(created1, accessed1, modified1);
+    obj.getTimes(created2, accessed2, modified2);
+    return modified1 < modified2;
+  }
+  void invalidate(string file) {
+    auto modname = file.toModule();
+    if (auto p = modname in ast.modules.cache) {
+      p.isValid = false;
+    }
+    ast.modules.cache.remove(modname);
+  }
+  Module parse(string file, ref double len_parse, ref double len_opt, ref bool wasPresent) {
+    void resetSysmod() {
+      if (sysmod)
+        sysmod.isValid = false;
+      sysmod = null;
+      setupSysmods();
+      .optimize(sysmod);
+    }
+  
+    auto modname = file.toModule();
+    auto start_parse = sec();
+    
+    if (!isUpToDate(file)) {
+      file.invalidate();
+    }
+    wasPresent = !!(modname in ast.modules.cache);
+    
+    if (file == start && !wasPresent)
+      resetSysmod();
+    auto mod = lookupMod(modname);
+    len_parse = sec() - start_parse;
+    len_opt = 0;
+    if (!wasPresent) len_opt = time({ .optimize(mod); }) / 1_000_000f;
+    return mod;
+  }
+  bool compile(string file, string asmname, string objname, ref Module mod) {
+    double len_opt, len_parse;
+    bool wasDone;
+    mod = parse(file, len_parse, len_opt, wasDone);
+    if (wasDone) return false;
+    auto af = new AsmFile(optimize, file.toModule());
+    scope(exit) unlink (asmname.toStringz());
+    auto len_gen = time({
+      if (file == start) {
+        sysmod.emitAsm(af);
+        ematSysmod = true;
+      }
+      mod.emitAsm(af);
+    }) / 1_000_000f;
+    writefln(file, ": ", len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
+    scope f = new File(asmname, FileMode.OutNew);
+    af.genAsm((string s) { f.write(cast(ubyte[]) s); });
+    f.close;
+    auto cmdline = Format("as --32 -o ", objname, " ", asmname);
+    writefln("> ", cmdline);
+    system(cmdline.toStringz()) == 0
+      || assert(false, "Compilation failed! ");
+    return true;
+  }
+  void recursiveBuild(string file) {
+    bool[string] objmap;
+    bool recurse(string file) {
+      string obj, src;
+      file.translate(obj, src);
+      Module mod;
+      auto didCompile = file.compile(src, obj, mod);
+      bool anyChanged;
+      foreach (entry; mod.imports)
+        if (!(entry.name == "sys")) {
+          auto didAlsoCompile = recurse(entry.name.undo());
+          if (didAlsoCompile) anyChanged = true;
+        }
+      if (anyChanged && !didCompile) {
+        file.invalidate();
+        didCompile = file.compile(src, obj, mod);
+      }
+      objmap[obj] = true;
+      return didCompile;
+    }
+    recurse(file);
+    auto objects = objmap.keys;
+    objects.link(output, largs, true);
+  }
+  while (true) {
+    bool success = true;
+    try recursiveBuild(start);
+    catch (Exception ex) { logln(ex); success = false; }
+    if (success && runMe) {
+      system(toStringz("./"~output));
+    }
+    logln("Please press return to continue. ");
+    readln();
+  }
+}
+
 import assemble: debugOpts;
 int main(string[] args) {
   log_threads = false;
@@ -182,13 +293,19 @@ int main(string[] args) {
     if (initedSysmod) return;
     initedSysmod = true;
     setupSysmods();
+    .optimize(sysmod);
   }
   string configOpts;
+  bool willLoop; string mainfile;
   while (ar.length) {
     auto arg = ar.take();
     if (arg == "-pthread") continue; // silently ignore;
     if (arg == "-o") {
       output = ar.take();
+      continue;
+    }
+    if (arg == "--loop" || arg == "-F") {
+      willLoop = true;
       continue;
     }
     if (auto rest = arg.startsWith("-l").strip()) {
@@ -257,15 +374,22 @@ int main(string[] args) {
     }
     if (auto base = arg.endsWith(".cr")) {
       if (!output) output = arg[0 .. $-3];
-      lazySysmod();
-      try objects ~= arg.compile(saveTemps, optimize, configOpts);
-      catch (Exception ex) { logln(ex.toString()); return 1; }
+      if (!mainfile) mainfile = arg;
+      if (!willLoop) {
+        lazySysmod();
+        try objects ~= arg.compile(saveTemps, optimize, configOpts);
+        catch (Exception ex) { logln(ex.toString()); return 1; }
+      }
       continue;
     }
     logln("Invalid argument: ", arg);
     return 1;
   }
   if (!output) output = "exec";
+  if (willLoop) {
+    loop(mainfile, output?output:"exec", largs, optimize, runMe);
+    return 0;
+  }
   objects.link(output, largs, saveTemps);
   if (runMe) system(toStringz("./"~output));
   return 0;

@@ -35,7 +35,6 @@ static this() {
           opt(sc2);
           sc.addStatement(sc2);
         }
-        logln("Unroll: ", len, " substituted. ");
         return sc;
       }
     }

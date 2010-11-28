@@ -60,7 +60,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.gotIdentifier(name)) return null;
   auto ctx = new Context(name);
   namespace().add(ctx);
-  logln("got context ", name, ", sup is ", namespace());
+  // logln("got context ", name, ", sup is ", namespace());
   ctx.sup = namespace();
   namespace.set(ctx);
   scope(exit) namespace.set(ctx.sup);

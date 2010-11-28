@@ -6,6 +6,7 @@ import ast.vardecl, ast.assign, ast.math;
 class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
+  this(Expr ex) { ns = namespace(); value = ex; this(); }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(value);

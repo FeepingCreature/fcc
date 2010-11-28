@@ -424,7 +424,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     // logln("Add ", thing);
     ns.add(thing);
   }
-  logln("Got ", res.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
+  logln("# Got ", res.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
 }
 
 import ast.fold, ast.literal_string;
@@ -465,7 +465,7 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
       /map/ (string s) { return "-I"~s; }
       ).join(" ")
     ~ " " ~ filename;
-  logln("? ", cmdline);
+  // logln("? ", cmdline);
   auto src = readback(cmdline);
   parseHeader(filename, src, rest);
   return Single!(NoOp);

@@ -402,6 +402,7 @@ import ast.aggregate, ast.literals: DataExpr;
 Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr sub, main;
   auto t2 = text;
+  
   string ivarname;
   auto t3 = t2;
   if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
@@ -438,7 +439,6 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(backup);
   
   auto sc = new Scope;
-  sc.mayMultiEmit = true;
   namespace.set(sc);
   
   if (!rest(t2, "tree.expr", &main))

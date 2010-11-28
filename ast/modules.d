@@ -22,6 +22,8 @@ class Module : Namespace, Tree, Named {
   Tree[] entries;
   Setupable[] setupable;
   AsmFile inProgress; // late to the party;
+  bool isValid; // still in the build list; set to false if superceded by a newer Module
+  this() { if (sysmod && sysmod !is this) imports ~= sysmod; isValid = true; }
   void addSetupable(Setupable s) {
     setupable ~= s;
     if (inProgress) s.setup(inProgress);
@@ -158,6 +160,7 @@ Module lookupMod(string name) {
 import ast.pointer;
 // not static this() to work around a precedence bug in phobos. called from fcc.
 void setupSysmods() {
+  if (sysmod) return;
   string src = `
     module sys;
     alias bool = int;
@@ -174,6 +177,7 @@ void setupSysmods() {
       void* memcpy(void* dest, src, int n);
       int memcmp(void* s1, s2, int n);
       int snprintf(char* str, int size, char* format, ...);
+      float sqrtf(float);
     }
     bool strcmp(char[] a, b) {
       if a.length != b.length return false;
@@ -422,7 +426,7 @@ void setupSysmods() {
         return res;
       }
     EOF
-  `;
+  `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.

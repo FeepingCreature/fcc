@@ -88,6 +88,8 @@ bool accept(ref string s, string t) {
   }
   t = t.strip();
   s2.eatComments();
+  if (t == "<-" && s2.startsWith("←")) t = "←";
+  
   return s2.startsWith(t) && (!s2[t.length .. $].length || t.length && !isNormal(t[$-1]) || !isNormal(s2[t.length])) && (s = s2[t.length .. $], true) && (
     !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
   );
