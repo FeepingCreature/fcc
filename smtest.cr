@@ -41,15 +41,15 @@ void drawScene() {
     glDrawArrays (GL_QUADS, 0, cubedata[0].length);
   }
   
-  glScalef (0.5 x 3);
+  glScalef (0.2 x 3);
   glTranslatef (0, 2 * sin(t / 64), 0);
   bool fun(vec3f v) {
-    if v.length() > 10 return false;
+    if v.length() + noise3(v * 0.3) * 2.5 > 10 return false;
     if (v.xy.length() < 4 || v.yz.length() < 4 || v.xz.length() < 4) return false;
     return true;
   }
   while auto vec ← [for x ← cross (-10 .. 10) x 3: vec3f(x)] if fun(vec) using glMatrix {
-    if (noise2(vec.xz * 0.1) > 0.5) glBindTexture (GL_TEXTURE_2D, tex1);
+    if (noise3(vec * 0.3) > 0.5) glBindTexture (GL_TEXTURE_2D, tex1);
     else glBindTexture (GL_TEXTURE_2D, tex2);
     glTranslatef vec;
     drawCube();
