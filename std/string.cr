@@ -29,6 +29,14 @@ string between(string s, string from, string to) {
   return s;
 }
 
+template join(T) <<EOF
+  string join(T t) {
+    char[auto~] res;
+    while auto chunk <- t { res ~= string: chunk; }
+    return res[];
+  }
+EOF
+
 template splitAt(T) <<EOF
   class iter {
     T sup;
