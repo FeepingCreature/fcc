@@ -30,7 +30,7 @@ FILE* open(string file) {
   return fopen(ptr, "r");
 }
 
-string readAll(string file) { return join readfile open file; }
+ubyte[] readAll(string file) { return join readfile open file; }
 
 class WriterError {
 }

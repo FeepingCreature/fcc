@@ -27,7 +27,7 @@ float noise2(vec2f f) {
   if !perm.length permsetup;
   float sqrt3 = sqrtf(3);
   float f2 = 0.5 * (sqrt3 - 1), g2 = (3 - sqrt3) / 6;
-  fesetround(1024);
+  fesetround(FE_DOWNWARD);
   float[3] n = void;
   
   float s = (f.x + f.y) * f2;
@@ -35,7 +35,7 @@ float noise2(vec2f f) {
   
   float t = (i + j) * g2;
   vec2f[3] xy;
-  xy[0] = f - ((vec2i(i,j)) - vec2f(t));
+  xy[0] = f - (vec2i(i,j) - vec2f(t));
   
   int i1, j1;
   if xy[0].x > xy[0].y i1 = 1;
@@ -43,7 +43,7 @@ float noise2(vec2f f) {
   
   {
     auto temp = 1 - 2 * g2;
-    xy[1] = xy[0] - (vec2i(i1, j1)) + vec2f (g2);
+    xy[1] = xy[0] - vec2i(i1, j1) + vec2f (g2);
     xy[2] = xy[0] - vec2f(temp);
   }
   int ii = i & 255, jj = j & 255;
@@ -67,10 +67,10 @@ float noise2(vec2f f) {
 float noise3(vec3f v) {
   if !perm.length permsetup;
   auto s = (v.x + v.y + v.z) / 3;
-  fesetround(1024);
+  fesetround(FE_DOWNWARD);
   int i = int:(v.x + s), j = int:(v.y + s), k = int:(v.z + s);
   auto t = (i + j + k) / 6.0;
-  auto V0 = (vec3i(i, j, k)) - vec3f(t);
+  auto V0 = vec3i(i, j, k) - vec3f(t);
   vec3f[4] vs;
   vs[0] = v - V0;
   
@@ -93,7 +93,7 @@ float noise3(vec3f v) {
   }
   vs[1] = vs[0] - offs1 + 1.0 / 6;
   vs[2] = vs[0] - offs2 + 2.0 / 6;
-  vs[3] = vs[0] - (vec3f(1)) + 3.0 / 6;
+  vs[3] = vs[0] - vec3f(1) + 3.0 / 6;
   int ii = i & 255, jj = j & 255, kk = k & 255;
   int[4] gi = void;
   alias i1 = offs1.x; alias i2 = offs2.x;

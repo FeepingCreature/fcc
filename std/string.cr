@@ -30,10 +30,10 @@ string between(string s, string from, string to) {
 }
 
 template join(T) <<EOF
-  string join(T t) {
-    char[auto~] res;
-    while auto chunk <- t { res ~= string: chunk; }
-    return res[];
+  type-of (__istep init!T) join(T t) {
+    type-of (__istep t)[0][auto~] res;
+    while auto chunk <- t { res ~= chunk; }
+    return (res[]);
   }
 EOF
 

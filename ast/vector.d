@@ -70,7 +70,7 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   if (!vec)
     return null;
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex)) return null;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) return null;
   auto ex2 = ex;
   if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
     Expr[] exs;

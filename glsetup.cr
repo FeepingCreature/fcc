@@ -25,7 +25,7 @@ int initGL() {
   glClearColor (0 x 4);
   glClearDepth 1;
   glEnable GL_DEPTH_TEST;
-  glDepthFunc GL_LEQUAL;
+  glDepthFunc GL_LESS; // lequal is bad for mesa
   glEnable GL_TEXTURE_2D;
   glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
   return true;

@@ -182,6 +182,7 @@ void setupSysmods() {
     alias true = bool:1;
     alias false = bool:0;
     alias null = void*:0;
+    alias ubyte = byte; // TODO
     extern(C) {
       void puts(char*);
       void printf(char*, ...);

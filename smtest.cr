@@ -15,9 +15,10 @@ void drawScene() {
   // glRotatef (t, 1, 0.1, 0);
   // glRotatef (180, 1, 0, 0);
   glRotatef (t, 0, 1, 0);
-  t -= 0.1;
-  (vec3f[auto~], vec3f[auto~], vec2f[auto~]) cubedata;
-  onExit { cubedata[0].free; cubedata[1].free; cubedata[2].free; }
+  t -= 1;
+  alias cubetype = (vec3f, vec3f, vec2f);
+  cubetype[auto~] cubedata;
+  onExit cubedata.free;
   void genCubeData() {
     alias points = cross ((0..2) x 3);
     alias cols = [for i ← 0..8: i / 8.0];
@@ -25,9 +26,11 @@ void drawScene() {
     static while (int idx, int count) ← zip ([
       0, 1, 3, 2,  4, 5, 7, 6, // top, bottom
       0, 1, 5, 4,  1, 3, 7, 5,  3, 2, 6, 7,  2, 0, 4, 6], 0..-1) { // sides
-      cubedata[0] ~= vec3f (cols[idx] x 3);
-      cubedata[1] ~= vec3f (points[idx]);
-      cubedata[2] ~= vec2f (coords[count%4]);
+      cubedata ~= (
+        vec3f (cols[idx] x 3),
+        vec3f (points[idx]),
+        vec2f (coords[count%4])
+      );
     }
   }
   genCubeData();
@@ -35,17 +38,21 @@ void drawScene() {
     glEnableClientState GL_VERTEX_ARRAY;
     glEnableClientState GL_COLOR_ARRAY;
     glEnableClientState GL_TEXTURE_COORD_ARRAY;
-    glColorPointer (3, GL_FLOAT, size-of vec3f, cubedata[0].ptr);
-    glVertexPointer (3, GL_FLOAT, size-of vec3f, cubedata[1].ptr);
-    glTexCoordPointer (2, GL_FLOAT, size-of vec2f, cubedata[2].ptr);
-    glDrawArrays (GL_QUADS, 0, cubedata[0].length);
+    glColorPointer (3, GL_FLOAT, size-of cubetype, &cubedata[0][0]);
+    glVertexPointer (3, GL_FLOAT, size-of cubetype, &cubedata[0][1]);
+    glTexCoordPointer (2, GL_FLOAT, size-of cubetype, &cubedata[0][2]);
+    glDrawArrays (GL_QUADS, 0, cubedata.length);
   }
   
   glScalef (0.2 x 3);
   glTranslatef (0, 2 * sin(t / 64), 0);
   bool fun(vec3f v) {
-    if v.length() + noise3(v * 0.3) * 2.5 > 10 return false;
-    if (v.xy.length() < 4 || v.yz.length() < 4 || v.xz.length() < 4) return false;
+    float max(float a, float b) { if (a > b) return a; else return b; }
+    float abs(float f) { if (f < 0) return -f; return f; }
+    auto dist = max(max(abs(v.x), abs(v.y)), abs(v.z));
+    dist -= noise3(v * 0.3) * 3;
+    if dist > 7 return false;
+    if dist < 6 return false;
     return true;
   }
   while auto vec ← [for x ← cross (-10 .. 10) x 3: vec3f(x)] if fun(vec) using glMatrix {
@@ -78,15 +85,15 @@ int loadTexture(string name) {
   // glTexImage2D(GL_TEXTURE_2D, 0, 3, img.sx, img.sy, 0, GL_RGBA, GL_UNSIGNED_BYTE, img.tpixels);
   gluBuild2DMipmaps (GL_TEXTURE_2D, 3, img.sx, img.sy, GL_RGBA, GL_UNSIGNED_BYTE, data.ptr);
   data.free;
-  glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   return tex;
 }
 
 int main(int argc, char** argv) {
   auto surf = setup-gl();
-  tex1 = loadTexture "smooth-rock-tex-512.png";
-  tex2 = loadTexture "vivid-rock-tex-512.png";
+  tex1 = loadTexture "letter-a.png";
+  tex2 = loadTexture "letter-b.png";
   while true {
     drawScene();
     if update(surf) quit(0);

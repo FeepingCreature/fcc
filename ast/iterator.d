@@ -620,17 +620,18 @@ mixin DefaultParser!(gotIterCond, "cond.iter", "705");
 
 Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  Object obj;
-  if (!rest(t2, "tree.expr", &obj) || !cast(LValue) obj) {
-    logln("refusing istep - nothing matched or not lvalue: ", obj);
+  Expr ex;
+  if (!rest(t2, "tree.expr", &ex) || !cast(LValue) ex) {
+    logln("refusing istep - nothing matched or not lvalue: ", ex);
     return null;
   }
-  auto lv = cast(LValue) obj;
+  auto backup = ex;
+  if (!gotImplicitCast(ex, (IType it) { return test(cast(Iterator) it); })) {
+    logln("refusing istep: not an iterator ", backup.valueType());
+    return null;
+  }
+  auto lv = cast(LValue) ex;
   auto it = cast(Iterator) lv.valueType();
-  if (!it) {
-    logln("refusing istep: not an iterator ", lv.valueType());
-    return null;
-  }
   text = t2;
   return cast(Object) it.yieldAdvance(lv);
 }

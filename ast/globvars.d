@@ -50,10 +50,13 @@ class GlobVar : LValue, Named {
   }
 }
 
-class GlobVarDecl : Statement {
+class GlobVarDecl : Statement, IsMangled {
   GlobVar[] vars;
   bool tls;
   mixin defaultIterate!();
+  override string mangleSelf() {
+    return vars[0].mangled();
+  }
   override typeof(this) dup() { assert(false, "hey now.."); }
   override string toString() { return Format("declare ", tls?"tls ":"", vars); }
   override void emitAsm(AsmFile af) {
