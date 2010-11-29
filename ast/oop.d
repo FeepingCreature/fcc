@@ -184,7 +184,7 @@ class IntfRef : Type, SemiRelNamespace {
 }
 
 import ast.modules;
-class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefType {
+class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefType, IsMangled {
   VTable myfuns;
   Structure data;
   string name;
@@ -198,6 +198,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
   RelFunction[string] overrides;
   string mangle_id;
   override string mangle() { return mangle_id; }
+  override string mangleSelf() { return mangle(); }
   override bool addsSelf() { return true; }
   override Class dup() { assert(false, "wetfux! "); }
   this(string name, Class parent) {

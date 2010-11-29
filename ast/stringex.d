@@ -82,8 +82,10 @@ Expr simpleFormat(Expr ex) {
     return buildFunCall(cast(Function) sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex));
   }
   if (auto sa = cast(StaticArray) type) {
-    ex = staticToArray(ex);
-    type = ex.valueType();
+    if (cast(CValue) ex) {
+      ex = staticToArray(ex);
+      type = ex.valueType();
+    }
   }
   if (auto dg = cast(Delegate) type) {
     return iparse!(Expr, "gen_dg_format", "tree.expr")

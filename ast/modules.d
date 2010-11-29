@@ -96,7 +96,16 @@ static this() {
   registerSetupable = (Setupable s) { current_module().addSetupable(s); };
 }
 
-Module sysmod;
+// extras == stuff added by the compiler
+Module sysmod, extras;
+void addExtra(IsMangled im) {
+  auto mangled = im.mangleSelf();
+  foreach (ref entry; extras.entries) {
+    if (auto im2 = cast(IsMangled) entry)
+      if (im2.mangleSelf() == mangled) { entry = cast(Tree) im; return; }
+  }
+  extras.entries ~= cast(Tree) im;
+}
 
 extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace
 
@@ -106,6 +115,8 @@ Lock cachelock; // also covers currentlyParsing
 bool[string] currentlyParsing;
 
 static this() { New(cachelock); }
+
+bool delegate(string) rereadMod;
 
 import tools.compat: read, castLike, exists, sub;
 Module lookupMod(string name) {
@@ -123,8 +134,10 @@ Module lookupMod(string name) {
     }
     if (auto p = name in cache) {
       // return *p; // BAD!
-      res = *p;
-      return;
+      if (!rereadMod || !rereadMod(name)) {
+        res = *p;
+        return;
+      }
     }
     currentlyParsing[name] = true;
   };
@@ -143,6 +156,7 @@ Module lookupMod(string name) {
       }
     }
   }
+  // logln("read ", fn);
   auto file = fn.read().castLike("");
   synchronized(SyncObj!(sourcefiles))
     sourcefiles[fn] = file;
@@ -160,6 +174,7 @@ Module lookupMod(string name) {
 import ast.pointer;
 // not static this() to work around a precedence bug in phobos. called from fcc.
 void setupSysmods() {
+  if (!extras) New(extras);
   if (sysmod) return;
   string src = `
     module sys;
@@ -295,6 +310,9 @@ void setupSysmods() {
     alias vec2f = vec(float, 2);
     alias vec3f = vec(float, 3);
     alias vec4f = vec(float, 4);
+    alias vec2i = vec(int, 2);
+    alias vec3i = vec(int, 3);
+    alias vec4i = vec(int, 4);
     string ptoa(void* p) {
       auto res = new char[(size-of size_t) * 2 + 2 + 1];
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit

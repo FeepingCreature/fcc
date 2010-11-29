@@ -22,6 +22,7 @@ class Vector : Type, RelNamespace {
   override {
     int size() { return asTup.size; }
     string mangle() { return Format("vec_", len, "_", base.mangle()); }
+    string toString() { return Format("vec(", base, ", ", len, ")"); }
     ubyte[] initval() { return asTup.initval(); }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
@@ -81,6 +82,7 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   }
   retryTup:
   auto tup = cast(Tuple) ex.valueType();
+  if (!tup) t2.failparse("WTF? No tuple param for vec constructor: ", ex.valueType());
   if (tup.types.length == 1) {
     ex = getTupleEntries(ex)[0];
     goto retryTup;
@@ -222,17 +224,19 @@ static this() {
     auto v1v = cast(Vector) v1, v2v = cast(Vector) v2;
     if (!v1v && !v2v) return null;
     
-    assert(!v1v || !v2v || v1v == v2v);
-    Vector vt;
-    if (v1v) vt = v1v;
-    else vt = v2v;
+    assert(!v1v || !v2v || v1v.asTup.types.length == v2v.asTup.types.length, Format("Mismatching tuple types: ", v1v, " and ", v2v));
+    int len;
+    if (v1v) len = v1v.asTup.types.length;
+    else len = v2v.asTup.types.length;
     Expr[] list;
-    for (int i = 0; i < vt.asTup.types.length; ++i) {
+    for (int i = 0; i < len; ++i) {
       auto exl = lhs, exr = rhs;
       if (v1v) exl = getTupleEntries(reinterpret_cast(v1v.asTup, exl))[i];
       if (v2v) exr = getTupleEntries(reinterpret_cast(v2v.asTup, exr))[i];
       list ~= lookupOp(op, exl, exr);
     }
+    auto type = list[0].valueType();
+    auto vt = new Vector(type, len);
     return reinterpret_cast(vt, new StructLiteral(vt.asTup.wrapped, list));
   }
   Expr negate(Expr ex) {

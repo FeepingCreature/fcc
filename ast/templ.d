@@ -94,7 +94,10 @@ class TemplateInstance : Namespace {
           /*if (auto fun = cast(Function) tr)
             logln("add ", fun.mangleSelf(), " to ", current_module().name,
               ", at ", current_module().entries.length, "; ", cast(void*) current_module());*/
-          current_module().entries ~= tr;
+          // current_module().entries ~= tr;
+          auto mg = cast(IsMangled) tr;
+          if (!mg) { logln("!! ", tr); asm { int 3; } }
+          addExtra(mg);
         }
       ) || t2.strip().length)
         t2.failparse("Failed to parse template content");

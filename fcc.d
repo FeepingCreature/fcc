@@ -123,6 +123,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     if (!ematSysmod) {
       sysmod.emitAsm(af);
       ematSysmod = true;
+      extras.emitAsm(af);
     }
     mod.emitAsm(af);
     // TODO: reset mod for fccd build
@@ -188,6 +189,8 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
     }
     ast.modules.cache.remove(modname);
   }
+  typeof(ast.modules.cache) precache;
+  rereadMod= delegate bool(string mod) { return !mod.undo().isUpToDate(); };
   Module parse(string file, ref double len_parse, ref double len_opt, ref bool wasPresent) {
     void resetSysmod() {
       if (sysmod)
@@ -203,7 +206,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
     if (!isUpToDate(file)) {
       file.invalidate();
     }
-    wasPresent = !!(modname in ast.modules.cache);
+    wasPresent = !!(modname in precache);
     
     if (file == start && !wasPresent)
       resetSysmod();
@@ -213,29 +216,42 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
     if (!wasPresent) len_opt = time({ .optimize(mod); }) / 1_000_000f;
     return mod;
   }
-  bool compile(string file, string asmname, string objname, ref Module mod) {
+  void delegate() process(string file, string asmname, string objname, ref Module mod) {
     double len_opt, len_parse;
     bool wasDone;
     mod = parse(file, len_parse, len_opt, wasDone);
-    if (wasDone) return false;
-    auto af = new AsmFile(optimize, file.toModule());
-    scope(exit) unlink (asmname.toStringz());
-    auto len_gen = time({
-      if (file == start) {
-        sysmod.emitAsm(af);
-        ematSysmod = true;
-      }
-      mod.emitAsm(af);
-    }) / 1_000_000f;
-    writefln(file, ": ", len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
-    scope f = new File(asmname, FileMode.OutNew);
-    af.genAsm((string s) { f.write(cast(ubyte[]) s); });
-    f.close;
-    auto cmdline = Format("as --32 -o ", objname, " ", asmname);
-    writefln("> ", cmdline);
-    system(cmdline.toStringz()) == 0
-      || assert(false, "Compilation failed! ");
-    return true;
+    if (wasDone) return null;
+    return stuple(file, start, asmname, objname, mod, optimize, len_opt, len_parse) /apply/
+    (string file, string start, string asmname, string objname, Module mod, bool optimize, double len_opt, double len_parse) {
+      auto af = new AsmFile(optimize, file.toModule());
+      scope(exit) unlink (asmname.toStringz());
+      auto len_gen = time({
+        if (file == start) {
+          sysmod.emitAsm(af);
+          void recurse(ref Iterable it) {
+            if (auto sae = cast(StatementAndExpr) it) sae.once = false;
+            it.iterate(&recurse);
+          }
+          foreach (entry; extras.entries) {
+            // reset for re-emit
+            if (auto sae = cast(StatementAndExpr) entry) sae.once = false;
+            if (auto it = cast(Iterable) entry) recurse(it);
+          }
+          extras.emitAsm(af);
+          ematSysmod = true;
+        }
+        mod.emitAsm(af);
+      }) / 1_000_000f;
+      if (len_parse + len_opt + len_gen > 0.1)
+        writefln(file, ": ", len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
+      scope f = new File(asmname, FileMode.OutNew);
+      af.genAsm((string s) { f.write(cast(ubyte[]) s); });
+      f.close;
+      auto cmdline = Format("as --32 -o ", objname, " ", asmname);
+      writefln("> ", cmdline);
+      system(cmdline.toStringz()) == 0
+        || assert(false, "Compilation failed! ");
+    };
   }
   void recursiveBuild(string file) {
     bool[string] objmap;
@@ -243,33 +259,39 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
       string obj, src;
       file.translate(obj, src);
       Module mod;
-      auto didCompile = file.compile(src, obj, mod);
+      auto compile = file.process(src, obj, mod);
       bool anyChanged;
       foreach (entry; mod.imports)
         if (!(entry.name == "sys")) {
           auto didAlsoCompile = recurse(entry.name.undo());
           if (didAlsoCompile) anyChanged = true;
         }
-      if (anyChanged && !didCompile) {
+      if (anyChanged && !compile) {
         file.invalidate();
-        didCompile = file.compile(src, obj, mod);
+        compile = file.process(src, obj, mod);
       }
+      if (compile) compile();
       objmap[obj] = true;
-      return didCompile;
+      return !!compile;
     }
     recurse(file);
     auto objects = objmap.keys;
     objects.link(output, largs, true);
   }
+  auto last = sec();
+  precache = ast.modules.cache;
   while (true) {
     bool success = true;
     try recursiveBuild(start);
     catch (Exception ex) { logln(ex); success = false; }
+    auto taken = sec() - last;
     if (success && runMe) {
       system(toStringz("./"~output));
     }
-    logln("Please press return to continue. ");
+    if (success) precache = ast.modules.cache;
+    logln(taken, " :please press return to continue. ");
     readln();
+    last = sec();
   }
 }
 

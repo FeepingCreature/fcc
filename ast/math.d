@@ -367,7 +367,7 @@ static this() {
     }
     if (gotImplicitCast(ex1, &isPointer)) {
       if (isPointer(ex2.valueType())) return null;
-      if (cast(Float) ex2.valueType()) asm { int 3; }
+      if (cast(Float) ex2.valueType()) { logln(ex1, " ", op, " ", ex2, "; WTF?! "); asm { int 3; } }
       assert(!isFloat(ex2.valueType()));
       auto mul = (cast(Pointer) ex1.valueType()).target.size;
       ex2 = handleIntMath("*", ex2, new IntExpr(mul));

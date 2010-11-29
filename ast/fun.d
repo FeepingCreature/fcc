@@ -25,7 +25,7 @@ class FunSymbol : Symbol {
 
 extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
-class Function : Namespace, Tree, Named, SelfAdding {
+class Function : Namespace, Tree, Named, SelfAdding, IsMangled {
   string name;
   Expr getPointer() {
     return new FunSymbol(this);
@@ -71,7 +71,7 @@ class Function : Namespace, Tree, Named, SelfAdding {
     return cur;
   }
   string cleaned_name() { return name.cleanup(); }
-  string mangleSelf() {
+  override string mangleSelf() {
     if (extern_c || name == "main")
       return cleaned_name;
     else

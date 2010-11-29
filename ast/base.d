@@ -25,6 +25,8 @@ interface NeedsConfig {
   void configure();
 }
 
+interface IsMangled { string mangleSelf(); }
+
 // pointer for structs, ref for classes
 interface hasRefType {
   IType getRefType();
