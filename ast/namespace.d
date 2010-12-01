@@ -101,6 +101,11 @@ class Namespace {
   abstract Stuple!(IType, string, int)[] stackframe();
 }
 
+class NoNameSpace : Namespace {
+  override string mangle(string name, IType type) { assert(false); }
+  override Stuple!(IType, string, int)[] stackframe() { assert(false); }
+}
+
 interface RelNamespace {
   Object lookupRel(string str, Expr base);
 }

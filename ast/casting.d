@@ -188,10 +188,14 @@ Object gotDCMExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotDCMExpr, "tree.expr.dcm", "53");
 
 import tools.threads: TLS;
+import ast.namespace;
 TLS!(IType[]) gotImplicitCast_visited_cache; // we go in here a lot, so this pays off
 static this() { New(gotImplicitCast_visited_cache, { return &(new Stuple!(IType[]))._0; }); }
 bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
   if (!ex) asm { int 3; }
+  auto ns = namespace();
+  if (!ns) namespace.set(new NoNameSpace); // lots of stuff does namespace().get!() .. pacify it
+  scope(exit) namespace.set(ns);
   auto visited = *(gotImplicitCast_visited_cache.ptr());
   scope(exit) *(gotImplicitCast_visited_cache.ptr()) = visited;
   int visited_offs;

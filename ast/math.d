@@ -23,13 +23,26 @@ class IntAsFloat : Expr {
   }
 }
 
-import ast.casting, ast.fold, ast.literals;
+import ast.casting, ast.fold, ast.literals, ast.fun;
+extern(C) float sqrtf(float);
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
     if (auto iaf = cast(IntAsFloat) ex) {
       auto i = fold(iaf.i);
       if (auto ie = cast(IntExpr) i) {
         return new FloatExpr(ie.num);
+      }
+    }
+    return null;
+  };
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto fc = cast(FunCall) ex) {
+      if (fc.fun.extern_c && fc.fun.name == "sqrtf") {
+        assert(fc.params.length == 1);
+        auto fe = fc.params[0];
+        if (!gotImplicitCast(fe, (Expr ex) { return test(cast(FloatExpr) foldex(ex)); }))
+          return null;
+        return new FloatExpr(sqrtf((cast(FloatExpr) foldex(fe)).f));
       }
     }
     return null;

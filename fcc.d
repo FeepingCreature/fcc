@@ -120,15 +120,12 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     .optimize(mod);
   }) / 1_000_000f;
   auto len_gen = time({
+    mod.emitAsm(af);
     if (!ematSysmod) {
       sysmod.emitAsm(af);
       ematSysmod = true;
       extras.emitAsm(af);
     }
-    mod.emitAsm(af);
-    // TODO: reset mod for fccd build
-    // auto afx = new AsmFile(optimize, file.replace("/", "_").replace(".cr", ""));
-    // mod.emitAsm(afx);
   }) / 1_000_000f;
   writefln(len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
   Stuple!(string, float)[] entries;
