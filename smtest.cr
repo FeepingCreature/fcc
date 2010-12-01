@@ -50,9 +50,9 @@ void drawScene() {
     float max(float a, float b) { if (a > b) return a; else return b; }
     float abs(float f) { if (f < 0) return -f; return f; }
     auto dist = max(max(abs(v.x), abs(v.y)), abs(v.z));
-    dist -= noise3(v * 0.3) * 3;
+    dist -= noise3(v * 0.1) * 5;
     if dist > 7 return false;
-    if dist < 6 return false;
+    if dist < 4 return false;
     return true;
   }
   while auto vec ← [for x ← cross (-10 .. 10) x 3: vec3f(x)] if fun(vec) using glMatrix {

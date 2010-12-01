@@ -1,5 +1,5 @@
 module test;
-import sys, sdl;
+import sys, sdl, simplex;
 
 int add(int a, int b) { return a + b; }
 
@@ -319,68 +319,6 @@ int main(int argc, char** argv) {
   testfl(13);
   {
     onExit writeln("Exit 3. ");
-    // 2d simplex noise; see http://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf
-    int[512] perm;
-    perm[0 .. 256] = [for 0..256: rand() % 256];
-    perm[256 .. 512] = perm[0 .. 256];
-    int[3][12] grad3;
-    {
-      int i;
-      char[] str = "pp0np0pn0nn0p0pn0pp0nn0n0pp0np0pn0nn";
-      auto chp = str[0], chn = str[3];
-      for (int k = 0; k < 12; ++k) {
-        for (int l = 0; l < 3; ++l) {
-          auto ch = str[i++];
-          if (ch == chp) grad3[k][l] = 1;
-          else if (ch == chn) grad3[k][l] = -1;
-        }
-      }
-    }
-    float dot(int[3] whee, float a, float b) {
-      return whee[0] * a + whee[1] * b;
-    }
-    float sqrt3 = sqrtf(3);
-    float f2 = 0.5 * (sqrt3 - 1), g2 = (3 - sqrt3) / 6;
-    float noise2(float fx, float fy) {
-      fesetround(1024);
-      float[3] n = void;
-      
-      float s = (fx + fy) * f2;
-      int i = int:(fx + s), j = int:(fy + s);
-      
-      float t = (i + j) * g2;
-      float[3] x = void, y = void;
-      x[0] = fx - (i - t);
-      y[0] = fy - (j - t);
-      
-      int i1, j1;
-      if x[0] > y[0] i1 = 1;
-      else j1 = 1;
-      
-      {
-        auto temp = 1 - 2 * g2;
-        x[1] = x[0] - i1 + g2;
-        y[1] = y[0] - j1 + g2;
-        x[2] = x[0] - temp;
-        y[2] = y[0] - temp;
-      }
-      int ii = i & 255, jj = j & 255;
-      
-      int[3] gi = void;
-      gi[0] = perm[ii + perm[jj]] % 12;
-      gi[1] = perm[ii + i1 + perm[jj + j1]] % 12;
-      gi[2] = perm[ii + 1  + perm[jj + 1 ]] % 12;
-      
-      for (int k = 0; k < 3; ++k) {
-        float ft = 0.5 - x[k]*x[k] - y[k]*y[k];
-        if ft < 0 n[k] = 0;
-        else {
-          ft = ft * ft;
-          n[k] = ft * ft * dot(grad3[gi[k]], x[k], y[k]);
-        }
-      }
-      return 70 * (n[0] + n[1] + n[2]);
-    }
     float clamp(float from, float to, float f) {
       if (f <= from) return from;
       if (f >= to) return to;
@@ -437,7 +375,8 @@ int main(int argc, char** argv) {
       x = x - 0.5;
       y = y - 0.5;
       // auto dist = sqrtf(x * x + y * y);
-      auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
+      // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
+      auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
       // auto n = 0.5 * noise2(x * 4 + t, y * 4)+0.25;
       n = clamp(0, 1, n);
       float[3] n2 = rgb(n, n * n, n * 2);

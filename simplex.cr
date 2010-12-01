@@ -25,9 +25,12 @@ void permsetup() {
 
 float noise2(vec2f f) {
   if !perm.length permsetup;
-  float sqrt3 = sqrtf(3);
-  float f2 = 0.5 * (sqrt3 - 1), g2 = (3 - sqrt3) / 6;
-  fesetround(FE_DOWNWARD);
+  alias sqrt3 = sqrtf(3);
+  alias f2 = 0.5 * (sqrt3 - 1);
+  alias g2 = (3 - sqrt3) / 6;
+  auto backup = fegetround();
+  onExit fesetround backup;
+  fesetround FE_DOWNWARD;
   float[3] n = void;
   
   float s = (f.x + f.y) * f2;
@@ -66,8 +69,10 @@ float noise2(vec2f f) {
 
 float noise3(vec3f v) {
   if !perm.length permsetup;
-  auto s = (v.x + v.y + v.z) / 3;
-  fesetround(FE_DOWNWARD);
+  auto s = (v.x + v.y + v.z) / 3.0;
+  auto backup = fegetround();
+  onExit fesetround backup;
+  fesetround FE_DOWNWARD;
   int i = int:(v.x + s), j = int:(v.y + s), k = int:(v.z + s);
   auto t = (i + j + k) / 6.0;
   auto V0 = vec3i(i, j, k) - vec3f(t);
@@ -107,7 +112,7 @@ float noise3(vec3f v) {
   for (int c = 0; c < 4; ++c) {
     auto q = vs[c];
     auto ft = 0.6 - q.x*q.x - q.y*q.y - q.z*q.z;
-    if (t < 0) n[c] = 0;
+    if (ft < 0) n[c] = 0;
     else {
       ft *= ft;
       n[c] = ft * ft * dot3(grad3[gi[c]], q);
