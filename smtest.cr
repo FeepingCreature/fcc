@@ -34,13 +34,15 @@ void drawScene() {
     }
   }
   genCubeData();
-  void drawCube() {
+  void prepareCube() {
     glEnableClientState GL_VERTEX_ARRAY;
     glEnableClientState GL_COLOR_ARRAY;
     glEnableClientState GL_TEXTURE_COORD_ARRAY;
     glColorPointer (3, GL_FLOAT, size-of cubetype, &cubedata[0][0]);
     glVertexPointer (3, GL_FLOAT, size-of cubetype, &cubedata[0][1]);
     glTexCoordPointer (2, GL_FLOAT, size-of cubetype, &cubedata[0][2]);
+  }
+  void drawCube() {
     glDrawArrays (GL_QUADS, 0, cubedata.length);
   }
   
@@ -55,6 +57,7 @@ void drawScene() {
     if dist < 4 return false;
     return true;
   }
+  prepareCube();
   while auto vec ← [for x ← cross (-10 .. 10) x 3: vec3f(x)] if fun(vec) using glMatrix {
     if (noise3(vec * 0.3) > 0.5) glBindTexture (GL_TEXTURE_2D, tex1);
     else glBindTexture (GL_TEXTURE_2D, tex2);

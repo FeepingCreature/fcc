@@ -12,7 +12,8 @@ class NestedFunction : Function {
   override {
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
-      return context.fun.mangleSelf() ~ "_subfun_" ~ context.fun.mangle(name, type);
+      return context.get!(Function).mangleSelf() ~ "_subfun_" ~
+        context.get!(Function).mangle(name, type);
     }
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;
@@ -56,7 +57,7 @@ class NestedFunction : Function {
     assert(!!context);
     // logln("continuing lookup to ", name);
     
-    if (auto nf = cast(NestedFunction) context.fun) {
+    if (auto nf = cast(NestedFunction) context.get!(Function)) {
       return nf.lookup(name, false, cast(Expr) lookup("__base_ptr", true, mybase), context);
     } else {
       auto sn = context.lookup(name, true),

@@ -23,7 +23,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
     scope(exit) namespace.set(this.sup);
     
     sc = new Scope;
-    assert(!!sc.fun);
+    assert(!!sc.sup);
     
     if (auto isc = cast(IScoped) ex) {
       this.isc = isc;

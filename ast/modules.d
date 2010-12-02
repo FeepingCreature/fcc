@@ -1,6 +1,6 @@
 module ast.modules;
 
-import ast.base, ast.namespace, ast.structure, ast.parse;
+import ast.base, ast.namespace, ast.structure, ast.parse, ast.fun;
 
 import tools.ctfe, tools.threads, tools.threadpool;
 
@@ -16,12 +16,13 @@ static this() {
 
 Threadpool tp;
 
-class Module : Namespace, Tree, Named {
+class Module : Namespace, Tree, Named, StoresDebugState {
   string name;
   Module[] imports;
   Tree[] entries;
   Setupable[] setupable;
   AsmFile inProgress; // late to the party;
+  bool _hasDebug = true;
   bool isValid; // still in the build list; set to false if superceded by a newer Module
   this() { if (sysmod && sysmod !is this) imports ~= sysmod; isValid = true; }
   void addSetupable(Setupable s) {
@@ -29,6 +30,7 @@ class Module : Namespace, Tree, Named {
     if (inProgress) s.setup(inProgress);
   }
   override {
+    bool hasDebug() { return _hasDebug; }
     void iterate(void delegate(ref Iterable) dg) {
       auto backup = current_module();
       scope(exit) current_module.set(backup);
@@ -37,7 +39,6 @@ class Module : Namespace, Tree, Named {
     }
     Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
-    import ast.fun;
     void emitAsm(AsmFile af) {
       auto backup = current_module();
       current_module.set(this);
@@ -98,13 +99,22 @@ static this() {
 
 // extras == stuff added by the compiler
 Module sysmod, extras;
-void addExtra(IsMangled im) {
-  auto mangled = im.mangleSelf();
-  foreach (ref entry; extras.entries) {
-    if (auto im2 = cast(IsMangled) entry)
-      if (im2.mangleSelf() == mangled) { entry = cast(Tree) im; return; }
-  }
-  extras.entries ~= cast(Tree) im;
+static this() {
+  addExtra = delegate void(IsMangled im) {
+    auto mangled = im.mangleSelf();
+    foreach (ref entry; extras.entries) {
+      if (auto im2 = cast(IsMangled) entry)
+        if (im2.mangleSelf() == mangled) {
+          entry = cast(Tree) im;
+          if (auto s = cast(Setupable) im)
+            extras.addSetupable(s);
+          return;
+        }
+    }
+    extras.entries ~= cast(Tree) im;
+    if (auto s = cast(Setupable) im)
+      extras.addSetupable(s);
+  };
 }
 
 extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace

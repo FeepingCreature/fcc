@@ -81,45 +81,46 @@ Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr");
 
 // static array literal 1
-class DataExpr : CValue, Setupable {
+class DataExpr : CValue {
   ubyte[] data;
-  string name;
-  static int de_id;
+  string name_used;
   this(ubyte[] ub) { data = ub; this(); }
-  this() {
-    name = Format("data_expr_", de_id++);
-    registerSetupable(this);
-  }
-  mixin DefaultDup!();
+  this() { }
   mixin defaultIterate!();
-  override IType valueType() { return new StaticArray(Single!(Char), data.length); }
-  override string toString() { return Format(data); }
-  override void setup(AsmFile af) { af.constants[name] = data; }
-  override void emitAsm(AsmFile af) {
-    bool allNull = true;
-    foreach (val; data) if (val) { allNull = false; break; }
-    if (allNull) {
-      af.flush();
-      auto backup = af.optimize;
-      // don't even try to opt this
-      af.optimize = false;
-      af.pushStack(Format("$", 0), new StaticArray(Single!(Char), data.length)); // better optimizable
-      af.flush();
-      af.optimize = backup;
-      return;
+  override {
+    DataExpr dup() { return new DataExpr(data); }
+    IType valueType() { return new StaticArray(Single!(Char), data.length); }
+    string toString() { return Format(data); }
+    void emitAsm(AsmFile af) {
+      bool allNull = true;
+      foreach (val; data) if (val) { allNull = false; break; }
+      if (allNull) {
+        af.flush();
+        auto backup = af.optimize;
+        // don't even try to opt this
+        af.optimize = false;
+        af.pushStack(Format("$", 0), new StaticArray(Single!(Char), data.length)); // better optimizable
+        af.flush();
+        af.optimize = backup;
+        return;
+      }
+      auto d2 = data;
+      while (d2.length >= 4) {
+        auto i = (cast(int[]) d2.take(4))[0];
+        af.pushStack(Format("$", i), Single!(SysInt)); // TODO: use 4-byte type
+      }
+      while (d2.length) {
+        auto c = d2.take();
+        af.pushStack(Format("$", c), Single!(Char));
+      }
     }
-    auto d2 = data;
-    while (d2.length >= 4) {
-      auto i = (cast(int[]) d2.take(4))[0];
-      af.pushStack(Format("$", i), Single!(SysInt)); // TODO: use 4-byte type
+    void emitLocation(AsmFile af) {
+      if (!name_used) {
+        name_used = Format("data_", af.constants.length);
+        af.constants[name_used] = data;
+      }
+      af.pushStack("$"~name_used, voidp);
     }
-    while (d2.length) {
-      auto c = d2.take();
-      af.pushStack(Format("$", c), Single!(Char));
-    }
-  }
-  override void emitLocation(AsmFile af) {
-    af.pushStack("$"~name, voidp);
   }
 }
 

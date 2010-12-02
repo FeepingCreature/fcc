@@ -1,10 +1,9 @@
 module ast.scopes;
 
-import ast.base, ast.namespace, ast.fun, ast.variable, parseBase, tools.base: apply;
+import ast.base, ast.namespace, ast.variable, parseBase, tools.base: apply;
 
 import ast.aggregate;
 class Scope : Namespace, ScopeLike, Statement {
-  Function fun;
   Statement _body;
   Statement[] guards;
   ulong id;
@@ -23,9 +22,15 @@ class Scope : Namespace, ScopeLike, Statement {
       _body = as;
     }
   }
-  string base() {
-    if (fun) return fun.mangleSelf();
-    return sup.mangle("scope", null);
+  void addStatementToFront(Statement st) {
+    if (auto as = cast(AggrStatement) _body) as.stmts = st ~ as.stmts;
+    else if (!_body) _body = st;
+    else {
+      auto as = new AggrStatement;
+      as.stmts ~= st;
+      as.stmts ~= _body;
+      _body = as;
+    }
   }
   // string entry() { return Format(base, "_entry", id); }
   // string exit() { return Format(base, "_exit", id); }
@@ -35,12 +40,10 @@ class Scope : Namespace, ScopeLike, Statement {
   this() {
     id = getuid();
     sup = namespace();
-    fun = sup.get!(Function);
   }
   override Scope dup() {
     auto res = new Scope;
     res.field = field.dup;
-    res.fun = fun;
     if (_body) res._body = _body.dup;
     foreach (guard; guards) res.guards ~= guard.dup;
     res.id = getuid();
@@ -60,8 +63,7 @@ class Scope : Namespace, ScopeLike, Statement {
   }
   // frame offset caused by parameters
   int framestart() {
-    assert(!!fun);
-    return fun.framestart();
+    return get!(FrameRoot).framestart();
   }
   // continuations good
   void delegate(bool=false) delegate() open(AsmFile af) {

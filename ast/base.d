@@ -27,6 +27,10 @@ interface NeedsConfig {
 
 interface IsMangled { string mangleSelf(); }
 
+void delegate(IsMangled) addExtra;
+
+interface FrameRoot { int framestart(); } // Function
+
 // pointer for structs, ref for classes
 interface hasRefType {
   IType getRefType();

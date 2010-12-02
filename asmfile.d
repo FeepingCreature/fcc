@@ -342,14 +342,14 @@ class AsmFile {
       dg(".byte ");
       foreach (val; c) dg(Format(cast(ubyte) val, ", "));
       dg("0\n");
-      dg(".global "); dg(name); dg("\n");
+      dg(".local "); dg(name); dg("\n");
     }
     foreach (name, array; longstants) { // lol
       dg(name); dg(":\n");
       dg(".long ");
       foreach (val; array) dg(Format(val, ", "));
       dg("0\n");
-      dg(".global "); dg(name); dg("\n");
+      dg(".local "); dg(name); dg("\n");
     }
     dg(".text\n");
     dg(code);

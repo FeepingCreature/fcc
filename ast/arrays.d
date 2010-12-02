@@ -73,22 +73,32 @@ IType arrayAsStruct(IType base, bool rich) {
   scope(exit) namespace.set(backup);
   namespace.set(res);
   
-  auto fun = new RelFunction(res);
-  New(fun.type);
-  fun.type.ret = Single!(Void);
-  fun.name = "free";
-  fun.fixup;
-  {
+  void mkFun(string name, Tree delegate(RelFunction) dg) {
+    auto fun = new RelFunction(res);
+    New(fun.type);
+    fun.type.ret = Single!(Void);
+    fun.name = name;
+    fun.fixup;
     auto backup2 = namespace();
     scope(exit) namespace.set(backup2);
     namespace.set(fun);
-    fun.tree = iparse!(Statement, "array_free", "tree.stmt")
-                      (`mem.free(void*:ptr);`, fun);
+    fun.tree = dg(fun);
+    res.add(fun);
+    addExtra(fun);
   }
-  
-  res.add(fun);
-  
-  addExtra(fun);
+  mkFun("free", delegate Tree(RelFunction rf) {
+    return iparse!(Statement, "array_free", "tree.stmt")
+                  (`mem.free(void*:ptr);`, rf);
+  });
+  mkFun("popEnd", delegate Tree(RelFunction rf) {
+    rf.type.ret = base;
+    return new StatementAndExpr(
+      iparse!(Statement, "array_setpop", "tree.stmt")
+             (`length --;`, rf),
+      iparse!(Expr, "array_getpop", "tree.expr")
+             (`*(ptr + length)`, rf)
+    );
+  });
   
   cache ~= stuple(base, rich, cast(IType) res);
   return res;

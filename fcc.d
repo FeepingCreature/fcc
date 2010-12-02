@@ -159,7 +159,7 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
 }
 
 import std.file;
-void loop(string start, string output, string[] largs, bool optimize, bool runMe) {
+void loop(string start, string output, string[] largs, bool optimize, bool runMe, bool saveTemps) {
   string toModule(string file) { return file.replace("/", ".").endsWith(".cr"); }
   string undo(string mod) {
     return mod.replace(".", "/") ~ ".cr";
@@ -218,10 +218,10 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
     bool wasDone;
     mod = parse(file, len_parse, len_opt, wasDone);
     if (wasDone) return null;
-    return stuple(file, start, asmname, objname, mod, optimize, len_opt, len_parse) /apply/
-    (string file, string start, string asmname, string objname, Module mod, bool optimize, double len_opt, double len_parse) {
+    return stuple(file, start, asmname, objname, mod, optimize, len_opt, len_parse, saveTemps) /apply/
+    (string file, string start, string asmname, string objname, Module mod, bool optimize, double len_opt, double len_parse, bool saveTemps) {
       auto af = new AsmFile(optimize, file.toModule());
-      scope(exit) unlink (asmname.toStringz());
+      scope(exit) if (!saveTemps) unlink (asmname.toStringz());
       auto len_gen = time({
         if (file == start) {
           sysmod.emitAsm(af);
@@ -234,10 +234,12 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
             if (auto sae = cast(StatementAndExpr) entry) sae.once = false;
             if (auto it = cast(Iterable) entry) recurse(it);
           }
-          extras.emitAsm(af);
           ematSysmod = true;
         }
         mod.emitAsm(af);
+        if (file == start) {
+          extras.emitAsm(af);
+        }
       }) / 1_000_000f;
       if (len_parse + len_opt + len_gen > 0.1)
         writefln(file, ": ", len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
@@ -406,7 +408,7 @@ int main(string[] args) {
   }
   if (!output) output = "exec";
   if (willLoop) {
-    loop(mainfile, output?output:"exec", largs, optimize, runMe);
+    loop(mainfile, output?output:"exec", largs, optimize, runMe, saveTemps);
     return 0;
   }
   objects.link(output, largs, saveTemps);

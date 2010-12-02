@@ -1,9 +1,14 @@
 module ast.fun;
 
-import ast.namespace, ast.base, ast.variable, asmfile, ast.types,
-  ast.constant, ast.pointer;
+import ast.namespace, ast.base, ast.variable, asmfile, ast.types, ast.scopes,
+  ast.constant, ast.pointer, ast.literals;
 
 import tools.functional;
+
+// workaround for inability to import ast.modules
+interface StoresDebugState {
+  bool hasDebug();
+}
 
 class FunSymbol : Symbol {
   Function fun;
@@ -25,7 +30,7 @@ class FunSymbol : Symbol {
 
 extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
-class Function : Namespace, Tree, Named, SelfAdding, IsMangled {
+class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   string name;
   Expr getPointer() {
     return new FunSymbol(this);
@@ -77,11 +82,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled {
     else
       return sup.mangle(cleaned_name, type);
   }
-  int framestart() {
-    return _framestart;
-  }
   string exit() { return mangleSelf() ~ "_exit_label"; }
   override {
+    int framestart() { return _framestart; }
     bool addsSelf() { return true; }
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;
@@ -98,7 +101,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled {
       auto backup = af.currentStackDepth;
       scope(exit) af.currentStackDepth = backup;
       af.currentStackDepth = 0;
-      
       withTLS(namespace, this, tree.emitAsm(af));
       af.emitLabel(exit());
       af.mmove4("%ebp", "%esp");
@@ -284,8 +286,10 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
       if (text.accept(";")) return fun;
       else t2.failparse("Expected ';'");
     } else {
-      if (rest(text, "tree.scope", &fun.tree)) return fun;
-      else text.failparse("Couldn't parse function scope");
+      if (rest(text, "tree.scope", &fun.tree)) {
+        // TODO: Reserve "sys" module name
+        return fun;
+      } else text.failparse("Couldn't parse function scope");
     }
   } else return null;
 }
