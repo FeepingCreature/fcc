@@ -248,7 +248,13 @@ class ProcTrack : ExtToken {
   int stackdepth = -1; // stack depth at start
   string toString() {
     return Format("cpu(",
-      (stackdepth != -1)?Format("@", stackdepth):"@?", " ", isValid?"[OK]":"[BAD]", " ", known, ", stack ", stack.length, "; ", stack, ", pop ", latepop, ", used ", use.keys, ", nvm ", nvmed, ")");
+      (stackdepth != -1)?Format("@", stackdepth):"@?", " ",
+      isValid?"[OK]":"[BAD]", " ", known,
+      ", stack", noStack?"[none] ":" ", stack.length, "; ", stack,
+      ", pop ", latepop, ", used ", use.keys, ", nvm ", nvmed,
+      callDest?Format(", calldest ", callDest):"",
+      floatldsource?Format(", floatsrc ", floatldsource):"",
+    ")");
   }
   int getStackDelta() {
     return - stack.length * 4 + latepop.length * 4;
@@ -315,6 +321,8 @@ class ProcTrack : ExtToken {
         if (val) { // if val is null, this is equivalent to void assignment. do nothing.
           if (mem.isRelative() && val.isRelative())
             return false;
+          if (!(mem in known) && mem in use) // fallen out of use
+            use.remove(mem);
           known[mem] = val;
         } else return false;
       }
@@ -435,7 +443,16 @@ class ProcTrack : ExtToken {
             if (!set(t.to, src))
               return false;
           } else if (t.to == "(%esp)") {
-            if (!stack.length) break;
+            if (!stack.length) {
+              if (latepop.length) break;
+              auto mysrc = src;
+              if (mysrc.isIndirect()) mysrc = t.from;
+              if (!set(t.to, mysrc)) // t.from, not src, to prevent mem-to-mem movs
+                return false;
+              use[mysrc] = true;
+              noStack = true;
+              mixin(Success);
+            }
             stack[$-1] = src;
           } else {
             if (!set(t.to, src))
@@ -472,7 +489,14 @@ class ProcTrack : ExtToken {
               mixin(Success);
             }
             if (!stack.length && t.to.isUtilityRegister()) {
-              if (!set(t.to, t.from))
+              auto from = t.from;
+              if (noStack) { // already doing something with (%esp)
+                if (auto f = from in known) from = *f;
+                else return false;
+                // TODO: this here is iffy.
+                if (from.isIndirect()) return false; // bad ref
+              }
+              if (!set(t.to, from))
                 return false;
               noStack = true;
               mixin(Success);
@@ -513,10 +537,8 @@ class ProcTrack : ExtToken {
             val = *p;
           // Be VERY careful changing this
           // remember, push is emat before mov!
-          if (val in known) return false;
-          /*if (auto reg = val.isIndirect())
-            return false;*/
-            // use[reg] = true; // broken
+          // [edit] That's alright now, we can just update the ESP of knowns.
+          // if (val in known) return false;
           if (auto reg = val.isIndirect2(offs)) {
             if (reg in known) return false; // bad dependence ordering
             // possible stack/variable dependence. bad.
