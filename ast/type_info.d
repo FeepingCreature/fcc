@@ -1,4 +1,4 @@
-module ast.type_of;
+module ast.type_info;
 
 import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop;
 
