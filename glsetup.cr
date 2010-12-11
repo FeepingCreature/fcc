@@ -56,10 +56,10 @@ void swap() { SDL_GL_SwapBuffers(); }
 
 SDL_Surface* setup-gl() {
   // this has issues; why?!
-  SDL_Init (SDL_INIT_VIDEO);
+  // SDL_Init (SDL_INIT_VIDEO);
+  SDL_InitSubSystem (SDL_INIT_VIDEO);
   auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
   SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
   SDL_Surface* surf;
   regenSurf = delegate void(int w, int h) {
     surf = SDL_SetVideoMode (w, h, 0, flags);

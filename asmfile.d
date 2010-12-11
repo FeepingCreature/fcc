@@ -30,12 +30,13 @@ class AsmFile {
     currentStackDepth += type.size;
   }
   void popStack(string dest, IType type) {
-    currentStackDepth -= type.size;
     Transaction t;
     t.kind = Transaction.Kind.Pop;
     t.dest = dest;
     t.type = type;
+    t.stackdepth = currentStackDepth;
     cache ~= t;
+    currentStackDepth -= type.size;
   }
   int checkptStack() {
     return currentStackDepth;

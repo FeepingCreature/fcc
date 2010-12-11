@@ -245,8 +245,13 @@ class ProcTrack : ExtToken {
   int ebp_mode = -1;
   int eaten;
   bool noStack; // assumed no stack use; don't challenge this
+  int stackdepth = -1; // stack depth at start
   string toString() {
-    return Format("cpu(", isValid?"[OK]":"[BAD]", " ", known, ", stack ", stack.length, "; ", stack, ", pop ", latepop, ", used ", use.keys, ", nvm ", nvmed, ")");
+    return Format("cpu(",
+      (stackdepth != -1)?Format("@", stackdepth):"@?", " ", isValid?"[OK]":"[BAD]", " ", known, ", stack ", stack.length, "; ", stack, ", pop ", latepop, ", used ", use.keys, ", nvm ", nvmed, ")");
+  }
+  int getStackDelta() {
+    return - stack.length * 4 + latepop.length * 4;
   }
   string mkIndirect(string val, int delta = 0 /* additional delta */) {
     if (val.startsWith("+(")) {
@@ -257,12 +262,22 @@ class ProcTrack : ExtToken {
         /*if (t.to in use)
           return null;*/
         // to indirect access
-        return Format(op2i + delta, "(", op1, ")");
+        auto sumdelt = op2i + delta;
+        if (sumdelt) return Format(sumdelt, "(", op1, ")");
+        else return Format("(", op1, ")");
       }
     }
     return null;
   }
+  // does this super-instruction modify the stack?
+  bool modsStack() {
+    return stack.length || latepop.length;
+  }
+  static int forble;
   bool update(Transaction t) {
+    if (stackdepth == -1 && t.stackdepth != -1 && !modsStack()) {
+      stackdepth = t.stackdepth;
+    }
     scope(exit) {
       if (isValid) {
         knownGood = translate();
@@ -283,14 +298,18 @@ class ProcTrack : ExtToken {
       return true;
     }
     bool set(string mem, string val) {
-      if (mem.find("esp") != -1) {
-        if (ebp_mode == -1) ebp_mode = false;
-        else if (ebp_mode == true) return false;
+      bool checkMode(string s) {
+        if (s.find("%esp") != -1) {
+          if (ebp_mode == -1) ebp_mode = false;
+          else if (ebp_mode == true) return false;
+        }
+        if (s.find("%ebp") != -1) {
+          if (ebp_mode == -1) ebp_mode = true;
+          else if (ebp_mode == false) return false;
+        }
+        return true;
       }
-      if (mem.find("ebp") != -1) {
-        if (ebp_mode == -1) ebp_mode = true;
-        else if (ebp_mode == false) return false;
-      }
+      if (!checkMode(mem) || !checkMode(val)) return false;
       if (mem == val) known.remove(mem);
       else {
         if (val) { // if val is null, this is equivalent to void assignment. do nothing.
@@ -308,13 +327,35 @@ class ProcTrack : ExtToken {
                          return false;
       if (floatldsource) return false;
     }
+    void fixupESPDeps(int shift) {
+      void fixupString(ref string s) {
+        if (auto rest = s.startsWith("+(%esp, ")) {
+          s = Format("+(%esp, $",
+            rest.between("$", ")").atoi() + shift,
+            ")"
+          );
+        }
+        int offs;
+        if ("%esp" == s.isIndirect2(offs)) {
+          s = Format(offs + shift, "(%esp)");
+        }
+      }
+      typeof(known) newknown;
+      foreach (key, value; known) {
+        fixupString(key); fixupString(value);
+        newknown[key] = value;
+      }
+      known = newknown;
+    }
     with (Transaction.Kind) switch (t.kind) {
       case Compare: return false;
       case LoadAddress:
         if (t.to.isRegister()) {
+          if (t.to in use) break;
           int delta;
           if (auto reg = t.from.isIndirect2(delta)) {
-            set(t.to, Format("+(", reg, ", $", delta, ")"));
+            if (!set(t.to, Format("+(", reg, ", $", delta, ")")))
+              return false;
             mixin(Success);
           }
         }
@@ -362,6 +403,7 @@ class ProcTrack : ExtToken {
       case SAlloc:
         if (t.size == 4) {
           stack ~= null;
+          fixupESPDeps(4);
           mixin(Success);
         } else break;
       case SFree:
@@ -370,6 +412,7 @@ class ProcTrack : ExtToken {
         for (int i = 0; i < t.size / nativePtrSize; ++i)
           if (st2.length) st2 = st2[0 .. $-1];
           else return false;
+        fixupESPDeps(-4 * (stack.length - st2.length));
         stack = st2;
         mixin(Success);
       case Mov:
@@ -417,9 +460,15 @@ class ProcTrack : ExtToken {
           if (deref == "%esp" && t.to.isUtilityRegister() && !(delta % 4)) {
             auto from_rel = delta / 4;
             if (stack.length >= from_rel + 1) {
-              auto val = stack[$ - 1 - from_rel];
-              if (!set(t.to, val))
+              auto index = stack.length - 1 - from_rel;
+              // can't just read stack - the stack address is understood to be only valid during stack building phase
+              // auto val = stack[$ - 1 - from_rel];
+              // instead "unroll" the stack until the index is _just_ at length, then set the value and uproll
+              auto fixdist = -4 * (stack.length - index);
+              fixupESPDeps(fixdist);
+              if (!set(t.to, stack[index]))
                 return false;
+              fixupESPDeps(-fixdist);
               mixin(Success);
             }
             if (!stack.length && t.to.isUtilityRegister()) {
@@ -453,6 +502,7 @@ class ProcTrack : ExtToken {
           if (auto src = t.source.isIndirect2(offs)) {
             if (src in known) {
               if (auto indir = mkIndirect(known[src], offs)) {
+                fixupESPDeps(4);
                 stack ~= indir;
                 mixin(Success);
               }
@@ -467,11 +517,17 @@ class ProcTrack : ExtToken {
           /*if (auto reg = val.isIndirect())
             return false;*/
             // use[reg] = true; // broken
-          if (val.isRegister()) use[val] = true;
-          if (auto reg = val.isIndirect()) {
+          if (auto reg = val.isIndirect2(offs)) {
             if (reg in known) return false; // bad dependence ordering
+            // possible stack/variable dependence. bad.
+            // TODO: only abort if we have outstanding stack writes
+            if (reg == "%ebp" && offs < 0 && known.length)
+              return false;
             use[reg] = true;
           }
+          if (val.isRegister()) use[val] = true;
+          // increment our knowns.
+          fixupESPDeps(4);
           stack ~= val;
           mixin(Success);
         }
@@ -506,10 +562,15 @@ class ProcTrack : ExtToken {
               if (stack.length) {
                 if (!set(indir, stack[$-1]))
                   return false;
+                // we have a pop! fix up the esp deps
+                fixupESPDeps(-4);
                 stack = stack[0 .. $-1];
                 mixin(Success);
               } else {
-                latepop ~= indir;
+                auto len = latepop.length;
+                fixupESPDeps(-4 * len);
+                latepop ~= mkIndirect(known[dest], offs); // re-eval indir for fixup
+                fixupESPDeps(4 * len); // and undo
                 mixin(Success);
               }
             }
@@ -576,10 +637,33 @@ class ProcTrack : ExtToken {
       return knownGood ~ backup;
     }
     Transaction[] res;
-    void addTransaction(Transaction.Kind tk, void delegate(ref Transaction) dg) {
+    int myStackdepth; // local offs
+    bool sd = stackdepth != -1;
+    void addTransaction(Transaction.Kind tk,
+      void delegate(ref Transaction) dg,
+      void delegate(ref Transaction) dg2 = null
+      ) {
       Transaction t;
       t.kind = tk;
+      if (sd) t.stackdepth = stackdepth + myStackdepth;
+      void fixup(ref string st) {
+        int offs;
+        /*if ("%esp" == st.isIndirect2(offs)) {
+          // fix
+          auto delta = offs + myStackdepth;
+          if (delta)
+            st = Format(delta, "(%esp)");
+          else
+            st = "(%esp)";
+        }*/
+      }
       dg(t);
+      if (hasSource(t)) fixup(t.source);
+      if (hasDest(t))   fixup(t.dest);
+      if (hasFrom(t))   fixup(t.from);
+      if (hasTo(t))     fixup(t.to);
+      if (dg2) dg2(t);
+      
       res ~= t;
     }
     assert(!stack.length || !noStack);
@@ -587,6 +671,8 @@ class ProcTrack : ExtToken {
       addTransaction(Transaction.Kind.Push, (ref Transaction t) {
         t.source = entry;
         t.type = Single!(SysInt);
+      }, (ref Transaction t) {
+        myStackdepth += nativeIntSize;
       });
     }
     foreach (reg, value; known) {
@@ -605,6 +691,8 @@ class ProcTrack : ExtToken {
       addTransaction(Transaction.Kind.Pop, (ref Transaction t) {
         t.dest = entry;
         t.type = Single!(SysInt);
+      }, (ref Transaction t) {
+        myStackdepth -= nativeIntSize;
       });
     }
     if (callDest) {
@@ -635,6 +723,7 @@ void setupOpts() {
   bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
   mixin(opt("ext_step", `*, *
     =>
+    static int x;
     ProcTrack obj;
     $T t;
     t.kind = $TK.Extended;
