@@ -1091,6 +1091,12 @@ void setupOpts() {
       $SUBST(ts);
     }
   `));
+  mixin(opt("remove_redundant_fp_store", `^FloatMath, ^FloatStore, ^FloatMath, *:
+    ($3.kind == $TK.FloatStore || $3.kind == $TK.FloatPop)
+    && $1.dest == $3.dest
+    =>
+    $SUBST([$0, $2, $3]);
+  `));
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
