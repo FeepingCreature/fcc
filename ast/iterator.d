@@ -211,13 +211,14 @@ class ForIter(I) : Type, I, Iterable {
             auto fi2 = fi.dup;
             add(fi2.ex);
             it = cast(Iterable) reinterpret_cast(fi2, ex);
-            (cast(Iterable) ex).iterate(&subst);
+            // why?! this should not be needed.
+            // (cast(Iterable) ex).iterate(&subst);
             return;
           } else if (auto fi = cast(ForIter!(Iterator)) ex.valueType()) {
             auto fi2 = fi.dup;
             add(fi2.ex);
             it = cast(Iterable) reinterpret_cast(fi2, ex);
-            (cast(Iterable) ex).iterate(&subst);
+            // (cast(Iterable) ex).iterate(&subst);
             return;
           }
         }
