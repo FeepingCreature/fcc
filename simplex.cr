@@ -76,7 +76,7 @@ float noise3(vec3f v) {
   int i = int:(v.x + s), j = int:(v.y + s), k = int:(v.z + s);
   auto t = (i + j + k) / 6.0;
   auto V0 = vec3i(i, j, k) - vec3f(t);
-  vec3f[4] vs;
+  vec3f[4] vs = void;
   vs[0] = v - V0;
   
   vec3i offs1, offs2;

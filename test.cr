@@ -376,7 +376,11 @@ int main(int argc, char** argv) {
       y = y - 0.5;
       // auto dist = sqrtf(x * x + y * y);
       // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
-      auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
+      // auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
+      auto n = 0.5    * noise3 ((vec3f(sin(t) * 4, x * 4, y * 4)))
+             + 0.25   * noise3 ((vec3f(sin(t) * 4, x * 8, y * 8)))
+             + 0.125  * noise3 ((vec3f(sin(t) * 4, x * 16, y * 16)))
+             + 0.0625 * noise3 ((vec3f(sin(t) * 4, x * 32, y * 32)));
       // auto n = 0.5 * noise2(x * 4 + t, y * 4)+0.25;
       n = clamp(0, 1, n);
       float[3] n2 = rgb(n, n * n, n * 2);
