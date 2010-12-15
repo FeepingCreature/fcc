@@ -260,13 +260,12 @@ class AsmIntBinopExpr : BinopExpr {
         }
       } else {
         string op1, op2;
-        bool late_alloc;
         if (auto c2 = cast(IntExpr) foldex(e2)) {
           op2 = Format("$", c2.num);
-          late_alloc = true;
         } else {
-          op2 = "(%esp)";
+          op2 = "%ecx";
           e2.emitAsm(af);
+          af.popStack("%ecx", e2.valueType());
         }
         if (auto c1 = cast(IntExpr) foldex(e1)) {
           op1 = Format("$", c1.num);
@@ -282,8 +281,10 @@ class AsmIntBinopExpr : BinopExpr {
           "%": "imodl",
           "<<": "shl", ">>": "shr"
         ])[op];
+        if (asm_op == "shl" || asm_op == "shr")
+          if (op2 == "%ecx")
+            op2 = "%cl"; // shl/r really want %cl.
         af.mathOp(asm_op, op2, "%eax");
-        if (!late_alloc) af.sfree(4);
         af.pushStack("%eax", Single!(SysInt));
         af.nvm("%eax");
       }
