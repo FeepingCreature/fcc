@@ -9,14 +9,15 @@ class NestedFunction : Function {
   this(Scope context) {
     this.context = context;
   }
+  string cleaned_name() { return name.cleanup(); }
   override {
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
       return context.get!(Function).mangleSelf() ~ "_subfun_" ~
-        context.get!(Function).mangle(name, type);
+        context.get!(Function).mangle(cleaned_name, type);
     }
     string mangle(string name, IType type) {
-      return mangleSelf() ~ "_" ~ name;
+      return mangleSelf() ~ "_" ~ cleaned_name;
     }
     FunCall mkCall() {
       auto res = new NestedCall;
