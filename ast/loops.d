@@ -4,11 +4,24 @@ import ast.base, ast.scopes, ast.vardecl, ast.conditionals, ast.parse;
 
 class WhileStatement : Statement {
   Scope _body;
+  invariant {
+    // what the hell?!
+    if (this is _body._body)
+      asm { int 3; }
+  }
   Cond cond;
   bool isStatic;
   Scope sup;
   PlaceholderToken[] holders;
-  mixin DefaultDup!();
+  override WhileStatement dup() {
+    auto res = new WhileStatement;
+    res._body = _body.dup;
+    res.cond = cond.dup;
+    res.isStatic = isStatic;
+    res.sup = sup; // goes upwards - don't dup!
+    res.holders = holders; // keep
+    return res;
+  }
   mixin defaultIterate!(cond, _body);
   override void emitAsm(AsmFile af) {
     if (isStatic) { // should not happen
