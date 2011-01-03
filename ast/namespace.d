@@ -195,9 +195,9 @@ class MiniNamespace : Namespace, ScopeLike, Named {
       if (fs2) return fs2 + sl.framesize();
       else return sl.framesize();
     } else {
+      // logln("no metric for framesize of ", id);
       assert(false);
-      /*logln("no metric for framesize of ", id);
-      asm { int 3; }*/
+      // asm { int 3; }
     }
   }
   override Object lookup(string name, bool local = false) {

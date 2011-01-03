@@ -240,7 +240,6 @@ class ProcTrack : ExtToken {
   bool[string] use, nvmed;
   // backup
   Transaction[] backup, knownGood;
-  string callDest;
   // not safe to mix foo(%ebp) and foo(%esp) in the same proc chunk
   int ebp_mode = -1;
   int eaten;
@@ -252,7 +251,6 @@ class ProcTrack : ExtToken {
       isValid?"[OK]":"[BAD]", " ", known,
       ", stack", noStack?"[none] ":" ", stack.length, "; ", stack,
       ", pop ", latepop, ", used ", use.keys, ", nvm ", nvmed,
-      callDest?Format(", calldest ", callDest):"",
       floatldsource?Format(", floatsrc ", floatldsource):"",
     ")");
   }
@@ -330,7 +328,6 @@ class ProcTrack : ExtToken {
       return true;
     }
     if (t.kind != Transaction.Kind.Nevermind) {
-      if (callDest)      return false;
       if (latepop && t.kind != Transaction.Kind.Pop)
                          return false;
       if (floatldsource) return false;
@@ -488,19 +485,6 @@ class ProcTrack : ExtToken {
               fixupESPDeps(-fixdist);
               mixin(Success);
             }
-            if (!stack.length && t.to.isUtilityRegister()) {
-              auto from = t.from;
-              if (noStack) { // already doing something with (%esp)
-                if (auto f = from in known) from = *f;
-                else return false;
-                // TODO: this here is iffy.
-                if (from.isIndirect()) return false; // bad ref
-              }
-              if (!set(t.to, from))
-                return false;
-              noStack = true;
-              mixin(Success);
-            }
           }
           if (t.to.isUtilityRegister() && !(deref in known) && deref != "%esp") {
             if (!set(t.to, t.from))
@@ -609,13 +593,7 @@ class ProcTrack : ExtToken {
           known.remove(t.dest);
         }
         mixin(Success);
-      case Call:
-        auto dest = t.dest;
-        if (dest in known && known[dest].startsWith("$")) {
-          callDest = "$" ~ known[dest][1..$];
-          mixin(Success);
-        }
-        return false;
+      case Call: return false;
       case Jump: return false;
       case FloatLoad:
         if (auto src = t.source.isIndirectSimple()) {
@@ -717,11 +695,6 @@ class ProcTrack : ExtToken {
         myStackdepth -= nativeIntSize;
       });
     }
-    if (callDest) {
-      addTransaction(Transaction.Kind.Call, (ref Transaction t) {
-        t.dest = callDest;
-      });
-    }
     if (floatldsource) {
       addTransaction(Transaction.Kind.FloatLoad, (ref Transaction t) {
         t.source = floatldsource;
@@ -745,7 +718,6 @@ void setupOpts() {
   bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
   mixin(opt("ext_step", `*, *
     =>
-    static int x;
     ProcTrack obj;
     $T t;
     t.kind = $TK.Extended;
@@ -770,8 +742,12 @@ void setupOpts() {
     } else {
       New(obj);
       t.obj = obj;
-      if (obj.update($0)) { $SUBST([t, $1]); }
-      // else logln("Reject ", $0, ", ", $1);
+      /*static int si;
+      // 814 .. 816
+      if (si++ < 815) */{
+        if (obj.update($0)) { $SUBST([t, $1]); }
+        // else logln("Reject ", $0, ", ", $1);
+      }
     }
   `));
   // .ext_step = &ext_step; // export
