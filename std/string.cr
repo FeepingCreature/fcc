@@ -112,3 +112,24 @@ template castIter(T) <<EOF
     }
   EO2
 EOF
+
+// before, after
+(string, string) slice(string s, string m) {
+  auto pos = find(s, m);
+  // if (pos == -1) return (s, string:null);
+  if (pos == -1) {
+    writeln "|$m| not found in |$s| for slice! ";
+    _interrupt 3;
+  }
+  return (s[0 .. pos], s[pos + m.length .. s.length]);
+}
+
+string strip(string s) {
+  alias first = s[0];
+  alias last = s[s.length - 1];
+  while s.length && (last == "\n"[0] || last == "\r"[0] || last == " "[0])
+    s = s[0 .. s.length - 1];
+  while s.length && (first == "\n"[0] || first == "\r"[0] || first == " "[0])
+    s = s[1 .. s.length];
+  return s;
+}

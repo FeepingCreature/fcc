@@ -377,10 +377,11 @@ int main(int argc, char** argv) {
       // auto dist = sqrtf(x * x + y * y);
       // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
       // auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
-      auto n = 0.5    * noise3 ((vec3f(sin(t) * 4, x * 4, y * 4)))
+      /*auto n = 0.5    * noise3 ((vec3f(sin(t) * 4, x * 4, y * 4)))
              + 0.25   * noise3 ((vec3f(sin(t) * 4, x * 8, y * 8)))
              + 0.125  * noise3 ((vec3f(sin(t) * 4, x * 16, y * 16)))
-             + 0.0625 * noise3 ((vec3f(sin(t) * 4, x * 32, y * 32)));
+             + 0.0625 * noise3 ((vec3f(sin(t) * 4, x * 32, y * 32)));*/
+      auto n = noise2 (vec2f(x * 8, y * 8));
       // auto n = 0.5 * noise2(x * 4 + t, y * 4)+0.25;
       n = clamp(0, 1, n);
       float[3] n2 = rgb(n, n * n, n * 2);
@@ -404,11 +405,11 @@ int main(int argc, char** argv) {
     frob[0] = 15;
     writeln "frob is $frob";
     alias size = 4;
-    auto test = [for bin <-
+    /*auto test = [for bin <-
       [for tuple <- cross ([for i <- 0..2: i] x size): int[size]:tuple]:
       sum [for tup <- zip (bin, [for z <- 0..size:
       pow2(size-z-1)]): tup[0] * tup[1]]].eval;
-    writeln("test is $$string-of type-of test: $test");
+    writeln("test is $$string-of type-of test: $test");*/
     return 0;
     onExit writeln("Exit 4. ");
   }

@@ -151,6 +151,7 @@ int main() {
   
   writeln "Buffers created. ";
   auto sourcelines = [for line <- splitAt("\n", iterOnce openclSource): line ~ "\n\x00"].eval[];
+  writeln "$(sourcelines.length) lines of source. ";
   auto prog = clCreateProgramWithSource(ctx, sourcelines.length,
     [for line <- sourcelines: line.ptr].eval.ptr, null, null);
   onExit clReleaseProgram (prog);
@@ -190,13 +191,15 @@ int main() {
     while SDL_PollEvent(&ev) {
       if ev.type == SDL_KEYDOWN {
         auto sym = (*(SDL_KeyboardEvent*:&ev)).keysym.sym;
-             if (sym == 273) using rect { auto dist = (w - y) * 0.1; y -= dist; w -= dist; }
-        else if (sym == 274) using rect { auto dist = (w - y) * 0.1; y += dist; w += dist; }
-        else if (sym == 275) using rect { auto dist = (z - x) * 0.1; x += dist; z += dist; }
-        else if (sym == 276) using rect { auto dist = (z - x) * 0.1; x -= dist; z -= dist; }
-        else if (sym == 43) using rect { auto dist = zw - xy, half = 0.5 * (xy + zw); dist *= 0.8; (x,y) = half - dist * 0.5; (z,w) = half + dist * 0.5; }
-        else if (sym == 45) using rect { auto dist = zw - xy, half = 0.5 * (xy + zw); dist /= 0.8; (x,y) = half - dist * 0.5; (z,w) = half + dist * 0.5; }
-        else writeln "Key $(int:sym)";
+        using rect {
+              if (sym == 273) { auto dist = (w - y) * 0.1; y -= dist; w -= dist; }
+          else if (sym == 274) { auto dist = (w - y) * 0.1; y += dist; w += dist; }
+          else if (sym == 275) { auto dist = (z - x) * 0.1; x += dist; z += dist; }
+          else if (sym == 276) { auto dist = (z - x) * 0.1; x -= dist; z -= dist; }
+          else if (sym == 43) { auto dist = zw - xy, half = 0.5 * (xy + zw); dist *= 0.8; (x,y) = half - dist * 0.5; (z,w) = half + dist * 0.5; }
+          else if (sym == 45) { auto dist = zw - xy, half = 0.5 * (xy + zw); dist /= 0.8; (x,y) = half - dist * 0.5; (z,w) = half + dist * 0.5; }
+          else writeln "Key $(int:sym)";
+        }
       }
       if ev.type == SDL_QUIT return true; // QUIT
     }
