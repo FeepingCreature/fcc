@@ -267,22 +267,22 @@ class ForIter(I) : Type, I, Iterable {
     }
     scope(exit) todocache = todo;
     void subst(ref Iterable it) {
-      if (it is var) it = cast(Iterable) newvar;
-      else {
+      if (it is var) {
+        it = cast(Iterable) newvar;
+      } else {
         auto ex = cast(Expr) it;
         if (ex) {
           if (auto fi = cast(ForIter!(RichIterator)) ex.valueType()) {
             auto fi2 = fi.dup;
             add(fi2.ex);
+            ex.iterate(&subst);
             it = cast(Iterable) reinterpret_cast(fi2, ex);
-            // why?! this should not be needed.
-            // (cast(Iterable) ex).iterate(&subst);
             return;
           } else if (auto fi = cast(ForIter!(Iterator)) ex.valueType()) {
             auto fi2 = fi.dup;
             add(fi2.ex);
+            ex.iterate(&subst);
             it = cast(Iterable) reinterpret_cast(fi2, ex);
-            // (cast(Iterable) ex).iterate(&subst);
             return;
           }
         }
@@ -294,7 +294,10 @@ class ForIter(I) : Type, I, Iterable {
     bool[Expr] done;
     while (size) {
       auto cur_ex = take();
-      if (cur_ex in done) continue;
+      if (cur_ex in done) {
+        logln("wtf?! didn't I do ", cur_ex, " already?");
+        asm { int 3; }
+      }
       done[cur_ex] = true;
       cur_ex.iterate(&subst);
     }
