@@ -62,6 +62,46 @@ class Range : Type, RichIterator {
   }
 }
 
+import ast.int_literal;
+class ConstIntRange : Type, RichIterator {
+  int from, to;
+  this(int f, int t) { this.from = f; this.to = t; }
+  override {
+    IType elemType() { return Single!(SysInt); }
+    string toString() { return Format("ConstRangeIntIter[", size, "]()"); }
+    int size() { return nativeIntSize; }
+    string mangle() { return Format("constint_range_", from, "_to_", to); }
+    ubyte[] initval() { return cast(ubyte[]) (&from)[0..1]; }
+    Expr yieldAdvance(LValue lv) {
+      return iparse!(Expr, "constint_yield_advance_range", "tree.expr")
+                    ("lv++",
+                     "lv", reinterpret_cast(cast(IType) Single!(SysInt), lv));
+    }
+    import ast.conditionals: Compare;
+    Cond terminateCond(Expr ex) {
+      return new Compare(
+        reinterpret_cast(Single!(SysInt), ex),
+        "!=",
+        new IntExpr(to)
+      );
+    }
+    Expr length(Expr ex) { return new IntExpr(to-from); }
+    Expr index(Expr ex, Expr pos) {
+      return iparse!(Expr, "index_range", "tree.expr")
+                    ("ex + pos",
+                     "ex", reinterpret_cast(Single!(SysInt), ex),
+                     "pos", pos);
+    }
+    Expr slice(Expr ex, Expr from, Expr to) {
+      // TODO specialize for int from, to
+      return iparse!(Expr, "slice_range", "tree.expr")
+                    ("(ex + from) .. (ex + to)",
+                     "ex", reinterpret_cast(Single!(SysInt), ex),
+                     "from", from, "to", to);
+    }
+  }
+}
+
 import ast.tuples;
 Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr from, to;
@@ -74,6 +114,9 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   bool notATuple(IType it) { return !cast(Tuple) it; }
   gotImplicitCast(from, &notATuple);
   gotImplicitCast(to  , &notATuple);
+  auto ifrom = cast(IntExpr) fold(from), ito = cast(IntExpr) fold(to);
+  if (ifrom && ito)
+    return new RCE(new ConstIntRange(ifrom.num, ito.num), ifrom);
   auto wrapped = new Structure(null);
   new RelMember("cur", from.valueType(), wrapped);
   new RelMember("end", to.valueType(), wrapped);
@@ -234,6 +277,9 @@ class ForIter(I) : Type, I, Iterable {
       done[cur_ex] = true;
       cur_ex.iterate(&subst);
     }
+    // optimization won't reach into types
+    // cf. http://www.smbc-comics.com/index.php?db=comics&id=1927
+    opt(sex); // Yes we have fully optimized sex.
     return sex;
   }
   Expr update(Expr ex, Expr iex) {

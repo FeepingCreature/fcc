@@ -303,6 +303,7 @@ class StatementAndExpr : Expr {
   mixin defaultIterate!(first, second);
   bool once;
   override {
+    string toString() { return Format("sae{", first, second, "}"); }
     StatementAndExpr dup() {
       return new StatementAndExpr(first.dup, second.dup);
     }
