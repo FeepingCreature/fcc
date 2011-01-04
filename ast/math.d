@@ -265,7 +265,6 @@ class AsmIntBinopExpr : BinopExpr {
         } else {
           op2 = "%ecx";
           e2.emitAsm(af);
-          af.popStack("%ecx", e2.valueType());
         }
         if (auto c1 = cast(IntExpr) foldex(e1)) {
           op1 = Format("$", c1.num);
@@ -281,6 +280,10 @@ class AsmIntBinopExpr : BinopExpr {
           "%": "imodl",
           "<<": "shl", ">>": "shr"
         ])[op];
+        
+        if (op2.isRegister())
+          af.popStack(op2, e2.valueType());
+        
         if (asm_op == "shl" || asm_op == "shr")
           if (op2 == "%ecx")
             op2 = "%cl"; // shl/r really want %cl.
