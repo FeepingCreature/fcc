@@ -16,6 +16,27 @@ bool isMemRef(string mem) {
   return !mem.startsWith("%") && !mem.startsWith("$");
 }
 
+bool isRegister(string s) {
+  return s.length > 2 && s[0] == '%' && s[1] != '(';
+}
+
+bool isLiteral(string s) {
+  return s.length && s[0] == '$';
+}
+
+bool isNumLiteral(string s) {
+  if (!s.isLiteral()) return false;
+  foreach (ch; s[1 .. $])
+    if (ch != '-' && (ch < '0' || ch > '9')) return false;
+  return true;
+}
+
+int literalToInt(string s) {
+  if (!isLiteral(s)) asm { int 3; }
+  assert(isLiteral(s), "not a literal: "~s);
+  return s[1 .. $].atoi();
+}
+
 // if false, is either a literal or a register (not esp)
 bool mayNeedStack(string str) {
   if (str.find("%esp") != -1) return true;

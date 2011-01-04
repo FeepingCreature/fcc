@@ -1,6 +1,7 @@
 module asmfile;
 
-import assemble, optimizer, ast.types, parseBase: startsWith;
+import optimizer, ast.types, parseBase: startsWith;
+public import assemble;
 
 import tools.log, tools.functional: map;
 import tools.base: between, slice, atoi, split, stuple, apply, swap;
