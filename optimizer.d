@@ -13,6 +13,12 @@ struct onceThenCall {
   }
 }
 
+// reference form
+string cleanup(string s) {
+  if (auto rest = s.startsWith("0(")) return "("~rest;
+  return s;
+}
+
 string opt(string name, string s) {
   string src = s.ctSlice("=>"), dest = s;
   string stmt_match = src.ctSlice(":");
@@ -63,27 +69,6 @@ string opt(string name, string s) {
         "$SUBST", `match.replaceWith`,
         "$TK", `Transaction.Kind`,
         "$T", `Transaction`);
-}
-
-bool isRegister(string s) {
-  return s.length > 2 && s[0] == '%' && s[1] != '(';
-}
-
-bool isLiteral(string s) {
-  return s.length && s[0] == '$';
-}
-
-bool isNumLiteral(string s) {
-  if (!s.isLiteral()) return false;
-  foreach (ch; s[1 .. $])
-    if (ch != '-' && (ch < '0' || ch > '9')) return false;
-  return true;
-}
-
-int literalToInt(string s) {
-  if (!isLiteral(s)) asm { int 3; }
-  assert(isLiteral(s), "not a literal: "~s);
-  return s[1 .. $].atoi();
 }
 
 void testParams(ref Transaction t, void delegate(string) dg) {
@@ -277,11 +262,14 @@ class ProcTrack : ExtToken {
   bool modsStack() {
     return stack.length || latepop.length;
   }
-  static int forble;
   bool update(Transaction t) {
     if (stackdepth == -1 && t.stackdepth != -1 && !modsStack()) {
       stackdepth = t.stackdepth;
     }
+    if (hasFrom(t)   ) t.from   = t.from   .cleanup();
+    if (hasTo(t)     ) t.to     = t.to     .cleanup();
+    if (hasSource(t) ) t.source = t.source .cleanup();
+    if (hasDest(t)   ) t.dest   = t.dest   .cleanup();
     scope(exit) {
       if (isValid) {
         knownGood = translate();
@@ -332,24 +320,31 @@ class ProcTrack : ExtToken {
                          return false;
       if (floatldsource) return false;
     }
-    void fixupESPDeps(int shift) {
-      void fixupString(ref string s) {
-        if (auto rest = s.startsWith("+(%esp, ")) {
-          s = Format("+(%esp, $",
-            rest.between("$", ")").atoi() + shift,
-            ")"
-          );
-        }
-        int offs;
-        if ("%esp" == s.isIndirect2(offs)) {
-          s = Format(offs + shift, "(%esp)");
-        }
+    void fixupString(ref string s, int shift) {
+      if (auto rest = s.startsWith("+(%esp, ")) {
+        s = Format("+(%esp, $",
+          rest.between("$", ")").atoi() + shift,
+          ")"
+        );
       }
+      int offs;
+      if ("%esp" == s.isIndirect2(offs)) {
+        if (offs + shift < 0) {
+          logln("Tried to fix up ", s, " by ", shift, " into negative! ");
+          asm { int 3; }
+        }
+        s = Format(offs + shift, "(%esp)").cleanup();
+      }
+    }
+    // Note: this must NOT fix up the stack! think about it.
+    void fixupESPDeps(int shift) {
       typeof(known) newknown;
       foreach (key, value; known) {
-        fixupString(key); fixupString(value);
+        fixupString(key, shift); fixupString(value, shift);
         newknown[key] = value;
       }
+      if (floatldsource)
+        fixupString(floatldsource, shift);
       known = newknown;
     }
     with (Transaction.Kind) switch (t.kind) {
@@ -478,11 +473,18 @@ class ProcTrack : ExtToken {
               // can't just read stack - the stack address is understood to be only valid during stack building phase
               // auto val = stack[$ - 1 - from_rel];
               // instead "unroll" the stack until the index is _just_ at length, then set the value and uproll
-              auto fixdist = -4 * (stack.length - index);
-              fixupESPDeps(fixdist);
-              if (!set(t.to, stack[index]))
+              auto fixdist = 4 * (stack.length - index);
+              auto src = stack[index];
+              fixupString(src, fixdist);
+              if (!set(t.to, src))
                 return false;
-              fixupESPDeps(-fixdist);
+              mixin(Success);
+            } else {
+              string src = cleanup(t.from);
+              if (auto nsrc = src in known)
+                src = *nsrc;
+              if (!set(t.to, src))
+                return false;
               mixin(Success);
             }
           }
@@ -555,8 +557,12 @@ class ProcTrack : ExtToken {
               if (entry.find(t.dest) != -1) return false;
           }
           //   if (&& t.dest in use) return false;
-          if (!set(t.dest, stack[$-1]))
+          // do this first because pushed addresses were evaluated before the push took place
+          fixupESPDeps(-4);
+          if (!set(t.dest, stack[$-1])) {
+            fixupESPDeps(4); // undo
             return false;
+          }
           stack = stack[0 .. $-1];
           mixin(Success);
         }
@@ -596,6 +602,14 @@ class ProcTrack : ExtToken {
       case Call: return false;
       case Jump: return false;
       case FloatLoad:
+        if (t.source == "(%esp)" && stack.length) {
+          auto src = stack[$-1];
+          if (src.isIndirect() || src.isLiteral()) {
+            fixupString(src, 4); // pretend we haven't pushed this yet
+            floatldsource = src;
+            mixin(Success);
+          } else return false;
+        }
         if (auto src = t.source.isIndirectSimple()) {
           if (src in known) {
             if (auto indir = mkIndirect(known[src])) {
@@ -743,11 +757,11 @@ void setupOpts() {
       New(obj);
       t.obj = obj;
       /*static int si;
-      // 814 .. 816
-      if (si++ < 815) */{
+      // 56236 .. 56237
+      if (si ++ < 56237) */{
         if (obj.update($0)) { $SUBST([t, $1]); }
-        // else logln("Reject ", $0, ", ", $1);
       }
+      // else logln("Reject ", $0, ", ", $1);
     }
   `));
   // .ext_step = &ext_step; // export
@@ -907,6 +921,15 @@ void setupOpts() {
       op2 = "%eax";
     }
   `));
+  mixin(opt("switch_mov_push", `^Mov, ^Push:
+    $0.to.isUtilityRegister() && $0.to == $1.source && $1.type.size == nativePtrSize
+    =>
+    auto s0 = $1.dup(), s1 = $0.dup();
+    s0.source = $0.from;
+    s1.from = "(%esp)";
+    s1.to = $0.to;
+    $SUBST([s0, s1]);
+  `));
   mixin(opt("load_from_push", `^Push, ^FloatLoad:
     !$0.source.isRegister() && $1.source == "(%esp)"
     =>
@@ -1003,6 +1026,7 @@ void setupOpts() {
   mixin(opt("pop_mov_order", `^Pop, ^Mov:
     $0.type.size == 4 &&
     $0.dest == $1.from &&
+    $0.dest.isIndirect() != "%esp" && /*not actually the same target!*/
     $1.to.isRegister() && !$1.from.isRegister()
     =>
     auto t1 = $0, t2 = $1;
