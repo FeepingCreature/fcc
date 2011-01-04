@@ -318,7 +318,17 @@ class ProcTrack : ExtToken {
     if (t.kind != Transaction.Kind.Nevermind) {
       if (latepop && t.kind != Transaction.Kind.Pop)
                          return false;
-      if (floatldsource) return false;
+      if (floatldsource) {
+        int offs;
+        if (  t.kind == Transaction.Kind.Push
+            ||
+              t.kind == Transaction.Kind.Mov
+            ||
+              floatldsource.isIndirect2(offs) == "%esp" &&
+              t.kind == Transaction.Kind.SFree &&
+              offs >= t.size) { } // permit
+        else return false;
+      }
     }
     void fixupString(ref string s, int shift) {
       if (auto rest = s.startsWith("+(%esp, ")) {
@@ -602,13 +612,26 @@ class ProcTrack : ExtToken {
       case Call: return false;
       case Jump: return false;
       case FloatLoad:
-        if (t.source == "(%esp)" && stack.length) {
-          auto src = stack[$-1];
-          if (src.isIndirect() || src.isLiteral()) {
-            fixupString(src, 4); // pretend we haven't pushed this yet
-            floatldsource = src;
+        int offs;
+        if ("%esp" == t.source.isIndirect2(offs)) {
+          if (offs % 4 != 0) break;
+          auto rindex = offs / 4;
+          int index = stack.length - 1 - rindex;
+          if (index >= 0) {
+            auto src = stack[index];
+            if (src.isIndirect() || src.isLiteral()) {
+              // pretend we're about to push this
+              fixupString(src, 4 * (1 + rindex));
+              floatldsource = src;
+              mixin(Success);
+            } else return false;
+          } else {
+            // PROBABLY not going to be a problem
+            // oh man this is SO gonna come back to bite me :)
+            floatldsource = t.source;
             mixin(Success);
-          } else return false;
+            return false;
+          }
         }
         if (auto src = t.source.isIndirectSimple()) {
           if (src in known) {
@@ -926,6 +949,7 @@ void setupOpts() {
     =>
     auto s0 = $1.dup(), s1 = $0.dup();
     s0.source = $0.from;
+    s0.stackdepth = $1.stackdepth;
     s1.from = "(%esp)";
     s1.to = $0.to;
     $SUBST([s0, s1]);
