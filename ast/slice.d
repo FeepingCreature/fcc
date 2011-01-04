@@ -62,11 +62,10 @@ static this() {
     }
     if (!cast(Array) e1v && !cast(ExtArray) e1v && !cast(Pointer) e1v)
       return null;
-    auto range = cast(Range) e2v;
-    if (!range) return null;
-    auto casted = reinterpret_cast(range.wrapper, e2);
-    auto from = foldex(mkMemberAccess(casted, "cur"));
-    auto to   = foldex(mkMemberAccess(casted, "end"));
+    auto rish = cast(RangeIsh) e2v;
+    if (!rish) return null;
+    auto from = foldex(rish.getPos(e2));
+    auto to   = foldex(rish.getEnd(e2));
     if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: ", from));
     if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: ", from));
     

@@ -70,12 +70,11 @@ Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr range;
     if (!t2.accept("[") ||
         !rest(t2, "tree.expr", &range) ||
-        !gotImplicitCast(range, (IType it) { return test(cast(Range) it); }) ||
+        !gotImplicitCast(range, (IType it) { return test(cast(RangeIsh) it); }) ||
         !t2.accept("]")) return null;
-    auto
-      ex2 = new RCE((cast(Range) range.valueType()).wrapper, range),
-      from = iparse!(Expr, "range_from", "tree.expr")("ex2.cur", "ex2", ex2),
-      to   = iparse!(Expr, "range_to",   "tree.expr")("ex2.end", "ex2", ex2);
+    auto rish = cast(RangeIsh) range.valueType(),
+      from = rish.getPos(range),
+      to   = rish.getEnd(range);
     text = t2;
     auto ifrom = cast(IntExpr) fold(from), ito = cast(IntExpr) fold(to);
     text.passert(ifrom && ito, "fail");

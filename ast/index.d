@@ -3,7 +3,7 @@ module ast.index;
 import ast.parse, ast.base, ast.opers, ast.pointer, ast.casting,
   ast.static_arrays, ast.arrays, ast.namespace;
 
-import ast.iterator: Range;
+import ast.iterator: RangeIsh;
 LValue getIndex(Expr array, Expr pos) {
   Expr ptr;
   if (auto sa = cast(StaticArray) array.valueType())
@@ -106,7 +106,7 @@ Object gotPointerIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     auto t2 = text;
     Expr pos;
     if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
-      if (cast(Range) pos.valueType()) return null; // belongs to slice
+      if (cast(RangeIsh) pos.valueType()) return null; // belongs to slice
       if (pos.valueType().size() != 4) throw new Exception(Format("Invalid index: ", pos));
       text = t2;
       return new PA_Access (ex, pos);

@@ -14,13 +14,20 @@ interface RichIterator : Iterator {
   Expr slice(Expr, Expr from, Expr to);
 }
 
-class Range : Type, RichIterator {
+interface RangeIsh {
+  Expr getPos(Expr base);
+  Expr getEnd(Expr base);
+}
+
+class Range : Type, RichIterator, RangeIsh {
   IType wrapper;
   LValue castToWrapper(LValue lv) {
     return iparse!(LValue, "range_cast_to_wrapper", "tree.expr")
                   ("*wrapper*:&lv", "lv", lv, "wrapper", wrapper);
   }
   Expr castExprToWrapper(Expr ex) {
+    if (auto lv = cast(LValue) ex)
+      return castToWrapper(lv);
     return iparse!(Expr, "range_cast_expr_to_wrapper", "tree.expr")
                   ("wrapper:ex", "ex", ex, "wrapper", wrapper);
   }
@@ -59,16 +66,22 @@ class Range : Type, RichIterator {
                      "ex", castExprToWrapper(ex),
                      "from", from, "to", to);
     }
+    Expr getPos(Expr ex) {
+      return mkMemberAccess(castExprToWrapper(ex), "cur");
+    }
+    Expr getEnd(Expr ex) {
+      return mkMemberAccess(castExprToWrapper(ex), "end");
+    }
   }
 }
 
 import ast.int_literal;
-class ConstIntRange : Type, RichIterator {
+class ConstIntRange : Type, RichIterator, RangeIsh {
   int from, to;
   this(int f, int t) { this.from = f; this.to = t; }
   override {
     IType elemType() { return Single!(SysInt); }
-    string toString() { return Format("ConstRangeIntIter[", size, "]()"); }
+    string toString() { return Format("ConstIntRange[", size, "]()"); }
     int size() { return nativeIntSize; }
     string mangle() { return Format("constint_range_", from, "_to_", to); }
     ubyte[] initval() { return cast(ubyte[]) (&from)[0..1]; }
@@ -87,7 +100,7 @@ class ConstIntRange : Type, RichIterator {
     }
     Expr length(Expr ex) { return new IntExpr(to-from); }
     Expr index(Expr ex, Expr pos) {
-      return iparse!(Expr, "index_range", "tree.expr")
+      return iparse!(Expr, "const_index_range", "tree.expr")
                     ("ex + pos",
                      "ex", reinterpret_cast(Single!(SysInt), ex),
                      "pos", pos);
@@ -99,7 +112,20 @@ class ConstIntRange : Type, RichIterator {
                      "ex", reinterpret_cast(Single!(SysInt), ex),
                      "from", from, "to", to);
     }
+    Expr getPos(Expr ex) {
+      return reinterpret_cast(Single!(SysInt), ex);
+    }
+    Expr getEnd(Expr ex) { return new IntExpr(to); }
   }
+}
+
+Expr mkRange(Expr from, Expr to) {
+  auto wrapped = new Structure(null);
+  new RelMember("cur", from.valueType(), wrapped);
+  new RelMember("end", to.valueType(), wrapped);
+  auto range = new Range;
+  range.wrapper = wrapped;
+  return new RCE(range, new StructLiteral(wrapped, [from, to]));
 }
 
 import ast.tuples;
@@ -117,12 +143,7 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   auto ifrom = cast(IntExpr) fold(from), ito = cast(IntExpr) fold(to);
   if (ifrom && ito)
     return new RCE(new ConstIntRange(ifrom.num, ito.num), ifrom);
-  auto wrapped = new Structure(null);
-  new RelMember("cur", from.valueType(), wrapped);
-  new RelMember("end", to.valueType(), wrapped);
-  auto range = new Range;
-  range.wrapper = wrapped;
-  return new RCE(range, new StructLiteral(wrapped, [from, to]));
+  return cast(Object) mkRange(from, to);
 }
 mixin DefaultParser!(gotRangeIter, "tree.expr.iter_range", "11");
 
@@ -695,12 +716,8 @@ Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
       if (!ri)
         text.failparse("Cannot access by index: ", ex, " not a rich iterator");
       text = t2;
-      if (auto range = cast(Range) pos.valueType()) {
-        auto ps = new RCE(range.wrapper, pos);
-        auto from = iparse!(Expr, "iter_slice_from", "tree.expr")
-                           ("ps.cur", "ps", ps);
-        auto to   = iparse!(Expr, "iter_slice_to",   "tree.expr")
-                           ("ps.end", "ps", ps);
+      if (auto rish = cast(RangeIsh) pos.valueType()) {
+        auto from = rish.getPos(pos), to = rish.getEnd(pos);
         return cast(Object) ri.slice(ex, from, to);
       } else {
         return cast(Object) ri.index(ex, pos);
