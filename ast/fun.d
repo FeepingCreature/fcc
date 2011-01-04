@@ -155,16 +155,25 @@ void handleReturn(IType ret, AsmFile af) {
     return;
   }
   if (ret != Single!(Void)) {
-    if (ret.size >= 8)
+    if (ret.size >= 8) {
       af.pushStack("%edx", Single!(SizeT));
-    if (ret.size >= 12)
+      af.nvm("%edx");
+    }
+    if (ret.size >= 12) {
       af.pushStack("%ecx", Single!(SizeT));
-    if (ret.size == 16)
+      af.nvm("%ecx");
+    }
+    if (ret.size == 16) {
       af.pushStack("%ebx", Single!(SizeT));
-    if (ret.size >= 4)
+      af.nvm("%ebx");
+    }
+    if (ret.size >= 4) {
       af.pushStack("%eax", Single!(SizeT));
-    else if (ret.size == 2)
+      af.nvm("%eax");
+    } else if (ret.size == 2) {
       af.pushStack("%ax", Single!(Short));
+      af.nvm("%ax");
+    }
   }
 }
 

@@ -310,25 +310,13 @@ class MemberAccess_Expr : Expr, HasInfo {
     void emitAsm(AsmFile af) {
       auto st = base.valueType();
       if (auto lv = cast(LValue) base) {
-        if (stm.type.size == 4 /or/ 2 /or/ 1) {
+        if (stm.type.size <= 16) {
           af.comment("emit location for member access to ", stm.name, " @", stm.offset);
           lv.emitLocation(af);
           af.comment("pop and dereference");
           af.popStack("%eax", new Pointer(st));
-          string reg;
-          if (stm.type.size == 4) {
-            reg = "%eax";
-            af.mmove4(Format(stm.offset, "(%eax)"), reg);
-          } else if (stm.type.size == 2) {
-            reg = "%ax";
-            af.mmove2(Format(stm.offset, "(%eax)"), reg);
-          } else {
-            reg = "%bl";
-            af.put("xorw %bx, %bx");
-            af.mmove1(Format(stm.offset, "(%eax)"), reg);
-          }
-          af.comment("push back ", reg);
-          af.pushStack(reg, stm.type);
+          af.comment("push back ", stm.type.size);
+          af.pushStack(Format(stm.offset, "(%eax)"), stm.type);
           af.nvm("%eax");
         } else {
           mkVar(af, stm.type, true, (Variable var) {
@@ -359,16 +347,26 @@ class MemberAccess_Expr : Expr, HasInfo {
           af.mmove4(Format(stm.offset + 12, "(%esp)"), "%eax");
         af.sfree(st.size);
         af.comment("repush member");
-        if (stm.type.size == 16)
+        if (stm.type.size == 16) {
           af.pushStack("%eax", Single!(SysInt));
-        if (stm.type.size >= 12)
+          af.nvm("%eax");
+        }
+        if (stm.type.size >= 12) {
           af.pushStack("%ebx", Single!(SysInt));
-        if (stm.type.size >= 8)
+          af.nvm("%ebx");
+        }
+        if (stm.type.size >= 8) {
           af.pushStack("%ecx", Single!(SysInt));
-        if (stm.type.size >= 4)
+          af.nvm("%ecx");
+        }
+        if (stm.type.size >= 4) {
           af.pushStack("%edx", Single!(SysInt));
-        if (stm.type.size == 2)
+          af.nvm("%edx");
+        }
+        if (stm.type.size == 2) {
           af.pushStack("%dx", Single!(Short));
+          af.nvm("%dx");
+        }
       }
     }
   }
