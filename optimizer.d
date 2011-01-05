@@ -1031,18 +1031,6 @@ void setupOpts() {
   mixin(opt("combine_nevermind", `^Nevermind, ^Nevermind:
     $0.dest == $1.dest => $SUBST([$0]);
   `));
-  mixin(opt("pop_mov_order", `^Pop, ^Mov:
-    $0.type.size == 4 &&
-    $0.dest == $1.from &&
-    $0.dest.isIndirect() != "%esp" && /*not actually the same target!*/
-    $1.to.isRegister() && !$1.from.isRegister()
-    =>
-    auto t1 = $0, t2 = $1;
-    t1.dest = $1.to;
-    t2.from = $1.to;
-    t2.to = $0.dest;
-    $SUBST([t1, t2]);
-  `));
   mixin(opt("complex_pointless_store", `^FloatPop, ^SFree, ^FloatLoad, ^SFree:
     $1.size == 4 && $3.size == 4 &&
     $0.dest == "4(%esp)" && $2.source == "(%esp)"
