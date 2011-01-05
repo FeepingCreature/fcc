@@ -95,6 +95,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
       af.put(".type "~mangleSelf~", @function");
       af.put(mangleSelf() ~ ":"); // not really a label
       af.jump_barrier();
+      
       af.pushStack("%ebp", voidp);
       af.mmove4("%esp", "%ebp");
       
@@ -103,8 +104,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
       af.currentStackDepth = 0;
       withTLS(namespace, this, tree.emitAsm(af));
       af.emitLabel(exit());
+      
       af.mmove4("%ebp", "%esp");
       af.popStack("%ebp", voidp);
+      
       af.jump_barrier();
       af.put("ret");
     }
@@ -190,8 +193,17 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       Format("Return bug: ", ret, " from ", name, "!"));
     af.comment("Begin call to ", name);
     
+    int paramsize;
+    foreach (param; params) paramsize += param.valueType().size;
+    
+    auto alignCall = 16 - (af.currentStackDepth + paramsize) % 16;
+    if (alignCall == 16) alignCall = 0;
+    af.salloc(alignCall);
+    
     auto restore = af.floatStackDepth;
-    while (af.floatStackDepth) af.floatToStack();
+    while (af.floatStackDepth)
+      af.floatToStack();
+    
     {
       mixin(mustOffset("0", "innerer"));
       foreach_reverse (param; params) {
@@ -205,8 +217,9 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
         fp.emitAsm(af);
       }
       af.popStack("%eax", Single!(SizeT));
+      
       af.call("%eax");
-      af.nvm("%eax");
+      
       foreach (param; params) {
         if (param.valueType() != Single!(Void))
           af.sfree(param.valueType().size);
@@ -218,6 +231,7 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       if (ret == Single!(Float) || ret == Single!(Double))
         af.swapFloats;
     }
+    af.sfree(alignCall);
   }
   
   auto size = (ret == Single!(Void))?0:ret.size;

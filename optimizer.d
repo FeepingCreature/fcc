@@ -305,7 +305,7 @@ class ProcTrack : ExtToken {
     // #define .. lol
     const string Success = "{ backup ~= t; eaten ++; return true; }";
     bool canOverwrite(string s, string whs = null) {
-      if (s in known && known[s] == whs) return true;
+      if (  s in known && known[  s] == whs) return true;
       foreach (entry; stack)
         if (entry.find(s) != -1) return false;
       foreach (key, value; known) {
@@ -442,6 +442,10 @@ class ProcTrack : ExtToken {
         
         if (t.from == "%esp")
           return false; // TODO: can this ever be handled?
+        if (t.from in known && known[t.from] == t.to) {
+          // circular write, lol
+          mixin(Success);
+        }
         if (!canOverwrite(t.to, t.from)) break; // lol
         if (t.to.isIndirect() == "%esp")
           use["%esp"] = true;
@@ -606,6 +610,16 @@ class ProcTrack : ExtToken {
                 fixupESPDeps(4 * len); // and undo
                 mixin(Success);
               }
+            }
+          } else if (dest == "%esp") {
+            if (stack.length && !isMemRef(stack[$-1])) {
+              auto val = stack[$-1];
+              fixupString(val, 4);
+              if (!set(t.dest, val))
+                return false;
+              fixupESPDeps(-4);
+              stack = stack[0 .. $-1];
+              mixin(Success);
             }
           }
           return false;
@@ -943,7 +957,7 @@ void setupOpts() {
     =>
     $SUBST([$1, $0]);
   `));*/
-  mixin(opt("load_from_push", `^Push, (^FloatLoad || ^FloatIntLoad):
+  mixin(opt("load_from_push", `^Push, (^FloatLoad/* || ^FloatIntLoad*/):
     !$0.source.isRegister() && $1.source == "(%esp)"
     =>
     $T a1 = $1.dup, a2, a3;
@@ -955,7 +969,7 @@ void setupOpts() {
     a3.size = 4;
     $SUBST([a1, a2, a3]);
   `));
-  mixin(opt("fold_float_pop_load", `^FloatPop, ^FloatLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 4 => $SUBST([$2]);`));
+  mixin(opt("fold_float_pop_load", `^FloatPop, ^FloatLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 4 => $SUBST($2);`));
   mixin(opt("fold_float_pop_load_to_store", `^FloatPop, ^FloatLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.FloatStore; dest = $0.dest; }`));
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
   
@@ -1029,7 +1043,7 @@ void setupOpts() {
     }
   `));
   mixin(opt("combine_nevermind", `^Nevermind, ^Nevermind:
-    $0.dest == $1.dest => $SUBST([$0]);
+    $0.dest == $1.dest => $SUBST($0);
   `));
   mixin(opt("complex_pointless_store", `^FloatPop, ^SFree, ^FloatLoad, ^SFree:
     $1.size == 4 && $3.size == 4 &&
@@ -1041,10 +1055,6 @@ void setupOpts() {
       size = 8;
     }
   `));
-  bool isArgument(string s) {
-    int offs;
-    return s.isIndirect2(offs) == "%ebp" && offs >= 0;
-  }
   mixin(opt("break_up_push", `^Push: $0.type.size > 4 && ($0.type.size % 4) == 0
     =>
     int delta;
@@ -1089,34 +1099,56 @@ void setupOpts() {
     bool doit;
     if (hasDest($0) && $0.dest == "(%esp)") doit = true;
     if (hasTo  ($0) && $0.to   == "(%esp)") doit = true;
+    if ($0.kind == $TK.FloatPop) doit = false; // can't remove, has side effects
     if (doit) $SUBST($1); // pointless
+  `));
+  mixin(opt("direct_math", `^Mov, ^Mov, ^MathOp:
+    $0.to == $2.op1 && $1.to == $2.op2 &&
+    $0.from != $1.to && $0.to != $1.from
+    =>
+    $T t = $2;
+    t.op1 = $0.from;
+    $SUBST([$1, t, $0]);
   `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
     bool changed;
     auto match = cache.findMatch("lookahead_remove_redundants", delegate int(Transaction[] list) {
       if (list.length <= 1) return false;
       auto head = list[0];
-      if (!hasTo(head)) return false;
-      auto check = head.to;
-      if (!check.isUtilityRegister()) return false;
+      string check;
+      if (hasTo(head)) check = head.to;
+      if (head.kind == Transaction.Kind.FloatStore) check = head.dest;
+      if (!check) return false;
+      if (!check.isUtilityRegister() && check != "(%esp)") return false;
       bool unneeded;
       outer:foreach (i, entry; list[1 .. $]) {
         with (Transaction.Kind) switch (entry.kind) {
-          case SAlloc, SFree, FloatMath:
+          case SAlloc, SFree:
+            if (check == "(%esp)") break outer;
+          case FloatMath:
             continue;    // no change
+          
           case Label, Compare, Call, Jump:
             break outer; // no chance
-          case Push, FloatLoad, FloatIntLoad:
+          
+          case Push:
+            if (check == "(%esp)") break outer;
+          case FloatLoad, FloatIntLoad:
             if (entry.source.find(check) != -1) break outer;
             continue;
-          case Pop, Nevermind, FloatPop, FloatStore:
+          
+          case Pop:
+            if (check == "(%esp)") break outer;
+          case Nevermind, FloatPop, FloatStore:
             if (entry.dest == check) { unneeded = true; break outer; }
             if (entry.dest.find(check) != -1) break outer;
             continue;
+          
           case MathOp:
             if (entry.op1.find(check) != -1) break outer;
             if (entry.op2.find(check) != -1) break outer;
             continue;
+          
           case Mov, LoadAddress:
             if (entry.from.find(check) != -1) break outer;
             if (entry.to == check) {
@@ -1125,6 +1157,7 @@ void setupOpts() {
             }
             if (entry.to.find(check) != -1) break outer;
             continue;
+          
           default: break;
         }
         logln("huh? ", entry);

@@ -60,7 +60,7 @@ c_include "fenv.h";
 c_include "unistd.h";
 c_include "time.h";
 
-void sdlfun(float[3] delegate(float, float, float) dg) {
+void sdlfun(vec3f delegate(float, float, float) dg) {
   SDL_Init(32); // video
   SDL_Surface* surface = SDL_Surface*: SDL_SetVideoMode(320, 240, 0, SDL_ANYFORMAT);
   int update() {
@@ -78,12 +78,12 @@ void sdlfun(float[3] delegate(float, float, float) dg) {
     fesetround(FE_DOWNWARD);
     t = t + 0.05;
     int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
-    float f1f = factor1, f2f = factor2, f3f = factor3;
+    vec3f ff = vec3f(factor1, factor2, factor3);
     for (int y = 0; y < surface.h; ++y) {
       auto p = &((int*:surface.pixels)[y * int:surface.w]);
       for (int x = 0; x < surface.w; ++x) {
-        auto f = dg(float:x / surface.w, float:y / surface.h, t);
-        *(p++) = int:(f1f * f[2]) + int:(f2f * f[1]) & factor2 + int:(f3f * f[0]) & factor3;
+        auto f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
+        *(p++) = int:f.x + int:f.y & factor2 + int:f.z & factor3;
       }
     }
     fps ++;
@@ -332,20 +332,8 @@ int main(int argc, char** argv) {
       if (x >= 1) return 1;
       return x * x * (3 - 2 * x);
     }
-    float[3] rgb(float r, float g, float b) {
-      float[3] res = void;
-      res[0] = r;
-      res[1] = g;
-      res[2] = b;
-      return res;
-    }
-    float[3] transition(float[3]* a, float[3]* b, float f) {
-      float finv = 1 - f;
-      return rgb(
-        (*a)[0] * finv + (*b)[0] * f,
-        (*a)[1] * finv + (*b)[1] * f,
-        (*a)[2] * finv + (*b)[2] * f
-      );
+    vec3f transition(vec3f* a, vec3f* b, float f) {
+      return (*a) * (1 - f) + (*b) * f;
     }
     float PI = 3.1415926538;
     float fun1(float x, float y) {
@@ -357,7 +345,7 @@ int main(int argc, char** argv) {
       float f = smoothstep(0, 0.01, e);
       return f;
     }
-    float[3] fun2(float x, float y) {
+    vec3f fun2(float x, float y) {
       x = x - 0.5;
       y = y - 0.5;
       float f = fun1(x + 0.5, y + 0.5);
@@ -368,9 +356,9 @@ int main(int argc, char** argv) {
         x = x2; y = y2;
         f = f * 0.8 + 0.2 * fun1(x + 0.5, y + 0.5);
       }
-      return rgb(f, f, f);
+      return vec3f(f);
     }
-    float[3] fun3(float x, float y, float t) {
+    vec3f fun3(float x, float y, float t) {
       // auto f2 = fun2(x, y);
       x = x - 0.5;
       y = y - 0.5;
@@ -381,10 +369,22 @@ int main(int argc, char** argv) {
              + 0.25   * noise3 ((vec3f(sin(t) * 4, x * 8, y * 8)))
              + 0.125  * noise3 ((vec3f(sin(t) * 4, x * 16, y * 16)))
              + 0.0625 * noise3 ((vec3f(sin(t) * 4, x * 32, y * 32)));*/
-      auto n = noise2 (vec2f(x * 8, y * 8));
+      float noisex(vec3f v) {
+        return noise3 vec3f(v.x + noise3(v), v.y + noise3(-v), v.z);
+        // return noise3 v;
+      }
+      auto n = noisex vec3f(x * 8, y * 8, t);
+      /*
+      auto n = 0.5    * noisex vec3f(x * 8,  y * 8,  t)
+             + 0.25   * noisex vec3f(x * 16, y * 16, t + 4) // offset! important
+             + 0.125  * noisex vec3f(x * 32, y * 32, t + 8)
+             + 0.0625 * noisex vec3f(x * 64, y * 64, t + 12)
+             ;
+      */
       // auto n = 0.5 * noise2(x * 4 + t, y * 4)+0.25;
       n = clamp(0, 1, n);
-      float[3] n2 = rgb(n, n * n, n * 2);
+      // auto n2 = vec3f(n, n * n, n * 2);
+      auto n2 = vec3f(n);
       return n2;
       // return transition(&f2, &n2, smoothstep(0.3, 0.5, dist + noise2(x * 2 + 100, y * 2) * 0.1));
     }

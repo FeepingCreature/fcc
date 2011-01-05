@@ -198,24 +198,69 @@ Object gotVecType(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotVecType, "type.vector", "34");
 
+bool pretransform(ref Expr ex, ref IType it) {
+  it = resolveType(it);
+  if (auto tup = cast(Tuple) it) {
+    if (tup.types.length == 1) {
+      ex = getTupleEntries(ex)[0];
+      it = tup.types[0];
+      return true;
+    }
+  }
+  return false;
+}
+
+import ast.vardecl, ast.assign;
+class VecOp : Expr {
+  IType type;
+  int len;
+  Expr ex1, ex2;
+  string op;
+  mixin defaultIterate!(ex1, ex2);
+  mixin DefaultDup!();
+  private this() { }
+  this(IType it, int len, Expr ex1, Expr ex2, string op) {
+    this.type = it; this.len = len;
+    this.ex1 = ex1; this.ex2 = ex2;
+    this.op = op;
+  }
+  override {
+    IType valueType() { return new Vector(type, len); }
+    void emitAsm(AsmFile af) {
+      auto t1 = ex1.valueType(), t2 = ex2.valueType();
+      while (true) {
+        if (pretransform(ex1, t1)) continue;
+        if (pretransform(ex2, t2)) continue;
+        break;
+      }
+      auto e1v = cast(Vector) t1, e2v = cast(Vector) t2;
+      mkVar(af, valueType(), true, (Variable var) {
+        auto entries = getTupleEntries(
+          reinterpret_cast(
+            cast(IType) (cast(Vector) valueType()).asTup,
+            cast(LValue) var
+        ));
+        void delegate() dg1, dg2;
+        mixin(mustOffset("0"));
+        auto v1 = mkRef(af, ex1, dg1);
+        auto v2 = mkRef(af, ex2, dg2);
+        for (int i = 0; i < len; ++i) {
+          Expr l1 = v1, l2 = v2;
+          if (e1v) l1 = getTupleEntries(reinterpret_cast(cast(IType) e1v.asTup, cast(LValue) v1))[i];
+          if (e2v) l2 = getTupleEntries(reinterpret_cast(cast(IType) e2v.asTup, cast(LValue) v2))[i];
+          (new Assignment(cast(LValue) entries[i], lookupOp(op, l1, l2))).emitAsm(af);
+        }
+        if (dg2) dg2();
+        if (dg1) dg1();
+      });
+    }
+  }
+}
+
 import ast.opers;
 static this() {
   Expr handleVecOp(string op, Expr lhs, Expr rhs) {
     auto v1 = lhs.valueType(), v2 = rhs.valueType();
-    bool pretransform(ref Expr ex, ref IType it) {
-      if (auto tp = cast(TypeProxy) it) {
-        it = tp.actualType;
-        return true;
-      }
-      if (auto tup = cast(Tuple) it) {
-        if (tup.types.length == 1) {
-          ex = getTupleEntries(ex)[0];
-          it = tup.types[0];
-          return true;
-        }
-      }
-      return false;
-    }
     while (true) {
       if (pretransform(lhs, v1)) continue;
       if (pretransform(rhs, v2)) continue;
@@ -228,16 +273,11 @@ static this() {
     int len;
     if (v1v) len = v1v.asTup.types.length;
     else len = v2v.asTup.types.length;
-    Expr[] list;
-    for (int i = 0; i < len; ++i) {
-      auto exl = lhs, exr = rhs;
-      if (v1v) exl = getTupleEntries(reinterpret_cast(v1v.asTup, exl))[i];
-      if (v2v) exr = getTupleEntries(reinterpret_cast(v2v.asTup, exr))[i];
-      list ~= lookupOp(op, exl, exr);
-    }
-    auto type = list[0].valueType();
-    auto vt = new Vector(type, len);
-    return reinterpret_cast(vt, new StructLiteral(vt.asTup.wrapped, list));
+    
+    auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asTup, lhs))[0];
+    auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asTup, rhs))[0];
+    auto type = lookupOp(op, l1, r1).valueType();
+    return new VecOp(type, len, lhs, rhs, op);
   }
   Expr negate(Expr ex) {
     auto ty = resolveType(ex.valueType());

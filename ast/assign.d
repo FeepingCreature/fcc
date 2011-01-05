@@ -10,7 +10,7 @@ class _Assignment(T) : Statement {
   this(T t, Expr e, bool force = false, bool blind = false) {
     this.blind = blind;
     if (!force && t.valueType() != e.valueType()) {
-      asm { int 3; }
+      // asm { int 3; }
       throw new Exception(Format(
         "Can't assign: ", t, " of ", t.valueType(), " <- ", e.valueType()
       ));

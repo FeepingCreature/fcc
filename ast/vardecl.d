@@ -71,7 +71,7 @@ void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
   mixin(mustOffset("size"));
   string name;
   static int x;
-  synchronized name = Format("__temp_var_", x++, "__");
+  synchronized name = Format("__temp_res_var_", x++, "__");
   auto var = new Variable(type, name,
                           boffs(type, af.currentStackDepth));
   var.dontInit = dontInit;
@@ -84,6 +84,28 @@ void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
     mixin(mustOffset("0"));
     dg(var);
   }
+}
+
+import tools.base;
+LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
+  if (auto lv = cast(LValue) ex)
+    return lv;
+  
+  auto type = ex.valueType();
+  int size = type.size;
+  // void vars are fucking weird, yes.
+  assert (type != Single!(Void));
+  string name;
+  static int x;
+  synchronized name = Format("__temp_var_", x++, "__");
+  auto var = new Variable(type, name,
+                          boffs(type, af.currentStackDepth));
+  var.initval = ex;
+  post = stuple(af, af.checkptStack()) /apply/ (AsmFile af, typeof(af.checkptStack()) forble) { af.restoreCheckptStack(forble); };
+  auto vd = new VarDecl;
+  vd.vars ~= var;
+  vd.emitAsm(af);
+  return var;
 }
 
 import ast.namespace, ast.scopes, tools.compat: find;

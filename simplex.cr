@@ -79,7 +79,10 @@ float noise3(vec3f v) {
   vec3f[4] vs = void;
   vs[0] = v - V0;
   
-  vec3i offs1, offs2;
+  vs[1] = vs[0]            + vec3f(1.0 / 6);
+  vs[2] = vs[0]            + vec3f(2.0 / 6);
+  vs[3] = vs[0] - vec3f(1) + vec3f(3.0 / 6);
+  vec3i offs1 = void, offs2 = void;
   alias v0 = vs[0];
   if (v0.x >= v0.y) {
     if (v0.y >= v0.z)
@@ -96,9 +99,8 @@ float noise3(vec3f v) {
     else
       (offs1, offs2) = (vec3i(0, 1, 0), vec3i(1, 1, 0));
   }
-  vs[1] = vs[0] - offs1 + 1.0 / 6;
-  vs[2] = vs[0] - offs2 + 2.0 / 6;
-  vs[3] = vs[0] - vec3f(1) + 3.0 / 6;
+  vs[1] -= offs1;
+  vs[2] -= offs2;
   int ii = i & 255, jj = j & 255, kk = k & 255;
   int[4] gi = void;
   alias i1 = offs1.x; alias i2 = offs2.x;

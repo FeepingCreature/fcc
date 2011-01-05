@@ -133,10 +133,10 @@ bool many(ref string s, lazy bool b, void delegate() dg = null, string abort = n
 bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   auto t2 = text.strip();
   t2.eatComments();
-  bool isValid(char c) {
-    return isAlphanum(c) || "_-".find(c) != -1 || (acceptDots && c == '.');
+  bool isValid(char c, bool first = false) {
+    return isAlphanum(c) || c == '_' || (!first && c == '-') || (acceptDots && c == '.');
   }
-  if (!t2.length || !isValid(t2[0])) return false;
+  if (!t2.length || !isValid(t2[0], true)) return false;
   auto identlen = 0, backup = t2;
   do {
     t2.take();
