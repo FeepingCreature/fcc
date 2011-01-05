@@ -11,7 +11,7 @@ class iter {
     int pos = dg(void[]:buffer);
     if pos == -1 {
       done = true;
-      return string:(null, null);
+      return null;
     }
     return buffer[0..pos];
   }

@@ -110,8 +110,11 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto f = foldex(ex);
     tried ~= f.valueType();
     return test(cast(CValue) f);
-  })) text.failparse("Can't take reference: ", ex,
+  })) {
+    text.setError("Can't take reference: ", ex,
     " does not become a cvalue (", tried, ")");
+    return null;
+  }
   
   text = t2;
   auto cv = cast(CValue) fold(ex);

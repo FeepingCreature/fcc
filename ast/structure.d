@@ -83,7 +83,7 @@ class RelMember : Expr, Named, RelTransformable {
     
     if (isAligned)
       doAlign(offset, type);
-    
+    if (!this.name) this.name = Format("_anon_struct_member_", st.field.length);
     ns.add(this);
   }
   override RelMember dup() { return this; }

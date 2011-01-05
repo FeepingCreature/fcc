@@ -3,7 +3,7 @@ module ast.properties;
 import ast.base, ast.parse, ast.casting, ast.tuples;
 
 import tools.log;
-Object gotProperties(bool withTuple)(ref string text, ParseCb cont, ParseCb rest) {
+Object gotProperties(bool withTuple, bool withCall)(ref string text, ParseCb cont, ParseCb rest) {
   // check all possible continuations
   string longest; Object res;
   Object obj;
@@ -27,7 +27,10 @@ Object gotProperties(bool withTuple)(ref string text, ParseCb cont, ParseCb rest
     
     bool matched;
     while (true) {
-      if (auto nl = rest(t2, "tree.rhs_partial")) {
+      string match = "tree.rhs_partial";
+      if (!withCall)
+        match ~= " >tree.rhs_partial.funcall";
+      if (auto nl = rest(t2, match)) {
         matched = true;
         lhs_partial.set(nl);
       } else break;
@@ -53,6 +56,8 @@ Object gotProperties(bool withTuple)(ref string text, ParseCb cont, ParseCb rest
   if (longest) text = longest;
   return res;
 }
-mixin DefaultParser!(gotProperties!(true), "tree.expr.properties.tup", "0");
-mixin DefaultParser!(gotProperties!(false), "tree.expr.properties.no_tup", "1");
+mixin DefaultParser!(gotProperties!(true, true), "tree.expr.properties.tup.call", "0");
+mixin DefaultParser!(gotProperties!(true, false), "tree.expr.properties.tup.no_call", "1");
+mixin DefaultParser!(gotProperties!(false, true), "tree.expr.properties.no_tup.call", "2");
+mixin DefaultParser!(gotProperties!(false, false), "tree.expr.properties.no_tup.no_call", "3");
 static this() { parsecon.addPrecedence("tree.expr.properties", "240"); }

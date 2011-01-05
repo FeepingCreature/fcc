@@ -8,9 +8,12 @@ import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop;
 Object gotTypeof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex))
+  string match = "tree.expr _tree.expr.arith";
+  
+  if (!rest(t2, match, &ex))
     t2.failparse("Failed to parse typeof expression");
   text = t2;
+  
   return cast(Object) ex.valueType();
 }
 mixin DefaultParser!(gotTypeof, "type.of", "45", "type-of");

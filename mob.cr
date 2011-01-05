@@ -7,14 +7,8 @@ struct LiteralHolder {
   int call() { return i; }
 }
 
-template Alloc(T) <<EOH
-  T* Alloc() {
-    return T*:sys.mem.malloc(T.sizeof);
-  }
-EOH
-
 int delegate() lit(int i) {
-  auto res = Alloc!LiteralHolder();
+  auto res = new LiteralHolder;
   res.i = i;
   return &res.call;
 }

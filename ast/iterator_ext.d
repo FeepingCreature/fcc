@@ -49,41 +49,33 @@ class CrossIndexExpr : Expr {
     void emitAsm(AsmFile af) {
       auto len = cross.myTypes().length, tup = cross.castToTuple(ex);
       auto lenex = new IntExpr(len);
-      auto root = iparse!(Scope, "cross_index_init", "tree.stmt")
-                         (`{ auto count = idx; }`,
-                          "tup", tup, "idx", idx, af);
-      auto count = cast(LValue) root.lookup("count");
-      assert(!!count);
-      for (int i = len - 1; i >= 0; --i) {
-        auto iex = new IntExpr(i);
-        auto iter = cast(LValue) mkTupleIndexAccess(tup, 1 + i + len);
-        auto orig = mkTupleIndexAccess(tup, 1 + i + len * 2);
-        auto itype = cast(RichIterator) iter.valueType();
-        auto origtype = cast(RichIterator) orig.valueType();
-        assert(!!itype && !!origtype);
-        // iter = orig
-        root.addStatement(new Assignment(iter, orig));
-        // value = iter[count % orig.length]
-        root.addStatement(new Assignment(
-          cast(LValue) mkTupleIndexAccess(tup, 1 + i),
-          itype.index(iter,
-            lookupOp("%",
-              count,
-              origtype.length(orig)
+      mkVar(af, valueType(), true, (Variable var) {
+        auto root = iparse!(Scope, "cross_index_init", "tree.stmt")
+                          (`{ auto count = idx; }`,
+                            "tup", tup, "idx", idx, af);
+        auto count = cast(LValue) root.lookup("count");
+        assert(!!count);
+        for (int i = len - 1; i >= 0; --i) {
+          auto iex = new IntExpr(i);
+          auto iter = mkTupleIndexAccess(tup, 1 + i + len * 2);
+          auto itype = cast(RichIterator) iter.valueType();
+          assert(!!itype);
+          // value = iter[count % length]
+          auto len = itype.length(iter);
+          root.addStatement(new Assignment(
+            cast(LValue) mkTupleIndexAccess(var, i),
+            itype.index(iter,
+              lookupOp("%", count, len)
             )
-          )
-        ));
-        // count /= orig.length
-        root.addStatement(new Assignment(
-          count,
-          lookupOp("/", count, origtype.length(orig))
-        ));
-      }
-      root.emitAsm(af);
-      // tuple result
-      iparse!(Expr, "cross_result", "tree.expr")
-             (`tup[1..len+1]`,
-              "tup", tup, "len", lenex).emitAsm(af);
+          ));
+          // count /= orig.length
+          root.addStatement(new Assignment(
+            count,
+            lookupOp("/", count, len)
+          ));
+        }
+        root.emitAsm(af);
+      });
     }
   }
   static this() {

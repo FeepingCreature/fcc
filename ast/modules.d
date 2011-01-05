@@ -245,7 +245,7 @@ void setupSysmods() {
         }
         destlen /= sz2;
         T res;
-        auto resptr = typeof(res[0])*:ptr;
+        auto resptr = type-of res[0] * :ptr;
         res = resptr[0 .. destlen];
         return res;
       }

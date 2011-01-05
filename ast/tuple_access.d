@@ -4,7 +4,6 @@ import ast.base, ast.tuples, ast.structure;
 
 Expr mkTupleIndexAccess(Expr tuple, int pos) {
   auto wrapped = (cast(Tuple) tuple.valueType()).wrapped;
-  auto temps = wrapped.selectMap!(RelMember, "$");
   MemberAccess_Expr res;
   if (auto lv = cast(LValue) tuple) {
     res = new MemberAccess_LValue;
@@ -13,8 +12,12 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
     res = new MemberAccess_Expr;
     res.base = new RCE(wrapped, tuple);
   }
+  
+  auto temps = wrapped.selectMap!(RelMember, "$");
   res.stm = temps[pos];
-  return foldex(res);
+  
+  auto types = (cast(Tuple) tuple.valueType()).types();
+  return foldex(reinterpret_cast(types[pos], res));
 }
 
 Expr[] getTupleEntries(Expr tuple) {

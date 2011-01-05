@@ -55,10 +55,6 @@ context rot {
 
 GLuint[1] texture;
 
-alias SDL_RWops = void;
-extern(C) SDL_RWops* SDL_RWFromFile(char* file, char* mode);
-extern(C) SDL_Surface* SDL_LoadBMP_RW(SDL_RWops* src, int freesrc);
-
 void loadGLTextures() {
   auto status = false;
   auto TextureImage = [SDL_LoadBMP_RW(SDL_RWFromFile("data/nehe.bmp", "rb"), 1)];
@@ -107,7 +103,7 @@ void drawGLScene() {
   
   glBindTexture (GL_TEXTURE_2D, texture[0]);
   
-  auto corners = cross [1, -1]^3;
+  auto corners = cross [1, -1] x 3;
   /*
    1  1  1 |0
    1  1 -1 |1
@@ -119,7 +115,7 @@ void drawGLScene() {
   -1 -1 -1 |7
   */
   glBegin GL_QUADS;
-    while auto tup <- [
+  while type-of((0, 0), 0) tup <- [
                   // front face
                   ((0, 1), 6), ((1, 1), 2), ((1, 0), 0), ((0, 0), 4),
                   // back face

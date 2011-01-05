@@ -364,15 +364,10 @@ class FunRefExpr : Expr, Literal {
 
 import ast.casting;
 Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  string ident;
-  Object obj;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &obj))
+  Function fun;
+  if (!rest(text, "tree.expr _tree.expr.arith "
+  ~">tree.expr.properties.tup.call >tree.expr.properties.no_tup.call", &fun))
     return null;
-  auto fun = cast(Function) obj;
-  if (!fun) return null;
-  
-  text = t2;
   
   return new FunRefExpr(fun);
 }

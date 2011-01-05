@@ -62,12 +62,24 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   if (!backup_text.length) return false; // wat
   // speed opt - a call can only begin
   // with one of those separating tokens
-  const string valid_call_start_tokens = "({[ ";
+  const string valid_call_start_tokens = "( ";
   bool token_match;
   foreach (ch; valid_call_start_tokens)
     if (text.startsWith([ch])) { token_match = true; break; }
   if (!token_match) return false;
-  if (!rest(text, "tree.expr _tree.expr.arith >tree.expr.properties.tup", &arg)) {
+  
+  bool isTuple;
+  {
+    auto t2 = text;
+    if (t2.accept("(")) isTuple = true;
+  }
+  
+  string match = "tree.expr _tree.expr.arith";
+  // Only do this if we actually expect a tuple _literal_
+  // properties on tuple _variables_ are valid!
+  if (isTuple) match ~= " >tree.expr.properties.tup"; // exclude tuple property matching
+  
+  if (!rest(text, match, &arg)) {
     return false;
   }
   matchCallWith(arg, params, res, info, backup_text);

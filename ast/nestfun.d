@@ -170,19 +170,17 @@ class NestFunRefExpr : mkDelegate {
 }
 
 Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  if (!t2.accept("&")) return null;
-  
   string ident;
   NestedFunction nf;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &nf)) return null;
+  if (!rest(text, "tree.expr _tree.expr.arith "
+  ~">tree.expr.properties.tup.call >tree.expr.properties.no_tup.call", &nf))
+    return null;
   
-  text = t2;
   if (auto pnf = cast(PointerFunction!(NestedFunction)) nf) return cast(Object) pnf.ptr;
   if (auto  pf = cast(PointerFunction!(Function)) nf)       return cast(Object)  pf.ptr;
   return new NestFunRefExpr(nf);
 }
-mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210");
+mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210", "&");
 
 import ast.int_literal;
 // &fun as dg

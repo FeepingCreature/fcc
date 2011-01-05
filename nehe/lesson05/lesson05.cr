@@ -97,7 +97,7 @@ void drawGLScene() {
   glTranslatef(1.5, 0, -6.0);
   glRotatef(rotate.quad, 1, 0, 0);
   glColor3f(0.5, 0.5, 1.0);
-  auto corners = cross [1, -1]^3;
+  auto corners = cross [1, -1] x 3;
   glBegin GL_QUADS;
     while auto tup <- [((0.0, 1.0, 0.0), [1, 5, 4, 0]),
                        ((1.0, 0.5, 0.0), [2, 6, 7, 3]),

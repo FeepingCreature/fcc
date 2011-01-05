@@ -84,8 +84,16 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   auto fun = namespace().get!(Function)();
   text = t2;
-  if (rest(text, "tree.expr", &rs.value) && gotImplicitCast(rs.value, fun.type.ret, (IType it) { /*logln(it, " vs. ", fun.type.ret);*/ return test(it == fun.type.ret); }))
-    return rs;
+  IType[] tried;
+  if (rest(text, "tree.expr", &rs.value)) {
+    auto temp = rs.value;
+    if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == fun.type.ret); }))
+      return rs;
+    else {
+      logln("Could not convert ", temp, " to ", fun.type.ret, " for return: tried ", tried);
+      assert(false);
+    }
+  }
   if (fun.type.ret == Single!(Void))
     return rs; // permit no-expr
   text.failparse("Error parsing return expression");

@@ -175,14 +175,12 @@ class StructFunRefExpr : mkDelegate {
 }
 
 Object gotStructfunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  if (!t2.accept("&")) return null;
-  
   string ident;
   RelFunction rf;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &rf)) return null;
+  if (!rest(text, "tree.expr _tree.expr.arith "
+  ~">tree.expr.properties.tup.call >tree.expr.properties.no_tup.call", &rf))
+    return null;
   
-  text = t2;
   return new StructFunRefExpr(rf);
 }
-mixin DefaultParser!(gotStructfunRefExpr, "tree.expr.dg_struct_ref", "21015");
+mixin DefaultParser!(gotStructfunRefExpr, "tree.expr.dg_struct_ref", "21010", "&");

@@ -83,6 +83,7 @@ void optimize(Module mod) { ast.fold.opt(mod); }
 bool ematSysmod;
 
 string compile(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
+  while (file.startsWith("./")) file = file[2 .. $];
   auto af = new AsmFile(optimize, file.replace("/", "_").replace(".cr", ""));
   if (configOpts) {
     setupOpts();
@@ -394,7 +395,7 @@ int main(string[] args) {
       continue;
     }
     if (auto base = arg.endsWith(".cr")) {
-      if (!output) output = arg[0 .. $-3];
+      if (!output) output = base;
       if (!mainfile) mainfile = arg;
       if (!willLoop) {
         lazySysmod();
