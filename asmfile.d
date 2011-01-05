@@ -158,12 +158,23 @@ class AsmFile {
     cache ~= t;
   }
   int floatStackDepth;
-  void loadFloat(string mem) {
+  void incFloatStack() {
     floatStackDepth ++;
     if (floatStackDepth == 8)
       throw new Exception("Floating point stack overflow .. that was unexpected. Simplify your expressions. ");
+  }
+  void loadFloat(string mem) {
+    incFloatStack();
     Transaction t;
     t.kind = Transaction.Kind.FloatLoad;
+    t.source = mem;
+    t.stackdepth = currentStackDepth;
+    cache ~= t;
+  }
+  void loadIntAsFloat(string mem) {
+    incFloatStack();
+    Transaction t;
+    t.kind = Transaction.Kind.FloatIntLoad;
     t.source = mem;
     t.stackdepth = currentStackDepth;
     cache ~= t;

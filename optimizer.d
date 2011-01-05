@@ -33,7 +33,7 @@ string opt(string name, string s) {
   }
   string res;
   res ~= `bool `~name~`(Transcache cache, ref int[string] labels_refcount) {
-    bool changed;
+    bool _changed;
     auto match = cache.findMatch("`~name~`", (Transaction[] list) {
       // logln("cond for `~name~`: ", list);
       if (list.length >= ` ~ ctToString(instrs);
@@ -56,10 +56,10 @@ string opt(string name, string s) {
       if (!(`~src~`)) continue;`;
   res ~= dest~`
       if (match.modded) {
-        changed = true;
+        _changed = true;
       }
     } while (match.advance());
-    return changed;
+    return _changed;
   }
   opts ~= stuple(&`~name~`, "`~name~`", true);
   /* `~name~`();*/
@@ -71,15 +71,20 @@ string opt(string name, string s) {
         "$T", `Transaction`);
 }
 
-void testParams(ref Transaction t, void delegate(string) dg) {
+void accessParams(ref Transaction t, void delegate(ref string) dg, bool writeonly = false) {
   with (Transaction.Kind) switch (t.kind) {
-    case SAlloc, SFree, FloatMath, FloatSwap: return;
-    case Call, Nevermind, FloatStore, FloatPop, Pop: dg(t.dest); return;
-    case FloatLoad, Push: dg(t.source); return;
-    case LoadAddress, Mov, Mov2, Mov1: dg(t.from); dg(t.to); return;
-    case Compare, MathOp: dg(t.op1); dg(t.op2); return;
-    case Label, Jump: return;
-    default: break;
+    case SAlloc, SFree,
+      FloatMath, FloatSwap  : return;
+    case Call, Nevermind,
+      FloatStore, FloatPop,
+      Pop                   : dg(t.dest); return;
+    case FloatLoad,
+      FloatIntLoad, Push    : if (!writeonly) dg(t.source); return;
+    case LoadAddress,
+      Mov, Mov2, Mov1       : if (!writeonly) dg(t.from); dg(t.to); return;
+    case Compare, MathOp    : if (!writeonly) dg(t.op1); dg(t.op2); return;
+    case Label, Jump        : return;
+    default                 : break;
   }
   assert(false, Format("huh? ", t));
 }
@@ -93,34 +98,32 @@ void testParams(ref Transaction t, void delegate(string) dg) {
     else if (affects && t.kind == Pop /or/ Push)
       return true;
   bool res;
-  testParams(t, delegate void(string s) {
-    if (s.find("%esp") != -1) { res = res || true; return; }
+  void test(ref string s) {
+    if (s.isIndirect()) res |= true; // MAY access the stack.
+    if (s.find("%esp") != -1) { res |= true; return; }
     if (active) {
       int offs;
       if (s.isIndirect2(offs) == "%ebp") {
-        res = res || offs < 0; // negative ebp is active stack
+        res |= offs < 0; // negative ebp is active stack
       }
     } else {
-      res = res || s.find("%ebp") != -1;
+      res |= s.find("%ebp") != -1;
     }
-  });
+  }
+  if (affects) accessParams(t, &test, true);
+  else         accessParams(t, &test);
   return res;
 }
 
 bool affectsStack(ref Transaction t) { return referencesStack(t, true); }
 
-bool changesESP(ref Transaction t) {
-  with (Transaction.Kind)
-    return !!(t.kind == Push /or/ Pop);
-}
-
 bool changesOrNeedsActiveStack(ref Transaction t) {
-  return referencesStack(t, true, true);
+  return referencesStack(t, false, true) || referencesStack(t, true, true);
 }
 
 bool hasSource(ref Transaction t) {
   with (Transaction.Kind)
-    return !!(t.kind == Push /or/ FloatLoad);
+    return !!(t.kind == Push /or/ FloatLoad /or/ FloatIntLoad);
 }
 
 bool hasDest(ref Transaction t) {
@@ -134,16 +137,37 @@ bool hasFrom(ref Transaction t) {
 }
 alias hasFrom hasTo;
 
+bool hasOp(ref Transaction t) {
+  with (Transaction.Kind)
+    return !!(t.kind == MathOp /or/ Compare);
+}
+
 bool willOverwrite(ref Transaction t, string what) {
   if (!what.isRegister()) return false;
-  if (hasDest(t)) return t.dest == what;
-  if (hasTo(t)) return t.to == what;
-  return false;
+  bool res;
+  accessParams(t, (ref string s) { res |= s == what; }, true);
+  return res;
 }
 
 bool hasSize(ref Transaction t) {
   with (Transaction.Kind)
-    return !!(t.kind == Push /or/ Pop /or/ Mov /or/ Mov2 /or/ Mov1);
+    return !!(t.kind == Push /or/ Pop /or/ Mov /or/ Mov2 /or/ Mov1 /or/ SFree /or/ SAlloc);
+}
+
+int opSize(ref Transaction t) {
+  if (hasSize(t)) return t.size;
+  with (Transaction.Kind) {
+    switch (t.kind) {
+      case Mov, LoadAddress, FloatStore, FloatPop: return 4;
+      case Mov2: return 2;
+      case Mov1: return 1;
+      case Push, Pop: return t.type.size;
+      case SFree, SAlloc: return t.size;
+      case Call: return -1;
+      default: break;
+    }
+  }
+  assert(false, Format("Does ", t, " has size? "));
 }
 
 int size(ref Transaction t) {
@@ -185,9 +209,14 @@ string isIndirect2(string s, ref int delta) {
   if (auto res = isIndirectComplex(s, delta)) return res;
   return null;
 }
-string isIndirect(string s) {
+string isIndirect(string s, int offs = -1) {
   int bogus;
-  return isIndirect2(s, bogus);
+  if (offs == -1) return isIndirect2(s, bogus);
+  else {
+    auto res = isIndirect2(s, bogus);
+    if (bogus == offs) return res;
+    else return null;
+  }
 }
 
 // dg, name, allow
@@ -207,7 +236,7 @@ bool pinsRegister(ref Transaction t, string reg) {
     else if (t.kind == FloatMath /or/ FloatSwap)
       return false;
   bool res;
-  testParams(t, delegate void(string s) {
+  accessParams(t, delegate void(ref string s) {
     if (s.find(reg) != -1) res = true;
   });
   return res;
@@ -219,7 +248,6 @@ class ProcTrack : ExtToken {
   string[string] known;
   string[] stack; // nativePtr-sized
   string[] latepop;
-  string floatldsource; // TODO: fpu
   // in use by this set of transactions
   // emit before overwriting
   bool[string] use, nvmed;
@@ -236,7 +264,6 @@ class ProcTrack : ExtToken {
       isValid?"[OK]":"[BAD]", " ", known,
       ", stack", noStack?"[none] ":" ", stack.length, "; ", stack,
       ", pop ", latepop, ", used ", use.keys, ", nvm ", nvmed,
-      floatldsource?Format(", floatsrc ", floatldsource):"",
     ")");
   }
   int getStackDelta() {
@@ -266,10 +293,7 @@ class ProcTrack : ExtToken {
     if (stackdepth == -1 && t.stackdepth != -1 && !modsStack()) {
       stackdepth = t.stackdepth;
     }
-    if (hasFrom(t)   ) t.from   = t.from   .cleanup();
-    if (hasTo(t)     ) t.to     = t.to     .cleanup();
-    if (hasSource(t) ) t.source = t.source .cleanup();
-    if (hasDest(t)   ) t.dest   = t.dest   .cleanup();
+    accessParams(t, (ref string s) { s = s.cleanup(); });
     scope(exit) {
       if (isValid) {
         knownGood = translate();
@@ -318,17 +342,6 @@ class ProcTrack : ExtToken {
     if (t.kind != Transaction.Kind.Nevermind) {
       if (latepop && t.kind != Transaction.Kind.Pop)
                          return false;
-      if (floatldsource) {
-        int offs;
-        if (  t.kind == Transaction.Kind.Push
-            ||
-              t.kind == Transaction.Kind.Mov
-            ||
-              floatldsource.isIndirect2(offs) == "%esp" &&
-              t.kind == Transaction.Kind.SFree &&
-              offs >= t.size) { } // permit
-        else return false;
-      }
     }
     void fixupString(ref string s, int shift) {
       if (auto rest = s.startsWith("+(%esp, ")) {
@@ -353,8 +366,6 @@ class ProcTrack : ExtToken {
         fixupString(key, shift); fixupString(value, shift);
         newknown[key] = value;
       }
-      if (floatldsource)
-        fixupString(floatldsource, shift);
       known = newknown;
     }
     with (Transaction.Kind) switch (t.kind) {
@@ -611,37 +622,7 @@ class ProcTrack : ExtToken {
         mixin(Success);
       case Call: return false;
       case Jump: return false;
-      case FloatLoad:
-        int offs;
-        if ("%esp" == t.source.isIndirect2(offs)) {
-          if (offs % 4 != 0) break;
-          auto rindex = offs / 4;
-          int index = stack.length - 1 - rindex;
-          if (index >= 0) {
-            auto src = stack[index];
-            if (src.isIndirect() || src.isLiteral()) {
-              // pretend we're about to push this
-              fixupString(src, 4 * (1 + rindex));
-              floatldsource = src;
-              mixin(Success);
-            } else return false;
-          } else {
-            // PROBABLY not going to be a problem
-            // oh man this is SO gonna come back to bite me :)
-            floatldsource = t.source;
-            mixin(Success);
-            return false;
-          }
-        }
-        if (auto src = t.source.isIndirectSimple()) {
-          if (src in known) {
-            if (auto indir = mkIndirect(known[src])) {
-              floatldsource = indir;
-              mixin(Success);
-            }
-          }
-        }
-        break;
+      case FloatLoad, FloatIntLoad: return false;
       default: break;
     }
     return false;
@@ -670,78 +651,71 @@ class ProcTrack : ExtToken {
     return true;
   }
   Transaction[] translate() {
-    if (!isValid()) {
-      return knownGood ~ backup;
-    }
     Transaction[] res;
-    int myStackdepth; // local offs
-    bool sd = stackdepth != -1;
-    void addTransaction(Transaction.Kind tk,
-      void delegate(ref Transaction) dg,
-      void delegate(ref Transaction) dg2 = null
-      ) {
-      Transaction t;
-      t.kind = tk;
-      if (sd) t.stackdepth = stackdepth + myStackdepth;
-      void fixup(ref string st) {
-        int offs;
-        /*if ("%esp" == st.isIndirect2(offs)) {
-          // fix
-          auto delta = offs + myStackdepth;
-          if (delta)
-            st = Format(delta, "(%esp)");
-          else
-            st = "(%esp)";
-        }*/
+    if (!isValid()) {
+      res = knownGood ~ backup;
+    } else {
+      int myStackdepth; // local offs
+      bool sd = stackdepth != -1;
+      void addTransaction(Transaction.Kind tk,
+        void delegate(ref Transaction) dg,
+        void delegate(ref Transaction) dg2 = null
+        ) {
+        Transaction t;
+        t.kind = tk;
+        if (sd) t.stackdepth = stackdepth + myStackdepth;
+        void fixup(ref string st) {
+          int offs;
+          /*if ("%esp" == st.isIndirect2(offs)) {
+            // fix
+            auto delta = offs + myStackdepth;
+            if (delta)
+              st = Format(delta, "(%esp)");
+            else
+              st = "(%esp)";
+          }*/
+        }
+        dg(t);
+        accessParams(t, &fixup);
+        if (dg2) dg2(t);
+        
+        res ~= t;
       }
-      dg(t);
-      if (hasSource(t)) fixup(t.source);
-      if (hasDest(t))   fixup(t.dest);
-      if (hasFrom(t))   fixup(t.from);
-      if (hasTo(t))     fixup(t.to);
-      if (dg2) dg2(t);
-      
-      res ~= t;
-    }
-    assert(!stack.length || !noStack);
-    foreach (entry; stack) {
-      addTransaction(Transaction.Kind.Push, (ref Transaction t) {
-        t.source = entry;
-        t.type = Single!(SysInt);
-      }, (ref Transaction t) {
-        myStackdepth += nativeIntSize;
-      });
-    }
-    foreach (reg, value; known) {
-      if (reg in nvmed) continue;
-      if (auto indir = mkIndirect(value)) {
-        addTransaction(Transaction.Kind.LoadAddress, (ref Transaction t) {
-          t.from = indir; t.to = reg;
-        });
-      } else {
-        addTransaction(Transaction.Kind.Mov, (ref Transaction t) {
-          t.from = value; t.to = reg;
+      assert(!stack.length || !noStack);
+      foreach (entry; stack) {
+        addTransaction(Transaction.Kind.Push, (ref Transaction t) {
+          t.source = entry;
+          t.type = Single!(SysInt);
+        }, (ref Transaction t) {
+          myStackdepth += nativeIntSize;
         });
       }
+      foreach (reg, value; known) {
+        if (reg in nvmed) continue;
+        if (auto indir = mkIndirect(value)) {
+          addTransaction(Transaction.Kind.LoadAddress, (ref Transaction t) {
+            t.from = indir; t.to = reg;
+          });
+        } else {
+          addTransaction(Transaction.Kind.Mov, (ref Transaction t) {
+            t.from = value; t.to = reg;
+          });
+        }
+      }
+      foreach (entry; latepop) {
+        addTransaction(Transaction.Kind.Pop, (ref Transaction t) {
+          t.dest = entry;
+          t.type = Single!(SysInt);
+        }, (ref Transaction t) {
+          myStackdepth -= nativeIntSize;
+        });
+      }
+      /*foreach (key, value; nvmed) {
+        addTransaction(Transaction.Kind.Nevermind, (ref Transaction t) {
+          t.dest = key;
+        });
+      }*/
     }
-    foreach (entry; latepop) {
-      addTransaction(Transaction.Kind.Pop, (ref Transaction t) {
-        t.dest = entry;
-        t.type = Single!(SysInt);
-      }, (ref Transaction t) {
-        myStackdepth -= nativeIntSize;
-      });
-    }
-    if (floatldsource) {
-      addTransaction(Transaction.Kind.FloatLoad, (ref Transaction t) {
-        t.source = floatldsource;
-      });
-    }
-    /*foreach (key, value; nvmed) {
-      addTransaction(Transaction.Kind.Nevermind, (ref Transaction t) {
-        t.dest = key;
-      });
-    }*/
     return res;
   }
   string toAsm() { assert(false); }
@@ -763,7 +737,7 @@ void setupOpts() {
       t.obj = obj;
       bool couldUpdate = obj.update($1);
       if (couldUpdate) {
-        $SUBST([t]);
+        $SUBST(t);
         if (match.to != match.parent.list.length) {
           goto skip; // > > > \
         } //                  v
@@ -774,16 +748,12 @@ void setupOpts() {
       $SUBST(res); //         v
       if (!progress) //       v
         match.modded = /*     v */ false; // meh. just skip one
-      changed = progress; //  v secretly
+      _changed = progress; // v secretly
       skip:; //   < < < < < < /
     } else {
       New(obj);
       t.obj = obj;
-      /*static int si;
-      // 56236 .. 56237
-      if (si ++ < 56237) */{
-        if (obj.update($0)) { $SUBST([t, $1]); }
-      }
+      if (obj.update($0)) { $SUBST([t, $1]); }
       // else logln("Reject ", $0, ", ", $1);
     }
   `));
@@ -794,18 +764,17 @@ void setupOpts() {
     hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0)
     =>
     auto t = $0;
-    if (hasSource(t) && t.source.startsWith("0("))
-      { t.source = t.source[1..$]; $SUBST([t]); }
-    if (hasDest  (t) && t.dest  .startsWith("0("))
-      { t.dest   = t.dest  [1..$]; $SUBST([t]); }
-    if (hasFrom  (t) && t.from  .startsWith("0("))
-      { t.from   = t.from  [1..$]; $SUBST([t]); }
-    if (hasTo    (t) && t.to    .startsWith("0("))
-      { t.to     = t.to    [1..$]; $SUBST([t]); }
+    bool changed;
+    accessParams(t, (ref string s) {
+      if (s.startsWith("0(")) {
+        s = s[1 .. $]; changed = true;
+      }
+    });
+    if (changed) $SUBST(t);
   `));
-  // alloc/free can be shuffled down past _anything_ that doesn't reference stack.
+  // alloc/free can be shuffled up past anything that doesn't reference stack.
   mixin(opt("sort_mem", `*, ^SAlloc || ^SFree:
-    !affectsStack($0)
+    !referencesStack($0) && !affectsStack($0)
     =>
     int delta;
     if ($1.kind == $TK.SAlloc) delta = $1.size;
@@ -849,15 +818,9 @@ void setupOpts() {
         s = Format(offs - shift, "(%esp)");
       }
     }
-    if (hasSource($0)) detShift(t.source);
-    if (hasDest  ($0)) detShift(t.dest);
-    if (hasFrom  ($0)) detShift(t.from);
-    if (hasTo    ($0)) detShift(t.to);
+    accessParams(t, (ref string s) { detShift(s); });
     // ------------------------------
-    if (hasSource($0)) applyShift(t.source);
-    if (hasDest  ($0)) applyShift(t.dest);
-    if (hasFrom  ($0)) applyShift(t.from);
-    if (hasTo    ($0)) applyShift(t.to);
+    accessParams(t, (ref string s) { applyShift(s); });
     bool substed;
     // override conas
     if ((!changesOrNeedsActiveStack($0) || $0.kind == $TK.Mov) && (shift > 0 || shift == -1 && !dontDoIt)) {
@@ -925,12 +888,22 @@ void setupOpts() {
     =>
     $SUBST([$1]);
   `));
-  mixin(opt("fold_math", `^Mov, ^MathOp: $1.opName == "addl" && $0.to == $1.op2 && $0.from.isNumLiteral() && $1.op1.isNumLiteral() =>
-    $SUBSTWITH {
-      kind = $TK.Mov;
-      from = Format("$", $0.from.literalToInt() + $1.op1.literalToInt());
-      to = $0.to;
-    }
+  mixin(opt("fold_stores", `^FloatPop, ^Pop:
+    $0.dest == "(%esp)" && $1.type.size == 4 && $1.dest != "(%esp)" /* lolwat? */
+    =>
+    $T t1 = $0.dup;
+    t1.dest = $1.dest;
+    $T t2;
+    t2.kind = $TK.SFree;
+    t2.size = 4;
+    $SUBST([t1, t2]);
+  `));
+  mixin(opt("sort_push_math", `^Push, ^MathOp:
+    $0.source.isUtilityRegister() && $1.op2 == "(%esp)"
+    =>
+    $T t = $1.dup;
+    t.op2 = $0.source;
+    $SUBST([t, $0]);
   `));
   mixin(opt("merge_literal_adds", `^MathOp, ^MathOp:
     $0.opName == "addl" && $1.opName == "addl" &&
@@ -954,7 +927,23 @@ void setupOpts() {
     s1.to = $0.to;
     $SUBST([s0, s1]);
   `));
-  mixin(opt("load_from_push", `^Push, ^FloatLoad:
+  //move movs upwards, lol
+  /*mixin(opt("sort_mov", `*, ^Mov:
+    $1.to.isUtilityRegister() && $1.from.isIndirect() == "%esp"
+    && $0.kind != $TK.Mov
+    && !affectsStack($0)
+    =>
+    bool problem;
+    void check(string s) { if (s.find($1.to) != -1) problem = true; }
+    accessParams($0, (ref string s) { check(s); });
+    if (!problem) $SUBST([$1, $0]);
+  `));*/
+  /*mixin(opt("sort_floatload", `*, ^FloatLoad:
+    !referencesStack($0) && !affectsStack($0) && $0.
+    =>
+    $SUBST([$1, $0]);
+  `));*/
+  mixin(opt("load_from_push", `^Push, (^FloatLoad || ^FloatIntLoad):
     !$0.source.isRegister() && $1.source == "(%esp)"
     =>
     $T a1 = $1.dup, a2, a3;
@@ -971,19 +960,20 @@ void setupOpts() {
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
   
   mixin(opt("ebp_to_esp", `*:
-    (  hasSource($0) && $0.source.between("(", ")") == "%ebp"
-    || hasDest  ($0) && $0.dest  .between("(", ")") == "%ebp"
-    || hasFrom  ($0) && $0.from  .between("(", ")") == "%ebp"
+    (  hasSource($0) && $0.source.isIndirect() == "%ebp"
+    || hasDest  ($0) && $0.dest  .isIndirect() == "%ebp"
+    || hasFrom  ($0) && $0.from  .isIndirect() == "%ebp"
     )
     && $0.hasStackdepth && (!hasSize($0) || size($0) != 1)
     =>
     $T t = $0;
+    bool changed;
     void doStuff(ref string str) {
       auto offs = str.between("", "(").atoi(); 
       auto new_offs = offs + t.stackdepth;
       if (new_offs) str = Format(new_offs, "(%esp)");
       else str = "(%esp)";
-      $SUBST([t]);
+      changed = true;
     }
     bool skip;
     if ($0.kind == $TK.Push /or/ $TK.Pop) {
@@ -992,15 +982,13 @@ void setupOpts() {
         skip = true;
     }
     if (!skip) {
-      if (hasSource(t) && t.source.between("(", ")") == "%ebp") doStuff(t.source);
-      if (hasDest  (t) && t.dest  .between("(", ")") == "%ebp") doStuff(t.dest);
-      if (hasFrom  (t) && t.from  .between("(", ")") == "%ebp") doStuff(t.from);
-      if (hasTo    (t) && t.to    .between("(", ")") == "%ebp") doStuff(t.to);
+      accessParams(t, (ref string s) { if (s.isIndirect() == "%ebp") doStuff(s); });
+      if (changed) $SUBST(t);
     }
   `));
   
   // jump opts
-  mixin(opt("join_labels", `^Label, ^Label => auto t = $0; t.names = t.names ~ $1.names; $SUBST([t]); `));
+  mixin(opt("join_labels", `^Label, ^Label => auto t = $0; t.names = t.names ~ $1.names; $SUBST(t); `));
   mixin(opt("pointless_jump", `^Jump, ^Label:
     $1.hasLabel($0.dest)
     =>
@@ -1014,23 +1002,19 @@ void setupOpts() {
     =>
     $SUBST([$0]);
   `));
-  mixin(opt("silly_push", `^Push, ^Mov, ^SFree:
-    $0.type.size == 4 && $1.to.isRegister() && $2.size > 4
-    && $1.from == "(%esp)"
+  mixin(opt("fold_float_load", `^LoadAddress, (^FloatLoad || ^FloatIntLoad):
+    $0.to == $1.source.isIndirect(0)
     =>
-    int delta;
-    if ($0.source.isIndirect2(delta) == "%ebp" && delta >= 0) {
-      $T t1 = $2, t2 = $2;
-      t1.size -= 4; t2.size = 4;
-      $SUBST([t1, $0, $1, t2]);
-    }
+    $T t = $1.dup;
+    t.source = $0.from;
+    $SUBST(t);
   `));
   mixin(opt("silly_push_2", `^Push, ^SFree:
     $0.type.size == 4 && $1.size > 4
     =>
     auto t = $1.dup;
     t.size -= 4;
-    $SUBST([t]);
+    $SUBST(t);
   `));
   mixin(opt("sort_nevermind", `*, ^Nevermind:
     $0.kind != $TK.Nevermind
@@ -1039,7 +1023,7 @@ void setupOpts() {
     with ($TK)
       if ($0.kind == Label /or/ Jump /or/ Call /or/ SAlloc /or/ SFree)
         refsMe = true;
-      else testParams($0, (string s) { if (s.find($1.dest) != -1) refsMe = true; });
+      else accessParams($0, (ref string s) { if (s.find($1.dest) != -1) refsMe = true; });
     if (!refsMe) {
       $SUBST([$1, $0]);
     }
@@ -1059,16 +1043,15 @@ void setupOpts() {
     t2.to = $0.dest;
     $SUBST([t1, t2]);
   `));
-  mixin(opt("add_pop_order", `^MathOp, ^Nevermind, ^Pop:
-    $0.opName == "addl" &&
-    $0.op2 == "(%esp)" &&
-    $2.dest == $0.op1
+  mixin(opt("complex_pointless_store", `^FloatPop, ^SFree, ^FloatLoad, ^SFree:
+    $1.size == 4 && $3.size == 4 &&
+    $0.dest == "4(%esp)" && $2.source == "(%esp)"
     =>
-    $T t1 = $0, t2;
-    swap(t1.op1, t1.op2);
-    t2.kind = $TK.SFree;
-    t2.size = 4;
-    $SUBST([t1, t2]);
+    $SUBSTWITH {
+      kind = $TK.SFree;
+      stackdepth = $0.stackdepth;
+      size = 8;
+    }
   `));
   bool isArgument(string s) {
     int offs;
@@ -1121,6 +1104,63 @@ void setupOpts() {
     =>
     $SUBST([$0, $2, $3]);
   `));
+  mixin(opt("generic_waste", `*, ^SFree:
+    (hasDest($0) || hasTo($0)) && opSize($0) == 4 && $1.size >= 4
+    =>
+    bool doit;
+    if (hasDest($0) && $0.dest == "(%esp)") doit = true;
+    if (hasTo  ($0) && $0.to   == "(%esp)") doit = true;
+    if (doit) $SUBST($1); // pointless
+  `));
+  bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
+    bool changed;
+    auto match = cache.findMatch("lookahead_remove_redundants", delegate int(Transaction[] list) {
+      if (list.length <= 1) return false;
+      auto head = list[0];
+      if (!hasTo(head)) return false;
+      auto check = head.to;
+      if (!check.isUtilityRegister()) return false;
+      bool unneeded;
+      outer:foreach (i, entry; list[1 .. $]) {
+        with (Transaction.Kind) switch (entry.kind) {
+          case SAlloc, SFree, FloatMath:
+            continue;    // no change
+          case Label, Compare, Call, Jump:
+            break outer; // no chance
+          case Push, FloatLoad, FloatIntLoad:
+            if (entry.source.find(check) != -1) break outer;
+            continue;
+          case Pop, Nevermind, FloatPop, FloatStore:
+            if (entry.dest == check) { unneeded = true; break outer; }
+            if (entry.dest.find(check) != -1) break outer;
+            continue;
+          case MathOp:
+            if (entry.op1.find(check) != -1) break outer;
+            if (entry.op2.find(check) != -1) break outer;
+            continue;
+          case Mov, LoadAddress:
+            if (entry.from.find(check) != -1) break outer;
+            if (entry.to == check) {
+              unneeded = true;
+              break outer;
+            }
+            if (entry.to.find(check) != -1) break outer;
+            continue;
+          default: break;
+        }
+        logln("huh? ", entry);
+        assert(false);
+      }
+      if (unneeded) return 1;
+      return false;
+    });
+    if (match.length) do {
+      match.replaceWith(null); // remove
+      changed = true;
+    } while (match.advance());
+    return changed;
+  }
+  opts ~= stuple(&lookahead_remove_redundants, "lookahead_remove_redundants", true);
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;

@@ -16,8 +16,7 @@ class IntAsFloat : Expr {
       mixin(mustOffset("4"));
       i.emitAsm(af);
       // TODO better way
-      af.put("fildl (%esp)");
-      af.floatStackDepth ++;
+      af.loadIntAsFloat("(%esp)");
       af.storeFloat("(%esp)");
     }
   }

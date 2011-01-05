@@ -52,10 +52,12 @@ struct Transaction {
   enum Kind {
     Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
     FloatLoad, FloatStore, FloatPop, FloatMath, FloatSwap,
+    FloatIntLoad, /* fildl */
     Jump, Label, Extended, Nevermind, LoadAddress
   }
   const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
     "FloatLoad", "FloatStore", "FloatPop", "FloatMath", "FloatSwap",
+    "FloatIntLoad",
     "Jump", "Label", "Extended", "Nevermind", "LoadAddress"];
   Kind kind;
   string toString() {
@@ -83,6 +85,7 @@ struct Transaction {
       case FloatPop:  return Format("[float pop ", dest, "]");
       case FloatMath: return Format("[float math ", opName, "]");
       case FloatSwap: return Format("[float swap]");
+      case FloatIntLoad: return Format("[float int load ", source);
       case Jump:      return Format("[jmp ", dest, "]");
       case Label:     return Format("[label ", names, "]");
       case Extended:  return Format("[extended ", obj, "]");
@@ -104,6 +107,7 @@ struct Transaction {
       case FloatLoad: return source == t2.source;
       case FloatMath: return opName == t2.opName;
       case FloatSwap: return true;
+      case FloatIntLoad: return source == t2.source;
       case Label: return names == t2.names;
       case Extended: return obj == t2.obj;
       case Nevermind: return dest == t2.dest;
@@ -268,6 +272,8 @@ struct Transaction {
         return Format(opName~"p %st, %st(1)");
       case FloatSwap:
         return Format("fxch");
+      case FloatIntLoad:
+        return Format("fildl ", source);
       case Jump:
         return Format("jmp ", dest);
       case Label:
