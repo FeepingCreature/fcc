@@ -1045,15 +1045,6 @@ void setupOpts() {
     int offs;
     return s.isIndirect2(offs) == "%ebp" && offs >= 0;
   }
-  // good luck working out what this is for
-  mixin(opt("reorder_secretly", `^Mov, ^Mov, ^Push:
-    $0.to.isUtilityRegister() &&
-    $1.to.isUtilityRegister() &&
-    $2.source.find($0.to) == -1 &&
-    $0.from.isArgument()
-    =>
-    $SUBST([$1, $2, $0.dup]);
-  `));
   mixin(opt("break_up_push", `^Push: $0.type.size > 4 && ($0.type.size % 4) == 0
     =>
     int delta;
