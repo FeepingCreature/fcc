@@ -171,7 +171,13 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
       obj = pre ~ ".o";
     } else assert(false);
   }
+  static bool[string] alreadyBuilt;
   bool isUpToDate(string file) {
+    if (!(file in alreadyBuilt)) {
+      // rebuild at least once.
+      // command line flags may have changed.
+      return false;
+    }
     string obj, src;
     file.translate(obj, src);
     if (!obj.exists()) return false;
@@ -188,7 +194,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
     ast.modules.cache.remove(modname);
   }
   typeof(ast.modules.cache) precache;
-  rereadMod= delegate bool(string mod) { return !mod.undo().isUpToDate(); };
+  rereadMod = delegate bool(string mod) { return !mod.undo().isUpToDate(); };
   Module parse(string file, ref double len_parse, ref double len_opt, ref bool wasPresent) {
     void resetSysmod() {
       if (sysmod)
@@ -212,6 +218,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
     len_parse = sec() - start_parse;
     len_opt = 0;
     if (!wasPresent) len_opt = time({ .optimize(mod); }) / 1_000_000f;
+    precache[modname] = mod; // lol why not dis?
     return mod;
   }
   void delegate() process(string file, string asmname, string objname, ref Module mod) {
@@ -222,6 +229,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
     return stuple(file, start, asmname, objname, mod, optimize, len_opt, len_parse, saveTemps) /apply/
     (string file, string start, string asmname, string objname, Module mod, bool optimize, double len_opt, double len_parse, bool saveTemps) {
       auto af = new AsmFile(optimize, file.toModule());
+      alreadyBuilt[file] = true;
       scope(exit) if (!saveTemps) unlink (asmname.toStringz());
       auto len_gen = time({
         if (file == start) {
@@ -263,6 +271,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
       bool anyChanged;
       foreach (entry; mod.imports)
         if (!(entry.name == "sys")) {
+          logln("recurse ", file, " -> ", entry.name);
           auto didAlsoCompile = recurse(entry.name.undo());
           if (didAlsoCompile) anyChanged = true;
         }
@@ -327,6 +336,8 @@ int main(string[] args) {
       continue;
     }
     if (arg == "--loop" || arg == "-F") {
+      logln("Don't use this. It's broken somehow. ");
+      assert(false);
       willLoop = true;
       continue;
     }
