@@ -538,6 +538,10 @@ class ProcTrack : ExtToken {
             if (src in known) {
               if (auto indir = mkIndirect(known[src], offs)) {
                 fixupESPDeps(4);
+                if (indir.isIndirect() in known)
+                  // depends on a register that we've yet to emit on stackbuild time
+                  return false;
+                
                 stack ~= indir;
                 mixin(Success);
               }
