@@ -84,14 +84,14 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
                __hdl__ = &var;
              }`,
              "var", hdlvar, "type", it, "fn", nf);
-    assert(setup_st);
+    assert(!!setup_st);
     csc.addStatement(setup_st);
   }
   {
     auto guard_st =
       iparse!(Statement, "hdl_undo", "tree.stmt")
               (`onSuccess __hdl__ = __hdl__.prev; `, csc);
-    assert(guard_st);
+    assert(!!guard_st);
     // again, no need to add (is NoOp)
   }
   text = t2;
@@ -129,14 +129,14 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                _cm = &var;
              }`,
              "var", cmvar, "nex", ex);
-    assert(setup_st);
+    assert(!!setup_st);
     csc.addStatement(setup_st);
   }
   {
     auto guard_st =
       iparse!(Statement, "cm_undo", "tree.stmt")
              (`onSuccess _cm = (_CondMarker*:_cm).prev; `, csc);
-    assert(guard_st);
+    assert(!!guard_st);
   }
   auto ifs = new IfStatement;
   ifs.test = iparse!(Cond, "cm_cond", "cond")

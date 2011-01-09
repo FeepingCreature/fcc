@@ -24,7 +24,7 @@ Object gotSizeof(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type", &ty))
     t2.failparse("Could not get sizeof type");
   text = t2;
-  return new IntExpr(ty.size);
+  return mkInt(ty.size);
 }
 mixin DefaultParser!(gotSizeof, "tree.expr.sizeof", "231", "size-of");
 

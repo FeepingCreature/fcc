@@ -4,6 +4,7 @@ import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.variable, ast.pointer, ast.structure, ast.namespace,
        ast.vardecl, ast.parse, ast.assign, ast.constant, ast.dg;
 
+import ast.aliasing;
 class NestedFunction : Function {
   Scope context;
   this(Scope context) {
@@ -17,7 +18,7 @@ class NestedFunction : Function {
         context.get!(Function).mangle(cleaned_name, type);
     }
     string mangle(string name, IType type) {
-      return mangleSelf() ~ "_" ~ cleaned_name;
+      return mangleSelf() ~ "_" ~ name;
     }
     FunCall mkCall() {
       auto res = new NestedCall;
@@ -64,12 +65,14 @@ class NestedFunction : Function {
       auto sn = context.lookup(name, true),
             var = cast(Variable) sn;
       // logln("var: ", var, ", sn: ", sn, "; test ", context.lookup(name));
-      // logln("context is ", context, " below fun ", context.fun);
+      // logln("context is ", context);
       if (auto nf = cast(NestedFunction) sn) {
         mybase = cast(Expr) lookup("__base_ptr", true, mybase);
         // see above
         return new PointerFunction!(NestedFunction) (new NestFunRefExpr(nf, mybase));
       }
+      if (auto ea = cast(ExprAlias) sn)
+        throw new Exception("Cannot access expression alias \""~ea.name~"\" from nested function! ");
       if (!var) return sn?sn:context.lookup(name, false);
       return new MemberAccess_LValue(
         namespaceToStruct(context, cast(Expr) lookup("__base_ptr", true, mybase)),
@@ -172,8 +175,7 @@ class NestFunRefExpr : mkDelegate {
 Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   NestedFunction nf;
-  if (!rest(text, "tree.expr _tree.expr.arith "
-  ~">tree.expr.properties.tup.call >tree.expr.properties.no_tup.call", &nf))
+  if (!rest(text, "tree.expr _tree.expr.arith", &nf))
     return null;
   
   if (auto pnf = cast(PointerFunction!(NestedFunction)) nf) return cast(Object) pnf.ptr;
@@ -191,7 +193,7 @@ class FunPtrAsDgExpr(T) : T {
     this.ex = ex;
     fp = cast(FunctionPointer) ex.valueType();
     assert(!!fp);
-    super(ex, new IntExpr(0));
+    super(ex, mkInt(0));
   }
   override string toString() {
     return Format("dg(", fp, ")");

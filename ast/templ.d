@@ -149,6 +149,7 @@ Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotTemplateInst, "type.templ_inst", "2");
 mixin DefaultParser!(gotTemplateInst, "tree.expr.templ_expr", "2401");
 
+import ast.funcall;
 Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
@@ -157,13 +158,10 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     if (!templ) return null;
     Expr nex;
     if (!rest(t2, "tree.expr", &nex)) return null;
-    iter = iparse!(Expr, "ifti_call_test", "tree.expr")
-                  (`(templ! type-of nex)(nex)`,
-                   namespace(),
-                   "templ", templ, "nex", nex);
-    if (!iter) { logln("wat"); return null; }
+    auto inst = cast(Function) templ.getInstance(nex.valueType(), rest).lookup(templ.name, true);
+    if (!inst) { logln("wat"); return null; }
     text = t2;
-    return cast(Object) iter;
+    return cast(Object) buildFunCall(inst, nex);
   };
 }
 mixin DefaultParser!(gotIFTI, "tree.rhs_partial.ifti");

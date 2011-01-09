@@ -92,7 +92,6 @@ Object gotContextMember(ref string text, ParseCb cont, ParseCb rest) {
   auto ctx = cast(Context) lhs_partial();
   if (!ctx) return null;
   string ident;
-  if (!t2.accept(".")) return null;
   if (t2.gotIdentifier(ident)) {
     retry:
     auto m = ctx.lookup(ident);
@@ -104,4 +103,4 @@ Object gotContextMember(ref string text, ParseCb cont, ParseCb rest) {
     return m;
   } else return null;
 }
-mixin DefaultParser!(gotContextMember, "tree.rhs_partial.access_context_member");
+mixin DefaultParser!(gotContextMember, "tree.rhs_partial.access_context_member", null, ".");

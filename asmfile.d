@@ -151,6 +151,12 @@ class AsmFile {
     t.op1 = op1; t.op2 = op2;
     cache ~= t;
   }
+  void extendDivide(string src) {
+    Transaction t;
+    t.kind = Transaction.Kind.ExtendDivide;
+    t.source = src;
+    cache ~= t;
+  }
   void call(string what) {
     Transaction t;
     t.kind = Transaction.Kind.Call;
@@ -171,6 +177,14 @@ class AsmFile {
     t.stackdepth = currentStackDepth;
     cache ~= t;
   }
+  void loadDouble(string mem) {
+    incFloatStack();
+    Transaction t;
+    t.kind = Transaction.Kind.DoubleLoad;
+    t.source = mem;
+    t.stackdepth = currentStackDepth;
+    cache ~= t;
+  }
   void loadIntAsFloat(string mem) {
     incFloatStack();
     Transaction t;
@@ -187,13 +201,21 @@ class AsmFile {
     t.stackdepth = currentStackDepth;
     cache ~= t;
   }
-  void floatToStack() {
-    salloc(4);
-    storeFloat("(%esp)");
+  void storeDouble(string mem) {
+    floatStackDepth --;
+    Transaction t;
+    t.kind = Transaction.Kind.DoublePop;
+    t.dest = mem;
+    t.stackdepth = currentStackDepth;
+    cache ~= t;
   }
-  void stackToFloat() {
-    loadFloat("(%esp)");
-    sfree(4);
+  void fpuToStack() {
+    salloc(8);
+    storeDouble("(%esp)");
+  }
+  void stackToFpu() {
+    loadDouble("(%esp)");
+    sfree(8);
   }
   void floatMath(string op) {
     floatStackDepth --;

@@ -338,3 +338,47 @@ class PlaceholderTokenLV : PlaceholderToken, LValue {
   this(IType type, string info) { super(type, info); }
   override void emitLocation(AsmFile af) { assert(false); }
 }
+
+string qbuffer;
+string qformat(T...)(T t) {
+  int offs;
+  void qbuffer_resize(int i) {
+    if (qbuffer.length < i) {
+      auto backup = qbuffer;
+      qbuffer = new char[max(16384, i)];
+      qbuffer[0 .. backup.length] = backup;
+    }
+  }
+  void append(string s) {
+    qbuffer_resize(offs + s.length);
+    qbuffer[offs .. offs+s.length] = s;
+    offs += s.length;
+  }
+  foreach (entry; t) {
+    static if (is(typeof(entry): string)) {
+      append(entry);
+    }
+    else static if (is(typeof(entry): ulong)) {
+      auto i = entry;
+      if (!i) { append("0"); continue; }
+      if (i < 0) { append("-"); i = -i; }
+      
+      // gotta do this left to right!
+      int ifact = 1;
+      while (ifact <= i) ifact *= 10;
+      ifact /= 10;
+      while (ifact) {
+        auto inum = i / ifact;
+        char[1] ch;
+        ch[0] = "0123456789"[inum];
+        append(ch);
+        i -= inum * ifact;
+        ifact /= 10;
+      }
+    }
+    else static assert(false, "not supported in qformat: "~typeof(entry).stringof);
+  }
+  auto res = qbuffer[0 .. offs];
+  qbuffer = qbuffer[offs .. $];
+  return res;
+}

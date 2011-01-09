@@ -19,7 +19,7 @@ class StringExpr : Expr, HasInfo {
         af.constants[name_used] = cast(ubyte[]) str;
       }
       (new Symbol(name_used)).emitAsm(af);
-      (new IntExpr(str.length)).emitAsm(af);
+      (mkInt(str.length)).emitAsm(af);
     }
     // IType valueType() { return new StaticArray(Single!(Char), str.length); }
     IType valueType() { return Single!(Array, Single!(Char)); }

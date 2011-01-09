@@ -8,6 +8,29 @@ import ast.static_arrays, parseBase;
 
 Expr delegate(string) mkString; // defined in literal_string
 
+class DoubleExpr : Expr, Literal {
+  union {
+    double d;
+    uint[2] i;
+  }
+  this(double d) { this.d = d; }
+  mixin defaultIterate!();
+  string name_used;
+  override {
+    DoubleExpr dup() { return new DoubleExpr(d); }
+    string toString() { return Format(d); }
+    IType valueType() { return Single!(Double); }
+    string getValue() { assert(false); }
+    void emitAsm(AsmFile af) {
+      if (!name_used) {
+        name_used = qformat("dcons_", af.constants.length);
+        af.constants[name_used] = cast(ubyte[]) i;
+      }
+      af.pushStack(qformat("+(", name_used, ", 0)"), valueType());
+    }
+  }
+}
+
 class FloatExpr : Expr, Literal {
   union {
     float f;
@@ -24,7 +47,7 @@ class FloatExpr : Expr, Literal {
     string getValue() { return Format(f_as_i); }
     void emitAsm(AsmFile af) {
       if (!name_used) {
-        name_used = Format("cons_", af.constants.length);
+        name_used = qformat("cons_", af.constants.length);
         af.constants[name_used] = cast(ubyte[]) (&f_as_i)[0 .. 1];
       }
       af.pushStack(name_used, valueType());
@@ -32,19 +55,36 @@ class FloatExpr : Expr, Literal {
   }
 }
 
+bool fpPrecheck(string s) {
+  s.eatComments();
+  if (!s.length) return false;
+  auto ch = s[0];
+  if ((ch < '0' || ch > '9') && ch != '.' && ch != '-') { return false; }
+  return true;
+}
+
 Object gotFloatExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (!fpPrecheck(text)) return null;
   float f;
   if (gotFloat(text, f)) return new FloatExpr(f);
   return null;
 }
 mixin DefaultParser!(gotFloatExpr, "tree.expr.literal.float", "54");
 
+Object gotDoubleExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (!fpPrecheck(text)) return null;
+  double d;
+  if (gotDouble(text, d)) return new DoubleExpr(d);
+  return null;
+}
+mixin DefaultParser!(gotDoubleExpr, "tree.expr.literal.double", "545");
+
 Object gotLiteralSuffixExpr(ref string text, ParseCb cont, ParseCb rest) {
   IntExpr res;
   if (!rest(text, "tree.expr.literal", &res)) return null;
-  if (text.accept("K")) return new IntExpr(res.num * 1024);
-  else if (text.accept("M")) return new IntExpr(res.num * 1024 * 1024);
-  else if (text.accept("G")) return new IntExpr(res.num * 1024 * 1024 * 1024);
+  if (text.accept("K")) return mkInt(res.num * 1024);
+  else if (text.accept("M")) return mkInt(res.num * 1024 * 1024);
+  else if (text.accept("G")) return mkInt(res.num * 1024 * 1024 * 1024);
   else return null;
 }
 mixin DefaultParser!(gotLiteralSuffixExpr, "tree.expr.literal_suffix", "54");

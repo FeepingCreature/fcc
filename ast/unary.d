@@ -16,7 +16,7 @@ class PrePostOpExpr(bool Post, bool Inc) : Expr {
       return lv.valueType();
     }
     void emitAsm(AsmFile af) {
-      auto as = new Assignment(lv, lookupOp(Inc?"+":"-", lv, new IntExpr(1)));
+      auto as = new Assignment(lv, lookupOp(Inc?"+":"-", lv, mkInt(1)));
       static if (Post) {
         lv.emitAsm(af);
         as.emitAsm(af);

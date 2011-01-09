@@ -1,21 +1,29 @@
 module ast.properties;
 
-import ast.base, ast.parse, ast.casting, ast.tuples;
+import ast.base, ast.parse, ast.casting, ast.tuples: AstTuple = Tuple;
 
-import tools.log;
-Object gotProperties(bool withTuple, bool withCall)(ref string text, ParseCb cont, ParseCb rest) {
-  // check all possible continuations
+struct PropArgs {
+  bool withTuple = true, withCall = true;
+}
+
+TLS!(PropArgs) propcfg;
+
+static this() { New(propcfg); }
+
+import tools.base, tools.log;
+Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   string longest; Object res;
+  auto myArgs = *propcfg.ptr();
+  *propcfg.ptr() = Init!(PropArgs);
+  scope(exit) *propcfg.ptr() = myArgs; // reset 1
+  // check all possible continuations
   Object obj;
   cont(text, &obj);
   if (!obj) return null;
   auto ex = cast(Expr) obj;
-  static if (withTuple) {
-    if (!ex || !cast(Tuple) ex.valueType())
-      return null; // don't.
-  } else {
-    if (ex && cast(Tuple) ex.valueType())
-      return null; // just .. don't.
+  if (!myArgs.withTuple) {
+    if (ex && cast(AstTuple) ex.valueType())
+      return null; // don't
   }
   
   void check(Object sup, string text) {
@@ -28,7 +36,7 @@ Object gotProperties(bool withTuple, bool withCall)(ref string text, ParseCb con
     bool matched;
     while (true) {
       string match = "tree.rhs_partial";
-      if (!withCall)
+      if (!myArgs.withCall)
         match ~= " >tree.rhs_partial.funcall";
       if (auto nl = rest(t2, match)) {
         matched = true;
@@ -56,8 +64,4 @@ Object gotProperties(bool withTuple, bool withCall)(ref string text, ParseCb con
   if (longest) text = longest;
   return res;
 }
-mixin DefaultParser!(gotProperties!(true, true), "tree.expr.properties.tup.call", "0");
-mixin DefaultParser!(gotProperties!(true, false), "tree.expr.properties.tup.no_call", "1");
-mixin DefaultParser!(gotProperties!(false, true), "tree.expr.properties.no_tup.call", "2");
-mixin DefaultParser!(gotProperties!(false, false), "tree.expr.properties.no_tup.no_call", "3");
-static this() { parsecon.addPrecedence("tree.expr.properties", "240"); }
+mixin DefaultParser!(gotProperties, "tree.expr.properties", "240");

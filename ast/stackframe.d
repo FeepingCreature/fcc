@@ -22,7 +22,7 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   return new DerefExpr(
     new ReinterpretCast!(Expr)(
       new Pointer(str),
-      lookupOp("-", baseptr, new IntExpr(-frame[0]._2))
+      lookupOp("-", baseptr, mkInt(-frame[0]._2))
     )
   );
 }

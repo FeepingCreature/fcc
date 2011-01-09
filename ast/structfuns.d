@@ -178,7 +178,7 @@ Object gotStructfunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   RelFunction rf;
   if (!rest(text, "tree.expr _tree.expr.arith "
-  ~">tree.expr.properties.tup.call >tree.expr.properties.no_tup.call", &rf))
+  ~">tree.expr.properties.tup_call >tree.expr.properties.no_tup_call", &rf))
     return null;
   
   return new StructFunRefExpr(rf);

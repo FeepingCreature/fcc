@@ -42,7 +42,6 @@ Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     auto t2 = text;
     Expr index;
     if (
-      !t2.accept("[") ||
       !rest(t2, "tree.expr", &index) ||
       !gotImplicitCast(index, (IType it) { return test(Single!(SysInt) == it); }) ||
       !t2.accept("]")) return null;
@@ -58,7 +57,7 @@ Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     return cast(Object) mkTupleIndexAccess(ex, ie.num);
   };
 }
-mixin DefaultParser!(gotTupleIndexAccess, "tree.rhs_partial.tuple_index_access");
+mixin DefaultParser!(gotTupleIndexAccess, "tree.rhs_partial.tuple_index_access", null, "[");
 
 import ast.iterator, ast.casting;
 Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -71,8 +70,7 @@ Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (count <= 1) return null;
     auto t2 = text;
     Expr range;
-    if (!t2.accept("[") ||
-        !rest(t2, "tree.expr", &range) ||
+    if (!rest(t2, "tree.expr", &range) ||
         !gotImplicitCast(range, (IType it) { return test(cast(RangeIsh) it); }) ||
         !t2.accept("]")) return null;
     auto rish = cast(RangeIsh) range.valueType(),
@@ -86,11 +84,11 @@ Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto res = iparse!(Expr, "tuple_slice", "tree.expr")
                       (`*restype*:(void*:&lv + base)`,
                        "restype", restype, "lv", cast(LValue) ex,
-                       "base", new IntExpr(start));
+                       "base", mkInt(start));
     return cast(Object) res;
   };
 }
-mixin DefaultParser!(gotTupleSliceExpr, "tree.rhs_partial.tuple_slice");
+mixin DefaultParser!(gotTupleSliceExpr, "tree.rhs_partial.tuple_slice", null, "[");
 
 static this() {
   /// 3.

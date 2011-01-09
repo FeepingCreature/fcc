@@ -24,7 +24,7 @@ static this() {
     namespace.set(ws.sup);
     auto sc = new Scope;
     for (int i = 0; i < len.num; ++i) {
-      auto ival = iter.index(iter_expr, new IntExpr(i));
+      auto ival = iter.index(iter_expr, mkInt(i));
       int depth;
       void subst(ref Iterable it) {
         foreach (i, ph; ws.holders) {

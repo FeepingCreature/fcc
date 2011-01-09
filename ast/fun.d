@@ -148,13 +148,12 @@ class FunCall : Expr {
 void handleReturn(IType ret, AsmFile af) {
   if (Single!(Float) == ret) {
     af.salloc(4);
-    af.floatStackDepth ++; // not locally produced
     af.storeFloat("(%esp)");
     return;
   }
   if (Single!(Double) == ret) {
     af.salloc(8);
-    af.put("fstpl (%esp)");
+    af.storeDouble("(%esp)");
     return;
   }
   if (ret != Single!(Void)) {
@@ -202,7 +201,7 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
     
     auto restore = af.floatStackDepth;
     while (af.floatStackDepth)
-      af.floatToStack();
+      af.fpuToStack();
     
     {
       mixin(mustOffset("0", "innerer"));
@@ -226,8 +225,11 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       }
     }
     
+    if (ret == Single!(Float) || ret == Single!(Double))
+      af.floatStackDepth ++;
+    
     while (restore--) {
-      af.stackToFloat();
+      af.stackToFpu();
       if (ret == Single!(Float) || ret == Single!(Double))
         af.swapFloats;
     }
@@ -292,7 +294,7 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
   string parname;
   *error.ptr() = stuple("", "");
   auto ns = namespace();
-  assert(ns);
+  assert(!!ns);
   if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
       (noname || t2.gotIdentifier(fun.name)) &&
       t2.gotParlist(fun.type.params, rest)
@@ -379,8 +381,7 @@ class FunRefExpr : Expr, Literal {
 import ast.casting;
 Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   Function fun;
-  if (!rest(text, "tree.expr _tree.expr.arith "
-  ~">tree.expr.properties.tup.call >tree.expr.properties.no_tup.call", &fun))
+  if (!rest(text, "tree.expr _tree.expr.arith", &fun))
     return null;
   
   return new FunRefExpr(fun);

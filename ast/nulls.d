@@ -77,7 +77,7 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
     auto ex2 = ex; // test for int-like
     if (gotImplicitCast(ex2, (IType it) { return test(it == Single!(SysInt)); })) {
       text = t2;
-      return new Compare(ex2, true, false, true, false, new IntExpr(0));
+      return new Compare(ex2, true, false, true, false, mkInt(0));
     }
     auto n = cast(Expr) sysmod.lookup("null");
     if (!n) return null;

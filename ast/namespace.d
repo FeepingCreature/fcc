@@ -196,7 +196,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
       else return sl.framesize();
     } else {
       // logln("no metric for framesize of ", id);
-      assert(false);
+      throw new Exception(Format("No metric for framesize of ", id, "!"));
       // asm { int 3; }
     }
   }

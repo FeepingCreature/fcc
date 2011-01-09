@@ -46,7 +46,7 @@ class FullSlice : Expr {
         
         (new Assignment(temp, sup)).emitAsm(af);
         Expr slice;
-        (new Assignment(var, mkArraySlice(temp, new IntExpr(0), foldex(getArrayLength(temp))))).emitAsm(af);
+        (new Assignment(var, mkArraySlice(temp, mkInt(0), foldex(getArrayLength(temp))))).emitAsm(af);
       });
     }
   }
@@ -83,7 +83,7 @@ Expr mkFullSlice(Expr ex) {
     assert(!!cv);
     return mkPointerSlice(
       reinterpret_cast(new Pointer(sa.elemType), new RefExpr(cv)),
-      new IntExpr(0), foldex(getArrayLength(ex))
+      mkInt(0), foldex(getArrayLength(ex))
     );
   } else return new FullSlice(ex);
 }
@@ -92,13 +92,10 @@ import ast.iterator, ast.casting, ast.fold;
 Object gotFullSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
-    auto t2 = text;
-    if (!t2.accept("[]")) return null;
-    text = t2;
     return cast(Object) mkFullSlice(ex);
   };
 }
-mixin DefaultParser!(gotFullSliceExpr, "tree.rhs_partial.full_slice");
+mixin DefaultParser!(gotFullSliceExpr, "tree.rhs_partial.full_slice", null, "[]");
 
 Statement getSliceAssign(Expr slice, Expr array) {
   IType elemtype;
@@ -116,7 +113,7 @@ Statement getSliceAssign(Expr slice, Expr array) {
   auto fc = (cast(Function) sysmod.lookup("memcpy2")).mkCall;
   fc.params ~= getArrayPtr(slice);
   fc.params ~= getArrayPtr(array);
-  fc.params ~= lookupOp("*", getArrayLength(array), new IntExpr(elemtype.size));
+  fc.params ~= lookupOp("*", getArrayLength(array), mkInt(elemtype.size));
   return new ExprStatement(fc);
 }
 
@@ -152,8 +149,8 @@ static this() {
     if (!sa || !cast(CValue) ex) return null;
     return mkPointerSlice(
       getSAPtr(dcm(ex)),
-      new IntExpr(0),
-      new IntExpr(sa.length)
+      mkInt(0),
+      mkInt(sa.length)
     );
   };
 }

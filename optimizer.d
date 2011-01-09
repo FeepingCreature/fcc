@@ -76,9 +76,16 @@ void accessParams(ref Transaction t, void delegate(ref string) dg, bool writeonl
     case SAlloc, SFree,
       FloatMath, FloatSwap  : return;
     case Call, Nevermind,
-      FloatStore, FloatPop,
+      FloatStore,
+      FloatPop, DoublePop,
       Pop                   : dg(t.dest); return;
-    case FloatLoad,
+    case ExtendDivide:
+      string eax = "%eax";
+      dg(eax);
+      if (eax != "%eax") { logln("broke implicit reg dep => ", eax); asm { int 3; } }
+      if (!writeonly) dg(t.source);
+      return;
+    case FloatLoad, DoubleLoad,
       FloatIntLoad, Push    : if (!writeonly) dg(t.source); return;
     case LoadAddress,
       Mov, Mov2, Mov1       : if (!writeonly) dg(t.from); dg(t.to); return;
@@ -154,6 +161,12 @@ bool hasSize(ref Transaction t) {
     return !!(t.kind == Push /or/ Pop /or/ Mov /or/ Mov2 /or/ Mov1 /or/ SFree /or/ SAlloc);
 }
 
+bool collide(string a, string b) {
+  if (auto ia = a.isIndirect()) a = ia;
+  if (auto ib = b.isIndirect()) b = ib;
+  return (a == b);
+}
+
 int opSize(ref Transaction t) {
   if (hasSize(t)) return t.size;
   with (Transaction.Kind) {
@@ -195,6 +208,10 @@ string isIndirectSimple(string s) {
   else return null;
 }
 string isIndirectComplex(string s, ref int delta) {
+  if (s.startsWith("+(")) {
+    auto op2 = s.between("(", ")"), op1 = op2.slice(",");
+    if (op1.startsWith("%gs:")) return null; // resolved in the assembler
+  }
   if (s.between(")", "").length) return null;
   auto betw = s.between("(", ")");
   if (betw && betw.isRegister()) {
@@ -242,6 +259,23 @@ bool pinsRegister(ref Transaction t, string reg) {
   return res;
 }
 
+void fixupString(ref string s, int shift) {
+  if (auto rest = s.startsWith("+(%esp, ")) {
+    s = qformat("+(%esp, $",
+      rest.between("$", ")").atoi() + shift,
+      ")"
+    );
+  }
+  int offs;
+  if ("%esp" == s.isIndirect2(offs)) {
+    if (offs + shift < 0) {
+      logln("Tried to fix up ", s, " by ", shift, " into negative! ");
+      asm { int 3; }
+    }
+    s = qformat(offs + shift, "(%esp)").cleanup();
+  }
+}
+
 // track processor state
 // obsoletes about a dozen peephole opts
 class ProcTrack : ExtToken {
@@ -279,8 +313,8 @@ class ProcTrack : ExtToken {
           return null;*/
         // to indirect access
         auto sumdelt = op2i + delta;
-        if (sumdelt) return Format(sumdelt, "(", op1, ")");
-        else return Format("(", op1, ")");
+        if (sumdelt) return qformat(sumdelt, "(", op1, ")");
+        else return qformat("(", op1, ")");
       }
     }
     return null;
@@ -343,22 +377,6 @@ class ProcTrack : ExtToken {
       if (latepop && t.kind != Transaction.Kind.Pop)
                          return false;
     }
-    void fixupString(ref string s, int shift) {
-      if (auto rest = s.startsWith("+(%esp, ")) {
-        s = Format("+(%esp, $",
-          rest.between("$", ")").atoi() + shift,
-          ")"
-        );
-      }
-      int offs;
-      if ("%esp" == s.isIndirect2(offs)) {
-        if (offs + shift < 0) {
-          logln("Tried to fix up ", s, " by ", shift, " into negative! ");
-          asm { int 3; }
-        }
-        s = Format(offs + shift, "(%esp)").cleanup();
-      }
-    }
     // Note: this must NOT fix up the stack! think about it.
     void fixupESPDeps(int shift) {
       typeof(known) newknown;
@@ -375,7 +393,7 @@ class ProcTrack : ExtToken {
           if (t.to in use) break;
           int delta;
           if (auto reg = t.from.isIndirect2(delta)) {
-            if (!set(t.to, Format("+(", reg, ", $", delta, ")")))
+            if (!set(t.to, qformat("+(", reg, ", $", delta, ")")))
               return false;
             mixin(Success);
           }
@@ -400,7 +418,7 @@ class ProcTrack : ExtToken {
           } else if (t.op1.isNumLiteral() && stuf.startsWith("+(")) {
             auto mop2 = stuf.between("+(", ")"), mop1 = mop2.slice(", ");
             if (mop2.isNumLiteral()) {
-              if (!set(t.op2, Format("+(",
+              if (!set(t.op2, qformat("+(",
                 mop1,
                 ", $", mop2.literalToInt() + t.op1.literalToInt(),
               ")")))
@@ -416,7 +434,7 @@ class ProcTrack : ExtToken {
         if (t.op1.isNumLiteral() && t.op2 == "(%esp)" && stack.length && stack[$-1].startsWith("+(")) {
           auto mop2 = stack[$-1].between("+(", ")"), mop1 = mop2.slice(", ");
           if (mop2.isNumLiteral()) {
-            stack[$-1] = Format("+(", mop1, ", $", mop2.literalToInt() + t.op1.literalToInt(), ")");
+            stack[$-1] = qformat("+(", mop1, ", $", mop2.literalToInt() + t.op1.literalToInt(), ")");
             mixin(Success);
           }
         }
@@ -650,16 +668,19 @@ class ProcTrack : ExtToken {
   }
   bool isValid() {
     foreach (entry; stack) {
-      if (entry.startsWith("+(")) return false;
+      if (auto rest = entry.startsWith("+(")) {
+        if (rest.startsWith("%gs:")) continue;
+        return false;
+      }
       if (!entry.strip().length) return false;
     }
     foreach (mem, value; known) {
       if (mem in nvmed) continue;
       if (!value) return false; // #INV
-      if (value.startsWith("+("))
+      if (auto rest = value.startsWith("+("))
+        // addition on this is a valid expression!
+        if (rest.startsWith("%gs:")) continue;
         if (!mem.isRegister())
-          return false;
-        else if (value.find("gs") != -1)
           return false;
         else
           continue;
@@ -688,7 +709,7 @@ class ProcTrack : ExtToken {
             // fix
             auto delta = offs + myStackdepth;
             if (delta)
-              st = Format(delta, "(%esp)");
+              st = qformat(delta, "(%esp)");
             else
               st = "(%esp)";
           }*/
@@ -831,9 +852,9 @@ void setupOpts() {
       if (s.between("(", ")") != "%esp") return;
       auto offs = s.between("", "(").atoi();
       if ($1.kind == $TK.SAlloc) {
-        s = Format(offs + shift, "(%esp)");
+        s = qformat(offs + shift, "(%esp)");
       } else {
-        s = Format(offs - shift, "(%esp)");
+        s = qformat(offs - shift, "(%esp)");
       }
     }
     accessParams(t, (ref string s) { detShift(s); });
@@ -898,7 +919,7 @@ void setupOpts() {
     auto t1 = $0.dup, t2 = $1.dup;
     int offs;
     auto reg = $1.source.isIndirect2(offs);
-    t2.source = Format(offs + $0.op1.literalToInt(), "(", reg, ")");
+    t2.source = qformat(offs + $0.op1.literalToInt(), "(", reg, ")");
     $SUBST([t2, t1]);
   `));
   mixin(opt("scratch_mov", `^Mov, ^Call:
@@ -931,7 +952,7 @@ void setupOpts() {
     $SUBSTWITH {
       kind = $TK.MathOp;
       opName = "addl";
-      op1 = Format("$", $0.op1.literalToInt() + $1.op1.literalToInt());
+      op1 = qformat("$", $0.op1.literalToInt() + $1.op1.literalToInt());
       op2 = "%eax";
     }
   `));
@@ -989,7 +1010,7 @@ void setupOpts() {
     void doStuff(ref string str) {
       auto offs = str.between("", "(").atoi(); 
       auto new_offs = offs + t.stackdepth;
-      if (new_offs) str = Format(new_offs, "(%esp)");
+      if (new_offs) str = qformat(new_offs, "(%esp)");
       else str = "(%esp)";
       changed = true;
     }
@@ -1068,9 +1089,25 @@ void setupOpts() {
         $T t;
         t.kind = $TK.Push;
         t.type = Single!(SysInt);
-        t.source = Format(delta, "(", reg, ")");
+        t.source = qformat(delta, "(", reg, ")");
         ts = t ~ ts;
         delta += 4;
+      }
+      $SUBST(ts);
+    }
+    if ($0.source.startsWith("%gs")) {
+      int offs = $0.type.size;
+      $T[] ts;
+      int sd = $0.stackdepth;
+      while (offs) {
+        offs -= 4;
+        $T t;
+        t.kind = $TK.Push;
+        t.type = Single!(SysInt);
+        t.source = qformat("+(", $0.source, ", ", offs, ")");
+        t.stackdepth = sd;
+        sd += 4;
+        ts ~= t;
       }
       $SUBST(ts);
     }
@@ -1084,7 +1121,7 @@ void setupOpts() {
         $T t;
         t.kind = $TK.Pop;
         t.type = Single!(SysInt);
-        t.dest = Format(delta, "(", reg, ")");
+        t.dest = qformat(delta, "(", reg, ")");
         ts ~= t;
         delta += 4;
       }
@@ -1108,11 +1145,59 @@ void setupOpts() {
   `));
   mixin(opt("direct_math", `^Mov, ^Mov, ^MathOp:
     $0.to == $2.op1 && $1.to == $2.op2 &&
-    $0.from != $1.to && $0.to != $1.from
+    !collide($0.from, $1.to) && !collide($0.to, $1.from)
     =>
     $T t = $2;
     t.op1 = $0.from;
     $SUBST([$1, t, $0]);
+  `));
+  // subl $num1, %reg, pushl num2(%reg), popl %reg => movl -num1+num2(%reg) -> %reg
+  mixin(opt("fold_math_push", `^MathOp, ^Push, ^Pop:
+    ($0.opName == "addl" || $0.opName == "subl") &&
+    $0.op1.isNumLiteral() && $1.type.size == 4 &&
+    $1.source.isIndirect() == $0.op2 &&
+    $2.dest == $0.op2 && $2.type.size == 4
+    =>
+    $T t;
+    t.kind = $TK.Mov;
+    t.stackdepth = $0.stackdepth;
+    
+    int op1 = $0.op1.literalToInt();
+    if ($0.opName == "subl") op1 = -op1;
+    int op2;
+    $1.source.isIndirect2(op2);
+    
+    t.from = qformat(op1 + op2, "(", $0.op2, ")");
+    t.to = $0.op2;
+    
+    $SUBST(t);
+  `));
+  // push %reg1, mov x -> %reg1, pop %reg2 => mov %reg1 -> %reg2, mov x -> %reg1
+  mixin(opt("fold_push_mov_pop", `^Push, ^Mov, ^Pop:
+    $0.type.size == 4 && $2.type.size == 4 &&
+    $0.source.isRegister() &&
+    $0.source == $1.to && $1.from.find($2.dest) == -1 /* to be sure */
+    && !referencesStack($1)
+    =>
+    $T t1;
+    t1.stackdepth = $0.stackdepth;
+    t1.kind = $TK.Mov;
+    t1.from = $0.source;
+    t1.to = $2.dest;
+    
+    $T t2 = $1;
+    t2.stackdepth = t1.stackdepth;
+    
+    $SUBST([t1, t2]);
+  `));
+  mixin(opt("reorder_math_mov", `^MathOp, ^Mov, ^Mov:
+    $0.op1.isLiteral() && $0.op2.isRegister() &&
+    $0.op2 == $1.from && $1.to.isRegister() &&
+    $2.from.isLiteral() && $2.to == $1.from
+    =>
+    $T t1 = $1, t2 = $0;
+    t2.op2 = t1.to;
+    $SUBST([t1, t2, $2]);
   `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
     bool changed;
@@ -1135,15 +1220,17 @@ void setupOpts() {
           case Label, Compare, Call, Jump:
             break outer; // no chance
           
+          case ExtendDivide:
+            if (check == "%eax") break outer;
           case Push:
             if (check == "(%esp)") break outer;
-          case FloatLoad, FloatIntLoad:
+          case FloatLoad, DoubleLoad, FloatIntLoad:
             if (entry.source.find(check) != -1) break outer;
             continue;
           
           case Pop:
             if (check == "(%esp)") break outer;
-          case Nevermind, FloatPop, FloatStore:
+          case Nevermind, FloatPop, DoublePop, FloatStore:
             if (entry.dest == check) { unneeded = true; break outer; }
             if (entry.dest.find(check) != -1) break outer;
             continue;
@@ -1177,6 +1264,118 @@ void setupOpts() {
     return changed;
   }
   opts ~= stuple(&lookahead_remove_redundants, "lookahead_remove_redundants", true);
+  
+  bool lookahead_bridge_push_pop(Transcache cache, ref int[string] labels_refcount) {
+    bool changed;
+    Transaction[] repl;
+    auto match = cache.findMatch("lookahead_bridge_push_pop", delegate int(Transaction[] list) {
+      with (Transaction.Kind) {
+        if (list.length <= 2) return false;
+        
+        auto head = list[0];
+        if (head.kind != Push || head.type.size != 4) return false;
+        if (!head.source.isUtilityRegister() && !head.source.isIndirect().isUtilityRegister()) return false;
+        
+        int tailid = -1;
+        for (int i = 0; i < list.length; ++i) {
+          if (list[i].kind == Pop) { tailid = i; break; }
+        }
+        if (tailid == -1) return false;
+        auto tail = list[tailid];
+        if (!tail.dest.isUtilityRegister() || head.type.size != 4) return false;
+        
+        auto segment = list[0 .. tailid + 1];
+        if (segment.length <= 2) return false;
+        segment = segment.dup;
+        
+        foreach (entry; segment[1 .. $-1]) {
+          if (entry.kind == Push /or/ Call /or/ Label)
+            return false;
+          if (affectsStack(entry))
+            return false;
+        }
+        
+        bool[string] unused;
+        foreach (reg; ["%eax", "%ebx", "%ecx", "%edx"])
+          unused[reg] = true;
+        foreach (ref entry; segment[1 .. $-1]) {
+          accessParams(entry, (ref string s) {
+            string[] remove;
+            foreach (key, value; unused)
+              if (s.find(key) != -1) remove ~= key;
+            foreach (entry; remove) unused.remove(entry);
+            fixupString(s, -4);
+          });
+          if (entry.hasStackdepth()) entry.stackdepth -= 4;
+        }
+        
+        if (!unused.length) return false;
+        if (head.source.isRegister() && head.source in unused) {
+          segment[$-1] = Init!(Transaction);
+          with (segment[$-1]) {
+            kind = Mov;
+            from = head.source;
+            to = tail.dest;
+          }
+          repl = segment[1 .. $];
+          return segment.length;
+        }
+        
+        if (tail.dest in unused) {
+          segment[0] = Init!(Transaction);
+          with (segment[0]) {
+            kind = Mov;
+            from = head.source;
+            to = tail.dest;
+          }
+          repl = segment[0 .. $-1];
+          return segment.length;
+        }
+        
+        if (head.source.isRegister() && head.source == tail.dest) {
+          auto subst = unused.keys[0];
+          foreach (ref entry; segment[1 .. $-1]) {
+            accessParams(entry, (ref string s) {
+              s = s.replace(head.source, subst);
+            });
+          }
+          repl = segment[1 .. $-1];
+          return segment.length;
+        }
+        
+        if (tail.dest.isRegister()) {
+          auto subst = unused.keys[0];
+          segment[0] = Init!(Transaction);
+          with (segment[0]) {
+            kind = Mov;
+            from = head.source;
+            to = subst;
+          }
+          segment[$-1] = Init!(Transaction);
+          with (segment[$-1]) {
+            kind = Mov;
+            from = subst;
+            to = tail.dest;
+          }
+          repl = segment;
+          return segment.length;
+        }
+        
+        
+        logln();
+        logln();
+        logln("bridge? ", segment, " and ", unused);
+        logln();
+      }
+      return false;
+    });
+    if (match.length) do {
+      match.replaceWith(repl);
+      changed = true;
+    } while (match.advance());
+    return changed;
+  }
+  opts ~= stuple(&lookahead_bridge_push_pop, "lookahead_bridge_push_pop", true);
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;

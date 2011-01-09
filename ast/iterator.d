@@ -95,10 +95,10 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
       return new Compare(
         reinterpret_cast(Single!(SysInt), ex),
         "!=",
-        new IntExpr(to)
+        mkInt(to)
       );
     }
-    Expr length(Expr ex) { return new IntExpr(to-from); }
+    Expr length(Expr ex) { return mkInt(to-from); }
     Expr index(Expr ex, Expr pos) {
       return iparse!(Expr, "const_index_range", "tree.expr")
                     ("ex + pos",
@@ -115,7 +115,7 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
     Expr getPos(Expr ex) {
       return reinterpret_cast(Single!(SysInt), ex);
     }
-    Expr getEnd(Expr ex) { return new IntExpr(to); }
+    Expr getEnd(Expr ex) { return mkInt(to); }
   }
 }
 

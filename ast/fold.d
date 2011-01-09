@@ -7,13 +7,16 @@ Itr fold(Itr i) {
   auto cur = i;
   while (true) {
     auto start = cur;
-    auto e1 = cast(Expr) start;
+    Expr e1;
+    debug e1 = cast(Expr) start;
     foreach (dg; foldopt) {
       if (auto res = dg(cur)) cur = res;
       // logln("TEST ", (cast(Object) cur.valueType()).classinfo.name, " != ", (cast(Object) start.valueType()).classinfo.name, ": ", cur.valueType() != start.valueType());
-      auto e2 = cast(Expr) cur;
-      if (e1 && e2 && e1.valueType() != e2.valueType()) {
-        throw new Exception(Format("Fold has violated type consistency: ", start, " => ", cur));
+      debug {
+        auto e2 = cast(Expr) cur;
+        if (e1 && e2 && e1.valueType() != e2.valueType()) {
+          throw new Exception(Format("Fold has violated type consistency: ", start, " => ", cur));
+        }
       }
     }
     if (cur is start) break;

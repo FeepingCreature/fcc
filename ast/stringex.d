@@ -57,8 +57,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
         }
         bool foundMatch;
         auto ex2 = ex;
-        gotImplicitCast(ex2,  &tryFormat);
-        if (!ex2)
+        if (!gotImplicitCast(ex2,  &tryFormat))
           throw new Exception(Format("Can't format ", ex, " of ", ex.valueType()));
       }
     }
@@ -75,8 +74,11 @@ Expr simpleFormat(Expr ex) {
   if (Single!(SysInt) == type) {
     return buildFunCall(cast(Function) sysmod.lookup("itoa"), ex);
   }
-  if (Single!(Float) == type) {
-    return buildFunCall(cast(Function) sysmod.lookup("ftoa"), ex);
+  if (Single!(Long) == type) {
+    return buildFunCall(cast(Function) sysmod.lookup("ltoa"), ex);
+  }
+  if (Single!(Float) == type || Single!(Double) == type) {
+    return buildFunCall(cast(Function) sysmod.lookup("dtoa"), ex);
   }
   if (auto p = cast(Pointer) type) {
     return buildFunCall(cast(Function) sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex));

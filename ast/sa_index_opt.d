@@ -32,6 +32,6 @@ static this() {
     assert(!(index & 3), "Bad index!! ");
     index /= 4;
     // yay
-    return new IntExpr(field[index]);
+    return mkInt(field[index]);
   };
 }
