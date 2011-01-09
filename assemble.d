@@ -193,7 +193,7 @@ struct Transaction {
         }
       case SAlloc:
           if (!size) return null;
-          return Format("subl $", size, ", %esp");
+          return Format("subl $", size, ", %esp # salloc");
       case SFree:
           if (!size) return null;
           return Format("addl $", size, ", %esp # sfree");

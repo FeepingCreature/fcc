@@ -2,7 +2,7 @@ module ast.vector;
 
 import
   ast.base, ast.tuples, ast.tuple_access, ast.types, ast.fold,
-  ast.fun, ast.funcall,
+  ast.fun, ast.funcall, ast.aliasing,
   ast.structure, ast.namespace, ast.modules, ast.structfuns, ast.returns;
 
 class Vector : Type, RelNamespace {
@@ -114,42 +114,28 @@ Structure mkVecStruct(Vector vec) {
   
   Expr sqr(Expr ex) { return lookupOp("*", ex, ex); }
   
-  auto lensq = new RelFunction(res);
-  with (lensq) {
-    New(type);
-    type.ret = Single!(Float);
-    name = "lensq";
-    fixup;
-    auto backup = namespace();
-    scope(exit) namespace.set(backup);
-    namespace.set(lensq);
-    Expr length = sqr(cast(Expr) lookup("x"));
+  {
+    Expr lensq = sqr(cast(Expr) res.lookup("x"));
     for (int i = 1; i < vec.len; ++i)
-      length = lookupOp("+", length, sqr(cast(Expr) lookup(["xyzw"[i]])));
-    tree = new ReturnStmt(length);
+      lensq = lookupOp("+", lensq, sqr(cast(Expr) res.lookup(["xyzw"[i]])));
+    res.add(new ExprAlias(lensq, "lensq"));
   }
-  res.add(lensq);
-  current_module().entries ~= lensq;
   
-  auto len = new RelFunction(res);
-  with (len) {
-    New(type);
-    type.ret = Single!(Float);
-    name = "length";
-    fixup;
-    auto backup = namespace();
-    scope(exit) namespace.set(backup);
-    namespace.set(len);
-    Expr length = sqr(cast(Expr) lookup("x"));
+  {
+    Expr sum = cast(Expr) res.lookup("x");
     for (int i = 1; i < vec.len; ++i)
-      length = lookupOp("+", length, sqr(cast(Expr) lookup(["xyzw"[i]])));
-    tree = new ReturnStmt(buildFunCall(
-      cast(Function) sysmod.lookup("sqrtf"), length
-    ));
+      sum = lookupOp("+", sum, cast(Expr) res.lookup(["xyzw"[i]]));
+    res.add(new ExprAlias(sum, "sum"));
   }
-  res.add(len);
-  current_module().entries ~= len;
   
+  {
+    Expr lensq = cast(Expr) res.lookup("lensq");
+    auto len = buildFunCall(
+      cast(Function) sysmod.lookup("sqrtf"), lensq
+    );
+    res.add(new ExprAlias(len, "length"));
+  }
+
   cache ~= stuple(res, vec, current_module());
   return res;
 }

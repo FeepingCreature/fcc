@@ -253,7 +253,9 @@ abstract class BinopExpr : Expr, HasInfo {
 }
 
 class AsmIntBinopExpr : BinopExpr {
-  this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
+  this(Expr e1, Expr e2, string op) {
+    super(e1, e2, op);
+  }
   private this() { super(); }
   AsmIntBinopExpr dup() { return new AsmIntBinopExpr(e1.dup, e2.dup, op); }
   override {
@@ -288,20 +290,27 @@ class AsmIntBinopExpr : BinopExpr {
           e1.emitAsm(af);
           af.popStack("%eax", e1.valueType());
         }
+        string top = op;
+        if (top == "*" && op2.startsWith("$")) {
+          auto num = op2[1 .. $].atoi();
+          if (num == 4) { top = "<<"; op2 = "$2"; }
+        }
+        
         auto asm_op = ([
           "+"[]: "addl"[], "-": "subl",
           "*": "imull", "/": "idivl",
           "&": "andl", "|": "orl",
           "%": "imodl",
-          "<<": "shl", ">>": "shr"
-        ])[op];
+          "<<": "shl", ">>": "sar", ">>>": "shr"
+        ])[top];
         
         if (op2.isRegister())
           af.popStack(op2, e2.valueType());
         
-        if (asm_op == "shl" || asm_op == "shr")
+        if (asm_op == "sal" || asm_op == "sar" || asm_op == "%shr")
           if (op2 == "%ecx")
             op2 = "%cl"; // shl/r really want %cl.
+        
         af.mathOp(asm_op, op2, "%eax");
         af.pushStack("%eax", Single!(SysInt));
         af.nvm("%eax");
@@ -469,7 +478,7 @@ static this() {
   void defineOps(Expr delegate(string op, Expr, Expr) dg, bool reduced = false) {
     string[] ops;
     if (reduced) ops = ["+", "-"]; // pointer math
-    else ops = ["+", "-", "&", "|", "*", "/", "%", "<<", ">>"];
+    else ops = ["+", "-", "&", "|", "*", "/", "%", "<<", ">>", ">>>"];
     foreach (op; ops)
       defineOp(op, op /apply/ dg);
   }

@@ -517,7 +517,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
         } else
           mesg = Format(member, " is not a member of ", pre_ex.valueType());
         
-        if (!dontFail && member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length" // list of keywords
+        if (!dontFail && member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length" /or/ "lensq" /or/ "sum" // list of keywords
           && (!name || !name.startsWith("__array_as_struct__")))
           text.failparse(mesg);
         else

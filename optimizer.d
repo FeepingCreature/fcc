@@ -171,7 +171,7 @@ int opSize(ref Transaction t) {
   if (hasSize(t)) return t.size;
   with (Transaction.Kind) {
     switch (t.kind) {
-      case Mov, LoadAddress, FloatStore, FloatPop: return 4;
+      case Mov, LoadAddress, FloatStore, FloatPop, FloatLoad: return 4;
       case Mov2: return 2;
       case Mov1: return 1;
       case Push, Pop: return t.type.size;
@@ -180,7 +180,8 @@ int opSize(ref Transaction t) {
       default: break;
     }
   }
-  assert(false, Format("Does ", t, " has size? "));
+  logln("Does ", t, " has size? ");
+  asm { int 3; }
 }
 
 int size(ref Transaction t) {
@@ -513,8 +514,6 @@ class ProcTrack : ExtToken {
         break;
       case Label: return false;
       case Push:
-        if ("%esp" in use) // some other instr is relying on esp to stay unchanged
-          return false;
         if (noStack)
           return false;
         if (t.type.size == nativePtrSize) {
@@ -826,7 +825,10 @@ void setupOpts() {
     accessParams(t, (ref string s) { applyShift(s); });
     bool substed;
     // override conas
-    if ((!changesOrNeedsActiveStack($0) || $0.kind == $TK.Mov) && (shift > 0 || shift == -1 && !dontDoIt)) {
+    if ((
+      !changesOrNeedsActiveStack($0) ||
+      $0.kind == $TK.Mov /or/ $TK.FloatPop /or/ $TK.FloatLoad /or/ $TK.FloatStore /or/ $TK.LoadAddress
+    ) && (shift > 0 || shift == -1 && !dontDoIt)) {
       if (shift == -1) shift = $1.size;
       auto t0 = $1, t2 = $1;
       t0.size = shift; t2.size -= shift;
@@ -907,6 +909,13 @@ void setupOpts() {
     $T t = $1.dup;
     t.op2 = $0.source;
     $SUBST([t, $0]);
+  `));
+  mixin(opt("resolve_lea_free_load", `^LoadAddress, ^SFree, *:
+    hasSource($2) && opSize($2) == 4 && $2.source.isIndirect(0) == $0.dest && $1.size == 4
+    =>
+    $T t = $2.dup;
+    t.source = $0.source;
+    $SUBST([t, $1]);
   `));
   mixin(opt("merge_literal_adds", `^MathOp, ^MathOp:
     $0.opName == "addl" && $1.opName == "addl" &&
@@ -1136,6 +1145,30 @@ void setupOpts() {
     
     $SUBST(t);
   `));
+  // subl $num1, mem, flds mem, nvm mem
+  mixin(opt("fold_math_load_nvm", `^MathOp, ^FloatLoad, ^Nevermind:
+    ($0.opName == "addl" || $0.opName == "subl") &&
+    $0.op1.isNumLiteral() && $1.source.isIndirect() == $0.op2 &&
+    $2.dest == $1.source
+    =>
+    $T t = $1;
+    
+    int op1 = $0.op1.literalToInt();
+    if ($0.opName == "subl") op1 = -op1;
+    int op2;
+    $1.source.isIndirect2(op2);
+    
+    t.source = qformat(op1 + op2, "(", $0.op2, ")");
+    $SUBST(t);
+  `));
+  mixin(opt("remove_redundant_mov", `^Mov, ^FloatLoad, ^Mov, ^FloatLoad:
+    $0.from == $2.from && $0.to == $2.to
+    =>
+    $T t;
+    // good luck working out why ~
+    t.kind = $TK.FloatSwap;
+    $SUBST([$0, $1, $3]);
+  `));
   // push %reg1, mov x -> %reg1, pop %reg2 => mov %reg1 -> %reg2, mov x -> %reg1
   mixin(opt("fold_push_mov_pop", `^Push, ^Mov, ^Pop:
     $0.type.size == 4 && $2.type.size == 4 &&
@@ -1163,6 +1196,28 @@ void setupOpts() {
     t2.op2 = t1.to;
     $SUBST([t1, t2, $2]);
   `));
+  mixin(opt("hyperspecific", `^Label, ^Push, ^Push, ^Push, ^Pop, ^Pop, ^Pop
+    =>
+    $T ts[6];
+    foreach (ref t; ts) t.kind = $TK.Mov;
+    ts[0].from = $1.source; ts[0].to = "%eax";
+    ts[1].from = $2.source; ts[1].to = "%ebx";  fixupString(ts[1].from, -4);
+    ts[2].from = $3.source; ts[2].to = "%ecx";  fixupString(ts[2].from, -8);
+    ts[3].from = "%eax";    ts[3].to = $6.dest; fixupString(ts[3].to, -4);
+    ts[4].from = "%ebx";    ts[4].to = $5.dest; fixupString(ts[4].to, -8);
+    ts[5].from = "%ecx";    ts[5].to = $4.dest; fixupString(ts[5].to, -12);
+    $SUBST($0 ~ ts);
+  `));
+  mixin(opt("move_sooner", `^MathOp, ^Mov, *:
+    $0.op1.find($0.op2) == -1 &&
+    (!$0.op1.isIndirect() || !$1.to.isIndirect()) &&
+    $1.from == $0.op2 && $1.to.isUtilityRegister() &&
+    ((hasDest($2) && $2.dest == $0.op2) || (hasTo($2) && $2.to == $0.op2))
+    =>
+    $T t = $0;
+    t.op2 = $1.to;
+    $SUBST([$1, t, $2]);
+  `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
     bool changed;
     auto match = cache.findMatch("lookahead_remove_redundants", delegate int(Transaction[] list) {
@@ -1171,6 +1226,7 @@ void setupOpts() {
       string check;
       if (hasTo(head)) check = head.to;
       if (head.kind == Transaction.Kind.FloatStore) check = head.dest;
+      if (head.kind == Transaction.Kind.MathOp) check = head.op2;
       if (!check) return false;
       if (!check.isUtilityRegister() && check != "(%esp)") return false;
       bool unneeded;
@@ -1201,7 +1257,7 @@ void setupOpts() {
           
           case MathOp:
             if (entry.op1.find(check) != -1) break outer;
-            if (entry.op2.find(check) != -1) break outer;
+            if (entry.op2.find(check) != -1 && entry.op2 != check) break outer;
             continue;
           
           case Mov, LoadAddress:
@@ -1239,7 +1295,8 @@ void setupOpts() {
         if (list.length <= 2) return false;
         auto head = list[0];
         if (head.kind != Push || head.type.size != 4) return false;
-        if (!head.source.isUtilityRegister() && !head.source.isIndirect().isUtilityRegister()) return false;
+        if (!head.source.isUtilityRegister() && !head.source.isIndirect().isUtilityRegister()
+            && head.source.isIndirect() != "%esp") return false;
         
         int tailid = -1;
         for (int i = 0; i < list.length; ++i) {
@@ -1247,7 +1304,8 @@ void setupOpts() {
         }
         if (tailid == -1) return false;
         auto tail = list[tailid];
-        if (!tail.dest.isUtilityRegister() || head.type.size != 4) return false;
+        if (tail.type.size != 4) return false;
+        if (!tail.dest.isUtilityRegister()/* && !tail.dest.isIndirect().isUtilityRegister()*/) return false;
         
         auto segment = list[0 .. tailid + 1];
         if (segment.length <= 2) return false;
@@ -1286,7 +1344,7 @@ void setupOpts() {
           return segment.length;
         }
         
-        if (tail.dest in unused) {
+        if (tail.dest.isRegister() && tail.dest in unused) {
           segment[0] = Init!(Transaction);
           with (segment[0]) {
             kind = Mov;
@@ -1308,29 +1366,21 @@ void setupOpts() {
           return segment.length;
         }
         
-        if (tail.dest.isRegister()) {
-          auto subst = unused.keys[0];
-          segment[0] = Init!(Transaction);
-          with (segment[0]) {
-            kind = Mov;
-            from = head.source;
-            to = subst;
-          }
-          segment[$-1] = Init!(Transaction);
-          with (segment[$-1]) {
-            kind = Mov;
-            from = subst;
-            to = tail.dest;
-          }
-          repl = segment;
-          return segment.length;
+        auto subst = unused.keys[0];
+        segment[0] = Init!(Transaction);
+        with (segment[0]) {
+          kind = Mov;
+          from = head.source;
+          to = subst;
         }
-        
-        
-        logln();
-        logln();
-        logln("bridge? ", segment, " and ", unused);
-        logln();
+        segment[$-1] = Init!(Transaction);
+        with (segment[$-1]) {
+          kind = Mov;
+          from = subst;
+          to = tail.dest;
+        }
+        repl = segment;
+        return segment.length;
       }
       return false;
     });

@@ -69,6 +69,7 @@ Object gotFloatExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (gotFloat(text, f)) return new FloatExpr(f);
   return null;
 }
+mixin DefaultParser!(gotFloatExpr, "tree.expr.float_literal_early", "230");
 mixin DefaultParser!(gotFloatExpr, "tree.expr.literal.float", "54");
 
 Object gotDoubleExpr(ref string text, ParseCb cont, ParseCb rest) {

@@ -281,6 +281,16 @@ void setupSysmods() {
         return res;
       }
     EOF
+    
+    int fastfloor(float f) {
+      alias magicdelta = 0.000000015;
+      alias roundeps = 0.5 - magicdelta;
+      alias magic = 6755399441055744.0;
+      double d = f - magicdelta;
+      d += magic;
+      int res = (int*:&d)[0];
+      return res;
+    }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;
