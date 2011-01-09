@@ -58,7 +58,7 @@ DataSet parse(string fn) {
       temp[] = [for st <- splitAt(",", iterOnce id): atoi toStringz st].eval[];
       res.indices ~= temp;
     }
-    lines = lines[idcount + 1 .. lines.length];
+    lines = lines[idcount + 1 .. $];
   }
   {
     auto vertcount = atoi toStringz lines[0];
@@ -173,6 +173,7 @@ void drawScene(DataSet ds) {
           if (angle < 0) angle = -angle;
           angles[l] = angle;
         }
+        // writeln "mew $(quad[0])";
         while int i <- 0..4 { data ~= vec3f(angles[i]); data ~= quad[i]; entries ++; }
         vertices += 4;
       }

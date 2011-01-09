@@ -41,6 +41,11 @@ Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     if (count <= 1) return null; // resolve ambiguity with array index
     auto t2 = text;
     Expr index;
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(new LengthOverride(backup, mkInt(count)));
+    
     if (
       !rest(t2, "tree.expr", &index) ||
       !gotImplicitCast(index, (IType it) { return test(Single!(SysInt) == it); }) ||
@@ -70,6 +75,11 @@ Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (count <= 1) return null;
     auto t2 = text;
     Expr range;
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(new LengthOverride(backup, mkInt(count)));
+    
     if (!rest(t2, "tree.expr", &range) ||
         !gotImplicitCast(range, (IType it) { return test(cast(RangeIsh) it); }) ||
         !t2.accept("]")) return null;

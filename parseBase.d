@@ -136,6 +136,8 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   bool isValid(char c, bool first = false) {
     return isAlphanum(c) || c == '_' || (!first && c == '-') || (acceptDots && c == '.');
   }
+  // array length special handling
+  if (t2.length && t2[0] == '$') { text = t2; ident = "$"; return true; }
   if (!t2.length || !isValid(t2[0], true)) return false;
   auto identlen = 0, backup = t2;
   do {
