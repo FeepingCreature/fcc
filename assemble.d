@@ -2,7 +2,7 @@ module assemble;
 
 import ast.types, ast.base;
 
-import tools.base: Format, New, or, and, slice, between;
+import tools.base: Format, New, or, and, slice, between, fail;
 import tools.compat: find, abs, replace, atoi;
 import tools.log;
 
@@ -17,7 +17,7 @@ bool isMemRef(string mem) {
 }
 
 bool isRegister(string s) {
-  return s.length > 2 && s[0] == '%' && s[1] != '(';
+  return s.length > 2 && s[0] == '%' && s[1] != '(' && !s.startsWith("%gs:");
 }
 
 bool isLiteral(string s) {
@@ -42,6 +42,36 @@ int literalToInt(string s) {
 bool mayNeedStack(string str) {
   if (str.find("%esp") != -1) return true;
   return isRelative(str);
+}
+
+string isIndirectSimple(string s) {
+  if (s.length >= 2 && s[0] == '(' && s[$-1] == ')')
+    return s[1..$-1];
+  else return null;
+}
+string isIndirectComplex(string s, ref int delta) {
+  if (s.between(")", "").length) return null;
+  auto betw = s.between("(", ")");
+  if (betw && betw.isRegister()) {
+    delta = s.between("", "(").atoi();
+    return betw;
+  }
+  return null;
+}
+string isIndirect2(string s, ref int delta) {
+  delta = 0;
+  if (auto res = isIndirectSimple(s)) return res;
+  if (auto res = isIndirectComplex(s, delta)) return res;
+  return null;
+}
+string isIndirect(string s, int offs = -1) {
+  int bogus;
+  if (offs == -1) return isIndirect2(s, bogus);
+  else {
+    auto res = isIndirect2(s, bogus);
+    if (bogus == offs) return res;
+    else return null;
+  }
 }
 
 interface ExtToken {
@@ -127,9 +157,14 @@ struct Transaction {
     assert(false);
   }
   static string asmformat(string s) {
-    if (s.startsWith("+(")) {
-      auto op2 = s.between("(", ")"), op1 = op2.slice(",");
-      return qformat(op1, "+", op2);
+    if (auto betw = s.between("(", ")")) {
+      auto offs = s.between("", "(").atoi();
+      if (betw.startsWith("%gs:")) {
+        return qformat(betw, "+", offs);
+      }
+      if (betw.startsWith("$")) {
+        return qformat(betw[1 .. $], "+", offs);
+      }
     }
     return s;
   }
@@ -187,16 +222,18 @@ struct Transaction {
         bool gotLiteral(string s, ref int num, ref string ident) {
           return s.accept("$") && (s.gotInt(num) || (s.find("(") == -1) && (ident = s, s = null, true)) && !s.length;
         }
+        // $5
+        bool gotIntLiteral(string s, ref int num) {
+          return s.accept("$") && s.gotInt(num);
+        }
         // 8(%eax) or 8($literal)
         string gotMemoryOffset(string s, ref int offs) {
           string prefix, reference;
-          bool gotPrefix(ref string s, ref string t) {
-            if (s.startsWith("%")) { s = s[1 .. $]; t = "%"; return true; }
-            // if (s.startsWith("$")) { s = s[1 .. $]; t = "$"; return true; }
-            return false;
-          }
-          if ((s.gotInt(offs) || (offs = 0, true)) && s.accept("(") && s.gotPrefix(prefix) && s.gotIdentifier(reference) && s.accept(")")) return prefix ~ reference;
-          else return null;
+          auto betw = s.between("(", ")");
+          if (!betw) return null;
+          auto s2 = s;
+          if (!s2.gotInt(offs)) offs = 0;
+          return betw;
         }
         // push/pop as far as possible at that size sz, using instruction postfix pf.
         auto op = (kind == Push) ? source : dest;
@@ -223,18 +260,8 @@ struct Transaction {
                 m_offs_push = true;
               }
               if (op.startsWith("+")) {
-                auto op2 = op.between("(", ")"), op1 = op2.slice(",");
-                auto op1_ = op1;
-                if (op1_.gotInt(offs)) { auto temp = op1; op1 = op2; op2 = temp; }
-                if (!op2.gotInt(offs)) {
-                  assert(false, Format("whuh? ", op1, " and ", op2, ". "));
-                }
-                
-                if (first_offs != -1) offs = first_offs;
-                else first_offs = offs;
-                
-                op = Format("+(", op1, ", ", first_offs + size - sz, ")");
-                m_offs_push = true;
+                logln(op, " (", *this, ")");
+                asm { int 3; }
               }
             }
             if (sz == 1) { // not supported in hardware
@@ -259,10 +286,18 @@ struct Transaction {
               if (kind == Pop && op.gotMemoryOffset(offs) == "%esp") {
                 op = Format(offs - sz, "(%esp)");
               }
-              auto temp = op;
+              auto temp = op; int toffs;
+              if (auto mem = temp.between("(", ")")) {
+                if (auto rest = mem.startsWith("$")) {
+                  temp = qformat(rest, "+", temp.between("", "("));
+                }
+                if (mem.startsWith("%gs:")) {
+                  temp = qformat(mem, "+", temp.between("", "("));
+                }
+              }
               if (temp.startsWith("+")) {
-                auto part2 = temp.between("(", ")"), part1 = part2.slice(",");
-                temp = Format(part1, " + ", part2);
+                logln(temp, " (", *this, ")");
+                asm { int 3; }
               }
               addLine(Format(mnemo, pf, " ", temp));
             }
@@ -285,6 +320,9 @@ struct Transaction {
               // if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
             }
             else if (kind == Pop && null !is (reg = op.gotMemoryOffset(offs))) {
+              op = Format(offs + sz, "(", reg, ")");
+            }
+            else if (kind == Push && null !is (reg = op.gotMemoryOffset(offs))) {
               op = Format(offs + sz, "(", reg, ")");
             }
             else if (!m_offs_push && (op.find("%") != -1 || op.find("(") != -1))
@@ -334,6 +372,11 @@ struct Transaction {
       case Nevermind:
         return "#forget "~dest~". ";
       case LoadAddress:
+        /*if (from.find("%gs") != -1) {
+          auto offs = from.between("", "(");
+          auto base = from.between("(", ")");
+          return Format("movl ", base, " + ", offs, ", ", to);
+        }*/
         return Format("leal ", from, ", ", to);
     }
   }

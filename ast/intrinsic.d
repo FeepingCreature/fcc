@@ -163,7 +163,7 @@ void setupSysmods() {
     }
     string dtoa(double d) {
       auto res = new char[40];
-      int len = snprintf(res.ptr, res.length, "%.12f", d);
+      int len = snprintf(res.ptr, res.length, "%f", d);
       if len > res.length len = res.length;
       return res[0 .. len];
     }

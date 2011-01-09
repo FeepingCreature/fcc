@@ -202,40 +202,6 @@ bool isMemRef(string s) {
   return true;
 }
 
-string isIndirectSimple(string s) {
-  if (s.length >= 2 && s[0] == '(' && s[$-1] == ')')
-    return s[1..$-1];
-  else return null;
-}
-string isIndirectComplex(string s, ref int delta) {
-  if (s.startsWith("+(")) {
-    auto op2 = s.between("(", ")"), op1 = op2.slice(",");
-    if (op1.startsWith("%gs:")) return null; // resolved in the assembler
-  }
-  if (s.between(")", "").length) return null;
-  auto betw = s.between("(", ")");
-  if (betw && betw.isRegister()) {
-    delta = s.between("", "(").atoi();
-    return betw;
-  }
-  return null;
-}
-string isIndirect2(string s, ref int delta) {
-  delta = 0;
-  if (auto res = isIndirectSimple(s)) return res;
-  if (auto res = isIndirectComplex(s, delta)) return res;
-  return null;
-}
-string isIndirect(string s, int offs = -1) {
-  int bogus;
-  if (offs == -1) return isIndirect2(s, bogus);
-  else {
-    auto res = isIndirect2(s, bogus);
-    if (bogus == offs) return res;
-    else return null;
-  }
-}
-
 // dg, name, allow
 Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
 bool optsSetup;
@@ -306,6 +272,7 @@ class ProcTrack : ExtToken {
   string mkIndirect(string val, int delta = 0 /* additional delta */) {
     if (val.startsWith("+(")) {
       auto op2 = val.between("(", ")"), op1 = op2.slice(",").strip();
+      if (op1.startsWith("%gs:")) return null;
       op2 = op2.strip();
       if (op1.isRegister() && op2.isNumLiteral()) {
         auto op2i = op2.literalToInt();
@@ -669,7 +636,6 @@ class ProcTrack : ExtToken {
   bool isValid() {
     foreach (entry; stack) {
       if (auto rest = entry.startsWith("+(")) {
-        if (rest.startsWith("%gs:")) continue;
         return false;
       }
       if (!entry.strip().length) return false;
@@ -678,8 +644,6 @@ class ProcTrack : ExtToken {
       if (mem in nvmed) continue;
       if (!value) return false; // #INV
       if (auto rest = value.startsWith("+("))
-        // addition on this is a valid expression!
-        if (rest.startsWith("%gs:")) continue;
         if (!mem.isRegister())
           return false;
         else
@@ -1104,7 +1068,7 @@ void setupOpts() {
         $T t;
         t.kind = $TK.Push;
         t.type = Single!(SysInt);
-        t.source = qformat("+(", $0.source, ", ", offs, ")");
+        t.source = qformat(offs, "(", $0.source, ")");
         t.stackdepth = sd;
         sd += 4;
         ts ~= t;
@@ -1268,10 +1232,11 @@ void setupOpts() {
   bool lookahead_bridge_push_pop(Transcache cache, ref int[string] labels_refcount) {
     bool changed;
     Transaction[] repl;
+    // BEWARE!
+    // this opt is iffy. it does not guarantee that its scratch registers are actually available!
     auto match = cache.findMatch("lookahead_bridge_push_pop", delegate int(Transaction[] list) {
       with (Transaction.Kind) {
         if (list.length <= 2) return false;
-        
         auto head = list[0];
         if (head.kind != Push || head.type.size != 4) return false;
         if (!head.source.isUtilityRegister() && !head.source.isIndirect().isUtilityRegister()) return false;
@@ -1289,14 +1254,14 @@ void setupOpts() {
         segment = segment.dup;
         
         foreach (entry; segment[1 .. $-1]) {
-          if (entry.kind == Push /or/ Call /or/ Label)
+          if (entry.kind == Push /or/ Call /or/ Label /or/ Nevermind)
             return false;
           if (affectsStack(entry))
             return false;
         }
         
         bool[string] unused;
-        foreach (reg; ["%eax", "%ebx", "%ecx", "%edx"])
+        foreach (reg; ["%edx", "%ecx"/*, "%ebx", "%eax"*/])
           unused[reg] = true;
         foreach (ref entry; segment[1 .. $-1]) {
           accessParams(entry, (ref string s) {

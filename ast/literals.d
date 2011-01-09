@@ -26,7 +26,7 @@ class DoubleExpr : Expr, Literal {
         name_used = qformat("dcons_", af.constants.length);
         af.constants[name_used] = cast(ubyte[]) i;
       }
-      af.pushStack(qformat("+(", name_used, ", 0)"), valueType());
+      af.pushStack(qformat("0($", name_used, ")"), valueType());
     }
   }
 }
