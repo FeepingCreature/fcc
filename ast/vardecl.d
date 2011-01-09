@@ -108,6 +108,13 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
   return var;
 }
 
+import ast.fold;
+Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
+  auto fex = foldex(ex);
+  if (cast(Literal) fex) return fex;
+  return mkRef(af, fex, post);
+}
+
 import ast.namespace, ast.scopes, tools.compat: find;
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text, vd = new VarDecl;

@@ -161,7 +161,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     auto inst = cast(Function) templ.getInstance(nex.valueType(), rest).lookup(templ.name, true);
     if (!inst) { logln("wat"); return null; }
     text = t2;
-    return cast(Object) buildFunCall(inst, nex);
+    return cast(Object) buildFunCall(inst, nex, "template_call");
   };
 }
 mixin DefaultParser!(gotIFTI, "tree.rhs_partial.ifti");

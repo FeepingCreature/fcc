@@ -322,6 +322,7 @@ int main(string[] args) {
   while (ar.length) {
     auto arg = ar.take();
     if (arg == "-pthread") continue; // silently ignore;
+    if (arg.startsWith("-D")) continue;
     if (arg == "-o") {
       output = ar.take();
       continue;

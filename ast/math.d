@@ -461,10 +461,17 @@ static this() {
     return null;
   }
   Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
-    if (!gotImplicitCast(ex1, &isFloat) || !gotImplicitCast(ex2, &isFloat))
+    ex1 = foldex(ex1);
+    ex2 = foldex(ex2);
+    if (Single!(Double) == ex1.valueType() && !cast(DoubleExpr) ex1)
       return null;
     
-    if (Single!(Double) == ex1.valueType() || Single!(Double) == ex2.valueType())
+    if (Single!(Double) == ex2.valueType() && !cast(DoubleExpr) ex2)
+      return null;
+    
+    if (cast(DoubleExpr) ex1 && cast(DoubleExpr) ex2) return null;
+    
+    if (!gotImplicitCast(ex1, &isFloat) || !gotImplicitCast(ex2, &isFloat))
       return null;
     
     return new AsmFloatBinopExpr(ex1, ex2, op);

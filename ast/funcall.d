@@ -37,8 +37,9 @@ void matchCallWith(Expr arg, IType[] params, ref Expr[] res, string info = null,
       if (gotImplicitCast(ex, (IType it) { return !!cast(Tuple) it; }) && (list = flatten(ex), !!list)) {
         args = list ~ args;
         goto retry;
-      } else
-        text.failparse("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params[i], " (", i, "); tried ", tried);
+      } else {
+        text.failparse("Couldn't match ", backup.valueType(), " to function call '", info, "', ", params[i], " (", i, "); tried ", tried);
+      }
     }
     res ~= ex;
   }
@@ -88,11 +89,11 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   return true;
 }
 
-Expr buildFunCall(Function fun, Expr arg) {
+Expr buildFunCall(Function fun, Expr arg, string info) {
   auto fc = fun.mkCall();
   IType[] params;
   foreach (entry; fun.type.params) params ~= entry._0;
-  matchCallWith(arg, params, fc.params);
+  matchCallWith(arg, params, fc.params, info);
   return fc;
 }
 

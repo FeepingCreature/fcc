@@ -4,14 +4,11 @@ import ast.base, ast.tuples, ast.structure;
 
 Expr mkTupleIndexAccess(Expr tuple, int pos) {
   auto wrapped = (cast(Tuple) tuple.valueType()).wrapped;
+  
   MemberAccess_Expr res;
-  if (auto lv = cast(LValue) tuple) {
-    res = new MemberAccess_LValue;
-    res.base = new RCL(wrapped, lv);
-  } else {
-    res = new MemberAccess_Expr;
-    res.base = new RCE(wrapped, tuple);
-  }
+  if (cast(LValue) tuple) res = new MemberAccess_LValue;
+  else res = new MemberAccess_Expr;
+  res.base = reinterpret_cast(wrapped, tuple);
   
   auto temps = wrapped.selectMap!(RelMember, "$");
   res.stm = temps[pos];

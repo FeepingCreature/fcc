@@ -23,6 +23,7 @@ void setupSysmods() {
       int memcmp(void* s1, s2, int n);
       int snprintf(char* str, int size, char* format, ...);
       float sqrtf(float);
+      double sqrt(double);
     }
     bool strcmp(char[] a, b) {
       if a.length != b.length return false;

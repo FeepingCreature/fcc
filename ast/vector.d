@@ -130,9 +130,17 @@ Structure mkVecStruct(Vector vec) {
   
   {
     Expr lensq = cast(Expr) res.lookup("lensq");
-    auto len = buildFunCall(
-      cast(Function) sysmod.lookup("sqrtf"), lensq
-    );
+    Expr len;
+    if (lensq.valueType() == Single!(Float)) {
+      len = buildFunCall(
+        cast(Function) sysmod.lookup("sqrtf"), lensq, "sqrtf"
+      );
+    } else if (lensq.valueType() == Single!(Double)) {
+      len = buildFunCall(
+        cast(Function) sysmod.lookup("sqrt"), lensq, "sqrt"
+      );
+    }
+    assert(!!len);
     res.add(new ExprAlias(len, "length"));
   }
 
@@ -228,8 +236,8 @@ class VecOp : Expr {
         ));
         void delegate() dg1, dg2;
         mixin(mustOffset("0"));
-        auto v1 = mkRef(af, ex1, dg1);
-        auto v2 = mkRef(af, ex2, dg2);
+        auto v1 = mkTemp(af, ex1, dg1);
+        auto v2 = mkTemp(af, ex2, dg2);
         for (int i = 0; i < len; ++i) {
           Expr l1 = v1, l2 = v2;
           if (e1v) l1 = getTupleEntries(reinterpret_cast(cast(IType) e1v.asTup, cast(LValue) v1))[i];
