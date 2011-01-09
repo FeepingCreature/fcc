@@ -69,7 +69,12 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
       return null;
     auto t2 = text;
     Expr pos;
-    if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(new LengthOverride(backup, getArrayLength(ex)));
+    
+    if (rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       auto res = lookupOp("index", ex, pos);
       if (!res) {
         text.failparse("Invalid array index: ", pos.valueType());
@@ -79,7 +84,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     } else return null;
   };
 }
-mixin DefaultParser!(gotArrayAccess, "tree.rhs_partial.array_access");
+mixin DefaultParser!(gotArrayAccess, "tree.rhs_partial.array_access", null, "[");
 
 // Pointer access as array
 class PA_Access : LValue {
@@ -105,7 +110,8 @@ Object gotPointerIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     if (!cast(Pointer) ex.valueType()) return null;
     auto t2 = text;
     Expr pos;
-    if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
+    
+    if (rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       if (cast(RangeIsh) pos.valueType()) return null; // belongs to slice
       if (pos.valueType().size() != 4) throw new Exception(Format("Invalid index: ", pos));
       text = t2;
@@ -113,4 +119,4 @@ Object gotPointerIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     } else return null;
   };
 }
-mixin DefaultParser!(gotPointerIndexAccess, "tree.rhs_partial.pointer_index_access");
+mixin DefaultParser!(gotPointerIndexAccess, "tree.rhs_partial.pointer_index_access", null, "[");

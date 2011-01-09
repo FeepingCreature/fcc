@@ -24,7 +24,7 @@ class VTable {
                   reinterpret_cast(
                     new Pointer(new Pointer(fun.typeAsFp())),
                     classref)),
-                new IntExpr(id+base))),
+                mkInt(id+base))),
             reinterpret_cast(voidp, classref)));
       }
     return null;
@@ -101,7 +101,7 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
         // *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
         return new PointerFunction!(NestedFunction)(
           new DgConstructExpr(
-            new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, intp)), new IntExpr(id + own_offset)),
+            new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, intp)), mkInt(id + own_offset)),
             lookupOp("+",
               reinterpret_cast(new Pointer(voidp), intp),
               new DerefExpr(new DerefExpr(reinterpret_cast(pp_int, intp)))
@@ -135,7 +135,7 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
         auto pp_fntype = new Pointer(new Pointer(fntype));
         return new PointerFunction!(NestedFunction)(
           new DgConstructExpr(
-            new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, classref)), new IntExpr(id + own_offset + offs)),
+            new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, classref)), mkInt(id + own_offset + offs)),
             reinterpret_cast(voidp, classref)
           )
         );
@@ -153,7 +153,7 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
   }
 }
 
-class ClassRef : Type, SemiRelNamespace {
+class ClassRef : Type, SemiRelNamespace, Formatable {
   Class myClass;
   this(Class cl) { myClass = cl; }
   override {
@@ -164,6 +164,9 @@ class ClassRef : Type, SemiRelNamespace {
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
       return myClass is (cast(ClassRef) type).myClass;
+    }
+    Expr format(Expr ex) {
+      return mkString("ref to "~myClass.name);
     }
   }
 }
@@ -242,7 +245,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     assert(!!strcmp);
     void handleIntf(Intf intf) {
       as.stmts ~= iparse!(Statement, "cast_intf_class", "tree.stmt")("if (strcmp(id, _test) != 0) return void*:(void**:this + offs); ",
-        rf, "_test", mkString(intf.mangle_id), "offs", new IntExpr(intf_offset)
+        rf, "_test", mkString(intf.mangle_id), "offs", mkInt(intf_offset)
       );
       intf_offset ++;
     }
@@ -510,7 +513,7 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   string member;
   
-  if (t2.accept(".") && t2.gotIdentifier(member)) {
+  if (t2.gotIdentifier(member)) {
     Object m;
     retry:
     if (cl) m = cl.lookupRel(member, ex);
@@ -524,7 +527,7 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     return m;
   } else return null;
 }
-mixin DefaultParser!(gotClassMemberExpr, "tree.rhs_partial.access_class_member");
+mixin DefaultParser!(gotClassMemberExpr, "tree.rhs_partial.access_class_member", null, ".");
 
 import ast.casting, ast.opers;
 
@@ -541,7 +544,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
     auto intf = (cast(IntfRef) ex.valueType()).myIntf;
     int offs = 0;
     foreach (id, par; intf.parents) {
-      auto nex = new RCE(new IntfRef(par), lookupOp("+", new RCE(voidpp, ex), new IntExpr(offs)));
+      auto nex = new RCE(new IntfRef(par), lookupOp("+", new RCE(voidpp, ex), mkInt(offs)));
       par.getLeaves((Intf) { offs++; });
       testIntf(nex);
     }
@@ -557,7 +560,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
     doAlign(offs, voidp);
     offs /= 4;
     foreach (id, par; cl.iparents) {
-      auto iex = new RCE(new IntfRef(par), lookupOp("+", new RCE(voidpp, ex), new IntExpr(offs)));
+      auto iex = new RCE(new IntfRef(par), lookupOp("+", new RCE(voidpp, ex), mkInt(offs)));
       par.getLeaves((Intf) { offs++; });
       testIntf(iex);
     }

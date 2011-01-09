@@ -83,7 +83,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       auto p = &((int*:surface.pixels)[y * int:surface.w]);
       for (int x = 0; x < surface.w; ++x) {
         auto f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
-        *(p++) = int:f.x + int:f.y & factor2 + int:f.z & factor3;
+        *(p++) = fastfloor(f.x) + fastfloor(f.y) & factor2 + fastfloor(f.z) & factor3;
       }
     }
     fps ++;
@@ -360,8 +360,8 @@ int main(int argc, char** argv) {
     }
     vec3f fun3(float x, float y, float t) {
       // auto f2 = fun2(x, y);
-      x = x - 0.5;
-      y = y - 0.5;
+      x = x - 0.5f;
+      y = y - 0.5f;
       // auto dist = sqrtf(x * x + y * y);
       // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
       // auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
@@ -370,23 +370,24 @@ int main(int argc, char** argv) {
              + 0.125  * noise3 ((vec3f(sin(t) * 4, x * 16, y * 16)))
              + 0.0625 * noise3 ((vec3f(sin(t) * 4, x * 32, y * 32)));*/
       float noisex(vec3f v) {
-        return noise3 vec3f(v.x + noise3(v), v.y + noise3(-v), v.z);
-        // return noise3 v;
+        // return noise3 vec3f(v.x + noise3(v), v.y + noise3(-v), v.z);
+        return noise3 v;
       }
       auto n = noisex vec3f(x * 8, y * 8, t);
-      /*
-      auto n = 0.5    * noisex vec3f(x * 8,  y * 8,  t)
+      
+      /*auto n = 0.5    * noisex vec3f(x * 8,  y * 8,  t)
              + 0.25   * noisex vec3f(x * 16, y * 16, t + 4) // offset! important
              + 0.125  * noisex vec3f(x * 32, y * 32, t + 8)
              + 0.0625 * noisex vec3f(x * 64, y * 64, t + 12)
-             ;
-      */
-      // auto n = 0.5 * noise2(x * 4 + t, y * 4)+0.25;
+             + 0.03125* noisex vec3f(x *128, y *128, t + 16)
+             ;*/
+      
+      // auto n = 0.5f * noise2(x * 4 + t, y * 4)+0.25;
       n = clamp(0, 1, n);
       // auto n2 = vec3f(n, n * n, n * 2);
       auto n2 = vec3f(n);
       return n2;
-      // return transition(&f2, &n2, smoothstep(0.3, 0.5, dist + noise2(x * 2 + 100, y * 2) * 0.1));
+      // return transition(&f2, &n2, smoothstep(0.3, 0.5, dist + noise2(x * 2 + 100, y * 2) * 0.1f));
     }
     fun1(0, 0);
     sdlfun(&fun3);

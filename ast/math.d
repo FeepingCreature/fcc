@@ -50,6 +50,11 @@ static this() {
     if (Single!(SysInt) != ex.valueType()) return null;
     return new IntAsFloat(ex);
   };
+  converts ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(Double) != ex.valueType())
+      return null;
+    return new DoubleAsFloat(ex);
+  };
 }
 
 class IntAsLong : Expr {
@@ -63,7 +68,7 @@ class IntAsLong : Expr {
     IType valueType() { return Single!(Long); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("8"));
-      (new IntExpr(0)).emitAsm(af);
+      (mkInt(0)).emitAsm(af);
       i.emitAsm(af);
     }
   }
@@ -122,8 +127,7 @@ class FloatAsDouble : Expr {
       f.emitAsm(af);
       af.loadFloat("(%esp)");
       af.salloc(4);
-      af.put("fstpl (%esp)");
-      af.floatStackDepth --;
+      af.storeDouble("(%esp)");
     }
   }
 }
@@ -139,8 +143,7 @@ class DoubleAsFloat : Expr {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("4"));
       d.emitAsm(af);
-      af.put("fldl (%esp)");
-      af.floatStackDepth ++;
+      af.loadDouble("(%esp)");
       af.sfree(4);
       af.storeFloat("(%esp)");
     }
@@ -168,10 +171,11 @@ static this() {
     if (Single!(Float) != ex.valueType()) return null;
     return new FloatAsDouble(ex);
   };
+  // TODO: conversion cast double to float
   implicits ~= delegate Expr(Expr ex) {
-    if (Single!(Double) != ex.valueType()) return null;
-    if (cast(FloatAsDouble) ex) return null; // lol
-    return new DoubleAsFloat(ex);
+    auto dex = cast(DoubleExpr) foldex(ex);
+    if (!dex) return null;
+    return new FloatExpr(cast(float) dex.d);
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != ex.valueType()) return null;
@@ -191,6 +195,19 @@ void loadFloatEx(Expr ex, AsmFile af) {
     ex.emitAsm(af);
     af.loadFloat("(%esp)");
     af.sfree(4);
+  }
+}
+
+void loadDoubleEx(Expr ex, AsmFile af) {
+  if (auto cv = cast(CValue) ex) {
+    cv.emitLocation(af);
+    af.popStack("%eax", voidp);
+    af.loadDouble("(%eax)");
+    af.nvm("%eax");
+  } else {
+    ex.emitAsm(af);
+    af.loadDouble("(%esp)");
+    af.sfree(8);
   }
 }
 
@@ -236,7 +253,9 @@ abstract class BinopExpr : Expr, HasInfo {
 }
 
 class AsmIntBinopExpr : BinopExpr {
-  this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
+  this(Expr e1, Expr e2, string op) {
+    super(e1, e2, op);
+  }
   private this() { super(); }
   AsmIntBinopExpr dup() { return new AsmIntBinopExpr(e1.dup, e2.dup, op); }
   override {
@@ -247,8 +266,7 @@ class AsmIntBinopExpr : BinopExpr {
         e2.emitAsm(af);
         e1.emitAsm(af);
         af.popStack("%eax", e1.valueType());
-        af.put("cdq");
-        af.put("idivl (%esp)");
+        af.extendDivide("(%esp)");
         af.sfree(4);
         if (op == "%") {
           af.pushStack("%edx", Single!(SysInt));
@@ -272,20 +290,27 @@ class AsmIntBinopExpr : BinopExpr {
           e1.emitAsm(af);
           af.popStack("%eax", e1.valueType());
         }
+        string top = op;
+        if (top == "*" && op2.startsWith("$")) {
+          auto num = op2[1 .. $].atoi();
+          if (num == 4) { top = "<<"; op2 = "$2"; }
+        }
+        
         auto asm_op = ([
           "+"[]: "addl"[], "-": "subl",
           "*": "imull", "/": "idivl",
           "&": "andl", "|": "orl",
           "%": "imodl",
-          "<<": "shl", ">>": "shr"
-        ])[op];
+          "<<": "shl", ">>": "sar", ">>>": "shr"
+        ])[top];
         
         if (op2.isRegister())
           af.popStack(op2, e2.valueType());
         
-        if (asm_op == "shl" || asm_op == "shr")
+        if (asm_op == "sal" || asm_op == "sar" || asm_op == "%shr")
           if (op2 == "%ecx")
             op2 = "%cl"; // shl/r really want %cl.
+        
         af.mathOp(asm_op, op2, "%eax");
         af.pushStack("%eax", Single!(SysInt));
         af.nvm("%eax");
@@ -301,15 +326,15 @@ class AsmIntBinopExpr : BinopExpr {
         e2 = cast(IntExpr) foldex(aibe.e2);
       if (!e1 || !e2) return null;
       switch (aibe.op) {
-        case "+": return new IntExpr(e1.num + e2.num);
-        case "-": return new IntExpr(e1.num - e2.num);
-        case "*": return new IntExpr(e1.num * e2.num);
-        case "/": return new IntExpr(e1.num / e2.num);
-        case "%": return new IntExpr(e1.num % e2.num);
-        case "<<": return new IntExpr(e1.num << e2.num);
-        case ">>": return new IntExpr(e1.num >> e2.num);
-        case "&": return new IntExpr(e1.num & e2.num);
-        case "|": return new IntExpr(e1.num | e2.num);
+        case "+": return mkInt(e1.num + e2.num);
+        case "-": return mkInt(e1.num - e2.num);
+        case "*": return mkInt(e1.num * e2.num);
+        case "/": return mkInt(e1.num / e2.num);
+        case "%": return mkInt(e1.num % e2.num);
+        case "<<": return mkInt(e1.num << e2.num);
+        case ">>": return mkInt(e1.num >> e2.num);
+        case "&": return mkInt(e1.num & e2.num);
+        case "|": return mkInt(e1.num | e2.num);
         default: assert(false, "can't opt/eval (int) "~aibe.op);
       }
     };
@@ -364,9 +389,52 @@ class AsmFloatBinopExpr : BinopExpr {
   }
 }
 
+// copypasta from float
+class AsmDoubleBinopExpr : BinopExpr {
+  this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
+  private this() { super(); }
+  override {
+    AsmDoubleBinopExpr dup() { return new AsmDoubleBinopExpr(e1.dup, e2.dup, op); }
+    void emitAsm(AsmFile af) {
+      assert(e1.valueType().size == 8);
+      assert(e2.valueType().size == 8);
+      loadDoubleEx(e2, af);
+      loadDoubleEx(e1, af);
+      af.salloc(8);
+      switch (op) {
+        case "+": af.floatMath("fadd"); break;
+        case "-": af.floatMath("fsub"); break;
+        case "*": af.floatMath("fmul"); break;
+        case "/": af.floatMath("fdiv"); break;
+        case "%": assert(false, "Modulo not supported on floats. ");
+      }
+      af.storeDouble("(%esp)");
+    }
+  }
+  static this() {
+    foldopt ~= delegate Expr(Expr ex) {
+      auto adbe = cast(AsmDoubleBinopExpr) ex;
+      if (!adbe) return null;
+      auto
+        e1 = cast(DoubleExpr) foldex(adbe.e1),
+        e2 = cast(DoubleExpr) foldex(adbe.e2);
+      if (!e1 || !e2) return null;
+      switch (adbe.op) {
+        case "+": return new DoubleExpr(e1.d + e2.d);
+        case "-": return new DoubleExpr(e1.d - e2.d);
+        case "*": return new DoubleExpr(e1.d * e2.d);
+        case "/": return new DoubleExpr(e1.d / e2.d);
+        default: assert(false, "can't opt/eval (double) "~adbe.op);;
+      }
+      return null;
+    };
+  }
+}
+
 static this() {
   bool isInt(IType it) { return test(it == Single!(SysInt)); }
   bool isFloat(IType it) { return test(it == Single!(Float)); }
+  bool isDouble(IType it) { return test(it == Single!(Double)); }
   bool isPointer(IType it) { return test(cast(Pointer) it); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
     if (!gotImplicitCast(ex1, &isInt) || !gotImplicitCast(ex2, &isInt))
@@ -386,28 +454,45 @@ static this() {
       if (cast(Float) ex2.valueType()) { logln(ex1, " ", op, " ", ex2, "; WTF?! "); asm { int 3; } }
       assert(!isFloat(ex2.valueType()));
       auto mul = (cast(Pointer) ex1.valueType()).target.size;
-      ex2 = handleIntMath("*", ex2, new IntExpr(mul));
+      ex2 = handleIntMath("*", ex2, mkInt(mul));
       if (!ex2) return null;
       return new RCE(ex1.valueType(), handleIntMath(op, new RCE(Single!(SysInt), ex1), ex2));
     }
     return null;
   }
   Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
+    ex1 = foldex(ex1);
+    ex2 = foldex(ex2);
+    if (Single!(Double) == ex1.valueType() && !cast(DoubleExpr) ex1)
+      return null;
+    
+    if (Single!(Double) == ex2.valueType() && !cast(DoubleExpr) ex2)
+      return null;
+    
+    if (cast(DoubleExpr) ex1 && cast(DoubleExpr) ex2) return null;
+    
     if (!gotImplicitCast(ex1, &isFloat) || !gotImplicitCast(ex2, &isFloat))
       return null;
     
     return new AsmFloatBinopExpr(ex1, ex2, op);
   }
+  Expr handleDoubleMath(string op, Expr ex1, Expr ex2) {
+    if (!gotImplicitCast(ex1, &isDouble) || !gotImplicitCast(ex2, &isDouble))
+      return null;
+    
+    return new AsmDoubleBinopExpr(ex1, ex2, op);
+  }
   void defineOps(Expr delegate(string op, Expr, Expr) dg, bool reduced = false) {
     string[] ops;
     if (reduced) ops = ["+", "-"]; // pointer math
-    else ops = ["+", "-", "&", "|", "*", "/", "%", "<<", ">>"];
+    else ops = ["+", "-", "&", "|", "*", "/", "%", "<<", ">>", ">>>"];
     foreach (op; ops)
       defineOp(op, op /apply/ dg);
   }
   defineOps(&handleIntMath);
   defineOps(&handlePointerMath, true);
   defineOps(&handleFloatMath);
+  defineOps(&handleDoubleMath);
 }
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "12"); }
@@ -494,15 +579,14 @@ class CondWrap : Expr {
 
 Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("-")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     t2.failparse("Found no expression for negation");
   text = t2;
-  if (auto lop = lookupOp("-", true, new IntExpr(0), ex))
+  if (auto lop = lookupOp("-", true, mkInt(0), ex))
     return cast(Object) lop;
   if (auto lop = lookupOp("-", true, ex))
     return cast(Object) lop;
   t2.failparse("Found no lookup match for negation of ", ex.valueType());
 }
-mixin DefaultParser!(gotNegExpr, "tree.expr.neg", "213");
+mixin DefaultParser!(gotNegExpr, "tree.expr.neg", "213", "-");

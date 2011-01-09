@@ -28,7 +28,7 @@ class Tuple : Type {
         else break;
       }
       auto tup = cast(Tuple) it;
-      assert(tup);
+      assert(!!tup);
       // Lockstep iteration. Yummy.
       int[2] offs;
       Structure[2] sf;
@@ -99,6 +99,7 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
       ) &&
       t2.accept(")")
     ) {
+    if (!types.length) return null; // what are you doing man.
     text = t2;
     return mkTuple(types);
   } else return null;

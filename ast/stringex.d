@@ -57,8 +57,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
         }
         bool foundMatch;
         auto ex2 = ex;
-        gotImplicitCast(ex2,  &tryFormat);
-        if (!ex2)
+        if (!gotImplicitCast(ex2,  &tryFormat))
           throw new Exception(Format("Can't format ", ex, " of ", ex.valueType()));
       }
     }
@@ -73,13 +72,16 @@ import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules;
 Expr simpleFormat(Expr ex) {
   auto type = ex.valueType();
   if (Single!(SysInt) == type) {
-    return buildFunCall(cast(Function) sysmod.lookup("itoa"), ex);
+    return buildFunCall(cast(Function) sysmod.lookup("itoa"), ex, "itoa");
   }
-  if (Single!(Float) == type) {
-    return buildFunCall(cast(Function) sysmod.lookup("ftoa"), ex);
+  if (Single!(Long) == type) {
+    return buildFunCall(cast(Function) sysmod.lookup("ltoa"), ex, "ltoa");
+  }
+  if (Single!(Float) == type || Single!(Double) == type) {
+    return buildFunCall(cast(Function) sysmod.lookup("dtoa"), ex, "dtoa");
   }
   if (auto p = cast(Pointer) type) {
-    return buildFunCall(cast(Function) sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex));
+    return buildFunCall(cast(Function) sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex), "ptoa");
   }
   if (auto sa = cast(StaticArray) type) {
     if (cast(CValue) ex) {

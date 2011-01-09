@@ -1,8 +1,8 @@
 module assemble;
 
-import ast.types;
+import ast.types, ast.base;
 
-import tools.base: Format, New, or, and, slice, between;
+import tools.base: Format, New, or, and, slice, between, fail;
 import tools.compat: find, abs, replace, atoi;
 import tools.log;
 
@@ -17,10 +17,11 @@ bool isMemRef(string mem) {
 }
 
 bool isRegister(string s) {
-  return s.length > 2 && s[0] == '%' && s[1] != '(';
+  return s.length > 2 && s[0] == '%' && s[1] != '(' && !s.startsWith("%gs:");
 }
 
 bool isLiteral(string s) {
+  if (s.startsWith("+(%gs:")) return true; // kiinda.
   return s.length && s[0] == '$';
 }
 
@@ -43,6 +44,36 @@ bool mayNeedStack(string str) {
   return isRelative(str);
 }
 
+string isIndirectSimple(string s) {
+  if (s.length >= 2 && s[0] == '(' && s[$-1] == ')')
+    return s[1..$-1];
+  else return null;
+}
+string isIndirectComplex(string s, ref int delta) {
+  if (s.between(")", "").length) return null;
+  auto betw = s.between("(", ")");
+  if (betw && betw.isRegister()) {
+    delta = s.between("", "(").atoi();
+    return betw;
+  }
+  return null;
+}
+string isIndirect2(string s, ref int delta) {
+  delta = 0;
+  if (auto res = isIndirectSimple(s)) return res;
+  if (auto res = isIndirectComplex(s, delta)) return res;
+  return null;
+}
+string isIndirect(string s, int offs = -1) {
+  int bogus;
+  if (offs == -1) return isIndirect2(s, bogus);
+  else {
+    auto res = isIndirect2(s, bogus);
+    if (bogus == offs) return res;
+    else return null;
+  }
+}
+
 interface ExtToken {
   string toAsm();
 }
@@ -51,13 +82,19 @@ import parseBase; // int parsing
 struct Transaction {
   enum Kind {
     Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
-    FloatLoad, FloatStore, FloatPop, FloatMath, FloatSwap,
+    FloatLoad, DoubleLoad,
+    FloatPop, DoublePop,
+    FloatStore, FloatMath, FloatSwap,
     FloatIntLoad, /* fildl */
+    ExtendDivide, /* cdq, idivl */
     Jump, Label, Extended, Nevermind, LoadAddress
   }
   const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
-    "FloatLoad", "FloatStore", "FloatPop", "FloatMath", "FloatSwap",
+    "FloatLoad", "DoubleLoad",
+    "FloatPop" , "DoublePop" ,
+    "FloatStore", "FloatMath", "FloatSwap",
     "FloatIntLoad",
+    "ExtendDivide",
     "Jump", "Label", "Extended", "Nevermind", "LoadAddress"];
   Kind kind;
   string toString() {
@@ -81,11 +118,14 @@ struct Transaction {
         if (test) return Format("[cmp/test ", op1, ", ", op2, "]");
         else return Format("[cmp ", op1, ", ", op2, "]");
       case FloatLoad: return Format("[float load ", source, stackinfo, "]");
-      case FloatStore: return Format("[float store ", dest, "]");
+      case DoubleLoad: return Format("[double load ", source, stackinfo, "]");
       case FloatPop:  return Format("[float pop ", dest, "]");
+      case DoublePop:  return Format("[double pop ", dest, "]");
+      case FloatStore: return Format("[float store ", dest, "]");
       case FloatMath: return Format("[float math ", opName, "]");
       case FloatSwap: return Format("[float swap]");
-      case FloatIntLoad: return Format("[float int load ", source);
+      case FloatIntLoad: return Format("[float int load ", source, "]");
+      case ExtendDivide: return Format("[cdq/idivl ", source, "]");
       case Jump:      return Format("[jmp ", dest, "]");
       case Label:     return Format("[label ", names, "]");
       case Extended:  return Format("[extended ", obj, "]");
@@ -101,13 +141,14 @@ struct Transaction {
       case MathOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
       case Push: return source == t2.source && type == t2.type;
       case Pop: return dest == t2.dest && type == t2.type;
-      case FloatStore, FloatPop: return dest == t2.dest;
+      case FloatStore, FloatPop, DoublePop: return dest == t2.dest;
       case Call, Jump: return dest == t2.dest;
       case Compare: return op1 == t2.op1 && op2 == t2.op2;
-      case FloatLoad: return source == t2.source;
+      case FloatLoad, DoubleLoad: return source == t2.source;
       case FloatMath: return opName == t2.opName;
       case FloatSwap: return true;
       case FloatIntLoad: return source == t2.source;
+      case ExtendDivide: return source == t2.source;
       case Label: return names == t2.names;
       case Extended: return obj == t2.obj;
       case Nevermind: return dest == t2.dest;
@@ -115,32 +156,44 @@ struct Transaction {
     }
     assert(false);
   }
+  static string asmformat(string s) {
+    if (auto betw = s.between("(", ")")) {
+      auto offs = s.between("", "(").atoi();
+      if (betw.startsWith("%gs:")) {
+        return qformat(betw, "+", offs);
+      }
+      if (betw.startsWith("$")) {
+        return qformat(betw[1 .. $], "+", offs);
+      }
+    }
+    return s;
+  }
   string toAsm() {
     with (Kind) switch (kind) {
       case Mov:
         if (from.isRelative() && to.isRelative()) {
           assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
-          return Format("movl ", from, ", ", usableScratch, "\nmovl ", usableScratch, ", ", to);
+          return Format("movl ", from.asmformat(), ", ", usableScratch, "\nmovl ", usableScratch, ", ", to.asmformat());
         } else {
-          return Format("movl ", from, ", ", to, " #mov4.2");
+          return Format("movl ", from.asmformat(), ", ", to.asmformat(), " #mov4.2");
         }
       case Mov2:
         if (from.isRelative() && to.isRelative()) {
           assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
-          return Format("movw ", from, ", ", usableScratch, "\nmovw ", usableScratch, ", ", to);
+          return Format("movw ", from.asmformat(), ", ", usableScratch, "\nmovw ", usableScratch, ", ", to.asmformat());
         } else {
-          return Format("movw ", from, ", ", to);
+          return Format("movw ", from.asmformat(), ", ", to.asmformat());
         }
       case Mov1:
         if (from.isRelative() && to.isRelative()) {
           assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
-          return Format("movb ", from, ", ", usableScratch, "\nmovw ", usableScratch, ", ", to);
+          return Format("movb ", from.asmformat(), ", ", usableScratch, "\nmovw ", usableScratch, ", ", to.asmformat());
         } else {
-          return Format("movb ", from, ", ", to);
+          return Format("movb ", from.asmformat(), ", ", to.asmformat());
         }
       case SAlloc:
           if (!size) return null;
-          return Format("subl $", size, ", %esp");
+          return Format("subl $", size, ", %esp # salloc");
       case SFree:
           if (!size) return null;
           return Format("addl $", size, ", %esp # sfree");
@@ -169,11 +222,18 @@ struct Transaction {
         bool gotLiteral(string s, ref int num, ref string ident) {
           return s.accept("$") && (s.gotInt(num) || (s.find("(") == -1) && (ident = s, s = null, true)) && !s.length;
         }
-        // 8(%eax)
+        // $5
+        bool gotIntLiteral(string s, ref int num) {
+          return s.accept("$") && s.gotInt(num);
+        }
+        // 8(%eax) or 8($literal)
         string gotMemoryOffset(string s, ref int offs) {
-          string reg;
-          if ((s.gotInt(offs) || (offs = 0, true)) && s.accept("(%") && s.gotIdentifier(reg) && s.accept(")")) return reg;
-          else return null;
+          string prefix, reference;
+          auto betw = s.between("(", ")");
+          if (!betw) return null;
+          auto s2 = s;
+          if (!s2.gotInt(offs)) offs = 0;
+          return betw;
         }
         // push/pop as far as possible at that size sz, using instruction postfix pf.
         auto op = (kind == Push) ? source : dest;
@@ -192,12 +252,16 @@ struct Transaction {
                 m_offs_push = true;
                 
               }
-              if (auto reg = op.gotMemoryOffset(offs)) {
+              if (auto mem = op.gotMemoryOffset(offs)) {
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
                 // logln("rewrite op ", op, " to ", Format(first_offs + size - sz, "(%", reg, ")"), ": ", first_offs, " + ", size, " - ", sz); 
-                op = Format(first_offs + size - sz, "(%", reg, ")");
+                op = Format(first_offs + size - sz, "(", mem, ")");
                 m_offs_push = true;
+              }
+              if (op.startsWith("+")) {
+                logln(op, " (", *this, ")");
+                asm { int 3; }
               }
             }
             if (sz == 1) { // not supported in hardware
@@ -209,7 +273,7 @@ struct Transaction {
               } else {
                 string opsh = op;
                 // hackaround
-                if (opsh.gotMemoryOffset(offs) == "esp")
+                if (opsh.gotMemoryOffset(offs) == "%esp")
                   opsh = Format(offs - 1, "(%esp)");
                 addLine("movb (%esp), %bl");
                 addLine("incl %esp");
@@ -219,10 +283,23 @@ struct Transaction {
             // x86 pop foo(%esp) operand is evaluated
             // after increment, says intel manual
             } else {
-              if (kind == Pop && op.gotMemoryOffset(offs) == "esp") {
+              if (kind == Pop && op.gotMemoryOffset(offs) == "%esp") {
                 op = Format(offs - sz, "(%esp)");
               }
-              addLine(Format(mnemo, pf, " ", op));
+              auto temp = op; int toffs;
+              if (auto mem = temp.between("(", ")")) {
+                if (auto rest = mem.startsWith("$")) {
+                  temp = qformat(rest, "+", temp.between("", "("));
+                }
+                if (mem.startsWith("%gs:")) {
+                  temp = qformat(mem, "+", temp.between("", "("));
+                }
+              }
+              if (temp.startsWith("+")) {
+                logln(temp, " (", *this, ")");
+                asm { int 3; }
+              }
+              addLine(Format(mnemo, pf, " ", temp));
             }
             auto s2 = op;
             int num; string ident, reg;
@@ -243,7 +320,10 @@ struct Transaction {
               // if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
             }
             else if (kind == Pop && null !is (reg = op.gotMemoryOffset(offs))) {
-              op = Format(offs + sz, "(%", reg, ")");
+              op = Format(offs + sz, "(", reg, ")");
+            }
+            else if (kind == Push && null !is (reg = op.gotMemoryOffset(offs))) {
+              op = Format(offs + sz, "(", reg, ")");
             }
             else if (!m_offs_push && (op.find("%") != -1 || op.find("(") != -1))
               throw new Exception("Unknown address format: '"~op~"'");
@@ -264,8 +344,12 @@ struct Transaction {
         assert(false, "::"~dest);
       case FloatLoad:
         return Format("flds ", source);
+      case DoubleLoad:
+        return Format("fldl ", source);
       case FloatPop:
         return Format("fstps ", dest);
+      case DoublePop:
+        return Format("fstpl ", dest);
       case FloatStore:
         return Format("fsts ", dest);
       case FloatMath:
@@ -274,6 +358,8 @@ struct Transaction {
         return Format("fxch");
       case FloatIntLoad:
         return Format("fildl ", source);
+      case ExtendDivide:
+        return qformat("cdq\nidivl ", source);
       case Jump:
         return Format("jmp ", dest);
       case Label:
@@ -286,6 +372,11 @@ struct Transaction {
       case Nevermind:
         return "#forget "~dest~". ";
       case LoadAddress:
+        /*if (from.find("%gs") != -1) {
+          auto offs = from.between("", "(");
+          auto base = from.between("(", ")");
+          return Format("movl ", base, " + ", offs, ", ", to);
+        }*/
         return Format("leal ", from, ", ", to);
     }
   }

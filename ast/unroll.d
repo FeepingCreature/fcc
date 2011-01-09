@@ -1,7 +1,7 @@
 module ast.unroll;
 
 import ast.base, ast.loops, ast.iterator, ast.casting, ast.fold,
-  ast.int_literal, ast.scopes, ast.namespace, ast.tuple_access;
+  ast.int_literal, ast.scopes, ast.namespace, ast.tuples, ast.tuple_access;
 
 import tools.log: log;
 
@@ -24,12 +24,17 @@ static this() {
     namespace.set(ws.sup);
     auto sc = new Scope;
     for (int i = 0; i < len.num; ++i) {
-      auto ival = iter.index(iter_expr, new IntExpr(i));
+      auto ival = iter.index(iter_expr, mkInt(i));
       int depth;
       void subst(ref Iterable it) {
         foreach (i, ph; ws.holders) {
           if (it is ph) {
-            it = cast(Iterable) getTupleEntries(ival)[i]; // assume is basic. ._.
+            if (cast(Tuple) ival.valueType()) {
+              it = cast(Iterable) getTupleEntries(ival)[i]; // assume is basic. ._.
+            } else {
+              assert(!i);
+              it = cast(Iterable) ival;
+            }
             return;
           }
         }

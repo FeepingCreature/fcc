@@ -191,7 +191,7 @@ class ArrayMaker : Expr {
 Expr staticToArray(Expr sa) {
   return new ArrayMaker(
     new CValueAsPointer(cast(CValue) sa),
-    new IntExpr((cast(StaticArray) sa.valueType()).length)
+    mkInt((cast(StaticArray) sa.valueType()).length)
   );
 }
 
@@ -206,7 +206,7 @@ static this() {
 
 Expr getArrayLength(Expr ex) {
   if (auto sa = cast(StaticArray) resolveType(ex.valueType()))
-    return new IntExpr(sa.length);
+    return mkInt(sa.length);
   if (auto lv = cast(LValue) ex) return new ArrayLength!(MValue) (lv);
   else return new ArrayLength!(Expr) (ex);
 }
@@ -220,12 +220,11 @@ import ast.parse;
 Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (cast(Array) ex.valueType() || cast(ExtArray) ex.valueType()) {
-      if (!text.accept(".length")) return null;
       return cast(Object) getArrayLength(ex);
     } else return null;
   };
 }
-mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length");
+mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length", null, ".length");
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {
@@ -238,7 +237,7 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (!cast(Array) ex.valueType()) return null;
     // equiv to extended with 0 cap
-    return new ArrayMaker(getArrayPtr(ex), getArrayLength(ex), new IntExpr(0));
+    return new ArrayMaker(getArrayPtr(ex), getArrayLength(ex), mkInt(0));
   };
 }
 
@@ -248,8 +247,8 @@ Expr arrayCast(Expr ex, IType it) {
   return iparse!(Expr, "array_cast_convert_call", "tree.expr")
                 (`sys_array_cast!Res(from.ptr, from.length, sz1, sz2)`,
                  "Res", ar2, "from", ex,
-                 "sz1", new IntExpr(ar1.elemType.size),
-                 "sz2", new IntExpr(ar2.elemType.size));
+                 "sz1", mkInt(ar1.elemType.size),
+                 "sz2", mkInt(ar2.elemType.size));
 }
 
 import tools.base: todg;

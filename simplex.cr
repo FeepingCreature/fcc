@@ -3,21 +3,30 @@ module simplex;
 import std.c.fenv, std.c.stdlib;
 
 int[] perm;
-int[3][12] grad3;
+vec3i[12] grad3;
 
 float dot2(int[3] whee, float a, float b) {
   return whee[0] * a + whee[1] * b;
-}
-
-float dot3(int[3] whee, float a, float b, float c) {
-  return whee[0] * a + whee[1] * b + whee[2] * c;
 }
 
 void permsetup() {
   perm ~= [for 0..256: rand() % 256].eval;
   perm ~= perm;
   int i;
-  alias values = [1,1,0,-1, 1,0,1,-1, 0,-1,-1,0, 1,0,1,-1, 0,1,1,0, -1,-1,0,-1, 0,1,1,0, -1,1,0,1, -1,0,-1,-1];
+  alias values = [1, 1, 0,
+                 -1, 1, 0,
+                  1,-1, 0,
+                 -1,-1, 0,
+                 
+                  1, 0, 1,
+                 -1, 0, 1,
+                  1, 0,-1,
+                 -1, 0,-1,
+                 
+                  0, 1, 1,
+                  0,-1, 1,
+                  0, 1,-1,
+                  0,-1,-1];
   while ((int k, int l), int idx) ← zip (cross (0..12, 0..3), 0..-1) {
     grad3[k][l] = values[idx];
   }
@@ -28,13 +37,10 @@ float noise2(vec2f f) {
   alias sqrt3 = sqrtf(3);
   alias f2 = 0.5 * (sqrt3 - 1);
   alias g2 = (3 - sqrt3) / 6;
-  auto backup = fegetround();
-  onExit fesetround backup;
-  fesetround FE_DOWNWARD;
   float[3] n = void;
   
   float s = (f.x + f.y) * f2;
-  int i = int:(f.x + s), j = int:(f.y + s);
+  int i = fastfloor(f.x + s), j = fastfloor(f.y + s);
   
   float t = (i + j) * g2;
   vec2f[3] xy;
@@ -67,58 +73,89 @@ float noise2(vec2f f) {
   return 0.5 + 35 * (n[0] + n[1] + n[2]);
 }
 
+double sumval;
+int count;
+
+void time-it(string t, void delegate() dg) {
+  // calibrate
+  int from1, to1, from2, to2;
+  from1 = rdtsc[1];
+  delegate void() { } ();
+  to1 = rdtsc[1];
+  // measure
+  from2 = rdtsc[1];
+  dg();
+  to2 = rdtsc[1];
+  auto delta = (to2 - from2) - (to1 - from1);
+  if !count sumval = 0;
+  sumval += delta; count += 1;
+  writeln "$t: $delta, average $(sumval / count)";
+}
+
 float noise3(vec3f v) {
-  if !perm.length permsetup;
-  auto s = (v.x + v.y + v.z) / 3.0;
-  auto backup = fegetround();
-  onExit fesetround backup;
-  fesetround FE_DOWNWARD;
-  int i = int:(v.x + s), j = int:(v.y + s), k = int:(v.z + s);
-  auto t = (i + j + k) / 6.0;
-  auto V0 = vec3i(i, j, k) - vec3f(t);
   vec3f[4] vs = void;
-  vs[0] = v - V0;
-  
-  vs[1] = vs[0]            + vec3f(1.0 / 6);
-  vs[2] = vs[0]            + vec3f(2.0 / 6);
-  vs[3] = vs[0] - vec3f(1) + vec3f(3.0 / 6);
-  vec3i offs1 = void, offs2 = void;
-  alias v0 = vs[0];
-  if (v0.x >= v0.y) {
-    if (v0.y >= v0.z)
-      (offs1, offs2) = (vec3i(1, 0, 0), vec3i(1, 1, 0));
-    else if (v0.x >= v0.z)
-      (offs1, offs2) = (vec3i(1, 0, 0), vec3i(1, 0, 1));
-    else
-      (offs1, offs2) = (vec3i(0, 0, 1), vec3i(1, 0, 1));
-  } else {
-    if (v0.y < v0.z)
-      (offs1, offs2) = (vec3i(0, 0, 1), vec3i(0, 1, 1));
-    else if (v0.x < v0.z)
-      (offs1, offs2) = (vec3i(0, 1, 0), vec3i(0, 1, 1));
-    else
-      (offs1, offs2) = (vec3i(0, 1, 0), vec3i(1, 1, 0));
-  }
-  vs[1] -= offs1;
-  vs[2] -= offs2;
-  int ii = i & 255, jj = j & 255, kk = k & 255;
+  float s = void, t = void;
+  int i = void, j = void, k = void;
   int[4] gi = void;
-  alias i1 = offs1.x; alias i2 = offs2.x;
-  alias j1 = offs1.y; alias j2 = offs2.y;
-  alias k1 = offs1.z; alias k2 = offs2.z;
+  int mask = void;
+  vec3f v0 = void;
+  vec3i offs1 = void, offs2 = void;
+  int ii = void, jj = void, kk = void;
+  auto pair = [0f, 1f];
+  float sum = 0f;
+  int id = void, id2 = void, id3 = void, c = void;
+  vec3f forble = void;
+  if !perm.length permsetup;
+  
+  s = (v.x + v.y + v.z) / 3.0f;
+  i = fastfloor(v.x + s); j = fastfloor(v.y + s); k = fastfloor(v.z + s);
+  t = (i + j + k) / 6.0f;
+  vs[0] = v - vec3i(i, j, k) + vec3f(t);
+  vs[1] = vs[0]            + vec3f(1.0f / 6);
+  vs[2] = vs[0]            + vec3f(2.0f / 6);
+  vs[3] = vs[0] - vec3f(1) + vec3f(3.0f / 6);
+  v0 = vs[0];
+  if (v0.x >= v0.y) {
+    if (v0.y >= v0.z) {
+      mask = 0b100_110;
+    } else if (v0.x >= v0.z) {
+      mask = 0b100_101;
+    } else {
+      mask = 0b001_101;
+    }
+  } else {
+    if (v0.y < v0.z) {
+      mask = 0b001_011;
+    } else if (v0.x < v0.z) {
+      mask = 0b010_011;
+    } else {
+      mask = 0b010_110;
+    }
+  }
+  offs1 = vec3i((mask >> 5)    , (mask >> 4) & 1, (mask >> 3) & 1);
+  offs2 = vec3i((mask >> 2) & 1, (mask >> 1) & 1, (mask >> 0) & 1);
+  // prevent costly fildl
+  vs[1] = vs[1] - vec3f(pair[offs1.x], pair[offs1.y], pair[offs1.z]);
+  vs[2] = vs[2] - vec3f(pair[offs2.x], pair[offs2.y], pair[offs2.z]);
+  ii = i & 255; jj = j & 255; kk = k & 255;
+  alias i1 = offs1.x, i2 = offs2.x,
+        j1 = offs1.y, j2 = offs2.y,
+        k1 = offs1.z, k2 = offs2.z;
   gi[0] = perm[ii+perm[jj+perm[kk]]] % 12;
   gi[1] = perm[ii+i1+perm[jj+j1+perm[kk+k1]]] % 12;
   gi[2] = perm[ii+i2+perm[jj+j2+perm[kk+k2]]] % 12;
   gi[3] = perm[ii+1+perm[jj+1+perm[kk+1]]] % 12;
-  float[4] n = void;
-  for (int c = 0; c < 4; ++c) {
+  while (c <- 0..4) {
     auto q = vs[c];
-    auto ft = 0.6 - q.x*q.x - q.y*q.y - q.z*q.z;
-    if (ft < 0) n[c] = 0;
-    else {
+    auto ft = 0.6f - q.lensq;
+    if (ft >= 0) {
+      id = gi[c]; id2 = id & 3; id3 = id & 12;
       ft *= ft;
-      n[c] = ft * ft * dot3(grad3[gi[c]], q);
+      forble = vec3f(1f - [0f, 2f][id2&1], 1f - [0f, 2f][(id2&2) >> 1], 0f);
+      if (id3 == 4) forble = forble.xzy;
+      if (id3 == 8) forble = forble.zxy;
+      sum += ft * ft * (forble*q).sum;
     }
   }
-  return 0.5 + 16.0*(n[0] + n[1] + n[2] + n[3]);
+  return 0.5f + 16.0f*sum;
 }

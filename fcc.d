@@ -15,7 +15,7 @@ mixin(expandImport(`ast.[
   concat, stringex, c_bind, eval, iterator[,_ext], properties,
   tuples, tuple_access, literal_string, funcall, vector, externs,
   intr, conditionals, opers, conditionals, cond, casting,
-  pointer, nulls, unroll, sa_index_opt]`));
+  pointer, nulls, unroll, sa_index_opt, intrinsic]`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -331,6 +331,7 @@ int main(string[] args) {
   while (ar.length) {
     auto arg = ar.take();
     if (arg == "-pthread") continue; // silently ignore;
+    if (arg.startsWith("-D")) continue;
     if (arg == "-o") {
       output = ar.take();
       continue;

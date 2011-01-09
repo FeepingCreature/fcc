@@ -39,7 +39,7 @@ class ReturnStmt : Statement {
           loadFloatEx(value, af);
           af.floatStackDepth --; // doesn't count
         } else if (Single!(Double) == value.valueType()) {
-          loadFloatEx(new DoubleAsFloat(value), af);
+          loadDoubleEx(value, af);
           af.floatStackDepth --; // doesn't count
         } else if (value.valueType().size == 4) {
           value.emitAsm(af);

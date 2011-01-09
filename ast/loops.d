@@ -4,11 +4,6 @@ import ast.base, ast.scopes, ast.vardecl, ast.conditionals, ast.parse;
 
 class WhileStatement : Statement {
   Scope _body;
-  invariant {
-    // what the hell?!
-    if (this is _body._body)
-      asm { int 3; }
-  }
   Cond cond;
   bool isStatic;
   Scope sup;

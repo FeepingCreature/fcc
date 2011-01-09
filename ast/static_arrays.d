@@ -52,16 +52,15 @@ import ast.parse, ast.int_literal;
 Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (auto sa = cast(StaticArray) ex.valueType()) {
-      if (!text.accept(".length")) return null;
-      return new IntExpr(sa.length);
+      return mkInt(sa.length);
     } else return null;
   };
 }
-mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length");
+mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length", null, ".length");
 
 Expr getSAPtr(Expr sa) {
   auto vt = cast(StaticArray) sa.valueType();
-  assert(cast(CValue) sa);
+  assert(!!cast(CValue) sa);
   return new ReinterpretCast!(Expr) (new Pointer(vt.elemType), new RefExpr(cast(CValue) sa));
 }
 
@@ -69,7 +68,6 @@ import ast.parse, ast.namespace, ast.int_literal, ast.pointer, ast.casting;
 Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     if (auto sa = cast(StaticArray) ex.valueType()) {
-      if (!text.accept(".ptr")) return null;
       auto cv = cast(CValue) ex;
       if (!cv) throw new Exception(
         Format("Tried to reference non-cvalue for .ptr: ", ex)
@@ -78,7 +76,7 @@ Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
     } else return null;
   };
 }
-mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr");
+mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr", null, ".ptr");
 
 // static array literal 1
 class DataExpr : CValue {
@@ -143,7 +141,6 @@ class SALiteralExpr : Expr {
 
 Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("[")) return null;
   Expr[] exs;
   int[] statics;
   bool isStatic = true;
@@ -175,4 +172,4 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   res.exs = exs;
   return res;
 }
-mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array", "52");
+mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array", "52", "[");

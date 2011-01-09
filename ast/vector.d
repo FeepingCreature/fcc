@@ -2,7 +2,7 @@ module ast.vector;
 
 import
   ast.base, ast.tuples, ast.tuple_access, ast.types, ast.fold,
-  ast.fun, ast.funcall,
+  ast.fun, ast.funcall, ast.aliasing,
   ast.structure, ast.namespace, ast.modules, ast.structfuns, ast.returns;
 
 class Vector : Type, RelNamespace {
@@ -114,42 +114,36 @@ Structure mkVecStruct(Vector vec) {
   
   Expr sqr(Expr ex) { return lookupOp("*", ex, ex); }
   
-  auto lensq = new RelFunction(res);
-  with (lensq) {
-    New(type);
-    type.ret = Single!(Float);
-    name = "lensq";
-    fixup;
-    auto backup = namespace();
-    scope(exit) namespace.set(backup);
-    namespace.set(lensq);
-    Expr length = sqr(cast(Expr) lookup("x"));
+  {
+    Expr lensq = sqr(cast(Expr) res.lookup("x"));
     for (int i = 1; i < vec.len; ++i)
-      length = lookupOp("+", length, sqr(cast(Expr) lookup(["xyzw"[i]])));
-    tree = new ReturnStmt(length);
+      lensq = lookupOp("+", lensq, sqr(cast(Expr) res.lookup(["xyzw"[i]])));
+    res.add(new ExprAlias(lensq, "lensq"));
   }
-  res.add(lensq);
-  current_module().entries ~= lensq;
   
-  auto len = new RelFunction(res);
-  with (len) {
-    New(type);
-    type.ret = Single!(Float);
-    name = "length";
-    fixup;
-    auto backup = namespace();
-    scope(exit) namespace.set(backup);
-    namespace.set(len);
-    Expr length = sqr(cast(Expr) lookup("x"));
+  {
+    Expr sum = cast(Expr) res.lookup("x");
     for (int i = 1; i < vec.len; ++i)
-      length = lookupOp("+", length, sqr(cast(Expr) lookup(["xyzw"[i]])));
-    tree = new ReturnStmt(buildFunCall(
-      cast(Function) sysmod.lookup("sqrtf"), length
-    ));
+      sum = lookupOp("+", sum, cast(Expr) res.lookup(["xyzw"[i]]));
+    res.add(new ExprAlias(sum, "sum"));
   }
-  res.add(len);
-  current_module().entries ~= len;
   
+  {
+    Expr lensq = cast(Expr) res.lookup("lensq");
+    Expr len;
+    if (lensq.valueType() == Single!(Float)) {
+      len = buildFunCall(
+        cast(Function) sysmod.lookup("sqrtf"), lensq, "sqrtf"
+      );
+    } else if (lensq.valueType() == Single!(Double)) {
+      len = buildFunCall(
+        cast(Function) sysmod.lookup("sqrt"), lensq, "sqrt"
+      );
+    }
+    assert(!!len);
+    res.add(new ExprAlias(len, "length"));
+  }
+
   cache ~= stuple(res, vec, current_module());
   return res;
 }
@@ -242,8 +236,8 @@ class VecOp : Expr {
         ));
         void delegate() dg1, dg2;
         mixin(mustOffset("0"));
-        auto v1 = mkRef(af, ex1, dg1);
-        auto v2 = mkRef(af, ex2, dg2);
+        auto v1 = mkTemp(af, ex1, dg1);
+        auto v2 = mkTemp(af, ex2, dg2);
         for (int i = 0; i < len; ++i) {
           Expr l1 = v1, l2 = v2;
           if (e1v) l1 = getTupleEntries(reinterpret_cast(cast(IType) e1v.asTup, cast(LValue) v1))[i];

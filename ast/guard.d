@@ -41,7 +41,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     }
     mod.entries ~= cast(Tree) nf;
     auto grtype = cast(IType) sysmod.lookup("_GuardRecord");
-    assert(grtype);
+    assert(!!grtype);
     {
       auto gr = new Variable(grtype, null, boffs(grtype));
       gr.initInit;
@@ -60,14 +60,14 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
                    _record = &var;
                  }`,
                  "var", gr, "fun", nf);
-        assert(setup_st);
+        assert(!!setup_st);
         sc.addStatement(setup_st);
       }
       {
         auto setup_st =
           iparse!(Statement, "gr_setup_2", "tree.stmt")
                  (`onSuccess _record = _record.prev; `, namespace());
-        assert(setup_st);
+        assert(!!setup_st);
         // no need to add, is NoOp
       }
     }

@@ -62,7 +62,7 @@ class ConcatChain : Expr {
                    (`total ++; `, "total", total).emitAsm(af);
           } else {
             // cache[i] = array
-            auto cachepos = getIndex(cache, new IntExpr(i));
+            auto cachepos = getIndex(cache, mkInt(i));
             (new Assignment(cachepos, array)).emitAsm(af);
             // total = total + cache[i].length
             (new Assignment(total,
@@ -77,12 +77,12 @@ class ConcatChain : Expr {
           "total", total
         ).emitAsm(af);
         foreach (i, array; arrays) {
-          auto c = getIndex(cache, new IntExpr(i));
+          auto c = getIndex(cache, mkInt(i));
           if (array.valueType() == type.elemType) {
             /// var[offset] = cache[i];
             (new Assignment(getIndex(var, offset), array)).emitAsm(af);
             /// offset = offset + 1
-            (new Assignment(offset, lookupOp("+", offset, new IntExpr(1)))).emitAsm(af);
+            (new Assignment(offset, lookupOp("+", offset, mkInt(1)))).emitAsm(af);
           } else {
             auto len = getArrayLength(c);
             /// var[offset .. offset + cache[i].length] = cache[i];

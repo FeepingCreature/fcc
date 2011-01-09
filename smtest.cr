@@ -21,7 +21,7 @@ void drawScene() {
   onExit cubedata.free;
   void genCubeData() {
     alias points = cross ((0..2) x 3);
-    alias cols = [for i ← 0..8: i / 8.0];
+    alias cols = [for i ← 0..8: i / 8.0f];
     alias coords = [(0,0), (0,1), (1,1), (1,0)];
     static while (int idx, int count) ← zip ([
       0, 1, 3, 2,  4, 5, 7, 6, // top, bottom
@@ -47,7 +47,7 @@ void drawScene() {
   }
   
   glScalef (0.2 x 3);
-  glTranslatef (0, 2 * sin(t / 64), 0);
+  glTranslatef (0, 2 * sinf(t / 64), 0);
   bool fun(vec3f v) {
     /*float max(float a, float b) { if (a > b) return a; else return b; }
     float abs(float f) { if (f < 0) return -f; return f; }

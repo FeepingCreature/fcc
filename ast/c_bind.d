@@ -238,7 +238,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     if (stmt.accept("typedef")) isTypedef = true;
     if (stmt.accept("enum")) {
       auto entries = stmt.between("{", "}").split(",");
-      Expr cur = new IntExpr(0);
+      Expr cur = mkInt(0);
       Named[] elems;
       foreach (entry; entries) {
         // logln("> ", entry);
@@ -256,7 +256,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
           cur = foldex(ex);
         }
         elems ~= new ExprAlias(cur, id);
-        cur = foldex(lookupOp("+", cur, new IntExpr(1)));
+        cur = foldex(lookupOp("+", cur, mkInt(1)));
       }
       // logln("Got from enum: ", elems);
       stmt = stmt.between("}", "");

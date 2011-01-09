@@ -48,7 +48,7 @@ class CrossIndexExpr : Expr {
     IType valueType() { return mkTuple(cross.myTypes()); }
     void emitAsm(AsmFile af) {
       auto len = cross.myTypes().length, tup = cross.castToTuple(ex);
-      auto lenex = new IntExpr(len);
+      auto lenex = mkInt(len);
       mkVar(af, valueType(), true, (Variable var) {
         auto root = iparse!(Scope, "cross_index_init", "tree.stmt")
                           (`{ auto count = idx; }`,
@@ -56,7 +56,7 @@ class CrossIndexExpr : Expr {
         auto count = cast(LValue) root.lookup("count");
         assert(!!count);
         for (int i = len - 1; i >= 0; --i) {
-          auto iex = new IntExpr(i);
+          auto iex = mkInt(i);
           auto iter = mkTupleIndexAccess(tup, 1 + i + len * 2);
           auto itype = cast(RichIterator) iter.valueType();
           assert(!!itype);
@@ -101,7 +101,7 @@ class CrossIndexExpr : Expr {
       foreach_reverse (i, iter; iters) {
         auto ri = cast(RichIterator) iter.valueType();
         auto lidx = idx % lengths[i];
-        res = foldex(ri.index(iter, new IntExpr(lidx))) ~ res;
+        res = foldex(ri.index(iter, mkInt(lidx))) ~ res;
         idx /= lengths[i];
       }
       
@@ -144,14 +144,14 @@ class Cross : Type, RichIterator {
       foreach (i, type; types) {
         root.branch1.addStatement(iparse!(Statement, "cross_iterate_init_specific", "tree.stmt")
                                          (`{ tup[1+i] = __istep tup[1+len+i]; }`,
-                                          "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length)));
+                                          "tup", tup, "i", mkInt(i), "len", mkInt(types.length)));
       }
       IfStatement current;
       // build if tree
       foreach_reverse (i, type; types) {
         auto myIf = iparse!(IfStatement, "cross_iterate_step", "tree.stmt")
                            (`if (tup[1+i] <- tup[1+len+i]) { } else { tup[1+len+i] = tup[1+len*2+i]; tup[1+i] = __istep tup[1+len+i]; }`,
-                            "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
+                            "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
         if (!current) {
           root.branch2.addStatement(myIf);
           current = myIf;
@@ -160,10 +160,10 @@ class Cross : Type, RichIterator {
           current = myIf;
         }
       }
-      assert(root);
+      assert(!!root);
       auto expr = iparse!(Expr, "cross_result", "tree.expr")
                          (`tup[1..len+1]`,
-                          "tup", tup, "len", new IntExpr(types.length));
+                          "tup", tup, "len", mkInt(types.length));
       return new StatementAndExpr(root, expr);
     }
     Cond terminateCond(Expr ex) {
@@ -171,12 +171,12 @@ class Cross : Type, RichIterator {
       auto types = myTypes(), tup = castToTuple(ex);
       foreach (i, type; types) {
         auto entry = iparse!(Expr, "cross_subcond", "tree.expr")
-                           (`tup[i + len + 1]`, "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
+                           (`tup[i + len + 1]`, "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
         auto cond = (cast(Iterator) entry.valueType()).terminateCond(entry);
         if (!res) res = cond;
         else res = new BooleanOp!("||")(res, cond);
       }
-      assert(res);
+      assert(!!res);
       return res;
     }
     Expr length(Expr ex) {
@@ -185,7 +185,7 @@ class Cross : Type, RichIterator {
       int staticlength = 1;
       foreach (i, type; types) {
         auto entry = iparse!(Expr, "cross_subcond_for_len", "tree.expr")
-                           (`tup[i + len*2 + 1]`, "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
+                           (`tup[i + len*2 + 1]`, "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
         auto len = (cast(RichIterator) entry.valueType()).length(entry);
         if (staticlength != -1) {
           if (auto ie = cast(IntExpr) foldex(len)) {
@@ -198,8 +198,8 @@ class Cross : Type, RichIterator {
         else res = lookupOp("*", res, len);
       }
       if (staticlength != -1)
-        return new IntExpr(staticlength);
-      assert(res);
+        return mkInt(staticlength);
+      assert(!!res);
       return res;
     }
     Expr index(Expr ex, Expr pos) {
@@ -277,11 +277,11 @@ class Zip(T) : Type, T {
       foreach (i, type; types) {
         root.stmts ~= iparse!(Statement, "zip_iterate_step", "tree.stmt")
                              (`tup[i+len] = __istep tup[i]; `,
-                              "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
+                              "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
       }
       auto expr = iparse!(Expr, "zip_result", "tree.expr")
                          (`tup[len..len*2]`,
-                          "tup", tup, "len", new IntExpr(types.length));
+                          "tup", tup, "len", mkInt(types.length));
       return new StatementAndExpr(root, expr);
     }
     Cond terminateCond(Expr ex) {
@@ -289,12 +289,12 @@ class Zip(T) : Type, T {
       auto types = myTypes(), tup = castToTuple(ex);
       foreach (i, type; types) {
         auto entry = iparse!(Expr, "zip_subcond", "tree.expr")
-                           (`tup[i]`, "tup", tup, "i", new IntExpr(i), "len", new IntExpr(types.length));
+                           (`tup[i]`, "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
         auto cond = (cast(Iterator) entry.valueType()).terminateCond(entry);
         if (!res) res = cond;
         else res = new BooleanOp!("&&")(res, cond);
       }
-      assert(res);
+      assert(!!res);
       return res;
     }
     static if (is(T: RichIterator)) {
@@ -311,8 +311,8 @@ class Zip(T) : Type, T {
         foreach (i, type; types) {
           exprs ~= iparse!(Expr, "zip_index", "tree.expr")
                           (`tup[i][pos]`,
-                          "tup", tup, "i", new IntExpr(i),
-                          "len", new IntExpr(types.length),
+                          "tup", tup, "i", mkInt(i),
+                          "len", mkInt(types.length),
                           "pos", pos);
         }
         return mkTupleExpr(exprs);

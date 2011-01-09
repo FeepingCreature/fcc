@@ -108,6 +108,13 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
   return var;
 }
 
+import ast.fold;
+Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
+  auto fex = foldex(ex);
+  if (cast(Literal) fex) return fex;
+  return mkRef(af, fex, post);
+}
+
 import ast.namespace, ast.scopes, tools.compat: find;
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text, vd = new VarDecl;
@@ -157,25 +164,27 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto vd = new VarDecl;
   string t3;
   resetError();
-  if (t2.accept("auto")) {
-    if (!t2.bjoin(
-    (t3 = t2, true) &&
-    t3.gotIdentifier(varname, true) && t3.accept("=") && rest(t3, "tree.expr", &ex) && (t2 = t3, true),
-    t2.accept(","), {
-      auto var = new Variable;
-      var.name = varname;
-      var.initval = ex; var.type = ex.valueType();
-      var.baseOffset = boffs(var.type);
-      vd.vars ~= var;
-      namespace().add(var);
-    }, false)) {
-      t3.failparse("Syntax error in auto decl: ", error()._1);
-    }
-    if (!t2.accept(";"))
-      t2.failparse("auto decl not terminated");
-    text = t2;
-    return vd;
-  } else return null;
+  if (!t2.accept("auto")) return null;
+  while (true) {
+    if (!t2.gotIdentifier(varname, true))
+      t2.failparse("Could not get variable identifier! ");
+    if (!t2.accept("="))
+      t2.failparse("Could not get auto initializer! ");
+    if (!rest(t2, "tree.expr", &ex))
+      t2.failparse("Could not get auto init expression! ");
+    auto var = new Variable;
+    var.name = varname;
+    var.initval = ex;
+    var.type = ex.valueType();
+    var.baseOffset = boffs(var.type);
+    vd.vars ~= var;
+    namespace().add(var);
+    if (t2.accept(";")) break;
+    if (t2.accept(",")) continue;
+    t2.failparse("Unexpected text in auto expr");
+  }
+  text = t2;
+  return vd;
 }
 mixin DefaultParser!(gotAutoDecl, "tree.stmt.autodecl", "22");
 

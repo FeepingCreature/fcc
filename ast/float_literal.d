@@ -2,25 +2,48 @@ module ast.float_literal;
 
 import ast.base;
 
-bool gotFloat(ref string text, ref float f) {
+bool gotDouble(ref string text, ref double d) {
   auto t2 = text;
-  int i;
-  if (!t2.gotInt(i)) return false;
-  f = i;
-  if (!t2.length || t2[0] != '.') return false;
-  t2.take();
-  float weight = 0.1;
+  bool neg;
+  t2.eatComments();
+  if (t2.accept("-")) { neg = true; }
+  d = 0;
+  bool isDigit(char c) { return c >= '0' && c <= '9'; }
+  while (t2.length) {
+    auto digit = t2[0];
+    if (!isDigit(digit)) break;
+    t2.take();
+    int dig = digit - '0';
+    d = d * 10 + dig;
+  }
+  if (!t2.length || t2.take() != '.') return false;
+  double weight = 0.1;
   bool gotDigit;
   while (t2.length) {
     auto digit = t2[0];
     if (digit < '0' || digit > '9') break;
     gotDigit = true;
-    int d = t2.take() - '0';
-    if (f < 0) f -= weight * d;
-    else f += weight * d;
+    int dig = t2.take() - '0';
+    d += weight * dig;
     weight /= 10;
   }
   if (!gotDigit) return false;
+  if (neg) d = -d;
   text = t2;
   return true;
+}
+
+bool gotFloat(ref string text, ref float f) {
+  double d; int i;
+  auto t2 = text;
+  if (t2.gotInt(i) && t2.accept("f")) {
+    text = t2; f = i;
+    return true;
+  }
+  t2 = text;
+  if (t2.gotDouble(d) && t2.accept("f")) {
+    text = t2; f = cast(float) d;
+    return true;
+  }
+  return false;
 }

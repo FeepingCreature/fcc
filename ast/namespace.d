@@ -196,7 +196,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
       else return sl.framesize();
     } else {
       // logln("no metric for framesize of ", id);
-      assert(false);
+      throw new Exception(Format("No metric for framesize of ", id, "!"));
       // asm { int 3; }
     }
   }
@@ -291,3 +291,16 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   return null;
 }
 mixin DefaultParser!(gotNamedType, "type.named", "4");
+
+class LengthOverride : Namespace {
+  Expr len;
+  this(Namespace sup, Expr ex) { this.sup = sup; len = ex; }
+  override {
+    string mangle(string name, IType type) { return sup.mangle(name, type); }
+    Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
+    Object lookup(string name, bool local = false) {
+      if (name == "$") return cast(Object) len;
+      return sup.lookup(name, local);
+    }
+  }
+}

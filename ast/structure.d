@@ -83,7 +83,7 @@ class RelMember : Expr, Named, RelTransformable {
     
     if (isAligned)
       doAlign(offset, type);
-    if (!this.name) this.name = Format("_anon_struct_member_", st.field.length);
+    if (!this.name) this.name = qformat("_anon_struct_member_", st.field.length);
     ns.add(this);
   }
   override RelMember dup() { return this; }
@@ -324,8 +324,8 @@ class MemberAccess_Expr : Expr, HasInfo {
             ("memcpy(tempvarp, varp + offset, size)",
               "tempvarp", reinterpret_cast(voidp, new RefExpr(var)),
               "varp", reinterpret_cast(voidp, new RefExpr(lv)),
-              "size", new IntExpr(stm.type.size),
-              "offset", new IntExpr(stm.offset)
+              "size", mkInt(stm.type.size),
+              "offset", mkInt(stm.offset)
             ).emitAsm(af);
           });
         }
@@ -498,7 +498,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   string member;
   
   auto pre_ex = ex;
-  if (t2.accept(".") && t2.gotIdentifier(member)) {
+  if (t2.gotIdentifier(member)) {
     auto rn = cast(RelNamespace) ex.valueType();
     retry:
     auto m = rn.lookupRel(member, ex);
@@ -517,7 +517,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
         } else
           mesg = Format(member, " is not a member of ", pre_ex.valueType());
         
-        if (!dontFail && member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length" // list of keywords
+        if (!dontFail && member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length" /or/ "lensq" /or/ "sum" // list of keywords
           && (!name || !name.startsWith("__array_as_struct__")))
           text.failparse(mesg);
         else
@@ -529,4 +529,4 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     return cast(Object) ex2;
   } else return null;
 }
-mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_rel_member");
+mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_rel_member", null, ".");

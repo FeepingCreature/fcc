@@ -37,8 +37,9 @@ void matchCallWith(Expr arg, IType[] params, ref Expr[] res, string info = null,
       if (gotImplicitCast(ex, (IType it) { return !!cast(Tuple) it; }) && (list = flatten(ex), !!list)) {
         args = list ~ args;
         goto retry;
-      } else
-        text.failparse("Couldn't match ", backup.valueType(), " to function call ", info, ", ", params[i], " (", i, "); tried ", tried);
+      } else {
+        text.failparse("Couldn't match ", backup.valueType(), " to function call '", info, "', ", params[i], " (", i, "); tried ", tried);
+      }
     }
     res ~= ex;
   }
@@ -55,6 +56,7 @@ void matchCallWith(Expr arg, IType[] params, ref Expr[] res, string info = null,
   }
 }
 
+import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
 bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref Expr[] res) {
   Expr arg;
@@ -74,23 +76,24 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
     if (t2.accept("(")) isTuple = true;
   }
   
-  string match = "tree.expr _tree.expr.arith";
   // Only do this if we actually expect a tuple _literal_
   // properties on tuple _variables_ are valid!
-  if (isTuple) match ~= " >tree.expr.properties.tup"; // exclude tuple property matching
-  
-  if (!rest(text, match, &arg)) {
+  auto backup = *propcfg.ptr();
+  scope(exit) *propcfg.ptr() = backup;
+  if (isTuple) propcfg().withTuple = false;
+    
+  if (!rest(text, "tree.expr _tree.expr.arith", &arg)) {
     return false;
   }
   matchCallWith(arg, params, res, info, backup_text);
   return true;
 }
 
-Expr buildFunCall(Function fun, Expr arg) {
+Expr buildFunCall(Function fun, Expr arg, string info) {
   auto fc = fun.mkCall();
   IType[] params;
   foreach (entry; fun.type.params) params ~= entry._0;
-  matchCallWith(arg, params, fc.params);
+  matchCallWith(arg, params, fc.params, info);
   return fc;
 }
 

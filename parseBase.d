@@ -136,6 +136,8 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   bool isValid(char c, bool first = false) {
     return isAlphanum(c) || c == '_' || (!first && c == '-') || (acceptDots && c == '.');
   }
+  // array length special handling
+  if (t2.length && t2[0] == '$') { text = t2; ident = "$"; return true; }
   if (!t2.length || !isValid(t2[0], true)) return false;
   auto identlen = 0, backup = t2;
   do {
@@ -399,9 +401,9 @@ struct ParseCb {
   }
 }
 
-interface Parser {
-  string getId();
-  Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb restart);
+class Parser {
+  string key, id; // quickly exclude invalid matches
+  Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb restart) { assert(false); }
 }
 
 // stuff that it's unsafe to memoize due to side effects
@@ -418,9 +420,11 @@ void popCache() {
 }
 
 template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
-  class DefaultParserImpl : Parser {
+  final class DefaultParserImpl : Parser {
     bool dontMemoMe;
     this() {
+      key = Key;
+      id = Id;
       foreach (dg; globalStateMatchers) 
         if (dg(Id)) { dontMemoMe = true; break; }
       _pushCache ~= this /apply/ (typeof(this) that) {
@@ -432,7 +436,6 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
         that.stack = that.stack[0 .. $-1];
       };
     }
-    override string getId() { return Id; }
     Object fnredir(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
       static if (is(typeof((&Fn)(text, accept, cont, rest))))
         return Fn(text, accept, cont, rest);
@@ -529,13 +532,13 @@ class ParseContext {
     string res;
     int maxlen;
     foreach (parser; parsers) {
-      auto id = parser.getId();
+      auto id = parser.id;
       if (id.length > maxlen) maxlen = id.length;
     }
     auto reserved = maxlen + 2;
     string[] prevId;
     foreach (parser; parsers) {
-      auto id = parser.getId();
+      auto id = parser.id;
       auto n = id.dup.split(".");
       foreach (i, str; n[0 .. min(n.length, prevId.length)]) {
         if (str == prevId[i]) foreach (ref ch; str) ch = ' ';
@@ -552,7 +555,7 @@ class ParseContext {
     return res;
   }
   bool idSmaller(Parser pa, Parser pb) {
-    auto a = splitIter(pa.getId(), "."), b = splitIter(pb.getId(), ".");
+    auto a = splitIter(pa.id, "."), b = splitIter(pb.id, ".");
     string ap, bp;
     while (true) {
       ap = a.pop(); bp = b.pop();
@@ -589,7 +592,7 @@ class ParseContext {
   }
   void addParser(Parser p, string pred) {
     addParser(p);
-    addPrecedence(p.getId(), pred);
+    addPrecedence(p.id, pred);
   }
   import quicksort;
   bool listModified;
@@ -648,9 +651,13 @@ class ParseContext {
           "(", (text.ptr - start_text.ptr), " in ", delta, "ms). ");
       }
     }*/
+    bool tried;
     foreach (j, parser; parsers[offs .. $]) {
       i = j;
-      auto id = parser.getId();
+      auto id = parser.id;
+      
+      auto tx = text;
+      if (parser.key && !.accept(tx, parser.key)) continue; // skip
       
       // rulestack ~= stuple(id, text);
       // scope(exit) rulestack = rulestack[0 .. $-1];
@@ -697,17 +704,6 @@ class ParseContext {
     if (longestMatchRes) {
       text = longestMatchStr;
       return longestMatchRes;
-    }
-    // okay to not match anything if we're just continuing
-    if (!offs && !matched) {
-      string[] ids; foreach (parser; parsers) ids ~= parser.getId();
-      logln("Parsers: ", ids);
-      if (condStr) throw new Exception(Format(
-        "Found no patterns to match condition \"", condStr, "\" after ", offs
-      ));
-      else throw new Exception(Format(
-        "Found no patterns to match condition after ", offs
-      ));
     }
     return null;
   }

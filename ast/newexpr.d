@@ -23,7 +23,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
           (void**:var)[0] = _classinfo;
         }`,
         "var", var,
-        "size", new IntExpr(cl.size),
+        "size", mkInt(cl.size),
         "_classinfo", new Symbol(cl.ci_name())
       ).emitAsm(af);
       auto base = cl.mainSize();
@@ -49,9 +49,9 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
         (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
           "var", var,
-          "base", new IntExpr(base), "id", new IntExpr(id++),
+          "base", mkInt(base), "id", mkInt(id++),
           "_classinfo", new Symbol(cl.ci_name()),
-          "offs", new IntExpr(offs)
+          "offs", mkInt(offs)
         ).emitAsm(af);
       });
     });
@@ -69,7 +69,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   if (auto sa = cast(StaticArray) ty) {
     IType base = sa.elemType;
-    Expr len = new IntExpr(sa.length);
+    Expr len = mkInt(sa.length);
     auto t3 = t2;
     Expr newlen;
     if (t3.accept("[") &&
@@ -88,8 +88,8 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
           new Pointer(base),
           iparse!(Expr, "do_calloc", "tree.expr")
                 ("mem.calloc(len, basesz)",
-                  "len", len, "basesz", new IntExpr(base.size))),
-        new IntExpr(0), len);
+                  "len", len, "basesz", mkInt(base.size))),
+        mkInt(0), len);
   } else {
     Expr len;
     if (!t2.accept("[") ||
@@ -105,7 +105,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
           iparse!(Expr, "new_dynamic_array", "tree.expr")
                  ("mem.calloc(len, size-of ty)", "len", len, "ty", ty)
         ),
-        new IntExpr(0), len
+        mkInt(0), len
       );
   }
 }

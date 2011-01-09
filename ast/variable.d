@@ -12,7 +12,7 @@ class Variable : LValue, Named {
       af.pushStack(address, type);
     }
     void emitLocation(AsmFile af) {
-      lookupOp("+", new Register!("ebp"), new IntExpr(baseOffset)).emitAsm(af);
+      lookupOp("+", new Register!("ebp"), mkInt(baseOffset)).emitAsm(af);
     }
     IType valueType() {
       return type;
