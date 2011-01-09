@@ -1209,7 +1209,7 @@ void setupOpts() {
     $SUBST($0 ~ ts);
   `));
   mixin(opt("move_sooner", `^MathOp, ^Mov, *:
-    $0.op1.find($0.op2) == -1 &&
+    $0.op1.find($0.op2) == -1 && $0.op1.find($1.to) == -1 &&
     (!$0.op1.isIndirect() || !$1.to.isIndirect()) &&
     $1.from == $0.op2 && $1.to.isUtilityRegister() &&
     ((hasDest($2) && $2.dest == $0.op2) || (hasTo($2) && $2.to == $0.op2))
