@@ -13,7 +13,7 @@ defmode sdl-window w "prefix SDL_ first-arg w";
 void main() {
   writeln "Open SDL Window .. ";
   SDL_Init (SDL_INIT_VIDEO);
-  auto window = SDL_SetVideoMode (640, 480, 32, SDL_HWSURFACE);
+  auto window = SDL_SetVideoMode (640, 480, 32, SDL_HWSURFACE | SDL_RESIZABLE);
   SDL_LockSurface window;
   cairo_surface_t* surface;
   using *window
@@ -24,6 +24,10 @@ void main() {
     f += 0.1;
     auto cr = cairo_create (surface);
     mode cairo-context cr {
+      set_source_rgb (0, 0, 0);
+      rectangle (0, 0, image_surface_get_width surface, image_surface_get_height surface);
+      fill;
+      onSuccess destroy; // social commentary lol
       auto rect = (10, 10, 100, 100 + 50 * sinf (f * 0.1));
       set_line_width 5;
       set_source_rgb (0, 255, 0);
@@ -32,13 +36,11 @@ void main() {
       set_source_rgb (0, 0, 255);
       rectangle rect;
       fill;
-      destroy;
     }
   }
   
   int fps, lastTime = time null;
   bool update() mode sdl-window window {
-    SDL_FillRect(null, 0x0000000);
     draw();
     fps ++;
     cairo_surface_flush surface;
