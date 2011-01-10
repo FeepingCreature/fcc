@@ -1,7 +1,7 @@
 module ast.mode;
 
 import ast.base;
-import ast.namespace, ast.fun, ast.fold, ast.literal_string, ast.scopes, ast.casting;
+import ast.namespace, ast.fun, ast.fold, ast.literal_string, ast.scopes, ast.casting, ast.pointer;
 
 class Mode {
   string config;

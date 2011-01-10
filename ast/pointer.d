@@ -80,9 +80,13 @@ static this() {
     }
     return null;
   };
-  implicits ~= delegate Expr(Expr ex) {
+  // Pointers must NOT autocast to void* unless expected!
+  implicits ~= delegate Expr(Expr ex, IType target) {
+    if (!target) return null;
+    auto tp = cast(Pointer) target;
+    if (!tp) return null;
     if (auto p = cast(Pointer) ex.valueType()) {
-      if (p.target != Single!(Void))
+      if (p.target != Single!(Void) && tp.target == Single!(Void))
         return dcm(reinterpret_cast(voidp, ex));
     }
     return null;

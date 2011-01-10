@@ -4,7 +4,8 @@ import sdl;
 
 c_include "cairo/cairo.h";
 
-defmode cairo x "prefix cairo_ first-arg x";
+defmode cairo-context x "prefix cairo_ first-arg x";
+defmode sdl-window w "prefix SDL_ first-arg w";
 
 void main() {
   writeln "Open SDL Window .. ";
@@ -17,7 +18,7 @@ void main() {
   auto cr = cairo_create (surface);
   SDL_FillRect(window, null, 0xffffffff);
   
-  mode cairo cr {
+  mode cairo-context cr {
     set_line_width 5;
     set_source_rgb (0, 255, 0);
     rectangle (10, 10, 100, 100);
@@ -27,13 +28,12 @@ void main() {
     fill; destroy;
   }
   
-  bool update() {
+  bool update() mode sdl-window window {
     cairo_surface_flush surface;
-    SDL_UnlockSurface window;
-    SDL_Flip window;
-    SDL_LockSurface window;
-    SDL_Event ev;
-    while SDL_PollEvent &ev {
+    UnlockSurface;
+    Flip;
+    LockSurface;
+    while PollEvent &Event ev {
       if ev.type == 12 return true;
     }
     return false;
