@@ -27,6 +27,14 @@ class Compare : Cond {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(e1, e2);
+  string toString() {
+    auto res = (cast(Object) e1).toString();
+    if (smaller) res ~= "<";
+    if (equal) res ~= "=";
+    if (greater) res ~= ">";
+    res ~= (cast(Object) e2).toString();
+    return res;
+  }
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
     if (not) {
       not = !not;
@@ -150,7 +158,7 @@ import ast.casting, ast.opers;
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool not, smaller, equal, greater;
-  Expr ex1, ex2;
+  Expr ex1, ex2; Cond cd2;
   if (rest(t2, "tree.expr >tree.expr.cond", &ex1) &&
       (
         (t2.accept("!") && (not = true)),
@@ -158,26 +166,43 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
         (t2.accept(">") && (greater = true)),
         ((not || smaller || t2.accept("=")) && t2.accept("=") && (equal = true)),
         (smaller || equal || greater)
-      ) && rest(t2, "tree.expr >tree.expr.cond", &ex2)
+      ) && (
+        rest(t2, "cond >cond.expr", &cd2) || // chaining
+        rest(t2, "tree.expr >tree.expr.cond", &ex2)
+      )
   ) {
+    auto finalize = delegate Cond(Cond cd) { return cd; };
+    if (cd2) {
+      if (auto cmp2 = cast(Compare) cd2) {
+        ex2 = cmp2.e1;
+        finalize = cmp2 /apply/ delegate Cond(Compare cmp2, Cond cd) {
+          return new BooleanOp!("&&")(cd, cmp2);
+        };
+      } else {
+        text.failparse("can't chain condition: ", cd2);
+        return null;
+      }
+    }
     text = t2;
     {
       auto ie1 = ex1, ie2 = ex2;
       bool isInt(IType it) { return !!cast(SysInt) it; }
       if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
-        return new Compare(ie1, not, smaller, equal, greater, ie2);
+        return cast(Object)
+          finalize(new Compare(ie1, not, smaller, equal, greater, ie2));
       }
     }
     {
       auto fe1 = ex1, fe2 = ex2;
       bool isFloat(IType it) { return !!cast(Float) it; }
       if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
-        return new Compare(fe1, not, smaller, equal, greater, fe2);
+        return cast(Object)
+          finalize(new Compare(fe1, not, smaller, equal, greater, fe2));
       }
     }
     auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
     if (op == "=") op = "==";
-    return new ExprWrap(lookupOp(op, ex1, ex2));
+    return cast(Object) finalize(new ExprWrap(lookupOp(op, ex1, ex2)));
   } else return null;
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
