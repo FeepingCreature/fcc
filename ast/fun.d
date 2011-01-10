@@ -43,6 +43,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   // add parameters to namespace
   int _framestart;
   Function alloc() { return new Function; }
+  IType[] getParamTypes() { return type.types(); }
   Function dup() {
     auto res = alloc();
     res.name = name;
@@ -134,10 +135,13 @@ class FunCall : Expr {
     return res;
   }
   mixin defaultIterate!(params);
-  override void emitAsm(AsmFile af) {
+  void emitWithArgs(AsmFile af, Expr[] args) {
     auto size = (fun.type.ret == Single!(Void))?0:fun.type.ret.size;
     mixin(mustOffset("size"));
-    callFunction(af, fun.type.ret, params, fun.getPointer());
+    callFunction(af, fun.type.ret, args, fun.getPointer());
+  }
+  override void emitAsm(AsmFile af) {
+    emitWithArgs(af, params);
   }
   override string toString() { return Format("call(", fun, params, ")"); }
   override IType valueType() {
@@ -247,6 +251,11 @@ class FunctionType : ast.types.Type {
   override int size() {
     asm { int 3; }
     assert(false);
+  }
+  IType[] types() {
+    auto res = new IType[params.length];
+    foreach (i, entry; params) res[i] = entry._0;
+    return res;
   }
   override {
     string mangle() {

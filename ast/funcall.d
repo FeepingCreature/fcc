@@ -102,8 +102,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Function fun) {
     auto fc = fun.mkCall();
-    IType[] params;
-    foreach (entry; fun.type.params) params ~= entry._0;
+    IType[] params = fun.getParamTypes();
     if (!matchCall(t2, fun.name, params, rest, fc.params)) {
       if (t2.accept("("))
         text.failparse("Failed to call function: ", error()._1);
