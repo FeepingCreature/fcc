@@ -131,7 +131,7 @@ Structure mkVecStruct(Vector vec) {
   {
     Expr lensq = cast(Expr) res.lookup("lensq");
     Expr len;
-    if (lensq.valueType() == Single!(Float)) {
+    if (lensq.valueType() == Single!(Float) || lensq.valueType() == Single!(SysInt)) {
       len = buildFunCall(
         cast(Function) sysmod.lookup("sqrtf"), lensq, "sqrtf"
       );
@@ -140,6 +140,7 @@ Structure mkVecStruct(Vector vec) {
         cast(Function) sysmod.lookup("sqrt"), lensq, "sqrt"
       );
     }
+    if (!len) logln("Can't add length for ", lensq.valueType());
     assert(!!len);
     res.add(new ExprAlias(len, "length"));
   }
