@@ -86,13 +86,14 @@ class PrefixCall : FunCall {
   override IType valueType() { return sup.valueType(); }
 }
 
-class ModeSpace : Namespace {
+class ModeSpace : Namespace, ScopeLike {
   Expr firstParam;
   string prefix;
   bool substituteDashes;
   override {
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
+    int framesize() { return (cast(ScopeLike) sup).framesize(); }
     Object lookup(string name, bool local = false) {
       Object funfilt(Object obj) {
         if (auto fun = cast(Function) obj) {
@@ -158,6 +159,8 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(backup);
   auto ms = mode.translate(arg, rest);
   namespace.set(ms);
+  auto sl = namespace().get!(ScopeLike);
+  logln("test: ", sl.framesize(), " for ", name);
   Scope sc;
   if (!rest(text, "tree.scope", &sc))
     text.failparse("Couldn't parse mode scope! ");
