@@ -1,7 +1,9 @@
 module ast.mode;
 
 import ast.base;
-import ast.namespace, ast.fun, ast.fold, ast.literal_string, ast.scopes, ast.casting, ast.pointer;
+import
+  ast.namespace, ast.fun, ast.fold, ast.literal_string, ast.scopes,
+  ast.casting, ast.pointer, ast.aliasing;
 
 class Mode {
   string config;
@@ -102,7 +104,25 @@ class ModeSpace : Namespace, ScopeLike {
           if (!fun.type || !fun.type.params.length) return fun;
           auto firstType = fun.type.params[0]._0;
           Expr fp = firstParam;
-          if (!gotImplicitCast(fp, (IType it) { return test(it == firstType); }))
+          bool exactlyEqual(IType a, IType b) {
+            auto pa = cast(Pointer) a, pb = cast(Pointer) b;
+            if (pa && pb) return exactlyEqual(pa.target, pb.target);
+            if (!pa && pb || pa && !pb) return false;
+            IType resolveMyType(IType it) {
+              if (cast(TypeAlias) it) return it;
+              if (auto tp = cast(TypeProxy) it)
+                return resolveMyType(tp.actualType());
+              return it;
+            }
+            auto
+              ca = cast(TypeAlias) resolveMyType(a),
+              cb = cast(TypeAlias) resolveMyType(b);
+            if (!ca && !cb) return test(a == b);
+            if ( ca && !cb) return false;
+            if (!ca &&  cb) return false;
+            if ( ca &&  cb) return (ca.name == cb.name) && ca.base == cb.base;
+          }
+          if (!gotImplicitCast(fp, (IType it) { return exactlyEqual(it, firstType); }))
             return fun;
           return new PrefixFunction(fp, fun);
         } else return obj;
@@ -160,7 +180,6 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
   auto ms = mode.translate(arg, rest);
   namespace.set(ms);
   auto sl = namespace().get!(ScopeLike);
-  logln("test: ", sl.framesize(), " for ", name);
   Scope sc;
   if (!rest(text, "tree.scope", &sc))
     text.failparse("Couldn't parse mode scope! ");

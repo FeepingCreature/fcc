@@ -67,6 +67,13 @@ class DerefExpr : LValue {
   string toString() { return Format("*", src); }
 }
 
+bool isVoidP(IType it) {
+  if (!it) return false;
+  auto p = cast(Pointer) it;
+  if (!p) return false;
+  return !!cast(Void) p.target;
+}
+
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
     if (text.accept("*")) { return new Pointer(cur); }
@@ -83,16 +90,15 @@ static this() {
   // Pointers must NOT autocast to void* unless expected!
   implicits ~= delegate Expr(Expr ex, IType target) {
     if (!target) return null;
-    auto tp = cast(Pointer) target;
-    if (!tp) return null;
     if (auto p = cast(Pointer) ex.valueType()) {
-      if (p.target != Single!(Void) && tp.target == Single!(Void))
+      if (!isVoidP(p) && isVoidP(target)) {
         return dcm(reinterpret_cast(voidp, ex));
+      }
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (ex.valueType() == voidp && cast(Pointer) expect) {
+    if (isVoidP(ex.valueType()) && cast(Pointer) expect) {
       return reinterpret_cast(expect, ex);
     }
     return null;

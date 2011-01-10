@@ -49,6 +49,7 @@ class LateType : IType, TypeProxy {
   IType me;
   void delegate() tryResolve;
   this() { }
+  string toString() { if (!me) return "(LateType, unresolved)"; return Format("(LateType ", me, ")"); }
   void needMe() {
     if (!me) tryResolve();
     assert(!!me);
