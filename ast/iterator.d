@@ -615,23 +615,6 @@ class IterLetCond(T) : Cond, NeedsConfig {
 
 import ast.scopes, ast.vardecl;
 
-// create temporary if needed
-LValue lvize(Expr ex) {
-  if (auto lv = cast(LValue) ex) return lv;
-  
-  auto var = new Variable(ex.valueType(), null, boffs(ex.valueType()));
-  auto sc = cast(Scope) namespace();
-  assert(!!sc);
-  var.initval = ex;
-  
-  auto decl = new VarDecl;
-  decl.vars ~= var;
-  var.baseOffset = -sc.framesize - ex.valueType().size;
-  sc.addStatement(decl);
-  sc.add(var);
-  return var;
-}
-
 Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue lv;

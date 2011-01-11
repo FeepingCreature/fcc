@@ -108,6 +108,23 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
   return var;
 }
 
+// create temporary if needed
+LValue lvize(Expr ex) {
+  if (auto lv = cast(LValue) ex) return lv;
+  
+  auto var = new Variable(ex.valueType(), null, boffs(ex.valueType()));
+  auto sc = cast(Scope) namespace();
+  assert(!!sc);
+  var.initval = ex;
+  
+  auto decl = new VarDecl;
+  decl.vars ~= var;
+  var.baseOffset = -sc.framesize - ex.valueType().size;
+  sc.addStatement(decl);
+  sc.add(var);
+  return var;
+}
+
 import ast.fold;
 Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
   auto fex = foldex(ex);

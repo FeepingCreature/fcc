@@ -3,7 +3,7 @@ module ast.mode;
 import ast.base;
 import
   ast.namespace, ast.fun, ast.fold, ast.literal_string, ast.scopes,
-  ast.casting, ast.pointer, ast.aliasing;
+  ast.casting, ast.pointer, ast.aliasing, ast.vardecl: lvize;
 
 class Mode {
   string config;
@@ -177,12 +177,18 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
   }
   auto backup = namespace();
   scope(exit) namespace.set(backup);
+  
+  auto wrap = new Scope;
+  namespace.set(wrap);
+  
   auto ms = mode.translate(arg, rest);
+  if (ms.firstParam) ms.firstParam = lvize(ms.firstParam);
   namespace.set(ms);
-  auto sl = namespace().get!(ScopeLike);
+  
   Scope sc;
   if (!rest(text, "tree.scope", &sc))
     text.failparse("Couldn't parse mode scope! ");
-  return sc;
+  wrap.addStatement(sc);
+  return wrap;
 }
 mixin DefaultParser!(gotMode, "tree.stmt.mode", "15", "mode");
