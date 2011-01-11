@@ -138,7 +138,6 @@ void parseHeader(string filename, string src, ParseCb rest) {
     if (accept("unsigned long")) return Single!(SizeT);
     if (accept("void")) return Single!(Void);
     if (accept("float")) return Single!(Float);
-    // TODO: work out packing for double
     if (accept("double")) return Single!(Double);
     if (accept("struct")) {
       string name;
@@ -337,6 +336,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
         }
         auto name = st2.strip();
         if (!name.length) name = ident;
+        if (!st.name.length) st.name = name;
         add(name, st);
         continue;
         giveUp1:
