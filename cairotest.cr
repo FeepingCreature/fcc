@@ -15,20 +15,17 @@ void main() {
   SDL_Init (SDL_INIT_VIDEO);
   auto window = SDL_SetVideoMode (640, 480, 32, SDL_HWSURFACE | SDL_RESIZABLE);
   SDL_LockSurface window;
-  cairo_surface_t* surface;
-  using *window
-    surface = cairo_image_surface_create_for_data (pixels, CAIRO_FORMAT_ARGB32, w, h, pitch);
+  auto surface = cairo_image_surface_create_for_data window.(pixels, CAIRO_FORMAT_ARGB32, w, h, pitch);
   
   float f = 0;
   void draw() {
     f += 0.1;
     auto cr = cairo_create (surface);
     mode cairo-context cr {
-      set_source_rgb (0, 0, 0);
-      rectangle (0, 0, image_surface_get_width surface, image_surface_get_height surface);
-      fill;
       onSuccess destroy; // social commentary lol
-      auto rect = (10, 10, 100, 100 + 50 * sinf (f * 0.1));
+      set_source_rgb (0, 0, 0);
+      paint;
+      auto rect = (10, 10, 250, 100 + 50 * sinf (f * 0.1));
       set_line_width 5;
       set_source_rgb (0, 255, 0);
       rectangle rect;
@@ -36,6 +33,14 @@ void main() {
       set_source_rgb (0, 0, 255);
       rectangle rect;
       fill;
+      text_extents_t te;
+      set_source_rgb (255, 255, 255);
+      select_font_face ("Georgia",
+          CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+      set_font_size 36;
+      text_extents ("Hello World", &te);
+      move_to (130 - te.(width / 2 + x_bearing), 40 - te.(height / 2 + y_bearing));
+      show_text "Hello World";
     }
   }
   

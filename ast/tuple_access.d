@@ -97,6 +97,56 @@ Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotTupleSliceExpr, "tree.rhs_partial.tuple_slice", null, "[");
 
+class WithSpace : Namespace {
+  Namespace ns; RelNamespace rns;
+  Expr ctx;
+  this(Expr ex) {
+    ctx = ex;
+    sup = namespace();
+    rns = cast(RelNamespace) ex.valueType();
+    if (auto srns = cast(SemiRelNamespace) ex.valueType())
+      rns = srns.resolve();
+    ns = cast(Namespace) ex;
+  }
+  override {
+    string mangle(string name, IType type) { assert(false); }
+    Stuple!(IType, string, int)[] stackframe() { assert(false); }
+    Object lookup(string name, bool local = false) {
+      if (rns)
+        if (auto res = rns.lookupRel(name, ctx)) return res;
+      if (ns)
+        if (auto res = ns.lookup(name, local)) return res;
+      return sup.lookup(name, local);
+    }
+  }
+}
+
+import ast.iterator, ast.casting, ast.pointer;
+Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
+  return lhs_partial.using = delegate Object(Expr ex) {
+    {
+      auto t2 = text;
+      if (!t2.accept("(")) return null;
+    }
+    while (cast(Pointer) ex.valueType())
+      ex = new DerefExpr(ex);
+    
+    auto ns = cast(Namespace) ex.valueType();
+    auto rns = cast(RelNamespace) ex.valueType();
+    if (!ns && !rns)
+      text.failparse("Not a [rel]namespace: ", ex.valueType());
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(new WithSpace(ex));
+    Object res;
+    if (!rest(text, "tree.expr _tree.expr.arith", &res))
+      text.failparse("Couldn't get with-tuple expr");
+    return res;
+  };
+}
+mixin DefaultParser!(gotWithTupleExpr, "tree.rhs_partial.withtuple", null, ".");
+
 static this() {
   /// 3.
   implicits ~= delegate Expr(Expr ex) {
