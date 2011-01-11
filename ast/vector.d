@@ -179,7 +179,7 @@ Object gotVecType(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType it;
   Expr len;
-  if (!t2.accept("vec(")) return null;
+  if (!t2.accept("(")) return null;
   if (!rest(t2, "type", &it) ||
       !t2.accept(",") ||
       !rest(t2, "tree.expr", &len) ||
@@ -191,7 +191,7 @@ Object gotVecType(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return new Vector(it, ie.num);
 }
-mixin DefaultParser!(gotVecType, "type.vector", "34");
+mixin DefaultParser!(gotVecType, "type.vector", "34", "vec");
 
 bool pretransform(ref Expr ex, ref IType it) {
   it = resolveType(it);

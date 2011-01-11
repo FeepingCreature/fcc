@@ -1,9 +1,19 @@
 module parseBase;
 
+string mystripl(string s) {
+  while (s.length && (
+    s[0] == ' '  || s[0] == '\t' ||
+    s[0] == '\n' || s[0] == '\r'
+  )) {
+    s = s[1 .. $];
+  }
+  return s;
+}
+
 import tools.base, errors;
 enum Scheme { Binary, Octal, Decimal, Hex }
 bool gotInt(ref string text, out int i) {
-  auto t2 = text.strip();
+  auto t2 = text.mystripl();
   t2.eatComments();
   if (auto rest = t2.startsWith("-")) {
     return gotInt(rest, i)
@@ -73,11 +83,11 @@ bool isAlphanum(dchar d) {
   return isAlpha(d) || d >= '0' && d <= '9';
 }
 
-import tools.compat: replace, strip;
+import tools.compat: replace;
 import tools.base: Stuple, stuple;
 
 bool accept(ref string s, string t) {
-  auto s2 = s.strip();
+  auto s2 = s.mystripl();
   bool sep = t.length && t[$-1] == ' ';
   // TODO: unicode
   bool isNormal(char c) {
@@ -131,7 +141,7 @@ bool many(ref string s, lazy bool b, void delegate() dg = null, string abort = n
 }
 
 bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
-  auto t2 = text.strip();
+  auto t2 = text.mystripl();
   t2.eatComments();
   bool isValid(char c, bool first = false) {
     return isAlphanum(c) || c == '_' || (!first && c == '-') || (acceptDots && c == '.');

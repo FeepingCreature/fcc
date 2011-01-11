@@ -64,8 +64,7 @@ class Tuple : Type {
 Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
   Object obj; // exclusively for non-exprs.
   auto t2 = text;
-  if (!t2.accept("(")
-   || !rest(t2, "tree.expr", &obj, (Object obj) { return !cast(Expr) obj; }))
+  if (!rest(t2, "tree.expr", &obj, (Object obj) { return !cast(Expr) obj; }))
     return null;
   if (t2.accept(")")) {
     text = t2;
@@ -76,7 +75,7 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
 }
-mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
+mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6", "(");
 
 Tuple mkTuple(IType[] types...) {
   auto tup = new Tuple;
@@ -91,8 +90,7 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;
   IType[] types;
-  if (t2.accept("(") &&
-      t2.bjoin(
+  if (t2.bjoin(
         !!rest(t2, "type", &ty),
         t2.accept(","),
         { types ~= ty; }
@@ -104,7 +102,7 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
     return mkTuple(types);
   } else return null;
 }
-mixin DefaultParser!(gotTupleType, "type.tuple", "37");
+mixin DefaultParser!(gotTupleType, "type.tuple", "37", "(");
 
 class RefTuple : MValue {
   import ast.assign;
@@ -199,7 +197,6 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr[] exprs;
   Expr ex;
   auto t2 = text;
-  if (!t2.accept("(")) return null;
   if (!t2.bjoin(
       !!rest(t2, "tree.expr", &ex),
       t2.accept(","),
@@ -213,7 +210,7 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return cast(Object) mkTupleExpr(exprs);
 }
-mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60");
+mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60", "(");
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {

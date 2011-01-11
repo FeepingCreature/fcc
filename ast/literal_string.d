@@ -30,9 +30,11 @@ static this() {
   mkString = delegate Expr(string s) { return new StringExpr(s); };
 }
 
-bool gotStringExpr(ref string text, out Expr ex, string sep = "\"") {
+bool gotStringExpr(ref string text, out Expr ex,
+  string sep = "\"", bool alreadyMatched = false)
+{
   auto t2 = text;
-  if (!t2.accept(sep)) return false;
+  if (!alreadyMatched && !t2.accept(sep)) return false;
   string s;
   while (true) {
     assert(t2.length);
@@ -65,11 +67,11 @@ bool gotStringExpr(ref string text, out Expr ex, string sep = "\"") {
 Object gotStringLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   // "" handled in ast.stringex now.
   Expr ex;
-  if (text.gotStringExpr(ex, "`")) {
+  if (text.gotStringExpr(ex, "`", true)) {
     return cast(Object) ex;
   } else return null;
 }
-mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string", "551");
+mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string", "551", "`");
 
 import ast.casting;
 static this() {

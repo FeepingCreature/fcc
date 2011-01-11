@@ -68,7 +68,10 @@ class LateType : IType, TypeProxy {
 
 const c_tree_expr = "tree.expr"
   " >tree.expr.vardecl >tree.expr.type_stringof >tree.expr.type_mangleof"
-  " >tree.expr.classid >tree.expr.iter >tree.expr.iter_range";
+  " >tree.expr.classid >tree.expr.iter >tree.expr.iter_range"
+  " >tree.expr.new >tree.expr.eval >tree.expr.cast >tree.expr.veccon"
+  " >tree.expr.cast_explicit_default >tree.expr.cast_convert"
+  " >tree.expr.scoped >tree.expr.stringex >tree.expr.dynamic_class_cast";
 
 void parseHeader(string filename, string src, ParseCb rest) {
   auto start_time = sec();
@@ -87,7 +90,6 @@ void parseHeader(string filename, string src, ParseCb rest) {
   // no need to remove comments; the preprocessor already did that
   auto statements = newsrc.split(";") /map/ &strip;
   // mini parser
-  Named[] res;
   Named[string] cache;
   auto myNS = new MiniNamespace("parse_header");
   myNS.sup = namespace();
@@ -105,7 +107,6 @@ void parseHeader(string filename, string src, ParseCb rest) {
     }
     // logln("add ", name, " <- ", n);
     myNS._add(name, cast(Object) n);
-    res ~= n;
     cache[name] = n;
   }
   
@@ -383,7 +384,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       }
       if (stmt.accept("[")) goto giveUp;
       auto ta = new TypeAlias(target, name);
-      res ~= ta; cache[name] = ta;
+      cache[name] = ta;
       continue;
     }
     
@@ -416,16 +417,15 @@ void parseHeader(string filename, string src, ParseCb rest) {
     // logln("Gave up on |", stmt, "| ", start);
   }
   auto ns = myNS.sup;
-  // logln("Got ", res /map/ ex!("a -> a.getIdentifier()"));
-  foreach (thing; res) {
-    if (ns.lookup(thing.getIdentifier())) {
-      // logln("Skip ", thing, " as duplicate. ");
+  foreach (key, value; cache) {
+    if (ns.lookup(key)) {
+      // logln("Skip ", key, " as duplicate. ");
       continue;
     }
-    // logln("Add ", thing);
-    ns.add(thing);
+    // logln("Add ", value);
+    ns.add(key, value);
   }
-  logln("# Got ", res.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
+  logln("# Got ", cache.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
 }
 
 import ast.fold, ast.literal_string;
