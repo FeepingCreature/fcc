@@ -44,6 +44,7 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
   mixin DefaultDup!();
   mixin defaultIterate!();
   override void emitAsm(AsmFile af) { }
+  override bool isTempNamespace() { return false; }
   string toString() { return "interface "~name; }
   string mangle() { return "interface"; }
   Function[] funs;
@@ -204,6 +205,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
   override string mangleSelf() { return mangle(); }
   override bool addsSelf() { return true; }
   override Class dup() { assert(false, "wetfux! "); }
+  bool isTempNamespace() { return false; }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, this);
     auto root = cast(Class) (sysmod?sysmod.lookup("Object"):null);

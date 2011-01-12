@@ -74,6 +74,12 @@ char* toStringz(string s) {
   return s2.ptr;
 }
 
+string CToString(char* c) {
+  char* cur = c;
+  while (*cur) cur++;
+  return c[0 .. (int:cur - int:c)];
+}
+
 string concat(string[] strs) {
   char[auto~] res;
   while auto str <- strs res ~= str;

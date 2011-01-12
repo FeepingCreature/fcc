@@ -740,15 +740,17 @@ string getHeredoc(ref string text) {
   return text.slice(sep);
 }
 
-string startsWith(string text, string match) {
-  if (!text) return null;
-  if (!match)
-    asm { int 3; }
-  if (text.length < match.length) return null;
-  if (text[0 .. match.length] != match) return null;
-  return text[match.length .. $];
+pragma(GNU_attribute, hot)
+template startsWith(S, T) {
+  string startsWith(S text, T match)
+  {
+    debug if (!match)
+      asm { int 3; }
+    if (text.length < match.length) return null;
+    if (text[0 .. match.length] != match) return null;
+    return text[match.length .. $];
+  }
 }
-
 string cleanup(string s) {
   return s.replace("-", "_dash_");
 }

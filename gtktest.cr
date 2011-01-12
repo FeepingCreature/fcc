@@ -85,25 +85,25 @@ int main (int argc, char **argv) {
       auto renderer = gtk_cell_renderer_text_new ();
       auto column = gtk_tree_view_column_new_with_attributes ("Class",
                       renderer, "text".ptr, 0, null);
-      gtk_tree_view_append_column (gtkCastTreeView (tree), column);
+      tree.gtkCastTreeView().gtk_tree_view_append_column column;
       column = gtk_tree_view_column_new_with_attributes ("Info",
                       renderer, "text".ptr, 1, null);
-      gtk_tree_view_append_column (gtkCastTreeView (tree), column);
-      gtk_tree_view_set_model (gtkCastTreeView (tree), gtkCastTreeModel (model));
+      tree.gtkCastTreeView().gtk_tree_view_append_column column;
+      tree.gtkCastTreeView().gtk_tree_view_set_model model.gtkCastTreeModel();
       g_object_unref (model);
     }
     
-    g_signal_connect_data (
-      window, "delete-event",
+    window.g_signal_connect_data (
+      "delete-event",
       void*:function bool(void* widget, event, data) { return false; },
       null, null, 0
     );
     
     g_signal_connect (window, "destroy", delegate void(GtkWidget*) { gtk_main_quit(); });
     
-    gtk_container_set_border_width (gtkCastContainer(window), 10);
+    window.gtkCastContainer().gtk_container_set_border_width 10;
     
-    gtk_widget_show_all (window);
+    window.gtk_widget_show_all ();
     
     /* All GTK applications must have a gtk_main(). Control ends here
      * and waits for an event to occur (like a key press or

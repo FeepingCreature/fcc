@@ -1,6 +1,6 @@
 module ast.withstmt;
 
-import ast.base, ast.parse, ast.vardecl, ast.namespace, ast.guard, ast.scopes, ast.fun;
+import ast.base, ast.parse, ast.vardecl, ast.namespace, ast.guard, ast.scopes, ast.fun, ast.casting;
 
 class WithStmt : Namespace, Statement, ScopeLike {
   RelNamespace rns;
@@ -18,13 +18,6 @@ class WithStmt : Namespace, Statement, ScopeLike {
     return (cast(ScopeLike) sup).framesize() + temps;
   }
   this(Expr ex) {
-    sup = namespace();
-    namespace.set(this);
-    scope(exit) namespace.set(this.sup);
-    
-    sc = new Scope;
-    assert(!!sc.sup);
-    
     if (auto isc = cast(IScoped) ex) {
       this.isc = isc;
       ex = isc.getSup;
@@ -34,6 +27,25 @@ class WithStmt : Namespace, Statement, ScopeLike {
       assert(!!cast(LValue) ex || !!cast(MValue) ex, Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
     
+    rns = cast(RelNamespace) ex.valueType();
+    
+    if (auto srns = cast(SemiRelNamespace) ex.valueType()) rns = srns.resolve();
+    ns = cast(Namespace) ex; // say, context
+    
+    if (!rns && !ns && !isc) {
+      if (!gotImplicitCast(ex, (IType it) { return !!cast(RelNamespace) it; })) {
+        Format("Cannot with-expr a non-[rel]ns: ", ex).fail(); // TODO: select in gotWithStmt
+      }
+      rns = cast(RelNamespace) ex.valueType();
+    }
+    
+    sup = namespace();
+    namespace.set(this);
+    scope(exit) namespace.set(this.sup);
+    
+    sc = new Scope;
+    assert(!!sc.sup);
+    
     if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
                               ("eval (ex.onUsing)", "ex", ex)) {
       pre = stuple(pre, onUsing) /apply/ (typeof(pre) pre, Statement st, AsmFile af) { if (pre) pre(af); st.emitAsm(af); };
@@ -42,12 +54,6 @@ class WithStmt : Namespace, Statement, ScopeLike {
                              ("eval (ex.onExit)", "ex", ex)) {
       post = stuple(post, onExit) /apply/ (typeof(post) post, Statement st, AsmFile af) { st.emitAsm(af); if (post) post(af); };
     }
-    
-    rns = cast(RelNamespace) ex.valueType();
-    
-    if (auto srns = cast(SemiRelNamespace) ex.valueType()) rns = srns.resolve();
-    ns = cast(Namespace) ex; // say, context
-    assert(rns || ns, Format("Cannot with-expr a non-[rel]ns: ", ex)); // TODO: select in gotWithStmt
     
     if (auto lv = cast(LValue) ex) {
       context = lv;

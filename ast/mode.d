@@ -54,8 +54,9 @@ class PrefixFunction : Function {
     this.prefix = prefix;
     this.sup = sup;
     this.name = "[wrap]"~sup.name;
-    assert(sup.extern_c);
-    extern_c = true;
+    // assert(sup.extern_c);
+    // TODO: this may later cause problems
+    extern_c = true; // sooorta.
   }
   // this pains me.
   override {
@@ -82,6 +83,7 @@ class PrefixCall : FunCall {
   this(Function fun, Expr prefix, FunCall sup) { this.fun = fun; this.prefix = prefix; this.sup = sup; }
   PrefixCall dup() { return new PrefixCall(fun, prefix.dup(), sup.dup()); }
   override void emitWithArgs(AsmFile af, Expr[] args) {
+    // logln("prefix call, prepend ", prefix);
     sup.emitWithArgs(af, prefix ~ args);
   }
   override string toString() { return Format("prefixcall(", fun, " [prefix] ", prefix, " [regular] ", params, ")"); }

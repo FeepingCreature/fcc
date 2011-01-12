@@ -68,10 +68,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
     int cur = _framestart = 8;
     // TODO: alignment
     foreach (param; type.params) {
-      if (param._1) {
+      // if (param._1) { // what the HELL
         _framestart += param._0.size;
         add(new Variable(param._0, param._1, cur));
-      }
+      // }
       cur += param._0.size;
     }
     return cur;
@@ -92,9 +92,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
     }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
-      af.put(".globl "~mangleSelf);
-      af.put(".type "~mangleSelf~", @function");
-      af.put(mangleSelf() ~ ":"); // not really a label
+      auto fmn = mangleSelf(); // full mangled name
+      af.put(".globl ", fmn);
+      af.put(".type ", fmn, ", @function");
+      af.put(fmn, ":"); // not really a label
       af.jump_barrier();
       
       af.pushStack("%ebp", voidp);
@@ -192,8 +193,10 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
     if (auto s = cast(Symbol) fp) name = s.name;
     else name = "(nil)";
     
+    ret = resolveType(ret);
     assert(ret.size == 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret,
-      Format("Return bug: ", ret, " from ", name, "!"));
+      Format("Return bug: ", ret, " from ", name, ": ",
+      ret.size, " is ", (cast(Object) ret).classinfo.name));
     af.comment("Begin call to ", name);
     
     int paramsize;
@@ -296,7 +299,7 @@ bool gotParlist(ref string str, ref Stuple!(IType, string)[] res, ParseCb rest) 
 import parseBase;
 // generalized to reuse for nested funs
 Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToNamespace,
-                           ref string text, ParseCb cont, ParseCb rest, bool noname = false) {
+                           ref string text, ParseCb cont, ParseCb rest, string forcename = null) {
   IType ptype;
   auto t2 = text;
   New(fun.type);
@@ -305,10 +308,11 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
   auto ns = namespace();
   assert(!!ns);
   if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
-      (noname || t2.gotIdentifier(fun.name)) &&
+      (forcename || t2.gotIdentifier(fun.name)) &&
       t2.gotParlist(fun.type.params, rest)
     )
   {
+    if (forcename) fun.name = forcename;
     fun.fixup;
     auto backup = ns;
     scope(exit) namespace.set(backup);
@@ -328,11 +332,11 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
   } else return null;
 }
 
-Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, bool noname = false) {
-  return gotGenericFun!(T, false)(fun, sup_override, addToNamespace, text, cont, rest, noname);
+Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null) {
+  return gotGenericFun!(T, false)(fun, sup_override, addToNamespace, text, cont, rest, forcename);
 }
-Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, bool noname = false) {
-  return gotGenericFun!(T, true)(fun, sup_override, addToNamespace, text, cont, rest, noname);
+Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null) {
+  return gotGenericFun!(T, true)(fun, sup_override, addToNamespace, text, cont, rest, forcename);
 }
 
 Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {

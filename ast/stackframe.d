@@ -5,7 +5,6 @@ import ast.namespace, ast.structure, ast.namespace, ast.base, ast.int_literal, a
 import quicksort;
 LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   auto frame = ns.stackframe().dup;
-  // logln("frame: ", frame, " for ", ns);
   qsort(frame, ex!("a, b -> a._2 < b._2"));
   assert(frame[0]._2 < frame[1]._2);
   auto str = new Structure(null);

@@ -26,6 +26,7 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
       return null; // don't
   }
   
+  // logln("prop match for ", obj, " @", text.nextText());
   void check(Object sup, string text) {
     auto backup = lhs_partial();
     scope(exit) lhs_partial.set(backup);

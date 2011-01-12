@@ -167,6 +167,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       }
       return name;
     }
+    bool isTempNamespace() { return isTempStruct; }
   }
 }
 
@@ -513,9 +514,10 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
         if (auto st = cast(Structure) rn) {
           name = st.name;
           mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names);
-          if (st.isTempStruct) dontFail = true;
-        } else
+        } else {
           mesg = Format(member, " is not a member of ", pre_ex.valueType());
+        }
+        if (rn.isTempNamespace) dontFail = true;
         
         if (!dontFail && member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "ptr" /or/ "length" /or/ "lensq" /or/ "sum" // list of keywords
           && (!name || !name.startsWith("__array_as_struct__")))

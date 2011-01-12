@@ -46,6 +46,8 @@ static this() {
   defineOp("==", false /apply/ &ptreq);
   defineOp("!=",  true /apply/  &fpeq);
   defineOp("!=",  true /apply/ &ptreq);
+  
+  setupPropCall();
 }
 
 extern(C) {

@@ -102,12 +102,13 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   if (!sc) return null;
   auto nf = new NestedFunction(sc);
   auto mod = current_module();
+  string name;
+  static int i;
+  synchronized name = Format("__nested_dg_literal_", i++);
   auto res = cast(NestedFunction)
-    gotGenericFunDef(nf, mod, true, t2, cont, rest, true /* noname */);
+    gotGenericFunDef(nf, mod, true, t2, cont, rest, name);
   if (!res)
     t2.failparse("Could not parse delegate literal");
-  static int i;
-  synchronized res.name = Format("__nested_dg_literal_", i++);
   text = t2;
   mod.entries ~= cast(Tree) res;
   return new NestFunRefExpr(res);
@@ -118,13 +119,14 @@ Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto fun = new Function();
   auto mod = current_module();
+  string name;
+  static int i;
+  synchronized name = Format("__nested_fn_literal_", i++);
   auto res = cast(Function)
-    gotGenericFunDef(fun, mod, true, t2, cont, rest, true /* noname */);
+    gotGenericFunDef(fun, mod, true, t2, cont, rest, name);
   
   if (!res)
     t2.failparse("Could not parse delegate literal");
-  static int i;
-  synchronized res.name = Format("__nested_fn_literal_", i++);
   text = t2;
   mod.entries ~= cast(Tree) res;
   return new FunRefExpr(res);

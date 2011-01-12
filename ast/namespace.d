@@ -108,6 +108,7 @@ class NoNameSpace : Namespace {
 
 interface RelNamespace {
   Object lookupRel(string str, Expr base);
+  bool isTempNamespace(); // temporary namespace - not an error if lookup fails
 }
 
 interface SemiRelNamespace {
@@ -196,8 +197,8 @@ class MiniNamespace : Namespace, ScopeLike, Named {
       else return sl.framesize();
     } else {
       // logln("no metric for framesize of ", id);
-      throw new Exception(Format("No metric for framesize of ", id, "!"));
-      // asm { int 3; }
+      if (id == "si_elemtype") asm { int 3; }
+      throw new Exception(Format("No metric for framesize of ", id, ": sup is ", sup, "."));
     }
   }
   override Object lookup(string name, bool local = false) {

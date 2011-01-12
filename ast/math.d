@@ -307,7 +307,7 @@ class AsmIntBinopExpr : BinopExpr {
         if (op2.isRegister())
           af.popStack(op2, e2.valueType());
         
-        if (asm_op == "sal" || asm_op == "sar" || asm_op == "%shr")
+        if (asm_op == "sar" || asm_op == "shl" || asm_op == "%shr")
           if (op2 == "%ecx")
             op2 = "%cl"; // shl/r really want %cl.
         

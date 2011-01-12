@@ -168,6 +168,7 @@ void setupSysmods() {
       if len > res.length len = res.length;
       return res[0 .. len];
     }
+    /*MARKER2*/
     class Object {
     }
     struct _GuardRecord {
@@ -228,12 +229,20 @@ void setupSysmods() {
       }
     }
     
-    _CondMarker* _lookupCM(string s, _Handler* h) {
+    _CondMarker* _lookupCM(string s, _Handler* h, bool needsResult) {
+      // writeln "look up condition marker for $s";
       auto cur = _CondMarker*:_cm;
+      // if (h) writeln "h is $h, elements $(h.(id, prev, delimit, dg)), cur $cur";
       while (cur && (!h || void*:cur != h.delimit)) {
+        // writeln "is it $(cur.name)?";
         if (cur.name == s) return cur;
         cur = cur.prev;
       }
+      if needsResult {
+        writeln "No exit matched $s!";
+        _interrupt 3;
+      }
+      // writeln "no matches";
       return _CondMarker*:null;
     }
     
@@ -296,11 +305,15 @@ void setupSysmods() {
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;
   // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
-  string base = src.between("", "/*MARKER*/") ~ "}";
+  string base1 = src.between("", "/*MARKER*/") ~ "}";
   synchronized(SyncObj!(sourcefiles))
-    sourcefiles["<internal:sys,pre>"] = base;
-  sysmod = cast(Module) parsecon.parse(base, "tree.module");
-  // we can now use the first half to parse the entirety.
+    sourcefiles["<internal:sys,pre>"] = base1;
+  sysmod = cast(Module) parsecon.parse(base1, "tree.module");
+  string base2 = src.between("", "/*MARKER2*/").dup;
+  synchronized(SyncObj!(sourcefiles))
+    sourcefiles["<internal:sys,pre2>"] = base2;
+  sysmod = cast(Module) parsecon.parse(base2, "tree.module");
+  // we can now use the partial definitions to parse the entirety.
   sysmod = cast(Module) parsecon.parse(src, "tree.module");
 }
 
@@ -319,6 +332,20 @@ class RDTSCExpr : Expr {
 }
 
 Object gotRDTSC(ref string text, ParseCb cont, ParseCb rest) {
-  return new RDTSCExpr();
+  return Single!(RDTSCExpr);
 }
 mixin DefaultParser!(gotRDTSC, "tree.expr.rdtsc", "2404", "rdtsc");
+
+class EBPExpr : Expr {
+  mixin defaultIterate!();
+  override {
+    EBPExpr dup() { return this; }
+    IType valueType() { return voidp; }
+    void emitAsm(AsmFile af) { af.pushStack("%ebp", voidp); }
+  }
+}
+
+Object gotEBP(ref string text, ParseCb cont, ParseCb rest) {
+  return Single!(EBPExpr);
+}
+mixin DefaultParser!(gotEBP, "tree.expr.ebp", "24045", "_ebp");

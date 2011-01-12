@@ -24,6 +24,7 @@ class Vector : Type, RelNamespace {
     string mangle() { return Format("vec_", len, "_", base.mangle()); }
     string toString() { return Format("vec(", base, ", ", len, ")"); }
     ubyte[] initval() { return asTup.initval(); }
+    bool isTempNamespace() { return false; }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
       while (true) {
