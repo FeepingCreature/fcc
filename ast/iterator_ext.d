@@ -393,8 +393,10 @@ class SumExpr : Expr {
 import ast.vardecl;
 Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr", &ex))
-    text.failparse("Could not match expr for cross");
+  if (!rest(text, "tree.expr", &ex)) {
+    text.setError("Could not match expr for sum");
+    return null;
+  }
   IType[] tried;
   if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) { tried ~= it; return !!cast(RichIterator) it; }))
     text.failparse("Cannot convert ", ex, " to valid iterator");

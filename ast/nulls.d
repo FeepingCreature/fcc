@@ -47,20 +47,11 @@ Cond testNeq(Expr ex1, Expr ex2) {
     return new Compare(ex1, true, false, true, false, ex2);
   assert(ex1.valueType().size == 8);
   auto t2 = mkTuple(voidp, voidp);
-  auto sc = namespace().get!(Scope);
   // we'll be accessing members - generate temporaries.
   // Don't worry, they'll be cleaned up - conditions are guaranteed to
   // exist in an isolated scope.
-  auto v1 = new Variable(ex1.valueType(), null, boffs(ex1.valueType()));
-  v1.initval = ex1;
-  sc.add(v1);
-  auto v2 = new Variable(ex2.valueType(), null, boffs(ex2.valueType()));
-  v2.initval = ex2;
-  sc.add(v2);
-  auto vd = new VarDecl;
-  vd.vars ~= v1;
-  vd.vars ~= v2;
-  sc.addStatement(vd);
+  auto v1 = lvize(ex1);
+  auto v2 = lvize(ex2);
   auto ex1s = getTupleEntries(reinterpret_cast(cast(IType) t2, cast(LValue) v1));
   auto ex2s = getTupleEntries(reinterpret_cast(cast(IType) t2, cast(LValue) v2));
   return new BooleanOp!("||")(

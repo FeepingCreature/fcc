@@ -99,7 +99,7 @@ class TemplateInstance : Namespace {
           if (!mg) { logln("!! ", tr); asm { int 3; } }
           addExtra(mg);
         }
-      ) || t2.strip().length)
+      ) || t2.mystripl().length)
         t2.failparse("Failed to parse template content");
       
     });

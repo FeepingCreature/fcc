@@ -167,7 +167,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
         ((not || smaller || t2.accept("=")) && t2.accept("=") && (equal = true)),
         (smaller || equal || greater)
       ) && (
-        rest(t2, "cond >cond.expr", &cd2) || // chaining
+        rest(t2, "cond.compare", &cd2) || // chaining
         rest(t2, "tree.expr >tree.expr.cond", &ex2)
       )
   ) {

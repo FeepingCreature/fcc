@@ -26,7 +26,7 @@ Object gotRestStmt(ref string text, ParseCb cont, ParseCb rest) {
   Statement st;
   t2.many(!!rest(t2, "tree.stmt", &st), { as.stmts ~= st; });
   auto t3 = t2;
-  if (t3.strip().length)
+  if (t3.mystripl().length)
     t3.mustAccept("}", "Unterminated rest statement: ");
   text = t2;
   return sc;
