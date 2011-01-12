@@ -46,12 +46,12 @@ void main() {
   initGL;
   resizeWindow(640, 480);
   auto backup =
-    (glXGetCurrentDisplay, glXGetCurrentDrawable, glXGetCurrentContext);
+    (glXGetCurrentDisplay(), glXGetCurrentDrawable(), glXGetCurrentContext());
   auto dev = cairo_glx_device_create (backup[0], backup[2]);
   glXMakeCurrent backup;
   
   writeln "create surf for $dev";
-  writeln "post: $(glXGetCurrentContext), $(glXGetCurrentDisplay)";
+  writeln "post: $(glXGetCurrentContext()), $(glXGetCurrentDisplay())";
   auto surface = cairo_gl_surface_create_for_window
     (dev, backup[1], window.w, window.h);
   
