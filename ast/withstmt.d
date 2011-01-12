@@ -4,6 +4,7 @@ import ast.base, ast.parse, ast.vardecl, ast.namespace, ast.guard, ast.scopes, a
 
 class WithStmt : Namespace, Statement, ScopeLike {
   RelNamespace rns;
+  Stuple!(RelNamespace, Expr) [] rnslist;
   Namespace ns;
   VarDecl vd;
   Expr context;
@@ -27,34 +28,6 @@ class WithStmt : Namespace, Statement, ScopeLike {
       assert(!!cast(LValue) ex || !!cast(MValue) ex, Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
     
-    rns = cast(RelNamespace) ex.valueType();
-    
-    if (auto srns = cast(SemiRelNamespace) ex.valueType()) rns = srns.resolve();
-    ns = cast(Namespace) ex; // say, context
-    
-    if (!rns && !ns && !isc) {
-      if (!gotImplicitCast(ex, (IType it) { return !!cast(RelNamespace) it; })) {
-        Format("Cannot with-expr a non-[rel]ns: ", ex).fail(); // TODO: select in gotWithStmt
-      }
-      rns = cast(RelNamespace) ex.valueType();
-    }
-    
-    sup = namespace();
-    namespace.set(this);
-    scope(exit) namespace.set(this.sup);
-    
-    sc = new Scope;
-    assert(!!sc.sup);
-    
-    if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
-                              ("eval (ex.onUsing)", "ex", ex)) {
-      pre = stuple(pre, onUsing) /apply/ (typeof(pre) pre, Statement st, AsmFile af) { if (pre) pre(af); st.emitAsm(af); };
-    }
-    if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
-                             ("eval (ex.onExit)", "ex", ex)) {
-      post = stuple(post, onExit) /apply/ (typeof(post) post, Statement st, AsmFile af) { st.emitAsm(af); if (post) post(af); };
-    }
-    
     if (auto lv = cast(LValue) ex) {
       context = lv;
     } else if (auto mv = cast(MValue) ex) {
@@ -68,6 +41,40 @@ class WithStmt : Namespace, Statement, ScopeLike {
       context = var;
       New(vd);
       vd.vars ~= var;
+    }
+    
+    rns = cast(RelNamespace) ex.valueType();
+    
+    if (auto srns = cast(SemiRelNamespace) ex.valueType()) rns = srns.resolve();
+    ns = cast(Namespace) ex; // say, context
+    
+    if (!rns && !ns && !isc) {
+      Expr ex2 = context;
+      gotImplicitCast(ex2, (Expr ex) {
+        auto it = ex.valueType();
+        if (auto ns = cast(RelNamespace) it)
+          rnslist ~= stuple(ns, ex);
+        return false;
+      });
+      if (!rnslist) {
+        Format("Cannot with-expr a non-[rel]ns: ", context).fail(); // TODO: select in gotWithStmt
+      }
+    }
+    
+    sup = namespace();
+    namespace.set(this);
+    scope(exit) namespace.set(this.sup);
+    
+    sc = new Scope;
+    assert(!!sc.sup);
+    
+    if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
+                              ("eval (ex.onUsing)", "ex", context)) {
+      pre = stuple(pre, onUsing) /apply/ (typeof(pre) pre, Statement st, AsmFile af) { if (pre) pre(af); st.emitAsm(af); };
+    }
+    if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
+                             ("eval (ex.onExit)", "ex", context)) {
+      post = stuple(post, onExit) /apply/ (typeof(post) post, Statement st, AsmFile af) { st.emitAsm(af); if (post) post(af); };
     }
   }
   override {
@@ -93,6 +100,10 @@ class WithStmt : Namespace, Statement, ScopeLike {
       if (rns)
         if (auto res = rns.lookupRel(name, context))
           return res;
+      if (rnslist)
+        foreach (rns; rnslist)
+          if (auto res = rns._0.lookupRel(name, rns._1))
+            return res;
       if (ns)
         if (auto res = ns.lookup(name, true))
           return res;

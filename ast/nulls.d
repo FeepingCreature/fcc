@@ -48,7 +48,7 @@ Cond testNeq(Expr ex1, Expr ex2) {
   assert(ex1.valueType().size == 8);
   auto t2 = mkTuple(voidp, voidp);
   // we'll be accessing members - generate temporaries.
-  // Don't worry, they'll be cleaned up - conditions are guaranteed to
+  // Don't worry, they'll be cleaned up - conditionals are guaranteed to
   // exist in an isolated scope.
   auto v1 = lvize(ex1);
   auto v2 = lvize(ex2);
@@ -65,6 +65,7 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
   if (rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
+    if (t2.accept(".")) return null; // wtf? definitely not a condition.
     auto ex2 = ex; // test for int-like
     if (gotImplicitCast(ex2, (IType it) { return test(it == Single!(SysInt)); })) {
       text = t2;
