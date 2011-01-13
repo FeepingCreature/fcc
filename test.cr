@@ -75,7 +75,6 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   float t = 0;
   int fps;
   void run() {
-    fesetround(FE_DOWNWARD);
     t = t + 0.05;
     int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
     vec3f ff = vec3f(factor1, factor2, factor3);
