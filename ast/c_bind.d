@@ -71,7 +71,8 @@ const c_tree_expr = "tree.expr"
   " >tree.expr.classid >tree.expr.iter >tree.expr.iter_range"
   " >tree.expr.new >tree.expr.eval >tree.expr.cast >tree.expr.veccon"
   " >tree.expr.cast_explicit_default >tree.expr.cast_convert"
-  " >tree.expr.scoped >tree.expr.stringex >tree.expr.dynamic_class_cast";
+  " >tree.expr.scoped >tree.expr.stringex >tree.expr.dynamic_class_cast"
+  " >tree.expr.properties";
 
 void parseHeader(string filename, string src, ParseCb rest) {
   auto start_time = sec();
@@ -189,6 +190,49 @@ void parseHeader(string filename, string src, ParseCb rest) {
     text.accept(",");
     return ty;
   }
+  bool readCExpr(ref string source, Expr* res) {
+    source = mystripl(source);
+    if (!source.length) return false;
+    auto s2 = source;
+    // fairly obvious what this is
+    if (source.endsWith("_TYPE") || s2.matchType()) return false;
+    int i;
+    s2 = source;
+    if (s2.gotInt(i)) {
+      if (auto rest = s2.startsWith("U")) s2 = rest; // TODO
+      if (s2.accept("LL")) return false; // long long
+      s2.accept("L");
+      if (!s2.length) {
+        *res = new IntExpr(i);
+        source = s2;
+        return true;
+      }
+    }
+    s2 = source;
+    if (s2.startsWith("__PRI")) return false; // no chance to parse
+    s2 = source;
+    string ident;
+    if (s2.gotIdentifier(ident) && !s2.length) {
+      // float science notation constants
+      if (ident.length > 2) {
+        if (ident[0] == 'e' || ident[0] == 'E')
+          if (ident[1] == '+' || ident[1] == '-') return false;
+        if (ident[0] == '1' && (ident[1] == 'e' || ident[1] == 'E'))
+          if (ident[2] == '+' || ident[2] == '-') return false;
+      }
+      if (auto p = ident in cache) {
+        if (auto ex = cast(Expr) *p) {
+          *res = ex;
+          source = null;
+          return true;
+        }
+        return false;
+      }
+      // logln("IDENT ", ident);
+    }
+    // logln(" @ '", source, "'");
+    return !!rest(source, c_tree_expr, res);
+  }
   while (statements.length) {
     auto stmt = statements.take(), start = stmt;
     // logln("> ", stmt.replace("\n", "\\"));
@@ -217,14 +261,14 @@ void parseHeader(string filename, string src, ParseCb rest) {
         // muahaha
         try {
           try {
-            if (!rest(stmt, "tree.expr.literal", &ex) || stmt.strip().length) {
+            if (!readCExpr(stmt, &ex) || stmt.strip().length) {
               goto alternative;
             }
           } catch (Exception ex)
             goto alternative;
           if (false) {
             alternative:
-            if (!rest(stmt, c_tree_expr, &ex))
+            if (!readCExpr(stmt, &ex))
               goto giveUp;
           }
         } catch (Exception ex)
@@ -250,7 +294,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
         }
         if (entry.accept("=")) {
           Expr ex;
-          if (!rest(entry, c_tree_expr, &ex) || entry.strip().length) {
+          if (!readCExpr(entry, &ex) || entry.strip().length) {
             // logln("--", entry);
             goto giveUp;
           }
@@ -302,7 +346,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
           auto st3 = st2;
           Expr size;
           st3 = st3.replace("(int)", ""); // hax
-          if (gotIdentifier(st3, name3) && st3.accept("[") && rest(st3, c_tree_expr, &size) && st3.accept("]")) {
+          if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, &size) && st3.accept("]")) {
             redo:
             size = foldex(size);
             if (cast(AstTuple) size.valueType()) {
@@ -369,7 +413,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       Expr size;
       redo2:
       auto st3 = stmt;
-      if (st3.accept("[") && rest(st3, c_tree_expr, &size) && st3.accept("]")) {
+      if (st3.accept("[") && readCExpr(st3, &size) && st3.accept("]")) {
         redo3:
         size = foldex(size);
         // unwrap "(bar)" again

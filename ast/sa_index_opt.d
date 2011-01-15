@@ -6,8 +6,8 @@ import
 
 alias ast.fold.fold fold;
 static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    auto dre = cast(DerefExpr) it; if (!dre)   return null;
+  foldopt ~= delegate Expr(Expr ex) {
+    auto dre = cast(DerefExpr) ex; if (!dre)   return null;
     if (dre.valueType() != Single!(SysInt))    return null;
     auto rce1 = cast(RCE) dre.src; if (!rce1)  return null;
     auto pe = cast(AsmIntBinopExpr) rce1.from;

@@ -257,14 +257,14 @@ void setupSysmods() {
       // _interrupt 3;
     }
 
-    void _signalHandler(Object obj) {
+    void raise-signal(Object obj) {
       auto cur = __hdl__;
       while cur {
         if cur.accepts(obj) cur.dg(obj);
         cur = cur.prev;
       }
     }
-    void _signalErrorHandler(Object obj) {
+    void raise-error(Object obj) {
       auto cur = __hdl__;
       while cur {
         if cur.accepts(obj) cur.dg(obj);

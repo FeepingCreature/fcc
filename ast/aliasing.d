@@ -102,21 +102,19 @@ redo:
     }
     return false;
   }
-  if (rest(t3, "tree.expr", &ex) && gotTerm()) {
+  if (rest(t3, "type", &ty) && gotTerm()) {
     t2 = t3;
   } else {
     t3 = t2;
-    ex = null;
-    if (rest(t3, "type", &ty) && gotTerm()) {
+    ty = null;
+    if (rest(t3, "tree.expr", &obj) && gotTerm()) {
       t2 = t3;
-    } else {
-      t3 = t2;
-      if (rest(t3, "tree.expr", &obj) && gotTerm()) {
-        t2 = t3;
+      if (auto e = cast(Expr) obj) { obj = null; ex = e; }
+      else {
         namespace().__add(id, obj); // for instance, function alias
-      } else
-        t2.failparse("Couldn't parse alias target");
-    }
+      }
+    } else
+      t2.failparse("Couldn't parse alias target");
   }
   
   assert(ex || ty || obj);

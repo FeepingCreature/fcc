@@ -274,13 +274,19 @@ interface ScopeLike {
 private alias Iterable Itr;
 
 Itr delegate(Itr)[] _foldopt; // a thing that flattens
+Expr delegate(Expr)[] _foldopt_expr; // shortcut
 
 struct foldopt {
   static {
     void opCatAssign(Itr delegate(Itr) dg) {
       _foldopt ~= dg;
+      _foldopt_expr ~= dg /apply/ delegate Expr(typeof(dg) dg, Expr ex) {
+        auto it = cast(Itr) ex;
+        return cast(Expr) dg(it);
+      };
     }
     void opCatAssign(Expr delegate(Expr) dg) {
+      _foldopt_expr ~= dg;
       _foldopt ~= dg /apply/ delegate Itr(typeof(dg) dg, Itr it) {
         auto ex = cast(Expr) it;
         if (!ex) return null;

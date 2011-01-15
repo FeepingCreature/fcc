@@ -207,8 +207,8 @@ bool matchStructBody(ref string text, Namespace ns,
 Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool isUnion;
-  if (!t2.accept("struct ")) {
-    if (!t2.accept("union "))
+  if (!t2.accept("struct")) {
+    if (!t2.accept("union"))
       return null;
     isUnion = true;
   }
@@ -396,8 +396,8 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
 
 import ast.fold, ast.casting;
 static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto r = cast(RCE) it) {
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto r = cast(RCE) ex) {
       if (auto lit = cast(StructLiteral) r.from) {
         if (lit.exprs.length == 1 &&
             lit.exprs[0].valueType() == r.to)
@@ -406,8 +406,8 @@ static this() {
     }
     return null;
   };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto mae = cast(MemberAccess_Expr) it) {
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto mae = cast(MemberAccess_Expr) ex) {
       auto base = foldex(mae.base);
       // logln("::", mae.stm.type.size, " vs. ", base.valueType().size);
       if (mae.stm.type.size == base.valueType().size) {
@@ -419,8 +419,8 @@ static this() {
     }
     return null;
   };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto mae = cast(MemberAccess_Expr) it) {
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto mae = cast(MemberAccess_Expr) ex) {
       auto base = foldex(mae.base);
       Structure st;
       if (auto rce = cast(RCE) base) {
@@ -448,8 +448,8 @@ static this() {
     }
     return null;
   };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto mae = cast(MemberAccess_Expr) it) {
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto mae = cast(MemberAccess_Expr) ex) {
       auto base = foldex(mae.base);
       Expr from;
       if (auto mae2 = cast(MemberAccess_Expr) base) from = base; // lol direct

@@ -85,7 +85,7 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       t2.gotIdentifier(name) &&
       (
         (
-          t3 = t2, t3.accept(" = ")
+          t3 = t2, t3.accept("=")
           && rest(t3, "tree.expr", &initval) && gotImplicitCast(initval, (Expr ex) {
             return ex.valueType() == ty
                    && !! cast(Literal) fold(ex);

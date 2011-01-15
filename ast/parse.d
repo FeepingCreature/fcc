@@ -50,14 +50,11 @@ class ExprStatement : Statement {
   }
 }
 
+
 Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
-  // TODO: break expr/statement inheritance. it's silly.
   Expr ex;
-  auto t2 = text;
-  if (rest(t2, "tree.expr", &ex)) {
-    text = t2;
-    return new ExprStatement(ex);
-  } else return null;
+  if (!rest(text, "tree.expr", &ex)) return null;
+  return new ExprStatement(ex);
 }
 mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr", "2");
 

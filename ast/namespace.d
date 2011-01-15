@@ -131,21 +131,12 @@ TLS!(Namespace) namespace;
 import parseBase, tools.log;
 Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   string name, t2 = text;
-  // Yes, special handling. Don't like it? Don't care.
-  bool special;
-  if (t2.accept("invoke-exit")) name = "_invokeExit";
-  else if (t2.accept("raise-signal")) name = "_signalHandler";
-  else if (t2.accept("raise-error")) name = "_signalErrorHandler";
-  if (name) special = true;
-  if (special || t2.gotIdentifier(name, true)) {
+  if (t2.gotIdentifier(name, true)) {
     retry:
     if (auto res = namespace().lookup(name)) {
-      if (special) {
-        text = t2;
-      } else {
-        if (!text.accept(name))
-          text.failparse("WTF ", name);
-      }
+      if (cast(IType) res) return null; // Positively NOT an expr.
+      if (!text.accept(name))
+        text.failparse("WTF ", name);
       return res;
     } else {
       // logln("No ", name, " in ", namespace());
@@ -197,7 +188,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
       else return sl.framesize();
     } else {
       // logln("no metric for framesize of ", id);
-      if (id == "si_elemtype") asm { int 3; }
+      if (id == "onUsing") asm { int 3; }
       throw new Exception(Format("No metric for framesize of ", id, ": sup is ", sup, "."));
     }
   }

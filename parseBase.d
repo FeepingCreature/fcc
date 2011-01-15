@@ -86,18 +86,30 @@ bool isAlphanum(dchar d) {
 import tools.compat: replace;
 import tools.base: Stuple, stuple;
 
+// TODO: NOT THREADSAFE
+string lastAccepted, lastAccepted_stripped;
 bool accept(ref string s, string t) {
-  auto s2 = s.mystripl();
-  bool sep = t.length && t[$-1] == ' ';
   // TODO: unicode
   bool isNormal(char c) {
     return c in Range['a'..'z'].endIncl ||
-           c in Range['A'..'Z'].endIncl ||
-           c in Range['0'..'9'].endIncl ||
-           "_".find(c) != -1;
+          c in Range['A'..'Z'].endIncl ||
+          c in Range['0'..'9'].endIncl ||
+          "_".find(c) != -1;
   }
-  t = t.strip();
-  s2.eatComments();
+  string s2;
+  bool sep = t.length && t[$-1] == ' ';
+  debug if (t !is t.strip()) {
+    logln("bad t: '", t, "'");
+    asm { int 3; }
+  }
+  if (s is lastAccepted) {
+    s2 = lastAccepted_stripped;
+  } else {
+    s2 = s.mystripl();
+    s2.eatComments();
+    lastAccepted = s;
+    lastAccepted_stripped = s2;
+  }
   if (t == "<-" && s2.startsWith("←")) t = "←";
   
   return s2.startsWith(t) && (!s2[t.length .. $].length || t.length && !isNormal(t[$-1]) || !isNormal(s2[t.length])) && (s = s2[t.length .. $], true) && (

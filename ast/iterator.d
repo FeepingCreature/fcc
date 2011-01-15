@@ -419,16 +419,16 @@ class ScopeAndExpr : Expr {
     }
   }
   static this() {
-    foldopt ~= delegate Itr(Itr it) {
-      auto sae = cast(ScopeAndExpr) it;
+    foldopt ~= delegate Expr(Expr ex) {
+      auto sae = cast(ScopeAndExpr) ex;
       if (!sae) return null;
       if (!sae.sc) return null;
       auto stmt = sae.sc._body;
       assert(!stmt); // must be no statements in SAE
       return null;
     };
-    foldopt ~= delegate Itr(Itr it) {
-      auto sae = cast(ScopeAndExpr) it;
+    foldopt ~= delegate Expr(Expr ex) {
+      auto sae = cast(ScopeAndExpr) ex;
       if (!sae) return null;
       bool visible(Itr it2) {
         if (sae.ex is it2) return true;

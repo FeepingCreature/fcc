@@ -274,17 +274,12 @@ class PointerFunction(T) : T {
 }
 
 Object gotFpDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  if (!t2.accept("*")) return null;
-  
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex)) return null;
+  if (!rest(text, "tree.expr", &ex)) return null;
   auto fp = cast(FunctionPointer) ex.valueType(), dg = cast(Delegate) ex.valueType();
   if (!fp && !dg) return null;
-  
-  text = t2;
   
   if (dg) return new PointerFunction!(NestedFunction) (ex);
   else return new PointerFunction!(Function) (ex);
 }
-mixin DefaultParser!(gotFpDerefExpr, "tree.expr.fp_deref", "2102");
+mixin DefaultParser!(gotFpDerefExpr, "tree.expr.fp_deref", "2102", "*");

@@ -44,13 +44,13 @@ template process(T) <<EOF
         (string res, buffer) = (buffer[], char[auto~]:new char[0]);
         return res;
       }
-      int endpos = readTo "</exec>";
+      int endpos = readTo "</exec?>";
       if !endpos {
         writeln "No closing exec! ";
         raise-error (new ProcessorError);
       }
       (string pre, string main, string post)
-        = buffer[(0..startpos, startpos + 7 .. endpos, endpos + 7 .. $)];
+        = buffer[(0..startpos, startpos + 7 .. endpos, endpos + 8 .. $)];
       if (main.find ">" == -1) {
         writeln "No > in \"$main\". ";
         raise-error (new ProcessorError);

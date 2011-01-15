@@ -35,18 +35,18 @@ alias ReinterpretCast!(LValue) RCL;
 
 import ast.fold;
 static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto rce1 = cast(RCE) it) {
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto rce1 = cast(RCE) ex) {
       if (auto rce2 = cast(RCE) fold(rce1.from)) {
-        return fold(new RCE(rce1.to, foldex(rce2.from)));
+        return foldex(new RCE(rce1.to, foldex(rce2.from)));
       }
     }
     return null;
   };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto rce = cast(RCE) it) {
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto rce = cast(RCE) ex) {
       if (rce.from.valueType() == rce.to)
-        return fold(rce.from);
+        return foldex(rce.from);
     }
     return null;
   };

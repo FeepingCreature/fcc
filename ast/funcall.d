@@ -109,8 +109,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
         text.failparse("Failed to call function: ", error()._1);
       auto t3 = t2;
       // valid call terminators
-      // -- commented out, not safe! consider eval!
-      if (params.length || (!t3.accept(";")/* && !t3.accept(",") && !t3.accept(")")*/))
+      if (params.length || !t3.accept(";"))
         return null;
     }
     text = t2;

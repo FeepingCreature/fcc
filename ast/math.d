@@ -318,23 +318,28 @@ class AsmIntBinopExpr : BinopExpr {
     }
   }
   static this() {
-    foldopt ~= delegate Itr(Itr it) {
-      auto aibe = cast(AsmIntBinopExpr) it;
+    foldopt ~= delegate Expr(Expr ex) {
+      auto aibe = cast(AsmIntBinopExpr) ex;
       if (!aibe) return null;
       auto
-        e1 = cast(IntExpr) foldex(aibe.e1),
-        e2 = cast(IntExpr) foldex(aibe.e2);
-      if (!e1 || !e2) return null;
+        e1 = foldex(aibe.e1), ie1 = cast(IntExpr) e1,
+        e2 = foldex(aibe.e2), ie2 = cast(IntExpr) e2;
+      if (!ie1 || !ie2) {
+        if (e1 !is aibe.e1 || e2 !is aibe.e2) {
+          return new AsmIntBinopExpr(e1, e2, aibe.op);
+        }
+        return null;
+      }
       switch (aibe.op) {
-        case "+": return mkInt(e1.num + e2.num);
-        case "-": return mkInt(e1.num - e2.num);
-        case "*": return mkInt(e1.num * e2.num);
-        case "/": return mkInt(e1.num / e2.num);
-        case "%": return mkInt(e1.num % e2.num);
-        case "<<": return mkInt(e1.num << e2.num);
-        case ">>": return mkInt(e1.num >> e2.num);
-        case "&": return mkInt(e1.num & e2.num);
-        case "|": return mkInt(e1.num | e2.num);
+        case "+": return mkInt(ie1.num + ie2.num);
+        case "-": return mkInt(ie1.num - ie2.num);
+        case "*": return mkInt(ie1.num * ie2.num);
+        case "/": return mkInt(ie1.num / ie2.num);
+        case "%": return mkInt(ie1.num % ie2.num);
+        case "<<": return mkInt(ie1.num << ie2.num);
+        case ">>": return mkInt(ie1.num >> ie2.num);
+        case "&": return mkInt(ie1.num & ie2.num);
+        case "|": return mkInt(ie1.num | ie2.num);
         default: assert(false, "can't opt/eval (int) "~aibe.op);
       }
     };
@@ -374,15 +379,19 @@ class AsmFloatBinopExpr : BinopExpr {
       auto afbe = cast(AsmFloatBinopExpr) ex;
       if (!afbe) return null;
       auto
-        e1 = cast(FloatExpr) foldex(afbe.e1),
-        e2 = cast(FloatExpr) foldex(afbe.e2);
-      if (!e1 || !e2) return null;
+        e1 = foldex(afbe.e1), fe1 = cast(FloatExpr) e1,
+        e2 = foldex(afbe.e2), fe2 = cast(FloatExpr) e2;
+      if (!fe1 || !fe2) {
+        if (e1 !is afbe.e1 || e2 !is afbe.e2)
+          return new AsmFloatBinopExpr(e1, e2, afbe.op);
+        return null;
+      }
       switch (afbe.op) {
-        case "+": return new FloatExpr(e1.f + e2.f);
-        case "-": return new FloatExpr(e1.f - e2.f);
-        case "*": return new FloatExpr(e1.f * e2.f);
-        case "/": return new FloatExpr(e1.f / e2.f);
-        default: assert(false, "can't opt/eval (float) "~afbe.op);;
+        case "+": return new FloatExpr(fe1.f + fe2.f);
+        case "-": return new FloatExpr(fe1.f - fe2.f);
+        case "*": return new FloatExpr(fe1.f * fe2.f);
+        case "/": return new FloatExpr(fe1.f / fe2.f);
+        default: assert(false, "can't opt/eval (float) "~afbe.op);
       }
       return null;
     };
@@ -416,15 +425,19 @@ class AsmDoubleBinopExpr : BinopExpr {
       auto adbe = cast(AsmDoubleBinopExpr) ex;
       if (!adbe) return null;
       auto
-        e1 = cast(DoubleExpr) foldex(adbe.e1),
-        e2 = cast(DoubleExpr) foldex(adbe.e2);
-      if (!e1 || !e2) return null;
+        e1 = foldex(adbe.e1), de1 = cast(DoubleExpr) e1,
+        e2 = foldex(adbe.e2), de2 = cast(DoubleExpr) e2;
+      if (!de1 || !de2) {
+        if (e1 !is adbe.e1 || e2 !is adbe.e2)
+          return new AsmDoubleBinopExpr(e1, e2, adbe.op);
+        return null;
+      }
       switch (adbe.op) {
-        case "+": return new DoubleExpr(e1.d + e2.d);
-        case "-": return new DoubleExpr(e1.d - e2.d);
-        case "*": return new DoubleExpr(e1.d * e2.d);
-        case "/": return new DoubleExpr(e1.d / e2.d);
-        default: assert(false, "can't opt/eval (double) "~adbe.op);;
+        case "+": return new DoubleExpr(de1.d + de2.d);
+        case "-": return new DoubleExpr(de1.d - de2.d);
+        case "*": return new DoubleExpr(de1.d * de2.d);
+        case "/": return new DoubleExpr(de1.d / de2.d);
+        default: assert(false, "can't opt/eval (double) "~adbe.op);
       }
       return null;
     };

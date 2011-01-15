@@ -79,8 +79,8 @@ class CrossIndexExpr : Expr {
     }
   }
   static this() {
-    foldopt ~= delegate Itr(Itr it) {
-      auto cie = cast(CrossIndexExpr) it;
+    foldopt ~= delegate Expr(Expr ex) {
+      auto cie = cast(CrossIndexExpr) ex;
       if (!cie) return null;
       auto ide = cast(IntExpr) foldex(cie.idx);
       if (!ide) return null;
@@ -415,9 +415,12 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
     if (!iter) return null;
     auto thingy = cast(Object) iter.valueType();
     bool delegate(string) lookup;
+    Namespace _ns; RelNamespace _rns;
+    bool fun_ns(string id) { return test(_ns.lookup(id)); }
+    bool fun_rns(string id) { return test(_rns.lookupRel(id, null)); }
     if (auto srn = cast(SemiRelNamespace) thingy) thingy = cast(Object) srn.resolve();
-    if (auto ns = cast(Namespace) thingy) lookup = ns /apply/ (Namespace ns, string id) { return test(ns.lookup(id)); };
-    else if (auto rn = cast(RelNamespace) thingy) lookup = rn /apply/ (RelNamespace rn, string id) { return test(rn.lookupRel(id, null)); };
+    if (auto ns = cast(Namespace) thingy) { _ns = ns; lookup = &fun_ns; }
+    else if (auto rn = cast(RelNamespace) thingy) { _rns = rn; lookup = &fun_rns; }
     if (!lookup || !lookup("step") || !lookup("ivalid")) return null;
     logln("try ", t2.nextText(), "; ", thingy);
     try {
@@ -443,14 +446,17 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotStructIterator, "tree.rhs_partial.struct_iter");
 
 import ast.templ, ast.parse, ast.structure, ast.oop;
+StructIterator[IType] cache;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto mns = namespace().get!(MiniNamespace);
     if (mns && !mns.id.startsWith("!safecode"))
       return null; // only allow this conversion in user code
-    auto st = cast(Structure) ex.valueType();
-    auto cr = cast(ClassRef) ex.valueType();
-    // auto ir = cast(IntfRef) ex.valueType();
+    auto evt = ex.valueType();
+    if (auto p = evt in cache) { return reinterpret_cast(*p, ex); }
+    auto st = cast(Structure) evt;
+    auto cr = cast(ClassRef) evt;
+    // auto ir = cast(IntfRef) evt;
     IntfRef ir = null;
     if (!st && !cr && !ir)
       return null;
@@ -462,9 +468,9 @@ static this() {
       cr.myClass.lookupRel("step", ex) &&
       cr.myClass.lookupRel("ivalid", ex)))
       return null;
-    auto si = new StructIterator(ex.valueType());
+    auto si = new StructIterator(evt);
     Expr res = reinterpret_cast(si, ex);
-    // logln(" => ", res);
+    cache[evt] = si;
     return res;
   };
 }

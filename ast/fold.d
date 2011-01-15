@@ -25,14 +25,26 @@ Itr fold(Itr i) {
 }
 
 Expr foldex(Expr ex) {
-  auto res = cast(Expr) fold(ex);
-  assert(!ex || !!res, Format("folding ", ex, " resulted in ", res, "!"));
-  return res;
+  if (!ex) return null;
+  auto cur = ex;
+  while (true) {
+    auto start = cur;
+    foreach (dg; _foldopt_expr) {
+      if (auto res = dg(cur)) cur = res;
+    }
+    if (cur is start) break;
+  }
+  return cur;
 }
 
 void opt(T)(ref T t) {
   void fun(ref Itr it) {
-    it = fold(it);
+    if (auto ex = cast(Expr) it) {
+      ex = foldex(ex);
+      it = cast(Itr) ex;
+    } else {
+      it = fold(it);
+    }
     it.iterate(&fun);
   }
   Itr it = cast(Itr) t;
