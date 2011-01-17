@@ -16,7 +16,7 @@ mixin(expandImport(`ast.[
   tuples, tuple_access, literal_string, funcall, vector, externs,
   intr, conditionals, opers, conditionals, cond, casting,
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
-  propcall, properties_parse]`));
+  propcall, properties_parse, main]`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -118,6 +118,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   auto modname = file.replace("/", ".")[0..$-3];
   auto start_parse = sec();
   auto mod = lookupMod(modname);
+  fixupMain();
   auto len_parse = sec() - start_parse;
   double len_opt;
   len_opt = time({

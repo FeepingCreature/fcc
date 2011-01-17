@@ -24,6 +24,7 @@ void setupSysmods() {
       int snprintf(char* str, int size, char* format, ...);
       float sqrtf(float);
       double sqrt(double);
+      int strlen(char*);
     }
     bool strcmp(char[] a, b) {
       if a.length != b.length return false;
@@ -300,6 +301,12 @@ void setupSysmods() {
       d += magic;
       int res = (int*:&d)[0];
       return res;
+    }
+    int _c_main(int argc, char** argv) {
+      string[] args;
+      for (auto arg <- argv[0 .. argc]) {
+        args ~= arg[0 .. strlen(arg)];
+      }
     }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))

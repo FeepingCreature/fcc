@@ -78,8 +78,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   }
   string cleaned_name() { return name.cleanup(); }
   override string mangleSelf() {
-    if (extern_c || name == "main")
+    if (extern_c)
       return cleaned_name;
+    else if (name == "_c_main")
+      return "main";
     else
       return sup.mangle(cleaned_name, type);
   }
@@ -296,6 +298,8 @@ bool gotParlist(ref string str, ref Stuple!(IType, string)[] res, ParseCb rest) 
   }
 }
 
+Function gotMain;
+
 import parseBase;
 // generalized to reuse for nested funs
 Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToNamespace,
@@ -313,6 +317,11 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
     )
   {
     if (forcename) fun.name = forcename;
+    if (fun.name == "main") {
+      assert(!gotMain);
+      gotMain = fun;
+      fun.name = "_fcc_main";
+    }
     fun.fixup;
     auto backup = ns;
     scope(exit) namespace.set(backup);

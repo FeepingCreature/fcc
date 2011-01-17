@@ -170,7 +170,7 @@ union U {
 
 // c_include "gc.h";
 
-int main(int argc, char** argv) {
+int main(string[] args) {
   // use Boehm GC
   /* mem.malloc_dg = &GC_malloc;
   void* myCalloc(int a, b) {

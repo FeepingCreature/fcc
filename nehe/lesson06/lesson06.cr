@@ -152,7 +152,7 @@ char[] toString(char* p) {
   return p[0..strlen(p)];
 }
 
-int main(int argc, char** argv) {
+int main(string[] args) {
   SDL_Init(SDL_INIT_VIDEO);
   auto videoFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_HWPALETTE | SDL_RESIZABLE | SDL_HWSURFACE | SDL_HWACCEL;
   SDL_GL_SetAttribute (SDL_GL_DOUBLEBUFFER, 1);
