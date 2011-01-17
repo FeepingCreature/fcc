@@ -207,7 +207,7 @@ int update(SDL_Surface* surface) {
   return 0;
 }
 
-int main(int argc, char** argv) {
+int main(string[] args) {
   t = 0;
   needUpdate = true;
   
