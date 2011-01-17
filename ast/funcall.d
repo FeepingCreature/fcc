@@ -2,7 +2,7 @@ module ast.funcall;
 
 import ast.fun, ast.base;
 
-void matchCallWith(Expr arg, IType[] params, ref Expr[] res, string info = null, string text = null) {
+bool matchedCallWith(Expr arg, IType[] params, ref Expr[] res, string info = null, string text = null) {
   Expr[] args;
   args ~= arg;
   Expr[] flatten(Expr ex) {
@@ -51,9 +51,12 @@ void matchCallWith(Expr arg, IType[] params, ref Expr[] res, string info = null,
   }
   foreach (arg2; args) recurse(arg2);
   if (flat.length) {
-    logln("flattened to ", flat);
-    text.failparse("Extraneous parameters to '", info, "' of ", params, ": ", args);
+    // logln("flattened to ", flat);
+    // text.failparse("Extraneous parameters to '", info, "' of ", params, ": ", args);
+    text.setError("Extraneous parameters to '", info, "' of ", params, ": ", args);
+    return false;
   }
+  return true;
 }
 
 import ast.properties;
@@ -85,15 +88,15 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
   if (!rest(text, "tree.expr _tree.expr.arith", &arg)) {
     return false;
   }
-  matchCallWith(arg, params, res, info, backup_text);
-  return true;
+  return matchedCallWith(arg, params, res, info, backup_text);
 }
 
 Expr buildFunCall(Function fun, Expr arg, string info) {
   auto fc = fun.mkCall();
   IType[] params;
   foreach (entry; fun.type.params) params ~= entry._0;
-  matchCallWith(arg, params, fc.params, info);
+  if (!matchedCallWith(arg, params, fc.params, info))
+    return null;
   return fc;
 }
 
