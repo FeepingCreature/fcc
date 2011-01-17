@@ -230,3 +230,25 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   } else t2.failparse("Failed to parse module");
 }
 mixin DefaultParser!(gotModule, "tree.module", null, "module");
+
+Object gotRename(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Named n;
+  string id2;
+  if (!rest(t2, "tree.expr.named", &n)
+    ||!t2.gotIdentifier(id2)) {
+    t2.failparse("Couldn't get parameter for rename");
+  }
+  auto ns = namespace();
+  auto id1 = n.getIdentifier(), p = id1 in ns.field_cache;
+  if (!p) {
+    t2.failparse("Cannot rename non-locally, use expression alias instead");
+  }
+  ns.field_cache.remove(id1);
+  ns.field_cache[id2] = *p;
+  ns.rebuildCache();
+  text = t2;
+  return Single!(NoOp);
+}
+mixin DefaultParser!(gotRename, "tree.toplevel.rename", null, "_rename");
+
