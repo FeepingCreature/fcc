@@ -40,15 +40,23 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool isStatic;
   if (t2.accept("static")) isStatic = true;
-  if (!t2.accept("while")) return null;
+  bool forMode;
+  if (!t2.accept("while")) {
+    if (!t2.accept("for"))
+      return null;
+    forMode = true;
+    assert(!isStatic);
+  }
   auto ws = new WhileStatement;
   auto sc = new Scope;
   ws.isStatic = isStatic;
   ws.sup = sc;
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
-  if (!rest(t2, "cond", &ws.cond))
+  if (!rest(t2, "cond", &ws.cond)) {
+    if (forMode) return null;
     t2.failparse("Couldn't parse while cond");
+  }
   configure(ws.cond);
   if (isStatic)
     foreach (ref entry; sc.field) {
@@ -62,8 +70,10 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
       }
     }
   sc.rebuildCache;
-  if (!rest(t2, "tree.scope", &ws._body))
+  if (!rest(t2, "tree.scope", &ws._body)) {
+    if (forMode) return null;
     t2.failparse("Couldn't parse while body");
+  }
   sc.addStatement(ws);
   text = t2;
   return sc;
