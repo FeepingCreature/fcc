@@ -296,7 +296,7 @@ void setupSysmods() {
       alias magicdelta = 0.000000015;
       alias roundeps = 0.5 - magicdelta;
       alias magic = 6755399441055744.0;
-      double d = f - magicdelta;
+      double d = f - roundeps;
       d += magic;
       int res = (int*:&d)[0];
       return res;
