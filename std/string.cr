@@ -16,6 +16,13 @@ string startsWith(string s, string m) {
   return s[m.length .. s.length];
 }
 
+string endsWith(string s, string m) {
+  if s.length < m.length return null;
+  if (s[$-m.length .. $] != m)
+    return null;
+  return s[0 .. $-m.length];
+}
+
 string between(string s, string from, string to) {
   int pos1, pos2;
   if (from.length) pos1 = find(s, from);

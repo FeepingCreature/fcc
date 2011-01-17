@@ -1,6 +1,7 @@
 module lesson06;
 
 import sys;
+import std.file, std.string;
 
 /*
  * This code was created by Jeff Molofee '99 
@@ -50,9 +51,10 @@ context rot {
 
 GLuint[1] texture;
 
-void loadGLTextures() {
+void loadGLTextures(string path) {
   auto status = false;
-  auto TextureImage = ["data/nehe.bmp".SDL_RWFromFile("rb").SDL_LoadBMP_RW(1)];
+  auto TextureImage =
+    [(toStringz path.sub "data/nehe.bmp").SDL_RWFromFile("rb").SDL_LoadBMP_RW(1)];
   if TextureImage[0] {
     status = true;
     glGenTextures (1, &texture[0]);
@@ -69,9 +71,9 @@ void loadGLTextures() {
   }
 }
 
-void initGL() {
+void initGL(string basepath) {
   glShadeModel GL_SMOOTH;
-  loadGLTextures;
+  loadGLTextures basepath;
   glEnable GL_TEXTURE_2D;
   glClearColor(0, 0, 0, 0.5);
   glClearDepth(1);
@@ -153,6 +155,8 @@ char[] toString(char* p) {
 }
 
 int main(string[] args) {
+  auto mypath = getcwd().sub args[0].basedir();
+  writeln " => $mypath";
   SDL_Init(SDL_INIT_VIDEO);
   auto videoFlags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_HWPALETTE | SDL_RESIZABLE | SDL_HWSURFACE | SDL_HWACCEL;
   SDL_GL_SetAttribute (SDL_GL_DOUBLEBUFFER, 1);
@@ -161,7 +165,7 @@ int main(string[] args) {
     writeln("Video mode set failed: $(toString(SDL_GetError()))");
     quit 1;
   }
-  initGL;
+  initGL mypath;
   resizeWindow SCREEN_SIZE;
   bool done;
   while !done {
