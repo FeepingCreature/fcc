@@ -346,8 +346,9 @@ class PlaceholderTokenLV : PlaceholderToken, LValue {
 }
 
 string qbuffer;
-string qformat(T...)(T t) {
-  int offs;
+int offs;
+
+void qformat_append(T...)(T t) {
   void qbuffer_resize(int i) {
     if (qbuffer.length < i) {
       auto backup = qbuffer;
@@ -382,12 +383,27 @@ string qformat(T...)(T t) {
         ifact /= 10;
       }
     }
+    else static if (is(typeof(entry[0]))) {
+      append("[");
+      bool first = true;
+      foreach (element; entry) {
+        if (first) first = false;
+        else append(", ");
+        qformat_append(element);
+      }
+      append("]");
+    }
     else static if (is(typeof(cast(Object) entry))) {
       auto obj = cast(Object) entry;
       append(obj.toString());
     }
     else static assert(false, "not supported in qformat: "~typeof(entry).stringof);
   }
+}
+
+string qformat(T...)(T t) {
+  offs = 0;
+  qformat_append(t);
   auto res = qbuffer[0 .. offs];
   qbuffer = qbuffer[offs .. $];
   return res;

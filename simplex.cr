@@ -92,6 +92,13 @@ void time-it(string t, void delegate() dg) {
   writeln "$t: $delta, average $(sumval / count)";
 }
 
+void testAlign(string name, void* p) {
+  if !(int:p & 0b1111) writeln "$name: 16-aligned";
+  else if !(int:p & 0b111) writeln "$name: 8-aligned";
+  else if !(int:p & 0b11) writeln "$name: 4-aligned";
+  else writeln "$name: not aligned";
+}
+
 float noise3(vec3f v) {
   vec3f[4] vs = void;
   vec3f vsum = void;
@@ -100,10 +107,15 @@ float noise3(vec3f v) {
   int mask = void;
   vec3f v0 = void;
   vec3i offs1 = void, offs2 = void;
-  int ii = void, jj = void, kk = void; int[2] filler = void;
-  float sum = 0f;
-  int id = void, id2 = void, id3 = void, c = void;
+  int ii = void, jj = void, kk = void;
+  float sum = 0f; int[3] filler = void;
+  int id = void, id2 = void, id3 = void, c = void; int[2] filler2 = void;
   vec3f forble = void;
+  /*testAlign("vs", &vs);
+  testAlign("sum", &sum);
+  testAlign("id", &id);
+  testAlign("forble", &forble);
+  _interrupt 3;*/
   if !perm.length permsetup;
   
   vsum = v + (v.sum / 3.0f);

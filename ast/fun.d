@@ -144,6 +144,8 @@ class FunCall : Expr {
     callFunction(af, fun.type.ret, args, fun.getPointer());
   }
   override void emitAsm(AsmFile af) {
+    if (fun.name == "_fcc_main")
+      dontAlignThis = true;
     emitWithArgs(af, params);
   }
   override string toString() { return Format("call(", fun, params, ")"); }
@@ -187,6 +189,7 @@ void handleReturn(IType ret, AsmFile af) {
 }
 
 import tools.log;
+bool dontAlignThis;
 void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
   // af.put("int $3");
   {
@@ -203,10 +206,13 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
     
     int paramsize;
     foreach (param; params) paramsize += param.valueType().size;
+    paramsize += af.floatStackDepth * 8;
+    paramsize += 8; // push ip, push ebp
     
     auto alignCall = 16 - (af.currentStackDepth + paramsize) % 16;
     if (alignCall == 16) alignCall = 0;
-    af.salloc(alignCall);
+    if (!dontAlignThis)
+      af.salloc(alignCall);
     
     auto restore = af.floatStackDepth;
     while (af.floatStackDepth)
@@ -242,7 +248,8 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       if (ret == Single!(Float) || ret == Single!(Double))
         af.swapFloats;
     }
-    af.sfree(alignCall);
+    if (dontAlignThis) dontAlignThis = false;
+    else af.sfree(alignCall);
   }
   
   auto size = (ret == Single!(Void))?0:ret.size;

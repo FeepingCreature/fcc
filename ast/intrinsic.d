@@ -307,6 +307,7 @@ void setupSysmods() {
       for (auto arg <- argv[0 .. argc]) {
         args ~= arg[0 .. strlen(arg)];
       }
+      int[3] align_filler = void;
     }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
