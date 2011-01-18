@@ -15,8 +15,7 @@ class StringExpr : Expr, HasInfo {
     // default action: place in string segment, load address on stack
     void emitAsm(AsmFile af) {
       if (!name_used) {
-        name_used = Format("string_constant_", af.constants.length);
-        af.constants[name_used] = cast(ubyte[]) str;
+        name_used = af.allocConstant(Format("string_constant_", af.constants.length), cast(ubyte[]) str);
       }
       (new Symbol(name_used)).emitAsm(af);
       (mkInt(str.length)).emitAsm(af);

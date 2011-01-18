@@ -94,23 +94,21 @@ void time-it(string t, void delegate() dg) {
 
 float noise3(vec3f v) {
   vec3f[4] vs = void;
-  float s = void, t = void;
-  int i = void, j = void, k = void;
+  vec3f vsum = void;
+  vec3i indices;
   int[4] gi = void;
   int mask = void;
   vec3f v0 = void;
   vec3i offs1 = void, offs2 = void;
-  int ii = void, jj = void, kk = void;
-  auto pair = [0f, 1f];
+  int ii = void, jj = void, kk = void; int[2] filler = void;
   float sum = 0f;
   int id = void, id2 = void, id3 = void, c = void;
   vec3f forble = void;
   if !perm.length permsetup;
   
-  s = (v.x + v.y + v.z) / 3.0f;
-  i = fastfloor(v.x + s); j = fastfloor(v.y + s); k = fastfloor(v.z + s);
-  t = (i + j + k) / 6.0f;
-  vs[0] = v - vec3i(i, j, k) + vec3f(t);
+  vsum = v + (v.sum / 3.0f);
+  indices = vec3i(fastfloor(vsum.x), fastfloor(vsum.y), fastfloor(vsum.z));
+  vs[0] = v - indices      + (indices.sum / 6.0f);
   vs[1] = vs[0]            + vec3f(1.0f / 6);
   vs[2] = vs[0]            + vec3f(2.0f / 6);
   vs[3] = vs[0] - vec3f(1) + vec3f(3.0f / 6);
@@ -134,10 +132,9 @@ float noise3(vec3f v) {
   }
   offs1 = vec3i((mask >> 5)    , (mask >> 4) & 1, (mask >> 3) & 1);
   offs2 = vec3i((mask >> 2) & 1, (mask >> 1) & 1, (mask >> 0) & 1);
-  // prevent costly fildl
-  vs[1] = vs[1] - vec3f(pair[offs1.x], pair[offs1.y], pair[offs1.z]);
-  vs[2] = vs[2] - vec3f(pair[offs2.x], pair[offs2.y], pair[offs2.z]);
-  ii = i & 255; jj = j & 255; kk = k & 255;
+  vs[1] = vs[1] - vec3f(offs1.x, offs1.y, offs1.z);
+  vs[2] = vs[2] - vec3f(offs2.x, offs2.y, offs2.z);
+  ii = indices.x & 255; jj = indices.y & 255; kk = indices.z & 255;
   alias i1 = offs1.x, i2 = offs2.x,
         j1 = offs1.y, j2 = offs2.y,
         k1 = offs1.z, k2 = offs2.z;

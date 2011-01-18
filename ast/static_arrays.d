@@ -114,8 +114,7 @@ class DataExpr : CValue {
     }
     void emitLocation(AsmFile af) {
       if (!name_used) {
-        name_used = Format("data_", af.constants.length);
-        af.constants[name_used] = data;
+        name_used = af.allocConstant(Format("data_", af.constants.length), data);
       }
       af.pushStack("$"~name_used, voidp);
     }

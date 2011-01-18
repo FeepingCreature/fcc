@@ -85,7 +85,7 @@ void accessParams(ref Transaction t, void delegate(ref string) dg, bool writeonl
       if (eax != "%eax") { logln("broke implicit reg dep => ", eax); asm { int 3; } }
       if (!writeonly) dg(t.source);
       return;
-    case FloatLoad, DoubleLoad,
+    case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatCompare,
       FloatIntLoad, Push    : if (!writeonly) dg(t.source); return;
     case LoadAddress,
       Mov, Mov2, Mov1       : if (!writeonly) dg(t.from); dg(t.to); return;
@@ -93,7 +93,8 @@ void accessParams(ref Transaction t, void delegate(ref string) dg, bool writeonl
     case Label, Jump        : return;
     default                 : break;
   }
-  assert(false, Format("huh? ", t));
+  logln("huh? ", t);
+  fail();
 }
 
  bool referencesStack(ref Transaction t, bool affects = false, bool active = false) {
@@ -958,14 +959,10 @@ void setupOpts() {
   mixin(opt("load_from_push", `^Push, (^FloatLoad/* || ^FloatIntLoad*/):
     !$0.source.isRegister() && $1.source == "(%esp)"
     =>
-    $T a1 = $1.dup, a2, a3;
+    $T a1 = $1.dup;
     a1.source = $0.source;
     if ($1.hasStackdepth) a1.stackdepth = $1.stackdepth - 4;
-    a2.kind = $TK.Nevermind;
-    a2.dest = $0.source;
-    a3.kind = $TK.SAlloc;
-    a3.size = 4;
-    $SUBST([a1, a2, a3]);
+    $SUBST([a1, $0]);
   `));
   mixin(opt("fold_float_pop_load", `^FloatPop, ^FloatLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 4 => $SUBST($2);`));
   mixin(opt("fold_float_pop_load_to_store", `^FloatPop, ^FloatLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.FloatStore; dest = $0.dest; }`));
@@ -1218,8 +1215,52 @@ void setupOpts() {
     t.op2 = $1.to;
     $SUBST([$1, t, $2]);
   `));
+  mixin(opt("float_load_twice", `^FloatLoad, ^FloatLoad:
+    $0.source == $1.source
+    =>
+    $T t = $1;
+    t.kind = $TK.RegLoad;
+    t.source = "%st";
+    $SUBST([$0, t]);
+  `));
+  mixin(opt("float_compare_direct", `^Push, ^FloatCompare, ^SFree:
+    $0.type.size == 4 && $1.source == "(%esp)" && $2.size == 4
+    =>
+    $T t = $1;
+    t.source = $0.source;
+    $SUBST(t);
+  `));
+  mixin(opt("a_bug_somewhere", `^Mov, ^Mov, ^Mov:
+    $0.to.isUtilityRegister() &&
+    $0.to == $1.from && $1.to.isUtilityRegister() &&
+    $2.to == $0.to
+    =>
+    $T t = $0;
+    t.to = $1.to;
+    $SUBST([t, $2]);
+  `));
+  mixin(opt("math_ref_merge", `^MathOp, *:
+    $0.op1.isNumLiteral() && $0.op2.isUtilityRegister() &&
+    ($0.opName == "addl" || $0.opName == "subl") &&
+    (hasSource($1) && $1.source.isIndirect() == $0.op2 || hasDest($1) && $1.dest.isIndirect() == $0.op2)
+    =>
+    $T t = $1;
+    string mem = qformat("(", $0.op2, ")");
+    int offset;
+    if (hasSource(t)) t.source.isIndirect2(offset);
+    if (hasDest(t)) t.dest.isIndirect2(offset);
+    if ($0.opName == "addl") mem = qformat(offset + $0.op1.literalToInt(), mem);
+    else mem = qformat(offset - $0.op1.literalToInt(), mem);
+    if (hasSource(t)) {
+      t.source = mem;
+    }
+    if (hasDest(t)) {
+      t.dest = mem;
+    }
+    $SUBST([t, $0]);
+  `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
-    bool changed;
+    bool changed, pushMode;
     auto match = cache.findMatch("lookahead_remove_redundants", delegate int(Transaction[] list) {
       if (list.length <= 1) return false;
       auto head = list[0];
@@ -1227,8 +1268,12 @@ void setupOpts() {
       if (hasTo(head)) check = head.to;
       if (head.kind == Transaction.Kind.FloatStore) check = head.dest;
       if (head.kind == Transaction.Kind.MathOp) check = head.op2;
+      pushMode = false;
+      if (head.kind == Transaction.Kind.Push && head.type.size == 4) { pushMode = true; check = "(%esp)"; }
+      
       if (!check) return false;
       if (!check.isUtilityRegister() && check != "(%esp)") return false;
+      
       bool unneeded;
       outer:foreach (i, entry; list[1 .. $]) {
         with (Transaction.Kind) switch (entry.kind) {
@@ -1237,14 +1282,20 @@ void setupOpts() {
           case FloatMath:
             continue;    // no change
           
-          case Label, Compare, Call, Jump:
+          case Call:
+            if (check.isUtilityRegister()) {
+              // arguments on the stack (cdecl)
+              unneeded = true;
+              break outer;
+            }
+          case Label, Compare, Jump:
             break outer; // no chance
           
           case ExtendDivide:
             if (check == "%eax") break outer;
           case Push:
             if (check == "(%esp)") break outer;
-          case FloatLoad, DoubleLoad, FloatIntLoad:
+          case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatIntLoad, FloatCompare:
             if (entry.source.find(check) != -1) break outer;
             continue;
           
@@ -1278,7 +1329,14 @@ void setupOpts() {
       return false;
     });
     if (match.length) do {
-      match.replaceWith(null); // remove
+      if (pushMode) {
+        Transaction t;
+        t.kind = Transaction.Kind.SAlloc;
+        t.size = 4;
+        match.replaceWith(t);
+      } else {
+        match.replaceWith(null); // remove
+      }
       changed = true;
     } while (match.advance());
     return changed;

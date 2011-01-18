@@ -19,7 +19,7 @@ class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
           iter = cast(Iterable) rt.transform(relbase);
         iter.iterate(dg);
       };
-      auto it = cast(Iterable) base;
+      auto it = cast(Iterable) base.dup();
       dg(it);
       it.iterate(dg);
       return cast(Object) it;

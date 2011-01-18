@@ -1,6 +1,6 @@
 module asmfile;
 
-import optimizer, ast.types, parseBase: startsWith;
+import optimizer, ast.types, ast.base, parseBase: startsWith;
 public import assemble;
 
 import tools.log, tools.functional: map;
@@ -15,6 +15,18 @@ class AsmFile {
   void addTLS(string name, int size, string init) {
     if (init) tlsvars[name] = stuple(size, init);
     else uninit_tlsvars[name] = size;
+  }
+  string allocConstant(string name, ubyte[] data) {
+    foreach (key, value; constants)
+      if (value == data) return key;
+    constants[name] = data;
+    return name;
+  }
+  string allocLongstant(string name, string[] data) {
+    foreach (key, value; longstants)
+      if (value == data) return key;
+    longstants[name] = data;
+    return name;
   }
   string code;
   bool optimize;
@@ -126,23 +138,21 @@ class AsmFile {
     put("sahf");
     mixin(`
       cond | instruction
-       fff | xorb %al, %al
-       fft | seta %al
-       ftf | sete %al
-       ftt | setae %al
-       tff | setb %al
-       tft | setne %al
-       ttf | setbe %al
-       ttt | movb $1, %al`
+       `/*fff | xorb %al,*/`
+       fft | ja
+       ftf | je
+       ftt | jae
+       tff | jb
+       tft | jne
+       ttf | jbe
+       ttt | movb $1,`
       .ctTableUnroll(`
         if (
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { put("$instruction"); }
+        ) { put("$instruction ", label); }
     `));
-    put("testb %al, %al");
-    put("jne ", label);
   }
   void mathOp(string which, string op1, string op2) {
     Transaction t;
@@ -209,6 +219,19 @@ class AsmFile {
     t.stackdepth = currentStackDepth;
     cache ~= t;
   }
+  void compareFloat(string mem) {
+    bool isReg;
+    if (mem.startsWith("%st")) {
+      isReg = true;
+    }
+    floatStackDepth --;
+    if (isReg) floatStackDepth --;
+    Transaction t;
+    t.kind = Transaction.Kind.FloatCompare;
+    t.source = mem;
+    t.stackdepth = currentStackDepth;
+    cache ~= t;
+  }
   void fpuToStack() {
     salloc(8);
     storeDouble("(%esp)");
@@ -231,7 +254,7 @@ class AsmFile {
   }
   int labelCounter; // Limited to 2^31 labels, le omg.
   string genLabel() {
-    return Format(".Label", labelCounter++);
+    return qformat(".Label", labelCounter++);
   }
   void jump(string label) {
     labels_refcount[label] ++;
@@ -332,12 +355,12 @@ class AsmFile {
     _put(t);
   }
   void _put(T...)(T t) {
-    code ~= Format(t, "\n");
+    code ~= qformat(t, "\n");
   }
   void genAsm(void delegate(string) dg) {
     flush();
     foreach (name, data; globvars) {
-      dg(Format(".comm\t", name, ",", data._0, "\n"));
+      dg(qformat(".comm\t", name, ",", data._0, "\n"));
       assert(!data._1, "4");
     }
     dg(".section\t.tbss,\"awT\",@nobits\n");
@@ -346,23 +369,23 @@ class AsmFile {
       if (alignment > 16) alignment = 16;
       if (alignment == 12) alignment = 16; // TODO: powers-of-two properly
       dg("\t.globl "); dg(name); dg("\n");
-      dg(Format("\t.align ", alignment, "\n\t.type ")); dg(name); dg(", @object\n");
-      dg(Format("\t.size ", name, ", ", size, "\n"));
+      dg(qformat("\t.align ", alignment, "\n\t.type ")); dg(name); dg(", @object\n");
+      dg(qformat("\t.size ", name, ", ", size, "\n"));
       dg("\t"); dg(name); dg(":\n");
-      dg(Format("\t.zero ", size, "\n"));
+      dg(qformat("\t.zero ", size, "\n"));
     }
     dg(".section\t.tdata,\"awT\",@progbits\n");
     foreach (name, data; tlsvars) {
       auto alignment = data._0;
       if (alignment > 16) alignment = 16;
       dg("\t.globl "); dg(name); dg("\n");
-      dg(Format("\t.align ", alignment, "\n\t.type ", name, ", @object\n"));
-      dg(Format("\t.size ", name, ", ", data._0, "\n"));
+      dg(qformat("\t.align ", alignment, "\n\t.type ", name, ", @object\n"));
+      dg(qformat("\t.size ", name, ", ", data._0, "\n"));
       dg("\t"); dg(name); dg(":\n");
       assert(data._1);
       auto parts = data._1.split(",");
       assert(parts.length * nativePtrSize == data._0,
-              Format("Length mismatch: ", parts.length, " * ", 
+              qformat("Length mismatch: ", parts.length, " * ", 
                     nativePtrSize, " != ", data._0, " for ", data._1));
       dg("\t.long ");
       foreach (i, part; parts) {
@@ -375,14 +398,14 @@ class AsmFile {
     foreach (name, c; constants) {
       dg(name); dg(":\n");
       dg(".byte ");
-      foreach (val; c) dg(Format(cast(ubyte) val, ", "));
+      foreach (val; c) dg(qformat(cast(ubyte) val, ", "));
       dg("0\n");
       dg(".local "); dg(name); dg("\n");
     }
     foreach (name, array; longstants) { // lol
       dg(name); dg(":\n");
       dg(".long ");
-      foreach (val; array) dg(Format(val, ", "));
+      foreach (val; array) dg(qformat(val, ", "));
       dg("0\n");
       dg(".local "); dg(name); dg("\n");
     }

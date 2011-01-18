@@ -88,13 +88,12 @@ class Compare : Cond {
       }
       
       if (isFloat) {
-        e2.emitAsm(af);
-        af.loadFloat("(%esp)");
-        af.sfree(4);
         e1.emitAsm(af);
         af.loadFloat("(%esp)");
         af.sfree(4);
-        af.put("fucompp"); af.floatStackDepth -= 2;
+        e2.emitAsm(af);
+        af.compareFloat("(%esp)");
+        af.sfree(4);
       } else if (auto ie = cast(IntExpr) e2) {
         e1.emitAsm(af);
         af.popStack("%eax", e1.valueType());

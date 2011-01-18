@@ -23,8 +23,7 @@ class DoubleExpr : Expr, Literal {
     string getValue() { assert(false); }
     void emitAsm(AsmFile af) {
       if (!name_used) {
-        name_used = qformat("dcons_", af.constants.length);
-        af.constants[name_used] = cast(ubyte[]) i;
+        name_used = af.allocConstant(Format("dcons_", af.constants.length), cast(ubyte[]) i);
       }
       af.pushStack(qformat("0($", name_used, ")"), valueType());
     }
@@ -47,8 +46,7 @@ class FloatExpr : Expr, Literal {
     string getValue() { return Format(f_as_i); }
     void emitAsm(AsmFile af) {
       if (!name_used) {
-        name_used = qformat("cons_", af.constants.length);
-        af.constants[name_used] = cast(ubyte[]) (&f_as_i)[0 .. 1];
+        name_used = af.allocConstant(Format("cons_constant_", af.constants.length), cast(ubyte[]) (&f_as_i)[0 .. 1]);
       }
       af.pushStack(name_used, valueType());
     }

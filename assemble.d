@@ -2,7 +2,7 @@ module assemble;
 
 import ast.types, ast.base;
 
-import tools.base: Format, New, or, and, slice, between, fail;
+import tools.base: New, or, and, slice, between, fail;
 import tools.compat: find, abs, replace, atoi;
 import tools.log;
 
@@ -82,7 +82,8 @@ import parseBase; // int parsing
 struct Transaction {
   enum Kind {
     Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
-    FloatLoad, DoubleLoad,
+    FloatLoad, DoubleLoad, RealLoad, RegLoad,
+    FloatCompare,
     FloatPop, DoublePop,
     FloatStore, FloatMath, FloatSwap,
     FloatIntLoad, /* fildl */
@@ -90,7 +91,8 @@ struct Transaction {
     Jump, Label, Extended, Nevermind, LoadAddress
   }
   const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
-    "FloatLoad", "DoubleLoad",
+    "FloatLoad", "DoubleLoad", "RealLoad", "RegLoad",
+    "FloatCompare",
     "FloatPop" , "DoublePop" ,
     "FloatStore", "FloatMath", "FloatSwap",
     "FloatIntLoad",
@@ -100,7 +102,7 @@ struct Transaction {
   string toString() {
     string extra() {
       if (!hasStackdepth) return "@?";
-      else return Format("@", stackdepth);
+      else return qformat("@", stackdepth);
     }
     with (Kind) switch (kind) {
       case Mov:     return Format("[movl ", from, " -> ", to, "]");
@@ -119,6 +121,9 @@ struct Transaction {
         else return Format("[cmp ", op1, ", ", op2, "]");
       case FloatLoad: return Format("[float load ", source, stackinfo, "]");
       case DoubleLoad: return Format("[double load ", source, stackinfo, "]");
+      case RealLoad: return Format("[real load ", source, stackinfo, "]");
+      case RegLoad: return Format("[x87 reg load ", source, stackinfo, "]");
+      case FloatCompare: return Format("[x87 float compare st0, ", source, stackinfo, "]");
       case FloatPop:  return Format("[float pop ", dest, "]");
       case DoublePop:  return Format("[double pop ", dest, "]");
       case FloatStore: return Format("[float store ", dest, "]");
@@ -144,7 +149,7 @@ struct Transaction {
       case FloatStore, FloatPop, DoublePop: return dest == t2.dest;
       case Call, Jump: return dest == t2.dest;
       case Compare: return op1 == t2.op1 && op2 == t2.op2;
-      case FloatLoad, DoubleLoad: return source == t2.source;
+      case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatCompare: return source == t2.source;
       case FloatMath: return opName == t2.opName;
       case FloatSwap: return true;
       case FloatIntLoad: return source == t2.source;
@@ -173,34 +178,34 @@ struct Transaction {
       case Mov:
         if (from.isRelative() && to.isRelative()) {
           assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
-          return Format("movl ", from.asmformat(), ", ", usableScratch, "\nmovl ", usableScratch, ", ", to.asmformat());
+          return qformat("movl ", from.asmformat(), ", ", usableScratch, "\nmovl ", usableScratch, ", ", to.asmformat());
         } else {
-          return Format("movl ", from.asmformat(), ", ", to.asmformat(), " #mov4.2");
+          return qformat("movl ", from.asmformat(), ", ", to.asmformat(), " #mov4.2");
         }
       case Mov2:
         if (from.isRelative() && to.isRelative()) {
           assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
-          return Format("movw ", from.asmformat(), ", ", usableScratch, "\nmovw ", usableScratch, ", ", to.asmformat());
+          return qformat("movw ", from.asmformat(), ", ", usableScratch, "\nmovw ", usableScratch, ", ", to.asmformat());
         } else {
-          return Format("movw ", from.asmformat(), ", ", to.asmformat());
+          return qformat("movw ", from.asmformat(), ", ", to.asmformat());
         }
       case Mov1:
         if (from.isRelative() && to.isRelative()) {
           assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
-          return Format("movb ", from.asmformat(), ", ", usableScratch, "\nmovw ", usableScratch, ", ", to.asmformat());
+          return qformat("movb ", from.asmformat(), ", ", usableScratch, "\nmovw ", usableScratch, ", ", to.asmformat());
         } else {
-          return Format("movb ", from.asmformat(), ", ", to.asmformat());
+          return qformat("movb ", from.asmformat(), ", ", to.asmformat());
         }
       case SAlloc:
           if (!size) return null;
-          return Format("subl $", size, ", %esp # salloc");
+          return qformat("subl $", size, ", %esp # salloc");
       case SFree:
           if (!size) return null;
-          return Format("addl $", size, ", %esp # sfree");
+          return qformat("addl $", size, ", %esp # sfree");
       case MathOp:
-        if (opName == "addl" && op1 == "$1") return Format("incl ", op2);
-        if (opName == "subl" && op1 == "$1") return Format("decl ", op2);
-        return Format(opName, " ", op1, ", ", op2);
+        if (opName == "addl" && op1 == "$1") return qformat("incl ", op2);
+        if (opName == "subl" && op1 == "$1") return qformat("decl ", op2);
+        return qformat(opName, " ", op1, ", ", op2);
       case Push, Pop:
         auto size = type.size;
         string res;
@@ -248,15 +253,15 @@ struct Transaction {
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
                 // logln("tls rewrite op ", op, " to ", "%gs:", varname, "@NTPOFF+", first_offs + size - sz, ": ", first_offs, " + ", size, " - ", sz); 
-                op = Format("%gs:", varname, "@NTPOFF+", first_offs + size - sz);
+                op = qformat("%gs:", varname, "@NTPOFF+", first_offs + size - sz);
                 m_offs_push = true;
                 
               }
               if (auto mem = op.gotMemoryOffset(offs)) {
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
-                // logln("rewrite op ", op, " to ", Format(first_offs + size - sz, "(%", reg, ")"), ": ", first_offs, " + ", size, " - ", sz); 
-                op = Format(first_offs + size - sz, "(", mem, ")");
+                // logln("rewrite op ", op, " to ", qformat(first_offs + size - sz, "(%", reg, ")"), ": ", first_offs, " + ", size, " - ", sz); 
+                op = qformat(first_offs + size - sz, "(", mem, ")");
                 m_offs_push = true;
               }
               if (op.startsWith("+")) {
@@ -274,7 +279,7 @@ struct Transaction {
                 string opsh = op;
                 // hackaround
                 if (opsh.gotMemoryOffset(offs) == "%esp")
-                  opsh = Format(offs - 1, "(%esp)");
+                  opsh = qformat(offs - 1, "(%esp)");
                 addLine("movb (%esp), %bl");
                 addLine("incl %esp");
                 addLine("movb %bl, "~opsh);
@@ -284,7 +289,7 @@ struct Transaction {
             // after increment, says intel manual
             } else {
               if (kind == Pop && op.gotMemoryOffset(offs) == "%esp") {
-                op = Format(offs - sz, "(%esp)");
+                op = qformat(offs - sz, "(%esp)");
               }
               auto temp = op; int toffs;
               if (auto mem = temp.between("(", ")")) {
@@ -299,7 +304,7 @@ struct Transaction {
                 logln(temp, " (", *this, ")");
                 asm { int 3; }
               }
-              addLine(Format(mnemo, pf, " ", temp));
+              addLine(qformat(mnemo, pf, " ", temp));
             }
             auto s2 = op;
             int num; string ident, reg;
@@ -307,7 +312,7 @@ struct Transaction {
               if (reg.startsWith("gs:") && reg.find("@") != -1) {
                 auto temp = reg, reg_offs = temp.slice("+").atoi(), varname = reg.between(":", "@");
                 assert(reg.between("@", "").startsWith("NTPOFF"));
-                op = Format("%gs:", varname, "@NTPOFF+", reg_offs + sz);
+                op = qformat("%gs:", varname, "@NTPOFF+", reg_offs + sz);
               } else {
                 auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
                 if (reg.startsWith("gs:")) regsize = nativePtrSize;
@@ -320,10 +325,10 @@ struct Transaction {
               // if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
             }
             else if (kind == Pop && null !is (reg = op.gotMemoryOffset(offs))) {
-              op = Format(offs + sz, "(", reg, ")");
+              op = qformat(offs + sz, "(", reg, ")");
             }
             else if (kind == Push && null !is (reg = op.gotMemoryOffset(offs))) {
-              op = Format(offs + sz, "(", reg, ")");
+              op = qformat(offs + sz, "(", reg, ")");
             }
             else if (!m_offs_push && (op.find("%") != -1 || op.find("(") != -1))
               throw new Exception("Unknown address format: '"~op~"'");
@@ -336,32 +341,41 @@ struct Transaction {
         doOp(1, "b");
         return res;
       case Compare:
-        if (test) return Format("testl ", op1, ", ", op2);
-        else return Format("cmpl ", op1, ", ", op2);
+        if (test) return qformat("testl ", op1, ", ", op2);
+        else return qformat("cmpl ", op1, ", ", op2);
       case Call:
-        if (dest.find("%") != -1) return Format("call *", dest);
-        if (dest[0] == '$') return Format("call ", dest[1 .. $]);
+        if (dest.find("%") != -1) return qformat("call *", dest);
+        if (dest[0] == '$') return qformat("call ", dest[1 .. $]);
         assert(false, "::"~dest);
       case FloatLoad:
-        return Format("flds ", source);
+        return qformat("flds ", source);
       case DoubleLoad:
-        return Format("fldl ", source);
+        return qformat("fldl ", source);
+      case RealLoad:
+        return qformat("fldt ", source);
+      case RegLoad:
+        return qformat("fld ", source);
+      case FloatCompare:
+        if (source == "%st1") {
+          return qformat("fcompp");
+        }
+        return qformat("fcomps ", source);
       case FloatPop:
-        return Format("fstps ", dest);
+        return qformat("fstps ", dest);
       case DoublePop:
-        return Format("fstpl ", dest);
+        return qformat("fstpl ", dest);
       case FloatStore:
-        return Format("fsts ", dest);
+        return qformat("fsts ", dest);
       case FloatMath:
-        return Format(opName~"p %st, %st(1)");
+        return qformat(opName~"p %st, %st(1)");
       case FloatSwap:
-        return Format("fxch");
+        return qformat("fxch");
       case FloatIntLoad:
-        return Format("fildl ", source);
+        return qformat("fildl ", source);
       case ExtendDivide:
         return qformat("cdq\nidivl ", source);
       case Jump:
-        return Format("jmp ", dest);
+        return qformat("jmp ", dest);
       case Label:
         assert(names.length);
         string res;
@@ -375,9 +389,9 @@ struct Transaction {
         /*if (from.find("%gs") != -1) {
           auto offs = from.between("", "(");
           auto base = from.between("(", ")");
-          return Format("movl ", base, " + ", offs, ", ", to);
+          return qformat("movl ", base, " + ", offs, ", ", to);
         }*/
-        return Format("leal ", from, ", ", to);
+        return qformat("leal ", from, ", ", to);
     }
   }
   struct {
@@ -403,7 +417,7 @@ struct Transaction {
     int stackdepth = -1;
   }
   bool hasStackdepth() { return stackdepth != -1; }
-  string stackinfo() { return stackdepth == -1 ? "" : Format("@", stackdepth); }
+  string stackinfo() { return stackdepth == -1 ? "" : qformat("@", stackdepth); }
   Transaction dup() {
     Transaction res = *this;
     res.stackdepth = -1;

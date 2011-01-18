@@ -144,7 +144,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     f.close;
   }
-  auto cmdline = Format("as --32 -o ", objname, " ", srcname);
+  auto cmdline = Format("as -g --32 -o ", objname, " ", srcname);
   writefln("> ", cmdline);
   system(cmdline.toStringz()) == 0
     || assert(false, "Compilation failed! ");
