@@ -382,6 +382,10 @@ string qformat(T...)(T t) {
         ifact /= 10;
       }
     }
+    else static if (is(typeof(cast(Object) entry))) {
+      auto obj = cast(Object) entry;
+      append(obj.toString());
+    }
     else static assert(false, "not supported in qformat: "~typeof(entry).stringof);
   }
   auto res = qbuffer[0 .. offs];
