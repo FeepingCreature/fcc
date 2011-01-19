@@ -108,10 +108,11 @@ float noise3(vec3f v) {
   vec3f v0 = void;
   vec3i offs1 = void, offs2 = void;
   int ii = void, jj = void, kk = void;
-  float sum = 0f; int[3] filler = void;
-  int id = void, id2 = void, id3 = void, c = void; int[2] filler2 = void;
+  float sum = 0f;
+  int id = void, id2 = void, id3 = void, c = void;
   vec3f forble = void;
-  /*testAlign("vs", &vs);
+  /*testAlign("ebp", _ebp);
+  testAlign("vs", &vs);
   testAlign("sum", &sum);
   testAlign("id", &id);
   testAlign("forble", &forble);

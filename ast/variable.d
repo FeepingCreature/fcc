@@ -30,7 +30,7 @@ class Variable : LValue, Named {
       throw new Exception("Cannot declare an unsized variable: '"~name~"' being "~Format(type)~"! ");
     if (initval) return;
     else {
-      initval = new ReinterpretCast!(Expr) (
+      initval = reinterpret_cast(
         valueType(),
         new DataExpr(type.initval())
       );

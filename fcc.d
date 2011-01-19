@@ -16,7 +16,7 @@ mixin(expandImport(`ast.[
   tuples, tuple_access, literal_string, funcall, vector, externs,
   intr, conditionals, opers, conditionals, cond, casting,
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
-  propcall, properties_parse, main]`));
+  propcall, properties_parse, main, align_boffs]`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -26,6 +26,20 @@ mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
 static this() {
   New(namespace, { return cast(Namespace) null; });
   New(current_module, { return cast(Module) null; });
+  // placed here because it needs some circular importage
+  foldopt ~= delegate Expr(Expr ex) {
+    auto mae = cast(MemberAccess_Expr) ex;
+    if (!mae || mae.stm.name != "ptr") return null;
+    
+    auto rce = cast(RCE) mae.base;
+    if (!rce) return null;
+    if (!(rce.to in isArrayStructType)) return null;
+    auto se = cast(StringExpr) rce.from;
+    if (se) return se.getPointer();
+    auto ar = cast(ArrayMaker) rce.from;
+    if (ar) return ar.ptr;
+    return null;
+  };
 }
 alias ast.parse.startsWith startsWith;
 // from ast.fun

@@ -148,6 +148,24 @@ class RefTuple : MValue {
   }
 }
 
+static this() {
+  foldopt ~= delegate Expr(Expr ex) {
+    auto mae = cast(MemberAccess_Expr) ex;
+    if (!mae) return null;
+    auto rc = cast(RCE) mae.base;
+    if (!rc) return null;
+    auto rt = cast(RefTuple) rc.from;
+    auto str = cast(Structure) rc.to;
+    if (!rt || !str) return null;
+    auto mbs = str.members();
+    assert(rt.mvs.length == mbs.length);
+    int offs = -1;
+    foreach (id, entry; mbs) if (entry is mae.stm) { offs = id; break; }
+    if (offs == -1) fail();
+    return rt.mvs[offs];
+  };
+}
+
 Expr mkTupleValueExpr(Expr[] exprs...) {
   auto tup = mkTuple(exprs /map/ (Expr ex) { return ex.valueType(); });
   return new RCE(tup, new StructLiteral(tup.wrapped, exprs.dup));

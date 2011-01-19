@@ -56,7 +56,7 @@ class AsmFile {
   }
   void restoreCheckptStack(int i, bool mayBeBigger = false /* used in loops/break/continue */) {
     if (!mayBeBigger && currentStackDepth < i) {
-      logln("Tried to unwind stack while unwound further - logic error");
+      logln("Tried to unwind stack while unwound further - logic error while restoring ", currentStackDepth, " to ", i);
       asm { int 3; }
     }
     sfree(currentStackDepth - i);

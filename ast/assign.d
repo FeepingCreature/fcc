@@ -33,12 +33,15 @@ class _Assignment(T) : Statement {
       }
     } else {
       mixin(mustOffset("0"));
+      int filler;
+      auto vt = value.valueType();
       {
-        mixin(mustOffset("value.valueType().size"));
+        filler = alignStackFor(vt, af);
+        mixin(mustOffset("vt.size"));
         value.emitAsm(af);
       }
       static if (is(T: MValue)) {
-        mixin(mustOffset("-value.valueType().size"));
+        mixin(mustOffset("-vt.size"));
         target.emitAssignment(af);
       } else {
         {
@@ -46,9 +49,10 @@ class _Assignment(T) : Statement {
           target.emitLocation(af);
         }
         af.popStack("%eax", new Pointer(target.valueType()));
-        af.popStack("(%eax)", value.valueType());
+        af.popStack("(%eax)", vt);
         af.nvm("%eax");
       }
+      af.sfree(filler);
     }
   }
 }

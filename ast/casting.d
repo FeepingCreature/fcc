@@ -2,43 +2,76 @@ module ast.casting;
 
 import ast.base, ast.parse;
 
-class ReinterpretCast(T) : T, HasInfo {
-  T from; IType to;
+class RC {
+  Expr from;
+  IType to;
+}
+
+template ReinterpretCast_Contents(T) {
   this(IType to, T from) {
     this.from = from;
     this.to = to;
+    static if (is(T==Expr)) {
+      if (cast(LValue) from || cast(CValue) from) {
+        logln(this, "? Suure? ");
+        asm { int 3; }
+      }
+    }
     // if (to.size != from.valueType().size) asm { int 3; }
-    assert(to.size == from.valueType().size, Format("Can't cast ", from, " to ", to, "; ", from.valueType(), " size ", from.valueType().size, " vs. ", to.size, "!"));
+    if (to.size != from.valueType().size) {
+      logln("Can't cast ", from, " to ", to, "; ", from.valueType(), " size ", from.valueType().size, " vs. ", to.size, "!");
+      fail();
+    }
   }
   private this() { }
-  mixin DefaultDup!();
+  typeof(this) dup() { return new typeof(this)(to, cast(T) from); }
   mixin defaultIterate!(from);
   override {
-    string getInfo() { return Format(to, ":"); }
-    string toString() { return Format("(", to, ": ", from, ")"); }
-    IType valueType() { return to; }
-    void emitAsm(AsmFile af) {
-      int size = to.size;
-      if (Single!(Void) == to) size = 0;
-      mixin(mustOffset("size"));
-      from.emitAsm(af);
-    }
-    static if (is(typeof(&from.emitLocation)))
+    static if (is(typeof((cast(T) from).emitLocation(null))))
       void emitLocation(AsmFile af) {
-        from.emitLocation(af);
+        (cast(T) from).emitLocation(af);
+      }
+    static if (is(typeof((cast(T) from).emitAssignment(null))))
+      void emitAssignment(AsmFile af) {
+        (cast(T) from).emitAssignment(af);
       }
   }
 }
+
+template ReinterpretCast(T) {
+  static if (is(T==Expr)) {
+    class ReinterpretCast : RC, Expr, HasInfo {
+      mixin ReinterpretCast_Contents!(Expr);
+      override {
+        string toString() { return Format("(", to, ": ", from, ")"); }
+        IType valueType() { return to; }
+        string getInfo() { return Format(to, ":"); }
+        void emitAsm(AsmFile af) {
+          int size = to.size;
+          if (Single!(Void) == to) size = 0;
+          mixin(mustOffset("size"));
+          from.emitAsm(af);
+        }
+      }
+    }
+  } else {
+    class ReinterpretCast : ReinterpretCast!(Expr), T {
+      mixin ReinterpretCast_Contents!(T);
+    }
+  }
+}
+
 alias ReinterpretCast!(Expr) RCE;
 alias ReinterpretCast!(CValue) RCC;
-alias ReinterpretCast!(LValue) RCL;
+alias ReinterpretCast!(LValue) RCL; // class LCL omitted due to tang-related concerns
+alias ReinterpretCast!(MValue) RCM;
 
 import ast.fold;
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
     if (auto rce1 = cast(RCE) ex) {
       if (auto rce2 = cast(RCE) fold(rce1.from)) {
-        return foldex(new RCE(rce1.to, foldex(rce2.from)));
+        return foldex(reinterpret_cast(rce1.to, foldex(rce2.from)));
       }
     }
     return null;
@@ -66,7 +99,7 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (ex.valueType() != dest) return null;
   
   text = t2;
-  return cast(Object) new RCE(dest, ex);
+  return cast(Object) reinterpret_cast(dest, ex);
 }
 mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default", "701");
 
@@ -110,7 +143,7 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
     // return null;
   
   text = t2;
-  return new ReinterpretCast!(Expr)(dest, ex);
+  return cast(Object) reinterpret_cast(dest, ex);
 }
 mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "7");
 
@@ -319,19 +352,13 @@ class ByteToShortCast : Expr {
   }
 }
 
-LValue reinterpret_cast(IType to, LValue from) {
-  return new RCL(to, from);
-}
-
-CValue reinterpret_cast(IType to, CValue from) {
-  return new RCC(to, from);
-}
-
 Expr reinterpret_cast(IType to, Expr from) {
   if (auto lv = cast(LValue) from)
-    return reinterpret_cast(to, lv);
+    return new RCL(to, lv);
   if (auto cv = cast(CValue) from)
-    return reinterpret_cast(to, cv);
+    return new RCC(to, cv);
+  if (auto mv = cast(MValue) from)
+    return new RCM(to, mv);
   return new RCE(to, from);
 }
 

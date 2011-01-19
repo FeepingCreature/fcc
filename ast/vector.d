@@ -5,11 +5,19 @@ import
   ast.fun, ast.funcall, ast.aliasing,
   ast.structure, ast.namespace, ast.modules, ast.structfuns, ast.returns;
 
-class Vector : Type, RelNamespace {
+class Vector : Type, RelNamespace, ForceAlignment {
   IType base;
   Tuple asTup;
+  Tuple asFilledTup; // including filler for vec3f
   Structure asStruct;
   int len;
+  override int alignment() { return 16; }
+  // quietly treat n-size as n+1-size
+  bool extend() { return len == 3 && base == Single!(Float); }
+  int real_len() {
+    if (extend) return len + 1;
+    return len;
+  }
   this(IType it, int i) {
     this.base = it;
     this.len = i;
@@ -17,13 +25,17 @@ class Vector : Type, RelNamespace {
     for (int k = 0; k < i; ++k)
       mew ~= it;
     asTup = mkTuple(mew);
+    if (extend)
+      asFilledTup = mkTuple(mew ~ it);
+    else
+      asFilledTup = asTup;
     asStruct = mkVecStruct(this);
   }
   override {
-    int size() { return asTup.size; }
+    int size() { return asFilledTup.size; }
     string mangle() { return Format("vec_", len, "_", base.mangle()); }
     string toString() { return Format("vec(", base, ", ", len, ")"); }
-    ubyte[] initval() { return asTup.initval(); }
+    ubyte[] initval() { return asFilledTup.initval(); }
     bool isTempNamespace() { return false; }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
@@ -47,7 +59,7 @@ class Vector : Type, RelNamespace {
         return false;
       }
       foreach (ch; str) if (!isValidChar(ch)) return null;
-      auto parts = getTupleEntries(reinterpret_cast(asTup, base));
+      auto parts = getTupleEntries(reinterpret_cast(asFilledTup, base));
       Expr[] exprs;
       foreach (ch; str) {
              if (ch == 'x') exprs ~= parts[0];
@@ -57,7 +69,9 @@ class Vector : Type, RelNamespace {
         else assert(false);
       }
       if (exprs.length == 1) return cast(Object) exprs[0];
-      return cast(Object) reinterpret_cast(new Vector(this.base, exprs.length), mkTupleExpr(exprs));
+      auto new_vec = new Vector(this.base, exprs.length);
+      if (new_vec.extend) exprs ~= new Filler(this.base);
+      return cast(Object) reinterpret_cast(new_vec, mkTupleExpr(exprs));
     }
   }
 }
@@ -77,9 +91,10 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
     Expr[] exs;
     for (int i = 0; i < vec.len; ++i)
       exs ~= ex2.dup;
+    if (vec.extend) exs ~= new Filler(vec.base);
     text = t2;
     return cast(Object)
-      reinterpret_cast(vec, new StructLiteral(vec.asTup.wrapped, exs));
+      reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
   }
   retryTup:
   auto tup = cast(Tuple) ex.valueType();
@@ -97,9 +112,12 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
         throw new Exception(Format("Invalid type in vec initializer: ", entry));
       exs ~= entry;
     }
+    
+    if (vec.extend) exs ~= new Filler(vec.base);
+    
     text = t2;
     return cast(Object)
-      reinterpret_cast(vec, new StructLiteral(vec.asTup.wrapped, exs));
+      reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
   }
   assert(false);
 }
@@ -112,6 +130,9 @@ Structure mkVecStruct(Vector vec) {
   res.isTempStruct = true;
   for (int i = 0; i < vec.len; ++i)
     new RelMember(["xyzw"[i]], vec.base, res);
+  
+  if (vec.extend)
+    new RelMember(null, vec.base, res);
   
   Expr sqr(Expr ex) { return lookupOp("*", ex, ex); }
   
@@ -154,7 +175,7 @@ import ast.casting, ast.static_arrays;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (auto vec = cast(Vector) ex.valueType()) {
-      return reinterpret_cast(new StaticArray(vec.base, vec.len), ex);
+      return reinterpret_cast(new StaticArray(vec.base, vec.real_len()), ex);
     }
     return null;
   };
@@ -166,10 +187,7 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     if (auto vec = cast(Vector) ex.valueType()) {
-      IType[] types;
-      for (int i = 0; i < vec.len; ++i)
-        types ~= vec.base;
-      return reinterpret_cast(mkTuple(types), ex);
+      return reinterpret_cast(vec.asFilledTup, ex);
     }
     return null;
   };
@@ -233,21 +251,21 @@ class VecOp : Expr {
       mkVar(af, valueType(), true, (Variable var) {
         auto entries = getTupleEntries(
           reinterpret_cast(
-            cast(IType) (cast(Vector) valueType()).asTup,
+            cast(IType) (cast(Vector) valueType()).asFilledTup,
             cast(LValue) var
         ));
         void delegate() dg1, dg2;
         mixin(mustOffset("0"));
-        auto v1 = mkTemp(af, ex1, dg1);
-        auto v2 = mkTemp(af, ex2, dg2);
+        auto filler1 = alignStackFor(t1, af); auto v1 = mkTemp(af, ex1, dg1);
+        auto filler2 = alignStackFor(t2, af); auto v2 = mkTemp(af, ex2, dg2);
         for (int i = 0; i < len; ++i) {
           Expr l1 = v1, l2 = v2;
-          if (e1v) l1 = getTupleEntries(reinterpret_cast(cast(IType) e1v.asTup, cast(LValue) v1))[i];
-          if (e2v) l2 = getTupleEntries(reinterpret_cast(cast(IType) e2v.asTup, cast(LValue) v2))[i];
+          if (e1v) l1 = getTupleEntries(reinterpret_cast(cast(IType) e1v.asFilledTup, cast(LValue) v1))[i];
+          if (e2v) l2 = getTupleEntries(reinterpret_cast(cast(IType) e2v.asFilledTup, cast(LValue) v2))[i];
           (new Assignment(cast(LValue) entries[i], lookupOp(op, l1, l2))).emitAsm(af);
         }
-        if (dg2) dg2();
-        if (dg1) dg1();
+        if (dg2) dg2(); af.sfree(filler2);
+        if (dg1) dg1(); af.sfree(filler1);
       });
     }
   }
@@ -270,8 +288,8 @@ static this() {
     if (v1v) len = v1v.asTup.types.length;
     else len = v2v.asTup.types.length;
     
-    auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asTup, lhs))[0];
-    auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asTup, rhs))[0];
+    auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asFilledTup, lhs))[0];
+    auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs))[0];
     auto type = lookupOp(op, l1, r1).valueType();
     return new VecOp(type, len, lhs, rhs, op);
   }
@@ -282,10 +300,11 @@ static this() {
     if (!vt) return null;
     
     Expr[] list;
-    foreach (ex2; getTupleEntries(reinterpret_cast(vt.asTup, ex))) {
+    foreach (ex2; getTupleEntries(reinterpret_cast(vt.asFilledTup, ex))[0 .. $-vt.extend]) {
       list ~= lookupOp("-", ex2);
     }
-    return reinterpret_cast(vt, new StructLiteral(vt.asTup.wrapped, list));
+    if (vt.extend) list ~= new Filler(vt.base);
+    return reinterpret_cast(vt, new StructLiteral(vt.asFilledTup.wrapped, list));
   }
   defineOp("-", &negate);
   defineOp("-", "-" /apply/ &handleVecOp);

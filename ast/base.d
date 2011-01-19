@@ -185,6 +185,18 @@ class Placeholder : Expr {
   mixin DefaultDup!();
 }
 
+class Filler : Expr {
+  IType type;
+  this(IType type) { this.type = type; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!();
+  override {
+    IType valueType() { return type; }
+    void emitAsm(AsmFile af) { af.salloc(type.size); }
+  }
+}
+
 // can be printed as string
 interface Formatable {
   Expr format(Expr ex);
@@ -247,9 +259,10 @@ string mustOffset(string value, string _hash = null) {
   
   return (`
     auto OFFS = af.currentStackDepth;
-    scope(success) assert(af.currentStackDepth == OFFS + `~value~`,
-      Format("Stack offset violated: got ", af.currentStackDepth, "; expected ", OFFS, " + ", `~value~`)
-    );`).ctReplace("\n", "", "OFFS", hash); // fix up line numbers!
+    scope(success) if (af.currentStackDepth != OFFS + `~value~`) {
+      logln("Stack offset violated: got ", af.currentStackDepth, "; expected ", OFFS, " + ", `~value~`);
+      fail();
+    }`).ctReplace("\n", "", "OFFS", hash); // fix up line numbers!
 }
 
 class CallbackExpr : Expr {
@@ -407,4 +420,21 @@ string qformat(T...)(T t) {
   auto res = qbuffer[0 .. offs];
   qbuffer = qbuffer[offs .. $];
   return res;
+}
+
+interface ForceAlignment {
+  int alignment();
+}
+
+extern(C) int align_boffs(IType t, int curdepth = -1);
+
+int getFillerFor(IType t, int depth) {
+  auto nd = -align_boffs(t, depth) - t.size;
+  return nd - depth;
+}
+
+int alignStackFor(IType t, AsmFile af) {
+  auto delta = getFillerFor(t, af.currentStackDepth);
+  af.salloc(delta);
+  return delta;
 }

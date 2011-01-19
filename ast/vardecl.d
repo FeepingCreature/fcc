@@ -12,6 +12,10 @@ class VarDecl : Statement {
     // logln("emit at ", af.currentStackDepth, ": ", vars);
     foreach (var; vars) {
       // sanity checking start!
+      if (var.baseOffset + var.type.size < -af.currentStackDepth) {
+        auto delta = -af.currentStackDepth - var.baseOffset - var.type.size;
+        af.salloc(delta);
+      }
       if (var.baseOffset + var.type.size != -af.currentStackDepth) {
         logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var);
         foreach (elem; namespace().field) {
@@ -50,18 +54,10 @@ class VarDecl : Statement {
   override string toString() { return Format("declare ", vars); }
 }
 
-// base offset
-import tools.log;
+extern(C) int align_boffs(IType, int);
+
 int boffs(IType t, int curdepth = -1) {
-  if (curdepth == -1) {
-    auto sl = namespace().get!(ScopeLike);
-    if (!sl) {
-      logln("no ScopeLike beneath ", namespace(), " for placing a ", t);
-      asm { int 3; }
-    }
-    curdepth = sl.framesize();
-  }
-  return - curdepth - t.size;
+  return align_boffs(t, curdepth);
 }
 
 void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
@@ -119,7 +115,7 @@ LValue lvize(Expr ex) {
   
   auto decl = new VarDecl;
   decl.vars ~= var;
-  var.baseOffset = -sc.framesize - ex.valueType().size;
+  var.baseOffset = boffs(ex.valueType());
   sc.addStatement(decl);
   sc.add(var);
   return var;

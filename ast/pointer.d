@@ -160,3 +160,18 @@ class Symbol : Expr {
     af.pushStack("$"~name, valueType());
   }
 }
+
+// fill string at emitAsm-time via dg
+class LateSymbol : Expr {
+  void delegate(AsmFile) dg;
+  string* name;
+  this(void delegate(AsmFile) dg, string* name) { this.dg = dg; this.name = name; }
+  private this() { }
+  LateSymbol dup() { return new LateSymbol(dg, name); }
+  mixin defaultIterate!();
+  override IType valueType() { return voidp; }
+  override void emitAsm(AsmFile af) {
+    if (!*name) dg(af);
+    af.pushStack("$"~*name, valueType());
+  }
+}

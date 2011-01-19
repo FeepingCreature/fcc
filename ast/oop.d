@@ -537,7 +537,7 @@ alias Single!(Pointer, Single!(Pointer, Single!(Void))) voidpp;
 
 Expr intfToClass(Expr ex) {
   auto intpp = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
-  return new RCE(new ClassRef(cast(Class) sysmod.lookup("Object")), lookupOp("+", new RCE(voidpp, ex), new DerefExpr(new DerefExpr(new RCE(intpp, ex)))));
+  return reinterpret_cast(new ClassRef(cast(Class) sysmod.lookup("Object")), lookupOp("+", reinterpret_cast(voidpp, ex), new DerefExpr(new DerefExpr(reinterpret_cast(intpp, ex)))));
 }
 
 void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
@@ -546,7 +546,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
     auto intf = (cast(IntfRef) ex.valueType()).myIntf;
     int offs = 0;
     foreach (id, par; intf.parents) {
-      auto nex = new RCE(new IntfRef(par), lookupOp("+", new RCE(voidpp, ex), mkInt(offs)));
+      auto nex = reinterpret_cast(new IntfRef(par), lookupOp("+", reinterpret_cast(voidpp, ex), mkInt(offs)));
       par.getLeaves((Intf) { offs++; });
       testIntf(nex);
     }
@@ -556,13 +556,13 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
     auto cl = (cast(ClassRef) ex.valueType()).myClass;
     if (!cl.parent && !cl.iparents) return; // just to clarify
     if (cl.parent) {
-      testClass(new RCE(new ClassRef(cl.parent), ex));
+      testClass(reinterpret_cast(new ClassRef(cl.parent), ex));
     }
     int offs = cl.mainSize();
     doAlign(offs, voidp);
     offs /= 4;
     foreach (id, par; cl.iparents) {
-      auto iex = new RCE(new IntfRef(par), lookupOp("+", new RCE(voidpp, ex), mkInt(offs)));
+      auto iex = reinterpret_cast(new IntfRef(par), lookupOp("+", reinterpret_cast(voidpp, ex), mkInt(offs)));
       par.getLeaves((Intf) { offs++; });
       testIntf(iex);
     }

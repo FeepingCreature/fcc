@@ -56,6 +56,7 @@ class ExtArray : Type {
 
 import ast.structfuns, ast.modules;
 Stuple!(IType, bool, IType)[] cache;
+bool[IType] isArrayStructType;
 IType arrayAsStruct(IType base, bool rich) {
   foreach (entry; cache)
     if (entry._0 == base && entry._1 == rich) return entry._2;
@@ -101,6 +102,7 @@ IType arrayAsStruct(IType base, bool rich) {
   });
   
   cache ~= stuple(base, rich, cast(IType) res);
+  isArrayStructType[res] = true;
   return res;
 }
 
@@ -110,9 +112,9 @@ T arrayToStruct(T)(T array) {
     ar = cast(Array) avt,
     ea = cast(ExtArray) avt;
   if (ar)
-    return new ReinterpretCast!(T) (arrayAsStruct(ar.elemType, false), array);
+    return cast(T) reinterpret_cast(arrayAsStruct(ar.elemType, false), array);
   if (ea)
-    return new ReinterpretCast!(T) (arrayAsStruct(ea.elemType, true),  array);
+    return cast(T) reinterpret_cast(arrayAsStruct(ea.elemType, true),  array);
   logln(T.stringof, ": ", array.valueType(), ": ", array);
   asm { int 3; }
   assert(false);

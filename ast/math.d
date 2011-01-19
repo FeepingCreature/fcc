@@ -469,7 +469,7 @@ static this() {
       auto mul = (cast(Pointer) ex1.valueType()).target.size;
       ex2 = handleIntMath("*", ex2, mkInt(mul));
       if (!ex2) return null;
-      return new RCE(ex1.valueType(), handleIntMath(op, new RCE(Single!(SysInt), ex1), ex2));
+      return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
     }
     return null;
   }

@@ -8,16 +8,21 @@ class StringExpr : Expr, HasInfo {
   this(string s) { str = s; this(); }
   mixin defaultIterate!();
   string name_used;
+  void selectName(AsmFile af) {
+    if (!name_used) {
+      name_used = af.allocConstant(Format("string_constant_", af.constants.length), cast(ubyte[]) str);
+    }
+  }
+  Expr getPointer() {
+    return reinterpret_cast(Single!(Pointer, Single!(Char)), new LateSymbol(&selectName, &name_used)); 
+  }
   override {
     string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }
     StringExpr dup() { return new StringExpr(str); }
     string toString() { return '"'~str.replace("\n", "\\n")~'"'; }
     // default action: place in string segment, load address on stack
     void emitAsm(AsmFile af) {
-      if (!name_used) {
-        name_used = af.allocConstant(Format("string_constant_", af.constants.length), cast(ubyte[]) str);
-      }
-      (new Symbol(name_used)).emitAsm(af);
+      getPointer().emitAsm(af);
       (mkInt(str.length)).emitAsm(af);
     }
     // IType valueType() { return new StaticArray(Single!(Char), str.length); }

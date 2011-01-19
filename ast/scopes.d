@@ -50,15 +50,15 @@ class Scope : Namespace, ScopeLike, Statement {
     return res;
   }
   override int framesize() {
-    // TODO: alignment
     int res;
+    if (auto sl = cast(ScopeLike) sup)
+      res += sl.framesize();
     foreach (obj; field) {
       if (auto var = cast(Variable) obj._1) {
+        res += getFillerFor(var.type, res);
         res += var.type.size;
       }
     }
-    if (auto sl = cast(ScopeLike) sup)
-      res += sl.framesize();
     return res;
   }
   // frame offset caused by parameters
@@ -71,7 +71,9 @@ class Scope : Namespace, ScopeLike, Statement {
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
     return stuple(checkpt, backup, this, af) /apply/ (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af) {
-      if (that._body) that._body.emitAsm(af);
+      if (that._body) {
+        that._body.emitAsm(af);
+      }
       return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, bool onlyCleanup) {
         if (!onlyCleanup) af.emitLabel(that.exit());
         

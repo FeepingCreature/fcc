@@ -142,7 +142,7 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   gotImplicitCast(to  , &notATuple);
   auto ifrom = cast(IntExpr) fold(from), ito = cast(IntExpr) fold(to);
   if (ifrom && ito)
-    return new RCE(new ConstIntRange(ifrom.num, ito.num), ifrom);
+    return cast(Object) reinterpret_cast(new ConstIntRange(ifrom.num, ito.num), ifrom);
   return cast(Object) mkRange(from, to);
 }
 mixin DefaultParser!(gotRangeIter, "tree.expr.iter_range", "11");
@@ -216,11 +216,10 @@ class StatementAndCond : Cond {
 }
 
 import ast.fold;
-class ForIter(I) : Type, I, Iterable {
+class ForIter(I) : Type, I {
   IType wrapper;
   I itertype;
   Expr ex;
-  mixin defaultIterate!(ex);
   PlaceholderToken var, extra;
   ForIter dup() {
     auto res = new ForIter;
@@ -266,6 +265,22 @@ class ForIter(I) : Type, I, Iterable {
       return todo[--size];
     }
     scope(exit) todocache = todo;
+    // The whole substmap business is major hax.
+    // basically I'm doing this because I can't work out why
+    // my recursion keeps going cyclical,
+    // and this is a haphazard way of breaking the cycle.
+    // If you have to maintain this for whatever reason, don't even try.
+    // Throw it out and start over.
+    // Or pray your error isn't in the next bit, because God knows I have no idea why it works.
+    IType[IType] substmap;
+    Expr resolveRC(Expr ex) {
+      while (true) {
+        if (auto rc = cast(RC) ex)
+          ex = rc.from;
+        else break;
+      }
+      return ex;
+    }
     void subst(ref Iterable it) {
       if (it is var) {
         it = cast(Iterable) newvar;
@@ -273,12 +288,24 @@ class ForIter(I) : Type, I, Iterable {
         auto ex = cast(Expr) it;
         if (ex) {
           if (auto fi = cast(ForIter!(RichIterator)) ex.valueType()) {
+            ex = resolveRC(ex);
+            if (auto p = fi in substmap) {
+              it = cast(Iterable) reinterpret_cast(*p, ex);
+              return;
+            }
             auto fi2 = fi.dup;
+            substmap[fi] = fi2;
+            substmap[fi2] = fi2; // what why FFUUUU
             add(fi2.ex);
             ex.iterate(&subst);
             it = cast(Iterable) reinterpret_cast(fi2, ex);
             return;
           } else if (auto fi = cast(ForIter!(Iterator)) ex.valueType()) {
+            ex = resolveRC(ex);
+            if (auto p = fi in substmap) {
+              it = cast(Iterable) reinterpret_cast(*p, ex);
+              return;
+            }
             auto fi2 = fi.dup;
             add(fi2.ex);
             ex.iterate(&subst);
@@ -339,7 +366,7 @@ class ForIter(I) : Type, I, Iterable {
       LValue wlv;
       auto stmt = mkForIterAssign(lv, wlv);
       // logln("!! this.ex is ", this.ex);
-      return update(new StatementAndExpr(stmt, this.ex.dup), wlv);
+      return new StatementAndExpr(stmt, update(this.ex.dup, wlv));
     }
     Cond terminateCond(Expr ex) {
       return itertype.terminateCond(subexpr(castToWrapper(ex).dup));
@@ -376,18 +403,6 @@ class ForIter(I) : Type, I, Iterable {
           new StructLiteral(cast(Structure) wrapper, field));
       }
     }
-  }
-}
-
-class Filler : Expr {
-  IType type;
-  this(IType type) { this.type = type; }
-  private this() { }
-  mixin DefaultDup!();
-  mixin defaultIterate!();
-  override {
-    IType valueType() { return type; }
-    void emitAsm(AsmFile af) { af.salloc(type.size); }
   }
 }
 
@@ -564,7 +579,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   }
   foreach (entry; bsorting) add(entry);
   ipt = stuple(best, new ScopeAndExpr(sc, main), ph, extra);
-  return new RCE(cast(IType) restype, new StructLiteral(best, field));
+  return cast(Object) reinterpret_cast(cast(IType) restype, new StructLiteral(best, field));
 }
 mixin DefaultParser!(gotForIter, "tree.expr.iter.for", null, "[for");
 static this() {

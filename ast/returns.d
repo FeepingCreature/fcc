@@ -25,8 +25,11 @@ class ReturnStmt : Statement {
         emitGuards();
       } else {
         scope(failure) logln("while returning ", value);
+        auto vt = value.valueType();
+        int filler = alignStackFor(vt, af);
+        scope(success) af.sfree(filler);
         mixin(mustOffset("0"));
-        auto value = new Variable(value.valueType(), null, boffs(value.valueType(), af.currentStackDepth));
+        auto value = new Variable(vt, null, boffs(vt, af.currentStackDepth));
         {
           auto vd = new VarDecl;
           vd.vars ~= value;
@@ -35,36 +38,36 @@ class ReturnStmt : Statement {
         (new Assignment(value, this.value)).emitAsm(af);
         emitGuards();
         
-        if (Single!(Float) == value.valueType()) {
+        if (Single!(Float) == vt) {
           loadFloatEx(value, af);
           af.floatStackDepth --; // doesn't count
-        } else if (Single!(Double) == value.valueType()) {
+        } else if (Single!(Double) == vt) {
           loadDoubleEx(value, af);
           af.floatStackDepth --; // doesn't count
-        } else if (value.valueType().size == 4) {
+        } else if (vt.size == 4) {
           value.emitAsm(af);
-          af.popStack("%eax", value.valueType());
-        } else if (value.valueType().size == 8) {
+          af.popStack("%eax", vt);
+        } else if (vt.size == 8) {
           value.emitAsm(af);
           af.popStack("%eax", Single!(SizeT));
           af.popStack("%edx", Single!(SizeT));
         // Well, C compatible this ain't.
         // TODO
-        } else if (value.valueType().size == 12) {
+        } else if (vt.size == 12) {
           value.emitAsm(af);
           af.popStack("%eax", Single!(SizeT));
           af.popStack("%ecx", Single!(SizeT));
           af.popStack("%edx", Single!(SizeT));
-        } else if (value.valueType().size == 16) {
+        } else if (vt.size == 16) {
           value.emitAsm(af);
           af.popStack("%eax", Single!(SizeT));
           af.popStack("%ebx", Single!(SizeT));
           af.popStack("%ecx", Single!(SizeT));
           af.popStack("%edx", Single!(SizeT));
         } else {
-          assert(false, Format("Unsupported return type ", value.valueType()));
+          assert(false, Format("Unsupported return type ", vt));
         }
-        af.sfree(value.valueType().size); // pro forma
+        af.sfree(vt.size); // pro forma
       }
     } else emitGuards();
     // TODO: stack cleanup token here

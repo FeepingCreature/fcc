@@ -37,6 +37,12 @@ Expr foldex(Expr ex) {
   return cur;
 }
 
+Statement optst(Statement st) {
+  if (!st) return null;
+  opt(st);
+  return st;
+}
+
 void opt(T)(ref T t) {
   void fun(ref Itr it) {
     if (auto ex = cast(Expr) it) {

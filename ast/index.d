@@ -18,6 +18,7 @@ class SAIndexExpr : Expr {
   this(Expr ex, Expr pos) { this.ex = ex; this.pos = pos; }
   mixin defaultIterate!(ex, pos);
   override {
+    string toString() { return Format(ex, "[", pos, "]"); }
     SAIndexExpr dup() { return new SAIndexExpr(ex.dup, pos.dup); }
     IType valueType() { return (cast(StaticArray) ex.valueType()).elemType; }
     import ast.vardecl, ast.assign;

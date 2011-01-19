@@ -3,7 +3,7 @@ module ast.concat;
 import
   ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal,
   ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index,
-  ast.assign, ast.opers, ast.slice, tools.base: take;
+  ast.assign, ast.opers, ast.slice, ast.fold, tools.base: take;
 
 class ConcatChain : Expr {
   Array type;
@@ -86,9 +86,9 @@ class ConcatChain : Expr {
           } else {
             auto len = getArrayLength(c);
             /// var[offset .. offset + cache[i].length] = cache[i];
-            (getSliceAssign(mkArraySlice(var, offset, lookupOp("+", offset, len)), c.dup)).emitAsm(af);
+            optst(getSliceAssign(mkArraySlice(var, offset, lookupOp("+", offset, len)), c.dup)).emitAsm(af);
             /// offset = offset + cache[i].length;
-            (new Assignment(offset, lookupOp("+", offset, len))).emitAsm(af);
+            optst(new Assignment(offset, lookupOp("+", offset, len))).emitAsm(af);
           }
         }
       });

@@ -92,6 +92,7 @@ class ForStatement : Statement {
     auto backup = af.checkptStack();
     scope(exit)
       af.restoreCheckptStack(backup);
+    logln("start depth is ", af.currentStackDepth);
     decl.emitAsm(af);
     auto start = af.genLabel(), done = af.genLabel();
     af.emitLabel(start);

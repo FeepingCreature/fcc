@@ -35,6 +35,8 @@ int needsAlignmentStruct(Structure st) {
 int needsAlignment(IType it) {
   if (auto st = cast(Structure) it) return needsAlignmentStruct(st);
   const limit = 4;
+  it = resolveType(it);
+  if (auto fa = cast(ForceAlignment) it) return fa.alignment();
   if (it.size > limit) return limit;
   else return it.size;
 }
@@ -332,8 +334,13 @@ class MemberAccess_Expr : Expr, HasInfo {
         }
       } else {
         // if (stm.type.size != 4) asm { int 3; }
+        // logln("full emit - worrying. ", base, " SELECTING ", stm);
+        // asm { int 3; }
         assert(stm.type.size == 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !cast(LValue) base, ") of ", base.valueType().size(), ". "));
         af.comment("emit semi-structure ", base, " for member access");
+        auto bvt = base.valueType();
+        if (auto rce = cast(RCE) base) bvt = rce.from.valueType();
+        auto filler = alignStackFor(bvt, af);
         base.emitAsm(af);
         af.comment("store member and free: ", stm.name);
         if (stm.type.size == 2)
@@ -347,6 +354,7 @@ class MemberAccess_Expr : Expr, HasInfo {
         if (stm.type.size == 16)
           af.mmove4(Format(stm.offset + 12, "(%esp)"), "%eax");
         af.sfree(st.size);
+        af.sfree(filler);
         af.comment("repush member");
         if (stm.type.size == 16) {
           af.pushStack("%eax", Single!(SysInt));
@@ -411,10 +419,7 @@ static this() {
       auto base = foldex(mae.base);
       // logln("::", mae.stm.type.size, " vs. ", base.valueType().size);
       if (mae.stm.type.size == base.valueType().size) {
-        if (auto lv = cast(LValue) base)
-          return new RCL(mae.stm.type, lv);
-        else
-          return new RCE(mae.stm.type, base);
+        return reinterpret_cast(mae.stm.type, base);
       }
     }
     return null;
