@@ -192,9 +192,10 @@ void loadFloatEx(Expr ex, AsmFile af) {
     af.loadFloat("(%eax)");
     af.nvm("%eax");
   } else {
+    int toFree = 4 + alignStackFor(ex.valueType(), af);
     ex.emitAsm(af);
     af.loadFloat("(%esp)");
-    af.sfree(4);
+    af.sfree(toFree);
   }
 }
 
