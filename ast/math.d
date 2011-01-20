@@ -464,7 +464,11 @@ static this() {
     }
     if (gotImplicitCast(ex1, &isPointer)) {
       if (isPointer(ex2.valueType())) return null;
-      if (cast(Float) ex2.valueType()) { logln(ex1, " ", op, " ", ex2, "; WTF?! "); asm { int 3; } }
+      if (cast(Float) ex2.valueType()) {
+        logln(ex1, " ", op, " ", ex2, "; WTF?! ");
+        logln("is ", ex1.valueType(), " and ", ex2.valueType());
+        fail();
+      }
       assert(!isFloat(ex2.valueType()));
       auto mul = (cast(Pointer) ex1.valueType()).target.size;
       ex2 = handleIntMath("*", ex2, mkInt(mul));
@@ -503,9 +507,9 @@ static this() {
       defineOp(op, op /apply/ dg);
   }
   defineOps(&handleIntMath);
-  defineOps(&handlePointerMath, true);
   defineOps(&handleFloatMath);
   defineOps(&handleDoubleMath);
+  defineOps(&handlePointerMath, true);
 }
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "12"); }

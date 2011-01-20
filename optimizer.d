@@ -1230,6 +1230,19 @@ void setupOpts() {
     t.source = $0.source;
     $SUBST(t);
   `));
+  mixin(opt("ext_mem_form", `^MathOp, ^Push, ^Pop:
+    $0.opName == "addl" &&
+    $0.op1.isUtilityRegister() && $0.op2.isUtilityRegister() &&
+    $1.source.isIndirect(0) == $0.op2 &&
+    $2.dest == $0.op2
+    =>
+    $T t;
+    t.kind = $TK.Mov;
+    assert($1.type.size == $2.type.size);
+    t.from = qformat("(", $0.op2, ",", $0.op1, ")");
+    t.to = $2.dest;
+    $SUBST(t);
+  `));
   mixin(opt("a_bug_somewhere", `^Mov, ^Mov, ^Mov:
     $0.to.isUtilityRegister() &&
     $0.to == $1.from && $1.to.isUtilityRegister() &&

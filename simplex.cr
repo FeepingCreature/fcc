@@ -124,7 +124,7 @@ float noise3(vec3f v) {
   vs[0] = v - indices      + (indices.sum / 6.0f);
   vs[1] = vs[0]            + vec3f(1.0f / 6);
   vs[2] = vs[0]            + vec3f(2.0f / 6);
-  vs[3] = vs[0] - vec3f(1) + vec3f(3.0f / 6);
+  vs[3] = vs[0]       + vec3f(-1 + 3.0f / 6);
   v0 = vs[0];
   if (v0.x >= v0.y) {
     if (v0.y >= v0.z) {
@@ -151,10 +151,13 @@ float noise3(vec3f v) {
   alias i1 = offs1.x, i2 = offs2.x,
         j1 = offs1.y, j2 = offs2.y,
         k1 = offs1.z, k2 = offs2.z;
-  gi[0] = perm[ii+perm[jj+perm[kk]]] % 12;
-  gi[1] = perm[ii+i1+perm[jj+j1+perm[kk+k1]]] % 12;
-  gi[2] = perm[ii+i2+perm[jj+j2+perm[kk+k2]]] % 12;
-  gi[3] = perm[ii+1+perm[jj+1+perm[kk+1]]] % 12;
+  {
+    auto lperm = perm.ptr;
+    gi[0] = lperm[lperm[lperm[kk   ]+jj   ]+ii   ] % 12;
+    gi[1] = lperm[lperm[lperm[kk+k1]+jj+j1]+ii+i1] % 12;
+    gi[2] = lperm[lperm[lperm[kk+k2]+jj+j2]+ii+i2] % 12;
+    gi[3] = lperm[lperm[lperm[kk+1 ]+jj+1 ]+ii+1 ] % 12;
+  }
   while (c <- 0..4) {
     auto q = vs[c];
     auto ft = 0.6f - q.lensq;

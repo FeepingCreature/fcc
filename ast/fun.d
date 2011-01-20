@@ -10,6 +10,8 @@ interface StoresDebugState {
   bool hasDebug();
 }
 
+extern(C) void alignment_emitAligned(Expr ex, AsmFile af);
+
 class FunSymbol : Symbol {
   Function fun;
   this(Function fun) {
@@ -222,7 +224,7 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       mixin(mustOffset("0", "innerer"));
       foreach_reverse (param; params) {
         af.comment("Push ", param);
-        param.emitAsm(af);
+        alignment_emitAligned(param, af);
       }
       
       {

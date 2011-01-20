@@ -45,8 +45,9 @@ bool mayNeedStack(string str) {
 }
 
 string isIndirectSimple(string s) {
-  if (s.length >= 2 && s[0] == '(' && s[$-1] == ')')
+  if (s.length >= 2 && s[0] == '(' && s[$-1] == ')') {
     return s[1..$-1];
+  }
   else return null;
 }
 string isIndirectComplex(string s, ref int delta) {

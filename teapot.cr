@@ -138,7 +138,7 @@ void drawScene(DataSet ds) {
       void bezier3(float u, vec3f* dest) {
         bezier2(u, bezier_temp[], dest);
       }
-      alias subdiv = 32;
+      alias subdiv = 8;
       int subdivp = subdiv + 1;
       if (!temp.ptr) temp = new vec3f[subdivp * subdivp];
       int k;
