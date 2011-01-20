@@ -64,6 +64,7 @@ void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
   int size = type.size;
   // void vars are fucking weird.
   if (type == Single!(Void)) size = 0;
+  logln("make var of ", type, " at ", af.currentStackDepth);
   mixin(mustOffset("size"));
   string name;
   static int x;

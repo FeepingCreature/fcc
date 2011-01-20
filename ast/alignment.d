@@ -1,4 +1,4 @@
-module ast.align_boffs;
+module ast.alignment;
 
 import ast.base, ast.structure, ast.vardecl, ast.namespace, ast.vector, ast.modules;
 
