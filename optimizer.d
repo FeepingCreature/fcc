@@ -512,6 +512,12 @@ class ProcTrack : ExtToken {
         } else if (t.from.isLiteral()) {
           if (!set(t.to, t.from))
             return false;
+          int offs;
+          auto indir = t.to.isIndirect2(offs);
+          if (indir == "%esp" || (indir == "%ebp" && offs < 0))
+            // access to live stack
+            if (stack.length) return false;
+            else noStack = true;
           mixin(Success);
         }
         break;
@@ -588,8 +594,12 @@ class ProcTrack : ExtToken {
             if (auto indir = mkIndirect(known[dest], offs)) {
               // if (!stack.length && latepop.length) break;
               if (stack.length) {
-                if (!set(indir, stack[$-1]))
+                auto newval = stack[$-1];
+                if (!set(indir, newval))
                   return false;
+                if (newval.find("%esp") == -1 || (newval.find("%ebp") == -1 && offs < 0))
+                  // not reliable to do push/pop stackwork before we move to the active stack
+                  noStack = true;
                 // we have a pop! fix up the esp deps
                 fixupESPDeps(-4);
                 stack = stack[0 .. $-1];
@@ -756,10 +766,13 @@ void setupOpts() {
       _changed = progress; // v secretly
       skip:; //   < < < < < < /
     } else {
-      New(obj);
-      t.obj = obj;
-      if (obj.update($0)) { $SUBST([t, $1]); }
-      // else logln("Reject ", $0, ", ", $1);
+      static int si;
+      if (si++ < 4096-2048-1024+512+256-128-64-32+16+8-4+2) {
+        New(obj);
+        t.obj = obj;
+        if (obj.update($0)) { $SUBST([t, $1]); }
+        // else logln("Reject ", $0, ", ", $1);
+      }
     }
   `));
   // .ext_step = &ext_step; // export
