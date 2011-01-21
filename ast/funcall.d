@@ -31,8 +31,37 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg", "25");
 
 bool matchedCallWith(Expr arg, Stuple!(IType, string)[] params, ref Expr[] res, string info = null, string text = null) {
+  Expr[string] nameds;
+  void removeNameds(ref Iterable it) {
+    if (auto ex = cast(Expr) it) {
+      if (auto tup = cast(AstTuple) ex.valueType()) {
+        // filter out nameds from the tuple.
+        auto exprs = getTupleEntries(ex);
+        bool gotNamed;
+        foreach (subexpr; exprs) if (auto na = cast(NamedArg) subexpr) {
+          gotNamed = true; break;
+        }
+        if (gotNamed) {
+          Expr[] left;
+          foreach (subexpr; exprs)
+            if (auto na = cast(NamedArg) subexpr)
+              nameds[na.name] = na.base;
+            else
+              left ~= subexpr;
+          it = cast(Iterable) mkTupleExpr(left);
+        }
+      }
+    }
+  }
+  {
+    Iterable forble = arg;
+    removeNameds(forble);
+    arg = cast(Expr) forble;
+  }
+  
   Expr[] args;
   args ~= arg;
+  if (nameds.length) logln("nameds: ", nameds);
   Expr[] flatten(Expr ex) {
     if (cast(AstTuple) ex.valueType())
       return getTupleEntries(ex);
@@ -50,10 +79,21 @@ bool matchedCallWith(Expr arg, Stuple!(IType, string)[] params, ref Expr[] res, 
       args = null;
       break;
     }
+    IType[] tried;
+    if (auto p = name in nameds) {
+      auto ex = *p, backup = ex;
+      if (!gotImplicitCast(ex, type, (IType it) {
+        tried ~= it;
+        return test(it == type);
+      }))
+        text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " to function call '", info, "', ", type, "; tried ", tried);
+      res ~= ex;
+      continue;
+    }
+    // TODO: default values
     if (!args.length) {
       throw new Exception(Format("Not enough parameters for '", info, "'; left over ", type, "!"));
     }
-    IType[] tried;
   retry:
     auto ex = args.take();
     auto backup = ex;
