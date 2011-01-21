@@ -28,8 +28,7 @@ class Range : Type, RichIterator, RangeIsh {
   Expr castExprToWrapper(Expr ex) {
     if (auto lv = cast(LValue) ex)
       return castToWrapper(lv);
-    return iparse!(Expr, "range_cast_expr_to_wrapper", "tree.expr")
-                  ("wrapper:ex", "ex", ex, "wrapper", wrapper);
+    return reinterpret_cast(wrapper, ex);
   }
   override {
     IType elemType() { return mkMemberAccess(new ast.base.Placeholder(wrapper), "cur").valueType(); }

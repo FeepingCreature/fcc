@@ -230,8 +230,14 @@ void parseHeader(string filename, string src, ParseCb rest) {
       }
       // logln("IDENT ", ident);
     }
+    s2 = source;
+    if (s2.startsWith("__attribute__ ((")) s2 = s2.between("))", "");
     // logln(" @ '", source, "'");
-    return !!rest(source, c_tree_expr, res);
+    s2 = s2.mystripl();
+    if (!s2.length) return false;
+    if (!rest(s2, c_tree_expr, res)) return false;
+    source = s2;
+    return true;
   }
   while (statements.length) {
     auto stmt = statements.take(), start = stmt;

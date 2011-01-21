@@ -632,6 +632,7 @@ class ParseContext {
   import tools.time: sec;
   Object parse(ref string text, bool delegate(string) cond,
       int offs = 0, ParseCtl delegate(Object) accept = null) {
+    if (!text.length) return null;
     resort;
     bool matched;
     string xmlmark(string x) {
@@ -640,25 +641,28 @@ class ParseContext {
     if (verboseParser)
       logln("BEGIN PARSE '", text.nextText(16).xmlmark(), "'");
     
-    // make copy
-    ubyte[RULEPTR_SIZE_HAX] cond_copy =
-      (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX];
-    cond.ptr = cond_copy.ptr;
+    ubyte[RULEPTR_SIZE_HAX] cond_copy = void;
+    ParseCb cont = void, rest = void;
+    cont.dg = null; // needed for null check further in
+    int i;
+    Object cont_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
+      return this.parse(text, cond, offs + i + 1, accept);
+    }
+    Object rest_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
+      return this.parse(text, cond, accept);
+    }
+    void fill_cont_rest() {
+      // make copy
+      cond_copy[] = (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX];
+      cond.ptr = cond_copy.ptr;
+      cont.dg = &cont_dg;
+      cont.cur = cond;
+      rest.dg = &rest_dg;
+      rest.cur = cond;
+    }
     
     Object longestMatchRes;
     string longestMatchStr = text;
-    ParseCb cont = void, rest = void;
-    int i;
-    cont.dg = (ref string text, bool delegate(string) cond,
-      ParseCtl delegate(Object) accept) {
-      return this.parse(text, cond, offs + i + 1, accept);
-    };
-    cont.cur = cond;
-    rest.dg = (ref string text, bool delegate(string) cond,
-      ParseCtl delegate(Object) accept) {
-      return this.parse(text, cond, accept);
-    };
-    rest.cur = cond;
     /*auto start_time = sec();
     auto start_text = text;
     static float min_speed = float.infinity;
@@ -690,6 +694,8 @@ class ParseContext {
       if (cond(id)) {
         if (verboseParser) logln("TRY PARSER [", id, "] for '", text.nextText(16), "'");
         matched = true;
+        
+        if (!cont.dg) fill_cont_rest();
         
         auto backup = text;
         if (auto res = parser.match(text, accept, cont, rest)) {

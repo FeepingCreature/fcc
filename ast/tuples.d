@@ -215,6 +215,11 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr[] exprs;
   Expr ex;
   auto t2 = text;
+  if (t2.accept(")")) {
+    text = t2;
+    // lol wat
+    return cast(Object) mkTupleExpr();
+  }
   if (!t2.bjoin(
       !!rest(t2, "tree.expr", &ex),
       t2.accept(","),
