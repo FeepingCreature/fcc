@@ -2,7 +2,35 @@ module ast.funcall;
 
 import ast.fun, ast.base;
 
-bool matchedCallWith(Expr arg, IType[] params, ref Expr[] res, string info = null, string text = null) {
+class NamedArg : Expr {
+  Expr base;
+  string name;
+  this(string name, Expr base) { this.name = name; this.base = base; }
+  override {
+    IType valueType() { return base.valueType(); }
+    NamedArg dup() { return new NamedArg(name, base.dup); }
+    mixin defaultIterate!(base);
+    void emitAsm(AsmFile af) {
+      logln("Named argument ", name, " could not be assigned to a function call! ");
+      fail();
+    }
+  }
+}
+
+Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  string name;
+  if (!t2.gotIdentifier(name)) return null;
+  if (!t2.accept("=>")) return null;
+  Expr base;
+  if (!rest(t2, "tree.expr", &base))
+    t2.failparse("Could not get base expression for named argument '", name, "'");
+  text = t2;
+  return new NamedArg(name, base);
+}
+mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg", "25");
+
+bool matchedCallWith(Expr arg, Stuple!(IType, string)[] params, ref Expr[] res, string info = null, string text = null) {
   Expr[] args;
   args ~= arg;
   Expr[] flatten(Expr ex) {
@@ -11,7 +39,8 @@ bool matchedCallWith(Expr arg, IType[] params, ref Expr[] res, string info = nul
     else
       return null;
   }
-  foreach (i, type; params) {
+  foreach (i, tuple; params) {
+    auto type = tuple._0, name = tuple._1;
     type = resolveType(type);
     if (cast(Variadic) type) {
       foreach (ref rest_arg; args)
@@ -61,7 +90,7 @@ bool matchedCallWith(Expr arg, IType[] params, ref Expr[] res, string info = nul
 
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
-bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref Expr[] res) {
+bool matchCall(ref string text, string info, Stuple!(IType, string)[] params, ParseCb rest, ref Expr[] res) {
   Expr arg;
   auto backup_text = text; 
   if (!backup_text.length) return false; // wat
@@ -93,9 +122,7 @@ bool matchCall(ref string text, string info, IType[] params, ParseCb rest, ref E
 
 Expr buildFunCall(Function fun, Expr arg, string info) {
   auto fc = fun.mkCall();
-  IType[] params;
-  foreach (entry; fun.type.params) params ~= entry._0;
-  if (!matchedCallWith(arg, params, fc.params, info))
+  if (!matchedCallWith(arg, fun.type.params, fc.params, info))
     return null;
   return fc;
 }
@@ -105,7 +132,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Function fun) {
     auto fc = fun.mkCall();
-    IType[] params = fun.getParamTypes();
+    auto params = fun.getParams();
     resetError();
     if (!matchCall(t2, fun.name, params, rest, fc.params)) {
       if (t2.accept("("))

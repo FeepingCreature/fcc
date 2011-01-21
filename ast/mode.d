@@ -62,7 +62,7 @@ class PrefixFunction : Function {
   override {
     Expr getPointer() { logln("Can't get pointer to prefix-extended function! "); assert(false); }
     string toString() { return Format("prefix ", prefix, " to ", sup.toString()); }
-    IType[] getParamTypes() { return sup.getParamTypes()[1 .. $]; }
+    Stuple!(IType, string)[] getParams() { return sup.getParams()[1 .. $]; }
     PrefixFunction alloc() { assert(false, "what"); }
     PrefixFunction dup() { return new PrefixFunction(prefix.dup(), sup.dup()); }
     PrefixCall mkCall() { return new PrefixCall(this, prefix, sup.mkCall()); }

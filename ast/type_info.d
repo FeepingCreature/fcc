@@ -78,7 +78,7 @@ Object gotRetType(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotRetType, "type.fun_ret_type", "51", "ReturnType");
 
-import ast.tuples;
+import ast.tuples, tools.base;
 Object gotParamTypes(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   if (!rest(text, "type", &ty))
@@ -88,7 +88,7 @@ Object gotParamTypes(ref string text, ParseCb cont, ParseCb rest) {
   if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!cast(FunctionPointer) it || !! cast(Delegate) it; }))
     text.failparse(ty, " is not function-like; tried ", tried);
   auto fun = cast(FunctionPointer) temp.valueType(), dg = cast(Delegate) temp.valueType();
-  if (fun) return mkTuple(fun.args);
-  else     return mkTuple(dg .args);
+  if (fun) return mkTuple(fun.args /map/ ex!("a, b -> a"));
+  else     return mkTuple(dg .args /map/ ex!("a, b -> a"));
 }
 mixin DefaultParser!(gotParamTypes, "type.fun_param_type", "52", "ParamTypes");

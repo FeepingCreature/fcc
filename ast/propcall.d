@@ -18,7 +18,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
       auto res = sup.lookup(name, local);
       if (auto fun = cast(Function) res) {
         if (cast(NestedFunction) fun) goto fail;
-        auto pt = fun.getParamTypes[0];
+        auto pt = fun.getParams[0]._0;
         auto ex = firstParam;
         if (!gotImplicitCast(ex, (IType it) { return test(it == pt); }))
           return null;

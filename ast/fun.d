@@ -24,8 +24,8 @@ class FunSymbol : Symbol {
   override IType valueType() {
     auto res = new FunctionPointer;
     res.ret = fun.type.ret;
-    res.args = fun.type.params /map/ ex!("a, b -> a");
-    res.args ~= Single!(SysInt);
+    res.args = fun.type.params;
+    res.args ~= stuple(cast(IType) Single!(SysInt), cast(string) null);
     return res;
   }
 }
@@ -45,7 +45,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   // add parameters to namespace
   int _framestart;
   Function alloc() { return new Function; }
-  IType[] getParamTypes() { return type.types(); }
+  Stuple!(IType, string)[] getParams() { return type.params; }
   Function dup() {
     auto res = alloc();
     res.name = name;
@@ -367,17 +367,16 @@ mixin DefaultParser!(gotFunDef, "tree.fundef");
 // yes I wrote delegates first. how about that.
 class FunctionPointer : ast.types.Type {
   IType ret;
-  IType[] args;
+  Stuple!(IType, string)[] args;
   this() { }
   string toString() { return Format(ret, " function(", args, ")"); }
-  this(IType ret, IType[] args) {
+  this(IType ret, Stuple!(IType, string)[] args) {
     this.ret = ret;
     this.args = args.dup;
   }
   this(Function fun) {
     ret = fun.type.ret;
-    foreach (p; fun.type.params)
-      args ~= p._0;
+    args = fun.type.params.dup;
   }
   override int size() {
     return nativePtrSize;
@@ -386,7 +385,7 @@ class FunctionPointer : ast.types.Type {
     auto res = "fp_ret_"~ret.mangle()~"_args";
     if (!args.length) res ~= "_none";
     else foreach (arg; args)
-      res ~= "_"~arg.mangle();
+      res ~= "_"~arg._0.mangle();
     return res;
   }
 }
@@ -430,7 +429,7 @@ static this() {
       text = t2;
       auto res = new FunctionPointer;
       res.ret = cur;
-      foreach (entry; list) res.args ~= entry._0;
+      res.args = list.dup;
       return res;
     } else return null;
   };

@@ -43,7 +43,7 @@ class DgConstructExpr : mkDelegate {
     // logln("ptr is ", ptr, ", data ", data, ", ft ", ft);
     // logln("ptr type is ", ptr.valueType());
     assert(ft.args.length);
-    assert(ft.args[$-1].size == data.valueType().size);
+    assert(ft.args[$-1]._0.size == data.valueType().size);
     return new Delegate(ft.ret, ft.args[0 .. $-1]);
   }
 }
@@ -68,9 +68,9 @@ mixin DefaultParser!(gotFpCloseExpr, "tree.rhs_partial.fpclose", null, null, tru
 
 class Delegate : Type {
   IType ret;
-  IType[] args;
+  Stuple!(IType, string)[] args;
   this() { }
-  this(IType ret, IType[] args) { this.ret = ret; this.args = args; }
+  this(IType ret, Stuple!(IType, string)[] args) { this.ret = ret; this.args = args; }
   override {
     string toString() {
       return Format(ret, " delegate ", args);
@@ -82,7 +82,7 @@ class Delegate : Type {
       auto res = "dg_ret_"~ret.mangle()~"_args";
       if (!args.length) res ~= "_none";
       else foreach (arg; args)
-        res ~= "_"~arg.mangle();
+        res ~= "_"~arg._0.mangle();
       return res;
     }
     int opEquals(IType ty) {
@@ -91,7 +91,7 @@ class Delegate : Type {
       if (dg.ret != ret) return false;
       if (dg.args.length != args.length) return false;
       foreach (i, arg; dg.args)
-        if (arg != args[i]) return false;
+        if (arg._0 != args[i]._0) return false;
       return true;
     }
   }
@@ -102,7 +102,7 @@ IType dgAsStructType(Delegate dgtype) {
   new RelMember("fun",
     new FunctionPointer(
       dgtype.ret,
-      dgtype.args ~ cast(IType) voidp
+      dgtype.args ~ stuple(cast(IType) voidp, cast(string) null)
     ),
     res
   );
@@ -130,16 +130,11 @@ import ast.tuples;
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
     IType ptype;
-    Stuple!(IType, string)[] _list;
-    IType[] list;
+    Stuple!(IType, string)[] list;
     auto t2 = text;
     if (t2.accept("delegate") &&
-      t2.gotParlist(_list, rest)
+      t2.gotParlist(list, rest)
     ) {
-      foreach (entry; _list) list ~= entry._0;
-      if (list.length == 1 && cast(Tuple) list[0]) {
-        list = (cast(Tuple) list[0]).types();
-      }
       text = t2;
       auto res = new Delegate;
       res.ret = cur;

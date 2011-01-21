@@ -169,7 +169,7 @@ class NestFunRefExpr : mkDelegate {
   }
   // TODO: emit asm directly in case of PointerFunction.
   override IType valueType() {
-    return new Delegate(fun.type.ret, fun.type.params /map/ ex!("a, b -> a"));
+    return new Delegate(fun.type.ret, fun.type.params);
   }
   override NestFunRefExpr dup() { return new NestFunRefExpr(fun, base); }
 }
@@ -242,10 +242,10 @@ class PointerFunction(T) : T {
     auto dg = cast(Delegate) ptr.valueType(), fp = cast(FunctionPointer) ptr.valueType();
     if (dg) {
       type.ret = dg.ret;
-      type.params = dg.args /map/ (IType it) { return stuple(it, ""); };
+      type.params = dg.args.dup;
     } else if (fp) {
       type.ret = fp.ret;
-      type.params = fp.args /map/ (IType it) { return stuple(it, ""); };
+      type.params = fp.args.dup;
     } else {
       logln("TYPE ", ptr.valueType());
       asm { int 3; }

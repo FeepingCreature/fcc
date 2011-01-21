@@ -109,12 +109,11 @@ class RelFunction : Function, RelTransformable {
   FunctionPointer typeAsFp() {
     auto res = new FunctionPointer;
     res.ret = type.ret;
-    foreach (param; type.params)
-      res.args ~= param._0;
+    res.args = type.params.dup;
     if (auto rnfb = cast(RelNamespaceFixupBase) context)
-      res.args ~= rnfb.genCtxType(context);
+      res.args ~= stuple(cast(IType) rnfb.genCtxType(context), cast(string) null);
     else
-      res.args ~= new Pointer(basetype);
+      res.args ~= stuple(cast(IType) new Pointer(basetype), cast(string) null);
     return res;
   }
   mixin defaultIterate!(baseptr);
@@ -170,7 +169,7 @@ class StructFunRefExpr : mkDelegate {
     return Format("&", fun.baseptr, ".", fun);
   }
   override IType valueType() {
-    return new Delegate(fun.type.ret, fun.type.params /map/ ex!("a, b -> a"));
+    return new Delegate(fun.type.ret, fun.type.params);
   }
 }
 
