@@ -4,7 +4,7 @@ module ast.cond;
 import
   ast.base, ast.parse, ast.oop, ast.namespace, ast.modules, ast.vardecl,
   ast.variable, ast.scopes, ast.nestfun, ast.casting, ast.arrays,
-  ast.aliasing;
+  ast.aliasing, ast.fun;
 // I'm sorry this is so ugly.
 Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text;
@@ -30,7 +30,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto nf = new NestedFunction(csc), mod = current_module();
   New(nf.type);
   nf.type.ret = Single!(Void);
-  nf.type.params ~= stuple(objtype, "_obj");
+  nf.type.params ~= Argument(objtype, "_obj");
   static int hdlId;
   synchronized
     nf.name = Format("hdlfn_", hdlId++);
@@ -60,7 +60,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
     with (nf2) {
       New(type);
       type.ret = Single!(Void);
-      type.params ~= stuple(cast(IType) Single!(Array, Single!(Char)), "n");
+      type.params ~= Argument(Single!(Array, Single!(Char)), "n");
       fixup;
       name = "invoke-exit";
       auto backup2 = namespace();

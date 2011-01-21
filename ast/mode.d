@@ -62,7 +62,7 @@ class PrefixFunction : Function {
   override {
     Expr getPointer() { logln("Can't get pointer to prefix-extended function! "); assert(false); }
     string toString() { return Format("prefix ", prefix, " to ", sup.toString()); }
-    Stuple!(IType, string)[] getParams() { return sup.getParams()[1 .. $]; }
+    Argument[] getParams() { return sup.getParams()[1 .. $]; }
     PrefixFunction alloc() { assert(false, "what"); }
     PrefixFunction dup() { return new PrefixFunction(prefix.dup(), sup.dup()); }
     PrefixCall mkCall() { return new PrefixCall(this, prefix, sup.mkCall()); }
@@ -104,7 +104,7 @@ class ModeSpace : Namespace, ScopeLike {
           if (!firstParam) return fun;
           if (!fun.extern_c) return fun;
           if (!fun.type || !fun.type.params.length) return fun;
-          auto firstType = fun.type.params[0]._0;
+          auto firstType = fun.type.params[0].type;
           Expr fp = firstParam;
           bool exactlyEqual(IType a, IType b) {
             auto pa = cast(Pointer) a, pb = cast(Pointer) b;

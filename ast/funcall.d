@@ -30,7 +30,7 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg", "25");
 
-bool matchedCallWith(Expr arg, Stuple!(IType, string)[] params, ref Expr[] res, string info = null, string text = null) {
+bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = null, string text = null) {
   Expr[string] nameds;
   void removeNameds(ref Iterable it) {
     if (auto ex = cast(Expr) it) {
@@ -48,8 +48,12 @@ bool matchedCallWith(Expr arg, Stuple!(IType, string)[] params, ref Expr[] res, 
               nameds[na.name] = na.base;
             else
               left ~= subexpr;
-          it = cast(Iterable) mkTupleExpr(left);
+          it = mkTupleExpr(left);
         }
+      }
+      if (auto na = cast(NamedArg) ex) {
+        nameds[na.name] = na.base;
+        it = mkTupleExpr();
       }
     }
   }
@@ -61,15 +65,29 @@ bool matchedCallWith(Expr arg, Stuple!(IType, string)[] params, ref Expr[] res, 
   
   Expr[] args;
   args ~= arg;
-  if (nameds.length) logln("nameds: ", nameds);
   Expr[] flatten(Expr ex) {
     if (cast(AstTuple) ex.valueType())
       return getTupleEntries(ex);
     else
       return null;
   }
+  int flatLength(Expr ex) {
+    int res;
+    if (cast(AstTuple) ex.valueType()) {
+      foreach (entry; getTupleEntries(ex))
+        res += flatLength(entry);
+    } else {
+      res ++;
+    }
+    return res;
+  }
+  int flatArgsLength() {
+    int res;
+    foreach (arg; args) res += flatLength(arg);
+    return res;
+  }
   foreach (i, tuple; params) {
-    auto type = tuple._0, name = tuple._1;
+    auto type = tuple.type, name = tuple.name;
     type = resolveType(type);
     if (cast(Variadic) type) {
       foreach (ref rest_arg; args)
@@ -79,24 +97,31 @@ bool matchedCallWith(Expr arg, Stuple!(IType, string)[] params, ref Expr[] res, 
       args = null;
       break;
     }
-    IType[] tried;
-    if (auto p = name in nameds) {
-      auto ex = *p, backup = ex;
-      if (!gotImplicitCast(ex, type, (IType it) {
-        tried ~= it;
-        return test(it == type);
-      }))
-        text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " to function call '", info, "', ", type, "; tried ", tried);
-      res ~= ex;
-      continue;
+    {
+      IType[] tried;
+      if (auto p = name in nameds) {
+        auto ex = *p, backup = ex;
+        if (!gotImplicitCast(ex, type, (IType it) { tried ~= it; return test(it == type); }))
+          text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " to function call '", info, "', ", type, "; tried ", tried, ".");
+        res ~= ex;
+        continue;
+      }
     }
-    // TODO: default values
-    if (!args.length) {
+    if (!flatArgsLength()) {
+      if (tuple.initEx) {
+        auto ex = tuple.initEx;
+        IType[] tried;
+        if (!gotImplicitCast(ex, (IType it) { tried ~= it; return test(it == type); }))
+          text.failparse("Couldn't match default argument for ", name, ": ", tuple.initEx.valueType(), " to ", type,"; tried ", tried, ".");
+        res ~= ex;
+        continue;
+      }
       throw new Exception(Format("Not enough parameters for '", info, "'; left over ", type, "!"));
     }
   retry:
     auto ex = args.take();
     auto backup = ex;
+    IType[] tried;
     
     if (!gotImplicitCast(ex, type, (IType it) {
       tried ~= it;
@@ -130,7 +155,7 @@ bool matchedCallWith(Expr arg, Stuple!(IType, string)[] params, ref Expr[] res, 
 
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
-bool matchCall(ref string text, string info, Stuple!(IType, string)[] params, ParseCb rest, ref Expr[] res) {
+bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res) {
   Expr arg;
   auto backup_text = text; 
   if (!backup_text.length) return false; // wat

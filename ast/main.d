@@ -25,14 +25,14 @@ void fixupMain() {
     if (!params.length) { }
     else {
       if (params.length == 2) {
-        if (params[0]._0 == Single!(SysInt) && params[1]._0 == Single!(Pointer, Single!(Pointer, Single!(Char))))
+        if (params[0].type == Single!(SysInt) && params[1].type == Single!(Pointer, Single!(Pointer, Single!(Char))))
           mainTakesArgCV = true;
         else {
           logln("invalid main form (1): ", m.type);
           fail();
         }
       } else if (params.length == 1) {
-        if (params[0]._0 == Single!(Array, Single!(Array, Single!(Char))))
+        if (params[0].type == Single!(Array, Single!(Array, Single!(Char))))
           mainTakesStrings = true;
         else {
           logln("invalid main form (2): ", m.type);

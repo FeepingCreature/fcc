@@ -459,7 +459,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       fun.extern_c = true;
       fun.type = new FunctionType;
       fun.type.ret = ret;
-      fun.type.params = args /map/ ex!(`a -> stuple(a, "")`);
+      fun.type.params = args /map/ (IType it) { return Argument(it); };
       add(name, fun);
       continue;
     }

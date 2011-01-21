@@ -3,6 +3,7 @@ module ast.dg;
 import ast.base, ast.parse, ast.vardecl, ast.namespace, ast.structure,
   ast.pointer, ast.fun;
 
+public import ast.fun: Argument;
 class mkDelegate : Expr {
   abstract IType valueType();
   abstract mkDelegate dup();
@@ -43,7 +44,7 @@ class DgConstructExpr : mkDelegate {
     // logln("ptr is ", ptr, ", data ", data, ", ft ", ft);
     // logln("ptr type is ", ptr.valueType());
     assert(ft.args.length);
-    assert(ft.args[$-1]._0.size == data.valueType().size);
+    assert(ft.args[$-1].type.size == data.valueType().size);
     return new Delegate(ft.ret, ft.args[0 .. $-1]);
   }
 }
@@ -68,9 +69,9 @@ mixin DefaultParser!(gotFpCloseExpr, "tree.rhs_partial.fpclose", null, null, tru
 
 class Delegate : Type {
   IType ret;
-  Stuple!(IType, string)[] args;
+  Argument[] args;
   this() { }
-  this(IType ret, Stuple!(IType, string)[] args) { this.ret = ret; this.args = args; }
+  this(IType ret, Argument[] args) { this.ret = ret; this.args = args; }
   override {
     string toString() {
       return Format(ret, " delegate ", args);
@@ -82,7 +83,7 @@ class Delegate : Type {
       auto res = "dg_ret_"~ret.mangle()~"_args";
       if (!args.length) res ~= "_none";
       else foreach (arg; args)
-        res ~= "_"~arg._0.mangle();
+        res ~= "_"~arg.type.mangle();
       return res;
     }
     int opEquals(IType ty) {
@@ -91,7 +92,7 @@ class Delegate : Type {
       if (dg.ret != ret) return false;
       if (dg.args.length != args.length) return false;
       foreach (i, arg; dg.args)
-        if (arg._0 != args[i]._0) return false;
+        if (arg.type != args[i].type) return false;
       return true;
     }
   }
@@ -102,7 +103,7 @@ IType dgAsStructType(Delegate dgtype) {
   new RelMember("fun",
     new FunctionPointer(
       dgtype.ret,
-      dgtype.args ~ stuple(cast(IType) voidp, cast(string) null)
+      dgtype.args ~ Argument(voidp)
     ),
     res
   );
@@ -130,7 +131,7 @@ import ast.tuples;
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
     IType ptype;
-    Stuple!(IType, string)[] list;
+    Argument[] list;
     auto t2 = text;
     if (t2.accept("delegate") &&
       t2.gotParlist(list, rest)

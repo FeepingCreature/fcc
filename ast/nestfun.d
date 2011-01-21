@@ -4,6 +4,7 @@ import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.variable, ast.pointer, ast.structure, ast.namespace,
        ast.vardecl, ast.parse, ast.assign, ast.constant, ast.dg;
 
+public import ast.fun: Argument;
 import ast.aliasing;
 class NestedFunction : Function {
   Scope context;

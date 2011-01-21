@@ -1,3 +1,5 @@
 module test6;
 
-void main() { using "Hello World! " writeln(); }
+int add (int a = 3, b = 5) { return a + b; }
+
+void main() { writeln "forble $(add b=>7)"; }

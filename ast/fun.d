@@ -12,6 +12,19 @@ interface StoresDebugState {
 
 extern(C) void alignment_emitAligned(Expr ex, AsmFile af);
 
+struct Argument {
+  IType type;
+  string name;
+  Expr initEx;
+  static Argument opCall(IType it, string name = null, Expr initEx = null) {
+    Argument res;
+    res.type = it;
+    res.name = name;
+    res.initEx = initEx;
+    return res;
+  }
+}
+
 class FunSymbol : Symbol {
   Function fun;
   this(Function fun) {
@@ -25,7 +38,7 @@ class FunSymbol : Symbol {
     auto res = new FunctionPointer;
     res.ret = fun.type.ret;
     res.args = fun.type.params;
-    res.args ~= stuple(cast(IType) Single!(SysInt), cast(string) null);
+    res.args ~= Argument(Single!(SysInt));
     return res;
   }
 }
@@ -45,7 +58,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   // add parameters to namespace
   int _framestart;
   Function alloc() { return new Function; }
-  Stuple!(IType, string)[] getParams() { return type.params; }
+  Argument[] getParams() { return type.params; }
   Function dup() {
     auto res = alloc();
     res.name = name;
@@ -71,10 +84,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
     // TODO: alignment
     foreach (param; type.params) {
       // if (param._1) { // what the HELL
-        _framestart += param._0.size;
-        add(new Variable(param._0, param._1, cur));
+        _framestart += param.type.size;
+        add(new Variable(param.type, param.name, cur));
       // }
-      cur += param._0.size;
+      cur += param.type.size;
     }
     return cur;
   }
@@ -261,14 +274,14 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
 
 class FunctionType : ast.types.Type {
   IType ret;
-  Stuple!(IType, string)[] params;
+  Argument[] params;
   override int size() {
     asm { int 3; }
     assert(false);
   }
   IType[] types() {
     auto res = new IType[params.length];
-    foreach (i, entry; params) res[i] = entry._0;
+    foreach (i, entry; params) res[i] = entry.type;
     return res;
   }
   override {
@@ -278,7 +291,7 @@ class FunctionType : ast.types.Type {
       foreach (i, param; params) {
         if (!i) res ~= "_of_";
         else res ~= "_and_";
-        res ~= param._0.mangle();
+        res ~= param.type.mangle();
       }
       return res;
     }
@@ -286,17 +299,30 @@ class FunctionType : ast.types.Type {
   }
 }
 
-bool gotParlist(ref string str, ref Stuple!(IType, string)[] res, ParseCb rest) {
+bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
   auto t2 = str;
   IType ptype, lastType;
   string parname;
+  Expr init;
+  bool gotInitializer(ref string text, out Expr res) {
+    auto t2 = text;
+    if (!t2.accept("=")) return false;
+    if (!rest(t2, "tree.expr", &res))
+      return false;
+    text = t2;
+    return true;
+  }
   if (t2.accept("(") &&
       t2.bjoin(
         ( // can omit types for subsequent parameters
           test(ptype = cast(IType) rest(t2, "type")) || test(ptype = lastType)
-        ) && (t2.gotIdentifier(parname) || ((parname = null), true)),
+        ) && (
+          t2.gotIdentifier(parname) || ((parname = null), true)
+        ) && (
+          gotInitializer(t2, init) || ((init = null), true)
+        ),
         t2.accept(","),
-        { lastType = ptype; res ~= stuple(ptype, parname); }
+        { lastType = ptype; res ~= Argument(ptype, parname, init); }
       ) &&
       t2.accept(")")
   ) {
@@ -367,10 +393,10 @@ mixin DefaultParser!(gotFunDef, "tree.fundef");
 // yes I wrote delegates first. how about that.
 class FunctionPointer : ast.types.Type {
   IType ret;
-  Stuple!(IType, string)[] args;
+  Argument[] args;
   this() { }
   string toString() { return Format(ret, " function(", args, ")"); }
-  this(IType ret, Stuple!(IType, string)[] args) {
+  this(IType ret, Argument[] args) {
     this.ret = ret;
     this.args = args.dup;
   }
@@ -385,7 +411,7 @@ class FunctionPointer : ast.types.Type {
     auto res = "fp_ret_"~ret.mangle()~"_args";
     if (!args.length) res ~= "_none";
     else foreach (arg; args)
-      res ~= "_"~arg._0.mangle();
+      res ~= "_"~arg.type.mangle();
     return res;
   }
 }
@@ -421,7 +447,7 @@ mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref", "2101", "&");
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
     IType ptype;
-    Stuple!(IType, string)[] list;
+    Argument[] list;
     auto t2 = text;
     if (t2.accept("function") &&
       t2.gotParlist(list, rest)

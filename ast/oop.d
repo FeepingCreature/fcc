@@ -231,7 +231,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     New(rf.type);
     rf.name = "dynamicCastTo";
     rf.type.ret = voidp;
-    rf.type.params ~= stuple(cast(IType) Single!(Array, Single!(Char)), "id");
+    rf.type.params ~= Argument(Single!(Array, Single!(Char)), "id");
     rf.sup = this;
     rf.fixup;
     add(rf);

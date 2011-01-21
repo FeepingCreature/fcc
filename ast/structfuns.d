@@ -111,9 +111,9 @@ class RelFunction : Function, RelTransformable {
     res.ret = type.ret;
     res.args = type.params.dup;
     if (auto rnfb = cast(RelNamespaceFixupBase) context)
-      res.args ~= stuple(cast(IType) rnfb.genCtxType(context), cast(string) null);
+      res.args ~= Argument(rnfb.genCtxType(context));
     else
-      res.args ~= stuple(cast(IType) new Pointer(basetype), cast(string) null);
+      res.args ~= Argument(new Pointer(basetype));
     return res;
   }
   mixin defaultIterate!(baseptr);
