@@ -469,6 +469,8 @@ class ProcTrack : ExtToken {
           mixin(Success);
         } else if (auto deref = t.from.isIndirect2(delta)) {
           if (deref in nvmed) return false;
+          // TODO: handle this (stuff like '0(%eax, %ecx)')
+          if (deref.find(",") != -1) return false;
           if (deref in known) {
             auto val = known[deref];
             if (auto indir = mkIndirect(val, delta)) {
@@ -1298,7 +1300,8 @@ void setupOpts() {
           case Call:
             if (check.isUtilityRegister()) {
               // arguments on the stack (cdecl)
-              unneeded = true;
+              if (entry.dest.find(check) == -1)
+                unneeded = true;
               break outer;
             }
           case Label, Compare, Jump:
