@@ -446,7 +446,7 @@ struct Transsection(C) {
     } else {
       with (parent) {
         auto f1 = to, t1 = size, f2 = from + withWhat.length, t2 = f2 + (t1 - f1);
-        size = max(size, t2);
+        resize(max(size, t2));
         if (f2 < f1) // forward copy
           for (int i = f1; i < t1; ++i)
             list[f2 - f1 + i] = list[i];
@@ -480,7 +480,17 @@ struct Transsection(C) {
 class Transcache {
   Transaction[] _list;
   int size;
-  Transaction[] list() { return _list[0 .. size]; }
+  void resize(int i) {
+    if (!_list.length) _list = new Transaction[1024];
+    while (_list.length < i) _list.length = _list.length * 2;
+    size = i;
+  }
+  Transaction[] list() {
+    if (size > _list.length) {
+      logln("WTF?! ", size, " into ", _list.length);
+      asm { int 3; }
+    }
+    return _list[0 .. size]; }
   Transsection!(C) findMatch(C)(string opName, C cond, int from = 0) {
     for (int base = from; base < list.length; ++base) {
       if (auto len = cond(list[base .. $])) return Transsection!(C)(this, opName, cond, base, base + len, false);

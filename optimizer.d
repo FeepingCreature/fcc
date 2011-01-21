@@ -510,14 +510,14 @@ class ProcTrack : ExtToken {
           return false;
           break;
         } else if (t.from.isLiteral()) {
-          if (!set(t.to, t.from))
-            return false;
           int offs;
           auto indir = t.to.isIndirect2(offs);
           if (indir == "%esp" || (indir == "%ebp" && offs < 0))
             // access to live stack
             if (stack.length) return false;
             else noStack = true;
+          if (!set(t.to, t.from))
+            return false;
           mixin(Success);
         }
         break;
@@ -766,13 +766,10 @@ void setupOpts() {
       _changed = progress; // v secretly
       skip:; //   < < < < < < /
     } else {
-      static int si;
-      if (si++ < 4096-2048-1024+512+256-128-64-32+16+8-4+2) {
-        New(obj);
-        t.obj = obj;
-        if (obj.update($0)) { $SUBST([t, $1]); }
-        // else logln("Reject ", $0, ", ", $1);
-      }
+      New(obj);
+      t.obj = obj;
+      if (obj.update($0)) { $SUBST([t, $1]); }
+      // else logln("Reject ", $0, ", ", $1);
     }
   `));
   // .ext_step = &ext_step; // export
