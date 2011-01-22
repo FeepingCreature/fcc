@@ -51,7 +51,7 @@ class Range : Type, RichIterator, RangeIsh {
     }
     Expr length(Expr ex) {
       return iparse!(Expr, "length_range", "tree.expr")
-                    ("ex.end - ex.cur", "ex", castExprToWrapper(ex));
+                    ("int:(ex.end - ex.cur)", "ex", castExprToWrapper(ex));
     }
     Expr index(Expr ex, Expr pos) {
       return iparse!(Expr, "index_range", "tree.expr")
@@ -97,7 +97,12 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
         mkInt(to)
       );
     }
-    Expr length(Expr ex) { return mkInt(to-from); }
+    Expr length(Expr ex) {
+      return iparse!(Expr, "const_int_length", "tree.expr")
+                    (`to - ex`,
+                     "ex", reinterpret_cast(Single!(SysInt), ex),
+                     "to", new IntExpr(to));
+    }
     Expr index(Expr ex, Expr pos) {
       return iparse!(Expr, "const_index_range", "tree.expr")
                     ("ex + pos",
@@ -347,9 +352,7 @@ class ForIter(I) : Type, I {
     wlv = castToWrapper(lv);
     auto var = iparse!(LValue, "foriter_wlv_var", "tree.expr")
                       ("wlv.var", "wlv", wlv);
-    auto stmt = iparse!(Statement, "foriter_assign", "tree.semicol_stmt.assign")
-                        ("var = ya", "var", var, "ya", itertype.yieldAdvance(subexpr(wlv.dup)));
-    return stmt;
+    return new Assignment(var, itertype.yieldAdvance(subexpr(wlv.dup)));
   }
   override {
     string toString() {

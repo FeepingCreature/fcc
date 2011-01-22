@@ -382,9 +382,37 @@ class SumExpr : Expr {
     IType valueType() { return iter.elemType(); }
     void emitAsm(AsmFile af) {
       mkVar(af, iter.elemType(), true, (Variable var) {
-        iparse!(Statement, "sum", "tree.stmt")
-              (`{ bool inited; auto i2 = iter; while T temp <- i2 { if !inited { inited = true; var = temp; } else { var = var + temp; } } }`,
-                "iter", ex, "T", iter.elemType(), "var", var, af).emitAsm(af);
+        if (auto ri = cast(RichIterator) iter) {
+          // unroll. TODO: decide when.
+          auto stmt = iparse!(Statement, "sum_1", "tree.stmt")
+          (`
+          {
+            auto i2 = iter;
+            T temp;
+            var = __istep i2;
+            int left = i2.length / 4;
+            for 0..left {
+              var += __istep i2;
+              var += __istep i2;
+              var += __istep i2;
+              var += __istep i2;
+            }
+            while temp <- i2 { var += temp; }
+          } `, "iter", ex, "T", iter.elemType(), "var", var, af);
+          // opt(stmt);
+          stmt.emitAsm(af);
+        } else {
+          auto stmt = iparse!(Statement, "sum_2", "tree.stmt")
+          (`
+          {
+            auto i2 = iter;
+            T temp;
+            var = __istep i2;
+            while temp <- i2 { var += temp; }
+          }`, "iter", ex, "T", iter.elemType(), "var", var, af);
+          // opt(stmt);
+          stmt.emitAsm(af);
+        }
       });
     }
   }

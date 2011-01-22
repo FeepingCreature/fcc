@@ -596,11 +596,12 @@ class ProcTrack : ExtToken {
               // if (!stack.length && latepop.length) break;
               if (stack.length) {
                 auto newval = stack[$-1];
-                if (!set(indir, newval))
-                  return false;
                 if (newval.find("%esp") == -1 || (newval.find("%ebp") == -1 && offs < 0))
                   // not reliable to do push/pop stackwork before we move to the active stack
-                  noStack = true;
+                  if (stack.length) return false;
+                  else noStack = true;
+                if (!set(indir, newval))
+                  return false;
                 // we have a pop! fix up the esp deps
                 fixupESPDeps(-4);
                 stack = stack[0 .. $-1];
@@ -697,7 +698,10 @@ class ProcTrack : ExtToken {
         
         res ~= t;
       }
-      assert(!stack.length || !noStack);
+      if (stack.length && noStack) {
+        logln("Highly invalid processor state: ", this);
+        asm { int 3; }
+      }
       foreach (entry; stack) {
         addTransaction(Transaction.Kind.Push, (ref Transaction t) {
           t.source = entry;
@@ -917,6 +921,17 @@ void setupOpts() {
     t2.size = 4;
     $SUBST([t1, t2]);
   `));
+  mixin(opt("fold_doublestores", `^DoublePop, ^Pop, ^Pop:
+    $0.dest == "(%esp)" && $1.type.size == 4 && $2.type.size == 4
+    && $1.dest == $2.dest && $1.dest != "(%esp)" /* lolwat? */
+    =>
+    $T t1 = $0.dup;
+    t1.dest = $1.dest;
+    $T t2;
+    t2.kind = $TK.SFree;
+    t2.size = 8;
+    $SUBST([t1, t2]);
+  `));
   mixin(opt("sort_push_math", `^Push, ^MathOp:
     $0.source.isUtilityRegister() && $1.op2 == "(%esp)"
     =>
@@ -978,7 +993,9 @@ void setupOpts() {
     $SUBST([a1, $0]);
   `));
   mixin(opt("fold_float_pop_load", `^FloatPop, ^FloatLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 4 => $SUBST($2);`));
+  mixin(opt("fold_double_pop_load", `^DoublePop, ^DoubleLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 8 => $SUBST($2);`));
   mixin(opt("fold_float_pop_load_to_store", `^FloatPop, ^FloatLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.FloatStore; dest = $0.dest; }`));
+  mixin(opt("fold_double_pop_load_to_store", `^DoublePop, ^DoubleLoad: $0.dest == $1.source => $SUBSTWITH { kind = $TK.DoubleStore; dest = $0.dest; }`));
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
   
   mixin(opt("ebp_to_esp", `*:
@@ -1024,12 +1041,26 @@ void setupOpts() {
     =>
     $SUBST([$0]);
   `));
-  mixin(opt("fold_float_load", `^LoadAddress, (^FloatLoad || ^FloatIntLoad):
+  mixin(opt("fold_float_load", `^LoadAddress, (^FloatLoad || ^FloatIntLoad || ^DoubleLoad):
     $0.to == $1.source.isIndirect(0)
     =>
     $T t = $1.dup;
     t.source = $0.from;
     $SUBST(t);
+  `));
+  mixin(opt("fold_float_push_pop", `^DoublePop, (^FloatLoad || ^DoubleLoad), ^DoubleLoad:
+    $0.dest == $2.source
+    =>
+    $T t1;
+    t1.kind = $TK.DoubleStore;
+    t1.dest = $0.dest;
+    $T t2; t2.kind = $TK.FPSwap;
+    $SUBST([t1, $1, t2]);
+  `));
+  mixin(opt("float_pointless_swap", `^FPSwap, ^FloatMath:
+    $1.opName == "fadd" || $1.opName == "fmul"
+    =>
+    $SUBST($1);
   `));
   mixin(opt("silly_push_2", `^Push, ^SFree:
     $0.type.size == 4 && $1.size > 4
@@ -1111,12 +1142,6 @@ void setupOpts() {
       $SUBST(ts);
     }
   `));
-  mixin(opt("remove_redundant_fp_store", `^FloatMath, ^FloatStore, ^FloatMath, *:
-    ($3.kind == $TK.FloatStore || $3.kind == $TK.FloatPop)
-    && $1.dest == $3.dest
-    =>
-    $SUBST([$0, $2, $3]);
-  `));
   mixin(opt("generic_waste", `*, ^SFree:
     (hasDest($0) || hasTo($0)) && opSize($0) == 4 && $1.size >= 4
     =>
@@ -1133,6 +1158,30 @@ void setupOpts() {
     $T t = $2;
     t.op1 = $0.from;
     $SUBST([$1, t, $0]);
+  `));
+  mixin(opt("direct_math_2", `^Mov, ^MathOp, ^Mov:
+    $0.to.isUtilityRegister() && $0.to == $1.op2 &&
+    $0.from == $2.to && $0.to == $2.from &&
+    $1.op1.isNumLiteral() && $1.opName != "imull" /* :( */
+    =>
+    $T t1 = $1;
+    t1.op2 = $0.from;
+    $SUBST([t1, $0]);
+  `));
+  mixin(opt("direct_int_load", `^Push, ^FloatIntLoad, ^SFree:
+    $0.type.size == 4 && $1.source == "(%esp)" && $2.size == 4
+    =>
+    $T t = $1.dup;
+    t.source = $0.source;
+    $SUBST(t);
+  `));
+  mixin(opt("move_into_compare", `^Mov, ^Compare:
+    $0.to.isUtilityRegister() && $1.op2 == $0.to &&
+    !($0.from.isNumLiteral() && $1.op1.isNumLiteral()) /* wat */
+    =>
+    $T t = $1.dup;
+    t.op2 = $0.from;
+    $SUBST(t);
   `));
   // subl $num1, %reg, pushl num2(%reg), popl %reg => movl -num1+num2(%reg) -> %reg
   mixin(opt("fold_math_push", `^MathOp, ^Push, ^Pop:
@@ -1243,6 +1292,18 @@ void setupOpts() {
     t.source = $0.source;
     $SUBST(t);
   `));
+  /*mixin(opt("push_salloc_smoother", `^Push, ^SAlloc:
+    $0.type.size == 4 && $1.size && !$0.source.isRelative()
+    =>
+    $T t1 = $1.dup;
+    t1.size += 4;
+    $T t2;
+    t2.kind = $TK.Mov;
+    t2.from = $0.source;
+    fixupString(t2.from, 4 + $1.size);
+    t2.to = qformat($1.size, "(%esp)");
+    $SUBST([t1, t2]);
+  `));*/
   mixin(opt("ext_mem_form", `^MathOp, ^Push, ^Pop:
     $0.opName == "addl" &&
     $0.op1.isUtilityRegister() && $0.op2.isUtilityRegister() &&

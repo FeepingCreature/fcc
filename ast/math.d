@@ -81,19 +81,29 @@ static this() {
   };
 }
 
-class FloatAsInt : Expr {
-  Expr f;
-  this(Expr f) { this.f = f; assert(f.valueType() == Single!(Float)); }
+class FPAsInt : Expr {
+  Expr fp;
+  bool dbl;
+  this(Expr fp, bool dbl = false) {
+    this.fp = fp;
+    this.dbl = dbl;
+    if (dbl)
+      assert(fp.valueType() == Single!(Double));
+    else
+      assert(fp.valueType() == Single!(Float));
+  }
   private this() { }
   mixin DefaultDup;
-  mixin defaultIterate!(f);
+  mixin defaultIterate!(fp);
   override {
-    string toString() { return Format("int(", f, ")"); }
+    string toString() { return Format("int:", fp); }
     IType valueType() { return Single!(SysInt); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("4"));
-      f.emitAsm(af);
-      af.loadFloat("(%esp)");
+      fp.emitAsm(af);
+      if (dbl) af.loadDouble("(%esp)");
+      else af.loadFloat("(%esp)");
+      if (dbl) af.sfree(4);
       af.put("fistpl (%esp)");
       af.floatStackDepth --;
     }
@@ -107,11 +117,21 @@ Expr floatToInt(Expr ex, IType) {
    ||!gotImplicitCast(ex, (IType it) { return test(Single!(Float) == it); }))
     return null;
   
-  return new FloatAsInt(ex);
+  return new FPAsInt(ex);
+}
+
+Expr doubleToInt(Expr ex, IType) {
+  auto ex2 = ex;
+  if (gotImplicitCast(ex2, (IType it) { return test(Single!(SysInt) == it); })
+   ||!gotImplicitCast(ex, (IType it) { return test(Single!(Double) == it); }))
+    return null;
+  
+  return new FPAsInt(ex, true);
 }
 
 static this() {
   converts ~= &floatToInt /todg;
+  converts ~= &doubleToInt /todg;
 }
 
 class FloatAsDouble : Expr {

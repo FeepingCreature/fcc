@@ -205,7 +205,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
 
 // internal miniparse wrapper
 float[string] bench;
-import tools.time;
+import tools.time, ast.fold;
 const bool canFail = false;
 template iparse(R, string id, string rule, bool mustParse = true) {
   R iparse(T...)(string text, T _t) {
@@ -267,6 +267,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     } else {
       if (text.length || !rc) return null;
     }
+    opt(rc);
     return rc;
   }
 }
