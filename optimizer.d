@@ -74,9 +74,9 @@ string opt(string name, string s) {
 void accessParams(ref Transaction t, void delegate(ref string) dg, bool writeonly = false) {
   with (Transaction.Kind) switch (t.kind) {
     case SAlloc, SFree,
-      FloatMath, FloatSwap  : return;
+      FloatMath, FPSwap  : return;
     case Call, Nevermind,
-      FloatStore,
+      FloatStore, DoubleStore,
       FloatPop, DoublePop,
       Pop                   : dg(t.dest); return;
     case ExtendDivide:
@@ -101,7 +101,7 @@ void accessParams(ref Transaction t, void delegate(ref string) dg, bool writeonl
   with (Transaction.Kind)
     if (t.kind == SAlloc /or/ SFree /or/ Call /or/ Compare /or/ Label /or/ Jump)
       return true;
-    else if (t.kind == FloatMath /or/ FloatSwap)
+    else if (t.kind == FloatMath /or/ FPSwap)
       return false;
     else if (affects && t.kind == Pop /or/ Push)
       return true;
@@ -136,7 +136,7 @@ bool hasSource(ref Transaction t) {
 
 bool hasDest(ref Transaction t) {
   with (Transaction.Kind)
-    return !!(t.kind == Pop /or/ Call /or/ FloatStore /or/ FloatPop);
+    return !!(t.kind == Pop /or/ Call /or/ FloatStore /or/ DoubleStore /or/ FloatPop /or/ DoublePop);
 }
 
 bool hasFrom(ref Transaction t) {
@@ -173,6 +173,7 @@ int opSize(ref Transaction t) {
   with (Transaction.Kind) {
     switch (t.kind) {
       case Mov, LoadAddress, FloatStore, FloatPop, FloatLoad: return 4;
+      case DoubleStore, DoublePop, DoubleLoad: return 8;
       case Mov2: return 2;
       case Mov1: return 1;
       case Push, Pop: return t.type.size;
@@ -218,7 +219,7 @@ bool pinsRegister(ref Transaction t, string reg) {
   with (Transaction.Kind)
     if (t.kind == Call /or/ Label /or/ Jump)
       return true;
-    else if (t.kind == FloatMath /or/ FloatSwap)
+    else if (t.kind == FloatMath /or/ FPSwap)
       return false;
   bool res;
   accessParams(t, delegate void(ref string s) {
@@ -840,7 +841,7 @@ void setupOpts() {
     // override conas
     if ((
       !changesOrNeedsActiveStack($0) ||
-      $0.kind == $TK.Mov /or/ $TK.FloatPop /or/ $TK.FloatLoad /or/ $TK.FloatStore /or/ $TK.LoadAddress
+      $0.kind == $TK.Mov /or/ $TK.FloatPop /or/ $TK.DoublePop /or/ $TK.FloatLoad /or/ $TK.FloatStore /or/ $TK.DoubleStore /or/ $TK.LoadAddress
     ) && (shift > 0 || shift == -1 && !dontDoIt)) {
       if (shift == -1) shift = $1.size;
       auto t0 = $1, t2 = $1;
@@ -1175,7 +1176,7 @@ void setupOpts() {
     =>
     $T t;
     // good luck working out why ~
-    t.kind = $TK.FloatSwap;
+    t.kind = $TK.FPSwap;
     $SUBST([$0, $1, $3]);
   `));
   // push %reg1, mov x -> %reg1, pop %reg2 => mov %reg1 -> %reg2, mov x -> %reg1
@@ -1291,7 +1292,8 @@ void setupOpts() {
       auto head = list[0];
       string check;
       if (hasTo(head)) check = head.to;
-      if (head.kind == Transaction.Kind.FloatStore) check = head.dest;
+      if (head.kind == Transaction.Kind.FloatStore ) check = head.dest;
+      if (head.kind == Transaction.Kind.DoubleStore) check = head.dest;
       if (head.kind == Transaction.Kind.MathOp) check = head.op2;
       pushMode = false;
       if (head.kind == Transaction.Kind.Push && head.type.size == 4) { pushMode = true; check = "(%esp)"; }
@@ -1327,7 +1329,7 @@ void setupOpts() {
           
           case Pop:
             if (check == "(%esp)") break outer;
-          case Nevermind, FloatPop, DoublePop, FloatStore:
+          case Nevermind, FloatPop, DoublePop, FloatStore, DoubleStore:
             if (entry.dest == check) { unneeded = true; break outer; }
             if (entry.dest.find(check) != -1) break outer;
             continue;

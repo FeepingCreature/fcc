@@ -86,7 +86,8 @@ struct Transaction {
     FloatLoad, DoubleLoad, RealLoad, RegLoad,
     FloatCompare,
     FloatPop, DoublePop,
-    FloatStore, FloatMath, FloatSwap,
+    FloatStore, DoubleStore,
+    FloatMath, FPSwap,
     FloatIntLoad, /* fildl */
     ExtendDivide, /* cdq, idivl */
     Jump, Label, Extended, Nevermind, LoadAddress
@@ -95,7 +96,8 @@ struct Transaction {
     "FloatLoad", "DoubleLoad", "RealLoad", "RegLoad",
     "FloatCompare",
     "FloatPop" , "DoublePop" ,
-    "FloatStore", "FloatMath", "FloatSwap",
+    "FloatStore", "DoubleStore",
+    "FloatMath", "FPSwap",
     "FloatIntLoad",
     "ExtendDivide",
     "Jump", "Label", "Extended", "Nevermind", "LoadAddress"];
@@ -128,8 +130,9 @@ struct Transaction {
       case FloatPop:  return Format("[float pop ", dest, "]");
       case DoublePop:  return Format("[double pop ", dest, "]");
       case FloatStore: return Format("[float store ", dest, "]");
+      case DoubleStore: return Format("[double store ", dest, "]");
       case FloatMath: return Format("[float math ", opName, "]");
-      case FloatSwap: return Format("[float swap]");
+      case FPSwap: return Format("[x87 swap]");
       case FloatIntLoad: return Format("[float int load ", source, "]");
       case ExtendDivide: return Format("[cdq/idivl ", source, "]");
       case Jump:      return Format("[jmp ", dest, "]");
@@ -147,12 +150,12 @@ struct Transaction {
       case MathOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
       case Push: return source == t2.source && type == t2.type;
       case Pop: return dest == t2.dest && type == t2.type;
-      case FloatStore, FloatPop, DoublePop: return dest == t2.dest;
+      case FloatStore, DoubleStore, FloatPop, DoublePop: return dest == t2.dest;
       case Call, Jump: return dest == t2.dest;
       case Compare: return op1 == t2.op1 && op2 == t2.op2;
       case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatCompare: return source == t2.source;
       case FloatMath: return opName == t2.opName;
-      case FloatSwap: return true;
+      case FPSwap: return true;
       case FloatIntLoad: return source == t2.source;
       case ExtendDivide: return source == t2.source;
       case Label: return names == t2.names;
@@ -178,7 +181,10 @@ struct Transaction {
     with (Kind) switch (kind) {
       case Mov:
         if (from.isRelative() && to.isRelative()) {
-          assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
+          if (!usableScratch) {
+            logln("Cannot do relative memmove without scratch register: ", from, " -> ", to);
+            fail();
+          }
           return qformat("movl ", from.asmformat(), ", ", usableScratch, "\nmovl ", usableScratch, ", ", to.asmformat());
         } else {
           return qformat("movl ", from.asmformat(), ", ", to.asmformat(), " #mov4.2");
@@ -348,51 +354,32 @@ struct Transaction {
         if (dest.find("%") != -1) return qformat("call *", dest);
         if (dest[0] == '$') return qformat("call ", dest[1 .. $]);
         assert(false, "::"~dest);
-      case FloatLoad:
-        return qformat("flds ", source);
-      case DoubleLoad:
-        return qformat("fldl ", source);
-      case RealLoad:
-        return qformat("fldt ", source);
-      case RegLoad:
-        return qformat("fld ", source);
+      case FloatLoad: return qformat("flds ", source);
+      case DoubleLoad: return qformat("fldl ", source);
+      case RealLoad: return qformat("fldt ", source);
+      case RegLoad: return qformat("fld ", source);
       case FloatCompare:
         if (source == "%st1") {
           return qformat("fcompp");
         }
         return qformat("fcomps ", source);
-      case FloatPop:
-        return qformat("fstps ", dest);
-      case DoublePop:
-        return qformat("fstpl ", dest);
-      case FloatStore:
-        return qformat("fsts ", dest);
-      case FloatMath:
-        return qformat(opName~"p %st, %st(1)");
-      case FloatSwap:
-        return qformat("fxch");
-      case FloatIntLoad:
-        return qformat("fildl ", source);
-      case ExtendDivide:
-        return qformat("cdq\nidivl ", source);
-      case Jump:
-        return qformat("jmp ", dest);
+      case FloatPop: return qformat("fstps ", dest);
+      case DoublePop: return qformat("fstpl ", dest);
+      case FloatStore: return qformat("fsts ", dest);
+      case DoubleStore: return qformat("fstl ", dest);
+      case FloatMath: return qformat(opName~"p %st, %st(1)");
+      case FPSwap: return qformat("fxch");
+      case FloatIntLoad: return qformat("fildl ", source);
+      case ExtendDivide: return qformat("cdq\nidivl ", source);
+      case Jump: return qformat("jmp ", dest);
       case Label:
         assert(names.length);
         string res;
         foreach (name; names) res ~= name ~ ":\n";
         return res[0 .. $-1];
-      case Extended:
-        return obj.toAsm();
-      case Nevermind:
-        return "#forget "~dest~". ";
-      case LoadAddress:
-        /*if (from.find("%gs") != -1) {
-          auto offs = from.between("", "(");
-          auto base = from.between("(", ")");
-          return qformat("movl ", base, " + ", offs, ", ", to);
-        }*/
-        return qformat("leal ", from, ", ", to);
+      case Extended: return obj.toAsm();
+      case Nevermind: return "#forget "~dest~". ";
+      case LoadAddress: return qformat("leal ", from, ", ", to);
     }
   }
   struct {

@@ -249,7 +249,7 @@ class AsmFile {
   }
   void swapFloats() {
     Transaction t;
-    t.kind = Transaction.Kind.FloatSwap;
+    t.kind = Transaction.Kind.FPSwap;
     cache ~= t;
   }
   int labelCounter; // Limited to 2^31 labels, le omg.
