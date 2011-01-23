@@ -11,7 +11,6 @@ class Mode {
   this(string c, string a) { config = c; argname = a; }
   ModeSpace translate(Expr ex, ParseCb rest) {
     auto res = new ModeSpace;
-    res.sup = namespace();
     auto cfg = config;
     while (cfg.length) {
       if (cfg.accept("prefix")) {
@@ -94,6 +93,7 @@ class ModeSpace : Namespace, ScopeLike {
   Expr firstParam;
   string prefix;
   bool substituteDashes;
+  this() { sup = namespace(); }
   override {
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
@@ -194,3 +194,26 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
   return wrap;
 }
 mixin DefaultParser!(gotMode, "tree.stmt.mode", "15", "mode");
+
+Object gotPrefix(ref string text, ParseCb cont, ParseCb rest) {
+  string id;
+  if (!text.gotIdentifier(id))
+    text.failparse("Couldn't match prefix string");
+  
+  auto backup = namespace();
+  scope(exit) namespace.set(backup);
+  
+  auto wrap = new Scope;
+  namespace.set(wrap);
+  
+  auto ms = new ModeSpace;
+  ms.prefix = id;
+  namespace.set(ms);
+  
+  Scope sc;
+  if (!rest(text, "tree.scope", &sc))
+    text.failparse("Couldn't parse prefix scope! ");
+  wrap.addStatement(sc);
+  return wrap;
+}
+mixin DefaultParser!(gotPrefix, "tree.stmt.prefix", "155", "prefix");

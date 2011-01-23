@@ -3,7 +3,19 @@ module ast.propcall;
 
 import
   ast.base, ast.mode, ast.namespace, ast.fun, ast.parse,
-  ast.pointer, ast.nestfun, ast.casting;
+  ast.pointer, ast.nestfun, ast.casting, ast.aliasing, ast.pointer;
+
+bool incompat(IType a, IType b) {
+  auto p1 = cast(Pointer) a, p2 = cast(Pointer) b;
+  if (p1 && !p2 || p2 && !p1) return true;
+  if (p1 && p2) return incompat(p1.target, p2.target);
+  
+  auto t1 = cast(TypeAlias) a, t2 = cast(TypeAlias) b;
+  if (t1 && t2 && t1.name != t2.name) return true;
+  
+  return false;
+}
+
 
 // man this is such a hack.
 class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
@@ -17,14 +29,17 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
     Object lookup(string name, bool local = false) {
       auto res = sup.lookup(name, local);
       if (auto fun = cast(Function) res) {
-        if (cast(NestedFunction) fun) goto fail;
+        if (cast(NestedFunction) fun) return null;
         auto pt = fun.getParams[0].type;
         auto ex = firstParam;
+        if (incompat(ex.valueType(), pt)) {
+          logln("Incompatible types: ", ex.valueType(), " and ", pt);
+          return null;
+        }
         if (!gotImplicitCast(ex, (IType it) { return test(it == pt); }))
           return null;
         return new PrefixFunction(ex, fun);
       }
-      fail:
       return null;
     }
     Object lookupRel(string name, Expr base) {

@@ -33,6 +33,13 @@ class Namespace {
     field_cache = null;
     foreach (entry; field) field_cache[entry._0] = entry._1;
   }
+  // reverse of rebuildCache
+  void rebuildField() {
+    field.length = field_cache.length;
+    int id;
+    foreach (key, value; field_cache)
+      field[id++] = stuple(key, value);
+  }
   typeof(mixin(S.ctReplace("$", "(cast(T) field[0]._1)")))[] selectMap(T, string S)() {
     int count;
     foreach (entry; field) if (cast(T) entry._1) count++;

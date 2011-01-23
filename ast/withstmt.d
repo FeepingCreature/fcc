@@ -97,6 +97,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       return res;
     }
     Object lookup(string name, bool local = false) {
+      if (name == "that") return cast(Object) context;
       if (rns)
         if (auto res = rns.lookupRel(name, context))
           return res;

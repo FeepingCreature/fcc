@@ -1377,8 +1377,10 @@ void setupOpts() {
                 unneeded = true;
               break outer;
             }
-          case Label, Compare, Jump:
-            break outer; // no chance
+          case Label:
+            if (check != "(%esp)") unneeded = true;
+          case Compare, Jump:
+            break outer;
           
           case ExtendDivide:
             if (check == "%eax") break outer;

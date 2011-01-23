@@ -244,11 +244,14 @@ Object gotRename(ref string text, ParseCb cont, ParseCb rest) {
   if (!p) {
     t2.failparse("Cannot rename non-locally, use expression alias instead");
   }
+  if (!t2.accept(";"))
+    t2.failparse("Expected trailing semicolon in rename! ");
+  auto pd = *p;
   ns.field_cache.remove(id1);
-  ns.field_cache[id2] = *p;
-  ns.rebuildCache();
+  ns.field_cache[id2] = pd;
+  ns.rebuildField();
   text = t2;
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotRename, "tree.toplevel.rename", null, "_rename");
+mixin DefaultParser!(gotRename, "tree.toplevel.rename", null, "RenameIdentifier");
 
