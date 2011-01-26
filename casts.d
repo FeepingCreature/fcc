@@ -1,7 +1,7 @@
 module casts;
 
 import tools.log, tools.ctfe, tools.compat: min;
-import tools.base: Format;
+import tools.base: Format, Stuple, Init;
 
 // list of class names to optimize
 const string[] quicklist = [
@@ -56,114 +56,56 @@ const string[] quicklist = [
   "ast.aliasing.TypeAlias"
 ];
 
-struct RadixTreeNode {
-  string prefix;
-  RadixTreeNode*[] children;
-  int myID;
-  string toString() {
-    RadixTreeNode[] mew;
-    foreach (entry; children) mew ~= *entry;
-    string res = "[";
-    if (prefix) res ~= "'"~prefix~"'";
-    if (myID != -1) res ~= Format(" ", myID);
-    if (mew.length) res ~= Format(" ", mew);
-    res ~= "]";
-    return res;
-  }
-  static {
-    RadixTreeNode* alloc(string p, RadixTreeNode*[] ch, int i) {
-      auto res = new RadixTreeNode;
-      res.prefix = p;
-      res.children = ch;
-      res.myID = i;
-      return res;
-    }
-  }
-}
+Stuple!(void*, int)[] idtable;
 
-import quicksort;
-RadixTreeNode* radixRoot;
-void buildRadixTree() {
-  auto ql = quicklist.dup;
-  ql.qsort((string a, string b) {
-    auto ml = min(a.length, b.length);
-    for (int i = 0; i < ml; ++i) {
-      if (a[i] < b[i]) return true;
-      if (a[i] > b[i]) return false;
-    }
-    if (a.length) return false;
-    else return true;
-  });
-  int count;
-  RadixTreeNode* naive(string pref, string[] list) {
-    assert(list.length);
-    
-    int from;
-    RadixTreeNode*[] temp;
-    char curPrefix;
-    int myID = -1;
-    int myIDPos = -1;
-    void flush(int to) {
-      if (from == to) return;
-      string[] sgm;
-      foreach (i, entry; list[from .. to]) {
-        if (from + i == myIDPos) continue;
-        sgm ~= entry[1 .. $];
+struct PrimeGenerator {
+  int[] cache;
+  int last;
+  void reset() { last = 0; }
+  int gen() {
+    if (!last) { last = 1; return last; }
+    auto cur = last;
+    while (true) {
+      cur ++;
+      foreach (entry; cache) {
+        if (cur % entry == 0) { continue; }
+        if (entry * entry > cur) { break; }
       }
-      if (sgm.length)
-        temp ~= naive(""~curPrefix, sgm);
-      from = to;
+      break;
     }
-    foreach (id, entry; list) {
-      if (!entry.length) {
-        assert(myID == -1);
-        myID = count++;
-        myIDPos = id;
-      } else if (id == from) {
-        curPrefix = entry[0];
-      } else if (entry[0] != curPrefix) {
-        flush(id);
-        curPrefix = entry[0];
-      } // else continue
-    }
-    flush(list.length);
-    return RadixTreeNode.alloc(pref, temp, myID);
+    if (!cache.length || cache[$-1] < cur)
+      cache ~= cur;
+    return cur;
   }
-  void opt(RadixTreeNode* node) {
-    while (node.children.length == 1 && node.myID == -1) {
-      node.prefix ~= node.children[0].prefix;
-      node.myID = node.children[0].myID;
-      node.children = node.children[0].children;
-    }
-    foreach (child; node.children) {
-      opt(child);
-    }
-  }
-  radixRoot = naive("", ql);
-  opt(radixRoot);
-  // logln("root node ", *radixRoot);
-  // asm { int 3; }
 }
 
-import parseBase: startsWith;
-int getId(string s) {
-  auto cur = radixRoot;
-  if (!s.startsWith(cur.prefix)) return -1;
-  s = s[cur.prefix.length .. $];
-  restart:
-  foreach (child; cur.children) {
-    auto cp = child.prefix;
-    if (s.length >= cp.length && s[0 .. cp.length] == cp) {
-      if (s.length == cp.length) return child.myID;
-      s = s[cp.length .. $];
-      cur = child;
-      goto restart;
+void initTable() {
+  ClassInfo[] ci;
+  foreach (entry; quicklist) ci ~= ClassInfo.find(entry);
+  auto cursize = quicklist.length * 4;
+  PrimeGenerator pg;
+  while (true) {
+    idtable.length = cursize;
+    logln("Try ", cursize);
+    idtable[] = Init!(Stuple!(void*, int));
+    pg.reset;
+    refactor:
+    auto factor = pg.gen();
+    if (factor > 1024) { logln("Cancel factors, big break"); break; }
+    foreach (entry; ci) {
+      auto pos = ((cast(size_t) cast(void*) entry) >> 3) * factor;
+      if (idtable[pos]._0) { logln("collision found for ", factor, "; size ", idtable.length); goto refactor; }
     }
+    cursize --;
   }
+  asm { int 3; }
+}
+
+static this() { initTable; }
+
+int getId(ClassInfo ci) {
   return -1;
 }
-
-static this() { buildRadixTree(); }
 
 struct _fastcast(T) {
   const ptrdiff_t INVALID = 0xffff; // magic numbah
@@ -178,7 +120,7 @@ struct _fastcast(T) {
     } else {
       obj = u;
     }
-    auto id = getId(obj.classinfo.name);
+    auto id = getId(obj.classinfo);
     if (id == -1) return cast(T) u;
     auto hint = offsets[id];
     if (hint == INVALID) return null;
