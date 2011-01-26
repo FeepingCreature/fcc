@@ -31,7 +31,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     fun.extern_c = true;
     New(fun.type);
     auto t3 = t2;
-    if (test(fun.type.ret = cast(IType) rest(t3, "type")) &&
+    if (test(fun.type.ret = fastcast!(IType)~ rest(t3, "type")) &&
         t3.gotIdentifier(fun.name) &&
         t3.gotParlist(fun.type.params, rest) &&
         t3.accept(";")

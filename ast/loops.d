@@ -21,8 +21,8 @@ class WhileStatement : Statement {
   override void emitAsm(AsmFile af) {
     if (isStatic) { // should not happen
       logln("could not resolve static while! ");
-      logln("cond is ", (cast(Object) cond).classinfo.name, ": ", cond);
-      logln("body is ", (cast(Object) _body).classinfo.name, ": ", _body);
+      logln("cond is ", (fastcast!(Object)~ cond).classinfo.name, ": ", cond);
+      logln("body is ", (fastcast!(Object)~ _body).classinfo.name, ": ", _body);
       asm { int 3; }
     }
     auto start = af.genLabel(), done = af.genLabel();
@@ -60,12 +60,12 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   configure(ws.cond);
   if (isStatic)
     foreach (ref entry; sc.field) {
-      if (auto v = cast(Variable) entry._1) {
+      if (auto v = fastcast!(Variable)~ entry._1) {
         if (v.name) {
           // will be substituted with actual value in loop unroller
           auto ph = new PlaceholderToken(v.valueType(), "static loop var "~v.name);
           ws.holders ~= ph;
-          entry = stuple(v.name, cast(Object) ph);
+          entry = stuple(v.name, fastcast!(Object)~ ph);
         }
       }
     }

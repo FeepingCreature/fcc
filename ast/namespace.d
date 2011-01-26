@@ -21,7 +21,7 @@ class Namespace {
   T get(T)() {
     auto cur = this;
     do {
-      if (auto res = cast(T) cur) return res;
+      if (auto res = fastcast!(T)~ cur) return res;
     } while (null !is (cur = cur.sup));
     // throw new Exception(Format("No ", T.stringof, " above ", this, "!"));
     // logln("No ", T.stringof, " above ", this, "!");
@@ -40,20 +40,20 @@ class Namespace {
     foreach (key, value; field_cache)
       field[id++] = stuple(key, value);
   }
-  typeof(mixin(S.ctReplace("$", "(cast(T) field[0]._1)")))[] selectMap(T, string S)() {
+  typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)")))[] selectMap(T, string S)() {
     int count;
-    foreach (entry; field) if (cast(T) entry._1) count++;
-    alias typeof(mixin(S.ctReplace("$", "(cast(T) field[0]._1)"))) restype;
+    foreach (entry; field) if (fastcast!(T)~ entry._1) count++;
+    alias typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)"))) restype;
     auto res = new restype[count];
     int i;
     foreach (entry; field)
-      if (auto t = cast(T) entry._1)
+      if (auto t = fastcast!(T)~ entry._1)
         res[i++] = mixin(S.ctReplace("$", "t"));
     return res;
   }
   void select(T)(void delegate(string, T) dg) {
     foreach (entry; field)
-      if (auto t = cast(T) entry._1)
+      if (auto t = fastcast!(T)~ entry._1)
         dg(entry._0, t);
   }
   
@@ -71,7 +71,7 @@ class Namespace {
     if (field.length > cachepoint) field_cache[name] = obj;
   }
   void _add(string name, Object obj) {
-    if (auto ns = cast(Namespace) obj) {
+    if (auto ns = fastcast!(Namespace)~ obj) {
       // if (ns.sup) asm { int 3; }
       assert(!ns.sup, Format("While adding ", obj, " to ", this, ": object already in ", ns.sup, "! "));
       ns.sup = this;
@@ -88,7 +88,7 @@ class Namespace {
       alias t[1] n;
       string name = t[0];
     } else static assert(false, "wtfux");
-    _add(name, cast(Object) n);
+    _add(name, fastcast!(Object)~ n);
   }
   typeof(field) getCheckpt() { return field; }
   void setCheckpt(typeof(field) field) { this.field = field.dup; rebuildCache(); /* prevent clobbering */ }
@@ -128,7 +128,7 @@ interface RelNamespaceFixupBase : RelNamespace {
 }
 
 T lookup(T)(Namespace ns, string name) {
-  if (auto res = cast(T) ns.lookup(name)) return res;
+  if (auto res = fastcast!(T)~ ns.lookup(name)) return res;
   assert(false, "No such "~T.stringof~": "~name);
 }
 
@@ -141,7 +141,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.gotIdentifier(name, true)) {
     retry:
     if (auto res = namespace().lookup(name)) {
-      if (cast(IType) res) return null; // Positively NOT an expr.
+      if (fastcast!(IType)~ res) return null; // Positively NOT an expr.
       if (!text.accept(name))
         text.failparse("WTF ", name);
       return res;
@@ -190,7 +190,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
   int fs = -1, fs2;
   override int framesize() {
     if (fs != -1) return fs;
-    if (auto sl = cast(ScopeLike) sup) {
+    if (auto sl = fastcast!(ScopeLike)~ sup) {
       if (fs2) return fs2 + sl.framesize();
       else return sl.framesize();
     } else {
@@ -283,9 +283,9 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
   if (t2.gotIdentifier(id)) {
     retry:
-    if (auto type = cast(IType) namespace().lookup(id)) {
+    if (auto type = fastcast!(IType)~ namespace().lookup(id)) {
       text = t2;
-      return cast(Object) type;
+      return fastcast!(Object)~ type;
     } else if (t2.eatDash(id)) goto retry;
   }
   return null;
@@ -299,7 +299,7 @@ class LengthOverride : Namespace {
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     Object lookup(string name, bool local = false) {
-      if (name == "$") return cast(Object) len;
+      if (name == "$") return fastcast!(Object)~ len;
       return sup.lookup(name, local);
     }
   }

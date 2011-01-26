@@ -11,19 +11,19 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   IType it;
   if (!t2.accept("(") || !rest(t2, "type", &it))
     assert(false);
-  assert(cast(ClassRef) it || cast(IntfRef) it);
+  assert(fastcast!(ClassRef)~ it || fastcast!(IntfRef)~ it);
   string pname;
   t2.gotIdentifier(pname);
   if (!t2.accept(")"))
     assert(false);
-  IType hdltype = cast(IType) sysmod.lookup("_Handler"), objtype = new ClassRef(cast(Class) sysmod.lookup("Object"));
+  IType hdltype = fastcast!(IType)~ sysmod.lookup("_Handler"), objtype = new ClassRef(fastcast!(Class)~ sysmod.lookup("Object"));
   const string hdlmarker = "__hdlmarker_var_special";
   assert(!namespace().lookup(hdlmarker));
   auto hdlvar = new Variable(hdltype, hdlmarker, boffs(hdltype));
   hdlvar.initInit;
   auto decl = new VarDecl;
   decl.vars ~= hdlvar;
-  auto csc = cast(Scope) namespace();
+  auto csc = fastcast!(Scope)~ namespace();
   assert(!!csc);
   csc.addStatement(decl);
   csc.add(hdlvar);
@@ -36,7 +36,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
     nf.name = Format("hdlfn_", hdlId++);
   nf.fixup;
   nf.sup = mod;
-  mod.entries ~= cast(Tree) nf;
+  mod.entries ~= fastcast!(Tree)~ nf;
   {
     auto backup = namespace();
     scope(exit) namespace.set(backup);
@@ -47,7 +47,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
     namespace.set(sc);
     
     auto objvar = new Variable(it, null, boffs(it));
-    objvar.initval = reinterpret_cast(it, cast(Expr) nf.lookup("_obj", true));
+    objvar.initval = reinterpret_cast(it, fastcast!(Expr)~ nf.lookup("_obj", true));
     auto decl2 = new VarDecl;
     decl2.vars ~= objvar;
     sc.addStatement(decl2);
@@ -70,7 +70,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
                         (`_lookupCM(n, &`~hdlmarker~`, true).jump();`, namespace());
       hdlvar.name = null; // marker string not needed
     }
-    mod.entries ~= cast(Tree) nf2;
+    mod.entries ~= fastcast!(Tree)~ nf2;
     sc.add(nf2);
     
     Scope sc2;
@@ -112,12 +112,12 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   bool isString(IType it) { return test(it == Single!(Array, Single!(Char))); }
   if (!rest(t2, "tree.expr", &ex) || !gotImplicitCast(ex, &isString))
     assert(false);
-  IType cmtype = cast(IType) sysmod.lookup("_CondMarker");
+  IType cmtype = fastcast!(IType)~ sysmod.lookup("_CondMarker");
   auto cmvar = new Variable(cmtype, null, boffs(cmtype));
   cmvar.initInit;
   auto decl = new VarDecl;
   decl.vars ~= cmvar;
-  auto csc = cast(Scope) namespace();
+  auto csc = fastcast!(Scope)~ namespace();
   assert(!!csc);
   csc.addStatement(decl);
   csc.add(cmvar);

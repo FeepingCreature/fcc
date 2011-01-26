@@ -69,7 +69,7 @@ template g_signal_connect(T) <<EOF
   void g_signal_connect (T t) {
     store ~= (void*, void*): t[2];
     auto dgvalue = &(call-dg!type-of t[2]);
-    g_signal_connect_data (gpointer: t[0], toStringz(t[1]), void*: dgvalue, &store[store.length - 1], null, 0);
+    g_signal_connect_data (gpointer: t[0], toStringz t[1], void*: dgvalue, &store[$-1], null, 0);
   }
 EOF
 

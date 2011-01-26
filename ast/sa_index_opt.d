@@ -7,25 +7,25 @@ import
 alias ast.fold.fold fold;
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
-    auto dre = cast(DerefExpr) ex; if (!dre)   return null;
+    auto dre = fastcast!(DerefExpr) (ex); if (!dre)   return null;
     if (dre.valueType() != Single!(SysInt))    return null;
-    auto rce1 = cast(RCE) dre.src; if (!rce1)  return null;
-    auto pe = cast(AsmIntBinopExpr) rce1.from;
+    auto rce1 = fastcast!(RCE)~ dre.src; if (!rce1)  return null;
+    auto pe = fastcast!(AsmIntBinopExpr) (rce1.from);
                                    if (!pe)    return null;
                                    if (pe.op != "+")
                                                return null;
-    auto rce2 = cast(RCE) fold(pe.e1); 
+    auto rce2 = fastcast!(RCE)~ fold(pe.e1); 
                                    if (!rce2)  return null;
-    auto re = cast(RefExpr) rce2.from;
+    auto re = fastcast!(RefExpr) (rce2.from);
                                    if (!re)    return null;
     Expr data = re;
-    if (auto dcmcv = cast(DontCastMeCValue) re.src)
+    if (auto dcmcv = fastcast!(DontCastMeCValue) (re.src))
       data = dcmcv.sup;
-    auto ccast = cast(RCC) data;
+    auto ccast = fastcast!(RCC) (data);
                                    if (!ccast) return null;
     auto de = cast(DataExpr) ccast.from;
                                    if (!de)    return null;
-    auto ioffs = cast(IntExpr) fold(pe.e2);
+    auto ioffs = fastcast!(IntExpr)~ fold(pe.e2);
                                    if (!ioffs) return null;
     auto field = cast(int[]) de.data;
     auto index = ioffs.num;

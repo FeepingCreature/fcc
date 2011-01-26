@@ -14,7 +14,7 @@ Object gotIntrStmt(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(text, "tree.expr", &ex))
     throw new Exception("Couldn't match interrupt number! ");
-  auto ie = cast(IntExpr) ex;
+  auto ie = fastcast!(IntExpr)~ ex;
   if (!ie)
     throw new Exception("Interrupt number must be a literal constant! ");
   return new Interrupt(ie.num);

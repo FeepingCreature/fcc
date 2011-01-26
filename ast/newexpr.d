@@ -9,7 +9,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   string id;
   if (!t2.gotIdentifier(id)) return null;
-  auto cl = cast(Class) namespace().lookup(id);
+  auto cl = fastcast!(Class)~ namespace().lookup(id);
   if (!cl) return null;
   
   text = t2;
@@ -67,7 +67,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type", &ty))
     return null;
   
-  if (auto sa = cast(StaticArray) ty) {
+  if (auto sa = fastcast!(StaticArray)~ ty) {
     IType base = sa.elemType;
     Expr len = mkInt(sa.length);
     auto t3 = t2;
@@ -82,7 +82,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
     }
     text = t2;
     // logln("new1 ", base, " [", len, "]");
-    return cast(Object)
+    return fastcast!(Object)~
       mkPointerSlice(
         reinterpret_cast(
           new Pointer(base),
@@ -99,7 +99,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
       return null;
     text = t2;
     // logln("new2 ", ty, " [", len, "]");
-    return cast(Object)
+    return fastcast!(Object)~
       mkPointerSlice(
         reinterpret_cast(new Pointer(ty),
           iparse!(Expr, "new_dynamic_array", "tree.expr")
@@ -120,7 +120,7 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   text = t2;
   
-  return cast(Object) iparse!(Expr, "new_value", "tree.expr")
+  return fastcast!(Object)~ iparse!(Expr, "new_value", "tree.expr")
     ("type*:mem.calloc(1, size-of type)",
      "type", ty
     );

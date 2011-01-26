@@ -26,22 +26,22 @@ import ast.casting, ast.fold, ast.literals, ast.fun;
 extern(C) float sqrtf(float);
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto iaf = cast(IntAsFloat) ex) {
+    if (auto iaf = fastcast!(IntAsFloat)~ ex) {
       auto i = fold(iaf.i);
-      if (auto ie = cast(IntExpr) i) {
+      if (auto ie = fastcast!(IntExpr)~ i) {
         return new FloatExpr(ie.num);
       }
     }
     return null;
   };
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto fc = cast(FunCall) ex) {
+    if (auto fc = fastcast!(FunCall) (ex)) {
       if (fc.fun.extern_c && fc.fun.name == "sqrtf") {
         assert(fc.params.length == 1);
         auto fe = fc.params[0];
-        if (!gotImplicitCast(fe, (Expr ex) { return test(cast(FloatExpr) foldex(ex)); }))
+        if (!gotImplicitCast(fe, (Expr ex) { return test(fastcast!(FloatExpr)~ foldex(ex)); }))
           return null;
-        return new FloatExpr(sqrtf((cast(FloatExpr) foldex(fe)).f));
+        return new FloatExpr(sqrtf((fastcast!(FloatExpr)~ foldex(fe)).f));
       }
     }
     return null;
@@ -193,20 +193,20 @@ static this() {
   };
   // TODO: conversion cast double to float
   implicits ~= delegate Expr(Expr ex) {
-    auto dex = cast(DoubleExpr) foldex(ex);
+    auto dex = fastcast!(DoubleExpr)~ foldex(ex);
     if (!dex) return null;
     return new FloatExpr(cast(float) dex.d);
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != ex.valueType()) return null;
-    auto ie = cast(IntExpr) fold(ex);
+    auto ie = fastcast!(IntExpr)~ fold(ex);
     if (!ie || ie.num > 65535 || ie.num < -32767) return null;
     return new IntLiteralAsShort(ie);
   };
 }
 
 void loadFloatEx(Expr ex, AsmFile af) {
-  if (auto lv = cast(CValue) ex) {
+  if (auto lv = fastcast!(CValue)~ ex) {
     lv.emitLocation(af);
     af.popStack("%eax", voidp);
     af.loadFloat("(%eax)");
@@ -220,7 +220,7 @@ void loadFloatEx(Expr ex, AsmFile af) {
 }
 
 void loadDoubleEx(Expr ex, AsmFile af) {
-  if (auto cv = cast(CValue) ex) {
+  if (auto cv = fastcast!(CValue)~ ex) {
     cv.emitLocation(af);
     af.popStack("%eax", voidp);
     af.loadDouble("(%eax)");
@@ -236,8 +236,8 @@ void opt(Expr ex) {
   void delegate(ref Iterable) dg;
   dg = (ref Iterable it) {
     it.iterate(dg);
-    if (auto iaf = cast(IntAsFloat) it) {
-      if (auto ie = cast(IntExpr) iaf.i) {
+    if (auto iaf = fastcast!(IntAsFloat)~ it) {
+      if (auto ie = fastcast!(IntExpr)~ iaf.i) {
         it = new FloatExpr(ie.num);
       }
     }
@@ -298,13 +298,13 @@ class AsmIntBinopExpr : BinopExpr {
         }
       } else {
         string op1, op2;
-        if (auto c2 = cast(IntExpr) foldex(e2)) {
+        if (auto c2 = fastcast!(IntExpr)~ foldex(e2)) {
           op2 = Format("$", c2.num);
         } else {
           op2 = "%ecx";
           e2.emitAsm(af);
         }
-        if (auto c1 = cast(IntExpr) foldex(e1)) {
+        if (auto c1 = fastcast!(IntExpr)~ foldex(e1)) {
           op1 = Format("$", c1.num);
           af.mmove4(op1, "%eax");
         } else {
@@ -340,11 +340,11 @@ class AsmIntBinopExpr : BinopExpr {
   }
   static this() {
     foldopt ~= delegate Expr(Expr ex) {
-      auto aibe = cast(AsmIntBinopExpr) ex;
+      auto aibe = fastcast!(AsmIntBinopExpr) (ex);
       if (!aibe) return null;
       auto
-        e1 = foldex(aibe.e1), ie1 = cast(IntExpr) e1,
-        e2 = foldex(aibe.e2), ie2 = cast(IntExpr) e2;
+        e1 = foldex(aibe.e1), ie1 = fastcast!(IntExpr)~ e1,
+        e2 = foldex(aibe.e2), ie2 = fastcast!(IntExpr)~ e2;
       if (!ie1 || !ie2) {
         if (e1 !is aibe.e1 || e2 !is aibe.e2) {
           return new AsmIntBinopExpr(e1, e2, aibe.op);
@@ -379,7 +379,7 @@ class AsmFloatBinopExpr : BinopExpr {
       bool commutative = op == "+" || op == "*";
       if (commutative) {
         // hackaround for circular dep avoidance
-        if ((cast(Object) e2).classinfo.name.find("Variable") != -1 || cast(FloatExpr) e2 || cast(IntAsFloat) e2)
+        if ((fastcast!(Object)~ e2).classinfo.name.find("Variable") != -1 || fastcast!(FloatExpr)~ e2 || fastcast!(IntAsFloat)~ e2)
           swap(e1, e2); // try to eval simpler expr last
       }
       loadFloatEx(e2, af);
@@ -397,11 +397,11 @@ class AsmFloatBinopExpr : BinopExpr {
   }
   static this() {
     foldopt ~= delegate Expr(Expr ex) {
-      auto afbe = cast(AsmFloatBinopExpr) ex;
+      auto afbe = fastcast!(AsmFloatBinopExpr) (ex);
       if (!afbe) return null;
       auto
-        e1 = foldex(afbe.e1), fe1 = cast(FloatExpr) e1,
-        e2 = foldex(afbe.e2), fe2 = cast(FloatExpr) e2;
+        e1 = foldex(afbe.e1), fe1 = fastcast!(FloatExpr)~ e1,
+        e2 = foldex(afbe.e2), fe2 = fastcast!(FloatExpr)~ e2;
       if (!fe1 || !fe2) {
         if (e1 !is afbe.e1 || e2 !is afbe.e2)
           return new AsmFloatBinopExpr(e1, e2, afbe.op);
@@ -443,11 +443,11 @@ class AsmDoubleBinopExpr : BinopExpr {
   }
   static this() {
     foldopt ~= delegate Expr(Expr ex) {
-      auto adbe = cast(AsmDoubleBinopExpr) ex;
+      auto adbe = fastcast!(AsmDoubleBinopExpr) (ex);
       if (!adbe) return null;
       auto
-        e1 = foldex(adbe.e1), de1 = cast(DoubleExpr) e1,
-        e2 = foldex(adbe.e2), de2 = cast(DoubleExpr) e2;
+        e1 = foldex(adbe.e1), de1 = fastcast!(DoubleExpr)~ e1,
+        e2 = foldex(adbe.e2), de2 = fastcast!(DoubleExpr)~ e2;
       if (!de1 || !de2) {
         if (e1 !is adbe.e1 || e2 !is adbe.e2)
           return new AsmDoubleBinopExpr(e1, e2, adbe.op);
@@ -469,7 +469,7 @@ static this() {
   bool isInt(IType it) { return test(it == Single!(SysInt)); }
   bool isFloat(IType it) { return test(it == Single!(Float)); }
   bool isDouble(IType it) { return test(it == Single!(Double)); }
-  bool isPointer(IType it) { return test(cast(Pointer) it); }
+  bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
     if (!gotImplicitCast(ex1, &isInt) || !gotImplicitCast(ex2, &isInt))
       return null;
@@ -485,13 +485,13 @@ static this() {
     }
     if (gotImplicitCast(ex1, &isPointer)) {
       if (isPointer(ex2.valueType())) return null;
-      if (cast(Float) ex2.valueType()) {
+      if (fastcast!(Float) (ex2.valueType())) {
         logln(ex1, " ", op, " ", ex2, "; WTF?! ");
         logln("is ", ex1.valueType(), " and ", ex2.valueType());
         fail();
       }
       assert(!isFloat(ex2.valueType()));
-      auto mul = (cast(Pointer) ex1.valueType()).target.size;
+      auto mul = (fastcast!(Pointer)~ ex1.valueType()).target.size;
       ex2 = handleIntMath("*", ex2, mkInt(mul));
       if (!ex2) return null;
       return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
@@ -501,13 +501,13 @@ static this() {
   Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
     ex1 = foldex(ex1);
     ex2 = foldex(ex2);
-    if (Single!(Double) == ex1.valueType() && !cast(DoubleExpr) ex1)
+    if (Single!(Double) == ex1.valueType() && !fastcast!(DoubleExpr) (ex1))
       return null;
     
-    if (Single!(Double) == ex2.valueType() && !cast(DoubleExpr) ex2)
+    if (Single!(Double) == ex2.valueType() && !fastcast!(DoubleExpr) (ex2))
       return null;
     
-    if (cast(DoubleExpr) ex1 && cast(DoubleExpr) ex2) return null;
+    if (fastcast!(DoubleExpr)~ ex1 && fastcast!(DoubleExpr)~ ex2) return null;
     
     if (!gotImplicitCast(ex1, &isFloat) || !gotImplicitCast(ex2, &isFloat))
       return null;
@@ -569,10 +569,10 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
     // Why would we want arithmetic, but not single values?
     // return null;
     if (op) text = t2;
-    return cast(Object) op;
+    return fastcast!(Object)~ op;
   }
   text = t2;
-  return cast(Object) op;
+  return fastcast!(Object)~ op;
 }
 
 alias gotMathExpr!("%") gotModExpr;
@@ -622,9 +622,9 @@ Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Found no expression for negation");
   text = t2;
   if (auto lop = lookupOp("-", true, mkInt(0), ex))
-    return cast(Object) lop;
+    return fastcast!(Object)~ lop;
   if (auto lop = lookupOp("-", true, ex))
-    return cast(Object) lop;
+    return fastcast!(Object)~ lop;
   t2.failparse("Found no lookup match for negation of ", ex.valueType());
 }
 mixin DefaultParser!(gotNegExpr, "tree.expr.neg", "213", "-");

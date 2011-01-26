@@ -3,37 +3,37 @@ module ast.nulls;
 import ast.base, ast.casting, ast.int_literal, ast.aliasing, ast.tuples;
 import ast.arrays, ast.dg, ast.fun, ast.oop;
 bool isNull(Expr ex) {
-  auto ea = cast(ExprAlias) ex;
+  auto ea = fastcast!(ExprAlias)~ ex;
   if (ea) ex = ea.base;
-  auto rce = cast(RCE) ex;
+  auto rce = fastcast!(RCE)~ ex;
   if (!rce) return false;
   ex = rce.from;
-  auto ie = cast(IntExpr) ex;
+  auto ie = fastcast!(IntExpr)~ ex;
   if (!ie) return false;
   return ie.num == 0;
 }
 
 static this() {
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (isNull(ex) && cast(FunctionPointer) expect) {
+    if (isNull(ex) && fastcast!(FunctionPointer)~ expect) {
       return reinterpret_cast(expect, ex);
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (isNull(ex) && cast(Delegate) expect) {
+    if (isNull(ex) && fastcast!(Delegate)~ expect) {
       return reinterpret_cast(expect, mkTupleExpr(ex, ex));
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (isNull(ex) && cast(Array) expect) {
+    if (isNull(ex) && fastcast!(Array)~ expect) {
       return reinterpret_cast(expect, mkTupleExpr(ex, ex));
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (isNull(ex) && (cast(ClassRef) expect || cast(IntfRef) expect)) {
+    if (isNull(ex) && (fastcast!(ClassRef)~ expect || fastcast!(IntfRef)~ expect)) {
       return reinterpret_cast(expect, ex);
     }
     return null;
@@ -52,8 +52,8 @@ Cond testNeq(Expr ex1, Expr ex2) {
   // exist in an isolated scope.
   auto v1 = lvize(ex1);
   auto v2 = lvize(ex2);
-  auto ex1s = getTupleEntries(reinterpret_cast(cast(IType) t2, cast(LValue) v1));
-  auto ex2s = getTupleEntries(reinterpret_cast(cast(IType) t2, cast(LValue) v2));
+  auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v1));
+  auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v2));
   return new BooleanOp!("||")(
     new ExprWrap(lookupOp("!=", ex1s[0], ex2s[0])),
     new ExprWrap(lookupOp("!=", ex1s[1], ex2s[1]))
@@ -74,7 +74,7 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
       return new Compare(ex2, true, false, true, false, mkInt(0));
     }
     logln("no, ", _tried);
-    auto n = cast(Expr) sysmod.lookup("null");
+    auto n = fastcast!(Expr)~ sysmod.lookup("null");
     if (!n) return null;
     auto ev = ex.valueType();
     Expr cmp1, cmp2;
@@ -97,7 +97,7 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
     if (!cmp1) test(n, ex);
     if (cmp1 && cmp2) {
       text = t2;
-      return cast(Object) testNeq(cmp1, cmp2);
+      return fastcast!(Object)~ testNeq(cmp1, cmp2);
     }
     // logln("Failed overlaps: ", overlaps);
     return null;

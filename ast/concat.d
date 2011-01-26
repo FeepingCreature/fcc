@@ -11,11 +11,11 @@ class ConcatChain : Expr {
   this(Expr[] exprs...) {
     if (!exprs.length) return;
     auto base = exprs.take();
-    auto sa = cast(StaticArray) base.valueType();
+    auto sa = fastcast!(StaticArray)~ base.valueType();
     if (sa) {
       type = new Array(sa.elemType);
     } else {
-      type = cast(Array) base.valueType();
+      type = fastcast!(Array)~ base.valueType();
       assert(!!type, Format(base, " is not array or static array! "));
     }
     addArray(base);
@@ -25,7 +25,7 @@ class ConcatChain : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(arrays);
   void addArray(Expr ex) {
-    if (cast(StaticArray) ex.valueType()) arrays ~= staticToArray(ex);
+    if (fastcast!(StaticArray)~ ex.valueType()) arrays ~= staticToArray(ex);
     else arrays ~= ex;
   }
   override {
@@ -97,8 +97,8 @@ class ConcatChain : Expr {
 }
 
 static this() {
-  bool isArray(IType it) { return !!cast(Array) it; }
-  bool isExtArray(IType it) { return !!cast(ExtArray) it; }
+  bool isArray(IType it) { return !!fastcast!(Array) (it); }
+  bool isExtArray(IType it) { return !!fastcast!(ExtArray) (it); }
   bool isEqual(IType i1, IType i2) {
     return test(resolveType(i1) == resolveType(i2));
   }
@@ -116,7 +116,7 @@ static this() {
       ||
         !gotImplicitCast(ex2, &isArray)
         &&
-        !gotImplicitCast(ex22, (cast(Array) ex1.valueType()).elemType /apply/ &isEqual)
+        !gotImplicitCast(ex22, (fastcast!(Array)~ ex1.valueType()).elemType /apply/ &isEqual)
       )
       return null;
     if (!ex2) ex2 = ex22;
@@ -127,14 +127,14 @@ static this() {
     if (
       !isExtArray(e1vt) ||
       !gotImplicitCast(ex2, (IType it) {
-        return test(new Array((cast(ExtArray) e1vt).elemType) == it);
+        return test(new Array((fastcast!(ExtArray)~ e1vt).elemType) == it);
       }))
       return null;
-    if (!cast(LValue) ex1) {
+    if (!fastcast!(LValue) (ex1)) {
       logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: ", ex1, ex2);
       asm { int 3; }
     }
-    auto ea = cast(ExtArray) e1vt;
+    auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR", "tree.expr")
                     (`sys.append3!T(&l, r)`,
@@ -150,14 +150,14 @@ static this() {
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
     auto e1vt = resolveType(ex1.valueType());
     if (!isExtArray(e1vt)) return null;
-    auto et = resolveType((cast(ExtArray) e1vt).elemType);
+    auto et = resolveType((fastcast!(ExtArray)~ e1vt).elemType);
     if (!gotImplicitCast(ex2, (IType it) { return !!(it == et); }))
       return null;
-    if (!cast(LValue) ex1) {
+    if (!fastcast!(LValue) (ex1)) {
       logln("Cannot concatenate ext+elem: ext is not lvalue; cannot invalidate: ", ex1, ex2);
       asm { int 3; }
     }
-    auto ea = cast(ExtArray) e1vt;
+    auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR_elem", "tree.expr")
                     (`sys.append3e!T(&l, r)`, namespace(),
@@ -199,6 +199,6 @@ Object gotConcatChain(ref string text, ParseCb cont, ParseCb rest) {
   }
   if (op is first) return null;
   text = t2;
-  return cast(Object) op;
+  return fastcast!(Object)~ op;
 }
 mixin DefaultParser!(gotConcatChain, "tree.expr.arith.concat", "305");

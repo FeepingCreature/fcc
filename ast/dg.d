@@ -30,7 +30,7 @@ import tools.log;
 // type-deduced!
 class DgConstructExpr : mkDelegate {
   this(Expr fun, Expr base) {
-    if (auto dg = cast(Delegate) fun.valueType()) {
+    if (auto dg = fastcast!(Delegate)~ fun.valueType()) {
       assert(false);
       fun = iparse!(Expr, "dg_to_fun", "tree.expr")("fun.fun", "fun", fun);
     }
@@ -40,7 +40,7 @@ class DgConstructExpr : mkDelegate {
     return new DgConstructExpr(ptr, data);
   }
   override IType valueType() {
-    auto ft = cast(FunctionPointer) ptr.valueType();
+    auto ft = fastcast!(FunctionPointer)~ ptr.valueType();
     // logln("ptr is ", ptr, ", data ", data, ", ft ", ft);
     // logln("ptr type is ", ptr.valueType());
     assert(ft.args.length);
@@ -53,7 +53,7 @@ class DgConstructExpr : mkDelegate {
 Object gotFpCloseExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto fptype = cast(FunctionPointer) ex.valueType();
+    auto fptype = fastcast!(FunctionPointer)~ ex.valueType();
     if (!fptype) return null;
     
     if (t2.accept(".toDg(")) {
@@ -88,7 +88,7 @@ class Delegate : Type {
     }
     int opEquals(IType ty) {
       if (!super.opEquals(ty)) return false;
-      auto dg = cast(Delegate) ty;
+      auto dg = fastcast!(Delegate)~ ty;
       if (dg.ret != ret) return false;
       if (dg.args.length != args.length) return false;
       foreach (i, arg; dg.args)
@@ -113,9 +113,9 @@ IType dgAsStructType(Delegate dgtype) {
 
 import ast.casting;
 Expr dgAsStruct(Expr ex) {
-  auto dgtype = cast(Delegate) ex.valueType();
+  auto dgtype = fastcast!(Delegate)~ ex.valueType();
   if (!dgtype) return null;
-  if (auto lv = cast(LValue) ex) {
+  if (auto lv = fastcast!(LValue)~ ex) {
     return new ReinterpretCast!(LValue) (dgAsStructType(dgtype), lv);
   } else {
     return new ReinterpretCast!(Expr) (dgAsStructType(dgtype), ex);

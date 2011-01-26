@@ -9,7 +9,7 @@ class Pointer : Type {
     int opEquals(IType ty) {
       ty = resolveType(ty);
       if (!super.opEquals(ty)) return false;
-      auto p = cast(Pointer) ty;
+      auto p = fastcast!(Pointer)~ ty;
       return target == p.target;
     }
     int size() { return nativePtrSize; }
@@ -45,7 +45,7 @@ class DerefExpr : LValue {
   Expr src;
   this(Expr ex) {
     src = ex;
-    if (!cast(Pointer) src.valueType())
+    if (!fastcast!(Pointer) (src.valueType()))
       throw new Exception(Format("Can't dereference non-pointer: ", src));
   }
   private this() { }
@@ -53,7 +53,7 @@ class DerefExpr : LValue {
   mixin defaultIterate!(src);
   override {
     IType valueType() {
-      return (cast(Pointer) src.valueType()).target;
+      return (fastcast!(Pointer)~ src.valueType()).target;
     }
     void emitAsm(AsmFile af) {
       src.emitAsm(af);
@@ -69,7 +69,7 @@ class DerefExpr : LValue {
 
 bool isVoidP(IType it) {
   if (!it) return false;
-  auto p = cast(Pointer) it;
+  auto p = fastcast!(Pointer)~ it;
   if (!p) return false;
   return !!cast(Void) p.target;
 }
@@ -90,7 +90,7 @@ static this() {
   // Pointers must NOT autocast to void* unless expected!
   implicits ~= delegate Expr(Expr ex, IType target) {
     if (!target) return null;
-    if (auto p = cast(Pointer) ex.valueType()) {
+    if (auto p = fastcast!(Pointer)~ ex.valueType()) {
       if (!isVoidP(p) && isVoidP(target)) {
         return dcm(reinterpret_cast(voidp, ex));
       }
@@ -98,7 +98,7 @@ static this() {
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (isVoidP(ex.valueType()) && cast(Pointer) expect) {
+    if (isVoidP(ex.valueType()) && fastcast!(Pointer)~ expect) {
       return reinterpret_cast(expect, ex);
     }
     return null;
@@ -119,7 +119,7 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!gotImplicitCast(ex, (Expr ex) {
     auto f = foldex(ex);
     tried ~= f.valueType();
-    return test(cast(CValue) f);
+    return test(fastcast!(CValue)~ f);
   })) {
     text.setError("Can't take reference: ", ex,
     " does not become a cvalue (", tried, ")");
@@ -127,7 +127,7 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   text = t2;
-  auto cv = cast(CValue) fold(ex);
+  auto cv = fastcast!(CValue)~ fold(ex);
   assert(!!cv);
   
   return new RefExpr(cv);
@@ -141,7 +141,7 @@ Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     t2.failparse("Dereference operator found but no expression matched");
   
-  if (!gotImplicitCast(ex, (IType it) { return !!cast(Pointer) it; })) {
+  if (!gotImplicitCast(ex, (IType it) { return !!fastcast!(Pointer) (it); })) {
     return null;
   }
   text = t2;

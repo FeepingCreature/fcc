@@ -5,13 +5,13 @@ import ast.fun, ast.nestfun, ast.base, ast.structure, ast.variable,
 
 import ast.modules;
 Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
-  auto rs = cast(RelNamespace) namespace();
+  auto rs = fastcast!(RelNamespace)~ namespace();
   if (!rs)
     throw new Exception(Format("Fail: namespace is ", namespace(), ". "));
   auto fun = new RelFunction(rs);
   
-  if (auto res = gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest)) {
-    current_module().entries ~= cast(Tree) res;
+  if (auto res = gotGenericFunDef(fun, fastcast!(Namespace)~ null, true, text, cont, rest)) {
+    current_module().entries ~= fastcast!(Tree)~ res;
     return res;
   } else return null;
 }
@@ -23,7 +23,7 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
   
   return lhs_partial.using = delegate Object(Expr ex) {
     ex = depointer(ex);
-    auto strtype = cast(Structure) ex.valueType();
+    auto strtype = fastcast!(Structure)~ ex.valueType();
     if (!strtype) return null;
     string member;
     if (t2.accept(".") && t2.gotIdentifier(member)) {
@@ -55,7 +55,7 @@ class RelFunCall : FunCall {
     return res;
   }
   override void emitAsm(AsmFile af) {
-    if (auto lv = cast(LValue) baseptr) {
+    if (auto lv = fastcast!(LValue)~ baseptr) {
       callDg(af, fun.type.ret, params,
         new DgConstructExpr(fun.getPointer(), new RefExpr(lv)));
     } else {
@@ -88,7 +88,7 @@ class RelFunction : Function, RelTransformable {
   private this() { }
   this(RelNamespace rn) {
     context = rn;
-    basetype = cast(IType) rn;
+    basetype = fastcast!(IType)~ rn;
     assert(!!basetype);
   }
   RelFunction alloc() { return new RelFunction; }
@@ -101,7 +101,7 @@ class RelFunction : Function, RelTransformable {
   }
   override Object transform(Expr base) {
     assert(!baseptr, Format("RelFun was pretransformed: ", baseptr));
-    assert(!!cast(RelNamespace) basetype);
+    assert(!!fastcast!(RelNamespace) (basetype));
     auto res = dup();
     res.baseptr = base;
     return res;
@@ -136,7 +136,7 @@ class RelFunction : Function, RelTransformable {
         logln("bad context: ", context, " is not reftype");
       auto bp = new Variable((cast(hasRefType) context).getRefType(), "__base_ptr", cur);
       add(bp); cur += 4;
-      if (cast(Pointer) bp.valueType())
+      if (fastcast!(Pointer)~ bp.valueType())
         add(new ExprAlias(new DerefExpr(bp), "this"));
       return cur;
     }
@@ -145,8 +145,8 @@ class RelFunction : Function, RelTransformable {
       if (res) return res;
       else if (local) return null;
       
-      auto bp = cast(Expr) lookup("__base_ptr", true);
-      if (auto ptr = cast(Pointer) bp.valueType()) bp = new DerefExpr(bp);
+      auto bp = fastcast!(Expr)~ lookup("__base_ptr", true);
+      if (auto ptr = fastcast!(Pointer)~ bp.valueType()) bp = new DerefExpr(bp);
       if (auto res = context.lookupRel(name, bp))
         return res;
       
@@ -162,7 +162,7 @@ class StructFunRefExpr : mkDelegate {
     this.fun = fun;
     logln("base ptr is ", fun.baseptr);
     assert(fun.baseptr);
-    super(fun.getPointer(), new RefExpr(cast(CValue) fun.baseptr));
+    super(fun.getPointer(), new RefExpr(fastcast!(CValue)~ fun.baseptr));
   }
   override typeof(this) dup() { return new typeof(this)(fun); }
   override string toString() {

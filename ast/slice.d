@@ -23,8 +23,8 @@ class FullSlice : Expr {
   this(Expr ex) {
     sup = ex;
     auto svt = resolveType(sup.valueType());
-    if (auto ar = cast(Array) svt) type = ar;
-    else if (auto ea = cast(ExtArray) svt) type = new Array(ea.elemType);
+    if (auto ar = fastcast!(Array)~ svt) type = ar;
+    else if (auto ea = fastcast!(ExtArray)~ svt) type = new Array(ea.elemType);
     else {
       logln("full slice value type on ", sup.valueType(), " .. huh. ");
       asm { int 3; }
@@ -55,21 +55,21 @@ class FullSlice : Expr {
 static this() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
     auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
-    if (cast(StaticArray) e1v) {
-      assert(!!cast(LValue) e1);
+    if (fastcast!(StaticArray)~ e1v) {
+      assert(!!fastcast!(LValue) (e1));
       e1 = mkFullSlice(e1);
       e1v = resolveType(e1.valueType());
     }
-    if (!cast(Array) e1v && !cast(ExtArray) e1v && !cast(Pointer) e1v)
+    if (!fastcast!(Array) (e1v) && !fastcast!(ExtArray) (e1v) && !fastcast!(Pointer) (e1v))
       return null;
-    auto rish = cast(RangeIsh) e2v;
+    auto rish = fastcast!(RangeIsh)~ e2v;
     if (!rish) return null;
     auto from = foldex(rish.getPos(e2));
     auto to   = foldex(rish.getEnd(e2));
     if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: ", from));
     if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: ", from));
     
-    if (cast(Array) e1v || cast(ExtArray) e1v)
+    if (fastcast!(Array)~ e1v || fastcast!(ExtArray)~ e1v)
       return mkArraySlice(e1, from, to);
     else
       return mkPointerSlice(e1, from, to);
@@ -78,8 +78,8 @@ static this() {
 
 Expr mkFullSlice(Expr ex) {
   auto evt = resolveType(ex.valueType());
-  if (auto sa = cast(StaticArray) evt) {
-    auto cv = cast(CValue) ex;
+  if (auto sa = fastcast!(StaticArray)~ evt) {
+    auto cv = fastcast!(CValue)~ ex;
     assert(!!cv);
     return mkPointerSlice(
       reinterpret_cast(new Pointer(sa.elemType), new RefExpr(cv)),
@@ -91,8 +91,8 @@ Expr mkFullSlice(Expr ex) {
 import ast.iterator, ast.casting, ast.fold;
 Object gotFullSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
-    return cast(Object) mkFullSlice(ex);
+    if (!fastcast!(Array) (ex.valueType()) && !fastcast!(ExtArray) (ex.valueType())) return null;
+    return fastcast!(Object)~ mkFullSlice(ex);
   };
 }
 mixin DefaultParser!(gotFullSliceExpr, "tree.rhs_partial.full_slice", null, "[]");
@@ -100,17 +100,17 @@ mixin DefaultParser!(gotFullSliceExpr, "tree.rhs_partial.full_slice", null, "[]"
 Statement getSliceAssign(Expr slice, Expr array) {
   IType elemtype;
   IType[] tried;
-  if (!gotImplicitCast(array, (IType it) { tried ~= it; return cast(StaticArray) it || cast(Array) it; })) {
+  if (!gotImplicitCast(array, (IType it) { tried ~= it; return fastcast!(StaticArray)~ it || fastcast!(Array)~ it; })) {
     throw new Exception(Format("Can't assign to slice: ", array, "; none of ", tried, " fit. "));
   }
   auto avt = resolveType(array.valueType());
-  if (auto sa = cast(StaticArray) avt)
+  if (auto sa = fastcast!(StaticArray)~ avt)
     elemtype = sa.elemType;
-  else if (auto ar = cast(Array) avt)
+  else if (auto ar = fastcast!(Array)~ avt)
     elemtype = ar.elemType;
   else asm { int 3; }
   
-  auto fc = (cast(Function) sysmod.lookup("memcpy2")).mkCall;
+  auto fc = (fastcast!(Function)~ sysmod.lookup("memcpy2")).mkCall;
   fc.params ~= getArrayPtr(slice);
   fc.params ~= getArrayPtr(array);
   fc.params ~= lookupOp("*", getArrayLength(array), mkInt(elemtype.size));
@@ -122,14 +122,14 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr dest, src;
   if (rest(t2, "tree.expr _tree.expr.arith", &dest) && t2.accept("=")) {
-    auto ar = cast(Array) resolveType(dest.valueType());
+    auto ar = fastcast!(Array)~ resolveType(dest.valueType());
     if (!ar) return null;
-    if (cast(LValue) dest) return null; // leave to normal assignment
+    if (fastcast!(LValue)~ dest) return null; // leave to normal assignment
     if (rest(t2, "tree.expr", &src)) {
       if (ar != resolveType(src.valueType())) {
         auto mesg = Format("Mismatching types in slice assignment: ", dest.valueType(), " <- ", src.valueType());
-        if (cast(Array) resolveType(src.valueType())
-         || cast(ExtArray) resolveType(src.valueType()))
+        if (fastcast!(Array)~ resolveType(src.valueType())
+         || fastcast!(ExtArray)~ resolveType(src.valueType()))
           text.failparse(mesg);
         else
           text.setError(mesg);
@@ -137,7 +137,7 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
       }
       text = t2;
       // TODO: assert on size
-      return cast(Object) getSliceAssign(dest, src);
+      return fastcast!(Object)~ getSliceAssign(dest, src);
     } else t2.failparse("Failed to parse slice-assignment value");
   } else return null;
 }
@@ -145,8 +145,8 @@ mixin DefaultParser!(gotSliceAssignment, "tree.semicol_stmt.assign_slice", "10")
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    auto sa = cast(StaticArray) ex.valueType();
-    if (!sa || !cast(CValue) ex) return null;
+    auto sa = fastcast!(StaticArray)~ ex.valueType();
+    if (!sa || !fastcast!(CValue) (ex)) return null;
     return mkPointerSlice(
       getSAPtr(dcm(ex)),
       mkInt(0),

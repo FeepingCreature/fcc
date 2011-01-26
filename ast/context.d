@@ -13,8 +13,8 @@ class Context : Namespace, MValue, Named {
   }
   void iterValid(void delegate(Expr) dg, bool reverse = false) {
     void _body(Object entry) {
-      if (auto ex = cast(Expr) entry) {
-        auto lv = cast(LValue) entry, mv = cast(MValue) entry, ea = cast(ExprAlias) entry;
+      if (auto ex = fastcast!(Expr)~ entry) {
+        auto lv = fastcast!(LValue)~ entry, mv = fastcast!(MValue)~ entry, ea = fastcast!(ExprAlias)~ entry;
         if (!lv && !mv && !ea)
           throw new Exception(Format("Cannot use ", ex, " in context! "));
         dg(ex);
@@ -43,9 +43,9 @@ class Context : Namespace, MValue, Named {
     }
     void emitAssignment(AsmFile af) {
       iterValid_rev((Expr ex) {
-        if (auto lv = cast(LValue) ex) {
+        if (auto lv = fastcast!(LValue)~ ex) {
           (new Assignment(lv, new Placeholder(lv.valueType()), false, true)).emitAsm(af);
-        } else if (auto mv = cast(MValue) ex) {
+        } else if (auto mv = fastcast!(MValue)~ ex) {
           mv.emitAssignment(af);
         } else assert(false);
       });
@@ -70,7 +70,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(st, "tree.toplevel", &tr)) return false;
     // namespace().get!(Module).entries ~= tr;
     current_module().entries ~= tr;
-    if (cast(GlobVarDecl) tr || cast(Function) tr) {
+    if (cast(GlobVarDecl) tr || fastcast!(Function)~ tr) {
     } else assert(!!cast(NoOp) tr, Format(tr));
     return true;
   }

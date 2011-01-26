@@ -1255,6 +1255,25 @@ void setupOpts() {
     t2.op2 = t1.to;
     $SUBST([t1, t2, $2]);
   `));
+  mixin(opt("reorder_math_mov_math", `^MathOp, ^Mov, ^MathOp:
+    $0.op1.isLiteral() && $2.op1.isLiteral() &&
+    $0.op2.isRegister() && $2.op2.isRegister() &&
+    $0.op2 == $1.from && $1.to == $2.op2
+    =>
+    $T t1 = $1, t2 = $0, t3 = $1;
+    t2.op2 = t1.to;
+    t3.from = t1.to; t3.to = t1.from;
+    $SUBST([t1, t2, t3, $2]);
+  `));
+  mixin(opt("reorder_mov_math", `^Mov, ^MathOp:
+    $0.from.isRegister() && $0.to.isRegister() &&
+    $1.op1 == $0.to && $1.op2.isRegister() &&
+    $1.op2 != $0.from
+    =>
+    $T t = $1;
+    t.op1 = $0.from;
+    $SUBST([t, $0]);
+  `));
   mixin(opt("hyperspecific", `^Label, ^Push, ^Push, ^Push, ^Pop, ^Pop, ^Pop
     =>
     $T ts[6];
@@ -1370,6 +1389,8 @@ void setupOpts() {
           case FloatMath:
             continue;    // no change
           
+          case Jump:
+            if (entry.keepRegisters) break outer;
           case Call:
             if (check.isUtilityRegister()) {
               // arguments on the stack (cdecl)
@@ -1379,7 +1400,7 @@ void setupOpts() {
             }
           case Label:
             if (check != "(%esp)") unneeded = true;
-          case Compare, Jump:
+          case Compare:
             break outer;
           
           case ExtendDivide:

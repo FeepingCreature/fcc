@@ -99,15 +99,15 @@ void parseHeader(string filename, string src, ParseCb rest) {
   scope(exit) namespace.set(myNS.sup);
   void add(string name, Named n) {
     if (myNS.lookup(name)) { return; } // duplicate definition. meh.
-    auto ea = cast(ExprAlias) n;
+    auto ea = fastcast!(ExprAlias)~ n;
     if (ea) {
-      if (!gotImplicitCast(ea.base, (IType it) { return !cast(AstTuple) it; })) {
+      if (!gotImplicitCast(ea.base, (IType it) { return !fastcast!(AstTuple) (it); })) {
         logln("Weird thing ", ea);
         asm { int 3; }
       }
     }
     // logln("add ", name, " <- ", n);
-    myNS._add(name, cast(Object) n);
+    myNS._add(name, fastcast!(Object)~ n);
     cache[name] = n;
   }
   
@@ -145,12 +145,12 @@ void parseHeader(string filename, string src, ParseCb rest) {
       string name;
       if (!text.gotIdentifier(name))
         return Single!(Void);
-      if (auto p = name in cache) return cast(IType) *p;
+      if (auto p = name in cache) return fastcast!(IType)~ *p;
       else {
         auto lt = new LateType;
         auto dg = stuple(lt, name, &cache) /apply/
         delegate void(LateType lt, string name, typeof(cache)* cachep) {
-          if (auto p = name in *cachep) lt.me = cast(IType) *p;
+          if (auto p = name in *cachep) lt.me = fastcast!(IType)~ *p;
           // else assert(false, "'"~name~"' didn't resolve! ");
           else lt.me = Single!(Void);
         };
@@ -161,7 +161,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     }
     string id;
     if (!text.gotIdentifier(id)) return null;
-    if (auto p = id in cache) return cast(IType) *p;
+    if (auto p = id in cache) return fastcast!(IType)~ *p;
     return null;
   }
   IType matchType(ref string text) {
@@ -179,7 +179,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     text.accept("__const");
     string id;
     gotIdentifier(text, id);
-    if (auto sa = cast(StaticArray) resolveType(ty)) {
+    if (auto sa = fastcast!(StaticArray)~ resolveType(ty)) {
       ty = new Pointer(sa.elemType);
     }
     redo:if (text.startsWith("[")) {
@@ -221,7 +221,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
           if (ident[2] == '+' || ident[2] == '-') return false;
       }
       if (auto p = ident in cache) {
-        if (auto ex = cast(Expr) *p) {
+        if (auto ex = fastcast!(Expr)~ *p) {
           *res = ex;
           source = null;
           return true;
@@ -355,13 +355,13 @@ void parseHeader(string filename, string src, ParseCb rest) {
           if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, &size) && st3.accept("]")) {
             redo:
             size = foldex(size);
-            if (cast(AstTuple) size.valueType()) {
+            if (fastcast!(AstTuple)~ size.valueType()) {
               // unwrap "(foo)"
-              size = (cast(StructLiteral) (cast(RCE) size).from)
+              size = (fastcast!(StructLiteral)~ (fastcast!(RCE)~ size).from)
                 .exprs[$-1];
               goto redo;
             }
-            auto ie = cast(IntExpr) size;
+            auto ie = fastcast!(IntExpr)~ size;
             // logln("size: ", size);
             if (!ie) goto giveUp1;
             new RelMember(name3, new StaticArray(ty, ie.num), st);
@@ -423,12 +423,12 @@ void parseHeader(string filename, string src, ParseCb rest) {
         redo3:
         size = foldex(size);
         // unwrap "(bar)" again
-        if (cast(AstTuple) size.valueType()) {
-          size = (cast(StructLiteral) (cast(RCE) size).from).exprs[$-1];
+        if (fastcast!(AstTuple)~ size.valueType()) {
+          size = (fastcast!(StructLiteral)~ (fastcast!(RCE)~ size).from).exprs[$-1];
           goto redo3;
         }
-        if (!cast(IntExpr) size) goto giveUp;
-        target = new StaticArray(target, (cast(IntExpr) size).num);
+        if (!fastcast!(IntExpr) (size)) goto giveUp;
+        target = new StaticArray(target, (fastcast!(IntExpr)~ size).num);
         stmt = st3;
         goto redo2;
       }
@@ -485,7 +485,7 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(text, "tree.expr", &ex))
     text.failparse("Couldn't find c_import string expr");
   if (!text.accept(";")) text.failparse("Missing trailing semicolon");
-  auto str = cast(StringExpr) foldex(ex);
+  auto str = fastcast!(StringExpr)~ foldex(ex);
   if (!str)
     text.failparse(foldex(ex), " is not a string");
   auto name = str.str;

@@ -9,7 +9,7 @@ class Scope : Namespace, ScopeLike, Statement {
   ulong id;
   mixin defaultIterate!(_body, guards);
   Statement[] getGuards() {
-    if (auto sc = cast(Scope) sup) return sc.getGuards() ~ guards;
+    if (auto sc = fastcast!(Scope)~ sup) return sc.getGuards() ~ guards;
     else return guards;
   }
   void addStatement(Statement st) {
@@ -51,10 +51,10 @@ class Scope : Namespace, ScopeLike, Statement {
   }
   override int framesize() {
     int res;
-    if (auto sl = cast(ScopeLike) sup)
+    if (auto sl = fastcast!(ScopeLike)~ sup)
       res += sl.framesize();
     foreach (obj; field) {
-      if (auto var = cast(Variable) obj._1) {
+      if (auto var = fastcast!(Variable)~ obj._1) {
         res += getFillerFor(var.type, res);
         res += var.type.size;
       }
@@ -92,7 +92,7 @@ class Scope : Namespace, ScopeLike, Statement {
     Object lookup(string name, bool local = false) {
       auto res = super.lookup(name, true);
       // TODO: &&? ||? WHO KNOWS =D
-      // if (!res && cast(Scope) sup)
+      // if (!res && fastcast!(Scope)~ sup)
       if (res) return res;
       return sup.lookup(name, local);
     }
@@ -103,7 +103,7 @@ class Scope : Namespace, ScopeLike, Statement {
       typeof(sup.stackframe()) res;
       if (sup) res = sup.stackframe();
       foreach (obj; field)
-        if (auto var = cast(Variable) obj._1)
+        if (auto var = fastcast!(Variable)~ obj._1)
           res ~= stuple(var.type, var.name, var.baseOffset);
       return res;
     }

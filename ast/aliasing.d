@@ -16,13 +16,13 @@ class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
       void delegate(ref Iterable) dg;
       dg = (ref Iterable iter) {
         if (auto rt = cast(RelTransformable) iter)
-          iter = cast(Iterable) rt.transform(relbase);
+          iter = fastcast!(Iterable)~ rt.transform(relbase);
         iter.iterate(dg);
       };
-      auto it = cast(Iterable) base.dup();
+      auto it = fastcast!(Iterable)~ base.dup();
       dg(it);
       it.iterate(dg);
-      return cast(Object) it;
+      return fastcast!(Object)~ it;
     }
     void emitAsm(AsmFile af) {
       base.emitAsm(af); // may work .. or not.
@@ -36,7 +36,7 @@ class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
 
 class CValueAlias : ExprAlias, CValue {
   mixin MyThis!("super(base, name)");
-  override void emitLocation(AsmFile af) { (cast(CValue) base).emitLocation(af); }
+  override void emitLocation(AsmFile af) { (fastcast!(CValue)~ base).emitLocation(af); }
   override CValueAlias dup() { return new CValueAlias(base.dup, name); }
 }
 
@@ -47,7 +47,7 @@ class LValueAlias : CValueAlias, LValue {
 
 class MValueAlias : ExprAlias, MValue {
   mixin MyThis!("super(base, name)");
-  override void emitAssignment(AsmFile af) { (cast(MValue) base).emitAssignment(af); }
+  override void emitAssignment(AsmFile af) { (fastcast!(MValue)~ base).emitAssignment(af); }
   override MValueAlias dup() { return new MValueAlias(base.dup, name); }
 }
 
@@ -69,7 +69,7 @@ class TypeAlias : Named, IType, TypeProxy, SelfAdding {
 
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto ea = cast(ExprAlias) ex) {
+    if (auto ea = fastcast!(ExprAlias)~ ex) {
       return ea.base;
     } else return null;
   };
@@ -109,7 +109,7 @@ redo:
     ty = null;
     if (rest(t3, "tree.expr", &obj) && gotTerm()) {
       t2 = t3;
-      if (auto e = cast(Expr) obj) { obj = null; ex = e; }
+      if (auto e = fastcast!(Expr)~ obj) { obj = null; ex = e; }
       else {
         namespace().__add(id, obj); // for instance, function alias
       }
@@ -119,7 +119,7 @@ redo:
   
   assert(ex || ty || obj);
   text = t2;
-  auto cv = cast(CValue) ex, mv = cast(MValue) ex, lv = cast(LValue) ex;
+  auto cv = fastcast!(CValue)~ ex, mv = fastcast!(MValue)~ ex, lv = fastcast!(LValue)~ ex;
   if (ex) {
     ExprAlias res;
     if (lv) res = new LValueAlias(lv, id);

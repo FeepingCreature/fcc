@@ -72,7 +72,7 @@ Object gotStringLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   // "" handled in ast.stringex now.
   Expr ex;
   if (text.gotStringExpr(ex, "`", true)) {
-    return cast(Object) ex;
+    return fastcast!(Object)~ ex;
   } else return null;
 }
 mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string", "551", "`");
@@ -80,7 +80,7 @@ mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string", "551", "`
 import ast.casting;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (cast(StringExpr) ex) {
+    if (fastcast!(StringExpr)~ ex) {
       return getArrayPtr(ex);
     }
     return null;

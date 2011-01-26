@@ -392,6 +392,7 @@ struct Transaction {
       struct {
         string source, dest;
         IType type;
+        bool keepRegisters;
       }
       struct {
         string opName;

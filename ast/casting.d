@@ -12,7 +12,7 @@ template ReinterpretCast_Contents(T) {
     this.from = from;
     this.to = to;
     static if (is(T==Expr)) {
-      if (cast(LValue) from || cast(CValue) from) {
+      if (fastcast!(LValue)~ from || fastcast!(CValue)~ from) {
         logln(this, "? Suure? ");
         asm { int 3; }
       }
@@ -24,16 +24,16 @@ template ReinterpretCast_Contents(T) {
     }
   }
   private this() { }
-  typeof(this) dup() { return new typeof(this)(to, cast(T) from); }
+  typeof(this) dup() { return new typeof(this)(to, fastcast!(T)~ from); }
   mixin defaultIterate!(from);
   override {
-    static if (is(typeof((cast(T) from).emitLocation(null))))
+    static if (is(typeof((fastcast!(T)~ from).emitLocation(null))))
       void emitLocation(AsmFile af) {
-        (cast(T) from).emitLocation(af);
+        (fastcast!(T)~ from).emitLocation(af);
       }
-    static if (is(typeof((cast(T) from).emitAssignment(null))))
+    static if (is(typeof((fastcast!(T)~ from).emitAssignment(null))))
       void emitAssignment(AsmFile af) {
-        (cast(T) from).emitAssignment(af);
+        (fastcast!(T)~ from).emitAssignment(af);
       }
   }
 }
@@ -69,15 +69,15 @@ alias ReinterpretCast!(MValue) RCM;
 import ast.fold;
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto rce1 = cast(RCE) ex) {
-      if (auto rce2 = cast(RCE) fold(rce1.from)) {
+    if (auto rce1 = fastcast!(RCE)~ ex) {
+      if (auto rce2 = fastcast!(RCE)~ fold(rce1.from)) {
         return foldex(reinterpret_cast(rce1.to, foldex(rce2.from)));
       }
     }
     return null;
   };
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto rce = cast(RCE) ex) {
+    if (auto rce = fastcast!(RCE)~ ex) {
       if (rce.from.valueType() == rce.to)
         return foldex(rce.from);
     }
@@ -99,7 +99,7 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (ex.valueType() != dest) return null;
   
   text = t2;
-  return cast(Object) reinterpret_cast(dest, ex);
+  return fastcast!(Object)~ reinterpret_cast(dest, ex);
 }
 mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default", "701");
 
@@ -125,7 +125,7 @@ Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
     }
   }
   if (res) text = t2;
-  return cast(Object) res;
+  return fastcast!(Object)~ res;
 }
 mixin DefaultParser!(gotConversionCast, "tree.expr.cast_convert", "702");
 
@@ -143,7 +143,7 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
     // return null;
   
   text = t2;
-  return cast(Object) reinterpret_cast(dest, ex);
+  return fastcast!(Object)~ reinterpret_cast(dest, ex);
 }
 mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "7");
 
@@ -195,18 +195,18 @@ class DontCastMeExpr : Expr {
 
 class DontCastMeCValue : DontCastMeExpr, CValue {
   this(CValue cv) { super(cv); }
-  typeof(this) dup() { return new typeof(this)(cast(CValue) sup); }
-  override void emitLocation(AsmFile af) { (cast(CValue) sup).emitLocation(af); }
+  typeof(this) dup() { return new typeof(this)(fastcast!(CValue)~ sup); }
+  override void emitLocation(AsmFile af) { (fastcast!(CValue)~ sup).emitLocation(af); }
 }
 
 class DontCastMeLValue : DontCastMeCValue, LValue {
   this(LValue lv) { super(lv); }
-  typeof(this) dup() { return new typeof(this)(cast(LValue) sup); }
+  typeof(this) dup() { return new typeof(this)(fastcast!(LValue)~ sup); }
 }
 
 Expr dcm(Expr ex) {
-  if (auto lv = cast(LValue) ex) return new DontCastMeLValue(lv);
-  else if (auto cv = cast(CValue) ex) return new DontCastMeCValue(cv);
+  if (auto lv = fastcast!(LValue)~ ex) return new DontCastMeLValue(lv);
+  else if (auto cv = fastcast!(CValue)~ ex) return new DontCastMeCValue(cv);
   else return new DontCastMeExpr(ex);
 }
 
@@ -353,20 +353,20 @@ class ByteToShortCast : Expr {
 }
 
 Expr reinterpret_cast(IType to, Expr from) {
-  if (auto lv = cast(LValue) from)
+  if (auto lv = fastcast!(LValue)~ from)
     return new RCL(to, lv);
-  if (auto cv = cast(CValue) from)
+  if (auto cv = fastcast!(CValue)~ from)
     return new RCC(to, cv);
-  if (auto mv = cast(MValue) from)
+  if (auto mv = fastcast!(MValue)~ from)
     return new RCM(to, mv);
   return new RCE(to, from);
 }
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    auto tp = cast(TypeProxy) ex.valueType();
+    auto tp = fastcast!(TypeProxy)~ ex.valueType();
     if (!tp) return null;
-    return reinterpret_cast(resolveType(cast(IType) tp), ex);
+    return reinterpret_cast(resolveType(fastcast!(IType)~ tp), ex);
   };
   implicits ~= delegate Expr(Expr ex) {
     if (ex.valueType() == Single!(Byte) || ex.valueType() == Single!(Char))

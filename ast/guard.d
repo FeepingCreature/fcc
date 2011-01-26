@@ -39,8 +39,8 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
         t4.failparse("No statement matched for ", type, " in exception guard context");
       if (type == "onExit") nf.tree = nf.tree.dup; // already used in onSuccess branch
     }
-    mod.entries ~= cast(Tree) nf;
-    auto grtype = cast(IType) sysmod.lookup("_GuardRecord");
+    mod.entries ~= fastcast!(Tree)~ nf;
+    auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord");
     assert(!!grtype);
     {
       auto gr = new Variable(grtype, null, boffs(grtype));
@@ -116,8 +116,8 @@ class Scoped(T) : T, IScoped {
 }
 
 Expr genScoped(Expr ex) {
-  if (auto mv = cast(MValue) ex) return new Scoped!(MValue)(mv);
-  if (auto lv = cast(LValue) ex) return new Scoped!(LValue)(lv);
+  if (auto mv = fastcast!(MValue)~ ex) return new Scoped!(MValue)(mv);
+  if (auto lv = fastcast!(LValue)~ ex) return new Scoped!(LValue)(lv);
   throw new Exception(Format("cannot scope ", ex));
 }
 
@@ -129,6 +129,6 @@ Object gotScoped(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr", &ex))
     t2.failparse("Failed to match expr for scoped");
   text = t2;
-  return cast(Object) genScoped(ex);
+  return fastcast!(Object)~ genScoped(ex);
 }
 mixin DefaultParser!(gotScoped, "tree.expr.scoped", "26");

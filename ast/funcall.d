@@ -33,8 +33,8 @@ mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg", "25");
 bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = null, string text = null) {
   Expr[string] nameds;
   void removeNameds(ref Iterable it) {
-    if (auto ex = cast(Expr) it) {
-      if (auto tup = cast(AstTuple) ex.valueType()) {
+    if (auto ex = fastcast!(Expr)~ it) {
+      if (auto tup = fastcast!(AstTuple)~ ex.valueType()) {
         // filter out nameds from the tuple.
         auto exprs = getTupleEntries(ex);
         bool gotNamed;
@@ -60,20 +60,20 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
   {
     Iterable forble = arg;
     removeNameds(forble);
-    arg = cast(Expr) forble;
+    arg = fastcast!(Expr)~ forble;
   }
   
   Expr[] args;
   args ~= arg;
   Expr[] flatten(Expr ex) {
-    if (cast(AstTuple) ex.valueType())
+    if (fastcast!(AstTuple)~ ex.valueType())
       return getTupleEntries(ex);
     else
       return null;
   }
   int flatLength(Expr ex) {
     int res;
-    if (cast(AstTuple) ex.valueType()) {
+    if (fastcast!(AstTuple)~ ex.valueType()) {
       foreach (entry; getTupleEntries(ex))
         res += flatLength(entry);
     } else {
@@ -91,7 +91,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
     type = resolveType(type);
     if (cast(Variadic) type) {
       foreach (ref rest_arg; args)
-        if (!gotImplicitCast(rest_arg, (IType it) { return !cast(StaticArray) it; }))
+        if (!gotImplicitCast(rest_arg, (IType it) { return !fastcast!(StaticArray) (it); }))
           throw new Exception(Format("Invalid argument to variadic: ", rest_arg));
       res ~= args;
       args = null;
@@ -131,7 +131,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
       return test(it == type);
     })) {
       Expr[] list;
-      if (gotImplicitCast(ex, (IType it) { return !!cast(Tuple) it; }) && (list = flatten(ex), !!list)) {
+      if (gotImplicitCast(ex, (IType it) { return !!fastcast!(Tuple) (it); }) && (list = flatten(ex), !!list)) {
         args = list ~ args;
         goto retry;
       } else {
@@ -142,7 +142,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
   }
   Expr[] flat;
   void recurse(Expr ex) {
-    if (cast(AstTuple) ex.valueType())
+    if (fastcast!(AstTuple)~ ex.valueType())
       foreach (entry; flatten(ex)) recurse(entry);
     else flat ~= ex;
   }
@@ -223,18 +223,18 @@ class FpCall : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(params);
   override void emitAsm(AsmFile af) {
-    auto fntype = cast(FunctionPointer) fp.valueType();
+    auto fntype = fastcast!(FunctionPointer)~ fp.valueType();
     callFunction(af, fntype.ret, params, fp);
   }
   override IType valueType() {
-    return (cast(FunctionPointer) fp.valueType()).ret;
+    return (fastcast!(FunctionPointer)~ fp.valueType()).ret;
   }
 }
 
 Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto fptype = cast(FunctionPointer) ex.valueType();
+    auto fptype = fastcast!(FunctionPointer)~ ex.valueType();
     if (!fptype) return null;
     
     auto fc = new FpCall;
@@ -256,18 +256,18 @@ class DgCall : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(dg, params);
   override void emitAsm(AsmFile af) {
-    auto dgtype = cast(Delegate) dg.valueType();
+    auto dgtype = fastcast!(Delegate)~ dg.valueType();
     callDg(af, dgtype.ret, params, dg);
   }
   override IType valueType() {
-    return (cast(Delegate) dg.valueType()).ret;
+    return (fastcast!(Delegate)~ dg.valueType()).ret;
   }
 }
 
 Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto dgtype = cast(Delegate) ex.valueType();
+    auto dgtype = fastcast!(Delegate)~ ex.valueType();
     if (!dgtype) return null;
     
     auto dc = new DgCall;

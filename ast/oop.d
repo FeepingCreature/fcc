@@ -115,12 +115,12 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
   }
   override Object lookupRel(string name, Expr base) {
     if (!base) return lookupIntf(name, null);
-    if (!cast(IntfRef) base.valueType()) {
+    if (!fastcast!(IntfRef) (base.valueType())) {
       logln("Bad intf ref: ", base);
       asm { int 3; }
     }
-    if (name == "this") return cast(Object) base;
-    auto cv = cast(CValue) base;
+    if (name == "this") return fastcast!(Object)~ base;
+    auto cv = fastcast!(CValue)~ base;
     if (!cv) {
       logln("intf lookupRel fail ", base);
     }
@@ -164,7 +164,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable {
     string mangle() { return "ref_"~myClass.mangle(); }
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
-      return myClass is (cast(ClassRef) type).myClass;
+      return myClass is (fastcast!(ClassRef)~ type).myClass;
     }
     Expr format(Expr ex) {
       return mkString("ref to "~myClass.name);
@@ -182,7 +182,7 @@ class IntfRef : Type, SemiRelNamespace {
     string mangle() { return "intfref_"~myIntf.mangle(); }
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
-      return myIntf is (cast(IntfRef) type).myIntf;
+      return myIntf is (fastcast!(IntfRef)~ type).myIntf;
     }
   }
 }
@@ -208,7 +208,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
   bool isTempNamespace() { return false; }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, this);
-    auto root = cast(Class) (sysmod?sysmod.lookup("Object"):null);
+    auto root = fastcast!(Class)~ (sysmod?sysmod.lookup("Object"):null);
     if (root) {
       if (name == "Object")
         throw new Exception("Can't redefine Object! ");
@@ -341,7 +341,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     }
     void _add(string name, Object obj) {
       assert(!finalized, "Adding "~name~" to already-finalized class. ");
-      if (auto rf = cast(RelFunction) obj) {
+      if (auto rf = fastcast!(RelFunction) (obj)) {
         if (funAlreadyDefined(name))
           overrides[name] = rf;
         else
@@ -360,25 +360,25 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
       return res;
     }
     Object lookupRel(string str, Expr base) {
-      if (!cast(ClassRef) base.valueType()) {
+      if (!fastcast!(ClassRef) (base.valueType())) {
         logln("Bad class ref: ", base, " of ", base.valueType());
         asm { int 3; }
       }
-      if (str == "this") return cast(Object) base;
+      if (str == "this") return fastcast!(Object)~ base;
       if (auto res = data.lookup(str, true)) {
-        if (auto rm = cast(RelMember) res) {
+        if (auto rm = fastcast!(RelMember) (res)) {
           // logln("transform ", rm, " with ", base);
           return rm.transform(new DerefExpr(reinterpret_cast(new Pointer(data), base)));
         }
-        return cast(Object) res;
+        return fastcast!(Object)~ res;
       }
       if (auto res = myfuns.lookup(str, base)) {
-        return cast(Object) res;
+        return fastcast!(Object)~ res;
       }
       int cl_offset = ownClassinfoLength;
       foreach (intf; iparents) {
         if (auto res = intf.lookupClass(str, cl_offset, base))
-          return cast(Object) res;
+          return fastcast!(Object)~ res;
         cl_offset += intf.clsize;
       }
       if (parent) if (auto res = parent.lookupRel(str, base)) {
@@ -406,8 +406,8 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
       {
         t2 = t3;
         auto supobj = namespace().lookup(sup);
-        auto cl = cast(Class) supobj;
-        auto intf = cast(Intf) supobj;
+        auto cl = fastcast!(Class)  (supobj);
+        auto intf = fastcast!(Intf) (supobj);
         if (!cl && !intf) throw new Exception("Cannot inherit from "~sup~": not a class or interface. ");
         if (intf) supints ~= intf;
         else {
@@ -449,7 +449,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
       {
         t2 = t3;
         auto supobj = namespace().lookup(sup);
-        auto intf = cast(Intf) supobj;
+        auto intf = fastcast!(Intf) (supobj);
         if (!intf) throw new Exception("Cannot inherit interface from "~sup~": not an interface. ");
         else supints ~= intf;
       },
@@ -465,7 +465,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   while (true) {
     auto fun = new Function;
     if (text.accept("}")) break;
-    if (!gotGenericFunDecl(fun, cast(Namespace) null, false, text, cont, rest))
+    if (!gotGenericFunDecl(fun, fastcast!(Namespace)~ null, false, text, cont, rest))
       text.failparse("Error parsing interface");
     intf.funs ~= fun;
   }
@@ -477,7 +477,7 @@ Object gotClassRef(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
   if (t2.gotIdentifier(id)) {
     retry:
-    if (auto cl = cast(Class) namespace().lookup(id)) {
+    if (auto cl = fastcast!(Class)~ namespace().lookup(id)) {
       text = t2;
       return new ClassRef(cl);
     } else if (t2.eatDash(id)) goto retry;
@@ -490,7 +490,7 @@ Object gotIntfRef(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
   if (t2.gotIdentifier(id)) {
     retry:
-    if (auto i = cast(Intf) namespace().lookup(id)) {
+    if (auto i = fastcast!(Intf) (namespace().lookup(id))) {
       text = t2;
       return new IntfRef(i);
     } else if (t2.eatDash(id)) goto retry;
@@ -505,9 +505,9 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   t2.passert(!!lhs_partial(),
     "got class member expr? weird");
-  auto ex = cast(Expr) lhs_partial();
+  auto ex = fastcast!(Expr)~ lhs_partial();
   if (!ex) return null;
-  auto cr = cast(ClassRef) ex.valueType(), ir = cast(IntfRef) ex.valueType();
+  auto cr = fastcast!(ClassRef)~ ex.valueType(), ir = fastcast!(IntfRef)~ ex.valueType();
   if (!cr && !ir) return null;
   Class cl; Intf intf;
   if (cr) cl = cr.myClass;
@@ -537,13 +537,13 @@ alias Single!(Pointer, Single!(Pointer, Single!(Void))) voidpp;
 
 Expr intfToClass(Expr ex) {
   auto intpp = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
-  return reinterpret_cast(new ClassRef(cast(Class) sysmod.lookup("Object")), lookupOp("+", reinterpret_cast(voidpp, ex), new DerefExpr(new DerefExpr(reinterpret_cast(intpp, ex)))));
+  return reinterpret_cast(new ClassRef(fastcast!(Class)~ sysmod.lookup("Object")), lookupOp("+", reinterpret_cast(voidpp, ex), new DerefExpr(new DerefExpr(reinterpret_cast(intpp, ex)))));
 }
 
 void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
   void testIntf(Expr ex) {
     dg(ex);
-    auto intf = (cast(IntfRef) ex.valueType()).myIntf;
+    auto intf = (fastcast!(IntfRef)~ ex.valueType()).myIntf;
     int offs = 0;
     foreach (id, par; intf.parents) {
       auto nex = reinterpret_cast(new IntfRef(par), lookupOp("+", reinterpret_cast(voidpp, ex), mkInt(offs)));
@@ -553,7 +553,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
   }
   void testClass(Expr ex) {
     dg(ex);
-    auto cl = (cast(ClassRef) ex.valueType()).myClass;
+    auto cl = (fastcast!(ClassRef)~ ex.valueType()).myClass;
     if (!cl.parent && !cl.iparents) return; // just to clarify
     if (cl.parent) {
       testClass(reinterpret_cast(new ClassRef(cl.parent), ex));
@@ -567,7 +567,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
       testIntf(iex);
     }
   }
-  auto cr = cast(ClassRef) ex.valueType(), ir = cast(IntfRef) ex.valueType();
+  auto cr = fastcast!(ClassRef)~ ex.valueType(), ir = fastcast!(IntfRef)~ ex.valueType();
   if (cr) testClass(ex);
   if (ir) testIntf(ex);
 }
@@ -575,7 +575,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
 import ast.casting, tools.base: todg;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (cast(IntfRef) ex.valueType())
+    if (fastcast!(IntfRef)~ ex.valueType())
       return intfToClass(ex);
     return null;
   };
@@ -588,12 +588,12 @@ Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
   IType dest;
   if (!rest(t2, "type", &dest) || !t2.accept(":"))
     return null;
-  if (!cast(ClassRef) dest && !cast(IntfRef) dest)
+  if (!fastcast!(ClassRef) (dest) && !fastcast!(IntfRef) (dest))
     return null;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
     return null;
   }
-  if (!cast(ClassRef) ex.valueType() && !cast(IntfRef) ex.valueType())
+  if (!fastcast!(ClassRef) (ex.valueType()) && !fastcast!(IntfRef) (ex.valueType()))
     return null;
   text = t2;
   
@@ -603,15 +603,15 @@ Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
       if (res) return;
       if (ex.valueType() == dest) res = ex;
     });
-    if (res) return cast(Object) res;
+    if (res) return fastcast!(Object)~ res;
   }
   
   string dest_id;
-  if (auto cr = cast(ClassRef) dest) dest_id = cr.myClass.mangle_id;
-  else dest_id = (cast(IntfRef) dest).myIntf.mangle_id;
+  if (auto cr = fastcast!(ClassRef)~ dest) dest_id = cr.myClass.mangle_id;
+  else dest_id = (fastcast!(IntfRef)~ dest).myIntf.mangle_id;
   
-  if (cast(IntfRef) ex.valueType()) ex = intfToClass(ex);
-  return cast(Object) iparse!(Expr, "cast_call", "tree.expr")
+  if (fastcast!(IntfRef)~ ex.valueType()) ex = intfToClass(ex);
+  return fastcast!(Object)~ iparse!(Expr, "cast_call", "tree.expr")
     ("Dest:ex.dynamicCastTo(id)", "ex",
       ex, "Dest", dest, "id", mkString(dest_id)
     );
