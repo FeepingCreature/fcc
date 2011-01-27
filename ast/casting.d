@@ -259,7 +259,7 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
       if (auto res = recurse(entry)) return res;
     return null;
   }
-  auto dcme = cast(DontCastMeExpr) ex;
+  auto dcme = fastcast!(DontCastMeExpr) (ex);
   if (accept(ex)) return true;
   if (dcme) return false;
   if (auto res = recurse(ex)) { ex = res; return true; }
@@ -309,7 +309,7 @@ Expr[] getAllImplicitCasts(Expr ex) {
     foreach (entry; res[start .. $])
       recurse(entry);
   }
-  auto dcme = cast(DontCastMeExpr) ex;
+  auto dcme = fastcast!(DontCastMeExpr) (ex);
   res ~= ex;
   if (!dcme) recurse(ex);
   return res;
@@ -362,6 +362,7 @@ Expr reinterpret_cast(IType to, Expr from) {
   return new RCE(to, from);
 }
 
+import std.moduleinit;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto tp = fastcast!(TypeProxy)~ ex.valueType();
@@ -380,4 +381,11 @@ static this() {
     else
       return null;
   };
+  // teh hax :D
+  foreach (m; ModuleInfo.modules())
+    if (m.name == "ast.casting") {
+      m.localClasses ~= RCE.classinfo;
+      m.localClasses ~= RCL.classinfo;
+      m.localClasses ~= RCM.classinfo;
+    }
 }

@@ -1,7 +1,7 @@
 module casts;
 
 import tools.log, tools.ctfe, tools.compat: min;
-import tools.base: Format, Stuple, Init;
+import tools.base: Format, Stuple, stuple, Init;
 
 // list of class names to optimize
 const string[] quicklist = [
@@ -58,52 +58,59 @@ const string[] quicklist = [
 
 Stuple!(void*, int)[] idtable;
 
-struct PrimeGenerator {
-  int[] cache;
-  int last;
-  void reset() { last = 0; }
-  int gen() {
-    if (!last) { last = 1; return last; }
-    auto cur = last;
-    while (true) {
-      cur ++;
-      foreach (entry; cache) {
-        if (cur % entry == 0) { continue; }
-        if (entry * entry > cur) { break; }
-      }
-      break;
-    }
-    if (!cache.length || cache[$-1] < cur)
-      cache ~= cur;
-    return cur;
-  }
-}
+int xor;
+const knuthMagic = 2654435761;
 
+int hash(void* p) { return (((cast(size_t) p >> 3) ^ xor) * knuthMagic) % idtable.length; }
+
+import tools.mersenne;
 void initTable() {
   ClassInfo[] ci;
-  foreach (entry; quicklist) ci ~= ClassInfo.find(entry);
-  auto cursize = quicklist.length * 4;
-  PrimeGenerator pg;
-  while (true) {
-    idtable.length = cursize;
-    logln("Try ", cursize);
-    idtable[] = Init!(Stuple!(void*, int));
-    pg.reset;
-    refactor:
-    auto factor = pg.gen();
-    if (factor > 1024) { logln("Cancel factors, big break"); break; }
-    foreach (entry; ci) {
-      auto pos = ((cast(size_t) cast(void*) entry) >> 3) * factor;
-      if (idtable[pos]._0) { logln("collision found for ", factor, "; size ", idtable.length); goto refactor; }
+  foreach (entry; quicklist) {
+    auto cl = ClassInfo.find(entry);
+    if (!cl) {
+      // logln("No such class: ", entry);
+      continue;
     }
-    cursize --;
+    ci ~= cl;
   }
-  asm { int 3; }
+  int bestXOR, bestXORSize = int.max;
+  for (int i = 0; i < 512; ++i) {
+    // lol
+    xor = rand();
+    auto cursize = quicklist.length;
+    outer:
+    idtable.length = cursize;
+    idtable[] = Init!(Stuple!(void*, int));
+    foreach (int id, entry; ci) {
+      auto pos = hash(cast(void*) entry);
+      if (idtable[pos]._0) {
+        cursize ++;
+        if (cursize >= bestXORSize) break;
+        goto outer;
+      }
+      idtable[pos]._0 = cast(void*) entry;
+    }
+    if (cursize < bestXORSize) {
+      bestXORSize = cursize;
+      bestXOR = xor;
+    }
+  }
+  xor = bestXOR;
+  idtable.length = bestXORSize;
+  idtable[] = Init!(Stuple!(void*, int));
+  foreach (int i, entry; ci) {
+    auto pos = hash(cast(void*) entry);
+    idtable[pos] = stuple(cast(void*) entry, i);
+  }
 }
 
 static this() { initTable; }
 
 int getId(ClassInfo ci) {
+  auto cp = cast(void*) ci;
+  auto entry = idtable[hash(cp)];
+  if (entry._0 == cp) return entry._1;
   return -1;
 }
 
@@ -116,9 +123,11 @@ struct _fastcast(T) {
     Object obj;
     static if (!is(U: Object)) { // interface
       auto ptr = **cast(Interface***) u;
-      obj = cast(Object) (cast(void*) u - ptr.offset);
+      void* vp = *cast(void**) &u - ptr.offset;
+      obj = *cast(Object*) &vp;
     } else {
-      obj = u;
+      void* vp = *cast(void**) &u;
+      obj = *cast(Object*) &vp; // prevent a redundant D cast
     }
     auto id = getId(obj.classinfo);
     if (id == -1) return cast(T) u;

@@ -1,5 +1,7 @@
 module parseBase;
 
+import casts;
+
 string mystripl(string s) {
   while (s.length && (
     s[0] == ' '  || s[0] == '\t' ||
@@ -381,7 +383,7 @@ struct ParseCb {
     }
     auto myAccept = delegate ParseCtl(Object obj) {
       static if (is(MustType)) {
-        auto casted = cast(MustType) obj;
+        auto casted = fastcast!(MustType) (obj);
       } else {
         auto casted = obj;
       }
@@ -402,7 +404,7 @@ struct ParseCb {
       // only accept-test objects that match the type
       auto backup = text;
       static if (is(typeof(callback))) {
-        auto res = cast(MustType) dg(text, matchdg, myAccept);
+        auto res = fastcast!(MustType) (dg(text, matchdg, myAccept));
         if (delid != -1) {
           synchronized(ardlock)
             freeRuleData(delid);
@@ -410,11 +412,11 @@ struct ParseCb {
         }
         if (!res) text = backup;
         else callback(res);
-        return cast(Object) res;
+        return fastcast!(Object) (res);
       } else {
-        *rest2[0] = cast(typeof(*rest2[0])) dg(text, matchdg, myAccept);
+        *rest2[0] = fastcast!(typeof(*rest2[0])) (dg(text, matchdg, myAccept));
         if (!*rest2[0]) text = backup;
-        return cast(Object) *rest2[0];
+        return fastcast!(Object) (*rest2[0]);
       }
     } else {
       static assert(!Rest2.length, "Left: "~Rest2.stringof~" of "~T.stringof);
@@ -473,6 +475,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
       Stuple!(Object, char*)[char*][] stack;
       override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         auto t2 = text;
+        if (.accept(t2, "]")) return null; // never a valid start
         static if (Key) {
           if (!.accept(t2, Key)) return null;
         }
