@@ -71,7 +71,7 @@ bool isVoidP(IType it) {
   if (!it) return false;
   auto p = fastcast!(Pointer)~ it;
   if (!p) return false;
-  return !!cast(Void) p.target;
+  return !!fastcast!(Void) (p.target);
 }
 
 static this() {
@@ -80,8 +80,8 @@ static this() {
     else return null;
   };
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto re = cast(RefExpr) ex) {
-      if (auto de = cast(DerefExpr) re.src) {
+    if (auto re = fastcast!(RefExpr) (ex)) {
+      if (auto de = fastcast!(DerefExpr) (re.src)) {
         return de.src;
       }
     }

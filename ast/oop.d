@@ -465,7 +465,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   while (true) {
     auto fun = new Function;
     if (text.accept("}")) break;
-    if (!gotGenericFunDecl(fun, fastcast!(Namespace)~ null, false, text, cont, rest))
+    if (!gotGenericFunDecl(fun, cast(Namespace) null, false, text, cont, rest))
       text.failparse("Error parsing interface");
     intf.funs ~= fun;
   }

@@ -1,7 +1,7 @@
 module casts;
 
 import tools.log, tools.ctfe, tools.compat: min;
-import tools.base: Format, Stuple, stuple, Init;
+import tools.base: Format, Stuple, stuple, Init, Repeat;
 
 // list of class names to optimize
 const string[] quicklist = [
@@ -57,23 +57,34 @@ const string[] quicklist = [
   "ast.base.Filler",
   "ast.oop.ClassRef",
   "ast.oop.IntfRef"
+  "ast.casting.ReinterpretCast!(CValue).ReinterpretCast"
 ];
 
 Stuple!(void*, int)[] idtable;
 
 int xor;
-const knuthMagic = 2654435761;
+const uint knuthMagic = 2654435761;
 
-void* prevp; int prevres;
+const cachesize = 1; // tested and best
+void*[cachesize] pcache; int[cachesize] rescache;
+
+void resetHash() { pcache[] = Init!(void*); }
+
+// int is okay here; we don't expect variation in the upper bits
 int hash(void* p) {
-  if (p == prevp) return prevres;
-  auto res = (((cast(size_t) p >> 3) ^ xor) * knuthMagic) % idtable.length;
-  prevp = p; prevres = res;
+  foreach_reverse (i, bogus; Repeat!(void, cachesize))
+    if (pcache[i] == p) return rescache[i];
+  int res = cast(uint) (((cast(int) cast(size_t) p >> 3) ^ xor) * knuthMagic) % idtable.length;
+  foreach (i, bogus; Repeat!(void, cachesize - 1)) {
+    pcache[i] = pcache[i+1];
+    rescache[i] = rescache[i+1];
+  }
+  pcache[$-1] = p; rescache[$-1] = res;
   return res;
 }
 
 import tools.mersenne;
-void initTable() {
+void initCastTable() {
   ClassInfo[] ci;
   foreach (entry; quicklist) {
     auto cl = ClassInfo.find(entry);
@@ -91,6 +102,7 @@ void initTable() {
     outer:
     idtable.length = cursize;
     idtable[] = Init!(Stuple!(void*, int));
+    resetHash();
     foreach (int id, entry; ci) {
       auto pos = hash(cast(void*) entry);
       if (idtable[pos]._0) {
@@ -108,6 +120,7 @@ void initTable() {
   xor = bestXOR;
   idtable.length = bestXORSize;
   idtable[] = Init!(Stuple!(void*, int));
+  resetHash();
   foreach (int i, entry; ci) {
     auto pos = hash(cast(void*) entry);
     idtable[pos] = stuple(cast(void*) entry, i);
@@ -126,6 +139,8 @@ struct _fastcast(T) {
   static ptrdiff_t[quicklist.length] offsets;
   T opCall(U)(U u) {
     if (!u) return null;
+    static assert (!is(U == void*));
+
     // logln("Cast ", (cast(Object) u).classinfo.name);
     Object obj;
     static if (!is(U: Object)) { // interface
@@ -136,6 +151,9 @@ struct _fastcast(T) {
       void* vp = *cast(void**) &u;
       obj = *cast(Object*) &vp; // prevent a redundant D cast
     }
+    static if (is(T == Object)) return obj;
+    // implicit downcast - make sure we want a class!
+    static if (is(U: T) && is(T: Object)) { return *cast(T*) &obj; }
     auto id = getId(obj.classinfo);
     if (id == -1) {
       // logln("Boring cast: ", obj.classinfo.name);

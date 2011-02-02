@@ -10,7 +10,7 @@ Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception(Format("Fail: namespace is ", namespace(), ". "));
   auto fun = new RelFunction(rs);
   
-  if (auto res = gotGenericFunDef(fun, fastcast!(Namespace)~ null, true, text, cont, rest)) {
+  if (auto res = gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest)) {
     current_module().entries ~= fastcast!(Tree)~ res;
     return res;
   } else return null;
