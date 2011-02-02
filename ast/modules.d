@@ -18,6 +18,7 @@ Threadpool tp;
 
 class Module : Namespace, Tree, Named, StoresDebugState {
   string name;
+  string cleaned_name() { return name.cleanup(); }
   Module[] imports;
   Tree[] entries;
   Setupable[] setupable;
@@ -49,15 +50,15 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
-        /*if (auto fun = cast(Function) entry) {
+        /*if (auto fun = fastcast!(Function)~ entry) {
           logln("emit![", i - 1, "/", entries.length, "]: ", fun.name, " in ", cast(void*) this);
         }*/
         entry.emitAsm(af);
       }
       void callback(ref Iterable it) {
         if (cast(NoOp) it) return;
-        string info = Format("<node classname=\"", (cast(Object) it).classinfo.name, "\"");
-        if (auto n = cast(Named) it)
+        string info = Format("<node classname=\"", (fastcast!(Object)~ it).classinfo.name, "\"");
+        if (auto n = fastcast!(Named)~ it)
           info ~= Format(" name=\"", n.getIdentifier(), "\"");
         if (auto i = cast(HasInfo) it)
           info ~= Format( " info=\"", i.getInfo(), "\"");
@@ -73,7 +74,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       }
     }
     string mangle(string name, IType type) {
-      return "module_"~this.name.replace(".", "_")~"_"~name~(type?("_of_"~type.mangle()):"");
+      return "module_"~cleaned_name()~"_"~name~(type?("_of_"~type.mangle()):"");
     }
     Object lookup(string name, bool local = false) {
       if (auto res = super.lookup(name)) return res;
@@ -105,14 +106,14 @@ static this() {
     foreach (ref entry; extras.entries) {
       if (auto im2 = cast(IsMangled) entry)
         if (im2.mangleSelf() == mangled) {
-          entry = cast(Tree) im;
-          if (auto s = cast(Setupable) im)
+          entry = fastcast!(Tree)~ im;
+          if (auto s = fastcast!(Setupable)~ im)
             extras.addSetupable(s);
           return;
         }
     }
-    extras.entries ~= cast(Tree) im;
-    if (auto s = cast(Setupable) im)
+    extras.entries ~= fastcast!(Tree)~ im;
+    if (auto s = fastcast!(Setupable)~ im)
       extras.addSetupable(s);
   };
 }
@@ -170,7 +171,7 @@ Module lookupMod(string name) {
   auto file = fn.read().castLike("");
   synchronized(SyncObj!(sourcefiles))
     sourcefiles[fn] = file;
-  auto mod = cast(Module) parsecon.parse(file, "tree.module");
+  auto mod = fastcast!(Module)~ parsecon.parse(file, "tree.module");
   if (!mod)
     file.failparse("Could not parse module");
   if (file.strip().length)
@@ -215,7 +216,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   if (t2.many(
       !!restart(t2, "tree.toplevel", &tr),
       {
-        if (auto n = cast(Named) tr)
+        if (auto n = fastcast!(Named)~ tr)
           if (!addsSelf(tr))
             mod.add(n);
         mod.entries ~= tr;

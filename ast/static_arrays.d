@@ -17,8 +17,8 @@ class StaticArray : Type {
   override int opEquals(IType ty) {
     ty = resolveType(ty);
     return super.opEquals(ty) &&
-      ((cast(StaticArray) ty).elemType == elemType) &&
-      ((cast(StaticArray) ty).length == length);
+      ((fastcast!(StaticArray)~ ty).elemType == elemType) &&
+      ((fastcast!(StaticArray)~ ty).length == length);
   }
 }
 
@@ -33,7 +33,7 @@ static this() {
       )
     {
       auto len = fold(len_ex);
-      if (auto ie = cast(IntExpr) len) {
+      if (auto ie = fastcast!(IntExpr)~ len) {
         text = t2;
         return new StaticArray(cur, ie.num);
       }
@@ -42,7 +42,7 @@ static this() {
     } else return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (!cast(StaticArray) ex.valueType() || !cast(CValue) ex)
+    if (!fastcast!(StaticArray) (ex.valueType()) || !fastcast!(CValue) (ex))
       return null;
     return getSAPtr(ex);
   };
@@ -51,7 +51,7 @@ static this() {
 import ast.parse, ast.int_literal;
 Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (auto sa = cast(StaticArray) ex.valueType()) {
+    if (auto sa = fastcast!(StaticArray)~ ex.valueType()) {
       return mkInt(sa.length);
     } else return null;
   };
@@ -59,20 +59,20 @@ Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length", null, ".length");
 
 Expr getSAPtr(Expr sa) {
-  auto vt = cast(StaticArray) sa.valueType();
-  assert(!!cast(CValue) sa);
-  return new ReinterpretCast!(Expr) (new Pointer(vt.elemType), new RefExpr(cast(CValue) sa));
+  auto vt = fastcast!(StaticArray)~ sa.valueType();
+  assert(!!fastcast!(CValue) (sa));
+  return reinterpret_cast(new Pointer(vt.elemType), new RefExpr(fastcast!(CValue) (sa)));
 }
 
 import ast.parse, ast.namespace, ast.int_literal, ast.pointer, ast.casting;
 Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (auto sa = cast(StaticArray) ex.valueType()) {
-      auto cv = cast(CValue) ex;
+    if (auto sa = fastcast!(StaticArray)~ ex.valueType()) {
+      auto cv = fastcast!(CValue)~ ex;
       if (!cv) throw new Exception(
         Format("Tried to reference non-cvalue for .ptr: ", ex)
       );
-      return cast(Object) getSAPtr(ex);
+      return fastcast!(Object)~ getSAPtr(ex);
     } else return null;
   };
 }
@@ -153,7 +153,7 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
       if (!type) type = ex.valueType();
       else if (!gotImplicitCast(ex, (IType it) { types ~= it; return test(it == type); }))
         t2.failparse("Invalid SA literal member; none of ", types, " match ", type);
-      if (auto ie = cast(IntExpr) fold(ex)) statics ~= ie.num;
+      if (auto ie = fastcast!(IntExpr)~ fold(ex)) statics ~= ie.num;
       else isStatic = false;
       exs ~= ex;
     }
@@ -164,7 +164,7 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   text = t2;
   if (isStatic) {
-    return cast(Object) reinterpret_cast(cast(IType) new StaticArray(type, exs.length), cast(CValue) new DataExpr(cast(ubyte[]) statics));
+    return fastcast!(Object)~ reinterpret_cast(fastcast!(IType)~ new StaticArray(type, exs.length), fastcast!(CValue)~ new DataExpr(cast(ubyte[]) statics));
   }
   auto res = new SALiteralExpr;
   res.type = type;

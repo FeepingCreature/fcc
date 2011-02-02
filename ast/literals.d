@@ -97,7 +97,7 @@ Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (t3.accept(".") && !t3.accept("."))
       return null;
     text = t2;
-    return cast(Object) ex;
+    return fastcast!(Object)~ ex;
   } else return null;
 }
 
@@ -117,7 +117,7 @@ class CValueAsPointer : Expr {
   override typeof(this) dup() { return new typeof(this) (sup.dup); }
   mixin defaultIterate!(sup);
   override IType valueType() {
-    if (auto sa = cast(StaticArray) sup.valueType())
+    if (auto sa = fastcast!(StaticArray)~ sup.valueType())
       return new Pointer(sa.elemType);
     throw new Exception(Format("The CValue ", sup, " has confused me. "));
   }

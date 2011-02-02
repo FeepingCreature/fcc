@@ -9,7 +9,7 @@ Object gotEval(ref string text, ParseCb cont, ParseCb rest) {
     return null;
     // t2.failparse("Could not parse expr");
   text = t2;
-  if (auto fun = cast(Function) obj) {
+  if (auto fun = fastcast!(Function)~ obj) {
     if (fun.type.params.length)
       throw new Exception("Cannot evaluate function with parameters! ");
     return fun.mkCall();

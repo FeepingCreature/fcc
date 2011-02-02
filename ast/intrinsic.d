@@ -316,13 +316,13 @@ void setupSysmods() {
   string base1 = src.between("", "/*MARKER*/") ~ "}";
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys,pre>"] = base1;
-  sysmod = cast(Module) parsecon.parse(base1, "tree.module");
+  sysmod = fastcast!(Module) (parsecon.parse(base1, "tree.module"));
   string base2 = src.between("", "/*MARKER2*/").dup;
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys,pre2>"] = base2;
-  sysmod = cast(Module) parsecon.parse(base2, "tree.module");
+  sysmod = fastcast!(Module) (parsecon.parse(base2, "tree.module"));
   // we can now use the partial definitions to parse the entirety.
-  sysmod = cast(Module) parsecon.parse(src, "tree.module");
+  sysmod = fastcast!(Module) (parsecon.parse(src, "tree.module"));
 }
 
 import ast.tuples;

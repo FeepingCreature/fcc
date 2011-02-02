@@ -122,7 +122,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
       scope(exit) af.currentStackDepth = backup;
       af.currentStackDepth = 0;
       withTLS(namespace, this, tree.emitAsm(af));
-      af.emitLabel(exit());
+      af.emitLabel(exit(), true);
       
       af.mmove4("%ebp", "%esp");
       af.popStack("%ebp", voidp);
@@ -133,7 +133,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
     Stuple!(IType, string, int)[] stackframe() {
       Stuple!(IType, string, int)[] res;
       foreach (obj; field)
-        if (auto var = cast(Variable) obj._1)
+        if (auto var = fastcast!(Variable)~ obj._1)
           res ~= stuple(var.type, var.name, var.baseOffset);
       return res;
     }
@@ -216,7 +216,7 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
     ret = resolveType(ret);
     assert(ret.size == 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret,
       Format("Return bug: ", ret, " from ", name, ": ",
-      ret.size, " is ", (cast(Object) ret).classinfo.name));
+      ret.size, " is ", (fastcast!(Object)~ ret).classinfo.name));
     af.comment("Begin call to ", name);
     
     int paramsize;
@@ -315,7 +315,7 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
   if (t2.accept("(") &&
       t2.bjoin(
         ( // can omit types for subsequent parameters
-          test(ptype = cast(IType) rest(t2, "type")) || test(ptype = lastType)
+          test(ptype = fastcast!(IType)~ rest(t2, "type")) || test(ptype = lastType)
         ) && (
           t2.gotIdentifier(parname) || ((parname = null), true)
         ) && (
@@ -346,7 +346,7 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
   *error.ptr() = stuple("", "");
   auto ns = namespace();
   assert(!!ns);
-  if (test(fun.type.ret = cast(IType) rest(t2, "type")) &&
+  if (test(fun.type.ret = fastcast!(IType)~ rest(t2, "type")) &&
       (forcename || t2.gotIdentifier(fun.name)) &&
       t2.gotParlist(fun.type.params, rest)
     )
@@ -385,7 +385,7 @@ Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, 
 
 Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto fun = new Function;
-  return gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest);
+  return gotGenericFunDef(fun, fastcast!(Namespace)~ null, true, text, cont, rest);
 }
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 

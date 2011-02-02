@@ -14,14 +14,14 @@ class VarDecl : Statement {
       // sanity checking start!
       if (var.baseOffset + var.type.size < -af.currentStackDepth) {
         auto delta = -af.currentStackDepth - (var.baseOffset + var.type.size);
-        logln("alloc ", delta, " to compensate for stack being wrong for var");
-        logln("(", var.name, " at ", af.currentStackDepth, " wants ", -var.baseOffset - var.type.size, ")");
+        // logln("alloc ", delta, " to compensate for stack being wrong for var");
+        // logln("(", var.name, " at ", af.currentStackDepth, " wants ", -var.baseOffset - var.type.size, ")");
         af.salloc(delta);
       }
       if (var.baseOffset + var.type.size != -af.currentStackDepth) {
         logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var);
         foreach (elem; namespace().field) {
-          if (auto var = cast(Variable) elem._1) {
+          if (auto var = fastcast!(Variable)~ elem._1) {
             auto csd = af.currentStackDepth;
             if (csd in
               Range[var.baseOffset .. var.baseOffset + var.type.size].endIncl)
@@ -86,7 +86,7 @@ void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
 
 import tools.base;
 LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
-  if (auto lv = cast(LValue) ex)
+  if (auto lv = fastcast!(LValue)~ ex)
     return lv;
   
   auto type = ex.valueType();
@@ -108,10 +108,10 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
 
 // create temporary if needed
 LValue lvize(Expr ex) {
-  if (auto lv = cast(LValue) ex) return lv;
+  if (auto lv = fastcast!(LValue)~ ex) return lv;
   
   auto var = new Variable(ex.valueType(), null, boffs(ex.valueType()));
-  auto sc = cast(Scope) namespace();
+  auto sc = fastcast!(Scope)~ namespace();
   assert(!!sc);
   var.initval = ex;
   
@@ -126,7 +126,7 @@ LValue lvize(Expr ex) {
 import ast.fold;
 Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
   auto fex = foldex(ex);
-  if (cast(Literal) fex) return fex;
+  if (fastcast!(Literal)~ fex) return fex;
   return mkRef(af, fex, post);
 }
 

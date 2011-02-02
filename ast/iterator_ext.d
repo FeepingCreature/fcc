@@ -9,28 +9,28 @@ import
   ast.fold, ast.namespace, ast.arrays, ast.static_arrays,
   ast.tuples, ast.tuple_access;
 static this() {
-  isRichIterator = delegate bool(IType it) { return !!cast(RichIterator) it; };
-  isIterator = delegate bool(IType it) { return !!cast(Iterator) it; };
+  isRichIterator = delegate bool(IType it) { return !!fastcast!(RichIterator) (it); };
+  isIterator = delegate bool(IType it) { return !!fastcast!(Iterator) (it); };
   defineOp("x", delegate Expr(Expr ex1, Expr ex2) {
-    if (!gotImplicitCast(ex2, (Expr ex) { return !!cast(IntExpr) fold(ex); }))
+    if (!gotImplicitCast(ex2, (Expr ex) { return !!fastcast!(IntExpr) (fold(ex)); }))
       return null;
     auto ex22 = ex2;
     if (gotImplicitCast(ex22, (Expr ex) { return !!cast(ast.iterator.Range) fold(ex); }))
       ex2 = ex22;
-    auto count = (cast(IntExpr) fold(ex2)).num;
+    auto count = (fastcast!(IntExpr)~ fold(ex2)).num;
     assert(count > 0);
     Expr[] rep;
     while (count--) rep ~= ex1.dup;
     return mkTupleExpr(rep);
   });
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (!cast(Array) ex.valueType() && !cast(StaticArray) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
+    if (!fastcast!(Array) (ex.valueType()) && !fastcast!(StaticArray) (ex.valueType()) && !fastcast!(ExtArray) (ex.valueType())) return null;
     if (!sysmod) return null; // required
-    if (!expect || !cast(Iterator) expect)
+    if (!expect || !fastcast!(Iterator) (expect))
       return null;
     auto dcme = new DontCastMeExpr(ex);
     auto range = iparse!(Expr, "array_iterate_range", "tree.expr")(`0..arr.length`, "arr", dcme);
-    if (auto lv = cast(CValue) ex) {
+    if (auto lv = fastcast!(CValue)~ ex) {
       return iparse!(Expr, "ref_array_iterate", "tree.expr.iter.for")(`[for i <- iter extra &arr: (*extra)[i]]`, "arr", new DontCastMeCValue(lv), "iter", range);
     }
     return iparse!(Expr, "array_iterate", "tree.expr.iter.for")(`[for i <- iter extra arr: extra[i]]`, "arr", dcme, "iter", range);
@@ -53,17 +53,17 @@ class CrossIndexExpr : Expr {
         auto root = iparse!(Scope, "cross_index_init", "tree.stmt")
                           (`{ auto count = idx; }`,
                             "tup", tup, "idx", idx, af);
-        auto count = cast(LValue) root.lookup("count");
+        auto count = fastcast!(LValue)~ root.lookup("count");
         assert(!!count);
         for (int i = len - 1; i >= 0; --i) {
           auto iex = mkInt(i);
           auto iter = mkTupleIndexAccess(tup, 1 + i + len * 2);
-          auto itype = cast(RichIterator) iter.valueType();
+          auto itype = fastcast!(RichIterator)~ iter.valueType();
           assert(!!itype);
           // value = iter[count % length]
           auto len = itype.length(iter);
           root.addStatement(new Assignment(
-            cast(LValue) mkTupleIndexAccess(var, i),
+            fastcast!(LValue)~ mkTupleIndexAccess(var, i),
             itype.index(iter,
               lookupOp("%", count, len)
             )
@@ -80,18 +80,18 @@ class CrossIndexExpr : Expr {
   }
   static this() {
     foldopt ~= delegate Expr(Expr ex) {
-      auto cie = cast(CrossIndexExpr) ex;
+      auto cie = fastcast!(CrossIndexExpr) (ex);
       if (!cie) return null;
-      auto ide = cast(IntExpr) foldex(cie.idx);
+      auto ide = fastcast!(IntExpr) (foldex(cie.idx));
       if (!ide) return null;
       auto idx = ide.num;
       
       int[] lengths;
       auto iters = cie.cross.myIters(cie.ex);
       foreach (iter; iters) {
-        auto ri = cast(RichIterator) iter.valueType();
+        auto ri = fastcast!(RichIterator)~ iter.valueType();
         if (!ri) return null;
-        auto lex = cast(IntExpr)
+        auto lex = fastcast!(IntExpr)~
           foldex(ri.length(iter));
         if (!lex) return null;
         lengths ~= lex.num;
@@ -99,7 +99,7 @@ class CrossIndexExpr : Expr {
       Expr[] res;
       auto orig_idx = idx;
       foreach_reverse (i, iter; iters) {
-        auto ri = cast(RichIterator) iter.valueType();
+        auto ri = fastcast!(RichIterator)~ iter.valueType();
         auto lidx = idx % lengths[i];
         res = foldex(ri.index(iter, mkInt(lidx))) ~ res;
         idx /= lengths[i];
@@ -118,7 +118,7 @@ class Cross : Type, RichIterator {
                   ("*tup*:&lv", "lv", lv, "tup", tup);
   }
   Expr castToTuple(Expr ex) {
-    if (auto lv = cast(LValue) ex) return castToTuple(lv);
+    if (auto lv = fastcast!(LValue)~ ex) return castToTuple(lv);
     return iparse!(Expr, "cross_cast_expr_to_tuple", "tree.expr")
                   ("tup:ex", "ex", ex, "tup", tup);
   }
@@ -172,7 +172,7 @@ class Cross : Type, RichIterator {
       foreach (i, type; types) {
         auto entry = iparse!(Expr, "cross_subcond", "tree.expr")
                            (`tup[i + len + 1]`, "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
-        auto cond = (cast(Iterator) entry.valueType()).terminateCond(entry);
+        auto cond = (fastcast!(Iterator)~ entry.valueType()).terminateCond(entry);
         if (!res) res = cond;
         else res = new BooleanOp!("||")(res, cond);
       }
@@ -186,9 +186,9 @@ class Cross : Type, RichIterator {
       foreach (i, type; types) {
         auto entry = iparse!(Expr, "cross_subcond_for_len", "tree.expr")
                            (`tup[i + len*2 + 1]`, "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
-        auto len = (cast(RichIterator) entry.valueType()).length(entry);
+        auto len = (fastcast!(RichIterator)~ entry.valueType()).length(entry);
         if (staticlength != -1) {
-          if (auto ie = cast(IntExpr) foldex(len)) {
+          if (auto ie = fastcast!(IntExpr)~ foldex(len)) {
             staticlength *= ie.num;
           } else {
             staticlength = -1;
@@ -218,11 +218,11 @@ Expr mkCross(Expr[] exprs) {
   }
   Expr[] inits;
   foreach (ex; exprs) {
-    inits ~= new Filler((cast(Iterator) ex.valueType()).elemType());
+    inits ~= new Filler((fastcast!(Iterator)~ ex.valueType()).elemType());
   }
   auto tup = mkTupleExpr([_false] ~ inits ~ exprs ~ exprs);
   auto cross = new Cross;
-  cross.tup = cast(Tuple) tup.valueType();
+  cross.tup = fastcast!(Tuple)~ tup.valueType();
   return new RCE(cross, tup);
 }
 
@@ -231,7 +231,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(text, "tree.expr", &ex))
     text.failparse("Could not match expr for cross");
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
-    auto tup = cast(Tuple) ex.valueType();
+    auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
       ex2 = foldex(ex2);
@@ -248,7 +248,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
     entry = foldex(entry);
     gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
   }
-  return cast(Object) mkCross(list);
+  return fastcast!(Object)~ mkCross(list);
 }
 mixin DefaultParser!(gotIteratorCross, "tree.expr.iter.cross", null, "cross");
 
@@ -260,7 +260,7 @@ class Zip(T) : Type, T {
                   ("*tup*:&lv", "lv", lv, "tup", tup);
   }
   Expr castToTuple(Expr ex) {
-    if (auto lv = cast(LValue) ex) return castToTuple(lv);
+    if (auto lv = fastcast!(LValue)~ ex) return castToTuple(lv);
     return iparse!(Expr, "cross_cast_expr_to_tuple", "tree.expr")
                   ("tup:ex", "ex", ex, "tup", tup);
   }
@@ -290,7 +290,7 @@ class Zip(T) : Type, T {
       foreach (i, type; types) {
         auto entry = iparse!(Expr, "zip_subcond", "tree.expr")
                            (`tup[i]`, "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
-        auto cond = (cast(Iterator) entry.valueType()).terminateCond(entry);
+        auto cond = (fastcast!(Iterator)~ entry.valueType()).terminateCond(entry);
         if (!res) res = cond;
         else res = new BooleanOp!("&&")(res, cond);
       }
@@ -303,7 +303,7 @@ class Zip(T) : Type, T {
         auto types = myTypes();
         auto entry = iparse!(Expr, "zip_simple_len", "tree.expr")
                             (`tup[0]`, "tup", castToTuple(ex));
-        return (cast(RichIterator) entry.valueType()).length(entry);
+        return (fastcast!(RichIterator)~ entry.valueType()).length(entry);
       }
       Expr index(Expr ex, Expr pos) {
         auto types = myTypes(), tup = castToTuple(ex);
@@ -327,15 +327,15 @@ class Zip(T) : Type, T {
 Expr mkZip(Expr[] exprs, bool rich) {
   Expr[] inits;
   foreach (ex; exprs)
-    inits ~= new Filler((cast(Iterator) ex.valueType()).elemType());
+    inits ~= new Filler((fastcast!(Iterator)~ ex.valueType()).elemType());
   auto tup = mkTupleExpr(exprs ~ inits);
   if (rich) {
     auto zip = new Zip!(RichIterator);
-    zip.tup = cast(Tuple) tup.valueType();
+    zip.tup = fastcast!(Tuple)~ tup.valueType();
     return new RCE(zip, tup);
   } else {
     auto zip = new Zip!(Iterator);
-    zip.tup = cast(Tuple) tup.valueType();
+    zip.tup = fastcast!(Tuple)~ tup.valueType();
     return new RCE(zip, tup);
   }
 }
@@ -346,7 +346,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     text.failparse("Could not match expr for zip");
   bool rich = true;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
-    auto tup = cast(Tuple) ex.valueType();
+    auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
       ex2 = foldex(ex2);
@@ -368,7 +368,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     if (rich) gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
     else gotImplicitCast(entry, Single!(BogusIterator), isIterator);
   }
-  return cast(Object) mkZip(list, rich);
+  return fastcast!(Object)~ mkZip(list, rich);
 }
 mixin DefaultParser!(gotIteratorZip, "tree.expr.iter.zip", null, "zip");
 
@@ -382,7 +382,7 @@ class SumExpr : Expr {
     IType valueType() { return iter.elemType(); }
     void emitAsm(AsmFile af) {
       mkVar(af, iter.elemType(), true, (Variable var) {
-        if (auto ri = cast(RichIterator) iter) {
+        if (auto ri = fastcast!(RichIterator)~ iter) {
           // unroll. TODO: decide when.
           auto stmt = iparse!(Statement, "sum_1", "tree.stmt")
           (`
@@ -426,10 +426,10 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   IType[] tried;
-  if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) { tried ~= it; return !!cast(RichIterator) it; }))
+  if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) { tried ~= it; return !!fastcast!(RichIterator) (it); }))
     text.failparse("Cannot convert ", ex, " to valid iterator");
   
-  return new SumExpr(cast(RichIterator) ex.valueType(), ex);
+  return new SumExpr(fastcast!(RichIterator)~ ex.valueType(), ex);
 }
 mixin DefaultParser!(gotSum, "tree.expr.iter.sum", null, "sum");
 
@@ -439,16 +439,16 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
     return null; // prevent the tests below from looping. HAX.
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
-    auto iter = cast(Expr) obj;
+    auto iter = fastcast!(Expr)~ obj;
     if (!iter) return null;
-    auto thingy = cast(Object) iter.valueType();
+    auto thingy = fastcast!(Object)~ iter.valueType();
     bool delegate(string) lookup;
     Namespace _ns; RelNamespace _rns;
     bool fun_ns(string id) { return test(_ns.lookup(id)); }
     bool fun_rns(string id) { return test(_rns.lookupRel(id, null)); }
-    if (auto srn = cast(SemiRelNamespace) thingy) thingy = cast(Object) srn.resolve();
-    if (auto ns = cast(Namespace) thingy) { _ns = ns; lookup = &fun_ns; }
-    else if (auto rn = cast(RelNamespace) thingy) { _rns = rn; lookup = &fun_rns; }
+    if (auto srn = cast(SemiRelNamespace) thingy) thingy = fastcast!(Object)~ srn.resolve();
+    if (auto ns = fastcast!(Namespace)~ thingy) { _ns = ns; lookup = &fun_ns; }
+    else if (auto rn = fastcast!(RelNamespace)~ thingy) { _rns = rn; lookup = &fun_rns; }
     if (!lookup || !lookup("step") || !lookup("ivalid")) return null;
     logln("try ", t2.nextText(), "; ", thingy);
     try {
@@ -466,7 +466,7 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
     }
     text = t2;
     auto si = new StructIterator(iter.valueType());
-    auto res = cast(Object) reinterpret_cast(si, iter);
+    auto res = fastcast!(Object)~ reinterpret_cast(si, iter);
     // logln(" => ", res);
     return res;
   };
@@ -482,9 +482,9 @@ static this() {
       return null; // only allow this conversion in user code
     auto evt = ex.valueType();
     if (auto p = evt in cache) { return reinterpret_cast(*p, ex); }
-    auto st = cast(Structure) evt;
-    auto cr = cast(ClassRef) evt;
-    // auto ir = cast(IntfRef) evt;
+    auto st = fastcast!(Structure)~ evt;
+    auto cr = fastcast!(ClassRef)~ evt;
+    // auto ir = fastcast!(IntfRef)~ evt;
     IntfRef ir = null;
     if (!st && !cr && !ir)
       return null;

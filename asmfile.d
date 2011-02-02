@@ -256,16 +256,18 @@ class AsmFile {
   string genLabel() {
     return qformat(".Label", labelCounter++);
   }
-  void jump(string label) {
+  void jump(string label, bool keepRegisters = false) {
     labels_refcount[label] ++;
     Transaction t;
     t.kind = Transaction.Kind.Jump;
     t.dest = label;
+    t.keepRegisters = keepRegisters;
     cache ~= t;
   }
-  void emitLabel(string name) {
+  void emitLabel(string name, bool keepregs = false) {
     Transaction t;
     t.kind = Transaction.Kind.Label;
+    t.keepRegisters = keepregs;
     t.names ~= name;
     cache ~= t;
   }

@@ -65,7 +65,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   LValue lv; MValue mv;
   Expr ex;
   if (rest(t2, "tree.expr _tree.expr.arith", &ex) && t2.accept("=")) {
-    lv = cast(LValue) ex; mv = cast(MValue) ex;
+    lv = fastcast!(LValue)~ ex; mv = fastcast!(MValue)~ ex;
     if (!lv && !mv) return null;
     
     Expr target;

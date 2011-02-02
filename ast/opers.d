@@ -24,7 +24,7 @@ Expr lookupOp(string op, bool allowNone, Expr[] exprs...) {
   bool reassign;
   auto pre = op.endsWith("=");
   if (pre && op[0] != '=' /or/ '!') {
-    if (!cast(LValue) exprs[0]) {
+    if (!fastcast!(LValue) (exprs[0])) {
       throw new Exception(Format(
         "Cannot ", op, " since exprs[0]: ", exprs[0], " is not an lvalue! "
       ));
@@ -37,7 +37,7 @@ Expr lookupOp(string op, bool allowNone, Expr[] exprs...) {
       if (auto res = dg(exprs)) {
         if (reassign) {
           return new StatementAndExpr(
-            new Assignment(cast(LValue) exprs[0], res), exprs[0]);
+            new Assignment(fastcast!(LValue)~ exprs[0], res), exprs[0]);
         } else {
           return res;
         }

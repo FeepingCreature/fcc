@@ -40,11 +40,11 @@ class Vector : Type, RelNamespace, ForceAlignment {
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
       while (true) {
-        if (auto tp = cast(TypeProxy) it)
+        if (auto tp = fastcast!(TypeProxy)~ it)
           it = tp.actualType();
         else break;
       }
-      auto vec = cast(Vector) it;
+      auto vec = fastcast!(Vector)~ it;
       assert(vec);
       return vec.base == base && vec.len == len;
     }
@@ -68,10 +68,10 @@ class Vector : Type, RelNamespace, ForceAlignment {
         else if (ch == 'w') exprs ~= parts[3];
         else assert(false);
       }
-      if (exprs.length == 1) return cast(Object) exprs[0];
+      if (exprs.length == 1) return fastcast!(Object)~ exprs[0];
       auto new_vec = new Vector(this.base, exprs.length);
       if (new_vec.extend) exprs ~= new Filler(this.base);
-      return cast(Object) reinterpret_cast(new_vec, mkTupleExpr(exprs));
+      return fastcast!(Object)~ reinterpret_cast(new_vec, mkTupleExpr(exprs));
     }
   }
 }
@@ -81,7 +81,7 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   if (!rest(t2, "type", &ty))
     return null;
-  auto vec = cast(Vector) resolveType(ty);
+  auto vec = fastcast!(Vector)~ resolveType(ty);
   if (!vec)
     return null;
   Expr ex;
@@ -93,11 +93,11 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
       exs ~= ex2.dup;
     if (vec.extend) exs ~= new Filler(vec.base);
     text = t2;
-    return cast(Object)
+    return fastcast!(Object)~
       reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
   }
   retryTup:
-  auto tup = cast(Tuple) ex.valueType();
+  auto tup = fastcast!(Tuple)~ ex.valueType();
   if (!tup) t2.failparse("WTF? No tuple param for vec constructor: ", ex.valueType());
   if (tup.types.length == 1) {
     ex = getTupleEntries(ex)[0];
@@ -116,7 +116,7 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
     if (vec.extend) exs ~= new Filler(vec.base);
     
     text = t2;
-    return cast(Object)
+    return fastcast!(Object)~
       reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
   }
   assert(false);
@@ -137,29 +137,29 @@ Structure mkVecStruct(Vector vec) {
   Expr sqr(Expr ex) { return lookupOp("*", ex, ex); }
   
   {
-    Expr lensq = sqr(cast(Expr) res.lookup("x"));
+    Expr lensq = sqr(fastcast!(Expr)~ res.lookup("x"));
     for (int i = 1; i < vec.len; ++i)
-      lensq = lookupOp("+", lensq, sqr(cast(Expr) res.lookup(["xyzw"[i]])));
+      lensq = lookupOp("+", lensq, sqr(fastcast!(Expr)~ res.lookup(["xyzw"[i]])));
     res.add(new ExprAlias(lensq, "lensq"));
   }
   
   {
-    Expr sum = cast(Expr) res.lookup("x");
+    Expr sum = fastcast!(Expr)~ res.lookup("x");
     for (int i = 1; i < vec.len; ++i)
-      sum = lookupOp("+", sum, cast(Expr) res.lookup(["xyzw"[i]]));
+      sum = lookupOp("+", sum, fastcast!(Expr)~ res.lookup(["xyzw"[i]]));
     res.add(new ExprAlias(sum, "sum"));
   }
   
   {
-    Expr lensq = cast(Expr) res.lookup("lensq");
+    Expr lensq = fastcast!(Expr)~ res.lookup("lensq");
     Expr len;
     if (lensq.valueType() == Single!(Float) || lensq.valueType() == Single!(SysInt)) {
       len = buildFunCall(
-        cast(Function) sysmod.lookup("sqrtf"), lensq, "sqrtf"
+        fastcast!(Function)~ sysmod.lookup("sqrtf"), lensq, "sqrtf"
       );
     } else if (lensq.valueType() == Single!(Double)) {
       len = buildFunCall(
-        cast(Function) sysmod.lookup("sqrt"), lensq, "sqrt"
+        fastcast!(Function)~ sysmod.lookup("sqrt"), lensq, "sqrt"
       );
     }
     if (!len) logln("Can't add length for ", lensq.valueType());
@@ -174,19 +174,19 @@ Structure mkVecStruct(Vector vec) {
 import ast.casting, ast.static_arrays;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (auto vec = cast(Vector) ex.valueType()) {
+    if (auto vec = fastcast!(Vector)~ ex.valueType()) {
       return reinterpret_cast(new StaticArray(vec.base, vec.real_len()), ex);
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (auto vec = cast(Vector) ex.valueType()) {
+    if (auto vec = fastcast!(Vector)~ ex.valueType()) {
       return reinterpret_cast(vec.asStruct, ex);
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (auto vec = cast(Vector) ex.valueType()) {
+    if (auto vec = fastcast!(Vector)~ ex.valueType()) {
       return reinterpret_cast(vec.asFilledTup, ex);
     }
     return null;
@@ -204,7 +204,7 @@ Object gotVecType(ref string text, ParseCb cont, ParseCb rest) {
       !rest(t2, "tree.expr", &len) ||
       !t2.accept(")"))
     t2.failparse("Fail to parse vector");
-  auto ie = cast(IntExpr) fold(len);
+  auto ie = fastcast!(IntExpr)~ fold(len);
   if (!ie)
     text.failparse("Size parameter to vec not foldable or int");
   text = t2;
@@ -214,7 +214,7 @@ mixin DefaultParser!(gotVecType, "type.vector", "34", "vec");
 
 bool pretransform(ref Expr ex, ref IType it) {
   it = resolveType(it);
-  if (auto tup = cast(Tuple) it) {
+  if (auto tup = fastcast!(Tuple)~ it) {
     if (tup.types.length == 1) {
       ex = getTupleEntries(ex)[0];
       it = tup.types[0];
@@ -247,12 +247,12 @@ class VecOp : Expr {
         if (pretransform(ex2, t2)) continue;
         break;
       }
-      auto e1v = cast(Vector) t1, e2v = cast(Vector) t2;
+      auto e1v = fastcast!(Vector)~ t1, e2v = fastcast!(Vector)~ t2;
       mkVar(af, valueType(), true, (Variable var) {
         auto entries = getTupleEntries(
           reinterpret_cast(
-            cast(IType) (cast(Vector) valueType()).asFilledTup,
-            cast(LValue) var
+            fastcast!(IType)~ (fastcast!(Vector)~ valueType()).asFilledTup,
+            fastcast!(LValue)~ var
         ));
         void delegate() dg1, dg2;
         mixin(mustOffset("0"));
@@ -260,9 +260,9 @@ class VecOp : Expr {
         auto filler2 = alignStackFor(t2, af); auto v2 = mkTemp(af, ex2, dg2);
         for (int i = 0; i < len; ++i) {
           Expr l1 = v1, l2 = v2;
-          if (e1v) l1 = getTupleEntries(reinterpret_cast(cast(IType) e1v.asFilledTup, cast(LValue) v1))[i];
-          if (e2v) l2 = getTupleEntries(reinterpret_cast(cast(IType) e2v.asFilledTup, cast(LValue) v2))[i];
-          (new Assignment(cast(LValue) entries[i], lookupOp(op, l1, l2))).emitAsm(af);
+          if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
+          if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2))[i];
+          (new Assignment(fastcast!(LValue)~ entries[i], lookupOp(op, l1, l2))).emitAsm(af);
         }
         if (dg2) dg2(); af.sfree(filler2);
         if (dg1) dg1(); af.sfree(filler1);
@@ -280,7 +280,7 @@ static this() {
       if (pretransform(rhs, v2)) continue;
       break;
     }
-    auto v1v = cast(Vector) v1, v2v = cast(Vector) v2;
+    auto v1v = fastcast!(Vector)~ v1, v2v = fastcast!(Vector)~ v2;
     if (!v1v && !v2v) return null;
     
     assert(!v1v || !v2v || v1v.asTup.types.length == v2v.asTup.types.length, Format("Mismatching tuple types: ", v1v, " and ", v2v));
@@ -296,7 +296,7 @@ static this() {
   Expr negate(Expr ex) {
     auto ty = resolveType(ex.valueType());
     logln("negate? ", ty);
-    auto vt = cast(Vector) ty;
+    auto vt = fastcast!(Vector)~ ty;
     if (!vt) return null;
     
     Expr[] list;

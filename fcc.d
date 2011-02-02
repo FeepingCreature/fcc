@@ -16,7 +16,7 @@ mixin(expandImport(`ast.[
   tuples, tuple_access, literal_string, funcall, vector, externs,
   intr, conditionals, opers, conditionals, cond, casting,
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
-  propcall, properties_parse, main, alignment]`));
+  propcall, properties_parse, main, alignment], casts`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -324,6 +324,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
 
 import assemble: debugOpts;
 int main(string[] args) {
+  initTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);
   /*

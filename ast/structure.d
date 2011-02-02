@@ -33,10 +33,10 @@ int needsAlignmentStruct(Structure st) {
 }
 
 int needsAlignment(IType it) {
-  if (auto st = cast(Structure) it) return needsAlignmentStruct(st);
+  if (auto st = fastcast!(Structure)~ it) return needsAlignmentStruct(st);
   const limit = 4;
   it = resolveType(it);
-  if (auto fa = cast(ForceAlignment) it) return fa.alignment();
+  if (auto fa = fastcast!(ForceAlignment) (it)) return fa.alignment();
   if (it.size > limit) return limit;
   else return it.size;
 }
@@ -60,7 +60,7 @@ class RelMember : Expr, Named, RelTransformable {
     mixin defaultIterate!();
     string getIdentifier() { return name; }
     Object transform(Expr base) {
-      return cast(Object) mkMemberAccess(base, name);
+      return fastcast!(Object)~ mkMemberAccess(base, name);
     }
   }
   this(string name, IType type, int offset) {
@@ -70,14 +70,14 @@ class RelMember : Expr, Named, RelTransformable {
   }
   this(string name, IType type, Namespace ns) {
     this(name, type, 0);
-    auto st = cast(Structure) ns;
+    auto st = fastcast!(Structure)~ ns;
     
     string stname;
     if (st) {
       if (st.isUnion) offset = 0;
       else offset = st._size();
       stname = st.name;
-    } else offset = (cast(IType) ns).size();
+    } else offset = (fastcast!(IType)~ ns).size();
     
     // alignment
     bool isAligned = true;
@@ -153,18 +153,18 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     Object lookupRel(string str, Expr base) {
       // logln("struct rel base is ", base);
       auto res = lookup(str);
-      if (auto rt = cast(RelTransformable) res)
-        return cast(Object) rt.transform(base);
+      if (auto rt = fastcast!(RelTransformable) (res))
+        return fastcast!(Object)~ rt.transform(base);
       return res;
     }
     int opEquals(IType it) {
-      auto str = cast(Structure) it;
+      auto str = fastcast!(Structure)~ it;
       return str is this;
     }
     string toString() {
       if (!name) {
         string[] names;
-        foreach (elem; field) if (auto n = cast(Named) elem._1) names ~= n.getIdentifier();
+        foreach (elem; field) if (auto n = fastcast!(Named)~ elem._1) names ~= n.getIdentifier();
         return Format("{struct ", names.join(", "), "}");
       }
       return name;
@@ -190,7 +190,7 @@ bool matchStructBody(ref string text, Namespace ns,
       && { if (!addsSelf(smem)) ns.add(smem); return true; }()
       ||
       (text = t2, true)
-      && test(strtype = cast(IType) rest(text, "type"))
+      && test(strtype = fastcast!(IType)~ rest(text, "type"))
       && text.bjoin(
         text.gotIdentifier(strname),
         text.accept(","),
@@ -289,7 +289,7 @@ class MemberAccess_Expr : Expr, HasInfo {
   this(Expr base, string name) {
     this.base = base;
     this.name = name;
-    stm = cast(RelMember) (cast(Namespace) base.valueType()).lookup(name);
+    stm = fastcast!(RelMember) (fastcast!(Namespace) (base.valueType()).lookup(name));
     if (!stm) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
   }
   this() { }
@@ -312,7 +312,7 @@ class MemberAccess_Expr : Expr, HasInfo {
     import tools.base;
     void emitAsm(AsmFile af) {
       auto st = base.valueType();
-      if (auto lv = cast(LValue) base) {
+      if (auto lv = fastcast!(LValue)~ base) {
         if (stm.type.size <= 16) {
           af.comment("emit location for member access to ", stm.name, " @", stm.offset);
           lv.emitLocation(af);
@@ -336,10 +336,10 @@ class MemberAccess_Expr : Expr, HasInfo {
         // if (stm.type.size != 4) asm { int 3; }
         // logln("full emit - worrying. ", base, " SELECTING ", stm);
         // asm { int 3; }
-        assert(stm.type.size == 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !cast(LValue) base, ") of ", base.valueType().size(), ". "));
+        assert(stm.type.size == 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !fastcast!(LValue) (base), ") of ", base.valueType().size(), ". "));
         af.comment("emit semi-structure ", base, " for member access");
         auto bvt = base.valueType();
-        if (auto rce = cast(RCE) base) bvt = rce.from.valueType();
+        if (auto rce = fastcast!(RCE)~ base) bvt = rce.from.valueType();
         auto filler = alignStackFor(bvt, af);
         base.emitAsm(af);
         af.comment("store member and free: ", stm.name);
@@ -384,18 +384,18 @@ class MemberAccess_Expr : Expr, HasInfo {
 class MemberAccess_LValue : MemberAccess_Expr, LValue {
   int id;
   this(LValue base, string name) {
-    super(cast(Expr) base, name);
+    super(fastcast!(Expr)~ base, name);
   }
   this() { }
   override {
     MemberAccess_LValue create() { return new MemberAccess_LValue; }
-    MemberAccess_LValue dup() { return cast(MemberAccess_LValue) super.dup(); }
+    MemberAccess_LValue dup() { return fastcast!(MemberAccess_LValue) (super.dup()); }
     void emitLocation(AsmFile af) {
-      auto st = cast(Structure) base.valueType();
+      auto st = fastcast!(Structure)~ base.valueType();
       int[] offs;
       if (st) offs = st.selectMap!(RelMember, "$.offset");
       if (!af.optimize) af.comment("emit location for member address of '", stm.name, "' @", stm.offset, " of ", offs);
-      (cast(LValue) base).emitLocation(af);
+      (fastcast!(LValue)~ base).emitLocation(af);
       if (!af.optimize) af.comment("add offset ", stm.offset);
       af.mathOp("addl", Format("$", stm.offset), "(%esp)");
     }
@@ -405,8 +405,8 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
 import ast.fold, ast.casting;
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto r = cast(RCE) ex) {
-      if (auto lit = cast(StructLiteral) r.from) {
+    if (auto r = fastcast!(RCE)~ ex) {
+      if (auto lit = fastcast!(StructLiteral)~ r.from) {
         if (lit.exprs.length == 1 &&
             lit.exprs[0].valueType() == r.to)
           return lit.exprs[0]; // pointless keeping a cast
@@ -415,7 +415,7 @@ static this() {
     return null;
   };
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = cast(MemberAccess_Expr) ex) {
+    if (auto mae = fastcast!(MemberAccess_Expr)~ ex) {
       auto base = foldex(mae.base);
       // logln("::", mae.stm.type.size, " vs. ", base.valueType().size);
       if (mae.stm.type.size == base.valueType().size) {
@@ -425,18 +425,18 @@ static this() {
     return null;
   };
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = cast(MemberAccess_Expr) ex) {
+    if (auto mae = fastcast!(MemberAccess_Expr)~ ex) {
       auto base = foldex(mae.base);
       Structure st;
-      if (auto rce = cast(RCE) base) {
+      if (auto rce = fastcast!(RCE)~ base) {
         base = rce.from;
-        st = cast(Structure) rce.to;
+        st = fastcast!(Structure)~ rce.to;
       }
-      if (auto sl = cast(StructLiteral) base) {
+      if (auto sl = fastcast!(StructLiteral)~ base) {
         Expr res;
         int i;
         if (!st)
-          st = cast(Structure) base.valueType();
+          st = fastcast!(Structure)~ base.valueType();
         else {
           // TODO: assert: struct member offsets identical!
         }
@@ -454,16 +454,16 @@ static this() {
     return null;
   };
   foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = cast(MemberAccess_Expr) ex) {
+    if (auto mae = fastcast!(MemberAccess_Expr)~ ex) {
       auto base = foldex(mae.base);
       Expr from;
-      if (auto mae2 = cast(MemberAccess_Expr) base) from = base; // lol direct
-      if (auto c = cast(RCL) base) from = foldex(c.from);
-      if (auto c = cast(RCE) base) from = foldex(c.from);
+      if (auto mae2 = fastcast!(MemberAccess_Expr)~ base) from = base; // lol direct
+      if (auto c = fastcast!(RCL) (base)) from = foldex(c.from);
+      if (auto c = fastcast!(RCE) (base)) from = foldex(c.from);
       if (from) {
-        if (auto m2 = cast(MemberAccess_Expr) from) {
+        if (auto m2 = fastcast!(MemberAccess_Expr)~ from) {
           MemberAccess_Expr weird;
-          if (cast(MemberAccess_LValue) from) weird = new MemberAccess_LValue;
+          if (fastcast!(MemberAccess_LValue) (from)) weird = new MemberAccess_LValue;
           else New(weird);
           weird.base = m2.base;
           weird.stm = new RelMember(null, mae.stm.type, mae.stm.offset + m2.stm.offset);
@@ -476,13 +476,13 @@ static this() {
 }
 
 Expr mkMemberAccess(Expr strct, string name) {
-  if (auto lv = cast(LValue) strct) return new MemberAccess_LValue(lv, name);
+  if (auto lv = fastcast!(LValue)~ strct) return new MemberAccess_LValue(lv, name);
   else                              return new MemberAccess_Expr  (strct, name);
 }
 
 Expr depointer(Expr ex) {
   while (true) {
-    if (auto ptr = cast(Pointer) ex.valueType()) {
+    if (auto ptr = fastcast!(Pointer)~ ex.valueType()) {
       ex = new DerefExpr(ex);
     } else break;
   }
@@ -494,29 +494,29 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
   assert(lhs_partial());
-  auto ex = cast(Expr) lhs_partial();
+  auto ex = fastcast!(Expr)~ lhs_partial();
   if (!ex) return null;
   // pointers get dereferenced for struct access
   ex = depointer(ex);
-  if (!gotImplicitCast(ex, (IType it) { return !!cast(RelNamespace) it; }))
+  if (!gotImplicitCast(ex, (IType it) { return !!fastcast!(RelNamespace) (it); }))
     return null;
   
   string member;
   
   auto pre_ex = ex;
   if (t2.gotIdentifier(member)) {
-    auto rn = cast(RelNamespace) ex.valueType();
+    auto rn = fastcast!(RelNamespace)~ ex.valueType();
     retry:
     auto m = rn.lookupRel(member, ex);
-    if (cast(Function) m) { text = t2; return m; }
-    auto ex2 = cast(Expr) m;
+    if (fastcast!(Function)~ m) { text = t2; return m; }
+    auto ex2 = fastcast!(Expr)~ m;
     if (!ex2) {
       if (m) text.setError(member, " is not a rel var: ", m);
       else {
         if (t2.eatDash(member)) goto retry;
         string mesg, name;
         bool dontFail;
-        if (auto st = cast(Structure) rn) {
+        if (auto st = fastcast!(Structure)~ rn) {
           name = st.name;
           mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names);
         } else {
@@ -533,7 +533,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       return null;
     }
     text = t2;
-    return cast(Object) ex2;
+    return fastcast!(Object)~ ex2;
   } else return null;
 }
 mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_rel_member", null, ".");

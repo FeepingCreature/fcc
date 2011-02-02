@@ -16,21 +16,21 @@ class WithStmt : Namespace, Statement, ScopeLike {
   string toString() { return Format("with (", context, ") <- ", sup); }
   int temps;
   override int framesize() {
-    return (cast(ScopeLike) sup).framesize() + temps;
+    return (fastcast!(ScopeLike)~ sup).framesize() + temps;
   }
   this(Expr ex) {
-    if (auto isc = cast(IScoped) ex) {
+    if (auto isc = fastcast!(IScoped) (ex)) {
       this.isc = isc;
       ex = isc.getSup;
       pre = &isc.emitAsmStart;
       temps += ex.valueType().size;
       post = &isc.emitAsmEnd;
-      assert(!!cast(LValue) ex || !!cast(MValue) ex, Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
+      assert(!!fastcast!(LValue) (ex) || !!fastcast!(MValue) (ex), Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
     
-    if (auto lv = cast(LValue) ex) {
+    if (auto lv = fastcast!(LValue)~ ex) {
       context = lv;
-    } else if (auto mv = cast(MValue) ex) {
+    } else if (auto mv = fastcast!(MValue)~ ex) {
       context = mv;
     } else {
       auto var = new Variable;
@@ -43,16 +43,16 @@ class WithStmt : Namespace, Statement, ScopeLike {
       vd.vars ~= var;
     }
     
-    rns = cast(RelNamespace) ex.valueType();
+    rns = fastcast!(RelNamespace)~ ex.valueType();
     
-    if (auto srns = cast(SemiRelNamespace) ex.valueType()) rns = srns.resolve();
-    ns = cast(Namespace) ex; // say, context
+    if (auto srns = fastcast!(SemiRelNamespace) (ex.valueType())) rns = srns.resolve();
+    ns = fastcast!(Namespace)~ ex; // say, context
     
     if (!rns && !ns && !isc) {
       Expr ex2 = context;
       gotImplicitCast(ex2, (Expr ex) {
         auto it = ex.valueType();
-        if (auto ns = cast(RelNamespace) it)
+        if (auto ns = fastcast!(RelNamespace)~ it)
           rnslist ~= stuple(ns, ex);
         return false;
       });
@@ -97,7 +97,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       return res;
     }
     Object lookup(string name, bool local = false) {
-      if (name == "that") return cast(Object) context;
+      if (name == "that") return fastcast!(Object)~ context;
       if (rns)
         if (auto res = rns.lookupRel(name, context))
           return res;
@@ -139,7 +139,7 @@ Object gotBackupOf(ref string text, ParseCb cont, ParseCb rest) {
     string[] names;
     do {
       if (!ws.isc) continue;
-      auto n = cast(Named) ws.isc.getSup();
+      auto n = fastcast!(Named)~ ws.isc.getSup();
       if (!n) continue;
       auto ident = n.getIdentifier();
       if (ident == name)

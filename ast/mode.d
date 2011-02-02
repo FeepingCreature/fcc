@@ -97,22 +97,22 @@ class ModeSpace : Namespace, ScopeLike {
   override {
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
-    int framesize() { return (cast(ScopeLike) sup).framesize(); }
+    int framesize() { return (fastcast!(ScopeLike)~ sup).framesize(); }
     Object lookup(string name, bool local = false) {
       Object funfilt(Object obj) {
-        if (auto fun = cast(Function) obj) {
+        if (auto fun = fastcast!(Function)~ obj) {
           if (!firstParam) return fun;
           if (!fun.extern_c) return fun;
           if (!fun.type || !fun.type.params.length) return fun;
           auto firstType = fun.type.params[0].type;
           Expr fp = firstParam;
           bool exactlyEqual(IType a, IType b) {
-            auto pa = cast(Pointer) a, pb = cast(Pointer) b;
+            auto pa = fastcast!(Pointer)~ a, pb = fastcast!(Pointer)~ b;
             if (pa && pb) return exactlyEqual(pa.target, pb.target);
             if (!pa && pb || pa && !pb) return false;
             IType resolveMyType(IType it) {
               if (cast(TypeAlias) it) return it;
-              if (auto tp = cast(TypeProxy) it)
+              if (auto tp = fastcast!(TypeProxy)~ it)
                 return resolveMyType(tp.actualType());
               return it;
             }
@@ -155,7 +155,7 @@ Object gotModeDef(ref string text, ParseCb cont, ParseCb rest) {
   Expr str;
   if (!rest(text, "tree.expr", &str))
     text.failparse("Couldn't get string param for mode def. ");
-  auto sex = cast(StringExpr) foldex(str);
+  auto sex = fastcast!(StringExpr)~ foldex(str);
   if (!sex)
     text.failparse("String literal expected! ");
   namespace().add(ident, new Mode(sex.str, par));

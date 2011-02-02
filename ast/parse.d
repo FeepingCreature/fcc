@@ -13,14 +13,14 @@ Object gotToplevel(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotToplevel, "tree.toplevel");
 
 TLS!(Object) _lhs_partial;
-static this() { New(_lhs_partial, { return cast(Object) null; }); }
+static this() { New(_lhs_partial, { return fastcast!(Object)~ null; }); }
 
 struct lhs_partial {
   static Object using(T)(Object delegate(T) dg) {
     if (!_lhs_partial()) return null;
-    if (auto c = cast(T) _lhs_partial()) {
+    if (auto c = fastcast!(T)~ _lhs_partial()) {
       auto backup = c;
-      scope(exit) _lhs_partial.set(cast(Object) backup);
+      scope(exit) _lhs_partial.set(fastcast!(Object)~ backup);
       _lhs_partial.set(null);
       return dg(c);
     } else return null;

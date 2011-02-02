@@ -14,7 +14,7 @@ Object gotTypeof(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Failed to parse typeof expression");
   text = t2;
   
-  return cast(Object) ex.valueType();
+  return fastcast!(Object)~ ex.valueType();
 }
 mixin DefaultParser!(gotTypeof, "type.of", "45", "type-of");
 
@@ -34,7 +34,7 @@ Object gotTypeStringof(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type", &obj) && !rest(t2, "tree.expr", &obj))
     return null;
   text = t2;
-  return cast(Object) mkString(Format(obj));
+  return fastcast!(Object)~ mkString(Format(obj));
 }
 mixin DefaultParser!(gotTypeStringof, "tree.expr.stringof", "232", "string-of");
 
@@ -44,7 +44,7 @@ Object gotTypeMangle(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type", &ty))
     t2.failparse("Could not get type for mangle-of");
   text = t2;
-  return cast(Object) mkString(ty.mangle());
+  return fastcast!(Object)~ mkString(ty.mangle());
 }
 mixin DefaultParser!(gotTypeMangle, "tree.expr.type_mangleof", "233", "mangle-of");
 
@@ -53,13 +53,13 @@ Object gotClassId(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   if (!rest(t2, "type", &ty))
     return null;
-  auto cr = cast(ClassRef) ty, ir = cast(IntfRef) ty;
+  auto cr = fastcast!(ClassRef)~ ty, ir = fastcast!(IntfRef)~ ty;
   Class cl; Intf it;
   if (cr) cl = cr.myClass;
   if (ir) it = ir.myIntf;
   if (!cl && !it) return null;
   text = t2;
-  return cast(Object) mkString(cl?cl.mangle_id:it.mangle_id);
+  return fastcast!(Object)~ mkString(cl?cl.mangle_id:it.mangle_id);
 }
 mixin DefaultParser!(gotClassId, "tree.expr.classid", "234", "class-id");
 
@@ -70,11 +70,11 @@ Object gotRetType(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   Expr temp = new Placeholder(ty);
   IType[] tried;
-  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!cast(FunctionPointer) it || !!cast(Delegate) it; }))
+  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!fastcast!(FunctionPointer) (it) || !!fastcast!(Delegate) (it); }))
     text.failparse(ty, " is not function-like; tried ", tried);
-  auto fun = cast(FunctionPointer) temp.valueType(), dg = cast(Delegate) temp.valueType();
-  if (fun) return cast(Object) fun.ret;
-  else     return cast(Object) dg .ret;
+  auto fun = fastcast!(FunctionPointer)~ temp.valueType(), dg = fastcast!(Delegate)~ temp.valueType();
+  if (fun) return fastcast!(Object)~ fun.ret;
+  else     return fastcast!(Object)~ dg .ret;
 }
 mixin DefaultParser!(gotRetType, "type.fun_ret_type", "51", "ReturnType");
 
@@ -85,9 +85,9 @@ Object gotParamTypes(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   Expr temp = new Placeholder(ty);
   IType[] tried;
-  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!cast(FunctionPointer) it || !! cast(Delegate) it; }))
+  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!fastcast!(FunctionPointer) (it) || !! fastcast!(Delegate) (it); }))
     text.failparse(ty, " is not function-like; tried ", tried);
-  auto fun = cast(FunctionPointer) temp.valueType(), dg = cast(Delegate) temp.valueType();
+  auto fun = fastcast!(FunctionPointer)~ temp.valueType(), dg = fastcast!(Delegate)~ temp.valueType();
   if (fun) return mkTuple(fun.args /map/ ex!("x -> x.type"));
   else     return mkTuple(dg .args /map/ ex!("x -> x.type"));
 }

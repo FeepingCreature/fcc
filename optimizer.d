@@ -1255,6 +1255,25 @@ void setupOpts() {
     t2.op2 = t1.to;
     $SUBST([t1, t2, $2]);
   `));
+  mixin(opt("reorder_math_mov_math", `^MathOp, ^Mov, ^MathOp:
+    $0.op1.isLiteral() && $2.op1.isLiteral() &&
+    $0.op2.isRegister() && $2.op2.isRegister() &&
+    $0.op2 == $1.from && $1.to == $2.op2
+    =>
+    $T t1 = $1, t2 = $0, t3 = $1;
+    t2.op2 = t1.to;
+    t3.from = t1.to; t3.to = t1.from;
+    $SUBST([t1, t2, t3, $2]);
+  `));
+  mixin(opt("reorder_mov_math", `^Mov, ^MathOp:
+    $0.from.isRegister() && $0.to.isRegister() &&
+    $1.op1 == $0.to && $1.op2.isRegister() &&
+    $1.op2 != $0.from
+    =>
+    $T t = $1;
+    t.op1 = $0.from;
+    $SUBST([t, $0]);
+  `));
   mixin(opt("hyperspecific", `^Label, ^Push, ^Push, ^Push, ^Pop, ^Pop, ^Pop
     =>
     $T ts[6];
@@ -1370,6 +1389,8 @@ void setupOpts() {
           case FloatMath:
             continue;    // no change
           
+          case Jump:
+            if (entry.keepRegisters) break outer;
           case Call:
             if (check.isUtilityRegister()) {
               // arguments on the stack (cdecl)
@@ -1378,8 +1399,9 @@ void setupOpts() {
               break outer;
             }
           case Label:
+            if (entry.keepRegisters) break outer;
             if (check != "(%esp)") unneeded = true;
-          case Compare, Jump:
+          case Compare:
             break outer;
           
           case ExtendDivide:
@@ -1445,20 +1467,26 @@ void setupOpts() {
         auto head = list[0];
         if (head.kind != Push || head.type.size != 4) return false;
         if (!head.source.isUtilityRegister() && !head.source.isIndirect().isUtilityRegister()
+            && !head.source.isNumLiteral()
             && head.source.isIndirect() != "%esp") return false;
         
         int tailid = -1;
         for (int i = 0; i < list.length; ++i) {
-          if (list[i].kind == Pop) { tailid = i; break; }
+          if (list[i].kind == Pop || list[i].kind == SFree) { tailid = i; break; }
         }
         if (tailid == -1) return false;
         auto tail = list[tailid];
-        if (tail.type.size != 4) return false;
-        if (!tail.dest.isUtilityRegister()/* && !tail.dest.isIndirect().isUtilityRegister()*/) return false;
+        if (tail.kind == Pop) {
+          if (tail.type.size != 4) return false;
+          if (!tail.dest.isUtilityRegister()/* && !tail.dest.isIndirect().isUtilityRegister()*/) return false;
+        } else {
+          if (tail.size != 4) return false;
+        }
         
         auto segment = list[0 .. tailid + 1];
         if (segment.length <= 2) return false;
         segment = segment.dup;
+        // if (head.source.isNumLiteral()) logln("Try to bridge ", segment);
         
         foreach (entry; segment[1 .. $-1]) {
           if (entry.kind == Push /or/ Call /or/ Label /or/ Nevermind)
@@ -1471,16 +1499,23 @@ void setupOpts() {
         foreach (reg; ["%edx", "%ecx"/*, "%ebx", "%eax"*/])
           unused[reg] = true;
         foreach (ref entry; segment[1 .. $-1]) {
+          bool oops; // oops, can't do it.
           accessParams(entry, (ref string s) {
             string[] remove;
             foreach (key, value; unused)
               if (s.find(key) != -1) remove ~= key;
             foreach (entry; remove) unused.remove(entry);
+            if (s == "(%esp)") { oops = true; return; }
             fixupString(s, -4);
           });
+          if (oops) return false;
           if (entry.hasStackdepth()) entry.stackdepth -= 4;
         }
         
+        if (tail.kind == SFree) {
+          repl = segment[1 .. $-1];
+          return segment.length;
+        }
         if (!unused.length) return false;
         if (head.source.isRegister() && head.source in unused) {
           segment[$-1] = Init!(Transaction);

@@ -12,7 +12,7 @@ class GlobVar : LValue, Named {
   GlobVar dup() { return this; /* invariant */ }
   string getInit() {
     if (!initval) return null;
-    auto l = cast(Literal) initval;
+    auto l = fastcast!(Literal) (initval);
     assert(!!l, Format(initval, " is not constant! "));
     return l.getValue();
   }
@@ -88,7 +88,7 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
           t3 = t2, t3.accept("=")
           && rest(t3, "tree.expr", &initval) && gotImplicitCast(initval, (Expr ex) {
             return ex.valueType() == ty
-                   && !! cast(Literal) fold(ex);
+                   && !! fastcast!(Literal) (fold(ex));
           })
           && (t2 = t3, true)
         ) || true

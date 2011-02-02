@@ -2,6 +2,8 @@ module ast.base;
 
 public import asmfile, ast.types, parseBase, errors, tools.log: logln;
 
+public import casts;
+
 import tools.base: Format, New, This_fn, rmSpace;
 
 interface Iterable {
@@ -38,7 +40,7 @@ interface hasRefType {
 
 void configure(Iterable it) {
   void fun(ref Iterable it) {
-    if (auto nc = cast(NeedsConfig) it)
+    if (auto nc = fastcast!(NeedsConfig)(it))
       nc.configure();
     else it.iterate(&fun);
   }
@@ -70,8 +72,8 @@ template DefaultDup() {
 }
 
 void checkType(Iterable it, void delegate(ref Iterable) dg) {
-  if (auto ex = cast(Expr) it) {
-    if (auto it = cast(Iterable) ex.valueType()) {
+  if (auto ex = fastcast!(Expr)~ it) {
+    if (auto it = fastcast!(Iterable)~ ex.valueType()) {
       it.iterate(dg);
     }
   }
@@ -97,7 +99,7 @@ string genIterates(int params) {
             dg(iter);
             // checkType(iter, dg);
             if (iter !is entry) {
-              auto res = cast(typeof(entry)) iter;
+              auto res = fastcast!(typeof(entry)) (iter);
               if (!res) throw new Exception(Format("Cannot substitute ", $A, "[", i, "] with ", res, ": ", typeof(entry).stringof, " expected! "));
               entry = res;
             }
@@ -107,7 +109,7 @@ string genIterates(int params) {
             dg(iter);
             // checkType(iter, dg);
             if (iter !is $A) {
-              auto res = cast(typeof($A)) iter;
+              auto res = fastcast!(typeof($A)) (iter);
               if (!res) throw new Exception(Format("Cannot substitute ", $A, " with ", res, ": ", typeof($A).stringof, " expected! "));
               $A = res;
             }
@@ -136,7 +138,7 @@ interface SelfAdding { // may add themselves to the respective namespace
   bool addsSelf();
 }
 
-bool addsSelf(T)(T t) { auto sa = cast(SelfAdding) t; return sa && sa.addsSelf(); }
+bool addsSelf(T)(T t) { auto sa = fastcast!(SelfAdding) (t); return sa && sa.addsSelf(); }
 
 interface Statement : Tree {
   override Statement dup();
@@ -294,17 +296,17 @@ struct foldopt {
     void opCatAssign(Itr delegate(Itr) dg) {
       _foldopt ~= dg;
       _foldopt_expr ~= dg /apply/ delegate Expr(typeof(dg) dg, Expr ex) {
-        auto it = cast(Itr) ex;
-        return cast(Expr) dg(it);
+        auto it = fastcast!(Itr) (ex);
+        return fastcast!(Expr) (dg(it));
       };
     }
     void opCatAssign(Expr delegate(Expr) dg) {
       _foldopt_expr ~= dg;
       _foldopt ~= dg /apply/ delegate Itr(typeof(dg) dg, Itr it) {
-        auto ex = cast(Expr) it;
+        auto ex = fastcast!(Expr) (it);
         if (!ex) return null;
         auto res = dg(ex);
-        return cast(Itr) res;
+        return fastcast!(Itr) (res);
       };
     }
     int opApply(int delegate(ref Itr delegate(Itr)) dg) {
@@ -406,8 +408,8 @@ void qformat_append(T...)(T t) {
       }
       append("]");
     }
-    else static if (is(typeof(cast(Object) entry))) {
-      auto obj = cast(Object) entry;
+    else static if (is(typeof(fastcast!(Object) (entry)))) {
+      auto obj = fastcast!(Object) (entry);
       append(obj.toString());
     }
     else static assert(false, "not supported in qformat: "~typeof(entry).stringof);

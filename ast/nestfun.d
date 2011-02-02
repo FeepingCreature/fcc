@@ -40,14 +40,14 @@ class NestedFunction : Function {
       Object res;
       if (context_override) res = context_override.lookup(name, true);
       else res = super.lookup(name, true);
-      auto var = cast(Variable) res;
+      auto var = fastcast!(Variable)~ res;
       if (mybase && var) {
         return new MemberAccess_LValue(
           namespaceToStruct(context_override?context_override:this, mybase),
           var.name
         );
       } else if (res) {
-        if (auto nf = cast(NestedFunction) res) {
+        if (auto nf = fastcast!(NestedFunction)~ res) {
           return new PointerFunction!(NestedFunction) (new NestFunRefExpr(nf, mybase));
         }
         return res;
@@ -60,23 +60,23 @@ class NestedFunction : Function {
     assert(!!context);
     // logln("continuing lookup to ", name);
     
-    if (auto nf = cast(NestedFunction) context.get!(Function)) {
-      return nf.lookup(name, false, cast(Expr) lookup("__base_ptr", true, mybase), context);
+    if (auto nf = fastcast!(NestedFunction)~ context.get!(Function)) {
+      return nf.lookup(name, false, fastcast!(Expr)~ lookup("__base_ptr", true, mybase), context);
     } else {
       auto sn = context.lookup(name, true),
-            var = cast(Variable) sn;
+            var = fastcast!(Variable)~ sn;
       // logln("var: ", var, ", sn: ", sn, "; test ", context.lookup(name));
       // logln("context is ", context);
-      if (auto nf = cast(NestedFunction) sn) {
-        mybase = cast(Expr) lookup("__base_ptr", true, mybase);
+      if (auto nf = fastcast!(NestedFunction)~ sn) {
+        mybase = fastcast!(Expr)~ lookup("__base_ptr", true, mybase);
         // see above
         return new PointerFunction!(NestedFunction) (new NestFunRefExpr(nf, mybase));
       }
-      if (auto ea = cast(ExprAlias) sn)
+      if (auto ea = fastcast!(ExprAlias)~ sn)
         throw new Exception("Cannot access expression alias \""~ea.name~"\" from nested function! ");
       if (!var) return sn?sn:context.lookup(name, false);
       return new MemberAccess_LValue(
-        namespaceToStruct(context, cast(Expr) lookup("__base_ptr", true, mybase)),
+        namespaceToStruct(context, fastcast!(Expr)~ lookup("__base_ptr", true, mybase)),
         var.name
       );
     }
@@ -85,13 +85,13 @@ class NestedFunction : Function {
 
 import parseBase, ast.modules, tools.log;
 Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
-  auto sc = cast(Scope) namespace();
+  auto sc = fastcast!(Scope)~ namespace();
   if (!sc) return null;
   auto nf = new NestedFunction(sc);
   // sup of nested funs isn't the surrounding function .. that's what context is for.
   auto mod = current_module();
-  if (auto res = cast(NestedFunction) gotGenericFunDef(nf, mod, true, text, cont, rest)) {
-    mod.entries ~= cast(Tree) res;
+  if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef(nf, mod, true, text, cont, rest)) {
+    mod.entries ~= fastcast!(Tree)~ res;
     return Single!(NoOp);
   } else return null;
 }
@@ -99,19 +99,19 @@ mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef", "20");
 
 Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto sc = cast(Scope) namespace();
+  auto sc = fastcast!(Scope)~ namespace();
   if (!sc) return null;
   auto nf = new NestedFunction(sc);
   auto mod = current_module();
   string name;
   static int i;
   synchronized name = Format("__nested_dg_literal_", i++);
-  auto res = cast(NestedFunction)
+  auto res = fastcast!(NestedFunction)~
     gotGenericFunDef(nf, mod, true, t2, cont, rest, name);
   if (!res)
     t2.failparse("Could not parse delegate literal");
   text = t2;
-  mod.entries ~= cast(Tree) res;
+  mod.entries ~= fastcast!(Tree)~ res;
   return new NestFunRefExpr(res);
 }
 mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral", "2402", "delegate");
@@ -123,13 +123,13 @@ Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
   string name;
   static int i;
   synchronized name = Format("__nested_fn_literal_", i++);
-  auto res = cast(Function)
+  auto res = fastcast!(Function)~
     gotGenericFunDef(fun, mod, true, t2, cont, rest, name);
   
   if (!res)
     t2.failparse("Could not parse delegate literal");
   text = t2;
-  mod.entries ~= cast(Tree) res;
+  mod.entries ~= fastcast!(Tree)~ res;
   return new FunRefExpr(res);
 }
 mixin DefaultParser!(gotNestedFnLiteral, "tree.expr.fnliteral", "2403", "function");
@@ -181,8 +181,8 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(text, "tree.expr _tree.expr.arith", &nf))
     return null;
   
-  if (auto pnf = cast(PointerFunction!(NestedFunction)) nf) return cast(Object) pnf.ptr;
-  if (auto  pf = cast(PointerFunction!(Function)) nf)       return cast(Object)  pf.ptr;
+  if (auto pnf = cast(PointerFunction!(NestedFunction)) nf) return fastcast!(Object)~ pnf.ptr;
+  if (auto  pf = cast(PointerFunction!(Function)) nf)       return fastcast!(Object)~  pf.ptr;
   return new NestFunRefExpr(nf);
 }
 mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210", "&");
@@ -194,7 +194,7 @@ class FunPtrAsDgExpr(T) : T {
   FunctionPointer fp;
   this(Expr ex) {
     this.ex = ex;
-    fp = cast(FunctionPointer) ex.valueType();
+    fp = fastcast!(FunctionPointer)~ ex.valueType();
     assert(!!fp);
     super(ex, mkInt(0));
   }
@@ -208,7 +208,7 @@ class FunPtrAsDgExpr(T) : T {
   override FunPtrAsDgExpr dup() { return new FunPtrAsDgExpr(ex); }
   static if (is(T: Literal)) {
     override string getValue() {
-      auto l2 = cast(Literal) ex;
+      auto l2 = fastcast!(Literal)~ ex;
       assert(!!l2, Format("Not a literal: ", ex));
       return l2.getValue()~", 0";
     }
@@ -223,9 +223,9 @@ class LitTemp : mkDelegate, Literal {
 import ast.casting: implicits;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    auto fp = cast(FunctionPointer) ex.valueType();
+    auto fp = fastcast!(FunctionPointer)~ ex.valueType();
     if (!fp) return null;
-    if (cast(Literal) ex)
+    if (fastcast!(Literal)~ ex)
       return new FunPtrAsDgExpr!(LitTemp)(ex);
     else
       return new FunPtrAsDgExpr!(mkDelegate)(ex);
@@ -240,7 +240,7 @@ class PointerFunction(T) : T {
     static if (is(typeof(super(null)))) super(null);
     this.ptr = ptr;
     New(type);
-    auto dg = cast(Delegate) ptr.valueType(), fp = cast(FunctionPointer) ptr.valueType();
+    auto dg = fastcast!(Delegate)~ ptr.valueType(), fp = fastcast!(FunctionPointer)~ ptr.valueType();
     if (dg) {
       type.ret = dg.ret;
       type.params = dg.args.dup;
@@ -254,7 +254,7 @@ class PointerFunction(T) : T {
   }
   override {
     FunCall mkCall() {
-      if (cast(Delegate) ptr.valueType()) {
+      if (fastcast!(Delegate)~ ptr.valueType()) {
         auto res = new NestedCall;
         res.fun = this;
         res.dg = ptr;
@@ -277,7 +277,7 @@ class PointerFunction(T) : T {
 Object gotFpDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(text, "tree.expr", &ex)) return null;
-  auto fp = cast(FunctionPointer) ex.valueType(), dg = cast(Delegate) ex.valueType();
+  auto fp = fastcast!(FunctionPointer)~ ex.valueType(), dg = fastcast!(Delegate)~ ex.valueType();
   if (!fp && !dg) return null;
   
   if (dg) return new PointerFunction!(NestedFunction) (ex);

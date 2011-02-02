@@ -10,7 +10,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   // if (!t2.accept("^")) return null;
   if (!gotStringExpr(t2, strlit)) return null;
   text = t2;
-  auto str = (cast(StringExpr) strlit).str;
+  auto str = (fastcast!(StringExpr)~ strlit).str;
   auto res = new ConcatChain(new StringExpr(""));
   string buf;
   void flush() { if (!buf) return; res.addArray(new StringExpr(buf)); buf = null; }
@@ -41,7 +41,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
           if (!str.gotIdentifier(id))
             throw new Exception("Can't parse identifier from expansion string at '"~str~"'");
           retry:
-          ex = cast(Expr) namespace().lookup(id);
+          ex = fastcast!(Expr)~ namespace().lookup(id);
           if (!ex)
             if (str.eatDash(id)) goto retry;
             else throw new Exception("No such variable: "~id);
@@ -62,7 +62,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
       }
     }
   }
-  if (!extended) return cast(Object) strlit;
+  if (!extended) return fastcast!(Object)~ strlit;
   flush;
   return res;
 }
@@ -72,30 +72,30 @@ import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules;
 Expr simpleFormat(Expr ex) {
   auto type = ex.valueType();
   if (Single!(SysInt) == type) {
-    return buildFunCall(cast(Function) sysmod.lookup("itoa"), ex, "itoa");
+    return buildFunCall(fastcast!(Function)~ sysmod.lookup("itoa"), ex, "itoa");
   }
   if (Single!(Long) == type) {
-    return buildFunCall(cast(Function) sysmod.lookup("ltoa"), ex, "ltoa");
+    return buildFunCall(fastcast!(Function)~ sysmod.lookup("ltoa"), ex, "ltoa");
   }
   if (Single!(Float) == type || Single!(Double) == type) {
-    return buildFunCall(cast(Function) sysmod.lookup("dtoa"), ex, "dtoa");
+    return buildFunCall(fastcast!(Function)~ sysmod.lookup("dtoa"), ex, "dtoa");
   }
-  if (auto p = cast(Pointer) type) {
-    return buildFunCall(cast(Function) sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex), "ptoa");
+  if (auto p = fastcast!(Pointer)~ type) {
+    return buildFunCall(fastcast!(Function)~ sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex), "ptoa");
   }
-  if (auto sa = cast(StaticArray) type) {
-    if (cast(CValue) ex) {
+  if (auto sa = fastcast!(StaticArray)~ type) {
+    if (fastcast!(CValue)~ ex) {
       ex = staticToArray(ex);
       type = ex.valueType();
     }
   }
-  if (auto dg = cast(Delegate) type) {
+  if (auto dg = fastcast!(Delegate)~ type) {
     return iparse!(Expr, "gen_dg_format", "tree.expr")
       (`"dg(fun $(void*:dg.fun), data $(void*:dg.data))"`,
         "dg", ex
       );
   }
-  if (auto tup = cast(Tuple) type) {
+  if (auto tup = fastcast!(Tuple)~ type) {
     auto res = new ConcatChain(new StringExpr("{")); // put here for type
     return new CallbackExpr(res.valueType(), stuple(ex, res) /apply/ (Expr ex, ConcatChain res, AsmFile af) {
       Expr build(LValue lv) {
@@ -106,7 +106,7 @@ Expr simpleFormat(Expr ex) {
         res.addArray(new StringExpr("}"));
         return res;
       }
-      if (auto lv = cast(LValue) ex) build(lv).emitAsm(af);
+      if (auto lv = fastcast!(LValue)~ ex) build(lv).emitAsm(af);
       else mkVar(af, res.valueType(), true, (Variable outer) {
         mkVar(af, ex.valueType(), true, (Variable var) {
           (new Assignment(var, ex)).emitAsm(af);
@@ -116,8 +116,8 @@ Expr simpleFormat(Expr ex) {
       });
     });
   }
-  auto ar = cast(Array) type;
-  auto ea = cast(ExtArray) type;
+  auto ar = fastcast!(Array)~ type;
+  auto ea = fastcast!(ExtArray)~ type;
   if (ar || ea) {
     IType et;
     if (ar) et = ar.elemType;
@@ -125,7 +125,7 @@ Expr simpleFormat(Expr ex) {
     if (Single!(Char) == et) {
       return ex;
     }
-    logln("et is ", et);
+    // logln("et is ", et);
     return new CallbackExpr(Single!(Array, Single!(Char)), ex /apply/ (Expr ex, AsmFile af) {
       mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
         iparse!(Scope, "!safecode_gen_array_format", "tree.scope")

@@ -71,7 +71,7 @@ class ReturnStmt : Statement {
       }
     } else emitGuards();
     // TODO: stack cleanup token here
-    af.jump(fun.exit());
+    af.jump(fun.exit(), true);
   }
 }
 
@@ -82,7 +82,7 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   rs.ns = namespace();
   
   // TODO: gather guards from all scopes
-  if (auto sc = cast(Scope) namespace())
+  if (auto sc = fastcast!(Scope)~ namespace())
     rs.guards = sc.getGuards();
   
   auto fun = namespace().get!(Function)();

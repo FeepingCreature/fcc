@@ -32,7 +32,7 @@ class UnAlignedPlaceholder : IType {
 // NEEDED_FOR SSE support
 extern(C) void alignment_emitAligned(Expr ex, AsmFile af) {
   mixin(mustOffset("ex.valueType().size"));
-  if (auto al = cast(ForceAlignment) resolveType(ex.valueType())) {
+  if (auto al = fastcast!(ForceAlignment) (resolveType(ex.valueType()))) {
     auto myAl = al.alignment();
     if ((af.currentStackDepth % myAl) != 0) {
       // need realignment

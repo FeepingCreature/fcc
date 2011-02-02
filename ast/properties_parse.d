@@ -12,9 +12,9 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   Object obj;
   cont(text, &obj);
   if (!obj) return null;
-  auto ex = cast(Expr) obj;
+  auto ex = fastcast!(Expr)~ obj;
   if (!myArgs.withTuple) {
-    if (ex && cast(AstTuple) ex.valueType())
+    if (ex && fastcast!(AstTuple)~ ex.valueType())
       return null; // don't
   }
   
@@ -30,7 +30,7 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
     while (true) {
       auto t3 = t2;
       // terminators
-      if (!cast(Function) sup && t3.accept(";")) {
+      if (!fastcast!(Function) (sup) && t3.accept(";")) {
         break;
       }
       if (t3.accept("=") || t3.accept(")")) {
@@ -47,9 +47,9 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
     }
     
     if (matched) {
-      if (auto ex = cast(Expr) lhs_partial()) {
+      if (auto ex = fastcast!(Expr)~ lhs_partial()) {
         // hit a snag, try to mutate
-        gotImplicitCast(ex, (Expr ex) { check(cast(Object) ex, t2); return false; });
+        gotImplicitCast(ex, (Expr ex) { check(fastcast!(Object)~ ex, t2); return false; });
       }
       if (t2.ptr > longest.ptr) {
         longest = t2;
@@ -58,8 +58,8 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
     }
   }
   
-  if (auto ex = cast(Expr) obj) {
-    gotImplicitCast(ex, (Expr ex) { check(cast(Object) ex, text); return false; });
+  if (auto ex = fastcast!(Expr)~ obj) {
+    gotImplicitCast(ex, (Expr ex) { check(fastcast!(Object)~ ex, text); return false; });
   } else check(obj, text);
   
   assert(!res || longest);

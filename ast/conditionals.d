@@ -28,11 +28,11 @@ class Compare : Cond {
   mixin DefaultDup!();
   mixin defaultIterate!(e1, e2);
   string toString() {
-    auto res = (cast(Object) e1).toString();
+    auto res = (fastcast!(Object)~ e1).toString();
     if (smaller) res ~= "<";
     if (equal) res ~= "=";
     if (greater) res ~= ">";
-    res ~= (cast(Object) e2).toString();
+    res ~= (fastcast!(Object)~ e2).toString();
     return res;
   }
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
@@ -75,7 +75,7 @@ class Compare : Cond {
       assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
       
-      if (cast(IntExpr) e1 && !cast(IntExpr) e2)
+      if (fastcast!(IntExpr) (e1) && !fastcast!(IntExpr) (e2))
         flip;
       
       if (Single!(Float) == e1.valueType() && Single!(Float) != e2.valueType()) {
@@ -94,7 +94,7 @@ class Compare : Cond {
         e2.emitAsm(af);
         af.compareFloat("(%esp)");
         af.sfree(4);
-      } else if (auto ie = cast(IntExpr) e2) {
+      } else if (auto ie = fastcast!(IntExpr)~ e2) {
         e1.emitAsm(af);
         af.popStack("%eax", e1.valueType());
         // remember: at&t order is inverted
@@ -128,7 +128,7 @@ Object gotIntExpr(ref string text, ParseCb cont, ParseCb rest) {
     text.setError("Neither of those was int sized: ", its);
     return null;
   }
-  return cast(Object) res;
+  return fastcast!(Object)~ res;
 }
 mixin DefaultParser!(gotIntExpr, "tree.int_expr");
 
@@ -172,7 +172,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   ) {
     auto finalize = delegate Cond(Cond cd) { return cd; };
     if (cd2) {
-      if (auto cmp2 = cast(Compare) cd2) {
+      if (auto cmp2 = fastcast!(Compare) (cd2)) {
         ex2 = cmp2.e1;
         finalize = cmp2 /apply/ delegate Cond(Compare cmp2, Cond cd) {
           return new BooleanOp!("&&")(cd, cmp2);
@@ -185,23 +185,23 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     text = t2;
     {
       auto ie1 = ex1, ie2 = ex2;
-      bool isInt(IType it) { return !!cast(SysInt) it; }
+      bool isInt(IType it) { return !!fastcast!(SysInt) (it); }
       if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
-        return cast(Object)
+        return fastcast!(Object)~
           finalize(new Compare(ie1, not, smaller, equal, greater, ie2));
       }
     }
     {
       auto fe1 = ex1, fe2 = ex2;
-      bool isFloat(IType it) { return !!cast(Float) it; }
+      bool isFloat(IType it) { return !!fastcast!(Float) (it); }
       if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
-        return cast(Object)
+        return fastcast!(Object)~
           finalize(new Compare(fe1, not, smaller, equal, greater, fe2));
       }
     }
     auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
     if (op == "=") op = "==";
-    return cast(Object) finalize(new ExprWrap(lookupOp(op, ex1, ex2)));
+    return fastcast!(Object)~ finalize(new ExprWrap(lookupOp(op, ex1, ex2)));
   } else return null;
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
@@ -254,7 +254,7 @@ Object gotBoolOp(string Op)(ref string text, ParseCb cont, ParseCb rest) {
   }
   if (old_cd is cd) return null;
   text = t2;
-  return cast(Object) cd;
+  return fastcast!(Object)~ cd;
 }
 mixin DefaultParser!(gotBoolOp!("&&"), "cond.bin.and", "2");
 mixin DefaultParser!(gotBoolOp!("||"), "cond.bin.or", "1");
@@ -267,7 +267,7 @@ Object gotBraces(ref string text, ParseCb cont, ParseCb rest) {
   Cond cd;
   if (rest(t2, "cond", &cd) && t2.accept(")")) {
     text = t2;
-    return cast(Object) cd;
+    return fastcast!(Object)~ cd;
   } else return null;
 }
 mixin DefaultParser!(gotBraces, "cond.braces", "74", "(");
@@ -278,9 +278,9 @@ Object gotNamedCond(ref string text, ParseCb cont, ParseCb rest) {
   string id;
   if (!t2.gotIdentifier(id)) return null;
   retry:
-  if (auto cd = cast(Cond) namespace().lookup(id)) {
+  if (auto cd = fastcast!(Cond) (namespace().lookup(id))) {
     text = t2;
-    return cast(Object) cd;
+    return fastcast!(Object)~ cd;
   } else if (t2.eatDash(id)) goto retry;
   else return null;
 }
@@ -309,7 +309,7 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
   Cond cd;
   if (rest(t2, "cond", &cd)) {
     text = t2;
-    if (auto ew = cast(ExprWrap) cd) return cast(Object) ew.ex;
+    if (auto ew = fastcast!(ExprWrap) (cd)) return fastcast!(Object)~ ew.ex;
     return new CondExpr(cd);
   } else return null;
 }
@@ -317,9 +317,9 @@ mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", null, "eval");
 
 static this() {
   foldopt ~= delegate Itr(Itr it) {
-    auto ew = cast(ExprWrap) it;
+    auto ew = fastcast!(ExprWrap) (it);
     if (!ew) return null;
-    auto ce = cast(CondExpr) ew.ex;
+    auto ce = fastcast!(CondExpr) (ew.ex);
     if (!ce) return null;
     return ce.cd;
   };

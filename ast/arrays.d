@@ -18,10 +18,10 @@ class Array : Type {
     int opEquals(IType ty) {
       if (!super.opEquals(ty)) return false;
       while (true) {
-        if (auto tp = cast(TypeProxy) ty) ty = tp.actualType();
+        if (auto tp = fastcast!(TypeProxy)~ ty) ty = tp.actualType();
         else break;
       }
-      return (cast(Array) ty).elemType == elemType;
+      return (fastcast!(Array)~ ty).elemType == elemType;
     }
   }
 }
@@ -42,10 +42,10 @@ class ExtArray : Type {
     int opEquals(IType ty) {
       if (!super.opEquals(ty)) return false;
       while (true) {
-        if (auto tp = cast(TypeProxy) ty) ty = tp.actualType();
+        if (auto tp = fastcast!(TypeProxy)~ ty) ty = tp.actualType();
         else break;
       }
-      auto ea = cast(ExtArray) ty;
+      auto ea = fastcast!(ExtArray)~ ty;
       return ea.elemType == elemType && ea.freeOnResize == freeOnResize;
     }
     string toString() {
@@ -101,7 +101,7 @@ IType arrayAsStruct(IType base, bool rich) {
     );
   });
   
-  cache ~= stuple(base, rich, cast(IType) res);
+  cache ~= stuple(base, rich, fastcast!(IType)~ res);
   isArrayStructType[res] = true;
   return res;
 }
@@ -109,12 +109,12 @@ IType arrayAsStruct(IType base, bool rich) {
 T arrayToStruct(T)(T array) {
   auto avt = resolveType(array.valueType());
   auto
-    ar = cast(Array) avt,
-    ea = cast(ExtArray) avt;
+    ar = fastcast!(Array)~ avt,
+    ea = fastcast!(ExtArray)~ avt;
   if (ar)
-    return cast(T) reinterpret_cast(arrayAsStruct(ar.elemType, false), array);
+    return fastcast!(T)~ reinterpret_cast(arrayAsStruct(ar.elemType, false), array);
   if (ea)
-    return cast(T) reinterpret_cast(arrayAsStruct(ea.elemType, true),  array);
+    return fastcast!(T)~ reinterpret_cast(arrayAsStruct(ea.elemType, true),  array);
   logln(T.stringof, ": ", array.valueType(), ": ", array);
   asm { int 3; }
   assert(false);
@@ -169,7 +169,7 @@ class ArrayMaker : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(ptr, length, cap);
   IType elemType() {
-    return (cast(Pointer) ptr.valueType()).target;
+    return (fastcast!(Pointer)~ ptr.valueType()).target;
   }
   override string toString() { return Format("array(ptr=", ptr, ", length=", length, cap?Format(", cap=", cap):"", ")"); }
   IType cachedType;
@@ -192,24 +192,24 @@ class ArrayMaker : Expr {
 
 Expr staticToArray(Expr sa) {
   return new ArrayMaker(
-    new CValueAsPointer(cast(CValue) sa),
-    mkInt((cast(StaticArray) sa.valueType()).length)
+    new CValueAsPointer(fastcast!(CValue)~ sa),
+    mkInt((fastcast!(StaticArray)~ sa.valueType()).length)
   );
 }
 
 import ast.literals;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (!cast(StaticArray) ex.valueType() || !cast(CValue) ex)
+    if (!fastcast!(StaticArray)(ex.valueType()) || !fastcast!(CValue) (ex))
       return null;
     return staticToArray(ex);
   };
 }
 
 Expr getArrayLength(Expr ex) {
-  if (auto sa = cast(StaticArray) resolveType(ex.valueType()))
+  if (auto sa = fastcast!(StaticArray)~ resolveType(ex.valueType()))
     return mkInt(sa.length);
-  if (auto lv = cast(LValue) ex) return new ArrayLength!(MValue) (lv);
+  if (auto lv = fastcast!(LValue)~ ex) return new ArrayLength!(MValue) (lv);
   else return new ArrayLength!(Expr) (ex);
 }
 
@@ -221,8 +221,8 @@ import ast.parse;
 // separate because does clever allocation mojo .. eventually
 Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (cast(Array) ex.valueType() || cast(ExtArray) ex.valueType()) {
-      return cast(Object) getArrayLength(ex);
+    if (fastcast!(Array)~ ex.valueType() || fastcast!(ExtArray)~ ex.valueType()) {
+      return fastcast!(Object)~ getArrayLength(ex);
     } else return null;
   };
 }
@@ -230,21 +230,21 @@ mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length", null, ".le
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (!cast(Array) ex.valueType() && !cast(ExtArray) ex.valueType()) return null;
-    if (auto lv = cast(LValue) ex)
+    if (!fastcast!(Array) (ex.valueType()) && !fastcast!(ExtArray) (ex.valueType())) return null;
+    if (auto lv = fastcast!(LValue)~ ex)
       return arrayToStruct!(LValue) (lv);
     else
       return arrayToStruct!(Expr) (ex);
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (!cast(Array) ex.valueType()) return null;
+    if (!fastcast!(Array) (ex.valueType())) return null;
     // equiv to extended with 0 cap
     return new ArrayMaker(getArrayPtr(ex), getArrayLength(ex), mkInt(0));
   };
 }
 
 Expr arrayCast(Expr ex, IType it) {
-  auto ar1 = cast(Array) resolveType(ex.valueType()), ar2 = cast(Array) it;
+  auto ar1 = fastcast!(Array)~ resolveType(ex.valueType()), ar2 = fastcast!(Array)~ it;
   if (!ar1 || !ar2) return null;
   return iparse!(Expr, "array_cast_convert_call", "tree.expr")
                 (`sys_array_cast!Res(from.ptr, from.length, sz1, sz2)`,
@@ -258,7 +258,7 @@ import ast.opers, ast.namespace;
 static this() {
   converts ~= &arrayCast /todg;
   defineOp("==", delegate Expr(Expr ex1, Expr ex2) {
-    bool isArray(IType it) { return !!cast(Array) it; }
+    bool isArray(IType it) { return !!fastcast!(Array) (it); }
     if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
       return null;
     auto res = iparse!(Expr, "array_eq", "tree.expr")

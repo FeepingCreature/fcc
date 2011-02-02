@@ -4,13 +4,13 @@ import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace;
 import ast.scopes, ast.arrays, ast.returns, ast.parse, ast.pointer;
 
 void fixupMain() {
-  auto cmain = cast(Function) sysmod.lookup("_c_main");
+  auto cmain = fastcast!(Function)~ sysmod.lookup("_c_main");
   if (!cmain) { logln("fail 0: ", cmain); fail(); }
-  auto sc = cast(Scope) cmain.tree;
+  auto sc = fastcast!(Scope)~ cmain.tree;
   if (!sc) { logln("fail 1: ", cmain.tree); fail(); }
-  auto argvar = cast(Expr) sc.lookup("args");
+  auto argvar = fastcast!(Expr)~ sc.lookup("args");
   if (!argvar) { logln("fail 2: ", sc.field); fail(); }
-  auto cvar = cast(Expr) sc.lookup("argc"), pvar = cast(Expr) sc.lookup("argv");
+  auto cvar = fastcast!(Expr)~ sc.lookup("argc"), pvar = fastcast!(Expr)~ sc.lookup("argv");
   if (!gotMain) {
     logln("main function not found! ");
     fail();

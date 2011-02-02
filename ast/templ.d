@@ -62,7 +62,7 @@ class TemplateInstance : Namespace {
     this.type = type;
     this.parent = parent;
     assert(!parent.isAlias);
-    __add(parent.param, cast(Object) type);
+    __add(parent.param, fastcast!(Object)~ type);
     this.sup = context = parent.context;
     this(rest);
   }
@@ -70,7 +70,7 @@ class TemplateInstance : Namespace {
     this.tr = tr;
     this.parent = parent;
     assert(parent.isAlias);
-    __add(parent.param, cast(Object) tr);
+    __add(parent.param, fastcast!(Object)~ tr);
     this.sup = context = parent.context;
     this(rest);
   }
@@ -85,13 +85,13 @@ class TemplateInstance : Namespace {
         !!rest(t2, "tree.toplevel", &tr),
         {
           if (cast(NoOp) tr) return;
-          auto n = cast(Named) tr;
+          auto n = fastcast!(Named)~ tr;
           // if (!n) throw new Exception(Format("Not named: ", tr));
           if (n && !addsSelf(n)) add(n.getIdentifier(), n);
-          if (auto ns = cast(Namespace) tr) { // now reset sup to correct target.
+          if (auto ns = fastcast!(Namespace)~ tr) { // now reset sup to correct target.
             ns.sup = this;
           }
-          /*if (auto fun = cast(Function) tr)
+          /*if (auto fun = fastcast!(Function)~ tr)
             logln("add ", fun.mangleSelf(), " to ", current_module().name,
               ", at ", current_module().entries.length, "; ", cast(void*) current_module());*/
           // current_module().entries ~= tr;
@@ -109,7 +109,7 @@ class TemplateInstance : Namespace {
     string mangle(string name, IType type) {
       string mangl;
       if (parent.isAlias) {
-        if (auto fun = cast(Function) tr) {
+        if (auto fun = fastcast!(Function)~ tr) {
           mangl = fun.mangleSelf();
           // logln("mangl => ", mangl);
         } else assert(false, Format(tr));
@@ -158,10 +158,10 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     if (!templ) return null;
     Expr nex;
     if (!rest(t2, "tree.expr", &nex)) return null;
-    auto inst = cast(Function) templ.getInstance(nex.valueType(), rest).lookup(templ.name, true);
+    auto inst = fastcast!(Function)~ templ.getInstance(nex.valueType(), rest).lookup(templ.name, true);
     if (!inst) { logln("wat"); return null; }
     text = t2;
-    return cast(Object) buildFunCall(inst, nex, "template_call");
+    return fastcast!(Object)~ buildFunCall(inst, nex, "template_call");
   };
 }
 mixin DefaultParser!(gotIFTI, "tree.rhs_partial.ifti");

@@ -2,6 +2,8 @@ module ast.types;
 
 import tools.base: Stuple, take;
 
+import casts;
+
 interface IType {
   int size();
   string mangle();
@@ -15,7 +17,7 @@ interface TypeProxy {
 
 IType resolveType(IType t) {
   while (true) {
-    if (auto tp = cast(TypeProxy) t) {
+    if (auto tp = fastcast!(TypeProxy)~ t) {
       t = tp.actualType();
       continue;
     }
@@ -29,11 +31,11 @@ template TypeDefaults(bool INITVAL = true, bool OPEQUALS = true) {
     int opEquals(IType ty) {
       // specialize where needed
       while (true) {
-        if (auto tp = cast(TypeProxy) ty)
+        if (auto tp = fastcast!(TypeProxy)~ ty)
           ty = tp.actualType();
         else break;
       }
-      auto obj = cast(Object) ty;
+      auto obj = fastcast!(Object)~ ty;
       return
         (this.classinfo is obj.classinfo)
         &&
@@ -151,7 +153,7 @@ IType delegate(ref string text, IType cur, ParseCb cont, ParseCb rest)[]
   typeModlist;
 
 Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
-  auto type = cast(IType) cont(text);
+  auto type = fastcast!(IType)~ cont(text);
   if (!type) return null;
   restart:
   foreach (dg; typeModlist) {
@@ -160,6 +162,6 @@ Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
       goto restart;
     }
   }
-  return cast(Object) type;
+  return fastcast!(Object)~ type;
 }
 mixin DefaultParser!(gotExtType, "type.ext", "1");

@@ -3,22 +3,22 @@ module ast.tuple_access;
 import ast.base, ast.tuples, ast.structure;
 
 Expr mkTupleIndexAccess(Expr tuple, int pos) {
-  auto wrapped = (cast(Tuple) tuple.valueType()).wrapped;
+  auto wrapped = (fastcast!(Tuple)~ tuple.valueType()).wrapped;
   
   MemberAccess_Expr res;
-  if (cast(LValue) tuple) res = new MemberAccess_LValue;
+  if (fastcast!(LValue)~ tuple) res = new MemberAccess_LValue;
   else res = new MemberAccess_Expr;
   res.base = reinterpret_cast(wrapped, tuple);
   
   auto temps = wrapped.selectMap!(RelMember, "$");
   res.stm = temps[pos];
   
-  auto types = (cast(Tuple) tuple.valueType()).types();
+  auto types = (fastcast!(Tuple)~ tuple.valueType()).types();
   return foldex(reinterpret_cast(types[pos], res));
 }
 
 Expr[] getTupleEntries(Expr tuple) {
-  auto tt = cast(Tuple) tuple.valueType();
+  auto tt = fastcast!(Tuple)~ tuple.valueType();
   assert(!!tt);
   auto count = tt.types.length;
   Expr[] res;
@@ -30,7 +30,7 @@ Expr[] getTupleEntries(Expr tuple) {
 import ast.parse, ast.fold, ast.int_literal, ast.namespace;
 Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto tup = cast(Tuple) ex.valueType();
+    auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return null;
     int count;
     tup.wrapped.select((string, RelMember rm) { count ++; });
@@ -49,14 +49,14 @@ Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
       !t2.accept("]")) return null;
     text = t2;
     index = foldex(index);
-    auto ie = cast(IntExpr) index;
+    auto ie = fastcast!(IntExpr)~ index;
     if (!ie) {
       text.setError(index, " could not be simplified to an int in tuple index access");
       return null;
     }
     if (ie.num < 0 || ie.num !< count)
       text.failparse(ie.num, " out of bounds for tuple access");
-    return cast(Object) mkTupleIndexAccess(ex, ie.num);
+    return fastcast!(Object)~ mkTupleIndexAccess(ex, ie.num);
   };
 }
 mixin DefaultParser!(gotTupleIndexAccess, "tree.rhs_partial.tuple_index_access", null, "[");
@@ -64,7 +64,7 @@ mixin DefaultParser!(gotTupleIndexAccess, "tree.rhs_partial.tuple_index_access",
 import ast.iterator, ast.casting;
 Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto tup = cast(Tuple) ex.valueType();
+    auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return null;
     int count;
     tup.wrapped.select((string, RelMember rm) { count ++; });
@@ -78,21 +78,21 @@ Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
     namespace.set(new LengthOverride(backup, mkInt(count)));
     
     if (!rest(t2, "tree.expr", &range) ||
-        !gotImplicitCast(range, (IType it) { return test(cast(RangeIsh) it); }) ||
+        !gotImplicitCast(range, (IType it) { return test(fastcast!(RangeIsh)~ it); }) ||
         !t2.accept("]")) return null;
-    auto rish = cast(RangeIsh) range.valueType(),
+    auto rish = fastcast!(RangeIsh)~ range.valueType(),
       from = rish.getPos(range),
       to   = rish.getEnd(range);
     text = t2;
-    auto ifrom = cast(IntExpr) fold(from), ito = cast(IntExpr) fold(to);
+    auto ifrom = fastcast!(IntExpr)~ fold(from), ito = fastcast!(IntExpr)~ fold(to);
     text.passert(ifrom && ito, "fail");
     auto start = tup.wrapped.selectMember(ifrom.num).offset;
     auto restype = mkTuple(tup.wrapped.slice(ifrom.num, ito.num).types);
     auto res = iparse!(Expr, "tuple_slice", "tree.expr")
                       (`*restype*:(void*:&lv + base)`,
-                       "restype", restype, "lv", cast(LValue) ex,
+                       "restype", restype, "lv", fastcast!(LValue)~ ex,
                        "base", mkInt(start));
-    return cast(Object) res;
+    return fastcast!(Object)~ res;
   };
 }
 mixin DefaultParser!(gotTupleSliceExpr, "tree.rhs_partial.tuple_slice", null, "[");
@@ -103,10 +103,10 @@ class WithSpace : Namespace {
   this(Expr ex) {
     ctx = ex;
     sup = namespace();
-    rns = cast(RelNamespace) ex.valueType();
+    rns = fastcast!(RelNamespace)~ ex.valueType();
     if (auto srns = cast(SemiRelNamespace) ex.valueType())
       rns = srns.resolve();
-    ns = cast(Namespace) ex;
+    ns = fastcast!(Namespace)~ ex;
   }
   override {
     string mangle(string name, IType type) { assert(false); }
@@ -128,11 +128,11 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
       auto t2 = text;
       if (!t2.accept("(")) return null;
     }
-    while (cast(Pointer) ex.valueType())
+    while (fastcast!(Pointer)~ ex.valueType())
       ex = new DerefExpr(ex);
     
-    auto ns = cast(Namespace) ex.valueType();
-    auto rns = cast(RelNamespace) ex.valueType();
+    auto ns = fastcast!(Namespace)~ ex.valueType();
+    auto rns = fastcast!(RelNamespace)~ ex.valueType();
     if (!ns && !rns)
       text.failparse("Not a [rel]namespace: ", ex.valueType());
     
@@ -150,7 +150,7 @@ mixin DefaultParser!(gotWithTupleExpr, "tree.rhs_partial.withtuple", null, ".");
 static this() {
   /// 3.
   implicits ~= delegate Expr(Expr ex) {
-    auto tup = cast(Tuple) ex.valueType();
+    auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return null;
     if (tup.types.length != 1) return null;
     auto res = mkTupleIndexAccess(ex, 0);
@@ -158,9 +158,9 @@ static this() {
   };
   // cast into tuples
   implicits ~= delegate void(Expr ex, IType it, void delegate(Expr) dg) {
-    if (!it || !cast(Tuple) it) return null;
-    if (auto tup = cast(Tuple) ex.valueType()) {
-      if ((cast(Tuple) it).types.length != tup.types.length)
+    if (!it || !fastcast!(Tuple) (it)) return null;
+    if (auto tup = fastcast!(Tuple)~ ex.valueType()) {
+      if ((fastcast!(Tuple)~ it).types.length != tup.types.length)
         return null;
       auto exprs = getTupleEntries(ex);
       Expr[] stack;

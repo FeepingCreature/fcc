@@ -19,15 +19,15 @@ class Tuple : Type {
     int size() { return wrapped.size; }
     string mangle() { return "tuple_"~wrapped.mangle(); }
     ubyte[] initval() { return wrapped.initval(); }
-    string toString() { return Format("Tuple", (cast(Structure) wrapped).members); }
+    string toString() { return Format("Tuple", (fastcast!(Structure)~ wrapped).members); }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
       while (true) {
-        if (auto tp = cast(TypeProxy) it)
+        if (auto tp = fastcast!(TypeProxy)~ it)
           it = tp.actualType();
         else break;
       }
-      auto tup = cast(Tuple) it;
+      auto tup = fastcast!(Tuple)~ it;
       assert(!!tup);
       // Lockstep iteration. Yummy.
       int[2] offs;
@@ -38,7 +38,7 @@ class Tuple : Type {
       void advance(int i) {
         do {
           if (offs[i] == sf[i].field.length) break;
-        } while (!cast(RelMember) sf[i].field[offs[i]++]._1);
+        } while (!fastcast!(RelMember) (sf[i].field[offs[i]++]._1));
         bailcond[i] = offs[i] == sf[i].field.length;
       }
       
@@ -46,7 +46,7 @@ class Tuple : Type {
       if (bailcond[0] || bailcond[1]) return bailcond[0] == bailcond[1];
       
       Stuple!(IType, int) get(int i) {
-        auto cur = cast(RelMember) sf[i].field[offs[i]++]._1;
+        auto cur = fastcast!(RelMember) (sf[i].field[offs[i]++]._1);
         advance(i);
         return stuple(cur.type, cur.offset);
       }
@@ -64,7 +64,7 @@ class Tuple : Type {
 Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
   Object obj; // exclusively for non-exprs.
   auto t2 = text;
-  if (!rest(t2, "tree.expr", &obj, (Object obj) { return !cast(Expr) obj; }))
+  if (!rest(t2, "tree.expr", &obj, (Object obj) { return !fastcast!(Expr) (obj); }))
     return null;
   if (t2.accept(")")) {
     text = t2;
@@ -132,7 +132,7 @@ class RefTuple : MValue {
       return Format("reftuple(", mvs, ")");
     }
     void emitAssignment(AsmFile af) {
-      auto tup = cast(Tuple) baseTupleType;
+      auto tup = fastcast!(Tuple)~ baseTupleType;
       
       auto offsets = tup.offsets();
       int data_offs;
@@ -150,12 +150,12 @@ class RefTuple : MValue {
 
 static this() {
   foldopt ~= delegate Expr(Expr ex) {
-    auto mae = cast(MemberAccess_Expr) ex;
+    auto mae = fastcast!(MemberAccess_Expr)~ ex;
     if (!mae) return null;
-    auto rc = cast(RCE) mae.base;
+    auto rc = fastcast!(RCE)~ mae.base;
     if (!rc) return null;
-    auto rt = cast(RefTuple) rc.from;
-    auto str = cast(Structure) rc.to;
+    auto rt = fastcast!(RefTuple) (rc.from);
+    auto str = fastcast!(Structure)~ rc.to;
     if (!rt || !str) return null;
     auto mbs = str.members();
     assert(rt.mvs.length == mbs.length);
@@ -195,14 +195,14 @@ Expr mkTupleExpr(Expr[] exprs...) {
   bool allMValues = true;
   MValue[] arr;
   foreach (ex; exprs) {
-    if (!cast(MValue) ex) {
-      auto lv = cast(LValue) ex;
+    if (!fastcast!(MValue) (ex)) {
+      auto lv = fastcast!(LValue)~ ex;
       if (!lv) {
         allMValues = false;
         break;
       }
       arr ~= new LValueAsMValue(lv);
-    } else arr ~= cast(MValue) ex;
+    } else arr ~= fastcast!(MValue)~ ex;
   }
   auto vt = mkTupleValueExpr(exprs);
   if (!allMValues) return vt;
@@ -218,7 +218,7 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept(")")) {
     text = t2;
     // lol wat
-    return cast(Object) mkTupleExpr();
+    return fastcast!(Object)~ mkTupleExpr();
   }
   if (!t2.bjoin(
       !!rest(t2, "tree.expr", &ex),
@@ -231,15 +231,15 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   text = t2;
-  return cast(Object) mkTupleExpr(exprs);
+  return fastcast!(Object)~ mkTupleExpr(exprs);
 }
 mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60", "(");
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (auto rt = cast(RefTuple) ex) {
+    if (auto rt = fastcast!(RefTuple) (ex)) {
       if (rt.mvs.length == 1) {
-        if (auto lvamv = cast(LValueAsMValue) rt.mvs[0])
+        if (auto lvamv = fastcast!(LValueAsMValue) (rt.mvs[0]))
           return lvamv.sup;
         return rt.mvs[0];
       }

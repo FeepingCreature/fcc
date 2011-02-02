@@ -6,7 +6,7 @@ import
   ast.pointer, ast.nestfun, ast.casting, ast.aliasing, ast.pointer;
 
 bool incompat(IType a, IType b) {
-  auto p1 = cast(Pointer) a, p2 = cast(Pointer) b;
+  auto p1 = fastcast!(Pointer)~ a, p2 = fastcast!(Pointer)~ b;
   if (p1 && !p2 || p2 && !p1) return true;
   if (p1 && p2) return incompat(p1.target, p2.target);
   
@@ -28,12 +28,12 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     Object lookup(string name, bool local = false) {
       auto res = sup.lookup(name, local);
-      if (auto fun = cast(Function) res) {
-        if (cast(NestedFunction) fun) return null;
+      if (auto fun = fastcast!(Function)~ res) {
+        if (fastcast!(NestedFunction)~ fun) return null;
         auto pt = fun.getParams[0].type;
         auto ex = firstParam;
         if (incompat(ex.valueType(), pt)) {
-          logln("Incompatible types: ", ex.valueType(), " and ", pt);
+          // logln("Incompatible types: ", ex.valueType(), " and ", pt);
           return null;
         }
         if (!gotImplicitCast(ex, (IType it) { return test(it == pt); }))
@@ -62,7 +62,7 @@ class MyPlaceholderExpr : Expr {
       Iterable forble = fpos.firstParam, forble2 = forble;
       dg(forble);
       if (forble !is forble2) {
-        fpos.firstParam = cast(Expr) forble;
+        fpos.firstParam = fastcast!(Expr)~ forble;
         fpos.fpvt = fpos.firstParam.valueType();
       }
     }
