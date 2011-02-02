@@ -246,7 +246,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     auto strcmp = sysmod.lookup("strcmp");
     assert(!!strcmp);
     void handleIntf(Intf intf) {
-      as.stmts ~= iparse!(Statement, "cast_intf_class", "tree.stmt")("if (strcmp(id, _test) != 0) return void*:(void**:this + offs); ",
+      as.stmts ~= iparse!(Statement, "cast_branch_intf", "tree.stmt")("if (strcmp(id, _test) != 0) return void*:(void**:this + offs); ",
         rf, "_test", mkString(intf.mangle_id), "offs", mkInt(intf_offset)
       );
       intf_offset ++;

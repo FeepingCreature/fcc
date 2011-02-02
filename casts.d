@@ -64,11 +64,11 @@ Stuple!(void*, int)[] idtable;
 int xor;
 const knuthMagic = 2654435761;
 
-void* prevp; int resp;
+void* prevp; int prevres;
 int hash(void* p) {
-  if (p == prevp) return resp;
+  if (p == prevp) return prevres;
   auto res = (((cast(size_t) p >> 3) ^ xor) * knuthMagic) % idtable.length;
-  prevp = p; resp = res;
+  prevp = p; prevres = res;
   return res;
 }
 
