@@ -67,13 +67,11 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
   if (rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
     if (t2.accept(".")) return null; // wtf? definitely not a condition.
     auto ex2 = ex; // test for int-like
-    logln("got int for ", ex2.valueType(), "?");
     IType[] _tried;
     if (gotImplicitCast(ex2, (IType it) { _tried ~= it; return test(it == Single!(SysInt)); })) {
       text = t2;
       return new Compare(ex2, true, false, true, false, mkInt(0));
     }
-    logln("no, ", _tried);
     auto n = fastcast!(Expr)~ sysmod.lookup("null");
     if (!n) return null;
     auto ev = ex.valueType();
@@ -92,7 +90,6 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
         return res;
       })) { cmp1 = e1; }
     }
-    logln("Try to compare ", ex.valueType(), " and null: ", n.valueType());
     test(ex, n);
     if (!cmp1) test(n, ex);
     if (cmp1 && cmp2) {

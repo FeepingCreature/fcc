@@ -7,11 +7,11 @@ import tools.log: log;
 
 static this() {
   foldopt ~= delegate Itr(Itr it) {
-    auto ws = cast(WhileStatement) it;
+    auto ws = fastcast!(WhileStatement) (it);
     if (!ws || !ws.isStatic) return null;
     Expr iter_expr;
-    if (auto ilc = cast(IterLetCond!(LValue)) ws.cond) iter_expr = ilc.iter;
-    if (auto imc = cast(IterLetCond!(MValue)) ws.cond) iter_expr = imc.iter;
+    if (auto ilc = fastcast!(IterLetCond!(LValue)) (ws.cond)) iter_expr = ilc.iter;
+    if (auto imc = fastcast!(IterLetCond!(MValue)) (ws.cond)) iter_expr = imc.iter;
     if (!iter_expr) return null;
     auto iter = fastcast!(RichIterator)~ iter_expr.valueType();
     if (!iter) return null;

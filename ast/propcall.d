@@ -33,7 +33,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
         auto pt = fun.getParams[0].type;
         auto ex = firstParam;
         if (incompat(ex.valueType(), pt)) {
-          logln("Incompatible types: ", ex.valueType(), " and ", pt);
+          // logln("Incompatible types: ", ex.valueType(), " and ", pt);
           return null;
         }
         if (!gotImplicitCast(ex, (IType it) { return test(it == pt); }))

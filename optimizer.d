@@ -1399,6 +1399,7 @@ void setupOpts() {
               break outer;
             }
           case Label:
+            if (entry.keepRegisters) break outer;
             if (check != "(%esp)") unneeded = true;
           case Compare:
             break outer;
@@ -1466,20 +1467,26 @@ void setupOpts() {
         auto head = list[0];
         if (head.kind != Push || head.type.size != 4) return false;
         if (!head.source.isUtilityRegister() && !head.source.isIndirect().isUtilityRegister()
+            && !head.source.isNumLiteral()
             && head.source.isIndirect() != "%esp") return false;
         
         int tailid = -1;
         for (int i = 0; i < list.length; ++i) {
-          if (list[i].kind == Pop) { tailid = i; break; }
+          if (list[i].kind == Pop || list[i].kind == SFree) { tailid = i; break; }
         }
         if (tailid == -1) return false;
         auto tail = list[tailid];
-        if (tail.type.size != 4) return false;
-        if (!tail.dest.isUtilityRegister()/* && !tail.dest.isIndirect().isUtilityRegister()*/) return false;
+        if (tail.kind == Pop) {
+          if (tail.type.size != 4) return false;
+          if (!tail.dest.isUtilityRegister()/* && !tail.dest.isIndirect().isUtilityRegister()*/) return false;
+        } else {
+          if (tail.size != 4) return false;
+        }
         
         auto segment = list[0 .. tailid + 1];
         if (segment.length <= 2) return false;
         segment = segment.dup;
+        // if (head.source.isNumLiteral()) logln("Try to bridge ", segment);
         
         foreach (entry; segment[1 .. $-1]) {
           if (entry.kind == Push /or/ Call /or/ Label /or/ Nevermind)
@@ -1492,16 +1499,23 @@ void setupOpts() {
         foreach (reg; ["%edx", "%ecx"/*, "%ebx", "%eax"*/])
           unused[reg] = true;
         foreach (ref entry; segment[1 .. $-1]) {
+          bool oops; // oops, can't do it.
           accessParams(entry, (ref string s) {
             string[] remove;
             foreach (key, value; unused)
               if (s.find(key) != -1) remove ~= key;
             foreach (entry; remove) unused.remove(entry);
+            if (s == "(%esp)") { oops = true; return; }
             fixupString(s, -4);
           });
+          if (oops) return false;
           if (entry.hasStackdepth()) entry.stackdepth -= 4;
         }
         
+        if (tail.kind == SFree) {
+          repl = segment[1 .. $-1];
+          return segment.length;
+        }
         if (!unused.length) return false;
         if (head.source.isRegister() && head.source in unused) {
           segment[$-1] = Init!(Transaction);

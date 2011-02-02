@@ -264,9 +264,10 @@ class AsmFile {
     t.keepRegisters = keepRegisters;
     cache ~= t;
   }
-  void emitLabel(string name) {
+  void emitLabel(string name, bool keepregs = false) {
     Transaction t;
     t.kind = Transaction.Kind.Label;
+    t.keepRegisters = keepregs;
     t.names ~= name;
     cache ~= t;
   }

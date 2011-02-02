@@ -135,8 +135,8 @@ struct Transaction {
       case FPSwap: return Format("[x87 swap]");
       case FloatIntLoad: return Format("[float int load ", source, "]");
       case ExtendDivide: return Format("[cdq/idivl ", source, "]");
-      case Jump:      return Format("[jmp ", dest, "]");
-      case Label:     return Format("[label ", names, "]");
+      case Jump:      return Format("[jmp ", dest, keepRegisters?" [keepregs]":"", "]");
+      case Label:     return Format("[label ", names, keepRegisters?" [keepregs]":"", "]");
       case Extended:  return Format("[extended ", obj, "]");
       case Nevermind: return Format("[nvm ", dest, "]");
       case LoadAddress: return Format("[lea ", from, " -> ", to, "]");
@@ -392,17 +392,19 @@ struct Transaction {
       struct {
         string source, dest;
         IType type;
-        bool keepRegisters;
       }
       struct {
         string opName;
         string op1, op2, op3;
         bool test;
       }
-      string[] names; // label
+      struct { // label
+        string[] names;
+      }
       bool hasLabel(string s) { foreach (name; names) if (name == s) return true; return false; }
       ExtToken obj;
     }
+    bool keepRegisters;
     int stackdepth = -1;
   }
   bool hasStackdepth() { return stackdepth != -1; }

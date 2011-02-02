@@ -14,8 +14,8 @@ class VarDecl : Statement {
       // sanity checking start!
       if (var.baseOffset + var.type.size < -af.currentStackDepth) {
         auto delta = -af.currentStackDepth - (var.baseOffset + var.type.size);
-        logln("alloc ", delta, " to compensate for stack being wrong for var");
-        logln("(", var.name, " at ", af.currentStackDepth, " wants ", -var.baseOffset - var.type.size, ")");
+        // logln("alloc ", delta, " to compensate for stack being wrong for var");
+        // logln("(", var.name, " at ", af.currentStackDepth, " wants ", -var.baseOffset - var.type.size, ")");
         af.salloc(delta);
       }
       if (var.baseOffset + var.type.size != -af.currentStackDepth) {

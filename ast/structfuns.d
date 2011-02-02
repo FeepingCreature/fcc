@@ -32,7 +32,7 @@ Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
       if (!mvar)
         if (t2.eatDash(member)) goto retry;
         else return null;
-      auto smf = cast(RelFunction) mvar;
+      auto smf = fastcast!(RelFunction) (mvar);
       if (!smf) return null;
       text = t2;
       return smf.transform(ex);
@@ -93,7 +93,7 @@ class RelFunction : Function, RelTransformable {
   }
   RelFunction alloc() { return new RelFunction; }
   RelFunction dup() {
-    auto res = cast(RelFunction) super.dup();
+    auto res = fastcast!(RelFunction) (super.dup());
     res.context = context;
     res.baseptr = baseptr;
     res.basetype = basetype;
@@ -110,7 +110,7 @@ class RelFunction : Function, RelTransformable {
     auto res = new FunctionPointer;
     res.ret = type.ret;
     res.args = type.params.dup;
-    if (auto rnfb = cast(RelNamespaceFixupBase) context)
+    if (auto rnfb = fastcast!(RelNamespaceFixupBase) (context))
       res.args ~= Argument(rnfb.genCtxType(context));
     else
       res.args ~= Argument(new Pointer(basetype));
@@ -132,9 +132,9 @@ class RelFunction : Function, RelTransformable {
     import ast.aliasing;
     int fixup() {
       auto cur = super.fixup();
-      if (!cast(hasRefType) context)
+      if (!fastcast!(hasRefType) (context))
         logln("bad context: ", context, " is not reftype");
-      auto bp = new Variable((cast(hasRefType) context).getRefType(), "__base_ptr", cur);
+      auto bp = new Variable((fastcast!(hasRefType) (context)).getRefType(), "__base_ptr", cur);
       add(bp); cur += 4;
       if (fastcast!(Pointer)~ bp.valueType())
         add(new ExprAlias(new DerefExpr(bp), "this"));

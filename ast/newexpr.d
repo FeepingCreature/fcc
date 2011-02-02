@@ -45,7 +45,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         }
       }
       iterLeaves((Intf intf, int offs) {
-        logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
+        // logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
         iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
         (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
           "var", var,
@@ -74,7 +74,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr newlen;
     if (t3.accept("[") &&
         rest(t3, "tree.expr", &newlen) &&
-        gotImplicitCast(newlen, (IType it) { return !!cast(SysInt) it; }) &&
+        gotImplicitCast(newlen, (IType it) { return !!fastcast!(SysInt) (it); }) &&
         t3.accept("]")) {
       t2 = t3;
       len = newlen;
@@ -94,7 +94,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr len;
     if (!t2.accept("[") ||
         !rest(t2, "tree.expr", &len) ||
-        !gotImplicitCast(len, (IType it) { return !!cast(SysInt) it; }) ||
+        !gotImplicitCast(len, (IType it) { return !!fastcast!(SysInt) (it); }) ||
         !t2.accept("]"))
       return null;
     text = t2;

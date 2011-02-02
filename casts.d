@@ -53,7 +53,10 @@ const string[] quicklist = [
   "ast.static_arrays.DataExpr",
   "ast.vector.VecOp",
   "ast.static_arrays.StaticArray",
-  "ast.aliasing.TypeAlias"
+  "ast.aliasing.TypeAlias",
+  "ast.base.Filler",
+  "ast.oop.ClassRef",
+  "ast.oop.IntfRef"
 ];
 
 Stuple!(void*, int)[] idtable;
@@ -61,7 +64,13 @@ Stuple!(void*, int)[] idtable;
 int xor;
 const knuthMagic = 2654435761;
 
-int hash(void* p) { return (((cast(size_t) p >> 3) ^ xor) * knuthMagic) % idtable.length; }
+void* prevp; int resp;
+int hash(void* p) {
+  if (p == prevp) return resp;
+  auto res = (((cast(size_t) p >> 3) ^ xor) * knuthMagic) % idtable.length;
+  prevp = p; resp = res;
+  return res;
+}
 
 import tools.mersenne;
 void initTable() {
@@ -69,7 +78,7 @@ void initTable() {
   foreach (entry; quicklist) {
     auto cl = ClassInfo.find(entry);
     if (!cl) {
-      // logln("No such class: ", entry);
+      logln("No such class: ", entry);
       continue;
     }
     ci ~= cl;
@@ -105,8 +114,6 @@ void initTable() {
   }
 }
 
-static this() { initTable; }
-
 int getId(ClassInfo ci) {
   auto cp = cast(void*) ci;
   auto entry = idtable[hash(cp)];
@@ -130,7 +137,10 @@ struct _fastcast(T) {
       obj = *cast(Object*) &vp; // prevent a redundant D cast
     }
     auto id = getId(obj.classinfo);
-    if (id == -1) return cast(T) u;
+    if (id == -1) {
+      // logln("Boring cast: ", obj.classinfo.name);
+      return cast(T) u;
+    }
     auto hint = offsets[id];
     if (hint == INVALID) return null;
     if (!hint) {

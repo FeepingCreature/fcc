@@ -80,9 +80,9 @@ class CrossIndexExpr : Expr {
   }
   static this() {
     foldopt ~= delegate Expr(Expr ex) {
-      auto cie = cast(CrossIndexExpr) ex;
+      auto cie = fastcast!(CrossIndexExpr) (ex);
       if (!cie) return null;
-      auto ide = fastcast!(IntExpr)~ foldex(cie.idx);
+      auto ide = fastcast!(IntExpr) (foldex(cie.idx));
       if (!ide) return null;
       auto idx = ide.num;
       

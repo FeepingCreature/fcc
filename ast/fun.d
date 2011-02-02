@@ -122,7 +122,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
       scope(exit) af.currentStackDepth = backup;
       af.currentStackDepth = 0;
       withTLS(namespace, this, tree.emitAsm(af));
-      af.emitLabel(exit());
+      af.emitLabel(exit(), true);
       
       af.mmove4("%ebp", "%esp");
       af.popStack("%ebp", voidp);

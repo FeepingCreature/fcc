@@ -42,7 +42,7 @@ static this() {
     IType[] tried;
     if (!gotImplicitCast(e2, (IType it) { tried ~= it; return !!(it == Single!(SysInt)); }))
       return null;
-    if (auto dcme = cast(DontCastMeExpr) e2) e2 = dcme.sup;
+    if (auto dcme = fastcast!(DontCastMeExpr) (e2)) e2 = dcme.sup;
     if (fastcast!(StaticArray) (e1v) && !fastcast!(CValue) (e1)) {
       return new SAIndexExpr(e1, e2);
     }
