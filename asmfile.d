@@ -409,7 +409,7 @@ class AsmFile {
       dg(".long ");
       foreach (val; array) dg(qformat(val, ", "));
       dg("0\n");
-      dg(".local "); dg(name); dg("\n");
+      dg(".global "); dg(name); dg("\n");
     }
     dg(".text\n");
     dg(code);

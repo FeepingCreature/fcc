@@ -773,7 +773,7 @@ void setupOpts() {
     } else {
       New(obj);
       t.obj = obj;
-      if (obj.update($0)) { $SUBST([t, $1]); }
+      if (obj.update($0)) { $SUBST(t, $1); }
       // else logln("Reject ", $0, ", ", $1);
     }
   `));
@@ -802,7 +802,7 @@ void setupOpts() {
     else assert(false);
     auto t2 = $0;
     if (t2.hasStackdepth) t2.stackdepth += delta;
-    $SUBST([$1, t2]);
+    $SUBST($1, t2);
   `));
   mixin(opt("sort_pointless_mem", `*, ^SAlloc || ^SFree:
     (hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0))
@@ -872,7 +872,7 @@ void setupOpts() {
     =>
     auto t1 = $0.dup, t2 = $1.dup;
     if (!pinsRegister($0, $1.to))
-      $SUBST([t2, t1]);
+      $SUBST(t2, t1);
   `));+/
   mixin(opt("collapse_alloc_frees", `^SAlloc || ^SFree, ^SAlloc || ^SFree =>
     int sum_inc;
@@ -880,7 +880,7 @@ void setupOpts() {
     else sum_inc -= $0.size;
     if ($1.kind == $TK.SAlloc) sum_inc += $1.size;
     else sum_inc -= $1.size;
-    if (!sum_inc) $SUBST(null);
+    if (!sum_inc) $SUBST();
     else $SUBSTWITH {
       if (sum_inc > 0) kind = $TK.SAlloc;
       else kind = $TK.SFree;
@@ -904,12 +904,12 @@ void setupOpts() {
     int offs;
     auto reg = $1.source.isIndirect2(offs);
     t2.source = qformat(offs + $0.op1.literalToInt(), "(", reg, ")");
-    $SUBST([t2, t1]);
+    $SUBST(t2, t1);
   `));
   mixin(opt("scratch_mov", `^Mov, ^Call:
     $1.dest.isLiteral() && $0.to.isUtilityRegister()
     =>
-    $SUBST([$1]);
+    $SUBST($1);
   `));
   mixin(opt("fold_stores", `^FloatPop, ^Pop:
     $0.dest == "(%esp)" && $1.type.size == 4 && $1.dest != "(%esp)" /* lolwat? */
@@ -919,7 +919,7 @@ void setupOpts() {
     $T t2;
     t2.kind = $TK.SFree;
     t2.size = 4;
-    $SUBST([t1, t2]);
+    $SUBST(t1, t2);
   `));
   mixin(opt("fold_doublestores", `^DoublePop, ^Pop, ^Pop:
     $0.dest == "(%esp)" && $1.type.size == 4 && $2.type.size == 4
@@ -930,21 +930,21 @@ void setupOpts() {
     $T t2;
     t2.kind = $TK.SFree;
     t2.size = 8;
-    $SUBST([t1, t2]);
+    $SUBST(t1, t2);
   `));
   mixin(opt("sort_push_math", `^Push, ^MathOp:
     $0.source.isUtilityRegister() && $1.op2 == "(%esp)"
     =>
     $T t = $1.dup;
     t.op2 = $0.source;
-    $SUBST([t, $0]);
+    $SUBST(t, $0);
   `));
   mixin(opt("resolve_lea_free_load", `^LoadAddress, ^SFree, *:
     hasSource($2) && opSize($2) == 4 && $2.source.isIndirect(0) == $0.dest && $1.size == 4
     =>
     $T t = $2.dup;
     t.source = $0.source;
-    $SUBST([t, $1]);
+    $SUBST(t, $1);
   `));
   mixin(opt("merge_literal_adds", `^MathOp, ^MathOp:
     $0.opName == "addl" && $1.opName == "addl" &&
@@ -966,7 +966,7 @@ void setupOpts() {
     s0.stackdepth = $1.stackdepth;
     s1.from = "(%esp)";
     s1.to = $0.to;
-    $SUBST([s0, s1]);
+    $SUBST(s0, s1);
   `));
   //move movs upwards, lol
   /*mixin(opt("sort_mov", `*, ^Mov:
@@ -977,12 +977,12 @@ void setupOpts() {
     bool problem;
     void check(string s) { if (s.find($1.to) != -1) problem = true; }
     accessParams($0, (ref string s) { check(s); });
-    if (!problem) $SUBST([$1, $0]);
+    if (!problem) $SUBST($1, $0);
   `));*/
   /*mixin(opt("sort_floatload", `*, ^FloatLoad:
     !referencesStack($0) && !affectsStack($0) && $0.
     =>
-    $SUBST([$1, $0]);
+    $SUBST($1, $0);
   `));*/
   mixin(opt("load_from_push", `^Push, (^FloatLoad/* || ^FloatIntLoad*/):
     !$0.source.isRegister() && $1.source == "(%esp)"
@@ -990,7 +990,7 @@ void setupOpts() {
     $T a1 = $1.dup;
     a1.source = $0.source;
     if ($1.hasStackdepth) a1.stackdepth = $1.stackdepth - 4;
-    $SUBST([a1, $0]);
+    $SUBST(a1, $0);
   `));
   mixin(opt("fold_float_pop_load", `^FloatPop, ^FloatLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 4 => $SUBST($2);`));
   mixin(opt("fold_double_pop_load", `^DoublePop, ^DoubleLoad, ^SFree: $0.dest == $1.source && $0.dest == "(%esp)" && $2.size == 8 => $SUBST($2);`));
@@ -1027,19 +1027,19 @@ void setupOpts() {
   `));
   
   // jump opts
-  mixin(opt("join_labels", `^Label, ^Label => auto t = $0; t.names = t.names ~ $1.names; $SUBST(t); `));
+  mixin(opt("join_labels", `^Label, ^Label => auto t = $0; t.names ~= $1.names; t.keepRegisters |= $1.keepRegisters; $SUBST(t); `));
   mixin(opt("pointless_jump", `^Jump, ^Label:
     $1.hasLabel($0.dest)
     =>
     labels_refcount[$0.dest] --;
-    $SUBST([$1]);
+    $SUBST($1);
   `));
   mixin(opt("silly_mov", `^Mov, ^Mov:
     $0.to == $1.from && $1.to == $0.from
     &&
     $0.to.isRegister()
     =>
-    $SUBST([$0]);
+    $SUBST($0);
   `));
   mixin(opt("fold_float_load", `^LoadAddress, (^FloatLoad || ^FloatIntLoad || ^DoubleLoad):
     $0.to == $1.source.isIndirect(0)
@@ -1055,7 +1055,7 @@ void setupOpts() {
     t1.kind = $TK.DoubleStore;
     t1.dest = $0.dest;
     $T t2; t2.kind = $TK.FPSwap;
-    $SUBST([t1, $1, t2]);
+    $SUBST(t1, $1, t2);
   `));
   mixin(opt("float_pointless_swap", `^FPSwap, ^FloatMath:
     $1.opName == "fadd" || $1.opName == "fmul"
@@ -1078,7 +1078,7 @@ void setupOpts() {
         refsMe = true;
       else accessParams($0, (ref string s) { if (s.find($1.dest) != -1) refsMe = true; });
     if (!refsMe) {
-      $SUBST([$1, $0]);
+      $SUBST($1, $0);
     }
   `));
   mixin(opt("combine_nevermind", `^Nevermind, ^Nevermind:
@@ -1157,7 +1157,7 @@ void setupOpts() {
     =>
     $T t = $2;
     t.op1 = $0.from;
-    $SUBST([$1, t, $0]);
+    $SUBST($1, t, $0);
   `));
   mixin(opt("direct_math_2", `^Mov, ^MathOp, ^Mov:
     $0.to.isUtilityRegister() && $0.to == $1.op2 &&
@@ -1166,7 +1166,7 @@ void setupOpts() {
     =>
     $T t1 = $1;
     t1.op2 = $0.from;
-    $SUBST([t1, $0]);
+    $SUBST(t1, $0);
   `));
   mixin(opt("direct_int_load", `^Push, ^FloatIntLoad, ^SFree:
     $0.type.size == 4 && $1.source == "(%esp)" && $2.size == 4
@@ -1226,7 +1226,7 @@ void setupOpts() {
     $T t;
     // good luck working out why ~
     t.kind = $TK.FPSwap;
-    $SUBST([$0, $1, $3]);
+    $SUBST($0, $1, $3);
   `));
   // push %reg1, mov x -> %reg1, pop %reg2 => mov %reg1 -> %reg2, mov x -> %reg1
   mixin(opt("fold_push_mov_pop", `^Push, ^Mov, ^Pop:
@@ -1244,7 +1244,7 @@ void setupOpts() {
     $T t2 = $1;
     t2.stackdepth = t1.stackdepth;
     
-    $SUBST([t1, t2]);
+    $SUBST(t1, t2);
   `));
   mixin(opt("reorder_math_mov", `^MathOp, ^Mov, ^Mov:
     $0.op1.isLiteral() && $0.op2.isRegister() &&
@@ -1253,7 +1253,7 @@ void setupOpts() {
     =>
     $T t1 = $1, t2 = $0;
     t2.op2 = t1.to;
-    $SUBST([t1, t2, $2]);
+    $SUBST(t1, t2, $2);
   `));
   mixin(opt("reorder_math_mov_math", `^MathOp, ^Mov, ^MathOp:
     $0.op1.isLiteral() && $2.op1.isLiteral() &&
@@ -1263,7 +1263,7 @@ void setupOpts() {
     $T t1 = $1, t2 = $0, t3 = $1;
     t2.op2 = t1.to;
     t3.from = t1.to; t3.to = t1.from;
-    $SUBST([t1, t2, t3, $2]);
+    $SUBST(t1, t2, t3, $2);
   `));
   mixin(opt("reorder_mov_math", `^Mov, ^MathOp:
     $0.from.isRegister() && $0.to.isRegister() &&
@@ -1272,7 +1272,7 @@ void setupOpts() {
     =>
     $T t = $1;
     t.op1 = $0.from;
-    $SUBST([t, $0]);
+    $SUBST(t, $0);
   `));
   mixin(opt("hyperspecific", `^Label, ^Push, ^Push, ^Push, ^Pop, ^Pop, ^Pop
     =>
@@ -1284,7 +1284,7 @@ void setupOpts() {
     ts[3].from = "%eax";    ts[3].to = $6.dest; fixupString(ts[3].to, -4);
     ts[4].from = "%ebx";    ts[4].to = $5.dest; fixupString(ts[4].to, -8);
     ts[5].from = "%ecx";    ts[5].to = $4.dest; fixupString(ts[5].to, -12);
-    $SUBST($0 ~ ts);
+    $SUBST($0, ts);
   `));
   mixin(opt("move_sooner", `^MathOp, ^Mov, *:
     $0.op1.find($0.op2) == -1 && $0.op1.find($1.to) == -1 &&
@@ -1294,7 +1294,7 @@ void setupOpts() {
     =>
     $T t = $0;
     t.op2 = $1.to;
-    $SUBST([$1, t, $2]);
+    $SUBST($1, t, $2);
   `));
   mixin(opt("float_load_twice", `^FloatLoad, ^FloatLoad:
     $0.source == $1.source
@@ -1302,7 +1302,7 @@ void setupOpts() {
     $T t = $1;
     t.kind = $TK.RegLoad;
     t.source = "%st";
-    $SUBST([$0, t]);
+    $SUBST($0, t);
   `));
   mixin(opt("float_compare_direct", `^Push, ^FloatCompare, ^SFree:
     $0.type.size == 4 && $1.source == "(%esp)" && $2.size == 4
@@ -1321,7 +1321,7 @@ void setupOpts() {
     t2.from = $0.source;
     fixupString(t2.from, 4 + $1.size);
     t2.to = qformat($1.size, "(%esp)");
-    $SUBST([t1, t2]);
+    $SUBST(t1, t2);
   `));*/
   mixin(opt("ext_mem_form", `^MathOp, ^Push, ^Pop:
     $0.opName == "addl" &&
@@ -1343,7 +1343,7 @@ void setupOpts() {
     =>
     $T t = $0;
     t.to = $1.to;
-    $SUBST([t, $2]);
+    $SUBST(t, $2);
   `));
   mixin(opt("math_ref_merge", `^MathOp, *:
     $0.op1.isNumLiteral() && $0.op2.isUtilityRegister() &&
@@ -1363,7 +1363,7 @@ void setupOpts() {
     if (hasDest(t)) {
       t.dest = mem;
     }
-    $SUBST([t, $0]);
+    $SUBST(t, $0);
   `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
     bool changed, pushMode;
@@ -1381,11 +1381,25 @@ void setupOpts() {
       if (!check) return false;
       if (!check.isUtilityRegister() && check != "(%esp)") return false;
       
+      bool hasStackDependence(string s) {
+        if (s.find("%esp") != -1) return true;
+        int offs;
+        if (s.isIndirect2(offs) == "%ebp") return offs < 0;
+        return false;
+      }
+      
       bool unneeded;
-      outer:foreach (i, entry; list[1 .. $]) {
+      int i;
+      bool test(string s) {
+        if (s.find(check) != -1) return true;
+        if (check == "(%esp)" && hasStackDependence(s)) return true;
+        return false;
+      }
+      outer:foreach (_i, entry; list[1 .. $]) {
+        i = _i;
         with (Transaction.Kind) switch (entry.kind) {
-          case SAlloc, SFree:
-            if (check == "(%esp)") break outer;
+          case SFree: if (check == "(%esp)") { unneeded = true; break outer; }
+          case SAlloc: break outer;
           case FloatMath:
             continue;    // no change
           
@@ -1394,7 +1408,7 @@ void setupOpts() {
           case Call:
             if (check.isUtilityRegister()) {
               // arguments on the stack (cdecl)
-              if (entry.dest.find(check) == -1)
+              if (!test(entry.dest))
                 unneeded = true;
               break outer;
             }
@@ -1409,28 +1423,27 @@ void setupOpts() {
           case Push:
             if (check == "(%esp)") break outer;
           case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatIntLoad, FloatCompare:
-            if (entry.source.find(check) != -1) break outer;
+            if (test(entry.source)) break outer;
             continue;
           
           case Pop:
             if (check == "(%esp)") break outer;
           case Nevermind, FloatPop, DoublePop, FloatStore, DoubleStore:
             if (entry.dest == check) { unneeded = true; break outer; }
-            if (entry.dest.find(check) != -1) break outer;
+            if (test(entry.dest)) break outer;
             continue;
           
           case MathOp:
-            if (entry.op1.find(check) != -1) break outer;
-            if (entry.op2.find(check) != -1 && entry.op2 != check) break outer;
+            if (test(entry.op1) || test(entry.op2)) break outer;
             continue;
           
           case Mov, LoadAddress:
-            if (entry.from.find(check) != -1) break outer;
+            if (test(entry.from)) break outer;
             if (entry.to == check) {
               unneeded = true;
               break outer;
             }
-            if (entry.to.find(check) != -1) break outer;
+            if (test(entry.to)) break outer;
             continue;
           
           default: break;
@@ -1438,7 +1451,7 @@ void setupOpts() {
         logln("huh? ", entry);
         assert(false);
       }
-      if (unneeded) return 1;
+      if (unneeded) return i + 2;
       return false;
     });
     if (match.length) do {
@@ -1446,9 +1459,9 @@ void setupOpts() {
         Transaction t;
         t.kind = Transaction.Kind.SAlloc;
         t.size = 4;
-        match.replaceWith(t);
+        match.replaceWith(t ~ match[][1 .. $]);
       } else {
-        match.replaceWith(null); // remove
+        match.replaceWith(match[][1 .. $]); // remove
       }
       changed = true;
     } while (match.advance());

@@ -207,7 +207,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
   override Class dup() { assert(false, "wetfux! "); }
   bool isTempNamespace() { return false; }
   this(string name, Class parent) {
-    mangle_id = namespace().mangle(name, this);
+    mangle_id = namespace().mangle(name, null);
     auto root = fastcast!(Class)~ (sysmod?sysmod.lookup("Object"):null);
     if (root) {
       if (name == "Object")

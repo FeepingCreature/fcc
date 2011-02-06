@@ -429,30 +429,56 @@ struct Transsection(C) {
   Transaction opIndex(int i) { return parent.list[from + i]; }
   Transaction[] opSlice() { return parent.list[from .. to]; }
   size_t length() { return to - from; }
-  void replaceWith(Transaction[] withWhat) {
-    if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", withWhat);
-    if (withWhat.length == length) {
-      parent.list[from .. to] = withWhat;
+  void replaceWith(T...)(T t) {
+    if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", t);
+    int tlength;
+    foreach (elem; t)
+      static if (is(typeof(elem.length))) tlength += elem.length;
+      else tlength ++;
+    Transaction[] flat;
+    foreach (elem; t) flat ~= elem;
+    if (tlength == length) {
+      int offs = from;
+      foreach (elem; t) {
+        static if (is(typeof(elem.length))) { parent.list[offs .. offs + elem.length] = elem; offs += elem.length; }
+        else { parent.list[offs++] = elem; }
+      }
     } else {
       with (parent) {
-        auto f1 = to, t1 = size, f2 = from + withWhat.length, t2 = f2 + (t1 - f1);
+        auto f1 = to, t1 = size, f2 = from + tlength, t2 = f2 + (t1 - f1);
         resize(max(size, t2));
-        if (f2 < f1) // forward copy
+        if (f2 < f1) { // backward copy; copy, then stretch
+          int offs = from;
+          foreach (elem; t)
+            static if (is(typeof(elem.length))) {
+              for (int i = offs; i < offs + elem.length; ++i)
+                list[i] = elem[i - offs];
+              offs += elem.length;
+            } else {
+              list[offs++] = elem;
+            }
           for (int i = f1; i < t1; ++i)
             list[f2 - f1 + i] = list[i];
-        else // backward copy
+        } else { // forward copy; stretch, then copy
           for (int i = t1 - 1; i >= f1; --i)
             list[f2 - f1 + i] = list[i];
-        list[from .. f2] = withWhat;
+          int offs = f2;
+          foreach_reverse (elem; t)
+            static if (is(typeof(elem.length))) {
+              for (int i = offs - 1; i >= cast(int) (offs - elem.length); --i) {
+                list[i] = elem[i - offs + $];
+              }
+              offs -= elem.length;
+            } else {
+              list[--offs] = elem;
+            }
+        }
         size = t2;
       }
       // parent.list = parent.list[0 .. from] ~ withWhat ~ parent.list[to .. $];
     }
-    to = from + withWhat.length;
+    to = from + tlength;
     modded = true;
-  }
-  void replaceWith(Transaction withWhat) {
-    replaceWith([withWhat]);
   }
   bool reset() {
     *this = parent.findMatch(opName, cond);
