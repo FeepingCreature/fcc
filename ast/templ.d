@@ -84,7 +84,7 @@ class TemplateInstance : Namespace {
       if (!t2.many(
         !!rest(t2, "tree.toplevel", &tr),
         {
-          if (cast(NoOp) tr) return;
+          if (fastcast!(NoOp) (tr)) return;
           auto n = fastcast!(Named)~ tr;
           // if (!n) throw new Exception(Format("Not named: ", tr));
           if (n && !addsSelf(n)) add(n.getIdentifier(), n);
@@ -95,7 +95,7 @@ class TemplateInstance : Namespace {
             logln("add ", fun.mangleSelf(), " to ", current_module().name,
               ", at ", current_module().entries.length, "; ", cast(void*) current_module());*/
           // current_module().entries ~= tr;
-          auto mg = cast(IsMangled) tr;
+          auto mg = fastcast!(IsMangled) (tr);
           if (!mg) { logln("!! ", tr); asm { int 3; } }
           addExtra(mg);
         }
@@ -125,7 +125,7 @@ Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string id;
   if (!t2.gotIdentifier(id, true) || !t2.accept("!")) return null;
-  auto _t = namespace().lookup(id), t = cast(Template) _t;
+  auto _t = namespace().lookup(id), t = fastcast!(Template) (_t);
   if (!_t) return null;
   // if (!t) throw new Exception("'"~id~"' is not a template! ");
   if (!t) return null;
@@ -154,7 +154,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
     Expr iter;
-    auto templ = cast(Template) obj;
+    auto templ = fastcast!(Template) (obj);
     if (!templ) return null;
     Expr nex;
     if (!rest(t2, "tree.expr", &nex)) return null;

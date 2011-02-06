@@ -324,7 +324,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
 
 import assemble: debugOpts;
 int main(string[] args) {
-  initTable(); // NOT in static this!
+  initCastTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);
   /*

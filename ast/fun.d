@@ -385,7 +385,7 @@ Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, 
 
 Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto fun = new Function;
-  return gotGenericFunDef(fun, fastcast!(Namespace)~ null, true, text, cont, rest);
+  return gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest);
 }
 mixin DefaultParser!(gotFunDef, "tree.fundef");
 

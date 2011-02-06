@@ -387,5 +387,6 @@ static this() {
       m.localClasses ~= RCE.classinfo;
       m.localClasses ~= RCL.classinfo;
       m.localClasses ~= RCM.classinfo;
+      m.localClasses ~= RCC.classinfo;
     }
 }

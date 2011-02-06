@@ -15,7 +15,7 @@ static this() {
     if (!gotImplicitCast(ex2, (Expr ex) { return !!fastcast!(IntExpr) (fold(ex)); }))
       return null;
     auto ex22 = ex2;
-    if (gotImplicitCast(ex22, (Expr ex) { return !!cast(ast.iterator.Range) fold(ex); }))
+    if (gotImplicitCast(ex22, (Expr ex) { return !!fastcast!(ast.iterator.Range) (fold(ex)); }))
       ex2 = ex22;
     auto count = (fastcast!(IntExpr)~ fold(ex2)).num;
     assert(count > 0);
@@ -446,7 +446,7 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
     Namespace _ns; RelNamespace _rns;
     bool fun_ns(string id) { return test(_ns.lookup(id)); }
     bool fun_rns(string id) { return test(_rns.lookupRel(id, null)); }
-    if (auto srn = cast(SemiRelNamespace) thingy) thingy = fastcast!(Object)~ srn.resolve();
+    if (auto srn = fastcast!(SemiRelNamespace) (thingy)) thingy = fastcast!(Object) (srn.resolve());
     if (auto ns = fastcast!(Namespace)~ thingy) { _ns = ns; lookup = &fun_ns; }
     else if (auto rn = fastcast!(RelNamespace)~ thingy) { _rns = rn; lookup = &fun_rns; }
     if (!lookup || !lookup("step") || !lookup("ivalid")) return null;
