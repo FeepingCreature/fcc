@@ -56,7 +56,7 @@ const string[] quicklist = [
   "ast.aliasing.TypeAlias",
   "ast.base.Filler",
   "ast.oop.ClassRef",
-  "ast.oop.IntfRef"
+  "ast.oop.IntfRef",
   "ast.casting.ReinterpretCast!(CValue).ReinterpretCast"
 ];
 

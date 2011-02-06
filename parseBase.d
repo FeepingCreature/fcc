@@ -475,6 +475,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
       Stuple!(Object, char*)[char*][] stack;
       override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         auto t2 = text;
+        if (.accept(t2, "]")) return null; // never a valid start
         static if (Key) {
           if (!.accept(t2, Key)) return null;
         }
