@@ -292,6 +292,11 @@ void setupSysmods() {
         return res;
       }
     EOF
+    void[] dupv(void[] v) {
+      auto res = malloc(v.length)[0..v.length];
+      res[] = v;
+      return res;
+    }
     
     int fastfloor(float f) {
       alias magicdelta = 0.000000015;

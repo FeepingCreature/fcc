@@ -111,6 +111,29 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNewArrayExpr, "tree.expr.new.array", "12", "new");
 
+import ast.nestfun, ast.opers, ast.dg, ast.arrays, ast.fun;
+Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+    return null;
+  
+  auto re = fastcast!(NestFunRefExpr) (ex);
+  if (!re) return null;
+  
+  text = t2;
+  
+  auto nf = re.fun.context.get!(Function);
+  auto start = nf.framestart(), end = nf.frame_end();
+  auto size = start + end; // lol
+  auto framestartp = lookupOp("-", reinterpret_cast(voidp, re.base), mkInt(start));
+  auto array = mkPointerSlice(framestartp, mkInt(0), mkInt(size));
+  auto array2 = getArrayPtr(iparse!(Expr, "dup_dg", "tree.expr")(`dupv array`, "array", array));
+  auto base2 = lookupOp("+", array2, mkInt(start));
+  return new DgConstructExpr(re.fun.getPointer(), base2);
+}
+mixin DefaultParser!(gotNewDelegateExpr, "tree.expr.new.dg", "13", "new");
+
 Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
