@@ -430,7 +430,8 @@ struct Transsection(C) {
   Transaction[] opSlice() { return parent.list[from .. to]; }
   size_t length() { return to - from; }
   void replaceWith(T...)(T t) {
-    if (debugOpts) logln(opName, ": ", parent.list[from .. to], " -> ", t);
+    if (debugOpts)
+      logln(opName, ": ", parent.list[from .. to], " -> ", t);
     int tlength;
     foreach (elem; t)
       static if (is(typeof(elem.length))) tlength += elem.length;
@@ -440,8 +441,11 @@ struct Transsection(C) {
     if (tlength == length) {
       int offs = from;
       foreach (elem; t) {
-        static if (is(typeof(elem.length))) { parent.list[offs .. offs + elem.length] = elem; offs += elem.length; }
-        else { parent.list[offs++] = elem; }
+        static if (is(typeof(elem.length))) {
+          for (int i = 0; i < elem.length; ++i)
+            parent.list[i+offs] = elem[i];
+          offs += elem.length;
+        } else { parent.list[offs++] = elem; }
       }
     } else {
       with (parent) {

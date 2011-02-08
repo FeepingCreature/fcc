@@ -887,6 +887,9 @@ void setupOpts() {
       size = abs(sum_inc);
     }
   `));
+  mixin(opt("cleanup_nop", `^SAlloc||^SFree: $0.size == 0
+    => $SUBST();
+  `));
   mixin(opt("pointless_free", `^SFree, ^Push:
     $0.size == $1.type.size && $0.size == 4 && !isMemRef($1.source) && $1.source != "%esp"
     =>
@@ -1176,11 +1179,16 @@ void setupOpts() {
     $SUBST(t);
   `));
   mixin(opt("move_into_compare", `^Mov, ^Compare:
-    $0.to.isUtilityRegister() && $1.op2 == $0.to &&
-    !($0.from.isNumLiteral() && $1.op1.isNumLiteral()) /* wat */
+    $0.to.isUtilityRegister() && ($1.op2 == $0.to || $1.op1 == $0.to)
+    /* wat */
+    && !($0.from.isNumLiteral() && ($1.op1.isNumLiteral() || $1.op2.isNumLiteral()))
+    // cmp can't handle two memory references at once.
+    && !($1.op1 == $0.to && $1.op2.isMemRef() && $0.from.isMemRef())
+    && !($1.op2 == $0.to && $1.op1.isMemRef() && $0.from.isMemRef())
     =>
     $T t = $1.dup;
-    t.op2 = $0.from;
+    if (t.op1 == $0.to) t.op1 = $0.from;
+    else                t.op2 = $0.from;
     $SUBST(t);
   `));
   // subl $num1, %reg, pushl num2(%reg), popl %reg => movl -num1+num2(%reg) -> %reg
@@ -1459,7 +1467,7 @@ void setupOpts() {
         Transaction t;
         t.kind = Transaction.Kind.SAlloc;
         t.size = 4;
-        match.replaceWith(t ~ match[][1 .. $]);
+        match.replaceWith(t, match[][1 .. $]);
       } else {
         match.replaceWith(match[][1 .. $]); // remove
       }
