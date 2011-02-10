@@ -101,98 +101,99 @@ void accessParams(ref Transaction t, void delegate(ref string) dg, bool writeonl
 struct TransactionInfo {
   Transaction* tp;
   const string Table = `
-    name | inOp1     | inOp2    | getOutOp | size         | accessParams
-    ------------------------------------------------------------------
-    Push | &#.source | ø        | ø        | #.type.size  | if (!wo) dg(#.source);
+    name  | inOp1     | inOp2    | getOutOp | size         | stack | accessParams
+    ------------------------------------------------------------------------------
+    Push  | &#.source |          |          | #.type.size  | push  | if (!wo) dg(#.source);
+    Label |           |          |          | -1           |       | 
+    Mov   | &#.from   |          | &#.to    | 4            |       | if (!wo) dg(#.from); dg(#.to);
+    Mov2  | &#.from   |          | &#.to    | 2            |       | if (!wo) dg(#.from); dg(#.to);
+    Mov1  | &#.from   |          | &#.to    | 1            |       | if (!wo) dg(#.from); dg(#.to);
   `;
-  int numInOps() {
-    mixin(
-      `switch (tp.kind) { `
-      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
-        static if ("$inOp1" == "ø") { static if ("$inOp2" == "ø") return 0; else return 1; }
-        else { static if ("$inOp2" == "ø") return 1; else return 2; }
-        `)
-      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
-    }`);
+  template TableOp(string Body, R, T...) {
+    R TableOp(T t) {
+      mixin(
+        `switch (tp.kind) {
+        ` ~ Table.ctTableUnroll(`case Transaction.Kind.$name:
+          ` ~ Body) ~ `
+          default: break;
+        }`);
+      logln("but what about ", *tp);
+      asm { int 3; }
+    }
   }
-  string inOp1() {
-    mixin(
-      `switch (tp.kind) { `
-      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
-        static if ("$inOp1" == "ø") { logln("No input operand for $name! "); asm { int 3; } }
-        else return *mixin("$inOp1".ctReplace("#", "(*tp)"));
-        `)
-      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
-    }`);
+  alias TableOp!(`
+    static if ("$inOp1" == "") {
+      static if ("$inOp2" == "") return 0;
+      else return 1;
+    } else {
+      static if ("$inOp2" == "") return 1;
+      else return 2;
+    }
+  `, int) numInOps;
+  bool hasOp1() { return numInOps >= 1; }
+  bool hasOp2() { return numInOps == 2; }
+  template inOp(string Name) {
+    alias TableOp!(`
+      static if ("$`~Name~`" == "") return null;
+      else return *mixin("$`~Name~`".ctReplace("#", "(*tp)"));
+    `, string) inOpRead;
+    alias TableOp!(`
+      static if ("$`~Name~`" == "") break;
+      else return mixin("*$`~Name~` = t[0]".ctReplace("#", "(*tp)"));
+    `, string, string) inOpWrite;
   }
-  string inOp1(string s) {
-    mixin(
-      `switch (tp.kind) { `
-      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
-        static if ("$inOp1" == "ø") { logln("No input operand for $name! "); asm { int 3; } }
-        else return mixin("*$inOp1 = s".ctReplace("#", "(*tp)"));
-        `)
-      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
-    }`);
-  }
-  int opSize() {
-    mixin(
-      `switch (tp.kind) { `
-      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
-        return mixin("$size".ctReplace("#", "(*tp)"));
-        `)
-      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
-    }`);
-  }
-  bool hasOutOp() {
-    mixin(
-      `switch (tp.kind) { `
-      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
-        static if ("$getOutOp" == "ø") return false;
-        else return true;
-        `)
-      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
-    }`);
-  }
+  string inOp1() { return inOp!("inOp1").inOpRead(); }
+  string inOp2() { return inOp!("inOp2").inOpRead(); }
+  string inOp1(string s) { return inOp!("inOp1").inOpWrite(s); }
+  string inOp2(string s) { return inOp!("inOp2").inOpWrite(s); }
+  alias TableOp!(`return "$stack" == "push";`, bool) pushes;
+  alias TableOp!(`return mixin("$size".ctReplace("#", "(*tp)")); `, int) opSize;
+  alias TableOp!(`return !!("$getOutOp" == ""); `, bool) hasOutOp;
+  alias TableOp!(`
+    static if ("$getOutOp" == "") return null;
+    else return *mixin("$getOutOp".ctReplace("#", "(*tp)"));
+  `, string) outOp;
+  alias TableOp!(`
+    static if ("$getOutOp" == "") {
+      logln("Can't set out op for ", tp.kind, ": invalid");
+      asm { int 3; }
+    } else return mixin("*$getOutOp = t[0]".ctReplace("#", "(*tp)"));
+  `, string, string) outOp;
   bool hasOps() { return numInOps || hasOutOp; }
-
-  string* getDstp(ref Transaction t) {
-    with (Transaction.Kind) switch (t.kind) {
-      case Pop, Call, FloatStore, DoubleStore,
-        FloatPop, DoublePop, Nevermind: return &t.dest;
-      case Mov, Mov1, Mov2, LoadAddress: return &t.to;
-      case MathOp, SSEOp: return &t.op2;
-      case Label, SAlloc, SFree, Jump, FloatLoad, DoubleLoad: return null;
-      case Push, Compare: return null;
-      case FloatMath, FloatIntLoad, FloatCompare,
-        RegLoad, FPSwap, ExtendDivide: return null;
-      default: logln("huh? dstp ", t); asm { int 3; }
-    }
+  bool hasIndirectSrc(string s) {
+    return
+      (inOp1().isIndirect() == s)
+    ||(inOp2().isIndirect() == s);
   }
-
-  string getDst(ref Transaction t) {
-    if (t.kind == Transaction.Kind.Push) return "(%esp)";
-    if (auto p = getDstp(t)) return *p;
-    return null;
+  bool hasIndirect(string s) {
+    return hasIndirectSrc(s) || outOp().isIndirect() == s;
   }
-  
-  int opSize(ref Transaction t) {
-    if (hasSize(t)) return t.size;
-    with (Transaction.Kind) {
-      switch (t.kind) {
-        case Mov, LoadAddress, FloatStore, FloatPop, FloatLoad: return 4;
-        case DoubleStore, DoublePop, DoubleLoad: return 8;
-        case SSEOp: return 16;
-        case Mov2: return 2;
-        case Mov1: return 1;
-        case Push, Pop: return t.type.size;
-        case SFree, SAlloc: return t.size;
-        case Call, Nevermind: return -1;
-        default: break;
-      }
-    }
-    logln("Does ", t, " has size? ");
+  string getIndirectSrc(string s) {
+    if (inOp1().isIndirect() == s) return inOp1();
+    if (inOp2().isIndirect() == s) return inOp2();
     asm { int 3; }
+  }
+  void setIndirectSrc(string s, string t) {
+    if (inOp1().isIndirect() == s) inOp1 = t;
+    else if (inOp2().isIndirect() == s) inOp2 = t;
+    else asm { int 3; }
+  }
+  bool hasIndirect2(int i, string s) {
+    return
+      (inOp1().isIndirect2(i) == s)
+    ||(inOp2().isIndirect2(i) == s)
+    ||(outOp().isIndirect2(i) == s);
+  }
+  void setIndirect2(int i, string s, string r) {
+    if (inOp1().isIndirect2(i) == s) inOp1 = r;
+    if (inOp2().isIndirect2(i) == s) inOp2 = r;
+    if (outOp().isIndirect2(i) == s) outOp = r;
+  }
+  bool opContains(string s) {
+    return
+      inOp1().find(s) != -1
+    ||inOp2().find(s) != -1
+    ||outOp().find(s) != -1;
   }
 }
 
@@ -1093,11 +1094,8 @@ void setupOpts() {
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
   
   mixin(opt("ebp_to_esp", `*:
-    (
-       getSrc($0).isIndirect() == "%ebp"
-    || getDst($0).isIndirect() == "%ebp"
-    )
-    && $0.hasStackdepth && (!hasSize($0) || opSize($0) != 1)
+    info($0).hasIndirect("%ebp")
+    && $0.hasStackdepth && info($0).opSize != 1
     =>
     $T t = $0;
     bool changed;
@@ -1136,10 +1134,10 @@ void setupOpts() {
     $SUBST($0);
   `));
   mixin(opt("fold_float_load", `^LoadAddress, (^FloatLoad || ^FloatIntLoad || ^DoubleLoad || ^SSEOp):
-    info($1).opIndirectMatch(0, $0.to)
+    info($1).hasIndirect2(0, $0.to)
     =>
     $T t = $1.dup;
-    info(t).opIndirectMatchSet(0, $0.from);
+    info(t).setIndirect2(0, $0.to, $0.from);
     $SUBST(t);
   `));
   mixin(opt("fold_float_push_pop", `^DoublePop, (^FloatLoad || ^DoubleLoad), ^DoubleLoad:
@@ -1237,10 +1235,9 @@ void setupOpts() {
     }
   `));
   mixin(opt("generic_waste", `*, ^SFree:
-    getDstp($0) && opSize($0) == 4 && $1.size >= 4
+    info($0).pushes && info($0).opSize() == 4 && $1.size >= 4
     =>
-    bool doit;
-    if (getDst($0) == "(%esp)") doit = true;
+    bool doit = true;
     if ($0.kind == $TK.FloatPop) doit = false; // can't remove, has side effects
     if (doit) $SUBST($1); // pointless
   `));
@@ -1388,7 +1385,7 @@ void setupOpts() {
     $0.op1.find($0.op2) == -1 && $0.op1.find($1.to) == -1 &&
     (!$0.op1.isIndirect() || !$1.to.isIndirect()) &&
     $1.from == $0.op2 && $1.to.isUtilityRegister() &&
-    getDst($2) == $0.op2
+    info($2).outOp() == $0.op2
     =>
     $T t = $0;
     t.op2 = $1.to;
@@ -1446,21 +1443,20 @@ void setupOpts() {
   mixin(opt("math_ref_merge", `^MathOp, *:
     $0.op1.isNumLiteral() && $0.op2.isUtilityRegister() &&
     ($0.opName == "addl" || $0.opName == "subl") &&
-    getSrc($1).isIndirect() == $0.op2
+    info($1).hasIndirectSrc($0.op2)
     =>
     $T t = $1;
     string mem = qformat("(", $0.op2, ")");
     int offset;
-    getSrc(t).isIndirect2(offset);
+    info(t).getIndirectSrc($0.op2).isIndirect2(offset);
     if ($0.opName == "addl") mem = qformat(offset + $0.op1.literalToInt(), mem);
     else mem = qformat(offset - $0.op1.literalToInt(), mem);
-    *getSrcp(t) = mem;
+    info(t).setIndirectSrc($0.op2, mem);
     $SUBST(t, $0);
   `));
   mixin(opt("move_lea_down", `^LoadAddress, *:
     $1.kind != $TK.LoadAddress &&
-    (!getSrc($1) || getSrc($1).find($0.to) == -1) &&
-    (!getDst($1) || getDst($1).find($0.to) == -1)
+    !info($1).opContains($0.to)
     =>
     $SUBST($1, $0);
   `));
