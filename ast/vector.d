@@ -224,6 +224,30 @@ bool pretransform(ref Expr ex, ref IType it) {
   return false;
 }
 
+import ast.pointer;
+
+Vector vec3f;
+
+bool gotSSEVecOp(AsmFile af, LValue op1, LValue op2, LValue res, string op) {
+  if (!vec3f) vec3f = new Vector(Single!(Float), 3);
+  if (op != "+") return false;
+  if (op1.valueType() != vec3f
+   || op2.valueType() != vec3f)
+    return false;
+  op1.emitLocation(af);
+  op2.emitLocation(af);
+  res.emitLocation(af);
+  af.popStack("%ecx", voidp);
+  af.popStack("%eax", voidp);
+  af.popStack("%ebx", voidp);
+  af.SSEOp("movaps", "(%ebx)", "%xmm0");
+  af.SSEOp("movaps", "(%eax)", "%xmm1");
+  af.SSEOp("addps", "%xmm1", "%xmm0");
+  af.SSEOp("movaps", "%xmm0", "(%ecx)");
+  
+  return true;
+}
+
 import ast.vardecl, ast.assign;
 class VecOp : Expr {
   IType type;
@@ -258,11 +282,13 @@ class VecOp : Expr {
         mixin(mustOffset("0"));
         auto filler1 = alignStackFor(t1, af); auto v1 = mkTemp(af, ex1, dg1);
         auto filler2 = alignStackFor(t2, af); auto v2 = mkTemp(af, ex2, dg2);
-        for (int i = 0; i < len; ++i) {
-          Expr l1 = v1, l2 = v2;
-          if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
-          if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2))[i];
-          (new Assignment(fastcast!(LValue)~ entries[i], lookupOp(op, l1, l2))).emitAsm(af);
+        if (!gotSSEVecOp(af, fastcast!(LValue) (v1), fastcast!(LValue) (v2), fastcast!(LValue) (var), op)) {
+          for (int i = 0; i < len; ++i) {
+            Expr l1 = v1, l2 = v2;
+            if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
+            if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2))[i];
+            (new Assignment(fastcast!(LValue)~ entries[i], lookupOp(op, l1, l2))).emitAsm(af);
+          }
         }
         if (dg2) dg2(); af.sfree(filler2);
         if (dg1) dg1(); af.sfree(filler1);

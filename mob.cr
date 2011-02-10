@@ -1,7 +1,5 @@
 module mob;
 
-import sys;
-
 int delegate() lit(int i) { return new delegate int() { return i; }; }
 
 void main() {

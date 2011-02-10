@@ -89,12 +89,117 @@ void accessParams(ref Transaction t, void delegate(ref string) dg, bool writeonl
       FloatIntLoad, Push    : if (!writeonly) dg(t.source); return;
     case LoadAddress,
       Mov, Mov2, Mov1       : if (!writeonly) dg(t.from); dg(t.to); return;
-    case Compare, MathOp    : if (!writeonly) dg(t.op1); dg(t.op2); return;
+    case Compare,
+      MathOp, SSEOp         : if (!writeonly) dg(t.op1); dg(t.op2); return;
     case Label, Jump        : return;
     default                 : break;
   }
   logln("huh? ", t);
   fail();
+}
+
+struct TransactionInfo {
+  Transaction* tp;
+  const string Table = `
+    name | inOp1     | inOp2    | getOutOp | size         | accessParams
+    ------------------------------------------------------------------
+    Push | &#.source | ø        | ø        | #.type.size  | if (!wo) dg(#.source);
+  `;
+  int numInOps() {
+    mixin(
+      `switch (tp.kind) { `
+      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
+        static if ("$inOp1" == "ø") { static if ("$inOp2" == "ø") return 0; else return 1; }
+        else { static if ("$inOp2" == "ø") return 1; else return 2; }
+        `)
+      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
+    }`);
+  }
+  string inOp1() {
+    mixin(
+      `switch (tp.kind) { `
+      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
+        static if ("$inOp1" == "ø") { logln("No input operand for $name! "); asm { int 3; } }
+        else return *mixin("$inOp1".ctReplace("#", "(*tp)"));
+        `)
+      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
+    }`);
+  }
+  string inOp1(string s) {
+    mixin(
+      `switch (tp.kind) { `
+      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
+        static if ("$inOp1" == "ø") { logln("No input operand for $name! "); asm { int 3; } }
+        else return mixin("*$inOp1 = s".ctReplace("#", "(*tp)"));
+        `)
+      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
+    }`);
+  }
+  int opSize() {
+    mixin(
+      `switch (tp.kind) { `
+      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
+        return mixin("$size".ctReplace("#", "(*tp)"));
+        `)
+      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
+    }`);
+  }
+  bool hasOutOp() {
+    mixin(
+      `switch (tp.kind) { `
+      ~ ctTableUnroll(Table, `case Transaction.Kind.$name:
+        static if ("$getOutOp" == "ø") return false;
+        else return true;
+        `)
+      ~ `default: logln("but what about ", tp.kind); asm { int 3; }
+    }`);
+  }
+  bool hasOps() { return numInOps || hasOutOp; }
+
+  string* getDstp(ref Transaction t) {
+    with (Transaction.Kind) switch (t.kind) {
+      case Pop, Call, FloatStore, DoubleStore,
+        FloatPop, DoublePop, Nevermind: return &t.dest;
+      case Mov, Mov1, Mov2, LoadAddress: return &t.to;
+      case MathOp, SSEOp: return &t.op2;
+      case Label, SAlloc, SFree, Jump, FloatLoad, DoubleLoad: return null;
+      case Push, Compare: return null;
+      case FloatMath, FloatIntLoad, FloatCompare,
+        RegLoad, FPSwap, ExtendDivide: return null;
+      default: logln("huh? dstp ", t); asm { int 3; }
+    }
+  }
+
+  string getDst(ref Transaction t) {
+    if (t.kind == Transaction.Kind.Push) return "(%esp)";
+    if (auto p = getDstp(t)) return *p;
+    return null;
+  }
+  
+  int opSize(ref Transaction t) {
+    if (hasSize(t)) return t.size;
+    with (Transaction.Kind) {
+      switch (t.kind) {
+        case Mov, LoadAddress, FloatStore, FloatPop, FloatLoad: return 4;
+        case DoubleStore, DoublePop, DoubleLoad: return 8;
+        case SSEOp: return 16;
+        case Mov2: return 2;
+        case Mov1: return 1;
+        case Push, Pop: return t.type.size;
+        case SFree, SAlloc: return t.size;
+        case Call, Nevermind: return -1;
+        default: break;
+      }
+    }
+    logln("Does ", t, " has size? ");
+    asm { int 3; }
+  }
+}
+
+TransactionInfo info(ref Transaction t) {
+  TransactionInfo res;
+  res.tp = &t;
+  return res;
 }
 
  bool referencesStack(ref Transaction t, bool affects = false, bool active = false) {
@@ -129,27 +234,6 @@ bool changesOrNeedsActiveStack(ref Transaction t) {
   return referencesStack(t, false, true) || referencesStack(t, true, true);
 }
 
-bool hasSource(ref Transaction t) {
-  with (Transaction.Kind)
-    return !!(t.kind == Push /or/ FloatLoad /or/ FloatIntLoad);
-}
-
-bool hasDest(ref Transaction t) {
-  with (Transaction.Kind)
-    return !!(t.kind == Pop /or/ Call /or/ FloatStore /or/ DoubleStore /or/ FloatPop /or/ DoublePop);
-}
-
-bool hasFrom(ref Transaction t) {
-  with (Transaction.Kind)
-    return !!(t.kind == Mov /or/ Mov2 /or/ Mov1 /or/ LoadAddress);
-}
-alias hasFrom hasTo;
-
-bool hasOp(ref Transaction t) {
-  with (Transaction.Kind)
-    return !!(t.kind == MathOp /or/ Compare);
-}
-
 bool willOverwrite(ref Transaction t, string what) {
   if (!what.isRegister()) return false;
   bool res;
@@ -166,35 +250,6 @@ bool collide(string a, string b) {
   if (auto ia = a.isIndirect()) a = ia;
   if (auto ib = b.isIndirect()) b = ib;
   return (a == b);
-}
-
-int opSize(ref Transaction t) {
-  if (hasSize(t)) return t.size;
-  with (Transaction.Kind) {
-    switch (t.kind) {
-      case Mov, LoadAddress, FloatStore, FloatPop, FloatLoad: return 4;
-      case DoubleStore, DoublePop, DoubleLoad: return 8;
-      case Mov2: return 2;
-      case Mov1: return 1;
-      case Push, Pop: return t.type.size;
-      case SFree, SAlloc: return t.size;
-      case Call: return -1;
-      default: break;
-    }
-  }
-  logln("Does ", t, " has size? ");
-  asm { int 3; }
-}
-
-int size(ref Transaction t) {
-  with (Transaction.Kind) switch (t.kind) {
-    case Push: return t.type.size;
-    case Pop: return t.type.size;
-    case Mov: return 4;
-    case Mov2: return 2;
-    case Mov1: return 1;
-  }
-  assert(false);
 }
 
 bool isMemRef(string s) {
@@ -245,10 +300,46 @@ void fixupString(ref string s, int shift) {
   }
 }
 
+struct OrderedHashlike(K, V) {
+  Stuple!(K, V)[] array;
+  V* opIn_r(K k) {
+    foreach (ref entry; array)
+      if (entry._0 == k) return &entry._1;
+    return null;
+  }
+  string toString() { return Format(array); }
+  V opIndex(K k) {
+    if (auto p = opIn_r(k)) return *p;
+    logln("No such key: ", k, ", in ", array);
+    asm { int 3; }
+  }
+  void opIndexAssign(V v, K k) {
+    if (auto p = opIn_r(k)) { *p = v; return; }
+    array ~= stuple(k, v);
+  }
+  int length() { return array.length; }
+  int opApply(int delegate(ref K, ref V) dg) {
+    foreach (entry; array)
+      if (auto res = dg(entry._0, entry._1)) return res;
+    return 0;
+  }
+  int find(K k) {
+    foreach (i, e; array) if (e._0 == k) return i;
+    return -1;
+  }
+  void remove(K k) {
+    while (true) {
+      auto pos = find(k);
+      if (pos == -1) return;
+      array = array[0 .. pos] ~ array[pos+1 .. $];
+    }
+  }
+}
+
 // track processor state
 // obsoletes about a dozen peephole opts
 class ProcTrack : ExtToken {
-  string[string] known;
+  OrderedHashlike!(string, string) known;
   string[] stack; // nativePtr-sized
   string[] latepop;
   // in use by this set of transactions
@@ -781,7 +872,7 @@ void setupOpts() {
   // opts = opts[0 .. $-1]; // only do ext_step once
   
   mixin(opt("rewrite_zero_ref", `*:
-    hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0)
+    info($0).hasOps
     =>
     auto t = $0;
     bool changed;
@@ -805,7 +896,7 @@ void setupOpts() {
     $SUBST($1, t2);
   `));
   mixin(opt("sort_pointless_mem", `*, ^SAlloc || ^SFree:
-    (hasSource($0) || hasDest($0) || hasFrom($0) || hasTo($0))
+    info($0).hasOps
     =>
     int shift = -1;
     $T t = $0.dup;
@@ -943,10 +1034,10 @@ void setupOpts() {
     $SUBST(t, $0);
   `));
   mixin(opt("resolve_lea_free_load", `^LoadAddress, ^SFree, *:
-    hasSource($2) && opSize($2) == 4 && $2.source.isIndirect(0) == $0.dest && $1.size == 4
+    info($2).numInOps == 1 && info($2).opSize == 4 && info($2).inOp1().isIndirect(0) == $0.dest && $1.size == 4
     =>
     $T t = $2.dup;
-    t.source = $0.source;
+    info(t).inOp1 = $0.from;
     $SUBST(t, $1);
   `));
   mixin(opt("merge_literal_adds", `^MathOp, ^MathOp:
@@ -1002,11 +1093,11 @@ void setupOpts() {
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
   
   mixin(opt("ebp_to_esp", `*:
-    (  hasSource($0) && $0.source.isIndirect() == "%ebp"
-    || hasDest  ($0) && $0.dest  .isIndirect() == "%ebp"
-    || hasFrom  ($0) && $0.from  .isIndirect() == "%ebp"
+    (
+       getSrc($0).isIndirect() == "%ebp"
+    || getDst($0).isIndirect() == "%ebp"
     )
-    && $0.hasStackdepth && (!hasSize($0) || size($0) != 1)
+    && $0.hasStackdepth && (!hasSize($0) || opSize($0) != 1)
     =>
     $T t = $0;
     bool changed;
@@ -1044,11 +1135,11 @@ void setupOpts() {
     =>
     $SUBST($0);
   `));
-  mixin(opt("fold_float_load", `^LoadAddress, (^FloatLoad || ^FloatIntLoad || ^DoubleLoad):
-    $0.to == $1.source.isIndirect(0)
+  mixin(opt("fold_float_load", `^LoadAddress, (^FloatLoad || ^FloatIntLoad || ^DoubleLoad || ^SSEOp):
+    info($1).opIndirectMatch(0, $0.to)
     =>
     $T t = $1.dup;
-    t.source = $0.from;
+    info(t).opIndirectMatchSet(0, $0.from);
     $SUBST(t);
   `));
   mixin(opt("fold_float_push_pop", `^DoublePop, (^FloatLoad || ^DoubleLoad), ^DoubleLoad:
@@ -1146,11 +1237,10 @@ void setupOpts() {
     }
   `));
   mixin(opt("generic_waste", `*, ^SFree:
-    (hasDest($0) || hasTo($0)) && opSize($0) == 4 && $1.size >= 4
+    getDstp($0) && opSize($0) == 4 && $1.size >= 4
     =>
     bool doit;
-    if (hasDest($0) && $0.dest == "(%esp)") doit = true;
-    if (hasTo  ($0) && $0.to   == "(%esp)") doit = true;
+    if (getDst($0) == "(%esp)") doit = true;
     if ($0.kind == $TK.FloatPop) doit = false; // can't remove, has side effects
     if (doit) $SUBST($1); // pointless
   `));
@@ -1298,7 +1388,7 @@ void setupOpts() {
     $0.op1.find($0.op2) == -1 && $0.op1.find($1.to) == -1 &&
     (!$0.op1.isIndirect() || !$1.to.isIndirect()) &&
     $1.from == $0.op2 && $1.to.isUtilityRegister() &&
-    ((hasDest($2) && $2.dest == $0.op2) || (hasTo($2) && $2.to == $0.op2))
+    getDst($2) == $0.op2
     =>
     $T t = $0;
     t.op2 = $1.to;
@@ -1356,22 +1446,23 @@ void setupOpts() {
   mixin(opt("math_ref_merge", `^MathOp, *:
     $0.op1.isNumLiteral() && $0.op2.isUtilityRegister() &&
     ($0.opName == "addl" || $0.opName == "subl") &&
-    (hasSource($1) && $1.source.isIndirect() == $0.op2 || hasDest($1) && $1.dest.isIndirect() == $0.op2)
+    getSrc($1).isIndirect() == $0.op2
     =>
     $T t = $1;
     string mem = qformat("(", $0.op2, ")");
     int offset;
-    if (hasSource(t)) t.source.isIndirect2(offset);
-    if (hasDest(t)) t.dest.isIndirect2(offset);
+    getSrc(t).isIndirect2(offset);
     if ($0.opName == "addl") mem = qformat(offset + $0.op1.literalToInt(), mem);
     else mem = qformat(offset - $0.op1.literalToInt(), mem);
-    if (hasSource(t)) {
-      t.source = mem;
-    }
-    if (hasDest(t)) {
-      t.dest = mem;
-    }
+    *getSrcp(t) = mem;
     $SUBST(t, $0);
+  `));
+  mixin(opt("move_lea_down", `^LoadAddress, *:
+    $1.kind != $TK.LoadAddress &&
+    (!getSrc($1) || getSrc($1).find($0.to) == -1) &&
+    (!getDst($1) || getDst($1).find($0.to) == -1)
+    =>
+    $SUBST($1, $0);
   `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
     bool changed, pushMode;
@@ -1379,12 +1470,14 @@ void setupOpts() {
       if (list.length <= 1) return false;
       auto head = list[0];
       string check;
-      if (hasTo(head)) check = head.to;
-      if (head.kind == Transaction.Kind.FloatStore ) check = head.dest;
-      if (head.kind == Transaction.Kind.DoubleStore) check = head.dest;
-      if (head.kind == Transaction.Kind.MathOp) check = head.op2;
-      pushMode = false;
-      if (head.kind == Transaction.Kind.Push && head.type.size == 4) { pushMode = true; check = "(%esp)"; }
+      with (Transaction.Kind) {
+        if (head.kind == Mov || head.kind == LoadAddress) check = head.to;
+        if (head.kind == FloatStore ) check = head.dest;
+        if (head.kind == DoubleStore) check = head.dest;
+        if (head.kind == MathOp) check = head.op2;
+        pushMode = false;
+        if (head.kind == Push && head.type.size == 4) { pushMode = true; check = "(%esp)"; }
+      }
       
       if (!check) return false;
       if (!check.isUtilityRegister() && check != "(%esp)") return false;
@@ -1407,7 +1500,7 @@ void setupOpts() {
         i = _i;
         with (Transaction.Kind) switch (entry.kind) {
           case SFree: if (check == "(%esp)") { unneeded = true; break outer; }
-          case SAlloc: break outer;
+          case SAlloc: if (check == "(%esp)") break outer;
           case FloatMath:
             continue;    // no change
           
@@ -1452,6 +1545,15 @@ void setupOpts() {
               break outer;
             }
             if (test(entry.to)) break outer;
+            continue;
+          
+          case SSEOp:
+            if (test(entry.op1)) break outer;
+            if (entry.op2 == check) { // all SSE ops have the target as the second operand
+              unneeded = true;
+              break outer;
+            }
+            if (test(entry.op2)) break outer;
             continue;
           
           default: break;

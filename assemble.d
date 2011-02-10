@@ -89,6 +89,7 @@ struct Transaction {
     FloatStore, DoubleStore,
     FloatMath, FPSwap,
     FloatIntLoad, /* fildl */
+    SSEOp,
     ExtendDivide, /* cdq, idivl */
     Jump, Label, Extended, Nevermind, LoadAddress
   }
@@ -99,6 +100,7 @@ struct Transaction {
     "FloatStore", "DoubleStore",
     "FloatMath", "FPSwap",
     "FloatIntLoad",
+    "SSEOp",
     "ExtendDivide",
     "Jump", "Label", "Extended", "Nevermind", "LoadAddress"];
   Kind kind;
@@ -108,37 +110,36 @@ struct Transaction {
       else return qformat("@", stackdepth);
     }
     with (Kind) switch (kind) {
-      case Mov:     return Format("[movl ", from, " -> ", to, "]");
-      case Mov2:    return Format("[movw ", from, " -> ", to, "]");
-      case Mov1:    return Format("[movb ", from, " -> ", to, "]");
-      case SAlloc:  return Format("[salloc ", size, "]");
-      case SFree:   return Format("[sfree ", size, "]");
-      case MathOp:  return Format("[math:", opName, " ", op1, ", ", op2, "]");
-      case Push:
-        return Format("[push ", source, ": ", type.size, extra(), "]");
-      case Pop:
-        return Format("[pop ", dest, ": ", type.size, extra(), "]");
-      case Call:    return Format("[call ", dest, "]");
+      case Mov:         return Format("[movl ", from, " -> ", to, "]");
+      case Mov2:        return Format("[movw ", from, " -> ", to, "]");
+      case Mov1:        return Format("[movb ", from, " -> ", to, "]");
+      case SAlloc:      return Format("[salloc ", size, "]");
+      case SFree:       return Format("[sfree ", size, "]");
+      case MathOp:      return Format("[math:", opName, " ", op1, ", ", op2, "]");
+      case Push:        return Format("[push ", source, ": ", type.size, extra(), "]");
+      case Pop:         return Format("[pop ", dest, ": ", type.size, extra(), "]");
+      case Call:        return Format("[call ", dest, "]");
       case Compare:
-        if (test) return Format("[cmp/test ", op1, ", ", op2, "]");
-        else return Format("[cmp ", op1, ", ", op2, "]");
-      case FloatLoad: return Format("[float load ", source, stackinfo, "]");
-      case DoubleLoad: return Format("[double load ", source, stackinfo, "]");
-      case RealLoad: return Format("[real load ", source, stackinfo, "]");
-      case RegLoad: return Format("[x87 reg load ", source, stackinfo, "]");
-      case FloatCompare: return Format("[x87 float compare st0, ", source, stackinfo, "]");
-      case FloatPop:  return Format("[float pop ", dest, "]");
-      case DoublePop:  return Format("[double pop ", dest, "]");
-      case FloatStore: return Format("[float store ", dest, "]");
+        if (test)       return Format("[cmp/test ", op1, ", ", op2, "]");
+        else            return Format("[cmp ", op1, ", ", op2, "]");
+      case FloatLoad:   return Format("[float load ", source, stackinfo, "]");
+      case DoubleLoad:  return Format("[double load ", source, stackinfo, "]");
+      case RealLoad:    return Format("[real load ", source, stackinfo, "]");
+      case RegLoad:     return Format("[x87 reg load ", source, stackinfo, "]");
+      case FloatCompare:return Format("[x87 float compare st0, ", source, stackinfo, "]");
+      case FloatPop:    return Format("[float pop ", dest, "]");
+      case DoublePop:   return Format("[double pop ", dest, "]");
+      case FloatStore:  return Format("[float store ", dest, "]");
       case DoubleStore: return Format("[double store ", dest, "]");
-      case FloatMath: return Format("[float math ", opName, "]");
-      case FPSwap: return Format("[x87 swap]");
-      case FloatIntLoad: return Format("[float int load ", source, "]");
-      case ExtendDivide: return Format("[cdq/idivl ", source, "]");
-      case Jump:      return Format("[jmp ", dest, keepRegisters?" [keepregs]":"", "]");
-      case Label:     return Format("[label ", names, keepRegisters?" [keepregs]":"", "]");
-      case Extended:  return Format("[extended ", obj, "]");
-      case Nevermind: return Format("[nvm ", dest, "]");
+      case FloatMath:   return Format("[float math ", opName, "]");
+      case FPSwap:      return Format("[x87 swap]");
+      case FloatIntLoad:return Format("[float int load ", source, "]");
+      case SSEOp:       return Format("[SSE ", opName, " ", op1, ", ", op2, "]");
+      case ExtendDivide:return Format("[cdq/idivl ", source, "]");
+      case Jump:        return Format("[jmp ", dest, keepRegisters?" [keepregs]":"", "]");
+      case Label:       return Format("[label ", names, keepRegisters?" [keepregs]":"", "]");
+      case Extended:    return Format("[extended ", obj, "]");
+      case Nevermind:   return Format("[nvm ", dest, "]");
       case LoadAddress: return Format("[lea ", from, " -> ", to, "]");
     }
   }
@@ -157,6 +158,7 @@ struct Transaction {
       case FloatMath: return opName == t2.opName;
       case FPSwap: return true;
       case FloatIntLoad: return source == t2.source;
+      case SSEOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
       case ExtendDivide: return source == t2.source;
       case Label: return names == t2.names;
       case Extended: return obj == t2.obj;
@@ -367,9 +369,10 @@ struct Transaction {
       case DoublePop: return qformat("fstpl ", dest);
       case FloatStore: return qformat("fsts ", dest);
       case DoubleStore: return qformat("fstl ", dest);
-      case FloatMath: return qformat(opName~"p %st, %st(1)");
+      case FloatMath: return qformat(opName, "p %st, %st(1)");
       case FPSwap: return qformat("fxch");
       case FloatIntLoad: return qformat("fildl ", source);
+      case SSEOp: return qformat(opName, " ", op1, ", ", op2);
       case ExtendDivide: return qformat("cdq\nidivl ", source);
       case Jump: return qformat("jmp ", dest);
       case Label:
@@ -378,7 +381,7 @@ struct Transaction {
         foreach (name; names) res ~= name ~ ":\n";
         return res[0 .. $-1];
       case Extended: return obj.toAsm();
-      case Nevermind: return "#forget "~dest~". ";
+      case Nevermind: return qformat("#forget ", dest, ". ");
       case LoadAddress: return qformat("leal ", from, ", ", to);
     }
   }

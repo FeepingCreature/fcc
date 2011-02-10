@@ -161,6 +161,13 @@ class AsmFile {
     t.op1 = op1; t.op2 = op2;
     cache ~= t;
   }
+  void SSEOp(string which, string op1, string op2) {
+    Transaction t;
+    t.kind = Transaction.Kind.SSEOp;
+    t.opName = which;
+    t.op1 = op1; t.op2 = op2;
+    cache ~= t;
+  }
   void extendDivide(string src) {
     Transaction t;
     t.kind = Transaction.Kind.ExtendDivide;

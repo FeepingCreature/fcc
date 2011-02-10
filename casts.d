@@ -140,7 +140,8 @@ struct _fastcast(T) {
   T opCall(U)(U u) {
     if (!u) return null;
     static assert (!is(U == void*));
-
+    
+    if (!idtable.length) return cast(T) u; // not initialized yet (called from a static constructor?)
     // logln("Cast ", (cast(Object) u).classinfo.name);
     Object obj;
     static if (!is(U: Object)) { // interface
