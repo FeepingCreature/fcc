@@ -100,14 +100,29 @@ void accessParams(ref Transaction t, void delegate(ref string) dg, bool writeonl
 
 struct TransactionInfo {
   Transaction* tp;
+  /*
+    info on Nevermind: even though it doesn't actually write to its
+      output operand, we want the optimizer to treat it like it does.
+    TODO: is MathOp always 4-sized?
+  */
   const string Table = `
-    name  | inOp1     | inOp2    | getOutOp | size         | stack | accessParams
-    ------------------------------------------------------------------------------
-    Push  | &#.source |          |          | #.type.size  | push  | if (!wo) dg(#.source);
-    Label |           |          |          | -1           |       | 
-    Mov   | &#.from   |          | &#.to    | 4            |       | if (!wo) dg(#.from); dg(#.to);
-    Mov2  | &#.from   |          | &#.to    | 2            |       | if (!wo) dg(#.from); dg(#.to);
-    Mov1  | &#.from   |          | &#.to    | 1            |       | if (!wo) dg(#.from); dg(#.to);
+    name   | inOp1     | inOp2 | outOp |size    |stack | accessParams
+    ----------------------------------------------------------------------
+    Push   | &#.source |       |       | #.type.size| grow | if (!wo) dg(#.source);
+    Pop    |           |       |&#.dest| #.type.size|shrink| if (!wo) dg(#.source);
+    SAlloc |           |       |       | #.size | grow |
+    SFree  |           |       |       | #.size |shrink|
+    Label  |           |       |       | -1     |      | 
+    Jump   | &#.dest   |       |       | -1     |      | dg(#.dest);
+    Call   | &#.dest   |       |       | -1     |      | dg(#.dest);
+    Nevermind|         |       |&#.dest| -1     |      | 
+    MathOp | &#.op1    | &#.op2| &#.op2|  4     |      | dg(#.op1); dg(#.op2);
+    ExtendDivide|&#.source|    |       |  4     |      | dg(#.op1);
+    Compare|&#.op1     | &#.op2|       |  4     |      | dg(#.op1); dg(#.op2);
+    LoadAddress|&#.from|       | &#.to |  4     |      | if (!wo) dg(#.from); dg(#.to);
+    Mov    | &#.from   |       | &#.to |  4     |      | if (!wo) dg(#.from); dg(#.to);
+    Mov2   | &#.from   |       | &#.to |  2     |      | if (!wo) dg(#.from); dg(#.to);
+    Mov1   | &#.from   |       | &#.to |  1     |      | if (!wo) dg(#.from); dg(#.to);
   `;
   template TableOp(string Body, R, T...) {
     R TableOp(T t) {
@@ -138,26 +153,29 @@ struct TransactionInfo {
       else return *mixin("$`~Name~`".ctReplace("#", "(*tp)"));
     `, string) inOpRead;
     alias TableOp!(`
-      static if ("$`~Name~`" == "") break;
-      else return mixin("*$`~Name~` = t[0]".ctReplace("#", "(*tp)"));
+      static if ("$`~Name~`" == "") {
+        logln("No op2 for ", *tp);
+        asm { int 3; }
+      } else return mixin("*$`~Name~` = t[0]".ctReplace("#", "(*tp)"));
     `, string, string) inOpWrite;
   }
   string inOp1() { return inOp!("inOp1").inOpRead(); }
   string inOp2() { return inOp!("inOp2").inOpRead(); }
   string inOp1(string s) { return inOp!("inOp1").inOpWrite(s); }
   string inOp2(string s) { return inOp!("inOp2").inOpWrite(s); }
-  alias TableOp!(`return "$stack" == "push";`, bool) pushes;
+  alias TableOp!(`return "$stack" == "grow";`, bool) growsStack;
+  alias TableOp!(`return "$stack" == "shrink";`, bool) shrinksStack;
   alias TableOp!(`return mixin("$size".ctReplace("#", "(*tp)")); `, int) opSize;
-  alias TableOp!(`return !!("$getOutOp" == ""); `, bool) hasOutOp;
+  alias TableOp!(`return !!("$outOp" == ""); `, bool) hasOutOp;
   alias TableOp!(`
-    static if ("$getOutOp" == "") return null;
-    else return *mixin("$getOutOp".ctReplace("#", "(*tp)"));
+    static if ("$outOp" == "") return null;
+    else return *mixin("$outOp".ctReplace("#", "(*tp)"));
   `, string) outOp;
   alias TableOp!(`
-    static if ("$getOutOp" == "") {
+    static if ("$outOp" == "") {
       logln("Can't set out op for ", tp.kind, ": invalid");
       asm { int 3; }
-    } else return mixin("*$getOutOp = t[0]".ctReplace("#", "(*tp)"));
+    } else return mixin("*$outOp = t[0]".ctReplace("#", "(*tp)"));
   `, string, string) outOp;
   bool hasOps() { return numInOps || hasOutOp; }
   bool hasIndirectSrc(string s) {
@@ -1233,13 +1251,6 @@ void setupOpts() {
       }
       $SUBST(ts);
     }
-  `));
-  mixin(opt("generic_waste", `*, ^SFree:
-    info($0).pushes && info($0).opSize() == 4 && $1.size >= 4
-    =>
-    bool doit = true;
-    if ($0.kind == $TK.FloatPop) doit = false; // can't remove, has side effects
-    if (doit) $SUBST($1); // pointless
   `));
   mixin(opt("direct_math", `^Mov, ^Mov, ^MathOp:
     $0.to == $2.op1 && $1.to == $2.op2 &&
