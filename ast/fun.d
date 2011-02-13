@@ -83,10 +83,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
     int cur = _framestart = 8;
     // TODO: alignment
     foreach (param; type.params) {
-      // if (param._1) { // what the HELL
-        _framestart += param.type.size;
-        add(new Variable(param.type, param.name, cur));
-      // }
+      _framestart += param.type.size;
+      add(new Variable(param.type, param.name, cur));
       cur += param.type.size;
     }
     return cur;

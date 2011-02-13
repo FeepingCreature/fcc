@@ -168,6 +168,10 @@ class AsmFile {
     cache ~= t;
   }
   void SSEOp(string which, string op1, string op2) {
+    if ((op1 == "(%esp)" || op2 == "(%esp)") && currentStackDepth%16 != 0) {
+      logln("stack misaligned for SSE");
+      asm { int 3; }
+    }
     Transaction t;
     t.kind = Transaction.Kind.SSEOp;
     t.opName = which;

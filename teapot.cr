@@ -112,17 +112,17 @@ void drawScene(DataSet ds) {
       vec3f vnormal(vec3f a) {
         return a / vlength(a);
       }
-      vec3f blend(vec3f from, vec3f to, float u) {
-        return from + (to - from) * u;
-      }
       void bezier2(float u, vec3f[] field, vec3f* dest) {
         vec3f[5] temp = void;
-        temp[0] = blend(field[0], field[1], u);
-        temp[1] = blend(field[1], field[2], u);
-        temp[2] = blend(field[2], field[3], u);
-        temp[3] = blend(temp[0], temp[1], u);
-        temp[4] = blend(temp[1], temp[2], u);
-        *dest = blend(temp[3], temp[4], u);
+        vec3f blend(vec3f from, vec3f to) {
+          return from + (to - from) * u;
+        }
+        temp[0] = blend(field[0], field[1]);
+        temp[1] = blend(field[1], field[2]);
+        temp[2] = blend(field[2], field[3]);
+        temp[3] = blend(temp[0], temp[1]);
+        temp[4] = blend(temp[1], temp[2]);
+        *dest = blend(temp[3], temp[4]);
       }
       vec3f[16] input = void;
       while auto k <- 0..16 {

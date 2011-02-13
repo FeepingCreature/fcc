@@ -262,28 +262,59 @@ import ast.pointer;
 Vector vec3f;
 void checkVec3f() { if (!vec3f) vec3f = new Vector(Single!(Float), 3); }
 
-bool gotSSEVecOp(AsmFile af, LValue op1, LValue op2, LValue res, string op) {
+bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
+  mixin(mustOffset("0"));
   checkVec3f;
   if (op1.valueType() != vec3f
    || op2.valueType() != vec3f)
     return false;
   if (op != "+" /or/ "-" /or/ "*" /or/ "/") return false;
-  op1.emitLocation(af);
-  op2.emitLocation(af);
-  res.emitLocation(af);
-  af.popStack("%ecx", voidp);
-  af.popStack("%eax", voidp);
-  af.popStack("%ebx", voidp);
-  af.SSEOp("movaps", "(%ebx)", "%xmm0");
-  af.SSEOp("movaps", "(%eax)", "%xmm1");
+  auto var1 = cast(Variable) op1, var2 = cast(Variable) op2;
+  bool alignedVar1 = var1 && (var1.baseOffset & 15) == 0;
+  bool alignedVar2 = var2 && (var2.baseOffset & 15) == 0;
+  if (alignedVar1 && alignedVar2) {
+    var1.emitLocation(af);
+    var2.emitLocation(af);
+    af.popStack("%eax", Single!(SysInt));
+    af.popStack("%ebx", Single!(SysInt));
+    af.SSEOp("movaps", "(%ebx)", "%xmm1");
+    af.SSEOp("movaps", "(%eax)", "%xmm0");
+    af.salloc(16);
+  }
+  if (alignedVar1 && !alignedVar2) {
+    op2.emitAsm(af);
+    var1.emitLocation(af);
+    af.popStack("%eax", Single!(SysInt));
+    af.SSEOp("movaps", "(%eax)", "%xmm0");
+    af.SSEOp("movaps", "(%esp)", "%xmm1");
+  }
+  if (!alignedVar1 && alignedVar2) {
+    op1.emitAsm(af);
+    var2.emitLocation(af);
+    af.popStack("%eax", Single!(SysInt));
+    af.SSEOp("movaps", "(%eax)", "%xmm1");
+    af.SSEOp("movaps", "(%esp)", "%xmm0");
+  }
+  if (!alignedVar1 && !alignedVar2) {
+    op1.emitAsm(af);
+    op2.emitAsm(af);
+    af.SSEOp("movaps", "(%esp)", "%xmm1");
+    af.sfree(16);
+    af.SSEOp("movaps", "(%esp)", "%xmm0");
+  }
   string sse;
   if (op == "+") sse = "addps";
   if (op == "-") sse = "subps";
   if (op == "*") sse = "mulps";
   if (op == "/") sse = "divps";
   af.SSEOp(sse, "%xmm1", "%xmm0");
-  af.SSEOp("movaps", "%xmm0", "(%ecx)");
-  
+  af.SSEOp("movaps", "%xmm0", "(%esp)");
+  mixin(mustOffset("-16"));
+  if (auto lv = cast(LValue) res) {
+    (new Assignment(lv, new Placeholder(vec3f), false, true)).emitAsm(af);
+  } else if (auto mv = cast(MValue) res) {
+    mv.emitAssignment(af);
+  } else asm { int 3; }
   return true;
 }
 
@@ -349,7 +380,7 @@ class VecOp : Expr {
         mixin(mustOffset("0"));
         auto filler1 = alignStackFor(t1, af); auto v1 = mkTemp(af, ex1, dg1);
         auto filler2 = alignStackFor(t2, af); auto v2 = mkTemp(af, ex2, dg2);
-        if (!gotSSEVecOp(af, fastcast!(LValue) (v1), fastcast!(LValue) (v2), fastcast!(LValue) (var), op)) {
+        if (!gotSSEVecOp(af, fastcast!(Expr) (v1), fastcast!(Expr) (v2), fastcast!(Expr) (var), op)) {
           for (int i = 0; i < len; ++i) {
             Expr l1 = v1, l2 = v2;
             if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
@@ -458,19 +489,11 @@ class XMM : MValue {
     IType valueType() { checkVec3f(); return vec3f; /* TODO: vec4f? */ }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("16"));
-      if (af.currentStackDepth%16 != 0) {
-        logln("stack misaligned for SSE");
-        asm { int 3; }
-      }
       af.salloc(16);
       af.SSEOp("movaps", qformat("%xmm", which), "(%esp)");
     }
     void emitAssignment(AsmFile af) {
       mixin(mustOffset("-16"));
-      if (af.currentStackDepth%16 != 0) {
-        logln("stack misaligned for SSE");
-        asm { int 3; }
-      }
       af.SSEOp("movaps", "(%esp)", qformat("%xmm", which));
       af.sfree(16);
     }
