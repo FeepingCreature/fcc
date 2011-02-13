@@ -157,8 +157,17 @@ static this() {
     auto rt = fastcast!(RefTuple) (rc.from);
     auto str = fastcast!(Structure)~ rc.to;
     if (!rt || !str) return null;
+    retry:
     auto mbs = str.members();
-    assert(rt.mvs.length == mbs.length);
+    if (mbs.length > 1 && rt.mvs.length == 1) {
+      rt = fastcast!(RefTuple) (rt.mvs[0]);
+      if (rt) goto retry;
+    }
+    if (!rt || rt.mvs.length != mbs.length) {
+      logln("ref tuple not large enough for this cast! ");
+      logln(rt, " but ", mbs);
+      asm { int 3; }
+    }
     int offs = -1;
     foreach (id, entry; mbs) if (entry is mae.stm) { offs = id; break; }
     if (offs == -1) fail();

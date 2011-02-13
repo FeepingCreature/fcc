@@ -153,13 +153,43 @@ Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNegate, "cond.negate", "72", "!");
 
+Cond compare(string op, Expr ex1, Expr ex2) {
+  bool not, smaller, equal, greater;
+  string op2 = op;
+  while (op2.length) {
+    if (op2[0] == '!') { not     = true; op2 = op2[1 .. $]; continue; }
+    if (op2[0] == '<') { smaller = true; op2 = op2[1 .. $]; continue; }
+    if (op2[0] == '=') { equal   = true; op2 = op2[1 .. $]; continue; }
+    if (op2[0] == '>') { greater = true; op2 = op2[1 .. $]; continue; }
+    asm { int 3; }
+  }
+  {
+    auto ie1 = ex1, ie2 = ex2;
+    bool isInt(IType it) { return !!fastcast!(SysInt) (it); }
+    if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
+      return new Compare(ie1, not, smaller, equal, greater, ie2);
+    }
+  }
+  {
+    auto fe1 = ex1, fe2 = ex2;
+    bool isFloat(IType it) { return !!fastcast!(Float) (it); }
+    if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
+      return new Compare(fe1, not, smaller, equal, greater, fe2);
+    }
+  }
+  return new ExprWrap(lookupOp(op, ex1, ex2));
+}
+
 import ast.casting, ast.opers;
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool not, smaller, equal, greater;
   Expr ex1, ex2; Cond cd2;
-  if (rest(t2, "tree.expr >tree.expr.cond", &ex1) &&
-      (
+  if (!rest(t2, "tree.expr >tree.expr.cond", &ex1)) return null;
+  // oopsie-daisy, iterator assign is not the same as "smaller than negative"!
+  if (t2.accept("<-")) return null;
+  
+  if ((
         (t2.accept("!") && (not = true)),
         (t2.accept("<") && (smaller = true)),
         (t2.accept(">") && (greater = true)),
@@ -183,25 +213,9 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
       }
     }
     text = t2;
-    {
-      auto ie1 = ex1, ie2 = ex2;
-      bool isInt(IType it) { return !!fastcast!(SysInt) (it); }
-      if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
-        return fastcast!(Object)~
-          finalize(new Compare(ie1, not, smaller, equal, greater, ie2));
-      }
-    }
-    {
-      auto fe1 = ex1, fe2 = ex2;
-      bool isFloat(IType it) { return !!fastcast!(Float) (it); }
-      if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
-        return fastcast!(Object)~
-          finalize(new Compare(fe1, not, smaller, equal, greater, fe2));
-      }
-    }
     auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
     if (op == "=") op = "==";
-    return fastcast!(Object)~ finalize(new ExprWrap(lookupOp(op, ex1, ex2)));
+    return fastcast!(Object) (finalize(compare(op, ex1, ex2)));
   } else return null;
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
@@ -309,7 +323,7 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
   Cond cd;
   if (rest(t2, "cond", &cd)) {
     text = t2;
-    if (auto ew = fastcast!(ExprWrap) (cd)) return fastcast!(Object)~ ew.ex;
+    if (auto ew = fastcast!(ExprWrap) (cd)) return fastcast!(Object) (ew.ex);
     return new CondExpr(cd);
   } else return null;
 }

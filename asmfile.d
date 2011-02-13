@@ -172,6 +172,7 @@ class AsmFile {
     t.kind = Transaction.Kind.SSEOp;
     t.opName = which;
     t.op1 = op1; t.op2 = op2;
+    t.stackdepth = currentStackDepth;
     cache ~= t;
   }
   void extendDivide(string src) {

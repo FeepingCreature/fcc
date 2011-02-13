@@ -40,10 +40,10 @@ class _Assignment(T) : Statement {
         mixin(mustOffset("vt.size"));
         value.emitAsm(af);
       }
-      static if (is(T: MValue)) {
+      static if (is(T: MValue)) {{ // Double-brackets. Trust me.
         mixin(mustOffset("-vt.size"));
         target.emitAssignment(af);
-      } else {
+      }} else {
         {
           mixin(mustOffset("nativePtrSize"));
           target.emitLocation(af);

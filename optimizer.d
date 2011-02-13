@@ -214,6 +214,19 @@ struct TransactionInfo {
     setIndirectSrc(i, s, r);
     if (outOp().isIndirect(i) == s) outOp = r;
   }
+  bool opEqual(string s) {
+    if (!s) return false;
+    return
+      inOp1() == s
+    ||inOp2() == s
+    ||outOp() == s;
+  }
+  bool sseContains(string s) {
+    if (tp.kind != Transaction.Kind.SSEOp)
+      asm { int 3; }
+    return tp.op1.find(s) != -1
+        || tp.op2.find(s) != -1;
+  }
   bool opContains(string s) {
     if (!s) return false;
     return
@@ -316,6 +329,14 @@ bool isUtilityRegister(string reg) {
   if (reg == "%eax" /or/ "%ebx" /or/ "%ecx" /or/ "%edx")
     return true;
   return false;
+}
+
+bool isSSERegister(string reg) {
+  return !!reg.startsWith("%xmm");
+}
+
+bool isSSEMathOp(string op) {
+  return !!(op == "addps" /or/ "subps" /or/ "mulps" /or/ "divps");
 }
 
 bool pinsRegister(ref Transaction t, string reg) {
@@ -1137,13 +1158,23 @@ void setupOpts() {
     info($1).outOp().isIndirect() != "%esp" &&
    !info($0).opContains(info($1).outOp()) &&
     $1.kind != $TK.FloatIntLoad /* can't do mem loads :( */ &&
-    $1.kind != $TK.LoadAddress /* lel */
+    $1.kind != $TK.LoadAddress /* lel */ &&
+    // flds needs memory source
+   ($1.kind != $TK.FloatLoad || !$0.source.isUtilityRegister())
     =>
-    $T t = $1.dup;
+    $T t = $1;
+    if (t.hasStackdepth()) t.stackdepth -= $0.type.size;
     info(t).setIndirectSrc(0, "%esp", $0.source);
     $SUBST(t, $0);
   `));
-  mixin(opt("pop_into_far_load", `^FloatPop, ^FloatLoad, ^FloatLoad:
+  mixin(opt("store_float_into_double", `^FloatPop || ^FloatStore, ^DoublePop || ^DoubleStore:
+    ($0.dest == "(%esp)" || $0.dest == "4(%esp)") && $1.dest == "(%esp)"
+    =>
+    $SUBST($1);
+  `));
+  mixin(opt("pop_into_far_load", `^FloatPop || ^DoublePop, ^FloatLoad || ^DoubleLoad, ^FloatLoad || ^DoubleLoad:
+    info($0).opSize() == info($1).opSize() &&
+    info($0).opSize() == info($2).opSize() &&
     $0.dest == $2.source
     =>
     $T t = $0.dup;
@@ -1162,6 +1193,103 @@ void setupOpts() {
   mixin(opt("matching_nvms", `^Nevermind, ^Nevermind:
     $0.dest == $1.dest => $SUBST($0);
   `));
+  // movaps foo, (%esp); movaps (%esp), bar; [sfree 16]
+  mixin(opt("pointless_store", `^SSEOp, ^SSEOp, *:
+    $0.opName == $1.opName && $0.opName == "movaps" &&
+    $0.op2 == $1.op1 && $0.op2 == "(%esp)"
+    =>
+    bool freesIt = $2.kind == $TK.SFree && $2.size >= 16;
+    if ($0.op1 == $1.op2) { // foo == bar
+      if (freesIt) $SUBST($2);
+      else $SUBST($0, $2);
+    } else { // foo != bar
+      if (freesIt) {
+        $T t = $0;
+        t.op2 = $1.op2;
+        $SUBST($2, t);
+      } else {
+        $T t = $1;
+        t.op1 = $0.op1;
+        $SUBST($0, t, $2);
+      }
+    }
+  `));
+  mixin(opt("pointless_push", `^Push, ^SFree:
+    $0.type.size <= $1.size
+    =>
+    auto rest = $1.size - $0.type.size;
+    if (rest) {
+      $T t = $1.dup;
+      t.size = rest;
+      $SUBST(t);
+    } else $SUBST();
+  `));
+  
+  mixin(opt("push_move_back_to_store", `^Push, ^Mov || ^Mov2 || ^Mov1:
+    $0.type.size == info($1).opSize() &&
+    $1.from == "(%esp)" && $1.to == $0.source
+    =>
+    $SUBST($0);
+  `));
+  mixin(opt("pointless_fxch", `^FPSwap, ^FloatMath: $1.opName == "faddp" /or/ "fmulp" => $SUBST($1); `));
+  mixin(opt("shufps_direct", `^SSEOp, ^SSEOp, ^SSEOp:
+    $0.opName == $2.opName && $0.opName == "movaps" &&
+    $1.opName.startsWith("shufps") &&
+    $0.op2 == $2.op1 && $0.op2 == $1.op1 && $0.op2 == $1.op2 &&
+    $2.op2.isSSERegister()
+    =>
+    $T t1 = $0;
+    t1.op2 = $2.op2;
+    $T t2 = $1;
+    t2.op1 = t1.op2;
+    t2.op2 = t1.op2;
+    $SUBST(t1, t2);
+  `));
+  // lel
+  mixin(opt("sse_lel1", `^SSEOp, ^SSEOp:
+    $0.opName == "movaps" && $1.opName == "movaps" &&
+    $0.op2 == "(%esp)"
+    =>
+    int offs;
+    if ($1.op1.isIndirect2(offs) == "%esp" && offs || $1.op1.isSSERegister() && $1.op2.isSSERegister()) {
+      $SUBST($1, $0);
+    }
+  `));
+  // movaps A -> C; movaps B -> D; mulps D, C; movaps C, R;  R != B || A == B
+  // => movaps A -> R; mulps B, R
+  mixin(opt("sse_lel2", `^SSEOp, ^SSEOp, ^SSEOp, ^SSEOp:
+    $0.opName == "movaps" && $1.opName == "movaps" && $2.opName.isSSEMathOp() && $3.opName == "movaps" &&
+    $2.op1 == $1.op2 && $2.op2 == $0.op2 && $2.op2 == $3.op1 && $3.op2.isSSERegister() &&
+    ($3.op2 != $1.op1 || $1.op1 == $0.op1)
+    =>
+    $T t1 = $0, t2 = $2;
+    t1.op2 = $3.op2;
+    t2.op1 = $1.op1;
+    t2.op2 = t1.op2;
+    $SUBST(t1, t2);
+  `));
+  mixin(opt("sse_remove_nop", `^SSEOp: $0.opName == "movaps" && $0.op1 == $0.op2 => $SUBST(); `));
+  
+  // It's complicated. Just trust me, I did the math.
+  mixin(opt("complicated", `^Push, ^Pop:
+    $0.type.size == 4 && $1.type.size == 4 &&
+    $1.dest == "4(%esp)" && $0.source != "(%esp)"
+    =>
+    if ($0.source.isMemRef()) {
+      $T t1;
+      t1.kind = $TK.SFree;
+      t1.size = 4;
+      $T t2 = $0.dup;
+      info(t2).fixupStrings(-4);
+      $SUBST(t1, t2);
+    } else {
+      $T t;
+      t.kind = $TK.Mov;
+      t.from = $0.source;
+      t.to = "(%esp)";
+      $SUBST(t);
+    }
+  `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
     bool changed, pushMode;
     auto match = cache.findMatch("lookahead_remove_redundants", delegate int(Transaction[] list) {
@@ -1175,10 +1303,12 @@ void setupOpts() {
         if (head.kind == MathOp) check = head.op2;
         pushMode = false;
         if (head.kind == Push && head.type.size == 4) { pushMode = true; check = "(%esp)"; }
+        if (head.kind == SSEOp && head.opName == "movaps" && (
+          head.op2.isSSERegister() || head.op2 == "(%esp)")) check = head.op2;
       }
       
       if (!check) return false;
-      if (!check.isUtilityRegister() && check != "(%esp)") return false;
+      if (!check.isUtilityRegister() && !check.isSSERegister() && check != "(%esp)") return false;
       
       bool hasStackDependence(string s) {
         if (s.find("%esp") != -1) return true;
@@ -1197,9 +1327,13 @@ void setupOpts() {
       outer:foreach (_i, entry; list[1 .. $]) {
         i = _i;
         with (Transaction.Kind) switch (entry.kind) {
-          case SFree: if (check == "(%esp)") { unneeded = true; break outer; }
+          case SFree: if (check == "(%esp)") {
+            if (entry.size >= info(head).opSize())
+              unneeded = true;
+            break outer;
+          }
           case SAlloc: if (check == "(%esp)") break outer;
-          case FloatMath:
+          case FloatMath, FPSwap:
             continue;    // no change
           
           case Jump:
@@ -1212,7 +1346,7 @@ void setupOpts() {
               break outer;
             }
           case Label:
-            if (entry.keepRegisters) break outer;
+            if (entry.keepRegisters || check.isSSERegister()) break outer;
             if (check != "(%esp)") unneeded = true;
           case Compare:
             break outer;
@@ -1248,7 +1382,9 @@ void setupOpts() {
           case SSEOp:
             if (test(entry.op1)) break outer;
             if (entry.op2 == check) { // all SSE ops have the target as the second operand
-              unneeded = true;
+              // but not all _read_ it!
+              if (entry.opName == "movaps" /or/ "movups")
+                unneeded = true;
               break outer;
             }
             if (test(entry.op2)) break outer;

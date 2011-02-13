@@ -50,19 +50,19 @@ string isIndirectSimple(string s) {
   }
   else return null;
 }
-string isIndirectComplex(string s, ref int delta) {
+string isIndirectComplex(string s, ref int delta, bool allowLiterals) {
   if (s.between(")", "").length) return null;
   auto betw = s.between("(", ")");
-  if (betw && betw.isRegister()) {
+  if (betw && (betw.isRegister() || allowLiterals)) {
     delta = s.between("", "(").atoi();
     return betw;
   }
   return null;
 }
-string isIndirect2(string s, ref int delta) {
+string isIndirect2(string s, ref int delta, bool allowLiterals = false) {
   delta = 0;
   if (auto res = isIndirectSimple(s)) return res;
-  if (auto res = isIndirectComplex(s, delta)) return res;
+  if (auto res = isIndirectComplex(s, delta, allowLiterals)) return res;
   return null;
 }
 string isIndirect(string s, int offs = -1) {
@@ -77,7 +77,7 @@ string isIndirect(string s, int offs = -1) {
 
 string fixupLiterals(string s) {
   int offs;
-  auto indir = s.isIndirect2(offs);
+  auto indir = s.isIndirect2(offs, true);
   if (auto rest = indir.startsWith("$")) {
     if (offs != 0) return qformat(rest, "+", offs);
     else return rest;
@@ -144,7 +144,7 @@ struct Transaction {
       case FloatMath:   return Format("[float math ", opName, "]");
       case FPSwap:      return Format("[x87 swap]");
       case FloatIntLoad:return Format("[float int load ", source, "]");
-      case SSEOp:       return Format("[SSE ", opName, " ", op1, ", ", op2, "]");
+      case SSEOp:       return Format("[SSE ", opName, " ", op1, ", ", op2, stackinfo, "]");
       case ExtendDivide:return Format("[cdq/idivl ", source, "]");
       case Jump:        return Format("[jmp ", dest, keepRegisters?" [keepregs]":"", "]");
       case Label:       return Format("[label ", names, keepRegisters?" [keepregs]":"", "]");
