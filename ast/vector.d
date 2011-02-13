@@ -229,8 +229,9 @@ import ast.pointer;
 Vector vec3f;
 
 bool gotSSEVecOp(AsmFile af, LValue op1, LValue op2, LValue res, string op) {
+  // return false;
   if (!vec3f) vec3f = new Vector(Single!(Float), 3);
-  if (op != "+") return false;
+  if (op != "+" /or/ "-" /or/ "*" /or/ "/") return false;
   if (op1.valueType() != vec3f
    || op2.valueType() != vec3f)
     return false;
@@ -242,7 +243,12 @@ bool gotSSEVecOp(AsmFile af, LValue op1, LValue op2, LValue res, string op) {
   af.popStack("%ebx", voidp);
   af.SSEOp("movaps", "(%ebx)", "%xmm0");
   af.SSEOp("movaps", "(%eax)", "%xmm1");
-  af.SSEOp("addps", "%xmm1", "%xmm0");
+  string sse;
+  if (op == "+") sse = "addps";
+  if (op == "-") sse = "subps";
+  if (op == "*") sse = "mulps";
+  if (op == "/") sse = "divps";
+  af.SSEOp(sse, "%xmm1", "%xmm0");
   af.SSEOp("movaps", "%xmm0", "(%ecx)");
   
   return true;
@@ -266,11 +272,7 @@ class VecOp : Expr {
     IType valueType() { return new Vector(type, len); }
     void emitAsm(AsmFile af) {
       auto t1 = ex1.valueType(), t2 = ex2.valueType();
-      while (true) {
-        if (pretransform(ex1, t1)) continue;
-        if (pretransform(ex2, t2)) continue;
-        break;
-      }
+      while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }
       auto e1v = fastcast!(Vector)~ t1, e2v = fastcast!(Vector)~ t2;
       mkVar(af, valueType(), true, (Variable var) {
         auto entries = getTupleEntries(
@@ -297,15 +299,25 @@ class VecOp : Expr {
   }
 }
 
+class FailExpr : Expr {
+  string mesg;
+  IType typeMaybe;
+  this(string s, IType tm = null) { this.mesg = s; typeMaybe = tm; }
+  void fail() { logln("Fail: ", mesg); asm { int 3; } }
+  override {
+    IType valueType() { if (typeMaybe) return typeMaybe; fail(); return null; }
+    void emitAsm(AsmFile af) { fail(); }
+    mixin defaultIterate!();
+    FailExpr dup() { return this; }
+  }
+}
+
 import ast.opers;
 static this() {
   Expr handleVecOp(string op, Expr lhs, Expr rhs) {
     auto v1 = lhs.valueType(), v2 = rhs.valueType();
-    while (true) {
-      if (pretransform(lhs, v1)) continue;
-      if (pretransform(rhs, v2)) continue;
-      break;
-    }
+    while (pretransform(lhs, v1) || pretransform(rhs, v2)) { }
+    
     auto v1v = fastcast!(Vector)~ v1, v2v = fastcast!(Vector)~ v2;
     if (!v1v && !v2v) return null;
     
@@ -337,4 +349,29 @@ static this() {
   defineOp("+", "+" /apply/ &handleVecOp);
   defineOp("*", "*" /apply/ &handleVecOp);
   defineOp("/", "/" /apply/ &handleVecOp);
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto mae = fastcast!(MemberAccess_Expr) (ex)) {
+      auto base = foldex(mae.base);
+      if (auto rce = fastcast!(RCE) (base)) {
+        if (auto vo = cast(VecOp) rce.from) {
+          assert(mae.stm.offset % vo.type.size() == 0);
+          auto id = mae.stm.offset / vo.type.size();
+          auto ex1 = vo.ex1, ex2 = vo.ex2;
+          auto t1 = ex1.valueType(), t2 = ex2.valueType();
+          while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }
+          auto t1v = fastcast!(Vector) (t1), t2v = fastcast!(Vector) (t2);
+          // logln("id is ", id, " because of ", mae.stm.offset, " into ", vo.type.size(), "; compare ", vo.valueType().size(), " / ", (cast(Vector) vo.valueType()).real_len());
+          if (t1v) ex1 = getTupleEntries(reinterpret_cast(t1v.asFilledTup, ex1))[id];
+          if (t2v) {
+            // logln("filled tup for ", t2v, " is ", t2v.asFilledTup, " -- ", ex);
+            auto ar = getTupleEntries(reinterpret_cast(t2v.asFilledTup, ex2));
+            if (ar.length !> id) ex2 = new FailExpr("oh fuck", ar[0].valueType());
+            else ex2 = ar[id];
+          }
+          return lookupOp(vo.op, ex1, ex2);
+        }
+      }
+    }
+    return null;
+  };
 }

@@ -58,7 +58,7 @@ class _Assignment(T) : Statement {
 }
 
 alias _Assignment!(LValue) Assignment;
-
+alias _Assignment!(MValue) AssignmentM;
 import ast.casting;
 Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -86,7 +86,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (lv)
       return new Assignment(lv, value);
     else
-      return new _Assignment!(MValue)(mv, value);
+      return new AssignmentM(mv, value);
   } else return null;
 }
 mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign", "1");

@@ -349,6 +349,28 @@ Object gotRDTSC(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotRDTSC, "tree.expr.rdtsc", "2404", "rdtsc");
 
+class MXCSR : MValue {
+  mixin defaultIterate!();
+  override {
+    MXCSR dup() { return this; }
+    IType valueType() { return Single!(SysInt); }
+    void emitAsm(AsmFile af) {
+      af.salloc(4);
+      af.put("stmxcsr (%esp)");
+    }
+  }
+  void emitAssignment(AsmFile af) {
+    af.put("ldmxcsr (%esp)");
+    af.sfree(4);
+  }
+}
+
+Object gotMXCSR(ref string text, ParseCb cont, ParseCb rest) {
+  return Single!(MXCSR);
+}
+mixin DefaultParser!(gotMXCSR, "tree.expr.mxcsr", "2405", "mxcsr");
+
+import ast.tuples;
 class EBPExpr : Expr {
   mixin defaultIterate!();
   override {

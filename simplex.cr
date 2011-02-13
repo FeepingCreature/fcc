@@ -109,7 +109,7 @@ float noise3(vec3f v) {
   vec3i offs1 = void, offs2 = void;
   int ii = void, jj = void, kk = void;
   float sum = 0f;
-  int id = void, id2 = void, id3 = void, c = void;
+  int c = void;
   vec3f forble = void;
   /*testAlign("ebp", _ebp);
   testAlign("vs", &vs);
@@ -120,7 +120,7 @@ float noise3(vec3f v) {
   if !perm.length permsetup;
   
   vsum = v + (v.sum / 3.0f);
-  indices = vec3i(fastfloor(vsum.x), fastfloor(vsum.y), fastfloor(vsum.z));
+  indices = vec3i(vsum.(fastfloor x, fastfloor y, fastfloor z));
   vs[0] = v - indices      + (indices.sum / 6.0f);
   vs[1] = vs[0]            + vec3f(1.0f / 6);
   vs[2] = vs[0]            + vec3f(2.0f / 6);
@@ -159,15 +159,15 @@ float noise3(vec3f v) {
     gi[3] = lperm[lperm[lperm[kk+1 ]+jj+1 ]+ii+1 ] % 12;
   }
   while (c <- 0..4) {
-    auto q = vs[c];
-    auto ft = 0.6f - q.lensq;
+    auto q = vs[c]; q *= q;
+    auto ft = 0.6f - q.sum;
     if (ft >= 0) {
-      id = gi[c]; id2 = id & 3; id3 = id & 12;
+      auto id = gi[c], id2 = id & 12;
       ft *= ft;
-      forble = vec3f(1f - [0f, 2f][id2&1], 1f - [0f, 2f][(id2&2) >> 1], 0f);
-      if (id3 == 4) forble = forble.xzy;
-      if (id3 == 8) forble = forble.zxy;
-      sum += ft * ft * (forble*q).sum;
+      forble = vec3f(1f - [0f, 2f][id&1], 1f - [0f, 2f][(id&2) >> 1], 0f);
+      if (id2 == 4) forble = forble.xzy;
+      if (id2 == 8) forble = forble.zxy;
+      sum += ft * ft * (forble*vs[c]).sum;
     }
   }
   return 0.5f + 16.0f*sum;

@@ -552,7 +552,10 @@ Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
       bool isAssignment;
       if (t3.accept("="))
         isAssignment = true;
-      if (cont(t3, &op2)) {
+      bool succeeded;
+      if (isAssignment) succeeded = !!rest(t3, "tree.expr", &op2);
+      else succeeded = !!cont(t3, &op2);
+      if (succeeded) {
         if (isAssignment) {
           op = lookupOp(Ops[i]~"=", op, op2);
           t2 = t3;

@@ -131,8 +131,13 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     while (fastcast!(Pointer)~ ex.valueType())
       ex = new DerefExpr(ex);
     
-    auto ns = fastcast!(Namespace)~ ex.valueType();
-    auto rns = fastcast!(RelNamespace)~ ex.valueType();
+    gotImplicitCast(ex, (IType it) { return fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it); });
+    
+    Namespace ns; RelNamespace rns;
+    if (ex) {
+      ns = fastcast!(Namespace)~ ex.valueType();
+      rns = fastcast!(RelNamespace)~ ex.valueType();
+    }
     if (!ns && !rns)
       text.failparse("Not a [rel]namespace: ", ex.valueType());
     

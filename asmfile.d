@@ -5,6 +5,7 @@ public import assemble;
 
 import tools.log, tools.functional: map;
 import tools.base: between, slice, atoi, split, stuple, apply, swap;
+const string[] utilRegs = ["%eax", "%ebx", "%ecx", "%edx"];
 class AsmFile {
   string id;
   int[string] globals;
@@ -66,6 +67,10 @@ class AsmFile {
     t.kind = Transaction.Kind.Nevermind;
     t.dest = mem;
     cache ~= t;
+  }
+  void nvmRegisters() {
+    foreach (reg; utilRegs)
+      nvm(reg);
   }
   void compare(string op1, string op2, bool test = false) {
     Transaction t;
@@ -134,6 +139,7 @@ class AsmFile {
   }
   void jumpOnFloat(bool smaller, bool equal, bool greater, string label) {
     labels_refcount[label]++;
+    nvmRegisters();
     put("fnstsw %ax");
     put("sahf");
     mixin(`
@@ -341,16 +347,20 @@ class AsmFile {
       // logln("::", anyChange, "; ", cache.list);
       if (!anyChange) break;
     }
-    foreach (opt; newOpts)
-      log("[", unique(opt), "]");
+    if (debugOpts) {
+      foreach (opt; newOpts)
+        log("[", unique(opt), "]");
+    }
       
     string join(string[] s) {
       string res;
       foreach (str; s) { if (res) res ~= ", "; res ~= str; }
       return res;
     }
-    if (newOpts && debugOpts) logln("Opt: ", goodOpts.join(), " + ", newOpts/+, " - ", unused.keys+/);
-    if (newOpts) logln("Unused: ", unused.keys);
+    if (newOpts && debugOpts) {
+      logln("Opt: ", goodOpts.join(), " + ", newOpts/+, " - ", unused.keys+/);
+      logln("Unused: ", unused.keys);
+    }
   }
   void flush() {
     if (optimize) runOpts;

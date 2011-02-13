@@ -75,6 +75,16 @@ string isIndirect(string s, int offs = -1) {
   }
 }
 
+string fixupLiterals(string s) {
+  int offs;
+  auto indir = s.isIndirect2(offs);
+  if (auto rest = indir.startsWith("$")) {
+    if (offs != 0) return qformat(rest, "+", offs);
+    else return rest;
+  }
+  return s;
+}
+
 interface ExtToken {
   string toAsm();
 }
@@ -218,6 +228,8 @@ struct Transaction {
       case Push, Pop:
         auto size = type.size;
         string res;
+        // res = toString();
+        // res = "# is " ~ res;
         void addLine(string s) { if (res) res ~= "\n"; res ~= s; }
         auto mnemo = (kind == Push) ? "push" : "pop";
         // %eax
@@ -252,6 +264,7 @@ struct Transaction {
         // push/pop as far as possible at that size sz, using instruction postfix pf.
         auto op = (kind == Push) ? source : dest;
         int first_offs = -1;
+        int stack_changed;
         void doOp(int sz, string pf) {
           while (size >= sz) {
             bool m_offs_push; int offs;
@@ -270,7 +283,7 @@ struct Transaction {
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
                 // logln("rewrite op ", op, " to ", qformat(first_offs + size - sz, "(%", reg, ")"), ": ", first_offs, " + ", size, " - ", sz); 
-                op = qformat(first_offs + size - sz, "(", mem, ")");
+                op = qformat(first_offs + size - sz + ((mem == "%esp")?stack_changed:0), "(", mem, ")");
                 m_offs_push = true;
               }
               if (op.startsWith("+")) {
@@ -314,6 +327,7 @@ struct Transaction {
                 asm { int 3; }
               }
               addLine(qformat(mnemo, pf, " ", temp));
+              stack_changed += sz;
             }
             auto s2 = op;
             int num; string ident, reg;
@@ -356,9 +370,9 @@ struct Transaction {
         if (dest.find("%") != -1) return qformat("call *", dest);
         if (dest[0] == '$') return qformat("call ", dest[1 .. $]);
         assert(false, "::"~dest);
-      case FloatLoad: return qformat("flds ", source);
-      case DoubleLoad: return qformat("fldl ", source);
-      case RealLoad: return qformat("fldt ", source);
+      case FloatLoad: return qformat("flds ", source.fixupLiterals());
+      case DoubleLoad: return qformat("fldl ", source.fixupLiterals());
+      case RealLoad: return qformat("fldt ", source.fixupLiterals());
       case RegLoad: return qformat("fld ", source);
       case FloatCompare:
         if (source == "%st1") {
