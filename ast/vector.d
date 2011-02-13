@@ -282,18 +282,24 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     af.salloc(16);
   }
   if (alignedVar1 && !alignedVar2) {
-    op2.emitAsm(af);
+    af.salloc(12);
     var1.emitLocation(af);
+    op2.emitAsm(af);
+    af.SSEOp("movaps", "(%esp)", "%xmm1");
+    af.sfree(16);
     af.popStack("%eax", Single!(SysInt));
     af.SSEOp("movaps", "(%eax)", "%xmm0");
-    af.SSEOp("movaps", "(%esp)", "%xmm1");
+    af.salloc(4);
   }
   if (!alignedVar1 && alignedVar2) {
-    op1.emitAsm(af);
+    af.salloc(12);
     var2.emitLocation(af);
+    op1.emitAsm(af);
+    af.SSEOp("movaps", "(%esp)", "%xmm0");
+    af.sfree(16);
     af.popStack("%eax", Single!(SysInt));
     af.SSEOp("movaps", "(%eax)", "%xmm1");
-    af.SSEOp("movaps", "(%esp)", "%xmm0");
+    af.salloc(4);
   }
   if (!alignedVar1 && !alignedVar2) {
     op1.emitAsm(af);
