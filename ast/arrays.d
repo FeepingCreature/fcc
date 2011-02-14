@@ -190,11 +190,41 @@ class ArrayMaker : Expr {
   }
 }
 
+import ast.variable, ast.vardecl;
+class AllocStaticArray : Expr {
+  Expr sa;
+  StaticArray st;
+  this(Expr sa) {
+    this.sa = sa;
+    st = fastcast!(StaticArray) (sa.valueType());
+  }
+  mixin defaultIterate!(sa);
+  override {
+    AllocStaticArray dup() { return new AllocStaticArray(sa.dup); }
+    IType valueType() { return new Array(st.elemType); }
+    void emitAsm(AsmFile af) {
+      mkVar(af, valueType(), true, (Variable var) {
+        sa.emitAsm(af);
+        iparse!(Statement, "new_sa", "tree.stmt")
+               (`var = new T[size]; `
+               ,"var", var, "T", st.elemType, "size", mkInt(st.length)
+               ).emitAsm(af);
+        af.mmove4(qformat(4 + st.length, "(%esp)"), "%eax");
+        af.popStack("(%eax)", st);
+      });
+    }
+  }
+}
+
 Expr staticToArray(Expr sa) {
-  return new ArrayMaker(
-    new CValueAsPointer(fastcast!(CValue)~ sa),
-    mkInt((fastcast!(StaticArray)~ sa.valueType()).length)
-  );
+  if (auto cv = fastcast!(CValue) (sa)) {
+    return new ArrayMaker(
+      new CValueAsPointer(cv),
+      mkInt((fastcast!(StaticArray)~ sa.valueType()).length)
+    );
+  } else {
+    return new AllocStaticArray(sa);
+  }
 }
 
 import ast.literals;

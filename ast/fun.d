@@ -123,8 +123,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
       withTLS(namespace, this, tree.emitAsm(af));
       af.emitLabel(exit(), true);
       
-      af.mmove4("%ebp", "%esp");
-      af.popStack("%ebp", voidp);
+      // af.mmove4("%ebp", "%esp");
+      // af.popStack("%ebp", voidp);
+      af.put("leave");
       
       af.jump_barrier();
       af.put("ret");

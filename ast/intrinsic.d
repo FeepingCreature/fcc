@@ -331,6 +331,37 @@ void setupSysmods() {
 }
 
 import ast.tuples;
+class CPUIDExpr : Expr {
+  Expr which;
+  mixin defaultIterate!(which);
+  this(Expr ex) { which = ex; }
+  override {
+    CPUIDExpr dup() { return new CPUIDExpr(which); }
+    IType valueType() { return mkTuple(Single!(SysInt), Single!(SysInt), Single!(SysInt), Single!(SysInt)); }
+    void emitAsm(AsmFile af) {
+      which.emitAsm(af);
+      af.popStack("%eax", Single!(SysInt));
+      af.put("cpuid");
+      af.pushStack("%edx", Single!(SysInt));
+      af.pushStack("%ecx", Single!(SysInt));
+      af.pushStack("%ebx", Single!(SysInt));
+      af.pushStack("%eax", Single!(SysInt));
+    }
+  }
+}
+
+Object gotCPUID(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+    t2.failparse("Expected numeric parameter for cpuid to %eax");
+  if (ex.valueType() != Single!(SysInt))
+    t2.failparse("Expected number for cpuid, but got ", ex.valueType(), "!");
+  text = t2;
+  return new CPUIDExpr(ex);
+}
+mixin DefaultParser!(gotCPUID, "tree.expr.cpuid", "24044", "cpuid");
+
 class RDTSCExpr : Expr {
   mixin defaultIterate!();
   override {
