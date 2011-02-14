@@ -101,6 +101,7 @@ struct TransactionInfo {
     ExtendDivide|&#.source |        |       |  4  |
     Compare    |&#.op1     | &#.op2 |       |  4  |
     LoadAddress|&#.from    |        | &#.to |  4  |
+    MovD       | &#.from   |        | &#.to |  4  |
     Mov        | &#.from   |        | &#.to |  4  |
     Mov2       | &#.from   |        | &#.to |  2  |
     Mov1       | &#.from   |        | &#.to |  1  |
@@ -300,11 +301,6 @@ bool willOverwrite(ref Transaction t, string what) {
   bool res;
   info(t).accessParams((ref string s) { res |= s == what; }, true);
   return res;
-}
-
-bool hasSize(ref Transaction t) {
-  with (Transaction.Kind)
-    return !!(t.kind == Push /or/ Pop /or/ Mov /or/ Mov2 /or/ Mov1 /or/ SFree /or/ SAlloc);
 }
 
 bool collide(string a, string b) {
@@ -584,6 +580,8 @@ class ProcTrack : ExtToken {
         fixupESPDeps(-4 * (stack.length - st2.length));
         stack = st2;
         mixin(Success);
+      case MovD:
+        if (t.from.isSSERegister() || !t.to.isSSERegister()) return false;
       case Mov:
         if (t.to == "%esp")
           return false;
@@ -877,9 +875,14 @@ class ProcTrack : ExtToken {
             t.from = indir; t.to = reg;
           });
         } else {
-          addTransaction(Transaction.Kind.Mov, (ref Transaction t) {
-            t.from = value; t.to = reg;
-          });
+          if (reg.isSSERegister())
+            addTransaction(Transaction.Kind.MovD, (ref Transaction t) {
+              t.from = value; t.to = reg;
+            });
+          else
+            addTransaction(Transaction.Kind.Mov, (ref Transaction t) {
+              t.from = value; t.to = reg;
+            });
         }
       }
       foreach (entry; latepop) {
@@ -1008,8 +1011,8 @@ void setupOpts() {
     // override conas
     if ((
       !changesOrNeedsActiveStack($0) ||
-      $0.kind == $TK.Mov /or/ $TK.FloatPop /or/ $TK.DoublePop /or/ $TK.FloatLoad
-      /or/ $TK.FloatStore /or/ $TK.DoubleStore /or/ $TK.LoadAddress /or/ $TK.SSEOp
+      $0.kind == $TK.Mov /or/ $TK.MovD /or/ $TK.FloatPop /or/ $TK.DoublePop /or/
+      $TK.FloatLoad /or/ $TK.FloatStore /or/ $TK.DoubleStore /or/ $TK.LoadAddress /or/ $TK.SSEOp
     ) && (shift > 0 || shift == -1 && !dontDoIt)) {
       if (shift == -1) shift = $1.size;
       auto t0 = $1, t2 = $1;
@@ -1195,7 +1198,7 @@ void setupOpts() {
   `));
   // movaps foo, (%esp); movaps (%esp), bar; [sfree 16]
   mixin(opt("pointless_store", `^SSEOp, ^SSEOp, *:
-    $0.opName == $1.opName && $0.opName == "movaps" &&
+    $0.opName == "movaps" && $1.opName == "movaps" &&
     $0.op2 == $1.op1 && $0.op2 == "(%esp)"
     =>
     bool freesIt = $2.kind == $TK.SFree && $2.size >= 16;
@@ -1233,7 +1236,7 @@ void setupOpts() {
   `));
   mixin(opt("pointless_fxch", `^FPSwap, ^FloatMath: $1.opName == "faddp" /or/ "fmulp" => $SUBST($1); `));
   mixin(opt("shufps_direct", `^SSEOp, ^SSEOp, ^SSEOp:
-    $0.opName == $2.opName && $0.opName == "movaps" &&
+    $0.opName == "movaps" && $2.opName == "movaps" &&
     $1.opName.startsWith("shufps") &&
     $0.op2 == $2.op1 && $0.op2 == $1.op1 && $0.op2 == $1.op2 &&
     $2.op2.isSSERegister()
@@ -1251,7 +1254,7 @@ void setupOpts() {
     $0.op2 == "(%esp)"
     =>
     int offs;
-    if ($1.op1.isIndirect2(offs) == "%esp" && offs || $1.op1.isSSERegister() && $1.op2.isSSERegister()) {
+    if (($1.op1.isIndirect2(offs) == "%esp" && offs || $1.op1.isSSERegister() && $1.op2.isSSERegister()) && $1.op2 != $0.op1) {
       $SUBST($1, $0);
     }
   `));
@@ -1289,6 +1292,32 @@ void setupOpts() {
       t.to = "(%esp)";
       $SUBST(t);
     }
+  `));
+  mixin(opt("push_or_mov_before_movaps", `^Push, ^SSEOp || ^MovD:
+    (
+      $1.kind == $TK.SSEOp && $1.opName == "movaps" && $1.op2.isSSERegister() ||
+      $1.kind == $TK.MovD && $1.to.isSSERegister() && $1.from.isIndirect() != "%esp"
+    )
+    =>
+    int offs;
+    if ($1.kind == $TK.SSEOp && $1.op1.isIndirect2(offs) == "%esp" && offs >= $0.type.size) {
+      $T t = $1;
+      info(t).fixupStrings(-$0.type.size);
+      $SUBST(t, $0);
+    }
+    else if ($1.kind == $TK.MovD) $SUBST($1, $0);
+  `));
+  mixin(opt("convert_push_into_sse_fragment_load", `^Push, ^Push, ^MovD, ^SSEOp, ^MovD, ^SFree:
+    $0.type.size == 4 && $1.type.size == 4 && 
+    $2.from == "4(%esp)" && $2.to.isSSERegister() &&
+    $3.opName == "punpckldq" &&
+    $4.from == "(%esp)" && $4.to.isSSERegister() &&
+    $5.size == 8
+    =>
+    $T t1 = $2.dup, t2 = $3.dup, t3 = $4.dup;
+    t1.from = $0.source;
+    t3.from = $1.source;
+    $SUBST(t1, t2, t3);
   `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
     bool changed, pushMode;
@@ -1370,7 +1399,7 @@ void setupOpts() {
             if (test(entry.op1) || test(entry.op2)) break outer;
             continue;
           
-          case Mov, LoadAddress:
+          case Mov, MovD, LoadAddress:
             if (test(entry.from)) break outer;
             if (entry.to == check) {
               unneeded = true;

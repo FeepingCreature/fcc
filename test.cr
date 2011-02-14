@@ -1,13 +1,13 @@
 module test;
 import sys, sdl, simplex;
 
-int add(int a, int b) { return a + b; }
+int delegate(int b) add(int a) { return new delegate int(int b) { return a + b; }; }
 
 void test(int foo) {
   int bar = 17;
   if (foo) writeln("meep");
   else writeln("moop");
-  writeln("Hello World: $(foo * add(2, bar)), $bar");
+  writeln("Hello World: $(foo * add a=>2 b=>bar), $bar");
   int temp = 5;
   while (temp) {
     writeln("Countdown with $temp");

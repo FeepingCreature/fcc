@@ -92,7 +92,7 @@ interface ExtToken {
 import parseBase; // int parsing
 struct Transaction {
   enum Kind {
-    Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
+    Mov, Mov2, Mov1, MovD, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
     FloatLoad, DoubleLoad, RealLoad, RegLoad,
     FloatCompare,
     FloatPop, DoublePop,
@@ -103,7 +103,7 @@ struct Transaction {
     ExtendDivide, /* cdq, idivl */
     Jump, Label, Extended, Nevermind, LoadAddress
   }
-  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
+  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "MovD", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
     "FloatLoad", "DoubleLoad", "RealLoad", "RegLoad",
     "FloatCompare",
     "FloatPop" , "DoublePop" ,
@@ -123,6 +123,7 @@ struct Transaction {
       case Mov:         return Format("[movl ", from, " -> ", to, "]");
       case Mov2:        return Format("[movw ", from, " -> ", to, "]");
       case Mov1:        return Format("[movb ", from, " -> ", to, "]");
+      case MovD:        return Format("[movd ", from, " -> ", to, "]");
       case SAlloc:      return Format("[salloc ", size, "]");
       case SFree:       return Format("[sfree ", size, "]");
       case MathOp:      return Format("[math:", opName, " ", op1, ", ", op2, "]");
@@ -156,7 +157,7 @@ struct Transaction {
   int opEquals(ref Transaction t2) {
     if (kind != t2.kind) return false;
     with (Kind) switch (kind) {
-      case Mov, Mov2, Mov1:  return from == t2.from && to == t2.to;
+      case Mov, Mov2, Mov1, MovD:  return from == t2.from && to == t2.to;
       case SAlloc, SFree: return size == t2.size;
       case MathOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
       case Push: return source == t2.source && type == t2.type;
@@ -191,6 +192,8 @@ struct Transaction {
   }
   string toAsm() {
     with (Kind) switch (kind) {
+      case MovD:
+        return qformat("movd ", from.asmformat(), ", ", to.asmformat());
       case Mov:
         if (from.isRelative() && to.isRelative()) {
           if (!usableScratch) {
@@ -392,6 +395,7 @@ struct Transaction {
       case Label:
         assert(names.length);
         string res;
+        res ~= ".p2align 4, 0x90\n";
         foreach (name; names) res ~= name ~ ":\n";
         return res[0 .. $-1];
       case Extended: return obj.toAsm();

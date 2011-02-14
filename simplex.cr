@@ -5,7 +5,7 @@ import std.c.fenv, std.c.stdlib;
 int[] perm;
 vec3i[12] grad3;
 
-float dot2(int[3] whee, float a, float b) {
+float dot2(int[4] whee, float a, float b) {
   return whee[0] * a + whee[1] * b;
 }
 
@@ -149,8 +149,8 @@ float noise3(vec3f v) {
   }*/
   offs1 = vec3i((mask >> 5)    , (mask >> 4) & 1, (mask >> 3) & 1);
   offs2 = vec3i((mask >> 2) & 1, (mask >> 1) & 1, (mask >> 0) & 1);
-  vs[1] -= vec3f(offs1.(x, y, z));
-  vs[2] -= vec3f(offs2.(x, y, z));
+  vs[1] -= vec3f(offs1);
+  vs[2] -= vec3f(offs2);
   (int ii, int jj, int kk) = indices.(x & 255, y & 255, z & 255);
   alias i1 = offs1.x, i2 = offs2.x,
         j1 = offs1.y, j2 = offs2.y,
@@ -163,22 +163,26 @@ float noise3(vec3f v) {
     gi[3] = lperm[lperm[lperm[kk+1 ]+jj+1 ]+ii+1 ] % 12;
   }
   while (c <- 0..4) {
-    xmm[3] = vs[c];
-    xmm[2] = xmm[3];
-    xmm[2] *= xmm[2];
-    auto ft = 0.6f - xmm[2].sum;
+    xmm[5] = vs[c];
+    xmm[4] = xmm[5];
+    xmm[4] *= xmm[4];
+    auto ft = 0.6f - xmm[4].sum;
+    // xmm[4] ^= xmm[4]; // reset
     if (ft >= 0) {
       auto id = gi[c], id2 = id & 12;
       ft *= ft;
+      auto pair = [1f, -1f, -1f];
       if (!id2)
-        xmm[2] = vec3f(1f - [0f, 2f][id&1], 1f - [0f, 2f][(id&2) >> 1], 0f);
+        xmm[4] = vec3f(pair[id&1], pair[id&2], 0f);
       else if (id2 == 4) 
-        xmm[2] = vec3f(1f - [0f, 2f][id&1], 0f, 1f - [0f, 2f][(id&2) >> 1]);
+        xmm[4] = vec3f(pair[id&1], 0f, pair[id&2]);
       else
-        xmm[2] = vec3f(0f, 1f - [0f, 2f][id&1], 1f - [0f, 2f][(id&2) >> 1]);
+        xmm[4] = vec3f(0f, pair[id&1], pair[id&2]);
       
-      xmm[2] *= xmm[3];
-      sum += ft * ft * xmm[2].sum;
+      xmm[4] *= xmm[5];
+      // xmm[5] ^= xmm[5]; // reset
+      sum += ft * ft * xmm[4].sum;
+      // xmm[4] ^= xmm[4]; // reset
     }
   }
   return 0.5f + 16.0f*sum;

@@ -98,6 +98,12 @@ class AsmFile {
     t.from = from; t.to = to;
     cache ~= t;
   }
+  void movd(string from, string to) {
+    Transaction t;
+    t.kind = Transaction.Kind.MovD;
+    t.from = from; t.to = to;
+    cache ~= t;
+  }
   void salloc(int sz) { // alloc stack space
     Transaction t;
     currentStackDepth += sz;
