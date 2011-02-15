@@ -119,25 +119,39 @@ class AsmFile {
     cache ~= t;
   }
   import tools.ctfe;
+  const string JumpTable = `
+    cond | jump |  cmov  |floatjump| floatmov
+    -----+------+--------+---------+---------
+    fff  |      |        |         | 
+    fft  | jg   | cmovg  | ja      | fcmova
+    ftf  | je   | cmove  | je      | fcmove
+    ftt  | jge  | cmovge | jae     | fcmovae
+    tff  | jl   | cmovl  | jb      | fcmovb
+    tft  | jne  | cmovne | jne     | fcmovne
+    ttf  | jle  | cmovle | jbe     | fcmovbe
+    ttt  | jmp  | mov    | jmp     | mov
+  `;
   void jumpOn(bool smaller, bool equal, bool greater, string label) {
     labels_refcount[label]++;
     // TODO: unsigned?
-    mixin(`
-      cond | instruction
-       fff | nop
-       fft | jg dest
-       ftf | je dest
-       ftt | jge dest
-       tff | jl dest
-       tft | jne dest
-       ttf | jle dest
-       ttt | jmp dest`
-      .ctTableUnroll(`
+    mixin(JumpTable.ctTableUnroll(`
         if (
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { put("$instruction".replace("dest", label)); return; }
+        ) { static if ("$jump".length) put("$jump ", label); return; }
+    `));
+    throw new Exception(Format(
+      "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
+    ));
+  }
+  void cmov(bool smaller, bool equal, bool greater, string from, string to) {
+    mixin(JumpTable.ctTableUnroll(`
+        if (
+          (("$cond"[0] == 't') == smaller) &&
+          (("$cond"[1] == 't') == equal) &&
+          (("$cond"[2] == 't') == greater)
+        ) { static if ("$cmov".length) put("$cmov ", from, ", ", to); return; }
     `));
     throw new Exception(Format(
       "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
@@ -148,22 +162,24 @@ class AsmFile {
     nvmRegisters();
     put("fnstsw %ax");
     put("sahf");
-    mixin(`
-      cond | instruction
-       `/*fff | xorb %al,*/`
-       fft | ja
-       ftf | je
-       ftt | jae
-       tff | jb
-       tft | jne
-       ttf | jbe
-       ttt | movb $1,`
-      .ctTableUnroll(`
+    mixin(JumpTable.ctTableUnroll(`
         if (
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { put("$instruction ", label); }
+        ) { static if ("$floatjump".length) put("$floatjump ", label); return; }
+    `));
+  }
+  void moveOnFloat(bool smaller, bool equal, bool greater, string from, string to) {
+    nvmRegisters();
+    put("fnstsw %ax");
+    put("sahf");
+    mixin(JumpTable.ctTableUnroll(`
+        if (
+          (("$cond"[0] == 't') == smaller) &&
+          (("$cond"[1] == 't') == equal) &&
+          (("$cond"[2] == 't') == greater)
+        ) { static if ("$floatmov".length) put("$floatmov ", from, ", ", to); return; }
     `));
   }
   void mathOp(string which, string op1, string op2) {

@@ -20,6 +20,11 @@ bool isRegister(string s) {
   return s.length > 2 && s[0] == '%' && s[1] != '(' && !s.startsWith("%gs:");
 }
 
+bool contains(string s, string t) {
+  if (!t) return false;
+  return s.find(t) != -1;
+}
+
 bool isLiteral(string s) {
   if (s.startsWith("+(%gs:")) return true; // kiinda.
   return s.length && s[0] == '$';
@@ -286,7 +291,7 @@ struct Transaction {
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
                 // logln("rewrite op ", op, " to ", qformat(first_offs + size - sz, "(%", reg, ")"), ": ", first_offs, " + ", size, " - ", sz); 
-                op = qformat(first_offs + size - sz + ((mem == "%esp")?stack_changed:0), "(", mem, ")");
+                op = qformat(first_offs + size - sz + ((mem.contains("%esp"))?stack_changed:0), "(", mem, ")");
                 m_offs_push = true;
               }
               if (op.startsWith("+")) {
@@ -303,8 +308,8 @@ struct Transaction {
               } else {
                 string opsh = op;
                 // hackaround
-                if (opsh.gotMemoryOffset(offs) == "%esp")
-                  opsh = qformat(offs - 1, "(%esp)");
+                if (opsh.isIndirect2(offs).contains("%esp"))
+                  opsh = qformat(offs - 1, "(", opsh.isIndirect(), ")");
                 addLine("movb (%esp), %bl");
                 addLine("incl %esp");
                 addLine("movb %bl, "~opsh);
@@ -313,8 +318,8 @@ struct Transaction {
             // x86 pop foo(%esp) operand is evaluated
             // after increment, says intel manual
             } else {
-              if (kind == Pop && op.gotMemoryOffset(offs) == "%esp") {
-                op = qformat(offs - sz, "(%esp)");
+              if (kind == Pop && op.isIndirect2(offs).contains("%esp")) {
+                op = qformat(offs - sz, "(", op.isIndirect(), ")");
               }
               auto temp = op; int toffs;
               if (auto mem = temp.between("(", ")")) {

@@ -159,6 +159,8 @@ struct TransactionInfo {
   string inOp2() { return inOp!("inOp2").inOpRead(); }
   string inOp1(string s) { return inOp!("inOp1").inOpWrite(s); }
   string inOp2(string s) { return inOp!("inOp2").inOpWrite(s); }
+  string stackDataOp() { if (tp.kind == Transaction.Kind.Push) return tp.source; else return tp.dest; }
+  string stackDataOp(string s) { if (tp.kind == Transaction.Kind.Push) return tp.source = s; else return tp.dest = s; }
   alias TableOp!(`return "$stack" == "grow";`, bool) growsStack;
   alias TableOp!(`return "$stack" == "shrink";`, bool) shrinksStack;
   bool resizesStack() { return growsStack() || shrinksStack(); }
@@ -182,20 +184,20 @@ struct TransactionInfo {
   }
   bool hasIndirectSrc(string s) {
     return
-      (inOp1().isIndirect() == s)
-    ||(inOp2().isIndirect() == s);
+      (inOp1().isIndirect().contains(s))
+    ||(inOp2().isIndirect().contains(s));
   }
   bool hasIndirect(string s) {
-    return hasIndirectSrc(s) || outOp().isIndirect() == s;
+    return hasIndirectSrc(s) || outOp().isIndirect().contains(s);
   }
   string getIndirectSrc(string s) {
-    if (inOp1().isIndirect() == s) return inOp1();
-    if (inOp2().isIndirect() == s) return inOp2();
+    if (inOp1().isIndirect().contains(s)) return inOp1();
+    if (inOp2().isIndirect().contains(s)) return inOp2();
     asm { int 3; }
   }
   void setIndirectSrc(string s, string t) {
-    if (inOp1().isIndirect() == s) inOp1 = t;
-    else if (inOp2().isIndirect() == s) inOp2 = t;
+    if (inOp1().isIndirect().contains(s)) inOp1 = t;
+    else if (inOp2().isIndirect().contains(s)) inOp2 = t;
     else asm { int 3; }
   }
   bool hasIndirectSrc(int i, string s) {
@@ -228,11 +230,16 @@ struct TransactionInfo {
     return tp.op1.find(s) != -1
         || tp.op2.find(s) != -1;
   }
-  bool opContains(string s) {
+  bool opContainsSrc(string s) {
     if (!s) return false;
     return
       inOp1().find(s) != -1
-    ||inOp2().find(s) != -1
+    ||inOp2().find(s) != -1;
+  }
+  bool opContains(string s) {
+    if (!s) return false;
+    return
+      opContainsSrc(s)
     ||outOp().find(s) != -1;
   }
   static bool couldFixup(string s, int by) {
@@ -349,19 +356,23 @@ bool pinsRegister(ref Transaction t, string reg) {
 }
 
 void fixupString(ref string s, int shift) {
-  if (auto rest = s.startsWith("+(%esp, ")) {
-    s = qformat("+(%esp, $",
-      rest.between("$", ")").atoi() + shift,
+  if (auto rest = s.startsWith("+(%esp,")) {
+    auto op2 = s.between("(", ")"), op1 = op2.rslice(",").strip();
+    op2 = op2.strip().startsWith("$");
+    assert(op2);
+    s = qformat("+(", op1, ", $",
+      op2.atoi() + shift,
       ")"
     );
+    return;
   }
   int offs;
-  if ("%esp" == s.isIndirect2(offs)) {
-    if (offs + shift < 0) {
+  if (s.isIndirect2(offs).contains("%esp")) {
+    if (offs + shift < 0 && s.isIndirect() == "%esp") { // never a good idea
       logln("Tried to fix up ", s, " by ", shift, " into negative! ");
       asm { int 3; }
     }
-    s = qformat(offs + shift, "(%esp)").cleanup();
+    s = qformat(offs + shift, "(", s.isIndirect2(offs), ")").cleanup();
   }
 }
 
@@ -430,10 +441,13 @@ class ProcTrack : ExtToken {
   }
   string mkIndirect(string val, int delta = 0 /* additional delta */) {
     if (val.startsWith("+(")) {
-      auto op2 = val.between("(", ")"), op1 = op2.slice(",").strip();
+      auto op2 = val.between("(", ")"), op1 = op2.rslice(",").strip();
       if (op1.startsWith("%gs:")) return null;
       op2 = op2.strip();
-      if (op1.isRegister() && op2.isNumLiteral()) {
+      bool isReg;
+      if (op1.find(",") != -1) isReg = true; // %reg,%reg
+      else isReg = op1.isRegister();
+      if (isReg && op2.isNumLiteral()) {
         auto op2i = op2.literalToInt();
         /*if (t.to in use)
           return null;*/
@@ -462,6 +476,10 @@ class ProcTrack : ExtToken {
         backup = null;
       }
     }
+    bool partialKnown(string s) {
+      foreach (key, value; known) if (s.contains(key)) return true;
+      return false;
+    }
     // #define .. lol
     const string Success = "{ backup ~= t; eaten ++; return true; }";
     bool canOverwrite(string s, string whs = null) {
@@ -469,6 +487,7 @@ class ProcTrack : ExtToken {
       foreach (entry; stack)
         if (entry.find(s) != -1) return false;
       foreach (key, value; known) {
+        if (s.contains(key)) return false;
         if (value.find(s) != -1) return false;
       }
       return true;
@@ -593,7 +612,7 @@ class ProcTrack : ExtToken {
           mixin(Success);
         }
         if (!canOverwrite(t.to, t.from)) break; // lol
-        if (t.to.isIndirect() == "%esp")
+        if (t.to.isIndirect().contains("%esp"))
           use["%esp"] = true;
         int delta;
         if (t.from.isRegister()) {
@@ -638,6 +657,7 @@ class ProcTrack : ExtToken {
               mixin(Success);
             }
           }
+          if (partialKnown(deref)) return false;
           // if (deref == "%esp") logln("delta ", delta, " to ", t.to, " and we are ", this);
           if (deref == "%esp" && t.to.isUtilityRegister() && !(delta % 4)) {
             auto from_rel = delta / 4;
@@ -690,14 +710,15 @@ class ProcTrack : ExtToken {
             if (src in known) {
               if (auto indir = mkIndirect(known[src], offs)) {
                 fixupESPDeps(4);
-                if (indir.isIndirect() in known)
+                if (auto id = indir.isIndirect())
                   // depends on a register that we've yet to emit on stackbuild time
-                  return false;
+                  if (partialKnown(id)) return false;
                 
                 stack ~= indir;
                 mixin(Success);
               }
             }
+            if (partialKnown(src)) return false;
           }
           auto val = t.source;
           if (auto p = t.source in known)
@@ -974,7 +995,7 @@ void setupOpts() {
     $T t = $0.dup;
     bool dontDoIt;
     void detShift(string s) {
-      if (s.between("(", ")") != "%esp") {
+      if (!s.isIndirect().contains("%esp")) {
         int offs;
         if (s.isIndirect2(offs) == "%ebp" && offs < 0)
           dontDoIt = true; // may refer to stack-in-use
@@ -994,12 +1015,12 @@ void setupOpts() {
       }
     }
     void applyShift(ref string s) {
-      if (s.between("(", ")") != "%esp") return;
+      if (!s.isIndirect().contains("%esp")) return;
       auto offs = s.between("", "(").atoi();
       if ($1.kind == $TK.SAlloc) {
-        s = qformat(offs + shift, "(%esp)");
+        s = qformat(offs + shift, "(", s.isIndirect(), ")");
       } else {
-        s = qformat(offs - shift, "(%esp)");
+        s = qformat(offs - shift, "(", s.isIndirect(), ")");
       }
     }
     // if (t.kind == $TK.SSEOp) logln("test ", t);
@@ -1064,13 +1085,13 @@ void setupOpts() {
       changed = true;
     }
     bool skip;
-    if ($0.kind == $TK.Push /or/ $TK.Pop) {
+    /*if ($0.kind == $TK.Push /or/ $TK.Pop) {
       // if we can't do the push in one step
       if ($0.type.size != 4 /or/ 2 /or/ 1) 
         skip = true;
-    }
+    }*/
     if (!skip) {
-      info(t).accessParams((ref string s) { if (s.isIndirect() == "%ebp") doStuff(s); });
+      info(t).accessParams((ref string s) { if (s.isIndirect().contains("%ebp")) doStuff(s); });
       if (changed) $SUBST(t);
     }
   `));
@@ -1083,9 +1104,11 @@ void setupOpts() {
     labels_refcount[$0.dest] --;
     $SUBST($1);
   `));
-  mixin(opt("move_lea_down", `^LoadAddress, *:
+  mixin(opt("move_lea_down", `^LoadAddress, *, *:
     $1.kind != $TK.LoadAddress &&
-    !info($1).opContains($0.to)
+    !info($1).opContains($0.to) &&
+    !$0.source.contains(info($1).outOp()) &&
+    $2.kind != $TK.Pop && $2.kind != $TK.Push /* prevent loop with preswitch_math_lea */
     =>
     $T t = $0.dup;
     bool remove;
@@ -1098,8 +1121,8 @@ void setupOpts() {
       else
         remove = true;
     }
-    if (remove) $SUBST($1); // stack change makes lea invalid.
-    else $SUBST($1, t);
+    if (remove) $SUBST($1, $2); // stack change makes lea invalid.
+    else $SUBST($1, t, $2);
   `));
   mixin(opt("move_lea_downer", `^LoadAddress, ^SFree, *:
     $2.kind != $TK.LoadAddress &&
@@ -1112,9 +1135,9 @@ void setupOpts() {
   mixin(opt("load_address_into_source", `^LoadAddress, *:
     info($1).hasIndirect(0, $0.to) && info($1).opSize() > 1
     =>
-    $T t = $1.dup;
+    $T t = $1;
     info(t).setIndirect(0, $0.to, $0.from);
-    $T t2 = $0.dup;
+    $T t2 = $0;
     if (info($1).growsStack)   info(t2).fixupStrings( info($1).opSize());
     if (info($1).shrinksStack) info(t2).fixupStrings(-info($1).opSize());
     $SUBST(t, t2);
@@ -1125,7 +1148,7 @@ void setupOpts() {
     =>
     $T t = $2.dup;
     info(t).setIndirect(0, $0.to, $0.from);
-    $T t2 = $0.dup;
+    $T t2 = $0;
     if (info($2).growsStack)   info(t2).fixupStrings( info($2).opSize());
     if (info($2).shrinksStack) info(t2).fixupStrings(-info($2).opSize());
     $SUBST(t, t2, $1);
@@ -1154,6 +1177,9 @@ void setupOpts() {
     t.dest = $0.dest;
     $SUBST(t);
   `));
+  mixin(opt("add_switch", `^MathOp, ^Mov:
+    $0.opName == "addl" && $0.op1 == $1.to && $1.from == $0.op2  =>  $T t = $0; swap(t.op1, t.op2); $SUBST(t); 
+  `));
   mixin(opt("push_temp_into_load", `^Push, *:
     $0.type.size == info($1).opSize &&
     info($1).hasIndirectSrc(0, "%esp") &&
@@ -1168,7 +1194,15 @@ void setupOpts() {
     $T t = $1;
     if (t.hasStackdepth()) t.stackdepth -= $0.type.size;
     info(t).setIndirectSrc(0, "%esp", $0.source);
-    $SUBST(t, $0);
+    bool block;
+    if (t.kind == $TK.SSEOp) { // alignment!!
+      int offs;
+      block = true;
+      if ($0.hasStackdepth() && $0.source.isIndirect2(offs) == "%esp" && ($0.stackdepth - offs) % 16 == 0)
+        block = false;
+      // else logln("fail @", $0);
+    }
+    if (!block) $SUBST(t, $0);
   `));
   mixin(opt("store_float_into_double", `^FloatPop || ^FloatStore, ^DoublePop || ^DoubleStore:
     ($0.dest == "(%esp)" || $0.dest == "4(%esp)") && $1.dest == "(%esp)"
@@ -1319,8 +1353,88 @@ void setupOpts() {
     t3.from = $1.source;
     $SUBST(t1, t2, t3);
   `));
+  mixin(opt("dense_address_form", `^LoadAddress, ^MathOp:
+    $0.from.isIndirect() == "%esp" && $1.opName == "addl" && $0.to == $1.op2 && $1.op1.isUtilityRegister()
+    =>
+    $T t = $0;
+    int offs;
+    $0.from.isIndirect2(offs);
+    t.from = qformat(offs, "(%esp,", $1.op1, ")");
+    $SUBST(t);
+  `));
+  mixin(opt("dense_address_form2", `^MathOp, ^Push || ^Pop:
+    $0.opName == "addl" && info($1).stackDataOp().isIndirect() == $0.op2 && $0.op1.isUtilityRegister()
+    =>
+    $T t = $1;
+    int offs;
+    info($1).stackDataOp().isIndirect2(offs);
+    info(t).stackDataOp = qformat(offs, "(", $0.op2, ",", $0.op1, ")");
+    $SUBST(t);
+  `));
+  string pfpsource(Transaction* t) {
+    with (Transaction.Kind) switch (t.kind) {
+      case Push, FloatLoad: return t.source;
+      case Pop: return t.dest;
+      default: asm { int 3; }
+    }
+  }
+  string pfpsetsource(Transaction* t, string s) {
+    with (Transaction.Kind) switch (t.kind) {
+      case Push, FloatLoad: return t.source = s;
+      case Pop: return t.dest = s;
+      default: asm { int 3; }
+    }
+  }
+  mixin(opt("denser_address_form", `^MathOp, ^Push || ^FloatLoad || ^Pop:
+    ($0.opName == "imull" || $0.opName == "shl") && $0.op1.isNumLiteral() &&
+    pfpsource(&$1).isIndirect().contains($0.op2)
+    =>
+    $T t = $1;
+    int offs;
+    auto regs = pfpsource(&t).isIndirect2(offs);
+    int mul = $0.op1.literalToInt();
+    // mul = 2 ^ shl
+    if ($0.opName == "shl") { int mul2 = 1; while (mul--) mul2 *= 2; mul = mul2; }
+    if (mul == 1 /or/ 2 /or/ 4 /or/ 8) {
+      pfpsetsource(&t, qformat(offs, "(", regs, ",", mul, ")"));
+      $SUBST(t);
+    }
+  `));
+  mixin(opt("preswitch_math_lea", `^MathOp, ^LoadAddress, *:
+    $0.op1.isNumLiteral() && !$1.source.contains($0.op2) && $1.dest != $0.op2 &&
+    $2.kind == $TK.Pop || $2.kind == $TK.Push
+    =>
+    $SUBST($1, $0, $2);
+  `));
+  mixin(opt("lea_mov_into_push_pop", `^LoadAddress, ^Mov, ^Push || ^Pop || ^FloatLoad:
+    $0.from.isIndirect() == "%esp" &&
+    pfpsource(&$2).isIndirect().startsWith(qformat($0.to, ",", $1.to))
+    =>
+    $T t = $2;
+    int offs1, offs2;
+    pfpsource(&t).isIndirect2(offs1);
+    $0.from.isIndirect2(offs2);
+    auto rest = pfpsource(&$2).isIndirect().startsWith(qformat($0.to, ",", $1.to));
+    int combined_offset = offs1 + offs2;
+    pfpsetsource(&t, qformat(combined_offset, "(%esp,", $1.to, rest, ")"));
+    $SUBST($1, t);
+  `));
+  mixin(opt("rename_earlier", `^MathOp, ^Mov, ^Mov || ^LoadAddress:
+    $0.op1.isNumLiteral() && $1.from == $0.op2 && $1.to.isUtilityRegister() && $2.to == $1.from
+    =>
+    $T t1 = $1, t2 = $0;
+    t2.op2 = t1.to;
+    $SUBST(t1, t2, $2);
+  `));
+  mixin(opt("rename_step2", `*, ^Mov, ^MathOp, ^Mov:
+    $2.op2 == $1.to && $1.from == info($0).outOp() && !info($0).opContainsSrc($1.from) && $3.to == $1.from && $3.from.isIndirect() == "%esp"
+    =>
+    $T t = $0;
+    info(t).outOp = $1.to;
+    $SUBST(t, $2, $3);
+  `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
-    bool changed, pushMode;
+    bool changed, pushMode; int pushSize;
     auto match = cache.findMatch("lookahead_remove_redundants", delegate int(Transaction[] list) {
       if (list.length <= 1) return false;
       auto head = list[0];
@@ -1331,7 +1445,7 @@ void setupOpts() {
         if (head.kind == DoubleStore) check = head.dest;
         if (head.kind == MathOp) check = head.op2;
         pushMode = false;
-        if (head.kind == Push && head.type.size == 4) { pushMode = true; check = "(%esp)"; }
+        if (head.kind == Push) { pushMode = true; check = "(%esp)"; pushSize = head.type.size; }
         if (head.kind == SSEOp && head.opName == "movaps" && (
           head.op2.isSSERegister() || head.op2 == "(%esp)")) check = head.op2;
       }
@@ -1431,7 +1545,7 @@ void setupOpts() {
       if (pushMode) {
         Transaction t;
         t.kind = Transaction.Kind.SAlloc;
-        t.size = 4;
+        t.size = pushSize;
         match.replaceWith(t, match[][1 .. $]);
       } else {
         match.replaceWith(match[][1 .. $]); // remove

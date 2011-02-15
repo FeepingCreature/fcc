@@ -80,8 +80,9 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
     vec3f ff = vec3f(factor1, factor2, factor3);
     for (int y = 0; y < surface.h; ++y) {
       auto p = &((int*:surface.pixels)[y * int:surface.w]);
+      vec3f f = void;
       for (int x = 0; x < surface.w; ++x) {
-        auto f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
+        f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
         *(p++) = fastfloor(f.x) + fastfloor(f.y) & factor2 + fastfloor(f.z) & factor3;
       }
     }
@@ -372,6 +373,7 @@ int main(string[] args) {
       float noisex(vec3f v) {
         // return noise3 vec3f(v.x + noise3(v), v.y + noise3(-v), v.z);
         return noise3 v;
+        // return sinf(v.x + v.y + v.z) * 0.5 + 0.5;
       }
       auto n = noisex vec3f(x * 8, y * 8, t);
       

@@ -99,16 +99,7 @@ void testAlign(string name, void* p) {
   else writeln "$name: not aligned";
 }
 
-float noise3(vec3f v) {
-  vec3f[4] vs = void;
-  vec3f vsum = void;
-  vec3i indices = void;
-  int[4] gi = void;
-  int mask = void;
-  vec3f v0 = void;
-  vec3i offs1 = void, offs2 = void;
-  float sum = 0f;
-  int c = void;
+float noise3(vec3f input) {
   /*testAlign("ebp", _ebp);
   testAlign("vs", &vs);
   testAlign("sum", &sum);
@@ -117,9 +108,10 @@ float noise3(vec3f v) {
   _interrupt 3;*/
   if !perm.length permsetup;
   
-  vsum = v + (v.sum / 3.0f);
-  indices = vec3i(vsum.(fastfloor x, fastfloor y, fastfloor z));
-  vs[0] = v - indices      + (indices.sum / 6.0f);
+  auto vsum = input + (input.sum / 3.0f);
+  auto indices = vec3i(vsum.(fastfloor x, fastfloor y, fastfloor z));
+  vec3f[4] vs = void;
+  vs[0] = input - indices      + (indices.sum / 6.0f);
   vs[1] = vs[0]            + vec3f(1.0f / 6);
   vs[2] = vs[0]            + vec3f(2.0f / 6);
   vs[3] = vs[0]       + vec3f(-1 + 3.0f / 6);
@@ -127,8 +119,10 @@ float noise3(vec3f v) {
   xmm[3] = xmm[2].xxy;
   xmm[4] = xmm[2].yzz;
   // this is correct, I worked it out
-  mask = [0b100_110, 0b010_110, 0, 0b010_011, 0b100_101, 0, 0b001_101, 0b001_011][eval xmm[3] < xmm[4]];
-  /*if (v0.x < v0.y) {
+  auto mask = [0b100_110, 0b010_110, 0, 0b010_011, 0b100_101, 0, 0b001_101, 0b001_011][eval xmm[3] < xmm[4]];
+  /*
+  auto v0 = vs[0];
+  if (v0.x < v0.y) {
     if (v0.y < v0.z) {
       mask = 0b001_011; // X Y Z
     } else if (v0.x < v0.z) {
@@ -147,6 +141,7 @@ float noise3(vec3f v) {
       mask = 0b100_110; // Z Y X
     }
   }*/
+  vec3i offs1 = void, offs2 = void;
   offs1 = vec3i((mask >> 5)    , (mask >> 4) & 1, (mask >> 3) & 1);
   offs2 = vec3i((mask >> 2) & 1, (mask >> 1) & 1, (mask >> 0) & 1);
   vs[1] -= vec3f(offs1);
@@ -155,6 +150,7 @@ float noise3(vec3f v) {
   alias i1 = offs1.x, i2 = offs2.x,
         j1 = offs1.y, j2 = offs2.y,
         k1 = offs1.z, k2 = offs2.z;
+  int[4] gi = void;
   {
     auto lperm = perm.ptr;
     gi[0] = lperm[lperm[lperm[kk   ]+jj   ]+ii   ] % 12;
@@ -162,27 +158,24 @@ float noise3(vec3f v) {
     gi[2] = lperm[lperm[lperm[kk+k2]+jj+j2]+ii+i2] % 12;
     gi[3] = lperm[lperm[lperm[kk+1 ]+jj+1 ]+ii+1 ] % 12;
   }
-  while (c <- 0..4) {
-    xmm[5] = vs[c];
+  auto pair = [1f, -1f, -1f];
+  float ft = void;
+  float sum = 0f;
+  vec3f current = void;
+  int id = void;
+  while (int c <- 0..4) {
+    current = vs[c];
+    xmm[5] = current;
     xmm[4] = xmm[5];
     xmm[4] *= xmm[4];
-    auto ft = 0.6f - xmm[4].sum;
-    // xmm[4] ^= xmm[4]; // reset
+    ft = 0.6f - xmm[4].sum;
     if (ft >= 0) {
-      auto id = gi[c], id2 = id & 12;
+      id = gi[c];
       ft *= ft;
-      auto pair = [1f, -1f, -1f];
-      if (!id2)
-        xmm[4] = vec3f(pair[id&1], pair[id&2], 0f);
-      else if (id2 == 4) 
-        xmm[4] = vec3f(pair[id&1], 0f, pair[id&2]);
-      else
-        xmm[4] = vec3f(0f, pair[id&1], pair[id&2]);
-      
-      xmm[4] *= xmm[5];
-      // xmm[5] ^= xmm[5]; // reset
-      sum += ft * ft * xmm[4].sum;
-      // xmm[4] ^= xmm[4]; // reset
+      sum += ft * ft * (
+        [current.x, current.y][eval id >= 8] * pair[id&1] +
+        [current.y, current.z][eval id >= 4] * pair[id&2]
+      );
     }
   }
   return 0.5f + 16.0f*sum;
