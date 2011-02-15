@@ -22,8 +22,9 @@ class ExprWrap : Cond {
   }
 }
 
-class Compare : Cond {
+class Compare : Cond, Expr {
   Expr e1; bool smaller, equal, greater; Expr e2;
+  Expr falseOverride, trueOverride;
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(e1, e2);
@@ -70,30 +71,25 @@ class Compare : Cond {
   bool isFloat() {
     return !!(Single!(Float) == e1.valueType());
   }
-  override {
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      assert(e1.valueType().size == 4);
-      assert(e2.valueType().size == 4);
-      
-      if (fastcast!(IntExpr) (e1) && !fastcast!(IntExpr) (e2))
-        flip;
-      
-      if (Single!(Float) == e1.valueType() && Single!(Float) != e2.valueType()) {
-        assert(Single!(SysInt) == e2.valueType());
-        e2 = new IntAsFloat(e2);
-      }
-      if (Single!(Float) == e2.valueType() && Single!(Float) != e1.valueType()) {
-        assert(Single!(SysInt) == e1.valueType());
-        e1 = new IntAsFloat(e1);
-      }
-      
+  void prelude() {
+    assert(e1.valueType().size == 4);
+    assert(e2.valueType().size == 4);
+    if (fastcast!(IntExpr) (e1) && !fastcast!(IntExpr) (e2))
+      flip;
+    if (Single!(Float) == e1.valueType() && Single!(Float) != e2.valueType()) {
+      assert(Single!(SysInt) == e2.valueType());
+      e2 = new IntAsFloat(e2);
+    }
+    if (Single!(Float) == e2.valueType() && Single!(Float) != e1.valueType()) {
+      assert(Single!(SysInt) == e1.valueType());
+      e1 = new IntAsFloat(e1);
+    }
+  }
+  void emitComparison(AsmFile af) {
+    prelude;
       if (isFloat) {
-        e1.emitAsm(af);
-        af.loadFloat("(%esp)");
-        af.sfree(4);
-        e2.emitAsm(af);
-        af.compareFloat("(%esp)");
-        af.sfree(4);
+        e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
+        e2.emitAsm(af); af.compareFloat("(%esp)"); af.sfree(4);
       } else if (auto ie = fastcast!(IntExpr)~ e2) {
         e1.emitAsm(af);
         af.popStack("%eax", e1.valueType());
@@ -106,6 +102,35 @@ class Compare : Cond {
         af.popStack("%eax", e2.valueType());
         af.compare("%eax", "%ebx");
       }
+  }
+  override {
+    IType valueType() {
+      if (falseOverride && trueOverride) {
+        assert(falseOverride.valueType() == trueOverride.valueType());
+        return falseOverride.valueType();
+      }
+      return Single!(SysInt);
+    }
+    void emitAsm(AsmFile af) {
+      if (falseOverride && trueOverride) {
+        falseOverride.emitAsm(af);
+        trueOverride.emitAsm(af);
+      }
+      emitComparison(af);
+      auto s = smaller, e = equal, g = greater;
+      if (falseOverride && trueOverride) {
+        af.popStack("%ebx", trueOverride.valueType());
+        af.popStack("%ecx", falseOverride.valueType());
+      } else {
+        af.mmove4("$1", "%ebx");
+        af.mmove4("$0", "%ecx"); // don't xorl; mustn't overwrite comparison results
+      }
+      // can't use eax, moveOnFloat needs ax
+      if (isFloat) af.moveOnFloat(s, e, g, "%ebx", "%ecx");
+      else af.cmov(s, e, g, "%ebx", "%ecx");
+      af.pushStack("%ecx", Single!(SysInt));
+    }
+    void jumpOn(AsmFile af, bool cond, string dest) {
       auto s = smaller, e = equal, g = greater;
       if (!cond) { // negate
         s = !s; e = !e; g = !g; // TODO: validate
@@ -113,6 +138,7 @@ class Compare : Cond {
         if (s + g == 1)
           e = !e;*/
       }
+      emitComparison(af);
       if (isFloat) af.jumpOnFloat(s, e, g, dest);
       else af.jumpOn(s, e, g, dest);
     }
@@ -153,13 +179,43 @@ Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNegate, "cond.negate", "72", "!");
 
+Cond compare(string op, Expr ex1, Expr ex2) {
+  bool not, smaller, equal, greater;
+  string op2 = op;
+  while (op2.length) {
+    if (op2[0] == '!') { not     = true; op2 = op2[1 .. $]; continue; }
+    if (op2[0] == '<') { smaller = true; op2 = op2[1 .. $]; continue; }
+    if (op2[0] == '=') { equal   = true; op2 = op2[1 .. $]; continue; }
+    if (op2[0] == '>') { greater = true; op2 = op2[1 .. $]; continue; }
+    asm { int 3; }
+  }
+  {
+    auto ie1 = ex1, ie2 = ex2;
+    bool isInt(IType it) { return !!fastcast!(SysInt) (it); }
+    if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
+      return new Compare(ie1, not, smaller, equal, greater, ie2);
+    }
+  }
+  {
+    auto fe1 = ex1, fe2 = ex2;
+    bool isFloat(IType it) { return !!fastcast!(Float) (it); }
+    if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
+      return new Compare(fe1, not, smaller, equal, greater, fe2);
+    }
+  }
+  return new ExprWrap(lookupOp(op, ex1, ex2));
+}
+
 import ast.casting, ast.opers;
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool not, smaller, equal, greater;
   Expr ex1, ex2; Cond cd2;
-  if (rest(t2, "tree.expr >tree.expr.cond", &ex1) &&
-      (
+  if (!rest(t2, "tree.expr >tree.expr.cond", &ex1)) return null;
+  // oopsie-daisy, iterator assign is not the same as "smaller than negative"!
+  if (t2.accept("<-")) return null;
+  
+  if ((
         (t2.accept("!") && (not = true)),
         (t2.accept("<") && (smaller = true)),
         (t2.accept(">") && (greater = true)),
@@ -183,25 +239,9 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
       }
     }
     text = t2;
-    {
-      auto ie1 = ex1, ie2 = ex2;
-      bool isInt(IType it) { return !!fastcast!(SysInt) (it); }
-      if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
-        return fastcast!(Object)~
-          finalize(new Compare(ie1, not, smaller, equal, greater, ie2));
-      }
-    }
-    {
-      auto fe1 = ex1, fe2 = ex2;
-      bool isFloat(IType it) { return !!fastcast!(Float) (it); }
-      if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
-        return fastcast!(Object)~
-          finalize(new Compare(fe1, not, smaller, equal, greater, fe2));
-      }
-    }
     auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
     if (op == "=") op = "==";
-    return fastcast!(Object)~ finalize(new ExprWrap(lookupOp(op, ex1, ex2)));
+    return fastcast!(Object) (finalize(compare(op, ex1, ex2)));
   } else return null;
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
@@ -292,14 +332,19 @@ class CondExpr : Expr {
   this(Cond cd) { this.cd = cd; }
   mixin defaultIterate!(cd);
   override {
+    string toString() { return Format("eval ", cd); }
     IType valueType() { return Single!(SysInt); }
     CondExpr dup() { return new CondExpr(cd.dup); }
     void emitAsm(AsmFile af) {
-      mkVar(af, Single!(SysInt), true, (Variable var) {
-        iparse!(Statement, "cond_expr_ifstmt", "tree.stmt")
-              (`if !cond var = false; else var = true; `,
-                "cond", cd, "var", var).emitAsm(af);
-      });
+      if (auto ex = cast(Expr) cd) {
+        ex.emitAsm(af);
+      } else {
+        mkVar(af, Single!(SysInt), true, (Variable var) {
+          iparse!(Statement, "cond_expr_ifstmt", "tree.stmt")
+                (`if !cond var = false; else var = true; `,
+                  "cond", cd, "var", var).emitAsm(af);
+        });
+      }
     }
   }
 }
@@ -309,20 +354,13 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
   Cond cd;
   if (rest(t2, "cond", &cd)) {
     text = t2;
-    if (auto ew = fastcast!(ExprWrap) (cd)) return fastcast!(Object)~ ew.ex;
+    if (auto ew = fastcast!(ExprWrap) (cd)) return fastcast!(Object) (ew.ex);
     return new CondExpr(cd);
   } else return null;
 }
 mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", null, "eval");
 
 static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    auto ew = fastcast!(ExprWrap) (it);
-    if (!ew) return null;
-    auto ce = fastcast!(CondExpr) (ew.ex);
-    if (!ce) return null;
-    return ce.cd;
-  };
   defineOp("!=", delegate Expr(Expr ex1, Expr ex2) {
     if (auto op = lookupOp("==", true, ex1, ex2)) {
       return new CondExpr(new NegCond(new ExprWrap(op)));

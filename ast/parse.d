@@ -45,6 +45,7 @@ class ExprStatement : Statement {
     auto cs = af.checkptStack();
     scope(success) af.restoreCheckptStack(cs);
     auto type = ex.valueType(), size = (type == Single!(Void))?0:type.size;
+    alignStackFor(type, af);
     mixin(mustOffset("size"));
     ex.emitAsm(af);
   }

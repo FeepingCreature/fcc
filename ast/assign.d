@@ -40,10 +40,10 @@ class _Assignment(T) : Statement {
         mixin(mustOffset("vt.size"));
         value.emitAsm(af);
       }
-      static if (is(T: MValue)) {
+      static if (is(T: MValue)) {{ // Double-brackets. Trust me.
         mixin(mustOffset("-vt.size"));
         target.emitAssignment(af);
-      } else {
+      }} else {
         {
           mixin(mustOffset("nativePtrSize"));
           target.emitLocation(af);
@@ -58,7 +58,7 @@ class _Assignment(T) : Statement {
 }
 
 alias _Assignment!(LValue) Assignment;
-
+alias _Assignment!(MValue) AssignmentM;
 import ast.casting;
 Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -86,7 +86,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (lv)
       return new Assignment(lv, value);
     else
-      return new _Assignment!(MValue)(mv, value);
+      return new AssignmentM(mv, value);
   } else return null;
 }
 mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign", "1");

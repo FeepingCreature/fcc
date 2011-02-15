@@ -23,10 +23,13 @@ void defineOp(string op, Expr delegate(Expr, Expr, Expr) dg) {
 Expr lookupOp(string op, bool allowNone, Expr[] exprs...) {
   bool reassign;
   auto pre = op.endsWith("=");
+  LValue lv; MValue mv;
   if (pre && op[0] != '=' /or/ '!') {
-    if (!fastcast!(LValue) (exprs[0])) {
+    lv = fastcast!(LValue) (exprs[0]);
+    mv = fastcast!(MValue) (exprs[0]);
+    if (!lv && !mv) {
       throw new Exception(Format(
-        "Cannot ", op, " since exprs[0]: ", exprs[0], " is not an lvalue! "
+        "Cannot ", op, " since exprs[0]: ", exprs[0], " is not an lvalue or mvalue! "
       ));
     }
     reassign = true;
@@ -36,8 +39,8 @@ Expr lookupOp(string op, bool allowNone, Expr[] exprs...) {
     foreach (dg; *p)
       if (auto res = dg(exprs)) {
         if (reassign) {
-          return new StatementAndExpr(
-            new Assignment(fastcast!(LValue)~ exprs[0], res), exprs[0]);
+          if (lv) return new StatementAndExpr(new Assignment (lv, res), exprs[0]);
+          else    return new StatementAndExpr(new AssignmentM(mv, res), exprs[0]);
         } else {
           return res;
         }
@@ -45,8 +48,9 @@ Expr lookupOp(string op, bool allowNone, Expr[] exprs...) {
     if (allowNone) return null;
     logln("No matching operators (", op, ") defined for ", exprs /map/ ex!("e -> e.valueType()"), ", exs being ", exprs);
     asm { int 3; }
-  } else
+  } else {
     throw new Exception(Format("No such operator defined: ", op, " (tried for ", exprs /map/ ex!("e -> e.valueType()"), ")"));
+  }
 }
 
 Expr lookupOp(string op, Expr[] exprs...) {

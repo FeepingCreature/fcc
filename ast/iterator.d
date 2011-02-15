@@ -632,7 +632,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
 
 import ast.scopes, ast.vardecl;
 
-Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
+Object gotIterCond(bool withoutIteratorAllowed)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue lv;
   MValue mv;
@@ -649,6 +649,7 @@ Object gotIterCond(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   needIterator = true;
 withoutIterator:
+  if (!withoutIteratorAllowed && !needIterator) return null;
   Expr iter;
   resetError();
   if (!rest(t2, "tree.expr", &iter) || !gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
@@ -687,7 +688,8 @@ withoutIterator:
   if (lv) return new IterLetCond!(LValue) (lv, iter, iter);
   else return new IterLetCond!(MValue) (mv, iter, iter);
 }
-mixin DefaultParser!(gotIterCond, "cond.iter", "705");
+mixin DefaultParser!(gotIterCond!(false), "cond.iter_strict", "705");
+mixin DefaultParser!(gotIterCond!(true), "cond.iter_loose", "8");
 
 Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

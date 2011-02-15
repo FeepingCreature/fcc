@@ -170,7 +170,7 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
     if (!saveTemps)
       foreach (obj; objects)
         unlink(obj.toStringz());
-  string cmdline = "gcc -m32 -o "~output~" ";
+  string cmdline = "gcc -pthread -m32 -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
   foreach (larg; largs) cmdline ~= larg ~ " ";
   writefln("> ", cmdline);

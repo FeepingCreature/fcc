@@ -13,7 +13,7 @@ class Vector : Type, RelNamespace, ForceAlignment {
   int len;
   override int alignment() { return 16; }
   // quietly treat n-size as n+1-size
-  bool extend() { return len == 3 && base == Single!(Float); }
+  bool extend() { return len == 3 && (base == Single!(Float) || base == Single!(SysInt)); }
   int real_len() {
     if (extend) return len + 1;
     return len;
@@ -59,6 +59,9 @@ class Vector : Type, RelNamespace, ForceAlignment {
         return false;
       }
       foreach (ch; str) if (!isValidChar(ch)) return null;
+      if (str.length == len) {
+        if (auto res = getSSESwizzle(this, base, str)) return fastcast!(Object) (res);
+      }
       auto parts = getTupleEntries(reinterpret_cast(asFilledTup, base));
       Expr[] exprs;
       foreach (ch; str) {
@@ -72,6 +75,51 @@ class Vector : Type, RelNamespace, ForceAlignment {
       auto new_vec = new Vector(this.base, exprs.length);
       if (new_vec.extend) exprs ~= new Filler(this.base);
       return fastcast!(Object)~ reinterpret_cast(new_vec, mkTupleExpr(exprs));
+    }
+  }
+}
+
+class Swizzle3f : Expr {
+  Expr sup;
+  string rule;
+  this(Expr e, string r) { sup = e; rule = r; }
+  private this() { }
+  mixin defaultIterate!(sup);
+  mixin DefaultDup!();
+  override {
+    IType valueType() { checkVecs(); return vec3f; }
+    void emitAsm(AsmFile af) {
+      int mask;
+      foreach_reverse (ch; rule) switch (ch) {
+        case 'x': mask = mask*4; break;
+        case 'y': mask = mask*4 + 1; break;
+        case 'z': mask = mask*4 + 2; break;
+      }
+      sup.emitAsm(af);
+      af.SSEOp("movaps", "(%esp)", "%xmm0");
+      af.SSEOp(qformat("shufps $", mask, ", "), "%xmm0", "%xmm0");
+      af.SSEOp("movaps", "%xmm0", "(%esp)");
+    }
+  }
+}
+
+Expr getSSESwizzle(Vector v, Expr ex, string rule) {
+  checkVecs();
+  if (v != vec3f) return null;
+  return new Swizzle3f(ex, rule);
+}
+
+class SSEIntToFloat : Expr {
+  Expr base;
+  this(Expr b) { base = b; }
+  mixin defaultIterate!(base);
+  SSEIntToFloat dup() { return new SSEIntToFloat(base.dup()); }
+  override {
+    IType valueType() { checkVecs(); return vec3f; }
+    void emitAsm(AsmFile af) {
+      base.emitAsm(af);
+      af.SSEOp("cvtdq2ps", "(%esp)", "%xmm0");
+      af.SSEOp("movaps", "%xmm0", "(%esp)");
     }
   }
 }
@@ -96,8 +144,13 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
     return fastcast!(Object)~
       reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
   }
+  checkVecs();
   retryTup:
-  auto tup = fastcast!(Tuple)~ ex.valueType();
+  if (vec == vec3f && ex.valueType() == vec3i) {
+    text = t2;
+    return new SSEIntToFloat(ex);
+  }
+  auto tup = fastcast!(Tuple) (ex.valueType());
   if (!tup) t2.failparse("WTF? No tuple param for vec constructor: ", ex.valueType());
   if (tup.types.length == 1) {
     ex = getTupleEntries(ex)[0];
@@ -224,6 +277,124 @@ bool pretransform(ref Expr ex, ref IType it) {
   return false;
 }
 
+import ast.pointer;
+
+Vector vec3f, vec3i;
+void checkVecs() { if (!vec3f) vec3f = new Vector(Single!(Float), 3); if (!vec3i) vec3i = new Vector(Single!(SysInt), 3); }
+
+bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
+  mixin(mustOffset("0"));
+  checkVecs;
+  if (op1.valueType() != vec3f
+   || op2.valueType() != vec3f)
+    return false;
+  if (op != "+" /or/ "-" /or/ "*" /or/ "/" /or/ "^") return false;
+  void packLoad(string dest, string scrap1, string scrap2) {
+    af.popStack("%eax", Single!(SysInt));
+    // af.SSEOp("movaps", "(%eax)", dest);
+    // recommended by the intel core opt manual, 3-50
+    af.movd("(%eax)", dest);
+    af.movd("8(%eax)", scrap1);
+    af.SSEOp("punpckldq", scrap1, dest);
+    af.movd("4(%eax)", scrap1);
+    af.movd("12(%eax)", scrap2);
+    af.SSEOp("punpckldq", scrap2, scrap1);
+    af.SSEOp("punpckldq", scrap1, dest);
+  }
+  auto var1 = cast(Variable) op1, var2 = cast(Variable) op2;
+  bool alignedVar1 = var1 && (var1.baseOffset & 15) == 0;
+  bool alignedVar2 = var2 && (var2.baseOffset & 15) == 0;
+  if (alignedVar1 && alignedVar2) {
+    var1.emitLocation(af);
+    var2.emitLocation(af);
+    /*packLoad("%xmm1", "%xmm0", "%xmm2");
+    packLoad("%xmm0", "%xmm2", "%xmm3");*/
+    af.popStack("%eax", Single!(SysInt));
+    af.popStack("%ebx", Single!(SysInt));
+    af.SSEOp("movaps", "(%ebx)", "%xmm1");
+    af.SSEOp("movaps", "(%eax)", "%xmm0");
+    af.salloc(16);
+  }
+  if (alignedVar1 && !alignedVar2) {
+    af.salloc(12);
+    var1.emitLocation(af);
+    op2.emitAsm(af);
+    af.SSEOp("movaps", "(%esp)", "%xmm1");
+    af.sfree(16);
+    // logln("param 2 is ", op2, ", what to do .. ");
+    packLoad("%xmm0", "%xmm2", "%xmm3");
+    // af.popStack("%eax", Single!(SysInt));
+    // af.SSEOp("movaps", "(%eax)", "%xmm0");
+    af.salloc(4);
+  }
+  if (!alignedVar1 && alignedVar2) {
+    af.salloc(12);
+    var2.emitLocation(af);
+    op1.emitAsm(af);
+    af.SSEOp("movaps", "(%esp)", "%xmm0");
+    af.sfree(16);
+    // logln("param 1 is ", op1, ", what to do .. ");
+    packLoad("%xmm1", "%xmm2", "%xmm3");
+    // af.popStack("%eax", Single!(SysInt));
+    // af.SSEOp("movaps", "(%eax)", "%xmm1");
+    af.salloc(4);
+  }
+  if (!alignedVar1 && !alignedVar2) {
+    op1.emitAsm(af);
+    op2.emitAsm(af);
+    af.SSEOp("movaps", "(%esp)", "%xmm1");
+    af.sfree(16);
+    af.SSEOp("movaps", "(%esp)", "%xmm0");
+  }
+  string sse;
+  if (op == "+") sse = "addps";
+  if (op == "-") sse = "subps";
+  if (op == "*") sse = "mulps";
+  if (op == "/") sse = "divps";
+  if (op == "^") sse = "xorps";
+  af.SSEOp(sse, "%xmm1", "%xmm0");
+  af.SSEOp("movaps", "%xmm0", "(%esp)");
+  mixin(mustOffset("-16"));
+  if (auto lv = cast(LValue) res) {
+    (new Assignment(lv, new Placeholder(vec3f), false, true)).emitAsm(af);
+  } else if (auto mv = cast(MValue) res) {
+    mv.emitAssignment(af);
+  } else asm { int 3; }
+  return true;
+}
+
+class Vec3fSmaller : Expr {
+  Expr ex1, ex2;
+  this(Expr e1, Expr e2) { this.ex1 = e1; this.ex2 = e2; }
+  mixin defaultIterate!(ex1, ex2);
+  mixin DefaultDup!();
+  private this() { }
+  override {
+    IType valueType() { return Single!(SysInt); }
+    void emitAsm(AsmFile af) {
+      checkVecs();
+      auto t1 = ex1.valueType(), t2 = ex2.valueType();
+      if (vec3f != t1 || vec3f != t2) {
+        logln("Fuck. ", t1, " or ", t2);
+        asm { int 3; }
+      }
+      auto filler = alignStackFor(t1, af);
+      ex1.emitAsm(af);
+      ex2.emitAsm(af);
+      af.SSEOp("movaps", "(%esp)", "%xmm0");
+      af.sfree(16);
+      af.SSEOp("movaps", "(%esp)", "%xmm1");
+      af.sfree(16);
+      af.sfree(filler);
+      af.SSEOp("cmpltps", "%xmm0", "%xmm1");
+      af.nvm("%ebx");
+      af.nvm("%eax");
+      af.put("movmskps %xmm1, %eax");
+      af.pushStack("%eax", valueType());
+    }
+  }
+}
+
 import ast.vardecl, ast.assign;
 class VecOp : Expr {
   IType type;
@@ -242,11 +413,7 @@ class VecOp : Expr {
     IType valueType() { return new Vector(type, len); }
     void emitAsm(AsmFile af) {
       auto t1 = ex1.valueType(), t2 = ex2.valueType();
-      while (true) {
-        if (pretransform(ex1, t1)) continue;
-        if (pretransform(ex2, t2)) continue;
-        break;
-      }
+      while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }
       auto e1v = fastcast!(Vector)~ t1, e2v = fastcast!(Vector)~ t2;
       mkVar(af, valueType(), true, (Variable var) {
         auto entries = getTupleEntries(
@@ -258,11 +425,13 @@ class VecOp : Expr {
         mixin(mustOffset("0"));
         auto filler1 = alignStackFor(t1, af); auto v1 = mkTemp(af, ex1, dg1);
         auto filler2 = alignStackFor(t2, af); auto v2 = mkTemp(af, ex2, dg2);
-        for (int i = 0; i < len; ++i) {
-          Expr l1 = v1, l2 = v2;
-          if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
-          if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2))[i];
-          (new Assignment(fastcast!(LValue)~ entries[i], lookupOp(op, l1, l2))).emitAsm(af);
+        if (!gotSSEVecOp(af, fastcast!(Expr) (v1), fastcast!(Expr) (v2), fastcast!(Expr) (var), op)) {
+          for (int i = 0; i < len; ++i) {
+            Expr l1 = v1, l2 = v2;
+            if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
+            if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2))[i];
+            (new Assignment(fastcast!(LValue)~ entries[i], lookupOp(op, l1, l2))).emitAsm(af);
+          }
         }
         if (dg2) dg2(); af.sfree(filler2);
         if (dg1) dg1(); af.sfree(filler1);
@@ -271,15 +440,25 @@ class VecOp : Expr {
   }
 }
 
+class FailExpr : Expr {
+  string mesg;
+  IType typeMaybe;
+  this(string s, IType tm = null) { this.mesg = s; typeMaybe = tm; }
+  void fail() { logln("Fail: ", mesg); asm { int 3; } }
+  override {
+    IType valueType() { if (typeMaybe) return typeMaybe; fail(); return null; }
+    void emitAsm(AsmFile af) { fail(); }
+    mixin defaultIterate!();
+    FailExpr dup() { return this; }
+  }
+}
+
 import ast.opers;
 static this() {
   Expr handleVecOp(string op, Expr lhs, Expr rhs) {
     auto v1 = lhs.valueType(), v2 = rhs.valueType();
-    while (true) {
-      if (pretransform(lhs, v1)) continue;
-      if (pretransform(rhs, v2)) continue;
-      break;
-    }
+    while (pretransform(lhs, v1) || pretransform(rhs, v2)) { }
+    
     auto v1v = fastcast!(Vector)~ v1, v2v = fastcast!(Vector)~ v2;
     if (!v1v && !v2v) return null;
     
@@ -288,9 +467,13 @@ static this() {
     if (v1v) len = v1v.asTup.types.length;
     else len = v2v.asTup.types.length;
     
-    auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asFilledTup, lhs))[0];
-    auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs))[0];
-    auto type = lookupOp(op, l1, r1).valueType();
+    IType type;
+    if (v1v is v2v && v1v == v2v) type = v1v.base;
+    else {
+      auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asFilledTup, lhs))[0];
+      auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs))[0];
+      type = lookupOp(op, l1, r1).valueType();
+    }
     return new VecOp(type, len, lhs, rhs, op);
   }
   Expr negate(Expr ex) {
@@ -306,9 +489,77 @@ static this() {
     if (vt.extend) list ~= new Filler(vt.base);
     return reinterpret_cast(vt, new StructLiteral(vt.asFilledTup.wrapped, list));
   }
+  Expr handleVecSmaller(Expr e1, Expr e2) {
+    auto t1 = resolveType(e1.valueType()), t2 = resolveType(e2.valueType());
+    auto v1 = fastcast!(Vector) (t1), v2 = fastcast!(Vector) (t2);
+    if (!v1 || !v2) return null;
+    
+    return lookupOp("&", new Vec3fSmaller(e1, e2), mkInt(7));
+  }
   defineOp("-", &negate);
   defineOp("-", "-" /apply/ &handleVecOp);
   defineOp("+", "+" /apply/ &handleVecOp);
   defineOp("*", "*" /apply/ &handleVecOp);
   defineOp("/", "/" /apply/ &handleVecOp);
+  defineOp("^", "^" /apply/ &handleVecOp);
+  defineOp("<", &handleVecSmaller);
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto mae = fastcast!(MemberAccess_Expr) (ex)) {
+      auto base = foldex(mae.base);
+      if (auto rce = fastcast!(RCE) (base)) {
+        if (auto vo = cast(VecOp) rce.from) {
+          assert(mae.stm.offset % vo.type.size() == 0);
+          auto id = mae.stm.offset / vo.type.size();
+          auto ex1 = vo.ex1, ex2 = vo.ex2;
+          auto t1 = ex1.valueType(), t2 = ex2.valueType();
+          while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }
+          auto t1v = fastcast!(Vector) (t1), t2v = fastcast!(Vector) (t2);
+          // logln("id is ", id, " because of ", mae.stm.offset, " into ", vo.type.size(), "; compare ", vo.valueType().size(), " / ", (cast(Vector) vo.valueType()).real_len());
+          if (t1v) ex1 = getTupleEntries(reinterpret_cast(t1v.asFilledTup, ex1))[id];
+          if (t2v) {
+            // logln("filled tup for ", t2v, " is ", t2v.asFilledTup, " -- ", ex);
+            auto ar = getTupleEntries(reinterpret_cast(t2v.asFilledTup, ex2));
+            if (ar.length !> id) ex2 = new FailExpr("oh fuck", ar[0].valueType());
+            else ex2 = ar[id];
+          }
+          return lookupOp(vo.op, ex1, ex2);
+        }
+      }
+    }
+    return null;
+  };
 }
+
+class XMM : MValue {
+  int which;
+  this(int w) { which = w; }
+  mixin defaultIterate!();
+  override {
+    XMM dup() { return this; }
+    IType valueType() { checkVecs(); return vec3f; /* TODO: vec4f? */ }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("16"));
+      af.salloc(16);
+      af.SSEOp("movaps", qformat("%xmm", which), "(%esp)");
+    }
+    void emitAssignment(AsmFile af) {
+      mixin(mustOffset("-16"));
+      af.SSEOp("movaps", "(%esp)", qformat("%xmm", which));
+      af.sfree(16);
+    }
+  }
+}
+
+Object gotXMM(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("[")) t2.failparse("Expected [index] for SSE op");
+  Expr ex;
+  if (!rest(t2, "tree.expr", &ex) || !t2.accept("]"))
+    t2.failparse("Expected index expression for SSE op! ");
+  auto lit = cast(IntExpr) foldex(ex);
+  if (!lit)
+    t2.failparse("Expected integer constant for SSE reg access! ");
+  text = t2;
+  return new XMM(lit.num);
+}
+mixin DefaultParser!(gotXMM, "tree.expr.xmm", "2406", "xmm");

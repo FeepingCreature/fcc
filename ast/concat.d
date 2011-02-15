@@ -97,7 +97,7 @@ class ConcatChain : Expr {
 }
 
 static this() {
-  bool isArray(IType it) { return !!fastcast!(Array) (it); }
+  bool isArray(IType it) { return fastcast!(Array) (it) || fastcast!(StaticArray) (it); }
   bool isExtArray(IType it) { return !!fastcast!(ExtArray) (it); }
   bool isEqual(IType i1, IType i2) {
     return test(resolveType(i1) == resolveType(i2));

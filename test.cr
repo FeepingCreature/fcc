@@ -1,13 +1,13 @@
 module test;
 import sys, sdl, simplex;
 
-int add(int a, int b) { return a + b; }
+int delegate(int b) add(int a) { return new delegate int(int b) { return a + b; }; }
 
 void test(int foo) {
   int bar = 17;
   if (foo) writeln("meep");
   else writeln("moop");
-  writeln("Hello World: $(foo * add(2, bar)), $bar");
+  writeln("Hello World: $(foo * add a=>2 b=>bar), $bar");
   int temp = 5;
   while (temp) {
     writeln("Countdown with $temp");
@@ -80,8 +80,9 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
     vec3f ff = vec3f(factor1, factor2, factor3);
     for (int y = 0; y < surface.h; ++y) {
       auto p = &((int*:surface.pixels)[y * int:surface.w]);
+      vec3f f = void;
       for (int x = 0; x < surface.w; ++x) {
-        auto f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
+        f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
         *(p++) = fastfloor(f.x) + fastfloor(f.y) & factor2 + fastfloor(f.z) & factor3;
       }
     }
@@ -171,6 +172,7 @@ union U {
 // c_include "gc.h";
 
 int main(string[] args) {
+  mxcsr |= (1 << 6) | (3 << 13);
   // use Boehm GC
   /* mem.malloc_dg = &GC_malloc;
   void* myCalloc(int a, b) {
@@ -371,6 +373,7 @@ int main(string[] args) {
       float noisex(vec3f v) {
         // return noise3 vec3f(v.x + noise3(v), v.y + noise3(-v), v.z);
         return noise3 v;
+        // return sinf(v.x + v.y + v.z) * 0.5 + 0.5;
       }
       auto n = noisex vec3f(x * 8, y * 8, t);
       

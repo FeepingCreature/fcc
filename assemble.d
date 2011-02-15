@@ -20,6 +20,11 @@ bool isRegister(string s) {
   return s.length > 2 && s[0] == '%' && s[1] != '(' && !s.startsWith("%gs:");
 }
 
+bool contains(string s, string t) {
+  if (!t) return false;
+  return s.find(t) != -1;
+}
+
 bool isLiteral(string s) {
   if (s.startsWith("+(%gs:")) return true; // kiinda.
   return s.length && s[0] == '$';
@@ -50,19 +55,19 @@ string isIndirectSimple(string s) {
   }
   else return null;
 }
-string isIndirectComplex(string s, ref int delta) {
+string isIndirectComplex(string s, ref int delta, bool allowLiterals) {
   if (s.between(")", "").length) return null;
   auto betw = s.between("(", ")");
-  if (betw && betw.isRegister()) {
+  if (betw && (betw.isRegister() || allowLiterals)) {
     delta = s.between("", "(").atoi();
     return betw;
   }
   return null;
 }
-string isIndirect2(string s, ref int delta) {
+string isIndirect2(string s, ref int delta, bool allowLiterals = false) {
   delta = 0;
   if (auto res = isIndirectSimple(s)) return res;
-  if (auto res = isIndirectComplex(s, delta)) return res;
+  if (auto res = isIndirectComplex(s, delta, allowLiterals)) return res;
   return null;
 }
 string isIndirect(string s, int offs = -1) {
@@ -75,6 +80,16 @@ string isIndirect(string s, int offs = -1) {
   }
 }
 
+string fixupLiterals(string s) {
+  int offs;
+  auto indir = s.isIndirect2(offs, true);
+  if (auto rest = indir.startsWith("$")) {
+    if (offs != 0) return qformat(rest, "+", offs);
+    else return rest;
+  }
+  return s;
+}
+
 interface ExtToken {
   string toAsm();
 }
@@ -82,23 +97,25 @@ interface ExtToken {
 import parseBase; // int parsing
 struct Transaction {
   enum Kind {
-    Mov, Mov2, Mov1, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
+    Mov, Mov2, Mov1, MovD, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
     FloatLoad, DoubleLoad, RealLoad, RegLoad,
     FloatCompare,
     FloatPop, DoublePop,
     FloatStore, DoubleStore,
     FloatMath, FPSwap,
     FloatIntLoad, /* fildl */
+    SSEOp,
     ExtendDivide, /* cdq, idivl */
     Jump, Label, Extended, Nevermind, LoadAddress
   }
-  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
+  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "MovD", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
     "FloatLoad", "DoubleLoad", "RealLoad", "RegLoad",
     "FloatCompare",
     "FloatPop" , "DoublePop" ,
     "FloatStore", "DoubleStore",
     "FloatMath", "FPSwap",
     "FloatIntLoad",
+    "SSEOp",
     "ExtendDivide",
     "Jump", "Label", "Extended", "Nevermind", "LoadAddress"];
   Kind kind;
@@ -108,44 +125,44 @@ struct Transaction {
       else return qformat("@", stackdepth);
     }
     with (Kind) switch (kind) {
-      case Mov:     return Format("[movl ", from, " -> ", to, "]");
-      case Mov2:    return Format("[movw ", from, " -> ", to, "]");
-      case Mov1:    return Format("[movb ", from, " -> ", to, "]");
-      case SAlloc:  return Format("[salloc ", size, "]");
-      case SFree:   return Format("[sfree ", size, "]");
-      case MathOp:  return Format("[math:", opName, " ", op1, ", ", op2, "]");
-      case Push:
-        return Format("[push ", source, ": ", type.size, extra(), "]");
-      case Pop:
-        return Format("[pop ", dest, ": ", type.size, extra(), "]");
-      case Call:    return Format("[call ", dest, "]");
+      case Mov:         return Format("[movl ", from, " -> ", to, "]");
+      case Mov2:        return Format("[movw ", from, " -> ", to, "]");
+      case Mov1:        return Format("[movb ", from, " -> ", to, "]");
+      case MovD:        return Format("[movd ", from, " -> ", to, "]");
+      case SAlloc:      return Format("[salloc ", size, "]");
+      case SFree:       return Format("[sfree ", size, "]");
+      case MathOp:      return Format("[math:", opName, " ", op1, ", ", op2, "]");
+      case Push:        return Format("[push ", source, ": ", type.size, extra(), "]");
+      case Pop:         return Format("[pop ", dest, ": ", type.size, extra(), "]");
+      case Call:        return Format("[call ", dest, "]");
       case Compare:
-        if (test) return Format("[cmp/test ", op1, ", ", op2, "]");
-        else return Format("[cmp ", op1, ", ", op2, "]");
-      case FloatLoad: return Format("[float load ", source, stackinfo, "]");
-      case DoubleLoad: return Format("[double load ", source, stackinfo, "]");
-      case RealLoad: return Format("[real load ", source, stackinfo, "]");
-      case RegLoad: return Format("[x87 reg load ", source, stackinfo, "]");
-      case FloatCompare: return Format("[x87 float compare st0, ", source, stackinfo, "]");
-      case FloatPop:  return Format("[float pop ", dest, "]");
-      case DoublePop:  return Format("[double pop ", dest, "]");
-      case FloatStore: return Format("[float store ", dest, "]");
+        if (test)       return Format("[cmp/test ", op1, ", ", op2, "]");
+        else            return Format("[cmp ", op1, ", ", op2, "]");
+      case FloatLoad:   return Format("[float load ", source, stackinfo, "]");
+      case DoubleLoad:  return Format("[double load ", source, stackinfo, "]");
+      case RealLoad:    return Format("[real load ", source, stackinfo, "]");
+      case RegLoad:     return Format("[x87 reg load ", source, stackinfo, "]");
+      case FloatCompare:return Format("[x87 float compare st0, ", source, stackinfo, "]");
+      case FloatPop:    return Format("[float pop ", dest, "]");
+      case DoublePop:   return Format("[double pop ", dest, "]");
+      case FloatStore:  return Format("[float store ", dest, "]");
       case DoubleStore: return Format("[double store ", dest, "]");
-      case FloatMath: return Format("[float math ", opName, "]");
-      case FPSwap: return Format("[x87 swap]");
-      case FloatIntLoad: return Format("[float int load ", source, "]");
-      case ExtendDivide: return Format("[cdq/idivl ", source, "]");
-      case Jump:      return Format("[jmp ", dest, keepRegisters?" [keepregs]":"", "]");
-      case Label:     return Format("[label ", names, keepRegisters?" [keepregs]":"", "]");
-      case Extended:  return Format("[extended ", obj, "]");
-      case Nevermind: return Format("[nvm ", dest, "]");
+      case FloatMath:   return Format("[float math ", opName, "]");
+      case FPSwap:      return Format("[x87 swap]");
+      case FloatIntLoad:return Format("[float int load ", source, "]");
+      case SSEOp:       return Format("[SSE ", opName, " ", op1, ", ", op2, stackinfo, "]");
+      case ExtendDivide:return Format("[cdq/idivl ", source, "]");
+      case Jump:        return Format("[jmp ", dest, keepRegisters?" [keepregs]":"", "]");
+      case Label:       return Format("[label ", names, keepRegisters?" [keepregs]":"", "]");
+      case Extended:    return Format("[extended ", obj, "]");
+      case Nevermind:   return Format("[nvm ", dest, "]");
       case LoadAddress: return Format("[lea ", from, " -> ", to, "]");
     }
   }
   int opEquals(ref Transaction t2) {
     if (kind != t2.kind) return false;
     with (Kind) switch (kind) {
-      case Mov, Mov2, Mov1:  return from == t2.from && to == t2.to;
+      case Mov, Mov2, Mov1, MovD:  return from == t2.from && to == t2.to;
       case SAlloc, SFree: return size == t2.size;
       case MathOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
       case Push: return source == t2.source && type == t2.type;
@@ -157,6 +174,7 @@ struct Transaction {
       case FloatMath: return opName == t2.opName;
       case FPSwap: return true;
       case FloatIntLoad: return source == t2.source;
+      case SSEOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
       case ExtendDivide: return source == t2.source;
       case Label: return names == t2.names;
       case Extended: return obj == t2.obj;
@@ -179,6 +197,8 @@ struct Transaction {
   }
   string toAsm() {
     with (Kind) switch (kind) {
+      case MovD:
+        return qformat("movd ", from.asmformat(), ", ", to.asmformat());
       case Mov:
         if (from.isRelative() && to.isRelative()) {
           if (!usableScratch) {
@@ -216,6 +236,8 @@ struct Transaction {
       case Push, Pop:
         auto size = type.size;
         string res;
+        // res = toString();
+        // res = "# is " ~ res;
         void addLine(string s) { if (res) res ~= "\n"; res ~= s; }
         auto mnemo = (kind == Push) ? "push" : "pop";
         // %eax
@@ -250,6 +272,7 @@ struct Transaction {
         // push/pop as far as possible at that size sz, using instruction postfix pf.
         auto op = (kind == Push) ? source : dest;
         int first_offs = -1;
+        int stack_changed;
         void doOp(int sz, string pf) {
           while (size >= sz) {
             bool m_offs_push; int offs;
@@ -268,7 +291,7 @@ struct Transaction {
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
                 // logln("rewrite op ", op, " to ", qformat(first_offs + size - sz, "(%", reg, ")"), ": ", first_offs, " + ", size, " - ", sz); 
-                op = qformat(first_offs + size - sz, "(", mem, ")");
+                op = qformat(first_offs + size - sz + ((mem.contains("%esp"))?stack_changed:0), "(", mem, ")");
                 m_offs_push = true;
               }
               if (op.startsWith("+")) {
@@ -285,8 +308,8 @@ struct Transaction {
               } else {
                 string opsh = op;
                 // hackaround
-                if (opsh.gotMemoryOffset(offs) == "%esp")
-                  opsh = qformat(offs - 1, "(%esp)");
+                if (opsh.isIndirect2(offs).contains("%esp"))
+                  opsh = qformat(offs - 1, "(", opsh.isIndirect(), ")");
                 addLine("movb (%esp), %bl");
                 addLine("incl %esp");
                 addLine("movb %bl, "~opsh);
@@ -295,8 +318,8 @@ struct Transaction {
             // x86 pop foo(%esp) operand is evaluated
             // after increment, says intel manual
             } else {
-              if (kind == Pop && op.gotMemoryOffset(offs) == "%esp") {
-                op = qformat(offs - sz, "(%esp)");
+              if (kind == Pop && op.isIndirect2(offs).contains("%esp")) {
+                op = qformat(offs - sz, "(", op.isIndirect(), ")");
               }
               auto temp = op; int toffs;
               if (auto mem = temp.between("(", ")")) {
@@ -312,6 +335,7 @@ struct Transaction {
                 asm { int 3; }
               }
               addLine(qformat(mnemo, pf, " ", temp));
+              stack_changed += sz;
             }
             auto s2 = op;
             int num; string ident, reg;
@@ -354,9 +378,9 @@ struct Transaction {
         if (dest.find("%") != -1) return qformat("call *", dest);
         if (dest[0] == '$') return qformat("call ", dest[1 .. $]);
         assert(false, "::"~dest);
-      case FloatLoad: return qformat("flds ", source);
-      case DoubleLoad: return qformat("fldl ", source);
-      case RealLoad: return qformat("fldt ", source);
+      case FloatLoad: return qformat("flds ", source.fixupLiterals());
+      case DoubleLoad: return qformat("fldl ", source.fixupLiterals());
+      case RealLoad: return qformat("fldt ", source.fixupLiterals());
       case RegLoad: return qformat("fld ", source);
       case FloatCompare:
         if (source == "%st1") {
@@ -367,18 +391,20 @@ struct Transaction {
       case DoublePop: return qformat("fstpl ", dest);
       case FloatStore: return qformat("fsts ", dest);
       case DoubleStore: return qformat("fstl ", dest);
-      case FloatMath: return qformat(opName~"p %st, %st(1)");
+      case FloatMath: return qformat(opName, "p %st, %st(1)");
       case FPSwap: return qformat("fxch");
       case FloatIntLoad: return qformat("fildl ", source);
+      case SSEOp: return qformat(opName, " ", op1, ", ", op2);
       case ExtendDivide: return qformat("cdq\nidivl ", source);
       case Jump: return qformat("jmp ", dest);
       case Label:
         assert(names.length);
         string res;
+        res ~= ".p2align 4, 0x90\n";
         foreach (name; names) res ~= name ~ ":\n";
         return res[0 .. $-1];
       case Extended: return obj.toAsm();
-      case Nevermind: return "#forget "~dest~". ";
+      case Nevermind: return qformat("#forget ", dest, ". ");
       case LoadAddress: return qformat("leal ", from, ", ", to);
     }
   }

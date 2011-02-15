@@ -83,10 +83,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
     int cur = _framestart = 8;
     // TODO: alignment
     foreach (param; type.params) {
-      // if (param._1) { // what the HELL
-        _framestart += param.type.size;
-        add(new Variable(param.type, param.name, cur));
-      // }
+      _framestart += param.type.size;
+      add(new Variable(param.type, param.name, cur));
       cur += param.type.size;
     }
     return cur;
@@ -125,8 +123,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
       withTLS(namespace, this, tree.emitAsm(af));
       af.emitLabel(exit(), true);
       
-      af.mmove4("%ebp", "%esp");
-      af.popStack("%ebp", voidp);
+      // af.mmove4("%ebp", "%esp");
+      // af.popStack("%ebp", voidp);
+      af.put("leave");
       
       af.jump_barrier();
       af.put("ret");

@@ -5,6 +5,7 @@ public import assemble;
 
 import tools.log, tools.functional: map;
 import tools.base: between, slice, atoi, split, stuple, apply, swap;
+const string[] utilRegs = ["%eax", "%ebx", "%ecx", "%edx"];
 class AsmFile {
   string id;
   int[string] globals;
@@ -67,6 +68,10 @@ class AsmFile {
     t.dest = mem;
     cache ~= t;
   }
+  void nvmRegisters() {
+    foreach (reg; utilRegs)
+      nvm(reg);
+  }
   void compare(string op1, string op2, bool test = false) {
     Transaction t;
     t.kind = Transaction.Kind.Compare;
@@ -93,6 +98,12 @@ class AsmFile {
     t.from = from; t.to = to;
     cache ~= t;
   }
+  void movd(string from, string to) {
+    Transaction t;
+    t.kind = Transaction.Kind.MovD;
+    t.from = from; t.to = to;
+    cache ~= t;
+  }
   void salloc(int sz) { // alloc stack space
     Transaction t;
     currentStackDepth += sz;
@@ -108,25 +119,39 @@ class AsmFile {
     cache ~= t;
   }
   import tools.ctfe;
+  const string JumpTable = `
+    cond | jump |  cmov  |floatjump| floatmov
+    -----+------+--------+---------+---------
+    fff  |      |        |         | 
+    fft  | jg   | cmovg  | ja      | fcmova
+    ftf  | je   | cmove  | je      | fcmove
+    ftt  | jge  | cmovge | jae     | fcmovae
+    tff  | jl   | cmovl  | jb      | fcmovb
+    tft  | jne  | cmovne | jne     | fcmovne
+    ttf  | jle  | cmovle | jbe     | fcmovbe
+    ttt  | jmp  | mov    | jmp     | mov
+  `;
   void jumpOn(bool smaller, bool equal, bool greater, string label) {
     labels_refcount[label]++;
     // TODO: unsigned?
-    mixin(`
-      cond | instruction
-       fff | nop
-       fft | jg dest
-       ftf | je dest
-       ftt | jge dest
-       tff | jl dest
-       tft | jne dest
-       ttf | jle dest
-       ttt | jmp dest`
-      .ctTableUnroll(`
+    mixin(JumpTable.ctTableUnroll(`
         if (
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { put("$instruction".replace("dest", label)); return; }
+        ) { static if ("$jump".length) put("$jump ", label); return; }
+    `));
+    throw new Exception(Format(
+      "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
+    ));
+  }
+  void cmov(bool smaller, bool equal, bool greater, string from, string to) {
+    mixin(JumpTable.ctTableUnroll(`
+        if (
+          (("$cond"[0] == 't') == smaller) &&
+          (("$cond"[1] == 't') == equal) &&
+          (("$cond"[2] == 't') == greater)
+        ) { static if ("$cmov".length) put("$cmov ", from, ", ", to); return; }
     `));
     throw new Exception(Format(
       "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
@@ -134,24 +159,27 @@ class AsmFile {
   }
   void jumpOnFloat(bool smaller, bool equal, bool greater, string label) {
     labels_refcount[label]++;
+    nvmRegisters();
     put("fnstsw %ax");
     put("sahf");
-    mixin(`
-      cond | instruction
-       `/*fff | xorb %al,*/`
-       fft | ja
-       ftf | je
-       ftt | jae
-       tff | jb
-       tft | jne
-       ttf | jbe
-       ttt | movb $1,`
-      .ctTableUnroll(`
+    mixin(JumpTable.ctTableUnroll(`
         if (
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { put("$instruction ", label); }
+        ) { static if ("$floatjump".length) put("$floatjump ", label); return; }
+    `));
+  }
+  void moveOnFloat(bool smaller, bool equal, bool greater, string from, string to) {
+    nvmRegisters();
+    put("fnstsw %ax");
+    put("sahf");
+    mixin(JumpTable.ctTableUnroll(`
+        if (
+          (("$cond"[0] == 't') == smaller) &&
+          (("$cond"[1] == 't') == equal) &&
+          (("$cond"[2] == 't') == greater)
+        ) { static if ("$floatmov".length) put("$floatmov ", from, ", ", to); return; }
     `));
   }
   void mathOp(string which, string op1, string op2) {
@@ -159,6 +187,18 @@ class AsmFile {
     t.kind = Transaction.Kind.MathOp;
     t.opName = which;
     t.op1 = op1; t.op2 = op2;
+    cache ~= t;
+  }
+  void SSEOp(string which, string op1, string op2) {
+    if ((op1 == "(%esp)" || op2 == "(%esp)") && currentStackDepth%16 != 0) {
+      logln("stack misaligned for SSE");
+      asm { int 3; }
+    }
+    Transaction t;
+    t.kind = Transaction.Kind.SSEOp;
+    t.opName = which;
+    t.op1 = op1; t.op2 = op2;
+    t.stackdepth = currentStackDepth;
     cache ~= t;
   }
   void extendDivide(string src) {
@@ -334,16 +374,20 @@ class AsmFile {
       // logln("::", anyChange, "; ", cache.list);
       if (!anyChange) break;
     }
-    foreach (opt; newOpts)
-      log("[", unique(opt), "]");
+    if (debugOpts) {
+      foreach (opt; newOpts)
+        log("[", unique(opt), "]");
+    }
       
     string join(string[] s) {
       string res;
       foreach (str; s) { if (res) res ~= ", "; res ~= str; }
       return res;
     }
-    if (newOpts && debugOpts) logln("Opt: ", goodOpts.join(), " + ", newOpts/+, " - ", unused.keys+/);
-    if (newOpts) logln("Unused: ", unused.keys);
+    if (newOpts && debugOpts) {
+      logln("Opt: ", goodOpts.join(), " + ", newOpts/+, " - ", unused.keys+/);
+      logln("Unused: ", unused.keys);
+    }
   }
   void flush() {
     if (optimize) runOpts;
