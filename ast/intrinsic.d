@@ -307,7 +307,7 @@ void setupSysmods() {
       int res = (int*:&d)[0];
       return res;
     }
-    int _c_main(int argc, char** argv) {
+    int __c_main(int argc, char** argv) {
       string[] args;
       for (auto arg <- argv[0 .. argc]) {
         args ~= arg[0 .. strlen(arg)];

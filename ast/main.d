@@ -4,7 +4,7 @@ import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace;
 import ast.scopes, ast.arrays, ast.returns, ast.parse, ast.pointer;
 
 void fixupMain() {
-  auto cmain = fastcast!(Function)~ sysmod.lookup("_c_main");
+  auto cmain = fastcast!(Function)~ sysmod.lookup("__c_main");
   if (!cmain) { logln("fail 0: ", cmain); fail(); }
   auto sc = fastcast!(Scope)~ cmain.tree;
   if (!sc) { logln("fail 1: ", cmain.tree); fail(); }

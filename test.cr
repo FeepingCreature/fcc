@@ -1,5 +1,5 @@
 module test;
-import sys, sdl, simplex;
+import sdl, simplex, std.thread;
 
 int delegate(int b) add(int a) { return new delegate int(int b) { return a + b; }; }
 
@@ -62,7 +62,7 @@ c_include "time.h";
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
   SDL_Init(32); // video
-  SDL_Surface* surface = SDL_Surface*: SDL_SetVideoMode(320, 240, 0, SDL_ANYFORMAT);
+  SDL_Surface* surface = SDL_Surface*: SDL_SetVideoMode(320, 240, 32, SDL_ANYFORMAT);
   int update() {
     SDL_Flip(surface);
     SDL_Event ev;
@@ -74,18 +74,30 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   auto start = time(int*: null);
   float t = 0;
   int fps;
+  auto tp = mkThreadPool(4);
   void run() {
     t = t + 0.05;
-    int factor1 = 255, factor2 = 256 * 255, factor3 = 256 * 256 * 255;
-    vec3f ff = vec3f(factor1, factor2, factor3);
-    for (int y = 0; y < surface.h; ++y) {
-      auto p = &((int*:surface.pixels)[y * int:surface.w]);
-      vec3f f = void;
-      for (int x = 0; x < surface.w; ++x) {
-        f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
-        *(p++) = fastfloor(f.x) + fastfloor(f.y) & factor2 + fastfloor(f.z) & factor3;
+    void calc(int from, int to) {
+      int factor1 = 0xff, factor2 = 0xff00, factor3 = 0xff0000;
+      vec3f ff = vec3f(factor1, factor2, factor3);
+      for (int y = from; y < to; ++y) {
+        auto p = &((int*:surface.pixels)[y * int:surface.w]);
+        vec3f f = void;
+        for (int x = 0; x < surface.w; ++x) {
+          f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
+          *(p++) = fastfloor(f.x) + fastfloor(f.y) & factor2 + fastfloor(f.z) & factor3;
+        }
       }
     }
+    for (int i <- 0..4) {
+      auto step = surface.h / 4;
+      auto from = step * i, to = step * (i + 1);
+      void delegate() myApply(int from, int to, void delegate(int, int) dg) {
+        return new delegate void() { return dg(from, to); };
+      }
+      tp.addTask myApply(from, to, &calc);
+    }
+    tp.waitComplete;
     fps ++;
   }
   auto last = time(int*:null);

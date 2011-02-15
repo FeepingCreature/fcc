@@ -68,14 +68,6 @@ class WithStmt : Namespace, Statement, ScopeLike {
     sc = new Scope;
     assert(!!sc.sup);
     
-    if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
-                              ("eval (ex.onUsing)", "ex", context)) {
-      pre = stuple(pre, onUsing) /apply/ (typeof(pre) pre, Statement st, AsmFile af) { if (pre) pre(af); st.emitAsm(af); };
-    }
-    if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
-                             ("eval (ex.onExit)", "ex", context)) {
-      post = stuple(post, onExit) /apply/ (typeof(post) post, Statement st, AsmFile af) { st.emitAsm(af); if (post) post(af); };
-    }
   }
   override {
     void emitAsm(AsmFile af) {
@@ -85,8 +77,15 @@ class WithStmt : Namespace, Statement, ScopeLike {
       scope(exit) if (post) post(af);
       
       auto dg = sc.open(af);
-      if (vd) vd.emitAsm(af);
-      dg()();
+      if (vd) vd.emitAsm(af); // do this BEFORE onUsing!
+      if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
+                                ("eval (ex.onUsing)", "ex", context))
+        onUsing.emitAsm(af);
+      auto close = dg();
+      if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
+                               ("eval (ex.onExit)", "ex", context))
+        onExit.emitAsm(af);
+      close();
     }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() {

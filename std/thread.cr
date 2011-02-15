@@ -4,8 +4,11 @@ c_include "pthread.h";
 extern(C) int pthread_create(pthread_t*, pthread_attr_t*,
                              void* function(void*), void*);
 
-void* start_routine(void* p) {
-  (*void delegate()*:p)();
+void __start_routine_unaligned(void delegate() dg) { dg(); }
+
+void* __start_routine(void* p) {
+  int[2] filler; // thread alignment; todo: make generic.
+  __start_routine_unaligned (*void delegate()*:p);
   return null;
 }
 
@@ -13,7 +16,7 @@ void startThread(void delegate() dg) {
   pthread_t buf;
   auto argp = new void delegate();
   *argp = dg;
-  pthread_create(&buf, null, &start_routine, argp);
+  pthread_create(&buf, null, &__start_routine, argp);
 }
 
 struct pthread_mutex_t { ubyte[40] filler; }
@@ -80,15 +83,16 @@ class ThreadPool {
     while 0..i t.claim();
   }
   void addTask(void delegate() dg) {
-    // using autoLock(m) { queue ~= dg; tasksLeft ++; }
-    MutexWrapper mw; mw.m = m;
+    using autoLock(m) { queue ~= dg; tasksLeft ++; s.release; }
+    /*MutexWrapper mw; mw.m = m;
     eval (mw.onUsing);
     // m.lock;
     queue ~= dg;
     tasksLeft ++;
     s.release;
     eval (mw.onExit);
-    // m.unlock;
+    // m.unlock;*/
+    
   }
 }
 

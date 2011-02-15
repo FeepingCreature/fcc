@@ -164,7 +164,13 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     string toString() {
       if (!name) {
         string[] names;
-        foreach (elem; field) if (auto n = fastcast!(Named)~ elem._1) names ~= n.getIdentifier();
+        foreach (elem; field)
+          if (auto n = fastcast!(Named) (elem._1)) {
+            string id = n.getIdentifier();
+            if (auto rm = fastcast!(RelMember) (elem._1))
+              id = Format(id, "@", rm.offset);
+            names ~= id;
+          }
         return Format("{struct ", names.join(", "), "}");
       }
       return name;

@@ -10,7 +10,8 @@ float dot2(int[4] whee, float a, float b) {
 }
 
 void permsetup() {
-  perm ~= [for 0..256: rand() % 256].eval;
+  int seed = 23;
+  perm ~= [for 0..256: rand_r (&seed) % 256].eval;
   perm ~= perm;
   int i;
   alias values = [1, 1, 0,
@@ -100,15 +101,11 @@ void testAlign(string name, void* p) {
 }
 
 float noise3(vec3f input) {
-  /*testAlign("ebp", _ebp);
-  testAlign("vs", &vs);
-  testAlign("sum", &sum);
-  testAlign("id", &id);
-  testAlign("forble", &forble);
-  _interrupt 3;*/
+  // testAlign("ebp", _ebp);
   if !perm.length permsetup;
   
   auto vsum = input + (input.sum / 3.0f);
+  // testAlign("vsum", &vsum);
   auto indices = vec3i(vsum.(fastfloor x, fastfloor y, fastfloor z));
   vec3f[4] vs = void;
   vs[0] = input - indices      + (indices.sum / 6.0f);

@@ -10,15 +10,21 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   auto str = new Structure(null);
   // nu! stack variables are aligned now.
   // str.packed = true; // !!
-  auto cur = -1;
+  int lastPos = -1;
+  RelMember lastMember;
   foreach (member; frame) {
-    new RelMember(member._1, member._0, str);
-    if (cur == -1) cur = member._2;
-    else assert(cur == member._2);
-    cur += member._0.size;
+    auto rm = new RelMember(member._1, member._0, str);
+    // make sure it has the same layout as the stackframe
+    // note: structs are constructed forwards, stackframes backwards!
+    if (lastPos == -1) { lastPos = member._2; lastMember = rm; }
+    else {
+      auto delta = member._2 - lastPos;
+      rm.offset = lastMember.offset + delta;
+      lastPos = member._2;
+      lastMember = rm;
+    }
   }
-  // logln("final cur: ", cur, ", start ", -frame[0]._2);
-  // return *(stack_struct_type*) (ebp - lowestvar_offset);
+  // logln("offset: ", baseptr, " - -", frame[0], " .... ", frame[1..$], " struct ", str);
   return new DerefExpr(
     new ReinterpretCast!(Expr)(
       new Pointer(str),

@@ -93,7 +93,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   override string mangleSelf() {
     if (extern_c)
       return cleaned_name;
-    else if (name == "_c_main")
+    else if (name == "__c_main")
       return "main";
     else
       return sup.mangle(cleaned_name, type);
@@ -159,7 +159,7 @@ class FunCall : Expr {
     callFunction(af, fun.type.ret, args, fun.getPointer());
   }
   override void emitAsm(AsmFile af) {
-    if (fun.name == "_fcc_main")
+    if (fun.name == "__fcc_main" /or/ "__start_routine_unaligned" /* std.thread */)
       dontAlignThis = true;
     emitWithArgs(af, params);
   }
@@ -355,7 +355,7 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
     if (fun.name == "main") {
       assert(!gotMain);
       gotMain = fun;
-      fun.name = "_fcc_main";
+      fun.name = "__fcc_main";
     }
     fun.fixup;
     auto backup = ns;
