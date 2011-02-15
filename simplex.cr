@@ -106,7 +106,7 @@ float noise3(vec3f input) {
   
   auto vsum = input + (input.sum / 3.0f);
   // testAlign("vsum", &vsum);
-  auto indices = vec3i(vsum.(fastfloor x, fastfloor y, fastfloor z));
+  auto indices = fastfloor3f vsum;
   vec3f[4] vs = void;
   vs[0] = input - indices      + (indices.sum / 6.0f);
   vs[1] = vs[0]            + vec3f(1.0f / 6);

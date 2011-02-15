@@ -83,9 +83,11 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       for (int y = from; y < to; ++y) {
         auto p = &((int*:surface.pixels)[y * int:surface.w]);
         vec3f f = void;
+        vec3i i = void;
         for (int x = 0; x < surface.w; ++x) {
           f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
-          *(p++) = fastfloor(f.x) + fastfloor(f.y) & factor2 + fastfloor(f.z) & factor3;
+          i = fastfloor3f(f);
+          *(p++) = i.x + i.y & factor2 + i.z & factor3;
         }
       }
     }

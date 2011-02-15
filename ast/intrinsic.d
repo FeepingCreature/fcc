@@ -302,9 +302,20 @@ void setupSysmods() {
       alias magicdelta = 0.000000015;
       alias roundeps = 0.5 - magicdelta;
       alias magic = 6755399441055744.0;
-      double d = f - roundeps;
-      d += magic;
-      int res = (int*:&d)[0];
+      double d = f - roundeps + magic;
+      return (int*:&d)[0];
+    }
+    vec3i fastfloor3f(vec3f v) {
+      alias magicdelta = 0.000000015;
+      alias roundeps = 0.5 - magicdelta;
+      alias magic = 6755399441055744.0;
+      vec3i res = void;
+      double d = v.x - roundeps + magic,
+             e = v.y - roundeps + magic,
+             f = v.z - roundeps + magic;
+      res.x = (int*:&d)[0];
+      res.y = (int*:&e)[0];
+      res.z = (int*:&f)[0];
       return res;
     }
     int __c_main(int argc, char** argv) {
