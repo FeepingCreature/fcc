@@ -1105,7 +1105,7 @@ void setupOpts() {
     $SUBST($1);
   `));
   mixin(opt("move_lea_down", `^LoadAddress, *, *:
-    $1.kind != $TK.LoadAddress &&
+    $1.kind != $TK.LoadAddress && $1.kind != $TK.Call /* lol */ &&
     !info($1).opContains($0.to) &&
     !$0.source.contains(info($1).outOp()) &&
     $2.kind != $TK.Pop && $2.kind != $TK.Push /* prevent loop with preswitch_math_lea */
@@ -1165,7 +1165,15 @@ void setupOpts() {
     auto dest = $1.dest;
     dest.fixupString(-t1.size);
     info(t2).outOp = dest;
-    $SUBST(t1, t2);
+    bool block = false;
+    if ($0.kind == $TK.SSEOp) {
+      block = true;
+      int offs;
+      if ($1.hasStackdepth && $1.dest.isIndirect2(offs) == "%esp" && ($1.stackdepth - offs) % 16 == 0)
+        block = false;
+      // else logln("fail2 @", $0);
+    }
+    if (!block) $SUBST(t1, t2);
   `));
   // FP small fry
   mixin(opt("float_fold_redundant_save_load", `^FloatPop || ^DoublePop, ^FloatLoad || ^DoubleLoad:
