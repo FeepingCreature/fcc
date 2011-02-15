@@ -511,7 +511,7 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   }
   if (!filename) throw new Exception("Couldn't find "~name~"!");
   auto cmdline = 
-    "gcc -m32 -Xpreprocessor -dD -E "
+    "gcc -pthread -m32 -Xpreprocessor -dD -E "
     ~ (include_path
       /map/ (string s) { return "-I"~s; }
       ).join(" ")
