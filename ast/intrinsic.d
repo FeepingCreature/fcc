@@ -306,14 +306,11 @@ void setupSysmods() {
       return (int*:&d)[0];
     }
     void fastfloor3f(vec3f v, vec3i* res) {
-      alias magicdelta = 0.000000015;
-      alias roundeps = 0.5 - magicdelta;
-      alias magic = 6755399441055744.0;
-      double d = void, e = void, f = void;
-      d = v.x - roundeps + magic;
-      e = v.y - roundeps + magic;
-      f = v.z - roundeps + magic;
-      res.x = *int*:&d; res.y = *int*:&e; res.z = *int*:&f;
+      xmm[4] = v;
+      asm "cvttps2dq %xmm4, %xmm5";`"
+      asm `psrld $31, %xmm4`;"`
+      asm "psubd %xmm4, %xmm5";
+      *res = vec3i:xmm[5];
     }
     int __c_main(int argc, char** argv) {
       string[] args;
@@ -423,3 +420,25 @@ Object gotEBP(ref string text, ParseCb cont, ParseCb rest) {
   return Single!(EBPExpr);
 }
 mixin DefaultParser!(gotEBP, "tree.expr.ebp", "24045", "_ebp");
+
+class Assembly : Statement {
+  string text;
+  this(string s) { text = s; }
+  mixin defaultIterate!();
+  override Assembly dup() { return this; }
+  override void emitAsm(AsmFile af) { af.put(text); }
+}
+
+import ast.literal_string, ast.fold;
+Object gotAsm(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  auto t2 = text;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+    t2.failparse("Expected string literal for asm! ");
+  auto lit = fastcast!(StringExpr) (foldex(ex));
+  if (!lit)
+    t2.failparse("Expected string literal, not ", ex.valueType(), "!");
+  text = t2;
+  return new Assembly(lit.str);
+}
+mixin DefaultParser!(gotAsm, "tree.semicol_stmt.asm", "32", "asm");

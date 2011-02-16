@@ -186,7 +186,7 @@ union U {
 // c_include "gc.h";
 
 int main(string[] args) {
-  mxcsr |= (1 << 6) | (3 << 13);
+  mxcsr |= (1 << 6) | (3 << 13); // Denormals Are Zero; Round To Zero.
   // use Boehm GC
   /* mem.malloc_dg = &GC_malloc;
   void* myCalloc(int a, b) {
