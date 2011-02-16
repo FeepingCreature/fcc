@@ -18,7 +18,7 @@ class _Assignment(T) : Statement {
   }
   private this() { }
   mixin DefaultDup!();
-  mixin defaultIterate!(value);
+  mixin defaultIterate!(target, value);
   override string toString() { return Format(target, " := ", value, "; "); }
   override void emitAsm(AsmFile af) {
     if (blind) {

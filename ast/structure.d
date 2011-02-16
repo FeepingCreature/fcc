@@ -449,6 +449,7 @@ static this() {
         if (st) st.select((string, RelMember member) {
           if (member is mae.stm) {
             res = sl.exprs[i];
+            if (fastcast!(DuplicateExpr) (res)) res = sl.exprs[$-1].dup; // get base expr
             if (mae.valueType() != res.valueType())
               logln("Type mismatch: ", mae.valueType(), " vs. ", res.valueType());
           }

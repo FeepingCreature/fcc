@@ -10,8 +10,8 @@ float dot2(int[4] whee, float a, float b) {
 }
 
 void permsetup() {
-  int seed = 23;
-  perm ~= [for 0..256: rand_r (&seed) % 256].eval;
+  int seed = 34;
+  perm ~= [for 0..256: rand_r(&seed) % 256].eval;
   perm ~= perm;
   int i;
   alias values = [1, 1, 0,
@@ -28,7 +28,7 @@ void permsetup() {
                   0,-1, 1,
                   0, 1,-1,
                   0,-1,-1];
-  while ((int k, int l), int idx) ← zip (cross (0..12, 0..3), 0..-1) {
+  while ((int k, int l), int idx) <- zip (cross (0..12, 0..3), 0..-1) {
     grad3[k][l] = values[idx];
   }
 }
@@ -100,26 +100,28 @@ void testAlign(string name, void* p) {
   else writeln "$name: not aligned";
 }
 
-float noise3(vec3f input) {
-  // testAlign("ebp", _ebp);
+float noise3(vec3f v) {
+  vec3f[4] vs = void;
+  vec3f vsum = void;
+  vec3i indices = void;
+  int[4] gi = void;
+  int mask = void;
+  vec3f v0 = void;
+  vec3i offs1 = void, offs2 = void;
+  float sum = 0f;
   if !perm.length permsetup;
   
-  auto vsum = input + (input.sum / 3.0f);
-  // testAlign("vsum", &vsum);
-  auto indices = fastfloor3f vsum;
-  vec3f[4] vs = void;
-  vs[0] = input - indices      + (indices.sum / 6.0f);
+  vsum = v + (v.sum / 3.0f);
+  fastfloor3f (vsum, &indices);
+  vs[0] = v - indices      + (indices.sum / 6.0f);
   vs[1] = vs[0]            + vec3f(1.0f / 6);
   vs[2] = vs[0]            + vec3f(2.0f / 6);
   vs[3] = vs[0]       + vec3f(-1 + 3.0f / 6);
-  xmm[2] = vs[0];
-  xmm[3] = xmm[2].xxy;
-  xmm[4] = xmm[2].yzz;
+  xmm[4] = vs[0].xxy;
+  xmm[5] = vs[0].yzz;
   // this is correct, I worked it out
-  auto mask = [0b100_110, 0b010_110, 0, 0b010_011, 0b100_101, 0, 0b001_101, 0b001_011][eval xmm[3] < xmm[4]];
-  /*
-  auto v0 = vs[0];
-  if (v0.x < v0.y) {
+  mask = [0b100_110, 0b010_110, 0, 0b010_011, 0b100_101, 0, 0b001_101, 0b001_011][(eval xmm[4] < xmm[5]) & 0b0111];
+  /*if (v0.x < v0.y) {
     if (v0.y < v0.z) {
       mask = 0b001_011; // X Y Z
     } else if (v0.x < v0.z) {
@@ -138,7 +140,6 @@ float noise3(vec3f input) {
       mask = 0b100_110; // Z Y X
     }
   }*/
-  vec3i offs1 = void, offs2 = void;
   offs1 = vec3i((mask >> 5)    , (mask >> 4) & 1, (mask >> 3) & 1);
   offs2 = vec3i((mask >> 2) & 1, (mask >> 1) & 1, (mask >> 0) & 1);
   vs[1] -= vec3f(offs1);
@@ -147,7 +148,6 @@ float noise3(vec3f input) {
   alias i1 = offs1.x, i2 = offs2.x,
         j1 = offs1.y, j2 = offs2.y,
         k1 = offs1.z, k2 = offs2.z;
-  int[4] gi = void;
   {
     auto lperm = perm.ptr;
     gi[0] = lperm[lperm[lperm[kk   ]+jj   ]+ii   ] % 12;
@@ -155,25 +155,25 @@ float noise3(vec3f input) {
     gi[2] = lperm[lperm[lperm[kk+k2]+jj+j2]+ii+i2] % 12;
     gi[3] = lperm[lperm[lperm[kk+1 ]+jj+1 ]+ii+1 ] % 12;
   }
+  vec3f current;
+  vec4f factors = void, res = void;
   auto pair = [1f, -1f, -1f];
-  float ft = void;
-  float sum = 0f;
-  vec3f current = void;
-  int id = void;
   while (int c <- 0..4) {
     current = vs[c];
-    xmm[5] = current;
-    xmm[4] = xmm[5];
-    xmm[4] *= xmm[4];
-    ft = 0.6f - xmm[4].sum;
-    if (ft >= 0) {
-      id = gi[c];
-      ft *= ft;
-      sum += ft * ft * (
-        [current.x, current.y][eval id >= 8] * pair[id&1] +
-        [current.y, current.z][eval id >= 4] * pair[id&2]
-      );
+    current *= current;
+    factors[c] = 0.6f - current.sum;
+    current = vs[c];
+    if (factors[c] >= 0) {
+      auto id = gi[c];
+      res[c] = (current[id >> 3] * pair[id&1]) + (current[((id >> 2) | (id >> 3)) & 1 + 1] * pair[id&2]);
+    } else {
+      factors[c] = 0;
+      res[c] = 0;
     }
   }
-  return 0.5f + 16.0f*sum;
+  xmm[4] = factors;
+  xmm[4] *= xmm[4];
+  xmm[4] *= xmm[4];
+  res *= xmm[4];
+  return 0.5f + 16.0f*res.sum;
 }

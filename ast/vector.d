@@ -137,8 +137,10 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   auto ex2 = ex;
   if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
     Expr[] exs;
-    for (int i = 0; i < vec.len; ++i)
-      exs ~= ex2.dup;
+    for (int i = vec.len - 2; i >= 0; --i)
+      exs ~= new DuplicateExpr(ex2.valueType(), i);
+      // exs ~= ex2.dup;
+    exs ~= ex2.dup;
     if (vec.extend) exs ~= new Filler(vec.base);
     text = t2;
     return fastcast!(Object)~
@@ -233,6 +235,11 @@ static this() {
     return null;
   };
   implicits ~= delegate Expr(Expr ex) {
+    if (vec3f && ex.valueType() == vec3f)
+      return reinterpret_cast(vec4f, ex);
+    return null;
+  };
+  implicits ~= delegate Expr(Expr ex) {
     if (auto vec = fastcast!(Vector)~ ex.valueType()) {
       return reinterpret_cast(vec.asStruct, ex);
     }
@@ -279,14 +286,19 @@ bool pretransform(ref Expr ex, ref IType it) {
 
 import ast.pointer;
 
-Vector vec3f, vec3i;
-void checkVecs() { if (!vec3f) vec3f = new Vector(Single!(Float), 3); if (!vec3i) vec3i = new Vector(Single!(SysInt), 3); }
+Vector vec3f, vec4f, vec3i;
+void checkVecs() {
+  if (!vec3f) vec3f = new Vector(Single!(Float), 3);
+  if (!vec4f) vec4f = new Vector(Single!(Float), 4);
+  if (!vec3i) vec3i = new Vector(Single!(SysInt), 3);
+}
 
 bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   mixin(mustOffset("0"));
   checkVecs;
-  if (op1.valueType() != vec3f
-   || op2.valueType() != vec3f)
+  if (op1.valueType() != vec3f && op1.valueType() != vec4f
+   || op2.valueType() != vec3f && op2.valueType() != vec4f
+   || op1.valueType() != op2.valueType())
     return false;
   if (op != "+" /or/ "-" /or/ "*" /or/ "/" /or/ "^") return false;
   void packLoad(string dest, string scrap1, string scrap2) {
@@ -301,9 +313,10 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     af.SSEOp("punpckldq", scrap2, scrap1);
     af.SSEOp("punpckldq", scrap1, dest);
   }
-  auto var1 = cast(Variable) op1, var2 = cast(Variable) op2;
+  auto var1 = fastcast!(Variable) (op1), var2 = fastcast!(Variable) (op2);
   bool alignedVar1 = var1 && (var1.baseOffset & 15) == 0;
   bool alignedVar2 = var2 && (var2.baseOffset & 15) == 0;
+  string srcOp = "%xmm1";
   if (alignedVar1 && alignedVar2) {
     var1.emitLocation(af);
     var2.emitLocation(af);
@@ -341,9 +354,13 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   }
   if (!alignedVar1 && !alignedVar2) {
     op1.emitAsm(af);
-    op2.emitAsm(af);
-    af.SSEOp("movaps", "(%esp)", "%xmm1");
-    af.sfree(16);
+    if (auto xmm = fastcast!(XMM) (op2)) {
+      srcOp = xmm.getValue();
+    } else {
+      op2.emitAsm(af);
+      af.SSEOp("movaps", "(%esp)", "%xmm1");
+      af.sfree(16);
+    }
     af.SSEOp("movaps", "(%esp)", "%xmm0");
   }
   string sse;
@@ -352,18 +369,20 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   if (op == "*") sse = "mulps";
   if (op == "/") sse = "divps";
   if (op == "^") sse = "xorps";
-  af.SSEOp(sse, "%xmm1", "%xmm0");
+  af.SSEOp(sse, srcOp, "%xmm0");
+  // af.nvm("%xmm1"); // tend to get in the way
   af.SSEOp("movaps", "%xmm0", "(%esp)");
+  // af.nvm("%xmm0");
   mixin(mustOffset("-16"));
   if (auto lv = cast(LValue) res) {
-    (new Assignment(lv, new Placeholder(vec3f), false, true)).emitAsm(af);
+    (new Assignment(lv, new Placeholder(op1.valueType()), false, true)).emitAsm(af);
   } else if (auto mv = cast(MValue) res) {
     mv.emitAssignment(af);
   } else asm { int 3; }
   return true;
 }
 
-class Vec3fSmaller : Expr {
+class Vec4fSmaller : Expr {
   Expr ex1, ex2;
   this(Expr e1, Expr e2) { this.ex1 = e1; this.ex2 = e2; }
   mixin defaultIterate!(ex1, ex2);
@@ -374,7 +393,7 @@ class Vec3fSmaller : Expr {
     void emitAsm(AsmFile af) {
       checkVecs();
       auto t1 = ex1.valueType(), t2 = ex2.valueType();
-      if (vec3f != t1 || vec3f != t2) {
+      if (vec4f != t1 || vec4f != t2) {
         logln("Fuck. ", t1, " or ", t2);
         asm { int 3; }
       }
@@ -423,9 +442,10 @@ class VecOp : Expr {
         ));
         void delegate() dg1, dg2;
         mixin(mustOffset("0"));
-        auto filler1 = alignStackFor(t1, af); auto v1 = mkTemp(af, ex1, dg1);
-        auto filler2 = alignStackFor(t2, af); auto v2 = mkTemp(af, ex2, dg2);
-        if (!gotSSEVecOp(af, fastcast!(Expr) (v1), fastcast!(Expr) (v2), fastcast!(Expr) (var), op)) {
+        Expr v1, v2;
+        auto filler1 = alignStackFor(t1, af); v1 = mkTemp(af, ex1, dg1);
+        auto filler2 = alignStackFor(t2, af); v2 = mkTemp(af, ex2, dg2);
+        if (!gotSSEVecOp(af, v1, v2, fastcast!(Expr) (var), op)) {
           for (int i = 0; i < len; ++i) {
             Expr l1 = v1, l2 = v2;
             if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
@@ -493,8 +513,10 @@ static this() {
     auto t1 = resolveType(e1.valueType()), t2 = resolveType(e2.valueType());
     auto v1 = fastcast!(Vector) (t1), v2 = fastcast!(Vector) (t2);
     if (!v1 || !v2) return null;
+    if (v1.base != Single!(Float) || v1.len != 4) return null;
+    if (v2.base != Single!(Float) || v2.len != 4) return null;
     
-    return lookupOp("&", new Vec3fSmaller(e1, e2), mkInt(7));
+    return new Vec4fSmaller(e1, e2);
   }
   defineOp("-", &negate);
   defineOp("-", "-" /apply/ &handleVecOp);
@@ -530,21 +552,22 @@ static this() {
   };
 }
 
-class XMM : MValue {
+class XMM : MValue, Literal {
   int which;
   this(int w) { which = w; }
   mixin defaultIterate!();
   override {
     XMM dup() { return this; }
-    IType valueType() { checkVecs(); return vec3f; /* TODO: vec4f? */ }
+    IType valueType() { checkVecs(); return vec4f; }
+    string getValue() { return qformat("%xmm", which); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("16"));
       af.salloc(16);
-      af.SSEOp("movaps", qformat("%xmm", which), "(%esp)");
+      af.SSEOp("movaps", getValue(), "(%esp)");
     }
     void emitAssignment(AsmFile af) {
       mixin(mustOffset("-16"));
-      af.SSEOp("movaps", "(%esp)", qformat("%xmm", which));
+      af.SSEOp("movaps", "(%esp)", getValue());
       af.sfree(16);
     }
   }

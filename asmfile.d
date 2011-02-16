@@ -179,7 +179,7 @@ class AsmFile {
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { static if ("$floatmov".length) put("$floatmov ", from, ", ", to); return; }
+        ) { static if (/*"$floatmov"*/"$cmov".length) put(/*"$floatmov "*/"$cmov ", from, ", ", to); return; }
     `));
   }
   void mathOp(string which, string op1, string op2) {

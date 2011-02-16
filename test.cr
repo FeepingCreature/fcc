@@ -62,7 +62,7 @@ c_include "time.h";
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
   SDL_Init(32); // video
-  SDL_Surface* surface = SDL_Surface*: SDL_SetVideoMode(320, 240, 32, SDL_ANYFORMAT);
+  SDL_Surface* surface = SDL_Surface*: SDL_SetVideoMode(800, 600, 32, SDL_ANYFORMAT);
   int update() {
     SDL_Flip(surface);
     SDL_Event ev;
@@ -76,7 +76,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   int fps;
   auto tp = mkThreadPool(4);
   void run() {
-    t = t + 0.05;
+    t += 0.02;
     void calc(int from, int to) {
       int factor1 = 0xff, factor2 = 0xff00, factor3 = 0xff0000;
       vec3f ff = vec3f(factor1, factor2, factor3);
@@ -86,13 +86,13 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
         vec3i i = void;
         for (int x = 0; x < surface.w; ++x) {
           f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
-          i = fastfloor3f(f);
+          fastfloor3f (f, &i);
           *(p++) = i.x + i.y & factor2 + i.z & factor3;
         }
       }
     }
-    for (int i <- 0..4) {
-      auto step = surface.h / 4;
+    for (int i <- 0..8) {
+      auto step = surface.h / 8;
       auto from = step * i, to = step * (i + 1);
       void delegate() myApply(int from, int to, void delegate(int, int) dg) {
         return new delegate void() { return dg(from, to); };
@@ -380,28 +380,28 @@ int main(string[] args) {
       // auto dist = sqrtf(x * x + y * y);
       // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
       // auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
-      /*auto n = 0.5    * noise3 ((vec3f(sin(t) * 4, x * 4, y * 4)))
-             + 0.25   * noise3 ((vec3f(sin(t) * 4, x * 8, y * 8)))
-             + 0.125  * noise3 ((vec3f(sin(t) * 4, x * 16, y * 16)))
-             + 0.0625 * noise3 ((vec3f(sin(t) * 4, x * 32, y * 32)));*/
       float noisex(vec3f v) {
-        // return noise3 vec3f(v.x + noise3(v), v.y + noise3(-v), v.z);
-        return noise3 v;
+        float sqr(float f) { return f * f; }
+        return noise3 vec3f(v.x + sqr noise3(v), v.y + sqr noise3(-v), v.z);
+        // return noise3 v;
         // return sinf(v.x + v.y + v.z) * 0.5 + 0.5;
       }
-      auto n = noisex vec3f(x * 8, y * 8, t);
+      // auto n = noisex vec3f(x * 8, y * 8, t);
       
-      /*auto n = 0.5    * noisex vec3f(x * 8,  y * 8,  t)
-             + 0.25   * noisex vec3f(x * 16, y * 16, t + 4) // offset! important
-             + 0.125  * noisex vec3f(x * 32, y * 32, t + 8)
-             + 0.0625 * noisex vec3f(x * 64, y * 64, t + 12)
-             + 0.03125* noisex vec3f(x *128, y *128, t + 16)
-             ;*/
+      /*auto res =
+              0.5    * noisex vec3f(x * 8,  y * 8,  t)
+            + 0.25   * noisex vec3f(x * 16, y * 16, t * 2 + 4) // offset! important
+            + 0.125  * noisex vec3f(x * 32, y * 32, t * 4 + 8)
+            + 0.0625 * noisex vec3f(x * 64, y * 64, t * 8 + 12)
+            + 0.03125* noisex vec3f(x *128, y *128, t * 16 + 16)
+            ;*/
+      auto res = noisex vec3f (x * 8, y * 8, t);
+      res = clamp(0, 1, res);
       
       // auto n = 0.5f * noise2(x * 4 + t, y * 4)+0.25;
-      n = clamp(0, 1, n);
+      // n = clamp(0, 1, n);
       // auto n2 = vec3f(n, n * n, n * 2);
-      auto n2 = vec3f(n);
+      auto n2 = vec3f (res);
       return n2;
       // return transition(&f2, &n2, smoothstep(0.3, 0.5, dist + noise2(x * 2 + 100, y * 2) * 0.1f));
     }

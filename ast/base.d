@@ -440,3 +440,17 @@ int alignStackFor(IType t, AsmFile af) {
   af.salloc(delta);
   return delta;
 }
+
+class DuplicateExpr : Expr {
+  IType base;
+  int factor;
+  this(IType b, int f) { this.base = b; this.factor = f; }
+  mixin defaultIterate!();
+  override {
+    DuplicateExpr dup() { return new DuplicateExpr(base, factor); }
+    IType valueType() { return base; }
+    void emitAsm(AsmFile af) {
+      af.pushStack(qformat(factor * base.size(), "(%esp)"), base);
+    }
+  }
+}

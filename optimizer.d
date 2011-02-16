@@ -1277,7 +1277,7 @@ void setupOpts() {
     $SUBST($0);
   `));
   mixin(opt("pointless_fxch", `^FPSwap, ^FloatMath: $1.opName == "faddp" /or/ "fmulp" => $SUBST($1); `));
-  mixin(opt("shufps_direct", `^SSEOp, ^SSEOp, ^SSEOp:
+  /*mixin(opt("shufps_direct", `^SSEOp, ^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $2.opName == "movaps" &&
     $1.opName.startsWith("shufps") &&
     $0.op2 == $2.op1 && $0.op2 == $1.op1 && $0.op2 == $1.op2 &&
@@ -1289,7 +1289,7 @@ void setupOpts() {
     t2.op1 = t1.op2;
     t2.op2 = t1.op2;
     $SUBST(t1, t2);
-  `));
+  `));*/
   // lel
   mixin(opt("sse_lel1", `^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $1.opName == "movaps" &&
@@ -1371,13 +1371,27 @@ void setupOpts() {
     $SUBST(t);
   `));
   mixin(opt("dense_address_form2", `^MathOp, ^Push || ^Pop:
-    $0.opName == "addl" && info($1).stackDataOp().isIndirect() == $0.op2 && $0.op1.isUtilityRegister()
+    $0.opName == "addl" && info($1).stackDataOp().isIndirect() == $0.op2 &&
+    ($0.op1.isUtilityRegister() || $0.op1.isNumLiteral())
     =>
     $T t = $1;
     int offs;
     info($1).stackDataOp().isIndirect2(offs);
-    info(t).stackDataOp = qformat(offs, "(", $0.op2, ",", $0.op1, ")");
+    if ($0.op1.isUtilityRegister())
+      info(t).stackDataOp = qformat(offs, "(", $0.op2, ",", $0.op1, ")");
+    else
+      info(t).stackDataOp = qformat(offs + $0.op1.literalToInt(), "(", $0.op2, ")");
     $SUBST(t);
+  `));
+  mixin(opt("movaps_pointless_read", `^SSEOp, ^SSEOp:
+    $0.opName == "movaps" && $1.opName == "movaps"
+    && $0.op2 == $1.op1
+    && $0.op1.isSSERegister() && $1.op2.isSSERegister()
+    =>
+    auto t2 = $1.dup;
+    t2.op1 = $0.op1;
+    if (t2.op1 == t2.op2) $SUBST($0);
+    else $SUBST($0, t2);
   `));
   string pfpsource(Transaction* t) {
     with (Transaction.Kind) switch (t.kind) {
@@ -1440,6 +1454,25 @@ void setupOpts() {
     $T t = $0;
     info(t).outOp = $1.to;
     $SUBST(t, $2, $3);
+  `));
+  mixin(opt("simplify_pure_sse_math_opers", `^SSEOp, ^SSEOp, ^SSEOp:
+    $0.opName == "movaps" && $0.op1.isSSERegister() &&
+    $1.opName == "addps" /or/ "subps" /or/ "mulps" /or/ "divps" &&
+    $1.op1 != $1.op2 &&
+    $1.op2 == $0.op2 &&
+    $2.opName == "movaps" && $2.op2.isSSERegister() &&
+    $2.op2 == $0.op1 && $2.op1 == $0.op2
+    =>
+    $T t = $1;
+    t.op2 = $0.op1;
+    $SUBST(t, $0);
+  `));
+  mixin(opt("small_fry_1", `^MathOp, ^Pop:
+    $1.type.size == 4 && $0.op1.isNumLiteral() && $0.op2 == "(%esp)"
+    =>
+    $T t = $0.dup;
+    t.op2 = $1.dest;
+    $SUBST($1, t);
   `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
     bool changed, pushMode; int pushSize;
