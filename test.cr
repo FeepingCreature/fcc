@@ -62,7 +62,7 @@ c_include "time.h";
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
   SDL_Init(32); // video
-  SDL_Surface* surface = SDL_Surface*: SDL_SetVideoMode(800, 600, 32, SDL_ANYFORMAT);
+  SDL_Surface* surface = SDL_Surface*: SDL_SetVideoMode(256, 192, 32, SDL_ANYFORMAT);
   int update() {
     SDL_Flip(surface);
     SDL_Event ev;
@@ -78,7 +78,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   void run() {
     t += 0.02;
     void calc(int from, int to) {
-      int factor1 = 0xff, factor2 = 0xff00, factor3 = 0xff0000;
+      int factor1 = 0xff0000, factor2 = 0xff00, factor3 = 0xff;
       vec3f ff = vec3f(factor1, factor2, factor3);
       for (int y = from; y < to; ++y) {
         auto p = &((int*:surface.pixels)[y * int:surface.w]);
@@ -87,7 +87,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
         for (int x = 0; x < surface.w; ++x) {
           f = dg(float:x / surface.w, float:y / surface.h, t) * ff;
           fastfloor3f (f, &i);
-          *(p++) = i.x + i.y & factor2 + i.z & factor3;
+          *(p++) = i.x & factor1 + i.y & factor2 + i.z & factor3;
         }
       }
     }
@@ -373,6 +373,29 @@ int main(string[] args) {
       }
       return vec3f(f);
     }
+    vec3f fun4(float x, float y, float t) {
+      float factor = 1;
+      float mew = noise3 vec3f(x * 2 + noise3 vec3f(-x*3, y*3, t/4), y * 2 + noise3 vec3f(x*3, -y*3, t/4), t);
+      auto noise = (mew + 1) * 20;
+      if (noise >= 30) factor = mew;
+      
+      noise -= int:noise;
+      
+      // Octave 2: Fine noise
+      noise += noise3 vec3f(x * 200, y * 200, t) * 0.5;
+
+      // Octave 3: Streak
+      noise += noise3 vec3f(x, y * 100, t) * 0.7;
+
+      // Adjust range to [0, 1]
+      noise = (noise + 1) / 2;
+
+      // Convert noise to colour
+      auto res = vec3f(noise * 0.7, noise * 0.507, noise * 0.313);
+      res *= factor;
+      for (int i <- 0..3) res[i] = clamp(0, 1, res[i]);
+      return res;
+    }
     vec3f fun3(float x, float y, float t) {
       // auto f2 = fun2(x, y);
       x = x - 0.5f;
@@ -382,8 +405,8 @@ int main(string[] args) {
       // auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
       float noisex(vec3f v) {
         float sqr(float f) { return f * f; }
-        return noise3 vec3f(v.x + sqr noise3(v), v.y + sqr noise3(-v), v.z);
-        // return noise3 v;
+        // return noise3 vec3f(v.x + sqr noise3(v), v.y + sqr noise3(-v), v.z);
+        return noise3 v;
         // return sinf(v.x + v.y + v.z) * 0.5 + 0.5;
       }
       // auto n = noisex vec3f(x * 8, y * 8, t);
@@ -406,7 +429,7 @@ int main(string[] args) {
       // return transition(&f2, &n2, smoothstep(0.3, 0.5, dist + noise2(x * 2 + 100, y * 2) * 0.1f));
     }
     fun1(0, 0);
-    sdlfun(&fun3);
+    sdlfun(&fun4);
     U u;
     u.F = 15;
     printf("comparison 0x%08x\n", float:15);

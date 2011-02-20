@@ -2,7 +2,7 @@ module simplex;
 
 import std.c.fenv, std.c.stdlib;
 
-int[] perm;
+int[~] perm;
 vec3i[12] grad3;
 
 float dot2(int[4] whee, float a, float b) {
@@ -12,7 +12,7 @@ float dot2(int[4] whee, float a, float b) {
 void permsetup() {
   int seed = 34;
   perm ~= [for 0..256: rand_r(&seed) % 256].eval;
-  perm ~= perm;
+  perm ~= perm[];
   int i;
   alias values = [1, 1, 0,
                  -1, 1, 0,
@@ -155,7 +155,7 @@ float noise3(vec3f v) {
     gi[2] = lperm[lperm[lperm[kk+k2]+jj+j2]+ii+i2] % 12;
     gi[3] = lperm[lperm[lperm[kk+1 ]+jj+1 ]+ii+1 ] % 12;
   }
-  vec3f current;
+  vec3f current = void;
   vec4f factors = void, res = void;
   auto pair = [1f, -1f, -1f];
   while (int c <- 0..4) {

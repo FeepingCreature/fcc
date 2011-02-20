@@ -125,10 +125,10 @@ struct Transaction {
       else return qformat("@", stackdepth);
     }
     with (Kind) switch (kind) {
-      case Mov:         return Format("[movl ", from, " -> ", to, "]");
-      case Mov2:        return Format("[movw ", from, " -> ", to, "]");
-      case Mov1:        return Format("[movb ", from, " -> ", to, "]");
-      case MovD:        return Format("[movd ", from, " -> ", to, "]");
+      case Mov:         return Format("[movl ", from, " -> ", to, stackinfo, "]");
+      case Mov2:        return Format("[movw ", from, " -> ", to, stackinfo, "]");
+      case Mov1:        return Format("[movb ", from, " -> ", to, stackinfo, "]");
+      case MovD:        return Format("[movd ", from, " -> ", to, stackinfo, "]");
       case SAlloc:      return Format("[salloc ", size, "]");
       case SFree:       return Format("[sfree ", size, "]");
       case MathOp:      return Format("[math:", opName, " ", op1, ", ", op2, "]");

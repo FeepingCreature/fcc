@@ -1335,6 +1335,12 @@ void setupOpts() {
       $SUBST(t);
     }
   `));
+  mixin(opt("push_pop_is_mov_sometimes", `^Push, ^Pop:
+    $0.type.size == 4 && $1.type.size == 4 && $1.dest.isUtilityRegister()
+    =>
+    $T t; t.kind = $TK.Mov; t.from = $0.source; t.to = $1.dest;
+    $SUBST(t);
+  `));
   mixin(opt("push_or_mov_before_movaps", `^Push, ^SSEOp || ^MovD:
     (
       $1.kind == $TK.SSEOp && $1.opName == "movaps" && $1.op2.isSSERegister() ||
@@ -1597,125 +1603,6 @@ void setupOpts() {
   }
   opts ~= stuple(&lookahead_remove_redundants, "lookahead_remove_redundants", true);
   
-  bool lookahead_bridge_push_pop(Transcache cache, ref int[string] labels_refcount) {
-    bool changed;
-    Transaction[] repl;
-    // BEWARE!
-    // this opt is iffy. it does not guarantee that its scratch registers are actually available!
-    auto match = cache.findMatch("lookahead_bridge_push_pop", delegate int(Transaction[] list) {
-      with (Transaction.Kind) {
-        if (list.length <= 2) return false;
-        auto head = list[0];
-        if (head.kind != Push || head.type.size != 4) return false;
-        if (!head.source.isUtilityRegister() && !head.source.isIndirect().isUtilityRegister()
-            && !head.source.isNumLiteral()
-            && head.source.isIndirect() != "%esp") return false;
-        
-        int tailid = -1;
-        for (int i = 0; i < list.length; ++i) {
-          if (list[i].kind == Pop || list[i].kind == SFree) { tailid = i; break; }
-        }
-        if (tailid == -1) return false;
-        auto tail = list[tailid];
-        if (tail.kind == Pop) {
-          if (tail.type.size != 4) return false;
-          if (!tail.dest.isUtilityRegister()/* && !tail.dest.isIndirect().isUtilityRegister()*/) return false;
-        } else {
-          if (tail.size != 4) return false;
-        }
-        
-        auto segment = list[0 .. tailid + 1];
-        if (segment.length <= 2) return false;
-        segment = segment.dup;
-        // if (head.source.isNumLiteral()) logln("Try to bridge ", segment);
-        
-        foreach (entry; segment[1 .. $-1]) {
-          if (entry.kind == Push /or/ Call /or/ Label /or/ Nevermind)
-            return false;
-          if (affectsStack(entry))
-            return false;
-        }
-        
-        bool[string] unused;
-        foreach (reg; ["%edx", "%ecx"/*, "%ebx", "%eax"*/])
-          unused[reg] = true;
-        foreach (ref entry; segment[1 .. $-1]) {
-          bool oops; // oops, can't do it.
-          info(entry).accessParams((ref string s) {
-            string[] remove;
-            foreach (key, value; unused)
-              if (s.find(key) != -1) remove ~= key;
-            foreach (entry; remove) unused.remove(entry);
-            if (s.isIndirect(0) == "%esp") { oops = true; return; }
-            fixupString(s, -4);
-          });
-          if (oops) return false;
-          if (entry.hasStackdepth()) entry.stackdepth -= 4;
-        }
-        
-        if (tail.kind == SFree) {
-          repl = segment[1 .. $-1];
-          return segment.length;
-        }
-        if (!unused.length) return false;
-        if (head.source.isRegister() && head.source in unused) {
-          segment[$-1] = Init!(Transaction);
-          with (segment[$-1]) {
-            kind = Mov;
-            from = head.source;
-            to = tail.dest;
-          }
-          repl = segment[1 .. $];
-          return segment.length;
-        }
-        
-        if (tail.dest.isRegister() && tail.dest in unused) {
-          segment[0] = Init!(Transaction);
-          with (segment[0]) {
-            kind = Mov;
-            from = head.source;
-            to = tail.dest;
-          }
-          repl = segment[0 .. $-1];
-          return segment.length;
-        }
-        
-        if (head.source.isRegister() && head.source == tail.dest) {
-          auto subst = unused.keys[0];
-          foreach (ref entry; segment[1 .. $-1]) {
-            info(entry).accessParams((ref string s) {
-              s = s.replace(head.source, subst);
-            });
-          }
-          repl = segment[1 .. $-1];
-          return segment.length;
-        }
-        
-        auto subst = unused.keys[0];
-        segment[0] = Init!(Transaction);
-        with (segment[0]) {
-          kind = Mov;
-          from = head.source;
-          to = subst;
-        }
-        segment[$-1] = Init!(Transaction);
-        with (segment[$-1]) {
-          kind = Mov;
-          from = subst;
-          to = tail.dest;
-        }
-        repl = segment;
-        return segment.length;
-      }
-      return false;
-    });
-    if (match.length) do {
-      match.replaceWith(repl);
-      changed = true;
-    } while (match.advance());
-    return changed;
-  }
-  opts ~= stuple(&lookahead_bridge_push_pop, "lookahead_bridge_push_pop", true);
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
