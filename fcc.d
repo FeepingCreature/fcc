@@ -141,6 +141,8 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   auto len_gen = time({
     mod.emitAsm(af);
     if (!ematSysmod) {
+      finalizeSysmod(mod);
+      .optimize(sysmod);
       sysmod.emitAsm(af);
       ematSysmod = true;
       extras.emitAsm(af);
@@ -219,7 +221,6 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
         sysmod.isValid = false;
       sysmod = null;
       setupSysmods();
-      .optimize(sysmod);
     }
   
     auto modname = file.toModule();
@@ -251,6 +252,8 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
       scope(exit) if (!saveTemps) unlink (asmname.toStringz());
       auto len_gen = time({
         if (file == start) {
+          finalizeSysmod(mod);
+          .optimize(sysmod);
           sysmod.emitAsm(af);
           void recurse(ref Iterable it) {
             if (auto sae = cast(StatementAndExpr) it) sae.once = false;
@@ -359,7 +362,6 @@ int main(string[] args) {
     if (initedSysmod) return;
     initedSysmod = true;
     setupSysmods();
-    .optimize(sysmod);
   }
   string configOpts;
   bool willLoop; string mainfile;

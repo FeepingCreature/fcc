@@ -1,10 +1,8 @@
 module test5;
 
-int x;
+import std.file;
 
 void main() {
-  int d = 2, b = 3, _ = 1;
-  if d >_< b writeln "success"; // lol
-  else writeln "aw teh fail";
-  auto p = &x;
+  auto mods = [for mod <- __modules: mod.name].eval;
+  writeln "Modules: $mods";
 }

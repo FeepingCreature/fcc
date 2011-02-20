@@ -68,7 +68,7 @@ IType arrayAsStruct(IType base, bool rich) {
   new RelMember("length", Single!(SysInt), res);
   new RelMember("ptr", new Pointer(base), res);
   res.name = "__array_as_struct__"~base.mangle()~(rich?"_rich":"");
-  if (!extras || !sysmod) return res;
+  if (!extras || !sysmod || !sysmod.parsingDone) return res;
   
   auto backup = namespace();
   scope(exit) namespace.set(backup);

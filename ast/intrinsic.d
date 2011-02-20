@@ -1,9 +1,9 @@
 module ast.intrinsic;
 
-import ast.modules, ast.pointer, ast.base;
+import ast.modules, ast.pointer, ast.base, ast.oop;
 // not static this() to work around a precedence bug in phobos. called from fcc.
 void setupSysmods() {
-  if (!extras) New(extras);
+  if (!extras) New(extras, cast(string) null);
   if (sysmod) return;
   string src = `
     module sys;
@@ -312,7 +312,14 @@ void setupSysmods() {
       asm "psubd %xmm4, %xmm5";
       *res = vec3i:xmm[5];
     }
+    class ModuleInfo {
+      string name;
+      void function()[] constructors;
+    }
+    ModuleInfo[] __modules;
+    void __setupModuleInfo() { }
     int __c_main(int argc, char** argv) {
+      __setupModuleInfo();
       string[] args;
       for (auto arg <- argv[0 .. argc]) {
         args ~= arg[0 .. strlen(arg)];
@@ -322,17 +329,51 @@ void setupSysmods() {
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;
-  // must generate a partial definition of sysmod first so that certain features (new) can do lookups against sys.mem correctly.
-  string base1 = src.between("", "/*MARKER*/") ~ "}";
-  synchronized(SyncObj!(sourcefiles))
-    sourcefiles["<internal:sys,pre>"] = base1;
-  sysmod = fastcast!(Module) (parsecon.parse(base1, "tree.module"));
-  string base2 = src.between("", "/*MARKER2*/").dup;
-  synchronized(SyncObj!(sourcefiles))
-    sourcefiles["<internal:sys,pre2>"] = base2;
-  sysmod = fastcast!(Module) (parsecon.parse(base2, "tree.module"));
-  // we can now use the partial definitions to parse the entirety.
   sysmod = fastcast!(Module) (parsecon.parse(src, "tree.module"));
+}
+
+import ast.fun, ast.scopes, ast.namespace,
+       ast.variable, ast.vardecl, ast.literals;
+void finalizeSysmod(Module mainmod) {
+  auto setupfun = fastcast!(Function) (sysmod.lookup("__setupModuleInfo"));
+  auto sc = fastcast!(Scope) (setupfun.tree);
+  Module[] list;
+  Module[] left;
+  bool[string] done;
+  left ~= mainmod;
+  while (left.length) {
+    auto mod = left.take();
+    if (mod.name in done) continue;
+    list ~= mod;
+    done[mod.name] = true;
+    left ~= mod.imports;
+  }
+  auto modtype = new ClassRef(fastcast!(Class) (sysmod.lookup("ModuleInfo")));
+  auto backup = namespace();
+  scope(exit) namespace.set(backup);
+  namespace.set(sc);
+  auto var = new Variable(modtype, null, boffs(modtype));
+  var.initInit;
+  auto decl = new VarDecl;
+  decl.vars ~= var;
+  sc.addStatement(decl);
+  sc.add(var);
+  foreach (mod; list) {
+    sc.addStatement(
+      iparse!(Statement, "init_modinfo", "tree.stmt")
+             (`{var = new ModuleInfo;
+               __modules ~= var;
+               var.name = name;
+             }` , "var", var, "name", mkString(mod.name))
+    );
+    foreach (fun; mod.constrs)
+      sc.addStatement(
+        iparse!(Statement, "init_mod_constr", "tree.stmt")
+               (`var.constructors ~= fun;
+               `, "var", var, "fun", fun)
+      );
+  }
+  
 }
 
 import ast.tuples;

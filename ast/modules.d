@@ -20,12 +20,21 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   string name;
   string cleaned_name() { return name.cleanup(); }
   Module[] imports;
+  Function[] constrs;
   Tree[] entries;
   Setupable[] setupable;
+  bool parsingDone;
   AsmFile inProgress; // late to the party;
   bool _hasDebug = true;
   bool isValid; // still in the build list; set to false if superceded by a newer Module
-  this() { if (sysmod && sysmod !is this) imports ~= sysmod; isValid = true; }
+  private this() { assert(false); }
+  this(string name) {
+    this.name = name;
+    //                      needed by sysmod; avoid circle
+    if (sysmod && sysmod !is this && name != "std.c.setjmp")
+      imports ~= sysmod;
+    isValid = true;
+  }
   void addSetupable(Setupable s) {
     setupable ~= s;
     if (inProgress) s.setup(inProgress);
@@ -206,13 +215,19 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   Module mod;
   auto backup = namespace.ptr();
   scope(exit) namespace.set(backup);
-  New(mod);
+  string modname;
+  if (!t2.gotIdentifier(modname, true) || !t2.accept(";"))
+    t2.failparse("Failed to parse module header, 'module' expected! ");
+  
+  New(mod, modname);
   namespace.set(mod);
   auto backup_mod = current_module();
   current_module.set(mod);
   scope(exit) current_module.set(backup_mod);
-  if (!t2.gotIdentifier(mod.name, true) || !t2.accept(";"))
-    t2.failparse("Failed to parse module header, 'module' expected! ");
+  
+  if (mod.name == "sys") {
+    sysmod = mod; // so that internal lookups work
+  }
   if (t2.many(
       !!restart(t2, "tree.toplevel", &tr),
       {
@@ -227,6 +242,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
     text = t2;
     if (text.strip().length)
       text.failparse("Unknown statement");
+    mod.parsingDone = true;
     return mod;
   } else t2.failparse("Failed to parse module");
 }
