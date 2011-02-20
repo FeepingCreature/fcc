@@ -98,24 +98,29 @@ Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotTupleSliceExpr, "tree.rhs_partial.tuple_slice", null, "[");
 
 class WithSpace : Namespace {
-  Namespace ns; RelNamespace rns;
-  Expr ctx;
+  Expr[] spaces;
   this(Expr ex) {
-    ctx = ex;
     sup = namespace();
-    rns = fastcast!(RelNamespace)~ ex.valueType();
-    if (auto srns = cast(SemiRelNamespace) ex.valueType())
-      rns = srns.resolve();
-    ns = fastcast!(Namespace)~ ex;
+    spaces ~= ex;
+  }
+  this(Expr[] exprs) {
+    sup = namespace();
+    spaces = exprs;
   }
   override {
     string mangle(string name, IType type) { assert(false); }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) {
-      if (rns)
-        if (auto res = rns.lookupRel(name, ctx)) return res;
-      if (ns)
-        if (auto res = ns.lookup(name, local)) return res;
+      foreach (space; spaces) {
+        auto rns = fastcast!(RelNamespace) (space.valueType());
+        if (auto srns = cast(SemiRelNamespace) rns)
+          rns = srns.resolve();
+        
+        if (rns)
+          if (auto res = rns.lookupRel(name, space)) return res;
+        if (auto ns = fastcast!(Namespace) (space.valueType()))
+          if (auto res = ns.lookup(name, local)) return res;
+      }
       return sup.lookup(name, local);
     }
   }
@@ -128,22 +133,25 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
       auto t2 = text;
       if (!t2.accept("(")) return null;
     }
-    while (fastcast!(Pointer)~ ex.valueType())
+    while (fastcast!(Pointer) (resolveType(ex.valueType())))
       ex = new DerefExpr(ex);
     
-    gotImplicitCast(ex, (IType it) { return fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it); });
+    Expr[] spaces;
     
-    Namespace ns; RelNamespace rns;
-    if (ex) {
-      ns = fastcast!(Namespace)~ ex.valueType();
-      rns = fastcast!(RelNamespace)~ ex.valueType();
-    }
-    if (!ns && !rns)
+    auto ex2 = ex;
+    gotImplicitCast(ex2, (Expr ex) {
+      auto it = ex.valueType();
+      if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it))
+        spaces ~= ex;
+      return false;
+    });
+    
+    if (!spaces.length)
       text.failparse("Not a [rel]namespace: ", ex.valueType());
     
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    namespace.set(new WithSpace(ex));
+    namespace.set(new WithSpace(spaces));
     Object res;
     if (!rest(text, "tree.expr _tree.expr.arith", &res))
       text.failparse("Couldn't get with-tuple expr");

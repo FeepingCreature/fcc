@@ -455,3 +455,31 @@ class DuplicateExpr : Expr {
     }
   }
 }
+
+extern(C) {
+  struct winsize {
+    ushort row, col, xpixel, ypixel;
+  }
+  int ioctl(int d, int request, ...);
+  void* stdin;
+  int fflush(void* stream);
+}
+template logSmart(bool Mode) {
+  void logSmart(T...)(T t) {
+    tools.log.log("\r");
+    auto pretext = Format(t);
+    string text;
+    foreach (ch; pretext) {
+      if (ch == '\t') {
+        while (text.length % 8 != 0) text ~= " ";
+      } else text ~= ch;
+    }
+    winsize ws;
+    ioctl(0, /*TIOCGWINSZ*/0x5413, &ws);
+    while (text.length < ws.col) text ~= " ";
+    tools.log.log(text);
+    if (Mode) tools.log.log("\r");
+    else tools.log.log("\n");
+    fflush(stdin);
+  }
+}

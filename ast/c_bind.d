@@ -475,7 +475,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     // logln("Add ", value);
     ns.add(key, value);
   }
-  logln("# Got ", cache.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
+  logSmart!(false)("# Got ", cache.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
 }
 
 import ast.fold, ast.literal_string;

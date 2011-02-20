@@ -45,7 +45,7 @@ class DerefExpr : LValue {
   Expr src;
   this(Expr ex) {
     src = ex;
-    if (!fastcast!(Pointer) (src.valueType()))
+    if (!fastcast!(Pointer) (resolveType(src.valueType())))
       throw new Exception(Format("Can't dereference non-pointer: ", src));
   }
   private this() { }

@@ -61,7 +61,7 @@ class RelMember : Expr, Named, RelTransformable {
     mixin defaultIterate!();
     string getIdentifier() { return name; }
     Object transform(Expr base) {
-      return fastcast!(Object)~ mkMemberAccess(base, name);
+      return fastcast!(Object) (mkMemberAccess(base, name));
     }
   }
   this(string name, IType type, int offset) {
@@ -152,10 +152,9 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       return selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
     }
     Object lookupRel(string str, Expr base) {
-      // logln("struct rel base is ", base);
       auto res = lookup(str);
       if (auto rt = fastcast!(RelTransformable) (res))
-        return fastcast!(Object)~ rt.transform(base);
+        return fastcast!(Object) (rt.transform(base));
       return res;
     }
     int opEquals(IType it) {

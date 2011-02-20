@@ -542,6 +542,8 @@ SplitIter!(T) splitIter(T)(T d, T s) {
   return res;
 }
 
+void delegate(string) justAcceptedCallback;
+
 class ParseContext {
   Parser[] parsers;
   string[string] prec; // precedence mapping
@@ -717,7 +719,10 @@ class ParseContext {
           }
           if (verboseParser) logln("    PARSER [", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
           if (verboseXML) logln("Success</", xid, ">");
-          if (ctl == ParseCtl.AcceptAbort) return res;
+          if (ctl == ParseCtl.AcceptAbort) {
+            if (justAcceptedCallback) justAcceptedCallback(text);
+            return res;
+          }
           if (text.ptr > longestMatchStr.ptr) {
             longestMatchStr = text;
             longestMatchRes = res;
@@ -734,6 +739,7 @@ class ParseContext {
     }
     if (longestMatchRes) {
       text = longestMatchStr;
+      if (justAcceptedCallback) justAcceptedCallback(text);
       return longestMatchRes;
     }
     return null;

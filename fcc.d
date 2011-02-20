@@ -107,9 +107,9 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     auto cmds = configOpts.split(",");
     foreach (cmd; cmds) {
       if (cmd == "info") {
-        writefln("count: ", opts.length);
+        logSmart!(false)("count: ", opts.length);
         foreach (i, opt; opts) {
-          writefln("id:", i, " name:", opt._1, " ", opt._2?"on":"off");
+          logSmart!(false)("id:", i, " name:", opt._1, " ", opt._2?"on":"off");
         }
         exit(1);
       }
@@ -146,20 +146,20 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
       extras.emitAsm(af);
     }
   }) / 1_000_000f;
-  writefln(len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
+  logSmart!(false)(len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
   Stuple!(string, float)[] entries;
   foreach (key, value; ast.namespace.bench) entries ~= stuple(key, value);
   entries.qsort(ex!("a, b -> a._1 > b._1"));
   float total = 0;
   foreach (entry; entries) total += entry._1;
-  writefln("Subsegments: ", entries, "; total ", total);
+  // logSmart!(false)("Subsegments: ", entries, "; total ", total);
   {
     scope f = new File(srcname, FileMode.OutNew);
     af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     f.close;
   }
   auto cmdline = Format("as -g --32 -o ", objname, " ", srcname);
-  writefln("> ", cmdline);
+  logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz()) == 0
     || assert(false, "Compilation failed! ");
   return objname;
@@ -173,7 +173,7 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
   string cmdline = "gcc -pthread -m32 -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
   foreach (larg; largs) cmdline ~= larg ~ " ";
-  writefln("> ", cmdline);
+  logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz());
 }
 
@@ -269,12 +269,12 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
         }
       }) / 1_000_000f;
       if (len_parse + len_opt + len_gen > 0.1)
-        writefln(file, ": ", len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
+        logSmart!(false)(file, ": ", len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
       scope f = new File(asmname, FileMode.OutNew);
       af.genAsm((string s) { f.write(cast(ubyte[]) s); });
       f.close;
       auto cmdline = Format("as --32 -o ", objname, " ", asmname);
-      writefln("> ", cmdline);
+      logSmart!(false)("> ", cmdline);
       system(cmdline.toStringz()) == 0
         || assert(false, "Compilation failed! ");
     };
@@ -333,6 +333,22 @@ int main(string[] args) {
   verboseXML = true;
   */
   auto exec = args.take();
+  justAcceptedCallback = 0 /apply/ (ref int prevHalfway, string s) {
+    auto info = lookupProgress(s);
+    if (info._1.endsWith(".cr")) {
+      const Length = 50;
+      auto progbar = new char[Length];
+      auto halfway = cast(int) (info._0 * Length);
+      if (halfway == prevHalfway) return;
+      prevHalfway = halfway;
+      for (int i = 0; i < Length; ++i) {
+        if (i < halfway) progbar[i] = '=';
+        else if (i == halfway) progbar[i] = '>';
+        else progbar[i] = ' ';
+      }
+      logSmart!(true)(info._1, " \t [", progbar, "]               ");
+    }
+  };
   string[] objects;
   string output;
   auto ar = args;

@@ -55,10 +55,14 @@ void drawScene() {
     dist -= noise3(v * 0.1) * 5;
     if dist > 7 return false;
     if dist < 4 return false;*/
+    
     return true;
   }
+  bool occluded(vec3f v) {
+    return false;
+  }
   prepareCube();
-  while auto vec ← [for x ← cross (-12 .. 12) x 3: vec3f(x)] if fun(vec) using glMatrix {
+  while auto vec ← [for x ← cross (-12 .. 12) x 3: vec3f(x)] if fun(vec) && !occluded(vec) using glMatrix {
     if (noise3(vec * 0.3) > 0.5) glBindTexture (GL_TEXTURE_2D, tex1);
     else glBindTexture (GL_TEXTURE_2D, tex2);
     glTranslatef vec;
@@ -82,7 +86,7 @@ int loadTexture(string name) {
   glGenTextures(1, &tex);
   glBindTexture(GL_TEXTURE_2D, tex);
   int[auto~] data;
-  while auto pt <- cross (0..img.sy, 0..img.sx) {
+  while auto pt <- cross img.(0..sy, 0..sx) {
     data ~= gdImageGetPixel (img, pt);
   }
   // glTexImage2D(GL_TEXTURE_2D, 0, 3, img.sx, img.sy, 0, GL_RGBA, GL_UNSIGNED_BYTE, img.tpixels);

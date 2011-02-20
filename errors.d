@@ -20,12 +20,24 @@ public import tools.threads: SyncObj;
 
 string[string] sourcefiles;
 
+// progress, file
+Stuple!(float, string) lookupProgress(string text) {
+  eatComments(text);
+  text = text.strip();
+  synchronized(SyncObj!(sourcefiles)) foreach (key, value; sourcefiles) {
+    // yes, >. Not >=. Think about it.
+    if (text.ptr < value.ptr || text.ptr > value.ptr + value.length)
+      continue;
+    return stuple((text.ptr - value.ptr) * 1f / value.length, key.dup);
+  }
+  return stuple(0f, cast(string) null);
+}
+
 // row, col, file
 Stuple!(int, ptrdiff_t, string) lookupPos(string text) {
   eatComments(text);
   text = text.strip();
   synchronized(SyncObj!(sourcefiles)) foreach (key, value; sourcefiles) {
-    // yes, >. Not >=. Think about it.
     if (text.ptr < value.ptr || text.ptr > value.ptr + value.length)
       continue;
     int i;
