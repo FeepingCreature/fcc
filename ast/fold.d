@@ -29,10 +29,20 @@ Expr foldex(Expr ex) {
   auto cur = ex;
   while (true) {
     auto start = cur;
+    IType oldtype;
+    debug oldtype = start.valueType();
     foreach (dg; _foldopt_expr) {
       if (auto res = dg(cur)) cur = res;
     }
     if (cur is start) break;
+    IType nutype;
+    debug {
+      nutype = cur.valueType();
+      if (nutype != oldtype || oldtype != nutype) {
+        logln("Invalid replacement: ", oldtype, " -> ", nutype, "!");
+        asm { int 3; }
+      }
+    }
   }
   return cur;
 }

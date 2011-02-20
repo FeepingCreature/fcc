@@ -53,7 +53,7 @@ class DerefExpr : LValue {
   mixin defaultIterate!(src);
   override {
     IType valueType() {
-      return (fastcast!(Pointer)~ src.valueType()).target;
+      return fastcast!(Pointer) (resolveType(src.valueType())).target;
     }
     void emitAsm(AsmFile af) {
       src.emitAsm(af);

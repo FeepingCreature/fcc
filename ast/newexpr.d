@@ -13,7 +13,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!cl) return null;
   
   text = t2;
-  return new CallbackExpr(new ClassRef(cl), cl /apply/ (Class cl, AsmFile af) {
+  return new CallbackExpr(new ClassRef(cl), null, cl /apply/ (Class cl, Expr bogus, AsmFile af) {
     mixin(mustOffset("nativePtrSize"));
     mkVar(af, new ClassRef(cl), true, (Variable var) {
       mixin(mustOffset("0"));

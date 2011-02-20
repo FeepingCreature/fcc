@@ -1140,7 +1140,10 @@ void setupOpts() {
     $T t2 = $0;
     if (info($1).growsStack)   info(t2).fixupStrings( info($1).opSize());
     if (info($1).shrinksStack) info(t2).fixupStrings(-info($1).opSize());
-    $SUBST(t, t2);
+    if ($0.to == info($1).outOp())
+      $SUBST(t);
+    else
+      $SUBST(t, t2);
   `));
   // moved the sfree up too far!
   mixin(opt("load_address_into_sourcer", `^LoadAddress, ^SFree, *:

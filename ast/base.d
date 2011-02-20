@@ -269,14 +269,15 @@ string mustOffset(string value, string _hash = null) {
 
 class CallbackExpr : Expr {
   IType type;
-  void delegate(AsmFile) dg;
-  this(IType type, void delegate(AsmFile) dg) {
-    this.type = type; this.dg = dg;
+  Expr ex; // held for dg so it can iterate properly
+  void delegate(Expr, AsmFile) dg;
+  this(IType type, Expr ex, void delegate(Expr, AsmFile) dg) {
+    this.type = type; this.ex = ex; this.dg = dg;
   }
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { dg(af); }
-    mixin defaultIterate!(); // TODO
+    void emitAsm(AsmFile af) { dg(ex, af); }
+    mixin defaultIterate!(ex);
   }
   private this() { }
   mixin DefaultDup!();

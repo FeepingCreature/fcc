@@ -97,7 +97,7 @@ Expr simpleFormat(Expr ex) {
   }
   if (auto tup = fastcast!(Tuple)~ type) {
     auto res = new ConcatChain(new StringExpr("{")); // put here for type
-    return new CallbackExpr(res.valueType(), stuple(ex, res) /apply/ (Expr ex, ConcatChain res, AsmFile af) {
+    return new CallbackExpr(res.valueType(), ex, res /apply/ (ConcatChain res, Expr ex, AsmFile af) {
       Expr build(LValue lv) {
         foreach (i, entry; getTupleEntries(lv)) {
           if (i) res.addArray(new StringExpr(", "));
@@ -126,7 +126,7 @@ Expr simpleFormat(Expr ex) {
       return ex;
     }
     // logln("et is ", et);
-    return new CallbackExpr(Single!(Array, Single!(Char)), ex /apply/ (Expr ex, AsmFile af) {
+    return new CallbackExpr(Single!(Array, Single!(Char)), ex, (Expr ex, AsmFile af) {
       mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
         iparse!(Scope, "!safecode_gen_array_format", "tree.scope")
         (`{

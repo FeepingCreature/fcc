@@ -23,7 +23,7 @@ void drawScene() {
     alias points = cross ((0..2) x 3);
     alias cols = [for i ← 0..8: i / 8.0f];
     alias coords = [(0,0), (0,1), (1,1), (1,0)];
-    static while (int idx, int count) ← zip ([
+    while (int idx, int count) ← zip ([
       0, 1, 3, 2,  4, 5, 7, 6, // top, bottom
       0, 1, 5, 4,  1, 3, 7, 5,  3, 2, 6, 7,  2, 0, 4, 6], 0..-1) { // sides
       cubedata ~= (
@@ -38,9 +38,9 @@ void drawScene() {
     glEnableClientState GL_VERTEX_ARRAY;
     glEnableClientState GL_COLOR_ARRAY;
     glEnableClientState GL_TEXTURE_COORD_ARRAY;
-    glColorPointer (3, GL_FLOAT, size-of cubetype, &cubedata[0][0]);
-    glVertexPointer (3, GL_FLOAT, size-of cubetype, &cubedata[0][1]);
-    glTexCoordPointer (2, GL_FLOAT, size-of cubetype, &cubedata[0][2]);
+    glColorPointer (3, GL_FLOAT, size-of cubetype, void*:&cubedata[0][0]);
+    glVertexPointer (3, GL_FLOAT, size-of cubetype, void*:&cubedata[0][1]);
+    glTexCoordPointer (2, GL_FLOAT, size-of cubetype, void*:&cubedata[0][2]);
   }
   void drawCube() {
     glDrawArrays (GL_QUADS, 0, cubedata.length);
@@ -78,7 +78,7 @@ int loadTexture(string name) {
   GLuint tex;
   auto pngdata = readAll name;
   auto img = gdImageCreateFromPngPtr (pngdata.length, pngdata.ptr);
-  // writeln "Read $(pngdata.length), is $((img.sx, img.sy)). Truecolor? $(img.trueColor). ";
+  writeln "Read $(pngdata.length), is $((img.sx, img.sy)). Truecolor? $(img.trueColor). ";
   glGenTextures(1, &tex);
   glBindTexture(GL_TEXTURE_2D, tex);
   int[auto~] data;
@@ -95,6 +95,7 @@ int loadTexture(string name) {
 
 int main(int argc, char** argv) {
   auto surf = setup-gl();
+  resizeWindow (640, 480);
   tex1 = loadTexture "letter-a.png";
   tex2 = loadTexture "letter-b.png";
   while true {

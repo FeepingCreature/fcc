@@ -49,7 +49,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
     int size() { return fpvt.size(); }
     string mangle() { assert(false); }
     ubyte[] initval() { return fpvt.initval(); }
-    int opEquals(IType it) { return false; }
+    int opEquals(IType it) { return it is this; }
   }
 }
 
@@ -58,6 +58,7 @@ class MyPlaceholderExpr : Expr {
   FirstParamOverrideSpace fpos;
   this(typeof(fpos) fpos) { this.fpos = fpos; }
   override {
+    string toString() { return Format("placeholder expr for ", fpos.firstParam); }
     void iterate(void delegate(ref Iterable) dg) {
       Iterable forble = fpos.firstParam, forble2 = forble;
       dg(forble);

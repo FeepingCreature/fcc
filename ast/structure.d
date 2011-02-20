@@ -43,6 +43,7 @@ int needsAlignment(IType it) {
 
 void doAlign(ref int offset, IType type) {
   int to = needsAlignment(type);
+  if (!to) return; // what. 
   offset = roundTo(offset, to);
 }
 

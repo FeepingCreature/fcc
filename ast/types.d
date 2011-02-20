@@ -30,11 +30,7 @@ template TypeDefaults(bool INITVAL = true, bool OPEQUALS = true) {
   static if (OPEQUALS) {
     int opEquals(IType ty) {
       // specialize where needed
-      while (true) {
-        if (auto tp = fastcast!(TypeProxy)~ ty)
-          ty = tp.actualType();
-        else break;
-      }
+      ty = resolveType(ty);
       auto obj = fastcast!(Object)~ ty;
       return
         (this.classinfo is obj.classinfo)

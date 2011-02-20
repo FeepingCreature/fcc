@@ -247,7 +247,13 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     if (auto vec = fastcast!(Vector)~ ex.valueType()) {
-      return reinterpret_cast(vec.asFilledTup, ex);
+      if (vec.asFilledTup != vec.asTup) {
+        auto filled = reinterpret_cast(vec.asFilledTup, ex);
+        auto entries = getTupleEntries(filled);
+        assert(entries.length == 4);
+        return mkTupleExpr(entries[0], entries[1], entries[2]);
+      } else
+        return reinterpret_cast(vec.asTup, ex);
     }
     return null;
   };

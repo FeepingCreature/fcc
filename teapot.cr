@@ -1,8 +1,7 @@
 module teapot;
-import sys, sdl, opengl;
+import sdl, opengl, std.c.math, std.c.time;
 
-c_include "math.h";
-c_include "time.h";
+import glsetup;
 
 void quit(int code) {
   SDL_Quit();
@@ -19,16 +18,6 @@ int resizeWindow(int w, int h) {
   gluPerspective(45.0, ratio, 0.1, 100.0);
   glMatrixMode GL_MODELVIEW;
   glLoadIdentity;
-  return true;
-}
-
-int initGL() {
-  glShadeModel GL_SMOOTH;
-  glClearColor (0 x 4);
-  glClearDepth 1;
-  glEnable GL_DEPTH_TEST;
-  glDepthFunc GL_LEQUAL;
-  glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
   return true;
 }
 
@@ -190,7 +179,7 @@ void drawScene(DataSet ds) {
   glDrawArrays (GL_QUADS, 0, entries);
   SDL_GL_SwapBuffers();
   fps ++;
-  auto ct = time(time_t*:null);
+  auto ct = time null;
   if ct != last_time {
     last_time = ct;
     writeln "FPS: $fps, vertices per scene $vertices";
@@ -198,26 +187,12 @@ void drawScene(DataSet ds) {
   }
 }
 
-int update(SDL_Surface* surface) {
-  SDL_Flip surface;
-  SDL_Event ev = void;
-  while SDL_PollEvent(&ev) {
-    if ev.type == 12 return 1; // QUIT
-  }
-  return 0;
-}
-
 int main(string[] args) {
   t = 0;
   needUpdate = true;
   
   auto ds = parse "newell_teaset/teapot";
-  SDL_Init (SDL_INIT_VIDEO);
-  auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
-  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-  auto surf = SDL_SetVideoMode (640, 480, 0, flags);
-  if !surf quit(1);
-  initGL;
+  auto surf = setup-gl();
   // IMPORTANT: init gl FIRST
   glGenBuffersARB (1, &teaObj);
   resizeWindow (640, 480);

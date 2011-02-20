@@ -765,8 +765,6 @@ pragma(GNU_attribute, hot)
 template startsWith(S, T) {
   string startsWith(S text, T match)
   {
-    debug if (!match)
-      asm { int 3; }
     if (text.length < match.length) return null;
     if (text[0 .. match.length] != match) return null;
     return text[match.length .. $];
