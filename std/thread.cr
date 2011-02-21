@@ -54,20 +54,12 @@ class ThreadPool {
     while (true) {
       s.claim;
       void delegate() dg;
-      /*using autoLock m {
-        writeln "got dg? ";
+      using autoLock m {
         dg = queue[0];
         queue = type-of queue:queue[1 .. $];
-      }*/
-      m.lock;
-      dg = queue[0];
-      queue = type-of queue:queue[1 .. $];
-      m.unlock;
+      }
       dg();
-      // using autoLock m { t.release(); }
-      m.lock;
-      t.release;
-      m.unlock;
+      using autoLock m { t.release(); }
     }
   }
   void addThread() {
@@ -75,24 +67,11 @@ class ThreadPool {
   }
   void waitComplete() {
     int i;
-    // using autoLock(m) { i = tasksLeft; tasksLeft = 0; }
-    m.lock;
-    i = tasksLeft;
-    tasksLeft = 0;
-    m.unlock;
+    using autoLock(m) { i = tasksLeft; tasksLeft = 0; }
     while 0..i t.claim();
   }
   void addTask(void delegate() dg) {
     using autoLock(m) { queue ~= dg; tasksLeft ++; s.release; }
-    /*MutexWrapper mw; mw.m = m;
-    eval (mw.onUsing);
-    // m.lock;
-    queue ~= dg;
-    tasksLeft ++;
-    s.release;
-    eval (mw.onExit);
-    // m.unlock;*/
-    
   }
 }
 

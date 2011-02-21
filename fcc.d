@@ -167,6 +167,30 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   return objname;
 }
 
+string[] compileWithDepends(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
+  while (file.startsWith("./")) file = file[2 .. $];
+  auto firstObj = compile(file, saveTemps, optimize, configOpts);
+  auto modname = file.replace("/", ".")[0..$-3];
+  string[] res;
+  bool[string] done;
+  done["sys"] = true;
+  Module[] todo;
+  auto start = lookupMod(modname);
+  
+  todo ~= start.imports;
+  done[start.name] = true;
+  res ~= firstObj;
+  
+  while (todo.length) {
+    auto cur = todo.take();
+    if (cur.name in done) continue;
+    res ~= compile(cur.name.replace(".", "/") ~ ".cr", saveTemps, optimize, configOpts);
+    done[cur.name] = true;
+    todo ~= cur.imports;
+  }
+  return res;
+}
+
 void link(string[] objects, string output, string[] largs, bool saveTemps = false) {
   scope(success)
     if (!saveTemps)
@@ -448,7 +472,7 @@ int main(string[] args) {
       if (!mainfile) mainfile = arg;
       if (!willLoop) {
         lazySysmod();
-        try objects ~= arg.compile(saveTemps, optimize, configOpts);
+        try objects ~= arg.compileWithDepends(saveTemps, optimize, configOpts);
         catch (Exception ex) { logln(ex.toString()); return 1; }
       }
       continue;
