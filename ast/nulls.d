@@ -62,9 +62,11 @@ Cond testNeq(Expr ex1, Expr ex2) {
 
 import ast.literals, ast.casting, ast.modules, ast.conditionals, ast.opers;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex;
+  Expr ex; Cond cd;
   auto t2 = text;
-  if (rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
+  if (rest(t2, "<tree.expr >tree.expr.cond", &cd) || rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
+    if (cd) { text = t2; return fastcast!(Object) (cd); } // Okaaaay.
+    if (!ex) return null;
     if (t2.accept(".")) return null; // wtf? definitely not a condition.
     auto ex2 = ex; // test for int-like
     IType[] _tried;

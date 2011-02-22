@@ -1526,6 +1526,7 @@ void setupOpts() {
             break outer;
           }
           case SAlloc: if (check == "(%esp)") break outer;
+          case Mov2, Mov1: break outer; // weird stuff, not worth the confusion
           case FloatMath, FPSwap:
             continue;    // no change
           

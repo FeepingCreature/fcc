@@ -153,7 +153,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     scope(exit) namespace.set(backup);
     namespace.set(new WithSpace(spaces));
     Object res;
-    if (!rest(text, "tree.expr _tree.expr.arith", &res))
+    if (!rest(text, "tree.expr _tree.expr.arith", &res) && !rest(text, "cond", &res))
       text.failparse("Couldn't get with-tuple expr");
     return res;
   };
