@@ -431,6 +431,30 @@ interface ForceAlignment {
 
 extern(C) int align_boffs(IType t, int curdepth = -1);
 
+int delegate(IType)[] alignChecks;
+
+int roundTo(int i, int to) {
+  auto i2 = (i / to) * to;
+  if (i2 != i) return i2 + to;
+  else return i;
+}
+
+int needsAlignment(IType it) {
+  foreach (check; alignChecks)
+    if (auto res = check(it)) return res;
+  const limit = 4;
+  it = resolveType(it);
+  if (auto fa = fastcast!(ForceAlignment) (it)) return fa.alignment();
+  if (it.size > limit) return limit;
+  else return it.size;
+}
+
+void doAlign(ref int offset, IType type) {
+  int to = needsAlignment(type);
+  if (!to) return; // what. 
+  offset = roundTo(offset, to);
+}
+
 int getFillerFor(IType t, int depth) {
   auto nd = -align_boffs(t, depth) - t.size;
   return nd - depth;

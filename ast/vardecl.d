@@ -62,7 +62,7 @@ int boffs(IType t, int curdepth = -1) {
   return align_boffs(t, curdepth);
 }
 
-void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
+void mkVar(AsmFile af, IType type, bool dontInit, bool alignvar, void delegate(Variable) dg) {
   int size = type.size;
   // void vars are fucking weird.
   if (type == Single!(Void)) size = 0;
@@ -71,7 +71,7 @@ void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
   static int x;
   synchronized name = Format("__temp_res_var_", x++, "__");
   auto var = new Variable(type, name,
-                          boffs(type, af.currentStackDepth));
+                          alignvar?boffs(type, af.currentStackDepth):-(af.currentStackDepth + type.size));
   var.dontInit = dontInit;
   if (size) {
     auto vd = new VarDecl;
@@ -82,6 +82,14 @@ void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
     mixin(mustOffset("0"));
     dg(var);
   }
+}
+
+void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
+  mkVar(af, type, dontInit, true, dg);
+}
+
+void mkVarUnaligned(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
+  mkVar(af, type, dontInit, false, dg);
 }
 
 import tools.base;

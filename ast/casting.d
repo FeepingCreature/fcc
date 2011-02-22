@@ -47,10 +47,7 @@ template ReinterpretCast(T) {
         IType valueType() { return to; }
         string getInfo() { return Format(to, ":"); }
         void emitAsm(AsmFile af) {
-          int size = to.size;
-          if (Single!(Void) == to) size = 0;
-          mixin(mustOffset("size"));
-          from.emitAsm(af);
+          _reinterpret_cast_expr(this, af);
         }
       }
     }
@@ -65,6 +62,7 @@ alias ReinterpretCast!(Expr) RCE;
 alias ReinterpretCast!(CValue) RCC;
 alias ReinterpretCast!(LValue) RCL; // class LCL omitted due to tang-related concerns
 alias ReinterpretCast!(MValue) RCM;
+extern(C) void _reinterpret_cast_expr(RCE, AsmFile);
 
 import ast.fold;
 static this() {

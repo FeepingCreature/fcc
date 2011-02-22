@@ -158,10 +158,12 @@ static this() {
     auto str = fastcast!(Structure)~ rc.to;
     if (!rt || !str) return null;
     retry:
+    // logln("member access to a ", rc, " - ", mae.stm);
     auto mbs = str.members();
     if (mbs.length > 1 && rt.mvs.length == 1) {
       rt = fastcast!(RefTuple) (rt.mvs[0]);
       if (rt) goto retry;
+      else return null; // TODO: I don't get this. 
     }
     if (!rt || rt.mvs.length != mbs.length) {
       logln("ref tuple not large enough for this cast! ");

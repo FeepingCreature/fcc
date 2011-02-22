@@ -17,12 +17,6 @@ int np2(int i) {
   return p;
 }
 
-int roundTo(int i, int to) {
-  auto i2 = (i / to) * to;
-  if (i2 != i) return i2 + to;
-  else return i;
-}
-
 int needsAlignmentStruct(Structure st) {
   int al = 1;
   st.select((string s, RelMember rm) {
@@ -30,21 +24,6 @@ int needsAlignmentStruct(Structure st) {
     if (ta > al) al = ta;
   });
   return al;
-}
-
-int needsAlignment(IType it) {
-  if (auto st = fastcast!(Structure)~ it) return needsAlignmentStruct(st);
-  const limit = 4;
-  it = resolveType(it);
-  if (auto fa = fastcast!(ForceAlignment) (it)) return fa.alignment();
-  if (it.size > limit) return limit;
-  else return it.size;
-}
-
-void doAlign(ref int offset, IType type) {
-  int to = needsAlignment(type);
-  if (!to) return; // what. 
-  offset = roundTo(offset, to);
 }
 
 import tools.log;
@@ -479,6 +458,11 @@ static this() {
       }
     }
     return null;
+  };
+  alignChecks ~= (IType it) {
+    if (auto st = fastcast!(Structure) (it))
+      return needsAlignmentStruct(st);
+    return 0;
   };
 }
 

@@ -64,6 +64,26 @@ static this() {
   setupPropCall();
 }
 
+// from ast.casting
+import asmfile, ast.vardecl;
+extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
+  with (rce) {
+    int size = to.size;
+    if (Single!(Void) == to) size = 0;
+    mixin(mustOffset("size"));
+    auto fromtype = from.valueType();
+    auto depth = af.currentStackDepth + fromtype.size;
+    doAlign(depth, fromtype);
+    if (depth == af.currentStackDepth + fromtype.size) {
+      from.emitAsm(af);
+    } else {
+      mkVarUnaligned(af, to, true, (Variable var) {
+        (new Assignment(var, from, true)).emitAsm(af);
+      });
+    }
+  }
+}
+
 extern(C) {
   int open(char* filename, int flags, size_t mode);
   int close(int fd);
