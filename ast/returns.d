@@ -93,8 +93,7 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == fun.type.ret); }))
       return rs;
     else {
-      logln("Could not convert ", temp, " to ", fun.type.ret, " for return: tried ", tried);
-      assert(false);
+      text.failparse("Could not convert ", temp, " to ", fun.type.ret, " for return: tried ", tried);
     }
   }
   if (fun.type.ret == Single!(Void))

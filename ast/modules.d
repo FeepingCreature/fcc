@@ -27,6 +27,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   AsmFile inProgress; // late to the party;
   bool _hasDebug = true;
   bool isValid; // still in the build list; set to false if superceded by a newer Module
+  bool doneEmitting;
   private this() { assert(false); }
   this(string name) {
     this.name = name;
@@ -81,6 +82,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
         iterate(&callback);
         logln("----done");
       }
+      doneEmitting = true;
     }
     string mangle(string name, IType type) {
       return "module_"~cleaned_name()~"_"~name~(type?("_of_"~type.mangle()):"");
@@ -112,6 +114,10 @@ Module sysmod, extras;
 static this() {
   addExtra = delegate void(IsMangled im) {
     auto mangled = im.mangleSelf();
+    if (extras.doneEmitting) {
+      logln("Too late to add ", im, ": extras already emitted! ");
+      asm { int 3; }
+    }
     foreach (ref entry; extras.entries) {
       if (auto im2 = cast(IsMangled) entry)
         if (im2.mangleSelf() == mangled) {

@@ -742,6 +742,9 @@ class EvalIterator(T) : Expr, Statement {
   this(Expr ex, T t) {
     this.ex = ex;
     this.iter = t;
+    // prime the template!
+    auto eaType = new ExtArray(iter.elemType(), true);
+    iparse!(Statement, "prime_that_template", "tree.stmt")(`{ auto qwenya = ex; T gob; type-of __istep qwenya foo; gob ~= foo; }`, namespace(), "ex", ex, "T", eaType);
   }
   this(Expr ex, T t, Expr target) {
     this(ex, t);
