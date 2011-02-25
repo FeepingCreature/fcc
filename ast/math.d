@@ -589,9 +589,9 @@ alias gotMathExpr!("<<", ">>") gotShiftExpr;
 mixin DefaultParser!(gotShiftExpr, "tree.expr.arith.shift", "34");
 
 alias gotMathExpr!("|") gotOrExpr;
-mixin DefaultParser!(gotOrExpr, "tree.expr.arith.or", "51");
+mixin DefaultParser!(gotOrExpr, "tree.expr.arith.or", "3301");
 alias gotMathExpr!("&") gotAndExpr;
-mixin DefaultParser!(gotAndExpr, "tree.expr.arith.and", "52");
+mixin DefaultParser!(gotAndExpr, "tree.expr.arith.and", "3302");
 
 alias gotMathExpr!("x") gotTimesExpr;
 mixin DefaultParser!(gotTimesExpr, "tree.expr.arith.times", "36");
