@@ -99,7 +99,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
       return sup.mangle(cleaned_name, type);
   }
   string exit() { return mangleSelf() ~ "_exit_label"; }
-  int frame_end() { int res; foreach (entry; stackframe()) { res = max(res, entry._2 + entry._0.size); } return res; }
   override {
     int framestart() { return _framestart; }
     bool addsSelf() { return true; }

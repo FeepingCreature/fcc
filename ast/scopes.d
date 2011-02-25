@@ -108,6 +108,7 @@ class Scope : Namespace, ScopeLike, Statement {
       return res;
     }
   }
+  int frame_end() { int res; foreach (entry; stackframe()) { res = min(res, entry._2); } return res; }
 }
 
 Object gotScope(ref string text, ParseCb cont, ParseCb rest) {

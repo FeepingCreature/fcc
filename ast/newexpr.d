@@ -124,12 +124,14 @@ Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   
   auto nf = re.fun.context.get!(Function);
-  auto start = nf.framestart(), end = nf.frame_end();
-  auto size = start + end; // lol
-  auto framestartp = lookupOp("-", reinterpret_cast(voidp, re.base), mkInt(start));
+  auto start = nf.framestart(), end = re.fun.context.frame_end();
+  // NOTE: end is smaller.
+  logln("frame from ", start, " .. ", end, " for ", nf, " -- ", nf.stackframe(), " -- ", re.fun.context.stackframe());
+  auto size = start - end; // lol
+  auto framestartp = lookupOp("+", reinterpret_cast(voidp, re.base), mkInt(end));
   auto array = mkPointerSlice(framestartp, mkInt(0), mkInt(size));
-  auto array2 = getArrayPtr(iparse!(Expr, "dup_dg", "tree.expr")(`dupv array`, "array", array));
-  auto base2 = lookupOp("+", array2, mkInt(start));
+  auto array2p = getArrayPtr(iparse!(Expr, "dup_dg", "tree.expr")(`dupv array`, "array", array));
+  auto base2 = lookupOp("+", array2p, mkInt(-end));
   return new DgConstructExpr(re.fun.getPointer(), base2);
 }
 mixin DefaultParser!(gotNewDelegateExpr, "tree.expr.new.dg", "13", "new");
