@@ -128,6 +128,7 @@ void setupSysmods() {
       }
     EOT
     string itoa(int i) {
+      if i == -0x8000_0000 return "-2147483648"; // Very "special" case.
       if i < 0 return "-" ~ itoa(-i);
       if i == 0 return "0";
       string res;
