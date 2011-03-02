@@ -16,7 +16,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   t2.gotIdentifier(pname);
   if (!t2.accept(")"))
     assert(false);
-  IType hdltype = fastcast!(IType)~ sysmod.lookup("_Handler"), objtype = new ClassRef(fastcast!(Class)~ sysmod.lookup("Object"));
+  IType hdltype = fastcast!(IType) (sysmod.lookup("_Handler")), objtype = fastcast!(ClassRef) (sysmod.lookup("Object"));
   const string hdlmarker = "__hdlmarker_var_special";
   assert(!namespace().lookup(hdlmarker));
   auto hdlvar = new Variable(hdltype, hdlmarker, boffs(hdltype));
