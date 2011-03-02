@@ -108,6 +108,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     }
     // logln("add ", name, " <- ", n);
     myNS._add(name, fastcast!(Object)~ n);
+    if (auto ns = fastcast!(Namespace) (n)) ns.sup = null; // lol
     cache[name] = n;
   }
   
@@ -460,6 +461,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       fun.type = new FunctionType;
       fun.type.ret = ret;
       fun.type.params = args /map/ (IType it) { return Argument(it); };
+      fun.sup = null;
       add(name, fun);
       continue;
     }

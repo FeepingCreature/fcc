@@ -7,15 +7,15 @@ import
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
-  string id;
-  if (!t2.gotIdentifier(id)) return null;
-  auto cl = fastcast!(Class)~ namespace().lookup(id);
-  if (!cl) return null;
+  IType classtype;
+  if (!rest(t2, "type", &classtype)) return null;
+  auto cr = fastcast!(ClassRef) (classtype);
+  if (!cr) return null;
   
   text = t2;
-  return new CallbackExpr(new ClassRef(cl), null, cl /apply/ (Class cl, Expr bogus, AsmFile af) {
+  return new CallbackExpr(cr, null, cr /apply/ (ClassRef cr, Expr bogus, AsmFile af) {
     mixin(mustOffset("nativePtrSize"));
-    mkVar(af, new ClassRef(cl), true, (Variable var) {
+    mkVar(af, cr, true, (Variable var) {
       mixin(mustOffset("0"));
       iparse!(Statement, "new_class", "tree.stmt")
       (`{
@@ -23,10 +23,10 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
           (void**:var)[0] = _classinfo;
         }`,
         "var", var,
-        "size", mkInt(cl.size),
-        "_classinfo", new Symbol(cl.ci_name())
+        "size", mkInt(cr.myClass.size),
+        "_classinfo", new Symbol(cr.myClass.ci_name())
       ).emitAsm(af);
-      auto base = cl.mainSize();
+      auto base = cr.myClass.mainSize();
       doAlign(base, voidp);
       base /= 4;
       int id = 0;
@@ -38,8 +38,8 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
           }
           else dg(intf, myOffs);
         }
-        auto offs = cl.ownClassinfoLength;
-        foreach (i, intf; cl.iparents) {
+        auto offs = cr.myClass.ownClassinfoLength;
+        foreach (i, intf; cr.myClass.iparents) {
           recurse(intf, offs);
           offs += intf.clsize();
         }
@@ -50,14 +50,14 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
           "var", var,
           "base", mkInt(base), "id", mkInt(id++),
-          "_classinfo", new Symbol(cl.ci_name()),
+          "_classinfo", new Symbol(cr.myClass.ci_name()),
           "offs", mkInt(offs)
         ).emitAsm(af);
       });
     });
   });
 }
-mixin DefaultParser!(gotNewClassExpr, "tree.expr.new.class", "11", "new");
+mixin DefaultParser!(gotNewClassExpr, "tree.expr.new.class", "125", "new");
 
 import ast.casting, ast.slice: mkPointerSlice;
 Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -126,11 +126,10 @@ Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto nf = re.fun.context.get!(Function);
   auto start = nf.framestart(), end = re.fun.context.frame_end();
   // NOTE: end is smaller.
-  logln("frame from ", start, " .. ", end, " for ", nf, " -- ", nf.stackframe(), " -- ", re.fun.context.stackframe());
   auto size = start - end; // lol
   auto framestartp = lookupOp("+", reinterpret_cast(voidp, re.base), mkInt(end));
   auto array = mkPointerSlice(framestartp, mkInt(0), mkInt(size));
-  auto array2p = getArrayPtr(iparse!(Expr, "dup_dg", "tree.expr")(`dupv array`, "array", array));
+  auto array2p = getArrayPtr(iparse!(Expr, "dup_dg", "tree.expr")(`fastdupv array`, "array", array));
   auto base2 = lookupOp("+", array2p, mkInt(-end));
   return new DgConstructExpr(re.fun.getPointer(), base2);
 }

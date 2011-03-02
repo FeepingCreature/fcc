@@ -75,8 +75,10 @@ class NestedFunction : Function {
       if (auto ea = fastcast!(ExprAlias)~ sn)
         throw new Exception("Cannot access expression alias \""~ea.name~"\" from nested function! ");
       if (!var) return sn?sn:context.lookup(name, false);
+      auto base = fastcast!(Expr) (lookup("__base_ptr", true, mybase));
+      if (!base) return null; // wut
       return new MemberAccess_LValue(
-        namespaceToStruct(context, fastcast!(Expr)~ lookup("__base_ptr", true, mybase)),
+        namespaceToStruct(context, base),
         var.name
       );
     }

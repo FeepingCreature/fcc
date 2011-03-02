@@ -1,6 +1,7 @@
 module test;
 
 import sdl, std.c.time;
+import simplex;
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
   SDL_Init(32); // video
@@ -12,7 +13,9 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   }
   vec2i mousePos;
   bool _clicked;
+  bool _mouseDown;
   bool clicked() { return _clicked; }
+  bool mouseDown() { return _mouseDown; }
   bool update() {
     _clicked = false;
     bool doResize;
@@ -28,6 +31,11 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       }
       if type == SDL_MOUSEBUTTONDOWN {
         _clicked = true;
+        _mouseDown = true;
+        mousePos = vec2i(button.(x, y));
+      }
+      if type == SDL_MOUSEBUTTONUP {
+        _mouseDown = false;
         mousePos = vec2i(button.(x, y));
       }
     }
@@ -53,8 +61,8 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
     auto p = &((int*:surface.pixels)[y * int:surface.w]);
     p[x] = color;
   }
-  void line((int, int) _pos, (int, int) _to, int color) {
-    auto pos = vec2i (_pos), to = vec2i (_to);
+  void line(int fromx, fromy, tox, toy, int color) {
+    auto pos = vec2i (fromx, fromy), to = vec2i (tox, toy);
     // Thank you Wikipedia.
     auto d = vec2i ((to - pos).(abs(x), abs(y)));
     auto s = vec2i(1, 1);
@@ -62,8 +70,10 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
     if (pos.y >= to.y) s.y = -1;
     int error = d.(x - y);
     pset(pos, color);
+    auto p = &((int*:surface.pixels)[pos.y * int:surface.w]);
     while pos.x != to.x || pos.y != to.y {
-      onSuccess pset(pos, color);
+      // onSuccess pset(pos, color);
+      onSuccess p[pos.x] = color;
       auto e2 = 2 * error;
       if (e2 > -d.y) {
         error -= d.y;
@@ -72,21 +82,30 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       if (e2 < d.x) {
         error += d.x;
         pos.y += s.y;
+        p += s.y * int:surface.w;
       }
     }
   }
-  void box((int, int) from, (int, int) to, int color) {
-    for (int y <- from[1] .. to[1])
-      for (int x <- from[0] .. to[0]) {
-        pset(x, y, color);
+  void box(int fromx, fromy, tox, toy, int color) {
+    if (fromx > tox) (fromx, tox) = (tox, fromx);
+    if (fromy > toy) (fromy, toy) = (toy, fromy);
+    auto from = vec2i (fromx, fromy), to = vec2i (tox, toy);
+    for (int y <- from.y .. to.y + 1) {
+      auto p = &((int*:surface.pixels)[y * int:surface.w]);
+      for (int x <- from.x .. to.x + 1) {
+        p[x] = color;
       }
+    }
   }
   auto bits = new int[32*32];
   auto last = time null;
-  bits[17] = 1;
+  int drawMode;
+  int step;
   while true {
     // run();
     // draw grid
+    for 0..10
+      box surface.(rand()%w, rand()%h, rand()%w, rand()%h, rand());
     for (int y <- 0..32+1) {
       for (int x <- 0..32+1) {
         line(vec2i(10, 10) + vec2i(0, y * 10), vec2i(32*10+10, 10) + vec2i(0, y * 10), -1);
@@ -95,17 +114,17 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
     }
     for (int y <- 0..32) {
       for (int x <- 0..32) {
-        auto pos = vec2i(11, 11) + vec2i(x * 10, y * 10), to = pos + vec2i(9, 9);
-        if (clicked() && mousePos.(x >= pos.x && x < to.x && y >= pos.y && y < to.y)) {
+        auto pos = vec2i(10, 10) + vec2i(x * 10, y * 10), to = pos + vec2i(9, 9);
+        if (mouseDown() && mousePos.(x >= pos.x && x <= to.x && y >= pos.y && y <= to.y)) {
+          if (clicked()) drawMode = 1-bits[y*32+x];
           writeln "clicked @$mousePos";
-          bits[y*32+x] = 1-bits[y*32+x];
+          bits[y*32+x] = drawMode;
         }
         int col;
         if (bits[y*32+x]) col = -1;
-        box(pos, to, col);
+        box(pos + vec2i(1, 1), to, col);
       }
     }
-    
     // line(vec2i(10, 10), vec2i(50, 80), -1);
     flip;
     fps ++;

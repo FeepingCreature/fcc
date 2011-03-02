@@ -293,8 +293,22 @@ void setupSysmods() {
         return res;
       }
     EOF
-    void[] dupv(void[] v) {
-      auto res = malloc(v.length)[0..v.length];
+    void[] dupvcache;
+    alias BLOCKSIZE = 16384;
+    void[] fastdupv(void[] v) {
+      void[] res;
+      if (v.length > BLOCKSIZE) {
+        res = malloc(v.length)[0..v.length];
+      } else {
+        if (dupvcache.length && dupvcache.length < v.length) {
+          // can't free the middle!
+          // mem.free(dupvcache.ptr);
+          dupvcache = null;
+        }
+        if (!dupvcache.length) dupvcache = new void[BLOCKSIZE];
+        res = dupvcache[0 .. v.length];
+        dupvcache = dupvcache[v.length .. $];
+      }
       res[] = v;
       return res;
     }
@@ -349,7 +363,7 @@ void finalizeSysmod(Module mainmod) {
     done[mod.name] = true;
     left ~= mod.imports;
   }
-  auto modtype = new ClassRef(fastcast!(Class) (sysmod.lookup("ModuleInfo")));
+  auto modtype = fastcast!(ClassRef) (sysmod.lookup("ModuleInfo"));
   auto backup = namespace();
   scope(exit) namespace.set(backup);
   namespace.set(sc);

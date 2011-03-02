@@ -145,12 +145,14 @@ class RelFunction : Function, RelTransformable {
       if (res) return res;
       else if (local) return null;
       
-      auto bp = fastcast!(Expr)~ lookup("__base_ptr", true);
-      if (auto ptr = fastcast!(Pointer)~ bp.valueType()) bp = new DerefExpr(bp);
-      if (auto res = context.lookupRel(name, bp))
-        return res;
+      auto bp = fastcast!(Expr) (lookup("__base_ptr", true));
+      if (bp) { // initialized already?
+        if (auto ptr = fastcast!(Pointer)~ bp.valueType()) bp = new DerefExpr(bp);
+        if (auto res = context.lookupRel(name, bp))
+          return res;
+      }
       
-      return null;
+      return super.lookup(name, false);
     }
   }
 }

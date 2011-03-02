@@ -15,7 +15,10 @@ class Template : Named {
   TemplateInstance getInstance(IType type, ParseCb rest) {
     assert(!isAlias);
     foreach (entry; emat_type)
-      if (entry._1 == type) return entry._0;
+      // weirdness with tuples in sieve.cr
+      // TODO: unhax.
+      if (Format(entry._1) == Format(type)) { return entry._0; }
+      // if (entry._1 == type) { return entry._0; }
     auto ti = new TemplateInstance(this, type, rest);
     emat_type ~= stuple(ti, type);
     return ti;
@@ -97,6 +100,7 @@ class TemplateInstance : Namespace {
           // current_module().entries ~= tr;
           auto mg = fastcast!(IsMangled) (tr);
           if (!mg) { logln("!! ", tr); asm { int 3; } }
+          mg.markWeak();
           addExtra(mg);
         }
       ) || t2.mystripl().length)

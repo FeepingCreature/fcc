@@ -52,7 +52,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   }
   FunctionType type;
   Tree tree;
-  bool extern_c = false;
+  bool extern_c = false, _markWeak = false;
+  void markWeak() { _markWeak = true; }
   mixin defaultIterate!(tree);
   string toString() { return Format("fun ", name, " ", type, " <- ", sup); }
   // add parameters to namespace
@@ -110,6 +111,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
       auto fmn = mangleSelf(); // full mangled name
       af.put(".globl ", fmn);
       af.put(".type ", fmn, ", @function");
+      if (_markWeak) af.put(".weak ", fmn);
       af.put(fmn, ":"); // not really a label
       af.jump_barrier();
       
@@ -345,11 +347,18 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
   *error.ptr() = stuple("", "");
   auto ns = namespace();
   assert(!!ns);
+  
+  fun.sup = sup_override ? sup_override : ns;
+  
   if (test(fun.type.ret = fastcast!(IType)~ rest(t2, "type")) &&
       (forcename || t2.gotIdentifier(fun.name)) &&
       t2.gotParlist(fun.type.params, rest)
     )
   {
+    auto backup = namespace();
+    namespace.set(fun);
+    scope(exit) namespace.set(backup);
+    
     if (forcename) fun.name = forcename;
     if (fun.name == "main") {
       assert(!gotMain);
@@ -357,11 +366,7 @@ Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToName
       fun.name = "__fcc_main";
     }
     fun.fixup;
-    auto backup = ns;
-    scope(exit) namespace.set(backup);
-    namespace.set(fun);
-    if (addToNamespace) ns.add(fun);
-    fun.sup = sup_override?sup_override:ns;
+    if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under ", ns, "! "); asm { int 3; } } }
     text = t2;
     static if (Decl) {
       if (text.accept(";")) return fun;

@@ -27,7 +27,7 @@ interface NeedsConfig {
   void configure();
 }
 
-interface IsMangled { string mangleSelf(); }
+interface IsMangled { string mangleSelf(); void markWeak(); }
 
 void delegate(IsMangled) addExtra;
 

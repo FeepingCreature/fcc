@@ -39,7 +39,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
         t4.failparse("No statement matched for ", type, " in exception guard context");
       if (type == "onExit") nf.tree = nf.tree.dup; // already used in onSuccess branch
     }
-    mod.entries ~= fastcast!(Tree)~ nf;
+    mod.entries ~= fastcast!(Tree) (nf);
     auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord");
     assert(!!grtype);
     {

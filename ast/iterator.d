@@ -82,7 +82,7 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
     IType elemType() { return Single!(SysInt); }
     string toString() { return Format("ConstIntRange[", size, "]()"); }
     int size() { return nativeIntSize; }
-    string mangle() { return Format("constint_range_", from, "_to_", to); }
+    string mangle() { return Format("constint_range_", from, "_to_", to).replace("-", "_minus_"); }
     ubyte[] initval() { return cast(ubyte[]) (&from)[0..1]; }
     Expr yieldAdvance(LValue lv) {
       return iparse!(Expr, "constint_yield_advance_range", "tree.expr")
@@ -167,26 +167,28 @@ class StructIterator : Type, Iterator {
     ubyte[] initval() { return wrapped.initval; }
     IType elemType() { return _elemType; }
     Expr yieldAdvance(LValue lv) {
+      lv = fastcast!(LValue) (reinterpret_cast(wrapped, lv));
       return iparse!(Expr, "si_step", "tree.expr")
                     (`eval (lv.step)`,
                      "lv", lv, "W", wrapped);
     }
     Cond terminateCond(Expr ex) {
+      ex = reinterpret_cast(wrapped, ex);
       return iparse!(Cond, "si_ivalid", "cond")
                     (`eval (ex.ivalid)`,
                      "ex", ex, "W", wrapped);
     }
-    string toString() { return Format(wrapped); }
+    string toString() { return Format("si ", wrapped); }
   }
 }
 
 static this() {
-  implicits ~= delegate Expr(Expr ex) {
+  /*implicits ~= delegate Expr(Expr ex) {
     if (auto si = fastcast!(StructIterator) (ex.valueType())) {
       return reinterpret_cast(si.wrapped, ex);
     }
     return null;
-  };
+  };*/
 }
 
 Object gotIterIvalid(ref string text, ParseCb cont, ParseCb rest) {
@@ -743,8 +745,9 @@ class EvalIterator(T) : Expr, Statement {
     this.ex = ex;
     this.iter = t;
     // prime the template!
-    auto eaType = new ExtArray(iter.elemType(), true);
-    iparse!(Statement, "prime_that_template", "tree.stmt")(`{ auto qwenya = ex; T gob; type-of __istep qwenya foo; gob ~= foo; }`, namespace(), "ex", ex, "T", eaType);
+    // auto eaType = new ExtArray(iter.elemType(), true);
+    // BEWARNED: commenting this in will expose a highly nasty bug that I've been unable to solve. Good luck and godspeed.
+    // iparse!(Statement, "prime_that_template", "tree.stmt")(`{ auto qwenya = ex; T gob; type-of __istep qwenya foo; gob ~= foo; }`, "ex", ex, "T", eaType);
   }
   this(Expr ex, T t, Expr target) {
     this(ex, t);
@@ -772,11 +775,14 @@ class EvalIterator(T) : Expr, Statement {
     void emitAsm(AsmFile af) {
       int offs;
       void emitStmtInto(Expr var) {
-        if (auto lv = fastcast!(LValue)~ ex) {
+        auto lv = fastcast!(LValue) (ex);
+        if (lv && var) {
+          // logln("eval takes branch 1");
           iparse!(Statement, "iter_array_eval_step_1", "tree.stmt")
                  (` { int i; while var[i++] <- _iter { } }`,
                   "var", var, "_iter", lv, af).emitAsm(af);
         } else if (var) {
+          // logln("eval takes branch 2");
           iparse!(Statement, "iter_array_eval_step_2", "tree.stmt")
                  (` { int i; auto temp = _iter; while var[i++] <- temp { } }`,
                   "var", var, "_iter", ex, af).emitAsm(af);
@@ -812,8 +818,8 @@ class EvalIterator(T) : Expr, Statement {
           static if (is(T == RichIterator)) {
             mkVar(af, valueType(), true, (Variable var) {
               iparse!(Statement, "initVar", "tree.semicol_stmt.assign")
-                    (`var = new elem[len]`,
-                    "var", var, "len", iter.length(ex), "elem", iter.elemType()).emitAsm(af);
+                     (`var = new elem[len]`,
+                     "var", var, "len", iter.length(ex), "elem", iter.elemType()).emitAsm(af);
               emitStmtInto(var);
             });
           } else {

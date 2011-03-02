@@ -435,10 +435,9 @@ mixin DefaultParser!(gotSum, "tree.expr.iter.sum", null, "sum");
 
 import ast.templ, ast.iterator;
 Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
-  if (text == ".step)" || text == ".ivalid)")
-    return null; // prevent the tests below from looping. HAX.
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
+    if (!t2.accept(".iterator")) return null; // Because fuck you.
     auto iter = fastcast!(Expr)~ obj;
     if (!iter) return null;
     auto thingy = fastcast!(Object)~ iter.valueType();
@@ -449,20 +448,18 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
     if (auto srn = fastcast!(SemiRelNamespace) (thingy)) thingy = fastcast!(Object) (srn.resolve());
     if (auto ns = fastcast!(Namespace)~ thingy) { _ns = ns; lookup = &fun_ns; }
     else if (auto rn = fastcast!(RelNamespace)~ thingy) { _rns = rn; lookup = &fun_rns; }
-    if (!lookup || !lookup("step") || !lookup("ivalid")) return null;
-    logln("try ", t2.nextText(), "; ", thingy);
-    try {
-      auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
-                        (`eval (iter.step)`, "iter", iter);
-      auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
-                        (`eval (iter.ivalid)`, "iter", iter);
-      if (!test1 || !test2) {
-        // logln("test failed: ", !test1, ", ", !test2);
-        return null;
-      }
-    } catch (Exception ex) {
-      // logln("reject due to ", ex);
+    if (!lookup || !lookup("step") || !lookup("ivalid")) {
+      text.setError(obj, " does not form a valid iterator: step or ivalid missing. ");
       return null;
+    }
+    // logln("try ", t2.nextText(), "; ", thingy);
+    auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
+                      (`eval (iter.step)`, "iter", iter);
+    auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
+                      (`eval (iter.ivalid)`, "iter", iter);
+    if (!test1 || !test2) {
+      logln("test failed: ", !test1, ", ", !test2);
+      asm { int 3; }
     }
     text = t2;
     auto si = new StructIterator(iter.valueType());

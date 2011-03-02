@@ -237,7 +237,10 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   auto var = new Variable(type, name, boffs(type));
-  namespace().get!(Scope).add(var);
+  auto sc = namespace().get!(Scope);
+  if (!sc)
+    throw new Exception("There is a lack of a scope here. ");
+  sc.add(var);
   auto vd = new VarDecl;
   vd.vars ~= var;
   namespace().get!(Scope).addStatement(vd);

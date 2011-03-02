@@ -146,3 +146,11 @@ string strip(string s) {
     s = s[1 .. s.length];
   return s;
 }
+
+string[] split(string s, string marker) {
+  string[auto~] res;
+  string dup(string s) { auto res = new char[s.length]; int i; for (auto ch <- s) res[i++] = ch; return res; }
+  for (auto value <- splitAt(marker, iterOnce s))
+    res ~= dup value;
+  return res[];
+}

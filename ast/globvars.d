@@ -54,18 +54,24 @@ class GlobVarDecl : Statement, IsMangled {
   GlobVar[] vars;
   bool tls;
   mixin defaultIterate!();
-  override string mangleSelf() {
-    return vars[0].mangled();
-  }
-  override typeof(this) dup() { assert(false, "hey now.."); }
-  override string toString() { return Format("declare ", tls?"tls ":"", vars); }
-  override void emitAsm(AsmFile af) {
-    if (tls) {
-      foreach (var; vars)
-        with (var) af.addTLS(mangled(), type.size, getInit());
-    } else {
-      foreach (var; vars)
-        af.globvars[var.mangled()] = stuple(var.type.size, var.getInit());
+  override {
+    string mangleSelf() {
+      return vars[0].mangled();
+    }
+    void markWeak() {
+      // logln("weak globvar?! ", this);
+      // ^ wat
+    }
+    typeof(this) dup() { assert(false, "hey now.."); }
+    string toString() { return Format("declare ", tls?"tls ":"", vars); }
+    void emitAsm(AsmFile af) {
+      if (tls) {
+        foreach (var; vars)
+          with (var) af.addTLS(mangled(), type.size, getInit());
+      } else {
+        foreach (var; vars)
+          af.globvars[var.mangled()] = stuple(var.type.size, var.getInit());
+      }
     }
   }
 }

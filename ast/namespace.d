@@ -72,8 +72,10 @@ class Namespace {
   }
   void _add(string name, Object obj) {
     if (auto ns = fastcast!(Namespace)~ obj) {
-      // if (ns.sup) asm { int 3; }
-      assert(!ns.sup, Format("While adding ", obj, " to ", this, ": object already in ", ns.sup, "! "));
+      if (ns.sup && ns.sup !is this) {
+        logln("While adding ", obj, " to ", this, ": object already in ", ns.sup, "! ");
+        asm { int 3; }
+      }
       ns.sup = this;
     }
     __add(name, obj);
@@ -184,8 +186,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
   override string toString() { return Format("mini[", id, "] <- ", sup); }
   override void _add(string name, Object obj) {
     if (sup && !internalMode) sup._add(name, obj);
-    else if (internalMode) super.__add(name, obj);
-    else super._add(name, obj);
+    else super.__add(name, obj);
   }
   int fs = -1, fs2;
   override int framesize() {
@@ -196,7 +197,8 @@ class MiniNamespace : Namespace, ScopeLike, Named {
     } else {
       // logln("no metric for framesize of ", id);
       if (id == "onUsing") asm { int 3; }
-      throw new Exception(Format("No metric for framesize of ", id, ": sup is ", sup, "."));
+      return 0;
+      // throw new Exception(Format("No metric for framesize of ", id, ": sup is ", sup, "."));
     }
   }
   override Object lookup(string name, bool local = false) {
@@ -239,9 +241,13 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     scope(exit) {
       namespace.set(backup);
     }
+    bool allInternal;
     static if (T2.length && is(T2[0]: Namespace)) {
       myns.sup = _t[0];
-      static if (T2.length > 1 && is(T2[1]: int)) {
+      static if (T2.length > 1 && is(T2[1] == bool)) {
+        allInternal = _t[1];
+        auto t = _t[2 .. $];
+      } else static if (T2.length > 1 && is(T2[1]: int)) {
         myns.fs2 = _t[1];
         auto t = _t[2 .. $];
       } else {
@@ -261,7 +267,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
       myns.fs = t[$-1].currentStackDepth;
     }
     
-    myns.internalMode = false;
+    myns.internalMode = allInternal;
     
     sourcefiles["<internal:"~id~">"] = text;
     
@@ -283,7 +289,7 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
   if (t2.gotIdentifier(id)) {
     retry:
-    if (auto type = fastcast!(IType)~ namespace().lookup(id)) {
+    if (auto type = fastcast!(IType) (namespace().lookup(id))) {
       text = t2;
       return fastcast!(Object)~ type;
     } else if (t2.eatDash(id)) goto retry;

@@ -34,10 +34,8 @@ class VTable {
 // lookupRel in interfaces/classes takes the class *reference*.
 // This is IMPORTANT for compat with using.
 
-class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
+class Intf : IType, Tree, RelNamespace, IsMangled {
   string name;
-  override bool addsSelf() { return true; }
-  override string getIdentifier() { return name; }
   mixin TypeDefaults!();
   override int size() { assert(false); }
   private this() { }
@@ -45,8 +43,12 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
   mixin defaultIterate!();
   override void emitAsm(AsmFile af) { }
   override bool isTempNamespace() { return false; }
+  IntfRef getRefType() { return new IntfRef(this); }
   string toString() { return "interface "~name; }
-  string mangle() { return "interface"; }
+  string mangle() { return "interface_"~mangle_id; }
+  bool weak;
+  override void markWeak() { weak = true; }
+  override string mangleSelf() { return mangle(); }
   Function[] funs;
   Intf[] parents;
   string mangle_id;
@@ -154,14 +156,18 @@ class Intf : Named, IType, Tree, SelfAdding, RelNamespace {
   }
 }
 
-class ClassRef : Type, SemiRelNamespace, Formatable {
+class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, IsMangled {
   Class myClass;
-  this(Class cl) { myClass = cl; }
+  this(Class cl) { myClass = cl; if (!cl) asm { int 3; } }
   override {
     RelNamespace resolve() { return myClass; }
     string toString() { return Format("ref ", myClass); }
+    bool addsSelf() { return true; }
+    string getIdentifier() { return myClass.name; }
     int size() { return nativePtrSize; }
+    void markWeak() { myClass.markWeak(); }
     string mangle() { return "ref_"~myClass.mangle(); }
+    string mangleSelf() { return mangle(); }
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
       return myClass is (fastcast!(ClassRef)~ type).myClass;
@@ -169,26 +175,36 @@ class ClassRef : Type, SemiRelNamespace, Formatable {
     Expr format(Expr ex) {
       return mkString("ref to "~myClass.name);
     }
+    ClassRef dup() { return new ClassRef(myClass.dup); }
+    void emitAsm(AsmFile af) { myClass.emitAsm(af); }
+    void iterate(void delegate(ref Iterable) dg) { myClass.iterate(dg); }
   }
 }
 
-class IntfRef : Type, SemiRelNamespace {
+class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled {
   Intf myIntf;
   this(Intf i) { myIntf = i; }
   override {
     RelNamespace resolve() { return myIntf; }
     string toString() { return Format("ref ", myIntf); }
+    string getIdentifier() { return myIntf.name; }
+    bool addsSelf() { return true; }
     int size() { return nativePtrSize; }
+    void markWeak() { } // nothing emitted, ergo no-op
     string mangle() { return "intfref_"~myIntf.mangle(); }
+    string mangleSelf() { return mangle(); }
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
       return myIntf is (fastcast!(IntfRef)~ type).myIntf;
     }
+    IntfRef dup() { return new IntfRef(myIntf.dup); }
+    void emitAsm(AsmFile af) { myIntf.emitAsm(af); }
+    void iterate(void delegate(ref Iterable) dg) { myIntf.iterate(dg); }
   }
 }
 
 import ast.modules;
-class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefType, IsMangled {
+class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   VTable myfuns;
   Structure data;
   string name;
@@ -201,14 +217,14 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
   }
   RelFunction[string] overrides;
   string mangle_id;
+  bool weak;
+  void markWeak() { weak = true; foreach (fun; myfuns.funs) (fastcast!(IsMangled) (fun)).markWeak(); }
   override string mangle() { return mangle_id; }
-  override string mangleSelf() { return mangle(); }
-  override bool addsSelf() { return true; }
   override Class dup() { assert(false, "wetfux! "); }
   bool isTempNamespace() { return false; }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, null);
-    auto root = fastcast!(Class)~ (sysmod?sysmod.lookup("Object"):null);
+    auto root = fastcast!(ClassRef)  (sysmod?sysmod.lookup("Object"):null);
     if (root) {
       if (name == "Object")
         throw new Exception("Can't redefine Object! ");
@@ -216,7 +232,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
       if (name != "Object")
         throw new Exception("Object must be first class defined! ");
     }
-    if (!parent) parent = root;
+    if (!parent) parent = root?root.myClass:null;
     this.name = name;
     New(data, cast(string) null);
     New(myfuns);
@@ -224,6 +240,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     this.parent = parent;
     if (!parent)
       new RelMember("classinfo", voidp, data);
+    sup = namespace();
   }
   bool finalized;
   void genDynCast() {
@@ -234,6 +251,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     rf.type.params ~= Argument(Single!(Array, Single!(Char)), "id");
     rf.sup = this;
     rf.fixup;
+    (fastcast!(IsMangled) (rf)).markWeak();
     add(rf);
     auto backup = namespace();
     namespace.set(rf);
@@ -321,11 +339,9 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     IType getRefType() {
       return new ClassRef(this);
     }
-    string getIdentifier() {
-      return name;
-    }
     void emitAsm(AsmFile af) {
       af.longstants[ci_name()] = getClassinfo();
+      if (weak) af.put(".weak ", ci_name());
     }
     int size() {
       // HAAAAAAAAAAAAAAAAAAX
@@ -341,6 +357,7 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
     }
     void _add(string name, Object obj) {
       assert(!finalized, "Adding "~name~" to already-finalized class. ");
+      if (auto fun = fastcast!(Function) (obj)) fun.sup = this;
       if (auto rf = fastcast!(RelFunction) (obj)) {
         if (funAlreadyDefined(name))
           overrides[name] = rf;
@@ -386,6 +403,11 @@ class Class : Namespace, RelNamespace, Named, IType, Tree, SelfAdding, hasRefTyp
       }
       return sup.lookup(str, false); // defer
     }
+    Object lookup(string id, bool local = false) {
+      if (auto res = data.lookup(id, local)) return res;
+      if (local) return null;
+      return sup.lookup(id, false);
+    }
   }
 }
 
@@ -399,21 +421,21 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   string sup;
   Class supclass;
   Intf[] supints;
+  IType suptype;
   if (t3.accept(":"))
     if (!t3.bjoin(
-      t3.gotIdentifier(sup),
+      !!rest(t3, "type", &suptype),
       t3.accept(","),
       {
         t2 = t3;
-        auto supobj = namespace().lookup(sup);
-        auto cl = fastcast!(Class)  (supobj);
-        auto intf = fastcast!(Intf) (supobj);
-        if (!cl && !intf) throw new Exception("Cannot inherit from "~sup~": not a class or interface. ");
-        if (intf) supints ~= intf;
+        auto cr = fastcast!(ClassRef)  (suptype);
+        auto ir = fastcast!(IntfRef) (suptype);
+        if (!cr && !ir) throw new Exception("Cannot inherit from "~sup~": not a class or interface. ");
+        if (ir) supints ~= ir.myIntf;
         else {
-          if (intf) t3.failparse("Class must come first in inheritance spec");
+          if (ir) t3.failparse("Class must come first in inheritance spec");
           if (supclass) t3.failparse("Multiple inheritance is not supported");
-          supclass = cl;
+          supclass = cr.myClass;
         }
       },
       false
@@ -421,14 +443,14 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("{")) t2.failparse("Missing opening bracket for class def");
   New(cl, name, supclass);
   cl.iparents = supints;
-  namespace().add(cl); // add here so as to allow self-refs in body
+  namespace().add(fastcast!(ClassRef) (cl.getRefType())); // add here so as to allow self-refs in body
   if (matchStructBody(t2, cl, cont, rest)) {
     if (!t2.accept("}"))
       t2.failparse("Failed to parse struct body");
     // logln("register class ", cl.name);
     text = t2;
     cl.finalize;
-    return cl;
+    return cast(Object) cl.getRefType();
   } else {
     t2.failparse("Couldn't match structure body");
   }
@@ -449,9 +471,9 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
       {
         t2 = t3;
         auto supobj = namespace().lookup(sup);
-        auto intf = fastcast!(Intf) (supobj);
+        auto intf = fastcast!(IntfRef) (supobj);
         if (!intf) throw new Exception("Cannot inherit interface from "~sup~": not an interface. ");
-        else supints ~= intf;
+        else supints ~= intf.myIntf;
       },
       false
     )) t3.failparse("Invalid interface inheritance spec");
@@ -460,7 +482,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   auto intf = new Intf(name);
   intf.parents = supints;
   intf.initOffset;
-  namespace().add(intf); // support interface A { A foo(); }
+  namespace().add(intf.getRefType()); // support interface A { A foo(); }
   text = t2;
   while (true) {
     auto fun = new Function;
@@ -469,35 +491,9 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
       text.failparse("Error parsing interface");
     intf.funs ~= fun;
   }
-  return intf;
+  return intf.getRefType();
 }
 mixin DefaultParser!(gotIntfDef, "tree.typedef.intf", null, "interface");
-
-Object gotClassRef(ref string text, ParseCb cont, ParseCb rest) {
-  string id, t2 = text;
-  if (t2.gotIdentifier(id)) {
-    retry:
-    if (auto cl = fastcast!(Class)~ namespace().lookup(id)) {
-      text = t2;
-      return new ClassRef(cl);
-    } else if (t2.eatDash(id)) goto retry;
-  }
-  return null;
-}
-mixin DefaultParser!(gotClassRef, "type.class", "35"); // before type.named
-
-Object gotIntfRef(ref string text, ParseCb cont, ParseCb rest) {
-  string id, t2 = text;
-  if (t2.gotIdentifier(id)) {
-    retry:
-    if (auto i = fastcast!(Intf) (namespace().lookup(id))) {
-      text = t2;
-      return new IntfRef(i);
-    } else if (t2.eatDash(id)) goto retry;
-  }
-  return null;
-}
-mixin DefaultParser!(gotIntfRef, "type.intf", "36"); // before type.named
 
 // ruefully copypasted from ast.structure
 Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -537,7 +533,7 @@ alias Single!(Pointer, Single!(Pointer, Single!(Void))) voidpp;
 
 Expr intfToClass(Expr ex) {
   auto intpp = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
-  return reinterpret_cast(new ClassRef(fastcast!(Class)~ sysmod.lookup("Object")), lookupOp("+", reinterpret_cast(voidpp, ex), new DerefExpr(new DerefExpr(reinterpret_cast(intpp, ex)))));
+  return reinterpret_cast(fastcast!(IType) (sysmod.lookup("Object")), lookupOp("+", reinterpret_cast(voidpp, ex), new DerefExpr(new DerefExpr(reinterpret_cast(intpp, ex)))));
 }
 
 void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
@@ -553,10 +549,10 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
   }
   void testClass(Expr ex) {
     dg(ex);
-    auto cl = (fastcast!(ClassRef)~ ex.valueType()).myClass;
+    auto cl = (fastcast!(ClassRef) (ex.valueType())).myClass;
     if (!cl.parent && !cl.iparents) return; // just to clarify
     if (cl.parent) {
-      testClass(reinterpret_cast(new ClassRef(cl.parent), ex));
+      testClass(reinterpret_cast(cl.parent.getRefType(), ex));
     }
     int offs = cl.mainSize();
     doAlign(offs, voidp);

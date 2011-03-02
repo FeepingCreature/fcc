@@ -44,7 +44,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
           ex = fastcast!(Expr)~ namespace().lookup(id);
           if (!ex)
             if (str.eatDash(id)) goto retry;
-            else throw new Exception("No such variable: "~id);
+            else throw new Exception(Format("No such variable: ", id, " in ", namespace()));
         }
         bool tryFormat(Expr ex) {
           if (auto sf = simpleFormat(ex)) {
