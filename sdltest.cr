@@ -104,7 +104,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   while true {
     // run();
     // draw grid
-    for 0..10
+    // for 0..10
       box surface.(rand()%w, rand()%h, rand()%w, rand()%h, rand());
     for (int y <- 0..32+1) {
       for (int x <- 0..32+1) {

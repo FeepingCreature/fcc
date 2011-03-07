@@ -31,11 +31,12 @@ int initGL() {
   return true;
 }
 
-void delegate(int, int) regenSurf;
+SDL_Surface* delegate(int, int) regenSurf;
 
 (int, int) mousepos;
 
 bool update(SDL_Surface* surface) {
+  SDL_GL_SwapBuffers();
   SDL_Event ev = void;
   while SDL_PollEvent(&ev) using ev {
     if type == SDL_QUIT return true;
@@ -60,11 +61,10 @@ SDL_Surface* setup-gl() {
   SDL_InitSubSystem (SDL_INIT_VIDEO);
   auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
   SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
-  SDL_Surface* surf;
-  regenSurf = delegate void(int w, int h) {
-    surf = SDL_SetVideoMode (w, h, 0, flags);
+  regenSurf = new delegate SDL_Surface*(int w, int h) {
+    return SDL_SetVideoMode (w, h, 0, flags);
   };
-  regenSurf(640, 480);
+  auto surf = regenSurf(640, 480);
   if !surf quit(1);
   initGL;
   // IMPORTANT: init gl FIRST

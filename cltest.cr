@@ -46,7 +46,7 @@ EOF
 
 cl_context createContextFromType(cl_context_properties[] props, cl_device_type type, void delegate(char* errinfo, void* private_info, size_t cb) notify) {
   cl_int ret;
-  auto tup = dgwrapper!(char*, void*, size_t)(notify);
+  auto tup = dgwrapper!(char*, void*, size_t)(void delegate((char*,void*,size_t)):notify);
   props ~= cl_context_properties:0;
   return clCheckCall!clCreateContextFromType (props.ptr, type, tup);
 }

@@ -48,22 +48,26 @@ void drawScene() {
   
   glScalef (0.2 x 3);
   glTranslatef (0, 2 * sinf(t / 64), 0);
-  bool fun(vec3f v) {
-    /*float max(float a, float b) { if (a > b) return a; else return b; }
+  bool fun(vec3i vi) {
+    float max(float a, float b) { if (a > b) return a; else return b; }
     float abs(float f) { if (f < 0) return -f; return f; }
-    auto dist = max(max(abs(v.x), abs(v.y)), abs(v.z));
-    dist -= noise3(v * 0.1) * 5;
+    auto dist = max(max(abs(vi.x), abs(vi.y)), abs(vi.z));
+    dist -= noise3(vi * 0.1) * 5;
     if dist > 7 return false;
-    if dist < 4 return false;*/
+    // if dist < 4 return false;
     
     return true;
   }
-  bool occluded(vec3f v) {
-    return false;
+  bool occluded(vec3i vi) {
+    if (!fun(vi)) return false;
+    return eval
+      fun vec3i(vi.(x+1, y, z)) && fun vec3i(vi.(x-1, y, z)) &&
+      fun vec3i(vi.(x, y+1, z)) && fun vec3i(vi.(x, y-1, z)) &&
+      fun vec3i(vi.(x, y, z+1)) && fun vec3i(vi.(x, y, z-1));
   }
   prepareCube();
-  while auto vec ← [for x ← cross (-12 .. 12) x 3: vec3f(x)] if fun(vec) && !occluded(vec) using glMatrix {
-    if (noise3(vec * 0.3) > 0.5) glBindTexture (GL_TEXTURE_2D, tex1);
+  while auto vec ← [for x ← cross (-12 .. 12) x 3: vec3i(x)] if fun(vec) && !occluded(vec) using glMatrix {
+    if (noise3(vec3f(vec.(x, y, z)) * 0.3) > 0.5) glBindTexture (GL_TEXTURE_2D, tex1);
     else glBindTexture (GL_TEXTURE_2D, tex2);
     glTranslatef vec;
     drawCube();

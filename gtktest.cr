@@ -89,11 +89,11 @@ int main (int argc, char **argv) {
       column = gtk_tree_view_column_new_with_attributes ("Info",
                       renderer, "text".ptr, 1, null);
       tree.gtkCastTreeView().gtk_tree_view_append_column column;
-      tree.gtkCastTreeView().gtk_tree_view_set_model model.gtkCastTreeModel();
+      tree.gtkCastTreeView().gtk_tree_view_set_model gtkCastTreeModel(GtkWidget*:model);
       g_object_unref (model);
     }
     
-    window.g_signal_connect_data (
+    (gpointer:window).g_signal_connect_data (
       "delete-event",
       void*:function bool(void* widget, event, data) { return false; },
       null, null, 0
