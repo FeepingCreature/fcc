@@ -426,7 +426,7 @@ string qformat(T...)(T t) {
 }
 
 interface ForceAlignment {
-  int alignment();
+  int alignment(); // return 0 if don't need special alignment after all
 }
 
 extern(C) int align_boffs(IType t, int curdepth = -1);
@@ -444,7 +444,8 @@ int needsAlignment(IType it) {
     if (auto res = check(it)) return res;
   const limit = 4;
   it = resolveType(it);
-  if (auto fa = fastcast!(ForceAlignment) (it)) return fa.alignment();
+  if (auto fa = fastcast!(ForceAlignment) (it))
+    if (auto res = fa.alignment()) return res;
   if (it.size > limit) return limit;
   else return it.size;
 }

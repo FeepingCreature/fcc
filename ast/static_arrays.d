@@ -2,14 +2,18 @@ module ast.static_arrays;
 
 import ast.base, ast.types;
 
-class StaticArray : Type {
+class StaticArray : Type, ForceAlignment {
   IType elemType;
   int length;
   this() { }
   this(IType et, int len) { elemType = et; length = len; }
-  override string toString() { return Format(elemType, "[", length, "]"); }
+  override string toString() { return Format(elemType, "[", length, "] - %", alignment(), "%"); }
   override int size() {
     return length * elemType.size();
+  }
+  override int alignment() {
+    if (auto fa = fastcast!(ForceAlignment) (resolveType(elemType))) return fa.alignment();
+    return false;
   }
   override string mangle() {
     return Format("Static_", length, "_of_", elemType.mangle());

@@ -34,7 +34,7 @@ extern(C) void alignment_emitAligned(Expr ex, AsmFile af) {
   mixin(mustOffset("ex.valueType().size"));
   if (auto al = fastcast!(ForceAlignment) (resolveType(ex.valueType()))) {
     auto myAl = al.alignment();
-    if (((af.currentStackDepth + ex.valueType().size) % myAl) != 0) {
+    if (myAl && ((af.currentStackDepth + ex.valueType().size) % myAl) != 0) {
       // need realignment
       mkVar(af, new UnAlignedPlaceholder(ex.valueType()), true, (Variable var) {
         (new Assignment(var, ex)).emitAsm(af);
