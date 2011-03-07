@@ -14,6 +14,7 @@ class AsmFile {
   int[string] uninit_tlsvars; // different segment in ELF
   Stuple!(int, string)[string] globvars, tlsvars;
   void addTLS(string name, int size, string init) {
+    if (!size) asm { int 3; }
     if (init) tlsvars[name] = stuple(size, init);
     else uninit_tlsvars[name] = size;
   }

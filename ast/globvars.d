@@ -67,10 +67,12 @@ class GlobVarDecl : Statement, IsMangled {
     void emitAsm(AsmFile af) {
       if (tls) {
         foreach (var; vars)
-          with (var) af.addTLS(mangled(), type.size, getInit());
+          with (var) if (type.size)
+            af.addTLS(mangled(), type.size, getInit());
       } else {
         foreach (var; vars)
-          af.globvars[var.mangled()] = stuple(var.type.size, var.getInit());
+          with (var) if (type.size)
+            af.globvars[mangled()] = stuple(type.size, getInit());
       }
     }
   }
