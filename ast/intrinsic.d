@@ -334,13 +334,14 @@ void setupSysmods() {
     }
     ModuleInfo[] __modules;
     void __setupModuleInfo() { }
-    int __c_main(int argc, char** argv) {
+    int main2(int argc, char** argv) {
       __setupModuleInfo();
       string[] args;
       for (auto arg <- argv[0 .. argc]) {
         args ~= arg[0 .. strlen(arg)];
       }
-      int[3] align_filler = void;
+    }
+    int __c_main(int argc, char** argv) { // handle the callstack frame 16-byte alignment
     }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))

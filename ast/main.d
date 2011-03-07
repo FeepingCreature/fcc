@@ -1,15 +1,65 @@
 module ast.main;
 
-import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace;
-import ast.scopes, ast.arrays, ast.returns, ast.parse, ast.pointer;
+import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace,
+  ast.scopes, ast.arrays, ast.returns, ast.parse, ast.pointer, ast.opers,
+  ast.casting, ast.int_literal, ast.funcall, ast.tuples, ast.returns;
 
 void fixupMain() {
-  auto cmain = fastcast!(Function)~ sysmod.lookup("__c_main");
-  if (!cmain) { logln("fail 0: ", cmain); fail(); }
-  auto sc = fastcast!(Scope)~ cmain.tree;
-  if (!sc) { logln("fail 1: ", cmain.tree); fail(); }
+  {
+    auto cmain = fastcast!(Function) (sysmod.lookup("__c_main"));
+    if (!cmain) { logln("fail 00"); fail(); }
+    auto sc = fastcast!(Scope) (cmain.tree);
+    if (!sc) { logln("fail 11: ", cmain.tree); fail(); }
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(cmain);
+    
+    sc.addStatement(new ReturnStmt(new CallbackExpr(Single!(SysInt), null, sc /apply/ (Scope sc, Expr bogus, AsmFile af) {
+      auto cvar = fastcast!(Expr) (sc.lookup("argc")), pvar = fastcast!(Expr) (sc.lookup("argv"));
+      if (af.currentStackDepth != 4) // scrap space for ReturnStmt
+        throw new Exception("stack depth assumption violated");
+      // time for MAGIC
+      cvar.emitAsm(af);
+      pvar.emitAsm(af);
+      af.popStack("%eax", pvar.valueType());
+      af.popStack("%ebx", cvar.valueType());
+      af.mathOp("andl", "$-16", "%esp"); // This is where the magic happens,
+      af.salloc(12); // magic constant align to 16
+      af.pushStack("%ebp", voidp);
+      af.mmove4("%esp", "%ebp");
+      af.pushStack("%ebx", cvar.valueType());
+      af.pushStack("%eax", pvar.valueType());
+      af.currentStackDepth = nativePtrSize * 2;
+      auto ncvar = new DerefExpr(lookupOp("-",
+        reinterpret_cast(Single!(Pointer, Single!(SysInt)), Single!(EBPExpr)),
+        mkInt(1) // Pointer math!
+      ));
+      auto npvar = new DerefExpr(lookupOp("-",
+        reinterpret_cast(Single!(Pointer, Single!(Pointer, Single!(Pointer, Single!(Char)))), Single!(EBPExpr)),
+        mkInt(2)
+      ));
+      buildFunCall(
+        fastcast!(Function) (sysmod.lookup("main2")),
+        mkTupleExpr(ncvar, npvar),
+        "main2 aligned call"
+      ).emitAsm(af);
+      // undo the alignment
+      af.popStack("%eax", Single!(SysInt));
+      af.sfree(af.currentStackDepth);
+      af.popStack("%ebp", voidp);
+      af.mmove4("%ebp", "%esp");
+      af.currentStackDepth = 4;
+      af.pushStack("%eax", Single!(SysInt)); // return this
+    })));
+  }
+  
+  auto main2 = fastcast!(Function)~ sysmod.lookup("main2");
+  if (!main2) { logln("fail 10"); fail(); }
+  auto sc = fastcast!(Scope)~ main2.tree;
+  if (!sc) { logln("fail 11: ", main2.tree); fail(); }
   auto argvar = fastcast!(Expr)~ sc.lookup("args");
-  if (!argvar) { logln("fail 2: ", sc.field); fail(); }
+  if (!argvar) { logln("fail 12: ", sc.field); fail(); }
   auto cvar = fastcast!(Expr)~ sc.lookup("argc"), pvar = fastcast!(Expr)~ sc.lookup("argv");
   if (!gotMain) {
     logln("main function not found! ");
@@ -51,7 +101,7 @@ void fixupMain() {
   
   auto backup = namespace();
   scope(exit) namespace.set(backup);
-  namespace.set(cmain);
+  namespace.set(main2);
   
   if (mainReturnsInt) res = new ReturnStmt(call);
   else res = new ExprStatement(call);
