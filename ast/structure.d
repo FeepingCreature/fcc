@@ -54,6 +54,8 @@ class RelMember : Expr, Named, RelTransformable {
     
     string stname;
     if (st) {
+      if (st.immutableNow)
+        throw new Exception(Format("Cannot add ", this, " to ", st, ": size already used. "));
       if (st.isUnion) offset = 0;
       else offset = st._size();
       stname = st.name;
@@ -75,6 +77,16 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   mixin TypeDefaults!(true, false);
   string name;
   bool isUnion, packed, isTempStruct;
+  /*
+    This indicates that we've accessed the struct size.
+    Consequentially, it is now cast in lead and may no
+    longer be changed by adding new members.
+    This prevents the following case:
+    struct A { int foo; A meep() { A res; int bogus = 17; return res; } int bar; }
+    where the assignment to bogus, combined with the retroactive size change of A,
+    overwrites the previously-unknown int bar in meep.
+  */
+  bool immutableNow;
   int cached_length, cached_size;
   int _size() {
     int res;
@@ -86,6 +98,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     return res;
   }
   int size() {
+    immutableNow = true;
     if (field.length == cached_length)
       if (cached_size) return cached_size;
     auto res = _size(); //, pre = res;
