@@ -35,7 +35,8 @@ class RelMember : Expr, Named, RelTransformable {
     string toString() { return Format("[", name, ": ", type, " @", offset, "]"); }
     IType valueType() { return type; }
     void emitAsm(AsmFile af) {
-      assert(false, "Rel member untransformed: cannot emit. ");
+      logln("Untransformed rel member ", this, ": cannot emit. ");
+      asm { int 3; }
     }
     mixin defaultIterate!();
     string getIdentifier() { return name; }

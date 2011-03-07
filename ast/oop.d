@@ -29,6 +29,15 @@ class VTable {
       }
     return null;
   }
+  Function lookupFinal(string name, Expr classref) {
+    auto classval = new DerefExpr(reinterpret_cast(voidpp, classref));
+    if (auto p = name in parent.overrides)
+      return fastcast!(Function) (fastcast!(RelFunction) (*p).transform(classval));
+    foreach (fun; funs)
+      if (fun.name == name)
+        return fastcast!(Function) (fun.transform(classval));
+    return null;
+  }
 }
 
 // lookupRel in interfaces/classes takes the class *reference*.
@@ -200,6 +209,26 @@ class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled {
     IntfRef dup() { return new IntfRef(myIntf.dup); }
     void emitAsm(AsmFile af) { myIntf.emitAsm(af); }
     void iterate(void delegate(ref Iterable) dg) { myIntf.iterate(dg); }
+  }
+}
+
+class SuperType : IType, RelNamespace {
+  ClassRef baseType;
+  this(ClassRef cr) { baseType = cr; }
+  override {
+    int size() { return baseType.size(); }
+    string toString() { return Format(baseType, ".super (", baseType.myClass.parent.myfuns.funs, ")"); }
+    string mangle() { return Format("_super_", baseType.mangle()); }
+    ubyte[] initval() { logln("Excuse me what are you doing declaring variables of super-type you weirdo"); fail; return null; }
+    int opEquals(IType it) { return false; /* wut */ }
+    Object lookupRel(string name, Expr base) {
+      auto sup2 = fastcast!(SuperType) (base.valueType());
+      if (sup2 !is this) asm { int 3; }
+      auto parent_class = baseType.myClass.parent;
+      auto suptable = parent_class.myfuns;
+      return suptable.lookupFinal(name, reinterpret_cast(parent_class.getRefType, base));
+    }
+    bool isTempNamespace() { return true; }
   }
 }
 
@@ -377,13 +406,15 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       return res;
     }
     Object lookupRel(string str, Expr base) {
-      if (!fastcast!(ClassRef) (base.valueType())) {
+      auto crType = fastcast!(ClassRef) (base.valueType());
+      if (!crType) {
         logln("Bad class ref: ", base, " of ", base.valueType());
         asm { int 3; }
       }
-      if (str == "this") return fastcast!(Object)~ base;
+      if (str == "this") return fastcast!(Object) (base);
+      if (str == "super") return fastcast!(Object) (reinterpret_cast(new SuperType(crType), base));
       if (auto res = data.lookup(str, true)) {
-        if (auto rm = fastcast!(RelMember) (res)) {
+        if (auto rm = fastcast!(RelTransformable) (res)) {
           // logln("transform ", rm, " with ", base);
           return rm.transform(new DerefExpr(reinterpret_cast(new Pointer(data), base)));
         }

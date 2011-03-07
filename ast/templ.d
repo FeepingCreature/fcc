@@ -163,7 +163,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     Expr nex;
     if (!rest(t2, "tree.expr", &nex)) return null;
     auto inst = fastcast!(Function)~ templ.getInstance(nex.valueType(), rest).lookup(templ.name, true);
-    if (!inst) { logln("wat"); return null; }
+    if (!inst) { return null; }
     text = t2;
     return fastcast!(Object)~ buildFunCall(inst, nex, "template_call");
   };
