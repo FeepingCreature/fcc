@@ -124,6 +124,7 @@ void setupSysmods() {
     EOT
     template append3e(T) <<EOT
       T[auto ~] append3e(T[auto ~]* l, T r) {
+        // printf("hi, append3e here - incoming %d, add 1\n", l.length);
         return append3!T(l, (&r)[0..1]);
       }
     EOT

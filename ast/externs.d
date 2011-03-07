@@ -72,8 +72,11 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     tx.failparse("extern parsing failed");
   }
   if (t2.accept("{")) {
-    while (grabFun() || grabVar() || grabFunDef()) { }
-    if (!t2.accept("}")) fail;
+    do {
+      if (t2.accept("}")) goto success;
+    } while (grabFun() || grabVar() || grabFunDef());
+    t2.failparse("Expected closing '}' for extern(C)!");
+    success:;
   } else if (!grabFun() && !grabVar() && !grabFunDef()) fail;
   text = t2;
   return Single!(NoOp);

@@ -72,7 +72,7 @@ class Vector : Type, RelNamespace, ForceAlignment {
         else assert(false);
       }
       if (exprs.length == 1) return fastcast!(Object)~ exprs[0];
-      auto new_vec = new Vector(this.base, exprs.length);
+      auto new_vec = mkVec(this.base, exprs.length);
       if (new_vec.extend) exprs ~= new Filler(this.base);
       return fastcast!(Object)~ reinterpret_cast(new_vec, mkTupleExpr(exprs));
     }
@@ -274,7 +274,7 @@ Object gotVecType(ref string text, ParseCb cont, ParseCb rest) {
   if (!ie)
     text.failparse("Size parameter to vec not foldable or int");
   text = t2;
-  return new Vector(it, ie.num);
+  return mkVec(it, ie.num);
 }
 mixin DefaultParser!(gotVecType, "type.vector", "34", "vec");
 
@@ -292,11 +292,20 @@ bool pretransform(ref Expr ex, ref IType it) {
 
 import ast.pointer;
 
+Vector[Stuple!(IType, int)] vec_cache;
+Vector mkVec(IType base, int len) {
+  auto tup = stuple(base, len);
+  if (auto p = tup in vec_cache) return *p;
+  auto res = new Vector(base, len);
+  vec_cache[tup] = res;
+  return res;
+}
+
 Vector vec3f, vec4f, vec3i;
 void checkVecs() {
-  if (!vec3f) vec3f = new Vector(Single!(Float), 3);
-  if (!vec4f) vec4f = new Vector(Single!(Float), 4);
-  if (!vec3i) vec3i = new Vector(Single!(SysInt), 3);
+  if (!vec3f) vec3f = mkVec(Single!(Float), 3);
+  if (!vec4f) vec4f = mkVec(Single!(Float), 4);
+  if (!vec3i) vec3i = mkVec(Single!(SysInt), 3);
 }
 
 bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
@@ -435,7 +444,7 @@ class VecOp : Expr {
     this.op = op;
   }
   override {
-    IType valueType() { return new Vector(type, len); }
+    IType valueType() { return mkVec(type, len); }
     void emitAsm(AsmFile af) {
       auto t1 = ex1.valueType(), t2 = ex2.valueType();
       while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }

@@ -75,6 +75,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     scope(exit) namespace.set(backup);
     namespace.set(new LengthOverride(backup, getArrayLength(ex)));
     
+    if (t2.accept("]")) return null; // [] shortcut
     if (rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       auto res = lookupOp("index", ex, pos);
       if (!res) {

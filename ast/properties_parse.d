@@ -30,10 +30,10 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
     while (true) {
       auto t3 = t2;
       // terminators
-      if (!fastcast!(Function) (sup) && t3.accept(";")) {
+      if (t3.accept("=") || t3.accept(")") || t3.accept("!=")) {
         break;
       }
-      if (t3.accept("=") || t3.accept(")")) {
+      if (!fastcast!(Function) (sup) && t3.accept(";")) {
         break;
       }
       string match = "tree.rhs_partial";

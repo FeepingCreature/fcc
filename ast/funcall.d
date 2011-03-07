@@ -156,6 +156,10 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
   return true;
 }
 
+bool cantBeCall(string s) {
+  return s.accept(".");
+}
+
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
 bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res) {
@@ -199,6 +203,7 @@ import ast.parse, ast.static_arrays;
 Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Function fun) {
+    if (t2.cantBeCall()) return null;
     auto fc = fun.mkCall();
     auto params = fun.getParams();
     resetError();
@@ -234,6 +239,7 @@ class FpCall : Expr {
 Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
+    if (t2.cantBeCall()) return null;
     auto fptype = fastcast!(FunctionPointer)~ ex.valueType();
     if (!fptype) return null;
     
@@ -267,6 +273,7 @@ class DgCall : Expr {
 Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
+    if (t2.cantBeCall()) return null;
     auto dgtype = fastcast!(Delegate)~ ex.valueType();
     if (!dgtype) return null;
     

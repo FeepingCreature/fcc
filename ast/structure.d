@@ -482,18 +482,27 @@ Expr depointer(Expr ex) {
 
 import ast.parse, ast.fun, tools.base: or;
 Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  
   assert(lhs_partial());
-  auto ex = fastcast!(Expr)~ lhs_partial();
-  if (!ex) return null;
-  // pointers get dereferenced for struct access
-  ex = depointer(ex);
+  auto first_ex = fastcast!(Expr)~ lhs_partial();
+  if (!first_ex) return null;
+  outer_retry:
+  auto t2 = text;
+  auto ex = first_ex;
+  // logln("loop ", ex);
+  const DEPOINTER_RETRY = `
+    // try again, with pointer dereferenced
+    {
+      auto dex = depointer(first_ex);
+      if (dex !is first_ex) { first_ex = dex; goto outer_retry; }
+    }
+  `;
   auto ex3 = ex;
   Expr[] alts;
   gotImplicitCast(ex3, (Expr ex) { if (fastcast!(RelNamespace) (ex.valueType())) alts ~= ex; return false; });
-  if (!gotImplicitCast(ex, (IType it) { return !!fastcast!(RelNamespace) (it); }))
+  if (!gotImplicitCast(ex, (IType it) { return !!fastcast!(RelNamespace) (it); })) {
+    mixin(DEPOINTER_RETRY);
     return null;
+  }
   
   string member;
   
@@ -505,6 +514,8 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (fastcast!(Function)~ m) { text = t2; return m; }
     auto ex2 = fastcast!(Expr)~ m;
     if (!ex2) {
+      mixin(DEPOINTER_RETRY);
+      
       if (m) text.setError(member, " is not a rel var: ", m);
       else {
         if (t2.eatDash(member)) goto retry;

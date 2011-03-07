@@ -222,7 +222,7 @@ template allocRuleData(alias A) {
       id = slab_freeptr;
       slab_freeptr = *cast(int*) res;
     } else {
-      if (!slab) slab = new void[RULEPTR_SIZE_HAX][1024];
+      if (!slab) slab = new void[RULEPTR_SIZE_HAX][65536];
       if (slab_top >= slab.length) slab.length = slab.length * 2;
       id = slab_top;
       res = slab[slab_top++].ptr;

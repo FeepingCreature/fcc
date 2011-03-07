@@ -20,12 +20,14 @@ string readStream(InputStream IS) {
   do {
     i = IS.read(buffer);
     if (i < 0) throw new Exception(Format("Read error: ", i));
-    if (buf.length < reslen + i)
-      buf.length = cast(int) (buf.length * 1.5);
+    while (buf.length < reslen + i)
+      buf.length = cast(int) (buf.length * 2);
     buf[reslen .. reslen + i] = cast(string) buffer[0 .. i];
     reslen += i;
   } while (i);
-  return buf[0 .. reslen].dup;
+  auto res = buf[0 .. reslen];
+  buf = buf[reslen .. $];
+  return res;
 }
 
 string readback(string cmd) {

@@ -31,19 +31,17 @@ static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb cont, ParseCb rest) {
     auto t2 = text;
     Expr len_ex;
-    if (t2.accept("[") &&
-        rest(t2, "tree.expr", &len_ex) &&
-        t2.accept("]")
-      )
-    {
-      auto len = fold(len_ex);
-      if (auto ie = fastcast!(IntExpr)~ len) {
-        text = t2;
-        return new StaticArray(cur, ie.num);
-      }
-      return null;
-      // throw new Exception(Format("Not a constant: ", len));
-    } else return null;
+    if (!t2.accept("[")) return null;
+    if (t2.accept("]")) return null; // [] shortcut
+    if (!rest(t2, "tree.expr", &len_ex)) return null;
+    if (!t2.accept("]"))
+      t2.failparse("Expected closing ']' for static array type! ");
+    auto len = foldex(len_ex);
+    if (auto ie = fastcast!(IntExpr) (len)) {
+      text = t2;
+      return new StaticArray(cur, ie.num);
+    }
+    return null;
   };
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(StaticArray) (ex.valueType()) || !fastcast!(CValue) (ex))

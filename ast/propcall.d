@@ -34,11 +34,15 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
         auto ex = firstParam;
         if (incompat(ex.valueType(), pt)) {
           // logln("Incompatible types: ", ex.valueType(), " and ", pt);
+          // asm { int 3; }
           return null;
         }
-        if (!gotImplicitCast(ex, (IType it) { return test(it == pt); }))
+        auto ex2 = ex;
+        if (!gotImplicitCast(ex2, (IType it) { return test(it == pt); })) {
+          // logln("no cast from ", ex, " to ", pt);
           return null;
-        return new PrefixFunction(ex, fun);
+        }
+        return new PrefixFunction(ex2, fun);
       }
       return null;
     }
