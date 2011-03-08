@@ -35,11 +35,15 @@ SDL_Surface* delegate(int, int) regenSurf;
 
 vec2i mousepos;
 
-bool[1024] keyPressed;
+bool[1024] keyPressed, keyPushed;
 
 bool update(SDL_Surface* surface) {
+  for int i <- 0..keyPushed.length
+    keyPushed[i] = false;
+  
   SDL_GL_SwapBuffers();
   SDL_Event ev = void;
+  
   while SDL_PollEvent(&ev) using ev {
     if type == SDL_QUIT return true;
     if type == SDL_VIDEORESIZE using resize {
@@ -51,10 +55,10 @@ bool update(SDL_Surface* surface) {
       mousepos = vec2i(x, y);
     }
     if type == SDL_KEYDOWN using key.keysym {
-      if (sym < keyPressed.length) keyPressed[sym] = true;
+      if (sym < keyPressed.length) { keyPressed[sym] = true; keyPushed[sym] = true; }
     }
     if type == SDL_KEYUP using key.keysym {
-      if (sym < keyPressed.length) keyPressed[sym] = false;
+      if (sym < keyPressed.length) { keyPressed[sym] = false; keyPushed[sym] = false; }
     }
     // writeln "type $(ev.type)";
   }

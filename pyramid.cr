@@ -133,16 +133,21 @@ void main() {
       }
     }
   }
-  auto curFun = &rootFun;
-  for 0..6
-    curFun = new delegate void(vec3f[4]* pVecs) { dividePyramid(pVecs, curFun); };
+  type-of &rootFun mkFun(int depth) {
+    auto curFun = &rootFun;
+    for 0..depth
+      curFun = new delegate void(vec3f[4]* pVecs) { dividePyramid(pVecs, curFun); };
+    return curFun;
+  }
+  int curDepth = 3;
   auto pyrlist = glGenLists(1);
   onSuccess pyrlist.glDeleteLists(1);
-  {
+  void regenList() {
     pyrlist.glNewList GL_COMPILE;
     onSuccess glEndList;
-    curFun (&vertices);
+    mkFun curDepth &vertices;
   }
+  regenList();
   // SDL_WM_GrabInput(SDL_GRAB_ON);
   SDL_WarpMouse(320, 240);
   if surf.update() quit(0);
@@ -165,5 +170,7 @@ void main() {
     if (keyPressed[SDLK_s]) ec.pos -= ec.dir * movestep;
     if (keyPressed[SDLK_a]) ec.pos += ec.left * movestep;
     if (keyPressed[SDLK_d]) ec.pos -= ec.left * movestep;
+    if (keyPushed[SDLK_PLUS]) { curDepth ++; regenList; }
+    if (keyPushed[SDLK_MINUS]) { if curDepth curDepth --; regenList; }
   }
 }
