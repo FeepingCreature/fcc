@@ -139,7 +139,8 @@ void parseHeader(string filename, string src, ParseCb rest) {
       return Single!(Long);
     if (accept("unsigned int") || accept("signed int") || accept("long int") || accept("int")) return Single!(SysInt);
     if (accept("unsigned char") || accept("signed char") || accept("char")) return Single!(Char);
-    if (accept("signed short int") || accept("unsigned short int") || accept("unsigned short") || accept("short int") || accept("short")) return Single!(Short);
+    if (accept("signed short int") || accept("unsigned short int") || accept("unsigned short") || accept("short int") || accept("short"))
+      return Single!(Short);
     if (accept("unsigned long")) return Single!(SizeT);
     if (accept("void")) return Single!(Void);
     if (accept("float")) return Single!(Float);
@@ -457,6 +458,9 @@ void parseHeader(string filename, string src, ParseCb rest) {
       if (!stmt.accept(")")) goto giveUp;
       if (args.length == 1 && args[0] == Single!(Void))
         args = null; // C is stupid.
+      foreach (ref arg; args)
+        if (resolveType(arg) == Single!(Short))
+          arg = Single!(SysInt);
       auto fun = new Function;
       fun.name = name;
       fun.extern_c = true;
