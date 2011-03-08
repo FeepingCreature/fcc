@@ -124,12 +124,12 @@ class AsmFile {
     cond | jump |  cmov  |floatjump| floatmov
     -----+------+--------+---------+---------
     fff  |      |        |         | 
-    fft  | jg   | cmovg  | ja      | fcmova
-    ftf  | je   | cmove  | je      | fcmove
-    ftt  | jge  | cmovge | jae     | fcmovae
-    tff  | jl   | cmovl  | jb      | fcmovb
-    tft  | jne  | cmovne | jne     | fcmovne
-    ttf  | jle  | cmovle | jbe     | fcmovbe
+    fft  | jg   | cmovg  | ja      | cmova
+    ftf  | je   | cmove  | je      | cmove
+    ftt  | jge  | cmovge | jae     | cmovae
+    tff  | jl   | cmovl  | jb      | cmovb
+    tft  | jne  | cmovne | jne     | cmovne
+    ttf  | jle  | cmovle | jbe     | cmovbe
     ttt  | jmp  | mov    | jmp     | mov
   `;
   void jumpOn(bool smaller, bool equal, bool greater, string label) {
@@ -160,7 +160,7 @@ class AsmFile {
   }
   void jumpOnFloat(bool smaller, bool equal, bool greater, string label) {
     labels_refcount[label]++;
-    nvmRegisters();
+    nvm("%eax");
     put("fnstsw %ax");
     put("sahf");
     mixin(JumpTable.ctTableUnroll(`
@@ -172,7 +172,7 @@ class AsmFile {
     `));
   }
   void moveOnFloat(bool smaller, bool equal, bool greater, string from, string to) {
-    nvmRegisters();
+    nvm("%eax");
     put("fnstsw %ax");
     put("sahf");
     mixin(JumpTable.ctTableUnroll(`
@@ -180,7 +180,7 @@ class AsmFile {
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { static if (/*"$floatmov"*/"$cmov".length) put(/*"$floatmov "*/"$cmov ", from, ", ", to); return; }
+        ) { static if ("$floatmov".length) put("$floatmov ", from, ", ", to); return; }
     `));
   }
   void mathOp(string which, string op1, string op2) {
