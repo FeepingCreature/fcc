@@ -513,10 +513,13 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto ex3 = ex;
   Expr[] alts;
   gotImplicitCast(ex3, (Expr ex) { if (fastcast!(RelNamespace) (ex.valueType())) alts ~= ex; return false; });
-  if (!gotImplicitCast(ex, (IType it) { return !!fastcast!(RelNamespace) (it); })) {
+  if (!alts.length) {
     mixin(DEPOINTER_RETRY);
     return null;
   }
+  
+try_next_alt:
+  ex = alts[0]; alts = alts[1 .. $];
   
   string member;
   
@@ -528,8 +531,6 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (fastcast!(Function)~ m) { text = t2; return m; }
     auto ex2 = fastcast!(Expr)~ m;
     if (!ex2) {
-      mixin(DEPOINTER_RETRY);
-      
       if (m) text.setError(member, " is not a rel var: ", m);
       else {
         if (t2.eatDash(member)) goto retry;
@@ -540,16 +541,19 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
           // logln("alts1 ", alts);
           mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names);
         } else {
-          // logln("alts2 ", alts);
+          /*logln("alts2: ");
+          foreach (i, alt; alts)
+            logln("  ", i, ": ", alt);*/
           mesg = Format(member, " is not a member of non-struct ", pre_ex.valueType());
         }
         if (rn.isTempNamespace) dontFail = true;
         
-        if (!dontFail && member != "toDg" /or/ "stringof" /or/ "onUsing" /or/ "onExit" /or/ "eval" /or/ "iterator" /or/ "ptr" /or/ "length" /or/ "lensq" /or/ "sum" // list of keywords
-          && (!name || !name.startsWith("__array_as_struct__")))
-          text.failparse(mesg);
-        else
-          text.setError(mesg);
+        text.setError(mesg);
+        if (!alts.length) {
+          mixin(DEPOINTER_RETRY);
+          return null;
+        }
+        goto try_next_alt;
       }
       return null;
     }

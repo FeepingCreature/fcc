@@ -97,17 +97,18 @@ class WithStmt : Namespace, Statement, ScopeLike {
     }
     Object lookup(string name, bool local = false) {
       if (name == "that") return fastcast!(Object)~ context;
-      if (rns)
-        if (auto res = rns.lookupRel(name, context))
-          return res;
-      if (rnslist)
-        foreach (rns; rnslist)
-          if (auto res = rns._0.lookupRel(name, rns._1))
+      if (!local) {
+        if (rns)
+          if (auto res = rns.lookupRel(name, context))
             return res;
-      if (ns)
-        if (auto res = ns.lookup(name, true))
-          return res;
-      // if (local) return null;
+        if (rnslist)
+          foreach (rns; rnslist)
+            if (auto res = rns._0.lookupRel(name, rns._1))
+              return res;
+        if (ns)
+          if (auto res = ns.lookup(name, true))
+            return res;
+      }
       return sup.lookup(name);
     }
   }

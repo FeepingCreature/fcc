@@ -62,7 +62,7 @@ class MyPlaceholderExpr : Expr {
   FirstParamOverrideSpace fpos;
   this(typeof(fpos) fpos) { this.fpos = fpos; }
   override {
-    string toString() { return Format("placeholder expr for ", fpos.firstParam); }
+    string toString() { return Format("propcall form for ", fpos.firstParam); }
     void iterate(void delegate(ref Iterable) dg) {
       Iterable forble = fpos.firstParam, forble2 = forble;
       dg(forble);

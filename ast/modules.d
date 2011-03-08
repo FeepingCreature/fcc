@@ -32,8 +32,6 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   this(string name) {
     this.name = name;
     //                      needed by sysmod; avoid circle
-    if (sysmod && sysmod !is this && name != "std.c.setjmp")
-      imports ~= sysmod;
     isValid = true;
   }
   void addSetupable(Setupable s) {
@@ -46,7 +44,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       auto backup = current_module();
       scope(exit) current_module.set(backup);
       current_module.set(this);
-      defaultIterate!(imports, entries).iterate(dg);
+      defaultIterate!(entries).iterate(dg);
     }
     Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
@@ -96,6 +94,8 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       foreach (mod; imports) {
         if (auto res = mod.lookup(name, true)) return res;
       }
+      if (sysmod && sysmod !is this && name != "std.c.setjmp")
+        if (auto res = sysmod.lookup(name, true)) return res;
       return null;
     }
     string toString() { return "module "~name; }

@@ -47,6 +47,7 @@ class RelFunCall : FunCall {
   this(Expr ex) {
     baseptr = ex;
   }
+  mixin defaultIterate!(baseptr, params);
   override RelFunCall dup() {
     auto res = new RelFunCall(baseptr.dup);
     res.fun = fun;
@@ -116,7 +117,7 @@ class RelFunction : Function, RelTransformable {
       res.args ~= Argument(new Pointer(basetype));
     return res;
   }
-  mixin defaultIterate!(baseptr);
+  mixin defaultIterate!(baseptr, tree);
   override {
     string mangleSelf() {
       return basetype.mangle() ~ "_" ~ super.mangleSelf();
