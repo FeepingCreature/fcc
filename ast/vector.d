@@ -133,7 +133,23 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   if (!vec)
     return null;
   Expr ex;
+  Expr[] genInitPattern(int i) {
+    Expr[] res;
+    for (int k = 0; k < vec.len; ++k) {
+      res ~= mkInt(i == k); // tee hee
+    }
+    return res;
+  }
+  if (vec.len >= 1)
+    if (t2.accept(".X")) { ex = mkTupleValueExpr(genInitPattern(0)); goto got_ex; }
+  if (vec.len >= 2)
+    if (t2.accept(".Y")) { ex = mkTupleValueExpr(genInitPattern(1)); goto got_ex; }
+  if (vec.len >= 3)
+    if (t2.accept(".Z")) { ex = mkTupleValueExpr(genInitPattern(2)); goto got_ex; }
+  if (vec.len >= 4)
+    if (t2.accept(".W")) { ex = mkTupleValueExpr(genInitPattern(3)); goto got_ex; }
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) return null;
+got_ex:
   auto ex2 = ex;
   if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
     Expr[] exs;
@@ -196,6 +212,7 @@ Structure mkVecStruct(Vector vec) {
     for (int i = 1; i < vec.len; ++i)
       lensq = lookupOp("+", lensq, sqr(fastcast!(Expr)~ res.lookup(["xyzw"[i]])));
     res.add(new ExprAlias(lensq, "lensq"));
+    res.add(new ExprAlias(lensq, "selfdot"));
   }
   
   {
@@ -230,6 +247,12 @@ import ast.casting, ast.static_arrays;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (auto vec = fastcast!(Vector)~ ex.valueType()) {
+      return reinterpret_cast(vec.asStruct, ex);
+    }
+    return null;
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (auto vec = fastcast!(Vector)~ ex.valueType()) {
       return reinterpret_cast(new StaticArray(vec.base, vec.real_len()), ex);
     }
     return null;
@@ -237,12 +260,6 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (vec3f && ex.valueType() == vec3f)
       return reinterpret_cast(vec4f, ex);
-    return null;
-  };
-  implicits ~= delegate Expr(Expr ex) {
-    if (auto vec = fastcast!(Vector)~ ex.valueType()) {
-      return reinterpret_cast(vec.asStruct, ex);
-    }
     return null;
   };
   implicits ~= delegate Expr(Expr ex) {
