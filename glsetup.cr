@@ -33,7 +33,9 @@ int initGL() {
 
 SDL_Surface* delegate(int, int) regenSurf;
 
-(int, int) mousepos;
+vec2i mousepos;
+
+bool[1024] keyPressed;
 
 bool update(SDL_Surface* surface) {
   SDL_GL_SwapBuffers();
@@ -46,7 +48,13 @@ bool update(SDL_Surface* surface) {
       return false;
     }
     if type == SDL_MOUSEMOTION using motion {
-      mousepos = (x, y);
+      mousepos = vec2i(x, y);
+    }
+    if type == SDL_KEYDOWN using key.keysym {
+      if (sym < keyPressed.length) keyPressed[sym] = true;
+    }
+    if type == SDL_KEYUP using key.keysym {
+      if (sym < keyPressed.length) keyPressed[sym] = false;
     }
     // writeln "type $(ev.type)";
   }
