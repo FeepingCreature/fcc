@@ -19,7 +19,7 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
 
 Expr[] getTupleEntries(Expr tuple) {
   auto tt = fastcast!(Tuple)~ tuple.valueType();
-  assert(!!tt);
+  if (!tt) return null;
   auto count = tt.types.length;
   Expr[] res;
   for (int i = 0; i < count; ++i)

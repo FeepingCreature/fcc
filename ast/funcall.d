@@ -168,7 +168,7 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
   if (!backup_text.length) return false; // wat
   // speed opt - a call can only begin
   // with one of those separating tokens
-  const string valid_call_start_tokens = "( \r\n\t";
+  const string valid_call_start_tokens = "( \r\n\t-";
   bool token_match;
   foreach (ch; valid_call_start_tokens)
     if (text.startsWith([ch])) { token_match = true; break; }

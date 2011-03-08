@@ -114,7 +114,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
   }
 }
 
-import tools.log;
+import tools.log, ast.tuple_access;
 Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
@@ -122,8 +122,20 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't match with-expr");
   auto backup = namespace();
   scope(exit) namespace.set(backup);
-  auto ws = new WithStmt(ex);
-  namespace.set(ws.sc);
+  
+  WithStmt ws, outer;
+  
+  if (auto list = getTupleEntries(ex)) {
+    foreach (entry; list) {
+      ws = new WithStmt(entry);
+      if (!outer) outer = ws;
+      namespace.set(ws.sc);
+    }
+  } else {
+    ws = new WithStmt(ex);
+    if (!outer) outer = ws;
+    namespace.set(ws.sc);
+  }
   if (!rest(t2, "tree.stmt", &ws.sc._body))
     t2.failparse("Couldn't match with-body");
   text = t2;

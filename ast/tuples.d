@@ -132,6 +132,7 @@ class RefTuple : MValue {
       return Format("reftuple(", mvs, ")");
     }
     void emitAssignment(AsmFile af) {
+      mixin(mustOffset("-valueType().size"));
       auto tup = fastcast!(Tuple)~ baseTupleType;
       
       auto offsets = tup.offsets();
@@ -141,9 +142,12 @@ class RefTuple : MValue {
           assert(offsets[i] > data_offs);
           af.sfree(offsets[i] - data_offs);
         }
+        mixin(mustOffset("-target.valueType().size"));
         target.emitAssignment(af);
         data_offs += target.valueType().size;
       }
+      if (tup.size != data_offs)
+        af.sfree(tup.size - data_offs);
     }
   }
 }
