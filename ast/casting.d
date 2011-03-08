@@ -24,7 +24,7 @@ template ReinterpretCast_Contents(T) {
     }
   }
   private this() { }
-  typeof(this) dup() { return new typeof(this)(to, fastcast!(T)~ from); }
+  typeof(this) dup() { return new typeof(this)(to, fastcast!(T) (from.dup)); }
   mixin defaultIterate!(from);
   override {
     static if (is(typeof((fastcast!(T)~ from).emitLocation(null))))
