@@ -48,26 +48,36 @@ class Mode {
 // if it breaks, put the blame squarely on me. fair?
 class PrefixFunction : Function {
   Expr prefix;
-  Function sup;
+  Function supfun;
   this(Expr prefix, Function sup) {
     this.prefix = prefix;
-    this.sup = sup;
+    this.type = sup.type;
     this.name = "[wrap]"~sup.name;
+    this.supfun = sup;
     // assert(sup.extern_c);
     // TODO: this may later cause problems
     extern_c = true; // sooorta.
   }
+  private this() { }
   // this pains me.
   override {
-    Expr getPointer() { logln("Can't get pointer to prefix-extended function! "); assert(false); }
-    string toString() { return Format("prefix ", prefix, " to ", sup.toString()); }
-    Argument[] getParams() { return sup.getParams()[1 .. $]; }
+    // This pains me more.
+    // Expr getPointer() { logln("Can't get pointer to prefix-extended function! "); assert(false); }
+    Expr getPointer() { return supfun.getPointer(); }
+    string toString() { return Format("prefix ", prefix, " to ", super.toString()); }
+    Argument[] getParams() { return super.getParams()[1 .. $]; }
     PrefixFunction alloc() { assert(false, "what"); }
-    PrefixFunction dup() { return new PrefixFunction(prefix.dup(), sup.dup()); }
-    PrefixCall mkCall() { return new PrefixCall(this, prefix, sup.mkCall()); }
+    PrefixFunction dup() {
+      auto res = new PrefixFunction;
+      res.prefix = prefix.dup;
+      res.type = type;
+      res.name = name;
+      res.supfun = supfun;
+      res.extern_c = true;
+      return res;
+    }
+    PrefixCall mkCall() { return new PrefixCall(this, prefix, supfun.mkCall()); }
     int fixup() { assert(false); } // this better be extern(C)
-    string cleaned_name() { return sup.cleaned_name(); }
-    string mangleSelf() { return sup.mangleSelf(); }
     string exit() { assert(false); }
     int framestart() { assert(false); }
     void emitAsm(AsmFile af) { assert(false); }
@@ -77,16 +87,28 @@ class PrefixFunction : Function {
 }
 
 class PrefixCall : FunCall {
-  FunCall sup;
   Expr prefix;
-  this(Function fun, Expr prefix, FunCall sup) { this.fun = fun; this.prefix = prefix; this.sup = sup; }
-  PrefixCall dup() { return new PrefixCall(fun, prefix.dup(), sup.dup()); }
+  this(Function fun, Expr prefix, FunCall sup) {
+    this.fun = fun;
+    this.prefix = prefix;
+    this.params = sup.params;
+  }
+  private this() { }
+  PrefixCall dup() {
+    auto res = new PrefixCall;
+    res.fun = fun;
+    res.prefix = prefix.dup;
+    res.params = params.dup;
+    foreach (ref param; res.params) param = param.dup();
+    return res;
+  }
+  mixin defaultIterate!(params, prefix);
   override void emitWithArgs(AsmFile af, Expr[] args) {
     // logln("prefix call, prepend ", prefix);
-    sup.emitWithArgs(af, prefix ~ args);
+    super.emitWithArgs(af, prefix ~ args);
   }
   override string toString() { return Format("prefixcall(", fun, " [prefix] ", prefix, " [regular] ", params, ")"); }
-  override IType valueType() { return sup.valueType(); }
+  override IType valueType() { return super.valueType(); }
 }
 
 class ModeSpace : Namespace, ScopeLike {
