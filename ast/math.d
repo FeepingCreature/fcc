@@ -320,6 +320,7 @@ class AsmIntBinopExpr : BinopExpr {
         auto asm_op = ([
           "+"[]: "addl"[], "-": "subl",
           "*": "imull", "/": "idivl",
+          "xor": "xorl",
           "&": "andl", "|": "orl",
           "%": "imodl",
           "<<": "shl", ">>": "sar", ">>>": "shr"
@@ -361,6 +362,7 @@ class AsmIntBinopExpr : BinopExpr {
         case ">>": return mkInt(ie1.num >> ie2.num);
         case "&": return mkInt(ie1.num & ie2.num);
         case "|": return mkInt(ie1.num | ie2.num);
+        case "xor": return mkInt(ie1.num ^ ie2.num);
         default: assert(false, "can't opt/eval (int) "~aibe.op);
       }
     };
@@ -523,7 +525,7 @@ static this() {
   void defineOps(Expr delegate(string op, Expr, Expr) dg, bool reduced = false) {
     string[] ops;
     if (reduced) ops = ["+", "-"]; // pointer math
-    else ops = ["+", "-", "&", "|", "*", "/", "%", "<<", ">>", ">>>"];
+    else ops = ["+", "-", "&", "|", "*", "/", "%", "<<", ">>", ">>>", "xor"];
     foreach (op; ops)
       defineOp(op, op /apply/ dg);
   }
@@ -585,6 +587,8 @@ alias gotMathExpr!("+", "-") gotAddSubExpr;
 mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "31");
 alias gotMathExpr!("*", "/") gotMulDivExpr;
 mixin DefaultParser!(gotMulDivExpr, "tree.expr.arith.muldiv", "32");
+alias gotMathExpr!("xor") gotXORExpr;
+mixin DefaultParser!(gotXORExpr, "tree.expr.arith.xor", "325");
 alias gotMathExpr!("<<", ">>") gotShiftExpr;
 mixin DefaultParser!(gotShiftExpr, "tree.expr.arith.shift", "34");
 

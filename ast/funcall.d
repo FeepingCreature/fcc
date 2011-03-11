@@ -226,10 +226,10 @@ class FpCall : Expr {
   Expr[] params;
   this() { }
   mixin DefaultDup!();
-  mixin defaultIterate!(params);
+  mixin defaultIterate!(fp, params);
   override void emitAsm(AsmFile af) {
     auto fntype = fastcast!(FunctionPointer)~ fp.valueType();
-    callFunction(af, fntype.ret, params, fp);
+    callFunction(af, fntype.ret, true, fntype.stdcall, params, fp);
   }
   override IType valueType() {
     return (fastcast!(FunctionPointer)~ fp.valueType()).ret;

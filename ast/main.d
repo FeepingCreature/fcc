@@ -5,9 +5,7 @@ import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace,
   ast.casting, ast.int_literal, ast.funcall, ast.tuples, ast.returns;
 
 void fixupMain() {
-  {
-    auto cmain = fastcast!(Function) (sysmod.lookup("__c_main"));
-    if (!cmain) { logln("fail 00"); fail(); }
+  void fixupSpecificMain(Function cmain, bool isWinMain) {
     auto sc = fastcast!(Scope) (cmain.tree);
     if (!sc) { logln("fail 11: ", cmain.tree); fail(); }
     
@@ -15,28 +13,38 @@ void fixupMain() {
     scope(exit) namespace.set(backup);
     namespace.set(cmain);
     
-    sc.addStatement(new ReturnStmt(new CallbackExpr(Single!(SysInt), null, sc /apply/ (Scope sc, Expr bogus, AsmFile af) {
-      auto cvar = fastcast!(Expr) (sc.lookup("argc")), pvar = fastcast!(Expr) (sc.lookup("argv"));
+    sc.addStatement(new ReturnStmt(new CallbackExpr(Single!(SysInt), null, stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, AsmFile af) {
+      af.mmove4("$_sys_tls_data_start", "%esi"); // set up first tls pointer
       if (af.currentStackDepth != 4) // scrap space for ReturnStmt
         throw new Exception("stack depth assumption violated");
       // time for MAGIC
-      cvar.emitAsm(af);
-      pvar.emitAsm(af);
-      af.popStack("%eax", pvar.valueType());
-      af.popStack("%ebx", cvar.valueType());
+      int magic;
+      if (isWinMain) {
+        auto cvar = mkInt(1), pvar = new RefExpr(fastcast!(CValue) (sc.lookup("cmdline")));
+        cvar.emitAsm(af);
+        pvar.emitAsm(af);
+        magic = 12;
+      } else {
+        auto cvar = fastcast!(Expr) (sc.lookup("argc")), pvar = fastcast!(Expr) (sc.lookup("argv"));
+        cvar.emitAsm(af);
+        pvar.emitAsm(af);
+        magic = 12;
+      }
+      af.popStack("%eax", voidp);
+      af.popStack("%ebx", Single!(SysInt));
       af.mathOp("andl", "$-16", "%esp"); // This is where the magic happens,
-      af.salloc(12); // magic constant align to 16
+      af.salloc(magic); // magic constant align to 16
       af.pushStack("%ebp", voidp);
       af.mmove4("%esp", "%ebp");
-      af.pushStack("%ebx", cvar.valueType());
-      af.pushStack("%eax", pvar.valueType());
+      af.pushStack("%ebx", Single!(SysInt));
+      af.pushStack("%eax", voidp);
       af.currentStackDepth = nativePtrSize * 2;
       auto ncvar = new DerefExpr(lookupOp("-",
-        reinterpret_cast(Single!(Pointer, Single!(SysInt)), Single!(EBPExpr)),
+        reinterpret_cast(Single!(Pointer, Single!(SysInt)), Single!(RegExpr, "%ebp")),
         mkInt(1) // Pointer math!
       ));
       auto npvar = new DerefExpr(lookupOp("-",
-        reinterpret_cast(Single!(Pointer, Single!(Pointer, Single!(Pointer, Single!(Char)))), Single!(EBPExpr)),
+        reinterpret_cast(Single!(Pointer, Single!(Pointer, Single!(Pointer, Single!(Char)))), Single!(RegExpr, "%ebp")),
         mkInt(2)
       ));
       buildFunCall(
@@ -53,6 +61,12 @@ void fixupMain() {
       af.pushStack("%eax", Single!(SysInt)); // return this
     })));
   }
+  auto cmain = fastcast!(Function) (sysmod.lookup("__c_main"));
+  if (!cmain) { logln("fail 00"); fail(); }
+  fixupSpecificMain(cmain, false);
+  auto winmain = fastcast!(Function) (sysmod.lookup("__win_main"));
+  if (!winmain) { logln("fail 20"); fail(); }
+  fixupSpecificMain(winmain, true);
   
   auto main2 = fastcast!(Function)~ sysmod.lookup("main2");
   if (!main2) { logln("fail 10"); fail(); }

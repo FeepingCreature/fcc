@@ -22,11 +22,10 @@ int resizeWindow(int w, int h) {
 
 int initGL() {
   glShadeModel GL_SMOOTH;
-  glClearColor (0 x 4);
-  glClearDepth 1;
   glEnable GL_DEPTH_TEST;
+  glEnable GL_COLOR_MATERIAL;
   glDepthFunc GL_LESS; // lequal is bad for mesa
-  glEnable GL_TEXTURE_2D;
+  // glEnable GL_TEXTURE_2D;
   glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
   return true;
 }
@@ -35,51 +34,63 @@ SDL_Surface* delegate(int, int) regenSurf;
 
 vec2i mousepos;
 
+bool mouseClicked, mousePressed;
+
 bool[1024] keyPressed, keyPushed;
 
 bool update(SDL_Surface* surface) {
   for int i <- 0..keyPushed.length
     keyPushed[i] = false;
+  mouseClicked = false;
   
   SDL_GL_SwapBuffers();
   SDL_Event ev = void;
   
   while SDL_PollEvent(&ev) using ev {
     if type == SDL_QUIT return true;
-    if type == SDL_VIDEORESIZE using resize {
+    else if type == SDL_VIDEORESIZE using resize {
       regenSurf (w, h);
       resizeWindow (w, h);
-      return false;
     }
-    if type == SDL_MOUSEMOTION using motion {
+    else if type == SDL_MOUSEMOTION using motion {
       mousepos = vec2i(x, y);
     }
-    if type == SDL_KEYDOWN using key.keysym {
+    else if type == SDL_MOUSEBUTTONDOWN using button {
+      mouseClicked = true;
+      mousePressed = true;
+    }
+    else if type == SDL_MOUSEBUTTONUP using button {
+      mousePressed = false;
+    }
+    else if type == SDL_KEYDOWN using key.keysym {
       if (sym < keyPressed.length) { keyPressed[sym] = true; keyPushed[sym] = true; }
     }
-    if type == SDL_KEYUP using key.keysym {
-      if (sym < keyPressed.length) { keyPressed[sym] = false; keyPushed[sym] = false; }
+    else if type == SDL_KEYUP using key.keysym {
+      if (sym < keyPressed.length) { keyPressed[sym] = false; }
     }
-    // writeln "type $(ev.type)";
+    else writeln "type $(ev.type)";
   }
   return false;
 }
 
 void swap() { SDL_GL_SwapBuffers(); }
 
+void delegate()[] gl-context-callbacks;
+
 SDL_Surface* setup-gl() {
-  // this has issues; why?!
-  // SDL_Init (SDL_INIT_VIDEO);
-  SDL_InitSubSystem (SDL_INIT_VIDEO);
+  SDL_Init (SDL_INIT_VIDEO);
   auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
-  SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+  // SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
   regenSurf = new delegate SDL_Surface*(int w, int h) {
-    return SDL_SetVideoMode (w, h, 0, flags);
+    writeln "regenSurf($w, $h, 0, $flags)";
+    auto res = SDL_SetVideoMode (w, h, 0, flags);
+    if !res quit(1);
+    initGL;
+    // IMPORTANT: init gl FIRST
+    resizeWindow (w, h);
+    for (auto dg <- gl-context-callbacks)
+      dg();
+    return res;
   };
-  auto surf = regenSurf(640, 480);
-  if !surf quit(1);
-  initGL;
-  // IMPORTANT: init gl FIRST
-  resizeWindow (surf.w, surf.h);
-  return surf;
+  return regenSurf(640, 480);
 }

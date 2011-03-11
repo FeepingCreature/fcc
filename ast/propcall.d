@@ -30,7 +30,9 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
       auto res = sup.lookup(name, local);
       if (auto fun = fastcast!(Function) (res)) {
         if (fastcast!(NestedFunction)~ fun) return null;
-        auto pt = fun.getParams[0].type;
+        auto params = fun.getParams();
+        if (!params.length) return null;
+        auto pt = params[0].type;
         auto ex = firstParam;
         if (incompat(ex.valueType(), pt)) {
           // logln("Incompatible types: ", ex.valueType(), " and ", pt);

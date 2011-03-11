@@ -11,12 +11,10 @@ class AsmFile {
   int[string] globals;
   ubyte[][string] constants;
   string[][string] longstants; // sorry
-  int[string] uninit_tlsvars; // different segment in ELF
   Stuple!(int, string)[string] globvars, tlsvars;
   void addTLS(string name, int size, string init) {
     if (!size) asm { int 3; }
-    if (init) tlsvars[name] = stuple(size, init);
-    else uninit_tlsvars[name] = size;
+    tlsvars[name] = stuple(size, init);
   }
   string allocConstant(string name, ubyte[] data) {
     foreach (key, value; constants)
@@ -103,6 +101,12 @@ class AsmFile {
     Transaction t;
     t.kind = Transaction.Kind.MovD;
     t.from = from; t.to = to;
+    cache ~= t;
+  }
+  void loadAddress(string mem, string to) {
+    Transaction t;
+    t.kind = Transaction.Kind.LoadAddress;
+    t.from = mem; t.to = to;
     cache ~= t;
   }
   void salloc(int sz) { // alloc stack space
@@ -332,8 +336,9 @@ class AsmFile {
   }
   int lastStackDepth;
   void comment(T...)(T t) {
-    if (!optimize)
+    if (!optimize) {
       put("# [", currentStackDepth, ": ", currentStackDepth - lastStackDepth, "]: ", t);
+    }
     lastStackDepth = currentStackDepth;
   }
   static string[] goodOpts;
@@ -410,44 +415,49 @@ class AsmFile {
       dg(qformat(".comm\t", name, ",", data._0, "\n"));
       assert(!data._1, "4");
     }
-    dg(".section\t.tbss,\"awT\",@nobits\n");
-    foreach (name, size; uninit_tlsvars) {
-      auto alignment = size;
-      if (alignment > 16) alignment = 16;
-      if (alignment == 12) alignment = 16; // TODO: powers-of-two properly
-      dg("\t.globl "); dg(name); dg("\n");
-      dg(qformat("\t.align ", alignment, "\n\t.type ")); dg(name); dg(", @object\n");
-      dg(qformat("\t.size ", name, ", ", size, "\n"));
-      dg("\t"); dg(name); dg(":\n");
-      dg(qformat("\t.zero ", size, "\n"));
-    }
-    dg(".section\t.tdata,\"awT\",@progbits\n");
+    dg(".section\t.data,\"aw\"\n");
+    dg(".weak _sys_tls_data_start\n");
+    dg(".globl _sys_tls_data_start\n");
+    dg("_sys_tls_data_start:\n");
+    dg(".globl _sys_tls_data_"); dg(id); dg("_start\n");
+    dg("_sys_tls_data_"); dg(id); dg("_start:\n");
     foreach (name, data; tlsvars) {
       auto alignment = data._0;
-      if (alignment > 16) alignment = 16;
-      dg("\t.globl "); dg(name); dg("\n");
-      dg(qformat("\t.align ", alignment, "\n\t.type ", name, ", @object\n"));
-      dg(qformat("\t.size ", name, ", ", data._0, "\n"));
-      dg("\t"); dg(name); dg(":\n");
-      assert(data._1);
-      auto parts = data._1.split(",");
-      assert(parts.length * nativePtrSize == data._0,
-              qformat("Length mismatch: ", parts.length, " * ", 
-                    nativePtrSize, " != ", data._0, " for ", data._1));
-      dg("\t.long ");
-      foreach (i, part; parts) {
-        if (i) dg(", ");
-        dg(part);
+      if (alignment >= 16) alignment = 16;
+      else {
+        if (alignment > 8) alignment = 16;
       }
-      dg("\n");
+      dg(qformat("\t.align ", alignment, "\n"));
+      dg("\t.globl "); dg(name); dg("\n");
+      // dg(qformat("\t.type ", name, "\n"));
+      // dg(qformat("\t.size ", name, ", ", data._0, "\n"));
+      dg("\t"); dg(name); dg(":\n");
+      if (data._1) {
+        auto parts = data._1.split(",");
+        assert(parts.length * nativePtrSize == data._0,
+                qformat("Length mismatch: ", parts.length, " * ", 
+                      nativePtrSize, " != ", data._0, " for ", data._1));
+        dg("\t.long ");
+        foreach (i, part; parts) {
+          if (i) dg(", ");
+          dg(part);
+        }
+        dg("\n");
+      } else { // zeroes
+        dg(qformat("\t.fill ", data._0, ", 1\n"));
+      }
     }
+    dg(".globl _sys_tls_data_"); dg(id); dg("_end\n");
+    dg("_sys_tls_data_"); dg(id); dg("_end:\n");
+    
     dg(".section\t.rodata\n");
     foreach (name, c; constants) {
       dg(name); dg(":\n");
       dg(".byte ");
       foreach (val; c) dg(qformat(cast(ubyte) val, ", "));
       dg("0\n");
-      dg(".local "); dg(name); dg("\n");
+      // not win32 compatible
+      // dg(".local "); dg(name); dg("\n");
     }
     foreach (name, array; longstants) { // lol
       dg(name); dg(":\n");

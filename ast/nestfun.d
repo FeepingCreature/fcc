@@ -238,6 +238,9 @@ static this() {
 // TODO: this cannot work; it's too simple.
 class PointerFunction(T) : T {
   Expr ptr;
+  void iterateExpressions(void delegate(ref Iterable) dg) {
+    defaultIterate!(ptr).iterate(dg);
+  }
   this(Expr ptr) {
     static if (is(typeof(super(null)))) super(null);
     this.ptr = ptr;
@@ -249,11 +252,13 @@ class PointerFunction(T) : T {
     } else if (fp) {
       type.ret = fp.ret;
       type.params = fp.args.dup;
+      type.stdcall = fp.stdcall;
     } else {
       logln("TYPE ", ptr.valueType());
       asm { int 3; }
     }
   }
+  override PointerFunction dup() { return new PointerFunction(ptr.dup); }
   override {
     FunCall mkCall() {
       if (fastcast!(Delegate)~ ptr.valueType()) {

@@ -1,8 +1,8 @@
 module ast.externs;
 
-import ast.base, ast.fun, ast.namespace;
+import ast.base, ast.fun, ast.namespace, ast.pointer;
 
-class ExternCGlobVar : Expr, Named {
+class ExternCGlobVar : CValue, Named {
   IType type;
   string name;
   mixin defaultIterate!();
@@ -14,22 +14,43 @@ class ExternCGlobVar : Expr, Named {
   override {
     IType valueType() { return type; }
     string getIdentifier() { return name; }
-    void emitAsm(AsmFile af) {
-      af.pushStack(name, type);
-    }
+    void emitAsm(AsmFile af) { af.pushStack(name, type); }
+    void emitLocation(AsmFile af) { af.pushStack(qformat("$", name), voidp); }
     string toString() { return Format("extern(C) global ", name, " of ", type); }
   }
 }
 
+Object gotMarkStdCall(ref string text, ParseCb cont, ParseCb rest) {
+  IType ty;
+  if (!rest(text, "type", &ty))
+    text.failparse("Expected type to mark as std-call. ");
+  auto fp = fastcast!(FunctionPointer) (resolveType(ty));
+  if (!fp)
+    text.failparse(ty, " is not a function pointer! ");
+  auto fp2 = new FunctionPointer;
+  fp2.ret = fp.ret;
+  fp2.args = fp.args;
+  fp2.stdcall = true;
+  return fp2;
+}
+mixin DefaultParser!(gotMarkStdCall, "type.mark_stdcall", "911", "_markStdCall");
+
 import ast.modules;
 Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("extern(C)")) return null;
+  bool isStdcall;
+  if (!t2.accept("extern(")) return null;
+  if (!t2.accept("C")) {
+    if (!t2.accept("Windows")) return null;
+    isStdcall = true;
+  }
+  if (!t2.accept(")")) return null;
   string tx;
   bool grabFun() {
     auto fun = new Function;
     fun.extern_c = true;
     New(fun.type);
+    fun.type.stdcall = isStdcall;
     auto t3 = t2;
     if (test(fun.type.ret = fastcast!(IType)~ rest(t3, "type")) &&
         t3.gotIdentifier(fun.name) &&

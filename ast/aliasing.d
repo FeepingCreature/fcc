@@ -61,7 +61,7 @@ class TypeAlias : Named, IType, TypeProxy, SelfAdding {
     int size() { return base.size; }
     string mangle() { return base.mangle; }
     ubyte[] initval() { return base.initval; }
-    int opEquals(IType ty) { return base.opEquals(ty); }
+    int opEquals(IType ty) { return base.opEquals(resolveType(ty)); }
     IType actualType() { return base; }
     string toString() { return Format(name, "(", base, ")"); }
   }

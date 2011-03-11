@@ -97,6 +97,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       void delegate() myApply(int from, int to, void delegate(int, int) dg) {
         return new delegate void() { return dg(from, to); };
       }
+      // myApply(from, to, &calc)();
       tp.addTask myApply(from, to, &calc);
     }
     tp.waitComplete;
@@ -200,6 +201,10 @@ int main(string[] args) {
   mem.calloc_dg = &myCalloc;
   mem.realloc_dg = &myRealloc;
   mem.free_dg = &GC_free;*/
+  if (int:_ebp & 0xf) {
+    writeln "FEEEP! YOU BROKE THE FUCKING FRAME ALIGNMENT AGAIN. $(_ebp) ";
+    _interrupt 3;
+  }
   auto cdg = mem.calloc_dg;
   mem.calloc_dg = delegate void*(int a, b) {
     // printf("Allocate %i, %i\n", a, b);

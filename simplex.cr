@@ -9,9 +9,34 @@ float dot2(int[4] whee, float a, float b) {
   return whee[0] * a + whee[1] * b;
 }
 
+class KISS {
+  int x, y, z, w, carry, k, m;
+  void init() { (x, y, z, w, carry) = (1, 2, 4, 8, 0); }
+  void seed(int i) {
+    (x, y, z, w) = (i | 1, i | 2, i | 4, i | 8);
+    carry = 0;
+  }
+  int rand() {
+    x = x * 69069 + 1;
+    y xor= y << 13;
+    y xor= y >> 17;
+    y xor= y << 5;
+    k = (z >> 2) + (w >> 3) + (carry >> 2);
+    m = w + w + z + carry;
+    z = w;
+    w = m;
+    carry = k >> 30;
+    return x + y + w;
+  }
+}
+
 void permsetup() {
   int seed = 34;
-  perm ~= [for 0..256: rand_r(&seed) % 256].eval;
+  auto gen = new KISS;
+  gen.init;
+  gen.seed(seed);
+  perm ~= [for 0..256: gen.rand() % 256].eval;
+  for (int i <- 0..256) if (perm[i] < 0) perm[i] = -perm[i];
   perm ~= perm[];
   int i;
   alias values = [1, 1, 0,

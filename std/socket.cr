@@ -1,6 +1,6 @@
 module std.socket;
 
-import sys, std.string, std.c.unistd, std.c.sys.socket, std.c.netdb;
+import std.string, std.c.unistd, std.c.sys.socket, std.c.netdb;
 
 class Address {
 }
@@ -27,11 +27,8 @@ class Socket {
   }
   // alias isOpen = sockfd;
   void open(TcpAddress ta) {
-    writeln "create fd";
     sockfd = socket (AF_INET, SOCK_STREAM, 0);
-    writeln "connect";
-    std.c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
-    writeln "done";
+    auto res = std.c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
   }
   int recv(void[] buf) {
     auto res = std.c.sys.socket.recv(sockfd, buf.ptr, buf.length, 0);
@@ -47,10 +44,17 @@ class Socket {
     }
     return res;
   }
+  void sendAll(void[] buf) {
+    while buf.length {
+      auto res = send buf;
+      if (res <= 0) return;
+      buf = buf[res .. $];
+    }
+  }
   void bind(Address addr) {
+    _interrupt 3;
   }
   void listen(int backlog) {
     std.c.sys.socket.listen(sockfd, backlog);
   }
-  
 }

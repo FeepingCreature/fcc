@@ -611,8 +611,12 @@ class IterLetCond(T) : Cond, NeedsConfig {
     auto itype = fastcast!(Iterator)~ iter.valueType();
     auto step = itype.yieldAdvance(iref);
     auto itercond = itype.terminateCond(iref);
-    assert(!cond); // must jump only on _fail_.
-    itercond.jumpOn(af, cond, dest);
+    auto skip = af.genLabel();
+    if (cond) {
+      itercond.jumpOn(af, false, skip);
+    } else {
+      itercond.jumpOn(af, false, dest);
+    }
     if (target) {
       auto tv = target.valueType;
       if (!gotImplicitCast(step, tv, (IType it) { return test(it == tv); }))
@@ -624,6 +628,10 @@ class IterLetCond(T) : Cond, NeedsConfig {
       step.emitAsm(af);
       if (step.valueType() != Single!(Void))
         af.sfree(step.valueType().size);
+    }
+    if (cond) {
+      af.jump(dest);
+      af.emitLabel(skip);
     }
   }
   override string toString() {

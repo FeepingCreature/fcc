@@ -1,7 +1,5 @@
 module std.stream;
 
-import sys;
-
 class iter {
   int delegate(void[]) dg;
   char[512] buffer;

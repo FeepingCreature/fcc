@@ -166,7 +166,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
         if (var.type != Single!(Void)) {
           assert(!!var.initval);
           if (var.type != var.initval.valueType())
-            throw new Exception(Format("Mismatching types in initializer: ", var, " <- ", var.initval.valueType()));
+            throw new Exception(Format("Mismatching types in initializer: ", var, " of ", var.type, " <- ", var.initval.valueType()));
         }
       }
       var.baseOffset = boffs(var.type);

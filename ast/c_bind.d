@@ -442,19 +442,30 @@ void parseHeader(string filename, string src, ParseCb rest) {
       continue;
     }
     
+    bool useStdcall;
+    void eatAttribute(ref string s) {
+      retry: s = s.strip();
+      if (auto rest = s.startsWith("__attribute__")) {
+        if (rest.between("((", "))") == "__stdcall__") useStdcall = true;
+        s = rest.between(") ", "");
+        goto retry;
+      }
+    }
     stmt.accept("extern");
-    stmt = stmt.strip();
-    if (auto rest = stmt.startsWith("__attribute__")) stmt = rest.between(") ", "");
+    stmt.eatAttribute();
     
     if (auto ret = stmt.matchType()) {
+      stmt.eatAttribute();
       string name;
       if (!gotIdentifier(stmt, name) || !stmt.accept("("))
         goto giveUp;
       IType[] args;
+      // logln("@ ", stmt, ", get types");
       while (true) {
         if (auto ty = matchParam(stmt)) args ~= ty;
         else break;
       }
+      // logln("left over ", stmt);
       if (!stmt.accept(")")) goto giveUp;
       if (args.length == 1 && args[0] == Single!(Void))
         args = null; // C is stupid.
@@ -467,6 +478,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       fun.type = new FunctionType;
       fun.type.ret = ret;
       fun.type.params = args /map/ (IType it) { return Argument(it); };
+      fun.type.stdcall = useStdcall;
       fun.sup = null;
       add(name, fun);
       continue;
@@ -519,7 +531,7 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   }
   if (!filename) throw new Exception("Couldn't find "~name~"!");
   auto cmdline = 
-    "gcc -pthread -m32 -Xpreprocessor -dD -E "
+    platform_prefix~"gcc -m32 -Xpreprocessor -dD -E "
     ~ (include_path
       /map/ (string s) { return "-I"~s; }
       ).join(" ")

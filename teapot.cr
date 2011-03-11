@@ -21,16 +21,6 @@ int resizeWindow(int w, int h) {
   return true;
 }
 
-context Triangles {
-  alias onUsing = glBegin GL_TRIANGLES;
-  alias onExit = glEnd;
-}
-
-context Quads {
-  alias onUsing = glBegin GL_QUADS;
-  alias onExit = glEnd;
-}
-
 class DataSet {
   int[16][auto~] indices;
   vec3f[auto~] vecs;

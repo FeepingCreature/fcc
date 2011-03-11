@@ -88,8 +88,10 @@ IType arrayAsStruct(IType base, bool rich) {
     addExtra(fun);
   }
   mkFun("free", delegate Tree(RelFunction rf) {
-    return iparse!(Statement, "array_free", "tree.stmt")
-                  (`mem.free(void*:ptr);`, rf);
+    if (rich) return iparse!(Statement, "array_free", "tree.stmt")
+                  (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, rf);
+    else return iparse!(Statement, "array_free", "tree.stmt")
+                  (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, rf);
   });
   mkFun("popEnd", delegate Tree(RelFunction rf) {
     rf.type.ret = base;

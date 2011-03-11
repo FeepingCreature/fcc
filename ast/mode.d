@@ -67,12 +67,16 @@ class PrefixFunction : Function {
     string toString() { return Format("prefix ", prefix, " to ", super.toString()); }
     Argument[] getParams() { return super.getParams()[1 .. $]; }
     PrefixFunction alloc() { assert(false, "what"); }
+    void iterateExpressions(void delegate(ref Iterable) dg) {
+      defaultIterate!(prefix).iterate(dg);
+      supfun.iterateExpressions(dg);
+    }
     PrefixFunction dup() {
       auto res = new PrefixFunction;
       res.prefix = prefix.dup;
       res.type = type;
       res.name = name;
-      res.supfun = supfun;
+      res.supfun = supfun.dup;
       res.extern_c = true;
       return res;
     }
@@ -102,7 +106,10 @@ class PrefixCall : FunCall {
     foreach (ref param; res.params) param = param.dup();
     return res;
   }
-  mixin defaultIterate!(params, prefix);
+  override void iterate(void delegate(ref Iterable) dg) {
+    defaultIterate!(prefix).iterate(dg);
+    super.iterate(dg);
+  }
   override void emitWithArgs(AsmFile af, Expr[] args) {
     // logln("prefix call, prepend ", prefix);
     super.emitWithArgs(af, prefix ~ args);

@@ -16,7 +16,8 @@ mixin(expandImport(`ast.[
   tuples, tuple_access, literal_string, funcall, vector, externs,
   intr, conditionals, opers, conditionals, cond, casting,
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
-  propcall, properties_parse, main, alignment], casts`));
+  propcall, properties_parse, main, alignment, platform],
+  casts`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -115,7 +116,23 @@ extern(C) void exit(int);
 import tools.time, quicksort;
 import optimizer, ast.fold;
 
-void optimize(Module mod) { ast.fold.opt(mod); }
+void postprocessModule(Module mod) {
+  void recurse(ref Iterable it) {
+    if (auto fc = fastcast!(FunCall) (it)) {
+      if (fc.fun.weak) {
+        auto ti = fc.fun.get!(TemplateInstance);
+        if (ti) {
+          ti.emitCopy(true); // called funs must be emitted in every
+                             // module that _uses_ them, because on
+                             // win32, weak symbols are always local.
+        }
+      }
+    }
+    it.iterate(&recurse);
+  }
+  mod.iterate(&recurse);
+  ast.fold.opt(mod);
+}
 
 bool ematSysmod;
 
@@ -156,13 +173,13 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   auto len_parse = sec() - start_parse;
   double len_opt;
   len_opt = time({
-    .optimize(mod);
+    .postprocessModule(mod);
   }) / 1_000_000f;
   auto len_gen = time({
     mod.emitAsm(af);
     if (!ematSysmod) {
       finalizeSysmod(mod);
-      .optimize(sysmod);
+      .postprocessModule(sysmod);
       sysmod.emitAsm(af);
       ematSysmod = true;
       extras.emitAsm(af);
@@ -180,7 +197,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     f.close;
   }
-  auto cmdline = Format("as -g --32 -o ", objname, " ", srcname);
+  auto cmdline = Format(platform_prefix, "as -g --32 -o ", objname, " ", srcname);
   logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz()) == 0
     || assert(false, "Compilation failed! ");
@@ -216,7 +233,7 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
     if (!saveTemps)
       foreach (obj; objects)
         unlink(obj.toStringz());
-  string cmdline = "gcc -pthread -m32 -o "~output~" ";
+  string cmdline = platform_prefix~"gcc -m32 -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
   foreach (larg; largs) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
@@ -280,7 +297,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
     auto mod = lookupMod(modname);
     len_parse = sec() - start_parse;
     len_opt = 0;
-    if (!wasPresent) len_opt = time({ .optimize(mod); }) / 1_000_000f;
+    if (!wasPresent) len_opt = time({ .postprocessModule(mod); }) / 1_000_000f;
     precache[modname] = mod; // lol why not dis?
     return mod;
   }
@@ -297,7 +314,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
       auto len_gen = time({
         if (file == start) {
           finalizeSysmod(mod);
-          .optimize(sysmod);
+          .postprocessModule(sysmod);
           sysmod.emitAsm(af);
           void recurse(ref Iterable it) {
             if (auto sae = cast(StatementAndExpr) it) sae.once = false;
@@ -320,7 +337,7 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
       scope f = new File(asmname, FileMode.OutNew);
       af.genAsm((string s) { f.write(cast(ubyte[]) s); });
       f.close;
-      auto cmdline = Format("as --32 -o ", objname, " ", asmname);
+      auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", asmname);
       logSmart!(false)("> ", cmdline);
       system(cmdline.toStringz()) == 0
         || assert(false, "Compilation failed! ");
@@ -440,9 +457,15 @@ int main(string[] args) {
       largs ~= rest;
       continue;
     }
-    if (auto rest = arg.startsWith("-I").strip()) {
+    if (auto rest = arg.startsWith("-platform=")) {
+      platform_prefix = rest~"-";
+      logln("Use platform '", platform_prefix, "'");
+      continue;
+    }
+    if (auto rest = arg.startsWith("-I")) {
+      rest = rest.strip();
       if (!rest.length) rest = ar.take();
-      include_path ~= rest;
+      include_path = rest ~ include_path;
       continue;
     }
     if (arg == "-save-temps" || arg == "-S") {

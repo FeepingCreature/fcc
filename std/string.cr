@@ -1,7 +1,5 @@
 module std.string;
 
-import sys;
-
 int find(string text, string match) {
   for (int i = 0; i <= text.length - match.length; ++i) {
     if (text[i .. i+match.length] == match) return i;

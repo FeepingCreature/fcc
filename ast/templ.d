@@ -14,21 +14,29 @@ class Template : Named {
   }
   TemplateInstance getInstance(IType type, ParseCb rest) {
     assert(!isAlias);
+    TemplateInstance ti;
     foreach (entry; emat_type)
       // weirdness with tuples in sieve.cr
       // TODO: unhax.
-      if (Format(entry._1) == Format(type)) { return entry._0; }
+      if (Format(entry._1) == Format(type)) { ti = entry._0; break; }
       // if (entry._1 == type) { return entry._0; }
-    auto ti = new TemplateInstance(this, type, rest);
-    emat_type ~= stuple(ti, type);
+    if (!ti) {
+      ti = new TemplateInstance(this, type, rest);
+      emat_type ~= stuple(ti, type);
+    }
+    ti.emitCopy();
     return ti;
   }
   TemplateInstance getInstance(Tree tr, ParseCb rest) {
     assert(isAlias);
+    TemplateInstance ti;
     foreach (entry; emat_alias)
-      if (entry._1 == tr) return entry._0;
-    auto ti = new TemplateInstance(this, tr, rest);
-    emat_alias ~= stuple(ti, tr);
+      if (entry._1 == tr) { ti = entry._0; break; }
+    if (!ti) {
+      ti = new TemplateInstance(this, tr, rest);
+      emat_alias ~= stuple(ti, tr);
+    }
+    ti.emitCopy();
     return ti;
   }
   override {
@@ -53,7 +61,6 @@ mixin DefaultParser!(gotTemplate, "tree.toplevel.a_template", null, "template");
 
 import tools.log;
 
-// TODO: mark matched functions as .weak
 class TemplateInstance : Namespace {
   Namespace context;
   union {
@@ -61,6 +68,7 @@ class TemplateInstance : Namespace {
     Tree tr;
   }
   Template parent;
+  IsMangled[] instRes;
   this(Template parent, IType type, ParseCb rest) {
     this.type = type;
     this.parent = parent;
@@ -76,6 +84,22 @@ class TemplateInstance : Namespace {
     __add(parent.param, fastcast!(Object)~ tr);
     this.sup = context = parent.context;
     this(rest);
+  }
+  Module[] ematIn;
+  void emitCopy(bool weakOnly = false) {
+    if (!instRes) return;
+    auto mod = current_module();
+    foreach (emod; ematIn) if (emod is mod) return;
+    if (weakOnly) {
+      foreach (inst; instRes) if (auto fun = fastcast!(Function) (inst)) if (fun.weak) {
+        mod.entries ~= fastcast!(Tree) (fun);
+      }
+    } else {
+      foreach (inst; instRes) {
+        mod.entries ~= fastcast!(Tree) (inst);
+      }
+    }
+    ematIn ~= mod;
   }
   this(ParseCb rest) {
     withTLS(namespace, this, {
@@ -101,7 +125,8 @@ class TemplateInstance : Namespace {
           auto mg = fastcast!(IsMangled) (tr);
           if (!mg) { logln("!! ", tr); asm { int 3; } }
           mg.markWeak();
-          addExtra(mg);
+          // addExtra(mg);
+          instRes ~= mg;
         }
       ) || t2.mystripl().length)
         t2.failparse("Failed to parse template content");

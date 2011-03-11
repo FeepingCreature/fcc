@@ -159,7 +159,7 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
       mixin(mustOffset("0"));
       (new Assignment(dgvar, dgs)).emitAsm(af);
       params ~= mkMemberAccess(dgvar, "data");
-      callFunction(af, ret, params, mkMemberAccess(dgvar, "fun"));
+      callFunction(af, ret, true, false, params, mkMemberAccess(dgvar, "fun"));
       if (ret != Single!(Void))
         (new Assignment(retvar, new Placeholder(ret), false, true)).emitAsm(af);
       // Assignment, assuming Placeholder was "really"

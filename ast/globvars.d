@@ -23,27 +23,34 @@ class GlobVar : LValue, Named {
     this.tls = tls;
     this.initval = initval;
   }
+  string cleanedName() {
+    return name.replace("-", "_dash_");
+  }
   string mangled() {
-    return (tls?"tls_":"")~"global_"~ns.mangle(name, type);
+    return (tls?"tls_":"")~"global_"~ns.mangle(cleanedName(), type);
   }
   override {
     IType valueType() { return type; }
-    string getIdentifier() { return name; }
+    string getIdentifier() { return cleanedName(); }
     void emitAsm(AsmFile af) {
-      if (tls) 
-        af.pushStack("%gs:"~mangled()~"@NTPOFF", type);
+      if (tls) {
+        af.mmove4(qformat("$", mangled()), "%eax");
+        af.mathOp("subl", "$_sys_tls_data_start", "%eax");
+        af.mathOp("addl", "%esi", "%eax");
+        af.pushStack("(%eax)", type);
+      }
       else
         af.pushStack(mangled(), type);
     }
     void emitLocation(AsmFile af) {
       if (tls) {
-        af.pushStack("%gs:0", voidp);
-        af.popStack("%eax", voidp);
-        af.put("leal ", mangled()~"@NTPOFF(%eax), %eax");
+        af.mmove4(qformat("$", mangled()), "%eax");
+        af.mathOp("subl", "$_sys_tls_data_start", "%eax");
+        af.mathOp("addl", "%esi", "%eax");
         af.pushStack("%eax", voidp);
         af.nvm("%eax");
       } else {
-        af.pushStack("$"~mangled(), voidp);
+        af.pushStack(qformat("$", mangled()), voidp);
       }
     }
     string toString() { return Format("global ", name, " of ", type); }

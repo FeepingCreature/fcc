@@ -6,6 +6,8 @@ public import casts;
 
 import tools.base: Format, New, This_fn, rmSpace;
 
+string platform_prefix;
+
 interface Iterable {
   void iterate(void delegate(ref Iterable) dg);
   Iterable dup();
@@ -105,7 +107,10 @@ string genIterates(int params) {
             }
           }
         } else {
-          if (Iterable iter = $A) {
+          Iterable iter;
+          static if (is($A: Iterable)) iter = $A;
+          else iter = fastcast!(Iterable) ($A);
+          if (iter) {
             dg(iter);
             // checkType(iter, dg);
             if (iter !is $A) {

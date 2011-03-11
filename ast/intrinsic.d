@@ -330,6 +330,7 @@ void setupSysmods() {
     }
     class ModuleInfo {
       string name;
+      void* dataStart, dataEnd;
       void function()[] constructors;
     }
     ModuleInfo[] __modules;
@@ -342,6 +343,8 @@ void setupSysmods() {
       }
     }
     int __c_main(int argc, char** argv) { // handle the callstack frame 16-byte alignment
+    }
+    int __win_main(void* instance, prevInstance, char* cmdline, int cmdShow) {
     }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
@@ -376,12 +379,18 @@ void finalizeSysmod(Module mainmod) {
   sc.addStatement(decl);
   sc.add(var);
   foreach (mod; list) {
+    auto fltname = mod.name.replace(".", "_");
     sc.addStatement(
       iparse!(Statement, "init_modinfo", "tree.stmt")
              (`{var = new ModuleInfo;
                __modules ~= var;
                var.name = name;
-             }` , "var", var, "name", mkString(mod.name))
+               var.dataStart = symdstart;
+               var.dataEnd = symdend;
+             }` , "var", var, "name", mkString(mod.name),
+                  "symdstart", new Symbol("_sys_tls_data_"~fltname~"_start"),
+                  "symdend", new Symbol("_sys_tls_data_"~fltname~"_end")
+            )
     );
     foreach (fun; mod.constrs)
       sc.addStatement(
@@ -465,19 +474,27 @@ Object gotMXCSR(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotMXCSR, "tree.expr.mxcsr", "2405", "mxcsr");
 
 import ast.tuples;
-class EBPExpr : Expr {
+class RegExpr : MValue {
+  string reg;
+  this(string r) { reg = r; }
   mixin defaultIterate!();
   override {
-    EBPExpr dup() { return this; }
+    RegExpr dup() { return this; }
     IType valueType() { return voidp; }
-    void emitAsm(AsmFile af) { af.pushStack("%ebp", voidp); }
+    void emitAsm(AsmFile af) { af.pushStack(reg, voidp); }
+    void emitAssignment(AsmFile af) { af.popStack(reg, voidp); }
   }
 }
 
 Object gotEBP(ref string text, ParseCb cont, ParseCb rest) {
-  return Single!(EBPExpr);
+  return Single!(RegExpr, "%ebp");
 }
 mixin DefaultParser!(gotEBP, "tree.expr.ebp", "24045", "_ebp");
+
+Object gotESI(ref string text, ParseCb cont, ParseCb rest) {
+  return Single!(RegExpr, "%esi");
+}
+mixin DefaultParser!(gotESI, "tree.expr.esi", "24046", "_esi");
 
 class Assembly : Statement {
   string text;

@@ -29,7 +29,14 @@ class FunSymbol : Symbol {
   Function fun;
   this(Function fun) {
     this.fun = fun;
-    super(fun.mangleSelf());
+    auto name = fun.mangleSelf();
+    if (fun.type.stdcall) {
+      int size;
+      foreach (entry; fun.type.params)
+        size += entry.type.size();
+      name ~= Format("@", size);
+    }
+    super(name);
   }
   private this() { }
   mixin DefaultDup!();
@@ -39,6 +46,7 @@ class FunSymbol : Symbol {
     res.ret = fun.type.ret;
     res.args = fun.type.params;
     res.args ~= Argument(Single!(SysInt));
+    res.stdcall = fun.type.stdcall;
     return res;
   }
 }
@@ -52,9 +60,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   }
   FunctionType type;
   Tree tree;
-  bool extern_c = false, _markWeak = false;
-  void markWeak() { _markWeak = true; }
+  bool extern_c = false, weak = false;
+  void markWeak() { weak = true; }
   mixin defaultIterate!(tree);
+  // iterate the compound expressions that form this function
+  void iterateExpressions(void delegate(ref Iterable) dg) { }
   string toString() { return Format("fun ", name, " ", type, " <- ", sup); }
   // add parameters to namespace
   int _framestart;
@@ -65,7 +75,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
     res.name = name;
     res.type = type;
     res.extern_c = extern_c;
-    res.tree = tree.dup;
+    if (tree) res.tree = tree.dup;
     res._framestart = _framestart;
     res.sup = sup;
     res.field = field;
@@ -92,11 +102,19 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   }
   string cleaned_name() { return name.cleanup(); }
   override string mangleSelf() {
-    if (extern_c)
-      return cleaned_name;
-    else if (name == "__c_main")
+    if (extern_c) {
+      auto res = cleaned_name;
+      if (platform_prefix == "i686-mingw32-") {
+        res = "_"~res;
+      }
+      return res;
+    } else if (name == "__c_main") {
       return "main";
-    else
+    } else if (name == "__win_main") {
+      if (platform_prefix == "i686-mingw32-") {
+        return "_WinMain@16";
+      } else return "_WinMain_not_relevant_on_this_architecture";
+    } else
       return sup.mangle(cleaned_name, type);
   }
   string exit() { return mangleSelf() ~ "_exit_label"; }
@@ -109,9 +127,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
       auto fmn = mangleSelf(); // full mangled name
+      af.put(".p2align 4");
       af.put(".globl ", fmn);
-      af.put(".type ", fmn, ", @function");
-      if (_markWeak) af.put(".weak ", fmn);
+      // af.put(".type ", fmn, ", @function");
+      if (weak) af.put(".weak ", fmn);
       af.put(fmn, ":"); // not really a label
       af.jump_barrier();
       
@@ -150,18 +169,21 @@ class FunCall : Expr {
   FunCall dup() {
     auto res = new FunCall;
     res.fun = fun;
+    if (auto it = fastcast!(Iterable) (res.fun))
+      res.fun = fastcast!(Function) (it.dup);
     foreach (param; params) res.params ~= param.dup;
     return res;
   }
-  mixin defaultIterate!(params);
+  void iterate(void delegate(ref Iterable) dg) {
+    fun.iterateExpressions(dg);
+    defaultIterate!(params).iterate(dg);
+  }
   void emitWithArgs(AsmFile af, Expr[] args) {
     auto size = (fun.type.ret == Single!(Void))?0:fun.type.ret.size;
     mixin(mustOffset("size"));
-    callFunction(af, fun.type.ret, args, fun.getPointer());
+    callFunction(af, fun.type.ret, fun.extern_c, fun.type.stdcall, args, fun.getPointer());
   }
   override void emitAsm(AsmFile af) {
-    if (fun.name == "__fcc_main" /or/ "__start_routine_unaligned" /* std.thread */)
-      dontAlignThis = true;
     emitWithArgs(af, params);
   }
   override string toString() { return Format("call(", fun, params, ")"); }
@@ -205,9 +227,7 @@ void handleReturn(IType ret, AsmFile af) {
 }
 
 import tools.log;
-bool dontAlignThis;
-void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
-  // af.put("int $3");
+void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
   {
     mixin(mustOffset("0", "outer"));
     string name;
@@ -219,6 +239,7 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       Format("Return bug: ", ret, " from ", name, ": ",
       ret.size, " is ", (fastcast!(Object)~ ret).classinfo.name));
     af.comment("Begin call to ", name);
+    if (external) af.pushStack("%esi", voidp);
     
     int paramsize;
     foreach (param; params) paramsize += param.valueType().size;
@@ -227,8 +248,7 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
     
     auto alignCall = 16 - (af.currentStackDepth + paramsize) % 16;
     if (alignCall == 16) alignCall = 0;
-    if (!dontAlignThis)
-      af.salloc(alignCall);
+    af.salloc(alignCall);
     
     auto restore = af.floatStackDepth;
     while (af.floatStackDepth)
@@ -251,8 +271,13 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       af.call("%eax");
       
       foreach (param; params) {
-        if (param.valueType() != Single!(Void))
-          af.sfree(param.valueType().size);
+        if (param.valueType() != Single!(Void)) {
+          if (stdcall) {
+            af.currentStackDepth -= param.valueType().size;
+          } else {
+            af.sfree(param.valueType().size);
+          }
+        }
       }
     }
     
@@ -264,8 +289,9 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
       if (ret == Single!(Float) || ret == Single!(Double))
         af.swapFloats;
     }
-    if (dontAlignThis) dontAlignThis = false;
-    else af.sfree(alignCall);
+    af.sfree(alignCall);
+    
+    if (external) af.popStack("%esi", voidp);
   }
   
   auto size = (ret == Single!(Void))?0:ret.size;
@@ -276,6 +302,7 @@ void callFunction(AsmFile af, IType ret, Expr[] params, Expr fp) {
 class FunctionType : ast.types.Type {
   IType ret;
   Argument[] params;
+  bool stdcall;
   override int size() {
     asm { int 3; }
     assert(false);
@@ -398,6 +425,7 @@ mixin DefaultParser!(gotFunDef, "tree.fundef");
 class FunctionPointer : ast.types.Type {
   IType ret;
   Argument[] args;
+  bool stdcall;
   this() { }
   string toString() { return Format(ret, " function(", args, ")"); }
   this(IType ret, Argument[] args) {

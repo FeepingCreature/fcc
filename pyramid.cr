@@ -21,14 +21,14 @@ class PerspectiveCam : Camera {
   }
 }
 
-vec3f cross(vec3f a, vec3f b) { return vec3f(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x); }
+vec3f vcross(vec3f a, vec3f b) { return vec3f(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x); }
 vec3f normalized(vec3f v) { return v / v.length; }
 
 import std.c.math;
 
 float angle(vec3f v, vec3f to, vec3f refer) {
   // yay, http://tomyeah.com/signed-angle-between-two-vectors3d-in-cc/
-  auto v1 = v.cross(to) * refer;
+  auto v1 = v.vcross(to) * refer;
   bool flipped = eval (v1.sum < 0);
   auto res = acosf((v*to).sum / sqrtf(v.selfdot * to.selfdot));
   // fudge
@@ -68,7 +68,7 @@ template WorldCam(T) << EOF
       glLoadIdentity;
       auto dirz = dir;
       dirz.z = -dirz.z;
-      auto left = up.cross(dirz).normalized(), up = dirz.cross(left).normalized();
+      auto left = up.vcross(dirz).normalized(), up = dirz.vcross(left).normalized();
       (vec3f.Y.angle(up, left) / PI180).glRotatef vec3f.X;
       (vec3f.X.angle(left, up) / PI180).glRotatef vec3f.Y;
       glTranslatef (-pos);
@@ -89,13 +89,13 @@ template EgoCam(T) << EOF
     alias highlimit = PI / 2 - 0.1;
     void turn-up(float f) { turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
     alias dir = vec3f.Z.rotate(vec3f.X, turnY).rotate(vec3f.Y, turnX);
-    alias left = vec3f.Y.cross(dir).normalized();
+    alias left = vec3f.Y.vcross(dir).normalized();
     void gl-setup() {
       super.gl-setup();
       glMatrixMode GL_MODELVIEW;
       glLoadIdentity;
       auto dirz = dir; dirz.z = -dirz.z;
-      auto left = vec3f.Y.cross(dirz).normalized(), up = dirz.cross(left).normalized();
+      auto left = vec3f.Y.vcross(dirz).normalized(), up = dirz.vcross(left).normalized();
       (vec3f.Y.angle(up, left) / PI180).glRotatef vec3f.X;
       (vec3f.X.angle(left, up) / PI180).glRotatef vec3f.Y;
       glTranslatef (-pos);
@@ -105,72 +105,162 @@ EOF
 
 import sdl;
 
-void main() {
-  auto surf = setup-gl();
-  resizeWindow (640, 480);
+void main(string[] args) {
+  // resizeWindow (640, 480);
+  writeln "_ebp is $(_ebp)";
   int t;
-  void dividePyramid(vec3f[4]* pCorners, void delegate(vec3f[4]*) callback) {
-    vec3f half(int a, int b) { return ((*pCorners)[a] + (*pCorners)[b]) * 0.5; }
-    vec3f idx(int i) { return (*pCorners)[i]; } // lol
-    vec3f[4] temp = void;
+  // auto vertices = [vec3f (-1, -0.6f, -1), vec3f (1, -0.6f, -1), vec3f (0, -0.6f, 1), vec3f (0, 1.0f, 0)];
+  auto vertices = [vec3f (-1, -1, -1), vec3f(1, 1, 1)];
+  void dividePyramid(vec3f[vertices.length]* pCorners, void delegate(vec3f[vertices.length]*) callback) {
+    auto a = (*pCorners)[0], b = (*pCorners)[1];
+    for (int x, int y, int z) <- cross (0..3, 0..3, 0..3) {
+      int bsum = eval(x == 1) + eval(y == 1) + eval(z == 1);
+      if bsum < 2 {
+        vec3f[2] temp = [
+          vec3f(
+            a.x * (3-x)/3f + b.x * x/3f,
+            a.y * (3-y)/3f + b.y * y/3f,
+            a.z * (3-z)/3f + b.z * z/3f
+          ),
+          vec3f(
+            a.x * (2-x)/3f + b.x * (x + 1)/3f,
+            a.y * (2-y)/3f + b.y * (y + 1)/3f,
+            a.z * (2-z)/3f + b.z * (z + 1)/3f
+          )
+        ];
+        callback &temp;
+      }
+    }
+    /*
+    vec3f[vertices.length] temp = void;
     temp = [idx 0, half (0, 1), half (0, 2), half (0, 3)]; callback &temp;
     temp = [idx 1, half (1, 2), half (1, 0), half (1, 3)]; callback &temp;
     temp = [idx 2, half (2, 0), half (2, 1), half (2, 3)]; callback &temp;
-    temp = [idx 3, half (0, 3), half (1, 3), half (2, 3)]; callback &temp;
+    temp = [idx 3, half (0, 3), half (1, 3), half (2, 3)]; callback &temp;*/
   }
   auto ec = new EgoCam!PerspectiveCam;
   ec.init();
   ec.pos = vec3f(0, 0, -3);
   ec.turnX = 0;
-  auto vertices = [vec3f (-1, -0.6f, -1), vec3f (1, -0.6f, -1), vec3f (0, -0.6f, 1), vec3f (0, 1.0f, 0)];
-  void rootFun(vec3f[4]* pVecs) {
-    alias vecs = *pVecs;
-    using opengl.Triangles {
-      for (int i, int id) <- zip (0..-1, [0, 1, 3,  1, 2, 3,  2, 0, 3,  0, 2, 1]) {
-        auto vec = vecs[id];
-        glColor3f (vec + vec3f(1, 0.6, 0.3) * (i / 12f));
-        glVertex3f vec;
-      }
+  bool pass;
+  vec3f[auto~] vertexQuadData, colorQuadData;
+  int[auto~] vertexIndexData;
+  void addVertex(vec3f pos, vec3f col) {
+    auto limit = vertexQuadData.length - 64;
+    if (limit < 0) limit = 0;
+    for (int i = vertexQuadData.length - 1; i >= limit; --i) {
+      if (vertexQuadData[i] == pos) { vertexIndexData ~= i; return; }
+    }
+    vertexIndexData ~= vertexQuadData.length;
+    vertexQuadData ~= pos;
+    colorQuadData ~= col;
+  }
+  void rootFun(vec3f[vertices.length]* pVecs) {
+    alias twoVecs = *pVecs;
+    auto vecs = [for tup <- cross(0..2, 0..2, 0..2): vec3f(twoVecs[tup[0]].x, twoVecs[tup[1]].y, twoVecs[tup[2]].z)];
+    for (int i, int id) <- zip (0..-1, [0, 1, 3, 2,  2, 3, 7, 6,  6, 7, 5, 4,  4, 5, 1, 0,  1, 5, 7, 3,  2, 6, 4, 0]) {
+      auto vec = vecs[id];
+      // glColor3f (vec + vec3f(1, 0.6, 0.3) * (i / 18f));
+      // glVertex3f vec;
+      // vertexQuadData ~= vec;
+      addVertex (vec, vec + vec3f(1, 0.6, 0.3) * (i / 24f));
     }
   }
+  writeln "ebp is $(_ebp)";
   type-of &rootFun mkFun(int depth) {
     auto curFun = &rootFun;
     for 0..depth
-      curFun = new delegate void(vec3f[4]* pVecs) { dividePyramid(pVecs, curFun); };
+      curFun = new delegate void(vec3f[vertices.length]* pVecs) { dividePyramid(pVecs, curFun); };
     return curFun;
   }
-  int curDepth = 3;
-  auto pyrlist = glGenLists(1);
-  onSuccess pyrlist.glDeleteLists(1);
+  int curDepth = 1;
+  GLuint[3] lists;
   void regenList() {
-    pyrlist.glNewList GL_COMPILE;
-    onSuccess glEndList;
-    mkFun curDepth &vertices;
+    if (lists[0]) glDeleteBuffersARB(3, lists.ptr);
+    glGenBuffersARB(3, lists.ptr);
+    vertexQuadData.free; colorQuadData.free;
+    vertexIndexData.free;
+    writeln "call with $curDepth";
+    auto fun = mkFun curDepth;
+    writeln "compute";
+    fun &vertices;
+    writeln "upload $(vertexQuadData.length) vertices, $(vertexIndexData.length) indices. ";
+    for (int i, vec3f[] list) <- zip(0..2, [vertexQuadData[], colorQuadData[]]) using GL_ARRAY_BUFFER_ARB {
+      glBindBufferARB lists[i];
+      glBufferDataARB ((size-of vec3f) * list.length, list.ptr, GL_STATIC_DRAW_ARB);
+    }
+    glBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, lists[2]);
+    using GL_ELEMENT_ARRAY_BUFFER_ARB {
+      glBufferDataARB (4 * vertexIndexData.length, vertexIndexData.ptr, GL_STATIC_DRAW_ARB);
+    }
   }
-  regenList();
-  // SDL_WM_GrabInput(SDL_GRAB_ON);
-  SDL_WarpMouse(320, 240);
-  if surf.update() quit(0);
-  SDL_ShowCursor(false);
+  bool active;
+  void toggleActive() {
+    if (active) {
+      SDL_ShowCursor true;
+    } else {
+      SDL_ShowCursor false;
+      // SDL_WM_GrabInput(SDL_GRAB_ON);
+      SDL_WarpMouse(320, 240);
+    }
+    active = eval !active;
+  }
+  gl-context-callbacks ~= delegate void() {
+    writeln "regenList()";
+    regenList();
+  };
+  auto surf = setup-gl();
+  for (int num, string info) <- [
+    (SDL_GL_RED_SIZE,         "Size of the framebuffer red component, in bits"),
+    (SDL_GL_GREEN_SIZE,       "Size of the framebuffer green component, in bits"),
+    (SDL_GL_BLUE_SIZE,        "Size of the framebuffer blue component, in bits"),
+    (SDL_GL_ALPHA_SIZE,       "Size of the framebuffer alpha component, in bits"),
+    (SDL_GL_DOUBLEBUFFER,     "0 or 1, enable or disable double buffering"),
+    (SDL_GL_BUFFER_SIZE,      "Size of the framebuffer, in bits"),
+    (SDL_GL_DEPTH_SIZE,       "Size of the depth buffer, in bits"),
+    (SDL_GL_STENCIL_SIZE,     "Size of the stencil buffer, in bits"),
+    (SDL_GL_ACCUM_RED_SIZE,   "Size of the accumulation buffer red component, in bits"),
+    (SDL_GL_ACCUM_GREEN_SIZE, "Size of the accumulation buffer green component, in bits"),
+    (SDL_GL_ACCUM_BLUE_SIZE,  "Size of the accumulation buffer blue component, in bits"),
+    (SDL_GL_ACCUM_ALPHA_SIZE, "Size of the accumulation buffer alpha component, in bits")] {
+    int res;
+    SDL_GL_GetAttribute(num, &res);
+    writeln "$info: $res";
+  }
   while true {
+    glClearColor (0 x 3, 0);
+    glClearDepth 1;
     glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     ec.aspect = surf.w * 1f / surf.h;
     ec.gl-setup();
     // glRotatef (t++, 0, 1, 0);
-    pyrlist.glCallList();
+    glEnableClientState GL_VERTEX_ARRAY;
+    glEnableClientState GL_COLOR_ARRAY;
+    
+    GL_ARRAY_BUFFER_ARB.glBindBufferARB lists[0];
+    glVertexPointer(3, GL_FLOAT, size-of vec3f, null);
+    GL_ARRAY_BUFFER_ARB.glBindBufferARB lists[1];
+    glColorPointer(3, GL_FLOAT, size-of vec3f, null);
+    GL_ELEMENT_ARRAY_BUFFER_ARB.glBindBufferARB lists[2];
+    // glDrawArrays (GL_QUADS, 0, vertexQuadData.length);
+    glDrawElements (GL_QUADS, vertexIndexData.length, GL_UNSIGNED_INT, null);
+    
     if surf.update() quit(0);
-    auto idelta = mousepos - vec2i(320, 240);
-    auto delta = vec2f((0.001 * idelta).(x, y));
-    using (ec, delta) { turn-left-x; turn-up-y; } // *MWAHAHAHAHAAAAAHAHA*
-    if idelta.x || idelta.y
-      SDL_WarpMouse(320, 240);
+    if (active) {
+      auto idelta = mousepos - vec2i(320, 240);
+      auto delta = vec2f((0.001 * idelta).(x, y));
+      using (ec, delta) { turn-left-x; turn-up-y; } // *MWAHAHAHAHAAAAAHAHA*
+      if idelta.x || idelta.y
+        SDL_WarpMouse(320, 240);
+    }
+    if (mouseClicked) toggleActive;
     
     alias movestep = 0.014;
     if (keyPressed[SDLK_w]) ec.pos += ec.dir * movestep;
     if (keyPressed[SDLK_s]) ec.pos -= ec.dir * movestep;
     if (keyPressed[SDLK_a]) ec.pos += ec.left * movestep;
     if (keyPressed[SDLK_d]) ec.pos -= ec.left * movestep;
-    if (keyPushed[SDLK_PLUS]) { curDepth ++; regenList; }
-    if (keyPushed[SDLK_MINUS]) { if curDepth curDepth --; regenList; }
+    if (keyPushed[SDLK_PLUS] || keyPushed[SDLK_KP_PLUS]) { curDepth ++; regenList; }
+    if (keyPushed[SDLK_MINUS] || keyPushed[SDLK_KP_MINUS]) { if curDepth curDepth --; regenList; }
   }
 }

@@ -17,7 +17,7 @@ bool isMemRef(string mem) {
 }
 
 bool isRegister(string s) {
-  return s.length > 2 && s[0] == '%' && s[1] != '(' && !s.startsWith("%gs:");
+  return s.length > 2 && s[0] == '%' && s[1] != '(';
 }
 
 bool contains(string s, string t) {
@@ -26,7 +26,6 @@ bool contains(string s, string t) {
 }
 
 bool isLiteral(string s) {
-  if (s.startsWith("+(%gs:")) return true; // kiinda.
   return s.length && s[0] == '$';
 }
 
@@ -186,11 +185,12 @@ struct Transaction {
   static string asmformat(string s) {
     if (auto betw = s.between("(", ")")) {
       auto offs = s.between("", "(").atoi();
-      if (betw.startsWith("%gs:")) {
-        return qformat(betw, "+", offs);
-      }
       if (betw.startsWith("$")) {
         return qformat(betw[1 .. $], "+", offs);
+      }
+      if (betw.startsWith("%esi+$")) {
+        auto name = betw.between("+$", "");
+        return qformat("(", name, " + ", offs, ")(%esi)");
       }
     }
     return s;
@@ -262,7 +262,7 @@ struct Transaction {
         }
         // 8(%eax) or 8($literal)
         string gotMemoryOffset(string s, ref int offs) {
-          string prefix, reference;
+//           string prefix, reference;
           auto betw = s.between("(", ")");
           if (!betw) return null;
           auto s2 = s;
@@ -277,16 +277,15 @@ struct Transaction {
           while (size >= sz) {
             bool m_offs_push; int offs;
             if (kind == Push) {
-              if (op.startsWith("%gs:") && op.find("@") != -1) {
-                offs = op.between("+", "").atoi();
-                string varname = op.between(":", "@");;
+              /*if (op.between("(", ")").startsWith("%esi+")) {
+                auto varname = op.between("%esi+", ")");
+                offs = op.between("", "(").atoi();
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
-                // logln("tls rewrite op ", op, " to ", "%gs:", varname, "@NTPOFF+", first_offs + size - sz, ": ", first_offs, " + ", size, " - ", sz); 
-                op = qformat("%gs:", varname, "@NTPOFF+", first_offs + size - sz);
+                op = qformat(first_offs + size - sz, "(%esi+", varname, ")");
                 m_offs_push = true;
                 
-              }
+              }*/
               if (auto mem = op.gotMemoryOffset(offs)) {
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
@@ -322,14 +321,7 @@ struct Transaction {
                 op = qformat(offs - sz, "(", op.isIndirect(), ")");
               }
               auto temp = op; int toffs;
-              if (auto mem = temp.between("(", ")")) {
-                if (auto rest = mem.startsWith("$")) {
-                  temp = qformat(rest, "+", temp.between("", "("));
-                }
-                if (mem.startsWith("%gs:")) {
-                  temp = qformat(mem, "+", temp.between("", "("));
-                }
-              }
+              temp = asmformat(temp);
               if (temp.startsWith("+")) {
                 logln(temp, " (", *this, ")");
                 asm { int 3; }
@@ -340,16 +332,9 @@ struct Transaction {
             auto s2 = op;
             int num; string ident, reg;
             if (null !is (reg = op.matchRegister())) {
-              if (reg.startsWith("gs:") && reg.find("@") != -1) {
-                auto temp = reg, reg_offs = temp.slice("+").atoi(), varname = reg.between(":", "@");
-                assert(reg.between("@", "").startsWith("NTPOFF"));
-                op = qformat("%gs:", varname, "@NTPOFF+", reg_offs + sz);
-              } else {
-                auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
-                if (reg.startsWith("gs:")) regsize = nativePtrSize;
-                if (size != regsize)
-                  throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
-              }
+              auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
+              if (size != regsize)
+                throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
             }
             else if (kind == Push && op.gotLiteral(num, ident)) {
               // just duplicate the number
@@ -405,7 +390,7 @@ struct Transaction {
         return res[0 .. $-1];
       case Extended: return obj.toAsm();
       case Nevermind: return qformat("#forget ", dest, ". ");
-      case LoadAddress: return qformat("leal ", from, ", ", to);
+      case LoadAddress: return qformat("leal ", from.asmformat(), ", ", to);
     }
   }
   struct {
