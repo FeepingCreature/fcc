@@ -11,7 +11,16 @@ class AsmFile {
   int[string] globals;
   ubyte[][string] constants;
   string[][string] longstants; // sorry
+  int[string] file_ids; // DWARF2 File IDs
   Stuple!(int, string)[string] globvars, tlsvars;
+  int file_idcounter;
+  int getFileId(string name) {
+    if (auto ip = name in file_ids) return *ip;
+    synchronized(this) {
+      file_ids[name] = ++file_idcounter;
+      return file_ids[name];
+    }
+  }
   void addTLS(string name, int size, string init) {
     if (!size) asm { int 3; }
     tlsvars[name] = stuple(size, init);
@@ -411,6 +420,7 @@ class AsmFile {
   }
   void genAsm(void delegate(string) dg) {
     flush();
+    dg(qformat(".file \"", id, "\"\n"));
     foreach (name, data; globvars) {
       dg(qformat(".comm\t", name, ",", data._0, "\n"));
       assert(!data._1, "4");
@@ -465,6 +475,9 @@ class AsmFile {
       foreach (val; array) dg(qformat(val, ", "));
       dg("0\n");
       dg(".global "); dg(name); dg("\n");
+    }
+    foreach (key, value; file_ids) {
+      dg(qformat(".file ", value, " \"", key, "\"\n"));
     }
     dg(".text\n");
     dg(code);

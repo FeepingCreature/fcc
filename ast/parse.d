@@ -13,7 +13,9 @@ Object gotToplevel(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotToplevel, "tree.toplevel");
 
 TLS!(Object) _lhs_partial;
-static this() { New(_lhs_partial, { return cast(Object) null; }); }
+static this() {
+  New(_lhs_partial, { return cast(Object) null; });
+}
 
 struct lhs_partial {
   static Object using(T)(Object delegate(T) dg) {
@@ -34,7 +36,7 @@ static this() {
   globalStateMatchers ~= matchrule("tree.rhs_partial", ignore);
 }
 
-class ExprStatement : Statement {
+class ExprStatement : LineNumberedStatement {
   Expr ex;
   this(Expr ex) { this.ex = ex; }
   private this() { }
@@ -42,6 +44,7 @@ class ExprStatement : Statement {
   mixin defaultIterate!(ex);
   override string toString() { return Format(ex); }
   override void emitAsm(AsmFile af) {
+    super.emitAsm(af);
     auto cs = af.checkptStack();
     scope(success) af.restoreCheckptStack(cs);
     auto type = ex.valueType(), size = (type == Single!(Void))?0:type.size;
@@ -51,7 +54,6 @@ class ExprStatement : Statement {
   }
 }
 
-
 Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(text, "tree.expr", &ex)) return null;
@@ -60,8 +62,11 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr", "2");
 
 Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
+  auto backup = text;
   if (auto obj = rest(text, "tree.semicol_stmt")) {
     text.mustAccept(";", Format("Missing semicolon to terminate ", obj));
+    if (auto lns = fastcast!(LineNumberedStatement) (obj))
+      lns.configPosition(text);
     return obj;
   } else return null;
 }

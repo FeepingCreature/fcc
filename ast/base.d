@@ -513,3 +513,20 @@ template logSmart(bool Mode) {
     fflush(stdin);
   }
 }
+
+extern(C) void _line_numbered_statement_emitAsm(LineNumberedStatement, AsmFile);
+
+class LineNumberedStatement : Statement {  
+  int line;
+  string name;
+  abstract LineNumberedStatement dup();
+  abstract void iterate(void delegate(ref Iterable) dg);
+  void configPosition(string text) {   
+    auto pos = lookupPos(text);
+    line = pos._0 + 1;
+    name = pos._2;
+  }
+  override void emitAsm(AsmFile af) {
+    _line_numbered_statement_emitAsm(this, af);
+  }
+}

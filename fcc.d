@@ -16,7 +16,8 @@ mixin(expandImport(`ast.[
   tuples, tuple_access, literal_string, funcall, vector, externs,
   intr, conditionals, opers, conditionals, cond, casting,
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
-  propcall, properties_parse, main, alignment, platform],
+  propcall, properties_parse, main, alignment, platform,
+  base, modules_parse],
   casts`));
 
 // placed here to resolve circular dependency issues
@@ -85,6 +86,18 @@ extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
   }
 }
 
+extern(C)
+void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
+  with (lns) {
+    auto mod = current_module();
+    if (auto id = af.getFileId(name)) {
+      af.put(".loc ", id, " ", line);
+      af.put("# being ", name);
+    }
+  }
+}
+
+
 extern(C) {
   int open(char* filename, int flags, size_t mode);
   int close(int fd);
@@ -138,7 +151,7 @@ bool ematSysmod;
 
 string compile(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
   while (file.startsWith("./")) file = file[2 .. $];
-  auto af = new AsmFile(optimize, file.replace("/", "_").replace(".cr", ""));
+  auto af = new AsmFile(optimize, file);
   if (configOpts) {
     setupOpts();
     auto cmds = configOpts.split(",");
@@ -197,7 +210,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     f.close;
   }
-  auto cmdline = Format(platform_prefix, "as -g --32 -o ", objname, " ", srcname);
+  auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", srcname);
   logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz()) == 0
     || assert(false, "Compilation failed! ");
@@ -215,6 +228,7 @@ string[] compileWithDepends(string file, bool saveTemps = false, bool optimize =
   auto start = lookupMod(modname);
   
   todo ~= start.imports;
+  todo ~= sysmod.imports;
   done[start.name] = true;
   res ~= firstObj;
   
@@ -410,7 +424,7 @@ int main(string[] args) {
         else if (i == halfway) progbar[i] = '>';
         else progbar[i] = ' ';
       }
-      logSmart!(true)(info._1, " \t [", progbar, "]               ");
+      logSmart!(true)(info._1, " \t [", progbar, "]");
     }
   };
   string[] objects;
