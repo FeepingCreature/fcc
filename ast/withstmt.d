@@ -127,9 +127,11 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   if (auto list = getTupleEntries(ex)) {
     foreach (entry; list) {
+      auto prev = ws;
       ws = new WithStmt(entry);
       if (!outer) outer = ws;
       namespace.set(ws.sc);
+      if (prev) prev.sc.addStatement(ws);
     }
   } else {
     ws = new WithStmt(ex);
@@ -139,7 +141,7 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.stmt", &ws.sc._body))
     t2.failparse("Couldn't match with-body");
   text = t2;
-  return ws;
+  return outer;
 }
 mixin DefaultParser!(gotWithStmt, "tree.stmt.withstmt", "11", /*"with"*/"using");
 
