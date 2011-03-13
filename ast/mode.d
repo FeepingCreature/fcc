@@ -102,7 +102,7 @@ class PrefixCall : FunCall {
   private this() { }
   PrefixCall dup() {
     auto res = new PrefixCall;
-    res.fun = fun;
+    res.fun = fun.flatdup;
     res.prefix = prefix.dup;
     res.params = params.dup;
     foreach (ref param; res.params) param = param.dup();

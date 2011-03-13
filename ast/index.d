@@ -65,9 +65,13 @@ static this() {
 Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     // logln("access ", ex.valueType(), " @", text.nextText());
+    if (!gotImplicitCast(ex, (IType it) {
+      it = resolveType(it);
+      return fastcast!(StaticArray) (it) || fastcast!(Array) (it) || fastcast!(ExtArray) (it) || fastcast!(Pointer) (it);
+    })) return null;
+    
     auto exv = resolveType(ex.valueType());
-    if (!fastcast!(Array) (exv) && !fastcast!(ExtArray) (exv) && !fastcast!(StaticArray) (exv) && !fastcast!(Pointer) (exv))
-      return null;
+    
     auto t2 = text;
     Expr pos;
     

@@ -77,10 +77,10 @@ Object gotStringLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string", "551", "`");
 
-import ast.casting;
+import ast.casting, ast.fold;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (fastcast!(StringExpr)~ ex) {
+    if (fastcast!(StringExpr) (foldex(ex))) {
       return getArrayPtr(ex);
     }
     return null;

@@ -14,7 +14,7 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
   res.stm = temps[pos];
   
   auto types = (fastcast!(Tuple)~ tuple.valueType()).types();
-  return foldex(reinterpret_cast(types[pos], res));
+  return reinterpret_cast(types[pos], res);
 }
 
 Expr[] getTupleEntries(Expr tuple) {
@@ -30,12 +30,15 @@ Expr[] getTupleEntries(Expr tuple) {
 import ast.parse, ast.fold, ast.int_literal, ast.namespace;
 Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto tup = fastcast!(Tuple)~ ex.valueType();
-    if (!tup) return null;
+    Tuple tup;
+    if (!gotImplicitCast(ex, (IType it) {
+      tup = fastcast!(Tuple) (it);
+      return tup && tup.types.length > 1; // resolve ambiguity with array index
+    }))
+      return null;
     int count;
     tup.wrapped.select((string, RelMember rm) { count ++; });
     /// 2.1
-    if (count <= 1) return null; // resolve ambiguity with array index
     auto t2 = text;
     Expr index;
     
@@ -112,12 +115,19 @@ class WithSpace : Namespace {
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) {
       foreach (space; spaces) {
-        auto rns = fastcast!(RelNamespace) (space.valueType());
+        auto type = space.valueType();
+        auto rns = fastcast!(RelNamespace) (type);
+        
+        if (!rns) 
+          if (auto srns = cast(SemiRelNamespace) type)
+            rns = srns.resolve();
+        
         if (auto srns = cast(SemiRelNamespace) rns)
           rns = srns.resolve();
         
         if (rns)
           if (auto res = rns.lookupRel(name, space)) return res;
+        
         if (auto ns = fastcast!(Namespace) (space.valueType()))
           if (auto res = ns.lookup(name, local)) return res;
       }
@@ -141,7 +151,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto ex2 = ex;
     gotImplicitCast(ex2, (Expr ex) {
       auto it = ex.valueType();
-      if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it))
+      if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it) || fastcast!(SemiRelNamespace) (it))
         spaces ~= ex;
       return false;
     });

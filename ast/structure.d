@@ -518,13 +518,15 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   
-try_next_alt:
-  ex = alts[0]; alts = alts[1 .. $];
-  
   string member;
   
-  auto pre_ex = ex;
   if (t2.gotIdentifier(member)) {
+    
+    try_next_alt:
+    ex = alts[0]; alts = alts[1 .. $];
+    
+    auto pre_ex = ex;
+    
     auto rn = fastcast!(RelNamespace)~ ex.valueType();
     retry:
     auto m = rn.lookupRel(member, ex);
@@ -536,16 +538,21 @@ try_next_alt:
         if (t2.eatDash(member)) goto retry;
         string mesg, name;
         bool dontFail;
+        auto info = Format(pre_ex.valueType());
+        if (info.length > 64) info = info[0..64] ~ " [snip]";
         if (auto st = fastcast!(Structure) (resolveType(fastcast!(IType) (rn)))) {
           name = st.name;
-          // logln("alts1 ", alts);
+          /*logln("alts1 ");
+          foreach (i, alt; alts)
+            logln("  ", i, ": ", alt);*/
           mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names);
         } else {
           /*logln("alts2: ");
           foreach (i, alt; alts)
             logln("  ", i, ": ", alt);*/
-          mesg = Format(member, " is not a member of non-struct ", pre_ex.valueType());
+          mesg = Format(member, " is not a member of non-struct ", info);
         }
+        if (alts.length) goto try_next_alt;
         if (rn.isTempNamespace) dontFail = true;
         
         text.setError(mesg);

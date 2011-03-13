@@ -91,8 +91,9 @@ Expr mkFullSlice(Expr ex) {
 import ast.iterator, ast.casting, ast.fold;
 Object gotFullSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (!fastcast!(Array) (ex.valueType()) && !fastcast!(ExtArray) (ex.valueType())) return null;
-    return fastcast!(Object)~ mkFullSlice(ex);
+    if (!gotImplicitCast(ex, (IType it) { return fastcast!(Array) (it) || fastcast!(ExtArray) (it); }))
+      return null;
+    return fastcast!(Object) (mkFullSlice(ex));
   };
 }
 mixin DefaultParser!(gotFullSliceExpr, "tree.rhs_partial.full_slice", null, "[]");
@@ -126,6 +127,9 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (!ar) return null;
     if (fastcast!(LValue)~ dest) return null; // leave to normal assignment
     if (rest(t2, "tree.expr", &src)) {
+      auto t3 = t2;
+      if (t3.mystripl().length && !t3.accept(";"))
+        t2.failparse("Expected ; after slice assignment");
       if (ar != resolveType(src.valueType())) {
         auto mesg = Format("Mismatching types in slice assignment: ", dest.valueType(), " <- ", src.valueType());
         if (fastcast!(Array)~ resolveType(src.valueType())

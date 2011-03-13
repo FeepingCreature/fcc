@@ -506,7 +506,9 @@ template logSmart(bool Mode) {
     }
     winsize ws;
     ioctl(0, /*TIOCGWINSZ*/0x5413, &ws);
-    while (text.length < ws.col) text ~= " ";
+    string empty;
+    for (int i = 0; i < ws.col - 1; ++i) empty ~= " ";
+    tools.log.log("\r", empty, "\r");
     tools.log.log(text);
     if (Mode) tools.log.log("\r");
     else tools.log.log("\n");

@@ -239,9 +239,9 @@ static this() {
 }
 
 Expr getArrayLength(Expr ex) {
-  if (auto sa = fastcast!(StaticArray)~ resolveType(ex.valueType()))
+  if (auto sa = fastcast!(StaticArray) (resolveType(ex.valueType())))
     return mkInt(sa.length);
-  if (auto lv = fastcast!(LValue)~ ex) return new ArrayLength!(MValue) (lv);
+  if (auto lv = fastcast!(LValue) (ex)) return new ArrayLength!(MValue) (lv);
   else return new ArrayLength!(Expr) (ex);
 }
 
@@ -253,12 +253,12 @@ import ast.parse;
 // separate because does clever allocation mojo .. eventually
 Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (fastcast!(Array)~ ex.valueType() || fastcast!(ExtArray)~ ex.valueType()) {
-      return fastcast!(Object)~ getArrayLength(ex);
+    if (gotImplicitCast(ex, (IType it) { return fastcast!(Array) (it) || fastcast!(ExtArray) (it) || fastcast!(StaticArray) (it); })) {
+      return fastcast!(Object) (getArrayLength(ex));
     } else return null;
   };
 }
-mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.array_length", null, ".length");
+mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.a_array_length", null, ".length");
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {
