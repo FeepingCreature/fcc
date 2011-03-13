@@ -2,6 +2,8 @@ module ast.funcall;
 
 import ast.fun, ast.base;
 
+alias ast.fun.Argument Argument;
+
 class NamedArg : Expr {
   Expr base;
   string name;

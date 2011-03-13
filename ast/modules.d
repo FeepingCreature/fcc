@@ -182,11 +182,10 @@ Module lookupMod(string name) {
       }
     }
   }
-  // logln("read ", fn);
   auto file = fn.read().castLike("");
   synchronized(SyncObj!(sourcefiles))
     sourcefiles[fn] = file;
-  auto mod = fastcast!(Module)~ parsecon.parse(file, "tree.module");
+  auto mod = fastcast!(Module) (parsecon.parse(file, "tree.module"));
   if (!mod)
     file.failparse("Could not parse module");
   if (file.strip().length)
@@ -208,8 +207,9 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
     true) &&
     text.accept(";")
   )) text.failparse("Unexpected text while parsing import statement");
-  foreach (str; newImports)
+  foreach (str; newImports) {
     mod.imports ~= lookupMod(str);
+  }
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotImport, "tree.import", null, "import");

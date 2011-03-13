@@ -171,10 +171,10 @@ static this() {
   };
   // cast into tuples
   implicits ~= delegate void(Expr ex, IType it, void delegate(Expr) dg) {
-    if (!it || !fastcast!(Tuple) (it)) return null;
+    if (!it || !fastcast!(Tuple) (it)) return;
     if (auto tup = fastcast!(Tuple)~ ex.valueType()) {
       if ((fastcast!(Tuple)~ it).types.length != tup.types.length)
-        return null;
+        return;
       auto exprs = getTupleEntries(ex);
       Expr[] stack;
       Expr[][] casts;
