@@ -27,7 +27,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     Object lookup(string name, bool local = false) {
-      auto res = sup.lookup(name, local);
+      auto res = sup.lookup(name, false);
       if (auto fun = fastcast!(Function) (res)) {
         if (fastcast!(NestedFunction)~ fun) return null;
         auto params = fun.getParams();

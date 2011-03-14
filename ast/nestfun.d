@@ -258,6 +258,7 @@ class PointerFunction(T) : T {
       asm { int 3; }
     }
   }
+  override PointerFunction flatdup() { return new PointerFunction(ptr.dup); }
   override PointerFunction dup() { return new PointerFunction(ptr.dup); }
   override {
     FunCall mkCall() {

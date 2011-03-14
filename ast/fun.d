@@ -70,16 +70,21 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   int _framestart;
   Function alloc() { return new Function; }
   Argument[] getParams() { return type.params; }
-  Function dup() {
+  Function flatdup() { // NEVER dup the tree!
     auto res = alloc();
     res.name = name;
     res.type = type;
     res.extern_c = extern_c;
-    if (tree) res.tree = tree.dup;
+    res.tree = tree;
     res._framestart = _framestart;
     res.sup = sup;
     res.field = field;
     res.rebuildCache;
+    return res;
+  }
+  Function dup() {
+    auto res = flatdup();
+    if (tree) res.tree = tree.dup;
     return res;
   }
   FunCall mkCall() {
@@ -170,9 +175,8 @@ class FunCall : Expr {
   Function fun;
   FunCall dup() {
     auto res = new FunCall;
-    res.fun = fun;
-    if (auto it = fastcast!(Iterable) (res.fun))
-      res.fun = fastcast!(Function) (it.dup);
+    res.fun = fun.flatdup();
+    
     foreach (param; params) res.params ~= param.dup;
     return res;
   }

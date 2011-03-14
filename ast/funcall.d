@@ -2,6 +2,8 @@ module ast.funcall;
 
 import ast.fun, ast.base;
 
+alias ast.fun.Argument Argument;
+
 class NamedArg : Expr {
   Expr base;
   string name;
@@ -240,8 +242,10 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
     if (t2.cantBeCall()) return null;
-    auto fptype = fastcast!(FunctionPointer)~ ex.valueType();
-    if (!fptype) return null;
+
+    FunctionPointer fptype;
+    if (!gotImplicitCast(ex, (IType it) { fptype = fastcast!(FunctionPointer) (it); return !!fptype; }))
+      return null;
     
     auto fc = new FpCall;
     fc.fp = ex;
@@ -274,8 +278,10 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
     if (t2.cantBeCall()) return null;
-    auto dgtype = fastcast!(Delegate)~ ex.valueType();
-    if (!dgtype) return null;
+    
+    Delegate dgtype;
+    if (!gotImplicitCast(ex, (IType it) { dgtype = fastcast!(Delegate) (it); return !!dgtype; }))
+      return null;
     
     auto dc = new DgCall;
     dc.dg = ex;

@@ -224,9 +224,15 @@ class SuperType : IType, RelNamespace {
     Object lookupRel(string name, Expr base) {
       auto sup2 = fastcast!(SuperType) (base.valueType());
       if (sup2 !is this) asm { int 3; }
-      auto parent_class = baseType.myClass.parent;
-      auto suptable = parent_class.myfuns;
-      return suptable.lookupFinal(name, reinterpret_cast(parent_class.getRefType, base));
+      // iterate parents
+      Class parent_class = baseType.myClass.parent;
+      while (parent_class) {
+        auto suptable = parent_class.myfuns;
+        if (auto res = suptable.lookupFinal(name, reinterpret_cast(parent_class.getRefType, base)))
+          return res;
+        parent_class = parent_class.parent;
+      }
+      return null;
     }
     bool isTempNamespace() { return true; }
   }

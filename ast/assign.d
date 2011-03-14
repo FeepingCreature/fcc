@@ -78,6 +78,10 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Could not parse assignment source");
     }
     auto tv = target.valueType();
+    auto t3 = t2;
+    if (t3.mystripl().length && !t3.accept(";")) {
+      t2.failparse("Unknown text after assignment! ");
+    }
     if (!gotImplicitCast(value, tv, (IType it) { its ~= it; return test(it == tv); })) {
       text.failparse("Mismatching types in assignment: ", tv, " <- ", its);
     }

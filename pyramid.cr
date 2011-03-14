@@ -21,14 +21,15 @@ class PerspectiveCam : Camera {
   }
 }
 
-vec3f vcross(vec3f a, vec3f b) { return vec3f(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x); }
-vec3f normalized(vec3f v) { return v / v.length; }
-
 import std.c.math;
 
-float angle(vec3f v, vec3f to, vec3f refer) {
+vec3f cross3f(vec3f a, vec3f b) { return a.yzx * b.zxy - a.zxy * b.yzx; }
+
+vec3f normalize3f(vec3f v) { return v / v.length; }
+
+float angle3f(vec3f v, vec3f to, vec3f refer) {
   // yay, http://tomyeah.com/signed-angle-between-two-vectors3d-in-cc/
-  auto v1 = v.vcross(to) * refer;
+  auto v1 = v.cross3f(to) * refer;
   bool flipped = eval (v1.sum < 0);
   auto res = acosf((v*to).sum / sqrtf(v.selfdot * to.selfdot));
   // fudge
@@ -36,12 +37,16 @@ float angle(vec3f v, vec3f to, vec3f refer) {
   return res;
 }
 
-vec3f rotate(vec3f vec, vec3f axis, float angle) using vec {
+vec3f rotate3f(vec3f vec, vec3f axis, float angle) using vec {
   float u = axis.x, v = axis.y, w = axis.z;
   float uu = u*u, vv = v*v, ww = w*w;
   float v_w = vv + ww, u_w = uu + ww, u_v = uu + vv;
   float dd = (vec*axis).sum, cosa = cosf(angle), sina = sinf(angle);
   vec3f res = void;
+  // pathologically slow to parse
+  /*res = axis * dd
+    + (vec * vec3f(v_w, u_w, u_v) + axis * (axis.yxx*(-vec.yxx) + axis.zzy * (-vec.zzy))) * cosa
+    + (axis.zzy * vec3f (vec.(-y, x, -x)) + axis.yxx * vec3f(vec.(z, -z, y))) * sina;*/
   res.x = u*dd+(x*v_w+u*(v*(-y)+w*(-z))) * cosa + (w*(-y)+v*z) * sina;
   res.y = v*dd+(y*u_w+v*(u*(-x)+w*(-z))) * cosa + (w*x+u*(-z)) * sina;
   res.z = w*dd+(z*u_v+w*(u*(-x)+v*(-y))) * cosa + (v*(-x)+u*y) * sina;
@@ -68,9 +73,9 @@ template WorldCam(T) << EOF
       glLoadIdentity;
       auto dirz = dir;
       dirz.z = -dirz.z;
-      auto left = up.vcross(dirz).normalized(), up = dirz.vcross(left).normalized();
-      (vec3f.Y.angle(up, left) / PI180).glRotatef vec3f.X;
-      (vec3f.X.angle(left, up) / PI180).glRotatef vec3f.Y;
+      auto left = up.cross3f(dirz).normalize3f(), up = dirz.cross3f(left).normalize3f();
+      (vec3f.Y.angle3f(up, left) / PI180).glRotatef vec3f.X;
+      (vec3f.X.angle3f(left, up) / PI180).glRotatef vec3f.Y;
       glTranslatef (-pos);
     }
   }
@@ -88,16 +93,16 @@ template EgoCam(T) << EOF
     alias lowlimit = -PI / 2 + 0.1;
     alias highlimit = PI / 2 - 0.1;
     void turn-up(float f) { turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
-    alias dir = vec3f.Z.rotate(vec3f.X, turnY).rotate(vec3f.Y, turnX);
-    alias left = vec3f.Y.vcross(dir).normalized();
+    alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX);
+    alias left = vec3f.Y.cross3f(dir).normalize3f();
     void gl-setup() {
       super.gl-setup();
       glMatrixMode GL_MODELVIEW;
       glLoadIdentity;
       auto dirz = dir; dirz.z = -dirz.z;
-      auto left = vec3f.Y.vcross(dirz).normalized(), up = dirz.vcross(left).normalized();
-      (vec3f.Y.angle(up, left) / PI180).glRotatef vec3f.X;
-      (vec3f.X.angle(left, up) / PI180).glRotatef vec3f.Y;
+      auto left = vec3f.Y.cross3f(dirz).normalize3f(), up = dirz.cross3f(left).normalize3f();
+      (vec3f.Y.angle3f(up, left) / PI180).glRotatef vec3f.X;
+      (vec3f.X.angle3f(left, up) / PI180).glRotatef vec3f.Y;
       glTranslatef (-pos);
     }
   }

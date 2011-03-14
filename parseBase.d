@@ -767,7 +767,7 @@ string getHeredoc(ref string text) {
   return text.slice(sep);
 }
 
-pragma(GNU_attribute, hot)
+pragma(attribute, hot)
 template startsWith(S, T) {
   string startsWith(S text, T match)
   {

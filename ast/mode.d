@@ -66,18 +66,20 @@ class PrefixFunction : Function {
     Expr getPointer() { return supfun.getPointer(); }
     string toString() { return Format("prefix ", prefix, " to ", super.toString()); }
     Argument[] getParams() { return super.getParams()[1 .. $]; }
-    PrefixFunction alloc() { assert(false, "what"); }
+    PrefixFunction alloc() { return new PrefixFunction; }
     void iterateExpressions(void delegate(ref Iterable) dg) {
       defaultIterate!(prefix).iterate(dg);
       supfun.iterateExpressions(dg);
     }
-    PrefixFunction dup() {
-      auto res = new PrefixFunction;
+    PrefixFunction flatdup() {
+      PrefixFunction res = cast(PrefixFunction) cast(void*) super.flatdup();
       res.prefix = prefix.dup;
-      res.type = type;
-      res.name = name;
+      res.supfun = supfun;
+      return res;
+    }
+    PrefixFunction dup() {
+      auto res = flatdup();
       res.supfun = supfun.dup;
-      res.extern_c = true;
       return res;
     }
     PrefixCall mkCall() { return new PrefixCall(this, prefix, supfun.mkCall()); }
@@ -100,7 +102,7 @@ class PrefixCall : FunCall {
   private this() { }
   PrefixCall dup() {
     auto res = new PrefixCall;
-    res.fun = fun;
+    res.fun = fun.flatdup;
     res.prefix = prefix.dup;
     res.params = params.dup;
     foreach (ref param; res.params) param = param.dup();

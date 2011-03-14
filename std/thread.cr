@@ -4,23 +4,21 @@ c_include "pthread.h";
 extern(C) int pthread_create(pthread_t*, pthread_attr_t*,
                              void* function(void*), void*);
 
-void __start_routine_unaligned(void delegate() dg) { dg(); }
-
 void* __start_routine(void* p) {
   void* ptemp = p; // will be top of the stack, so ..
   asm "popl %eax";
   asm "movl %esp, %ebx";
   asm `andl $0xfffffff0, %esp`;
+  asm `subl $8, %esp`; // alignment
   asm "pushl %ebx";
   asm "pushl %ebp";
   asm "pushl %eax";
   asm "movl %esp, %ebp";
-  asm `subl $4, %ebp`;
+  asm `addl $4, %ebp`;
   {
     alias arg = *(void delegate(), void*)*:ptemp;
-    int[1] filler; // thread alignment; todo: make generic.
     _esi = arg[1];
-    __start_routine_unaligned (arg[0]);
+    arg[0]();
   }
   // and undo
   asm `addl $4, %esp`; // undo pushl %eax
@@ -57,12 +55,12 @@ void startThread(void delegate() dg) {
   pthread_create(&buf, null, &__start_routine, argp);
 }
 
-/*
-struct pthread_mutex_t { ubyte[40] filler; }
-extern(C) int pthread_mutex_init (pthread_mutex_t*, void*);
-extern(C) int pthread_mutex_lock (pthread_mutex_t*);
-extern(C) int pthread_mutex_unlock (pthread_mutex_t*);
-*/
+platform(default) <<EOF
+  struct pthread_mutex_t { ubyte[40] filler; }
+  extern(C) int pthread_mutex_init (pthread_mutex_t*, void*);
+  extern(C) int pthread_mutex_lock (pthread_mutex_t*);
+  extern(C) int pthread_mutex_unlock (pthread_mutex_t*);
+EOF
 
 class Mutex {
   pthread_mutex_t mutex;

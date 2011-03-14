@@ -44,7 +44,8 @@ static this() {
     return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (!fastcast!(StaticArray) (ex.valueType()) || !fastcast!(CValue) (ex))
+    ex = foldex(ex);
+    if (!fastcast!(StaticArray) (resolveType(ex.valueType())) || !fastcast!(CValue) (ex))
       return null;
     return getSAPtr(ex);
   };
@@ -61,7 +62,7 @@ Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length", null, ".length");
 
 Expr getSAPtr(Expr sa) {
-  auto vt = fastcast!(StaticArray)~ sa.valueType();
+  auto vt = fastcast!(StaticArray) (resolveType(sa.valueType()));
   assert(!!fastcast!(CValue) (sa));
   return reinterpret_cast(new Pointer(vt.elemType), new RefExpr(fastcast!(CValue) (sa)));
 }

@@ -356,8 +356,8 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     packLoad("%xmm0", "%xmm2", "%xmm3");*/
     af.popStack("%eax", Single!(SysInt));
     af.popStack("%ebx", Single!(SysInt));
-    af.SSEOp("movaps", "(%ebx)", "%xmm1");
-    af.SSEOp("movaps", "(%eax)", "%xmm0");
+    af.SSEOp("movaps", "(%eax)", "%xmm1");
+    af.SSEOp("movaps", "(%ebx)", "%xmm0");
     af.salloc(16);
   }
   if (alignedVar1 && !alignedVar2) {
