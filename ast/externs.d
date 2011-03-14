@@ -68,11 +68,13 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   }
   bool grabVar() {
     auto t3 = t2;
-    IType type; string name;
-    if (rest(t3, "type", &type) && t3.gotIdentifier(name) && t3.accept(";")) {
+    IType type; string n; string[] names;
+    if (rest(t3, "type", &type) && t3.bjoin(t3.gotIdentifier(n), t3.accept(","), { names ~= n; }) && t3.accept(";")) {
       t2 = t3;
-      auto gv = new ExternCGlobVar(type, name);
-      namespace().add(gv);
+      foreach (name; names) {
+        auto gv = new ExternCGlobVar(type, name);
+        namespace().add(gv);
+      }
       return true;
     } else {
       tx = t3;
