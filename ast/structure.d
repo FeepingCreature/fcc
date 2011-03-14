@@ -487,7 +487,7 @@ Expr mkMemberAccess(Expr strct, string name) {
 
 Expr depointer(Expr ex) {
   while (true) {
-    if (auto ptr = fastcast!(Pointer)~ ex.valueType()) {
+    if (auto ptr = fastcast!(Pointer) (resolveType(ex.valueType()))) {
       ex = new DerefExpr(ex);
     } else break;
   }
@@ -502,7 +502,6 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   outer_retry:
   auto t2 = text;
   auto ex = first_ex;
-  // logln("loop ", ex);
   const DEPOINTER_RETRY = `
     // try again, with pointer dereferenced
     {
@@ -527,7 +526,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     auto pre_ex = ex;
     
-    auto rn = fastcast!(RelNamespace)~ ex.valueType();
+    auto rn = fastcast!(RelNamespace) (ex.valueType());
     retry:
     auto m = rn.lookupRel(member, ex);
     if (fastcast!(Function) (m)) { text = t2; return m; }
