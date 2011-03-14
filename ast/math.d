@@ -186,6 +186,23 @@ class IntLiteralAsShort : Expr {
   }
 }
 
+class IntAsShort : Expr {
+  Expr ex;
+  this(Expr ex) { this.ex = ex; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(ex);
+  override {
+    IType valueType() { return Single!(Short); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("2"));
+      ex.emitAsm(af);
+      af.popStack("%eax", ex.valueType());
+      af.pushStack("%ax", valueType());
+    }
+  }
+}
+
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(Float) != ex.valueType()) return null;
@@ -202,6 +219,11 @@ static this() {
     auto ie = fastcast!(IntExpr)~ fold(ex);
     if (!ie || ie.num > 65535 || ie.num < -32767) return null;
     return new IntLiteralAsShort(ie);
+  };
+  converts ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(SysInt) != resolveType(ex.valueType()))
+      return null;
+    return new IntAsShort(ex);
   };
 }
 
