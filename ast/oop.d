@@ -179,6 +179,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
     string mangleSelf() { return mangle(); }
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
+      // logln("test ", type, " against ", this);
       return myClass is (fastcast!(ClassRef)~ type).myClass;
     }
     Expr format(Expr ex) {
@@ -245,7 +246,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   string name;
   Class parent;
   Intf[] iparents;
-  string toString() { return Format("class ", name); }
+  string toString() { return Format("class ", name, " <- ", sup); }
   void getIntfLeaves(void delegate(Intf) dg) {
     foreach (intf; iparents)
       intf.getLeaves(dg);
