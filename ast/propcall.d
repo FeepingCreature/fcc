@@ -16,8 +16,8 @@ bool incompat(IType a, IType b) {
   return false;
 }
 
-
 // man this is such a hack.
+import ast.templ; // this also!
 class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
   Expr firstParam;
   IType fpvt;
@@ -28,6 +28,9 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     Object lookup(string name, bool local = false) {
       auto res = sup.lookup(name, false);
+      if (auto templ = fastcast!(Template) (res)) {
+        return new PrefixTemplate(firstParam, templ);
+      }
       if (auto fun = fastcast!(Function) (res)) {
         if (fastcast!(NestedFunction)~ fun) return null;
         auto params = fun.getParams();

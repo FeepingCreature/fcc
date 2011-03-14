@@ -530,9 +530,22 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto rn = fastcast!(RelNamespace)~ ex.valueType();
     retry:
     auto m = rn.lookupRel(member, ex);
-    if (fastcast!(Function)~ m) { text = t2; return m; }
-    auto ex2 = fastcast!(Expr)~ m;
-    if (!ex2) {
+    if (fastcast!(Function) (m)) { text = t2; return m; }
+    if (m) {
+      // Don't ask.
+      auto itemp = ClassInfo.find("ast.templ.ITemplate");
+      auto cur = m.classinfo;
+      while (cur) {
+        foreach (intf; cur.interfaces) if (intf.classinfo is itemp) {
+          text = t2;
+          return m;
+        }
+        cur = cur.base;
+      }
+    }
+    // Actually, do ask, It's a fun story. 
+    auto ex2 = fastcast!(Expr) (m);
+    if (!m) {
       if (m) text.setError(member, " is not a rel var: ", m);
       else {
         if (t2.eatDash(member)) goto retry;

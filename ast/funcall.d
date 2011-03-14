@@ -130,6 +130,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
     
     if (!gotImplicitCast(ex, type, (IType it) {
       tried ~= it;
+      // logln(" !! is ", it, " == ", type, "? ", test(it == type));
       return test(it == type);
     })) {
       Expr[] list;
@@ -196,7 +197,7 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
 
 Expr buildFunCall(Function fun, Expr arg, string info) {
   auto fc = fun.mkCall();
-  if (!matchedCallWith(arg, fun.type.params, fc.params, info))
+  if (!matchedCallWith(arg, fun.getParams(), fc.params, info))
     return null;
   return fc;
 }
