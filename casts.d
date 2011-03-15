@@ -61,20 +61,34 @@ const string[] quicklist = [
 ];
 
 Stuple!(void*, int)[] idtable;
+const predIdtableLength = 177; // predicted idtable length - slight hash speed up
 
 int xor;
 const uint knuthMagic = 2654435761;
 
-const cachesize = 1; // tested and best
+const cachesize = 1; // tested and best .. 0 is way slower, 2 is slightly slower.
 void*[cachesize] pcache; int[cachesize] rescache;
 
 void resetHash() { pcache[] = Init!(void*); }
 
 // int is okay here; we don't expect variation in the upper bits
-int hash(void* p) {
+int hash_dyn(void* p) {
   foreach_reverse (i, bogus; Repeat!(void, cachesize))
     if (pcache[i] == p) return rescache[i];
   int res = cast(uint) (((cast(int) cast(size_t) p >> 3) ^ xor) * knuthMagic) % idtable.length;
+  foreach (i, bogus; Repeat!(void, cachesize - 1)) {
+    pcache[i] = pcache[i+1];
+    rescache[i] = rescache[i+1];
+  }
+  pcache[$-1] = p; rescache[$-1] = res;
+  return res;
+}
+
+// copypasted to make profiling slightly easier. only difference should be idtable.length
+int hash_stat(void* p) {
+  foreach_reverse (i, bogus; Repeat!(void, cachesize))
+    if (pcache[i] == p) return rescache[i];
+  int res = cast(uint) (((cast(int) cast(size_t) p >> 3) ^ xor) * knuthMagic) % predIdtableLength;
   foreach (i, bogus; Repeat!(void, cachesize - 1)) {
     pcache[i] = pcache[i+1];
     rescache[i] = rescache[i+1];
@@ -104,7 +118,7 @@ void initCastTable() {
     idtable[] = Init!(Stuple!(void*, int));
     resetHash();
     foreach (int id, entry; ci) {
-      auto pos = hash(cast(void*) entry);
+      auto pos = hash_dyn(cast(void*) entry);
       if (idtable[pos]._0) {
         cursize ++;
         if (cursize >= bestXORSize) break;
@@ -119,17 +133,22 @@ void initCastTable() {
   }
   xor = bestXOR;
   idtable.length = bestXORSize;
+  if (idtable.length != predIdtableLength) {
+    logln("please update pred const to ", idtable.length);
+    asm { int 3; }
+  }
   idtable[] = Init!(Stuple!(void*, int));
   resetHash();
   foreach (int i, entry; ci) {
-    auto pos = hash(cast(void*) entry);
+    auto pos = hash_stat(cast(void*) entry);
     idtable[pos] = stuple(cast(void*) entry, i);
   }
 }
 
 int getId(ClassInfo ci) {
   auto cp = cast(void*) ci;
-  auto entry = idtable[hash(cp)];
+  // we know it's a valid index
+  auto entry = idtable.ptr[hash_stat(cp)];
   if (entry._0 == cp) return entry._1;
   return -1;
 }
@@ -137,13 +156,28 @@ int getId(ClassInfo ci) {
 struct _fastcast(T) {
   const ptrdiff_t INVALID = 0xffff; // magic numbah
   static ptrdiff_t[quicklist.length] offsets;
+  template staticCache(U) {
+    int cache = -1;
+  }
   T opCall(U)(U u) {
     if (!u) return null;
     static assert (!is(U == void*));
     
+    // logln("Cast ", (cast(Object) u).classinfo.name);
+    // this doesn't do much but I'm leaving it in so you don't think I didn't think of it.
+    static if (is(U: T) && !is(T: Object)) {{ // liskov says we can do this deterministically
+      // direct parent of interface cast
+      int hint = staticCache!(U).cache;
+      if (hint == -1) {
+        auto dest = cast(T) u;
+        hint = cast(void*) dest - cast(void*) u;
+        staticCache!(U).cache = hint;
+      }
+      auto temp = cast(void*) u + hint;
+      return *cast(T*) &temp;
+    }}
     if (!idtable.length)
       return cast(T) u; // not initialized yet (called from a static constructor?)
-    // logln("Cast ", (cast(Object) u).classinfo.name);
     Object obj;
     static if (!is(U: Object)) { // interface
       auto ptr = **cast(Interface***) u;

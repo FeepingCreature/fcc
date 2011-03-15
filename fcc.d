@@ -29,15 +29,15 @@ static this() {
   New(current_module, { return cast(Module) null; });
   // placed here because it needs some circular importage
   foldopt ~= delegate Expr(Expr ex) {
-    auto mae = cast(MemberAccess_Expr) ex;
+    auto mae = fastcast!(MemberAccess_Expr) (ex);
     if (!mae || mae.stm.name != "ptr") return null;
     
-    auto rce = cast(RCE) mae.base;
+    auto rce = fastcast!(RCE) (mae.base);
     if (!rce) return null;
     if (!(rce.to in isArrayStructType)) return null;
-    auto se = cast(StringExpr) rce.from;
+    auto se = fastcast!(StringExpr) (rce.from);
     if (se) return se.getPointer();
-    auto ar = cast(ArrayMaker) rce.from;
+    auto ar = fastcast!(ArrayMaker) (rce.from);
     if (ar) return ar.ptr;
     return null;
   };
@@ -47,12 +47,12 @@ alias ast.parse.startsWith startsWith;
 static this() {
   // Assumption: SysInt is size_t.
   Expr fpeq(bool neg, Expr ex1, Expr ex2) {
-    auto fp1 = cast(FunctionPointer) ex1.valueType(), fp2 = cast(FunctionPointer) ex2.valueType();
+    auto fp1 = fastcast!(FunctionPointer) (ex1.valueType()), fp2 = fastcast!(FunctionPointer) (ex2.valueType());
     if (!fp1 || !fp2) return null;
     return new CondExpr(new Compare(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
   }
   Expr ptreq(bool neg, Expr ex1, Expr ex2) {
-    auto p1 = cast(Pointer) ex1.valueType(), p2 = cast(Pointer) ex2.valueType();
+    auto p1 = fastcast!(Pointer) (ex1.valueType()), p2 = fastcast!(Pointer) (ex2.valueType());
     if (!p1 || !p2) return null;
     assert(p1.target == p2.target, Format("Cannot compare ", p1, " and ", p2));
     return new CondExpr(new Compare(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
@@ -330,13 +330,13 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
           .postprocessModule(sysmod);
           sysmod.emitAsm(af);
           void recurse(ref Iterable it) {
-            if (auto sae = cast(StatementAndExpr) it) sae.once = false;
+            if (auto sae = fastcast!(StatementAndExpr) (it)) sae.once = false;
             it.iterate(&recurse);
           }
           foreach (entry; extras.entries) {
             // reset for re-emit
-            if (auto sae = cast(StatementAndExpr) entry) sae.once = false;
-            if (auto it = cast(Iterable) entry) recurse(it);
+            if (auto sae = fastcast!(StatementAndExpr) (entry)) sae.once = false;
+            if (auto it = fastcast!(Iterable) (entry)) recurse(it);
           }
           ematSysmod = true;
         }

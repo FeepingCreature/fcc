@@ -487,7 +487,7 @@ Expr mkMemberAccess(Expr strct, string name) {
 
 Expr depointer(Expr ex) {
   while (true) {
-    if (auto ptr = fastcast!(Pointer)~ ex.valueType()) {
+    if (auto ptr = fastcast!(Pointer) (resolveType(ex.valueType()))) {
       ex = new DerefExpr(ex);
     } else break;
   }
@@ -502,7 +502,6 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   outer_retry:
   auto t2 = text;
   auto ex = first_ex;
-  // logln("loop ", ex);
   const DEPOINTER_RETRY = `
     // try again, with pointer dereferenced
     {
@@ -527,12 +526,25 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     auto pre_ex = ex;
     
-    auto rn = fastcast!(RelNamespace)~ ex.valueType();
+    auto rn = fastcast!(RelNamespace) (ex.valueType());
     retry:
     auto m = rn.lookupRel(member, ex);
-    if (fastcast!(Function)~ m) { text = t2; return m; }
-    auto ex2 = fastcast!(Expr)~ m;
-    if (!ex2) {
+    if (fastcast!(Function) (m)) { text = t2; return m; }
+    if (m) {
+      // Don't ask.
+      auto itemp = ClassInfo.find("ast.templ.ITemplate");
+      auto cur = m.classinfo;
+      while (cur) {
+        foreach (intf; cur.interfaces) if (intf.classinfo is itemp) {
+          text = t2;
+          return m;
+        }
+        cur = cur.base;
+      }
+    }
+    // Actually, do ask, It's a fun story. 
+    auto ex2 = fastcast!(Expr) (m);
+    if (!m) {
       if (m) text.setError(member, " is not a rel var: ", m);
       else {
         if (t2.eatDash(member)) goto retry;

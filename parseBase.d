@@ -88,16 +88,17 @@ bool isAlphanum(dchar d) {
 import tools.compat: replace;
 import tools.base: Stuple, stuple;
 
+// TODO: unicode
+bool isNormal(char c) {
+  return c in Range['a'..'z'].endIncl ||
+        c in Range['A'..'Z'].endIncl ||
+        c in Range['0'..'9'].endIncl ||
+        c == '_';
+}
+
 // TODO: NOT THREADSAFE
 string lastAccepted, lastAccepted_stripped;
 bool accept(ref string s, string t) {
-  // TODO: unicode
-  bool isNormal(char c) {
-    return c in Range['a'..'z'].endIncl ||
-          c in Range['A'..'Z'].endIncl ||
-          c in Range['0'..'9'].endIncl ||
-          "_".find(c) != -1;
-  }
   string s2;
   bool sep = t.length && t[$-1] == ' ';
   debug if (t !is t.strip()) {
@@ -114,7 +115,7 @@ bool accept(ref string s, string t) {
   }
   if (t == "<-" && s2.startsWith("←")) t = "←";
   
-  return s2.startsWith(t) && (!s2[t.length .. $].length || t.length && !isNormal(t[$-1]) || !isNormal(s2[t.length])) && (s = s2[t.length .. $], true) && (
+  return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t[$-1]) || !isNormal(s2[t.length])) && (s = s2[t.length .. $], true) && (
     !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
   );
 }
@@ -389,7 +390,7 @@ struct ParseCb {
       }
       if (!casted) {
         // logln("Reject ", obj, "; doesn't match ", typeof(casted).stringof, ".");
-        return ParseCtl.RejectCont(Format(obj, " doesn't match ", typeof(casted).stringof));;
+        return ParseCtl.RejectCont(null/*Format(obj, " doesn't match ", typeof(casted).stringof)*/);
       }
       static if (is(typeof(accept(casted)) == bool)) {
         return (!accept || accept(casted))?ParseCtl.AcceptAbort:ParseCtl.RejectCont(Format("accept dg to bool returned false"));

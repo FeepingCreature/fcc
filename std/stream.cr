@@ -24,3 +24,17 @@ iter readDg(int delegate(void[]) dg) {
   res.dg = dg;
   return res;
 }
+
+template dgIter(T) <<EOF
+  class DelegateIterator {
+    T t;
+    alias dg = t;
+    type-of dg() step() { return dg(); }
+    bool ivalid() { return true; }
+  }
+  DelegateIterator dgIter(T t) {
+    auto res = new DelegateIterator;
+    res.t = t;
+    return res;
+  }
+EOF

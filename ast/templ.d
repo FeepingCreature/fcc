@@ -2,7 +2,11 @@ module ast.templ;
 
 import ast.base, ast.parse, ast.modules, ast.namespace, ast.fun;
 
-class Template : Named {
+interface ITemplate : Named {
+  Object getInstanceIdentifier(IType it, ParseCb rest, string name);
+}
+
+class Template : ITemplate {
   string name;
   string param;
   bool isAlias;
@@ -39,9 +43,14 @@ class Template : Named {
     ti.emitCopy();
     return ti;
   }
+  Object getInstanceIdentifier(IType type, ParseCb rest, string name) {
+    return getInstance(type, rest).lookup(name, true);
+  }
   override {
     string getIdentifier() { return name; }
-    string toString() { return Format("template ", name); }
+    string toString() {
+      return Format("template ", name);
+    }
   }
 }
 
@@ -134,7 +143,10 @@ class TemplateInstance : Namespace {
     });
   }
   override {
-    string toString() { return Format("Instance of ", parent); }
+    string toString() {
+      if (parent.isAlias) return Format("Instance of ", parent, " (", tr, ") <- ", sup);
+      else return Format("Instance of ", parent, " (", type, ") <- ", sup);
+    }
     string mangle(string name, IType type) {
       string mangl;
       if (parent.isAlias) {
@@ -146,7 +158,6 @@ class TemplateInstance : Namespace {
       return sup.mangle(name, type)~"__"~"templinst_"~parent.name.cleanup()~"_with_"~mangl;
     }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
-    
   }
 }
 
@@ -183,14 +194,20 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
     Expr iter;
-    auto templ = fastcast!(Template) (obj);
+    auto templ = fastcast!(ITemplate) (obj);
     if (!templ) return null;
     Expr nex;
     if (!rest(t2, "tree.expr", &nex)) return null;
-    auto inst = fastcast!(Function)~ templ.getInstance(nex.valueType(), rest).lookup(templ.name, true);
-    if (!inst) { return null; }
+    auto res = templ.getInstanceIdentifier(nex.valueType(), rest, templ.getIdentifier());
+    auto fun = fastcast!(Function) (res);
+    if (!fun) { return null; }
     text = t2;
-    return fastcast!(Object)~ buildFunCall(inst, nex, "template_call");
+    auto fc = buildFunCall(fun, nex, "template_call");
+    if (!fc) {
+      logln("Couldn't build fun call! ");
+      asm { int 3; }
+    }
+    return fastcast!(Object) (fc);
   };
 }
 mixin DefaultParser!(gotIFTI, "tree.rhs_partial.ifti");

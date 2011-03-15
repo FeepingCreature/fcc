@@ -371,28 +371,35 @@ Function gotMain;
 
 import parseBase;
 // generalized to reuse for nested funs
-Object gotGenericFun(T, bool Decl)(T fun, Namespace sup_override, bool addToNamespace,
+Object gotGenericFun(T, bool Decl)(T _fun, Namespace sup_override, bool addToNamespace,
                            ref string text, ParseCb cont, ParseCb rest, string forcename = null) {
   IType ptype;
   auto t2 = text;
-  New(fun.type);
   string parname;
   *error.ptr() = stuple("", "");
   auto ns = namespace();
   assert(!!ns);
   
-  fun.sup = sup_override ? sup_override : ns;
-  
-  if (test(fun.type.ret = fastcast!(IType)~ rest(t2, "type")) &&
-      (forcename || t2.gotIdentifier(fun.name)) &&
-      t2.gotParlist(fun.type.params, rest)
+  IType ret;
+  string fun_name;
+  Argument[] _params;
+  if (test(ret = fastcast!(IType) (rest(t2, "type"))) &&
+      (forcename || t2.gotIdentifier(fun_name)) &&
+      t2.gotParlist(_params, rest)
     )
   {
+    static if (is(typeof(_fun()))) auto fun = _fun();
+    else auto fun = _fun;
+    New(fun.type);
+    fun.type.ret = ret;
+    fun.type.params = _params;
+    fun.name = forcename?forcename:fun_name;
+    fun.sup = sup_override ? sup_override : ns;
+    
     auto backup = namespace();
     namespace.set(fun);
     scope(exit) namespace.set(backup);
     
-    if (forcename) fun.name = forcename;
     if (fun.name == "main") {
       assert(!gotMain);
       gotMain = fun;

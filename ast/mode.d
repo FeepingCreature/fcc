@@ -65,7 +65,18 @@ class PrefixFunction : Function {
     // Expr getPointer() { logln("Can't get pointer to prefix-extended function! "); assert(false); }
     Expr getPointer() { return supfun.getPointer(); }
     string toString() { return Format("prefix ", prefix, " to ", super.toString()); }
-    Argument[] getParams() { return super.getParams()[1 .. $]; }
+    Argument[] getParams() {
+      auto res = super.getParams();
+      if (res.length > 1) return res[1..$];
+    
+      auto tup = fastcast!(Tuple) (res[0].type);
+      if (!tup) { logln("need a tuple, not a ", res[0], "!! "); asm { int 3; } }
+      
+      auto restypes = tup.types[1 .. $];
+      Argument[] resargs;
+      foreach (type; restypes) resargs ~= Argument(type);
+      return resargs;
+    }
     PrefixFunction alloc() { return new PrefixFunction; }
     void iterateExpressions(void delegate(ref Iterable) dg) {
       defaultIterate!(prefix).iterate(dg);
@@ -174,6 +185,21 @@ class ModeSpace : Namespace, ScopeLike {
       }
       return null;
     }
+  }
+}
+
+import ast.templ, ast.tuples;
+class PrefixTemplate : ITemplate {
+  Expr start; Template sup;
+  string getIdentifier() { return sup.getIdentifier(); }
+  this(Expr st, Template s) { start = st; sup = s; }
+  override Object getInstanceIdentifier(IType it, ParseCb rest, string name) {
+    IType suptype = mkTuple(start.valueType(), it);
+    auto res = sup.getInstance(suptype, rest).lookup(name, true);
+    if (auto fun = fastcast!(Function) (res)) {
+      return new PrefixFunction(start, fun);
+    }
+    return res;
   }
 }
 

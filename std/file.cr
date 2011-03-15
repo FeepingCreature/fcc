@@ -1,14 +1,14 @@
 module std.file;
 
-import sys, std.c.stdio, std.c.fcntl, std.c.unistd;
+import std.c.stdio, std.c.fcntl, std.c.unistd;
 
 template readfile(T) <<EOF
   class reader {
-    FILE* hdl;
+    int fd;
     bool done;
     byte[256] buf;
     byte[] step() {
-      auto size = fread(buf.ptr, 1, buf.length, hdl);
+      auto size = read(fd, buf.ptr, buf.length);
       if size <= 0 { done = true; return new byte[0]; }
       return buf[0 .. size];
     }
@@ -18,16 +18,18 @@ template readfile(T) <<EOF
   }
   reader readfile(T t) {
     auto res = new reader;
-    res.hdl = t;
+    res.fd = t;
     return res;
   }
 EOF
 
+alias C_open = open;
+
 import std.string;
-FILE* open(string file) {
+int open(string file) {
   auto ptr = toStringz(file);
   onExit mem.free(ptr);
-  return fopen(ptr, "r");
+  return C_open(ptr, O_RDONLY);
 }
 
 ubyte[] readAll(string file) { return join readfile open file; }
