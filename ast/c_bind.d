@@ -13,7 +13,7 @@ extern(C) {
 
 string buf;
 string readStream(InputStream IS) {
-  if (!buf) buf = new char[1024*1024];
+  if (!buf) buf = new char[1024];
   int reslen;
   ubyte[1024] buffer;
   int i;

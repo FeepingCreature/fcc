@@ -87,12 +87,11 @@ class NestedFunction : Function {
 
 import parseBase, ast.modules, tools.log;
 Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
-  auto sc = fastcast!(Scope)~ namespace();
+  auto sc = fastcast!(Scope) (namespace());
   if (!sc) return null;
-  auto nf = new NestedFunction(sc);
   // sup of nested funs isn't the surrounding function .. that's what context is for.
   auto mod = current_module();
-  if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef(nf, mod, true, text, cont, rest)) {
+  if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef({ return new NestedFunction(sc); }, mod, true, text, cont, rest)) {
     mod.entries ~= fastcast!(Tree)~ res;
     return Single!(NoOp);
   } else return null;
