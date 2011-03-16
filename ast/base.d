@@ -31,8 +31,6 @@ interface NeedsConfig {
 
 interface IsMangled { string mangleSelf(); void markWeak(); }
 
-void delegate(IsMangled) addExtra;
-
 interface FrameRoot { int framestart(); } // Function
 
 // pointer for structs, ref for classes

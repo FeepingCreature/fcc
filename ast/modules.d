@@ -1,6 +1,6 @@
 module ast.modules;
 
-import ast.base, ast.namespace, ast.fun, ast.parse;
+import ast.base, ast.namespace, ast.fun, ast.parse, ast.structure;
 
 import tools.ctfe, tools.threadpool;
 
@@ -27,7 +27,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   AsmFile inProgress; // late to the party;
   bool _hasDebug = true;
   bool isValid; // still in the build list; set to false if superceded by a newer Module
-  bool doneEmitting;
+  bool doneEmitting, alreadyEmat; // one for the parser, the other for the linker
   private this() { assert(false); }
   this(string name) {
     this.name = name;
@@ -110,29 +110,7 @@ static this() {
   registerSetupable = (Setupable s) { current_module().addSetupable(s); };
 }
 
-// extras == stuff added by the compiler
-Module sysmod, extras;
-static this() {
-  addExtra = delegate void(IsMangled im) {
-    auto mangled = im.mangleSelf();
-    if (extras.doneEmitting) {
-      logln("Too late to add ", im, ": extras already emitted! ");
-      asm { int 3; }
-    }
-    foreach (ref entry; extras.entries) {
-      if (auto im2 = cast(IsMangled) entry)
-        if (im2.mangleSelf() == mangled) {
-          entry = fastcast!(Tree)~ im;
-          if (auto s = fastcast!(Setupable)~ im)
-            extras.addSetupable(s);
-          return;
-        }
-    }
-    extras.entries ~= fastcast!(Tree)~ im;
-    if (auto s = fastcast!(Setupable)~ im)
-      extras.addSetupable(s);
-  };
-}
+Module sysmod;
 
 extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace
 
@@ -143,7 +121,7 @@ bool[string] currentlyParsing;
 
 static this() { New(cachelock); }
 
-bool delegate(string) rereadMod;
+bool delegate(Module) rereadMod;
 
 import tools.compat: read, castLike, exists, sub;
 Module lookupMod(string name) {
@@ -161,7 +139,7 @@ Module lookupMod(string name) {
     }
     if (auto p = name in cache) {
       // return *p; // BAD!
-      if (!rereadMod || !rereadMod(name)) {
+      if (!rereadMod || !rereadMod(*p)) {
         res = *p;
         return;
       }

@@ -429,8 +429,9 @@ class AsmFile {
     dg(".weak _sys_tls_data_start\n");
     dg(".globl _sys_tls_data_start\n");
     dg("_sys_tls_data_start:\n");
-    dg(".globl _sys_tls_data_"); dg(id); dg("_start\n");
-    dg("_sys_tls_data_"); dg(id); dg("_start:\n");
+    string id2 = id[0..$-3].replace("/", "_");
+    dg(".globl _sys_tls_data_"); dg(id2); dg("_start\n");
+    dg("_sys_tls_data_"); dg(id2); dg("_start:\n");
     foreach (name, data; tlsvars) {
       auto alignment = data._0;
       if (alignment >= 16) alignment = 16;
@@ -457,8 +458,8 @@ class AsmFile {
         dg(qformat("\t.fill ", data._0, ", 1\n"));
       }
     }
-    dg(".globl _sys_tls_data_"); dg(id); dg("_end\n");
-    dg("_sys_tls_data_"); dg(id); dg("_end:\n");
+    dg(".globl _sys_tls_data_"); dg(id2); dg("_end\n");
+    dg("_sys_tls_data_"); dg(id2); dg("_end:\n");
     
     dg(".section\t.rodata\n");
     foreach (name, c; constants) {

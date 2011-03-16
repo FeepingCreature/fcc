@@ -109,9 +109,10 @@ void initCastTable() {
     ci ~= cl;
   }
   int bestXOR, bestXORSize = int.max;
+  auto rng = new Mersenne(23);
   for (int i = 0; i < 512; ++i) {
     // lol
-    xor = rand();
+    xor = rng();
     auto cursize = quicklist.length;
     outer:
     idtable.length = cursize;

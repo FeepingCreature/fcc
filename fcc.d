@@ -148,6 +148,13 @@ void postprocessModule(Module mod) {
 
 bool ematSysmod;
 
+bool initedSysmod;
+void lazySysmod() {
+  if (initedSysmod) return;
+  initedSysmod = true;
+  setupSysmods();
+}
+
 string compile(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
   while (file.startsWith("./")) file = file[2 .. $];
   auto af = new AsmFile(optimize, file);
@@ -180,7 +187,9 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   }
   auto modname = file.replace("/", ".")[0..$-3];
   auto start_parse = sec();
+  bool fresh = true;
   auto mod = lookupMod(modname);
+  if (mod.alreadyEmat) return objname; // fresh
   fixupMain();
   auto len_parse = sec() - start_parse;
   double len_opt;
@@ -194,7 +203,6 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
       .postprocessModule(sysmod);
       sysmod.emitAsm(af);
       ematSysmod = true;
-      extras.emitAsm(af);
     }
   }) / 1_000_000f;
   logSmart!(false)(len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
@@ -213,6 +221,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz()) == 0
     || assert(false, "Compilation failed! ");
+  mod.alreadyEmat = true;
   return objname;
 }
 
@@ -254,7 +263,9 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
 }
 
 import std.file;
-void loop(string start, string output, string[] largs, bool optimize, bool runMe, bool saveTemps) {
+void loop(string start, string output, string[] largs,
+          bool optimize, bool runMe, bool saveTemps, string configOpts)
+{
   string toModule(string file) { return file.replace("/", ".").endsWith(".cr"); }
   string undo(string mod) {
     return mod.replace(".", "/") ~ ".cr";
@@ -265,13 +276,8 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
       obj = pre ~ ".o";
     } else assert(false);
   }
-  static bool[string] alreadyBuilt;
-  bool isUpToDate(string file) {
-    if (!(file in alreadyBuilt)) {
-      // rebuild at least once.
-      // command line flags may have changed.
-      return false;
-    }
+  bool isUpToDate(Module mod) {
+    auto file = mod.name.undo();
     string obj, src;
     file.translate(obj, src);
     if (!obj.exists()) return false;
@@ -287,115 +293,33 @@ void loop(string start, string output, string[] largs, bool optimize, bool runMe
     }
     ast.modules.cache.remove(modname);
   }
-  typeof(ast.modules.cache) precache;
-  rereadMod = delegate bool(string mod) { return !mod.undo().isUpToDate(); };
-  Module parse(string file, ref double len_parse, ref double len_opt, ref bool wasPresent) {
-    void resetSysmod() {
-      if (sysmod)
-        sysmod.isValid = false;
-      sysmod = null;
-      setupSysmods();
-    }
-  
-    auto modname = file.toModule();
-    auto start_parse = sec();
-    
-    if (!isUpToDate(file)) {
-      file.invalidate();
-    }
-    wasPresent = !!(modname in precache);
-    
-    if (file == start && !wasPresent)
-      resetSysmod();
-    auto mod = lookupMod(modname);
-    len_parse = sec() - start_parse;
-    len_opt = 0;
-    if (!wasPresent) len_opt = time({ .postprocessModule(mod); }) / 1_000_000f;
-    precache[modname] = mod; // lol why not dis?
-    return mod;
+  bool[string] checked;
+  bool needsRebuild(Module mod) {
+    if (!isUpToDate(mod)) return true;
+    foreach (imp; mod.imports)
+      if (needsRebuild(imp)) return true;
+    return false;
   }
-  void delegate() process(string file, string asmname, string objname, ref Module mod) {
-    double len_opt, len_parse;
-    bool wasDone;
-    mod = parse(file, len_parse, len_opt, wasDone);
-    if (wasDone) return null;
-    return stuple(file, start, asmname, objname, mod, optimize, len_opt, len_parse, saveTemps) /apply/
-    (string file, string start, string asmname, string objname, Module mod, bool optimize, double len_opt, double len_parse, bool saveTemps) {
-      auto af = new AsmFile(optimize, file.toModule());
-      alreadyBuilt[file] = true;
-      scope(exit) if (!saveTemps) unlink (asmname.toStringz());
-      auto len_gen = time({
-        if (file == start) {
-          finalizeSysmod(mod);
-          .postprocessModule(sysmod);
-          sysmod.emitAsm(af);
-          void recurse(ref Iterable it) {
-            if (auto sae = fastcast!(StatementAndExpr) (it)) sae.once = false;
-            it.iterate(&recurse);
-          }
-          foreach (entry; extras.entries) {
-            // reset for re-emit
-            if (auto sae = fastcast!(StatementAndExpr) (entry)) sae.once = false;
-            if (auto it = fastcast!(Iterable) (entry)) recurse(it);
-          }
-          ematSysmod = true;
-        }
-        mod.emitAsm(af);
-        if (file == start) {
-          extras.emitAsm(af);
-        }
-      }) / 1_000_000f;
-      if (len_parse + len_opt + len_gen > 0.1)
-        logSmart!(false)(file, ": ", len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
-      scope f = new File(asmname, FileMode.OutNew);
-      af.genAsm((string s) { f.write(cast(ubyte[]) s); });
-      f.close;
-      auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", asmname);
-      logSmart!(false)("> ", cmdline);
-      system(cmdline.toStringz()) == 0
-        || assert(false, "Compilation failed! ");
-    };
-  }
-  void recursiveBuild(string file) {
-    bool[string] objmap;
-    bool recurse(string file) {
-      string obj, src;
-      file.translate(obj, src);
-      Module mod;
-      auto compile = file.process(src, obj, mod);
-      bool anyChanged;
-      foreach (entry; mod.imports)
-        if (!(entry.name == "sys")) {
-          logln("recurse ", file, " -> ", entry.name);
-          auto didAlsoCompile = recurse(entry.name.undo());
-          if (didAlsoCompile) anyChanged = true;
-        }
-      if (anyChanged && !compile) {
-        file.invalidate();
-        compile = file.process(src, obj, mod);
-      }
-      if (compile) compile();
-      objmap[obj] = true;
-      return !!compile;
-    }
-    recurse(file);
-    auto objects = objmap.keys;
-    objects.link(output, largs, true);
-  }
-  auto last = sec();
-  precache = ast.modules.cache;
+  bool pass1 = true;
+  rereadMod = delegate bool(Module mod) {
+    if (pass1) return false;
+    if (mod.name in checked) return false;
+    auto res = needsRebuild(mod);
+    checked[mod.name] = true;
+    return res;
+  };
   while (true) {
-    bool success = true;
-    try recursiveBuild(start);
-    catch (Exception ex) { logln(ex); success = false; }
-    auto taken = sec() - last;
-    if (success && runMe) {
-      system(toStringz("./"~output));
-    }
-    if (success) precache = ast.modules.cache;
-    logln(taken, " :please press return to continue. ");
-    readln();
-    last = sec();
+    lazySysmod();
+    auto objs = start.compileWithDepends(saveTemps, optimize, configOpts);
+    objs.link(output, largs, true);
+    if (runMe) system(toStringz("./"~output));
+    pass1 = false;
+    ematSysmod = false;
+    initedSysmod = false;
+    sysmod = null;
+    checked = null;
+    logln("please press return to continue. ");
+    if (system("read")) return;
   }
 }
 
@@ -431,12 +355,6 @@ int main(string[] args) {
   auto ar = args;
   string[] largs;
   bool saveTemps, optimize, runMe;
-  bool initedSysmod;
-  void lazySysmod() {
-    if (initedSysmod) return;
-    initedSysmod = true;
-    setupSysmods();
-  }
   string configOpts;
   bool willLoop; string mainfile;
   while (ar.length) {
@@ -448,8 +366,6 @@ int main(string[] args) {
       continue;
     }
     if (arg == "--loop" || arg == "-F") {
-      logln("Don't use this. It's broken somehow. ");
-      assert(false);
       willLoop = true;
       continue;
     }
@@ -538,7 +454,7 @@ int main(string[] args) {
   }
   if (!output) output = "exec";
   if (willLoop) {
-    loop(mainfile, output?output:"exec", largs, optimize, runMe, saveTemps);
+    loop(mainfile, output?output:"exec", largs, optimize, runMe, saveTemps, configOpts);
     return 0;
   }
   objects.link(output, largs, saveTemps);

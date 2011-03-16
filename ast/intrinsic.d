@@ -3,7 +3,6 @@ module ast.intrinsic;
 import ast.modules, ast.pointer, ast.base, ast.oop;
 // not static this() to work around a precedence bug in phobos. called from fcc.
 void setupSysmods() {
-  if (!extras) New(extras, cast(string) null);
   if (sysmod) return;
   string src = `
     module sys;
