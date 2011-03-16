@@ -53,7 +53,7 @@ class FunSymbol : Symbol {
 
 extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
-class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
+class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible {
   string name;
   Expr getPointer() {
     return new FunSymbol(this);
@@ -167,6 +167,36 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot {
   }
   override Object lookup(string name, bool local = false) {
     return super.lookup(name, local);
+  }
+  override Object extend(Object obj2) {
+    auto fun2 = fastcast!(Function) (obj2);
+    if (!fun2)
+      throw new Exception(Format("Can't overload function "
+        "with non-function: ", this, " with ", obj2, "!"
+      ));
+    auto set = new OverloadSet(name, this, fun2);
+    return set;
+  }
+}
+
+class OverloadSet : Named, Extensible {
+  string name;
+  Function[] funs;
+  this(string n, Function[] f...) {
+    name = n; funs = f.dup;
+  }
+  private this() { }
+  override string getIdentifier() { return name; }
+  override Object extend(Object obj2) {
+    auto fun2 = fastcast!(Function) (obj2);
+    if (!fun2)
+      throw new Exception(Format("Can't overload '", name,
+        "' with non-function ", obj2, "!"
+      ));
+    auto res = new OverloadSet;
+    res.name = name;
+    res.funs = funs.dup ~ fun2;
+    return res;
   }
 }
 

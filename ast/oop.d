@@ -12,11 +12,12 @@ class VTable {
     foreach (fun; funs) if (fun.name == name) return true;
     return false;
   }
-  Function lookup(string name, Expr classref) {
+  Object lookup(string name, Expr classref) {
     int base = (parent.parent?parent.parent.getClassinfo().length:0);
+    Function[] res;
     foreach (id, fun; funs)
       if (fun.name == name) {
-        return new PointerFunction!(NestedFunction) (
+        res ~= new PointerFunction!(NestedFunction) (
           new DgConstructExpr(
             new DerefExpr(
               lookupOp("+",
@@ -27,7 +28,9 @@ class VTable {
                 mkInt(id+base))),
             reinterpret_cast(voidp, classref)));
       }
-    return null;
+    if (res.length == 1) return fastcast!(Object) (res[0]);
+    if (res.length == 0) return null;
+    return new OverloadSet(res[0].name, res);
   }
   Function lookupFinal(string name, Expr classref) {
     auto classval = new DerefExpr(reinterpret_cast(voidpp, classref));
@@ -360,9 +363,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     
     return res;
   }
-  bool funAlreadyDefined(string name) {
-    if (parent && parent.funAlreadyDefined(name)) return true;
-    if (myfuns.defines(name)) return true;
+  bool funAlreadyDefinedAbove(string name) {
+    if (parent && (parent.funAlreadyDefinedAbove(name) || parent.myfuns.defines(name))) return true;
+    // if (myfuns.defines(name)) return true;
     foreach (ipar; iparents) if (ipar.declares(name)) return true;
     return false;
   }
@@ -395,7 +398,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       assert(!finalized, "Adding "~name~" to already-finalized class. ");
       if (auto fun = fastcast!(Function) (obj)) fun.sup = this;
       if (auto rf = fastcast!(RelFunction) (obj)) {
-        if (funAlreadyDefined(name))
+        if (funAlreadyDefinedAbove(name))
           overrides[name] = rf;
         else
           myfuns.funs ~= rf;
@@ -428,7 +431,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         return fastcast!(Object)~ res;
       }
       if (auto res = myfuns.lookup(str, base)) {
-        return fastcast!(Object)~ res;
+        return res;
       }
       int cl_offset = ownClassinfoLength;
       foreach (intf; iparents) {

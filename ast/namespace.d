@@ -14,6 +14,12 @@ static this() {
   reserved["return"] = true;
 }
 
+// This is intended to be used for function overload sets.
+interface Extensible {
+  // create compound object of this and obj.
+  Object extend(Object obj);
+}
+
 import tools.ctfe, tools.base: stuple, Format, Repeat;
 import ast.int_literal, ast.float_literal;
 class Namespace {
@@ -60,11 +66,30 @@ class Namespace {
   const int cachepoint = 6;
   
   void __add(string name, Object obj) {
-    if (name && lookup(name, true)) {
-      throw new Exception(Format(
-        name, " already defined in ",
-        this, ": ", lookup(name)
-      ));
+    if (name) {
+      if (auto thing = lookup(name, true)) {
+        if (auto et = fastcast!(Extensible) (thing)) {
+          bool found;
+          foreach (ref entry; field) {
+            if (entry._1 is thing) {
+              assert(entry._0 == name);
+              entry._1 = et.extend(obj);
+              found = true;
+              break;
+            }
+          }
+          if (!found) throw new Exception(Format(
+            "Tried to overload ", thing, " with ",
+            obj, " @", this, " but it's not in the field! "
+          ));
+          if (field.length > cachepoint) rebuildCache;
+          return;
+        }
+        throw new Exception(Format(
+          name, " already defined in ",
+          this, ": ", lookup(name)
+        ));
+      }
     }
     if (field.length == cachepoint) rebuildCache;
     field ~= stuple(name, obj);

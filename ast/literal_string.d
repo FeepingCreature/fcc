@@ -80,6 +80,8 @@ mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string", "551", "`
 import ast.casting, ast.fold;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
+    if (resolveType(ex.valueType()) != Single!(Array, Single!(Char)))
+      return null;
     if (fastcast!(StringExpr) (foldex(ex))) {
       return getArrayPtr(ex);
     }

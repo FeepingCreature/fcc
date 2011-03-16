@@ -501,13 +501,13 @@ static this() {
   }
   Expr handlePointerMath(string op, Expr ex1, Expr ex2) {
     auto ex22 = ex2;
-    if (gotImplicitCast(ex22, &isPointer)) {
+    if (fastcast!(Pointer) (resolveType(ex22.valueType()))) {
       if (op == "-") {
         return null; // wut
       }
       swap(ex1, ex2);
     }
-    if (gotImplicitCast(ex1, &isPointer)) {
+    if (fastcast!(Pointer) (resolveType(ex1.valueType()))) {
       if (isPointer(ex2.valueType())) return null;
       if (fastcast!(Float) (ex2.valueType())) {
         logln(ex1, " ", op, " ", ex2, "; WTF?! ");
@@ -539,6 +539,9 @@ static this() {
     return new AsmFloatBinopExpr(ex1, ex2, op);
   }
   Expr handleDoubleMath(string op, Expr ex1, Expr ex2) {
+    if (Single!(Double) != resolveType(ex1.valueType())
+     && Single!(Double) != resolveType(ex2.valueType()))
+      return null;
     if (!gotImplicitCast(ex1, &isDouble) || !gotImplicitCast(ex2, &isDouble))
       return null;
     

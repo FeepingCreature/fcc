@@ -169,6 +169,14 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       return name;
     }
     bool isTempNamespace() { return isTempStruct; }
+    void __add(string name, Object obj) {
+      if (name && lookup(name, true)) {
+        throw new Exception(Format("While adding ", obj, ": "
+          "already defined in ", this, "!"
+        ));
+      }
+      super.__add(name, obj);
+    }
   }
 }
 
