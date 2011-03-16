@@ -704,7 +704,7 @@ mixin DefaultParser!(gotIterCond!(true), "cond.iter_loose", "8");
 Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex) || !fastcast!(LValue) (ex)) {
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !fastcast!(LValue) (ex)) {
     logln("refusing istep - nothing matched or not lvalue: ", ex);
     return null;
   }
@@ -718,7 +718,7 @@ Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return fastcast!(Object)~ it.yieldAdvance(lv);
 }
-mixin DefaultParser!(gotIterEval, "tree.expr.eval.iter", null, "__istep");
+mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "2407", "__istep");
 
 Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {

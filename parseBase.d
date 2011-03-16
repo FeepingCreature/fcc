@@ -677,11 +677,12 @@ class ParseContext {
       auto speed = (text.ptr - start_text.ptr) / delta;
       if (speed < min_speed) {
         min_speed = speed;
-        logln("New worst slowdown: '",
+        if (delta > 5) logln("New worst slowdown: '",
           condStr, "' at '", start_text.nextText(), "'"
           ": ", speed, " characters/ms "
           "(", (text.ptr - start_text.ptr), " in ", delta, "ms). ");
       }
+      min_speed *= 1.01;
     }*/
     bool tried;
     foreach (j, parser; parsers[offs .. $]) {
