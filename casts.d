@@ -61,7 +61,7 @@ const string[] quicklist = [
 ];
 
 Stuple!(void*, int)[] idtable;
-const predIdtableLength = 177; // predicted idtable length - slight hash speed up
+const predIdtableLength = 161; // predicted idtable length - slight hash speed up
 
 int xor;
 const uint knuthMagic = 2654435761;
@@ -85,7 +85,8 @@ int hash_dyn(void* p) {
 }
 
 // copypasted to make profiling slightly easier. only difference should be idtable.length
-int hash_stat(void* p) {
+// TODO: comment in for release builds
+/*int hash_stat(void* p) {
   foreach_reverse (i, bogus; Repeat!(void, cachesize))
     if (pcache[i] == p) return rescache[i];
   int res = cast(uint) (((cast(int) cast(size_t) p >> 3) ^ xor) * knuthMagic) % predIdtableLength;
@@ -95,9 +96,11 @@ int hash_stat(void* p) {
   }
   pcache[$-1] = p; rescache[$-1] = res;
   return res;
-}
+}*/
+alias hash_dyn hash_stat;
 
 import tools.mersenne;
+
 void initCastTable() {
   ClassInfo[] ci;
   foreach (entry; quicklist) {
@@ -134,10 +137,10 @@ void initCastTable() {
   }
   xor = bestXOR;
   idtable.length = bestXORSize;
-  if (idtable.length != predIdtableLength) {
+  /*if (idtable.length != predIdtableLength) {
     logln("please update pred const to ", idtable.length);
     asm { int 3; }
-  }
+  }*/
   idtable[] = Init!(Stuple!(void*, int));
   resetHash();
   foreach (int i, entry; ci) {
