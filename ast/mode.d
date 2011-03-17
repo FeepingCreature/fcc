@@ -70,7 +70,7 @@ class PrefixFunction : Function {
       if (res.length > 1) return res[1..$];
     
       auto tup = fastcast!(Tuple) (res[0].type);
-      if (!tup) { logln("need a tuple, not a ", res[0], "!! "); asm { int 3; } }
+      if (!tup) { return null; }
       
       auto restypes = tup.types[1 .. $];
       Argument[] resargs;
@@ -145,22 +145,24 @@ class ModeSpace : Namespace, ScopeLike {
         if (auto fun = fastcast!(Function)~ obj) {
           if (!firstParam) return fun;
           if (!fun.extern_c) return fun;
-          if (!fun.type || !fun.type.params.length) return fun;
-          auto firstType = fun.type.params[0].type;
+          if (!fun.type) return fun;
+          auto params = fun.type.params;
+          if (!params.length) return fun;
+          auto firstType = params[0].type;
           Expr fp = firstParam;
           bool exactlyEqual(IType a, IType b) {
             auto pa = fastcast!(Pointer)~ a, pb = fastcast!(Pointer)~ b;
             if (pa && pb) return exactlyEqual(pa.target, pb.target);
             if (!pa && pb || pa && !pb) return false;
             IType resolveMyType(IType it) {
-              if (cast(TypeAlias) it) return it;
+              if (fastcast!(TypeAlias) (it)) return it;
               if (auto tp = fastcast!(TypeProxy)~ it)
                 return resolveMyType(tp.actualType());
               return it;
             }
             auto
-              ca = cast(TypeAlias) resolveMyType(a),
-              cb = cast(TypeAlias) resolveMyType(b);
+              ca = fastcast!(TypeAlias) (resolveMyType(a)),
+              cb = fastcast!(TypeAlias) (resolveMyType(b));
             if (!ca && !cb) return test(a == b);
             if ( ca && !cb) return false;
             if (!ca &&  cb) return false;

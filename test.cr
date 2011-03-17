@@ -54,11 +54,7 @@ struct W {
   }
 }
 
-c_include "stdlib.h";
-c_include "math.h";
-c_include "fenv.h";
-c_include "unistd.h";
-c_include "time.h";
+import std.c.math, std.c.fenv, std.c.unistd, std.c.stdlib, std.c.time;
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
   SDL_Init(32); // video

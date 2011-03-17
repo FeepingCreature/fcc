@@ -3,7 +3,7 @@ module gtktest;
 
 import gtk;
 
-import sys, std.string, std.file;
+import std.string, std.file;
 
 bool delete_event(void* widget, void* event, gpointer data) {
     /* If you return FALSE in the "delete-event" signal handler,
