@@ -85,10 +85,8 @@ template EgoCam(T) << EOF
   class EgoCam : T {
     vec3f pos;
     float turnX, turnY;
-    void init() {
-      (pos, turnX, turnY) = (vec3f(0), 0, 0);
-      super.init();
-    }
+    void init(vec3f p, float x, y) { (pos, turnX, turnY) = (p, x, y); super.init(); }
+    void init() { init(vec3f(0), 0, 0); }
     void turn-left(float f) { turnX += f; }
     alias lowlimit = -PI / 2 + 0.1;
     alias highlimit = PI / 2 - 0.1;
@@ -143,10 +141,7 @@ void main(string[] args) {
     temp = [idx 2, half (2, 0), half (2, 1), half (2, 3)]; callback &temp;
     temp = [idx 3, half (0, 3), half (1, 3), half (2, 3)]; callback &temp;*/
   }
-  auto ec = new EgoCam!PerspectiveCam;
-  ec.init();
-  ec.pos = vec3f(0, 0, -3);
-  ec.turnX = 0;
+  auto ec = new EgoCam!PerspectiveCam (vec3f(0, 0, -3), 0, 0);
   bool pass;
   vec3f[auto~] vertexQuadData, colorQuadData;
   int[auto~] vertexIndexData;

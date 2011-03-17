@@ -12,8 +12,13 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto cr = fastcast!(ClassRef) (classtype);
   if (!cr) return null;
   
+  Expr initParam;
+  rest(t2, "tree.expr _tree.expr.arith", &initParam);
+  
   text = t2;
-  return new CallbackExpr(cr, null, cr /apply/ (ClassRef cr, Expr bogus, AsmFile af) {
+  return new CallbackExpr(cr, initParam, cr
+  /apply/ (ClassRef cr, Expr initParam, AsmFile af)
+  {
     mixin(mustOffset("nativePtrSize"));
     mkVar(af, cr, true, (Variable var) {
       mixin(mustOffset("0"));
@@ -54,6 +59,19 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
           "offs", mkInt(offs)
         ).emitAsm(af);
       });
+      if (initParam)
+        (new ExprStatement(
+          iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
+                 (`var.init ex`,
+                  "var", var, "ex", initParam)
+        )).emitAsm(af);
+      else if (cr.myClass.lookupRel("init", var)) {
+        (new ExprStatement(
+          iparse!(Expr, "call_constructor_void", "tree.expr _tree.expr.arith")
+                 (`var.init()`,
+                  "var", var)
+        )).emitAsm(af);
+      }
     });
   });
 }

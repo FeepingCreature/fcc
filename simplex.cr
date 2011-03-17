@@ -33,7 +33,6 @@ class KISS {
 void permsetup() {
   int seed = 34;
   auto gen = new KISS;
-  gen.init;
   gen.seed(seed);
   perm ~= [for 0..256: gen.rand() % 256].eval;
   for (int i <- 0..256) if (perm[i] < 0) perm[i] = -perm[i];

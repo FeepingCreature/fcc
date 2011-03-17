@@ -4,12 +4,44 @@ import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.namespace, ast.structure, ast.structfuns, ast.pointer,
   ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun;
 
+struct RelFunSet {
+  Stuple!(RelFunction, string, IType[])[] set;
+  RelFunction[] lookup(string name) {
+    RelFunction[] res;
+    foreach (entry; set)
+      if (entry._1 == name) res ~= entry._0;
+    return res;
+  }
+  RelFunction lookup(string st, IType[] types) {
+    foreach (entry; set) {
+      if (entry._1 == st && entry._2 == types)
+        return entry._0;
+    }
+    return null;
+  }
+  RelFunction hasLike(Function f) {
+    return lookup(f.name, f.type.types());
+  }
+  void add(string name, RelFunction rf) {
+    set ~= stuple(rf, name, rf.type.types());
+  }
+  // append to set those of rfs.set _not_ yet in set
+  void fillIn(RelFunSet rfs) {
+    foreach (entry; rfs.set) {
+      if (!lookup(entry._1, entry._2))
+        set ~= entry;
+    }
+  }
+}
+
 import tools.log, tools.compat: max;
 class VTable {
   RelFunction[] funs;
   Class parent;
-  bool defines(string name) {
-    foreach (fun; funs) if (fun.name == name) return true;
+  bool defines(Function fun) {
+    foreach (f2; funs)
+      if (f2.name == fun.name &&
+          f2.getParams() == fun.getParams()) return true;
     return false;
   }
   Object lookup(string name, Expr classref) {
@@ -28,18 +60,27 @@ class VTable {
                 mkInt(id+base))),
             reinterpret_cast(voidp, classref)));
       }
+    logln(parent.name, ": ", name, " => ", res);
     if (res.length == 1) return fastcast!(Object) (res[0]);
     if (res.length == 0) return null;
     return new OverloadSet(res[0].name, res);
   }
-  Function lookupFinal(string name, Expr classref) {
+  Object lookupFinal(string name, Expr classref) {
     auto classval = new DerefExpr(reinterpret_cast(voidpp, classref));
-    if (auto p = name in parent.overrides)
-      return fastcast!(Function) (fastcast!(RelFunction) (*p).transform(classval));
+    Function[] res;
+    if (auto list = parent.overrides.lookup(name))
+      res ~= list;
+    // return fastcast!(Function) (fastcast!(RelFunction) (*p).transform(classval));
     foreach (fun; funs)
       if (fun.name == name)
-        return fastcast!(Function) (fun.transform(classval));
-    return null;
+        res ~= fun;
+    foreach (ref entry; res)
+      entry = fastcast!(Function) (
+        fastcast!(RelFunction) (entry).transform(classval)
+      );
+    if (res.length == 1) return fastcast!(Object) (res[0]);
+    if (res.length == 0) return null;
+    return new OverloadSet(res[0].name, res);
   }
 }
 
@@ -86,7 +127,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
   int own_offset;
   void initOffset() { own_offset = clsize() - funs.length; }
   // offset is size of preceding data, in steps of nativePtrSize
-  string[] genClassinfo(ref int offset, RelFunction[string] overrides) {
+  string[] genClassinfo(ref int offset, RelFunSet overrides) {
     string[] res;
     if (!parents.length)
       res ~= Format("-", offset++);
@@ -97,8 +138,8 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     }
     
     foreach (fun; funs)
-      if (auto p = fun.name in overrides)
-        res ~= p.mangleSelf();
+      if (auto rel = overrides.hasLike(fun))
+        res ~= rel.mangleSelf();
       else
         throw new Exception(Format("Undefined2: ", name, " from ", this.name, "! "));
     
@@ -254,7 +295,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     foreach (intf; iparents)
       intf.getLeaves(dg);
   }
-  RelFunction[string] overrides;
+  RelFunSet overrides;
   string mangle_id;
   bool weak;
   void markWeak() { weak = true; foreach (fun; myfuns.funs) (fastcast!(IsMangled) (fun)).markWeak(); }
@@ -325,27 +366,25 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   void finalize() {
     genDynCast;
     finalized = true;
+    RelFunSet empty;
     getClassinfo; // no-op to generate stuff
   }
   mixin TypeDefaults!();
   int ownClassinfoLength;
   // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
-  string[] getClassinfo(RelFunction[string] loverrides = null) { // local overrides
+  string[] getClassinfo(RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
     
-    RelFunction[string] copy;
-    foreach (key, value; loverrides)
-      copy[key] = value;
-    foreach (key, value; overrides)
-      if (!(key in copy))
-        copy[key] = value;
+    RelFunSet copy;
+    copy.fillIn (loverrides);
+    copy.fillIn (overrides);
     
     string[] res;
     // Liskov at work
     if (parent) res = parent.getClassinfo(copy);
     
     foreach (fun; myfuns.funs) {
-      if (auto p = fun.name in copy) // if a child class overrode this, use its relfun
-        res ~= p.mangleSelf();
+      if (auto f2 = copy.hasLike(fun)) // if a child class overrode this, use its relfun
+        res ~= f2.mangleSelf();
       else
         res ~= fun.mangleSelf();
     }
@@ -363,10 +402,11 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     
     return res;
   }
-  bool funAlreadyDefinedAbove(string name) {
-    if (parent && (parent.funAlreadyDefinedAbove(name) || parent.myfuns.defines(name))) return true;
-    // if (myfuns.defines(name)) return true;
-    foreach (ipar; iparents) if (ipar.declares(name)) return true;
+  bool funAlreadyDefinedAbove(Function fun) {
+    if (parent && (
+       parent.funAlreadyDefinedAbove(fun)
+    || parent.myfuns.defines(fun))) return true;
+    foreach (ipar; iparents) if (ipar.declares(fun.name)) return true;
     return false;
   }
   // everything after this is interface handles - I think
@@ -398,8 +438,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       assert(!finalized, "Adding "~name~" to already-finalized class. ");
       if (auto fun = fastcast!(Function) (obj)) fun.sup = this;
       if (auto rf = fastcast!(RelFunction) (obj)) {
-        if (funAlreadyDefinedAbove(name))
-          overrides[name] = rf;
+        if (funAlreadyDefinedAbove(rf))
+          overrides.add(name, rf);
         else
           myfuns.funs ~= rf;
       } else {
@@ -442,7 +482,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       if (parent) if (auto res = parent.lookupRel(str, base)) {
         return res;
       }
-      return sup.lookup(str, false); // defer
+      // NUH!! 
+      // return sup.lookup(str, false); // defer
+      return null;
     }
     Object lookup(string id, bool local = false) {
       if (auto res = data.lookup(id, local)) return res;

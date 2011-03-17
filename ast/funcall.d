@@ -128,6 +128,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
         res ~= ex;
         continue;
       }
+      if (probe) return false;
       if (text)
         text.failparse("Not enough parameters for '", info, "'; left over ", type, "!");
       logln("Not enough parameters for '", info, "'; left over ", type, "!");
