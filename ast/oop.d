@@ -60,7 +60,7 @@ class VTable {
                 mkInt(id+base))),
             reinterpret_cast(voidp, classref)));
       }
-    logln(parent.name, ": ", name, " => ", res);
+    // logln(parent.name, ": ", name, " => ", res);
     if (res.length == 1) return fastcast!(Object) (res[0]);
     if (res.length == 0) return null;
     return new OverloadSet(res[0].name, res);

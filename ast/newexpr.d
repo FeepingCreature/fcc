@@ -169,4 +169,4 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNewValueExpr, "tree.expr.new.value", "2", "new");
 
-static this() { parsecon.addPrecedence("tree.expr.new", "20"); }
+static this() { parsecon.addPrecedence("tree.expr.new", /*"20"*/"24015"); }

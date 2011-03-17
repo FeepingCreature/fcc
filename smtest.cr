@@ -8,6 +8,58 @@ float t = 0;
 
 GLuint tex1, tex2;
 
+class Sector {
+  vec3i base;
+  bool contains(vec3i v) {
+    if (v.x < base.x) return false;
+    if (v.y < base.y) return false;
+    if (v.z < base.z) return false;
+    if (v.x >= base.x + 16) return false;
+    if (v.y >= base.y + 16) return false;
+    if (v.z >= base.z + 16) return false;
+    return true;
+  }
+  bool[16][16][16] cache;
+}
+
+class SectorCache {
+  Sector[] sectors;
+  bool delegate(vec3i) dg;
+  void init(type-of dg dg2) {
+    this.dg = dg2;
+  }
+  Sector calcSector(vec3i base) {
+    auto sec = new Sector;
+    sec.base = base;
+    writeln "calc $(base)";
+    int i;
+    for (int x, int y, int z) <- cross(0..16, 0..16, 0..16) {
+      sec.cache[x][y][z] = dg(base + vec3i(x, y, z));
+      i++;
+    }
+    writeln "done $i";
+    return sec;
+  }
+  bool lookup(vec3i v) {
+    for auto sec <- sectors {
+      if (sec.contains v)
+        return (v - sec.base).(sec.cache[x][y][z]);
+    }
+    vec3i low;
+    if (v.x < 0) low.x = 16 - (-v.x & 0xf);
+    else low.x = v.x & 0xf;
+    if (v.y < 0) low.y = 16 - (-v.y & 0xf);
+    else low.y = v.y & 0xf;
+    if (v.z < 0) low.z = 16 - (-v.z & 0xf);
+    else low.z = v.z & 0xf;
+    auto sec = calcSector (v - low);
+    sectors ~= sec;
+    return low.(sec.cache[x][y][z]);
+  }
+}
+
+SectorCache sc;
+
 void drawScene() {
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glLoadIdentity;
@@ -48,7 +100,7 @@ void drawScene() {
   
   glScalef (0.2 x 3);
   glTranslatef (0, 2 * sinf(t / 64), 0);
-  bool fun(vec3i vi) {
+  bool genFun(vec3i vi) {
     float max(float a, float b) { if (a > b) return a; else return b; }
     float abs(float f) { if (f < 0) return -f; return f; }
     auto dist = max(max(abs(vi.x), abs(vi.y)), abs(vi.z));
@@ -58,6 +110,9 @@ void drawScene() {
     
     return true;
   }
+  if (!sc) sc = new SectorCache null;
+  sc.dg = &genFun;
+  auto fun = &sc.lookup;
   bool occluded(vec3i vi) {
     if (!fun(vi)) return false;
     return eval
