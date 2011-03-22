@@ -76,24 +76,15 @@ bool gotInt(ref string text, out int i) {
   return true;
 }
 
-bool isAlpha(dchar d) {
-  // TODO expand
-  return d >= 'A' && d <= 'Z' || d >= 'a' && d <= 'z';
-}
-
-bool isAlphanum(dchar d) {
-  return isAlpha(d) || d >= '0' && d <= '9';
-}
-
 import tools.compat: replace;
 import tools.base: Stuple, stuple;
 
 // TODO: unicode
-bool isNormal(char c) {
+bool isNormal(wchar c) {
   return c in Range['a'..'z'].endIncl ||
-        c in Range['A'..'Z'].endIncl ||
-        c in Range['0'..'9'].endIncl ||
-        c == '_';
+         c in Range['A'..'Z'].endIncl ||
+         c in Range['0'..'9'].endIncl ||
+         "_µ".find(c) != -1;
 }
 
 // TODO: NOT THREADSAFE
@@ -115,7 +106,10 @@ bool accept(ref string s, string t) {
   }
   if (t == "<-" && s2.startsWith("←")) t = "←";
   
-  return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t[$-1]) || !isNormal(s2[t.length])) && (s = s2[t.length .. $], true) && (
+  auto t16 = t.toUTF16();
+  
+  ulong idx = t.length;
+  return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t16[$-1]) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
     !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
   );
 }
@@ -155,15 +149,17 @@ bool many(ref string s, lazy bool b, void delegate() dg = null, string abort = n
   return true;
 }
 
+import std.utf;
 bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   auto t2 = text.mystripl();
   t2.eatComments();
-  bool isValid(char c, bool first = false) {
-    return isAlphanum(c) || c == '_' || (!first && c == '-') || (acceptDots && c == '.');
+  bool isValid(wchar w, bool first = false) {
+    return isNormal(w) || (!first && w == '-') || (acceptDots && w == '.');
   }
   // array length special handling
   if (t2.length && t2[0] == '$') { text = t2; ident = "$"; return true; }
-  if (!t2.length || !isValid(t2[0], true)) return false;
+  ulong idx = 0;
+  if (!t2.length || !isValid(cast(wchar) t2.decode(idx), true)) return false;
   auto identlen = 0, backup = t2;
   do {
     t2.take();
