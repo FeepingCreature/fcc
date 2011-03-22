@@ -26,10 +26,19 @@ EOF
 alias C_open = open;
 
 import std.string;
+
+platform(default) <<EOF
+  alias read-mode = O_RDONLY;
+EOF
+
+platform(i686-mingw32) <<EOF
+  alias read-mode = O_RDONLY | O_BINARY; // FUCK YOU SO HARD MICROSOFT WINDOWS.
+EOF
+
 int open(string file) {
   auto ptr = toStringz(file);
   onExit mem.free(ptr);
-  return C_open(ptr, O_RDONLY);
+  return C_open(ptr, read-mode);
 }
 
 ubyte[] readAll(string file) { return join readfile open file; }
