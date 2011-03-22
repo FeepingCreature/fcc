@@ -214,35 +214,33 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr >tree.expr.cond", &ex1)) return null;
   // oopsie-daisy, iterator assign is not the same as "smaller than negative"!
   if (t2.accept("<-")) return null;
+  if (t2.accept("!")) not = true;
+  if (t2.accept("<")) smaller = true;
+  if (t2.accept(">")) greater = true;
+  if ((not || smaller || greater) && t2.accept("=") || t2.accept("=="))
+    equal = true;
   
-  if ((
-        (t2.accept("!") && (not = true)),
-        (t2.accept("<") && (smaller = true)),
-        (t2.accept(">") && (greater = true)),
-        ((not || smaller || t2.accept("=")) && t2.accept("=") && (equal = true)),
-        (smaller || equal || greater)
-      ) && (
-        rest(t2, "cond.compare", &cd2) || // chaining
-        rest(t2, "tree.expr >tree.expr.cond", &ex2)
-      )
-  ) {
-    auto finalize = delegate Cond(Cond cd) { return cd; };
-    if (cd2) {
-      if (auto cmp2 = fastcast!(Compare) (cd2)) {
-        ex2 = cmp2.e1;
-        finalize = cmp2 /apply/ delegate Cond(Compare cmp2, Cond cd) {
-          return new BooleanOp!("&&")(cd, cmp2);
-        };
-      } else {
-        text.failparse("can't chain condition: ", cd2);
-        return null;
-      }
+  if (!not && !smaller && !greater && !equal)
+    return null;
+  
+  if (!rest(t2, "cond.compare", &cd2) && // chaining
+      !rest(t2, "tree.expr >tree.expr.cond", &ex2) ) return null;
+  auto finalize = delegate Cond(Cond cd) { return cd; };
+  if (cd2) {
+    if (auto cmp2 = fastcast!(Compare) (cd2)) {
+      ex2 = cmp2.e1;
+      finalize = cmp2 /apply/ delegate Cond(Compare cmp2, Cond cd) {
+        return new BooleanOp!("&&")(cd, cmp2);
+      };
+    } else {
+      text.failparse("can't chain condition: ", cd2);
+      return null;
     }
-    text = t2;
-    auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
-    if (op == "=") op = "==";
-    return fastcast!(Object) (finalize(compare(op, ex1, ex2)));
-  } else return null;
+  }
+  text = t2;
+  auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
+  if (op == "=") op = "==";
+  return fastcast!(Object) (finalize(compare(op, ex1, ex2)));
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
 
