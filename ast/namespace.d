@@ -164,7 +164,7 @@ TLS!(Namespace) namespace;
 
 import parseBase, tools.log;
 Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
-  string name, t2 = text;
+  string name; string t2 = text;
   if (t2.gotIdentifier(name, true)) {
     retry:
     if (auto res = namespace().lookup(name)) {

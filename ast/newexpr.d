@@ -16,8 +16,8 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   rest(t2, "tree.expr _tree.expr.arith", &initParam);
   
   text = t2;
-  return new CallbackExpr(cr, initParam, cr
-  /apply/ (ClassRef cr, Expr initParam, AsmFile af)
+  return new CallbackExpr(cr, initParam, stuple(text, cr)
+  /apply/ (string text, ClassRef cr, Expr initParam, AsmFile af)
   {
     mixin(mustOffset("nativePtrSize"));
     mkVar(af, cr, true, (Variable var) {
@@ -66,11 +66,14 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
                   "var", var, "ex", initParam)
         )).emitAsm(af);
       else if (cr.myClass.lookupRel("init", var)) {
-        (new ExprStatement(
-          iparse!(Expr, "call_constructor_void", "tree.expr _tree.expr.arith")
-                 (`var.init()`,
-                  "var", var)
-        )).emitAsm(af);
+        try (new ExprStatement(
+            iparse!(Expr, "call_constructor_void", "tree.expr _tree.expr.arith")
+                   (`var.init()`,
+                    "var", var)
+          )).emitAsm(af);
+        catch (Exception ex) {
+          text.failparse(ex);
+        }
       }
     });
   });

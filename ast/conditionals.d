@@ -358,6 +358,21 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", null, "eval");
 
+Expr longOp(string Code)(Expr e1, Expr e2) {
+  bool isLong(Expr ex) { return test(Single!(Long) == resolveType(ex.valueType())); }
+  if (!isLong(e1) && !isLong(e2))
+    return null;
+  if (!gotImplicitCast(e1, &isLong) || !gotImplicitCast(e2, &isLong))
+    return null;
+  auto pair = mkTuple(Single!(SysInt), Single!(SysInt));
+  return new CondExpr(
+    iparse!(Cond, "long_op", "cond")
+           (Code,
+            "a", reinterpret_cast(pair, e1), "b", reinterpret_cast(pair, e2))
+  );
+}
+
+import ast.tuples;
 static this() {
   defineOp("!=", delegate Expr(Expr ex1, Expr ex2) {
     if (auto op = lookupOp("==", true, ex1, ex2)) {
@@ -365,4 +380,8 @@ static this() {
     }
     return null;
   });
+  // TODO: generalize to save 15 lines or so
+  defineOp("<", delegate Expr(Expr ex1, Expr ex2) { return longOp!(`(a[1] < b[1]) || (a[1] == b[1] && (a[0] < b[0]))`)(ex1, ex2); });
+  defineOp(">", delegate Expr(Expr ex1, Expr ex2) { return longOp!(`(a[1] > b[1]) || (a[1] == b[1] && (a[0] > b[0]))`)(ex1, ex2); });
+  defineOp("==",delegate Expr(Expr ex1, Expr ex2) { return longOp!(`a[0] == b[0] && a[1] == b[1]`)(ex1, ex2); });
 }

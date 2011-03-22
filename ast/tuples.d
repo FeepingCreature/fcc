@@ -250,6 +250,15 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60", "(");
 
+extern(C) IType resolveTup(IType it) {
+  auto res = resolveType(it);
+  if (auto tup = fastcast!(Tuple) (res)) {
+    auto types = tup.types();
+    if (types.length == 1) return types[0];
+  }
+  return res;
+}
+
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (auto rt = fastcast!(RefTuple) (ex)) {

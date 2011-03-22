@@ -257,6 +257,14 @@ class AsmFile {
     t.stackdepth = currentStackDepth;
     cache ~= t;
   }
+  void loadLongAsFloat(string mem) {
+    incFloatStack();
+    Transaction t;
+    t.kind = Transaction.Kind.FloatLongLoad;
+    t.source = mem;
+    t.stackdepth = currentStackDepth;
+    cache ~= t;
+  }
   void storeFloat(string mem) {
     floatStackDepth --;
     Transaction t;

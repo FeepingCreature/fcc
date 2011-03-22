@@ -108,6 +108,7 @@ struct TransactionInfo {
     FloatLoad  | &#.source |        |       |  4  |
     DoubleLoad | &#.source |        |       |  8  |
     RealLoad   | &#.source |        |       | 10  |
+    FloatLongLoad|&#.source|        |       |  8  |
     FloatIntLoad|&#.source |        |       |  4  |
     FloatCompare|&#.source |        |       |  4  |
     FloatPop   |           |        |&#.dest|  4  |
@@ -1549,7 +1550,7 @@ void setupOpts() {
             if (check == "%eax") break outer;
           case Push:
             if (check == "(%esp)") break outer;
-          case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatIntLoad, FloatCompare:
+          case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatIntLoad, FloatLongLoad, FloatCompare:
             if (test(entry.source)) break outer;
             continue;
           

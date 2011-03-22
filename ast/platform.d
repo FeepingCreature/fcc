@@ -22,6 +22,7 @@ Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
         }
       ))
       src.failparse("Failed to parse platform body. ");
+    src.eatComments();
     if (src.mystripl().length) {
       src.failparse("Unknown statement. ");
     }

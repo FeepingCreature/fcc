@@ -102,7 +102,7 @@ struct Transaction {
     FloatPop, DoublePop,
     FloatStore, DoubleStore,
     FloatMath, FPSwap,
-    FloatIntLoad, /* fildl */
+    FloatLongLoad, FloatIntLoad, /* fildq/l */
     SSEOp,
     ExtendDivide, /* cdq, idivl */
     Jump, Label, Extended, Nevermind, LoadAddress
@@ -113,7 +113,7 @@ struct Transaction {
     "FloatPop" , "DoublePop" ,
     "FloatStore", "DoubleStore",
     "FloatMath", "FPSwap",
-    "FloatIntLoad",
+    "FloatLongLoad", "FloatIntLoad",
     "SSEOp",
     "ExtendDivide",
     "Jump", "Label", "Extended", "Nevermind", "LoadAddress"];
@@ -148,6 +148,7 @@ struct Transaction {
       case DoubleStore: return Format("[double store ", dest, "]");
       case FloatMath:   return Format("[float math ", opName, "]");
       case FPSwap:      return Format("[x87 swap]");
+     case FloatLongLoad:return Format("[float long load ", source, "]");
       case FloatIntLoad:return Format("[float int load ", source, "]");
       case SSEOp:       return Format("[SSE ", opName, " ", op1, ", ", op2, stackinfo, "]");
       case ExtendDivide:return Format("[cdq/idivl ", source, "]");
@@ -172,7 +173,7 @@ struct Transaction {
       case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatCompare: return source == t2.source;
       case FloatMath: return opName == t2.opName;
       case FPSwap: return true;
-      case FloatIntLoad: return source == t2.source;
+      case FloatLongLoad, FloatIntLoad: return source == t2.source;
       case SSEOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
       case ExtendDivide: return source == t2.source;
       case Label: return names == t2.names;
@@ -378,6 +379,7 @@ struct Transaction {
       case DoubleStore: return qformat("fstl ", dest);
       case FloatMath: return qformat(opName, "p %st, %st(1)");
       case FPSwap: return qformat("fxch");
+      case FloatLongLoad: return qformat("fildq ", source);
       case FloatIntLoad: return qformat("fildl ", source);
       case SSEOp: return qformat(opName, " ", op1, ", ", op2);
       case ExtendDivide: return qformat("cdq\nidivl ", source);

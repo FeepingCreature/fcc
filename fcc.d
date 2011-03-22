@@ -17,7 +17,7 @@ mixin(expandImport(`ast.[
   intr, conditionals, opers, conditionals, cond, casting,
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
   propcall, properties_parse, main, alignment, modules_parse,
-  platform, base], casts`));
+  platform, longmath, base], casts`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -389,6 +389,9 @@ int main(string[] args) {
     if (auto rest = arg.startsWith("-platform=")) {
       platform_prefix = rest~"-";
       logln("Use platform '", platform_prefix, "'");
+      if (include_path == ["/usr/include"[]]) {
+        include_path=["/usr/"~rest~"/include"]; // fix up
+      }
       continue;
     }
     if (auto rest = arg.startsWith("-I")) {

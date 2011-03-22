@@ -139,17 +139,13 @@ void setupSysmods() {
       }
       return res;
     }
-    /*string ltoa(long l) {
-      if l < 0 return "-" ~ ltoa(-l);
-      if l == 0 return "0";
-      string res;
-      while l {
-        char[1] prefix = ["0123456789"[l%10]];
-        res = prefix ~ res;
-        l /= 10;
-      }
-      return res;
-    }*/
+    string ltoa(long l) {
+      auto foo = new char[32];
+      int length = snprintf(foo.ptr, foo.length, "%lli", l);
+      if (length > 0) return foo[0 .. length];
+      printf ("please increase the snprintf buffer %i\n", length);
+      _interrupt 3;
+    }
     alias vec2f = vec(float, 2);
     alias vec3f = vec(float, 3);
     alias vec4f = vec(float, 4);

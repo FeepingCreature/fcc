@@ -15,9 +15,26 @@ class IntAsFloat : Expr {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("4"));
       i.emitAsm(af);
-      // TODO better way
       af.loadIntAsFloat("(%esp)");
       af.storeFloat("(%esp)");
+    }
+  }
+}
+
+class LongAsDouble : Expr {
+  Expr l;
+  this(Expr l) { this.l = l; assert(l.valueType() == Single!(Long)); }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(l);
+  override {
+    string toString() { return Format("double(", l, ")"); }
+    IType valueType() { return Single!(Double); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("8"));
+      l.emitAsm(af);
+      af.loadLongAsFloat("(%esp)");
+      af.storeDouble("(%esp)");
     }
   }
 }
@@ -47,8 +64,12 @@ static this() {
     return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (Single!(SysInt) != ex.valueType()) return null;
+    if (Single!(SysInt) != resolveType(ex.valueType())) return null;
     return new IntAsFloat(ex);
+  };
+  converts ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(Long) != resolveType(ex.valueType())) return null;
+    return new LongAsDouble(ex);
   };
   converts ~= delegate Expr(Expr ex, IType it) {
     if (Single!(Double) != ex.valueType())
@@ -64,7 +85,7 @@ class IntAsLong : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(i);
   override {
-    string toString() { return Format("float(", i, ")"); }
+    string toString() { return Format("long(", i, ")"); }
     IType valueType() { return Single!(Long); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("8"));
@@ -221,7 +242,7 @@ static this() {
     return new IntLiteralAsShort(ie);
   };
   converts ~= delegate Expr(Expr ex, IType it) {
-    if (Single!(SysInt) != resolveType(ex.valueType()))
+    if (Single!(SysInt) != resolveTup(ex.valueType()))
       return null;
     return new IntAsShort(ex);
   };
@@ -391,6 +412,57 @@ class AsmIntBinopExpr : BinopExpr {
   }
 }
 
+class AsmIntUnaryExpr : Expr {
+  Expr ex;
+  string op;
+  this(Expr e, string o) { ex = e; op = o; }
+  mixin defaultIterate!(ex);
+  override {
+    AsmIntUnaryExpr dup() { return new AsmIntUnaryExpr(ex.dup, op); }
+    IType valueType() { return ex.valueType(); }
+    void emitAsm(AsmFile af) {
+      if (op == "-") (new AsmIntBinopExpr(mkInt(0), ex, "-")).emitAsm(af);
+      else if (op == "¬") {
+        ex.emitAsm(af);
+        af.popStack("%eax", ex.valueType());
+        af.put("notl %eax");
+        af.pushStack("%eax", ex.valueType());
+      }
+      else
+      {
+        logln("!! ", op, " ", ex);
+        asm { int 3; }
+      }
+    }
+  }
+}
+
+class AsmLongUnaryExpr : Expr {
+  Expr ex;
+  string op;
+  this(Expr e, string o) { ex = e; op = o; }
+  mixin defaultIterate!(ex);
+  override {
+    AsmLongUnaryExpr dup() { return new AsmLongUnaryExpr(ex.dup, op); }
+    IType valueType() { return ex.valueType(); }
+    void emitAsm(AsmFile af) {
+      ex.emitAsm(af);
+      if (op == "-") {
+        af.put("negl 4(%esp)");
+        af.put("notl (%esp)");
+      } else if (op == "¬") {
+        af.put("notl 4(%esp)");
+        af.put("notl (%esp)");
+      }
+      else
+      {
+        logln("!! ", op, " ", ex);
+        asm { int 3; }
+      }
+    }
+  }
+}
+
 class AsmFloatBinopExpr : BinopExpr {
   this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
   private this() { super(); }
@@ -489,25 +561,43 @@ class AsmDoubleBinopExpr : BinopExpr {
   }
 }
 
+BinopExpr delegate(Expr, Expr, string) mkLongExpr;
+
+extern(C) IType resolveTup(IType);
+
 static this() {
   bool isInt(IType it) { return test(it == Single!(SysInt)); }
   bool isFloat(IType it) { return test(it == Single!(Float)); }
   bool isDouble(IType it) { return test(it == Single!(Double)); }
+  bool isLong(IType it) { return test(it == Single!(Long)); }
   bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
     if (!gotImplicitCast(ex1, &isInt) || !gotImplicitCast(ex2, &isInt))
       return null;
     return new AsmIntBinopExpr(ex1, ex2, op);
   }
+  Expr handleIntUnary(string op, Expr ex) {
+    if (!gotImplicitCast(ex, &isInt))
+      return null;
+    return new AsmIntUnaryExpr(ex, op);
+  }
+  Expr handleLongUnary(string op, Expr ex) {
+    if (!gotImplicitCast(ex, &isLong))
+      return null;
+    return new AsmLongUnaryExpr(ex, op);
+  }
+  Expr handleNeg(Expr ex) {
+    return lookupOp("-", mkInt(0), ex);
+  }
   Expr handlePointerMath(string op, Expr ex1, Expr ex2) {
     auto ex22 = ex2;
-    if (fastcast!(Pointer) (resolveType(ex22.valueType()))) {
+    if (fastcast!(Pointer) (resolveTup(ex22.valueType()))) {
       if (op == "-") {
         return null; // wut
       }
       swap(ex1, ex2);
     }
-    if (fastcast!(Pointer) (resolveType(ex1.valueType()))) {
+    if (fastcast!(Pointer) (resolveTup(ex1.valueType()))) {
       if (isPointer(ex2.valueType())) return null;
       if (fastcast!(Float) (ex2.valueType())) {
         logln(ex1, " ", op, " ", ex2, "; WTF?! ");
@@ -539,13 +629,22 @@ static this() {
     return new AsmFloatBinopExpr(ex1, ex2, op);
   }
   Expr handleDoubleMath(string op, Expr ex1, Expr ex2) {
-    if (Single!(Double) != resolveType(ex1.valueType())
-     && Single!(Double) != resolveType(ex2.valueType()))
+    if (Single!(Double) != resolveTup(ex1.valueType())
+     && Single!(Double) != resolveTup(ex2.valueType()))
       return null;
     if (!gotImplicitCast(ex1, &isDouble) || !gotImplicitCast(ex2, &isDouble))
       return null;
     
     return new AsmDoubleBinopExpr(ex1, ex2, op);
+  }
+  Expr handleLongMath(string op, Expr ex1, Expr ex2) {
+    if (Single!(Long) != resolveTup(ex1.valueType())
+     && Single!(Long) != resolveTup(ex2.valueType()))
+      return null;
+    if (!gotImplicitCast(ex1, &isLong) || !gotImplicitCast(ex2, &isLong))
+      return null;
+    
+    return mkLongExpr(ex1, ex2, op);
   }
   void defineOps(Expr delegate(string op, Expr, Expr) dg, bool reduced = false) {
     string[] ops;
@@ -554,9 +653,13 @@ static this() {
     foreach (op; ops)
       defineOp(op, op /apply/ dg);
   }
+  defineOp("¬", "¬" /apply/ &handleIntUnary);
+  defineOp("¬", "¬" /apply/ &handleLongUnary);
+  defineOp("-", &handleNeg);
   defineOps(&handleIntMath);
   defineOps(&handleFloatMath);
   defineOps(&handleDoubleMath);
+  defineOps(&handleLongMath);
   defineOps(&handlePointerMath, true);
 }
 
@@ -647,16 +750,23 @@ class CondWrap : Expr {
   }
 }
 
-Object gotNegExpr(ref string text, ParseCb cont, ParseCb rest) {
+Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
+  bool isNeg;
+  if (t2.accept("-")) { isNeg = true; }
+  else {
+    if (!t2.accept("¬")) return null;
+  }
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     t2.failparse("Found no expression for negation");
   text = t2;
-  if (auto lop = lookupOp("-", true, mkInt(0), ex))
+  string op;
+  if (isNeg) op = "-";
+  else op = "¬";
+  
+  if (auto lop = lookupOp(op, true, ex))
     return fastcast!(Object)~ lop;
-  if (auto lop = lookupOp("-", true, ex))
-    return fastcast!(Object)~ lop;
-  t2.failparse("Found no lookup match for negation of ", ex.valueType());
+  t2.failparse("Found no lookup match for negation/inversion of ", ex.valueType());
 }
-mixin DefaultParser!(gotNegExpr, "tree.expr.neg", "213", "-");
+mixin DefaultParser!(gotPrefixExpr, "tree.expr.prefix", "213");

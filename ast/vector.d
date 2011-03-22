@@ -556,6 +556,8 @@ static this() {
   defineOp("*", "*" /apply/ &handleVecOp);
   defineOp("/", "/" /apply/ &handleVecOp);
   defineOp("^", "^" /apply/ &handleVecOp);
+  defineOp("&", "&" /apply/ &handleVecOp);
+  defineOp("|", "|" /apply/ &handleVecOp);
   defineOp("<", &handleVecSmaller);
   foldopt ~= delegate Expr(Expr ex) {
     if (auto mae = fastcast!(MemberAccess_Expr) (ex)) {
