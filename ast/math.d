@@ -764,9 +764,12 @@ Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
   string op;
   if (isNeg) op = "-";
   else op = "¬";
-  
-  if (auto lop = lookupOp(op, true, ex))
-    return fastcast!(Object)~ lop;
+  try {
+    if (auto lop = lookupOp(op, true, ex))
+      return fastcast!(Object)~ lop;
+  } catch (Exception ex) {
+    t2.failparse(ex);
+  }
   t2.failparse("Found no lookup match for negation/inversion of ", ex.valueType());
 }
 mixin DefaultParser!(gotPrefixExpr, "tree.expr.prefix", "213");

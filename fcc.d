@@ -90,8 +90,8 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
   with (lns) {
     auto mod = current_module();
     if (auto id = af.getFileId(name)) {
-      af.put(".loc ", id, " ", line);
-      af.put("# being ", name);
+      // af.put(".loc ", id, " ", line);
+      // af.put("# being ", name);
     }
   }
 }
@@ -217,7 +217,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     f.close;
   }
-  auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", srcname);
+  auto cmdline = Format(platform_prefix, "as -g --32 -o ", objname, " ", srcname);
   logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz()) == 0
     || assert(false, "Compilation failed! ");

@@ -91,13 +91,20 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     t2 = t3;
     return true;
   }
+  bool fallthrough() {
+    auto t3 = t2;
+    Object obj;
+    if (!rest(t3, "tree.toplevel", &obj)) return false;
+    t2 = t3;
+    return true;
+  }
   void fail() {
     tx.failparse("extern parsing failed");
   }
   if (t2.accept("{")) {
     do {
       if (t2.accept("}")) goto success;
-    } while (grabFun() || grabVar() || grabFunDef());
+    } while (grabFun() || grabVar() || grabFunDef() || fallthrough());
     t2.failparse("Expected closing '}' for extern(C)!");
     success:;
   } else if (!grabFun() && !grabVar() && !grabFunDef()) fail;

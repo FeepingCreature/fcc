@@ -68,7 +68,7 @@ class RelMember : Expr, Named, RelTransformable {
     
     if (isAligned)
       doAlign(offset, type);
-    if (!this.name) this.name = qformat("_anon_struct_member_", st.field.length);
+    if (!this.name) this.name = qformat("_anon_struct_member_", st.field.length, "_of_", type.mangle());
     ns.add(this);
   }
   override RelMember dup() { return this; }
@@ -509,18 +509,20 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   outer_retry:
   auto t2 = text;
   auto ex = first_ex;
-  const DEPOINTER_RETRY = `
-    // try again, with pointer dereferenced
-    {
-      auto dex = depointer(first_ex);
-      if (dex !is first_ex) { first_ex = dex; goto outer_retry; }
-    }
-  `;
   auto ex3 = ex;
   Expr[] alts;
-  gotImplicitCast(ex3, (Expr ex) { if (fastcast!(RelNamespace) (ex.valueType())) alts ~= ex; return false; });
+  gotImplicitCast(ex3, (Expr ex) {
+    if (fastcast!(RelNamespace) (ex.valueType())) alts ~= ex;
+    auto ex4 = depointer(ex);
+    if (ex4 !is ex) {
+      gotImplicitCast(ex4, (Expr ex) {
+        if (fastcast!(RelNamespace) (ex.valueType())) alts ~= ex;
+        return false;
+      });
+    }
+    return false;
+  });
   if (!alts.length) {
-    mixin(DEPOINTER_RETRY);
     return null;
   }
   
@@ -576,7 +578,6 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
         
         text.setError(mesg);
         if (!alts.length) {
-          mixin(DEPOINTER_RETRY);
           return null;
         }
         goto try_next_alt;

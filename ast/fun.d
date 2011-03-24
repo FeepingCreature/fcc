@@ -138,7 +138,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       if (weak) af.put(".weak ", fmn);
       af.put(fmn, ":"); // not really a label
       af.jump_barrier();
-      af.put(".cfi_startproc");
+      // af.put(".cfi_startproc");
       
       af.pushStack("%ebp", voidp);
       af.mmove4("%esp", "%ebp");
@@ -155,7 +155,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       
       af.jump_barrier();
       af.put("ret");
-      af.put(".cfi_endproc");
+      // af.put(".cfi_endproc");
     }
     Stuple!(IType, string, int)[] stackframe() {
       Stuple!(IType, string, int)[] res;

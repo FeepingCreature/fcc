@@ -485,9 +485,9 @@ class AsmFile {
       dg("0\n");
       dg(".global "); dg(name); dg("\n");
     }
-    foreach (key, value; file_ids) {
+    /*foreach (key, value; file_ids) {
       dg(qformat(".file ", value, " \"", key, "\"\n"));
-    }
+    }*/
     dg(".text\n");
     dg(code);
   }

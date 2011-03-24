@@ -6,15 +6,15 @@ alias ast.fun.Argument Argument;
 
 class NamedArg : Expr {
   Expr base;
-  string name;
-  this(string name, Expr base) { this.name = name; this.base = base; }
+  string name, reltext;
+  this(string name, string text, Expr base) { this.name = name; this.reltext = text; this.base = base; }
   override {
+    string toString() { return Format(name, " => ", base); }
     IType valueType() { return base.valueType(); }
-    NamedArg dup() { return new NamedArg(name, base.dup); }
+    NamedArg dup() { return new NamedArg(name, reltext, base.dup); }
     mixin defaultIterate!(base);
     void emitAsm(AsmFile af) {
-      logln("Named argument ", name, " could not be assigned to a function call! ");
-      fail();
+      reltext.failparse("Named argument ", name, " could not be assigned to a function call! ");
     }
   }
 }
@@ -27,10 +27,11 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
   Expr base;
   if (!rest(t2, "tree.expr", &base))
     t2.failparse("Could not get base expression for named argument '", name, "'");
+  auto res = new NamedArg(name, text, base);
   text = t2;
-  return new NamedArg(name, base);
+  return res;
 }
-mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg", "25");
+mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg", "115"); // must be high-priority (above arith) to override subtraction.
 
 bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = null, string text = null, bool probe = false) {
   Expr[string] nameds;
@@ -40,20 +41,23 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
         // filter out nameds from the tuple.
         auto exprs = getTupleEntries(ex);
         bool gotNamed;
-        foreach (subexpr; exprs) if (auto na = cast(NamedArg) subexpr) {
+        foreach (subexpr; exprs) if (auto na = fastcast!(NamedArg) (foldex(subexpr))) {
           gotNamed = true; break;
         }
         if (gotNamed) {
           Expr[] left;
-          foreach (subexpr; exprs)
-            if (auto na = cast(NamedArg) subexpr)
+          foreach (subexpr; exprs) {
+            auto fs = foldex(subexpr);
+            if (auto na = fastcast!(NamedArg) (fs)) {
               nameds[na.name] = na.base;
-            else
-              left ~= subexpr;
+            } else {
+              left ~= fs;
+            }
+          }
           it = mkTupleExpr(left);
         }
       }
-      if (auto na = cast(NamedArg) ex) {
+      if (auto na = fastcast!(NamedArg) (ex)) {
         nameds[na.name] = na.base;
         it = mkTupleExpr();
       }
@@ -62,6 +66,19 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
   {
     Iterable forble = arg;
     removeNameds(forble);
+    void checkNameds(ref Iterable it) {
+      /*logln("<", (cast(Object) it).classinfo.name, ">");
+      if (auto rce = fastcast!(RCE) (it)) {
+        logln(" - ", rce.to);
+      }*/
+      if (auto na = fastcast!(NamedArg) (it)) {
+        // asm { int 3; }
+        throw new Exception(Format("Nested named-arg found! :( ", na));
+      }
+      it.iterate(&checkNameds);
+      // logln("</", (cast(Object) it).classinfo.name, ">");
+    }
+    checkNameds(forble);
     arg = fastcast!(Expr)~ forble;
   }
   

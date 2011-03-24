@@ -72,9 +72,10 @@ Object gotRename(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't get parameter for rename");
   }
   auto ns = namespace();
+  ns.rebuildCache();
   auto id1 = n.getIdentifier(), p = id1 in ns.field_cache;
   if (!p) {
-    t2.failparse("Cannot rename non-locally, use expression alias instead");
+    t2.failparse("Cannot rename non-locally, use expression alias instead (", ns.field_cache, ")");
   }
   if (!t2.accept(";"))
     t2.failparse("Expected trailing semicolon in rename! ");
