@@ -124,6 +124,51 @@ class SSEIntToFloat : Expr {
   }
 }
 
+class MultiplesExpr : Expr {
+  Expr base;
+  int factor;
+  IType type;
+  this(Expr b, int f) {
+    this.base = b;
+    this.factor = f;
+    IType[] types;
+    types ~= b.valueType();
+    for (int i = 1; i < factor; ++i)
+      types ~= types[0];
+    this.type = mkTuple(types);
+  }
+  mixin defaultIterate!(base);
+  override {
+    MultiplesExpr dup() { return new MultiplesExpr(base.dup, factor); }
+    IType valueType() { return type; }
+    void emitAsm(AsmFile af) {
+      base.emitAsm(af);
+      auto bvt = base.valueType();
+      for (int i = 1; i < factor; ++i) {
+        af.pushStack("(%esp)", bvt);
+      }
+    }
+  }
+}
+
+static this() {
+  foldopt ~= delegate Expr(Expr ex) {
+    auto mae = fastcast!(MemberAccess_Expr) (ex);
+    if (!mae) return null;
+    auto rce = fastcast!(RCE) (foldex(mae.base));
+    if (!rce) return null;
+    auto mult = fastcast!(MultiplesExpr) (foldex(rce.from));
+    if (!mult) return null;
+    if (mult.base.valueType() != mae.stm.type) {
+      logln("type mismatch: accessing ", mae.stm.type, " from set of ",
+        mult.base.valueType());
+      asm { int 3; }
+      return null;
+    }
+    return mult.base;
+  };
+}
+
 Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;
@@ -152,15 +197,11 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
 got_ex:
   auto ex2 = ex;
   if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
-    Expr[] exs;
-    for (int i = vec.len - 2; i >= 0; --i)
-      exs ~= new DuplicateExpr(ex2.valueType(), i);
-      // exs ~= ex2.dup;
-    exs ~= ex2.dup;
-    if (vec.extend) exs ~= new Filler(vec.base);
     text = t2;
-    return fastcast!(Object)~
-      reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
+    return fastcast!(Object) (reinterpret_cast(
+      vec,
+      new MultiplesExpr(ex2, vec.real_len())
+    ));
   }
   checkVecs();
   retryTup:
