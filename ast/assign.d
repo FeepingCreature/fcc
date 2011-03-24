@@ -77,7 +77,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, "tree.expr", &value)) {
       t2.failparse("Could not parse assignment source");
     }
-    auto tv = target.valueType();
+    auto tv = resolveType(target.valueType());
     auto t3 = t2;
     if (t3.mystripl().length && !t3.accept(";")) {
       t2.failparse("Unknown text after assignment! ");

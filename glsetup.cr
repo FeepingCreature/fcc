@@ -68,6 +68,10 @@ bool update(SDL_Surface* surface) {
     else if type == SDL_KEYUP using key.keysym {
       if (sym < keyPressed.length) { keyPressed[sym] = false; }
     }
+    else if type == SDL_VIDEOEXPOSE { // TODO .. what?
+    }
+    else if type == SDL_ACTIVEEVENT { // TODO: what either?
+    }
     else writeln "type $(ev.type)";
   }
   return false;

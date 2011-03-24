@@ -2,144 +2,21 @@ module pyramid;
 
 import opengl, glsetup;
 
-interface Camera {
-  void gl-setup();
-}
-
-class PerspectiveCam : Camera {
-  float fov, zNear, zFar, aspect;
-  void init() {
-    zNear = 0.01f;
-    zFar = 100f;
-    fov = 45f;
-    aspect = 1f;
-  }
-  void gl-setup() {
-    glMatrixMode GL_PROJECTION;
-    glLoadIdentity;
-    gluPerspective (fov, aspect, zNear, zFar);
-  }
-}
-
-import std.c.math;
-
-vec3f cross3f(vec3f a, vec3f b) { return a.yzx * b.zxy - a.zxy * b.yzx; }
-
-vec3f normalize3f(vec3f v) { return v / v.length; }
-
-float angle3f(vec3f v, vec3f to, vec3f refer) {
-  // yay, http://tomyeah.com/signed-angle-between-two-vectors3d-in-cc/
-  auto v1 = v.cross3f(to) * refer;
-  bool flipped = eval (v1.sum < 0);
-  auto res = acosf((v*to).sum / sqrtf(v.selfdot * to.selfdot));
-  // fudge
-  if (flipped) res = -res;
-  return res;
-}
-
-vec3f rotate3f(vec3f vec, vec3f axis, float angle) using vec {
-  float u = axis.x, v = axis.y, w = axis.z;
-  float uu = u*u, vv = v*v, ww = w*w;
-  float v_w = vv + ww, u_w = uu + ww, u_v = uu + vv;
-  float dd = (vec*axis).sum, cosa = cosf(angle), sina = sinf(angle);
-  vec3f res = void;
-  // pathologically slow to parse
-  /*res = axis * dd
-    + (vec * vec3f(v_w, u_w, u_v) + axis * (axis.yxx*(-vec.yxx) + axis.zzy * (-vec.zzy))) * cosa
-    + (axis.zzy * vec3f (vec.(-y, x, -x)) + axis.yxx * vec3f(vec.(z, -z, y))) * sina;*/
-  res.x = u*dd+(x*v_w+u*(v*(-y)+w*(-z))) * cosa + (w*(-y)+v*z) * sina;
-  res.y = v*dd+(y*u_w+v*(u*(-x)+w*(-z))) * cosa + (w*x+u*(-z)) * sina;
-  res.z = w*dd+(z*u_v+w*(u*(-x)+v*(-y))) * cosa + (v*(-x)+u*y) * sina;
-  res /= axis.lensq;
-  return res;
-}
-
-alias PI = 3.1415926538;
-alias PI180 = PI/180.0;
-
-template WorldCam(T) << EOF
-  class WorldCam : T {
-    vec3f up, pos, lookat;
-    alias dir = lookat - pos;
-    vec3f setDir(vec3f v) { lookat = pos + v; return lookat; }
-    void init() {
-      super.init();
-      (up, pos) = (vec3f.Y, vec3f(0));
-      setDir -vec3f.Z;
-    }
-    void gl-setup() {
-      super.gl-setup();
-      glMatrixMode GL_MODELVIEW;
-      glLoadIdentity;
-      auto dirz = dir;
-      dirz.z = -dirz.z;
-      auto left = up.cross3f(dirz).normalize3f(), up = dirz.cross3f(left).normalize3f();
-      (vec3f.Y.angle3f(up, left) / PI180).glRotatef vec3f.X;
-      (vec3f.X.angle3f(left, up) / PI180).glRotatef vec3f.Y;
-      glTranslatef (-pos);
-    }
-  }
-EOF
-
-template EgoCam(T) << EOF
-  class EgoCam : T {
-    vec3f pos;
-    float turnX, turnY;
-    void init(vec3f p, float x, y) { (pos, turnX, turnY) = (p, x, y); super.init(); }
-    void init() { init(vec3f(0), 0, 0); }
-    void turn-left(float f) { turnX += f; }
-    alias lowlimit = -PI / 2 + 0.1;
-    alias highlimit = PI / 2 - 0.1;
-    void turn-up(float f) { turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
-    alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX);
-    alias left = vec3f.Y.cross3f(dir).normalize3f();
-    void gl-setup() {
-      super.gl-setup();
-      glMatrixMode GL_MODELVIEW;
-      glLoadIdentity;
-      auto dirz = dir; dirz.z = -dirz.z;
-      auto left = vec3f.Y.cross3f(dirz).normalize3f(), up = dirz.cross3f(left).normalize3f();
-      (vec3f.Y.angle3f(up, left) / PI180).glRotatef vec3f.X;
-      (vec3f.X.angle3f(left, up) / PI180).glRotatef vec3f.Y;
-      glTranslatef (-pos);
-    }
-  }
-EOF
-
-import sdl;
+import sdl, camera;
 
 void main(string[] args) {
   // resizeWindow (640, 480);
-  writeln "_ebp is $(_ebp)";
-  int t;
-  // auto vertices = [vec3f (-1, -0.6f, -1), vec3f (1, -0.6f, -1), vec3f (0, -0.6f, 1), vec3f (0, 1.0f, 0)];
   auto vertices = [vec3f (-1, -1, -1), vec3f(1, 1, 1)];
   void dividePyramid(vec3f[vertices.length]* pCorners, void delegate(vec3f[vertices.length]*) callback) {
     auto a = (*pCorners)[0], b = (*pCorners)[1];
-    for (int x, int y, int z) <- cross (0..3, 0..3, 0..3) {
-      int bsum = eval(x == 1) + eval(y == 1) + eval(z == 1);
+    for auto v <- [for tup <- cross (0..3, 0..3, 0..3): vec3i(tup)] {
+      int bsum = eval(v.x == 1) + eval(v.y == 1) + eval(v.z == 1);
       if bsum < 2 {
-        vec3f[2] temp = [
-          vec3f(
-            a.x * (3-x)/3f + b.x * x/3f,
-            a.y * (3-y)/3f + b.y * y/3f,
-            a.z * (3-z)/3f + b.z * z/3f
-          ),
-          vec3f(
-            a.x * (2-x)/3f + b.x * (x + 1)/3f,
-            a.y * (2-y)/3f + b.y * (y + 1)/3f,
-            a.z * (2-z)/3f + b.z * (z + 1)/3f
-          )
-        ];
+        vec3f[2] temp = [a * (3 - v) / 3f + b * (v + 0) / 3f,
+                         a * (2 - v) / 3f + b * (v + 1) / 3f];
         callback &temp;
       }
     }
-    /*
-    vec3f[vertices.length] temp = void;
-    temp = [idx 0, half (0, 1), half (0, 2), half (0, 3)]; callback &temp;
-    temp = [idx 1, half (1, 2), half (1, 0), half (1, 3)]; callback &temp;
-    temp = [idx 2, half (2, 0), half (2, 1), half (2, 3)]; callback &temp;
-    temp = [idx 3, half (0, 3), half (1, 3), half (2, 3)]; callback &temp;*/
   }
   auto ec = new EgoCam!PerspectiveCam (vec3f(0, 0, -3), 0, 0);
   bool pass;
@@ -166,7 +43,6 @@ void main(string[] args) {
       addVertex (vec, vec + vec3f(1, 0.6, 0.3) * (i / 24f));
     }
   }
-  writeln "ebp is $(_ebp)";
   type-of &rootFun mkFun(int depth) {
     auto curFun = &rootFun;
     for 0..depth
@@ -210,22 +86,26 @@ void main(string[] args) {
     regenList();
   };
   auto surf = setup-gl();
-  for (int num, string info) <- [
-    (SDL_GL_RED_SIZE,         "Size of the framebuffer red component, in bits"),
-    (SDL_GL_GREEN_SIZE,       "Size of the framebuffer green component, in bits"),
-    (SDL_GL_BLUE_SIZE,        "Size of the framebuffer blue component, in bits"),
-    (SDL_GL_ALPHA_SIZE,       "Size of the framebuffer alpha component, in bits"),
-    (SDL_GL_DOUBLEBUFFER,     "0 or 1, enable or disable double buffering"),
-    (SDL_GL_BUFFER_SIZE,      "Size of the framebuffer, in bits"),
-    (SDL_GL_DEPTH_SIZE,       "Size of the depth buffer, in bits"),
-    (SDL_GL_STENCIL_SIZE,     "Size of the stencil buffer, in bits"),
-    (SDL_GL_ACCUM_RED_SIZE,   "Size of the accumulation buffer red component, in bits"),
-    (SDL_GL_ACCUM_GREEN_SIZE, "Size of the accumulation buffer green component, in bits"),
-    (SDL_GL_ACCUM_BLUE_SIZE,  "Size of the accumulation buffer blue component, in bits"),
-    (SDL_GL_ACCUM_ALPHA_SIZE, "Size of the accumulation buffer alpha component, in bits")] {
+  {
     int res;
-    SDL_GL_GetAttribute(num, &res);
-    writeln "$info: $res";
+    SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &res);
+    writeln "0 or 1, enable or disable double buffering: $(res)";
+    prefix SDL_GL_ for (int num, string info) <- [
+      (RED_SIZE,         "framebuffer red component"),
+      (GREEN_SIZE,       "framebuffer green component"),
+      (BLUE_SIZE,        "framebuffer blue component"),
+      (ALPHA_SIZE,       "framebuffer alpha component"),
+      (BUFFER_SIZE,      "framebuffer"),
+      (DEPTH_SIZE,       "depth buffer"),
+      (STENCIL_SIZE,     "stencil buffer"),
+      (ACCUM_RED_SIZE,   "accumulation buffer red component"),
+      (ACCUM_GREEN_SIZE, "accumulation buffer green component"),
+      (ACCUM_BLUE_SIZE,  "accumulation buffer blue component"),
+      (ACCUM_ALPHA_SIZE, "accumulation buffer alpha component")]
+    {
+      SDL_GL_GetAttribute(num, &res);
+      writeln "Size of the $info, in bits: $res";
+    }
   }
   while true {
     glClearColor (0 x 3, 0);

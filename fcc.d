@@ -310,9 +310,15 @@ void loop(string start, string output, string[] largs,
   };
   while (true) {
     lazySysmod();
-    auto objs = start.compileWithDepends(saveTemps, optimize, configOpts);
-    objs.link(output, largs, true);
+    try {
+      auto objs = start.compileWithDepends(saveTemps, optimize, configOpts);
+      objs.link(output, largs, true);
+    } catch (Exception ex) {
+      logln(ex);
+      goto retry;
+    }
     if (runMe) system(toStringz("./"~output));
+  retry:
     pass1 = false;
     ematSysmod = false;
     initedSysmod = false;
