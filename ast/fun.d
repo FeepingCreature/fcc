@@ -74,6 +74,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     auto res = alloc();
     res.name = name;
     res.type = type;
+    res.weak = weak;
     res.extern_c = extern_c;
     res.tree = tree;
     res._framestart = _framestart;

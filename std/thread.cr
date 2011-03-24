@@ -85,11 +85,24 @@ class Semaphore {
   void release() { sem_post(&hdl); }
 }
 
+template New(T) <<EOF
+  void New(T t) {
+    alias obj = *t;
+    alias classtype = type-of obj;
+    obj = new classtype;
+  }
+EOF
+
 class ThreadPool {
   Mutex m;
   Semaphore s, t;
   int tasksLeft;
   void delegate()[auto~] queue;
+  void init() {
+    New &m;
+    New &s;
+    New &t;
+  }
   void threadFun() {
     if (int:_ebp & 0xf) {
       writeln "FEEEP! YOU BROKE THE FUCKING THREAD FRAME ALIGNMENT AGAIN. $(_ebp) ";
@@ -109,6 +122,10 @@ class ThreadPool {
   void addThread() {
     startThread &threadFun;
   }
+  void init(int i) {
+    init();
+    for (0..i) addThread();
+  }
   void waitComplete() {
     int i;
     using autoLock(m) { i = tasksLeft; tasksLeft = 0; }
@@ -117,13 +134,4 @@ class ThreadPool {
   void addTask(void delegate() dg) {
     using autoLock(m) { queue ~= dg; tasksLeft ++; s.release; }
   }
-}
-
-ThreadPool mkThreadPool(int threads = 0) using new ThreadPool {
-  m = new Mutex;
-  s = new Semaphore; t = new Semaphore;
-  m.init;
-  s.init; t.init;
-  for 0..threads addThread();
-  return this;
 }

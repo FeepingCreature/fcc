@@ -9,7 +9,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   IType classtype;
   if (!rest(t2, "type", &classtype)) return null;
-  auto cr = fastcast!(ClassRef) (classtype);
+  auto cr = fastcast!(ClassRef) (resolveType(classtype));
   if (!cr) return null;
   
   Expr initParam;
@@ -59,21 +59,23 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
           "offs", mkInt(offs)
         ).emitAsm(af);
       });
-      if (initParam)
-        (new ExprStatement(
-          iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
-                 (`var.init ex`,
-                  "var", var, "ex", initParam)
-        )).emitAsm(af);
-      else if (cr.myClass.lookupRel("init", var)) {
-        try (new ExprStatement(
+      try {
+        if (initParam) {
+          (new ExprStatement(
+            iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
+                  (`var.init ex`,
+                    "var", var, "ex", initParam)
+          )).emitAsm(af);
+        }
+        else if (cr.myClass.lookupRel("init", var)) {
+          (new ExprStatement(
             iparse!(Expr, "call_constructor_void", "tree.expr _tree.expr.arith")
                    (`var.init()`,
                     "var", var)
           )).emitAsm(af);
-        catch (Exception ex) {
-          text.failparse(ex);
         }
+      } catch (Exception ex) {
+        text.failparse(ex);
       }
     });
   });

@@ -82,8 +82,8 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     if (t3.mystripl().length && !t3.accept(";")) {
       t2.failparse("Unknown text after assignment! ");
     }
-    if (!gotImplicitCast(value, tv, (IType it) { its ~= it; return test(it == tv); })) {
-      text.failparse("Mismatching types in assignment: ", tv, " <- ", its);
+    if (!gotImplicitCast(value, tv, (IType it) { it = resolveType(it); its ~= it; return test(it == tv); })) {
+      text.failparse("Mismatching types in assignment: ", tv, " = ", its);
     }
     // logln(target.valueType(), " <- ", value.valueType());
     text = t2;
