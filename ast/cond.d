@@ -144,7 +144,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   auto ifs = new IfStatement;
   ifs.test = iparse!(Cond, "cm_cond", "cond")
-                    (`setjmp var.target`,
+                    (`setjmp &(var.target)`,
                      "var", cmvar);
   assert(!!ifs.test);
   configure(ifs.test);

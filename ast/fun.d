@@ -275,7 +275,10 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       Format("Return bug: ", ret, " from ", name, ": ",
       ret.size, " is ", (fastcast!(Object)~ ret).classinfo.name));
     af.comment("Begin call to ", name);
-    if (external) af.pushStack("%esi", voidp);
+    
+    bool backupESI = external && name != "setjmp";
+    
+    if (backupESI) af.pushStack("%esi", voidp);
     
     int paramsize;
     foreach (param; params) paramsize += param.valueType().size;
@@ -327,7 +330,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     }
     af.sfree(alignCall);
     
-    if (external) af.popStack("%esi", voidp);
+    if (backupESI) af.popStack("%esi", voidp);
   }
   
   auto size = (ret == Single!(Void))?0:ret.size;

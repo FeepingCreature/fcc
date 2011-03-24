@@ -223,7 +223,7 @@ void setupSysmods() {
         _cm = &this;
         __hdl__ = old_hdl;
         
-        longjmp (target, 1);
+        longjmp (&target, 1);
       }
     }
     

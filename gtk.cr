@@ -52,14 +52,17 @@ GtkEntry* gtkCastEntry(GtkWidget* gw) {
 
 extern(C) size_t g_signal_connect_data (gpointer instance, char*, void*, void*, void*, GConnectFlags);
 
-// turn function-pointer(void*) type callbacks into delegate callbacks
-(void*, void*)[~] store;
+// turn function-pointer(void*) type callbacks (with esi) into delegate callbacks
+(void*, void*, void*)[~] store;
 
-template call-dg(T) <<EOF
-  ReturnType T call-dg (ParamTypes T p, void* data) {
+template call-dg-esi(T) <<EOF
+  ReturnType T call-dg-esi (ParamTypes T p, void* data) {
     alias ret = ReturnType T;
-    auto dg = * ret delegate(ParamTypes T)*: data;
-    auto res = dg p;
+    auto tup = *(ret delegate(ParamTypes T), void*)*: data;
+    auto backup_esi = _esi;
+    _esi = tup[1];
+    auto res = tup[0] p;
+    _esi = backup_esi;
     return res;
   }
 EOF
@@ -67,8 +70,8 @@ EOF
 template g_signal_connect(T) <<EOF
   // void g_signal_connect (GtkObject* w, string s, void delegate(GtkObject*) dg) {
   void g_signal_connect (T t) {
-    store ~= (void*, void*): t[2];
-    auto dgvalue = &(call-dg!type-of t[2]);
+    store ~= (void*, void*, void*): (t[2], _esi);
+    auto dgvalue = &(call-dg-esi!type-of t[2]);
     g_signal_connect_data (gpointer: t[0], toStringz t[1], void*: dgvalue, &store[$-1], null, 0);
   }
 EOF
