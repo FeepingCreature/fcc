@@ -100,7 +100,23 @@ void drawScene() {
     if (noise3(vec3f(vec.(x, y, z)) * 0.3) > 0.5) glBindTexture (GL_TEXTURE_2D, tex1);
     else glBindTexture (GL_TEXTURE_2D, tex2);
     glTranslatef vec;
-    auto corners = [for tup <- cross([-1, 1], [-1, 1], [-1, 1]): vec3i(tup)];
+    auto corners = [for tup <- cross([0, 1], [0, 1], [0, 1]): vec3i(tup)];
+    auto sides = [
+      ([0, 1, 3, 2], -vec3i.X),
+      ([4, 6, 7, 5], vec3i.X),
+      ([1, 5, 7, 3], vec3i.Z),
+      ([0, 2, 6, 4], -vec3i.Z),
+      ([2, 3, 7, 6], vec3i.Y),
+      ([1, 0, 4, 5], -vec3i.Y)
+    ];
+    using Quads {
+      for (int[4] points, vec3i dir) <- sides {
+        for int point <- points {
+          glColor3f vec3f(point / 8f);
+          glVertex3f vec3f(corners[point]);
+        }
+      }
+    }
   }
   swap();
   fps ++;
