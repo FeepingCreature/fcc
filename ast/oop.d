@@ -300,7 +300,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   bool weak;
   void markWeak() { weak = true; foreach (fun; myfuns.funs) (fastcast!(IsMangled) (fun)).markWeak(); }
   override string mangle() { return mangle_id; }
-  override Class dup() { assert(false, "wetfux! "); }
+  override Class dup() { return this; }
   bool isTempNamespace() { return false; }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, null);

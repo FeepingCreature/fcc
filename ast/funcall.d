@@ -31,7 +31,8 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return res;
 }
-mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg", "115"); // must be high-priority (above arith) to override subtraction.
+mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_1", "115"); // must be high-priority (above arith) to override subtraction.
+mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be below arith too, to be usable in stuff like paren-less calls
 
 bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = null, string text = null, bool probe = false) {
   Expr[string] nameds;

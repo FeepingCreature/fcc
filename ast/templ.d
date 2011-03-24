@@ -6,6 +6,9 @@ interface ITemplate : Named {
   Object getInstanceIdentifier(IType it, ParseCb rest, string name);
 }
 
+void delegate()[] resetDgs;
+void resetTemplates() { foreach (dg; resetDgs) dg(); }
+
 class Template : ITemplate {
   string name;
   string param;
@@ -16,6 +19,8 @@ class Template : ITemplate {
     Stuple!(TemplateInstance, IType)[] emat_type; // past tense of emit
     Stuple!(TemplateInstance, Tree)[] emat_alias;
   }
+  this() { resetDgs ~= &resetme; }
+  void resetme() { emat_type = null; emat_alias = null; }
   TemplateInstance getInstance(IType type, ParseCb rest) {
     assert(!isAlias);
     TemplateInstance ti;
@@ -101,11 +106,11 @@ class TemplateInstance : Namespace {
     foreach (emod; ematIn) if (emod is mod) return;
     if (weakOnly) {
       foreach (inst; instRes) if (auto fun = fastcast!(Function) (inst)) if (fun.weak) {
-        mod.entries ~= fastcast!(Tree) (fun);
+        mod.entries ~= fastcast!(Tree) (fun.dup);
       }
     } else {
       foreach (inst; instRes) {
-        mod.entries ~= fastcast!(Tree) (inst);
+        mod.entries ~= fastcast!(Tree) (inst).dup;
       }
     }
     ematIn ~= mod;

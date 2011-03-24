@@ -69,7 +69,15 @@ class GlobVarDecl : Statement, IsMangled {
       // logln("weak globvar?! ", this);
       // ^ wat
     }
-    typeof(this) dup() { assert(false, "hey now.."); }
+    typeof(this) dup() {
+      auto res = new GlobVarDecl;
+      foreach (var; vars) {
+        auto v2 = new GlobVar(var.type, var.name, var.ns, var.tls, var.initval?var.initval.dup:null);
+        res.vars ~= v2;
+      }
+      res.tls = tls;
+      return res;
+    }
     string toString() { return Format("declare ", tls?"tls ":"", vars); }
     void emitAsm(AsmFile af) {
       if (tls) {

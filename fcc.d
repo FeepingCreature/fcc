@@ -96,7 +96,6 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
   }
 }
 
-
 extern(C) {
   int open(char* filename, int flags, size_t mode);
   int close(int fd);
@@ -324,6 +323,7 @@ void loop(string start, string output, string[] largs,
     initedSysmod = false;
     sysmod = null;
     checked = null;
+    resetTemplates();
     logln("please press return to continue. ");
     if (system("read")) return;
   }
