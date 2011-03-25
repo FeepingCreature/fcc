@@ -11,6 +11,7 @@ GLuint tex1, tex2;
 
 struct Block {
   bool active;
+  int lightlevel;
 }
 
 alias BlockType = Block;
@@ -58,6 +59,52 @@ class SectorCache {
     sectors ~= sec;
     return low.(sec.cache[x][y][z]);
   }
+  // does not cause calcs
+  BlockType weakLookup(vec3i v, BlockType deflt) {
+    for auto sec <- sectors if sec.contains v {
+      return (v - sec.base).(sec.cache[x][y][z]);
+    }
+    return deflt;
+  }
+}
+
+void initLight(SectorCache sc) {
+  Sector[auto~] tops;
+  onSuccess tops.free;
+  for (auto sector <- sc.sectors) {
+    bool replaced;
+    for (int i <- 0..tops.length) {
+      if (!replaced
+       && tops[i].base.(x == sector.base.x && z == sector.base.z)
+       && tops[i].base.y < sector.base.y) { // found a higher one
+        tops[i] = sector;
+        replaced = true;
+      }
+    }
+    if (!replaced) tops ~= sector;
+  }
+  for (auto sector <- tops) { // fill top with light
+    for (int x, int z) <- cross(0..16, 0..16) {
+      sector.cache[x][15][z].lightlevel = 64;
+    }
+  }
+}
+
+void stepLight(SectorCache sc) {
+  BlockType nothing;
+  for (auto sector <- sc.sectors) {
+    for auto vec <- [for tup <- cross(0..16, 0..16, 0..16): vec3i(tup)] {
+      int sum;
+      auto mybase = sector.base + vec;
+      for auto vec2 <- [for tup <- cross([-1, 0, 1], [-1, 0, 1]): vec2i(tup)] {
+        auto bt = sc.weakLookup(mybase + vec3i(vec2.x, 1, vec2.y), nothing);
+        if bt.active bt.lightlevel = 0; // shadows
+        sum += bt.lightlevel;
+      }
+      sum /= 9;
+      sector.cache[vec.x][vec.y][vec.z].lightlevel = sum;
+    }
+  }
 }
 
 SectorCache sc;
@@ -72,13 +119,17 @@ void drawScene() {
   t -= 1;
   
   glScalef (0.2 x 3);
-  glTranslatef (0, 2 * sinf(t / 64), 0);
+  glTranslatef (0, 4 * sinf(t / 64), 0);
   BlockType mkBlock(bool b) {
     BlockType res; res.active = b; return res;
   }
   BlockType genFun(vec3i vi) {
     float max(float a, float b) { if (a > b) return a; else return b; }
     float abs(float f) { if (f < 0) return -f; return f; }
+    
+    // int sum = vi.((eval abs x < 2) + (eval abs y < 2) + (eval abs z < 2));
+    // return mkBlock eval sum > 1; // axis cross test shape
+    
     auto dist = max(max(abs(vi.x), abs(vi.y)), abs(vi.z));
     dist -= noise3(vi * 0.1) * 5;
     if dist > 7 return mkBlock(false);
@@ -103,16 +154,17 @@ void drawScene() {
     auto corners = [for tup <- cross([0, 1], [0, 1], [0, 1]): vec3i(tup)];
     auto sides = [
       ([0, 1, 3, 2], -vec3i.X),
-      ([4, 6, 7, 5], vec3i.X),
-      ([1, 5, 7, 3], vec3i.Z),
+      ([4, 6, 7, 5],  vec3i.X),
+      ([1, 5, 7, 3],  vec3i.Z),
       ([0, 2, 6, 4], -vec3i.Z),
-      ([2, 3, 7, 6], vec3i.Y),
+      ([2, 3, 7, 6],  vec3i.Y),
       ([1, 0, 4, 5], -vec3i.Y)
     ];
     using Quads {
       for (int[4] points, vec3i dir) <- sides {
+        auto bt = fun(vec + dir);
+        glColor3f vec3f(bt.lightlevel / 64f);
         for int point <- points {
-          glColor3f vec3f(point / 8f);
           glVertex3f vec3f(corners[point]);
         }
       }
@@ -131,7 +183,6 @@ void drawScene() {
 int loadTexture(string name) {
   GLuint tex;
   auto pngdata = readAll name;
-  writeln "mew $(pngdata)";
   auto img = gdImageCreateFromPngPtr (pngdata.length, pngdata.ptr);
   writeln "Read $(pngdata.length), is $((img.sx, img.sy)). Truecolor? $(img.trueColor). ";
   glGenTextures(1, &tex);
@@ -158,6 +209,8 @@ int main(int argc, char** argv) {
   auto surf = setup-gl();
   while true {
     drawScene();
+    initLight sc;
+    stepLight sc;
     if update(surf) quit(0);
   }
 }
