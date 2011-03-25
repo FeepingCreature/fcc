@@ -229,7 +229,11 @@ static this() {
     if (Single!(Float) != ex.valueType()) return null;
     return new FloatAsDouble(ex);
   };
-  // TODO: conversion cast double to float
+  converts ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(Double) != resolveTup(ex.valueType()))
+      return null;
+    return new DoubleAsFloat(ex);
+  };
   implicits ~= delegate Expr(Expr ex) {
     auto dex = fastcast!(DoubleExpr)~ foldex(ex);
     if (!dex) return null;
