@@ -119,8 +119,9 @@ LValue lvize(Expr ex) {
   if (auto lv = fastcast!(LValue)~ ex) return lv;
   
   auto var = new Variable(ex.valueType(), null, boffs(ex.valueType()));
-  auto sc = fastcast!(Scope)~ namespace();
-  assert(!!sc);
+  // TODO: is it really valid to add to a scope beneath a nested namespace?
+  // Won't this mess up the frame size counts? .. Meh.
+  auto sc = namespace().get!(Scope);
   var.initval = ex;
   
   auto decl = new VarDecl;

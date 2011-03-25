@@ -70,7 +70,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   auto start = time(int*: null);
   float t = 0;
   int fps;
-  auto tp = mkThreadPool(4);
+  auto tp = new ThreadPool(4);
   void run() {
     t += 0.02;
     void calc(int from, int to) {
