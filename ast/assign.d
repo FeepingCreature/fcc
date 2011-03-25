@@ -65,26 +65,35 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   LValue lv; MValue mv;
   Expr ex;
   if (rest(t2, "tree.expr _tree.expr.arith", &ex) && t2.accept("=")) {
-    lv = fastcast!(LValue)~ ex; mv = fastcast!(MValue)~ ex;
+    Expr value;
+    IType[] its;
+    if (!rest(t2, "tree.expr", &value)) {
+      t2.failparse("Could not parse assignment source");
+    }
+    auto t3 = t2;
+    if (t3.mystripl().length && !t3.accept(";")) {
+      t2.failparse("Unknown text after assignment! ");
+    }
+    
+    if (!gotImplicitCast(ex, value.valueType(), (Expr ex) {
+      if (!fastcast!(LValue) (ex) && !fastcast!(MValue) (ex))
+        return false;
+      auto ex2 = value;
+      auto ev = ex.valueType();
+      if (!gotImplicitCast(ex2, ev, (IType it) {
+        return test(it == ev);
+      })) return false;
+      value = ex2;
+      return true;
+    })) return null;
+
+    lv = fastcast!(LValue) (ex); mv = fastcast!(MValue) (ex);
     if (!lv && !mv) return null;
     
     Expr target;
     if (lv) target = lv;
     else target = mv;
     
-    Expr value;
-    IType[] its;
-    if (!rest(t2, "tree.expr", &value)) {
-      t2.failparse("Could not parse assignment source");
-    }
-    auto tv = resolveType(target.valueType());
-    auto t3 = t2;
-    if (t3.mystripl().length && !t3.accept(";")) {
-      t2.failparse("Unknown text after assignment! ");
-    }
-    if (!gotImplicitCast(value, tv, (IType it) { it = resolveType(it); its ~= it; return test(it == tv); })) {
-      text.failparse("Mismatching types in assignment: ", tv, " = ", its);
-    }
     // logln(target.valueType(), " <- ", value.valueType());
     text = t2;
     if (lv)

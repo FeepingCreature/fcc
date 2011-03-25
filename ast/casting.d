@@ -235,7 +235,7 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
       visited[visited_offs++] = it;
     else { visited ~= it; visited_offs ++; }
   }
-  want = resolveType(want);
+  // want = resolveType(want);
   bool haveVisited(Expr ex) {
     auto t1 = ex.valueType();
     foreach (t2; visited[0 .. visited_offs]) if (t1 == t2) return true;
@@ -268,23 +268,16 @@ bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
   return gotImplicitCast(ex, null, accept);
 }
 
-void resolveExpr(ref Expr ex) {
-  auto et = ex.valueType();
-  auto re = resolveType(et);
-  if (re is et) return;
-  ex = reinterpret_cast(re, ex);
-}
-
 bool gotImplicitCast(ref Expr ex, IType want, bool delegate(IType) accept) {
   return gotImplicitCast(ex, want, (Expr ex) {
-    return accept(resolveType(ex.valueType()));
-  }) && (resolveExpr(ex), true);
+    return accept(ex.valueType());
+  });
 }
 
 bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept) {
   return gotImplicitCast(ex, null, (Expr ex) {
-    return accept(resolveType(ex.valueType()));
-  }) && (resolveExpr(ex), true);
+    return accept(ex.valueType());
+  });
 }
 
 Expr[] getAllImplicitCasts(Expr ex) {

@@ -15,25 +15,27 @@ bool isNull(Expr ex) {
 
 static this() {
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (isNull(ex) && fastcast!(FunctionPointer)~ expect) {
+    if (isNull(ex) && fastcast!(FunctionPointer) (resolveType(expect))) {
       return reinterpret_cast(expect, ex);
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (isNull(ex) && fastcast!(Delegate)~ expect) {
+    if (isNull(ex) && fastcast!(Delegate) (resolveType(expect))) {
       return reinterpret_cast(expect, mkTupleExpr(ex, ex));
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (isNull(ex) && fastcast!(Array)~ expect) {
+    if (isNull(ex) && fastcast!(Array) (resolveType(expect))) {
       return reinterpret_cast(expect, mkTupleExpr(ex, ex));
     }
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (isNull(ex) && (fastcast!(ClassRef)~ expect || fastcast!(IntfRef)~ expect)) {
+    if (isNull(ex) && (
+      fastcast!(ClassRef)(resolveType(expect))
+    ||fastcast!(IntfRef)(resolveType(expect)))) {
       return reinterpret_cast(expect, ex);
     }
     return null;
