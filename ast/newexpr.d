@@ -31,34 +31,39 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         "size", mkInt(cr.myClass.size),
         "_classinfo", new Symbol(cr.myClass.ci_name())
       ).emitAsm(af);
-      auto base = cr.myClass.mainSize();
-      doAlign(base, voidp);
-      base /= 4;
-      int id = 0;
-      void iterLeaves(void delegate(Intf, int) dg) {
-        void recurse(Intf intf, int myOffs) {
-          if (intf.parents.length) foreach (i, intf2; intf.parents) {
-            recurse(intf2, myOffs);
-            myOffs += intf2.clsize();
+      
+      void initClass(Class cl) {
+        if (cl.parent) initClass(cl.parent);
+        auto base = cl.mainSize();
+        doAlign(base, voidp);
+        base /= 4;
+        int id = 0;
+        void iterLeaves(void delegate(Intf, int) dg) {
+          void recurse(Intf intf, int myOffs) {
+            if (intf.parents.length) foreach (i, intf2; intf.parents) {
+              recurse(intf2, myOffs);
+              myOffs += intf2.clsize();
+            }
+            else dg(intf, myOffs);
           }
-          else dg(intf, myOffs);
+          auto offs = cl.ownClassinfoLength;
+          foreach (i, intf; cl.iparents) {
+            recurse(intf, offs);
+            offs += intf.clsize();
+          }
         }
-        auto offs = cr.myClass.ownClassinfoLength;
-        foreach (i, intf; cr.myClass.iparents) {
-          recurse(intf, offs);
-          offs += intf.clsize();
-        }
+        iterLeaves((Intf intf, int offs) {
+          // logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
+          iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
+          (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
+            "var", var,
+            "base", mkInt(base), "id", mkInt(id++),
+            "_classinfo", new Symbol(cr.myClass.ci_name()),
+            "offs", mkInt(offs)
+          ).emitAsm(af);
+        });
       }
-      iterLeaves((Intf intf, int offs) {
-        // logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
-        iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
-        (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
-          "var", var,
-          "base", mkInt(base), "id", mkInt(id++),
-          "_classinfo", new Symbol(cr.myClass.ci_name()),
-          "offs", mkInt(offs)
-        ).emitAsm(af);
-      });
+      initClass(cr.myClass);
       try {
         if (initParam) {
           (new ExprStatement(
