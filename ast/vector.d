@@ -2,7 +2,7 @@ module ast.vector;
 
 import
   ast.base, ast.tuples, ast.tuple_access, ast.types, ast.fold,
-  ast.fun, ast.funcall, ast.aliasing,
+  ast.fun, ast.funcall, ast.aliasing, ast.conditionals,
   ast.structure, ast.namespace, ast.modules, ast.structfuns, ast.returns;
 
 class Vector : Type, RelNamespace, ForceAlignment {
@@ -38,13 +38,9 @@ class Vector : Type, RelNamespace, ForceAlignment {
     ubyte[] initval() { return asFilledTup.initval(); }
     bool isTempNamespace() { return false; }
     int opEquals(IType it) {
+      it = resolveType(it);
       if (!super.opEquals(it)) return false;
-      while (true) {
-        if (auto tp = fastcast!(TypeProxy)~ it)
-          it = tp.actualType();
-        else break;
-      }
-      auto vec = fastcast!(Vector)~ it;
+      auto vec = fastcast!(Vector) (it);
       assert(vec);
       return vec.base == base && vec.len == len;
     }
@@ -582,6 +578,20 @@ static this() {
     if (vt.extend) list ~= new Filler(vt.base);
     return reinterpret_cast(vt, new StructLiteral(vt.asFilledTup.wrapped, list));
   }
+  Expr handleVecEquals(Expr e1, Expr e2) {
+    auto t1 = resolveType(e1.valueType()), t2 = resolveType(e2.valueType());
+    auto v1 = fastcast!(Vector) (t1), v2 = fastcast!(Vector) (t2);
+    if (!v1 || !v2 || v1 != v2) return null;
+    Cond res;
+    auto list1 = getTupleEntries(reinterpret_cast(v1.asFilledTup, e1))[0..v1.len];
+    auto list2 = getTupleEntries(reinterpret_cast(v2.asFilledTup, e2))[0..v2.len];
+    for (int i = 0; i < v1.len; ++i) {
+      auto subcond = compare("==", list1[i], list2[i]);
+      if (!res) res = subcond;
+      else res = new BooleanOp!("&&")(res, subcond);
+    }
+    return new CondExpr(res);
+  }
   Expr handleVecSmaller(Expr e1, Expr e2) {
     auto t1 = resolveType(e1.valueType()), t2 = resolveType(e2.valueType());
     auto v1 = fastcast!(Vector) (t1), v2 = fastcast!(Vector) (t2);
@@ -599,6 +609,7 @@ static this() {
   defineOp("^", "^" /apply/ &handleVecOp);
   defineOp("&", "&" /apply/ &handleVecOp);
   defineOp("|", "|" /apply/ &handleVecOp);
+  defineOp("==", &handleVecEquals);
   defineOp("<", &handleVecSmaller);
   foldopt ~= delegate Expr(Expr ex) {
     if (auto mae = fastcast!(MemberAccess_Expr) (ex)) {
