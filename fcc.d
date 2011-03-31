@@ -91,7 +91,8 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
   with (lns) {
     auto mod = current_module();
     if (auto id = af.getFileId(name)) {
-      af.put(".loc ", id, " ", line - 2 /* what o.o */, " ", 0);
+      if (line >= 1) line -= 1; // wat
+      af.put(".loc ", id, " ", line, " ", 0);
       af.put("# being ", name);
     }
   }

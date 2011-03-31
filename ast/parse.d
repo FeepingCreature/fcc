@@ -66,7 +66,7 @@ Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (auto obj = rest(text, "tree.semicol_stmt")) {
     text.mustAccept(";", Format("Missing semicolon to terminate ", obj));
     if (auto lns = fastcast!(LineNumberedStatement) (obj))
-      lns.configPosition(text);
+      lns.configPosition(backup);
     return obj;
   } else return null;
 }

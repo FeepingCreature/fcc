@@ -2,7 +2,7 @@ module ast.assign;
 
 import ast.base, ast.pointer;
 
-class _Assignment(T) : Statement {
+class _Assignment(T) : LineNumberedStatement {
   T target;
   Expr value;
   bool blind;
