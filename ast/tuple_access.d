@@ -136,7 +136,7 @@ class WithSpace : Namespace {
   }
 }
 
-import ast.iterator, ast.casting, ast.pointer;
+import ast.iterator, ast.casting, ast.pointer, ast.vardecl;
 Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     {
@@ -148,7 +148,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     Expr[] spaces;
     
-    auto ex2 = ex;
+    Expr ex2 = lvize(ex);
     gotImplicitCast(ex2, (Expr ex) {
       auto it = ex.valueType();
       if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it) || fastcast!(SemiRelNamespace) (it))

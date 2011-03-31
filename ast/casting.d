@@ -8,11 +8,11 @@ class RC {
 }
 
 template ReinterpretCast_Contents(T) {
-  this(IType to, T from) {
+  this(IType to, T from, bool beingDupped = false /* don't panic if it's just a dup */) {
     this.from = from;
     this.to = to;
     static if (is(T==Expr)) {
-      if (fastcast!(LValue)~ from || fastcast!(CValue)~ from) {
+      if (!beingDupped && (fastcast!(LValue)~ from || fastcast!(CValue)~ from)) {
         logln(this, "? Suure? ");
         asm { int 3; }
       }
@@ -24,7 +24,7 @@ template ReinterpretCast_Contents(T) {
     }
   }
   private this() { }
-  typeof(this) dup() { return new typeof(this)(to, fastcast!(T) (from.dup)); }
+  typeof(this) dup() { return new typeof(this)(to, fastcast!(T) (from.dup), true); }
   mixin defaultIterate!(from);
   override {
     static if (is(typeof((fastcast!(T)~ from).emitLocation(null))))

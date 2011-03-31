@@ -35,6 +35,7 @@ struct RelFunSet {
 }
 
 import tools.log, tools.compat: max;
+import ast.vardecl;
 class VTable {
   RelFunction[] funs;
   Class parent;
@@ -49,6 +50,7 @@ class VTable {
     Function[] res;
     foreach (id, fun; funs)
       if (fun.name == name) {
+        classref = lvize(classref);
         res ~= new PointerFunction!(NestedFunction) (
           new DgConstructExpr(
             new DerefExpr(
@@ -584,10 +586,18 @@ Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   t2.passert(!!lhs_partial(),
     "got class member expr? weird");
-  auto ex = fastcast!(Expr)~ lhs_partial();
+  auto ex = fastcast!(Expr) (lhs_partial());
   if (!ex) return null;
-  auto cr = fastcast!(ClassRef)~ ex.valueType(), ir = fastcast!(IntfRef)~ ex.valueType();
+  if (!gotImplicitCast(ex, (IType it) {
+    it = resolveType(it);
+    return fastcast!(ClassRef) (it) || fastcast!(IntfRef) (it);
+  })) return null;
+  auto it = ex.valueType();
+  it = resolveType(it);
+  
+  auto cr = fastcast!(ClassRef) (it), ir = fastcast!(IntfRef) (it);
   if (!cr && !ir) return null;
+  
   Class cl; Intf intf;
   if (cr) cl = cr.myClass;
   else intf = ir.myIntf;
