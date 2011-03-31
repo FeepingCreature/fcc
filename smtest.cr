@@ -1,11 +1,11 @@
 module smtest;
 
-import glsetup, opengl, libgd, simplex, std.file, std.c.math, std.time;
+import glsetup, opengl, libgd, simplex, std.file, std.math, std.time, sdl;
 
 int fps;
 long last_time;
-
-float t = 0;
+float calcsum = 0;
+float lightsum = 0;
 
 GLuint tex1, tex2;
 
@@ -19,13 +19,8 @@ alias BlockType = Block;
 class Sector {
   vec3i base;
   bool contains(vec3i v) {
-    if (v.x < base.x) return false;
-    if (v.y < base.y) return false;
-    if (v.z < base.z) return false;
-    if (v.x >= base.x + 16) return false;
-    if (v.y >= base.y + 16) return false;
-    if (v.z >= base.z + 16) return false;
-    return true;
+    auto lbase = base; // local copy, help the compiler a little ..
+    return eval lbase.(v.x >= x && v.y >= y && v.z >= z && v.x < x + 16 && v.y < y + 16 && v.z < z + 16);
   }
   BlockType[16][16][16] cache;
 }
@@ -48,9 +43,16 @@ class SectorCache {
     writeln "done $i";
     return sec;
   }
+  int lastMatched;
   BlockType lookup(vec3i v) {
-    for auto sec <- sectors {
+    alias last = sectors[lastMatched];
+    if sectors.length && last.contains v {
+      auto sec = last;
+      return (v - sec.base).(sec.cache[x][y][z]);
+    }
+    for (int id, Sector sec) <- zip(0..-1, sectors) {
       if (sec.contains v) {
+        lastMatched = id;
         return (v - sec.base).(sec.cache[x][y][z]);
       }
     }
@@ -61,7 +63,12 @@ class SectorCache {
   }
   // does not cause calcs
   BlockType weakLookup(vec3i v, BlockType deflt) {
-    for auto sec <- sectors if sec.contains v {
+    if !sectors.length return deflt;
+    if (auto sec = sectors[lastMatched]).contains v {
+      return (v - sec.base).(sec.cache[x][y][z]);
+    }
+    for (int id, Sector sec) <- zip(0..-1, sectors) if id != lastMatched && sec.contains v {
+      lastMatched = id;
       return (v - sec.base).(sec.cache[x][y][z]);
     }
     return deflt;
@@ -75,7 +82,7 @@ void initLight(SectorCache sc) {
     bool replaced;
     for (int i <- 0..tops.length) {
       if (!replaced
-       && tops[i].base.(x == sector.base.x && z == sector.base.z)
+       && tops[i].base.xz == sector.base.xz
        && tops[i].base.y < sector.base.y) { // found a higher one
         tops[i] = sector;
         replaced = true;
@@ -85,14 +92,16 @@ void initLight(SectorCache sc) {
   }
   for (auto sector <- tops) { // fill top with light
     for (int x, int z) <- cross(0..16, 0..16) {
-      sector.cache[x][15][z].lightlevel = 64;
+      sector.cache[x][15][z].lightlevel = 128;
     }
   }
 }
 
 void stepLight(SectorCache sc) {
   BlockType nothing;
-  for (auto sector <- sc.sectors) {
+  auto sec2 = sc.sectors.dup;
+  onSuccess sec2.free;
+  for (auto sector <- sec2) {
     for auto vec <- [for tup <- cross(0..16, 0..16, 0..16): vec3i(tup)] {
       int sum;
       auto mybase = sector.base + vec;
@@ -102,24 +111,22 @@ void stepLight(SectorCache sc) {
         sum += bt.lightlevel;
       }
       sum /= 9;
-      sector.cache[vec.x][vec.y][vec.z].lightlevel = sum;
+      vec.(sector.cache[x][y][z]).lightlevel = sum;
     }
   }
 }
 
 SectorCache sc;
 
+import camera;
+
+Camera cam;
+
 void drawScene() {
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glLoadIdentity;
-  glTranslatef (0, 0, -6);
-  // glRotatef (t, 1, 0.1, 0);
-  // glRotatef (180, 1, 0, 0);
-  glRotatef (t, 0, 1, 0);
-  t -= 1;
+  cam.gl-setup();
   
-  glScalef (0.2 x 3);
-  glTranslatef (0, 4 * sinf(t / 64), 0);
   BlockType mkBlock(bool b) {
     BlockType res; res.active = b; return res;
   }
@@ -147,11 +154,45 @@ void drawScene() {
       fun vec3i(vi.(x, y+1, z)).active && fun vec3i(vi.(x, y-1, z)).active &&
       fun vec3i(vi.(x, y, z+1)).active && fun vec3i(vi.(x, y, z-1)).active;
   }
-  while auto vec ← [for x ← cross (-12 .. 12) x 3: vec3i(x)] if fun(vec).active && !occluded(vec) using glMatrix {
-    if (noise3(vec3f(vec.(x, y, z)) * 0.3) > 0.5) glBindTexture (GL_TEXTURE_2D, tex1);
-    else glBindTexture (GL_TEXTURE_2D, tex2);
-    glTranslatef vec;
-    auto corners = [for tup <- cross([0, 1], [0, 1], [0, 1]): vec3i(tup)];
+  
+  vec3f[4][auto~][2] colorCache;
+  vec3f[4][auto~][2] vertexCache;
+  vec2f[4][auto~][2] texcoordCache;
+  void flushCache(int tex = -1) {
+    int from, to;
+    if (tex == -1) (from, to) = (0, 2);
+    else (from, to) = (tex, tex + 1);
+    for (int tid <- from .. to) {
+      if (tid == 0) glBindTexture (GL_TEXTURE_2D, tex1);
+      else glBindTexture (GL_TEXTURE_2D, tex2);
+      glEnableClientState GL_VERTEX_ARRAY;
+      glEnableClientState GL_COLOR_ARRAY;
+      glEnableClientState GL_TEXTURE_COORD_ARRAY;
+      glColorPointer(3, GL_FLOAT, size-of vec3f, void*:colorCache[tid].ptr);
+      glVertexPointer(3, GL_FLOAT, size-of vec3f, void*:vertexCache[tid].ptr);
+      glTexCoordPointer(2, GL_FLOAT, size-of vec2f, void*:texcoordCache[tid].ptr);
+      glDrawArrays(GL_QUADS, 0, 4 * vertexCache[tid].length);
+      glDisableClientState GL_VERTEX_ARRAY;
+      glDisableClientState GL_COLOR_ARRAY;
+      glDisableClientState GL_TEXTURE_COORD_ARRAY;
+      colorCache[tid].free;
+      vertexCache[tid].free;
+      texcoordCache[tid].free;
+    }
+  }
+  void queueQuad(int tex, vec3f color, vec3f[4] corners) {
+    colorCache[tex] ~= [color, color, color, color];
+    vertexCache[tex] ~= corners;
+    texcoordCache[tex] ~= [vec2f(0, 0), vec2f(0, 1), vec2f(1, 1), vec2f(1, 0)];
+    if (vertexCache[tex].length == 4096) flushCache(tex);
+  }
+  
+  auto start = sec();
+  while auto vec ← [for x ← cross (-12 .. 12) x 3: vec3i(x)] if fun(vec).active && !occluded(vec) {
+    int tex;
+    if (noise3(vec3f(vec.(x, y, z)) * 0.3) > 0.5) tex = 0;
+    else tex = 1;
+    alias corners = [for tup <- cross([0, 1], [0, 1], [0, 1]): vec3i(tup)];
     auto sides = [
       ([0, 1, 3, 2], -vec3i.X),
       ([4, 6, 7, 5],  vec3i.X),
@@ -160,29 +201,33 @@ void drawScene() {
       ([2, 3, 7, 6],  vec3i.Y),
       ([1, 0, 4, 5], -vec3i.Y)
     ];
-    using Quads {
-      for (int[4] points, vec3i dir) <- sides {
-        auto bt = fun(vec + dir);
-        glColor3f vec3f(bt.lightlevel / 64f);
-        for int point <- points {
-          glVertex3f vec3f(corners[point]);
-        }
-      }
+    for (int[4] points, vec3i dir) <- sides {
+      auto bt = fun(vec + dir);
+      alias map = [for point <- points: vec3f(corners[point]) + vec];
+      if !bt.active
+        queueQuad (
+          tex,
+          vec3f(bt.lightlevel / 64f),
+          [map[0], map[1], map[2], map[3]]
+        );
     }
   }
+  flushCache();
   swap();
+  calcsum += float:(sec() - start);
   fps ++;
   auto ct = µsec();
   if ct > last_time + 1_000_000 {
     last_time = ct;
-    writeln "FPS: $fps";
+    writeln "FPS: $fps, $(calcsum)s for calc, $(lightsum)s for light";
     fps = 0;
+    calcsum = 0;
+    lightsum = 0;
   }
 }
 
-int loadTexture(string name) {
+int loadTexture(string pngdata) {
   GLuint tex;
-  auto pngdata = readAll name;
   auto img = gdImageCreateFromPngPtr (pngdata.length, pngdata.ptr);
   writeln "Read $(pngdata.length), is $((img.sx, img.sy)). Truecolor? $(img.trueColor). ";
   glGenTextures(1, &tex);
@@ -200,17 +245,56 @@ int loadTexture(string name) {
 }
 
 int main(int argc, char** argv) {
+  auto ec = new EgoCam!PerspectiveCam (vec3f(0, 0, -32), 0, 0);
+  ec.fov = 60f;
+  cam = ec;
   gl-context-callbacks ~= delegate void() {
     writeln "load textures";
-    tex1 = loadTexture "letter-a.png";
-    tex2 = loadTexture "letter-b.png";
+    // tex1 = loadTexture import("letter-a.png");
+    // tex2 = loadTexture import("letter-b.png");
+    tex1 = loadTexture import("smooth-rock-tex0-32.png");
+    tex2 = loadTexture import("vivid-rock-tex-32.png");
     writeln "loaded";
   };
   auto surf = setup-gl();
+  gl-context-callbacks ~= delegate void() {
+    ec.aspect = surf.w * 1f / surf.h;
+  };
+  bool active;
+  void toggleActive() {
+    SDL_ShowCursor active;
+    if !active
+      // SDL_WM_GrabInput(SDL_GRAB_ON);
+      SDL_WarpMouse(320, 240);
+    active = eval !active;
+  }
+  auto lastTime = sec();
   while true {
     drawScene();
+    auto start = sec();
     initLight sc;
     stepLight sc;
+    lightsum += float:(sec() - start);
     if update(surf) quit(0);
+    
+    // copied from pyramid.cr
+    if (active) {
+      auto idelta = mousepos - vec2i(320, 240);
+      auto delta = vec2f((0.001 * idelta).(x, y));
+      using (ec, delta) { turn-left-x; turn-up-y; } // *MWAHAHAHAHAAAAAHAHA*
+      if idelta.x || idelta.y
+        SDL_WarpMouse(320, 240);
+    }
+    if (mouseClicked) toggleActive;
+    
+    auto factor = float:(sec() - lastTime);
+    auto wsfactor = factor * 16, adfactor = factor * 64;
+    lastTime = sec();
+    using ec {
+      if (keyPressed[SDLK_w]) pos += dir.normalize3f() * wsfactor;
+      if (keyPressed[SDLK_s]) pos -= dir.normalize3f() * wsfactor;
+      if (keyPressed[SDLK_a]) pos += left.normalize3f() * adfactor;
+      if (keyPressed[SDLK_d]) pos -= left.normalize3f() * adfactor;
+    }
   }
 }

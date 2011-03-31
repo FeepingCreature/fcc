@@ -1465,6 +1465,26 @@ void setupOpts() {
     info(t).outOp = $1.to;
     $SUBST(t, $2, $3);
   `));
+  mixin(opt("remove_slightly_stupid_push_pop_pair", `^Push, ^Mov, ^Pop:
+    $0.type == $2.type && $0.type.size == 4 &&
+    $1.to.isRegister() && $1.from.isIndirect() != "%esp" &&
+    $2.dest.isRegister() && $2.dest != $1.to &&
+    !info($1).opContains($2.dest)
+    =>
+    $T t;
+    t.kind = $TK.Mov;
+    t.from = $0.source;
+    t.to = $2.dest;
+    $SUBST([t, $1]);
+  `));
+  mixin(opt("pointless_mov", `^Mov, ^Pop:
+    $0.to == "(%esp)" && $1.type.size == 4 && $1.dest == $0.from
+    =>
+    $T t;
+    t.kind = $TK.SFree;
+    t.size = 4;
+    $SUBST(t);
+  `));
   mixin(opt("simplify_pure_sse_math_opers", `^SSEOp, ^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $0.op1.isSSERegister() &&
     $1.opName == "addps" /or/ "subps" /or/ "mulps" /or/ "divps" &&

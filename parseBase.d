@@ -108,7 +108,7 @@ bool accept(ref string s, string t) {
   
   auto t16 = t.toUTF16();
   
-  ulong idx = t.length;
+  size_t idx = t.length;
   return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t16[$-1]) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
     !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
   );
@@ -158,7 +158,7 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   }
   // array length special handling
   if (t2.length && t2[0] == '$') { text = t2; ident = "$"; return true; }
-  ulong idx = 0;
+  size_t idx = 0;
   if (!t2.length || !isValid(cast(wchar) t2.decode(idx), true)) return false;
   auto identlen = 0, backup = t2;
   do {

@@ -1,6 +1,6 @@
 module interpret;
 
-import std.file, std.string, std.stream, std.thread;
+import std.file, std.string, std.stream, std.thread, std.time;
 
 import std.c.stdio, std.c.string;
 
@@ -122,6 +122,18 @@ int eval-expr(string* sp,
   raise-error new EvalException "Could not parse '$s'!";
 }
 
+int eval-exprs(string* sp,
+  int delegate(int) read-input, read-reg,
+  void delegate(int, int) set-output, set-reg) {
+  auto dgs = (read-input, read-reg, set-output, set-reg);
+  auto res = eval-expr(sp, dgs);
+  if (auto rest = (*sp).startsWith "; ") {
+    *sp = rest;
+    return eval-exprs(sp, dgs);
+  }
+  return res;
+}
+
 import gtk;
 
 extern(C) int printf(char*, ...);
@@ -219,6 +231,7 @@ int main (int argc, char** argv) {
     delegate void(int reg, int val) { gtk_entry_set_text (outputs[reg], toStringz "$val"); },
     delegate void(int reg, int val) { gtk_entry_set_text (regs[reg], toStringz "$val"); }
   );
+  auto pauseLoops = new Mutex;
   g_signal_connect (input_field.gtkCastObject(), "activate", delegate void(GtkWidget*) {
     auto expr = string:fastdupv void[]:CToString input_field.gtkCastEntry().gtk_entry_get_text();
     // call when input text is accepted, ie. parses
@@ -229,13 +242,23 @@ int main (int argc, char** argv) {
       invoke-exit "return";
     }
     define-exit "return" return;
+    if expr == "pause" {
+      pauseLoops.lock;
+      accepted; return;
+    }
+    if expr == "resume" {
+      pauseLoops.unlock;
+      accepted; return;
+    }
     if expr == "loop" {
       accepted;
       string copiedLastExpr = lastExpr; // hax
       auto copiedDgs = dgs;
+      auto copiedPause = pauseLoops;
       tp.addThread;
       tp.addTask(new delegate void() {
         while true {
+          using copiedPause { lock; unlock; }
           string ex2 = copiedLastExpr;
           set-handler (Exception ex) {
             writeln "$(ex.text)";
@@ -243,14 +266,15 @@ int main (int argc, char** argv) {
           }
           bool skip = false;
           define-exit "skip" skip = true; // no "continue" support yet
-          if (!skip) eval-expr(&ex2, copiedDgs);
+          if (!skip) eval-exprs(&ex2, copiedDgs);
+          sleep 0.01; // wait a sec
         }
       });
       return;
     }
     lastExpr = null;
     auto ex2 = expr;
-    auto val = eval-expr (&ex2,
+    auto val = eval-exprs (&ex2,
       read-input => dgs[0],
       read-reg   => dgs[1],
       set-output => dgs[2],
