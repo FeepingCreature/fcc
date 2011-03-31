@@ -124,6 +124,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       return sup.mangle(cleaned_name, type);
   }
   string exit() { return mangleSelf() ~ "_exit_label"; }
+  static int funid_count;
   override {
     int framestart() { return _framestart; }
     bool addsSelf() { return true; }
@@ -135,9 +136,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4");
       af.put(".globl ", fmn);
-      // af.put(".type ", fmn, ", @function");
+      af.put(".type ", fmn, ", @function");
       if (weak) af.put(".weak ", fmn);
       af.put(fmn, ":"); // not really a label
+      auto idnum = funid_count ++;
+      af.put(".LFB", idnum, ":");
       af.jump_barrier();
       // af.put(".cfi_startproc");
       
@@ -156,6 +159,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       
       af.jump_barrier();
       af.put("ret");
+      af.put(".LFE", idnum, ":");
+      af.put(".size ", fmn, ", .-", fmn);
       // af.put(".cfi_endproc");
     }
     Stuple!(IType, string, int)[] stackframe() {

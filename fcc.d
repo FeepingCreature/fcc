@@ -87,11 +87,12 @@ extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
 
 extern(C)
 void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
+  if (!af.debugMode) return;
   with (lns) {
     auto mod = current_module();
     if (auto id = af.getFileId(name)) {
-      // af.put(".loc ", id, " ", line);
-      // af.put("# being ", name);
+      af.put(".loc ", id, " ", line - 2 /* what o.o */, " ", 0);
+      af.put("# being ", name);
     }
   }
 }
@@ -154,9 +155,9 @@ void lazySysmod() {
   setupSysmods();
 }
 
-string compile(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
+string compile(string file, bool saveTemps = false, bool optimize = false, bool debugMode = false, string configOpts = null) {
   while (file.startsWith("./")) file = file[2 .. $];
-  auto af = new AsmFile(optimize, file);
+  auto af = new AsmFile(optimize, debugMode, file);
   if (configOpts) {
     setupOpts();
     auto cmds = configOpts.split(",");
@@ -216,7 +217,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
     af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     f.close;
   }
-  auto cmdline = Format(platform_prefix, "as -g --32 -o ", objname, " ", srcname);
+  auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", srcname);
   logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz()) == 0
     || assert(false, "Compilation failed! ");
@@ -224,9 +225,9 @@ string compile(string file, bool saveTemps = false, bool optimize = false, strin
   return objname;
 }
 
-string[] compileWithDepends(string file, bool saveTemps = false, bool optimize = false, string configOpts = null) {
+string[] compileWithDepends(string file, bool saveTemps = false, bool optimize = false, bool debugMode = false, string configOpts = null) {
   while (file.startsWith("./")) file = file[2 .. $];
-  auto firstObj = compile(file, saveTemps, optimize, configOpts);
+  auto firstObj = compile(file, saveTemps, optimize, debugMode, configOpts);
   auto modname = file.replace("/", ".")[0..$-3];
   string[] res;
   bool[string] done;
@@ -242,7 +243,7 @@ string[] compileWithDepends(string file, bool saveTemps = false, bool optimize =
   while (todo.length) {
     auto cur = todo.take();
     if (cur.name in done) continue;
-    res ~= compile(cur.name.replace(".", "/") ~ ".cr", saveTemps, optimize, configOpts);
+    res ~= compile(cur.name.replace(".", "/") ~ ".cr", saveTemps, optimize, debugMode, configOpts);
     done[cur.name] = true;
     todo ~= cur.imports;
   }
@@ -263,7 +264,7 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
 
 import std.file;
 void loop(string start, string output, string[] largs,
-          bool optimize, bool runMe, bool saveTemps, string configOpts)
+          bool optimize, bool debugMode, bool runMe, bool saveTemps, string configOpts)
 {
   string toModule(string file) { return file.replace("/", ".").endsWith(".cr"); }
   string undo(string mod) {
@@ -310,7 +311,7 @@ void loop(string start, string output, string[] largs,
   while (true) {
     lazySysmod();
     try {
-      auto objs = start.compileWithDepends(saveTemps, optimize, configOpts);
+      auto objs = start.compileWithDepends(saveTemps, optimize, debugMode, configOpts);
       objs.link(output, largs, true);
     } catch (Exception ex) {
       logln(ex);
@@ -360,7 +361,7 @@ int main(string[] args) {
   string output;
   auto ar = args;
   string[] largs;
-  bool saveTemps, optimize, runMe;
+  bool saveTemps, optimize, runMe, debugMode;
   string configOpts;
   bool willLoop; string mainfile;
   while (ar.length) {
@@ -429,6 +430,10 @@ int main(string[] args) {
     if (arg == "-dump-info" || "parsers.txt".exists()) {
       write("parsers.txt", parsecon.dumpInfo());
     }
+    if (arg == "-g") {
+      debugMode = true;
+      continue;
+    }
     if (arg == "-dump-graphs") {
       genGraph("fcc.mods.dot", true, false);
       genGraph("fcc.classes.dot", false, true);
@@ -453,7 +458,7 @@ int main(string[] args) {
       if (!mainfile) mainfile = arg;
       if (!willLoop) {
         lazySysmod();
-        try objects ~= arg.compileWithDepends(saveTemps, optimize, configOpts);
+        try objects ~= arg.compileWithDepends(saveTemps, optimize, debugMode, configOpts);
         catch (Exception ex) { logln(ex.toString()); return 1; }
       }
       continue;
@@ -463,7 +468,7 @@ int main(string[] args) {
   }
   if (!output) output = "exec";
   if (willLoop) {
-    loop(mainfile, output?output:"exec", largs, optimize, runMe, saveTemps, configOpts);
+    loop(mainfile, output?output:"exec", largs, optimize, debugMode, runMe, saveTemps, configOpts);
     return 0;
   }
   objects.link(output, largs, saveTemps);

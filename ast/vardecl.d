@@ -4,11 +4,12 @@ import ast.assign, ast.base, tools.base: Range;
 public import ast.variable;
 
 import ast.pointer, ast.casting;
-class VarDecl : Statement {
+class VarDecl : LineNumberedStatement {
   Variable[] vars;
   mixin DefaultDup!();
   mixin defaultIterate!(vars);
   override void emitAsm(AsmFile af) {
+    super.emitAsm(af);
     // logln("emit at ", af.currentStackDepth, ": ", vars);
     foreach (var; vars) {
       // sanity checking start!

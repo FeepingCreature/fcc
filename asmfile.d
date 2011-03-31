@@ -15,6 +15,7 @@ class AsmFile {
   Stuple!(int, string)[string] globvars, tlsvars;
   int file_idcounter;
   int getFileId(string name) {
+    if (!name) name = "<nil>";
     if (auto ip = name in file_ids) return *ip;
     synchronized(this) {
       file_ids[name] = ++file_idcounter;
@@ -38,8 +39,8 @@ class AsmFile {
     return name;
   }
   string code;
-  bool optimize;
-  this(bool optimize, string id) { New(cache); New(finalized); this.optimize = optimize; this.id = id; }
+  bool optimize, debugMode;
+  this(bool optimize, bool debugMode, string id) { New(cache); New(finalized); this.optimize = optimize; this.debugMode = debugMode; this.id = id; }
   Transcache cache, finalized;
   int currentStackDepth;
   void pushStack(string expr, IType type) {
@@ -485,9 +486,9 @@ class AsmFile {
       dg("0\n");
       dg(".global "); dg(name); dg("\n");
     }
-    /*foreach (key, value; file_ids) {
+    foreach (key, value; file_ids) {
       dg(qformat(".file ", value, " \"", key, "\"\n"));
-    }*/
+    }
     dg(".text\n");
     dg(code);
   }
