@@ -54,7 +54,7 @@ class ExtArray : Type {
   }
 }
 
-import ast.structfuns, ast.modules;
+import ast.structfuns, ast.modules, ast.aliasing;
 Stuple!(IType, bool, Module, IType)[] cache;
 bool[IType] isArrayStructType;
 IType arrayAsStruct(IType base, bool rich) {
@@ -97,6 +97,14 @@ IType arrayAsStruct(IType base, bool rich) {
     else return iparse!(Statement, "array_free", "tree.stmt")
                   (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, rf);
   });
+  if (!rich) {
+    res.add(new ExprAlias(
+      iparse!(Expr, "array_dup", "tree.expr")
+             (`(base*: dupv (ptr, length * size-of base))[0 .. length]`,
+              res, "base", base),
+      "dup"
+    ));
+  }
   mkFun("popEnd", delegate Tree(RelFunction rf) {
     rf.type.ret = base;
     return new StatementAndExpr(

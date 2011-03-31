@@ -294,7 +294,7 @@ void setupSysmods() {
     void[] fastdupv(void[] v) {
       void[] res;
       if (v.length > BLOCKSIZE) {
-        res = malloc(v.length)[0..v.length];
+        res = mem.malloc(v.length)[0..v.length];
       } else {
         if (dupvcache.length && dupvcache.length < v.length) {
           // can't free the middle!
@@ -308,7 +308,11 @@ void setupSysmods() {
       res[] = v;
       return res;
     }
-    
+    void* dupv(void* ptr, int length) {
+      auto res = mem.malloc(length);
+      memcpy(res, ptr, length);
+      return res;
+    }
     int fastfloor(float f) {
       alias magicdelta = 0.000000015;
       alias roundeps = 0.5 - magicdelta;
