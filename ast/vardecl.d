@@ -8,8 +8,12 @@ class VarDecl : LineNumberedStatement {
   Variable[] vars;
   mixin DefaultDup!();
   mixin defaultIterate!(vars);
+  bool hasAnyInitializers() {
+    foreach (var; vars) if (!var.dontInit) return true;
+    return false;
+  }
   override void emitAsm(AsmFile af) {
-    super.emitAsm(af);
+    if (hasAnyInitializers) super.emitAsm(af); // otherwise not worth it
     // logln("emit at ", af.currentStackDepth, ": ", vars);
     foreach (var; vars) {
       // sanity checking start!
@@ -245,8 +249,8 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   sc.add(var);
   auto vd = new VarDecl;
   vd.vars ~= var;
-  namespace().get!(Scope).addStatement(vd);
-
+  sc.addStatement(vd);
+  
   text = t2;
   if (!initval) { var.initInit; return var; }
   var.dontInit = true;

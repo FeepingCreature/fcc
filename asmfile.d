@@ -39,8 +39,15 @@ class AsmFile {
     return name;
   }
   string code;
-  bool optimize, debugMode;
-  this(bool optimize, bool debugMode, string id) { New(cache); New(finalized); this.optimize = optimize; this.debugMode = debugMode; this.id = id; }
+  bool optimize, debugMode, profileMode;
+  this(bool optimize, bool debugMode, bool profileMode, string id) {
+    New(cache);
+    New(finalized);
+    this.optimize = optimize;
+    this.debugMode = debugMode;
+    this.profileMode = profileMode;
+    this.id = id;
+  }
   Transcache cache, finalized;
   int currentStackDepth;
   void pushStack(string expr, IType type) {

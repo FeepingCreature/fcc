@@ -21,6 +21,7 @@ class _Assignment(T) : LineNumberedStatement {
   mixin defaultIterate!(target, value);
   override string toString() { return Format(target, " := ", value, "; "); }
   override void emitAsm(AsmFile af) {
+    super.emitAsm(af);
     if (blind) {
       value.emitAsm(af);
       static if (is(T: MValue))

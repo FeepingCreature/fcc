@@ -90,10 +90,12 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
   if (!af.debugMode) return;
   with (lns) {
     auto mod = current_module();
+    if (!name) return;
     if (auto id = af.getFileId(name)) {
-      if (line >= 1) line -= 1; // wat
+      if (line >= 1) line -= 1; // wat!!
       af.put(".loc ", id, " ", line, " ", 0);
-      af.put("# being ", name);
+      if (!name.length) asm { int 3; } // TODO
+      af.put("# being '", name, "'");
     }
   }
 }
@@ -156,12 +158,17 @@ void lazySysmod() {
   setupSysmods();
 }
 
-string compile(string file, bool saveTemps = false, bool optimize = false, bool debugMode = false, string configOpts = null) {
+struct CompileSettings {
+  bool saveTemps, optimize, debugMode, profileMode;
+  string configOpts;
+}
+
+string compile(string file, CompileSettings cs = Init!(CompileSettings)) {
   while (file.startsWith("./")) file = file[2 .. $];
-  auto af = new AsmFile(optimize, debugMode, file);
-  if (configOpts) {
+  auto af = new AsmFile(cs.optimize, cs.debugMode, cs.profileMode, file);
+  if (cs.configOpts) {
     setupOpts();
-    auto cmds = configOpts.split(",");
+    auto cmds = cs.configOpts.split(",");
     foreach (cmd; cmds) {
       if (cmd == "info") {
         logSmart!(false)("count: ", opts.length);
@@ -183,7 +190,7 @@ string compile(string file, bool saveTemps = false, bool optimize = false, bool 
     objname = end ~ ".o";
   } else assert(false);
   scope(exit) {
-    if (!saveTemps)
+    if (!cs.saveTemps)
       unlink(srcname.toStringz());
   }
   auto modname = file.replace("/", ".")[0..$-3];
@@ -226,9 +233,9 @@ string compile(string file, bool saveTemps = false, bool optimize = false, bool 
   return objname;
 }
 
-string[] compileWithDepends(string file, bool saveTemps = false, bool optimize = false, bool debugMode = false, string configOpts = null) {
+string[] compileWithDepends(string file, CompileSettings cs = Init!(CompileSettings)) {
   while (file.startsWith("./")) file = file[2 .. $];
-  auto firstObj = compile(file, saveTemps, optimize, debugMode, configOpts);
+  auto firstObj = compile(file, cs);
   auto modname = file.replace("/", ".")[0..$-3];
   string[] res;
   bool[string] done;
@@ -244,7 +251,7 @@ string[] compileWithDepends(string file, bool saveTemps = false, bool optimize =
   while (todo.length) {
     auto cur = todo.take();
     if (cur.name in done) continue;
-    res ~= compile(cur.name.replace(".", "/") ~ ".cr", saveTemps, optimize, debugMode, configOpts);
+    res ~= compile(cur.name.replace(".", "/") ~ ".cr", cs);
     done[cur.name] = true;
     todo ~= cur.imports;
   }
@@ -265,7 +272,7 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
 
 import std.file;
 void loop(string start, string output, string[] largs,
-          bool optimize, bool debugMode, bool runMe, bool saveTemps, string configOpts)
+          CompileSettings cs, bool runMe)
 {
   string toModule(string file) { return file.replace("/", ".").endsWith(".cr"); }
   string undo(string mod) {
@@ -312,7 +319,7 @@ void loop(string start, string output, string[] largs,
   while (true) {
     lazySysmod();
     try {
-      auto objs = start.compileWithDepends(saveTemps, optimize, debugMode, configOpts);
+      auto objs = start.compileWithDepends(cs);
       objs.link(output, largs, true);
     } catch (Exception ex) {
       logln(ex);
@@ -362,8 +369,8 @@ int main(string[] args) {
   string output;
   auto ar = args;
   string[] largs;
-  bool saveTemps, optimize, runMe, debugMode;
-  string configOpts;
+  bool runMe;
+  CompileSettings cs;
   bool willLoop; string mainfile;
   while (ar.length) {
     auto arg = ar.take();
@@ -409,11 +416,11 @@ int main(string[] args) {
       continue;
     }
     if (arg == "-save-temps" || arg == "-S") {
-      saveTemps = true;
+      cs.saveTemps = true;
       continue;
     }
     if (arg == "-O") {
-      optimize = true;
+      cs.optimize = true;
       continue;
     }
     if (arg == "-debug-opts") {
@@ -425,14 +432,19 @@ int main(string[] args) {
       continue;
     }
     if (arg == "-config-opts") {
-      configOpts = ar.take();
+      cs.configOpts = ar.take();
       continue;
     }
     if (arg == "-dump-info" || "parsers.txt".exists()) {
       write("parsers.txt", parsecon.dumpInfo());
     }
     if (arg == "-g") {
-      debugMode = true;
+      cs.debugMode = true;
+      continue;
+    }
+    if (arg == "-pg") {
+      cs.profileMode = true;
+      largs ~= "-pg";
       continue;
     }
     if (arg == "-dump-graphs") {
@@ -459,7 +471,7 @@ int main(string[] args) {
       if (!mainfile) mainfile = arg;
       if (!willLoop) {
         lazySysmod();
-        try objects ~= arg.compileWithDepends(saveTemps, optimize, debugMode, configOpts);
+        try objects ~= arg.compileWithDepends(cs);
         catch (Exception ex) { logln(ex.toString()); return 1; }
       }
       continue;
@@ -469,10 +481,10 @@ int main(string[] args) {
   }
   if (!output) output = "exec";
   if (willLoop) {
-    loop(mainfile, output?output:"exec", largs, optimize, debugMode, runMe, saveTemps, configOpts);
+    loop(mainfile, output?output:"exec", largs, cs, runMe);
     return 0;
   }
-  objects.link(output, largs, saveTemps);
+  objects.link(output, largs, cs.saveTemps);
   if (runMe) system(toStringz("./"~output));
   return 0;
 }

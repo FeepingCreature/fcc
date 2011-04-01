@@ -146,6 +146,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       
       af.pushStack("%ebp", voidp);
       af.mmove4("%esp", "%ebp");
+      if (af.profileMode)
+        af.put("call mcount");
       
       auto backup = af.currentStackDepth;
       scope(exit) af.currentStackDepth = backup;
