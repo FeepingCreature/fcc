@@ -90,7 +90,7 @@ class Compare : Cond, Expr {
       if (isFloat) {
         e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
         e2.emitAsm(af); af.compareFloat("(%esp)"); af.sfree(4);
-      } else if (auto ie = fastcast!(IntExpr)~ e2) {
+      } else if (auto ie = fastcast!(IntExpr) (e2)) {
         e1.emitAsm(af);
         af.popStack("%eax", e1.valueType());
         // remember: at&t order is inverted
@@ -191,14 +191,14 @@ Cond compare(string op, Expr ex1, Expr ex2) {
   }
   {
     auto ie1 = ex1, ie2 = ex2;
-    bool isInt(IType it) { return !!fastcast!(SysInt) (it); }
+    bool isInt(IType it) { return !!fastcast!(SysInt) (resolveType(it)); }
     if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
       return new Compare(ie1, not, smaller, equal, greater, ie2);
     }
   }
   {
     auto fe1 = ex1, fe2 = ex2;
-    bool isFloat(IType it) { return !!fastcast!(Float) (it); }
+    bool isFloat(IType it) { return !!fastcast!(Float) (resolveType(it)); }
     if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
       return new Compare(fe1, not, smaller, equal, greater, fe2);
     }
