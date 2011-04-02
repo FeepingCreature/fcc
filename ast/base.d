@@ -223,7 +223,7 @@ class Register(string Reg) : Expr, IRegister {
   mixin defaultIterate!();
   override IType valueType() { return Single!(SysInt); }
   override void emitAsm(AsmFile af) {
-    af.pushStack("%"~Reg, valueType());
+    af.pushStack("%"~Reg, 4);
   }
   override Register dup() { return this; }
 }

@@ -202,7 +202,7 @@ class IntLiteralAsShort : Expr {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("2"));
       af.mmove2(Format("$", ie.num), "%ax");
-      af.pushStack("%ax", valueType());
+      af.pushStack("%ax", 2);
     }
   }
 }
@@ -218,8 +218,8 @@ class IntAsShort : Expr {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("2"));
       ex.emitAsm(af);
-      af.popStack("%eax", ex.valueType());
-      af.pushStack("%ax", valueType());
+      af.popStack("%eax", 4);
+      af.pushStack("%ax", 2);
     }
   }
 }
@@ -255,7 +255,7 @@ static this() {
 void loadFloatEx(Expr ex, AsmFile af) {
   if (auto lv = fastcast!(CValue)~ ex) {
     lv.emitLocation(af);
-    af.popStack("%eax", voidp);
+    af.popStack("%eax", nativePtrSize);
     af.loadFloat("(%eax)");
     af.nvm("%eax");
   } else {
@@ -269,7 +269,7 @@ void loadFloatEx(Expr ex, AsmFile af) {
 void loadDoubleEx(Expr ex, AsmFile af) {
   if (auto cv = fastcast!(CValue)~ ex) {
     cv.emitLocation(af);
-    af.popStack("%eax", voidp);
+    af.popStack("%eax", nativePtrSize);
     af.loadDouble("(%eax)");
     af.nvm("%eax");
   } else {
@@ -333,14 +333,14 @@ class AsmIntBinopExpr : BinopExpr {
       if (op == "/" || op == "%") {
         e2.emitAsm(af);
         e1.emitAsm(af);
-        af.popStack("%eax", e1.valueType());
+        af.popStack("%eax", 4);
         af.extendDivide("(%esp)");
         af.sfree(4);
         if (op == "%") {
-          af.pushStack("%edx", Single!(SysInt));
+          af.pushStack("%edx", 4);
           af.nvm("%edx");
         } else {
-          af.pushStack("%eax", Single!(SysInt));
+          af.pushStack("%eax", 4);
           af.nvm("%eax");
         }
       } else {
@@ -356,7 +356,7 @@ class AsmIntBinopExpr : BinopExpr {
           af.mmove4(op1, "%eax");
         } else {
           e1.emitAsm(af);
-          af.popStack("%eax", e1.valueType());
+          af.popStack("%eax", 4);
         }
         string top = op;
         if (top == "*" && op2.startsWith("$")) {
@@ -374,14 +374,14 @@ class AsmIntBinopExpr : BinopExpr {
         ])[top];
         
         if (op2.isRegister())
-          af.popStack(op2, e2.valueType());
+          af.popStack(op2, 4);
         
         if (asm_op == "sar" || asm_op == "shl" || asm_op == "%shr")
           if (op2 == "%ecx")
             op2 = "%cl"; // shl/r really want %cl.
         
         af.mathOp(asm_op, op2, "%eax");
-        af.pushStack("%eax", Single!(SysInt));
+        af.pushStack("%eax", 4);
         af.nvm("%eax");
       }
     }
@@ -428,9 +428,9 @@ class AsmIntUnaryExpr : Expr {
       if (op == "-") (new AsmIntBinopExpr(mkInt(0), ex, "-")).emitAsm(af);
       else if (op == "¬") {
         ex.emitAsm(af);
-        af.popStack("%eax", ex.valueType());
+        af.popStack("%eax", 4);
         af.put("notl %eax");
-        af.pushStack("%eax", ex.valueType());
+        af.pushStack("%eax", 4);
       }
       else
       {

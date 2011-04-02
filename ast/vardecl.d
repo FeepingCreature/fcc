@@ -51,8 +51,8 @@ class VarDecl : LineNumberedStatement {
         var.initval.emitAsm(af);
         if (sz == 1) {
           var.emitLocation(af);
-          af.popStack("%eax", new Pointer(var.valueType()));
-          af.popStack("(%eax)", var.initval.valueType());
+          af.popStack("%eax", nativePtrSize);
+          af.popStack("(%eax)", var.initval.valueType().size);
           af.nvm("%eax");
         }
       }

@@ -144,7 +144,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       af.jump_barrier();
       // af.put(".cfi_startproc");
       
-      af.pushStack("%ebp", voidp);
+      af.pushStack("%ebp", nativePtrSize);
       af.mmove4("%esp", "%ebp");
       if (af.profileMode)
         af.put("call mcount");
@@ -156,7 +156,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       af.emitLabel(exit(), true);
       
       // af.mmove4("%ebp", "%esp");
-      // af.popStack("%ebp", voidp);
+      // af.popStack("%ebp", nativePtrSize);
       af.put("leave");
       
       af.jump_barrier();
@@ -249,22 +249,22 @@ void handleReturn(IType ret, AsmFile af) {
   }
   if (ret != Single!(Void)) {
     if (ret.size >= 8) {
-      af.pushStack("%edx", Single!(SizeT));
+      af.pushStack("%edx", 4);
       af.nvm("%edx");
     }
     if (ret.size >= 12) {
-      af.pushStack("%ecx", Single!(SizeT));
+      af.pushStack("%ecx", 4);
       af.nvm("%ecx");
     }
     if (ret.size == 16) {
-      af.pushStack("%ebx", Single!(SizeT));
+      af.pushStack("%ebx", 4);
       af.nvm("%ebx");
     }
     if (ret.size >= 4) {
-      af.pushStack("%eax", Single!(SizeT));
+      af.pushStack("%eax", 4);
       af.nvm("%eax");
     } else if (ret.size == 2) {
-      af.pushStack("%ax", Single!(Short));
+      af.pushStack("%ax", 2);
       af.nvm("%ax");
     }
   }
@@ -286,7 +286,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     
     bool backupESI = external && name != "setjmp";
     
-    if (backupESI) af.pushStack("%esi", voidp);
+    if (backupESI) af.pushStack("%esi", nativePtrSize);
     
     int paramsize;
     foreach (param; params) paramsize += param.valueType().size;
@@ -313,7 +313,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
         if (fp.valueType().size > nativePtrSize) asm { int 3; }
         fp.emitAsm(af);
       }
-      af.popStack("%eax", Single!(SizeT));
+      af.popStack("%eax", 4);
       
       af.call("%eax");
       
@@ -338,7 +338,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     }
     af.sfree(alignCall);
     
-    if (backupESI) af.popStack("%esi", voidp);
+    if (backupESI) af.popStack("%esi", nativePtrSize);
   }
   
   auto size = (ret == Single!(Void))?0:ret.size;

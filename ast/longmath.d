@@ -28,8 +28,8 @@ class AsmLongBinopExpr : BinopExpr {
           af.mathOp("addl", "8(%esp)", "%eax");
           af.mathOp("adcl", "12(%esp)", "%ebx");
           af.sfree(16);
-          af.pushStack("%ebx", Single!(SysInt));
-          af.pushStack("%eax", Single!(SysInt));
+          af.pushStack("%ebx", 4);
+          af.pushStack("%eax", 4);
           break;
         case "*":
           // (a * f b) + (c * f d) = ac + f(bc + ad) + ff(bd) ^W^W^W^W
@@ -44,8 +44,8 @@ class AsmLongBinopExpr : BinopExpr {
           af.put("mull 8(%esp)"); // eax:edx = a*c
           af.mathOp("addl", "%ebx", "%edx"); // final summation
           af.sfree(16);
-          af.pushStack("%edx", Single!(SysInt));
-          af.pushStack("%eax", Single!(SysInt));
+          af.pushStack("%edx", 4);
+          af.pushStack("%eax", 4);
           break;
         default:
           logln("Unknown op for long binop expr: ", op);

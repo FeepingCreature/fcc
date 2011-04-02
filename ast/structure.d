@@ -324,9 +324,9 @@ class MemberAccess_Expr : Expr, HasInfo {
           af.comment("emit location for member access to ", stm.name, " @", stm.offset);
           lv.emitLocation(af);
           af.comment("pop and dereference");
-          af.popStack("%eax", new Pointer(st));
+          af.popStack("%eax", nativePtrSize);
           af.comment("push back ", stm.type.size);
-          af.pushStack(Format(stm.offset, "(%eax)"), stm.type);
+          af.pushStack(Format(stm.offset, "(%eax)"), stm.type.size);
           af.nvm("%eax");
         } else {
           mkVar(af, stm.type, true, (Variable var) {
@@ -364,23 +364,23 @@ class MemberAccess_Expr : Expr, HasInfo {
         af.sfree(filler);
         af.comment("repush member");
         if (stm.type.size == 16) {
-          af.pushStack("%eax", Single!(SysInt));
+          af.pushStack("%eax", 4);
           af.nvm("%eax");
         }
         if (stm.type.size >= 12) {
-          af.pushStack("%ebx", Single!(SysInt));
+          af.pushStack("%ebx", 4);
           af.nvm("%ebx");
         }
         if (stm.type.size >= 8) {
-          af.pushStack("%ecx", Single!(SysInt));
+          af.pushStack("%ecx", 4);
           af.nvm("%ecx");
         }
         if (stm.type.size >= 4) {
-          af.pushStack("%edx", Single!(SysInt));
+          af.pushStack("%edx", 4);
           af.nvm("%edx");
         }
         if (stm.type.size == 2) {
-          af.pushStack("%dx", Single!(Short));
+          af.pushStack("%dx", 2);
           af.nvm("%dx");
         }
       }

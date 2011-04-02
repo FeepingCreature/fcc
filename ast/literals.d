@@ -25,7 +25,7 @@ class DoubleExpr : Expr, Literal {
       if (!name_used) {
         name_used = af.allocConstant(Format("dcons_", af.constants.length), cast(ubyte[]) i);
       }
-      af.pushStack(qformat("0($", name_used, ")"), valueType());
+      af.pushStack(qformat("0($", name_used, ")"), 8);
     }
   }
 }
@@ -48,7 +48,7 @@ class FloatExpr : Expr, Literal {
       if (!name_used) {
         name_used = af.allocConstant(Format("cons_constant_", af.constants.length), cast(ubyte[]) (&f_as_i)[0 .. 1]);
       }
-      af.pushStack(name_used, valueType());
+      af.pushStack(name_used, 4);
     }
   }
 }

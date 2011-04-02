@@ -46,24 +46,24 @@ class ReturnStmt : Statement {
           af.floatStackDepth --; // doesn't count
         } else if (vt.size == 4) {
           value.emitAsm(af);
-          af.popStack("%eax", vt);
+          af.popStack("%eax", 4);
         } else if (vt.size == 8) {
           value.emitAsm(af);
-          af.popStack("%eax", Single!(SizeT));
-          af.popStack("%edx", Single!(SizeT));
+          af.popStack("%eax", 4);
+          af.popStack("%edx", 4);
         // Well, C compatible this ain't.
         // TODO
         } else if (vt.size == 12) {
           value.emitAsm(af);
-          af.popStack("%eax", Single!(SizeT));
-          af.popStack("%ecx", Single!(SizeT));
-          af.popStack("%edx", Single!(SizeT));
+          af.popStack("%eax", 4);
+          af.popStack("%ecx", 4);
+          af.popStack("%edx", 4);
         } else if (vt.size == 16) {
           value.emitAsm(af);
-          af.popStack("%eax", Single!(SizeT));
-          af.popStack("%ebx", Single!(SizeT));
-          af.popStack("%ecx", Single!(SizeT));
-          af.popStack("%edx", Single!(SizeT));
+          af.popStack("%eax", 4);
+          af.popStack("%ebx", 4);
+          af.popStack("%ecx", 4);
+          af.popStack("%edx", 4);
         } else {
           assert(false, Format("Unsupported return type ", vt));
         }

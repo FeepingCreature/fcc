@@ -139,9 +139,9 @@ class MultiplesExpr : Expr {
     IType valueType() { return type; }
     void emitAsm(AsmFile af) {
       base.emitAsm(af);
-      auto bvt = base.valueType();
+      auto bvts = base.valueType().size;
       for (int i = 1; i < factor; ++i) {
-        af.pushStack("(%esp)", bvt);
+        af.pushStack("(%esp)", bvts);
       }
     }
   }
@@ -371,7 +371,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     return false;
   if (op != "+" /or/ "-" /or/ "*" /or/ "/" /or/ "^") return false;
   void packLoad(string dest, string scrap1, string scrap2) {
-    af.popStack("%eax", Single!(SysInt));
+    af.popStack("%eax", 4);
     // af.SSEOp("movaps", "(%eax)", dest);
     // recommended by the intel core opt manual, 3-50
     af.movd("(%eax)", dest);
@@ -391,8 +391,8 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     var2.emitLocation(af);
     /*packLoad("%xmm1", "%xmm0", "%xmm2");
     packLoad("%xmm0", "%xmm2", "%xmm3");*/
-    af.popStack("%eax", Single!(SysInt));
-    af.popStack("%ebx", Single!(SysInt));
+    af.popStack("%eax", 4);
+    af.popStack("%ebx", 4);
     af.SSEOp("movaps", "(%eax)", "%xmm1");
     af.SSEOp("movaps", "(%ebx)", "%xmm0");
     af.salloc(16);
@@ -405,7 +405,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     af.sfree(16);
     // logln("param 2 is ", op2, ", what to do .. ");
     packLoad("%xmm0", "%xmm2", "%xmm3");
-    // af.popStack("%eax", Single!(SysInt));
+    // af.popStack("%eax", 4);
     // af.SSEOp("movaps", "(%eax)", "%xmm0");
     af.salloc(4);
   }
@@ -417,7 +417,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     af.sfree(16);
     // logln("param 1 is ", op1, ", what to do .. ");
     packLoad("%xmm1", "%xmm2", "%xmm3");
-    // af.popStack("%eax", Single!(SysInt));
+    // af.popStack("%eax", 4);
     // af.SSEOp("movaps", "(%eax)", "%xmm1");
     af.salloc(4);
   }
@@ -478,7 +478,7 @@ class Vec4fSmaller : Expr {
       af.nvm("%ebx");
       af.nvm("%eax");
       af.put("movmskps %xmm1, %eax");
-      af.pushStack("%eax", valueType());
+      af.pushStack("%eax", 4);
     }
   }
 }

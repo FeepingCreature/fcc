@@ -11,7 +11,7 @@ class ExprWrap : Cond {
   override {
     void jumpOn(AsmFile af, bool cond, string dest) {
       ex.emitAsm(af);
-      af.popStack("%eax", ex.valueType());
+      af.popStack("%eax", 4);
       af.compare("%eax", "%eax", true);
       af.nvm("%eax");
       if (cond)
@@ -92,14 +92,14 @@ class Compare : Cond, Expr {
         e2.emitAsm(af); af.compareFloat("(%esp)"); af.sfree(4);
       } else if (auto ie = fastcast!(IntExpr) (e2)) {
         e1.emitAsm(af);
-        af.popStack("%eax", e1.valueType());
+        af.popStack("%eax", 4);
         // remember: at&t order is inverted
         af.compare(Format("$", ie.num), "%eax");
       } else {
         e2.emitAsm(af);
         e1.emitAsm(af);
-        af.popStack("%ebx", e1.valueType());
-        af.popStack("%eax", e2.valueType());
+        af.popStack("%ebx", 4);
+        af.popStack("%eax", 4);
         af.compare("%eax", "%ebx");
       }
   }
@@ -119,8 +119,8 @@ class Compare : Cond, Expr {
       emitComparison(af);
       auto s = smaller, e = equal, g = greater;
       if (falseOverride && trueOverride) {
-        af.popStack("%ebx", trueOverride.valueType());
-        af.popStack("%ecx", falseOverride.valueType());
+        af.popStack("%ebx", 4);
+        af.popStack("%ecx", 4);
       } else {
         af.mmove4("$1", "%ebx");
         af.mmove4("$0", "%ecx"); // don't xorl; mustn't overwrite comparison results
@@ -128,7 +128,7 @@ class Compare : Cond, Expr {
       // can't use eax, moveOnFloat needs ax
       if (isFloat) af.moveOnFloat(s, e, g, "%ebx", "%ecx");
       else af.cmov(s, e, g, "%ebx", "%ecx");
-      af.pushStack("%ecx", Single!(SysInt));
+      af.pushStack("%ecx", 4);
     }
     void jumpOn(AsmFile af, bool cond, string dest) {
       auto s = smaller, e = equal, g = greater;

@@ -1,6 +1,6 @@
 module optimizer;
 
-import assemble, tools.base, ast.base, ast.types;
+import assemble, tools.base, ast.base, tools.base: Stuple, stuple;
 alias asmfile.startsWith startsWith;
 
 struct onceThenCall {
@@ -89,8 +89,8 @@ struct TransactionInfo {
   const string Table = `
     name       | inOp1     | inOp2  | outOp |size |stack
     -----------------------------------------------------
-    Push       | &#.source |        |       | #.type.size| grow
-    Pop        |           |        |&#.dest| #.type.size|shrink
+    Push       | &#.source |        |       | #.size| grow
+    Pop        |           |        |&#.dest| #.size|shrink
     SAlloc     |           |        |       | #.size | grow
     SFree      |           |        |       | #.size |shrink
     Label      |           |        |       | -1  |
@@ -705,7 +705,7 @@ class ProcTrack : ExtToken {
       case Push:
         if (noStack)
           return false;
-        if (t.type.size == nativePtrSize) {
+        if (t.size == nativePtrSize) {
           int offs;
           if (auto src = t.source.isIndirect2(offs)) {
             if (src in known) {
@@ -743,16 +743,16 @@ class ProcTrack : ExtToken {
           mixin(Success);
         }
         if (t.source.isLiteral()) {
-          if (t.type.size % nativePtrSize != 0)
+          if (t.size % nativePtrSize != 0)
             return false; // not a case we can handle
-          auto steps = t.type.size / nativePtrSize;
+          auto steps = t.size / nativePtrSize;
           for (int i = 0; i < steps; ++i)
             stack ~= t.source;
           mixin(Success);
         }
         break;
       case Pop:
-        if (t.type.size != nativePtrSize) return false;
+        if (t.size != nativePtrSize) return false;
         if (t.dest.isRegister()) {
           if (!stack.length) break;
           if (t.dest != stack[$-1]) {
@@ -885,7 +885,7 @@ class ProcTrack : ExtToken {
       foreach (entry; stack) {
         addTransaction(Transaction.Kind.Push, (ref Transaction t) {
           t.source = entry;
-          t.type = Single!(SysInt);
+          t.size = 4;
         }, (ref Transaction t) {
           myStackdepth += nativeIntSize;
         });
@@ -910,7 +910,7 @@ class ProcTrack : ExtToken {
       foreach (entry; latepop) {
         addTransaction(Transaction.Kind.Pop, (ref Transaction t) {
           t.dest = entry;
-          t.type = Single!(SysInt);
+          t.size = 4;
         }, (ref Transaction t) {
           myStackdepth -= nativeIntSize;
         });
@@ -1088,7 +1088,7 @@ void setupOpts() {
     bool skip;
     /*if ($0.kind == $TK.Push /or/ $TK.Pop) {
       // if we can't do the push in one step
-      if ($0.type.size != 4 /or/ 2 /or/ 1) 
+      if ($0.size != 4 /or/ 2 /or/ 1) 
         skip = true;
     }*/
     if (!skip) {
@@ -1108,7 +1108,7 @@ void setupOpts() {
   mixin(opt("move_lea_down", `^LoadAddress, *, *:
     $1.kind != $TK.LoadAddress && $1.kind != $TK.Call /* lol */ &&
     !info($1).opContains($0.to) &&
-    !$0.source.contains(info($1).outOp()) &&
+    !$0.from.contains(info($1).outOp()) &&
     $2.kind != $TK.Pop && $2.kind != $TK.Push /* prevent loop with preswitch_math_lea */
     =>
     $T t = $0.dup;
@@ -1158,7 +1158,7 @@ void setupOpts() {
     $SUBST(t, t2, $1);
   `));
   mixin(opt("store_into_pop", `*, ^Pop:
-    info($0).numInOps() == 0 && info($0).outOp().isIndirect(0) == "%esp" && info($0).opSize == $1.type.size
+    info($0).numInOps() == 0 && info($0).outOp().isIndirect(0) == "%esp" && info($0).opSize == $1.size
     =>
     $T t1;
     t1.kind = $TK.SFree;
@@ -1193,7 +1193,7 @@ void setupOpts() {
     $0.opName == "addl" && $0.op1 == $1.to && $1.from == $0.op2  =>  $T t = $0; swap(t.op1, t.op2); $SUBST(t); 
   `));
   mixin(opt("push_temp_into_load", `^Push, *:
-    $0.type.size == info($1).opSize &&
+    $0.size == info($1).opSize &&
     info($1).hasIndirectSrc(0, "%esp") &&
    !info($1).resizesStack() &&
     info($1).outOp().isIndirect() != "%esp" &&
@@ -1204,7 +1204,7 @@ void setupOpts() {
    ($1.kind != $TK.FloatLoad || !$0.source.isUtilityRegister())
     =>
     $T t = $1;
-    if (t.hasStackdepth()) t.stackdepth -= $0.type.size;
+    if (t.hasStackdepth()) t.stackdepth -= $0.size;
     info(t).setIndirectSrc(0, "%esp", $0.source);
     bool block;
     if (t.kind == $TK.SSEOp) { // alignment!!
@@ -1264,9 +1264,9 @@ void setupOpts() {
     }
   `));
   mixin(opt("pointless_push", `^Push, ^SFree:
-    $0.type.size <= $1.size
+    $0.size <= $1.size
     =>
-    auto rest = $1.size - $0.type.size;
+    auto rest = $1.size - $0.size;
     if (rest) {
       $T t = $1.dup;
       t.size = rest;
@@ -1275,7 +1275,7 @@ void setupOpts() {
   `));
   
   mixin(opt("push_move_back_to_store", `^Push, ^Mov || ^Mov2 || ^Mov1:
-    $0.type.size == info($1).opSize() &&
+    $0.size == info($1).opSize() &&
     $1.from == "(%esp)" && $1.to == $0.source
     =>
     $SUBST($0);
@@ -1321,7 +1321,7 @@ void setupOpts() {
   
   // It's complicated. Just trust me, I did the math.
   mixin(opt("complicated", `^Push, ^Pop:
-    $0.type.size == 4 && $1.type.size == 4 &&
+    $0.size == 4 && $1.size == 4 &&
     $1.dest == "4(%esp)" && $0.source != "(%esp)"
     =>
     if ($0.source.isMemRef()) {
@@ -1340,7 +1340,7 @@ void setupOpts() {
     }
   `));
   mixin(opt("push_pop_is_mov_sometimes", `^Push, ^Pop:
-    $0.type.size == 4 && $1.type.size == 4 && $1.dest.isUtilityRegister()
+    $0.size == 4 && $1.size == 4 && $1.dest.isUtilityRegister()
     =>
     $T t; t.kind = $TK.Mov; t.from = $0.source; t.to = $1.dest;
     $SUBST(t);
@@ -1352,15 +1352,15 @@ void setupOpts() {
     )
     =>
     int offs;
-    if ($1.kind == $TK.SSEOp && $1.op1.isIndirect2(offs) == "%esp" && offs >= $0.type.size) {
+    if ($1.kind == $TK.SSEOp && $1.op1.isIndirect2(offs) == "%esp" && offs >= $0.size) {
       $T t = $1;
-      info(t).fixupStrings(-$0.type.size);
+      info(t).fixupStrings(-$0.size);
       $SUBST(t, $0);
     }
     else if ($1.kind == $TK.MovD) $SUBST($1, $0);
   `));
   mixin(opt("convert_push_into_sse_fragment_load", `^Push, ^Push, ^MovD, ^SSEOp, ^MovD, ^SFree:
-    $0.type.size == 4 && $1.type.size == 4 && 
+    $0.size == 4 && $1.size == 4 && 
     $2.from == "4(%esp)" && $2.to.isSSERegister() &&
     $3.opName == "punpckldq" &&
     $4.from == "(%esp)" && $4.to.isSSERegister() &&
@@ -1433,7 +1433,7 @@ void setupOpts() {
     }
   `));
   mixin(opt("preswitch_math_lea", `^MathOp, ^LoadAddress, *:
-    $0.op1.isNumLiteral() && !$1.source.contains($0.op2) && $1.dest != $0.op2 &&
+    $0.op1.isNumLiteral() && !$1.from.contains($0.op2) && $1.dest != $0.op2 &&
     $2.kind == $TK.Pop || $2.kind == $TK.Push
     =>
     $SUBST($1, $0, $2);
@@ -1466,7 +1466,7 @@ void setupOpts() {
     $SUBST(t, $2, $3);
   `));
   mixin(opt("remove_slightly_stupid_push_pop_pair", `^Push, ^Mov, ^Pop:
-    $0.type == $2.type && $0.type.size == 4 &&
+    $0.size == $2.size && $0.size == 4 &&
     $1.to.isRegister() && $1.from.isIndirect() != "%esp" &&
     $2.dest.isRegister() && $2.dest != $1.to &&
     !info($1).opContains($2.dest)
@@ -1478,7 +1478,7 @@ void setupOpts() {
     $SUBST([t, $1]);
   `));
   mixin(opt("pointless_mov", `^Mov, ^Pop:
-    $0.to == "(%esp)" && $1.type.size == 4 && $1.dest == $0.from
+    $0.to == "(%esp)" && $1.size == 4 && $1.dest == $0.from
     =>
     $T t;
     t.kind = $TK.SFree;
@@ -1516,7 +1516,7 @@ void setupOpts() {
         if (head.kind == DoubleStore) check = head.dest;
         if (head.kind == MathOp) check = head.op2;
         pushMode = false;
-        if (head.kind == Push) { pushMode = true; check = "(%esp)"; pushSize = head.type.size; }
+        if (head.kind == Push) { pushMode = true; check = "(%esp)"; pushSize = head.size; }
         if (head.kind == SSEOp && head.opName == "movaps" && (
           head.op2.isSSERegister() || head.op2 == "(%esp)")) check = head.op2;
       }

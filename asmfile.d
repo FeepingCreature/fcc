@@ -1,10 +1,10 @@
 module asmfile;
 
-import optimizer, ast.types, ast.base, parseBase: startsWith;
+import optimizer, ast.base, parseBase: startsWith;
 public import assemble;
 
 import tools.log, tools.functional: map;
-import tools.base: between, slice, atoi, split, stuple, apply, swap;
+import tools.base: between, slice, atoi, split, stuple, apply, swap, Stuple;
 const string[] utilRegs = ["%eax", "%ebx", "%ecx", "%edx"];
 class AsmFile {
   string id;
@@ -50,23 +50,23 @@ class AsmFile {
   }
   Transcache cache, finalized;
   int currentStackDepth;
-  void pushStack(string expr, IType type) {
+  void pushStack(string expr, int size) {
     Transaction t;
     t.kind = Transaction.Kind.Push;
     t.source = expr;
-    t.type = type;
+    t.size = size;
     t.stackdepth = currentStackDepth;
     cache ~= t;
-    currentStackDepth += type.size;
+    currentStackDepth += size;
   }
-  void popStack(string dest, IType type) {
+  void popStack(string dest, int size) {
     Transaction t;
     t.kind = Transaction.Kind.Pop;
     t.dest = dest;
-    t.type = type;
+    t.size = size;
     t.stackdepth = currentStackDepth;
     cache ~= t;
-    currentStackDepth -= type.size;
+    currentStackDepth -= size;
   }
   int checkptStack() {
     return currentStackDepth;
@@ -456,7 +456,6 @@ class AsmFile {
       }
       dg(qformat("\t.align ", alignment, "\n"));
       dg("\t.globl "); dg(name); dg("\n");
-      // dg(qformat("\t.type ", name, "\n"));
       // dg(qformat("\t.size ", name, ", ", data._0, "\n"));
       dg("\t"); dg(name); dg(":\n");
       if (data._1) {

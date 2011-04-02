@@ -9,7 +9,7 @@ class Variable : LValue, Named {
     void emitAsm(AsmFile af) {
       if (type == Single!(Void)) return;
       mixin(mustOffset("type.size"));
-      af.pushStack(address, type);
+      af.pushStack(address, type.size);
     }
     void emitLocation(AsmFile af) {
       lookupOp("+", new Register!("ebp"), mkInt(baseOffset)).emitAsm(af);
@@ -42,6 +42,10 @@ class Variable : LValue, Named {
     name = s;
     baseOffset = i;
     initInit();
+  }
+  this(IType t, string s, Expr ex, int i) {
+    this(t, s, i);
+    initval = ex;
   }
   override string getIdentifier() { return name; }
   mixin DefaultDup!();

@@ -48,12 +48,6 @@ void setupSysmods() {
       void  free   (void* p)           { free_dg(p); }
       void* realloc(void* p, size_t s) { return realloc_dg(p, s); }
       /*MARKER*/
-      void append(char[] target, char[] text) {
-        int newsize = target.length + text.length;
-        auto newtarget = new char[newsize];
-        newtarget[0 .. target.length] = target;
-        newtarget[target.length .. newsize] = text;
-      }
     }
     alias string = char[]; // must be post-marker for free() to work properly
     template sys_array_cast(T) <<EOT
@@ -411,12 +405,12 @@ class CPUIDExpr : Expr {
     IType valueType() { return mkTuple(Single!(SysInt), Single!(SysInt), Single!(SysInt), Single!(SysInt)); }
     void emitAsm(AsmFile af) {
       which.emitAsm(af);
-      af.popStack("%eax", Single!(SysInt));
+      af.popStack("%eax", 4);
       af.put("cpuid");
-      af.pushStack("%edx", Single!(SysInt));
-      af.pushStack("%ecx", Single!(SysInt));
-      af.pushStack("%ebx", Single!(SysInt));
-      af.pushStack("%eax", Single!(SysInt));
+      af.pushStack("%edx", 4);
+      af.pushStack("%ecx", 4);
+      af.pushStack("%ebx", 4);
+      af.pushStack("%eax", 4);
     }
   }
 }
@@ -440,8 +434,8 @@ class RDTSCExpr : Expr {
     IType valueType() { return mkTuple(Single!(SysInt), Single!(SysInt)); }
     void emitAsm(AsmFile af) {
       af.put("rdtsc");
-      af.pushStack("%eax", Single!(SysInt));
-      af.pushStack("%edx", Single!(SysInt));
+      af.pushStack("%eax", 4);
+      af.pushStack("%edx", 4);
     }
   }
 }
@@ -480,8 +474,8 @@ class RegExpr : MValue {
   override {
     RegExpr dup() { return this; }
     IType valueType() { return voidp; }
-    void emitAsm(AsmFile af) { af.pushStack(reg, voidp); }
-    void emitAssignment(AsmFile af) { af.popStack(reg, voidp); }
+    void emitAsm(AsmFile af) { af.pushStack(reg, nativePtrSize); }
+    void emitAssignment(AsmFile af) { af.popStack(reg, nativePtrSize); }
   }
 }
 

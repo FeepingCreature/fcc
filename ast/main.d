@@ -30,14 +30,14 @@ void fixupMain() {
         pvar.emitAsm(af);
         magic = 12;
       }
-      af.popStack("%eax", voidp);
-      af.popStack("%ebx", Single!(SysInt));
+      af.popStack("%eax", nativePtrSize);
+      af.popStack("%ebx", 4);
       af.mathOp("andl", "$-16", "%esp"); // This is where the magic happens,
       af.salloc(magic); // magic constant align to 16
-      af.pushStack("%ebp", voidp);
+      af.pushStack("%ebp", nativePtrSize);
       af.mmove4("%esp", "%ebp");
-      af.pushStack("%ebx", Single!(SysInt));
-      af.pushStack("%eax", voidp);
+      af.pushStack("%ebx", 4);
+      af.pushStack("%eax", nativePtrSize);
       af.currentStackDepth = nativePtrSize * 2;
       auto ncvar = new DerefExpr(lookupOp("-",
         reinterpret_cast(Single!(Pointer, Single!(SysInt)), Single!(RegExpr, "%ebp")),
@@ -53,12 +53,12 @@ void fixupMain() {
         "main2 aligned call"
       ).emitAsm(af);
       // undo the alignment
-      af.popStack("%eax", Single!(SysInt));
+      af.popStack("%eax", 4);
       af.sfree(af.currentStackDepth);
-      af.popStack("%ebp", voidp);
+      af.popStack("%ebp", nativePtrSize);
       af.mmove4("%ebp", "%esp");
       af.currentStackDepth = 4;
-      af.pushStack("%eax", Single!(SysInt)); // return this
+      af.pushStack("%eax", 4); // return this
     })));
   }
   auto cmain = fastcast!(Function) (sysmod.lookup("__c_main"));

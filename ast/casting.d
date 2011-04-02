@@ -318,8 +318,8 @@ class ShortToIntCast : Expr {
       sh.emitAsm(af);
       af.comment("short to int cast");
       af.put("xorl %eax, %eax");
-      af.popStack("%ax", sh.valueType());
-      af.pushStack("%eax", valueType());
+      af.popStack("%ax", sh.valueType().size);
+      af.pushStack("%eax", 4);
     }
   }
 }
@@ -337,8 +337,8 @@ class ByteToShortCast : Expr {
       // lol.
       af.comment("byte to short cast lol");
       af.put("xorw %ax, %ax");
-      af.popStack("%al", b.valueType());
-      af.pushStack("%ax", valueType());
+      af.popStack("%al", b.valueType().size);
+      af.pushStack("%ax", 2);
     }
   }
 }

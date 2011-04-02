@@ -163,7 +163,7 @@ struct CompileSettings {
   string configOpts;
 }
 
-string compile(string file, CompileSettings cs = Init!(CompileSettings)) {
+string compile(string file, CompileSettings cs) {
   while (file.startsWith("./")) file = file[2 .. $];
   auto af = new AsmFile(cs.optimize, cs.debugMode, cs.profileMode, file);
   if (cs.configOpts) {
@@ -233,7 +233,7 @@ string compile(string file, CompileSettings cs = Init!(CompileSettings)) {
   return objname;
 }
 
-string[] compileWithDepends(string file, CompileSettings cs = Init!(CompileSettings)) {
+string[] compileWithDepends(string file, CompileSettings cs) {
   while (file.startsWith("./")) file = file[2 .. $];
   auto firstObj = compile(file, cs);
   auto modname = file.replace("/", ".")[0..$-3];

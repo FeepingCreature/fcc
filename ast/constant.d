@@ -10,6 +10,6 @@ class Constant : Expr {
   mixin defaultIterate!();
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
-    af.pushStack("$"~name, valueType());
+    af.pushStack("$"~name, nativePtrSize);
   }
 }

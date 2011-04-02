@@ -1,6 +1,6 @@
 module assemble;
 
-import ast.types, ast.base;
+import ast.base;
 
 import tools.base: New, or, and, slice, between, fail;
 import tools.compat: find, abs, replace, atoi;
@@ -131,8 +131,8 @@ struct Transaction {
       case SAlloc:      return Format("[salloc ", size, "]");
       case SFree:       return Format("[sfree ", size, "]");
       case MathOp:      return Format("[math:", opName, " ", op1, ", ", op2, "]");
-      case Push:        return Format("[push ", source, ": ", type.size, extra(), "]");
-      case Pop:         return Format("[pop ", dest, ": ", type.size, extra(), "]");
+      case Push:        return Format("[push ", source, ": ", size, extra(), "]");
+      case Pop:         return Format("[pop ", dest, ": ", size, extra(), "]");
       case Call:        return Format("[call ", dest, "]");
       case Compare:
         if (test)       return Format("[cmp/test ", op1, ", ", op2, "]");
@@ -165,8 +165,8 @@ struct Transaction {
       case Mov, Mov2, Mov1, MovD:  return from == t2.from && to == t2.to;
       case SAlloc, SFree: return size == t2.size;
       case MathOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
-      case Push: return source == t2.source && type == t2.type;
-      case Pop: return dest == t2.dest && type == t2.type;
+      case Push: return source == t2.source && size == t2.size;
+      case Pop: return dest == t2.dest && size == t2.size;
       case FloatStore, DoubleStore, FloatPop, DoublePop: return dest == t2.dest;
       case Call, Jump: return dest == t2.dest;
       case Compare: return op1 == t2.op1 && op2 == t2.op2;
@@ -235,7 +235,6 @@ struct Transaction {
         if (opName == "subl" && op1 == "$1") return qformat("decl ", op2);
         return qformat(opName, " ", op1, ", ", op2);
       case Push, Pop:
-        auto size = type.size;
         string res;
         // res = toString();
         // res = "# is " ~ res;
@@ -327,7 +326,7 @@ struct Transaction {
                 logln(temp, " (", *this, ")");
                 asm { int 3; }
               }
-              addLine(qformat(mnemo, pf, " ", temp));
+              addLine(qformat(mnemo, pf, " ", temp, " #", size));
               stack_changed += sz;
             }
             auto s2 = op;
@@ -335,11 +334,11 @@ struct Transaction {
             if (null !is (reg = op.matchRegister())) {
               auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
               if (size != regsize)
-                throw new Exception(Format("Can't pop/push ", type, " of ", reg, ": size mismatch! "));
+                throw new Exception(Format("Can't pop/push ", size, " of ", reg, ": size mismatch! "));
             }
             else if (kind == Push && op.gotLiteral(num, ident)) {
               // just duplicate the number
-              // if (size != sz) throw new Exception(Format("Can't push ", type, " of ", ident?ident:Format(num), ": size mismatch! "));
+              // if (size != sz) throw new Exception(Format("Can't push ", size, " of ", ident?ident:Format(num), ": size mismatch! "));
             }
             else if (kind == Pop && null !is (reg = op.gotMemoryOffset(offs))) {
               op = qformat(offs + sz, "(", reg, ")");
@@ -401,10 +400,9 @@ struct Transaction {
         string from, to;
         string usableScratch;
       }
-      int size;
       struct {
+        int size;
         string source, dest;
-        IType type;
       }
       struct {
         string opName;

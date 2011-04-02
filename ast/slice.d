@@ -41,11 +41,9 @@ class FullSlice : Expr {
         auto backup = af.checkptStack();
         scope(exit) af.restoreCheckptStack(backup);
         
-        auto temp = new Variable(sup.valueType(), null, boffs(sup.valueType(), af.currentStackDepth));
+        auto temp = new Variable(sup.valueType(), null, sup, boffs(sup.valueType(), af.currentStackDepth));
         { auto vd = new VarDecl; vd.vars ~= temp; vd.emitAsm(af); }
         
-        (new Assignment(temp, sup)).emitAsm(af);
-        Expr slice;
         (new Assignment(var, mkArraySlice(temp, mkInt(0), foldex(getArrayLength(temp))))).emitAsm(af);
       });
     }
@@ -130,10 +128,12 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
       auto t3 = t2;
       if (t3.mystripl().length && !t3.accept(";"))
         t2.failparse("Expected ; after slice assignment");
-      if (ar != resolveType(src.valueType())) {
-        auto mesg = Format("Mismatching types in slice assignment: ", dest.valueType(), " <- ", src.valueType());
-        if (fastcast!(Array)~ resolveType(src.valueType())
-         || fastcast!(ExtArray)~ resolveType(src.valueType()))
+      auto svt = resolveType(src.valueType());
+      IType[] tried;
+      if (!gotImplicitCast(src, (IType it) { auto rit = resolveType(it); tried ~= rit; return test(ar == rit); })) {
+        auto mesg = Format("Mismatching types in slice assignment: ", ar, " []= ", svt, ", tried ", tried);
+        if (fastcast!(Array)(svt)
+         || fastcast!(ExtArray)(svt))
           text.failparse(mesg);
         else
           text.setError(mesg);

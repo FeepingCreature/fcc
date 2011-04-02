@@ -96,30 +96,31 @@ class DataExpr : CValue {
       bool allNull = true;
       foreach (val; data) if (val) { allNull = false; break; }
       if (allNull) {
-        af.flush();
+        /*af.flush();
         auto backup = af.optimize;
         // don't even try to opt this
-        af.optimize = false;
-        af.pushStack(Format("$", 0), new StaticArray(Single!(Char), data.length)); // better optimizable
-        af.flush();
-        af.optimize = backup;
+        af.optimize = false;*/
+        // sure?
+        af.pushStack(Format("$", 0), data.length); // better optimizable
+        // af.flush();
+        // af.optimize = backup;
         return;
       }
       auto d2 = data;
       while (d2.length >= 4) {
         auto i = (cast(int[]) d2.take(4))[0];
-        af.pushStack(Format("$", i), Single!(SysInt)); // TODO: use 4-byte type
+        af.pushStack(Format("$", i), 4);
       }
       while (d2.length) {
         auto c = d2.take();
-        af.pushStack(Format("$", c), Single!(Char));
+        af.pushStack(Format("$", c), 1);
       }
     }
     void emitLocation(AsmFile af) {
       if (!name_used) {
         name_used = af.allocConstant(Format("data_", af.constants.length), data);
       }
-      af.pushStack("$"~name_used, voidp);
+      af.pushStack("$"~name_used, nativePtrSize);
     }
   }
 }

@@ -28,8 +28,8 @@ class _Assignment(T) : LineNumberedStatement {
         target.emitAssignment(af);
       else {
         target.emitLocation(af);
-        af.popStack("%eax", new Pointer(target.valueType()));
-        af.popStack("(%eax)", value.valueType());
+        af.popStack("%eax", nativePtrSize);
+        af.popStack("(%eax)", value.valueType().size);
         af.nvm("%eax");
       }
     } else {
@@ -49,8 +49,8 @@ class _Assignment(T) : LineNumberedStatement {
           mixin(mustOffset("nativePtrSize"));
           target.emitLocation(af);
         }
-        af.popStack("%eax", new Pointer(target.valueType()));
-        af.popStack("(%eax)", vt);
+        af.popStack("%eax", nativePtrSize);
+        af.popStack("(%eax)", vt.size);
         af.nvm("%eax");
       }
       af.sfree(filler);

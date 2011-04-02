@@ -57,8 +57,8 @@ class DerefExpr : LValue {
     }
     void emitAsm(AsmFile af) {
       src.emitAsm(af);
-      af.popStack("%eax", src.valueType());
-      af.pushStack("(%eax)", valueType());
+      af.popStack("%eax", nativePtrSize);
+      af.pushStack("(%eax)", valueType().size);
     }
     void emitLocation(AsmFile af) {
       src.emitAsm(af);
@@ -157,7 +157,7 @@ class Symbol : Expr {
   mixin defaultIterate!();
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
-    af.pushStack("$"~name, valueType());
+    af.pushStack("$"~name, nativePtrSize);
   }
 }
 
@@ -172,6 +172,6 @@ class LateSymbol : Expr {
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
     if (!*name) dg(af);
-    af.pushStack("$"~*name, valueType());
+    af.pushStack("$"~*name, nativePtrSize);
   }
 }

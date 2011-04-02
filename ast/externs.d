@@ -14,8 +14,8 @@ class ExternCGlobVar : CValue, Named {
   override {
     IType valueType() { return type; }
     string getIdentifier() { return name; }
-    void emitAsm(AsmFile af) { af.pushStack(name, type); }
-    void emitLocation(AsmFile af) { af.pushStack(qformat("$", name), voidp); }
+    void emitAsm(AsmFile af) { af.pushStack(name, type.size); }
+    void emitLocation(AsmFile af) { af.pushStack(qformat("$", name), nativePtrSize); }
     string toString() { return Format("extern(C) global ", name, " of ", type); }
   }
 }

@@ -224,7 +224,7 @@ class AllocStaticArray : Expr {
                ,"var", var, "T", st.elemType, "size", mkInt(st.length)
                ).emitAsm(af);
         af.mmove4(qformat(4 + st.length, "(%esp)"), "%eax");
-        af.popStack("(%eax)", st);
+        af.popStack("(%eax)", st.size);
       });
     }
   }

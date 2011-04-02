@@ -63,13 +63,12 @@ class RelFunCall : FunCall {
       mkVar(af, valueType(), true, (Variable var) {
         auto backup = af.checkptStack();
         scope(exit) af.restoreCheckptStack(backup);
-        auto temp = new Variable(baseptr.valueType(), null, boffs(baseptr.valueType(), af.currentStackDepth));
+        auto temp = new Variable(baseptr.valueType(), null, baseptr, boffs(baseptr.valueType(), af.currentStackDepth));
         {
           auto vd = new VarDecl;
           vd.vars ~= temp;
           vd.emitAsm(af);
         }
-        (new Assignment(temp, baseptr)).emitAsm(af);
         auto res = new Variable(valueType(), null, boffs(valueType(), af.currentStackDepth));
         callDg(af, fun.type.ret, params,
           new DgConstructExpr(fun.getPointer(), new RefExpr(temp)));

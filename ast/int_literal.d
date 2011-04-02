@@ -6,7 +6,7 @@ class IntExpr : Expr, Literal, HasInfo {
   int num;
   override {
     void emitAsm(AsmFile af) {
-      af.pushStack(Format("$", num), valueType());
+      af.pushStack(Format("$", num), 4);
     }
     IType valueType() { return Single!(SysInt); }
     string toString() { return Format(num); }

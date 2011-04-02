@@ -37,20 +37,20 @@ class GlobVar : LValue, Named {
         af.mmove4(qformat("$", mangled()), "%eax");
         af.mathOp("subl", "$_sys_tls_data_start", "%eax");
         af.mathOp("addl", "%esi", "%eax");
-        af.pushStack("(%eax)", type);
+        af.pushStack("(%eax)", type.size);
       }
       else
-        af.pushStack(mangled(), type);
+        af.pushStack(mangled(), type.size);
     }
     void emitLocation(AsmFile af) {
       if (tls) {
         af.mmove4(qformat("$", mangled()), "%eax");
         af.mathOp("subl", "$_sys_tls_data_start", "%eax");
         af.mathOp("addl", "%esi", "%eax");
-        af.pushStack("%eax", voidp);
+        af.pushStack("%eax", nativePtrSize);
         af.nvm("%eax");
       } else {
-        af.pushStack(qformat("$", mangled()), voidp);
+        af.pushStack(qformat("$", mangled()), nativePtrSize);
       }
     }
     string toString() { return Format("global ", name, " of ", type); }
