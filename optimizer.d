@@ -356,24 +356,32 @@ bool pinsRegister(ref Transaction t, string reg) {
   return res;
 }
 
-void fixupString(ref string s, int shift) {
+// return false on failure
+// note: not applicable is not a failure!
+bool tryFixupString(ref string s, int shift) {
   if (auto rest = s.startsWith("+(%esp,")) {
     auto op2 = s.between("(", ")"), op1 = op2.rslice(",").strip();
     op2 = op2.strip().startsWith("$");
     assert(op2);
-    s = qformat("+(", op1, ", $",
-      op2.atoi() + shift,
-      ")"
-    );
-    return;
+    auto sum = op2.atoi() + shift;
+    if (sum < 0) return false;
+    s = qformat("+(", op1, ", $", sum, ")");
+    return true;
   }
   int offs;
   if (s.isIndirect2(offs).contains("%esp")) {
     if (offs + shift < 0 && s.isIndirect() == "%esp") { // never a good idea
-      logln("Tried to fix up ", s, " by ", shift, " into negative! ");
-      asm { int 3; }
+      return false;
     }
     s = qformat(offs + shift, "(", s.isIndirect2(offs), ")").cleanup();
+  }
+  return true;
+}
+
+void fixupString(ref string s, int shift) {
+  if (!tryFixupString(s, shift)) {
+    logln("Tried to fix up ", s, " by ", shift, " into negative! ");
+    asm { int 3; }
   }
 }
 
@@ -427,6 +435,7 @@ class ProcTrack : ExtToken {
   // not safe to mix foo(%ebp) and foo(%esp) in the same proc chunk
   int ebp_mode = -1;
   int eaten;
+  int postfree;
   bool noStack; // assumed no stack use; don't challenge this
   int stackdepth = -1; // stack depth at start
   string toString() {
@@ -524,14 +533,23 @@ class ProcTrack : ExtToken {
                          return false;
     }
     // Note: this must NOT fix up the stack! think about it.
-    void fixupESPDeps(int shift) {
+    bool _fixupESPDeps(bool _try, int shift) {
       typeof(known) newknown;
       foreach (key, value; known) {
-        fixupString(key, shift); fixupString(value, shift);
+        if (_try) {
+          if (!tryFixupString(key, shift) || !tryFixupString(value, shift))
+            return false;
+        } else {
+          fixupString(key, shift);
+          fixupString(value, shift);
+        }
         newknown[key] = value;
       }
       known = newknown;
+      return true;
     }
+    void fixupESPDeps(int shift) { _fixupESPDeps(false, shift); }
+    bool tryFixupESPDeps(int shift) { return _fixupESPDeps(true, shift); }
     with (Transaction.Kind) switch (t.kind) {
       case Compare: return false;
       case LoadAddress:
@@ -597,7 +615,8 @@ class ProcTrack : ExtToken {
         for (int i = 0; i < t.size / nativePtrSize; ++i)
           if (st2.length) st2 = st2[0 .. $-1];
           else return false;
-        fixupESPDeps(-4 * (stack.length - st2.length));
+        if (!tryFixupESPDeps(-4 * (stack.length - st2.length)))
+          return false;
         stack = st2;
         mixin(Success);
       case MovD:
@@ -1498,11 +1517,135 @@ void setupOpts() {
     $SUBST(t, $0);
   `));
   mixin(opt("small_fry_1", `^MathOp, ^Pop:
-    $1.type.size == 4 && $0.op1.isNumLiteral() && $0.op2 == "(%esp)"
+    $1.size == 4 && $0.op1.isNumLiteral() && $0.op2 == "(%esp)"
     =>
     $T t = $0.dup;
     t.op2 = $1.dest;
     $SUBST($1, t);
+  `));
+  // push foo, pop (%esp) => sfree 4; push foo
+  bool remove_stack_push_pop_chain(Transcache cache, ref int[string] labels_refcount) {
+    int sz;
+    string firstAddr, secondAddr;
+    bool hasSfree;
+    int sfreeBias, postFree;
+    auto match = cache.findMatch("remove_stack_push_pop_chain", delegate int(Transaction[] list) {
+      // erase remnants of earlier iteration!
+      sz = 0;
+      firstAddr = secondAddr = null;
+      hasSfree = false;
+      sfreeBias = postFree = 0;
+      if (list.length < 2) return false;
+      int marker = -1, marker2 = -1;
+      foreach (i, entry; list)
+        if (entry.kind != Transaction.Kind.Push) { marker = i; break; }
+      if (!marker || marker == -1) return false;
+      foreach (i, entry; list[marker .. $])
+        if (entry.kind != Transaction.Kind.Pop) { marker2 = marker + i; break; }
+      if (marker2 == -1) marker2 = list.length;
+      if (marker2 != marker * 2)
+        return false;
+      if (list.length > marker2 && list[marker2].kind == Transaction.Kind.SFree) {
+        hasSfree = true;
+        sfreeBias = list[marker2].size;
+      }
+      string curAddr;
+      foreach (entry; list[0 .. marker]) {
+        // if (entry.source.isIndirect() != "%esp") return false;
+        if (!firstAddr) {
+          if (!entry.source.isIndirect()) return false;
+          curAddr = firstAddr = entry.source;
+        } else if (entry.source != curAddr) return false;
+        int loffs;
+        string lindir = curAddr.isIndirect2(loffs);
+        if (lindir != "%esp")
+          if (loffs - 4) curAddr = qformat(loffs - 4, "(", lindir, ")");
+          else curAddr = qformat("(", lindir, ")");
+      }
+      foreach (entry; list[marker .. marker2]) {
+        if (entry.dest.isIndirect() != "%esp") return false;
+        if (!secondAddr) secondAddr = entry.dest;
+        else if (entry.dest != secondAddr) return false;
+      }
+      
+      int offs;
+      if (firstAddr.isIndirect2(offs) == "%esp" && offs < marker * 4 + sfreeBias)
+        return false; // too close to home
+      
+      sz = marker * 4;
+      int offs2; secondAddr.isIndirect2(offs2);
+      offs2 -= sz;
+      if (offs2 < 0) {
+        logln("firstAddr ", firstAddr, ", secondAddr ", secondAddr);
+        asm { int 3; }
+      }
+      if (offs2 > sfreeBias) return false;
+      
+      postFree = offs2; // sz already subtracted
+      if (sfreeBias - postFree < 0) {
+        logln("sfreeBias ", sfreeBias, ", postFree ", postFree, ", sz ", sz, ", ops ", list);
+        asm { int 3; }
+      }
+      
+      return marker * 2 + hasSfree;
+    });
+    bool changed;
+    if (match.length) do {
+      Transaction t1;
+      t1.kind = Transaction.Kind.SFree;
+      t1.size = sz + postFree;
+      Transaction t2;
+      t2.kind = Transaction.Kind.Push;
+      
+      int offs;
+      auto relTo = firstAddr.isIndirect2(offs);
+      if (relTo == "%esp") {
+        t2.source = qformat(offs + 4 - 2 * sz - postFree, "(%esp)");
+      } else {
+        t2.source = qformat(offs + 4 - sz, "(", relTo, ")");
+      }
+      t2.size = sz;
+      
+      if (postFree) {
+        Transaction t3;
+        t3.kind = Transaction.Kind.SFree;
+        t3.size = sfreeBias - postFree;
+        match.replaceWith(t1, t2, t3);
+      } else {
+        match.replaceWith(t1, t2);
+      }
+      changed = true;
+    } while (match.advance());
+    return changed;
+  }
+  opts ~= stuple(&remove_stack_push_pop_chain, "remove_stack_push_pop_chain", true);
+  mixin(opt("break_up_push_pop", `^Push || ^Pop:
+    $0.size > 4 && ($0.size % 4) == 0
+    =>
+    auto sz = $0.size;
+    $T[] res;
+    $T cur = $0.dup;
+    cur.size = 4;
+    int offs;
+    string* op;
+    if ($0.kind == $TK.Push) op = &cur.source;
+    else op = &cur.dest;
+    auto indir = (*op).isIndirect2(offs);
+    // Try to pry apart the subtle weave of if clauses.
+    // Just try.
+    // I dare you.
+    if ($0.kind == $TK.Push) {
+      if (indir) offs = offs + $0.size - 4;
+    }
+    if (indir) cur.source = qformat(offs, "(", indir, ")");
+    if (indir == "%esp") indir = null;
+    for (int i = 0; i < sz; i += 4) {
+      if (indir) *op = qformat(offs, "(", indir, ")");
+      res ~= cur;
+      if ($0.kind == $TK.Push) offs -= 4;
+      else offs += 4;
+    }
+    $SUBST(res);
   `));
   bool lookahead_remove_redundants(Transcache cache, ref int[string] labels_refcount) {
     bool changed, pushMode; int pushSize;
