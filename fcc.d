@@ -171,9 +171,9 @@ string compile(string file, CompileSettings cs) {
     auto cmds = cs.configOpts.split(",");
     foreach (cmd; cmds) {
       if (cmd == "info") {
-        logSmart!(false)("count: ", opts.length);
+        logln("count: ", opts.length);
         foreach (i, opt; opts) {
-          logSmart!(false)("id:", i, " name:", opt._1, " ", opt._2?"on":"off");
+          logln("id:", i, " name:", opt._1, " ", opt._2?"on":"off");
         }
         exit(1);
       }
@@ -184,6 +184,7 @@ string compile(string file, CompileSettings cs) {
       }
     }
   }
+  lazySysmod();
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
     srcname = end ~ ".s";
@@ -470,7 +471,6 @@ int main(string[] args) {
       if (!output) output = base;
       if (!mainfile) mainfile = arg;
       if (!willLoop) {
-        lazySysmod();
         try objects ~= arg.compileWithDepends(cs);
         catch (Exception ex) { logln(ex.toString()); return 1; }
       }

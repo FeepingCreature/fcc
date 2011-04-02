@@ -977,7 +977,9 @@ void setupOpts() {
     } else {
       New(obj);
       t.obj = obj;
-      if (obj.update($0)) { $SUBST(t, $1); }
+      if (obj.update($0)) {
+        $SUBST(t, $1);
+      }
       // else logln("Reject ", $0, ", ", $1);
     }
   `));
@@ -1410,7 +1412,7 @@ void setupOpts() {
       info(t).stackDataOp = qformat(offs, "(", $0.op2, ",", $0.op1, ")");
     else
       info(t).stackDataOp = qformat(offs + $0.op1.literalToInt(), "(", $0.op2, ")");
-    $SUBST(t);
+    $SUBST(t, $0);
   `));
   mixin(opt("movaps_pointless_read", `^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $1.opName == "movaps"
