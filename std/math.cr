@@ -35,3 +35,13 @@ vec3f rotate3f(vec3f vec, vec3f axis, float angle) using vec {
 
 alias PI = 3.1415926538;
 alias PI180 = PI/180.0;
+
+float log(float f) { return logf f; }
+float pow(float a, b) { return powf (a, b); }
+float sin(float f) { return sinf f; }
+  
+vec2f half(vec2f a, b) return (a + b) / 2;
+vec3f half(vec3f a, b) return (a + b) / 2;
+
+float min(float a, b) return [a, b][eval a > b];
+float max(float a, b) return [a, b][eval a < b];
