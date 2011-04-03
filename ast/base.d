@@ -8,6 +8,10 @@ import tools.base: Format, New, This_fn, rmSpace;
 
 string platform_prefix;
 
+bool isWindoze() {
+  return platform_prefix.find("mingw") != -1;
+}
+
 interface Iterable {
   void iterate(void delegate(ref Iterable) dg);
   Iterable dup();

@@ -136,7 +136,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4");
       af.put(".globl ", fmn);
-      af.put(".type ", fmn, ", @function");
+      if (!isWindoze()) // TODO: work out why win32 gas does not like this
+        af.put(".type ", fmn, ", @function");
       if (weak) af.put(".weak ", fmn);
       af.put(fmn, ":"); // not really a label
       auto idnum = funid_count ++;
@@ -162,7 +163,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       af.jump_barrier();
       af.put("ret");
       af.put(".LFE", idnum, ":");
-      af.put(".size ", fmn, ", .-", fmn);
+      if (!isWindoze())
+        af.put(".size ", fmn, ", .-", fmn);
       // af.put(".cfi_endproc");
     }
     Stuple!(IType, string, int)[] stackframe() {

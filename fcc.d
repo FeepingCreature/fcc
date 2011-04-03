@@ -469,6 +469,7 @@ int main(string[] args) {
     }
     if (auto base = arg.endsWith(".cr")) {
       if (!output) output = base;
+      if (isWindoze()) output ~= ".exe";
       if (!mainfile) mainfile = arg;
       if (!willLoop) {
         try objects ~= arg.compileWithDepends(cs);
