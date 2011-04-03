@@ -66,12 +66,16 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(ctx.sup);
   
   bool matchOne(ref string st) {
-    Tree tr;
-    if (!rest(st, "tree.toplevel", &tr)) return false;
+    Object obj;
+    if (!rest(st, "tree.toplevel", &obj)) return false;
     // namespace().get!(Module).entries ~= tr;
-    current_module().entries ~= tr;
-    if (cast(GlobVarDecl) tr || fastcast!(Function)~ tr) {
-    } else assert(!!cast(NoOp) tr, Format(tr));
+    if (auto tr = fastcast!(Tree) (obj))
+      current_module().entries ~= tr;
+    if (fastcast!(GlobVarDecl) (obj) || fastcast!(Function) (obj)) {
+    } else if (!fastcast!(NoOp) (obj)) {
+      logln("! ", obj);
+      asm { int 3; }
+    }
     return true;
   }
   auto t3 = t2;

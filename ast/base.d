@@ -33,6 +33,10 @@ interface NeedsConfig {
   void configure();
 }
 
+// does some form of elaborate emit handling (like templates)
+// used to suppress struct method auto-emit if inside a struct template
+interface HandlesEmits { }
+
 interface IsMangled { string mangleSelf(); void markWeak(); }
 
 interface FrameRoot { int framestart(); } // Function

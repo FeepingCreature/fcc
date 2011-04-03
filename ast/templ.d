@@ -6,13 +6,55 @@ interface ITemplate : Named {
   Object getInstanceIdentifier(IType it, ParseCb rest, string name);
 }
 
+extern(C) bool _isITemplate(Object obj) { return !!fastcast!(ITemplate)(obj); }
+
+interface ITemplateX : ITemplate { // extended template-like
+  bool isAliasTemplate();
+  TemplateInstance getInstance(IType type, ParseCb rest);
+  TemplateInstance getInstance(Tree tr, ParseCb rest);
+  Object postprocess(Object obj);
+}
+
 void delegate()[] resetDgs;
 void resetTemplates() { foreach (dg; resetDgs) dg(); }
 
-class Template : ITemplate {
+class RelTemplate : ITemplateX {
+  Template sup;
+  Expr ex;
+  this(Template t, Expr e) { sup = t; ex = e; }
+  override {
+    bool isAliasTemplate() { return sup.isAliasTemplate(); }
+    string getIdentifier() { return sup.getIdentifier(); }
+    Object getInstanceIdentifier(IType it, ParseCb rest, string name) {
+      logln("rel mew ", name);
+      return sup.getInstanceIdentifier(it, rest, name);
+    }
+    TemplateInstance getInstance(IType type, ParseCb rest) {
+      auto res = sup.getInstance(type, rest);
+      logln("rel mew2 ", res);
+      return res;
+    }
+    TemplateInstance getInstance(Tree tr, ParseCb rest) {
+      auto res = sup.getInstance(tr, rest);
+      logln("rel mew3 ", res);
+      return res;
+    }
+    Object postprocess(Object obj) {
+      logln("postprocess ", obj.classinfo.name, ", ", obj);
+      logln("expr is ", ex);
+      scope(exit) logln("done");
+      auto rt = fastcast!(RelTransformable) (obj);
+      if (!rt) return obj;
+      return rt.transform(ex);
+    }
+  }
+}
+
+class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in structs */ {
   string name;
   string param;
   bool isAlias;
+  override bool isAliasTemplate() { return isAlias; }
   string source; // HAX
   Namespace context;
   union {
@@ -21,41 +63,46 @@ class Template : ITemplate {
   }
   this() { resetDgs ~= &resetme; }
   void resetme() { emat_type = null; emat_alias = null; }
-  TemplateInstance getInstance(IType type, ParseCb rest) {
-    assert(!isAlias);
-    TemplateInstance ti;
-    foreach (entry; emat_type)
-      // weirdness with tuples in sieve.cr
-      // TODO: unhax.
-      if (Format(entry._1) == Format(type)) { ti = entry._0; break; }
-      // if (entry._1 == type) { return entry._0; }
-    if (!ti) {
-      ti = new TemplateInstance(this, type, rest);
-      emat_type ~= stuple(ti, type);
-    }
-    ti.emitCopy();
-    return ti;
-  }
-  TemplateInstance getInstance(Tree tr, ParseCb rest) {
-    assert(isAlias);
-    TemplateInstance ti;
-    foreach (entry; emat_alias)
-      if (entry._1 == tr) { ti = entry._0; break; }
-    if (!ti) {
-      ti = new TemplateInstance(this, tr, rest);
-      emat_alias ~= stuple(ti, tr);
-    }
-    ti.emitCopy();
-    return ti;
-  }
-  Object getInstanceIdentifier(IType type, ParseCb rest, string name) {
-    return getInstance(type, rest).lookup(name, true);
-  }
   override {
+    Object transform(Expr base) {
+      return new RelTemplate(this, base);
+    }
+    TemplateInstance getInstance(IType type, ParseCb rest) {
+      assert(!isAlias);
+      TemplateInstance ti;
+      foreach (entry; emat_type)
+        // weirdness with tuples in sieve.cr
+        // TODO: unhax.
+        if (Format(entry._1) == Format(type)) { ti = entry._0; break; }
+        // if (entry._1 == type) { return entry._0; }
+      if (!ti) {
+        ti = new TemplateInstance(this, type, rest);
+        emat_type ~= stuple(ti, type);
+      }
+      ti.emitCopy();
+      return ti;
+    }
+    TemplateInstance getInstance(Tree tr, ParseCb rest) {
+      assert(isAlias);
+      TemplateInstance ti;
+      foreach (entry; emat_alias)
+        if (entry._1 == tr) { ti = entry._0; break; }
+      if (!ti) {
+        ti = new TemplateInstance(this, tr, rest);
+        emat_alias ~= stuple(ti, tr);
+      }
+      ti.emitCopy();
+      return ti;
+    }
+    Object getInstanceIdentifier(IType type, ParseCb rest, string name) {
+      return getInstance(type, rest).lookup(name, true);
+    }
     string getIdentifier() { return name; }
+    bool addsSelf() { return true; }
     string toString() {
       return Format("template ", name);
     }
+    Object postprocess(Object obj) { return obj; }
   }
 }
 
@@ -68,14 +115,16 @@ Object gotTemplate(ref string text, ParseCb cont, ParseCb rest) {
   tmpl.context = namespace();
   text = t2;
   namespace().add(tmpl.name, tmpl);
-  return Single!(NoOp);
+  return tmpl;
 }
 // a_ so this comes first .. lol
 mixin DefaultParser!(gotTemplate, "tree.toplevel.a_template", null, "template");
+mixin DefaultParser!(gotTemplate, "struct_member.struct_template", null, "template");
 
 import tools.log;
 
-class TemplateInstance : Namespace {
+import ast.structure;
+class TemplateInstance : Namespace, HandlesEmits {
   Namespace context;
   union {
     IType type;
@@ -174,33 +223,45 @@ class TemplateInstance : Namespace {
   }
 }
 
-Object gotTemplateInst(ref string text, ParseCb cont, ParseCb rest) {
+Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  string id;
-  if (!t2.gotIdentifier(id, true) || !t2.accept("!")) return null;
-  auto _t = namespace().lookup(id), t = fastcast!(Template) (_t);
-  if (!_t) return null;
-  // if (!t) throw new Exception("'"~id~"' is not a template! ");
-  if (!t) return null;
-  TemplateInstance inst;
-  if (t.isAlias) {
-    Tree tr;
-    if (!rest(t2, "tree.expr.named", &tr))
-      t2.failparse("Couldn't match tree object for instantiation");
-    inst = t.getInstance(tr, rest);
+  Object getInstance(Object obj) {
+    auto t = fastcast!(ITemplateX) (obj);
+    if (!t) return null;
+    if (!t2.accept("!")) return null;
+    TemplateInstance inst;
+    if (t.isAliasTemplate()) {
+      Tree tr;
+      if (!rest(t2, "tree.expr.named", &tr))
+        t2.failparse("Couldn't match tree object for instantiation");
+      inst = t.getInstance(tr, rest);
+    } else {
+      IType ty;
+      if (!rest(t2, "type", &ty))
+        t2.failparse("Couldn't match type for instantiation");
+      inst = t.getInstance(ty, rest);
+    }
+    if (auto res = inst.lookup(t.getIdentifier(), true)) return t.postprocess(res);
+    else throw new Exception("Template '"~t.getIdentifier()~"' contains no self-named entity! ");
+  }
+  static if (RHSMode) {
+    return lhs_partial.using = delegate Object(Object obj) {
+      auto res = getInstance(obj);
+      if (res) text = t2;
+      return res;
+    };
   } else {
-    IType ty;
-    if (!rest(t2, "type", &ty))
-      t2.failparse("Couldn't match type for instantiation");
-    inst = t.getInstance(ty, rest);
+    Object obj;
+    if (!rest(t2, "tree.expr.named", &obj)) return null;
+    auto res = getInstance(obj);
+    if (res) text = t2;
+    return res;
   }
   // logln("instantiate ", t.name, " with ", ty);
-  text = t2;
-  if (auto res = inst.lookup(t.name, true)) return res;
-  else throw new Exception("Template '"~id~"' contains no self-named '"~t.name~"'. ");
 }
-mixin DefaultParser!(gotTemplateInst, "type.templ_inst", "2");
-mixin DefaultParser!(gotTemplateInst, "tree.expr.templ_expr", "2401");
+mixin DefaultParser!(gotTemplateInst!(false), "type.templ_inst", "2");
+mixin DefaultParser!(gotTemplateInst!(false), "tree.expr.templ_expr", "2401");
+mixin DefaultParser!(gotTemplateInst!(true), "tree.rhs_partial.instance");
 
 import ast.funcall;
 Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
