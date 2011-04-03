@@ -501,6 +501,8 @@ Expr depointer(Expr ex) {
   return ex;
 }
 
+extern(C) bool _isITemplate(Object obj);
+
 import ast.parse, ast.fun, tools.base: or;
 Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   assert(lhs_partial());
@@ -541,19 +543,14 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (fastcast!(Function) (m)) { text = t2; return m; }
     if (m) {
       // Don't ask.
-      auto itemp = ClassInfo.find("ast.templ.ITemplate");
-      auto cur = m.classinfo;
-      while (cur) {
-        foreach (intf; cur.interfaces) if (intf.classinfo is itemp) {
-          text = t2;
-          return m;
-        }
-        cur = cur.base;
+      if (_isITemplate(m)) {
+        text = t2;
+        return m;
       }
     }
     // Actually, do ask, It's a fun story. 
     auto ex2 = fastcast!(Expr) (m);
-    if (!m) {
+    if (!ex2) {
       if (m) text.setError(member, " is not a rel var: ", m);
       else {
         if (t2.eatDash(member)) goto retry;

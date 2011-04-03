@@ -5,46 +5,27 @@ import ast.fun, ast.nestfun, ast.base, ast.structure, ast.variable,
 
 import ast.modules;
 Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
-  auto rs = fastcast!(RelNamespace)~ namespace();
+  /*auto rs = fastcast!(RelNamespace)~ namespace();
   if (!rs)
-    throw new Exception(Format("Fail: namespace is ", namespace(), ". "));
+    throw new Exception(Format("Fail: namespace is ", namespace(), ". "));*/
+  auto rs = namespace().get!(RelNamespace);
+  if (!rs)
+    throw new Exception(Format("Fail: no relns beneath ", namespace(), ". "));
   auto fun = new RelFunction(rs);
   
   if (auto res = gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest)) {
-    current_module().entries ~= fastcast!(Tree)~ res;
+    if (!namespace().get!(HandlesEmits))
+      current_module().entries ~= fastcast!(Tree)~ res;
     return res;
   } else return null;
 }
 mixin DefaultParser!(gotStructFunDef, "struct_member.struct_fundef");
 
-import ast.parse, tools.log;
-Object gotStructFun(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  
-  return lhs_partial.using = delegate Object(Expr ex) {
-    ex = depointer(ex);
-    auto strtype = fastcast!(Structure)~ ex.valueType();
-    if (!strtype) return null;
-    string member;
-    if (t2.accept(".") && t2.gotIdentifier(member)) {
-      retry:
-      auto mvar = strtype.lookup(member);
-      if (!mvar)
-        if (t2.eatDash(member)) goto retry;
-        else return null;
-      auto smf = fastcast!(RelFunction) (mvar);
-      if (!smf) return null;
-      text = t2;
-      return smf.transform(ex);
-    } else return null;
-  };
-}
-mixin DefaultParser!(gotStructFun, "tree.rhs_partial.structfun");
-
 import ast.vardecl, ast.assign;
 class RelFunCall : FunCall {
   Expr baseptr;
   this(Expr ex) {
+    if (!ex) asm { int 3; }
     baseptr = ex;
   }
   mixin defaultIterate!(baseptr, params);
@@ -103,6 +84,7 @@ class RelFunction : Function, RelTransformable {
     assert(!baseptr, Format("RelFun was pretransformed: ", baseptr));
     assert(!!fastcast!(RelNamespace) (basetype));
     auto res = dup();
+    if (!base) asm { int 3; }
     res.baseptr = base;
     return res;
   }

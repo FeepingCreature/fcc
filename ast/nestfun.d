@@ -16,7 +16,7 @@ class NestedFunction : Function {
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
       return context.get!(Function).mangleSelf() ~ "_subfun_" ~
-        context.get!(Function).mangle(cleaned_name, type);
+        context.get!(Function).mangle(cleaned_name, type)~"_of_"~type.mangle();
     }
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;

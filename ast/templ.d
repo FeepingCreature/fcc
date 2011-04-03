@@ -120,12 +120,20 @@ class TemplateInstance : Namespace {
       auto t2 = parent.source;
       pushCache(); // open new memoizer level
       scope(exit) popCache();
-      Tree tr;
+      Object obj;
+      
+      string parsemode = "tree.toplevel";
+      if (fastcast!(Structure) (context))
+        parsemode = "struct_member";
+      
+      // logln("template context is ", (cast(Object) context).classinfo.name);
       // logln("rest toplevel match on ", t2);
       if (!t2.many(
-        !!rest(t2, "tree.toplevel", &tr),
+        !!rest(t2, parsemode, &obj),
         {
-          if (fastcast!(NoOp) (tr)) return;
+          auto tr = fastcast!(Tree) (obj);
+          if (!tr) return;
+          if (fastcast!(NoOp) (obj)) return;
           auto n = fastcast!(Named)~ tr;
           // if (!n) throw new Exception(Format("Not named: ", tr));
           if (n && !addsSelf(n)) add(n.getIdentifier(), n);

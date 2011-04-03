@@ -25,7 +25,6 @@ mixin DefaultParser!(gotImport, "tree.import", null, "import");
 Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   auto t2 = text;
   Structure st;
-  Tree tr;
   Module mod;
   auto backup = namespace.ptr();
   scope(exit) namespace.set(backup);
@@ -43,13 +42,15 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   if (mod.name == "sys") {
     sysmod = mod; // so that internal lookups work
   }
+  Object obj;
   if (t2.many(
-      !!restart(t2, "tree.toplevel", &tr),
+      !!restart(t2, "tree.toplevel", &obj),
       {
-        if (auto n = fastcast!(Named)~ tr)
-          if (!addsSelf(tr))
+        if (auto n = fastcast!(Named) (obj))
+          if (!addsSelf(obj))
             mod.add(n);
-        mod.entries ~= tr;
+        if (auto tr = fastcast!(Tree) (obj))
+          mod.entries ~= tr;
       }
     )
   ) {
