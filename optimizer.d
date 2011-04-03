@@ -634,6 +634,7 @@ class ProcTrack : ExtToken {
         if (!canOverwrite(t.to, t.from)) break; // lol
         if (t.to.isIndirect().contains("%esp"))
           use["%esp"] = true;
+        if (t.from.isIndirect() == t.to) return false; // (eax) -> eax; can't handle this
         int delta;
         if (t.from.isRegister()) {
           string src = t.from;
@@ -1488,15 +1489,47 @@ void setupOpts() {
   `));
   mixin(opt("remove_slightly_stupid_push_pop_pair", `^Push, ^Mov, ^Pop:
     $0.size == $2.size && $0.size == 4 &&
-    $1.to.isRegister() && $1.from.isIndirect() != "%esp" &&
+    $1.to.isRegister() && $1.from != "(%esp)" &&
     $2.dest.isRegister() && $2.dest != $1.to &&
     !info($1).opContains($2.dest)
     =>
-    $T t;
-    t.kind = $TK.Mov;
-    t.from = $0.source;
-    t.to = $2.dest;
-    $SUBST([t, $1]);
+    $T t1, t2;
+    t1.kind = $TK.Mov;
+    t1.from = $0.source;
+    t1.to = $2.dest;
+    t2 = $1.dup;
+    info(t2).fixupStrings(-4);
+    $SUBST([t1, t2]);
+  `));
+  bool sequal(string[] str...) {
+    foreach (s; str[1..$]) if (s != str[0]) return false;
+    return true;
+  }
+  bool iequal(int[] ints...) {
+    foreach (i; ints[1..$]) if (i != ints[0]) return false;
+    return true;
+  }
+  bool popequal(Transaction[] trs...) {
+    foreach (tr; trs[1..$]) if (tr.dest != trs[0].dest || tr.size != trs[0].size) return false;
+    return true;
+  }
+  // lol
+  mixin(opt("hyperspecific_pop_chain", `^Pop, ^Pop, ^Pop, ^Pop, ^Pop, ^Pop, ^Pop, ^Pop:
+    sequal($0.dest, $1.dest, $2.dest, $3.dest) &&
+    sequal($4.dest, $5.dest, $6.dest, $7.dest) &&
+    iequal($0.size, $1.size, $2.size, $3.size, $4.size, $5.size, $6.size, $7.size) &&
+    $0.size == 4 &&
+    $0.dest == "16(%esp)"
+    =>
+    $T t1 = $4.dup, t2 = $5.dup, t3 = $6.dup, t4 = $7.dup;
+    info(t1).fixupStrings(16);
+    info(t2).fixupStrings(16);
+    info(t3).fixupStrings(16);
+    info(t4).fixupStrings(16);
+    $T t5;
+    t5.kind = $TK.SFree;
+    t5.size = 16;
+    $SUBST(t1, t2, t3, t4, t5);
   `));
   mixin(opt("pointless_mov", `^Mov, ^Pop:
     $0.to == "(%esp)" && $1.size == 4 && $1.dest == $0.from
@@ -1505,6 +1538,19 @@ void setupOpts() {
     t.kind = $TK.SFree;
     t.size = 4;
     $SUBST(t);
+  `));
+  mixin(opt("movaps_and_pop_to_direct", `^SSEOp, ^Pop, ^Pop, ^Pop, ^Pop:
+    $0.opName == "movaps" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
+    popequal($1, $2, $3, $4) && $1.size == 4
+    =>
+    $T t1, t2 = $0.dup;
+    t1.kind = $TK.SFree;
+    t1.size = 16;
+    t2.op2 = $1.dest;
+    int offs;
+    // must be guaranteed aligned!
+    if (t2.op2.isIndirect2(offs) == "%esp" && (offs % 16) == 0)
+      $SUBST(t2, t1);
   `));
   mixin(opt("simplify_pure_sse_math_opers", `^SSEOp, ^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $0.op1.isSSERegister() &&
