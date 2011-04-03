@@ -3,7 +3,7 @@ module ast.concat;
 import
   ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal,
   ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index,
-  ast.assign, ast.opers, ast.slice, ast.fold, tools.base: take;
+  ast.assign, ast.opers, ast.slice, ast.fold, ast.literal_string, tools.base: take;
 
 class ConcatChain : Expr {
   Array type;
@@ -175,6 +175,19 @@ static this() {
     asm { int 3;}
     return null;
   });
+  // fold string concats
+  foldopt ~= delegate Expr(Expr ex) {
+    auto cc = fastcast!(ConcatChain) (ex);
+    if (!cc) return null;
+    if (cc.type != Single!(Array, Single!(Char))) return null;
+    string res;
+    foreach (ex2; cc.arrays) {
+      ex2 = foldex(ex2);
+      if (auto se = fastcast!(StringExpr) (ex2)) res ~= se.str;
+      else return null;
+    }
+    return new StringExpr(res);
+  };
 }
 
 import ast.casting;

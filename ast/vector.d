@@ -11,7 +11,10 @@ class Vector : Type, RelNamespace, ForceAlignment {
   Tuple asFilledTup; // including filler for vec3f
   Structure asStruct;
   int len;
-  override int alignment() { return 16; }
+  override int alignment() {
+    if (base.size < 4 || len < 3) return 4;
+    return 16;
+  }
   // quietly treat n-size as n+1-size
   bool extend() { return len == 3 && (base == Single!(Float) || base == Single!(SysInt)); }
   int real_len() {
@@ -231,11 +234,16 @@ got_ex:
 }
 mixin DefaultParser!(gotVecConstructor, "tree.expr.veccon", "8");
 
+import ast.templ;
 Stuple!(Structure, Vector, Module)[] cache;
 Structure mkVecStruct(Vector vec) {
   foreach (entry; cache) if (entry._2.isValid && entry._1 == vec) return entry._0;
   auto res = new Structure(null);
   res.isTempStruct = true;
+  res.sup = sysmod;
+  auto backup = namespace();
+  namespace.set(res);
+  scope(exit) namespace.set(backup);
   for (int i = 0; i < vec.len; ++i)
     new RelMember(["xyzw"[i]], vec.base, res);
   
@@ -257,6 +265,21 @@ Structure mkVecStruct(Vector vec) {
     for (int i = 1; i < vec.len; ++i)
       sum = lookupOp("+", sum, fastcast!(Expr)~ res.lookup(["xyzw"[i]]));
     res.add(new ExprAlias(sum, "sum"));
+  }
+  
+  res.add(new TypeAlias(vec.base, "base"));
+  // auto vv = new RelMember("vec", vec, 0);
+  // res.add(new ExprAlias(reinterpret_cast(vec, fastcast!(Expr) (vv)), "vec"));
+  
+  if (vec.len == 3) {
+    {
+      auto tmpl = new Template;
+      tmpl.name = "ex";
+      tmpl.isAlias = true;
+      tmpl.param = "A";
+      tmpl.source = `alias ex = vec(base, 3)(mixin replace(A, "%", "x"), mixin replace(A, "%", "y"), mixin replace(A, "%", "z")); `;
+      res.add(tmpl);
+    }
   }
   
   {

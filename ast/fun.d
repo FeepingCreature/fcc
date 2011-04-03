@@ -213,6 +213,7 @@ class OverloadSet : Named, Extensible {
 class FunCall : Expr {
   Expr[] params;
   Function fun;
+  Expr[] getParams() { return params; }
   FunCall dup() {
     auto res = new FunCall;
     res.fun = fun.flatdup();

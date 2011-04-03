@@ -33,9 +33,10 @@ interface NeedsConfig {
   void configure();
 }
 
-// does some form of elaborate emit handling (like templates)
 // used to suppress struct method auto-emit if inside a struct template
-interface HandlesEmits { }
+interface HandlesEmits {
+  bool handledEmit(Tree tr);
+}
 
 interface IsMangled { string mangleSelf(); void markWeak(); }
 
@@ -524,3 +525,5 @@ class LineNumberedStatement : Statement {
     _line_numbered_statement_emitAsm(this, af);
   }
 }
+
+string mainfile;

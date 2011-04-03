@@ -19,14 +19,23 @@ alias BlockType = Block;
 class Sector {
   vec3i base;
   bool contains(vec3i v) {
-    auto lbase = base; // local copy, help the compiler a little ..
-    return eval lbase.(v.x >= x && v.y >= y && v.z >= z && v.x < x + 16 && v.y < y + 16 && v.z < z + 16);
+    v -= base;
+    return eval v.(x >= 0 && y >= 0 && z >= 0 && x < 16 && y < 16 && z < 16);
   }
   BlockType[16][16][16] cache;
 }
 
 class SectorCache {
-  Sector[] sectors;
+  Sector[auto~] sectors, backup;
+  Sector[] getBackup() {
+    if backup.length != sectors.length {
+      backup.free;
+      backup = new Sector[sectors.length];
+    }
+    backup = sectors[].dup;
+    // (sectors, backup) = (backup, sectors);
+    return backup[];
+  }
   BlockType delegate(vec3i) dg;
   void init(type-of dg dg2) {
     this.dg = dg2;
@@ -99,14 +108,17 @@ void initLight(SectorCache sc) {
 
 void stepLight(SectorCache sc) {
   BlockType nothing;
-  auto sec2 = sc.sectors.dup;
-  onSuccess sec2.free;
+  auto sec2 = sc.getBackup;
   for (auto sector <- sec2) {
     for auto vec <- [for tup <- cross(0..16, 0..16, 0..16): vec3i(tup)] {
       int sum;
-      auto mybase = sector.base + vec;
+      auto mybase = sector.base, fullvec = mybase + vec;
       for auto vec2 <- [for tup <- cross([-1, 0, 1], [-1, 0, 1]): vec2i(tup)] {
-        auto bt = sc.weakLookup(mybase + vec3i(vec2.x, 1, vec2.y), nothing);
+        auto nuvec = fullvec + vec3i(vec2.x, 1, vec2.y);
+        BlockType bt = void;
+        if sector.contains nuvec {
+          bt = sector.cache[vec.x + vec2.x][vec.y + 1][vec.z + vec2.y];
+        } else bt = sc.weakLookup(nuvec, nothing);
         if bt.active bt.lightlevel = 0; // shadows
         sum += bt.lightlevel;
       }

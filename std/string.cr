@@ -145,6 +145,7 @@ string strip(string s) {
   return s;
 }
 
+import std.util;
 string[] split(string s, string marker) {
   string[auto~] res;
   string dup(string s) { auto res = new char[s.length]; int i; for (auto ch <- s) res[i++] = ch; return res; }

@@ -14,8 +14,10 @@ Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto fun = new RelFunction(rs);
   
   if (auto res = gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest)) {
-    if (!namespace().get!(HandlesEmits))
-      current_module().entries ~= fastcast!(Tree)~ res;
+    auto tr = fastcast!(Tree) (res);
+    auto he = namespace().get!(HandlesEmits);
+    if (!he || !he.handledEmit(tr))
+      current_module().entries ~= tr;
     return res;
   } else return null;
 }

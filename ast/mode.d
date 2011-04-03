@@ -53,6 +53,7 @@ class PrefixFunction : Function {
     this.prefix = prefix;
     this.type = sup.type;
     this.name = "[wrap]"~sup.name;
+    this.sup = sup.sup;
     this.supfun = sup;
     // assert(sup.extern_c);
     // TODO: this may later cause problems
@@ -86,6 +87,7 @@ class PrefixFunction : Function {
       PrefixFunction res = cast(PrefixFunction) cast(void*) super.flatdup();
       res.prefix = prefix.dup;
       res.supfun = supfun;
+      res.sup = sup;
       return res;
     }
     PrefixFunction dup() {
@@ -110,6 +112,7 @@ class PrefixCall : FunCall {
     this.prefix = prefix;
     this.params = sup.params;
   }
+  Expr[] getParams() { return prefix ~ super.getParams(); }
   private this() { }
   PrefixCall dup() {
     auto res = new PrefixCall;

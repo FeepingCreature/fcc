@@ -53,7 +53,10 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
     Stuple!(TemplateInstance, IType)[] emat_type; // past tense of emit
     Stuple!(TemplateInstance, Tree)[] emat_alias;
   }
-  this() { resetDgs ~= &resetme; }
+  this() {
+    resetDgs ~= &resetme;
+    context = namespace();
+  }
   void resetme() { emat_type = null; emat_alias = null; }
   override {
     Object transform(Expr base) {
@@ -104,7 +107,6 @@ Object gotTemplate(bool ReturnNoOp)(ref string text, ParseCb cont, ParseCb rest)
   if (!(t2.gotIdentifier(tmpl.name) && t2.accept("(") && (t2.accept("alias") && test(tmpl.isAlias = true) || true) && t2.gotIdentifier(tmpl.param) && t2.accept(")")))
     t2.failparse("Failed parsing template header");
   tmpl.source = t2.getHeredoc();
-  tmpl.context = namespace();
   text = t2;
   namespace().add(tmpl.name, tmpl);
   static if (ReturnNoOp) return Single!(NoOp);
@@ -133,6 +135,14 @@ class TemplateInstance : Namespace, HandlesEmits {
       return sup.lookup(name, true); // return results from surrounding function for a nestfun
     return null;
   }
+  override bool handledEmit(Tree tr) {
+    // TODO: I feel VERY iffy about this.
+    if (fastcast!(Module) (context)) return false;
+    /*logln(tr);
+    logln(" -- context ", context);
+    logln();*/
+    return !embedded;
+  }
   this(Template parent, IType type, ParseCb rest) {
     this.type = type;
     this.parent = parent;
@@ -153,7 +163,8 @@ class TemplateInstance : Namespace, HandlesEmits {
   void emitCopy(bool weakOnly = false) {
     if (!instRes) return;
     auto mod = current_module();
-    foreach (emod; ematIn) if (emod is mod) return;
+    // sysmod is linked into main module
+    foreach (emod; ematIn) if (emod is mod || (mod.filename == mainfile && emod is sysmod)) return;
     if (weakOnly) {
       foreach (inst; instRes) if (auto fun = fastcast!(Function) (inst)) if (fun.weak) {
         mod.entries ~= fastcast!(Tree) (fun.dup);
@@ -215,6 +226,7 @@ class TemplateInstance : Namespace, HandlesEmits {
       
     });
   }
+  static string[Tree] mangcache;
   override {
     string toString() {
       if (parent.isAlias) return Format("Instance of ", parent, " (", tr, ") <- ", sup);
@@ -226,7 +238,14 @@ class TemplateInstance : Namespace, HandlesEmits {
         if (auto fun = fastcast!(Function)~ tr) {
           mangl = fun.mangleSelf();
           // logln("mangl => ", mangl);
-        } else assert(false, Format(tr));
+        } else {
+          if (auto ptr = tr in mangcache) mangl = *ptr;
+          else {
+            auto id = Format("tree_", mangcache.length);
+            mangcache[tr] = id;
+            mangl = id;
+          }
+        }
       } else mangl = this.type.mangle();
       return sup.mangle(name, type)~"__"~"templinst_"~parent.name.cleanup()~"_with_"~mangl;
     }
@@ -246,7 +265,7 @@ Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest
     TemplateInstance inst;
     if (t.isAliasTemplate()) {
       Tree tr;
-      if (!rest(t2, "tree.expr.named", &tr))
+      if (!rest(t2, "tree.expr _tree.expr.arith", &tr))
         t2.failparse("Couldn't match tree object for instantiation");
       inst = t.getInstance(tr, rest);
     } else {

@@ -139,7 +139,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNewArrayExpr, "tree.expr.new.array", "12", "new");
 
-import ast.nestfun, ast.opers, ast.dg, ast.arrays, ast.fun;
+import ast.nestfun, ast.opers, ast.dg, ast.arrays, ast.fun, ast.scopes;
 Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
@@ -152,7 +152,7 @@ Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   
   auto nf = re.fun.context.get!(Function);
-  auto start = nf.framestart(), end = re.fun.context.frame_end();
+  auto start = nf.framestart(), end = (fastcast!(Scope) (re.fun.context)).frame_end();
   // NOTE: end is smaller.
   auto size = start - end; // lol
   auto framestartp = lookupOp("+", reinterpret_cast(voidp, re.base), mkInt(end));

@@ -18,6 +18,8 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   assert(!!sc, Format("::", namespace()));
   
   if (type == "onSuccess" || type == "onExit") {
+    pushCache;
+    scope(exit) popCache;
     if (!rest(t3, "tree.stmt", &st))
       t3.failparse("No statement matched for ", type, " in scope context");
     sc.guards ~= st;
@@ -32,12 +34,13 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     synchronized
       nf.name = Format("guardfn_", funId++);
     {
+      pushCache;
+      scope(exit) popCache;
       auto backup = namespace();
       scope(exit) namespace.set(backup);
       namespace.set(nf);
       if (!rest(t4, "tree.scope", &nf.tree))
         t4.failparse("No statement matched for ", type, " in exception guard context");
-      if (type == "onExit") nf.tree = nf.tree.dup; // already used in onSuccess branch
     }
     mod.entries ~= fastcast!(Tree) (nf);
     auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord");

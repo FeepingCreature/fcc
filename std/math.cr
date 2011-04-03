@@ -39,9 +39,11 @@ alias PI180 = PI/180.0;
 float log(float f) { return logf f; }
 float pow(float a, b) { return powf (a, b); }
 float sin(float f) { return sinf f; }
+float cos(float f) { return cosf f; }
   
 vec2f half(vec2f a, b) return (a + b) / 2;
 vec3f half(vec3f a, b) return (a + b) / 2;
+vec4f half(vec4f a, b) return (a + b) / 2;
 
 float min(float a, b) return [a, b][eval a > b];
 float max(float a, b) return [a, b][eval a < b];

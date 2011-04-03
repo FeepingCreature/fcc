@@ -17,7 +17,7 @@ mixin(expandImport(`ast.[
   intr, conditionals, opers, conditionals, cond, casting,
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
   propcall, properties_parse, main, alignment, modules_parse,
-  platform, longmath, base], casts`));
+  platform, longmath, base, mixins], casts`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -372,7 +372,7 @@ int main(string[] args) {
   string[] largs;
   bool runMe;
   CompileSettings cs;
-  bool willLoop; string mainfile;
+  bool willLoop;
   while (ar.length) {
     auto arg = ar.take();
     if (arg == "-pthread") continue; // silently ignore;

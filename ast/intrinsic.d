@@ -272,24 +272,6 @@ void setupSysmods() {
       writeln "Unhandled condition: $(err.toString). ";
       _interrupt 3;
     }
-    template iterOnce(T) <<EOF
-      class one {
-        T t;
-        bool done;
-        T step() {
-          done = true;
-          return t;
-        }
-        bool ivalid() {
-          return eval !done;
-        }
-      }
-      one iterOnce(T t) {
-        auto res = new one;
-        res.t = t;
-        return res;
-      }
-    EOF
     void[] dupvcache;
     alias BLOCKSIZE = 16384;
     void[] fastdupv(void[] v) {
@@ -327,6 +309,20 @@ void setupSysmods() {
       asm `psrld $31, %xmm4`;"`
       asm "psubd %xmm4, %xmm5";
       *res = vec3i:xmm[5];
+    }
+    string replace(string source, string what, string with) {
+      int i = 0;
+      char[auto~] res;
+      while (source.length >= what.length && i <= source.length - what.length) {
+        if (source[i .. i+what.length] == what) {
+          res ~= source[0 .. i]; res ~= with;
+          source = source[i + what.length .. $];
+          i = 0;
+        } else i++;
+      }
+      if !res.length return source;
+      res ~= source;
+      return res[];
     }
     class ModuleInfo {
       string name;

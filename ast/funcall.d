@@ -346,3 +346,25 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall");
+
+import ast.literal_string, ast.modules;
+
+static this() {
+  // allow use of .replace in mixins
+  foldopt ~= delegate Expr(Expr ex) {
+    auto fc = fastcast!(FunCall) (ex);
+    if (!fc) return null;
+    if (fc.fun.name != "replace" /or/ "[wrap]replace") return null;
+    auto smod = fastcast!(Module) (fc.fun.sup);
+    if (!smod || !sysmod || smod !is sysmod) return null;
+    auto args = fc.getParams();
+    assert(args.length == 3);
+    string[3] str;
+    foreach (i, arg; args) {
+      arg = foldex(arg);
+      if (auto se = fastcast!(StringExpr) (arg)) str[i] = se.str;
+      else return null;
+    }
+    return new StringExpr(str[0].replace(str[1], str[2]));
+  };
+}

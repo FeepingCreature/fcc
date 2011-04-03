@@ -1,6 +1,6 @@
 module sdl;
 
-c_include "SDL/SDL.h";
+import csdl;
 
 SDL_Surface* surf;
 
