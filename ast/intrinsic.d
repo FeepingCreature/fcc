@@ -248,21 +248,28 @@ void setupSysmods() {
       // writeln "No handler found to match $obj. ";
       // _interrupt 3;
     }
-
-    void raise-signal(Object obj) {
+    class Error {
+      string msg;
+      void init(string s) msg = s;
+      alias toString = "Error: $msg";
+    }
+    class Signal : Error {
+      void init(string s) { super.init s; }
+    }
+    void raise-signal(Signal sig) {
       auto cur = __hdl__;
       while cur {
-        if cur.accepts(obj) cur.dg(obj);
+        if cur.accepts(sig) cur.dg(sig);
         cur = cur.prev;
       }
     }
-    void raise-error(Object obj) {
+    void raise-error(Error err) {
       auto cur = __hdl__;
       while cur {
-        if cur.accepts(obj) cur.dg(obj);
+        if cur.accepts(err) cur.dg(err);
         cur = cur.prev;
       }
-      writeln "Unhandled condition $obj. ";
+      writeln "Unhandled condition: $(err.toString). ";
       _interrupt 3;
     }
     template iterOnce(T) <<EOF
@@ -330,10 +337,18 @@ void setupSysmods() {
     void __setupModuleInfo() { }
     int main2(int argc, char** argv) {
       __setupModuleInfo();
+      mxcsr |= (1 << 6) | (3 << 13); // Denormals Are Zero; Round To Zero.
       string[] args;
       for (auto arg <- argv[0 .. argc]) {
         args ~= arg[0 .. strlen(arg)];
       }
+      int errnum;
+      set-handler (Error err) {
+        writeln "Unhandled error: $(err.toString)";
+        errnum = 1;
+        invoke-exit "main-return";
+      }
+      define-exit "main-return" return errnum;
     }
     int __c_main(int argc, char** argv) { // handle the callstack frame 16-byte alignment
     }
