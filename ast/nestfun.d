@@ -7,8 +7,8 @@ import ast.fun, ast.stackframe, ast.scopes, ast.base,
 public import ast.fun: Argument;
 import ast.aliasing;
 class NestedFunction : Function {
-  Scope context;
-  this(Scope context) {
+  Namespace context;
+  this(Namespace context) {
     this.context = context;
   }
   string cleaned_name() { return name.cleanup(); }
@@ -35,7 +35,7 @@ class NestedFunction : Function {
     Object lookup(string name, bool local = false) { return lookup(name, local, null, null); }
   }
   import tools.log;
-  Object lookup(string name, bool local, Expr mybase, Scope context_override = null) {
+  Object lookup(string name, bool local, Expr mybase, Namespace context_override = null) {
     { // local lookup first
       Object res;
       if (context_override) res = context_override.lookup(name, true);
@@ -60,7 +60,7 @@ class NestedFunction : Function {
     assert(!!context);
     // logln("continuing lookup to ", name);
     
-    if (auto nf = fastcast!(NestedFunction)~ context.get!(Function)) {
+    if (auto nf = fastcast!(NestedFunction) (context.get!(Function))) {
       return nf.lookup(name, false, fastcast!(Expr)~ lookup("__base_ptr", true, mybase), context);
     } else {
       auto sn = context.lookup(name, true),
@@ -87,11 +87,11 @@ class NestedFunction : Function {
 
 import parseBase, ast.modules, tools.log;
 Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
-  auto sc = fastcast!(Scope) (namespace());
+  auto ns = namespace(), sc = ns.get!(Scope); // might be in a template!!
   if (!sc) return null;
   // sup of nested funs isn't the surrounding function .. that's what context is for.
   auto mod = current_module();
-  if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef({ return new NestedFunction(sc); }, mod, true, text, cont, rest)) {
+  if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef({ return new NestedFunction(ns); }, mod, true, text, cont, rest)) {
     mod.entries ~= fastcast!(Tree)~ res;
     return Single!(NoOp);
   } else return null;

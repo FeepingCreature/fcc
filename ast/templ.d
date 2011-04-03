@@ -98,7 +98,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
   }
 }
 
-Object gotTemplate(ref string text, ParseCb cont, ParseCb rest) {
+Object gotTemplate(bool ReturnNoOp)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto tmpl = new Template;
   if (!(t2.gotIdentifier(tmpl.name) && t2.accept("(") && (t2.accept("alias") && test(tmpl.isAlias = true) || true) && t2.gotIdentifier(tmpl.param) && t2.accept(")")))
@@ -107,15 +107,17 @@ Object gotTemplate(ref string text, ParseCb cont, ParseCb rest) {
   tmpl.context = namespace();
   text = t2;
   namespace().add(tmpl.name, tmpl);
-  return tmpl;
+  static if (ReturnNoOp) return Single!(NoOp);
+  else return tmpl;
 }
 // a_ so this comes first .. lol
-mixin DefaultParser!(gotTemplate, "tree.toplevel.a_template", null, "template");
-mixin DefaultParser!(gotTemplate, "struct_member.struct_template", null, "template");
+mixin DefaultParser!(gotTemplate!(false), "tree.toplevel.a_template", null, "template");
+mixin DefaultParser!(gotTemplate!(false), "struct_member.struct_template", null, "template");
+mixin DefaultParser!(gotTemplate!(true), "tree.stmt.template_statement", "182", "template");
 
 import tools.log;
 
-import ast.structure;
+import ast.structure, ast.scopes;
 class TemplateInstance : Namespace, HandlesEmits {
   Namespace context;
   union {
@@ -124,6 +126,13 @@ class TemplateInstance : Namespace, HandlesEmits {
   }
   Template parent;
   IsMangled[] instRes;
+  bool embedded; // embedded in a fun, special consideration applies for lookups
+  override Object lookup(string name, bool local = false) {
+    if (auto res = super.lookup(name, local)) return res;
+    if (embedded && local && name != parent.name /* lol */)
+      return sup.lookup(name, true); // return results from surrounding function for a nestfun
+    return null;
+  }
   this(Template parent, IType type, ParseCb rest) {
     this.type = type;
     this.parent = parent;
@@ -163,9 +172,19 @@ class TemplateInstance : Namespace, HandlesEmits {
       scope(exit) popCache();
       Object obj;
       
-      string parsemode = "tree.toplevel";
+      string parsemode;
+      if (fastcast!(Module) (context))
+        parsemode = "tree.toplevel";
       if (fastcast!(Structure) (context))
         parsemode = "struct_member";
+      if (fastcast!(Scope) (context)) {
+        parsemode = "tree.stmt.nested_fundef";
+        embedded = true;
+      }
+      if (!parsemode) {
+        logln("instance context is ", (cast(Object) context).classinfo.name);
+        asm { int 3; }
+      }
       
       // logln("template context is ", (cast(Object) context).classinfo.name);
       // logln("rest toplevel match on ", t2);
@@ -211,7 +230,10 @@ class TemplateInstance : Namespace, HandlesEmits {
       } else mangl = this.type.mangle();
       return sup.mangle(name, type)~"__"~"templinst_"~parent.name.cleanup()~"_with_"~mangl;
     }
-    Stuple!(IType, string, int)[] stackframe() { assert(false); }
+    Stuple!(IType, string, int)[] stackframe() {
+      if (embedded) return context.stackframe();
+      assert(false);
+    }
   }
 }
 
