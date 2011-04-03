@@ -26,23 +26,15 @@ class RelTemplate : ITemplateX {
     bool isAliasTemplate() { return sup.isAliasTemplate(); }
     string getIdentifier() { return sup.getIdentifier(); }
     Object getInstanceIdentifier(IType it, ParseCb rest, string name) {
-      logln("rel mew ", name);
-      return sup.getInstanceIdentifier(it, rest, name);
+      return postprocess(sup.getInstanceIdentifier(it, rest, name));
     }
     TemplateInstance getInstance(IType type, ParseCb rest) {
-      auto res = sup.getInstance(type, rest);
-      logln("rel mew2 ", res);
-      return res;
+      return sup.getInstance(type, rest);
     }
     TemplateInstance getInstance(Tree tr, ParseCb rest) {
-      auto res = sup.getInstance(tr, rest);
-      logln("rel mew3 ", res);
-      return res;
+      return sup.getInstance(tr, rest);
     }
     Object postprocess(Object obj) {
-      logln("postprocess ", obj.classinfo.name, ", ", obj);
-      logln("expr is ", ex);
-      scope(exit) logln("done");
       auto rt = fastcast!(RelTransformable) (obj);
       if (!rt) return obj;
       return rt.transform(ex);
