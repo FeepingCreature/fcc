@@ -4,9 +4,11 @@ import csdl;
 
 SDL_Surface* surf;
 
-void screen(int w, h) {
+void screen(int w, h, bool fullscreen = false) {
   SDL_Init(32); // video
-  surf = SDL_SetVideoMode(w, h, 32, SDL_ANYFORMAT);
+  auto cfg = SDL_ANYFORMAT;
+  if fullscreen cfg |= SDL_FULLSCREEN;
+  surf = SDL_SetVideoMode(w, h, 32, cfg);
 }
 
 class SDLQuit : Error {
