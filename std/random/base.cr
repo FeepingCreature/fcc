@@ -1,7 +1,6 @@
 module std.random.base;
 
 interface IRandom {
-  void init(int seed);
   int rand();
 }
 

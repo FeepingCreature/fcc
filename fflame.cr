@@ -1,13 +1,13 @@
 module fflame;
 
-import sdl, std.random.mersenne, std.math, std.thread, std.time, std.string;
+import sdl, std.random, std.math, std.thread, std.time, std.string;
 
 template vex3f(alias A) <<EOF
   alias vex3f = A[0]~".(vec3f("~A[1].replace("%", "x")~", "~A[1].replace("%", "y")~", "~A[1].replace("%", "z")~"))";
 EOF
 
 void main(string[] args) {
-  int w = 1440, h = 900; bool fs = false;
+  int w = 800, h = 600; bool fs = false;
   if (args.length > 2 && args[2] == "full") { (w, h, fs) = (1920, 1080, true); }
   screen (w, h, fullscreen => fs);
   set-handler (SDLQuit) invoke-exit "return";
@@ -23,7 +23,7 @@ void main(string[] args) {
   
   int seed;
   if args.length > 1 seed = args[1].atoi();
-  auto mt = new MersenneTwister(seed);
+  auto mt = getPRNG seed;
   
   float randf() { return (mt.rand() & 0x7fff_ffff) * 1f / 0x7fff_ffff; }
   vec3f rand3f() { return vec3f(randf() x 3); }
@@ -56,12 +56,12 @@ void main(string[] args) {
 
   long iters;
   auto tp = new ThreadPool(4);
-  void runSteps(int count, MersenneTwister mt) {
+  void runSteps(int count, IRandom rng) {
     auto pos = vec2f(0), col = vec4f(0);
     iters += count;
     auto scale = vec2i(w, h) / 4;
     for 0..count {
-      auto index = mt.rand() % funs.length;
+      auto index = rng.rand() % funs.length;
       alias fun = funs[index];
       col = (col + fun[0]) * 0.5;
       pos = fun[1] pos;
@@ -77,14 +77,14 @@ void main(string[] args) {
     }
   }
   bool shutdown;
-  void worker(MersenneTwister mt) while !shutdown runSteps(1024, mt);
-  void startWorker(MersenneTwister mt) { auto worker = &worker; tp.addTask new delegate void() worker mt;; }
+  void worker(IRandom rng) while !shutdown runSteps(1024, rng);
+  void startWorker(IRandom rng) { auto worker = &worker; tp.addTask new delegate void() worker rng;; }
   onExit {
     shutdown = true;
     tp.waitComplete;
     writeln "shut down. ";
   }
-  for 0..4 startWorker new MersenneTwister mt;
+  for 0..4 startWorker getPRNG mt;
   auto start = sec();
   while true {
     float basefactor = float:(double:iters / (w * h));
