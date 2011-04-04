@@ -7,6 +7,11 @@ import ast.structure, ast.namespace;
 
 Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   string m;
+  auto t2 = text;
+  bool pub;
+  if (t2.accept("public")) pub = true;
+  if (!t2.accept("import")) return null;
+  text = t2;
   // import a, b, c;
   auto mod = current_module();
   string[] newImports;
@@ -17,10 +22,12 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
     text.accept(";")
   )) text.failparse("Unexpected text while parsing import statement");
   foreach (str; newImports)
-    mod.imports ~= lookupMod(str);
+    if (pub)
+      mod.public_imports ~= lookupMod(str);
+    else mod.imports ~= lookupMod(str);
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotImport, "tree.import", null, "import");
+mixin DefaultParser!(gotImport, "tree.import");
 
 Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   auto t2 = text;

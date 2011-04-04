@@ -333,6 +333,9 @@ void setupSysmods() {
     void __setupModuleInfo() { }
     int main2(int argc, char** argv) {
       __setupModuleInfo();
+      for auto mod <- __modules
+        for auto constr <- mod.constructors
+          constr();
       mxcsr |= (1 << 6) | (3 << 13); // Denormals Are Zero; Round To Zero.
       string[] args;
       for (auto arg <- argv[0 .. argc]) {
@@ -396,12 +399,14 @@ void finalizeSysmod(Module mainmod) {
                   "symdend", new Symbol("_sys_tls_data_"~fltname~"_end")
             )
     );
-    foreach (fun; mod.constrs)
+    foreach (fun; mod.constrs) {
+      logln(fun.name, " is of ", fun.type);
       sc.addStatement(
         iparse!(Statement, "init_mod_constr", "tree.stmt")
                (`var.constructors ~= fun;
-               `, "var", var, "fun", fun)
+               `, "var", var, "fun", new FunRefExpr(fun))
       );
+    }
   }
   
 }

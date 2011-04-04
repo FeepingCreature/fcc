@@ -19,7 +19,8 @@ Threadpool tp;
 class Module : Namespace, Tree, Named, StoresDebugState {
   string name;
   string cleaned_name() { return name.cleanup(); }
-  Module[] imports;
+  Module[] imports, public_imports;
+  Module[] getImports() { return imports ~ public_imports; }
   Function[] constrs;
   Tree[] entries;
   Setupable[] setupable;
@@ -40,6 +41,16 @@ class Module : Namespace, Tree, Named, StoresDebugState {
     if (inProgress) s.setup(inProgress);
   }
   override {
+    void _add(string name, Object obj) {
+      if (auto fn = fastcast!(Function)(obj)) {
+        if (fn.name == "init") {
+          fn.sup = this;
+          constrs ~= fn;
+          return;
+        }
+      }
+      super._add(name, obj);
+    }
     bool hasDebug() { return _hasDebug; }
     void iterate(void delegate(ref Iterable) dg) {
       auto backup = current_module();
@@ -91,6 +102,8 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       if (auto lname = name.startsWith(this.name~"."))
         if (auto res = super.lookup(lname)) return res;
       
+      foreach (mod; public_imports)
+        if (auto res = mod.lookup(name, true)) return res;
       if (local) return null;
       foreach (mod; imports) {
         if (auto res = mod.lookup(name, true)) return res;

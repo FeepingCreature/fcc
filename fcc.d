@@ -244,8 +244,8 @@ string[] compileWithDepends(string file, CompileSettings cs) {
   Module[] todo;
   auto start = lookupMod(modname);
   
-  todo ~= start.imports;
-  todo ~= sysmod.imports;
+  todo ~= start.getImports();
+  todo ~= sysmod.getImports();
   done[start.name] = true;
   res ~= firstObj;
   
@@ -254,7 +254,7 @@ string[] compileWithDepends(string file, CompileSettings cs) {
     if (cur.name in done) continue;
     res ~= compile(cur.name.replace(".", "/") ~ ".cr", cs);
     done[cur.name] = true;
-    todo ~= cur.imports;
+    todo ~= cur.getImports();
   }
   return res;
 }
@@ -305,7 +305,7 @@ void loop(string start, string output, string[] largs,
   bool[string] checked;
   bool needsRebuild(Module mod) {
     if (!isUpToDate(mod)) return true;
-    foreach (imp; mod.imports)
+    foreach (imp; mod.getImports())
       if (needsRebuild(imp)) return true;
     return false;
   }
