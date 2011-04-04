@@ -1214,6 +1214,14 @@ void setupOpts() {
   mixin(opt("add_switch", `^MathOp, ^Mov:
     $0.opName == "addl" && $0.op1 == $1.to && $1.from == $0.op2  =>  $T t = $0; swap(t.op1, t.op2); $SUBST(t); 
   `));
+  mixin(opt("const_subl_as_addl", `^MathOp:
+    $0.opName == "subl" && $0.op1.isNumLiteral()
+    =>
+    $T t = $0;
+    t.opName = "addl";
+    t.op1 = qformat("$", -literalToInt(t.op1));
+    $SUBST(t);
+  `));
   mixin(opt("push_temp_into_load", `^Push, *:
     $0.size == info($1).opSize &&
     info($1).hasIndirectSrc(0, "%esp") &&
