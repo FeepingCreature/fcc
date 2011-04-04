@@ -12,9 +12,14 @@ struct RelFunSet {
       if (entry._1 == name) res ~= entry._0;
     return res;
   }
+  static bool IType_eq(IType[] a, IType[] b) {
+    if (a.length != b.length) return false;
+    foreach (i, v; a) if (v !is b[i]) return false;
+    return true;
+  }
   RelFunction lookup(string st, IType[] types) {
     foreach (entry; set) {
-      if (entry._1 == st && entry._2 == types)
+      if (entry._1 == st && IType_eq(entry._2, types))
         return entry._0;
     }
     return null;
