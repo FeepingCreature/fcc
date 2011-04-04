@@ -61,6 +61,21 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr", "2");
 
+static this() {
+  foldopt ~= delegate Itr(Itr it) {
+    auto es = fastcast!(ExprStatement) (it);
+    if (!es) return null;
+    auto se = fastcast!(StatementAndExpr) (es.ex);
+    if (!se) return null;
+    auto stmt = se.first;
+    if (auto lns = fastcast!(LineNumberedStatement) (stmt)) {
+      lns.line = es.line;
+      lns.name = es.name;
+    }
+    return stmt;
+  };
+}
+
 Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto backup = text;
   if (auto obj = rest(text, "tree.semicol_stmt")) {
