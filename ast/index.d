@@ -52,8 +52,6 @@ static this() {
   });
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
     auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
-    if (!fastcast!(StaticArray) (e1v) && !fastcast!(Array) (e1v) && !fastcast!(ExtArray) (e1v) && !fastcast!(Pointer) (e1v))
-      return null;
     auto tup = fastcast!(Tuple)~ e2v;
     if (!tup) return null;
     Expr[] exprs;
@@ -65,10 +63,17 @@ static this() {
 Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     // logln("access ", ex.valueType(), " @", text.nextText());
-    if (!gotImplicitCast(ex, (IType it) {
-      it = resolveType(it);
-      return fastcast!(StaticArray) (it) || fastcast!(Array) (it) || fastcast!(ExtArray) (it) || fastcast!(Pointer) (it);
-    })) return null;
+    bool isArray = true;
+    {
+      auto backup = ex;
+      if (!gotImplicitCast(ex, (IType it) {
+        it = resolveType(it);
+        return fastcast!(StaticArray) (it) || fastcast!(Array) (it) || fastcast!(ExtArray) (it) || fastcast!(Pointer) (it);
+      })) {
+        ex = backup; // still fine - maybe opIndex will work
+        isArray = false;
+      }
+    }
     
     auto exv = resolveType(ex.valueType());
     
@@ -77,7 +82,8 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    namespace.set(new LengthOverride(backup, getArrayLength(ex)));
+    if (isArray)
+      namespace.set(new LengthOverride(backup, getArrayLength(ex)));
     
     if (t2.accept("]")) return null; // [] shortcut
     if (rest(t2, "tree.expr", &pos) && t2.accept("]")) {

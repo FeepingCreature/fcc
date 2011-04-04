@@ -27,11 +27,11 @@ Expr[] getTupleEntries(Expr tuple) {
   return res;
 }
 
-import ast.parse, ast.fold, ast.int_literal, ast.namespace;
-Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
-  return lhs_partial.using = delegate Object(Expr ex) {
+import ast.parse, ast.fold, ast.int_literal, ast.namespace, ast.opers;
+static this() {
+  defineOp("index", delegate Expr(Expr e1, Expr e2) {
     Tuple tup;
-    if (!gotImplicitCast(ex, (IType it) {
+    if (!gotImplicitCast(e1, (IType it) {
       tup = fastcast!(Tuple) (it);
       return tup && tup.types.length > 1; // resolve ambiguity with array index
     }))
@@ -39,66 +39,45 @@ Object gotTupleIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     int count;
     tup.wrapped.select((string, RelMember rm) { count ++; });
     /// 2.1
-    auto t2 = text;
-    Expr index;
-    
-    auto backup = namespace();
-    scope(exit) namespace.set(backup);
-    namespace.set(new LengthOverride(backup, mkInt(count)));
-    
-    if (
-      !rest(t2, "tree.expr", &index) ||
-      !gotImplicitCast(index, (IType it) { return test(Single!(SysInt) == it); }) ||
-      !t2.accept("]")) return null;
-    text = t2;
-    index = foldex(index);
-    auto ie = fastcast!(IntExpr)~ index;
-    if (!ie) {
-      text.setError(index, " could not be simplified to an int in tuple index access");
+    if (!gotImplicitCast(e2, (IType it) { return test(Single!(SysInt) == it); }))
       return null;
+    e2 = foldex(e2);
+    auto ie = fastcast!(IntExpr) (e2);
+    if (!ie) {
+      fail(Format(e2, " could not be simplified to an int in tuple index access"));
     }
     if (ie.num < 0 || ie.num !< count)
-      text.failparse(ie.num, " out of bounds for tuple access");
-    return fastcast!(Object)~ mkTupleIndexAccess(ex, ie.num);
-  };
+      fail(Format(ie.num, " out of bounds for tuple access"));
+    return fastcast!(Expr) (mkTupleIndexAccess(e1, ie.num));
+  });
 }
-mixin DefaultParser!(gotTupleIndexAccess, "tree.rhs_partial.tuple_index_access", null, "[");
 
 import ast.iterator, ast.casting;
-Object gotTupleSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
-  return lhs_partial.using = delegate Object(Expr ex) {
-    auto tup = fastcast!(Tuple)~ ex.valueType();
+static this() {
+  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+    auto tup = fastcast!(Tuple) (e1.valueType());
     if (!tup) return null;
     int count;
     tup.wrapped.select((string, RelMember rm) { count ++; });
     /// 2.1
     if (count <= 1) return null;
-    auto t2 = text;
-    Expr range;
+    if (!gotImplicitCast(e2, (IType it) { return test(fastcast!(RangeIsh) (it)); }))
+      return null;
     
-    auto backup = namespace();
-    scope(exit) namespace.set(backup);
-    namespace.set(new LengthOverride(backup, mkInt(count)));
-    
-    if (!rest(t2, "tree.expr", &range) ||
-        !gotImplicitCast(range, (IType it) { return test(fastcast!(RangeIsh)~ it); }) ||
-        !t2.accept("]")) return null;
-    auto rish = fastcast!(RangeIsh)~ range.valueType(),
-      from = rish.getPos(range),
-      to   = rish.getEnd(range);
-    text = t2;
-    auto ifrom = fastcast!(IntExpr)~ fold(from), ito = fastcast!(IntExpr)~ fold(to);
-    text.passert(ifrom && ito, "fail");
+    auto rish = fastcast!(RangeIsh) (e2.valueType()),
+      from = rish.getPos(e2),
+      to   = rish.getEnd(e2);
+    auto ifrom = fastcast!(IntExpr) (fold(from)), ito = fastcast!(IntExpr) (fold(to));
+    if (!ifrom || !ito) fail("fail");
     auto start = tup.wrapped.selectMember(ifrom.num).offset;
     auto restype = mkTuple(tup.wrapped.slice(ifrom.num, ito.num).types);
     auto res = iparse!(Expr, "tuple_slice", "tree.expr")
                       (`*restype*:(void*:&lv + base)`,
-                       "restype", restype, "lv", fastcast!(LValue)~ ex,
+                       "restype", restype, "lv", fastcast!(LValue)~ e1,
                        "base", mkInt(start));
-    return fastcast!(Object)~ res;
-  };
+    return res;
+  });
 }
-mixin DefaultParser!(gotTupleSliceExpr, "tree.rhs_partial.tuple_slice", null, "[");
 
 class WithSpace : Namespace {
   Expr[] spaces;
