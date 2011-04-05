@@ -327,15 +327,33 @@ void setupSysmods() {
     class ModuleInfo {
       string name;
       void* dataStart, dataEnd;
-      void function()[] constructors;
+      void function()[auto~] constructors;
+      bool constructed;
+      string[auto~] _imports;
+      ModuleInfo[auto~] imports;
     }
-    ModuleInfo[] __modules;
+    ModuleInfo[auto~] __modules;
+    ModuleInfo lookupInfo(string name) {
+      for auto mod <- __modules if mod.name == name return mod;
+      raise-error new Error "No such module: $name";
+    }
     void __setupModuleInfo() { }
     int main2(int argc, char** argv) {
       __setupModuleInfo();
-      for auto mod <- __modules
+      for auto mod <- __modules {
+        for auto str <- mod._imports
+          mod.imports ~= lookupInfo str;
+      }
+      void callConstructors(ModuleInfo mod) {
+        if mod.constructed return;
+        mod.constructed = true;
+        for auto mod2 <- mod.imports
+          callConstructors mod2;
         for auto constr <- mod.constructors
           constr();
+      }
+      for auto mod <- __modules callConstructors mod;
+      
       mxcsr |= (1 << 6) | (3 << 13); // Denormals Are Zero; Round To Zero.
       string[] args;
       for (auto arg <- argv[0 .. argc]) {
@@ -385,6 +403,11 @@ void finalizeSysmod(Module mainmod) {
   decl.vars ~= var;
   sc.addStatement(decl);
   sc.add(var);
+  
+  auto backupmod = current_module();
+  scope(exit) current_module.set(backupmod);
+  current_module.set(sysmod);
+  
   foreach (mod; list) {
     auto fltname = mod.name.replace(".", "_");
     sc.addStatement(
@@ -400,15 +423,19 @@ void finalizeSysmod(Module mainmod) {
             )
     );
     foreach (fun; mod.constrs) {
-      logln(fun.name, " is of ", fun.type);
       sc.addStatement(
         iparse!(Statement, "init_mod_constr", "tree.stmt")
                (`var.constructors ~= fun;
                `, "var", var, "fun", new FunRefExpr(fun))
       );
     }
+    foreach (mod2; mod.getImports()) {
+      sc.addStatement(
+        iparse!(Statement, "init_mod_imports", "tree.stmt")
+               (`var._imports ~= mod2;`,
+                "var", var, "mod2", mkString(mod2.name)));
+    }
   }
-  
 }
 
 import ast.tuples;

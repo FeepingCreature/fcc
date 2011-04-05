@@ -8,6 +8,7 @@ interface IRandom {
 (IRandom delegate(int), IRandom delegate(IRandom), int)[] engines;
 
 IRandom getPRNG(int s) {
+  if !engines.length raise-error new Error "No random number generators registered! ";
   int best; IRandom delegate(int) res;
   for auto tup <- engines
     if tup[2] > best (res, best) = tup[(0, 2)];

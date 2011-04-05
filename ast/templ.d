@@ -163,6 +163,7 @@ class TemplateInstance : Namespace, HandlesEmits {
   void emitCopy(bool weakOnly = false) {
     if (!instRes) return;
     auto mod = current_module();
+    if (!mod) asm { int 3; }
     // sysmod is linked into main module
     foreach (emod; ematIn) if (emod is mod || (mod.filename == mainfile && emod is sysmod)) return;
     if (weakOnly) {
