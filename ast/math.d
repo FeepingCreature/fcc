@@ -175,7 +175,10 @@ class FloatAsDouble : Expr {
 
 class DoubleAsFloat : Expr {
   Expr d;
-  this(Expr d) { this.d = d; assert(d.valueType() == Single!(Double)); }
+  this(Expr d) {
+    this.d = d;
+    if (resolveTup(d.valueType()) != Single!(Double)) asm { int 3; }
+  }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(d);

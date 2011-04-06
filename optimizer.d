@@ -91,8 +91,8 @@ struct TransactionInfo {
     -----------------------------------------------------
     Push       | &#.source |        |       | #.size| grow
     Pop        |           |        |&#.dest| #.size|shrink
-    SAlloc     |           |        |       | #.size | grow
-    SFree      |           |        |       | #.size |shrink
+    SAlloc     |           |        |       | #.size| grow
+    SFree      |           |        |       | #.size|shrink
     Label      |           |        |       | -1  |
     Jump       | &#.dest   |        |       | -1  |
     Call       | &#.dest   |        |       | -1  |
@@ -1155,6 +1155,15 @@ void setupOpts() {
     info(t).fixupStrings($1.size);
     $SUBST(t, $0, $1);
   `));
+  mixin(opt("wat", `^LoadAddress, ^Pop||^SFree:
+		!info($1).opContains($0.to)
+		=>
+		auto t = $0.dup;
+                bool block;
+		if ($1.kind == $TK.Pop)
+                  if (!t.from.tryFixupString(-$1.size)) block = true;
+	        if (!block) $SUBST($1, t);
+	`));
   mixin(opt("load_address_into_source", `^LoadAddress, *:
     info($1).hasIndirect(0, $0.to) && info($1).opSize() > 1
     =>
@@ -1375,6 +1384,33 @@ void setupOpts() {
     $T t; t.kind = $TK.Mov; t.from = $0.source; t.to = $1.dest;
     $SUBST(t);
   `));
+  bool sequal(string[] str...) {
+    foreach (s; str[1..$]) if (s != str[0]) return false;
+    return true;
+  }
+  bool iequal(int[] ints...) {
+    foreach (i; ints[1..$]) if (i != ints[0]) return false;
+    return true;
+  }
+  bool popequal(Transaction[] trs...) {
+    foreach (tr; trs[1..$]) if (tr.dest != trs[0].dest || tr.size != trs[0].size) return false;
+    return true;
+  }
+  bool pushequal(Transaction[] trs...) {
+		foreach (tr; trs[1..$]) if (tr.source != trs[0].source || tr.size != trs[0].size) return false;
+		return true;
+  }
+  mixin(opt("known_aligned_push_into_load", `^Push, ^Push, ^Push, ^Push, ^SSEOp:
+		pushequal($0, $1, $2, $3) && $4.opName == "movaps" /or/ "cvtdq2ps" && $4.op1 == "(%esp)" && $4.op2.isSSERegister()
+		=>
+		int offs;
+		if ($0.source.isIndirect2(offs) == "%esp" && (offs -= 12, true) && offs % 16 == 0) {
+			$T t = $4.dup;
+			t.op1 = qformat(offs, "(%esp)");
+			$SUBST(t, $0, $1, $2, $3);
+		}
+  `));
+  mixin(opt("push_after_unpack", `^Push, ^SSEOp: $1.opName == "punpckldq" && $1.op1.isSSERegister() && $1.op2.isSSERegister() => $SUBST($1, $0); `));
   mixin(opt("push_or_mov_before_movaps", `^Push, ^SSEOp || ^MovD:
     (
       $1.kind == $TK.SSEOp && $1.opName == "movaps" && $1.op2.isSSERegister() ||
@@ -1509,18 +1545,6 @@ void setupOpts() {
     info(t2).fixupStrings(-4);
     $SUBST([t1, t2]);
   `));
-  bool sequal(string[] str...) {
-    foreach (s; str[1..$]) if (s != str[0]) return false;
-    return true;
-  }
-  bool iequal(int[] ints...) {
-    foreach (i; ints[1..$]) if (i != ints[0]) return false;
-    return true;
-  }
-  bool popequal(Transaction[] trs...) {
-    foreach (tr; trs[1..$]) if (tr.dest != trs[0].dest || tr.size != trs[0].size) return false;
-    return true;
-  }
   // lol
   mixin(opt("hyperspecific_pop_chain", `^Pop, ^Pop, ^Pop, ^Pop, ^Pop, ^Pop, ^Pop, ^Pop:
     sequal($0.dest, $1.dest, $2.dest, $3.dest) &&

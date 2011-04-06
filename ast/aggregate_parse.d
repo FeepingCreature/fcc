@@ -4,6 +4,7 @@ import ast.aggregate, ast.parse, ast.base, ast.scopes, ast.namespace, ast.fun;
 Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto sc = new Scope;
+  sc.configPosition(t2);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   auto as = new AggrStatement;
@@ -19,6 +20,7 @@ mixin DefaultParser!(gotAggregateStmt, "tree.stmt.aggregate", "131", "{");
 Object gotRestStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto sc = new Scope;
+  sc.configPosition(t2);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   auto as = new AggrStatement;

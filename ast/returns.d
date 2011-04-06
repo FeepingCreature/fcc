@@ -15,7 +15,7 @@ class ReturnStmt : Statement {
     auto fun = ns.get!(Function);
     void emitGuards() {
       foreach_reverse(stmt; guards)
-        stmt.emitAsm(af);
+        stmt.dup().emitAsm(af);
     }
     if (value) {
       if (value.valueType() == Single!(Void)) {

@@ -49,6 +49,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   auto ws = new WhileStatement;
   auto sc = new Scope;
+  sc.configPosition (t2);
   ws.isStatic = isStatic;
   ws.sup = sc;
   namespace.set(sc);
@@ -144,6 +145,7 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto dw = new DoWhileExt;
   
   auto sc = new Scope;
+  sc.configPosition(t2);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   

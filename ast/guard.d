@@ -12,7 +12,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   else if (t2.accept("onSuccess")) type = "onSuccess";
   else if (t2.accept("onFailure")) type = "onFailure";
   else return null;
-  Statement st;
+  Statement st1, st2;
   auto t3 = t2, t4 = t2;
   auto sc = namespace().get!(Scope)();
   assert(!!sc, Format("::", namespace()));
@@ -20,9 +20,9 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   if (type == "onSuccess" || type == "onExit") {
     pushCache;
     scope(exit) popCache;
-    if (!rest(t3, "tree.stmt", &st))
+    if (!rest(t3, "tree.stmt", &st1))
       t3.failparse("No statement matched for ", type, " in scope context");
-    sc.guards ~= st;
+    sc.guards ~= st1;
   }
   if (type == "onFailure" || type == "onExit") {
     auto nf = new NestedFunction(sc), mod = current_module();
@@ -39,8 +39,9 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
       auto backup = namespace();
       scope(exit) namespace.set(backup);
       namespace.set(nf);
-      if (!rest(t4, "tree.scope", &nf.tree))
+      if (!rest(t4, "tree.scope", &st2))
         t4.failparse("No statement matched for ", type, " in exception guard context");
+      nf.tree = st2;
     }
     mod.entries ~= fastcast!(Tree) (nf);
     auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord");
@@ -74,6 +75,9 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
         // no need to add, is NoOp
       }
     }
+  }
+  if (st1 && st2 && st1 is st2) {
+		t2.failparse("Failed to produce different sts! ");
   }
   
   t3.passert(type != "onExit" || t3 is t4,

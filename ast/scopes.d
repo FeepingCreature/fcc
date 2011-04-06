@@ -2,18 +2,28 @@ module ast.scopes;
 
 import ast.base, ast.namespace, ast.variable, parseBase, tools.base: apply;
 
+class Mew : LineNumberedStatementClass {
+	LineNumberedStatement dup() { assert(false); }
+	void iterate(void delegate(ref Iterable)) { assert(false); }
+}
+
 import ast.aggregate;
-class Scope : Namespace, ScopeLike, Statement {
+class Scope : Namespace, ScopeLike, LineNumberedStatement {
+	Mew lnsc; // "multiple inheritance" hack
   Statement _body;
   Statement[] guards;
   ulong id;
   mixin defaultIterate!(_body, guards);
+  override void configPosition(string str) {
+		lnsc.configPosition(str);
+  }
+  override void getInfo(ref string n, ref int l) { lnsc.getInfo(n, l); }
   Statement[] getGuards() {
     if (auto sc = fastcast!(Scope)~ sup) return sc.getGuards() ~ guards;
     else return guards;
   }
   void addStatement(Statement st) {
-    if (auto as = cast(AggrStatement) _body) as.stmts ~= st;
+    if (auto as = fastcast!(AggrStatement) (_body)) as.stmts ~= st;
     else if (!_body) _body = st;
     else {
       auto as = new AggrStatement;
@@ -23,7 +33,7 @@ class Scope : Namespace, ScopeLike, Statement {
     }
   }
   void addStatementToFront(Statement st) {
-    if (auto as = cast(AggrStatement) _body) as.stmts = st ~ as.stmts;
+    if (auto as = fastcast!(AggrStatement) (_body)) as.stmts = st ~ as.stmts;
     else if (!_body) _body = st;
     else {
       auto as = new AggrStatement;
@@ -40,6 +50,7 @@ class Scope : Namespace, ScopeLike, Statement {
   this() {
     id = getuid();
     sup = namespace();
+    New(lnsc);
   }
   override Scope dup() {
     auto res = new Scope;
@@ -47,6 +58,7 @@ class Scope : Namespace, ScopeLike, Statement {
     if (_body) res._body = _body.dup;
     foreach (guard; guards) res.guards ~= guard.dup;
     res.id = getuid();
+    res.lnsc = lnsc;
     return res;
   }
   override int framesize() {
@@ -66,7 +78,15 @@ class Scope : Namespace, ScopeLike, Statement {
     return get!(FrameRoot).framestart();
   }
   // continuations good
+  bool emitted;
   void delegate(bool=false) delegate() open(AsmFile af) {
+		lnsc.emitAsm(af);
+		// logln(lnsc.name, ":", lnsc.line, ": start ", this);
+		if (emitted) {
+			logln("double emit scope. ");
+			asm { int 3; }
+		}
+		emitted = true;
     af.emitLabel(entry());
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
@@ -114,6 +134,7 @@ class Scope : Namespace, ScopeLike, Statement {
 Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
   if (auto res = rest(text, "tree.stmt.aggregate")) return res; // always scope anyway
   auto sc = new Scope;
+  sc.configPosition(text);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   auto t2 = text;

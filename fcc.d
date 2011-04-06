@@ -90,6 +90,8 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
   if (!af.debugMode) return;
   with (lns) {
     auto mod = current_module();
+    string name; int line;
+    lns.getInfo(name, line);
     if (!name) return;
     if (auto id = af.getFileId(name)) {
       if (line >= 1) line -= 1; // wat!!

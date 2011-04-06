@@ -529,6 +529,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(backup);
   
   auto sc = new Scope;
+  sc.configPosition(t2);
   namespace.set(sc);
   
   if (!rest(t2, "tree.expr", &main))

@@ -129,12 +129,14 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
     foreach (entry; list) {
       auto prev = ws;
       ws = new WithStmt(entry);
+      ws.sc.configPosition(t2);
       if (!outer) outer = ws;
       namespace.set(ws.sc);
       if (prev) prev.sc.addStatement(ws);
     }
   } else {
     ws = new WithStmt(ex);
+     ws.sc.configPosition(t2);
     if (!outer) outer = ws;
     namespace.set(ws.sc);
   }

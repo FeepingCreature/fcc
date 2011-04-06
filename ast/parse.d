@@ -36,7 +36,7 @@ static this() {
   globalStateMatchers ~= matchrule("tree.rhs_partial", ignore);
 }
 
-class ExprStatement : LineNumberedStatement {
+class ExprStatement : LineNumberedStatementClass {
   Expr ex;
   this(Expr ex) { this.ex = ex; }
   private this() { }
@@ -68,7 +68,7 @@ static this() {
     auto se = fastcast!(StatementAndExpr) (es.ex);
     if (!se) return null;
     auto stmt = se.first;
-    if (auto lns = fastcast!(LineNumberedStatement) (stmt)) {
+    if (auto lns = fastcast!(LineNumberedStatementClass) (stmt)) {
       lns.line = es.line;
       lns.name = es.name;
     }

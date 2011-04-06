@@ -511,12 +511,19 @@ template logSmart(bool Mode) {
 
 extern(C) void _line_numbered_statement_emitAsm(LineNumberedStatement, AsmFile);
 
-class LineNumberedStatement : Statement {  
+interface LineNumberedStatement : Statement {
+	LineNumberedStatement dup();
+	void configPosition(string text);
+	void getInfo(ref string name, ref int line);
+}
+
+class LineNumberedStatementClass : LineNumberedStatement {  
   int line;
   string name;
   abstract LineNumberedStatement dup();
   abstract void iterate(void delegate(ref Iterable) dg);
-  void configPosition(string text) {   
+  override void getInfo(ref string n, ref int l) { n = name; l = line; }
+  override void configPosition(string text) {   
     auto pos = lookupPos(text);
     line = pos._0 + 1;
     name = pos._2;
