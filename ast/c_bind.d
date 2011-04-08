@@ -82,7 +82,8 @@ void parseHeader(string filename, string src, ParseCb rest) {
   bool inEnum;
   string[] buffer;
   void flushBuffer() { foreach (def; buffer) newsrc ~= def ~ ";"; buffer = null; }
-  foreach (line; src.split("\n")) {
+  while (src.length) {
+    string line = src.slice("\n");
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
     if (line.startsWith("}")) { inEnum = false; newsrc ~= line; flushBuffer; continue; }

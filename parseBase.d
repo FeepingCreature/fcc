@@ -12,7 +12,44 @@ string mystripl(string s) {
   return s;
 }
 
+int[int] accesses;
+
 import tools.base, errors;
+struct StatCache {
+  tools.base.Stuple!(Object, char*, int)[char*] cache;
+  int depth;
+  tools.base.Stuple!(Object, char*)* opIn_r(char* p) {
+    auto res = p in cache;
+    if (!res) return null;
+    auto delta = depth - res._2;
+    if (!(delta in accesses)) accesses[delta] = 0;
+    accesses[delta] ++;
+    return cast(tools.base.Stuple!(Object, char*)*) res;
+  }
+  void opIndexAssign(tools.base.Stuple!(Object, char*) thing, char* idx) {
+    cache[idx] = stuple(thing._0, thing._1, depth++);
+  }
+}
+
+struct SpeedCache {
+  tools.base.Stuple!(char*, Object, char*)[24] cache;
+  int curPos;
+  tools.base.Stuple!(Object, char*)* opIn_r(char* p) {
+    int i = curPos - 1;
+    if (i == -1) i = cache.length - 1;
+    while (i != curPos) {
+      if (cache[i]._0 == p)
+        return cast(tools.base.Stuple!(Object, char*)*) &cache[i]._1;
+      if (--i < 0) i += cache.length;
+    }
+    return null;
+  }
+  void opIndexAssign(tools.base.Stuple!(Object, char*) thing, char* idx) {
+    cache[curPos++] = stuple(idx, thing._0, thing._1);
+    if (curPos == cache.length) curPos = 0;
+  }
+}
+
 enum Scheme { Binary, Octal, Decimal, Hex }
 bool gotInt(ref string text, out int i) {
   auto t2 = text.mystripl();
@@ -106,17 +143,15 @@ bool accept(ref string s, string t) {
   }
   if (t == "<-" && s2.startsWith("←")) t = "←";
   
-  auto t16 = t.toUTF16();
-  
   size_t idx = t.length;
-  return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t16[$-1]) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
+  return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t.toUTF16()[$-1]) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
     !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
   );
 }
 
-bool mustAccept(ref string s, string t, string err) {
+bool mustAccept(ref string s, string t, lazy string err) {
   if (s.accept(t)) return true;
-  s.failparse(err);
+  s.failparse(err());
 }
 
 bool bjoin(ref string s, lazy bool c1, lazy bool c2, void delegate() dg,
@@ -450,7 +485,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
         if (dg(Id)) { dontMemoMe = true; break; }
       _pushCache ~= this /apply/ (typeof(this) that) {
         that.stack ~= that.cache;
-        that.cache = null;
+        that.cache = Init!(typeof(that.cache));
       };
       _popCache ~= this /apply/ (typeof(this) that) {
         that.cache = that.stack[$-1];
@@ -468,8 +503,9 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
         return fnredir(text, accept, cont, rest);
       }
     } else {
-      Stuple!(Object, char*)[char*] cache;
-      Stuple!(Object, char*)[char*][] stack;
+      // Stuple!(Object, char*)[char*] cache;
+      SpeedCache cache;
+      typeof(cache)[] stack;
       override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         auto t2 = text;
         if (.accept(t2, "]")) return null; // never a valid start

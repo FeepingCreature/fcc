@@ -489,5 +489,6 @@ int main(string[] args) {
   }
   objects.link(output, largs, cs.saveTemps);
   if (runMe) system(toStringz("./"~output));
+  if (accesses.length) logln("access info: ", accesses);
   return 0;
 }
