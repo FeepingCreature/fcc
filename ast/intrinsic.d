@@ -409,7 +409,7 @@ void finalizeSysmod(Module mainmod) {
   current_module.set(sysmod);
   
   foreach (mod; list) {
-    auto fltname = mod.name.replace(".", "_");
+    auto fltname = mod.name.replace(".", "_").replace("-", "_dash_");
     sc.addStatement(
       iparse!(Statement, "init_modinfo", "tree.stmt")
              (`{var = new ModuleInfo;

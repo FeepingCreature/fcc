@@ -445,7 +445,7 @@ class AsmFile {
     dg(".weak _sys_tls_data_start\n");
     dg(".globl _sys_tls_data_start\n");
     dg("_sys_tls_data_start:\n");
-    string id2 = id[0..$-3].replace("/", "_");
+    string id2 = id[0..$-3].replace("/", "_").replace("-", "_dash_");
     dg(".globl _sys_tls_data_"); dg(id2); dg("_start\n");
     dg("_sys_tls_data_"); dg(id2); dg("_start:\n");
     foreach (name, data; tlsvars) {
