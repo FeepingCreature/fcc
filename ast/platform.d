@@ -11,14 +11,14 @@ Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
   auto src = t2.getHeredoc();
   auto mod = current_module();
   if (platname~"-" == platform_prefix || platname == "default" && !platform_prefix) {
-    Tree tr;
+    Object obj;
     if (!src.many(
-        !!rest(src, "tree.toplevel", &tr),
+        !!rest(src, "tree.toplevel", &obj),
         {
-          if (auto n = fastcast!(Named) (tr))
-            if (!addsSelf(tr))
+          if (auto n = fastcast!(Named) (obj))
+            if (!addsSelf(obj))
               mod.add(n);
-          mod.entries ~= tr;
+          if (auto tr = fastcast!(Tree) (obj)) mod.entries ~= tr;
         }
       ))
       src.failparse("Failed to parse platform body. ");

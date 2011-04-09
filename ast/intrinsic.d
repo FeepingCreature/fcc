@@ -391,7 +391,7 @@ void finalizeSysmod(Module mainmod) {
     if (mod.name in done) continue;
     list ~= mod;
     done[mod.name] = true;
-    left ~= mod.imports;
+    left ~= mod.getImports();
   }
   auto modtype = fastcast!(ClassRef) (sysmod.lookup("ModuleInfo"));
   auto backup = namespace();
