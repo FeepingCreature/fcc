@@ -721,27 +721,22 @@ Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "2407", "__istep");
 
-Object gotIterIndex(ref string text, ParseCb cont, ParseCb rest) {
-  return lhs_partial.using = delegate Object(Expr ex) {
-    auto iter = fastcast!(Iterator)~ ex.valueType();
+import ast.opers;
+static this() {
+  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+    auto iter = fastcast!(Iterator) (e1.valueType());
     if (!iter) return null;
-    auto t2 = text;
-    Expr pos;
-    if (t2.accept("[") && rest(t2, "tree.expr", &pos) && t2.accept("]")) {
-      auto ri = fastcast!(RichIterator)~ iter;
-      if (!ri)
-        text.failparse("Cannot access by index: ", ex, " not a rich iterator");
-      text = t2;
-      if (auto rish = fastcast!(RangeIsh)~ pos.valueType()) {
-        auto from = rish.getPos(pos), to = rish.getEnd(pos);
-        return fastcast!(Object)~ ri.slice(ex, from, to);
-      } else {
-        return fastcast!(Object)~ ri.index(ex, pos);
-      }
-    } else return null;
-  };
+    auto ri = fastcast!(RichIterator) (iter);
+    if (!ri)
+      throw new Exception(Format("Cannot access by index; not a rich iterator! "));
+    if (auto rish = fastcast!(RangeIsh) (e2.valueType())) {
+      auto from = rish.getPos(e2), to = rish.getEnd(e2);
+      return ri.slice(e1, from, to);
+    } else {
+      return ri.index(e1, e2);
+    }
+  });
 }
-mixin DefaultParser!(gotIterIndex, "tree.rhs_partial.iter_index");
 
 import ast.arrays, ast.modules, ast.aggregate;
 // Statement with target, Expr without. Lol.

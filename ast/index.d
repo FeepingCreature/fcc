@@ -87,12 +87,15 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     
     if (t2.accept("]")) return null; // [] shortcut
     if (rest(t2, "tree.expr", &pos) && t2.accept("]")) {
-      auto res = lookupOp("index", ex, pos);
-      if (!res) {
-        text.failparse("Invalid array index: ", pos.valueType());
-      }
-      text = t2;
-      return fastcast!(Object)~ res;
+      Expr res;
+      try {
+        res = lookupOp("index", ex, pos);
+        if (!res) {
+          text.failparse("Invalid array index: ", pos.valueType());
+        }
+        text = t2; 
+      } catch (Exception ex) text.failparse(ex);
+      return fastcast!(Object) (res);
     } else return null;
   };
 }
