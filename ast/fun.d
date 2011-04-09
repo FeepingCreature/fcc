@@ -307,7 +307,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     {
       mixin(mustOffset("0", "innerer"));
       foreach_reverse (param; params) {
-        af.comment("Push ", param);
+        // af.comment("Push ", param);
         alignment_emitAligned(param, af);
       }
       

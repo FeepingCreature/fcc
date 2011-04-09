@@ -839,8 +839,10 @@ class EvalIterator(T) : Expr, Statement {
 
 Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto iter = fastcast!(Iterator)~ ex.valueType();
-    if (!iter) return null;
+    if (!gotImplicitCast(ex, (IType it) {
+      return !!fastcast!(Iterator) (resolveType(it)); 
+    })) return null;
+    auto iter = fastcast!(Iterator) (resolveType(ex.valueType()));
     if (auto ri = fastcast!(RichIterator)~ iter) {
       return new EvalIterator!(RichIterator) (ex, ri);
     } else {
