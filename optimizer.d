@@ -758,6 +758,7 @@ class ProcTrack : ExtToken {
           }
           if (val.isRegister()) use[val] = true;
           // increment our knowns.
+          // logln("also I am ", this);
           fixupESPDeps(4);
           stack ~= val;
           mixin(Success);
@@ -1240,7 +1241,9 @@ void setupOpts() {
     $1.kind != $TK.FloatIntLoad /* can't do mem loads :( */ &&
     $1.kind != $TK.LoadAddress /* lel */ &&
     // flds needs memory source
-   ($1.kind != $TK.FloatLoad || !$0.source.isUtilityRegister())
+   ($1.kind != $TK.FloatLoad || !$0.source.isUtilityRegister() && !$0.source.isNumLiteral()) &&
+   // fcmps must not literal
+   ($1.kind != $TK.FloatCompare || !$0.source.isNumLiteral())
     =>
     $T t = $1;
     if (t.hasStackdepth()) t.stackdepth -= $0.size;
@@ -1710,7 +1713,7 @@ void setupOpts() {
     string* op;
     if ($0.kind == $TK.Push) op = &cur.source;
     else op = &cur.dest;
-    auto indir = (*op).isIndirect2(offs);
+    auto indir = (*op).isIndirect2(offs, true);
     // Try to pry apart the subtle weave of if clauses.
     // Just try.
     // I dare you.
