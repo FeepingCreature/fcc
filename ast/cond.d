@@ -17,7 +17,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept(")"))
     assert(false);
   IType hdltype = fastcast!(IType) (sysmod.lookup("_Handler")), objtype = fastcast!(ClassRef) (sysmod.lookup("Object"));
-  const string hdlmarker = "__hdlmarker_var_special";
+  string hdlmarker = Format("__hdlmarker_var_special_", getuid());
   assert(!namespace().lookup(hdlmarker));
   auto hdlvar = new Variable(hdltype, hdlmarker, boffs(hdltype));
   hdlvar.initInit;
@@ -67,8 +67,8 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
       auto backup2 = namespace();
       scope(exit) namespace.set(backup2);
       namespace.set(nf2);
-      nf2.tree = iparse!(Statement, "cond_nest", "tree.stmt")
-                        (`_lookupCM(n, &`~hdlmarker~`, true).jump();`, namespace());
+      nf2.tree = iparse!(Statement, "cond_nest", "tree.stmt") // can't use hdlvar here, because it's in the wrong scope
+                        (`_lookupCM(n, &hdlvar, true).jump();`, namespace(), "hdlvar", lookup(hdlmarker));
       hdlvar.name = null; // marker string not needed
     }
     mod.entries ~= fastcast!(Tree)~ nf2;

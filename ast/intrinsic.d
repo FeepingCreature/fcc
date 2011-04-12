@@ -155,10 +155,17 @@ void setupSysmods() {
       printf("%.*s\n", line.length, line.ptr);
     }
     string dtoa(double d) {
-      auto res = new char[40];
+      auto res = new char[128]; // yes, actually does need to be this big >_>
       int len = snprintf(res.ptr, res.length, "%f", d);
       if len > res.length len = res.length;
       return res[0 .. len];
+    }
+    string ftoa(float f) {
+      short backup = fpucw;
+      fpucw = short:(fpucw | 0b111_111); // mask nans
+      string res = dtoa double:f;
+      fpucw = backup;
+      return res;
     }
     /*MARKER2*/
     class Object {
@@ -363,6 +370,7 @@ void setupSysmods() {
       set-handler (Error err) {
         writeln "Unhandled error: $(err.toString)";
         errnum = 1;
+        _interrupt 3;
         invoke-exit "main-return";
       }
       define-exit "main-return" return errnum;
@@ -508,6 +516,27 @@ Object gotMXCSR(ref string text, ParseCb cont, ParseCb rest) {
   return Single!(MXCSR);
 }
 mixin DefaultParser!(gotMXCSR, "tree.expr.mxcsr", "2405", "mxcsr");
+
+class FPUCW : MValue {
+  mixin defaultIterate!();
+  override {
+    FPUCW dup() { return this; }
+    IType valueType() { return Single!(Short); }
+    void emitAsm(AsmFile af) {
+      af.salloc(2);
+      af.put("fstcw (%esp)");
+    }
+  }
+  void emitAssignment(AsmFile af) {
+    af.put("fldcw (%esp)");
+    af.sfree(2);
+  }
+}
+
+Object gotFPUCW(ref string text, ParseCb cont, ParseCb rest) {
+  return Single!(FPUCW);
+}
+mixin DefaultParser!(gotFPUCW, "tree.expr.fpucw", "24051", "fpucw");
 
 import ast.tuples;
 class RegExpr : MValue {

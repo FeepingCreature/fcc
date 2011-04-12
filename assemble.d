@@ -146,7 +146,7 @@ struct Transaction {
       case DoublePop:   return Format("[double pop ", dest, "]");
       case FloatStore:  return Format("[float store ", dest, "]");
       case DoubleStore: return Format("[double store ", dest, "]");
-      case FloatMath:   return Format("[float math ", opName, "]");
+      case FloatMath:   return Format("[float math ", opName, " ", floatSelf, "]");
       case FPSwap:      return Format("[x87 swap]");
      case FloatLongLoad:return Format("[float long load ", source, "]");
       case FloatIntLoad:return Format("[float int load ", source, "]");
@@ -156,7 +156,7 @@ struct Transaction {
       case Label:       return Format("[label ", names, keepRegisters?" [keepregs]":"", "]");
       case Extended:    return Format("[extended ", obj, "]");
       case Nevermind:   return Format("[nvm ", dest, "]");
-      case LoadAddress: return Format("[lea ", from, " -> ", to, "]");
+      case LoadAddress: return Format("[lea ", from, " -> ", to, stackinfo, "]");
     }
   }
   int opEquals(ref Transaction t2) {
@@ -171,7 +171,7 @@ struct Transaction {
       case Call, Jump: return dest == t2.dest;
       case Compare: return op1 == t2.op1 && op2 == t2.op2;
       case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatCompare: return source == t2.source;
-      case FloatMath: return opName == t2.opName;
+      case FloatMath: return opName == t2.opName && floatSelf == t2.floatSelf;
       case FPSwap: return true;
       case FloatLongLoad, FloatIntLoad: return source == t2.source;
       case SSEOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
@@ -376,7 +376,9 @@ struct Transaction {
       case DoublePop: return qformat("fstpl ", dest);
       case FloatStore: return qformat("fsts ", dest);
       case DoubleStore: return qformat("fstl ", dest);
-      case FloatMath: return qformat(opName, "p %st, %st(1)");
+      case FloatMath:
+        if (floatSelf) return qformat(opName, " %st, %st");
+        else return qformat(opName, "p %st, %st(1)");
       case FPSwap: return qformat("fxch");
       case FloatLongLoad: return qformat("fildq ", source);
       case FloatIntLoad: return qformat("fildl ", source);
@@ -416,6 +418,7 @@ struct Transaction {
       ExtToken obj;
     }
     bool keepRegisters;
+    bool floatSelf;
     int stackdepth = -1;
   }
   bool hasStackdepth() { return stackdepth != -1; }

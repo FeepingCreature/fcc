@@ -11,6 +11,7 @@ platform(i686-mingw32) <<EOF
 EOF
 
 platform(default) <<EOF
+  c_include "GL/glx.h";
   extern(C) void* glXGetProcAddress(char*);
   template lookupFun(T) <<EO2
     T lookupFun(char* c) { return T:glXGetProcAddress(c); }

@@ -1574,6 +1574,13 @@ void setupOpts() {
     t.size = 4;
     $SUBST(t);
   `));
+  mixin(opt("double_load_into_math", `^FloatLoad, ^FloatLoad, ^FloatMath:
+    $0.source == $1.source && !$2.floatSelf
+    =>
+    $T t = $2.dup;
+    t.floatSelf = true;
+    $SUBST($0, t);
+  `));
   mixin(opt("movaps_and_pop_to_direct", `^SSEOp, ^Pop, ^Pop, ^Pop, ^Pop:
     $0.opName == "movaps" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
     popequal($1, $2, $3, $4) && $1.size == 4

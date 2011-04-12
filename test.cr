@@ -57,7 +57,7 @@ struct W {
 import std.c.math, std.c.fenv, std.c.unistd, std.c.stdlib, std.c.time;
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
-  screen(256, 192);
+  screen(400, 300);
   auto start = time(int*: null);
   float t = 0;
   int fps;
@@ -396,8 +396,8 @@ int main(string[] args) {
       // auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
       float noisex(vec3f v) {
         float sqr(float f) { return f * f; }
-        // return noise3 vec3f(v.x + sqr noise3(v), v.y + sqr noise3(-v), v.z);
-        return noise3 v;
+        return noise3 vec3f(v.x + sqr noise3(v), v.y + sqr noise3(-v), v.z);
+        // return noise3 v;
         // return sinf(v.x + v.y + v.z) * 0.5 + 0.5;
       }
       // auto n = noisex vec3f(x * 8, y * 8, t);
@@ -420,7 +420,7 @@ int main(string[] args) {
       // return transition(&f2, &n2, smoothstep(0.3, 0.5, dist + noise2(x * 2 + 100, y * 2) * 0.1f));
     }
     fun1(0, 0);
-    sdlfun(&fun4);
+    sdlfun(&fun3);
     U u;
     u.F = 15;
     printf("comparison 0x%08x\n", float:15);

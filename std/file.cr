@@ -43,7 +43,8 @@ int open(string file) {
 
 ubyte[] readAll(string file) { return join readfile open file; }
 
-class WriterError {
+class WriterError : Error {
+  void init() { super.init "Writer Error"; }
 }
 
 class writer {

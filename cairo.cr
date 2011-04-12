@@ -1,0 +1,11 @@
+module cairo;
+
+c_include "cairo/cairo.h";
+import opengl;
+extern(C) cairo_device_t* cairo_glx_device_create (Display* dpy, GLXContext gl_ctx);
+extern(C) cairo_surface_t* cairo_gl_surface_create_for_window (cairo_device_t *device, Window win, int width, height);
+extern(C) void cairo_gl_surface_swapbuffers (cairo_surface_t*);
+
+defmode cairo-context x "prefix cairo_ first-arg x";
+defmode cairo-pattern p "prefix pattern_ first-arg p";
+defmode sdl-window w "prefix SDL_ first-arg w";

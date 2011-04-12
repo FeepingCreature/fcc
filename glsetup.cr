@@ -2,6 +2,8 @@ module glsetup;
 
 import opengl, sdl;
 
+extern(C) void exit(int);
+
 void quit(int code) {
   SDL_Quit();
   exit(code);
@@ -81,9 +83,10 @@ void swap() { SDL_GL_SwapBuffers(); }
 
 void delegate()[] gl-context-callbacks;
 
-SDL_Surface* setup-gl() {
+SDL_Surface* setup-gl(int extra-flags = 0) {
   SDL_Init (SDL_INIT_VIDEO);
   auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
+  flags |= extra-flags;
   // SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
   regenSurf = new delegate SDL_Surface*(int w, int h) {
     writeln "regenSurf($w, $h, 0, $flags)";

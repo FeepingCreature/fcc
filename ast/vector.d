@@ -150,21 +150,73 @@ class MultiplesExpr : Expr {
   }
 }
 
+import ast.literals;
+class AlignedVec4Literal : Expr, Literal {
+  string id;
+  IType type;
+  FloatExpr base; int len;
+  this(IType t, FloatExpr fe, int l) { type = t; base = fe; len = l; }
+  string getID(AsmFile af) {
+    if (!id) {
+      float[4] meep;
+      foreach (ref v; meep) v = base.f;
+      id = af.allocConstant(Format("__vec_constant_", af.constants.length), cast(ubyte[]) meep.dup);
+    }
+    return id;
+  }
+  override {
+    mixin defaultIterate!(base);
+    typeof(this) dup() { return new typeof(this) (type, base, len); }
+    IType valueType() { return type; }
+    string getValue() { assert(false, "Use getID instead! "); }
+    void emitAsm(AsmFile af) {
+      // af.put("#avlit of ", type, " * ", len);
+      for (int i = 0; i < len; ++i)
+        base.emitAsm(af);
+    }
+  }
+}
+
 static this() {
+  foldopt ~= delegate Expr(Expr ex) {
+    auto me = fastcast!(MultiplesExpr) (ex);
+    if (!me) return null;
+    bool canDup; // no side effects
+    auto fbase = foldex(me.base);
+    if (auto lt = fastcast!(Literal) (fbase)) {
+      if (me.factor == 3 || me.factor == 4) if (auto fe = fastcast!(FloatExpr) (lt)) {
+        return new AlignedVec4Literal(me.type, fe, me.factor);
+      }
+      canDup = true;
+    }
+    if (auto var = fastcast!(Variable) (fbase)) canDup = true;
+    if (!canDup) {
+      // logln("me of ", foldex(me.base));
+      return null;
+    }
+    Expr[] list;
+    for (int i = 0; i < me.factor; ++i) list ~= fbase;
+    return reinterpret_cast(me.type, mkTupleExpr(list));
+  };
   foldopt ~= delegate Expr(Expr ex) {
     auto mae = fastcast!(MemberAccess_Expr) (ex);
     if (!mae) return null;
     auto rce = fastcast!(RCE) (foldex(mae.base));
     if (!rce) return null;
-    auto mult = fastcast!(MultiplesExpr) (foldex(rce.from));
-    if (!mult) return null;
-    if (mult.base.valueType() != mae.stm.type) {
+    auto fe = foldex(rce.from);
+    auto mult = fastcast!(MultiplesExpr) (fe);
+    auto avlit = fastcast!(AlignedVec4Literal) (fe);
+    if (!mult && !avlit) return null;
+    IType basetype; Expr res;
+    if (mult) { basetype = mult.base.valueType(); res = mult.base; }
+    if (avlit) { basetype = avlit.base.valueType(); res = avlit.base; }
+    if (basetype != mae.stm.type) {
       logln("type mismatch: accessing ", mae.stm.type, " from set of ",
-        mult.base.valueType());
+        basetype);
       asm { int 3; }
       return null;
     }
-    return mult.base;
+    return res;
   };
 }
 
@@ -385,6 +437,13 @@ void checkVecs() {
   if (!vec3i) vec3i = mkVec(Single!(SysInt), 3);
 }
 
+string getAddr(AsmFile af, Expr src) {
+  if (auto rce = fastcast!(RCE) (src)) src = rce.from; // immaterial
+  if (auto xmm = fastcast!(XMM) (src)) return xmm.getValue();
+  else if (auto lit = fastcast!(AlignedVec4Literal) (src)) return lit.getID(af);
+  else return null;
+}
+
 bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   mixin(mustOffset("0"));
   checkVecs;
@@ -397,9 +456,10 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     af.popStack("%eax", 4);
     // af.SSEOp("movaps", "(%eax)", dest);
     // recommended by the intel core opt manual, 3-50
+    // also benchmarked and YES it's faster .. IFF there's a dependency.
     af.movd("(%eax)", dest);
     af.movd("8(%eax)", scrap1);
-    af.SSEOp("punpckldq", scrap1, dest);
+    af.SSEOp("punpckldq", scrap1, dest); // can't do directly! punpckldq requires alignment; movd doesn't.
     af.movd("4(%eax)", scrap1);
     af.movd("12(%eax)", scrap2);
     af.SSEOp("punpckldq", scrap2, scrap1);
@@ -408,6 +468,20 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   auto var1 = fastcast!(Variable) (op1), var2 = fastcast!(Variable) (op2);
   bool alignedVar1 = var1 && (var1.baseOffset & 15) == 0;
   bool alignedVar2 = var2 && (var2.baseOffset & 15) == 0;
+  void load(Expr src, string to, string scrap1 = null, string scrap2 = null) {
+    if (auto addr = getAddr(af, src)) af.SSEOp("movaps", addr, to);
+    else {
+      // logln("src is ", (cast(Object) src).classinfo.name, ", ", src);
+      src.emitAsm(af);
+      if (scrap1 && scrap2 && false) {
+        af.pushStack("%esp", 4);
+        packLoad(to, scrap1, scrap2);
+      } else {
+        af.SSEOp("movaps", "(%esp)", to);
+      }
+      af.sfree(16);
+    }
+  }
   string srcOp = "%xmm1";
   if (alignedVar1 && alignedVar2) {
     var1.emitLocation(af);
@@ -423,9 +497,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   if (alignedVar1 && !alignedVar2) {
     af.salloc(12);
     var1.emitLocation(af);
-    op2.emitAsm(af);
-    af.SSEOp("movaps", "(%esp)", "%xmm1");
-    af.sfree(16);
+    load(op2, "%xmm1", "%xmm2", "%xmm3");
     // logln("param 2 is ", op2, ", what to do .. ");
     packLoad("%xmm0", "%xmm2", "%xmm3");
     // af.popStack("%eax", 4);
@@ -435,9 +507,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   if (!alignedVar1 && alignedVar2) {
     af.salloc(12);
     var2.emitLocation(af);
-    op1.emitAsm(af);
-    af.SSEOp("movaps", "(%esp)", "%xmm0");
-    af.sfree(16);
+    load(op1, "%xmm0", "%xmm2", "%xmm3");
     // logln("param 1 is ", op1, ", what to do .. ");
     packLoad("%xmm1", "%xmm2", "%xmm3");
     // af.popStack("%eax", 4);
@@ -445,15 +515,23 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     af.salloc(4);
   }
   if (!alignedVar1 && !alignedVar2) {
-    op1.emitAsm(af);
-    if (auto xmm = fastcast!(XMM) (op2)) {
-      srcOp = xmm.getValue();
-    } else {
+    string prep1;
+    if (auto addr = getAddr(af, op1)) prep1 = addr;
+    else op1.emitAsm(af);
+    if (auto s = getAddr(af, op2)) srcOp = s;
+    else {
+      // logln("op2 is ", (cast(Object) op2).classinfo.name, ", ", op2);
       op2.emitAsm(af);
       af.SSEOp("movaps", "(%esp)", "%xmm1");
       af.sfree(16);
     }
-    af.SSEOp("movaps", "(%esp)", "%xmm0");
+    if (prep1) af.SSEOp("movaps", prep1, "%xmm0");
+    else {
+      // logln("op1 is ", (cast(Object) op1).classinfo.name, ", ", op1);
+      af.SSEOp("movaps", "(%esp)", "%xmm0");
+      af.sfree(16);
+    }
+    af.salloc(16);
   }
   string sse;
   if (op == "+") sse = "addps";
@@ -534,19 +612,19 @@ class VecOp : Expr {
         ));
         void delegate() dg1, dg2;
         mixin(mustOffset("0"));
-        Expr v1, v2;
-        auto filler1 = alignStackFor(t1, af); v1 = mkTemp(af, ex1, dg1);
-        auto filler2 = alignStackFor(t2, af); v2 = mkTemp(af, ex2, dg2);
-        if (!gotSSEVecOp(af, v1, v2, fastcast!(Expr) (var), op)) {
+        // SSE needs no temps!
+        if (!gotSSEVecOp(af, ex1, ex2, fastcast!(Expr) (var), op)) {
+          auto filler1 = alignStackFor(t1, af); auto v1 = mkTemp(af, ex1, dg1);
+          auto filler2 = alignStackFor(t2, af); auto v2 = mkTemp(af, ex2, dg2);
           for (int i = 0; i < len; ++i) {
             Expr l1 = v1, l2 = v2;
             if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
             if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2))[i];
             (new Assignment(fastcast!(LValue)~ entries[i], lookupOp(op, l1, l2))).emitAsm(af);
           }
+          if (dg2) dg2(); af.sfree(filler2);
+          if (dg1) dg1(); af.sfree(filler1);
         }
-        if (dg2) dg2(); af.sfree(filler2);
-        if (dg1) dg1(); af.sfree(filler1);
       });
     }
   }

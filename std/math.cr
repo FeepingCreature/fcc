@@ -38,8 +38,46 @@ alias PI180 = PI/180.0;
 
 float log(float f) { return logf f; }
 float pow(float a, b) { return powf (a, b); }
-float sin(float f) { return sinf f; }
-float cos(float f) { return cosf f; }
+
+float sin(float f) {
+  short status;
+  float local = f;
+  asm "fld (%esp)";
+  asm "fxam";
+  asm "fstsw 6(%esp)"; // 4-aligned
+  if (status & 0b0000_0101__0000_0000 == 0b101 << 8) { int i = 0; i /= i; } // infty
+  asm "fsin";
+  asm "fstsw 6(%esp)"; // also 4-aligned
+  asm "fstp (%esp)";
+  if (status & 0b0000_0100__0000_0000) { int i = 0; i /= i; }
+  return local;
+}
+
+float cos(float f) {
+  short status;
+  float local = f;
+  asm "fld (%esp)";
+  asm "fxam";
+  asm "fstsw 6(%esp)"; // 4-aligned
+  if (status & 0b0000_0101__0000_0000 == 0b101 << 8) { int i = 0; i /= i; } // infty
+  asm "fcos";
+  asm "fstsw 6(%esp)"; // 4-aligned
+  asm "fstp (%esp)";
+  if (status & 0b0000_0100__0000_0000) { int i = 0; i /= i; }
+  return local;
+}
+
+float sqrtf(float f) {
+  short status;
+  float local = f;
+  asm "fld (%esp)";
+  asm "fsqrt";
+  asm "fxam";
+  asm "fstsw 6(%esp)";
+  asm "fstp (%esp)";
+  if (status & 0b0000_0101__0000_0000 == (0b101 << 8)) { int i = 0; i /= i; } // infty
+  return local;
+}
   
 vec2f half(vec2f a, b) return (a + b) / 2;
 vec3f half(vec3f a, b) return (a + b) / 2;
@@ -47,3 +85,8 @@ vec4f half(vec4f a, b) return (a + b) / 2;
 
 float min(float a, b) return [a, b][eval a > b];
 float max(float a, b) return [a, b][eval a < b];
+
+bool isNan(float f) {
+  int i = *int*:&f;
+  return eval (i & 0x7fff_ffff) > 0x7f80_0000;
+}

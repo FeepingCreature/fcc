@@ -26,6 +26,12 @@ class AsmFile {
     if (!size) asm { int 3; }
     tlsvars[name] = stuple(size, init);
   }
+  string allocConstantValue(string name, ubyte[] data) {
+    if (data.length == 4) { // hax
+      return qformat("$", (cast(int[]) data)[0]);
+    }
+    return allocConstant(name, data);
+  }
   string allocConstant(string name, ubyte[] data) {
     foreach (key, value; constants)
       if (value == data) return key;
@@ -478,6 +484,7 @@ class AsmFile {
     
     dg(".section\t.rodata\n");
     foreach (name, c; constants) {
+      if (c.length > 4) dg(".align 16\n");
       dg(name); dg(":\n");
       dg(".byte ");
       foreach (val; c) dg(qformat(cast(ubyte) val, ", "));

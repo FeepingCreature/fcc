@@ -46,7 +46,7 @@ class FloatExpr : Expr, Literal {
     string getValue() { return Format(f_as_i); }
     void emitAsm(AsmFile af) {
       if (!name_used) {
-        name_used = af.allocConstant(Format("cons_constant_", af.constants.length), cast(ubyte[]) (&f_as_i)[0 .. 1]);
+        name_used = af.allocConstantValue(Format("cons_constant_", af.constants.length), cast(ubyte[]) (&f_as_i)[0 .. 1]);
       }
       af.pushStack(name_used, 4);
     }

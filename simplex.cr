@@ -131,8 +131,6 @@ float noise3(vec3f v) {
   int[4] gi = void;
   int mask = void;
   vec3f v0 = void;
-  vec3i offs1 = void, offs2 = void;
-  float sum = 0f;
   if !perm.length permsetup;
   
   vsum = v + (v.sum / 3.0f);
@@ -164,8 +162,8 @@ float noise3(vec3f v) {
       mask = 0b100_110; // Z Y X
     }
   }*/
-  offs1 = vec3i((mask >> 5)    , (mask >> 4) & 1, (mask >> 3) & 1);
-  offs2 = vec3i((mask >> 2) & 1, (mask >> 1) & 1, (mask >> 0) & 1);
+  auto offs1 = vec3i((mask >> 5)    , (mask >> 4) & 1, (mask >> 3) & 1);
+  auto offs2 = vec3i((mask >> 2) & 1, (mask >> 1) & 1, (mask >> 0) & 1);
   vs[1] -= vec3f(offs1);
   vs[2] -= vec3f(offs2);
   (int ii, int jj, int kk) = indices.(x & 255, y & 255, z & 255);

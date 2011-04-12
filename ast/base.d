@@ -399,7 +399,7 @@ void qformat_append(T...)(T t) {
       if (i < 0) { append("-"); i = -i; }
       
       // gotta do this left to right!
-      int ifact = 1;
+      long ifact = 1;
       while (ifact <= i) ifact *= 10;
       ifact /= 10;
       while (ifact) {

@@ -2,6 +2,8 @@ module std.time;
 
 import std.c.time;
 
+alias time = std.c.time.time;
+
 struct timeval {
   int tv_sec, tv_usec;
 }

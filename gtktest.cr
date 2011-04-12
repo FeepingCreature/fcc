@@ -40,7 +40,7 @@ int main (int argc, char **argv) {
     writeln "Building model. ";
     while line <- splitAt("\n",
         castIter!string readfile open "xmldump.txt") {
-      // writeln "> $line";
+      writeln "> $line";
       if (auto rest = line.startsWith "----module ") {
         auto restp = toStringz rest;
         GtkTreeIter iter;

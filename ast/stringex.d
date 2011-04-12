@@ -77,7 +77,10 @@ Expr simpleFormat(Expr ex) {
   if (Single!(Long) == type) {
     return buildFunCall(fastcast!(Function)~ sysmod.lookup("ltoa"), ex, "ltoa");
   }
-  if (Single!(Float) == type || Single!(Double) == type) {
+  if (Single!(Float) == type) {
+    return buildFunCall(fastcast!(Function)~ sysmod.lookup("ftoa"), ex, "ftoa");
+  }
+  if (Single!(Double) == type) {
     return buildFunCall(fastcast!(Function)~ sysmod.lookup("dtoa"), ex, "dtoa");
   }
   if (auto p = fastcast!(Pointer)~ type) {
