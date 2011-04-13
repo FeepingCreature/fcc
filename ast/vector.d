@@ -708,6 +708,7 @@ static this() {
   defineOp("*", "*" /apply/ &handleVecOp);
   defineOp("/", "/" /apply/ &handleVecOp);
   defineOp("^", "^" /apply/ &handleVecOp);
+  defineOp("%", "%" /apply/ &handleVecOp);
   defineOp("&", "&" /apply/ &handleVecOp);
   defineOp("|", "|" /apply/ &handleVecOp);
   defineOp("==", &handleVecEquals);
