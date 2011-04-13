@@ -76,6 +76,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Unknown text after assignment! ");
     }
     
+    auto bexup = ex;
     if (!gotImplicitCast(ex, value.valueType(), (Expr ex) {
       if (!fastcast!(LValue) (ex) && !fastcast!(MValue) (ex))
         return false;
@@ -86,7 +87,11 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
       })) return false;
       value = ex2;
       return true;
-    })) return null;
+    })) {
+      logln("Could not match ", bexup.valueType(), " to ", value.valueType());
+      logln("btw backup ex is ", (cast(Object) ex).classinfo.name, ": ", ex);
+      t2.failparse("mew");
+    }
 
     lv = fastcast!(LValue) (ex); mv = fastcast!(MValue) (ex);
     if (!lv && !mv) return null;

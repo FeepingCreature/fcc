@@ -3,6 +3,9 @@ module ast.tuple_access;
 import ast.base, ast.tuples, ast.structure;
 
 Expr mkTupleIndexAccess(Expr tuple, int pos) {
+  if (auto rt = fastcast!(RefTuple) (tuple)) {
+    return rt.mvs[pos];
+  }
   auto wrapped = (fastcast!(Tuple)~ tuple.valueType()).wrapped;
   
   MemberAccess_Expr res;
@@ -144,6 +147,11 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     Object res;
     if (!rest(text, "tree.expr _tree.expr.arith", &res) && !rest(text, "cond", &res))
       text.failparse("Couldn't get with-tuple expr");
+    if (auto rt = fastcast!(RefTuple) (res)) if (rt.mvs.length == 1) {
+      auto lv2mv = fastcast!(LValueAsMValue) (rt.mvs[0]);
+      if (lv2mv) return fastcast!(Object) (lv2mv.sup);
+      return fastcast!(Object) (rt.mvs[0]);
+    }
     return res;
   };
 }
