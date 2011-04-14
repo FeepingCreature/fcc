@@ -227,6 +227,23 @@ class IntAsShort : Expr {
   }
 }
 
+class ShortAsByte : Expr {
+  Expr ex;
+  this(Expr ex) { this.ex = ex; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(ex);
+  override {
+    IType valueType() { return Single!(Char); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("1"));
+      ex.emitAsm(af);
+      af.popStack("%ax", 2);
+      af.pushStack("%al", 1);
+    }
+  }
+}
+
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(Float) != ex.valueType()) return null;
@@ -252,6 +269,11 @@ static this() {
     if (Single!(SysInt) != resolveTup(ex.valueType()))
       return null;
     return new IntAsShort(ex);
+  };
+  converts ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(Short) != resolveTup(ex.valueType()))
+      return null;
+    return new ShortAsByte(ex);
   };
 }
 
