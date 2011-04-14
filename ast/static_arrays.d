@@ -91,7 +91,10 @@ class DataExpr : CValue {
   override {
     DataExpr dup() { return new DataExpr(data); }
     IType valueType() { return new StaticArray(Single!(Char), data.length); }
-    string toString() { return Format(data); }
+    string toString() {
+      if (data.length > 128) return Format("[byte x", data.length, "]");
+      return Format(data);
+    }
     void emitAsm(AsmFile af) {
       bool allNull = true;
       foreach (val; data) if (val) { allNull = false; break; }

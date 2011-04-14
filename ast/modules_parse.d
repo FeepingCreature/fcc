@@ -75,7 +75,7 @@ Object gotRename(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Named n;
   string id2;
-  if (!rest(t2, "tree.expr.named", &n)
+  if (!rest(t2, "tree.expr.named", &n) && !rest(t2, "type.named", &n)
     ||!t2.gotIdentifier(id2)) {
     t2.failparse("Couldn't get parameter for rename");
   }
