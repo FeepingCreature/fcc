@@ -5,6 +5,24 @@ import std.string;
 
 SDL_Surface* surf;
 
+void blit(SDL_Surface* from, (vec2i, vec2i) srcrect,
+          SDL_Surface* to, (vec2i, vec2i) dstrect) {
+  SDL_Rect sdlrect1, sdlrect2;
+  for (int i, SDL_Rect* rp) <- zip(0..2, [&sdlrect1, &sdlrect2])
+    using *rp {
+      auto rect = [srcrect, dstrect][i];
+      x = short:rect[0].x;
+      y = short:rect[0].y;
+      w = short:(rect[1].x - rect[0].x);
+      h = short:(rect[1].y - rect[0].y);
+    }
+  /*writeln "src rect $(sdlrect1.(x, y, w, h))";
+  writeln "dest rect $(sdlrect2.(x, y, w, h))";
+  writeln "SDL_Rect size $(size-of SDL_Rect)";*/
+  auto res = SDL_UpperBlit(from, &sdlrect1, to, &sdlrect2);
+  // writeln "res $res, res rect $(sdlrect2.(x, y, w, h))";
+}
+
 void screen(int w, h, bool fullscreen = false, bool hidden = false) {
   SDL_Init(32); // video
   int cfg = SDL_SWSURFACE;
