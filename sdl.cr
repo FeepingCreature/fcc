@@ -16,11 +16,13 @@ void blit(SDL_Surface* from, (vec2i, vec2i) srcrect,
       w = short:(rect[1].x - rect[0].x);
       h = short:(rect[1].y - rect[0].y);
     }
-  /*writeln "src rect $(sdlrect1.(x, y, w, h))";
-  writeln "dest rect $(sdlrect2.(x, y, w, h))";
-  writeln "SDL_Rect size $(size-of SDL_Rect)";*/
   auto res = SDL_UpperBlit(from, &sdlrect1, to, &sdlrect2);
-  // writeln "res $res, res rect $(sdlrect2.(x, y, w, h))";
+  if res raise-error new Error "SDL_UpperBlit: $res: $(CToString SDL_GetError())";
+}
+
+void blit(SDL_Surface* from, vec2i to) {
+  blit(from, (vec2i(0, 0), vec2i(from.(w, h))),
+       surf, (to, to + vec2i(from.(w, h))));
 }
 
 void screen(int w, h, bool fullscreen = false, bool hidden = false) {
