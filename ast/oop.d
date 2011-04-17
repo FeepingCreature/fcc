@@ -324,12 +324,15 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     }
     if (!parent) parent = root?root.myClass:null;
     this.name = name;
-    New(data, cast(string) null);
     New(myfuns);
     myfuns.parent = this;
     this.parent = parent;
-    if (!parent)
+    if (!parent) {
+      New(data, cast(string) null);
       new RelMember("classinfo", voidp, data);
+    } else {
+      data = parent.data.dup();
+    }
     sup = namespace();
   }
   bool finalized;
