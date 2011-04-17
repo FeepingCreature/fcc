@@ -155,6 +155,7 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
   auto dgs = dgAsStruct(dg);
   mkVar(af, ret, true, (Variable retvar) {
     mixin(mustOffset("0"));
+    int toFree = alignStackFor(dgs.valueType(), af);
     mkVar(af, dgs.valueType(), true, (Variable dgvar) {
       mixin(mustOffset("0"));
       (new Assignment(dgvar, dgs)).emitAsm(af);
@@ -167,5 +168,6 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
       // if (ret != Single!(Void)) af.sfree(ret.size);
     });
     af.sfree(dgs.valueType().size);
+    af.sfree(toFree);
   });
 }

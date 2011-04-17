@@ -269,6 +269,9 @@ void handleReturn(IType ret, AsmFile af) {
     } else if (ret.size == 2) {
       af.pushStack("%ax", 2);
       af.nvm("%ax");
+    } else if (ret.size == 1) {
+      af.pushStack("%al", 1);
+      af.nvm("%al");
     }
   }
 }
@@ -282,7 +285,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     else name = "(nil)";
     
     ret = resolveType(ret);
-    assert(ret.size == 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret,
+    assert(ret.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret,
       Format("Return bug: ", ret, " from ", name, ": ",
       ret.size, " is ", (fastcast!(Object)~ ret).classinfo.name));
     af.comment("Begin call to ", name);

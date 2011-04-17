@@ -44,6 +44,9 @@ class ReturnStmt : Statement {
         } else if (Single!(Double) == vt) {
           loadDoubleEx(value, af);
           af.floatStackDepth --; // doesn't count
+        } else if (vt.size == 1) {
+          value.emitAsm(af);
+          af.popStack("%al", 1);
         } else if (vt.size == 4) {
           value.emitAsm(af);
           af.popStack("%eax", 4);

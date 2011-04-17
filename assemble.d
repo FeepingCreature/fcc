@@ -299,21 +299,23 @@ struct Transaction {
               }
             }
             if (sz == 1) { // not supported in hardware
-              addLine("pushw %bx");
               if (kind == Push) {
-                addLine("movb "~op~", %bl");
                 addLine("decl %esp");
-                addLine("movb %bl, (%esp)");
+                addLine("pushw %bx");
+                addLine("movb "~op~", %bl");
+                addLine("movb %bl, 2(%esp)");
+                addLine("popw %bx");
               } else {
+                addLine("pushw %bx");
                 string opsh = op;
                 // hackaround
                 if (opsh.isIndirect2(offs).contains("%esp"))
                   opsh = qformat(offs - 1, "(", opsh.isIndirect(), ")");
-                addLine("movb (%esp), %bl");
-                addLine("incl %esp");
+                addLine("movb 2(%esp), %bl");
                 addLine("movb %bl, "~opsh);
+                addLine("popw %bx");
+                addLine("incl %esp");
               }
-              addLine("popw %bx");
             // x86 pop foo(%esp) operand is evaluated
             // after increment, says intel manual
             } else {
