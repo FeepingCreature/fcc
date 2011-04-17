@@ -1,6 +1,6 @@
 module smtest;
 
-import glsetup, opengl, libgd, simplex, std.file, std.math, std.time, sdl;
+import glsetup, opengl, libgd, simplex, std.file, std.math, std.time, std.thread, sdl;
 
 int fps;
 long last_time;
@@ -16,36 +16,53 @@ struct Block {
 
 alias BlockType = Block;
 
+alias SectorSize = 16;
+
 class Sector {
   vec3i base;
   bool contains(vec3i v) {
     v -= base;
-    return eval v.(x >= 0 && y >= 0 && z >= 0 && x < 16 && y < 16 && z < 16);
+    return eval v.(
+      x >= 0 && y >= 0 && z >= 0 &&
+      x < SectorSize && y < SectorSize && z < SectorSize
+    );
   }
-  BlockType[16][16][16] cache;
+  BlockType[SectorSize][SectorSize][SectorSize] cache;
+  void init() { }
+  void init(Sector s) { base = s.base; cache = s.cache; }
 }
 
 class SectorCache {
   Sector[auto~] sectors, backup;
-  Sector[] getBackup() {
+  bool backupIsInited;
+  Sector[] getBackup(bool initIt = false) {
     if backup.length != sectors.length {
       backup.free;
       backup = new Sector[sectors.length];
+      backupIsInited = false;
     }
-    backup = sectors[].dup;
-    // (sectors, backup) = (backup, sectors);
+    if (initIt || !backupIsInited) {
+      for int i <- 0..sectors.length {
+        if (!backup[i]) backup[i] = new Sector;
+        backup[i].init sectors[i];
+      }
+      backupIsInited = true;
+    }
     return backup[];
   }
+  void swapBackup() { (sectors, backup) = (backup, sectors); }
   BlockType delegate(vec3i) dg;
+  Mutex m;
   void init(type-of dg dg2) {
-    this.dg = dg2;
+    dg = dg2;
+    m = new Mutex;
   }
   Sector calcSector(vec3i base) {
     auto sec = new Sector;
     sec.base = base;
     writeln "calc $(base)";
     int i;
-    for (int x, int y, int z) <- cross(0..16, 0..16, 0..16) {
+    for (int x, int y, int z) <- cross((0..SectorSize) x 3) {
       sec.cache[x][y][z] = dg(base + vec3i(x, y, z));
       i++;
     }
@@ -65,18 +82,20 @@ class SectorCache {
         return (v - sec.base).(sec.cache[x][y][z]);
       }
     }
-    vec3i low = v & 0xf;
+    vec3i low = (v & 0x7fff_ffff) % SectorSize;
     auto sec = calcSector (v - low);
     sectors ~= sec;
     return low.(sec.cache[x][y][z]);
   }
   // does not cause calcs
-  BlockType weakLookup(vec3i v, BlockType deflt) {
-    if !sectors.length return deflt;
-    if (auto sec = sectors[lastMatched]).contains v {
+  BlockType weakLookup(vec3i v, BlockType deflt, bool inBackup = false) {
+    auto list = sectors;
+    if (inBackup) list = backup;
+    if !list.length return deflt;
+    if lastMatched < list.length && (auto sec = list[lastMatched]).contains v {
       return (v - sec.base).(sec.cache[x][y][z]);
     }
-    for (int id, Sector sec) <- zip(0..-1, sectors) if id != lastMatched && sec.contains v {
+    for (int id, Sector sec) <- zip(0..-1, list) if id != lastMatched && sec.contains v {
       lastMatched = id;
       return (v - sec.base).(sec.cache[x][y][z]);
     }
@@ -85,9 +104,11 @@ class SectorCache {
 }
 
 void initLight(SectorCache sc) {
+  Sector[] list;
+  using autoLock sc.m list = sc.getBackup(initIt => true);
   Sector[auto~] tops;
   onSuccess tops.free;
-  for (auto sector <- sc.sectors) {
+  for (auto sector <- list) {
     bool replaced;
     for (int i <- 0..tops.length) {
       if (!replaced
@@ -100,41 +121,45 @@ void initLight(SectorCache sc) {
     if (!replaced) tops ~= sector;
   }
   for (auto sector <- tops) { // fill top with light
-    for (int x, int z) <- cross(0..16, 0..16) {
-      sector.cache[x][15][z].lightlevel = 128;
+    for (int x, int z) <- cross(0..SectorSize, 0..SectorSize) {
+      sector.cache[x][SectorSize - 1][z].lightlevel = 128;
     }
   }
 }
 
 void stepLight(SectorCache sc) {
   BlockType nothing;
-  auto sec2 = sc.getBackup;
-  for (auto sector <- sec2) {
-    for auto vec <- [for tup <- cross(0..16, 0..16, 0..16): vec3i(tup)] {
-      int sum;
-      auto mybase = sector.base, fullvec = mybase + vec;
-      for auto vec2 <- [for tup <- cross([-1, 0, 1], [-1, 0, 1]): vec2i(tup)] {
-        auto nuvec = fullvec + vec3i(vec2.x, 1, vec2.y);
-        BlockType bt = void;
-        if sector.contains nuvec {
-          bt = sector.cache[vec.x + vec2.x][vec.y + 1][vec.z + vec2.y];
-        } else bt = sc.weakLookup(nuvec, nothing);
-        if bt.active bt.lightlevel = 0; // shadows
-        sum += bt.lightlevel;
+  Sector[] list;
+  using autoLock sc.m list = sc.getBackup();
+  for (auto sector <- list) {
+    for auto vec <- [for tup <- cross((0..SectorSize) x 3): vec3i(tup)] {
+      alias myBlock = vec.(sector.cache[x][y][z]);
+      if !myBlock.active {
+        int sum;
+        auto mybase = sector.base, fullvec = mybase + vec;
+        for auto vec2 <- [for tup <- cross([-1, 0, 1], [1], [-1, 0, 1]): vec3i(tup)] {
+          auto nuvec = fullvec + vec2;
+          BlockType bt = void;
+          if sector.contains nuvec {
+            bt = (vec + vec2).(sector.cache[x][y][z]);
+          } else bt = sc.weakLookup(nuvec, nothing, inBackup => true);
+          if bt.active bt.lightlevel = 0; // shadows
+          sum += bt.lightlevel;
+        }
+        sum /= 9;
+        myBlock.lightlevel = sum;
       }
-      sum /= 9;
-      vec.(sector.cache[x][y][z]).lightlevel = sum;
     }
   }
+  using autoLock sc.m sc.swapBackup;
 }
-
-SectorCache sc;
 
 import camera;
 
 Camera cam;
 
-void drawScene() {
+void drawScene(SectorCache* scp) {
+  alias sc = *scp;
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glLoadIdentity;
   cam.gl-setup();
@@ -157,6 +182,8 @@ void drawScene() {
     return mkBlock(true);
   }
   if (!sc) sc = new SectorCache null;
+  sc.m.lock;
+  onExit (*scp).m.unlock;
   sc.dg = &genFun;
   auto fun = &sc.lookup;
   bool occluded(vec3i vi) {
@@ -262,10 +289,10 @@ int main(int argc, char** argv) {
   cam = ec;
   gl-context-callbacks ~= delegate void() {
     writeln "load textures";
-    // tex1 = loadTexture import("letter-a.png");
-    // tex2 = loadTexture import("letter-b.png");
-    tex1 = loadTexture import("smooth-rock-tex0-32.png");
-    tex2 = loadTexture import("vivid-rock-tex-32.png");
+    tex1 = loadTexture import("letter-a.png");
+    tex2 = loadTexture import("letter-b.png");
+    // tex1 = loadTexture import("smooth-rock-tex0-32.png");
+    // tex2 = loadTexture import("vivid-rock-tex-32.png");
     writeln "loaded";
   };
   auto surf = setup-gl();
@@ -281,12 +308,21 @@ int main(int argc, char** argv) {
     active = eval !active;
   }
   auto lastTime = sec();
+  auto tp = new ThreadPool 1;
+  SectorCache sc;
+  drawScene &sc; // init sector cache
+  tp.addTask delegate void() {
+    while true {
+      initLight sc;
+      stepLight sc;
+    }
+  };
   while true {
-    drawScene();
-    auto start = sec();
+    drawScene &sc;
+    /*auto start = sec();
     initLight sc;
     stepLight sc;
-    lightsum += float:(sec() - start);
+    lightsum += float:(sec() - start);*/
     if update(surf) quit(0);
     
     // copied from pyramid.cr

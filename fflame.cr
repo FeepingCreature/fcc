@@ -33,7 +33,7 @@ void sigfun(int i) {
 
 void main(string[] args) {
 	(string exec, args) = args[(0, 1..$)];
-  int w = 1280, h = 720; bool fs = false;
+  int w = 640, h = 480; bool fs = false;
   if (args.length > 1 && args[1] == "full") { (w, h, fs, args) = (1920, 1080, true, args[0..1]~args[1..$]); }
   set-handler (SDLQuit) invoke-exit "return";
   define-exit "return" return;

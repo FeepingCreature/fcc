@@ -1710,7 +1710,7 @@ void setupOpts() {
   }
   opts ~= stuple(&remove_stack_push_pop_chain, "remove_stack_push_pop_chain", true);
   mixin(opt("break_up_push_pop", `^Push || ^Pop:
-    $0.size > 4 && ($0.size % 4) == 0
+    $0.size > 4 && ($0.size % 4) == 0 && $0.size <= 64 /* just gets ridiculous beyond that point */
     =>
     auto sz = $0.size;
     $T[] res;

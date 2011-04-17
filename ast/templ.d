@@ -184,6 +184,12 @@ class TemplateInstance : Namespace, HandlesEmits {
       scope(exit) popCache();
       Object obj;
       
+      while (true) {
+        if (auto tl = fastcast!(TemplateInstance) (context)) {
+          context = tl.context;
+        } else break;
+      }
+      
       string parsemode;
       if (fastcast!(Module) (context))
         parsemode = "tree.toplevel";

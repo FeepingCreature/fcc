@@ -6,11 +6,23 @@ vec3f cross3f(vec3f a, vec3f b) { return a.yzx * b.zxy - a.zxy * b.yzx; }
 
 vec3f normalize3f(vec3f v) { return v / v.length; }
 
+float sqrt(float f) {
+  short status;
+  float local = f;
+  asm "fld (%esp)";
+  asm "fsqrt";
+  asm "fxam";
+  asm "fstsw 6(%esp)";
+  asm "fstp (%esp)";
+  if (status & 0b0000_0101__0000_0000 == (0b101 << 8)) { int i = 0; i /= i; } // infty
+  return local;
+}
+  
 float angle3f(vec3f v, vec3f to, vec3f refer) {
   // yay, http://tomyeah.com/signed-angle-between-two-vectors3d-in-cc/
   auto v1 = v.cross3f(to) * refer;
   bool flipped = eval (v1.sum < 0);
-  auto res = acosf((v*to).sum / sqrtf(v.selfdot * to.selfdot));
+  auto res = acosf((v*to).sum / sqrt(v.selfdot * to.selfdot));
   // fudge
   if (flipped) res = -res;
   return res;
@@ -67,18 +79,6 @@ float cos(float f) {
   return local;
 }
 
-float sqrtf(float f) {
-  short status;
-  float local = f;
-  asm "fld (%esp)";
-  asm "fsqrt";
-  asm "fxam";
-  asm "fstsw 6(%esp)";
-  asm "fstp (%esp)";
-  if (status & 0b0000_0101__0000_0000 == (0b101 << 8)) { int i = 0; i /= i; } // infty
-  return local;
-}
-  
 vec2f half(vec2f a, b) return (a + b) / 2;
 vec3f half(vec3f a, b) return (a + b) / 2;
 vec4f half(vec4f a, b) return (a + b) / 2;
@@ -90,3 +90,11 @@ bool isNan(float f) {
   int i = *int*:&f;
   return eval (i & 0x7fff_ffff) > 0x7f80_0000;
 }
+
+extern(C) {
+  float floorf(float x);
+  float ceilf(float x);
+}
+
+float floor(float x) { return floorf x; }
+float ceil(float x) { return ceilf x; }

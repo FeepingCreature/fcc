@@ -363,7 +363,11 @@ static this() {
     foreach (i, arg; args) {
       arg = foldex(arg);
       if (auto se = fastcast!(StringExpr) (arg)) str[i] = se.str;
-      else return null;
+      else {
+        logln("couldn't fold properly because arg was ", arg);
+        asm { int 3; }
+        return null;
+      }
     }
     return new StringExpr(str[0].replace(str[1], str[2]));
   };

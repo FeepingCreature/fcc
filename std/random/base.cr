@@ -21,3 +21,7 @@ IRandom getPRNG(IRandom ir) {
     if tup[2] > best (res, best) = tup[(1, 2)];
   return res ir;
 }
+
+float randf(IRandom ir) {
+  return ir.rand() & 0x7fff_ffff * 1.0 / 0x7fff_ffff;
+}
