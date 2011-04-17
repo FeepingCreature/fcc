@@ -87,6 +87,15 @@ static this() {
     }
     return null;
   };
+  implicits ~= delegate Expr(Expr ex) {
+    if (resolveType(ex.valueType()) != Single!(Array, Single!(Char)))
+      return null;
+    if (auto str = fastcast!(StringExpr) (foldex(ex))) {
+      if (str.str.length == 1)
+        return reinterpret_cast(Single!(Char), new DataExpr(cast(ubyte[]) str.str));
+    }
+    return null;
+  };
 }
 
 import std.file, ast.static_arrays;
