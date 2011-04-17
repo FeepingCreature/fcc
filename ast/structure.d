@@ -89,6 +89,16 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   */
   bool immutableNow;
   int cached_length, cached_size;
+  Structure dup() {
+    auto res = new Structure(name);
+    res.sup = sup;
+    res.field = field.dup;
+    res.rebuildCache();
+    res.isUnion = isUnion; res.packed = packed; res.isTempStruct = isTempStruct;
+    res.immutableNow = immutableNow;
+    res.cached_length = cached_length; res.cached_size = cached_size;
+    return res;
+  }
   int _size() {
     int res;
     select((string, RelMember member) {

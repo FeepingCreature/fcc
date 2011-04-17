@@ -47,6 +47,9 @@ class ReturnStmt : Statement {
         } else if (vt.size == 1) {
           value.emitAsm(af);
           af.popStack("%al", 1);
+        } else if (vt.size == 2) {
+          value.emitAsm(af);
+          af.popStack("%ax", 2);
         } else if (vt.size == 4) {
           value.emitAsm(af);
           af.popStack("%eax", 4);
