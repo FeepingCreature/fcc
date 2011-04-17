@@ -16,6 +16,9 @@ struct Argument {
   IType type;
   string name;
   Expr initEx;
+  int opEquals(Argument other) {
+    return name == other.name && type == other.type;
+  }
   static Argument opCall(IType it, string name = null, Expr initEx = null) {
     Argument res;
     res.type = it;

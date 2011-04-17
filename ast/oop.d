@@ -6,6 +6,9 @@ import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
 
 struct RelFunSet {
   Stuple!(RelFunction, string, IType[])[] set;
+  string toString() {
+    return Format(set /map/ ex!("a, b, c -> b"));
+  }
   RelFunction[] lookup(string name) {
     RelFunction[] res;
     foreach (entry; set)
@@ -149,7 +152,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
         res ~= rel.mangleSelf();
       else
         throw new Exception(Format("Undefined2: ", name, " from ", this.name, "! "));
-    
+
     return res;
   }
   import ast.index;

@@ -266,7 +266,8 @@ Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest
     TemplateInstance inst;
     if (t.isAliasTemplate()) {
       Tree tr;
-      if (!rest(t2, "tree.expr _tree.expr.arith", &tr))
+      // try plain named first
+      if (!rest(t2, "tree.expr.named", &tr) && !rest(t2, "tree.expr _tree.expr.arith", &tr))
         t2.failparse("Couldn't match tree object for instantiation");
       inst = t.getInstance(tr, rest);
     } else {
