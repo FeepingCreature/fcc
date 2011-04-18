@@ -17,9 +17,10 @@ void cfgNote(Note res, float freq, float len) {
 void main(string[] args) {
   (string exec, args) = args[(0, 1..$)];
   Sound snd;
-  if (args.length && args[0] == "-oss")
+  if (args.length && args[0] == "-oss") {
+    args = args[1 .. $];
     snd = new OSSSound("/dev/dsp");
-  else
+  } else
     snd = new AlsaSound("default");
   
   snd.open();
@@ -53,7 +54,7 @@ void main(string[] args) {
     }
     notelist = res[];
   }
-  void sortList() { qsort!"eval (%a[1]) < (%b[1])" notelist; }
+  void sortList() { qsort!"eval %a[1] < %b[1]" notelist; }
   void addTrack(string notes) {
     float baseFreq = 220;
     float len = 0.3705;
@@ -111,7 +112,10 @@ void main(string[] args) {
   st2 ~= "- <[f16,>c16<][d16,a16]  [f16,>c16<][d15,a15]+>";
   for 0..2 st2 ~= str;
   st2 ~= "-<b8>c8<a8>d4c4<b8>c8<a8>d4c4<b14__+>";
-  addTrack st2;
+  if args.length {
+    for auto arg <- args
+      addTrack arg;
+  } else addTrack st2;
   sortList();
   writeln "added $(notelist.length) notes";
   int lastDoneAt;

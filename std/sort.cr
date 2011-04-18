@@ -23,6 +23,7 @@ template qsort(alias Smaller) << EOT1
           }
         }
         array[(store, pivot)] = array[(pivot, store)];
+        if (from == store) store ++; // pathological case o.o
         qsort_recurse(from, store);
         qsort_recurse(store, to);
       }
