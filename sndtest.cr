@@ -1,4 +1,4 @@
-module alsatest;
+module sndtest;
 
 import std.sort, std.math, std.sound;
 
