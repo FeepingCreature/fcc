@@ -1,0 +1,68 @@
+module std.sound.oss;
+
+import std.sound.base, std.string;
+
+alias Sample = Sample;
+
+extern(C) {
+  alias O_WRONLY = 1;
+  int open(char* path, int flags, int mode);
+  int close(int fd);
+  size_t write(int fd, void* ptr, size_t count);
+  int ioctl(int fd, int request, ...);
+  int* __errno_location();
+  alias AFMT_U8 = 0x00000008;
+  alias AFMT_S16_LE = 0x00000010;
+  alias SNDCTL_DSP_SETFMT = 0xc0045005;
+  alias SNDCTL_DSP_CHANNELS = 0xc0045006;
+  alias SNDCTL_DSP_SPEED = 0xc0045002;
+  alias SNDCTL_DSP_SYNC = 0x5001;
+}
+
+int getErrno() { return *__errno_location(); } // lol
+
+// blatantly ripped off from http://www.int21.de/linux4k/
+class OSSSound : Sound {
+  string file;
+  int fd;
+  void init(string f) { file = f; }
+  void open() {
+    fd = std.sound.oss.open(toStringz(file), O_WRONLY, 0);
+    if (fd == -1) raise-error new Error "Couldn't open sound device! ";
+    writeln "OSS open";
+    int i;
+    auto this2 = this; // hackaround
+    void my_ioctl(int mode, int val) using this2 {
+      auto res = ioctl(fd, mode, &val);
+      if (res != 0) raise-error new Error "ioctl with $mode failed: $val, errno $(getErrno())";
+    }
+    my_ioctl(SNDCTL_DSP_SETFMT, AFMT_S16_LE);
+    my_ioctl(SNDCTL_DSP_CHANNELS, 1);
+    my_ioctl(SNDCTL_DSP_SPEED, 48000);
+  }
+  void close() {
+    ioctl(fd, SNDCTL_DSP_SYNC);
+    std.sound.oss.close(fd);
+    writeln "OSS closed";
+    fd = 0;
+  }
+  void writeCopydump(int len) {
+    bool closeAfter;
+    if (!fd) { open(); closeAfter = true; }
+    onExit if (closeAfter) close();
+    auto cd = copydump[0 .. len];
+    while true {
+      // logln("< ", cd.length);
+      auto written = int:write(fd, cd.ptr, size_t:(cd.length * 2)) / 2;
+      if (written < 0) {
+        writeln "Problem: OSS closed FD; errno $(getErrno()), returned $written";
+        fd = 0;
+        return;
+      }
+      if (written < cd.length) {
+        writeln "Short write: expected $(cd.length), got $written";
+        cd = cd[written .. $];
+      } else return;
+    }
+  }
+}
