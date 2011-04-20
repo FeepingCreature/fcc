@@ -5,7 +5,7 @@ import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.vardecl, ast.parse, ast.assign, ast.constant, ast.dg;
 
 public import ast.fun: Argument;
-import ast.aliasing;
+import ast.aliasing, ast.casting, ast.opers;
 class NestedFunction : Function {
   Namespace context;
   this(Namespace context) {
@@ -32,56 +32,63 @@ class NestedFunction : Function {
       cur += 4;
       return cur;
     }
-    Object lookup(string name, bool local = false) { return lookup(name, local, null, null); }
   }
   import tools.log;
-  Object lookup(string name, bool local, Expr mybase, Namespace context_override = null) {
-    { // local lookup first
-      Object res;
-      if (context_override) res = context_override.lookup(name, true);
-      else res = super.lookup(name, true);
-      auto var = fastcast!(Variable)~ res;
-      if (mybase && var) {
-        return new MemberAccess_LValue(
-          namespaceToStruct(context_override?context_override:this, mybase),
-          var.name
-        );
-      } else if (res) {
-        if (auto nf = fastcast!(NestedFunction)~ res) {
-          return new PointerFunction!(NestedFunction) (new NestFunRefExpr(nf, mybase));
+  override Object lookup(string name, bool local = false) {
+    rebuildCache;
+    {
+      auto res = super.lookup(name, true);
+      if (res) return res;
+      if (local) return null;
+    }
+    // The reason we don't use sup here
+    // is that nested functions are actually regular functions
+    // declared at the top-level
+    // that just HAPPEN to take an extra parameter
+    // that points to the ebp of the lexically surrounding function
+    // because of this, they must be compiled as if they're toplevel funs
+    // but _lookup_ must proceed as if they're nested.
+    // thus, sup vs. context.
+    auto _res = context.lookup(name, false);
+    auto res = fastcast!(Expr) (_res);
+    if (!res) return _res;
+    // auto ebp = Single!(Register!("ebp"));
+    // pointer to our immediate parent's base.
+    // since this is a variable also, nesting rewrite will work correctly here
+    auto ebp = fastcast!(Expr) (lookup("__base_ptr", true));
+    if (!ebp) {
+      logln("no base pointer found in ", this, "!!");
+      asm { int 3; }
+    }
+    bool needsDup, checkDup;
+    void convertToDeref(ref Iterable itr) {
+      // do this first so that variable initializers get fixed up
+      itr.iterate(&convertToDeref);
+      if (auto var = fastcast!(Variable) (itr)) {
+        if (checkDup) needsDup = true;
+        else {
+          auto type = var.valueType();
+          // *type*:(void*:ebp + baseOffset)
+          auto nuex = new DerefExpr(
+            reinterpret_cast(new Pointer(type),
+              lookupOp("+",
+                reinterpret_cast(voidp, ebp),
+                mkInt(var.baseOffset)
+              )
+            )
+          );
+          itr = fastcast!(Iterable) (nuex);
         }
-        return res;
       }
+    };
+    auto itr = fastcast!(Iterable) (res);
+    if (!itr) return fastcast!(Object) (res);
+    checkDup = true; convertToDeref(itr); checkDup = false;
+    if (needsDup) {
+      itr = fastcast!(Iterable) (res.dup);
+      convertToDeref(itr);
     }
-    if (local
-     || name == "__base_ptr"
-     || name == "__old_ebp"
-     || name == "__fun_ret") return null; // never recurse those
-    assert(!!context);
-    // logln("continuing lookup to ", name);
-    
-    if (auto nf = fastcast!(NestedFunction) (context.get!(Function))) {
-      return nf.lookup(name, false, fastcast!(Expr)~ lookup("__base_ptr", true, mybase), context);
-    } else {
-      auto sn = context.lookup(name, true),
-            var = fastcast!(Variable)~ sn;
-      // logln("var: ", var, ", sn: ", sn, "; test ", context.lookup(name));
-      // logln("context is ", context);
-      if (auto nf = fastcast!(NestedFunction)~ sn) {
-        mybase = fastcast!(Expr)~ lookup("__base_ptr", true, mybase);
-        // see above
-        return new PointerFunction!(NestedFunction) (new NestFunRefExpr(nf, mybase));
-      }
-      if (auto ea = fastcast!(ExprAlias)~ sn)
-        throw new Exception("Cannot access expression alias \""~ea.name~"\" from nested function! ");
-      if (!var) return sn?sn:context.lookup(name, false);
-      auto base = fastcast!(Expr) (lookup("__base_ptr", true, mybase));
-      if (!base) return null; // wut
-      return new MemberAccess_LValue(
-        namespaceToStruct(context, base),
-        var.name
-      );
-    }
+    return fastcast!(Object) (itr);
   }
 }
 

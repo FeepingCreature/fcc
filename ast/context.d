@@ -26,12 +26,13 @@ class Context : Namespace, MValue, Named {
   void iterValid_rev(void delegate(Expr) dg) { return iterValid(dg, true); }
   override {
     string getIdentifier() { return name; }
-    void iterate(void delegate(ref Iterable) dg) { assert(false); }
+    // void iterate(void delegate(ref Iterable) dg) { asm { int 3; } }
+    void iterate(void delegate(ref Iterable) dg) { }
     string mangle(string name, IType type) {
       return Format(mangleSelf(), "_", name, "_of_", type.mangle());
     }
     Stuple!(IType, string, int)[] stackframe() {
-      assert(false);
+      asm { int 3; }
     }
     void emitAsm(AsmFile af) {
       iterValid((Expr ex) { ex.emitAsm(af); });
@@ -47,7 +48,7 @@ class Context : Namespace, MValue, Named {
           (new Assignment(lv, new Placeholder(lv.valueType()), false, true)).emitAsm(af);
         } else if (auto mv = fastcast!(MValue)~ ex) {
           mv.emitAssignment(af);
-        } else assert(false);
+        } else asm { int 3; }
       });
     }
   }
