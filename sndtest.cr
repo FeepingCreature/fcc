@@ -1,6 +1,6 @@
 module sndtest;
 
-import std.sort, std.math, std.sound;
+import std.sort, std.math, std.sound, std.file, std.string;
 
 void cfgNote(Note res, float freq, float len) {
   res.freq = freq;
@@ -25,25 +25,25 @@ void main(string[] args) {
   
   snd.open();
   float delegate(float) dg;
-  int length = 1024;
-  int fadeout = 4096;
   float[12] scale;
   for int i <- 0..12
     scale[i] = pow(pow(2, 1/12f), i);
   
   (Note, float)[] notelist;
-  void addNoteAt(float start, float freq, float length) {
+  void addNoteAt(float start, float freq, float length, bool useSine = false) {
     // writeln "addNoteAt($start, $freq, $length)";
     (Note, float)[auto~] res;
     for int i <- 0..notelist.length res ~= notelist[i];
-    Note n = new KarplusStrongNote;
+    Note n;
+    if (useSine) n = new SineNote;
+    else n = new KarplusStrongNote;
     cfgNote(n, freq, length);
     res ~= (n, start);
     notelist = res[];
   }
-  void addNoteAtRef(float* pp, float freq, float len) {
+  void addNoteAtRef(float* pp, float freq, float len, bool useSine = false) {
     alias pos = *pp;
-    addNoteAt(pos, freq, len);
+    addNoteAt(pos, freq, len, useSine);
     pos += len;
   }
   void clearList(float pos) {
@@ -63,22 +63,29 @@ void main(string[] args) {
     float offs = 0;
     alias state = (baseFreq, len, lenf, offs);
     type-of state[] stack;
-    char lastChar;
+    char lastChar; bool lastSharp;
+    bool useSine;
     while notes.length {
+      if auto rest = notes.startsWith "len=" {
+        (string lenstr, notes) = rest.slice ";";
+        len = lenstr.atof();
+      }
+      if auto rest = notes.startsWith "in=" {
+        (string instr, notes) = rest.slice ";";
+        useSine = eval instr == "sine";
+      }
       (char cur, notes) = notes[(0, 1..$)];
-      if cur == "."[0] { lenf = 1.5; }
+      bool sharp;
+      if notes.length && notes[0] == "#" {
+        sharp = true;
+      }
+      if cur == "."[0] { lenf *= 0.5; }
       else {
-        auto l = len * lenf;
+        auto l = len * (2 - lenf);
         void handleChar(char ch) {
-               if ch == "c" addNoteAtRef(&offs, baseFreq * scale[0], l);
-          else if ch == "d" addNoteAtRef(&offs, baseFreq * scale[2], l);
-          else if ch == "e" addNoteAtRef(&offs, baseFreq * scale[4], l);
-          else if ch == "f" addNoteAtRef(&offs, baseFreq * scale[5], l);
-          else if ch == "g" addNoteAtRef(&offs, baseFreq * scale[7], l);
-          else if ch == "a" addNoteAtRef(&offs, baseFreq * scale[9], l);
-          else if ch == "b" addNoteAtRef(&offs, baseFreq * scale[10], l);
-          else if ch == "h" addNoteAtRef(&offs, baseFreq * scale[11], l);
-          else if ch == "_" offs += l;
+          for auto tup <- [("c", 0), ("d", 2), ("e", 4), ("f", 5), ("g", 7), ("a", 9), ("b", 10), ("h", 11)]
+            if ch == tup[0][0] addNoteAtRef(&offs, baseFreq * scale[(tup[1] + sharp)%$], l, useSine);
+               if ch == "_" offs += l;
           else if ch == ">" octaves ++;
           else if ch == "<" octaves --;
           else if ch == "+" len *= 2;
@@ -93,13 +100,17 @@ void main(string[] args) {
             num = num * 10 + (notes[0] - "0");
             notes = notes[1 .. $];
           }
-          for 0..(num - 1)
+          for 0..(num - 1) {
+            sharp = lastSharp;
             handleChar lastChar;
+            sharp = false;
+          }
         } else handleChar cur;
-        lastChar = cur;
+        lastChar = cur; lastSharp = sharp;
         lenf = 1;
         baseFreq = 220 * pow(2, octaves);
       }
+      if sharp notes = notes[1 .. $];
     }
   }
   // addTrack "<a>e<h>ec-de+dg-aeh>c<h->c<h+agegde+.c<-h+ a>e<h>ec-de+dg-aeh>c<h->c<h+ag++a";
@@ -112,35 +123,143 @@ void main(string[] args) {
   st2 ~= "- <[f16,>c16<][d16,a16]  [f16,>c16<][d15,a15]+>";
   for 0..2 st2 ~= str;
   st2 ~= "-<b8>c8<a8>d4c4<b8>c8<a8>d4c4<b14__+>";
+  void addMidiTrack(string fn) {
+    auto data = fn.readAll();
+    if (data[0..4] != "MThd")
+      raise-error new Error "Not a midi file: invalid header code: $(data[0..4])";
+    data = data[8..$];
+    auto fileFmt = data[0] << 8 + data[1]; data = data[2..$];
+    if fileFmt != 0 && fileFmt != 1
+      raise-error new Error "Can only parse mode-0 or mode-1 files, not $fileFmt. ";
+    writeln "Format $fileFmt";
+    auto tracks = data[0] << 8 + data[1]; data = data[2 ..$];
+    writeln "$tracks tracks.";
+    auto tickrate = data[0] << 8 + data[1]; data = data[2 .. $];
+    writeln "tick rate $tickrate";
+    int track_id;
+    string info;
+    while data.length {
+      if (data[0..4] != "MTrk")
+        raise-error new Error "Not a midi track: invalid track code: $(data[0..4])";
+      data = data[4 .. $];
+      int trklen = data[0] << 24 + data[1] << 16 + data[2] << 8 + data[3];
+      writeln "$track_id: $trklen b";
+      track_id ++;
+      data = data[4 .. $];
+      auto track = data[0 .. trklen];
+      data = data[trklen .. $];
+      int pos;
+      int[128] pressedOn;
+      byte lastCmd;
+      float speedfactor = 0.5;
+      while track.length > 0 {
+        int readVarLen() {
+          int res;
+          while track[0] >= 0x80 {
+            res = res * 128 + track[0] & 0x7f;
+            track = track[1 .. $];
+          }
+          res = res * 128 + track[0];
+          track = track[1 .. $];
+          return res;
+        }
+        int delta = readVarLen();
+        /*if (delta < 1024)*/ pos += delta;
+        byte cmd;
+        if (track[0] & 0x80) {
+          (cmd, track) = track[(0, 1..$)];
+          lastCmd = cmd;
+        } else cmd = lastCmd;
+        if (cmd == 0xff) {
+          (byte subcmd, track) = track[(0, 1..$)];
+          int len = readVarLen();
+          (byte[] subdata, track) = track[(0 .. len, len .. $)];
+          // writeln "@$pos: SPECIAL $subcmd, $(subdata.length)";
+          if (subcmd == 81) {
+            int spd = subdata[0] << 16 + subdata[1] << 8 + subdata[2];
+            writeln "speed = $spd";
+            speedfactor = spd / 1000000f;
+          }
+          if (subcmd == 3) {
+            writeln "'$(string:subdata)'";
+            info = string:subdata;
+          }
+        } else {
+          auto cmdcode = (cmd & 0xf0) >> 4, channel = cmd & 0x0f;
+          if (cmdcode == 0x9 && track[1]) {
+            // writeln "@$pos: NOTE ON  $(track[0])";
+            auto note = track[0];
+            pressedOn[note] = pos;
+            track = track[2..$];
+          } else if (cmdcode == 0x8 || cmdcode == 0x9 && !track[1]) {
+            // writeln "@$pos: NOTE OFF $(track[0])";
+            auto note = track[0];
+            auto from = pressedOn[note];
+            auto len = pos - from;
+            auto quarters = len * speedfactor / tickrate;
+            quarters *= 1.5;
+            if (len > 1)
+              addNoteAt(from * speedfactor / tickrate, 8 * pow(pow(2, 1/12f), note), quarters,
+                eval info == "Recorder" || info == "Pan flute" || info == "Horns" || info == "Trombone" || info.find("String") != -1);
+            track = track[2..$];
+          } else if (cmdcode == 0xa) { // aftertouch, whev
+            track = track[2..$];
+          } else if (cmdcode == 0xb) {
+            track = track[2..$];
+          } else if (cmdcode == 0xc) {
+            track = track[1..$];
+          } else if (cmdcode == 0xe) {
+            track = track[2 .. $]; // pitch change, ignored
+          } else {
+            writeln "@$pos: $cmd - $cmdcode on $channel";
+            writeln "left: $(track.length), $track";
+            track = null;
+          }
+        }
+      }
+    }
+    //writeln "$data";
+  }
   if args.length {
-    for auto arg <- args
-      addTrack arg;
+    for auto arg <- args {
+      if arg.endsWith(".mid")
+        addMidiTrack arg;
+      else
+        addTrack arg;
+    }
   } else addTrack st2;
   sortList();
   writeln "added $(notelist.length) notes";
-  int lastDoneAt;
+  int lastDoneAt; bool lastHadNotes;
   dg = delegate float(float f) {
     float res = 0f;
-    bool done;
-    int i;
+    bool done, hadNotes;
+    int i, active, doneAt;
     while !done && i < notelist.length {
       alias n = notelist[i];
       if (f >= n[1]) {
-        if f < n[1] + n[0].end res += n[0].calcValue (f - n[1]);
+        if f < n[1] + n[0].end { res += n[0].calcValue (f - n[1]); active ++; hadNotes = true; }
       } else {
         done = true;
-        auto doneAt = i;
-        if (doneAt != lastDoneAt) clearList f;
-        lastDoneAt = doneAt;
+        doneAt = i;
       }
       i++;
     }
+    if (doneAt != lastDoneAt || hadNotes != lastHadNotes) {
+      auto prev = notelist.length;
+      clearList f;
+      lastDoneAt = doneAt;
+    }
+    lastHadNotes = hadNotes;
+    res = atan(res) / (PI / 2);
     return res;
   };
   int base;
-  while true {
+  float volume = 1;
+  int length = 1024;
+  while notelist.length {
     snd.dump(delegate Sample(int i) {
-      auto res = Sample:short:int:(dg((base + i) / 48000f) * 32767f);
+      auto res = Sample:short:int:(dg((base + i) / 48000f) * 32767f * volume);
       return res;
     }, length, 1f);
     base += length;
