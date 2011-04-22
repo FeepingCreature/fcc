@@ -345,8 +345,7 @@ void setupSysmods() {
       raise-error new Error "No such module: $name";
     }
     void __setupModuleInfo() { }
-    int main2(int argc, char** argv) {
-      __setupModuleInfo();
+    void constructModules() {
       for auto mod <- __modules {
         for auto str <- mod._imports
           mod.imports ~= lookupInfo str;
@@ -360,6 +359,10 @@ void setupSysmods() {
           constr();
       }
       for auto mod <- __modules callConstructors mod;
+    }
+    int main2(int argc, char** argv) {
+      __setupModuleInfo();
+      constructModules();
       
       mxcsr |= (1 << 6) | (3 << 13); // Denormals Are Zero; Round To Zero.
       string[] args;
