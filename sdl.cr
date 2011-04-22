@@ -50,11 +50,21 @@ void pset(int x, int y, vec3f col) {
   *p = (i & ii).sum;
 }
 
+bool[1024] keyPressed, keyPushed;
+
 void flip() {
   SDL_Flip surf;
-  while SDL_PollEvent &SDL_Event ev {
-    if ev.type == 12
+  for int i <- 0..keyPushed.length
+    keyPushed[i] = false;
+  while SDL_PollEvent &SDL_Event ev using ev {
+    if type == 12
       raise-error new SDLQuit;
+    else if type == SDL_KEYDOWN using key.keysym {
+      if (sym < keyPressed.length) { keyPressed[sym] = true; keyPushed[sym] = true; }
+    }
+    else if type == SDL_KEYUP using key.keysym {
+      if (sym < keyPressed.length) { keyPressed[sym] = false; }
+    }
   }
 }
 
