@@ -49,9 +49,16 @@ class NestedFunction : Function {
     // because of this, they must be compiled as if they're toplevel funs
     // but _lookup_ must proceed as if they're nested.
     // thus, sup vs. context.
-    auto _res = context.lookup(name, false);
-    auto res = fastcast!(Expr) (_res);
-    if (!res) return _res;
+    auto res = context.lookup(name, false);
+    auto ex = fastcast!(Expr) (res);
+    auto fun = fastcast!(Function) (res);
+    auto nf = fastcast!(NestedFunction) (fun), prev_nf = fastcast!(PointerFunction!(NestedFunction)) (fun);
+    if (nf && !prev_nf) {
+      // massive hack
+      // this basically serves to introduce the EBP into the lookup, so that we can properly fix it up
+      fun = new PointerFunction!(NestedFunction)(new NestFunRefExpr(nf));
+    }
+    if (!ex && !fun) return res;
     // auto ebp = Single!(Register!("ebp"));
     // pointer to our immediate parent's base.
     // since this is a variable also, nesting rewrite will work correctly here
@@ -79,14 +86,26 @@ class NestedFunction : Function {
           );
           itr = fastcast!(Iterable) (nuex);
         }
+      } else if (auto r = fastcast!(Register!("ebp")) (itr)) {
+        if (checkDup) needsDup = true;
+        else itr = fastcast!(Iterable) (reinterpret_cast(r.valueType(), ebp));
       }
     };
     auto itr = fastcast!(Iterable) (res);
-    if (!itr) return fastcast!(Object) (res);
-    checkDup = true; convertToDeref(itr); checkDup = false;
-    if (needsDup) {
-      itr = fastcast!(Iterable) (res.dup);
-      convertToDeref(itr);
+    if (fun) {
+      checkDup = true;
+      fun.iterateExpressions(&convertToDeref); checkDup = false;
+      if (needsDup) {
+        fun = fun.flatdup;
+        fun.iterateExpressions(&convertToDeref);
+        itr = fastcast!(Iterable) (fun);
+      }
+    } else {
+      checkDup = true; convertToDeref(itr); checkDup = false;
+      if (needsDup) {
+        itr = itr.dup;
+        convertToDeref(itr);
+      }
     }
     return fastcast!(Object) (itr);
   }
@@ -98,7 +117,9 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   if (!sc) return null;
   // sup of nested funs isn't the surrounding function .. that's what context is for.
   auto mod = current_module();
-  if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef({ return new NestedFunction(ns); }, mod, true, text, cont, rest)) {
+  if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef({
+    return new NestedFunction(ns);
+  }, mod, true, text, cont, rest)) {
     mod.entries ~= fastcast!(Tree)~ res;
     return Single!(NoOp);
   } else return null;
@@ -143,7 +164,12 @@ Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotNestedFnLiteral, "tree.expr.fnliteral", "2403", "function");
 
 class NestedCall : FunCall {
-  Expr dg;
+  Expr dg; Expr ebp; // may be substituted by a lookup
+  override void iterate(void delegate(ref Iterable) dg2) {
+    defaultIterate!(dg, ebp).iterate(dg2);
+    super.iterate(dg2);
+  }
+  this() { ebp = new Register!("ebp"); }
   override NestedCall dup() {
     auto res = new NestedCall;
     res.fun = fun;
@@ -156,7 +182,7 @@ class NestedCall : FunCall {
     // else logln("call {", fun.getPointer(), " @ebp");
     if (dg) callDg(af, fun.type.ret, params, dg);
     else callDg(af, fun.type.ret, params,
-      new DgConstructExpr(fun.getPointer(), new Register!("ebp")));
+      new DgConstructExpr(fun.getPointer(), ebp));
   }
   override IType valueType() {
     return fun.type.ret;
@@ -173,14 +199,19 @@ class NestFunRefExpr : mkDelegate {
     this.base = base;
     super(fun.getPointer(), base);
   }
+  override void iterate(void delegate(ref Iterable) dg) {
+    fun.iterateExpressions(dg);
+    defaultIterate!(base).iterate(dg);
+    super.iterate(dg);
+  }
   override string toString() {
-    return Format("&", fun);
+    return Format("&", fun, " (", super.data, ")");
   }
   // TODO: emit asm directly in case of PointerFunction.
   override IType valueType() {
     return new Delegate(fun.type.ret, fun.type.params);
   }
-  override NestFunRefExpr dup() { return new NestFunRefExpr(fun, base); }
+  override NestFunRefExpr dup() { return new NestFunRefExpr(fun, base.dup); }
 }
 
 Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -205,6 +236,10 @@ class FunPtrAsDgExpr(T) : T {
     fp = fastcast!(FunctionPointer)~ ex.valueType();
     assert(!!fp);
     super(ex, mkInt(0));
+  }
+  void iterate(void delegate(ref Itr) dg) {
+    super.iterate(dg);
+    defaultIterate!(ex).iterate(dg);
   }
   override string toString() {
     return Format("dg(", fp, ")");
@@ -246,6 +281,7 @@ class PointerFunction(T) : T {
   Expr ptr;
   void iterateExpressions(void delegate(ref Iterable) dg) {
     defaultIterate!(ptr).iterate(dg);
+    super.iterateExpressions(dg);
   }
   this(Expr ptr) {
     static if (is(typeof(super(null)))) super(null);

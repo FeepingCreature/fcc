@@ -109,7 +109,7 @@ string genIterates(int params) {
             // checkType(iter, dg);
             if (iter !is entry) {
               auto res = fastcast!(typeof(entry)) (iter);
-              if (!res) throw new Exception(Format("Cannot substitute ", $A, "[", i, "] with ", res, ": ", typeof(entry).stringof, " expected! "));
+              if (!res) throw new Exception(Format("Cannot substitute ", $A, "[", i, "] with ", iter, " of ", (fastcast!(Object) (iter)).classinfo.name, ": ", typeof(entry).stringof, " expected! "));
               entry = res;
             }
           }
