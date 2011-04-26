@@ -46,6 +46,7 @@ vec3f rotate3f(vec3f vec, vec3f axis, float angle) using vec {
 }
 
 alias PI = 3.1415926538;
+alias PI2 = PI * 2;
 alias PI180 = PI/180.0;
 
 float log(float f) { return logf f; }
@@ -98,3 +99,20 @@ extern(C) {
 
 float floor(float x) { return floorf x; }
 float ceil(float x) { return ceilf x; }
+float atan(float x) { return atanf x; }
+
+template minlist(T) <<EOT
+  type-of __istep init!T minlist(T t) {
+    auto res = __istep t;
+    while auto r2 <- t if r2 < res res = r2;
+    return res;
+  }
+EOT
+
+template maxlist(T) <<EOT
+  type-of __istep init!T maxlist(T t) {
+    auto res = __istep t;
+    while auto r2 <- t if r2 > res res = r2;
+    return res;
+  }
+EOT

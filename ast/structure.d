@@ -353,13 +353,15 @@ class MemberAccess_Expr : Expr, HasInfo {
         // if (stm.type.size != 4) asm { int 3; }
         // logln("full emit - worrying. ", base, " SELECTING ", stm);
         // asm { int 3; }
-        assert(stm.type.size == 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !fastcast!(LValue) (base), ") of ", base.valueType().size(), ". "));
+        assert(stm.type.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !fastcast!(LValue) (base), ") of ", base.valueType().size(), ". "));
         af.comment("emit semi-structure ", base, " for member access");
         auto bvt = base.valueType();
         if (auto rce = fastcast!(RCE)~ base) bvt = rce.from.valueType();
         auto filler = alignStackFor(bvt, af);
         base.emitAsm(af);
         af.comment("store member and free: ", stm.name);
+        if (stm.type.size == 1)
+          af.mmove1(Format(stm.offset, "(%esp)"), "%dl");
         if (stm.type.size == 2)
           af.mmove2(Format(stm.offset, "(%esp)"), "%dx");
         if (stm.type.size >= 4)
@@ -392,6 +394,10 @@ class MemberAccess_Expr : Expr, HasInfo {
         if (stm.type.size == 2) {
           af.pushStack("%dx", 2);
           af.nvm("%dx");
+        }
+        if (stm.type.size == 1) {
+          af.pushStack("%dl", 1);
+          af.nvm("%dl");
         }
       }
     }

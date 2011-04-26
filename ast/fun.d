@@ -115,6 +115,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       auto res = cleaned_name;
       if (platform_prefix == "i686-mingw32-") {
         res = "_"~res;
+        if (res == "_setjmp") res = "__setjmp"; // lol wat.
       }
       return res;
     } else if (name == "__c_main") {

@@ -223,6 +223,12 @@ class StatementAndCond : Cond {
 
 import ast.fold;
 class ForIter(I) : Type, I {
+  override int opEquals(IType it) {
+    auto fi = fastcast!(ForIter) (it);
+    if (!fi) return false;
+    // return this is it; // I wish.
+    return var is fi.var && extra is fi.extra;
+  }
   IType wrapper;
   I itertype;
   Expr ex;
@@ -360,11 +366,11 @@ class ForIter(I) : Type, I {
     string toString() {
       auto sizeinfo = Format(size, ":");
       (fastcast!(Structure)~ wrapper).select((string, RelMember rm) { sizeinfo ~= Format(" ", rm.type.size); });
-      return Format("ForIter[", sizeinfo, "](", itertype, ": ", ex.valueType(), ")");
+      return Format("ForIter[", sizeinfo, "](", itertype, ": ", ex.valueType(), ") var ", cast(void*) var, " extra ", cast(void*) extra);
     }
     IType elemType() { return ex.valueType(); }
     int size() { return wrapper.size; }
-    string mangle() { return "for_range_over_"~wrapper.mangle(); }
+    string mangle() { return Format("for_range_over_", wrapper.mangle(), "_var_", cast(size_t) var, "_extra_", cast(size_t) extra); }
     ubyte[] initval() { return wrapper.initval(); }
     Expr yieldAdvance(LValue lv) {
       LValue wlv;

@@ -326,14 +326,23 @@ class ShortToIntCast : Expr {
 
 class ByteToShortCast : Expr {
   Expr b;
-  this(Expr b) { this.b = b; }
+  this(Expr b) {
+    this.b = b;
+    if (b.valueType().size != 1) {
+      logln("Can't byte-to-short cast: wtf, ", b.valueType(), " on ", b);
+      asm { int 3; }
+    }
+  }
   private this() { }
   mixin DefaultDup!();
-  mixin defaultIterate!();
+  mixin defaultIterate!(b);
   override {
     IType valueType() { return Single!(Short); }
     void emitAsm(AsmFile af) {
-      b.emitAsm(af);
+      {
+        mixin(mustOffset("1"));
+        b.emitAsm(af);
+      }
       // lol.
       af.comment("byte to short cast lol");
       af.put("xorw %ax, %ax");
