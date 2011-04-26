@@ -47,10 +47,11 @@ static this() {
     e2 = foldex(e2);
     auto ie = fastcast!(IntExpr) (e2);
     if (!ie) {
-      fail(Format(e2, " could not be simplified to an int in tuple index access"));
+      return null;
+      // throw new Exception(Format(e2, " could not be simplified to an int in tuple index access"));
     }
     if (ie.num < 0 || ie.num !< count)
-      fail(Format(ie.num, " out of bounds for tuple access"));
+      throw new Exception(Format(ie.num, " out of bounds for tuple access"));
     return fastcast!(Expr) (mkTupleIndexAccess(e1, ie.num));
   });
 }

@@ -2,9 +2,9 @@ module std.c.setjmp;
 
 // c_include "setjmp.h";
 
-alias __jmp_buf = size_t[8];
+alias __jmp_buf = size_t x 8;
 struct __sigset_t {
-  size_t[1024 / (8*size-of size_t)] __val;
+  (size_t x (1024 / (8*size-of size_t))) __val;
 }
 
 struct jmp_buf {

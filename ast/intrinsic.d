@@ -127,7 +127,7 @@ void setupSysmods() {
       if i == 0 return "0";
       string res;
       while i {
-        char[1] prefix = ["0123456789"[i%10]];
+        string prefix = "0123456789"[i%10 .. i%10+1];
         res = prefix ~ res;
         i /= 10;
       }

@@ -3,9 +3,9 @@ module simplex;
 import std.c.fenv, std.c.stdlib;
 
 int[~] perm;
-vec3i[12] grad3;
+vec3i x 12 grad3;
 
-float dot2(int[4] whee, float a, float b) {
+float dot2(int x 4 whee, float a, float b) {
   return whee[0] * a + whee[1] * b;
 }
 
@@ -62,13 +62,13 @@ float noise2(vec2f f) {
   alias sqrt3 = sqrtf(3);
   alias f2 = 0.5 * (sqrt3 - 1);
   alias g2 = (3 - sqrt3) / 6;
-  float[3] n = void;
+  float x 3  n = void;
   
   float s = (f.x + f.y) * f2;
   int i = fastfloor(f.x + s), j = fastfloor(f.y + s);
   
   float t = (i + j) * g2;
-  vec2f[3] xy;
+  vec2f x 3  xy;
   xy[0] = f - (vec2i(i,j) - vec2f(t));
   
   int i1, j1;
@@ -82,7 +82,7 @@ float noise2(vec2f f) {
   }
   int ii = i & 255, jj = j & 255;
   
-  int[3] gi = void;
+  int x 3  gi = void;
   gi[0] = perm[ii + perm[jj]] % 12;
   gi[1] = perm[ii + i1 + perm[jj + j1]] % 12;
   gi[2] = perm[ii + 1  + perm[jj + 1 ]] % 12;
@@ -125,10 +125,10 @@ void testAlign(string name, void* p) {
 }
 
 float noise3(vec3f v) {
-  vec3f[4] vs = void;
+  vec3f x 4  vs = void;
   vec3f vsum = void;
   vec3i indices = void;
-  int[4] gi = void;
+  int x 4  gi = void;
   int mask = void;
   vec3f v0 = void;
   if !perm.length permsetup;

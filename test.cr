@@ -220,7 +220,7 @@ int main(string[] args) {
   writeln("test: $$*(&m - 1)");
   if (s(0, 1) && s(1, 0) && s(2, 1)) writeln("yes"); else writeln("no");
   if (s(0, 1) && s(1, 0) && s(2, 1) || s(3, 1)) writeln("yes"); else writeln("no");
-  int[5] ifield;
+  int x 5  ifield;
   ifield[3] = 15;
   writeln("field access $$ifield[3]");
   int* ip = &ifield[3];
@@ -437,7 +437,7 @@ int main(string[] args) {
     writeln "frob is $frob";
     alias size = 4;
     auto test = [for bin <-
-      [for tuple <- cross ([for i <- 0..2: i] x size): int[size]:tuple]:
+      [for tuple <- cross ([for i <- 0..2: i] x size): int x size:tuple]:
       sum [for tup <- zip (bin, [for z <- 0..size:
       pow2(size-z-1)]): tup[0] * tup[1]]].eval;
     writeln("test is $$string-of type-of test: $test");

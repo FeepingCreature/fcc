@@ -17,7 +17,8 @@ mixin(expandImport(`ast.[
   intr, conditionals, opers, conditionals, cond, casting,
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
   propcall, properties_parse, main, alignment, modules_parse,
-  platform, longmath, base, mixins], casts`));
+  platform, longmath, base, mixins, int_literal, static_arrays],
+  casts`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
@@ -83,6 +84,18 @@ extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
       });
     }
   }
+}
+
+// from ast.static_arrays
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    auto sa = fastcast!(StaticArray) (resolveType(ex.valueType()));
+    if (!sa) return null;
+    IType[] itlist;
+    for (int i = 0; i < sa.length; ++i)
+      itlist ~= sa.elemType;
+    return reinterpret_cast(mkTuple(itlist), ex);
+  };
 }
 
 extern(C)

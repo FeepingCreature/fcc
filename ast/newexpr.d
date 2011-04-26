@@ -91,51 +91,31 @@ import ast.casting, ast.slice: mkPointerSlice;
 Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
-  IType ty;
-  if (!rest(t2, "type", &ty))
+  IType base;
+  if (!rest(t2, "type", &base))
     return null;
   
-  if (auto sa = fastcast!(StaticArray)~ ty) {
-    IType base = sa.elemType;
-    Expr len = mkInt(sa.length);
-    auto t3 = t2;
-    Expr newlen;
-    if (t3.accept("[") &&
-        rest(t3, "tree.expr", &newlen) &&
-        gotImplicitCast(newlen, (IType it) { return !!fastcast!(SysInt) (it); }) &&
-        t3.accept("]")) {
-      t2 = t3;
-      len = newlen;
-      base = sa;
-    }
-    text = t2;
-    // logln("new1 ", base, " [", len, "]");
-    return fastcast!(Object)~
-      mkPointerSlice(
-        reinterpret_cast(
-          new Pointer(base),
-          iparse!(Expr, "do_calloc", "tree.expr")
-                ("mem.calloc(len, basesz)",
-                  "len", len, "basesz", mkInt(base.size))),
-        mkInt(0), len);
-  } else {
-    Expr len;
-    if (!t2.accept("[") ||
-        !rest(t2, "tree.expr", &len) ||
-        !gotImplicitCast(len, (IType it) { return !!fastcast!(SysInt) (it); }) ||
-        !t2.accept("]"))
-      return null;
-    text = t2;
-    // logln("new2 ", ty, " [", len, "]");
-    return fastcast!(Object)~
-      mkPointerSlice(
-        reinterpret_cast(new Pointer(ty),
-          iparse!(Expr, "new_dynamic_array", "tree.expr")
-                 ("mem.calloc(len, size-of ty)", "len", len, "ty", ty)
-        ),
-        mkInt(0), len
-      );
-  }
+  if (!t2.accept("[")) return null;
+  Expr len;
+  if (!rest(t2, "tree.expr", &len))
+    t2.failparse("Expected index for array-new");
+  auto backuplen = len;
+  if (!gotImplicitCast(len, (IType it) { return !!fastcast!(SysInt) (it); }))
+    t2.failparse("Index is a ", backuplen.valueType(), ", not an int! ");
+  if (!t2.accept("]"))
+    t2.failparse("Expected closing ] for array-new index. ");
+  text = t2;
+  // logln("new1 ", base, " [", len, "]");
+  return fastcast!(Object) (
+    mkPointerSlice(
+      reinterpret_cast(
+        new Pointer(base),
+        iparse!(Expr, "new_dynamic_array", "tree.expr")
+              ("mem.calloc(len, basesz)",
+                "len", len, "basesz", mkInt(base.size))),
+      mkInt(0), len
+    )
+  );
 }
 mixin DefaultParser!(gotNewArrayExpr, "tree.expr.new.array", "12", "new");
 

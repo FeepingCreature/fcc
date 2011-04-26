@@ -29,7 +29,7 @@ void* __start_routine(void* p) {
   return null;
 }
 
-extern(C) int[0] _sys_tls_data_start;
+extern(C) int _sys_tls_data_start;
 void startThread(void delegate() dg) {
   pthread_t buf;
   auto argp = new (void delegate(), void*);
@@ -56,7 +56,7 @@ void startThread(void delegate() dg) {
 }
 
 platform(default) <<EOF
-  struct pthread_mutex_t { ubyte[40] filler; }
+  struct pthread_mutex_t { ubyte x 40  filler; }
   extern(C) int pthread_mutex_init (pthread_mutex_t*, void*);
   extern(C) int pthread_mutex_lock (pthread_mutex_t*);
   extern(C) int pthread_mutex_unlock (pthread_mutex_t*);

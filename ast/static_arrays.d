@@ -31,17 +31,18 @@ static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb cont, ParseCb rest) {
     auto t2 = text;
     Expr len_ex;
-    if (!t2.accept("[")) return null;
-    if (t2.accept("]")) return null; // [] shortcut
+    if (!t2.accept("x")) return null;
     if (!rest(t2, "tree.expr", &len_ex)) return null;
-    if (!t2.accept("]"))
-      t2.failparse("Expected closing ']' for static array type! ");
+    auto backup_len = len_ex;
+    if (!gotImplicitCast(len_ex, (IType it) { return test(Single!(SysInt) == it); }))
+      t2.failparse("Need int for static array, not ", backup_len);
+    opt(len_ex);
     auto len = foldex(len_ex);
     if (auto ie = fastcast!(IntExpr) (len)) {
       text = t2;
       return new StaticArray(cur, ie.num);
-    }
-    return null;
+    } else
+      t2.failparse("Need foldable constant for static array, not ", len);
   };
   implicits ~= delegate Expr(Expr ex) {
     ex = foldex(ex);
