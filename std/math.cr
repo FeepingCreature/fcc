@@ -46,6 +46,7 @@ vec3f rotate3f(vec3f vec, vec3f axis, float angle) using vec {
 }
 
 alias PI = 3.1415926538;
+alias PI2 = PI * 2;
 alias PI180 = PI/180.0;
 
 float log(float f) { return logf f; }

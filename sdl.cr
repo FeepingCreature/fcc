@@ -43,8 +43,7 @@ class SDLQuit : Error {
 
 void pset(int x, int y, int col) {
   if (x >= surf.w || x < 0 || y >= surf.h || y < 0) return;
-  auto p = &((int*:surf.pixels)[y * int:surf.pitch / 4 + x]);
-  *p = col;
+  (int*:surf.pixels)[y * int:surf.pitch / 4 + x] = col;
 }
 
 int floatToIntColor(vec3f col) {
@@ -86,9 +85,29 @@ void line(int from-x, from-y, to-x, to-y, vec3f col = vec3f(1)) {
   }
 }
 
-void hline(int from-x, from-y, to-x, int icol) {
-  for (int x = from-x; x <= to-x; ++x)
-    pset(x, from-y, icol);
+void hline(int from-x, y, to-x, int icol) {
+  auto surf = surf;
+  if (y >= surf.h || y < 0) return;
+  from-x = [from-x, 0][eval from-x < 0];
+  if (to-x >= surf.w) to-x = surf.w - 1;
+  auto p = &((int*:surf.pixels)[y * int:surf.pitch / 4 + from-x]);
+  auto delta = to-x - from-x + 1;
+  delta = [delta, 0][eval delta < 0];
+  while delta >= 4 {
+    *(int, int, int, int)*:p = (icol x 4);
+    delta -= 4;
+    p += 4;
+  }
+  while (delta --) {
+    *(p++) = icol;
+  }
+}
+
+void cls(vec3f col) {
+  int icol = floatToIntColor col;
+  for (int y = 0; y < surf.h; ++y) {
+    hline(0, y, surf.w, icol);
+  }
 }
 
 // This one is WP:Midpoint circle algorithm. <3 you WP.
@@ -119,8 +138,10 @@ void circle(int x0, y0, radius, vec3f col = vec3f(1), vec3f fill = vec3f(-1)) {
       hline(x0 - x + 1, y0 - y, x0 + x - 1, fcol);
       hline(x0 - x + 1, y0 + y, x0 + x - 1, fcol);
     }
-    hline(x0 - y + 1, y0 - x, x0 + y - 1, fcol);
-    hline(x0 - y + 1, y0 + x, x0 + y - 1, fcol);
+    if (x < y) {
+      hline(x0 - y + 1, y0 - x, x0 + y - 1, fcol);
+      hline(x0 - y + 1, y0 + x, x0 + y - 1, fcol);
+    }
     for auto tup <- cross([x, -x], [y, -y]) {
       pset(x0 + tup[0], y0 + tup[1], icol);
       pset(x0 + tup[1], y0 + tup[0], icol);
