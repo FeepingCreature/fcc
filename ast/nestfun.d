@@ -52,7 +52,6 @@ class NestedFunction : Function {
     auto _res = context.lookup(name, false);
     auto res = fastcast!(Expr) (_res);
     if (!res) return _res;
-    // auto ebp = Single!(Register!("ebp"));
     // pointer to our immediate parent's base.
     // since this is a variable also, nesting rewrite will work correctly here
     auto ebp = fastcast!(Expr) (lookup("__base_ptr", true));
@@ -63,6 +62,7 @@ class NestedFunction : Function {
     bool needsDup, checkDup;
     void convertToDeref(ref Iterable itr) {
       // do this first so that variable initializers get fixed up
+      // but not our substituted __base_ptr.
       itr.iterate(&convertToDeref);
       if (auto var = fastcast!(Variable) (itr)) {
         if (checkDup) needsDup = true;
