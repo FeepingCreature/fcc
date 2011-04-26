@@ -3,7 +3,7 @@ module std.random.mersenne;
 import std.random.base;
 
 class MersenneTwister : IRandom {
-  int[624] state;
+  int x 624  state;
   int index;
   void init(int seed = 23) {
     state[0] = seed;
