@@ -99,3 +99,19 @@ extern(C) {
 float floor(float x) { return floorf x; }
 float ceil(float x) { return ceilf x; }
 float atan(float x) { return atanf x; }
+
+template minlist(T) <<EOT
+  type-of __istep init!T minlist(T t) {
+    auto res = __istep t;
+    while auto r2 <- t if r2 < res res = r2;
+    return res;
+  }
+EOT
+
+template maxlist(T) <<EOT
+  type-of __istep init!T maxlist(T t) {
+    auto res = __istep t;
+    while auto r2 <- t if r2 > res res = r2;
+    return res;
+  }
+EOT
