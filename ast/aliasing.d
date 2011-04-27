@@ -25,6 +25,7 @@ class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
       return fastcast!(Object)~ it;
     }
     void emitAsm(AsmFile af) {
+      asm { int 3; } // Should never happen - the below foldopt should substitute them
       base.emitAsm(af); // may work .. or not.
     }
     IType valueType() { return base.valueType(); }

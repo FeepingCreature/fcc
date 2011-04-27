@@ -38,7 +38,7 @@ vec2i mousepos;
 
 bool mouseClicked, mousePressed;
 
-bool[1024] keyPressed, keyPushed;
+bool x 1024  keyPressed, keyPushed;
 
 bool update(SDL_Surface* surface) {
   for int i <- 0..keyPushed.length

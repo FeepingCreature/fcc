@@ -32,7 +32,7 @@ static this() {
     auto t2 = text;
     Expr len_ex;
     if (!t2.accept("x")) return null;
-    if (!rest(t2, "tree.expr", &len_ex)) return null;
+    if (!rest(t2, "tree.expr _tree.expr.arith", &len_ex)) return null;
     auto backup_len = len_ex;
     if (!gotImplicitCast(len_ex, (IType it) { return test(Single!(SysInt) == it); }))
       t2.failparse("Need int for static array, not ", backup_len);

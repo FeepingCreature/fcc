@@ -311,7 +311,7 @@ class ShortToIntCast : Expr {
   this(Expr sh) { this.sh = sh; }
   private this() { }
   mixin DefaultDup!();
-  mixin defaultIterate!();
+  mixin defaultIterate!(sh);
   override {
     IType valueType() { return Single!(SysInt); }
     void emitAsm(AsmFile af) {

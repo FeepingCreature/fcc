@@ -9,7 +9,7 @@ template readfile(T) <<EOF
     byte x 256  buf;
     byte[] step() {
       auto size = read(fd, buf.ptr, buf.length);
-      if size <= 0 { done = true; return new byte[0]; }
+      if size <= 0 { done = true; return new byte[] 0; }
       return buf[0 .. size];
     }
     bool ivalid() {
@@ -66,14 +66,14 @@ void delegate(byte[]) writefile(FILE* _hdl) using new writer {
 alias c_getcwd = getcwd;
 
 string getcwd() {
-  auto buffer = new char[128];
+  auto buffer = new char[] 128;
   while true {
     if (c_getcwd(buffer.ptr, buffer.length)) {
       return buffer[0 .. strlen buffer.ptr];
     }
     auto oldlen = buffer.length;
     buffer.free;
-    buffer = new char[oldlen * 2];
+    buffer = new char[] (oldlen * 2);
   }
 }
 

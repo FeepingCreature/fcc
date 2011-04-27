@@ -27,7 +27,7 @@ class Sector {
       x < SectorSize && y < SectorSize && z < SectorSize
     );
   }
-  BlockType[SectorSize][SectorSize][SectorSize] cache;
+  BlockType x SectorSize x SectorSize x SectorSize  cache;
   void init() { }
   void init(Sector s) { base = s.base; cache = s.cache; }
 }
@@ -38,7 +38,7 @@ class SectorCache {
   Sector[] getBackup(bool initIt = false) {
     if backup.length != sectors.length {
       backup.free;
-      backup = new Sector[sectors.length];
+      backup = new Sector[] (sectors.length);
       backupIsInited = false;
     }
     if (initIt || !backupIsInited) {
@@ -183,10 +183,11 @@ void drawScene(SectorCache* scp) {
   }
   if (!sc) sc = new SectorCache null;
   sc.m.lock;
-  onExit (*scp).m.unlock;
+  onExit sc.m.unlock;
   sc.dg = &genFun;
   auto fun = &sc.lookup;
   bool occluded(vec3i vi) {
+    auto fun = fun;
     if (!fun(vi).active) return false;
     return eval
       fun vec3i(vi.(x+1, y, z)).active && fun vec3i(vi.(x-1, y, z)).active &&
@@ -194,9 +195,9 @@ void drawScene(SectorCache* scp) {
       fun vec3i(vi.(x, y, z+1)).active && fun vec3i(vi.(x, y, z-1)).active;
   }
   
-  vec3f[4][auto~][2] colorCache;
-  vec3f[4][auto~][2] vertexCache;
-  vec2f[4][auto~][2] texcoordCache;
+  vec3f x 4 [auto~] x 2 colorCache;
+  vec3f x 4 [auto~] x 2 vertexCache;
+  vec2f x 4 [auto~] x 2 texcoordCache;
   void flushCache(int tex = -1) {
     int from, to;
     if (tex == -1) (from, to) = (0, 2);
@@ -219,7 +220,7 @@ void drawScene(SectorCache* scp) {
       texcoordCache[tid].free;
     }
   }
-  void queueQuad(int tex, vec3f color, vec3f[4] corners) {
+  void queueQuad(int tex, vec3f color, vec3f x 4  corners) {
     colorCache[tex] ~= [color, color, color, color];
     vertexCache[tex] ~= corners;
     texcoordCache[tex] ~= [vec2f(0, 0), vec2f(0, 1), vec2f(1, 1), vec2f(1, 0)];
@@ -240,7 +241,7 @@ void drawScene(SectorCache* scp) {
       ([2, 3, 7, 6],  vec3i.Y),
       ([1, 0, 4, 5], -vec3i.Y)
     ];
-    for (int[4] points, vec3i dir) <- sides {
+    for (int x 4  points, vec3i dir) <- sides {
       auto bt = fun(vec + dir);
       alias map = [for point <- points: vec3f(corners[point]) + vec];
       if !bt.active

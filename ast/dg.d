@@ -37,7 +37,7 @@ class DgConstructExpr : mkDelegate {
     super(fun, base);
   }
   override DgConstructExpr dup() {
-    return new DgConstructExpr(ptr, data);
+    return new DgConstructExpr(ptr.dup, data.dup);
   }
   override IType valueType() {
     auto ft = fastcast!(FunctionPointer)~ ptr.valueType();
