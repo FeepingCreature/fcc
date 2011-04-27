@@ -515,7 +515,7 @@ class AsmFloatBinopExpr : BinopExpr {
         case "-": af.floatMath("fsub"); break;
         case "*": af.floatMath("fmul"); break;
         case "/": af.floatMath("fdiv"); break;
-        case "%": assert(false, "Modulo not supported on floats. ");
+        case "%": throw new Exception("Modulo not supported on floats. ");
       }
       af.storeFloat("(%esp)");
     }

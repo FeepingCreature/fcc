@@ -27,7 +27,7 @@ template AssocArray(T) <<EOT
     int length;
     Value* getp(Key k) {
       Key nil;
-      if k == nil return [null, &nullval][hasNull];
+      if k == nil return [Value*:null, &nullval][hasNull];
       if !store.length return null;
       auto pos = (jenkins_hash k) % store.length;
       while bool looping = true {

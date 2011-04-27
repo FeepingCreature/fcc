@@ -73,7 +73,7 @@ EOF
 
 char* toStringz(string s) {
   char ch;
-  auto s2 = new char[s.length + 1];
+  auto s2 = new char[](s.length + 1);
   s2[0 .. s.length] = s;
   s2[s.length] = ch;
   return s2.ptr;
@@ -148,7 +148,7 @@ string strip(string s) {
 import std.util;
 string[] split(string s, string marker) {
   string[auto~] res;
-  string dup(string s) { auto res = new char[s.length]; int i; for (auto ch <- s) res[i++] = ch; return res; }
+  string dup(string s) { auto res = new char[] s.length; int i; for (auto ch <- s) res[i++] = ch; return res; }
   for (auto value <- splitAt(marker, iterOnce s))
     res ~= dup value;
   return res[];

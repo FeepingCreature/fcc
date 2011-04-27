@@ -71,7 +71,7 @@ void setupSysmods() {
           auto size = l.length + r.length, size2 = l.length * 2;
           auto newsize = size;
           if (size2 > newsize) newsize = size2;
-          T[~] res = (new T[newsize])[0 .. size];
+          T[~] res = (new T[] newsize)[0 .. size];
           res[0 .. l.length] = (*l)[];
           res[l.length .. size] = r;
           res.capacity = newsize;
@@ -98,7 +98,7 @@ void setupSysmods() {
           auto size = l.length + r.length, size2 = l.length * 2;
           auto newsize = size;
           if (size2 > newsize) newsize = size2;
-          auto full = new T[newsize];
+          auto full = new T[] newsize;
           T[auto ~] res = T[auto~]:(full[0 .. size]);
           res.capacity = newsize;
           res[0 .. l.length] = (*l)[];
@@ -134,7 +134,7 @@ void setupSysmods() {
       return res;
     }
     string ltoa(long l) {
-      auto foo = new char[32];
+      auto foo = new char[] 32;
       int length = snprintf(foo.ptr, foo.length, "%lli", l);
       if (length > 0) return foo[0 .. length];
       printf ("please increase the snprintf buffer %i\n", length);
@@ -147,7 +147,7 @@ void setupSysmods() {
     alias vec3i = vec(int, 3);
     alias vec4i = vec(int, 4);
     string ptoa(void* p) {
-      auto res = new char[(size-of size_t) * 2 + 2 + 1];
+      auto res = new char[]((size-of size_t) * 2 + 2 + 1);
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
       return res[0 .. res.length - 1];
     }
@@ -155,7 +155,7 @@ void setupSysmods() {
       printf("%.*s\n", line.length, line.ptr);
     }
     string dtoa(double d) {
-      auto res = new char[128]; // yes, actually does need to be this big >_>
+      auto res = new char[] 128; // yes, actually does need to be this big >_>
       int len = snprintf(res.ptr, res.length, "%f", d);
       if len > res.length len = res.length;
       return res[0 .. len];
@@ -291,7 +291,7 @@ void setupSysmods() {
           // mem.free(dupvcache.ptr);
           dupvcache = null;
         }
-        if (!dupvcache.length) dupvcache = new void[BLOCKSIZE];
+        if (!dupvcache.length) dupvcache = new void[] BLOCKSIZE;
         res = dupvcache[0 .. v.length];
         dupvcache = dupvcache[v.length .. $];
       }

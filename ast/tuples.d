@@ -259,6 +259,7 @@ extern(C) IType resolveTup(IType it) {
   return res;
 }
 
+import ast.fold, ast.int_literal;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (auto rt = fastcast!(RefTuple) (ex)) {
@@ -269,5 +270,32 @@ static this() {
       }
     }
     return null;
+  };
+  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb cont, ParseCb rest) {
+    auto t2 = text;
+    Expr len;
+    if (!t2.accept("[")) return null;
+    
+    auto tup = fastcast!(Tuple) (cur);
+    if (!tup)
+      return null;
+    
+    if (!rest(t2, "tree.expr", &len)) return null;
+    if (!t2.accept("]"))
+      t2.failparse("Expected closing ']' for tuple index access");
+    
+    auto backup_len = len;
+    if (!gotImplicitCast(len, (IType it) { return test(Single!(SysInt) == it); }))
+      t2.failparse("Need int for tuple index access, not ", backup_len);
+    opt(len);
+    len = foldex(len);
+    if (auto ie = fastcast!(IntExpr) (len)) {
+      text = t2;
+      auto types = tup.types();
+      if (ie.num >= types.length)
+        text.failparse(ie.num, " too large for tuple of ", types.length, "!");
+      return types[ie.num];
+    } else
+      t2.failparse("Need foldable constant for tuple index access, not ", len);
   };
 }

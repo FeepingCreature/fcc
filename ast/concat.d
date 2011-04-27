@@ -72,7 +72,7 @@ class ConcatChain : Expr {
         }
         iparse!(Statement, "alloc_array", "tree.semicol_stmt.assign")
         (
-          "var = new T[total]",
+          "var = new T[] total",
           "var", var, "T", type.elemType,
           "total", total
         ).emitAsm(af);

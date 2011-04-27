@@ -828,7 +828,7 @@ class EvalIterator(T) : Expr, Statement {
           static if (is(T == RichIterator)) {
             mkVar(af, valueType(), true, (Variable var) {
               iparse!(Statement, "initVar", "tree.semicol_stmt.assign")
-                     (`var = new elem[len]`,
+                     (`var = new elem[] len`,
                      "var", var, "len", iter.length(ex), "elem", iter.elemType()).emitAsm(af);
               emitStmtInto(var);
             });

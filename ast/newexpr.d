@@ -95,24 +95,23 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type", &base))
     return null;
   
-  if (!t2.accept("[")) return null;
+  auto arr = fastcast!(Array) (base);
+  if (!arr) return null;
   Expr len;
-  if (!rest(t2, "tree.expr", &len))
+  if (!rest(t2, "tree.expr _tree.expr.arith", &len))
     t2.failparse("Expected index for array-new");
   auto backuplen = len;
   if (!gotImplicitCast(len, (IType it) { return !!fastcast!(SysInt) (it); }))
     t2.failparse("Index is a ", backuplen.valueType(), ", not an int! ");
-  if (!t2.accept("]"))
-    t2.failparse("Expected closing ] for array-new index. ");
   text = t2;
   // logln("new1 ", base, " [", len, "]");
   return fastcast!(Object) (
     mkPointerSlice(
       reinterpret_cast(
-        new Pointer(base),
+        new Pointer(arr.elemType),
         iparse!(Expr, "new_dynamic_array", "tree.expr")
               ("mem.calloc(len, basesz)",
-                "len", len, "basesz", mkInt(base.size))),
+                "len", len, "basesz", mkInt(arr.elemType.size))),
       mkInt(0), len
     )
   );

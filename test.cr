@@ -300,7 +300,7 @@ int main(string[] args) {
   }
   memtest();
   auto testp = sys.mem.malloc(15);
-  auto artest = new int[3];
+  auto artest = new int[](3);
   artest[2] = 15;
   artest[0 .. 2] = artest[1 .. 3];
   writeln("test is $$artest.length, $$artest[1], $$artest[2]");
