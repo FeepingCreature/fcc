@@ -6,7 +6,7 @@ template readfile(T) <<EOF
   class reader {
     int fd;
     bool done;
-    byte[256] buf;
+    byte x 256  buf;
     byte[] step() {
       auto size = read(fd, buf.ptr, buf.length);
       if size <= 0 { done = true; return new byte[0]; }

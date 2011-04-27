@@ -35,7 +35,6 @@ class NestedFunction : Function {
   }
   import tools.log;
   override Object lookup(string name, bool local = false) {
-    rebuildCache;
     {
       auto res = super.lookup(name, true);
       if (res) return res;
@@ -197,7 +196,8 @@ class NestFunRefExpr : mkDelegate {
     if (!base) base = new Register!("ebp");
     this.fun = fun;
     this.base = base;
-    super(fun.getPointer(), base);
+    // dup base so that iteration treats them separately. SUBTLE BUGFIX, DON'T CHANGE.
+    super(fun.getPointer(), base.dup);
   }
   override void iterate(void delegate(ref Iterable) dg) {
     fun.iterateExpressions(dg);

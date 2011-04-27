@@ -25,7 +25,7 @@ void main(string[] args) {
   
   snd.open();
   float delegate(float) dg;
-  float[12] scale;
+  float x 12  scale;
   for int i <- 0..12
     scale[i] = pow(pow(2, 1/12f), i);
   
@@ -149,7 +149,7 @@ void main(string[] args) {
       auto track = data[0 .. trklen];
       data = data[trklen .. $];
       int pos;
-      int[128] pressedOn;
+      int x 128  pressedOn;
       byte lastCmd;
       float speedfactor = 0.5;
       while track.length > 0 {
