@@ -443,22 +443,10 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       if (weak) af.put(".weak ", ci_name());
     }
     int size() {
-      // HAAAAAAAAAAAAAAAAAAX
-      // we return mainsize + intfs so the struct thinks we contain our parent's struct
-      // and thus puts its members after the parent's
-      int intfCount;
-      if (iparents.length) {
-        getIntfLeaves((Intf) { intfCount ++; });
-      }
+      // we return partial size so the struct thinks we contain our parent's struct
+      // and thus puts its members at the right position
       if (!finalized) return classSize (false);
       return classSize (true);
-      /*if (!finalized) return classSize (true);
-      auto res = data.size; // already includes parent's size
-      if (iparents.length) {
-        doAlign(res, voidp);
-        res += voidp.size * intfCount;
-      }
-      return res;*/
     }
     void _add(string name, Object obj) {
       assert(!finalized, "Adding "~name~" to already-finalized class. ");
