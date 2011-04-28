@@ -109,3 +109,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign", "1");
+
+static this() {
+  registerClass("ast.assign", new Assignment);
+}

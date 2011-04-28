@@ -73,7 +73,7 @@ string opt(string name, string s) {
 
 // returns null if s points at SSE reg
 string* doSSE(string* s, bool isOp2 = false, string opName = null) {
-  if ((*s).startsWith("%xmm")) return null;
+  // if ((*s).startsWith("%xmm")) return null;
   // these don't read from op2
   if (isOp2 && opName == "movaps" /or/ "movups") return null;
   return s;

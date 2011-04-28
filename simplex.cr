@@ -2,8 +2,10 @@ module simplex;
 
 import std.c.fenv, std.c.stdlib;
 
-int[~] perm;
+int x 256 perm, mperm; // perm mod 12
 vec3i x 12 grad3;
+
+bool setupPerm;
 
 float dot2(int x 4 whee, float a, float b) {
   return whee[0] * a + whee[1] * b;
@@ -31,12 +33,14 @@ class KISS {
 }
 
 void permsetup() {
+  setupPerm = true;
   int seed = 34;
   auto gen = new KISS;
   gen.seed(seed);
-  perm ~= [for 0..256: gen.rand() % 256].eval;
-  for (int i <- 0..256) if (perm[i] < 0) perm[i] = -perm[i];
-  perm ~= perm[];
+  for int i <- 0..256 {
+    perm[i] = (gen.rand() & 0x7fff_ffff) % 256;
+    mperm[i] = perm[i] % 12;
+  }
   int i;
   alias values = [1, 1, 0,
                  -1, 1, 0,
@@ -58,7 +62,7 @@ void permsetup() {
 }
 
 float noise2(vec2f f) {
-  if !perm.length permsetup;
+  if !setupPerm permsetup;
   alias sqrt3 = sqrtf(3);
   alias f2 = 0.5 * (sqrt3 - 1);
   alias g2 = (3 - sqrt3) / 6;
@@ -83,9 +87,9 @@ float noise2(vec2f f) {
   int ii = i & 255, jj = j & 255;
   
   int x 3  gi = void;
-  gi[0] = perm[ii + perm[jj]] % 12;
-  gi[1] = perm[ii + i1 + perm[jj + j1]] % 12;
-  gi[2] = perm[ii + 1  + perm[jj + 1 ]] % 12;
+  gi[0] = mperm[(ii      + perm[jj     ]) & 255];
+  gi[1] = mperm[(ii + i1 + perm[jj + j1]) & 255];
+  gi[2] = mperm[(ii +  1 + perm[jj +  1]) & 255];
   
   for (int k = 0; k < 3; ++k) {
     float ft = 0.5 - xy[k].x*xy[k].x - xy[k].y*xy[k].y;
@@ -127,20 +131,25 @@ void testAlign(string name, void* p) {
 float noise3(vec3f v) {
   vec3f x 4  vs = void;
   vec3f vsum = void;
-  vec3i indices = void;
   int x 4  gi = void;
   int mask = void;
   vec3f v0 = void;
-  if !perm.length permsetup;
+  if !setupPerm permsetup;
   
   vsum = v + (v.sum / 3.0f);
-  fastfloor3f (vsum, &indices);
-  vs[0] = v - indices      + (indices.sum / 6.0f);
-  vs[1] = vs[0]            + vec3f(1.0f / 6);
-  vs[2] = vs[0]            + vec3f(2.0f / 6);
-  vs[3] = vs[0]       + vec3f(-1 + 3.0f / 6);
-  xmm[4] = vs[0].xxy;
-  xmm[5] = vs[0].yzz;
+  // copypasted from fastfloor3f
+  xmm[4] = vsum;
+  asm `cvttps2dq %xmm4, %xmm5`;
+  asm `psrld $31, %xmm4`;
+  asm `psubd %xmm4, %xmm5`;
+  auto indices = vec3i:xmm[5];
+  vs[0] = v - indices      + vec3f(indices.sum / 6.0f);
+  xmm[6] = vec4f:vs[0];
+  vs[1] = xmm[6] + vec4f(1.0f / 6);
+  vs[2] = xmm[6] + vec4f(2.0f / 6);
+  vs[3] = xmm[6] + vec4f(-1 + 3.0f / 6);
+  xmm[4] = xmm[6].xxy;
+  xmm[5] = xmm[6].yzz;
   // this is correct, I worked it out
   mask = [0b100_110, 0b010_110, 0, 0b010_011, 0b100_101, 0, 0b001_101, 0b001_011][(eval xmm[4] < xmm[5]) & 0b0111];
   /*if (v0.x < v0.y) {
@@ -166,16 +175,19 @@ float noise3(vec3f v) {
   auto offs2 = vec3i((mask >> 2) & 1, (mask >> 1) & 1, (mask >> 0) & 1);
   vs[1] -= vec3f(offs1);
   vs[2] -= vec3f(offs2);
-  (int ii, int jj, int kk) = indices.(x & 255, y & 255, z & 255);
+  alias ii = indices.x, jj = indices.y, kk = indices.z;
   alias i1 = offs1.x, i2 = offs2.x,
         j1 = offs1.y, j2 = offs2.y,
         k1 = offs1.z, k2 = offs2.z;
   {
     auto lperm = perm.ptr;
-    gi[0] = lperm[lperm[lperm[kk   ]+jj   ]+ii   ] % 12;
-    gi[1] = lperm[lperm[lperm[kk+k1]+jj+j1]+ii+i1] % 12;
-    gi[2] = lperm[lperm[lperm[kk+k2]+jj+j2]+ii+i2] % 12;
-    gi[3] = lperm[lperm[lperm[kk+1 ]+jj+1 ]+ii+1 ] % 12;
+    auto mperm = mperm.ptr;
+    gi = [
+      mperm[(lperm[(lperm[(kk   )&0xff]+jj   )&0xff]+ii   )&0xff],
+      mperm[(lperm[(lperm[(kk+k1)&0xff]+jj+j1)&0xff]+ii+i1)&0xff],
+      mperm[(lperm[(lperm[(kk+k2)&0xff]+jj+j2)&0xff]+ii+i2)&0xff],
+      mperm[(lperm[(lperm[(kk+1 )&0xff]+jj+1 )&0xff]+ii+1 )&0xff]
+    ];
   }
   vec3f current = void;
   vec4f factors = void, res = void;

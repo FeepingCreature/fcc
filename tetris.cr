@@ -15,7 +15,7 @@ alias size = (7, 14);
   Basic housekeeping stuff, nothing special.
 */
 class TetrisBoard {
-  int[size[0] * size[1]] field;
+  int x (size[0] * size[1]) field;
   void init() { for int i <- 0..field.length field[i] = 0; }
   bool isFree(int x, y) {
     if (x < 0 || y < 0 || x !< size[0] || y !< size[1]) return false;

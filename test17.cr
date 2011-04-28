@@ -3,48 +3,9 @@ module test17;
 import sdl, std.random, std.math;
 extern(C) int time(int*);
 
-// Thank You WP
-int jenkins_hash(string key) {
-  int hash;
-  for int ch <- key {
-    hash += ch;
-    hash += hash << 10;
-    hash xor= hash >> 6;
-  }
-  hash += hash << 3;
-  hash xor= hash >> 11;
-  hash += hash << 15;
-  return hash;
-}
-
-template AssocArray(T) <<EOT
-  alias Key = T[0];
-  alias Value = T[1];
-  struct AssocArray {
-    (Key, Value)[] store;
-    Value nullval;
-    bool hasNull;
-    int length;
-    Value* getp(Key k) {
-      Key nil;
-      if k == nil return [Value*:null, &nullval][hasNull];
-      if !store.length return null;
-      auto pos = (jenkins_hash k) % store.length;
-      while bool looping = true {
-        if store[pos][0] == k
-          return &store[pos][1];
-        if store[pos][0] == nil
-          looping = false;
-        else pos ++;
-      }
-      return null;
-    }
-  }
-EOT
-
 void main() {
   screen (800, 800);
-  // AssocArray!(string, Object) aa;
+  (string, Object)[0] str;
   int offs;
   set-handler (Error) invoke-exit "return";
   define-exit "return" return;

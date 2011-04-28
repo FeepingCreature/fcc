@@ -58,9 +58,7 @@ class Vector : Type, RelNamespace, ForceAlignment {
         return false;
       }
       foreach (ch; str) if (!isValidChar(ch)) return null;
-      if (str.length == len) {
-        if (auto res = getSSESwizzle(this, base, str)) return fastcast!(Object) (res);
-      }
+      if (auto res = getSSESwizzle(this, base, str)) return fastcast!(Object) (res);
       auto parts = getTupleEntries(reinterpret_cast(asFilledTup, base));
       Expr[] exprs;
       foreach (ch; str) {
@@ -78,21 +76,23 @@ class Vector : Type, RelNamespace, ForceAlignment {
   }
 }
 
-class Swizzle3f : Expr {
+class SSESwizzle : Expr {
   Expr sup;
   string rule;
-  this(Expr e, string r) { sup = e; rule = r; }
+  IType type;
+  this(Expr e, IType t, string r) { sup = e; type = t; rule = r; if (sup.valueType().size != type.size) { logln("sup ", sup, ", type ", type, ". "); asm { int 3; } } }
   private this() { }
   mixin defaultIterate!(sup);
   mixin DefaultDup!();
   override {
-    IType valueType() { checkVecs(); return vec3f; }
+    IType valueType() { return type; }
     void emitAsm(AsmFile af) {
       int mask;
       foreach_reverse (ch; rule) switch (ch) {
-        case 'x': mask = mask*4; break;
+        case 'x': mask = mask*4 + 0; break;
         case 'y': mask = mask*4 + 1; break;
         case 'z': mask = mask*4 + 2; break;
+        case 'w': mask = mask*4 + 3; break;
       }
       sup.emitAsm(af);
       af.SSEOp("movaps", "(%esp)", "%xmm0");
@@ -104,8 +104,12 @@ class Swizzle3f : Expr {
 
 Expr getSSESwizzle(Vector v, Expr ex, string rule) {
   checkVecs();
-  if (v != vec3f) return null;
-  return new Swizzle3f(ex, rule);
+  if (v != vec3f && v != vec4f) return null;
+  Vector v2;
+  if (rule.length == 3) v2 = vec3f;
+  if (rule.length == 4) v2 = vec4f;
+  if (!v2) return null;
+  return new SSESwizzle(ex, v2, rule);
 }
 
 class SSEIntToFloat : Expr {
@@ -542,7 +546,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   af.SSEOp(sse, srcOp, "%xmm0");
   // af.nvm("%xmm1"); // tend to get in the way
   af.SSEOp("movaps", "%xmm0", "(%esp)");
-  // af.nvm("%xmm0");
+  // af.nvm("%xmm0"); // rarely helps
   mixin(mustOffset("-16"));
   if (auto lv = cast(LValue) res) {
     (new Assignment(lv, new Placeholder(op1.valueType()), false, true)).emitAsm(af);

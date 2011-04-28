@@ -534,3 +534,15 @@ class LineNumberedStatementClass : LineNumberedStatement {
 }
 
 string mainfile;
+
+import std.moduleinit;
+void registerClass(string modname, Object obj) {
+  foreach (globmod; ModuleInfo.modules) {
+    if (globmod.name == modname)
+      globmod.localClasses ~= obj.classinfo;
+  }
+}
+
+static this() {
+  registerClass("ast.base", new Register!("ebp"));
+}

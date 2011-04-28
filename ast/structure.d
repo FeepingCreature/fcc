@@ -130,6 +130,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     assert(!isUnion);
     auto res = new Structure(null);
     res.packed = packed;
+    res.sup = sup;
     int i;
     select((string, RelMember member) { if (i !< from && i < to) new RelMember(member.name, member.type, res); i++; });
     return res;
@@ -150,7 +151,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   override {
     IType getRefType() { return new Pointer(this); }
     string getIdentifier() { return name; }
-    string mangle(string name, IType type) { return "struct_"~name~"_"~type.mangle()~"_"~name; }
+    string mangle(string name, IType type) { return sup.mangle(name, null)~"_"~type.mangle()~"_"~name; }
     Stuple!(IType, string, int)[] stackframe() {
       return selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
     }

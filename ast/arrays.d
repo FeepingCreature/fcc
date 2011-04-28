@@ -64,6 +64,7 @@ IType arrayAsStruct(IType base, bool rich) {
      && entry._1 == rich
      && entry._2 is mod && mod.isValid) return entry._3;
   auto res = new Structure(null);
+  res.sup = sysmod;
   if (rich)
     new RelMember("capacity", Single!(SysInt), res);
   // TODO: fix when int promotion is supported
@@ -311,4 +312,9 @@ static this() {
     assert(!!res);
     return res;
   });
+}
+
+static this() {
+  registerClass("ast.arrays", new ArrayLength!(MValue));
+  registerClass("ast.arrays", new ArrayLength!(Expr));
 }

@@ -234,7 +234,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
       // logln("test ", type, " against ", this);
-      return myClass is (fastcast!(ClassRef)~ type).myClass;
+      return myClass is (fastcast!(ClassRef) (resolveType(type))).myClass;
     }
     Expr format(Expr ex) {
       return mkString("ref to "~myClass.name);
@@ -259,7 +259,7 @@ class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled {
     string mangleSelf() { return mangle(); }
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
-      return myIntf is (fastcast!(IntfRef)~ type).myIntf;
+      return myIntf is (fastcast!(IntfRef) (resolveType(type))).myIntf;
     }
     IntfRef dup() { return new IntfRef(myIntf.dup); }
     void emitAsm(AsmFile af) { myIntf.emitAsm(af); }
