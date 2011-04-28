@@ -15,6 +15,7 @@ interface TypeProxy {
   IType actualType();
 }
 
+// Strips out type-alias and the like
 IType resolveType(IType t) {
   while (true) {
     if (auto tp = fastcast!(TypeProxy)~ t) {

@@ -34,7 +34,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       
       void initClass(Class cl) {
         if (cl.parent) initClass(cl.parent);
-        auto base = cl.mainSize();
+        auto base = cl.classSize(false);
         doAlign(base, voidp);
         base /= 4;
         int id = 0;

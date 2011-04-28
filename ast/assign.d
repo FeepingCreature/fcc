@@ -10,7 +10,9 @@ class _Assignment(T) : LineNumberedStatementClass {
   this(T t, Expr e, bool force = false, bool blind = false) {
     this.blind = blind;
     if (!force && t.valueType() != e.valueType()) {
-      logln("Can't assign: ", t, " of ", t.valueType(), " <- ", e.valueType());
+      logln("Can't assign: ", t);
+      logln(" of ", t.valueType());
+      logln(" <- ", e.valueType());
       asm { int 3; }
     }
     target = t;

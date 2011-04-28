@@ -351,7 +351,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     scope(exit) namespace.set(backup);
     // TODO: switch
     auto as = new AggrStatement;
-    int intf_offset = mainSize();
+    int intf_offset = classSize(false);
     doAlign(intf_offset, voidp);
     intf_offset /= 4;
     auto strcmp = sysmod.lookup("strcmp");
@@ -406,7 +406,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     
     // interfaces
     if (iparents.length) {
-      int offset = mainSize();
+      int offset = classSize(false);
       doAlign(offset, voidp);
       offset /= 4; // steps of (void*).sizeof
       foreach (intf; iparents)
@@ -423,7 +423,14 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     return false;
   }
   // everything after this is interface handles - I think
-  int mainSize() { return max(voidp.size, parent?parent.mainSize():0, data.size()); }
+  int classSize(bool withInterfaces) {
+    auto res = max(voidp.size, parent?parent.classSize(true):0, data.size());
+    if (withInterfaces && iparents.length) {
+      doAlign(res, voidp);
+      getIntfLeaves((Intf) { res += voidp.size; });
+    }
+    return res;
+  }
   // TODO
   mixin defaultIterate!();
   string ci_name() { return "classinfo_"~mangle(); }
@@ -437,15 +444,21 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     }
     int size() {
       // HAAAAAAAAAAAAAAAAAAX
-      // we return mainsize so the struct thinks we contain our parent's struct
+      // we return mainsize + intfs so the struct thinks we contain our parent's struct
       // and thus puts its members after the parent's
-      if (!finalized) return mainSize;
+      int intfCount;
+      if (iparents.length) {
+        getIntfLeaves((Intf) { intfCount ++; });
+      }
+      if (!finalized) return classSize (false);
+      return classSize (true);
+      /*if (!finalized) return classSize (true);
       auto res = data.size; // already includes parent's size
       if (iparents.length) {
         doAlign(res, voidp);
-        getIntfLeaves((Intf) { res += voidp.size; });
+        res += voidp.size * intfCount;
       }
-      return res;
+      return res;*/
     }
     void _add(string name, Object obj) {
       assert(!finalized, "Adding "~name~" to already-finalized class. ");
@@ -469,7 +482,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       return res;
     }
     Object lookupRel(string str, Expr base) {
-      auto crType = fastcast!(ClassRef) (base.valueType());
+      auto crType = fastcast!(ClassRef) (resolveType(base.valueType()));
       if (!crType) {
         logln("Bad class ref: ", base, " of ", base.valueType());
         asm { int 3; }
@@ -658,7 +671,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
     if (cl.parent) {
       testClass(reinterpret_cast(cl.parent.getRefType(), ex));
     }
-    int offs = cl.mainSize();
+    int offs = cl.classSize (false);
     doAlign(offs, voidp);
     offs /= 4;
     foreach (id, par; cl.iparents) {
