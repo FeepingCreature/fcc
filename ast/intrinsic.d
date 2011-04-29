@@ -25,7 +25,7 @@ void setupSysmods() {
       double sqrt(double);
       int strlen(char*);
     }
-    bool strcmp(char[] a, b) {
+    bool streq(char[] a, b) {
       if a.length != b.length return false;
       for (int i = 0; i < a.length; ++i)
         if a[i] != b[i] return false;
@@ -169,6 +169,13 @@ void setupSysmods() {
     }
     /*MARKER2*/
     class Object {
+    }
+    void* _fcc_dynamic_cast(void* ex, string id, int isIntf) {
+      if (!ex) return null;
+      if (isIntf) ex = void*:(void**:ex + **int**:ex);
+      auto obj = Object: ex;
+      // writeln "dynamic cast: obj $ex to $id => $(obj.dynamicCastTo id)";
+      return obj.dynamicCastTo id;
     }
     struct _GuardRecord {
       void delegate() dg;

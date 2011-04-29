@@ -59,6 +59,7 @@ class VTable {
     foreach (id, fun; funs)
       if (fun.name == name) {
         classref = lvize(classref);
+        // logln("in ", parent.name, ", ", fun.name, " is @", id, " (base ", base, ")");
         res ~= new PointerFunction!(NestedFunction) (
           new DgConstructExpr(
             new DerefExpr(
@@ -354,16 +355,16 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     int intf_offset = classSize(false);
     doAlign(intf_offset, voidp);
     intf_offset /= 4;
-    auto strcmp = sysmod.lookup("strcmp");
-    assert(!!strcmp);
+    auto streq = sysmod.lookup("streq");
+    assert(!!streq);
     void handleIntf(Intf intf) {
-      as.stmts ~= iparse!(Statement, "cast_branch_intf", "tree.stmt")("if (strcmp(id, _test) != 0) return void*:(void**:this + offs); ",
+      as.stmts ~= iparse!(Statement, "cast_branch_intf", "tree.stmt")("if (streq(id, _test)) return void*:(void**:this + offs);",
         rf, "_test", mkString(intf.mangle_id), "offs", mkInt(intf_offset)
       );
       intf_offset ++;
     }
     void handleClass(Class cl) {
-      as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (strcmp(id, _test) != 0) return void*:this; ",
+      as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (streq(id, _test)) return void*:this;",
         rf, "_test", mkString(cl.mangle_id)
       );
       if (cl.parent) handleClass(cl.parent);
@@ -379,7 +380,6 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   void finalize() {
     genDynCast;
     finalized = true;
-    RelFunSet empty;
     getClassinfo; // no-op to generate stuff
   }
   mixin TypeDefaults!();
@@ -422,9 +422,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     foreach (ipar; iparents) if (ipar.declares(fun.name)) return true;
     return false;
   }
-  // everything after this is interface handles - I think
   int classSize(bool withInterfaces) {
-    auto res = max(voidp.size, parent?parent.classSize(true):0, data.size());
+    auto parentsize = parent?parent.classSize(true):0;
+    auto res = max(voidp.size, parentsize, data.size());
     if (withInterfaces && iparents.length) {
       doAlign(res, voidp);
       getIntfLeaves((Intf) { res += voidp.size; });
@@ -673,7 +673,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
   if (ir) testIntf(ex);
 }
 
-import ast.casting, tools.base: todg;
+import ast.casting, ast.fold, tools.base: todg;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (fastcast!(IntfRef)~ ex.valueType())
@@ -681,40 +681,23 @@ static this() {
     return null;
   };
   implicits ~= &doImplicitClassCast /todg;
+  converts ~= delegate Expr(Expr ex, IType dest) {
+    if (!fastcast!(ClassRef) (resolveType(dest)) && !fastcast!(IntfRef) (resolveType(dest)))
+      return null;
+    if (!gotImplicitCast(ex, delegate bool(IType it) {
+      return fastcast!(ClassRef) (resolveType(it)) || fastcast!(IntfRef) (resolveType(it));
+    }))
+      return null;
+    string dest_id;
+    if (auto cr = fastcast!(ClassRef) (resolveType(dest))) dest_id = cr.myClass.mangle_id;
+    else dest_id = (fastcast!(IntfRef) (resolveType(dest))).myIntf.mangle_id;
+    
+    bool isIntf;
+    if (fastcast!(IntfRef) (resolveType(ex.valueType()))) isIntf = true;
+    ex = reinterpret_cast(voidp, ex);
+    return iparse!(Expr, "cast_call", "tree.expr")
+      ("Dest:_fcc_dynamic_cast(ex, id, isIntf)",
+        "ex", ex, "Dest", dest, "id", mkString(dest_id), "isIntf", mkInt(isIntf)
+      );
+  };
 }
-
-Object gotDynCast(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex;
-  auto t2 = text;
-  IType dest;
-  if (!rest(t2, "type", &dest) || !t2.accept(":"))
-    return null;
-  if (!fastcast!(ClassRef) (dest) && !fastcast!(IntfRef) (dest))
-    return null;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
-    return null;
-  }
-  if (!fastcast!(ClassRef) (ex.valueType()) && !fastcast!(IntfRef) (ex.valueType()))
-    return null;
-  text = t2;
-  
-  {
-    Expr res;
-    doImplicitClassCast(ex, (Expr ex) {
-      if (res) return;
-      if (ex.valueType() == dest) res = ex;
-    });
-    if (res) return fastcast!(Object)~ res;
-  }
-  
-  string dest_id;
-  if (auto cr = fastcast!(ClassRef)~ dest) dest_id = cr.myClass.mangle_id;
-  else dest_id = (fastcast!(IntfRef)~ dest).myIntf.mangle_id;
-  
-  if (fastcast!(IntfRef)~ ex.valueType()) ex = intfToClass(ex);
-  return fastcast!(Object)~ iparse!(Expr, "cast_call", "tree.expr")
-    ("Dest:ex.dynamicCastTo(id)", "ex",
-      ex, "Dest", dest, "id", mkString(dest_id)
-    );
-}
-mixin DefaultParser!(gotDynCast, "tree.expr.dynamic_class_cast", "70");

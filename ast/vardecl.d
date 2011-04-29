@@ -127,6 +127,10 @@ LValue lvize(Expr ex) {
   // TODO: is it really valid to add to a scope beneath a nested namespace?
   // Won't this mess up the frame size counts? .. Meh.
   auto sc = namespace().get!(Scope);
+  if (!sc) {
+    logln("No Scope beneath ", namespace(), "!");
+    asm { int 3; }
+  }
   var.initval = ex;
   
   auto decl = new VarDecl;

@@ -27,7 +27,7 @@ class Compare : Cond, Expr {
   Expr falseOverride, trueOverride;
   private this() { }
   mixin DefaultDup!();
-  mixin defaultIterate!(e1, e2);
+  mixin defaultIterate!(e1, e2, falseOverride, trueOverride);
   string toString() {
     auto res = (fastcast!(Object)~ e1).toString();
     if (smaller) res ~= "<";

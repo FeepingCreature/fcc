@@ -131,6 +131,8 @@ class DataExpr : CValue {
 
 class SALiteralExpr : Expr {
   Expr[] exs;
+  this() { }
+  this(IType type, Expr[] exprs...) { this.type = type; exs = exprs.dup; }
   mixin DefaultDup!();
   mixin defaultIterate!(exs);
   IType type;
