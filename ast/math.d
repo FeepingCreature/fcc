@@ -694,70 +694,70 @@ static this() {
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "12"); }
 
-import ast.pointer, ast.opers, tools.base: swap;
-Object gotMathExpr(Ops...)(ref string text, ParseCb cont, ParseCb rest) {
-  Expr op;
+const oplist = [
+  "+"[], "-", "*", "/",
+  "xor", "|", "&", "%",
+  "<<", ">>", "^", "x"
+];
+
+const oplevel = [
+  0, 1, 2, 2,
+  3, 4, 5, 6,
+  7, 7, 8, 8
+];
+
+const lvcount = 9;
+
+Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Expr curOp;
   auto t2 = text;
-  if (!cont(t2, &op)) return null;
-  auto old_op = op;
-  retry:
-  Expr op2;
-  foreach (i, bogus; Ops) {
+  if (!cont(t2, &curOp)) return null;
+  foreach (op; oplist) {
     auto t3 = t2;
-    bool accepted = t3.accept(Ops[i]);
-    if (t3.startsWith(Ops[i]))
-      accepted = false; // a && b != a & &b (!)
-    if (accepted) {
-      bool isAssignment;
-      if (t3.accept("="))
-        isAssignment = true;
-      bool succeeded;
-      if (isAssignment) succeeded = !!rest(t3, "tree.expr", &op2);
-      else succeeded = !!cont(t3, &op2);
-      if (succeeded) {
-        if (isAssignment) {
-          op = lookupOp(Ops[i]~"=", op, op2);
-          t2 = t3;
-          break;
-        }
-        op = lookupOp(Ops[i], op, op2);
-        t2 = t3;
-        goto retry;
-      } else
-        t3.failparse("Could not find operand for '", Ops[i], "'");
+    if (t3.accept(op) && t3.accept("=")) {
+      Expr src;
+      if (!rest(t3, "tree.expr", &src))
+        t3.failparse("Could not find source operand for assignment! ");
+      auto res = lookupOp(op~"=", curOp, src);
+      if (res) text = t3;
+      return fastcast!(Object) (res);
     }
   }
-  if (op is old_op) {
-    // Why would we want arithmetic, but not single values?
-    // return null;
-    if (op) text = t2;
-    return fastcast!(Object)~ op;
+  Expr recurse(Expr op, int depth) {
+    if (depth == lvcount) return op;
+    op = recurse(op, depth + 1);
+    retry:
+    string opName; int _i;
+    // this will all be unrolled and optimized out
+    foreach (i, bogus; Repeat!(void, lvcount))
+      if (i == depth)
+        foreach (k, bogus2; Repeat!(void, oplevel.length))
+          if (oplevel[k] == i) {
+            auto t3 = t2;
+            opName = oplist[k]; _i = i;
+            bool accepted = t3.accept(opName);
+            if (t3.startsWith(opName)) accepted = false;
+            if (accepted) {
+              t2 = t3;
+              goto accepted_handler;
+            }
+          }
+    return op;
+    // shared code for all the cases - simplifies asm output
+  accepted_handler:
+    Expr nextOp;
+    if (!cont(t2, &nextOp))
+      t2.failparse("Could not find second operand for ", opName);
+    op = lookupOp(opName, op, recurse(nextOp, _i + 1));
+    goto retry;
   }
+  auto res = recurse(curOp, 0);
   text = t2;
-  return fastcast!(Object)~ op;
+  return fastcast!(Object) (res);
 }
 
-alias gotMathExpr!("%") gotModExpr;
-mixin DefaultParser!(gotModExpr, "tree.expr.arith.mod", "33");
-
-alias gotMathExpr!("+", "-") gotAddSubExpr;
-mixin DefaultParser!(gotAddSubExpr, "tree.expr.arith.addsub", "31");
-alias gotMathExpr!("*", "/") gotMulDivExpr;
-mixin DefaultParser!(gotMulDivExpr, "tree.expr.arith.muldiv", "32");
-alias gotMathExpr!("xor") gotXORExpr;
-mixin DefaultParser!(gotXORExpr, "tree.expr.arith.xor", "325");
-alias gotMathExpr!("<<", ">>") gotShiftExpr;
-mixin DefaultParser!(gotShiftExpr, "tree.expr.arith.shift", "34");
-
-alias gotMathExpr!("|") gotOrExpr;
-mixin DefaultParser!(gotOrExpr, "tree.expr.arith.or", "3301");
-alias gotMathExpr!("&") gotAndExpr;
-mixin DefaultParser!(gotAndExpr, "tree.expr.arith.and", "3302");
-
-alias gotMathExpr!("x") gotTimesExpr;
-mixin DefaultParser!(gotTimesExpr, "tree.expr.arith.times", "36");
-alias gotMathExpr!("^") gotPowExpr;
-mixin DefaultParser!(gotPowExpr, "tree.expr.arith.pow", "35");
+import ast.pointer, ast.opers, tools.base: swap;
+mixin DefaultParser!(gotMathExpr, "tree.expr.arith.ops", "31");
 
 // TODO: hook into parser
 class CondWrap : Expr {
