@@ -1,7 +1,7 @@
 module ast.intrinsic;
 
-import ast.modules, ast.pointer, ast.base, ast.oop;
-// not static this() to work around a precedence bug in phobos. called from fcc.
+import ast.modules, ast.pointer, ast.base, ast.oop, ast.casting;
+// not static this() to work around a precedence bug in phobos. called from main.
 void setupSysmods() {
   if (sysmod) return;
   string src = `
@@ -324,6 +324,7 @@ void setupSysmods() {
       asm "psubd %xmm4, %xmm5";
       *res = vec3i:xmm[5];
     }
+
     string replace(string source, string what, string with) {
       int i = 0;
       char[auto~] res;
@@ -341,9 +342,10 @@ void setupSysmods() {
     class ModuleInfo {
       string name;
       void* dataStart, dataEnd;
+      bool compiled; // does this have an .o file?
       void function()[auto~] constructors;
       bool constructed;
-      string[auto~] _imports;
+      string[] _imports;
       ModuleInfo[auto~] imports;
     }
     ModuleInfo[auto~] __modules;
@@ -372,9 +374,12 @@ void setupSysmods() {
       constructModules();
       
       mxcsr |= (1 << 6) | (3 << 13); // Denormals Are Zero; Round To Zero.
-      string[] args;
-      for (auto arg <- argv[0 .. argc]) {
-        args ~= arg[0 .. strlen(arg)];
+      auto args = new string[] argc;
+      {
+        int i;
+        for (auto arg <- argv[0 .. argc]) {
+          args[i++] = arg[0 .. strlen(arg)];
+        }
       }
       int errnum;
       set-handler (Error err) {
@@ -416,11 +421,15 @@ void finalizeSysmod(Module mainmod) {
   scope(exit) namespace.set(backup);
   namespace.set(sc);
   auto var = new Variable(modtype, null, boffs(modtype));
+  sc.add(var);
+  auto count = new Variable(Single!(SysInt), null, boffs(Single!(SysInt)));
+  sc.add(count);
+  count.initInit;
   var.initInit;
   auto decl = new VarDecl;
   decl.vars ~= var;
+  decl.vars ~= count;
   sc.addStatement(decl);
-  sc.add(var);
   
   auto backupmod = current_module();
   scope(exit) current_module.set(backupmod);
@@ -428,6 +437,16 @@ void finalizeSysmod(Module mainmod) {
   
   foreach (mod; list) {
     auto fltname = mod.name.replace(".", "_").replace("-", "_dash_");
+    Expr symdstart, symdend, compiled;
+    if (mod.dontEmit) {
+      symdstart = reinterpret_cast(voidp, mkInt(0));
+      symdend = reinterpret_cast(voidp, mkInt(0));
+      compiled = mkInt(0);
+    } else {
+      symdstart = new Symbol("_sys_tls_data_"~fltname~"_start");
+      symdend = new Symbol("_sys_tls_data_"~fltname~"_end");
+      compiled = mkInt(1);
+    }
     sc.addStatement(
       iparse!(Statement, "init_modinfo", "tree.stmt")
              (`{var = new ModuleInfo;
@@ -435,9 +454,11 @@ void finalizeSysmod(Module mainmod) {
                var.name = name;
                var.dataStart = symdstart;
                var.dataEnd = symdend;
+               var.compiled = bool:compiled;
              }` , "var", var, "name", mkString(mod.name),
-                  "symdstart", new Symbol("_sys_tls_data_"~fltname~"_start"),
-                  "symdend", new Symbol("_sys_tls_data_"~fltname~"_end")
+                  "symdstart", symdstart,
+                  "symdend", symdend,
+                  "compiled", compiled
             )
     );
     foreach (fun; mod.constrs) {
@@ -447,11 +468,21 @@ void finalizeSysmod(Module mainmod) {
                `, "var", var, "fun", new FunRefExpr(fun))
       );
     }
-    foreach (mod2; mod.getImports()) {
+    auto imps = mod.getImports();
+    sc.addStatement(
+      iparse!(Statement, "init_mod_import_list", "tree.stmt")
+             (`var._imports = new string[] len; `,
+              "var", var, "len", mkInt(imps.length))
+    );
+    sc.addStatement(
+      iparse!(Statement, "init_mod_count_var", "tree.stmt")
+             (`c = 0; `, sc, "c", count)
+    );
+    foreach (mod2; imps) {
       sc.addStatement(
         iparse!(Statement, "init_mod_imports", "tree.stmt")
-               (`var._imports ~= mod2;`,
-                "var", var, "mod2", mkString(mod2.name)));
+               (`var._imports[c++] = mod2;`, sc,
+                "var", var, "c", count, "mod2", mkString(mod2.name)));
     }
   }
 }

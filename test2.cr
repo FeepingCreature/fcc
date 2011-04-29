@@ -1,6 +1,6 @@
 module test2;
 
-import sys, std.file, std.string, std.socket, std.stream;
+import std.file, std.string, std.socket, std.stream;
 
 void main() {
   auto iter = [for 1 .. 4: 5];
@@ -16,7 +16,7 @@ void main() {
   writeln("$(squares.eval)");
   while auto line <- zip (0..-1, splitAt("\n", castIter!string readfile open "parsers.txt"))
     writeln "$(line[0]): $(line[1])";
-  auto foo = new int[4];
+  auto foo = new int[] 4;
   foo[0] = 1000;
   writeln "$(byte[]:foo)";
   auto sock = new Socket;

@@ -1,6 +1,6 @@
 module std.file;
 
-import std.c.stdio, std.c.fcntl, std.c.unistd;
+import c.stdio, c.fcntl, c.unistd;
 
 template readfile(T) <<EOF
   class reader {

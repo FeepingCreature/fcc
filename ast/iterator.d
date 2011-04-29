@@ -706,7 +706,7 @@ withoutIterator:
   else return new IterLetCond!(MValue) (mv, iter, iter);
 }
 mixin DefaultParser!(gotIterCond!(false), "cond.iter_strict", "705");
-mixin DefaultParser!(gotIterCond!(true), "cond.iter_loose", "8");
+mixin DefaultParser!(gotIterCond!(true), "cond.iter_loose", "735");
 
 Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -730,8 +730,10 @@ mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "2407", "__istep");
 import ast.opers;
 static this() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
-    auto iter = fastcast!(Iterator) (e1.valueType());
-    if (!iter) return null;
+    if (!gotImplicitCast(e1, (IType it) {
+      return test(fastcast!(Iterator) (resolveType(it)));
+    })) return null;
+    auto iter = fastcast!(Iterator) (resolveType(e1.valueType()));
     auto ri = fastcast!(RichIterator) (iter);
     if (!ri)
       throw new Exception(Format("Cannot access by index; not a rich iterator! "));

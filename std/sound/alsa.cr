@@ -1,6 +1,6 @@
 module std.sound.alsa;
 
-import std.c.alsa.pcm, std.sound.base, std.string;
+import c.alsa.pcm, std.sound.base, std.string;
 
 alias Sample = Sample;
 

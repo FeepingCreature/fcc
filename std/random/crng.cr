@@ -1,6 +1,6 @@
 module std.random.crng;
 
-import std.random.base, std.c.stdlib;
+import std.random.base, c.stdlib;
 
 // no rand_r on windows, fo shame. 
 platform(default) <<EOF

@@ -214,6 +214,7 @@ string compile(string file, CompileSettings cs) {
   bool fresh = true;
   auto mod = lookupMod(modname);
   if (mod.alreadyEmat) return objname; // fresh
+  if (mod.dontEmit) return null;
   fixupMain();
   auto len_parse = sec() - start_parse;
   double len_opt;
@@ -267,7 +268,8 @@ string[] compileWithDepends(string file, CompileSettings cs) {
   while (todo.length) {
     auto cur = todo.take();
     if (cur.name in done) continue;
-    res ~= compile(cur.name.replace(".", "/") ~ ".cr", cs);
+    if (auto nuMod = compile(cur.name.replace(".", "/") ~ ".cr", cs))
+      res ~= nuMod;
     done[cur.name] = true;
     todo ~= cur.getImports();
   }

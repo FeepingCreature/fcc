@@ -2,7 +2,7 @@ module std.stream;
 
 class iter {
   int delegate(void[]) dg;
-  char[512] buffer;
+  char x 512 buffer;
   bool done;
   // Expr yieldAdvance(LValue);
   string step() {

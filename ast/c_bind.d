@@ -76,7 +76,7 @@ const c_tree_expr = "tree.expr"
   " >tree.expr.scoped >tree.expr.stringex >tree.expr.dynamic_class_cast"
   " >tree.expr.properties";
 
-void parseHeader(string filename, string src, ParseCb rest) {
+void parseHeader(string filename, string src) {
   auto start_time = sec();
   string newsrc;
   bool inEnum;
@@ -195,7 +195,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
     text.accept(",");
     return ty;
   }
-  bool readCExpr(ref string source, Expr* res) {
+  bool readCExpr(ref string source, ref Expr res) {
     source = mystripl(source);
     if (!source.length) return false;
     auto s2 = source;
@@ -208,7 +208,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       if (s2.accept("LL")) return false; // long long
       s2.accept("L");
       if (!s2.length) {
-        *res = new IntExpr(i);
+        res = new IntExpr(i);
         source = s2;
         return true;
       }
@@ -227,7 +227,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       }
       if (auto p = ident in cache) {
         if (auto ex = fastcast!(Expr)~ *p) {
-          *res = ex;
+          res = ex;
           source = null;
           return true;
         }
@@ -240,7 +240,8 @@ void parseHeader(string filename, string src, ParseCb rest) {
     // logln(" @ '", source, "'");
     s2 = s2.mystripl();
     if (!s2.length) return false;
-    if (!rest(s2, c_tree_expr, res)) return false;
+    res = fastcast!(Expr) (parsecon.parse(s2, c_tree_expr));
+    if (!res) return false;
     source = s2;
     return true;
   }
@@ -272,14 +273,14 @@ void parseHeader(string filename, string src, ParseCb rest) {
         // muahaha
         try {
           try {
-            if (!readCExpr(stmt, &ex) || stmt.strip().length) {
+            if (!readCExpr(stmt, ex) || stmt.strip().length) {
               goto alternative;
             }
           } catch (Exception ex)
             goto alternative;
           if (false) {
             alternative:
-            if (!readCExpr(stmt, &ex))
+            if (!readCExpr(stmt, ex))
               goto giveUp;
           }
         } catch (Exception ex)
@@ -305,7 +306,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
         }
         if (entry.accept("=")) {
           Expr ex;
-          if (!readCExpr(entry, &ex) || entry.strip().length) {
+          if (!readCExpr(entry, ex) || entry.strip().length) {
             // logln("--", entry);
             goto giveUp;
           }
@@ -357,7 +358,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
           auto st3 = st2;
           Expr size;
           st3 = st3.replace("(int)", ""); // hax
-          if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, &size) && st3.accept("]")) {
+          if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
             redo:
             size = foldex(size);
             if (fastcast!(AstTuple)~ size.valueType()) {
@@ -424,7 +425,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
       Expr size;
       redo2:
       auto st3 = stmt;
-      if (st3.accept("[") && readCExpr(st3, &size) && st3.accept("]")) {
+      if (st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
         redo3:
         size = foldex(size);
         // unwrap "(bar)" again
@@ -438,6 +439,35 @@ void parseHeader(string filename, string src, ParseCb rest) {
         goto redo2;
       }
       if (stmt.accept("[")) goto giveUp;
+      if (stmt.length) {
+        auto st4 = stmt;
+        if (st4.accept("__attribute__") && st4.accept("((")
+        &&  st4.accept("__mode__") && st4.accept("(")) {
+          if (resolveType(target) == Single!(SysInt)) {
+            if (st4.accept("__QI__") && st4.accept(")") && st4.accept("))")) {
+              stmt = st4;
+              target = Single!(Byte);
+            }
+            else if (st4.accept("__HI__") && st4.accept(")") && st4.accept("))")) {
+              stmt = st4;
+              target = Single!(Short);
+            }
+            else if (st4.accept("__SI__") && st4.accept(")") && st4.accept("))")) {
+              stmt = st4;
+              // int already
+            }
+            else if (st4.accept("__DI__") && st4.accept(")") && st4.accept("))")) {
+              stmt = st4;
+              target = Single!(Long);
+            }
+          }
+        }
+        if (stmt.strip().length) {
+          // logln("LEFTOVER: ", stmt);
+          // logln("(target ", target, " = ", name, ")");
+          goto giveUp;
+        }
+      }
       auto ta = new TypeAlias(target, name);
       cache[name] = ta;
       continue;
@@ -499,17 +529,7 @@ void parseHeader(string filename, string src, ParseCb rest) {
   logSmart!(false)("# Got ", cache.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
 }
 
-import ast.fold, ast.literal_string;
-Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
-  if (!text.accept("c_include")) return null;
-  Expr ex;
-  if (!rest(text, "tree.expr", &ex))
-    text.failparse("Couldn't find c_import string expr");
-  if (!text.accept(";")) text.failparse("Missing trailing semicolon");
-  auto str = fastcast!(StringExpr)~ foldex(ex);
-  if (!str)
-    text.failparse(foldex(ex), " is not a string");
-  auto name = str.str;
+void performCImport(string name) {
   // prevent injection attacks
   foreach (ch; name)
     if (!(ch in Range['a'..'z'].endIncl)
@@ -539,7 +559,38 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
     ~ " " ~ filename;
   // logln("? ", cmdline);
   auto src = readback(cmdline);
-  parseHeader(filename, src, rest);
+  parseHeader(filename, src);
+}
+
+import ast.fold, ast.literal_string;
+Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
+  if (!text.accept("c_include")) return null;
+  Expr ex;
+  if (!rest(text, "tree.expr", &ex))
+    text.failparse("Couldn't find c_import string expr");
+  if (!text.accept(";")) text.failparse("Missing trailing semicolon");
+  auto str = fastcast!(StringExpr)~ foldex(ex);
+  if (!str)
+    text.failparse(foldex(ex), " is not a string");
+  performCImport(str.str);
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotCImport, "tree.toplevel.c_import");
+
+static this() {
+  ast.modules.specialHandler = delegate Module(string name) {
+    auto hdr = name.startsWith("c.");
+    if (!hdr) return null;
+    auto hfile = hdr.replace(".", "/") ~ ".h";
+    
+    auto mod = new Module(name);
+    mod.dontEmit = true;
+    
+    auto backup = namespace();
+    namespace.set(mod);
+    scope(exit) namespace.set(backup);
+    
+    performCImport(hfile);
+    return mod;
+  };
+}

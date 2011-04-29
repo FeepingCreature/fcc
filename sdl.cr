@@ -1,6 +1,6 @@
 module sdl;
 
-public import csdl;
+public import c.SDL.SDL;
 import std.string;
 
 SDL_Surface* surf;

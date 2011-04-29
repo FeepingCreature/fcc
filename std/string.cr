@@ -91,7 +91,7 @@ string concat(string[] strs) {
   return res[];
 }
 
-import std.c.stdlib;
+import c.stdlib;
 alias c_atoi = atoi;
 alias c_atof = atof;
 

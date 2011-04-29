@@ -156,7 +156,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       return selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
     }
     Object lookupRel(string str, Expr base) {
-      auto res = lookup(str);
+      auto res = lookup(str, true);
       if (auto rt = fastcast!(RelTransformable) (res))
         return fastcast!(Object) (rt.transform(base));
       return res;

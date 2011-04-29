@@ -1,6 +1,6 @@
 module std.math;
 
-import std.c.math;
+import c.math;
 
 vec3f cross3f(vec3f a, vec3f b) { return a.yzx * b.zxy - a.zxy * b.yzx; }
 

@@ -41,8 +41,10 @@ void startThread(void delegate() dg) {
     localRange = zip(localStart, localEnd);
   for (auto tup <- zip(__modules, localRange)) {
     alias mod = tup[0], range = tup[1];
-    if (range[0] < dataStart) dataStart = range[0];
-    if (range[1] > dataEnd) dataEnd = range[1];
+    if (mod.compiled) {
+      if (range[0] < dataStart) dataStart = range[0];
+      if (range[1] > dataEnd) dataEnd = range[1];
+    }
   }
   alias dataSize = dataEnd - dataStart;
   auto oldArea = _esi[dataStart..dataEnd];

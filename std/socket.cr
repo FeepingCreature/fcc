@@ -1,6 +1,6 @@
 module std.socket;
 
-import std.string, std.c.unistd, std.c.sys.socket, std.c.netdb;
+import std.string, c.unistd, c.sys.socket, c.netdb;
 
 class Address {
 }
@@ -22,23 +22,23 @@ TcpAddress tcpAddress(string dns, short port) using new TcpAddress {
 class Socket {
   int sockfd;
   void close() {
-    std.c.unistd.close(sockfd);
+    c.unistd.close(sockfd);
     sockfd = 0;
   }
   // alias isOpen = sockfd;
   void open(TcpAddress ta) {
     sockfd = socket (AF_INET, SOCK_STREAM, 0);
-    auto res = std.c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+    auto res = c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
   }
   int recv(void[] buf) {
-    auto res = std.c.sys.socket.recv(sockfd, buf.ptr, buf.length, 0);
+    auto res = c.sys.socket.recv(sockfd, buf.ptr, buf.length, 0);
     if (res <= 0) {
       close;
     }
     return res;
   }
   int send(void[] buf) {
-    auto res = std.c.sys.socket.send(sockfd, buf.ptr, buf.length, 0);
+    auto res = c.sys.socket.send(sockfd, buf.ptr, buf.length, 0);
     if (res <= 0) {
       close;
     }
@@ -55,6 +55,6 @@ class Socket {
     _interrupt 3;
   }
   void listen(int backlog) {
-    std.c.sys.socket.listen(sockfd, backlog);
+    c.sys.socket.listen(sockfd, backlog);
   }
 }

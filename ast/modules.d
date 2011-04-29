@@ -29,6 +29,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   bool _hasDebug = true;
   bool isValid; // still in the build list; set to false if superceded by a newer Module
   bool doneEmitting, alreadyEmat; // one for the parser, the other for the linker
+  bool dontEmit; // purely definitions; nothing to actually compile.
   private this() { assert(false); }
   this(string name) {
     this.name = name;
@@ -135,6 +136,9 @@ bool[string] currentlyParsing;
 static this() { New(cachelock); }
 
 bool delegate(Module) rereadMod;
+// some module names may require special handling
+// for instance, c.*
+Module delegate(string) specialHandler;
 
 import tools.compat: read, castLike, exists, sub;
 Module lookupMod(string name) {
@@ -164,24 +168,28 @@ Module lookupMod(string name) {
   scope(exit) cachelock.Synchronized = {
     currentlyParsing.remove(name);
   };
+  Module mod;
   auto fn = (name.replace(".", "/") ~ ".cr");
-  if (!fn.exists()) {
-    foreach (path; include_path) {
-      auto combined = path.sub(fn);
-      if (combined.exists()) {
-        fn = combined;
-        break;
+  if (specialHandler) mod = specialHandler(name);
+  if (!mod) {
+    if (!fn.exists()) {
+      foreach (path; include_path) {
+        auto combined = path.sub(fn);
+        if (combined.exists()) {
+          fn = combined;
+          break;
+        }
       }
     }
+    auto file = fn.read().castLike("");
+    synchronized(SyncObj!(sourcefiles))
+      sourcefiles[fn] = file;
+    mod = fastcast!(Module) (parsecon.parse(file, "tree.module"));
+    if (!mod)
+      file.failparse("Could not parse module");
+    if (file.strip().length)
+      file.failparse("Failed to parse module");
   }
-  auto file = fn.read().castLike("");
-  synchronized(SyncObj!(sourcefiles))
-    sourcefiles[fn] = file;
-  auto mod = fastcast!(Module) (parsecon.parse(file, "tree.module"));
-  if (!mod)
-    file.failparse("Could not parse module");
-  if (file.strip().length)
-    file.failparse("Failed to parse module");
   cachelock.Synchronized = {
     cache[name] = mod;
   };
