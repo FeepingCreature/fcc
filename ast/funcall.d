@@ -121,6 +121,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
       IType[] tried;
       if (auto p = name in nameds) {
         auto ex = *p, backup = ex;
+        nameds.remove(name);
         if (probe) {
           if (ex.valueType() != type)
             return false;
@@ -185,6 +186,9 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
     // text.failparse("Extraneous parameters to '", info, "' of ", params, ": ", args);
     text.setError("Extraneous parameters to '", info, "' of ", params, ": ", args);
     return false;
+  }
+  if (nameds.length) {
+    throw new Exception(Format("Leftover named arguments: ", nameds));
   }
   return true;
 }
