@@ -321,6 +321,7 @@ void loop(string start, string output, string[] largs,
   }
   bool[string] checked;
   bool needsRebuild(Module mod) {
+    if (mod.dontEmit) return false;
     if (!isUpToDate(mod)) return true;
     foreach (imp; mod.getImports())
       if (needsRebuild(imp)) return true;
