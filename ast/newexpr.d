@@ -98,7 +98,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto arr = fastcast!(Array) (base);
   if (!arr) return null;
   Expr len;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &len))
+  if (!rest(t2, "tree.expr _tree.expr.arith.concat", &len))
     t2.failparse("Expected index for array-new");
   auto backuplen = len;
   if (!gotImplicitCast(len, (IType it) { return !!fastcast!(SysInt) (it); }))
