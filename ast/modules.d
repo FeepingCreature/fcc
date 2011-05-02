@@ -96,7 +96,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       doneEmitting = true;
     }
     string mangle(string name, IType type) {
-      return "module_"~cleaned_name()~"_"~name~(type?("_of_"~type.mangle()):"");
+      return "module_"~cleaned_name()~"_"~name.cleanup()~(type?("_of_"~type.mangle()):"");
     }
     Object lookup(string name, bool local = false) {
       if (auto res = super.lookup(name)) return res;

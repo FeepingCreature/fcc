@@ -461,7 +461,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       }
     }
     string mangle(string name, IType type) {
-      return "class_"~this.name~"_"~name~"_of_"~type.mangle();
+      return "class_"~this.name.cleanup()~"_"~name~"_of_"~type.mangle();
     }
     Stuple!(IType, string, int)[] stackframe() {
       Stuple!(IType, string, int)[] res;
