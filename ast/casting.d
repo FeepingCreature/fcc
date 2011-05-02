@@ -325,6 +325,7 @@ class ShortToIntCast : Expr {
       af.popStack("%ax", sh.valueType().size);
       af.pushStack("%eax", 4);
     }
+    string toString() { return Format("int:", sh); }
   }
 }
 

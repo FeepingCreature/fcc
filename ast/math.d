@@ -184,6 +184,7 @@ class DoubleAsFloat : Expr {
   mixin defaultIterate!(d);
   override {
     IType valueType() { return Single!(Float); }
+    string toString() { return Format("float:", d); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("4"));
       d.emitAsm(af);
@@ -202,6 +203,7 @@ class IntLiteralAsShort : Expr {
   mixin defaultIterate!(ie);
   override {
     IType valueType() { return Single!(Short); }
+    string toString() { return Format("short:", ie); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("2"));
       af.mmove2(Format("$", ie.num), "%ax");
@@ -218,6 +220,7 @@ class IntAsShort : Expr {
   mixin defaultIterate!(ex);
   override {
     IType valueType() { return Single!(Short); }
+    string toString() { return Format("short:", ex); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("2"));
       ex.emitAsm(af);
