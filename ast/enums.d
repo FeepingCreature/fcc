@@ -95,6 +95,9 @@ grabIdentifier:
 mixin DefaultParser!(gotEnum, "tree.toplevel.enum", null, "enum");
 
 // enums cast implicitly to their base type
+// this can be useful when wrapping APIs
+// that define enum members in relation to other members
+// ie. A = 5, B = A + 4
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto vt = ex.valueType();
