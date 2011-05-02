@@ -57,7 +57,7 @@ int floatToIntColor(vec3f col) {
 void pset(int x, int y, vec3f col) {
   if (x >= surf.w || x < 0 || y >= surf.h || y < 0) return;
   auto p = &((int*:surf.pixels)[y * int:surf.pitch / 4 + x]);
-  *p = floatToIntColor(col);
+  *p = floatToIntColor col;
 }
 
 // Blatantly ripped off from WP:Bresenham
@@ -88,8 +88,8 @@ void line(int from-x, from-y, to-x, to-y, vec3f col = vec3f(1)) {
 void hline(int from-x, y, to-x, int icol) {
   auto surf = surf;
   if (y >= surf.h || y < 0) return;
-  from-x = [from-x, 0][eval from-x < 0];
-  if (to-x >= surf.w) to-x = surf.w - 1;
+  from-x = [from-x, 0]       [eval from-x < 0];
+  to-x   = [to-x, surf.w - 1][eval to-x >= surf.w];
   auto p = &((int*:surf.pixels)[y * int:surf.pitch / 4 + from-x]);
   auto delta = to-x - from-x + 1;
   delta = [delta, 0][eval delta < 0];
@@ -103,6 +103,29 @@ void hline(int from-x, y, to-x, int icol) {
   }
 }
 
+void hline(int from-x, y, to-x, vec3f col) {
+  hline(from-x, y, to-x, floatToIntColor col);
+}
+
+void vline(int x, from-y, to-y, int icol) {
+  auto surf = surf;
+  if (x >= surf.w || x < 0) return;
+  from-y = [from-y, 0]       [eval from-y < 0];
+  to-y   = [to-y, surf.h - 1][eval to-y >= surf.h];
+  auto pitch = int:surf.pitch / 4;
+  auto p = &((int*:surf.pixels)[from-y * pitch + x]);
+  auto delta = to-y - from-y + 1;
+  delta = [delta, 0][eval delta < 0];
+  while (delta --) {
+    *p = icol;
+    p += pitch;
+  }
+}
+
+void vline(int x, from-y, to-y, vec3f col) {
+  vline(x, from-y, to-y, floatToIntColor col);
+}
+
 void cls(vec3f col) {
   int icol = floatToIntColor col;
   for (int y = 0; y < surf.h; ++y) {
@@ -111,17 +134,18 @@ void cls(vec3f col) {
 }
 
 // This one is WP:Midpoint circle algorithm. <3 you WP.
-void circle(int x0, y0, radius, vec3f col = vec3f(1), vec3f fill = vec3f(-1)) {
+void circle(int x0, y0, radius,
+  xspread = 0, yspread = 0,
+  vec3f col = vec3f(1), vec3f fill = vec3f(-1)) {
   int f = 1 - radius, ddF_x = 1, ddF_y = - 2 * radius, x, y = radius;
   
   auto icol = floatToIntColor col;
+  auto fcol = floatToIntColor fill;
   
   bool fillIt = eval fill.x >= 0;
   
-  int fcol;
   if fillIt {
-    fcol = floatToIntColor fill;
-    hline(x0 - radius + 1, y0, x0 + radius - 1, fcol);
+    hline(x0 - radius + 1, y0, x0 + radius - 1 + xspread, fcol);
   }
   
   int lastY;
@@ -135,23 +159,43 @@ void circle(int x0, y0, radius, vec3f col = vec3f(1), vec3f fill = vec3f(-1)) {
     ++x; ddF_x += 2; f += ddF_x;
     if (fillIt && lastY != y) {
       lastY = y;
-      hline(x0 - x + 1, y0 - y, x0 + x - 1, fcol);
-      hline(x0 - x + 1, y0 + y, x0 + x - 1, fcol);
+      hline(x0 - x + 1, y0 - y          , x0 + x - 1 + xspread, fcol);
+      hline(x0 - x + 1, y0 + y + yspread, x0 + x - 1 + xspread, fcol);
     }
     if (x < y) {
-      hline(x0 - y + 1, y0 - x, x0 + y - 1, fcol);
-      hline(x0 - y + 1, y0 + x, x0 + y - 1, fcol);
+      hline(x0 - y + 1, y0 - x          , x0 + y - 1 + xspread, fcol);
+      hline(x0 - y + 1, y0 + x + yspread, x0 + y - 1 + xspread, fcol);
     }
-    for auto tup <- cross([x, -x], [y, -y]) {
-      pset(x0 + tup[0], y0 + tup[1], icol);
-      pset(x0 + tup[1], y0 + tup[0], icol);
+    for auto tup <- zip(cross([1, 0], [1, 0]), cross([1, -1], [1, -1])) {
+      pset(x0 + tup[1][0] * x + tup[0][0] * xspread,
+           y0 + tup[1][1] * y + tup[0][1] * yspread, icol);
+      pset(x0 + tup[1][0] * y + tup[0][0] * xspread,
+           y0 + tup[1][1] * x + tup[0][1] * yspread, icol);
     }
   }
-  // fill in the corners
-  pset(x0, y0 + radius, icol);
-  pset(x0, y0 - radius, icol);
-  pset(x0 + radius, y0, icol);
-  pset(x0 - radius, y0, icol);  
+  // fill in the sides/corners
+  hline(x0, y0 + radius + yspread, x0 + xspread, icol);
+  hline(x0, y0 - radius          , x0 + xspread, icol);
+  vline(x0 + radius + xspread, y0, y0 + yspread, icol);
+  vline(x0 - radius          , y0, y0 + yspread, icol);
+  // fill in the middle
+  if fillIt {
+    for (int i = y0; i <= y0 + yspread; ++i) {
+      hline(x0 - radius + 1, i, x0 + radius - 1 + xspread, fcol);
+    }
+  }
+}
+
+void rounded_box(int x0, y0, x1, y1,
+  radius = 5, vec3f col = vec3f(1), vec3f fill = vec3f(-1))
+{
+  // translate into circle call
+  auto cx = x0 + radius, xspread = x1 - cx;
+  xspread = [xspread, 0][eval xspread < 0];
+  auto cy = y0 + radius, yspread = y1 - cy;
+  yspread = [yspread, 0][eval yspread < 0];
+  circle(cx, cy, radius, xspread => xspread, yspread => yspread,
+         col => col, fill => fill);
 }
 
 bool x 1024 keyPressed, keyPushed;
