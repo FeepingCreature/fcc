@@ -51,6 +51,10 @@ template ReinterpretCast(T) {
         }
       }
     }
+  } else static if (is(T==LValue)) {
+    class ReinterpretCast : ReinterpretCast!(CValue), T {
+      mixin ReinterpretCast_Contents!(T);
+    }
   } else {
     class ReinterpretCast : ReinterpretCast!(Expr), T {
       mixin ReinterpretCast_Contents!(T);
@@ -257,8 +261,8 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
       if (auto res = recurse(entry)) return res;
     return null;
   }
-  auto dcme = fastcast!(DontCastMeExpr) (ex);
   if (accept(ex)) return true;
+  auto dcme = fastcast!(DontCastMeExpr) (ex);
   if (dcme) return false;
   if (auto res = recurse(ex)) { ex = res; return true; }
   else return false;

@@ -162,13 +162,17 @@ T lookup(T)(Namespace ns, string name) {
 import tools.threads;
 TLS!(Namespace) namespace;
 
+interface ExprLikeThingy { }
+
 import parseBase, tools.log;
 Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   string name; string t2 = text;
   if (t2.gotIdentifier(name, true)) {
     retry:
     if (auto res = namespace().lookup(name)) {
-      if (fastcast!(IType)~ res) return null; // Positively NOT an expr.
+      if (auto ty = fastcast!(IType) (res))
+        if (!fastcast!(ExprLikeThingy)(resolveType(ty)))
+          return null; // Positively NOT an expr, and not a thingy either.
       if (!text.accept(name))
         text.failparse("WTF ", name);
       return res;

@@ -524,23 +524,43 @@ import ast.parse, ast.fun, tools.base: or;
 Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   assert(lhs_partial());
   auto first_ex = fastcast!(Expr)~ lhs_partial();
-  if (!first_ex) return null;
-  outer_retry:
-  auto t2 = text;
-  auto ex = first_ex;
-  auto ex3 = ex;
+  Expr ex;
   Expr[] alts;
-  gotImplicitCast(ex3, (Expr ex) {
-    if (fastcast!(RelNamespace) (ex.valueType())) alts ~= ex;
-    auto ex4 = depointer(ex);
-    if (ex4 !is ex) {
-      gotImplicitCast(ex4, (Expr ex) {
-        if (fastcast!(RelNamespace) (ex.valueType())) alts ~= ex;
-        return false;
-      });
+  IType[] spaces;
+  auto t2 = text;
+  if (first_ex) {
+    ex = first_ex;
+    auto ex3 = ex;
+    gotImplicitCast(ex3, (Expr ex) {
+      {
+        auto vt = ex.valueType();
+        if (auto rn = fastcast!(RelNamespace) (vt)) {
+          alts ~= ex;
+          spaces ~= vt;
+        }
+      }
+      auto ex4 = depointer(ex);
+      if (ex4 !is ex) {
+        gotImplicitCast(ex4, (Expr ex) {
+          auto vt = ex.valueType();
+          if (auto rn = fastcast!(RelNamespace) (vt)) {
+            alts ~= ex;
+            spaces ~= vt;
+          }
+          return false;
+        });
+      }
+      return false;
+    });
+  } else {
+    if (auto ty = fastcast!(IType) (lhs_partial())) {
+      auto vt = resolveType(ty);
+      if (auto ns = fastcast!(Namespace) (vt)) {
+        alts ~= null;
+        spaces ~= vt;
+      }
     }
-    return false;
-  });
+  }
   if (!alts.length) {
     return null;
   }
@@ -549,13 +569,29 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   if (t2.gotIdentifier(member)) {
     
-    try_next_alt:
+  try_next_alt:
+    if (!alts.length)
+      return null;
     ex = alts[0]; alts = alts[1 .. $];
+    auto space = spaces[0]; spaces = spaces[1 .. $];
     
     auto pre_ex = ex;
     
-    auto rn = fastcast!(RelNamespace) (ex.valueType());
-    retry:
+    auto rn = fastcast!(RelNamespace) (space);
+  retry:
+    if (!ex) {
+      auto ns = fastcast!(Namespace) (space);
+      if (!ns) goto try_next_alt;
+      auto m = ns.lookup(member, true);
+      auto ex2 = fastcast!(Expr) (m);
+      if (!ex2) {
+        if (t2.eatDash(member)) goto retry;
+        text.setError(Format("No ", member, " in ", ns, "!"));
+        goto try_next_alt;
+      }
+      text = t2;
+      return fastcast!(Object) (ex2);
+    }
     auto m = rn.lookupRel(member, ex);
     if (fastcast!(Function) (m)) { text = t2; return m; }
     if (m) {
@@ -591,9 +627,6 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
         if (rn.isTempNamespace) dontFail = true;
         
         text.setError(mesg);
-        if (!alts.length) {
-          return null;
-        }
         goto try_next_alt;
       }
       return null;
