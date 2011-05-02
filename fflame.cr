@@ -50,7 +50,7 @@ void main(string[] args) {
   funlist ~= delegate void(vec2f* fp) { auto f = *fp; using f:: auto r2 = lensq, s = sin r2, c = cos r2; *fp = vec2f(x * s - y * c, x * c + y * s); };
   // (x - y) * (x + y) = x*x + x*y - y*x - y*y
   // funlist ~= delegate vec2f(vec2f f) using f { return vec2f((x - y) * (x + y), 2 * x * y) / sqrt lensq; };
-  funlist ~= delegate void(vec2f* fp) { auto f = *fp; auto fprod = f * f; float lsq = fprod.(x+y); *fp = vec2f(fprod.(x-y), 2*f.x*f.y) / std.math.sqrtf lsq; };
+  funlist ~= delegate void(vec2f* fp) { auto f = *fp; auto fprod = f * f; float lsq = fprod.(x+y); *fp = vec2f(fprod.(x-y), 2*f.x*f.y) / std.math.sqrt lsq; };
   
   int seed;
   if args.length (seed, args) = (args[0].atoi(), args[1..$]);
@@ -84,7 +84,7 @@ void main(string[] args) {
   vec4f rand4f() { return vec4f(randf(rng) x 4); }
   
   vec2f delegate(vec2f) transform(void delegate(vec2f*) dg) {
-    float[12] factors;
+    float x 12 factors;
     for int i <- 0..12 {
       factors[i] = randf(rng) * 4 - 2;
       factors[i] = factors[i].pow 3;
@@ -111,7 +111,7 @@ void main(string[] args) {
   for 0..rng.rand()%2 + 3
     funs ~= (rand4f(), transform funlist[rng.rand()%$]);
   
-  auto field = new vec4f[w * h];
+  auto field = new vec4f[] w * h;
   for int i <- 0..field.length field[i] = vec4f(0);
 
   long iters; int nanfails; long misses;

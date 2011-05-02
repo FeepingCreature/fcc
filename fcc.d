@@ -352,6 +352,7 @@ void loop(string start, string output, string[] largs,
     initedSysmod = false;
     sysmod = null;
     checked = null;
+    gotMain = null;
     resetTemplates();
     logln("please press return to continue. ");
     if (system("read")) return;

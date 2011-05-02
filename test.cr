@@ -54,7 +54,7 @@ struct W {
   }
 }
 
-import std.c.math, std.c.fenv, std.c.unistd, std.c.stdlib, std.c.time;
+import c.math, c.fenv, c.unistd, c.stdlib, c.time;
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
   screen(400, 300);

@@ -452,7 +452,9 @@ Object gotGenericFun(T, bool Decl)(T _fun, Namespace sup_override, bool addToNam
     scope(exit) namespace.set(backup);
     
     if (fun.name == "main") {
-      assert(!gotMain);
+      if (gotMain) {
+        t2.failparse("Main already defined! ");
+      }
       gotMain = fun;
       fun.name = "__fcc_main";
     }
