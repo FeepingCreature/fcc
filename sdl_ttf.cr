@@ -1,9 +1,7 @@
 // ported from qd
 module sdl_ttf;
 
-import sdl, std.string, csdl;
-
-c_include "SDL/SDL_ttf.h";
+import sdl, std.string, c.SDL.SDL_ttf;
 
 int deflt_size = 14;
 
@@ -52,7 +50,7 @@ class TTF_FontClass {
     return w;
   }
   int curStyle;
-  SDL_Surface* render(string text, fontsettings s = deflt, int rendermode = 2, SDL_Color* bg = SDL_Color*: null) {
+  Area render(string text, fontsettings s = deflt, int rendermode = 2, SDL_Color* bg = SDL_Color*: null) {
     
     int style;
     using s
@@ -64,13 +62,13 @@ class TTF_FontClass {
     
     /// Text mode: 0=Latin1, 1=UTF8, 2=Unicode
     if (rendermode == 0) // solid
-      return TTF_RenderUTF8_Solid (font, text.toStringz(), mkSDLColor(s.color));
+      return new Area new Surface TTF_RenderUTF8_Solid (font, text.toStringz(), mkSDLColor(s.color));
     if (rendermode == 1) {// shaded
       if !bg raise-error new Error "Shaded selected but no background color given! ";
-      return TTF_RenderUTF8_Shaded (font, text.toStringz(), mkSDLColor(s.color), *bg);
+      return new Area new Surface TTF_RenderUTF8_Shaded (font, text.toStringz(), mkSDLColor(s.color), *bg);
     }
     if (rendermode == 2) {
-      return TTF_RenderUTF8_Blended (font, text.toStringz(), mkSDLColor(s.color));
+      return new Area new Surface TTF_RenderUTF8_Blended (font, text.toStringz(), mkSDLColor(s.color));
     }
     raise-error new Error "Invalid case";
   }
