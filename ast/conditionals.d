@@ -64,9 +64,7 @@ class Compare : Cond, Expr {
   }
   void flip() {
     swap(e1, e2);
-    smaller = !smaller;
-    greater = !greater;
-    equal = !equal;
+    swap(smaller, greater);
   }
   bool isFloat() {
     return !!(Single!(Float) == e1.valueType());
@@ -87,21 +85,21 @@ class Compare : Cond, Expr {
   }
   void emitComparison(AsmFile af) {
     prelude;
-      if (isFloat) {
-        e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
-        e2.emitAsm(af); af.compareFloat("(%esp)"); af.sfree(4);
-      } else if (auto ie = fastcast!(IntExpr) (e2)) {
-        e1.emitAsm(af);
-        af.popStack("%eax", 4);
-        // remember: at&t order is inverted
-        af.compare(Format("$", ie.num), "%eax");
-      } else {
-        e2.emitAsm(af);
-        e1.emitAsm(af);
-        af.popStack("%ebx", 4);
-        af.popStack("%eax", 4);
-        af.compare("%eax", "%ebx");
-      }
+    if (isFloat) {
+      e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
+      e2.emitAsm(af); af.compareFloat("(%esp)"); af.sfree(4);
+    } else if (auto ie = fastcast!(IntExpr) (e2)) {
+      e1.emitAsm(af);
+      af.popStack("%eax", 4);
+      // remember: at&t order is inverted
+      af.compare(Format("$", ie.num), "%eax");
+    } else {
+      e2.emitAsm(af);
+      e1.emitAsm(af);
+      af.popStack("%ebx", 4);
+      af.popStack("%eax", 4);
+      af.compare("%eax", "%ebx");
+    }
   }
   override {
     IType valueType() {
@@ -131,6 +129,7 @@ class Compare : Cond, Expr {
       af.pushStack("%ecx", 4);
     }
     void jumpOn(AsmFile af, bool cond, string dest) {
+      emitComparison(af);
       auto s = smaller, e = equal, g = greater;
       if (!cond) { // negate
         s = !s; e = !e; g = !g; // TODO: validate
@@ -138,7 +137,6 @@ class Compare : Cond, Expr {
         if (s + g == 1)
           e = !e;*/
       }
-      emitComparison(af);
       if (isFloat) af.jumpOnFloat(s, e, g, dest);
       else af.jumpOn(s, e, g, dest);
     }
