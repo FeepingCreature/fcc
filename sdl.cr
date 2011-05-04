@@ -309,6 +309,8 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false) {
 
 bool x 1024 keyPressed, keyPushed;
 
+vec2i mouse-pos;
+
 void flip() {
   display.surf.flip();
   for int i <- 0..keyPushed.length
@@ -321,6 +323,9 @@ void flip() {
     }
     else if type == SDL_KEYUP using key.keysym {
       if (sym < keyPressed.length) { keyPressed[sym] = false; }
+    }
+    else if type == SDL_MOUSEMOTION using motion {
+      mouse-pos = vec2i(x, y);
     }
   }
 }
