@@ -180,7 +180,11 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     return null;
   }
   override Object lookupRel(string name, Expr base) {
-    if (!base) return lookupIntf(name, null);
+    if (!base) {
+      if (name == "name") // T.name
+        return fastcast!(Object) (mkString(this.name));
+      return lookupIntf(name, null);
+    }
     if (!fastcast!(IntfRef) (base.valueType())) {
       logln("Bad intf ref: ", base);
       asm { int 3; }
@@ -220,7 +224,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
   }
 }
 
-class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, IsMangled {
+class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy {
   Class myClass;
   this(Class cl) { myClass = cl; if (!cl) asm { int 3; } }
   override {
@@ -246,7 +250,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
   }
 }
 
-class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled {
+class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy {
   Intf myIntf;
   this(Intf i) { myIntf = i; }
   override {
@@ -472,6 +476,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       return res;
     }
     Object lookupRel(string str, Expr base) {
+      if (!base && str == "name") // T.name
+        return fastcast!(Object) (mkString(name));
       auto crType = fastcast!(ClassRef) (resolveType(base.valueType()));
       if (!crType) {
         logln("Bad class ref: ", base, " of ", base.valueType());

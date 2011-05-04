@@ -534,6 +534,8 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     gotImplicitCast(ex3, (Expr ex) {
       {
         auto vt = ex.valueType();
+        if (auto srn = fastcast!(SemiRelNamespace) (vt))
+          vt = fastcast!(IType) (srn.resolve());
         if (auto rn = fastcast!(RelNamespace) (vt)) {
           alts ~= ex;
           spaces ~= vt;
@@ -543,6 +545,8 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (ex4 !is ex) {
         gotImplicitCast(ex4, (Expr ex) {
           auto vt = ex.valueType();
+          if (auto srn = fastcast!(SemiRelNamespace) (vt))
+            vt = fastcast!(IType) (srn.resolve());
           if (auto rn = fastcast!(RelNamespace) (vt)) {
             alts ~= ex;
             spaces ~= vt;
@@ -555,7 +559,10 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   } else {
     if (auto ty = fastcast!(IType) (lhs_partial())) {
       auto vt = resolveType(ty);
-      if (auto ns = fastcast!(Namespace) (vt)) {
+      if (auto srn = fastcast!(SemiRelNamespace) (vt))
+        vt = fastcast!(IType) (srn.resolve());
+      
+      if (fastcast!(Namespace) (vt) || fastcast!(RelNamespace) (vt)) {
         alts ~= null;
         spaces ~= vt;
       }
@@ -581,14 +588,18 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   retry:
     if (!ex) {
       auto ns = fastcast!(Namespace) (space);
-      if (!ns) goto try_next_alt;
-      auto m = ns.lookup(member, true);
+      Object m;
+      if (rn) m = rn.lookupRel(member, null);
+      else if (ns) m = ns.lookup(member, true);
+      if (!m) goto try_next_alt;
+      
       auto ex2 = fastcast!(Expr) (m);
       if (!ex2) {
         if (t2.eatDash(member)) goto retry;
         text.setError(Format("No ", member, " in ", ns, "!"));
         goto try_next_alt;
       }
+      
       text = t2;
       return fastcast!(Object) (ex2);
     }
