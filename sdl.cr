@@ -13,7 +13,6 @@ class Surface {
   alias h = back.h;
   void flip() SDL_Flip back;
   void init() {
-    claim;
     rc.onZero = &free;
   }
   void init(SDL_Surface* surf) {
@@ -24,10 +23,19 @@ class Surface {
 
 int floatToIntColor(vec3f col) {
   vec3i ii = vec3i(0xff0000, 0xff00, 0xff);
-  vec3f ff = vec3f(ii);
+  vec3f ff = vec3f(0xff0000, 0xff00, 0xff);
   vec3i i = void;
   fastfloor3f (col * ff, &i);
-  return (i & ii).sum;
+  // make sure we get opacity
+  return (i & ii).sum + 0xff00_0000;
+}
+
+int floatToIntColor(vec4f col) {
+  vec3i ii = vec3i(0xff0000, 0xff00, 0xff);
+  vec3f ff = vec3f(0xff0000, 0xff00, 0xff);
+  vec3i i = void;
+  fastfloor3f (col.xyz * ff, &i);
+  return (i & ii).sum + (int:(col.w * 255) & 0xff) << 24;
 }
 
 class SDL-Error : Error {
@@ -48,9 +56,11 @@ class Area {
   alias x1 = rect[1].x;
   alias y1 = rect[1].y;
   alias w = x1 - x0, h = y1 - y0;
-  void free() { surf.free; }
+  void free() surf.free;
+  void claim() surf.claim;
   void init(Surface s) {
     surf = s;
+    claim;
     rect[0] = vec2i(0, 0);
     rect[1] = vec2i(surf.w, surf.h);
   }
@@ -71,6 +81,36 @@ class Area {
     auto res = SDL_UpperBlit (surf.back, &sdlrect1, dest.surf.back, &sdlrect2);
     if res raise-error new SDL-Error("SDL_UpperBlit", res);
   }
+  // copy, overwriting target alpha values with [target..ours].
+  void stamp(Area dest) {
+    auto w = w, h = h;
+    w = [w, dest.w][eval dest.w < w];
+    h = [h, dest.h][eval dest.h < h];
+    for int y <- 0..h {
+      auto srcp = &(
+        (int*:surf.back.pixels)
+        [(y0 + y) * int:surf.back.pitch / 4 + x0]);
+      auto dstp = &(
+        (int*:dest.surf.back.pixels)
+        [(dest.y0 + y) * int:dest.surf.back.pitch / 4 + dest.x0]);
+      for int x <- 0..w {
+        alias src = *srcp; alias dst = *dstp;
+        int srcalpha = (byte*:&src)[3], dstalpha = (byte*:&dst)[3];
+        int x 3 res = void;
+        for int i <- 0..3 {
+          res[i] = (
+            (byte*:&src)[i] * srcalpha
+          + (byte*:&dst)[i] * (255 - srcalpha)
+          ) >> 8; // allow to fill the remainder
+        }
+        int ires;
+        ires = res[2] << 16 | res[1] << 8 | res[0];
+        ires |= (dstalpha + ((255 - dstalpha) * srcalpha) >> 8) << 24;
+        dst = ires;
+        srcp ++; dstp ++;
+      }
+    }
+  }
   void pset(int x, y, vec3f col) {
     if !( x0 <= x < x1  &&  y0 <= y < y1 ) return;
     x += x0; y += y0;
@@ -87,7 +127,7 @@ class Area {
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + x]);
     *p = icol;
   }
-  void hline(int from-x, y, to-x, vec3f col) {
+  void hline(int from-x, y, to-x, vec4f col) {
     if !(y0 <= y < y1) return;
     y += y0;
     if !(0 <= y < surf.h) return;
@@ -111,7 +151,10 @@ class Area {
       *(p++) = icol;
     }
   }
-  void vline(int x, from-y, to-y, vec3f col) {
+  void hline(int from-x, y, to-x, vec3f col) {
+    hline(from-x, y, to-x, vec4f(col.(x, y, z, 1)));
+  }
+  void vline(int x, from-y, to-y, vec4f col) {
     if !(x0 <= x < x1) return;
     x += x0;
     if !(0 <= x < surf.w) return;
@@ -132,8 +175,15 @@ class Area {
       p += pitch;
     }
   }
+  void vline(int x, from-y, to-y, vec3f col) {
+    vline(x, from-y, to-y, vec4f(col.(x, y, z, 0)));
+  }
   void cls(vec3f col) {
-    for int y <- 0..h-1
+    for int y <- 0..h
+      hline(0, y, w-1, col);
+  }
+  void cls(vec4f col) {
+    for int y <- 0..h
       hline(0, y, w-1, col);
   }
   // Blatantly ripped off from WP:Bresenham
@@ -163,7 +213,7 @@ class Area {
   // This one is WP:Midpoint circle algorithm. <3 you WP.
   void circle(int x0, y0, radius,
     xspread = 0, yspread = 0,
-    vec3f col = vec3f(1), vec3f fill = vec3f(-1)) {
+    vec4f col = vec4f(1), vec4f fill = vec4f(-1)) {
     int f = 1 - radius, ddF_x = 1, ddF_y = - 2 * radius, x, y = radius;
     
     bool fillIt = eval fill.x >= 0;
@@ -188,7 +238,7 @@ class Area {
         hline(x0 - x + 1, y0 - y          , x0 + x - 1 + xspread, fill);
         hline(x0 - x + 1, y0 + y + yspread, x0 + x - 1 + xspread, fill);
       }
-      if (x < y) {
+      if (fillIt && x < y) {
         hline(x0 - y + 1, y0 - x          , x0 + y - 1 + xspread, fill);
         hline(x0 - y + 1, y0 + x + yspread, x0 + y - 1 + xspread, fill);
       }
@@ -211,34 +261,50 @@ class Area {
       }
     }
   }
+  void circle(int x0, y0, radius,
+    xspread = 0, yspread = 0,
+    vec3f col = vec3f(1), vec3f fill = vec3f(-1))
+  {
+    circle(x0, y0, radius, xspread, yspread,
+      vec4f(col.(x, y, z, 0)), vec4f(fill.(x, y, z, 0)));
+  }
   void rounded_box(int x0, y0, x1, y1,
-    radius = 5, vec3f col = vec3f(1), vec3f fill = vec3f(-1))
+    radius = 5, vec4f col = vec4f(1), vec4f fill = vec4f(-1))
   {
     // translate into circle call
-    auto cx = x0 + radius, xspread = x1 - cx;
+    auto cx = x0 + radius, xspread = x1 - cx - radius;
     xspread = [xspread, 0][eval xspread < 0];
-    auto cy = y0 + radius, yspread = y1 - cy;
+    auto cy = y0 + radius, yspread = y1 - cy - radius;
     yspread = [yspread, 0][eval yspread < 0];
     circle(cx, cy, radius, xspread => xspread, yspread => yspread,
           col => col, fill => fill);
+  }
+  void rounded_box(int x0, y0, x1, y1,
+    radius = 5, vec3f col = vec3f(1), vec3f fill = vec3f(-1))
+  {
+    rounded_box(x0, y0, x1, y1, radius,
+      vec4f(col.(x, y, z, 0)), vec4f(fill.(x, y, z, 0)));
   }
 }
 
 Area display;
 
-void screen(int w, h, bool fullscreen = false, bool hidden = false) {
-  SDL_Init(32); // video
+void init() { SDL_Init(SDL_INIT_VIDEO); }
+
+Area screen(int w, h, bool fullscreen = false, bool surface = false) {
   int cfg = SDL_SWSURFACE;
   if fullscreen cfg |= SDL_FULLSCREEN;
   
   SDL_Surface* surf;
-  if hidden
-    surf = SDL_CreateRGBSurface(cfg, w, h, 32, 0xff0000, 0xff00, 0xff, 0);
+  if surface
+    surf = SDL_CreateRGBSurface(cfg, w, h, 32, 0xff0000, 0xff00, 0xff, 0xff00_0000);
   else
     surf = SDL_SetVideoMode(w, h, 32, cfg);
   if !surf raise-error new Error "Couldn't init screen with $w x $h - $(CToString SDL_GetError())! ";
   
-  display = new Area new Surface surf;
+  if surface return new Area new Surface surf;
+  else display = new Area new Surface surf;
+  return display;
 }
 
 bool x 1024 keyPressed, keyPushed;
