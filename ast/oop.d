@@ -352,12 +352,11 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     scope(exit) namespace.set(backup);
     // TODO: switch
     auto as = new AggrStatement;
-    int intf_offset = classSize(false);
-    doAlign(intf_offset, voidp);
-    intf_offset /= 4;
+    int intf_offset;
     auto streq = sysmod.lookup("streq");
     assert(!!streq);
     void handleIntf(Intf intf) {
+      // logln(name, ": offset for intf ", intf.name, ": ", intf_offset);
       as.stmts ~= iparse!(Statement, "cast_branch_intf", "tree.stmt")("if (streq(id, _test)) return void*:(void**:this + offs);",
         rf, "_test", mkString(intf.mangle_id), "offs", mkInt(intf_offset)
       );
@@ -368,6 +367,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         rf, "_test", mkString(cl.mangle_id)
       );
       if (cl.parent) handleClass(cl.parent);
+      intf_offset = cl.classSize(false);
+      doAlign(intf_offset, voidp);
+      intf_offset /= 4;
       foreach (intf; cl.iparents)
         handleIntf(intf);
     }
