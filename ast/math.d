@@ -732,16 +732,16 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     retry:
     string opName; int _i;
     // this will all be unrolled and optimized out
+    string t3;
     foreach (i, bogus; Repeat!(void, lvcount))
       if (i == depth)
         foreach (k, bogus2; Repeat!(void, oplevel.length))
           if (oplevel[k] == i) {
-            auto t3 = t2;
+            t3 = t2;
             opName = oplist[k]; _i = i;
             bool accepted = t3.accept(opName);
             if (t3.startsWith(opName)) accepted = false;
             if (accepted) {
-              t2 = t3;
               goto accepted_handler;
             }
           }
@@ -749,8 +749,12 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     // shared code for all the cases - simplifies asm output
   accepted_handler:
     Expr nextOp;
-    if (!cont(t2, &nextOp))
-      t2.failparse("Could not find second operand for ", opName);
+    if (!cont(t3, &nextOp)) {
+      // may be part of a magnitude expr
+      if (opName == "|") return op;
+      t3.failparse("Could not find second operand for ", opName);
+    }
+    t2 = t3;
     op = lookupOp(opName, op, recurse(nextOp, _i + 1));
     goto retry;
   }

@@ -352,7 +352,7 @@ Structure mkVecStruct(Vector vec) {
     }
     if (!len) logln("Can't add length for ", lensq.valueType());
     assert(!!len);
-    res.add(new ExprAlias(len, "length"));
+    res.add(new ExprAlias(len, "magnitude"));
   }
 
   cache ~= stuple(res, vec, current_module());
@@ -778,3 +778,20 @@ Object gotXMM(ref string text, ParseCb cont, ParseCb rest) {
   return new XMM(lit.num);
 }
 mixin DefaultParser!(gotXMM, "tree.expr.xmm", "2406", "xmm");
+
+Object gotMagnitude(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!rest(t2, "tree.expr >tree.expr.magnitude", &ex))
+    return null;
+  if (!t2.accept("|"))
+    t2.failparse("Expected closing '|' for magnitude! ");
+  auto vt = resolveType(ex.valueType());
+  if (auto v = fastcast!(Vector) (vt)) {
+    text = t2;
+    auto strct = v.asStruct;
+    return strct.lookupRel("magnitude", reinterpret_cast(strct, ex));
+  }
+  t2.failparse("Invalid type for magnitude: ", vt);
+}
+mixin DefaultParser!(gotMagnitude, "tree.expr.magnitude", "24064", "|");
