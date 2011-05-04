@@ -6,9 +6,7 @@ import std.string;
 class Surface {
   SDL_Surface* back;
   RefCounted rc;
-  void clear() {
-    SDL_FreeSurface back;
-  }
+  void free() { SDL_FreeSurface back; }
   alias release = rc.release();
   alias claim = rc.claim();
   alias w = back.w;
@@ -16,7 +14,7 @@ class Surface {
   void flip() SDL_Flip back;
   void init() {
     claim;
-    rc.onZero = &clear;
+    rc.onZero = &free;
   }
   void init(SDL_Surface* surf) {
     back = surf;
@@ -50,6 +48,7 @@ class Area {
   alias x1 = rect[1].x;
   alias y1 = rect[1].y;
   alias w = x1 - x0, h = y1 - y0;
+  void free() { surf.free; }
   void init(Surface s) {
     surf = s;
     rect[0] = vec2i(0, 0);

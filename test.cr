@@ -68,18 +68,18 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       int factor1 = 0xff0000, factor2 = 0xff00, factor3 = 0xff;
       vec3f ff = vec3f(factor1, factor2, factor3);
       for (int y = from; y < to; ++y) {
-        auto p = &((int*:surf.pixels)[y * int:surf.w]);
+        auto p = &((int*:display.surf.back.pixels)[y * int:display.w]);
         vec3f f = void;
         vec3i i = void;
-        for (int x = 0; x < surf.w; ++x) {
-          f = dg(float:x / surf.w, float:y / surf.h, t) * ff;
+        for (int x = 0; x < display.w; ++x) {
+          f = dg(float:x / display.w, float:y / display.h, t) * ff;
           fastfloor3f (f, &i);
           *(p++) = i.x & factor1 + i.y & factor2 + i.z & factor3;
         }
       }
     }
     for (int i <- 0..8) {
-      auto step = surf.h / 8;
+      auto step = display.h / 8;
       auto from = step * i, to = step * (i + 1);
       void delegate() myApply(int from, int to, void delegate(int, int) dg) {
         return new delegate void() { return dg(from, to); };

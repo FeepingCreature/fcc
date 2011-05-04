@@ -324,7 +324,12 @@ void setupSysmods() {
       asm "psubd %xmm4, %xmm5";
       *res = vec3i:xmm[5];
     }
-
+    struct RefCounted {
+      void delegate() onZero;
+      int refs;
+      void claim() { refs ++; }
+      void release() { refs --; if !refs onZero(); }
+    }
     string replace(string source, string what, string with) {
       int i = 0;
       char[auto~] res;
