@@ -17,7 +17,7 @@ struct RelFunSet {
   }
   static bool IType_eq(IType[] a, IType[] b) {
     if (a.length != b.length) return false;
-    foreach (i, v; a) if (v !is b[i]) return false;
+    foreach (i, v; a) if (v != b[i]) return false;
     return true;
   }
   RelFunction lookup(string st, IType[] types) {
@@ -194,7 +194,8 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     if (name == "this") return fastcast!(Object)~ base;
     auto cv = fastcast!(CValue)~ base;
     if (!cv) {
-      logln("intf lookupRel fail ", base);
+      // logln("intf lookupRel fail ", base);
+      return null;
     }
     auto self = new RefExpr(cv);
     return lookupIntf(name, self);
