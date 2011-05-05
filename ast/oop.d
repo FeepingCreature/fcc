@@ -152,8 +152,10 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
       if (auto rel = overrides.hasLike(fun))
         res ~= rel.mangleSelf();
       else
-        throw new Exception(Format("Undefined2: ", name, " from ", this.name, "! "));
-
+        throw new Exception(
+          Format("Cannot generate classinfo for ", this.name,
+            ": ", fun.name, " not overridden. "));
+    
     return res;
   }
   import ast.index;
@@ -553,8 +555,9 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
     if (!t2.accept("}"))
       t2.failparse("Failed to parse struct body");
     // logln("register class ", cl.name);
+    try cl.finalize;
+    catch (Exception ex) text.failparse(ex);
     text = t2;
-    cl.finalize;
     return cast(Object) cl.getRefType();
   } else {
     t2.failparse("Couldn't match structure body");
