@@ -97,7 +97,10 @@ class WithStmt : Namespace, Statement, ScopeLike {
     }
     Object lookup(string name, bool local = false) {
       if (name == "that") return fastcast!(Object)~ context;
-      if (!local) {
+      bool block;
+      /* already have "that" to accomplish this */
+      if (name == "this") block = true;
+      if (!local && !block) {
         if (rns)
           if (auto res = rns.lookupRel(name, context))
             return res;
