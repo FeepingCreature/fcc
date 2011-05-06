@@ -127,6 +127,7 @@ class Area {
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + x]);
     *p = icol;
   }
+  vec4f delegate(int, int) fillfun;
   void hline(int from-x, y, to-x, vec4f col) {
     if !(y0 <= y < y1) return;
     y += y0;
@@ -142,13 +143,19 @@ class Area {
     auto icol = floatToIntColor col;
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + from-x]);
     auto delta = to-x - from-x + 1;
-    while delta >= 4 {
-      *(int, int, int, int)*:p = (icol x 4);
-      delta -= 4;
-      p += 4;
-    }
-    while (delta --) {
-      *(p++) = icol;
+    if auto fillfun = fillfun {
+      for (int x = from-x; x <= to-x; ++x) {
+        *(p++) = floatToIntColor fillfun(x, y);
+      }
+    } else {
+      while delta >= 4 {
+        *(int, int, int, int)*:p = (icol x 4);
+        delta -= 4;
+        p += 4;
+      }
+      while (delta --) {
+        *(p++) = icol;
+      }
     }
   }
   void hline(int from-x, y, to-x, vec3f col) {
@@ -250,8 +257,14 @@ class Area {
       }
     }
     // fill in the sides/corners
-    hline(x0, y0 + radius + yspread, x0 + xspread, col);
-    hline(x0, y0 - radius          , x0 + xspread, col);
+    // those two are part of the frame!
+    {
+      auto backup = fillfun;
+      fillfun = null;
+      onSuccess fillfun = backup;
+      hline(x0, y0 + radius + yspread, x0 + xspread, col);
+      hline(x0, y0 - radius          , x0 + xspread, col);
+    }
     vline(x0 + radius + xspread, y0, y0 + yspread, col);
     vline(x0 - radius          , y0, y0 + yspread, col);
     // fill in the middle
