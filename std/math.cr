@@ -100,6 +100,7 @@ extern(C) {
 float floor(float x) { return floorf x; }
 float ceil(float x) { return ceilf x; }
 float atan(float x) { return atanf x; }
+alias atan2 = atan2f;
 
 template minlist(T) <<EOT
   type-of __istep init!T minlist(T t) {
