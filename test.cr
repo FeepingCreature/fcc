@@ -1,5 +1,7 @@
 module test;
-import sdl, simplex, std.thread;
+import c.SDL.SDL, simplex, std.thread;
+
+SDL_Surface* surf;
 
 int delegate(int b) add(int a) { return new delegate int(int b) { return a + b; }; }
 
@@ -57,7 +59,7 @@ struct W {
 import c.math, c.fenv, c.unistd, c.stdlib, c.time;
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
-  screen(400, 300);
+  surf = SDL_SetVideoMode(400, 300, 32, 0);
   auto start = time(int*: null);
   float t = 0;
   int fps;
@@ -68,18 +70,18 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       int factor1 = 0xff0000, factor2 = 0xff00, factor3 = 0xff;
       vec3f ff = vec3f(factor1, factor2, factor3);
       for (int y = from; y < to; ++y) {
-        auto p = &((int*:display.surf.back.pixels)[y * int:display.w]);
+        auto p = &((int*:surf.pixels)[y * int:surf.pitch / 4]);
         vec3f f = void;
         vec3i i = void;
-        for (int x = 0; x < display.w; ++x) {
-          f = dg(float:x / display.w, float:y / display.h, t) * ff;
+        for (int x = 0; x < surf.w; ++x) {
+          f = dg(float:x / surf.w, float:y / surf.h, t) * ff;
           fastfloor3f (f, &i);
           *(p++) = i.x & factor1 + i.y & factor2 + i.z & factor3;
         }
       }
     }
     for (int i <- 0..8) {
-      auto step = display.h / 8;
+      auto step = surf.h / 8;
       auto from = step * i, to = step * (i + 1);
       void delegate() myApply(int from, int to, void delegate(int, int) dg) {
         return new delegate void() { return dg(from, to); };
@@ -91,9 +93,11 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
     fps ++;
   }
   auto last = time(int*:null);
-  while 1 {
+  while true {
     run();
-    flip;
+    SDL_Flip surf;
+    while SDL_PollEvent &SDL_Event ev using ev
+      if type == 12 return;
     if (auto tvar = time(null)) > last {
       last = tvar;
       writeln("FPS: $fps");
@@ -194,7 +198,7 @@ int main(string[] args) {
   auto cdg = mem.calloc_dg;
   mem.calloc_dg = delegate void*(int a, b) {
     // printf("Allocate %i, %i\n", a, b);
-    if (a*b > 65536) {
+    if (a*b > 65536 * 4) {
       printf("Excessive allocation: %i, %i\n", a, b);
       _interrupt 3;
     }
@@ -396,20 +400,21 @@ int main(string[] args) {
       // auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
       float noisex(vec3f v) {
         float sqr(float f) { return f * f; }
-        return noise3 vec3f(v.x + sqr noise3(v/* + vec3f(noise3 v)*/), v.y + sqr noise3(-v), v.z + sqr noise3(v / 2));
-        // return noise3 v;
+        // return noise3 vec3f(v.x + sqr noise3(v/* + vec3f(noise3 v)*/), v.y + sqr noise3(-v), v.z + sqr noise3(v / 2));
+        // return noise3 vec3f(v.x + sqr noise3(v), v.y, v.z);
+        return noise3 v;
         // return sinf(v.x + v.y + v.z) * 0.5 + 0.5;
       }
       // auto n = noisex vec3f(x * 8, y * 8, t);
       
-      /*auto res =
+      auto res =
               0.5    * noisex vec3f(x * 8,  y * 8,  t)
             + 0.25   * noisex vec3f(x * 16, y * 16, t * 2 + 4) // offset! important
             + 0.125  * noisex vec3f(x * 32, y * 32, t * 4 + 8)
             + 0.0625 * noisex vec3f(x * 64, y * 64, t * 8 + 12)
             + 0.03125* noisex vec3f(x *128, y *128, t * 16 + 16)
-            ;*/
-      auto res = noisex vec3f (x * 8, y * 8, t * 2);
+            ;
+      // auto res = noisex vec3f (x * 8, y * 8, t * 2);
       res = clamp(0, 1, res);
       
       // auto n = 0.5f * noise2(x * 4 + t, y * 4)+0.25;
