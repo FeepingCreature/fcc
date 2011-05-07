@@ -203,8 +203,14 @@ string compile(string file, CompileSettings cs) {
   lazySysmod();
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
-    srcname = end ~ ".s";
-    objname = end ~ ".o";
+    srcname = ".obj/" ~ end ~ ".s";
+    objname = ".obj/" ~ end ~ ".o";
+    auto path = srcname[0 .. srcname.rfind("/")];
+    string mew = ".";
+    foreach (component; path.split("/")) {
+      mew = mew.sub(component);
+      mkdir(toStringz(mew), 0755);
+    }
   } else assert(false);
   scope(exit) {
     if (!cs.saveTemps)
@@ -359,8 +365,13 @@ void loop(string start, string output, string[] largs,
   }
 }
 
+extern(C) char* realpath(char* path, char* resolved_path = null);
+
 import assemble: debugOpts;
 int main(string[] args) {
+  auto execpath = toString(realpath("/proc/self/exe"));
+  execpath = execpath[0 .. execpath.rfind("/") + 1];
+  include_path ~= execpath;
   initCastTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);
@@ -373,6 +384,8 @@ int main(string[] args) {
   justAcceptedCallback = 0 /apply/ (ref int prevHalfway, string s) {
     auto info = lookupProgress(s);
     if (info._1.endsWith(".cr")) {
+      foreach (path; include_path)
+        if (auto rest = info._1.startsWith(path)) info._1 = rest;
       const Length = 50;
       auto progbar = new char[Length];
       auto halfway = cast(int) (info._0 * Length);
@@ -425,8 +438,10 @@ int main(string[] args) {
     if (auto rest = arg.startsWith("-platform=")) {
       platform_prefix = rest~"-";
       logln("Use platform '", platform_prefix, "'");
-      if (include_path == ["/usr/include"[]]) {
-        include_path=["/usr/"~rest~"/include"]; // fix up
+      foreach (ref entry; include_path) {
+        if (entry == "/usr/include") {
+          entry = "/usr/"~rest~"/include"; // fix up
+        }
       }
       continue;
     }
