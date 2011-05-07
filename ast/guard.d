@@ -91,10 +91,9 @@ mixin DefaultParser!(gotGuard, "tree.stmt.guard", "17");
 
 interface IScoped {
   Expr getSup();
-  void emitAsmStart(AsmFile af);
-  void emitAsmEnd(AsmFile af);
 }
 
+import ast.tuples: LValueAsMValue;
 class Scoped(T) : T, IScoped {
   T sup;
   static assert(is(T: LValue) || is(T: MValue));
@@ -106,18 +105,11 @@ class Scoped(T) : T, IScoped {
     void emitAsm(AsmFile af) { assert(false); }
     IType valueType() { return sup.valueType(); }
     Expr getSup() { return sup; }
-    void emitAsmStart(AsmFile af) { sup.emitAsm(af); }
     static if (is(T: LValue)) {
       void emitLocation(AsmFile af) { assert(false); }
-      void emitAsmEnd(AsmFile af) {
-        (new Assignment(sup, new Placeholder(sup.valueType()))).emitAsm(af);
-      }
     }
     static if (is(T: MValue)) {
       void emitAssignment(AsmFile af) { assert(false); }
-      void emitAsmEnd(AsmFile af) {
-        sup.emitAssignment(af);
-      }
     }
   }
 }
@@ -131,11 +123,10 @@ Expr genScoped(Expr ex) {
 import tools.log;
 Object gotScoped(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("scoped")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr", &ex))
     t2.failparse("Failed to match expr for scoped");
   text = t2;
   return fastcast!(Object)~ genScoped(ex);
 }
-mixin DefaultParser!(gotScoped, "tree.expr.scoped", "26");
+mixin DefaultParser!(gotScoped, "tree.expr.scoped", "26", "scoped");

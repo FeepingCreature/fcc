@@ -32,6 +32,9 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       _body = as;
     }
   }
+  void addGuard(Statement st) {
+    guards ~= st;
+  }
   void addStatementToFront(Statement st) {
     if (auto as = fastcast!(AggrStatement) (_body)) as.stmts = st ~ as.stmts;
     else if (!_body) _body = st;

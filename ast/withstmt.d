@@ -1,6 +1,6 @@
 module ast.withstmt;
 
-import ast.base, ast.parse, ast.vardecl, ast.namespace, ast.guard, ast.scopes, ast.fun, ast.casting;
+import ast.base, ast.parse, ast.vardecl, ast.namespace, ast.guard, ast.scopes, ast.fun, ast.casting, ast.assign;
 
 class WithStmt : Namespace, Statement, ScopeLike {
   RelNamespace rns;
@@ -10,7 +10,6 @@ class WithStmt : Namespace, Statement, ScopeLike {
   Expr context;
   Scope sc;
   IScoped isc;
-  void delegate(AsmFile) pre, post;
   mixin defaultIterate!(vd, sc);
   override WithStmt dup() { assert(false, "wth"); }
   string toString() { return Format("with (", context, ") <- ", sup); }
@@ -19,12 +18,25 @@ class WithStmt : Namespace, Statement, ScopeLike {
     return (fastcast!(ScopeLike)~ sup).framesize() + temps;
   }
   this(Expr ex) {
+    sup = namespace();
+    namespace.set(this);
+    scope(exit) namespace.set(this.sup);
+    
+    sc = new Scope;
+    assert(!!sc.sup);
+    
     if (auto isc = fastcast!(IScoped) (ex)) {
       this.isc = isc;
       ex = isc.getSup;
-      pre = &isc.emitAsmStart;
-      temps += ex.valueType().size;
-      post = &isc.emitAsmEnd;
+      auto vt = ex.valueType();
+      
+      auto backupvar = new Variable(vt, null, ex, boffs(vt));
+      sc.add(backupvar);
+      
+      auto vd = new VarDecl;
+      vd.vars ~= backupvar;
+      sc.addStatement(vd);
+      sc.addGuard(mkAssignment(ex, backupvar));
       assert(!!fastcast!(LValue) (ex) || !!fastcast!(MValue) (ex), Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
     
@@ -41,6 +53,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       context = var;
       New(vd);
       vd.vars ~= var;
+      sc.addStatement(vd);
     }
     
     rns = fastcast!(RelNamespace)~ ex.valueType();
@@ -50,6 +63,10 @@ class WithStmt : Namespace, Statement, ScopeLike {
     
     if (!rns && !ns && !isc) {
       Expr ex2 = context;
+      auto backup = namespace();
+      namespace.set(sup);
+      scope(exit) namespace.set(backup);
+      
       gotImplicitCast(ex2, (Expr ex) {
         auto it = ex.valueType();
         if (auto ns = fastcast!(RelNamespace)~ it)
@@ -57,35 +74,23 @@ class WithStmt : Namespace, Statement, ScopeLike {
         return false;
       });
       if (!rnslist) {
-        Format("Cannot with-expr a non-[rel]ns: ", context).fail(); // TODO: select in gotWithStmt
+        logln("Cannot with-expr a non-[rel]ns: ", context); // TODO: select in gotWithStmt
+        asm { int 3; }
       }
     }
     
-    sup = namespace();
-    namespace.set(this);
-    scope(exit) namespace.set(this.sup);
+    if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
+                              ("eval (ex.onUsing)", "ex", context))
+      sc.addStatement(onUsing);
     
-    sc = new Scope;
-    assert(!!sc.sup);
-    
+    if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
+                              ("eval (ex.onExit)", "ex", context))
+      sc.addGuard(onExit);
   }
   override {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("0"));
-      
-      if (pre) pre(af);
-      scope(exit) if (post) post(af);
-      
-      auto dg = sc.open(af);
-      if (vd) vd.emitAsm(af); // do this BEFORE onUsing!
-      if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
-                                ("eval (ex.onUsing)", "ex", context))
-        onUsing.emitAsm(af);
-      auto close = dg();
-      if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
-                               ("eval (ex.onExit)", "ex", context))
-        onExit.emitAsm(af);
-      close();
+      sc.emitAsm(af);
     }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() {
@@ -128,8 +133,16 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   WithStmt ws, outer;
   
+  bool scoped;
+  if (auto isc = fastcast!(IScoped) (ex)) {
+    ex = isc.getSup;
+    scoped = true;
+  }
+  
   if (auto list = getTupleEntries(ex)) {
     foreach (entry; list) {
+      if (scoped) entry = genScoped(entry);
+      
       auto prev = ws;
       ws = new WithStmt(entry);
       ws.sc.configPosition(t2);
@@ -138,13 +151,16 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
       if (prev) prev.sc.addStatement(ws);
     }
   } else {
+    if (scoped) ex = genScoped(ex);
     ws = new WithStmt(ex);
-     ws.sc.configPosition(t2);
-    if (!outer) outer = ws;
+    ws.sc.configPosition(t2);
+    outer = ws;
     namespace.set(ws.sc);
   }
-  if (!rest(t2, "tree.stmt", &ws.sc._body))
+  Statement st;
+  if (!rest(t2, "tree.stmt", &st))
     t2.failparse("Couldn't match with-body");
+  ws.sc.addStatement(st);
   text = t2;
   return outer;
 }
