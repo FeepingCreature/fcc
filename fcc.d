@@ -305,8 +305,8 @@ void loop(string start, string output, string[] largs,
   }
   void translate(string file, ref string obj, ref string src) {
     if (auto pre = file.endsWith(EXT)) {
-      src = pre ~ ".s";
-      obj = pre ~ ".o";
+      src = ".obj/" ~ pre ~ ".s";
+      obj = ".obj/" ~ pre ~ ".o";
     } else assert(false);
   }
   bool isUpToDate(Module mod) {
@@ -314,6 +314,10 @@ void loop(string start, string output, string[] largs,
     string obj, src;
     file.translate(obj, src);
     if (!obj.exists()) return false;
+    if (!file.exists()) {
+      foreach (entry; include_path)
+        if (entry.sub(file).exists()) { file = entry.sub(file); break; }
+    }
     long created1, accessed1, modified1, created2, accessed2, modified2;
     file.getTimes(created1, accessed1, modified1);
     obj.getTimes(created2, accessed2, modified2);
