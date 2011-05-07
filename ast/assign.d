@@ -115,3 +115,10 @@ mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign", "1");
 static this() {
   registerClass("ast.assign", new Assignment);
 }
+
+Statement mkAssignment(Expr to, Expr from) {
+  if (auto lv = fastcast!(LValue) (to)) return new Assignment(lv, from);
+  if (auto mv = fastcast!(MValue) (to)) return new AssignmentM(mv, from);
+  logln("Invalid target for assignment: ", to);
+  asm { int 3; }
+}
