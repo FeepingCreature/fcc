@@ -133,16 +133,20 @@ void parseHeader(string filename, string src) {
       return true;
     }
     if (auto rest = text.strip().startsWith("...")) { text = rest; return Single!(Variadic); }
-    if (accept("unsigned long int"))  return Single!(SysInt);
-    if (accept("unsigned long long int") || accept("unsigned long long"))
-      return Single!(Long);
-    if (accept("long long int") || accept("long long"))
-      return Single!(Long);
-    if (accept("unsigned int") || accept("signed int") || accept("long int") || accept("int")) return Single!(SysInt);
-    if (accept("unsigned char") || accept("signed char") || accept("char")) return Single!(Char);
-    if (accept("signed short int") || accept("unsigned short int") || accept("unsigned short") || accept("short int") || accept("short"))
-      return Single!(Short);
-    if (accept("unsigned long")) return Single!(SizeT);
+    bool unsigned;
+    if (accept("unsigned")) unsigned = true;
+    else accept("signed");
+    
+    if (accept("long")) {
+      if (accept("int")) return Single!(SysInt);
+      if (accept("long")) { accept("int"); return Single!(Long); }
+      return unsigned?Single!(SizeT):Single!(SysInt);
+    }
+    if (accept("int")) return Single!(SysInt);
+    if (accept("short")) { accept("int"); return Single!(Short); }
+    if (accept("char")) return Single!(Char);
+    if (unsigned) return Single!(SysInt);
+    
     if (accept("void")) return Single!(Void);
     if (accept("float")) return Single!(Float);
     if (accept("double")) return Single!(Double);
