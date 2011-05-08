@@ -301,7 +301,7 @@ class SuperType : IType, RelNamespace {
   }
 }
 
-import ast.modules;
+import ast.modules, ast.returns;
 class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   VTable myfuns;
   Structure data;
@@ -344,50 +344,68 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     sup = namespace();
   }
   bool finalized;
-  void genDynCast() {
-    auto rf = new RelFunction(this);
-    New(rf.type);
-    rf.name = "dynamicCastTo";
-    rf.type.ret = voidp;
-    rf.type.params ~= Argument(Single!(Array, Single!(Char)), "id");
-    rf.sup = this;
-    rf.fixup;
-    (fastcast!(IsMangled) (rf)).markWeak();
-    add(rf);
-    auto backup = namespace();
-    namespace.set(rf);
-    scope(exit) namespace.set(backup);
-    // TODO: switch
-    auto as = new AggrStatement;
-    int intf_offset;
-    auto streq = sysmod.lookup("streq");
-    assert(!!streq);
-    void handleIntf(Intf intf) {
-      // logln(name, ": offset for intf ", intf.name, ": ", intf_offset);
-      as.stmts ~= iparse!(Statement, "cast_branch_intf", "tree.stmt")("if (streq(id, _test)) return void*:(void**:this + offs);",
-        rf, "_test", mkString(intf.mangle_id), "offs", mkInt(intf_offset)
-      );
-      intf_offset ++;
+  void genDefaultFuns() {
+    if (!lookupRel("toString", new DerefExpr(reinterpret_cast(new Pointer(new ClassRef(this)), mkInt(0))))) {
+      auto rf = new RelFunction(this);
+      New(rf.type);
+      rf.name = "toString";
+      rf.type.ret = Single!(Array, Single!(Char));
+      rf.sup = this;
+      rf.fixup;
+      (fastcast!(IsMangled) (rf)).markWeak();
+      add(rf);
+      auto backup = namespace();
+      namespace.set(rf);
+      scope(exit) namespace.set(backup);
+      rf.tree = new ReturnStmt(mkString(name));
+      current_module().entries ~= rf;
     }
-    void handleClass(Class cl) {
-      as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (streq(id, _test)) return void*:this;",
-        rf, "_test", mkString(cl.mangle_id)
-      );
-      if (cl.parent) handleClass(cl.parent);
-      intf_offset = cl.classSize(false);
-      doAlign(intf_offset, voidp);
-      intf_offset /= 4;
-      foreach (intf; cl.iparents)
-        handleIntf(intf);
+    
+    {
+      auto rf = new RelFunction(this);
+      New(rf.type);
+      rf.name = "dynamicCastTo";
+      rf.type.ret = voidp;
+      rf.type.params ~= Argument(Single!(Array, Single!(Char)), "id");
+      rf.sup = this;
+      rf.fixup;
+      (fastcast!(IsMangled) (rf)).markWeak();
+      add(rf);
+      auto backup = namespace();
+      namespace.set(rf);
+      scope(exit) namespace.set(backup);
+      // TODO: switch
+      auto as = new AggrStatement;
+      int intf_offset;
+      auto streq = sysmod.lookup("streq");
+      assert(!!streq);
+      void handleIntf(Intf intf) {
+        // logln(name, ": offset for intf ", intf.name, ": ", intf_offset);
+        as.stmts ~= iparse!(Statement, "cast_branch_intf", "tree.stmt")("if (streq(id, _test)) return void*:(void**:this + offs);",
+          rf, "_test", mkString(intf.mangle_id), "offs", mkInt(intf_offset)
+        );
+        intf_offset ++;
+      }
+      void handleClass(Class cl) {
+        as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (streq(id, _test)) return void*:this;",
+          rf, "_test", mkString(cl.mangle_id)
+        );
+        if (cl.parent) handleClass(cl.parent);
+        intf_offset = cl.classSize(false);
+        doAlign(intf_offset, voidp);
+        intf_offset /= 4;
+        foreach (intf; cl.iparents)
+          handleIntf(intf);
+      }
+      handleClass(this);
+      as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return null; ", rf);
+      rf.tree = as;
+      current_module().entries ~= rf;
     }
-    handleClass(this);
-    as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return null; ", rf);
-    rf.tree = as;
-    current_module().entries ~= rf;
   }
   // add interface refs
   void finalize() {
-    genDynCast;
+    genDefaultFuns;
     finalized = true;
     getClassinfo; // no-op to generate stuff
   }

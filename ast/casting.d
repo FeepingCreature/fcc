@@ -138,11 +138,10 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type", &dest) || !t2.accept(":"))
     return null;
   IType[] types;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; }))
-    t2.failparse(
-      "Expression not matched in cast; none of ", types, " matched ", dest.size, ". "
-    );
-    // return null;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; })) {
+    t2.setError("Expression not matched in cast; none of ", types, " matched ", dest.size, ". ");
+    return null;
+  }
   
   text = t2;
   return fastcast!(Object)~ reinterpret_cast(dest, ex);

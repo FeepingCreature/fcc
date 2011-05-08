@@ -169,6 +169,7 @@ void setupSysmods() {
     }
     /*MARKER2*/
     class Object {
+      string toString() { return "Object"; }
     }
     void* _fcc_dynamic_cast(void* ex, string id, int isIntf) {
       if (!ex) return null;
@@ -265,7 +266,7 @@ void setupSysmods() {
     class Error {
       string msg;
       void init(string s) msg = s;
-      alias toString = "Error: $msg";
+      string toString() { return "Error: $msg"; }
     }
     class Signal : Error {
       void init(string s) { super.init s; }
@@ -283,7 +284,7 @@ void setupSysmods() {
         if cur.accepts(err) cur.dg(err);
         cur = cur.prev;
       }
-      writeln "Unhandled condition: $(err.toString). ";
+      writeln "Unhandled condition: $(err.toString()). ";
       _interrupt 3;
     }
     void[] dupvcache;
@@ -388,7 +389,7 @@ void setupSysmods() {
       }
       int errnum;
       set-handler (Error err) {
-        writeln "Unhandled error: $(err.toString)";
+        writeln "Unhandled error: $(err.toString())";
         errnum = 1;
         _interrupt 3;
         invoke-exit "main-return";

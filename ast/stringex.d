@@ -151,5 +151,10 @@ Expr simpleFormat(Expr ex) {
       });
     });
   }
+  auto obj = fastcast!(IType) (sysmod.lookup("Object"));
+  if (gotImplicitCast(ex, obj, (IType it) { return test(it == obj); })) {
+    return iparse!(Expr, "gen_obj_toString_call", "tree.expr")
+                  (`obj.toString()`, "obj", lvize(ex));
+  }
   return null;
 }

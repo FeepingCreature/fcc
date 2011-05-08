@@ -71,11 +71,6 @@ static this() {
     if (Single!(Long) != resolveType(ex.valueType())) return null;
     return new LongAsDouble(ex);
   };
-  converts ~= delegate Expr(Expr ex, IType it) {
-    if (Single!(Double) != ex.valueType())
-      return null;
-    return new DoubleAsFloat(ex);
-  };
 }
 
 class IntAsLong : Expr {
