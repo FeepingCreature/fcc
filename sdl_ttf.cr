@@ -41,25 +41,25 @@ extern(C) {
 
 class TTF_FontClass {
   TTF_Font* font;
+  int curStyle;
   int height() { return TTF_FontHeight font; }
   int ascent() { return TTF_FontAscent font; }
   int descent() { return TTF_FontDescent font; }
   int lineskip() { return TTF_FontLineSkip font; }
-  int getWidth(string text) {
-    TTF_SizeUTF8 (font, text.toStringz(), &int w, &int h);
-    return w;
-  }
-  int curStyle;
-  Area render(string text, fontsettings s = deflt, int rendermode = 2, SDL_Color* bg = SDL_Color*: null) {
-    
+  void applySettings(fontsettings s) {
     int style;
     using s
       style = [0,1][bold] + [0,2][italic] + [0,4][underline];
-    
     if (curStyle != style) TTF_SetFontStyle (font, style);
-    
     curStyle = style;
-    
+  }
+  (int, int) getSize(string text, fontsettings s = deflt) {
+    applySettings s;
+    TTF_SizeUTF8 (font, text.toStringz(), &int w, &int h);
+    return (w, h);
+  }
+  Area render(string text, fontsettings s = deflt, int rendermode = 2, SDL_Color* bg = SDL_Color*: null) {
+    applySettings s;
     /// Text mode: 0=Latin1, 1=UTF8, 2=Unicode
     if (rendermode == 0) // solid
       return new Area new Surface TTF_RenderUTF8_Solid (font, text.toStringz(), mkSDLColor(s.color));

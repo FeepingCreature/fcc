@@ -70,6 +70,14 @@ class Area {
     res.rect[0] += vec2i(x, y);
     return res;
   }
+  Area sub(int x1, int y1, int x2, int y2) {
+    auto res = new Area surf;
+    res.rect = rect;
+    res.rect[0] += vec2i(x1, y1);
+    res.rect[1] = res.rect[0] + vec2i(x2 - x1, y2 - y1);
+    return res;
+  }
+  Area shrink(int sz) { return sub(sz, sz, w-sz, h-sz); }
   void blit(Area dest) {
     SDL_Rect sdlrect1, sdlrect2;
     for (int i, SDL_Rect* rp) <- zip(0..2, [&sdlrect1, &sdlrect2])
@@ -129,7 +137,7 @@ class Area {
   }
   vec4f delegate(int, int) fillfun;
   void hline(int from-x, y, to-x, vec4f col) {
-    if !(y0 <= y < y1) return;
+    if !(0 <= y < h) return;
     y += y0;
     if !(0 <= y < surf.h) return;
     from-x += x0; to-x += x0;
@@ -162,7 +170,7 @@ class Area {
     hline(from-x, y, to-x, vec4f(col.(x, y, z, 1)));
   }
   void vline(int x, from-y, to-y, vec4f col) {
-    if !(x0 <= x < x1) return;
+    if !(0 <= x < w) return;
     x += x0;
     if !(0 <= x < surf.w) return;
     from-y += y0; to-y += y0;
@@ -190,8 +198,9 @@ class Area {
       hline(0, y, w-1, col);
   }
   void cls(vec4f col) {
-    for int y <- 0..h
+    for int y <- 0..h {
       hline(0, y, w-1, col);
+    }
   }
   // Blatantly ripped off from WP:Bresenham
   void line(int from-x, from-y, to-x, to-y, vec3f col = vec3f(1)) {
