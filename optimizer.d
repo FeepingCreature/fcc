@@ -1157,14 +1157,13 @@ void setupOpts() {
     $SUBST(t, $0, $1);
   `));
   mixin(opt("wat", `^LoadAddress, ^Pop||^SFree:
-		!info($1).opContains($0.to)
-		=>
-		auto t = $0.dup;
-                bool block;
-		if ($1.kind == $TK.Pop)
-                  if (!t.from.tryFixupString(-$1.size)) block = true;
-	        if (!block) $SUBST($1, t);
-	`));
+    !info($1).opContains($0.to)
+    =>
+    auto t = $0.dup;
+    bool block;
+    if (!t.from.tryFixupString(-$1.size)) block = true;
+    if (!block) $SUBST($1, t);
+  `));
   mixin(opt("load_address_into_source", `^LoadAddress, *:
     info($1).hasIndirect(0, $0.to) && info($1).opSize() > 1
     =>
@@ -1769,6 +1768,10 @@ void setupOpts() {
       bool test(string s) {
         if (s.find(check) != -1) return true;
         if (check == "(%esp)" && hasStackDependence(s)) return true;
+        if (check.find("%eax") != -1 && (s.find("%ax") != -1 || s.find("%al") != -1) || s.find("%ah") != -1) return true;
+        if (check.find("%ebx") != -1 && (s.find("%bx") != -1 || s.find("%bl") != -1) || s.find("%bh") != -1) return true;
+        if (check.find("%ecx") != -1 && (s.find("%cx") != -1 || s.find("%cl") != -1) || s.find("%ch") != -1) return true;
+        if (check.find("%edx") != -1 && (s.find("%dx") != -1 || s.find("%dl") != -1) || s.find("%dh") != -1) return true;
         return false;
       }
       outer:foreach (_i, entry; list[1 .. $]) {
