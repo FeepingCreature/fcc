@@ -356,6 +356,34 @@ class ByteToShortCast : Expr {
   }
 }
 
+class ByteToIntCast : Expr {
+  Expr b;
+  this(Expr b) {
+    this.b = b;
+    if (b.valueType().size != 1) {
+      logln("Can't byte-to-int cast: wtf, ", b.valueType(), " on ", b);
+      asm { int 3; }
+    }
+  }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(b);
+  override {
+    IType valueType() { return Single!(SysInt); }
+    void emitAsm(AsmFile af) {
+      {
+        mixin(mustOffset("1"));
+        b.emitAsm(af);
+      }
+      // lol.
+      af.comment("byte to int cast lol");
+      af.put("xorl %eax, %eax");
+      af.popStack("%al", b.valueType().size);
+      af.pushStack("%eax", 4);
+    }
+  }
+}
+
 Expr reinterpret_cast(IType to, Expr from) {
   if (auto lv = fastcast!(LValue)~ from)
     return new RCL(to, lv);
@@ -372,6 +400,14 @@ static this() {
     auto tp = fastcast!(TypeProxy)~ ex.valueType();
     if (!tp) return null;
     return reinterpret_cast(resolveType(fastcast!(IType)~ tp), ex);
+  };
+  foldopt ~= delegate Expr(Expr ex) {
+    if (auto sic = fastcast!(ShortToIntCast) (ex)) {
+      if (auto bsc = fastcast!(ByteToShortCast) (sic.sh)) {
+        return new ByteToIntCast (bsc.b);
+      }
+    }
+    return null;
   };
   implicits ~= delegate Expr(Expr ex) {
     if (ex.valueType() == Single!(Byte) || ex.valueType() == Single!(Char))
