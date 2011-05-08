@@ -392,7 +392,12 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     getClassinfo; // no-op to generate stuff
   }
   mixin TypeDefaults!();
-  int ownClassinfoLength;
+  int ownClassinfoLength() { // skipping interfaces
+    int res;
+    if (parent) res += parent.getClassinfo().length;
+    res += myfuns.funs.length;
+    return res;
+  }
   // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
   string[] getClassinfo(RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
     
@@ -410,8 +415,6 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       else
         res ~= fun.mangleSelf();
     }
-    
-    ownClassinfoLength = res.length;
     
     // interfaces
     if (iparents.length) {
