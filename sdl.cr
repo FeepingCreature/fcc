@@ -94,28 +94,26 @@ class Area {
     auto w = w, h = h;
     w = [w, dest.w][eval dest.w < w];
     h = [h, dest.h][eval dest.h < h];
+    auto pitch = int:surf.back.pitch / 4, dpitch = int:dest.surf.back.pitch / 4;
+    auto srcp = &(
+      (int*:surf.back.pixels)
+      [y0 * pitch + x0]);
+    auto dstp = &(
+      (int*:dest.surf.back.pixels)
+      [dest.y0 * dpitch + dest.x0]);
     for int y <- 0..h {
-      auto srcp = &(
-        (int*:surf.back.pixels)
-        [(y0 + y) * int:surf.back.pitch / 4 + x0]);
-      auto dstp = &(
-        (int*:dest.surf.back.pixels)
-        [(dest.y0 + y) * int:dest.surf.back.pitch / 4 + dest.x0]);
+      auto sp = srcp, dp = dstp;
+      srcp += pitch; dstp += dpitch;
+      
       for int x <- 0..w {
-        alias src = *srcp; alias dst = *dstp;
-        int srcalpha = (byte*:&src)[3], dstalpha = (byte*:&dst)[3];
-        int x 3 res = void;
-        for int i <- 0..3 {
-          res[i] = (
-            (byte*:&src)[i] * srcalpha
-          + (byte*:&dst)[i] * (255 - srcalpha)
-          ) >> 8; // allow to fill the remainder
-        }
-        int ires;
-        ires = res[2] << 16 | res[1] << 8 | res[0];
-        ires |= (dstalpha + ((255 - dstalpha) * srcalpha) >> 8) << 24;
-        dst = ires;
-        srcp ++; dstp ++;
+        auto src = *sp; alias dst = *dp;
+        int srcalpha = (byte*:&src)[3], dstalpha = (byte*:&dst)[3], srcalpha2 = 255 - srcalpha;
+        dst =
+              ((dstalpha + ((255 - dstalpha) * srcalpha) >> 8) << 24)
+            | (((byte*:&src)[0] * srcalpha + (byte*:&dst)[0] * srcalpha2) >> 8)
+            | (((byte*:&src)[1] * srcalpha + (byte*:&dst)[1] * srcalpha2) & 0xff00)
+            | (((byte*:&src)[2] * srcalpha + (byte*:&dst)[2] * srcalpha2) >> 8 << 16);
+        sp ++; dp ++;
       }
     }
   }
@@ -136,7 +134,46 @@ class Area {
     *p = icol;
   }
   vec4f delegate(int, int) fillfun;
-  void hline(int from-x, y, to-x, vec4f col) {
+  void hline_fillfun(int from-x, y, to-x) {
+    if !(0 <= y < h) return;
+    y += y0;
+    if !(0 <= y < surf.h) return;
+    from-x += x0; to-x += x0;
+    
+    if (to-x < from-x) (from-x, to-x) = (to-x, from-x);
+    
+    from-x = [from-x, 0]       [eval from-x < 0];
+    to-x   = [to-x, surf.w - 1][eval to-x >= surf.w];
+    if (from-x >= surf.w || to-x < 0) return;
+    
+    auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + from-x]);
+    auto delta = to-x - from-x + 1;
+    auto fillfun = fillfun;
+    int x = from-x;
+    while delta-- {
+      xmm[6] = fillfun(x++, y);
+      xmm[7] = vec4f(0xff, 0xff00, 0, 0);
+      xmm[6] = xmm[6].zyxw; // BGRA
+      xmm[4] = xmm[6] * xmm[7];
+      xmm[6] = xmm[6].zwxy;
+      xmm[5] = xmm[6] * xmm[7];
+      asm "cvttps2dq %xmm4, %xmm6";
+      asm `psrld $31, %xmm4`;
+      asm "psubd %xmm4, %xmm6";
+      asm "cvttps2dq %xmm5, %xmm7";
+      asm `psrld $31, %xmm5`;
+      asm "psubd %xmm5, %xmm7";
+      auto i1 = vec3i:xmm[6], i2 = vec3i:xmm[7];
+      int i = 0;
+      i += i2.x & 0xff;
+      i += i2.y & 0xff00;
+      i <<= 16;
+      i += i1.x & 0xff;
+      i += i1.y & 0xff00;
+      *(p++) = i;
+    }
+  }
+  void hline_plain(int from-x, y, to-x, vec4f col) {
     if !(0 <= y < h) return;
     y += y0;
     if !(0 <= y < surf.h) return;
@@ -151,20 +188,33 @@ class Area {
     auto icol = floatToIntColor col;
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + from-x]);
     auto delta = to-x - from-x + 1;
-    if auto fillfun = fillfun {
-      for (int x = from-x; x <= to-x; ++x) {
-        *(p++) = floatToIntColor fillfun(x, y);
-      }
-    } else {
-      while delta >= 4 {
-        *(int, int, int, int)*:p = (icol x 4);
-        delta -= 4;
-        p += 4;
-      }
-      while (delta --) {
-        *(p++) = icol;
-      }
+    auto thingy = vec4i(icol);
+    xmm[4] = *vec4f*:&thingy;
+    // try to align to 16
+    while (int:p & 0xf) && delta {
+      *(p++) = icol;
+      delta --;
     }
+    while delta >= 16 {
+      (vec4f*:p)[0] = xmm[4];
+      (vec4f*:p)[1] = xmm[4];
+      (vec4f*:p)[2] = xmm[4];
+      (vec4f*:p)[3] = xmm[4];
+      delta -= 16;
+      p += 16;
+    }
+    while delta >= 4 {
+      (vec4f*:p)[0] = xmm[4];
+      delta -= 4;
+      p += 4;
+    }
+    while (delta --) {
+      *(p++) = icol;
+    }
+  }
+  void hline(int from-x, y, to-x, vec4f col) {
+    if fillfun { hline_fillfun(from-x, y, to-x); }
+    else hline_plain(from-x, y, to-x, col);
   }
   void hline(int from-x, y, to-x, vec3f col) {
     hline(from-x, y, to-x, vec4f(col.(x, y, z, 1)));
