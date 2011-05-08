@@ -1164,6 +1164,26 @@ void setupOpts() {
     if (!t.from.tryFixupString(-$1.size)) block = true;
     if (!block) $SUBST($1, t);
   `));
+  mixin(opt("direct_vector_move", `^SSEOp, ^Mov, ^Pop, ^Pop, ^Pop, ^Pop:
+    $0.opName == "movaps" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
+    $1.to == "%eax" && $2.size /and/ $3.size /and/ $4.size /and/ $5.size == 4 &&
+    $2.dest.isIndirect() == "%eax" && $3.dest.isIndirect() == "%eax" && $4.dest.isIndirect() == "%eax" && $5.dest.isIndirect() == "%eax"
+    =>
+    int d1, d2, d3, d4;
+    $2.dest.isIndirect2(d1); $3.dest.isIndirect2(d2); $4.dest.isIndirect2(d3); $5.dest.isIndirect2(d4);
+    if (d1+4==d2 && d2+4==d3 && d3+4==d4) {
+      auto t1 = $0.dup;
+      t1.opName = "movups";
+      t1.op2 = $2.dest;
+      auto t2 = $1.dup;
+      if (t2.from.tryFixupString(-16)) {
+        $T t3;
+        t3.kind = $TK.SFree;
+        t3.size = 16;
+        $SUBST(t3, t2, t1);
+      }
+    }
+  `));
   mixin(opt("load_address_into_source", `^LoadAddress, *:
     info($1).hasIndirect(0, $0.to) && info($1).opSize() > 1
     =>
