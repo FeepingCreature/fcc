@@ -107,6 +107,7 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
     string name; int line;
     lns.getInfo(name, line);
     if (!name) return;
+    if (name.startsWith("<internal")) return;
     if (auto id = af.getFileId(name)) {
       if (line >= 1) line -= 1; // wat!!
       af.put(".loc ", id, " ", line, " ", 0);
@@ -179,6 +180,7 @@ struct CompileSettings {
   string configOpts;
 }
 
+extern(C) int mkdir(char*, int);
 string compile(string file, CompileSettings cs) {
   while (file.startsWith("./")) file = file[2 .. $];
   auto af = new AsmFile(cs.optimize, cs.debugMode, cs.profileMode, file);
