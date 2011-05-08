@@ -16,7 +16,7 @@ TcpAddress tcpAddress(string dns, short port) using new TcpAddress {
     sin_family = AF_INET;
     sin_port = htons(port);
   }
-  return this;
+  return that;
 }
 
 class Socket {
