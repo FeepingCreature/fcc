@@ -3,8 +3,6 @@ module test16;
 import sdl, sdl_ttf;
 import std.math, std.file, std.random, std.boehm;
 
-(float, float) e_to_i_times(float x) { return (cos(x), sin(x)); }
-
 void main() {
   initBoehm();
   auto rng = getPRNG 23;
