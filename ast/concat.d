@@ -49,6 +49,8 @@ class ConcatChain : Expr {
           total  = new Variable(Single!(SysInt), null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize)),
           cache  = new Variable(sa,              null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
         cache.dontInit = true;
+        total.initInit;
+        offset.initInit;
         {
           auto vd = new VarDecl;
           vd.vars ~= offset;
@@ -97,29 +99,57 @@ class ConcatChain : Expr {
 }
 
 static this() {
-  bool isArray(IType it) { return fastcast!(Array) (it) || fastcast!(StaticArray) (it); }
+  IType isArray(IType it) {
+    if (auto ar = fastcast!(Array) (it)) return ar.elemType;
+    if (auto sa = fastcast!(StaticArray) (it)) return sa.elemType;
+    return null;
+  }
   bool isExtArray(IType it) { return !!fastcast!(ExtArray) (it); }
   bool isEqual(IType i1, IType i2) {
     return test(resolveType(i1) == resolveType(i2));
   }
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
-    auto cc = cast(ConcatChain) ex1, ex22 = ex2; // lol
-    if (!cc || !gotImplicitCast(ex2, &isArray) && !gotImplicitCast(ex22, cc.type.elemType /apply/ &isEqual))
+    auto cc = fastcast!(ConcatChain) (ex1), ex22 = ex2; // lol
+    bool failed1;
+    if (!cc
+      ||
+      !gotImplicitCast(ex2, (IType it) {
+        auto base = isArray(it);
+        if (!base) return false;
+        return test(base == cc.type.elemType);
+      })
+      &&
+      (failed1 = true, true)
+      &&
+      !gotImplicitCast(ex22, cc.type.elemType /apply/ &isEqual)
+    )
       return null;
-    if (!ex2) ex2 = ex22;
+    if (failed1) ex2 = ex22;
     return new ConcatChain(cc.arrays ~ ex2);
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
     auto ex22 = ex2;
+    IType base1;
+    bool failed1;
     if (
-      !gotImplicitCast(ex1, &isArray)
+      !gotImplicitCast(ex1, (IType it) {
+        auto b1 = isArray(it);
+        if (b1) base1 = b1;
+        return !!b1; 
+      })
       ||
-        !gotImplicitCast(ex2, &isArray)
+        !gotImplicitCast(ex2, (IType it) {
+          auto b2 = isArray(it);
+          if (!b2) return false;
+          return test(b2 == base1);
+        })
         &&
-        !gotImplicitCast(ex22, (fastcast!(Array)~ ex1.valueType()).elemType /apply/ &isEqual)
+        (failed1 = true, true)
+        &&
+        !gotImplicitCast(ex22, base1 /apply/ &isEqual)
       )
       return null;
-    if (!ex2) ex2 = ex22;
+    if (failed1) ex2 = ex22;
     return new ConcatChain(ex1, ex2);
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
