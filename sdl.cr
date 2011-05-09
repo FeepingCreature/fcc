@@ -48,6 +48,78 @@ class SDLQuit : Error {
   void init() { super.init "SDL_QUIT"; }
 }
 
+/*extern(C) void stamp_ptr(int* srcp, dstp, int w) {
+  for int x <- 0..w {
+    auto src = *srcp; alias dst = *dstp;
+    int srcalpha = (byte*:&src)[3], dstalpha = (byte*:&dst)[3], srcalpha2 = 255 - srcalpha;
+    dst =
+          ((dstalpha + ((255 - dstalpha) * srcalpha) >> 8) << 24)
+        | (((byte*:&src)[0] * srcalpha + (byte*:&dst)[0] * srcalpha2) >> 8)
+        | (((byte*:&src)[1] * srcalpha + (byte*:&dst)[1] * srcalpha2) & 0xff00)
+        | (((byte*:&src)[2] * srcalpha + (byte*:&dst)[2] * srcalpha2) >> 8 << 16);
+    srcp ++;
+    dstp ++;
+  }
+}*/
+// I cheated; I copypasted this from a gcc-compiled version of the above.
+// :3
+extern(C) void stamp_ptr(int* srcp, dstp, int w) {
+  asm `pushl %esi`;
+  asm `subl $44, %esp`;
+  asm `movl 16(%ebp), %eax`;
+  asm `movl 12(%ebp), %esi`;
+  asm `testl %eax, %eax`;
+  asm `jle .L1`;
+  asm `xorl %edx, %edx`;
+  asm `.p2align 4,,10`;
+  asm `.p2align 3`;
+  asm `.L3:`;
+  asm `movl 8(%ebp), %eax`;
+  asm `movl $255, %edi`;
+  asm `movl (%eax,%edx,4), %ecx`;
+  asm `movl %ecx, -40(%ebp)`;
+  asm `shrl $24, %ecx`;
+  asm `movzbl 3(%esi,%edx,4), %eax`;
+  asm `subl %ecx, %edi`;
+  asm `movl %eax, -44(%ebp)`;
+  asm `movzbl -40(%ebp), %eax`;
+  asm `movzbl (%esi,%edx,4), %ebx`;
+  asm `imull %ecx, %eax`;
+  asm `imull %edi, %ebx`;
+  asm `leal (%ebx,%eax), %eax`;
+  asm `movl $255, %ebx`;
+  asm `sarl $8, %eax`;
+  asm `subl -44(%ebp), %ebx`;
+  asm `imull %ecx, %ebx`;
+  asm `sarl $8, %ebx`;
+  asm `addl -44(%ebp), %ebx`;
+  asm `sall $24, %ebx`;
+  asm `orl %ebx, %eax`;
+  asm `movzbl 1(%esi,%edx,4), %ebx`;
+  asm `imull %edi, %ebx`;
+  asm `movl %ebx, -44(%ebp)`;
+  asm `movzbl -39(%ebp), %ebx`;
+  asm `imull %ecx, %ebx`;
+  asm `addl -44(%ebp), %ebx`;
+  asm `andl $65280, %ebx`;
+  asm `orl %ebx, %eax`;
+  asm `movzbl 2(%esi,%edx,4), %ebx`;
+  asm `imull %ebx, %edi`;
+  asm `movzbl -38(%ebp), %ebx`;
+  asm `imull %ecx, %ebx`;
+  asm `addl %ebx, %edi`;
+  asm `sarl $8, %edi`;
+  asm `sall $16, %edi`;
+  asm `orl %edi, %eax`;
+  asm `movl %eax, (%esi,%edx,4)`;
+  asm `incl %edx`;
+  asm `cmpl 16(%ebp), %edx`;
+  asm `jne .L3`;
+  asm `.L1:`;
+  asm `addl $44, %esp`;
+  asm `popl %esi`;
+}
+
 class Area {
   Surface surf;
   (vec2i, vec2i) rect;
@@ -102,19 +174,8 @@ class Area {
       (int*:dest.surf.back.pixels)
       [dest.y0 * dpitch + dest.x0]);
     for int y <- 0..h {
-      auto sp = srcp, dp = dstp;
+      stamp_ptr(srcp, dstp, w);
       srcp += pitch; dstp += dpitch;
-      
-      for int x <- 0..w {
-        auto src = *sp; alias dst = *dp;
-        int srcalpha = (byte*:&src)[3], dstalpha = (byte*:&dst)[3], srcalpha2 = 255 - srcalpha;
-        dst =
-              ((dstalpha + ((255 - dstalpha) * srcalpha) >> 8) << 24)
-            | (((byte*:&src)[0] * srcalpha + (byte*:&dst)[0] * srcalpha2) >> 8)
-            | (((byte*:&src)[1] * srcalpha + (byte*:&dst)[1] * srcalpha2) & 0xff00)
-            | (((byte*:&src)[2] * srcalpha + (byte*:&dst)[2] * srcalpha2) >> 8 << 16);
-        sp ++; dp ++;
-      }
     }
   }
   void pset(int x, y, vec3f col) {
