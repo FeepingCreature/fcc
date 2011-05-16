@@ -21,6 +21,18 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   string cleaned_name() { return name.cleanup(); }
   Module[] imports, public_imports;
   Module[] getImports() { return imports ~ public_imports; }
+  bool[] importsUsed; // print warnings on unused imports (but NOT public ones!)
+  static bool* getPtrResizing(ref bool[] array, int offs) {
+    if (array.length <= offs) array.length = offs + 1;
+    return &array[offs];
+  }
+  void checkImportsUsage() {
+    foreach (i, mod; imports) {
+      // importing module with constructor can be valid reason to import never-used module.
+      if (!mod.constrs.length && !*getPtrResizing(importsUsed, i))
+        logln("WARN:", name, ": import ", mod.name, " never used. ");
+    }
+  }
   Function[] constrs;
   Tree[] entries;
   Setupable[] setupable;
@@ -29,7 +41,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   bool _hasDebug = true;
   bool isValid; // still in the build list; set to false if superceded by a newer Module
   bool doneEmitting, alreadyEmat; // one for the parser, the other for the linker
-  bool dontEmit; // purely definitions; nothing to actually compile.
+  bool dontEmit; // purely definitions, no symbols; nothing to actually compile.
   private this() { assert(false); }
   this(string name) {
     this.name = name;
@@ -62,6 +74,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
     Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
+      checkImportsUsage;
       auto backup = current_module();
       scope(exit) current_module.set(backup);
       current_module.set(this);
@@ -71,9 +84,6 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
-        /*if (auto fun = fastcast!(Function)~ entry) {
-          logln("emit![", i - 1, "/", entries.length, "]: ", fun.name, " in ", cast(void*) this);
-        }*/
         entry.emitAsm(af);
       }
       void callback(ref Iterable it) {
@@ -100,17 +110,26 @@ class Module : Namespace, Tree, Named, StoresDebugState {
     }
     Object lookup(string name, bool local = false) {
       if (auto res = super.lookup(name)) return res;
-      if (auto lname = name.startsWith(this.name~"."))
+      
+      if (auto lname = name.startsWith(this.name).startsWith("."))
         if (auto res = super.lookup(lname)) return res;
       
-      foreach (mod; public_imports)
-        if (auto res = mod.lookup(name, true)) return res;
+      foreach (i, mod; public_imports)
+        if (auto res = mod.lookup(name, true))
+          return res;
+      
       if (local) return null;
-      foreach (mod; imports) {
-        if (auto res = mod.lookup(name, true)) return res;
+      
+      foreach (i, mod; imports) {
+        if (auto res = mod.lookup(name, true)) {
+          *getPtrResizing(importsUsed, i) = true;
+          return res;
+        }
       }
+      
       if (sysmod && sysmod !is this && name != "std.c.setjmp")
         if (auto res = sysmod.lookup(name, true)) return res;
+      
       return null;
     }
     string toString() { return "module "~name; }
