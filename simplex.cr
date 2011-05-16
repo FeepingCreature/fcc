@@ -1,7 +1,5 @@
 module simplex;
 
-import c.fenv, c.stdlib;
-
 int[] perm, mperm; // perm mod 12
 vec3i x 12 grad3;
 

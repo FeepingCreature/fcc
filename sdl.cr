@@ -63,6 +63,7 @@ class SDLQuit : Error {
 }*/
 // I cheated; I copypasted this from a gcc-compiled version of the above.
 // :3
+// Word of explanation: fcc really really sucks with byte-sized operations.
 extern(C) void stamp_ptr(int* srcp, dstp, int w) {
   asm `pushl %esi`;
   asm `subl $44, %esp`;
@@ -120,6 +121,8 @@ extern(C) void stamp_ptr(int* srcp, dstp, int w) {
   asm `popl %esi`;
 }
 
+interface INullArea { }
+
 class Area {
   Surface surf;
   (vec2i, vec2i) rect;
@@ -136,14 +139,19 @@ class Area {
     rect[0] = vec2i(0, 0);
     rect[1] = vec2i(surf.w, surf.h);
   }
-  Area at(int x, int y) {
+  Area dup() {
     auto res = new Area surf;
+    res.rect = rect;
+    return res;
+  }
+  Area at(int x, int y) {
+    auto res = dup();
     res.rect = rect;
     res.rect[0] += vec2i(x, y);
     return res;
   }
   Area sub(int x1, int y1, int x2, int y2) {
-    auto res = new Area surf;
+    auto res = dup();
     res.rect = rect;
     res.rect[0] += vec2i(x1, y1);
     res.rect[1] = res.rect[0] + vec2i(x2 - x1, y2 - y1);
@@ -163,6 +171,7 @@ class Area {
   }
   // copy, overwriting target alpha values with [target..ours].
   void stamp(Area dest) {
+    if INullArea:dest raise-error new Error "Don't stamp onto a null area! ";
     auto w = w, h = h;
     w = [w, dest.w][eval dest.w < w];
     h = [h, dest.h][eval dest.h < h];
@@ -179,17 +188,15 @@ class Area {
     }
   }
   void pset(int x, y, vec3f col) {
-    if !( x0 <= x < x1  &&  y0 <= y < y1 ) return;
     x += x0; y += y0;
-    if !( 0 <= x < surf.w  &&  0 <= y < surf.h ) return;
+    if !( 0 <= x < [surf.w, w][eval w < surf.w] && 0 <= y < [surf.h, h][eval h < surf.h] ) return;
     
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + x]);
     *p = floatToIntColor col;
   }
   void pset(int x, y, int icol) {
-    if !( x0 <= x < x1  &&  y0 <= y < y1 ) return;
     x += x0; y += y0;
-    if !( 0 <= x < surf.w  &&  0 <= y < surf.h ) return;
+    if !( 0 <= x < surf.w && 0 <= y < surf.h ) return;
     
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + x]);
     *p = icol;
@@ -235,7 +242,6 @@ class Area {
     }
   }
   void hline_plain(int from-x, y, to-x, vec4f col) {
-    if !(0 <= y < h) return;
     y += y0;
     if !(0 <= y < surf.h) return;
     from-x += x0; to-x += x0;
@@ -281,7 +287,6 @@ class Area {
     hline(from-x, y, to-x, vec4f(col.(x, y, z, 1)));
   }
   void vline(int x, from-y, to-y, vec4f col) {
-    if !(0 <= x < w) return;
     x += x0;
     if !(0 <= x < surf.w) return;
     from-y += y0; to-y += y0;
@@ -420,6 +425,36 @@ class Area {
   }
 }
 
+// drawing operations are no-ops
+class NullArea : Area, INullArea {
+  void free() { }
+  void claim() { }
+  
+  void init(Surface s) { super.init s; }
+  
+  Area dup() {
+    auto res = new NullArea surf;
+    res.rect = rect;
+    return res;
+  }
+  void blit(Area dest) {
+    if NullArea:dest return;
+    raise-error new Error "Blitting null-area onto regular area - this makes no sense! ";
+  }
+  void stamp(Area dest) { }
+  void pset(int x, y, vec3f col) { }
+  void pset(int x, y, int icol) { }
+  void hline_fillfun(int from-x, y, to-x) { }
+  void hline_plain(int from-x, y, to-x, vec4f col) { }
+  void vline(int x, from-y, to-y, vec4f col) { }
+  void cls(vec3f col) { }
+  void cls(vec4f col) { }
+  void line(int from-x, from-y, to-x, to-y, vec3f col = vec3f(1)) { }
+  void circle(int x0, y0, radius,
+    xspread = 0, yspread = 0,
+    vec4f col = vec4f(1), vec4f fill = vec4f(-1)) { }
+}
+
 Area display;
 
 void init() { SDL_Init(SDL_INIT_VIDEO); }
@@ -444,10 +479,15 @@ bool x 1024 keyPressed, keyPushed;
 
 vec2i mouse-pos;
 
+bool mouse-clicked, mouse-pressed, mouse-released;
+
 void flip() {
   display.surf.flip();
+  
+  (mouse-clicked, mouse-released) = false x 2;
   for int i <- 0..keyPushed.length
     keyPushed[i] = false;
+  
   while SDL_PollEvent &SDL_Event ev using ev {
     if type == 12
       raise-error new SDLQuit;
@@ -459,6 +499,14 @@ void flip() {
     }
     else if type == SDL_MOUSEMOTION using motion {
       mouse-pos = vec2i(x, y);
+    }
+    else if type == SDL_MOUSEBUTTONDOWN {
+      mouse-clicked = true;
+      mouse-pressed = true;
+    }
+    else if type == SDL_MOUSEBUTTONUP {
+      mouse-pressed = false;
+      mouse-released = true;
     }
   }
 }

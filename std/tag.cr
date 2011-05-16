@@ -1,19 +1,18 @@
 module std.tag;
 
 interface Tag {
-  Tag implements(string name);
+  Tag offers(string name);
   string ident();
 }
 
 class DefaultTag : Tag {
   string id;
   void init(string s) id = s;
-  Tag implements(string s) { return [Tag:null, Tag:this][eval s == id]; }
+  Tag offers(string s) { return [Tag:null, Tag:this][eval s == id]; }
   string ident() { return id; }
 }
 
-interface ITaggedObject {
-  Tag hasTag(string name);
+interface ITaggedObject : Tag {
   void annotate(Tag t);
 }
 
@@ -22,21 +21,22 @@ class Parented : DefaultTag {
   void init() super.init "Parented";
 }
 
-class TaggedObject : ITaggedObject {
+class TaggedObject : ITaggedObject, Tag {
   Tag[] extensions;
-  Tag hasTag(string name) {
+  string ident() { writeln "Can't call base method for TaggedObject:ident()!"; _interrupt 3; }
+  Tag offers(string name) {
     for Tag tag <- extensions {
-      if (tag.implements name) return tag;
+      if (tag.offers name) return tag;
     }
     return null;
   }
   void annotate(Tag t) {
     auto name = t.ident();
-    if auto par = Parented:t.implements "Parented" {
+    if auto par = Parented:t.offers "Parented" {
       par.parent = this;
     }
     for int i <- 0..extensions.length
-      if (extensions[i].implements name) {
+      if (extensions[i].offers name) {
         extensions[i] = t;
         return;
       }
@@ -44,18 +44,10 @@ class TaggedObject : ITaggedObject {
   }
 }
 
-template hasTag(T) <<EOT
-  T hasTag(ITaggedObject obj) {
-    return T: obj.hasTag(T.name);
-  }
-EOT
-
 template offers(T) <<EOT
   T offers(Object obj) {
-    if auto ito = ITaggedObject: obj
-      return T: ito.hasTag(T.name);
     if auto t = Tag: obj
-      return T: t.implements T.name;
+      return T: t.offers T.name;
     return null;
   }
 EOT

@@ -125,10 +125,10 @@ template castIter(T) <<EOF
 EOF
 
 // before, after
-(string, string) slice(string s, string m) {
+(string, string) slice(string s, string m, bool yieldNull = false) {
   auto pos = find(s, m);
-  // if (pos == -1) return (s, string:null);
   if (pos == -1) {
+    if (yieldNull) return (s, string:(null x 2));
     writeln "|$m| not found in |$s| for slice! ";
     _interrupt 3;
   }
