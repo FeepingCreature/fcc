@@ -407,6 +407,17 @@ int main(string[] args) {
   };
   string[] objects;
   string output;
+  // pre-pass
+  {
+    auto ar = args;
+    while (ar.length) {
+      auto arg = ar.take();
+      if (arg == "-xpar") {
+        xpar = ar.take().atoi();
+        continue;
+      }
+    }
+  }
   auto ar = args;
   string[] largs;
   bool runMe;
@@ -487,6 +498,10 @@ int main(string[] args) {
     if (arg == "-pg") {
       cs.profileMode = true;
       largs ~= "-pg";
+      continue;
+    }
+    if (arg == "-xpar") {
+      ar.take();
       continue;
     }
     if (arg == "-dump-graphs") {

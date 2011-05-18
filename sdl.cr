@@ -132,10 +132,10 @@ class Area {
   alias y1 = rect[1].y;
   alias w = x1 - x0, h = y1 - y0;
   void free() surf.free;
+  void release() surf.release;
   void claim() surf.claim;
   void init(Surface s) {
     surf = s;
-    claim;
     rect[0] = vec2i(0, 0);
     rect[1] = vec2i(surf.w, surf.h);
   }
@@ -470,8 +470,11 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false) {
     surf = SDL_SetVideoMode(w, h, 32, cfg);
   if !surf raise-error new Error "Couldn't init screen with $w x $h - $(CToString SDL_GetError())! ";
   
-  if surface return new Area new Surface surf;
-  else display = new Area new Surface surf;
+  using new Area new Surface surf {
+    claim;
+    if surface return that;
+    else display = that;
+  }
   return display;
 }
 

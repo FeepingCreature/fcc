@@ -3,6 +3,8 @@ module optimizer;
 import assemble, tools.base, ast.base, tools.base: Stuple, stuple;
 alias asmfile.startsWith startsWith;
 
+int xpar; // for debugging
+
 struct onceThenCall {
   void delegate(Transaction) dg;
   int opApply(int delegate(ref Transaction) _body) {
@@ -964,8 +966,9 @@ void setupOpts() {
       bool couldUpdate = obj.update($1);
       if (couldUpdate) {
         $SUBST(t);
+        // in case you're wondering .. yeah I'm just trolling my future self here.
         if (match.to != match.parent.list.length) {
-          goto skip; // > > > \
+          goto skip; // > > > \ 
         } //                  v
       } //                    v
       auto res = obj./*       v */translate();
