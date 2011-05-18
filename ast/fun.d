@@ -438,8 +438,19 @@ Object gotGenericFun(T, bool Decl)(T _fun, Namespace sup_override, bool addToNam
   IType ret;
   string fun_name;
   Argument[] _params;
-  if (test(ret = fastcast!(IType) (rest(t2, "type"))) &&
-      (forcename || t2.gotIdentifier(fun_name)) &&
+  string t3 = t2;
+  if
+    (
+      (
+        (test(ret = fastcast!(IType) (rest(t3, "type"))) && (t2 = t3, true))
+        ||
+        t2.accept("auto")
+      )
+      &&
+      (
+        forcename || t2.gotIdentifier(fun_name)
+      )
+      &&
       t2.gotParlist(_params, rest)
     )
   {
