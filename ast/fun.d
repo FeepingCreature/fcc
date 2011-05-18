@@ -30,20 +30,23 @@ struct Argument {
 
 class FunSymbol : Symbol {
   Function fun;
-  this(Function fun) {
-    this.fun = fun;
-    auto name = fun.mangleSelf();
+  string getName() {
+    string res = fun.mangleSelf();
     if (fun.type.stdcall) {
       int size;
       foreach (entry; fun.type.params)
         size += entry.type.size();
-      name ~= Format("@", size);
+      res ~= Format("@", size);
     }
-    super(name);
+    return res;
+  }
+  this(Function fun) {
+    this.fun = fun;
+    super();
   }
   private this() { }
   mixin DefaultDup!();
-  string toString() { return Format("symbol<", name, ">"); }
+  string toString() { return Format("symbol<", getName(), ">"); }
   override IType valueType() {
     auto res = new FunctionPointer;
     res.ret = fun.type.ret;
@@ -282,10 +285,11 @@ void handleReturn(IType ret, AsmFile af) {
 
 import tools.log;
 void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
+  if (!ret) throw new Exception("Tried to call function but return type not yet known! ");
   {
     mixin(mustOffset("0", "outer"));
     string name;
-    if (auto s = cast(Symbol) fp) name = s.name;
+    if (auto s = fastcast!(Symbol) (fp)) name = s.getName();
     else name = "(nil)";
     
     ret = resolveType(ret);

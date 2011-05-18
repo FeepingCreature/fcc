@@ -86,7 +86,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     Function fun;
     if (!rest(t3, "tree.fundef", &fun)) return false;
     fun.extern_c = true;
-    logln("got fundef ", fun.name);
+    // logln("got fundef ", fun.name);
     current_module().entries ~= fun;
     t2 = t3;
     return true;
