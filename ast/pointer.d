@@ -150,14 +150,15 @@ Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "22", "*");
 
 class Symbol : Expr {
-  string name;
-  this(string name) { this.name = name; }
-  private this() { }
+  string _name;
+  string getName() { return _name; }
+  this(string name) { this._name = name; }
+  this() { }
   mixin DefaultDup!();
   mixin defaultIterate!();
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
-    af.pushStack("$"~name, nativePtrSize);
+    af.pushStack("$"~getName(), nativePtrSize);
   }
 }
 

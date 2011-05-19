@@ -158,7 +158,7 @@ class StructIterator : Type, Iterator {
     wrapped = it;
     _elemType = iparse!(Expr, "si_elemtype", "tree.expr.eval")
                        (`eval (bogus.step)`,
-                        "bogus", new PlaceholderTokenLV(wrapped, "si_elemtype_ph")
+                        "bogus", new Placeholder(wrapped)
                        ).valueType();
   }
   override {
@@ -294,7 +294,7 @@ class ForIter(I) : Type, I {
       return ex;
     }
     void subst(ref Iterable it) {
-      if (it is var) {
+      if (cast(PlaceholderToken) it is var) {
         it = fastcast!(Iterable)~ newvar;
       } else {
         auto ex = fastcast!(Expr)~ it;
@@ -511,7 +511,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("extra")) {
     if (!rest(t2, "tree.expr", &exEx))
       t2.failparse("Couldn't match extra");
-    extra = new PlaceholderToken(exEx.valueType(), "exEx.valueType()");
+    extra = new PlaceholderTokenLV(exEx.valueType(), "exEx.valueType()");
     if (auto dc = fastcast!(DontCastMeExpr) (exEx))
       exBind = new DontCastMeExpr(extra); // propagate outwards
     else
@@ -521,7 +521,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Expected ':'");
   
   auto it = fastcast!(Iterator)~ sub.valueType();
-  auto ph = new PlaceholderToken(it.elemType(), "it.elemType() "~ivarname);
+  auto ph = new PlaceholderTokenLV(it.elemType(), "it.elemType() "~ivarname);
   
   auto backup = namespace();
   auto mns = new MiniNamespace("for_iter_var");
@@ -611,7 +611,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
   }
   mixin DefaultDup!();
   override void iterate(void delegate(ref Iterable) dg) {
-    defaultIterate!(iter, target, iref).iterate(dg);
+    defaultIterate!(iter, target, iref, iref_pre).iterate(dg);
   }
   override void configure() { iref = lvize(iref_pre); }
   override void jumpOn(AsmFile af, bool cond, string dest) {
@@ -693,7 +693,7 @@ withoutIterator:
   if (lv) ex = lv; else ex = mv;
   if (ex) { // yes, no-iterator iteration is possible.
     auto vt = ex.valueType(), it = fastcast!(Iterator)~ iter.valueType(), et = it.elemType();
-    Expr temp = new PlaceholderToken(fastcast!(IType)~ et, null);
+    Expr temp = new Placeholder(fastcast!(IType)~ et);
     if (!gotImplicitCast(temp, (IType it) { return test(it == vt); })) {
       logln(text.nextText()); 
       text.failparse("Can't iterate ", it, " (elem type ", et, "), into variable of ",  vt);

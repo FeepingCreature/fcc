@@ -81,11 +81,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       inProgress = af;
       foreach (s; setupable) s.setup(af);
       scope(exit) inProgress = null;
-      int i; // NOTE: not a foreach! entries may yet grow.
-      while (i < entries.length) {
-        auto entry = entries[i++];
-        entry.emitAsm(af);
-      }
+      
       void callback(ref Iterable it) {
         if (cast(NoOp) it) return;
         string info = Format("<node classname=\"", (fastcast!(Object)~ it).classinfo.name, "\"");
@@ -94,14 +90,20 @@ class Module : Namespace, Tree, Named, StoresDebugState {
         if (auto i = cast(HasInfo) it)
           info ~= Format( " info=\"", i.getInfo(), "\"");
         info ~= " >";
-        logln(info);
+        logln(info); 
         it.iterate(&callback);
         logln("</node>");
       }
       if (dumpXMLRep) {
         logln("----module ", name);
         iterate(&callback);
-        logln("----done");
+        logln("----done"); 
+      }
+      std.c.stdio.fflush(stdout);
+      int i; // NOTE: not a foreach! entries may yet grow.
+      while (i < entries.length) {
+        auto entry = entries[i++];
+        entry.emitAsm(af);
       }
       doneEmitting = true;
     }

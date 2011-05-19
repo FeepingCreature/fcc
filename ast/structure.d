@@ -593,57 +593,40 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       else if (ns) m = ns.lookup(member, true);
       if (!m) goto try_next_alt;
       
-      auto ex2 = fastcast!(Expr) (m);
-      if (!ex2) {
+      // auto ex2 = fastcast!(Expr) (m);
+      // if (!ex2) {
+      if (!m) {
         if (t2.eatDash(member)) goto retry;
         text.setError(Format("No ", member, " in ", ns, "!"));
         goto try_next_alt;
       }
       
       text = t2;
-      return fastcast!(Object) (ex2);
+      return m;
     }
     auto m = rn.lookupRel(member, ex);
-    if (fastcast!(Function) (m)) { text = t2; return m; }
-    if (m) {
-      // Don't ask.
-      if (_isITemplate(m)) {
-        text = t2;
-        return m;
+    if (!m) {
+      if (t2.eatDash(member)) goto retry;
+      string mesg, name;
+      auto info = Format(pre_ex.valueType());
+      if (info.length > 64) info = info[0..64] ~ " [snip]";
+      if (auto st = fastcast!(Structure) (resolveType(fastcast!(IType) (rn)))) {
+        name = st.name;
+        /*logln("alts1 ");
+        foreach (i, alt; alts)
+          logln("  ", i, ": ", alt);*/
+        mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names);
+      } else {
+        /*logln("alts2: ");
+        foreach (i, alt; alts)
+          logln("  ", i, ": ", alt);*/
+        mesg = Format(member, " is not a member of non-struct ", info);
       }
-    }
-    // Actually, do ask, It's a fun story. 
-    auto ex2 = fastcast!(Expr) (m);
-    if (!ex2) {
-      if (m) text.setError(member, " is not a rel var: ", m);
-      else {
-        if (t2.eatDash(member)) goto retry;
-        string mesg, name;
-        bool dontFail;
-        auto info = Format(pre_ex.valueType());
-        if (info.length > 64) info = info[0..64] ~ " [snip]";
-        if (auto st = fastcast!(Structure) (resolveType(fastcast!(IType) (rn)))) {
-          name = st.name;
-          /*logln("alts1 ");
-          foreach (i, alt; alts)
-            logln("  ", i, ": ", alt);*/
-          mesg = Format(member, " is not a member of ", pre_ex.valueType(), ", containing ", st.names);
-        } else {
-          /*logln("alts2: ");
-          foreach (i, alt; alts)
-            logln("  ", i, ": ", alt);*/
-          mesg = Format(member, " is not a member of non-struct ", info);
-        }
-        if (alts.length) goto try_next_alt;
-        if (rn.isTempNamespace) dontFail = true;
-        
-        text.setError(mesg);
-        goto try_next_alt;
-      }
-      return null;
+      text.setError(mesg);
+      goto try_next_alt;
     }
     text = t2;
-    return fastcast!(Object)~ ex2;
+    return m;
   } else return null;
 }
 mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_rel_member", null, ".");

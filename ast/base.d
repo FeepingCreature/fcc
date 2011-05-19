@@ -362,7 +362,7 @@ class PlaceholderToken : Expr {
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { logln("DIAF ", info); asm { int 3; } assert(false); }
+    void emitAsm(AsmFile af) { logln("DIAF ", info, " of ", type); asm { int 3; } assert(false); }
     string toString() { return Format("Placeholder(", info, ")"); }
   }
 }
