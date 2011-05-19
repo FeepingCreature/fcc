@@ -158,7 +158,7 @@ class StructIterator : Type, Iterator {
     wrapped = it;
     _elemType = iparse!(Expr, "si_elemtype", "tree.expr.eval")
                        (`eval (bogus.step)`,
-                        "bogus", new Placeholder(wrapped)
+                        "bogus", new PlaceholderTokenLV(wrapped, "wrapped")
                        ).valueType();
   }
   override {
