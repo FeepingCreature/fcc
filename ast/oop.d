@@ -201,7 +201,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     // base = lvize(base);
     auto cv = fastcast!(CValue)~ base;
     if (!cv) {
-      logln("intf lookupRel fail ", base, " '", (cast(Object) base).classinfo.name, "'");
+      // logln("intf lookupRel fail ", base, " '", (cast(Object) base).classinfo.name, "'");
       return null;
     }
     // auto self = new RefExpr(cv);

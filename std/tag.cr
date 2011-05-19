@@ -44,17 +44,15 @@ class TaggedObject : ITaggedObject, Tag {
   }
 }
 
-template offersNamed(T) <<EOT
-  T offersNamed(Object obj, string name) {
-    if !name.length name = T.name;
-    if auto t = Tag: obj
-      return T: t.offers name;
-    return null;
-  }
-EOT
-
 template offers(T) <<EOT
   T offers(Object obj) {
-    return offersNamed!T(obj, string:(null, null));
+    if !obj return null;
+    if auto res = T: obj
+      return res;
+    
+    if auto t = Tag: obj
+      return T: t.offers T.name;
+    
+    return null;
   }
 EOT
