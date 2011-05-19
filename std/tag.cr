@@ -26,7 +26,7 @@ class TaggedObject : ITaggedObject, Tag {
   string ident() { writeln "Can't call base method for TaggedObject:ident()!"; _interrupt 3; }
   Tag offers(string name) {
     for Tag tag <- extensions {
-      if (tag.offers name) return tag;
+      if (auto res = tag.offers name) return res;
     }
     return null;
   }

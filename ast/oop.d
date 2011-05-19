@@ -198,7 +198,9 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
       asm { int 3; }
     }
     if (name == "this") return fastcast!(Object)~ base;
-    // base = lvize(base);
+    // haaaaax
+    if (!namespace().get!(MiniNamespace))
+      base = lvize(base);
     auto cv = fastcast!(CValue)~ base;
     if (!cv) {
       // logln("intf lookupRel fail ", base, " '", (cast(Object) base).classinfo.name, "'");
