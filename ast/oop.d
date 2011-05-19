@@ -47,10 +47,16 @@ import ast.vardecl;
 class VTable {
   RelFunction[] funs;
   Class parent;
+  static bool Arglist_eq(Argument[] a, Argument[] b) {
+    if (a.length != b.length) return false;
+    foreach (i, v; a) if (v.type != b[i].type) return false;
+    return true;
+  }
   bool defines(Function fun) {
-    foreach (f2; funs)
+    foreach (f2; funs) {
       if (f2.name == fun.name &&
-          f2.getParams() == fun.getParams()) return true;
+          Arglist_eq(f2.getParams(), fun.getParams())) return true;
+    }
     return false;
   }
   Object lookup(string name, Expr classref) {
@@ -192,12 +198,14 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
       asm { int 3; }
     }
     if (name == "this") return fastcast!(Object)~ base;
+    base = lvize(base);
     auto cv = fastcast!(CValue)~ base;
     if (!cv) {
-      // logln("intf lookupRel fail ", base);
+      logln("intf lookupRel fail ", base, " '", (cast(Object) base).classinfo.name, "'");
       return null;
     }
-    auto self = new RefExpr(cv);
+    // auto self = new RefExpr(cv);
+    auto self = cv;
     return lookupIntf(name, self);
   }
   Function lookupClass(string name, int offs, Expr classref) {
@@ -624,46 +632,6 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   return intf.getRefType();
 }
 mixin DefaultParser!(gotIntfDef, "tree.typedef.intf", null, "interface");
-
-// ruefully copypasted from ast.structure
-Object gotClassMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  
-  t2.passert(!!lhs_partial(),
-    "got class member expr? weird");
-  auto ex = fastcast!(Expr) (lhs_partial());
-  if (!ex) return null;
-  if (!gotImplicitCast(ex, (IType it) {
-    it = resolveType(it);
-    return fastcast!(ClassRef) (it) || fastcast!(IntfRef) (it);
-  })) return null;
-  auto it = ex.valueType();
-  it = resolveType(it);
-  
-  auto cr = fastcast!(ClassRef) (it), ir = fastcast!(IntfRef) (it);
-  if (!cr && !ir) return null;
-  
-  Class cl; Intf intf;
-  if (cr) cl = cr.myClass;
-  else intf = ir.myIntf;
-  
-  string member;
-  
-  if (t2.gotIdentifier(member)) {
-    Object m;
-    retry:
-    if (cl) m = cl.lookupRel(member, ex);
-    else m = intf.lookupIntf(member, ex);
-    if (!m) {
-      if (t2.eatDash(member)) goto retry;
-      text.setError("No '", member, "' in ", cl?cl:intf, "!");
-      return null;
-    }
-    text = t2;
-    return m;
-  } else return null;
-}
-mixin DefaultParser!(gotClassMemberExpr, "tree.rhs_partial.access_class_member", null, ".");
 
 import ast.casting, ast.opers;
 
