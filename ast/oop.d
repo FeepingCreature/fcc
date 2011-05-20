@@ -567,8 +567,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
           auto bp = fastcast!(Expr) (namespace().lookup("__base_ptr", true));
           if (bp) {
             bp = new DerefExpr(reinterpret_cast(new Pointer(data), bp));
-            logln(bp);
-            logln("for ", namespace());
+            // logln(bp);
+            // logln("for ", namespace());
             auto cref = fastcast!(Expr) (
               ctx.transform(bp)
             );
@@ -576,10 +576,10 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
             if (auto res = rn.lookupRel(id, cref))
               return res;
           }
-        } else {
+        }/* else {
           logln("use regular lookup (into rn) for ", id, " to ", sup);
           logln(" => ", sup.lookup(id, false));
-        }
+        }*/
       }
       return sup.lookup(id, false);
     }
