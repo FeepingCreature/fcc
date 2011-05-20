@@ -13,7 +13,8 @@ class _Assignment(T) : LineNumberedStatementClass {
       logln("Can't assign: ", t);
       logln(" of ", t.valueType());
       logln(" <- ", e.valueType());
-      asm { int 3; }
+      throw new Exception("Assignment type mismatch! ");
+      // asm { int 3; }
     }
     target = t;
     value = e;
