@@ -32,7 +32,7 @@ template dgIter(T) <<EOF
     type-of dg() step() { return dg(); }
     bool ivalid() { return true; }
   }
-  DelegateIterator dgIter(T t) {
+  auto dgIter(T t) {
     auto res = new DelegateIterator;
     res.t = t;
     return res;

@@ -391,7 +391,10 @@ int main(string[] args) {
     auto info = lookupProgress(s);
     if (info._1.endsWith(".cr")) {
       foreach (path; include_path)
-        if (auto rest = info._1.startsWith(path)) info._1 = rest;
+        if (auto rest = info._1.startsWith(path)) {
+          if (auto rest2 = rest.startsWith("/")) rest = rest2;
+          info._1 = rest;
+        }
       const Length = 50;
       auto progbar = new char[Length];
       auto halfway = cast(int) (info._0 * Length);
