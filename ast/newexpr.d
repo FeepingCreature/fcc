@@ -2,7 +2,8 @@ module ast.newexpr;
 
 import
   ast.oop, ast.base, ast.static_arrays, ast.namespace, ast.parse,
-  ast.vardecl, ast.int_literal, ast.pointer, ast.structure: doAlign;
+  ast.vardecl, ast.int_literal, ast.pointer, ast.assign,
+  ast.structure: doAlign;
 
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -34,6 +35,20 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         "_classinfo", new Symbol(cr.myClass.ci_name())
       ).emitAsm(af);
       
+      if (cr.myClass.ctx) {
+        auto transformed = cr.myClass.ctx.transform(
+          new DerefExpr(reinterpret_cast(new Pointer(cr.myClass.data), var))
+        );
+        auto bp = namespace().lookup("__base_ptr");
+        if (bp) {
+          // logln("transformed: ", transformed);
+          // logln("baseptr: ", bp);
+          (new Assignment(
+            fastcast!(LValue) (transformed),
+            fastcast!(Expr) (namespace().lookup("__base_ptr"))
+          )).emitAsm(af);
+        }
+      }
       void initClass(Class cl) {
         if (cl.parent) initClass(cl.parent);
         auto base = cl.classSize(false);
