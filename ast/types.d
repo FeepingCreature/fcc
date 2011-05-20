@@ -134,16 +134,10 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   if (text.accept("float")) return Single!(Float);
   if (text.accept("double")) return Single!(Double);
   if (text.accept("real")) return Single!(Real);
-  return null;
-}
-mixin DefaultParser!(gotBasicType, "type.basic", "3");
-
-import tools.log;
-Object gotVariadic(ref string text, ParseCb cont, ParseCb rest) {
   if (text.accept("...")) return Single!(Variadic);
   return null;
 }
-mixin DefaultParser!(gotVariadic, "type.variadic", "9");
+mixin DefaultParser!(gotBasicType, "type.basic", "3");
 
 // postfix type modifiers
 IType delegate(ref string text, IType cur, ParseCb cont, ParseCb rest)[]
