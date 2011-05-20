@@ -1,6 +1,6 @@
 module ast.modules;
 
-import ast.base, ast.namespace, ast.fun, ast.parse, ast.structure;
+import ast.base, ast.namespace, ast.fun, ast.parse;
 
 import tools.ctfe, tools.threadpool;
 

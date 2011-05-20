@@ -318,6 +318,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   string name;
   Class parent;
   Intf[] iparents;
+  RelMember ctx; // context of parent reference
+  Expr delegate(Expr) ctxFixup;
   string toString() { return Format("class ", name, " <- ", sup); }
   void getIntfLeaves(void delegate(Intf) dg) {
     foreach (intf; iparents)
@@ -351,7 +353,14 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     } else {
       data = parent.data.dup();
     }
+    if (auto it = RefToParentType()) {
+      ctx = new RelMember("context", it, this);
+      ctxFixup = *RefToParentModify.ptr();
+    }
     sup = namespace();
+    if (namespace() !is current_module()) {
+      current_module().entries ~= this;
+    }
   }
   bool finalized;
   void genDefaultFuns() {
@@ -501,7 +510,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       }
     }
     string mangle(string name, IType type) {
-      return "class_"~this.name.cleanup()~"_"~name~"_of_"~type.mangle();
+      string typemangle;
+      if (type) typemangle = "_of_"~type.mangle();
+      return "class_"~this.name.cleanup()~"_"~name~typemangle;
     }
     Stuple!(IType, string, int)[] stackframe() {
       Stuple!(IType, string, int)[] res;
@@ -545,6 +556,25 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     Object lookup(string id, bool local = false) {
       if (auto res = data.lookup(id, local)) return res;
       if (local) return null;
+      if (auto rn = fastcast!(RelNamespace) (sup)) {
+        if (ctx) {
+          auto bp = fastcast!(Expr) (namespace().lookup("__base_ptr", true));
+          if (bp) {
+            bp = new DerefExpr(reinterpret_cast(new Pointer(data), bp));
+            logln(bp);
+            logln("for ", namespace());
+            auto cref = fastcast!(Expr) (
+              ctx.transform(bp)
+            );
+            cref = ctxFixup(cref);
+            if (auto res = rn.lookupRel(id, cref))
+              return res;
+          }
+        } else {
+          logln("use regular lookup (into rn) for ", id, " to ", sup);
+          logln(" => ", sup.lookup(id, false));
+        }
+      }
       return sup.lookup(id, false);
     }
   }
@@ -582,7 +612,20 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("{")) t2.failparse("Missing opening bracket for class def");
   New(cl, name, supclass);
   cl.iparents = supints;
-  namespace().add(fastcast!(ClassRef) (cl.getRefType())); // add here so as to allow self-refs in body
+  
+  auto classref = fastcast!(ClassRef) (cl.getRefType());
+  namespace().add(classref); // add here so as to allow self-refs in body
+  
+  auto rtptbackup = RefToParentType();
+  scope(exit) RefToParentType.set(rtptbackup);
+  RefToParentType.set(classref);
+  
+  auto rtpmbackup = *RefToParentModify();
+  scope(exit) *RefToParentModify.ptr() = rtpmbackup;
+  *RefToParentModify.ptr() = delegate Expr(Expr baseref) {
+    return baseref; // no-op, classes are already ref
+  };
+  
   if (matchStructBody(t2, cl, cont, rest)) {
     if (!t2.accept("}"))
       t2.failparse("Failed to parse struct body");
@@ -596,6 +639,7 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   }
 }
 mixin DefaultParser!(gotClassDef, "tree.typedef.class", null, "class");
+mixin DefaultParser!(gotClassDef, "struct_member.nested_class", null, "class");
 
 Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

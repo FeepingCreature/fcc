@@ -151,7 +151,11 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   override {
     IType getRefType() { return new Pointer(this); }
     string getIdentifier() { return name; }
-    string mangle(string name, IType type) { return sup.mangle(name, null)~"_"~type.mangle()~"_"~name; }
+    string mangle(string name, IType type) {
+      string type_mangle;
+      if (type) type_mangle = type.mangle() ~ "_";
+      return sup.mangle(name, null)~"_"~type_mangle~name;
+    }
     Stuple!(IType, string, int)[] stackframe() {
       return selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
     }
@@ -191,6 +195,17 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   }
 }
 
+TLS!(IType) RefToParentType;
+TLS!(Expr delegate(Expr refexpr)) RefToParentModify;
+
+static this() {
+  New(RefToParentType, delegate IType() { return null; });
+  New(RefToParentModify, delegate Expr delegate(Expr) *() {
+    return &(new Stuple!(Expr delegate(Expr)))._0;
+  });
+}
+
+import ast.modules;
 bool matchStructBody(ref string text, Namespace ns,
                      ParseCb cont, ParseCb rest) {
   auto backup = namespace();
@@ -201,11 +216,15 @@ bool matchStructBody(ref string text, Namespace ns,
   string t2;
   string[] names; IType[] types;
   string strname; IType strtype;
+  
   return (
     text.many(
       (t2 = text, true)
       && rest(text, "struct_member", &smem)
-      && { if (!addsSelf(smem)) ns.add(smem); return true; }()
+      && {
+        if (!addsSelf(smem)) ns.add(smem);
+        return true;
+      }()
       ||
       (text = t2, true)
       && test(strtype = fastcast!(IType)~ rest(text, "type"))
@@ -238,6 +257,17 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
     New(st, name);
     st.isUnion = isUnion;
     namespace().add(st); // gotta do this here so the sup is set
+    
+    auto rtptbackup = RefToParentType();
+    scope(exit) RefToParentType.set(rtptbackup);
+    RefToParentType.set(new Pointer(st));
+    
+    auto rtpmbackup = *RefToParentModify();
+    scope(exit) *RefToParentModify.ptr() = rtpmbackup;
+    *RefToParentModify.ptr() = delegate Expr(Expr baseref) {
+      return new DerefExpr(baseref);
+    };
+    
     if (matchStructBody(t2, st, cont, rest)) {
       if (!t2.accept("}"))
         t2.failparse("Missing closing struct bracket");
@@ -630,3 +660,35 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_rel_member", null, ".");
+
+static this() {
+  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
+    Object nscur = fastcast!(Object) (resolveType(cur));
+    while (true) {
+      if (auto srn = fastcast!(SemiRelNamespace) (nscur)) {
+        nscur = fastcast!(Object) (srn.resolve());
+        continue;
+      }
+      break;
+    }
+    
+    auto ns = fastcast!(Namespace) (nscur);
+    if (!ns) return null;
+    
+    auto t2 = text;
+    if (!t2.accept(".")) return null;
+    
+    string id;
+    if (!t2.gotIdentifier(id)) return null;
+    retry:
+      // logln("Try to ", id, " into ", ns);
+      // logln(" => ", ns.lookup(id), ", left ", t2.nextText());
+      if (auto ty = fastcast!(IType) (ns.lookup(id))) {
+        // logln("return ", ty);
+        text = t2;
+        return ty;
+      }
+      if (t2.eatDash(id)) goto retry;
+    return null;
+  };
+}

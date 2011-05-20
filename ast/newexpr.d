@@ -7,9 +7,11 @@ import
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
-  IType classtype;
-  if (!rest(t2, "type", &classtype)) return null;
-  auto cr = fastcast!(ClassRef) (resolveType(classtype));
+  Object obj;
+  if (!rest(t2, "type", &obj)) return null;
+  auto it = fastcast!(IType) (obj);
+  if (!it) return null;
+  auto cr = fastcast!(ClassRef) (resolveType(it));
   if (!cr) return null;
   
   Expr initParam;
