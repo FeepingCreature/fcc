@@ -441,6 +441,12 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     RelFunSet copy;
     copy.fillIn (loverrides);
     copy.fillIn (overrides);
+    auto par = parent;
+    while (par) {
+      // use our parent's overriding functions to satisfy interfaces
+      copy.fillIn (par.overrides);
+      par = par.parent;
+    }
     
     string[] res;
     // Liskov at work
