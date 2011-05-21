@@ -255,29 +255,20 @@ class Area {
     auto icol = floatToIntColor col;
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + from-x]);
     auto delta = to-x - from-x + 1;
-    auto thingy = vec4i(icol);
-    xmm[4] = *vec4f*:&thingy;
-    // try to align to 16
-    while (int:p & 0xf) && delta {
-      *(p++) = icol;
-      delta --;
+    // thanks, http://stackoverflow.com/questions/3345042/how-to-memset-memory-to-a-certain-pattern-instead-of-a-single-byte answer with one upvote "Recursive memmove"
+    // you now have two upvotes
+    int stepsize = 1;
+    auto start = p;
+    if !delta return;
+    *(p++) = icol;
+    delta --;
+    while stepsize <= delta {
+      memcpy(p, start, stepsize * 4);
+      p += stepsize;
+      delta -= stepsize;
+      stepsize *= 2;
     }
-    while delta >= 16 {
-      (vec4f*:p)[0] = xmm[4];
-      (vec4f*:p)[1] = xmm[4];
-      (vec4f*:p)[2] = xmm[4];
-      (vec4f*:p)[3] = xmm[4];
-      delta -= 16;
-      p += 16;
-    }
-    while delta >= 4 {
-      (vec4f*:p)[0] = xmm[4];
-      delta -= 4;
-      p += 4;
-    }
-    while (delta --) {
-      *(p++) = icol;
-    }
+    if delta memcpy(p, start, delta * 4);
   }
   void hline(int from-x, y, to-x, vec4f col) {
     if fillfun { hline_fillfun(from-x, y, to-x); }

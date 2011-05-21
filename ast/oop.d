@@ -308,6 +308,7 @@ class SuperType : IType, RelNamespace {
       return null;
     }
     bool isTempNamespace() { return true; }
+    IType proxyType() { return null; }
   }
 }
 

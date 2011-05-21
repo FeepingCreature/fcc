@@ -22,7 +22,7 @@ int needsAlignmentStruct(Structure st) {
   st.select((string s, RelMember rm) {
     auto ta = needsAlignment(rm.type);
     if (ta > al) al = ta;
-  });
+  }, &st.rmcache);
   return al;
 }
 
@@ -89,6 +89,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   */
   bool immutableNow;
   int cached_length, cached_size;
+  NSCache!(string, RelMember) rmcache;
   Structure dup() {
     auto res = new Structure(name);
     res.sup = sup;
@@ -105,7 +106,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       if (Single!(Void) == member.type) return;
       auto end = member.offset + member.type.size;
       if (end > res) res = end;
-    });
+    }, &rmcache);
     return res;
   }
   int size() {
@@ -122,7 +123,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   RelMember selectMember(int offs) {
     int i;
     RelMember res;
-    select((string, RelMember member) { if (i++ == offs) res = member; });
+    select((string, RelMember member) { if (i++ == offs) res = member; }, &rmcache);
     return res;
   }
   RelMember[] members() { return selectMap!(RelMember, "$"); }
@@ -132,18 +133,20 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     res.packed = packed;
     res.sup = sup;
     int i;
-    select((string, RelMember member) { if (i !< from && i < to) new RelMember(member.name, member.type, res); i++; });
+    select((string, RelMember member) { if (i !< from && i < to) new RelMember(member.name, member.type, res); i++; }, &rmcache);
     return res;
   }
-  string[] names() { return selectMap!(RelMember, "$.name")(); }
-  IType[] types() { return selectMap!(RelMember, "$.type")(); }
+  NSCache!(string) namecache;
+  NSCache!(IType) typecache;
+  string[] names() { return selectMap!(RelMember, "$.name")(&namecache); }
+  IType[] types() { return selectMap!(RelMember, "$.type")(&typecache); }
   this(string name) {
     this.name = name;
   }
   string mangle() {
     if (!name) {
       auto res = "struct_"~name;
-      select((string, RelMember member) { res ~= "_" ~ member.type.mangle ~ "_" ~ member.name; });
+      select((string, RelMember member) { res ~= "_" ~ member.type.mangle ~ "_" ~ member.name; }, &rmcache);
       return res;
     }
     return "struct_"~name;
@@ -458,34 +461,47 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
 
 import ast.fold, ast.casting;
 static this() {
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto r = fastcast!(RCE)~ ex) {
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto r = fastcast!(RCE) (it)) {
       if (auto lit = fastcast!(StructLiteral)~ r.from) {
         if (lit.exprs.length == 1 &&
             lit.exprs[0].valueType() == r.to)
-          return lit.exprs[0]; // pointless keeping a cast
+          return fastcast!(Itr) (lit.exprs[0]); // pointless keeping a cast
       }
     }
     return null;
   };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = fastcast!(MemberAccess_Expr)~ ex) {
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto mae = fastcast!(MemberAccess_Expr) (it)) {
       auto base = foldex(mae.base);
       // logln("::", mae.stm.type.size, " vs. ", base.valueType().size);
       if (mae.stm.type.size == base.valueType().size) {
-        return reinterpret_cast(mae.stm.type, base);
+        return fastcast!(Iterable) (reinterpret_cast(mae.stm.type, base));
       }
-    }
-    return null;
-  };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = fastcast!(MemberAccess_Expr)~ ex) {
-      auto base = foldex(mae.base);
+      
+      {
+        Expr from;
+        if (auto mae2 = fastcast!(MemberAccess_Expr)~ base) from = base; // lol direct
+        if (auto c = fastcast!(RCL) (base)) from = foldex(c.from);
+        if (auto c = fastcast!(RCE) (base)) from = foldex(c.from);
+        if (from) {
+          if (auto m2 = fastcast!(MemberAccess_Expr)~ from) {
+            MemberAccess_Expr weird;
+            if (fastcast!(MemberAccess_LValue) (from)) weird = new MemberAccess_LValue;
+            else New(weird);
+            weird.base = m2.base;
+            weird.stm = new RelMember(null, mae.stm.type, mae.stm.offset + m2.stm.offset);
+            return fastcast!(Iterable) (weird);
+          }
+        }
+      }
+      
       Structure st;
       if (auto rce = fastcast!(RCE)~ base) {
         base = rce.from;
         st = fastcast!(Structure)~ rce.to;
       }
+      
       if (auto sl = fastcast!(StructLiteral)~ base) {
         Expr res;
         int i;
@@ -501,28 +517,8 @@ static this() {
               logln("Type mismatch: ", mae.valueType(), " vs. ", res.valueType());
           }
           i++;
-        });
-        return res; // may be null - that's okay!
-      }
-    }
-    return null;
-  };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = fastcast!(MemberAccess_Expr)~ ex) {
-      auto base = foldex(mae.base);
-      Expr from;
-      if (auto mae2 = fastcast!(MemberAccess_Expr)~ base) from = base; // lol direct
-      if (auto c = fastcast!(RCL) (base)) from = foldex(c.from);
-      if (auto c = fastcast!(RCE) (base)) from = foldex(c.from);
-      if (from) {
-        if (auto m2 = fastcast!(MemberAccess_Expr)~ from) {
-          MemberAccess_Expr weird;
-          if (fastcast!(MemberAccess_LValue) (from)) weird = new MemberAccess_LValue;
-          else New(weird);
-          weird.base = m2.base;
-          weird.stm = new RelMember(null, mae.stm.type, mae.stm.offset + m2.stm.offset);
-          return weird;
-        }
+        }, &st.rmcache);
+        return fastcast!(Iterable) (res); // may be null - that's okay!
       }
     }
     return null;

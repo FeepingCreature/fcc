@@ -40,7 +40,7 @@ static this() {
     }))
       return null;
     int count;
-    tup.wrapped.select((string, RelMember rm) { count ++; });
+    tup.wrapped.select((string, RelMember rm) { count ++; }, &tup.wrapped.rmcache);
     /// 2.1
     if (!gotImplicitCast(e2, (IType it) { return test(Single!(SysInt) == it); }))
       return null;
@@ -62,7 +62,7 @@ static this() {
     auto tup = fastcast!(Tuple) (e1.valueType());
     if (!tup) return null;
     int count;
-    tup.wrapped.select((string, RelMember rm) { count ++; });
+    tup.wrapped.select((string, RelMember rm) { count ++; }, &tup.wrapped.rmcache);
     /// 2.1
     if (count <= 1) return null;
     if (!gotImplicitCast(e2, (IType it) { return test(fastcast!(RangeIsh) (it)); }))

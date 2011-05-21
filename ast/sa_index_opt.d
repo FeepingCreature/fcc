@@ -6,8 +6,8 @@ import
 
 alias ast.fold.fold fold;
 static this() {
-  foldopt ~= delegate Expr(Expr ex) {
-    auto dre = fastcast!(DerefExpr) (ex); if (!dre)   return null;
+  foldopt ~= delegate Itr(Itr it) {
+    auto dre = fastcast!(DerefExpr) (it); if (!dre)   return null;
     if (dre.valueType() != Single!(SysInt))    return null;
     auto rce1 = fastcast!(RCE)~ dre.src; if (!rce1)  return null;
     auto pe = fastcast!(AsmIntBinopExpr) (rce1.from);
@@ -32,6 +32,6 @@ static this() {
     assert(!(index & 3), "Bad index!! ");
     index /= 4;
     // yay
-    return mkInt(field[index]);
+    return fastcast!(Iterable) (mkInt(field[index]));
   };
 }

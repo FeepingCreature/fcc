@@ -52,7 +52,7 @@ class MValueAlias : ExprAlias, MValue {
   override MValueAlias dup() { return new MValueAlias(base.dup, name); }
 }
 
-class TypeAlias : Named, IType, TypeProxy, SelfAdding {
+class TypeAlias : Named, IType, SelfAdding {
   IType base;
   string name;
   mixin This!("base, name");
@@ -63,15 +63,15 @@ class TypeAlias : Named, IType, TypeProxy, SelfAdding {
     string mangle() { return "type_alias_"~name~"_"~base.mangle; }
     ubyte[] initval() { return base.initval; }
     int opEquals(IType ty) { return base.opEquals(resolveType(ty)); }
-    IType actualType() { return base; }
+    IType proxyType() { return base; }
     string toString() { return Format(name, "(", base, ")"); }
   }
 }
 
 static this() {
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto ea = fastcast!(ExprAlias)~ ex) {
-      return ea.base;
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto ea = fastcast!(ExprAlias) (it)) {
+      return fastcast!(Iterable) (ea.base);
     } else return null;
   };
 }

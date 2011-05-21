@@ -162,32 +162,32 @@ float noise3(vec3f v) {
   xmm[5] = xmm[6].yzz;
   // this is correct, I worked it out
   mask = [0b100_110, 0b010_110, 0, 0b010_011, 0b100_101, 0, 0b001_101, 0b001_011][(eval xmm[4] < xmm[5]) & 0b0111];
-  /*if (v0.x < v0.y) {
-    if (v0.y < v0.z) {
-      mask = 0b001_011; // X Y Z
-    } else if (v0.x < v0.z) {
-      mask = 0b010_011; // X Z Y
-    } else {
-      mask = 0b010_110; // Z X Y
-    }
-  } else {
-    if (v0.y < v0.z) {
-      if (v0.x < v0.z) {
-        mask = 0b001_101; // Y X Z
-      } else {
-        mask = 0b100_101; // Y Z X
-      }
-    } else {
-      mask = 0b100_110; // Z Y X
-    }
-  }*/
+  // if (v0.x < v0.y) {
+  //   if (v0.y < v0.z) {
+  //     mask = 0b001_011; // X Y Z
+  //   } else if (v0.x < v0.z) {
+  //     mask = 0b010_011; // X Z Y
+  //   } else {
+  //     mask = 0b010_110; // Z X Y
+  //   }
+  // } else {
+  //   if (v0.y < v0.z) {
+  //     if (v0.x < v0.z) {
+  //       mask = 0b001_101; // Y X Z
+  //     } else {
+  //       mask = 0b100_101; // Y Z X
+  //     }
+  //   } else {
+  //     mask = 0b100_110; // Z Y X
+  //   }
+  // }
   auto offs1 = vec3i((mask >> 5)    , (mask >> 4) & 1, (mask >> 3) & 1);
   auto offs2 = vec3i((mask >> 2) & 1, (mask >> 1) & 1, (mask >> 0) & 1);
-  /*auto index = (eval xmm[4] < xmm[5]) & 0b0111;
-  // auto offs1 = [vec3i(1,0,0), vec3i(0,1,0), vec3i(0), vec3i(0,1,0), vec3i(1,0,0), vec3i(0), vec3i(0,0,1), vec3i(0,0,1)][index];
-  // auto offs2 = [vec3i(1,1,0), vec3i(1,1,0), vec3i(0), vec3i(0,1,1), vec3i(1,0,1), vec3i(0), vec3i(1,0,1), vec3i(0,1,1)][index];
-  auto offs1 = vec3i([1, 0, 0, 0, 1, 0, 0, 0][index], [0, 1, 0, 1, 0, 0, 0, 0][index], [0, 0, 0, 0, 0, 0, 1, 1][index]);
-  auto offs2 = vec3i([1, 1, 0, 0, 1, 0, 1, 0][index], [1, 1, 0, 1, 0, 0, 0, 1][index], [0, 0, 0, 1, 1, 0, 1, 1][index]);*/
+  // auto index = (eval xmm[4] < xmm[5]) & 0b0111;
+  // // auto offs1 = [vec3i(1,0,0), vec3i(0,1,0), vec3i(0), vec3i(0,1,0), vec3i(1,0,0), vec3i(0), vec3i(0,0,1), vec3i(0,0,1)][index];
+  // // auto offs2 = [vec3i(1,1,0), vec3i(1,1,0), vec3i(0), vec3i(0,1,1), vec3i(1,0,1), vec3i(0), vec3i(1,0,1), vec3i(0,1,1)][index];
+  // auto offs1 = vec3i([1, 0, 0, 0, 1, 0, 0, 0][index], [0, 1, 0, 1, 0, 0, 0, 0][index], [0, 0, 0, 0, 0, 0, 1, 1][index]);
+  // auto offs2 = vec3i([1, 1, 0, 0, 1, 0, 1, 0][index], [1, 1, 0, 1, 0, 0, 0, 1][index], [0, 0, 0, 1, 1, 0, 1, 1][index]);
   vs[1] -= vec3f(offs1);
   vs[2] -= vec3f(offs2);
   auto ii = indices.x, jj = indices.y, kk = indices.z;
@@ -203,12 +203,12 @@ float noise3(vec3f v) {
       mperm[(lperm[(lperm[(kk+k2)&0xff]+jj+j2)&0xff]+ii+i2)&0xff],
       mperm[(lperm[(lperm[(kk+1 )&0xff]+jj+1 )&0xff]+ii+1 )&0xff]
     ];
-    /*gi = [
-      mperm[(lperm[(((kk   )&0xff) << 8 + jj   )&0xffff] << 8 + ii   )&0xffff],
-      mperm[(lperm[(((kk+k1)&0xff) << 8 + jj+j1)&0xffff] << 8 + ii+i1)&0xffff],
-      mperm[(lperm[(((kk+k2)&0xff) << 8 + jj+j2)&0xffff] << 8 + ii+i2)&0xffff],
-      mperm[(lperm[(((kk+ 1)&0xff) << 8 + jj+ 1)&0xffff] << 8 + ii+ 1)&0xffff]
-    ];*/
+    // gi = [
+    //   mperm[(lperm[(((kk   )&0xff) << 8 + jj   )&0xffff] << 8 + ii   )&0xffff],
+    //   mperm[(lperm[(((kk+k1)&0xff) << 8 + jj+j1)&0xffff] << 8 + ii+i1)&0xffff],
+    //   mperm[(lperm[(((kk+k2)&0xff) << 8 + jj+j2)&0xffff] << 8 + ii+i2)&0xffff],
+    //   mperm[(lperm[(((kk+ 1)&0xff) << 8 + jj+ 1)&0xffff] << 8 + ii+ 1)&0xffff]
+    // ];
   }
   vec3f current = void;
   vec4f factors = void, res = void;

@@ -79,8 +79,8 @@ class CrossIndexExpr : Expr {
     }
   }
   static this() {
-    foldopt ~= delegate Expr(Expr ex) {
-      auto cie = fastcast!(CrossIndexExpr) (ex);
+    foldopt ~= delegate Itr(Itr it) {
+      auto cie = fastcast!(CrossIndexExpr) (it);
       if (!cie) return null;
       auto ide = fastcast!(IntExpr) (foldex(cie.idx));
       if (!ide) return null;
@@ -105,7 +105,7 @@ class CrossIndexExpr : Expr {
         idx /= lengths[i];
       }
       
-      return mkTupleExpr(res);
+      return fastcast!(Iterable) (mkTupleExpr(res));
     };
   }
 }

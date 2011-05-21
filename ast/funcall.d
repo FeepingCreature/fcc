@@ -355,8 +355,8 @@ import ast.literal_string, ast.modules;
 
 static this() {
   // allow use of .replace in mixins
-  foldopt ~= delegate Expr(Expr ex) {
-    auto fc = fastcast!(FunCall) (ex);
+  foldopt ~= delegate Itr(Itr it) {
+    auto fc = fastcast!(FunCall) (it);
     if (!fc) return null;
     if (fc.fun.name != "replace" /or/ "[wrap]replace") return null;
     auto smod = fastcast!(Module) (fc.fun.sup);

@@ -25,6 +25,7 @@ class UnAlignedPlaceholder : IType {
     override string mangle() { return base.mangle; }
     ubyte[] initval() { return base.initval(); }
     int opEquals(IType it) { return base.opEquals(it); }
+    IType proxyType() { return null; }
   }
 }
 

@@ -47,7 +47,7 @@ import
   ast.fold, ast.opers;
 import tools.time;
 
-class LateType : IType, TypeProxy {
+class LateType : IType {
   IType me;
   void delegate() tryResolve;
   this() { }
@@ -64,7 +64,7 @@ class LateType : IType, TypeProxy {
       return it == me;
     }
     string mangle() { needMe; return me.mangle(); }
-    IType actualType() { needMe; return me; }
+    IType proxyType() { needMe; return me; }
   }
 }
 
@@ -344,7 +344,7 @@ void parseHeader(string filename, string src) {
           if (st2.startsWith("#define"))
             goto skip;
           auto ty = matchType(st2);
-          // logln("match type @", st2, " = ", ty);
+          // logln("for ", ident, ", match type @", st2, " = ", ty);
           if (!ty) goto giveUp1;
           while (true) {
             auto pos = st2.find("sizeof");

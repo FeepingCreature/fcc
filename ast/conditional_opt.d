@@ -10,8 +10,8 @@ static this() {
     if (!ce) return null;
     return ce.cd;
   };
-  foldopt ~= delegate Expr(Expr ex) {
-    auto sie = fastcast!(SAIndexExpr) (ex);
+  foldopt ~= delegate Itr(Itr it) {
+    auto sie = fastcast!(SAIndexExpr) (it);
     if (!sie) return null;
     auto salit = fastcast!(SALiteralExpr) (sie.ex);
     if (!salit || salit.exs.length != 2) return null;
@@ -25,6 +25,6 @@ static this() {
     cmp = cmp.dup;
     cmp.falseOverride = salit.exs[0];
     cmp.trueOverride = salit.exs[1];
-    return cmp;
+    return fastcast!(Itr) (cmp);
   };
 }

@@ -42,8 +42,8 @@ class LongAsDouble : Expr {
 import ast.casting, ast.fold, ast.literals, ast.fun;
 extern(C) float sqrtf(float);
 static this() {
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto iaf = fastcast!(IntAsFloat)~ ex) {
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto iaf = fastcast!(IntAsFloat) (it)) {
       auto i = fold(iaf.i);
       if (auto ie = fastcast!(IntExpr)~ i) {
         return new FloatExpr(ie.num);
@@ -51,8 +51,8 @@ static this() {
     }
     return null;
   };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto fc = fastcast!(FunCall) (ex)) {
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto fc = fastcast!(FunCall) (it)) {
       if (fc.fun.extern_c && fc.fun.name == "sqrtf") {
         assert(fc.params.length == 1);
         auto fe = fc.params[0];
@@ -410,8 +410,8 @@ class AsmIntBinopExpr : BinopExpr {
     }
   }
   static this() {
-    foldopt ~= delegate Expr(Expr ex) {
-      auto aibe = fastcast!(AsmIntBinopExpr) (ex);
+    foldopt ~= delegate Itr(Itr it) {
+      auto aibe = fastcast!(AsmIntBinopExpr) (it);
       if (!aibe) return null;
       auto
         e1 = foldex(aibe.e1), ie1 = fastcast!(IntExpr)~ e1,
@@ -519,8 +519,8 @@ class AsmFloatBinopExpr : BinopExpr {
     }
   }
   static this() {
-    foldopt ~= delegate Expr(Expr ex) {
-      auto afbe = fastcast!(AsmFloatBinopExpr) (ex);
+    foldopt ~= delegate Itr(Itr it) {
+      auto afbe = fastcast!(AsmFloatBinopExpr) (it);
       if (!afbe) return null;
       auto
         e1 = foldex(afbe.e1), fe1 = fastcast!(FloatExpr)~ e1,
@@ -565,8 +565,8 @@ class AsmDoubleBinopExpr : BinopExpr {
     }
   }
   static this() {
-    foldopt ~= delegate Expr(Expr ex) {
-      auto adbe = fastcast!(AsmDoubleBinopExpr) (ex);
+    foldopt ~= delegate Itr(Itr it) {
+      auto adbe = fastcast!(AsmDoubleBinopExpr) (it);
       if (!adbe) return null;
       auto
         e1 = foldex(adbe.e1), de1 = fastcast!(DoubleExpr)~ e1,

@@ -70,18 +70,14 @@ extern(C) void _reinterpret_cast_expr(RCE, AsmFile);
 
 import ast.fold;
 static this() {
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto rce1 = fastcast!(RCE)~ ex) {
-      if (auto rce2 = fastcast!(RCE)~ fold(rce1.from)) {
-        return foldex(reinterpret_cast(rce1.to, foldex(rce2.from)));
-      }
-    }
-    return null;
-  };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto rce = fastcast!(RCE)~ ex) {
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto rce = fastcast!(RCE) (it)) {
       if (rce.from.valueType() == rce.to)
-        return foldex(rce.from);
+        return rce.from;
+      
+      if (auto rce2 = fastcast!(RCE)~ fold(rce.from)) {
+        return reinterpret_cast(rce.to, rce2.from);
+      }
     }
     return null;
   };
@@ -397,12 +393,12 @@ Expr reinterpret_cast(IType to, Expr from) {
 import std.moduleinit;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    auto tp = fastcast!(TypeProxy)~ ex.valueType();
+    auto tp = ex.valueType().proxyType();
     if (!tp) return null;
-    return reinterpret_cast(resolveType(fastcast!(IType)~ tp), ex);
+    return reinterpret_cast(resolveType(tp), ex);
   };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto sic = fastcast!(ShortToIntCast) (ex)) {
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto sic = fastcast!(ShortToIntCast) (it)) {
       if (auto bsc = fastcast!(ByteToShortCast) (sic.sh)) {
         return new ByteToIntCast (bsc.b);
       }

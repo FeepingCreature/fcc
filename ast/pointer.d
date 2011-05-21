@@ -79,10 +79,10 @@ static this() {
     if (text.accept("*")) { return new Pointer(cur); }
     else return null;
   };
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto re = fastcast!(RefExpr) (ex)) {
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto re = fastcast!(RefExpr) (it)) {
       if (auto de = fastcast!(DerefExpr) (re.src)) {
-        return de.src;
+        return fastcast!(Itr) (de.src);
       }
     }
     return null;

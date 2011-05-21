@@ -1,6 +1,6 @@
 module ast.tuples;
 
-import ast.base, ast.structure, ast.casting;
+import ast.base, ast.structure, ast.namespace, ast.casting;
 
 /++
   1. A tuple behaves like a struct
@@ -13,8 +13,10 @@ import ast.base, ast.structure, ast.casting;
 class Tuple : Type {
   /// 1.
   Structure wrapped;
-  IType[] types() { return wrapped.selectMap!(RelMember, "$.type"); }
-  int[] offsets() { return wrapped.selectMap!(RelMember, "$.offset"); }
+  NSCache!(IType) typecache;
+  NSCache!(int) offsetcache;
+  IType[] types() { return wrapped.selectMap!(RelMember, "$.type")(&typecache); }
+  int[] offsets() { return wrapped.selectMap!(RelMember, "$.offset")(&offsetcache); }
   override {
     int size() { return wrapped.size; }
     string mangle() { return "tuple_"~wrapped.mangle(); }
@@ -22,12 +24,8 @@ class Tuple : Type {
     string toString() { return Format("Tuple", (fastcast!(Structure)~ wrapped).members); }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
-      while (true) {
-        if (auto tp = fastcast!(TypeProxy)~ it)
-          it = tp.actualType();
-        else break;
-      }
-      auto tup = fastcast!(Tuple)~ it;
+      it = resolveType(it);
+      auto tup = fastcast!(Tuple) (it);
       assert(!!tup);
       // Lockstep iteration. Yummy.
       int[2] offs;
@@ -153,8 +151,8 @@ class RefTuple : MValue {
 }
 
 static this() {
-  foldopt ~= delegate Expr(Expr ex) {
-    auto mae = fastcast!(MemberAccess_Expr)~ ex;
+  foldopt ~= delegate Itr(Itr it) {
+    auto mae = fastcast!(MemberAccess_Expr) (it);
     if (!mae) return null;
     auto rc = fastcast!(RCE)~ mae.base;
     if (!rc) return null;
@@ -177,7 +175,7 @@ static this() {
     int offs = -1;
     foreach (id, entry; mbs) if (entry is mae.stm) { offs = id; break; }
     if (offs == -1) fail();
-    return rt.mvs[offs];
+    return fastcast!(Itr) (rt.mvs[offs]);
   };
 }
 

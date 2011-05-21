@@ -206,8 +206,8 @@ static this() {
     return null;
   });
   // fold string concats
-  foldopt ~= delegate Expr(Expr ex) {
-    auto cc = fastcast!(ConcatChain) (ex);
+  foldopt ~= delegate Itr(Itr it) {
+    auto cc = fastcast!(ConcatChain) (it);
     if (!cc) return null;
     if (cc.type != Single!(Array, Single!(Char))) return null;
     string res;

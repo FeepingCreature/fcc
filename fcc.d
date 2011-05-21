@@ -30,17 +30,17 @@ static this() {
   New(namespace, { return cast(Namespace) null; });
   New(current_module, { return cast(Module) null; });
   // placed here because it needs some circular importage
-  foldopt ~= delegate Expr(Expr ex) {
-    auto mae = fastcast!(MemberAccess_Expr) (ex);
+  foldopt ~= delegate Itr(Itr it) {
+    auto mae = fastcast!(MemberAccess_Expr) (it);
     if (!mae || mae.stm.name != "ptr") return null;
     
     auto rce = fastcast!(RCE) (mae.base);
     if (!rce) return null;
     if (!(rce.to in isArrayStructType)) return null;
     auto se = fastcast!(StringExpr) (rce.from);
-    if (se) return se.getPointer();
+    if (se) return fastcast!(Itr) (se.getPointer());
     auto ar = fastcast!(ArrayMaker) (rce.from);
-    if (ar) return ar.ptr;
+    if (ar) return fastcast!(Itr) (ar.ptr);
     return null;
   };
 }

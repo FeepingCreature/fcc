@@ -17,11 +17,8 @@ class Array : Type {
     string toString() { return Format(elemType, "[]"); }
     int opEquals(IType ty) {
       if (!super.opEquals(ty)) return false;
-      while (true) {
-        if (auto tp = fastcast!(TypeProxy)~ ty) ty = tp.actualType();
-        else break;
-      }
-      return (fastcast!(Array)~ ty).elemType == elemType;
+      ty = resolveType(ty);
+      return (fastcast!(Array) (ty)).elemType == elemType;
     }
   }
 }
@@ -41,11 +38,8 @@ class ExtArray : Type {
     }
     int opEquals(IType ty) {
       if (!super.opEquals(ty)) return false;
-      while (true) {
-        if (auto tp = fastcast!(TypeProxy)~ ty) ty = tp.actualType();
-        else break;
-      }
-      auto ea = fastcast!(ExtArray)~ ty;
+      ty = resolveType(ty);
+      auto ea = fastcast!(ExtArray) (ty);
       return ea.elemType == elemType && ea.freeOnResize == freeOnResize;
     }
     string toString() {

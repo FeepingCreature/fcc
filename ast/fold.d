@@ -26,25 +26,10 @@ Itr fold(Itr i) {
 
 Expr foldex(Expr ex) {
   if (!ex) return null;
-  auto cur = ex;
-  while (true) {
-    auto start = cur;
-    IType oldtype;
-    debug oldtype = start.valueType();
-    foreach (dg; _foldopt_expr) {
-      if (auto res = dg(cur)) cur = res;
-    }
-    if (cur is start) break;
-    IType nutype;
-    debug {
-      nutype = cur.valueType();
-      if (nutype != oldtype || oldtype != nutype) {
-        logln("Invalid replacement: ", oldtype, " -> ", nutype, "!");
-        asm { int 3; }
-      }
-    }
-  }
-  return cur;
+  auto itr = fastcast!(Itr) (ex);
+  itr = fold(itr);
+  ex = fastcast!(Expr) (itr);
+  return ex;
 }
 
 Statement optst(Statement st) {
@@ -55,17 +40,12 @@ Statement optst(Statement st) {
 
 void opt(T)(ref T t) {
   void fun(ref Itr it) {
-    if (auto ex = fastcast!(Expr)~ it) {
-      ex = foldex(ex);
-      it = cast(Itr) ex;
-    } else {
-      it = fold(it);
-    }
+    it = fold(it);
     it.iterate(&fun);
   }
-  Itr it = cast(Itr) t;
+  Itr it = fastcast!(Itr) (t);
   if (!it) asm { int 3; }
   fun(it);
-  t = fastcast!(T)~ it;
-  assert(!!t);
+  t = fastcast!(T) (it);
+  if (!t) asm { int 3; }
 }

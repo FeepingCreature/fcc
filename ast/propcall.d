@@ -59,6 +59,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
     string mangle() { assert(false); }
     ubyte[] initval() { return fpvt.initval(); }
     int opEquals(IType it) { return it is this; }
+    IType proxyType() { return null; }
   }
 }
 

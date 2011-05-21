@@ -182,8 +182,8 @@ class AlignedVec4Literal : Expr, Literal {
 }
 
 static this() {
-  foldopt ~= delegate Expr(Expr ex) {
-    auto me = fastcast!(MultiplesExpr) (ex);
+  foldopt ~= delegate Itr(Itr it) {
+    auto me = fastcast!(MultiplesExpr) (it);
     if (!me) return null;
     bool canDup; // no side effects
     auto fbase = foldex(me.base);
@@ -200,10 +200,10 @@ static this() {
     }
     Expr[] list;
     for (int i = 0; i < me.factor; ++i) list ~= fbase;
-    return reinterpret_cast(me.type, mkTupleExpr(list));
+    return fastcast!(Itr) (reinterpret_cast(me.type, mkTupleExpr(list)));
   };
-  foldopt ~= delegate Expr(Expr ex) {
-    auto mae = fastcast!(MemberAccess_Expr) (ex);
+  foldopt ~= delegate Itr(Itr it) {
+    auto mae = fastcast!(MemberAccess_Expr) (it);
     if (!mae) return null;
     auto rce = fastcast!(RCE) (foldex(mae.base));
     if (!rce) return null;
@@ -220,7 +220,7 @@ static this() {
       asm { int 3; }
       return null;
     }
-    return res;
+    return fastcast!(Iterable) (res);
   };
 }
 
@@ -717,8 +717,8 @@ static this() {
   defineOp("|", "|" /apply/ &handleVecOp);
   defineOp("==", &handleVecEquals);
   defineOp("<", &handleVecSmaller);
-  foldopt ~= delegate Expr(Expr ex) {
-    if (auto mae = fastcast!(MemberAccess_Expr) (ex)) {
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto mae = fastcast!(MemberAccess_Expr) (it)) {
       auto base = foldex(mae.base);
       if (auto rce = fastcast!(RCE) (base)) {
         if (auto vo = cast(VecOp) rce.from) {
@@ -736,7 +736,7 @@ static this() {
             if (ar.length !> id) ex2 = new FailExpr("oh fuck", ar[0].valueType());
             else ex2 = ar[id];
           }
-          return lookupOp(vo.op, ex1, ex2);
+          return fastcast!(Itr) (lookupOp(vo.op, ex1, ex2));
         }
       }
     }

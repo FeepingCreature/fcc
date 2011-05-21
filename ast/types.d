@@ -9,21 +9,21 @@ interface IType {
   string mangle();
   ubyte[] initval();
   int opEquals(IType);
-}
-
-interface TypeProxy {
-  IType actualType();
+  // return the type we are a proxy for, or null
+  // (proxy == type alias)
+  IType proxyType();
 }
 
 // Strips out type-alias and the like
 IType resolveType(IType t) {
-  while (true) {
-    if (auto tp = fastcast!(TypeProxy)~ t) {
-      t = tp.actualType();
+  while (t) {
+    if (auto tp = t.proxyType()) {
+      t = tp;
       continue;
     }
-    return t;
+    break;
   }
+  return t;
 }
 
 template TypeDefaults(bool INITVAL = true, bool OPEQUALS = true) {
@@ -32,13 +32,14 @@ template TypeDefaults(bool INITVAL = true, bool OPEQUALS = true) {
     int opEquals(IType ty) {
       // specialize where needed
       ty = resolveType(ty);
-      auto obj = fastcast!(Object)~ ty;
+      auto obj = cast(Object) (cast(void*) (ty) - (***cast(Interface***) ty).offset);
       return
         (this.classinfo is obj.classinfo)
         &&
         (size == (cast(typeof(this)) cast(void*) obj).size);
     }
   }
+  IType proxyType() { return null; }
 }
 
 class Type : IType {

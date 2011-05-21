@@ -20,6 +20,14 @@ interface Extensible {
   Object extend(Object obj);
 }
 
+struct NSCache(T...) {
+  int hash;
+  static if (T.length == 1)
+    T[0][] field;
+  else
+    Stuple!(T)[] field;
+}
+
 import tools.ctfe, tools.base: stuple, Format, Repeat;
 import ast.int_literal, ast.float_literal;
 class Namespace {
@@ -35,18 +43,21 @@ class Namespace {
   }
   Stuple!(string, Object)[] field;
   Object[string] field_cache;
+  int modhash;
   void rebuildCache() {
     field_cache = null;
     foreach (entry; field) field_cache[entry._0] = entry._1;
   }
   // reverse of rebuildCache
   void rebuildField() {
+    modhash ++;
     field.length = field_cache.length;
     int id;
     foreach (key, value; field_cache)
       field[id++] = stuple(key, value);
   }
-  typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)")))[] selectMap(T, string S)() {
+  typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)")))[] selectMap(T, string S)(NSCache!(typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)"))))* cachep = null) {
+    if (cachep && cachep.hash == field.length + modhash) return cachep.field;
     int count;
     foreach (entry; field) if (fastcast!(T)~ entry._1) count++;
     alias typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)"))) restype;
@@ -55,12 +66,29 @@ class Namespace {
     foreach (entry; field)
       if (auto t = fastcast!(T)~ entry._1)
         res[i++] = mixin(S.ctReplace("$", "t"));
+    if (cachep) { cachep.hash = field.length + modhash; cachep.field = res; }
     return res;
   }
-  void select(T)(void delegate(string, T) dg) {
-    foreach (entry; field)
-      if (auto t = fastcast!(T)~ entry._1)
-        dg(entry._0, t);
+  void select(T)(void delegate(string, T) dg, NSCache!(string, T)* cachep = null) {
+    if (cachep) {
+      if (cachep.hash != field.length + modhash) {
+        int i;
+        foreach (entry; field)
+          if (auto t = fastcast!(T) (entry._1)) {
+            auto data = stuple(entry._0, t);
+            if (i < cachep.field.length) cachep.field[i++] = data;
+            else { i++; cachep.field ~= data; }
+          }
+        cachep.field = cachep.field[0..i];
+        cachep.hash = field.length + modhash;
+      }
+      foreach (entry; cachep.field)
+        dg(entry._0, entry._1);
+    } else {
+      foreach (entry; field)
+        if (auto t = fastcast!(T)~ entry._1)
+          dg(entry._0, t);
+    }
   }
   
   const int cachepoint = 6;
@@ -93,6 +121,7 @@ class Namespace {
     }
     if (field.length == cachepoint) rebuildCache;
     field ~= stuple(name, obj);
+    modhash ++;
     if (field.length > cachepoint) field_cache[name] = obj;
   }
   void _add(string name, Object obj) {

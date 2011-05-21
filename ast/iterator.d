@@ -444,16 +444,16 @@ class ScopeAndExpr : Expr {
     }
   }
   static this() {
-    foldopt ~= delegate Expr(Expr ex) {
-      auto sae = fastcast!(ScopeAndExpr) (ex);
+    debug foldopt ~= delegate Itr(Itr it) {
+      auto sae = fastcast!(ScopeAndExpr) (it);
       if (!sae) return null;
       if (!sae.sc) return null;
       auto stmt = sae.sc._body;
       assert(!stmt); // must be no statements in SAE
       return null;
     };
-    foldopt ~= delegate Expr(Expr ex) {
-      auto sae = fastcast!(ScopeAndExpr) (ex);
+    foldopt ~= delegate Itr(Itr it) {
+      auto sae = fastcast!(ScopeAndExpr) (it);
       if (!sae) return null;
       bool visible(Itr it2) {
         if (sae.ex is it2) return true;
@@ -473,7 +473,7 @@ class ScopeAndExpr : Expr {
       }
       with (sae.sc) {
         if (!_body && !guards && allUnused)
-          return sae.ex;
+          return fastcast!(Iterable) (sae.ex);
       }
       return null;
     };
@@ -491,6 +491,7 @@ class BogusIterator : Iterator, IType { // tag
     string mangle() { assert(false); }
     ubyte[] initval() { assert(false); }
     int opEquals(IType it) { assert(false); }
+    IType proxyType() { assert(false); }
   }
 }
 

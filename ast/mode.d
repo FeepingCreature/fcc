@@ -159,8 +159,8 @@ class ModeSpace : Namespace, ScopeLike {
             if (!pa && pb || pa && !pb) return false;
             IType resolveMyType(IType it) {
               if (fastcast!(TypeAlias) (it)) return it;
-              if (auto tp = fastcast!(TypeProxy)~ it)
-                return resolveMyType(tp.actualType());
+              if (auto tp = it.proxyType())
+                return resolveMyType(tp);
               return it;
             }
             auto
