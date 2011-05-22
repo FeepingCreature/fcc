@@ -334,6 +334,9 @@ int main(string[] args) {
       if (f >= to) return to;
       return f;
     }
+    vec3f clamp3f(float from, float to, vec3f f) {
+      return vec3f(clamp(from, to, f.x), clamp(from, to, f.y), clamp(from, to, f.z));
+    }
     // http://en.wikipedia.org/wiki/Smoothstep
     float smoothstep(float edge0, float edge1, float x) {
       float old_x = x;
