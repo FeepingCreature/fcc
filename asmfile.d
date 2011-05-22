@@ -38,9 +38,10 @@ class AsmFile {
     constants[name] = data;
     return name;
   }
-  string allocLongstant(string name, string[] data) {
-    foreach (key, value; longstants)
-      if (value == data) return key;
+  string allocLongstant(string name, string[] data, bool forceRealloc = false) {
+    if (!forceRealloc)
+      foreach (key, value; longstants)
+        if (value == data) return key;
     longstants[name] = data;
     return name;
   }
@@ -493,6 +494,7 @@ class AsmFile {
       // dg(".local "); dg(name); dg("\n");
     }
     foreach (name, array; longstants) { // lol
+      if (array.length >= 4) dg(".align 16\n");
       dg(name); dg(":\n");
       dg(".long ");
       foreach (val; array) dg(qformat(val, ", "));
