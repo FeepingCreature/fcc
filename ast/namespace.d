@@ -193,40 +193,6 @@ TLS!(Namespace) namespace;
 
 interface ExprLikeThingy { }
 
-import parseBase, tools.log;
-Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
-  string name; string t2 = text;
-  if (t2.gotIdentifier(name, true)) {
-    retry:
-    if (auto res = namespace().lookup(name)) {
-      if (auto ty = fastcast!(IType) (res))
-        if (!fastcast!(ExprLikeThingy)(resolveType(ty)))
-          return null; // Positively NOT an expr, and not a thingy either.
-      if (!text.accept(name))
-        text.failparse("WTF ", name);
-      return res;
-    } else {
-      // logln("No ", name, " in ", namespace());
-    }
-    int dotpos = name.rfind("."), dashpos = name.rfind("-");
-    if (dotpos != -1 && dashpos != -1)
-      if (dotpos > dashpos) goto checkDot;
-      else goto checkDash;
-    
-    checkDash:
-    if (t2.eatDash(name)) goto retry;
-    
-    checkDot:
-    if (dotpos != -1) {
-      name = name[0 .. dotpos]; // chop up what _may_ be members!
-      goto retry;
-    }
-    
-    t2.setError("unknown identifier: '", name, "'");
-  }
-  return null;
-}
-
 extern(C) Namespace __getSysmod();
 
 class MiniNamespace : Namespace, ScopeLike, Named {
