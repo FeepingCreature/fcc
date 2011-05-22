@@ -398,30 +398,36 @@ int main(string[] args) {
       // auto dist = sqrtf(x * x + y * y);
       // auto n = 0.5 * noise2(x * 4 + t, y * 4) + 0.25 * noise2(x * 8, x * 8 + t) + 0.125 * noise2(y * 16 + t, y * 16 + t) + 0.0625 * noise2(x * 32 + t, y * 32 - t * 2);
       // auto n = 0.5 * noise3 ((vec3f(x * 4, y * 4, sin(t) * 4)).zxy) + 0.25;
-      float noisex(vec3f v) {
+      vec3f noisex(vec3f v) {
         float sqr(float f) { return f * f; }
         // return noise3 vec3f(v.x + sqr noise3(v/* + vec3f(noise3 v)*/), v.y + sqr noise3(-v), v.z + sqr noise3(v / 2));
         // return noise3 vec3f(v.x + sqr noise3(v), v.y, v.z);
-        return noise3 v;
-        // return sinf(v.x + v.y + v.z) * 0.5 + 0.5;
+        return vec3f(noise3 vec3f(v.x + sqr noise3(v), v.y, v.z)); //, noise3 vec3f(v.x + sqr noise3(v), v.y, v.z + 1024), noise3 vec3f(v.x + sqr noise3(v), v.y, -v.z));
+        // return vec3f(noise3 v); //, noise3 -v, noise3 vec3f(v.x, v.y, v.z + 1024));
+        // return noise3 v;
+        // return sinf(v.x + sqr noise3 v + v.y + v.z) * 0.5 + 0.5;
       }
       // auto n = noisex vec3f(x * 8, y * 8, t);
       
       auto res =
-              0.5    * noisex vec3f(x * 8,  y * 8,  t)
-            + 0.25   * noisex vec3f(x * 16, y * 16, t * 2 + 4) // offset! important
-            + 0.125  * noisex vec3f(x * 32, y * 32, t * 4 + 8)
-            + 0.0625 * noisex vec3f(x * 64, y * 64, t * 8 + 12)
-            + 0.03125* noisex vec3f(x *128, y *128, t * 16 + 16)
+              vec3f(0.5, 0.55, 0.7)
+                     * noisex vec3f(x * 1, y * 1, t)
+            + vec3f(0.25, 0.25, 0.35)
+                     * noisex vec3f(x * 4, y * 4, t * 2 + 4) // offset! important
+            + vec3f(0.125, 0.125, 0.125)
+                     * noisex vec3f(x *16, y *16, t * 4 + 8)
+            + 0.0625 * noisex vec3f(x *64, y *64, t * 8 + 12)
+            // + 0.03125* noisex vec3f(x *256, y *256, t *16 + 16)
             ;
       // auto res = noisex vec3f (x * 8, y * 8, t * 2);
-      res = clamp(0, 1, res);
+      res = clamp3f(0, 1, res);
       
       // auto n = 0.5f * noise2(x * 4 + t, y * 4)+0.25;
       // n = clamp(0, 1, n);
       // auto n2 = vec3f(n, n * n, n * 2);
-      auto n2 = vec3f (res);
-      return n2;
+      // auto n2 = vec3f (res);
+      // return n2;
+      return res;
       // return transition(&f2, &n2, smoothstep(0.3, 0.5, dist + noise2(x * 2 + 100, y * 2) * 0.1f));
     }
     fun1(0, 0);

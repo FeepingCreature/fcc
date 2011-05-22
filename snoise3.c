@@ -5,11 +5,10 @@
 typedef float v4sf __attribute__ ((vector_size (16)));
 typedef int v4si __attribute__ ((vector_size (16)));
 
-__thread int setupPerm;
-
-__thread int offsets[8][2][4];
-
-__thread unsigned char *perm, *mperm; // perm mod 12
+typedef struct {
+  int offsets[8][2][4];
+  unsigned char *perm, *mperm; // perm mod 12
+} NoiseContext;
 
 #define LET(A, B) typeof(B) A = B
 
@@ -22,8 +21,8 @@ __thread unsigned char *perm, *mperm; // perm mod 12
 #define sum3(V) ({ float f[4]; *(typeof(V)*) &f = V; f[0] + f[1] + f[2]; })
 #define sum4(V) ({ float f[4]; *(typeof(V)*) &f = V; f[0] + f[1] + f[2] + f[3]; })
 
+/*
 void permsetup(void) {
-  setupPerm = 1;
   int i, k, l;
   
   perm = malloc(sizeof(unsigned char) * 256);
@@ -53,13 +52,13 @@ void permsetup(void) {
       for (l = 0; l < 4; ++l)
         offsets[i][k][l] = offs_init[i][k][l];
 }
+*/
 
-float noise3(float x, float y, float z) __attribute__ ((force_align_arg_pointer));
-float noise3(float x, float y, float z) {
+float noise3(float x, float y, float z, NoiseContext *nc) __attribute__ ((force_align_arg_pointer));
+float noise3(float x, float y, float z, NoiseContext *nc) {
   v4sf vs[4], vsum;
   int gi[4], mask, c;
   v4sf v0;
-  if (!setupPerm) permsetup();
   v4sf v = vec4f(x, y, z, 0);
   v4si indices;
   
@@ -72,7 +71,7 @@ float noise3(float x, float y, float z) {
   v4sf xxy = __builtin_ia32_shufps(vs[0], vs[0], _MM_SHUFFLE(0, 1, 0, 0));
   v4sf yzz = __builtin_ia32_shufps(vs[0], vs[0], _MM_SHUFFLE(0, 2, 2, 1));
   mask = __builtin_ia32_movmskps(__builtin_ia32_cmpltps(xxy, yzz));
-  LET(opp, &offsets[mask & 7]);
+  LET(opp, &nc->offsets[mask & 7]);
   #define op (*opp)
   #define offs1 (op[0])
   #define offs2 (op[1])
@@ -88,6 +87,8 @@ float noise3(float x, float y, float z) {
   #define j2 offs2[1]
   #define k1 offs1[2]
   #define k2 offs2[2]
+  LET(mperm, nc->mperm);
+  LET(perm, nc->perm);
   gi[0] = mperm[(perm[(perm[(kk   )&0xff]+jj   )&0xff]+ii   )&0xff];
   gi[1] = mperm[(perm[(perm[(kk+k1)&0xff]+jj+j1)&0xff]+ii+i1)&0xff];
   gi[2] = mperm[(perm[(perm[(kk+k2)&0xff]+jj+j2)&0xff]+ii+i2)&0xff];
