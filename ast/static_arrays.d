@@ -82,6 +82,12 @@ Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr", null, ".ptr");
 
+ubyte[] takeEnd(ref ubyte[] ub, int b = 1) {
+  auto res = ub[$-b .. $];
+  ub = ub[0..$-b];
+  return res;
+}
+
 // static array literal 1
 class DataExpr : CValue {
   ubyte[] data;
@@ -112,11 +118,11 @@ class DataExpr : CValue {
       }
       auto d2 = data;
       while (d2.length >= 4) {
-        auto i = (cast(int[]) d2.take(4))[0];
+        auto i = (cast(int[]) d2.takeEnd(4))[0];
         af.pushStack(Format("$", i), 4);
       }
       while (d2.length) {
-        auto c = d2.take();
+        auto c = d2.takeEnd();
         af.pushStack(Format("$", c), 1);
       }
     }
