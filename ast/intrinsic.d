@@ -629,3 +629,44 @@ Object gotAsm(ref string text, ParseCb cont, ParseCb rest) {
   return new Assembly(lit.str);
 }
 mixin DefaultParser!(gotAsm, "tree.semicol_stmt.asm", "32", "asm");
+
+class ConstantDefinition : Tree {
+  string name;
+  string[] values;
+  this(string n, string[] v) { name = n; values = v; }
+  void emitAsm(AsmFile af) {
+    af.allocLongstant(name, values, true);
+  }
+  ConstantDefinition dup() { assert(false); }
+  mixin defaultIterate!();
+}
+
+Object gotConstant(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept("(")) t2.failparse("Opening paren required. ");
+  Expr nex;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &nex)
+   || !gotImplicitCast(nex, (Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }))
+    t2.failparse("Expected name for constant! ");
+  string name = (fastcast!(StringExpr) (foldex(nex))).str;
+    
+  if (!t2.accept(",")) t2.failparse("Expected comma separator. ");
+  
+  string[] values;
+  Expr value;
+  if (!t2.bjoin(
+    !!rest(t2, "tree.expr", &value),
+    t2.accept(","),
+    {
+      if (!gotImplicitCast(value, (Expr ex) { return !!fastcast!(IntExpr) (foldex(ex)); }))
+        t2.failparse("Expected integer for constant value. ");
+      values ~= Format((fastcast!(IntExpr) (foldex(value))).num);
+    },
+    false
+  )) t2.failparse("Couldn't parse constant definition. ");
+  if (!t2.accept(");"))
+    t2.failparse("Missing ');' for constant definition. ");
+  text = t2;
+  return new ConstantDefinition(name, values);
+}
+mixin DefaultParser!(gotConstant, "tree.toplevel.constant", null, "__defConstant");
