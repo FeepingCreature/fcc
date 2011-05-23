@@ -3,6 +3,9 @@ module ast.math;
 import ast.base, ast.namespace, ast.parse;
 import tools.base: This, This_fn, rmSpace, and, or, find, todg;
 
+Object function(ref string, Object, bool, bool, ParseCb, ParseCb) getPropertiesFn;
+void function(void delegate(bool, bool)) withPropcfgFn;
+
 class IntAsFloat : Expr {
   Expr i;
   this(Expr i) { this.i = i; assert(i.valueType() == Single!(SysInt)); }
@@ -753,9 +756,18 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     op = lookupOp(opName, op, recurse(nextOp, _i + 1));
     goto retry;
   }
-  do {
+  while (true) {
     curOp = recurse(curOp, 0);
-  } while (t2.accept("#"));
+    if (!t2.accept("#")) break;
+    withPropcfgFn((bool withTuple, bool withCall) {
+      if (auto res = getPropertiesFn(
+          t2, fastcast!(Object) (curOp), withTuple, withCall, cont, rest
+        )
+      )
+        if (auto res2 = fastcast!(Expr) (res))
+          curOp = res2;
+    });
+  }
   text = t2;
   return fastcast!(Object) (curOp);
 }

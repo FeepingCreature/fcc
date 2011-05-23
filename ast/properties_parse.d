@@ -1,24 +1,20 @@
 module ast.properties_parse;
 
-import ast.base, ast.fun, ast.properties, ast.parse, ast.casting;
+import ast.base, ast.fun, ast.properties, ast.parse, ast.casting, ast.math;
 
 import tools.base, tools.log;
-Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
+Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
+  ParseCb cont, ParseCb rest)
+{
   string longest; Object res;
-  auto myArgs = *propcfg.ptr();
-  *propcfg.ptr() = Init!(PropArgs);
-  scope(exit) *propcfg.ptr() = myArgs; // reset 1
   // check all possible continuations
-  Object obj;
-  cont(text, &obj);
-  if (!obj) return null;
-  auto ex = fastcast!(Expr)~ obj;
-  if (!myArgs.withTuple) {
+  auto ex = fastcast!(Expr)~ sup;
+  if (!withTuple) {
     if (ex && fastcast!(AstTuple)~ ex.valueType())
       return null; // don't
   }
   
-  // logln("prop match for ", obj, " @", text.nextText());
+  // logln("prop match for ", sup, " @", text.nextText());
   void check(Object sup, string text) {
     auto backup = lhs_partial();
     scope(exit) lhs_partial.set(backup);
@@ -37,7 +33,7 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
         break;
       }
       string match = "tree.rhs_partial";
-      if (!myArgs.withCall)
+      if (!withCall)
         match ~= " >tree.rhs_partial.funcall";
       if (auto nl = rest(t2, match)) {
         matched = true;
@@ -59,12 +55,34 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
     }
   }
   
-  /*if (auto ex = fastcast!(Expr)~ obj) {
+  /*if (auto ex = fastcast!(Expr)~ sup) {
     gotImplicitCast(ex, (Expr ex) { check(fastcast!(Object)~ ex, text); return false; });
-  } else */check(obj, text);
+  } else */check(sup, text);
   
   assert(!res || longest);
   if (longest) text = longest;
+  return res;
+}
+
+void withPropcfg(void delegate(bool, bool) dg) {
+  auto myArgs = *propcfg.ptr();
+  *propcfg.ptr() = Init!(PropArgs);
+  scope(exit) *propcfg.ptr() = myArgs;
+  dg(myArgs.withTuple, myArgs.withCall);
+}
+
+static this() {
+  getPropertiesFn = &getProperties;
+  withPropcfgFn = &withPropcfg;
+}
+
+Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
+  Object res;
+  withPropcfg((bool withTuple, bool withCall) {
+    Object sup;
+    if (!cont(text, &sup)) return;
+    res = getProperties(text, sup, withTuple, withCall, cont, rest);
+  });
   return res;
 }
 mixin DefaultParser!(gotProperties, "tree.expr.properties", "240");
