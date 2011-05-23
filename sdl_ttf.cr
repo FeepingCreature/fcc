@@ -3,6 +3,8 @@ module sdl_ttf;
 
 import sdl, std.string, c.SDL.SDL_ttf;
 
+pragma(lib, "SDL_ttf");
+
 int deflt_size = 14;
 
 struct fontsettings {

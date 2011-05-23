@@ -18,13 +18,32 @@ mixin(expandImport(`ast.[
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
   propcall, properties_parse, main, alignment, modules_parse,
   platform, longmath, base, mixins, int_literal, static_arrays,
-  enums, import_parse],
+  enums, import_parse, pragmas],
   casts`));
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
 // from ast.namespace
 mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
+
+static this() {
+  // Link with this library
+  pragmas["lib"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, (Expr ex) {
+      return !!fastcast!(StringExpr) (foldex(ex));
+    }))
+      throw new Exception("Lib name expected. ");
+    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    string newarg = "-l" ~ str;
+    // only add once .. becomes relevant in incremental mode
+    foreach (arg; extra_linker_args) if (arg == newarg) {
+      newarg = null;
+      break;
+    }
+    if (newarg) extra_linker_args ~= newarg;
+    return Single!(NoOp);
+  };
+}
 
 static this() {
   New(namespace, { return cast(Namespace) null; });
@@ -292,7 +311,7 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
         unlink(obj.toStringz());
   string cmdline = platform_prefix~"gcc -m32 -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
-  foreach (larg; largs) cmdline ~= larg ~ " ";
+  foreach (larg; largs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz());
 }

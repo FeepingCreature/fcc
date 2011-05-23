@@ -3,6 +3,8 @@ module sdl;
 public import c.SDL.SDL;
 import std.string;
 
+pragma(lib, "SDL");
+
 class Surface {
   SDL_Surface* back;
   RefCounted rc;

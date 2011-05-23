@@ -12,6 +12,8 @@ bool isWindoze() {
   return platform_prefix.find("mingw") != -1;
 }
 
+string[] extra_linker_args;
+
 interface Iterable {
   void iterate(void delegate(ref Iterable) dg);
   Iterable dup();

@@ -2,6 +2,8 @@ module std.boehm; // use Boehm GC
 
 import c.gc;
 
+pragma(lib, "gc");
+
 void* myCalloc(int a, b) {
   auto len = a * b;
   auto res = sys.mem.malloc(len);
