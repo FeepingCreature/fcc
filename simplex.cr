@@ -515,8 +515,8 @@ float noise3(vec3f v) {
         }
       }
     }
-    nc.perm = (new byte[] 256).ptr;
-    nc.mperm = (new byte[] 256).ptr;
+    nc.perm = new byte[] 256 #.ptr;
+    nc.mperm = new byte[] 256 #.ptr;
     for int i <- 0..256 {
       nc.perm[i] = byte:char:short:perm[i];
       nc.mperm[i] = byte:char:short:mperm[i];

@@ -753,9 +753,11 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     op = lookupOp(opName, op, recurse(nextOp, _i + 1));
     goto retry;
   }
-  auto res = recurse(curOp, 0);
+  do {
+    curOp = recurse(curOp, 0);
+  } while (t2.accept("#"));
   text = t2;
-  return fastcast!(Object) (res);
+  return fastcast!(Object) (curOp);
 }
 
 import ast.pointer, ast.opers, tools.base: swap;
