@@ -43,13 +43,6 @@ void permsetup() {
     perm[i] = (gen.rand() & 0x7fff_ffff) % 256;
     mperm[i] = perm[i] % 12;
   }
-  /*for int i <- 0..256 {
-    for int k <- 0..256 {
-      int id = i * 256 + k;
-      perm[id] = firstPerm[(firstPerm[i] + k) % 256];
-      mperm[id] = perm[id] % 12;
-    }
-  }*/
   int i;
   alias values = [1, 1, 0,
                  -1, 1, 0,
@@ -532,6 +525,7 @@ float noise3(vec3f v) {
   return noise3_asm(v.x, v.y, v.z, &nc);
 }
 
+/*
 float noise3_alt(vec3f v) {
   vec3f x 4  vs = void;
   vec3f vsum = void;
@@ -597,3 +591,4 @@ float noise3_alt(vec3f v) {
   res *= xmm[4];
   return 0.5f + 16.0f*res.sum;
 }
+*/
