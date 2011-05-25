@@ -332,82 +332,85 @@ void parseHeader(string filename, string src) {
       continue;
     }
     bool isUnion;
-    auto st2 = stmt;
-    if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
-      string ident;
-      gotIdentifier(st2, ident);
-      if (st2.accept("{")) {
-        auto startstr = st2;
-        auto st = new Structure(ident);
-        st.isUnion = isUnion;
-        while (true) {
-          if (st2.startsWith("#define"))
-            goto skip;
-          auto ty = matchType(st2);
-          // logln("for ", ident, ", match type @", st2, " = ", ty);
-          if (!ty) goto giveUp1;
+    {
+      auto st2 = stmt;
+      if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
+        string ident;
+        gotIdentifier(st2, ident);
+        if (st2.accept("{")) {
+          auto startstr = st2;
+          auto st = new Structure(ident);
+          // st.minAlign = 4;
+          st.isUnion = isUnion;
           while (true) {
-            auto pos = st2.find("sizeof");
-            if (pos == -1) break;
-            auto block = st2[pos .. $].between("(", ")");
-            auto sty = matchType(block);
-            if (!sty) {
-              goto giveUp1;
+            if (st2.startsWith("#define"))
+              goto skip;
+            auto ty = matchType(st2);
+            // logln("for ", ident, ", match type @", st2, " = ", ty);
+            if (!ty) goto giveUp1;
+            while (true) {
+              auto pos = st2.find("sizeof");
+              if (pos == -1) break;
+              auto block = st2[pos .. $].between("(", ")");
+              auto sty = matchType(block);
+              if (!sty) {
+                goto giveUp1;
+              }
+              auto translated = Format(sty.size);
+              st2 = st2[0 .. pos] ~ translated ~ st2[pos .. $].between(")", "");
+              // logln("st2 => ", st2);
             }
-            auto translated = Format(sty.size);
-            st2 = st2[0 .. pos] ~ translated ~ st2[pos .. $].between(")", "");
-            // logln("st2 => ", st2);
-          }
-          string name3;
-          auto st3 = st2;
-          Expr size;
-          st3 = st3.replace("(int)", ""); // hax
-          if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
-            redo:
-            size = foldex(size);
-            if (fastcast!(AstTuple)~ size.valueType()) {
-              // unwrap "(foo)"
-              size = (fastcast!(StructLiteral)~ (fastcast!(RCE)~ size).from)
-                .exprs[$-1];
-              goto redo;
+            string name3;
+            auto st3 = st2;
+            Expr size;
+            st3 = st3.replace("(int)", ""); // hax
+            if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
+              redo:
+              size = foldex(size);
+              if (fastcast!(AstTuple)~ size.valueType()) {
+                // unwrap "(foo)"
+                size = (fastcast!(StructLiteral)~ (fastcast!(RCE)~ size).from)
+                  .exprs[$-1];
+                goto redo;
+              }
+              auto ie = fastcast!(IntExpr)~ size;
+              // logln("size: ", size);
+              if (!ie) goto giveUp1;
+              new RelMember(name3, new StaticArray(ty, ie.num), st);
+              // logln("rest: ", st3);
+              if (st3.strip().length) {
+                goto giveUp1;
+              }
+              goto skip;
             }
-            auto ie = fastcast!(IntExpr)~ size;
-            // logln("size: ", size);
-            if (!ie) goto giveUp1;
-            new RelMember(name3, new StaticArray(ty, ie.num), st);
-            // logln("rest: ", st3);
-            if (st3.strip().length) {
-              goto giveUp1;
+            // logln(">> ", st2);
+            if (st2.find("(") != -1) {
+              // alias to void for now.
+              add(ident, new TypeAlias(Single!(Void), ident));
+              goto giveUp1; // can't handle yet
             }
-            goto skip;
+            foreach (var; st2.split(",")) {
+              if (ty == Single!(Void)) goto giveUp1;
+              new RelMember(var.strip(), ty, st);
+            }
+          skip:
+            st2 = statements.take();
+            if (st2.accept("}")) break;
           }
-          // logln(">> ", st2);
-          if (st2.find("(") != -1) {
-            // alias to void for now.
-            add(ident, new TypeAlias(Single!(Void), ident));
-            goto giveUp1; // can't handle yet
+          auto name = st2.strip();
+          if (!name.length) name = ident;
+          if (!st.name.length) st.name = name;
+          add(name, st);
+          continue;
+          giveUp1:
+          while (true) {
+            // logln("stmt: ", st2, " in ", startstr);
+            st2 = statements.take();
+            if (st2.accept("}")) break;
           }
-          foreach (var; st2.split(",")) {
-            if (ty == Single!(Void)) goto giveUp1;
-            new RelMember(var.strip(), ty, st);
-          }
-        skip:
-          st2 = statements.take();
-          if (st2.accept("}")) break;
+          // logln(">>> ", st2);
+          continue;
         }
-        auto name = st2.strip();
-        if (!name.length) name = ident;
-        if (!st.name.length) st.name = name;
-        add(name, st);
-        continue;
-        giveUp1:
-        while (true) {
-          // logln("stmt: ", st2, " in ", startstr);
-          st2 = statements.take();
-          if (st2.accept("}")) break;
-        }
-        // logln(">>> ", st2);
-        continue;
       }
     }
     if (isTypedef) {
@@ -420,7 +423,24 @@ void parseHeader(string filename, string src) {
           if (stmt.accept("}")) break;
         }
       }
-      if (!gotIdentifier(stmt, name)) goto giveUp;
+      if (!gotIdentifier(stmt, name)) {
+        auto st2 = stmt;
+        if (!st2.accept("(") || !st2.accept("*") || !gotIdentifier(st2, name) || !st2.accept(")"))
+          goto giveUp;
+        // function pointer
+        if (!st2.accept("(")) goto giveUp;
+        Argument[] args;
+        do {
+          auto partype = matchType(st2);
+          string parname;
+          st2.gotIdentifier(parname);
+          args ~= Argument(partype);
+        } while (st2.accept(","));
+        if (!st2.accept(")")) goto giveUp;
+        logln("get function pointer named ", name, " (ret ", target, ") , params ", args, " @", st2);
+        target = new FunctionPointer(target, args);
+        stmt = st2;
+      }
       string typename = name;
       if (matchSimpleType(typename) && !typename.strip().length) {
         // logln("Skip type ", name, " for duplicate. ");
