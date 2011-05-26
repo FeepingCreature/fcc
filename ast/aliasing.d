@@ -60,7 +60,7 @@ class TypeAlias : Named, IType, SelfAdding {
     bool addsSelf() { return true; }
     string getIdentifier() { return name; }
     int size() { return base.size; }
-    string mangle() { return "type_alias_"~name~"_"~base.mangle; }
+    string mangle() { return "type_alias_"~name.replace("-", "_dash_")~"_"~base.mangle; }
     ubyte[] initval() { return base.initval; }
     int opEquals(IType ty) { return base.opEquals(resolveType(ty)); }
     IType proxyType() { return base; }
