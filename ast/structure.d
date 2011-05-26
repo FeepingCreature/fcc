@@ -176,7 +176,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       return str is this;
     }
     string toString() {
-      if (true /*!name*/) {
+      if (!name) {
         string[] names;
         foreach (elem; field)
           if (auto n = fastcast!(Named) (elem._1)) {

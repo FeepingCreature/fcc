@@ -1,8 +1,26 @@
 module std.thread;
 
 c_include "pthread.h";
-extern(C) int pthread_create(pthread_t*, pthread_attr_t*,
-                             void* function(void*), void*);
+extern(C) {
+  int pthread_create(pthread_t*, pthread_attr_t*,
+                     void* function(void*), void*);
+  int pthread_getattr_np(pthread_t, pthread_attr_t*);
+  int pthread_attr_getstack(pthread_attr_t*, void**, size_t*);
+}
+
+void delegate() onThreadCreation;
+
+void* stack-base;
+int stack-size;
+void setupStackBase() {
+  auto id = pthread_self();
+  pthread_attr_t attr;
+  id.pthread_getattr_np(&attr);
+  pthread_attr_getstack(&attr, &stack-base, size_t*:&stack-size);
+  stack-base = void*:(byte*:stack-base + stack-size);
+}
+
+void init() setupStackBase;
 
 void* __start_routine(void* p) {
   void* ptemp = p; // will be top of the stack, so ..
@@ -18,6 +36,9 @@ void* __start_routine(void* p) {
   {
     alias arg = *(void delegate(), void*)*:ptemp;
     _esi = arg[1];
+    setupStackBase;
+    if (onThreadCreation)
+      onThreadCreation();
     arg[0]();
   }
   // and undo

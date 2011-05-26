@@ -105,11 +105,14 @@ void setupSysmods() {
           auto newsize = size;
           if (size2 > newsize) newsize = size2;
           auto full = new T[] newsize;
+          // printf("allocated %p as %d\n", full.ptr, full.length);
           T[auto ~] res = T[auto~]:(full[0 .. size]);
           res.capacity = newsize;
           res[0 .. l.length] = (*l)[];
-          if l.capacity // otherwise, initialized from slice
+          // printf("free %d, %p (cap %d)\n", l.length, l.ptr, l.capacity);
+          if l.length && l.capacity // otherwise, initialized from slice
             mem.free(void*:l.ptr);
+          // printf("done\n");
           res[l.length .. size] = r;
           return res;
         } else {
