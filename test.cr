@@ -59,7 +59,7 @@ struct W {
 import c.math, c.fenv, c.unistd, c.stdlib, c.time;
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
-  surf = SDL_SetVideoMode(400, 300, 32, 0);
+  surf = SDL_SetVideoMode(1200, 900, 32, 0);
   auto start = time(int*: null);
   float t = 0;
   int fps;
@@ -69,14 +69,20 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
     void calc(int from, int to) {
       int factor1 = 0xff0000, factor2 = 0xff00, factor3 = 0xff;
       vec3f ff = vec3f(factor1, factor2, factor3);
-      for (int y = from; y < to; ++y) {
-        auto p = &((int*:surf.pixels)[y * int:surf.pitch / 4]);
+      auto w = int:surf.pitch / 4;
+      for (int y = from; y < to; y += 3) {
+        // auto p = &((int*:surf.pixels)[y * int:surf.pitch / 4]);
         vec3f f = void;
         vec3i i = void;
-        for (int x = 0; x < surf.w; ++x) {
-          f = dg(float:x / surf.w, float:y / surf.h, t) * ff;
+        for (int x = 0; x < surf.w; x += 3) {
+          f = dg(float:x / (surf.w * 3), float:y / (surf.h * 3), t) * ff;
           fastfloor3f (f, &i);
-          *(p++) = i.x & factor1 + i.y & factor2 + i.z & factor3;
+          // *(p++) = i.x & factor1 + i.y & factor2 + i.z & factor3;
+          auto val = i.x & factor1 + i.y & factor2 + i.z & factor3;
+          auto p = &((int*:surf.pixels)[y * w + x]);
+          p[0] = val; p[1] = val; p[2] = val; p += w;
+          p[0] = val; p[1] = val; p[2] = val; p += w;
+          p[0] = val; p[1] = val; p[2] = val;
         }
       }
     }
@@ -285,6 +291,10 @@ int main(string[] args) {
     var = 14;
     writeln("now it's $var");
   }
+  // auto pos = 2.5f;
+  // writeln "noise of $pos 0 0 is $(noise3 vec3f(pos, 0, 0))";
+  // writeln "alt noise of $pos 0 0 is $(noise3_alt vec3f(pos, 0, 0))";
+  // _interrupt 3;
   writeln("now back to $$ctest.var. ");
   void memtest() using sys.mem {
     writeln("memtest! ");
@@ -405,8 +415,8 @@ int main(string[] args) {
         float sqr(float f) { return f * f; }
         // return noise3 vec3f(v.x + sqr noise3(v/* + vec3f(noise3 v)*/), v.y + sqr noise3(-v), v.z + sqr noise3(v / 2));
         // return noise3 vec3f(v.x + sqr noise3(v), v.y, v.z);
-        return vec3f(noise3 vec3f(v.x + sqr noise3(v), v.y, v.z)); //, noise3 vec3f(v.x + sqr noise3(v), v.y, v.z + 1024), noise3 vec3f(v.x + sqr noise3(v), v.y, -v.z));
-        // return vec3f(noise3 v); //, noise3 -v, noise3 vec3f(v.x, v.y, v.z + 1024));
+        // return vec3f(noise3 vec3f(v.x + sqr noise3(v), v.y, v.z)); //, noise3 vec3f(v.x + sqr noise3(v), v.y, v.z + 1024), noise3 vec3f(v.x + sqr noise3(v), v.y, -v.z));
+        return vec3f(noise3 v); //, noise3 -v, noise3 vec3f(v.x, v.y, v.z + 1024));
         // return noise3 v;
         // return sinf(v.x + sqr noise3 v + v.y + v.z) * 0.5 + 0.5;
       }
@@ -414,12 +424,12 @@ int main(string[] args) {
       
       auto res =
               vec3f(0.5, 0.55, 0.7)
-                     * noisex vec3f(x * 1, y * 1, t)
+                     * noisex vec3f(x * 1.07, y * 1.01, t * 1.03)
             + vec3f(0.25, 0.25, 0.35)
-                     * noisex vec3f(x * 4, y * 4, t * 2 + 4) // offset! important
+                     * noisex vec3f(x * 4.06, y * 4.02, t * 2.09 + 4) // offset! important
             + vec3f(0.125, 0.125, 0.125)
-                     * noisex vec3f(x *16, y *16, t * 4 + 8)
-            + 0.0625 * noisex vec3f(x *64, y *64, t * 8 + 12)
+                     * noisex vec3f(x *32.01, y *32.08, t * 4.05 + 8)
+            + 0.0625 * noisex vec3f(x *64.03, y *64.05, t * 8.04 + 12)
             // + 0.03125* noisex vec3f(x *256, y *256, t *16 + 16)
             ;
       // auto res = noisex vec3f (x * 8, y * 8, t * 2);

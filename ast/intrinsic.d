@@ -52,18 +52,23 @@ void setupSysmods() {
     }
     alias string = char[]; // must be post-marker for free() to work properly
     template sys_array_cast(T) <<EOT
-      T sys_array_cast(void* ptr, int len, int sz1, int sz2) {
-        auto destlen = len * sz1;
-        if destlen % sz2 {
-          writeln "Array cast failed: size/alignment mismatch. ";
-          _interrupt 3;
+      template sys_array_cast(U) <<EO2
+        T sys_array_cast(U u) {
+          alias ar = u[0];
+          alias sz1 = u[1];
+          alias sz2 = u[2];
+          auto destlen = ar.length * sz1;
+          if destlen % sz2 {
+            writeln "Array cast failed: size/alignment mismatch. ";
+            _interrupt 3;
+          }
+          destlen /= sz2;
+          T res;
+          auto resptr = type-of res[0] * :ar.ptr;
+          res = resptr[0 .. destlen];
+          return res;
         }
-        destlen /= sz2;
-        T res;
-        auto resptr = type-of res[0] * :ptr;
-        res = resptr[0 .. destlen];
-        return res;
-      }
+      EO2
     EOT
     template append2(T) <<EOT
       T[~] append2(T[~]* l, T[] r) {

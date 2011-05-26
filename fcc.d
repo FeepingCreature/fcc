@@ -18,7 +18,7 @@ mixin(expandImport(`ast.[
   pointer, nulls, unroll, sa_index_opt, intrinsic, mode,
   propcall, properties_parse, main, alignment, modules_parse,
   platform, longmath, base, mixins, int_literal, static_arrays,
-  enums, import_parse, pragmas],
+  enums, import_parse, pragmas, trivial],
   casts`));
 
 // placed here to resolve circular dependency issues

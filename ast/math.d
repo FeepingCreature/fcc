@@ -210,6 +210,23 @@ class IntLiteralAsShort : Expr {
   }
 }
 
+class IntLiteralAsByte : Expr {
+  IntExpr ie;
+  this(IntExpr ie) { this.ie = ie; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(ie);
+  override {
+    IType valueType() { return Single!(Byte); }
+    string toString() { return Format("byte:", ie); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("1"));
+      af.salloc(1);
+      af.mmove1(Format("$", ie.num), "(%esp)");
+    }
+  }
+}
+
 class IntAsShort : Expr {
   Expr ex;
   this(Expr ex) { this.ex = ex; }
@@ -262,9 +279,15 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != ex.valueType()) return null;
-    auto ie = fastcast!(IntExpr)~ fold(ex);
+    auto ie = fastcast!(IntExpr)~ foldex(ex);
     if (!ie || ie.num > 65535 || ie.num < -32767) return null;
     return new IntLiteralAsShort(ie);
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (Single!(SysInt) != ex.valueType()) return null;
+    auto ie = fastcast!(IntExpr)~ foldex(ex);
+    if (!ie || ie.num > 255 || ie.num < -127) return null;
+    return new IntLiteralAsByte(ie);
   };
   converts ~= delegate Expr(Expr ex, IType it) {
     if (Single!(SysInt) != resolveTup(ex.valueType()))

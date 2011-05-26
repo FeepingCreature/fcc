@@ -534,3 +534,5 @@ void registerClass(string modname, Object obj) {
 static this() {
   registerClass("ast.base", new Register!("ebp"));
 }
+
+bool function(Expr) isTrivial;

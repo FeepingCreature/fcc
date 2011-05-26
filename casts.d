@@ -185,6 +185,8 @@ int getId(ClassInfo ci) {
   return -1;
 }
 
+extern(C) void fastcast_marker() { }
+
 struct _fastcast(T) {
   const ptrdiff_t INVALID = 0xffff; // magic numbah
   static ptrdiff_t[quicklist.length] offsets;
@@ -210,6 +212,7 @@ struct _fastcast(T) {
     }}
     if (!idtable.length)
       return cast(T) u; // not initialized yet (called from a static constructor?)
+    fastcast_marker();
     Object obj;
     static if (!is(U: Object)) { // interface
       auto ptr = **cast(Interface***) u;

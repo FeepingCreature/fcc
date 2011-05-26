@@ -272,11 +272,11 @@ got_ex:
   }
   if (tup) {
     if (tup.types.length != vec.len)
-      throw new Exception("Insufficient elements in vec initializer! ");
+      t2.failparse("Insufficient elements in vec initializer! ");
     Expr[] exs;
     foreach (entry; getTupleEntries(ex)) {
       if (!gotImplicitCast(entry, (IType it) { return test(it == vec.base); }))
-        throw new Exception(Format("Invalid type in vec initializer: ", entry));
+        t2.failparse("Invalid type in vec initializer: ", entry);
       exs ~= entry;
     }
     
@@ -616,6 +616,7 @@ class VecOp : Expr {
         ));
         void delegate() dg1, dg2;
         mixin(mustOffset("0"));
+        // logln("SSE vec op: ", ex1, ", ", ex2, " and ", op);
         // SSE needs no temps!
         if (!gotSSEVecOp(af, ex1, ex2, fastcast!(Expr) (var), op)) {
           auto filler1 = alignStackFor(t1, af); auto v1 = mkTemp(af, ex1, dg1);

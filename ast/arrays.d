@@ -143,27 +143,37 @@ static this() {
 }
 
 import ast.pointer, ast.casting;
-class ArrayLength(T) : T {
+
+class ArrayLength_Base : Expr {
+  Expr array;
+  this(Expr a) { array = a; }
+  private this() { }
+  IType valueType() {
+    return Single!(SysInt); // TODO: size_t when unsigned conversion works
+  }
+  void emitAsm(AsmFile af) {
+    (new MemberAccess_Expr(arrayToStruct(array), "length")).emitAsm(af);
+  }
+  mixin defaultIterate!(array);
+  mixin DefaultDup!();
+}
+
+class ArrayLength(T) : ArrayLength_Base, T {
   static if (is(T == MValue)) {
     alias LValue AT;
   } else {
     alias Expr AT;
   }
-  AT array;
   this(AT at) {
-    array = at;
+    super(fastcast!(Expr) (at));
   }
-  private this() { }
-  mixin DefaultDup!();
-  mixin defaultIterate!(array);
+  private this() { super(); }
+  ArrayLength dup() { return new ArrayLength(fastcast!(AT) (array)); }
   override {
-    string toString() { return Format("length(", array, ")"); }
     IType valueType() {
       return Single!(SysInt); // TODO: size_t when unsigned conversion works
     }
-    void emitAsm(AsmFile af) {
-      (new MemberAccess_Expr(arrayToStruct(array), "length")).emitAsm(af);
-    }
+    string toString() { return Format("length(", array, ")"); }
     static if (is(T == MValue)) void emitAssignment(AsmFile af) {
       assert(false, "TODO");
     }
@@ -267,6 +277,26 @@ Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.a_array_length", null, ".length");
 
+class ArrayExtender : Expr {
+  Expr array, ext;
+  IType baseType;
+  this(Expr a, Expr e) {
+    array = a;
+    ext = e;
+    baseType = (fastcast!(Pointer) (getArrayPtr(array).valueType())).target;
+  }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(array, ext);
+  override {
+    IType valueType() { return new ExtArray(baseType, false); }
+    void emitAsm(AsmFile af) {
+      array.emitAsm(af);
+      ext.emitAsm(af);
+    }
+  }
+}
+
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(Array) (ex.valueType()) && !fastcast!(ExtArray) (ex.valueType())) return null;
@@ -277,16 +307,19 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(Array) (ex.valueType())) return null;
+    // if (!isTrivial(ex)) ex = lvize(ex);
     // equiv to extended with 0 cap
-    return new ArrayMaker(getArrayPtr(ex), getArrayLength(ex), mkInt(0));
+    return new ArrayExtender(ex, mkInt(0));
   };
 }
 
 Expr arrayCast(Expr ex, IType it) {
+  if (!gotImplicitCast(ex, (IType it) { return test(fastcast!(Array) (resolveType(it))); }))
+    return null;
   auto ar1 = fastcast!(Array)~ resolveType(ex.valueType()), ar2 = fastcast!(Array)~ it;
   if (!ar1 || !ar2) return null;
   return iparse!(Expr, "array_cast_convert_call", "tree.expr")
-                (`sys_array_cast!Res(from.ptr, from.length, sz1, sz2)`,
+                (`sys_array_cast!Res(from, sz1, sz2)`,
                  "Res", ar2, "from", ex,
                  "sz1", mkInt(ar1.elemType.size),
                  "sz2", mkInt(ar2.elemType.size));

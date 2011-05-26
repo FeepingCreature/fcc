@@ -2,7 +2,7 @@ module ast.newexpr;
 
 import
   ast.oop, ast.base, ast.static_arrays, ast.namespace, ast.parse,
-  ast.vardecl, ast.int_literal, ast.pointer, ast.assign,
+  ast.vardecl, ast.int_literal, ast.pointer, ast.assign, ast.fold,
   ast.structure: doAlign;
 
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -55,28 +55,28 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         doAlign(base, voidp);
         base /= 4;
         int id = 0;
-        void iterLeaves(void delegate(Intf, int) dg) {
-          void recurse(Intf intf, int myOffs) {
+        void iterLeaves(void delegate(Intf, Expr) dg) {
+          void recurse(Intf intf, Expr myOffs) {
             if (intf.parents.length) foreach (i, intf2; intf.parents) {
               recurse(intf2, myOffs);
-              myOffs += intf2.clsize();
+              myOffs = foldex(lookupOp("+", myOffs, mkInt(intf2.clsize())));
             }
             else dg(intf, myOffs);
           }
           auto offs = cl.ownClassinfoLength;
           foreach (i, intf; cl.iparents) {
             recurse(intf, offs);
-            offs += intf.clsize();
+            offs = foldex(lookupOp("+", offs, mkInt(intf.clsize())));
           }
         }
-        iterLeaves((Intf intf, int offs) {
+        iterLeaves((Intf intf, Expr offs) {
           // logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
           iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
           (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
             "var", var,
             "base", mkInt(base), "id", mkInt(id++),
             "_classinfo", new Symbol(cr.myClass.ci_name()),
-            "offs", mkInt(offs)
+            "offs", offs
           ).emitAsm(af);
         });
       }

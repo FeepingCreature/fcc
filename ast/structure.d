@@ -66,8 +66,10 @@ class RelMember : Expr, Named, RelTransformable {
     bool isAligned = true;
     if (st && st.packed) isAligned = false;
     
-    if (isAligned)
+    if (isAligned) {
       doAlign(offset, type);
+      if (st && st.minAlign > 1) offset = roundTo(offset, st.minAlign);
+    }
     if (!this.name) this.name = qformat("_anon_struct_member_", st.field.length, "_of_", type.mangle());
     ns.add(this);
   }
@@ -140,6 +142,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   NSCache!(IType) typecache;
   string[] names() { return selectMap!(RelMember, "$.name")(&namecache); }
   IType[] types() { return selectMap!(RelMember, "$.type")(&typecache); }
+  int minAlign = 1; // minimal alignment for struct members (4 for C structs)
   this(string name) {
     this.name = name;
   }
@@ -173,7 +176,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       return str is this;
     }
     string toString() {
-      if (!name) {
+      if (true /*!name*/) {
         string[] names;
         foreach (elem; field)
           if (auto n = fastcast!(Named) (elem._1)) {

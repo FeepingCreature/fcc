@@ -13,7 +13,7 @@ class StaticArray : Type, ForceAlignment {
   }
   override int alignment() {
     if (auto fa = fastcast!(ForceAlignment) (resolveType(elemType))) return fa.alignment();
-    return false;
+    return needsAlignment(elemType);
   }
   override string mangle() {
     return Format("Static_", length, "_of_", elemType.mangle());

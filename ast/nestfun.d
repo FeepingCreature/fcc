@@ -169,11 +169,11 @@ class NestedCall : FunCall {
     super.iterate(dg2);
   }
   this() { ebp = new Register!("ebp"); }
+  override NestedCall construct() { return new NestedCall; }
   override NestedCall dup() {
-    auto res = new NestedCall;
-    res.fun = fun;
-    foreach (entry; params) res.params ~= entry.dup;
+    NestedCall res = fastcast!(NestedCall) (super.dup());
     if (dg) res.dg = dg.dup;
+    if (ebp) res.ebp = ebp.dup;
     return res;
   }
   override void emitAsm(AsmFile af) {

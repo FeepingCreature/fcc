@@ -210,7 +210,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     auto self = cv;
     return lookupIntf(name, self);
   }
-  Function lookupClass(string name, int offs, Expr classref) {
+  Function lookupClass(string name, Expr offs, Expr classref) {
     assert(own_offset, this.name~": interface lookup for "~name~" but classinfo uninitialized. ");
     foreach (id, fun; funs) {
       if (fun.name == name) {
@@ -219,7 +219,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
         auto pp_fntype = new Pointer(new Pointer(fntype));
         return new PointerFunction!(NestedFunction)(
           new DgConstructExpr(
-            new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, classref)), mkInt(id + own_offset + offs)),
+            new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, classref)), lookupOp("+", offs, mkInt(id + own_offset))),
             reinterpret_cast(voidp, classref)
           )
         );
@@ -227,7 +227,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     }
     foreach (par; parents) {
       if (auto res = par.lookupClass(name, offs, classref)) return res;
-      offs += par.clsize;
+      offs = foldex(lookupOp("+", mkInt(par.clsize)));
     }
     return null;
   }
@@ -430,11 +430,16 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     getClassinfo; // no-op to generate stuff
   }
   mixin TypeDefaults!();
-  int ownClassinfoLength() { // skipping interfaces
-    int res;
-    if (parent) res += parent.getClassinfo().length;
-    res += myfuns.funs.length;
-    return res;
+  // this returns an Expr so that interface calls in a class method can resolve lazily, as they should.
+  // interfaces come after the classinfo!
+  Expr ownClassinfoLength() { // skipping interfaces
+    return new CallbackExpr(Single!(SysInt), null, this /apply/ (Class self, Expr, AsmFile af) {
+      int res;
+      if (self.parent) res += self.parent.getClassinfo().length;
+      res += self.myfuns.funs.length;
+      // logln("for ", self.name, ", res is ", res);
+      mkInt(res).emitAsm(af);
+    });
   }
   // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
   string[] getClassinfo(RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
@@ -547,11 +552,12 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       if (auto res = myfuns.lookup(str, base)) {
         return res;
       }
-      int cl_offset = ownClassinfoLength;
+      Expr cl_offset = ownClassinfoLength;
       foreach (intf; iparents) {
-        if (auto res = intf.lookupClass(str, cl_offset, base))
+        if (auto res = intf.lookupClass(str, cl_offset, base)) {
           return fastcast!(Object)~ res;
-        cl_offset += intf.clsize;
+        }
+        cl_offset = foldex(lookupOp("+", cl_offset, mkInt(intf.clsize)));
       }
       if (parent) if (auto res = parent.lookupRel(str, base)) {
         return res;

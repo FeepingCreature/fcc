@@ -199,11 +199,42 @@ static this() {
     }
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+    auto e1vt = resolveType(ex1.valueType());
+    if (!isExtArray(e1vt)) return null;
+    auto et = resolveType((fastcast!(ExtArray)~ e1vt).elemType);
+    if (!gotImplicitCast(ex2, (IType it) {
+      auto sa = fastcast!(StaticArray) (it);
+      return sa && resolveType(sa.elemType) == et;
+    }))
+      return null;
+    if (!fastcast!(LValue) (ex1)) {
+      logln("Cannot concatenate ext+elem x ?: ext is not lvalue; cannot invalidate: ", ex1, ex2);
+      asm { int 3; }
+    }
+    auto ea = fastcast!(ExtArray)~ e1vt;
+    if (ea.freeOnResize) {
+      return new StatementAndExpr(
+        iparse!(Statement, "concat_into_ext_fOR_static_array", "tree.stmt")
+               (`for auto e <- r l = sys.append3e!T(&l, e);`, namespace(),
+                "T", ea.elemType, "l", ex1, "r", ex2)
+        , ex1
+      );
+    } else {
+      return new StatementAndExpr(
+        iparse!(Statement, "concat_into_ext_static_array", "tree.stmt")
+               (`for auto e <- r l = sys.append2e!T(&l, e);`, namespace(),
+                "T", ea.elemType, "l", ex1, "r", ex2)
+        , ex1
+      );
+    }
+  });
+  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
     logln("op: concat");
     logln("ex1: ", ex1.valueType());
     logln("ex2: ", ex2.valueType());
-    asm { int 3;}
-    return null;
+    // asm { int 3;}
+    throw new Exception("Concatenation error");
+    // return null;
   });
   // fold string concats
   foldopt ~= delegate Itr(Itr it) {
@@ -227,18 +258,22 @@ Object gotConcatChain(ref string text, ParseCb cont, ParseCb rest) {
   IType elemtype;
   if (!cont(t2, &op)) return null;
   auto first = op;
-  retry:
-  auto t3 = t2;
-  if (t3.accept("~=") && cont(t3, &op2)) {
-    op = lookupOp("~=", op, op2);
-    if (!op) return null;
-    t2 = t3;
-    goto retry;
-  }
-  if (t2.accept("~") && cont(t2, &op2)) {
-    op = lookupOp("~", op, op2);
-    if (!op) return null;
-    goto retry;
+  try {
+    retry:
+    auto t3 = t2;
+    if (t3.accept("~=") && cont(t3, &op2)) {
+      op = lookupOp("~=", op, op2);
+      if (!op) return null;
+      t2 = t3;
+      goto retry;
+    }
+    if (t2.accept("~") && cont(t2, &op2)) {
+      op = lookupOp("~", op, op2);
+      if (!op) return null;
+      goto retry;
+    }
+  } catch (Exception ex) {
+    t2.failparse("Could not concatenate: ", ex);
   }
   if (op is first) return null;
   text = t2;

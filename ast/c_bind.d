@@ -437,7 +437,7 @@ void parseHeader(string filename, string src) {
           args ~= Argument(partype);
         } while (st2.accept(","));
         if (!st2.accept(")")) goto giveUp;
-        logln("get function pointer named ", name, " (ret ", target, ") , params ", args, " @", st2);
+        // logln("get function pointer named ", name, " (ret ", target, ") , params ", args, " @", st2);
         target = new FunctionPointer(target, args);
         stmt = st2;
       }

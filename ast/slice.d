@@ -37,7 +37,7 @@ class FullSlice : Expr {
     IType valueType() { return type; }
     import ast.vardecl, ast.assign;
     void emitAsm(AsmFile af) {
-      mkVar(af, valueType(), true, (Variable var) {
+      mkVarUnaligned(af, valueType(), true, (Variable var) {
         auto backup = af.checkptStack();
         scope(exit) af.restoreCheckptStack(backup);
         

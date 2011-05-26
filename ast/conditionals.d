@@ -243,12 +243,13 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
 
 import ast.literals;
-class BooleanOp(string Which) : Cond {
+class BooleanOp(string Which) : Cond, HasInfo {
   Cond c1, c2;
   mixin MyThis!("c1, c2");
   mixin DefaultDup!();
   mixin defaultIterate!(c1, c2);
   override {
+    string getInfo()  { return Which; }
     void jumpOn(AsmFile af, bool cond, string dest) {
       static if (Which == "&&") {
         if (cond) {

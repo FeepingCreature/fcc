@@ -19,10 +19,11 @@ class VarDecl : LineNumberedStatementClass {
       // sanity checking start!
       if (var.baseOffset + var.type.size < -af.currentStackDepth) {
         auto delta = -af.currentStackDepth - (var.baseOffset + var.type.size);
-        // logln("alloc ", delta, " to compensate for stack being wrong for var");
+        // logln("alloc ", delta, " to compensate for stack being wrong for var ", var.name, " @", var.baseOffset);
         // logln("(", var.name, " at ", af.currentStackDepth, " wants ", -var.baseOffset - var.type.size, ")");
         af.salloc(delta);
       }
+      mixin(mustOffset("var.valueType().size()"));
       if (var.baseOffset + var.type.size != -af.currentStackDepth) {
         logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var);
         foreach (elem; namespace().field) {
@@ -79,6 +80,7 @@ void mkVar(AsmFile af, IType type, bool dontInit, bool alignvar, void delegate(V
                           alignvar?boffs(type, af.currentStackDepth):-(af.currentStackDepth + type.size));
   var.dontInit = dontInit;
   if (size) {
+    mixin(mustOffset("size", "2"));
     auto vd = new VarDecl;
     vd.vars ~= var;
     vd.emitAsm(af);
@@ -128,7 +130,7 @@ LValue lvize(Expr ex) {
   // Won't this mess up the frame size counts? .. Meh.
   auto sc = namespace().get!(Scope);
   if (!sc) {
-    logln("No Scope beneath ", namespace(), "!");
+    logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
     asm { int 3; }
   }
   var.initval = ex;

@@ -1,5 +1,7 @@
 module std.stream;
 
+import c.arpa.inet; // ntoh_/hton_
+
 class iter {
   int delegate(void[]) dg;
   char x 512 buffer;

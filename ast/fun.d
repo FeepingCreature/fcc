@@ -221,8 +221,9 @@ class FunCall : Expr {
   Expr[] params;
   Function fun;
   Expr[] getParams() { return params; }
+  FunCall construct() { return new FunCall; }
   FunCall dup() {
-    auto res = new FunCall;
+    auto res = construct;
     res.fun = fun.flatdup();
     
     foreach (param; params) res.params ~= param.dup;
@@ -240,7 +241,7 @@ class FunCall : Expr {
   override void emitAsm(AsmFile af) {
     emitWithArgs(af, params);
   }
-  override string toString() { return Format("call(", fun, params, ")"); }
+  override string toString() { return Format("(", fun.name, "(", params, "))"); }
   override IType valueType() {
     return fun.type.ret;
   }
