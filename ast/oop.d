@@ -528,7 +528,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       return res;
     }
     Object lookupRel(string str, Expr base) {
-      if (!base && str == "name") // T.name
+      if (!base && str == "__name") // T.name
         return fastcast!(Object) (mkString(name));
       auto crType = fastcast!(ClassRef) (resolveType(base.valueType()));
       if (!crType) {

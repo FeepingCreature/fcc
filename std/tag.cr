@@ -51,7 +51,7 @@ template offers(T) <<EOT
       return res;
     
     if auto t = Tag: obj
-      return T: t.offers T.name;
+      return T: t.offers T.__name;
     
     return null;
   }
