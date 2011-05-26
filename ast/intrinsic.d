@@ -6,6 +6,7 @@ void setupSysmods() {
   if (sysmod) return;
   string src = `
     module sys;
+    pragma(lib, "m");
     alias bool = int;
     alias true = bool:1;
     alias false = bool:0;
