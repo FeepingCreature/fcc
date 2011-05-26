@@ -98,9 +98,11 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   string name;
   auto t2 = text;
+  bool shared;
+  if (t2.accept("shared")) shared = true;
   if (!rest(t2, "type", &ty)) return null;
   auto gvd = new GlobVarDecl;
-  gvd.tls = true;
+  gvd.tls = !shared;
   auto ns = namespace();
   string t3; Expr initval;
   if (
