@@ -372,6 +372,128 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIteratorZip, "tree.expr.iter.zip", null, "zip");
 
+class Seq(T) : Type, T {
+  Tuple tup; // current value, iterators
+  LValue castToTuple(LValue lv) {
+    return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
+                  ("*tup*:&lv", "lv", lv, "tup", tup);
+  }
+  Expr castToTuple(Expr ex) {
+    if (auto lv = fastcast!(LValue)~ ex) return castToTuple(lv);
+    return iparse!(Expr, "cross_cast_expr_to_tuple", "tree.expr")
+                  ("tup:ex", "ex", ex, "tup", tup);
+  }
+  IType myType;
+  override {
+    IType elemType() { return myType; }
+    string toString() { return Format("Seq(", tup.types, ")"); }
+    int size() { return tup.size; }
+    string mangle() { return "seq_over_"~tup.mangle(); }
+    ubyte[] initval() { return tup.initval(); }
+    Expr yieldAdvance(LValue lv) {
+      auto len = tup.types.length - 1;
+      auto tup = castToTuple(lv);
+      
+      auto res_st = new Scope;
+      Scope curBranch = res_st;
+      for (int i = 0; i < len; ++i) {
+        auto ifst = iparse!(IfStatement, "seq_step", "tree.stmt")
+                          (`if tup[0] <- tup[i+1] { } else { }`,
+                           curBranch, "tup", tup, "i", mkInt(i)
+                          );
+        curBranch.addStatement(ifst);
+        curBranch = ifst.branch2; // fill the else{}
+      }
+      auto res_ex = getTupleEntries(tup)[0];
+      return new StatementAndExpr(res_st, res_ex);
+    }
+    Cond terminateCond(Expr ex) {
+      Cond res;
+      auto len = tup.types.length - 1;
+      auto tup = castToTuple(ex);
+      for (int i = 0; i < len; ++i) {
+        auto entry = iparse!(Expr, "seq_subcond", "tree.expr")
+                           (`tup[i+1]`, "tup", tup, "i", mkInt(i));
+        auto cond = (fastcast!(Iterator)~ entry.valueType()).terminateCond(entry);
+        if (!res) res = cond;
+        else res = new BooleanOp!("||")(res, cond);
+      }
+      assert(!!res);
+      return res;
+    }
+    static if (is(T: RichIterator)) {
+      Expr length(Expr ex) {
+        auto len = tup.types.length - 1;
+        Expr res = mkInt(0);
+        for (int i = 0; i < len; ++i) {
+          auto term = iparse!(Expr, "seq_len", "tree.expr")
+                             (`tup[i + 1]`, "tup", castToTuple(ex), "i", mkInt(i));
+          auto sublen = (fastcast!(RichIterator)~ term.valueType()).length(term);
+          res = lookupOp("+", res, sublen);
+        }
+        return res;
+      }
+      Expr index(Expr ex, Expr pos) {
+        // TODO
+        assert(false);
+      }
+      Expr slice(Expr ex, Expr from, Expr to) {
+        assert(false); // moar meh
+      }
+    }
+  }
+}
+
+Expr mkSeq(IType type, Expr[] exprs, bool rich) {
+  auto tup = mkTupleExpr(fastcast!(Expr) (new Filler(type)) ~ exprs);
+  if (rich) {
+    auto seq = new Seq!(RichIterator);
+    seq.myType = type;
+    seq.tup = fastcast!(Tuple)~ tup.valueType();
+    return new RCE(seq, tup);
+  } else {
+    auto seq = new Seq!(Iterator);
+    seq.myType = type;
+    seq.tup = fastcast!(Tuple)~ tup.valueType();
+    return new RCE(seq, tup);
+  }
+}
+
+Object gotIteratorSeq(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  if (!rest(text, "tree.expr", &ex))
+    text.failparse("Could not match exprs for seq");
+  bool rich = true;
+  IType valueType;
+  if (!gotImplicitCast(ex, delegate bool(Expr ex) {
+    auto tup = fastcast!(Tuple)~ ex.valueType();
+    if (!tup) return false;
+    foreach (ex2; getTupleEntries(ex)) {
+      ex2 = foldex(ex2);
+      if (!gotImplicitCast(ex2, Single!(BogusIterator), isIterator))
+        return false;
+      if (!valueType)
+        valueType = (fastcast!(Iterator) (ex2.valueType())).elemType();
+      auto test = ex2;
+      if (!gotImplicitCast(test, isRichIterator))
+        rich = false;
+      else
+        ex2 = test;
+    }
+    return true;
+  }))
+    text.failparse("Cannot convert ", ex, " into acceptable tuple form");
+  
+  auto list = getTupleEntries(ex);
+  foreach (ref entry; list) {// cast for rilz
+    entry = foldex(entry);
+    if (rich) gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
+    else gotImplicitCast(entry, Single!(BogusIterator), isIterator);
+  }
+  return fastcast!(Object) (mkSeq(valueType, list, rich));
+}
+mixin DefaultParser!(gotIteratorSeq, "tree.expr.iter.seq", null, "seq");
+
 class SumExpr : Expr {
   Iterator iter;
   Expr ex;
