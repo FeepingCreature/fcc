@@ -41,7 +41,7 @@ int open(string file) {
   return C_open(ptr, read-mode);
 }
 
-ubyte[] readAll(string file) { return join readfile open file; }
+ubyte[] readAll(string file) { return join readfile open file; } // God I love this line so hard.
 
 class WriterError : Error {
   void init() { super.init "Writer Error"; }
