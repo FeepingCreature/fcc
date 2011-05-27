@@ -10,12 +10,20 @@ void* myDebugCalloc(int a, b) { return myDebugMalloc(a * b); }
 
 void* myRealloc(void* a, size_t b) { return GC_realloc(a, int:b); }
 void* myMalloc(int a) { return GC_malloc(int:a); }
-void* myCalloc(int a, b) { return myMalloc(a * b); }
+void* myCalloc(int a, b) {
+  auto len = a * b;
+  auto res = myMalloc(len);
+  auto bp = byte*:res;
+  for 0..len { *(bp++) = byte:0; }
+  return res;
+}
 
 void register_thread() {
   GC_stack_base gsb;
   gsb.mem_base = stack-base;
   // writeln "register stack base $(stack-base) (ebp $(_ebp))";
+  // register my TLS segment as a root
+  GC_add_roots(_esi, _esi + tls_size);
   GC_register_my_thread(&gsb);
 }
 

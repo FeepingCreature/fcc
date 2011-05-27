@@ -22,6 +22,8 @@ void setupStackBase() {
 
 void init() setupStackBase;
 
+shared int tls_size;
+
 void* __start_routine(void* p) {
   void* ptemp = p; // will be top of the stack, so ..
   asm "popl %eax";
@@ -67,7 +69,7 @@ void startThread(void delegate() dg) {
       if (range[1] > dataEnd) dataEnd = range[1];
     }
   }
-  alias dataSize = dataEnd - dataStart;
+  alias dataSize = dataEnd - dataStart; tls_size = dataSize;
   auto oldArea = _esi[dataStart..dataEnd];
   auto newArea = (sys.malloc(dataSize) - dataStart)[0 .. dataEnd];
   for (auto range <- localRange) {
