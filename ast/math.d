@@ -240,6 +240,11 @@ class IntAsShort : Expr {
       mixin(mustOffset("2"));
       ex.emitAsm(af);
       af.popStack("%eax", 4);
+      af.mmove4("%eax", "%ebx");
+      af.mathOp("shrl", "$16", "%ebx"); // move eah into eal
+      af.mathOp("andw", "$32768", "%bx"); // select high bit
+      af.mathOp("andw", "$32767", "%ax"); // mask out high bit
+      af.mathOp("orw", "%bx", "%ax"); // copy bit
       af.pushStack("%ax", 2);
     }
   }

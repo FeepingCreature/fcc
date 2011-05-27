@@ -316,8 +316,8 @@ class ShortToIntCast : Expr {
     void emitAsm(AsmFile af) {
       sh.emitAsm(af);
       af.comment("short to int cast");
-      af.put("xorl %eax, %eax");
       af.popStack("%ax", sh.valueType().size);
+      af.put("cwde");
       af.pushStack("%eax", 4);
     }
     string toString() { return Format("int:", sh); }
