@@ -5,7 +5,15 @@ import
   ast.fun, ast.funcall, ast.aliasing, ast.conditionals,
   ast.structure, ast.namespace, ast.modules, ast.structfuns, ast.returns;
 
-class Vector : Type, RelNamespace, ForceAlignment {
+Expr[] genInitPattern(int i, int len) {
+  Expr[] res;
+  for (int k = 0; k < len; ++k) {
+    res ~= mkInt(i == k); // tee hee
+  }
+  return res;
+}
+
+class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
   IType base;
   Tuple asTup;
   Tuple asFilledTup; // including filler for vec3f
@@ -41,14 +49,18 @@ class Vector : Type, RelNamespace, ForceAlignment {
     ubyte[] initval() { return asFilledTup.initval(); }
     bool isTempNamespace() { return false; }
     int opEquals(IType it) {
-      it = resolveType(it);
-      if (!super.opEquals(it)) return false;
-      auto vec = fastcast!(Vector) (it);
-      assert(vec);
+      auto vec = fastcast!(Vector) (resolveType(it));
+      if (!vec) return false;
       return vec.base == base && vec.len == len;
     }
     Object lookupRel(string str, Expr base) {
-      if (!base) return null;
+      if (!base) {
+        if (len > 0 && str == "X") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(0, len)), this));
+        if (len > 1 && str == "Y") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(1, len)), this));
+        if (len > 2 && str == "Z") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(2, len)), this));
+        if (len > 3 && str == "W") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(3, len)), this));
+        return null;
+      }
       if (len > 4) return null;
       bool isValidChar(char c) {
         if (len >= 1 && c == 'x') return true;
@@ -224,6 +236,43 @@ static this() {
   };
 }
 
+Object constructVector(Expr base, Vector vec) {
+  auto ex2 = base;
+  if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
+    return fastcast!(Object) (reinterpret_cast(
+      vec,
+      new MultiplesExpr(ex2, vec.real_len())
+    ));
+  }
+  checkVecs();
+  retryTup:
+  if (vec == vec3f && base.valueType() == vec3i) {
+    return new SSEIntToFloat(base);
+  }
+  auto tup = fastcast!(Tuple) (base.valueType());
+  if (!tup) throw new Exception(Format("WTF? No tuple param for vec constructor: ", base.valueType()));
+  if (tup.types.length == 1) {
+    base = getTupleEntries(base)[0];
+    goto retryTup;
+  }
+  if (tup) {
+    if (tup.types.length != vec.len)
+      throw new Exception(Format("Insufficient elements in vec initializer! "));
+    Expr[] exs;
+    foreach (entry; getTupleEntries(base)) {
+      if (!gotImplicitCast(entry, (IType it) { return test(it == vec.base); }))
+        throw new Exception(Format("Invalid type in vec initializer: ", entry));
+      exs ~= entry;
+    }
+    
+    if (vec.extend) exs ~= new Filler(vec.base);
+    
+    return fastcast!(Object)~
+      reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
+  }
+  assert(false);
+}
+
 Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;
@@ -233,60 +282,14 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   if (!vec)
     return null;
   Expr ex;
-  Expr[] genInitPattern(int i) {
-    Expr[] res;
-    for (int k = 0; k < vec.len; ++k) {
-      res ~= mkInt(i == k); // tee hee
-    }
-    return res;
-  }
-  if (vec.len >= 1)
-    if (t2.accept(".X")) { ex = mkTupleValueExpr(genInitPattern(0)); goto got_ex; }
-  if (vec.len >= 2)
-    if (t2.accept(".Y")) { ex = mkTupleValueExpr(genInitPattern(1)); goto got_ex; }
-  if (vec.len >= 3)
-    if (t2.accept(".Z")) { ex = mkTupleValueExpr(genInitPattern(2)); goto got_ex; }
-  if (vec.len >= 4)
-    if (t2.accept(".W")) { ex = mkTupleValueExpr(genInitPattern(3)); goto got_ex; }
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) return null;
-got_ex:
-  auto ex2 = ex;
-  if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
-    text = t2;
-    return fastcast!(Object) (reinterpret_cast(
-      vec,
-      new MultiplesExpr(ex2, vec.real_len())
-    ));
-  }
-  checkVecs();
-  retryTup:
-  if (vec == vec3f && ex.valueType() == vec3i) {
-    text = t2;
-    return new SSEIntToFloat(ex);
-  }
-  auto tup = fastcast!(Tuple) (ex.valueType());
-  if (!tup) t2.failparse("WTF? No tuple param for vec constructor: ", ex.valueType());
-  if (tup.types.length == 1) {
-    ex = getTupleEntries(ex)[0];
-    goto retryTup;
-  }
-  if (tup) {
-    if (tup.types.length != vec.len)
-      t2.failparse("Insufficient elements in vec initializer! ");
-    Expr[] exs;
-    foreach (entry; getTupleEntries(ex)) {
-      if (!gotImplicitCast(entry, (IType it) { return test(it == vec.base); }))
-        t2.failparse("Invalid type in vec initializer: ", entry);
-      exs ~= entry;
+  try {
+    if (auto res = constructVector(ex, vec)) {
+      text = t2;
+      return res;
     }
-    
-    if (vec.extend) exs ~= new Filler(vec.base);
-    
-    text = t2;
-    return fastcast!(Object)~
-      reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
-  }
-  assert(false);
+  } catch (Exception ex) t2.failparse(ex);
+  return null;
 }
 mixin DefaultParser!(gotVecConstructor, "tree.expr.veccon", "8");
 

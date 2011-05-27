@@ -618,8 +618,8 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (!ex) {
       auto ns = fastcast!(Namespace) (space);
       Object m;
-      if (rn) m = rn.lookupRel(member, null);
-      else if (ns) m = ns.lookup(member, true);
+      if (ns) m = ns.lookup(member, true);
+      if (!m && rn) m = rn.lookupRel(member, null);
       if (!m) goto try_next_alt;
       
       // auto ex2 = fastcast!(Expr) (m);
