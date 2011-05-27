@@ -84,34 +84,36 @@ static this() {
 }
 
 class WithSpace : Namespace {
-  Expr[] spaces;
+  Object[] spaces;
+  Expr[] values;
   this(Expr ex) {
     sup = namespace();
-    spaces ~= ex;
+    spaces ~= fastcast!(Object) (ex.valueType());
+    values ~= ex;
   }
-  this(Expr[] exprs) {
+  this(Object[] spaces, Expr[] values) {
     sup = namespace();
-    spaces = exprs;
+    this.spaces = spaces;
+    this.values = values;
   }
   override {
     string mangle(string name, IType type) { assert(false); }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) {
-      foreach (space; spaces) {
-        auto type = space.valueType();
-        auto rns = fastcast!(RelNamespace) (type);
+      foreach (i, space; spaces) {
+        auto rns = fastcast!(RelNamespace) (space);
         
         if (!rns) 
-          if (auto srns = cast(SemiRelNamespace) type)
+          if (auto srns = fastcast!(SemiRelNamespace) (space))
             rns = srns.resolve();
         
-        if (auto srns = cast(SemiRelNamespace) rns)
+        if (auto srns = fastcast!(SemiRelNamespace) (rns))
           rns = srns.resolve();
         
         if (rns)
-          if (auto res = rns.lookupRel(name, space)) return res;
+          if (auto res = rns.lookupRel(name, values[i])) return res;
         
-        if (auto ns = fastcast!(Namespace) (space.valueType()))
+        if (auto ns = fastcast!(Namespace) (space))
           if (auto res = ns.lookup(name, local)) return res;
       }
       return sup.lookup(name, local);
@@ -121,30 +123,50 @@ class WithSpace : Namespace {
 
 import ast.iterator, ast.casting, ast.pointer, ast.vardecl;
 Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
-  return lhs_partial.using = delegate Object(Expr ex) {
+  return lhs_partial.using = delegate Object(Object obj) {
     {
       auto t2 = text;
       if (!t2.accept("(")) return null;
     }
-    while (fastcast!(Pointer) (resolveType(ex.valueType())))
-      ex = new DerefExpr(ex);
+    auto ex = fastcast!(Expr) (obj);
+    if (ex)
+      while (fastcast!(Pointer) (resolveType(ex.valueType())))
+        ex = new DerefExpr(ex);
     
-    Expr[] spaces;
+    if (auto it = fastcast!(IType) (obj))
+      obj = fastcast!(Object) (resolveType(it));
     
-    Expr ex2 = lvize(ex);
-    gotImplicitCast(ex2, (Expr ex) {
-      auto it = ex.valueType();
-      if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it) || fastcast!(SemiRelNamespace) (it))
-        spaces ~= ex;
-      return false;
-    });
+    Object[] spaces;
+    Expr[] values;
+    
+    if (ex) {
+      Expr ex2 = lvize(ex);
+      gotImplicitCast(ex2, (Expr ex) {
+        auto it = ex.valueType();
+        if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it) || fastcast!(SemiRelNamespace) (it)) {
+          spaces ~= fastcast!(Object) (it);
+          values ~= ex;
+        }
+        return false;
+      });
+    } else {
+      if (auto ns = fastcast!(Namespace) (obj)) {
+        spaces ~= obj; values ~= null;
+      } else if (auto rn = fastcast!(RelNamespace) (obj)) {
+        spaces ~= obj; values ~= null;
+      }
+    }
     
     if (!spaces.length)
-      text.failparse("Not a [rel]namespace: ", ex.valueType());
+      if (ex)
+        text.failparse("Not a [rel]namespace: type ", ex.valueType());
+      else
+        text.failparse("Not a [rel]namespace: obj ", obj.classinfo.name, ": ", obj);
     
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    namespace.set(new WithSpace(spaces));
+    namespace.set(new WithSpace(spaces, values));
+    
     Object res;
     if (!rest(text, "tree.expr _tree.expr.arith", &res) && !rest(text, "cond", &res))
       text.failparse("Couldn't get with-tuple expr");
