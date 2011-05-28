@@ -6,7 +6,7 @@ public import casts;
 
 import tools.base: Format, New, This_fn, rmSpace;
 
-const string EXT = ".cr";
+const string EXT = ".nt";
 
 string platform_prefix;
 
