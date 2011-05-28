@@ -48,7 +48,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
     //                      needed by sysmod; avoid circle
     isValid = true;
   }
-  string filename() { return name.replace(".", "/") ~ ".cr"; }
+  string filename() { return name.replace(".", "/") ~ EXT; }
   void addSetupable(Setupable s) {
     setupable ~= s;
     if (inProgress) s.setup(inProgress);
@@ -190,7 +190,7 @@ Module lookupMod(string name) {
     currentlyParsing.remove(name);
   };
   Module mod;
-  auto fn = (name.replace(".", "/") ~ ".cr");
+  auto fn = (name.replace(".", "/") ~ EXT);
   if (specialHandler) mod = specialHandler(name);
   if (!mod) {
     if (!fn.exists()) {

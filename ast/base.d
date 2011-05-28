@@ -6,6 +6,8 @@ public import casts;
 
 import tools.base: Format, New, This_fn, rmSpace;
 
+const string EXT = ".cr";
+
 string platform_prefix;
 
 bool isWindoze() {

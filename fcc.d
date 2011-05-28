@@ -5,8 +5,6 @@ import tools.log, tools.compat, tools.smart_import;
 alias ast.types.Type Type;
 import classgraph;
 
-const string EXT = ".cr";
-
 mixin(expandImport(`ast.[
   aggregate_parse, returns, ifstmt, loops, assign,
   structure, variable, fun, unary, arrays, index, slice,
@@ -296,7 +294,7 @@ string[] compileWithDepends(string file, CompileSettings cs) {
   while (todo.length) {
     auto cur = todo.take();
     if (cur.name in done) continue;
-    if (auto nuMod = compile(cur.name.replace(".", "/") ~ ".cr", cs))
+    if (auto nuMod = compile(cur.name.replace(".", "/") ~ EXT, cs))
       res ~= nuMod;
     done[cur.name] = true;
     todo ~= cur.getImports();
@@ -320,9 +318,9 @@ import std.file;
 void loop(string start, string output, string[] largs,
           CompileSettings cs, bool runMe)
 {
-  string toModule(string file) { return file.replace("/", ".").endsWith(".cr"); }
+  string toModule(string file) { return file.replace("/", ".").endsWith(EXT); }
   string undo(string mod) {
-    return mod.replace(".", "/") ~ ".cr";
+    return mod.replace(".", "/") ~ EXT;
   }
   void translate(string file, ref string obj, ref string src) {
     if (auto pre = file.endsWith(EXT)) {
@@ -408,7 +406,7 @@ int main(string[] args) {
   auto exec = args.take();
   justAcceptedCallback = 0 /apply/ (ref int prevHalfway, string s) {
     auto info = lookupProgress(s);
-    if (info._1.endsWith(".cr")) {
+    if (info._1.endsWith(EXT)) {
       foreach (path; include_path)
         if (auto rest = info._1.startsWith(path)) {
           if (auto rest2 = rest.startsWith("/")) rest = rest2;
@@ -545,7 +543,7 @@ int main(string[] args) {
       dumpXMLRep = true;
       continue;
     }
-    if (auto base = arg.endsWith(".cr")) {
+    if (auto base = arg.endsWith(EXT)) {
       if (!output) output = base;
       if (isWindoze()) output ~= ".exe";
       if (!mainfile) mainfile = arg;
