@@ -227,7 +227,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     }
     foreach (par; parents) {
       if (auto res = par.lookupClass(name, offs, classref)) return res;
-      offs = foldex(lookupOp("+", mkInt(par.clsize)));
+      offs = foldex(lookupOp("+", offs, mkInt(par.clsize)));
     }
     return null;
   }

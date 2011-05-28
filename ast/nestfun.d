@@ -11,12 +11,19 @@ class NestedFunction : Function {
   this(Namespace context) {
     this.context = context;
   }
+  private this() { }
   string cleaned_name() { return name.cleanup(); }
   override {
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
       return context.get!(Function).mangleSelf() ~ "_subfun_" ~
         context.get!(Function).mangle(cleaned_name, type)~"_of_"~type.mangle();
+    }
+    NestedFunction alloc() { return new NestedFunction; }
+    NestedFunction flatdup() {
+      auto res = fastcast!(NestedFunction) (super.flatdup());
+      res.context = context;
+      return res;
     }
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;
