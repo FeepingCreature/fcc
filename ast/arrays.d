@@ -1,6 +1,6 @@
 module ast.arrays;
 
-import ast.base, ast.types, ast.static_arrays, tools.base: This, This_fn, rmSpace;
+import ast.base, ast.types, ast.static_arrays, ast.returns, tools.base: This, This_fn, rmSpace;
 
 // ptr, length
 class Array : Type {
@@ -100,15 +100,19 @@ IType arrayAsStruct(IType base, bool rich) {
       "dup"
     ));
   }
-  mkFun("popEnd", delegate Tree(RelFunction rf) {
-    rf.type.ret = base;
-    return new StatementAndExpr(
-      iparse!(Statement, "array_setpop", "tree.stmt")
-             (`length --;`, rf),
-      iparse!(Expr, "array_getpop", "tree.expr")
-             (`*(ptr + length)`, rf)
-    );
-  });
+  if (base != Single!(Void) && base.size <= 16 /* max supported return size */) {
+    mkFun("popEnd", delegate Tree(RelFunction rf) {
+      rf.type.ret = base;
+      return new ReturnStmt(
+        new StatementAndExpr(
+          iparse!(Statement, "array_setpop", "tree.stmt")
+                (`length --;`, rf),
+          iparse!(Expr, "array_getpop", "tree.expr")
+                (`*(ptr + length)`, rf)
+        )
+      );
+    });
+  }
   
   cache ~= stuple(base, rich, mod, fastcast!(IType) (res));
   isArrayStructType[res] = true;
