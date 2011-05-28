@@ -64,6 +64,7 @@ class VTable {
     Function[] res;
     foreach (id, fun; funs)
       if (fun.name == name) {
+        if (!classref) return fun;
         classref = lvize(classref);
         // logln("in ", parent.name, ", ", fun.name, " is @", id, " (base ", base, ")");
         res ~= new PointerFunction!(NestedFunction) (
@@ -255,7 +256,8 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
       return myClass is (fastcast!(ClassRef) (resolveType(type))).myClass;
     }
     Expr format(Expr ex) {
-      return mkString("ref to "~myClass.name);
+      return iparse!(Expr, "gen_obj_toString_call_again_o_o", "tree.expr")
+                    (`obj.toString()`, "obj", lvize(ex));
     }
     ClassRef dup() { return new ClassRef(myClass.dup); }
     void emitAsm(AsmFile af) { myClass.emitAsm(af); }
@@ -365,22 +367,31 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   }
   bool finalized;
   void genDefaultFuns() {
-    if (!lookupRel("toString", new DerefExpr(reinterpret_cast(new Pointer(new ClassRef(this)), mkInt(0))))) {
-      auto rf = new RelFunction(this);
-      New(rf.type);
-      rf.name = "toString";
-      rf.type.ret = Single!(Array, Single!(Char));
-      rf.sup = this;
-      rf.fixup;
-      (fastcast!(IsMangled) (rf)).markWeak();
-      add(rf);
-      auto backup = namespace();
-      namespace.set(rf);
-      scope(exit) namespace.set(backup);
-      rf.tree = new ReturnStmt(mkString(name));
-      current_module().entries ~= rf;
+    if (sysmod && parent /* exclude Object */) {
+      auto sysmods_tostring = (fastcast!(ClassRef) (sysmod.lookup("Object"))).myClass.myfuns.lookup("toString", null);
+      bool hasToStringOverride = !!overrides.lookup("toString", null);
+      auto cur = this;
+      while (cur.parent) {
+        hasToStringOverride |= !!cur.overrides.lookup("toString", null);
+        cur = cur.parent;
+      }
+      if (!hasToStringOverride) {
+        // logln("override toString for ", name);
+        auto rf = new RelFunction(this);
+        New(rf.type);
+        rf.name = "toString";
+        rf.type.ret = Single!(Array, Single!(Char));
+        rf.sup = this;
+        rf.fixup;
+        (fastcast!(IsMangled) (rf)).markWeak();
+        _add("toString", rf);
+        auto backup = namespace();
+        namespace.set(rf);
+        scope(exit) namespace.set(backup);
+        rf.tree = new ReturnStmt(mkString(name));
+        current_module().entries ~= rf;
+      }// else logln("Don't override toString for ", name);
     }
-    
     {
       auto rf = new RelFunction(this);
       New(rf.type);

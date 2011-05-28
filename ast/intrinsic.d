@@ -178,7 +178,7 @@ void setupSysmods() {
     }
     /*MARKER2*/
     class Object {
-      string toString() { return "Object"; }
+      string toString() return "Object";
     }
     void* _fcc_dynamic_cast(void* ex, string id, int isIntf) {
       if (!ex) return null;
