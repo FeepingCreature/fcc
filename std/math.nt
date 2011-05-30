@@ -117,3 +117,6 @@ template maxlist(T) <<EOT
     return res;
   }
 EOT
+
+int abs(int i) { if i < 0 return -i; return i; }
+float abs(float f) { if f < 0 return -f; return f; }

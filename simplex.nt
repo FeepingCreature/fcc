@@ -494,35 +494,58 @@ extern(C) float noise3_asm(float x, float y, float z, NoiseContext* nc) {
 bool setupNoiseContext;
 NoiseContext nc;
 
-float noise3(vec3f v) {
-  if !setupPerm permsetup;
-  if (!setupNoiseContext) {
-    setupNoiseContext = true;
-    auto array = [
-      [[1, 0, 0, 0], [1, 1, 0, 0]],
-      [[0, 1, 0, 0], [1, 1, 0, 0]],
-      [[0, 0, 0, 0], [0, 0, 0, 0]],
-      [[0, 1, 0, 0], [0, 1, 1, 0]],
-      [[1, 0, 0, 0], [1, 0, 1, 0]],
-      [[0, 0, 0, 0], [0, 0, 0, 0]],
-      [[0, 0, 1, 0], [1, 0, 1, 0]],
-      [[0, 0, 1, 0], [0, 1, 1, 0]]
-    ];
-    for auto tup1 <- zip(0..-1, array) {
-      for auto tup2 <- zip(0..-1, tup1[1]) {
-        for auto tup3 <- zip(0..-1, tup2[1]) {
-          nc.offsets[tup1[0]][tup2[0]][tup3[0]] = tup3[1];
-        }
+void configNoiseContext(NoiseContext* nc, int delegate() rng) {
+  auto array = [
+    [[1, 0, 0, 0], [1, 1, 0, 0]],
+    [[0, 1, 0, 0], [1, 1, 0, 0]],
+    [[0, 0, 0, 0], [0, 0, 0, 0]],
+    [[0, 1, 0, 0], [0, 1, 1, 0]],
+    [[1, 0, 0, 0], [1, 0, 1, 0]],
+    [[0, 0, 0, 0], [0, 0, 0, 0]],
+    [[0, 0, 1, 0], [1, 0, 1, 0]],
+    [[0, 0, 1, 0], [0, 1, 1, 0]]
+  ];
+  for auto tup1 <- zip(0..-1, array) {
+    for auto tup2 <- zip(0..-1, tup1[1]) {
+      for auto tup3 <- zip(0..-1, tup2[1]) {
+        nc.offsets[tup1[0]][tup2[0]][tup3[0]] = tup3[1];
       }
     }
-    nc.perm = new byte[] 256 #.ptr;
-    nc.mperm = new byte[] 256 #.ptr;
-    for int i <- 0..256 {
-      nc.perm[i] = byte:char:short:perm[i];
-      nc.mperm[i] = byte:char:short:mperm[i];
-    }
   }
-  return noise3_asm(v.x, v.y, v.z, &nc);
+  nc.perm = new byte[] 256 #.ptr;
+  nc.mperm = new byte[] 256 #.ptr;
+  for int i <- 0..256 {
+    nc.perm[i] = byte:char:short:rng();
+    nc.mperm[i] = byte:char:short:(nc.perm[i] % 12);
+  }
+}
+
+float noise3(vec3f v, NoiseContext* nc = NoiseContext*: null) {
+  if !setupPerm permsetup;
+  if (!nc) {
+    if (!setupNoiseContext) {
+      setupNoiseContext = true;
+      int i;
+      configNoiseContext(&.nc, delegate int() { return perm[i++]; });
+    }
+    nc = &.nc;
+  }
+  return noise3_asm(v.x, v.y, v.z, nc);
+}
+
+import std.random.base;
+
+class SimplexNoise {
+  NoiseContext nc;
+  void init(IRandom ir) {
+    configNoiseContext(&nc, &ir.rand);
+  }
+  void init(int delegate() rng) {
+    configNoiseContext(&nc, rng);
+  }
+  float eval(float x, y, z) {
+    return noise3_asm(x, y, z, &nc);
+  }
 }
 
 /*
