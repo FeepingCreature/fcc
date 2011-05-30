@@ -120,6 +120,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       return sup.lookup(name, local);
     }
     string mangle(string name, IType type) {
+      // asm { int 3; }
       return sup.mangle(name, type) ~ "_local";
     }
     Stuple!(IType, string, int)[] stackframe() {

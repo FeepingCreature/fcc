@@ -190,7 +190,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
   }
   override Object lookupRel(string name, Expr base) {
     if (!base) {
-      if (name == "name") // T.name
+      if (name == "__name") // T.name
         return fastcast!(Object) (mkString(this.name));
       return lookupIntf(name, null);
     }

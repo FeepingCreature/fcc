@@ -311,12 +311,14 @@ template iparse(R, string id, string rule, bool mustParse = true) {
 
 Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
-  if (t2.gotIdentifier(id)) {
+  if (t2.gotIdentifier(id, true)) {
     retry:
     if (auto type = fastcast!(IType) (namespace().lookup(id))) {
       text = t2;
       return fastcast!(Object)~ type;
-    } else if (t2.eatDash(id)) goto retry;
+    }
+    else if (t2.eatDash(id)) goto retry;
+    else if (t2.eatDot(id)) goto retry;
   }
   return null;
 }

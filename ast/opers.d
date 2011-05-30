@@ -46,6 +46,7 @@ Expr lookupOp(string text, string op, bool allowNone, Expr[] exprs...) {
         }
       }
     if (allowNone) return null;
+    // asm { int 3; }
     throw new Exception(Format("No matching operators (", op, ") defined for ", exprs /map/ ex!("e -> e.valueType()"), ", exs being ", exprs));
   } else {
     throw new Exception(Format("No such operator defined: ", op, " (tried for ", exprs /map/ ex!("e -> e.valueType()"), ")"));

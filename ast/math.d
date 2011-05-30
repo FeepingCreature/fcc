@@ -781,7 +781,8 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
       t3.failparse("Could not find second operand for ", opName);
     }
     t2 = t3;
-    op = lookupOp(opName, op, recurse(nextOp, _i + 1));
+    try op = lookupOp(opName, op, recurse(nextOp, _i + 1));
+    catch (Exception ex) t2.failparse(ex);
     goto retry;
   }
   while (true) {

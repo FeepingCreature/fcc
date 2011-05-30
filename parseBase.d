@@ -218,6 +218,17 @@ bool eatDash(ref string text, ref string id) {
   return true;
 }
 
+// see above
+bool eatDot(ref string text, ref string id) {
+  auto dp = id.rfind(".");
+  if (dp == -1) return false;
+  auto removed = id.length - dp;
+  id = id[0 .. dp];
+  // give back also
+  text = (text.ptr - removed)[0 .. text.length + removed];
+  return true;
+}
+
 bool ckbranch(ref string s, bool delegate()[] dgs...) {
   auto s2 = s;
   foreach (dg; dgs) {
