@@ -50,7 +50,7 @@ class KarplusStrongNote : Note {
   float baseCalc(float pos) {
     int length = int:(48000 / freq);
     if !samples.length {
-      samples = new float[length];
+      samples = new float[] length;
       auto rng = getPRNG 23;
       for int i <- 0..length
         samples[i] = randf(rng) * 2 - 1;

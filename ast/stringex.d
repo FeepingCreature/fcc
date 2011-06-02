@@ -70,8 +70,8 @@ mixin DefaultParser!(gotStringEx, "tree.expr.literal.stringex", "550");
 
 import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules;
 Expr simpleFormat(Expr ex) {
-  auto type = ex.valueType();
-  if (Single!(SysInt) == type) {
+  auto type = resolveType(ex.valueType());
+  if (Single!(SysInt) == type || Single!(Short) == type || Single!(Byte) == type) {
     return buildFunCall(fastcast!(Function)~ sysmod.lookup("itoa"), ex, "itoa");
   }
   if (Single!(Long) == type) {

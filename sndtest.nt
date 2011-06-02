@@ -85,7 +85,7 @@ void main(string[] args) {
         void handleChar(char ch) {
           for auto tup <- [("c", 0), ("d", 2), ("e", 4), ("f", 5), ("g", 7), ("a", 9), ("b", 10), ("h", 11)]
             if ch == tup[0][0] addNoteAtRef(&offs, baseFreq * scale[(tup[1] + sharp)%$], l, useSine);
-               if ch == "_" offs += l;
+          if      ch == "_" offs += l;
           else if ch == ">" octaves ++;
           else if ch == "<" octaves --;
           else if ch == "+" len *= 2;
