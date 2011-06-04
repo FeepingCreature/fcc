@@ -253,7 +253,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
       // logln("test ", type, " against ", this);
-      return myClass is (fastcast!(ClassRef) (resolveType(type))).myClass;
+      return myClass == (fastcast!(ClassRef) (resolveType(type))).myClass;
     }
     Expr format(Expr ex) {
       return iparse!(Expr, "gen_obj_toString_call_again_o_o", "tree.expr")
@@ -324,6 +324,13 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   RelMember ctx; // context of parent reference
   Expr delegate(Expr) ctxFixup;
   string toString() { return Format("class ", name, " <- ", sup); }
+  override int opEquals(Object obj2) {
+    if (this is obj2) return true;
+    auto cl2 = fastcast!(Class) (obj2);
+    if (!cl2) return false;
+    if (name == "Object") return cl2.name == "Object"; // very special case: is reparsed *every* iteration along with the intrinsics module.
+    return false;
+  }
   void getIntfLeaves(void delegate(Intf) dg) {
     foreach (intf; iparents)
       intf.getLeaves(dg);
