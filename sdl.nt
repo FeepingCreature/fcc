@@ -141,20 +141,19 @@ class Area {
     rect[0] = vec2i(0, 0);
     rect[1] = vec2i(surf.w, surf.h);
   }
-  Area dup() {
+  Area copy() {
     auto res = new Area surf;
     res.rect = rect;
+    res.surf = surf;
     return res;
   }
   Area at(int x, int y) {
-    auto res = dup();
-    res.rect = rect;
+    auto res = copy();
     res.rect[0] += vec2i(x, y);
     return res;
   }
   Area sub(int x1, int y1, int x2, int y2) {
-    auto res = dup();
-    res.rect = rect;
+    auto res = copy();
     res.rect[0] += vec2i(x1, y1);
     res.rect[1] = res.rect[0] + vec2i(x2 - x1, y2 - y1);
     return res;
@@ -312,7 +311,7 @@ class Area {
     }
   }
   // Blatantly ripped off from WP:Bresenham
-  void line(int from-x, from-y, to-x, to-y, vec3f col = vec3f(1)) {
+  void line(int from-x, from-y, to-x, to-y, vec4f col) {
     // no need to do bounds checking here; pset is already safe
     auto from = vec2i(from-x, from-y), to = vec2i(to-x, to-y);
     auto icol = floatToIntColor col;
@@ -334,6 +333,9 @@ class Area {
         error += delta-x;
       }
     }
+  }
+  void line(int from-x, from-y, to-x, to-y, vec3f col = vec3f(1)) {
+    line(from-x, from-y, to-x, to-y, vec4f(col.(x, y, z, 1)));
   }
   // This one is WP:Midpoint circle algorithm. <3 you WP.
   void circle(int x0, y0, radius,
@@ -425,9 +427,10 @@ class NullArea : Area, INullArea {
   
   void init(Surface s) { super.init s; }
   
-  Area dup() {
+  Area copy() {
     auto res = new NullArea surf;
     res.rect = rect;
+    res.surf = surf; // lol
     return res;
   }
   void blit(Area dest) {
