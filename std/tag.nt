@@ -16,6 +16,12 @@ interface ITaggedObject : Tag {
   void annotate(Tag t);
 }
 
+// TODO: move to Object
+interface Iterable {
+  // false if aborted; false to abort
+  bool iterate(bool delegate(Object));
+}
+
 class Parented : DefaultTag {
   ITaggedObject parent;
   void init() super.init "Parented";
