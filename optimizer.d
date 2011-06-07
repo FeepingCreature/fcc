@@ -1520,7 +1520,7 @@ void setupOpts() {
     if ($0.opName == "shl") { int mul2 = 1; while (mul--) mul2 *= 2; mul = mul2; }
     if (mul == 1 /or/ 2 /or/ 4 /or/ 8) {
       pfpsetsource(&t, qformat(offs, "(", regs, ",", mul, ")"));
-      $SUBST(t);
+      $SUBST(t, $0);
     }
   `));
   mixin(opt("preswitch_math_lea", `^MathOp, ^LoadAddress, *:
