@@ -368,8 +368,8 @@ static this() {
       arg = foldex(arg);
       if (auto se = fastcast!(StringExpr) (arg)) str[i] = se.str;
       else {
-        logln("couldn't fold properly because arg was ", arg);
-        asm { int 3; }
+        // logln("couldn't fold properly because arg was ", arg);
+        // asm { int 3; }
         return null;
       }
     }
