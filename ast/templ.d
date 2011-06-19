@@ -172,7 +172,7 @@ class TemplateInstance : Namespace, HandlesEmits {
       }
     } else {
       foreach (inst; instRes) {
-        mod.entries ~= fastcast!(Tree) (inst).dup;
+        mod.entries ~= fastcast!(Tree) (inst).dup; // wtf
       }
     }
     ematIn ~= mod;

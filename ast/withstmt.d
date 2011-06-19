@@ -11,7 +11,15 @@ class WithStmt : Namespace, Statement, ScopeLike {
   Scope sc;
   IScoped isc;
   mixin defaultIterate!(vd, sc);
-  override WithStmt dup() { assert(false, "wth"); }
+  override WithStmt dup() {
+    auto res = new WithStmt;
+    res.rns = rns; res.rnslist = rnslist;
+    res.ns = ns; res.vd = vd; res.context = context.dup;
+    res.sc = sc.dup;
+    res.isc = isc;
+    res.temps = temps;
+    return res;
+  }
   string toString() { return Format("with (", context, ") <- ", sup); }
   int temps;
   override int framesize() {
@@ -87,6 +95,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
                               ("eval (ex.onExit)", "ex", context))
       sc.addGuard(onExit);
   }
+  private this() { }
   override {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("0"));
