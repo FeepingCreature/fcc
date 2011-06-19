@@ -96,6 +96,31 @@ class Socket {
   }
 }
 
+Socket connect(string domain, short port) using new Socket {
+  open new TcpAddress(domain, port);
+  return that;
+}
+
+template readsocket(T) <<EOF
+  class sockreader {
+    Socket sock;
+    bool done;
+    byte x 256  buf;
+    byte[] step() {
+      auto size = sock.recv buf[];
+      if size <= 0 { done = true; return new byte[] 0; }
+      return buf[0 .. size];
+    }
+    bool ivalid() {
+      return eval !done;
+    }
+  }
+  sockreader readsocket(T t) using new sockreader {
+    sock = t;
+    return that;
+  }
+EOF
+
 struct SelectSet {
   fd_set rdset, wrset, errset;
   int largest;
