@@ -50,21 +50,21 @@ class Socket {
   void open(TcpAddress ta) {
     auto res = .connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
   }
-  int recv(void[] buf) {
+  int recv(byte[] buf) {
     auto res = .recv(sockfd, buf.ptr, buf.length, 0);
     if (res <= 0) {
       close;
     }
     return res;
   }
-  int send(void[] buf) {
+  int send(byte[] buf) {
     auto res = .send(sockfd, buf.ptr, buf.length, 0);
     if (res <= 0) {
       close;
     }
     return res;
   }
-  void sendAll(void[] buf) {
+  void sendAll(byte[] buf) {
     while buf.length {
       auto res = send buf;
       if (res <= 0) return;
