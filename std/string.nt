@@ -7,6 +7,13 @@ int find(string text, string match) {
   return -1;
 }
 
+int rfind(string text, string match) {
+  for (int i = text.length - match.length; i >= 0; --i) {
+    if (text[i .. i+match.length] == match) return i;
+  }
+  return -1;
+}
+
 string startsWith(string s, string m) {
   if s.length < m.length return null;
   if (s[0 .. m.length] != m)
@@ -125,7 +132,7 @@ template castIter(T) <<EOF
 EOF
 
 // before, after
-(string, string) slice(string s, string m, bool yieldNull = false) {
+(string, string) slice(string s, string m, bool yieldNull = true) {
   auto pos = find(s, m);
   if (pos == -1) {
     if (yieldNull) return (s, string:(null x 2));
