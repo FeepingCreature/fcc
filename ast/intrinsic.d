@@ -617,6 +617,11 @@ Object gotESI(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotESI, "tree.expr.esi", "24046", "_esi");
 
+Object gotEBX(ref string text, ParseCb cont, ParseCb rest) {
+  return Single!(RegExpr, "%ebx");
+}
+mixin DefaultParser!(gotEBX, "tree.expr.ebx", "24047", "_ebx");
+
 class Assembly : Statement {
   string text;
   this(string s) { text = s; }
