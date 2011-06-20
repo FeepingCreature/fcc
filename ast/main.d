@@ -31,12 +31,12 @@ void fixupMain() {
         magic = 12;
       }
       af.popStack("%eax", nativePtrSize);
-      af.popStack("%ebx", 4);
+      af.popStack("%edx", 4);
       af.mathOp("andl", "$-16", "%esp"); // This is where the magic happens,
       af.salloc(magic); // magic constant align to 16
       af.pushStack("%ebp", nativePtrSize);
       af.mmove4("%esp", "%ebp");
-      af.pushStack("%ebx", 4);
+      af.pushStack("%edx", 4);
       af.pushStack("%eax", nativePtrSize);
       af.currentStackDepth = nativePtrSize * 2;
       auto ncvar = new DerefExpr(lookupOp("-",

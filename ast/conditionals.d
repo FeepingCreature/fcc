@@ -96,9 +96,9 @@ class Compare : Cond, Expr {
     } else {
       e2.emitAsm(af);
       e1.emitAsm(af);
-      af.popStack("%ebx", 4);
+      af.popStack("%edx", 4);
       af.popStack("%eax", 4);
-      af.compare("%eax", "%ebx");
+      af.compare("%eax", "%edx");
     }
   }
   override {
@@ -117,15 +117,15 @@ class Compare : Cond, Expr {
       emitComparison(af);
       auto s = smaller, e = equal, g = greater;
       if (falseOverride && trueOverride) {
-        af.popStack("%ebx", 4);
+        af.popStack("%edx", 4);
         af.popStack("%ecx", 4);
       } else {
-        af.mmove4("$1", "%ebx");
+        af.mmove4("$1", "%edx");
         af.mmove4("$0", "%ecx"); // don't xorl; mustn't overwrite comparison results
       }
       // can't use eax, moveOnFloat needs ax
-      if (isFloat) af.moveOnFloat(s, e, g, "%ebx", "%ecx");
-      else af.cmov(s, e, g, "%ebx", "%ecx");
+      if (isFloat) af.moveOnFloat(s, e, g, "%edx", "%ecx");
+      else af.cmov(s, e, g, "%edx", "%ecx");
       af.pushStack("%ecx", 4);
     }
     void jumpOn(AsmFile af, bool cond, string dest) {

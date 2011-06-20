@@ -496,9 +496,9 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     /*packLoad("%xmm1", "%xmm0", "%xmm2");
     packLoad("%xmm0", "%xmm2", "%xmm3");*/
     af.popStack("%eax", 4);
-    af.popStack("%ebx", 4);
+    af.popStack("%edx", 4);
     af.SSEOp("movaps", "(%eax)", "%xmm1");
-    af.SSEOp("movaps", "(%ebx)", "%xmm0");
+    af.SSEOp("movaps", "(%edx)", "%xmm0");
     af.salloc(16);
   }
   if (alignedVar1 && !alignedVar2) {
@@ -583,7 +583,7 @@ class Vec4fSmaller : Expr {
       af.sfree(16);
       af.sfree(filler);
       af.SSEOp("cmpltps", "%xmm0", "%xmm1");
-      af.nvm("%ebx");
+      af.nvm("%edx");
       af.nvm("%eax");
       af.put("movmskps %xmm1, %eax");
       af.pushStack("%eax", 4);

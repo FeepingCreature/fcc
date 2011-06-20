@@ -24,11 +24,11 @@ class AsmLongBinopExpr : BinopExpr {
       switch (op) {
         case "+":
           af.mmove4("(%esp)", "%eax");
-          af.mmove4("4(%esp)", "%ebx");
+          af.mmove4("4(%esp)", "%edx");
           af.mathOp("addl", "8(%esp)", "%eax");
-          af.mathOp("adcl", "12(%esp)", "%ebx");
+          af.mathOp("adcl", "12(%esp)", "%edx");
           af.sfree(16);
-          af.pushStack("%ebx", 4);
+          af.pushStack("%edx", 4);
           af.pushStack("%eax", 4);
           break;
         case "*":
@@ -36,13 +36,13 @@ class AsmLongBinopExpr : BinopExpr {
           // where f is 2^32
           af.mmove4("4(%esp)", "%eax"); // b
           af.put("imull 8(%esp)"); // eax:edx = b*c
-          af.mmove4("%eax", "%ebx"); // save for later
+          af.mmove4("%eax", "%ecx"); // save for later
           af.mmove4("(%esp)", "%eax"); // a
           af.put("imull 12(%esp)"); // eax:edx = a*d
-          af.mathOp("addl", "%eax", "%ebx"); // add for later
+          af.mathOp("addl", "%eax", "%ecx"); // add for later
           af.mmove4("(%esp)", "%eax"); // a
           af.put("mull 8(%esp)"); // eax:edx = a*c
-          af.mathOp("addl", "%ebx", "%edx"); // final summation
+          af.mathOp("addl", "%ecx", "%edx"); // final summation
           af.sfree(16);
           af.pushStack("%edx", 4);
           af.pushStack("%eax", 4);

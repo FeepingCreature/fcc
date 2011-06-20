@@ -406,19 +406,19 @@ class MemberAccess_Expr : Expr, HasInfo {
         if (stm.type.size >= 8)
           af.mmove4(Format(stm.offset + 4, "(%esp)"), "%ecx");
         if (stm.type.size >= 12)
-          af.mmove4(Format(stm.offset + 8, "(%esp)"), "%ebx");
+          af.mmove4(Format(stm.offset + 8, "(%esp)"), "%eax");
         if (stm.type.size == 16)
-          af.mmove4(Format(stm.offset + 12, "(%esp)"), "%eax");
+          af.mmove4(Format(stm.offset + 12, "(%esp)"), "%ebx");
         af.sfree(st.size);
         af.sfree(filler);
         af.comment("repush member");
         if (stm.type.size == 16) {
-          af.pushStack("%eax", 4);
-          af.nvm("%eax");
-        }
-        if (stm.type.size >= 12) {
           af.pushStack("%ebx", 4);
           af.nvm("%ebx");
+        }
+        if (stm.type.size >= 12) {
+          af.pushStack("%eax", 4);
+          af.nvm("%eax");
         }
         if (stm.type.size >= 8) {
           af.pushStack("%ecx", 4);
