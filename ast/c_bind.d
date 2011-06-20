@@ -48,10 +48,11 @@ import
 import tools.time;
 
 class LateType : IType {
+  string name;
   IType me;
   void delegate() tryResolve;
-  this() { }
-  string toString() { if (!me) return "(LateType, unresolved)"; return Format("(LateType ", me, ")"); }
+  this(string n) { name = n; }
+  string toString() { if (!me) return Format("(LateType (", name, "), unresolved)"); return Format("(LateType ", me, ")"); }
   void needMe() {
     if (!me) tryResolve();
     assert(!!me);
@@ -156,10 +157,17 @@ void parseHeader(string filename, string src) {
         return Single!(Void);
       if (auto p = name in cache) return fastcast!(IType)~ *p;
       else {
-        auto lt = new LateType;
+        auto lt = new LateType(name);
         auto dg = stuple(lt, name, &cache) /apply/
         delegate void(LateType lt, string name, typeof(cache)* cachep) {
-          if (auto p = name in *cachep) lt.me = fastcast!(IType)~ *p;
+          if (auto p = name in *cachep) {
+            lt.me = fastcast!(IType)~ *p;
+            if (auto al = fastcast!(TypeAlias) (lt.me))
+              if (al.base is lt) {
+                logln("CIRCULAR TYPE: ", name);
+                asm { int 3; }
+              }
+          }
           // else assert(false, "'"~name~"' didn't resolve! ");
           else lt.me = Single!(Void);
         };
@@ -492,6 +500,10 @@ void parseHeader(string filename, string src) {
           goto giveUp;
         }
       }
+      if (auto proxy = fastcast!(LateType) (target))
+        if (proxy.name == name)
+          target = Single!(Void); // would set up a loop .. produce _something_
+      
       auto ta = new TypeAlias(target, name);
       cache[name] = ta;
       continue;
