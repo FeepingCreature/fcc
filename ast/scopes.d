@@ -19,7 +19,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   }
   override void getInfo(ref string n, ref int l) { lnsc.getInfo(n, l); }
   Statement[] getGuards() {
-    if (auto sc = fastcast!(Scope)~ sup) return sc.getGuards() ~ guards;
+    if (auto sl = fastcast!(ScopeLike)~ sup) return sl.getGuards() ~ guards;
     else return guards;
   }
   void addStatement(Statement st) {

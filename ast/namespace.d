@@ -198,41 +198,49 @@ extern(C) Namespace __getSysmod();
 class MiniNamespace : Namespace, ScopeLike, Named {
   string id;
   this(string id) { this.id = id; }
-  override string getIdentifier() { return id; }
-  override string mangle(string name, IType type) {
-    if (type) return id~"_"~name~"_of_"~type.mangle();
-    else return id~"_"~name;
-  }
-  override Stuple!(IType, string, int)[] stackframe() {
-    assert(false); // wtfux.
-  }
   bool internalMode;
-  override string toString() { return Format("mini[", id, "] <- ", sup); }
-  override void _add(string name, Object obj) {
-    if (sup && !internalMode) sup._add(name, obj);
-    else super.__add(name, obj);
-  }
   int fs = -1, fs2;
-  override int framesize() {
-    if (fs != -1) return fs;
-    if (auto sl = fastcast!(ScopeLike)~ sup) {
-      if (fs2) return fs2 + sl.framesize();
-      else return sl.framesize();
-    } else {
-      // logln("no metric for framesize of ", id);
-      if (id == "onUsing") asm { int 3; }
-      return 0;
-      // throw new Exception(Format("No metric for framesize of ", id, ": sup is ", sup, "."));
+  override {
+    string getIdentifier() { return id; }
+    string mangle(string name, IType type) {
+      if (type) return id~"_"~name~"_of_"~type.mangle();
+      else return id~"_"~name;
     }
-  }
-  override Object lookup(string name, bool local = false) {
-    auto res = super.lookup(name, local);
-    if (!res && !local) {
-      auto sysmod = __getSysmod();
-      if (sysmod) res = sysmod.lookup(name, local);
+    Stuple!(IType, string, int)[] stackframe() {
+      assert(false); // wtfux.
     }
-    // logln("mini lookup ", name, " => ", res);
-    return res;
+    Statement[] getGuards() {
+      if (auto sl = fastcast!(ScopeLike) (sup))
+        return sl.getGuards();
+      else
+        return null;
+    }
+    string toString() { return Format("mini[", id, "] <- ", sup); }
+    void _add(string name, Object obj) {
+      if (sup && !internalMode) sup._add(name, obj);
+      else super.__add(name, obj);
+    }
+    int framesize() {
+      if (fs != -1) return fs;
+      if (auto sl = fastcast!(ScopeLike)~ sup) {
+        if (fs2) return fs2 + sl.framesize();
+        else return sl.framesize();
+      } else {
+        // logln("no metric for framesize of ", id);
+        if (id == "onUsing") asm { int 3; }
+        return 0;
+        // throw new Exception(Format("No metric for framesize of ", id, ": sup is ", sup, "."));
+      }
+    }
+    Object lookup(string name, bool local = false) {
+      auto res = super.lookup(name, local);
+      if (!res && !local) {
+        auto sysmod = __getSysmod();
+        if (sysmod) res = sysmod.lookup(name, local);
+      }
+      // logln("mini lookup ", name, " => ", res);
+      return res;
+    }
   }
 }
 

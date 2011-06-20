@@ -301,6 +301,7 @@ class CallbackExpr : Expr {
 
 interface ScopeLike {
   int framesize();
+  Statement[] getGuards();
 }
 
 private alias Iterable Itr;
