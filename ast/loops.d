@@ -1,30 +1,21 @@
 module ast.loops;
 
 import ast.base, ast.scopes, ast.vardecl, ast.conditionals, ast.parse;
+import ast.iterator, ast.int_literal, ast.fold, ast.tuples, ast.tuple_access;
 
 class WhileStatement : Statement {
   Scope _body;
   Cond cond;
-  bool isStatic;
   Scope sup;
-  PlaceholderToken[] holders;
   override WhileStatement dup() {
     auto res = new WhileStatement;
     res._body = _body.dup;
     res.cond = cond.dup;
-    res.isStatic = isStatic;
     res.sup = sup; // goes upwards - don't dup!
-    res.holders = holders; // keep
     return res;
   }
   mixin defaultIterate!(cond, _body);
   override void emitAsm(AsmFile af) {
-    if (isStatic) { // should not happen
-      logln("could not resolve static while! ");
-      logln("cond is ", (fastcast!(Object)~ cond).classinfo.name, ": ", cond);
-      logln("body is ", (fastcast!(Object)~ _body).classinfo.name, ": ", _body);
-      asm { int 3; }
-    }
     auto start = af.genLabel(), done = af.genLabel();
     af.emitLabel(start);
     cond.jumpOn(af, false, done);
@@ -50,7 +41,6 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto ws = new WhileStatement;
   auto sc = new Scope;
   sc.configPosition (t2);
-  ws.isStatic = isStatic;
   ws.sup = sc;
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
@@ -59,24 +49,69 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't parse while cond");
   }
   configure(ws.cond);
-  if (isStatic)
+  if (isStatic) {
+    PlaceholderToken[] holders;
     foreach (ref entry; sc.field) {
       if (auto v = fastcast!(Variable)~ entry._1) {
         if (v.name) {
           // will be substituted with actual value in loop unroller
           auto ph = new PlaceholderToken(v.valueType(), "static loop var "~v.name);
-          ws.holders ~= ph;
+          holders ~= ph;
           entry = stuple(v.name, fastcast!(Object)~ ph);
         }
       }
     }
-  sc.rebuildCache;
-  if (!rest(t2, "tree.scope", &ws._body)) {
-    if (forMode) return null;
-    t2.failparse("Couldn't parse while body");
+    Expr iter_expr;
+    if (auto ilc = fastcast!(IterLetCond!(LValue)) (ws.cond)) iter_expr = ilc.iter;
+    if (auto imc = fastcast!(IterLetCond!(MValue)) (ws.cond)) iter_expr = imc.iter;
+    if (!iter_expr) fail("Could not interpret static-loop expression");
+    
+    auto iter = fastcast!(RichIterator) (iter_expr.valueType());
+    if (!iter) fail("static-loop expression not an iteratr! ");
+    
+    auto len = fastcast!(IntExpr)~ foldex(iter.length(iter_expr));
+    logln("foldex length is ", foldex(iter.length(iter_expr)));
+    if (!len) fail("static-loop iterator length is not constant int! ");
+    string t3;
+    for (int i = 0; i < len.num; ++i) {
+      auto ival = iter.index(iter_expr, mkInt(i));
+      int depth;
+      void subst(ref Iterable it) {
+        foreach (i, ph; holders) {
+          if (it is ph) {
+            if (fastcast!(Tuple)~ ival.valueType()) {
+              it = fastcast!(Iterable)~ getTupleEntries(ival)[i]; // assume is basic. ._.
+            } else {
+              assert(!i);
+              it = fastcast!(Iterable)~ ival;
+            }
+            return;
+          }
+        }
+        it.iterate(&subst);
+      }
+      Scope sc2;
+      string t4 = t2;
+      pushCache; // same code is parsed multiple times - do not cache!
+      if (!rest(t4, "tree.scope", &sc2)) {
+        t4.failparse("Couldn't parse during static-while expansion! ");
+      }
+      popCache;
+      if (!t3) t3 = t4;
+      else assert(t3 is t4);
+      sc2.iterate(&subst);
+      sc.addStatement(sc2);
+    }
+    t2 = t3;
+  } else {
+    if (!rest(t2, "tree.scope", &ws._body)) {
+      if (forMode) return null;
+      t2.failparse("Couldn't parse while body");
+    }
+    sc.addStatement(ws);
   }
-  sc.addStatement(ws);
   text = t2;
+  sc.rebuildCache;
   return sc;
 }
 mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141");

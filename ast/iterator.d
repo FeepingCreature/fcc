@@ -203,8 +203,6 @@ Object gotIterIvalid(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIterIvalid, "cond.ivalid", "76", "__ivalid");
 
-import ast.loops;
-
 import tools.base: This, This_fn, rmSpace, PTuple, Stuple, ptuple, stuple;
 
 class StatementAndCond : Cond {
