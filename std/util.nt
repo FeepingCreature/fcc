@@ -2,19 +2,17 @@ module std.util;
 
 template iterOnce(T) <<EOF
   class one {
-    T t;
+    T value;
     bool done;
-    T step() {
+    bool advance() {
+      if done return false;
       done = true;
-      return t;
-    }
-    bool ivalid() {
-      return eval !done;
+      return true;
     }
   }
   one iterOnce(T t) {
     auto res = new one;
-    res.t = t;
+    res.value = t;
     return res;
   }
 EOF

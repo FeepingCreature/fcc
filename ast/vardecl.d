@@ -155,7 +155,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text, vd = new VarDecl;
   string name; IType type;
   if (rest(t2, "type", &type)) {
-    if (!t2.bjoin(t2.gotIdentifier(name), t2.accept(","), {
+    if (!t2.bjoin(t2.gotValidIdentifier(name), t2.accept(","), {
       auto var = new Variable;
       var.name = name;
       var.type = type;
@@ -201,7 +201,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   resetError();
   if (!t2.accept("auto")) return null;
   while (true) {
-    if (!t2.gotIdentifier(varname, true))
+    if (!t2.gotValidIdentifier(varname, true))
       t2.failparse("Could not get variable identifier! ");
     if (!t2.accept("="))
       t2.failparse("Could not get auto initializer! ");
@@ -229,7 +229,7 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   IType type;
   if (!t2.accept("auto"))
     if (!rest(t2, "type", &type)) return null;
-  if (!t2.gotIdentifier(name)) return null;
+  if (!t2.gotValidIdentifier(name)) return null;
   bool dontInit;
   Expr initval;
   if (t2.accept("=")) {

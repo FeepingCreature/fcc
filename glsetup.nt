@@ -74,7 +74,7 @@ bool update(SDL_Surface* surface) {
     }
     else if type == SDL_ACTIVEEVENT { // TODO: what either?
     }
-    else writeln "type $(ev.type)";
+    else writeln "type $(int:ev.type)";
   }
   return false;
 }

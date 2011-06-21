@@ -105,7 +105,7 @@ alias asin = asinf;
 alias acos = acosf;
 
 template minlist(T) <<EOT
-  type-of __istep init!T minlist(T t) {
+  iterType!T minlist(T t) {
     auto res = __istep t;
     while auto r2 <- t if r2 < res res = r2;
     return res;

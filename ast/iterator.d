@@ -4,8 +4,8 @@ import ast.base, ast.parse, ast.types, ast.namespace, ast.structure, ast.casting
 
 interface Iterator {
   IType elemType();
-  Expr yieldAdvance(LValue);
-  Cond terminateCond(Expr); // false => can't yield more values
+  Cond testAdvance(LValue); // false => couldn't get a value
+  Expr currentValue(Expr);
 }
 
 interface RichIterator : Iterator {
@@ -36,18 +36,13 @@ class Range : Type, RichIterator, RangeIsh {
     int size() { return wrapper.size; }
     string mangle() { return "range_over_"~wrapper.mangle(); }
     ubyte[] initval() { return wrapper.initval(); }
-    Expr yieldAdvance(LValue lv) {
-      return iparse!(Expr, "yield_advance_range", "tree.expr")
-                    ("lv.cur++", "lv", castToWrapper(lv));
+    Expr currentValue(Expr ex) {
+      return mkMemberAccess(castExprToWrapper(ex), "cur");
     }
     import ast.conditionals: Compare;
-    Cond terminateCond(Expr ex) {
-      ex = castExprToWrapper(ex);
-      return new Compare(
-        mkMemberAccess(ex, "cur"),
-        "!=",
-        mkMemberAccess(ex, "end")
-      );
+    Cond testAdvance(LValue lv) {
+      return iparse!(Cond, "test_advance_range", "cond")
+                    ("++lv.cur != lv.end", "lv", castToWrapper(lv));
     }
     Expr length(Expr ex) {
       return iparse!(Expr, "length_range", "tree.expr")
@@ -65,8 +60,9 @@ class Range : Type, RichIterator, RangeIsh {
                      "ex", castExprToWrapper(ex),
                      "from", from, "to", to);
     }
+    // DOES NOT HONOR ITERATOR SEMANTICS!!
     Expr getPos(Expr ex) {
-      return mkMemberAccess(castExprToWrapper(ex), "cur");
+      return lookupOp("+", mkInt(1), mkMemberAccess(castExprToWrapper(ex), "cur"));
     }
     Expr getEnd(Expr ex) {
       return mkMemberAccess(castExprToWrapper(ex), "end");
@@ -84,28 +80,26 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
     int size() { return nativeIntSize; }
     string mangle() { return Format("constint_range_", from, "_to_", to).replace("-", "_minus_"); }
     ubyte[] initval() { return cast(ubyte[]) (&from)[0..1]; }
-    Expr yieldAdvance(LValue lv) {
-      return iparse!(Expr, "constint_yield_advance_range", "tree.expr")
-                    ("lv++",
-                     "lv", reinterpret_cast(fastcast!(IType)~ Single!(SysInt), lv));
+    Expr currentValue(Expr ex) {
+      return reinterpret_cast(Single!(SysInt), ex);
     }
     import ast.conditionals: Compare;
-    Cond terminateCond(Expr ex) {
-      return new Compare(
-        reinterpret_cast(Single!(SysInt), ex),
-        "!=",
-        mkInt(to)
-      );
+    Cond testAdvance(LValue lv) {
+      return iparse!(Cond, "test_advance_int_range", "cond")
+                    ("++lv != to",
+                     "lv", reinterpret_cast(Single!(SysInt), lv),
+                     "to", mkInt(to)
+                    );
     }
     Expr length(Expr ex) {
       return iparse!(Expr, "const_int_length", "tree.expr")
-                    (`to - ex`,
+                    (`to - ex - 1`,
                      "ex", reinterpret_cast(Single!(SysInt), ex),
                      "to", new IntExpr(to));
     }
     Expr index(Expr ex, Expr pos) {
       return iparse!(Expr, "const_index_range", "tree.expr")
-                    ("ex + pos",
+                    ("ex + 1 + pos",
                      "ex", reinterpret_cast(Single!(SysInt), ex),
                      "pos", pos);
     }
@@ -116,8 +110,9 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
                      "ex", reinterpret_cast(Single!(SysInt), ex),
                      "from", from, "to", to);
     }
+    // behaves differently from the iterator interface!!
     Expr getPos(Expr ex) {
-      return reinterpret_cast(Single!(SysInt), ex);
+      return lookupOp("+", mkInt(1), reinterpret_cast(Single!(SysInt), ex));
     }
     Expr getEnd(Expr ex) { return mkInt(to); }
   }
@@ -125,6 +120,8 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
 
 Expr mkRange(Expr from, Expr to) {
   auto wrapped = new Structure(null);
+  // cur must start one early
+  from = lookupOp("-", from, mkInt(1));
   new RelMember("cur", from.valueType(), wrapped);
   new RelMember("end", to.valueType(), wrapped);
   auto range = new Range;
@@ -146,7 +143,7 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   gotImplicitCast(to  , &notATuple);
   auto ifrom = fastcast!(IntExpr)~ fold(from), ito = fastcast!(IntExpr)~ fold(to);
   if (ifrom && ito)
-    return fastcast!(Object)~ reinterpret_cast(new ConstIntRange(ifrom.num, ito.num), ifrom);
+    return fastcast!(Object)~ reinterpret_cast(new ConstIntRange(ifrom.num, ito.num), mkInt(ifrom.num - 1));
   return fastcast!(Object)~ mkRange(from, to);
 }
 mixin DefaultParser!(gotRangeIter, "tree.expr.iter_range", "11");
@@ -156,8 +153,9 @@ class StructIterator : Type, Iterator {
   IType _elemType;
   this(IType it) {
     wrapped = it;
+    scope(failure) logln("it was ", it);
     _elemType = iparse!(Expr, "si_elemtype", "tree.expr.eval")
-                       (`eval (bogus.step)`,
+                       (`evaluate (bogus.value)`,
                         "bogus", new PlaceholderTokenLV(wrapped, "wrapped")
                        ).valueType();
   }
@@ -166,17 +164,17 @@ class StructIterator : Type, Iterator {
     string mangle() { return "struct_iterator_"~wrapped.mangle(); }
     ubyte[] initval() { return wrapped.initval; }
     IType elemType() { return _elemType; }
-    Expr yieldAdvance(LValue lv) {
-      lv = fastcast!(LValue) (reinterpret_cast(wrapped, lv));
-      return iparse!(Expr, "si_step", "tree.expr")
-                    (`eval (lv.step)`,
-                     "lv", lv, "W", wrapped);
-    }
-    Cond terminateCond(Expr ex) {
+    Expr currentValue(Expr ex) {
       ex = reinterpret_cast(wrapped, ex);
+      return iparse!(Expr, "si_value", "tree.expr")
+                    (`evaluate (ex.value)`,
+                     "ex", ex);
+    }
+    Cond testAdvance(LValue lv) {
+      lv = fastcast!(LValue) (reinterpret_cast(wrapped, lv));
       return iparse!(Cond, "si_ivalid", "cond")
-                    (`eval (ex.ivalid)`,
-                     "ex", ex, "W", wrapped);
+                    (`evaluate (lv.advance)`,
+                     "lv", lv);
     }
     string toString() { return Format("si ", wrapped); }
   }
@@ -191,33 +189,7 @@ static this() {
   };*/
 }
 
-Object gotIterIvalid(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Expr ex;
-  IType[] tried;
-  if (!rest(t2, "tree.expr", &ex) || !gotImplicitCast(ex, (IType it) { return !!fastcast!(Iterator) (it); }))
-    text.failparse("Couldn't find iter expr for eoi; tried ", tried);
-  auto it = fastcast!(Iterator)~ ex.valueType();
-  text = t2;
-  return fastcast!(Object)~ it.terminateCond(ex);
-}
-mixin DefaultParser!(gotIterIvalid, "cond.ivalid", "76", "__ivalid");
-
 import tools.base: This, This_fn, rmSpace, PTuple, Stuple, ptuple, stuple;
-
-class StatementAndCond : Cond {
-  Statement first;
-  Cond second;
-  mixin MyThis!("first, second");
-  mixin DefaultDup!();
-  mixin defaultIterate!(first, second);
-  override {
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      first.emitAsm(af);
-      second.jumpOn(af, cond, dest);
-    }
-  }
-}
 
 import ast.fold;
 class ForIter(I) : Type, I {
@@ -358,7 +330,7 @@ class ForIter(I) : Type, I {
     wlv = castToWrapper(lv);
     auto var = iparse!(LValue, "foriter_wlv_var", "tree.expr")
                       ("wlv.var", "wlv", wlv);
-    return new Assignment(var, itertype.yieldAdvance(subexpr(wlv.dup)));
+    return new Assignment(var, itertype.currentValue(subexpr(wlv.dup)));
   }
   override {
     string toString() {
@@ -370,14 +342,18 @@ class ForIter(I) : Type, I {
     int size() { return wrapper.size; }
     string mangle() { return Format("for_range_over_", wrapper.mangle(), "_var_", cast(size_t) var, "_extra_", cast(size_t) extra); }
     ubyte[] initval() { return wrapper.initval(); }
-    Expr yieldAdvance(LValue lv) {
+    Cond testAdvance(LValue lv) {
+      return itertype.testAdvance(subexpr(castToWrapper(lv).dup));
+    }
+    Expr currentValue(Expr ex) {
+      auto lv = fastcast!(LValue) (ex);
+      if (!lv) {
+        logln("TODO: mandate lvalue for curval");
+        asm { int 3; }
+      }
       LValue wlv;
       auto stmt = mkForIterAssign(lv, wlv);
-      // logln("!! this.ex is ", this.ex);
       return new StatementAndExpr(stmt, update(this.ex.dup, wlv));
-    }
-    Cond terminateCond(Expr ex) {
-      return itertype.terminateCond(subexpr(castToWrapper(ex).dup));
     }
     static if (is(I: RichIterator)) {
       Expr length(Expr ex) {
@@ -483,8 +459,8 @@ import ast.static_arrays;
 class BogusIterator : Iterator, IType { // tag
   override {
     IType elemType() { assert(false); }
-    Expr yieldAdvance(LValue) { assert(false); }
-    Cond terminateCond(Expr) { assert(false); }
+    Expr currentValue(Expr) { assert(false); }
+    Cond testAdvance(LValue) { assert(false); }
     int size() { assert(false); }
     string mangle() { assert(false); }
     ubyte[] initval() { assert(false); }
@@ -519,7 +495,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept(":"))
     t2.failparse("Expected ':'");
   
-  auto it = fastcast!(Iterator)~ sub.valueType();
+  auto it = fastcast!(Iterator) (sub.valueType());
   auto ph = new PlaceholderTokenLV(it.elemType(), "it.elemType() "~ivarname);
   
   auto backup = namespace();
@@ -545,7 +521,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr res;
   PTuple!(IType, Expr, PlaceholderToken, PlaceholderToken) ipt;
   Iterator restype;
-  if (auto ri = fastcast!(RichIterator)~ it) {
+  if (auto ri = fastcast!(RichIterator) (it)) {
     auto foriter = new ForIter!(RichIterator);
     with (foriter) ipt = ptuple(wrapper, ex, var, extra);
     foriter.itertype = ri;
@@ -615,29 +591,30 @@ class IterLetCond(T) : Cond, NeedsConfig {
   override void configure() { iref = lvize(iref_pre); }
   override void jumpOn(AsmFile af, bool cond, string dest) {
     auto itype = fastcast!(Iterator)~ iter.valueType();
-    auto step = itype.yieldAdvance(iref);
-    auto itercond = itype.terminateCond(iref);
+    auto stepcond = itype.testAdvance(iref);
+    auto value = itype.currentValue(iref);
     auto skip = af.genLabel();
     if (cond) {
-      itercond.jumpOn(af, false, skip);
+      // if jump fails, value is available; write it, then jump
+      stepcond.jumpOn(af, false, skip);
     } else {
-      itercond.jumpOn(af, false, dest);
+      stepcond.jumpOn(af, false, dest);
     }
     if (target) {
       auto tv = target.valueType;
-      if (!gotImplicitCast(step, tv, (IType it) { return test(it == tv); }))
+      if (!gotImplicitCast(value, tv, (IType it) { return test(it == tv); }))
         asm { int 3; }
       static if (is(T: MValue))
-        (new _Assignment!(MValue) (target, step)).emitAsm(af);
-      else (new Assignment(target, step)).emitAsm(af);
+        (new _Assignment!(MValue) (target, value)).emitAsm(af);
+      else (new Assignment(target, value)).emitAsm(af);
     } else {
-      step.emitAsm(af);
-      if (step.valueType() != Single!(Void))
-        af.sfree(step.valueType().size);
+      value.emitAsm(af);
+      if (value.valueType() != Single!(Void))
+        af.sfree(value.valueType().size);
     }
     if (cond) {
-      af.jump(dest);
-      af.emitLabel(skip);
+      af.jump(dest); // now jump
+      af.emitLabel(skip); // otherwise nothing
     }
   }
   override string toString() {
@@ -668,8 +645,10 @@ withoutIterator:
   if (!withoutIteratorAllowed && !needIterator) return null;
   Expr iter;
   resetError();
-  if (!rest(t2, "tree.expr", &iter) || !gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
-    if (needIterator) t2.failparse("Can't find iterator");
+  
+  Expr backup;
+  if (!rest(t2, "tree.expr", &iter) || (backup = iter, false) || !gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+    if (needIterator) t2.failparse("Can't parse iterator: ", backup);
     else return null;
   // insert declaration into current scope.
   // NOTE: this here is the reason why everything that tests a cond has to have its own scope.
@@ -706,25 +685,6 @@ withoutIterator:
 }
 mixin DefaultParser!(gotIterCond!(false), "cond.iter_strict", "705");
 mixin DefaultParser!(gotIterCond!(true), "cond.iter_loose", "735");
-
-Object gotIterEval(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !fastcast!(LValue) (ex)) {
-    logln("refusing istep - nothing matched or not lvalue: ", ex);
-    return null;
-  }
-  auto backup = ex;
-  if (!gotImplicitCast(ex, (IType it) { return test(fastcast!(Iterator)~ it); })) {
-    logln("refusing istep: not an iterator ", backup.valueType());
-    return null;
-  }
-  auto lv = fastcast!(LValue)~ ex;
-  auto it = fastcast!(Iterator)~ lv.valueType();
-  text = t2;
-  return fastcast!(Object)~ it.yieldAdvance(lv);
-}
-mixin DefaultParser!(gotIterEval, "tree.expr.eval_iter", "2407", "__istep");
 
 import ast.opers;
 static this() {
@@ -788,12 +748,10 @@ class EvalIterator(T) : Expr, Statement {
       void emitStmtInto(Expr var) {
         auto lv = fastcast!(LValue) (ex);
         if (lv && var) {
-          // logln("eval takes branch 1");
           iparse!(Statement, "iter_array_eval_step_1", "tree.stmt")
                  (` { int i; while var[i++] <- _iter { } }`,
                   "var", var, "_iter", lv, af).emitAsm(af);
         } else if (var) {
-          // logln("eval takes branch 2");
           iparse!(Statement, "iter_array_eval_step_2", "tree.stmt")
                  (` { int i; auto temp = _iter; while var[i++] <- temp { } }`,
                   "var", var, "_iter", ex, af).emitAsm(af);
@@ -806,12 +764,12 @@ class EvalIterator(T) : Expr, Statement {
       void emitStmtConcat(Expr var) {
         if (auto lv = fastcast!(LValue)~ ex) {
           iparse!(Statement, "iter_array_eval_step_4", "tree.stmt")
-                 (` { type-of __istep _iter temp; while temp <- _iter { var ~= temp; } }`,
+                 (` { iterType!type-of _iter temp; while temp <- _iter { var ~= temp; } }`,
                   namespace(),
                   "var", var, "_iter", lv, af).emitAsm(af);
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_5", "tree.stmt")
-                 (` { auto temp = _iter; type-of __istep temp temp2; while temp2 <- temp { var ~= temp2; } }`,
+                 (` { auto temp = _iter; iterType!type-of temp temp2; while temp2 <- temp { var ~= temp2; } }`,
                   namespace(),
                   "var", var, "_iter", ex, af).emitAsm(af);
         } else {
@@ -859,14 +817,13 @@ Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval", null, ".eval");
 
-Object gotIterLength(ref string text, ParseCb cont, ParseCb rest) {
-  return lhs_partial.using = delegate Object(Expr ex) {
+static this() {
+  defineOp("length", delegate Expr(Expr ex) {
     auto iter = fastcast!(RichIterator)~ ex.valueType();
     if (!iter) return null;
-    return fastcast!(Object)~ iter.length(ex);
-  };
+    return iter.length(ex);
+  });
 }
-mixin DefaultParser!(gotIterLength, "tree.rhs_partial.iter_length", null, ".length");
 
 import tools.log;
 Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {

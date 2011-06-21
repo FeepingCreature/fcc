@@ -55,7 +55,11 @@ static this() {
     auto tup = fastcast!(Tuple)~ e2v;
     if (!tup) return null;
     Expr[] exprs;
-    foreach (entry; getTupleEntries(e2)) exprs ~= lookupOp("index", e1, entry);
+    foreach (entry; getTupleEntries(e2)) {
+      auto expr = lookupOp("index", true, e1, entry);
+      if (!expr) return null;
+      exprs ~= expr;
+    }
     return mkTupleExpr(exprs);
   });
 }
@@ -89,7 +93,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     if (rest(t2, "tree.expr", &pos) && t2.accept("]")) {
       Expr res;
       try {
-        res = lookupOp("index", ex, pos);
+        res = lookupOp("index", true, ex, pos);
         if (!res) {
           text.failparse("Invalid array index: ", pos.valueType());
         }

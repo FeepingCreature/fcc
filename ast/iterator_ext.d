@@ -137,20 +137,20 @@ class Cross : Type, RichIterator {
     int size() { return tup.size; }
     string mangle() { return "cross_over_"~tup.mangle(); }
     ubyte[] initval() { return tup.initval(); }
-    Expr yieldAdvance(LValue lv) {
+    Cond testAdvance(LValue lv) {
       auto types = myTypes(), tup = castToTuple(lv);
       auto root = iparse!(IfStatement, "cross_iterate_init", "tree.stmt")
                          (`if (!tup[0]) { tup[0] = true; } else {}`, "tup", tup);
       foreach (i, type; types) {
         root.branch1.addStatement(iparse!(Statement, "cross_iterate_init_specific", "tree.stmt")
-                                         (`{ tup[1+i] = __istep tup[1+len+i]; }`,
+                                         (`{ eval tup[1+i] <- tup[1+len+i]; }`,
                                           "tup", tup, "i", mkInt(i), "len", mkInt(types.length)));
       }
       IfStatement current;
       // build if tree
       foreach_reverse (i, type; types) {
         auto myIf = iparse!(IfStatement, "cross_iterate_step", "tree.stmt")
-                           (`if (tup[1+i] <- tup[1+len+i]) { } else { tup[1+len+i] = tup[1+len*2+i]; tup[1+i] = __istep tup[1+len+i]; }`,
+                           (`if (tup[1+i] <- tup[1+len+i]) { } else { tup[1+len+i] = tup[1+len*2+i]; eval tup[1+i] <- tup[1+len+i]; }`,
                             "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
         if (!current) {
           root.branch2.addStatement(myIf);
@@ -160,24 +160,22 @@ class Cross : Type, RichIterator {
           current = myIf;
         }
       }
+      auto term = iparse!(Statement, "cross_finalize", "tree.stmt")
+                         (`tup[0] = false; `,
+                          "tup", tup);
+      current.branch2.addStatement(term); // wrap initializer around again
       assert(!!root);
-      auto expr = iparse!(Expr, "cross_result", "tree.expr")
+      auto cond = iparse!(Cond, "cross_test_result", "cond")
+                         (`tup[0]`,
+                          "tup", tup);
+      return new StatementAndCond(root, cond);
+    }
+    Expr currentValue(Expr ex) {
+      auto tup = castToTuple(ex), types = myTypes();
+      auto expr = iparse!(Expr, "cross_test_result", "tree.expr")
                          (`tup[1..len+1]`,
                           "tup", tup, "len", mkInt(types.length));
-      return new StatementAndExpr(root, expr);
-    }
-    Cond terminateCond(Expr ex) {
-      Cond res;
-      auto types = myTypes(), tup = castToTuple(ex);
-      foreach (i, type; types) {
-        auto entry = iparse!(Expr, "cross_subcond", "tree.expr")
-                           (`tup[i + len + 1]`, "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
-        auto cond = (fastcast!(Iterator)~ entry.valueType()).terminateCond(entry);
-        if (!res) res = cond;
-        else res = new BooleanOp!("||")(res, cond);
-      }
-      assert(!!res);
-      return res;
+      return expr;
     }
     Expr length(Expr ex) {
       Expr res;
@@ -254,7 +252,7 @@ mixin DefaultParser!(gotIteratorCross, "tree.expr.iter.cross", null, "cross");
 
 import ast.aggregate;
 class Zip(T) : Type, T {
-  Tuple tup; // half iterators, half current values
+  Tuple tup;
   LValue castToTuple(LValue lv) {
     return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
                   ("*tup*:&lv", "lv", lv, "tup", tup);
@@ -264,38 +262,36 @@ class Zip(T) : Type, T {
     return iparse!(Expr, "cross_cast_expr_to_tuple", "tree.expr")
                   ("tup:ex", "ex", ex, "tup", tup);
   }
-  IType[] myTypes() { return tup.types[$/2 .. $]; }
+  IType[] myTypes() {
+    return tup.types /map/ (IType it) { return (fastcast!(Iterator) (it)).elemType(); };
+  }
   override {
     IType elemType() { return mkTuple(myTypes()); }
     string toString() { return Format("Zip[", size, "](", tup.types, ")"); }
     int size() { return tup.size; }
     string mangle() { return "zip_over_"~tup.mangle(); }
     ubyte[] initval() { return tup.initval(); }
-    Expr yieldAdvance(LValue lv) {
-      auto types = myTypes(), tup = castToTuple(lv);
-      auto root = new AggrStatement;
-      foreach (i, type; types) {
-        root.stmts ~= iparse!(Statement, "zip_iterate_step", "tree.stmt")
-                             (`tup[i+len] = __istep tup[i]; `,
-                              "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
-      }
-      auto expr = iparse!(Expr, "zip_result", "tree.expr")
-                         (`tup[len..len*2]`,
-                          "tup", tup, "len", mkInt(types.length));
-      return new StatementAndExpr(root, expr);
-    }
-    Cond terminateCond(Expr ex) {
+    Cond testAdvance(LValue lv) {
       Cond res;
-      auto types = myTypes(), tup = castToTuple(ex);
+      auto types = myTypes(), tup = castToTuple(lv);
       foreach (i, type; types) {
-        auto entry = iparse!(Expr, "zip_subcond", "tree.expr")
-                           (`tup[i]`, "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
-        auto cond = (fastcast!(Iterator)~ entry.valueType()).terminateCond(entry);
+        auto entry = fastcast!(LValue) (mkTupleIndexAccess(tup, i));
+        if (!entry) asm { int 3; }
+        auto cond = (fastcast!(Iterator) (entry.valueType())).testAdvance(entry);
         if (!res) res = cond;
         else res = new BooleanOp!("&&")(res, cond);
       }
       assert(!!res);
       return res;
+    }
+    Expr currentValue(Expr ex) {
+      Expr[] exprs;
+      auto types = myTypes();
+      foreach (i, type; types) {
+        auto entry = mkTupleIndexAccess(castToTuple(ex), i);
+        exprs ~= (fastcast!(Iterator) (entry.valueType())).currentValue(entry);
+      }
+      return mkTupleExpr(exprs);
     }
     static if (is(T: RichIterator)) {
       Expr length(Expr ex) {
@@ -325,10 +321,7 @@ class Zip(T) : Type, T {
 }
 
 Expr mkZip(Expr[] exprs, bool rich) {
-  Expr[] inits;
-  foreach (ex; exprs)
-    inits ~= new Filler((fastcast!(Iterator)~ ex.valueType()).elemType());
-  auto tup = mkTupleExpr(exprs ~ inits);
+  auto tup = mkTupleExpr(exprs);
   if (rich) {
     auto zip = new Zip!(RichIterator);
     zip.tup = fastcast!(Tuple)~ tup.valueType();
@@ -373,7 +366,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotIteratorZip, "tree.expr.iter.zip", null, "zip");
 
 class Seq(T) : Type, T {
-  Tuple tup; // current value, iterators
+  Tuple tup; // current value, iterators, completion-bools (true when done)
   LValue castToTuple(LValue lv) {
     return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
                   ("*tup*:&lv", "lv", lv, "tup", tup);
@@ -390,36 +383,24 @@ class Seq(T) : Type, T {
     int size() { return tup.size; }
     string mangle() { return "seq_over_"~tup.mangle(); }
     ubyte[] initval() { return tup.initval(); }
-    Expr yieldAdvance(LValue lv) {
-      auto len = tup.types.length - 1;
+    Cond testAdvance(LValue lv) {
+      auto len = (tup.types.length - 1) / 2;
       auto tup = castToTuple(lv);
       
       auto res_st = new Scope;
       Scope curBranch = res_st;
       for (int i = 0; i < len; ++i) {
         auto ifst = iparse!(IfStatement, "seq_step", "tree.stmt")
-                          (`if tup[0] <- tup[i+1] { } else { }`,
-                           curBranch, "tup", tup, "i", mkInt(i)
-                          );
+                           (`if !tup[1+len+i] && tup[0] <- tup[1+i] { } else { tup[1+len+i] = true; }`,
+                             curBranch, "tup", tup, "i", mkInt(i), "len", mkInt(len)
+                           );
         curBranch.addStatement(ifst);
         curBranch = ifst.branch2; // fill the else{}
       }
-      auto res_ex = getTupleEntries(tup)[0];
-      return new StatementAndExpr(res_st, res_ex);
+      return new StatementAndCond(res_st, new ExprWrap(mkTupleIndexAccess(tup, 1+len+len-1 /* last bool, and be glad I didn't write "2*len" */)));
     }
-    Cond terminateCond(Expr ex) {
-      Cond res;
-      auto len = tup.types.length - 1;
-      auto tup = castToTuple(ex);
-      for (int i = 0; i < len; ++i) {
-        auto entry = iparse!(Expr, "seq_subcond", "tree.expr")
-                           (`tup[i+1]`, "tup", tup, "i", mkInt(i));
-        auto cond = (fastcast!(Iterator)~ entry.valueType()).terminateCond(entry);
-        if (!res) res = cond;
-        else res = new BooleanOp!("||")(res, cond);
-      }
-      assert(!!res);
-      return res;
+    Expr currentValue(Expr ex) {
+      return mkTupleIndexAccess(castToTuple(ex), 0);
     }
     static if (is(T: RichIterator)) {
       Expr length(Expr ex) {
@@ -511,13 +492,13 @@ class SumExpr : Expr {
           {
             auto i2 = iter;
             T temp;
-            var = __istep i2;
+            eval var <- i2;
             int left = i2.length / 4;
             for 0..left {
-              var += __istep i2;
-              var += __istep i2;
-              var += __istep i2;
-              var += __istep i2;
+              eval auto val <- i2; var += val;
+              eval val <- i2; var += val;
+              eval val <- i2; var += val;
+              eval val <- i2; var += val;
             }
             while temp <- i2 { var += temp; }
           } `, "iter", ex, "T", iter.elemType(), "var", var, af);
@@ -529,7 +510,7 @@ class SumExpr : Expr {
           {
             auto i2 = iter;
             T temp;
-            var = __istep i2;
+            eval var <- i2;
             while temp <- i2 { var += temp; }
           }`, "iter", ex, "T", iter.elemType(), "var", var, af);
           // opt(stmt);
@@ -570,15 +551,15 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
     if (auto srn = fastcast!(SemiRelNamespace) (thingy)) thingy = fastcast!(Object) (srn.resolve());
     if (auto ns = fastcast!(Namespace)~ thingy) { _ns = ns; lookup = &fun_ns; }
     else if (auto rn = fastcast!(RelNamespace)~ thingy) { _rns = rn; lookup = &fun_rns; }
-    if (!lookup || !lookup("step") || !lookup("ivalid")) {
-      text.setError(obj, " does not form a valid iterator: step or ivalid missing. ");
+    if (!lookup || !lookup("value") || !lookup("advance")) {
+      text.setError(obj, " does not form a valid iterator: value or advance missing. ");
       return null;
     }
     // logln("try ", t2.nextText(), "; ", thingy);
     auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
-                      (`eval (iter.step)`, "iter", iter);
+                      (`evaluate (iter.value)`, "iter", iter);
     auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
-                      (`eval (iter.ivalid)`, "iter", iter);
+                      (`evaluate (iter.advance)`, "iter", iter);
     if (!test1 || !test2) {
       logln("test failed: ", !test1, ", ", !test2);
       asm { int 3; }
@@ -608,12 +589,12 @@ static this() {
     if (!st && !cr && !ir)
       return null;
     if (st && !(
-      st.lookupRel("step", ex) &&
-      st.lookupRel("ivalid", ex)))
+      st.lookupRel("value", ex) &&
+      st.lookupRel("advance", ex)))
       return null;
     if (cr && !(
-      cr.myClass.lookupRel("step", ex) &&
-      cr.myClass.lookupRel("ivalid", ex)))
+      cr.myClass.lookupRel("value", ex) &&
+      cr.myClass.lookupRel("advance", ex)))
       return null;
     auto si = new StructIterator(evt);
     Expr res = reinterpret_cast(si, ex);

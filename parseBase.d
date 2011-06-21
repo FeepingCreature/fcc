@@ -205,6 +205,21 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   return true;
 }
 
+bool[string] reserved;
+static this() {
+  reserved["auto"] = true;
+  reserved["return"] = true;
+}
+
+bool gotValidIdentifier(ref string text, out string ident, bool acceptDots = false) {
+  string t2 = text;
+  if (t2.gotIdentifier(ident, acceptDots) && !(ident in reserved)) {
+    text = t2;
+    return true;
+  }
+  return false;
+}
+
 // This isn't a symbol! Maybe I was wrong about the dash .. 
 // Remove the last dash part from "id" that was taken from "text"
 // and re-add it to "text" via dark pointer magic.

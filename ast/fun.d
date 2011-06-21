@@ -243,6 +243,10 @@ class FunCall : Expr {
   }
   override string toString() { return Format("(", fun.name, "(", params, "))"); }
   override IType valueType() {
+    if (!fun.type.ret) {
+      logln("Function type not yet resolved but funcall type demanded! ");
+      asm { int 3; }
+    }
     return fun.type.ret;
   }
 }

@@ -14,6 +14,7 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
   res.base = reinterpret_cast(wrapped, tuple);
   
   auto temps = wrapped.selectMap!(RelMember, "$");
+  if (pos >= temps.length) { logln("index access length violation: ", pos, " > ", temps.length, " for ", tuple); asm { int 3; } }
   res.stm = temps[pos];
   
   auto types = (fastcast!(Tuple)~ tuple.valueType()).types();
@@ -191,12 +192,15 @@ mixin DefaultParser!(gotWithTupleExpr, "tree.rhs_partial.withtuple", null, ".");
 
 static this() {
   /// 3.
-  implicits ~= delegate Expr(Expr ex) {
-    auto tup = fastcast!(Tuple)~ ex.valueType();
-    if (!tup) return null;
-    if (tup.types.length != 1) return null;
-    auto res = mkTupleIndexAccess(ex, 0);
-    return res;
+  implicits ~= delegate void(Expr ex, void delegate(Expr) dg) {
+    while (true) {
+      auto tup = fastcast!(Tuple) (resolveType(ex.valueType()));
+      if (!tup) return;
+      if (tup.types.length != 1) return;
+      if (tup !is ex.valueType()) ex = reinterpret_cast(tup, ex);
+      ex = mkTupleIndexAccess(ex, 0);
+      dg(ex);
+    }
   };
   // cast into tuples
   implicits ~= delegate void(Expr ex, IType it, void delegate(Expr) dg) {

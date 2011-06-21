@@ -14,7 +14,7 @@ Object gotTypeof(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Failed to parse typeof expression");
   text = t2;
   
-  return fastcast!(Object)~ ex.valueType();
+  return fastcast!(Object) (ex.valueType());
 }
 mixin DefaultParser!(gotTypeof, "type.of", "45", "type-of");
 
@@ -114,3 +114,19 @@ Object gotTypesEqual(ref string text, ParseCb cont, ParseCb rest) {
   return fastcast!(Object) (new ExprWrap(True));
 }
 mixin DefaultParser!(gotTypesEqual, "cond.types-equal", "734", "types-equal");
+
+import ast.conditionals;
+Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
+  IType ty;
+  auto t2 = text;
+  if (!rest(t2, "type", &ty))
+    t2.failparse("Expect type parameter for type-is-tuple! ");
+  text = t2;
+  auto tup = fastcast!(ast.tuples.Tuple) (resolveType(ty));
+  setupStaticBoolLits;
+  Expr res;
+  if (tup) res = True;
+  else res = False;
+  return fastcast!(Object) (new ExprWrap(res));
+}
+mixin DefaultParser!(gotTypeIsTuple, "cond.type-is-tuple", "7341", "type-is-tuple");

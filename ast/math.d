@@ -621,7 +621,7 @@ class AsmDoubleBinopExpr : BinopExpr {
 
 BinopExpr delegate(Expr, Expr, string) mkLongExpr;
 
-extern(C) IType resolveTup(IType);
+extern(C) IType resolveTup(IType, bool onlyIfChanged = false);
 
 static this() {
   bool isInt(IType it) { return test(it == Single!(SysInt)); }

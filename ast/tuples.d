@@ -5,8 +5,7 @@ import ast.base, ast.structure, ast.namespace, ast.casting;
 /++
   1. A tuple behaves like a struct
   2. A tuple accepts index and slice notation.
-  2.1. Excepting tuples with a size of one.
-  3. Size-one tuples autocast to their only entry.
+  3. There is no such thing as a size-one tuple.
   4. A tuple is matched via '()' and ','.
 ++/
 
@@ -107,6 +106,7 @@ class RefTuple : MValue {
   IType baseTupleType;
   MValue[] mvs;
   mixin defaultIterate!(mvs);
+  IType[] types() { return (fastcast!(Tuple) (baseTupleType)).types(); }
   Expr[] getAsExprs() {
     Expr[] exprs;
     foreach (mv; mvs) exprs ~= mv;
@@ -204,6 +204,30 @@ class LValueAsMValue : MValue {
   }
 }
 
+extern(C) IType resolveTup(IType it, bool onlyIfChanged = false) {
+  auto res = resolveType(it);
+  if (auto tup = fastcast!(Tuple) (res)) {
+    auto types = tup.types();
+    if (types.length == 1) return types[0];
+  }
+  if (auto rt = fastcast!(RefTuple) (res)) {
+    auto types = rt.types();
+    if (types.length == 1) return types[0];
+  }
+  if (onlyIfChanged) return null;
+  return res;
+}
+
+static this() {
+  forcedConversionDg = forcedConversionDg /apply/ delegate Expr(Expr delegate(Expr) prev, Expr ex) {
+    if (prev) ex = prev(ex);
+    if (auto newtype = resolveTup(ex.valueType(), true)) {
+      return forcedConvert(foldex(reinterpret_cast(newtype, ex)));
+    }
+    return ex;
+  };
+}
+
 Expr mkTupleExpr(Expr[] exprs...) {
   bool allMValues = true;
   MValue[] arr;
@@ -247,15 +271,6 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   return fastcast!(Object)~ mkTupleExpr(exprs);
 }
 mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60", "(");
-
-extern(C) IType resolveTup(IType it) {
-  auto res = resolveType(it);
-  if (auto tup = fastcast!(Tuple) (res)) {
-    auto types = tup.types();
-    if (types.length == 1) return types[0];
-  }
-  return res;
-}
 
 import ast.fold, ast.int_literal;
 static this() {

@@ -1,6 +1,6 @@
 module ast.templ;
 
-import ast.base, ast.parse, ast.modules, ast.namespace, ast.fun;
+import ast.base, ast.parse, ast.modules, ast.namespace, ast.fun, ast.oop;
 
 interface ITemplate : Named {
   Object getInstanceIdentifier(IType it, ParseCb rest, string name);
@@ -194,6 +194,8 @@ class TemplateInstance : Namespace, HandlesEmits {
       if (fastcast!(Module) (context))
         parsemode = "tree.toplevel";
       if (fastcast!(Structure) (context))
+        parsemode = "struct_member";
+      if (fastcast!(Class) (context))
         parsemode = "struct_member";
       if (fastcast!(Scope) (context)) {
         parsemode = "tree.stmt.nested_fundef";

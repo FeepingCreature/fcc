@@ -42,8 +42,8 @@ string between(string s, string from, string to) {
 }
 
 template join(T) <<EOF
-  type-of __istep init!T join(T t) {
-    type-of (__istep t)[0] [auto~] res;
+  iterType!T join(T t) {
+    type-of (init!iterType!T)[0] [auto~] res;
     while auto chunk <- t { res ~= chunk; }
     return res[];
   }
@@ -53,22 +53,18 @@ template splitAt(T) <<EOF
   class iter {
     T sup;
     char[auto~] buffer;
+    string value;
     bool done;
-    // Expr yieldAdvance(LValue);
-    string step() {
+    bool advance() {
+      if (done) return false;
       int pos;
       do pos = find (buffer[], sup[0]);
       while pos == -1 {
-        string supstep; // TODO: investigate why auto fails here.
-        if (supstep <- sup[1]) { buffer ~= supstep; } else { done = true; return buffer[]; }
+        if (auto supstep <- sup[1]) { buffer ~= supstep; } else { value = buffer[]; done = true; return true; }
       }
-      auto res = buffer[0 .. pos];
+      value = buffer[0 .. pos];
       buffer = type-of buffer: buffer[pos + sup[0].length .. buffer.length];
-      return res;
-    }
-    // Cond terminateCond(Expr); // false => can't yield more values
-    bool ivalid() {
-      return eval !done;
+      return true;
     }
   }
   iter splitAt(T t) {
@@ -118,10 +114,10 @@ template castIter(T) <<EOF
   template castIter(U) <<EO2
     class caster {
       U sup;
-      T step() {
-        return T: sup.step();
+      T value() {
+        return T: evaluate sup.value;
       }
-      bool ivalid() { return sup.ivalid(); }
+      bool advance() { return sup.advance(); }
     }
     caster castIter(U u) {
       auto res = new caster;

@@ -112,7 +112,11 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
         text.failparse("No dot?! ");
       if (!text.accept(name))
         text.failparse("WTF ", name);
+      
+      if (auto ex = fastcast!(Expr) (res))
+        return fastcast!(Object) (forcedConvert(ex));
       return res;
+      
     } else {
       // logln("No ", name, " in ", ns);
     }

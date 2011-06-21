@@ -1,5 +1,5 @@
 module teapot;
-import sdl, opengl, std.c.math, std.c.time;
+import sdl, opengl, std.math, std.util, c.time;
 
 import glsetup;
 
@@ -22,7 +22,7 @@ int resizeWindow(int w, int h) {
 }
 
 class DataSet {
-  int[16][auto~] indices;
+  int x 16[auto~] indices;
   vec3f[auto~] vecs;
 }
 
@@ -33,7 +33,7 @@ DataSet parse(string fn) {
   {
     auto idcount = atoi toStringz lines[0];
     while auto id <- lines[1 .. idcount + 1] {
-      int[16] temp;
+      int x 16 temp;
       temp[] = [for st <- splitAt(",", iterOnce id): atoi toStringz st].eval[];
       res.indices ~= temp;
     }
@@ -92,7 +92,7 @@ void drawScene(DataSet ds) {
         return a / vlength(a);
       }
       void bezier2(float u, vec3f[] field, vec3f* dest) {
-        vec3f[5] temp = void;
+        vec3f x 5 temp = void;
         vec3f blend(vec3f from, vec3f to) {
           return from + (to - from) * u;
         }
@@ -103,11 +103,11 @@ void drawScene(DataSet ds) {
         temp[4] = blend(temp[1], temp[2]);
         *dest = blend(temp[3], temp[4]);
       }
-      vec3f[16] input = void;
+      vec3f x 16 input = void;
       while auto k <- 0..16 {
         input[k] = ds.vecs[ind[1][k] - 1];
       }
-      vec3f[4] bezier_temp = void;
+      vec3f x 4 bezier_temp = void;
       void setup_row(float v) {
         bezier2(v, input[0..4], &bezier_temp[0]);
         bezier2(v, input[4..8], &bezier_temp[1]);
@@ -119,7 +119,7 @@ void drawScene(DataSet ds) {
       }
       alias subdiv = 8;
       int subdivp = subdiv + 1;
-      if (!temp.ptr) temp = new vec3f[subdivp * subdivp];
+      if (!temp.ptr) temp = new vec3f[] (subdivp * subdivp);
       int k;
       for (int y = 0; y < subdivp; ++y) {
         float v = y * 1.0 / subdiv;
@@ -134,8 +134,8 @@ void drawScene(DataSet ds) {
       while (x, y) <- cross (0..subdiv, 0..subdiv) {
         float u = x * 1.0 / subdiv, v = y * 1.0 / subdiv;
         int x2, y2;
-        vec3f[4] quad = void;
-        float[4] angles = void;
+        vec3f x 4 quad = void;
+        float x 4 angles = void;
         int l;
         while ((x2, y2), l) <- zip([for id <- [0, 1, 3, 2]: (cross (0..2, 0..2))[id]], 0..4) {
           quad[l] = get(x2 + x, y2 + y);

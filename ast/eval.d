@@ -8,6 +8,10 @@ Object gotEval(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr", &obj))
     return null;
     // t2.failparse("Could not parse expr");
+  
+  if (auto ex = fastcast!(Expr) (obj))
+    obj = fastcast!(Object) (forcedConvert(ex));
+  
   text = t2;
   if (auto fun = fastcast!(Function)~ obj) {
     if (fun.type.params.length)
@@ -16,4 +20,4 @@ Object gotEval(ref string text, ParseCb cont, ParseCb rest) {
   }
   return obj;
 }
-mixin DefaultParser!(gotEval, "tree.expr.eval", "27", "eval");
+mixin DefaultParser!(gotEval, "tree.expr.eval", "27", "evaluate");

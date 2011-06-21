@@ -10,7 +10,7 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
   // check all possible continuations
   auto ex = fastcast!(Expr)~ sup;
   if (!withTuple) {
-    if (ex && fastcast!(AstTuple)~ ex.valueType())
+    if (ex && fastcast!(AstTuple) (ex.valueType()))
       return null; // don't
   }
   

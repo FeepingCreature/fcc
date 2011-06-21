@@ -340,6 +340,10 @@ void setupSysmods() {
       void claim() { refs ++; }
       void release() { refs --; if !refs onZero(); }
     }
+    template iterType(T) <<EOT
+      auto merp() { T bogus; for auto t <- bogus return t; }
+      alias iterType = type-of merp();
+    EOT
     string replace(string source, string what, string with) {
       int i = 0;
       char[auto~] res;

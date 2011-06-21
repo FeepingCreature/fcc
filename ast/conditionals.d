@@ -22,6 +22,20 @@ class ExprWrap : Cond {
   }
 }
 
+class StatementAndCond : Cond {
+  Statement first;
+  Cond second;
+  mixin MyThis!("first, second");
+  mixin DefaultDup!();
+  mixin defaultIterate!(first, second);
+  override {
+    void jumpOn(AsmFile af, bool cond, string dest) {
+      first.emitAsm(af);
+      second.jumpOn(af, cond, dest);
+    }
+  }
+}
+
 class Compare : Cond, Expr {
   Expr e1; bool smaller, equal, greater; Expr e2;
   Expr falseOverride, trueOverride;
@@ -215,7 +229,6 @@ void setupStaticBoolLits() {
 import ast.fold;
 bool isStaticTrue(Cond cd) {
   auto ew = fastcast!(ExprWrap) (fold(fastcast!(Itr) (cd)));
-  logln("folded: ", fold(fastcast!(Itr) (cd)));
   if (!ew) return false;
   return ew.ex is True;
 }

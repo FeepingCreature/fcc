@@ -8,12 +8,6 @@ T aadup(T)(T t) {
   return res;
 }
 
-bool[string] reserved;
-static this() {
-  reserved["auto"] = true;
-  reserved["return"] = true;
-}
-
 // This is intended to be used for function overload sets.
 interface Extensible {
   // create compound object of this and obj.

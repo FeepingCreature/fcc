@@ -539,3 +539,11 @@ static this() {
 }
 
 bool function(Expr) isTrivial;
+
+// some exprs must immediately be replaced with others
+// for instance, one-entry tuples
+Expr delegate(Expr) forcedConversionDg;
+Expr forcedConvert(Expr ex) {
+  if (!forcedConversionDg) return ex;
+  return forcedConversionDg(ex);
+}
