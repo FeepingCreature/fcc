@@ -1,25 +1,20 @@
 module std.stream;
 
 class iter {
-  int delegate(void[]) dg;
-  char x 512 buffer;
-  bool done;
-  // Expr yieldAdvance(LValue);
-  string step() {
-    int pos = dg(void[]:buffer);
+  int delegate(byte[]) dg;
+  byte x 512 buffer;
+  byte[] value;
+  bool advance() {
+    int pos = dg buffer[];
     if pos == -1 {
-      done = true;
-      return null;
+      return false;
     }
-    return buffer[0..pos];
-  }
-  // Cond terminateCond(Expr); // false => can't yield more values
-  bool ivalid() {
-    return eval !done;
+    value = buffer[0..pos];
+    return true;
   }
 }
 
-iter readDg(int delegate(void[]) dg) {
+iter readDg(int delegate(byte[]) dg) {
   auto res = new iter;
   res.dg = dg;
   return res;

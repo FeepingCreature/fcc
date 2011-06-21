@@ -106,13 +106,12 @@ template readsocket(T) <<EOF
     Socket sock;
     bool done;
     byte x 256  buf;
-    byte[] step() {
+    byte[] value;
+    bool advance() {
       auto size = sock.recv buf[];
-      if size <= 0 { done = true; return new byte[] 0; }
-      return buf[0 .. size];
-    }
-    bool ivalid() {
-      return eval !done;
+      if size <= 0 return false;
+      value = buf[0 .. size];
+      return true;
     }
   }
   sockreader readsocket(T t) using new sockreader {
