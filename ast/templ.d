@@ -289,16 +289,24 @@ Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest
   }
   static if (RHSMode) {
     return lhs_partial.using = delegate Object(Object obj) {
+      try {
+        auto res = getInstance(obj);
+        if (res) text = t2;
+        return res;
+      } catch (Exception ex) {
+        t2.failparse(Format("instantiating ", ex));
+      }
+    };
+  } else {
+    try {
+      Object obj;
+      if (!rest(t2, "tree.expr.named", &obj)) return null;
       auto res = getInstance(obj);
       if (res) text = t2;
       return res;
-    };
-  } else {
-    Object obj;
-    if (!rest(t2, "tree.expr.named", &obj)) return null;
-    auto res = getInstance(obj);
-    if (res) text = t2;
-    return res;
+    } catch (Exception ex) {
+      t2.failparse(Format("instantiating ", ex));
+    }
   }
   // logln("instantiate ", t.name, " with ", ty);
 }
@@ -315,16 +323,20 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     if (!templ) return null;
     Expr nex;
     if (!rest(t2, "tree.expr", &nex)) return null;
-    auto res = templ.getInstanceIdentifier(nex.valueType(), rest, templ.getIdentifier());
-    auto fun = fastcast!(Function) (res);
-    if (!fun) { return null; }
-    text = t2;
-    auto fc = buildFunCall(fun, nex, "template_call");
-    if (!fc) {
-      logln("Couldn't build fun call! ");
-      asm { int 3; }
+    try {
+      auto res = templ.getInstanceIdentifier(nex.valueType(), rest, templ.getIdentifier());
+      auto fun = fastcast!(Function) (res);
+      if (!fun) { return null; }
+      text = t2;
+      auto fc = buildFunCall(fun, nex, "template_call");
+      if (!fc) {
+        logln("Couldn't build fun call! ");
+        asm { int 3; }
+      }
+      return fastcast!(Object) (fc);
+    } catch (Exception ex) {
+      t2.failparse("ifti instantiating ", ex);
     }
-    return fastcast!(Object) (fc);
   };
 }
 mixin DefaultParser!(gotIFTI, "tree.rhs_partial.ifti");
