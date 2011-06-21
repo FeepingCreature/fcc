@@ -92,3 +92,25 @@ Object gotParamTypes(ref string text, ParseCb cont, ParseCb rest) {
   else     return mkTuple(dg .args /map/ ex!("x -> x.type"));
 }
 mixin DefaultParser!(gotParamTypes, "type.fun_param_type", "52", "ParamTypes");
+
+import ast.conditionals;
+Object gotTypesEqual(ref string text, ParseCb cont, ParseCb rest) {
+  IType ty;
+  auto t2 = text;
+  if (!rest(t2, "type", &ty))
+    t2.failparse("Expect type parameter for is-equal! ");
+  auto tup = fastcast!(ast.tuples.Tuple) (resolveType(ty));
+  if (!tup)
+    text.failparse("Parameter to types-equal must be tuple! ");
+  text = t2;
+  auto types = tup.types();
+  assert(types.length > 1);
+  auto base = resolveType(types[0]);
+  setupStaticBoolLits;
+  foreach (ty2; types[1..$]) {
+    if (resolveType(ty2) != base)
+      return fastcast!(Object) (new ExprWrap(False));
+  }
+  return fastcast!(Object) (new ExprWrap(True));
+}
+mixin DefaultParser!(gotTypesEqual, "cond.types-equal", "734", "types-equal");
