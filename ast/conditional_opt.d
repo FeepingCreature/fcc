@@ -1,6 +1,7 @@
 module ast.conditional_opt;
 
 import ast.base, ast.conditionals, ast.index, ast.static_arrays;
+import ast.int_literal;
 
 static this() {
   foldopt ~= delegate Itr(Itr it) {
@@ -19,12 +20,34 @@ static this() {
       return null;
     auto ce = fastcast!(CondExpr) (sie.pos);
     if (!ce) return null;
-    auto cmp = cast(Compare) ce.cd;
+    auto cmp = fastcast!(Compare) (ce.cd);
     if (!cmp) return null;
     // logln("salit ", salit.exs, " INDEX ", ce.cd);
     cmp = cmp.dup;
     cmp.falseOverride = salit.exs[0];
     cmp.trueOverride = salit.exs[1];
     return fastcast!(Itr) (cmp);
+  };
+  foldopt ~= delegate Itr(Itr it) {
+    auto cmp = fastcast!(Compare) (it);
+    if (!cmp) return null;
+    auto i1 = fastcast!(IntExpr) (cmp.e1);
+    auto i2 = fastcast!(IntExpr) (cmp.e2);
+    // logln("i1: ", i1);
+    // logln("i2: ", i2);
+    if (!i1 || !i2) return null;
+    bool result;
+    if (cmp.smaller && i1.num < i2.num) result = true;
+    if (cmp.equal && i1.num == i2.num) result = true;
+    if (cmp.greater && i1.num > i2.num) result = true;
+    Expr res;
+    if (result) {
+      if (cmp.trueOverride) res = cmp.trueOverride;
+      else res = True;
+    } else {
+      if (cmp.falseOverride) res = cmp.falseOverride;
+      else res = False;
+    }
+    return new ExprWrap(res);
   };
 }
