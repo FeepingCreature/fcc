@@ -778,6 +778,8 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (!cont(t3, &nextOp)) {
       // may be part of a magnitude expr
       if (opName == "|") return op;
+      // may be start of a heredoc
+      if (opName == "<<") return op;
       t3.failparse("Could not find second operand for ", opName);
     }
     t2 = t3;

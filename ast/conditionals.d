@@ -204,6 +204,28 @@ Cond compare(string op, Expr ex1, Expr ex2) {
   return new ExprWrap(lookupOp(op, ex1, ex2));
 }
 
+import ast.modules;
+Expr True, False;
+void setupStaticBoolLits() {
+  if (True && False) return;
+  True = fastcast!(Expr) (sysmod.lookup("true"));
+  False = fastcast!(Expr) (sysmod.lookup("false"));
+}
+
+import ast.fold;
+bool isStaticTrue(Cond cd) {
+  auto ew = fastcast!(ExprWrap) (fold(fastcast!(Itr) (cd)));
+  logln("folded: ", fold(fastcast!(Itr) (cd)));
+  if (!ew) return false;
+  return ew.ex is True;
+}
+
+bool isStaticFalse(Cond cd) {
+  auto ew = fastcast!(ExprWrap) (fold(fastcast!(Itr) (cd)));
+  if (!ew) return false;
+  return ew.ex is False;
+}
+
 import ast.casting, ast.opers;
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -349,11 +371,12 @@ class CondExpr : Expr {
 Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond cd;
-  if (rest(t2, "cond", &cd)) {
-    text = t2;
-    if (auto ew = fastcast!(ExprWrap) (cd)) return fastcast!(Object) (ew.ex);
-    return new CondExpr(cd);
-  } else return null;
+  if (!rest(t2, "cond", &cd)) return null;
+  text = t2;
+  if (auto ew = fastcast!(ExprWrap) (cd)) {
+    return fastcast!(Object) (ew.ex);
+  }
+  return new CondExpr(cd);
 }
 mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", null, "eval");
 

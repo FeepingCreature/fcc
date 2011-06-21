@@ -78,3 +78,35 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   return sc;
 }
 mixin DefaultParser!(gotIfStmt, "tree.stmt.if", "19", "if");
+
+Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Cond test;
+  if (!rest(t2, "cond", &test))
+    t2.failparse("Couldn't get static-if condition");
+  string branch1, branch2;
+  branch1 = t2.getHeredoc();
+  if (t2.accept("else"))
+    branch2 = t2.getHeredoc();
+  Object res;
+  if (isStaticTrue(test)) {
+    if (!rest(branch1, "tree.stmt", &res))
+      branch1.failparse("No statements matched in static if");
+    branch1 = branch1.mystripl();
+    if (branch1.length) branch1.failparse("Unknown text in static if");
+  } else if (isStaticFalse(test)) {
+    if (branch2) {
+      if (!rest(branch2, "tree.stmt", &res))
+        branch2.failparse("No statements matched in static else");
+      branch2 = branch2.mystripl();
+      if (branch2.length) branch2.failparse("Unknown text in static else");
+    } else {
+      res = new NoOp;
+    }
+  } else {
+    text.failparse("condition not static: ", test);
+  }
+  text = t2;
+  return res;
+}
+mixin DefaultParser!(gotStaticIf, "tree.stmt.static_if", "190", "static if");
