@@ -270,13 +270,24 @@ Expr getArrayPtr(Expr ex) {
   return mkMemberAccess(arrayToStruct!(Expr) (ex), "ptr");
 }
 
+static this() {
+  defineOp("length", delegate Expr(Expr ex) {
+    while (true) {
+      if (auto ptr = fastcast!(Pointer) (ex.valueType()))
+        ex = new DerefExpr(ex);
+      else break;
+    }
+    if (gotImplicitCast(ex, (IType it) { return fastcast!(Array) (it) || fastcast!(ExtArray) (it) || fastcast!(StaticArray) (it); })) {
+      return getArrayLength(ex);
+    } else return null;
+  });
+}
+
 import ast.parse;
 // separate because does clever allocation mojo .. eventually
 Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (gotImplicitCast(ex, (IType it) { return fastcast!(Array) (it) || fastcast!(ExtArray) (it) || fastcast!(StaticArray) (it); })) {
-      return fastcast!(Object) (getArrayLength(ex));
-    } else return null;
+    return fastcast!(Object) (lookupOp("length", ex));
   };
 }
 mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.a_array_length", null, ".length");

@@ -54,6 +54,15 @@ static this() {
       throw new Exception(Format(ie.num, " out of bounds for tuple access"));
     return fastcast!(Expr) (mkTupleIndexAccess(e1, ie.num));
   });
+  defineOp("length", delegate Expr(Expr ex) {
+    Tuple tup;
+    if (!gotImplicitCast(ex, (IType it) {
+      tup = fastcast!(Tuple) (it);
+      return tup && tup.types.length > 1; // resolve ambiguity with array length
+    }))
+      return null;
+    return mkInt(tup.types.length);
+  });
 }
 
 import ast.iterator, ast.casting;
