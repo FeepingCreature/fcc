@@ -50,17 +50,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   configure(ws.cond);
   if (isStatic) {
-    PlaceholderToken[] holders;
-    foreach (ref entry; sc.field) {
-      if (auto v = fastcast!(Variable)~ entry._1) {
-        if (v.name) {
-          // will be substituted with actual value in loop unroller
-          auto ph = new PlaceholderToken(v.valueType(), "static loop var "~v.name);
-          holders ~= ph;
-          entry = stuple(v.name, fastcast!(Object)~ ph);
-        }
-      }
-    }
+    auto backupfield = sc.field;
     Expr iter_expr;
     if (auto ilc = fastcast!(IterLetCond!(LValue)) (ws.cond)) iter_expr = ilc.iter;
     if (auto imc = fastcast!(IterLetCond!(MValue)) (ws.cond)) iter_expr = imc.iter;
@@ -70,28 +60,23 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (!iter) fail("static-loop expression not an iteratr! ");
     
     auto len = fastcast!(IntExpr)~ foldex(iter.length(iter_expr));
-    logln("foldex length is ", foldex(iter.length(iter_expr)));
+    // logln("foldex length is ", foldex(iter.length(iter_expr)));
     if (!len) fail("static-loop iterator length is not constant int! ");
     string t3;
     for (int i = 0; i < len.num; ++i) {
       auto ival = iter.index(iter_expr, mkInt(i));
-      int depth;
-      void subst(ref Iterable it) {
-        foreach (i, ph; holders) {
-          if (it is ph) {
-            if (fastcast!(Tuple)~ ival.valueType()) {
-              it = fastcast!(Iterable)~ getTupleEntries(ival)[i]; // assume is basic. ._.
-            } else {
-              assert(!i);
-              it = fastcast!(Iterable)~ ival;
-            }
-            return;
-          }
-        }
-        it.iterate(&subst);
-      }
       Scope sc2;
       string t4 = t2;
+      sc.field = backupfield.dup;
+      foreach (ref entry; sc.field) {
+        if (auto v = fastcast!(Variable)~ entry._1) {
+          if (v.name) {
+            // will be substituted with actual value in loop unroller
+            entry = stuple(v.name, fastcast!(Object) (ival));
+          }
+        }
+      }
+      sc.rebuildCache;
       pushCache; // same code is parsed multiple times - do not cache!
       if (!rest(t4, "tree.scope", &sc2)) {
         t4.failparse("Couldn't parse during static-while expansion! ");
@@ -99,7 +84,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
       popCache;
       if (!t3) t3 = t4;
       else assert(t3 is t4);
-      sc2.iterate(&subst);
+      sc.field = backupfield;
       sc.addStatement(sc2);
     }
     t2 = t3;
