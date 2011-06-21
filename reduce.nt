@@ -1,9 +1,9 @@
 module reduce;
 
 template reduce(T) <<EOF
-  alias itersample = (init!T)[0];
-  alias stepsample = init!type-of __istep itersample;
-  alias dgsample = (init!T)[1];
+  alias itersample = (value-of!T)[0];
+  alias stepsample = value-of!type-of __istep itersample;
+  alias dgsample = (value-of!T)[1];
   alias callsample = dgsample(stepsample, stepsample);
   type-of callsample delegate(type-of stepsample) reduce(T t) {
     return new delegate type-of callsample(type-of stepsample start) {

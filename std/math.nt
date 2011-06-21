@@ -106,15 +106,15 @@ alias acos = acosf;
 
 template minlist(T) <<EOT
   iterType!T minlist(T t) {
-    auto res = __istep t;
+    eval auto res <- t;
     while auto r2 <- t if r2 < res res = r2;
     return res;
   }
 EOT
 
 template maxlist(T) <<EOT
-  type-of __istep init!T maxlist(T t) {
-    auto res = __istep t;
+  iterType!T maxlist(T t) {
+    eval auto res <- t;
     while auto r2 <- t if r2 > res res = r2;
     return res;
   }

@@ -36,7 +36,7 @@ void clCheckRes (int i) {
 
 template clCheckCall(alias A) <<EOF
   template clCheckCall(T) <<EO2
-    type-of A(init!T, null) clCheckCall(T t) {
+    type-of A(value-of!T, null) clCheckCall(T t) {
       int error;
       onExit clCheckRes (error);
       return A(t, &error);

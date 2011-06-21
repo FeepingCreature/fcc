@@ -32,8 +32,8 @@ void setupSysmods() {
         if a[i] != b[i] return false;
       return true;
     }
-    template init(T) <<EOT
-      T init;
+    template value-of(T) <<EOT
+      alias value-of = *T*:null;
     EOT
     void* memcpy2(void* dest, src, int n) {
       // printf("memcpy(%p, %p, %i)\n", dest, src, n);

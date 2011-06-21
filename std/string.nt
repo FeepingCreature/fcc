@@ -43,7 +43,7 @@ string between(string s, string from, string to) {
 
 template join(T) <<EOF
   iterType!T join(T t) {
-    type-of (init!iterType!T)[0] [auto~] res;
+    type-of (value-of!iterType!T)[0] [auto~] res;
     while auto chunk <- t { res ~= chunk; }
     return res[];
   }
@@ -115,7 +115,7 @@ template castIter(T) <<EOF
     class caster {
       U sup;
       T value() {
-        return T: evaluate sup.value;
+        return T: evaluate (sup.value);
       }
       bool advance() { return sup.advance(); }
     }
