@@ -29,11 +29,12 @@ string endsWith(string s, string m) {
 }
 
 string between(string s, string from, string to) {
-  int pos1, pos2;
+  int pos1;
   if (from.length) pos1 = find(s, from);
   if (pos1 == -1) return null;
   s = s[pos1 + from.length .. s.length];
   
+  int pos2 = s.length;
   if (to.length) pos2 = find(s, to);
   if (pos2 == -1) return null;
   s = s[0 .. pos2];
@@ -141,9 +142,9 @@ EOF
 string strip(string s) {
   alias first = s[0];
   alias last = s[s.length - 1];
-  while s.length && (last == "\n"[0] || last == "\r"[0] || last == " "[0])
+  while s.length && (last == "\n" || last == "\r" || last == " " || last == "\t")
     s = s[0 .. s.length - 1];
-  while s.length && (first == "\n"[0] || first == "\r"[0] || first == " "[0])
+  while s.length && (first == "\n" || first == "\r" || first == " " || first == "\t")
     s = s[1 .. s.length];
   return s;
 }
