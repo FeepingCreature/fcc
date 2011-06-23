@@ -1,0 +1,135 @@
+module sqlite3;
+
+import c.sqlite3, std.string;
+
+extern(C) {
+  int sqlite3_exec(sqlite3*, char*, int function(void*, int, char**, char**), void*, char**);
+  void sysFree(char* c) { free c; }
+  int sqlite3_bind_text(sqlite3_stmt*, int, char*, int, void function(void*));
+}
+
+int callback(void* esiState, int argc, char** argv, char** colName) using (scoped _esi, scoped _ebx) {
+  _esi = esiState;
+  while int i <- 0..argc {
+    writeln "$(CToString colName[i]) = $(CToString argv[i])";
+  }
+  writeln "";
+  return 0;
+}
+
+class DatabaseSup { // break type loop
+  sqlite3* db;
+}
+
+char* mallocDupString(string s) {
+  auto res = char*:malloc(s.length);
+  memcpy(res, s.ptr, s.length);
+  return res;
+}
+
+template QueryIterator(T) <<EOT
+  class QueryIterator {
+    DatabaseSup db;
+    sqlite3_stmt* stmt;
+    int bindCount;
+    template addBind(T) <<EOS
+      int addBind(T t) {
+        static if types-equal(T, int) <<EO2
+          return sqlite3_bind_int(stmt, bindCount ++, t);
+        EO2
+        static if types-equal(T, float) || types-equal(T, double) <<EO2
+          return sqlite3_bind_double(stmt, bindCount ++, double:t);
+        EO2
+        static if types-equal(T, string) <<EO2
+          return sqlite3_bind_text(stmt, bindCount ++, mallocDupString t, t.length, &sysFree);
+        EO2
+        raise-error new Error "Unknown bind type $(string-of T)";
+      }
+    EOS
+    template getColumn(T) <<EOS
+      T getColumn(int i) {
+        static if types-equal(T, int) <<EO2
+          return sqlite3_column_int(stmt, i);
+        EO2
+        static if types-equal(T, float) <<EO2
+          return float:sqlite3_column_double(stmt, i);
+        EO2
+        static if types-equal(T, string) <<EO2{
+          auto resptr = sqlite3_column_text(stmt, i);
+          auto reslen = sqlite3_column_bytes(stmt, i);
+          return resptr[0..reslen];
+        }EO2
+        raise-error new Error "Unknown column type $(string-of T)";
+      }
+    EOS
+    T value;
+    bool advance() {
+      auto res = sqlite3_step stmt;
+      if res == SQLITE_DONE {
+        sqlite3_finalize stmt;
+        return false;
+      }
+      if res != SQLITE_ROW
+        raise-error new Error "Failed to iterate query: $res";
+      static if type-is-tuple T <<EOS1{
+        static if value.length <<EOS2{
+          static while int i <- 0 .. value.length {
+            value[i] = getColumn!type-of value[i] i;
+          }
+        }EOS2
+      }EOS1 else <<EOS1{
+        value = getColumn!T 0;
+      }EOS1
+      return true;
+    }
+    void init(DatabaseSup db, sqlite3_stmt* stmt) {
+      this.db = db;
+      this.stmt = stmt;
+      bindCount = 1;
+    }
+  }
+EOT
+
+class Database : DatabaseSup {
+  void sqlite3fail(string msg) {
+    raise-error new Error "in sqlite3: $msg";
+  }
+  void init(string dbname) {
+    if sqlite3_open(toStringz dbname, &db)
+      sqlite3fail CToString sqlite3_errmsg db;
+  }
+  template exec(T) <<EO4
+    template exec(U) <<EO3
+      auto exec(U u) {
+        static if type-is-tuple U <<EO1 string sql = u[0]; EO1
+        else <<EO1 string sql = u; EO1
+        sqlite3_stmt* stmt;
+        if SQLITE_OK != sqlite3_prepare_v2(
+          db,
+          sql.ptr, sql.length,
+          &stmt,
+          null
+        )
+          sqlite3fail CToString sqlite3_errmsg db;
+
+        T bogosity;
+        
+        auto res = new QueryIterator!T (this, stmt);
+        static if type-is-tuple U <<EO1
+          static while int i <- 0 .. (u.length - 1) {
+            res.addBind u[1+i];
+          }
+        EO1
+        static if type-is-tuple T && bogosity.length == 0 <<EO2{
+          res.advance();
+          return;
+        }EO2 else <<EO2{
+          return res;
+        }EO2
+      }
+    EO3
+  EO4
+  void close() {
+    sqlite3_close db;
+  }
+}
