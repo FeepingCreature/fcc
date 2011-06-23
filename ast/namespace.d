@@ -317,7 +317,7 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
     retry:
     if (auto type = fastcast!(IType) (namespace().lookup(id))) {
       text = t2;
-      return fastcast!(Object)~ type;
+      return fastcast!(Object) (forcedConvert(type));
     }
     else if (t2.eatDash(id)) goto retry;
     else if (t2.eatDot(id)) goto retry;

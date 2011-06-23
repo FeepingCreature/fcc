@@ -380,6 +380,7 @@ class FunctionType : ast.types.Type {
   }
   override {
     string mangle() {
+      if (!ret) throw new Exception("Function return type indeterminate! ");
       string res = "function_to_"~ret.mangle();
       if (!params.length) return res;
       foreach (i, param; params) {

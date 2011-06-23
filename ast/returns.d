@@ -108,6 +108,9 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
       text.failparse("Could not convert ", temp, " to ", fun.type.ret, " for return: tried ", tried);
     }
   }
+  
+  if (!fun.type.ret) fun.type.ret = Single!(Void);
+  
   if (fun.type.ret == Single!(Void))
     return rs; // permit no-expr
   text.failparse("Error parsing return expression");

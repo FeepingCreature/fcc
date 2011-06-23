@@ -1,6 +1,6 @@
 module ast.conditional_opt;
 
-import ast.base, ast.conditionals, ast.index, ast.static_arrays;
+import ast.base, ast.conditionals, ast.index, ast.static_arrays, ast.fold;
 import ast.int_literal;
 
 static this() {
@@ -29,8 +29,29 @@ static this() {
     return fastcast!(Itr) (cmp);
   };
   foldopt ~= delegate Itr(Itr it) {
+    auto isAnd = fastcast!(AndOp) (it), isOr = fastcast!(OrOp) (it);
+    if (!isAnd && !isOr) return null;
+    setupStaticBoolLits();
+    Cond c1, c2;
+    if (isAnd) { c1 = isAnd.c1; c2 = isAnd.c2; }
+    if (isOr)  { c1 = isOr.c1;  c2 = isOr.c2;  }
+    c1 = fastcast!(Cond) (fold(c1));
+    c2 = fastcast!(Cond) (fold(c2));
+    if (isStaticTrue(c1)) {
+      if (isStaticTrue(c2)) return cTrue;
+      else if (isStaticFalse(c2)) return isAnd?cFalse:cTrue;
+      else return null;
+    } else if (isStaticFalse(c1)) {
+      if (isStaticTrue(c2)) return isAnd?cFalse:cTrue;
+      else if (isStaticFalse(c2)) return cFalse;
+      else return null;
+    } else return null;
+  };
+  foldopt ~= delegate Itr(Itr it) {
     auto cmp = fastcast!(Compare) (it);
     if (!cmp) return null;
+    // logln("e1: ", cmp.e1);
+    // logln("e2: ", cmp.e2);
     auto i1 = fastcast!(IntExpr) (cmp.e1);
     auto i2 = fastcast!(IntExpr) (cmp.e2);
     // logln("i1: ", i1);

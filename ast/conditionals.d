@@ -9,6 +9,7 @@ class ExprWrap : Cond {
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
   override {
+    string toString() { return Format("!!", ex); }
     void jumpOn(AsmFile af, bool cond, string dest) {
       ex.emitAsm(af);
       af.popStack("%eax", 4);
@@ -47,6 +48,7 @@ class Compare : Cond, Expr {
     if (smaller) res ~= "<";
     if (equal) res ~= "=";
     if (greater) res ~= ">";
+    if (!smaller && !greater) res ~= "=";
     res ~= (fastcast!(Object)~ e2).toString();
     return res;
   }
@@ -220,21 +222,24 @@ Cond compare(string op, Expr ex1, Expr ex2) {
 
 import ast.modules;
 Expr True, False;
+Cond cTrue, cFalse;
 void setupStaticBoolLits() {
   if (True && False) return;
   True = fastcast!(Expr) (sysmod.lookup("true"));
   False = fastcast!(Expr) (sysmod.lookup("false"));
+  cTrue = new ExprWrap (True);
+  cFalse = new ExprWrap (False);
 }
 
 import ast.fold;
 bool isStaticTrue(Cond cd) {
-  auto ew = fastcast!(ExprWrap) (fold(fastcast!(Itr) (cd)));
+  auto ew = fastcast!(ExprWrap) (cd);
   if (!ew) return false;
   return ew.ex is True;
 }
 
 bool isStaticFalse(Cond cd) {
-  auto ew = fastcast!(ExprWrap) (fold(fastcast!(Itr) (cd)));
+  auto ew = fastcast!(ExprWrap) (cd);
   if (!ew) return false;
   return ew.ex is False;
 }
@@ -313,7 +318,10 @@ class BooleanOp(string Which) : Cond, HasInfo {
   }
 }
 
-Object gotBoolOp(string Op)(ref string text, ParseCb cont, ParseCb rest) {
+alias BooleanOp!("&&") AndOp;
+alias BooleanOp!("||") OrOp;
+
+Object gotBoolOp(string Op, alias Class)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond cd;
   if (!cont(t2, &cd)) return null;
@@ -322,14 +330,14 @@ Object gotBoolOp(string Op)(ref string text, ParseCb cont, ParseCb rest) {
     Cond cd2;
     if (!cont(t2, &cd2))
       t2.failparse("Couldn't get second cond after '", Op, "'");
-    cd = new BooleanOp!(Op)(cd, cd2);
+    cd = new Class(cd, cd2);
   }
   if (old_cd is cd) return null;
   text = t2;
   return fastcast!(Object)~ cd;
 }
-mixin DefaultParser!(gotBoolOp!("&&"), "cond.bin.and", "2");
-mixin DefaultParser!(gotBoolOp!("||"), "cond.bin.or", "1");
+mixin DefaultParser!(gotBoolOp!("&&", AndOp), "cond.bin.and", "2");
+mixin DefaultParser!(gotBoolOp!("||", OrOp), "cond.bin.or", "1");
 static this() {
   parsecon.addPrecedence("cond.bin", "5");
 }

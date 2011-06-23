@@ -94,7 +94,7 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
       ) &&
       t2.accept(")")
     ) {
-    if (!types.length) return null; // what are you doing man.
+    if (!types.length) { text = t2; return mkTuple(); } // templateFoo!()
     text = t2;
     return mkTuple(types);
   } else return null;
@@ -222,9 +222,14 @@ static this() {
   forcedConversionDg = forcedConversionDg /apply/ delegate Expr(Expr delegate(Expr) prev, Expr ex) {
     if (prev) ex = prev(ex);
     if (auto newtype = resolveTup(ex.valueType(), true)) {
-      return forcedConvert(foldex(reinterpret_cast(newtype, ex)));
+      return forcedConvert(reinterpret_cast(newtype, ex));
     }
     return ex;
+  };
+  forcedTypeConversionDg = forcedTypeConversionDg /apply/ delegate IType(IType delegate(IType) prev, IType it) {
+    if (prev) it = prev(it);
+    if (auto newtype = resolveTup(it, true)) return newtype;
+    return it;
   };
 }
 

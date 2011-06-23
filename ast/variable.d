@@ -26,8 +26,6 @@ class Variable : LValue, Named {
   Expr initval;
   void initInit() {
     if (type == Single!(Void)) return;
-    if (!type.initval.length)
-      throw new Exception("Cannot declare an unsized variable: '"~name~"' being "~Format(type)~"! ");
     if (initval) return;
     else {
       initval = reinterpret_cast(

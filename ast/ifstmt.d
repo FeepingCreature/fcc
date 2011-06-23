@@ -79,6 +79,7 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIfStmt, "tree.stmt.if", "19", "if");
 
+import ast.fold;
 Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond test;
@@ -89,6 +90,7 @@ Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("else"))
     branch2 = t2.getHeredoc();
   Object res;
+  test = fastcast!(Cond) (fold(test));
   if (isStaticTrue(test)) {
     if (!rest(branch1, "tree.stmt", &res))
       branch1.failparse("No statements matched in static if");

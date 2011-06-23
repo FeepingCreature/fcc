@@ -547,3 +547,9 @@ Expr forcedConvert(Expr ex) {
   if (!forcedConversionDg) return ex;
   return forcedConversionDg(ex);
 }
+
+IType delegate(IType) forcedTypeConversionDg;
+IType forcedConvert(IType it) {
+  if (!forcedTypeConversionDg) return it;
+  return forcedTypeConversionDg(it);
+}

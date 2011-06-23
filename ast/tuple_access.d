@@ -37,7 +37,7 @@ static this() {
     Tuple tup;
     if (!gotImplicitCast(e1, (IType it) {
       tup = fastcast!(Tuple) (it);
-      return tup && tup.types.length > 1; // resolve ambiguity with array index
+      return tup && tup.types.length != 1; // resolve ambiguity with array index
     }))
       return null;
     int count;
@@ -59,7 +59,7 @@ static this() {
     Tuple tup;
     if (!gotImplicitCast(ex, (IType it) {
       tup = fastcast!(Tuple) (it);
-      return tup && tup.types.length > 1; // resolve ambiguity with array length
+      return tup && tup.types.length != 1; // resolve ambiguity with array length
     }))
       return null;
     return mkInt(tup.types.length);
