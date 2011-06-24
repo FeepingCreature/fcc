@@ -32,12 +32,27 @@ string between(string s, string from, string to) {
   int pos1;
   if (from.length) pos1 = find(s, from);
   if (pos1 == -1) return null;
-  s = s[pos1 + from.length .. s.length];
+  s = s[pos1 + from.length .. $];
   
   int pos2 = s.length;
   if (to.length) pos2 = find(s, to);
   if (pos2 == -1) return null;
   s = s[0 .. pos2];
+  
+  return s;
+}
+
+// seek to "to" first
+string between_r(string s, string from, string to) {
+  int pos2 = to.length;
+  if (from.length) pos2 = find(s, to);
+  if (pos2 == -1) return null;
+  s = s[0 .. pos2];
+  
+  int pos1 = 0;
+  if (from.length) pos1 = rfind(s, from);
+  if (pos1 == -1) return null;
+  s = s[pos1 + from.length .. $];
   
   return s;
 }
@@ -84,6 +99,7 @@ char* toStringz(string s) {
 }
 
 string CToString(char* c) {
+  if !c return string:(null x 2);
   char* cur = c;
   while (*cur) cur++;
   return c[0 .. (int:cur - int:c)];
@@ -137,6 +153,11 @@ EOF
     _interrupt 3;
   }
   return (s[0 .. pos], s[pos + m.length .. s.length]);
+}
+
+string slice(string* sp, string marker, bool yieldNull = true) {
+  (string res, *sp) = slice(*sp, marker, yieldNull);
+  return res;
 }
 
 string strip(string s) {

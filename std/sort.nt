@@ -1,33 +1,33 @@
 module std.sort;
 
-template qsort(alias Smaller) << EOT1
-  template qsort(T) << EOT2
-    void qsort(T array) {
-      void qsort_recurse(int from, to) {
-        if (to == from || to == from + 1) return;
-        if (to == from + 2) {
-          if (!mixin(Smaller.replace("%a", "array[from]").replace("%b", "array[to - 1]")))
-            array[(from, to - 1)] = array[(to - 1, from)];
-          return;
-        }
-        int pivot = (to + from) / 2;
-        auto pival = array[pivot];
-        array[(pivot, to - 1)] = array[(to - 1, pivot)];
-        pivot = to - 1;
-        auto store = from;
-        // thanks wp
-        for int i <- from..to {
-          if (mixin(Smaller.replace("%a", "array[i]").replace("%b", "pival"))) {
-            array[(i, store)] = array[(store, i)];
-            store ++;
-          }
-        }
-        array[(store, pivot)] = array[(pivot, store)];
-        if (from == store) store ++; // pathological case o.o
-        qsort_recurse(from, store);
-        qsort_recurse(store, to);
+template qsort(T) << EOT
+  void qsort(T data) {
+    alias smaller = data[0];
+    alias array = data[1];
+    void qsort_recurse(int from, to) {
+      if (to == from || to == from + 1) return;
+      if (to == from + 2) {
+        if (!smaller(array[from], array[to - 1]))
+          array[(from, to - 1)] = array[(to - 1, from)];
+        return;
       }
-      qsort_recurse(0, array.length);
+      int pivot = (to + from) / 2;
+      auto pival = array[pivot];
+      array[(pivot, to - 1)] = array[(to - 1, pivot)];
+      pivot = to - 1;
+      auto store = from;
+      // thanks wp
+      for int i <- from..to {
+        if (smaller(array[i], pival)) {
+          array[(i, store)] = array[(store, i)];
+          store ++;
+        }
+      }
+      array[(store, pivot)] = array[(pivot, store)];
+      if (from == store) store ++; // pathological case o.o
+      qsort_recurse(from, store);
+      qsort_recurse(store, to);
     }
-  EOT2
-EOT1
+    qsort_recurse(0, array.length);
+  }
+EOT

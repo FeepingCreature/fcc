@@ -647,6 +647,10 @@ withoutIterator:
   resetError();
   
   Expr backup;
+  /*IType lhstype;
+  if (lv) lhstype = lv.valueType();
+  else if (mv) lhstype = mv.valueType();
+  else lhstype = newVarType;*/
   if (!rest(t2, "tree.expr", &iter) || (backup = iter, false) || !gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
     if (needIterator) t2.failparse("Can't parse iterator: ", backup);
     else return null;

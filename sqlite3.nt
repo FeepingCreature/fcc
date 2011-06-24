@@ -2,6 +2,8 @@ module sqlite3;
 
 import c.sqlite3, std.string;
 
+pragma(lib, "sqlite3");
+
 extern(C) {
   int sqlite3_exec(sqlite3*, char*, int function(void*, int, char**, char**), void*, char**);
   void sysFree(char* c) { free c; }

@@ -57,13 +57,11 @@ static this() {
   });
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
     auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
-    auto tup = fastcast!(Tuple)~ e2v;
+    auto tup = fastcast!(Tuple) (e2v);
     if (!tup) return null;
     Expr[] exprs;
     foreach (entry; getTupleEntries(e2)) {
-      auto expr = lookupOp("index", true, e1, entry);
-      if (!expr) return null;
-      exprs ~= expr;
+      exprs ~= lookupOp("index", e1, entry);
     }
     return mkTupleExpr(exprs);
   });
