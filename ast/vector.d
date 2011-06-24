@@ -291,7 +291,7 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   } catch (Exception ex) t2.failparse(ex);
   return null;
 }
-mixin DefaultParser!(gotVecConstructor, "tree.expr.veccon", "8");
+mixin DefaultParser!(gotVecConstructor, "tree.expr.veccon", "2407");
 
 import ast.templ;
 Stuple!(Structure, Vector, Module)[] cache;

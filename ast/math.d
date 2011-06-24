@@ -738,9 +738,11 @@ const oplevel = [
 const lvcount = 9;
 
 Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
-  Expr curOp;
+  Object _curOp;
   auto t2 = text;
-  if (!cont(t2, &curOp)) return null;
+  if (!cont(t2, &_curOp)) return null;
+  Expr curOp = fastcast!(Expr) (_curOp);
+  if (!curOp) return null;
   foreach (op; oplist) {
     auto t3 = t2;
     if (t3.accept(op) && t3.accept("=")) {
