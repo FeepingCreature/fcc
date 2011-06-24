@@ -391,7 +391,7 @@ class Seq(T) : Type, T {
       Scope curBranch = res_st;
       for (int i = 0; i < len; ++i) {
         auto ifst = iparse!(IfStatement, "seq_step", "tree.stmt")
-                           (`if !tup[1+len+i] && tup[0] <- tup[1+i] { } else { tup[1+len+i] = true; }`,
+                           (`if tup[1+len+i] && tup[0] <- tup[1+i] { } else { tup[1+len+i] = false; }`,
                              curBranch, "tup", tup, "i", mkInt(i), "len", mkInt(len)
                            );
         curBranch.addStatement(ifst);
@@ -426,7 +426,10 @@ class Seq(T) : Type, T {
 }
 
 Expr mkSeq(IType type, Expr[] exprs, bool rich) {
-  auto tup = mkTupleExpr(fastcast!(Expr) (new Filler(type)) ~ exprs);
+  Expr[] bools;
+  setupStaticBoolLits();
+  foreach (ex; exprs) bools ~= True;
+  auto tup = mkTupleExpr(fastcast!(Expr) (new Filler(type)) ~ exprs ~ bools);
   if (rich) {
     auto seq = new Seq!(RichIterator);
     seq.myType = type;

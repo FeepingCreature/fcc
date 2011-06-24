@@ -2,7 +2,7 @@ module reduce;
 
 template reduce(T) <<EOF
   alias itersample = (value-of!T)[0];
-  alias stepsample = value-of!type-of __istep itersample;
+  alias stepsample = value-of!iterType!type-of (value-of!T)[0];
   alias dgsample = (value-of!T)[1];
   alias callsample = dgsample(stepsample, stepsample);
   type-of callsample delegate(type-of stepsample) reduce(T t) {
@@ -17,6 +17,7 @@ template reduce(T) <<EOF
 EOF
 
 void main() {
-  auto res = reduce (0..10, delegate int(int a, b) return a+b;) 0;
+  for int i <- seq(0..5, 10..15) writeln "$i";
+  auto res = reduce (seq(0..5, 10..15), delegate int(int a, b) return a+b;) 0;
   writeln " => $res";
 }
