@@ -38,11 +38,13 @@ static this() {
     c1 = fastcast!(Cond) (fold(c1));
     c2 = fastcast!(Cond) (fold(c2));
     if (isStaticTrue(c1)) {
+      if (isOr) return cTrue; // doesn't matter if cond2 is static or not
       if (isStaticTrue(c2)) return cTrue;
-      else if (isStaticFalse(c2)) return isAnd?cFalse:cTrue;
+      else if (isStaticFalse(c2)) return cFalse;
       else return null;
     } else if (isStaticFalse(c1)) {
-      if (isStaticTrue(c2)) return isAnd?cFalse:cTrue;
+      if (isAnd) return cFalse; // doesn't matter if cond2 is static or not
+      if (isStaticTrue(c2)) return cTrue;
       else if (isStaticFalse(c2)) return cFalse;
       else return null;
     } else return null;
