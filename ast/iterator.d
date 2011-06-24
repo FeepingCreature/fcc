@@ -823,7 +823,7 @@ mixin DefaultParser!(gotIterEvalTail, "tree.rhs_partial.iter_eval", null, ".eval
 
 static this() {
   defineOp("length", delegate Expr(Expr ex) {
-    auto iter = fastcast!(RichIterator)~ ex.valueType();
+    auto iter = fastcast!(RichIterator) (ex.valueType());
     if (!iter) return null;
     return iter.length(ex);
   });

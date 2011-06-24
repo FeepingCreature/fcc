@@ -1,6 +1,8 @@
 module test;
 import c.SDL.SDL, simplex, std.thread;
 
+pragma(lib, "SDL");
+
 SDL_Surface* surf;
 
 int delegate(int b) add(int a) { return new delegate int(int b) { return a + b; }; }

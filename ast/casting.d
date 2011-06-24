@@ -111,6 +111,7 @@ Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
   IType dest;
   if (!rest(t2, "type", &dest) || !t2.accept(":"))
     return null;
+  if (t2.accept(":")) return null;
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     t2.failparse("Unable to parse cast source");
