@@ -4,6 +4,8 @@ c_include "GL/gl.h";
 c_include "GL/glu.h";
 
 platform(i686-mingw32) <<EOF
+  pragma(lib, "opengl32");
+  pragma(lib, "glu32");
   extern(Windows) void* wglGetProcAddress(char*);
   template lookupFun(T) <<EO2
     _markStdCall T lookupFun(char* c) { return _markStdCall T:wglGetProcAddress(c); }
@@ -12,6 +14,8 @@ EOF
 
 platform(default) <<EOF
   c_include "GL/glx.h";
+  pragma(lib, "GL");
+  pragma(lib, "GLU");
   extern(C) void* glXGetProcAddress(char*);
   template lookupFun(T) <<EO2
     T lookupFun(char* c) { return T:glXGetProcAddress(c); }
