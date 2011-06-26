@@ -36,12 +36,12 @@ bool gotDouble(ref string text, ref double d) {
 bool gotFloat(ref string text, ref float f) {
   double d; int i;
   auto t2 = text;
-  if (t2.gotInt(i) && t2.accept("f")) {
+  if (t2.gotInt(i) && t2.takech(' ') == 'f') {
     text = t2; f = i;
     return true;
   }
   t2 = text;
-  if (t2.gotDouble(d) && t2.accept("f")) {
+  if (t2.gotDouble(d) && t2.takech(' ') == 'f') {
     text = t2; f = cast(float) d;
     return true;
   }

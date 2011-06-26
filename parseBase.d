@@ -14,6 +14,15 @@ string mystripl(string s) {
 
 int[int] accesses;
 
+char takech(ref string s, char deflt) {
+  if (!s.length) return deflt;
+  else {
+    auto res = s[0];
+    s = s[1 .. $];
+    return res;
+  }
+}
+
 import tools.base, errors;
 struct StatCache {
   tools.base.Stuple!(Object, char*, int)[char*] cache;
@@ -141,9 +150,9 @@ bool accept(ref string s, string t) {
     lastAccepted = s;
     lastAccepted_stripped = s2;
   }
-  if (t == "<-" && s2.startsWith("←")) t = "←";
   
   size_t idx = t.length;
+  // to be honest, I have zero idea what's up with the utf16 stuff.
   return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t.toUTF16()[$-1]) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
     !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
   );
@@ -295,10 +304,15 @@ Object ardlock;
 static this() { New(ardlock); }
 
 void freeRuleData(int offs) {
-  synchronized(ardlock) {
+  const string SRC = `
     auto ptr = slab[offs].ptr;
     *cast(int*) ptr = slab_freeptr;
     slab_freeptr = offs;
+  `;
+  version(MT) {
+    synchronized(ardlock) { mixin(SRC); }
+  } else {
+    mixin(SRC);
   }
 }
 
@@ -358,12 +372,19 @@ bool delegate(string) matchrule(string rules, out int id) {
       return false;
     };
     alias allocRuleData!(fun) ard;
-    synchronized(ardlock) {
+    const string src = `
       res = ard(
         rule, res,
         (smaller<<0) | (greater<<1) | (equal<<2) | (before<<3) | (after<<4),
         false, id
       );
+    `;
+    version (MT) {
+      synchronized(ardlock) {
+        mixin(src);
+      }
+    } else {
+      mixin(src);
     }
     // res = res /apply/ (bool delegate(string) dg, string s) { auto res = dg(s); logln(s, " -> ", res); return res; };
   }
@@ -401,8 +422,11 @@ struct ParseCb {
   Object opCall(T...)(ref string text, T t) {
     bool delegate(string) matchdg;
     int delid = -1;
-    scope(exit) if (delid != -1)
-      synchronized(ardlock) freeRuleData(delid);
+    
+    scope(exit)
+      if (delid != -1)
+        freeRuleData (delid);
+    
     static if (T.length && is(T[0]: char[])) {
       alias T[1..$] Rest1;
       matchdg = matchrule(t[0], delid);
@@ -464,8 +488,7 @@ struct ParseCb {
       static if (is(typeof(callback))) {
         auto res = fastcast!(MustType) (dg(text, matchdg, myAccept));
         if (delid != -1) {
-          synchronized(ardlock)
-            freeRuleData(delid);
+          freeRuleData (delid);
           delid = -1;
         }
         if (!res) text = backup;
@@ -501,6 +524,22 @@ void popCache() {
   foreach (dg; _popCache) dg();
 }
 
+struct Stack(T) {
+  T[] backing_array;
+  int curDepth;
+  void push(ref T t) {
+    if (!backing_array.length) backing_array.length = 4;
+    
+    if (curDepth == backing_array.length)
+      backing_array.length = backing_array.length * 2;
+    
+    backing_array[curDepth ++] = t;
+  }
+  void pop(ref T t) {
+    t = backing_array[-- curDepth];
+  }
+}
+
 template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
   final class DefaultParserImpl : Parser {
     bool dontMemoMe;
@@ -510,12 +549,11 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
       foreach (dg; globalStateMatchers) 
         if (dg(Id)) { dontMemoMe = true; break; }
       _pushCache ~= this /apply/ (typeof(this) that) {
-        that.stack ~= that.cache;
+        that.stack.push(that.cache);
         that.cache = Init!(typeof(that.cache));
       };
       _popCache ~= this /apply/ (typeof(this) that) {
-        that.cache = that.stack[$-1];
-        that.stack = that.stack[0 .. $-1];
+        that.stack.pop(that.cache);
       };
     }
     Object fnredir(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
@@ -531,7 +569,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
     } else {
       // Stuple!(Object, char*)[char*] cache;
       SpeedCache cache;
-      typeof(cache)[] stack;
+      Stack!(typeof(cache)) stack;
       override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         auto t2 = text;
         if (.accept(t2, "]")) return null; // never a valid start
@@ -807,9 +845,12 @@ class ParseContext {
   Object parse(ref string text, string cond) {
     condStr = cond;
     scope(exit) condStr = null;
+    
     int delid = -1;
-    scope(exit) if (delid != -1)
-      synchronized(ardlock) freeRuleData(delid);
+    scope(exit)
+      if (delid != -1)
+        freeRuleData(delid);
+    
     try return parse(text, matchrule(cond, delid));
     catch (ParseEx pe) { pe.addRule(cond); throw pe; }
     catch (Exception ex) throw new Exception(Format("Matching rule '"~cond~"': ", ex));
@@ -827,15 +868,13 @@ string getHeredoc(ref string text) {
   return text.slice(sep);
 }
 
-pragma(attribute, hot)
-template startsWith(S, T) {
-  string startsWith(S text, T match)
-  {
-    if (text.length < match.length) return null;
-    if (text[0 .. match.length] != match) return null;
-    return text[match.length .. $];
-  }
+string startsWith(string text, string match)
+{
+  if (text.length < match.length) return null;
+  if (text[0 .. match.length] != match) return null;
+  return text[match.length .. $];
 }
+
 string cleanup(string s) {
   return s.replace("-", "_dash_");
 }

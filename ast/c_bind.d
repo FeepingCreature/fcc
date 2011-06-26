@@ -13,9 +13,9 @@ extern(C) {
 
 string buf;
 string readStream(InputStream IS) {
-  if (!buf) buf = new char[1024];
+  if (!buf) buf = new char[16384];
   int reslen;
-  ubyte[1024] buffer;
+  ubyte[16384] buffer;
   int i;
   do {
     i = IS.read(buffer);

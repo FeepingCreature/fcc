@@ -92,10 +92,13 @@ Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
   if (t2.gotIntExpr(ex)) {
-    auto t3 = t2;
-    // allow for a .. b .. HAX!
-    if (t3.accept(".") && !t3.accept("."))
-      return null;
+    // allow for a..b .. HAX!
+    if (t2.length >= 2) {
+      auto t3 = t2;
+      char ch1 = t3.takech(' '), ch2 = t3.takech(' ');
+      if (ch1 == '.' && ch2 != '.')
+        return null;
+    }
     text = t2;
     return fastcast!(Object)~ ex;
   } else return null;
