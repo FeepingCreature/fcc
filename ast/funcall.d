@@ -141,7 +141,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
           if (ex.valueType() != type)
             return false;
         } else {
-          if (!gotImplicitCast(ex, (IType it) { tried ~= it; return test(it == type); }))
+          if (!gotImplicitCast(ex, type, (IType it) { tried ~= it; return test(it == type); }))
             text.failparse("Couldn't match default argument for ", name, ": ", tuple.initEx.valueType(), " to ", type,"; tried ", tried, ".");
         }
         res ~= ex;
@@ -157,6 +157,8 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
     auto ex = args.take();
     auto backup = ex;
     IType[] tried;
+    
+    ex = foldex(ex);
     
     if (probe ? (ex.valueType() != type) : !gotImplicitCast(ex, type, (IType it) {
       tried ~= it;
