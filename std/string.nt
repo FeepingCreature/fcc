@@ -58,10 +58,22 @@ string between_r(string s, string from, string to) {
 }
 
 template join(T) <<EOF
-  iterType!T join(T t) {
-    type-of (value-of!iterType!T)[0] [auto~] res;
-    while auto chunk <- t { res ~= chunk; }
-    return res[];
+  auto join(T t) {
+    static if (type-is-tuple T) <<EO2{
+      alias T-type-of = type-of t[0];
+      type-of (value-of!iterType!T-type-of)[0] [auto~] res;
+      bool first = true;
+      while auto chunk <- t[0] {
+        if first first = false;
+        else res ~= t[1];
+        res ~= chunk;
+      }
+      return res[];
+    }EO2 else <<EO2{
+      type-of (value-of!iterType!T)[0] [auto~] res;
+      while auto chunk <- t { res ~= chunk; }
+      return res[];
+    }EO2
   }
 EOF
 

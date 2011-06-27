@@ -273,7 +273,7 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   text = t2;
-  return fastcast!(Object)~ mkTupleExpr(exprs);
+  return fastcast!(Object) (mkTupleExpr(exprs));
 }
 mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60", "(");
 

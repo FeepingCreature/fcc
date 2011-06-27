@@ -90,7 +90,7 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   IType dest;
   if (!rest(t2, "type", &dest) || !t2.accept(":"))
     return null;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { return test(it == dest); }))
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); }))
     return null;
   
   // confirm

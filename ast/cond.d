@@ -10,12 +10,12 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text;
   IType it;
   if (!t2.accept("(") || !rest(t2, "type", &it))
-    assert(false);
+    t2.failparse("opening paren followed by type expected");
   assert(fastcast!(ClassRef)~ it || fastcast!(IntfRef)~ it);
   string pname;
   t2.gotIdentifier(pname);
   if (!t2.accept(")"))
-    assert(false);
+    t2.failparse("closing paren expected");
   IType hdltype = fastcast!(IType) (sysmod.lookup("_Handler")), objtype = fastcast!(ClassRef) (sysmod.lookup("Object"));
   string hdlmarker = Format("__hdlmarker_var_special_", getuid());
   assert(!namespace().lookup(hdlmarker));

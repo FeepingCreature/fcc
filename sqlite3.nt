@@ -8,6 +8,7 @@ extern(C) {
   int sqlite3_exec(sqlite3*, char*, int function(void*, int, char**, char**), void*, char**);
   void sysFree(char* c) { free c; }
   int sqlite3_bind_text(sqlite3_stmt*, int, char*, int, void function(void*));
+  int sqlite3_bind_blob(sqlite3_stmt*, int, void*, int, void function(void*));
 }
 
 int callback(void* esiState, int argc, char** argv, char** colName) using (scoped _esi, scoped _ebx) {
@@ -23,17 +24,30 @@ class DatabaseSup { // break type loop
   sqlite3* db;
 }
 
-char* mallocDupString(string s) {
-  auto res = char*:malloc(s.length);
-  memcpy(res, s.ptr, s.length);
+void* mallocDupData(byte[] data) {
+  auto res = malloc data.length;
+  memcpy(res, data.ptr, data.length);
   return res;
 }
 
+class SQLiteError : Error {
+  void init(string s) { super.init s; }
+}
+
+class SQLiteBusy : SQLiteError {
+  void init() { super.init "Database busy. "; }
+}
+
+interface IQueryIterator {
+  void finalize();
+}
+
 template QueryIterator(T) <<EOT
-  class QueryIterator {
+  class QueryIterator : IQueryIterator {
     DatabaseSup db;
     sqlite3_stmt* stmt;
     int bindCount;
+    string sql;
     template addBind(T) <<EOS
       int addBind(T t) {
         static if types-equal(T, int) <<EO2
@@ -43,7 +57,10 @@ template QueryIterator(T) <<EOT
           return sqlite3_bind_double(stmt, bindCount ++, double:t);
         EO2
         static if types-equal(T, string) <<EO2
-          return sqlite3_bind_text(stmt, bindCount ++, mallocDupString t, t.length, &sysFree);
+          return sqlite3_bind_text(stmt, bindCount ++, char*: mallocDupData byte[]:t, t.length, &sysFree);
+        EO2
+        static if types-equal(T, byte[]) <<EO2
+          return sqlite3_bind_blob(stmt, bindCount ++, mallocDupData t, t.length, &sysFree);
         EO2
         raise-error new Error "Unknown bind type $(string-of T)";
       }
@@ -61,18 +78,28 @@ template QueryIterator(T) <<EOT
           auto reslen = sqlite3_column_bytes(stmt, i);
           return resptr[0..reslen];
         }EO2
+        static if types-equal(T, byte[]) <<EO2{
+          auto resptr = byte*:sqlite3_column_blob(stmt, i);
+          auto reslen = sqlite3_column_bytes(stmt, i);
+          return resptr[0..reslen];
+        }EO2
         raise-error new Error "Unknown column type $(string-of T)";
       }
     EOS
     T value;
+    void finalize() {
+      sqlite3_finalize stmt;
+    }
     bool advance() {
+      define-exit "retry" { }
       auto res = sqlite3_step stmt;
       if res == SQLITE_DONE {
-        sqlite3_finalize stmt;
+        finalize();
         return false;
       }
+      if res == SQLITE_BUSY raise-error new SQLiteBusy;
       if res != SQLITE_ROW
-        raise-error new Error "Failed to iterate query: $res";
+        raise-error new SQLiteError "Failed to iterate query '$sql': $res";
       static if type-is-tuple T <<EOS1{
         static if value.length <<EOS2{
           static while int i <- 0 .. value.length {
@@ -93,6 +120,15 @@ template QueryIterator(T) <<EOT
 EOT
 
 class Database : DatabaseSup {
+  IQueryIterator[auto~][] stack;
+  void openStatementList() {
+    IQueryIterator[auto~] qi;
+    stack ~= qi;
+  }
+  void finStatementList() {
+    (IQueryIterator[auto~] qi, stack) = stack[($-1, 0..$-1)];
+    for auto i <- qi i.finalize();
+  }
   void sqlite3fail(string msg) {
     raise-error new Error "in sqlite3: $msg";
   }
@@ -112,19 +148,27 @@ class Database : DatabaseSup {
           &stmt,
           null
         )
-          sqlite3fail CToString sqlite3_errmsg db;
+          sqlite3fail "while executing $(sql): $(CToString sqlite3_errmsg db)";
 
         T bogosity;
         
         auto res = new QueryIterator!T (this, stmt);
+        res.sql = sql;
+        
+        if (stack.length) stack[$-1] ~= res;
+        
         static if type-is-tuple U <<EO1
           static while int i <- 0 .. (u.length - 1) {
             res.addBind u[1+i];
           }
         EO1
-        static if type-is-tuple T && bogosity.length == 0 <<EO2{
-          res.advance();
-          return;
+        static if type-is-tuple T <<EO2{
+          static if bogosity.length == 0 <<EO1{
+            res.advance();
+            return;
+          }EO1 else <<EO1{
+            return res;
+          }EO1
         }EO2 else <<EO2{
           return res;
         }EO2

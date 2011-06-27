@@ -16,3 +16,29 @@ template iterOnce(T) <<EOF
     return res;
   }
 EOF
+
+template iteratorType(T) <<EOF
+  alias iteratorType = type-of value-of!T.iterator;
+EOF
+
+template loop(T) <<EOF
+  class loopclass {
+    iteratorType!T running, iter;
+    iterType!T value;
+    bool advance() {
+      if !(value <- running) {
+        running = iter;
+        if !(value <- running) {
+          raise-error new Error "Unable to restore iterator in loop iter! ";
+        }
+      }
+      return true;
+    }
+  }
+  loopclass loop(T t) {
+    auto res = new loopclass;
+    res.iter = type-of res.iter: t.iterator;
+    res.running = type-of res.running: t.iterator;
+    return res;
+  }
+EOF

@@ -590,7 +590,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
   }
   override void configure() { iref = lvize(iref_pre); }
   override void jumpOn(AsmFile af, bool cond, string dest) {
-    auto itype = fastcast!(Iterator)~ iter.valueType();
+    auto itype = fastcast!(Iterator) (resolveType(iter.valueType()));
     auto stepcond = itype.testAdvance(iref);
     auto value = itype.currentValue(iref);
     auto skip = af.genLabel();
@@ -661,7 +661,7 @@ withoutIterator:
   if (!sc) return null;
   
   if (newVarName) {
-    if (!newVarType) newVarType = (fastcast!(Iterator)~ iter.valueType()).elemType();
+    if (!newVarType) newVarType = (fastcast!(Iterator) (resolveType(iter.valueType()))).elemType();
     auto newvar = new Variable(newVarType, newVarName, boffs(newVarType));
     newvar.initInit();
     lv = newvar;
@@ -674,7 +674,7 @@ withoutIterator:
   Expr ex;
   if (lv) ex = lv; else ex = mv;
   if (ex) { // yes, no-iterator iteration is possible.
-    auto vt = ex.valueType(), it = fastcast!(Iterator)~ iter.valueType(), et = it.elemType();
+    auto vt = ex.valueType(), it = fastcast!(Iterator) (resolveType(iter.valueType())), et = it.elemType();
     Expr temp = new Placeholder(fastcast!(IType)~ et);
     if (!gotImplicitCast(temp, (IType it) { return test(it == vt); })) {
       logln(text.nextText()); 

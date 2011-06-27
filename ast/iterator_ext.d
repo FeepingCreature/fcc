@@ -30,9 +30,9 @@ static this() {
       return null;
     auto dcme = new DontCastMeExpr(ex);
     auto range = iparse!(Expr, "array_iterate_range", "tree.expr")(`0..arr.length`, "arr", dcme);
-    if (auto lv = fastcast!(CValue)~ ex) {
+    /*if (auto lv = fastcast!(CValue)~ ex) {
       return iparse!(Expr, "ref_array_iterate", "tree.expr.iter.for")(`[for i <- iter extra &arr: (*extra)[i]]`, "arr", new DontCastMeCValue(lv), "iter", range);
-    }
+    }*/
     return iparse!(Expr, "array_iterate", "tree.expr.iter.for")(`[for i <- iter extra arr: extra[i]]`, "arr", dcme, "iter", range);
   };
 }
@@ -540,12 +540,22 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotSum, "tree.expr.iter.sum", null, "sum");
 
 import ast.templ, ast.iterator;
-Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
+// struct iterator or explicit iterator cast
+Object gotXIterator(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
     if (!t2.accept(".iterator")) return null; // Because fuck you.
-    auto iter = fastcast!(Expr)~ obj;
+    auto iter = fastcast!(Expr) (obj);
     if (!iter) return null;
+    
+    auto alreadyIterator = iter;
+    if (gotImplicitCast(alreadyIterator, Single!(BogusIterator), (IType it) {
+      return !!fastcast!(Iterator) (it);
+    })) {
+      text = t2;
+      return fastcast!(Object) (alreadyIterator);
+    }
+    
     auto thingy = fastcast!(Object)~ iter.valueType();
     bool delegate(string) lookup;
     Namespace _ns; RelNamespace _rns;
@@ -574,7 +584,7 @@ Object gotStructIterator(ref string text, ParseCb cont, ParseCb rest) {
     return res;
   };
 }
-mixin DefaultParser!(gotStructIterator, "tree.rhs_partial.struct_iter");
+mixin DefaultParser!(gotXIterator, "tree.rhs_partial.x_iter");
 
 import ast.templ, ast.parse, ast.structure, ast.oop;
 StructIterator[IType] cache;

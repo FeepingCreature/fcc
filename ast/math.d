@@ -743,6 +743,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!cont(t2, &_curOp)) return null;
   Expr curOp = fastcast!(Expr) (_curOp);
   if (!curOp) return null;
+  curOp = forcedConvert(curOp);
   foreach (op; oplist) {
     auto t3 = t2;
     if (t3.accept(op) && t3.accept("=")) {
@@ -784,6 +785,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (opName == "<<") return op;
       t3.failparse("Could not find second operand for ", opName);
     }
+    nextOp = forcedConvert(nextOp);
     t2 = t3;
     try op = lookupOp(opName, op, recurse(nextOp, _i + 1));
     catch (Exception ex) t2.failparse(ex);

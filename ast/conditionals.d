@@ -380,9 +380,10 @@ class CondExpr : Expr {
         ex.emitAsm(af);
       } else {
         mkVar(af, Single!(SysInt), true, (Variable var) {
+          mixin(mustOffset("0"));
           iparse!(Statement, "cond_expr_ifstmt", "tree.stmt")
                 (`if !cond var = false; else var = true; `,
-                  "cond", cd, "var", var).emitAsm(af);
+                  "cond", cd, "var", var, af).emitAsm(af);
         });
       }
     }

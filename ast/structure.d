@@ -467,9 +467,11 @@ static this() {
   foldopt ~= delegate Itr(Itr it) {
     if (auto r = fastcast!(RCE) (it)) {
       if (auto lit = fastcast!(StructLiteral)~ r.from) {
-        if (lit.exprs.length == 1 &&
-            lit.exprs[0].valueType() == r.to)
-          return fastcast!(Itr) (lit.exprs[0]); // pointless keeping a cast
+        if (lit.exprs.length == 1) {
+          if (lit.exprs[0].valueType() == r.to)
+            return fastcast!(Itr) (lit.exprs[0]); // pointless keeping a cast
+          return reinterpret_cast(r.to, lit.exprs[0]);
+        }
       }
     }
     return null;
