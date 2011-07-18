@@ -9,26 +9,26 @@ void quit(int code) {
   exit(code);
 }
 
-int resizeWindow(int w, int h) {
+int resizeWindow(int w, int h) mode GL {
   if !h
     h = 1;
   auto ratio = w * 1.0 / h;
-  glViewport(0, 0, w, h);
-  glMatrixMode GL_PROJECTION;
-  glLoadIdentity;
+  Viewport(0, 0, w, h);
+  MatrixMode PROJECTION;
+  LoadIdentity;
   gluPerspective(45.0, ratio, 0.1, 100.0);
-  glMatrixMode GL_MODELVIEW;
-  glLoadIdentity;
+  MatrixMode MODELVIEW;
+  LoadIdentity;
   return true;
 }
 
-int initGL() {
-  glShadeModel GL_SMOOTH;
-  glEnable GL_DEPTH_TEST;
-  glEnable GL_COLOR_MATERIAL;
-  glDepthFunc GL_LESS; // lequal is bad for mesa
-  glEnable GL_TEXTURE_2D;
-  glHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+int initGL() mode GL {
+  ShadeModel SMOOTH;
+  Enable DEPTH_TEST;
+  Enable COLOR_MATERIAL;
+  DepthFunc LESS; // lequal is bad for mesa
+  Enable TEXTURE_2D;
+  Hint (PERSPECTIVE_CORRECTION_HINT, NICEST);
   return true;
 }
 
@@ -46,9 +46,8 @@ bool update(SDL_Surface* surface) {
   mouseClicked = false;
   
   SDL_GL_SwapBuffers();
-  SDL_Event ev = void;
   
-  while SDL_PollEvent(&ev) using ev {
+  while SDL_PollEvent(&SDL_Event ev) using ev {
     if type == SDL_QUIT return true;
     else if type == SDL_VIDEORESIZE using resize {
       regenSurf (w, h);

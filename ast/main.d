@@ -120,4 +120,5 @@ void fixupMain() {
   if (mainReturnsInt) res = new ReturnStmt(call);
   else res = new ExprStatement(call);
   sc.addStatement(res);
+  sc.addStatement(new ReturnStmt(new IntExpr(0)));
 }

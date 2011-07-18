@@ -496,7 +496,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Expected ':'");
   
   auto it = fastcast!(Iterator) (sub.valueType());
-  auto ph = new PlaceholderTokenLV(it.elemType(), "it.elemType() "~ivarname);
+  auto ph = new PlaceholderToken(it.elemType(), "it.elemType() "~ivarname);
   
   auto backup = namespace();
   auto mns = new MiniNamespace("for_iter_var");

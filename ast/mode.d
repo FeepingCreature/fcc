@@ -5,17 +5,28 @@ import
   ast.namespace, ast.fun, ast.fold, ast.literal_string, ast.scopes,
   ast.casting, ast.pointer, ast.aliasing, ast.vardecl: lvize;
 
+import tools.ctfe: ctReplace;
+
 class Mode {
   string config;
   string argname;
   this(string c, string a) { config = c; argname = a; }
   ModeSpace translate(Expr ex, ParseCb rest) {
     auto res = new ModeSpace;
+    string prefix, suffix;
     auto cfg = config;
     while (cfg.length) {
       if (cfg.accept("prefix")) {
-        if (!cfg.gotIdentifier(res.prefix))
+        if (!cfg.gotIdentifier(prefix))
           cfg.failparse("couldn't get prefix");
+        res.prefixes ~= prefix;
+        continue;
+      }
+      
+      if (cfg.accept("suffix")) {
+        if (!cfg.gotIdentifier(suffix))
+          cfg.failparse("couldn't get suffix");
+        res.suffixes ~= suffix;
         continue;
       }
       
@@ -136,7 +147,7 @@ class PrefixCall : FunCall {
 
 class ModeSpace : Namespace, ScopeLike {
   Expr firstParam;
-  string prefix;
+  string[] prefixes, suffixes;
   bool substituteDashes;
   this() { sup = namespace(); }
   override {
@@ -185,8 +196,20 @@ class ModeSpace : Namespace, ScopeLike {
       Object tryIt() {
         if (auto res = sup.lookup(name, local))
           return funfilt(res);
-        if (auto res = sup.lookup(qformat(prefix, name), local))
-          return funfilt(res);
+        const string TRY = `
+          if (auto res = sup.lookup(%%, local))
+            return funfilt(res);
+        `;
+        foreach (prefix; prefixes)
+          mixin(TRY.ctReplace("%%", "qformat(prefix, name)"));
+        
+        foreach (suffix; suffixes)
+          mixin(TRY.ctReplace("%%", "qformat(name, suffix)"));
+        
+        foreach (suffix; suffixes)
+          foreach (prefix; prefixes)
+            mixin(TRY.ctReplace("%%", "qformat(prefix, name, suffix)"));
+        
         return null;
       }
       if (auto res = tryIt()) return res;
@@ -263,7 +286,7 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotMode, "tree.stmt.mode", "15", "mode");
 
-Object gotPrefix(ref string text, ParseCb cont, ParseCb rest) {
+Object gotPreSufFix(ref string text, bool isSuf, ParseCb cont, ParseCb rest) {
   string id;
   if (!text.gotIdentifier(id))
     text.failparse("Couldn't match prefix string");
@@ -275,7 +298,11 @@ Object gotPrefix(ref string text, ParseCb cont, ParseCb rest) {
   namespace.set(wrap);
   
   auto ms = new ModeSpace;
-  ms.prefix = id;
+  if (isSuf) {
+    ms.suffixes ~= id;
+  } else {
+    ms.prefixes ~= id;
+  }
   namespace.set(ms);
   
   Scope sc;
@@ -284,4 +311,11 @@ Object gotPrefix(ref string text, ParseCb cont, ParseCb rest) {
   wrap.addStatement(sc);
   return wrap;
 }
+Object gotPrefix(ref string text, ParseCb cont, ParseCb rest) {
+  return gotPreSufFix(text, false, cont, rest);
+}
+Object gotSuffix(ref string text, ParseCb cont, ParseCb rest) {
+  return gotPreSufFix(text, true, cont, rest);
+}
 mixin DefaultParser!(gotPrefix, "tree.stmt.prefix", "155", "prefix");
+mixin DefaultParser!(gotSuffix, "tree.stmt.suffix", "1551", "suffix");

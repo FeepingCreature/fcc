@@ -25,7 +25,20 @@ template ReinterpretCast_Contents(T) {
   }
   private this() { }
   typeof(this) dup() { return new typeof(this)(to, fastcast!(T) (from.dup), true); }
-  mixin defaultIterate!(from);
+  // mixin defaultIterate!(from);
+  void iterate(void delegate(ref Iterable) dg) {
+    auto backup = from;
+    defaultIterate!(from).iterate(dg);
+    auto new_from_test = fastcast!(T) (from);
+    if (!new_from_test) {
+      // Liskov, if already deceased, is getting quite a spin here.
+      logln("Missubstitution!");
+      logln("In cast of ", T.stringof);
+      logln("Was: ", backup);
+      logln(" To: ", from);
+      asm { int 3; }
+    }
+  }
   override {
     static if (is(typeof((fastcast!(T)~ from).emitLocation(null))))
       void emitLocation(AsmFile af) {

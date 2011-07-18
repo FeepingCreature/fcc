@@ -1,7 +1,5 @@
 module test4;
 
-import sys;
-
 void main() {
   int x = 1, y = 2, x-z = 3;
   x-z = x-y;

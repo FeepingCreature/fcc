@@ -378,3 +378,12 @@ static this() {
     return new StringExpr(str[0].replace(str[1], str[2]));
   };
 }
+
+// helper for ast.fun
+extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name) {
+  (new ExprStatement(buildFunCall(
+    fastcast!(Function) (sysmod.lookup("missed_return")),
+    mkTupleExpr(new StringExpr(name)),
+    "missed return signal"
+  ))).emitAsm(af);
+}

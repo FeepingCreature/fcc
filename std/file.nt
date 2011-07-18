@@ -46,17 +46,17 @@ class WriterError : Error {
 }
 
 class writer {
-  FILE* hdl;
+  int hdl;
   void step(byte[] data) {
     while data.length {
-      auto res = fwrite(data.ptr, data.length, 1, hdl);
+      auto res = write(hdl, data.ptr, data.length);
       if res < 0 raise-error (new WriterError);
-      data = data[res .. data.length];
+      data = data[res .. $];
     }
   }
 }
 
-void delegate(byte[]) writefile(FILE* _hdl) using new writer {
+void delegate(byte[]) writefile(int _hdl) using new writer {
   hdl = _hdl;
   return &step;
 }

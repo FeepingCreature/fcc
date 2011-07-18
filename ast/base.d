@@ -362,6 +362,7 @@ class PlaceholderTokenLV : PlaceholderToken, LValue {
   PlaceholderTokenLV dup() { return this; }
   this(IType type, string info) { super(type, info); }
   override void emitLocation(AsmFile af) { assert(false); }
+  override string toString() { return Format("PlaceholderLV(", info, ")"); }
 }
 
 string qbuffer;

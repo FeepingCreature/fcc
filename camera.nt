@@ -8,16 +8,14 @@ interface Camera {
 
 class PerspectiveCam : Camera {
   float fov, zNear, zFar, aspect;
+  alias args = (fov, aspect, zNear, zFar);
   void init() {
-    zNear = 0.01f;
-    zFar = 100f;
-    fov = 45f;
-    aspect = 1f;
+    args = (45f, 1f, 0.01f, 100f);
   }
-  void gl-setup() {
-    glMatrixMode GL_PROJECTION;
-    glLoadIdentity;
-    gluPerspective (fov, aspect, zNear, zFar);
+  void gl-setup() mode GL {
+    MatrixMode PROJECTION;
+    LoadIdentity;
+    gluPerspective args;
   }
 }
 
@@ -31,16 +29,18 @@ template WorldCam(T) << EOF
       (up, pos) = (vec3f.Y, vec3f(0));
       setDir -vec3f.Z;
     }
-    void gl-setup() {
+    void gl-setup() mode GL {
       super.gl-setup();
-      glMatrixMode GL_MODELVIEW;
-      glLoadIdentity;
+      MatrixMode MODELVIEW;
+      LoadIdentity;
       auto dirz = dir;
       dirz.z = -dirz.z;
-      auto left = up.cross3f(dirz).normalize3f(), up = dirz.cross3f(left).normalize3f();
-      (vec3f.Y.angle3f(up, left) / PI180).glRotatef vec3f.X;
-      (vec3f.X.angle3f(left, up) / PI180).glRotatef vec3f.Y;
-      glTranslatef (-pos);
+      auto
+        left = up.cross3f(dirz).normalize3f(),
+        up = dirz.cross3f(left).normalize3f();
+      (vec3f.Y.angle3f(up, left) / PI180).Rotatef vec3f.X;
+      (vec3f.X.angle3f(left, up) / PI180).Rotatef vec3f.Y;
+      Translatef (-pos);
     }
   }
 EOF
@@ -55,17 +55,17 @@ template EgoCam(T) << EOF
     alias lowlimit = -PI / 2 + 0.1;
     alias highlimit = PI / 2 - 0.1;
     void turn-up(float f) { turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
-    alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX);
+    alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX).normalize3f();
     alias left = vec3f.Y.cross3f(dir).normalize3f();
-    void gl-setup() {
+    void gl-setup() mode GL {
       super.gl-setup();
-      glMatrixMode GL_MODELVIEW;
-      glLoadIdentity;
+      MatrixMode MODELVIEW;
+      LoadIdentity;
       auto dirz = dir; dirz.z = -dirz.z;
       auto left = vec3f.Y.cross3f(dirz).normalize3f(), up = dirz.cross3f(left).normalize3f();
-      (vec3f.Y.angle3f(up, left) / PI180).glRotatef vec3f.X;
-      (vec3f.X.angle3f(left, up) / PI180).glRotatef vec3f.Y;
-      glTranslatef (-pos);
+      (vec3f.Y.angle3f(up, left) / PI180).Rotatef vec3f.X;
+      (vec3f.X.angle3f(left, up) / PI180).Rotatef vec3f.Y;
+      Translatef (-pos);
     }
   }
 EOF

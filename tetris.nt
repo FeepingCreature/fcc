@@ -130,9 +130,8 @@ void main() {
   // Colours.        Black     Blue            Green,          Aqua            Purple          Yellow          Dark Yellow         Teal
   auto cols = [vec3f(0), vec3f(0, 0, 1), vec3f(0, 1, 0), vec3f(0, 1, 1), vec3f(1, 0, 1), vec3f(1, 1, 0), vec3f(0.5, 0.5, 0), vec3f(0, 0.5, 0.5)];
   // get the screen position for a board position.
-  // surf is the sdl.cr default surface.
   vec2i getPos(int x, int y) {
-    return vec2i(surf.w *  x / size[0], surf.h * y / size[1]);
+    return vec2i(display.w *  x / size[0], display.h * y / size[1]);
   }
   // "Render" our tetris board.
   void draw(TetrisBoard tb) {
@@ -146,7 +145,7 @@ void main() {
       // (this is very painful on the data cache, because it keeps jumping cache lines)
       // but hell, it's a Tetris. Not exactly high-demand on performance.
       for (int x2, int y2) <- cross(from.x..to.x, from.y..to.y)
-        pset(x2, y2, col);
+        display.pset(x2, y2, col);
     }
   }
   // Open an SDL window.
@@ -196,7 +195,7 @@ void main() {
   }
   // Should be clear.
   void handleInput() {
-         if (keyPushed[SDLK_UP]) tryRotate;
+    if      (keyPushed[SDLK_UP]) tryRotate;
     else if (keyPushed[SDLK_LEFT]) tryShift -1;
     else if (keyPushed[SDLK_RIGHT]) tryShift 1;
     else if (keyPressed[SDLK_DOWN]) tryDrop;

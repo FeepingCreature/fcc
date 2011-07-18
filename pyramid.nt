@@ -7,13 +7,15 @@ import sdl, camera;
 void main(string[] args) {
   // resizeWindow (640, 480);
   auto vertices = [vec3f (-1, -1, -1), vec3f(1, 1, 1)];
-  void dividePyramid(vec3f[vertices.length]* pCorners, void delegate(vec3f[vertices.length]*) callback) {
+  void dividePyramid(
+    type-of &vertices pCorners,
+    void delegate(type-of &vertices) callback) {
     auto a = (*pCorners)[0], b = (*pCorners)[1];
     for auto v <- [for tup <- cross (0..3, 0..3, 0..3): vec3i(tup)] {
       int bsum = eval(v.x == 1) + eval(v.y == 1) + eval(v.z == 1);
       if bsum < 2 {
-        vec3f[2] temp = [a * (3 - v) / 3f + b * (v + 0) / 3f,
-                         a * (2 - v) / 3f + b * (v + 1) / 3f];
+        vec3f x 2 temp = [a * (3 - v) / 3f + b * (v + 0) / 3f,
+                          a * (2 - v) / 3f + b * (v + 1) / 3f];
         callback &temp;
       }
     }
@@ -24,18 +26,29 @@ void main(string[] args) {
   int[auto~] vertexIndexData;
   void addVertex(vec3f pos, vec3f col) {
     auto limit = vertexQuadData.length - 64;
+    // auto limit = 0;
     if (limit < 0) limit = 0;
+    alias eps = 0.00001f;
     for (int i = vertexQuadData.length - 1; i >= limit; --i) {
-      if (vertexQuadData[i] == pos) { vertexIndexData ~= i; return; }
+      if (|vertexQuadData[i] - pos| < eps) { vertexIndexData ~= i; return; }
     }
     vertexIndexData ~= vertexQuadData.length;
     vertexQuadData ~= pos;
     colorQuadData ~= col;
   }
-  void rootFun(vec3f[vertices.length]* pVecs) {
+  void rootFun(type-of &vertices pVecs) {
     alias twoVecs = *pVecs;
-    auto vecs = [for tup <- cross(0..2, 0..2, 0..2): vec3f(twoVecs[tup[0]].x, twoVecs[tup[1]].y, twoVecs[tup[2]].z)];
-    for (int i, int id) <- zip (0..-1, [0, 1, 3, 2,  2, 3, 7, 6,  6, 7, 5, 4,  4, 5, 1, 0,  1, 5, 7, 3,  2, 6, 4, 0]) {
+    auto vecs = [for
+      tup <- cross(0..2, 0..2, 0..2):
+      vec3f(twoVecs[tup[0]].x, twoVecs[tup[1]].y, twoVecs[tup[2]].z)];
+    for (int i, int id) <- zip (0..-1, 
+      [0, 1, 3, 2,
+       2, 3, 7, 6,
+       6, 7, 5, 4,
+       4, 5, 1, 0,
+       1, 5, 7, 3,
+       2, 6, 4, 0])
+    {
       auto vec = vecs[id];
       // glColor3f (vec + vec3f(1, 0.6, 0.3) * (i / 18f));
       // glVertex3f vec;
@@ -46,14 +59,14 @@ void main(string[] args) {
   type-of &rootFun mkFun(int depth) {
     auto curFun = &rootFun;
     for 0..depth
-      curFun = new delegate void(vec3f[vertices.length]* pVecs) { dividePyramid(pVecs, curFun); };
+      curFun = new delegate void(type-of &vertices pVecs) { dividePyramid(pVecs, curFun); };
     return curFun;
   }
   int curDepth = 1;
-  GLuint[3] lists;
-  void regenList() {
-    if (lists[0]) glDeleteBuffersARB(3, lists.ptr);
-    glGenBuffersARB(3, lists.ptr);
+  GLuint x 3 lists;
+  void regenList() mode GL {
+    if (lists[0]) DeleteBuffers(3, lists.ptr);
+    GenBuffers(3, lists.ptr);
     vertexQuadData.free; colorQuadData.free;
     vertexIndexData.free;
     writeln "call with $curDepth";
@@ -62,22 +75,23 @@ void main(string[] args) {
     fun &vertices;
     writeln "upload $(vertexQuadData.length) vertices, $(vertexIndexData.length) indices. ";
     for (int i, vec3f[] list) <- zip(0..2, [vertexQuadData[], colorQuadData[]]) using GL_ARRAY_BUFFER_ARB {
-      glBindBufferARB lists[i];
-      glBufferDataARB ((size-of vec3f) * list.length, list.ptr, GL_STATIC_DRAW_ARB);
+      BindBuffer lists[i];
+      BufferData ((size-of vec3f) * list.length, list.ptr, STATIC_DRAW);
     }
-    glBindBufferARB (GL_ELEMENT_ARRAY_BUFFER_ARB, lists[2]);
-    using GL_ELEMENT_ARRAY_BUFFER_ARB {
-      glBufferDataARB (4 * vertexIndexData.length, vertexIndexData.ptr, GL_STATIC_DRAW_ARB);
+    using ELEMENT_ARRAY_BUFFER {
+      BindBuffer lists[2];
+      // BufferData (4 * vertexIndexData.length, vertexIndexData.ptr, STATIC_DRAW);
+      BufferData vertexIndexData.(4 * length, ptr, STATIC_DRAW);
     }
   }
   bool active;
-  void toggleActive() {
+  void toggleActive() prefix SDL_ {
     if (active) {
-      SDL_ShowCursor true;
+      ShowCursor true;
     } else {
-      SDL_ShowCursor false;
-      // SDL_WM_GrabInput(SDL_GRAB_ON);
-      SDL_WarpMouse(320, 240);
+      ShowCursor false;
+      // WM_GrabInput(GRAB_ON);
+      WarpMouse(320, 240);
     }
     active = eval !active;
   }
@@ -90,42 +104,43 @@ void main(string[] args) {
     int res;
     SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &res);
     writeln "0 or 1, enable or disable double buffering: $(res)";
-    prefix SDL_GL_ for (int num, string info) <- [
-      (RED_SIZE,         "framebuffer red component"),
-      (GREEN_SIZE,       "framebuffer green component"),
-      (BLUE_SIZE,        "framebuffer blue component"),
-      (ALPHA_SIZE,       "framebuffer alpha component"),
-      (BUFFER_SIZE,      "framebuffer"),
-      (DEPTH_SIZE,       "depth buffer"),
-      (STENCIL_SIZE,     "stencil buffer"),
-      (ACCUM_RED_SIZE,   "accumulation buffer red component"),
-      (ACCUM_GREEN_SIZE, "accumulation buffer green component"),
-      (ACCUM_BLUE_SIZE,  "accumulation buffer blue component"),
-      (ACCUM_ALPHA_SIZE, "accumulation buffer alpha component")]
+    prefix SDL_GL_ suffix _SIZE for (int num, string info) <- [
+      (RED,         "framebuffer red component"),
+      (GREEN,       "framebuffer green component"),
+      (BLUE,        "framebuffer blue component"),
+      (ALPHA,       "framebuffer alpha component"),
+      (BUFFER,      "framebuffer"),
+      (DEPTH,       "depth buffer"),
+      (STENCIL,     "stencil buffer"),
+      (ACCUM_RED,   "accumulation buffer red component"),
+      (ACCUM_GREEN, "accumulation buffer green component"),
+      (ACCUM_BLUE,  "accumulation buffer blue component"),
+      (ACCUM_ALPHA, "accumulation buffer alpha component")]
     {
       SDL_GL_GetAttribute(num, &res);
       writeln "Size of the $info, in bits: $res";
     }
   }
   while true {
-    glClearColor (0 x 3, 0);
-    glClearDepth 1;
-    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    ec.aspect = surf.w * 1f / surf.h;
-    ec.gl-setup();
-    // glRotatef (t++, 0, 1, 0);
-    glEnableClientState GL_VERTEX_ARRAY;
-    glEnableClientState GL_COLOR_ARRAY;
-    
-    GL_ARRAY_BUFFER_ARB.glBindBufferARB lists[0];
-    glVertexPointer(3, GL_FLOAT, size-of vec3f, null);
-    GL_ARRAY_BUFFER_ARB.glBindBufferARB lists[1];
-    glColorPointer(3, GL_FLOAT, size-of vec3f, null);
-    GL_ELEMENT_ARRAY_BUFFER_ARB.glBindBufferARB lists[2];
-    // glDrawArrays (GL_QUADS, 0, vertexQuadData.length);
-    glDrawElements (GL_QUADS, vertexIndexData.length, GL_UNSIGNED_INT, null);
-    
-    if surf.update() quit(0);
+    mode GL {
+      ClearColor (0 x 3, 0);
+      ClearDepth 1;
+      Clear (COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
+      ec.aspect = surf.w * 1f / surf.h;
+      ec.gl-setup();
+      // Rotatef (t++, 0, 1, 0);
+      EnableClientState VERTEX_ARRAY;
+      EnableClientState COLOR_ARRAY;
+      
+      ARRAY_BUFFER.BindBuffer lists[0];
+      VertexPointer(3, FLOAT, size-of vec3f, null);
+      ARRAY_BUFFER.BindBuffer lists[1];
+      ColorPointer(3, FLOAT, size-of vec3f, null);
+      ELEMENT_ARRAY_BUFFER.BindBuffer lists[2];
+      // DrawArrays (QUADS, 0, vertexQuadData.length);
+      DrawElements (QUADS, vertexIndexData.length, UNSIGNED_INT, null);
+    }
+    if surf.update() return;
     if (active) {
       auto idelta = mousepos - vec2i(320, 240);
       auto delta = vec2f((0.001 * idelta).(x, y));
@@ -135,12 +150,15 @@ void main(string[] args) {
     }
     if (mouseClicked) toggleActive;
     
-    alias movestep = 0.014;
-    if (keyPressed[SDLK_w]) ec.pos += ec.dir * movestep;
-    if (keyPressed[SDLK_s]) ec.pos -= ec.dir * movestep;
-    if (keyPressed[SDLK_a]) ec.pos += ec.left * movestep;
-    if (keyPressed[SDLK_d]) ec.pos -= ec.left * movestep;
-    if (keyPushed[SDLK_PLUS] || keyPushed[SDLK_KP_PLUS]) { curDepth ++; regenList; }
-    if (keyPushed[SDLK_MINUS] || keyPushed[SDLK_KP_MINUS]) { if curDepth curDepth --; regenList; }
+    alias movestep = 0.034;
+    prefix SDLK_ {
+      alias kpr = keyPressed, kpu = keyPushed;
+      if kpr[w] ec.pos += ec.dir * movestep;
+      if kpr[s] ec.pos -= ec.dir * movestep;
+      if kpr[a] ec.pos += ec.left * movestep;
+      if kpr[d] ec.pos -= ec.left * movestep;
+      if kpu[ PLUS] || kpu[ KP_PLUS] { curDepth ++; regenList; }
+      if kpu[MINUS] || kpu[KP_MINUS] { if curDepth curDepth --; regenList; }
+    }
   }
 }

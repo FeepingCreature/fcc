@@ -296,8 +296,14 @@ void setupSysmods() {
       writeln "Unhandled condition: $(err.toString()). ";
       _interrupt 3;
     }
+    class MissedReturnError : Error {
+      void init(string name) { super.init("End of $name reached without return"); }
+    }
     void[] dupvcache;
     alias BLOCKSIZE = 16384;
+    void missed_return(string name) {
+      raise-error new MissedReturnError name;
+    }
     void[] fastdupv(void[] v) {
       void[] res;
       if (v.length > BLOCKSIZE) {
@@ -402,7 +408,10 @@ void setupSysmods() {
       }
       int errnum;
       set-handler (Error err) {
-        writeln "Unhandled error: $(err.toString())";
+        writeln "Unhandled error: '$(err.toString())'. ";
+        // writeln "Invoking debugger interrupt. Continue to exit. ";
+        // writeln "Invoking GDB. ";
+        // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
         errnum = 1;
         _interrupt 3;
         invoke-exit "main-return";

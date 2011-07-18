@@ -236,7 +236,8 @@ static this() {
 Expr mkTupleExpr(Expr[] exprs...) {
   bool allMValues = true;
   MValue[] arr;
-  foreach (ex; exprs) {
+  foreach (ref ex; exprs) {
+    ex = foldex(ex);
     if (!fastcast!(MValue) (ex)) {
       auto lv = fastcast!(LValue)~ ex;
       if (!lv) {

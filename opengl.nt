@@ -46,3 +46,5 @@ context glMatrix {
   alias onUsing = glPushMatrix();
   alias onExit  = glPopMatrix ();
 }
+
+defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";
