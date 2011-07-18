@@ -91,7 +91,7 @@ template splitAt(T) <<EOF
         if (auto supstep <- sup[1]) { buffer ~= supstep; } else { value = buffer[]; done = true; return true; }
       }
       value = buffer[0 .. pos];
-      buffer = type-of buffer: buffer[pos + sup[0].length .. buffer.length];
+      buffer = type-of buffer: buffer[pos + sup[0].length .. $];
       return true;
     }
   }

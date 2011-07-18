@@ -377,6 +377,8 @@ void parseHeader(string filename, string src) {
               size = foldex(size);
               if (fastcast!(AstTuple)~ size.valueType()) {
                 // unwrap "(foo)"
+                logln("at ", st2.nextText(), ":");
+                logln("unwrap ", (cast(Object) size).classinfo.name, " ", size);
                 size = (fastcast!(StructLiteral)~ (fastcast!(RCE)~ size).from)
                   .exprs[$-1];
                 goto redo;

@@ -50,7 +50,7 @@ class writer {
   void step(byte[] data) {
     while data.length {
       auto res = write(hdl, data.ptr, data.length);
-      if res < 0 raise-error (new WriterError);
+      if res == -1 raise-error (new WriterError);
       data = data[res .. $];
     }
   }
