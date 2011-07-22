@@ -413,7 +413,7 @@ void setupSysmods() {
         // writeln "Invoking GDB. ";
         // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
         errnum = 1;
-        _interrupt 3;
+        // _interrupt 3;
         invoke-exit "main-return";
       }
       define-exit "main-return" return errnum;
