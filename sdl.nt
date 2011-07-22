@@ -451,7 +451,7 @@ class NullArea : Area, INullArea {
     vec4f col = vec4f(1), vec4f fill = vec4f(-1)) { }
 }
 
-Area display;
+shared Area display;
 
 void init() { SDL_Init(SDL_INIT_VIDEO); }
 
@@ -474,11 +474,11 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false) {
   return display;
 }
 
-bool x 1024 keyPressed, keyPushed;
+shared bool x 1024 keyPressed, keyPushed;
 
-vec2i mouse-pos;
+shared vec2i mouse-pos;
 
-bool mouse-clicked, mouse-pressed, mouse-released;
+shared bool mouse-clicked, mouse-pressed, mouse-released;
 
 void flip() {
   display.surf.flip();
