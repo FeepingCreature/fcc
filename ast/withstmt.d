@@ -94,11 +94,11 @@ class WithStmt : Namespace, Statement, ScopeLike {
     }
     
     if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
-                              ("eval (ex.onUsing)", "ex", context))
+                              ("evaluate (ex.onUsing)", "ex", context))
       sc.addStatement(onUsing);
     
     if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
-                              ("eval (ex.onExit)", "ex", context))
+                              ("evaluate (ex.onExit)", "ex", context))
       sc.addGuard(onExit);
   }
   private this() { }
