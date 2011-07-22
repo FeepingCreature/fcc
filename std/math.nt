@@ -4,7 +4,7 @@ import c.math;
 
 vec3f cross3f(vec3f a, vec3f b) { return a.yzx * b.zxy - a.zxy * b.yzx; }
 
-vec3f normalize3f(vec3f v) { return v / v.length; }
+vec3f normalize3f(vec3f v) { return v / |v|; }
 
 float sqrt(float f) {
   short status;
@@ -18,7 +18,7 @@ float sqrt(float f) {
   return local;
 }
   
-float angle3f(vec3f v, vec3f to, vec3f refer) {
+float angle3f(vec3f v, vec3f to, vec3f refer = vec3f(0)) {
   // yay, http://tomyeah.com/signed-angle-between-two-vectors3d-in-cc/
   auto v1 = v.cross3f(to) * refer;
   bool flipped = eval (v1.sum < 0);
