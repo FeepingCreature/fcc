@@ -1,6 +1,7 @@
 module std.thread;
 
-c_include "pthread.h";
+import c.pthread;
+
 extern(C) {
   int pthread_create(pthread_t*, pthread_attr_t*,
                      void* function(void*), void*);
@@ -85,6 +86,13 @@ platform(default) <<EOF
   extern(C) int pthread_mutex_init (pthread_mutex_t*, void*);
   extern(C) int pthread_mutex_lock (pthread_mutex_t*);
   extern(C) int pthread_mutex_unlock (pthread_mutex_t*);
+  struct pthread_rwlock_t { ubyte x 56  filler; }
+  extern(C) {
+    int pthread_rwlock_init(pthread_rwlock_t* rwlock, void* attr);
+    int pthread_rwlock_rdlock(pthread_rwlock_t* rwlock);
+    int pthread_rwlock_wrlock(pthread_rwlock_t* rwlock);
+    int pthread_rwlock_unlock(pthread_rwlock_t* rwlock);
+  }
 EOF
 
 class Mutex {
@@ -92,6 +100,14 @@ class Mutex {
   void init() { pthread_mutex_init (&mutex, null); }
   void lock() { pthread_mutex_lock &mutex; }
   void unlock() { pthread_mutex_unlock &mutex; }
+}
+
+class ReadWriteLock {
+  pthread_rwlock_t lock;
+  void init() { pthread_rwlock_init(&lock, null); }
+  void lock-read() { pthread_rwlock_rdlock &lock; }
+  void lock-write() { pthread_rwlock_wrlock &lock; }
+  void unlock() { pthread_rwlock_unlock &lock; }
 }
 
 struct MutexWrapper {
