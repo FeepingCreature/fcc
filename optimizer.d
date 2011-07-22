@@ -1243,6 +1243,14 @@ void setupOpts() {
     t.dest = $0.dest;
     $SUBST(t);
   `));
+  mixin(opt("add_into_deref", `^MathOp, ^SSEOp:
+    $0.opName == "addl" && $0.op1.isNumLiteral() && $0.op2.isUtilityRegister() && 
+    $1.op1.isIndirect(0) == $0.op2 && $1.op2.isIndirect().find($0.op2) == -1
+    =>
+    $T t = $1;
+    t.op1 = qformat(literalToInt($0.op1), "(", $0.op2, ")");
+    $SUBST(t, $0);
+  `));
   mixin(opt("add_switch", `^MathOp, ^Mov:
     $0.opName == "addl" && $0.op1 == $1.to && $1.from == $0.op2  =>  $T t = $0; swap(t.op1, t.op2); $SUBST(t); 
   `));
