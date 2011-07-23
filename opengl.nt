@@ -1,7 +1,7 @@
 module opengl;
 
-c_include "GL/gl.h";
-c_include "GL/glu.h";
+public import c.GL.gl;
+public import c.GL.glu;
 
 platform(i686-mingw32) <<EOF
   pragma(lib, "opengl32");
@@ -13,6 +13,7 @@ platform(i686-mingw32) <<EOF
 EOF
 
 platform(default) <<EOF
+  public import c.GL.glx;
   c_include "GL/glx.h";
   pragma(lib, "GL");
   pragma(lib, "GLU");
