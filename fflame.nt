@@ -68,8 +68,8 @@ void main(string[] args) {
   }
   float xatof(string s) {
     if s.find(":") == -1 return s.atof();
-    (string a, string b) = s.slice(":");
-    return a.atoi() * 1f / b.atoi();
+    (string a, string b) = slice(s, ":");
+    return atoi a * 1f / atoi b;
   }
   if args.length (mul, args) = (xatof(args[0]), args[1..$]);
   if args.length (iterlimit, args) = (args[0].atoi(), args[1..$]);
@@ -77,7 +77,7 @@ void main(string[] args) {
   
   bool hidden = eval targetfile;
   
-  screen (w, h, fullscreen => fs, hidden => hidden);
+  screen (w, h, fullscreen => fs, surface => hidden);
   
   float randf(IRandom r) { return (r.rand() & 0x7fff_ffff) * 1f / 0x7fff_ffff; }
   vec3f rand3f() { return vec3f(randf(rng) x 3); }
@@ -187,7 +187,7 @@ void main(string[] args) {
           c = mixin vex3f!("c", "min(%, 1)");
           alias gamma = 2.2;
           c = mixin vex3f!("c", "%.pow (1 / gamma)");
-          pset (x, y, c.xyz);
+          display.pset (x, y, c.xyz);
         }
       }
     }
