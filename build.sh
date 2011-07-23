@@ -1,7 +1,6 @@
 MAIN=fcc
 (
-	echo 'LDFLAGS=-B/opt/gold'
-	echo 'DFLAGS=-g -femit-templates=all'
+	echo 'DFLAGS=-g'
 	echo 'PARAMS='
 	gdc ${MAIN}.d -fd-verbose -c -o /dev/null \
 		|grep "^import\b" \
