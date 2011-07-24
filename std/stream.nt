@@ -1,9 +1,8 @@
 module std.stream;
 
-class iter {
+class iter : Iterator!byte[] {
   int delegate(byte[]) dg;
   byte x 512 buffer;
-  byte[] value;
   bool advance() {
     int pos = dg buffer[];
     if pos == -1 {
@@ -21,9 +20,8 @@ iter readDg(int delegate(byte[]) dg) {
 }
 
 template dgIter(T) <<EOF
-  class DelegateIterator {
+  class DelegateIterator : Iterator!type-of t() {
     T t;
-    type-of t() value;
     bool advance() { value = t(); return true; }
   }
   auto dgIter(T t) {

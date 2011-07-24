@@ -3,11 +3,10 @@ module std.file;
 import c.stdio, c.fcntl, c.unistd;
 
 template readfile(T) <<EOF
-  class reader {
+  class reader : Iterator!byte[] {
     int fd;
     byte x 256  buf;
     void close() { .close(fd); }
-    byte[] value;
     bool advance() {
       auto size = read(fd, buf.ptr, buf.length);
       if size <= 0 { close; return false; }

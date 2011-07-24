@@ -422,6 +422,12 @@ void setupSysmods() {
     }
     int __win_main(void* instance, prevInstance, char* cmdline, int cmdShow) {
     }
+    template Iterator(T) <<EOT
+      class Iterator {
+        T value;
+        bool advance() { raise-error new Error "Iterator::advance() not implemented! "; }
+      }
+    EOT
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;

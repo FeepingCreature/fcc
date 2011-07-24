@@ -78,10 +78,9 @@ template join(T) <<EOF
 EOF
 
 template splitAt(T) <<EOF
-  class iter {
+  class iter : Iterator!string {
     T sup;
     char[auto~] buffer;
-    string value;
     bool done;
     bool advance() {
       if (done) return false;
@@ -141,12 +140,13 @@ float atof(string s) {
 
 template castIter(T) <<EOF
   template castIter(U) <<EO2
-    class caster {
+    class caster : Iterator!T {
       U sup;
-      T value() {
-        return T: evaluate (sup.value);
+      bool advance() {
+        if (!sup.advance()) return false;
+        value = T: evaluate (sup.value);
+        return true;
       }
-      bool advance() { return sup.advance(); }
     }
     caster castIter(U u) {
       auto res = new caster;

@@ -102,11 +102,10 @@ Socket connect(string domain, short port) using new Socket {
 }
 
 template readsocket(T) <<EOF
-  class sockreader {
+  class sockreader : Iterator!byte[] {
     Socket sock;
     bool done;
     byte x 256  buf;
-    byte[] value;
     bool advance() {
       auto size = sock.recv buf[];
       if size <= 0 return false;
