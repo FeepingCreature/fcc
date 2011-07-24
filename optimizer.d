@@ -162,8 +162,6 @@ struct TransactionInfo {
   string inOp2() { return inOp!("inOp2").inOpRead(); }
   string inOp1(string s) { return inOp!("inOp1").inOpWrite(s); }
   string inOp2(string s) { return inOp!("inOp2").inOpWrite(s); }
-  string stackDataOp() { if (tp.kind == Transaction.Kind.Push) return tp.source; else return tp.dest; }
-  string stackDataOp(string s) { if (tp.kind == Transaction.Kind.Push) return tp.source = s; else return tp.dest = s; }
   alias TableOp!(`return "$stack" == "grow";`, bool) growsStack;
   alias TableOp!(`return "$stack" == "shrink";`, bool) shrinksStack;
   bool resizesStack() { return growsStack() || shrinksStack(); }
@@ -1243,14 +1241,6 @@ void setupOpts() {
     t.dest = $0.dest;
     $SUBST(t);
   `));
-  mixin(opt("add_into_deref", `^MathOp, ^SSEOp:
-    $0.opName == "addl" && $0.op1.isNumLiteral() && $0.op2.isUtilityRegister() && 
-    $1.op1.isIndirect(0) == $0.op2 && $1.op2.isIndirect().find($0.op2) == -1
-    =>
-    $T t = $1;
-    t.op1 = qformat(literalToInt($0.op1), "(", $0.op2, ")");
-    $SUBST(t, $0);
-  `));
   mixin(opt("add_switch", `^MathOp, ^Mov:
     $0.opName == "addl" && $0.op1 == $1.to && $1.from == $0.op2  =>  $T t = $0; swap(t.op1, t.op2); $SUBST(t); 
   `));
@@ -1479,17 +1469,33 @@ void setupOpts() {
     t.from = qformat(offs, "(%esp,", $1.op1, ")");
     $SUBST(t);
   `));
-  mixin(opt("dense_address_form2", `^MathOp, ^Push || ^Pop:
-    $0.opName == "addl" && info($1).stackDataOp().isIndirect() == $0.op2 &&
+  string pfpsource(Transaction* t) {
+    with (Transaction.Kind) switch (t.kind) {
+      case Push, FloatLoad: return t.source;
+      case Pop: return t.dest;
+      case SSEOp: return t.op1;
+      default: asm { int 3; }
+    }
+  }
+  string pfpsetsource(Transaction* t, string s) {
+    with (Transaction.Kind) switch (t.kind) {
+      case Push, FloatLoad: return t.source = s;
+      case Pop: return t.dest = s;
+      case SSEOp: return t.op1 = s;
+      default: asm { int 3; }
+    }
+  }
+  mixin(opt("dense_address_form2", `^MathOp, ^Push || ^Pop || ^SSEOp || ^FloatLoad:
+    $0.opName == "addl" && pfpsource(&$1).isIndirect() == $0.op2 &&
     ($0.op1.isUtilityRegister() || $0.op1.isNumLiteral())
     =>
     $T t = $1;
     int offs;
-    info($1).stackDataOp().isIndirect2(offs);
+    pfpsource(&$1).isIndirect2(offs);
     if ($0.op1.isUtilityRegister())
-      info(t).stackDataOp = qformat(offs, "(", $0.op2, ",", $0.op1, ")");
+      pfpsetsource(&t, qformat(offs, "(", $0.op2, ",", $0.op1, ")"));
     else
-      info(t).stackDataOp = qformat(offs + $0.op1.literalToInt(), "(", $0.op2, ")");
+      pfpsetsource(&t, qformat(offs + $0.op1.literalToInt(), "(", $0.op2, ")"));
     $SUBST(t, $0);
   `));
   mixin(opt("movaps_pointless_read", `^SSEOp, ^SSEOp:
@@ -1502,20 +1508,6 @@ void setupOpts() {
     if (t2.op1 == t2.op2) $SUBST($0);
     else $SUBST($0, t2);
   `));
-  string pfpsource(Transaction* t) {
-    with (Transaction.Kind) switch (t.kind) {
-      case Push, FloatLoad: return t.source;
-      case Pop: return t.dest;
-      default: asm { int 3; }
-    }
-  }
-  string pfpsetsource(Transaction* t, string s) {
-    with (Transaction.Kind) switch (t.kind) {
-      case Push, FloatLoad: return t.source = s;
-      case Pop: return t.dest = s;
-      default: asm { int 3; }
-    }
-  }
   mixin(opt("denser_address_form", `^MathOp, ^Push || ^FloatLoad || ^Pop:
     ($0.opName == "imull" || $0.opName == "shl") && $0.op1.isNumLiteral() &&
     pfpsource(&$1).isIndirect().contains($0.op2)

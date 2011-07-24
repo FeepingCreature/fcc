@@ -34,7 +34,7 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_1", "115"); // must be high-priority (above arith) to override subtraction.
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be below arith too, to be usable in stuff like paren-less calls
 
-bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = null, string text = null, bool probe = false) {
+bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = null, string text = null, bool probe = false, bool exact = false) {
   Expr[string] nameds;
   void removeNameds(ref Iterable it) {
     if (auto ex = fastcast!(Expr)~ it) {
@@ -122,12 +122,18 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
       if (auto p = name in nameds) {
         auto ex = *p, backup = ex;
         nameds.remove(name);
-        if (probe) {
+        if (exact) {
           if (ex.valueType() != type)
-            return false;
+            if (probe)
+              return false;
+            else
+              text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " exactly to function call '", info, "', ", type, ".");
         } else {
           if (!gotImplicitCast(ex, type, (IType it) { tried ~= it; return test(it == type); }))
-            text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " to function call '", info, "', ", type, "; tried ", tried, ".");
+            if (probe)
+              return false;
+            else
+              text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " to function call '", info, "', ", type, "; tried ", tried, ".");
         }
         res ~= ex;
         continue;
@@ -137,12 +143,18 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
       if (tuple.initEx) {
         auto ex = tuple.initEx;
         IType[] tried;
-        if (probe) {
+        if (exact) {
           if (ex.valueType() != type)
-            return false;
+            if (probe)
+              return false;
+            else
+              text.failparse("Couldn't match default argument for ", name, ": ", tuple.initEx.valueType(), " exactly to ", type, ".");
         } else {
           if (!gotImplicitCast(ex, type, (IType it) { tried ~= it; return test(it == type); }))
-            text.failparse("Couldn't match default argument for ", name, ": ", tuple.initEx.valueType(), " to ", type,"; tried ", tried, ".");
+            if (probe)
+              return false;
+            else
+              text.failparse("Couldn't match default argument for ", name, ": ", tuple.initEx.valueType(), " to ", type,"; tried ", tried, ".");
         }
         res ~= ex;
         continue;
@@ -160,7 +172,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
     
     ex = foldex(ex);
     
-    if (probe ? (ex.valueType() != type) : !gotImplicitCast(ex, type, (IType it) {
+    if (exact ? (ex.valueType() != type) : !gotImplicitCast(ex, type, (IType it) {
       tried ~= it;
       // logln(" !! is ", it, " == ", type, "? ", test(it == type));
       return test(it == type);
@@ -201,7 +213,7 @@ bool cantBeCall(string s) {
 
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
-bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res, bool precise) {
+bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res, bool test, bool precise) {
   Expr arg;
   auto backup_text = text; 
   if (!backup_text.length) return false; // wat
@@ -228,7 +240,7 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
   if (!rest(text, "tree.expr _tree.expr.arith", &arg)) {
     return false;
   }
-  return matchedCallWith(arg, params, res, info, backup_text, precise);
+  return matchedCallWith(arg, params, res, info, backup_text, test, precise);
 }
 
 Expr buildFunCall(Function fun, Expr arg, string info) {
@@ -247,17 +259,20 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (auto f = fastcast!(Function) (obj)) {
       fun = f;
     } else if (auto os = fastcast!(OverloadSet) (obj)) {
+      bool precise = true;
+      retry_match:
       Function[] candidates;
       typeof(fun.getParams())[] parsets, candsets;
       foreach (osfun; os.funs) {
         auto t3 = t2;
-        if (matchCall(t3, osfun.name, osfun.getParams(), rest, osfun.mkCall().params, true)) {
+        if (matchCall(t3, osfun.name, osfun.getParams(), rest, osfun.mkCall().params, true, precise)) {
           candidates ~= osfun;
           candsets ~= osfun.getParams();
         }
         parsets ~= osfun.getParams();
       }
       if (!candidates) {
+        if (precise) { precise = false; goto retry_match; } // none _quite_ match .. 
         t2.failparse("Unable to call '", os.name, "': matched none of ", parsets);
       }
       if (candidates.length > 1) {
@@ -269,7 +284,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto fc = fun.mkCall();
     auto params = fun.getParams();
     resetError();
-    if (!matchCall(t2, fun.name, params, rest, fc.params, false)) {
+    if (!matchCall(t2, fun.name, params, rest, fc.params, false, false)) {
       if (t2.accept("("))
         text.failparse("Failed to call function: ", error()._1);
       auto t3 = t2;
@@ -310,7 +325,7 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto fc = new FpCall;
     fc.fp = ex;
     
-    if (!matchCall(t2, Format("delegate ", ex), fptype.args, rest, fc.params, false))
+    if (!matchCall(t2, Format("delegate ", ex), fptype.args, rest, fc.params, false, false))
       return null;
     
     text = t2;
@@ -345,7 +360,7 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     auto dc = new DgCall;
     dc.dg = ex;
-    if (!matchCall(t2, Format("delegate ", ex), dgtype.args, rest, dc.params, false))
+    if (!matchCall(t2, Format("delegate ", ex), dgtype.args, rest, dc.params, false, false))
       return null;
     text = t2;
     return dc;

@@ -88,8 +88,8 @@ Object gotParamTypes(ref string text, ParseCb cont, ParseCb rest) {
   if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!fastcast!(FunctionPointer) (it) || !! fastcast!(Delegate) (it); }))
     text.failparse(ty, " is not function-like; tried ", tried);
   auto fun = fastcast!(FunctionPointer)~ temp.valueType(), dg = fastcast!(Delegate)~ temp.valueType();
-  if (fun) return mkTuple(fun.args /map/ ex!("x -> x.type"));
-  else     return mkTuple(dg .args /map/ ex!("x -> x.type"));
+  if (fun) return fastcast!(Object) (forcedConvert(mkTuple(fun.args /map/ ex!("x -> x.type"))));
+  else     return fastcast!(Object) (forcedConvert(mkTuple(dg .args /map/ ex!("x -> x.type"))));
 }
 mixin DefaultParser!(gotParamTypes, "type.fun_param_type", "52", "ParamTypes");
 

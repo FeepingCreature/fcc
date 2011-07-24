@@ -19,6 +19,7 @@ struct Argument {
   int opEquals(Argument other) {
     return name == other.name && type == other.type;
   }
+  string toString() { return qformat(type, " ", name); }
   static Argument opCall(IType it, string name = null, Expr initEx = null) {
     Argument res;
     res.type = it;
@@ -192,7 +193,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   override Object lookup(string name, bool local = false) {
     return super.lookup(name, local);
   }
-  override Object extend(Object obj2) {
+  override Extensible extend(Object obj2) {
     auto fun2 = fastcast!(Function) (obj2);
     if (!fun2)
       throw new Exception(Format("Can't overload function "
@@ -211,7 +212,7 @@ class OverloadSet : Named, Extensible {
   }
   private this() { }
   override string getIdentifier() { return name; }
-  override Object extend(Object obj2) {
+  override Extensible extend(Object obj2) {
     auto fun2 = fastcast!(Function) (obj2);
     if (!fun2)
       throw new Exception(Format("Can't overload '", name,

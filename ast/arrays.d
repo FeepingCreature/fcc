@@ -48,7 +48,7 @@ class ExtArray : Type {
   }
 }
 
-import ast.structfuns, ast.modules, ast.aliasing;
+import ast.structfuns, ast.modules, ast.aliasing, ast.properties;
 Stuple!(IType, bool, Module, IType)[] cache;
 bool[IType] isArrayStructType;
 IType arrayAsStruct(IType base, bool rich) {
@@ -93,6 +93,9 @@ IType arrayAsStruct(IType base, bool rich) {
                   (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, rf);
   });
   if (!rich) {
+    auto propbackup = propcfg().withTuple;
+    propcfg().withTuple = true;
+    scope(exit) propcfg().withTuple = propbackup;
     res.add(new ExprAlias(
       iparse!(Expr, "array_dup", "tree.expr")
              (`(base*: dupv (ptr, length * size-of base))[0 .. length]`,

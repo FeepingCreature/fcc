@@ -61,9 +61,15 @@ template call-dg-esi(T) <<EOF
     auto tup = *(ret delegate(ParamTypes T), void*)*: data;
     auto backup_esi = _esi;
     _esi = tup[1];
-    auto res = tup[0] p;
-    _esi = backup_esi;
-    return res;
+    static if types-equal(ret, void) <<EO2{
+      tup[0] p;
+      _esi = backup_esi;
+      return;
+    }EO2 else <<EO2{
+      auto res = tup[0] p;
+      _esi = backup_esi;
+      return res;
+    }EO2
   }
 EOF
 

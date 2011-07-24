@@ -31,7 +31,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
       if (auto templ = fastcast!(Template) (res)) {
         return new PrefixTemplate(firstParam, templ);
       }
-      if (auto fun = fastcast!(Function) (res)) {
+      PrefixFunction processFun(Function fun) {
         if (fastcast!(NestedFunction)~ fun) return null;
         auto params = fun.getParams();
         if (!params.length) return null;
@@ -48,6 +48,19 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
           return null;
         }
         return new PrefixFunction(ex2, fun);
+      }
+      if (auto fun = fastcast!(Function) (res)) {
+        if (auto res = processFun(fun)) return res;
+      }
+      if (auto os = fastcast!(OverloadSet) (res)) {
+        Extensible resx = new OverloadSet(os.name);
+        foreach (fun; os.funs)
+          if (auto res = processFun(fun))
+            resx = resx.extend(res);
+        auto os2 = fastcast!(OverloadSet) (resx);
+        if (!os2.funs.length) return null;
+        if (os2.funs.length == 1) return os2.funs[0];
+        return os2;
       }
       return null;
     }

@@ -121,18 +121,15 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
   return var;
 }
 
-// create temporary if needed
-LValue lvize(Expr ex) {
-  if (auto lv = fastcast!(LValue)~ ex) return lv;
-  
+Expr lvize_if_possible(Expr ex) {
+  if (auto lv = fastcast!(LValue) (ex)) return ex;
+  auto sc = namespace().get!(Scope);
+  if (!sc) {
+    return ex;
+  }
   auto var = new Variable(ex.valueType(), null, boffs(ex.valueType()));
   // TODO: is it really valid to add to a scope beneath a nested namespace?
   // Won't this mess up the frame size counts? .. Meh.
-  auto sc = namespace().get!(Scope);
-  if (!sc) {
-    logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
-    asm { int 3; }
-  }
   var.initval = ex;
   
   auto decl = new VarDecl;
@@ -141,6 +138,16 @@ LValue lvize(Expr ex) {
   sc.addStatement(decl);
   sc.add(var);
   return var;
+}
+
+// create temporary if needed
+LValue lvize(Expr ex) {
+  if (auto lv = fastcast!(LValue) (ex)) return lv;
+  if (!namespace().get!(Scope)) {
+    logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
+    asm { int 3; }
+  }
+  return fastcast!(LValue) (lvize_if_possible(ex));
 }
 
 import ast.fold;

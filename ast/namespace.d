@@ -11,7 +11,7 @@ T aadup(T)(T t) {
 // This is intended to be used for function overload sets.
 interface Extensible {
   // create compound object of this and obj.
-  Object extend(Object obj);
+  Extensible extend(Object obj);
 }
 
 struct NSCache(T...) {
@@ -95,7 +95,7 @@ class Namespace {
           foreach (ref entry; field) {
             if (entry._1 is thing) {
               assert(entry._0 == name);
-              entry._1 = et.extend(obj);
+              entry._1 = fastcast!(Object) (et.extend(obj));
               found = true;
               break;
             }
