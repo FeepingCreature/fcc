@@ -24,7 +24,9 @@ Expr lookupOp(string text, string op, bool allowNone, Expr[] exprs...) {
   bool reassign;
   auto pre = op.endsWith("=");
   LValue lv; MValue mv;
-  if (pre && op[0] != '=' /or/ '!') {
+  if (pre && op[0] != '=' /or/ '!' && (
+    op[0] != '<' /or/ '>' || op[1] == op[0] /* rightshift, leftshift */
+  )) {
     lv = fastcast!(LValue) (exprs[0]);
     mv = fastcast!(MValue) (exprs[0]);
     if (!lv && !mv) {

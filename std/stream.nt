@@ -23,9 +23,8 @@ iter readDg(int delegate(byte[]) dg) {
 template dgIter(T) <<EOF
   class DelegateIterator {
     T t;
-    alias dg = t;
-    type-of dg() step() { return dg(); }
-    bool ivalid() { return true; }
+    type-of t() value;
+    bool advance() { value = t(); return true; }
   }
   auto dgIter(T t) {
     auto res = new DelegateIterator;

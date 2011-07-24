@@ -6,10 +6,11 @@ template readfile(T) <<EOF
   class reader {
     int fd;
     byte x 256  buf;
+    void close() { .close(fd); }
     byte[] value;
     bool advance() {
       auto size = read(fd, buf.ptr, buf.length);
-      if size <= 0 return false;
+      if size <= 0 { close; return false; }
       value = buf[0 .. size];
       return true;
     }
@@ -54,6 +55,7 @@ class writer {
       data = data[res .. $];
     }
   }
+  void close() { .close hdl; }
 }
 
 void delegate(byte[]) writefile(int _hdl) using new writer {

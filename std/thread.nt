@@ -82,6 +82,7 @@ void startThread(void delegate() dg) {
 }
 
 platform(default) <<EOF
+  pragma(lib, "pthread");
   struct pthread_mutex_t { ubyte x 40  filler; }
   extern(C) int pthread_mutex_init (pthread_mutex_t*, void*);
   extern(C) int pthread_mutex_lock (pthread_mutex_t*);

@@ -227,6 +227,11 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
   IType type;
+  {
+    string t3 = t2;
+    if (t3.accept("(") && t3.accept(")")) /* THIS IS NOT A GOOD THING THIS IS BAD AND WRONG */
+      return null; // whew.
+  }
   if (!t2.accept("auto"))
     if (!rest(t2, "type", &type)) return null;
   if (!t2.gotValidIdentifier(name)) return null;
