@@ -1886,7 +1886,13 @@ void setupOpts() {
     return changed;
   }
   opts ~= stuple(&lookahead_remove_redundants, "lookahead_remove_redundants", true);
-  
+  mixin(opt("finally_push_memref_to_int", `^Push:
+    $0.source.find("___xfcc_encodes_") != -1
+    =>
+    $T t = $0;
+    t.source = qformat("$", t.source.between("___xfcc_encodes_", "").atoi());
+    $SUBST(t);
+  `));
 }
 
 // Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;

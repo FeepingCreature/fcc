@@ -26,8 +26,8 @@ class AsmFile {
     if (!size) asm { int 3; }
     tlsvars[name] = stuple(size, init);
   }
-  string allocConstantValue(string name, ubyte[] data) {
-    if (data.length == 4) { // hax
+  string allocConstantValue(string name, ubyte[] data, bool forceAlloc = false) {
+    if (data.length == 4 && !forceAlloc) {
       return qformat("$", (cast(int[]) data)[0]);
     }
     return allocConstant(name, data);
