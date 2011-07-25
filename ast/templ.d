@@ -340,7 +340,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
       }
       return fastcast!(Object) (fc);
     } catch (Exception ex) {
-      t2.failparse("ifti instantiating ", ex);
+      t2.failparse("ifti instantiating with ", nex.valueType(), ": ", ex);
     }
   };
 }

@@ -96,7 +96,7 @@ int main (int argc, char **argv) {
     (gpointer:window).g_signal_connect_data (
       "delete-event",
       void*:function bool(void* widget, event, data) { return false; },
-      null, null, 0
+      void*: null, void*: null, GConnectFlags: 0
     );
     
     g_signal_connect (window, "destroy", delegate void(GtkWidget*) { gtk_main_quit(); });

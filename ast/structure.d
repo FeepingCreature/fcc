@@ -192,9 +192,11 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     bool isTempNamespace() { return isTempStruct; }
     void __add(string name, Object obj) {
       if (name && lookup(name, true)) {
-        throw new Exception(Format("While adding ", obj, ": "
+        logln("Can't add ", obj, ": already defined in ", this, "!");
+        asm { int 3; }
+        /*throw new Exception(Format("While adding ", obj, ": "
           "already defined in ", this, "!"
-        ));
+        ));*/
       }
       super.__add(name, obj);
     }
@@ -391,8 +393,8 @@ class MemberAccess_Expr : Expr, HasInfo {
         // logln("full emit - worrying. ", base, " SELECTING ", stm);
         // asm { int 3; }
         assert(stm.type.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !fastcast!(LValue) (base), ") of ", base.valueType().size(), ". "));
-        af.comment("emit semi-structure ", base, " for member access");
         auto bvt = base.valueType();
+        af.comment("emit semi-structure of ", bvt, " for member access");
         if (auto rce = fastcast!(RCE)~ base) bvt = rce.from.valueType();
         auto filler = alignStackFor(bvt, af);
         base.emitAsm(af);

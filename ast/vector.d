@@ -343,19 +343,29 @@ Structure mkVecStruct(Vector vec) {
   
   {
     Expr lensq = fastcast!(Expr)~ res.lookup("lensq");
+    Expr sum = fastcast!(Expr) (res.lookup("sum"));
     Expr len;
+    Expr weirdlen;
     if (lensq.valueType() == Single!(Float) || lensq.valueType() == Single!(SysInt)) {
       len = buildFunCall(
         fastcast!(Function)~ sysmod.lookup("sqrtf"), lensq, "sqrtf"
+      );
+      weirdlen = buildFunCall(
+        fastcast!(Function)~ sysmod.lookup("sqrtf"), sum, "sqrtf"
       );
     } else if (lensq.valueType() == Single!(Double)) {
       len = buildFunCall(
         fastcast!(Function)~ sysmod.lookup("sqrt"), lensq, "sqrt"
       );
+      weirdlen = buildFunCall(
+        fastcast!(Function)~ sysmod.lookup("sqrt"), sum, "sqrt"
+      );
     }
     if (!len) logln("Can't add length for ", lensq.valueType());
     assert(!!len);
+    assert(!!weirdlen);
     res.add(new ExprAlias(len, "magnitude"));
+    res.add(new ExprAlias(weirdlen, "sqrt_sum"));
   }
 
   cache ~= stuple(res, vec, current_module());
@@ -814,8 +824,11 @@ Object gotMagnitude(ref string text, ParseCb cont, ParseCb rest) {
   auto vt = resolveType(ex.valueType());
   if (auto v = fastcast!(Vector) (vt)) {
     text = t2;
+    Expr tmp = lvize(ex);
+    tmp = lookupOp("*", tmp, tmp);
+    tmp = lvize(tmp);
     auto strct = v.asStruct;
-    return strct.lookupRel("magnitude", reinterpret_cast(strct, ex));
+    return strct.lookupRel("sqrt_sum", reinterpret_cast(strct, tmp));
   }
   t2.failparse("Invalid type for magnitude: ", vt);
 }
