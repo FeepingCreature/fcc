@@ -31,7 +31,7 @@ mixin DefaultParser!(gotSizeof, "tree.expr.sizeof", "231", "size-of");
 Object gotTypeStringof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Object obj;
-  if (!rest(t2, "type", &obj) && !rest(t2, "tree.expr", &obj))
+  if (!rest(t2, "type", &obj) && !rest(t2, "tree.expr _tree.expr.arith", &obj))
     return null;
   text = t2;
   return fastcast!(Object)~ mkString(Format(obj));
