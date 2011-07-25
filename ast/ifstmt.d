@@ -3,22 +3,21 @@ module ast.ifstmt;
 import ast.base, ast.scopes, ast.conditionals, ast.parse;
 
 class IfStatement : Statement {
+  Scope wrapper;
   Scope branch1, branch2;
   Cond test;
   mixin DefaultDup!();
-  mixin defaultIterate!(test, branch1, branch2);
+  mixin defaultIterate!(test, wrapper, branch1, branch2);
   override void emitAsm(AsmFile af) {
-    auto past1 = af.genLabel();
-    if (branch2) {
-      test.jumpOn(af, false, branch2.entry());
-    } else {
+    auto past1 = af.genLabel(), past2 = af.genLabel();
+    auto dg = wrapper.open(af)();
       test.jumpOn(af, false, past1);
-    }
-    branch1.emitAsm(af);
-    if (!branch2) af.emitLabel(past1);
-    else {
-      auto past2 = af.genLabel();
-      af.jump(past2);
+      branch1.emitAsm(af);
+      if (branch2) { dg(true); af.jump(past2); }
+      af.emitLabel(past1);
+    dg();
+    
+    if (branch2) {
       branch2.emitAsm(af);
       af.emitLabel(past2);
     }
@@ -56,14 +55,14 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto pos1 = text.retreat(2);
   string t2 = text;
   auto ifs = new IfStatement;
-  auto sc = new Scope; // wrapper scope
-  namespace.set(sc);
-  scope(exit) namespace.set(sc.sup);
+  ifs.wrapper = new Scope;
+  namespace.set(ifs.wrapper);
   if (!rest(t2, "cond", &ifs.test))
     t2.failparse("Couldn't get if condition");
   configure(ifs.test);
   if (!rest(t2, "tree.scope", &ifs.branch1))
     t2.failparse("Couldn't get if branch");
+  namespace.set(ifs.wrapper.sup); // else is OUTSIDE the wrapper!
   if (t2.accept("else")) {
     auto t3 = t2.retreat(4);
     if (haveIndentConflict(pos1, t3)) {
@@ -73,9 +72,7 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Couldn't get else branch");
   }
   text = t2;
-  if (!sc._body) return ifs;
-  sc.addStatement(ifs);
-  return sc;
+  return ifs;
 }
 mixin DefaultParser!(gotIfStmt, "tree.stmt.if", "19", "if");
 
