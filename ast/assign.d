@@ -31,9 +31,9 @@ class _Assignment(T) : LineNumberedStatementClass {
         target.emitAssignment(af);
       else {
         target.emitLocation(af);
-        af.popStack("%eax", nativePtrSize);
-        af.popStack("(%eax)", value.valueType().size);
-        af.nvm("%eax");
+        af.popStack("%edx", nativePtrSize);
+        af.popStack("(%edx)", value.valueType().size);
+        af.nvm("%edx");
       }
     } else {
       mixin(mustOffset("0"));
@@ -52,9 +52,9 @@ class _Assignment(T) : LineNumberedStatementClass {
           mixin(mustOffset("nativePtrSize"));
           target.emitLocation(af);
         }
-        af.popStack("%eax", nativePtrSize);
-        af.popStack("(%eax)", vt.size);
-        af.nvm("%eax");
+        af.popStack("%edx", nativePtrSize);
+        af.popStack("(%edx)", vt.size);
+        af.nvm("%edx");
       }
       af.sfree(filler);
     }

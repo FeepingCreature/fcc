@@ -407,10 +407,10 @@ class AsmIntBinopExpr : BinopExpr {
         }
         if (auto c1 = fastcast!(IntExpr)~ foldex(e1)) {
           op1 = Format("$", c1.num);
-          af.mmove4(op1, "%eax");
+          af.mmove4(op1, "%edx");
         } else {
           e1.emitAsm(af);
-          af.popStack("%eax", 4);
+          af.popStack("%edx", 4);
         }
         string top = op;
         if (top == "*" && op2.startsWith("$")) {
@@ -434,9 +434,9 @@ class AsmIntBinopExpr : BinopExpr {
           if (op2 == "%ecx")
             op2 = "%cl"; // shl/r really want %cl.
         
-        af.mathOp(asm_op, op2, "%eax");
-        af.pushStack("%eax", 4);
-        af.nvm("%eax");
+        af.mathOp(asm_op, op2, "%edx");
+        af.pushStack("%edx", 4);
+        af.nvm("%edx");
       }
     }
   }
