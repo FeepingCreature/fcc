@@ -703,3 +703,15 @@ Object gotConstant(ref string text, ParseCb cont, ParseCb rest) {
   return new ConstantDefinition(name, values);
 }
 mixin DefaultParser!(gotConstant, "tree.toplevel.constant", null, "__defConstant");
+
+import ast.pragmas;
+static this() {
+  // Link with this library
+  pragmas["msg"] = delegate Object(Expr ex) {
+    ex = foldex(ex);
+    auto se = fastcast!(StringExpr) (ex);
+    if (!se) throw new Exception("Expected string expression for pragma(msg)! ");
+    logln("# ", se.str);
+    return Single!(NoOp);
+  };
+}
