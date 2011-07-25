@@ -179,6 +179,11 @@ class TemplateInstance : Namespace, HandlesEmits {
   }
   this(ParseCb rest) {
     withTLS(namespace, this, {
+      
+      auto rtptbackup = RefToParentType();
+      scope(exit) RefToParentType.set(rtptbackup);
+      RefToParentType.set(null);
+      
       auto t2 = parent.source;
       pushCache(); // open new memoizer level
       scope(exit) popCache();
