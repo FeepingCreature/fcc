@@ -191,6 +191,14 @@ struct TransactionInfo {
   bool hasIndirect(string s) {
     return hasIndirectSrc(s) || outOp().isIndirect().contains(s);
   }
+  bool hasIndirectSrcEq(string s) {
+    return
+      (inOp1().isIndirect() == s)
+    ||(inOp2().isIndirect() == s);
+  }
+  bool hasIndirectEq(string s) {
+    return hasIndirectSrcEq(s) || outOp().isIndirect() == s;
+  }
   string getIndirectSrc(string s) {
     if (inOp1().isIndirect().contains(s)) return inOp1();
     if (inOp2().isIndirect().contains(s)) return inOp2();
@@ -245,7 +253,7 @@ struct TransactionInfo {
   }
   static bool couldFixup(string s, int by) {
     int offs;
-    if (s.isIndirect2(offs) != "%esp") return true; // false -> * == true
+    if (!s.isIndirect2(offs).contains("%esp")) return true;
     return offs >= -by;
   }
   bool couldFixup(int shift) {
@@ -320,9 +328,15 @@ bool collide(string a, string b) {
 bool isMemRef(string s) {
   if (s.find("(") != -1) return true;
   if (s.startsWith("$")) return false;
-  if (s == "%eax" /or/ "%ebx" /or/ "%ebp" /or/ "%ecx" /or/ "%edx") return false;
+  if (s.isUtilityRegister() || s == "%ebp") return false;
   if (s.startsWith("%gs:")) return true;
   return true;
+}
+
+bool isMemAccess(string s) {
+  if (isMemRef(s)) return true;
+  if (s.startsWith("$")) return !s.isNumLiteral();
+  return false;
 }
 
 // dg, name, allow
@@ -370,7 +384,7 @@ bool tryFixupString(ref string s, int shift) {
   }
   int offs;
   if (s.isIndirect2(offs).contains("%esp")) {
-    if (offs + shift < 0 && s.isIndirect() == "%esp") { // never a good idea
+    if (offs + shift < 0) { // never a good idea
       return false;
     }
     s = qformat(offs + shift, "(", s.isIndirect2(offs), ")").cleanup();
@@ -576,10 +590,10 @@ class ProcTrack : ExtToken {
         if (t.op1.isNumLiteral() && t.op2 in known) {
           auto stuf = known[t.op2];
           if (stuf.isRegister()) {
-            if (!set(t.op2, "+(" ~ known[t.op2] ~ ", " ~ t.op1 ~ ")"))
+            if (!set(t.op2, qformat("+(", known[t.op2], ", $", t.op1.literalToInt(), ")")))
               return false;
             mixin(Success);
-          } else if (t.op1.isNumLiteral() && stuf.startsWith("+(")) {
+          } else if (stuf.startsWith("+(")) {
             auto mop2 = stuf.between("+(", ")"), mop1 = mop2.slice(", ");
             if (mop2.isNumLiteral()) {
               if (!set(t.op2, qformat("+(",
@@ -759,6 +773,9 @@ class ProcTrack : ExtToken {
           if (val.isRegister()) use[val] = true;
           // increment our knowns.
           // logln("also I am ", this);
+          if (!val.isMemAccess()) {
+            if (known.length && !(t.source in known)) return false; // workaround
+          }
           fixupESPDeps(4);
           stack ~= val;
           mixin(Success);
@@ -815,7 +832,7 @@ class ProcTrack : ExtToken {
                 mixin(Success);
               }
             }
-          } else if (dest == "%esp") {
+          } else if (dest == "%esp" || dest.isUtilityRegister()) {
             if (stack.length && !isMemRef(stack[$-1])) {
               auto val = stack[$-1];
               fixupString(val, 4);
@@ -953,6 +970,30 @@ void setupOpts() {
   if (optsSetup) return;
   optsSetup = true;
   bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
+  mixin(opt("ebp_to_esp", `*:
+    info($0).hasIndirect("%ebp")
+    && $0.hasStackdepth && info($0).opSize != 1
+    =>
+    $T t = $0;
+    bool changed;
+    void doStuff(ref string str) {
+      auto offs = str.between("", "(").atoi(); 
+      auto new_offs = offs + t.stackdepth;
+      if (new_offs) str = qformat(new_offs, "(%esp)");
+      else str = "(%esp)";
+      changed = true;
+    }
+    bool skip;
+    /*if ($0.kind == $TK.Push /or/ $TK.Pop) {
+      // if we can't do the push in one step
+      if ($0.size != 4 /or/ 2 /or/ 1) 
+        skip = true;
+    }*/
+    if (!skip) {
+      info(t).accessParams((ref string s) { if (s.isIndirect().contains("%ebp")) doStuff(s); });
+      if (changed) $SUBST(t);
+    }
+  `));
   mixin(opt("ext_step", `*, *
     =>
     ProcTrack obj;
@@ -1013,6 +1054,7 @@ void setupOpts() {
     if (t2.hasStackdepth) t2.stackdepth += delta;
     $SUBST($1, t2);
   `));
+  mixin(opt("skip_forget", `^LoadAddress, ^SFree, ^Nevermind: $0.to == $2.dest => $SUBST($1); `));
   mixin(opt("sort_pointless_mem", `*, ^SAlloc || ^SFree:
     info($0).hasOps
     =>
@@ -1096,31 +1138,6 @@ void setupOpts() {
   `));
   mixin(opt("make_call_direct", `^Mov, ^Call: $0.to == $1.dest => $SUBSTWITH { kind = $TK.Call; dest = $0.from; } `));
   
-  mixin(opt("ebp_to_esp", `*:
-    info($0).hasIndirect("%ebp")
-    && $0.hasStackdepth && info($0).opSize != 1
-    =>
-    $T t = $0;
-    bool changed;
-    void doStuff(ref string str) {
-      auto offs = str.between("", "(").atoi(); 
-      auto new_offs = offs + t.stackdepth;
-      if (new_offs) str = qformat(new_offs, "(%esp)");
-      else str = "(%esp)";
-      changed = true;
-    }
-    bool skip;
-    /*if ($0.kind == $TK.Push /or/ $TK.Pop) {
-      // if we can't do the push in one step
-      if ($0.size != 4 /or/ 2 /or/ 1) 
-        skip = true;
-    }*/
-    if (!skip) {
-      info(t).accessParams((ref string s) { if (s.isIndirect().contains("%ebp")) doStuff(s); });
-      if (changed) $SUBST(t);
-    }
-  `));
-  
   // jump opts
   mixin(opt("join_labels", `^Label, ^Label => auto t = $0; t.names ~= $1.names; t.keepRegisters |= $1.keepRegisters; $SUBST(t); `));
   mixin(opt("pointless_jump", `^Jump, ^Label:
@@ -1139,15 +1156,14 @@ void setupOpts() {
     bool remove;
     auto size1 = info($1).opSize;
     auto it = info(t);
+    bool skip;
     if (info($1).growsStack) it.fixupStrings( size1);
     if (info($1).shrinksStack) {
       if (it.couldFixup(-size1))
         it.fixupStrings(-size1);
-      else
-        remove = true;
+      else skip = true;;
     }
-    if (remove) $SUBST($1, $2); // stack change makes lea invalid.
-    else $SUBST($1, t, $2);
+    if (!skip) $SUBST($1, t, $2);
   `));
   mixin(opt("move_lea_downer", `^LoadAddress, ^SFree, *:
     $2.kind != $TK.LoadAddress &&
@@ -1263,7 +1279,9 @@ void setupOpts() {
     // flds needs memory source
    ($1.kind != $TK.FloatLoad || !$0.source.isUtilityRegister() && !$0.source.isNumLiteral()) &&
    // fcmps must not literal
-   ($1.kind != $TK.FloatCompare || !$0.source.isNumLiteral())
+   ($1.kind != $TK.FloatCompare || !$0.source.isNumLiteral()) &&
+   // idivl likewise
+   ($1.kind != $TK.ExtendDivide || !$0.source.isNumLiteral())
     =>
     $T t = $1;
     if (t.hasStackdepth()) t.stackdepth -= $0.size;
@@ -1634,6 +1652,14 @@ void setupOpts() {
     $T t = $0.dup;
     t.op2 = $1.dest;
     $SUBST($1, t);
+  `));
+  mixin(opt("direct_push_after_mov", `^Push, ^Mov:
+    !$0.source.isMemAccess() && info($1).couldFixup(-4) &&
+    !info($1).opContains("%ebp") && $1.to.find($0.source) == -1
+    =>
+    $T t = $1.dup;
+    info(t).fixupStrings(-4);
+    $SUBST(t, $0);
   `));
   // push foo, pop (%esp) => sfree 4; push foo
   bool remove_stack_push_pop_chain(Transcache cache, ref int[string] labels_refcount) {
