@@ -353,7 +353,7 @@ static this() {
       return null;
     auto res = iparse!(Expr, "array_eq", "tree.expr")
                   (`eval (ex1.length == ex2.length && memcmp(void*:ex1.ptr, void*:ex2.ptr, ex1.length * (size-of type-of ex1[0])) == 0)`,
-                   "ex1", ex1, "ex2", ex2);
+                   "ex1", lvize(ex1), "ex2", lvize(ex2));
     assert(!!res);
     return res;
   });
