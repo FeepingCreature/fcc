@@ -379,6 +379,7 @@ struct Transaction {
       case FloatStore: return qformat("fsts ", dest);
       case DoubleStore: return qformat("fstl ", dest);
       case FloatMath:
+        if (opName == "fsqrt") return opName;
         if (floatSelf) return qformat(opName, " %st, %st");
         else return qformat(opName, "p %st, %st(1)");
       case FPSwap: return qformat("fxch");

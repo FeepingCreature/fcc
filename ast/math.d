@@ -853,3 +853,39 @@ Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
   t2.failparse("Found no lookup match for negation/inversion of ", ex.valueType());
 }
 mixin DefaultParser!(gotPrefixExpr, "tree.expr.prefix", "213");
+
+class FSqrtExpr : Expr {
+  Expr sup;
+  this(Expr ex) { sup = ex; }
+  mixin defaultIterate!(sup);
+  override {
+    IType valueType() { return Single!(Float); }
+    FSqrtExpr dup() { return new FSqrtExpr(sup.dup); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("4"));
+      sup.emitAsm(af);
+      af.loadFloat("(%esp)");
+      af.floatMath("fsqrt", false);
+      af.storeFloat("(%esp)");
+    }
+  }
+}
+
+import ast.modules;
+static this() {
+  foldopt ~= delegate Itr(Itr it) {
+    auto fc = fastcast!(FunCall) (it);
+    if (!fc) return null;
+    bool isSqrtMath, isSqrtfSysmod;
+    auto sqrmod = fastcast!(Module) (fc.fun.sup);
+    if (fc.fun.name == "sqrt" /or/ "[wrap]sqrt") {
+      if (sqrmod && sqrmod.name == "std.math") isSqrtMath = true;
+    }
+    if (fc.fun.name == "sqrtf" /or/ "[wrap]sqrtf") {
+      if (sqrmod && sysmod && sqrmod is sysmod) isSqrtfSysmod = true;
+    }
+    if (!isSqrtMath && !isSqrtfSysmod) return null;
+    auto arg = foldex(fc.getParams()[0]);
+    return new FSqrtExpr(arg);
+  };
+}

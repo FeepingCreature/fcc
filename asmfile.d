@@ -317,8 +317,8 @@ class AsmFile {
     loadDouble("(%esp)");
     sfree(8);
   }
-  void floatMath(string op) {
-    floatStackDepth --;
+  void floatMath(string op, bool consumesStack = true) {
+    if (consumesStack) floatStackDepth --;
     Transaction t;
     t.kind = Transaction.Kind.FloatMath;
     t.opName = op;
