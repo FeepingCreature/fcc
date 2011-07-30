@@ -641,12 +641,12 @@ Object gotEBX(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotEBX, "tree.expr.ebx", "24047", "_ebx");
 
-class Assembly : Statement {
+class Assembly : LineNumberedStatementClass {
   string text;
   this(string s) { text = s; }
   mixin defaultIterate!();
   override Assembly dup() { return this; }
-  override void emitAsm(AsmFile af) { af.put(text); }
+  override void emitAsm(AsmFile af) { super.emitAsm(af); af.put(text); }
 }
 
 import ast.literal_string, ast.fold;
@@ -658,8 +658,10 @@ Object gotAsm(ref string text, ParseCb cont, ParseCb rest) {
   auto lit = fastcast!(StringExpr) (foldex(ex));
   if (!lit)
     t2.failparse("Expected string literal, not ", ex.valueType(), "!");
+  auto res = new Assembly(lit.str);
+  res.configPosition(text);
   text = t2;
-  return new Assembly(lit.str);
+  return res;
 }
 mixin DefaultParser!(gotAsm, "tree.semicol_stmt.asm", "32", "asm");
 

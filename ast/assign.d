@@ -104,17 +104,21 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     else target = mv;
     
     // logln(target.valueType(), " <- ", value.valueType());
-    text = t2;
+    LineNumberedStatementClass res;
     if (lv)
-      return new Assignment(lv, value);
+      res = new Assignment(lv, value);
     else
-      return new AssignmentM(mv, value);
+      res = new AssignmentM(mv, value);
+    res.configPosition(text);
+    text = t2;
+    return res;
   } else return null;
 }
 mixin DefaultParser!(gotAssignment, "tree.semicol_stmt.assign", "1");
 
 static this() {
   registerClass("ast.assign", new Assignment);
+  registerClass("ast.assign", new AssignmentM);
 }
 
 Statement mkAssignment(Expr to, Expr from) {
