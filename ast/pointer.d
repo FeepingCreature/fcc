@@ -57,8 +57,9 @@ class DerefExpr : LValue {
     }
     void emitAsm(AsmFile af) {
       src.emitAsm(af);
-      af.popStack("%eax", nativePtrSize);
-      af.pushStack("(%eax)", valueType().size);
+      af.popStack("%edx", nativePtrSize);
+      af.pushStack("(%edx)", valueType().size);
+      af.nvm("%edx");
     }
     void emitLocation(AsmFile af) {
       src.emitAsm(af);
