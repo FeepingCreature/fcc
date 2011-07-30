@@ -1,7 +1,7 @@
 module ast.stringex;
 
 import
-  ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays, ast.assign,
+  ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays, ast.assign, ast.structure,
   ast.literal_string, ast.arrays, ast.vardecl, ast.pointer, ast.casting, tools.base: take;
 
 Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
@@ -150,6 +150,11 @@ Expr simpleFormat(Expr ex) {
         ).emitAsm(af);
       });
     });
+  }
+  if (auto str = fastcast!(Structure) (ex.valueType())) {
+    try return iparse!(Expr, "struct_tostring", "tree.expr")
+                      (`evaluate ex.toString`, "ex", ex);
+    catch (Exception ex) { return null; } // myeh.
   }
   auto obj = fastcast!(IType) (sysmod.lookup("Object"));
   if (gotImplicitCast(ex, obj, (IType it) { return test(it == obj); })) {
