@@ -37,8 +37,9 @@ void* __start_routine(void* p) {
   asm "movl %esp, %ebp";
   asm `addl $4, %ebp`;
   {
-    alias arg = *(void delegate(), void*)*:ptemp;
+    alias arg = *(void delegate(), void*, int)*:ptemp;
     _esi = arg[1];
+    mxcsr = arg[2];
     setupStackBase;
     if (onThreadCreation)
       onThreadCreation();
@@ -56,7 +57,7 @@ void* __start_routine(void* p) {
 extern(C) int _sys_tls_data_start;
 void startThread(void delegate() dg) {
   pthread_t buf;
-  auto argp = new (void delegate(), void*);
+  auto argp = new (void delegate(), void*, int);
   (*argp)[0] = dg;
   int dataStart = 0x7fffffff, dataEnd;
   auto
@@ -77,6 +78,7 @@ void startThread(void delegate() dg) {
     newArea[range[0] .. range[1]] = _esi[range[0] .. range[1]];
   }
   (*argp)[1] = newArea.ptr;
+  (*argp)[2] = mxcsr;
   
   pthread_create(&buf, null, &__start_routine, argp);
 }
@@ -136,33 +138,45 @@ template New(T) <<EOF
 EOF
 
 class ThreadPool {
-  Mutex m;
+  Mutex m, readlock, writelock;
   Semaphore s, t;
-  int tasksLeft;
-  void delegate()[auto~] queue;
+  int tasksLeft, numThreads;
+  void delegate(int)[] readqueue, readqueue-full;
+  void delegate(int)[auto~] writequeue;
   void init() {
+    New &readlock;
+    New &writelock;
     New &m;
     New &s;
     New &t;
   }
-  void threadFun() {
+  void threadFun(int id) {
     if (int:_ebp & 0xf) {
       writeln "FEEEP! YOU BROKE THE FUCKING THREAD FRAME ALIGNMENT AGAIN. $(_ebp) ";
       _interrupt 3;
     }
     while (true) {
       s.claim;
-      void delegate() dg;
-      using autoLock m {
-        dg = queue[0];
-        queue = type-of queue:queue[1 .. $];
+      void delegate(int) dg;
+      using autoLock readlock {
+        if (!readqueue.length) {
+          readqueue-full.free;
+          using autoLock writelock {
+            readqueue = writequeue[];
+            readqueue-full = readqueue;
+            writequeue = type-of writequeue: type-of readqueue: null;
+          }
+        }
+        (dg, readqueue) = readqueue[(0, 1..$)];
       }
-      dg();
-      using autoLock m { t.release(); }
+      dg(id);
+      t.release();
     }
   }
   void addThread() {
-    startThread &threadFun;
+    int thr-id = numThreads ++;
+    auto tf = &threadFun;
+    startThread new delegate void() { tf(thr-id); };
   }
   void init(int i) {
     init();
@@ -173,7 +187,12 @@ class ThreadPool {
     using autoLock(m) { i = tasksLeft; tasksLeft = 0; }
     while 0..i t.claim();
   }
+  void addTask(void delegate(int) dg) {
+    using autoLock(m) tasksLeft ++;
+    using autoLock writelock writequeue ~= dg;
+    s.release;
+  }
   void addTask(void delegate() dg) {
-    using autoLock(m) { queue ~= dg; tasksLeft ++; s.release; }
+    addTask new delegate void(int) { dg(); };
   }
 }

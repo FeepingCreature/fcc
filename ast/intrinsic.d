@@ -398,7 +398,7 @@ void setupSysmods() {
       __setupModuleInfo();
       constructModules();
       
-      mxcsr |= (1 << 6) | (3 << 13); // Denormals Are Zero; Round To Zero.
+      mxcsr |= (1 << 6) | (3 << 13) | (1 << 15); // Denormals Are Zero; Round To Zero; Flush To Zero.
       auto args = new string[] argc;
       {
         int i;
