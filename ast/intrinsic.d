@@ -334,6 +334,7 @@ void setupSysmods() {
       return (int*:&d)[0];
     }
     void fastfloor3f(vec3f v, vec3i* res) {
+      (vec4f*: &v).w = 0; // prevent fp error
       xmm[4] = v;
       asm "cvttps2dq %xmm4, %xmm5";`"
       asm `psrld $31, %xmm4`;"`
