@@ -117,8 +117,20 @@ void fixupMain() {
   scope(exit) namespace.set(backup);
   namespace.set(main2);
   
-  if (mainReturnsInt) res = new ReturnStmt(call);
+  Statement doReturn(Expr ex) {
+    auto exitfn = new Function;
+    with (exitfn) {
+      name = "exit";
+      type = new FunctionType;
+      type.ret = Single!(Void);
+      type.params ~= Argument(Single!(SysInt));
+      extern_c = true;
+    }
+    return new ExprStatement(buildFunCall(exitfn, ex, "exit call"));
+  }
+  
+  if (mainReturnsInt) res = doReturn(call);
   else res = new ExprStatement(call);
   sc.addStatement(res);
-  sc.addStatement(new ReturnStmt(new IntExpr(0)));
+  sc.addStatement(doReturn(new IntExpr(0)));
 }
