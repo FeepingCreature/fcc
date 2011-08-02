@@ -455,8 +455,10 @@ shared Area display;
 
 void init() { SDL_Init(SDL_INIT_VIDEO); }
 
-Area screen(int w, h, bool fullscreen = false, bool surface = false) {
+Area screen(int w, h, bool fullscreen = false, bool surface = false,
+  int flags = 0) {
   int cfg = SDL_SWSURFACE;
+  if (flags) cfg = flags;
   if fullscreen cfg |= SDL_FULLSCREEN;
   
   SDL_Surface* surf;
@@ -479,6 +481,10 @@ shared bool x 1024 keyPressed, keyPushed;
 shared vec2i mouse-pos;
 
 shared bool mouse-clicked, mouse-pressed, mouse-released;
+
+shared void delegate(int, int) onResize;
+
+pragma(msg, string-of type-of (*SDL_Event*: null).resize.w);
 
 void flip() {
   display.surf.flip();
@@ -506,7 +512,11 @@ void flip() {
     else if type == SDL_MOUSEBUTTONUP {
       mouse-pressed = false;
       mouse-released = true;
-    }
+    } else if type == SDL_VIDEORESIZE using resize {
+      int w = w, h = h;
+      if (onResize)
+        onResize(w, h);
+    } else writeln "| Unknown event: $$short:type";
   }
 }
 
