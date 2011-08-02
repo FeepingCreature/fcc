@@ -334,6 +334,7 @@ void setupSysmods() {
       return (int*:&d)[0];
     }
     void fastfloor3f(vec3f v, vec3i* res) {
+      (vec4f*: &v).w = 0; // prevent fp error
       xmm[4] = v;
       asm "cvttps2dq %xmm4, %xmm5";`"
       asm `psrld $31, %xmm4`;"`
@@ -398,7 +399,7 @@ void setupSysmods() {
       __setupModuleInfo();
       constructModules();
       
-      mxcsr |= (1 << 6) | (3 << 13); // Denormals Are Zero; Round To Zero.
+      mxcsr |= (1 << 6) | (3 << 13) | (1 << 15); // Denormals Are Zero; Round To Zero; Flush To Zero.
       auto args = new string[] argc;
       {
         int i;
@@ -641,12 +642,12 @@ Object gotEBX(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotEBX, "tree.expr.ebx", "24047", "_ebx");
 
-class Assembly : Statement {
+class Assembly : LineNumberedStatementClass {
   string text;
   this(string s) { text = s; }
   mixin defaultIterate!();
   override Assembly dup() { return this; }
-  override void emitAsm(AsmFile af) { af.put(text); }
+  override void emitAsm(AsmFile af) { super.emitAsm(af); af.put(text); }
 }
 
 import ast.literal_string, ast.fold;
@@ -658,8 +659,10 @@ Object gotAsm(ref string text, ParseCb cont, ParseCb rest) {
   auto lit = fastcast!(StringExpr) (foldex(ex));
   if (!lit)
     t2.failparse("Expected string literal, not ", ex.valueType(), "!");
+  auto res = new Assembly(lit.str);
+  res.configPosition(text);
   text = t2;
-  return new Assembly(lit.str);
+  return res;
 }
 mixin DefaultParser!(gotAsm, "tree.semicol_stmt.asm", "32", "asm");
 

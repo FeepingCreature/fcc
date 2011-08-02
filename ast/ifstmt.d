@@ -2,13 +2,14 @@ module ast.ifstmt;
 
 import ast.base, ast.scopes, ast.conditionals, ast.parse;
 
-class IfStatement : Statement {
+class IfStatement : LineNumberedStatementClass {
   Scope wrapper;
   Scope branch1, branch2;
   Cond test;
   mixin DefaultDup!();
   mixin defaultIterate!(test, wrapper, branch1, branch2);
   override void emitAsm(AsmFile af) {
+    super.emitAsm(af);
     auto past1 = af.genLabel(), past2 = af.genLabel();
     auto dg = wrapper.open(af)();
       test.jumpOn(af, false, past1);
@@ -55,6 +56,7 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto pos1 = text.retreat(2);
   string t2 = text;
   auto ifs = new IfStatement;
+  ifs.configPosition(text);
   ifs.wrapper = new Scope;
   namespace.set(ifs.wrapper);
   if (!rest(t2, "cond", &ifs.test))

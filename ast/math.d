@@ -123,8 +123,7 @@ class FPAsInt : Expr {
       if (dbl) af.loadDouble("(%esp)");
       else af.loadFloat("(%esp)");
       if (dbl) af.sfree(4);
-      af.put("fistpl (%esp)");
-      af.floatStackDepth --;
+      af.storeFPAsInt("(%esp)");
     }
   }
 }

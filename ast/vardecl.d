@@ -161,6 +161,7 @@ import ast.namespace, ast.scopes, tools.compat: find;
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text, vd = new VarDecl;
   string name; IType type;
+  vd.configPosition(text);
   if (rest(t2, "type", &type)) {
     if (!t2.bjoin(t2.gotValidIdentifier(name), t2.accept(","), {
       auto var = new Variable;
@@ -204,6 +205,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, varname;
   Expr ex;
   auto vd = new VarDecl;
+  vd.configPosition(text);
   string t3;
   resetError();
   if (!t2.accept("auto")) return null;
@@ -266,6 +268,7 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
     throw new Exception("There is a lack of a scope here. ");
   sc.add(var);
   auto vd = new VarDecl;
+  vd.configPosition(text);
   vd.vars ~= var;
   sc.addStatement(vd);
   
@@ -276,3 +279,4 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   return new StatementAndExpr(setVar, var);
 }
 mixin DefaultParser!(gotVarDeclExpr, "tree.expr.vardecl", "28");
+

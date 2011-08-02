@@ -137,7 +137,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
   }
 }
 
-import tools.log, ast.tuple_access;
+import tools.log, ast.tuple_access, ast.pointer;
 Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
@@ -145,6 +145,9 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't match with-expr");
   auto backup = namespace();
   scope(exit) namespace.set(backup);
+  
+  if (fastcast!(Pointer) (ex.valueType()))
+    ex = new DerefExpr(ex);
   
   WithStmt ws, outer;
   
