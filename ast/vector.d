@@ -5,6 +5,26 @@ import
   ast.fun, ast.funcall, ast.aliasing, ast.conditionals,
   ast.structure, ast.namespace, ast.modules, ast.structfuns, ast.returns;
 
+class ZeroFiller : Expr {
+  IType type;
+  this(IType type) { this.type = type; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!();
+  override {
+    IType valueType() { return type; }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("type.size"));
+      if (fastcast!(SysInt) (type)) { af.pushStack("$0", 4); }
+      else if (fastcast!(Float) (type)) {
+        (new FloatExpr(0)).emitAsm(af);
+      } else {
+        throw new Exception(Format("Don't know how to zero ", type, "!"));
+      }
+    }
+  }
+}
+
 Expr[] genInitPattern(int i, int len) {
   Expr[] res;
   for (int k = 0; k < len; ++k) {
@@ -82,7 +102,7 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
       }
       if (exprs.length == 1) return fastcast!(Object)~ exprs[0];
       auto new_vec = mkVec(this.base, exprs.length);
-      if (new_vec.extend) exprs ~= new Filler(this.base);
+      if (new_vec.extend) exprs ~= new ZeroFiller(this.base);
       return fastcast!(Object)~ reinterpret_cast(new_vec, mkTupleExpr(exprs));
     }
   }
@@ -265,7 +285,7 @@ Object constructVector(Expr base, Vector vec) {
       exs ~= entry;
     }
     
-    if (vec.extend) exs ~= new Filler(vec.base);
+    if (vec.extend) exs ~= new ZeroFiller(vec.base);
     
     return fastcast!(Object)~
       reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
@@ -625,16 +645,16 @@ class Vec4fSmaller : Expr {
 import ast.vardecl, ast.assign;
 class VecOp : Expr {
   IType type;
-  int len;
+  int len, real_len;
   Expr ex1, ex2;
   string op;
   mixin defaultIterate!(ex1, ex2);
   mixin DefaultDup!();
   private this() { }
-  this(IType it, int len, Expr ex1, Expr ex2, string op) {
+  this(IType it, int len, int real_len, Expr ex1, Expr ex2, string op) {
     this.type = it; this.len = len;
     this.ex1 = ex1; this.ex2 = ex2;
-    this.op = op;
+    this.op = op; this.real_len = real_len;
   }
   override {
     IType valueType() { return mkVec(type, len); }
@@ -660,6 +680,9 @@ class VecOp : Expr {
             if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
             if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2))[i];
             (new Assignment(fastcast!(LValue)~ entries[i], lookupOp(op, l1, l2))).emitAsm(af);
+          }
+          for (int i = len; i < real_len; ++i) {
+            (new Assignment(fastcast!(LValue)~ entries[i], new ZeroFiller(entries[i].valueType()))).emitAsm(af);
           }
           if (dg2) dg2(); af.sfree(filler2);
           if (dg1) dg1(); af.sfree(filler1);
@@ -692,9 +715,9 @@ static this() {
     if (!v1v && !v2v) return null;
     
     assert(!v1v || !v2v || v1v.asTup.types.length == v2v.asTup.types.length, Format("Mismatching tuple types: ", v1v, " and ", v2v));
-    int len;
-    if (v1v) len = v1v.asTup.types.length;
-    else len = v2v.asTup.types.length;
+    int len, real_len;
+    if (v1v) { len = v1v.len; real_len = v1v.real_len; }
+    else { len = v2v.len; real_len = v2v.real_len; }
     
     IType type;
     if (v1v is v2v && v1v == v2v) type = v1v.base;
@@ -703,7 +726,7 @@ static this() {
       auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs))[0];
       type = lookupOp(op, l1, r1).valueType();
     }
-    return new VecOp(type, len, lhs, rhs, op);
+    return new VecOp(type, len, real_len, lhs, rhs, op);
   }
   Expr negate(Expr ex) {
     auto ty = resolveType(ex.valueType());
@@ -715,7 +738,7 @@ static this() {
     foreach (ex2; getTupleEntries(reinterpret_cast(vt.asFilledTup, ex))[0 .. $-vt.extend]) {
       list ~= lookupOp("-", ex2);
     }
-    if (vt.extend) list ~= new Filler(vt.base);
+    if (vt.extend) list ~= new ZeroFiller(vt.base);
     return reinterpret_cast(vt, new StructLiteral(vt.asFilledTup.wrapped, list));
   }
   Expr handleVecEquals(Expr e1, Expr e2) {
