@@ -94,11 +94,11 @@ class WithStmt : Namespace, Statement, ScopeLike {
     }
     
     if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
-                              ("evaluate (ex.onUsing)", "ex", context))
+                              ("evaluate ex.onUsing", "ex", context))
       sc.addStatement(onUsing);
     
     if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
-                              ("evaluate (ex.onExit)", "ex", context))
+                              ("evaluate ex.onExit", "ex", context))
       sc.addGuard(onExit);
   }
   private this() { }
@@ -107,6 +107,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       mixin(mustOffset("0"));
       sc.emitAsm(af);
     }
+    void emitC(CFile cf) { sc.emitC(cf); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() {
       auto res = sup.stackframe();
