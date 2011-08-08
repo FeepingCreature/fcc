@@ -21,3 +21,10 @@ double sec() { return double:µsec() / 1_000_000; }
 void sleep(float length) {
   usleep int:(length * 1_000_000);
 }
+
+double measure(void delegate() dg) {
+  double start = sec();
+  dg();
+  double end = sec();
+  return end - start;
+}

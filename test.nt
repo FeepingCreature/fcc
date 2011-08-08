@@ -100,8 +100,9 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
     tp.waitComplete;
     fps ++;
   }
-  auto last = time(int*:null);
+  auto last = time(null), tstart = last;
   while true {
+    if (time(null) - tstart > 5) return;
     run();
     SDL_Flip surf;
     while SDL_PollEvent &SDL_Event ev using ev

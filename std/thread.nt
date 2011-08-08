@@ -25,6 +25,14 @@ void init() setupStackBase;
 
 shared int tls_size;
 
+import c.semaphore;
+class Semaphore {
+  sem_t hdl;
+  void init() { sem_init(&hdl, false, 0); }
+  void claim() { sem_wait(&hdl); }
+  void release() { sem_post(&hdl); }
+}
+
 void* __start_routine(void* p) {
   void* ptemp = p; // will be top of the stack, so ..
   asm "popl %eax";
@@ -37,7 +45,8 @@ void* __start_routine(void* p) {
   asm "movl %esp, %ebp";
   asm `addl $4, %ebp`;
   {
-    alias arg = *(void delegate(), void*, int)*:ptemp;
+    auto arg = *(void delegate(), void*, int, Semaphore)*:ptemp;
+    arg[3].release;
     _esi = arg[1];
     mxcsr = arg[2];
     setupStackBase;
@@ -57,8 +66,8 @@ void* __start_routine(void* p) {
 extern(C) int _sys_tls_data_start;
 void startThread(void delegate() dg) {
   pthread_t buf;
-  auto argp = new (void delegate(), void*, int);
-  (*argp)[0] = dg;
+  (void delegate(), void*, int, Semaphore) arg;
+  arg[0] = dg;
   int dataStart = 0x7fffffff, dataEnd;
   auto
     localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
@@ -77,10 +86,12 @@ void startThread(void delegate() dg) {
   for (auto range <- localRange) {
     newArea[range[0] .. range[1]] = _esi[range[0] .. range[1]];
   }
-  (*argp)[1] = newArea.ptr;
-  (*argp)[2] = mxcsr;
+  arg[1] = newArea.ptr;
+  arg[2] = mxcsr;
+  arg[3] = new Semaphore;
   
-  pthread_create(&buf, null, &__start_routine, argp);
+  pthread_create(&buf, null, &__start_routine, &arg);
+  arg[3].claim;
 }
 
 platform(default) <<EOF
@@ -120,14 +131,6 @@ struct MutexWrapper {
 }
 
 MutexWrapper autoLock(Mutex m) { MutexWrapper mw; mw.m = m; return mw; }
-
-c_include "semaphore.h";
-class Semaphore {
-  sem_t hdl;
-  void init() { sem_init(&hdl, false, 0); }
-  void claim() { sem_wait(&hdl); }
-  void release() { sem_post(&hdl); }
-}
 
 template New(T) <<EOF
   void New(T t) {
@@ -194,5 +197,44 @@ class ThreadPool {
   }
   void addTask(void delegate() dg) {
     addTask new delegate void(int) { dg(); };
+  }
+}
+
+class LoopPool {
+  Semaphore s, t;
+  int numThreads;
+  int runningId;
+  void delegate(int id, int thr) dg;
+  Mutex m;
+  void init() {
+    New &s;
+    New &t;
+    New &m;
+  }
+  void threadFun(int thr-id) {
+    while true {
+      s.claim;
+      int myId;
+      using autoLock m myId = runningId++;
+      dg(myId, thr-id);
+      t.release;
+    }
+  }
+  void addThread() {
+    int thr-id = numThreads ++;
+    auto tf = &threadFun;
+    startThread new delegate void() { tf(thr-id); };
+  }
+  void init(int i) {
+    init();
+    for 0..i addThread();
+  }
+  void runLoop(int to, void delegate(int, int) dg) {
+    using autoLock m {
+      this.dg = dg;
+      runningId = 0;
+    }
+    for 0..to s.release;
+    for 0..to t.claim;
   }
 }

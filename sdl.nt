@@ -514,8 +514,7 @@ void flip() {
       mouse-released = true;
     } else if type == SDL_VIDEORESIZE using resize {
       int w = w, h = h;
-      if (onResize)
-        onResize(w, h);
+      if (onResize) { onResize(w, h); }
     } else writeln "| Unknown event: $$short:type";
   }
 }
