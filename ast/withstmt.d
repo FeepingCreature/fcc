@@ -107,7 +107,6 @@ class WithStmt : Namespace, Statement, ScopeLike {
       mixin(mustOffset("0"));
       sc.emitAsm(af);
     }
-    void emitC(CFile cf) { sc.emitC(cf); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() {
       auto res = sup.stackframe();
