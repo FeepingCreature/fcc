@@ -84,7 +84,9 @@ int main(string[] args) {
   bool works() {
     update;
     build(genFlags());
-    system("./bughunt_test");
+    int res = system("./bughunt_test");
+    bool itWorked = res == 0;
+    /*
     auto dialog = display.select(300, 20, 150, 40);
     
     bool forb, res;
@@ -102,11 +104,14 @@ int main(string[] args) {
     };
     while (!forb) slowyield; // idlespin lol
     logln("You clicked ", res?"Yes":"No", ".");
-    return res;
+    return res;*/
+    logln("Code ", res, ": ", itWorked?"Success":"Failure");
+    return itWorked;
   }
   float threshold = 0.5;
   int bisect() {
     while (true) {
+      logln("threshold: ", threshold);
       for (int i = 0; i < left.length; ++i) {
         states[left[i]] = ((rand() * 1f / typeof(rand()).max) < threshold)  ? State.On : State.Testing;
       }
