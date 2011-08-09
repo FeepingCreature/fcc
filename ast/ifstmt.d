@@ -14,13 +14,15 @@ class IfStatement : LineNumberedStatementClass {
     auto dg = wrapper.open(af)();
       test.jumpOn(af, false, past1);
       branch1.emitAsm(af);
+      auto backupStack = af.currentStackDepth;
       if (branch2) { dg(true); af.jump(past2); }
-      af.emitLabel(past1);
+      af.currentStackDepth = backupStack;
+      af.emitLabel(past1, !keepRegs, isForward);
     dg();
     
     if (branch2) {
       branch2.emitAsm(af);
-      af.emitLabel(past2);
+      af.emitLabel(past2, !keepRegs, isForward);
     }
   }
 }
