@@ -61,6 +61,7 @@ class AsmFile {
   Transcache cache, finalized;
   int currentStackDepth;
   void pushStack(string expr, int size) {
+    willOverwriteComparison;
     Transaction t;
     t.kind = Transaction.Kind.Push;
     t.source = expr;
@@ -70,6 +71,7 @@ class AsmFile {
     currentStackDepth += size;
   }
   void popStack(string dest, int size) {
+    willOverwriteComparison;
     Transaction t;
     t.kind = Transaction.Kind.Pop;
     t.dest = dest;
@@ -104,6 +106,7 @@ class AsmFile {
     t.op1 = op1; t.op2 = op2;
     t.test = test;
     cache ~= t;
+    comparisonState = true;
   }
   // migratory move; contents of source become irrelevant
   void mmove4(string from, string to) {
@@ -137,6 +140,7 @@ class AsmFile {
     cache ~= t;
   }
   void salloc(int sz) { // alloc stack space
+    willOverwriteComparison;
     Transaction t;
     currentStackDepth += sz;
     t.kind = Transaction.Kind.SAlloc;
@@ -144,6 +148,7 @@ class AsmFile {
     cache ~= t;
   }
   void sfree(int sz) { // alloc stack space
+    willOverwriteComparison;
     Transaction t;
     currentStackDepth -= sz;
     t.kind = Transaction.Kind.SFree;
@@ -165,6 +170,7 @@ class AsmFile {
   `;
   bool[string] jumpedForwardTo; // Emitting a forward label that hasn't been jumped to is redundant.
   void jumpOn(bool smaller, bool equal, bool greater, string label) {
+    comparisonState = false;
     jumpedForwardTo[label] = true;
     labels_refcount[label]++;
     // TODO: unsigned?
@@ -180,6 +186,7 @@ class AsmFile {
     ));
   }
   void cmov(bool smaller, bool equal, bool greater, string from, string to) {
+    comparisonState = false;
     mixin(JumpTable.ctTableUnroll(`
         if (
           (("$cond"[0] == 't') == smaller) &&
@@ -192,6 +199,7 @@ class AsmFile {
     ));
   }
   void jumpOnFloat(bool smaller, bool equal, bool greater, string label, bool ssemode = false) {
+    comparisonState = false;
     jumpedForwardTo[label] = true;
     labels_refcount[label]++;
     nvm("%eax");
@@ -208,6 +216,7 @@ class AsmFile {
     `));
   }
   void moveOnFloat(bool smaller, bool equal, bool greater, string from, string to, bool ssemode = false) {
+    comparisonState = false;
     nvm("%eax");
     if (!ssemode) {
       put("fnstsw %ax");
@@ -326,6 +335,7 @@ class AsmFile {
     t.source = mem;
     t.stackdepth = currentStackDepth;
     cache ~= t;
+    comparisonState = true;
   }
   void fpuToStack() {
     salloc(8);
@@ -352,6 +362,7 @@ class AsmFile {
     return qformat(".Label", labelCounter++);
   }
   void jump(string label, bool keepRegisters = false, string mode = null) {
+    comparisonState = false;
     jumpedForwardTo[label] = true;
     labels_refcount[label] ++;
     Transaction t;
@@ -527,5 +538,14 @@ class AsmFile {
     }
     dg(".text\n");
     dg(code);
+  }
+  // is cpu in post-comparison state?
+  // disallow some operations (math) that woukld
+  // overwrite it before the next branch
+  bool comparisonState;
+  final void willOverwriteComparison() {
+    if (!comparisonState) return;
+    logln("Cannot proceed: would overwrite comparison results! ");
+    asm { int 3; }
   }
 }
