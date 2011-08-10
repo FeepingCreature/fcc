@@ -372,7 +372,7 @@ bool isSSEMathOp(string op) {
 
 bool pinsRegister(ref Transaction t, string reg) {
   with (Transaction.Kind)
-    if (t.kind == Call /or/ Label /or/ Jump)
+    if (t.kind == Call /or/ Label /or/ Jump /or/ Compare /or/ FloatCompare /* unsafe ones */)
       return true;
     else if (t.kind == FloatMath /or/ FPSwap)
       return false;

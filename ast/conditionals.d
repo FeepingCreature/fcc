@@ -137,8 +137,9 @@ class Compare : Cond, Expr {
       emitComparison(af);
       auto s = smaller, e = equal, g = greater;
       if (falseOverride && trueOverride) {
-        af.popStack("%edx", 4);
-        af.popStack("%ecx", 4);
+        // DO NOT POP! POP IS MOVE/SFREE! SFREE OVERWRITES COMPARISON!
+        af.mmove4( "(%esp)", "%edx");
+        af.mmove4("4(%esp)", "%ecx");
       } else {
         af.mmove4("$1", "%edx");
         af.mmove4("$0", "%ecx"); // don't xorl; mustn't overwrite comparison results
@@ -146,6 +147,9 @@ class Compare : Cond, Expr {
       // can't use eax, moveOnFloat needs ax .. or does it? (SSE mode)
       if (isFloat) af.moveOnFloat(s, e, g, "%edx", "%ecx", true /* is SSE */);
       else af.cmov(s, e, g, "%edx", "%ecx");
+      // now can safely free.
+      if (falseOverride && trueOverride)
+        af.sfree(8);
       af.pushStack("%ecx", 4);
     }
     void jumpOn(AsmFile af, bool cond, string dest) {

@@ -71,7 +71,7 @@ template join(T) <<EOF
       return res[];
     }EO2 else <<EO2{
       type-of (value-of!iterType!T)[0] [auto~] res;
-      while auto chunk <- t {writeln "loop adding $(chunk.length)"; res ~= chunk; }
+      while auto chunk <- t { res ~= chunk; }
       return res[];
     }EO2
   }
