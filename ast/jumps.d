@@ -5,7 +5,7 @@ import ast.base;
 class Label : Statement {
   string name;
   override void emitAsm(AsmFile af) {
-    af.emitLabel(name);
+    af.emitLabel(name, !keepRegs, !isForward);
   }
 }
 

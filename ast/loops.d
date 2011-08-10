@@ -17,12 +17,12 @@ class WhileStatement : Statement {
   mixin defaultIterate!(cond, _body);
   override void emitAsm(AsmFile af) {
     auto start = af.genLabel(), done = af.genLabel();
-    af.emitLabel(start);
+    af.emitLabel(start, !keepRegs, !isForward);
     cond.jumpOn(af, false, done);
     _body.emitAsm(af);
     // TODO: rerun cond? check complexity?
     af.jump(start);
-    af.emitLabel(done);
+    af.emitLabel(done, !keepRegs, isForward);
   }
   override string toString() { return Format("while(", cond, ") { ", _body._body, "}"); }
 }
@@ -116,12 +116,12 @@ class ForStatement : Statement {
     // logln("start depth is ", af.currentStackDepth);
     decl.emitAsm(af);
     auto start = af.genLabel(), done = af.genLabel();
-    af.emitLabel(start);
+    af.emitLabel(start, !keepRegs, !isForward);
     cond.jumpOn(af, false, done);
     _body.emitAsm(af);
     step.emitAsm(af);
     af.jump(start);
-    af.emitLabel(done);
+    af.emitLabel(done, !keepRegs, isForward);
   }
 }
 
@@ -149,6 +149,7 @@ class DoWhileExt : Statement {
   mixin defaultIterate!(first, second, cond);
   override void emitAsm(AsmFile af) {
     mixin(mustOffset("0"));
+    first.needEntryLabel = true;
     auto fdg = first.open(af)(); // open and body
     auto atJump = af.checkptStack();
     cond.jumpOn(af, false, first.exit());

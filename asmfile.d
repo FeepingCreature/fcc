@@ -3,6 +3,8 @@ module asmfile;
 import optimizer, ast.base, parseBase: startsWith;
 public import assemble;
 
+const bool keepRegs = true, isForward = true;
+
 import tools.log, tools.functional: map;
 import tools.base: between, slice, atoi, split, stuple, apply, swap, Stuple;
 const string[] utilRegs = ["%eax", "%ebx", "%ecx", "%edx"];
@@ -14,6 +16,7 @@ class AsmFile {
   int[string] file_ids; // DWARF2 File IDs
   Stuple!(int, string)[string] globvars, tlsvars;
   int file_idcounter;
+  bool[string] processorExtensions;
   int getFileId(string name) {
     if (!name) name = "<nil>";
     if (auto ip = name in file_ids) return *ip;
@@ -160,7 +163,9 @@ class AsmFile {
     ttf  | jle  | cmovle | jbe     | cmovbe
     ttt  | jmp  | mov    | jmp     | mov
   `;
+  bool[string] jumpedForwardTo; // Emitting a forward label that hasn't been jumped to is redundant.
   void jumpOn(bool smaller, bool equal, bool greater, string label) {
+    jumpedForwardTo[label] = true;
     labels_refcount[label]++;
     // TODO: unsigned?
     mixin(JumpTable.ctTableUnroll(`
@@ -168,7 +173,7 @@ class AsmFile {
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { static if ("$jump".length) put("$jump ", label); return; }
+        ) { static if ("$jump".length) jump(label, false, "$jump"); return; }
     `));
     throw new Exception(Format(
       "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
@@ -186,23 +191,28 @@ class AsmFile {
       "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
     ));
   }
-  void jumpOnFloat(bool smaller, bool equal, bool greater, string label) {
+  void jumpOnFloat(bool smaller, bool equal, bool greater, string label, bool ssemode = false) {
+    jumpedForwardTo[label] = true;
     labels_refcount[label]++;
     nvm("%eax");
-    put("fnstsw %ax");
-    put("sahf");
+    if (!ssemode) {
+      put("fnstsw %ax");
+      put("sahf");
+    }
     mixin(JumpTable.ctTableUnroll(`
         if (
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { static if ("$floatjump".length) put("$floatjump ", label); return; }
+        ) { static if ("$floatjump".length) jump(label, false, "$floatjump"); return; }
     `));
   }
-  void moveOnFloat(bool smaller, bool equal, bool greater, string from, string to) {
+  void moveOnFloat(bool smaller, bool equal, bool greater, string from, string to, bool ssemode = false) {
     nvm("%eax");
-    put("fnstsw %ax");
-    put("sahf");
+    if (!ssemode) {
+      put("fnstsw %ax");
+      put("sahf");
+    }
     mixin(JumpTable.ctTableUnroll(`
         if (
           (("$cond"[0] == 't') == smaller) &&
@@ -218,8 +228,8 @@ class AsmFile {
     t.op1 = op1; t.op2 = op2;
     cache ~= t;
   }
-  void SSEOp(string which, string op1, string op2) {
-    if ((op1 == "(%esp)" || op2 == "(%esp)") && currentStackDepth%16 != 0) {
+  void SSEOp(string which, string op1, string op2, bool ignoreStackAlignment = false /* true for movd */) {
+    if ((op1 == "(%esp)" || op2 == "(%esp)") && currentStackDepth%16 != 0 && !ignoreStackAlignment) {
       logln("stack misaligned for SSE");
       asm { int 3; }
     }
@@ -341,15 +351,18 @@ class AsmFile {
   string genLabel() {
     return qformat(".Label", labelCounter++);
   }
-  void jump(string label, bool keepRegisters = false) {
+  void jump(string label, bool keepRegisters = false, string mode = null) {
+    jumpedForwardTo[label] = true;
     labels_refcount[label] ++;
     Transaction t;
     t.kind = Transaction.Kind.Jump;
     t.dest = label;
+    t.mode = mode;
     t.keepRegisters = keepRegisters;
     cache ~= t;
   }
-  void emitLabel(string name, bool keepregs = false) {
+  void emitLabel(string name, bool keepregs = false, bool isforward = false) {
+    if (isforward && !(name in jumpedForwardTo)) return;
     Transaction t;
     t.kind = Transaction.Kind.Label;
     t.keepRegisters = keepregs;

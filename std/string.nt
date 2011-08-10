@@ -71,7 +71,7 @@ template join(T) <<EOF
       return res[];
     }EO2 else <<EO2{
       type-of (value-of!iterType!T)[0] [auto~] res;
-      while auto chunk <- t { res ~= chunk; }
+      while auto chunk <- t {writeln "loop adding $(chunk.length)"; res ~= chunk; }
       return res[];
     }EO2
   }
@@ -185,8 +185,8 @@ string strip(string s) {
 import std.util;
 string[] split(string s, string marker) {
   string[auto~] res;
-  string dup(string s) { auto res = new char[] s.length; int i; for (auto ch <- s) res[i++] = ch; return res; }
-  for (auto value <- splitAt(marker, iterOnce s))
-    res ~= dup value;
+  for (auto value <- splitAt(marker, iterOnce s)) {
+    res ~= value;
+  }
   return res[];
 }

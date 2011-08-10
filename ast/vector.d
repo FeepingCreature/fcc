@@ -313,6 +313,62 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotVecConstructor, "tree.expr.veccon", "2407");
 
+class FastVec3Sum : Expr {
+  Expr base;
+  this(Expr b) { base = b; }
+  override {
+    mixin defaultIterate!(base);
+    FastVec3Sum dup() { return new FastVec3Sum(base.dup); }
+    IType valueType() { return Single!(Float); }
+    void emitAsm(AsmFile af) {
+      auto filler = alignStackFor(base.valueType(), af);
+      base.emitAsm(af);
+      af.SSEOp("movaps", "(%esp)", "%xmm0");
+      if ("sse3" in af.processorExtensions) {
+        af.SSEOp("movaps", "%xmm0", "%xmm1");
+        af.SSEOp("haddps", "%xmm1", "%xmm1"); // [x+y, z+w, x+y, z+w]
+        af.SSEOp(qformat("shufps $", 0b1010_1010, ", "), "%xmm0", "%xmm0"); // zzzz
+        af.SSEOp("addss", "%xmm1", "%xmm0");
+      } else {
+        af.SSEOp("movaps", "%xmm0", "%xmm1");
+        af.SSEOp("movaps", "%xmm0", "%xmm2");
+        af.SSEOp(qformat("shufps $", 0b0101_0101, ", "), "%xmm1", "%xmm1"); // yyyy
+        af.SSEOp(qformat("shufps $", 0b1010_1010, ", "), "%xmm2", "%xmm2"); // zzzz
+        af.SSEOp("addss", "%xmm1", "%xmm0");
+        af.SSEOp("addss", "%xmm2", "%xmm0");
+      }
+      af.sfree(12 + filler);
+      af.SSEOp("movd", "%xmm0", "(%esp)", true /* ignore stack alignment */);
+    }
+  }
+}
+
+class FastVec3Norm : Expr {
+  Expr base; IType vec;
+  this(Expr b, IType v) { base = b; vec = v; }
+  override {
+    mixin defaultIterate!(base);
+    FastVec3Norm dup() { return new FastVec3Norm(base.dup, vec); }
+    IType valueType() { return vec; }
+    void emitAsm(AsmFile af) {
+      base.emitAsm(af);
+      af.SSEOp("movaps", "(%esp)", "%xmm0");
+      af.SSEOp("movaps", "%xmm0", "%xmm3");
+      af.SSEOp("mulps", "%xmm3", "%xmm3");
+      af.SSEOp("movaps", "%xmm3", "%xmm1");
+      af.SSEOp("movaps", "%xmm3", "%xmm2");
+      af.SSEOp(qformat("shufps $", 0b0101_0101, ", "), "%xmm1", "%xmm1"); // yyyy
+      af.SSEOp(qformat("shufps $", 0b1010_1010, ", "), "%xmm2", "%xmm2"); // zzzz
+      af.SSEOp("addss", "%xmm1", "%xmm3");
+      af.SSEOp("addss", "%xmm2", "%xmm3");
+      af.SSEOp("rsqrtss", "%xmm3", "%xmm3");
+      af.SSEOp(qformat("shufps $", 0b0000_0000, ", "), "%xmm3", "%xmm3"); // spread
+      af.SSEOp("mulps", "%xmm3", "%xmm0");
+      af.SSEOp("movaps", "%xmm0", "(%esp)");
+    }
+  }
+}
+
 import ast.templ;
 Stuple!(Structure, Vector, Module)[] cache;
 Structure mkVecStruct(Vector vec) {
@@ -329,6 +385,8 @@ Structure mkVecStruct(Vector vec) {
   if (vec.extend)
     new RelMember(null, vec.base, res);
   
+  res.add(new RelMember("self", vec, 0));
+  
   Expr sqr(Expr ex) { return lookupOp("*", ex, ex); }
   
   {
@@ -340,9 +398,14 @@ Structure mkVecStruct(Vector vec) {
   }
   
   {
-    Expr sum = fastcast!(Expr)~ res.lookup("x");
-    for (int i = 1; i < vec.len; ++i)
-      sum = lookupOp("+", sum, fastcast!(Expr)~ res.lookup(["xyzw"[i]]));
+    Expr sum;
+    if (vec.len == 3 && vec.base == Single!(Float)) {
+      sum = new FastVec3Sum(fastcast!(Expr) (res.lookup("self")));
+    } else {
+      sum = fastcast!(Expr)~ res.lookup("x");
+      for (int i = 1; i < vec.len; ++i)
+        sum = lookupOp("+", sum, fastcast!(Expr)~ res.lookup(["xyzw"[i]]));
+    }
     res.add(new ExprAlias(sum, "sum"));
   }
   
@@ -381,6 +444,7 @@ Structure mkVecStruct(Vector vec) {
         fastcast!(Function)~ sysmod.lookup("sqrt"), sum, "sqrt"
       );
     }
+    res.add(new ExprAlias(new FastVec3Norm(fastcast!(Expr) (res.lookup("self")), vec), "normalized"));
     if (!len) logln("Can't add length for ", lensq.valueType());
     assert(!!len);
     assert(!!weirdlen);

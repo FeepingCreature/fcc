@@ -26,6 +26,14 @@ class mkDelegate : Expr {
   }
 }
 
+static this() {
+  foldopt ~= delegate Itr(Itr it) {
+    auto dgx = fastcast!(mkDelegate) (it);
+    if (!dgx || dgx.classinfo != mkDelegate.classinfo && dgx.classinfo != DgConstructExpr.classinfo) return null;
+    return reinterpret_cast(dgx.valueType(), mkTupleExpr(dgx.ptr, dgx.data));
+  };
+}
+
 import tools.log;
 // type-deduced!
 class DgConstructExpr : mkDelegate {
@@ -145,7 +153,7 @@ static this() {
   };
 }
 
-import ast.assign;
+import ast.assign, ast.fold;
 void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
   af.comment("Begin delegate call");
   int retsize = ret.size;
@@ -155,19 +163,27 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
   auto dgs = dgAsStruct(dg);
   mkVar(af, ret, true, (Variable retvar) {
     mixin(mustOffset("0"));
-    int toFree = alignStackFor(dgs.valueType(), af);
-    mkVar(af, dgs.valueType(), true, (Variable dgvar) {
-      mixin(mustOffset("0"));
-      (new Assignment(dgvar, dgs)).emitAsm(af);
-      params ~= mkMemberAccess(dgvar, "data");
-      callFunction(af, ret, true, false, params, mkMemberAccess(dgvar, "fun"));
+    // cheap call - fun ptr is predetermined, no need to lvize the dg
+    if (auto sym = fastcast!(Symbol) (foldex(mkMemberAccess(dgs, "fun")))) {
+      params ~= foldex(mkMemberAccess(dgs, "data"));
+      callFunction(af, ret, true, false, params, sym);
       if (ret != Single!(Void))
         (new Assignment(retvar, new Placeholder(ret), false, true)).emitAsm(af);
-      // Assignment, assuming Placeholder was "really"
-      // emitted, has already done this.
-      // if (ret != Single!(Void)) af.sfree(ret.size);
-    });
-    af.sfree(dgs.valueType().size);
-    af.sfree(toFree);
+    } else {
+      int toFree = alignStackFor(dgs.valueType(), af);
+      mkVar(af, dgs.valueType(), true, (Variable dgvar) {
+        mixin(mustOffset("0"));
+        (new Assignment(dgvar, dgs)).emitAsm(af);
+        params ~= foldex(mkMemberAccess(dgvar, "data"));
+        callFunction(af, ret, true, false, params, mkMemberAccess(dgvar, "fun"));
+        if (ret != Single!(Void))
+          (new Assignment(retvar, new Placeholder(ret), false, true)).emitAsm(af);
+        // Assignment, assuming Placeholder was "really"
+        // emitted, has already done this.
+        // if (ret != Single!(Void)) af.sfree(ret.size);
+      });
+      af.sfree(dgs.valueType().size);
+      af.sfree(toFree);
+    }
   });
 }

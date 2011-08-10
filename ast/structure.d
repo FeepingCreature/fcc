@@ -163,7 +163,10 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       return sup.mangle(name, null)~"_"~type_mangle~name;
     }
     Stuple!(IType, string, int)[] stackframe() {
-      return selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
+      auto res = selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
+      // ignore unionesques
+      while (res.length > 1 && res[$-1]._2 == 0) res = res[0..$-1];
+      return res;
     }
     Object lookupRel(string str, Expr base) {
       auto res = lookup(str, true);
@@ -346,7 +349,7 @@ class MemberAccess_Expr : Expr, HasInfo {
     this.base = base;
     this.name = name;
     stm = fastcast!(RelMember) (fastcast!(Namespace) (base.valueType()).lookup(name));
-    if (!stm) throw new Exception(Format("No ", name, " in ", base.valueType(), "!"));
+    if (!stm) throw new Exception(Format("No member '", name, "' in ", base.valueType(), "!"));
   }
   this() { }
   string getInfo() { return "."~name; }
@@ -520,8 +523,9 @@ static this() {
         if (st) st.select((string, RelMember member) {
           if (member is mae.stm) {
             res = sl.exprs[i];
-            if (mae.valueType() != res.valueType())
-              logln("Type mismatch: ", mae.valueType(), " vs. ", res.valueType());
+            // who cares!
+            // if (mae.valueType() != res.valueType())
+            //   logln("Type mismatch: ", mae.valueType(), " vs. ", res.valueType());
           }
           i++;
         }, &st.rmcache);

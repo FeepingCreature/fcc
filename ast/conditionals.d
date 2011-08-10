@@ -102,8 +102,12 @@ class Compare : Cond, Expr {
   void emitComparison(AsmFile af) {
     prelude;
     if (isFloat) {
-      e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
-      e2.emitAsm(af); af.compareFloat("(%esp)"); af.sfree(4);
+      // e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
+      e1.emitAsm(af); e2.emitAsm(af);
+      af.SSEOp("movd", "(%esp)", "%xmm1", true /* ignore alignment */); af.sfree(4);
+      af.SSEOp("movd", "(%esp)", "%xmm0", true); af.sfree(4);
+      af.SSEOp("comiss", "%xmm1", "%xmm0");
+      // e2.emitAsm(af); af.compareFloat("(%esp)"); af.sfree(4);
     } else if (auto ie = fastcast!(IntExpr) (e2)) {
       e1.emitAsm(af);
       af.popStack("%eax", 4);
@@ -139,8 +143,8 @@ class Compare : Cond, Expr {
         af.mmove4("$1", "%edx");
         af.mmove4("$0", "%ecx"); // don't xorl; mustn't overwrite comparison results
       }
-      // can't use eax, moveOnFloat needs ax
-      if (isFloat) af.moveOnFloat(s, e, g, "%edx", "%ecx");
+      // can't use eax, moveOnFloat needs ax .. or does it? (SSE mode)
+      if (isFloat) af.moveOnFloat(s, e, g, "%edx", "%ecx", true /* is SSE */);
       else af.cmov(s, e, g, "%edx", "%ecx");
       af.pushStack("%ecx", 4);
     }
@@ -153,7 +157,7 @@ class Compare : Cond, Expr {
         if (s + g == 1)
           e = !e;*/
       }
-      if (isFloat) af.jumpOnFloat(s, e, g, dest);
+      if (isFloat) af.jumpOnFloat(s, e, g, dest, true /* is SSE also */);
       else af.jumpOn(s, e, g, dest);
     }
   }
@@ -296,7 +300,7 @@ class BooleanOp(string Which) : Cond, HasInfo {
           auto past = af.genLabel();
           c1.jumpOn(af, false, past);
           c2.jumpOn(af, true, dest);
-          af.emitLabel(past);
+          af.emitLabel(past, !keepRegs, isForward);
         } else {
           c1.jumpOn(af, false, dest);
           c2.jumpOn(af, false, dest);
@@ -310,7 +314,7 @@ class BooleanOp(string Which) : Cond, HasInfo {
           auto past = af.genLabel();
           c1.jumpOn(af, true, past);
           c2.jumpOn(af, false, dest);
-          af.emitLabel(past);
+          af.emitLabel(past, !keepRegs, isForward);
         }
       } else
       static assert(false, "unknown boolean op: "~Which);

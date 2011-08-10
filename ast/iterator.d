@@ -614,7 +614,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
     }
     if (cond) {
       af.jump(dest); // now jump
-      af.emitLabel(skip); // otherwise nothing
+      af.emitLabel(skip, !keepRegs, isForward); // otherwise nothing
     }
   }
   override string toString() {

@@ -809,26 +809,6 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
 import ast.pointer, ast.opers, tools.base: swap;
 mixin DefaultParser!(gotMathExpr, "tree.expr.arith.ops", "31");
 
-// TODO: hook into parser
-class CondWrap : Expr {
-  Cond cd;
-  mixin MyThis!("cd");
-  mixin DefaultDup!();
-  mixin defaultIterate!(cd);
-  override {
-    IType valueType() {
-      return Single!(SysInt); // TODO: bool type
-    }
-    void emitAsm(AsmFile af) {
-      auto past = af.genLabel();
-      af.put("xorl %eax, %eax");
-      cd.jumpOn(af, false, past);
-      af.mmove4("$1", "%eax");
-      af.emitLabel(past);
-    }
-  }
-}
-
 Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool isNeg;
@@ -870,6 +850,23 @@ class FSqrtExpr : Expr {
   }
 }
 
+class SSESqrtExpr : Expr {
+  Expr sup;
+  this(Expr ex) { sup = ex; }
+  mixin defaultIterate!(sup);
+  override {
+    IType valueType() { return Single!(Float); }
+    FSqrtExpr dup() { return new FSqrtExpr(sup.dup); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("4"));
+      sup.emitAsm(af);
+      af.SSEOp("movd", "(%esp)", "%xmm0", true /* ignore stack alignment */);
+      af.SSEOp("sqrtss", "%xmm0", "%xmm0");
+      af.SSEOp("movd", "%xmm0", "(%esp)", true);
+    }
+  }
+}
+
 import ast.modules;
 static this() {
   foldopt ~= delegate Itr(Itr it) {
@@ -885,6 +882,7 @@ static this() {
     }
     if (!isSqrtMath && !isSqrtfSysmod) return null;
     auto arg = foldex(fc.getParams()[0]);
-    return new FSqrtExpr(arg);
+    // return new FSqrtExpr(arg);
+    return new SSESqrtExpr(arg);
   };
 }

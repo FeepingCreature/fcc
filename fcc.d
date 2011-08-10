@@ -129,7 +129,7 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
       if (line >= 1) line -= 1; // wat!!
       af.put(".loc ", id, " ", line, " ", 0);
       if (!name.length) asm { int 3; } // TODO
-      af.put("# being '", name, "'");
+      af.put("# being '", name, "' at ", af.currentStackDepth);
     }
   }
 }
@@ -201,6 +201,7 @@ extern(C) int mkdir(char*, int);
 string compile(string file, CompileSettings cs) {
   while (file.startsWith("./")) file = file[2 .. $];
   auto af = new AsmFile(cs.optimize, cs.debugMode, cs.profileMode, file);
+  af.processorExtensions["sse3"] = true;
   if (cs.configOpts) {
     setupOpts();
     auto cmds = cs.configOpts.split(",");

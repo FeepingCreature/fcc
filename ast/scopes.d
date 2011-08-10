@@ -13,6 +13,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   Statement _body;
   Statement[] guards;
   ulong id;
+  bool needEntryLabel;
   mixin defaultIterate!(_body, guards);
   override void configPosition(string str) {
 		lnsc.configPosition(str);
@@ -45,8 +46,6 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       _body = as;
     }
   }
-  // string entry() { return Format(base, "_entry", id); }
-  // string exit() { return Format(base, "_exit", id); }
   string entry() { return Format(".L", id, "_entry"); }
   string exit() { return Format(".L", id, "_exit"); }
   string toString() { /*return Format(_body);*/ return Format("scope <- ", sup); }
@@ -90,7 +89,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
 			asm { int 3; }
 		}
 		emitted = true;
-    af.emitLabel(entry());
+    if (needEntryLabel) af.emitLabel(entry(), !keepRegs, !isForward);
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
     return stuple(checkpt, backup, this, af) /apply/ (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af) {
@@ -98,7 +97,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
         that._body.emitAsm(af);
       }
       return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, bool onlyCleanup) {
-        if (!onlyCleanup) af.emitLabel(that.exit());
+        if (!onlyCleanup) af.emitLabel(that.exit(), !keepRegs, isForward);
         
         foreach_reverse(guard; that.guards)
           guard.emitAsm(af);

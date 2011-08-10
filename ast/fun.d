@@ -169,7 +169,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         funcall_emit_fun_end_guard (af, name);
       }
       
-      af.emitLabel(exit(), true);
+      af.emitLabel(exit(), keepRegs, isForward);
       
       // af.mmove4("%ebp", "%esp");
       // af.popStack("%ebp", nativePtrSize);
@@ -296,12 +296,13 @@ void handleReturn(IType ret, AsmFile af) {
   }
 }
 
-import tools.log;
+import tools.log, ast.fold;
 void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
   if (!ret) throw new Exception("Tried to call function but return type not yet known! ");
   {
     mixin(mustOffset("0", "outer"));
     string name;
+    fp = foldex(fp);
     if (auto s = fastcast!(Symbol) (fp)) name = s.getName();
     else name = "(nil)";
     

@@ -153,7 +153,7 @@ struct Transaction {
       case FloatIntLoad:return Format("[float int load ", source, "]");
       case SSEOp:       return Format("[SSE ", opName, " ", op1, ", ", op2, stackinfo, "]");
       case ExtendDivide:return Format("[cdq/idivl ", source, "]");
-      case Jump:        return Format("[jmp ", dest, keepRegisters?" [keepregs]":"", "]");
+      case Jump:        return Format("[jmp ", dest, keepRegisters?" [keepregs]":"", mode?(" "~mode):"", "]");
       case Label:       return Format("[label ", names, keepRegisters?" [keepregs]":"", "]");
       case Extended:    return Format("[extended ", obj, "]");
       case Nevermind:   return Format("[nvm ", dest, "]");
@@ -389,7 +389,7 @@ struct Transaction {
       case FloatIntLoad: return qformat("fildl ", source);
       case SSEOp: return qformat(opName, " ", op1, ", ", op2);
       case ExtendDivide: return qformat("cdq\nidivl ", source);
-      case Jump: return qformat("jmp ", dest);
+      case Jump: if (mode) return qformat(mode, " ", dest); return qformat("jmp ", dest);
       case Label:
         assert(names.length);
         string res;
@@ -425,6 +425,7 @@ struct Transaction {
     bool keepRegisters;
     bool floatSelf;
     int stackdepth = -1;
+    string mode; // for jumps
   }
   bool hasStackdepth() { return stackdepth != -1; }
   string stackinfo() { return stackdepth == -1 ? "" : qformat("@", stackdepth); }

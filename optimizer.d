@@ -350,6 +350,12 @@ bool isMemAccess(string s) {
 Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
 bool optsSetup;
 
+bool hasUtilityRegister(string reg) {
+  if (reg.find("%eax") != -1 || reg.find("%ebx") != -1 || reg.find("%ecx") != -1 || reg.find("%edx") != -1)
+    return true;
+  return false;
+}
+
 bool isUtilityRegister(string reg) {
   if (reg == "%eax" /or/ "%ebx" /or/ "%ecx" /or/ "%edx")
     return true;
@@ -1058,7 +1064,7 @@ void setupOpts() {
         int offs;
         if (s.isIndirect2(offs) == "%ebp" && offs < 0)
           dontDoIt = true; // may refer to stack-in-use
-        if (s.isIndirect().isUtilityRegister()) dontDoIt = true; // might still point at the stack.
+        if (s.isIndirect().hasUtilityRegister()) dontDoIt = true; // might still point at the stack.
         if (s == "%esp") dontDoIt = true; // duh
         return;
       }
@@ -1082,18 +1088,16 @@ void setupOpts() {
         s = qformat(offs - shift, "(", s.isIndirect(), ")");
       }
     }
-    // if (t.kind == $TK.SSEOp) logln("test ", t);
     info(t).accessParams((ref string s) { detShift(s); });
     // ------------------------------
     info(t).accessParams((ref string s) { applyShift(s); });
-    // if (t.kind == $TK.SSEOp) logln("blocked? ", dontDoIt);
     bool substed;
     // override conas
     if ((
       !changesOrNeedsActiveStack($0) ||
       $0.kind == $TK.Mov /or/ $TK.MovD /or/ $TK.FloatPop /or/ $TK.FPIntPop /or/ $TK.DoublePop /or/
       $TK.FloatLoad /or/ $TK.FloatStore /or/ $TK.DoubleStore /or/ $TK.LoadAddress /or/ $TK.SSEOp
-    ) && (shift > 0 || shift == -1 && !dontDoIt)) {
+    ) && ((shift > 0 || shift == -1) && !dontDoIt)) {
       if (shift == -1) shift = $1.size;
       auto t0 = $1, t2 = $1;
       t0.size = shift; t2.size -= shift;
@@ -1163,9 +1167,8 @@ void setupOpts() {
     info(t).fixupStack($1.size);
     $SUBST(t, $0, $1);
   `));
-  mixin(opt("pointless_weird_lea", `^LoadAddress, *: $0.from == "(%esp)" && info($1).shrinksStack => $SUBST($1); `));
   mixin(opt("wat", `^LoadAddress, ^Pop||^SFree:
-    !info($1).opContains($0.to)
+    !info($1).opContains($0.to) && ($1.kind == $TK.SFree || !info($0).opContains($1.dest))
     =>
     auto t = $0.dup;
     bool block;
@@ -1198,7 +1201,7 @@ void setupOpts() {
     }
   `));
   /*mixin(opt("further_tweakage", `^LoadAddress, ^MathOp:
-    $0.to == $1.op2 && $0.from.isIndirect().isUtilityRegister() &&
+    $0.to == $1.op2 && $0.from.isIndirect().hasUtilityRegister() &&
     $1.op1.isNumLiteral() && $1.op1.literalToInt() <= 3
     =>
     int offs;
@@ -1270,6 +1273,43 @@ void setupOpts() {
       }
     }
   `));
+  mixin(opt("push_movd_into_direct_movd", `^Push, ^SSEOp:
+    $0.size == 4 &&
+    $1.opName == "movd" && $1.op2.isSSERegister() && $1.op1 == "(%esp)"
+    =>
+    $T t = $1.dup;
+    t.op1 = $0.source;
+    if (t.op1 == "$" "0" /* cheat, on account of $ 0 being substituted with the first parameter */) {
+      t.op1 = t.op2;
+      t.opName = "xorps";
+      $SUBST(t, $0);
+    } else if (t.op1.isIndirect()) {
+      $SUBST(t, $0);
+    }
+  `));
+  mixin(opt("math_after_load", `^SSEOp, ^SSEOp:
+    $0.opName == "xorps" /* todo: expand as needed */ && $1.opName == "movd" /* todo: expand as needed */ &&
+    $0.op1.isSSERegister() && $0.op2.isSSERegister() &&
+    !$1.op1.isSSERegister() && $1.op2.isSSERegister() &&
+    $1.op2 != $0.op1 && $1.op2 != $0.op2
+    =>
+    $SUBST($1, $0);
+  `));
+  mixin (opt("push_after_mov_ps", `^Push, ^SSEOp:
+    $0.size == 4 && $0.source.isUtilityRegister() &&
+    $1.opName == "movaps" /or/ "movups" && !info($1).opContains($0.source) && info($1).couldFixup(-4)
+    =>
+    $T t = $1.dup;
+    info(t).fixupStack(-4);
+    $SUBST(t, $0);
+  `));
+  // movd %xmm0 -> (%eax); movd (%eax) -> %xmm0 ==> movd %xmm0 -> (%eax)
+  /*mixin(opt("redundant_move", `^SSEOp, ^SSEOp:
+    $0.opName == "movd" && $1.opName == "movd" && $0.op1.isSSERegister() &&
+    $0.op1 == $1.op2 && $1.op1 == $0.op2
+    =>
+    $SUBST($0);
+  `));*/
   mixin(opt("direct_vector_load", `^Mov, ^Push, ^Push, ^Push, ^Push, ^SSEOp:
     $5.opName == "movaps" /or/ "movups" && $5.op2.isSSERegister() && $5.op1 == "(%esp)" &&
     $0.to.isUtilityRegister() && $1.size /and/ $2.size /and/ $3.size /and/ $4.size == 4 &&
@@ -1289,15 +1329,23 @@ void setupOpts() {
     }
   `));
   mixin(opt("dont_be_silly", `^SSEOp, ^SAlloc||^SFree:
-    $0.opName == "movaps" /or/ "movups" && $0.op1.isIndirect().isUtilityRegister() && $0.op2.isSSERegister()
+    $0.opName == "movaps" /or/ "movups" && $0.op1.isIndirect().hasUtilityRegister() && $0.op2.isSSERegister()
     =>
     $SUBST($1, $0);
   `));
   mixin(opt("load_address_into_source", `^LoadAddress, *:
-    info($1).hasIndirect(0, $0.to) && info($1).opSize() > 1
+    info($1).hasIndirectEq($0.to) && info($1).opSize() > 1
     =>
     $T t = $1;
-    info(t).setIndirect(0, $0.to, $0.from);
+    info(t).accessParams((ref string st) {
+      int offs;
+      if (st.isIndirect2(offs) == $0.to) {
+        int offs2;
+        string srcreg = $0.from.isIndirect2(offs2);
+        if (!srcreg) { offs2 = 0; srcreg = $0.from; }
+        st = qformat(offs + offs2, "(", srcreg, ")");
+      }
+    });
     $T t2 = $0;
     if (info($1).growsStack)   info(t2).fixupStack( info($1).opSize());
     if (info($1).shrinksStack) info(t2).fixupStack(-info($1).opSize());
@@ -1706,6 +1754,13 @@ void setupOpts() {
     info(t).outOp = $1.to;
     $SUBST(t, $2, $3);
   `));
+  mixin(opt("pop_sooner", `^Mov || ^MathOp, ^Pop:
+    $1.dest.isUtilityRegister() && $0.kind != $TK.Push && !pinsRegister($0, $1.dest) && info($0).couldFixup(-$1.size)
+    =>
+    $T t = $0.dup;
+    info(t).fixupStack(-$1.size);
+    $SUBST($1, t);
+  `));
   mixin(opt("remove_slightly_stupid_push_pop_pair", `^Push, ^Mov, ^Pop:
     $0.size == $2.size && $0.size == 4 &&
     $1.to.isRegister() && $1.from != "(%esp)" &&
@@ -1797,11 +1852,11 @@ void setupOpts() {
     $SUBST($1, t);
   `));
   mixin(opt("direct_push_after_mov", `^Push, ^Mov:
-    !$0.source.isMemAccess() && info($1).couldFixup(-4) &&
+    !$0.source.isMemAccess() && info($1).couldFixup(-$0.size) &&
     !info($1).opContains("%ebp") && $1.to.find($0.source) == -1
     =>
     $T t = $1.dup;
-    info(t).fixupStack(-4);
+    info(t).fixupStack(-$0.size);
     $SUBST(t, $0);
   `));
   // push foo, pop (%esp) => sfree 4; push foo
@@ -1902,7 +1957,7 @@ void setupOpts() {
   opts ~= stuple(&remove_stack_push_pop_chain, "remove_stack_push_pop_chain", true);
   mixin(opt("remove_closing_leas", `^LoadAddress, ] => $SUBST();`));
   mixin(opt("break_up_push_pop", `^Push || ^Pop:
-    $0.size > 4 && ($0.size % 4) == 0 && $0.size <= 64 /* just gets ridiculous beyond that point */
+    $0.size > 4 && ($0.size % 4) == 0 && $0.size <= 64 // just gets ridiculous beyond that point 
     =>
     auto sz = $0.size;
     $T[] res;
@@ -1970,12 +2025,16 @@ void setupOpts() {
       outer:foreach (_i, entry; list[1 .. $]) {
         i = _i;
         with (Transaction.Kind) switch (entry.kind) {
-          case SFree: if (check == "(%esp)") {
-            if (entry.size >= info(head).opSize())
-              unneeded = true;
-            break outer;
-          }
-          case SAlloc: if (check == "(%esp)") break outer;
+          case SFree:
+            if (check == "(%esp)") {
+              if (entry.size >= info(head).opSize())
+                unneeded = true;
+              break outer;
+            }
+            continue;
+          case SAlloc:
+            if (check == "(%esp)") break outer;
+            continue;
           case Mov2, Mov1: break outer; // weird stuff, not worth the confusion
           case FloatMath, FPSwap:
             continue;    // no change
