@@ -170,6 +170,7 @@ struct TransactionInfo {
   alias TableOp!(`return "$stack" == "grow";`, bool) growsStack;
   alias TableOp!(`return "$stack" == "shrink";`, bool) shrinksStack;
   bool resizesStack() { return growsStack() || shrinksStack(); }
+  int stackchange() { if (growsStack) return opSize(); else if (shrinksStack) return -opSize(); else return 0; }
   alias TableOp!(`return mixin("$size".ctReplace("#", "(*tp)")); `, int) opSize;
   alias TableOp!(`
     static if ("$outOp" == "") return null;
@@ -447,6 +448,10 @@ struct OrderedHashlike(K, V) {
     }
   }
 }
+
+extern(C) long atoll(char *c);
+alias atoll atoll_c;
+long atoll(string s) { return atoll_c(toStringz(s)); }
 
 // track processor state
 // obsoletes about a dozen peephole opts
@@ -2119,7 +2124,7 @@ void setupOpts() {
     $0.source.find("___xfcc_encodes_") != -1
     =>
     $T t = $0;
-    t.source = qformat("$", t.source.between("___xfcc_encodes_", "").atoi());
+    t.source = qformat("$", t.source.between("___xfcc_encodes_", "").atoll());
     $SUBST(t);
   `));
   mixin(opt("finally_remove_nvm", `^Nevermind => $SUBST(); `));
