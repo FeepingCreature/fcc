@@ -59,7 +59,7 @@ void setupSysmods() {
           alias sz2 = u[2];
           auto destlen = ar.length * sz1;
           if destlen % sz2 {
-            writeln "Array cast failed: size/alignment mismatch. ";
+            writeln "Array cast failed: size/alignment mismatch - casting $(string-of U[0]) of $(size-of U[0]) to $(string-of T) of $(size-of T) (u of $(u[(1, 2)]) for $(ar.length) => $(destlen) => $(destlen % 1)). ";
             _interrupt 3;
           }
           destlen /= sz2;
