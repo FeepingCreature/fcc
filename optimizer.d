@@ -373,7 +373,7 @@ bool isSSEMathOp(string op) {
 
 bool pinsRegister(ref Transaction t, string reg) {
   with (Transaction.Kind)
-    if (t.kind == Call /or/ Label /or/ Jump /or/ Compare /or/ FloatCompare /* unsafe ones */)
+    if (t.kind == Call /or/ Label /or/ Jump /or/ Compare /or/ FloatCompare /or/ ExtendDivide /* unsafe ones */)
       return true;
     else if (t.kind == FloatMath /or/ FPSwap)
       return false;
@@ -1148,7 +1148,7 @@ void setupOpts() {
     $SUBST($1);
   `));
   mixin(opt("move_lea_down", `^LoadAddress, *:
-    $1.kind != $TK.LoadAddress && !pinsRegister($1, $0.to) &&
+    $1.kind != $TK.LoadAddress && ($1.kind != $TK.Mov || !$1.from.isLiteral() || $1.from.isNumLiteral()) && !pinsRegister($1, $0.to) &&
     !$0.from.contains(info($1).outOp())
     =>
     $T t = $0.dup;
@@ -1258,26 +1258,6 @@ void setupOpts() {
       }
     }
   `));
-  mixin(opt("direct_vector_store", `^SSEOp, ^Mov, ^Pop, ^Pop, ^Pop, ^Pop:
-    $0.opName == "movaps" /or/ "movups" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
-    $1.to.isUtilityRegister() && $2.size /and/ $3.size /and/ $4.size /and/ $5.size == 4 &&
-    $2.dest.isIndirect() == $1.to && $3.dest.isIndirect() == $1.to && $4.dest.isIndirect() == $1.to && $5.dest.isIndirect() == $1.to
-    =>
-    int d1, d2, d3, d4;
-    $2.dest.isIndirect2(d1); $3.dest.isIndirect2(d2); $4.dest.isIndirect2(d3); $5.dest.isIndirect2(d4);
-    if (d1+4==d2 && d2+4==d3 && d3+4==d4) {
-      auto t1 = $0.dup;
-      t1.opName = "movups";
-      t1.op2 = $2.dest;
-      auto t2 = $1.dup;
-      if (t2.from.tryFixupString(-16)) {
-        $T t3;
-        t3.kind = $TK.SFree;
-        t3.size = 16;
-        $SUBST(t3, t2, t1);
-      }
-    }
-  `));
   mixin(opt("push_movd_into_direct_movd", `^Push, ^SSEOp:
     $0.size == 4 &&
     $1.opName == "movd" && $1.op2.isSSERegister() && $1.op1 == "(%esp)"
@@ -1331,6 +1311,43 @@ void setupOpts() {
       t3.opName = "movups";
       t3.op1 = $4.source;
       $SUBST(t1, t2, t3);
+    }
+  `));
+  mixin(opt("direct_vector_store", `^SSEOp, ^Mov, ^Pop, ^Pop, ^Pop, ^Pop:
+    $0.opName == "movaps" /or/ "movups" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
+    $1.to.isUtilityRegister() && $2.size /and/ $3.size /and/ $4.size /and/ $5.size == 4 &&
+    $2.dest.isIndirect() == $1.to && $3.dest.isIndirect() == $1.to && $4.dest.isIndirect() == $1.to && $5.dest.isIndirect() == $1.to
+    =>
+    int d1, d2, d3, d4;
+    $2.dest.isIndirect2(d1); $3.dest.isIndirect2(d2); $4.dest.isIndirect2(d3); $5.dest.isIndirect2(d4);
+    if (d1+4==d2 && d2+4==d3 && d3+4==d4) {
+      auto t1 = $0.dup;
+      t1.opName = "movups";
+      t1.op2 = $2.dest;
+      auto t2 = $1.dup;
+      if (t2.from.tryFixupString(-16)) {
+        $T t3;
+        t3.kind = $TK.SFree;
+        t3.size = 16;
+        $SUBST(t3, t2, t1);
+      }
+    }
+  `));
+  mixin(opt("direct_vector_stack_store", `^SSEOp, ^Pop, ^Pop, ^Pop, ^Pop:
+    $0.opName == "movaps" /or/ "movups" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
+    $1.size /and/ $2.size /and/ $3.size /and/ $4.size == 4 &&
+    $1.dest.isIndirect() /and/ $2.dest.isIndirect() /and/ $3.dest.isIndirect() /and/ $4.dest.isIndirect() == "%esp"
+    =>
+    int d1, d2, d3, d4;
+    $1.dest.isIndirect2(d1); $2.dest.isIndirect2(d2); $3.dest.isIndirect2(d3); $4.dest.isIndirect2(d4);
+    if (d1==d2 && d2==d3 && d3==d4) {
+      auto t1 = $0.dup;
+      t1.opName = "movups";
+      t1.op2 = $1.dest;
+      $T t2;
+      t2.kind = $TK.SFree;
+      t2.size = 16;
+      $SUBST(t1, t2);
     }
   `));
   mixin(opt("dont_be_silly", `^SSEOp, ^SAlloc||^SFree:
@@ -1593,18 +1610,21 @@ void setupOpts() {
     return true;
   }
   bool pushequal(Transaction[] trs...) {
-		foreach (tr; trs[1..$]) if (tr.source != trs[0].source || tr.size != trs[0].size) return false;
-		return true;
+    foreach (tr; trs[1..$]) if (tr.source != trs[0].source || tr.size != trs[0].size) return false;
+    return true;
   }
   mixin(opt("known_aligned_push_into_load", `^Push, ^Push, ^Push, ^Push, ^SSEOp:
-		pushequal($0, $1, $2, $3) && $4.opName == "movaps" /or/ "cvtdq2ps" && $4.op1 == "(%esp)" && $4.op2.isSSERegister()
-		=>
-		int offs;
-		if ($0.source.isIndirect2(offs) == "%esp" && (offs -= 12, true) && offs % 16 == 0) {
-			$T t = $4.dup;
-			t.op1 = qformat(offs, "(%esp)");
-			$SUBST(t, $0, $1, $2, $3);
-		}
+    pushequal($0, $1, $2, $3) && $4.opName == "movaps" /or/ "cvtdq2ps" && $4.op1 == "(%esp)" && $4.op2.isSSERegister()
+    =>
+    int offs;
+    if ($0.source.isIndirect2(offs) == "%esp" && (offs -= 12, true)) {
+      $T t = $4.dup;
+      // can't rely on alignment!
+      if (t.opName == "movaps")
+        t.opName = "movups";
+      t.op1 = qformat(offs, "(%esp)");
+      $SUBST(t, $0, $1, $2, $3);
+    }
   `));
   mixin(opt("push_after_unpack", `^Push, ^SSEOp: $1.opName == "punpckldq" && $1.op1.isSSERegister() && $1.op2.isSSERegister() => $SUBST($1, $0); `));
   mixin(opt("push_or_mov_before_movaps", `^Push, ^SSEOp || ^MovD:
@@ -1766,6 +1786,17 @@ void setupOpts() {
     info(t).fixupStack(-$1.size);
     $SUBST($1, t);
   `));
+  mixin(opt("move_literal_downwards", `^Mov, *:
+    ($1.kind != $TK.SSEOp) &&
+    ($1.kind != $TK.Mov || !$1.from.isLiteral() || $1.from.isNumLiteral()) &&
+    $0.from.isLiteral() && !$0.from.isNumLiteral() && $0.to.isIndirect() == "%esp" &&
+    !pinsRegister($1, $0.to) &&
+    info($0).couldFixup(info($1).stackchange)
+    =>
+    $T t = $0.dup;
+    info(t).fixupStack(info($1).stackchange);
+    $SUBST($1, t);
+  `));
   mixin(opt("remove_slightly_stupid_push_pop_pair", `^Push, ^Mov, ^Pop:
     $0.size == $2.size && $0.size == 4 &&
     $1.to.isRegister() && $1.from != "(%esp)" &&
@@ -1858,7 +1889,8 @@ void setupOpts() {
   `));
   mixin(opt("direct_push_after_mov", `^Push, ^Mov:
     !$0.source.isMemAccess() && info($1).couldFixup(-$0.size) &&
-    !info($1).opContains("%ebp") && $1.to.find($0.source) == -1
+    !info($1).opContains("%ebp") && $1.to.find($0.source) == -1 &&
+    (!$1.from.isLiteral() || $1.from.isNumLiteral()) /* prevent loop with move_literal_downwards */
     =>
     $T t = $1.dup;
     info(t).fixupStack(-$0.size);
