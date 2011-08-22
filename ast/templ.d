@@ -66,10 +66,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
       assert(!isAlias);
       TemplateInstance ti;
       foreach (entry; emat_type)
-        // weirdness with tuples in sieve.cr
-        // TODO: unhax.
-        if (Format(entry._1) == Format(type)) { ti = entry._0; break; }
-        // if (entry._1 == type) { return entry._0; }
+        if (entry._1 == type) { ti = entry._0; break; }
       if (!ti) {
         ti = new TemplateInstance(this, type, rest);
         emat_type ~= stuple(ti, type);
@@ -277,6 +274,7 @@ Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest
     if (!t) return null;
     if (!t2.accept("!")) return null;
     TemplateInstance inst;
+    IType ty;
     if (t.isAliasTemplate()) {
       Tree tr;
       // try plain named first
@@ -284,10 +282,10 @@ Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest
         t2.failparse("Couldn't match tree object for instantiation");
       inst = t.getInstance(tr, rest);
     } else {
-      IType ty;
       if (!rest(t2, "type", &ty))
         t2.failparse("Couldn't match type for instantiation");
-      inst = t.getInstance(ty, rest);
+      try inst = t.getInstance(ty, rest);
+      catch (Exception ex) throw new Exception(Format("with ", ty, ": ", ex));
     }
     if (auto res = inst.lookup(t.getIdentifier(), true)) return t.postprocess(res);
     else throw new Exception("Template '"~t.getIdentifier()~"' contains no self-named entity! ");

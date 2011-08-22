@@ -223,23 +223,25 @@ class ThreadPool {
 }
 
 class LoopPool {
-  Semaphore s, t;
+  Semaphore s, t, u;
   int numThreads;
-  int runningId;
+  int runningId, maxId;
   void delegate(int id, int thr) dg;
   Mutex m;
   void init() {
     New &s;
     New &t;
+    New &u;
     New &m;
   }
   void threadFun(int thr-id) {
     while true {
       s.claim;
       int myId;
-      using autoLock m myId = runningId++;
-      dg(myId, thr-id);
+      do using autoLock m myId = runningId ++;
+      while (myId < maxId) dg(myId, thr-id);
       t.release;
+      u.claim;
     }
   }
   void addThread() {
@@ -252,11 +254,11 @@ class LoopPool {
     for 0..i addThread();
   }
   void runLoop(int to, void delegate(int, int) dg) {
-    using autoLock m {
-      this.dg = dg;
-      runningId = 0;
-    }
-    for 0..to s.release;
-    for 0..to t.claim;
+    this.dg = dg;
+    runningId = 0;
+    maxId = to;
+    for 0 .. numThreads s.release;
+    for 0 .. numThreads t.claim;
+    for 0 .. numThreads u.release;
   }
 }

@@ -115,6 +115,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
   mixin defaultIterate!();
   override void emitAsm(AsmFile af) { }
   override bool isTempNamespace() { return false; }
+  override bool isPointerLess() { return false; }
   IntfRef getRefType() { return new IntfRef(this); }
   string toString() { return "interface "~name; }
   string mangle() { return "interface_"~mangle_id; }
@@ -243,6 +244,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
   Class myClass;
   this(Class cl) { myClass = cl; if (!cl) asm { int 3; } }
   override {
+    bool isPointerLess() { return false; }
     RelNamespace resolve() { return myClass; }
     string toString() { return Format("ref ", myClass); }
     bool addsSelf() { return true; }
@@ -273,6 +275,7 @@ class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, Expr
     RelNamespace resolve() { return myIntf; }
     string toString() { return Format("ref ", myIntf); }
     string getIdentifier() { return myIntf.name; }
+    bool isPointerLess() { return false; }
     bool addsSelf() { return true; }
     int size() { return nativePtrSize; }
     void markWeak() { } // nothing emitted, ergo no-op
@@ -297,6 +300,7 @@ class SuperType : IType, RelNamespace {
     string mangle() { return Format("_super_", baseType.mangle()); }
     ubyte[] initval() { logln("Excuse me what are you doing declaring variables of super-type you weirdo"); fail; return null; }
     int opEquals(IType it) { return false; /* wut */ }
+    bool isPointerLess() { return false; }
     Object lookupRel(string name, Expr base) {
       auto sup2 = fastcast!(SuperType) (base.valueType());
       if (sup2 !is this) asm { int 3; }
@@ -334,6 +338,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     if (name == "Error") return cl2.name == "Error";
     return false;
   }
+  override bool isPointerLess() { return false; }
   void getIntfLeaves(void delegate(Intf) dg) {
     foreach (intf; iparents)
       intf.getLeaves(dg);

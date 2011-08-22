@@ -116,19 +116,28 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!arr) return null;
   Expr len;
   if (!rest(t2, "tree.expr _tree.expr.arith.concat", &len))
-    t2.failparse("Expected index for array-new");
+    t2.failparse("Expected length for array-new");
   auto backuplen = len;
   if (!gotImplicitCast(len, (IType it) { return !!fastcast!(SysInt) (it); }))
     t2.failparse("Index is a ", backuplen.valueType(), ", not an int! ");
   text = t2;
   // logln("new1 ", base, " [", len, "]");
+  Expr allocedPtr;
+  if (arr.elemType.isPointerLess()) {
+    allocedPtr = iparse!(Expr, "new_dynamic_pointerless_array", "tree.expr")
+                        (`mem.calloc_atomic(len * basesz)`,
+                         "len", len, "basesz", mkInt(arr.elemType.size));
+  } else {
+    allocedPtr =  iparse!(Expr, "new_dynamic_array", "tree.expr")
+                         (`mem.calloc(len, basesz)`,
+                          "len", len, "basesz", mkInt(arr.elemType.size));
+  }
   return fastcast!(Object) (
     mkPointerSlice(
       reinterpret_cast(
         new Pointer(arr.elemType),
-        iparse!(Expr, "new_dynamic_array", "tree.expr")
-              ("mem.calloc(len, basesz)",
-                "len", len, "basesz", mkInt(arr.elemType.size))),
+        allocedPtr
+      ),
       mkInt(0), len
     )
   );

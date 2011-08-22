@@ -24,7 +24,7 @@ EOF
 template loop(T) <<EOF
   class loopclass {
     iteratorType!T running, iter;
-    iterType!T value;
+    type-of-elem value-of!T value;
     bool advance() {
       if !(value <- running) {
         running = iter;

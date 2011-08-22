@@ -92,6 +92,11 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   bool immutableNow;
   int cached_length, cached_size;
   NSCache!(string, RelMember) rmcache;
+  override bool isPointerLess() {
+    bool pointerless = true;
+    select((string, RelMember member) { pointerless &= member.type.isPointerLess(); });
+    return pointerless;
+  }
   Structure dup() {
     auto res = new Structure(name);
     res.sup = sup;

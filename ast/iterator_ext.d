@@ -594,21 +594,24 @@ static this() {
     if (mns && !mns.id.startsWith("!safecode"))
       return null; // only allow this conversion in user code
     auto evt = ex.valueType();
-    if (auto p = evt in cache) { return reinterpret_cast(*p, ex); }
+    if (auto p = evt in cache) { if (!*p) return null; return reinterpret_cast(*p, ex); }
     auto st = fastcast!(Structure)~ evt;
     auto cr = fastcast!(ClassRef)~ evt;
-    // auto ir = fastcast!(IntfRef)~ evt;
-    IntfRef ir = null;
-    if (!st && !cr && !ir)
-      return null;
+    auto ir = fastcast!(IntfRef)~ evt;
+    const string FAIL = "{ cache[evt] = null; return null; }";
+    if (!st && !cr && !ir) mixin(FAIL);
     if (st && !(
       st.lookupRel("value", ex) &&
       st.lookupRel("advance", ex)))
-      return null;
+      mixin(FAIL);
     if (cr && !(
       cr.myClass.lookupRel("value", ex) &&
       cr.myClass.lookupRel("advance", ex)))
-      return null;
+      mixin(FAIL);
+    if (ir && !(
+      ir.myIntf.lookupRel("value", ex) &&
+      ir.myIntf.lookupRel("advance", ex)))
+      mixin(FAIL);
     auto si = new StructIterator(evt);
     Expr res = reinterpret_cast(si, ex);
     cache[evt] = si;

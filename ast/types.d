@@ -12,6 +12,7 @@ interface IType {
   // return the type we are a proxy for, or null
   // (proxy == type alias)
   IType proxyType();
+  bool isPointerLess(); // concerns the VALUE ITSELF - ie. an array is always pointerful
 }
 
 // Strips out type-alias and the like
@@ -46,6 +47,7 @@ class Type : IType {
   mixin TypeDefaults!();
   abstract int size();
   abstract string mangle();
+  bool isPointerLess() { return false; } // default
 }
 
 class Void : Type {
@@ -68,11 +70,13 @@ class Variadic : Type {
 class Char : Type {
   override int size() { return 1; }
   override string mangle() { return "char"; }
+  override bool isPointerLess() { return true; }
 }
 
 class Byte : Type {
   override int size() { return 1; }
   override string mangle() { return "byte"; }
+  override bool isPointerLess() { return true; }
 }
 
 const nativeIntSize = 4, nativePtrSize = 4;
@@ -80,36 +84,43 @@ const nativeIntSize = 4, nativePtrSize = 4;
 class SizeT : Type {
   override int size() { return nativeIntSize; }
   override string mangle() { return "size_t"; }
+  override bool isPointerLess() { return true; }
 }
 
 class Short : Type {
   override int size() { return 2; }
   override string mangle() { return "short"; }
+  override bool isPointerLess() { return true; }
 }
 
 class SysInt : Type {
   override int size() { return nativeIntSize; }
   override string mangle() { return "sys_int"; }
+  override bool isPointerLess() { return true; }
 }
 
 class Long : Type {
   override int size() { return 8; }
   override string mangle() { return "long"; }
+  override bool isPointerLess() { return true; }
 }
 
 class Float : Type {
   override int size() { return 4; }
   override string mangle() { return "float"; }
+  override bool isPointerLess() { return true; }
 }
 
 class Double : Type {
   override int size() { return 8; }
   override string mangle() { return "double"; }
+  override bool isPointerLess() { return true; }
 }
 
 class Real : Type {
   override int size() { return 10; }
   override string mangle() { return "real"; }
+  override bool isPointerLess() { return true; }
 }
 
 // quick and dirty singleton

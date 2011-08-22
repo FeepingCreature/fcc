@@ -30,6 +30,7 @@ class StatementAndCond : Cond {
   mixin DefaultDup!();
   mixin defaultIterate!(first, second);
   override {
+    string toString() { return Format("{ ", first, " ", second, " }"); }
     void jumpOn(AsmFile af, bool cond, string dest) {
       first.emitAsm(af);
       second.jumpOn(af, cond, dest);
@@ -299,6 +300,7 @@ class BooleanOp(string Which) : Cond, HasInfo {
   mixin defaultIterate!(c1, c2);
   override {
     string getInfo()  { return Which; }
+    string toString() { return Format("(", c1, " ", Which, " ", c2, ")"); }
     void jumpOn(AsmFile af, bool cond, string dest) {
       static if (Which == "&&") {
         if (cond) {

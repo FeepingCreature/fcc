@@ -26,6 +26,7 @@ class UnAlignedPlaceholder : IType {
     ubyte[] initval() { return base.initval(); }
     int opEquals(IType it) { return base.opEquals(it); }
     IType proxyType() { return null; }
+    bool isPointerLess() { return base.isPointerLess(); }
   }
 }
 

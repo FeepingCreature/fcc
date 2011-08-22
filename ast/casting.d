@@ -240,8 +240,9 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
   auto ns = namespace();
   if (!ns) namespace.set(new NoNameSpace); // lots of stuff does namespace().get!() .. pacify it
   scope(exit) namespace.set(ns);
-  auto visited = *(gotImplicitCast_visited_cache.ptr());
-  scope(exit) *(gotImplicitCast_visited_cache.ptr()) = visited;
+  auto visited = *gotImplicitCast_visited_cache.ptr();
+  *gotImplicitCast_visited_cache.ptr() = null; // allow recursion
+  scope(exit) *gotImplicitCast_visited_cache.ptr() = visited;
   int visited_offs;
   void addVisitor(IType it) {
     if (visited_offs < visited.length)

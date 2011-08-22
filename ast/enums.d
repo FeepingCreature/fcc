@@ -20,6 +20,7 @@ class Enum : Namespace, IType, Named, ExprLikeThingy {
     int size() { return base.size(); }
     string mangle() { return "enum_"~name; }
     ubyte[] initval() { return base.initval; }
+    bool isPointerLess() { return base.isPointerLess(); }
     mixin TypeDefaults!(false, true);
     Object lookup(string name, bool local = false) {
       foreach (i, n; names)

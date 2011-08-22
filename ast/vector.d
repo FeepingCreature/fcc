@@ -43,6 +43,7 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
     if (base.size < 4 || len < 3) return 4;
     return 16;
   }
+  override bool isPointerLess() { return base.isPointerLess(); }
   // quietly treat n-size as n+1-size
   bool extend() { return len == 3 && (base == Single!(Float) || base == Single!(SysInt)); }
   int real_len() {
