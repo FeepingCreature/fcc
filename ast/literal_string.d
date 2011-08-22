@@ -2,6 +2,8 @@ module ast.literal_string;
 
 import ast.base, ast.literals, ast.pointer, ast.arrays, ast.static_arrays;
 
+static int string_counter;
+
 class StringExpr : Expr, HasInfo {
   string str;
   this() { }
@@ -10,7 +12,7 @@ class StringExpr : Expr, HasInfo {
   string name_used;
   void selectName(AsmFile af) {
     if (!name_used) {
-      name_used = af.allocConstant(Format("string_constant_", af.constants.length), cast(ubyte[]) str);
+      name_used = af.allocConstant(Format("string_constant_", string_counter ++), cast(ubyte[]) str);
     }
   }
   Expr getPointer() {

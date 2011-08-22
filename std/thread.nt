@@ -9,21 +9,48 @@ extern(C) {
   int pthread_attr_getstack(pthread_attr_t*, void**, size_t*);
 }
 
-void delegate() onThreadCreation;
+shared int tls_size;
 
-void* stack-base;
-int stack-size;
-void setupStackBase() {
-  auto id = pthread_self();
-  pthread_attr_t attr;
-  id.pthread_getattr_np(&attr);
-  pthread_attr_getstack(&attr, &stack-base, size_t*:&stack-size);
-  stack-base = void*:(byte*:stack-base + stack-size);
+extern(C) int _sys_tls_data_start;
+(int, int) setupTLSSize() {
+  int dataStart = 0x7fffffff, dataEnd;
+  auto
+    localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
+    localEnd = [for mod <- __modules: int:mod.dataEnd - int:&_sys_tls_data_start],
+    localRange = zip(localStart, localEnd);
+  for (auto tup <- zip(__modules, localRange)) {
+    alias mod = tup[0], range = tup[1];
+    if (mod.compiled) {
+      if (range[0] < dataStart) dataStart = range[0];
+      if (range[1] > dataEnd) dataEnd = range[1];
+    }
+  }
+  alias dataSize = dataEnd - dataStart; tls_size = dataSize;
+  return (dataStart, dataEnd);
 }
 
-void init() setupStackBase;
+void delegate(void*) onThreadCreation;
 
-shared int tls_size;
+platform(default) <<EOF
+  void* stack-base;
+  int stack-size;
+  void setupStackBase() {
+    auto id = pthread_self();
+    pthread_attr_t attr;
+    id.pthread_getattr_np(&attr);
+    pthread_attr_getstack(&attr, &stack-base, size_t*:&stack-size);
+    stack-base = void*:(byte*:stack-base + stack-size);
+  }
+  
+  void init() { setupStackBase; setupTLSSize(); }
+EOF
+
+platform(i686-mingw32) <<EOF
+  void setupStackBase() {
+    // writeln "setupStackBase() not implemented under win32! ";
+  }
+  void init() { setupTLSSize(); }
+EOF
 
 import c.semaphore;
 class Semaphore {
@@ -50,8 +77,9 @@ void* __start_routine(void* p) {
     _esi = arg[1];
     mxcsr = arg[2];
     setupStackBase;
-    if (onThreadCreation)
-      onThreadCreation();
+    if (onThreadCreation) {
+      onThreadCreation(_ebp);
+    }
     arg[0]();
   }
   // and undo
@@ -63,26 +91,20 @@ void* __start_routine(void* p) {
   return null;
 }
 
-extern(C) int _sys_tls_data_start;
 void startThread(void delegate() dg) {
   pthread_t buf;
   (void delegate(), void*, int, Semaphore) arg;
   arg[0] = dg;
-  int dataStart = 0x7fffffff, dataEnd;
+  (int dataStart, int dataEnd) = setupTLSSize();
+  alias dataSize = dataEnd - dataStart;
+  auto oldArea = _esi[dataStart..dataEnd];
+  auto newArea = (sys.malloc(dataSize) - dataStart)[0 .. dataEnd];
+  
   auto
     localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
     localEnd = [for mod <- __modules: int:mod.dataEnd - int:&_sys_tls_data_start],
     localRange = zip(localStart, localEnd);
-  for (auto tup <- zip(__modules, localRange)) {
-    alias mod = tup[0], range = tup[1];
-    if (mod.compiled) {
-      if (range[0] < dataStart) dataStart = range[0];
-      if (range[1] > dataEnd) dataEnd = range[1];
-    }
-  }
-  alias dataSize = dataEnd - dataStart; tls_size = dataSize;
-  auto oldArea = _esi[dataStart..dataEnd];
-  auto newArea = (sys.malloc(dataSize) - dataStart)[0 .. dataEnd];
+  
   for (auto range <- localRange) {
     newArea[range[0] .. range[1]] = _esi[range[0] .. range[1]];
   }
@@ -90,7 +112,7 @@ void startThread(void delegate() dg) {
   arg[2] = mxcsr;
   arg[3] = new Semaphore;
   
-  pthread_create(&buf, null, &__start_routine, &arg);
+  auto res = pthread_create(&buf, null, &__start_routine, &arg);
   arg[3].claim;
 }
 
@@ -201,23 +223,25 @@ class ThreadPool {
 }
 
 class LoopPool {
-  Semaphore s, t;
+  Semaphore s, t, u;
   int numThreads;
-  int runningId;
+  int runningId, maxId;
   void delegate(int id, int thr) dg;
   Mutex m;
   void init() {
     New &s;
     New &t;
+    New &u;
     New &m;
   }
   void threadFun(int thr-id) {
     while true {
       s.claim;
       int myId;
-      using autoLock m myId = runningId++;
-      dg(myId, thr-id);
+      do using autoLock m myId = runningId ++;
+      while (myId < maxId) dg(myId, thr-id);
       t.release;
+      u.claim;
     }
   }
   void addThread() {
@@ -230,11 +254,11 @@ class LoopPool {
     for 0..i addThread();
   }
   void runLoop(int to, void delegate(int, int) dg) {
-    using autoLock m {
-      this.dg = dg;
-      runningId = 0;
-    }
-    for 0..to s.release;
-    for 0..to t.claim;
+    this.dg = dg;
+    runningId = 0;
+    maxId = to;
+    for 0 .. numThreads s.release;
+    for 0 .. numThreads t.claim;
+    for 0 .. numThreads u.release;
   }
 }

@@ -20,6 +20,7 @@ class Array : Type {
       ty = resolveType(ty);
       return (fastcast!(Array) (ty)).elemType == elemType;
     }
+    bool isPointerLess() { return false; }
   }
 }
 

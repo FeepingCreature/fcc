@@ -59,12 +59,13 @@ class TypeAlias : Named, IType, SelfAdding {
   override {
     bool addsSelf() { return true; }
     string getIdentifier() { return name; }
+    bool isPointerLess() { return base.isPointerLess(); }
     int size() { return base.size; }
     string mangle() { return "type_alias_"~name.replace("-", "_dash_")~"_"~base.mangle; }
     ubyte[] initval() { return base.initval; }
     int opEquals(IType ty) { return base.opEquals(resolveType(ty)); }
     IType proxyType() { return base; }
-    string toString() { return Format(name, "(", base, ")"); }
+    string toString() { return Format(name, ":", base); }
   }
 }
 

@@ -395,7 +395,8 @@ import assemble: debugOpts;
 int main(string[] args) {
   auto execpath = toString(realpath("/proc/self/exe"));
   execpath = execpath[0 .. execpath.rfind("/") + 1];
-  include_path ~= execpath;
+  if (execpath.length)
+    include_path ~= execpath;
   initCastTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);

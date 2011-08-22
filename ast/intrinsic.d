@@ -40,11 +40,13 @@ void setupSysmods() {
       return memcpy(dest, src, n);
     }
     context mem {
-      void* delegate(int)            malloc_dg = &malloc;
+      void* delegate(int)           malloc_dg = &malloc;
       void* delegate(int, int)      calloc_dg = &calloc;
-      void delegate(void*)             free_dg = &free;
+      void* delegate(int)           calloc_atomic_dg; // allocate data, ie. memory containing no pointers
+      void delegate(void*)          free_dg = &free;
       void* delegate(void*, size_t) realloc_dg = &realloc;
       void* malloc (int i)             { return malloc_dg(i); }
+      void* calloc_atomic (int i)      { if (!calloc_atomic_dg) return calloc(i, 1); return calloc_atomic_dg(i); }
       void* calloc (int i, int k)      { return calloc_dg(i, k); }
       void  free   (void* p)           { free_dg(p); }
       void* realloc(void* p, size_t s) { return realloc_dg(p, s); }
@@ -59,7 +61,7 @@ void setupSysmods() {
           alias sz2 = u[2];
           auto destlen = ar.length * sz1;
           if destlen % sz2 {
-            writeln "Array cast failed: size/alignment mismatch. ";
+            writeln "Array cast failed: size/alignment mismatch - casting $(string-of U[0]) of $(size-of U[0]) to $(string-of T) of $(size-of T) (u of $(u[(1, 2)]) for $(ar.length) => $(destlen) => $(destlen % 1)). ";
             _interrupt 3;
           }
           destlen /= sz2;
@@ -102,8 +104,8 @@ void setupSysmods() {
         if !r.length return *l;
         if (l.capacity < l.length + r.length) {
           auto size = l.length + r.length, size2 = l.length * 2;
-          auto newsize = size;
-          if (size2 > newsize) newsize = size2;
+          auto newsize = size2;
+          if (size > newsize) newsize = size;
           auto full = new T[] newsize;
           // printf("allocated %p as %d\n", full.ptr, full.length);
           T[auto ~] res = T[auto~]:(full[0 .. size]);
@@ -347,10 +349,6 @@ void setupSysmods() {
       void claim() { refs ++; }
       void release() { refs --; if !refs onZero(); }
     }
-    template iterType(T) <<EOT
-      auto merp() { T bogus; for auto t <- bogus return t; }
-      alias iterType = type-of merp();
-    EOT
     string replace(string source, string what, string with) {
       int i = 0;
       char[auto~] res;

@@ -34,7 +34,8 @@ class VarDecl : LineNumberedStatementClass {
               logln("Clobbered by ", var, ". ");
           }
         }
-        assert(false);
+        asm { int 3; }
+        // assert(false);
       }
       // sanity checking end!
       if (var.dontInit)

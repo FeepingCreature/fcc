@@ -518,6 +518,7 @@ class AsmFile {
     dg(".section\t.rodata\n");
     foreach (name, c; constants) {
       if (c.length > 4) dg(".align 16\n");
+      dg(".globl "); dg(name); dg("\n");
       dg(name); dg(":\n");
       dg(".byte ");
       foreach (val; c) dg(qformat(cast(ubyte) val, ", "));

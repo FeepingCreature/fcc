@@ -27,6 +27,7 @@ class WhileStatement : Statement {
   override string toString() { return Format("while(", cond, ") { ", _body._body, "}"); }
 }
 
+import ast.aggregate;
 Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool isStatic;
@@ -50,6 +51,12 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   configure(ws.cond);
   if (isStatic) {
+    auto aggr = fastcast!(AggrStatement)(sc._body);
+    if (!aggr) fail(Format("Malformed static while: ", sc._body));
+    if (!fastcast!(VarDecl) (aggr.stmts[0]))
+      fail(Format("Malformed static while (2): ", aggr.stmts));
+    aggr.stmts = null; // remove loop variable declaration/s
+    
     auto backupfield = sc.field;
     Expr iter_expr;
     if (auto ilc = fastcast!(IterLetCond!(LValue)) (ws.cond)) iter_expr = ilc.iter;
@@ -65,19 +72,19 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     string t3;
     for (int i = 0; i < len.num; ++i) {
       auto ival = iter.index(iter_expr, mkInt(i));
-      Scope sc2;
       string t4 = t2;
       sc.field = backupfield.dup;
       foreach (ref entry; sc.field) {
         if (auto v = fastcast!(Variable)~ entry._1) {
           if (v.name) {
-            // will be substituted with actual value in loop unroller
+            // will be substituted with actual value in optimizer
             entry = stuple(v.name, fastcast!(Object) (ival));
           }
         }
       }
       sc.rebuildCache;
       pushCache; // same code is parsed multiple times - do not cache!
+      Scope sc2;
       if (!rest(t4, "tree.scope", &sc2)) {
         t4.failparse("Couldn't parse during static-while expansion! ");
       }

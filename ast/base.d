@@ -386,21 +386,20 @@ void qformat_append(T...)(T t) {
       append(entry);
     }
     else static if (is(typeof(entry): ulong)) {
-      auto i = entry;
-      if (!i) { append("0"); continue; }
-      if (i < 0) { append("-"); i = -i; }
+      auto num = entry;
+      if (!num) { append("0"); continue; }
+      if (num < 0) { append("-"); num = -num; }
       
       // gotta do this left to right!
-      long ifact = 1;
-      while (ifact <= i) ifact *= 10;
-      ifact /= 10;
+      typeof(num) ifact = 1;
+      while (ifact <= num / 10) ifact *= 10;
       while (ifact) {
-        auto inum = i / ifact;
+        int inum = num / ifact;
         char[1] ch;
         ch[0] = "0123456789"[inum];
         append(ch);
-        i -= inum * ifact;
-        ifact /= 10;
+        num -= cast(long) inum * cast(long) ifact;
+        ifact /= 10L;
       }
     }
     else static if (is(typeof(entry[0]))) {

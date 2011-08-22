@@ -191,7 +191,7 @@ static this() {
 
 import tools.base: This, This_fn, rmSpace, PTuple, Stuple, ptuple, stuple;
 
-import ast.fold;
+import ast.fold, ast.conditionals;
 class ForIter(I) : Type, I {
   override int opEquals(IType it) {
     auto fi = fastcast!(ForIter) (it);
@@ -203,12 +203,14 @@ class ForIter(I) : Type, I {
   I itertype;
   Expr ex;
   PlaceholderToken var, extra;
+  bool autofree;
   ForIter dup() {
     auto res = new ForIter;
     res.wrapper = wrapper;
     res.itertype = itertype;
     res.ex = ex.dup;
     res.var = var; res.extra = extra;
+    res.autofree = autofree;
     return res;
   }
   LValue castToWrapper(LValue lv) {
@@ -343,7 +345,17 @@ class ForIter(I) : Type, I {
     string mangle() { return Format("for_range_over_", wrapper.mangle(), "_var_", cast(size_t) var, "_extra_", cast(size_t) extra); }
     ubyte[] initval() { return wrapper.initval(); }
     Cond testAdvance(LValue lv) {
-      return itertype.testAdvance(subexpr(castToWrapper(lv).dup));
+      auto res = itertype.testAdvance(subexpr(castToWrapper(lv).dup));
+      if (autofree) {
+        // res || ('ex.subiter.extra.free', false)
+        // logln("btw 1 ex is type ", subexpr(castToWrapper(lv)).valueType());
+        auto fi = fastcast!(ForIter!(RichIterator)) (subexpr(castToWrapper(lv)).valueType());
+        auto sub = fi.castToWrapper(subexpr(castToWrapper(lv)));
+        Statement freest = iparse!(Statement, "autofree_exec", "tree.stmt")
+                                  (`ex.extra.free();`, "ex", sub);
+        res = new OrOp(res, new StatementAndCond(freest, cFalse));
+      }
+      return res;
     }
     Expr currentValue(Expr ex) {
       auto lv = fastcast!(LValue) (ex);
@@ -401,6 +413,10 @@ class ScopeAndExpr : Expr {
     ScopeAndExpr dup() { return new ScopeAndExpr(sc.dup, ex.dup); }
     IType valueType() { return ex.valueType(); }
     void emitAsm(AsmFile af) {
+      // logln("emit ", this);
+      // dirty, dirty hackaround (!)
+      // TODO: discover why the fuck this what wtf help
+      sc._body = Single!(AggrStatement);
       sc.id = getuid();
       if (ex.valueType() == Single!(Void)) {
         mixin(mustOffset("0"));
@@ -466,6 +482,7 @@ class BogusIterator : Iterator, IType { // tag
     ubyte[] initval() { assert(false); }
     int opEquals(IType it) { assert(false); }
     IType proxyType() { assert(false); }
+    bool isPointerLess() { assert(false); }
   }
 }
 
@@ -474,13 +491,25 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr sub, main;
   auto t2 = text;
   
+  bool autofree;
+  if (t2.accept("auto") && t2.accept("~")) autofree = true;
+  
+  if (!t2.accept("for")) return null;
+  
   string ivarname;
   auto t3 = t2;
   if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
     t2 = t3;
   } else ivarname = null;
-  if (!rest(t2, "tree.expr", &sub) || !gotImplicitCast(sub, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+  if (!rest(t2, "tree.expr", &sub))
     t2.failparse("Cannot find sub-iterator");
+  auto subx = sub;
+  IType[] tried;
+  if (!gotImplicitCast(sub, Single!(BogusIterator), (Expr ex) { tried ~= ex.valueType(); return !!fastcast!(Iterator) (ex.valueType()); })) {
+    string failtext = "Invalid sub-iterator: none of these are iterators: ";
+    foreach (i, t; tried) { failtext ~= qformat("\n  ", i, ": ", t); }
+    t2.failparse(failtext);
+  }
   PlaceholderToken extra;
   Expr exEx, exBind;
   if (t2.accept("extra")) {
@@ -499,7 +528,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   auto ph = new PlaceholderToken(it.elemType(), "it.elemType() "~ivarname);
   
   auto backup = namespace();
-  auto mns = new MiniNamespace("for_iter_var");
+  auto mns = new MiniNamespace("!safecode for_iter_var");
   with (mns) {
     sup = backup;
     internalMode = true;
@@ -523,11 +552,13 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Iterator restype;
   if (auto ri = fastcast!(RichIterator) (it)) {
     auto foriter = new ForIter!(RichIterator);
+    foriter.autofree = autofree;
     with (foriter) ipt = ptuple(wrapper, ex, var, extra);
     foriter.itertype = ri;
     restype = foriter;
   } else {
     auto foriter = new ForIter!(Iterator);
+    foriter.autofree = autofree;
     with (foriter) ipt = ptuple(wrapper, ex, var, extra);
     foriter.itertype = it;
     restype = foriter;
@@ -567,7 +598,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   ipt = stuple(best, new ScopeAndExpr(sc, main), ph, extra);
   return fastcast!(Object)~ reinterpret_cast(fastcast!(IType)~ restype, new StructLiteral(best, field));
 }
-mixin DefaultParser!(gotForIter, "tree.expr.iter.for", null, "[for");
+mixin DefaultParser!(gotForIter, "tree.expr.iter.for", null, "[");
 static this() {
   parsecon.addPrecedence("tree.expr.iter", "441");
 }
@@ -594,6 +625,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
     auto stepcond = itype.testAdvance(iref);
     auto value = itype.currentValue(iref);
     auto skip = af.genLabel();
+    opt(stepcond);
     if (cond) {
       // if jump fails, value is available; write it, then jump
       stepcond.jumpOn(af, false, skip);
@@ -768,12 +800,12 @@ class EvalIterator(T) : Expr, Statement {
       void emitStmtConcat(Expr var) {
         if (auto lv = fastcast!(LValue)~ ex) {
           iparse!(Statement, "iter_array_eval_step_4", "tree.stmt")
-                 (` { iterType!type-of _iter temp; while temp <- _iter { var ~= temp; } }`,
+                 (` { type-of-elem _iter temp; while temp <- _iter { var ~= temp; } }`,
                   namespace(),
                   "var", var, "_iter", lv, af).emitAsm(af);
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_5", "tree.stmt")
-                 (` { auto temp = _iter; iterType!type-of temp temp2; while temp2 <- temp { var ~= temp2; } }`,
+                 (` { auto temp = _iter; type-of-elem temp temp2; while temp2 <- temp { var ~= temp2; } }`,
                   namespace(),
                   "var", var, "_iter", ex, af).emitAsm(af);
         } else {
@@ -848,3 +880,21 @@ Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotIteratorAssign, "tree.semicol_stmt.assign_iterator", "11");
+
+Object gotElemTypeOf(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  string match = "tree.expr _tree.expr.arith";
+  
+  if (!rest(t2, match, &ex))
+    t2.failparse("Failed to parse type-of-elem expression");
+  
+  if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+    text.failparse("Expected iterator");
+  
+  auto it = fastcast!(Iterator) (ex.valueType());
+  
+  text = t2;
+  return fastcast!(Object) (it.elemType());
+}
+mixin DefaultParser!(gotElemTypeOf, "type.of_elem", "450", "type-of-elem");

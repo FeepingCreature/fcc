@@ -30,6 +30,7 @@ class StatementAndCond : Cond {
   mixin DefaultDup!();
   mixin defaultIterate!(first, second);
   override {
+    string toString() { return Format("{ ", first, " ", second, " }"); }
     void jumpOn(AsmFile af, bool cond, string dest) {
       first.emitAsm(af);
       second.jumpOn(af, cond, dest);
@@ -102,12 +103,13 @@ class Compare : Cond, Expr {
   void emitComparison(AsmFile af) {
     prelude;
     if (isFloat) {
-      // e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
-      e1.emitAsm(af); e2.emitAsm(af);
-      af.SSEOp("movd", "(%esp)", "%xmm1", true /* ignore alignment */); af.sfree(4);
-      af.SSEOp("movd", "(%esp)", "%xmm0", true); af.sfree(4);
-      af.SSEOp("comiss", "%xmm1", "%xmm0");
-      // e2.emitAsm(af); af.compareFloat("(%esp)"); af.sfree(4);
+      e2.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
+      e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
+      af.compareFloat("%st1");
+      // e1.emitAsm(af); e2.emitAsm(af);
+      // af.SSEOp("movd", "(%esp)", "%xmm1", true /* ignore alignment */); af.sfree(4);
+      // af.SSEOp("movd", "(%esp)", "%xmm0", true); af.sfree(4);
+      // af.SSEOp("comiss", "%xmm1", "%xmm0");
     } else if (auto ie = fastcast!(IntExpr) (e2)) {
       e1.emitAsm(af);
       af.popStack("%eax", 4);
@@ -145,7 +147,7 @@ class Compare : Cond, Expr {
         af.mmove4("$0", "%ecx"); // don't xorl; mustn't overwrite comparison results
       }
       // can't use eax, moveOnFloat needs ax .. or does it? (SSE mode)
-      if (isFloat) af.moveOnFloat(s, e, g, "%edx", "%ecx", true /* is SSE */);
+      if (isFloat) af.moveOnFloat(s, e, g, "%edx", "%ecx", /*true*/ /* is SSE */ false);
       else af.cmov(s, e, g, "%edx", "%ecx");
       // now can safely free.
       if (falseOverride && trueOverride)
@@ -161,7 +163,7 @@ class Compare : Cond, Expr {
         if (s + g == 1)
           e = !e;*/
       }
-      if (isFloat) af.jumpOnFloat(s, e, g, dest, true /* is SSE also */);
+      if (isFloat) af.jumpOnFloat(s, e, g, dest, /*true*/ /* is SSE also */ false);
       else af.jumpOn(s, e, g, dest);
     }
   }
@@ -298,6 +300,7 @@ class BooleanOp(string Which) : Cond, HasInfo {
   mixin defaultIterate!(c1, c2);
   override {
     string getInfo()  { return Which; }
+    string toString() { return Format("(", c1, " ", Which, " ", c2, ")"); }
     void jumpOn(AsmFile af, bool cond, string dest) {
       static if (Which == "&&") {
         if (cond) {

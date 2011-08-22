@@ -4,12 +4,23 @@ import c.gc, std.thread;
 
 pragma(lib, "gc");
 
+extern(C) void* memset(void* s, int c, size_t n);
 void* myDebugRealloc(void* a, size_t b) { return GC_debug_realloc(a, int:b, "", 0); }
-void* myDebugMalloc(int a) { return GC_debug_malloc(int:a, "", 0); }
+void* myDebugMalloc(int a) { return GC_debug_malloc(a, "", 0); }
 void* myDebugCalloc(int a, b) { return myDebugMalloc(a * b); }
+void* myDebugCallocAtomic(int a) {
+  auto res = GC_debug_malloc_atomic(a, "", 0);
+  memset(res, 0, size_t:a);
+  return res;
+}
 
 void* myRealloc(void* a, size_t b) { return GC_realloc(a, int:b); }
-void* myMalloc(int a) { return GC_malloc(int:a); }
+void* myMalloc(int a) { return GC_malloc(a); }
+void* myCallocAtomic(int a) {
+  auto res = GC_malloc_atomic(a);
+  memset(res, 0, size_t:a);
+  return res;
+}
 void* myCalloc(int a, b) {
   auto len = a * b;
   auto res = myMalloc(len);
@@ -18,27 +29,39 @@ void* myCalloc(int a, b) {
   return res;
 }
 
-void register_thread() {
-  GC_stack_base gsb;
-  gsb.mem_base = stack-base;
-  // writeln "register stack base $(stack-base) (ebp $(_ebp))";
-  // register my TLS segment as a root
-  GC_add_roots(_esi, _esi + tls_size);
-  GC_register_my_thread(&gsb);
-}
+platform(default) <<EOF
+  void register_thread(void* stackbase /* ignored for known thread base */) {
+    GC_stack_base gsb;
+    gsb.mem_base = stack-base;
+    GC_register_my_thread(&gsb);
+    // writeln "register stack base $(stack-base) (ebp $(_ebp))";
+    // register my TLS segment as a root
+    GC_add_roots(_esi, _esi + tls_size);
+  }
+EOF
+
+platform(i686-mingw32) <<EOF
+  void register_thread(void* stackbase) {
+    GC_stack_base gsb;
+    if (!stackbase)
+      raise-error new Error "Must supply stackbase for Boehm under Windows! ";
+    gsb.mem_base = stackbase;
+    GC_register_my_thread(&gsb);
+    GC_add_roots(_esi, _esi + tls_size);
+  }
+EOF
 
 void initBoehm(bool debugMode = false) {
-  if (debugMode)
-    (mem.malloc_dg,  mem.calloc_dg,  mem.realloc_dg,  mem.free_dg)
-     = (&myDebugMalloc, &myDebugCalloc, &myDebugRealloc, &GC_debug_free);
-  else
-    (mem.malloc_dg, mem.calloc_dg, mem.realloc_dg, mem.free_dg)
-     = (&myMalloc,     &myCalloc,     &myRealloc,     &GC_free);
+  (mem.malloc_dg, mem.calloc_atomic_dg, mem.calloc_dg, mem.realloc_dg, mem.free_dg)
+    = [(&myMalloc,      &myCallocAtomic,      &myCalloc,      &myRealloc,      &GC_free),
+       (&myDebugMalloc, &myDebugCallocAtomic, &myDebugCalloc, &myDebugRealloc, &GC_debug_free)
+      ][debugMode];
   GC_init;
   GC_allow_register_threads;
+  GC_add_roots(_esi, _esi + tls_size); // remind me why I need to do this
   auto oldDg = onThreadCreation;
-  onThreadCreation = new delegate void() {
-    if (oldDg) oldDg();
-    register_thread();
+  onThreadCreation = new delegate void(void* stackbase) {
+    if (oldDg) { oldDg(stackbase); }
+    register_thread(stackbase);
   };
 }

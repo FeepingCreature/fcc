@@ -60,8 +60,9 @@ string between_r(string s, string from, string to) {
 template join(T) <<EOF
   auto join(T t) {
     static if (type-is-tuple T) <<EO2{
-      alias T-type-of = type-of t[0];
-      type-of (value-of!iterType!T-type-of)[0] [auto~] res;
+      alias T0 = T[0];
+      alias VAL = value-of!type-of-elem t[0];
+      type-of VAL[0] [auto~] res;
       bool first = true;
       while auto chunk <- t[0] {
         if first first = false;
@@ -70,7 +71,7 @@ template join(T) <<EOF
       }
       return res[];
     }EO2 else <<EO2{
-      type-of (value-of!iterType!T)[0] [auto~] res;
+      type-of (value-of!type-of-elem t)[0] [auto~] res;
       while auto chunk <- t { res ~= chunk; }
       return res[];
     }EO2
@@ -81,16 +82,23 @@ template splitAt(T) <<EOF
   class iter : Iterator!string {
     T sup;
     char[auto~] buffer;
+    int offset;
     bool done;
     bool advance() {
-      if (done) return false;
+      if (done) { buffer.free; return false; }
       int pos;
-      do pos = find (buffer[], sup[0]);
+      do pos = find (buffer[offset .. $], sup[0]);
       while pos == -1 {
-        if (auto supstep <- sup[1]) { buffer ~= supstep; } else { value = buffer[]; done = true; return true; }
+        if (auto supstep <- sup[1]) {
+          buffer ~= supstep;
+        } else {
+          value = buffer[offset .. $];
+          done = true;
+          return true;
+        }
       }
-      value = buffer[0 .. pos];
-      buffer = type-of buffer: buffer[pos + sup[0].length .. $];
+      value = buffer[offset .. offset + pos];
+      offset += pos + sup[0].length;
       return true;
     }
   }
@@ -185,8 +193,13 @@ string strip(string s) {
 import std.util;
 string[] split(string s, string marker) {
   string[auto~] res;
-  for (auto value <- splitAt(marker, iterOnce s)) {
-    res ~= value;
+  while (s.length) {
+    auto pos = find(s, marker);
+    if (pos == -1) { res ~= s; s = null; }
+    else {
+      res ~= s[0..pos];
+      s = s[pos+marker.length .. $];
+    }
   }
   return res[];
 }
