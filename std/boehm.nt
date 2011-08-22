@@ -28,10 +28,12 @@ void register_thread() {
 }
 
 void initBoehm(bool debugMode = false) {
-  (mem.malloc_dg, mem.calloc_dg, mem.realloc_dg, mem.free_dg)
-    = [(&myMalloc,      &myCalloc,      &myRealloc,      &GC_free),
-       (&myDebugMalloc, &myDebugCalloc, &myDebugRealloc, &GC_debug_free)
-      ][debugMode];
+  if (debugMode)
+    (mem.malloc_dg,  mem.calloc_dg,  mem.realloc_dg,  mem.free_dg)
+     = (&myDebugMalloc, &myDebugCalloc, &myDebugRealloc, &GC_debug_free);
+  else
+    (mem.malloc_dg, mem.calloc_dg, mem.realloc_dg, mem.free_dg)
+     = (&myMalloc,     &myCalloc,     &myRealloc,     &GC_free);
   GC_init;
   GC_allow_register_threads;
   auto oldDg = onThreadCreation;

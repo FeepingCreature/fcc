@@ -139,6 +139,7 @@ T arrayToStruct(T)(T array) {
 import ast.structure;
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
+    // cur = forcedConvert(cur);
     if (text.accept("[]")) {
       return new Array(cur);
     } else if (text.accept("[~]")) {

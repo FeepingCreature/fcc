@@ -347,6 +347,9 @@ class DgCall : Expr {
   override IType valueType() {
     return (fastcast!(Delegate)~ dg.valueType()).ret;
   }
+  override string toString() {
+    return Format(dg, "(", params, ")");
+  }
 }
 
 Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
