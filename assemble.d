@@ -104,7 +104,7 @@ struct Transaction {
     FloatMath, FPSwap,
     FloatLongLoad, FloatIntLoad, /* fildq/l */
     SSEOp,
-    ExtendDivide, /* cdq, idivl */
+    ExtendDivide, /* cdq, [i]divl */
     Jump, Label, Extended, Nevermind, LoadAddress
   }
   const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "MovD", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
@@ -152,7 +152,7 @@ struct Transaction {
      case FloatLongLoad:return Format("[float long load ", source, "]");
       case FloatIntLoad:return Format("[float int load ", source, "]");
       case SSEOp:       return Format("[SSE ", opName, " ", op1, ", ", op2, stackinfo, "]");
-      case ExtendDivide:return Format("[cdq/idivl ", source, "]");
+      case ExtendDivide:return Format("[cdq/idivl ", source, ", ", signed?"signed":"unsigned", "]");
       case Jump:        return Format("[jmp ", dest, keepRegisters?" [keepregs]":"", mode?(" "~mode):"", "]");
       case Label:       return Format("[label ", names, keepRegisters?" [keepregs]":"", "]");
       case Extended:    return Format("[extended ", obj, "]");
@@ -176,7 +176,7 @@ struct Transaction {
       case FPSwap: return true;
       case FloatLongLoad, FloatIntLoad: return source == t2.source;
       case SSEOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
-      case ExtendDivide: return source == t2.source;
+      case ExtendDivide: return source == t2.source && signed == t2.signed;
       case Label: return names == t2.names;
       case Extended: return obj == t2.obj;
       case Nevermind: return dest == t2.dest;
@@ -388,7 +388,9 @@ struct Transaction {
       case FloatLongLoad: return qformat("fildq ", source);
       case FloatIntLoad: return qformat("fildl ", source);
       case SSEOp: return qformat(opName, " ", op1, ", ", op2);
-      case ExtendDivide: return qformat("cdq\nidivl ", source);
+      case ExtendDivide:
+        if (signed) return qformat("cdq\nidivl ", source);
+        else return qformat("xorl %edx, %edx\ndivl ", source); // no sign extension if unsigned, duh
       case Jump: if (mode) return qformat(mode, " ", dest); return qformat("jmp ", dest);
       case Label:
         assert(names.length);
@@ -424,6 +426,7 @@ struct Transaction {
     }
     bool keepRegisters;
     bool floatSelf;
+    bool signed;
     int stackdepth = -1;
     string mode; // for jumps
   }

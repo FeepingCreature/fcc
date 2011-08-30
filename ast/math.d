@@ -387,7 +387,7 @@ class AsmIntBinopExpr : BinopExpr {
         e2.emitAsm(af);
         e1.emitAsm(af);
         af.popStack("%eax", 4);
-        af.extendDivide("(%esp)");
+        af.extendDivide("(%esp)", op == "/");
         af.sfree(4);
         if (op == "%") {
           af.pushStack("%edx", 4);

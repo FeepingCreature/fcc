@@ -249,10 +249,11 @@ class AsmFile {
     t.stackdepth = currentStackDepth;
     cache ~= t;
   }
-  void extendDivide(string src) {
+  void extendDivide(string src, bool signed) {
     Transaction t;
     t.kind = Transaction.Kind.ExtendDivide;
     t.source = src;
+    t.signed = signed;
     cache ~= t;
   }
   void call(string what) {
