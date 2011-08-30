@@ -30,7 +30,7 @@ class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
     }
     IType valueType() { return base.valueType(); }
     string toString() {
-      return Format("expr-alias ", name, ""/*, " = ", base*/);
+      return Format("expr-alias ", name, "", " = ", base);
     }
   }
 }
