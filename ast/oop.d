@@ -319,7 +319,7 @@ class SuperType : IType, RelNamespace {
   }
 }
 
-import ast.modules, ast.returns;
+import ast.modules, ast.returns, ast.scopes;
 class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   VTable myfuns;
   Structure data;
@@ -403,7 +403,10 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         auto backup = namespace();
         namespace.set(rf);
         scope(exit) namespace.set(backup);
-        rf.tree = new ReturnStmt(mkString(name));
+        auto sc = new Scope;
+        namespace.set(sc);
+        rf.tree = sc;
+        sc._body = new ReturnStmt(mkString(name));
         current_module().entries ~= rf;
       }
     }
@@ -420,6 +423,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       auto backup = namespace();
       namespace.set(rf);
       scope(exit) namespace.set(backup);
+      auto sc = new Scope;
+      namespace.set(sc);
       // TODO: switch
       auto as = new AggrStatement;
       int intf_offset;
@@ -445,7 +450,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       }
       handleClass(this);
       as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return null; ", rf);
-      rf.tree = as;
+      rf.tree = sc;
+      sc._body = as;
       current_module().entries ~= rf;
     }
   }

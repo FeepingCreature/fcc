@@ -24,7 +24,7 @@ Object gotRestStmt(ref string text, ParseCb cont, ParseCb rest) {
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   auto as = new AggrStatement;
-  sc._body = as;
+  sc.addStatement(as);
   Statement st;
   t2.many(!!rest(t2, "tree.stmt", &st), { as.stmts ~= st; });
   auto t3 = t2;

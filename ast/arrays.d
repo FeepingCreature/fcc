@@ -49,7 +49,7 @@ class ExtArray : Type {
   }
 }
 
-import ast.structfuns, ast.modules, ast.aliasing, ast.properties;
+import ast.structfuns, ast.modules, ast.aliasing, ast.properties, ast.scopes;
 Stuple!(IType, bool, Module, IType)[] cache;
 bool[IType] isArrayStructType;
 IType arrayAsStruct(IType base, bool rich) {
@@ -82,7 +82,11 @@ IType arrayAsStruct(IType base, bool rich) {
     auto backup2 = namespace();
     scope(exit) namespace.set(backup2);
     namespace.set(fun);
-    fun.tree = dg(fun);
+    auto sc = new Scope;
+    namespace.set(sc);
+    scope(exit) namespace.set(sc.sup);
+    fun.tree = sc;
+    sc.addStatement(fastcast!(Statement) (dg(fun)));
     res.add(fun);
     fun.weak = true;
     mod.entries ~= fun;

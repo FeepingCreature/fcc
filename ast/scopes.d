@@ -79,16 +79,16 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   int framestart() {
     return get!(FrameRoot).framestart();
   }
-  // continuations good
   bool emitted;
+  // continuations good
   void delegate(bool=false) delegate() open(AsmFile af) {
-		lnsc.emitAsm(af);
-		// logln(lnsc.name, ":", lnsc.line, ": start ", this);
-		if (emitted) {
-			logln("double emit scope. ");
-			asm { int 3; }
-		}
-		emitted = true;
+    lnsc.emitAsm(af);
+    // logln(lnsc.name, ":", lnsc.line, ": start ", this);
+    if (emitted) {
+      logln("double emit scope. ");
+      asm { int 3; }
+    }
+    emitted = true;
     if (needEntryLabel) af.emitLabel(entry(), !keepRegs, !isForward);
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
@@ -141,7 +141,8 @@ Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   auto t2 = text;
-  if (rest(t2, "tree.stmt", &sc._body)) { text = t2; return sc; }
+  Statement _body;
+  if (rest(t2, "tree.stmt", &_body)) { text = t2; sc.addStatement(_body); return sc; }
   t2.failparse("Couldn't match scope");
 }
 mixin DefaultParser!(gotScope, "tree.scope");
