@@ -11,6 +11,7 @@ class ReturnStmt : Statement {
   mixin DefaultDup!();
   mixin defaultIterate!(value);
   Statement[] guards;
+  string toString() { return Format("return ", value); }
   override void emitAsm(AsmFile af) {
     auto fun = ns.get!(Function);
     void emitGuards() {

@@ -533,7 +533,8 @@ class Transcache {
       logln("WTF?! ", size, " into ", _list.length);
       asm { int 3; }
     }
-    return _list[0 .. size]; }
+    return _list[0 .. size];
+  }
   Transsection!(C) findMatch(C)(string opName, C cond, int from = 0) {
     for (int base = from; base < list.length; ++base) {
       if (auto len = cond(list[base .. $])) return Transsection!(C)(this, opName, cond, base, base + len, false);

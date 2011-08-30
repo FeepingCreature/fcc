@@ -26,23 +26,24 @@ alias C_open = open;
 import std.string;
 
 platform(default) <<EOF
-  alias read-mode = O_RDONLY;
+  alias read-mode = O_RDONLY, tweak-mode = 0;
 EOF
 
 platform(i686-mingw32) <<EOF
   alias read-mode = O_RDONLY | O_BINARY; // FUCK YOU SO HARD MICROSOFT WINDOWS.
+  alias tweak-mode = O_BINARY;
 EOF
 
-int open(string file) {
+int open(string file, int read-mode = read-mode) {
   auto ptr = toStringz(file);
   onExit mem.free(ptr);
-  return C_open(ptr, read-mode);
+  return C_open(ptr, read-mode | tweak-mode);
 }
 
 ubyte[] readAll(string file) { return join readfile open file; } // God I love this line so hard.
 
 class WriterError : Error {
-  void init() { super.init "Writer Error"; }
+  void init() { super.init "WriterError"; }
 }
 
 class writer {
@@ -50,7 +51,7 @@ class writer {
   void step(byte[] data) {
     while data.length {
       auto res = write(hdl, data.ptr, data.length);
-      if res == -1 raise-error (new WriterError);
+      if res == -1 { perror "While writing $(data.length) bytes".toStringz(); raise-error (new WriterError); }
       data = data[res .. $];
     }
   }

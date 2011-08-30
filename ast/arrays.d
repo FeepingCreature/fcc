@@ -233,7 +233,7 @@ class AllocStaticArray : Expr {
       mkVar(af, valueType(), true, (Variable var) {
         sa.emitAsm(af);
         iparse!(Statement, "new_sa", "tree.stmt")
-               (`var = new T[size]; `
+               (`var = new T[] size; `
                ,"var", var, "T", st.elemType, "size", mkInt(st.length)
                ).emitAsm(af);
         af.mmove4(qformat(4 + st.length, "(%esp)"), "%eax");

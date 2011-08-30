@@ -48,7 +48,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   }
   string entry() { return Format(".L", id, "_entry"); }
   string exit() { return Format(".L", id, "_exit"); }
-  string toString() { /*return Format(_body);*/ return Format("scope <- ", sup); }
+  string toString() { return Format("scope <- ", sup); }
   this() {
     id = getuid();
     sup = namespace();

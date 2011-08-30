@@ -188,6 +188,7 @@ class NegCond : Cond {
   mixin DefaultDup!();
   mixin defaultIterate!(c);
   this(Cond c) { this.c = c; }
+  override string toString() { return Format("!(", c, ")"); }
   override void jumpOn(AsmFile af, bool cond, string dest) {
     c.jumpOn(af, !cond, dest);
   }
