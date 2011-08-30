@@ -63,6 +63,12 @@ void delegate(byte[]) writefile(int _hdl) using new writer {
   return &step;
 }
 
+void writeAll(string file, byte[] data) using new writer {
+  hdl = file.open (O_RDWR | O_CREAT);
+  step data;
+  close;
+}
+
 alias c_getcwd = getcwd;
 
 string getcwd() {

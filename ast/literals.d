@@ -8,6 +8,8 @@ import ast.static_arrays, parseBase;
 
 Expr delegate(string) mkString; // defined in literal_string
 
+int dconscounter;
+
 class DoubleExpr : Expr, Literal {
   union {
     double d;
@@ -23,12 +25,14 @@ class DoubleExpr : Expr, Literal {
     string getValue() { assert(false); }
     void emitAsm(AsmFile af) {
       if (!name_used) {
-        name_used = af.allocConstant(Format("dcons_", af.constants.length), cast(ubyte[]) i);
+        name_used = af.allocConstant(Format("dcons_", dconscounter ++), cast(ubyte[]) i);
       }
       af.pushStack(qformat("0($", name_used, ")"), 8);
     }
   }
 }
+
+int floatconscounter;
 
 class FloatExpr : Expr, Literal {
   union {
@@ -46,7 +50,7 @@ class FloatExpr : Expr, Literal {
     string getValue() { return Format(f_as_i); }
     void emitAsm(AsmFile af) {
       if (!name_used) {
-        name_used = af.allocConstantValue(qformat("cons_constant_", af.constants.length, "___xfcc_encodes_", f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
+        name_used = af.allocConstantValue(qformat("cons_float_constant_", floatconscounter++, "___xfcc_encodes_", f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
       }
       af.pushStack(name_used, 4);
     }
