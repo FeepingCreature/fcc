@@ -46,7 +46,7 @@ class Range : Type, RichIterator, RangeIsh {
     }
     Expr length(Expr ex) {
       return iparse!(Expr, "length_range", "tree.expr")
-                    ("int:(ex.end - ex.cur)", "ex", castExprToWrapper(ex));
+                    ("int:(ex.end - ex.cur - 1)", "ex", castExprToWrapper(ex));
     }
     Expr index(Expr ex, Expr pos) {
       return iparse!(Expr, "index_range", "tree.expr")
