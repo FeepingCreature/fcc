@@ -523,7 +523,7 @@ class FunctionPointer : ast.types.Type {
   Argument[] args;
   bool stdcall;
   this() { }
-  string toString() { return Format(ret, " function(", args, ")"); }
+  string toString() { return Format(ret, " function(", args, ")", stdcall?" stdcall":""); }
   this(IType ret, Argument[] args) {
     this.ret = ret;
     this.args = args.dup;

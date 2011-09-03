@@ -263,6 +263,9 @@ struct TransactionInfo {
     return offs >= -by;
   }
   bool couldFixup(int shift) {
+    with (Transaction.Kind)
+      if (tp.kind != SSEOp /or/ MathOp /or/ Mov /or/ Mov2 /or/ Mov1 /or/ Push /or/ Pop /or/ FloatLoad) 
+        return false;
     return couldFixup(inOp1(), shift) && couldFixup(inOp2(), shift) && couldFixup(outOp(), shift);
   }
   void fixupStack(int shift) {
@@ -1605,8 +1608,13 @@ void setupOpts() {
     foreach (i; ints[1..$]) if (i != ints[0]) return false;
     return true;
   }
-  bool popequal(Transaction[] trs...) {
-    foreach (tr; trs[1..$]) if (tr.dest != trs[0].dest || tr.size != trs[0].size) return false;
+  bool popchain(Transaction[] trs...) {
+    if (trs[0].dest.isIndirect() == "%esp") {
+      foreach (tr; trs[1..$]) if (tr.dest != trs[0].dest || tr.size != trs[0].size) return false;
+    } else { // steps of four
+      int offs1, offs2;
+      foreach (i, tr; trs[1..$]) if (tr.dest.isIndirect2(offs2) != trs[0].dest.isIndirect2(offs1) || offs2 != offs1 + (i + 1) * trs[0].size || tr.size != trs[0].size) return false;
+    }
     return true;
   }
   bool pushequal(Transaction[] trs...) {
@@ -1694,14 +1702,16 @@ void setupOpts() {
     $SUBST(t, $0);
   `));
   mixin(opt("movaps_pointless_read", `^SSEOp, ^SSEOp:
-    $0.opName == "movaps" && $1.opName == "movaps"
+    $0.opName == "movaps" /or/ "movups" && $1.opName == "movaps" /or/ "movups"
     && $0.op2 == $1.op1
     && $0.op1.isSSERegister() && $1.op2.isSSERegister()
     =>
     auto t2 = $1.dup;
     t2.op1 = $0.op1;
-    if (t2.op1 == t2.op2) $SUBST($0);
-    else $SUBST($0, t2);
+    auto t0 = $0;
+    if ($1.opName == "movaps") t0.opName = "movaps"; // we know it's aligned
+    if (t2.op1 == t2.op2) $SUBST(t0);
+    else $SUBST(t0, t2);
   `));
   mixin(opt("denser_address_form", `^MathOp, ^Push || ^FloatLoad || ^Pop:
     ($0.opName == "imull" || $0.opName == "shl") && $0.op1.isNumLiteral() &&
@@ -1855,9 +1865,17 @@ void setupOpts() {
     t.source = qformat(offs1 + offs2, "(%esp)");
     $SUBST(t, $0);
   `));
+  mixin(opt("movaps_later", `^SSEOp, *:
+    $0.opName == "movaps" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" && $1.kind != $TK.Push /or/ $TK.Pop
+    =>
+     if (info($1).couldFixup(-16))
+      $SUBST($1, $0);
+    // else
+    //   logln("Can't subst: ", $1);
+  `));
   mixin(opt("movaps_and_pop_to_direct", `^SSEOp, ^Pop, ^Pop, ^Pop, ^Pop:
     $0.opName == "movaps" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
-    popequal($1, $2, $3, $4) && $1.size == 4
+    popchain($1, $2, $3, $4) && $1.size == 4
     =>
     $T t1, t2 = $0.dup;
     t1.kind = $TK.SFree;
@@ -1865,8 +1883,9 @@ void setupOpts() {
     t2.op2 = $1.dest;
     int offs;
     // must be guaranteed aligned!
-    if (t2.op2.isIndirect2(offs) == "%esp" && (offs % 16) == 0)
-      $SUBST(t2, t1);
+    if (t2.op2.isIndirect2(offs) != "%esp" || (offs % 16) != 0)
+      t2.opName = "movups";
+    $SUBST(t2, t1);
   `));
   mixin(opt("simplify_pure_sse_math_opers", `^SSEOp, ^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $0.op1.isSSERegister() &&

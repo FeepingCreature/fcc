@@ -49,8 +49,10 @@ alias PI = 3.1415926538;
 alias PI2 = PI * 2;
 alias PI180 = PI/180.0;
 
-float log(float f) { return logf f; }
-float pow(float a, b) { return powf (a, b); }
+alias pow = powf;
+alias log = logf;
+// float log(float f) { return logf f; }
+// float pow(float a, b) { return powf (a, b); }
 
 float sin(float f) {
   short status;

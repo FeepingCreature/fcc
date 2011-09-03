@@ -265,8 +265,9 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   auto var = new Variable(type, name, boffs(type));
   auto sc = namespace().get!(Scope);
-  if (!sc)
-    throw new Exception("There is a lack of a scope here. ");
+  if (!sc) {
+    t2.failparse("There is a lack of a scope here; trying to define ", name);
+  }
   sc.add(var);
   auto vd = new VarDecl;
   vd.configPosition(text);

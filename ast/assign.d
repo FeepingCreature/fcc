@@ -92,6 +92,8 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
       return true;
     })) {
       logln("Could not match ", bexup.valueType(), " to ", value.valueType());
+      logln("(note: ", (fastcast!(Object) (bexup.valueType())).classinfo.name, ")");
+      logln("(note 2: ", bexup.valueType() == value.valueType(), ")");
       logln("btw backup ex is ", (cast(Object) ex).classinfo.name, ": ", ex);
       t2.failparse("Parsing error");
     }
