@@ -28,7 +28,7 @@ static this() {
     if (!sysmod) return null; // required
     if (!expect || !fastcast!(Iterator) (expect))
       return null;
-    auto dcme = new DontCastMeExpr(ex);
+    auto dcme = new DontCastMeExpr(lvize(ex));
     auto range = iparse!(Expr, "array_iterate_range", "tree.expr")(`0..arr.length`, "arr", dcme);
     /*if (auto lv = fastcast!(CValue)~ ex) {
       return iparse!(Expr, "ref_array_iterate", "tree.expr.iter.for")(`[for i <- iter extra &arr: (*extra)[i]]`, "arr", new DontCastMeCValue(lv), "iter", range);
