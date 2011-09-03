@@ -535,6 +535,16 @@ class FunctionPointer : ast.types.Type {
   override int size() {
     return nativePtrSize;
   }
+  int opEquals(IType type2) {
+    auto t2 = resolveType(type2);
+    auto ft = fastcast!(FunctionPointer) (t2);
+    if (!ft) return false;
+    if (ret != ft.ret) return false;
+    if (args.length != ft.args.length) return false;
+    foreach (i, p; args) if (p.type != ft.args[i].type) return false;
+    if (stdcall != ft.stdcall) return false;
+    return true;
+  }
   override string mangle() {
     auto res = "fp_ret_"~ret.mangle()~"_args";
     if (!args.length) res ~= "_none";
