@@ -127,8 +127,16 @@ class SSESwizzle : Expr {
         case 'z': mask = mask*4 + 2; break;
         case 'w': mask = mask*4 + 3; break;
       }
-      sup.emitAsm(af);
-      af.SSEOp("movaps", "(%esp)", "%xmm0");
+      if (auto cv = fastcast!(CValue) (sup)) {
+        cv.emitLocation(af);
+        af.popStack("%eax", 4);
+        af.SSEOp("movups", "(%eax)", "%xmm0");
+        af.nvm("%eax");
+        af.salloc(16);
+      } else {
+        sup.emitAsm(af);
+        af.SSEOp("movaps", "(%esp)", "%xmm0");
+      }
       af.SSEOp(qformat("shufps $", mask, ", "), "%xmm0", "%xmm0");
       af.SSEOp("movaps", "%xmm0", "(%esp)");
     }
