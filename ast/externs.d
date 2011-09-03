@@ -2,7 +2,7 @@ module ast.externs;
 
 import ast.base, ast.fun, ast.namespace, ast.pointer;
 
-class ExternCGlobVar : CValue, Named {
+class ExternCGlobVar : LValue, Named {
   IType type;
   string name;
   mixin defaultIterate!();
