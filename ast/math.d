@@ -850,6 +850,23 @@ class FSqrtExpr : Expr {
   }
 }
 
+class FSinExpr : Expr {
+  Expr sup;
+  this(Expr ex) { sup = ex; }
+  mixin defaultIterate!(sup);
+  override {
+    IType valueType() { return Single!(Float); }
+    FSinExpr dup() { return new FSinExpr(sup.dup); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("4"));
+      sup.emitAsm(af);
+      af.loadFloat("(%esp)");
+      af.put("fsin");
+      af.storeFloat("(%esp)");
+    }
+  }
+}
+
 class SSESqrtExpr : Expr {
   Expr sup;
   this(Expr ex) { sup = ex; }
@@ -884,5 +901,17 @@ static this() {
     auto arg = foldex(fc.getParams()[0]);
     // return new FSqrtExpr(arg);
     return new SSESqrtExpr(arg);
+  };
+  foldopt ~= delegate Itr(Itr it) {
+    auto fc = fastcast!(FunCall) (it);
+    if (!fc) return null;
+    bool isSinMath;
+    auto sinmod = fastcast!(Module) (fc.fun.sup);
+    if (fc.fun.name == "sin" /or/ "[wrap]sin") {
+      if (sinmod && sinmod.name == "std.math") isSinMath = true;
+    }
+    if (!isSinMath) return null;
+    auto arg = foldex(fc.getParams()[0]);
+    return new FSinExpr(arg);
   };
 }
