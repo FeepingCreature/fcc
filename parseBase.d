@@ -218,6 +218,8 @@ bool[string] reserved;
 static this() {
   reserved["auto"] = true;
   reserved["return"] = true;
+  reserved["function"] = true;
+  reserved["delegate"] = true;
 }
 
 bool gotValidIdentifier(ref string text, out string ident, bool acceptDots = false) {

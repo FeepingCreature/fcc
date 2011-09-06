@@ -236,7 +236,7 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
   auto backup = *propcfg.ptr();
   scope(exit) *propcfg.ptr() = backup;
   if (isTuple) propcfg().withTuple = false;
-    
+  
   if (!rest(text, "tree.expr _tree.expr.arith", &arg)) {
     return false;
   }
@@ -286,7 +286,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     resetError();
     if (!matchCall(t2, fun.name, params, rest, fc.params, false, false)) {
       if (t2.accept("("))
-        text.failparse("Failed to call function: ", error()._1);
+        t2.failparse("Failed to call function with ", params, ": ", error()._1);
       auto t3 = t2;
       // valid call terminators
       if (params.length || !t3.accept(";"))

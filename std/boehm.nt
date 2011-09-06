@@ -10,6 +10,10 @@ void* myDebugMalloc(int a) { return GC_debug_malloc(a, "", 0); }
 void* myDebugCalloc(int a, b) { return myDebugMalloc(a * b); }
 void* myDebugCallocAtomic(int a) {
   auto res = GC_debug_malloc_atomic(a, "", 0);
+  if (!res) {
+    printf("Allocation failed!");
+    _interrupt 3;
+  }
   memset(res, 0, size_t:a);
   return res;
 }

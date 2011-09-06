@@ -300,6 +300,7 @@ import tools.log, ast.fold;
 void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
   if (!ret) throw new Exception("Tried to call function but return type not yet known! ");
   {
+    // logln("CALL ", fp, " ", params);
     mixin(mustOffset("0", "outer"));
     string name;
     fp = foldex(fp);
