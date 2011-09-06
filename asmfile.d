@@ -198,12 +198,12 @@ class AsmFile {
       "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
     ));
   }
-  void jumpOnFloat(bool smaller, bool equal, bool greater, string label, bool ssemode = false) {
+  void jumpOnFloat(bool smaller, bool equal, bool greater, string label, bool convert = true) {
     comparisonState = false;
     jumpedForwardTo[label] = true;
     labels_refcount[label]++;
     nvm("%eax");
-    if (!ssemode) {
+    if (convert) {
       put("fnstsw %ax");
       put("sahf");
     }
@@ -215,10 +215,10 @@ class AsmFile {
         ) { static if ("$floatjump".length) jump(label, false, "$floatjump"); return; }
     `));
   }
-  void moveOnFloat(bool smaller, bool equal, bool greater, string from, string to, bool ssemode = false) {
+  void moveOnFloat(bool smaller, bool equal, bool greater, string from, string to, bool convert = true) {
     comparisonState = false;
     nvm("%eax");
-    if (!ssemode) {
+    if (convert) {
       put("fnstsw %ax");
       put("sahf");
     }
@@ -324,7 +324,7 @@ class AsmFile {
     t.stackdepth = currentStackDepth;
     cache ~= t;
   }
-  void compareFloat(string mem) {
+  void compareFloat(string mem, bool useIVariant) {
     bool isReg;
     if (mem.startsWith("%st")) {
       isReg = true;
@@ -335,6 +335,7 @@ class AsmFile {
     t.kind = Transaction.Kind.FloatCompare;
     t.source = mem;
     t.stackdepth = currentStackDepth;
+    t.useIVariant = useIVariant;
     cache ~= t;
     comparisonState = true;
   }

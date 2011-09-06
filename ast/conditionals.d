@@ -38,6 +38,8 @@ class StatementAndCond : Cond {
   }
 }
 
+const bool useIVariant = true;
+
 class Compare : Cond, Expr {
   Expr e1; bool smaller, equal, greater; Expr e2;
   Expr falseOverride, trueOverride;
@@ -100,12 +102,12 @@ class Compare : Cond, Expr {
       e1 = new IntAsFloat(e1);
     }
   }
-  void emitComparison(AsmFile af) {
+  private void emitComparison(AsmFile af) {
     prelude;
     if (isFloat) {
       e2.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
       e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
-      af.compareFloat("%st1");
+      af.compareFloat("%st(1)", useIVariant);
       // e1.emitAsm(af); e2.emitAsm(af);
       // af.SSEOp("movd", "(%esp)", "%xmm1", true /* ignore alignment */); af.sfree(4);
       // af.SSEOp("movd", "(%esp)", "%xmm0", true); af.sfree(4);
@@ -147,8 +149,10 @@ class Compare : Cond, Expr {
         af.mmove4("$0", "%ecx"); // don't xorl; mustn't overwrite comparison results
       }
       // can't use eax, moveOnFloat needs ax .. or does it? (SSE mode)
-      if (isFloat) af.moveOnFloat(s, e, g, "%edx", "%ecx", /*true*/ /* is SSE */ false);
-      else af.cmov(s, e, g, "%edx", "%ecx");
+      if (isFloat)
+        af.moveOnFloat(s, e, g, "%edx", "%ecx", /* convert */ !useIVariant);
+      else
+        af.cmov(s, e, g, "%edx", "%ecx");
       // now can safely free.
       if (falseOverride && trueOverride)
         af.sfree(8);
@@ -159,12 +163,11 @@ class Compare : Cond, Expr {
       auto s = smaller, e = equal, g = greater;
       if (!cond) { // negate
         s = !s; e = !e; g = !g; // TODO: validate
-        /*swap(s, g);
-        if (s + g == 1)
-          e = !e;*/
       }
-      if (isFloat) af.jumpOnFloat(s, e, g, dest, /*true*/ /* is SSE also */ false);
-      else af.jumpOn(s, e, g, dest);
+      if (isFloat)
+        af.jumpOnFloat(s, e, g, dest, /* convert */ !useIVariant);
+      else
+        af.jumpOn(s, e, g, dest);
     }
   }
 }

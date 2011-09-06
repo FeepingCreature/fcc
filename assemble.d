@@ -171,7 +171,8 @@ struct Transaction {
       case FloatStore, DoubleStore, FloatPop, DoublePop, FPIntPop: return dest == t2.dest;
       case Call, Jump: return dest == t2.dest;
       case Compare: return op1 == t2.op1 && op2 == t2.op2;
-      case FloatLoad, DoubleLoad, RealLoad, RegLoad, FloatCompare: return source == t2.source;
+      case FloatLoad, DoubleLoad, RealLoad, RegLoad: return source == t2.source;
+      case FloatCompare: return source == t2.source && useIVariant == t2.useIVariant;
       case FloatMath: return opName == t2.opName && floatSelf == t2.floatSelf;
       case FPSwap: return true;
       case FloatLongLoad, FloatIntLoad: return source == t2.source;
@@ -371,7 +372,12 @@ struct Transaction {
       case RealLoad: return qformat("fldt ", source.fixupLiterals());
       case RegLoad: return qformat("fld ", source);
       case FloatCompare:
-        if (source == "%st1") {
+        if (useIVariant) {
+          if (source != "%st(1)")
+            throw new Exception("fcomi require ST1 arg! ");
+          return qformat("fcomip\nfstp %st"); // fcomipp
+        }
+        if (source == "%st(1)") {
           return qformat("fcompp");
         }
         return qformat("fcomps ", source);
@@ -426,7 +432,10 @@ struct Transaction {
     }
     bool keepRegisters;
     bool floatSelf;
-    bool signed;
+    union {
+      bool signed;
+      bool useIVariant;
+    }
     int stackdepth = -1;
     string mode; // for jumps
   }
