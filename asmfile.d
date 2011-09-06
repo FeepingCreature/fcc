@@ -522,9 +522,18 @@ class AsmFile {
       if (c.length > 4) dg(".align 16\n");
       dg(".globl "); dg(name); dg("\n");
       dg(name); dg(":\n");
-      dg(".byte ");
-      foreach (val; c) dg(qformat(cast(ubyte) val, ", "));
-      dg("0\n");
+      while (c.length) {
+        auto part = c;
+        if (part.length > 128) { part = part[0..128]; c = c[128 .. $]; }
+        else { c = null; }
+        dg(".byte ");
+        foreach (i, val; part) {
+          if (i) dg(", ");
+          dg(qformat(cast(ubyte) val));
+        }
+        dg("\n");
+      }
+      dg(".byte 0\n");
       // not win32 compatible
       // dg(".local "); dg(name); dg("\n");
     }
