@@ -781,8 +781,9 @@ class EvalIterator(T) : Expr, Statement {
     string toString() { return Format("Eval(", ex, ")"); }
     void emitAsm(AsmFile af) {
       int offs;
-      void emitStmtInto(Expr var) {
-        auto lv = fastcast!(LValue) (ex);
+      void emitStmtInto(Expr var, Expr ex2 = null) {
+        if (!ex2) ex2 = ex;
+        auto lv = fastcast!(LValue) (ex2);
         if (lv && var) {
           iparse!(Statement, "iter_array_eval_step_1", "tree.stmt")
                  (` { int i; while var[i++] <- _iter { } }`,
@@ -790,11 +791,11 @@ class EvalIterator(T) : Expr, Statement {
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_2", "tree.stmt")
                  (` { int i; auto temp = _iter; while var[i++] <- temp { } }`,
-                  "var", var, "_iter", ex, af).emitAsm(af);
+                  "var", var, "_iter", ex2, af).emitAsm(af);
         } else {
           iparse!(Statement, "iter_eval_step_3", "tree.stmt")
                  (` { auto temp = _iter; while temp { } }`,
-                  "_iter", ex, af).emitAsm(af);
+                  "_iter", ex2, af).emitAsm(af);
         }
       }
       void emitStmtConcat(Expr var) {
@@ -822,10 +823,17 @@ class EvalIterator(T) : Expr, Statement {
         else {
           static if (is(T == RichIterator)) {
             mkVar(af, valueType(), true, (Variable var) {
-              iparse!(Statement, "initVar", "tree.semicol_stmt.assign")
-                     (`var = new elem[] len`,
-                     "var", var, "len", iter.length(ex), "elem", iter.elemType()).emitAsm(af);
-              emitStmtInto(var);
+              // manual lvize
+              mkVar(af, ex.valueType(), true, (Variable lv) {
+                iparse!(Statement, "initLvVar", "tree.semicol_stmt.assign")
+                       (`lvvar = ex`,
+                        "lvvar", lv, "ex", ex).emitAsm(af);
+                iparse!(Statement, "initVar", "tree.semicol_stmt.assign")
+                       (`var = new elem[] len`,
+                        "var", var, "len", iter.length(lv), "elem", iter.elemType()).emitAsm(af);
+                emitStmtInto(var, lv);
+              });
+              af.sfree(ex.valueType().size);
             });
           } else {
             mkVar(af, new ExtArray(iter.elemType(), true), false, (Variable var) {

@@ -134,7 +134,7 @@ mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef", "20");
 
 Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto sc = fastcast!(Scope)~ namespace();
+  auto sc = namespace().get!(Scope);
   if (!sc) return null;
   auto nf = new NestedFunction(sc);
   auto mod = current_module();

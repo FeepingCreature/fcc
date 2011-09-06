@@ -28,12 +28,17 @@ static this() {
     if (!sysmod) return null; // required
     if (!expect || !fastcast!(Iterator) (expect))
       return null;
-    auto dcme = new DontCastMeExpr(lvize(ex));
-    auto range = iparse!(Expr, "array_iterate_range", "tree.expr")(`0..arr.length`, "arr", dcme);
-    /*if (auto lv = fastcast!(CValue)~ ex) {
-      return iparse!(Expr, "ref_array_iterate", "tree.expr.iter.for")(`[for i <- iter extra &arr: (*extra)[i]]`, "arr", new DontCastMeCValue(lv), "iter", range);
-    }*/
-    return iparse!(Expr, "array_iterate", "tree.expr.iter.for")(`[for i <- iter extra arr: extra[i]]`, "arr", dcme, "iter", range);
+    Statement init;
+    auto len = iparse!(Expr, "array_length", "tree.expr")(`arr.length`, "arr", ex);
+    opt(len);
+    if (auto ie = fastcast!(IntExpr) (len)) {
+      return iparse!(Expr, "array_iterate_int", "tree.expr.iter.for")(`[for i <- 0..len extra arr: extra[i]]`, "arr", ex, "len", ie);
+    } else {
+      auto lv = lvize(ex, &init);
+      auto res = iparse!(Expr, "array_iterate", "tree.expr.iter.for")(`[for i <- 0..arr.length extra arr: extra[i]]`, "arr", lv);
+      if (init) res = new StatementAndExpr(init, res);
+      return res;
+    }
   };
 }
 
@@ -212,15 +217,18 @@ Expr _false;
 Expr mkCross(Expr[] exprs) {
   synchronized {
     if (!_false)
-    _false = iparse!(Expr, "get_false", "tree.expr")(`sys.false`);
+      _false = iparse!(Expr, "get_false", "tree.expr")(`sys.false`);
   }
   Expr[] inits;
   foreach (ex; exprs) {
     inits ~= new Filler((fastcast!(Iterator)~ ex.valueType()).elemType());
   }
+  auto es = mkTupleExpr(exprs);
   auto tup = mkTupleExpr([_false] ~ inits ~ exprs ~ exprs);
+  auto tuptype = mkTupleExpr([_false] ~ inits ~ exprs ~ exprs).valueType(); // flattened
+  
   auto cross = new Cross;
-  cross.tup = fastcast!(Tuple)~ tup.valueType();
+  cross.tup = fastcast!(Tuple) (tuptype);
   return new RCE(cross, tup);
 }
 
