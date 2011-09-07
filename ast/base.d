@@ -553,3 +553,5 @@ IType forcedConvert(IType it) {
   if (!forcedTypeConversionDg) return it;
   return forcedTypeConversionDg(it);
 }
+
+Object[string] internals; // parsed for in ast.intrinsic
