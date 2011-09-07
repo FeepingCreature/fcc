@@ -3,6 +3,28 @@ module ast.conditionals;
 
 import ast.base, ast.namespace, ast.parse, ast.math, tools.base: This, This_fn, rmSpace;
 
+class TrueCond : Cond {
+  mixin DefaultDup!();
+  mixin defaultIterate!();
+  override {
+    string toString() { return Format("true"); }
+    void jumpOn(AsmFile af, bool cond, string dest) {
+      if (cond) af.jump(dest);
+    }
+  }
+}
+
+class FalseCond : Cond {
+  mixin DefaultDup!();
+  mixin defaultIterate!();
+  override {
+    string toString() { return Format("true"); }
+    void jumpOn(AsmFile af, bool cond, string dest) {
+      if (!cond) af.jump(dest);
+    }
+  }
+}
+
 class ExprWrap : Cond {
   Expr ex;
   mixin MyThis!("ex");
@@ -241,18 +263,20 @@ void setupStaticBoolLits() {
   if (True && False) return;
   True = fastcast!(Expr) (sysmod.lookup("true"));
   False = fastcast!(Expr) (sysmod.lookup("false"));
-  cTrue = new ExprWrap (True);
-  cFalse = new ExprWrap (False);
+  cTrue = new TrueCond;
+  cFalse = new FalseCond;
 }
 
 import ast.fold;
 bool isStaticTrue(Cond cd) {
+  if (fastcast!(TrueCond) (cd)) return true;
   auto ew = fastcast!(ExprWrap) (cd);
   if (!ew) return false;
   return ew.ex is True;
 }
 
 bool isStaticFalse(Cond cd) {
+  if (fastcast!(FalseCond) (cd)) return true;
   auto ew = fastcast!(ExprWrap) (cd);
   if (!ew) return false;
   return ew.ex is False;

@@ -50,6 +50,14 @@ static this() {
     } else return null;
   };
   foldopt ~= delegate Itr(Itr it) {
+    auto ew = fastcast!(ExprWrap) (it);
+    if (!ew) return null;
+    setupStaticBoolLits();
+    if (isStaticTrue(ew)) return cTrue;
+    if (isStaticFalse(ew)) return cFalse;
+    return null;
+  };
+  foldopt ~= delegate Itr(Itr it) {
     auto cmp = fastcast!(Compare) (it);
     if (!cmp) return null;
     // logln("e1: ", cmp.e1);
