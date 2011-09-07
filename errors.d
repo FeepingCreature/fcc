@@ -65,7 +65,7 @@ class ParseEx : Exception {
     string res;
     if (info._3) {
       auto prefix = "At line: ";
-      res = Format(prefix, info._3, "\n");
+      res = Format("\n", prefix, info._3, "\n");
       for (int i = 0; i < prefix.length + info._1; ++i)
         res ~= " ";
       res ~= "^\n";
