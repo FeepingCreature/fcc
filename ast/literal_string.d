@@ -55,8 +55,8 @@ bool gotStringExpr(ref string text, out Expr ex,
       else if (ch2 == 'x') {
         int h2i(char c) {
           if (c >= '0' && c <= '9') return c - '0';
-          if (c >= 'a' && c <= 'f') return c - 'a';
-          if (c >= 'A' && c <= 'F') return c - 'A';
+          if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+          if (c >= 'A' && c <= 'F') return c - 'A' + 10;
           assert(false);
         }
         auto h1 = t2.take(), h2 = t2.take(); 
