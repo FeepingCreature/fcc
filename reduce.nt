@@ -12,7 +12,7 @@ template reduce(T) <<EOF
 EOF
 
 void main() {
-  for int i <- seq(0..5, 10..15) writeln "$i";
-  auto res = reduce (seq(0..5, 10..15), delegate int(int a, b) return a+b;) 0;
+  for int i <- cat(0..5, 10..15) writeln "$i";
+  auto res = reduce (cat(0..5, 10..15), delegate int(int a, b) return a+b;) 0;
   writeln " => $res";
 }
