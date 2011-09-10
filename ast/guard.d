@@ -84,7 +84,8 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     "Mismatch: First case matched to '", t3.nextText(), "', "
            "second to '", t4.nextText(), "'. "
   );
-  text = t3;
+  if (type == "onFailure") text = t4;
+  else text = t3;
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotGuard, "tree.stmt.guard", "17");
