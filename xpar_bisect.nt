@@ -1,0 +1,39 @@
+module xpar_bisect;
+
+import c.stdlib, std.string;
+
+void main(string[] args) {
+  writeln "FCC -xpar bisect tool starting.";
+  (string exec, args) = args[(0, 1..$)];
+  if (args.length != 1) raise-error new Error "fcc parameter arg expected! ($(args)) ";
+  string arg = args[0];
+  bool works(int xpar) {
+    string cmd = "fcc -o xpar_bisect_test $arg -xpar $xpar >/dev/null";
+    writeln "> fcc -o xpar_bisect_test ARGS -xpar $xpar >/dev/null";
+    if (0 != system toStringz cmd)
+      raise-error new Error "Compilation failed! Aborting. ";
+    int res = system toStringz "./xpar_bisect_test";
+    return eval res == 0;
+  }
+  int low = 0, high = 1024;
+  writeln "Run preliminary tests .. ";
+  if (works -1) raise-error new Error "Program does not exhibit error behavior! What do you want me to do here? ";
+  if (!works low) raise-error new Error "Program doesn't work even without any optimization steps active! Cannot bisect. ";
+  writeln "Preliminary tests successful. Beginning search for upper limit .. ";
+  bool brk;
+  while (!brk && high) {
+    if (!works high) brk = true;
+    else high <<= 1;
+  }
+  if (!high) raise-error new Error "Couldn't find upper limit! ";
+  writeln "Test range: [$low .. $high]";
+  while (high != low + 1) {
+    int pivot = low + (high - low) / 2;
+    if (works pivot) low = pivot;
+    else high = pivot;
+    writeln " => [$low .. $high]";
+  }
+  writeln "Last working xpar: $low";
+  writeln "First broken xpar: $high";
+  writeln "Have a nice day. ";
+}
