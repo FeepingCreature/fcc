@@ -41,17 +41,22 @@ bool gotStringExpr(ref string text, out Expr ex,
 {
   auto t2 = text;
   if (!alreadyMatched && !t2.accept(sep)) return false;
-  string s;
+  ubyte[] ba;
   while (true) {
     assert(t2.length);
     // if (t2.accept(sep)) break; // eats comments in strings
     if (auto rest = t2.startsWith(sep)) { t2 = rest; break; }
-    auto ch = t2.take();
+    byte xtake() {
+      auto res = (cast(byte[]) t2)[0];
+      t2 = cast(string) (cast(byte[]) t2)[1..$];
+      return res;
+    }
+    auto ch = xtake();
     if (ch == '\\') {
-      auto ch2 = t2.take();
-      if (ch2 == 'n') { s ~= "\n"; }
-      else if (ch2 == 'r') { s ~= "\r"; }
-      else if (ch2 == 't') { s ~= "\t"; }
+      auto ch2 = xtake();
+      if (ch2 == 'n') { ba ~= cast(ubyte[]) "\n"; }
+      else if (ch2 == 'r') { ba ~= cast(ubyte[]) "\r"; }
+      else if (ch2 == 't') { ba ~= cast(ubyte[]) "\t"; }
       else if (ch2 == 'x') {
         int h2i(char c) {
           if (c >= '0' && c <= '9') return c - '0';
@@ -59,13 +64,13 @@ bool gotStringExpr(ref string text, out Expr ex,
           if (c >= 'A' && c <= 'F') return c - 'A' + 10;
           assert(false);
         }
-        auto h1 = t2.take(), h2 = t2.take(); 
-        s ~= h2i(h1) * 16 + h2i(h2);
+        auto h1 = xtake(), h2 = xtake(); 
+        ba ~= h2i(h1) * 16 + h2i(h2);
       }
-      else s ~= ch2;
-    } else s ~= ch;
+      else ba ~= ch2;
+    } else ba ~= ch;
   }
-  auto se = new StringExpr(s);
+  auto se = new StringExpr(cast(string) ba);
   text = t2; ex = se;
   return true;
 }

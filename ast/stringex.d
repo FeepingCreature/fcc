@@ -12,13 +12,18 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   auto str = (fastcast!(StringExpr)~ strlit).str;
   auto res = new ConcatChain(new StringExpr(""));
-  string buf;
-  void flush() { if (!buf) return; res.addArray(new StringExpr(buf)); buf = null; }
+  ubyte[] buf;
+  void flush() { if (!buf) return; res.addArray(new StringExpr(cast(string) buf)); buf = null; }
+  ubyte xtake() {
+    auto res = (cast(ubyte[]) str)[0];
+    str = cast(string) (cast(ubyte[]) str)[1..$];
+    return res;
+  }
   bool extended;
   auto backup = str;
   while (str.length) {
-    auto ch = str.take();
-    if (ch == '\\') buf ~= str.take();
+    auto ch = xtake();
+    if (ch == '\\') buf ~= xtake();
     else {
       if (ch != '$') buf ~= ch;
       else {
