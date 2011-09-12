@@ -11,6 +11,22 @@ void eatComments(ref string s) {
   s = s.strip();
   while (true) {
     if (auto rest = s.startsWith("/*")) { rest.slice("*/"); s = rest.strip(); }
+    else if (auto rest = s.startsWith("/+")) {
+      int depth = 1;
+      while (depth) {
+        auto a = rest.find("/+"), b = rest.find("+/");
+        if (b == -1)
+          throw new Exception("Unbalanced comments! ");
+        if (a != -1 && a < b) {
+          depth++;
+          rest = rest[a + 2 .. $];
+          continue;
+        }
+        depth --;
+        rest = rest[b + 2 .. $];
+      }
+      s = rest.strip();
+    }
     else if (auto rest = s.startsWith("//")) { rest.slice("\n"); s = rest.strip(); }
     else break;
   }
