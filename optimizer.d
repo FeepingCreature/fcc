@@ -1909,6 +1909,7 @@ void setupOpts() {
     =>
     $T t = $0.dup;
     t.op2 = $1.dest;
+    info(t).fixupStack(-4);
     $SUBST($1, t);
   `));
   mixin(opt("direct_push_after_mov", `^Push, ^Mov:
