@@ -352,6 +352,7 @@ class ByteToShortCast : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(b);
   override {
+    string toString() { return Format("short:", b); }
     IType valueType() { return Single!(Short); }
     void emitAsm(AsmFile af) {
       {
@@ -380,6 +381,7 @@ class ByteToIntCast : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(b);
   override {
+    string toString() { return Format("int:", b); }
     IType valueType() { return Single!(SysInt); }
     void emitAsm(AsmFile af) {
       {
