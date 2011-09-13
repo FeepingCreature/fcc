@@ -150,7 +150,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr[] values;
     
     if (ex) {
-      Expr ex2 = lvize(ex);
+      Expr ex2 = lvize(ex, true);
       gotImplicitCast(ex2, (Expr ex) {
         auto it = ex.valueType();
         if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it) || fastcast!(SemiRelNamespace) (it)) {
