@@ -1,0 +1,10 @@
+module test34;
+
+void main() {
+  int i;
+  auto dg = delegate float() return i++;;
+  auto res = [for 0..10: dg()].eval[];
+  auto res2 = new float[] 10;
+  res2[] = [for 0..10: dg()];
+  writeln "$res $res2";
+}
