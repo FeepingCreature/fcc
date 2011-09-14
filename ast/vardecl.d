@@ -122,11 +122,10 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
   return var;
 }
 
-Expr lvize_if_possible(Expr ex, Statement* late_init = null, bool forceAllocVar = false) {
-  if (!forceAllocVar) if (auto lv = fastcast!(LValue) (ex)) return ex;
+Expr lvize_if_possible(Expr ex, Statement* late_init = null) {
+  if (auto lv = fastcast!(LValue) (ex)) return ex;
   auto sc = namespace().get!(Scope);
   if (!sc) {
-    if (forceAllocVar) throw new Exception("Tried to force var alloc, but no scope found! ");
     return ex;
   }
   auto var = new Variable(ex.valueType(), null, boffs(ex.valueType()));
@@ -152,16 +151,14 @@ Expr lvize_if_possible(Expr ex, Statement* late_init = null, bool forceAllocVar 
 }
 
 // create temporary if needed
-LValue lvize(Expr ex, Statement* late_init = null, bool forceAllocVar = false) {
-  if (!forceAllocVar) if (auto lv = fastcast!(LValue) (ex)) return lv;
+LValue lvize(Expr ex, Statement* late_init = null) {
+  if (auto lv = fastcast!(LValue) (ex)) return lv;
   if (!namespace().get!(Scope)) {
     logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
     asm { int 3; }
   }
-  return fastcast!(LValue) (lvize_if_possible(ex, late_init, forceAllocVar));
+  return fastcast!(LValue) (lvize_if_possible(ex, late_init));
 }
-
-LValue lvize(Expr ex, bool forceAllocVar) { return lvize(ex, null, forceAllocVar); }
 
 import ast.fold;
 Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
