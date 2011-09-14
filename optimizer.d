@@ -3,7 +3,7 @@ module optimizer;
 import assemble, tools.base, ast.base, tools.base: Stuple, stuple;
 alias asmfile.startsWith startsWith;
 
-int xpar; // for debugging
+int xpar = -1; // for debugging
 
 struct onceThenCall {
   void delegate(Transaction) dg;
@@ -20,6 +20,8 @@ string cleanup(string s) {
   if (auto rest = s.startsWith("0(")) return "("~rest;
   return s;
 }
+
+static int si;
 
 string opt(string name, string s) {
   string src = s.ctSlice("=>"), dest = s;
@@ -59,7 +61,10 @@ string opt(string name, string s) {
     if (match.length) _loophead:do {
       match.modded = false;`;
   if (src.ctStrip().length) res ~= `
-      if (!(`~src~`)) continue;`;
+      if (!(`~src~`)) continue;
+      if (xpar != -1 && si >= xpar) continue;
+      si++;
+      `;
   res ~= dest~`
       if (match.modded) {
         _changed = true;
@@ -1904,6 +1909,7 @@ void setupOpts() {
     =>
     $T t = $0.dup;
     t.op2 = $1.dest;
+    info(t).fixupStack(-4);
     $SUBST($1, t);
   `));
   mixin(opt("direct_push_after_mov", `^Push, ^Mov:

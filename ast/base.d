@@ -321,28 +321,56 @@ struct foldopt {
   }
 }
 
-class StatementAndExpr : Expr {
-  Statement first;
-  Expr second;
-  mixin MyThis!("first, second");
-  mixin defaultIterate!(first, second);
-  bool once;
-  override {
-    string toString() { return Format("sae{", first, second, "}"); }
-    StatementAndExpr dup() {
-      return new StatementAndExpr(first.dup, second.dup);
-    }
-    IType valueType() { return second.valueType(); }
-    void emitAsm(AsmFile af) {
+template StatementAndT(T) {
+  class StatementAndT : T {
+    static if (is(T == Expr)) const string NAME = "sae";
+    static if (is(T == LValue)) const string NAME = "sal";
+    static if (is(T == MValue)) const string NAME = "sam"; // Seriously?
+    Statement first;
+    T second;
+    bool permissive;
+    mixin MyThis!("first, second, permissive = false");
+    mixin defaultIterate!(first, second);
+    bool once;
+    bool check() {
       if (once) {
-        logln("Double emit S&E. NOT SAFE. Expr is ", second, "; statement is ", first);
+        if (permissive) return false;
+        logln("Double emit ", this, ". NOT SAFE. ");
         asm { int 3; }
       }
       once = true;
-      first.emitAsm(af);
-      second.emitAsm(af);
+      return true;
+    }
+    override {
+      string toString() { return Format(NAME, "{", first, second, "}"); }
+      StatementAndT dup() { return new StatementAndT(first.dup, second.dup); }
+      IType valueType() { return second.valueType(); }
+      void emitAsm(AsmFile af) {
+        if (check) first.emitAsm(af);
+        second.emitAsm(af);
+      }
+      static if (is(T: LValue)) void emitLocation(AsmFile af) {
+        if (check) first.emitAsm(af);
+        second.emitLocation(af);
+      }
+      static if (is(T: MValue)) void emitAssignment(AsmFile af) {
+        if (check) first.emitAsm(af);
+        second.emitAssignment(af);
+      }
     }
   }
+}
+
+alias StatementAndT!(Expr) StatementAndExpr;
+alias StatementAndT!(LValue) StatementAndLValue;
+alias StatementAndT!(MValue) StatementAndMValue;
+
+Expr mkStatementAndExpr(Statement st, Expr ex, bool permissive = false) {
+  if (auto mv = fastcast!(MValue) (ex))
+    return new StatementAndMValue(st, mv, permissive);
+  if (auto lv = fastcast!(LValue) (ex))
+    return new StatementAndLValue(st, lv, permissive);
+  return new StatementAndExpr(st, ex, permissive);
 }
 
 class PlaceholderToken : Expr {
@@ -553,3 +581,5 @@ IType forcedConvert(IType it) {
   if (!forcedTypeConversionDg) return it;
   return forcedTypeConversionDg(it);
 }
+
+Object[string] internals; // parsed for in ast.intrinsic

@@ -373,7 +373,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIteratorZip, "tree.expr.iter.zip", null, "zip");
 
-class Seq(T) : Type, T {
+class Cat(T) : Type, T {
   Tuple tup; // current value, iterators, completion-bools (true when done)
   LValue castToTuple(LValue lv) {
     return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
@@ -387,9 +387,9 @@ class Seq(T) : Type, T {
   IType myType;
   override {
     IType elemType() { return myType; }
-    string toString() { return Format("Seq(", tup.types, ")"); }
+    string toString() { return Format("Cat(", tup.types, ")"); }
     int size() { return tup.size; }
-    string mangle() { return "seq_over_"~tup.mangle(); }
+    string mangle() { return "cat_over_"~tup.mangle(); }
     ubyte[] initval() { return tup.initval(); }
     Cond testAdvance(LValue lv) {
       auto len = (tup.types.length - 1) / 2;
@@ -398,7 +398,7 @@ class Seq(T) : Type, T {
       auto res_st = new Scope;
       Scope curBranch = res_st;
       for (int i = 0; i < len; ++i) {
-        auto ifst = iparse!(IfStatement, "seq_step", "tree.stmt")
+        auto ifst = iparse!(IfStatement, "cat_step", "tree.stmt")
                            (`if tup[1+len+i] && tup[0] <- tup[1+i] { } else { tup[1+len+i] = false; }`,
                              curBranch, "tup", tup, "i", mkInt(i), "len", mkInt(len)
                            );
@@ -412,10 +412,10 @@ class Seq(T) : Type, T {
     }
     static if (is(T: RichIterator)) {
       Expr length(Expr ex) {
-        auto len = tup.types.length - 1;
+        auto len = (tup.types.length - 1) / 2;
         Expr res = mkInt(0);
         for (int i = 0; i < len; ++i) {
-          auto term = iparse!(Expr, "seq_len", "tree.expr")
+          auto term = iparse!(Expr, "cat_len", "tree.expr")
                              (`tup[i + 1]`, "tup", castToTuple(ex), "i", mkInt(i));
           auto sublen = (fastcast!(RichIterator)~ term.valueType()).length(term);
           res = lookupOp("+", res, sublen);
@@ -433,28 +433,28 @@ class Seq(T) : Type, T {
   }
 }
 
-Expr mkSeq(IType type, Expr[] exprs, bool rich) {
+Expr mkCat(IType type, Expr[] exprs, bool rich) {
   Expr[] bools;
   setupStaticBoolLits();
   foreach (ex; exprs) bools ~= True;
   auto tup = mkTupleExpr(fastcast!(Expr) (new Filler(type)) ~ exprs ~ bools);
   if (rich) {
-    auto seq = new Seq!(RichIterator);
-    seq.myType = type;
-    seq.tup = fastcast!(Tuple)~ tup.valueType();
-    return new RCE(seq, tup);
+    auto cat = new Cat!(RichIterator);
+    cat.myType = type;
+    cat.tup = fastcast!(Tuple)~ tup.valueType();
+    return new RCE(cat, tup);
   } else {
-    auto seq = new Seq!(Iterator);
-    seq.myType = type;
-    seq.tup = fastcast!(Tuple)~ tup.valueType();
-    return new RCE(seq, tup);
+    auto cat = new Cat!(Iterator);
+    cat.myType = type;
+    cat.tup = fastcast!(Tuple)~ tup.valueType();
+    return new RCE(cat, tup);
   }
 }
 
-Object gotIteratorSeq(ref string text, ParseCb cont, ParseCb rest) {
+Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(text, "tree.expr", &ex))
-    text.failparse("Could not match exprs for seq");
+    text.failparse("Could not match exprs for cat");
   bool rich = true;
   IType valueType;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
@@ -482,9 +482,9 @@ Object gotIteratorSeq(ref string text, ParseCb cont, ParseCb rest) {
     if (rich) gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
     else gotImplicitCast(entry, Single!(BogusIterator), isIterator);
   }
-  return fastcast!(Object) (mkSeq(valueType, list, rich));
+  return fastcast!(Object) (mkCat(valueType, list, rich));
 }
-mixin DefaultParser!(gotIteratorSeq, "tree.expr.iter.seq", null, "seq");
+mixin DefaultParser!(gotIteratorCat, "tree.expr.iter.cat", null, "cat");
 
 class SumExpr : Expr {
   Iterator iter;

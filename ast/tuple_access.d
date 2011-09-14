@@ -131,7 +131,7 @@ class WithSpace : Namespace {
   }
 }
 
-import ast.iterator, ast.casting, ast.pointer, ast.vardecl;
+import ast.iterator, ast.casting, ast.pointer, ast.vardecl, ast.conditionals;
 Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Object obj) {
     {
@@ -139,9 +139,17 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (!t2.accept("(")) return null;
     }
     auto ex = fastcast!(Expr) (obj);
-    if (ex)
+    if (ex) {
+      if (fastcast!(Variable) (ex)) {
+        // I guess we don't need to do anything in this case.
+      } else if (auto lv = fastcast!(LValue) (ex)) {
+        ex = new DerefExpr(lvize(new RefExpr(lv)));
+      } else {
+        ex = lvize(ex);
+      }
       while (fastcast!(Pointer) (resolveType(ex.valueType())))
         ex = new DerefExpr(ex);
+    }
     
     if (auto it = fastcast!(IType) (obj))
       obj = fastcast!(Object) (resolveType(it));
@@ -150,8 +158,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr[] values;
     
     if (ex) {
-      Expr ex2 = lvize(ex);
-      gotImplicitCast(ex2, (Expr ex) {
+      gotImplicitCast(ex, (Expr ex) {
         auto it = ex.valueType();
         if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it) || fastcast!(SemiRelNamespace) (it)) {
           spaces ~= fastcast!(Object) (it);

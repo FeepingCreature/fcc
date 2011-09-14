@@ -333,10 +333,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     if (this is obj2) return true;
     auto cl2 = fastcast!(Class) (obj2);
     if (!cl2) return false;
-    // very special cases: are reparsed *every* iteration along with the intrinsics module.
-    if (name == "Object") return cl2.name == "Object";
-    if (name == "Error") return cl2.name == "Error";
-    return false;
+    return name == cl2.name && data == cl2.data; // fallback
   }
   override bool isPointerLess() { return false; }
   void getIntfLeaves(void delegate(Intf) dg) {

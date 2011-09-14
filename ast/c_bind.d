@@ -1,7 +1,7 @@
 module ast.c_bind;
 
 // Optimized for GL.h and SDL.h; may not work for others!! 
-import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays, ast.tuples: AstTuple = Tuple;
+import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays, ast.externs, ast.tuples: AstTuple = Tuple;
 
 import tools.compat, tools.functional;
 alias asmfile.startsWith startsWith;
@@ -78,6 +78,9 @@ const c_tree_expr = "tree.expr"
   " >tree.expr.scoped >tree.expr.stringex >tree.expr.dynamic_class_cast"
   " >tree.expr.properties";
 
+TLS!(Expr delegate(ref string)) specialCallback;
+static this() { New(specialCallback); }
+
 void parseHeader(string filename, string src) {
   auto start_time = sec();
   string newsrc;
@@ -136,6 +139,7 @@ void parseHeader(string filename, string src) {
     }
     if (auto rest = text.strip().startsWith("...")) { text = rest; return Single!(Variadic); }
     bool unsigned;
+    if (accept("_Bool")) return Single!(Char);
     if (accept("unsigned")) unsigned = true;
     else accept("signed");
     
@@ -180,6 +184,7 @@ void parseHeader(string filename, string src) {
     string id;
     if (!text.gotIdentifier(id)) return null;
     if (auto p = id in cache) return fastcast!(IType)~ *p;
+    if (auto ty = fastcast!(IType) (namespace().lookup(id))) return ty;
     return null;
   }
   IType matchType(ref string text) {
@@ -191,8 +196,10 @@ void parseHeader(string filename, string src) {
     } else return null;
   }
   IType matchParam(ref string text) {
-    IType ty = matchType(text);
+    auto t2 = text;
+    IType ty = matchType(t2);
     if (!ty) return null;
+    text = t2;
     text.accept("__restrict");
     text.accept("__const");
     string id;
@@ -208,6 +215,8 @@ void parseHeader(string filename, string src) {
     text.accept(",");
     return ty;
   }
+  Stuple!(string[], string)[string] macros;
+  bool[char*] loopbreaker; // recursion loop avoidance, lol
   bool readCExpr(ref string source, ref Expr res) {
     source = mystripl(source);
     if (!source.length) return false;
@@ -216,11 +225,27 @@ void parseHeader(string filename, string src) {
     if (source.endsWith("_TYPE") || s2.matchType()) return false;
     int i;
     s2 = source;
+    {
+      IType ty;
+      if (s2.accept("(") && (ty = matchType(s2), ty) && s2.accept(")") && readCExpr(s2, res)) {
+        res = forcedConvert(res);
+        res = reinterpret_cast(ty, res);
+        source = s2;
+        return true;
+      }
+    }
+    if (s2.accept("'")) { // char
+      auto ch = s2[0..1]; s2 = s2[1 .. $];
+      if (!s2.accept("'")) return false;
+      res = reinterpret_cast(Single!(Char), new DataExpr(cast(ubyte[]) ch));
+      source = s2;
+      return true;
+    }
     if (s2.gotInt(i)) {
       if (auto rest = s2.startsWith("U")) s2 = rest; // TODO
       if (s2.accept("LL")) return false; // long long
       s2.accept("L");
-      if (!s2.length) {
+      if (!s2.length /* special handling for separators */ || s2.startsWith(",") || s2.startsWith(")")) {
         res = new IntExpr(i);
         source = s2;
         return true;
@@ -248,11 +273,68 @@ void parseHeader(string filename, string src) {
       }
       // logln("IDENT ", ident);
     }
+    if (auto tup = ident in macros) {
+      auto backup = s2;
+      auto args = tup._0, str = tup._1;
+      // logln("macro parse for ", ident, " on ", s2);
+      if (!s2.accept("(")) return false;
+      Object[] objs;
+      while (true) {
+        Expr ex;
+        if (readCExpr(s2, ex)) objs ~= fastcast!(Object) (ex);
+        else if (auto ty = matchType(s2)) objs ~= fastcast!(Object) (ty);
+        else {
+          // logln("macro arg fail ", s2);
+          return false;
+        }
+        if (!s2.accept(",")) break;
+      }
+      if (!s2.accept(")")) {
+        // logln("fail 2 on ", s2);
+        return false;
+      }
+      if (objs.length != args.length) {
+        // logln("length fail");
+        return false;
+      }
+      auto myNS2 = new MiniNamespace("parse_macro");
+      myNS2.sup = namespace();
+      myNS2.internalMode = true;
+      namespace.set(myNS2);
+      scope(exit) namespace.set(myNS2.sup);
+      foreach (k, arg; objs) {
+        // logln(args[k], " -> ", arg);
+        myNS2._add(args[k], arg);
+      }
+      pushCache;
+      scope(exit) popCache;
+      if (!readCExpr(str, res)) {
+        // logln("macro fail ", str);
+        return false;
+      }
+      opt(res);
+      // logln(ident, " -- ", backup, " (args ", tup._0, ", str ", tup._1, ") => ", objs, " => ", res);
+      source = s2;
+      return true;
+    }
     s2 = source;
     if (s2.startsWith("__attribute__ ((")) s2 = s2.between("))", "");
     // logln(" @ '", source, "'");
     s2 = s2.mystripl();
     if (!s2.length) return false;
+    auto old_dg = *specialCallback();
+    Expr callback(ref string text) {
+      auto tp = text.ptr;
+      if (tp in loopbreaker) return null;
+      loopbreaker[tp] = true;
+      scope(exit) loopbreaker.remove(tp);
+      Expr res;
+      if (readCExpr(text, res)) return res;
+      if (old_dg) if (auto res = old_dg(text)) return res;
+      return null;
+    }
+    *specialCallback() = &callback;
+    scope(exit) *specialCallback() = old_dg;
     res = fastcast!(Expr) (parsecon.parse(s2, c_tree_expr));
     if (!res) return false;
     source = s2;
@@ -272,16 +354,25 @@ void parseHeader(string filename, string src) {
       auto backup = stmt;
       if (!gotIntExpr(stmt, ex) || stmt.strip().length) {
         stmt = backup;
-        bool isMacroParams(string s) {
-          if (!s.accept("(")) return false;
+        string[] macroArgs;
+        bool isMacroParams(ref string s) {
+          auto s2 = s;
+          if (!s2.accept("(")) return false;
           while (true) {
             string id;
-            if (!s.gotIdentifier(id) || !s.accept(",")) break;
+            if (!s2.gotIdentifier(id)) break;
+            macroArgs ~= id;
+            if (!s2.accept(",")) break;
           }
-          if (!s.accept(")")) return false;
+          if (!s2.accept(")")) return false;
+          s = s2;
           return true;
         }
-        if (isMacroParams(stmt)) goto giveUp;
+        if (isMacroParams(stmt)) {
+          macros[id] = stuple(macroArgs, stmt);
+          // logln("macro: ", id, " (", macroArgs, ") => ", stmt);
+          continue;
+        }
         // logln("full-parse ", stmt, " | ", start);
         // muahaha
         try {
@@ -527,15 +618,28 @@ void parseHeader(string filename, string src) {
     if (auto ret = stmt.matchType()) {
       stmt.eatAttribute();
       string name;
-      if (!gotIdentifier(stmt, name) || !stmt.accept("("))
+      if (!gotIdentifier(stmt, name))
         goto giveUp;
+      if (!stmt.accept("(")) {
+        // weird, but, nope.
+        // while (stmt.accept("[]")) ret = new Pointer(ret);
+        if (stmt.accept("[]") && !stmt.length) {
+          add(name, new ExprAlias(reinterpret_cast(new Pointer(ret), new RefExpr(new ExternCGlobVar(ret, name))), name));
+          continue;
+        }
+        if (!stmt.length) {
+          add(name, new ExternCGlobVar(ret, name));
+          continue;
+        }
+        // logln("MEEP ", name, ", '", stmt, "'");
+        goto giveUp;
+      }
       IType[] args;
-      // logln("@ ", stmt, ", get types");
+      // logln(name, "@ ", stmt, ", get types");
       while (true) {
         if (auto ty = matchParam(stmt)) args ~= ty;
         else break;
       }
-      // logln("left over ", stmt);
       if (!stmt.accept(")")) goto giveUp;
       if (args.length == 1 && args[0] == Single!(Void))
         args = null; // C is stupid.
@@ -615,6 +719,19 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotCImport, "tree.toplevel.c_import");
+
+import ast.fold, ast.literal_string;
+Object gotSpecialCallback(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  auto dg = *specialCallback();
+  if (!dg) return null;
+  auto t2 = text;
+  auto res = dg(t2);
+  if (!res) return null;
+  text = t2;
+  return fastcast!(Object) (res);
+}
+mixin DefaultParser!(gotSpecialCallback, "tree.expr.special_callback", "999"); // not super important
 
 static this() {
   ast.modules.specialHandler = delegate Module(string name) {

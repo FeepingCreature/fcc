@@ -265,7 +265,7 @@ string compile(string file, CompileSettings cs) {
   foreach (entry; entries) total += entry._1;
   // logSmart!(false)("Subsegments: ", entries, "; total ", total);
   {
-    scope f = new File(srcname, FileMode.OutNew);
+    scope f = new BufferedFile(srcname, FileMode.OutNew);
     af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     f.close;
   }

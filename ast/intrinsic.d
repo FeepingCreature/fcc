@@ -705,6 +705,24 @@ Object gotConstant(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotConstant, "tree.toplevel.constant", null, "__defConstant");
 
+Object gotInternal(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Expr ex;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+    t2.failparse("Expected expr string for internal lookup");
+  auto t = fastcast!(StringExpr) (foldex(ex));
+  if (!t)
+    t2.failparse("Expected static string expr for internal lookup");
+  auto p = t.str in internals;
+  if (!p)
+    t2.failparse(Format("No '", t.str, "' found in internals[] map! "));
+  if (!*p)
+    t2.failparse(Format("Result for '", t.str, "' randomly null! "));
+  text = t2;
+  return *p;
+}
+mixin DefaultParser!(gotInternal, "tree.expr.internal", "24052", "__internal");
+
 import ast.pragmas;
 static this() {
   // Link with this library

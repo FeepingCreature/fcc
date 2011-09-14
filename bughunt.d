@@ -42,9 +42,9 @@ int main(string[] args) {
     writefln(exec, " \"fcc params\"");
     return 1;
   }
-  auto info = readback("./fcc -config-opts \"info\" "~args[0]~" -o bughunt_test").split("\n");
+  auto info = readback("fcc -config-opts \"info\" "~args[0]~" -o bughunt_test").split("\n");
   void build(string flags) {
-    auto line = Format("./fcc -config-opts \""~flags~"\" "~args[0]~" -o bughunt_test >/dev/null");
+    auto line = Format("fcc -config-opts \""~flags~"\" "~args[0]~" -o bughunt_test >/dev/null");
     logln("> ", line);
     system(toStringz(line));
   }
