@@ -1,0 +1,54 @@
+module std.http;
+
+import std.string, std.socket;
+
+class DownloadError : Error {
+  void init(string url, string msg) { super.init "While downloading '$url:' $msg"; }
+}
+
+byte[] download(string url) {
+  {
+    string rest = url.startsWith("http://");
+    if !rest raise-error new DownloadError(url, "Unknown protocol (forgot http://?)");
+    url = rest;
+  }
+  (string domain, url) = slice (url, "/");
+  url = "/" ~ url;
+  (domain, string portstr) = slice (domain, ":");
+  short port = 80;
+  if portstr.length port = short:portstr.atoi();
+  auto sock = connect(domain, port);
+  void sendLine(string line) {
+    sock.sendAll byte[]:line;
+    sock.sendAll byte[]:"\r\n";
+  }
+  sendLine "GET $url HTTP/1.0";
+  sendLine "Host: $domain";
+  sendLine "";
+  auto response = string: join readsocket sock;
+  (string headerstr, response) = slice(response, "\r\n\r\n");
+  auto header = headerstr.split "\r\n";
+  return byte[]:response;
+}
+
+(byte[], string)[auto~] cache;
+byte[] downloadCached(string url) {
+  for auto tup <- cache
+    if tup[1] == url return tup[0];
+  
+  auto res = download url;
+  cache ~= (res, url);
+  return res;
+}
+
+string followLink(string from, string to) {
+  if to.startsWith "http://" return to;
+  if !from.startsWith "http://" raise-error new Error "$from is not a valid HTTP URL! ";
+  if to.startsWith "/"
+    return from.between("http://", "/") ~ to;
+  auto pos_param = from.find("?");
+  if pos_param == -1 pos_param = from.length;
+  auto pos_last_slash = from[7..pos_param].rfind("/");
+  if pos_last_slash == -1 raise-error new Error "No separator slash in $from! ";
+  return from[0..pos_last_slash + 7 + 1] ~ to;
+}

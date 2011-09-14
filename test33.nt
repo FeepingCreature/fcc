@@ -1,0 +1,9 @@
+module test33;
+import sdl, sdl_ttf;
+void main() {
+  screen(640, 480);
+  new TTF_FontClass(void[]:import("Vera.ttf"), 16)
+  #.render("Hello World")
+  .blit display.at(50, 50);
+  while true flip;
+}
