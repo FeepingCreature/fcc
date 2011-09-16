@@ -326,6 +326,22 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     if (!templ) return null;
     Expr nex;
     if (!rest(t2, "tree.expr", &nex)) return null;
+    
+    auto io = *templInstOverride.ptr(); // first level
+    // if (io._1 && io._0.ptr != currentPropBase.ptr().ptr) {
+    //   logln("Mismatch! ", nextText(io._0), " VS! ", nextText(*currentPropBase.ptr()));
+    // }
+    if (io._1 && io._0.ptr == currentPropBase.ptr().ptr) {
+      // logln("MATCH: testing with ", io._1);
+      try {
+        auto nt = templ.getInstanceIdentifier(io._1, rest, templ.getIdentifier());
+        auto it = fastcast!(ITemplate) (nt);
+        if (!it) setError("Failed to apply instantiation override: ", nt);
+        else templ = it;
+      } catch (Exception ex) {
+        t2.failparse("ifti pre-instantiating with ", io._1, ": ", ex);
+      }
+    }
     try {
       auto res = templ.getInstanceIdentifier(nex.valueType(), rest, templ.getIdentifier());
       auto fun = fastcast!(Function) (res);

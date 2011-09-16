@@ -77,6 +77,11 @@ static this() {
 }
 
 Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
+  auto backupPB = *currentPropBase.ptr();
+  scope(exit) *currentPropBase.ptr() = backupPB;
+  
+  *currentPropBase.ptr() = text;
+  
   Object res;
   withPropcfg((bool withTuple, bool withCall) {
     Object sup;

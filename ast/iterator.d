@@ -678,14 +678,29 @@ withoutIterator:
   Expr iter;
   resetError();
   
-  Expr backup;
-  /*IType lhstype;
-  if (lv) lhstype = lv.valueType();
-  else if (mv) lhstype = mv.valueType();
-  else lhstype = newVarType;*/
-  if (!rest(t2, "tree.expr", &iter) || (backup = iter, false) || !gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
-    if (needIterator) t2.failparse("Can't parse iterator: ", backup);
-    else return null;
+  {
+    auto backup = *templInstOverride.ptr();
+    scope(exit) *templInstOverride.ptr() = backup;
+    
+    IType ty;
+    if (lv) ty = lv.valueType();
+    else if (mv) ty = mv.valueType();
+    else if (newVarType) ty = newVarType;
+    
+    if (ty) *templInstOverride.ptr() = stuple(t2, ty);
+    
+    if (!rest(t2, "tree.expr", &iter)) {
+      
+      if (needIterator) t2.failparse("Can't parse iterator");
+      else return null;
+    }
+  }
+  
+  auto backup = iter;
+  
+  if (!gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+    t2.failparse("Expected an iterator, not a ", backup);
+  
   // insert declaration into current scope.
   // NOTE: this here is the reason why everything that tests a cond has to have its own scope.
   auto sc = fastcast!(Scope)~ namespace();

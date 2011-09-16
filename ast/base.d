@@ -583,3 +583,9 @@ IType forcedConvert(IType it) {
 }
 
 Object[string] internals; // parsed for in ast.intrinsic
+
+TLS!(Stuple!(string, IType)) templInstOverride;
+static this() { New(templInstOverride); }
+
+TLS!(string) currentPropBase;
+static this() { New(currentPropBase); }
