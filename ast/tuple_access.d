@@ -84,6 +84,9 @@ static this() {
     auto ifrom = fastcast!(IntExpr) (fold(from)), ito = fastcast!(IntExpr) (fold(to));
     if (!ifrom || !ito) fail("fail");
     auto start = tup.wrapped.selectMember(ifrom.num).offset;
+    if (ifrom.num == ito.num) {
+      return mkTupleExpr();
+    }
     auto restype = mkTuple(tup.wrapped.slice(ifrom.num, ito.num).types);
     auto res = iparse!(Expr, "tuple_slice", "tree.expr")
                       (`*restype*:(void*:&lv + base)`,
@@ -110,6 +113,10 @@ class WithSpace : Namespace {
     string mangle(string name, IType type) { assert(false); }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) {
+      if (name == "that") {
+        if (!values.length) throw new Exception("Oops. ");
+        return fastcast!(Object) (values[0]);
+      }
       foreach (i, space; spaces) {
         auto rns = fastcast!(RelNamespace) (space);
         

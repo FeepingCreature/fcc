@@ -6,7 +6,7 @@ pragma(lib, "sqlite3");
 
 extern(C) {
   int sqlite3_exec(sqlite3*, char*, int function(void*, int, char**, char**), void*, char**);
-  void sysFree(char* c) { free c; }
+  void sysFree(void* c) { free c; }
   int sqlite3_bind_text(sqlite3_stmt*, int, char*, int, void function(void*));
   int sqlite3_bind_blob(sqlite3_stmt*, int, void*, int, void function(void*));
 }
