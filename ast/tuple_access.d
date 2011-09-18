@@ -98,15 +98,17 @@ static this() {
 
 class WithSpace : Namespace {
   Object[] spaces;
+  Expr pureValue;
   Expr[] values;
   this(Expr ex) {
     sup = namespace();
     spaces ~= fastcast!(Object) (ex.valueType());
     values ~= ex;
   }
-  this(Object[] spaces, Expr[] values) {
+  this(Object[] spaces, Expr pureValue, Expr[] values) {
     sup = namespace();
     this.spaces = spaces;
+    this.pureValue = pureValue;
     this.values = values;
   }
   override {
@@ -114,8 +116,8 @@ class WithSpace : Namespace {
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) {
       if (name == "that") {
-        if (!values.length) throw new Exception("Oops. ");
-        return fastcast!(Object) (values[0]);
+        if (!pureValue) throw new Exception("Oops. ");
+        return fastcast!(Object) (pureValue);
       }
       foreach (i, space; spaces) {
         auto rns = fastcast!(RelNamespace) (space);
@@ -165,6 +167,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr[] values;
     
     if (ex) {
+      auto outer_ex = ex;
       gotImplicitCast(ex, (Expr ex) {
         auto it = ex.valueType();
         if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it) || fastcast!(SemiRelNamespace) (it)) {
@@ -189,7 +192,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    namespace.set(new WithSpace(spaces, values));
+    namespace.set(new WithSpace(spaces, ex, values));
     
     Object res;
     if (!rest(text, "tree.expr _tree.expr.arith", &res) && !rest(text, "cond", &res))

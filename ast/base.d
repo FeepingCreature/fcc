@@ -584,6 +584,7 @@ IType forcedConvert(IType it) {
 
 Object[string] internals; // parsed for in ast.intrinsic
 
+import tools.base: Stuple;
 TLS!(Stuple!(string, IType)) templInstOverride;
 static this() { New(templInstOverride); }
 

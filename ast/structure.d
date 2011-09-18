@@ -354,7 +354,9 @@ class MemberAccess_Expr : Expr, HasInfo {
   this(Expr base, string name) {
     this.base = base;
     this.name = name;
-    stm = fastcast!(RelMember) (fastcast!(Namespace) (base.valueType()).lookup(name));
+    auto ns = fastcast!(Namespace) (base.valueType());
+    if (!ns) { logln("Base is not NS-typed: ", base.valueType()); asm { int 3; } }
+    stm = fastcast!(RelMember) (ns.lookup(name));
     if (!stm) throw new Exception(Format("No member '", name, "' in ", base.valueType(), "!"));
   }
   this() { }
