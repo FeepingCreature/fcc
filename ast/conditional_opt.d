@@ -58,12 +58,21 @@ static this() {
     return null;
   };
   foldopt ~= delegate Itr(Itr it) {
+    auto nc = fastcast!(NegCond) (it);
+    if (!nc) return null;
+    auto sub = fastcast!(Cond) (fold(nc.c));
+    setupStaticBoolLits();
+    if (isStaticTrue(sub)) return cFalse;
+    if (isStaticFalse(sub)) return cTrue;
+    return null;
+  };
+  foldopt ~= delegate Itr(Itr it) {
     auto cmp = fastcast!(Compare) (it);
     if (!cmp) return null;
-    // logln("e1: ", cmp.e1);
-    // logln("e2: ", cmp.e2);
-    auto i1 = fastcast!(IntExpr) (cmp.e1);
-    auto i2 = fastcast!(IntExpr) (cmp.e2);
+    auto e1 = foldex(cmp.e1);
+    auto e2 = foldex(cmp.e2);
+    auto i1 = fastcast!(IntExpr) (e1);
+    auto i2 = fastcast!(IntExpr) (e2);
     // logln("i1: ", i1);
     // logln("i2: ", i2);
     if (!i1 || !i2) return null;

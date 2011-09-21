@@ -98,7 +98,7 @@ Object gotTypesEqual(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   auto t2 = text;
   if (!rest(t2, "type", &ty))
-    t2.failparse("Expect type parameter for is-equal! ");
+    t2.failparse("Expect type parameter for types-equal! ");
   auto tup = fastcast!(ast.tuples.Tuple) (resolveType(ty));
   if (!tup)
     text.failparse("Parameter to types-equal must be tuple! ");

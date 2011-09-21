@@ -1010,8 +1010,10 @@ void setupOpts() {
     ProcTrack obj;
     $T t;
     t.kind = $TK.Extended;
-    if ($0.kind == $TK.Extended) {
-      obj = cast(ProcTrack) $0.obj;
+    auto first = $0;
+restart:
+    if (first.kind == $TK.Extended) {
+      obj = cast(ProcTrack) first.obj;
       t.obj = obj;
       bool couldUpdate = obj.update($1);
       if (couldUpdate) {
@@ -1032,8 +1034,10 @@ void setupOpts() {
     } else {
       New(obj);
       t.obj = obj;
-      if (obj.update($0)) {
-        $SUBST(t, $1);
+      if (obj.update(first)) {
+        // $SUBST(t, $1);
+        first = t;
+        goto restart;
       }
       // else logln("Reject ", $0, ", ", $1);
     }

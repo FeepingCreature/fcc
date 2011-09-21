@@ -351,6 +351,7 @@ class ForIter(I) : Type, I {
         // logln("btw 1 ex is type ", subexpr(castToWrapper(lv)).valueType());
         auto fi = fastcast!(ForIter!(RichIterator)) (subexpr(castToWrapper(lv)).valueType());
         auto sub = fi.castToWrapper(subexpr(castToWrapper(lv)));
+        // logln("auto-free() of type ", iparse!(Expr, "mew", "tree.expr")(`ex.extra`, "ex", sub).valueType());
         Statement freest = iparse!(Statement, "autofree_exec", "tree.stmt")
                                   (`ex.extra.free();`, "ex", sub);
         res = new OrOp(res, new StatementAndCond(freest, cFalse));
@@ -678,14 +679,29 @@ withoutIterator:
   Expr iter;
   resetError();
   
-  Expr backup;
-  /*IType lhstype;
-  if (lv) lhstype = lv.valueType();
-  else if (mv) lhstype = mv.valueType();
-  else lhstype = newVarType;*/
-  if (!rest(t2, "tree.expr", &iter) || (backup = iter, false) || !gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
-    if (needIterator) t2.failparse("Can't parse iterator: ", backup);
-    else return null;
+  {
+    auto backup = *templInstOverride.ptr();
+    scope(exit) *templInstOverride.ptr() = backup;
+    
+    IType ty;
+    if (lv) ty = lv.valueType();
+    else if (mv) ty = mv.valueType();
+    else if (newVarType) ty = newVarType;
+    
+    if (ty) *templInstOverride.ptr() = stuple(t2, ty);
+    
+    if (!rest(t2, "tree.expr", &iter)) {
+      
+      if (needIterator) t2.failparse("Can't parse iterator");
+      else return null;
+    }
+  }
+  
+  auto backup = iter;
+  
+  if (!gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+    t2.failparse("Expected an iterator, not a ", backup);
+  
   // insert declaration into current scope.
   // NOTE: this here is the reason why everything that tests a cond has to have its own scope.
   auto sc = fastcast!(Scope)~ namespace();
@@ -879,7 +895,8 @@ Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
       auto ri = fastcast!(RichIterator)~ it;
       return ri && target.valueType() == new Array(ri.elemType());
     })) {
-      text.setError("Mismatching types in iterator assignment: ", target, " <- ", value.valueType());
+      // don't - this messes up the error of standard assignment!
+      // text.setError("Mismatching types in iterator assignment: ", target, " <- ", value.valueType());
       return null;
     }
     text = t2;

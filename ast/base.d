@@ -366,6 +366,7 @@ alias StatementAndT!(LValue) StatementAndLValue;
 alias StatementAndT!(MValue) StatementAndMValue;
 
 Expr mkStatementAndExpr(Statement st, Expr ex, bool permissive = false) {
+  if (!st) return ex; // convenience
   if (auto mv = fastcast!(MValue) (ex))
     return new StatementAndMValue(st, mv, permissive);
   if (auto lv = fastcast!(LValue) (ex))
@@ -583,3 +584,10 @@ IType forcedConvert(IType it) {
 }
 
 Object[string] internals; // parsed for in ast.intrinsic
+
+import tools.base: Stuple;
+TLS!(Stuple!(string, IType)) templInstOverride;
+static this() { New(templInstOverride); }
+
+TLS!(string) currentPropBase;
+static this() { New(currentPropBase); }

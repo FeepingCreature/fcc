@@ -1,3 +1,5 @@
 module libgd;
 
-c_include "gd.h";
+public import c.gd;
+
+pragma(lib, "gd");

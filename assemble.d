@@ -468,8 +468,7 @@ struct Transsection(C) {
     foreach (elem; t)
       static if (is(typeof(elem.length))) tlength += elem.length;
       else tlength ++;
-    Transaction[] flat;
-    foreach (elem; t) flat ~= elem;
+    
     if (tlength == length) {
       int offs = from;
       foreach (elem; t) {
