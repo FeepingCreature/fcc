@@ -228,20 +228,23 @@ class OverloadSet : Named, Extensible {
 class FunCall : Expr {
   Expr[] params;
   Function fun;
+  Statement setup;
   Expr[] getParams() { return params; }
   FunCall construct() { return new FunCall; }
   FunCall dup() {
     auto res = construct;
     res.fun = fun.flatdup();
+    if (setup) res.setup = setup.dup;
     
     foreach (param; params) res.params ~= param.dup;
     return res;
   }
   void iterate(void delegate(ref Iterable) dg) {
     fun.iterateExpressions(dg);
-    defaultIterate!(params).iterate(dg);
+    defaultIterate!(params, setup).iterate(dg);
   }
   void emitWithArgs(AsmFile af, Expr[] args) {
+    if (setup) setup.emitAsm(af);
     auto size = (fun.type.ret == Single!(Void))?0:fun.type.ret.size;
     mixin(mustOffset("size"));
     callFunction(af, fun.type.ret, fun.extern_c, fun.type.stdcall, args, fun.getPointer());

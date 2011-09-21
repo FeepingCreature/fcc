@@ -351,6 +351,7 @@ class ForIter(I) : Type, I {
         // logln("btw 1 ex is type ", subexpr(castToWrapper(lv)).valueType());
         auto fi = fastcast!(ForIter!(RichIterator)) (subexpr(castToWrapper(lv)).valueType());
         auto sub = fi.castToWrapper(subexpr(castToWrapper(lv)));
+        // logln("auto-free() of type ", iparse!(Expr, "mew", "tree.expr")(`ex.extra`, "ex", sub).valueType());
         Statement freest = iparse!(Statement, "autofree_exec", "tree.stmt")
                                   (`ex.extra.free();`, "ex", sub);
         res = new OrOp(res, new StatementAndCond(freest, cFalse));
@@ -894,7 +895,8 @@ Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
       auto ri = fastcast!(RichIterator)~ it;
       return ri && target.valueType() == new Array(ri.elemType());
     })) {
-      text.setError("Mismatching types in iterator assignment: ", target, " <- ", value.valueType());
+      // don't - this messes up the error of standard assignment!
+      // text.setError("Mismatching types in iterator assignment: ", target, " <- ", value.valueType());
       return null;
     }
     text = t2;

@@ -366,6 +366,7 @@ alias StatementAndT!(LValue) StatementAndLValue;
 alias StatementAndT!(MValue) StatementAndMValue;
 
 Expr mkStatementAndExpr(Statement st, Expr ex, bool permissive = false) {
+  if (!st) return ex; // convenience
   if (auto mv = fastcast!(MValue) (ex))
     return new StatementAndMValue(st, mv, permissive);
   if (auto lv = fastcast!(LValue) (ex))

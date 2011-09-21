@@ -186,6 +186,7 @@ class NestedCall : FunCall {
   override void emitAsm(AsmFile af) {
     // if (dg) logln("call ", dg);
     // else logln("call {", fun.getPointer(), " @ebp");
+    if (setup) setup.emitAsm(af);
     if (dg) callDg(af, fun.type.ret, params, dg);
     else callDg(af, fun.type.ret, params,
       new DgConstructExpr(fun.getPointer(), ebp));
@@ -286,13 +287,15 @@ static this() {
 // TODO: this cannot work; it's too simple.
 class PointerFunction(T) : T {
   Expr ptr;
+  Statement setup;
   void iterateExpressions(void delegate(ref Iterable) dg) {
-    defaultIterate!(ptr).iterate(dg);
+    defaultIterate!(ptr, setup).iterate(dg);
     super.iterateExpressions(dg);
   }
-  this(Expr ptr) {
+  this(Expr ptr, Statement setup = null) {
     static if (is(typeof(super(null)))) super(null);
     this.ptr = ptr;
+    this.setup = setup;
     New(type);
     auto dg = fastcast!(Delegate)~ ptr.valueType(), fp = fastcast!(FunctionPointer)~ ptr.valueType();
     if (dg) {
@@ -307,24 +310,26 @@ class PointerFunction(T) : T {
       asm { int 3; }
     }
   }
-  override PointerFunction flatdup() { return new PointerFunction(ptr.dup); }
-  override PointerFunction dup() { return new PointerFunction(ptr.dup); }
+  override PointerFunction flatdup() { return new PointerFunction(ptr.dup, setup); }
+  override PointerFunction dup() { return new PointerFunction(ptr.dup, setup); }
   override {
     FunCall mkCall() {
       if (fastcast!(Delegate)~ ptr.valueType()) {
         auto res = new NestedCall;
         res.fun = this;
         res.dg = ptr;
+        res.setup = setup;
         return res;
       } else {
         auto res = new FunCall;
+        res.setup = setup;
         res.fun = this;
         return res;
       }
       assert(false);
     }
     string mangleSelf() { asm { int 3; } }
-    Expr getPointer() { return ptr; }
+    Expr getPointer() { if (setup) return new StatementAndExpr(setup, ptr); return ptr; }
     string toString() {
       return Format("*", ptr);
     }
