@@ -229,7 +229,7 @@ static this() {
 
 import ast.modules;
 bool matchStructBody(ref string text, Namespace ns,
-                     ParseCb cont, ParseCb rest) {
+                     ParseCb* rest = null) {
   auto backup = namespace();
   namespace.set(ns);
   scope(exit) namespace.set(backup);
@@ -239,17 +239,24 @@ bool matchStructBody(ref string text, Namespace ns,
   string[] names; IType[] types;
   string strname; IType strtype;
   
+  Object match(ref string text, string rule) {
+    if (rest) { Object res; if (!(*rest)(text, rule, &res)) return null; return res; }
+    else {
+      return parsecon.parse(text, rule);
+    }
+  }
+  
   return (
     text.many(
       (t2 = text, true)
-      && rest(text, "struct_member", &smem)
+      && test(smem = fastcast!(Named)(match(text, "struct_member")))
       && {
         if (!addsSelf(smem)) ns.add(smem);
         return true;
       }()
       ||
       (text = t2, true)
-      && test(strtype = fastcast!(IType)~ rest(text, "type"))
+      && test(strtype = fastcast!(IType) (match(text, "type")))
       && text.bjoin(
         text.gotIdentifier(strname),
         text.accept(","),
@@ -290,7 +297,7 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
       return new DerefExpr(baseref);
     };
     
-    if (matchStructBody(t2, st, cont, rest)) {
+    if (matchStructBody(t2, st, &rest)) {
       if (!t2.accept("}"))
         t2.failparse("Missing closing struct bracket");
       text = t2;

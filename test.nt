@@ -12,6 +12,9 @@ string break-the-coarse-parser(int i) { return "lol } "; /* } */ }
 int X1(int a) { if (true) return a; return X2(a); }
 int X2(int a) { if (true) return a; return X1(a); }
 
+class A { B b; void meep() { writeln "Hello World"; return; b.peep(); } }
+class B { A a; void peep() { writeln "Fuck tha po-lice"; return; a.meep(); } }
+
 void test(int foo) {
   int bar = 17;
   if (foo) writeln("meep");
