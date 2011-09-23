@@ -57,6 +57,7 @@ class TypeAlias : Named, IType, SelfAdding {
   string name;
   mixin This!("base, name");
   override {
+    bool isComplete() { return base.isComplete; }
     bool addsSelf() { return true; }
     string getIdentifier() { return name; }
     bool isPointerLess() { return base.isPointerLess(); }

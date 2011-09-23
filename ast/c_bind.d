@@ -61,6 +61,7 @@ class LateType : IType {
     int size() { needMe; return me.size; }
     ubyte[] initval() { needMe; return me.initval; }
     bool isPointerLess() { needMe; return me.isPointerLess(); }
+    bool isComplete() { return !!me; } // TODO: ??
     int opEquals(IType it) {
       needMe;
       return it == me;

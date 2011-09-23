@@ -119,6 +119,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
   override void emitAsm(AsmFile af) { }
   override bool isTempNamespace() { return false; }
   override bool isPointerLess() { return false; }
+  override bool isComplete() { return true; }
   IntfRef getRefType() { return new IntfRef(this); }
   string toString() { return "interface "~name; }
   string mangle() { return "interface_"~mangle_id; }
@@ -306,6 +307,7 @@ class SuperType : IType, RelNamespace {
     ubyte[] initval() { logln("Excuse me what are you doing declaring variables of super-type you weirdo"); fail; return null; }
     int opEquals(IType it) { return false; /* wut */ }
     bool isPointerLess() { return false; }
+    override bool isComplete() { return true; }
     Object lookupRel(string name, Expr base) {
       auto sup2 = fastcast!(SuperType) (base.valueType());
       if (sup2 !is this) asm { int 3; }

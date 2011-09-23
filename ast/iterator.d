@@ -484,6 +484,7 @@ class BogusIterator : Iterator, IType { // tag
     int opEquals(IType it) { assert(false); }
     IType proxyType() { assert(false); }
     bool isPointerLess() { assert(false); }
+    bool isComplete() { assert(false); }
   }
 }
 

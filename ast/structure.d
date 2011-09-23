@@ -97,6 +97,11 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     select((string, RelMember member) { pointerless &= member.type.isPointerLess(); });
     return pointerless;
   }
+  override bool isComplete() {
+    bool complete = true;
+    select((string, RelMember member) { complete &= member.type.isComplete(); });
+    return complete;
+  }
   Structure dup() {
     auto res = new Structure(name);
     res.sup = sup;

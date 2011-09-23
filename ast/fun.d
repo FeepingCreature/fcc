@@ -415,6 +415,11 @@ class FunctionType : ast.types.Type {
     return res;
   }
   override {
+    bool isComplete() {
+      if (!ret || !ret.isComplete) return false;
+      foreach (par; params) if (!par.type.isComplete) return false;
+      return true;
+    }
     string mangle() {
       if (!ret) throw new Exception("Function return type indeterminate! ");
       string res = "function_to_"~ret.mangle();
@@ -524,7 +529,7 @@ Object gotGenericFun(T, bool Decl)(T _fun, Namespace sup_override, bool addToNam
     } else {
       auto t4 = text;
       // if ret is null(auto), cannot wait to parse scope until later since we need the full type NOW
-      if (fun.type.ret && t4.accept("{")) {
+      if (fun.type.isComplete && t4.accept("{")) {
         auto block = text.coarseLexScope();
         fun.coarseSrc = block;
         fun.coarseContext = namespace();
@@ -589,6 +594,11 @@ class FunctionPointer : ast.types.Type {
     else foreach (arg; args)
       res ~= "_"~arg.type.mangle();
     return res;
+  }
+  override bool isComplete() {
+    if (!ret || !ret.isComplete) return false;
+    foreach (arg; args) if (!arg.type.isComplete) return false;
+    return true;
   }
 }
 

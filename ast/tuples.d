@@ -18,6 +18,7 @@ class Tuple : Type {
   int[] offsets() { return wrapped.selectMap!(RelMember, "$.offset")(&offsetcache); }
   override {
     int size() { return wrapped.size; }
+    bool isComplete() { return wrapped.isComplete; }
     string mangle() { return "tuple_"~wrapped.mangle(); }
     ubyte[] initval() { return wrapped.initval(); }
     string toString() { return Format("Tuple", (fastcast!(Structure)~ wrapped).members); }

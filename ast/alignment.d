@@ -27,6 +27,7 @@ class UnAlignedPlaceholder : IType {
     int opEquals(IType it) { return base.opEquals(it); }
     IType proxyType() { return null; }
     bool isPointerLess() { return base.isPointerLess(); }
+    bool isComplete() { return base.isComplete(); }
   }
 }
 
