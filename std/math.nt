@@ -106,21 +106,21 @@ alias atan2 = atan2f;
 alias asin = asinf;
 alias acos = acosf;
 
-template minlist(T) <<EOT
+template minlist(T) {
   iterType!T minlist(T t) {
     eval auto res <- t;
     while auto r2 <- t if r2 < res res = r2;
     return res;
   }
-EOT
+}
 
-template maxlist(T) <<EOT
+template maxlist(T) {
   iterType!T maxlist(T t) {
     eval auto res <- t;
     while auto r2 <- t if r2 > res res = r2;
     return res;
   }
-EOT
+}
 
 int abs(int i) { if i < 0 return -i; return i; }
 float abs(float f) { if f < 0 return -f; return f; }

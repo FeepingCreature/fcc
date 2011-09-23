@@ -2,7 +2,7 @@ module std.file;
 
 import c.stdio, c.fcntl, c.unistd;
 
-template readfile(T) <<EOF
+template readfile(T) {
   class reader : Iterator!byte[] {
     int fd;
     byte x 256  buf;
@@ -19,20 +19,20 @@ template readfile(T) <<EOF
     res.fd = t;
     return res;
   }
-EOF
+}
 
 alias C_open = open;
 
 import std.string;
 
-platform(default) <<EOF
+platform(default) {
   alias read-mode = O_RDONLY, tweak-mode = 0;
-EOF
+}
 
-platform(i686-mingw32) <<EOF
+platform(i686-mingw32) {
   alias read-mode = O_RDONLY | O_BINARY; // FUCK YOU SO HARD MICROSOFT WINDOWS.
   alias tweak-mode = O_BINARY;
-EOF
+}
 
 int open(string file, int read-mode = read-mode) {
   auto ptr = toStringz(file);

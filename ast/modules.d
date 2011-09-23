@@ -103,6 +103,8 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
+        // logln("emit entry ", entry);
+        doLaterParsing();
         entry.emitAsm(af);
       }
       doneEmitting = true;

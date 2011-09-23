@@ -77,6 +77,25 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string toString() { return Format("fun ", name, " ", type, " <- ", sup); }
   // add parameters to namespace
   int _framestart;
+  string coarseSrc;
+  Namespace coarseContext;
+  void parseMe() {
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(coarseContext);
+    
+    pushCache();
+    scope(exit) popCache();
+    
+    string t2 = coarseSrc;
+    tree = fastcast!(Tree) (parsecon.parse(t2, "tree.scope"));
+    if (!tree) {
+      coarseSrc.failparse("Couldn't parse function scope");
+    }
+    t2 = t2.mystripl();
+    if (t2.length)
+      t2.failparse("Unknown text! ");
+  }
   Function alloc() { return new Function; }
   Argument[] getParams() { return type.params; }
   Function flatdup() { // NEVER dup the tree!
@@ -95,6 +114,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   Function dup() {
     auto res = flatdup();
     if (tree) res.tree = tree.dup;
+    res.coarseSrc = coarseSrc;
+    res.coarseContext = coarseContext;
+    if (!tree) addLate(&res.parseMe);
     return res;
   }
   FunCall mkCall() {
@@ -444,7 +466,7 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
 
 Function gotMain;
 
-import parseBase;
+import ast.stringparse;
 // generalized to reuse for nested funs
 Object gotGenericFun(T, bool Decl)(T _fun, Namespace sup_override, bool addToNamespace,
                            ref string text, ParseCb cont, ParseCb rest, string forcename = null) {
@@ -500,10 +522,21 @@ Object gotGenericFun(T, bool Decl)(T _fun, Namespace sup_override, bool addToNam
       if (text.accept(";")) return fun;
       else t2.failparse("Expected ';'");
     } else {
-      if (rest(text, "tree.scope", &fun.tree)) {
-        // TODO: Reserve "sys" module name
-        return fun;
-      } else text.failparse("Couldn't parse function scope");
+      auto t4 = text;
+      // if ret is null(auto), cannot wait to parse scope until later since we need the full type NOW
+      if (fun.type.ret && t4.accept("{")) {
+        auto block = text.coarseLexScope();
+        fun.coarseSrc = block;
+        fun.coarseContext = namespace();
+        addLate(&fun.parseMe);
+      } else t4 = null;
+      if (t4) return fun;
+      else {
+        if (rest(text, "tree.scope", &fun.tree)) {
+          // TODO: Reserve "sys" module name
+          return fun;
+        } else text.failparse("Couldn't parse function scope");
+      }
     }
   } else return null;
 }

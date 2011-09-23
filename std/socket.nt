@@ -48,7 +48,7 @@ class Socket {
   }
   // alias isOpen = sockfd;
   void open(TcpAddress ta) {
-    auto res = .connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+    auto res = c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
   }
   int recv(byte[] buf) {
     auto res = .recv(sockfd, buf.ptr, buf.length, 0);
@@ -101,7 +101,7 @@ Socket connect(string domain, short port) using new Socket {
   return that;
 }
 
-template readsocket(T) <<EOF
+template readsocket(T) {
   class sockreader : Iterator!byte[] {
     Socket sock;
     bool done;
@@ -117,7 +117,7 @@ template readsocket(T) <<EOF
     sock = t;
     return that;
   }
-EOF
+}
 
 struct SelectSet {
   fd_set rdset, wrset, errset;

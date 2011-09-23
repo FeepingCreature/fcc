@@ -32,9 +32,9 @@ void setupSysmods() {
         if a[i] != b[i] return false;
       return true;
     }
-    template value-of(T) <<EOT
+    template value-of(T) {
       alias value-of = *T*:null;
-    EOT
+    }
     void* memcpy2(void* dest, src, int n) {
       // printf("memcpy(%p, %p, %i)\n", dest, src, n);
       return memcpy(dest, src, n);
@@ -53,8 +53,8 @@ void setupSysmods() {
       /*MARKER*/
     }
     alias string = char[]; // must be post-marker for free() to work properly
-    template sys_array_cast(T) <<EOT
-      template sys_array_cast(U) <<EO2
+    template sys_array_cast(T) {
+      template sys_array_cast(U) {
         T sys_array_cast(U u) {
           alias ar = u[0];
           alias sz1 = u[1];
@@ -70,9 +70,9 @@ void setupSysmods() {
           res = resptr[0 .. destlen];
           return res;
         }
-      EO2
-    EOT
-    template append2(T) <<EOT
+      }
+    }
+    template append2(T) {
       T[~] append2(T[~]* l, T[] r) {
         // printf("append2 %i to %i, cap %i\n", r.length, l.length, l.capacity);
         if (l.capacity < l.length + r.length) {
@@ -92,14 +92,14 @@ void setupSysmods() {
           return res;
         }
       }
-    EOT
-    template append2e(T) <<EOT
+    }
+    template append2e(T) {
       T[~] append2e(T[~]* l, T r) {
         return append2!T(l, (&r)[0..1]);
       }
-    EOT
+    }
     // maybe just a lil' copypaste
-    template append3(T) <<EOT
+    template append3(T) {
       T[auto ~] append3(T[auto ~]* l, T[] r) {
         if !r.length return *l;
         if (l.capacity < l.length + r.length) {
@@ -125,13 +125,13 @@ void setupSysmods() {
           return res;
         }
       }
-    EOT
-    template append3e(T) <<EOT
+    }
+    template append3e(T) {
       T[auto ~] append3e(T[auto ~]* l, T r) {
         // printf("hi, append3e here - incoming %d, add 1\n", l.length);
         return append3!T(l, (&r)[0..1]);
       }
-    EOT
+    }
     string itoa(int i) {
       if i == -0x8000_0000 return "-2147483648"; // Very "special" case.
       if i < 0 return "-" ~ itoa(-i);
@@ -202,13 +202,13 @@ void setupSysmods() {
       int getLength();
       IExprValue getMember(int which);
     }
-    template takeValue(T) <<EOF
+    template takeValue(T) {
       (T, IExprValue) takeValue(IExprValue iev) {
         T res = void;
         auto niev = iev.take(T.mangleof, &res);
         return (res, niev);
       }
-    EOF
+    }
     import std.c.setjmp; // for conditions
     
     struct _Handler {
@@ -421,12 +421,12 @@ void setupSysmods() {
     }
     int __win_main(void* instance, prevInstance, char* cmdline, int cmdShow) {
     }
-    template Iterator(T) <<EOT
+    template Iterator(T) {
       class Iterator {
         T value;
         bool advance() { raise-error new Error "Iterator::advance() not implemented! "; }
       }
-    EOT
+    }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;

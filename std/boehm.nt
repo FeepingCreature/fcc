@@ -33,7 +33,7 @@ void* myCalloc(int a, b) {
   return res;
 }
 
-platform(default) <<EOF
+platform(default) {
   void register_thread(void* stackbase /* ignored for known thread base */) {
     GC_stack_base gsb;
     gsb.mem_base = stack-base;
@@ -42,9 +42,9 @@ platform(default) <<EOF
     // register my TLS segment as a root
     GC_add_roots(_esi, _esi + tls_size);
   }
-EOF
+}
 
-platform(i686-mingw32) <<EOF
+platform(i686-mingw32) {
   void register_thread(void* stackbase) {
     GC_stack_base gsb;
     if (!stackbase)
@@ -53,7 +53,7 @@ platform(i686-mingw32) <<EOF
     GC_register_my_thread(&gsb);
     GC_add_roots(_esi, _esi + tls_size);
   }
-EOF
+}
 
 void initBoehm(bool debugMode = false) {
   (mem.malloc_dg, mem.calloc_atomic_dg, mem.calloc_dg, mem.realloc_dg, mem.free_dg)

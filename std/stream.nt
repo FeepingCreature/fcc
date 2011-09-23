@@ -19,7 +19,7 @@ iter readDg(int delegate(byte[]) dg) {
   return res;
 }
 
-template dgIter(T) <<EOF
+template dgIter(T) {
   class DelegateIterator : Iterator!type-of t() {
     T t;
     bool advance() { value = t(); return true; }
@@ -29,4 +29,4 @@ template dgIter(T) <<EOF
     res.t = t;
     return res;
   }
-EOF
+}

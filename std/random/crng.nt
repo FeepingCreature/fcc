@@ -3,7 +3,7 @@ module std.random.crng;
 import std.random.base, c.stdlib;
 
 // no rand_r on windows, fo shame. 
-platform(default) <<EOF
+platform(default) {
 
   class CRNG : IRandom {
     int seed;
@@ -17,4 +17,4 @@ platform(default) <<EOF
       delegate IRandom(IRandom ir) { return new CRNG ir.rand(); },
       1); // low-qual C RNG
   }
-EOF
+}

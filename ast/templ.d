@@ -98,12 +98,14 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
   }
 }
 
+import ast.stringparse;
 Object gotTemplate(bool ReturnNoOp)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto tmpl = new Template;
   if (!(t2.gotIdentifier(tmpl.name) && t2.accept("(") && (t2.accept("alias") && test(tmpl.isAlias = true) || true) && t2.gotIdentifier(tmpl.param) && t2.accept(")")))
     t2.failparse("Failed parsing template header");
-  tmpl.source = t2.getHeredoc();
+  t2.noMoreHeredoc();
+  tmpl.source = t2.coarseLexScope(true, false);
   text = t2;
   namespace().add(tmpl.name, tmpl);
   static if (ReturnNoOp) return Single!(NoOp);
@@ -208,6 +210,8 @@ class TemplateInstance : Namespace, HandlesEmits {
         asm { int 3; }
       }
       
+      pushDelayStack();
+      scope(exit) popExecuteDelayStack();
       // logln("template context is ", (cast(Object) context).classinfo.name);
       // logln("rest toplevel match on ", t2);
       if (!t2.many(

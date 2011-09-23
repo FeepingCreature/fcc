@@ -1,6 +1,6 @@
 module std.sort;
 
-template qsort(T) << EOT
+template qsort(T) {
   void qsort(T data) {
     alias smaller = data[0];
     alias array = data[1];
@@ -30,4 +30,4 @@ template qsort(T) << EOT
     }
     qsort_recurse(0, array.length);
   }
-EOT
+}

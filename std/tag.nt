@@ -50,7 +50,7 @@ class TaggedObject : ITaggedObject, Tag {
   }
 }
 
-template offers(T) <<EOT
+template offers(T) {
   T offers(Object obj) {
     if !obj return null;
     if auto res = T: obj
@@ -61,4 +61,4 @@ template offers(T) <<EOT
     
     return null;
   }
-EOT
+}

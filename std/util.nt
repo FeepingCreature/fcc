@@ -1,6 +1,6 @@
 module std.util;
 
-template iterOnce(T) <<EOF
+template iterOnce(T) {
   class one {
     T value;
     bool done;
@@ -15,13 +15,13 @@ template iterOnce(T) <<EOF
     res.value = t;
     return res;
   }
-EOF
+}
 
-template iteratorType(T) <<EOF
+template iteratorType(T) {
   alias iteratorType = type-of value-of!T.iterator;
-EOF
+}
 
-template loop(T) <<EOF
+template loop(T) {
   class loopclass {
     iteratorType!T running, iter;
     type-of-elem value-of!T value;
@@ -41,4 +41,4 @@ template loop(T) <<EOF
     res.running = type-of res.running: t.iterator;
     return res;
   }
-EOF
+}

@@ -7,6 +7,11 @@ SDL_Surface* surf;
 
 int delegate(int b) add(int a) { return new delegate int(int b) { return a + b; }; }
 
+string break-the-coarse-parser(int i) { return "lol } "; /* } */ }
+
+int X1(int a) { if (true) return a; return X2(a); }
+int X2(int a) { if (true) return a; return X1(a); }
+
 void test(int foo) {
   int bar = 17;
   if (foo) writeln("meep");
@@ -161,17 +166,17 @@ struct Blarg {
   void fun() { writeln("$ib!"); }
 }
 
-template Blorg(T) <<EOT
+template Blorg(T) {
   struct Blorg {
     T t;
   }
-EOT
+}
 
-template FunTemp(T) <<EOT
+template FunTemp(T) {
   void FunTemp(T t) {
     writeln("T::$(string-of t)");
   }
-EOT
+}
 
 int globvar;
 

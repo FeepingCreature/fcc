@@ -65,6 +65,9 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
     text = t2;
     if (text.strip().length)
       text.failparse("Unknown statement");
+    // logln("do later parsing for ", mod.name);
+    doLaterParsing();
+    // logln("done");
     mod.parsingDone = true;
     return mod;
   } else t2.failparse("Failed to parse module");

@@ -861,13 +861,9 @@ class ParseContext {
 
 bool test(T)(T t) { if (t) return true; else return false; }
 
-string getHeredoc(ref string text) {
-  if (!text.accept("<<"))
-    text.failparse("Expected heredoc");
-  string sep;
-  if (!text.gotIdentifier(sep))
-    text.failparse("Could not get heredoc separator");
-  return text.slice(sep);
+void noMoreHeredoc(string text) {
+  if (text.accept("<<"))
+    text.failparse("Please switch from heredoc to {}!");
 }
 
 string startsWith(string text, string match)
