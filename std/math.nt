@@ -107,7 +107,7 @@ alias asin = asinf;
 alias acos = acosf;
 
 template minlist(T) {
-  iterType!T minlist(T t) {
+  type-of-elem value-of!T minlist(T t) {
     eval auto res <- t;
     while auto r2 <- t if r2 < res res = r2;
     return res;
@@ -115,7 +115,7 @@ template minlist(T) {
 }
 
 template maxlist(T) {
-  iterType!T maxlist(T t) {
+  type-of-elem value-of!T maxlist(T t) {
     eval auto res <- t;
     while auto r2 <- t if r2 > res res = r2;
     return res;

@@ -2,9 +2,7 @@ module interpret;
 
 import std.file, std.string, std.stream, std.thread, std.time;
 
-import std.c.stdio, std.c.string;
-
-extern(C) FILE* stdin;
+import c.stdio, c.string;
 
 string chomp(string s) {
   while (s.length && s[$ - 1] == "\n"[0])
@@ -14,13 +12,8 @@ string chomp(string s) {
   return s;
 }
 
-class Exception {
-  string text;
-  void init(string s) { text = s; }
-}
-
-class AcceptException : Exception { }
-class EvalException : Exception { }
+class AcceptException : Error { }
+class EvalException : Error { }
 
 void mustAccept(string* sp, string m) {
   alias s = *sp;
@@ -151,7 +144,7 @@ int main (int argc, char** argv) {
   (inputs_box, outputs_box, regs_box)
            = gtk_vbox_new() x 3;
   
-  GtkEntry*[16] inputs, regs, outputs;
+  GtkEntry* x 16 inputs, regs, outputs;
   for (int i <- 0..16) {
     
     GtkLabel* mkLabel(string s) {
@@ -237,8 +230,8 @@ int main (int argc, char** argv) {
     // call when input text is accepted, ie. parses
     void accepted() { gtk_entry_set_text(input_field, ""); }
     print-to-buffer "> $expr";
-    set-handler (Exception ex) {
-      fail(ex.text);
+    set-handler (Error err) {
+      fail(err.toString());
       invoke-exit "return";
     }
     define-exit "return" return;
@@ -260,8 +253,8 @@ int main (int argc, char** argv) {
         while true {
           using copiedPause { lock; unlock; }
           string ex2 = copiedLastExpr;
-          set-handler (Exception ex) {
-            writeln "$(ex.text)";
+          set-handler (Error err) {
+            writeln "$(err)";
             invoke-exit "skip";
           }
           bool skip = false;
