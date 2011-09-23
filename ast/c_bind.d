@@ -228,8 +228,12 @@ void parseHeader(string filename, string src) {
     {
       IType ty;
       if (s2.accept("(") && (ty = matchType(s2), ty) && s2.accept(")") && readCExpr(s2, res)) {
-        res = forcedConvert(res);
-        res = reinterpret_cast(ty, res);
+        IType alt;
+        if (ty == Single!(Char)) alt = Single!(Byte); // same type in C
+        res = foldex(forcedConvert(res));
+        // res = reinterpret_cast(ty, res);
+        if (!gotImplicitCast(res, ty, (IType it) { return test(it == ty || alt && it == alt); }))
+          return false;
         source = s2;
         return true;
       }
