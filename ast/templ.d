@@ -317,7 +317,7 @@ mixin DefaultParser!(gotTemplateInst!(false), "type.templ_inst", "2");
 mixin DefaultParser!(gotTemplateInst!(false), "tree.expr.templ_expr", "2401");
 mixin DefaultParser!(gotTemplateInst!(true), "tree.rhs_partial.instance");
 
-import ast.funcall;
+import ast.funcall, ast.tuples;
 Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
@@ -328,22 +328,25 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, "tree.expr", &nex)) return null;
     
     auto io = *templInstOverride.ptr(); // first level
-    // if (io._1 && io._0.ptr != currentPropBase.ptr().ptr) {
-    //   logln("Mismatch! ", nextText(io._0), " VS! ", nextText(*currentPropBase.ptr()));
-    // }
-    if (io._1 && io._0.ptr == currentPropBase.ptr().ptr) {
-      // logln("MATCH: testing with ", io._1);
-      try {
-        auto nt = templ.getInstanceIdentifier(io._1, rest, templ.getIdentifier());
-        auto it = fastcast!(ITemplate) (nt);
-        if (!it) setError("Failed to apply instantiation override: ", nt);
-        else templ = it;
-      } catch (Exception ex) {
-        t2.failparse("ifti pre-instantiating with ", io._1, ": ", ex);
-      }
-    }
+    bool ioApplies;
     try {
       auto res = templ.getInstanceIdentifier(nex.valueType(), rest, templ.getIdentifier());
+      {
+        auto te = fastcast!(ITemplate) (res);
+        if (io._1 && io._0.ptr == currentPropBase.ptr().ptr && te) {
+          ioApplies = true;
+          try {
+            res = te.getInstanceIdentifier(io._1, rest, te.getIdentifier());
+          } catch (Exception ex) {
+            t2.failparse("ifti post-instantiating with ", io._1, ": ", ex);
+          }
+        }
+        while (true) {
+          te = fastcast!(ITemplate) (res);
+          if (!te) break;
+          res = te.getInstanceIdentifier(mkTuple(), rest, te.getIdentifier());
+        }
+      }
       auto fun = fastcast!(Function) (res);
       if (!fun) { return null; }
       text = t2;
@@ -354,7 +357,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
       }
       return fastcast!(Object) (fc);
     } catch (Exception ex) {
-      t2.failparse("ifti instantiating with ", nex.valueType(), ": ", ex);
+      t2.failparse("ifti instantiating with ", nex.valueType(), ioApplies?Format(" (post ", io._1, ")"):"", ": ", ex);
     }
   };
 }

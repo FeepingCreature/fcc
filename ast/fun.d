@@ -163,6 +163,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       auto backup = af.currentStackDepth;
       scope(exit) af.currentStackDepth = backup;
       af.currentStackDepth = 0;
+      if (!tree) { logln("Tree for ", this, " not generated! :( "); asm { int 3; } }
       withTLS(namespace, this, tree.emitAsm(af));
       
       if (type.ret != Single!(Void)) {
