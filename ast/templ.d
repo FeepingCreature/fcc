@@ -69,7 +69,6 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
         if (entry._1 == type) { ti = entry._0; break; }
       if (!ti) {
         ti = new TemplateInstance(this, type, rest);
-        emat_type ~= stuple(ti, type);
       }
       ti.emitCopy();
       return ti;
@@ -81,7 +80,6 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
         if (entry._1 == tr) { ti = entry._0; break; }
       if (!ti) {
         ti = new TemplateInstance(this, tr, rest);
-        emat_alias ~= stuple(ti, tr);
       }
       ti.emitCopy();
       return ti;
@@ -148,6 +146,7 @@ class TemplateInstance : Namespace, HandlesEmits {
     assert(!parent.isAlias);
     __add(parent.param, fastcast!(Object)~ type);
     this.sup = context = parent.context;
+    parent.emat_type ~= stuple(this, type);
     this(rest);
   }
   this(Template parent, Tree tr, ParseCb rest) {
@@ -156,6 +155,7 @@ class TemplateInstance : Namespace, HandlesEmits {
     assert(parent.isAlias);
     __add(parent.param, fastcast!(Object)~ tr);
     this.sup = context = parent.context;
+    parent.emat_alias ~= stuple(this, tr);
     this(rest);
   }
   Module[] ematIn;

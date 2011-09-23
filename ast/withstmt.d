@@ -146,8 +146,8 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto backup = namespace();
   scope(exit) namespace.set(backup);
   
-  if (fastcast!(Pointer) (ex.valueType()))
-    ex = new DerefExpr(ex);
+  // if (fastcast!(Pointer) (ex.valueType()))
+  //   ex = new DerefExpr(ex);
   
   WithStmt ws, outer;
   
