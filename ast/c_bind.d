@@ -240,6 +240,7 @@ void parseHeader(string filename, string src) {
       }
     }
     if (s2.accept("'")) { // char
+      if (!s2.length) return false;
       auto ch = s2[0..1]; s2 = s2[1 .. $];
       if (!s2.accept("'")) return false;
       res = reinterpret_cast(Single!(Char), new DataExpr(cast(ubyte[]) ch));

@@ -153,6 +153,7 @@ class StructIterator : Type, Iterator {
   IType _elemType;
   this(IType it) {
     wrapped = it;
+    scope(failure) asm { int 3; }
     scope(failure) logln("it was ", it);
     _elemType = iparse!(Expr, "si_elemtype", "tree.expr.eval")
                        (`evaluate (bogus.value)`,

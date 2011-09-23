@@ -42,6 +42,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   bool isValid; // still in the build list; set to false if superceded by a newer Module
   bool doneEmitting, alreadyEmat; // one for the parser, the other for the linker
   bool dontEmit; // purely definitions, no symbols; nothing to actually compile.
+  bool splitIntoSections;
   private this() { assert(false); }
   this(string name) {
     this.name = name;
@@ -104,9 +105,18 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       while (i < entries.length) {
         auto entry = entries[i++];
         // logln("emit entry ", entry);
+        if (fastcast!(NoOp) (entry)) continue;
         doLaterParsing();
+        // globvars don't write any code!
+        // keep our assembly clean. :D
+        if ((fastcast!(Object) (entry)).classinfo.name != "ast.globvars.GlobVarDecl" && splitIntoSections) {
+          auto codename = Format("index_", i);
+          if (auto mang = fastcast!(IsMangled) (entry)) codename = mang.mangleSelf();
+          af.put(".section .text.", codename, ", \"ax\", @progbits");
+        }
         entry.emitAsm(af);
       }
+      af.put(".section .text");
       doneEmitting = true;
     }
     string mangle(string name, IType type) {

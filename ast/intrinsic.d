@@ -431,6 +431,7 @@ void setupSysmods() {
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;
   sysmod = fastcast!(Module) (parsecon.parse(src, "tree.module"));
+  sysmod.splitIntoSections = true;
 }
 
 import ast.fun, ast.scopes, ast.namespace,
