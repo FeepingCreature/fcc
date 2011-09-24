@@ -132,6 +132,7 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef", "20");
 
+import ast.returns;
 Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto sc = namespace().get!(Scope);
@@ -140,6 +141,31 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto mod = current_module();
   string name;
   static int i;
+  if (!t2.accept("delegate")) {
+    if (t2.accept("\\")) {
+      synchronized name = Format("__nested_dg_literal_", i++);
+      auto res = fastcast!(NestedFunction) (gotGenericFunDeclNaked(nf, mod, true, t2, cont, rest, name, true));
+      if (!t2.accept("->"))
+        t2.failparse("Expected result-arrow for lambda");
+      auto backup = namespace();
+      scope(exit) namespace.set(backup);
+      
+      namespace.set(res);
+      auto sc2 = new Scope;
+      namespace.set(sc2);
+      
+      Expr ex;
+      if (!rest(t2, "tree.expr", &ex))
+        t2.failparse("Expected result expression for lambda");
+      res.type.ret = ex.valueType();
+      res.tree = new ReturnStmt(ex);
+      
+      text = t2;
+      mod.entries ~= fastcast!(Tree) (res);
+      return new NestFunRefExpr(res);
+    }
+    return null;
+  }
   synchronized name = Format("__nested_dg_literal_", i++);
   auto res = fastcast!(NestedFunction)~
     gotGenericFunDef(nf, mod, true, t2, cont, rest, name);
@@ -149,7 +175,7 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   mod.entries ~= fastcast!(Tree)~ res;
   return new NestFunRefExpr(res);
 }
-mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral", "2402", "delegate");
+mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral", "2402");
 
 Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

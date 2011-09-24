@@ -101,7 +101,7 @@ class MyPlaceholderExpr : Expr {
 // SUCH a hack. (do this last, save some time)
 void setupPropCall() {
   implicits ~= delegate Expr(Expr ex) {
-    if (cast(MyPlaceholderExpr) ex) return null;
+    if (fastcast!(MyPlaceholderExpr) (ex)) return null;
     return new MyPlaceholderExpr(new FirstParamOverrideSpace(ex));
   };
 }
