@@ -70,6 +70,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
       sc.addStatement(vd);
     }
     
+    ex = context;
+    
     rns = fastcast!(RelNamespace)~ ex.valueType();
     
     if (auto srns = fastcast!(SemiRelNamespace) (ex.valueType())) rns = srns.resolve();
@@ -81,12 +83,20 @@ class WithStmt : Namespace, Statement, ScopeLike {
       namespace.set(sup);
       scope(exit) namespace.set(backup);
       
-      gotImplicitCast(ex2, (Expr ex) {
-        auto it = ex.valueType();
-        if (auto ns = fastcast!(RelNamespace)~ it)
-          rnslist ~= stuple(ns, ex);
-        return false;
-      });
+      while (true) {
+        auto ex3 = ex2;
+        gotImplicitCast(ex3, (Expr ex) {
+          auto it = ex.valueType();
+          if (auto ns = fastcast!(RelNamespace)~ it)
+            rnslist ~= stuple(ns, ex);
+          return false;
+        });
+        if (fastcast!(Pointer) (ex2.valueType())) {
+          ex2 = new DerefExpr(ex2);
+          continue;
+        }
+        break;
+      }
       if (!rnslist) {
         logln("Cannot with-expr a non-[rel]ns: ", context); // TODO: select in gotWithStmt
         asm { int 3; }
