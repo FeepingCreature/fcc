@@ -1,6 +1,6 @@
 module hello;
 
-import map;
+import std.fun;
 
 void main() {
   writeln "Hello World";
