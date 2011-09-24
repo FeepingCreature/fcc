@@ -47,7 +47,7 @@ class FunSymbol : Symbol {
   }
   private this() { }
   mixin DefaultDup!();
-  string toString() { return Format("symbol<", getName(), ">"); }
+  string toString() { return Format("symbol<", fun, ">"); }
   override IType valueType() {
     auto res = new FunctionPointer;
     res.ret = fun.type.ret;
