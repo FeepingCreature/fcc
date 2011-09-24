@@ -1,6 +1,13 @@
 module hello;
 
+import map;
+
 void main() {
   writeln "Hello World";
   using "Hello there. " writeln();
+  auto add = \(int a) -> new \(int b) -> a+b;
+  int x = (add 2 3);
+  writeln "$x";
+  auto mew = [2, 3, 4].map \(int x) -> x*2;
+  writeln "$$mew.eval[]";
 }

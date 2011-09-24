@@ -598,6 +598,10 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
           spaces ~= vt;
         }
       }
+      return false;
+    });
+    ex3 = ex;
+    gotImplicitCast(ex3, (Expr ex) {
       auto ex4 = depointer(ex);
       if (ex4 !is ex) {
         gotImplicitCast(ex4, (Expr ex) {
