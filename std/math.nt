@@ -86,8 +86,8 @@ vec2f half(vec2f a, b) return (a + b) / 2;
 vec3f half(vec3f a, b) return (a + b) / 2;
 vec4f half(vec4f a, b) return (a + b) / 2;
 
-float min(float a, b) return [a, b][eval a > b];
-float max(float a, b) return [a, b][eval a < b];
+template min(T) { auto min(T t) { static if (t.length != 2) { Please only pass two parameters to min! } if (t[0] > t[1]) return t[1]; return t[0]; } }
+template max(T) { auto max(T t) { static if (t.length != 2) { Please only pass two parameters to max! } if (t[0] > t[1]) return t[0]; return t[1]; } }
 
 bool isNan(float f) {
   int i = *int*:&f;

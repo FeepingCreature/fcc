@@ -636,8 +636,11 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   string member;
   
   if (t2.gotIdentifier(member)) {
-    
+    auto backupmember = member;
+    auto backupt2 = t2;
   try_next_alt:
+    member = backupmember; // retry from start again
+    t2 = backupt2;
     if (!alts.length)
       return null;
     ex = alts[0]; alts = alts[1 .. $];
@@ -668,7 +671,7 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     }
     auto m = rn.lookupRel(member, ex);
     if (!m) {
-      if (t2.eatDash(member)) goto retry;
+      if (t2.eatDash(member)) { goto retry; }
       string mesg, name;
       auto info = Format(pre_ex.valueType());
       if (info.length > 64) info = info[0..64] ~ " [snip]";
