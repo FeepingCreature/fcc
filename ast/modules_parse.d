@@ -49,6 +49,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   if (mod.name == "sys") {
     sysmod = mod; // so that internal lookups work
   }
+  pushDelayStack();
   Object obj;
   if (t2.many(
       !!restart(t2, "tree.toplevel", &obj),
@@ -66,7 +67,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
     if (text.strip().length)
       text.failparse("Unknown statement");
     // logln("do later parsing for ", mod.name);
-    doLaterParsing();
+    popExecuteDelayStack();
     // logln("done");
     mod.parsingDone = true;
     return mod;
