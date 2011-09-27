@@ -287,7 +287,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool not, smaller, equal, greater;
   Expr ex1, ex2; Cond cd2;
-  if (!rest(t2, "tree.expr >tree.expr.cond", &ex1)) return null;
+  if (!rest(t2, "tree.expr _tree.expr.cond", &ex1)) return null;
   // oopsie-daisy, iterator assign is not the same as "smaller than negative"!
   if (t2.accept("<-")) return null;
   if (t2.accept("!")) not = true;
@@ -300,7 +300,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   
   if (!rest(t2, "cond.compare", &cd2) && // chaining
-      !rest(t2, "tree.expr >tree.expr.cond", &ex2) ) return null;
+      !rest(t2, "tree.expr _tree.expr.cond", &ex2) ) return null;
   auto finalize = delegate Cond(Cond cd) { return cd; };
   if (cd2) {
     if (auto cmp2 = fastcast!(Compare) (cd2)) {
@@ -440,6 +440,18 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
   return new CondExpr(cd);
 }
 mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", null, "eval");
+
+Object gotComplexCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  Cond cd;
+  if (!rest(t2, "cond.compare", &cd) && !rest(t2, "cond.negate")) return null;
+  text = t2;
+  if (auto ew = fastcast!(ExprWrap) (cd)) {
+    return fastcast!(Object) (ew.ex);
+  }
+  return new CondExpr(cd);
+}
+mixin DefaultParser!(gotComplexCondAsExpr, "tree.expr.cond", "120");
 
 Expr longOp(string Code)(Expr e1, Expr e2) {
   bool isLong(Expr ex) { return test(Single!(Long) == resolveType(ex.valueType())); }

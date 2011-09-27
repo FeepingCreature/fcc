@@ -174,8 +174,8 @@ class Area {
   void stamp(Area dest) {
     if INullArea:dest raise-error new Error "Don't stamp onto a null area! ";
     auto w = w, h = h;
-    w = [w, dest.w][eval dest.w < w];
-    h = [h, dest.h][eval dest.h < h];
+    w = [w, dest.w][dest.w < w];
+    h = [h, dest.h][dest.h < h];
     auto pitch = int:surf.back.pitch / 4, dpitch = int:dest.surf.back.pitch / 4;
     auto srcp = &(
       (int*:surf.back.pixels)
@@ -190,7 +190,7 @@ class Area {
   }
   void pset(int x, y, vec3f col) {
     x += x0; y += y0;
-    if !( 0 <= x < [surf.w, w][eval w < surf.w] && 0 <= y < [surf.h, h][eval h < surf.h] ) return;
+    if !( 0 <= x < [surf.w, w][w < surf.w] && 0 <= y < [surf.h, h][h < surf.h] ) return;
     
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + x]);
     *p = floatToIntColor col;
@@ -211,8 +211,8 @@ class Area {
     
     if (to-x < from-x) (from-x, to-x) = (to-x, from-x);
     
-    from-x = [from-x, 0]       [eval from-x < 0];
-    to-x   = [to-x, surf.w - 1][eval to-x >= surf.w];
+    from-x = [from-x, 0]       [from-x < 0];
+    to-x   = [to-x, surf.w - 1][to-x >= surf.w];
     if (from-x >= surf.w || to-x < 0) return;
     
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + from-x]);
@@ -249,8 +249,8 @@ class Area {
     
     if (to-x < from-x) (from-x, to-x) = (to-x, from-x);
     
-    from-x = [from-x, 0]       [eval from-x < 0];
-    to-x   = [to-x, surf.w - 1][eval to-x >= surf.w];
+    from-x = [from-x, 0]       [from-x < 0];
+    to-x   = [to-x, surf.w - 1][to-x >= surf.w];
     if (from-x >= surf.w || to-x < 0) return;
     
     auto icol = floatToIntColor col;
@@ -285,8 +285,8 @@ class Area {
     
     if (to-y < from-y) (from-y, to-y) = (to-y, from-y);
     
-    from-y = [from-y, 0]       [eval from-y < 0];
-    to-y   = [to-y, surf.h - 1][eval to-y >= surf.h];
+    from-y = [from-y, 0]       [from-y < 0];
+    to-y   = [to-y, surf.h - 1][to-y >= surf.h];
     if (from-y >= surf.h || to-y < 0) return;
     
     auto icol = floatToIntColor col;
@@ -315,7 +315,7 @@ class Area {
     // no need to do bounds checking here; pset is already safe
     auto from = vec2i(from-x, from-y), to = vec2i(to-x, to-y);
     auto icol = floatToIntColor col;
-    bool steep = eval abs(to.y - from.y) > abs(to.x - from.x);
+    bool steep = abs(to.y - from.y) > abs(to.x - from.x);
     if steep
       (from.(x, y), to.(x, y)) = (from.(y, x), to.(y, x));
     if from.x > to.x
@@ -324,7 +324,7 @@ class Area {
       delta-x = to.x - from.x,
       delta-y = abs(to.y - from.y),
       error = delta-x / 2;
-    int ystep = [-1, 1][eval from.y < to.y], y = from.y;
+    int ystep = [-1, 1][from.y < to.y], y = from.y;
     for (int x = from.x; x <= to.x; ++x) {
       if steep pset(y, x, icol); else pset(x, y, icol);
       error -= delta-y;
@@ -343,7 +343,7 @@ class Area {
     vec4f col = vec4f(1), vec4f fill = vec4f(-1)) {
     int f = 1 - radius, ddF_x = 1, ddF_y = - 2 * radius, x, y = radius;
     
-    bool fillIt = eval fill.x >= 0;
+    bool fillIt = fill.x >= 0;
     
     if fillIt {
       hline(x0 - radius + 1, y0, x0 + radius - 1 + xspread, fill);
@@ -406,9 +406,9 @@ class Area {
   {
     // translate into circle call
     auto cx = x0 + radius, xspread = x1 - cx - radius;
-    xspread = [xspread, 0][eval xspread < 0];
+    xspread = [xspread, 0][xspread < 0];
     auto cy = y0 + radius, yspread = y1 - cy - radius;
-    yspread = [yspread, 0][eval yspread < 0];
+    yspread = [yspread, 0][yspread < 0];
     circle(cx, cy, radius, xspread => xspread, yspread => yspread,
           col => col, fill => fill);
   }
@@ -484,7 +484,7 @@ shared bool mouse-clicked, mouse-pressed, mouse-released;
 
 shared void delegate(int, int) onResize;
 
-pragma(msg, string-of type-of (*SDL_Event*: null).resize.w);
+// pragma(msg, string-of type-of (*SDL_Event*: null).resize.w);
 
 void flip() {
   display.surf.flip();

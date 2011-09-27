@@ -427,6 +427,12 @@ void setupSysmods() {
         bool advance() { raise-error new Error "Iterator::advance() not implemented! "; }
       }
     }
+    class AssertError : Error {
+      void init(string s) super.init "AssertError: $s";
+    }
+    void assert(bool cond, string mesg = string:null) {
+      if (!cond) raise-error new AssertError mesg;
+    }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;

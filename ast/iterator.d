@@ -666,7 +666,7 @@ Object gotIterCond(bool withoutIteratorAllowed)(ref string text, ParseCb cont, P
   MValue mv;
   string newVarName; IType newVarType;
   bool needIterator;
-  const string myTE = "tree.expr >tree.expr.vardecl";
+  const string myTE = "tree.expr >tree.expr.cond >tree.expr.arith";
   if (!rest(t2, myTE, &lv, (LValue lv) { return !fastcast!(Iterator) (lv.valueType()); })) {
     if (!rest(t2, myTE, &mv, (MValue mv) { return !fastcast!(Iterator) (mv.valueType()); })) {
       if (!t2.accept("auto") && !rest(t2, "type", &newVarType) || !t2.gotIdentifier(newVarName))
@@ -692,7 +692,7 @@ withoutIterator:
     
     if (ty) *templInstOverride.ptr() = stuple(t2, ty);
     
-    if (!rest(t2, "tree.expr", &iter)) {
+    if (!rest(t2, "tree.expr >tree.expr.cond", &iter)) {
       
       if (needIterator) t2.failparse("Can't parse iterator");
       else return null;
@@ -701,8 +701,11 @@ withoutIterator:
   
   auto backup = iter;
   
+  if (!needIterator && !fastcast!(Iterator) (iter.valueType())) return null;
+  
   if (!gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
-    t2.failparse("Expected an iterator, not a ", backup);
+    if (!needIterator) return null;
+    else t2.failparse("Expected an iterator, not a ", backup);
   
   // insert declaration into current scope.
   // NOTE: this here is the reason why everything that tests a cond has to have its own scope.
