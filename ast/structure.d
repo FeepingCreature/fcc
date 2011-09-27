@@ -656,11 +656,12 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       
       // auto ex2 = fastcast!(Expr) (m);
       // if (!ex2) {
-      if (!m) {
-        if (t2.eatDash(member)) goto retry;
+      // what
+      /*if (!m) {
+        if (t2.eatDash(member)) { logln("1 Reject ", member, ": no match"); goto retry; }
         text.setError(Format("No ", member, " in ", ns, "!"));
         goto try_next_alt;
-      }
+      }*/
       
       text = t2;
       return m;
