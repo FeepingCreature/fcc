@@ -431,7 +431,9 @@ void setupSysmods() {
       void init(string s) super.init "AssertError: $s";
     }
     void assert(bool cond, string mesg = string:null) {
-      if (!cond) raise-error new AssertError mesg;
+      if (!cond)
+        if (mesg) raise-error new AssertError mesg;
+        else raise-error new AssertError "Assertion failed! ";
     }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))

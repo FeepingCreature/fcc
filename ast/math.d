@@ -659,7 +659,8 @@ static this() {
       if (fastcast!(Float) (ex2.valueType())) {
         logln(ex1, " ", op, " ", ex2, "; WTF?! ");
         logln("is ", ex1.valueType(), " and ", ex2.valueType());
-        fail();
+        // fail();
+        throw new Exception("Invalid pointer op");
       }
       assert(!isFloat(ex2.valueType()));
       auto mul = (fastcast!(Pointer)~ ex1.valueType()).target.size;
