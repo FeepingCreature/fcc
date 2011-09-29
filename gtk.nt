@@ -1,6 +1,6 @@
 module gtk;
 
-c_include "gtk/gtk.h";
+public import c.gtk.gtk;
 
 import std.string;
 

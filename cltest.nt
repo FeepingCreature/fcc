@@ -1,6 +1,6 @@
 module cltest;
 
-c_include "CL/cl.h";
+import c.CL.cl;
 import sys, std.string;
 
 extern(C) cl_context clCreateContextFromType(

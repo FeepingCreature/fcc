@@ -30,18 +30,19 @@ string opt(string name, string s) {
   {
     string temp = stmt_match;
     while (true) {
-      string match = temp.ctSlice(",");
-      if (!match.length || match.ctStrip() == "]") break;
-      src = src  .ctReplace("$"~ctToString(instrs), "match["~ctToString(instrs)~"]");
-      dest = dest.ctReplace("$"~ctToString(instrs), "match["~ctToString(instrs)~"]");
+      string match = temp.ctSlice(",").ctStrip();
+      if (!match.length || match == "]") break;
+      string instr_string = ctToString(instrs), str = "$" ~ instr_string, repl = "match["~instr_string~"]";
+      src = src  .ctReplace(str, repl);
+      dest = dest.ctReplace(str, repl);
       instrs ++;
     }
   }
   string res;
-  res ~= `bool `~name~`(Transcache cache, ref int[string] labels_refcount) {
+  res ~= `bool %NAME(Transcache cache, ref int[string] labels_refcount) {
     bool _changed;
-    auto match = cache.findMatch("`~name~`", (Transaction[] list) {
-      // logln("cond for `~name~`: ", list);
+    auto match = cache.findMatch("%NAME", (Transaction[] list) {
+      // logln("cond for %NAME: ", list);
       if (list.length >= ` ~ ctToString(instrs);
   {
     string temp = stmt_match, merp; int i;
@@ -72,14 +73,16 @@ string opt(string name, string s) {
     } while (match.advance());
     return _changed;
   }
-  opts ~= stuple(&`~name~`, "`~name~`", true);
-  /* `~name~`();*/
+  opts ~= stuple(&%NAME, "%NAME", true);
+  /* %NAME();*/
   `;
-  return res.ctReplace(
+  res = res.ctReplace(
+        "%NAME", name,
         "$SUBSTWITH", `foreach (ref $T res; onceThenCall(($T t) { match.replaceWith(t); })) with (res)`,
         "$SUBST", `match.replaceWith`,
         "$TK", `Transaction.Kind`,
         "$T", `Transaction`);
+  return res;
 }
 
 // returns null if s points at SSE reg

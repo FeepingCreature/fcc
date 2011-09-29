@@ -531,13 +531,13 @@ struct Transsection(C) {
 class Transcache {
   Transaction[] _list;
   int size;
-  void resize(int i) {
+  final void resize(int i) {
     if (!_list.length) _list = new Transaction[1024];
     while (_list.length < i) _list.length = _list.length * 2;
     size = i;
   }
-  Transaction[] list() {
-    if (size > _list.length) {
+  final Transaction[] list() {
+    debug if (size > _list.length) {
       logln("WTF?! ", size, " into ", _list.length);
       asm { int 3; }
     }
@@ -549,13 +549,13 @@ class Transcache {
     }
     return Transsection!(C)(this, opName, cond, 0, 0, false);
   }
-  void clear() { size = 0; }
-  void opCatAssign(Transaction t) {
+  final void clear() { size = 0; }
+  final void opCatAssign(Transaction t) {
     if (!_list.length) _list = new Transaction[1024];
     if (size == _list.length) _list.length = _list.length * 2;
     _list[size++] = t;
   }
-  void opCatAssign(Transaction[] newlist) {
+  final void opCatAssign(Transaction[] newlist) {
     if (!_list.length) { _list = newlist.dup; size = newlist.length; return; }
     while (size + newlist.length > _list.length) _list.length = _list.length * 2;
     _list[size .. size + newlist.length] = newlist;
