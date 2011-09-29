@@ -2,13 +2,17 @@ module ast.stringex;
 
 import
   ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays, ast.assign, ast.structure,
-  ast.literal_string, ast.arrays, ast.vardecl, ast.pointer, ast.casting, tools.base: take;
+  ast.literal_string, ast.arrays, ast.vardecl, ast.pointer, ast.casting, ast.stringparse, tools.base: take;
 
 Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   Expr strlit;
   auto t2 = text;
   // if (!t2.accept("^")) return null;
-  if (!gotStringExpr(t2, strlit)) return null;
+  {
+    string st;
+    if (!gotString(t2, st)) return null;
+    strlit = new StringExpr(st);
+  }
   text = t2;
   auto str = (fastcast!(StringExpr)~ strlit).str;
   auto res = new ConcatChain(new StringExpr(""));

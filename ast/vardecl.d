@@ -270,6 +270,7 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
       t2.setError("Auto vardecl exprs must be initialized. ");
       return null;
     }
+    if (t2.accept("<-")) return null; // don't collide with iterator declaration
   }
   
   auto var = new Variable(type, name, boffs(type));

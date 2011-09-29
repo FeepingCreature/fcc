@@ -61,6 +61,7 @@ class LateType : IType {
     int size() { needMe; return me.size; }
     ubyte[] initval() { needMe; return me.initval; }
     bool isPointerLess() { needMe; return me.isPointerLess(); }
+    bool isComplete() { return !!me; } // TODO: ??
     int opEquals(IType it) {
       needMe;
       return it == me;
@@ -228,13 +229,18 @@ void parseHeader(string filename, string src) {
     {
       IType ty;
       if (s2.accept("(") && (ty = matchType(s2), ty) && s2.accept(")") && readCExpr(s2, res)) {
-        res = forcedConvert(res);
-        res = reinterpret_cast(ty, res);
+        IType alt;
+        if (ty == Single!(Char)) alt = Single!(Byte); // same type in C
+        res = foldex(forcedConvert(res));
+        // res = reinterpret_cast(ty, res);
+        if (!gotImplicitCast(res, ty, (IType it) { return test(it == ty || alt && it == alt); }))
+          return false;
         source = s2;
         return true;
       }
     }
     if (s2.accept("'")) { // char
+      if (!s2.length) return false;
       auto ch = s2[0..1]; s2 = s2[1 .. $];
       if (!s2.accept("'")) return false;
       res = reinterpret_cast(Single!(Char), new DataExpr(cast(ubyte[]) ch));

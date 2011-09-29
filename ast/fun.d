@@ -47,7 +47,7 @@ class FunSymbol : Symbol {
   }
   private this() { }
   mixin DefaultDup!();
-  string toString() { return Format("symbol<", getName(), ">"); }
+  string toString() { return Format("symbol<", fun, ">"); }
   override IType valueType() {
     auto res = new FunctionPointer;
     res.ret = fun.type.ret;
@@ -77,6 +77,25 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string toString() { return Format("fun ", name, " ", type, " <- ", sup); }
   // add parameters to namespace
   int _framestart;
+  string coarseSrc;
+  Namespace coarseContext;
+  void parseMe() {
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(coarseContext);
+    
+    pushCache();
+    scope(exit) popCache();
+    
+    string t2 = coarseSrc;
+    tree = fastcast!(Tree) (parsecon.parse(t2, "tree.scope"));
+    if (!tree) {
+      coarseSrc.failparse("Couldn't parse function scope");
+    }
+    t2 = t2.mystripl();
+    if (t2.length)
+      t2.failparse("Unknown text! ");
+  }
   Function alloc() { return new Function; }
   Argument[] getParams() { return type.params; }
   Function flatdup() { // NEVER dup the tree!
@@ -95,6 +114,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   Function dup() {
     auto res = flatdup();
     if (tree) res.tree = tree.dup;
+    res.coarseSrc = coarseSrc;
+    res.coarseContext = coarseContext;
+    if (!tree) addLate(&res.parseMe);
     return res;
   }
   FunCall mkCall() {
@@ -163,6 +185,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       auto backup = af.currentStackDepth;
       scope(exit) af.currentStackDepth = backup;
       af.currentStackDepth = 0;
+      if (!tree) { logln("Tree for ", this, " not generated! :( "); asm { int 3; } }
       withTLS(namespace, this, tree.emitAsm(af));
       
       if (type.ret != Single!(Void)) {
@@ -255,7 +278,7 @@ class FunCall : Expr {
   override string toString() { return Format("(", fun.name, "(", params, "))"); }
   override IType valueType() {
     if (!fun.type.ret) {
-      logln("Function type not yet resolved but funcall type demanded! ");
+      logln("Function type not yet resolved but funcall type demanded: ", fun, " called with ", params);
       asm { int 3; }
     }
     return fun.type.ret;
@@ -392,6 +415,11 @@ class FunctionType : ast.types.Type {
     return res;
   }
   override {
+    bool isComplete() {
+      if (!ret || !ret.isComplete) return false;
+      foreach (par; params) if (!par.type.isComplete) return false;
+      return true;
+    }
     string mangle() {
       if (!ret) throw new Exception("Function return type indeterminate! ");
       string res = "function_to_"~ret.mangle();
@@ -443,10 +471,10 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
 
 Function gotMain;
 
-import parseBase;
+import ast.stringparse;
 // generalized to reuse for nested funs
-Object gotGenericFun(T, bool Decl)(T _fun, Namespace sup_override, bool addToNamespace,
-                           ref string text, ParseCb cont, ParseCb rest, string forcename = null) {
+Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_override, bool addToNamespace,
+                           ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool omitRet = false) {
   IType ptype;
   auto t2 = text;
   string parname;
@@ -461,6 +489,8 @@ Object gotGenericFun(T, bool Decl)(T _fun, Namespace sup_override, bool addToNam
   if
     (
       (
+        omitRet
+        ||
         (test(ret = fastcast!(IType) (rest(t3, "type"))) && (t2 = t3, true))
         ||
         t2.accept("auto")
@@ -496,22 +526,37 @@ Object gotGenericFun(T, bool Decl)(T _fun, Namespace sup_override, bool addToNam
     if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under ", ns, "! "); asm { int 3; } } }
     text = t2;
     static if (Decl) {
-      if (text.accept(";")) return fun;
+      if (Naked || text.accept(";")) return fun;
       else t2.failparse("Expected ';'");
     } else {
-      if (rest(text, "tree.scope", &fun.tree)) {
-        // TODO: Reserve "sys" module name
-        return fun;
-      } else text.failparse("Couldn't parse function scope");
+      auto t4 = text;
+      // if ret is null(auto), cannot wait to parse scope until later since we need the full type NOW
+      if (fun.type.isComplete && t4.accept("{")) {
+        auto block = text.coarseLexScope();
+        fun.coarseSrc = block;
+        fun.coarseContext = namespace();
+        addLate(&fun.parseMe);
+      } else t4 = null;
+      if (t4) return fun;
+      else {
+        if (rest(text, "tree.scope", &fun.tree)) {
+          // TODO: Reserve "sys" module name
+          return fun;
+        } else text.failparse("Couldn't parse function scope");
+      }
     }
   } else return null;
 }
 
-Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null) {
-  return gotGenericFun!(T, false)(fun, sup_override, addToNamespace, text, cont, rest, forcename);
+Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool omitRet = false) {
+  return gotGenericFun!(T, false)(fun, sup_override, addToNamespace, text, cont, rest, forcename, omitRet);
 }
-Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null) {
-  return gotGenericFun!(T, true)(fun, sup_override, addToNamespace, text, cont, rest, forcename);
+Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool omitRet = false) {
+  return gotGenericFun!(T, true)(fun, sup_override, addToNamespace, text, cont, rest, forcename, omitRet);
+}
+// without semicolon required
+Object gotGenericFunDeclNaked(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool omitRet = false) {
+  return gotGenericFun!(T, true, true)(fun, sup_override, addToNamespace, text, cont, rest, forcename, omitRet);
 }
 
 Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
@@ -555,6 +600,11 @@ class FunctionPointer : ast.types.Type {
     else foreach (arg; args)
       res ~= "_"~arg.type.mangle();
     return res;
+  }
+  override bool isComplete() {
+    if (!ret || !ret.isComplete) return false;
+    foreach (arg; args) if (!arg.type.isComplete) return false;
+    return true;
   }
 }
 

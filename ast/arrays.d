@@ -8,6 +8,7 @@ class Array : Type {
   this() { }
   this(IType et) { elemType = et; }
   override {
+    bool isComplete() { return elemType.isComplete; }
     int size() {
       return nativePtrSize + nativeIntSize;
     }
@@ -67,7 +68,7 @@ IType arrayAsStruct(IType base, bool rich) {
   new RelMember("length", Single!(SysInt), res);
   new RelMember("ptr", new Pointer(base), res);
   res.name = "__array_as_struct__"~base.mangle()~(rich?"_rich":"");
-  if (!mod || !sysmod || mod is sysmod) return res;
+  if (!mod || !sysmod || mod is sysmod || mod.name == "std.c.setjmp" /* hackaround */) return res;
   
   auto backup = namespace();
   scope(exit) namespace.set(backup);

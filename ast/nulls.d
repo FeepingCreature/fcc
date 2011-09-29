@@ -104,4 +104,4 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   } else return null;
 }
-mixin DefaultParser!(gotExprAsCond, "cond.expr", "73");
+mixin DefaultParser!(gotExprAsCond, "cond.expr", "99");

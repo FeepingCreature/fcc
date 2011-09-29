@@ -1,6 +1,6 @@
 module test;
 
-import sdl, std.c.time;
+import sdl, c.time;
 import simplex;
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
@@ -97,7 +97,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       }
     }
   }
-  auto bits = new int[32*32];
+  auto bits = new int[] 32*32;
   auto last = time null;
   int drawMode;
   int step;

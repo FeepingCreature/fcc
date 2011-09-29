@@ -69,7 +69,6 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
         if (entry._1 == type) { ti = entry._0; break; }
       if (!ti) {
         ti = new TemplateInstance(this, type, rest);
-        emat_type ~= stuple(ti, type);
       }
       ti.emitCopy();
       return ti;
@@ -81,7 +80,6 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
         if (entry._1 == tr) { ti = entry._0; break; }
       if (!ti) {
         ti = new TemplateInstance(this, tr, rest);
-        emat_alias ~= stuple(ti, tr);
       }
       ti.emitCopy();
       return ti;
@@ -98,12 +96,14 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
   }
 }
 
+import ast.stringparse;
 Object gotTemplate(bool ReturnNoOp)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto tmpl = new Template;
   if (!(t2.gotIdentifier(tmpl.name) && t2.accept("(") && (t2.accept("alias") && test(tmpl.isAlias = true) || true) && t2.gotIdentifier(tmpl.param) && t2.accept(")")))
     t2.failparse("Failed parsing template header");
-  tmpl.source = t2.getHeredoc();
+  t2.noMoreHeredoc();
+  tmpl.source = t2.coarseLexScope(true, false);
   text = t2;
   namespace().add(tmpl.name, tmpl);
   static if (ReturnNoOp) return Single!(NoOp);
@@ -146,6 +146,7 @@ class TemplateInstance : Namespace, HandlesEmits {
     assert(!parent.isAlias);
     __add(parent.param, fastcast!(Object)~ type);
     this.sup = context = parent.context;
+    parent.emat_type ~= stuple(this, type);
     this(rest);
   }
   this(Template parent, Tree tr, ParseCb rest) {
@@ -154,6 +155,7 @@ class TemplateInstance : Namespace, HandlesEmits {
     assert(parent.isAlias);
     __add(parent.param, fastcast!(Object)~ tr);
     this.sup = context = parent.context;
+    parent.emat_alias ~= stuple(this, tr);
     this(rest);
   }
   Module[] ematIn;
@@ -208,6 +210,8 @@ class TemplateInstance : Namespace, HandlesEmits {
         asm { int 3; }
       }
       
+      pushDelayStack();
+      scope(exit) popExecuteDelayStack();
       // logln("template context is ", (cast(Object) context).classinfo.name);
       // logln("rest toplevel match on ", t2);
       if (!t2.many(
@@ -317,7 +321,7 @@ mixin DefaultParser!(gotTemplateInst!(false), "type.templ_inst", "2");
 mixin DefaultParser!(gotTemplateInst!(false), "tree.expr.templ_expr", "2401");
 mixin DefaultParser!(gotTemplateInst!(true), "tree.rhs_partial.instance");
 
-import ast.funcall;
+import ast.funcall, ast.tuples;
 Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
@@ -328,22 +332,25 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, "tree.expr", &nex)) return null;
     
     auto io = *templInstOverride.ptr(); // first level
-    // if (io._1 && io._0.ptr != currentPropBase.ptr().ptr) {
-    //   logln("Mismatch! ", nextText(io._0), " VS! ", nextText(*currentPropBase.ptr()));
-    // }
-    if (io._1 && io._0.ptr == currentPropBase.ptr().ptr) {
-      // logln("MATCH: testing with ", io._1);
-      try {
-        auto nt = templ.getInstanceIdentifier(io._1, rest, templ.getIdentifier());
-        auto it = fastcast!(ITemplate) (nt);
-        if (!it) setError("Failed to apply instantiation override: ", nt);
-        else templ = it;
-      } catch (Exception ex) {
-        t2.failparse("ifti pre-instantiating with ", io._1, ": ", ex);
-      }
-    }
+    bool ioApplies;
     try {
       auto res = templ.getInstanceIdentifier(nex.valueType(), rest, templ.getIdentifier());
+      {
+        auto te = fastcast!(ITemplate) (res);
+        if (io._1 && io._0.ptr == currentPropBase.ptr().ptr && te) {
+          ioApplies = true;
+          try {
+            res = te.getInstanceIdentifier(io._1, rest, te.getIdentifier());
+          } catch (Exception ex) {
+            t2.failparse("ifti post-instantiating with ", io._1, ": ", ex);
+          }
+        }
+        while (true) {
+          te = fastcast!(ITemplate) (res);
+          if (!te) break;
+          res = te.getInstanceIdentifier(mkTuple(), rest, te.getIdentifier());
+        }
+      }
       auto fun = fastcast!(Function) (res);
       if (!fun) { return null; }
       text = t2;
@@ -354,7 +361,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
       }
       return fastcast!(Object) (fc);
     } catch (Exception ex) {
-      t2.failparse("ifti instantiating with ", nex.valueType(), ": ", ex);
+      t2.failparse("ifti instantiating with ", nex.valueType(), ioApplies?Format(" (post ", io._1, ")"):"", ": ", ex);
     }
   };
 }

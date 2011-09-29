@@ -97,6 +97,11 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     select((string, RelMember member) { pointerless &= member.type.isPointerLess(); });
     return pointerless;
   }
+  override bool isComplete() {
+    bool complete = true;
+    select((string, RelMember member) { complete &= member.type.isComplete(); });
+    return complete;
+  }
   Structure dup() {
     auto res = new Structure(name);
     res.sup = sup;
@@ -224,7 +229,7 @@ static this() {
 
 import ast.modules;
 bool matchStructBody(ref string text, Namespace ns,
-                     ParseCb cont, ParseCb rest) {
+                     ParseCb* rest = null) {
   auto backup = namespace();
   namespace.set(ns);
   scope(exit) namespace.set(backup);
@@ -234,17 +239,24 @@ bool matchStructBody(ref string text, Namespace ns,
   string[] names; IType[] types;
   string strname; IType strtype;
   
+  Object match(ref string text, string rule) {
+    if (rest) { Object res; if (!(*rest)(text, rule, &res)) return null; return res; }
+    else {
+      return parsecon.parse(text, rule);
+    }
+  }
+  
   return (
     text.many(
       (t2 = text, true)
-      && rest(text, "struct_member", &smem)
+      && test(smem = fastcast!(Named)(match(text, "struct_member")))
       && {
         if (!addsSelf(smem)) ns.add(smem);
         return true;
       }()
       ||
       (text = t2, true)
-      && test(strtype = fastcast!(IType)~ rest(text, "type"))
+      && test(strtype = fastcast!(IType) (match(text, "type")))
       && text.bjoin(
         text.gotIdentifier(strname),
         text.accept(","),
@@ -285,7 +297,7 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
       return new DerefExpr(baseref);
     };
     
-    if (matchStructBody(t2, st, cont, rest)) {
+    if (matchStructBody(t2, st, &rest)) {
       if (!t2.accept("}"))
         t2.failparse("Missing closing struct bracket");
       text = t2;
@@ -586,6 +598,10 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
           spaces ~= vt;
         }
       }
+      return false;
+    });
+    ex3 = ex;
+    gotImplicitCast(ex3, (Expr ex) {
       auto ex4 = depointer(ex);
       if (ex4 !is ex) {
         gotImplicitCast(ex4, (Expr ex) {
@@ -620,8 +636,11 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   string member;
   
   if (t2.gotIdentifier(member)) {
-    
+    auto backupmember = member;
+    auto backupt2 = t2;
   try_next_alt:
+    member = backupmember; // retry from start again
+    t2 = backupt2;
     if (!alts.length)
       return null;
     ex = alts[0]; alts = alts[1 .. $];
@@ -640,18 +659,19 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       
       // auto ex2 = fastcast!(Expr) (m);
       // if (!ex2) {
-      if (!m) {
-        if (t2.eatDash(member)) goto retry;
+      // what
+      /*if (!m) {
+        if (t2.eatDash(member)) { logln("1 Reject ", member, ": no match"); goto retry; }
         text.setError(Format("No ", member, " in ", ns, "!"));
         goto try_next_alt;
-      }
+      }*/
       
       text = t2;
       return m;
     }
     auto m = rn.lookupRel(member, ex);
     if (!m) {
-      if (t2.eatDash(member)) goto retry;
+      if (t2.eatDash(member)) { goto retry; }
       string mesg, name;
       auto info = Format(pre_ex.valueType());
       if (info.length > 64) info = info[0..64] ~ " [snip]";

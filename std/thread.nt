@@ -31,7 +31,7 @@ extern(C) int _sys_tls_data_start;
 
 void delegate(void*) onThreadCreation;
 
-platform(default) <<EOF
+platform(default) {
   void* stack-base;
   int stack-size;
   void setupStackBase() {
@@ -41,16 +41,15 @@ platform(default) <<EOF
     pthread_attr_getstack(&attr, &stack-base, size_t*:&stack-size);
     stack-base = void*:(byte*:stack-base + stack-size);
   }
-  
   void init() { setupStackBase; setupTLSSize(); }
-EOF
+}
 
-platform(i686-mingw32) <<EOF
+platform(i686-mingw32) {
   void setupStackBase() {
     // writeln "setupStackBase() not implemented under win32! ";
   }
   void init() { setupTLSSize(); }
-EOF
+}
 
 import c.semaphore;
 class Semaphore {
@@ -116,7 +115,7 @@ void startThread(void delegate() dg) {
   arg[3].claim;
 }
 
-platform(default) <<EOF
+platform(default) {
   pragma(lib, "pthread");
   struct pthread_mutex_t { ubyte x 40  filler; }
   extern(C) int pthread_mutex_init (pthread_mutex_t*, void*);
@@ -129,7 +128,7 @@ platform(default) <<EOF
     int pthread_rwlock_wrlock(pthread_rwlock_t* rwlock);
     int pthread_rwlock_unlock(pthread_rwlock_t* rwlock);
   }
-EOF
+}
 
 class Mutex {
   pthread_mutex_t mutex;
@@ -154,13 +153,13 @@ struct MutexWrapper {
 
 MutexWrapper autoLock(Mutex m) { MutexWrapper mw; mw.m = m; return mw; }
 
-template New(T) <<EOF
+template New(T) {
   void New(T t) {
     alias obj = *t;
     alias classtype = type-of obj;
     obj = new classtype;
   }
-EOF
+}
 
 class ThreadPool {
   Mutex m, readlock, writelock;

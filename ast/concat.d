@@ -98,6 +98,7 @@ class ConcatChain : Expr {
   }
 }
 
+import ast.modules;
 static this() {
   IType isArray(IType it) {
     if (auto ar = fastcast!(Array) (it)) return ar.elemType;
@@ -167,14 +168,14 @@ static this() {
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR", "tree.expr")
-                    (`sys.append3!T(&l, r)`,
+                    (`sap!T(&l, r)`,
                     namespace(),
-                    "T", ea.elemType, "l", ex1, "r", ex2);
+                    "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append3"));
     } else {
       return iparse!(Expr, "concat_into_ext", "tree.expr")
-                    (`sys.append2!T(&l, r)`,
+                    (`sap!T(&l, r)`,
                     namespace(),
-                    "T", ea.elemType, "l", ex1, "r", ex2);
+                    "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append2"));
     }
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
@@ -190,12 +191,12 @@ static this() {
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR_elem", "tree.expr")
-                    (`sys.append3e!T(&l, r)`, namespace(),
-                    "T", ea.elemType, "l", ex1, "r", ex2);
+                    (`sap!T(&l, r)`, namespace(),
+                    "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append3e"));
     } else {
       return iparse!(Expr, "concat_into_ext_elem", "tree.expr")
-                    (`sys.append2e!T(&l, r)`, namespace(),
-                    "T", ea.elemType, "l", ex1, "r", ex2);
+                    (`sap!T(&l, r)`, namespace(),
+                    "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append2e"));
     }
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
@@ -215,15 +216,15 @@ static this() {
     if (ea.freeOnResize) {
       return new StatementAndExpr(
         iparse!(Statement, "concat_into_ext_fOR_static_array", "tree.stmt")
-               (`for auto e <- r l = sys.append3e!T(&l, e);`, namespace(),
-                "T", ea.elemType, "l", ex1, "r", ex2)
+               (`for auto e <- r l = sap!T(&l, e);`, namespace(),
+                "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append3e"))
         , ex1
       );
     } else {
       return new StatementAndExpr(
         iparse!(Statement, "concat_into_ext_static_array", "tree.stmt")
-               (`for auto e <- r l = sys.append2e!T(&l, e);`, namespace(),
-                "T", ea.elemType, "l", ex1, "r", ex2)
+               (`for auto e <- r l = sap!T(&l, e);`, namespace(),
+                "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append2e"))
         , ex1
       );
     }

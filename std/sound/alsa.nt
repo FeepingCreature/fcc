@@ -11,13 +11,13 @@ extern(C) {
   char* snd_strerror(int);
 }
 
-template check(alias A) <<EOT
+template check(alias A) {
   void check(ParamTypes type-of &A a) {
     auto res = A a;
     if res == 0 return;
     else raise-error new Error "While calling $(string-of A): $res: $(CToString snd_strerror res)";
   }
-EOT
+}
 
 context Stream {
   alias Playback = 0;

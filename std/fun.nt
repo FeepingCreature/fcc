@@ -1,0 +1,39 @@
+module std.fun; // map, select, similar
+
+template select(T) {
+  alias steptype = type-of-elem value-of!T[0];
+  
+  class selectIterator : Iterator!steptype {
+    type-of value-of!T[0].iterator iter;
+    T[1] test;
+    bool advance() {
+      while value <- iter if test value return true;
+      return false;
+    }
+  }
+  selectIterator select(T t) {
+    auto res = new selectIterator;
+    res.iter = type-of res.iter: t[0].iterator;
+    res.test = t[1];
+    return res;
+  }
+}
+
+template map(T) {
+  alias steptype = type-of value-of!T[1] value-of!type-of-elem value-of!T[0];
+  
+  class mapIterator : Iterator!steptype {
+    type-of value-of!T[0].iterator iter;
+    T[1] transform;
+    bool advance() {
+      if (auto val <- iter) { value = transform val; return true; }
+      return false;
+    }
+  }
+  mapIterator map(T t) {
+    auto res = new mapIterator;
+    res.iter = type-of res.iter: t[0].iterator;
+    res.transform = t[1];
+    return res;
+  }
+}

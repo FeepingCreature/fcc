@@ -13,6 +13,7 @@ interface IType {
   // (proxy == type alias)
   IType proxyType();
   bool isPointerLess(); // concerns the VALUE ITSELF - ie. an array is always pointerful
+  bool isComplete(); // is this type completely defined or does it depend on future stuff?
 }
 
 // Strips out type-alias and the like
@@ -48,6 +49,7 @@ class Type : IType {
   abstract int size();
   abstract string mangle();
   bool isPointerLess() { return false; } // default
+  bool isComplete() { return true; } // also default
 }
 
 class Void : Type {

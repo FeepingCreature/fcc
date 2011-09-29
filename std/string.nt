@@ -57,9 +57,9 @@ string between_r(string s, string from, string to) {
   return s;
 }
 
-template join(T) <<EOF
+template join(T) {
   auto join(T t) {
-    static if (type-is-tuple T) <<EO2{
+    static if (type-is-tuple T) {
       alias T0 = T[0];
       alias VAL = value-of!type-of-elem t[0];
       type-of VAL[0] [auto~] res;
@@ -70,15 +70,15 @@ template join(T) <<EOF
         res ~= chunk;
       }
       return res[];
-    }EO2 else <<EO2{
+    } else {
       type-of (value-of!type-of-elem t)[0] [auto~] res;
       while auto chunk <- t { res ~= chunk; }
       return res[];
-    }EO2
+    }
   }
-EOF
+}
 
-template splitAt(T) <<EOF
+template splitAt(T) {
   class iter : Iterator!string {
     T sup;
     char[auto~] buffer;
@@ -107,7 +107,7 @@ template splitAt(T) <<EOF
     res.sup = t;
     return res;
   }
-EOF
+}
 
 char* toStringz(string s) {
   char ch;
@@ -154,8 +154,8 @@ string toLower(string s) {
   return res[];
 }
 
-template castIter(T) <<EOF
-  template castIter(U) <<EO2
+template castIter(T) {
+  template castIter(U) {
     class caster : Iterator!T {
       U sup;
       bool advance() {
@@ -169,8 +169,8 @@ template castIter(T) <<EOF
       res.sup = u;
       return res;
     }
-  EO2
-EOF
+  }
+}
 
 // before, after
 (string, string) slice(string s, string m, bool yieldNull = true) {

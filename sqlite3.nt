@@ -42,50 +42,50 @@ interface IQueryIterator {
   void finalize();
 }
 
-template QueryIterator(T) <<EOT
+template QueryIterator(T) {
   class QueryIterator : IQueryIterator {
     DatabaseSup db;
     sqlite3_stmt* stmt;
     int bindCount;
     string sql;
-    template addBind(T) <<EOS
+    template addBind(T) {
       int addBind(T t) {
-        static if types-equal(T, int) <<EO2
+        static if types-equal(T, int) {
           return sqlite3_bind_int(stmt, bindCount ++, t);
-        EO2
-        static if types-equal(T, float) || types-equal(T, double) <<EO2
+        }
+        static if types-equal(T, float) || types-equal(T, double) {
           return sqlite3_bind_double(stmt, bindCount ++, double:t);
-        EO2
-        static if types-equal(T, string) <<EO2
+        }
+        static if types-equal(T, string) {
           return sqlite3_bind_text(stmt, bindCount ++, char*: mallocDupData byte[]:t, t.length, &sysFree);
-        EO2
-        static if types-equal(T, byte[]) <<EO2
+        }
+        static if types-equal(T, byte[]) {
           return sqlite3_bind_blob(stmt, bindCount ++, mallocDupData t, t.length, &sysFree);
-        EO2
+        }
         raise-error new Error "Unknown bind type $(string-of T)";
       }
-    EOS
-    template getColumn(T) <<EOS
+    }
+    template getColumn(T) {
       T getColumn(int i) {
-        static if types-equal(T, int) <<EO2
+        static if types-equal(T, int) {
           return sqlite3_column_int(stmt, i);
-        EO2
-        static if types-equal(T, float) <<EO2
+        }
+        static if types-equal(T, float) {
           return float:sqlite3_column_double(stmt, i);
-        EO2
-        static if types-equal(T, string) <<EO2{
+        }
+        static if types-equal(T, string) {
           auto resptr = sqlite3_column_text(stmt, i);
           auto reslen = sqlite3_column_bytes(stmt, i);
           return resptr[0..reslen];
-        }EO2
-        static if types-equal(T, byte[]) <<EO2{
+        }
+        static if types-equal(T, byte[]) {
           auto resptr = byte*:sqlite3_column_blob(stmt, i);
           auto reslen = sqlite3_column_bytes(stmt, i);
           return resptr[0..reslen];
-        }EO2
+        }
         raise-error new Error "Unknown column type $(string-of T)";
       }
-    EOS
+    }
     T value;
     void finalize() {
       sqlite3_finalize stmt;
@@ -100,15 +100,15 @@ template QueryIterator(T) <<EOT
       if res == SQLITE_BUSY raise-error new SQLiteBusy;
       if res != SQLITE_ROW
         raise-error new SQLiteError "Failed to iterate query '$sql': $res";
-      static if type-is-tuple T <<EOS1{
-        static if value.length <<EOS2{
+      static if type-is-tuple T {
+        static if value.length {
           static while int i <- 0 .. value.length {
             value[i] = getColumn!type-of value[i] i;
           }
-        }EOS2
-      }EOS1 else <<EOS1{
+        }
+      } else {
         value = getColumn!T 0;
-      }EOS1
+      }
       return true;
     }
     void init(DatabaseSup db, sqlite3_stmt* stmt) {
@@ -117,7 +117,7 @@ template QueryIterator(T) <<EOT
       bindCount = 1;
     }
   }
-EOT
+}
 
 class Database : DatabaseSup {
   IQueryIterator[auto~][] stack;
@@ -136,11 +136,11 @@ class Database : DatabaseSup {
     if sqlite3_open(toStringz dbname, &db)
       sqlite3fail CToString sqlite3_errmsg db;
   }
-  template exec(T) <<EO4
-    template exec(U) <<EO3
+  template exec(U) {
+    template exec(T) {
       auto exec(U u) {
-        static if type-is-tuple U <<EO1 string sql = u[0]; EO1
-        else <<EO1 string sql = u; EO1
+        static if type-is-tuple U { string sql = u[0]; }
+        else { string sql = u; }
         sqlite3_stmt* stmt;
         if SQLITE_OK != sqlite3_prepare_v2(
           db,
@@ -157,24 +157,24 @@ class Database : DatabaseSup {
         
         if (stack.length) stack[$-1] ~= res;
         
-        static if type-is-tuple U <<EO1
+        static if type-is-tuple U {
           static while int i <- 0 .. (u.length - 1) {
             res.addBind u[1+i];
           }
-        EO1
-        static if type-is-tuple T <<EO2{
-          static if bogosity.length == 0 <<EO1{
+        }
+        static if type-is-tuple T {
+          static if bogosity.length == 0 {
             res.advance();
             return;
-          }EO1 else <<EO1{
+          } else {
             return res;
-          }EO1
-        }EO2 else <<EO2{
+          }
+        } else {
           return res;
-        }EO2
+        }
       }
-    EO3
-  EO4
+    }
+  }
   void close() {
     sqlite3_close db;
   }

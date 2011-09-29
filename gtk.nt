@@ -55,32 +55,32 @@ extern(C) size_t g_signal_connect_data (gpointer instance, char*, void*, void*, 
 // turn function-pointer(void*) type callbacks (with esi) into delegate callbacks
 (void*, void*, void*)[~] store;
 
-template call-dg-esi(T) <<EOF
+template call-dg-esi(T) {
   ReturnType T call-dg-esi (ParamTypes T p, void* data) {
     alias ret = ReturnType T;
     auto tup = *(ret delegate(ParamTypes T), void*)*: data;
     auto backup_esi = _esi;
     _esi = tup[1];
-    static if types-equal(ret, void) <<EO2{
+    static if types-equal(ret, void) {
       tup[0] p;
       _esi = backup_esi;
       return;
-    }EO2 else <<EO2{
+    } else {
       auto res = tup[0] p;
       _esi = backup_esi;
       return res;
-    }EO2
+    }
   }
-EOF
+}
 
-template g_signal_connect(T) <<EOF
+template g_signal_connect(T) {
   // void g_signal_connect (GtkObject* w, string s, void delegate(GtkObject*) dg) {
   void g_signal_connect (T t) {
     store ~= (void*, void*, void*): (t[2], _esi);
     auto dgvalue = &(call-dg-esi!type-of t[2]);
     g_signal_connect_data (gpointer: t[0], toStringz t[1], void*: dgvalue, &store[$-1], null, 0);
   }
-EOF
+}
 
 RenameIdentifier gtk_hbox_new _gtk_hbox_new;
 GtkWidget* gtk_hbox_new(gboolean homogenous = false, gint spacing = 0) return _gtk_hbox_new(homogenous, spacing);

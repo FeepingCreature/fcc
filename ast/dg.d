@@ -81,6 +81,11 @@ class Delegate : Type {
   this() { }
   this(IType ret, Argument[] args) { this.ret = ret; this.args = args; }
   override {
+    bool isComplete() {
+      if (!ret || !ret.isComplete) return false;
+      foreach (arg; args) if (!arg.type.isComplete) return false;
+      return true;
+    }
     string toString() {
       return Format(ret, " delegate ", args);
     }
@@ -97,6 +102,7 @@ class Delegate : Type {
     int opEquals(IType ty) {
       if (!super.opEquals(ty)) return false;
       auto dg = fastcast!(Delegate)~ ty;
+      if (!dg.ret || !ret) { asm { int 3; } }
       if (dg.ret != ret) return false;
       if (dg.args.length != args.length) return false;
       foreach (i, arg; dg.args)

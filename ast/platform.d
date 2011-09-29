@@ -1,6 +1,6 @@
 module ast.platform;
 
-import ast.base, parseBase, ast.fun, ast.namespace, ast.pointer;
+import ast.base, parseBase, ast.fun, ast.namespace, ast.pointer, ast.stringparse;
 
 import ast.modules;
 Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
@@ -8,7 +8,8 @@ Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
   string platname;
   if (!t2.gotIdentifier(platname) || !t2.accept(")"))
     t2.failparse("Invalid platform directive. ");
-  auto src = t2.getHeredoc();
+  t2.noMoreHeredoc();
+  auto src = t2.coarseLexScope(true, false);
   auto mod = current_module();
   if (platname~"-" == platform_prefix || platname == "default" && !platform_prefix) {
     Object obj;

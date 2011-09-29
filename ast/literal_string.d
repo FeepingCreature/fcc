@@ -1,6 +1,6 @@
 module ast.literal_string;
 
-import ast.base, ast.literals, ast.pointer, ast.arrays, ast.static_arrays;
+import ast.base, ast.literals, ast.pointer, ast.arrays, ast.static_arrays, ast.stringparse;
 
 static int string_counter;
 
@@ -36,50 +36,11 @@ static this() {
   mkString = delegate Expr(string s) { return new StringExpr(s); };
 }
 
-bool gotStringExpr(ref string text, out Expr ex,
-  string sep = "\"", bool alreadyMatched = false)
-{
-  auto t2 = text;
-  if (!alreadyMatched && !t2.accept(sep)) return false;
-  ubyte[] ba;
-  while (true) {
-    assert(t2.length);
-    // if (t2.accept(sep)) break; // eats comments in strings
-    if (auto rest = t2.startsWith(sep)) { t2 = rest; break; }
-    byte xtake() {
-      auto res = (cast(byte[]) t2)[0];
-      t2 = cast(string) (cast(byte[]) t2)[1..$];
-      return res;
-    }
-    auto ch = xtake();
-    if (ch == '\\') {
-      auto ch2 = xtake();
-      if (ch2 == 'n') { ba ~= cast(ubyte[]) "\n"; }
-      else if (ch2 == 'r') { ba ~= cast(ubyte[]) "\r"; }
-      else if (ch2 == 't') { ba ~= cast(ubyte[]) "\t"; }
-      else if (ch2 == 'x') {
-        int h2i(char c) {
-          if (c >= '0' && c <= '9') return c - '0';
-          if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-          if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-          assert(false);
-        }
-        auto h1 = xtake(), h2 = xtake(); 
-        ba ~= h2i(h1) * 16 + h2i(h2);
-      }
-      else ba ~= ch2;
-    } else ba ~= ch;
-  }
-  auto se = new StringExpr(cast(string) ba);
-  text = t2; ex = se;
-  return true;
-}
-
 Object gotStringLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   // "" handled in ast.stringex now.
-  Expr ex;
-  if (text.gotStringExpr(ex, "`", true)) {
-    return fastcast!(Object)~ ex;
+  string st;
+  if (text.gotString(st, "`", true)) {
+    return new StringExpr(st);
   } else return null;
 }
 mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string", "551", "`");

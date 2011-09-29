@@ -3,24 +3,24 @@ module opengl;
 public import c.GL.gl;
 public import c.GL.glu;
 
-platform(i686-mingw32) <<EOF
+platform(i686-mingw32) {
   pragma(lib, "opengl32");
   pragma(lib, "glu32");
   extern(Windows) void* wglGetProcAddress(char*);
-  template lookupFun(T) <<EO2
+  template lookupFun(T) {
     _markStdCall T lookupFun(char* c) { return _markStdCall T:wglGetProcAddress(c); }
-  EO2
-EOF
+  }
+}
 
-platform(default) <<EOF
+platform(default) {
   public import c.GL.glx;
   pragma(lib, "GL");
   pragma(lib, "GLU");
   extern(C) void* glXGetProcAddress(char*);
-  template lookupFun(T) <<EO2
+  template lookupFun(T) {
     T lookupFun(char* c) { return T:glXGetProcAddress(c); }
-  EO2
-EOF
+  }
+}
 
 alias glBindBufferARB = *lookupFun!void function(GLenum, GLuint) "glBindBufferARB";
 alias glBufferDataARB = *lookupFun!void function(GLenum, GLsizei, void*, GLenum) "glBufferDataARB";

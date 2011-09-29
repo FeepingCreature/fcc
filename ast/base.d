@@ -591,3 +591,18 @@ static this() { New(templInstOverride); }
 
 TLS!(string) currentPropBase;
 static this() { New(currentPropBase); }
+
+void delegate()[] laterParsing;
+// TODO: sync?
+void addLate(void delegate() dg) { laterParsing ~= dg; }
+void doLaterParsing() {
+  while (laterParsing.length) {
+    auto dg = laterParsing[0];
+    laterParsing = laterParsing[1..$];
+    dg();
+  }
+}
+
+void delegate()[][] laterParsingStack;
+void pushDelayStack() { laterParsingStack ~= laterParsing; laterParsing = null; }
+void popExecuteDelayStack() { doLaterParsing(); laterParsing = laterParsingStack[$-1]; laterParsingStack = laterParsingStack[0..$-1]; }

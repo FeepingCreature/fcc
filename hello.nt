@@ -1,6 +1,16 @@
 module hello;
 
+import std.fun;
+
 void main() {
   writeln "Hello World";
   using "Hello there. " writeln();
+  auto add = \(int a) -> new \(int b) -> a+b;
+  int x = (add 2 3);
+  writeln "$x";
+  int[] mew;
+  using [2, 3, 4] mew = map \(int x) -> x * 2 #.eval[];
+  // auto mew = [2, 3, 4].map \(int x) -> x*2;
+  writeln "is of $(string-of type-of mew)";
+  writeln "$$mew.eval[]";
 }

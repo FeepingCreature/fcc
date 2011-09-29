@@ -86,8 +86,8 @@ vec2f half(vec2f a, b) return (a + b) / 2;
 vec3f half(vec3f a, b) return (a + b) / 2;
 vec4f half(vec4f a, b) return (a + b) / 2;
 
-float min(float a, b) return [a, b][eval a > b];
-float max(float a, b) return [a, b][eval a < b];
+template min(T) { auto min(T t) { static if (t.length != 2) { Please only pass two parameters to min! } if (t[0] > t[1]) return t[1]; return t[0]; } }
+template max(T) { auto max(T t) { static if (t.length != 2) { Please only pass two parameters to max! } if (t[0] > t[1]) return t[0]; return t[1]; } }
 
 bool isNan(float f) {
   int i = *int*:&f;
@@ -106,21 +106,21 @@ alias atan2 = atan2f;
 alias asin = asinf;
 alias acos = acosf;
 
-template minlist(T) <<EOT
-  iterType!T minlist(T t) {
+template minlist(T) {
+  type-of-elem value-of!T minlist(T t) {
     eval auto res <- t;
     while auto r2 <- t if r2 < res res = r2;
     return res;
   }
-EOT
+}
 
-template maxlist(T) <<EOT
-  iterType!T maxlist(T t) {
+template maxlist(T) {
+  type-of-elem value-of!T maxlist(T t) {
     eval auto res <- t;
     while auto r2 <- t if r2 > res res = r2;
     return res;
   }
-EOT
+}
 
 int abs(int i) { if i < 0 return -i; return i; }
 float abs(float f) { if f < 0 return -f; return f; }
