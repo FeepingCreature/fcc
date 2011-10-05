@@ -282,6 +282,10 @@ void setupSysmods() {
     class Signal : Error {
       void init(string s) { super.init s; }
     }
+    class BoundsError : Error {
+      void init(string s) super.init s;
+      string toString() { return "BoundsError: $(super.toString())"; }
+    }
     void raise-signal(Signal sig) {
       auto cur = __hdl__;
       while cur {

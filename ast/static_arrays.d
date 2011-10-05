@@ -88,6 +88,8 @@ ubyte[] takeEnd(ref ubyte[] ub, int b = 1) {
   return res;
 }
 
+int constants_id;
+
 // static array literal 1
 class DataExpr : CValue {
   ubyte[] data;
@@ -128,7 +130,7 @@ class DataExpr : CValue {
     }
     void emitLocation(AsmFile af) {
       if (!name_used) {
-        name_used = af.allocConstant(Format("data_", af.constants.length), data);
+        name_used = af.allocConstant(Format("data_", constants_id++), data);
       }
       af.pushStack("$"~name_used, nativePtrSize);
     }

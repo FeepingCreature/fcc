@@ -67,10 +67,24 @@ static this() {
   });
 }
 
+Expr tmpize(Expr ex) {
+  if (fastcast!(PlaceholderToken) (ex)) return ex;
+  if (!fastcast!(Variable) (ex)) {
+    Statement init;
+    if (auto lv = fastcast!(LValue) (ex))
+      ex = new DerefExpr(lvize(new RefExpr(lv)/*, &init*/));
+    else
+      ex = lvize(ex/*, &init*/);
+    // ex = mkStatementAndExpr(init, ex);
+  }
+  return ex;
+}
+
+import ast.vardecl, ast.scopes, ast.literals;
 Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     // logln("access ", ex.valueType(), " @", text.nextText());
-    bool isArray = true;
+    bool isArrayOrPtr = true;
     {
       auto backup = ex;
       if (!gotImplicitCast(ex, (IType it) {
@@ -78,7 +92,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
         return fastcast!(StaticArray) (it) || fastcast!(Array) (it) || fastcast!(ExtArray) (it) || fastcast!(Pointer) (it);
       })) {
         ex = backup; // still fine - maybe opIndex will work
-        isArray = false;
+        isArrayOrPtr = false;
       }
     }
     
@@ -89,7 +103,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    if (isArray)
+    if (isArrayOrPtr)
       namespace.set(new LengthOverride(backup, getArrayLength(ex)));
     
     if (t2.accept("]")) return null; // [] shortcut
@@ -100,7 +114,24 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
         if (!res) {
           text.failparse("Invalid array index: ", pos.valueType());
         }
-        text = t2; 
+        auto posvt = pos.valueType();
+        bool hasScope = !!namespace().get!(Scope);
+        if (isArrayOrPtr && !fastcast!(Pointer) (ex.valueType()) && !releaseMode && hasScope && fastcast!(SysInt)(posvt)) {
+          ex = tmpize(ex);
+          
+          pos = tmpize(pos);
+          
+          res = lookupOp("index", true, ex, pos);
+          auto errorpos = lookupPos(text);
+          string info = Format(errorpos._2, ":", errorpos._0, ":", errorpos._1);
+          res = mkStatementAndExpr(
+            iparse!(Statement, "check_bound", "tree.stmt")
+                    (`if (pos >= ex.length) raise-error new BoundsError "Index access out of bounds: $pos >= length $(ex.length) at $info";`,
+                    "pos", pos, "ex", ex, "info", mkString(info)),
+            res
+          );
+        }
+        text = t2;
       } catch (Exception ex) text.failparse(ex);
       return fastcast!(Object) (res);
     } else return null;
