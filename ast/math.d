@@ -744,6 +744,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!curOp) return null;
   curOp = forcedConvert(curOp);
   foreach (op; oplist) {
+    if (op == "x") continue; // what, no, bad idea
     auto t3 = t2;
     if (t3.accept(op) && t3.accept("=")) {
       Expr src;

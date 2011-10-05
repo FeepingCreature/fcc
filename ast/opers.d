@@ -27,6 +27,7 @@ Expr lookupOp(string text, string op, bool allowNone, Expr[] exprs...) {
   if (pre && op[0] != '=' /or/ '!' && (
     op[0] != '<' /or/ '>' || op[1] == op[0] /* rightshift, leftshift */
   )) {
+    if (op == "x=") asm { int 3; }
     lv = fastcast!(LValue) (exprs[0]);
     mv = fastcast!(MValue) (exprs[0]);
     if (!lv && !mv) {

@@ -16,6 +16,8 @@ bool isWindoze() {
 
 string[] extra_linker_args;
 
+bool releaseMode;
+
 interface Iterable {
   void iterate(void delegate(ref Iterable) dg);
   Iterable dup();
