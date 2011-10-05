@@ -67,16 +67,18 @@ static this() {
   });
 }
 
+import ast.fold;
 Expr tmpize(Expr ex) {
   if (fastcast!(PlaceholderToken) (ex)) return ex;
-  if (!fastcast!(Variable) (ex)) {
-    Statement init;
-    if (auto lv = fastcast!(LValue) (ex))
-      ex = new DerefExpr(lvize(new RefExpr(lv)/*, &init*/));
-    else
-      ex = lvize(ex/*, &init*/);
-    // ex = mkStatementAndExpr(init, ex);
-  }
+  if (fastcast!(Variable) (ex)) return ex;
+  ex = foldex(ex);
+  if (fastcast!(IntExpr) (ex)) return ex;
+  Statement init;
+  if (auto lv = fastcast!(LValue) (ex))
+    ex = new DerefExpr(lvize(new RefExpr(lv), &init));
+  else
+    ex = lvize(ex, &init);
+  ex = mkStatementAndExpr(init, ex, true);
   return ex;
 }
 
@@ -128,7 +130,8 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
             iparse!(Statement, "check_bound", "tree.stmt")
                     (`if (pos >= ex.length) raise-error new BoundsError "Index access out of bounds: $pos >= length $(ex.length) at $info";`,
                     "pos", pos, "ex", ex, "info", mkString(info)),
-            res
+            res,
+            true
           );
         }
         text = t2;
