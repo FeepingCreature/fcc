@@ -198,11 +198,15 @@ class ArrayLength(T) : ArrayLength_Base, T {
 class ArrayMaker : Expr {
   Expr ptr, length;
   Expr cap;
+  private this() { }
+  this(Expr ptr, Expr length, Expr cap = null) {
+    this.ptr = ptr; this.length = length; this.cap = cap;
+  }
   mixin MyThis!("ptr, length, cap = null");
   mixin DefaultDup!();
   mixin defaultIterate!(ptr, length, cap);
   IType elemType() {
-    return (fastcast!(Pointer)~ ptr.valueType()).target;
+    return (fastcast!(Pointer) (resolveType(ptr.valueType()))).target;
   }
   override string toString() { return Format("array(ptr=", ptr, ", length=", length, cap?Format(", cap=", cap):"", ")"); }
   IType cachedType;

@@ -27,32 +27,10 @@ class Tuple : Type {
       it = resolveType(it);
       auto tup = fastcast!(Tuple) (it);
       assert(!!tup);
-      // Lockstep iteration. Yummy.
-      int[2] offs;
-      Structure[2] sf;
-      sf[0] = wrapped;
-      sf[1] = tup.wrapped;
-      bool[2] bailcond;
-      void advance(int i) {
-        do {
-          if (offs[i] == sf[i].field.length) break;
-        } while (!fastcast!(RelMember) (sf[i].field[offs[i]++]._1));
-        bailcond[i] = offs[i] == sf[i].field.length;
-      }
-      
-      advance(0); advance(1);
-      if (bailcond[0] || bailcond[1]) return bailcond[0] == bailcond[1];
-      
-      Stuple!(IType, int) get(int i) {
-        auto cur = fastcast!(RelMember) (sf[i].field[offs[i]++]._1);
-        advance(i);
-        return stuple(cur.type, cur.offset);
-      }
-      while (true) {
-        auto elem1 = get(0), elem2 = get(1);
-        if (elem1._0 != elem2._0 || elem1._1 != elem2._1)
-          return false;
-        if (bailcond[0] || bailcond[1]) return bailcond[0] == bailcond[1];
+      auto types1 = types(), types2 = tup.types();
+      if (types1.length != types2.length) return false;
+      for (int i = 0; i < types1.length; ++i) {
+        if (types1[i] != types2[i]) return false;
       }
       return true;
     }

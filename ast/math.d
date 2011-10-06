@@ -662,7 +662,7 @@ static this() {
         fail();
       }
       assert(!isFloat(ex2.valueType()));
-      auto mul = (fastcast!(Pointer)~ ex1.valueType()).target.size;
+      auto mul = (fastcast!(Pointer) (resolveTup(ex1.valueType()))).target.size;
       ex2 = handleIntMath("*", ex2, mkInt(mul));
       if (!ex2) return null;
       return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
