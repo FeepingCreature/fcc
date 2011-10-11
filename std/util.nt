@@ -1,8 +1,7 @@
 module std.util;
 
 template iterOnce(T) {
-  class one {
-    T value;
+  class one : Iterator!T {
     bool done;
     bool advance() {
       if done return false;

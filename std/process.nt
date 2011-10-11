@@ -1,0 +1,68 @@
+module std.process;
+
+import c.poll, c.stdlib, c.unistd;
+import std.string;
+
+class ReadbackError : Error {
+  void init(string s) super.init "ReadbackError: $s";
+}
+
+class ReadbackStream : Iterator!string {
+  int x 2 hdl_sysward, hdl_selfward;
+  bool done; int fdslength;
+  Iterator!string input; string inbuffer;
+  void init(string cmd, Iterator!string input) {
+    pipe hdl_sysward; // self -> system()
+    pipe hdl_selfward; // system() -> self
+    system toStringz "exec $(hdl_sysward[1])>&-; exec $(hdl_selfward[0])>&-; <&$(hdl_sysward[0]) $cmd >&$(hdl_selfward[1]) &";
+    close hdl_sysward[0]; // read side
+    close hdl_selfward[1]; // write side
+    fdslength = 2;
+    this.input = input;
+  }
+  bool advance() {
+    while !done { // while we still have data to write .. 
+      pollfd x 2 fds;
+      fds[0].(fd, events) = (hdl_selfward[0], POLLIN);
+      fds[1].(fd, events) = (hdl_sysward [1], POLLOUT);
+      auto hits = poll(fds.ptr, fdslength, -1);
+      if (fds[0].revents & POLLHUP) { done = true; return false; }
+      bool handleRead() {
+        char x 128 buf;
+        auto size = read buf.(hdl_selfward[0], ptr, length);
+        if (size > 0) {
+          value.free;
+          value = buf[0 .. size].dup;
+          return true;
+        }
+        return false;
+      }
+      void handleWrite() {
+        if (!inbuffer.length) {
+          if (!input.advance()) {
+            // no more data to write
+            close hdl_sysward[1];
+            fdslength = 1;
+            return;
+          }
+          assert(input.value.length, "input claimed to advance but data is null");
+          inbuffer = input.value;
+        }
+        auto res = write inbuffer.(hdl_sysward[1], ptr, length);
+        if res < 0
+          raise-error new ReadbackError "Writing to stream failed! ";
+        inbuffer = inbuffer[res .. $];
+      }
+      if (fds[1].revents & POLLOUT) { handleWrite; }
+      if (fds[0].revents & POLLIN) { if (handleRead()) return true; }
+    }
+    return false;
+  }
+}
+
+ReadbackStream readback(string cmd, Iterator!string data) {
+  return new ReadbackStream (cmd, data);
+}
+
+import std.util;
+ReadbackStream readback(string cmd, string data) return readback(cmd, Iterator!string: iterOnce data);
