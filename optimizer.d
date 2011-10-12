@@ -1230,39 +1230,39 @@ restart:
     ($0.kind != $TK.Mov || $1.kind != $TK.Mov) &&
     ($0.kind != $TK.MathOp || $0.opName == "addl" && $0.op1.isNumLiteral())
     =>
-    string t1from, t1to, t2from, t2to;
+    string t0from, t0to, t1from, t1to;
     int sum;
     if ($0.kind == $TK.Mov) {
-      t1from = $0.from;
-      t1to = $0.to;
+      t0from = $0.from;
+      t0to = $0.to;
     } else if ($0.kind == $TK.MathOp) {
-      t1from = $0.op2;
+      t0from = $0.op2;
       sum += $0.op1.literalToInt();
-      t1to = $0.op2;
+      t0to = $0.op2;
     } else {
       int s;
-      if (auto indir = $0.from.isIndirect2(s)) { t1from = indir; sum += s; }
-      else t1from = $0.from;
-      t1to = $0.to;
+      if (auto indir = $0.from.isIndirect2(s)) { t0from = indir; sum += s; }
+      else t0from = $0.from;
+      t0to = $0.to;
     }
     if ($1.kind == $TK.Mov) {
-      t2from = $0.from;
+      t1from = $0.from;
     } else {
       int s;
-      if (auto indir = $1.from.isIndirect2(s)) { t2from = indir; sum += s; }
-      else t2from = $1.from;
+      if (auto indir = $1.from.isIndirect2(s)) { t1from = indir; sum += s; }
+      else t1from = $1.from;
     }
-    t2to = $1.to;
-    if (t1to == t2from && t2to == t1from && t1from.isUtilityRegister() && t1to.isUtilityRegister()) {
+    t1to = $1.to;
+    if (t0to == t1from && t1to == t0from && t0from.isUtilityRegister() && t0to.isUtilityRegister()) {
       if (sum != 0) {
-        $T t1;
-        t1.kind = $TK.LoadAddress;
-        t1.from = qformat(sum, "(", t1from, ")");
-        t1.to = t1from;
-        if ($0.to == t1.to) $SUBST(t1);
-        else $SUBST($0, t1);
+        $T t0;
+        t0.kind = $TK.LoadAddress;
+        t0.from = qformat(sum, "(", t0from, ")");
+        t0.to = t0from;
+        if (t0to == t0.to) $SUBST(t0);
+        else $SUBST($0, t0);
       } else {
-        if (t1from == t1to) {
+        if (t0from == t0to) {
           $SUBST();
         } else {
           $SUBST($0);
