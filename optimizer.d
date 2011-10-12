@@ -39,19 +39,18 @@ string opt(string name, string s) {
     }
   }
   string res;
-  res ~= `bool %NAME(Transcache cache, ref int[string] labels_refcount) {
+  res ~= `bool `~name~`(Transcache cache,ref int[string] l_refc) {
     bool _changed;
-    auto match = cache.findMatch("%NAME", (Transaction[] list) {
-      // logln("cond for %NAME: ", list);
-      if (list.length >= ` ~ ctToString(instrs);
+    auto match = cache.findMatch("`~name~`", (Transaction[] ls) {
+      if (ls.length >= ` ~ ctToString(instrs);
   {
     string temp = stmt_match, merp; int i;
     while ((merp=temp.ctSlice(",")).length) {
       if (merp.ctStrip() == "*") i++;
       else if (merp.ctStrip() == "]")
-        res ~= ` && (list.length == ` ~ ctToString(i) ~ `)`;
+        res ~= ` && (ls.length==` ~ ctToString(i) ~ `)`;
       else
-        res ~= ` && (` ~ merp.ctStrip().ctReplace("^", `list[` ~ ctToString(i++) ~ `].kind == Transaction.Kind.`) ~ `)`;
+        res ~= ` && (` ~ merp.ctStrip().ctReplace("^", `ls[` ~ ctToString(i++) ~ `].kind == Transaction.Kind.`) ~ `)`;
     }
   }
   res ~= `) {
@@ -73,11 +72,8 @@ string opt(string name, string s) {
     } while (match.advance());
     return _changed;
   }
-  opts ~= stuple(&%NAME, "%NAME", true);
-  /* %NAME();*/
-  `;
+  opts ~= stuple(&`~name~`, "`~name~`", true);`;
   res = res.ctReplace(
-        "%NAME", name,
         "$SUBSTWITH", `foreach (ref $T res; onceThenCall(($T t) { match.replaceWith(t); })) with (res)`,
         "$SUBST", `match.replaceWith`,
         "$TK", `Transaction.Kind`,
@@ -1159,7 +1155,7 @@ restart:
   mixin(opt("pointless_jump", `^Jump, ^Label:
     $1.hasLabel($0.dest)
     =>
-    labels_refcount[$0.dest] --;
+    l_refc[$0.dest] --;
     $SUBST($1);
   `));
   mixin(opt("move_lea_down", `^LoadAddress, *:
