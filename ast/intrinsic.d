@@ -282,6 +282,21 @@ void setupSysmods() {
     class Signal : Error {
       void init(string s) { super.init s; }
     }
+    class BoundsError : Error {
+      void init(string s) super.init s;
+      string toString() { return "BoundsError: $(super.toString())"; }
+    }
+    template bounded_array_access(T) {
+      alias ret = type-of (value-of!T)[0].ptr;
+      ret bounded_array_access(T t) {
+        auto ar = t[0];
+        auto pos = t[1];
+        auto info = t[2];
+        if (pos >= ar.length)
+          raise-error new BoundsError "Index access out of bounds: $pos >= length $(ar.length) at $info";
+        return ar.ptr + pos;
+      }
+    }
     void raise-signal(Signal sig) {
       auto cur = __hdl__;
       while cur {

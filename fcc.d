@@ -522,6 +522,10 @@ int main(string[] args) {
       largs ~= "-pg";
       continue;
     }
+    if (arg == "-release") {
+      releaseMode = true;
+      continue;
+    }
     if (arg == "-xpar") {
       ar.take();
       continue;

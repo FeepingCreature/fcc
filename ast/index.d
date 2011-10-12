@@ -67,10 +67,11 @@ static this() {
   });
 }
 
+import ast.vardecl, ast.scopes, ast.literals, ast.modules;
 Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
     // logln("access ", ex.valueType(), " @", text.nextText());
-    bool isArray = true;
+    bool isArrayOrPtr = true;
     {
       auto backup = ex;
       if (!gotImplicitCast(ex, (IType it) {
@@ -78,7 +79,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
         return fastcast!(StaticArray) (it) || fastcast!(Array) (it) || fastcast!(ExtArray) (it) || fastcast!(Pointer) (it);
       })) {
         ex = backup; // still fine - maybe opIndex will work
-        isArray = false;
+        isArrayOrPtr = false;
       }
     }
     
@@ -89,7 +90,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    if (isArray)
+    if (isArrayOrPtr)
       namespace.set(new LengthOverride(backup, getArrayLength(ex)));
     
     if (t2.accept("]")) return null; // [] shortcut
@@ -100,7 +101,19 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
         if (!res) {
           text.failparse("Invalid array index: ", pos.valueType());
         }
-        text = t2; 
+        auto posvt = pos.valueType();
+        bool hasScope = !!namespace().get!(Scope);
+        bool poi = !!fastcast!(Pointer) (ex.valueType());
+        bool stat = !!fastcast!(StaticArray) (ex.valueType());
+        if (isArrayOrPtr && !poi && !stat && !releaseMode && hasScope && fastcast!(SysInt)(posvt)) {
+          auto errorpos = lookupPos(text);
+          string info = Format(errorpos._2, ":", errorpos._0, ":", errorpos._1);
+          res = iparse!(Expr, "check_bound", "tree.expr")
+                       (`*bounded_array_access(ex, pos, info)`,
+                        "ex", ex, "pos", pos, "info", mkString(info),
+                        "bounded_array_access", sysmod.lookup("bounded_array_access"));
+        }
+        text = t2;
       } catch (Exception ex) text.failparse(ex);
       return fastcast!(Object) (res);
     } else return null;

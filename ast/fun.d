@@ -80,6 +80,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string coarseSrc;
   Namespace coarseContext;
   void parseMe() {
+    if (tree) return;
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     namespace.set(coarseContext);
@@ -278,8 +279,16 @@ class FunCall : Expr {
   override string toString() { return Format("(", fun.name, "(", params, "))"); }
   override IType valueType() {
     if (!fun.type.ret) {
-      logln("Function type not yet resolved but funcall type demanded: ", fun, " called with ", params);
-      asm { int 3; }
+      if (fun.coarseSrc) {
+        fun.parseMe;
+        if (!fun.type.ret) {
+          logln("wat");
+          asm { int 3; }
+        }
+      } else {
+        logln("Function type not yet resolved but funcall type demanded: ", fun, " called with ", params);
+        asm { int 3; }
+      }
     }
     return fun.type.ret;
   }

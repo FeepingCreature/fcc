@@ -663,7 +663,7 @@ static this() {
         throw new Exception("Invalid pointer op");
       }
       assert(!isFloat(ex2.valueType()));
-      auto mul = (fastcast!(Pointer)~ ex1.valueType()).target.size;
+      auto mul = (fastcast!(Pointer) (resolveTup(ex1.valueType()))).target.size;
       ex2 = handleIntMath("*", ex2, mkInt(mul));
       if (!ex2) return null;
       return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
@@ -745,6 +745,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!curOp) return null;
   curOp = forcedConvert(curOp);
   foreach (op; oplist) {
+    if (op == "x") continue; // what, no, bad idea
     auto t3 = t2;
     if (t3.accept(op) && t3.accept("=")) {
       Expr src;

@@ -16,6 +16,8 @@ bool isWindoze() {
 
 string[] extra_linker_args;
 
+bool releaseMode;
+
 interface Iterable {
   void iterate(void delegate(ref Iterable) dg);
   Iterable dup();
@@ -383,7 +385,7 @@ class PlaceholderToken : Expr {
   override {
     IType valueType() { return type; }
     void emitAsm(AsmFile af) { logln("DIAF ", info, " of ", type); asm { int 3; } assert(false); }
-    string toString() { return Format("Placeholder(", info, ")"); }
+    string toString() { return Format("PlaceholderToken(", info, ")"); }
   }
 }
 
