@@ -148,7 +148,10 @@ class Area {
     return res;
   }
   Area at(int x, int y) {
+    if (x < 0 || y < 0) raise-error new Error "Please don't call at() with negative coordinates; it breaks things";
     auto res = copy();
+    if (x > w) { x = w; }
+    if (y > h) { y = h; }
     res.rect[0] += vec2i(x, y);
     return res;
   }
@@ -171,15 +174,27 @@ class Area {
     if res raise-error new SDL-Error("SDL_UpperBlit", res);
   }
   // copy, overwriting target alpha values with [target..ours].
-  void stamp(Area dest) {
+  void stamp(Area dest, int xd = 0, yd = 0) {
     if INullArea:dest raise-error new Error "Don't stamp onto a null area! ";
     auto w = w, h = h;
-    w = [w, dest.w][dest.w < w];
-    h = [h, dest.h][dest.h < h];
+    if (xd + w <= 0 || yd + h <= 0) {
+      // writeln "stamping src of $((w, h)) onto {$(dest.x0), $(dest.y0)} of $(dest.(w, h)) - lies completely outside! ";
+      return;
+    }
+    auto src = this;
+    
+    if (xd < 0) src = src.at(-xd, 0);
+    else dest = dest.at(xd, 0);
+    
+    if (yd < 0) src = src.at(0, -yd);
+    else dest = dest.at(0, yd);
+    
+    w = [src.w, dest.w][dest.w < src.w];
+    h = [src.h, dest.h][dest.h < src.h];
     auto pitch = int:surf.back.pitch / 4, dpitch = int:dest.surf.back.pitch / 4;
     auto srcp = &(
       (int*:surf.back.pixels)
-      [y0 * pitch + x0]);
+      [src.y0 * pitch + src.x0]);
     auto dstp = &(
       (int*:dest.surf.back.pixels)
       [dest.y0 * dpitch + dest.x0]);
@@ -437,7 +452,7 @@ class NullArea : Area, INullArea {
     if NullArea:dest return;
     raise-error new Error "Blitting null-area onto regular area - this makes no sense! ";
   }
-  void stamp(Area dest) { }
+  void stamp(Area dest, int xd = 0, int yd = 0) { }
   void pset(int x, y, vec3f col) { }
   void pset(int x, y, int icol) { }
   void hline_fillfun(int from-x, y, to-x) { }

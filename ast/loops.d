@@ -3,6 +3,8 @@ module ast.loops;
 import ast.base, ast.scopes, ast.vardecl, ast.conditionals, ast.parse;
 import ast.iterator, ast.int_literal, ast.fold, ast.tuples, ast.tuple_access;
 
+// TODO: come up with a way to emit guards for a jump. this is necessary for continue/break to work correctly.
+
 class WhileStatement : Statement {
   Scope _body;
   Cond cond;
