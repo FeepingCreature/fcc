@@ -123,8 +123,6 @@ class DependencyEntry : Tree {
   DependencyEntry dup() { return this; }
   void emitAsm(AsmFile af) {
     sup.emitDependency(af);
-    if (af.id == "std/http.nt")
-      logln("add dependency ", fastcast!(StringExpr)(sup).name_used, "(", sup, ") in std.http");
   }
 }
 
