@@ -329,7 +329,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     auto templ = fastcast!(ITemplate) (obj);
     if (!templ) return null;
     Expr nex;
-    if (!rest(t2, "tree.expr", &nex)) return null;
+    if (!rest(t2, "tree.expr >tree.expr.cond", &nex)) return null;
     
     auto io = *templInstOverride.ptr(); // first level
     bool ioApplies;
