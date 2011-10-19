@@ -17,6 +17,7 @@ class AsmFile {
   Stuple!(int, string)[string] globvars, tlsvars;
   int file_idcounter;
   bool[string] processorExtensions;
+  bool[string] weaks; // symbols marked as weak
   int getFileId(string name) {
     if (!name) name = "<nil>";
     if (auto ip = name in file_ids) return *ip;
@@ -24,6 +25,9 @@ class AsmFile {
       file_ids[name] = ++file_idcounter;
       return file_ids[name];
     }
+  }
+  void markWeak(string symbol) {
+    weaks[symbol] = true;
   }
   void addTLS(string name, int size, string init) {
     if (!size) asm { int 3; }
@@ -489,6 +493,9 @@ class AsmFile {
     string id2 = id[0..$-3].replace("/", "_").replace("-", "_dash_");
     dg(".globl _sys_tls_data_"); dg(id2); dg("_start\n");
     dg("_sys_tls_data_"); dg(id2); dg("_start:\n");
+    foreach (name, bogus; weaks) {
+      dg(qformat(".weak ", name, "\n"));
+    }
     foreach (name, data; tlsvars) {
       auto alignment = data._0;
       if (alignment >= 16) alignment = 16;
