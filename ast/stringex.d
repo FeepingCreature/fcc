@@ -77,7 +77,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotStringEx, "tree.expr.literal.stringex", "550");
 
-import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules;
+import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules, ast.fold;
 Expr simpleFormat(Expr ex) {
   auto type = resolveType(ex.valueType());
   if (Single!(SysInt) == type || Single!(Short) == type || Single!(Byte) == type) {
@@ -109,17 +109,25 @@ Expr simpleFormat(Expr ex) {
   }
   if (auto tup = fastcast!(Tuple)~ type) {
     auto res = new ConcatChain(new StringExpr("{")); // put here for type
-    return new CallbackExpr(res.valueType(), ex, res /apply/ (ConcatChain res, Expr ex, AsmFile af) {
+    Expr[] things;
+    things ~= res;
+    things ~= new StringExpr("}");
+    things ~= new StringExpr(", ");
+    things ~= ex;
+    auto extup = mkTupleExpr(things);
+    return new CallbackExpr(res.valueType(), extup, (Expr extup, AsmFile af) {
+      auto things = getTupleEntries(extup);
+      auto chain = new ConcatChain(foldex(things[0])), close_bracket = things[1], comma = things[2], ex = foldex(things[3]);
       Expr build(LValue lv) {
         foreach (i, entry; getTupleEntries(lv)) {
-          if (i) res.addArray(new StringExpr(", "));
-          res.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
+          if (i) chain.addArray(comma);
+          chain.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
         }
-        res.addArray(new StringExpr("}"));
-        return res;
+        chain.addArray(close_bracket);
+        return chain;
       }
-      if (auto lv = fastcast!(LValue)~ ex) build(lv).emitAsm(af);
-      else mkVar(af, res.valueType(), true, (Variable outer) {
+      if (auto lv = fastcast!(LValue) (ex)) build(lv).emitAsm(af);
+      else mkVar(af, chain.valueType(), true, (Variable outer) {
         mkVar(af, ex.valueType(), true, (Variable var) {
           (new Assignment(var, ex)).emitAsm(af);
           (new Assignment(outer, build(var))).emitAsm(af);
