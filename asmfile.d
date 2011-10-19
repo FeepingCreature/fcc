@@ -39,9 +39,10 @@ class AsmFile {
     }
     return allocConstant(name, data);
   }
-  string allocConstant(string name, ubyte[] data) {
-    foreach (key, value; constants)
-      if (value == data) return key;
+  string allocConstant(string name, ubyte[] data, bool force = false) {
+    if (!force)
+      foreach (key, value; constants)
+        if (value == data) return key;
     constants[name] = data;
     return name;
   }
