@@ -116,7 +116,19 @@ mixin DefaultParser!(gotTemplate!(true), "tree.stmt.template_statement", "182", 
 
 import tools.log;
 
-import ast.structure, ast.scopes;
+class DependencyEntry : Tree {
+  Dependency sup;
+  this(Dependency dep) { sup = dep; }
+  mixin defaultIterate!();
+  DependencyEntry dup() { return this; }
+  void emitAsm(AsmFile af) {
+    sup.emitDependency(af);
+    if (af.id == "std/http.nt")
+      logln("add dependency ", fastcast!(StringExpr)(sup).name_used, "(", sup, ") in std.http");
+  }
+}
+
+import ast.structure, ast.scopes, ast.literal_string;
 class TemplateInstance : Namespace, HandlesEmits {
   Namespace context;
   union {
@@ -165,13 +177,24 @@ class TemplateInstance : Namespace, HandlesEmits {
     if (!mod) asm { int 3; }
     // sysmod is linked into main module
     foreach (emod; ematIn) if (emod is mod || (mod.filename == mainfile && emod is sysmod)) return;
+    void handleDeps(Iterable outer) {
+      void addDependencies(ref Iterable it) {
+        it.iterate(&addDependencies);
+        if (auto dep = fastcast!(Dependency) (it)) {
+          mod.entries ~= new DependencyEntry(dep);
+        }
+      }
+      addDependencies(outer);
+    }
     if (weakOnly) {
       foreach (inst; instRes) if (auto fun = fastcast!(Function) (inst)) if (fun.weak) {
         mod.entries ~= fastcast!(Tree) (fun.dup);
+        handleDeps(fun);
       }
     } else {
       foreach (inst; instRes) {
         mod.entries ~= fastcast!(Tree) (inst).dup; // wtf
+        handleDeps(fastcast!(Iterable) (inst));
       }
     }
     ematIn ~= mod;

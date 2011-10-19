@@ -4,7 +4,7 @@ import ast.base, ast.literals, ast.pointer, ast.arrays, ast.static_arrays, ast.s
 
 static int string_counter;
 
-class StringExpr : Expr, HasInfo {
+class StringExpr : Expr, HasInfo, Dependency {
   string str;
   this() { }
   this(string s) { str = s; this(); }
@@ -24,8 +24,14 @@ class StringExpr : Expr, HasInfo {
     string toString() { return '"'~str.replace("\n", "\\n")~'"'; }
     // default action: place in string segment, load address on stack
     void emitAsm(AsmFile af) {
+      // if (name_used == "string_constant_232") asm { int 3; }
       getPointer().emitAsm(af);
       (mkInt(str.length)).emitAsm(af);
+    }
+    void emitDependency(AsmFile af) {
+      selectName(af);
+      af.allocConstant(name_used, cast(ubyte[]) str, true);
+      af.markWeak(name_used);
     }
     // IType valueType() { return new StaticArray(Single!(Char), str.length); }
     IType valueType() { return Single!(Array, Single!(Char)); }
