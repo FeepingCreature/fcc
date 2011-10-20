@@ -699,7 +699,8 @@ void performCImport(string name) {
       if (combined.exists()) { filename = combined; break; }
     }
   }
-  if (!filename) throw new Exception("Couldn't find "~name~"!");
+  if (!filename)
+    throw new Exception(Format("Couldn't find ", name, "! Tried ", include_path));
   auto cmdline = 
     platform_prefix~"gcc -m32 -Xpreprocessor -dD -E "
     ~ (include_path

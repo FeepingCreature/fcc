@@ -33,6 +33,7 @@ class ExprWrap : Cond {
   override {
     string toString() { return Format("!!", ex); }
     void jumpOn(AsmFile af, bool cond, string dest) {
+      mixin(mustOffset("0"));
       ex.emitAsm(af);
       af.popStack("%eax", 4);
       af.compare("%eax", "%eax", true);
@@ -54,6 +55,7 @@ class StatementAndCond : Cond {
   override {
     string toString() { return Format("{ ", first, " ", second, " }"); }
     void jumpOn(AsmFile af, bool cond, string dest) {
+      mixin(mustOffset("0"));
       first.emitAsm(af);
       second.jumpOn(af, cond, dest);
     }
@@ -78,6 +80,14 @@ class Compare : Cond, Expr {
     return res;
   }
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
+    if (e1.valueType().size != 4) {
+      logln("Invalid comparison parameter: ", e1.valueType());
+      asm { int 3; }
+    }
+    if (e2.valueType().size != 4) {
+      logln("Invalid comparison parameter: ", e2.valueType());
+      asm { int 3; }
+    }
     if (not) {
       not = !not;
       smaller = !smaller;
@@ -125,6 +135,7 @@ class Compare : Cond, Expr {
     }
   }
   private void emitComparison(AsmFile af) {
+    mixin(mustOffset("0"));
     prelude;
     if (isFloat) {
       e2.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
@@ -156,6 +167,7 @@ class Compare : Cond, Expr {
       return Single!(SysInt);
     }
     void emitAsm(AsmFile af) {
+      mixin(mustOffset("valueType().size"));
       if (falseOverride && trueOverride) {
         falseOverride.emitAsm(af);
         trueOverride.emitAsm(af);

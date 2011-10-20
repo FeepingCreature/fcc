@@ -78,7 +78,10 @@ Expr mkFullSlice(Expr ex) {
   auto evt = resolveType(ex.valueType());
   if (auto sa = fastcast!(StaticArray)~ evt) {
     auto cv = fastcast!(CValue)~ ex;
-    assert(!!cv);
+    if (!cv) {
+      logln("Not a cv for full slice: ", ex);
+      asm { int 3; }
+    }
     return mkPointerSlice(
       reinterpret_cast(new Pointer(sa.elemType), new RefExpr(cv)),
       mkInt(0), foldex(getArrayLength(ex))

@@ -750,9 +750,13 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
       Expr src;
       if (!rest(t3, "tree.expr", &src))
         t3.failparse("Could not find source operand for assignment! ");
-      auto res = lookupOp(op~"=", curOp, src);
-      if (res) text = t3;
-      return fastcast!(Object) (res);
+      try {
+        auto res = lookupOp(op~"=", curOp, src);
+        if (res) text = t3;
+        return fastcast!(Object) (res);
+      } catch (Exception ex) {
+        text.failparse(ex);
+      }
     }
   }
   Expr recurse(Expr op, int depth) {
