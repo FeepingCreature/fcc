@@ -7,7 +7,7 @@ void setupSysmods() {
   string src = `
     module sys;
     pragma(lib, "m");
-    alias bool = int;
+    alias strict bool = int;
     alias true = bool:1;
     alias false = bool:0;
     alias null = void*:0;
@@ -143,6 +143,10 @@ void setupSysmods() {
         i /= 10;
       }
       return res;
+    }
+    string btoa(bool b) {
+      if b return "true";
+      return "false";
     }
     string ltoa(long l) {
       auto foo = new char[] 32;

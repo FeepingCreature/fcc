@@ -178,5 +178,9 @@ Expr simpleFormat(Expr ex) {
     return iparse!(Expr, "gen_obj_toString_call", "tree.expr")
                   (`obj.toString()`, "obj", lvize(ex));
   }
+  if (fastcast!(IType) (sysmod.lookup("bool")) == type) {
+    return iparse!(Expr, "bool_tostring", "tree.expr")
+                   (`btoa ex`, "btoa", sysmod.lookup("btoa"), "ex", ex);
+  }
   return null;
 }

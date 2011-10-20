@@ -424,7 +424,7 @@ class CondExpr : Expr {
   mixin defaultIterate!(cd);
   override {
     string toString() { return Format("eval ", cd); }
-    IType valueType() { return Single!(SysInt); }
+    IType valueType() { return fastcast!(IType) (sysmod.lookup("bool")); }
     CondExpr dup() { return new CondExpr(cd.dup); }
     void emitAsm(AsmFile af) {
       if (auto ex = cast(Expr) cd) {
