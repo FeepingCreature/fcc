@@ -66,6 +66,7 @@ class PrefixFunction : Function {
     this.name = "[wrap]"~sup.name;
     this.sup = sup.sup;
     this.supfun = sup;
+    this.reassign = sup.reassign;
     // assert(sup.extern_c);
     // TODO: this may later cause problems
     extern_c = true; // sooorta.

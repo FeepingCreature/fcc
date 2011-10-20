@@ -54,13 +54,6 @@ class ExprStatement : LineNumberedStatementClass {
   }
 }
 
-Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex;
-  if (!rest(text, "tree.expr", &ex)) return null;
-  return new ExprStatement(ex);
-}
-mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr", "2");
-
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     auto es = fastcast!(ExprStatement) (it);
