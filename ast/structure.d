@@ -726,4 +726,14 @@ static this() {
       if (t2.eatDash(id)) goto retry;
     return null;
   };
+  implicits ~= delegate void(Expr ex, IType goal, void delegate(Expr) consider) {
+    auto st = fastcast!(Structure) (ex.valueType());
+    if (!st) return;
+    for (int i = 1; true; i++) {
+      if (auto res = fastcast!(Expr) (st.lookupRel("implicit-cast"~(i>1?Format("-", i):""), ex))) {
+        if (!goal || res.valueType() == goal)
+          consider(res);
+      } else return;
+    }
+  };
 }

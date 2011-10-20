@@ -46,7 +46,7 @@ string followLink(string from, string to) {
   if !from.startsWith "http://" raise-error new Error "$from is not a valid HTTP URL! ";
   if to.startsWith "/"
     return from.between("http://", "/") ~ to;
-  auto pos_param = from.find("?");
+  int pos_param = from.find("?");
   if pos_param == -1 pos_param = from.length;
   auto pos_last_slash = from[7..pos_param].rfind("/");
   if pos_last_slash == -1 raise-error new Error "No separator slash in $from! ";
