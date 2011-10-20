@@ -254,14 +254,14 @@ Cond compare(string op, Expr ex1, Expr ex2) {
   {
     auto ie1 = ex1, ie2 = ex2;
     bool isInt(IType it) { return !!fastcast!(SysInt) (resolveType(it)); }
-    if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
+    if (gotImplicitCast(ie1, Single!(SysInt), &isInt) && gotImplicitCast(ie2, Single!(SysInt), &isInt)) {
       return new Compare(ie1, not, smaller, equal, greater, ie2);
     }
   }
   {
     auto fe1 = ex1, fe2 = ex2;
     bool isFloat(IType it) { return !!fastcast!(Float) (resolveType(it)); }
-    if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
+    if (gotImplicitCast(fe1, Single!(Float), &isFloat) && gotImplicitCast(fe2, Single!(Float), &isFloat)) {
       return new Compare(fe1, not, smaller, equal, greater, fe2);
     }
   }

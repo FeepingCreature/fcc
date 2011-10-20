@@ -131,8 +131,8 @@ class FPAsInt : Expr {
 Expr floatToInt(Expr ex, IType) {
   auto ex2 = ex;
   // something that casts to float, but not int by itself.
-  if (gotImplicitCast(ex2, (IType it) { return test(Single!(SysInt) == it); })
-   ||!gotImplicitCast(ex, (IType it) { return test(Single!(Float) == it); }))
+  if (gotImplicitCast(ex2, Single!(SysInt), (IType it) { return test(Single!(SysInt) == it); })
+   ||!gotImplicitCast(ex, Single!(Float), (IType it) { return test(Single!(Float) == it); }))
     return null;
   
   return new FPAsInt(ex);
@@ -140,8 +140,8 @@ Expr floatToInt(Expr ex, IType) {
 
 Expr doubleToInt(Expr ex, IType) {
   auto ex2 = ex;
-  if (gotImplicitCast(ex2, (IType it) { return test(Single!(SysInt) == it); })
-   ||!gotImplicitCast(ex, (IType it) { return test(Single!(Double) == it); }))
+  if (gotImplicitCast(ex2, Single!(SysInt), (IType it) { return test(Single!(SysInt) == it); })
+   ||!gotImplicitCast(ex, Single!(Double), (IType it) { return test(Single!(Double) == it); }))
     return null;
   
   return new FPAsInt(ex, true);
@@ -629,17 +629,17 @@ static this() {
   bool isLong(IType it) { return test(it == Single!(Long)); }
   bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
-    if (!gotImplicitCast(ex1, &isInt) || !gotImplicitCast(ex2, &isInt))
+    if (!gotImplicitCast(ex1, Single!(SysInt), &isInt) || !gotImplicitCast(ex2, Single!(SysInt), &isInt))
       return null;
     return new AsmIntBinopExpr(ex1, ex2, op);
   }
   Expr handleIntUnary(string op, Expr ex) {
-    if (!gotImplicitCast(ex, &isInt))
+    if (!gotImplicitCast(ex, Single!(SysInt), &isInt))
       return null;
     return new AsmIntUnaryExpr(ex, op);
   }
   Expr handleLongUnary(string op, Expr ex) {
-    if (!gotImplicitCast(ex, &isLong))
+    if (!gotImplicitCast(ex, Single!(Long), &isLong))
       return null;
     return new AsmLongUnaryExpr(ex, op);
   }
@@ -680,7 +680,7 @@ static this() {
     
     if (fastcast!(DoubleExpr)~ ex1 && fastcast!(DoubleExpr)~ ex2) return null;
     
-    if (!gotImplicitCast(ex1, &isFloat) || !gotImplicitCast(ex2, &isFloat))
+    if (!gotImplicitCast(ex1, Single!(Float), &isFloat) || !gotImplicitCast(ex2, Single!(Float), &isFloat))
       return null;
     
     return new AsmFloatBinopExpr(ex1, ex2, op);
@@ -689,7 +689,7 @@ static this() {
     if (Single!(Double) != resolveTup(ex1.valueType())
      && Single!(Double) != resolveTup(ex2.valueType()))
       return null;
-    if (!gotImplicitCast(ex1, &isDouble) || !gotImplicitCast(ex2, &isDouble))
+    if (!gotImplicitCast(ex1, Single!(Double), &isDouble) || !gotImplicitCast(ex2, Single!(Double), &isDouble))
       return null;
     
     return new AsmDoubleBinopExpr(ex1, ex2, op);
@@ -698,7 +698,7 @@ static this() {
     if (Single!(Long) != resolveTup(ex1.valueType())
      && Single!(Long) != resolveTup(ex2.valueType()))
       return null;
-    if (!gotImplicitCast(ex1, &isLong) || !gotImplicitCast(ex2, &isLong))
+    if (!gotImplicitCast(ex1, Single!(Long), &isLong) || !gotImplicitCast(ex2, Single!(Long), &isLong))
       return null;
     
     return mkLongExpr(ex1, ex2, op);

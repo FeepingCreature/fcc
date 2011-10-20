@@ -181,7 +181,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       if (t2.accept("=")) {
         IType[] its;
         auto t3 = t2;
-        if ((!rest(t2, "tree.expr", &var.initval) || !gotImplicitCast(var.initval, (IType it) {
+        if ((!rest(t2, "tree.expr", &var.initval) || !gotImplicitCast(var.initval, var.type, (IType it) {
           its ~= it;
           return test(var.type == it);
         })) && (t2 = t3, true) && !(t2.accept("void") && (dontInit = true, true))) {
