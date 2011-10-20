@@ -54,8 +54,9 @@ class MValueAlias : ExprAlias, MValue {
 
 class TypeAlias : Named, IType, SelfAdding {
   IType base;
+  bool strict;
   string name;
-  mixin This!("base, name");
+  mixin This!("base, name, strict = false");
   override {
     bool isComplete() { return base.isComplete; }
     bool addsSelf() { return true; }
@@ -64,8 +65,11 @@ class TypeAlias : Named, IType, SelfAdding {
     int size() { return base.size; }
     string mangle() { return "type_alias_"~name.replace("-", "_dash_")~"_"~base.mangle; }
     ubyte[] initval() { return base.initval; }
-    int opEquals(IType ty) { return base.opEquals(resolveType(ty)); }
-    IType proxyType() { return base; }
+    int opEquals(IType ty) {
+      if (strict) return fastcast!(TypeAlias) (ty) is this;
+      return base.opEquals(resolveType(ty));
+    }
+    IType proxyType() { if (strict) return null; return base; }
     string toString() { return Format(name, ":", base); }
   }
 }
@@ -93,6 +97,8 @@ Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
   bool notDone;
   
 redo:
+  bool strict;
+  if (t2.accept("strict")) strict = true;
   if (!(t2.gotIdentifier(id) &&
         t2.accept("=")))
     t2.failparse("Couldn't parse alias");
@@ -124,6 +130,7 @@ redo:
   text = t2;
   auto cv = fastcast!(CValue)~ ex, mv = fastcast!(MValue)~ ex, lv = fastcast!(LValue)~ ex;
   if (ex) {
+    if (strict) t2.failparse("no such thing as strict expr-alias");
     ExprAlias res;
     if (lv) res = new LValueAlias(lv, id);
     else if (mv) res = new MValueAlias(mv, id);
@@ -131,7 +138,7 @@ redo:
     else res = new ExprAlias(ex, id);
     namespace().add(res);
   }
-  if (ty) namespace().add(new TypeAlias(ty, id));
+  if (ty) namespace().add(new TypeAlias(ty, id, strict));
   if (notDone) {
     notDone = false;
     goto redo;
@@ -141,3 +148,13 @@ redo:
 mixin DefaultParser!(gotAlias, "struct_member.struct_alias", null, "alias");
 mixin DefaultParser!(gotAlias, "tree.stmt.alias", "16", "alias");
 mixin DefaultParser!(gotAlias, "tree.toplevel.alias", null, "alias");
+
+import ast.casting;
+static this() {
+  // type alias implicitly casts to parent type
+  implicits ~= delegate Expr(Expr ex) {
+    auto ta = fastcast!(TypeAlias) (ex.valueType());
+    if (!ta || !ta.strict) return null;
+    return reinterpret_cast(ta.base, ex);
+  };
+}
