@@ -141,12 +141,19 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto mod = current_module();
   string name;
   static int i;
+  bool omitRet;
   if (!t2.accept("delegate")) {
     if (t2.accept("\\")) {
       synchronized name = Format("__nested_dg_literal_", i++);
-      auto res = fastcast!(NestedFunction) (gotGenericFunDeclNaked(nf, mod, true, t2, cont, rest, name, true));
-      if (!t2.accept("->"))
-        t2.failparse("Expected result-arrow for lambda");
+      auto t3 = t2;
+      auto res = fastcast!(NestedFunction) (gotGenericFunDeclNaked(nf, mod, true, t3, cont, rest, name, true));
+      if (!t3.accept("->")) {
+        t3.setError("missing result-arrow for lambda");
+        omitRet = true;
+        nf = new NestedFunction(sc);
+        goto tryRegularDg;
+      }
+      t2 = t3;
       auto backup = namespace();
       scope(exit) namespace.set(backup);
       
@@ -167,8 +174,8 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   synchronized name = Format("__nested_dg_literal_", i++);
-  auto res = fastcast!(NestedFunction)~
-    gotGenericFunDef(nf, mod, true, t2, cont, rest, name);
+tryRegularDg:
+  auto res = fastcast!(NestedFunction) (gotGenericFunDef(nf, mod, true, t2, cont, rest, name, omitRet /* true when using the backslash-shortcut */));
   if (!res)
     t2.failparse("Could not parse delegate literal");
   text = t2;
