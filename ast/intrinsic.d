@@ -356,6 +356,12 @@ void setupSysmods() {
     }
     void fastfloor3f(vec3f v, vec3i* res) {
       (vec4f*: &v).w = 0; // prevent fp error
+      if (v.x >= 1<<31 || v.y >= 1<<31 || v.z >= 1<<31) { // cvttps2dq will fail
+        res.x = fastfloor(v.x);
+        res.y = fastfloor(v.y);
+        res.z = fastfloor(v.z);
+        return;
+      }
       xmm[4] = v;
       asm "cvttps2dq %xmm4, %xmm5";`"
       asm `psrld $31, %xmm4`;"`
