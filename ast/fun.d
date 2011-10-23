@@ -552,7 +552,8 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       if (t4) return fun;
       else {
         if (rest(text, "tree.scope", &fun.tree)) {
-          // TODO: Reserve "sys" module name
+          if (!fun.type.ret)
+            fun.type.ret = Single!(Void); // implicit return
           return fun;
         } else text.failparse("Couldn't parse function scope");
       }
