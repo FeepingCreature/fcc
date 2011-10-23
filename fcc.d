@@ -41,6 +41,21 @@ static this() {
     if (newarg) extra_linker_args ~= newarg;
     return Single!(NoOp);
   };
+  pragmas["linker"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, (Expr ex) {
+      return !!fastcast!(StringExpr) (foldex(ex));
+    }))
+      throw new Exception("Linker argument expected. ");
+    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    string newarg = "-Wl,"~str;
+    // only add once .. becomes relevant in incremental mode
+    foreach (arg; extra_linker_args) if (arg == newarg) {
+      newarg = null;
+      break;
+    }
+    if (newarg) extra_linker_args ~= newarg;
+    return Single!(NoOp);
+  };
 }
 
 static this() {
