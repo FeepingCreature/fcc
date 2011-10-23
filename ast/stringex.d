@@ -109,32 +109,12 @@ Expr simpleFormat(Expr ex) {
   }
   if (auto tup = fastcast!(Tuple)~ type) {
     auto res = new ConcatChain(new StringExpr("{")); // put here for type
-    Expr[] things;
-    things ~= res;
-    things ~= new StringExpr("}");
-    things ~= new StringExpr(", ");
-    things ~= ex;
-    auto extup = mkTupleExpr(things);
-    return new CallbackExpr(res.valueType(), extup, (Expr extup, AsmFile af) {
-      auto things = getTupleEntries(extup);
-      auto chain = new ConcatChain(foldex(things[0])), close_bracket = things[1], comma = things[2], ex = foldex(things[3]);
-      Expr build(LValue lv) {
-        foreach (i, entry; getTupleEntries(lv)) {
-          if (i) chain.addArray(comma);
-          chain.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
-        }
-        chain.addArray(close_bracket);
-        return chain;
-      }
-      if (auto lv = fastcast!(LValue) (ex)) build(lv).emitAsm(af);
-      else mkVar(af, chain.valueType(), true, (Variable outer) {
-        mkVar(af, ex.valueType(), true, (Variable var) {
-          (new Assignment(var, ex)).emitAsm(af);
-          (new Assignment(outer, build(var))).emitAsm(af);
-        });
-        af.sfree(ex.valueType().size); // cheat
-      });
-    });
+    foreach (i, entry; getTupleEntries(ex)) {
+      if (i) res.addArray(new StringExpr(", "));
+      res.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
+    }
+    res.addArray(new StringExpr("}"));
+    return res;
   }
   auto ar = fastcast!(Array)~ type;
   auto ea = fastcast!(ExtArray)~ type;
