@@ -112,7 +112,10 @@ class Module : Namespace, Tree, Named, StoresDebugState {
         if ((fastcast!(Object) (entry)).classinfo.name != "ast.globvars.GlobVarDecl" && splitIntoSections) {
           auto codename = Format("index_", i);
           if (auto mang = fastcast!(IsMangled) (entry)) codename = mang.mangleSelf();
-          af.put(".section .text.", codename, ", \"ax\", @progbits");
+          if (isWindoze())
+            af.put(".section .text.", codename, ", \"ax\"");
+          else
+            af.put(".section .text.", codename, ", \"ax\", @progbits");
         }
         entry.emitAsm(af);
       }

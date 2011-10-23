@@ -401,7 +401,8 @@ struct Transaction {
       case Label:
         assert(names.length);
         string res;
-        res ~= ".p2align 4, 0x90\n";
+        if (!isWindoze())
+          res ~= ".p2align 4, 0x90\n";
         foreach (name; names) res ~= name ~ ":\n";
         return res[0 .. $-1];
       case Extended: return obj.toAsm();
