@@ -365,7 +365,10 @@ abstract class BinopExpr : Expr, HasInfo {
     }
     string getInfo() { return op; }
     IType valueType() { // TODO: merge e1, e2
-      assert(e1.valueType() == e2.valueType());
+      if (e1.valueType() != e2.valueType()) {
+        logln("Divergent types: ", e1.valueType(), " and ", e2.valueType());
+        asm { int 3; }
+      }
       return e1.valueType();
     }
     abstract BinopExpr dup();

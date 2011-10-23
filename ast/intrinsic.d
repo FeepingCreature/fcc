@@ -751,11 +751,10 @@ mixin DefaultParser!(gotInternal, "tree.expr.internal", "24052", "__internal");
 
 import ast.pragmas;
 static this() {
-  // Link with this library
   pragmas["msg"] = delegate Object(Expr ex) {
     ex = foldex(ex);
     auto se = fastcast!(StringExpr) (ex);
-    if (!se) throw new Exception("Expected string expression for pragma(msg)! ");
+    if (!se) throw new Exception(Format("Expected string expression for pragma(msg), not ", ex));
     logln("# ", se.str);
     return Single!(NoOp);
   };

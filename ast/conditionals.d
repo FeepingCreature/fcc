@@ -420,7 +420,10 @@ mixin DefaultParser!(gotNamedCond, "cond.named", "75");
 import ast.vardecl;
 class CondExpr : Expr {
   Cond cd;
-  this(Cond cd) { this.cd = cd; }
+  this(Cond cd) {
+    this.cd = cd;
+    if (!cd) asm { int 3; }
+  }
   mixin defaultIterate!(cd);
   override {
     string toString() { return Format("eval ", cd); }
