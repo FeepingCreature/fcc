@@ -374,7 +374,7 @@ void setupSysmods() {
       void claim() { refs ++; }
       void release() { refs --; if !refs onZero(); }
     }
-    string replace(string source, string what, string with) {
+    reassign string replace(string source, string what, string with) {
       int i = 0;
       char[auto~] res;
       while (source.length >= what.length && i <= source.length - what.length) {
