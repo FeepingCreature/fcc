@@ -341,7 +341,8 @@ void parseHeader(string filename, string src) {
     }
     *specialCallback() = &callback;
     scope(exit) *specialCallback() = old_dg;
-    res = fastcast!(Expr) (parsecon.parse(s2, c_tree_expr));
+    try res = fastcast!(Expr) (parsecon.parse(s2, c_tree_expr));
+    catch (Exception ex) return false; // no biggie
     if (!res) return false;
     source = s2;
     return true;
