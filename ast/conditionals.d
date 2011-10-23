@@ -456,17 +456,22 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", null, "eval");
 
-Object gotComplexCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
+Object gotComplexCondAsExpr(bool mode)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond cd;
-  if (!rest(t2, "cond.compare", &cd) && !rest(t2, "cond.negate")) return null;
+  if ((!mode || !rest(t2, "cond.compare", &cd) && !rest(t2, "cond.negate", &cd))
+   && ( mode || !rest(t2, "cond.iter_very_strict", &cd))) return null;
   text = t2;
   if (auto ew = fastcast!(ExprWrap) (cd)) {
     return fastcast!(Object) (ew.ex);
   }
   return new CondExpr(cd);
 }
-mixin DefaultParser!(gotComplexCondAsExpr, "tree.expr.cond", "120");
+mixin DefaultParser!(gotComplexCondAsExpr!(true),  "tree.expr.cond.compare_negate", "1");
+mixin DefaultParser!(gotComplexCondAsExpr!(false), "tree.expr.cond_other", "13");
+static this() {
+  parsecon.addPrecedence("tree.expr.cond", "120");
+}
 
 Expr longOp(string Code)(Expr e1, Expr e2) {
   bool isLong(Expr ex) { return test(Single!(Long) == resolveType(ex.valueType())); }

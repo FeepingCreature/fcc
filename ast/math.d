@@ -802,16 +802,32 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     } catch (Exception ex) t2.failparse(ex);
     goto retry;
   }
+  bool correctlyAteOctothorpe;
+  string t2backup;
   while (true) {
-    curOp = recurse(curOp, 0);
+    auto newOp = recurse(curOp, 0);
+    correctlyAteOctothorpe |= newOp !is curOp;
+    curOp = newOp;
+    
+    if (t2backup && !correctlyAteOctothorpe) {
+      // nothing matched, back out
+      t2 = t2backup;
+      break;
+    }
+    
+    correctlyAteOctothorpe = false;
+    t2backup = t2;
     if (!t2.accept("#")) break;
+    
     withPropcfgFn((bool withTuple, bool withCall) {
       if (auto res = getPropertiesFn(
           t2, fastcast!(Object) (curOp), withTuple, withCall, cont, rest
         )
       )
-        if (auto res2 = fastcast!(Expr) (res))
+        if (auto res2 = fastcast!(Expr) (res)) {
+          correctlyAteOctothorpe = true;
           curOp = res2;
+        }
     });
   }
   text = t2;

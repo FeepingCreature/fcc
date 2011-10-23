@@ -237,7 +237,7 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
   scope(exit) *propcfg.ptr() = backup;
   if (isTuple) propcfg().withTuple = false;
   
-  if (!rest(text, "tree.expr _tree.expr.arith", &arg)) {
+  if (!rest(text, "tree.expr.cond.other", &arg) && !rest(text, "tree.expr _tree.expr.arith", &arg)) {
     return false;
   }
   return matchedCallWith(arg, params, res, info, backup_text, test, precise);
