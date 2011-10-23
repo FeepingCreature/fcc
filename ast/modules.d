@@ -19,8 +19,8 @@ Threadpool tp;
 class Module : Namespace, Tree, Named, StoresDebugState {
   string name;
   string cleaned_name() { return name.cleanup(); }
-  Module[] imports, public_imports;
-  Module[] getImports() { return imports ~ public_imports; }
+  Module[] imports, public_imports, static_imports;
+  Module[] getImports() { return imports ~ public_imports ~ static_imports; }
   bool[] importsUsed; // print warnings on unused imports (but NOT public ones!)
   static bool* getPtrResizing(ref bool[] array, int offs) {
     if (array.length <= offs) array.length = offs + 1;
@@ -131,9 +131,15 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       if (auto lname = name.startsWith(this.name).startsWith("."))
         if (auto res = super.lookup(lname)) return res;
       
-      foreach (i, mod; public_imports)
+      foreach (mod; public_imports)
         if (auto res = mod.lookup(name, true))
           return res;
+      
+      foreach (mod; static_imports) {
+        if (auto lname = name.startsWith(mod.name).startsWith(".")) {
+          if (auto res = mod.lookup(lname)) return res;
+        }
+      }
       
       if (local) return null;
       

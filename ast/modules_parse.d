@@ -8,8 +8,9 @@ import ast.structure, ast.namespace;
 Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   string m;
   auto t2 = text;
-  bool pub;
+  bool pub, stat;
   if (t2.accept("public")) pub = true;
+  else if (t2.accept("static")) stat = true;
   if (!t2.accept("import")) return null;
   text = t2;
   // import a, b, c;
@@ -24,7 +25,10 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   foreach (str; newImports)
     if (pub)
       mod.public_imports ~= lookupMod(str);
-    else mod.imports ~= lookupMod(str);
+    else if (stat)
+      mod.static_imports ~= lookupMod(str);
+    else
+      mod.imports ~= lookupMod(str);
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotImport, "tree.import");
