@@ -50,8 +50,8 @@ reassign string between(string s, string from, string to) {
 
 // seek to "to" first
 reassign string between_r(string s, string from, string to) {
-  int pos2 = to.length;
-  if (from.length) pos2 = find(s, to);
+  int pos2 = s.length;
+  if (to.length) pos2 = find(s, to);
   if (pos2 == -1) return null;
   s = s[0 .. pos2];
   
@@ -61,6 +61,36 @@ reassign string between_r(string s, string from, string to) {
   s = s[pos1 + from.length .. $];
   
   return s;
+}
+
+template betweens(T) {
+  class betweenIterator : Iterator!string {
+    string source, from, to;
+    bool advance() {
+      if (!source) return false;
+      if (auto s = source.between(from, to)) {
+        value = s;
+        source = source.(that[find(from)+from.length .. $]).(that[find(to)+to.length .. $]);
+        return true;
+      }
+      source = null;
+      return false;
+    }
+  }
+  auto betweens(T t) using new betweenIterator {
+    static if (t.length != 3) {
+      pragma(msg, "Expected (string, string, string), not $(string-of T)");
+      ERROR
+    }
+    static if (!types-equal(T, (string, string, string))) {
+      pragma(msg, "Invalid types: $((string-of T[0], string-of T[1], string-of T[2]))");
+      ERROR
+    }
+    source = t[0];
+    from = t[1];
+    to = t[2];
+    return that;
+  }
 }
 
 template join(T) {
