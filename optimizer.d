@@ -596,8 +596,14 @@ class ProcTrack : ExtToken {
           int delta;
           if (auto reg = t.from.isIndirect2(delta)) {
             if (reg in known && reg == t.to) return false; // circle
-            if (!set(t.to, qformat("+(", reg, ", $", delta, ")")))
-              return false;
+            if (!delta /* effectively a mov */ && !reg.contains("%esp") /* unreliable */) {
+              if (!set(t.to, reg))
+                return false;
+            } else {
+              if (!set(t.to, qformat("+(", reg, ", $", delta, ")")))
+                return false;
+            }
+            use[reg] = true;
             mixin(Success);
           }
         }
