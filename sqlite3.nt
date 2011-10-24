@@ -50,7 +50,7 @@ template QueryIterator(T) {
     string sql;
     template addBind(T) {
       int addBind(T t) {
-        static if types-equal(T, int) {
+        static if types-equal(T, int) || types-equal(T, bool) {
           return sqlite3_bind_int(stmt, bindCount ++, t);
         }
         static if types-equal(T, float) || types-equal(T, double) {
@@ -142,13 +142,15 @@ class Database : DatabaseSup {
         static if type-is-tuple U { string sql = u[0]; }
         else { string sql = u; }
         sqlite3_stmt* stmt;
-        if SQLITE_OK != sqlite3_prepare_v2(
+        if SQLITE_OK != auto result = sqlite3_prepare_v2(
           db,
           sql.ptr, sql.length,
           &stmt,
           null
-        )
+        ) {
+          if (result == SQLITE_BUSY) raise-error new SQLiteBusy;
           sqlite3fail "while executing $(sql): $(CToString sqlite3_errmsg db)";
+        }
 
         T bogosity;
         

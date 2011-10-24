@@ -70,11 +70,14 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
     if (cd) { text = t2; return fastcast!(Object) (cd); } // Okaaaay.
     if (!ex) return null;
     if (t2.accept(".")) return null; // wtf? definitely not a condition.
-    auto ex2 = ex; // test for int-like
+    auto ex2 = ex, ex3 = ex; // test for int-like
     IType[] _tried;
-    if (gotImplicitCast(ex2, (IType it) { _tried ~= it; return test(it == Single!(SysInt)); })) {
+    IType Bool = fastcast!(IType) (sysmod.lookup("bool"));
+    if (gotImplicitCast(ex2,         Bool   , (IType it) { _tried ~= it; return test(it == Bool); }) || (ex2 = null, false)
+     || gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return test(it == Single!(SysInt)); }) || (ex3 = null, false)) {
+      if (!ex2) ex2 = ex3;
       text = t2;
-      return new Compare(ex2, true, false, true, false, mkInt(0));
+      return new Compare(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0
     }
     auto n = fastcast!(Expr)~ sysmod.lookup("null");
     if (!n) return null;

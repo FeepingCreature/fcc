@@ -172,16 +172,18 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text, vd = new VarDecl;
   string name; IType type;
   vd.configPosition(text);
+  bool abortGracefully;
   if (rest(t2, "type", &type)) {
     if (!t2.bjoin(t2.gotValidIdentifier(name), t2.accept(","), {
       auto var = new Variable;
       var.name = name;
       var.type = type;
       bool dontInit;
+      if (t2.accept("<-")) { abortGracefully = true; return; } // aaaa
       if (t2.accept("=")) {
         IType[] its;
         auto t3 = t2;
-        if ((!rest(t2, "tree.expr", &var.initval) || !gotImplicitCast(var.initval, (IType it) {
+        if ((!rest(t2, "tree.expr", &var.initval) || !gotImplicitCast(var.initval, var.type, (IType it) {
           its ~= it;
           return test(var.type == it);
         })) && (t2 = t3, true) && !(t2.accept("void") && (dontInit = true, true))) {
@@ -202,8 +204,11 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       var.baseOffset = boffs(var.type);
       vd.vars ~= var;
       namespace().add(var);
-    }, false))
+    }, false)) {
+      if (abortGracefully) return null;
       t2.failparse("Couldn't parse variable declaration");
+    }
+    if (abortGracefully) return null;
     t2.mustAccept(";", "Missed trailing semicolon");
     text = t2;
     return vd;
@@ -222,6 +227,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   while (true) {
     if (!t2.gotValidIdentifier(varname, true))
       t2.failparse("Could not get variable identifier! ");
+    if (t2.accept("<-")) return null; // is an iterator-construct
     if (!t2.accept("="))
       t2.failparse("Could not get auto initializer! ");
     if (!rest(t2, "tree.expr", &ex))

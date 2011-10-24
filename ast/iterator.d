@@ -660,15 +660,17 @@ class IterLetCond(T) : Cond, NeedsConfig {
 
 import ast.scopes, ast.vardecl;
 
-Object gotIterCond(bool withoutIteratorAllowed)(ref string text, ParseCb cont, ParseCb rest) {
+Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = true)(ref string text, ParseCb cont, ParseCb rest) {
+  static if (!expressionTargetAllowed)
+    static assert(!withoutIteratorAllowed);
   auto t2 = text;
   LValue lv;
   MValue mv;
   string newVarName; IType newVarType;
   bool needIterator;
-  const string myTE = "tree.expr >tree.expr.cond >tree.expr.arith";
-  if (!rest(t2, myTE, &lv, (LValue lv) { return !fastcast!(Iterator) (lv.valueType()); })) {
-    if (!rest(t2, myTE, &mv, (MValue mv) { return !fastcast!(Iterator) (mv.valueType()); })) {
+  const string myTE = "tree.expr _tree.expr.cond >tree.expr.arith";
+  if (!expressionTargetAllowed || !rest(t2, myTE, &lv, (LValue lv) { return !fastcast!(Iterator) (lv.valueType()); })) {
+    if (!expressionTargetAllowed || !rest(t2, myTE, &mv, (MValue mv) { return !fastcast!(Iterator) (mv.valueType()); })) {
       if (!t2.accept("auto") && !rest(t2, "type", &newVarType) || !t2.gotIdentifier(newVarName))
         goto withoutIterator;
     }
@@ -740,7 +742,8 @@ withoutIterator:
   if (lv) return new IterLetCond!(LValue) (lv, iter, iter);
   else return new IterLetCond!(MValue) (mv, iter, iter);
 }
-mixin DefaultParser!(gotIterCond!(false), "cond.iter_strict", "705");
+mixin DefaultParser!(gotIterCond!(false, false), "cond.iter_very_strict", "7050");
+mixin DefaultParser!(gotIterCond!(false, true), "cond.iter_strict", "705");
 mixin DefaultParser!(gotIterCond!(true), "cond.iter_loose", "735");
 
 import ast.opers;

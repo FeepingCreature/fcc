@@ -118,6 +118,18 @@ mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_defaul
 // Functions may ignore it.
 Expr delegate(Expr, IType)[] converts;
 
+Expr tryConvert(Expr ex, IType dest) {
+  Expr res;
+  foreach (dg; converts) {
+    auto ex2 = dg(ex, dest);
+    if (ex2 && ex2.valueType() == dest) {
+      res = ex2;
+      break;
+    }
+  }
+  return res;
+}
+
 // casts to types that have conversion defined
 Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -128,14 +140,7 @@ Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     t2.failparse("Unable to parse cast source");
-  Expr res;
-  foreach (dg; converts) {
-    auto ex2 = dg(ex, dest);
-    if (ex2 && ex2.valueType() == dest) {
-      res = ex2;
-      break;
-    }
-  }
+  Expr res = tryConvert(ex, dest);
   if (res) text = t2;
   return fastcast!(Object)~ res;
 }

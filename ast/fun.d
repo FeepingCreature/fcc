@@ -69,7 +69,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   FunctionType type;
   Tree tree;
-  bool extern_c = false, weak = false;
+  bool extern_c = false, weak = false, reassign = false;
   void markWeak() { weak = true; }
   mixin defaultIterate!(tree);
   // iterate the compound expressions that form this function
@@ -486,6 +486,8 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
                            ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool omitRet = false) {
   IType ptype;
   auto t2 = text;
+  bool reassign;
+  if (t2.accept("reassign")) reassign = true;
   string parname;
   *error.ptr() = stuple("", "");
   auto ns = namespace();
@@ -518,6 +520,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
     fun.type.ret = ret;
     fun.type.params = _params;
     fun.name = forcename?forcename:fun_name;
+    fun.reassign = reassign;
     fun.sup = sup_override ? sup_override : ns;
     
     auto backup = namespace();
@@ -549,7 +552,8 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       if (t4) return fun;
       else {
         if (rest(text, "tree.scope", &fun.tree)) {
-          // TODO: Reserve "sys" module name
+          if (!fun.type.ret)
+            fun.type.ret = Single!(Void); // implicit return
           return fun;
         } else text.failparse("Couldn't parse function scope");
       }

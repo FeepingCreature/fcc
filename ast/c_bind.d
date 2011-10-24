@@ -341,7 +341,8 @@ void parseHeader(string filename, string src) {
     }
     *specialCallback() = &callback;
     scope(exit) *specialCallback() = old_dg;
-    res = fastcast!(Expr) (parsecon.parse(s2, c_tree_expr));
+    try res = fastcast!(Expr) (parsecon.parse(s2, c_tree_expr));
+    catch (Exception ex) return false; // no biggie
     if (!res) return false;
     source = s2;
     return true;
@@ -699,7 +700,8 @@ void performCImport(string name) {
       if (combined.exists()) { filename = combined; break; }
     }
   }
-  if (!filename) throw new Exception("Couldn't find "~name~"!");
+  if (!filename)
+    throw new Exception(Format("Couldn't find ", name, "! Tried ", include_path));
   auto cmdline = 
     platform_prefix~"gcc -m32 -Xpreprocessor -dD -E "
     ~ (include_path

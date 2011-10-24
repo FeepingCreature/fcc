@@ -131,8 +131,8 @@ class FPAsInt : Expr {
 Expr floatToInt(Expr ex, IType) {
   auto ex2 = ex;
   // something that casts to float, but not int by itself.
-  if (gotImplicitCast(ex2, (IType it) { return test(Single!(SysInt) == it); })
-   ||!gotImplicitCast(ex, (IType it) { return test(Single!(Float) == it); }))
+  if (gotImplicitCast(ex2, Single!(SysInt), (IType it) { return test(Single!(SysInt) == it); })
+   ||!gotImplicitCast(ex, Single!(Float), (IType it) { return test(Single!(Float) == it); }))
     return null;
   
   return new FPAsInt(ex);
@@ -140,8 +140,8 @@ Expr floatToInt(Expr ex, IType) {
 
 Expr doubleToInt(Expr ex, IType) {
   auto ex2 = ex;
-  if (gotImplicitCast(ex2, (IType it) { return test(Single!(SysInt) == it); })
-   ||!gotImplicitCast(ex, (IType it) { return test(Single!(Double) == it); }))
+  if (gotImplicitCast(ex2, Single!(SysInt), (IType it) { return test(Single!(SysInt) == it); })
+   ||!gotImplicitCast(ex, Single!(Double), (IType it) { return test(Single!(Double) == it); }))
     return null;
   
   return new FPAsInt(ex, true);
@@ -365,7 +365,10 @@ abstract class BinopExpr : Expr, HasInfo {
     }
     string getInfo() { return op; }
     IType valueType() { // TODO: merge e1, e2
-      assert(e1.valueType() == e2.valueType());
+      if (e1.valueType() != e2.valueType()) {
+        logln("Divergent types: ", e1.valueType(), " and ", e2.valueType());
+        asm { int 3; }
+      }
       return e1.valueType();
     }
     abstract BinopExpr dup();
@@ -628,18 +631,22 @@ static this() {
   bool isDouble(IType it) { return test(it == Single!(Double)); }
   bool isLong(IType it) { return test(it == Single!(Long)); }
   bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
+  bool isBool(IType it) { return test(it == fastcast!(IType) (sysmod.lookup("bool"))); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
-    if (!gotImplicitCast(ex1, &isInt) || !gotImplicitCast(ex2, &isInt))
+    bool b1 = isBool(ex1.valueType()), b2 = isBool(ex2.valueType());
+    if (!gotImplicitCast(ex1, Single!(SysInt), &isInt) || !gotImplicitCast(ex2, Single!(SysInt), &isInt))
       return null;
-    return new AsmIntBinopExpr(ex1, ex2, op);
+    Expr res = new AsmIntBinopExpr(ex1, ex2, op);
+    if (b1 && b2) res = reinterpret_cast(fastcast!(IType) (sysmod.lookup("bool")), res);
+    return res;
   }
   Expr handleIntUnary(string op, Expr ex) {
-    if (!gotImplicitCast(ex, &isInt))
+    if (!gotImplicitCast(ex, Single!(SysInt), &isInt))
       return null;
     return new AsmIntUnaryExpr(ex, op);
   }
   Expr handleLongUnary(string op, Expr ex) {
-    if (!gotImplicitCast(ex, &isLong))
+    if (!gotImplicitCast(ex, Single!(Long), &isLong))
       return null;
     return new AsmLongUnaryExpr(ex, op);
   }
@@ -681,7 +688,7 @@ static this() {
     
     if (fastcast!(DoubleExpr)~ ex1 && fastcast!(DoubleExpr)~ ex2) return null;
     
-    if (!gotImplicitCast(ex1, &isFloat) || !gotImplicitCast(ex2, &isFloat))
+    if (!gotImplicitCast(ex1, Single!(Float), &isFloat) || !gotImplicitCast(ex2, Single!(Float), &isFloat))
       return null;
     
     return new AsmFloatBinopExpr(ex1, ex2, op);
@@ -690,7 +697,7 @@ static this() {
     if (Single!(Double) != resolveTup(ex1.valueType())
      && Single!(Double) != resolveTup(ex2.valueType()))
       return null;
-    if (!gotImplicitCast(ex1, &isDouble) || !gotImplicitCast(ex2, &isDouble))
+    if (!gotImplicitCast(ex1, Single!(Double), &isDouble) || !gotImplicitCast(ex2, Single!(Double), &isDouble))
       return null;
     
     return new AsmDoubleBinopExpr(ex1, ex2, op);
@@ -699,7 +706,7 @@ static this() {
     if (Single!(Long) != resolveTup(ex1.valueType())
      && Single!(Long) != resolveTup(ex2.valueType()))
       return null;
-    if (!gotImplicitCast(ex1, &isLong) || !gotImplicitCast(ex2, &isLong))
+    if (!gotImplicitCast(ex1, Single!(Long), &isLong) || !gotImplicitCast(ex2, Single!(Long), &isLong))
       return null;
     
     return mkLongExpr(ex1, ex2, op);
@@ -751,9 +758,13 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
       Expr src;
       if (!rest(t3, "tree.expr", &src))
         t3.failparse("Could not find source operand for assignment! ");
-      auto res = lookupOp(op~"=", curOp, src);
-      if (res) text = t3;
-      return fastcast!(Object) (res);
+      try {
+        auto res = lookupOp(op~"=", curOp, src);
+        if (res) text = t3;
+        return fastcast!(Object) (res);
+      } catch (Exception ex) {
+        text.failparse(ex);
+      }
     }
   }
   Expr recurse(Expr op, int depth) {
@@ -796,16 +807,32 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     } catch (Exception ex) t2.failparse(ex);
     goto retry;
   }
+  bool correctlyAteOctothorpe;
+  string t2backup;
   while (true) {
-    curOp = recurse(curOp, 0);
+    auto newOp = recurse(curOp, 0);
+    correctlyAteOctothorpe |= newOp !is curOp;
+    curOp = newOp;
+    
+    if (t2backup && !correctlyAteOctothorpe) {
+      // nothing matched, back out
+      t2 = t2backup;
+      break;
+    }
+    
+    correctlyAteOctothorpe = false;
+    t2backup = t2;
     if (!t2.accept("#")) break;
+    
     withPropcfgFn((bool withTuple, bool withCall) {
       if (auto res = getPropertiesFn(
           t2, fastcast!(Object) (curOp), withTuple, withCall, cont, rest
         )
       )
-        if (auto res2 = fastcast!(Expr) (res))
+        if (auto res2 = fastcast!(Expr) (res)) {
+          correctlyAteOctothorpe = true;
           curOp = res2;
+        }
     });
   }
   text = t2;

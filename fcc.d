@@ -16,7 +16,7 @@ mixin(expandImport(`ast.[
   pointer, nulls, sa_index_opt, intrinsic, mode,
   propcall, properties_parse, main, alignment, modules_parse,
   platform, longmath, base, mixins, int_literal, static_arrays,
-  enums, import_parse, pragmas, trivial, fp],
+  enums, import_parse, pragmas, trivial, fp, expr_statement],
   casts`));
 
 // placed here to resolve circular dependency issues
@@ -33,6 +33,21 @@ static this() {
       throw new Exception("Lib name expected. ");
     string str = (fastcast!(StringExpr) (foldex(ex))).str;
     string newarg = "-l" ~ str;
+    // only add once .. becomes relevant in incremental mode
+    foreach (arg; extra_linker_args) if (arg == newarg) {
+      newarg = null;
+      break;
+    }
+    if (newarg) extra_linker_args ~= newarg;
+    return Single!(NoOp);
+  };
+  pragmas["linker"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, (Expr ex) {
+      return !!fastcast!(StringExpr) (foldex(ex));
+    }))
+      throw new Exception("Linker argument expected. ");
+    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    string newarg = "-Wl,"~str;
     // only add once .. becomes relevant in incremental mode
     foreach (arg; extra_linker_args) if (arg == newarg) {
       newarg = null;

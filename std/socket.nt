@@ -3,7 +3,7 @@ module std.socket;
 import std.string, c.unistd, c.sys.socket, c.netdb, c.string, c.errno;
 
 class Address {
-  (sockaddr*, int) getAddrHandle() { _interrupt 3; return (null, 0); }
+  (sockaddr*, int) getAddrHandle() { _interrupt 3; return (sockaddr*:null, 0); }
   Address dup() { _interrupt 3; }
 }
 

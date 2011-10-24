@@ -608,3 +608,7 @@ void doLaterParsing() {
 void delegate()[][] laterParsingStack;
 void pushDelayStack() { laterParsingStack ~= laterParsing; laterParsing = null; }
 void popExecuteDelayStack() { doLaterParsing(); laterParsing = laterParsingStack[$-1]; laterParsingStack = laterParsingStack[0..$-1]; }
+
+interface Dependency {
+  void emitDependency(AsmFile af);
+}

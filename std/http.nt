@@ -6,7 +6,9 @@ class DownloadError : Error {
   void init(string url, string msg) { super.init "While downloading '$url:' $msg"; }
 }
 
-byte[] download(string url) {
+import c.stdio;
+byte[] download(string url, void delegate(string) onRedirect = null) {
+  auto original-url = url;
   {
     string rest = url.startsWith("http://");
     if !rest raise-error new DownloadError(url, "Unknown protocol (forgot http://?)");
@@ -26,27 +28,32 @@ byte[] download(string url) {
   sendLine "Host: $domain";
   sendLine "";
   auto response = string: join readsocket sock;
-  (string headerstr, response) = slice(response, "\r\n\r\n");
+  string headerstr = slice(&response, "\r\n\r\n");
+  if (headerstr.find("Location: ")) {
+    auto url2 = original-url.followLink headerstr.between("Location: ", "\r\n");
+    if (onRedirect) { onRedirect url2; }
+    return download url2;
+  }
   auto header = headerstr.split "\r\n";
   return byte[]:response;
 }
 
 (byte[], string)[auto~] cache;
-byte[] downloadCached(string url) {
+byte[] downloadCached(string url, void delegate(string) onRedirect = null) {
   for auto tup <- cache
     if tup[1] == url return tup[0];
   
-  auto res = download url;
+  auto res = download (url, onRedirect);
   cache ~= (res, url);
   return res;
 }
 
 string followLink(string from, string to) {
   if to.startsWith "http://" return to;
-  if !from.startsWith "http://" raise-error new Error "$from is not a valid HTTP URL! ";
+  if !from.startsWith "http://" raise-error new Error "'$from' is not a valid HTTP URL! ";
   if to.startsWith "/"
-    return from.between("http://", "/") ~ to;
-  auto pos_param = from.find("?");
+    return "http://" ~ from.between("http://", "/") ~ to;
+  int pos_param = from.find("?");
   if pos_param == -1 pos_param = from.length;
   auto pos_last_slash = from[7..pos_param].rfind("/");
   if pos_last_slash == -1 raise-error new Error "No separator slash in $from! ";

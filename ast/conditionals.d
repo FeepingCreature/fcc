@@ -33,6 +33,7 @@ class ExprWrap : Cond {
   override {
     string toString() { return Format("!!", ex); }
     void jumpOn(AsmFile af, bool cond, string dest) {
+      mixin(mustOffset("0"));
       ex.emitAsm(af);
       af.popStack("%eax", 4);
       af.compare("%eax", "%eax", true);
@@ -54,6 +55,7 @@ class StatementAndCond : Cond {
   override {
     string toString() { return Format("{ ", first, " ", second, " }"); }
     void jumpOn(AsmFile af, bool cond, string dest) {
+      mixin(mustOffset("0"));
       first.emitAsm(af);
       second.jumpOn(af, cond, dest);
     }
@@ -78,6 +80,14 @@ class Compare : Cond, Expr {
     return res;
   }
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
+    if (e1.valueType().size != 4) {
+      logln("Invalid comparison parameter: ", e1.valueType());
+      asm { int 3; }
+    }
+    if (e2.valueType().size != 4) {
+      logln("Invalid comparison parameter: ", e2.valueType());
+      asm { int 3; }
+    }
     if (not) {
       not = !not;
       smaller = !smaller;
@@ -125,6 +135,7 @@ class Compare : Cond, Expr {
     }
   }
   private void emitComparison(AsmFile af) {
+    mixin(mustOffset("0"));
     prelude;
     if (isFloat) {
       e2.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
@@ -156,6 +167,7 @@ class Compare : Cond, Expr {
       return Single!(SysInt);
     }
     void emitAsm(AsmFile af) {
+      mixin(mustOffset("valueType().size"));
       if (falseOverride && trueOverride) {
         falseOverride.emitAsm(af);
         trueOverride.emitAsm(af);
@@ -242,14 +254,14 @@ Cond compare(string op, Expr ex1, Expr ex2) {
   {
     auto ie1 = ex1, ie2 = ex2;
     bool isInt(IType it) { return !!fastcast!(SysInt) (resolveType(it)); }
-    if (gotImplicitCast(ie1, &isInt) && gotImplicitCast(ie2, &isInt)) {
+    if (gotImplicitCast(ie1, Single!(SysInt), &isInt) && gotImplicitCast(ie2, Single!(SysInt), &isInt)) {
       return new Compare(ie1, not, smaller, equal, greater, ie2);
     }
   }
   {
     auto fe1 = ex1, fe2 = ex2;
     bool isFloat(IType it) { return !!fastcast!(Float) (resolveType(it)); }
-    if (gotImplicitCast(fe1, &isFloat) && gotImplicitCast(fe2, &isFloat)) {
+    if (gotImplicitCast(fe1, Single!(Float), &isFloat) && gotImplicitCast(fe2, Single!(Float), &isFloat)) {
       return new Compare(fe1, not, smaller, equal, greater, fe2);
     }
   }
@@ -408,11 +420,14 @@ mixin DefaultParser!(gotNamedCond, "cond.named", "75");
 import ast.vardecl;
 class CondExpr : Expr {
   Cond cd;
-  this(Cond cd) { this.cd = cd; }
+  this(Cond cd) {
+    this.cd = cd;
+    if (!cd) asm { int 3; }
+  }
   mixin defaultIterate!(cd);
   override {
     string toString() { return Format("eval ", cd); }
-    IType valueType() { return Single!(SysInt); }
+    IType valueType() { return fastcast!(IType) (sysmod.lookup("bool")); }
     CondExpr dup() { return new CondExpr(cd.dup); }
     void emitAsm(AsmFile af) {
       if (auto ex = cast(Expr) cd) {
@@ -441,17 +456,22 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond", null, "eval");
 
-Object gotComplexCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
+Object gotComplexCondAsExpr(bool mode)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond cd;
-  if (!rest(t2, "cond.compare", &cd) && !rest(t2, "cond.negate")) return null;
+  if ((!mode || !rest(t2, "cond.compare", &cd) && !rest(t2, "cond.negate", &cd))
+   && ( mode || !rest(t2, "cond.iter_very_strict", &cd))) return null;
   text = t2;
   if (auto ew = fastcast!(ExprWrap) (cd)) {
     return fastcast!(Object) (ew.ex);
   }
   return new CondExpr(cd);
 }
-mixin DefaultParser!(gotComplexCondAsExpr, "tree.expr.cond", "120");
+mixin DefaultParser!(gotComplexCondAsExpr!(true),  "tree.expr.cond.compare_negate", "1");
+mixin DefaultParser!(gotComplexCondAsExpr!(false), "tree.expr.cond_other", "13");
+static this() {
+  parsecon.addPrecedence("tree.expr.cond", "120");
+}
 
 Expr longOp(string Code)(Expr e1, Expr e2) {
   bool isLong(Expr ex) { return test(Single!(Long) == resolveType(ex.valueType())); }

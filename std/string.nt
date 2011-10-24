@@ -1,34 +1,40 @@
 module std.string;
 
-int find(string text, string match) {
+struct FindResult {
+  int pos;
+  alias implicit-cast = pos;
+  alias implicit-cast-2 = pos != -1;
+}
+
+FindResult find(string text, string match) {
   for (int i = 0; i <= text.length - match.length; ++i) {
-    if (text[i .. i+match.length] == match) return i;
+    if (text[i .. i+match.length] == match) return FindResult:i;
   }
-  return -1;
+  return FindResult:-1;
 }
 
-int rfind(string text, string match) {
+FindResult rfind(string text, string match) {
   for (int i = text.length - match.length; i >= 0; --i) {
-    if (text[i .. i+match.length] == match) return i;
+    if (text[i .. i+match.length] == match) return FindResult:i;
   }
-  return -1;
+  return FindResult:-1;
 }
 
-string startsWith(string s, string m) {
+reassign string startsWith(string s, string m) {
   if s.length < m.length return null;
   if (s[0 .. m.length] != m)
     return null;
   return s[m.length .. s.length];
 }
 
-string endsWith(string s, string m) {
+reassign string endsWith(string s, string m) {
   if s.length < m.length return null;
   if (s[$-m.length .. $] != m)
     return null;
   return s[0 .. $-m.length];
 }
 
-string between(string s, string from, string to) {
+reassign string between(string s, string from, string to) {
   int pos1;
   if (from.length) pos1 = find(s, from);
   if (pos1 == -1) return null;
@@ -43,9 +49,9 @@ string between(string s, string from, string to) {
 }
 
 // seek to "to" first
-string between_r(string s, string from, string to) {
-  int pos2 = to.length;
-  if (from.length) pos2 = find(s, to);
+reassign string between_r(string s, string from, string to) {
+  int pos2 = s.length;
+  if (to.length) pos2 = find(s, to);
   if (pos2 == -1) return null;
   s = s[0 .. pos2];
   
@@ -55,6 +61,36 @@ string between_r(string s, string from, string to) {
   s = s[pos1 + from.length .. $];
   
   return s;
+}
+
+template betweens(T) {
+  class betweenIterator : Iterator!string {
+    string source, from, to;
+    bool advance() {
+      if (!source) return false;
+      if (auto s = source.between(from, to)) {
+        value = s;
+        source = source.(that[find(from)+from.length .. $]).(that[find(to)+to.length .. $]);
+        return true;
+      }
+      source = null;
+      return false;
+    }
+  }
+  auto betweens(T t) using new betweenIterator {
+    static if (t.length != 3) {
+      pragma(msg, "Expected (string, string, string), not $(string-of T)");
+      ERROR
+    }
+    static if (!types-equal(T, (string, string, string))) {
+      pragma(msg, "Invalid types: $((string-of T[0], string-of T[1], string-of T[2]))");
+      ERROR
+    }
+    source = t[0];
+    from = t[1];
+    to = t[2];
+    return that;
+  }
 }
 
 template join(T) {
@@ -146,7 +182,7 @@ float atof(string s) {
   return float:c_atof(p);
 }
 
-string toLower(string s) {
+reassign string toLower(string s) {
   // hilariously non-utf aware
   // TODO!
   char[auto~] res;
@@ -175,7 +211,7 @@ template castIter(T) {
 // before, after
 (string, string) slice(string s, string m, bool yieldNull = true) {
   auto pos = find(s, m);
-  if (pos == -1) {
+  if (!pos) {
     if (yieldNull) return (s, string:(null x 2));
     writeln "|$m| not found in |$s| for slice! ";
     _interrupt 3;
@@ -188,7 +224,7 @@ string slice(string* sp, string marker, bool yieldNull = true) {
   return res;
 }
 
-string strip(string s) {
+reassign string strip(string s) {
   alias first = s[0];
   alias last = s[s.length - 1];
   while s.length && (last == "\n" || last == "\r" || last == " " || last == "\t")

@@ -66,6 +66,7 @@ class PrefixFunction : Function {
     this.name = "[wrap]"~sup.name;
     this.sup = sup.sup;
     this.supfun = sup;
+    this.reassign = sup.reassign;
     // assert(sup.extern_c);
     // TODO: this may later cause problems
     extern_c = true; // sooorta.
@@ -228,7 +229,14 @@ class PrefixTemplate : ITemplate {
   string getIdentifier() { return sup.getIdentifier(); }
   this(Expr st, Template s) { start = st; sup = s; }
   override Object getInstanceIdentifier(IType it, ParseCb rest, string name) {
-    IType suptype = mkTuple(start.valueType(), it);
+    
+    IType[] suptypes;
+    suptypes ~= start.valueType();
+    if (auto tup = fastcast!(Tuple) (it)) suptypes ~= tup.types();
+    else suptypes ~= it;
+    
+    IType suptype = mkTuple(suptypes);
+    
     auto res = sup.getInstance(suptype, rest).lookup(name, true);
     if (auto fun = fastcast!(Function) (res)) {
       return new PrefixFunction(start, fun);

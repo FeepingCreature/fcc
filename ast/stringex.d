@@ -77,7 +77,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotStringEx, "tree.expr.literal.stringex", "550");
 
-import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules;
+import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules, ast.fold;
 Expr simpleFormat(Expr ex) {
   auto type = resolveType(ex.valueType());
   if (Single!(SysInt) == type || Single!(Short) == type || Single!(Byte) == type) {
@@ -109,24 +109,12 @@ Expr simpleFormat(Expr ex) {
   }
   if (auto tup = fastcast!(Tuple)~ type) {
     auto res = new ConcatChain(new StringExpr("{")); // put here for type
-    return new CallbackExpr(res.valueType(), ex, res /apply/ (ConcatChain res, Expr ex, AsmFile af) {
-      Expr build(LValue lv) {
-        foreach (i, entry; getTupleEntries(lv)) {
-          if (i) res.addArray(new StringExpr(", "));
-          res.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
-        }
-        res.addArray(new StringExpr("}"));
-        return res;
-      }
-      if (auto lv = fastcast!(LValue)~ ex) build(lv).emitAsm(af);
-      else mkVar(af, res.valueType(), true, (Variable outer) {
-        mkVar(af, ex.valueType(), true, (Variable var) {
-          (new Assignment(var, ex)).emitAsm(af);
-          (new Assignment(outer, build(var))).emitAsm(af);
-        });
-        af.sfree(ex.valueType().size); // cheat
-      });
-    });
+    foreach (i, entry; getTupleEntries(ex)) {
+      if (i) res.addArray(new StringExpr(", "));
+      res.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
+    }
+    res.addArray(new StringExpr("}"));
+    return res;
   }
   auto ar = fastcast!(Array)~ type;
   auto ea = fastcast!(ExtArray)~ type;
@@ -169,6 +157,10 @@ Expr simpleFormat(Expr ex) {
   if (gotImplicitCast(ex, obj, (IType it) { return test(it == obj); })) {
     return iparse!(Expr, "gen_obj_toString_call", "tree.expr")
                   (`obj.toString()`, "obj", lvize(ex));
+  }
+  if (fastcast!(IType) (sysmod.lookup("bool")) == type) {
+    return iparse!(Expr, "bool_tostring", "tree.expr")
+                   (`btoa ex`, "btoa", sysmod.lookup("btoa"), "ex", ex);
   }
   return null;
 }

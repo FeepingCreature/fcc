@@ -7,7 +7,7 @@ void setupSysmods() {
   string src = `
     module sys;
     pragma(lib, "m");
-    alias bool = int;
+    alias strict bool = int;
     alias true = bool:1;
     alias false = bool:0;
     alias null = void*:0;
@@ -143,6 +143,10 @@ void setupSysmods() {
         i /= 10;
       }
       return res;
+    }
+    string btoa(bool b) {
+      if b return "true";
+      return "false";
     }
     string ltoa(long l) {
       auto foo = new char[] 32;
@@ -352,6 +356,12 @@ void setupSysmods() {
     }
     void fastfloor3f(vec3f v, vec3i* res) {
       (vec4f*: &v).w = 0; // prevent fp error
+      if (v.x >= 1<<31 || v.y >= 1<<31 || v.z >= 1<<31) { // cvttps2dq will fail
+        res.x = fastfloor(v.x);
+        res.y = fastfloor(v.y);
+        res.z = fastfloor(v.z);
+        return;
+      }
       xmm[4] = v;
       asm "cvttps2dq %xmm4, %xmm5";`"
       asm `psrld $31, %xmm4`;"`
@@ -364,7 +374,7 @@ void setupSysmods() {
       void claim() { refs ++; }
       void release() { refs --; if !refs onZero(); }
     }
-    string replace(string source, string what, string with) {
+    reassign string replace(string source, string what, string with) {
       int i = 0;
       char[auto~] res;
       while (source.length >= what.length && i <= source.length - what.length) {
@@ -749,11 +759,10 @@ mixin DefaultParser!(gotInternal, "tree.expr.internal", "24052", "__internal");
 
 import ast.pragmas;
 static this() {
-  // Link with this library
   pragmas["msg"] = delegate Object(Expr ex) {
     ex = foldex(ex);
     auto se = fastcast!(StringExpr) (ex);
-    if (!se) throw new Exception("Expected string expression for pragma(msg)! ");
+    if (!se) throw new Exception(Format("Expected string expression for pragma(msg), not ", ex));
     logln("# ", se.str);
     return Single!(NoOp);
   };
