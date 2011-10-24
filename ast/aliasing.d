@@ -66,7 +66,11 @@ class TypeAlias : Named, IType, SelfAdding {
     string mangle() { return "type_alias_"~name.replace("-", "_dash_")~"_"~base.mangle; }
     ubyte[] initval() { return base.initval; }
     int opEquals(IType ty) {
-      if (strict) return fastcast!(TypeAlias) (ty) is this;
+      if (strict) {
+        auto ta2 = fastcast!(TypeAlias) (ty);
+        if (!ta2) return false;
+        return base == ta2.base && name == ta2.name;
+      }
       return base.opEquals(resolveType(ty));
     }
     IType proxyType() { if (strict) return null; return base; }
