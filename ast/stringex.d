@@ -27,48 +27,45 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   auto backup = str;
   while (str.length) {
     auto ch = xtake();
-    if (ch == '\\') buf ~= xtake();
+    if (ch != '$') buf ~= ch;
     else {
-      if (ch != '$') buf ~= ch;
-      else {
-        extended = true;
-        flush;
-        assert(str.length);
-        Expr ex;
-        if (auto left = str.startsWith("$")) {
-          if (!rest(left, "tree.expr", &ex))
-            left.failparse("Failed to parse expr");
-          str = left;
-        } else if (auto left = str.startsWith("(")) {
-          if (!rest(left, "tree.expr", &ex))
-            left.failparse("Failed to parse expr");
-          if (!left.accept(")"))
-            left.failparse("Unmatched expr");
-          str = left;
-        } else {
-          string id;
-          if (!str.gotIdentifier(id))
-            throw new Exception("Can't parse identifier from expansion string at '"~str~"'");
-          retry:
-          ex = fastcast!(Expr)~ namespace().lookup(id);
-          if (!ex)
-            if (str.eatDash(id)) goto retry;
-            else throw new Exception(Format("No such variable: ", id, " in ", namespace()));
-        }
-        bool tryFormat(Expr ex) {
-          if (auto sf = simpleFormat(ex)) {
-            res.addArray(sf);
-            return true;
-          } else if (auto fe = cast(Formatable) ex.valueType()) {
-            res.addArray(fe.format(ex));
-            return true;
-          } else return false;
-        }
-        bool foundMatch;
-        auto ex2 = ex;
-        if (!gotImplicitCast(ex2,  &tryFormat))
-          throw new Exception(Format("Can't format ", ex, " of ", ex.valueType()));
+      extended = true;
+      flush;
+      assert(str.length);
+      Expr ex;
+      if (auto left = str.startsWith("$")) {
+        if (!rest(left, "tree.expr", &ex))
+          left.failparse("Failed to parse expr");
+        str = left;
+      } else if (auto left = str.startsWith("(")) {
+        if (!rest(left, "tree.expr", &ex))
+          left.failparse("Failed to parse expr");
+        if (!left.accept(")"))
+          left.failparse("Unmatched expr");
+        str = left;
+      } else {
+        string id;
+        if (!str.gotIdentifier(id))
+          throw new Exception("Can't parse identifier from expansion string at '"~str~"'");
+        retry:
+        ex = fastcast!(Expr)~ namespace().lookup(id);
+        if (!ex)
+          if (str.eatDash(id)) goto retry;
+          else throw new Exception(Format("No such variable: ", id, " in ", namespace()));
       }
+      bool tryFormat(Expr ex) {
+        if (auto sf = simpleFormat(ex)) {
+          res.addArray(sf);
+          return true;
+        } else if (auto fe = cast(Formatable) ex.valueType()) {
+          res.addArray(fe.format(ex));
+          return true;
+        } else return false;
+      }
+      bool foundMatch;
+      auto ex2 = ex;
+      if (!gotImplicitCast(ex2,  &tryFormat))
+        throw new Exception(Format("Can't format ", ex, " of ", ex.valueType()));
     }
   }
   if (!extended) return fastcast!(Object)~ strlit;
