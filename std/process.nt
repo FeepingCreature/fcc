@@ -31,7 +31,6 @@ class ReadbackStream : Iterator!string {
     }
     argv[args.length + 1] = null;
     
-    writeln "fork $cmd";
     child = fork();
     if (child == 0) {
       .close hdl_sysward[1];
