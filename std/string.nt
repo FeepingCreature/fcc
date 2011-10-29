@@ -114,35 +114,36 @@ template join(T) {
   }
 }
 
-template splitAt(T) {
-  class iter : Iterator!string {
-    T sup;
-    char[auto~] buffer;
-    int offset;
-    bool done;
-    bool advance() {
-      if (done) { buffer.free; return false; }
-      int pos;
-      do pos = find (buffer[offset .. $], sup[1]);
-      while pos == -1 {
-        if (auto supstep <- sup[0]) {
-          buffer ~= supstep;
-        } else {
-          value = buffer[offset .. $];
-          done = true;
-          return true;
-        }
+class SplitIterator : Iterator!string {
+  Iterator!string sup;
+  string marker;
+  char[auto~] buffer;
+  int offset;
+  bool done;
+  bool advance() {
+    if (done) { buffer.free; return false; }
+    int pos;
+    do pos = find (buffer[offset .. $], marker);
+    while pos == -1 {
+      if (auto supstep <- sup) {
+        buffer ~= supstep;
+      } else {
+        value = buffer[offset .. $];
+        done = true;
+        return true;
       }
-      value = buffer[offset .. offset + pos];
-      offset += pos + sup[1].length;
-      return true;
     }
+    value = buffer[offset .. offset + pos];
+    offset += pos + marker.length;
+    return true;
   }
-  iter splitAt(T t) {
-    auto res = new iter;
-    res.sup = t;
-    return res;
-  }
+}
+
+auto splitAt(Iterator!string iter, string marker) {
+  auto res = new SplitIterator;
+  res.sup = iter;
+  res.marker = marker;
+  return res;
 }
 
 char* toStringz(string s) {
