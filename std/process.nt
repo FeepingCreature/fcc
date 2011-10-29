@@ -1,17 +1,19 @@
 module std.process;
 
 import c.poll, c.stdlib, c.unistd;
-import std.string;
+import std.string, std.util;
 
 class ReadbackError : Error {
   void init(string s) super.init "ReadbackError: $s";
 }
 
+import c.signal, c.sys.wait;
 class ReadbackStream : Iterator!string {
   int x 2 hdl_sysward, hdl_selfward;
   bool hup, done; int fdslength;
   Iterator!string input; string inbuffer;
   char x 128 buf;
+  pid_t child;
   void init(string cmd, string[] args, Iterator!string input) {
     pipe hdl_sysward; // self -> system()
     pipe hdl_selfward; // system() -> self
@@ -29,26 +31,41 @@ class ReadbackStream : Iterator!string {
     }
     argv[args.length + 1] = null;
     
-    if (!fork()) {
-      close hdl_sysward[1];
-      close hdl_selfward[0];
+    writeln "fork $cmd";
+    child = fork();
+    if (child == 0) {
+      .close hdl_sysward[1];
+      .close hdl_selfward[0];
       dup2(hdl_sysward[0], 0); // overwrite standard input
       dup2(hdl_selfward[1], 1); // overwrite standard output
       exit(execvp(fp, argv));
     }
-    close hdl_sysward[0]; // read side
-    close hdl_selfward[1]; // write side
+    .close hdl_sysward[0]; // read side
+    .close hdl_selfward[1]; // write side
     fdslength = 2;
     this.input = input;
   }
+  void close() {
+    kill(child, SIGTERM);
+    waitpid(child, null, 0);
+  }
   bool advance() {
+    auto uni = UnreliableIterator!string: input;
     while !done { // while we still have data to write .. 
       pollfd x 2 fds;
       fds[0].(fd, events) = (hdl_selfward[0], POLLIN);
       fds[1].(fd, events) = (hdl_sysward [1], POLLOUT);
-      auto hits = poll(fds.ptr, fdslength, -1);
+      
+      auto my-fdslength = fdslength;
+      if (uni && !uni.canAdvance()) my-fdslength = 1;
+      
+      auto hits = poll(fds.ptr, my-fdslength, -1);
+      
       // don't quit yet - there may still be data to be read!
       if (fds[0].revents & POLLHUP) { hup = true; }
+      // if (fds[0].revents & POLLHUP) { writeln "HUP0"; }
+      // if (fds[0].revents & POLLIN) { writeln "IN0"; }
+      // if (fds[1].revents & POLLOUT) { writeln "OUT1"; }
       bool handleRead() {
         auto size = read buf.(hdl_selfward[0], ptr, length);
         if (size > 0) {
@@ -62,7 +79,7 @@ class ReadbackStream : Iterator!string {
         if (!inbuffer.length) {
           if (!input || !input.advance()) {
             // no more data to write
-            close hdl_sysward[1];
+            .close hdl_sysward[1];
             fdslength = 1;
             return;
           }
@@ -75,8 +92,14 @@ class ReadbackStream : Iterator!string {
         inbuffer = inbuffer[res .. $];
       }
       bool active;
-      if (fdslength == 2 && fds[1].revents & POLLOUT) { handleWrite; active = true; }
       if (fds[0].revents & POLLIN) { if (handleRead()) return true; active = true; }
+      // read until you can't read anymore before resuming writing
+      else if (my-fdslength == 2 && fds[1].revents & POLLOUT) { handleWrite; active = true; }
+      if (uni && fdslength == 2 && my-fdslength == 1) { // shortened
+        if (!active) {// nothing to read
+          writeln "Problem: iterator had nothing to do this loop";
+        }
+      }
       // basically done.
       if (!active && hup) return false;
     }
@@ -84,14 +107,16 @@ class ReadbackStream : Iterator!string {
   }
 }
 
-ReadbackStream readback(string cmd, string[] args, Iterator!string data = null) {
+ReadbackStream readback(string cmd, string[] args, Iterator!string data) {
   return new ReadbackStream (cmd, args, data);
 }
 
-ReadbackStream readback(string cmd, Iterator!string data = null) {
+ReadbackStream readback(string cmd, Iterator!string data) {
   return readback(cmd, string[]:null, data);
 }
 
 import std.util;
 ReadbackStream readback(string cmd, string[] args, string data) return readback(cmd, args, Iterator!string: iterOnce data);
 ReadbackStream readback(string cmd, string data) return readback(cmd, string[]:null, Iterator!string: iterOnce data);
+ReadbackStream readback(string cmd, string[] args) return readback(cmd, args, Iterator!string: null);
+ReadbackStream readback(string cmd) return readback(cmd, string[]:null, Iterator!string: null);
