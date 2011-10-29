@@ -46,7 +46,7 @@ class ReadbackStream : Iterator!string {
             fdslength = 1;
             return;
           }
-          assert(input.value.length == 0, "input claimed to advance but data is null");
+          assert(input.value.length != 0, "input claimed to advance but data is null");
           inbuffer = input.value;
         }
         auto res = write inbuffer.(hdl_sysward[1], ptr, length);
