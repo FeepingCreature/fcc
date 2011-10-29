@@ -2,15 +2,25 @@ module errors;
 
 import tools.base;
 
+string mystripl(string s) {
+  while (s.length && (
+    s[0] == ' '  || s[0] == '\t' ||
+    s[0] == '\n' || s[0] == '\r'
+  )) {
+    s = s[1 .. $];
+  }
+  return s;
+}
+
 string nextText(string s, int i = 100) {
   if (s.length > i) s = s[0 .. i];
   return s.replace("\n", "\\");
 }
 
 void eatComments(ref string s) {
-  s = s.strip();
+  s = s.mystripl();
   while (true) {
-    if (auto rest = s.startsWith("/*")) { rest.slice("*/"); s = rest.strip(); }
+    if (auto rest = s.startsWith("/*")) { rest.slice("*/"); s = rest.mystripl(); }
     else if (auto rest = s.startsWith("/+")) {
       int depth = 1;
       while (depth) {
@@ -25,9 +35,9 @@ void eatComments(ref string s) {
         depth --;
         rest = rest[b + 2 .. $];
       }
-      s = rest.strip();
+      s = rest.mystripl();
     }
-    else if (auto rest = s.startsWith("//")) { rest.slice("\n"); s = rest.strip(); }
+    else if (auto rest = s.startsWith("//")) { rest.slice("\n"); s = rest.mystripl(); }
     else break;
   }
 }
