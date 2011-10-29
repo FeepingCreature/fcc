@@ -186,8 +186,13 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     }
     int opEquals(IType it) {
       auto str = fastcast!(Structure)~ it;
-      if (!str) return 0;
-      return str.name == name && str.size == size;
+      if (!str) return false;
+      if (str is this) return true;
+      if (str.name != name) return false;
+      auto t1 = str.types(), t2 = types();
+      if (t1.length != t2.length) return false;
+      foreach (i, v; t1) if (v != t2[i]) return false;
+      return true;
     }
     string toString() {
       if (!name) {
