@@ -12,10 +12,30 @@ class ReadbackStream : Iterator!string {
   bool hup, done; int fdslength;
   Iterator!string input; string inbuffer;
   char x 128 buf;
-  void init(string cmd, Iterator!string input) {
+  void init(string cmd, string[] args, Iterator!string input) {
     pipe hdl_sysward; // self -> system()
     pipe hdl_selfward; // system() -> self
-    system toStringz "exec $(hdl_sysward[1])>&-; exec $(hdl_selfward[0])>&-; <&$(hdl_sysward[0]) $cmd >&$(hdl_selfward[1]) &";
+    
+    char* fp = malloc(cmd.length + 1);
+    fp[0..cmd.length] = cmd;
+    fp[cmd.length] = char:0;
+    char** argv = malloc(args.length + 1 + 1 #*size-of char*);
+    argv[0] = fp;
+    for (int id, string arg) <- zip(0..-1, args) {
+      char* argp = malloc(arg.length + 1);
+      argp[0..arg.length] = arg;
+      argp[arg.length] = char:0;
+      argv[id + 1] = argp;
+    }
+    argv[args.length + 1] = null;
+    
+    if (!fork()) {
+      close hdl_sysward[1];
+      close hdl_selfward[0];
+      dup2(hdl_sysward[0], 0); // overwrite standard input
+      dup2(hdl_selfward[1], 1); // overwrite standard output
+      exit(execvp(fp, argv));
+    }
     close hdl_sysward[0]; // read side
     close hdl_selfward[1]; // write side
     fdslength = 2;
@@ -64,9 +84,14 @@ class ReadbackStream : Iterator!string {
   }
 }
 
+ReadbackStream readback(string cmd, string[] args, Iterator!string data = null) {
+  return new ReadbackStream (cmd, args, data);
+}
+
 ReadbackStream readback(string cmd, Iterator!string data = null) {
-  return new ReadbackStream (cmd, data);
+  return readback(cmd, string[]:null, data);
 }
 
 import std.util;
-ReadbackStream readback(string cmd, string data) return readback(cmd, Iterator!string: iterOnce data);
+ReadbackStream readback(string cmd, string[] args, string data) return readback(cmd, args, Iterator!string: iterOnce data);
+ReadbackStream readback(string cmd, string data) return readback(cmd, string[]:null, Iterator!string: iterOnce data);
