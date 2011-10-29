@@ -29,12 +29,12 @@ class DataSet {
 import std.file, std.string;
 DataSet parse(string fn) {
   auto res = new DataSet;
-  auto lines = splitAt("\n", castIter!string readfile open fn).eval[];
+  auto lines = splitAt(castIter!string readfile open fn, "\n").eval[];
   {
     auto idcount = atoi toStringz lines[0];
     while auto id <- lines[1 .. idcount + 1] {
       int x 16 temp;
-      temp[] = [for st <- splitAt(",", iterOnce id): atoi toStringz st].eval[];
+      temp[] = [for st <- splitAt(iterOnce id, ","): atoi toStringz st].eval[];
       res.indices ~= temp;
     }
     lines = lines[idcount + 1 .. $];
@@ -42,7 +42,7 @@ DataSet parse(string fn) {
   {
     auto vertcount = atoi toStringz lines[0];
     while auto vert <- lines[1 .. vertcount + 1] {
-      auto split = splitAt(",", iterOnce vert).eval[];
+      auto split = splitAt(iterOnce vert, ",").eval[];
       vec3f temp;
       
       while int i <- 0..3

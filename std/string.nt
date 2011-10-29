@@ -123,9 +123,9 @@ template splitAt(T) {
     bool advance() {
       if (done) { buffer.free; return false; }
       int pos;
-      do pos = find (buffer[offset .. $], sup[0]);
+      do pos = find (buffer[offset .. $], sup[1]);
       while pos == -1 {
-        if (auto supstep <- sup[1]) {
+        if (auto supstep <- sup[0]) {
           buffer ~= supstep;
         } else {
           value = buffer[offset .. $];
@@ -134,7 +134,7 @@ template splitAt(T) {
         }
       }
       value = buffer[offset .. offset + pos];
-      offset += pos + sup[0].length;
+      offset += pos + sup[1].length;
       return true;
     }
   }

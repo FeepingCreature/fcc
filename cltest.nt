@@ -150,7 +150,7 @@ int main() {
   onExit clReleaseMemObject (outvec);
   
   writeln "Buffers created. ";
-  auto sourcelines = [for line <- splitAt("\n", iterOnce openclSource): line ~ "\n\x00"].eval[];
+  auto sourcelines = [for line <- splitAt(iterOnce openclSource, "\n"): line ~ "\n\x00"].eval[];
   writeln "$(sourcelines.length) lines of source. ";
   auto prog = clCreateProgramWithSource(ctx, sourcelines.length,
     [for line <- sourcelines: line.ptr].eval.ptr, null, null);
