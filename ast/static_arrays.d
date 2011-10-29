@@ -156,6 +156,8 @@ class SALiteralExpr : Expr {
   }
 }
 
+extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null);
+
 Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr[] exs;
@@ -187,6 +189,8 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto res = new SALiteralExpr;
   res.type = type;
   res.exs = exs;
-  return res;
+  Expr res_e = res;
+  res_e = ast_vardecl_lvize(res_e); // TODO: validate if correct
+  return fastcast!(Object) (res_e);
 }
 mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array", "52", "[");

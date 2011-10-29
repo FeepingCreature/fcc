@@ -151,7 +151,7 @@ Expr lvize_if_possible(Expr ex, Statement* late_init = null) {
 }
 
 // create temporary if needed
-LValue lvize(Expr ex, Statement* late_init = null) {
+extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null) {
   if (auto lv = fastcast!(LValue) (ex)) return lv;
   if (!namespace().get!(Scope)) {
     logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
@@ -159,6 +159,8 @@ LValue lvize(Expr ex, Statement* late_init = null) {
   }
   return fastcast!(LValue) (lvize_if_possible(ex, late_init));
 }
+
+LValue lvize(Expr ex, Statement* late_init = null) { return ast_vardecl_lvize(ex, late_init); }
 
 import ast.fold;
 Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
