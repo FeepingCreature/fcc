@@ -291,8 +291,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       // valid call terminators
       if (params.length || !t3.accept(";"))
         return null;
-    }
-    text = t2;
+    } else text = t2;
     return fc;
   };
 }
