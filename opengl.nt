@@ -14,7 +14,6 @@ platform(i686-mingw32) {
 
 platform(default) {
   public import c.GL.glx;
-  c_include "GL/glx.h";
   pragma(lib, "GL");
   pragma(lib, "GLU");
   extern(C) void* glXGetProcAddress(char*);

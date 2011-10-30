@@ -31,11 +31,11 @@ void* mallocDupData(byte[] data) {
 }
 
 class SQLiteError : Error {
-  void init(string s) { super.init s; }
+  void init(string s) { super.init "SQLiteError: $s"; }
 }
 
 class SQLiteBusy : SQLiteError {
-  void init() { super.init "Database busy. "; }
+  void init() { super.init "SQLiteBusy: Database busy. "; }
 }
 
 interface IQueryIterator {

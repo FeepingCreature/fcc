@@ -20,8 +20,10 @@ void main() {
   foo[0] = 1000;
   writeln "$(byte[]:foo)";
   auto sock = new Socket;
-  sock.open tcpAddress ("google.de", 80);
-  sock.send void[]:"GET / HTTP/1.0\r\n\r\n";
-  auto iter2 = splitAt (castIter!string readDg &sock.recv, "\r\n");
+  sock.open new TcpAddress ("www.google.de", 80);
+  sock.send byte[]:"GET / HTTP/1.0\r\n";
+  sock.send byte[]:"Host: www.google.de\r\n";
+  sock.send byte[]:"\r\n";
+  auto iter2 = [for part <- splitAt (castIter!string readDg &sock.recv, "\r\n"): part.dup];
   writeln "$(iter2.eval)";
 }
