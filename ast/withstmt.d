@@ -46,10 +46,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       
       auto backupvar = new Variable(vt, null, ex, boffs(vt));
       sc.add(backupvar);
-      
-      auto vd = new VarDecl;
-      vd.vars ~= backupvar;
-      sc.addStatement(vd);
+      sc.addStatement(new VarDecl(backupvar));
       sc.addGuard(mkAssignment(ex, backupvar));
       assert(!!fastcast!(LValue) (ex) || !!fastcast!(MValue) (ex), Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
@@ -65,9 +62,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       var.baseOffset = boffs(var.type);
       temps += var.type.size;
       context = var;
-      New(vd);
-      vd.vars ~= var;
-      sc.addStatement(vd);
+      sc.addStatement(new VarDecl(var));
     }
     
     ex = context;
@@ -121,8 +116,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
     Stuple!(IType, string, int)[] stackframe() {
       auto res = sup.stackframe();
       if (vd)
-        foreach (var; vd.vars)
-          res ~= stuple(var.type, var.name, var.baseOffset);
+        res ~= stuple(vd.var.type, vd.var.name, vd.var.baseOffset);
       return res;
     }
     Object lookup(string name, bool local = false) {
@@ -206,7 +200,7 @@ Object gotBackupOf(ref string text, ParseCb cont, ParseCb rest) {
       if (!n) continue;
       auto ident = n.getIdentifier();
       if (ident == name)
-        return ws.vd.vars[0];
+        return ws.vd.var;
       names ~= ident;
     } while (test(ws = ws.get!(WithStmt)));
     throw new Exception(Format("No backup for ", name, ", only ", names, ". "));

@@ -51,13 +51,9 @@ class ConcatChain : Expr {
         cache.dontInit = true;
         total.initInit;
         offset.initInit;
-        {
-          auto vd = new VarDecl;
-          vd.vars ~= offset;
-          vd.vars ~= total;
-          vd.vars ~= cache;
-          vd.emitAsm(af);
-        }
+        (new VarDecl(offset)).emitAsm(af);
+        (new VarDecl(total)).emitAsm(af);
+        (new VarDecl(cache)).emitAsm(af);
         foreach (i, array; arrays) {
           if (array.valueType() == type.elemType) {
             iparse!(Statement, "inc_array_length", "tree.stmt")

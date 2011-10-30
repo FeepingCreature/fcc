@@ -31,11 +31,7 @@ class ReturnStmt : Statement {
         scope(success) af.sfree(filler);
         mixin(mustOffset("0"));
         auto value = new Variable(vt, null, boffs(vt, af.currentStackDepth));
-        {
-          auto vd = new VarDecl;
-          vd.vars ~= value;
-          vd.emitAsm(af);
-        }
+        (new VarDecl(value)).emitAsm(af);
         (new Assignment(value, this.value)).emitAsm(af);
         emitGuards();
         

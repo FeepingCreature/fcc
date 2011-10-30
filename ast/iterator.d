@@ -720,9 +720,7 @@ withoutIterator:
     auto newvar = new Variable(newVarType, newVarName, boffs(newVarType));
     newvar.initInit();
     lv = newvar;
-    auto decl = new VarDecl;
-    decl.vars ~= newvar;
-    sc.addStatement(decl);
+    sc.addStatement(new VarDecl(newvar));
     sc.add(newvar);
   }
   
