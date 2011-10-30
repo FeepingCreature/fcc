@@ -22,11 +22,17 @@ class NamedArg : Expr {
 Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
-  if (!t2.gotIdentifier(name)) return null;
-  if (!t2.accept("=>")) return null;
   Expr base;
-  if (!rest(t2, "tree.expr", &base))
-    t2.failparse("Could not get base expression for named argument '", name, "'");
+  if (t2.accept("=>")) { // named flag
+    if (!t2.gotIdentifier(name))
+      t2.failparse("Flag expected");
+    base = fastcast!(Expr) (sysmod.lookup("true"));
+  } else {
+    if (!t2.gotIdentifier(name)) return null;
+    if (!t2.accept("=>")) return null;
+    if (!rest(t2, "tree.expr", &base))
+      t2.failparse("Could not get base expression for named argument '", name, "'");
+  }
   auto res = new NamedArg(name, text, base);
   text = t2;
   return res;

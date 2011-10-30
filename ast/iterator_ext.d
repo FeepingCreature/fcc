@@ -474,7 +474,7 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
     }
     return true;
   }))
-    text.failparse("Cannot convert ", ex, " into acceptable tuple form");
+    text.failparse("Cannot convert ", ex.valueType(), " into acceptable tuple form");
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
