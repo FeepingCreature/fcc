@@ -920,11 +920,15 @@ Object gotMagnitude(ref string text, ParseCb cont, ParseCb rest) {
   auto vt = resolveType(ex.valueType());
   if (auto v = fastcast!(Vector) (vt)) {
     text = t2;
-    Expr tmp = lvize(ex);
+    Statement init1, init2;
+    Expr tmp = lvize(ex, &init1);
     tmp = lookupOp("*", tmp, tmp);
-    tmp = lvize(tmp);
+    tmp = lvize(tmp, &init2);
     auto strct = v.asStruct;
-    return strct.lookupRel("sqrt_sum", reinterpret_cast(strct, tmp));
+    tmp = fastcast!(Expr) (strct.lookupRel("sqrt_sum", reinterpret_cast(strct, tmp)));
+    if (init2) tmp = new StatementAndExpr(init2, tmp);
+    if (init1) tmp = new StatementAndExpr(init1, tmp);
+    return fastcast!(Object) (tmp);
   }
   t2.failparse("Invalid type for magnitude: ", vt);
 }
