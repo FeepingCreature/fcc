@@ -16,10 +16,14 @@ Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto src = se.str;
   Object res;
   pushCache(); scope(exit) popCache();
-  if (!rest(src, "tree.expr", &res))
-    src.failparse("Couldn't parse mixin string for expr");
-  if (src.length)
-    src.failparse("Unknown text found for expr. ");
+  try {
+    if (!rest(src, "tree.expr", &res))
+      src.failparse("Couldn't parse mixin string for expr");
+    if (src.mystripl().length)
+      src.failparse("Unknown text found for expr. ");
+  } catch (Exception ex) {
+    t2.failparse("Executing mixin: ", ex);
+  }
   text = t2;
   return res;
 }
@@ -39,10 +43,14 @@ Object gotMixinStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto src = se.str;
   Object res;
   pushCache(); scope(exit) popCache();
-  if (!rest(src, "tree.stmt", &res))
-    src.failparse("Couldn't parse mixin string for stmt");
-  if (src.length)
-    src.failparse("Unknown text found for stmt. ");
+  try {
+    if (!rest(src, "tree.stmt", &res))
+      src.failparse("Couldn't parse mixin string for stmt");
+    if (src.mystripl().length)
+      src.failparse("Unknown text found for stmt. ");
+  } catch (Exception ex) {
+    t2.failparse("Executing mixin: ", ex);
+  }
   text = t2;
   return res;
 }
