@@ -303,6 +303,11 @@ static this() {
       return null;
     return new ShortAsByte(ex);
   };
+  converts ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(SysInt) != resolveTup(ex.valueType()))
+      return null;
+    return new ShortAsByte(new IntAsShort(ex));
+  };
 }
 
 void loadFloatEx(Expr ex, AsmFile af) {
