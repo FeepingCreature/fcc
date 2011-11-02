@@ -41,3 +41,29 @@ template loop(T) {
     return res;
   }
 }
+
+template UnreliableIterator(T) {
+  class UnreliableIterator : Iterator!T {
+    bool canAdvance() { raise-error new Error "$this: UnreliableIterator::canAdvance not implemented!"; }
+  }
+}
+
+template FeedIterator(T) {
+  class FeedIterator : UnreliableIterator!T {
+    T[auto~] source;
+    int offset;
+    void write(T t) { source ~= t; }
+    bool canAdvance() { return source.length > 0; }
+    bool advance() {
+      if (!source.length) raise-error new Error "Feed iterator: buffer empty";
+      value = source[0];
+      
+      // TODO: do this in the compiler
+      auto backup = source.capacity;
+      source = T[auto~]: source[1..$];
+      source.capacity = backup - 1;
+      
+      return true;
+    }
+  }
+}

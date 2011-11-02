@@ -42,7 +42,8 @@ class FullSlice : Expr {
         scope(exit) af.restoreCheckptStack(backup);
         
         auto temp = new Variable(sup.valueType(), null, sup, boffs(sup.valueType(), af.currentStackDepth));
-        { auto vd = new VarDecl; vd.vars ~= temp; vd.emitAsm(af); }
+        
+        (new VarDecl(temp)).emitAsm(af);
         
         (new Assignment(var, mkArraySlice(temp, mkInt(0), foldex(getArrayLength(temp))))).emitAsm(af);
       });

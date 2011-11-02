@@ -112,7 +112,7 @@ mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141");
 
 import tools.log;
 class ForStatement : Statement {
-  VarDecl decl;
+  Statement decl;
   Cond cond;
   Statement step;
   Scope _body;

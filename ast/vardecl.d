@@ -5,62 +5,60 @@ public import ast.variable;
 
 import ast.pointer, ast.casting;
 class VarDecl : LineNumberedStatementClass {
-  Variable[] vars;
-  mixin DefaultDup!();
-  mixin defaultIterate!(vars);
-  bool hasAnyInitializers() {
-    foreach (var; vars) if (!var.dontInit) return true;
-    return false;
+  Variable var;
+  this(Variable v) { var = v; }
+  VarDecl dup() { return new VarDecl(var.dup); }
+  mixin defaultIterate!(var);
+  bool hasInitializer() {
+    return !var.dontInit;
   }
   override void emitAsm(AsmFile af) {
-    if (hasAnyInitializers) super.emitAsm(af); // otherwise not worth it
+    if (hasInitializer) super.emitAsm(af); // otherwise not worth it
     // logln("emit at ", af.currentStackDepth, ": ", vars);
-    foreach (var; vars) {
-      // sanity checking start!
-      if (var.baseOffset + var.type.size < -af.currentStackDepth) {
-        auto delta = -af.currentStackDepth - (var.baseOffset + var.type.size);
-        // logln("alloc ", delta, " to compensate for stack being wrong for var ", var.name, " @", var.baseOffset);
-        // logln("(", var.name, " at ", af.currentStackDepth, " wants ", -var.baseOffset - var.type.size, ")");
-        af.salloc(delta);
+    // sanity checking start!
+    if (var.baseOffset + var.type.size < -af.currentStackDepth) {
+      auto delta = -af.currentStackDepth - (var.baseOffset + var.type.size);
+      // logln("alloc ", delta, " to compensate for stack being wrong for var ", var.name, " @", var.baseOffset);
+      // logln("(", var.name, " at ", af.currentStackDepth, " wants ", -var.baseOffset - var.type.size, ")");
+      af.salloc(delta);
+    }
+    mixin(mustOffset("var.valueType().size()"));
+    if (var.baseOffset + var.type.size != -af.currentStackDepth) {
+      logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var);
+      foreach (elem; namespace().field) {
+        if (auto var = fastcast!(Variable)~ elem._1) {
+          auto csd = af.currentStackDepth;
+          if (csd in
+            Range[var.baseOffset .. var.baseOffset + var.type.size].endIncl)
+            logln("Clobbered by ", var, ". ");
+        }
       }
-      mixin(mustOffset("var.valueType().size()"));
-      if (var.baseOffset + var.type.size != -af.currentStackDepth) {
-        logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var);
-        foreach (elem; namespace().field) {
-          if (auto var = fastcast!(Variable)~ elem._1) {
-            auto csd = af.currentStackDepth;
-            if (csd in
-              Range[var.baseOffset .. var.baseOffset + var.type.size].endIncl)
-              logln("Clobbered by ", var, ". ");
-          }
-        }
-        asm { int 3; }
-        // assert(false);
+      asm { int 3; }
+      // assert(false);
+    }
+    // sanity checking end!
+    if (var.dontInit)
+      af.salloc(var.type.size);
+    else {
+      if (var.type == Single!(Void)) {
+        mixin(mustOffset("0"));
+        if (var.initval) var.initval.emitAsm(af);
+        return;
       }
-      // sanity checking end!
-      if (var.dontInit)
-        af.salloc(var.type.size);
-      else {
-        if (var.type == Single!(Void)) {
-          mixin(mustOffset("0"));
-          if (var.initval) var.initval.emitAsm(af);
-          continue;
-        }
-        mixin(mustOffset("var.type.size"));
-        int sz = var.type.size;
-        // TODO: investigate why necessary for chars
-        if (sz == 1) af.salloc(1);
-        var.initval.emitAsm(af);
-        if (sz == 1) {
-          var.emitLocation(af);
-          af.popStack("%eax", nativePtrSize);
-          af.popStack("(%eax)", var.initval.valueType().size);
-          af.nvm("%eax");
-        }
+      mixin(mustOffset("var.type.size"));
+      int sz = var.type.size;
+      // TODO: investigate why necessary for chars
+      if (sz == 1) af.salloc(1);
+      var.initval.emitAsm(af);
+      if (sz == 1) {
+        var.emitLocation(af);
+        af.popStack("%eax", nativePtrSize);
+        af.popStack("(%eax)", var.initval.valueType().size);
+        af.nvm("%eax");
       }
     }
   }
-  override string toString() { return Format("declare ", vars); }
+  override string toString() { return Format("declare ", var); }
 }
 
 extern(C) int align_boffs(IType, int);
@@ -82,8 +80,7 @@ void mkVar(AsmFile af, IType type, bool dontInit, bool alignvar, void delegate(V
   var.dontInit = dontInit;
   if (size) {
     mixin(mustOffset("size", "2"));
-    auto vd = new VarDecl;
-    vd.vars ~= var;
+    auto vd = new VarDecl(var);;
     vd.emitAsm(af);
   }
   {
@@ -116,8 +113,7 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
                           boffs(type, af.currentStackDepth));
   var.initval = ex;
   post = stuple(af, af.checkptStack()) /apply/ (AsmFile af, typeof(af.checkptStack()) forble) { af.restoreCheckptStack(forble); };
-  auto vd = new VarDecl;
-  vd.vars ~= var;
+  auto vd = new VarDecl(var);
   vd.emitAsm(af);
   return var;
 }
@@ -135,23 +131,26 @@ Expr lvize_if_possible(Expr ex, Statement* late_init = null) {
   // because it changes the semantics; specifically, the evaluation point of ex() to the variable declaration point
   // only use lvize() if you are aware of this!
   // NOTE: for this reason, late_init was added
+  // NOTE: problem. if we create a variable declaration here, it may be inserted before a variable declaration possibly currently building,
+  // the initializer being the reason for the lvize(). As a compromise, if late_init is set (and a vardecl isn't really needed), skip the decl.
+  
+  sc.add(var);
+  
   if (late_init) {
     *late_init = new Assignment(var, ex);
     var.dontInit = true;
+    return var; // see above note
   } else {
     var.initval = ex;
   }
   
-  auto decl = new VarDecl;
-  decl.vars ~= var;
-  var.baseOffset = boffs(ex.valueType());
+  auto decl = new VarDecl(var);
   sc.addStatement(decl);
-  sc.add(var);
   return var;
 }
 
 // create temporary if needed
-LValue lvize(Expr ex, Statement* late_init = null) {
+extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null) {
   if (auto lv = fastcast!(LValue) (ex)) return lv;
   if (!namespace().get!(Scope)) {
     logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
@@ -160,6 +159,8 @@ LValue lvize(Expr ex, Statement* late_init = null) {
   return fastcast!(LValue) (lvize_if_possible(ex, late_init));
 }
 
+LValue lvize(Expr ex, Statement* late_init = null) { return ast_vardecl_lvize(ex, late_init); }
+
 import ast.fold;
 Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
   auto fex = foldex(ex);
@@ -167,11 +168,11 @@ Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
   return mkRef(af, fex, post);
 }
 
-import ast.namespace, ast.scopes, tools.compat: find;
+import ast.namespace, ast.scopes, ast.aggregate, tools.compat: find;
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text, vd = new VarDecl;
+  auto t2 = text;
+  auto as = new AggrStatement;
   string name; IType type;
-  vd.configPosition(text);
   bool abortGracefully;
   if (rest(t2, "type", &type)) {
     if (!t2.bjoin(t2.gotValidIdentifier(name), t2.accept(","), {
@@ -202,7 +203,9 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
         }
       }
       var.baseOffset = boffs(var.type);
-      vd.vars ~= var;
+      auto vd = new VarDecl(var);
+      vd.configPosition(text);
+      as.stmts ~= vd;
       namespace().add(var);
     }, false)) {
       if (abortGracefully) return null;
@@ -211,7 +214,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     if (abortGracefully) return null;
     t2.mustAccept(";", "Missed trailing semicolon");
     text = t2;
-    return vd;
+    return as;
   } else return null;
 }
 mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl", "21");
@@ -219,8 +222,7 @@ mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl", "21");
 Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, varname;
   Expr ex;
-  auto vd = new VarDecl;
-  vd.configPosition(text);
+  auto as = new AggrStatement;
   string t3;
   resetError();
   if (!t2.accept("auto")) return null;
@@ -237,14 +239,16 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
     var.initval = ex;
     var.type = ex.valueType();
     var.baseOffset = boffs(var.type);
-    vd.vars ~= var;
+    auto vd = new VarDecl(var);
+    vd.configPosition(text);
+    as.stmts ~= vd;
     namespace().add(var);
     if (t2.accept(";")) break;
     if (t2.accept(",")) continue;
     t2.failparse("Unexpected text in auto expr");
   }
   text = t2;
-  return vd;
+  return as;
 }
 mixin DefaultParser!(gotAutoDecl, "tree.stmt.autodecl", "22");
 
@@ -285,9 +289,8 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("There is a lack of a scope here; trying to define ", name);
   }
   sc.add(var);
-  auto vd = new VarDecl;
+  auto vd = new VarDecl(var);
   vd.configPosition(text);
-  vd.vars ~= var;
   sc.addStatement(vd);
   
   text = t2;

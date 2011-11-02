@@ -493,10 +493,8 @@ void finalizeSysmod(Module mainmod) {
   sc.add(count);
   count.initInit;
   var.initInit;
-  auto decl = new VarDecl;
-  decl.vars ~= var;
-  decl.vars ~= count;
-  sc.addStatement(decl);
+  sc.addStatement(new VarDecl(var));
+  sc.addStatement(new VarDecl(count));
   
   auto backupmod = current_module();
   scope(exit) current_module.set(backupmod);

@@ -63,8 +63,11 @@ class LateType : IType {
     bool isPointerLess() { needMe; return me.isPointerLess(); }
     bool isComplete() { return !!me; } // TODO: ??
     int opEquals(IType it) {
+      auto lt = fastcast!(LateType) (it);
+      if (lt && name == lt.name) return true;
       needMe;
-      return it == me;
+      it = resolveType(it);
+      return it is me || it == me;
     }
     string mangle() { needMe; return me.mangle(); }
     IType proxyType() { needMe; return me; }

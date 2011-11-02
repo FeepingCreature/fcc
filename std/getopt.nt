@@ -1,0 +1,108 @@
+module std.getopt;
+
+import std.string;
+
+static import c.getopt;
+
+struct Option {
+  string shortopt, longopt;
+  bool missing;
+  void delegate(string) callback;
+  void delegate() callback2;
+}
+
+extern(C) int getopt_long(int, char**, char*, c.getopt.option*, int*);
+class Options {
+  Option[auto~] options;
+  string flags;
+  void addOption(string flag, string longopt, void delegate() cb, void delegate(string) cb2, bool required) {
+    Option op;
+    op.shortopt = flag;
+    op.longopt = longopt;
+    op.callback2 = cb;
+    op.callback = cb2;
+    op.missing = required;
+    options ~= op;
+    flags ~= flag;
+    if (cb2) { flags ~= ":"; }
+  }
+  void addShort(string code, void delegate() callback, bool required = false) {
+    addOption(code, string:null, callback, void delegate(string):null, required);
+  }
+  void addShort(string code, void delegate(string) callback, bool required = false) {
+    addOption(code, string:null, void delegate():null, callback, required);
+  }
+  void addLong(string code, string shortcode, void delegate() callback, bool required = false) {
+    addOption(shortcode, code, callback, void delegate(string):null, required);
+  }
+  void addLong(string code, string shortcode, void delegate(string) callback, bool required = false) {
+    addOption(shortcode, code, void delegate():null, callback, required);
+  }
+  string[] process(string[] args) {
+    int argc = args.length;
+    char** argv = new char*[] argc #.ptr;
+    for (int i, string arg) <- zip(0..-1, args)
+      argv[i] = toStringz arg;
+    
+    c.getopt.option[auto~] options;
+    for (int count, Option opt) <- zip(0..-1, this.options) {
+      if (opt.longopt) {
+        c.getopt.option longop;
+        longop.(name,                  has_arg,                                                            flag,      val) =
+               (toStringz opt.longopt, [c.getopt.no_argument, c.getopt.required_argument][!!opt.callback], int*:null, count);
+        options ~= longop;
+      }
+    }
+    c.getopt.option nullop;
+    options ~= nullop;
+    bool running = true;
+    while (running) {
+      int index;
+      auto res = getopt_long (argc, argv, toStringz flags, options.ptr, &index);
+      if (res == -1) running = false;
+      else::
+      auto arg = CToString c.getopt.optarg;
+      bool matched;
+      if (res >= this.options.length) {
+        for int i <- 0..this.options.length {
+          alias opt = this.options[i];
+          if (opt.shortopt == [char:short:res]) {
+            if (opt.callback) { opt.callback(arg); }
+            else if (arg) raise-error new Error "-$(opt.shortopt) does not take an argument";
+            else opt.callback2();
+            matched = true;
+            opt.missing = false;
+          }
+        }
+      }
+      if (res == "?") raise-error new Error "invalid options";
+      if (0 <= res < this.options.length) {
+        alias opt = this.options[res];
+        if (opt.callback) { opt.callback(arg); }
+        else if (arg) raise-error new Error "--$(opt.longopt) does not take an argument";
+        else opt.callback2();
+        opt.missing = false;
+        matched = true;
+      }
+      if (!matched) {
+        writeln "$index: getopt_long -> $res ($(CToString c.getopt.optarg))";
+        raise-error new Error "mew";
+      }
+    }
+    for int i <- 0..this.options.length {
+      alias opt = this.options[i];
+      if (opt.missing) {
+        if (opt.longopt) raise-error new Error "--$(opt.longopt) required, but missing";
+        else raise-error new Error "-$(opt.shortopt) required, but missing";
+      }
+    }
+    int base = c.getopt.optind;
+    string[auto~] newargs;
+    newargs ~= CToString argv[0];
+    while (base < argc) {
+      newargs ~= CToString argv[base];
+      base++;
+    }
+    return newargs[];
+  }
+}

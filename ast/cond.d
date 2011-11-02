@@ -21,11 +21,9 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   assert(!namespace().lookup(hdlmarker));
   auto hdlvar = new Variable(hdltype, hdlmarker, boffs(hdltype));
   hdlvar.initInit;
-  auto decl = new VarDecl;
-  decl.vars ~= hdlvar;
   auto csc = fastcast!(Scope)~ namespace();
   assert(!!csc);
-  csc.addStatement(decl);
+  csc.addStatement(new VarDecl(hdlvar));
   csc.add(hdlvar);
   auto nf = new NestedFunction(csc), mod = current_module();
   New(nf.type);
@@ -49,9 +47,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
     
     auto objvar = new Variable(it, null, boffs(it));
     objvar.initval = reinterpret_cast(it, fastcast!(Expr)~ nf.lookup("_obj", true));
-    auto decl2 = new VarDecl;
-    decl2.vars ~= objvar;
-    sc.addStatement(decl2);
+    sc.addStatement(new VarDecl(objvar));
     sc.add(objvar);
     {
       auto ea = new ExprAlias(objvar, pname);
@@ -116,11 +112,10 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   IType cmtype = fastcast!(IType)~ sysmod.lookup("_CondMarker");
   auto cmvar = new Variable(cmtype, null, boffs(cmtype));
   cmvar.initInit;
-  auto decl = new VarDecl;
-  decl.vars ~= cmvar;
+  
   auto csc = fastcast!(Scope)~ namespace();
   assert(!!csc);
-  csc.addStatement(decl);
+  csc.addStatement(new VarDecl(cmvar));
   csc.add(cmvar);
   {
     auto setup_st =

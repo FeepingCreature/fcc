@@ -2,16 +2,6 @@ module parseBase;
 
 import casts;
 
-string mystripl(string s) {
-  while (s.length && (
-    s[0] == ' '  || s[0] == '\t' ||
-    s[0] == '\n' || s[0] == '\r'
-  )) {
-    s = s[1 .. $];
-  }
-  return s;
-}
-
 int[int] accesses;
 
 char takech(ref string s, char deflt) {

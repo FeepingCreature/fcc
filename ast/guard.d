@@ -49,9 +49,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     {
       auto gr = new Variable(grtype, null, boffs(grtype));
       gr.initInit;
-      auto decl = new VarDecl;
-      decl.vars ~= gr;
-      sc.addStatement(decl);
+      sc.addStatement(new VarDecl(gr));
       auto sl = namespace().get!(ScopeLike);
       namespace().add(gr);
       {

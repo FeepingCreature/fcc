@@ -14,14 +14,16 @@ void main() {
   writeln("------");
   auto squares = [for k <- 0..10: k*k];
   writeln("$(squares.eval)");
-  while auto line <- zip (0..-1, splitAt("\n", castIter!string readfile open "parsers.txt"))
+  while auto line <- zip (0..-1, splitAt(castIter!string readfile open "parsers.txt", "\n"))
     writeln "$(line[0]): $(line[1])";
   auto foo = new int[] 4;
   foo[0] = 1000;
   writeln "$(byte[]:foo)";
   auto sock = new Socket;
-  sock.open tcpAddress ("google.de", 80);
-  sock.send void[]:"GET / HTTP/1.0\r\n\r\n";
-  auto iter2 = splitAt ("\r\n", castIter!string readDg &sock.recv);
+  sock.open new TcpAddress ("www.google.de", 80);
+  sock.send byte[]:"GET / HTTP/1.0\r\n";
+  sock.send byte[]:"Host: www.google.de\r\n";
+  sock.send byte[]:"\r\n";
+  auto iter2 = [for part <- splitAt (castIter!string readDg &sock.recv, "\r\n"): part.dup];
   writeln "$(iter2.eval)";
 }
