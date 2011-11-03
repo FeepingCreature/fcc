@@ -256,7 +256,7 @@ class ShortAsByte : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
   override {
-    IType valueType() { return Single!(Char); }
+    IType valueType() { return Single!(Byte); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("1"));
       ex.emitAsm(af);

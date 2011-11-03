@@ -65,7 +65,7 @@ void initBoehm(bool debugMode = false) {
   GC_add_roots(_esi, _esi + tls_size); // remind me why I need to do this
   auto oldDg = onThreadCreation;
   onThreadCreation = new delegate void(void* stackbase) {
-    if (oldDg) { oldDg(stackbase); }
     register_thread(stackbase);
+    if (oldDg) { oldDg(stackbase); }
   };
 }

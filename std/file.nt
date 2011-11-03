@@ -34,10 +34,10 @@ platform(i686-mingw32) {
   alias tweak-mode = O_BINARY;
 }
 
-int open(string file, int read-mode = read-mode) {
+int open(string file, int read-mode = read-mode, mode_t perms = 0) {
   auto ptr = toStringz(file);
   onExit mem.free(ptr);
-  return C_open(ptr, read-mode | tweak-mode);
+  return C_open(ptr, read-mode | tweak-mode, perms);
 }
 
 ubyte[] readAll(string file) { return join readfile open file; } // God I love this line so hard.
@@ -64,7 +64,7 @@ void delegate(byte[]) writefile(int _hdl) using new writer {
 }
 
 void writeAll(string file, byte[] data) using new writer {
-  hdl = file.open (O_RDWR | O_CREAT);
+  hdl = file.open (O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
   step data;
   close;
 }

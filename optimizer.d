@@ -1386,12 +1386,22 @@ restart:
       }
     });
     $T t2 = $0;
-    if (info($1).growsStack)   info(t2).fixupStack( info($1).opSize());
-    if (info($1).shrinksStack) info(t2).fixupStack(-info($1).opSize());
-    if ($0.to == info($1).outOp())
-      $SUBST(t);
-    else
-      $SUBST(t, t2);
+    bool allow = true;
+    if (info($1).growsStack)   {
+      info(t2).fixupStack( info($1).opSize());
+    }
+    if (info($1).shrinksStack) {
+      if (!info(t2).couldFixup(-info($1).opSize()))
+        allow = false;
+      else
+        info(t2).fixupStack(-info($1).opSize());
+    }
+    if (allow) {
+      if ($0.to == info($1).outOp())
+        $SUBST(t);
+      else
+        $SUBST(t, t2);
+    }
   `));
   // moved the sfree up too far!
   mixin(opt("load_address_into_sourcer", `^LoadAddress, ^SFree, *:
