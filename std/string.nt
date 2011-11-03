@@ -187,7 +187,7 @@ reassign string toLower(string s) {
   // hilariously non-utf aware
   // TODO!
   char[auto~] res;
-  for auto ch <- s if "A" <= ch <= "Z" res ~= char:short:(ch - "A" + "a"); else res ~= ch;
+  for auto ch <- s if "A" <= ch <= "Z" res ~= char:byte:(ch - "A" + "a"); else res ~= ch;
   return res[];
 }
 

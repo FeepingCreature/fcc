@@ -66,7 +66,7 @@ class Options {
       if (res >= this.options.length) {
         for int i <- 0..this.options.length {
           alias opt = this.options[i];
-          if (opt.shortopt == [char:short:res]) {
+          if (opt.shortopt == [char:byte:res]) {
             if (opt.callback) { opt.callback(arg); }
             else if (arg) raise-error new Error "-$(opt.shortopt) does not take an argument";
             else opt.callback2();
