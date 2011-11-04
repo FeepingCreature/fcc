@@ -315,6 +315,46 @@ bool sectionStartsWith(string section, string rule) {
   return match.length && match[0] == '.';
 }
 
+string matchrule_static(string rules) {
+  // string res = "false /apply/ delegate bool(ref bool hit, string text) {";
+  string res;
+  int i;
+  int falses;
+  string preparams;
+  while (rules.length) {
+    string passlabel = "pass"~ctToString(i);
+    string flagname  = "flag"~ctToString(i);
+    i++;
+    auto rule = ctSlice(rules, " ");
+    auto first = rule[0], rest = rule[1 .. $];
+    bool smaller, greater, equal, before, after;
+    switch (first) {
+      case '<': smaller = true; rule = rest; break;
+      case '>': greater = true; rule = rest; break;
+      case '=': equal = true; rule = rest; break;
+      case '^': before = true; preparams ~= "bool "~flagname~", "; falses ++; rule = rest; break;
+      case '_': after = true; preparams ~= "bool "~flagname~", "; falses ++; rule = rest; break;
+      default: break;
+    }
+    if (!smaller && !greater && !equal && !before && !after)
+      smaller = equal = true; // default (see below)
+    if (smaller) res ~= "if (text.sectionStartsWith(\""~rule~"\")) goto "~passlabel~";\n";
+    if (equal)   res ~= "if (text == \""~rule~"\") goto "~passlabel~";\n";
+    if (greater) res ~= "if (!text.sectionStartsWith(\""~rule~"\")) goto "~passlabel~";\n";
+    if (before)  res ~= "if (text.sectionStartsWith(\""~rule~"\")) hit = true; if (!hit) goto "~passlabel~";\n";
+    if (after)   res ~= "if (text.sectionStartsWith(\""~rule~"\")) hit = true; else if (hit) goto "~passlabel~";\n";
+    res ~= "return false; "~passlabel~": \n";
+  }
+  string falsestr;
+  if (falses == 1) falsestr = "false /apply/ ";
+  else if (falses > 1) {
+    falsestr = "false";
+    for (int k = 1; k < falses; ++k) falsestr ~= ", false";
+    falsestr = "stuple("~falsestr~") /apply/ ";
+  }
+  return falsestr ~ "delegate bool("~preparams~"string text) { \n" ~ res ~ "return true; \n}";
+}
+
 bool delegate(string) matchrule(string rules, out int id) {
   bool delegate(string) res;
   auto rules_backup = rules;
