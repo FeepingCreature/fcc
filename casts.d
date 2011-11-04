@@ -104,10 +104,10 @@ uint internal_hash(void* p) {
 }
 
 // int is okay here; we don't expect variation in the upper bits
-int hash_dyn(void* p) {
+int hash(void* p) {
   foreach_reverse (i, bogus; Repeat!(void, cachesize))
     if (pcache[i] == p) return rescache[i];
-  int res = internal_hash(p) % idtable.length;
+  int res = internal_hash(p);
   foreach (i, bogus; Repeat!(void, cachesize - 1)) {
     pcache[i] = pcache[i+1];
     rescache[i] = rescache[i+1];
@@ -116,22 +116,9 @@ int hash_dyn(void* p) {
   return res;
 }
 
-// copypasted to make profiling slightly easier. only difference should be idtable.length
-// TODO: comment in for release builds
-/*int hash_stat(void* p) {
-  foreach_reverse (i, bogus; Repeat!(void, cachesize))
-    if (pcache[i] == p) return rescache[i];
-  int res = cast(uint) (((cast(int) cast(size_t) p >> 3) ^ xor) * knuthMagic) % predIdtableLength;
-  foreach (i, bogus; Repeat!(void, cachesize - 1)) {
-    pcache[i] = pcache[i+1];
-    rescache[i] = rescache[i+1];
-  }
-  pcache[$-1] = p; rescache[$-1] = res;
-  return res;
-}*/
-alias hash_dyn hash_stat;
-
 import tools.mersenne;
+
+extern(C) void* memset(void*, int, size_t);
 
 void initCastTable() {
   ClassInfo[] ci;
@@ -143,29 +130,30 @@ void initCastTable() {
     }
     ci ~= cl;
   }
-  auto precache = new uint[ci.length];
-  foreach (int id, entry; ci)
-    precache[id] = internal_hash(cast(void*) entry);
-  
   int bestXOR, bestXORSize = int.max;
   auto rng = new Mersenne(23);
+  auto backing_pretable = new bool[1024];
+  bool[] pretable;
+  void resize_pretable(int to) {
+    while (to >= backing_pretable.length) backing_pretable = new typeof(pretable[0])[backing_pretable.length * 2];
+    pretable = backing_pretable[0..to];
+    memset(pretable.ptr, false, pretable.length);
+  }
   for (int i = 0; i < 512; ++i) {
     // lol
     xor = rng();
     auto cursize = quicklist.length;
     outer:
-    idtable.length = cursize;
-    idtable[] = Init!(Stuple!(void*, int));
+    resize_pretable(cursize);
     resetHash();
     foreach (int id, entry; ci) {
-      // auto pos = hash_dyn(cast(void*) entry);
-      auto pos = precache[id] % idtable.length;
-      if (idtable[pos]._0) {
+      auto pos = hash(cast(void*) entry) % pretable.length;
+      if (pretable[pos]) {
         cursize ++;
         if (cursize >= bestXORSize) break;
         goto outer;
       }
-      idtable[pos]._0 = cast(void*) entry;
+      pretable[pos] = true;
     }
     if (cursize < bestXORSize) {
       bestXORSize = cursize;
@@ -178,18 +166,17 @@ void initCastTable() {
     logln("please update pred const to ", idtable.length);
     asm { int 3; }
   }*/
-  idtable[] = Init!(Stuple!(void*, int));
+  memset(idtable.ptr, 0, idtable.length * typeof(idtable[0]).sizeof);
   resetHash();
   foreach (int i, entry; ci) {
-    auto pos = hash_stat(cast(void*) entry);
-    idtable[pos] = stuple(cast(void*) entry, i);
+    idtable[hash(cast(void*) entry) % $] = stuple(cast(void*) entry, i);
   }
 }
 
 int getId(ClassInfo ci) {
   auto cp = cast(void*) ci;
   // we know it's a valid index
-  auto entry = idtable.ptr[hash_stat(cp)];
+  auto entry = idtable.ptr[hash(cp) % idtable.length];
   if (entry._0 == cp) return entry._1;
   return -1;
 }

@@ -215,20 +215,27 @@ static this() {
 Expr mkTupleExpr(Expr[] exprs...) {
   bool allMValues = true;
   MValue[] arr;
-  foreach (ref ex; exprs) {
-    ex = foldex(ex);
-    if (!fastcast!(MValue) (ex)) {
-      auto lv = fastcast!(LValue)~ ex;
-      if (!lv) {
-        allMValues = false;
-        break;
-      }
-      arr ~= new LValueAsMValue(lv);
-    } else arr ~= fastcast!(MValue)~ ex;
+  MValue toMValue(Expr ex) {
+    if (auto mv = fastcast!(MValue) (ex)) return mv;
+    if (auto lv = fastcast!(LValue) (ex)) return new LValueAsMValue(lv);
+    return null;
   }
-  auto vt = mkTupleValueExpr(exprs);
-  if (!allMValues) return vt;
-  else return new RefTuple(arr);
+  // first check if all are mvalues even without the foldex
+  foreach (ex; exprs) {
+    if (auto mv = toMValue (ex)) arr ~= mv;
+    else { allMValues = false; break; }
+  }
+  if (!allMValues) {
+    arr.length = 0;
+    allMValues = true;
+    foreach (ref ex; exprs) {
+      ex = foldex(ex);
+      if (auto mv = toMValue (ex)) arr ~= mv;
+      else { allMValues = false; break; }
+    }
+  }
+  if (allMValues) return new RefTuple(arr);
+  else return mkTupleValueExpr(exprs);
 }
 
 /// 4.
