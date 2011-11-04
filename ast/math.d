@@ -59,9 +59,9 @@ static this() {
       if (fc.fun.extern_c && fc.fun.name == "sqrtf") {
         assert(fc.params.length == 1);
         auto fe = fc.params[0];
-        if (!gotImplicitCast(fe, (Expr ex) { return test(fastcast!(FloatExpr)~ foldex(ex)); }))
+        if (!gotImplicitCast(fe, (Expr ex) { return test(fastcast!(FloatExpr) (foldex(ex))); }))
           return null;
-        return new FloatExpr(sqrtf((fastcast!(FloatExpr)~ foldex(fe)).f));
+        return new FloatExpr(sqrtf((fastcast!(FloatExpr) (foldex(fe))).f));
       }
     }
     return null;
@@ -277,19 +277,20 @@ static this() {
     return new DoubleAsFloat(ex);
   };
   implicits ~= delegate Expr(Expr ex) {
-    auto dex = fastcast!(DoubleExpr)~ foldex(ex);
+    if (Single!(Double) != ex.valueType()) return null;
+    auto dex = fastcast!(DoubleExpr) (foldex(ex));
     if (!dex) return null;
     return new FloatExpr(cast(float) dex.d);
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != ex.valueType()) return null;
-    auto ie = fastcast!(IntExpr)~ foldex(ex);
+    auto ie = fastcast!(IntExpr) (foldex(ex));
     if (!ie || ie.num > 65535 || ie.num < -32767) return null;
     return new IntLiteralAsShort(ie);
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != ex.valueType()) return null;
-    auto ie = fastcast!(IntExpr)~ foldex(ex);
+    auto ie = fastcast!(IntExpr) (foldex(ex));
     if (!ie || ie.num > 255 || ie.num < -127) return null;
     return new IntLiteralAsByte(ie);
   };
@@ -406,13 +407,13 @@ class AsmIntBinopExpr : BinopExpr {
         }
       } else {
         string op1, op2;
-        if (auto c2 = fastcast!(IntExpr)~ foldex(e2)) {
+        if (auto c2 = fastcast!(IntExpr) (e2)) {
           op2 = Format("$", c2.num);
         } else {
           op2 = "%ecx";
           e2.emitAsm(af);
         }
-        if (auto c1 = fastcast!(IntExpr)~ foldex(e1)) {
+        if (auto c1 = fastcast!(IntExpr) (e1)) {
           op1 = Format("$", c1.num);
           af.mmove4(op1, "%edx");
         } else {

@@ -54,7 +54,7 @@ Stuple!(float, string) lookupProgress(string text) {
     // yes, >. Not >=. Think about it.
     if (text.ptr < value.ptr || text.ptr > value.ptr + value.length)
       continue;
-    return stuple((text.ptr - value.ptr) * 1f / value.length, key.dup);
+    return stuple((text.ptr - value.ptr) * 1f / value.length, key);
   }
   return stuple(0f, cast(string) null);
 }

@@ -117,9 +117,9 @@ import tools.base: Stuple, stuple;
 
 // TODO: unicode
 bool isNormal(wchar c) {
-  return c in Range['a'..'z'].endIncl ||
-         c in Range['A'..'Z'].endIncl ||
-         c in Range['0'..'9'].endIncl ||
+  return (c >= 'a' && c <= 'z') ||
+         (c >= 'A' && c <= 'Z') ||
+         (c >= '0' && c <= '9') ||
          "_µ".find(c) != -1;
 }
 

@@ -45,8 +45,9 @@ static this() {
       t2.failparse("Need foldable constant for static array, not ", len);
   };
   implicits ~= delegate Expr(Expr ex) {
+    if (!fastcast!(StaticArray) (resolveType(ex.valueType()))) return null;
     ex = foldex(ex);
-    if (!fastcast!(StaticArray) (resolveType(ex.valueType())) || !fastcast!(CValue) (ex))
+    if (!fastcast!(CValue) (ex))
       return null;
     return getSAPtr(ex);
   };
