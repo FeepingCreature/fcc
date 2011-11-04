@@ -21,7 +21,7 @@ mixin(expandImport(`ast.[
 
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
-// from ast.namespace
+// from ast.modules_parse
 mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
 
 static this() {
@@ -121,14 +121,14 @@ extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
 
 // from ast.static_arrays
 static this() {
-  implicits ~= delegate Expr(Expr ex) {
+  /*implicits ~= delegate Expr(Expr ex) {
     auto sa = fastcast!(StaticArray) (resolveType(ex.valueType()));
     if (!sa) return null;
     IType[] itlist;
     for (int i = 0; i < sa.length; ++i)
       itlist ~= sa.elemType;
     return reinterpret_cast(mkTuple(itlist), ex);
-  };
+  };*/
 }
 
 extern(C)

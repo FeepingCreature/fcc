@@ -113,9 +113,11 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.gotIdentifier(name, true)) {
     retry:
     if (auto res = ns.lookup(name)) {
-      if (auto ty = fastcast!(IType) (res))
+      if (auto ty = fastcast!(IType) (res)) {
+        if (t2.accept(":")) return null; // HACK: oops, was a cast
         if (!fastcast!(ExprLikeThingy)(resolveType(ty)))
           return null; // Positively NOT an expr, and not a thingy either.
+      }
       if (gotDot) if (!text.accept("."))
         text.failparse("No dot?! ");
       if (!text.accept(name))

@@ -113,7 +113,7 @@ Object gotTypesEqual(ref string text, ParseCb cont, ParseCb rest) {
   }
   return fastcast!(Object) (new ExprWrap(True));
 }
-mixin DefaultParser!(gotTypesEqual, "cond.types-equal", "734", "types-equal");
+mixin DefaultParser!(gotTypesEqual, "cond.types-equal", "81", "types-equal");
 
 import ast.conditionals;
 Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
@@ -129,4 +129,4 @@ Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
   else res = False;
   return fastcast!(Object) (new ExprWrap(res));
 }
-mixin DefaultParser!(gotTypeIsTuple, "cond.type-is-tuple", "7341", "type-is-tuple");
+mixin DefaultParser!(gotTypeIsTuple, "cond.type-is-tuple", "82", "type-is-tuple");

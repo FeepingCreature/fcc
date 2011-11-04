@@ -112,7 +112,7 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return fastcast!(Object)~ reinterpret_cast(dest, ex);
 }
-mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default", "240801");
+mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default", "241801");
 
 // IType parameter is just advisory!
 // Functions may ignore it.
@@ -144,7 +144,7 @@ Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
   if (res) text = t2;
   return fastcast!(Object)~ res;
 }
-mixin DefaultParser!(gotConversionCast, "tree.expr.cast_convert", "240802");
+mixin DefaultParser!(gotConversionCast, "tree.expr.cast_convert", "241802");
 
 Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -161,7 +161,7 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return fastcast!(Object)~ reinterpret_cast(dest, ex);
 }
-mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "2408");
+mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "2418");
 
 import tools.base: toDg;
 

@@ -99,11 +99,15 @@ void*[cachesize] pcache; int[cachesize] rescache;
 
 void resetHash() { pcache[] = Init!(void*); }
 
+uint internal_hash(void* p) {
+  return cast(uint) (((cast(int) ((cast(size_t) p) >> 3)) ^ xor) * knuthMagic);
+}
+
 // int is okay here; we don't expect variation in the upper bits
 int hash_dyn(void* p) {
   foreach_reverse (i, bogus; Repeat!(void, cachesize))
     if (pcache[i] == p) return rescache[i];
-  int res = cast(uint) (((cast(int) cast(size_t) p >> 3) ^ xor) * knuthMagic) % idtable.length;
+  int res = internal_hash(p) % idtable.length;
   foreach (i, bogus; Repeat!(void, cachesize - 1)) {
     pcache[i] = pcache[i+1];
     rescache[i] = rescache[i+1];
@@ -139,6 +143,10 @@ void initCastTable() {
     }
     ci ~= cl;
   }
+  auto precache = new uint[ci.length];
+  foreach (int id, entry; ci)
+    precache[id] = internal_hash(cast(void*) entry);
+  
   int bestXOR, bestXORSize = int.max;
   auto rng = new Mersenne(23);
   for (int i = 0; i < 512; ++i) {
@@ -150,7 +158,8 @@ void initCastTable() {
     idtable[] = Init!(Stuple!(void*, int));
     resetHash();
     foreach (int id, entry; ci) {
-      auto pos = hash_dyn(cast(void*) entry);
+      // auto pos = hash_dyn(cast(void*) entry);
+      auto pos = precache[id] % idtable.length;
       if (idtable[pos]._0) {
         cursize ++;
         if (cursize >= bestXORSize) break;

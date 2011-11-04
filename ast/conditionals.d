@@ -239,7 +239,7 @@ Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return new NegCond(c);
 }
-mixin DefaultParser!(gotNegate, "cond.negate", "72", "!");
+mixin DefaultParser!(gotNegate, "cond.negate", "6", "!");
 
 Cond compare(string op, Expr ex1, Expr ex2) {
   bool not, smaller, equal, greater;

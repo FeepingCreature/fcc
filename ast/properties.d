@@ -26,4 +26,4 @@ Object gotLVize(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return fastcast!(Object) (lvize(ex));
 }
-mixin DefaultParser!(gotLVize, "tree.expr.lvize", "2409", "lvize");
+mixin DefaultParser!(gotLVize, "tree.expr.lvize", "24071", "lvize");
