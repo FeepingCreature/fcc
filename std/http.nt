@@ -1,3 +1,5 @@
+/* Title: std.http
+Simple HTTP processing */
 module std.http;
 
 import std.string, std.socket;
@@ -7,6 +9,12 @@ class DownloadError : Error {
 }
 
 import c.stdio;
+/* Function: download
+Download a site. HTTP/1.0, very WIP.
+
+Parameters:
+url - URL
+onRedirect - Called when the request is redirected */
 byte[] download(string url, void delegate(string) onRedirect = null) {
   auto original-url = url;
   {
@@ -39,6 +47,8 @@ byte[] download(string url, void delegate(string) onRedirect = null) {
 }
 
 (byte[], string)[auto~] cache;
+/* Function: downloadCached
+Like <download>, but cached. Self-explanatory. */
 byte[] downloadCached(string url, void delegate(string) onRedirect = null) {
   for auto tup <- cache
     if tup[1] == url return tup[0];
@@ -48,6 +58,8 @@ byte[] downloadCached(string url, void delegate(string) onRedirect = null) {
   return res;
 }
 
+/*Function: followLink
+Returns the combined URL of the two parameters. For instance, if *from* is "google.de/webhp" and *to* is "/search", the result is "google.de/search".*/
 string followLink(string from, string to) {
   if to.startsWith "http://" return to;
   if !from.startsWith "http://" raise-error new Error "'$from' is not a valid HTTP URL! ";

@@ -1,7 +1,12 @@
+/*Title: std.file
+File I/O*/
 module std.file;
 
 import c.stdio, c.fcntl, c.unistd;
 
+/*Template: readfile
+  Returns an iterator over byte[] that yields incremental chunks from a file.
+*/
 template readfile(T) {
   class reader : Iterator!byte[] {
     int fd;
@@ -34,12 +39,18 @@ platform(i686-mingw32) {
   alias tweak-mode = O_BINARY;
 }
 
+/*
+  Function: open
+  Wrapper around C's open()
+*/
 int open(string file, int read-mode = read-mode, mode_t perms = 0) {
   auto ptr = toStringz(file);
   onExit mem.free(ptr);
   return C_open(ptr, read-mode | tweak-mode, perms);
 }
 
+/*Function: readAll
+  Completely reads a file from the drive. */
 ubyte[] readAll(string file) { return join readfile open file; } // God I love this line so hard.
 
 class WriterError : Error {
@@ -58,11 +69,23 @@ class writer {
   void close() { .close hdl; }
 }
 
+/*Function: writefile
+Returns a delegate that, when called, will write its parameter to a handle.
+
+Parameters:
+  _hdl - a file handle
+*/
 void delegate(byte[]) writefile(int _hdl) using new writer {
   hdl = _hdl;
   return &step;
 }
 
+/*Function: writeAll
+Writes data to a file.
+
+Parameters:
+  string file - the filename
+  byte[] data - the data to write*/
 void writeAll(string file, byte[] data) using new writer {
   hdl = file.open (O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
   step data;
@@ -71,6 +94,8 @@ void writeAll(string file, byte[] data) using new writer {
 
 alias c_getcwd = getcwd;
 
+/*Function: getcwd
+Wraps around the C getcwd function*/
 string getcwd() {
   auto buffer = new char[] 128;
   while true {
@@ -83,6 +108,8 @@ string getcwd() {
   }
 }
 
+/*Function: basedir
+Returns the directory component of its argument*/
 string basedir(string file) {
   if file.endsWith "/" return file;
   while file.length && file[$-1] != "/"[0]
@@ -91,6 +118,8 @@ string basedir(string file) {
 }
 
 // in path1, access path2
+/*Function: sub
+Given two paths, returns the second path as seen from the first path. */
 string sub(string path1, path2) {
   if path2.startsWith "/" return path2;
   if path1.endsWith "/" return path1 ~ path2;

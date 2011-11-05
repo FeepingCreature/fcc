@@ -1,5 +1,9 @@
+/*Title: std.util
+Iterator-related helper functions*/
 module std.util;
 
+/*Template: iterOnce
+For any value, forms an iterator that yields only that value, exactly once. */
 template iterOnce(T) {
   class one : Iterator!T {
     bool done;
@@ -20,6 +24,8 @@ template iteratorType(T) {
   alias iteratorType = type-of value-of!T.iterator;
 }
 
+/*Template: loop
+Loops the argument infinitely. Argument must have value semantics! */
 template loop(T) {
   class loopclass {
     iteratorType!T running, iter;
@@ -48,6 +54,9 @@ template UnreliableIterator(T) {
   }
 }
 
+/*Template: FeedIterator
+A buffer iterator. Yields elements that have been put into it with write(T). 
+*/
 template FeedIterator(T) {
   class FeedIterator : UnreliableIterator!T {
     T[auto~] source;
@@ -65,5 +74,19 @@ template FeedIterator(T) {
       
       return true;
     }
+  }
+}
+
+/*Template: take
+Takes a number of elements from an iterator and returns them as an array. */
+template take(T) {
+  auto take(T t) {
+    alias Elem = type-of-elem t[0];
+    Elem[auto~] res;
+    for 0..t[1] {
+      if auto val <- t[0] res ~= val;
+      else raise-error new Error "Not enough elements available to take $(t[1])";
+    }
+    return res[];
   }
 }

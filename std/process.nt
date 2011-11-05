@@ -1,3 +1,5 @@
+/*Title: std.process
+Create and interact with processes*/
 module std.process;
 
 import c.poll, c.stdlib, c.unistd;
@@ -106,6 +108,16 @@ class ReadbackStream : Iterator!string {
   }
 }
 
+/*Function: readback
+Efficiently execute a command, reading its standard output until it terminates.
+
+Arguments:
+  cmd - the command
+  args - parameters
+  data - Used as the standard input for the command
+
+Returns:
+  an iterator that yields the output of the command as it executs. */
 ReadbackStream readback(string cmd, string[] args, Iterator!string data) {
   return new ReadbackStream (cmd, args, data);
 }

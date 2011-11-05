@@ -1,3 +1,5 @@
+/*Title: std.string
+String handling functions*/
 module std.string;
 
 struct FindResult {
@@ -6,6 +8,10 @@ struct FindResult {
   alias implicit-cast-2 = pos != -1;
 }
 
+/*Function: find
+Searches for a substring.
+
+Returns: a value that casts to true if result was found, and to int to give the position where it was found.*/
 FindResult find(string text, string match) {
   for (int i = 0; i <= text.length - match.length; ++i) {
     if (text[i .. i+match.length] == match) return FindResult:i;
@@ -13,6 +19,8 @@ FindResult find(string text, string match) {
   return FindResult:-1;
 }
 
+/*Function: rfind
+Like find, but searches from the back*/
 FindResult rfind(string text, string match) {
   for (int i = text.length - match.length; i >= 0; --i) {
     if (text[i .. i+match.length] == match) return FindResult:i;
@@ -20,6 +28,8 @@ FindResult rfind(string text, string match) {
   return FindResult:-1;
 }
 
+/*Function: startsWith
+If *s* starts with *m*, returns the rest of *s*; otherwise, returns null. */
 reassign string startsWith(string s, string m) {
   if s.length < m.length return null;
   if (s[0 .. m.length] != m)
@@ -27,6 +37,8 @@ reassign string startsWith(string s, string m) {
   return s[m.length .. s.length];
 }
 
+/*Function: endsWith
+If *s* ends with *m*, returns the start of *s* up to *m*; otherwise, returns null. */
 reassign string endsWith(string s, string m) {
   if s.length < m.length return null;
   if (s[$-m.length .. $] != m)
@@ -34,6 +46,9 @@ reassign string endsWith(string s, string m) {
   return s[0 .. $-m.length];
 }
 
+/*Function: between
+If *s* contains *from*, and after that, *to*, return the string between *from* and *to* in *s*.
+Otherwise, return null.*/
 reassign string between(string s, string from, string to) {
   int pos1;
   if (from.length) pos1 = find(s, from);
@@ -48,7 +63,8 @@ reassign string between(string s, string from, string to) {
   return s;
 }
 
-// seek to "to" first
+/*Function: between_r
+Like between, but searches for *to* first, then backwards to *from*. */
 reassign string between_r(string s, string from, string to) {
   int pos2 = s.length;
   if (to.length) pos2 = find(s, to);
@@ -63,6 +79,8 @@ reassign string between_r(string s, string from, string to) {
   return s;
 }
 
+/*Template: betweens
+Yields all parts of the first argument that lie between the second and third arguments. */
 template betweens(T) {
   class betweenIterator : Iterator!string {
     string source, from, to;
@@ -93,6 +111,8 @@ template betweens(T) {
   }
 }
 
+/*Template: join
+Evaluates and concatenates the argument. */
 template join(T) {
   auto join(T t) {
     static if (type-is-tuple T) {
@@ -139,6 +159,8 @@ class SplitIterator : Iterator!string {
   }
 }
 
+/*Function: splitAt
+Splits an iterator at a given marker, yielding the pieces in-between. */
 auto splitAt(Iterator!string iter, string marker) {
   auto res = new SplitIterator;
   res.sup = iter;
@@ -146,6 +168,8 @@ auto splitAt(Iterator!string iter, string marker) {
   return res;
 }
 
+/*Function: toStringz
+Converts a Neat string to a C null-terminated char*. */
 char* toStringz(string s) {
   char ch;
   auto s2 = new char[](s.length + 1);
@@ -154,6 +178,8 @@ char* toStringz(string s) {
   return s2.ptr;
 }
 
+/*Function: CToString
+Converts a C null-terminated char* to a Neat string. */
 string CToString(char* c) {
   if !c return string:(null x 2);
   char* cur = c;
@@ -171,12 +197,14 @@ import c.stdlib;
 alias c_atoi = atoi;
 alias c_atof = atof;
 
+/*Function: atoi*/
 int atoi(string s) {
   auto p = toStringz(s);
   onExit mem.free(p);
   return c_atoi(p);
 }
 
+/*Function: atof*/
 float atof(string s) {
   char* p = toStringz(s);
   onExit mem.free(p);
@@ -209,7 +237,8 @@ template castIter(T) {
   }
 }
 
-// before, after
+/*Function: slice
+Slices off the start of *s* up to *m*. Returns a tuple of "*s* before *m*", "*s* after *m*". */
 (string, string) slice(string s, string m, bool yieldNull = true) {
   auto pos = find(s, m);
   if (!pos) {
@@ -220,11 +249,15 @@ template castIter(T) {
   return (s[0 .. pos], s[pos + m.length .. s.length]);
 }
 
+/*Function: slice
+Slices off the start of *sp* up to *marker*, returning the text before *marker* and changing *sp* to the text after *marker*.*/
 string slice(string* sp, string marker, bool yieldNull = true) {
   (string res, *sp) = slice(*sp, marker, yieldNull);
   return res;
 }
 
+/*Function: strip
+Removes leading and tailing newlines, carriage returns, tabs and spaces */
 reassign string strip(string s) {
   alias first = s[0];
   alias last = s[s.length - 1];
@@ -236,6 +269,8 @@ reassign string strip(string s) {
 }
 
 import std.util;
+/*Function: split
+Splits a string at a marker. */
 string[] split(string s, string marker) {
   string[auto~] res;
   while (s.length) {

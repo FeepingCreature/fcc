@@ -1,12 +1,18 @@
+/*Title: std.socket
+Wraps the BSD Sockets API*/
 module std.socket;
 
 import std.string, c.unistd, c.sys.socket, c.netdb, c.string, c.errno;
 
+/*Class: Address
+An internet address*/
 class Address {
   (sockaddr*, int) getAddrHandle() { _interrupt 3; return (sockaddr*:null, 0); }
   Address dup() { _interrupt 3; }
 }
 
+/*Class: TcpAddress
+A TCP address*/
 class TcpAddress : Address {
   sockaddr_in saddr;
   (sockaddr*, int) getAddrHandle() {
@@ -17,6 +23,8 @@ class TcpAddress : Address {
     return that;
   }
   void init() { }
+  /*Function: init
+  Create a TCP address from host name and port*/
   void init(string dns, short port) {
     auto he = gethostbyname(toStringz(dns));
     using saddr {
@@ -34,22 +42,31 @@ bool __FD_ISSET(int d, fd_set* set) { return eval set.__fds_bits[d / __NFDBITS] 
 alias FD_SET = __FD_SET;
 alias FD_ISSET = __FD_ISSET;
 
+/*Class: Socket
+A BSD Socket*/
 class Socket {
   int sockfd;
   Address boundAddr;
+  /*Function: close*/
   void close() {
     c.unistd.close(sockfd);
   }
+  /*Function: init*/
   void init() {
     sockfd = socket (AF_INET, SOCK_STREAM, 0);
   }
+  /*Function: reuse
+  Marks the socket as reusable*/
   void reuse(bool b) {
     setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &b, size-of bool);
   }
   // alias isOpen = sockfd;
+  /*Function: open*/
   void open(TcpAddress ta) {
     auto res = c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
   }
+  /*Function: recv
+  Fills the argument with data from the socket, returning the number of bytes received. */
   int recv(byte[] buf) {
     auto res = .recv(sockfd, buf.ptr, buf.length, 0);
     if (res <= 0) {
@@ -57,6 +74,8 @@ class Socket {
     }
     return res;
   }
+  /*Function: send
+  Sends some of the argument, returning the number of bytes sent. */
   int send(byte[] buf) {
     auto res = .send(sockfd, buf.ptr, buf.length, 0);
     if (res <= 0) {
@@ -64,6 +83,8 @@ class Socket {
     }
     return res;
   }
+  /*Function: sendAll
+  Sends all of the argument*/
   void sendAll(byte[] buf) {
     while buf.length {
       auto res = send buf;
@@ -71,17 +92,23 @@ class Socket {
       buf = buf[res .. $];
     }
   }
+  /*Function: bind
+  Bind the socket to an address*/
   void bind(Address addr) {
     boundAddr = addr;
     auto err = .bind(sockfd, addr.getAddrHandle());
     if (err == -1)
       raise-error new Error "While binding to $addr: $(CToString strerror errno)";
   }
+  /*Function: listen
+  Listen for incoming connections */
   void listen(int backlog = 4) {
     auto err = .listen(sockfd, backlog);
     if (err == -1)
       raise-error new Error "While trying to listen: $(CToString strerror errno)";
   }
+  /*Function: accept
+  Once incoming connections occur, return a socket for them*/
   Socket accept() using new Socket {
     boundAddr = this.boundAddr.dup;
     auto hdl = boundAddr.getAddrHandle();
@@ -96,11 +123,16 @@ class Socket {
   }
 }
 
+/*Section: std.socket*/
+/*Function: connect
+Open a socket for the given domain/port*/
 Socket connect(string domain, short port) using new Socket {
   open new TcpAddress(domain, port);
   return that;
 }
 
+/*Template: readsocket
+Returns an iterator that yields data received from the socket argument*/
 template readsocket(T) {
   class sockreader : Iterator!byte[] {
     Socket sock;
@@ -119,9 +151,13 @@ template readsocket(T) {
   }
 }
 
+/*Struct: SelectSet
+Allows waiting on multiple sockets*/
 struct SelectSet {
   fd_set rdset, wrset, errset;
   int largest;
+  /*Function: add
+  Add a socket to the set*/
   void add(Socket sock, bool read = false, bool write = false, bool error = false) {
     auto sockfd = sock.sockfd;
     if read  FD_SET(sockfd, &rdset);
@@ -129,6 +165,8 @@ struct SelectSet {
     if error FD_SET(sockfd, &errset);
     if sockfd > largest largest = sockfd;
   }
+  /*Function: isReady
+  Check if the socket is ready. Must follow a call to select(). Socket must have been added. */
   bool isReady(Socket sock, bool read = false, bool write = false, bool error = false) {
     auto sockfd = sock.sockfd;
     if  read && FD_ISSET(sockfd, &rdset) return true;
@@ -136,6 +174,8 @@ struct SelectSet {
     if error && FD_ISSET(sockfd, &errset)return true;
     return false;
   }
+  /*Function: select
+  Wait until one of the sockets changes state. */
   void select(float timeout = 30.0) {
     timeval tv;
     tv.tv_sec = int:timeout;

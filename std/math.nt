@@ -1,11 +1,15 @@
+/*Title: std.math
+Math functions */
 module std.math;
 
 import c.math;
 
+/*Function: cross3f
+The vector cross product*/
 vec3f cross3f(vec3f a, vec3f b) { return a.yzx * b.zxy - a.zxy * b.yzx; }
 
-vec3f normalize3f(vec3f v) { return v / |v|; }
-
+/*Function: sqrt
+Square root. Gets inlined. */
 float sqrt(float f) {
   short status;
   float local = f;
@@ -17,7 +21,9 @@ float sqrt(float f) {
   if (status & 0b0000_0101__0000_0000 == (0b101 << 8)) { int i = 0; i /= i; } // infty
   return local;
 }
-  
+
+/*Function: angle3f
+Angle between two vectors, optionally in reference to a third vector */
 float angle3f(vec3f v, vec3f to, vec3f refer = vec3f(0)) {
   // yay, http://tomyeah.com/signed-angle-between-two-vectors3d-in-cc/
   auto v1 = v.cross3f(to) * refer;
@@ -28,6 +34,8 @@ float angle3f(vec3f v, vec3f to, vec3f refer = vec3f(0)) {
   return res;
 }
 
+/*Function: rotate3f
+Rotates *vec* around *axis* by *angle*. */
 vec3f rotate3f(vec3f vec, vec3f axis, float angle) using vec {
   float u = axis.x, v = axis.y, w = axis.z;
   float uu = u*u, vv = v*v, ww = w*w;
@@ -45,15 +53,8 @@ vec3f rotate3f(vec3f vec, vec3f axis, float angle) using vec {
   return res;
 }
 
-alias PI = 3.1415926538;
-alias PI2 = PI * 2;
-alias PI180 = PI/180.0;
-
-alias pow = powf;
-alias log = logf;
-// float log(float f) { return logf f; }
-// float pow(float a, b) { return powf (a, b); }
-
+/*Function: sin
+The sine function*/
 float sin(float f) {
   short status;
   float local = f;
@@ -68,6 +69,8 @@ float sin(float f) {
   return local;
 }
 
+/*Function: cos
+The cosine function*/
 float cos(float f) {
   short status;
   float local = f;
@@ -82,13 +85,18 @@ float cos(float f) {
   return local;
 }
 
+/*Function: half
+Convenience wrapper*/
 vec2f half(vec2f a, b) return (a + b) / 2;
+/*Function: half
+Convenience wrapper*/
 vec3f half(vec3f a, b) return (a + b) / 2;
+/*Function: half
+Convenience wrapper*/
 vec4f half(vec4f a, b) return (a + b) / 2;
 
-template min(T) { auto min(T t) { static if (t.length != 2) { Please only pass two parameters to min! } if (t[0] > t[1]) return t[1]; return t[0]; } }
-template max(T) { auto max(T t) { static if (t.length != 2) { Please only pass two parameters to max! } if (t[0] > t[1]) return t[0]; return t[1]; } }
-
+/*Function: isNan
+Tests if its argument is the floating-point special value NaN*/
 bool isNan(float f) {
   int i = *int*:&f;
   return eval (i & 0x7fff_ffff) > 0x7f80_0000;
@@ -99,13 +107,47 @@ extern(C) {
   float ceilf(float x);
 }
 
+/*Function: floor*/
 float floor(float x) { return floorf x; }
+/*Function: ceil*/
 float ceil(float x) { return ceilf x; }
+/*Function: atan*/
 float atan(float x) { return atanf x; }
+
+/*Function: abs*/
+int abs(int i) { if i < 0 return -i; return i; }
+/*Function: abs*/
+float abs(float f) { if f < 0 return -f; return f; }
+
+/*Alias: PI*/
+alias PI = 3.1415926538;
+/*Alias: PI2*/
+alias PI2 = PI * 2;
+/*Alias: PI180*/
+alias PI180 = PI/180.0;
+
+/*Alias: pow*/
+alias pow = powf;
+/*Alias: log*/
+alias log = logf;
+// float log(float f) { return logf f; }
+// float pow(float a, b) { return powf (a, b); }
+/*Alias: atan2*/
 alias atan2 = atan2f;
+/*Alias: asin*/
 alias asin = asinf;
+/*Alias: acos*/
 alias acos = acosf;
 
+/*Template: min
+Returns the smaller of its two parameters*/
+template min(T) { auto min(T t) { static if (t.length != 2) { Please only pass two parameters to min! } if (t[0] > t[1]) return t[1]; return t[0]; } }
+/*Template: max
+Returns the larger of its two parameters*/
+template max(T) { auto max(T t) { static if (t.length != 2) { Please only pass two parameters to max! } if (t[0] > t[1]) return t[0]; return t[1]; } }
+
+/*Template: minlist
+Returns the smallest entry of the iterable argument*/
 template minlist(T) {
   type-of-elem value-of!T minlist(T t) {
     eval auto res <- t;
@@ -114,6 +156,8 @@ template minlist(T) {
   }
 }
 
+/*Template: maxlist
+Returns the largest entry of the iterable argument*/
 template maxlist(T) {
   type-of-elem value-of!T maxlist(T t) {
     eval auto res <- t;
@@ -121,6 +165,3 @@ template maxlist(T) {
     return res;
   }
 }
-
-int abs(int i) { if i < 0 return -i; return i; }
-float abs(float f) { if f < 0 return -f; return f; }
