@@ -1,0 +1,25 @@
+module test43;
+
+macro("tree.expr.multicall", "33") `
+  (if
+    (not (matched-ident 'multicall))
+    ()
+    '(last
+      (def 'ident (parse-ident))
+      (def 'tup (parse-tuple))
+      (def 'fun (lookup ident))
+      (def 'res (make-temporary (type-of (make-tuple-expr (map-tuple tup 'ex
+        '(make-call fun ex))))))
+      (make-sae
+        (make-aggregate
+          (for (list 0 (tuple-length tup)) 'i
+            '(make-assignment (make-tuple-index res i) (make-call fun (make-tuple-index tup i)))))
+        res)))
+`;
+
+int foo(int i) { writeln "$i"; return i * 2; }
+
+void main() {
+  auto tup = multicall foo (2, 3, 4, 5);
+  writeln "$tup";
+}
