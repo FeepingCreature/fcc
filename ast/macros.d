@@ -287,38 +287,45 @@ void initTenth() {
   rootctx.add("list", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     return new List(args);
   }));
+  rootctx.add("length", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'length': 1 expected");
+    mixin(chaincast("len: Arg to 'length': args[0]->List: %.entries.length"));
+    return new Integer(len);
+  }));
   rootctx.add("tuple-length", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'tuple-length': 1 expected");
     mixin(chaincast("len: Arg to 'tuple-length': args[0]->TreeEntity: %.tr->Expr: %.valueType()->Tuple: %.types.length"));
     return new Integer(len);
   }));
-  rootctx.add("for", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
-    if (args.length != 3) tnte("Wrong number of args to 'for': 3 expected");
-    mixin(chaincast("range: First arg to 'for': args[0]->List"));
-    if (range.entries.length != 2) tnte("Wrong number of range parts to 'for': 2 expected");
-    mixin(chaincast("from: Lower end of range to 'for': range.entries[0]->Integer: %.value"));
-    mixin(chaincast("  to: Upper end of range to 'for': range.entries[1]->Integer: %.value"));
-    mixin(chaincast("ident: Second arg to 'for': args[1]->Token: %.name"));
-    auto loopct = new Context;
-    loopct.sup = ctx;
-    Entity[] res = new Entity[to-from];
-    for (int i = from; i < to; ++i) {
-      loopct.add(ident, new Integer(i));
-      res[i] = args[2].eval(loopct);
-    }
-    return new List(res);
+  rootctx.add("tuple-exprs", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'tuple-exprs': 1 expected");
+    mixin(chaincast("exprs: Arg to 'tuple-exprs': args[0]->TreeEntity: %.tr->Expr: getTupleEntries(%)"));
+    auto list = new Entity[exprs.length];
+    foreach (i, ex; exprs) list[i] = new TreeEntity(ex);
+    return new List(list);
   }));
-  rootctx.add("map-tuple", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
-    if (args.length != 3) tnte("Wrong number of args to map-tuple: 3 expected");
-    mixin(chaincast("tup: First arg for map-tuple: args[0]->TreeEntity: %.tr->Expr"));
-    mixin(chaincast("ident: Second arg for map-tuple: args[1]->Token: %.name"));
-    auto entries = getTupleEntries(tup);
-    Entity[] res;
+  rootctx.add("for", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 3 && args.length != 4) tnte("Wrong number of args to 'for': 3 or 4 expected");
     auto loopct = new Context;
     loopct.sup = ctx;
-    foreach (ex; entries) {
-      loopct.add(ident, new TreeEntity(ex));
-      res ~= args[2].eval(loopct);
+    Entity[] res;
+    if (args.length == 4) {
+      mixin(chaincast(" from:  First arg to 'for': args[0]->Integer: %.value"));
+      mixin(chaincast("   to: Second arg to 'for': args[1]->Integer: %.value"));
+      mixin(chaincast("ident:  Third arg to 'for': args[2]->Token: %.name"));
+      res = new Entity[to-from];
+      for (int i = from; i < to; ++i) {
+        loopct.add(ident, new Integer(i));
+        res[i] = args[3].eval(loopct);
+      }
+    } else {
+      mixin(chaincast("list: First arg to 'for': args[0]->List: %.entries"));
+      mixin(chaincast("ident: Second arg to 'for': args[1]->Token: %.name"));
+      res = new Entity[list.length];
+      foreach (i, ent; list) {
+        loopct.add(ident, ent);
+        res[i] = args[2].eval(loopct);
+      }
     }
     return new List(res);
   }));
