@@ -1,19 +1,27 @@
+/*Title: std.zlib
+Wrapper around the zlib compression library*/
 module std.zlib;
 
 import c.zlib;
 
 pragma(lib, "z");
 
+/*Class: Deflate
+Compression*/
 class Deflate {
   z_stream stream;
+  /*Function: init*/
   void init() {
     auto ret = deflateInit_(&stream, 6, ZLIB_VERSION, size-of z_stream);
     if ret != Z_OK raise-error new Error "ZLIB init error $ret (version '$ZLIB_VERSION')";
   }
+  /*Function: fini*/
   void fini() {
     auto ret = deflateEnd(&stream);
     if ret != Z_OK raise-error new Error "ZLIB fini error $ret (version '$ZLIB_VERSION')";
   }
+  /*Function: deflate
+  Deflate the argument, returning the compressed data. Stream is flushed at the end. */
   byte[] deflate(byte[] data) {
     byte[auto~] res;
     byte x 1024 buffer = void;
@@ -30,16 +38,22 @@ class Deflate {
   }
 }
 
+/*Class: Inflate
+Decompression*/
 class Inflate {
   z_stream stream;
+  /*Function: init*/
   void init() {
     auto ret = inflateInit_(&stream, ZLIB_VERSION, size-of z_stream);
     if ret != Z_OK raise-error new Error "ZLIB init error $ret (version '$ZLIB_VERSION')";
   }
+  /*Function: fini*/
   void fini() {
     auto ret = inflateEnd(&stream);
     if ret != Z_OK raise-error new Error "ZLIB fini error $ret (version '$ZLIB_VERSION')";
   }
+  /*Function: inflate
+  Inflate the argument, returning the decompressed data. Stream is flushed at the end. */
   byte[] inflate(byte[] data) {
     byte[auto~] res;
     byte x 1024 buffer = void;
@@ -55,11 +69,17 @@ class Inflate {
   }
 }
 
+/*Section: std.zlib*/
+
+/*Function: deflate
+Deflates the argument, returning the compressed version*/
 byte[] deflate(byte[] data) using new Deflate {
   onSuccess fini();
   return deflate data;
 }
 
+/*Function: inflate
+Inflates the argument, returning the decompressed version*/
 byte[] inflate(byte[] data) using new Inflate {
   onSuccess fini();
   return inflate data;

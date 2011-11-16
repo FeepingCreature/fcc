@@ -1,3 +1,5 @@
+/*Title: std.boehm
+The Boehm GC*/
 module std.boehm; // use Boehm GC
 
 import c.gc, std.thread;
@@ -55,6 +57,8 @@ platform(i686-mingw32) {
   }
 }
 
+/*Function: initBoehm
+Initialize and enable the Boehm GC*/
 void initBoehm(bool debugMode = false) {
   (mem.malloc_dg, mem.calloc_atomic_dg, mem.calloc_dg, mem.realloc_dg, mem.free_dg)
     = [(&myMalloc,      &myCallocAtomic,      &myCalloc,      &myRealloc,      &GC_free),

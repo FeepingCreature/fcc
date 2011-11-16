@@ -1,3 +1,5 @@
+/*Title: std.time
+Timekeeping functions*/
 module std.time;
 
 import c.time;
@@ -10,18 +12,26 @@ struct timeval {
 extern(C) int gettimeofday(timeval*, void*);
 extern(C) int usleep(int); // I hope this really is int.
 
+/*Function: µsec
+The number of milliseconds since the UNIX epoch*/
 long µsec() {
   timeval tv;
   gettimeofday(&tv, null);
   return tv.tv_sec * long:1_000_000 + tv.tv_usec;
 }
 
+/*Function: sec
+The number of seconds since the UNIX epoch */
 double sec() { return double:µsec() / 1_000_000; }
 
+/*Function: sleep
+Sleep at least *length* seconds*/
 void sleep(float length) {
   usleep int:(length * 1_000_000);
 }
 
+/*Function: measure
+How many seconds were needed to execute *dg* */
 double measure(void delegate() dg) {
   double start = sec();
   dg();

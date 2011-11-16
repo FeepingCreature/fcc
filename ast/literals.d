@@ -84,13 +84,13 @@ mixin DefaultParser!(gotDoubleExpr, "tree.expr.literal.double", "545");
 
 Object gotLiteralSuffixExpr(ref string text, ParseCb cont, ParseCb rest) {
   IntExpr res;
-  if (!rest(text, "tree.expr.literal", &res)) return null;
+  if (!rest(text, "tree.expr.int_literal", &res)) return null;
   if (text.accept("K")) return mkInt(res.num * 1024);
   else if (text.accept("M")) return mkInt(res.num * 1024 * 1024);
   else if (text.accept("G")) return mkInt(res.num * 1024 * 1024 * 1024);
   else return null;
 }
-mixin DefaultParser!(gotLiteralSuffixExpr, "tree.expr.literal_suffix", "54");
+mixin DefaultParser!(gotLiteralSuffixExpr, "tree.expr.int_literal_suffix", "2301");
 
 Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;

@@ -1,3 +1,5 @@
+/*Title: std.getopt
+Wrapper around C's getopt_long, parsing of commandline arguments */
 module std.getopt;
 
 import std.string;
@@ -12,6 +14,9 @@ struct Option {
 }
 
 extern(C) int getopt_long(int, char**, char*, c.getopt.option*, int*);
+
+/* Class: Options
+  Performs command-line processing */
 class Options {
   Option[auto~] options;
   string flags;
@@ -26,18 +31,38 @@ class Options {
     flags ~= flag;
     if (cb2) { flags ~= ":"; }
   }
+  /*Function: addShort
+    Add a short flag to be matched.
+    Give callback a string parameter for flags with arguments, like "-f out.txt".
+    
+    Parameters:
+      code - The short flag, like "-f"
+      callback - what to do if the flag is found
+  */
   void addShort(string code, void delegate() callback, bool required = false) {
     addOption(code, string:null, callback, void delegate(string):null, required);
   }
   void addShort(string code, void delegate(string) callback, bool required = false) {
     addOption(code, string:null, void delegate():null, callback, required);
   }
+  /*Function: addLong
+    Add a long flag to be matched.
+    Give callback a string parameter for flags with arguments, like "-f out.txt".
+    
+    Parameters:
+      code - The long flag, like "--file"
+      shortcode - The short version of the flag. Must be given. No separate addShort call is needed.
+      callback - what to do if the flag is found
+  */
   void addLong(string code, string shortcode, void delegate() callback, bool required = false) {
     addOption(shortcode, code, callback, void delegate(string):null, required);
   }
   void addLong(string code, string shortcode, void delegate(string) callback, bool required = false) {
     addOption(shortcode, code, void delegate():null, callback, required);
   }
+  /*Function: process
+    Process arguments, filtering out matched flags.
+  */
   string[] process(string[] args) {
     int argc = args.length;
     char** argv = new char*[] argc #.ptr;

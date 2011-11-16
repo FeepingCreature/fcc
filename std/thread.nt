@@ -1,3 +1,5 @@
+/*Title: std.thread
+Threading*/
 module std.thread;
 
 import c.pthread;
@@ -52,10 +54,15 @@ platform(i686-mingw32) {
 }
 
 import c.semaphore;
+/*Class: Semaphore
+A Semaphore locking object. */
 class Semaphore {
   sem_t hdl;
+  /*Function: init*/
   void init() { sem_init(&hdl, false, 0); }
+  /*Function: claim*/
   void claim() { sem_wait(&hdl); }
+  /*Function: release*/
   void release() { sem_post(&hdl); }
 }
 
@@ -130,18 +137,32 @@ platform(default) {
   }
 }
 
+/*Class: Mutex
+A Mutual Exclusion lock*/
 class Mutex {
   pthread_mutex_t mutex;
+  /*Function: init*/
   void init() { pthread_mutex_init (&mutex, null); }
+  /*Function: lock*/
   void lock() { pthread_mutex_lock &mutex; }
+  /*Function: unlock*/
   void unlock() { pthread_mutex_unlock &mutex; }
 }
 
+/*Class: ReadWriteLock
+Can only be written by one thread
+Can be read many times, but only while not being written*/
 class ReadWriteLock {
   pthread_rwlock_t lock;
+  /*Function: init*/
   void init() { pthread_rwlock_init(&lock, null); }
+  /*Function: lock-read
+  Lock for reading*/
   void lock-read() { pthread_rwlock_rdlock &lock; }
+  /*Function: lock-write
+  Lock for writing*/
   void lock-write() { pthread_rwlock_wrlock &lock; }
+  /*Function: unlock*/
   void unlock() { pthread_rwlock_unlock &lock; }
 }
 
@@ -161,12 +182,16 @@ template New(T) {
   }
 }
 
+/*Class: ThreadPool
+A classic thread pool. Keeps a queue of tasks to be executed on a first-come, first-serve basis. 
+*/
 class ThreadPool {
   Mutex m, readlock, writelock;
   Semaphore s, t;
   int tasksLeft, numThreads;
   void delegate(int)[] readqueue, readqueue-full;
   void delegate(int)[auto~] writequeue;
+  /*Function: init*/
   void init() {
     New &readlock;
     New &writelock;
@@ -197,41 +222,61 @@ class ThreadPool {
       t.release();
     }
   }
+  /*Function: addThread
+  Starts a new thread and adds it to the pool*/
   void addThread() {
     int thr-id = numThreads ++;
     auto tf = &threadFun;
     startThread new delegate void() { tf(thr-id); };
   }
+  /*Function: init
+  Starts *i* threads*/
   void init(int i) {
     init();
     for (0..i) addThread();
   }
+  /*Function: waitComplete
+  Wait until all tasks have been completed. */
   void waitComplete() {
     int i;
     using autoLock(m) { i = tasksLeft; tasksLeft = 0; }
     while 0..i t.claim();
   }
+  /*Function: addTask
+  Adds a task to be executed. The task is called with the id of the thread that's executing it. */
   void addTask(void delegate(int) dg) {
     using autoLock(m) tasksLeft ++;
     using autoLock writelock writequeue ~= dg;
     s.release;
   }
+  /*Function: addTask
+  Adds a task to be executed. */
   void addTask(void delegate() dg) {
     addTask new delegate void(int) { dg(); };
   }
 }
 
+/*Class: LoopPool
+A thread pool optimized for executing a large number of homogenous tasks.
+*/
 class LoopPool {
   Semaphore s, t, u;
   int numThreads;
   int runningId, maxId;
   void delegate(int id, int thr) dg;
   Mutex m;
+  /*Function: init*/
   void init() {
     New &s;
     New &t;
     New &u;
     New &m;
+  }
+  /*Function: init
+  Starts *i* threads*/
+  void init(int i) {
+    init();
+    for 0..i addThread();
   }
   void threadFun(int thr-id) {
     while true {
@@ -243,15 +288,15 @@ class LoopPool {
       u.claim;
     }
   }
+  /*Function: addThread
+  Starts a new thread and adds it to the pool*/
   void addThread() {
     int thr-id = numThreads ++;
     auto tf = &threadFun;
     startThread new delegate void() { tf(thr-id); };
   }
-  void init(int i) {
-    init();
-    for 0..i addThread();
-  }
+  /*Function: runLoop
+  Runs *to* tasks in parallel, each calling *dg* with the task number and the thread index. */
   void runLoop(int to, void delegate(int, int) dg) {
     this.dg = dg;
     runningId = 0;

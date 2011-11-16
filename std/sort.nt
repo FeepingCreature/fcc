@@ -1,5 +1,13 @@
+/*Title: std.sort
+Sort arrays*/
 module std.sort;
 
+/*Template: qsort
+The QuickSort in-place algorithm. O(n log n) expected behavior, O(n²) worst-case.
+
+Parameters:
+smaller - the comparison function
+array - the array to sort*/
 template qsort(T) {
   void qsort(T data) {
     alias smaller = data[0];

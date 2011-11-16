@@ -82,6 +82,8 @@ const c_tree_expr = "tree.expr"
   " >tree.expr.scoped >tree.expr.stringex >tree.expr.dynamic_class_cast"
   " >tree.expr.properties";
 
+const c_tree_expr_matcher = matchrule_static(c_tree_expr);
+
 TLS!(Expr delegate(ref string)) specialCallback;
 static this() { New(specialCallback); }
 
@@ -344,7 +346,7 @@ void parseHeader(string filename, string src) {
     }
     *specialCallback() = &callback;
     scope(exit) *specialCallback() = old_dg;
-    try res = fastcast!(Expr) (parsecon.parse(s2, c_tree_expr));
+    try res = fastcast!(Expr) (parsecon.parse(s2, mixin(c_tree_expr_matcher)));
     catch (Exception ex) return false; // no biggie
     if (!res) return false;
     source = s2;
