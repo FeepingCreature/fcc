@@ -19,7 +19,7 @@ class PerspectiveCam : Camera {
   }
 }
 
-template WorldCam(T) << EOF
+template WorldCam(T) {
   class WorldCam : T {
     vec3f up, pos, lookat;
     alias dir = lookat - pos;
@@ -43,9 +43,9 @@ template WorldCam(T) << EOF
       Translatef (-pos);
     }
   }
-EOF
+}
 
-template EgoCam(T) << EOF
+template EgoCam(T) {
   class EgoCam : T {
     vec3f pos;
     float turnX, turnY;
@@ -68,4 +68,4 @@ template EgoCam(T) << EOF
       Translatef (-pos);
     }
   }
-EOF
+}
