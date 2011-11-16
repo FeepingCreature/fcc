@@ -178,9 +178,20 @@ string chaincast(string mode) {
   return res;
 }
 
+int macrocount;
+class TenthMacro : NoOp, Named {
+  string identifier;
+  Entity root;
+  string getIdentifier() { return identifier; }
+  this(Entity e) { root = e; identifier = Format("__tenth_macro_", macrocount++); }
+}
+
 Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto ent = fastcast!(Entity) (obj);
+  auto mac = fastcast!(TenthMacro) (obj);
+  auto findme = namespace().lookup(mac.identifier, false);
+  if (findme !is mac) return null; // check if we're in scope
+  auto ent = mac.root;
   auto ctx = new Context;
   ctx.add("last", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     return args[$-1];
@@ -360,11 +371,13 @@ Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
   Object obj;
   {
     auto s2 = src.str;
-    obj = parseTenth(s2);
+    auto ent = parseTenth(s2);
+    auto mac = new TenthMacro(ent);
+    obj = mac;
   }
   auto dpi = new DefaultParserImpl!(runTenth, null, true, null)(obj);
   dpi.id = rulename.str;
   parsecon.addParser(dpi, ruleid.str);
-  return Single!(NoOp);
+  return obj;
 }
 mixin DefaultParser!(gotMacroStmt, "tree.toplevel.macro", null, "macro");
