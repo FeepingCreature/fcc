@@ -575,7 +575,9 @@ struct Stack(T) {
 template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
   final class DefaultParserImpl : Parser {
     bool dontMemoMe;
-    this() {
+    Object info;
+    this(Object obj = null) {
+      info = obj;
       key = Key;
       id = Id;
       foreach (dg; globalStateMatchers) 
@@ -589,7 +591,11 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
       };
     }
     Object fnredir(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
-      static if (is(typeof((&Fn)(text, accept, cont, rest))))
+      static if (is(typeof((&Fn)(info, text, accept, cont, rest))))
+        return Fn(info, text, accept, cont, rest);
+      else static if (is(typeof((&Fn)(info, text, cont, rest))))
+        return Fn(info, text, cont, rest);
+      else static if (is(typeof((&Fn)(text, accept, cont, rest))))
         return Fn(text, accept, cont, rest);
       else
         return Fn(text, cont, rest);
