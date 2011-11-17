@@ -217,6 +217,8 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
           "already defined in ", this, "!"
         ));*/
       }
+      auto ex = fastcast!(Expr) (obj);
+      if (ex && fastcast!(Variadic) (ex.valueType())) throw new Exception("Variadic tuple: Wtf is wrong with you. ");
       super.__add(name, obj);
     }
   }

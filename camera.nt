@@ -36,14 +36,16 @@ template WorldCam(T) {
       auto dirz = dir;
       dirz.z = -dirz.z;
       auto
-        left = up.cross3f(dirz).normalize3f(),
-        up = dirz.cross3f(left).normalize3f();
+        left = up.cross3f(dirz).normalized,
+        up = dirz.cross3f(left).normalized;
       (vec3f.Y.angle3f(up, left) / PI180).Rotatef vec3f.X;
       (vec3f.X.angle3f(left, up) / PI180).Rotatef vec3f.Y;
       Translatef (-pos);
     }
   }
 }
+
+vec3f normalize3f(vec3f v) return v.normalized;
 
 template EgoCam(T) {
   class EgoCam : T {
@@ -55,14 +57,14 @@ template EgoCam(T) {
     alias lowlimit = -PI / 2 + 0.1;
     alias highlimit = PI / 2 - 0.1;
     void turn-up(float f) { turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
-    alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX).normalize3f();
-    alias left = vec3f.Y.cross3f(dir).normalize3f();
+    alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX).normalize3f;
+    alias left = vec3f.Y.cross3f(dir).normalize3f;
     void gl-setup() mode GL {
       super.gl-setup();
       MatrixMode MODELVIEW;
       LoadIdentity;
       auto dirz = dir; dirz.z = -dirz.z;
-      auto left = vec3f.Y.cross3f(dirz).normalize3f(), up = dirz.cross3f(left).normalize3f();
+      auto left = vec3f.Y.cross3f(dirz).normalized, up = dirz.cross3f(left).normalized;
       (vec3f.Y.angle3f(up, left) / PI180).Rotatef vec3f.X;
       (vec3f.X.angle3f(left, up) / PI180).Rotatef vec3f.Y;
       Translatef (-pos);

@@ -4,6 +4,7 @@ import opengl, glsetup;
 
 import sdl, camera;
 
+import std.macros.switchover;
 void main(string[] args) {
   // resizeWindow (640, 480);
   auto vertices = [vec3f (-1, -1, -1), vec3f(1, 1, 1)];
@@ -153,10 +154,12 @@ void main(string[] args) {
     alias movestep = 0.034;
     prefix SDLK_ {
       alias kpr = keyPressed, kpu = keyPushed;
-      if kpr[w] ec.pos += ec.dir * movestep;
-      if kpr[s] ec.pos -= ec.dir * movestep;
-      if kpr[a] ec.pos += ec.left * movestep;
-      if kpr[d] ec.pos -= ec.left * movestep;
+      switch int i over kpr[i] {
+        case w: ec.pos += ec.dir * movestep;
+        case s: ec.pos -= ec.dir * movestep;
+        case a: ec.pos += ec.left * movestep;
+        case d: ec.pos -= ec.left * movestep;
+      }
       if kpu[ PLUS] || kpu[ KP_PLUS] { curDepth ++; regenList; }
       if kpu[MINUS] || kpu[KP_MINUS] { if curDepth curDepth --; regenList; }
     }

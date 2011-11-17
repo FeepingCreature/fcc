@@ -1,0 +1,30 @@
+module std.macros.switchover;
+
+macro("tree.stmt.switchover", "411") `
+  (if
+    (not (matched-text 'switch))
+    'nil
+    '(last
+      (def 'ty (parse-type))
+      (def 'id (parse-ident))
+      (if
+        (not (and ty id (matched-text 'over)))
+        'nil
+        '(last
+          (def 'ph (make-placeholder ty))
+          (with-scope '(last
+            (insert-scope id ph)
+            (def 'cd (parse-cond))
+            (remove-scope id)
+            (def 'match-case (lambda '()
+              '(if (not (matched-text 'case)) 'nil '(last
+                (def 'subcd (substitute cd ph (parse-expr)))
+                (match-text ":")
+                (make-if subcd (parse-stmt))))))
+            (if (not (matched-text "{"))
+              '(match-case)
+              '(make-aggregate
+                (while
+                  '(not (matched-text "}"))
+                  '(match-case))))))))))
+`;

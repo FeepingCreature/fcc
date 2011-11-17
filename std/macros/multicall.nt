@@ -1,0 +1,18 @@
+module std.macros.multicall;
+
+macro("tree.expr.multicall", "33") `
+  (if
+    (not (matched-text 'multicall))
+    'nil
+    '(last
+      (def 'ident (parse-ident))
+      (def 'tup (parse-tuple))
+      (def 'fun (lookup ident))
+      (def 'res (make-temporary (type-of (make-tuple-expr (for (tuple-exprs tup) 'ex
+        '(make-call fun ex))))))
+      (make-sae
+        (make-aggregate
+          (for 0 (tuple-length tup) 'i
+            '(make-assignment (make-tuple-index res i) (make-call fun (make-tuple-index tup i)))))
+        res)))
+`;
