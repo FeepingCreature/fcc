@@ -83,6 +83,9 @@ Expr simpleFormat(Expr ex) {
   if (Single!(Long) == type) {
     return buildFunCall(fastcast!(Function)~ sysmod.lookup("ltoa"), ex, "ltoa");
   }
+  if (Single!(Char) == type) {
+    return iparse!(Expr, "fmt_char", "tree.expr")(`""~ch`, "ch", ex);
+  }
   if (Single!(Float) == type) {
     return buildFunCall(fastcast!(Function)~ sysmod.lookup("ftoa"), ex, "ftoa");
   }
@@ -92,6 +95,7 @@ Expr simpleFormat(Expr ex) {
   if (auto p = fastcast!(Pointer)~ type) {
     return buildFunCall(fastcast!(Function)~ sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex), "ptoa");
   }
+  
   if (auto sa = fastcast!(StaticArray)~ type) {
     if (fastcast!(CValue)~ ex) {
       ex = staticToArray(ex);

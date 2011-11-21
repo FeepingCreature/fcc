@@ -383,10 +383,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     if (this is obj2) return true;
     auto cl2 = fastcast!(Class) (obj2);
     if (!cl2) return false;
-    // fallback;
-    if (name != cl2.name) return false;
-    parseMe; cl2.parseMe;
-    return data == cl2.data;
+    return mangle() == cl2.mangle();
   }
   override bool isPointerLess() { return false; }
   override bool isComplete() { return true; }

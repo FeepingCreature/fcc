@@ -43,6 +43,11 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   if (!t2.gotIdentifier(modname, true) || !t2.accept(";"))
     t2.failparse("Failed to parse module header, 'module' expected! ");
   
+  if (modname =="auto") {
+    auto pos = lookupPos(t2);
+    modname = pos._2.endsWith(".nt");
+  }
+  
   New(mod, modname);
   namespace.set(mod);
   auto backup_mod = current_module();

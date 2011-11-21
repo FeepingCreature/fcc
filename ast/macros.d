@@ -2,7 +2,7 @@ module ast.macros;
 
 import parseBase, ast.base, ast.literal_string, ast.tuples, ast.fun, ast.funcall,
        ast.namespace, ast.tuple_access, ast.variable, ast.vardecl, ast.scopes,
-       ast.aggregate, ast.assign, ast.ifstmt;
+       ast.aggregate, ast.assign, ast.ifstmt, ast.literals;
 
 import tools.base: This;
 
@@ -226,6 +226,16 @@ void initTenth() {
     mixin(chaincast("fun: First arg for make-call: args[0]->ItrEntity: %.itr->Function"));
     mixin(chaincast("ex: Second arg for make-call: args[1]->ItrEntity: %.itr->Expr"));
     return new ItrEntity(buildFunCall(fun, ex, "tenth-call"));
+  }));
+  rootctx.add("make-int", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'make-int': 1 expected");
+    mixin(chaincast("num: First arg for 'make-int': args[0]->Integer: %.value"));
+    return new ItrEntity(mkInt(num));
+  }));
+  rootctx.add("make-string", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'make-string': 1 expected");
+    mixin(chaincast("str: First arg for 'make-string': args[0]->Token: %.name"));
+    return new ItrEntity(mkString(str));
   }));
   rootctx.add("make-if", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-if': 2 expected");

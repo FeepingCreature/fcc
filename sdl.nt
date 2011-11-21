@@ -470,6 +470,49 @@ shared Area display;
 
 void init() { SDL_Init(SDL_INIT_VIDEO); }
 
+/*
+class WindowSurface13 : Surface {
+  SDL_Window* window;
+  SDL_GLContext gl;
+  void initGL() { gl = SDL_GL_CreateContext(window); }
+  void free() { super.free; if (gl) SDL_GL_DeleteContext gl; SDL_DestroyWindow window; }
+  void flip() { if gl SDL_GL_SwapWindow window; else SDL_UpdateWindowSurface window; }
+  void makeCurrent() { SDL_GL_MakeCurrent (window, gl); }
+}
+
+Area screen13(int w, h, bool fullscreen = false, bool surface = false,
+  int flags = 0) {
+  int cfg;
+  bool eatFlag(int flag) { if (flags & flag) { flags &= -flag - 1; return true; } return false; }
+  if (eatFlag SDL_OPENGL) cfg |= SDL_WINDOW_OPENGL;
+  if (eatFlag SDL_RESIZABLE) cfg |= SDL_WINDOW_RESIZABLE;
+  eatFlag SDL_ANYFORMAT;
+  if (flags) {
+    cfg = flags;
+  } 
+  assert(eval !fullscreen || !surface, "Surfaces cannot be fullscreen! ");
+  if fullscreen cfg |= SDL_WINDOW_FULLSCREEN;
+  Surface surf;
+  if surface
+    surf = new Surface SDL_CreateRGBSurface(cfg, w, h, 32, 0xff0000, 0xff00, 0xff, 0xff00_0000);
+  else {
+    auto window = SDL_CreateWindow("SDL window", SDL_WINDOWPOS_UNDEFINED x 2, w, h, cfg);
+    surf = new WindowSurface13 SDL_GetWindowSurface(window);
+    (WindowSurface13:surf).window = window;
+    if (cfg & SDL_WINDOW_OPENGL) {
+      (WindowSurface13:surf).initGL();
+      (WindowSurface13:surf).makeCurrent();
+    }
+  }
+  using new Area surf {
+    claim;
+    if surface return that;
+    else display = that;
+  }
+  return display;
+}
+*/
+
 Area screen(int w, h, bool fullscreen = false, bool surface = false,
   int flags = 0) {
   int cfg = SDL_SWSURFACE;

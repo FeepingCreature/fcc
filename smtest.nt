@@ -228,7 +228,7 @@ void drawScene(SectorCache* scp) {
   }
   
   auto start = sec();
-  while auto vec ← [for x ← cross (-12 .. 12) x 3: vec3i(x)] if fun(vec).active && !occluded(vec) {
+  while auto vec <- [for x <- cross (-12 .. 12) x 3: vec3i(x)] if fun(vec).active && !occluded(vec) {
     int tex;
     if (noise3(vec3f(vec.(x, y, z)) * 0.3) > 0.5) tex = 0;
     else tex = 1;

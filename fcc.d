@@ -285,10 +285,12 @@ string compile(string file, CompileSettings cs) {
     af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     f.close;
   }
-  auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", srcname);
+  auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", srcname, " 2>&1");
   logSmart!(false)("> ", cmdline);
-  system(cmdline.toStringz()) == 0
-    || assert(false, "Compilation failed! ");
+  if (system(cmdline.toStringz())) {
+    logln("ERROR: Compilation failed! ");
+    exit(1);
+  }
   mod.alreadyEmat = true;
   return objname;
 }
@@ -409,7 +411,9 @@ extern(C) char* realpath(char* path, char* resolved_path = null);
 
 import assemble: debugOpts;
 int main(string[] args) {
-  auto execpath = toString(realpath("/proc/self/exe"));
+  string execpath;
+  if ("/proc/self/exe".exists()) execpath = toString(realpath("/proc/self/exe"));
+  else execpath = toString(realpath(toStringz(args[0])));
   execpath = execpath[0 .. execpath.rfind("/") + 1];
   if (execpath.length)
     include_path ~= execpath;

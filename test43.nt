@@ -17,9 +17,45 @@ macro("tree.expr.multicall", "33") `
         res)))
 `;
 
+macro("tree.stmt.switchover", "411") `
+  (if
+    (not (matched-ident 'switch))
+    'nil
+    '(last
+      (def 'ty (parse-type))
+      (def 'id (parse-ident))
+      (if
+        (or (not ty) (not id) (not (matched-ident 'over)))
+        'nil
+        '(last
+          (def 'ph (make-placeholder ty))
+          (with-scope '(last
+            (insert-scope id ph)
+            (def 'cd (parse-cond))
+            (remove-scope id)
+            (def 'match-case (lambda () '(
+              (if (not (matched-ident 'case)) 'nil '(last
+                (def 'subex (parse-expr))
+                (match-text ":")
+                (make-if (substitute cd ph subex) (match-stmt)))))))
+            (if (not (matched-text "{"))
+              '(match-case)
+              '(make-aggregate
+                (while
+                  '(not (matched-text "}"))
+                  '(match-case))))))))))
+`;
+
 int foo(int i) { writeln "$i"; return i * 2; }
 
 void main() {
   auto tup = multicall foo (2, 3, 4, 5);
   writeln "$tup";
+  switch int i over (i * 3 == 9) case 3: writeln "true";
+  switch int i over (i * 3 == 9) case 2: writeln "true";
+  writeln "mew";
+  switch int i over (i * 3 == 9) {
+    case 2: writeln "two";
+    case 3: writeln "three";
+  }
 }
