@@ -666,12 +666,24 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
             bp = new DerefExpr(reinterpret_cast(new Pointer(data), bp));
             // logln(bp);
             // logln("for ", namespace());
-            auto cref = fastcast!(Expr) (
-              ctx.transform(bp)
-            );
-            cref = ctxFixup(cref);
-            if (auto res = rn.lookupRel(id, cref))
-              return res;
+            Object mew(Expr cref, RelNamespace rn) {
+              cref = ctxFixup(cref);
+              if (auto res = rn.lookupRel(id, cref))
+                return res;
+              return null;
+            }
+            Expr cref = fastcast!(Expr) (ctx.transform(bp));
+            while (true) {
+              if (auto res = mew(cref, rn)) return res;
+              if (auto cl = fastcast!(Class) (rn)) {
+                if (!cl.ctx) break;
+                cref = fastcast!(Expr) (cl.ctx.transform(new DerefExpr(reinterpret_cast(new Pointer(cl.data), cref))));
+                rn = fastcast!(RelNamespace) (cl.sup);
+                if (!rn) break;
+                continue;
+              }
+              break;
+            }
           }
         }/* else {
           logln("use regular lookup (into rn) for ", id, " to ", sup);
