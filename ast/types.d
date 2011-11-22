@@ -136,19 +136,26 @@ template Single(T, U...) {
   alias _Single!(T, U).value Single;
 }
 
-import parseBase;
+const string BasicTypeTable = `
+  name   | type
+  void   | Void
+  size_t | SizeT
+  int    | SysInt
+  long   | Long
+  short  | Short
+  char   | Char
+  byte   | Byte
+  float  | Float
+  double | Double
+  real   | Real
+  ...    | Variadic
+`;
+
+import parseBase, tools.ctfe: ctTableUnroll;
 Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
-  if (text.accept("void")) return Single!(Void);
-  if (text.accept("size_t")) return Single!(SizeT);
-  if (text.accept("int")) return Single!(SysInt);
-  if (text.accept("long")) return Single!(Long);
-  if (text.accept("short")) return Single!(Short);
-  if (text.accept("char")) return Single!(Char);
-  if (text.accept("byte")) return Single!(Byte);
-  if (text.accept("float")) return Single!(Float);
-  if (text.accept("double")) return Single!(Double);
-  if (text.accept("real")) return Single!(Real);
-  if (text.accept("...")) return Single!(Variadic);
+  mixin(BasicTypeTable.ctTableUnroll(`
+    if (text.accept("$name")) return Single!($type);
+  `));
   return null;
 }
 mixin DefaultParser!(gotBasicType, "type.basic", "3");
