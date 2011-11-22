@@ -128,6 +128,7 @@ struct TransactionInfo {
     FPIntPop   |           |        |&#.dest|  4  |
     FloatMath  |           |        |       | -1  |
     FPSwap     |           |        |       | -1  |
+    Swap       | &#.source |&#.dest |&#.dest| -1  |
     RegLoad    |           |        |       | -1  |
     SSEOp      |doSSE(&#.op1)|doSSE(&#.op2,true,#.opName)|doSSE(&#.op2)| 16  |
   `;
@@ -1894,8 +1895,6 @@ restart:
     =>
      if (info($1).couldFixup(-16))
       $SUBST($1, $0);
-    // else
-    //   logln("Can't subst: ", $1);
   `));
   mixin(opt("movaps_and_pop_to_direct", `^SSEOp, ^Pop, ^Pop, ^Pop, ^Pop:
     $0.opName == "movaps" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
@@ -2116,7 +2115,7 @@ restart:
           case SAlloc:
             if (check == "(%esp)") break outer;
             continue;
-          case Mov2, Mov1: break outer; // weird stuff, not worth the confusion
+          case Mov2, Mov1, Swap: break outer; // weird stuff, not worth the confusion
           case FloatMath, FPSwap:
             continue;    // no change
           

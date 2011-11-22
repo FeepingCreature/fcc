@@ -96,7 +96,7 @@ interface ExtToken {
 import parseBase; // int parsing
 struct Transaction {
   enum Kind {
-    Mov, Mov2, Mov1, MovD, SAlloc, SFree, MathOp, Push, Pop, Compare, Call,
+    Mov, Mov2, Mov1, MovD, SAlloc, SFree, MathOp, Push, Pop, Compare, Call, Swap,
     FloatLoad, DoubleLoad, RealLoad, RegLoad,
     FloatCompare,
     FloatPop, DoublePop, FPIntPop,
@@ -107,7 +107,7 @@ struct Transaction {
     ExtendDivide, /* cdq, [i]divl */
     Jump, Label, Extended, Nevermind, LoadAddress
   }
-  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "MovD", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call",
+  const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "MovD", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call", "Swap",
     "FloatLoad", "DoubleLoad", "RealLoad", "RegLoad",
     "FloatCompare",
     "FloatPop" , "DoublePop", "FPIntPop",
@@ -134,6 +134,7 @@ struct Transaction {
       case Push:        return Format("[push ", source, ": ", size, extra(), "]");
       case Pop:         return Format("[pop ", dest, ": ", size, extra(), "]");
       case Call:        return Format("[call ", dest, "]");
+      case Swap:        return Format("[swap ", source, ", ", dest, "]");
       case Compare:
         if (test)       return Format("[cmp/test ", op1, ", ", op2, "]");
         else            return Format("[cmp ", op1, ", ", op2, "]");
@@ -170,6 +171,7 @@ struct Transaction {
       case Pop: return dest == t2.dest && size == t2.size;
       case FloatStore, DoubleStore, FloatPop, DoublePop, FPIntPop: return dest == t2.dest;
       case Call, Jump: return dest == t2.dest;
+      case Swap: return source == t2.source && dest == t2.dest && size == t2.size;
       case Compare: return op1 == t2.op1 && op2 == t2.op2;
       case FloatLoad, DoubleLoad, RealLoad, RegLoad: return source == t2.source;
       case FloatCompare: return source == t2.source && useIVariant == t2.useIVariant;
@@ -367,6 +369,11 @@ struct Transaction {
         if (dest.find("%") != -1) return qformat("call *", dest);
         if (dest[0] == '$') return qformat("call ", dest[1 .. $]);
         assert(false, "::"~dest);
+      case Swap:
+        if (size == 4) return qformat("xchgl ", source.fixupLiterals(), ", ", dest.fixupLiterals());
+        if (size == 2) return qformat("xchgw ", source.fixupLiterals(), ", ", dest.fixupLiterals());
+        if (size == 1) return qformat("xchgb ", source.fixupLiterals(), ", ", dest.fixupLiterals());
+        assert(false, Format(this, "#", size));
       case FloatLoad: return qformat("flds ", source.fixupLiterals());
       case DoubleLoad: return qformat("fldl ", source.fixupLiterals());
       case RealLoad: return qformat("fldt ", source.fixupLiterals());

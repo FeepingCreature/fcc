@@ -1,0 +1,14 @@
+module std.macros.swap;
+
+macro("tree.stmt.swap", "412") `
+  (if
+    (not (matched-text 'swap))
+    'nil
+    '(last
+      (def 'ex1 (parse-lvalue))
+      (match-text ",")
+      (def 'ex2 (parse-lvalue))
+      (match-text ";")
+      (assert (types-equal (type-of ex1) (type-of ex2)))
+      (make-swap ex1 ex2)))
+`;

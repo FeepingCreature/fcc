@@ -267,6 +267,14 @@ class AsmFile {
     t.dest = what;
     cache ~= t;
   }
+  void swap(string op1, string op2, int size = 4) {
+    Transaction t;
+    t.kind = Transaction.Kind.Swap;
+    t.source = op1;
+    t.dest = op2;
+    t.size = size;
+    cache ~= t;
+  }
   int floatStackDepth;
   void incFloatStack() {
     floatStackDepth ++;

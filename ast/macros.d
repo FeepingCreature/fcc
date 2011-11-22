@@ -2,9 +2,58 @@ module ast.macros;
 
 import parseBase, ast.base, ast.literal_string, ast.tuples, ast.fun, ast.funcall,
        ast.namespace, ast.tuple_access, ast.variable, ast.vardecl, ast.scopes,
-       ast.aggregate, ast.assign, ast.ifstmt, ast.literals;
+       ast.aggregate, ast.assign, ast.ifstmt, ast.literals, ast.pointer, ast.casting,
+       ast.opers;
 
 import tools.base: This;
+
+class Swap : Statement {
+  LValue lv1, lv2;
+  int sz;
+  this(LValue lv1, LValue lv2) {
+    this.lv1 = lv1;
+    this.lv2 = lv2;
+    auto vt1 = lv1.valueType(), vt2 = lv2.valueType();
+    if (vt1 != vt2) {
+      logln("halt: swap(", lv1, ", ", lv2, ")");
+      asm { int 3; }
+    }
+    sz = vt1.size;
+  }
+  mixin defaultIterate!(lv1, lv2);
+  override {
+    Swap dup() { return new Swap(lv1.dup, lv2.dup); }
+    void emitAsm(AsmFile af) {
+      lv1.emitLocation(af);
+      lv2.emitLocation(af);
+      af.popStack("%eax", 4);
+      af.popStack("%ebx", 4);
+      int sz = sz;
+      int offs;
+      if (sz % 4 == 0) {
+        while (sz) {
+          af.mmove4(qformat(offs, "(%eax)"), "%ecx");
+          af.mmove4(qformat(offs, "(%ebx)"), "%edx");
+          af.mmove4("%ecx", qformat(offs, "(%ebx)"));
+          af.mmove4("%edx", qformat(offs, "(%eax)")); // faster than af.swap!
+          offs += 4;
+          sz -= 4;
+        }
+      } else {
+        while (sz) {
+          af.mmove1(qformat(offs, "(%eax)"), "%cl");
+          af.mmove1(qformat(offs, "(%ebx)"), "%dl");
+          af.mmove1("%cl", qformat(offs, "(%ebx)"));
+          af.mmove1("%dl", qformat(offs, "(%eax)")); // faster than af.swap!
+          offs ++;
+          sz --;
+        }
+      }
+      af.nvm("%eax");
+      af.nvm("%ebx");
+    }
+  }
+}
 
 class TenthException : Exception {
   this(string s) { super("TenthException: "~s); }
@@ -211,6 +260,22 @@ void initTenth() {
     ctx.add(tok, args[1]);
     return args[1];
   }));
+  rootctx.add("flatten", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    Entity[] res;
+    foreach (arg; args) {
+      if (auto list = fastcast!(List) (arg))
+        res ~= list.entries;
+      else
+        res ~= arg;
+    }
+    return new List(res);
+  }));
+  rootctx.add("assert", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of arguments to 'assert': 1 expected");
+    if (isNil(args[0]))
+      tnte("Assert violated");
+    return args[0];
+  }));
   rootctx.add("make-tuple-expr", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to make-tuple-expr: 1 expected");
     mixin(chaincast("list: Argument to make-tuple-expr: args[0]->List"));
@@ -231,6 +296,12 @@ void initTenth() {
     if (args.length != 1) tnte("Wrong number of args to 'make-int': 1 expected");
     mixin(chaincast("num: First arg for 'make-int': args[0]->Integer: %.value"));
     return new ItrEntity(mkInt(num));
+  }));
+  rootctx.add("make-swap", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'make-swap': 2 expected");
+    mixin(chaincast("lv1:  First arg to 'make-swap': args[0]->ItrEntity: %.itr->LValue"));
+    mixin(chaincast("lv2: Second arg to 'make-swap': args[1]->ItrEntity: %.itr->LValue"));
+    return new ItrEntity(new Swap(lv1, lv2));
   }));
   rootctx.add("make-string", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'make-string': 1 expected");
@@ -287,6 +358,55 @@ void initTenth() {
     if (res) return NonNilEnt;
     else return NilEnt;
   }));
+  rootctx.add("add", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (!args.length) tnte("Wrong number of args to 'add': >=1 expected");
+    int res;
+    foreach (arg; args) {
+      mixin(chaincast("val: Arg to 'add': arg->Integer: %.value"));
+      res += val;
+    }
+    return new Integer(res);
+  }));
+  rootctx.add("sub", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (!args.length) tnte("Wrong number of args to 'sub': >=1 expected");
+    mixin(chaincast("res: First arg to 'sub': args[0]->Integer: %.value"));
+    foreach (arg; args[1..$]) {
+      mixin(chaincast("val: Arg to 'sub': arg->Integer: %.value"));
+      res -= val;
+    }
+    return new Integer(res);
+  }));
+  rootctx.add("mul", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (!args.length) tnte("Wrong number of args to 'mul': >=1 expected");
+    int res = 1;
+    foreach (arg; args[1..$]) {
+      mixin(chaincast("val: Arg to 'mul': arg->Integer: %.value"));
+      res *= val;
+    }
+    return new Integer(res);
+  }));
+  rootctx.add("div", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (!args.length) tnte("Wrong number of args to 'mul': >=1 expected");
+    mixin(chaincast("res: First arg to 'div': args[0]->Integer: %.value"));
+    foreach (arg; args[1..$]) {
+      mixin(chaincast("val: Arg to 'div': arg->Integer: %.value"));
+      res /= val;
+    }
+    return new Integer(res);
+  }));
+  rootctx.add("mod", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'mod': 2 expected (int, int), not ", args);
+    mixin(chaincast("v1:  First arg to 'mod': args[0]->Integer: %.value"));
+    mixin(chaincast("v2: Second arg to 'mod': args[1]->Integer: %.value"));
+    return new Integer(v1%v2);
+  }));
+  rootctx.add("equal", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'equal': 2 expected (int, int), not ", args);
+    mixin(chaincast("v1:  First arg to 'mod': args[0]->Integer: %.value"));
+    mixin(chaincast("v2: Second arg to 'mod': args[1]->Integer: %.value"));
+    if (v1 != v2) return NilEnt;
+    return NonNilEnt;
+  }));
   rootctx.add("if", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 3) tnte("Wrong number of args to 'if': 3 expected");
     auto cond = args[0];
@@ -309,14 +429,39 @@ void initTenth() {
     mixin(chaincast("ty: Arg for type-of: args[0]->ItrEntity: %.itr->Expr: %.valueType()"));
     return new TypeEntity(ty);
   }));
+  rootctx.add("types-equal", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'types-equal': 2 expected");
+    mixin(chaincast("ty1:  First arg for 'types-equal': args[0]->TypeEntity: %.ty"));
+    mixin(chaincast("ty2: Second arg for 'types-equal': args[1]->TypeEntity: %.ty"));
+    if (ty1 != ty2) return NilEnt;
+    return NonNilEnt;
+  }));
+  rootctx.add("basic-type", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'basic-type': 1 expected, type name");
+    mixin(chaincast("name: Arg for 'basic-type': args[0]->Token: %.name"));
+    mixin(BasicTypeTable.ctTableUnroll(`
+      if (name == "$name") return new TypeEntity(Single!($type));
+    `));
+    return NilEnt;
+  }));
   rootctx.add("make-sae", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-sae': 2 expected");
     mixin(chaincast("st: First arg for make-sae: args[0]->ItrEntity: %.itr->Statement"));
     mixin(chaincast("ex: Second arg for make-sae: args[1]->ItrEntity: %.itr->Expr"));
     return new ItrEntity(mkStatementAndExpr(st, ex));
   }));
+  rootctx.add("make-reference", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'make-reference': 1 expected, Expr");
+    mixin(chaincast("cv: Arg to 'make-reference': args[0]->ItrEntity: %.itr->CValue"));
+    return new ItrEntity(new RefExpr(cv));
+  }));
+  rootctx.add("make-deref", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'make-deref': 1 expected, Expr");
+    mixin(chaincast("ex: Arg to 'make-deref': args[0]->ItrEntity: %.itr->Expr"));
+    return new ItrEntity(new DerefExpr(ex));
+  }));
   rootctx.add("make-aggregate", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
-    if (args.length != 1) tnte("Wrong number of args to 'make-aggregate': 1 expected");
+    if (args.length != 1) tnte("Wrong number of args to 'make-aggregate': 1 expected (list), not ", args);
     mixin(chaincast("list: Arg for make-aggregate: args[0]->List"));
     auto res = new AggrStatement;
     foreach (ent; list.entries) {
@@ -324,6 +469,28 @@ void initTenth() {
       res.stmts ~= st;
     }
     return new ItrEntity(res);
+  }));
+  rootctx.add("reinterpret-cast", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'reinterpret-cast': 2 expected (type, expr), not ", args);
+    mixin(chaincast("ty:  First arg to 'reinterpret-cast': args[0]->TypeEntity: %.ty"));
+    mixin(chaincast("ex: Second arg to 'reinterpret-cast': args[1]->ItrEntity: %.itr->Expr"));
+    return new ItrEntity(reinterpret_cast(ty, ex));
+  }));
+  rootctx.add("pointer-to", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'pointer-to': 1 expected (type)");
+    mixin(chaincast("ty: Arg to 'pointer-to': args[0]->TypeEntity: %.ty"));
+    return new TypeEntity(new Pointer(ty));
+  }));
+  rootctx.add("size-of", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'size-of': 1 expected (type)");
+    mixin(chaincast("ty: Arg to 'pointer-to': args[0]->TypeEntity: %.ty"));
+    return new Integer(ty.size());
+  }));
+  rootctx.add("make-add", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'make-add': 2 expected (expr, expr), not ", args);
+    mixin(chaincast("ex1:  First arg to 'make-add': args[0]->ItrEntity: %.itr->Expr"));
+    mixin(chaincast("ex2: Second arg to 'make-add': args[1]->ItrEntity: %.itr->Expr"));
+    return new ItrEntity(lookupOp("+", ex1, ex2));
   }));
   rootctx.add("make-assignment", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-assignment': 2 expected");
@@ -464,6 +631,12 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     Expr ex;
     if (!rest(t2, "tree.expr", &ex)) t2.failparse("Expression expected");
     return new ItrEntity(ex);
+  }));
+  ctx.add("parse-lvalue", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length) tnte("Too many arguments to 'parse-lvalue': 0 expected");
+    LValue lv;
+    if (!rest(t2, "tree.expr _tree.expr.arith", &lv)) t2.failparse("LValue expected");
+    return new ItrEntity(lv);
   }));
   ctx.add("parse-stmt", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length) tnte("Too many arguments to parse-stmt: 0 expected");
