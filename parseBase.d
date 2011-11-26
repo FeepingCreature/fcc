@@ -148,6 +148,16 @@ bool accept(ref string s, string t) {
   );
 }
 
+// statement terminator.
+// multiple semicolons can be substituted with a single one
+// and "}" counts as "};"
+bool mustAcceptTerminatorSoft(ref string s, lazy string err) {
+  if (s.accept(";")) return true;
+  auto s2 = (s.ptr - 1)[0..s.length + 1];
+  if (s2.accept(";") || s2.accept("}")) return true;
+  s.failparse(err());
+}
+
 bool mustAccept(ref string s, string t, lazy string err) {
   if (s.accept(t)) return true;
   s.failparse(err());
