@@ -25,6 +25,8 @@ import ast.parse, ast.namespace, ast.scopes;
 // from ast.modules_parse
 mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
 
+string output;
+
 static this() {
   // Link with this library
   pragmas["lib"] = delegate Object(Expr ex) {
@@ -40,6 +42,15 @@ static this() {
       break;
     }
     if (newarg) extra_linker_args ~= newarg;
+    return Single!(NoOp);
+  };
+  pragmas["binary"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, (Expr ex) {
+      return !!fastcast!(StringExpr) (foldex(ex));
+    }))
+      throw new Exception("Binary name expected. ");
+    output = (fastcast!(StringExpr) (foldex(ex))).str;
+    if (isWindoze()) output ~= ".exe";
     return Single!(NoOp);
   };
   pragmas["linker"] = delegate Object(Expr ex) {
@@ -321,7 +332,7 @@ string[] compileWithDepends(string file, CompileSettings cs) {
   return res;
 }
 
-void link(string[] objects, string output, string[] largs, bool saveTemps = false) {
+void link(string[] objects, string[] largs, bool saveTemps = false) {
   scope(success)
     if (!saveTemps)
       foreach (obj; objects)
@@ -334,7 +345,7 @@ void link(string[] objects, string output, string[] largs, bool saveTemps = fals
 }
 
 import std.file;
-void loop(string start, string output, string[] largs,
+void loop(string start, string[] largs,
           CompileSettings cs, bool runMe)
 {
   string toModule(string file) { return file.replace("/", ".").endsWith(EXT); }
@@ -388,7 +399,7 @@ void loop(string start, string output, string[] largs,
     lazySysmod();
     try {
       auto objs = start.compileWithDepends(cs);
-      objs.link(output, largs, true);
+      objs.link(largs, true);
     } catch (Exception ex) {
       logln(ex);
       goto retry;
@@ -448,7 +459,6 @@ int main(string[] args) {
     }
   };
   string[] objects;
-  string output;
   // pre-pass
   {
     auto ar = args;
@@ -584,10 +594,10 @@ int main(string[] args) {
   }
   if (!output) output = "exec";
   if (willLoop) {
-    loop(mainfile, output?output:"exec", largs, cs, runMe);
+    loop(mainfile, largs, cs, runMe);
     return 0;
   }
-  objects.link(output, largs, cs.saveTemps);
+  objects.link(largs, cs.saveTemps);
   if (runMe) system(toStringz("./"~output));
   if (accesses.length) logln("access info: ", accesses);
   return 0;
