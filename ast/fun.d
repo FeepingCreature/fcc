@@ -483,7 +483,7 @@ Function gotMain;
 import ast.stringparse;
 // generalized to reuse for nested funs
 Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_override, bool addToNamespace,
-                           ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool omitRet = false) {
+                           ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool shortform = false) {
   IType ptype;
   auto t2 = text;
   bool reassign;
@@ -500,7 +500,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
   if
     (
       (
-        omitRet
+        shortform
         ||
         (test(ret = fastcast!(IType) (rest(t3, "type"))) && (t2 = t3, true))
         ||
@@ -511,7 +511,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
         forcename || t2.gotIdentifier(fun_name)
       )
       &&
-      t2.gotParlist(_params, rest)
+      t2.gotParlist(_params, rest) || shortform
     )
   {
     static if (is(typeof(_fun()))) auto fun = _fun();
@@ -561,15 +561,15 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
   } else return null;
 }
 
-Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool omitRet = false) {
-  return gotGenericFun!(T, false)(fun, sup_override, addToNamespace, text, cont, rest, forcename, omitRet);
+Object gotGenericFunDef(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool shortform = false) {
+  return gotGenericFun!(T, false)(fun, sup_override, addToNamespace, text, cont, rest, forcename, shortform);
 }
-Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool omitRet = false) {
-  return gotGenericFun!(T, true)(fun, sup_override, addToNamespace, text, cont, rest, forcename, omitRet);
+Object gotGenericFunDecl(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool shortform = false) {
+  return gotGenericFun!(T, true)(fun, sup_override, addToNamespace, text, cont, rest, forcename, shortform);
 }
 // without semicolon required
-Object gotGenericFunDeclNaked(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool omitRet = false) {
-  return gotGenericFun!(T, true, true)(fun, sup_override, addToNamespace, text, cont, rest, forcename, omitRet);
+Object gotGenericFunDeclNaked(T)(T fun, Namespace sup_override, bool addToNamespace, ref string text, ParseCb cont, ParseCb rest, string forcename = null, bool shortform = false) {
+  return gotGenericFun!(T, true, true)(fun, sup_override, addToNamespace, text, cont, rest, forcename, shortform);
 }
 
 Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {

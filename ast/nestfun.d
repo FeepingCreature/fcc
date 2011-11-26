@@ -140,7 +140,7 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto mod = current_module();
   string name;
   static int i;
-  bool omitRet;
+  bool shortform;
   if (!t2.accept("delegate")) {
     if (t2.accept("\\")) {
       synchronized name = Format("__nested_dg_literal_", i++);
@@ -148,7 +148,7 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
       auto res = fastcast!(NestedFunction) (gotGenericFunDeclNaked(nf, mod, true, t3, cont, rest, name, true));
       if (!t3.accept("->")) {
         t3.setError("missing result-arrow for lambda");
-        omitRet = true;
+        shortform = true;
         nf = new NestedFunction(sc);
         goto tryRegularDg;
       }
@@ -174,7 +174,7 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   }
   synchronized name = Format("__nested_dg_literal_", i++);
 tryRegularDg:
-  auto res = fastcast!(NestedFunction) (gotGenericFunDef(nf, mod, true, t2, cont, rest, name, omitRet /* true when using the backslash-shortcut */));
+  auto res = fastcast!(NestedFunction) (gotGenericFunDef(nf, mod, true, t2, cont, rest, name, shortform /* true when using the backslash-shortcut */));
   if (!res)
     t2.failparse("Could not parse delegate literal");
   text = t2;
