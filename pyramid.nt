@@ -153,15 +153,16 @@ void main(string[] args) {
     
     alias movestep = 0.034;
     prefix SDLK_ {
-      alias kpr = keyPressed, kpu = keyPushed;
-      switch int i over kpr[i] {
+      switch int i over keyPressed[i] {
         case w: ec.pos += ec.dir * movestep;
         case s: ec.pos -= ec.dir * movestep;
         case a: ec.pos += ec.left * movestep;
         case d: ec.pos -= ec.left * movestep;
       }
-      if kpu[ PLUS] || kpu[ KP_PLUS] { curDepth ++; regenList; }
-      if kpu[MINUS] || kpu[KP_MINUS] { if curDepth curDepth --; regenList; }
+      switch int i over keyPushed[i] {
+        case PLUS or KP_PLUS: curDepth ++; regenList;
+        case MINUS or KP_MINUS: if curDepth curDepth --; regenList;
+      }
     }
   }
 }

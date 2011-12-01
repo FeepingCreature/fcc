@@ -308,6 +308,18 @@ void initTenth() {
     mixin(chaincast("str: First arg for 'make-string': args[0]->Token: %.name"));
     return new ItrEntity(mkString(str));
   }));
+  rootctx.add("make-or", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'make-or': 2 expected");
+    mixin(chaincast("cd1: First arg for 'make-or': args[0]->ItrEntity: %.itr->Cond"));
+    mixin(chaincast("cd2: Second arg for 'make-or': args[1]->ItrEntity: %.itr->Cond"));
+    return new ItrEntity(new OrOp(cd1, cd2));
+  }));
+  rootctx.add("make-and", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'make-and': 2 expected");
+    mixin(chaincast("cd1: First arg for 'make-and': args[0]->ItrEntity: %.itr->Cond"));
+    mixin(chaincast("cd2: Second arg for 'make-and': args[1]->ItrEntity: %.itr->Cond"));
+    return new ItrEntity(new AndOp(cd1, cd2));
+  }));
   rootctx.add("make-if", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-if': 2 expected");
     mixin(chaincast("cd: First arg for 'make-if': args[0]->ItrEntity: %.itr->Cond"));
@@ -406,6 +418,10 @@ void initTenth() {
     mixin(chaincast("v2: Second arg to 'mod': args[1]->Integer: %.value"));
     if (v1 != v2) return NilEnt;
     return NonNilEnt;
+  }));
+  rootctx.add("eval", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'eval': 1 expected");
+    return args[0].eval(ctx);
   }));
   rootctx.add("if", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 3) tnte("Wrong number of args to 'if': 3 expected");
@@ -586,7 +602,7 @@ void initTenth() {
     return new List(res);
   }));
   rootctx.add("lambda", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
-    if (args.length != 2) tnte("Wrong number of args to 'lambda': 3 or 4 expected");
+    if (args.length != 2) tnte("Wrong number of args to 'lambda': 2 expected");
     return new DgCallable(stuple(ctx, args) /apply/
       delegate Entity(Context prevctx, Entity[] prevargs, Context ctx, Entity[] args) {
         mixin(chaincast("paramlist: Parameter list for 'lambda': prevargs[0]->List: %.entries"));
@@ -672,6 +688,16 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Expected \"", tok, "\"");
     }
     return NonNilEnt;
+  }));
+  string[] sourcestack;
+  ctx.add("pushed-source", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of arguments to 'pushed-source': 1 expected");
+    mixin(chaincast("list: Argument to 'pushed-source': args[0]->List"));
+    sourcestack ~= t2;
+    auto res = list.eval(ctx);
+    t2 = sourcestack[$-1];
+    sourcestack = sourcestack[0..$-1];
+    return res;
   }));
   auto res = ent.eval(ctx);
   if (isNil(res)) return null;

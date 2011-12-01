@@ -18,9 +18,35 @@ macro("tree.stmt.switchover", "411") `
             (remove-scope id)
             (def 'match-case (lambda '()
               '(if (not (matched-text 'case)) 'nil '(last
-                (def 'subcd (substitute cd ph (parse-expr)))
+                (def 'short-or (lambda '(a b)
+                  '(if (eval a) 't '(if (eval b) 't 'nil))))
+                (def 'match-boolean-base (lambda '()
+                  '(substitute cd ph (parse-expr))))
+                (def 'match-boolean-and (lambda '()
+                  '(last
+                    (def 'cd1 (match-boolean-base))
+                    (if (matched-text 'and)
+                      '(last
+                        (def 'cd2 (match-boolean-and))
+                        (make-and cd1 cd2))
+                      'cd1))))
+                (def 'match-boolean-or (lambda '()
+                  '(last
+                    (def 'cd1 (match-boolean-and))
+                    (if (matched-text 'or)
+                      '(last
+                        (def 'cd2 (match-boolean-or))
+                        (make-or cd1 cd2))
+                      'cd1))))
+                (def 'subcd (match-boolean-or))
                 (match-text ":")
-                (make-if subcd (parse-stmt))))))
+                (def 'my-parse-stmts (lambda '()
+                  '(make-aggregate (while
+                    '(not (pushed-source '(short-or
+                      '(matched-text "case")
+                      '(matched-text "}"))))
+                    '(parse-stmt)))))
+                (make-if subcd (my-parse-stmts))))))
             (if (not (matched-text "{"))
               '(match-case)
               '(make-aggregate
