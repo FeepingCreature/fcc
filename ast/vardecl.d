@@ -131,15 +131,12 @@ Expr lvize_if_possible(Expr ex, Statement* late_init = null) {
   // because it changes the semantics; specifically, the evaluation point of ex() to the variable declaration point
   // only use lvize() if you are aware of this!
   // NOTE: for this reason, late_init was added
-  // NOTE: problem. if we create a variable declaration here, it may be inserted before a variable declaration possibly currently building,
-  // the initializer being the reason for the lvize(). As a compromise, if late_init is set (and a vardecl isn't really needed), skip the decl.
   
   sc.add(var);
   
   if (late_init) {
     *late_init = new Assignment(var, ex);
     var.dontInit = true;
-    return var; // see above note
   } else {
     var.initval = ex;
   }
