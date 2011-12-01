@@ -3,7 +3,7 @@ module ast.macros;
 import parseBase, ast.base, ast.literal_string, ast.tuples, ast.fun, ast.funcall,
        ast.namespace, ast.tuple_access, ast.variable, ast.vardecl, ast.scopes,
        ast.aggregate, ast.assign, ast.ifstmt, ast.literals, ast.pointer, ast.casting,
-       ast.opers;
+       ast.opers, ast.conditionals;
 
 import tools.base: This;
 
@@ -704,9 +704,9 @@ Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
     auto mac = new TenthMacro(ent);
     obj = mac;
   }
-  auto dpi = new DefaultParserImpl!(runTenth, null, true, null)(obj);
-  dpi.id = rulename.str;
-  parsecon.addParser(dpi, ruleid.str);
+  auto parser = (new DefaultParserImpl!(runTenth, null, true, null)(obj)).genParser();
+  parser.id = rulename.str;
+  parsecon.addParser(parser, ruleid.str);
   return obj;
 }
 mixin DefaultParser!(gotMacroStmt, "tree.toplevel.macro", null, "macro");

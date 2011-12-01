@@ -173,12 +173,24 @@ void initCastTable() {
   }
 }
 
+const getIdCacheSize = 1;
+Stuple!(void*, int)[getIdCacheSize] getIdCache;
+int getIdLoopPtr;
 int getId(ClassInfo ci) {
   auto cp = cast(void*) ci;
+  for (int i = 0; i < getIdCacheSize; ++i) {
+    int idx = (i + getIdLoopPtr + 1) % getIdCacheSize;
+    if (getIdCache[idx]._0 == cp)
+      return getIdCache[idx]._1;
+  }
   // we know it's a valid index
   auto entry = idtable.ptr[hash(cp) % idtable.length];
-  if (entry._0 == cp) return entry._1;
-  return -1;
+  int res = -1;
+  if (entry._0 == cp) res = entry._1;
+  getIdCache[getIdLoopPtr] = stuple(cp, res);
+  getIdLoopPtr --;
+  if (getIdLoopPtr < 0) getIdLoopPtr += getIdCacheSize;
+  return res;
 }
 
 extern(C) void fastcast_marker() { }

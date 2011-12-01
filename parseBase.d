@@ -320,9 +320,11 @@ void freeRuleData(int offs) {
 
 bool sectionStartsWith(string section, string rule) {
   if (section == rule) return true;
-  auto match = section.startsWith(rule);
+  if (section.length < rule.length) return false;
+  if (section[0..rule.length] != rule) return false;
+  if (section.length == rule.length) return true;
   // only count hits that match a complete section
-  return match.length && match[0] == '.';
+  return section[rule.length] == '.';
 }
 
 string matchrule_static(string rules) {
@@ -548,9 +550,14 @@ struct ParseCb {
   }
 }
 
-class Parser {
-  string key, id; // quickly exclude invalid matches
-  Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb restart) { assert(false); }
+// used to be class, flattened for speed
+struct Parser {
+  string key, id;
+  Object delegate
+    (ref string text, 
+     ParseCtl delegate(Object) accept,
+     ParseCb cont,
+     ParseCb rest) match;
 }
 
 // stuff that it's unsafe to memoize due to side effects
@@ -583,13 +590,11 @@ struct Stack(T) {
 }
 
 template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
-  final class DefaultParserImpl : Parser {
+  final class DefaultParserImpl {
     bool dontMemoMe;
     Object info;
     this(Object obj = null) {
       info = obj;
-      key = Key;
-      id = Id;
       foreach (dg; globalStateMatchers) 
         if (dg(Id)) { dontMemoMe = true; break; }
       _pushCache ~= this /apply/ (typeof(this) that) {
@@ -599,6 +604,13 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
       _popCache ~= this /apply/ (typeof(this) that) {
         that.stack.pop(that.cache);
       };
+    }
+    Parser genParser() {
+      Parser res;
+      res.key = Key;
+      res.id = Id;
+      res.match = &match;
+      return res;
     }
     Object fnredir(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
       static if (is(typeof((&Fn)(info, text, accept, cont, rest))))
@@ -611,14 +623,14 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
         return Fn(text, cont, rest);
     }
     static if (!Memoize) {
-      override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+      Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         return fnredir(text, accept, cont, rest);
       }
     } else {
       // Stuple!(Object, char*)[char*] cache;
       SpeedCache cache;
       Stack!(typeof(cache)) stack;
-      override Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+      Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         auto t2 = text;
         if (.accept(t2, "]")) return null; // never a valid start
         static if (Key) {
@@ -653,8 +665,8 @@ static this() { New(parsecon); }
 
 template DefaultParser(alias Fn, string Id, string Prec = null, string Key = null, bool Memoize = true) {
   static this() {
-    static if (Prec) parsecon.addParser(new DefaultParserImpl!(Fn, Id, Memoize, Key), Prec);
-    else parsecon.addParser(new DefaultParserImpl!(Fn, Id, Memoize, Key));
+    static if (Prec) parsecon.addParser((new DefaultParserImpl!(Fn, Id, Memoize, Key)).genParser(), Prec);
+    else parsecon.addParser((new DefaultParserImpl!(Fn, Id, Memoize, Key)).genParser());
   }
 }
 

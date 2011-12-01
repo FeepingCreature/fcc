@@ -85,8 +85,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     scope(exit) namespace.set(backup);
     namespace.set(coarseContext);
     
-    pushCache();
-    scope(exit) popCache();
+    // no need because only parsed once
+    // pushCache();
+    // scope(exit) popCache();
     
     string t2 = coarseSrc;
     tree = fastcast!(Tree) (parsecon.parse(t2, "tree.scope"));

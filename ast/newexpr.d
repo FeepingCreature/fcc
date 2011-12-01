@@ -3,7 +3,7 @@ module ast.newexpr;
 import
   ast.oop, ast.base, ast.static_arrays, ast.namespace, ast.parse,
   ast.vardecl, ast.int_literal, ast.pointer, ast.assign, ast.fold,
-  ast.structure: doAlign;
+  ast.funcall, ast.modules, ast.tuples, ast.structure: doAlign;
 
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -124,13 +124,19 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   // logln("new1 ", base, " [", len, "]");
   Expr allocedPtr;
   if (arr.elemType.isPointerLess()) {
-    allocedPtr = iparse!(Expr, "new_dynamic_pointerless_array", "tree.expr")
-                        (`mem.calloc_atomic(len * basesz)`,
-                         "len", len, "basesz", mkInt(arr.elemType.size));
+    allocedPtr = buildFunCall(
+      fastcast!(Function) (
+        (fastcast!(Namespace) (sysmod.lookup("mem")))
+        .lookup("calloc_atomic")),
+      lookupOp("*", len, mkInt(arr.elemType.size)),
+      "calloc_atomic for new array");
   } else {
-    allocedPtr =  iparse!(Expr, "new_dynamic_array", "tree.expr")
-                         (`mem.calloc(len, basesz)`,
-                          "len", len, "basesz", mkInt(arr.elemType.size));
+    allocedPtr = buildFunCall(
+      fastcast!(Function) (
+        (fastcast!(Namespace) (sysmod.lookup("mem")))
+        .lookup("calloc")),
+      mkTupleExpr(len, mkInt(arr.elemType.size)),
+      "calloc for new array");
   }
   return fastcast!(Object) (
     mkPointerSlice(
@@ -162,7 +168,9 @@ Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto size = start - end; // lol
   auto framestartp = lookupOp("+", reinterpret_cast(voidp, re.base), mkInt(end));
   auto array = mkPointerSlice(framestartp, mkInt(0), mkInt(size));
-  auto array2p = getArrayPtr(iparse!(Expr, "dup_dg", "tree.expr")(`fastdupv array`, "array", array));
+  auto array2p = getArrayPtr(buildFunCall(
+    fastcast!(Function) (sysmod.lookup("fastdupv")),
+    array, "new dg fastdupv call"));
   auto base2 = lookupOp("+", array2p, mkInt(-end));
   return new DgConstructExpr(re.fun.getPointer(), base2);
 }
