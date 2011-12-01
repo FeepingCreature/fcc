@@ -1,9 +1,10 @@
 module ast.macros;
 
+import ast.tenth;
 import parseBase, ast.base, ast.literal_string, ast.tuples, ast.fun, ast.funcall,
        ast.namespace, ast.tuple_access, ast.variable, ast.vardecl, ast.scopes,
        ast.aggregate, ast.assign, ast.ifstmt, ast.literals, ast.pointer, ast.casting,
-       ast.opers, ast.conditionals;
+       ast.opers, ast.conditionals, ast.returns;
 
 import tools.base: This;
 
@@ -55,198 +56,7 @@ class Swap : Statement {
   }
 }
 
-class TenthException : Exception {
-  this(string s) { super("TenthException: "~s); }
-}
-
-// throw new TenthException
-void tnte(T...)(T t) {
-  throw new TenthException(Format(t));
-}
-
-class Context {
-  Entity[string] defs;
-  Context sup;
-  this() { }
-  this(Context c) { sup = c; }
-  string toString() {
-    if (!sup) return Format("context ", defs.keys);
-    return Format("context ", defs.keys, " <- ", sup);
-  }
-  Entity lookup(string s) {
-    if (auto p = s in defs) return *p;
-    if (sup) return sup.lookup(s);
-    return null;
-  }
-  void add(string name, Entity ent) { defs[name] = ent; }
-}
-
-abstract class Entity {
-  Entity eval(Context);
-}
-
-class Token : Entity {
-  string name;
-  mixin This!("name");
-  string toString() { return name; }
-  override Entity eval(Context ctx) {
-    auto res = ctx.lookup(name);
-    if (!res) throw new Exception(Format("Could not evaluate '", name, "': no such entity in ", ctx));
-    return res;
-  }
-}
-
-class Integer : Entity {
-  int value;
-  mixin This!("value");
-  override Entity eval(Context ctx) { return this; }
-}
-
-class Escape : Entity {
-  Entity sub;
-  mixin This!("sub");
-  string toString() { return Format("'", sub); }
-  override Entity eval(Context) { return sub; }
-}
-
-interface Callable {
-  Entity call(Context, Entity[] args);
-}
-
-class List : Entity {
-  Entity[] entries;
-  mixin This!("entries = null");
-  string toString() { string res; foreach (i, ent; entries) { if (i) res ~= " "; res ~= Format(ent); } return "(" ~ res ~ ")"; }
-  override Entity eval(Context ctx) {
-    if (!entries.length)
-      tnte("Cannot evaluate empty list. ");
-    
-    auto first = entries[0].eval(ctx);
-    auto firstc = fastcast!(Callable) (first);
-    if (!firstc)
-      tnte("First element of list is not callable: ", first);
-    
-    Entity[] args = new Entity[entries.length - 1];
-    foreach (i, ent; entries[1..$]) {
-      args[i] = ent.eval(ctx);
-      if (!args[i]) {
-        logln("fail: ", ent, " is a ", (cast(Object) ent).classinfo.name);
-        asm { int 3; }
-      }
-    }
-    return firstc.call(ctx, args);
-  }
-}
-
-Entity NilEnt, NonNilEnt;
-static this() {
-  NilEnt = new List();
-  NonNilEnt = new List([new List]);
-}
-
-class DgCallable : Entity, Callable {
-  Entity delegate(Context, Entity[]) dg;
-  mixin This!("dg");
-  override Entity eval(Context) { assert(false); }
-  Entity call(Context ctx, Entity[] args) {
-    return dg(ctx, args);
-  }
-}
-
-Entity parseTenth(ref string src) {
-  if (src.accept("'")) {
-    return new Escape(parseTenth(src));
-  }
-  if (src.accept("\"")) {
-    auto mew = src.slice("\"");
-    return new Escape(new Token(mew)); // haaaaax
-  }
-  if (src.accept("(")) {
-    Entity[] res;
-    while (true) {
-      if (src.accept(")")) return new List(res);
-      res ~= parseTenth(src);
-    }
-  }
-  int val;
-  if (src.gotInt(val)) {
-    return new Integer(val);
-  }
-  string id;
-  if (src.gotIdentifier(id)) {
-    return new Token(id);
-  }
-  src.failparse("Unknown Tenth code");
-}
-
-class ItrEntity : Entity {
-  Iterable itr;
-  mixin This!("itr");
-  string toString() { return Format("<", itr, ">"); }
-  override Entity eval(Context ctx) {
-    tnte("Tried to evaluate iterable entity: ", itr);
-    assert(false);
-  }
-}
-
-class TypeEntity : Entity {
-  IType ty;
-  mixin This!("ty");
-  string toString() { return Format("<", ty, ">"); }
-  override Entity eval(Context ctx) {
-    tnte("Tried to evaluate type entity: ", ty);
-    assert(false);
-  }
-}
-
-bool isNil(Entity ent) {
-  auto li = fastcast!(List) (ent);
-  if (!li) return false;
-  return li.entries.length == 0;
-}
-
-import tools.ctfe;
-string chaincast(string mode) {
-  auto target = mode.ctSlice(":").ctStrip();
-  auto prefix = mode.ctSlice(":").ctStrip();
-  string res;
-  int i;
-  string currentTemp;
-  while (mode.ctStrip().length) {
-    auto castto = mode.ctSlice(":").ctStrip();
-    auto ex = castto.ctSlice("->");
-    if (currentTemp) {
-      ex = ex.ctReplace("%", currentTemp);
-      i++;
-      auto transformedTemp = target~"_pre_"~ctToString(i);
-      res ~= "auto "~transformedTemp~" = "~ex~";\n";
-      currentTemp = transformedTemp;
-    } else {
-      currentTemp = target~"_pre_"~ctToString(i);
-      res = "auto "~currentTemp~ " = "~ex~";\n";
-    }
-    if (castto) {
-      i++;
-      auto newTemp = target~"_pre_"~ctToString(i);
-      res ~= "auto "~newTemp~" = fastcast!("~castto~") ("~currentTemp~");\n";
-      res ~= "if (!"~newTemp~") tnte(\""~prefix~" must be "~castto~", not \", "~currentTemp~");\n";
-      currentTemp = newTemp;
-    }
-  }
-  res ~= "auto "~target~" = "~currentTemp~";\n";
-  return res;
-}
-
-int macrocount;
-class TenthMacro : NoOp, Named {
-  string identifier;
-  Entity root;
-  string getIdentifier() { return identifier; }
-  this(Entity e) { root = e; identifier = Format("__tenth_macro_", macrocount++); }
-}
-
-Context rootctx;
-void initTenth() {
+extern(C) void fcc_initTenth() {
   if (rootctx) return;
   rootctx = new Context;
   rootctx.add("nil", NilEnt);
@@ -292,6 +102,11 @@ void initTenth() {
     mixin(chaincast("ex: Second arg for make-call: args[1]->ItrEntity: %.itr->Expr"));
     return new ItrEntity(buildFunCall(fun, ex, "tenth-call"));
   }));
+  rootctx.add("make-exprwrap", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'make-exprwrap': 1 expected");
+    mixin(chaincast("ex: Arg for 'make-exprwrap': args[0]->ItrEntity: %.itr->Expr"));
+    return new ItrEntity(new ExprWrap(ex));
+  }));
   rootctx.add("make-int", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'make-int': 1 expected");
     mixin(chaincast("num: First arg for 'make-int': args[0]->Integer: %.value"));
@@ -330,6 +145,11 @@ void initTenth() {
     ifs.branch1 = new Scope;
     ifs.branch1.addStatement(st);
     return new ItrEntity(ifs);
+  }));
+  rootctx.add("make-return", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'make-return': 1 expected");
+    mixin(chaincast("ex: Arg for 'make-return': args[0]->ItrEntity: %.itr->Expr"));
+    return new ItrEntity(new ReturnStmt(ex));
   }));
   rootctx.add("substitute", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 3) tnte("Wrong number of args to 'substitute': 3 expected");
@@ -625,7 +445,7 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   auto findme = namespace().lookup(mac.identifier, false);
   if (findme !is mac) return null; // check if we're in scope
   auto ent = mac.root;
-  initTenth;
+  fcc_initTenth;
   auto ctx = new Context(rootctx);
   ctx.add("parse-ident", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length) tnte("Too many arguments to parse-ident: 0 expected");

@@ -80,7 +80,7 @@ const c_tree_expr = "tree.expr"
   " >tree.expr.new >tree.expr.eval >tree.expr.cast >tree.expr.veccon"
   " >tree.expr.cast_explicit_default >tree.expr.cast_convert"
   " >tree.expr.scoped >tree.expr.stringex >tree.expr.dynamic_class_cast"
-  " >tree.expr.properties";
+  " >tree.expr.properties >tree.expr.veccon";
 
 const c_tree_expr_matcher = matchrule_static(c_tree_expr);
 

@@ -362,7 +362,7 @@ static this() {
     bool isArray(IType it) { return !!fastcast!(Array) (it); }
     if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
       return null;
-    auto res = iparse!(Expr, "array_eq", "tree.expr")
+    auto res = iparse!(Expr, "array_eq", "tree.expr.eval.cond")
                   (`eval (ex1.length == ex2.length && memcmp(void*:ex1.ptr, void*:ex2.ptr, ex1.length * (size-of type-of ex1[0])) == 0)`,
                    "ex1", lvize(ex1), "ex2", lvize(ex2));
     assert(!!res);

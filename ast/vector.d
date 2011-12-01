@@ -305,11 +305,16 @@ Object constructVector(Expr base, Vector vec) {
 Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;
-  if (!rest(t2, "type", &ty))
+  if (t2.accept("\"") || t2.accept("[")) return null;
+  if (!rest(t2, "type", &ty)) {
+    // logln("fail 1 @", t2.mystripl().nextText());
     return null;
-  auto vec = fastcast!(Vector)~ resolveType(ty);
-  if (!vec)
+  }
+  auto vec = fastcast!(Vector) (resolveType(ty));
+  if (!vec) {
+    // logln("fail 2 @", t2.nextText());
     return null;
+  }
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) return null;
   try {

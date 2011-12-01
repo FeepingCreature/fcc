@@ -2,7 +2,8 @@ module ast.oop;
 
 import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.namespace, ast.structure, ast.structfuns, ast.pointer,
-  ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun;
+  ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun,
+  ast.tenth;
 
 struct RelFunSet {
   Stuple!(RelFunction, string, IType[])[] set;
@@ -488,9 +489,16 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         intf_offset ++;
       }
       void handleClass(Class cl) {
-        as.stmts ~= iparse!(Statement, "cast_branch_class", "tree.stmt")("if (streq(id, _test)) return void*:this;",
-          rf, "_test", mkString(cl.mangle_id)
-        );
+        as.stmts ~= fastcast!(Statement) (runTenthPure((void delegate(string,Object) dg) {
+          dg("id", rf.lookup("id"));
+          dg("this", rf.lookup("this"));
+          dg("_test", fastcast!(Object) (mkString(cl.mangle_id)));
+          dg("streq", sysmod.lookup("streq"));
+        }, parseTenth(`
+          (make-if
+            (make-exprwrap (make-call streq (make-tuple-expr (list id _test))))
+            (make-return (reinterpret-cast (pointer-to (basic-type 'void)) this)))
+        `)));
         if (cl.parent) handleClass(cl.parent);
         intf_offset = cl.classSize(false);
         doAlign(intf_offset, voidp);

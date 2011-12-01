@@ -48,13 +48,23 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
         // filter out nameds from the tuple.
         auto exprs = getTupleEntries(ex);
         bool gotNamed;
-        foreach (subexpr; exprs) if (auto na = fastcast!(NamedArg) (foldex(subexpr))) {
-          gotNamed = true; break;
+        int optimized;
+        foreach (ref subexpr; exprs) {
+          subexpr = foldex(subexpr);
+          optimized ++;
+          if (fastcast!(NamedArg) (subexpr)) {
+            gotNamed = true;
+            break;
+          }
         }
         if (gotNamed) {
           Expr[] left;
-          foreach (subexpr; exprs) {
-            auto fs = foldex(subexpr);
+          foreach (i, subexpr; exprs) {
+            
+            Expr fs;
+            if (i < optimized) fs = subexpr;
+            else fs = foldex(subexpr);
+            
             if (auto na = fastcast!(NamedArg) (fs)) {
               nameds[na.name] = na.base;
             } else {
