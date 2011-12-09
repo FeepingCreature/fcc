@@ -38,6 +38,7 @@ class ConcatChain : Expr {
         auto sc = new Scope;
         namespace.set(sc);
         scope(exit) namespace.set(sc.sup);
+        sc.requiredDepth = af.currentStackDepth;
         
         sc._body = Single!(NoOp);
         auto dg = sc.open(af);

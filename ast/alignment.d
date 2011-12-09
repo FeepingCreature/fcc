@@ -12,6 +12,10 @@ extern(C) int align_boffs(IType t, int curdepth = -1) {
     }
     curdepth = sl.framesize();
   }
+  if (curdepth == -1) {
+    logln("Could not align ", t, ": insufficient framesize information from ", namespace().get!(ScopeLike));
+    asm { int 3; }
+  }
   int offs = curdepth + t.size;
   doAlign(offs, t);
   return -offs;

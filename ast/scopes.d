@@ -48,25 +48,48 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   }
   string entry() { return Format(".L", id, "_entry"); }
   string exit() { return Format(".L", id, "_exit"); }
-  string toString() { return Format("scope <- ", sup); }
+  string toString() { return Format("scope(", framesize(), ") <- ", sup); }
   this() {
     id = getuid();
     sup = namespace();
     New(lnsc);
+    recalcRequiredDepth;
+  }
+  void recalcRequiredDepth() {
+    requiredDepth = framesize();
+    if (requiredDepth == -1) {
+      requiredDepth = int.max;
+    }
+    requiredDepthDebug = Format(this);
+    if (requiredDepthDebug == "scope(12) <- scope(12) <- fun join Function of [ref class reader <- Instance of template readfile (ast.types.SysInt) <- module std.file t]  => (null) <- Instance of template join (ref class reader <- Instance of template readfile (ast.types.SysInt) <- module std.file) <- module std.string") {
+      logln(this);
+      logln(sup.field);
+      asm { int 3; }
+    }
+  }
+  void setSup(Namespace ns) {
+    sup = ns;
+    recalcRequiredDepth;
   }
   override Scope dup() {
     auto res = new Scope;
     res.field = field.dup;
     if (_body) res._body = _body.dup;
     foreach (guard; guards) res.guards ~= guard.dup;
+    res.guard_offsets = guard_offsets.dup;
     res.id = getuid();
     res.lnsc = lnsc;
+    res.requiredDepth = requiredDepth;
+    res.requiredDepthDebug = "[dup]"~requiredDepthDebug;
     return res;
   }
   override int framesize() {
     int res;
-    if (auto sl = fastcast!(ScopeLike)~ sup)
-      res += sl.framesize();
+    if (auto sl = fastcast!(ScopeLike)~ sup) {
+      auto supsz = sl.framesize();
+      if (supsz == -1) return -1;
+      res += supsz;
+    }
     foreach (obj; field) {
       if (auto var = fastcast!(Variable)~ obj._1) {
         res += getFillerFor(var.type, res);
@@ -92,6 +115,14 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
     if (needEntryLabel) af.emitLabel(entry(), !keepRegs, !isForward);
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
+    // sanity checking
+    if (requiredDepth != int.max && af.currentStackDepth != requiredDepth) {
+      logln("Scope emit failure: expected stack depth ", requiredDepth, ", but got ", af.currentStackDepth);
+      logln("was: ", requiredDepthDebug);
+      logln(" is: ", this);
+      logln("mew: ", _body);
+      asm { int 3; }
+    }
     return stuple(checkpt, backup, this, af) /apply/ (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af) {
       if (that._body) {
         that._body.emitAsm(af);

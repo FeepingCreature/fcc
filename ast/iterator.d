@@ -542,6 +542,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(backup);
   
   auto sc = new Scope;
+  sc.requiredDepth = int.max; // PROBABLY okay
   sc.configPosition(t2);
   namespace.set(sc);
   

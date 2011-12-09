@@ -217,12 +217,12 @@ class MiniNamespace : Namespace, ScopeLike, Named {
     int framesize() {
       if (fs != -1) return fs;
       if (auto sl = fastcast!(ScopeLike)~ sup) {
-        if (fs2) return fs2 + sl.framesize();
-        else return sl.framesize();
+        auto supsz = sl.framesize();
+        if (supsz == -1) return -1;
+        if (fs2) return fs2 + supsz;
+        else return supsz;
       } else {
-        // logln("no metric for framesize of ", id);
-        if (id == "onUsing") asm { int 3; }
-        return 0;
+        return -1;
         // throw new Exception(Format("No metric for framesize of ", id, ": sup is ", sup, "."));
       }
     }

@@ -29,7 +29,9 @@ class WithStmt : Namespace, Statement, ScopeLike {
   string toString() { return Format("with (", context, ") <- ", sup); }
   int temps;
   override int framesize() {
-    return (fastcast!(ScopeLike)~ sup).framesize() + temps;
+    auto supsz = (fastcast!(ScopeLike) (sup)).framesize();
+    if (supsz == -1) return -1;
+    return supsz + temps;
   }
   this(Expr ex) {
     sup = namespace();
