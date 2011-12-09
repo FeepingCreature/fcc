@@ -18,6 +18,7 @@ Threadpool tp;
 
 class Module : Namespace, Tree, Named, StoresDebugState {
   string name;
+  string sourcefile;
   string cleaned_name() { return name.cleanup(); }
   Module[] imports, public_imports, static_imports;
   Module[] getImports() { return imports ~ public_imports ~ static_imports; }
@@ -44,8 +45,9 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   bool dontEmit; // purely definitions, no symbols; nothing to actually compile.
   bool splitIntoSections;
   private this() { assert(false); }
-  this(string name) {
+  this(string name, string sourcefile) {
     this.name = name;
+    this.sourcefile = sourcefile;
     //                      needed by sysmod; avoid circle
     isValid = true;
   }

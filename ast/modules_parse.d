@@ -5,6 +5,8 @@ import parseBase, ast.base, ast.parse, ast.modules;
 import tools.threads, tools.threadpool, tools.compat: read, castLike, exists, sub;
 import ast.structure, ast.namespace;
 
+extern(C) char* realpath(char* fn, char* wtf = null);
+
 Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   string m;
   auto t2 = text;
@@ -48,7 +50,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
     modname = pos._2.endsWith(".nt");
   }
   
-  New(mod, modname);
+  New(mod, modname, toString(realpath(toStringz(lookupPos(t2)._2))));
   namespace.set(mod);
   auto backup_mod = current_module();
   scope(exit) current_module.set(backup_mod);

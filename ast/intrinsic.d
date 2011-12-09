@@ -389,13 +389,14 @@ void setupSysmods() {
       return res[];
     }
     class ModuleInfo {
-      string name;
+      string name, sourcefile;
       void* dataStart, dataEnd;
       bool compiled; // does this have an .o file?
       void function()[auto~] constructors;
       bool constructed;
       string[] _imports;
       ModuleInfo[auto~] imports;
+      string toString() { return "[module $name]"; }
     }
     ModuleInfo[auto~] __modules;
     ModuleInfo lookupInfo(string name) {
@@ -418,11 +419,17 @@ void setupSysmods() {
       }
       for auto mod <- __modules callConstructors mod;
     }
+    /* shared TODO figure out why this crashes */ string executable;
+    shared int __argc;
+    shared char** __argv;
     int main2(int argc, char** argv) {
+      __argc = argc; __argv = argv;
       __setupModuleInfo();
       constructModules();
       
       mxcsr |= (1 << 6) | (3 << 13) | (1 << 15); // Denormals Are Zero; Round To Zero; Flush To Zero.
+      executable = argv[0][0..strlen(argv[0])];
+      argv ++; argc --;
       auto args = new string[] argc;
       {
         int i;
@@ -517,13 +524,15 @@ void finalizeSysmod(Module mainmod) {
              (`{var = new ModuleInfo;
                __modules ~= var;
                var.name = name;
+               var.sourcefile = sourcefile;
                var.dataStart = symdstart;
                var.dataEnd = symdend;
                var.compiled = bool:compiled;
              }` , "var", var, "name", mkString(mod.name),
                   "symdstart", symdstart,
                   "symdend", symdend,
-                  "compiled", compiled
+                  "compiled", compiled,
+                  "sourcefile", mkString(mod.sourcefile)
             )
     );
     foreach (fun; mod.constrs) {

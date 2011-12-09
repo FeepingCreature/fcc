@@ -763,7 +763,7 @@ static this() {
     if (!hdr) return null;
     auto hfile = hdr.replace(".", "/") ~ ".h";
     
-    auto mod = new Module(name);
+    auto mod = new Module(name, hfile);
     mod.dontEmit = true;
     
     auto backup = namespace();

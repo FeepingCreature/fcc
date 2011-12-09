@@ -203,13 +203,8 @@ class MiniNamespace : Namespace, ScopeLike, Named {
     Stuple!(IType, string, int)[] stackframe() {
       assert(false); // wtfux.
     }
-    Statement[] getGuards() {
-      if (auto sl = fastcast!(ScopeLike) (sup))
-        return sl.getGuards();
-      else
-        return null;
-    }
-    string toString() { return Format("mini[", id, "] <- ", sup); }
+    mixin DefaultScopeLikeGuards!();
+    string toString() { return Format("mini[", id, "](", framesize(), ") <- ", sup); }
     void _add(string name, Object obj) {
       if (sup && !internalMode) sup._add(name, obj);
       else super.__add(name, obj);
