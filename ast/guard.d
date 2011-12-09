@@ -22,7 +22,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     scope(exit) popCache;
     if (!rest(t3, "tree.stmt", &st1))
       t3.failparse("No statement matched for ", type, " in scope context");
-    sc.guards ~= st1;
+    sc.addGuard(st1);
   }
   if (type == "onFailure" || type == "onExit") {
     auto nf = new NestedFunction(sc), mod = current_module();

@@ -155,12 +155,7 @@ class ModeSpace : Namespace, ScopeLike {
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     int framesize() { return (fastcast!(ScopeLike)~ sup).framesize(); }
-    Statement[] getGuards() {
-      if (auto sl = fastcast!(ScopeLike) (sup))
-        return sl.getGuards();
-      else
-        return null;
-    }
+    mixin DefaultScopeLikeGuards!();
     Object lookup(string name, bool local = false) {
       Object funfilt(Object obj) {
         if (auto fun = fastcast!(Function)~ obj) {

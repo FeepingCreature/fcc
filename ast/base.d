@@ -304,6 +304,22 @@ class CallbackExpr : Expr {
 interface ScopeLike {
   int framesize();
   Statement[] getGuards();
+  int[] getGuardOffsets();
+}
+
+template DefaultScopeLikeGuards() {
+  Statement[] getGuards() {
+    if (auto sl = fastcast!(ScopeLike) (sup))
+      return sl.getGuards();
+    else
+      return null;
+  }
+  int[] getGuardOffsets() {
+    if (auto sl = fastcast!(ScopeLike) (sup))
+      return sl.getGuardOffsets();
+    else
+      return null;
+  }
 }
 
 private alias Iterable Itr;

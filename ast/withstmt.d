@@ -20,12 +20,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
     res.temps = temps;
     return res;
   }
-  override Statement[] getGuards() {
-    if (auto sl = fastcast!(ScopeLike) (sup))
-      return sl.getGuards();
-    else
-      return null;
-  }
+  mixin DefaultScopeLikeGuards!();
   string toString() { return Format("with (", context, ") <- ", sup); }
   int temps;
   override int framesize() {

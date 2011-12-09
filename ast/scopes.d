@@ -12,16 +12,23 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
 	Mew lnsc; // "multiple inheritance" hack
   Statement _body;
   Statement[] guards;
+  int[] guard_offsets;
   ulong id;
   bool needEntryLabel;
+  int requiredDepth; // sanity checking
+  string requiredDepthDebug;
   mixin defaultIterate!(_body, guards);
   override void configPosition(string str) {
 		lnsc.configPosition(str);
   }
   override void getInfo(ref string n, ref int l) { lnsc.getInfo(n, l); }
   Statement[] getGuards() {
-    if (auto sl = fastcast!(ScopeLike)~ sup) return sl.getGuards() ~ guards;
+    if (auto sl = fastcast!(ScopeLike) (sup)) return sl.getGuards() ~ guards;
     else return guards;
+  }
+  int[] getGuardOffsets() {
+    if (auto sl = fastcast!(ScopeLike) (sup)) return sl.getGuardOffsets() ~ guard_offsets;
+    else return guard_offsets;
   }
   void addStatement(Statement st) {
     if (auto as = fastcast!(AggrStatement) (_body)) as.stmts ~= st;
@@ -35,6 +42,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   }
   void addGuard(Statement st) {
     guards ~= st;
+    guard_offsets ~= namespace().get!(ScopeLike).framesize();
   }
   void addStatementToFront(Statement st) {
     if (auto as = fastcast!(AggrStatement) (_body)) as.stmts = st ~ as.stmts;
@@ -130,8 +138,10 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, bool onlyCleanup) {
         if (!onlyCleanup) af.emitLabel(that.exit(), !keepRegs, isForward);
         
-        foreach_reverse(guard; that.guards)
+        foreach_reverse(i, guard; that.guards) {
+          af.restoreCheckptStack(that.guard_offsets[i]);
           guard.emitAsm(af);
+        }
         
         af.restoreCheckptStack(checkpt);
         if (!onlyCleanup) namespace.set(backup);
