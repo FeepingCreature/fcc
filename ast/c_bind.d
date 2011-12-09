@@ -87,6 +87,17 @@ const c_tree_expr_matcher = matchrule_static(c_tree_expr);
 TLS!(Expr delegate(ref string)) specialCallback;
 static this() { New(specialCallback); }
 
+bool parsingCHeader() {
+  auto ns = namespace();
+  while (ns) {
+    auto mns = ns.get!(MiniNamespace);
+    if (!mns) return false;
+    if (mns.id == "parse_header") return true;
+    ns = mns.sup;
+  }
+  return false;
+}
+
 void parseHeader(string filename, string src) {
   auto start_time = sec();
   string newsrc;
