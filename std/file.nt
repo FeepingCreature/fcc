@@ -2,7 +2,7 @@
 File I/O*/
 module std.file;
 
-import c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.sys.stat;
+import c.dirent,c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.sys.stat;
 
 class ErrnoError : Error {
   int errno;
@@ -165,3 +165,27 @@ reassign string realpath(string path) {
 bool exists(string file) {
   return access(toStringz file, F_OK) != -1;
 }
+
+/*
+	Function: listDirectory
+	Lists a directory's contents and returns an array of file/directory names.
+*/
+string[] listDirectory(string path) {
+	dirent* entry;
+	DIR* dp;
+	
+	string[] ret;
+ 
+ 	dp = opendir toStringz path;
+	if dp==null
+		raise new Error CToString strerror errno;
+	
+	entry = readdir(dp);
+	while (entry) {
+		ret~=entry.d_name;
+		entry = readdir(dp);
+	}
+	
+	return ret;
+}
+
