@@ -15,7 +15,7 @@ template check(alias A) {
   void check(ParamTypes type-of &A a) {
     auto res = A a;
     if res == 0 return;
-    else raise-error new Error "While calling $(string-of A): $res: $(CToString snd_strerror res)";
+    else raise new Error "While calling $(string-of A): $res: $(CToString snd_strerror res)";
   }
 }
 

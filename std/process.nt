@@ -101,7 +101,7 @@ class ReadbackStream : Iterator!string {
         }
         auto res = write inbuffer.(hdl_sysward[1], ptr, length);
         if res < 0
-          raise-error new ReadbackError "Writing to stream failed! ";
+          raise new ReadbackError "Writing to stream failed! ";
         inbuffer = inbuffer[res .. $];
       }
       bool active;

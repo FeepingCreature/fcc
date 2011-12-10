@@ -70,7 +70,7 @@ class writer {
   void step(byte[] data) {
     while data.length {
       auto res = write(hdl, data.ptr, data.length);
-      if res == -1 { perror "While writing $(data.length) bytes".toStringz(); raise-error (new WriterError); }
+      if res == -1 { perror "While writing $(data.length) bytes".toStringz(); raise (new WriterError); }
       data = data[res .. $];
     }
   }
@@ -137,21 +137,21 @@ string sub(string path1, path2) {
 import c.sys.stat;
 time_t accessed(string file) {
   int fd = open file;
-  if (fd == -1) raise-error new ErrnoError;
+  if (fd == -1) raise new ErrnoError;
   fstat(fd, &stat s);
   return s.st_atim.tv_sec;
 }
 
 time_t modified(string file) {
   int fd = open file;
-  if (fd == -1) raise-error new ErrnoError;
+  if (fd == -1) raise new ErrnoError;
   fstat(fd, &stat s);
   return s.st_mtim.tv_sec;
 }
 
 time_t statuschanged(string file) {
   int fd = open file;
-  if (fd == -1) raise-error new ErrnoError;
+  if (fd == -1) raise new ErrnoError;
   fstat(fd, &stat s);
   return s.st_ctim.tv_sec;
 }

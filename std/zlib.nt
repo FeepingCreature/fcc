@@ -13,12 +13,12 @@ class Deflate {
   /*Function: init*/
   void init() {
     auto ret = deflateInit_(&stream, 6, ZLIB_VERSION, size-of z_stream);
-    if ret != Z_OK raise-error new Error "ZLIB init error $ret (version '$ZLIB_VERSION')";
+    if ret != Z_OK raise new Error "ZLIB init error $ret (version '$ZLIB_VERSION')";
   }
   /*Function: fini*/
   void fini() {
     auto ret = deflateEnd(&stream);
-    if ret != Z_OK raise-error new Error "ZLIB fini error $ret (version '$ZLIB_VERSION')";
+    if ret != Z_OK raise new Error "ZLIB fini error $ret (version '$ZLIB_VERSION')";
   }
   /*Function: deflate
   Deflate the argument, returning the compressed data. Stream is flushed at the end. */
@@ -30,7 +30,7 @@ class Deflate {
       stream.(avail_out, next_out) = (buffer.length, char*:buffer.ptr);
       // stream.(avail_out, next_out) = (buffer.length, char*:buffer.ptr);
       auto ret = c.zlib.deflate(&stream, Z_FINISH);
-      if (ret == -2) raise-error new Error "ZLIB deflate error $ret";
+      if (ret == -2) raise new Error "ZLIB deflate error $ret";
       int got = buffer.length - stream.avail_out;
       res ~= buffer[0..got];
     } while (stream.avail_out < buffer.length || stream.avail_in) { }
@@ -45,12 +45,12 @@ class Inflate {
   /*Function: init*/
   void init() {
     auto ret = inflateInit_(&stream, ZLIB_VERSION, size-of z_stream);
-    if ret != Z_OK raise-error new Error "ZLIB init error $ret (version '$ZLIB_VERSION')";
+    if ret != Z_OK raise new Error "ZLIB init error $ret (version '$ZLIB_VERSION')";
   }
   /*Function: fini*/
   void fini() {
     auto ret = inflateEnd(&stream);
-    if ret != Z_OK raise-error new Error "ZLIB fini error $ret (version '$ZLIB_VERSION')";
+    if ret != Z_OK raise new Error "ZLIB fini error $ret (version '$ZLIB_VERSION')";
   }
   /*Function: inflate
   Inflate the argument, returning the decompressed data. Stream is flushed at the end. */
@@ -61,7 +61,7 @@ class Inflate {
     do {
       stream.(avail_out, next_out) = (buffer.length, char*:buffer.ptr);
       auto ret = c.zlib.inflate(&stream, Z_FINISH);
-      if ret == -2 raise-error new Error "ZLIB deflate error $ret";
+      if ret == -2 raise new Error "ZLIB deflate error $ret";
       int got = buffer.length - stream.avail_out;
       res ~= buffer[0..got];
     } while (stream.avail_out < buffer.length || stream.avail_in) {  }

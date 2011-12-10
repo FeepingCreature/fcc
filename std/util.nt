@@ -34,7 +34,7 @@ template loop(T) {
       if !(value <- running) {
         running = iter;
         if !(value <- running) {
-          raise-error new Error "Unable to restore iterator in loop iter! ";
+          raise new Error "Unable to restore iterator in loop iter! ";
         }
       }
       return true;
@@ -50,7 +50,7 @@ template loop(T) {
 
 template UnreliableIterator(T) {
   class UnreliableIterator : Iterator!T {
-    bool canAdvance() { raise-error new Error "$this: UnreliableIterator::canAdvance not implemented!"; }
+    bool canAdvance() { raise new Error "$this: UnreliableIterator::canAdvance not implemented!"; }
   }
 }
 
@@ -64,7 +64,7 @@ template FeedIterator(T) {
     void write(T t) { source ~= t; }
     bool canAdvance() { return source.length > 0; }
     bool advance() {
-      if (!source.length) raise-error new Error "Feed iterator: buffer empty";
+      if (!source.length) raise new Error "Feed iterator: buffer empty";
       value = source[0];
       
       // TODO: do this in the compiler
@@ -106,7 +106,7 @@ template take(T) {
     Elem[auto~] res;
     for 0..t[1] {
       if auto val <- t[0] res ~= val;
-      else raise-error new Error "Not enough elements available to take $(t[1])";
+      else raise new Error "Not enough elements available to take $(t[1])";
     }
     return res[];
   }

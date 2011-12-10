@@ -28,13 +28,13 @@ class OSSSound : Sound {
   void init(string f) { file = f; }
   void open() {
     fd = std.sound.oss.open(toStringz(file), O_WRONLY, 0);
-    if (fd == -1) raise-error new Error "Couldn't open sound device! ";
+    if (fd == -1) raise new Error "Couldn't open sound device! ";
     writeln "OSS open";
     int i;
     auto this2 = this; // hackaround
     void my_ioctl(int mode, int val) using this2 {
       auto res = ioctl(fd, mode, &val);
-      if (res != 0) raise-error new Error "ioctl with $mode failed: $val, errno $(getErrno())";
+      if (res != 0) raise new Error "ioctl with $mode failed: $val, errno $(getErrno())";
     }
     my_ioctl(SNDCTL_DSP_SETFMT, AFMT_S16_LE);
     my_ioctl(SNDCTL_DSP_CHANNELS, 1);

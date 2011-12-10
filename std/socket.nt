@@ -98,14 +98,14 @@ class Socket {
     boundAddr = addr;
     auto err = .bind(sockfd, addr.getAddrHandle());
     if (err == -1)
-      raise-error new Error "While binding to $addr: $(CToString strerror errno)";
+      raise new Error "While binding to $addr: $(CToString strerror errno)";
   }
   /*Function: listen
   Listen for incoming connections */
   void listen(int backlog = 4) {
     auto err = .listen(sockfd, backlog);
     if (err == -1)
-      raise-error new Error "While trying to listen: $(CToString strerror errno)";
+      raise new Error "While trying to listen: $(CToString strerror errno)";
   }
   /*Function: accept
   Once incoming connections occur, return a socket for them*/
@@ -115,10 +115,10 @@ class Socket {
     int gotLength = hdl[1];
     sockfd = .accept(this.sockfd, hdl[0], &gotLength);
     if (sockfd == -1) {
-      raise-error new Error "While accepting connections on $(this.sockfd): $(CToString strerror errno)";
+      raise new Error "While accepting connections on $(this.sockfd): $(CToString strerror errno)";
     }
     if (gotLength != hdl[1])
-      raise-error new Error "Accepted socket address was of different type than listening socket: $gotLength, but expected $(hdl[1])! ";
+      raise new Error "Accepted socket address was of different type than listening socket: $gotLength, but expected $(hdl[1])! ";
     return that;
   }
 }
@@ -181,6 +181,6 @@ struct SelectSet {
     tv.tv_sec = int:timeout;
     tv.tv_usec = int:((timeout - tv.tv_sec) * 1_000_000);
     auto res = .select(largest + 1, &rdset, &wrset, &errset, &tv);
-    if (res == -1) raise-error new Error "While trying to select: $(CToString strerror errno)";
+    if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
   }
 }

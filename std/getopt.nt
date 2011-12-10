@@ -93,32 +93,32 @@ class Options {
           alias opt = this.options[i];
           if (opt.shortopt == [char:byte:res]) {
             if (opt.callback) { opt.callback(arg); }
-            else if (arg) raise-error new Error "-$(opt.shortopt) does not take an argument";
+            else if (arg) raise new Error "-$(opt.shortopt) does not take an argument";
             else opt.callback2();
             matched = true;
             opt.missing = false;
           }
         }
       }
-      if (res == "?") raise-error new Error "invalid options";
+      if (res == "?") raise new Error "invalid options";
       if (0 <= res < this.options.length) {
         alias opt = this.options[res];
         if (opt.callback) { opt.callback(arg); }
-        else if (arg) raise-error new Error "--$(opt.longopt) does not take an argument";
+        else if (arg) raise new Error "--$(opt.longopt) does not take an argument";
         else opt.callback2();
         opt.missing = false;
         matched = true;
       }
       if (!matched) {
         writeln "$index: getopt_long -> $res ($(CToString c.getopt.optarg))";
-        raise-error new Error "mew";
+        raise new Error "mew";
       }
     }
     for int i <- 0..this.options.length {
       alias opt = this.options[i];
       if (opt.missing) {
-        if (opt.longopt) raise-error new Error "--$(opt.longopt) required, but missing";
-        else raise-error new Error "-$(opt.shortopt) required, but missing";
+        if (opt.longopt) raise new Error "--$(opt.longopt) required, but missing";
+        else raise new Error "-$(opt.shortopt) required, but missing";
       }
     }
     int base = c.getopt.optind;

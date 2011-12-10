@@ -50,7 +50,7 @@ platform(i686-mingw32) {
   void register_thread(void* stackbase) {
     GC_stack_base gsb;
     if (!stackbase)
-      raise-error new Error "Must supply stackbase for Boehm under Windows! ";
+      raise new Error "Must supply stackbase for Boehm under Windows! ";
     gsb.mem_base = stackbase;
     GC_register_my_thread(&gsb);
     GC_add_roots(_esi, _esi + tls_size);
