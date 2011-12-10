@@ -4,6 +4,8 @@ import c.alsa.pcm, std.sound.base, std.string;
 
 alias Sample = Sample;
 
+pragma(lib, "asound");
+
 extern(C) {
   int snd_pcm_open(snd_pcm_t** pcm, char* name, int stream, int mode);
   int snd_pcm_set_params(snd_pcm_t*, int, int, int channels, int rate, int soft_resample, int latency);
