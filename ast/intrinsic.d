@@ -306,7 +306,7 @@ void setupSysmods() {
         auto pos = t[1];
         auto info = t[2];
         if (pos >= ar.length)
-          raise-error new BoundsError "Index access out of bounds: $pos >= length $(ar.length) at $info";
+          raise new BoundsError "Index access out of bounds: $pos >= length $(ar.length) at $info";
         return ar.ptr + pos;
       }
     }
@@ -317,7 +317,7 @@ void setupSysmods() {
         cur = cur.prev;
       }
     }
-    void raise-error(Error err) {
+    void raise(Error err) {
       auto cur = __hdl__;
       while cur {
         if cur.accepts(err) cur.dg(err);
@@ -332,7 +332,7 @@ void setupSysmods() {
     void[] dupvcache;
     alias BLOCKSIZE = 16384;
     void missed_return(string name) {
-      raise-error new MissedReturnError name;
+      raise new MissedReturnError name;
     }
     void[] fastdupv(void[] v) {
       void[] res;
@@ -410,7 +410,7 @@ void setupSysmods() {
     ModuleInfo[auto~] __modules;
     ModuleInfo lookupInfo(string name) {
       for auto mod <- __modules if mod.name == name return mod;
-      raise-error new Error "No such module: $name";
+      raise new Error "No such module: $name";
     }
     void __setupModuleInfo() { }
     void constructModules() {
@@ -465,7 +465,7 @@ void setupSysmods() {
     template Iterator(T) {
       class Iterator {
         T value;
-        bool advance() { raise-error new Error "Iterator::advance() not implemented! "; }
+        bool advance() { raise new Error "Iterator::advance() not implemented! "; }
       }
     }
     class AssertError : Error {
@@ -473,8 +473,8 @@ void setupSysmods() {
     }
     void assert(bool cond, string mesg = string:null) {
       if (!cond)
-        if (mesg) raise-error new AssertError mesg;
-        else raise-error new AssertError "Assertion failed! ";
+        if (mesg) raise new AssertError mesg;
+        else raise new AssertError "Assertion failed! ";
     }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))

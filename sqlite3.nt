@@ -62,7 +62,7 @@ template QueryIterator(T) {
         static if types-equal(T, byte[]) {
           return sqlite3_bind_blob(stmt, bindCount ++, mallocDupData t, t.length, &sysFree);
         }
-        raise-error new Error "Unknown bind type $(string-of T)";
+        raise new Error "Unknown bind type $(string-of T)";
       }
     }
     template getColumn(T) {
@@ -83,7 +83,7 @@ template QueryIterator(T) {
           auto reslen = sqlite3_column_bytes(stmt, i);
           return resptr[0..reslen];
         }
-        raise-error new Error "Unknown column type $(string-of T)";
+        raise new Error "Unknown column type $(string-of T)";
       }
     }
     T value;
@@ -97,9 +97,9 @@ template QueryIterator(T) {
         finalize();
         return false;
       }
-      if res == SQLITE_BUSY raise-error new SQLiteBusy;
+      if res == SQLITE_BUSY raise new SQLiteBusy;
       if res != SQLITE_ROW
-        raise-error new SQLiteError "Failed to iterate query '$sql': $res";
+        raise new SQLiteError "Failed to iterate query '$sql': $res";
       static if type-is-tuple T {
         static if value.length {
           static while int i <- 0 .. value.length {
@@ -130,7 +130,7 @@ class Database : DatabaseSup {
     for auto i <- qi i.finalize();
   }
   void sqlite3fail(string msg) {
-    raise-error new Error "in sqlite3: $msg";
+    raise new Error "in sqlite3: $msg";
   }
   void init(string dbname) {
     if sqlite3_open(toStringz dbname, &db)
@@ -148,7 +148,7 @@ class Database : DatabaseSup {
           &stmt,
           null
         ) {
-          if (result == SQLITE_BUSY) raise-error new SQLiteBusy;
+          if (result == SQLITE_BUSY) raise new SQLiteBusy;
           sqlite3fail "while executing $(sql): $(CToString sqlite3_errmsg db)";
         }
 

@@ -66,20 +66,20 @@ class TTF_FontClass {
     if (rendermode == 0) // solid
       return new Area new Surface TTF_RenderUTF8_Solid (font, text.toStringz(), mkSDLColor(s.color));
     if (rendermode == 1) {// shaded
-      if !bg raise-error new Error "Shaded selected but no background color given! ";
+      if !bg raise new Error "Shaded selected but no background color given! ";
       return new Area new Surface TTF_RenderUTF8_Shaded (font, text.toStringz(), mkSDLColor(s.color), *bg);
     }
     if (rendermode == 2) {
       return new Area new Surface TTF_RenderUTF8_Blended (font, text.toStringz(), mkSDLColor(s.color));
     }
-    raise-error new Error "Invalid case";
+    raise new Error "Invalid case";
   }
   void[] file_buffer;
   void init(void[] file, int ptsize) {
     file_buffer = file;
     font = TTF_OpenFontRW (SDL_RWFromMem (file.ptr, file.length), 1, ptsize);
     if !font
-      raise-error
+      raise
         new Error
           "TTF_FontClass.this: Couldn't open font: $(CToString(SDL_GetError())))";
   }

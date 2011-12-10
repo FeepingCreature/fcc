@@ -148,7 +148,7 @@ class Area {
     return res;
   }
   Area at(int x, int y) {
-    if (x < 0 || y < 0) raise-error new Error "Please don't call at() with negative coordinates; it breaks things";
+    if (x < 0 || y < 0) raise new Error "Please don't call at() with negative coordinates; it breaks things";
     auto res = copy();
     if (x > w) { x = w; }
     if (y > h) { y = h; }
@@ -171,11 +171,11 @@ class Area {
         (w, h) = (short:(r[1].x - r[0].x), short: (r[1].y - r[0].y));
       }
     auto res = SDL_UpperBlit (surf.back, &sdlrect1, dest.surf.back, &sdlrect2);
-    if res raise-error new SDL-Error("SDL_UpperBlit", res);
+    if res raise new SDL-Error("SDL_UpperBlit", res);
   }
   // copy, overwriting target alpha values with [target..ours].
   void stamp(Area dest, int xd = 0, yd = 0) {
-    if INullArea:dest raise-error new Error "Don't stamp onto a null area! ";
+    if INullArea:dest raise new Error "Don't stamp onto a null area! ";
     auto w = w, h = h;
     if (xd + w <= 0 || yd + h <= 0) {
       // writeln "stamping src of $((w, h)) onto {$(dest.x0), $(dest.y0)} of $(dest.(w, h)) - lies completely outside! ";
@@ -450,7 +450,7 @@ class NullArea : Area, INullArea {
   }
   void blit(Area dest) {
     if NullArea:dest return;
-    raise-error new Error "Blitting null-area onto regular area - this makes no sense! ";
+    raise new Error "Blitting null-area onto regular area - this makes no sense! ";
   }
   void stamp(Area dest, int xd = 0, int yd = 0) { }
   void pset(int x, y, vec3f col) { }
@@ -524,7 +524,7 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false,
     surf = SDL_CreateRGBSurface(cfg, w, h, 32, 0xff0000, 0xff00, 0xff, 0xff00_0000);
   else
     surf = SDL_SetVideoMode(w, h, 32, cfg);
-  if !surf raise-error new Error "Couldn't init screen with $w x $h - $(CToString SDL_GetError())! ";
+  if !surf raise new Error "Couldn't init screen with $w x $h - $(CToString SDL_GetError())! ";
   
   using new Area new Surface surf {
     claim;
@@ -553,7 +553,7 @@ void flip() {
   
   while SDL_PollEvent &SDL_Event ev using ev {
     if type == 12
-      raise-error new SDLQuit;
+      raise new SDLQuit;
     else if type == SDL_KEYDOWN using key.keysym {
       if (sym < keyPressed.length) { keyPressed[sym] = true; keyPushed[sym] = true; }
     }

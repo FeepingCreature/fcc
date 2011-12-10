@@ -1,0 +1,110 @@
+module qttest;
+
+import std.string;
+
+extern(C) {
+  void qt_init();
+  void qt_fini();
+  void* alloc_binding(int);
+  void* lookup_class_method(char* classname, char* methodname);
+  void* stack_add_voidptr(void* prev, void* value);
+  void* call_method(void* method, void* object, void* stack);
+  void* make_binding(char* classid, void* object, void* stack);
+  void* alloc_string(char* ptr, int length);
+}
+
+void* call_method(void* object, string classid, string methid, void*[] args = void*[]:null) {
+  void* stack = stack_add_voidptr(null, null);
+  for auto arg <- args stack = stack_add_voidptr(stack, arg);
+  auto cm = lookup_class_method(toStringz classid, toStringz methid);
+  if (!cm) {
+    raise new Error "Method not found for $$classid ::$methid";
+  }
+  return .call_method(cm, object, stack);
+}
+
+pragma(linker, "qtbind.o");
+pragma(lib, "stdc++");
+pragma(lib, "smokeqtgui");
+pragma(lib, "png");
+
+shared void* binding;
+
+void set_binding(void* obj, string classname) {
+  make_binding(toStringz classname, obj, null.stack_add_voidptr(null).stack_add_voidptr(binding));
+}
+
+void* allocate(string classname, flags = "", void*[] args = void*[]:null) {
+  auto obj = call_method(null, classname, "$classname$flags", args);
+  if (!obj) {
+    raise new Error "Unable to allocate $classname with $flags and $args";
+  }
+  set_binding (obj, classname);
+  return obj;
+}
+
+void* toQStr(string s) {
+  return alloc_string(s.ptr, s.length);
+}
+
+class QtObject {
+  string classname;
+  void* classp;
+  void init(string cn) {
+    classname = cn;
+    classp = allocate(classname);
+  }
+  void init(string cn, string str) {
+    classname = cn;
+    classp = allocate(classname, `$`, [toQStr str]);
+  }
+  void init(string cn, string code, void*[] arr) {
+    classname = cn;
+    classp = allocate(classname, code, arr);
+  }
+  void* call(string method) {
+    return call_method(classp, classname, method, null);
+  }
+  void* call(string method, void*[] args) {
+    return call_method(classp, classname, method, args);
+  }
+  void* call(string method, QtObject obj) {
+    return call_method(classp, classname, method, [obj.classp][]);
+  }
+}
+
+void main(string[] args) {
+  qt_init();
+  binding = alloc_binding(0);
+  args = string[]:null ~ "qttest" ~ args;
+  char** argv = [for arg <- args: toStringz arg].eval[].ptr;
+  int argc = args.length;
+  // set smoke binding
+  auto qapp = new QtObject ("QApplication", `$?`, [void*:&argc, void*:argv]);
+  auto qbutton = new QtObject ("QPushButton", "Hello World");
+  auto qlabel = new QtObject ("QLabel", "Hello <b>World</b>");
+  auto qgs = new QtObject "QGraphicsScene";
+  auto qgv = new QtObject ("QGraphicsView", `##`, [qgs.classp, null]);
+  auto qpm = new QtObject ("QPixmap", "smooth-rock-tex0-512.png");
+  auto qgpi = new QtObject ("QGraphicsPixmapItem", `###`, [qpm.classp, null, null]);
+  qgs.call(`addItem#`, qgpi);
+  auto prog = new QtObject ("QProgressBar");
+  prog.call(`setMinimum$`, [void*:0]);
+  prog.call(`setMaximum$`, [void*:100]);
+  prog.call(`setValue$`, [void*:60]);
+  using new QtObject("QSplitter", `$`, [void*:0]) {
+    using auto sp = new QtObject("QSplitter") {
+      call(`addWidget#`, qbutton);
+      call(`addWidget#`, qlabel);
+      call(`addWidget#`, qgv);
+    }
+    call(`addWidget#`, sp);
+    call(`addWidget#`, prog);
+    call(`show`);
+  }
+  writeln "exec";
+  int ret = int:qapp.call(`exec`);
+  writeln " => $ret";
+  qapp.call(`~QApplication`);
+  qt_fini();
+}
