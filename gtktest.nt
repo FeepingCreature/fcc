@@ -38,8 +38,7 @@ int main (int argc, char **argv) {
     GtkTreeIter* prev() { return &iters[iters.length-2]; }
     bool reading;
     writeln "Building model. ";
-    while line <- splitAt("\n",
-        castIter!string readfile open "xmldump.txt") {
+    while line <- splitAt(castIter!string readfile open "xmldump.txt", "\n") {
       // writeln "> $line";
       if (auto rest = line.startsWith "----module ") {
         auto restp = toStringz rest;
