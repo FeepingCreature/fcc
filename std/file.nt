@@ -166,26 +166,25 @@ bool exists(string file) {
   return access(toStringz file, F_OK) != -1;
 }
 
+extern(C) char* strerror(int errnum);
 /*
-	Function: listDirectory
-	Lists a directory's contents and returns an array of file/directory names.
+  Function: listDirectory
+  Lists a directory's contents and returns an array of file/directory names.
 */
 string[] listDirectory(string path) {
-	dirent* entry;
-	DIR* dp;
-	
-	string[] ret;
- 
- 	dp = opendir toStringz path;
-	if dp==null
-		raise new Error CToString strerror errno;
-	
-	entry = readdir(dp);
-	while (entry) {
-		ret~=entry.d_name;
-		entry = readdir(dp);
-	}
-	
-	return ret;
+  string[auto~] ret;
+  
+  auto dp = opendir toStringz path;
+  if !dp {
+    auto err = new Error CToString strerror errno;
+    raise err;
+  }
+  
+  do {
+    auto entry = readdir dp;
+  } while entry {
+    ret ~= CToString entry.d_name;
+  }
+  
+  return ret[];
 }
-
