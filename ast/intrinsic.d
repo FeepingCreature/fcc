@@ -161,13 +161,22 @@ void setupSysmods() {
     alias vec2i = vec(int, 2);
     alias vec3i = vec(int, 3);
     alias vec4i = vec(int, 4);
+    extern(C) int fgetc(void*);
+    extern(C) int fflush(void*);
+    extern(C) void* stdin, stdout;
     string ptoa(void* p) {
       auto res = new char[]((size-of size_t) * 2 + 2 + 1);
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
       return res[0 .. res.length - 1];
     }
+    string readln() {
+      char[auto~] buffer;
+      while (!buffer.length || buffer[$-1] != "\n") { buffer ~= char:byte:fgetc(stdin); }
+      return buffer[0..$-1];
+    }
     void writeln(string line) {
       printf("%.*s\n", line.length, line.ptr);
+      fflush(stdout);
     }
     string dtoa(double d) {
       auto res = new char[] 128; // yes, actually does need to be this big >_>
