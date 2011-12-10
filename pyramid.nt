@@ -13,7 +13,7 @@ void main(string[] args) {
     void delegate(type-of &vertices) callback) {
     auto a = (*pCorners)[0], b = (*pCorners)[1];
     for auto v <- [for tup <- cross (0..3, 0..3, 0..3): vec3i(tup)] {
-      int bsum = eval(v.x == 1) + eval(v.y == 1) + eval(v.z == 1);
+      int bsum = (v.x == 1) + (v.y == 1) + (v.z == 1);
       if bsum < 2 {
         vec3f x 2 temp = [a * (3 - v) / 3f + b * (v + 0) / 3f,
                           a * (2 - v) / 3f + b * (v + 1) / 3f];
@@ -27,7 +27,6 @@ void main(string[] args) {
   int[auto~] vertexIndexData;
   void addVertex(vec3f pos, vec3f col) {
     auto limit = vertexQuadData.length - 64;
-    // auto limit = 0;
     if (limit < 0) limit = 0;
     alias eps = 0.00001f;
     for (int i = vertexQuadData.length - 1; i >= limit; --i) {
@@ -51,16 +50,13 @@ void main(string[] args) {
        2, 6, 4, 0])
     {
       auto vec = vecs[id];
-      // glColor3f (vec + vec3f(1, 0.6, 0.3) * (i / 18f));
-      // glVertex3f vec;
-      // vertexQuadData ~= vec;
       addVertex (vec, vec + vec3f(1, 0.6, 0.3) * (i / 24f));
     }
   }
-  type-of &rootFun mkFun(int depth) {
+  auto mkFun(int depth) {
     auto curFun = &rootFun;
     for 0..depth
-      curFun = new delegate void(type-of &vertices pVecs) { dividePyramid(pVecs, curFun); };
+      curFun = new \(type-of &vertices pVecs) { dividePyramid(pVecs, curFun); };
     return curFun;
   }
   int curDepth = 1;
@@ -94,9 +90,9 @@ void main(string[] args) {
       // WM_GrabInput(GRAB_ON);
       WarpMouse(320, 240);
     }
-    active = eval !active;
+    active = !active;
   }
-  gl-context-callbacks ~= delegate void() {
+  gl-context-callbacks ~= \{
     writeln "regenList()";
     regenList();
   };
