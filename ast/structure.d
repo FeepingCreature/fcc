@@ -315,6 +315,7 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   } else return null;
 }
 mixin DefaultParser!(gotStructDef, "tree.typedef.struct");
+mixin DefaultParser!(gotStructDef, "tree.stmt.typedef_struct", "32");
 
 class StructLiteral : Expr {
   Structure st;
