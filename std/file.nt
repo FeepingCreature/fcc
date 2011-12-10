@@ -2,14 +2,19 @@
 File I/O*/
 module std.file;
 
-import c.dirent,c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.sys.stat;
+import c.dirent, c.string, c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.sys.stat;
 
 class ErrnoError : Error {
   int errno;
+  string err;
   void init() {
     errno = .errno;
   }
-  string toString() { return "ErrnoError ($errno): $(super.toString())"; }
+  void init(string e) {
+    init();
+    err = e;
+  }
+  string toString() { return "ErrnoError $(err): $(CToString strerror(errno)) ($errno)"; }
 }
 
 /*Template: readfile
