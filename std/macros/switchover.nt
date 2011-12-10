@@ -46,7 +46,7 @@ macro("tree.stmt.switchover", "411") `
                       '(matched-text "case")
                       '(matched-text "}"))))
                     '(parse-stmt)))))
-                (make-if subcd (my-parse-stmts))))))
+                (make-if subcd '(my-parse-stmts))))))
             (if (not (matched-text "{"))
               '(match-case)
               '(make-aggregate

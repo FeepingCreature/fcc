@@ -77,6 +77,27 @@ template FeedIterator(T) {
   }
 }
 
+template flatten(T) {
+  template Flatten(T) {
+    class Flatten : Iterator!T {
+      Iterator!T[] sup;
+      T[] backing;
+      void init(Iterator!T[] s) { sup = s; }
+      bool advance() {
+        if (!backing.length) {
+          if (!sup || !backing <- sup) { sup = null; return false; }
+        }
+        (value, backing) = backing[(0, 1..$)];
+        return true;
+      }
+    }
+  }
+  auto flatten(T t) {
+    alias Elem = type-of-elem value-of!type-of-elem t;
+    return new Flatten!Elem(t);
+  }
+}
+
 /*Template: take
 Takes a number of elements from an iterator and returns them as an array. */
 template take(T) {

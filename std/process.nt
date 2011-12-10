@@ -5,6 +5,12 @@ module std.process;
 import c.poll, c.stdlib, c.unistd;
 import std.string, std.util;
 
+alias C_system = system;
+
+int system(string cmd) {
+  return C_system toStringz cmd;
+}
+
 class ReadbackError : Error {
   void init(string s) super.init "ReadbackError: $s";
 }
@@ -16,6 +22,11 @@ class ReadbackStream : Iterator!string {
   Iterator!string input; string inbuffer;
   char x 128 buf;
   pid_t child;
+  int wait() {
+    int res;
+    waitpid(child, &res, 0);
+    return res;
+  }
   void init(string cmd, string[] args, Iterator!string input) {
     pipe hdl_sysward; // self -> system()
     pipe hdl_selfward; // system() -> self
@@ -51,7 +62,8 @@ class ReadbackStream : Iterator!string {
     waitpid(child, null, 0);
   }
   bool advance() {
-    auto uni = UnreliableIterator!string: input;
+    UnreliableIterator!string uni;
+    if (input) uni = type-of uni: input;
     while !done { // while we still have data to write .. 
       pollfd x 2 fds;
       fds[0].(fd, events) = (hdl_selfward[0], POLLIN);
@@ -131,3 +143,11 @@ ReadbackStream readback(string cmd, string[] args, string data) return readback(
 ReadbackStream readback(string cmd, string data) return readback(cmd, string[]:null, Iterator!string: iterOnce data);
 ReadbackStream readback(string cmd, string[] args) return readback(cmd, args, Iterator!string: null);
 ReadbackStream readback(string cmd) return readback(cmd, string[]:null, Iterator!string: null);
+
+extern(C) char* getenv(char*);
+RenameIdentifier getenv C_getenv;
+
+import std.string;
+string getenv(string var) {
+  return CToString C_getenv toStringz var;
+}

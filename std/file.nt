@@ -2,7 +2,15 @@
 File I/O*/
 module std.file;
 
-import c.stdio, c.fcntl, c.unistd;
+import c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib;
+
+class ErrnoError : Error {
+  int errno;
+  void init() {
+    errno = .errno;
+  }
+  string toString() { return "ErrnoError ($errno): $(super.toString())"; }
+}
 
 /*Template: readfile
   Returns an iterator over byte[] that yields incremental chunks from a file.
@@ -124,4 +132,36 @@ string sub(string path1, path2) {
   if path2.startsWith "/" return path2;
   if path1.endsWith "/" return path1 ~ path2;
   return path1 ~ "/" ~ path2;
+}
+
+import c.sys.stat;
+time_t accessed(string file) {
+  int fd = open file;
+  if (fd == -1) raise-error new ErrnoError;
+  fstat(fd, &stat s);
+  return s.st_atim.tv_sec;
+}
+
+time_t modified(string file) {
+  int fd = open file;
+  if (fd == -1) raise-error new ErrnoError;
+  fstat(fd, &stat s);
+  return s.st_mtim.tv_sec;
+}
+
+time_t statuschanged(string file) {
+  int fd = open file;
+  if (fd == -1) raise-error new ErrnoError;
+  fstat(fd, &stat s);
+  return s.st_ctim.tv_sec;
+}
+
+alias C_realpath = realpath;
+
+reassign string realpath(string path) {
+  return CToString C_realpath(toStringz path, null);
+}
+
+bool exists(string file) {
+  return access(toStringz file, F_OK) != -1;
 }
