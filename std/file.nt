@@ -2,7 +2,7 @@
 File I/O*/
 module std.file;
 
-import c.dirent,c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.sys.stat;
+import c.dirent, c.string, c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.sys.stat;
 
 class ErrnoError : Error {
   int errno;
