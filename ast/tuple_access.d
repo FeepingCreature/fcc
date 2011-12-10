@@ -148,16 +148,31 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (!t2.accept("(")) return null;
     }
     auto ex = fastcast!(Expr) (obj);
+    Statement initLv;
     if (ex) {
       if (fastcast!(Variable) (ex)) {
         // I guess we don't need to do anything in this case.
       } else if (auto lv = fastcast!(LValue) (ex)) {
-        ex = new DerefExpr(lvize(new RefExpr(lv)));
+        ex = new DerefExpr(lvize(new RefExpr(lv), &initLv));
       } else {
-        ex = lvize(ex);
+        ex = lvize(ex, &initLv);
       }
       while (fastcast!(Pointer) (resolveType(ex.valueType())))
         ex = new DerefExpr(ex);
+    }
+    
+    Object fixup(Object obj) {
+      if (!initLv) return obj;
+      if (auto cd = fastcast!(Cond) (obj))
+        return new StatementAndCond(initLv, cd);
+      if (auto ex = fastcast!(Expr) (obj)) {
+        // TODO: fix function call tuple flattening so this is feasible again
+        // return fastcast!(Object) (mkStatementAndExpr(initLv, ex));
+        namespace().get!(Scope).addStatement(initLv);
+        return fastcast!(Object) (ex);
+      }
+      logln("cannot fixup: unknown ", obj);
+      asm { int 3; }
     }
     
     if (auto it = fastcast!(IType) (obj))
@@ -199,10 +214,10 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
       text.failparse("Couldn't get with-tuple expr");
     if (auto rt = fastcast!(RefTuple) (res)) if (rt.mvs.length == 1) {
       auto lv2mv = fastcast!(LValueAsMValue) (rt.mvs[0]);
-      if (lv2mv) return fastcast!(Object) (lv2mv.sup);
-      return fastcast!(Object) (rt.mvs[0]);
+      if (lv2mv) return fixup(fastcast!(Object) (lv2mv.sup));
+      return fixup(fastcast!(Object) (rt.mvs[0]));
     }
-    return res;
+    return fixup(res);
   };
 }
 mixin DefaultParser!(gotWithTupleExpr, "tree.rhs_partial.withtuple", null, ".");
