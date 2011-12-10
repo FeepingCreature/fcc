@@ -16,7 +16,14 @@ class PrePostOpExpr(bool Post, bool Inc) : Expr {
       return lv.valueType();
     }
     void emitAsm(AsmFile af) {
-      auto as = new Assignment(lv, lookupOp(Inc?"+":"-", lv, mkInt(1)));
+      auto op = lookupOp(Inc?"+":"-", lv, mkInt(1));
+      Expr cv;
+      if (lv.valueType() == op.valueType()) cv = op;
+      else {
+        cv = tryConvert(op, lv.valueType());
+        if (!cv) throw new Exception(Format("PrePostOpExpr(", Inc?"+":"-", ") failed: cannot reconvert ", op.valueType(), " to ", lv.valueType()));
+      }
+      auto as = new Assignment(lv, cv);
       static if (Post) {
         lv.emitAsm(af);
         as.emitAsm(af);
