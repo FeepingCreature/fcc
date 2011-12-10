@@ -168,7 +168,10 @@ Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
 import ast.namespace, ast.scopes, ast.aggregate, tools.compat: find;
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto as = new AggrStatement;
+  auto sc = new Scope;
+  namespace.set(sc);
+  scope(exit) namespace.set(sc.sup);
+  
   string name; IType type;
   bool abortGracefully;
   if (rest(t2, "type", &type)) {
@@ -204,8 +207,8 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       var.baseOffset = boffs(var.type);
       auto vd = new VarDecl(var);
       vd.configPosition(text);
-      as.stmts ~= vd;
-      namespace().add(var);
+      sc.addStatement(vd);
+      sc.add(var); // was: namespace()
     }, false)) {
       if (abortGracefully) return null;
       t2.failparse("Couldn't parse variable declaration");
@@ -213,7 +216,13 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     if (abortGracefully) return null;
     t2.mustAccept(";", "Missed trailing semicolon");
     text = t2;
-    return as;
+    if (sc.guards.length) asm { int 3; }
+    // collapse
+    foreach (entry; sc.field) {
+      if (auto sa = fastcast!(SelfAdding) (entry._1)) if (sa.addsSelf()) continue;
+      sc.sup.add(entry._0, entry._1);
+    }
+    return fastcast!(Object) (sc._body);
   } else return null;
 }
 mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl", "21");
@@ -245,64 +254,19 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
     var.baseOffset = boffs(var.type);
     auto vd = new VarDecl(var);
     vd.configPosition(text);
-    as.stmts ~= vd;
-    namespace().add(var);
+    sc.addStatement(vd);
+    sc.add(var); // was namespace()
     if (t2.accept(";")) break;
     if (t2.accept(",")) continue;
     t2.failparse("Unexpected text in auto expr");
   }
   text = t2;
-  return as;
+  if (sc.guards.length) asm { int 3; }
+  // collapse
+  foreach (entry; sc.field) {
+    if (auto sa = fastcast!(SelfAdding) (entry._1)) if (sa.addsSelf()) continue;
+    sc.sup.add(entry._0, entry._1);
+  }
+  return fastcast!(Object) (sc._body);
 }
 mixin DefaultParser!(gotAutoDecl, "tree.stmt.autodecl", "22");
-
-Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  string name;
-  IType type;
-  {
-    string t3 = t2;
-    if (t3.accept("(") && t3.accept(")")) /* THIS IS NOT A GOOD THING THIS IS BAD AND WRONG */
-      return null; // whew.
-  }
-  if (!t2.accept("auto"))
-    if (!rest(t2, "type", &type)) return null;
-  if (t2.accept(":")) return null; // cast
-  if (!t2.gotValidIdentifier(name)) return null;
-  bool dontInit;
-  Expr initval;
-  if (t2.accept("=")) {
-    IType[] its;
-    if (!rest(t2, "tree.expr", &initval)
-      || type && !gotImplicitCast(initval, type, (IType it) {
-      its ~= it;
-      return test(type == it);
-    }))
-      t2.failparse("Could not parse variable initializer; tried ", its);
-    if (!type) type = initval.valueType();
-  } else {
-    if (!type) {
-      t2.setError("Auto vardecl exprs must be initialized. ");
-      return null;
-    }
-    if (t2.accept("<-")) return null; // don't collide with iterator declaration
-  }
-  
-  auto var = new Variable(type, name, boffs(type));
-  auto sc = namespace().get!(Scope);
-  if (!sc) {
-    t2.failparse("There is a lack of a scope here; trying to define ", name);
-  }
-  sc.add(var);
-  auto vd = new VarDecl(var);
-  vd.configPosition(text);
-  sc.addStatement(vd);
-  
-  text = t2;
-  if (!initval) { var.initInit; return var; }
-  var.dontInit = true;
-  auto setVar = new Assignment(var, initval);
-  return new StatementAndExpr(setVar, var);
-}
-mixin DefaultParser!(gotVarDeclExpr, "tree.expr.vardecl", "28");
-
