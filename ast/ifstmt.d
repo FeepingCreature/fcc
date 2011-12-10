@@ -8,6 +8,7 @@ class IfStatement : LineNumberedStatementClass {
   Cond test;
   mixin DefaultDup!();
   mixin defaultIterate!(test, wrapper, branch1, branch2);
+  string toString() { return Format("if ", test, " ", branch1, " else ", branch2); }
   override void emitAsm(AsmFile af) {
     super.emitAsm(af);
     auto past1 = af.genLabel(), past2 = af.genLabel();
@@ -88,6 +89,7 @@ Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't get static-if condition");
   string branch1, branch2;
   t2.noMoreHeredoc();
+  test = fastcast!(Cond) (fold(test));
 
   bool keepBrackets1 = false, keepBrackets2 = false;
   
@@ -100,24 +102,34 @@ retry:
   if (t3.accept("else"))
     branch2 = t3.coarseLexScope(true, keepBrackets2);
   
-  Object res;
-  test = fastcast!(Cond) (fold(test));
+  Statement res;
+  
+  auto sc = new Scope;
+  // yes, scope is goto-safe (tested!)
+  namespace.set(sc);
+  scope(exit) namespace.set(sc.sup);
+  pushCache;
+  scope(exit) popCache;
   
   if (isStaticTrue(test)) {
     if (!rest(branch1, "tree.stmt", &res))
       branch1.failparse("No statements matched in static if");
     
     branch1 = branch1.mystripl();
-    if (branch1.length) { if (!keepBrackets1) { keepBrackets1 = true; goto retry; } branch1.failparse("Unknown text in static if"); }
-    
+    if (branch1.length) {
+      if (!keepBrackets1) { keepBrackets1 = true; goto retry; }
+      branch1.failparse("Unknown text in static if");
+    }
   } else if (isStaticFalse(test)) {
     if (branch2) {
       if (!rest(branch2, "tree.stmt", &res))
         branch2.failparse("No statements matched in static else");
       
       branch2 = branch2.mystripl();
-      if (branch2.length) { if (!keepBrackets2) { keepBrackets2 = true; goto retry; } branch2.failparse("Unknown text in static else"); }
-      
+      if (branch2.length) {
+        if (!keepBrackets2) { keepBrackets2 = true; goto retry; }
+        branch2.failparse("Unknown text in static else");
+      }
     } else {
       res = new NoOp;
     }
@@ -126,6 +138,7 @@ retry:
   }
   
   text = t3;
-  return res;
+  sc.addStatement(res);
+  return sc;
 }
 mixin DefaultParser!(gotStaticIf, "tree.stmt.static_if", "190", "static if");

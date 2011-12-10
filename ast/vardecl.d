@@ -173,6 +173,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   bool abortGracefully;
   if (rest(t2, "type", &type)) {
     if (t2.accept(":")) return null; // cast
+    if (t2.accept("(")) return null; // compound var expr
     if (!t2.bjoin(t2.gotValidIdentifier(name), t2.accept(","), {
       auto var = new Variable;
       var.name = name;
@@ -220,10 +221,15 @@ mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl", "21");
 Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, varname;
   Expr ex;
-  auto as = new AggrStatement;
+  
+  auto sc = new Scope;
+  namespace.set(sc);
+  scope(exit) namespace.set(sc.sup);
+  
   string t3;
   resetError();
   if (!t2.accept("auto")) return null;
+  if (t2.accept("(")) return null; // compound var expr
   while (true) {
     if (!t2.gotValidIdentifier(varname, true))
       t2.failparse("Could not get variable identifier");

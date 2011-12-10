@@ -52,14 +52,18 @@ Cond testNeq(Expr ex1, Expr ex2) {
   // we'll be accessing members - generate temporaries.
   // Don't worry, they'll be cleaned up - conditionals are guaranteed to
   // exist in an isolated scope.
-  auto v1 = lvize(ex1);
-  auto v2 = lvize(ex2);
+  Statement init1, init2;
+  auto v1 = lvize(ex1, &init1);
+  auto v2 = lvize(ex2, &init2);
   auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v1));
   auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v2));
-  return new BooleanOp!("||")(
+  Cond res = new BooleanOp!("||")(
     new ExprWrap(lookupOp("!=", ex1s[0], ex2s[0])),
     new ExprWrap(lookupOp("!=", ex1s[1], ex2s[1]))
   );
+  if (init1) res = new StatementAndCond(init1, res);
+  if (init2) res = new StatementAndCond(init2, res);
+  return res;
 }
 
 import ast.literals, ast.casting, ast.modules, ast.conditionals, ast.opers;

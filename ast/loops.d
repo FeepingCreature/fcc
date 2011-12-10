@@ -186,20 +186,10 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(backup);
   if (!t2.accept("while")) return null; // not a do/while extloop
   
-  // You are not expected to understand this.
-  {
-    namespace.set(sc);
-    dw.first.sup = sc.sup;
-    sc.sup = dw.first;
-    scope(exit) {
-      namespace.set(dw.first);
-      sc.sup = dw.first.sup;
-      dw.first.sup = sc;
-    }
-    if (!rest(t2, "cond", &dw.cond))
-      t2.failparse("Could not match do/while cond");
-    configure(dw.cond);
-  }
+  if (!rest(t2, "cond", &dw.cond))
+    t2.failparse("Could not match do/while cond");
+  configure(dw.cond);
+  
   if (!rest(t2, "tree.scope", &dw.second))
     t2.failparse("do/while extended second scope not matched");
   text = t2;

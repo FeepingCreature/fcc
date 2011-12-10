@@ -1,6 +1,6 @@
 module ast.unary;
 
-import ast.base, ast.opers, ast.assign, ast.literals, parseBase;
+import ast.base, ast.casting, ast.opers, ast.assign, ast.literals, parseBase;
 
 // definitely not an lvalue
 class PrePostOpExpr(bool Post, bool Inc) : Expr {

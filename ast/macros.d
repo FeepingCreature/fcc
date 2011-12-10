@@ -138,12 +138,19 @@ extern(C) void fcc_initTenth() {
   rootctx.add("make-if", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-if': 2 expected");
     mixin(chaincast("cd: First arg for 'make-if': args[0]->ItrEntity: %.itr->Cond"));
-    mixin(chaincast("st: Second arg for 'make-if': args[1]->ItrEntity: %.itr->Statement"));
     auto ifs = new IfStatement;
     ifs.wrapper = new Scope;
     ifs.test = cd;
+    namespace.set(ifs.wrapper);
+    
     ifs.branch1 = new Scope;
+    namespace.set(ifs.branch1);
+    
+    scope(exit) namespace.set(ifs.wrapper.sup);
+    
+    mixin(chaincast("st: Second arg for 'make-if', evaluated: args[1].eval(ctx)->ItrEntity: %.itr->Statement"));
     ifs.branch1.addStatement(st);
+    
     return new ItrEntity(ifs);
   }));
   rootctx.add("make-return", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
@@ -463,9 +470,14 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     return new ItrEntity(tup);
   }));
   ctx.add("parse-expr", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
-    if (args.length) tnte("Too many arguments to parse-expr: 0 expected");
+    if (args.length != 0 && args.length != 1) tnte("Too many arguments to parse-expr: 0 or 1 (string) expected");
     Expr ex;
-    if (!rest(t2, "tree.expr", &ex)) t2.failparse("Expression expected");
+    string match = "tree.expr";
+    if (args.length == 1) {
+      mixin(chaincast("m: Argument to parse-expr: args[0]->Token: %.name"));
+      match = m;
+    }
+    if (!rest(t2, match, &ex)) t2.failparse("Expression expected");
     return new ItrEntity(ex);
   }));
   ctx.add("parse-lvalue", new DgCallable(delegate Entity(Context ctx, Entity[] args) {

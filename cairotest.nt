@@ -2,6 +2,8 @@ module cairotest;
 
 import sdl, std.math, opengl, cairo, glsetup, std.time;
 
+pragma(lib, "cairo");
+
 void main() {
   writeln "Open SDL Window .. ";
   gl-context-callbacks ~= delegate void() {

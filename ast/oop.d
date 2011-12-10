@@ -497,7 +497,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         }, parseTenth(`
           (make-if
             (make-exprwrap (make-call streq (make-tuple-expr (list id _test))))
-            (make-return (reinterpret-cast (pointer-to (basic-type 'void)) this)))
+            '(make-return (reinterpret-cast (pointer-to (basic-type 'void)) this)))
         `)));
         if (cl.parent) handleClass(cl.parent);
         intf_offset = cl.classSize(false);
