@@ -11,8 +11,8 @@ class ErrnoError : Error {
     errno = .errno;
   }
   void init(string e) {
+    init();
     err = e;
-    errno = .errno;
   }
   string toString() { return "ErrnoError: $(err): $(CToString strerror(errno)) ($errno)"; }
 }

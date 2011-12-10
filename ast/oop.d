@@ -646,22 +646,31 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         }
         return fastcast!(Object)~ res;
       }
+      Extensible ext;
       if (auto res = myfuns.lookup(str, base)) {
-        return res;
+        if (auto ext2 = fastcast!(Extensible) (res)) {
+          if (ext) ext = ext.extend(res);
+          else ext = ext2;
+        } else return res;
       }
       Expr cl_offset = ownClassinfoLength;
       foreach (intf; iparents) {
         if (auto res = intf.lookupClass(str, cl_offset, base)) {
-          return fastcast!(Object)~ res;
+          auto obj = fastcast!(Object) (res);
+          if (auto ext2 = fastcast!(Extensible) (res)) {
+            if (ext) ext = ext.extend(obj);
+            else ext = ext2;
+          } else return obj;
         }
         cl_offset = foldex(lookupOp("+", cl_offset, mkInt(intf.clsize)));
       }
       if (parent) if (auto res = parent.lookupRel(str, base)) {
-        return res;
+        if (auto ext2 = fastcast!(Extensible) (res)) {
+          if (ext) ext = ext.extend(res);
+          else ext = ext2;
+        } else return res;
       }
-      // NUH!! 
-      // return sup.lookup(str, false); // defer
-      return null;
+      return fastcast!(Object) (ext);
     }
     Object lookup(string id, bool local = false) {
       parseMe;
