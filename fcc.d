@@ -219,6 +219,8 @@ void lazySysmod() {
   setupSysmods();
 }
 
+bool allowProgbar = true;
+
 struct CompileSettings {
   bool saveTemps, optimize, debugMode, profileMode;
   string configOpts;
@@ -445,17 +447,19 @@ int main(string[] args) {
           if (auto rest2 = rest.startsWith("/")) rest = rest2;
           info._1 = rest;
         }
-      const Length = 50;
-      auto progbar = new char[Length];
-      auto halfway = cast(int) (info._0 * Length);
-      if (halfway == prevHalfway) return;
-      prevHalfway = halfway;
-      for (int i = 0; i < Length; ++i) {
-        if (i < halfway) progbar[i] = '=';
-        else if (i == halfway) progbar[i] = '>';
-        else progbar[i] = ' ';
+      if (allowProgbar) {
+        const Length = 50;
+        auto progbar = new char[Length];
+        auto halfway = cast(int) (info._0 * Length);
+        if (halfway == prevHalfway) return;
+        prevHalfway = halfway;
+        for (int i = 0; i < Length; ++i) {
+          if (i < halfway) progbar[i] = '=';
+          else if (i == halfway) progbar[i] = '>';
+          else progbar[i] = ' ';
+        }
+        logSmart!(true)(info._1, " \t [", progbar, "]");
       }
-      logSmart!(true)(info._1, " \t [", progbar, "]");
     }
   };
   string[] objects;
@@ -530,6 +534,10 @@ int main(string[] args) {
     }
     if (arg == "-debug-opts") {
       debugOpts = true;
+      continue;
+    }
+    if (arg == "-noprogress") {
+      allowProgbar = false;
       continue;
     }
     if (arg == "-run") {
