@@ -2,10 +2,6 @@
 String handling functions*/
 module std.string;
 
-import c.stdio,c.math;
-
-extern(C) int asprintf(char** ret, char* format, ...);
-
 struct FindResult {
   int pos;
   alias implicit-cast = pos;
@@ -288,21 +284,28 @@ string[] split(string s, string marker) {
   return res[];
 }
 
+extern(C) float pow(float,float);
 /*Function: toString
-Converts an int to various bases. */
+Converts an integer to a string with the specified base.*/
 string toString(int ini,int base=10) {
   string nums="0123456789abcdefghijklmnopqrstuvwxyz";
   // string ts(int n,int b){stringstream a;a<<n%b;for(int p=2;n>pow(b,p-2);p++)a<<(n%(int)pow(b,p)-n%(int)pow(b,p-1))/pow(b,p-1); return a.str();}
-  // does not work with base 2, so special case:
   if base>36
     raise new Error "Sorry, bases up to 36 are supported due to available symbols.";
+  if base==10 // no need to waste time with the algorithm below
+    return "$ini";
+  if base==1
+    raise new Error "Base 1 not supported.";
+  if base<=0
+    raise new Error "Invalid base.";
   bool neg=false;
   if ini<0 {ini = -ini;neg=true;}
+  // does not work with base 2, so special case:
   if base==2 {
     string a;
     for (int i=31;i>=0;i--)
       a="$a$(ini>>i & 1)";
-    while a.length && a[0] == "0" a = a[1..$];
+    a=a.stripBeginning "0";
     return ["","-"][neg]~a;
   }
   string a;
@@ -310,5 +313,19 @@ string toString(int ini,int base=10) {
   for (int p=2; ini>int:pow(base,p-1); p++)
     a="$(nums[(ini%int:pow(base,p) - ini%int:pow(base,p-1))/int:pow(base,p-1)])$a";
   return ["","-"][neg]~a;
+}
+
+/*Function: stripBeginning
+Strips all of the m's from the beginning of s until it hits something that is not m.*/
+string stripBeginning(string s, string m) {
+  while s.length && s[0..m.length]==m s=s[m.length..$];
+  return s;
+}
+
+/*Function: stripTrailing
+The same as <stripBeginning> except from the end.*/
+string stripTrailing(string s, string m) {
+  while s.length && s[$-m.length..$]==m s=s[0..$-m.length];
+  return s;
 }
 

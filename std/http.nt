@@ -74,11 +74,10 @@ string followLink(string from, string to) {
   return from[0..pos_last_slash + 7 + 1] ~ to;
 }
 
-/*Function: urlEncode
+/*Function: percentEncode
 Encodes a string using percent encoding for use in HTTP. */
-string urlEncode(string uri) {
+string percentEncode(string uri, string safe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~") {
   //ones that don't need encoding: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~
-  string safe="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~";
   string encoded;
   for (int i=0;i<uri.length;i++) {
     if safe.find "$(uri[i])"
@@ -94,25 +93,13 @@ string urlEncode(string uri) {
 }
 
 /*Function: pathEncode
-Does exactly what <urlEncode> does, except / is a safe character. */
+Does exactly what <percentEncode> does, except / is a safe character. */
 string pathEncode(string uri) {
-  string safe="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~/";
-  string encoded;
-  for (int i=0;i<uri.length;i++) {
-    if safe.find "$(uri[i])"
-      encoded="$encoded$(uri[i])";
-    else {
-      string a=std.string.toString(int:uri[i],16);
-      if a.length<2
-        a="0$a";
-      encoded="$encoded%$a";
-    }
-  }
-  return encoded;
+  return percentEncode(uri, safe=>"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~/");
 }
 
 // TODO: make this function
-/*string urlDecode(string uri) {
+/*string percentDecode(string uri) {
   for (int i=0;i<uri.length;i++) {
     if uri[i] == "%"
       uri = "$(uri[0..i])";
@@ -140,7 +127,7 @@ string createURI(string host, int port=80, string path="/", (string,string)[] ge
   for auto x <- get {
     if uri[$-1]!="?"
       uri="$uri&";
-    uri="$uri$(urlEncode(x[0]))=$(urlEncode(x[1]))";
+    uri="$uri$(percentEncode(x[0]))=$(percentEncode(x[1]))";
   }
   return uri;
 }
@@ -258,7 +245,6 @@ int sendRequest(HTTP-URI url, string method = "GET",
   // ex: HTTP/1.1 200 OK
   int status = atoi ( statusline.split(" ")[1] ); //splits it into components and grabs the thing after the HTTP version (the status code)
   (string, string)[auto~] head;
-  // whitespace removal goes here:
   for auto l <- headsplit {
     head ~= l.dup.slice ":" #.(that[0].strip(), that[1].strip());
   }
@@ -275,3 +261,43 @@ int sendRequest(HTTP-URI url, string method = "GET",
   
   return status;
 }
+
+import std.zlib;
+/*Function: downloadURI
+Newer version of <download>, HTTP 1.1. Raises an exception when the server returns an error. 
+Parameters:
+  addr      - address of thing to download
+  redirect  - whether to follow Location: headers
+  cache     - whether to cache data, not implemented
+  compress  - whether to request data compressed*/
+byte[] downloadURI(HTTP-URI addr, bool redirect = true, bool cache = false, bool compress = false) {
+
+  (string,string)[] header_in;
+  
+  // compression header is Accept-Encoding: gzip, deflate
+  if compress
+    header_in ~= ("Accept-Encoding","deflate");
+  
+  while true {
+    int status = sendRequest(addr, header_in => header_in, header_out => &(string, string)[] header, body_out => &byte[] mbody);
+    for auto h <- header {
+      if h[0]=="Location"
+        decodeURI(followLink(addr.toString(),h[1]),&addr);
+      else {
+        if status/100==2 {
+          for auto l <- header {
+            if l[0]=="Content-Encoding" {
+              if l[1].toLower()=="deflate"
+                return std.zlib.inflate(mbody);
+              if l[1].toLower()=="gzip"
+                raise new DownloadError(addr.toString(),"Failed to download url: Compression scheme gzip not supported.");
+            }
+          }
+          return mbody;
+        } else
+          raise new DownloadError(addr.toString(),"Failed to download url: Server returned non-success status $status");
+      }
+    }
+  }
+}
+
