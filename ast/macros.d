@@ -500,7 +500,7 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   }));
   ctx.add("parse-type", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length) tnte("Too many arguments to 'parse-type': 0 expected");
-    Type ty;
+    IType ty;
     if (!rest(t2, "type", &ty))
       t2.failparse("Type expected");
     return new TypeEntity(ty);
