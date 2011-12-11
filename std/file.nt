@@ -14,7 +14,7 @@ class ErrnoError : Error {
     init();
     err = e;
   }
-  string toString() { return "ErrnoError: $(err): $(CToString strerror(errno)) ($errno)"; }
+  string toString() { return "ErrnoError $(err): $(CToString strerror(errno)) ($errno)"; }
 }
 
 /*Template: readfile
@@ -193,36 +193,3 @@ string[] listDirectory(string path) {
   
   return ret[];
 }
-
-alias user = S_IRWXU;
-alias user_r = S_IRUSR;
-alias user_w = S_IWUSR;
-alias user_x = S_IXUSR;
-
-alias group = S_IRWXG;
-alias group_r = S_IRGRP;
-alias group_w = S_IWGRP;
-alias group_x = S_IXGRP;
-
-alias world = S_IRWXO;
-alias world_r = S_IROTH;
-alias world_w = S_IWOTH;
-alias world_x = S_IXOTH;
-
-/*
-  Function: makeDirectory
-  Creates a new directory at the specified path, raises an error on failure. Takes a 3-character mode string as a parameter.
-*/
-void makeDirectory(string path, mode_t mmode = user|group|world) { //string mode) {
-  /*mode_t mmode;
-  mode_t x 3[] p = [for tup <- cross(0..2, 0..2, 0..2): mode_t x 3: ([mode_t:0, S_IRUSR][tup[0]], [mode_t:0, S_IWUSR][tup[1]], [mode_t:0, S_IXUSR][tup[2]])].eval[];
-  for (int i=0;i<3;i++)
-    for (int j=0;j<3;j++)
-      mmode|=p[i][j];
-  */
-  //AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaaa
-  if (mkdir(toStringz path,mmode)==-1) {
-    raise new ErrnoError "Failed to create directory $path";
-  }
-}
-

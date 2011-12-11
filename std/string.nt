@@ -2,6 +2,10 @@
 String handling functions*/
 module std.string;
 
+import c.stdio,c.math;
+
+extern(C) int asprintf(char** ret, char* format, ...);
+
 struct FindResult {
   int pos;
   alias implicit-cast = pos;
@@ -283,3 +287,28 @@ string[] split(string s, string marker) {
   }
   return res[];
 }
+
+/*Function: toString
+Converts an int to various bases. */
+string toString(int ini,int base=10) {
+  string nums="0123456789abcdefghijklmnopqrstuvwxyz";
+  // string ts(int n,int b){stringstream a;a<<n%b;for(int p=2;n>pow(b,p-2);p++)a<<(n%(int)pow(b,p)-n%(int)pow(b,p-1))/pow(b,p-1); return a.str();}
+  // does not work with base 2, so special case:
+  if base>36
+    raise new Error "Sorry, bases up to 36 are supported due to available symbols.";
+  bool neg=false;
+  if ini<0 {ini = -ini;neg=true;}
+  if base==2 {
+    string a;
+    for (int i=31;i>=0;i--)
+      a="$a$(ini>>i & 1)";
+    while a.length && a[0] == "0" a = a[1..$];
+    return ["","-"][neg]~a;
+  }
+  string a;
+  a="$(nums[ini%base])";
+  for (int p=2; ini>int:pow(base,p-1); p++)
+    a="$(nums[(ini%int:pow(base,p) - ini%int:pow(base,p-1))/int:pow(base,p-1)])$a";
+  return ["","-"][neg]~a;
+}
+
