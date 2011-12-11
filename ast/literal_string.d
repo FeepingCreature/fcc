@@ -70,4 +70,9 @@ static this() {
     }
     return null;
   };
+  implicits ~= delegate Expr(Expr ex) {
+    if (resolveType(ex.valueType()) != Single!(Char))
+      return null;
+    return reinterpret_cast(Single!(Byte), ex);
+  };
 }
