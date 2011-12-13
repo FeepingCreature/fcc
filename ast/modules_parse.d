@@ -24,13 +24,18 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
     true) &&
     text.accept(";")
   )) text.failparse("Unexpected text while parsing import statement");
-  foreach (str; newImports)
-    if (pub)
-      mod.public_imports ~= lookupMod(str);
-    else if (stat)
-      mod.static_imports ~= lookupMod(str);
-    else
-      mod.imports ~= lookupMod(str);
+  void process(ref Module[] list, Module newmod) {
+    foreach (entry; list) {
+      if (entry.name == newmod.name) t2.failparse("Duplicate import");
+    }
+    list ~= newmod;
+  }
+  foreach (str; newImports) {
+    auto newmod = lookupMod(str);
+    if (pub) process(mod.public_imports, newmod);
+    else if (stat) process(mod.static_imports, newmod);
+    else process(mod.imports, newmod);
+  }
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotImport, "tree.import");

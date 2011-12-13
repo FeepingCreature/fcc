@@ -692,7 +692,7 @@ void parseHeader(string filename, string src) {
     // logln("Add ", value);
     ns.add(key, value);
   }
-  logSmart!(false)("# Got ", cache.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
+  // logSmart!(false)("# Got ", cache.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
 }
 
 void performCImport(string name) {

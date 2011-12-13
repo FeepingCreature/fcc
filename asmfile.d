@@ -6,7 +6,7 @@ public import assemble;
 const bool keepRegs = true, isForward = true;
 
 import tools.log, tools.functional: map;
-import tools.base: between, slice, atoi, split, stuple, apply, swap, Stuple;
+import tools.base: between, slice, split, stuple, apply, swap, Stuple;
 const string[] utilRegs = ["%eax", "%ebx", "%ecx", "%edx"];
 class AsmFile {
   string id;
@@ -398,7 +398,8 @@ class AsmFile {
   int[string] labels_refcount;
   // no jumps past this point
   // removes unused labels
-  void jump_barrier() {
+  void jump_barrier() { }
+  /+void jump_barrier() {
     if (optimize) runOpts; // clean up
     Transaction[] newlist;
     /*foreach (t; cache.list) {
@@ -412,7 +413,7 @@ class AsmFile {
     
     cache.clear;
     labels_refcount = null;
-  }
+  }+/
   int lastStackDepth;
   void comment(T...)(T t) {
     if (!optimize) {
@@ -420,38 +421,34 @@ class AsmFile {
     }
     lastStackDepth = currentStackDepth;
   }
-  static string[] goodOpts;
+  string[] goodOpts;
+  bool[string] unused;
+  bool delegate(Transcache, ref int[string])[string] map;
   import tools.threads: SyncObj;
   void runOpts() {
     setupOpts;
     string[] newOpts;
-    static bool[string] unused;
-    static bool delegate(Transcache, ref int[string])[string] map;
-    synchronized(SyncObj!(unused))
-    synchronized(SyncObj!(map))
+    if (debugOpts) {
       foreach (entry; opts) if (entry._2) {
         unused[entry._1] = true;
         map[entry._1] = entry._0;
       }
-    // LOL
-    synchronized(SyncObj!(goodOpts))
-    synchronized(SyncObj!(unused))
-    synchronized(SyncObj!(map))
       foreach (opt; goodOpts) {
         unused.remove(opt);
         map[opt](cache, labels_refcount);
       }
+    }
     // ext_step(cache, labels_refcount); // run this first
     while (true) {
       bool anyChange;
-      synchronized(SyncObj!(goodOpts))
-      synchronized(SyncObj!(unused))
       foreach (entry; opts) if (entry._2) {
         auto opt = entry._0, name = entry._1;
         if (opt(cache, labels_refcount)) {
-          unused.remove(name);
-          newOpts ~= name;
-          goodOpts ~= name;
+          if (debugOpts) {
+            unused.remove(name);
+            newOpts ~= name;
+            goodOpts ~= name;
+          }
           anyChange = true;
         }
         // logln("Executed ", name, " => ", anyChange, "; ", cache.list.length);
@@ -475,16 +472,44 @@ class AsmFile {
     }
   }
   void flush() {
-    if (optimize) runOpts;
+    if (optimize) {
+      auto full_list = cache;
+      New(cache);
+      void flush2(Transaction* entry = null) {
+        runOpts;
+        finalized ~= cache.list();
+        if (entry) finalized ~= *entry;
+        cache.clear;
+      }
+      while (full_list.list().length) {
+        foreach (i, entry; full_list.list()) {
+          if (entry.kind != Transaction.Kind.Text) {
+            cache ~= entry;
+          } else {
+            flush2(&entry);
+            full_list._list = full_list._list[i+1 .. $];
+            full_list.size -= i+1;
+            break;
+          }
+        }
+      }
+      flush2;
+    }
     foreach (entry; finalized.list) if (auto line = entry.toAsm()) _put(line);
     foreach (entry; cache.list)     if (auto line = entry.toAsm()) _put(line);
     finalized.clear;
     cache.clear;
   }
   void put(T...)(T t) {
+    Transaction tn;
+    tn.kind = Transaction.Kind.Text;
+    tn.text = qformat(t);
+    cache ~= tn;
+  }
+  /*void put(T...)(T t) {
     flush();
     _put(t);
-  }
+  }*/
   void _put(T...)(T t) {
     code ~= qformat(t, "\n");
   }

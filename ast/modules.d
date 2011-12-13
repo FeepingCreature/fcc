@@ -31,7 +31,7 @@ class Module : Namespace, Tree, Named, StoresDebugState {
     foreach (i, mod; imports) {
       // importing module with constructor can be valid reason to import never-used module.
       if (!mod.constrs.length && !*getPtrResizing(importsUsed, i))
-        logln("WARN:", name, ": import ", mod.name, " never used. ");
+        logSmart!(false)("WARN:", name, ": import ", mod.name, " never used. ");
     }
   }
   Function[] constrs;

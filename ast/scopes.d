@@ -69,11 +69,6 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       requiredDepth = int.max;
     }
     requiredDepthDebug = Format(this);
-    if (requiredDepthDebug == "scope(12) <- scope(12) <- fun join Function of [ref class reader <- Instance of template readfile (ast.types.SysInt) <- module std.file t]  => (null) <- Instance of template join (ref class reader <- Instance of template readfile (ast.types.SysInt) <- module std.file) <- module std.string") {
-      logln(this);
-      logln(sup.field);
-      asm { int 3; }
-    }
   }
   void setSup(Namespace ns) {
     sup = ns;

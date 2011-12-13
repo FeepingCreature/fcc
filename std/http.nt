@@ -2,14 +2,15 @@
 Simple HTTP processing */
 module std.http;
 
-import std.string, std.socket;
+import std.string, std.util, std.socket;
 
 class DownloadError : Error {
-  void init(string url, string msg) { super.init "While downloading '$url:' $msg"; }
+  void init(string url, string msg) { super.init "While downloading '$url': $msg"; }
 }
 
 import c.stdio;
 /* Function: download
+*Deprecated!*
 Download a site. HTTP/1.0, very WIP.
 
 Parameters:
@@ -48,6 +49,7 @@ byte[] download(string url, void delegate(string) onRedirect = null) {
 
 (byte[], string)[auto~] cache;
 /* Function: downloadCached
+*Deprecated!*
 Like <download>, but cached. Self-explanatory. */
 byte[] downloadCached(string url, void delegate(string) onRedirect = null) {
   for auto tup <- cache
@@ -70,4 +72,206 @@ string followLink(string from, string to) {
   auto pos_last_slash = from[7..pos_param].rfind("/");
   if pos_last_slash == -1 raise new Error "No separator slash in $from! ";
   return from[0..pos_last_slash + 7 + 1] ~ to;
+}
+
+/*Function: urlEncode
+Encodes a string using percent encoding for use in HTTP. */
+string urlEncode(string uri) {
+  //ones that don't need encoding: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~
+  string safe="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~";
+  string encoded;
+  for (int i=0;i<uri.length;i++) {
+    if safe.find "$(uri[i])"
+      encoded="$encoded$(uri[i])";
+    else {
+      string a = std.string.toString(int:uri[i],16);
+      if a.length<2
+        a="0$a";
+      encoded="$encoded%$a";
+    }
+  }
+  return encoded;
+}
+
+/*Function: pathEncode
+Does exactly what <urlEncode> does, except / is a safe character. */
+string pathEncode(string uri) {
+  string safe="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~/";
+  string encoded;
+  for (int i=0;i<uri.length;i++) {
+    if safe.find "$(uri[i])"
+      encoded="$encoded$(uri[i])";
+    else {
+      string a=std.string.toString(int:uri[i],16);
+      if a.length<2
+        a="0$a";
+      encoded="$encoded%$a";
+    }
+  }
+  return encoded;
+}
+
+// TODO: make this function
+/*string urlDecode(string uri) {
+  for (int i=0;i<uri.length;i++) {
+    if uri[i] == "%"
+      uri = "$(uri[0..i])";
+  }
+  return uri;
+}*/
+
+/*Function: createURI
+Assembles a URI from the basic parts, used by <HTTP-URI>'s <toString> function.*/
+string createURI(string host, int port=80, string path="/", (string,string)[] get=null, bool ssl=false) {
+  string uri;
+  if ssl
+    uri="https://";
+  else
+    uri="http://";
+  uri="$uri$host";
+  if port!=80
+    uri="$uri:$port";
+  if path.startsWith "/"
+    uri="$uri$(pathEncode(path))";
+  else
+    uri="$uri/$(pathEncode(path))";
+  if get.length>0
+    uri="$uri?";
+  for auto x <- get {
+    if uri[$-1]!="?"
+      uri="$uri&";
+    uri="$uri$(urlEncode(x[0]))=$(urlEncode(x[1]))";
+  }
+  return uri;
+}
+
+/*Struct: HTTP-URI
+Represents an easily accessible/modifiable HTTP URL.*/
+struct HTTP-URI {
+  /*Variables: HTTP-URI
+  
+  ssl   - whether or not to use TLS encryption (https vs http)
+  host  - the host to connect to (google.com)
+  port  - the port to connect to (default = 80)
+  path  - the path to use in a request (default = /)
+  get   - contains all the variables in a GET request (stuff after ?)*/
+  bool ssl;
+  string host;
+  int port;
+  string path;
+  (string,string)[] get;
+}
+
+/*Function: decodeURI
+Takes a string URL as its input and returns a pointer to an appropriate HTTP-URI object.*/
+void decodeURI(string url, HTTP-URI* uri) {
+  alias obj = *uri;
+  //protocol
+  auto rest=url.startsWith "http://";
+  if rest
+    obj.ssl=false;
+  else {
+    rest=url.startsWith "https://";
+    if rest
+      obj.ssl=true;
+    else
+      raise new DownloadError(url,"Could not decode URI: Protocol is not HTTP");
+  }
+  
+  //host
+  string (domain, path) = rest.slice "/";
+  (obj.host,string port) = domain.slice ":";
+  obj.port = atoi(port);
+  if !obj.port
+    if obj.ssl
+      obj.port=443;
+    else
+      obj.port=80;
+  
+  //path
+  (obj.path,string get) = path.slice "?";
+  
+  obj.path = "/" ~ obj.path;
+  
+  for auto kv <- iterOnce(get).splitAt "&" {
+    (string,string) p=kv.slice "=";
+    obj.get ~= (p[0].dup,p[1].dup);
+  }
+}
+
+string toString(HTTP-URI u) {
+  return createURI u.(host, port, path, get, ssl);
+}
+
+/* Function: sendRequest
+Sends an HTTP/1.1 request to the server specified in the url. 
+Parameters:
+  url     - required, the URL of the resource.
+  method  - optional, the method to use. Default: GET
+  header  - optional, any header data. Host and content-length will be automatically handled
+  msgbody - optional, the body of the request.
+Returns:
+  A tuple containing the status code, the header (an array of tuples of strings, (key,value)[]), and the body (byte[]). A status code of 0 means that there was an internal error with the function.
+TODO:
+  Make it clear spaces from fields in the headers.*/
+int sendRequest(HTTP-URI url, string method = "GET",
+  (string, string)[] header_in = null, (string, string)[]* header_out = null,
+  byte[] body_in = null, byte[]* body_out = null) {
+
+  // whine that there's no ssl support
+  if url.ssl {
+    raise new DownloadError(url.toString(),"No SSL support currently! :C");
+    return 0;
+  }
+  
+  // connect to server
+  auto sock=connect(url.host,short:url.port);
+  
+  void sendLine(string line) {
+    sock.sendAll byte[]:line;
+    sock.sendAll byte[]:"\r\n";
+  }
+  
+  // send request
+  sendLine "$method $(url.path) HTTP/1.1";
+  sendLine "Host: $(url.host)";
+  sendLine "Connection: close";
+  if body_in.length
+    sendLine "Content-Length: $(body_in.length)";
+  for auto l <- header_in
+    sendLine "$(l[0]): $(l[1])";
+  sendLine ""; //empty line separating header/body
+  
+  sock.sendAll body_in;
+  
+  // read response
+  auto response = string: join readsocket sock;
+  string (reshead, resbody) = response.slice "\r\n\r\n"; // splits header from body at the empty line separating them
+  
+  // process header
+  //string[] head_split = (iterOnce ((iterOnce reshead).splitAt "\r\n "#.join)).splitAt "\r\n"; // splits the header into individual lines
+  string[] headsplit = (reshead.split("\r\n ").join()).split "\r\n";
+  // removes separation of lines starting with " " as per standard: http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
+  (string statusline, headsplit) = headsplit[(0, 1..$)]; // pops the first element into statusline
+  // Status-Line = HTTP-Version SP Status-Code SP Reason-Phrase CRLF
+  // http://www.w3.org/Protocols/rfc2616/rfc2616-sec6.html#sec6
+  // ex: HTTP/1.1 200 OK
+  int status = atoi ( statusline.split(" ")[1] ); //splits it into components and grabs the thing after the HTTP version (the status code)
+  (string, string)[auto~] head;
+  // whitespace removal goes here:
+  for auto l <- headsplit {
+    head ~= l.dup.slice ":" #.(that[0].strip(), that[1].strip());
+  }
+  
+  // no body processing is done
+  
+  // close connection
+  // TODO: Support Keep-Alive
+  sock.close();
+  
+  // return parsed response
+  if (header_out) *header_out = head[];
+  if (body_out) *body_out = byte[]: resbody;
+  
+  return status;
 }

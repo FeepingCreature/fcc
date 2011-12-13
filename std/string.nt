@@ -268,7 +268,7 @@ reassign string strip(string s) {
   return s;
 }
 
-import std.util;
+// import std.util;
 /*Function: split
 Splits a string at a marker. */
 string[] split(string s, string marker) {
@@ -282,4 +282,22 @@ string[] split(string s, string marker) {
     }
   }
   return res[];
+}
+
+extern(C) int asprintf(char** strp, char* fmt, ...);
+string toString(int i, int base = 10) {
+  if base == 2 {
+    string a;
+    for (int k=31; k>=0; k--)
+      a="$a$(i>>k & 1)";
+    return a;
+  }
+  if base == 10
+    return "$i";
+  if base == 16 {
+    char *a;
+    asprintf(&a,"%x", i);
+    return CToString a;
+  }
+  raise new Error "toString(base => $base) not supported";
 }

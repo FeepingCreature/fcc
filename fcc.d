@@ -25,6 +25,8 @@ import ast.parse, ast.namespace, ast.scopes;
 // from ast.modules_parse
 mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
 
+const ProgbarLength = 50;
+
 string output;
 
 static this() {
@@ -161,6 +163,16 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
   }
 }
 
+string renderProgbar(int total, int current) {
+  auto progbar = new char[total];
+  for (int i = 0; i < ProgbarLength; ++i) {
+    if (i < current) progbar[i] = '=';
+    else if (i == current) progbar[i] = '>';
+    else progbar[i] = ' ';
+  }
+  return Format("[", progbar, "] ", (current*100)/total, "%");
+}
+
 extern(C) {
   int open(char* filename, int flags, size_t mode);
   int close(int fd);
@@ -227,7 +239,7 @@ struct CompileSettings {
 }
 
 extern(C) int mkdir(char*, int);
-string compile(string file, CompileSettings cs) {
+string delegate(int, int*) compile(string file, CompileSettings cs) {
   while (file.startsWith("./")) file = file[2 .. $];
   auto af = new AsmFile(cs.optimize, cs.debugMode, cs.profileMode, file);
   af.processorExtensions["sse3"] = true;
@@ -243,7 +255,7 @@ string compile(string file, CompileSettings cs) {
         exit(1);
       }
       if (auto rest = cmd.startsWith("disable ")) {
-        int which = rest.atoi();
+        int which = rest.my_atoi();
         opts[which]._2 = false;
         continue;
       }
@@ -269,7 +281,7 @@ string compile(string file, CompileSettings cs) {
   auto start_parse = sec();
   bool fresh = true;
   auto mod = lookupMod(modname);
-  if (mod.alreadyEmat) return objname; // fresh
+  if (mod.alreadyEmat) return objname /apply/ (string objname, int total, int* complete) { return objname; }; // fresh
   if (mod.dontEmit) return null;
   fixupMain();
   auto len_parse = sec() - start_parse;
@@ -286,33 +298,41 @@ string compile(string file, CompileSettings cs) {
       ematSysmod = true;
     }
   }) / 1_000_000f;
-  logSmart!(false)(len_parse, " to parse, ", len_opt, " to opt, ", len_gen, " to emit. ");
+  // logSmart!(false)(len_parse, " to parse, ", len_opt, " to optimize. ");
   Stuple!(string, float)[] entries;
   foreach (key, value; ast.namespace.bench) entries ~= stuple(key, value);
   entries.qsort(ex!("a, b -> a._1 > b._1"));
   float total = 0;
   foreach (entry; entries) total += entry._1;
   // logSmart!(false)("Subsegments: ", entries, "; total ", total);
-  {
-    scope f = new BufferedFile(srcname, FileMode.OutNew);
-    af.genAsm((string s) { f.write(cast(ubyte[]) s); });
-    f.close;
-  }
-  auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", srcname, " 2>&1");
-  logSmart!(false)("> ", cmdline);
-  if (system(cmdline.toStringz())) {
-    logln("ERROR: Compilation failed! ");
-    exit(1);
-  }
   mod.alreadyEmat = true;
-  return objname;
+  return stuple(objname, srcname, af, mod, cs) /apply/
+  (string objname, string srcname, AsmFile af, Module mod, CompileSettings cs, int total, int* complete) {
+    scope(exit)
+      if (!cs.saveTemps)
+        unlink(srcname.toStringz());
+    scope f = new BufferedFile(srcname, FileMode.OutNew);
+    auto len_emit = time({
+      af.genAsm((string s) { f.write(cast(ubyte[]) s); });
+    }) / 1_000_000f;
+    f.close;
+    auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", srcname, " 2>&1");
+    (*complete) ++;
+    logSmart!(false)("> (", (*complete * 100) / total,  "% ", len_emit, "s) ", cmdline);
+    if (system(cmdline.toStringz())) {
+      logln("ERROR: Compilation failed! ");
+      exit(1);
+    }
+    mod.alreadyEmat = true;
+    return objname;
+  };
 }
 
-string[] compileWithDepends(string file, CompileSettings cs) {
+string delegate(int, int*)[] genCompilesWithDepends(string file, CompileSettings cs) {
   while (file.startsWith("./")) file = file[2 .. $];
   auto firstObj = compile(file, cs);
   auto modname = file.replace("/", ".")[0..$-3];
-  string[] res;
+  string delegate(int, int*)[] dgs;
   bool[string] done;
   done["sys"] = true;
   Module[] todo;
@@ -321,17 +341,27 @@ string[] compileWithDepends(string file, CompileSettings cs) {
   todo ~= start.getImports();
   todo ~= sysmod.getImports();
   done[start.name] = true;
-  res ~= firstObj;
+  dgs ~= firstObj;
   
   while (todo.length) {
     auto cur = todo.take();
     if (cur.name in done) continue;
     if (auto nuMod = compile(cur.name.replace(".", "/") ~ EXT, cs))
-      res ~= nuMod;
+      dgs ~= nuMod;
     done[cur.name] = true;
     todo ~= cur.getImports();
   }
-  return res;
+  return dgs;
+}
+
+string[] compileWithDepends(string file, CompileSettings cs) {
+  if (!emitpool) emitpool = new Threadpool(4);
+  auto dgs = file.genCompilesWithDepends(cs);
+  string[] objs;
+  auto complete = new int;
+  void process(string delegate(int, int*) dg) { auto obj = dg(dgs.length, complete); synchronized objs ~= obj; }
+  emitpool.mt_foreach(dgs, &process);
+  return objs;
 }
 
 void link(string[] objects, string[] largs, bool saveTemps = false) {
@@ -345,6 +375,9 @@ void link(string[] objects, string[] largs, bool saveTemps = false) {
   logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz());
 }
+
+import tools.threadpool;
+Threadpool emitpool;
 
 import std.file;
 void loop(string start, string[] largs,
@@ -400,7 +433,7 @@ void loop(string start, string[] largs,
   while (true) {
     lazySysmod();
     try {
-      auto objs = start.compileWithDepends(cs);
+      string[] objs = start.compileWithDepends(cs);
       objs.link(largs, true);
     } catch (Exception ex) {
       logln(ex);
@@ -448,17 +481,10 @@ int main(string[] args) {
           info._1 = rest;
         }
       if (allowProgbar) {
-        const Length = 50;
-        auto progbar = new char[Length];
-        auto halfway = cast(int) (info._0 * Length);
+        auto halfway = cast(int) (info._0 * ProgbarLength);
         if (halfway == prevHalfway) return;
         prevHalfway = halfway;
-        for (int i = 0; i < Length; ++i) {
-          if (i < halfway) progbar[i] = '=';
-          else if (i == halfway) progbar[i] = '>';
-          else progbar[i] = ' ';
-        }
-        logSmart!(true)(info._1, " \t [", progbar, "]");
+        logSmart!(true) (info._1, " \t ", renderProgbar(ProgbarLength, halfway));
       }
     }
   };
@@ -469,7 +495,7 @@ int main(string[] args) {
     while (ar.length) {
       auto arg = ar.take();
       if (arg == "-xpar") {
-        xpar = ar.take().atoi();
+        xpar = ar.take().my_atoi();
         continue;
       }
     }

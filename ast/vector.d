@@ -573,7 +573,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
    || op2.valueType() != vec3f && op2.valueType() != vec4f
    || op1.valueType() != op2.valueType())
     return false;
-  if (op != "+" /or/ "-" /or/ "*" /or/ "/" /or/ "^") return false;
+  if (op != "+"[] /or/ "-"[] /or/ "*"[] /or/ "/"[] /or/ "^"[]) return false;
   void packLoad(string dest, string scrap1, string scrap2) {
     af.popStack("%eax", 4);
     // af.SSEOp("movaps", "(%eax)", dest);
