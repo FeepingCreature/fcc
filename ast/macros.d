@@ -72,12 +72,13 @@ extern(C) void fcc_initTenth() {
   }));
   rootctx.add("flatten", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     Entity[] res;
-    foreach (arg; args) {
-      if (auto list = fastcast!(List) (arg))
-        res ~= list.entries;
+    void handle(Entity ent) {
+      if (auto list = fastcast!(List) (ent))
+        foreach (entry; list.entries) handle(entry);
       else
-        res ~= arg;
+        res ~= ent;
     }
+    foreach (arg; args) handle(arg);
     return new List(res);
   }));
   rootctx.add("assert", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
@@ -386,8 +387,13 @@ extern(C) void fcc_initTenth() {
   }));
   rootctx.add("tuple-length", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'tuple-length': 1 expected");
-    mixin(chaincast("len: Arg to 'tuple-length': args[0]->ItrEntity: %.itr->Expr: %.valueType()->Tuple: %.types.length"));
+    mixin(chaincast("len: Arg to 'tuple-length': args[0]->ItrEntity: %.itr->Expr: resolveType(%.valueType())->Tuple: %.types.length"));
     return new Integer(len);
+  }));
+  rootctx.add("is-tuple", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'is-tuple': 1 expected");
+    mixin(chaincast("ty: Arg to 'is-tuple': args[0]->ItrEntity: %.itr->Expr: resolveType(%.valueType())"));
+    return (!!fastcast!(Tuple) (ty))?NonNilEnt:NilEnt;
   }));
   rootctx.add("tuple-exprs", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'tuple-exprs': 1 expected");

@@ -21,7 +21,7 @@ class Tuple : Type {
     bool isComplete() { return wrapped.isComplete; }
     string mangle() { return "tuple_"~wrapped.mangle(); }
     ubyte[] initval() { return wrapped.initval(); }
-    string toString() { return Format("Tuple", (fastcast!(Structure)~ wrapped).members); }
+    string toString() { string res; foreach (i, ty; types()) { if (i) res ~= ", "; res ~= Format(ty); } return "(" ~ res ~ ")"; }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
       it = resolveType(it);

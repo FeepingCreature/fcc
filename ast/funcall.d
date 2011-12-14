@@ -340,7 +340,7 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto fc = new FpCall;
     fc.fp = ex;
     
-    if (!matchCall(t2, Format("delegate ", ex), fptype.args, rest, fc.params, false, false))
+    if (!matchCall(t2, Format("delegate ", ex.valueType()), fptype.args, rest, fc.params, false, false))
       return null;
     
     text = t2;
@@ -378,7 +378,7 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     auto dc = new DgCall;
     dc.dg = ex;
-    if (!matchCall(t2, Format("delegate ", ex), dgtype.args, rest, dc.params, false, false))
+    if (!matchCall(t2, Format("delegate ", ex.valueType()), dgtype.args, rest, dc.params, false, false))
       return null;
     text = t2;
     return dc;
