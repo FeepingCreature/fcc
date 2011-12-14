@@ -158,11 +158,11 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   }
   string mangle() {
     if (!name) {
-      auto res = "struct_"~name;
+      auto res = "struct_"~name.cleanup();
       select((string, RelMember member) { res ~= "_" ~ member.type.mangle ~ "_" ~ member.name; }, &rmcache);
       return res;
     }
-    return "struct_"~name;
+    return "struct_"~name.cleanup();
   }
   override {
     IType getRefType() { return new Pointer(this); }

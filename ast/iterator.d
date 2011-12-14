@@ -121,7 +121,10 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
 Expr mkRange(Expr from, Expr to) {
   auto wrapped = new Structure(null);
   // cur must start one early
+  auto fvt = from.valueType();
   from = lookupOp("-", from, mkInt(1));
+  if (!gotImplicitCast(from, fvt, (IType it) { return !!(it == fvt); }) && !(from = tryConvert(from, fvt), from))
+    throw new Exception(Format("mkRange: ", fvt, " does not cleanly implement integer subtraction or allow down-conversion. "));
   new RelMember("cur", from.valueType(), wrapped);
   new RelMember("end", to.valueType(), wrapped);
   auto range = new Range;
@@ -129,7 +132,7 @@ Expr mkRange(Expr from, Expr to) {
   return new RCE(range, new StructLiteral(wrapped, [from, to]));
 }
 
-import ast.tuples;
+import ast.tuples, ast.literal_string;
 Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr from, to;
   auto t2 = text;
@@ -139,8 +142,12 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Unable to acquire second half of range def");
   text = t2;
   bool notATuple(IType it) { return !fastcast!(Tuple) (it); }
+  bool isByte(IType it) { return !!fastcast!(Byte) (it); }
   gotImplicitCast(from, &notATuple);
   gotImplicitCast(to  , &notATuple);
+  from = foldex(from); to = foldex(to);
+  if (auto sl = fastcast!(StringExpr) (from)) if (sl.str.length == 1) gotImplicitCast(from, &isByte);
+  if (auto sl = fastcast!(StringExpr) (to))   if (sl.str.length == 1) gotImplicitCast(to,   &isByte);
   auto ifrom = fastcast!(IntExpr)~ fold(from), ito = fastcast!(IntExpr)~ fold(to);
   if (ifrom && ito)
     return fastcast!(Object)~ reinterpret_cast(new ConstIntRange(ifrom.num, ito.num), mkInt(ifrom.num - 1));

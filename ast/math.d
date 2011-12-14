@@ -422,7 +422,7 @@ class AsmIntBinopExpr : BinopExpr {
         }
         string top = op;
         if (top == "*" && op2.startsWith("$")) {
-          auto num = op2[1 .. $].atoi();
+          auto num = op2[1 .. $].my_atoi();
           if (num == 4) { top = "<<"; op2 = "$2"; }
         }
         
@@ -461,12 +461,15 @@ class AsmIntBinopExpr : BinopExpr {
         }
         return null;
       }
+      void checkZero(string kind, int num) {
+        if (!num) throw new Exception(Format("Could not compute "~kind~": division by zero"));
+      }
       switch (aibe.op) {
         case "+": return mkInt(ie1.num + ie2.num);
         case "-": return mkInt(ie1.num - ie2.num);
         case "*": return mkInt(ie1.num * ie2.num);
-        case "/": return mkInt(ie1.num / ie2.num);
-        case "%": return mkInt(ie1.num % ie2.num);
+        case "/": checkZero("division", ie2.num); return mkInt(ie1.num / ie2.num);
+        case "%": checkZero("modulo", ie2.num); return mkInt(ie1.num % ie2.num);
         case "<<": return mkInt(ie1.num << ie2.num);
         case ">>": return mkInt(ie1.num >> ie2.num);
         case "&": return mkInt(ie1.num & ie2.num);
@@ -930,10 +933,10 @@ static this() {
     if (!fc) return null;
     bool isSqrtMath, isSqrtfSysmod;
     auto sqrmod = fastcast!(Module) (fc.fun.sup);
-    if (fc.fun.name == "sqrt" /or/ "[wrap]sqrt") {
+    if (fc.fun.name == "sqrt"[] /or/ "[wrap]sqrt"[]) {
       if (sqrmod && sqrmod.name == "std.math") isSqrtMath = true;
     }
-    if (fc.fun.name == "sqrtf" /or/ "[wrap]sqrtf") {
+    if (fc.fun.name == "sqrtf"[] /or/ "[wrap]sqrtf"[]) {
       if (sqrmod && sysmod && sqrmod is sysmod) isSqrtfSysmod = true;
     }
     if (!isSqrtMath && !isSqrtfSysmod) return null;
@@ -946,7 +949,7 @@ static this() {
     if (!fc) return null;
     bool isSinMath;
     auto sinmod = fastcast!(Module) (fc.fun.sup);
-    if (fc.fun.name == "sin" /or/ "[wrap]sin") {
+    if (fc.fun.name == "sin"[] /or/ "[wrap]sin"[]) {
       if (sinmod && sinmod.name == "std.math") isSinMath = true;
     }
     if (!isSinMath) return null;

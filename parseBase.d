@@ -123,22 +123,26 @@ bool isNormal(wchar c) {
          "_µ".find(c) != -1;
 }
 
-// TODO: NOT THREADSAFE
 string lastAccepted, lastAccepted_stripped;
-bool accept(ref string s, string t) {
+bool acceptT(bool USECACHE)(ref string s, string t) {
   string s2;
   bool sep = t.length && t[$-1] == ' ';
   debug if (t !is t.strip()) {
     logln("bad t: '", t, "'");
     asm { int 3; }
   }
-  if (s is lastAccepted) {
-    s2 = lastAccepted_stripped;
+  static if (USECACHE) {
+    if (s is lastAccepted) {
+      s2 = lastAccepted_stripped;
+    } else {
+      s2 = s.mystripl();
+      s2.eatComments();
+      lastAccepted = s;
+      lastAccepted_stripped = s2;
+    }
   } else {
     s2 = s.mystripl();
     s2.eatComments();
-    lastAccepted = s;
-    lastAccepted_stripped = s2;
   }
   
   size_t idx = t.length;
@@ -147,6 +151,9 @@ bool accept(ref string s, string t) {
     !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
   );
 }
+
+alias acceptT!(true) accept;
+alias acceptT!(false) accept_mt;
 
 // statement terminator.
 // multiple semicolons can be substituted with a single one

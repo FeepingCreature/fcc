@@ -39,7 +39,7 @@ bool isNumLiteral(string s) {
 int literalToInt(string s) {
   if (!isLiteral(s)) asm { int 3; }
   assert(isLiteral(s), "not a literal: "~s);
-  return s[1 .. $].atoi();
+  return s[1 .. $].my_atoi();
 }
 
 // if false, is either a literal or a register (not esp)
@@ -58,7 +58,7 @@ string isIndirectComplex(string s, ref int delta, bool allowLiterals) {
   if (s.between(")", "").length) return null;
   auto betw = s.between("(", ")");
   if (betw && (betw.isRegister() || allowLiterals)) {
-    delta = s.between("", "(").atoi();
+    delta = s.between("", "(").my_atoi();
     return betw;
   }
   return null;
@@ -105,6 +105,7 @@ struct Transaction {
     FloatLongLoad, FloatIntLoad, /* fildq/l */
     SSEOp,
     ExtendDivide, /* cdq, [i]divl */
+    Text,
     Jump, Label, Extended, Nevermind, LoadAddress
   }
   const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "MovD", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call", "Swap",
@@ -116,6 +117,7 @@ struct Transaction {
     "FloatLongLoad", "FloatIntLoad",
     "SSEOp",
     "ExtendDivide",
+    "Text",
     "Jump", "Label", "Extended", "Nevermind", "LoadAddress"];
   Kind kind;
   string toString() {
@@ -159,6 +161,7 @@ struct Transaction {
       case Extended:    return Format("[extended ", obj, "]");
       case Nevermind:   return Format("[nvm ", dest, "]");
       case LoadAddress: return Format("[lea ", from, " -> ", to, stackinfo, "]");
+      case Text:        return Format("[text ", text, "]");
     }
   }
   int opEquals(ref Transaction t2) {
@@ -184,12 +187,13 @@ struct Transaction {
       case Extended: return obj == t2.obj;
       case Nevermind: return dest == t2.dest;
       case LoadAddress: return from == t2.from && to == t2.to;
+      case Text: return text == t2.text;
     }
     assert(false);
   }
   static string asmformat(string s) {
     if (auto betw = s.between("(", ")")) {
-      auto offs = s.between("", "(").atoi();
+      auto offs = s.between("", "(").my_atoi();
       if (betw.startsWith("$")) {
         return qformat(betw[1 .. $], "+", offs);
       }
@@ -247,7 +251,7 @@ struct Transaction {
         // %eax
         string matchRegister(string s) {
           string reg;
-          if (s.accept("%") && s.gotIdentifier(reg)) {
+          if (s.accept_mt("%") && s.gotIdentifier(reg)) {
             if (s.length && s[0] == ':') {
               reg ~= s;
               s = null;
@@ -258,11 +262,11 @@ struct Transaction {
         }
         // $5 or $constant_string
         bool gotLiteral(string s, ref int num, ref string ident) {
-          return s.accept("$") && (s.gotInt(num) || (s.find("(") == -1) && (ident = s, s = null, true)) && !s.length;
+          return s.accept_mt("$") && (s.gotInt(num) || (s.find("(") == -1) && (ident = s, s = null, true)) && !s.length;
         }
         // $5
         bool gotIntLiteral(string s, ref int num) {
-          return s.accept("$") && s.gotInt(num);
+          return s.accept_mt("$") && s.gotInt(num);
         }
         // 8(%eax) or 8($literal)
         string gotMemoryOffset(string s, ref int offs) {
@@ -283,7 +287,7 @@ struct Transaction {
             if (kind == Push) {
               /*if (op.between("(", ")").startsWith("%esi+")) {
                 auto varname = op.between("%esi+", ")");
-                offs = op.between("", "(").atoi();
+                offs = op.between("", "(").my_atoi();
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
                 op = qformat(first_offs + size - sz, "(%esi+", varname, ")");
@@ -415,6 +419,7 @@ struct Transaction {
       case Extended: return obj.toAsm();
       case Nevermind: return qformat("#forget ", dest, ". ");
       case LoadAddress: return qformat("leal ", from.asmformat(), ", ", to);
+      case Text: return text;
     }
   }
   struct {
@@ -445,7 +450,10 @@ struct Transaction {
       bool useIVariant;
     }
     int stackdepth = -1;
-    string mode; // for jumps
+    union {
+      string mode; // for jumps
+      string text; // for literals
+    }
   }
   bool hasStackdepth() { return stackdepth != -1; }
   string stackinfo() { return stackdepth == -1 ? "" : qformat("@", stackdepth); }

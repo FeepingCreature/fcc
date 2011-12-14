@@ -64,9 +64,10 @@ class Options {
     Process arguments, filtering out matched flags.
   */
   string[] process(string[] args) {
-    int argc = args.length;
+    int argc = args.length + 1;
     char** argv = new char*[] argc #.ptr;
-    for (int i, string arg) <- zip(0..-1, args)
+    argv[0] = toStringz executable;
+    for (int i, string arg) <- zip(1..-1, args)
       argv[i] = toStringz arg;
     
     c.getopt.option[auto~] options;
@@ -128,6 +129,6 @@ class Options {
       newargs ~= CToString argv[base];
       base++;
     }
-    return newargs[];
+    return newargs[1..$];
   }
 }

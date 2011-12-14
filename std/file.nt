@@ -2,7 +2,7 @@
 File I/O*/
 module std.file;
 
-import c.dirent, c.string, c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.sys.stat;
+import c.dirent, c.stdio, c.fcntl, c.unistd, c.errno, c.stdlib, c.sys.stat;
 
 class ErrnoError : Error {
   int errno;
@@ -139,7 +139,6 @@ string sub(string path1, path2) {
   return path1 ~ "/" ~ path2;
 }
 
-import c.sys.stat;
 time_t accessed(string file) {
   int fd = open file;
   if (fd == -1) raise new ErrnoError;

@@ -300,4 +300,3 @@ byte[] downloadURI(HTTP-URI addr, bool redirect = true, bool cache = false, bool
     }
   }
 }
-

@@ -13,7 +13,7 @@ void genGraph(string filename, bool drawModules = true, bool drawClasses = true,
   string[][string] imports;
   bool[string] modules;
   bool ignore(string s) {
-    return !!s.startsWith("std." /or/ "object" /or/ "TypeInfo" /or/ "gcx");
+    return !!s.startsWith("std."[] /or/ "object"[] /or/ "TypeInfo"[] /or/ "gcx"[]);
   }
   foreach (mod; ModuleInfo.modules()) {
     modules[mod.name] = true;

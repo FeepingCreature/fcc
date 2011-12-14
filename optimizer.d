@@ -1,6 +1,6 @@
 module optimizer;
 
-import assemble, tools.base, ast.base, tools.base: Stuple, stuple;
+import assemble, tools.threads, tools.base, ast.base, tools.base: Stuple, stuple;
 alias asmfile.startsWith startsWith;
 
 int xpar = -1; // for debugging
@@ -85,7 +85,7 @@ string opt(string name, string s) {
 string* doSSE(string* s, bool isOp2 = false, string opName = null) {
   // if ((*s).startsWith("%xmm")) return null;
   // these don't read from op2
-  if (isOp2 && opName == "movaps" /or/ "movups") return null;
+  if (isOp2 && opName == "movaps"[] /or/ "movups"[]) return null;
   return s;
 }
 
@@ -131,6 +131,7 @@ struct TransactionInfo {
     Swap       | &#.source |&#.dest |&#.dest| -1  |
     RegLoad    |           |        |       | -1  |
     SSEOp      |doSSE(&#.op1)|doSSE(&#.op2,true,#.opName)|doSSE(&#.op2)| 16  |
+    Text       |           |        |       | -1  |
   `;
   template TableOp(string Body, R, T...) {
     R TableOp(T t) {
@@ -366,7 +367,7 @@ bool hasUtilityRegister(string reg) {
 }
 
 bool isUtilityRegister(string reg) {
-  if (reg == "%eax" /or/ "%ebx" /or/ "%ecx" /or/ "%edx")
+  if (reg == "%eax"[] /or/ "%ebx"[] /or/ "%ecx"[] /or/ "%edx"[])
     return true;
   return false;
 }
@@ -376,7 +377,7 @@ bool isSSERegister(string reg) {
 }
 
 bool isSSEMathOp(string op) {
-  return !!(op == "addps" /or/ "subps" /or/ "mulps" /or/ "divps");
+  return !!(op == "addps"[] /or/ "subps"[] /or/ "mulps"[] /or/ "divps"[]);
 }
 
 bool pinsRegister(ref Transaction t, string reg) {
@@ -399,7 +400,7 @@ bool tryFixupString(ref string s, int shift) {
     auto op2 = s.between("(", ")"), op1 = op2.rslice(",").strip();
     op2 = op2.strip().startsWith("$");
     assert(op2);
-    auto sum = op2.atoi() + shift;
+    auto sum = op2.my_atoi() + shift;
     if (sum < 0) return false;
     s = qformat("+(", op1, ", $", sum, ")");
     return true;
@@ -421,36 +422,69 @@ void fixupString(ref string s, int shift) {
   }
 }
 
-struct OrderedHashlike(K, V) {
+struct OrderedFastHashlike(K, V, FastKeys...) {
+  const FastEntries = 8;
+  Stuple!(K, V)[FastEntries] fast;
+  int fastlength;
   Stuple!(K, V)[] array;
+  void clear() {
+    fastlength = 0; array = null;
+  }
   V* opIn_r(K k) {
+    foreach (ref entry; fast[0..fastlength])
+      if (entry._0 == k) return &entry._1;
     foreach (ref entry; array)
       if (entry._0 == k) return &entry._1;
     return null;
   }
-  string toString() { return Format(array); }
+  string toString() { return Format(fast[0..fastlength] ~ array); }
   V opIndex(K k) {
     if (auto p = opIn_r(k)) return *p;
-    logln("No such key: ", k, ", in ", array);
+    logln("No such key: ", k, ", in ", this);
     asm { int 3; }
   }
   void opIndexAssign(V v, K k) {
     if (auto p = opIn_r(k)) { *p = v; return; }
+    if (fastlength < FastEntries) {
+      fast[fastlength++] = stuple(k, v);
+      return;
+    }
     array ~= stuple(k, v);
   }
-  int length() { return array.length; }
+  int length() { return fastlength + array.length; }
   int opApply(int delegate(ref K, ref V) dg) {
+    foreach (entry; fast[0..fastlength])
+      if (auto res = dg(entry._0, entry._1)) return res;
     foreach (entry; array)
       if (auto res = dg(entry._0, entry._1)) return res;
     return 0;
   }
-  int find(K k) {
+  int find_in_array(K k) {
     foreach (i, e; array) if (e._0 == k) return i;
     return -1;
   }
   void remove(K k) {
+    outer:while (true) {
+      foreach (i, entry; fast[0..fastlength]) {
+        if (entry._0 == k) {
+          // shift the rest up
+          for (int l = i+1; l < fastlength; ++l) {
+            fast[l-1] = fast[l];
+          }
+          fastlength --;
+          continue outer;
+        }
+      }
+      break;
+    }
+    scope(success) { // reshuffle array into fast
+      while (fastlength < FastEntries && array.length) {
+        fast[fastlength++] = array[0];
+        array = array[1..$];
+      }
+    }
     while (true) {
-      auto pos = find(k);
+      auto pos = find_in_array(k);
       if (pos == -1) return;
       array = array[0 .. pos] ~ array[pos+1 .. $];
     }
@@ -461,23 +495,159 @@ extern(C) long atoll(char *c);
 alias atoll atoll_c;
 long atoll(string s) { return atoll_c(toStringz(s)); }
 
+struct SmartHashmap(V, K, FastKeys...) {
+  V[K] hash;
+  static assert(is(V == bool)); // only true is permitted (false == removed)
+  const TupLength = FastKeys.length;
+  bool[TupLength] fastkeys;
+  void clear() {
+    hash = null;
+    foreach (i, key; FastKeys) fastkeys[i] = false;
+  }
+  K[] keys() {
+    auto res = hash.keys;
+    foreach (i, key; FastKeys)
+      if (fastkeys[i]) res ~= key;
+    return res;
+  }
+  V* opIn_r(K k) {
+    foreach (i, key; FastKeys) {
+      if (k == key) { if (fastkeys[i]) return &fastkeys[i]; else return null; }
+    }
+    return k in hash;
+  }
+  void remove(K k) {
+    foreach (i, key; FastKeys) {
+      if (k == key) { fastkeys[i] = false; return; }
+    }
+    hash.remove(k);
+  }
+  void opIndexAssign(V v, K k) {
+    debug assert(v == true);
+    foreach (i, key; FastKeys) {
+      if (k == key) { fastkeys[i] = true; return; }
+    }
+    hash[k] = v;
+  }
+}
+
+// tools.threads.TLS!(Stuple!(Transaction[], bool)[]) freelist;
+TLS!(Stuple!(Transaction[], int)) cachething;
+Transaction[] allocTransactionList(int len) {
+  if (!len) return null;
+  auto thing = cachething.ptr();
+  if (len > 1024) return new Transaction[len];
+  if (thing._0.length - thing._1 < len) { thing._0 = new Transaction[16384]; thing._1 = 0; }
+  auto res = thing._0[thing._1 .. thing._1 + len];
+  thing._1 += len;
+  return res;
+  /*auto free = *freelist.ptr();
+  foreach (ref entry; free) {
+    if (!entry._1 && entry._0.length >= len) {
+      entry._1 = true; // in use
+      return entry._0[0..len];
+    }
+  }
+  return new Transaction[len];*/
+}
+
+void markUnused(Transaction[] t) {
+  /*auto free = *freelist.ptr();
+  foreach (ref entry; free) {
+    if (entry._0.ptr == t.ptr) {
+      entry._1 = false;
+      if (t.length > entry._0.length) entry._0 = t;
+      return;
+    }
+  }
+  if (!t.length) return;
+  free ~= stuple(t, false);
+  *freelist.ptr() = free;*/
+}
+
+TLS!(ProcTrack[]) proctrack_cachething;
+
+void markProctrackDone(ProcTrack pt) {
+  auto list = *proctrack_cachething.ptr();
+  foreach (ref entry; list) { if (!entry) { entry = pt; return; } }
+  list ~= pt;
+  *proctrack_cachething.ptr() = list;
+}
+
+ProcTrack allocProctrack() {
+  auto list = *proctrack_cachething.ptr();
+  foreach (ref entry; list) {
+    if (entry) {
+      auto res = entry;
+      res.clear;
+      entry = null;
+      return res;
+    }
+  }
+  return new ProcTrack;
+}
+
+struct XArray(T) {
+  T[] back;
+  int len;
+  int length() { return len; }
+  void clear() { len = 0; }
+  T[] opCall() { return back[0..len]; }
+  static XArray opCall(T[] list, int len) {
+    XArray res;
+    res.back = list;
+    res.len = len;
+    return res;
+  }
+  int opApply(int delegate(ref T) dg) {
+    foreach (ref entry; back[0..len])
+      if (auto res = dg(entry)) return res;
+    return 0;
+  }
+  void shrink(int by) {
+    len -= by;
+    debug assert(len >= 0);
+  }
+  static if (is(T == string)) {
+    void opCatAssign(T t) {
+      if (len == back.length) { back ~= t; len ++; }
+      else { back[len++] = t; }
+    }
+  } else {
+    void opCatAssign(ref T t) {
+      if (len == back.length) { back ~= t; len ++; }
+      else { back[len++] = t; }
+    }
+  }
+}
+
 // track processor state
 // obsoletes about a dozen peephole opts
 class ProcTrack : ExtToken {
-  OrderedHashlike!(string, string) known;
-  string[] stack; // nativePtr-sized
-  string[] latepop;
+  alias Tuple!("%ebp", "%esp", "%eax", "%ebx", "%ecx", "%edx", "%esi") CommonKeys;
+  OrderedFastHashlike!(string, string) known;
+  XArray!(string) stack; // nativePtr-sized
+  XArray!(string) latepop;
   // in use by this set of transactions
   // emit before overwriting
-  bool[string] use;
+  SmartHashmap!(bool, string, CommonKeys) use;
   // backup
-  Transaction[] backup, knownGood;
+  XArray!(Transaction) backup, knownGood;
   // not safe to mix foo(%ebp) and foo(%esp) in the same proc chunk
   int ebp_mode = -1;
   int eaten;
   int postfree;
   bool noStack; // assumed no stack use; don't challenge this
   int stackdepth = -1; // stack depth at start
+  // reset to pristine state
+  void clear() {
+    known.clear;
+    stack.clear;
+    latepop.clear;
+    use.clear;
+    backup.clear; knownGood.clear;
+    ebp_mode = -1; eaten = 0; postfree = 0; noStack = false; stackdepth = -1;
+  }
   string toString() {
     return Format("cpu(",
       (stackdepth != -1)?Format("@", stackdepth):"@?", " ",
@@ -523,7 +693,7 @@ class ProcTrack : ExtToken {
         knownGood = translate();
         // nuh!
         // use = null; // effectively restarting
-        backup = null;
+        backup.clear;
       }
     }
     bool partialKnown(string s) {
@@ -568,7 +738,7 @@ class ProcTrack : ExtToken {
       return true;
     }
     if (t.kind != Transaction.Kind.Nevermind) {
-      if (latepop && t.kind != Transaction.Kind.Pop)
+      if (latepop.length && t.kind != Transaction.Kind.Pop)
                          return false;
     }
     // Note: this must NOT fix up the stack! think about it.
@@ -638,10 +808,10 @@ class ProcTrack : ExtToken {
           }
           return false;
         }
-        if (t.op1.isNumLiteral() && t.op2 == "(%esp)" && stack.length && stack[$-1].startsWith("+(")) {
-          auto mop2 = stack[$-1].between("+(", ")"), mop1 = mop2.slice(", ");
+        if (t.op1.isNumLiteral() && t.op2 == "(%esp)" && stack.length && stack()[$-1].startsWith("+(")) {
+          auto mop2 = stack()[$-1].between("+(", ")"), mop1 = mop2.slice(", ");
           if (mop2.isNumLiteral()) {
-            stack[$-1] = qformat("+(", mop1, ", $", mop2.literalToInt() + t.op1.literalToInt(), ")");
+            stack()[$-1] = qformat("+(", mop1, ", $", mop2.literalToInt() + t.op1.literalToInt(), ")");
             mixin(Success);
           }
         }
@@ -657,7 +827,7 @@ class ProcTrack : ExtToken {
         if (t.size % nativePtrSize != 0) return false;
         auto st2 = stack;
         for (int i = 0; i < t.size / nativePtrSize; ++i)
-          if (st2.length) st2 = st2[0 .. $-1];
+          if (st2.length) st2.shrink(1);
           else return false;
         if (!tryFixupESPDeps(-4 * (stack.length - st2.length)))
           return false;
@@ -700,7 +870,7 @@ class ProcTrack : ExtToken {
               noStack = true;
               mixin(Success);
             }
-            stack[$-1] = src;
+            stack()[$-1] = src;
           } else {
             if (!set(t.to, src))
               return false;
@@ -731,7 +901,7 @@ class ProcTrack : ExtToken {
               // auto val = stack[$ - 1 - from_rel];
               // instead "unroll" the stack until the index is _just_ at length, then set the value and uproll
               auto fixdist = 4 * (stack.length - index);
-              auto src = stack[index];
+              auto src = stack()[index];
               fixupString(src, fixdist);
               if (!set(t.to, src))
                 return false;
@@ -791,6 +961,11 @@ class ProcTrack : ExtToken {
           // remember, push is emat before mov!
           // [edit] That's alright now, we can just update the ESP of knowns.
           // if (val in known) return false;
+          // increment our knowns.
+          // logln("also I am ", this);
+          if (!val.isMemAccess()) {
+            if (known.length && !(t.source in known)) return false; // workaround
+          }
           if (auto reg = val.isIndirect2(offs)) {
             if (reg in known) return false; // bad dependence ordering
             // possible stack/variable dependence. bad.
@@ -800,11 +975,6 @@ class ProcTrack : ExtToken {
             use[reg] = true;
           }
           if (val.isRegister()) use[val] = true;
-          // increment our knowns.
-          // logln("also I am ", this);
-          if (!val.isMemAccess()) {
-            if (known.length && !(t.source in known)) return false; // workaround
-          }
           fixupESPDeps(4);
           stack ~= val;
           mixin(Success);
@@ -822,18 +992,18 @@ class ProcTrack : ExtToken {
         if (t.size != nativePtrSize) return false;
         if (t.dest.isRegister()) {
           if (!stack.length) break;
-          if (t.dest != stack[$-1]) {
+          if (t.dest != stack()[$-1]) {
             foreach (entry; stack)
               if (entry.find(t.dest) != -1) return false;
           }
           //   if (&& t.dest in use) return false;
           // do this first because pushed addresses were evaluated before the push took place
           fixupESPDeps(-4);
-          if (!set(t.dest, stack[$-1])) {
+          if (!set(t.dest, stack()[$-1])) {
             fixupESPDeps(4); // undo
             return false;
           }
-          stack = stack[0 .. $-1];
+          stack.shrink(1);
           mixin(Success);
         }
         int offs;
@@ -842,7 +1012,7 @@ class ProcTrack : ExtToken {
             if (auto indir = mkIndirect(known[dest], offs)) {
               // if (!stack.length && latepop.length) break;
               if (stack.length) {
-                auto newval = stack[$-1];
+                auto newval = stack()[$-1];
                 if (newval.find("%esp") == -1 || (newval.find("%ebp") == -1 && offs < 0))
                   // not reliable to do push/pop stackwork before we move to the active stack
                   if (stack.length) return false;
@@ -853,7 +1023,7 @@ class ProcTrack : ExtToken {
                   return false;
                 // we have a pop! fix up the esp deps
                 fixupESPDeps(-4);
-                stack = stack[0 .. $-1];
+                stack.shrink(1);
                 mixin(Success);
               } else {
                 auto len = latepop.length;
@@ -865,13 +1035,13 @@ class ProcTrack : ExtToken {
               }
             }
           } else if (dest == "%esp" || dest.isUtilityRegister()) {
-            if (stack.length && !isMemRef(stack[$-1])) {
-              auto val = stack[$-1];
+            if (stack.length && !isMemRef(stack()[$-1])) {
+              auto val = stack()[$-1];
               fixupString(val, 4);
               if (!set(t.dest, val))
                 return false;
               fixupESPDeps(-4);
-              stack = stack[0 .. $-1];
+              stack.shrink(1);
               mixin(Success);
             }
           }
@@ -908,11 +1078,16 @@ class ProcTrack : ExtToken {
     }
     return true;
   }
-  Transaction[] translate() {
+  XArray!(Transaction) translate() {
     Transaction[] res;
+    int reslen;
     if (!isValid()) {
-      res = knownGood ~ backup;
+      res = allocTransactionList(knownGood.length + backup.length);
+      res[0..knownGood.length] = knownGood();
+      res[knownGood.length .. $] = backup();
+      reslen = res.length;
     } else {
+      res = allocTransactionList(stack.length + known.length + latepop.length);
       int myStackdepth; // local offs
       bool sd = stackdepth != -1;
       void addTransaction(Transaction.Kind tk,
@@ -937,7 +1112,15 @@ class ProcTrack : ExtToken {
         info(t).accessParams(&fixup);
         if (dg2) dg2(t);
         
-        res ~= t;
+        if (res.length == reslen) {
+          auto backup = res;
+          res ~= t;
+          if (backup.ptr !is res.ptr) {
+            markUnused(backup); // append reallocated
+          }
+          reslen ++;
+        }
+        else { res[reslen++] = t; }
       }
       if (stack.length && noStack) {
         logln("Highly invalid processor state: ", this);
@@ -976,7 +1159,7 @@ class ProcTrack : ExtToken {
         });
       }
     }
-    return res;
+    return XArray!(Transaction) (res, reslen);
   }
   string toAsm() { assert(false); }
 }
@@ -984,8 +1167,10 @@ class ProcTrack : ExtToken {
 bool delegate(Transcache, ref int[string]) ext_step;
 
 void setupOpts() {
-  if (optsSetup) return;
-  optsSetup = true;
+  synchronized {
+    if (optsSetup) return;
+    optsSetup = true;
+  }
   bool goodMovSize(int i) { return i == 4 || i == 2 || i == 1; }
   mixin(opt("ebp_to_esp", `*:
     info($0).hasIndirect("%ebp")
@@ -994,7 +1179,7 @@ void setupOpts() {
     $T t = $0;
     bool changed;
     void doStuff(ref string str) {
-      auto offs = str.between("", "(").atoi(); 
+      auto offs = str.between("", "(").my_atoi(); 
       auto new_offs = offs + t.stackdepth;
       if (new_offs) str = qformat(new_offs, "(%esp)");
       else str = "(%esp)";
@@ -1029,16 +1214,18 @@ restart:
           goto skip; // > > > \ 
         } //                  v
       } //                    v
-      auto res = obj./*       v */translate();
+      auto res = obj./*       v */translate()();
       bool progress = /*      v */res.length != obj.eaten;
       if (!couldUpdate) res/* v */ ~= $1;
       $SUBST(res); //         v
+      markUnused(res);
+      markProctrackDone(obj);
       if (!progress) //       v
         match.modded = /*     v */ false; // meh. just skip one
       _changed = progress; // v secretly
       skip:; //   < < < < < < /
     } else {
-      New(obj);
+      obj = allocProctrack();
       t.obj = obj;
       if (obj.update(first)) {
         // $SUBST(t, $1);
@@ -1046,6 +1233,7 @@ restart:
         goto restart;
       }
       // else logln("Reject ", $0, ", ", $1);
+      markProctrackDone(obj);
     }
   `));
   // .ext_step = &ext_step; // export
@@ -1091,7 +1279,7 @@ restart:
         if (s == "%esp") dontDoIt = true; // duh
         return;
       }
-      auto offs = s.between("", "(").atoi();
+      auto offs = s.between("", "(").my_atoi();
       if ($1.kind == $TK.SAlloc) {
         shift = $1.size; // move it all to front
       } else {
@@ -1104,7 +1292,7 @@ restart:
     }
     void applyShift(ref string s) {
       if (!s.isIndirect().contains("%esp")) return;
-      auto offs = s.between("", "(").atoi();
+      auto offs = s.between("", "(").my_atoi();
       if ($1.kind == $TK.SAlloc) {
         s = qformat(offs + shift, "(", s.isIndirect(), ")");
       } else {
@@ -1201,7 +1389,7 @@ restart:
   // Seriously, what the hell.
   mixin(opt("excuse_me_but_WAT", `^Mov, ^MathOp:
     $0.from.isNumLiteral() && $0.to.isUtilityRegister() &&
-    ($1.op1 == $0.to || $1.opName == "addl" /or/ "imull" && $1.op2 == $0.to)
+    ($1.op1 == $0.to || $1.opName == "addl"[] /or/ "imull"[] && $1.op2 == $0.to)
     =>
     $T t = $1;
     if (t.op1 != $0.to) { // commutative op with lit on op2
@@ -1300,7 +1488,7 @@ restart:
   `));
   mixin (opt("push_after_mov_ps", `^Push, ^SSEOp:
     $0.size == 4 && $0.source.isUtilityRegister() &&
-    $1.opName == "movaps" /or/ "movups" && !info($1).opContains($0.source) && info($1).couldFixup(-4)
+    $1.opName == "movaps"[] /or/ "movups"[] && !info($1).opContains($0.source) && info($1).couldFixup(-4)
     =>
     $T t = $1.dup;
     info(t).fixupStack(-4);
@@ -1314,7 +1502,7 @@ restart:
     $SUBST($0);
   `));*/
   mixin(opt("direct_vector_load", `^Mov, ^Push, ^Push, ^Push, ^Push, ^SSEOp:
-    $5.opName == "movaps" /or/ "movups" && $5.op2.isSSERegister() && $5.op1 == "(%esp)" &&
+    $5.opName == "movaps"[] /or/ "movups"[] && $5.op2.isSSERegister() && $5.op1 == "(%esp)" &&
     $0.to.isUtilityRegister() && $1.size /and/ $2.size /and/ $3.size /and/ $4.size == 4 &&
     $1.source.isIndirect() == $0.to && $2.source.isIndirect() == $0.to && $3.source.isIndirect() == $0.to && $4.source.isIndirect() == $0.to
     =>
@@ -1332,7 +1520,7 @@ restart:
     }
   `));
   mixin(opt("direct_vector_store", `^SSEOp, ^Mov, ^Pop, ^Pop, ^Pop, ^Pop:
-    $0.opName == "movaps" /or/ "movups" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
+    $0.opName == "movaps"[] /or/ "movups"[] && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
     $1.to.isUtilityRegister() && $2.size /and/ $3.size /and/ $4.size /and/ $5.size == 4 &&
     $2.dest.isIndirect() == $1.to && $3.dest.isIndirect() == $1.to && $4.dest.isIndirect() == $1.to && $5.dest.isIndirect() == $1.to
     =>
@@ -1352,7 +1540,7 @@ restart:
     }
   `));
   mixin(opt("direct_vector_stack_store", `^SSEOp, ^Pop, ^Pop, ^Pop, ^Pop:
-    $0.opName == "movaps" /or/ "movups" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
+    $0.opName == "movaps"[] /or/ "movups"[] && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
     $1.size /and/ $2.size /and/ $3.size /and/ $4.size == 4 &&
     $1.dest.isIndirect() /and/ $2.dest.isIndirect() /and/ $3.dest.isIndirect() /and/ $4.dest.isIndirect() == "%esp"
     =>
@@ -1369,7 +1557,7 @@ restart:
     }
   `));
   mixin(opt("dont_be_silly", `^SSEOp, ^SAlloc||^SFree:
-    $0.opName == "movaps" /or/ "movups" && $0.op1.isIndirect().hasUtilityRegister() && $0.op2.isSSERegister()
+    $0.opName == "movaps"[] /or/ "movups"[] && $0.op1.isIndirect().hasUtilityRegister() && $0.op2.isSSERegister()
     =>
     $SUBST($1, $0);
   `));
@@ -1560,7 +1748,7 @@ restart:
     =>
     $SUBST($0);
   `));
-  mixin(opt("pointless_fxch", `^FPSwap, ^FloatMath: $1.opName == "faddp" /or/ "fmulp" => $SUBST($1); `));
+  mixin(opt("pointless_fxch", `^FPSwap, ^FloatMath: $1.opName == "faddp"[] /or/ "fmulp"[] => $SUBST($1); `));
   /*mixin(opt("shufps_direct", `^SSEOp, ^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $2.opName == "movaps" &&
     $1.opName.startsWith("shufps") &&
@@ -1647,7 +1835,7 @@ restart:
     return true;
   }
   mixin(opt("known_aligned_push_into_load", `^Push, ^Push, ^Push, ^Push, ^SSEOp:
-    pushequal($0, $1, $2, $3) && $4.opName == "movaps" /or/ "cvtdq2ps" && $4.op1 == "(%esp)" && $4.op2.isSSERegister()
+    pushequal($0, $1, $2, $3) && $4.opName == "movaps"[] /or/ "cvtdq2ps"[] && $4.op1 == "(%esp)" && $4.op2.isSSERegister()
     =>
     int offs;
     if ($0.source.isIndirect2(offs) == "%esp" && (offs -= 12, true)) {
@@ -1727,7 +1915,7 @@ restart:
     $SUBST(t, $0);
   `));
   mixin(opt("movaps_pointless_read", `^SSEOp, ^SSEOp:
-    $0.opName == "movaps" /or/ "movups" && $1.opName == "movaps" /or/ "movups"
+    $0.opName == "movaps"[] /or/ "movups"[] && $1.opName == "movaps"[] /or/ "movups"[]
     && $0.op2 == $1.op1
     && $0.op1.isSSERegister() && $1.op2.isSSERegister()
     =>
@@ -1912,7 +2100,7 @@ restart:
   `));
   mixin(opt("simplify_pure_sse_math_opers", `^SSEOp, ^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $0.op1.isSSERegister() &&
-    $1.opName == "addps" /or/ "subps" /or/ "mulps" /or/ "divps" &&
+    $1.opName == "addps"[] /or/ "subps"[] /or/ "mulps"[] /or/ "divps"[] &&
     $1.op1 != $1.op2 &&
     $1.op2 == $0.op2 &&
     $2.opName == "movaps" && $2.op2.isSSERegister() &&
@@ -2115,7 +2303,7 @@ restart:
           case SAlloc:
             if (check == "(%esp)") break outer;
             continue;
-          case Mov2, Mov1, Swap: break outer; // weird stuff, not worth the confusion
+          case Mov2, Mov1, Swap, Text: break outer; // weird stuff, not worth the confusion
           case FloatMath, FPSwap:
             continue;    // no change
           
@@ -2166,7 +2354,7 @@ restart:
             if (test(entry.op1)) break outer;
             if (entry.op2 == check) { // all SSE ops have the target as the second operand
               // but not all _read_ it!
-              if (entry.opName == "movaps" /or/ "movups")
+              if (entry.opName == "movaps"[] /or/ "movups"[])
                 unneeded = true;
               break outer;
             }

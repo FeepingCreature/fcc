@@ -412,21 +412,26 @@ class PlaceholderTokenLV : PlaceholderToken, LValue {
   override string toString() { return Format("PlaceholderLV(", info, ")"); }
 }
 
-string qbuffer;
-int offs;
+TLS!(string) _qbuffer;
+TLS!(int) _offs;
+static this() { New(_qbuffer); New(_offs); New(optimizer.cachething); New(optimizer.proctrack_cachething); }
 
 void qformat_append(T...)(T t) {
+  string qbuffer = cast(string) _qbuffer();
+  int offs = cast(int) _offs();
   void qbuffer_resize(int i) {
     if (qbuffer.length < i) {
       auto backup = qbuffer;
       qbuffer = new char[max(16384, i)];
       qbuffer[0 .. backup.length] = backup;
     }
+    _qbuffer() = qbuffer;
   }
   void append(string s) {
     qbuffer_resize(offs + s.length);
     qbuffer[offs .. offs+s.length] = s;
     offs += s.length;
+    _offs() = offs;
   }
   foreach (entry; t) {
     static if (is(typeof(entry): string)) {
@@ -468,10 +473,13 @@ void qformat_append(T...)(T t) {
 }
 
 string qformat(T...)(T t) {
-  offs = 0;
+  _offs() = 0;
   qformat_append(t);
+  string qbuffer = *_qbuffer.ptr();
+  int offs = *_offs.ptr();
   auto res = qbuffer[0 .. offs];
   qbuffer = qbuffer[offs .. $];
+  _qbuffer() = qbuffer;
   return res;
 }
 
@@ -627,4 +635,10 @@ void popExecuteDelayStack() { doLaterParsing(); laterParsing = laterParsingStack
 
 interface Dependency {
   void emitDependency(AsmFile af);
+}
+
+extern(C) int atoi(char*);
+int my_atoi(string s) {
+  auto mew = qformat(s, "\x00");
+  return atoi(mew.ptr);
 }
