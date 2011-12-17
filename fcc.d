@@ -113,6 +113,10 @@ static this() {
   setupPropCall();
 }
 
+extern(C) void printThing(AsmFile af, string s, Expr ex) {
+  (buildFunCall(fastcast!(Function) (sysmod.lookup("printf")), mkTupleExpr(mkString(s), ex), "mew")).emitAsm(af);
+}
+
 // from ast.casting
 import asmfile, ast.vardecl;
 extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
