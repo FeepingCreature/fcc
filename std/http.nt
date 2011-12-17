@@ -8,43 +8,28 @@ class DownloadError : Error {
   void init(string url, string msg) { super.init "While downloading '$url': $msg"; }
 }
 
-import c.stdio;
+//import c.stdio;
+
 /* Function: download
-*Deprecated!*
-Download a site. HTTP/1.0, very WIP.
+Download a site. Now a wrapper around <downloadURI>.
 
 Parameters:
 url - URL
 onRedirect - Called when the request is redirected */
 byte[] download(string url, void delegate(string) onRedirect = null) {
-  auto original-url = url;
-  {
-    string rest = url.startsWith("http://");
-    if !rest raise new DownloadError(url, "Unknown protocol (forgot http://?)");
-    url = rest;
-  }
-  (string domain, url) = slice (url, "/");
-  url = "/" ~ url;
-  (domain, string portstr) = slice (domain, ":");
-  short port = 80;
-  if portstr.length port = short:portstr.atoi();
-  auto sock = connect(domain, port);
-  void sendLine(string line) {
-    sock.sendAll byte[]:line;
-    sock.sendAll byte[]:"\r\n";
-  }
-  sendLine "GET $url HTTP/1.0";
-  sendLine "Host: $domain";
-  sendLine "";
-  auto response = string: join readsocket sock;
-  string headerstr = slice(&response, "\r\n\r\n");
-  if (headerstr.find("Location: ")) {
-    auto url2 = original-url.followLink headerstr.between("Location: ", "\r\n");
-    if (onRedirect) { onRedirect url2; }
-    return download url2;
-  }
-  auto header = headerstr.split "\r\n";
-  return byte[]:response;
+  HTTP-URI addr;
+  decodeURI (url, &addr);
+  
+  writeln addr.toString();
+  writeln "ssl: $(addr.ssl)";
+  writeln "host: $(addr.host)";
+  writeln "port: $(addr.port)";
+  writeln "path: $(addr.path)";
+  writeln "get:";
+  for auto x<-addr.get
+    writeln "$(x[0]) = $(x[1])";
+  
+  return downloadURI(addr,onRedirect=>onRedirect);
 }
 
 (byte[], string)[auto~] cache;
@@ -162,7 +147,7 @@ void decodeURI(string url, HTTP-URI* uri) {
     if rest
       obj.ssl=true;
     else
-      raise new DownloadError(url,"Could not decode URI: Protocol is not HTTP");
+      obj.ssl=false; //raise new DownloadError(url,"Could not decode URI: Protocol is not HTTP");
   }
   
   //host
@@ -182,7 +167,8 @@ void decodeURI(string url, HTTP-URI* uri) {
   
   for auto kv <- iterOnce(get).splitAt "&" {
     (string,string) p=kv.slice "=";
-    obj.get ~= (p[0].dup,p[1].dup);
+    if p[0]!=""
+      obj.get ~= (p[0].dup,p[1].dup);
   }
 }
 
@@ -269,9 +255,15 @@ Parameters:
   addr      - address of thing to download
   redirect  - whether to follow Location: headers
   cache     - whether to cache data, not implemented
-  compress  - whether to request data compressed*/
-byte[] downloadURI(HTTP-URI addr, bool redirect = true, bool cache = false, bool compress = false) {
-
+  compress  - whether to request data compressed (gizp not implemented)
+  ssl       - whether to use SSL encryption (not implemented)
+  onRedirect- delegate called every time the address gets redirected*/
+byte[] downloadURI ( HTTP-URI addr, 
+                     bool redirect = true, 
+                     bool cache = false, 
+                     bool compress = false, 
+                     bool ssl=false, 
+                     void delegate(string) onRedirect = null ) {
   (string,string)[] header_in;
   
   // compression header is Accept-Encoding: gzip, deflate
@@ -281,10 +273,20 @@ byte[] downloadURI(HTTP-URI addr, bool redirect = true, bool cache = false, bool
   while true {
     int status = sendRequest(addr, header_in => header_in, header_out => &(string, string)[] header, body_out => &byte[] mbody);
     for auto h <- header {
-      if h[0]=="Location"
-        decodeURI(followLink(addr.toString(),h[1]),&addr);
-      else {
-        if status/100==2 {
+      if h[0]=="Location" {
+        auto addr2=followLink(addr.toString(),h[1]);
+        decodeURI(addr2,&addr);
+        if onRedirect {
+          onRedirect addr2;
+        }
+        return downloadURI ( addr,
+                             redirect,
+                             cache,
+                             compress,
+                             ssl,
+                             onRedirect );
+      } else {
+        if status/100==2 || status/100==3 {
           for auto l <- header {
             if l[0]=="Content-Encoding" {
               if l[1].toLower()=="deflate"
