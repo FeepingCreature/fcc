@@ -69,7 +69,7 @@ static this() {
 import ast.iterator, ast.casting;
 static this() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
-    auto tup = fastcast!(Tuple) (e1.valueType());
+    auto tup = fastcast!(Tuple) (resolveType(e1.valueType()));
     if (!tup) return null;
     int count;
     tup.wrapped.select((string, RelMember rm) { count ++; }, &tup.wrapped.rmcache);

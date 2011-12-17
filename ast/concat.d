@@ -259,7 +259,7 @@ Object gotConcatChain(ref string text, ParseCb cont, ParseCb rest) {
   try {
     retry:
     auto t3 = t2;
-    if (t3.accept("~=") && cont(t3, &op2)) {
+    if (t3.accept("~=") && rest(t3, "tree.expr", &op2)) {
       op = lookupOp("~=", op, op2);
       if (!op) return null;
       t2 = t3;

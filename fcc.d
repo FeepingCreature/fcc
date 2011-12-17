@@ -25,7 +25,7 @@ import ast.parse, ast.namespace, ast.scopes;
 // from ast.modules_parse
 mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
 
-const ProgbarLength = 50;
+const ProgbarLength = 60;
 
 string output;
 
@@ -165,7 +165,7 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
 
 string renderProgbar(int total, int current) {
   auto progbar = new char[total];
-  for (int i = 0; i < ProgbarLength; ++i) {
+  for (int i = 0; i < total; ++i) {
     if (i < current) progbar[i] = '=';
     else if (i == current) progbar[i] = '>';
     else progbar[i] = ' ';
@@ -481,10 +481,11 @@ int main(string[] args) {
           info._1 = rest;
         }
       if (allowProgbar) {
-        auto halfway = cast(int) (info._0 * ProgbarLength);
+        int proglen = ProgbarLength - info._1.length - 4;
+        auto halfway = cast(int) (info._0 * proglen);
         if (halfway == prevHalfway) return;
         prevHalfway = halfway;
-        logSmart!(true) (info._1, " \t ", renderProgbar(ProgbarLength, halfway));
+        logSmart!(true) (info._1, "    ", renderProgbar(proglen, halfway));
       }
     }
   };

@@ -532,7 +532,7 @@ struct SmartHashmap(V, K, FastKeys...) {
 }
 
 // tools.threads.TLS!(Stuple!(Transaction[], bool)[]) freelist;
-TLS!(Stuple!(Transaction[], int)) cachething;
+tools.threads.TLS!(Stuple!(Transaction[], int)) cachething;
 Transaction[] allocTransactionList(int len) {
   if (!len) return null;
   auto thing = cachething.ptr();
@@ -565,7 +565,7 @@ void markUnused(Transaction[] t) {
   *freelist.ptr() = free;*/
 }
 
-TLS!(ProcTrack[]) proctrack_cachething;
+tools.threads.TLS!(ProcTrack[]) proctrack_cachething;
 
 void markProctrackDone(ProcTrack pt) {
   auto list = *proctrack_cachething.ptr();
@@ -1212,18 +1212,18 @@ restart:
         // in case you're wondering .. yeah I'm just trolling my future self here.
         if (match.to != match.parent.list.length) {
           goto skip; // > > > \ 
-        } //                  v
-      } //                    v
-      auto res = obj./*       v */translate()();
-      bool progress = /*      v */res.length != obj.eaten;
-      if (!couldUpdate) res/* v */ ~= $1;
-      $SUBST(res); //         v
-      markUnused(res);
-      markProctrackDone(obj);
-      if (!progress) //       v
-        match.modded = /*     v */ false; // meh. just skip one
-      _changed = progress; // v secretly
-      skip:; //   < < < < < < /
+        } //                   v
+      } //                     v
+      auto res = obj./*        v */translate()();
+      bool progress = /*       v */res.length != obj.eaten;
+      if (couldUpdate) /*      v */ $SUBST(res);
+      else $SUBST(res, $1); // v
+      markUnused(res); //      v
+      markProctrackDone(obj);//v
+      if (!progress) //        v
+        match.modded = /*      v */ false; // meh. just skip one
+      _changed = progress; //  v secretly
+      skip:; //    < < < < < < /
     } else {
       obj = allocProctrack();
       t.obj = obj;
