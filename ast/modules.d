@@ -133,9 +133,26 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       if (auto lname = name.startsWith(this.name).startsWith("."))
         if (auto res = super.lookup(lname)) return res;
       
+      Object res;
+      void addres(Object obj) {
+        if (!res) { res = obj; return; }
+        auto ex = fastcast!(Extensible) (res), ex2 = fastcast!(Extensible)(obj);
+        if (ex && !ex2 || !ex && ex2) {
+          throw new Exception(Format("While looking up ", name, ": ambiguity between ",
+            res, " and ", obj, ": one is overloadable and the other isn't"));
+        }
+        if (!ex) return;
+        res = fastcast!(Object) (ex.extend(ex2));
+      }
+      void finalize() {
+        auto xt = fastcast!(Extensible) (res);
+        if (!xt) return;
+        if (auto simp = xt.simplify()) res = fastcast!(Object) (simp);
+      }
+
       foreach (mod; public_imports)
         if (auto res = mod.lookup(name, true))
-          return res;
+          addres(res);
       
       foreach (mod; static_imports) {
         if (auto lname = name.startsWith(mod.name).startsWith(".")) {
@@ -143,19 +160,21 @@ class Module : Namespace, Tree, Named, StoresDebugState {
         }
       }
       
-      if (local) return null;
+      if (local) { finalize; return res; }
       
       foreach (i, mod; imports) {
         if (auto res = mod.lookup(name, true)) {
           *getPtrResizing(importsUsed, i) = true;
-          return res;
+          addres(res);
         }
       }
       
       if (sysmod && sysmod !is this && name != "std.c.setjmp")
-        if (auto res = sysmod.lookup(name, true)) return res;
+        if (auto res = sysmod.lookup(name, true))
+          addres(res);
       
-      return null;
+      finalize;
+      return res;
     }
     string toString() { return "module "~name; }
   }

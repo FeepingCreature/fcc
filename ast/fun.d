@@ -227,15 +227,30 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     auto set = new OverloadSet(name, this, fun2);
     return set;
   }
+  override Extensible simplify() { return this; }
 }
 
 class OverloadSet : Named, Extensible {
   string name;
   Function[] funs;
   this(string n, Function[] f...) {
-    name = n; funs = f.dup;
+    name = n;
+    foreach (fun; f) add(fun);
   }
-  private this() { }
+  void add(Function f) {
+    // don't add a function twice
+    logln("add ", f, " to ", funs);
+    foreach (fun; funs) if (f is fun) return;
+    if (f.extern_c) foreach (fun; funs) {
+      if (fun.extern_c && fun.name == f.name) return;
+    }
+    funs ~= f;
+  }
+  override Extensible simplify() {
+    if (funs.length == 1) return funs[0];
+    return null;
+  }
+  protected this() { }
   override string getIdentifier() { return name; }
   override Extensible extend(Extensible e2) {
     auto fun2 = fastcast!(Function) (e2);
@@ -245,7 +260,8 @@ class OverloadSet : Named, Extensible {
       ));
     auto res = new OverloadSet;
     res.name = name;
-    res.funs = funs.dup ~ fun2;
+    res.funs = funs.dup;
+    res.add(fun2);
     return res;
   }
 }

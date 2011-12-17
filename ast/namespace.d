@@ -12,6 +12,8 @@ T aadup(T)(T t) {
 interface Extensible {
   // create compound object of this and obj.
   Extensible extend(Extensible ex);
+  // if the collection contains only one object, return that; otherwise null
+  Extensible simplify();
 }
 
 struct NSCache(T...) {
