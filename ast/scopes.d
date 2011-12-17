@@ -112,7 +112,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
     // logln(lnsc.name, ":", lnsc.line, ": start ", this);
     if (emitted) {
       logln("double emit scope. ");
-      asm { int 3; }
+      fail;
     }
     emitted = true;
     if (needEntryLabel) af.emitLabel(entry(), !keepRegs, !isForward);
@@ -124,7 +124,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       logln("was: ", requiredDepthDebug);
       logln(" is: ", this);
       logln("mew: ", _body);
-      asm { int 3; }
+      fail;
     }
     return stuple(checkpt, backup, this, af) /apply/ (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af) {
       if (that._body) {
@@ -155,7 +155,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       return sup.lookup(name, local);
     }
     string mangle(string name, IType type) {
-      // asm { int 3; }
+      // fail;
       return sup.mangle(name, type) ~ "_local";
     }
     Stuple!(IType, string, int)[] stackframe() {

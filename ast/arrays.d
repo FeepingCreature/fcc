@@ -138,7 +138,7 @@ T arrayToStruct(T)(T array) {
   if (ea)
     return fastcast!(T)~ reinterpret_cast(arrayAsStruct(ea.elemType, true),  array);
   logln(T.stringof, ": ", array.valueType(), ": ", array);
-  asm { int 3; }
+  fail;
   assert(false);
 }
 

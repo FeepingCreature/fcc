@@ -204,7 +204,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     }
     if (!fastcast!(IntfRef) (base.valueType())) {
       logln("Bad intf ref: ", base);
-      asm { int 3; }
+      fail;
     }
     if (name == "this") return fastcast!(Object)~ base;
     // haaaaax
@@ -249,7 +249,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
 
 class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy {
   Class myClass;
-  this(Class cl) { myClass = cl; if (!cl) asm { int 3; } }
+  this(Class cl) { myClass = cl; if (!cl) fail; }
   override {
     bool isPointerLess() { return false; }
     RelNamespace resolve() { return myClass; }
@@ -311,7 +311,7 @@ class SuperType : IType, RelNamespace {
     override bool isComplete() { return true; }
     Object lookupRel(string name, Expr base) {
       auto sup2 = fastcast!(SuperType) (base.valueType());
-      if (sup2 !is this) asm { int 3; }
+      if (sup2 !is this) fail;
       // iterate parents
       Class parent_class = baseType.myClass.parent;
       while (parent_class) {
@@ -632,7 +632,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       auto crType = fastcast!(ClassRef) (resolveType(base.valueType()));
       if (!crType) {
         logln("Bad class ref: ", base, " of ", base.valueType());
-        asm { int 3; }
+        fail;
       }
       if (str == "this") return fastcast!(Object) (base);
       if (str == "super") return fastcast!(Object) (reinterpret_cast(new SuperType(crType), base));

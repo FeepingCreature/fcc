@@ -14,10 +14,10 @@ template ReinterpretCast_Contents(T) {
     static if (is(T==Expr)) {
       if (!beingDupped && (fastcast!(LValue)~ from || fastcast!(CValue)~ from)) {
         logln(this, "? Suure? ");
-        asm { int 3; }
+        fail;
       }
     }
-    // if (to.size != from.valueType().size) asm { int 3; }
+    // if (to.size != from.valueType().size) fail;
     if (to.size != from.valueType().size) {
       logln("Can't cast ", from, " to ", to, "; ", from.valueType(), " size ", from.valueType().size, " vs. ", to.size, "!");
       fail();
@@ -36,7 +36,7 @@ template ReinterpretCast_Contents(T) {
       logln("In cast of ", T.stringof);
       logln("Was: ", backup);
       logln(" To: ", from);
-      asm { int 3; }
+      fail;
     }
   }
   override {
@@ -241,7 +241,7 @@ import ast.namespace;
 TLS!(IType[]) gotImplicitCast_visited_cache; // we go in here a lot, so this pays off
 static this() { New(gotImplicitCast_visited_cache, { return &(new Stuple!(IType[]))._0; }); }
 bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
-  if (!ex) asm { int 3; }
+  if (!ex) fail;
   auto ns = namespace();
   if (!ns) namespace.set(new NoNameSpace); // lots of stuff does namespace().get!() .. pacify it
   scope(exit) namespace.set(ns);
@@ -350,7 +350,7 @@ class ByteToShortCast : Expr {
     this.b = b;
     if (b.valueType().size != 1) {
       logln("Can't byte-to-short cast: wtf, ", b.valueType(), " on ", b);
-      asm { int 3; }
+      fail;
     }
   }
   private this() { }
@@ -379,7 +379,7 @@ class ByteToIntCast : Expr {
     this.b = b;
     if (b.valueType().size != 1) {
       logln("Can't byte-to-int cast: wtf, ", b.valueType(), " on ", b);
-      asm { int 3; }
+      fail;
     }
   }
   private this() { }

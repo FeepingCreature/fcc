@@ -82,11 +82,11 @@ class Compare : Cond, Expr {
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
     if (e1.valueType().size != 4) {
       logln("Invalid comparison parameter: ", e1.valueType());
-      asm { int 3; }
+      fail;
     }
     if (e2.valueType().size != 4) {
       logln("Invalid comparison parameter: ", e2.valueType());
-      asm { int 3; }
+      fail;
     }
     if (not) {
       not = !not;
@@ -249,7 +249,7 @@ Cond compare(string op, Expr ex1, Expr ex2) {
     if (op2[0] == '<') { smaller = true; op2 = op2[1 .. $]; continue; }
     if (op2[0] == '=') { equal   = true; op2 = op2[1 .. $]; continue; }
     if (op2[0] == '>') { greater = true; op2 = op2[1 .. $]; continue; }
-    asm { int 3; }
+    fail;
   }
   {
     auto ie1 = ex1, ie2 = ex2;
@@ -422,7 +422,7 @@ class CondExpr : Expr {
   Cond cd;
   this(Cond cd) {
     this.cd = cd;
-    if (!cd) asm { int 3; }
+    if (!cd) fail;
   }
   mixin defaultIterate!(cd);
   override {

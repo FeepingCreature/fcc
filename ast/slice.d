@@ -27,7 +27,7 @@ class FullSlice : Expr {
     else if (auto ea = fastcast!(ExtArray)~ svt) type = new Array(ea.elemType);
     else {
       logln("full slice value type on ", sup.valueType(), " .. huh. ");
-      asm { int 3; }
+      fail;
       assert(false);
     }
   }
@@ -81,7 +81,7 @@ Expr mkFullSlice(Expr ex) {
     auto cv = fastcast!(CValue)~ ex;
     if (!cv) {
       logln("Not a cv for full slice: ", ex);
-      asm { int 3; }
+      fail;
     }
     return mkPointerSlice(
       reinterpret_cast(new Pointer(sa.elemType), new RefExpr(cv)),
@@ -111,7 +111,7 @@ Statement getSliceAssign(Expr slice, Expr array) {
     elemtype = sa.elemType;
   else if (auto ar = fastcast!(Array)~ avt)
     elemtype = ar.elemType;
-  else asm { int 3; }
+  else fail;
   
   auto fc = (fastcast!(Function)~ sysmod.lookup("memcpy2")).mkCall;
   fc.params ~= getArrayPtr(slice);

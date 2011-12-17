@@ -30,7 +30,7 @@ class AsmFile {
     weaks[symbol] = true;
   }
   void addTLS(string name, int size, string init) {
-    if (!size) asm { int 3; }
+    if (!size) fail;
     tlsvars[name] = stuple(size, init);
   }
   string allocConstantValue(string name, ubyte[] data, bool forceAlloc = false) {
@@ -91,7 +91,7 @@ class AsmFile {
   void restoreCheckptStack(int i, bool mayBeBigger = false /* used in loops/break/continue */) {
     if (!mayBeBigger && currentStackDepth < i) {
       logln("Tried to unwind stack while unwound further - logic error while restoring ", currentStackDepth, " to ", i);
-      asm { int 3; }
+      fail;
     }
     sfree(currentStackDepth - i);
   }
@@ -245,7 +245,7 @@ class AsmFile {
   void SSEOp(string which, string op1, string op2, bool ignoreStackAlignment = false /* true for movd */) {
     if ((op1 == "(%esp)" || op2 == "(%esp)") && currentStackDepth%16 != 0 && !ignoreStackAlignment) {
       logln("stack misaligned for SSE");
-      asm { int 3; }
+      fail;
     }
     Transaction t;
     t.kind = Transaction.Kind.SSEOp;
@@ -599,6 +599,6 @@ class AsmFile {
   final void willOverwriteComparison() {
     if (!comparisonState) return;
     logln("Cannot proceed: would overwrite comparison results! ");
-    asm { int 3; }
+    fail;
   }
 }

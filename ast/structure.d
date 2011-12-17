@@ -36,7 +36,7 @@ class RelMember : Expr, Named, RelTransformable {
     IType valueType() { return type; }
     void emitAsm(AsmFile af) {
       logln("Untransformed rel member ", this, ": cannot emit. ");
-      asm { int 3; }
+      fail;
     }
     mixin defaultIterate!();
     string getIdentifier() { return name; }
@@ -212,7 +212,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     void __add(string name, Object obj) {
       if (name && lookup(name, true)) {
         logln("Can't add ", obj, ": already defined in ", this, "!");
-        asm { int 3; }
+        fail;
         /*throw new Exception(Format("While adding ", obj, ": "
           "already defined in ", this, "!"
         ));*/
@@ -375,7 +375,7 @@ class MemberAccess_Expr : Expr, HasInfo {
     this.base = base;
     this.name = name;
     auto ns = fastcast!(Namespace) (base.valueType());
-    if (!ns) { logln("Base is not NS-typed: ", base.valueType()); asm { int 3; } }
+    if (!ns) { logln("Base is not NS-typed: ", base.valueType()); fail; }
     stm = fastcast!(RelMember) (ns.lookup(name));
     if (!stm) throw new Exception(Format("No member '", name, "' in ", base.valueType(), "!"));
   }
@@ -420,9 +420,9 @@ class MemberAccess_Expr : Expr, HasInfo {
           });
         }
       } else {
-        // if (stm.type.size != 4) asm { int 3; }
+        // if (stm.type.size != 4) fail;
         // logln("full emit - worrying. ", base, " SELECTING ", stm);
-        // asm { int 3; }
+        // fail;
         assert(stm.type.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for ", stm, " in ", base.valueType(), "; bad size; cannot get ", stm.type.size(), " from non-lvalue (", !fastcast!(LValue) (base), ") of ", base.valueType().size(), ". "));
         auto bvt = base.valueType();
         af.comment("emit semi-structure of ", bvt, " for member access");

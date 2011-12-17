@@ -14,7 +14,7 @@ class _Assignment(T) : LineNumberedStatementClass {
       logln(" of ", t.valueType());
       logln(" <- ", e.valueType());
       throw new Exception("Assignment type mismatch! ");
-      // asm { int 3; }
+      // fail;
     }
     target = t;
     value = e;
@@ -129,5 +129,5 @@ Statement mkAssignment(Expr to, Expr from) {
   if (auto lv = fastcast!(LValue) (to)) return new Assignment(lv, from);
   if (auto mv = fastcast!(MValue) (to)) return new AssignmentM(mv, from);
   logln("Invalid target for assignment: ", to);
-  asm { int 3; }
+  fail;
 }

@@ -89,7 +89,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
         logln(" - ", rce.to);
       }*/
       if (auto na = fastcast!(NamedArg) (it)) {
-        // asm { int 3; }
+        // fail;
         throw new Exception(Format("Nested named-arg found! :( ", na));
       }
       it.iterate(&checkNameds);
@@ -179,7 +179,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
       if (text)
         text.failparse("Not enough parameters for '", info, "'; left over ", type, "!");
       logln("Not enough parameters for '", info, "'; left over ", type, "!");
-      asm { int 3; }
+      fail;
     }
   retry:
     auto ex = args.take();
@@ -404,7 +404,7 @@ static this() {
       if (auto se = fastcast!(StringExpr) (arg)) str[i] = se.str;
       else {
         // logln("couldn't fold properly because arg was ", arg);
-        // asm { int 3; }
+        // fail;
         return null;
       }
     }

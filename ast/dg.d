@@ -10,7 +10,7 @@ class mkDelegate : Expr {
   Expr ptr, data;
   this(Expr ptr, Expr data) {
     if (ptr.valueType().size != 4) {
-      asm { int 3; }
+      fail;
       throw new Exception(Format("Cannot construct delegate from ", ptr, " (data ", data, ")!"));
     }
     this.ptr = ptr;
@@ -102,7 +102,7 @@ class Delegate : Type {
     int opEquals(IType ty) {
       if (!super.opEquals(ty)) return false;
       auto dg = fastcast!(Delegate)~ ty;
-      if (!dg.ret || !ret) { asm { int 3; } }
+      if (!dg.ret || !ret) { fail; }
       if (dg.ret != ret) return false;
       if (dg.args.length != args.length) return false;
       foreach (i, arg; dg.args)

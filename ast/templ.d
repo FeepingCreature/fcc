@@ -172,7 +172,7 @@ class TemplateInstance : Namespace, HandlesEmits {
   void emitCopy(bool weakOnly = false) {
     if (!instRes) return;
     auto mod = current_module();
-    if (!mod) asm { int 3; }
+    if (!mod) fail;
     // sysmod is linked into main module
     foreach (emod; ematIn) if (emod is mod || (mod.filename == mainfile && emod is sysmod)) return;
     void handleDeps(Iterable outer) {
@@ -228,7 +228,7 @@ class TemplateInstance : Namespace, HandlesEmits {
       }
       if (!parsemode) {
         logln("instance context is ", (cast(Object) context).classinfo.name);
-        asm { int 3; }
+        fail;
       }
       
       pushDelayStack();
@@ -252,7 +252,7 @@ class TemplateInstance : Namespace, HandlesEmits {
               ", at ", current_module().entries.length, "; ", cast(void*) current_module());*/
           // current_module().entries ~= tr;
           auto mg = fastcast!(IsMangled) (tr);
-          if (!mg) { logln("!! ", tr); asm { int 3; } }
+          if (!mg) { logln("!! ", tr); fail; }
           mg.markWeak();
           // addExtra(mg);
           instRes ~= mg;
@@ -378,7 +378,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
       auto fc = buildFunCall(fun, nex, "template_call");
       if (!fc) {
         logln("Couldn't build fun call! ");
-        asm { int 3; }
+        fail;
       }
       return fastcast!(Object) (fc);
     } catch (Exception ex) {

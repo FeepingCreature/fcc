@@ -41,7 +41,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
         auto ex = firstParam;
         if (incompat(ex.valueType(), pt)) {
           // logln("Incompatible types: ", ex.valueType(), " and ", pt);
-          // asm { int 3; }
+          // fail;
           return null;
         }
         auto ex2 = ex;

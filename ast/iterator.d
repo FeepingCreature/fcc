@@ -160,7 +160,7 @@ class StructIterator : Type, Iterator {
   IType _elemType;
   this(IType it) {
     wrapped = it;
-    scope(failure) asm { int 3; }
+    scope(failure) fail;
     scope(failure) logln("it was ", it);
     _elemType = iparse!(Expr, "si_elemtype", "tree.expr.eval")
                        (`evaluate (bogus.value)`,
@@ -315,7 +315,7 @@ class ForIter(I) : Type, I {
       auto cur_ex = take();
       if (cur_ex in done) {
         logln("wtf?! didn't I do ", cur_ex, " already?");
-        asm { int 3; }
+        fail;
       }
       done[cur_ex] = true;
       cur_ex.iterate(&subst);
@@ -370,7 +370,7 @@ class ForIter(I) : Type, I {
       auto lv = fastcast!(LValue) (ex);
       if (!lv) {
         logln("TODO: mandate lvalue for curval");
-        asm { int 3; }
+        fail;
       }
       LValue wlv;
       auto stmt = mkForIterAssign(lv, wlv);
@@ -646,7 +646,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
     if (target) {
       auto tv = target.valueType;
       if (!gotImplicitCast(value, tv, (IType it) { return test(it == tv); }))
-        asm { int 3; }
+        fail;
       static if (is(T: MValue))
         (new _Assignment!(MValue) (target, value)).emitAsm(af);
       else (new Assignment(target, value)).emitAsm(af);

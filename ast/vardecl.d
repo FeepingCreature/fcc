@@ -33,7 +33,7 @@ class VarDecl : LineNumberedStatementClass {
             logln("Clobbered by ", var, ". ");
         }
       }
-      asm { int 3; }
+      fail;
       // assert(false);
     }
     // sanity checking end!
@@ -151,7 +151,7 @@ extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null) {
   if (auto lv = fastcast!(LValue) (ex)) return lv;
   if (!namespace().get!(Scope)) {
     logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
-    asm { int 3; }
+    fail;
   }
   return fastcast!(LValue) (lvize_if_possible(ex, late_init));
 }
@@ -216,7 +216,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     if (abortGracefully) return null;
     t2.mustAccept(";", "Missed trailing semicolon");
     text = t2;
-    if (sc.guards.length) asm { int 3; }
+    if (sc.guards.length) fail;
     // collapse
     foreach (entry; sc.field) {
       if (auto sa = fastcast!(SelfAdding) (entry._1)) if (sa.addsSelf()) continue;
@@ -261,7 +261,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Unexpected text in auto expr");
   }
   text = t2;
-  if (sc.guards.length) asm { int 3; }
+  if (sc.guards.length) fail;
   // collapse
   foreach (entry; sc.field) {
     if (auto sa = fastcast!(SelfAdding) (entry._1)) if (sa.addsSelf()) continue;

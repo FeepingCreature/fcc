@@ -49,7 +49,7 @@ class AsmLongBinopExpr : BinopExpr {
           break;
         default:
           logln("Unknown op for long binop expr: ", op);
-          asm { int 3; }
+          fail;
       }
     }
   }

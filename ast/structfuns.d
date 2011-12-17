@@ -27,7 +27,7 @@ import ast.vardecl, ast.assign;
 class RelFunCall : FunCall {
   Expr baseptr;
   this(Expr ex) {
-    if (!ex) asm { int 3; }
+    if (!ex) fail;
     baseptr = ex;
   }
   mixin defaultIterate!(baseptr, params);
@@ -83,7 +83,7 @@ class RelFunction : Function, RelTransformable {
     assert(!baseptr, Format("RelFun was pretransformed: ", baseptr));
     assert(!!fastcast!(RelNamespace) (basetype));
     auto res = dup();
-    if (!base) asm { int 3; }
+    if (!base) fail;
     res.baseptr = base;
     return res;
   }

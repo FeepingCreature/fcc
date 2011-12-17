@@ -69,7 +69,7 @@ class NestedFunction : Function {
     auto ebp = fastcast!(Expr) (lookup("__base_ptr", true));
     if (!ebp) {
       logln("no base pointer found in ", this, "!!");
-      asm { int 3; }
+      fail;
     }
     bool needsDup, checkDup;
     void convertToDeref(ref Iterable itr) {
@@ -339,7 +339,7 @@ class PointerFunction(T) : T {
       type.stdcall = fp.stdcall;
     } else {
       logln("TYPE ", ptr.valueType());
-      asm { int 3; }
+      fail;
     }
   }
   override PointerFunction flatdup() { return new PointerFunction(ptr.dup, setup); }
@@ -360,7 +360,7 @@ class PointerFunction(T) : T {
       }
       assert(false);
     }
-    string mangleSelf() { asm { int 3; } }
+    string mangleSelf() { fail; return ""; }
     Expr getPointer() { if (setup) return new StatementAndExpr(setup, ptr); return ptr; }
     string toString() {
       return Format("*", ptr);

@@ -129,7 +129,7 @@ bool acceptT(bool USECACHE)(ref string s, string t) {
   bool sep = t.length && t[$-1] == ' ';
   debug if (t !is t.strip()) {
     logln("bad t: '", t, "'");
-    asm { int 3; }
+    fail;
   }
   static if (USECACHE) {
     if (s is lastAccepted) {

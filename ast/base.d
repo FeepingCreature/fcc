@@ -354,7 +354,7 @@ template StatementAndT(T) {
       if (once) {
         if (permissive) return false;
         logln("Double emit ", this, ". NOT SAFE. ");
-        asm { int 3; }
+        fail;
       }
       once = true;
       return true;
@@ -400,7 +400,7 @@ class PlaceholderToken : Expr {
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { logln("DIAF ", info, " of ", type); asm { int 3; } assert(false); }
+    void emitAsm(AsmFile af) { logln("DIAF ", info, " of ", type); fail; assert(false); }
     string toString() { return Format("PlaceholderToken(", info, ")"); }
   }
 }

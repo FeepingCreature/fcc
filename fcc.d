@@ -157,7 +157,7 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
     if (auto id = af.getFileId(name)) {
       if (line >= 1) line -= 1; // wat!!
       af.put(".loc ", id, " ", line, " ", 0);
-      if (!name.length) asm { int 3; } // TODO
+      if (!name.length) fail("TODO");
       af.put("# being '", name, "' at ", af.currentStackDepth);
     }
   }

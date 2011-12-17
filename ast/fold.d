@@ -44,8 +44,8 @@ void opt(T)(ref T t) {
     it.iterate(&fun);
   }
   Itr it = fastcast!(Itr) (t);
-  if (!it) asm { int 3; }
+  if (!it) fail;
   fun(it);
   t = fastcast!(T) (it);
-  if (!t) asm { int 3; }
+  if (!t) fail;
 }

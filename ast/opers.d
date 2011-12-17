@@ -27,7 +27,7 @@ Expr lookupOp(string text, string op, bool allowNone, Expr[] exprs...) {
   if (pre && op[0] != '=' /or/ '!' && (
     op[0] != '<' /or/ '>' || op[1] == op[0] /* rightshift, leftshift */
   )) {
-    if (op == "x=") asm { int 3; }
+    if (op == "x=") fail;
     lv = fastcast!(LValue) (exprs[0]);
     mv = fastcast!(MValue) (exprs[0]);
     if (!lv && !mv) {
@@ -49,7 +49,7 @@ Expr lookupOp(string text, string op, bool allowNone, Expr[] exprs...) {
         }
       }
     if (allowNone) return null;
-    // asm { int 3; }
+    // fail;
     throw new Exception(Format("No matching operators (", op, ") defined for ", exprs /map/ ex!("e -> e.valueType()"), ", exs being ", exprs));
   } else {
     throw new Exception(Format("No such operator defined: ", op, " (tried for ", exprs /map/ ex!("e -> e.valueType()"), ")"));

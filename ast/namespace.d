@@ -122,7 +122,7 @@ class Namespace {
     if (auto ns = fastcast!(Namespace)~ obj) {
       if (ns.sup && ns.sup !is this) {
         logln("While adding ", obj, " to ", this, ": object already in ", ns.sup, "! ");
-        asm { int 3; }
+        fail;
       }
       ns.sup = this;
     }

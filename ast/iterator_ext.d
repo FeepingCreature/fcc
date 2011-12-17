@@ -284,7 +284,7 @@ class Zip(T) : Type, T {
       auto types = myTypes(), tup = castToTuple(lv);
       foreach (i, type; types) {
         auto entry = fastcast!(LValue) (mkTupleIndexAccess(tup, i));
-        if (!entry) asm { int 3; }
+        if (!entry) fail;
         auto cond = (fastcast!(Iterator) (entry.valueType())).testAdvance(entry);
         if (!res) res = cond;
         else res = new BooleanOp!("&&")(res, cond);
@@ -583,7 +583,7 @@ Object gotXIterator(ref string text, ParseCb cont, ParseCb rest) {
                       (`evaluate (iter.advance)`, "iter", iter);
     if (!test1 || !test2) {
       logln("test failed: ", !test1, ", ", !test2);
-      asm { int 3; }
+      fail;
     }
     text = t2;
     auto si = new StructIterator(iter.valueType());

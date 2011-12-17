@@ -149,7 +149,7 @@ static this() {
     if (!rt || rt.mvs.length != mbs.length) {
       logln("ref tuple not large enough for this cast! ");
       logln(rt, " but ", mbs);
-      asm { int 3; }
+      fail;
     }
     int offs = -1;
     foreach (id, entry; mbs) if (entry is mae.stm) { offs = id; break; }

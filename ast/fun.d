@@ -187,7 +187,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       auto backup = af.currentStackDepth;
       scope(exit) af.currentStackDepth = backup;
       af.currentStackDepth = 0;
-      if (!tree) { logln("Tree for ", this, " not generated! :( "); asm { int 3; } }
+      if (!tree) { logln("Tree for ", this, " not generated! :( "); fail; }
       withTLS(namespace, this, tree.emitAsm(af));
       
       if (type.ret != Single!(Void)) {
@@ -284,11 +284,11 @@ class FunCall : Expr {
         fun.parseMe;
         if (!fun.type.ret) {
           logln("wat");
-          asm { int 3; }
+          fail;
         }
       } else {
         logln("Function type not yet resolved but funcall type demanded: ", fun, " called with ", params);
-        asm { int 3; }
+        fail;
       }
     }
     return fun.type.ret;
@@ -375,7 +375,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       
       {
         mixin(mustOffset("nativePtrSize", "innerest"));
-        if (fp.valueType().size > nativePtrSize) asm { int 3; }
+        if (fp.valueType().size > nativePtrSize) fail;
         fp.emitAsm(af);
       }
       af.popStack("%eax", 4);
@@ -416,7 +416,7 @@ class FunctionType : ast.types.Type {
   Argument[] params;
   bool stdcall;
   override int size() {
-    asm { int 3; }
+    fail;
     assert(false);
   }
   IType[] types() {
@@ -536,7 +536,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       fun.name = "__fcc_main";
     }
     fun.fixup;
-    if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under ", ns, "! "); asm { int 3; } } }
+    if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under ", ns, "! "); fail; } }
     text = t2;
     static if (Decl) {
       if (Naked || text.accept(";")) return fun;

@@ -24,7 +24,7 @@ class StringExpr : Expr, HasInfo, Dependency {
     string toString() { return '"'~str.replace("\n", "\\n")~'"'; }
     // default action: place in string segment, load address on stack
     void emitAsm(AsmFile af) {
-      // if (name_used == "string_constant_232") asm { int 3; }
+      // if (name_used == "string_constant_232") fail;
       getPointer().emitAsm(af);
       (mkInt(str.length)).emitAsm(af);
     }

@@ -17,7 +17,7 @@ class Swap : Statement {
     auto vt1 = lv1.valueType(), vt2 = lv2.valueType();
     if (vt1 != vt2) {
       logln("halt: swap(", lv1, ", ", lv2, ")");
-      asm { int 3; }
+      fail;
     }
     sz = vt1.size;
   }

@@ -31,10 +31,12 @@ class Enum : Namespace, IType, Named, ExprLikeThingy {
       return sup.lookup(name, local);
     }
     string mangle(string name, IType type) {
-      asm { int 3; } // what are you DOING
+      fail; // what are you DOING
+      return null;
     }
     Stuple!(IType, string, int)[] stackframe() {
-      asm { int 3; } // AAAAAAHHH STOP IIT
+      fail; // AAAAAAHHH STOP IIT
+      return null;
     }
   }
 }
