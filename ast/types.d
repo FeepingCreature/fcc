@@ -50,6 +50,7 @@ class Type : IType {
   abstract string mangle();
   bool isPointerLess() { return false; } // default
   bool isComplete() { return true; } // also default
+  string toString() { return mangle(); }
 }
 
 class Void : Type {
@@ -97,7 +98,7 @@ class Short : Type {
 
 class SysInt : Type {
   override int size() { return nativeIntSize; }
-  override string mangle() { return "sys_int"; }
+  override string mangle() { return "int"; }
   override bool isPointerLess() { return true; }
 }
 
