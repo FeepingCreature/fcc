@@ -20,15 +20,6 @@ byte[] download(string url, void delegate(string) onRedirect = null) {
   HTTP-URI addr;
   decodeURI (url, &addr);
   
-  writeln addr.toString();
-  writeln "ssl: $(addr.ssl)";
-  writeln "host: $(addr.host)";
-  writeln "port: $(addr.port)";
-  writeln "path: $(addr.path)";
-  writeln "get:";
-  for auto x<-addr.get
-    writeln "$(x[0]) = $(x[1])";
-  
   return downloadURI(addr,onRedirect=>onRedirect);
 }
 
