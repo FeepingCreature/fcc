@@ -218,11 +218,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   override Object lookup(string name, bool local = false) {
     return super.lookup(name, local);
   }
-  override Extensible extend(Object obj2) {
-    auto fun2 = fastcast!(Function) (obj2);
+  override Extensible extend(Extensible e2) {
+    auto fun2 = fastcast!(Function) (e2);
     if (!fun2)
       throw new Exception(Format("Can't overload function "
-        "with non-function: ", this, " with ", obj2, "!"
+        "with non-function: ", this, " with ", e2, "!"
       ));
     auto set = new OverloadSet(name, this, fun2);
     return set;
@@ -237,11 +237,11 @@ class OverloadSet : Named, Extensible {
   }
   private this() { }
   override string getIdentifier() { return name; }
-  override Extensible extend(Object obj2) {
-    auto fun2 = fastcast!(Function) (obj2);
+  override Extensible extend(Extensible e2) {
+    auto fun2 = fastcast!(Function) (e2);
     if (!fun2)
       throw new Exception(Format("Can't overload '", name,
-        "' with non-function ", obj2, "!"
+        "' with non-function ", e2, "!"
       ));
     auto res = new OverloadSet;
     res.name = name;

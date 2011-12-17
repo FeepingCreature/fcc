@@ -649,7 +649,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       Extensible ext;
       if (auto res = myfuns.lookup(str, base)) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
-          if (ext) ext = ext.extend(res);
+          if (ext) ext = ext.extend(ext2);
           else ext = ext2;
         } else return res;
       }
@@ -658,7 +658,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         if (auto res = intf.lookupClass(str, cl_offset, base)) {
           auto obj = fastcast!(Object) (res);
           if (auto ext2 = fastcast!(Extensible) (res)) {
-            if (ext) ext = ext.extend(obj);
+            if (ext) ext = ext.extend(ext2);
             else ext = ext2;
           } else return obj;
         }
@@ -666,7 +666,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       }
       if (parent) if (auto res = parent.lookupRel(str, base)) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
-          if (ext) ext = ext.extend(res);
+          if (ext) ext = ext.extend(ext2);
           else ext = ext2;
         } else return res;
       }
