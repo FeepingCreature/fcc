@@ -284,7 +284,7 @@ string[] split(string s, string marker) {
   return res[];
 }
 
-extern(C) float pow(float,float);
+import std.math;
 /*Function: toString
 Converts an integer to a string with the specified base.*/
 string toString(int ini,int base=10) {
@@ -313,6 +313,40 @@ string toString(int ini,int base=10) {
   for (int p=2; ini>int:pow(base,p-1); p++)
     a="$(nums[(ini%int:pow(base,p) - ini%int:pow(base,p-1))/int:pow(base,p-1)])$a";
   return ["","-"][neg]~a;
+}
+
+int toInt(string str, int base=10) {
+  if base==10
+    return atoi(str);
+  if base>36
+    raise new Error "Sorry, bases up to 36 are supported due to available symbols.";
+  if base==1
+    raise new Error "Base 1 not supported.";
+  if base<=0
+    raise new Error "Invalid base.";
+  
+  if base==2 {
+    int n=0;
+    for (int i=str.length-1;i>=0;i--) {
+      int d = (str[i]=="1");
+      int p = str.length-i;
+      if d
+        n += d * int:pow(2,p-1);
+    }
+    return n;
+  }
+  
+  string nums="0123456789abcdefghijklmnopqrstuvwxyz";
+  int n=0;
+  
+  for (int i=str.length-1;i>=0;i--) {
+    int d = nums.find "$(str[i])";
+    int p = str.length-i;
+    
+    n += d * int:pow(base,p-1);
+  }
+  
+  return n;
 }
 
 /*Function: stripBeginning
