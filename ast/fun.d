@@ -239,7 +239,6 @@ class OverloadSet : Named, Extensible {
   }
   void add(Function f) {
     // don't add a function twice
-    logln("add ", f, " to ", funs);
     foreach (fun; funs) if (f is fun) return;
     if (f.extern_c) foreach (fun; funs) {
       if (fun.extern_c && fun.name == f.name) return;
