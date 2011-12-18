@@ -11,13 +11,13 @@ mixin(expandImport(`ast.[
   nestfun, structfuns, type_info, aliasing, oop, dg,
   newexpr, guard, withstmt, templ, globvars, context,
   concat, stringex, c_bind, eval, iterator[,_ext], properties,
-  tuples, tuple_access, literal_string, funcall, vector, externs,
+  tuples, tuple_access, literal_string, literals, funcall, vector, externs,
   intr, conditionals, opers, conditional_opt, cond, casting,
   pointer, nulls, sa_index_opt, intrinsic, mode,
   propcall, properties_parse, main, alignment, modules_parse,
   platform, longmath, base, mixins, int_literal, static_arrays,
   enums, import_parse, pragmas, trivial, fp, expr_statement,
-  macros, tenth, vardecl_expr],
+  macros, tenth, vardecl_expr, property],
   casts`));
 
 // placed here to resolve circular dependency issues
