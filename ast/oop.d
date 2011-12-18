@@ -108,7 +108,7 @@ class VTable {
 // lookupRel in interfaces/classes takes the class *reference*.
 // This is IMPORTANT for compat with using.
 
-class Intf : IType, Tree, RelNamespace, IsMangled {
+class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   string name;
   bool predecl;
   mixin TypeDefaults!();
@@ -123,6 +123,8 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
   IntfRef getRefType() { return new IntfRef(this); }
   string toString() { return "interface "~name; }
   string mangle() { return "interface_"~mangle_id; }
+  override string mangle(string name, IType type) { assert(false); }
+  override Stuple!(IType, string, int)[] stackframe() { assert(false); }
   bool weak;
   override void markWeak() { weak = true; }
   override string mangleSelf() { return mangle(); }
