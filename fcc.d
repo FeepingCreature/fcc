@@ -167,6 +167,15 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
   }
 }
 
+
+// from ast.vardecl
+extern(C) Expr tmpize_maybe(Expr thing, E2Edg dg) {
+  if (auto ea = fastcast!(ExprAlias) (thing)) thing = ea.base;
+  if (fastcast!(Variable) (thing)) return dg(thing); // cheap to emit
+  return new WithTempExpr(thing, dg);
+}
+
+
 string renderProgbar(int total, int current) {
   auto progbar = new char[total];
   for (int i = 0; i < total; ++i) {
