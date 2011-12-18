@@ -86,11 +86,6 @@ static this() {
   };
 }
 
-class NamedNull : NoOp, Named, SelfAdding {
-  override string getIdentifier() { return null; }
-  override bool addsSelf() { return true; }
-}
-
 import ast.modules;
 Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

@@ -642,3 +642,8 @@ int my_atoi(string s) {
   auto mew = qformat(s, "\x00");
   return atoi(mew.ptr);
 }
+
+class NamedNull : NoOp, Named, SelfAdding {
+  override string getIdentifier() { return null; }
+  override bool addsSelf() { return true; }
+}
