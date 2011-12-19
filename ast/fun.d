@@ -62,7 +62,7 @@ extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name);
 
-class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible {
+class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ExprIterable {
   string name;
   Expr getPointer() {
     return new FunSymbol(this);

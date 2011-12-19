@@ -23,6 +23,12 @@ interface Iterable {
   Iterable dup();
 }
 
+// For objects that have multiple possible orders of iterations, Iterable is lexical and this is semantical.
+// For instance, functions.
+interface ExprIterable : Iterable {
+  void iterateExpressions(void delegate(ref Iterable) dg);
+}
+
 interface Tree : Iterable {
   void emitAsm(AsmFile);
   Tree dup();

@@ -95,6 +95,9 @@ class Module : Namespace, Tree, Named, StoresDebugState {
         info ~= " >";
         logln(info); 
         it.iterate(&callback);
+        if (auto ei = fastcast!(ExprIterable) (it)) {
+          ei.iterateExpressions(&callback);
+        }
         logln("</node>");
       }
       if (dumpXMLRep) {
