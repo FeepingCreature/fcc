@@ -218,7 +218,9 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
     return false;
   }
   if (nameds.length) {
-    throw new Exception(Format("Leftover named arguments: ", nameds));
+    string fninfo = info;
+    if (!fninfo) fninfo = "function";
+    throw new Exception(Format(fninfo, " has no arguments named ", nameds.keys));
   }
   return true;
 }
@@ -300,7 +302,10 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto fc = fun.mkCall();
     auto params = fun.getParams();
     resetError();
-    if (!matchCall(t2, fun.name, params, rest, fc.params, false, false)) {
+    bool result;
+    try result = matchCall(t2, fun.name, params, rest, fc.params, false, false);
+    catch (Exception ex) text.failparse("cannot call: ", ex);
+    if (!result) {
       if (t2.accept("("))
         t2.failparse("Failed to call function with ", params, ": ", error()._1);
       auto t3 = t2;
