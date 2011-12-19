@@ -1,6 +1,6 @@
 module ast.property;
 
-import ast.base, ast.fun, ast.funcall, ast.tuples, ast.variable, ast.vardecl, ast.namespace;
+import ast.base, ast.fun, ast.funcall, ast.tuples, ast.variable, ast.vardecl, ast.namespace, ast.pointer, ast.casting, ast.oop;
 
 class Property : MValue, RelTransformable {
   Function getter, setter;
@@ -11,9 +11,18 @@ class Property : MValue, RelTransformable {
     this.ph = ph;
     if (s.type.params.length != 1)
       fail;
-    if (s.type.params[0].type != g.type.ret) {
+    IType gettype;
+    if (g.type.ret == Single!(Void)) {
+      if (g.type.params.length != 1) throw new Exception("void getter must take single pointer argument");
+      auto ptr = fastcast!(Pointer) (g.type.params[0].type);
+      if (!ptr) throw new Exception("void getter must take single pointer argument");
+      gettype = ptr.target;
+    } else {
+      gettype = g.type.ret;
+    }
+    if (s.type.params[0].type != gettype) {
       logln("setter: ", s.type.params[0].type);
-      logln("getter: ", g.type.ret);
+      logln("getter: ", gettype);
       fail;
     }
     if (s.type.ret != Single!(Void)) {
@@ -23,13 +32,36 @@ class Property : MValue, RelTransformable {
   mixin defaultIterate!(getter, setter);
   override {
     Property dup() { return new Property(getter.dup, setter.dup, ph); }
-    IType valueType() { return getter.type.ret; }
+    IType valueType() {
+      if (getter.type.ret == Single!(Void)) {
+        return fastcast!(Pointer) (getter.type.params[0].type).target;
+      } else {
+        return getter.type.ret;
+      }
+    }
     void emitAsm(AsmFile af) {
-      (buildFunCall(getter, mkTupleExpr(), "property-call")).emitAsm(af);
+      mixin(mustOffset("valueType().size"));
+      if (getter.type.ret == Single!(Void)) {
+        mkVar(af, fastcast!(Pointer) (getter.type.params[0].type).target, false, (Variable var) {
+          // logln("::", buildFunCall(getter, mkTupleExpr(new RefExpr(var)), "property-get-pointer-call"));
+          // logln(fastcast!(Object) (buildFunCall(getter, mkTupleExpr(new RefExpr(var)), "property-get-pointer-call")).classinfo.name);
+          (buildFunCall(getter, mkTupleExpr(new RefExpr(var)), "property-get-pointer-call")).emitAsm(af);
+        });
+      } else {
+        (buildFunCall(getter, mkTupleExpr(), "property-call")).emitAsm(af);
+      }
     }
     Object transform(Expr ex) {
       if (!ph) fail;
       Function g2 = getter, s2 = setter;
+      if (!fastcast!(IntfRef) (ex.valueType())) {
+        // struct or struct-like (class body)
+        ex = reinterpret_cast(ph.type, new RefExpr(fastcast!(CValue) (ex))); // we're a data member, so we get the dereferenced version, but we need the reference version!
+      }
+      if (ph.type != ex.valueType()) {
+        logln("Weird: ", ph.type, " vs. ", ex.valueType(), " - ", ph.type.size, " vs ", ex.valueType().size);
+        fail;
+      }
       void replace(ref Iterable it) {
         if (it is ph) it = ex;
         else it.iterate(&replace);
