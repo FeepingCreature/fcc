@@ -449,7 +449,7 @@ void loop(string start, string[] largs,
       string[] objs = start.compileWithDepends(cs);
       objs.link(largs, true);
     } catch (Exception ex) {
-      logln(ex);
+      logSmart!(false) (ex);
       goto retry;
     }
     if (runMe) system(toStringz("./"~output));
@@ -633,7 +633,7 @@ int main(string[] args) {
       if (!mainfile) mainfile = arg;
       if (!willLoop) {
         try objects ~= arg.compileWithDepends(cs);
-        catch (Exception ex) { logln(ex.toString()); return 1; }
+        catch (Exception ex) { logSmart!(false) (ex.toString()); return 1; }
       }
       continue;
     }
