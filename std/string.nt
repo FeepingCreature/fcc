@@ -134,12 +134,24 @@ template join(T) {
   }
 }
 
+template wrap(T) {
+  template wrap(U) {
+    class Wrap : Iterator!T {
+      U u;
+      bool advance() { return eval value <- u; }
+    }
+    Iterator!T wrap(U u) { auto res = new Wrap; res.u = u; return res; }
+  }
+}
+
+import std.util;
 class SplitIterator : Iterator!string {
   Iterator!string sup;
   string marker;
   char[auto~] buffer;
   int offset;
   bool done;
+  auto rest() { return wrap!string(cat(iterOnce buffer[offset..$], sup)); }
   bool advance() {
     if (done) { buffer.free; return false; }
     int pos;
