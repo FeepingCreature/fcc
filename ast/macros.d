@@ -139,12 +139,16 @@ extern(C) void fcc_initTenth() {
   rootctx.add("make-if", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-if': 2 expected");
     mixin(chaincast("cd: First arg for 'make-if': args[0]->ItrEntity: %.itr->Cond"));
+    logln("make if under ", cast(void*) namespace(), ": ", namespace());
+    logln(" => ", namespace().get!(Scope).field);
     auto ifs = new IfStatement;
     ifs.wrapper = new Scope;
+    ifs.wrapper.requiredDepthDebug ~= " (ast.macros:144)";
     ifs.test = cd;
     namespace.set(ifs.wrapper);
     
     ifs.branch1 = new Scope;
+    ifs.branch1.requiredDepthDebug ~= " (ast.macros:150)";
     namespace.set(ifs.branch1);
     
     scope(exit) namespace.set(ifs.wrapper.sup);
@@ -356,11 +360,12 @@ extern(C) void fcc_initTenth() {
   rootctx.add("with-scope", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'with-scope': 1 expected");
     auto sc = new Scope;
+    sc.requiredDepthDebug ~= " (ast.macros:with-scope)";
     namespace.set(sc);
+    scope(exit) namespace.set(sc.sup);
     auto thing = args[0].eval(ctx);
     mixin(chaincast("st: Result of with-scope arg0: thing->ItrEntity: %.itr -> Statement"));
     sc.addStatement(st);
-    namespace.set(sc.sup);
     return new ItrEntity(sc);
   }));
   rootctx.add("insert-scope", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
@@ -373,8 +378,14 @@ extern(C) void fcc_initTenth() {
   rootctx.add("remove-scope", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'remove-scope': 1 expected");
     mixin(chaincast("name: First arg for 'remove-scope': args[0]->Token: %.name"));
-    namespace().field_cache.remove(name);
-    namespace().rebuildField;
+    
+    Stuple!(string, Object)[] res;
+    auto ns = namespace();
+    foreach (pair; ns.field) {
+      if (pair._0 != name) res ~= pair;
+    }
+    ns.field = res;
+    ns.rebuildCache;
     return NonNilEnt;
   }));
   rootctx.add("list", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
@@ -502,6 +513,7 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     if (args.length) tnte("Too many arguments to parse-cond: 0 expected");
     Cond cd;
     if (!rest(t2, "cond", &cd)) t2.failparse("Condition expected");
+    configure(cd);
     return new ItrEntity(cd);
   }));
   ctx.add("parse-type", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
