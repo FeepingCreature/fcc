@@ -139,8 +139,6 @@ extern(C) void fcc_initTenth() {
   rootctx.add("make-if", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-if': 2 expected");
     mixin(chaincast("cd: First arg for 'make-if': args[0]->ItrEntity: %.itr->Cond"));
-    logln("make if under ", cast(void*) namespace(), ": ", namespace());
-    logln(" => ", namespace().get!(Scope).field);
     auto ifs = new IfStatement;
     ifs.wrapper = new Scope;
     ifs.wrapper.requiredDepthDebug ~= " (ast.macros:144)";
