@@ -164,7 +164,7 @@ void initCastTable() {
   idtable.length = bestXORSize;
   /*if (idtable.length != predIdtableLength) {
     logln("please update pred const to ", idtable.length);
-    asm { int 3; }
+    fail;
   }*/
   memset(idtable.ptr, 0, idtable.length * typeof(idtable[0]).sizeof);
   resetHash();

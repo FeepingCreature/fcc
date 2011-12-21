@@ -25,7 +25,7 @@ class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
       return fastcast!(Object)~ it;
     }
     void emitAsm(AsmFile af) {
-      asm { int 3; } // Should never happen - the below foldopt should substitute them
+      fail; // Should never happen - the below foldopt should substitute them
       base.emitAsm(af); // may work .. or not.
     }
     IType valueType() { return base.valueType(); }
@@ -84,11 +84,6 @@ static this() {
       return fastcast!(Iterable) (ea.base);
     } else return null;
   };
-}
-
-class NamedNull : NoOp, Named, SelfAdding {
-  override string getIdentifier() { return null; }
-  override bool addsSelf() { return true; }
 }
 
 import ast.modules;

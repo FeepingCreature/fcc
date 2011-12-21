@@ -62,7 +62,7 @@ extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name);
 
-class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible {
+class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ExprIterable {
   string name;
   Expr getPointer() {
     return new FunSymbol(this);
@@ -187,7 +187,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       auto backup = af.currentStackDepth;
       scope(exit) af.currentStackDepth = backup;
       af.currentStackDepth = 0;
-      if (!tree) { logln("Tree for ", this, " not generated! :( "); asm { int 3; } }
+      if (!tree) { logln("Tree for ", this, " not generated! :( "); fail; }
       withTLS(namespace, this, tree.emitAsm(af));
       
       if (type.ret != Single!(Void)) {
@@ -218,34 +218,49 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   override Object lookup(string name, bool local = false) {
     return super.lookup(name, local);
   }
-  override Extensible extend(Object obj2) {
-    auto fun2 = fastcast!(Function) (obj2);
+  override Extensible extend(Extensible e2) {
+    auto fun2 = fastcast!(Function) (e2);
     if (!fun2)
       throw new Exception(Format("Can't overload function "
-        "with non-function: ", this, " with ", obj2, "!"
+        "with non-function: ", this, " with ", e2, "!"
       ));
     auto set = new OverloadSet(name, this, fun2);
     return set;
   }
+  override Extensible simplify() { return this; }
 }
 
 class OverloadSet : Named, Extensible {
   string name;
   Function[] funs;
   this(string n, Function[] f...) {
-    name = n; funs = f.dup;
+    name = n;
+    foreach (fun; f) add(fun);
   }
-  private this() { }
+  void add(Function f) {
+    // don't add a function twice
+    foreach (fun; funs) if (f is fun) return;
+    if (f.extern_c) foreach (fun; funs) {
+      if (fun.extern_c && fun.name == f.name) return;
+    }
+    funs ~= f;
+  }
+  override Extensible simplify() {
+    if (funs.length == 1) return funs[0];
+    return null;
+  }
+  protected this() { }
   override string getIdentifier() { return name; }
-  override Extensible extend(Object obj2) {
-    auto fun2 = fastcast!(Function) (obj2);
+  override Extensible extend(Extensible e2) {
+    auto fun2 = fastcast!(Function) (e2);
     if (!fun2)
       throw new Exception(Format("Can't overload '", name,
-        "' with non-function ", obj2, "!"
+        "' with non-function ", e2, "!"
       ));
     auto res = new OverloadSet;
     res.name = name;
-    res.funs = funs.dup ~ fun2;
+    res.funs = funs.dup;
+    res.add(fun2);
     return res;
   }
 }
@@ -284,11 +299,11 @@ class FunCall : Expr {
         fun.parseMe;
         if (!fun.type.ret) {
           logln("wat");
-          asm { int 3; }
+          fail;
         }
       } else {
         logln("Function type not yet resolved but funcall type demanded: ", fun, " called with ", params);
-        asm { int 3; }
+        fail;
       }
     }
     return fun.type.ret;
@@ -375,7 +390,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       
       {
         mixin(mustOffset("nativePtrSize", "innerest"));
-        if (fp.valueType().size > nativePtrSize) asm { int 3; }
+        if (fp.valueType().size > nativePtrSize) fail;
         fp.emitAsm(af);
       }
       af.popStack("%eax", 4);
@@ -416,7 +431,7 @@ class FunctionType : ast.types.Type {
   Argument[] params;
   bool stdcall;
   override int size() {
-    asm { int 3; }
+    fail;
     assert(false);
   }
   IType[] types() {
@@ -536,7 +551,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       fun.name = "__fcc_main";
     }
     fun.fixup;
-    if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under ", ns, "! "); asm { int 3; } } }
+    if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under ", ns, "! "); fail; } }
     text = t2;
     static if (Decl) {
       if (Naked || text.accept(";")) return fun;

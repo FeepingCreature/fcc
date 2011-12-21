@@ -69,7 +69,7 @@ class ReturnStmt : Statement {
           af.popStack("%edx", 4);
         } else {
           logln("Unsupported return type ", vt, ", being ", vt.size);
-          asm { int 3; }
+          fail;
         }
         af.sfree(vt.size); // pro forma
       }

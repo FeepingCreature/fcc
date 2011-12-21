@@ -160,7 +160,7 @@ static this() {
       return null;
     if (!fastcast!(LValue) (ex1)) {
       logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: ", ex1, ex2);
-      asm { int 3; }
+      fail;
     }
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
@@ -183,7 +183,7 @@ static this() {
       return null;
     if (!fastcast!(LValue) (ex1)) {
       logln("Cannot concatenate ext+elem: ext is not lvalue; cannot invalidate: ", ex1, ex2);
-      asm { int 3; }
+      fail;
     }
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
@@ -207,7 +207,7 @@ static this() {
       return null;
     if (!fastcast!(LValue) (ex1)) {
       logln("Cannot concatenate ext+elem x ?: ext is not lvalue; cannot invalidate: ", ex1, ex2);
-      asm { int 3; }
+      fail;
     }
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
@@ -230,7 +230,7 @@ static this() {
     logln("op: concat");
     logln("ex1: ", ex1.valueType());
     logln("ex2: ", ex2.valueType());
-    // asm { int 3;}
+    // fail;
     throw new Exception("Concatenation error");
     // return null;
   });

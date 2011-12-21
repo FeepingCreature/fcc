@@ -7,7 +7,7 @@ import tools.compat: find, abs, replace, atoi;
 import tools.log;
 
 bool isRelative(string reg) {
-  if (!reg.length) { asm { int 3; } }
+  if (!reg.length) fail;
   return reg.find("(") != -1 || reg.find("@NTPOFF") != -1 || ("%$".find(reg[0]) == -1);
 }
 
@@ -37,7 +37,7 @@ bool isNumLiteral(string s) {
 }
 
 int literalToInt(string s) {
-  if (!isLiteral(s)) asm { int 3; }
+  if (!isLiteral(s)) fail;
   assert(isLiteral(s), "not a literal: "~s);
   return s[1 .. $].my_atoi();
 }
@@ -303,7 +303,7 @@ struct Transaction {
               }
               if (op.startsWith("+")) {
                 logln(op, " (", *this, ")");
-                asm { int 3; }
+                fail;
               }
             }
             if (sz == 1) { // not supported in hardware
@@ -334,7 +334,7 @@ struct Transaction {
               temp = asmformat(temp);
               if (temp.startsWith("+")) {
                 logln(temp, " (", *this, ")");
-                asm { int 3; }
+                fail;
               }
               addLine(qformat(mnemo, pf, " ", temp, " #", size));
               stack_changed += sz;
@@ -555,7 +555,7 @@ class Transcache {
   final Transaction[] list() {
     debug if (size > _list.length) {
       logln("WTF?! ", size, " into ", _list.length);
-      asm { int 3; }
+      fail;
     }
     return _list[0 .. size];
   }

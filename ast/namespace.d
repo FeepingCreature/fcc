@@ -11,7 +11,9 @@ T aadup(T)(T t) {
 // This is intended to be used for function overload sets.
 interface Extensible {
   // create compound object of this and obj.
-  Extensible extend(Object obj);
+  Extensible extend(Extensible ex);
+  // if the collection contains only one object, return that; otherwise null
+  Extensible simplify();
 }
 
 struct NSCache(T...) {
@@ -91,11 +93,16 @@ class Namespace {
     if (name) {
       if (auto thing = lookup(name, true)) {
         if (auto et = fastcast!(Extensible) (thing)) {
+          auto eo = fastcast!(Extensible) (obj);
+          if (!eo) {
+            logln("Tried to overload ", name, ", but ", obj, " is not extensible!");
+            fail;
+          }
           bool found;
           foreach (ref entry; field) {
             if (entry._1 is thing) {
               assert(entry._0 == name);
-              entry._1 = fastcast!(Object) (et.extend(obj));
+              entry._1 = fastcast!(Object) (et.extend(eo));
               found = true;
               break;
             }
@@ -122,7 +129,7 @@ class Namespace {
     if (auto ns = fastcast!(Namespace)~ obj) {
       if (ns.sup && ns.sup !is this) {
         logln("While adding ", obj, " to ", this, ": object already in ", ns.sup, "! ");
-        asm { int 3; }
+        fail;
       }
       ns.sup = this;
     }

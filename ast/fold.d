@@ -42,10 +42,13 @@ void opt(T)(ref T t) {
   void fun(ref Itr it) {
     it = fold(it);
     it.iterate(&fun);
+    if (auto ei = fastcast!(ExprIterable) (it)) {
+      ei.iterateExpressions(&fun);
+    }
   }
   Itr it = fastcast!(Itr) (t);
-  if (!it) asm { int 3; }
+  if (!it) fail;
   fun(it);
   t = fastcast!(T) (it);
-  if (!t) asm { int 3; }
+  if (!t) fail;
 }

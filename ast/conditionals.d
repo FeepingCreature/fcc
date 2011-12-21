@@ -80,13 +80,13 @@ class Compare : Cond, Expr {
     return res;
   }
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
-    if (e1.valueType().size != 4) {
+    if (e1.valueType().size != 4 /or/ 8) {
       logln("Invalid comparison parameter: ", e1.valueType());
-      asm { int 3; }
+      fail;
     }
-    if (e2.valueType().size != 4) {
+    if (e2.valueType().size != 4 /or/ 8) {
       logln("Invalid comparison parameter: ", e2.valueType());
-      asm { int 3; }
+      fail;
     }
     if (not) {
       not = !not;
@@ -120,9 +120,12 @@ class Compare : Cond, Expr {
   bool isFloat() {
     return !!(Single!(Float) == e1.valueType());
   }
+  bool isDouble() {
+    return !!(Single!(Double) == e1.valueType());
+  }
   void prelude() {
-    assert(e1.valueType().size == 4);
-    assert(e2.valueType().size == 4);
+    assert(e1.valueType().size == 4 /or/ 8);
+    assert(e2.valueType().size == 4 /or/ 8);
     if (fastcast!(IntExpr) (e1) && !fastcast!(IntExpr) (e2))
       flip;
     if (Single!(Float) == e1.valueType() && Single!(Float) != e2.valueType()) {
@@ -137,7 +140,11 @@ class Compare : Cond, Expr {
   private void emitComparison(AsmFile af) {
     mixin(mustOffset("0"));
     prelude;
-    if (isFloat) {
+    if (isDouble) {
+      e2.emitAsm(af); af.loadDouble("(%esp)"); af.sfree(8);
+      e1.emitAsm(af); af.loadDouble("(%esp)"); af.sfree(8);
+      af.compareFloat("%st(1)", useIVariant);
+    } else if (isFloat) {
       e2.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
       e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
       af.compareFloat("%st(1)", useIVariant);
@@ -183,7 +190,7 @@ class Compare : Cond, Expr {
         af.mmove4("$0", "%ecx"); // don't xorl; mustn't overwrite comparison results
       }
       // can't use eax, moveOnFloat needs ax .. or does it? (SSE mode)
-      if (isFloat)
+      if (isFloat || isDouble)
         af.moveOnFloat(s, e, g, "%edx", "%ecx", /* convert */ !useIVariant);
       else
         af.cmov(s, e, g, "%edx", "%ecx");
@@ -198,7 +205,7 @@ class Compare : Cond, Expr {
       if (!cond) { // negate
         s = !s; e = !e; g = !g; // TODO: validate
       }
-      if (isFloat)
+      if (isFloat || isDouble)
         af.jumpOnFloat(s, e, g, dest, /* convert */ !useIVariant);
       else
         af.jumpOn(s, e, g, dest);
@@ -249,7 +256,7 @@ Cond compare(string op, Expr ex1, Expr ex2) {
     if (op2[0] == '<') { smaller = true; op2 = op2[1 .. $]; continue; }
     if (op2[0] == '=') { equal   = true; op2 = op2[1 .. $]; continue; }
     if (op2[0] == '>') { greater = true; op2 = op2[1 .. $]; continue; }
-    asm { int 3; }
+    fail;
   }
   {
     auto ie1 = ex1, ie2 = ex2;
@@ -263,6 +270,13 @@ Cond compare(string op, Expr ex1, Expr ex2) {
     bool isFloat(IType it) { return !!fastcast!(Float) (resolveType(it)); }
     if (gotImplicitCast(fe1, Single!(Float), &isFloat) && gotImplicitCast(fe2, Single!(Float), &isFloat)) {
       return new Compare(fe1, not, smaller, equal, greater, fe2);
+    }
+  }
+  {
+    auto de1 = ex1, de2 = ex2;
+    bool isDouble(IType it) { return !!fastcast!(Double) (resolveType(it)); }
+    if (gotImplicitCast(de1, Single!(Double), &isDouble) && gotImplicitCast(de2, Single!(Double), &isDouble)) {
+      return new Compare(de1, not, smaller, equal, greater, de2);
     }
   }
   return new ExprWrap(lookupOp(op, ex1, ex2));
@@ -422,7 +436,7 @@ class CondExpr : Expr {
   Cond cd;
   this(Cond cd) {
     this.cd = cd;
-    if (!cd) asm { int 3; }
+    if (!cd) fail;
   }
   mixin defaultIterate!(cd);
   override {

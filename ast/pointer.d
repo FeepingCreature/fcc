@@ -23,7 +23,7 @@ alias Single!(Pointer, Single!(Void)) voidp;
 // &foo
 class RefExpr : Expr {
   CValue src;
-  this(CValue cv) { if (!cv) asm { int 3; }; this.src = cv; }
+  this(CValue cv) { if (!cv) fail;; this.src = cv; }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(src);

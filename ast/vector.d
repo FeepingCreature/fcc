@@ -113,7 +113,7 @@ class SSESwizzle : Expr {
   Expr sup;
   string rule;
   IType type;
-  this(Expr e, IType t, string r) { sup = e; type = t; rule = r; if (sup.valueType().size != type.size) { logln("sup ", sup, ", type ", type, ". "); asm { int 3; } } }
+  this(Expr e, IType t, string r) { sup = e; type = t; rule = r; if (sup.valueType().size != type.size) { logln("sup ", sup, ", type ", type, ". "); fail; } }
   private this() { }
   mixin defaultIterate!(sup);
   mixin DefaultDup!();
@@ -258,7 +258,7 @@ static this() {
     if (basetype != mae.stm.type) {
       logln("type mismatch: accessing ", mae.stm.type, " from set of ",
         basetype);
-      asm { int 3; }
+      fail;
       return null;
     }
     return fastcast!(Iterable) (res);
@@ -684,7 +684,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     (new Assignment(lv, new Placeholder(op1.valueType()), false, true)).emitAsm(af);
   } else if (auto mv = cast(MValue) res) {
     mv.emitAssignment(af);
-  } else asm { int 3; }
+  } else fail;
   return true;
 }
 
@@ -701,7 +701,7 @@ class Vec4fSmaller : Expr {
       auto t1 = ex1.valueType(), t2 = ex2.valueType();
       if (vec4f != t1 || vec4f != t2) {
         logln("Fuck. ", t1, " or ", t2);
-        asm { int 3; }
+        fail;
       }
       auto filler = alignStackFor(t1, af);
       ex1.emitAsm(af);
@@ -774,7 +774,7 @@ class FailExpr : Expr {
   string mesg;
   IType typeMaybe;
   this(string s, IType tm = null) { this.mesg = s; typeMaybe = tm; }
-  void fail() { logln("Fail: ", mesg); asm { int 3; } }
+  void fail() { logln("Fail: ", mesg); fail; }
   override {
     IType valueType() { if (typeMaybe) return typeMaybe; fail(); return null; }
     void emitAsm(AsmFile af) { fail(); }
@@ -921,7 +921,7 @@ Object gotMagnitude(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr >tree.expr.magnitude", &ex))
     return null;
   if (!t2.accept("|"))
-    t2.failparse("Expected closing '|' for magnitude! ");
+    t2.failparse("Expected closing '|' for magnitude after ", ex);
   auto vt = resolveType(ex.valueType());
   if (auto v = fastcast!(Vector) (vt)) {
     text = t2;

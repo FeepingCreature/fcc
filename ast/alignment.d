@@ -8,13 +8,13 @@ extern(C) int align_boffs(IType t, int curdepth = -1) {
     auto sl = namespace().get!(ScopeLike);
     if (!sl) {
       logln("no ScopeLike beneath ", namespace(), " for placing a ", t);
-      asm { int 3; }
+      fail;
     }
     curdepth = sl.framesize();
   }
   if (curdepth == -1) {
     logln("Could not align ", t, ": insufficient framesize information from ", namespace().get!(ScopeLike));
-    asm { int 3; }
+    fail;
   }
   int offs = curdepth + t.size;
   doAlign(offs, t);

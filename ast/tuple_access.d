@@ -14,7 +14,7 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
   res.base = reinterpret_cast(wrapped, tuple);
   
   auto temps = wrapped.selectMap!(RelMember, "$");
-  if (pos >= temps.length) { logln("index access length violation: ", pos, " > ", temps.length, " for ", tuple); asm { int 3; } }
+  if (pos >= temps.length) { logln("index access length violation: ", pos, " > ", temps.length, " for ", tuple); fail; }
   res.stm = temps[pos];
   
   auto types = (fastcast!(Tuple)~ tuple.valueType()).types();
@@ -172,7 +172,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
         return fastcast!(Object) (ex);
       }
       logln("cannot fixup: unknown ", obj);
-      asm { int 3; }
+      fail;
     }
     
     if (auto it = fastcast!(IType) (obj))

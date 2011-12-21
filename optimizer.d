@@ -142,7 +142,7 @@ struct TransactionInfo {
           default: break;
         }`);
       logln("but what about ", *tp);
-      asm { int 3; }
+      fail;
     }
   }
   int numInOps() {
@@ -163,7 +163,7 @@ struct TransactionInfo {
     alias TableOp!(`
       static if ("$`~Name~`" == "") {
         logln("No op2 for ", *tp);
-        asm { int 3; }
+        fail;
       } else {
         return mixin("*$`~Name~` = t[0]".ctReplace("#", "(*tp)"));
       }
@@ -189,7 +189,7 @@ struct TransactionInfo {
   alias TableOp!(`
     static if ("$outOp" == "") {
       logln("Can't set out op for ", tp.kind, ": invalid");
-      asm { int 3; }
+      fail;
     } else return mixin("*$outOp = t[0]".ctReplace("#", "(*tp)"));
   `, string, string) outOp;
   bool hasOps() {
@@ -214,12 +214,12 @@ struct TransactionInfo {
   string getIndirectSrc(string s) {
     if (inOp1().isIndirect().contains(s)) return inOp1();
     if (inOp2().isIndirect().contains(s)) return inOp2();
-    asm { int 3; }
+    fail;
   }
   void setIndirectSrc(string s, string t) {
     if (inOp1().isIndirect().contains(s)) inOp1 = t;
     else if (inOp2().isIndirect().contains(s)) inOp2 = t;
-    else asm { int 3; }
+    else fail;
   }
   bool hasIndirectSrc(int i, string s) {
     return
@@ -247,7 +247,7 @@ struct TransactionInfo {
   }
   bool sseContains(string s) {
     if (tp.kind != Transaction.Kind.SSEOp)
-      asm { int 3; }
+      fail;
     return tp.op1.find(s) != -1
         || tp.op2.find(s) != -1;
   }
@@ -418,7 +418,7 @@ bool tryFixupString(ref string s, int shift) {
 void fixupString(ref string s, int shift) {
   if (!tryFixupString(s, shift)) {
     logln("Tried to fix up ", s, " by ", shift, " into negative! ");
-    asm { int 3; }
+    fail;
   }
 }
 
@@ -441,7 +441,7 @@ struct OrderedFastHashlike(K, V, FastKeys...) {
   V opIndex(K k) {
     if (auto p = opIn_r(k)) return *p;
     logln("No such key: ", k, ", in ", this);
-    asm { int 3; }
+    fail;
   }
   void opIndexAssign(V v, K k) {
     if (auto p = opIn_r(k)) { *p = v; return; }
@@ -1057,7 +1057,7 @@ class ProcTrack : ExtToken {
     return false;
     logln("---- Unsupported: ", t);
     logln("state ", this);
-    asm { int 3; }
+    fail;
   }
   bool isValid() {
     foreach (entry; stack) {
@@ -1124,7 +1124,7 @@ class ProcTrack : ExtToken {
       }
       if (stack.length && noStack) {
         logln("Highly invalid processor state: ", this);
-        asm { int 3; }
+        fail;
       }
       foreach (entry; stack) {
         addTransaction(Transaction.Kind.Push, (ref Transaction t) {
@@ -1888,7 +1888,7 @@ restart:
       case Push, FloatLoad: return t.source;
       case Pop: return t.dest;
       case SSEOp: return t.op1;
-      default: asm { int 3; }
+      default: fail;
     }
   }
   string pfpsetsource(Transaction* t, string s) {
@@ -1896,7 +1896,7 @@ restart:
       case Push, FloatLoad: return t.source = s;
       case Pop: return t.dest = s;
       case SSEOp: return t.op1 = s;
-      default: asm { int 3; }
+      default: fail;
     }
   }
   mixin(opt("dense_address_form2", `^MathOp, ^Push || ^Pop || ^SSEOp || ^FloatLoad:
@@ -2181,14 +2181,14 @@ restart:
       offs2 -= sz;
       if (offs2 < 0) {
         logln("firstAddr ", firstAddr, ", secondAddr ", secondAddr);
-        asm { int 3; }
+        fail;
       }
       if (offs2 > sfreeBias) return false;
       
       postFree = offs2; // sz already subtracted
       if (sfreeBias - postFree < 0) {
         logln("sfreeBias ", sfreeBias, ", postFree ", postFree, ", sz ", sz, ", ops ", list);
-        asm { int 3; }
+        fail;
       }
       
       return marker * 2 + hasSfree;
@@ -2364,7 +2364,7 @@ restart:
           default: break;
         }
         logln("huh? ", entry);
-        asm { int 3; }
+        fail;
       }
       if (unneeded) return i + 2;
       return false;

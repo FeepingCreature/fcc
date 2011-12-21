@@ -89,7 +89,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
         logln(" - ", rce.to);
       }*/
       if (auto na = fastcast!(NamedArg) (it)) {
-        // asm { int 3; }
+        // fail;
         throw new Exception(Format("Nested named-arg found! :( ", na));
       }
       it.iterate(&checkNameds);
@@ -179,7 +179,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
       if (text)
         text.failparse("Not enough parameters for '", info, "'; left over ", type, "!");
       logln("Not enough parameters for '", info, "'; left over ", type, "!");
-      asm { int 3; }
+      fail;
     }
   retry:
     auto ex = args.take();
@@ -218,7 +218,9 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
     return false;
   }
   if (nameds.length) {
-    throw new Exception(Format("Leftover named arguments: ", nameds));
+    string fninfo = info;
+    if (!fninfo) fninfo = "function";
+    throw new Exception(Format(fninfo, " has no arguments named ", nameds.keys));
   }
   return true;
 }
@@ -300,7 +302,10 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto fc = fun.mkCall();
     auto params = fun.getParams();
     resetError();
-    if (!matchCall(t2, fun.name, params, rest, fc.params, false, false)) {
+    bool result;
+    try result = matchCall(t2, fun.name, params, rest, fc.params, false, false);
+    catch (Exception ex) text.failparse("cannot call: ", ex);
+    if (!result) {
       if (t2.accept("("))
         t2.failparse("Failed to call function with ", params, ": ", error()._1);
       auto t3 = t2;
@@ -404,7 +409,7 @@ static this() {
       if (auto se = fastcast!(StringExpr) (arg)) str[i] = se.str;
       else {
         // logln("couldn't fold properly because arg was ", arg);
-        // asm { int 3; }
+        // fail;
         return null;
       }
     }

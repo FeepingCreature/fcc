@@ -128,7 +128,7 @@ void parseHeader(string filename, string src) {
     if (ea) {
       if (!gotImplicitCast(ea.base, (IType it) { return !fastcast!(AstTuple) (it); })) {
         logln("Weird thing ", ea);
-        asm { int 3; }
+        fail;
       }
     }
     // logln("add ", name, " <- ", n);
@@ -187,7 +187,7 @@ void parseHeader(string filename, string src) {
             if (auto al = fastcast!(TypeAlias) (lt.me))
               if (al.base is lt) {
                 logln("CIRCULAR TYPE: ", name);
-                asm { int 3; }
+                fail;
               }
           }
           // else assert(false, "'"~name~"' didn't resolve! ");

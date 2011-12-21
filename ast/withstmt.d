@@ -91,7 +91,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       }
       if (!rnslist) {
         logln("Cannot with-expr a non-[rel]ns: ", context); // TODO: select in gotWithStmt
-        asm { int 3; }
+        fail;
       }
     }
     

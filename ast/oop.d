@@ -66,20 +66,19 @@ class VTable {
     foreach (id, fun; funs)
       if (fun.name == name) {
         if (!classref) return fun;
-        Statement initSt;
-        Expr classref2 = lvize(classref, &initSt);
         res ~= 
           new PointerFunction!(NestedFunction) (
-            new DgConstructExpr(
-              new DerefExpr(
-                lookupOp("+",
-                  new DerefExpr(
-                    reinterpret_cast(
-                      new Pointer(new Pointer(fun.typeAsFp())),
-                      classref2)),
-                  mkInt(id+base))),
-              reinterpret_cast(voidp, classref2)),
-            initSt
+            tmpize_maybe(classref, delegate Expr(Expr classref) {
+              return new DgConstructExpr(
+                new DerefExpr(
+                  lookupOp("+",
+                    new DerefExpr(
+                      reinterpret_cast(
+                        new Pointer(new Pointer(fun.typeAsFp())),
+                        classref)),
+                    mkInt(id+base))),
+                reinterpret_cast(voidp, classref));
+            })
           );
       }
     // logln(parent.name, ": ", name, " => ", res);
@@ -109,7 +108,7 @@ class VTable {
 // lookupRel in interfaces/classes takes the class *reference*.
 // This is IMPORTANT for compat with using.
 
-class Intf : IType, Tree, RelNamespace, IsMangled {
+class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   string name;
   bool predecl;
   mixin TypeDefaults!();
@@ -124,6 +123,8 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
   IntfRef getRefType() { return new IntfRef(this); }
   string toString() { return "interface "~name; }
   string mangle() { return "interface_"~mangle_id; }
+  override string mangle(string name, IType type) { assert(false); }
+  override Stuple!(IType, string, int)[] stackframe() { assert(false); }
   bool weak;
   override void markWeak() { weak = true; }
   override string mangleSelf() { return mangle(); }
@@ -173,7 +174,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     return res;
   }
   import ast.index;
-  Function lookupIntf(string name, Expr intp, Statement initSt = null) {
+  Function lookupIntf(string name, Expr intp) {
     assert(own_offset);
     foreach (id, fun; funs) {
       if (fun.name == name) {
@@ -183,14 +184,15 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
         auto pp_int = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
         // *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
         return new PointerFunction!(NestedFunction) (
-          new DgConstructExpr(
-            new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, intp)), mkInt(id + own_offset)),
-            lookupOp("+",
-              reinterpret_cast(new Pointer(voidp), intp),
-              new DerefExpr(new DerefExpr(reinterpret_cast(pp_int, intp)))
-            )
-          ),
-          initSt
+          tmpize_maybe(intp, delegate Expr(Expr intp) {
+            return new DgConstructExpr(
+              new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, intp)), mkInt(id + own_offset)),
+              lookupOp("+",
+                reinterpret_cast(new Pointer(voidp), intp),
+                new DerefExpr(new DerefExpr(reinterpret_cast(pp_int, intp)))
+              )
+            );
+          })
         );
       }
     }
@@ -204,21 +206,16 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
     }
     if (!fastcast!(IntfRef) (base.valueType())) {
       logln("Bad intf ref: ", base);
-      asm { int 3; }
+      fail;
     }
     if (name == "this") return fastcast!(Object)~ base;
     // haaaaax
-    Statement initSt;
-    if (!namespace().get!(MiniNamespace))
-      base = lvize(base, &initSt);
-    auto cv = fastcast!(CValue)~ base;
-    if (!cv) {
-      // logln("intf lookupRel fail ", base, " '", (cast(Object) base).classinfo.name, "'");
-      return null;
+    if (auto res = lookup(name)) {
+      if (auto rt = fastcast!(RelTransformable) (res))
+        return rt.transform(base);
+      return res;
     }
-    // auto self = new RefExpr(cv);
-    auto self = cv;
-    return lookupIntf(name, self, initSt);
+    return lookupIntf(name, base);
   }
   Function lookupClass(string name, Expr offs, Expr classref) {
     assert(own_offset, this.name~": interface lookup for "~name~" but classinfo uninitialized. ");
@@ -249,7 +246,7 @@ class Intf : IType, Tree, RelNamespace, IsMangled {
 
 class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy {
   Class myClass;
-  this(Class cl) { myClass = cl; if (!cl) asm { int 3; } }
+  this(Class cl) { myClass = cl; if (!cl) fail; }
   override {
     bool isPointerLess() { return false; }
     RelNamespace resolve() { return myClass; }
@@ -311,7 +308,7 @@ class SuperType : IType, RelNamespace {
     override bool isComplete() { return true; }
     Object lookupRel(string name, Expr base) {
       auto sup2 = fastcast!(SuperType) (base.valueType());
-      if (sup2 !is this) asm { int 3; }
+      if (sup2 !is this) fail;
       // iterate parents
       Class parent_class = baseType.myClass.parent;
       while (parent_class) {
@@ -632,7 +629,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       auto crType = fastcast!(ClassRef) (resolveType(base.valueType()));
       if (!crType) {
         logln("Bad class ref: ", base, " of ", base.valueType());
-        asm { int 3; }
+        fail;
       }
       if (str == "this") return fastcast!(Object) (base);
       if (str == "super") return fastcast!(Object) (reinterpret_cast(new SuperType(crType), base));
@@ -649,7 +646,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       Extensible ext;
       if (auto res = myfuns.lookup(str, base)) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
-          if (ext) ext = ext.extend(res);
+          if (ext) ext = ext.extend(ext2);
           else ext = ext2;
         } else return res;
       }
@@ -658,7 +655,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         if (auto res = intf.lookupClass(str, cl_offset, base)) {
           auto obj = fastcast!(Object) (res);
           if (auto ext2 = fastcast!(Extensible) (res)) {
-            if (ext) ext = ext.extend(obj);
+            if (ext) ext = ext.extend(ext2);
             else ext = ext2;
           } else return obj;
         }
@@ -666,7 +663,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       }
       if (parent) if (auto res = parent.lookupRel(str, base)) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
-          if (ext) ext = ext.extend(res);
+          if (ext) ext = ext.extend(ext2);
           else ext = ext2;
         } else return res;
       }
@@ -774,7 +771,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
         t2 = t3;
         auto supobj = namespace().lookup(sup);
         auto intf = fastcast!(IntfRef) (supobj);
-        if (!intf) throw new Exception("Cannot inherit interface from "~sup~": not an interface. ");
+        if (!intf) throw new Exception("Cannot inherit interface '"~name~"' from "~sup~": not an interface: "~Format(supobj));
         else supints ~= intf.myIntf;
       },
       false
@@ -783,25 +780,35 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   bool predecl;
   if (!t2.accept("{") && !(t2.accept(";") && (predecl = true, true))) t2.failparse("Missing opening bracket for class def");
   auto intf = new Intf(name);
+  intf.sup = namespace();
   intf.parents = supints;
   intf.initOffset;
   intf.predecl = predecl;
+  auto backup = namespace();
+  scope(exit) namespace.set(backup);
+  namespace.set(intf);
   bool reuse;
   if (!predecl) {
-    auto pref = fastcast!(IntfRef) (namespace().lookup(name));
+    auto pref = fastcast!(IntfRef) (backup.lookup(name));
     if (pref && pref.myIntf.predecl) { intf = pref.myIntf; reuse = true; }
   }
   if (!reuse)
-    namespace().add(intf.getRefType()); // support interface A { A foo(); }
-  text = t2;
-  if (predecl) return intf.getRefType();
+    backup.add(intf.getRefType()); // support interface A { A foo(); }
+  if (predecl) { text = t2; return intf.getRefType(); }
   while (true) {
     auto fun = new Function;
-    if (text.accept("}")) break;
-    if (!gotGenericFunDecl(fun, cast(Namespace) null, false, text, cont, rest))
-      text.failparse("Error parsing interface");
-    intf.funs ~= fun;
+    if (t2.accept("}")) break;
+    Object obj;
+    if (gotGenericFunDecl(fun, cast(Namespace) null, false, t2, cont, rest)) {
+      intf.funs ~= fun;
+    } else if (rest(t2, "struct_member.struct_alias", &obj)) {
+      // already added
+      assert(fastcast!(NamedNull) (obj));
+    } else
+      t2.failparse("Error parsing interface");
+    
   }
+  text = t2;
   return intf.getRefType();
 }
 mixin DefaultParser!(gotIntfDef, "tree.typedef.intf", null, "interface");

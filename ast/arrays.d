@@ -8,7 +8,8 @@ class Array : Type {
   this() { }
   this(IType et) { elemType = et; }
   override {
-    bool isComplete() { return elemType.isComplete; }
+    // bool isComplete() { return elemType.isComplete; }
+    bool isComplete() { return true; /* size not determined by element size! */ }
     int size() {
       return nativePtrSize + nativeIntSize;
     }
@@ -138,7 +139,7 @@ T arrayToStruct(T)(T array) {
   if (ea)
     return fastcast!(T)~ reinterpret_cast(arrayAsStruct(ea.elemType, true),  array);
   logln(T.stringof, ": ", array.valueType(), ": ", array);
-  asm { int 3; }
+  fail;
   assert(false);
 }
 

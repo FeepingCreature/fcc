@@ -23,6 +23,12 @@ interface Iterable {
   Iterable dup();
 }
 
+// For objects that have multiple possible orders of iterations, Iterable is lexical and this is semantical.
+// For instance, functions.
+interface ExprIterable : Iterable {
+  void iterateExpressions(void delegate(ref Iterable) dg);
+}
+
 interface Tree : Iterable {
   void emitAsm(AsmFile);
   Tree dup();
@@ -354,7 +360,7 @@ template StatementAndT(T) {
       if (once) {
         if (permissive) return false;
         logln("Double emit ", this, ". NOT SAFE. ");
-        asm { int 3; }
+        fail;
       }
       once = true;
       return true;
@@ -400,7 +406,7 @@ class PlaceholderToken : Expr {
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { logln("DIAF ", info, " of ", type); asm { int 3; } assert(false); }
+    void emitAsm(AsmFile af) { logln("DIAF ", info, " of ", type); fail; assert(false); }
     string toString() { return Format("PlaceholderToken(", info, ")"); }
   }
 }
@@ -641,4 +647,9 @@ extern(C) int atoi(char*);
 int my_atoi(string s) {
   auto mew = qformat(s, "\x00");
   return atoi(mew.ptr);
+}
+
+class NamedNull : NoOp, Named, SelfAdding {
+  override string getIdentifier() { return null; }
+  override bool addsSelf() { return true; }
 }

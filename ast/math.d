@@ -174,7 +174,7 @@ class DoubleAsFloat : Expr {
   Expr d;
   this(Expr d) {
     this.d = d;
-    if (resolveTup(d.valueType()) != Single!(Double)) asm { int 3; }
+    if (resolveTup(d.valueType()) != Single!(Double)) fail;
   }
   private this() { }
   mixin DefaultDup!();
@@ -356,14 +356,14 @@ abstract class BinopExpr : Expr, HasInfo {
   string op;
   this(Expr e1, Expr e2, string op) {
     if (!e1 || !e2)
-      asm { int 3; }
+      fail;
     opt(e1);
     opt(e2);
     this.e1 = e1;
     this.e2 = e2;
     this.op = op;
   }
-  private this() {}
+  protected this() {}
   mixin defaultIterate!(e1, e2);
   override {
     string toString() {
@@ -373,7 +373,7 @@ abstract class BinopExpr : Expr, HasInfo {
     IType valueType() { // TODO: merge e1, e2
       if (e1.valueType() != e2.valueType()) {
         logln("Divergent types: ", e1.valueType(), " and ", e2.valueType());
-        asm { int 3; }
+        fail;
       }
       return e1.valueType();
     }
@@ -500,7 +500,7 @@ class AsmIntUnaryExpr : Expr {
       else
       {
         logln("!! ", op, " ", ex);
-        asm { int 3; }
+        fail;
       }
     }
   }
@@ -526,7 +526,7 @@ class AsmLongUnaryExpr : Expr {
       else
       {
         logln("!! ", op, " ", ex);
-        asm { int 3; }
+        fail;
       }
     }
   }

@@ -161,6 +161,12 @@ void setupSysmods() {
     alias vec2i = vec(int, 2);
     alias vec3i = vec(int, 3);
     alias vec4i = vec(int, 4);
+    alias vec2d = vec(double, 2);
+    alias vec3d = vec(double, 3);
+    alias vec4d = vec(double, 4);
+    // alias vec2l = vec(long, 2);
+    // alias vec3l = vec(long, 3);
+    // alias vec4l = vec(long, 4);
     extern(C) int fgetc(void*);
     extern(C) int fflush(void*);
     extern(C) void* stdin, stdout;

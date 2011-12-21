@@ -11,13 +11,13 @@ mixin(expandImport(`ast.[
   nestfun, structfuns, type_info, aliasing, oop, dg,
   newexpr, guard, withstmt, templ, globvars, context,
   concat, stringex, c_bind, eval, iterator[,_ext], properties,
-  tuples, tuple_access, literal_string, funcall, vector, externs,
+  tuples, tuple_access, literal_string, literals, funcall, vector, externs,
   intr, conditionals, opers, conditional_opt, cond, casting,
   pointer, nulls, sa_index_opt, intrinsic, mode,
   propcall, properties_parse, main, alignment, modules_parse,
   platform, longmath, base, mixins, int_literal, static_arrays,
   enums, import_parse, pragmas, trivial, fp, expr_statement,
-  macros, tenth, vardecl_expr],
+  macros, tenth, vardecl_expr, property],
   casts`));
 
 // placed here to resolve circular dependency issues
@@ -113,6 +113,10 @@ static this() {
   setupPropCall();
 }
 
+extern(C) void printThing(AsmFile af, string s, Expr ex) {
+  (buildFunCall(fastcast!(Function) (sysmod.lookup("printf")), mkTupleExpr(mkString(s), ex), "mew")).emitAsm(af);
+}
+
 // from ast.casting
 import asmfile, ast.vardecl;
 extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
@@ -157,11 +161,20 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
     if (auto id = af.getFileId(name)) {
       if (line >= 1) line -= 1; // wat!!
       af.put(".loc ", id, " ", line, " ", 0);
-      if (!name.length) asm { int 3; } // TODO
+      if (!name.length) fail("TODO");
       af.put("# being '", name, "' at ", af.currentStackDepth);
     }
   }
 }
+
+
+// from ast.vardecl
+extern(C) Expr tmpize_maybe(Expr thing, E2Edg dg) {
+  if (auto ea = fastcast!(ExprAlias) (thing)) thing = ea.base;
+  if (fastcast!(Variable) (thing)) return dg(thing); // cheap to emit
+  return new WithTempExpr(thing, dg);
+}
+
 
 string renderProgbar(int total, int current) {
   auto progbar = new char[total];
@@ -436,7 +449,7 @@ void loop(string start, string[] largs,
       string[] objs = start.compileWithDepends(cs);
       objs.link(largs, true);
     } catch (Exception ex) {
-      logln(ex);
+      logSmart!(false) (ex);
       goto retry;
     }
     if (runMe) system(toStringz("./"~output));
@@ -620,7 +633,7 @@ int main(string[] args) {
       if (!mainfile) mainfile = arg;
       if (!willLoop) {
         try objects ~= arg.compileWithDepends(cs);
-        catch (Exception ex) { logln(ex.toString()); return 1; }
+        catch (Exception ex) { logSmart!(false) (ex.toString()); return 1; }
       }
       continue;
     }

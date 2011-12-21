@@ -79,7 +79,7 @@ class List : Entity {
       args[i] = ent.eval(ctx);
       if (!args[i]) {
         logln("fail: ", ent, " is a ", (cast(Object) ent).classinfo.name);
-        asm { int 3; }
+        fail;
       }
     }
     return firstc.call(ctx, args);
@@ -214,7 +214,7 @@ Object runTenthPure(void delegate(void delegate(string, Object)) setupDg, Entity
       return;
     }
     logln("No idea now to add ", name, ": ", obj);
-    asm { int 3; }
+    fail;
   });
   auto res = root.eval(ctx);
   if (auto itr = fastcast!(ItrEntity) (res))
@@ -222,5 +222,5 @@ Object runTenthPure(void delegate(void delegate(string, Object)) setupDg, Entity
   if (auto ty = fastcast!(TypeEntity) (res))
     return fastcast!(Object) (ty.ty);
   logln("No idea how to unwrap/return ", res);
-  asm { int 3; }
+  fail;
 }

@@ -33,7 +33,7 @@ class VarDecl : LineNumberedStatementClass {
             logln("Clobbered by ", var, ". ");
         }
       }
-      asm { int 3; }
+      fail;
       // assert(false);
     }
     // sanity checking end!
@@ -151,12 +151,68 @@ extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null) {
   if (auto lv = fastcast!(LValue) (ex)) return lv;
   if (!namespace().get!(Scope)) {
     logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
-    asm { int 3; }
+    fail;
   }
   return fastcast!(LValue) (lvize_if_possible(ex, late_init));
 }
 
 LValue lvize(Expr ex, Statement* late_init = null) { return ast_vardecl_lvize(ex, late_init); }
+
+class OffsetExpr : Expr {
+  int offset;
+  IType it;
+  this(int o, IType i) { offset = o; it = i; }
+  mixin defaultIterate!();
+  override {
+    OffsetExpr dup() { return this; } // can't dup, is a marker
+    IType valueType() { return it; }
+    void emitAsm(AsmFile af) {
+      if (offset == int.max) fail;
+      af.pushStack(qformat(offset, "(%ebp)"), it.size);
+    }
+  }
+}
+
+class WithTempExpr : Expr {
+  OffsetExpr offs;
+  Expr thing, superthing;
+  this(Expr thing, Expr delegate(Expr) dg) {
+    offs = new OffsetExpr(int.max, thing.valueType());
+    this.thing = thing;
+    superthing = dg(offs);
+  }
+  protected this() { }
+  mixin defaultIterate!(thing, superthing);
+  override {
+    string toString() {
+      return Format("<with temp ", thing, ": ", superthing, ">");
+    }
+    WithTempExpr dup() {
+      auto res = new WithTempExpr;
+      res.offs = new OffsetExpr(int.max, offs.it);
+      void replace(ref Iterable it) {
+        if (it is offs) it = res.offs;
+        else it.iterate(&replace);
+      }
+      res.thing = thing.dup;
+      res.superthing = superthing.dup;
+      res.superthing.iterate(&replace);
+      return res;
+    }
+    IType valueType() { return superthing.valueType(); }
+    void emitAsm(AsmFile af) {
+      mkVar(af, superthing.valueType(), true, (Variable var) {
+        thing.emitAsm(af);
+        offs.offset = -af.currentStackDepth;
+        (mkAssignment(var, superthing)).emitAsm(af);
+        af.sfree(thing.valueType().size);
+      });
+    }
+  }
+}
+
+alias Expr delegate(Expr) E2Edg; // use D calling convention!
+extern(C) Expr tmpize_maybe(Expr thing, E2Edg dg);
 
 import ast.fold;
 Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
@@ -216,7 +272,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     if (abortGracefully) return null;
     t2.mustAccept(";", "Missed trailing semicolon");
     text = t2;
-    if (sc.guards.length) asm { int 3; }
+    if (sc.guards.length) fail;
     // collapse
     foreach (entry; sc.field) {
       if (auto sa = fastcast!(SelfAdding) (entry._1)) if (sa.addsSelf()) continue;
@@ -261,7 +317,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Unexpected text in auto expr");
   }
   text = t2;
-  if (sc.guards.length) asm { int 3; }
+  if (sc.guards.length) fail;
   // collapse
   foreach (entry; sc.field) {
     if (auto sa = fastcast!(SelfAdding) (entry._1)) if (sa.addsSelf()) continue;
