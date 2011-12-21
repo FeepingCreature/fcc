@@ -8,7 +8,8 @@ class Array : Type {
   this() { }
   this(IType et) { elemType = et; }
   override {
-    bool isComplete() { return elemType.isComplete; }
+    // bool isComplete() { return elemType.isComplete; }
+    bool isComplete() { return true; /* size not determined by element size! */ }
     int size() {
       return nativePtrSize + nativeIntSize;
     }
