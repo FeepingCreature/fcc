@@ -177,9 +177,8 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
         (new Assignment(retvar, new Placeholder(ret), false, true)).emitAsm(af);
     } else {
       int toFree = alignStackFor(dgs.valueType(), af);
-      mkVar(af, dgs.valueType(), true, (Variable dgvar) {
+      void doit(Variable dgvar) {
         mixin(mustOffset("0"));
-        (new Assignment(dgvar, dgs)).emitAsm(af);
         params ~= foldex(mkMemberAccess(dgvar, "data"));
         callFunction(af, ret, true, false, params, mkMemberAccess(dgvar, "fun"));
         if (ret != Single!(Void))
@@ -187,8 +186,15 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
         // Assignment, assuming Placeholder was "really"
         // emitted, has already done this.
         // if (ret != Single!(Void)) af.sfree(ret.size);
-      });
-      af.sfree(dgs.valueType().size);
+      }
+      if (auto var = fastcast!(Variable) (dgs)) doit(var);
+      else {
+        mkVar(af, dgs.valueType(), true, (Variable dgvar) {
+          (new Assignment(dgvar, dgs)).emitAsm(af);
+          doit(dgvar);
+        });
+        af.sfree(dgs.valueType().size);
+      }
       af.sfree(toFree);
     }
   });

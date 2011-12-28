@@ -8,15 +8,29 @@ import tools.log;
 
 bool isRelative(string reg) {
   if (!reg.length) fail;
+  if (isARM) {
+    logln("isRelative ", reg);
+    fail;
+  }
   return reg.find("(") != -1 || reg.find("@NTPOFF") != -1 || ("%$".find(reg[0]) == -1);
+}
+
+string comment(string s) {
+  if (isARM) return "@"~s;
+  else return "#"~s;
 }
 
 bool isMemRef(string mem) {
   if (isRelative(mem)) return true;
+  if (isARM) { logln("isMemRef ", mem); fail; }
   return !mem.startsWith("%") && !mem.startsWith("$");
 }
 
 bool isRegister(string s) {
+  if (isARM) {
+    logln("isRegister ", s);
+    fail;
+  }
   return s.length > 2 && s[0] == '%' && s[1] != '(';
 }
 
@@ -26,10 +40,18 @@ bool contains(string s, string t) {
 }
 
 bool isLiteral(string s) {
+  if (isARM) {
+    logln("isLiteral ", s);
+    fail;
+  }
   return s.length && s[0] == '$';
 }
 
 bool isNumLiteral(string s) {
+  if (isARM) {
+    logln("isNumLiteral ", s);
+    fail;
+  }
   if (!s.isLiteral()) return false;
   foreach (ch; s[1 .. $])
     if (ch != '-' && (ch < '0' || ch > '9')) return false;
@@ -44,17 +66,32 @@ int literalToInt(string s) {
 
 // if false, is either a literal or a register (not esp)
 bool mayNeedStack(string str) {
+  if (isARM) {
+    logln("mayNeedStack ", str);
+    fail;
+  }
   if (str.find("%esp") != -1) return true;
   return isRelative(str);
 }
 
 string isIndirectSimple(string s) {
+  if (isARM) {
+    if (s.length >= 2 && s[0] == '[' && s[$-1] == ']')
+      return s[1..$-1];
+    else return null;
+  }
   if (s.length >= 2 && s[0] == '(' && s[$-1] == ')') {
     return s[1..$-1];
   }
   else return null;
 }
 string isIndirectComplex(string s, ref int delta, bool allowLiterals) {
+  if (isARM) {
+    auto betw = s.between("[", "]");
+    if (!betw) return null;
+    logln("isIndirectComplex ", s, " -- ", betw);
+    fail;
+  }
   if (s.between(")", "").length) return null;
   auto betw = s.between("(", ")");
   if (betw && (betw.isRegister() || allowLiterals)) {
@@ -80,6 +117,10 @@ string isIndirect(string s, int offs = -1) {
 }
 
 string fixupLiterals(string s) {
+  if (isARM) {
+    logln("fixupLiterals ", s);
+    fail;
+  }
   int offs;
   auto indir = s.isIndirect2(offs, true);
   if (auto rest = indir.startsWith("$")) {
@@ -205,6 +246,62 @@ struct Transaction {
     return s;
   }
   string toAsm() {
+    if (isARM) {
+      bool isReg(string s) {
+        if (!s.length) return false;
+        if (s[0] != 'r') return false;
+        foreach (ch; s[1..$]) if (ch < '0' || ch > '9') return false;
+        return true;
+      }
+      bool isMem(string s) {
+        if (s.startsWith(".") || s.startsWith("[") || s.startsWith("=")) return true;
+        return false;
+      }
+      string xmove(string suffix, string from, string to) {
+        if (isReg(to) && isMem(from)) {
+          if (from.find("___xfcc_encodes") != -1 && from[0] != '=') {
+            auto num = from.between("___xfcc_encodes_", "");
+            bool neg;
+            if (auto rest = num.startsWith("minus_")) { neg = true; num = rest; }
+            int i = num.atoi();
+            if (neg) i = -i;
+            if (i < 256 && i >= 0) // TODO
+              return qformat("mov", suffix, " ", to, ", ", "#", i);
+          }
+          return qformat("ldr", suffix, " ", to, ", ", from);
+        }
+        if (isReg(from) && isMem(to)) {
+          return qformat("str", suffix, " ", from, ", ", to);
+        }
+        return qformat("mov", suffix, " ", to, ", ", from);
+      }
+      with (Kind) switch (kind) {
+        case Push: return qformat("stmfd sp!, {", source, "} @", size);
+        case Pop: return qformat("ldmfd sp!, {", dest, "} @", size);
+        case Mov: return xmove("", from, to);
+        case Mov1: return xmove("b", from, to);
+        case Mov2: return xmove("h", from, to);
+        case Call: if (isReg(dest)) return qformat("mov lr, pc\nbx ", dest); return qformat("bl ", dest);
+        case SAlloc: return qformat("sub sp, sp, #", size);
+        case SFree: return qformat("add sp, sp, #", size);
+        case MathOp: return qformat(opName, " ", op1, ", ", op2, ", ", op3);
+        case Compare:
+          if (test) return qformat("cmp ", op1, ", #0");
+          return qformat("cmp ", op1, ", ", op2);
+        case Jump: if (mode) return qformat(mode, " ", dest); return qformat("b ", dest);
+        case LoadAddress:
+          if (from.startsWith("[")) {
+            auto parts = from.between("[", "]").split(",");
+            if (parts[1][0] != '#') fail;
+            return qformat("mov ", to, ", ", parts[0], "\nadd ", to, ", ", to, ", ", parts[1]);
+          }
+          return qformat("adrl ", to, ", ", from);
+        case Text, Label, Nevermind: break;
+        default:
+          logln(*this);
+          fail;
+      }
+    }
     with (Kind) switch (kind) {
       case MovD:
         return qformat("movd ", from.asmformat(), ", ", to.asmformat());
@@ -417,7 +514,7 @@ struct Transaction {
         foreach (name; names) res ~= name ~ ":\n";
         return res[0 .. $-1];
       case Extended: return obj.toAsm();
-      case Nevermind: return qformat("#forget ", dest, ". ");
+      case Nevermind: return qformat(comment("forget "), dest, ". ");
       case LoadAddress: return qformat("leal ", from.asmformat(), ", ", to);
       case Text: return text;
     }

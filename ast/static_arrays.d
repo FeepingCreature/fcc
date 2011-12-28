@@ -114,7 +114,25 @@ class DataExpr : CValue {
         // don't even try to opt this
         af.optimize = false;*/
         // sure?
-        af.pushStack(Format("$", 0), data.length); // better optimizable
+        if (isARM) {
+          int len = data.length;
+          af.mmove4("#0", "r0");
+          while (len) {
+            if (len >= 4) {
+              af.pushStack("r0", 4);
+              len -= 4;
+            } else if (len >= 2) {
+              af.pushStack("r0", 2);
+              len -= 2;
+            } else {
+              af.salloc(1);
+              af.mmove1("r0", "[sp]");
+              len --;
+            }
+          }
+        } else {
+          af.pushStack(Format("$", 0), data.length); // better optimizable
+        }
         // af.flush();
         // af.optimize = backup;
         return;
@@ -122,18 +140,34 @@ class DataExpr : CValue {
       auto d2 = data;
       while (d2.length >= 4) {
         auto i = (cast(int[]) d2.takeEnd(4))[0];
-        af.pushStack(Format("$", i), 4);
+        if (isARM) {
+          af.mmove4(Format("#", i), "r0");
+          af.pushStack("r0", 4);
+        } else {
+          af.pushStack(Format("$", i), 4);
+        }
       }
       while (d2.length) {
         auto c = d2.takeEnd();
-        af.pushStack(Format("$", c), 1);
+        if (isARM) {
+          af.salloc(1);
+          af.mmove4(Format("#", c), "r0");
+          af.mmove1("r0", "[sp]");
+        } else {
+          af.pushStack(Format("$", c), 1);
+        }
       }
     }
     void emitLocation(AsmFile af) {
       if (!name_used) {
         name_used = af.allocConstant(Format("data_", constants_id++), data);
       }
-      af.pushStack("$"~name_used, nativePtrSize);
+      if (isARM) {
+        af.mmove4("="~name_used, "r0");
+        af.pushStack("r0", 4);
+      } else {
+        af.pushStack("$"~name_used, nativePtrSize);
+      }
     }
   }
 }

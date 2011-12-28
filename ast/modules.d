@@ -1,6 +1,6 @@
 module ast.modules;
 
-import ast.base, ast.namespace, ast.fun, ast.parse;
+import ast.base, ast.namespace, ast.fun, ast.parse, ast.fold;
 
 import tools.ctfe, tools.threadpool;
 
@@ -68,7 +68,8 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       super._add(name, obj);
     }
     bool hasDebug() { return _hasDebug; }
-    void iterate(void delegate(ref Iterable) dg) {
+    void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+      if (mode == IterMode.Semantic) fail; // what
       auto backup = current_module();
       scope(exit) current_module.set(backup);
       current_module.set(this);
@@ -77,7 +78,6 @@ class Module : Namespace, Tree, Named, StoresDebugState {
     Module dup() { assert(false, "What the hell are you doing, man. "); }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
-      checkImportsUsage;
       auto backup = current_module();
       scope(exit) current_module.set(backup);
       current_module.set(this);
@@ -85,33 +85,11 @@ class Module : Namespace, Tree, Named, StoresDebugState {
       foreach (s; setupable) s.setup(af);
       scope(exit) inProgress = null;
       
-      void callback(ref Iterable it) {
-        if (cast(NoOp) it) return;
-        string info = Format("<node classname=\"", (fastcast!(Object)~ it).classinfo.name, "\"");
-        if (auto n = fastcast!(Named)~ it)
-          info ~= Format(" name=\"", n.getIdentifier(), "\"");
-        if (auto i = cast(HasInfo) it)
-          info ~= Format( " info=\"", i.getInfo(), "\"");
-        info ~= " >";
-        logln(info); 
-        it.iterate(&callback);
-        if (auto ei = fastcast!(ExprIterable) (it)) {
-          ei.iterateExpressions(&callback);
-        }
-        logln("</node>");
-      }
-      if (dumpXMLRep) {
-        logln("----module ", name);
-        iterate(&callback);
-        logln("----done"); 
-      }
-      std.c.stdio.fflush(stdout);
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
         // logln("emit entry ", entry);
         if (fastcast!(NoOp) (entry)) continue;
-        doLaterParsing();
         // globvars don't write any code!
         // keep our assembly clean. :D
         if ((fastcast!(Object) (entry)).classinfo.name != "ast.globvars.GlobVarDecl" && splitIntoSections) {
@@ -119,13 +97,17 @@ class Module : Namespace, Tree, Named, StoresDebugState {
           if (auto mang = fastcast!(IsMangled) (entry)) codename = mang.mangleSelf();
           if (isWindoze())
             af.put(".section .text.", codename, ", \"ax\"");
+          else if (isARM)
+            {}
           else
             af.put(".section .text.", codename, ", \"ax\", @progbits");
         }
+        opt(entry);
         entry.emitAsm(af);
       }
-      af.put(".section .text");
+      if (!isARM) af.put(".section .text");
       doneEmitting = true;
+      checkImportsUsage;
     }
     string mangle(string name, IType type) {
       return "module_"~cleaned_name()~"_"~name.cleanup()~(type?("_of_"~type.mangle()):"");
@@ -207,7 +189,28 @@ bool delegate(Module) rereadMod;
 Module delegate(string) specialHandler;
 
 import tools.compat: read, castLike, exists, sub;
+string[] module_stack;
+Module[string] modules_wip;
 Module lookupMod(string name) {
+  foreach (i, mod; module_stack) {
+    if (mod == name) {
+      string loop() {
+        auto parts = module_stack[i..$];
+        string res;
+        void add(string s) {
+          if (res.length) res ~= " -> ";
+          res ~= s;
+        }
+        foreach (part; parts) add(part);
+        add(name);
+        return res;
+      }
+      logln("WARN: module loop ", loop(), ". This is not well tested. ");
+      return modules_wip[name];
+    }
+  }
+  module_stack ~= name;
+  scope(exit) module_stack = module_stack[0..$-1];
   if (name == "sys") {
     return sysmod;
   }

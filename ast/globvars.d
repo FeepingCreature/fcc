@@ -33,6 +33,16 @@ class GlobVar : LValue, Named {
     IType valueType() { return type; }
     string getIdentifier() { return cleanedName(); }
     void emitAsm(AsmFile af) {
+      if (isARM) {
+        af.mmove4(qformat("=", mangled()), "r2");
+        if (tls) {
+          af.mmove4("=_sys_tls_data_start", "r3");
+          af.mathOp("sub", "r2", "r2", "r3");
+          af.mathOp("add", "r2", "r2", "r4");
+        }
+        armpush(af, "r2", type.size);
+        return;
+      }
       if (tls) {
         af.mmove4(qformat("$", mangled()), "%eax");
         af.mathOp("subl", "$_sys_tls_data_start", "%eax");
@@ -43,6 +53,16 @@ class GlobVar : LValue, Named {
         af.pushStack(mangled(), type.size);
     }
     void emitLocation(AsmFile af) {
+      if (isARM) {
+        af.mmove4(qformat("=", mangled()), "r2");
+        if (tls) {
+          af.mmove4("=_sys_tls_data_start", "r3");
+          af.mathOp("sub", "r2", "r2", "r3");
+          af.mathOp("add", "r2", "r2", "r4");
+        }
+        af.pushStack("r2", 4);
+        return;
+      }
       if (tls) {
         af.mmove4(qformat("$", mangled()), "%eax");
         af.mathOp("subl", "$_sys_tls_data_start", "%eax");

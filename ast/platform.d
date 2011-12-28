@@ -6,12 +6,20 @@ import ast.modules;
 Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string platname;
-  if (!t2.gotIdentifier(platname) || !t2.accept(")"))
-    t2.failparse("Invalid platform directive. ");
+  bool neg, wild;
+  if (t2.accept("!")) neg = true;
+  if (!t2.gotIdentifier(platname))
+    t2.failparse("Invalid platform identifier");
+  if (t2.accept("*")) wild = true;
+  if (!t2.accept(")"))
+    t2.failparse("expected closing paren");
   t2.noMoreHeredoc();
   auto src = t2.coarseLexScope(true, false);
   auto mod = current_module();
-  if (platname~"-" == platform_prefix || platname == "default" && !platform_prefix) {
+  bool match = platname~"-" == platform_prefix || platname == "default" && !platform_prefix;
+  if (wild) match |= !!platform_prefix.startsWith(platname);
+  if (neg) match = !match;
+  if (match) {
     Object obj;
     if (!src.many(
         !!rest(src, "tree.toplevel", &obj),

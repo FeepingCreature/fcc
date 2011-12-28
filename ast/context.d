@@ -26,8 +26,14 @@ class Context : Namespace, MValue, Named {
   void iterValid_rev(void delegate(Expr) dg) { return iterValid(dg, true); }
   override {
     string getIdentifier() { return name; }
-    // void iterate(void delegate(ref Iterable) dg) { fail; }
-    void iterate(void delegate(ref Iterable) dg) { }
+    void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+      if (mode == IterMode.Semantic) return;
+      foreach (ref entry; field)
+        if (auto it = fastcast!(Iterable) (entry._1)) {
+          dg(it);
+          entry._1 = fastcast!(Object) (it);
+        }
+    }
     string mangle(string name, IType type) {
       return Format(mangleSelf(), "_", name, "_of_", type.mangle());
     }

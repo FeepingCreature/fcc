@@ -227,11 +227,13 @@ static this() {
     }
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
-    logln("op: concat");
-    logln("ex1: ", ex1.valueType());
-    logln("ex2: ", ex2.valueType());
+    // logln("op: concat");
+    // logln("ex1: ", ex1.valueType());
+    // logln("ex2: ", ex2.valueType());
     // fail;
-    throw new Exception("Concatenation error");
+    // throw new Exception("Concatenation error");
+    throw new Exception(Format("Concatenation error: incompatible types: ",
+      ex1.valueType(), " and ", ex2.valueType()));
     // return null;
   });
   // fold string concats

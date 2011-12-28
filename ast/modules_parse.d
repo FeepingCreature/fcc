@@ -56,6 +56,10 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   }
   
   New(mod, modname, toString(realpath(toStringz(lookupPos(t2)._2))));
+  
+  modules_wip[modname] = mod;
+  scope(exit) modules_wip.remove(modname);
+  
   namespace.set(mod);
   auto backup_mod = current_module();
   scope(exit) current_module.set(backup_mod);
@@ -65,7 +69,6 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   if (mod.name == "sys") {
     sysmod = mod; // so that internal lookups work
   }
-  pushDelayStack();
   Object obj;
   if (t2.many(
       !!restart(t2, "tree.toplevel", &obj),
@@ -83,7 +86,6 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
     if (text.strip().length)
       text.failparse("Unknown statement");
     // logln("do later parsing for ", mod.name);
-    popExecuteDelayStack();
     // logln("done");
     mod.parsingDone = true;
     return mod;
@@ -108,9 +110,10 @@ Object gotRename(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept(";"))
     t2.failparse("Expected trailing semicolon in rename! ");
   auto pd = *p;
-  ns.field_cache.remove(id1);
-  ns.field_cache[id2] = pd;
-  ns.rebuildField();
+  foreach (ref entry; ns.field) {
+    if (entry._0 == id1) { entry._0 = id2; entry._1 = pd; break; }
+  }
+  ns.rebuildCache();
   text = t2;
   return Single!(NoOp);
 }

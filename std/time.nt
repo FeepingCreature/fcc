@@ -13,7 +13,7 @@ extern(C) int gettimeofday(timeval*, void*);
 extern(C) int usleep(int); // I hope this really is int.
 
 /*Function: µsec
-The number of milliseconds since the UNIX epoch*/
+The number of microseconds since the UNIX epoch*/
 long µsec() {
   timeval tv;
   gettimeofday(&tv, null);

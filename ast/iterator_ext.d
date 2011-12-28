@@ -457,6 +457,13 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
     text.failparse("Could not match exprs for cat");
   bool rich = true;
   IType valueType;
+  void merge(Iterator itr) {
+    auto et = resolveType(itr.elemType);
+    if (!valueType) { valueType = et; return; }
+    if (et == valueType) return;
+    logln(et, " into ", valueType);
+    fail;
+  }
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
@@ -464,8 +471,7 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
       ex2 = foldex(ex2);
       if (!gotImplicitCast(ex2, Single!(BogusIterator), isIterator))
         return false;
-      if (!valueType)
-        valueType = (fastcast!(Iterator) (ex2.valueType())).elemType();
+      merge(fastcast!(Iterator) (ex2.valueType()));
       auto test = ex2;
       if (!gotImplicitCast(test, isRichIterator))
         rich = false;

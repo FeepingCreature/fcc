@@ -18,7 +18,7 @@ class FalseCond : Cond {
   mixin DefaultDup!();
   mixin defaultIterate!();
   override {
-    string toString() { return Format("true"); }
+    string toString() { return Format("false"); }
     void jumpOn(AsmFile af, bool cond, string dest) {
       if (!cond) af.jump(dest);
     }
@@ -35,13 +35,15 @@ class ExprWrap : Cond {
     void jumpOn(AsmFile af, bool cond, string dest) {
       mixin(mustOffset("0"));
       ex.emitAsm(af);
-      af.popStack("%eax", 4);
-      af.compare("%eax", "%eax", true);
-      af.nvm("%eax");
-      if (cond)
-        af.jumpOn(true, false, true, dest); // Jump on !=0
-      else
-        af.jumpOn(false, true, false, dest); // jump on 0.
+      with (af) {
+        popStack(regs[0], 4);
+        compare(regs[0], regs[0], true);
+        nvm(regs[0]);
+        if (cond)
+          jumpOn(true, false, true, dest); // Jump on !=0
+        else
+          jumpOn(false, true, false, dest); // jump on 0.
+      }
     }
   }
 }
@@ -71,12 +73,16 @@ class Compare : Cond, Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(e1, e2, falseOverride, trueOverride);
   string toString() {
-    auto res = (fastcast!(Object)~ e1).toString();
+    string res;
     if (smaller) res ~= "<";
     if (equal) res ~= "=";
     if (greater) res ~= ">";
     if (!smaller && !greater) res ~= "=";
+    res ~= "(";
+    res ~= (fastcast!(Object)~ e1).toString();
+    res ~= ", ";
     res ~= (fastcast!(Object)~ e2).toString();
+    res ~= ")";
     return res;
   }
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
@@ -137,34 +143,43 @@ class Compare : Cond, Expr {
       e1 = new IntAsFloat(e1);
     }
   }
-  private void emitComparison(AsmFile af) {
+  private void emitComparison(AsmFile af) { with (af) {
     mixin(mustOffset("0"));
     prelude;
+    if (isARM) {
+      if (isDouble) {
+        fail;
+        return;
+      }
+      if (isFloat) {
+        fail;
+        return;
+      }
+    }
     if (isDouble) {
-      e2.emitAsm(af); af.loadDouble("(%esp)"); af.sfree(8);
-      e1.emitAsm(af); af.loadDouble("(%esp)"); af.sfree(8);
-      af.compareFloat("%st(1)", useIVariant);
+      e2.emitAsm(af); loadDouble("(%esp)"); sfree(8);
+      e1.emitAsm(af); loadDouble("(%esp)"); sfree(8);
+      compareFloat("%st(1)", useIVariant);
     } else if (isFloat) {
-      e2.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
-      e1.emitAsm(af); af.loadFloat("(%esp)"); af.sfree(4);
-      af.compareFloat("%st(1)", useIVariant);
+      e2.emitAsm(af); loadFloat("(%esp)"); sfree(4);
+      e1.emitAsm(af); loadFloat("(%esp)"); sfree(4);
+      compareFloat("%st(1)", useIVariant);
       // e1.emitAsm(af); e2.emitAsm(af);
-      // af.SSEOp("movd", "(%esp)", "%xmm1", true /* ignore alignment */); af.sfree(4);
-      // af.SSEOp("movd", "(%esp)", "%xmm0", true); af.sfree(4);
-      // af.SSEOp("comiss", "%xmm1", "%xmm0");
+      // SSEOp("movd", "(%esp)", "%xmm1", true /* ignore alignment */); sfree(4);
+      // SSEOp("movd", "(%esp)", "%xmm0", true); sfree(4);
+      // SSEOp("comiss", "%xmm1", "%xmm0");
     } else if (auto ie = fastcast!(IntExpr) (e2)) {
       e1.emitAsm(af);
-      af.popStack("%eax", 4);
-      // remember: at&t order is inverted
-      af.compare(Format("$", ie.num), "%eax");
+      popStack(regs[0], 4);
+      compare(regs[0], number(ie.num));
     } else {
       e2.emitAsm(af);
       e1.emitAsm(af);
-      af.popStack("%edx", 4);
-      af.popStack("%eax", 4);
-      af.compare("%eax", "%edx");
+      popStack(regs[3], 4);
+      popStack(regs[0], 4);
+      compare(regs[3], regs[0]);
     }
-  }
+  }}
   override {
     IType valueType() {
       if (falseOverride && trueOverride) {
@@ -180,24 +195,31 @@ class Compare : Cond, Expr {
         trueOverride.emitAsm(af);
       }
       emitComparison(af);
+      if (isARM) { af.put("mrs r0, cpsr"); }
       auto s = smaller, e = equal, g = greater;
       if (falseOverride && trueOverride) {
-        // DO NOT POP! POP IS MOVE/SFREE! SFREE OVERWRITES COMPARISON!
-        af.mmove4( "(%esp)", "%edx");
-        af.mmove4("4(%esp)", "%ecx");
+        if (isARM) {
+          af.mmove4("[sp]", "r3");
+          af.mmove4("[sp,#4]", "r2");
+        } else {
+          // DO NOT POP! POP IS MOVE/SFREE! SFREE OVERWRITES COMPARISON!
+          af.mmove4( "(%esp)", "%edx");
+          af.mmove4("4(%esp)", "%ecx");
+        }
       } else {
-        af.mmove4("$1", "%edx");
-        af.mmove4("$0", "%ecx"); // don't xorl; mustn't overwrite comparison results
+        af.mmove4(af.number(1), af.regs[3]);
+        af.mmove4(af.number(0), af.regs[2]);
       }
+      if (isARM) { af.put("msr cpsr, r0"); }
       // can't use eax, moveOnFloat needs ax .. or does it? (SSE mode)
       if (isFloat || isDouble)
-        af.moveOnFloat(s, e, g, "%edx", "%ecx", /* convert */ !useIVariant);
+        af.moveOnFloat(s, e, g, af.regs[3], af.regs[2], /* convert */ !useIVariant);
       else
-        af.cmov(s, e, g, "%edx", "%ecx");
+        af.cmov(s, e, g, af.regs[3], af.regs[2]);
       // now can safely free.
       if (falseOverride && trueOverride)
         af.sfree(8);
-      af.pushStack("%ecx", 4);
+      af.pushStack(af.regs[2], 4);
     }
     void jumpOn(AsmFile af, bool cond, string dest) {
       emitComparison(af);
@@ -354,7 +376,7 @@ class BooleanOp(string Which) : Cond, HasInfo {
   mixin defaultIterate!(c1, c2);
   override {
     string getInfo()  { return Which; }
-    string toString() { return Format("(", c1, " ", Which, " ", c2, ")"); }
+    string toString() { return Format(Which, "(", c1, ", ", c2, ")"); }
     void jumpOn(AsmFile af, bool cond, string dest) {
       static if (Which == "&&") {
         if (cond) {

@@ -15,11 +15,12 @@ mixin(expandImport(`ast.[
   intr, conditionals, opers, conditional_opt, cond, casting,
   pointer, nulls, sa_index_opt, intrinsic, mode,
   propcall, properties_parse, main, alignment, modules_parse,
-  platform, longmath, base, mixins, int_literal, static_arrays,
+  platform, math, longmath, base, mixins, int_literal, static_arrays,
   enums, import_parse, pragmas, trivial, fp, expr_statement,
-  macros, tenth, vardecl_expr, property],
-  casts`));
+  macros, tenth, vardecl_expr, property, condprop],
+  casts, optimizer_arm, optimizer_x86, optimizer_base`));
 
+alias ast.tuples.resolveTup resolveTup;
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
 // from ast.modules_parse
@@ -30,6 +31,8 @@ const ProgbarLength = 60;
 string output;
 
 static this() {
+  New(optimizer_x86.cachething);
+  New(optimizer_x86.proctrack_cachething); 
   // Link with this library
   pragmas["lib"] = delegate Object(Expr ex) {
     if (!gotImplicitCast(ex, (Expr ex) {
@@ -113,6 +116,130 @@ static this() {
   setupPropCall();
 }
 
+// from ast.math
+static this() {
+  bool isInt(IType it) { return test(it == Single!(SysInt)); }
+  bool isFloat(IType it) { return test(it == Single!(Float)); }
+  bool isDouble(IType it) { return test(it == Single!(Double)); }
+  bool isLong(IType it) { return test(it == Single!(Long)); }
+  bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
+  bool isBool(IType it) { return test(it == fastcast!(IType) (sysmod.lookup("bool"))); }
+  Expr handleIntMath(string op, Expr ex1, Expr ex2) {
+    bool b1 = isBool(ex1.valueType()), b2 = isBool(ex2.valueType());
+    if (!gotImplicitCast(ex1, Single!(SysInt), &isInt) || !gotImplicitCast(ex2, Single!(SysInt), &isInt))
+      return null;
+    Expr res;
+    bool ntcache, ntcached;
+    bool nontrivial() {
+      if (ntcached) return ntcache;
+      auto ie1 = fastcast!(IntExpr) (foldex(ex1));
+      if (!ie1) { ntcache = ntcached = true; return true; }
+      auto ie2 = fastcast!(IntExpr) (foldex(ex2));
+      if (!ie2) { ntcache = ntcached = true; return true; }
+      ntcached = true; ntcache = false; return false;
+    }
+    if (isARM && op == "/" && nontrivial()) {
+      if (!sysmod.lookup("_idiv")) {
+        logln("too early for division");
+        fail;
+      }
+      res = buildFunCall(fastcast!(Function) (sysmod.lookup("_idiv")), mkTupleExpr(ex1, ex2), "_idiv");
+    }
+    if (isARM && op == "%" && nontrivial()) {
+      res = buildFunCall(fastcast!(Function) (sysmod.lookup("_mod")), mkTupleExpr(ex1, ex2), "_mod");
+    }
+    if (!res) res = new AsmIntBinopExpr(ex1, ex2, op);
+    if (b1 && b2) res = reinterpret_cast(fastcast!(IType) (sysmod.lookup("bool")), res);
+    return res;
+  }
+  Expr handleIntUnary(string op, Expr ex) {
+    if (!gotImplicitCast(ex, Single!(SysInt), &isInt))
+      return null;
+    return new AsmIntUnaryExpr(ex, op);
+  }
+  Expr handleLongUnary(string op, Expr ex) {
+    if (!gotImplicitCast(ex, Single!(Long), &isLong))
+      return null;
+    return new AsmLongUnaryExpr(ex, op);
+  }
+  Expr handleNeg(Expr ex) {
+    return lookupOp("-", mkInt(0), ex);
+  }
+  Expr handlePointerMath(string op, Expr ex1, Expr ex2) {
+    auto ex22 = ex2;
+    if (fastcast!(Pointer) (resolveTup(ex22.valueType()))) {
+      if (op == "-") {
+        return null; // wut
+      }
+      swap(ex1, ex2);
+    }
+    if (fastcast!(Pointer) (resolveTup(ex1.valueType()))) {
+      if (isPointer(ex2.valueType())) return null;
+      if (fastcast!(Float) (ex2.valueType())) {
+        logln(ex1, " ", op, " ", ex2, "; WTF?! ");
+        logln("is ", ex1.valueType(), " and ", ex2.valueType());
+        // fail();
+        throw new Exception("Invalid pointer op");
+      }
+      assert(!isFloat(ex2.valueType()));
+      auto mul = (fastcast!(Pointer) (resolveTup(ex1.valueType()))).target.size;
+      ex2 = handleIntMath("*", ex2, mkInt(mul));
+      if (!ex2) return null;
+      return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
+    }
+    return null;
+  }
+  Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
+    ex1 = foldex(ex1);
+    ex2 = foldex(ex2);
+    if (Single!(Double) == ex1.valueType() && !fastcast!(DoubleExpr) (ex1))
+      return null;
+    
+    if (Single!(Double) == ex2.valueType() && !fastcast!(DoubleExpr) (ex2))
+      return null;
+    
+    if (fastcast!(DoubleExpr)~ ex1 && fastcast!(DoubleExpr)~ ex2) return null;
+    
+    if (!gotImplicitCast(ex1, Single!(Float), &isFloat) || !gotImplicitCast(ex2, Single!(Float), &isFloat))
+      return null;
+    
+    return new AsmFloatBinopExpr(ex1, ex2, op);
+  }
+  Expr handleDoubleMath(string op, Expr ex1, Expr ex2) {
+    if (Single!(Double) != resolveTup(ex1.valueType())
+     && Single!(Double) != resolveTup(ex2.valueType()))
+      return null;
+    if (!gotImplicitCast(ex1, Single!(Double), &isDouble) || !gotImplicitCast(ex2, Single!(Double), &isDouble))
+      return null;
+    
+    return new AsmDoubleBinopExpr(ex1, ex2, op);
+  }
+  Expr handleLongMath(string op, Expr ex1, Expr ex2) {
+    if (Single!(Long) != resolveTup(ex1.valueType())
+     && Single!(Long) != resolveTup(ex2.valueType()))
+      return null;
+    if (!gotImplicitCast(ex1, Single!(Long), &isLong) || !gotImplicitCast(ex2, Single!(Long), &isLong))
+      return null;
+    
+    return mkLongExpr(ex1, ex2, op);
+  }
+  void defineOps(Expr delegate(string op, Expr, Expr) dg, bool reduced = false) {
+    string[] ops;
+    if (reduced) ops = ["+", "-"]; // pointer math
+    else ops = ["+", "-", "&", "|", "*", "/", "%", "<<", ">>", ">>>", "xor"];
+    foreach (op; ops)
+      defineOp(op, op /apply/ dg);
+  }
+  defineOp("¬", "¬" /apply/ &handleIntUnary);
+  defineOp("¬", "¬" /apply/ &handleLongUnary);
+  defineOp("-", &handleNeg);
+  defineOps(&handleIntMath);
+  defineOps(&handleFloatMath);
+  defineOps(&handleDoubleMath);
+  defineOps(&handleLongMath);
+  defineOps(&handlePointerMath, true);
+}
+
 extern(C) void printThing(AsmFile af, string s, Expr ex) {
   (buildFunCall(fastcast!(Function) (sysmod.lookup("printf")), mkTupleExpr(mkString(s), ex), "mew")).emitAsm(af);
 }
@@ -162,16 +289,32 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
       if (line >= 1) line -= 1; // wat!!
       af.put(".loc ", id, " ", line, " ", 0);
       if (!name.length) fail("TODO");
-      af.put("# being '", name, "' at ", af.currentStackDepth);
+      af.put(comment(" being '"), name, "' at ", af.currentStackDepth);
     }
   }
 }
 
 
 // from ast.vardecl
-extern(C) Expr tmpize_maybe(Expr thing, E2Edg dg) {
+extern(C) Expr _tmpize_maybe(Expr thing, E2EOdg dg, bool force) {
   if (auto ea = fastcast!(ExprAlias) (thing)) thing = ea.base;
-  if (fastcast!(Variable) (thing)) return dg(thing); // cheap to emit
+  if (!force) {
+    bool cheap(Expr ex) {
+      if (fastcast!(Variable) (thing)) return true;
+      if (fastcast!(IntExpr) (ex)) return true;
+      if (auto rc = fastcast!(RC) (ex)) return cheap(rc.from);
+      if (auto sl = fastcast!(StructLiteral) (ex)) {
+        foreach (ex2; sl.exprs) if (!cheap(ex2)) return false;
+        return true;
+      }
+      if (auto ea = fastcast!(ExprAlias) (ex)) return cheap(ea.base);
+      if (Format(ex).find("null") != -1)
+        logln(fastcast!(Object) (ex).classinfo.name, " ", ex);
+      return false;
+    }
+    if (cheap(thing))
+      return dg(thing, null); // cheap to emit
+  }
   return new WithTempExpr(thing, dg);
 }
 
@@ -215,7 +358,7 @@ import ast.fun, ast.namespace, ast.variable, ast.base, ast.scopes;
 extern(C) void exit(int);
 
 import tools.time, quicksort;
-import optimizer, ast.fold;
+import ast.fold;
 
 void postprocessModule(Module mod) {
   void recurse(ref Iterable it) {
@@ -232,7 +375,6 @@ void postprocessModule(Module mod) {
     it.iterate(&recurse);
   }
   mod.iterate(&recurse);
-  ast.fold.opt(mod);
 }
 
 bool ematSysmod;
@@ -255,9 +397,11 @@ extern(C) int mkdir(char*, int);
 string delegate(int, int*) compile(string file, CompileSettings cs) {
   while (file.startsWith("./")) file = file[2 .. $];
   auto af = new AsmFile(cs.optimize, cs.debugMode, cs.profileMode, file);
-  af.processorExtensions["sse3"] = true;
+  if (!isARM) af.processorExtensions["sse3"] = true;
+  setupGenericOpts();
+  if (isARM) setupARMOpts();
+  else setupX86Opts();
   if (cs.configOpts) {
-    setupOpts();
     auto cmds = cs.configOpts.split(",");
     foreach (cmd; cmds) {
       if (cmd == "info") {
@@ -329,7 +473,10 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
       af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     }) / 1_000_000f;
     f.close;
-    auto cmdline = Format(platform_prefix, "as --32 -o ", objname, " ", srcname, " 2>&1");
+    string flags;
+    if (!platform_prefix) flags = "--32";
+    if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
+    auto cmdline = Format(platform_prefix, "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     (*complete) ++;
     logSmart!(false)("> (", (*complete * 100) / total,  "% ", len_emit, "s) ", cmdline);
     if (system(cmdline.toStringz())) {
@@ -377,7 +524,29 @@ string[] compileWithDepends(string file, CompileSettings cs) {
   return objs;
 }
 
+void dumpXML() {
+  void callback(ref Iterable it) {
+    if (cast(NoOp) it) return;
+    string info = Format("<node classname=\"", (fastcast!(Object)~ it).classinfo.name, "\"");
+    if (auto n = fastcast!(Named)~ it)
+      info ~= Format(" name=\"", n.getIdentifier(), "\"");
+    if (auto i = cast(HasInfo) it)
+      info ~= Format( " info=\"", i.getInfo(), "\"");
+    info ~= " >";
+    logln(info); 
+    it.iterate(&callback);
+    logln("</node>");
+  }
+  foreach (mod; sysmod~modlist) {
+    logln("----module ", mod.name);
+    mod.iterate(&callback);
+    logln("----done"); 
+  }
+  std.c.stdio.fflush(stdout);
+}
+
 void link(string[] objects, string[] largs, bool saveTemps = false) {
+  if (dumpXMLRep) dumpXML();
   scope(success)
     if (!saveTemps)
       foreach (obj; objects)
@@ -549,6 +718,7 @@ int main(string[] args) {
       continue;
     }
     if (auto rest = arg.startsWith("-platform=")) {
+      if (rest == "arm") rest = "arm-none-linux-gnueabi";
       platform_prefix = rest~"-";
       logln("Use platform '", platform_prefix, "'");
       foreach (ref entry; include_path) {

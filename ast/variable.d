@@ -9,7 +9,16 @@ class Variable : LValue, Named {
     void emitAsm(AsmFile af) {
       if (type == Single!(Void)) return;
       mixin(mustOffset("type.size"));
-      af.pushStack(address, type.size);
+      if (isARM) {
+        if (type.size == 4) {
+          af.mmove4(qformat("[fp, #", baseOffset, "]"), "r0");
+          af.pushStack("r0", 4);
+        } else {
+          armpush(af, "fp", type.size, baseOffset);
+        }
+      } else {
+        af.pushStack(address, type.size);
+      }
     }
     void emitLocation(AsmFile af) {
       lookupOp("+", new Register!("ebp"), mkInt(baseOffset)).emitAsm(af);

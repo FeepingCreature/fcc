@@ -7,8 +7,8 @@ import std.string, c.unistd, c.sys.socket, c.netdb, c.string, c.errno;
 /*Class: Address
 An internet address*/
 class Address {
-  (sockaddr*, int) getAddrHandle() { _interrupt 3; return (sockaddr*:null, 0); }
-  Address dup() { _interrupt 3; }
+  (sockaddr*, int) getAddrHandle() { raise new Error "getAddrHandle not implemented"; return (sockaddr*:null, 0); }
+  Address dup() { raise new Error "dup not implemented"; }
 }
 
 /*Class: TcpAddress
@@ -176,10 +176,17 @@ struct SelectSet {
   }
   /*Function: select
   Wait until one of the sockets changes state. */
-  void select(float timeout = 30.0) {
+  /*void select(float timeout = 30.0) {
     timeval tv;
     tv.tv_sec = int:timeout;
     tv.tv_usec = int:((timeout - tv.tv_sec) * 1_000_000);
+    auto res = .select(largest + 1, &rdset, &wrset, &errset, &tv);
+    if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
+  }*/
+  void select(int timeout = 30_000_000) {
+    timeval tv;
+    tv.tv_sec = timeout / 1_000_000;
+    tv.tv_usec = timeout - tv.tv_sec * 1_000_000;
     auto res = .select(largest + 1, &rdset, &wrset, &errset, &tv);
     if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
   }

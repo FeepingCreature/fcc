@@ -14,19 +14,19 @@ bool isWindoze() {
   return platform_prefix.find("mingw") != -1;
 }
 
+bool isARM() {
+  return !!platform_prefix.startsWith("arm-");
+}
+
 string[] extra_linker_args;
 
 bool releaseMode;
 
-interface Iterable {
-  void iterate(void delegate(ref Iterable) dg);
-  Iterable dup();
-}
+enum IterMode { Lexical, Semantic }
 
-// For objects that have multiple possible orders of iterations, Iterable is lexical and this is semantical.
-// For instance, functions.
-interface ExprIterable : Iterable {
-  void iterateExpressions(void delegate(ref Iterable) dg);
+interface Iterable {
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical);
+  Iterable dup();
 }
 
 interface Tree : Iterable {
@@ -109,7 +109,7 @@ string genIterates(int params) {
     res ~= "alias A"~ctToString(i);
   }
   res ~= ") {
-    override void iterate(void delegate(ref Iterable) dg) {";
+    override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {";
   for (int i = 0; i < params; ++i) {
     res ~= `
       {
@@ -244,6 +244,10 @@ class Register(string Reg) : Expr, IRegister {
   mixin defaultIterate!();
   override IType valueType() { return Single!(SysInt); }
   override void emitAsm(AsmFile af) {
+    if (isARM && Reg == "ebp") {
+      af.pushStack("fp", 4);
+      return;
+    }
     af.pushStack("%"~Reg, 4);
   }
   override Register dup() { return this; }
@@ -420,7 +424,7 @@ class PlaceholderTokenLV : PlaceholderToken, LValue {
 
 TLS!(string) _qbuffer;
 TLS!(int) _offs;
-static this() { New(_qbuffer); New(_offs); New(optimizer.cachething); New(optimizer.proctrack_cachething); }
+static this() { New(_qbuffer); New(_offs); }
 
 void qformat_append(T...)(T t) {
   string qbuffer = cast(string) _qbuffer();
@@ -446,18 +450,21 @@ void qformat_append(T...)(T t) {
     else static if (is(typeof(entry): ulong)) {
       auto num = entry;
       if (!num) { append("0"); continue; }
-      if (num < 0) { append("-"); num = -num; }
-      
-      // gotta do this left to right!
-      typeof(num) ifact = 1;
-      while (ifact <= num / 10) ifact *= 10;
-      while (ifact) {
-        int inum = num / ifact;
-        char[1] ch;
-        ch[0] = "0123456789"[inum];
-        append(ch);
-        num -= cast(long) inum * cast(long) ifact;
-        ifact /= 10L;
+      if (num == -0x8000_0000) { append("-2147483648"); }
+      else {
+        if (num < 0) { append("-"); num = -num; }
+        
+        // gotta do this left to right!
+        typeof(num) ifact = 1;
+        while (ifact <= num / 10) ifact *= 10;
+        while (ifact) {
+          int inum = num / ifact;
+          char[1] ch;
+          ch[0] = "0123456789"[inum];
+          append(ch);
+          num -= cast(long) inum * cast(long) ifact;
+          ifact /= 10L;
+        }
       }
     }
     else static if (is(typeof(entry[0]))) {
@@ -573,7 +580,7 @@ class LineNumberedStatementClass : LineNumberedStatement {
   int line;
   string name;
   abstract LineNumberedStatement dup();
-  abstract void iterate(void delegate(ref Iterable) dg);
+  abstract void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical);
   override void getInfo(ref string n, ref int l) { n = name; l = line; }
   override void configPosition(string text) {   
     auto pos = lookupPos(text);
@@ -624,21 +631,6 @@ static this() { New(templInstOverride); }
 TLS!(string) currentPropBase;
 static this() { New(currentPropBase); }
 
-void delegate()[] laterParsing;
-// TODO: sync?
-void addLate(void delegate() dg) { laterParsing ~= dg; }
-void doLaterParsing() {
-  while (laterParsing.length) {
-    auto dg = laterParsing[0];
-    laterParsing = laterParsing[1..$];
-    dg();
-  }
-}
-
-void delegate()[][] laterParsingStack;
-void pushDelayStack() { laterParsingStack ~= laterParsing; laterParsing = null; }
-void popExecuteDelayStack() { doLaterParsing(); laterParsing = laterParsingStack[$-1]; laterParsingStack = laterParsingStack[0..$-1]; }
-
 interface Dependency {
   void emitDependency(AsmFile af);
 }
@@ -652,4 +644,78 @@ int my_atoi(string s) {
 class NamedNull : NoOp, Named, SelfAdding {
   override string getIdentifier() { return null; }
   override bool addsSelf() { return true; }
+}
+
+void armpush(AsmFile af, string base, int size, int offset = 0) {
+  if (size == 1) {
+    af.mmove1(qformat("[", base, ", #", offset, "]"), "r0");
+    af.salloc(1);
+    af.mmove1("r0", "[sp]"); // full stack
+    return;
+  }
+  if (size == 2) {
+    af.mmove2(qformat("[", base, ", #", offset, "]"), "r0");
+    af.salloc(2);
+    af.mmove2("r0", "[sp]"); // full stack
+    return;
+  }
+  if (size % 4 || !size) { logln("!! ", size); fail; }
+  for (int i = size / 4 - 1; i >= 0; --i) {
+    af.mmove4(qformat("[", base, ", #", offset + i * 4, "]"), "r0");
+    af.pushStack("r0", 4);
+  }
+}
+
+void armpop(AsmFile af, string base, int size, int offset = 0) {
+  if (base == "r0") { logln("bad register use"); fail; }
+  if (size == 1) {
+    af.mmove1("[sp]", "r0");
+    af.sfree(1);
+    af.mmove1("r0", qformat("[", base, ", #", offset, "]"));
+    return;
+  }
+  if (size == 2) {
+    af.mmove2("[sp]", "r0");
+    af.sfree(2);
+    af.mmove2("r0", qformat("[", base, ", #", offset, "]"));
+    return;
+  }
+  if (size % 4 || !size) { logln("!! ", size); fail; }
+  for (int i = 0; i < size / 4; ++i) {
+    af.popStack("r0", 4);
+    af.mmove4("r0", qformat("[", base, ", #", offset + i * 4, "]"));
+  }
+}
+extern(C) void printThing(AsmFile af, string s, Expr ex);
+
+class VoidExpr : Expr {
+  override {
+    mixin defaultIterate!();
+    VoidExpr dup() { return this; }
+    IType valueType() { return Single!(Void); }
+    void emitAsm(AsmFile af) { }
+  }
+}
+
+class OffsetExpr : LValue {
+  int offset;
+  IType type;
+  this(int o, IType i) { offset = o; type = i; }
+  mixin defaultIterate!();
+  override {
+    OffsetExpr dup() { return this; } // can't dup, is a marker
+    IType valueType() { return type; }
+    void emitAsm(AsmFile af) {
+      if (offset == int.max) fail;
+      if (isARM) {
+        armpush(af, "fp", type.size, offset);
+      } else {
+        af.pushStack(qformat(offset, "(%ebp)"), type.size);
+      }
+    }
+    void emitLocation(AsmFile af) {
+      af.loadOffsetAddress(af.stackbase, offset, af.regs[0]);
+      af.pushStack(af.regs[0], 4);
+    }
+  }
 }

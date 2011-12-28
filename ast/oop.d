@@ -268,7 +268,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
     }
     ClassRef dup() { return new ClassRef(myClass.dup); }
     void emitAsm(AsmFile af) { myClass.emitAsm(af); }
-    void iterate(void delegate(ref Iterable) dg) { myClass.iterate(dg); }
+    void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myClass.iterate(dg, mode); }
   }
 }
 
@@ -291,7 +291,7 @@ class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, Expr
     }
     IntfRef dup() { return new IntfRef(myIntf.dup); }
     void emitAsm(AsmFile af) { myIntf.emitAsm(af); }
-    void iterate(void delegate(ref Iterable) dg) { myIntf.iterate(dg); }
+    void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myIntf.iterate(dg, mode); }
   }
 }
 
@@ -333,11 +333,29 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   Intf[] iparents;
   RelMember ctx; // context of parent reference
   Expr delegate(Expr) ctxFixup;
+  IType rtpt;
   
   string coarseSrc;
   Namespace coarseCtx;
   void parseMe() {
-    if (!coarseSrc || !coarseCtx) return;
+    if (!coarseSrc || !coarseCtx) {
+      if (!data) {
+        asm { int 3; }
+      }
+      return;
+    }
+    
+    if (parent) {
+      parent.parseMe;
+      data = parent.data.dup();
+    }
+    
+    auto cstemp = coarseSrc;
+    coarseSrc = null; // prevent infloop with the RelMember
+    
+    if (rtpt) {
+      ctx = new RelMember("context", rtpt, this);
+    }
     
     auto backup = namespace();
     scope(exit) namespace.set(backup);
@@ -347,7 +365,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     pushCache();
     scope(exit) popCache();
     
-    string t2 = coarseSrc;
+    string t2 = cstemp;
     coarseSrc = null;
     
     auto classref = fastcast!(ClassRef) (getRefType());
@@ -363,8 +381,10 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     if (!t2.accept("{")) t2.failparse("Missing opening bracket for class def");
     
     if (matchStructBody(t2, this)) {
-      if (!t2.accept("}"))
+      if (!t2.accept("}")) {
+        fail;
         t2.failparse("Failed to parse class body");
+      }
       // logln("register class ", cl.name);
       try finalize;
       catch (Exception ex) t2.failparse(ex);
@@ -415,12 +435,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     if (!parent) {
       New(data, cast(string) null);
       new RelMember("classinfo", voidp, data);
-    } else {
-      parent.parseMe;
-      data = parent.data.dup();
     }
     if (auto it = RefToParentType()) {
-      ctx = new RelMember("context", it, this);
+      rtpt = it;
       ctxFixup = *RefToParentModify.ptr();
     }
     sup = namespace();
@@ -748,7 +765,6 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   
   cl.coarseSrc = block;
   cl.coarseCtx = namespace();
-  addLate(&cl.parseMe);
   
   text = t2;
   return cast(Object) cl.getRefType();

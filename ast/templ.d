@@ -174,7 +174,10 @@ class TemplateInstance : Namespace, HandlesEmits {
     auto mod = current_module();
     if (!mod) fail;
     // sysmod is linked into main module
-    foreach (emod; ematIn) if (emod is mod || (mod.filename == mainfile && emod is sysmod)) return;
+    foreach (emod; ematIn) if (emod is mod || (mod.filename == mainfile && emod is sysmod)
+                                           || (mod is sysmod && emod.filename == mainfile)) {
+      return;
+    }
     void handleDeps(Iterable outer) {
       void addDependencies(ref Iterable it) {
         it.iterate(&addDependencies);
@@ -231,8 +234,6 @@ class TemplateInstance : Namespace, HandlesEmits {
         fail;
       }
       
-      pushDelayStack();
-      scope(exit) popExecuteDelayStack();
       // logln("template context is ", (cast(Object) context).classinfo.name);
       // logln("rest toplevel match on ", t2);
       if (!t2.many(

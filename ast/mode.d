@@ -91,9 +91,12 @@ class PrefixFunction : Function {
       return resargs;
     }
     PrefixFunction alloc() { return new PrefixFunction; }
-    void iterateExpressions(void delegate(ref Iterable) dg) {
-      defaultIterate!(prefix).iterate(dg);
-      supfun.iterateExpressions(dg);
+    void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+      if (mode == IterMode.Semantic) {
+        defaultIterate!(prefix).iterate(dg);
+        supfun.iterate(dg, mode);
+      }
+      super.iterate(dg, mode);
     }
     PrefixFunction flatdup() {
       PrefixFunction res = cast(PrefixFunction) cast(void*) super.flatdup();
@@ -134,9 +137,9 @@ class PrefixCall : FunCall {
     foreach (ref param; res.params) param = param.dup();
     return res;
   }
-  override void iterate(void delegate(ref Iterable) dg) {
-    defaultIterate!(prefix).iterate(dg);
-    super.iterate(dg);
+  override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    defaultIterate!(prefix).iterate(dg, mode);
+    super.iterate(dg, mode);
   }
   override void emitWithArgs(AsmFile af, Expr[] args) {
     // logln("prefix call, prepend ", prefix);

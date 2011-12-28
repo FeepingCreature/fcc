@@ -84,7 +84,7 @@ class MyPlaceholderExpr : Expr {
   this(typeof(fpos) fpos) { this.fpos = fpos; }
   override {
     string toString() { return Format("propcall form for ", fpos.firstParam); }
-    void iterate(void delegate(ref Iterable) dg) {
+    void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
       Iterable forble = fpos.firstParam, forble2 = forble;
       dg(forble);
       if (forble !is forble2) {

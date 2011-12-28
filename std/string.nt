@@ -183,10 +183,9 @@ auto splitAt(Iterator!string iter, string marker) {
 /*Function: toStringz
 Converts a Neat string to a C null-terminated char*. */
 char* toStringz(string s) {
-  char ch;
   auto s2 = new char[](s.length + 1);
   s2[0 .. s.length] = s;
-  s2[s.length] = ch;
+  s2[s.length] = char:0;
   return s2.ptr;
 }
 
@@ -216,19 +215,23 @@ int atoi(string s) {
   return c_atoi(p);
 }
 
-/*Function: atof*/
-float atof(string s) {
-  char* p = toStringz(s);
-  onExit mem.free(p);
-  return float:c_atof(p);
+platform(!arm*) {
+  /*Function: atof*/
+  float atof(string s) {
+    char* p = toStringz(s);
+    onExit mem.free(p);
+    return float:c_atof(p);
+  }
 }
 
-reassign string toLower(string s) {
-  // hilariously non-utf aware
-  // TODO!
-  char[auto~] res;
-  for auto ch <- s if "A" <= ch <= "Z" res ~= char:byte:(ch - "A" + "a"); else res ~= ch;
-  return res[];
+platform(!arm*) {
+  reassign string toLower(string s) {
+    // hilariously non-utf aware
+    // TODO!
+    char[auto~] res;
+    for auto ch <- s if "A" <= ch <= "Z" res ~= char:byte:(ch - "A" + "a"); else res ~= ch;
+    return res[];
+  }
 }
 
 template castIter(T) {
@@ -255,8 +258,7 @@ Slices off the start of *s* up to *m*. Returns a tuple of "*s* before *m*", "*s*
   auto pos = find(s, m);
   if (!pos) {
     if (yieldNull) return (s, string:(null x 2));
-    writeln "|$m| not found in |$s| for slice! ";
-    _interrupt 3;
+    raise new Error "|$m| not found in |$s| for slice! ";
   }
   return (s[0 .. pos], s[pos + m.length .. s.length]);
 }

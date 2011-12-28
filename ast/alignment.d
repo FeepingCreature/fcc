@@ -16,8 +16,10 @@ extern(C) int align_boffs(IType t, int curdepth = -1) {
     logln("Could not align ", t, ": insufficient framesize information from ", namespace().get!(ScopeLike));
     fail;
   }
-  int offs = curdepth + t.size;
+  int sz = t.size;
+  int offs = curdepth + sz;
   doAlign(offs, t);
+  if (isARM && sz == 1) offs = (offs + 3) & ~3; // make sure sp stays aligned
   return -offs;
 }
 

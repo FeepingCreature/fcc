@@ -76,21 +76,16 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
       auto ival = iter.index(iter_expr, mkInt(i));
       string t4 = t2;
       sc.field = backupfield.dup;
-      foreach (ref entry; sc.field) {
-        if (auto v = fastcast!(Variable)~ entry._1) {
-          if (v.name) {
-            // will be substituted with actual value in optimizer
-            entry = stuple(v.name, fastcast!(Object) (ival));
-          }
-        }
-      }
+      string name;
+      foreach (entry; sc.field) if (auto v = fastcast!(Variable) (entry._1)) { name = entry._0; break; }
+      sc.field = [stuple(name, fastcast!(Object) (ival))];
       sc.rebuildCache;
       pushCache; // same code is parsed multiple times - do not cache!
+      scope(exit) popCache;
       Scope sc2;
       if (!rest(t4, "tree.scope", &sc2)) {
         t4.failparse("Couldn't parse during static-while expansion! ");
       }
-      popCache;
       if (!t3) t3 = t4;
       else assert(t3 is t4);
       sc.field = backupfield;

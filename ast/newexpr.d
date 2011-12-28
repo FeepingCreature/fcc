@@ -164,6 +164,7 @@ Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   auto nf = re.fun.context.get!(Function);
   auto start = nf.framestart(), end = (fastcast!(Scope) (re.fun.context)).frame_end();
+  logln("frame range for dg allocation: ", start, " .. ", end, " for ", re.fun.name);
   // NOTE: end is smaller.
   auto size = start - end; // lol
   auto framestartp = lookupOp("+", reinterpret_cast(voidp, re.base), mkInt(end));

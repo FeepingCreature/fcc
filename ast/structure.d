@@ -404,10 +404,28 @@ class MemberAccess_Expr : Expr, HasInfo {
           af.comment("emit location for member access to ", stm.name, " @", stm.offset);
           lv.emitLocation(af);
           af.comment("pop and dereference");
-          af.popStack("%eax", nativePtrSize);
-          af.comment("push back ", stm.type.size);
-          af.pushStack(Format(stm.offset, "(%eax)"), stm.type.size);
-          af.nvm("%eax");
+          if (isARM) {
+            af.popStack("r0", nativePtrSize);
+            int sz = stm.type.size;
+            if (sz == 2) {
+              af.salloc(2);
+              af.mmove2(qformat("[r0, #", stm.offset, "]"), "r1");
+              af.mmove2("r1", "[sp]");
+            } else if (sz % 4 == 0) {
+              for (int i = sz / 4 - 1; i >= 0; --i) {
+                af.mmove4(qformat("[r0, #", i * 4 + stm.offset, "]"), "r1");
+                af.pushStack("r1", 4);
+              }
+            } else {
+              logln(this, " with ", stm);
+              fail;
+            }
+          } else {
+            af.popStack("%eax", nativePtrSize);
+            af.comment("push back ", stm.type.size);
+            af.pushStack(Format(stm.offset, "(%eax)"), stm.type.size);
+            af.nvm("%eax");
+          }
         } else {
           mkVar(af, stm.type, true, (Variable var) {
             iparse!(Statement, "copy_struct_member", "tree.semicol_stmt.expr")
@@ -420,6 +438,25 @@ class MemberAccess_Expr : Expr, HasInfo {
           });
         }
       } else {
+        if (isARM) {
+          base.emitAsm(af);
+          if (stm.type.size == 4) {
+            af.mmove4(qformat("[sp, #", stm.offset, "]"), "r0");
+            af.sfree(st.size);
+            af.pushStack("r0", 4);
+            return;
+          }
+          if (stm.type.size == 8) {
+            af.mmove4(qformat("[sp, #", stm.offset, "]"), "r0");
+            af.mmove4(qformat("[sp, #", stm.offset + 4, "]"), "r1");
+            af.sfree(st.size);
+            af.pushStack("r1", 4);
+            af.pushStack("r0", 4);
+            return;
+          }
+          logln("--", stm);
+          fail;
+        }
         // if (stm.type.size != 4) fail;
         // logln("full emit - worrying. ", base, " SELECTING ", stm);
         // fail;
@@ -490,7 +527,16 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
       if (!af.optimize) af.comment("emit location for member address of '", stm.name, "' @", stm.offset, " of ", offs);
       (fastcast!(LValue)~ base).emitLocation(af);
       if (!af.optimize) af.comment("add offset ", stm.offset);
-      af.mathOp("addl", Format("$", stm.offset), "(%esp)");
+      if (isARM) {
+        (new IntExpr(stm.offset)).emitAsm(af);
+        af.popStack("r1", 4);
+        af.mmove4("[sp]", "r0");
+        // af.mmove4(Format("#", stm.offset), "r1");
+        af.mathOp("add", "r0", "r1", "r0");
+        af.mmove4("r0", "[sp]");
+      } else {
+        af.mathOp("addl", Format("$", stm.offset), "(%esp)");
+      }
     }
   }
 }
@@ -512,9 +558,10 @@ static this() {
   foldopt ~= delegate Itr(Itr it) {
     if (auto mae = fastcast!(MemberAccess_Expr) (it)) {
       auto base = foldex(mae.base);
-      // logln("::", mae.stm.type.size, " vs. ", base.valueType().size);
+      auto basebackup = base;
+      // logln(mae.name, "::", mae.stm.type.size, " vs. ", base.valueType().size);
       if (mae.stm.type.size == base.valueType().size) {
-        return fastcast!(Iterable) (reinterpret_cast(mae.stm.type, base));
+        return fastcast!(Iterable) (foldex(reinterpret_cast(mae.stm.type, base)));
       }
       
       {
@@ -529,7 +576,7 @@ static this() {
             else New(weird);
             weird.base = m2.base;
             weird.stm = new RelMember(null, mae.stm.type, mae.stm.offset + m2.stm.offset);
-            return fastcast!(Iterable) (weird);
+            return fastcast!(Iterable) (foldex(weird));
           }
         }
       }
@@ -549,7 +596,7 @@ static this() {
           // TODO: assert: struct member offsets identical!
         }
         if (st) st.select((string, RelMember member) {
-          if (member is mae.stm) {
+          if (member.type == mae.stm.type && member.offset == mae.stm.offset) {
             res = sl.exprs[i];
             // who cares!
             // if (mae.valueType() != res.valueType())
@@ -557,7 +604,8 @@ static this() {
           }
           i++;
         }, &st.rmcache);
-        return fastcast!(Iterable) (res); // may be null - that's okay!
+        if (auto it = fastcast!(Iterable) (res?foldex(res):res))
+          return it;
       }
     }
     return null;

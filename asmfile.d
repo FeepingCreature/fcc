@@ -1,6 +1,6 @@
 module asmfile;
 
-import optimizer, ast.base, parseBase: startsWith;
+import optimizer_base, ast.base, parseBase: startsWith;
 public import assemble;
 
 const bool keepRegs = true, isForward = true;
@@ -9,6 +9,16 @@ import tools.log, tools.functional: map;
 import tools.base: between, slice, split, stuple, apply, swap, Stuple;
 const string[] utilRegs = ["%eax", "%ebx", "%ecx", "%edx"];
 class AsmFile {
+  string[] regs;
+  string stackbase;
+  static string number(int i) {
+    if (isARM) return qformat("#", i);
+    return qformat("$", i);
+  }
+  static string addressof(string s) {
+    if (isARM) return qformat("=", s);
+    else return qformat("$", s);
+  }
   string id;
   int[string] globals;
   ubyte[][string] constants;
@@ -58,6 +68,13 @@ class AsmFile {
   this(bool optimize, bool debugMode, bool profileMode, string id) {
     New(cache);
     New(finalized);
+    if (isARM) {
+      regs = ["r0"[], "r1", "r2", "r3"].dup;
+      stackbase = "fp";
+    } else {
+      regs = ["%eax"[], "%ebx", "%ecx", "%edx"].dup;
+      stackbase = "%ebp";
+    }
     this.optimize = optimize;
     this.debugMode = debugMode;
     this.profileMode = profileMode;
@@ -66,6 +83,8 @@ class AsmFile {
   Transcache cache, finalized;
   int currentStackDepth;
   void pushStack(string expr, int size) {
+    if (isARM && (expr.find("%") != -1 || expr.find("$") != -1 || expr.find("=") != -1)) fail;
+    if (isARM && size == 1) fail;
     willOverwriteComparison;
     Transaction t;
     t.kind = Transaction.Kind.Push;
@@ -76,6 +95,7 @@ class AsmFile {
     currentStackDepth += size;
   }
   void popStack(string dest, int size) {
+    if (isARM && dest.find("%") != -1) fail;
     willOverwriteComparison;
     Transaction t;
     t.kind = Transaction.Kind.Pop;
@@ -84,6 +104,13 @@ class AsmFile {
     t.stackdepth = currentStackDepth;
     cache ~= t;
     currentStackDepth -= size;
+  }
+  void popStackDereference(string dest, int offset, int size) {
+    if (isARM) {
+      armpop(this, dest, size, offset);
+    } else {
+      popStack(qformat(offset, "(", dest, ")"), size);
+    }
   }
   int checkptStack() {
     return currentStackDepth;
@@ -108,7 +135,11 @@ class AsmFile {
   void compare(string op1, string op2, bool test = false) {
     Transaction t;
     t.kind = Transaction.Kind.Compare;
-    t.op1 = op1; t.op2 = op2;
+    if (isARM) {
+      t.op1 = op1; t.op2 = op2;
+    } else {
+      t.op1 = op2; t.op2 = op1;
+    }
     t.test = test;
     cache ~= t;
     comparisonState = true;
@@ -127,6 +158,7 @@ class AsmFile {
     cache ~= t;
   }
   void mmove1(string from, string to) {
+    if (isARM && (from.find("sp") != -1 || to.find("sp") != -1) && currentStackDepth % 4) fail;
     Transaction t;
     t.kind = Transaction.Kind.Mov1;
     t.from = from; t.to = to;
@@ -143,6 +175,13 @@ class AsmFile {
     t.kind = Transaction.Kind.LoadAddress;
     t.from = mem; t.to = to;
     cache ~= t;
+  }
+  void loadOffsetAddress(string reg, int offset, string to) {
+    if (isARM) {
+      loadAddress(qformat("[", reg, ",#", offset, "]"), to);
+    } else {
+      loadAddress(qformat(offset, "(", reg, ")"), to);
+    }
   }
   void salloc(int sz) { // alloc stack space
     willOverwriteComparison;
@@ -162,16 +201,16 @@ class AsmFile {
   }
   import tools.ctfe;
   const string JumpTable = `
-    cond | jump |  cmov  |floatjump| floatmov
-    -----+------+--------+---------+---------
-    fff  |      |        |         | 
-    fft  | jg   | cmovg  | ja      | cmova
-    ftf  | je   | cmove  | je      | cmove
-    ftt  | jge  | cmovge | jae     | cmovae
-    tff  | jl   | cmovl  | jb      | cmovb
-    tft  | jne  | cmovne | jne     | cmovne
-    ttf  | jle  | cmovle | jbe     | cmovbe
-    ttt  | jmp  | mov    | jmp     | mov
+    cond | jump |  cmov  |floatjump| floatmov | armjump | armcmov
+    -----+------+--------+---------+----------+---------+--------
+    fff  |      |        |         |          |         |
+    fft  | jg   | cmovg  | ja      | cmova    | bgt     | movgt
+    ftf  | je   | cmove  | je      | cmove    | beq     | moveq
+    ftt  | jge  | cmovge | jae     | cmovae   | bge     | movge
+    tff  | jl   | cmovl  | jb      | cmovb    | blt     | movlt
+    tft  | jne  | cmovne | jne     | cmovne   | bne     | movne
+    ttf  | jle  | cmovle | jbe     | cmovbe   | ble     | movle
+    ttt  | jmp  | mov    | jmp     | mov      | b       | mov
   `;
   bool[string] jumpedForwardTo; // Emitting a forward label that hasn't been jumped to is redundant.
   void jumpOn(bool smaller, bool equal, bool greater, string label) {
@@ -184,7 +223,7 @@ class AsmFile {
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { static if ("$jump".length) jump(label, false, "$jump"); return; }
+        ) { static if ("$jump".length) if (isARM) jump(label, false, "$armjump"); else jump(label, false, "$jump"); return; }
     `));
     throw new Exception(Format(
       "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
@@ -197,7 +236,7 @@ class AsmFile {
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { static if ("$cmov".length) put("$cmov ", from, ", ", to); return; }
+        ) { static if ("$cmov".length) if (isARM) put("$armcmov ", to, ", ", from); else put("$cmov ", from, ", ", to); return; }
     `));
     throw new Exception(Format(
       "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
@@ -235,11 +274,11 @@ class AsmFile {
         ) { static if ("$floatmov".length) put("$floatmov ", from, ", ", to); return; }
     `));
   }
-  void mathOp(string which, string op1, string op2) {
+  void mathOp(string which, string op1, string op2, string op3 = null) {
     Transaction t;
     t.kind = Transaction.Kind.MathOp;
     t.opName = which;
-    t.op1 = op1; t.op2 = op2;
+    t.op1 = op1; t.op2 = op2; t.op3 = op3;
     cache ~= t;
   }
   void SSEOp(string which, string op1, string op2, bool ignoreStackAlignment = false /* true for movd */) {
@@ -417,7 +456,9 @@ class AsmFile {
   int lastStackDepth;
   void comment(T...)(T t) {
     if (!optimize) {
-      put("# [", currentStackDepth, ": ", currentStackDepth - lastStackDepth, "]: ", t);
+      string comment = "#";
+      if (isARM) comment = "@";
+      put(comment, " [", currentStackDepth, ": ", currentStackDepth - lastStackDepth, "]: ", t);
     }
     lastStackDepth = currentStackDepth;
   }
@@ -426,7 +467,6 @@ class AsmFile {
   bool delegate(Transcache, ref int[string])[string] map;
   import tools.threads: SyncObj;
   void runOpts() {
-    setupOpts;
     string[] newOpts;
     if (debugOpts) {
       foreach (entry; opts) if (entry._2) {
@@ -515,6 +555,12 @@ class AsmFile {
   }
   void genAsm(void delegate(string) dg) {
     flush();
+    if (isARM) {
+      dg(".cpu\tarm9tdmi\n.fpu\tsoftvfp\n");
+      foreach (pair; [[20,1],[21,1],[23,3],[24,1],[25,1],[26,2],[30,6],[18,4]]) {
+        dg(qformat(".eabi_attribute ", pair[0], ", ", pair[1], "\n"));
+      }
+    }
     dg(qformat(".file \"", id, "\"\n"));
     foreach (name, data; globvars) {
       dg(qformat(".comm\t", name, ",", data._0, "\n"));
@@ -534,9 +580,9 @@ class AsmFile {
       auto alignment = data._0;
       if (alignment >= 16) alignment = 16;
       else {
-        if (alignment > 8) alignment = 16;
+        if (alignment > 8) alignment = 8;
       }
-      dg(qformat("\t.align ", alignment, "\n"));
+      dg(qformat("\t.balign ", alignment, "\n"));
       dg("\t.globl "); dg(name); dg("\n");
       // dg(qformat("\t.size ", name, ", ", data._0, "\n"));
       dg("\t"); dg(name); dg(":\n");
@@ -558,9 +604,9 @@ class AsmFile {
     dg(".globl _sys_tls_data_"); dg(id2); dg("_end\n");
     dg("_sys_tls_data_"); dg(id2); dg("_end:\n");
     
-    dg(".section\t.rodata\n");
+    if (!isARM) dg(".section\t.rodata\n");
     foreach (name, c; constants) {
-      if (c.length > 4) dg(".align 16\n");
+      if (c.length > 4) dg(".balign 16\n");
       dg(".globl "); dg(name); dg("\n");
       dg(name); dg(":\n");
       while (c.length) {
@@ -579,7 +625,7 @@ class AsmFile {
       // dg(".local "); dg(name); dg("\n");
     }
     foreach (name, array; longstants) { // lol
-      if (array.length >= 4) dg(".align 16\n");
+      if (array.length >= 4) dg(".balign 16\n");
       dg(name); dg(":\n");
       dg(".long ");
       foreach (val; array) dg(qformat(val, ", "));
