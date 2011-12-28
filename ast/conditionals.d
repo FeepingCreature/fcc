@@ -18,7 +18,7 @@ class FalseCond : Cond {
   mixin DefaultDup!();
   mixin defaultIterate!();
   override {
-    string toString() { return Format("true"); }
+    string toString() { return Format("false"); }
     void jumpOn(AsmFile af, bool cond, string dest) {
       if (!cond) af.jump(dest);
     }
