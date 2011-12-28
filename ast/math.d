@@ -203,8 +203,15 @@ class IntLiteralAsShort : Expr {
     string toString() { return Format("short:", ie); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("2"));
-      af.mmove2(Format("$", ie.num), "%ax");
-      af.pushStack("%ax", 2);
+      if (isARM) {
+        af.salloc(2);
+        ie.emitAsm(af);
+        af.popStack("r0", 4);
+        af.mmove2("r0", "[sp]");
+      } else {
+        af.mmove2(Format("$", ie.num), "%ax");
+        af.pushStack("%ax", 2);
+      }
     }
   }
 }
@@ -221,7 +228,12 @@ class IntLiteralAsByte : Expr {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("1"));
       af.salloc(1);
-      af.mmove1(Format("$", ie.num), "(%esp)");
+      if (isARM) {
+        af.mmove4(af.number(ie.num), "r0");
+        af.mmove1("r0", "[sp]");
+      } else {
+        af.mmove1(af.number(ie.num), "(%esp)");
+      }
     }
   }
 }
@@ -238,6 +250,13 @@ class IntAsShort : Expr {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("2"));
       ex.emitAsm(af);
+      if (isARM) {
+        af.popStack("r0", 4);
+        logln("TODO: proper int to short");
+        af.salloc(2);
+        af.mmove2("r0", "[sp]");
+        return;
+      }
       af.popStack("%eax", 4);
       af.mmove4("%eax", "%ebx");
       af.mathOp("shrl", "$16", "%ebx"); // move eah into eal
@@ -260,6 +279,12 @@ class ShortAsByte : Expr {
     void emitAsm(AsmFile af) {
       mixin(mustOffset("1"));
       ex.emitAsm(af);
+      if (isARM) {
+        af.mmove2("[sp]", "r0");
+        af.sfree(1);
+        af.mmove1("r0", "[sp]");
+        return;
+      }
       af.popStack("%ax", 2);
       af.pushStack("%al", 1);
     }
@@ -392,6 +417,26 @@ class AsmIntBinopExpr : BinopExpr {
     void emitAsm(AsmFile af) {
       assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
+      if (isARM) {
+        e2.emitAsm(af);
+        e1.emitAsm(af);
+        af.popStack("r1", 4);
+        af.popStack("r0", 4);
+        string asmop;
+        if (op == "+") asmop = "add";
+        if (op == "-") asmop = "sub";
+        if (op == "*") asmop = "mul";
+        if (op == "&") asmop = "and";
+        if (op == "|") asmop = "orr";
+        if (op == "<<") asmop = "lsl";
+        if (op == ">>") asmop = "lsr";
+        if (op == "xor") asmop = "eor";
+        
+        if (!asmop) { logln(op); fail; }
+        af.mathOp(asmop, "r0", "r1", "r0");
+        af.pushStack("r0", 4);
+        return;
+      }
       if (op == "/" || op == "%") {
         e2.emitAsm(af);
         e1.emitAsm(af);
@@ -633,109 +678,6 @@ class AsmDoubleBinopExpr : BinopExpr {
 BinopExpr delegate(Expr, Expr, string) mkLongExpr;
 
 extern(C) IType resolveTup(IType, bool onlyIfChanged = false);
-
-static this() {
-  bool isInt(IType it) { return test(it == Single!(SysInt)); }
-  bool isFloat(IType it) { return test(it == Single!(Float)); }
-  bool isDouble(IType it) { return test(it == Single!(Double)); }
-  bool isLong(IType it) { return test(it == Single!(Long)); }
-  bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
-  bool isBool(IType it) { return test(it == fastcast!(IType) (sysmod.lookup("bool"))); }
-  Expr handleIntMath(string op, Expr ex1, Expr ex2) {
-    bool b1 = isBool(ex1.valueType()), b2 = isBool(ex2.valueType());
-    if (!gotImplicitCast(ex1, Single!(SysInt), &isInt) || !gotImplicitCast(ex2, Single!(SysInt), &isInt))
-      return null;
-    Expr res = new AsmIntBinopExpr(ex1, ex2, op);
-    if (b1 && b2) res = reinterpret_cast(fastcast!(IType) (sysmod.lookup("bool")), res);
-    return res;
-  }
-  Expr handleIntUnary(string op, Expr ex) {
-    if (!gotImplicitCast(ex, Single!(SysInt), &isInt))
-      return null;
-    return new AsmIntUnaryExpr(ex, op);
-  }
-  Expr handleLongUnary(string op, Expr ex) {
-    if (!gotImplicitCast(ex, Single!(Long), &isLong))
-      return null;
-    return new AsmLongUnaryExpr(ex, op);
-  }
-  Expr handleNeg(Expr ex) {
-    return lookupOp("-", mkInt(0), ex);
-  }
-  Expr handlePointerMath(string op, Expr ex1, Expr ex2) {
-    auto ex22 = ex2;
-    if (fastcast!(Pointer) (resolveTup(ex22.valueType()))) {
-      if (op == "-") {
-        return null; // wut
-      }
-      swap(ex1, ex2);
-    }
-    if (fastcast!(Pointer) (resolveTup(ex1.valueType()))) {
-      if (isPointer(ex2.valueType())) return null;
-      if (fastcast!(Float) (ex2.valueType())) {
-        logln(ex1, " ", op, " ", ex2, "; WTF?! ");
-        logln("is ", ex1.valueType(), " and ", ex2.valueType());
-        // fail();
-        throw new Exception("Invalid pointer op");
-      }
-      assert(!isFloat(ex2.valueType()));
-      auto mul = (fastcast!(Pointer) (resolveTup(ex1.valueType()))).target.size;
-      ex2 = handleIntMath("*", ex2, mkInt(mul));
-      if (!ex2) return null;
-      return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
-    }
-    return null;
-  }
-  Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
-    ex1 = foldex(ex1);
-    ex2 = foldex(ex2);
-    if (Single!(Double) == ex1.valueType() && !fastcast!(DoubleExpr) (ex1))
-      return null;
-    
-    if (Single!(Double) == ex2.valueType() && !fastcast!(DoubleExpr) (ex2))
-      return null;
-    
-    if (fastcast!(DoubleExpr)~ ex1 && fastcast!(DoubleExpr)~ ex2) return null;
-    
-    if (!gotImplicitCast(ex1, Single!(Float), &isFloat) || !gotImplicitCast(ex2, Single!(Float), &isFloat))
-      return null;
-    
-    return new AsmFloatBinopExpr(ex1, ex2, op);
-  }
-  Expr handleDoubleMath(string op, Expr ex1, Expr ex2) {
-    if (Single!(Double) != resolveTup(ex1.valueType())
-     && Single!(Double) != resolveTup(ex2.valueType()))
-      return null;
-    if (!gotImplicitCast(ex1, Single!(Double), &isDouble) || !gotImplicitCast(ex2, Single!(Double), &isDouble))
-      return null;
-    
-    return new AsmDoubleBinopExpr(ex1, ex2, op);
-  }
-  Expr handleLongMath(string op, Expr ex1, Expr ex2) {
-    if (Single!(Long) != resolveTup(ex1.valueType())
-     && Single!(Long) != resolveTup(ex2.valueType()))
-      return null;
-    if (!gotImplicitCast(ex1, Single!(Long), &isLong) || !gotImplicitCast(ex2, Single!(Long), &isLong))
-      return null;
-    
-    return mkLongExpr(ex1, ex2, op);
-  }
-  void defineOps(Expr delegate(string op, Expr, Expr) dg, bool reduced = false) {
-    string[] ops;
-    if (reduced) ops = ["+", "-"]; // pointer math
-    else ops = ["+", "-", "&", "|", "*", "/", "%", "<<", ">>", ">>>", "xor"];
-    foreach (op; ops)
-      defineOp(op, op /apply/ dg);
-  }
-  defineOp("¬", "¬" /apply/ &handleIntUnary);
-  defineOp("¬", "¬" /apply/ &handleLongUnary);
-  defineOp("-", &handleNeg);
-  defineOps(&handleIntMath);
-  defineOps(&handleFloatMath);
-  defineOps(&handleDoubleMath);
-  defineOps(&handleLongMath);
-  defineOps(&handlePointerMath, true);
-}
 
 static this() { parsecon.addPrecedence("tree.expr.arith", "12"); }
 

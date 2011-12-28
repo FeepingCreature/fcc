@@ -62,7 +62,7 @@ extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name);
 
-class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ExprIterable {
+class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ScopeLike {
   string name;
   Expr getPointer() {
     return new FunSymbol(this);
@@ -71,28 +71,32 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   Tree tree;
   bool extern_c = false, weak = false, reassign = false;
   void markWeak() { weak = true; }
-  mixin defaultIterate!(tree);
-  // iterate the compound expressions that form this function
-  void iterateExpressions(void delegate(ref Iterable) dg) { }
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    if (mode == IterMode.Lexical) defaultIterate!(tree).iterate(dg, mode);
+    // else to be defined in subclasses
+  }
   string toString() { return Format("fun ", name, " ", type, " <- ", sup); }
   // add parameters to namespace
   int _framestart;
   string coarseSrc;
   Namespace coarseContext;
   void parseMe() {
-    if (tree) return;
+    if (tree || !coarseSrc) return;
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     namespace.set(coarseContext);
+    // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     
-    // no need because only parsed once
-    // pushCache();
-    // scope(exit) popCache();
+    // needed because we may be a template function (!)
+    pushCache();
+    scope(exit) popCache();
     
     string t2 = coarseSrc;
     tree = fastcast!(Tree) (parsecon.parse(t2, "tree.scope"));
+    opt(tree);
     if (!tree) {
-      coarseSrc.failparse("Couldn't parse function scope");
+      // fail();
+      t2.failparse("Couldn't parse function scope");
     }
     t2 = t2.mystripl();
     if (t2.length)
@@ -107,6 +111,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     res.weak = weak;
     res.extern_c = extern_c;
     res.tree = tree;
+    res.coarseSrc = coarseSrc;
     res._framestart = _framestart;
     res.sup = sup;
     res.field = field;
@@ -116,9 +121,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   Function dup() {
     auto res = flatdup();
     if (tree) res.tree = tree.dup;
-    res.coarseSrc = coarseSrc;
+    res.coarseSrc = coarseSrc.dup;
     res.coarseContext = coarseContext;
-    if (!tree) addLate(&res.parseMe);
     return res;
   }
   FunCall mkCall() {
@@ -127,10 +131,17 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     return res;
   }
   int fixup() {
-    // cdecl: 0 old ebp, 4 return address, 8 parameters .. I think.
-    add(new Variable(Single!(SizeT), "__old_ebp", 0));
-    add(new Variable(Single!(SizeT), "__fun_ret", 4));
-    int cur = _framestart = 8;
+    // cdecl: 0 old ebp, 4 return address, 8 parameters
+    int cur;
+    if (isARM) {
+      add(new Variable(Single!(SizeT), "__old_ebp", -4));
+      add(new Variable(Single!(SizeT), "__fun_ret", 0));
+      cur = _framestart = 4;
+    } else {
+      add(new Variable(Single!(SizeT), "__old_ebp", 0));
+      add(new Variable(Single!(SizeT), "__fun_ret", 4));
+      cur = _framestart = 8;
+    }
     // TODO: alignment
     foreach (param; type.params) {
       _framestart += param.type.size;
@@ -140,6 +151,15 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     return cur;
   }
   string cleaned_name() { return name.cleanup(); }
+  override { // ScopeLike
+    Statement[] getGuards() { return null; }
+    int[] getGuardOffsets() { return null; }
+    int framesize() {
+      /* mixed frame on arm */
+      if (isARM) return 4;
+      else return 0;
+    }
+  }
   override string mangleSelf() {
     if (extern_c) {
       auto res = cleaned_name;
@@ -167,11 +187,16 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
+      parseMe();
       auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4");
       af.put(".globl ", fmn);
-      if (!isWindoze()) // TODO: work out why win32 gas does not like this
-        af.put(".type ", fmn, ", @function");
+      if (!isWindoze()) {// TODO: work out why win32 gas does not like this {
+        if (isARM)
+          af.put(".type ", fmn, ", %function");
+        else
+          af.put(".type ", fmn, ", @function");
+      }
       if (weak) af.put(".weak ", fmn);
       af.put(fmn, ":"); // not really a label
       auto idnum = funid_count ++;
@@ -179,14 +204,33 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       af.jump_barrier();
       // af.put(".cfi_startproc");
       
-      af.pushStack("%ebp", nativePtrSize);
-      af.mmove4("%esp", "%ebp");
-      if (af.profileMode)
-        af.put("call mcount");
+      int psize;
+      if (isARM) {
+        // reconstruct a linear stackframe
+        if (lookup("__base_ptr")) psize += 4;
+        foreach (param; type.params) {
+          psize += param.type.size;
+        }
+        if (psize <= 16 && psize%4 != 0) {
+          logln("bad size ", type.params);
+          // fail;
+        }
+        if (psize >= 16) af.pushStack("r3", 4);
+        if (psize >= 12) af.pushStack("r2", 4);
+        if (psize >= 8)  af.pushStack("r1", 4);
+        if (psize >= 4)  af.pushStack("r0", 4);
+        af.pushStack("fp, lr", 8);
+        af.put("add fp, sp, #4");
+      } else {
+        af.pushStack("%ebp", nativePtrSize);
+        af.mmove4("%esp", "%ebp");
+        if (af.profileMode)
+          af.put("call mcount");
+      }
       
       auto backup = af.currentStackDepth;
       scope(exit) af.currentStackDepth = backup;
-      af.currentStackDepth = 0;
+      af.currentStackDepth = framesize();
       if (!tree) { logln("Tree for ", this, " not generated! :( "); fail; }
       withTLS(namespace, this, tree.emitAsm(af));
       
@@ -198,10 +242,26 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       
       // af.mmove4("%ebp", "%esp");
       // af.popStack("%ebp", nativePtrSize);
-      af.put("leave");
+      if (isARM) {
+        af.put("sub sp, fp, #4");
+        af.popStack("fp, lr", 8);
+        if (psize >= 16) af.sfree(16);
+        else if (psize >= 12) af.sfree(12);
+        else if (psize >= 8) af.sfree(8);
+        else if (psize >= 4) af.sfree(4);
+      } else {
+        af.put("leave");
+      }
       
       af.jump_barrier();
-      af.put("ret");
+      if (isARM) {
+        af.put("bx lr");
+      } else {
+        af.put("ret");
+      }
+      if (isARM) {
+        af.put(".ltorg");
+      }
       af.put(".LFE", idnum, ":");
       if (!isWindoze())
         af.put(".size ", fmn, ", .-", fmn);
@@ -279,8 +339,8 @@ class FunCall : Expr {
     foreach (param; params) res.params ~= param.dup;
     return res;
   }
-  void iterate(void delegate(ref Iterable) dg) {
-    fun.iterateExpressions(dg);
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    fun.iterate(dg, IterMode.Semantic);
     defaultIterate!(params, setup).iterate(dg);
   }
   void emitWithArgs(AsmFile af, Expr[] args) {
@@ -311,6 +371,38 @@ class FunCall : Expr {
 }
 
 void handleReturn(IType ret, AsmFile af) {
+  if (ret == Single!(Void)) return;
+  if (isARM) {
+    if (ret.size == 2) {
+      af.salloc(2);
+      af.mmove2("r0", "[sp]");
+      return;
+    }
+    if (ret.size == 4) {
+      af.pushStack("r0", 4);
+      return;
+    }
+    if (ret.size == 8) {
+      af.pushStack("r3", 4);
+      af.pushStack("r0", 4);
+      return;
+    }
+    if (ret.size == 12) {
+      af.pushStack("r3", 4);
+      af.pushStack("r2", 4);
+      af.pushStack("r0", 4);
+      return;
+    }
+    if (ret.size == 16) {
+      af.pushStack("r3", 4);
+      af.pushStack("r2", 4);
+      af.pushStack("r1", 4);
+      af.pushStack("r0", 4);
+      return;
+    }
+    logln(ret);
+    fail;
+  }
   if (Single!(Float) == ret) {
     af.salloc(4);
     af.storeFloat("(%esp)");
@@ -321,29 +413,27 @@ void handleReturn(IType ret, AsmFile af) {
     af.storeDouble("(%esp)");
     return;
   }
-  if (ret != Single!(Void)) {
-    if (ret.size >= 8) {
-      af.pushStack("%edx", 4);
-      af.nvm("%edx");
-    }
-    if (ret.size >= 12) {
-      af.pushStack("%ecx", 4);
-      af.nvm("%ecx");
-    }
-    if (ret.size == 16) {
-      af.pushStack("%ebx", 4);
-      af.nvm("%ebx");
-    }
-    if (ret.size >= 4) {
-      af.pushStack("%eax", 4);
-      af.nvm("%eax");
-    } else if (ret.size == 2) {
-      af.pushStack("%ax", 2);
-      af.nvm("%ax");
-    } else if (ret.size == 1) {
-      af.pushStack("%al", 1);
-      af.nvm("%al");
-    }
+  if (ret.size >= 8) {
+    af.pushStack("%edx", 4);
+    af.nvm("%edx");
+  }
+  if (ret.size >= 12) {
+    af.pushStack("%ecx", 4);
+    af.nvm("%ecx");
+  }
+  if (ret.size == 16) {
+    af.pushStack("%ebx", 4);
+    af.nvm("%ebx");
+  }
+  if (ret.size >= 4) {
+    af.pushStack("%eax", 4);
+    af.nvm("%eax");
+  } else if (ret.size == 2) {
+    af.pushStack("%ax", 2);
+    af.nvm("%ax");
+  } else if (ret.size == 1) {
+    af.pushStack("%al", 1);
+    af.nvm("%al");
   }
 }
 
@@ -365,8 +455,10 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     af.comment("Begin call to ", name);
     
     bool backupESI = external && name != "setjmp";
+    backupESI &= !isARM();
     
     if (backupESI) af.pushStack("%esi", nativePtrSize);
+    if (isARM) { af.pushStack("r5", 4); } // used for call
     
     int paramsize;
     foreach (param; params) paramsize += param.valueType().size;
@@ -388,14 +480,38 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
         alignment_emitAligned(param, af);
       }
       
-      {
-        mixin(mustOffset("nativePtrSize", "innerest"));
-        if (fp.valueType().size > nativePtrSize) fail;
-        fp.emitAsm(af);
-      }
-      af.popStack("%eax", 4);
+      if (fp.valueType().size > nativePtrSize) fail;
       
-      af.call("%eax");
+      int inRegisters;
+      if (isARM) {
+        int effectivesize;
+        foreach (param; params) effectivesize += param.valueType().size;
+        void doPop(string reg) {
+          // TODO: account for things like char
+          if (effectivesize >= 4) {
+            af.popStack(reg, 4);
+            inRegisters += 4;
+            effectivesize -= 4;
+          }
+        }
+        fp.emitAsm(af);
+        af.popStack("r5", 4); // must not be r0-r3 or r4!
+        doPop("r0");
+        doPop("r1");
+        doPop("r2");
+        doPop("r3");
+      }
+      
+      if (isARM) {
+        af.call("r5");
+      } else {
+        {
+          mixin(mustOffset("nativePtrSize", "innerest"));
+          fp.emitAsm(af);
+        }
+        af.popStack("%eax", 4);
+        af.call("%eax");
+      }
       
       foreach (param; params) {
         if (param.valueType() != Single!(Void)) {
@@ -406,6 +522,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
           }
         }
       }
+      af.salloc(inRegisters); // hax
     }
     
     if (ret == Single!(Float) || ret == Single!(Double))
@@ -419,6 +536,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     af.sfree(alignCall);
     
     if (backupESI) af.popStack("%esi", nativePtrSize);
+    if (isARM) af.popStack("r5", 4);
   }
   
   auto size = (ret == Single!(Void))?0:ret.size;
@@ -563,9 +681,8 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
         auto block = text.coarseLexScope();
         fun.coarseSrc = block;
         fun.coarseContext = namespace();
-        addLate(&fun.parseMe);
-      } else t4 = null;
-      if (t4) return fun;
+      }
+      if (fun.coarseSrc) return fun;
       else {
         if (rest(text, "tree.scope", &fun.tree)) {
           if (!fun.type.ret)
@@ -643,7 +760,9 @@ class FunRefExpr : Expr, Literal {
   this(Function fun) { this.fun = fun; }
   private this() { }
   mixin DefaultDup!();
-  mixin defaultIterate!();
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    fun.iterate(dg, IterMode.Semantic);
+  }
   override {
     IType valueType() {
       return new FunctionPointer(fun);

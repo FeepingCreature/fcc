@@ -45,7 +45,7 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
   }
   override bool isPointerLess() { return base.isPointerLess(); }
   // quietly treat n-size as n+1-size
-  bool extend() { return len == 3 && (base == Single!(Float) || base == Single!(SysInt)); }
+  bool extend() { return len == 3 && (base == Single!(Float) || base == Single!(SysInt) || base == Single!(Double)); }
   int real_len() {
     if (extend) return len + 1;
     return len;
@@ -383,7 +383,7 @@ class FastVec3Norm : Expr {
   }
 }
 
-import ast.templ;
+import ast.templ, ast.math;
 Stuple!(Structure, Vector, Module)[] cache;
 Structure mkVecStruct(Vector vec) {
   foreach (entry; cache) if (entry._2.isValid && entry._1 == vec) return entry._0;
@@ -450,12 +450,17 @@ Structure mkVecStruct(Vector vec) {
       weirdlen = buildFunCall(
         fastcast!(Function)~ sysmod.lookup("sqrtf"), sum, "sqrtf"
       );
-    } else if (lensq.valueType() == Single!(Double)) {
+    } else if (lensq.valueType() == Single!(Double) || lensq.valueType() == Single!(Long)) {
+      auto mylensq = lensq, mysum = sum;
+      if (mylensq.valueType() == Single!(Long)) {
+        mylensq = new LongAsDouble(mylensq);
+        mysum = new LongAsDouble(mysum);
+      }
       len = buildFunCall(
-        fastcast!(Function)~ sysmod.lookup("sqrt"), lensq, "sqrt"
+        fastcast!(Function)~ sysmod.lookup("sqrt"), mylensq, "sqrt"
       );
       weirdlen = buildFunCall(
-        fastcast!(Function)~ sysmod.lookup("sqrt"), sum, "sqrt"
+        fastcast!(Function)~ sysmod.lookup("sqrt"), mysum, "sqrt"
       );
     }
     res.add(new ExprAlias(new FastVec3Norm(fastcast!(Expr) (res.lookup("self")), vec), "normalized"));
@@ -808,7 +813,7 @@ static this() {
   }
   Expr negate(Expr ex) {
     auto ty = resolveType(ex.valueType());
-    logln("negate? ", ty);
+    // logln("negate? ", ty);
     auto vt = fastcast!(Vector)~ ty;
     if (!vt) return null;
     

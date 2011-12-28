@@ -627,9 +627,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
     this.iref_pre = iref_pre;
   }
   mixin DefaultDup!();
-  override void iterate(void delegate(ref Iterable) dg) {
-    defaultIterate!(iter, target, iref, iref_pre).iterate(dg);
-  }
+  mixin defaultIterate!(iter, target, iref, iref_pre);
   override void configure() { iref = lvize(iref_pre); }
   override void jumpOn(AsmFile af, bool cond, string dest) {
     auto itype = fastcast!(Iterator) (resolveType(iter.valueType()));

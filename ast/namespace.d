@@ -39,21 +39,14 @@ class Namespace {
   }
   Stuple!(string, Object)[] field;
   Object[string] field_cache;
-  int modhash;
+  int mod_hash;
   void rebuildCache() {
     field_cache = null;
     foreach (entry; field) field_cache[entry._0] = entry._1;
-  }
-  // reverse of rebuildCache
-  void rebuildField() {
-    modhash ++;
-    field.length = field_cache.length;
-    int id;
-    foreach (key, value; field_cache)
-      field[id++] = stuple(key, value);
+    mod_hash ++;
   }
   typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)")))[] selectMap(T, string S)(NSCache!(typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)"))))* cachep = null) {
-    if (cachep && cachep.hash == field.length + modhash) return cachep.field;
+    if (cachep && cachep.hash == mod_hash) return cachep.field;
     int count;
     foreach (entry; field) if (fastcast!(T)~ entry._1) count++;
     alias typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)"))) restype;
@@ -62,12 +55,12 @@ class Namespace {
     foreach (entry; field)
       if (auto t = fastcast!(T)~ entry._1)
         res[i++] = mixin(S.ctReplace("$", "t"));
-    if (cachep) { cachep.hash = field.length + modhash; cachep.field = res; }
+    if (cachep) { cachep.hash = mod_hash; cachep.field = res; }
     return res;
   }
   void select(T)(void delegate(string, T) dg, NSCache!(string, T)* cachep = null) {
     if (cachep) {
-      if (cachep.hash != field.length + modhash) {
+      if (cachep.hash != mod_hash) {
         int i;
         foreach (entry; field)
           if (auto t = fastcast!(T) (entry._1)) {
@@ -76,13 +69,13 @@ class Namespace {
             else { i++; cachep.field ~= data; }
           }
         cachep.field = cachep.field[0..i];
-        cachep.hash = field.length + modhash;
+        cachep.hash = mod_hash;
       }
       foreach (entry; cachep.field)
         dg(entry._0, entry._1);
     } else {
       foreach (entry; field)
-        if (auto t = fastcast!(T)~ entry._1)
+        if (auto t = fastcast!(T) (entry._1))
           dg(entry._0, t);
     }
   }
@@ -122,8 +115,8 @@ class Namespace {
     }
     if (field.length == cachepoint) rebuildCache;
     field ~= stuple(name, obj);
-    modhash ++;
     if (field.length > cachepoint) field_cache[name] = obj;
+    mod_hash ++;
   }
   void _add(string name, Object obj) {
     if (auto ns = fastcast!(Namespace)~ obj) {

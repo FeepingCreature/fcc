@@ -12,6 +12,13 @@ static this() {
     return ce.cd;
   };
   foldopt ~= delegate Itr(Itr it) {
+    auto ce = fastcast!(CondExpr) (it);
+    if (!ce) return null;
+    auto ew = fastcast!(ExprWrap) (ce.cd);
+    if (!ew) return null;
+    return ew.ex;
+  };
+  foldopt ~= delegate Itr(Itr it) {
     auto sie = fastcast!(SAIndexExpr) (it);
     if (!sie) return null;
     auto salit = fastcast!(SALiteralExpr) (sie.ex);

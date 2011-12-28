@@ -28,12 +28,15 @@ Object gotSizeof(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSizeof, "tree.expr.sizeof", "231", "size-of");
 
+import ast.fold;
 Object gotTypeStringof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Object obj;
   if (!rest(t2, "type", &obj) && !rest(t2, "tree.expr _tree.expr.arith", &obj))
     return null;
   text = t2;
+  if (fastcast!(Iterable) (obj))
+    opt(obj);
   return fastcast!(Object)~ mkString(Format(obj));
 }
 mixin DefaultParser!(gotTypeStringof, "tree.expr.stringof", "232", "string-of");

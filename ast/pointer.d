@@ -56,10 +56,25 @@ class DerefExpr : LValue {
       return fastcast!(Pointer) (resolveType(src.valueType())).target;
     }
     void emitAsm(AsmFile af) {
+      int sz = valueType().size;
+      mixin(mustOffset("sz"));
+      if (isARM && sz == 1) {
+        af.salloc(1);
+        src.emitAsm(af);
+        af.popStack("r2", 4);
+        af.mmove1("[r2]", "r2");
+        af.mmove1("r2", "[sp]");
+        return;
+      }
       src.emitAsm(af);
-      af.popStack("%edx", nativePtrSize);
-      af.pushStack("(%edx)", valueType().size);
-      af.nvm("%edx");
+      if (isARM) {
+        af.popStack("r2", nativePtrSize);
+        armpush(af, "r2", sz);
+      } else {
+        af.popStack("%edx", nativePtrSize);
+        af.pushStack("(%edx)", sz);
+        af.nvm("%edx");
+      }
     }
     void emitLocation(AsmFile af) {
       src.emitAsm(af);
@@ -159,7 +174,15 @@ class Symbol : Expr {
   mixin defaultIterate!();
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
-    af.pushStack("$"~getName(), nativePtrSize);
+    if (isARM) {
+      af.mmove4("="~getName(), "r0");
+      af.put("b 0f");
+      af.put(".ltorg");
+      af.put("0:");
+      af.pushStack("r0", 4);
+    } else {
+      af.pushStack("$"~getName(), nativePtrSize);
+    }
   }
 }
 
@@ -174,6 +197,11 @@ class LateSymbol : Expr {
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
     if (!*name) dg(af);
-    af.pushStack("$"~*name, nativePtrSize);
+    if (isARM) {
+      af.mmove4("="~*name, "r0");
+      af.pushStack("r0", 4);
+    } else {
+      af.pushStack("$"~*name, nativePtrSize);
+    }
   }
 }

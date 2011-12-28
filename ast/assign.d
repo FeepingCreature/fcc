@@ -13,8 +13,8 @@ class _Assignment(T) : LineNumberedStatementClass {
       logln("Can't assign: ", t);
       logln(" of ", t.valueType());
       logln(" <- ", e.valueType());
+      fail;
       throw new Exception("Assignment type mismatch! ");
-      // fail;
     }
     target = t;
     value = e;
@@ -31,9 +31,14 @@ class _Assignment(T) : LineNumberedStatementClass {
         target.emitAssignment(af);
       else {
         target.emitLocation(af);
-        af.popStack("%edx", nativePtrSize);
-        af.popStack("(%edx)", value.valueType().size);
-        af.nvm("%edx");
+        if (isARM) {
+          af.popStack("r2", 4);
+          armpop(af, "r2", value.valueType().size);
+        } else {
+          af.popStack("%edx", nativePtrSize);
+          af.popStack("(%edx)", value.valueType().size);
+          af.nvm("%edx");
+        }
       }
     } else {
       mixin(mustOffset("0"));
@@ -52,9 +57,14 @@ class _Assignment(T) : LineNumberedStatementClass {
           mixin(mustOffset("nativePtrSize"));
           target.emitLocation(af);
         }
-        af.popStack("%edx", nativePtrSize);
-        af.popStack("(%edx)", vt.size);
-        af.nvm("%edx");
+        if (isARM) {
+          af.popStack("r2", 4);
+          armpop(af, "r2", vt.size);
+        } else {
+          af.popStack("%edx", nativePtrSize);
+          af.popStack("(%edx)", vt.size);
+          af.nvm("%edx");
+        }
       }
       af.sfree(filler);
     }

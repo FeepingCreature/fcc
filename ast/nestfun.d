@@ -64,6 +64,8 @@ class NestedFunction : Function {
       fun = new PointerFunction!(NestedFunction)(new NestFunRefExpr(nf));
     }
     if (!res && !fun) return _res;
+    if (res) _res = fastcast!(Object) (res);
+    if (fun) _res = fastcast!(Object) (fun);
     // pointer to our immediate parent's base.
     // since this is a variable also, nesting rewrite will work correctly here
     auto ebp = fastcast!(Expr) (lookup("__base_ptr", true));
@@ -75,7 +77,7 @@ class NestedFunction : Function {
     void convertToDeref(ref Iterable itr) {
       // do this first so that variable initializers get fixed up
       // but not our substituted __base_ptr.
-      itr.iterate(&convertToDeref);
+      itr.iterate(&convertToDeref, IterMode.Semantic);
       if (auto var = fastcast!(Variable) (itr)) {
         if (checkDup) needsDup = true;
         else {
@@ -95,22 +97,12 @@ class NestedFunction : Function {
         if (checkDup) needsDup = true;
         else itr = fastcast!(Iterable) (reinterpret_cast(r.valueType(), ebp));
       }
-    };
+    }
     auto itr = fastcast!(Iterable) (_res);
-    if (fun) {
-      checkDup = true;
-      fun.iterateExpressions(&convertToDeref); checkDup = false;
-      if (needsDup) {
-        fun = fun.flatdup;
-        fun.iterateExpressions(&convertToDeref);
-        itr = fastcast!(Iterable) (fun);
-      }
-    } else {
-      checkDup = true; convertToDeref(itr); checkDup = false;
-      if (needsDup) {
-        itr = itr.dup;
-        convertToDeref(itr);
-      }
+    checkDup = true; convertToDeref(itr); checkDup = false;
+    if (needsDup) {
+      itr = itr.dup;
+      convertToDeref(itr);
     }
     return fastcast!(Object) (itr);
   }
@@ -203,11 +195,12 @@ mixin DefaultParser!(gotNestedFnLiteral, "tree.expr.fnliteral", "2403", "functio
 
 class NestedCall : FunCall {
   Expr dg; Expr ebp; // may be substituted by a lookup
-  override void iterate(void delegate(ref Iterable) dg2) {
-    defaultIterate!(dg, ebp).iterate(dg2);
-    super.iterate(dg2);
+  override void iterate(void delegate(ref Iterable) dg2, IterMode mode = IterMode.Lexical) {
+    defaultIterate!(dg, ebp).iterate(dg2, mode);
+    super.iterate(dg2, mode);
   }
   this() { ebp = new Register!("ebp"); }
+  string toString() { return Format("dg ", dg, "- ", super.toString()); }
   override NestedCall construct() { return new NestedCall; }
   override NestedCall dup() {
     NestedCall res = fastcast!(NestedCall) (super.dup());
@@ -239,10 +232,10 @@ class NestFunRefExpr : mkDelegate {
     // dup base so that iteration treats them separately. SUBTLE BUGFIX, DON'T CHANGE.
     super(fun.getPointer(), base.dup);
   }
-  override void iterate(void delegate(ref Iterable) dg) {
-    fun.iterateExpressions(dg);
-    defaultIterate!(base).iterate(dg);
-    super.iterate(dg);
+  override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    fun.iterate(dg, IterMode.Semantic);
+    defaultIterate!(base).iterate(dg, mode);
+    super.iterate(dg, mode);
   }
   override string toString() {
     return Format("&", fun, " (", super.data, ")");
@@ -277,9 +270,9 @@ class FunPtrAsDgExpr(T) : T {
     assert(!!fp);
     super(ex, mkInt(0));
   }
-  void iterate(void delegate(ref Itr) dg) {
-    super.iterate(dg);
-    defaultIterate!(ex).iterate(dg);
+  void iterate(void delegate(ref Itr) dg, IterMode mode = IterMode.Lexical) {
+    super.iterate(dg, mode);
+    defaultIterate!(ex).iterate(dg, mode);
   }
   override string toString() {
     return Format("dg(", fp, ")");
@@ -320,9 +313,9 @@ static this() {
 class PointerFunction(T) : T {
   Expr ptr;
   Statement setup;
-  void iterateExpressions(void delegate(ref Iterable) dg) {
-    defaultIterate!(ptr, setup).iterate(dg);
-    super.iterateExpressions(dg);
+  override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    defaultIterate!(ptr, setup).iterate(dg, mode);
+    super.iterate(dg, IterMode.Semantic);
   }
   this(Expr ptr, Statement setup = null) {
     static if (is(typeof(super(null)))) super(null);

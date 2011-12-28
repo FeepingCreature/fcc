@@ -19,9 +19,9 @@ class ReturnStmt : Statement {
         stmt.dup().emitAsm(af);
     }
     if (value) {
+      mixin(mustOffset("0"));
       if (value.valueType() == Single!(Void)) {
         scope(failure) logln("While returning ", value, " of ", value.valueType());
-        mixin(mustOffset("0"));
         value.emitAsm(af);
         emitGuards();
       } else {
@@ -29,7 +29,6 @@ class ReturnStmt : Statement {
         auto vt = value.valueType();
         int filler = alignStackFor(vt, af);
         scope(success) af.sfree(filler);
-        mixin(mustOffset("0"));
         auto value = new Variable(vt, null, boffs(vt, af.currentStackDepth));
         (new VarDecl(value)).emitAsm(af);
         (new Assignment(value, this.value)).emitAsm(af);
@@ -42,31 +41,42 @@ class ReturnStmt : Statement {
           loadDoubleEx(value, af);
           af.floatStackDepth --; // doesn't count
         } else if (vt.size == 1) {
+          af.salloc(3);
           value.emitAsm(af);
-          af.popStack("%al", 1);
+          if (isARM) {
+            af.mmove1("[sp]", "r0");
+            af.sfree(1);
+          } else {
+            af.popStack("%al", 1);
+          }
+          af.sfree(3);
         } else if (vt.size == 2) {
           value.emitAsm(af);
           af.popStack("%ax", 2);
         } else if (vt.size == 4) {
           value.emitAsm(af);
-          af.popStack("%eax", 4);
+          af.popStack(af.regs[0], 4);
         } else if (vt.size == 8) {
           value.emitAsm(af);
-          af.popStack("%eax", 4);
-          af.popStack("%edx", 4);
+          af.popStack(af.regs[0], 4);
+          af.popStack(af.regs[3], 4);
         // Well, C compatible this ain't.
         // TODO
         } else if (vt.size == 12) {
           value.emitAsm(af);
-          af.popStack("%eax", 4);
-          af.popStack("%ecx", 4);
-          af.popStack("%edx", 4);
+          with (af) {
+            popStack(regs[0], 4);
+            popStack(regs[2], 4);
+            popStack(regs[3], 4);
+          }
         } else if (vt.size == 16) {
           value.emitAsm(af);
-          af.popStack("%eax", 4);
-          af.popStack("%ebx", 4);
-          af.popStack("%ecx", 4);
-          af.popStack("%edx", 4);
+          with (af) {
+            popStack(regs[0], 4);
+            popStack(regs[1], 4);
+            popStack(regs[2], 4);
+            popStack(regs[3], 4);
+          }
         } else {
           logln("Unsupported return type ", vt, ", being ", vt.size);
           fail;

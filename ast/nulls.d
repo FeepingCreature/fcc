@@ -49,11 +49,18 @@ Cond testNeq(Expr ex1, Expr ex2) {
     return new Compare(ex1, true, false, true, false, ex2);
   assert(ex1.valueType().size == 8);
   auto t2 = mkTuple(voidp, voidp);
-  // we'll be accessing members - generate temporaries.
-  // Don't worry, they'll be cleaned up - conditionals are guaranteed to
-  // exist in an isolated scope.
-  Statement init1, init2;
-  auto v1 = lvize(ex1, &init1);
+  return new ExprWrap(tmpize_maybe(ex1, delegate Expr(Expr ex1) {
+    return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
+      auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex1));
+      auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex2));
+      Cond cd = new BooleanOp!("||")(
+        new ExprWrap(lookupOp("!=", ex1s[0], ex2s[0])),
+        new ExprWrap(lookupOp("!=", ex1s[1], ex2s[1]))
+      );
+      return new CondExpr(cd);
+    });
+  }));
+  /*auto v1 = lvize(ex1, &init1);
   auto v2 = lvize(ex2, &init2);
   auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v1));
   auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v2));
@@ -63,7 +70,7 @@ Cond testNeq(Expr ex1, Expr ex2) {
   );
   if (init1) res = new StatementAndCond(init1, res);
   if (init2) res = new StatementAndCond(init2, res);
-  return res;
+  return res;*/
 }
 
 import ast.literals, ast.casting, ast.modules, ast.conditionals, ast.opers;

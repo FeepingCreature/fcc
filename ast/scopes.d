@@ -4,7 +4,7 @@ import ast.base, ast.namespace, ast.variable, parseBase, tools.base: apply;
 
 class Mew : LineNumberedStatementClass {
 	LineNumberedStatement dup() { assert(false); }
-	void iterate(void delegate(ref Iterable)) { assert(false); }
+	void iterate(void delegate(ref Iterable), IterMode mode = IterMode.Lexical) { assert(false); }
 }
 
 import ast.aggregate;
@@ -15,6 +15,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   int[] guard_offsets;
   ulong id;
   bool needEntryLabel;
+  int pad_framesize;
   int requiredDepth; // sanity checking
   string requiredDepthDebug;
   mixin defaultIterate!(_body, guards);
@@ -98,6 +99,10 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
         res += getFillerFor(var.type, res);
         res += var.type.size;
       }
+    }
+    res += pad_framesize;
+    if (isARM) {
+      while (res % 4 != 0) res ++;
     }
     return res;
   }

@@ -2,6 +2,7 @@ module ast.externs;
 
 import ast.base, ast.fun, ast.namespace, ast.pointer;
 
+static int arm_var_fixup_count;
 class ExternCGlobVar : LValue, Named {
   IType type;
   string name;
@@ -14,8 +15,24 @@ class ExternCGlobVar : LValue, Named {
   override {
     IType valueType() { return type; }
     string getIdentifier() { return name; }
-    void emitAsm(AsmFile af) { af.pushStack(name, type.size); }
-    void emitLocation(AsmFile af) { af.pushStack(qformat("$", name), nativePtrSize); }
+    void emitAsm(AsmFile af) {
+      if (isARM) {
+        if (type.size != 4) fail;
+        af.mmove4(qformat("=", name), "r0");
+        af.mmove4("[r0]", "r0");
+        af.pushStack("r0", 4);
+      } else {
+        af.pushStack(name, type.size);
+      }
+    }
+    void emitLocation(AsmFile af) {
+      if (isARM) {
+        af.loadAddress(qformat("#", name), "r0");
+        af.pushStack("r0", 4);
+      } else {
+        af.pushStack(qformat("$", name), nativePtrSize);
+      }
+    }
     string toString() { return Format("extern(C) global ", name, " of ", type); }
   }
 }

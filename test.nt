@@ -348,6 +348,15 @@ int main(string[] args) {
   testfl(11);
   testfl(12);
   testfl(13);
+  double db = 12;
+  void testdb(double cmp) {
+    if (db > cmp) writeln "db > $cmp";
+    if (db < cmp) writeln "db < $cmp";
+    if (db == cmp) writeln "db == $cmp";
+  }
+  testdb(11);
+  testdb(12);
+  testdb(13);
   {
     onExit writeln("Exit 3. ");
     float clamp(float from, float to, float f) {

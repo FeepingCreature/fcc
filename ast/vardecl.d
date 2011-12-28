@@ -48,13 +48,20 @@ class VarDecl : LineNumberedStatementClass {
       mixin(mustOffset("var.type.size"));
       int sz = var.type.size;
       // TODO: investigate why necessary for chars
-      if (sz == 1) af.salloc(1);
-      var.initval.emitAsm(af);
-      if (sz == 1) {
-        var.emitLocation(af);
-        af.popStack("%eax", nativePtrSize);
-        af.popStack("(%eax)", var.initval.valueType().size);
-        af.nvm("%eax");
+      if (isARM) {
+        var.initval.emitAsm(af);
+      } else {
+        if (sz == 1) af.salloc(1);
+        var.initval.emitAsm(af);
+        if (sz == 1) {
+          var.emitLocation(af);
+          with (af) {
+            // popStackDereference may need regs[0]
+            popStack(regs[1], nativePtrSize);
+            popStackDereference(regs[1], 0, var.initval.valueType().size);
+            nvm(regs[1]);
+          }
+        }
       }
     }
   }
@@ -158,28 +165,14 @@ extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null) {
 
 LValue lvize(Expr ex, Statement* late_init = null) { return ast_vardecl_lvize(ex, late_init); }
 
-class OffsetExpr : Expr {
-  int offset;
-  IType it;
-  this(int o, IType i) { offset = o; it = i; }
-  mixin defaultIterate!();
-  override {
-    OffsetExpr dup() { return this; } // can't dup, is a marker
-    IType valueType() { return it; }
-    void emitAsm(AsmFile af) {
-      if (offset == int.max) fail;
-      af.pushStack(qformat(offset, "(%ebp)"), it.size);
-    }
-  }
-}
-
 class WithTempExpr : Expr {
-  OffsetExpr offs;
+  OffsetExpr offs, offs_res;
   Expr thing, superthing;
-  this(Expr thing, Expr delegate(Expr) dg) {
+  this(Expr thing, Expr delegate(Expr, OffsetExpr) dg) {
     offs = new OffsetExpr(int.max, thing.valueType());
+    offs_res = new OffsetExpr(int.max, null);
     this.thing = thing;
-    superthing = dg(offs);
+    superthing = dg(offs, offs_res);
   }
   protected this() { }
   mixin defaultIterate!(thing, superthing);
@@ -189,9 +182,11 @@ class WithTempExpr : Expr {
     }
     WithTempExpr dup() {
       auto res = new WithTempExpr;
-      res.offs = new OffsetExpr(int.max, offs.it);
+      res.offs = new OffsetExpr(int.max, offs.type);
+      res.offs_res = new OffsetExpr(int.max, offs_res.type);
       void replace(ref Iterable it) {
         if (it is offs) it = res.offs;
+        else if (it is offs_res) it = res.offs_res;
         else it.iterate(&replace);
       }
       res.thing = thing.dup;
@@ -201,18 +196,38 @@ class WithTempExpr : Expr {
     }
     IType valueType() { return superthing.valueType(); }
     void emitAsm(AsmFile af) {
-      mkVar(af, superthing.valueType(), true, (Variable var) {
+      if (superthing.valueType() == Single!(Void)) {
         thing.emitAsm(af);
         offs.offset = -af.currentStackDepth;
-        (mkAssignment(var, superthing)).emitAsm(af);
+        {
+          mixin(mustOffset("0"));
+          superthing.emitAsm(af);
+        }
         af.sfree(thing.valueType().size);
-      });
+      } else {
+        mkVar(af, superthing.valueType(), true, (Variable var) {
+          offs_res.offset = var.baseOffset;
+          thing.emitAsm(af);
+          offs.offset = -af.currentStackDepth;
+          (mkAssignment(var, superthing)).emitAsm(af);
+          af.sfree(thing.valueType().size);
+        });
+      }
     }
   }
 }
 
-alias Expr delegate(Expr) E2Edg; // use D calling convention!
-extern(C) Expr tmpize_maybe(Expr thing, E2Edg dg);
+alias Expr delegate(Expr, OffsetExpr) E2EOdg; // use D calling convention!
+extern(C) Expr _tmpize_maybe(Expr thing, E2EOdg dg, bool force = false);
+Expr tmpize_maybe(Expr thing, Expr delegate(Expr) dg) {
+  return _tmpize_maybe(thing, (Expr ex, OffsetExpr oe) { return dg(ex); });
+}
+Expr tmpize_maybe(Expr thing, Expr delegate(Expr, OffsetExpr) dg) {
+  return _tmpize_maybe(thing, (Expr ex, OffsetExpr oe) { return dg(ex, oe); });
+}
+Expr tmpize(Expr thing, Expr delegate(Expr, OffsetExpr) dg) {
+  return _tmpize_maybe(thing, (Expr ex, OffsetExpr oe) { return dg(ex, oe); }, true);
+}
 
 import ast.fold;
 Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {

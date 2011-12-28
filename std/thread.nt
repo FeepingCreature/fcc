@@ -79,10 +79,10 @@ void* __start_routine(void* p) {
   asm `addl $4, %ebp`;
   {
     auto arg = *(void delegate(), void*, int, Semaphore)*:ptemp;
-    arg[3].release;
     _esi = arg[1];
     mxcsr = arg[2];
     setupStackBase;
+    arg[3].release;
     if (onThreadCreation) {
       onThreadCreation(_ebp);
     }
@@ -202,7 +202,7 @@ class ThreadPool {
   void threadFun(int id) {
     if (int:_ebp & 0xf) {
       writeln "FEEEP! YOU BROKE THE FUCKING THREAD FRAME ALIGNMENT AGAIN. $(_ebp) ";
-      _interrupt 3;
+      *int*:null=0;
     }
     while (true) {
       s.claim;

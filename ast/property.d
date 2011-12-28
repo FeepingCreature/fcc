@@ -23,6 +23,7 @@ class Property : MValue, RelTransformable {
     if (s.type.params[0].type != gettype) {
       logln("setter: ", s.type.params[0].type);
       logln("getter: ", gettype);
+      logln("setter and getter types are not compatible");
       fail;
     }
     if (s.type.ret != Single!(Void)) {
@@ -67,9 +68,9 @@ class Property : MValue, RelTransformable {
         else it.iterate(&replace);
       }
       g2 = g2.dup;
-      g2.iterateExpressions(&replace);
+      g2.iterate(&replace, IterMode.Semantic);
       s2 = s2.dup;
-      s2.iterateExpressions(&replace);
+      s2.iterate(&replace, IterMode.Semantic);
       return new Property(g2, s2);
     }
     void emitAssignment(AsmFile af) {

@@ -26,9 +26,9 @@ template ReinterpretCast_Contents(T) {
   private this() { }
   typeof(this) dup() { return new typeof(this)(to, fastcast!(T) (from.dup), true); }
   // mixin defaultIterate!(from);
-  void iterate(void delegate(ref Iterable) dg) {
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     auto backup = from;
-    defaultIterate!(from).iterate(dg);
+    defaultIterate!(from).iterate(dg, mode);
     auto new_from_test = fastcast!(T) (from);
     if (!new_from_test) {
       // Liskov, if already deceased, is getting quite a spin here.
@@ -336,6 +336,13 @@ class ShortToIntCast : Expr {
     void emitAsm(AsmFile af) {
       sh.emitAsm(af);
       af.comment("short to int cast");
+      if (isARM) {
+        // TODO: proper conversion
+        af.mmove2("[sp]", "r0");
+        af.salloc(2);
+        af.mmove4("r0", "[sp]");
+        return;
+      }
       af.popStack("%ax", sh.valueType().size);
       af.put("cwde");
       af.pushStack("%eax", 4);
@@ -390,14 +397,23 @@ class ByteToIntCast : Expr {
     IType valueType() { return Single!(SysInt); }
     void emitAsm(AsmFile af) {
       {
-        mixin(mustOffset("1"));
+        mixin(mustOffset("4"));
+        af.salloc(3);
         b.emitAsm(af);
       }
       // lol.
       af.comment("byte to int cast lol");
-      af.put("xorl %eax, %eax");
-      af.popStack("%al", b.valueType().size);
-      af.pushStack("%eax", 4);
+      if (isARM) {
+        af.mmove4("#0", "r0");
+        af.mmove1("[sp]", "r0");
+        af.sfree(4);
+        af.pushStack("r0", 4);
+      } else {
+        af.put("xorl %eax, %eax");
+        af.popStack("%al", b.valueType().size);
+        af.sfree(3);
+        af.pushStack("%eax", 4);
+      }
     }
   }
 }

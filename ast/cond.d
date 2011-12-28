@@ -140,6 +140,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   auto ifs = new IfStatement;
   ifs.wrapper = new Scope;
+  ifs.wrapper.requiredDepthDebug ~= " (ast.cond:143)";
   ifs.test = iparse!(Cond, "cm_cond", "cond")
                     (`setjmp &(var.target)`,
                      "var", cmvar);

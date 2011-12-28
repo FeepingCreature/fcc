@@ -6,6 +6,7 @@ import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace,
 
 void fixupMain() {
   void fixupSpecificMain(Function cmain, bool isWinMain) {
+    cmain.parseMe;
     auto sc = fastcast!(Scope) (cmain.tree);
     if (!sc) { logln("fail 11: ", cmain.tree); fail(); }
     
@@ -14,53 +15,68 @@ void fixupMain() {
     namespace.set(cmain);
     
     sc.addStatement(new ReturnStmt(new CallbackExpr(Single!(SysInt), null, stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, AsmFile af) {
-      af.mmove4("$_sys_tls_data_start", "%esi"); // set up first tls pointer
-      if (af.currentStackDepth != 4) // scrap space for ReturnStmt
+      // set up first tls pointer
+      if (isARM) {
+        af.mmove4("=_sys_tls_data_start", "r4");
+      } else {
+        af.mmove4("$_sys_tls_data_start", "%esi");
+      }
+      if (af.currentStackDepth != 4 && !isARM) // scrap space for ReturnStmt
         throw new Exception("stack depth assumption violated");
       // time for MAGIC
       int magic;
+      Expr cvar, pvar;
       if (isWinMain) {
-        auto cvar = mkInt(1), pvar = new RefExpr(fastcast!(CValue) (sc.lookup("cmdline")));
-        cvar.emitAsm(af);
-        pvar.emitAsm(af);
-        magic = 12;
+        cvar = mkInt(1); pvar = new RefExpr(fastcast!(CValue) (sc.lookup("cmdline")));
       } else {
-        auto cvar = fastcast!(Expr) (sc.lookup("argc")), pvar = fastcast!(Expr) (sc.lookup("argv"));
+        cvar = fastcast!(Expr) (sc.lookup("argc")); pvar = fastcast!(Expr) (sc.lookup("argv"));
+      }
+      if (isARM) {
+        buildFunCall(
+          fastcast!(Function) (sysmod.lookup("main2")),
+          mkTupleExpr(cvar, pvar),
+          "main2 aligned call"
+        ).emitAsm(af);
+      } else {
         cvar.emitAsm(af);
         pvar.emitAsm(af);
-        magic = 12;
+        magic = isWinMain?12:12;
+        af.popStack("%eax", nativePtrSize);
+        af.popStack("%edx", 4);
+        af.mathOp("andl", "$-16", "%esp"); // This is where the magic happens,
+        af.salloc(magic); // magic constant align to 16
+        af.pushStack("%ebp", nativePtrSize);
+        af.mmove4("%esp", "%ebp");
+        af.pushStack("%edx", 4);
+        af.pushStack("%eax", nativePtrSize);
+        af.currentStackDepth = nativePtrSize * 2;
+        auto ncvar = new DerefExpr(lookupOp("-",
+          reinterpret_cast(Single!(Pointer, Single!(SysInt)), Single!(RegExpr, "%ebp")),
+          mkInt(1) // Pointer math!
+        ));
+        auto npvar = new DerefExpr(lookupOp("-",
+          reinterpret_cast(Single!(Pointer, Single!(Pointer, Single!(Pointer, Single!(Char)))), Single!(RegExpr, "%ebp")),
+          mkInt(2)
+        ));
+        buildFunCall(
+          fastcast!(Function) (sysmod.lookup("main2")),
+          mkTupleExpr(ncvar, npvar),
+          "main2 aligned call"
+        ).emitAsm(af);
+        // undo the alignment
+        af.popStack("%eax", 4);
+        af.sfree(af.currentStackDepth);
+        af.popStack("%ebp", nativePtrSize);
+        af.mmove4("%ebp", "%esp");
+        af.currentStackDepth = 4;
+        af.pushStack("%eax", 4); // return this
       }
-      af.popStack("%eax", nativePtrSize);
-      af.popStack("%edx", 4);
-      af.mathOp("andl", "$-16", "%esp"); // This is where the magic happens,
-      af.salloc(magic); // magic constant align to 16
-      af.pushStack("%ebp", nativePtrSize);
-      af.mmove4("%esp", "%ebp");
-      af.pushStack("%edx", 4);
-      af.pushStack("%eax", nativePtrSize);
-      af.currentStackDepth = nativePtrSize * 2;
-      auto ncvar = new DerefExpr(lookupOp("-",
-        reinterpret_cast(Single!(Pointer, Single!(SysInt)), Single!(RegExpr, "%ebp")),
-        mkInt(1) // Pointer math!
-      ));
-      auto npvar = new DerefExpr(lookupOp("-",
-        reinterpret_cast(Single!(Pointer, Single!(Pointer, Single!(Pointer, Single!(Char)))), Single!(RegExpr, "%ebp")),
-        mkInt(2)
-      ));
-      buildFunCall(
-        fastcast!(Function) (sysmod.lookup("main2")),
-        mkTupleExpr(ncvar, npvar),
-        "main2 aligned call"
-      ).emitAsm(af);
-      // undo the alignment
-      af.popStack("%eax", 4);
-      af.sfree(af.currentStackDepth);
-      af.popStack("%ebp", nativePtrSize);
-      af.mmove4("%ebp", "%esp");
-      af.currentStackDepth = 4;
-      af.pushStack("%eax", 4); // return this
     })));
   }
+  auto backupmod = current_module();
+  current_module.set(sysmod);
+  scope(exit) current_module.set(backupmod);
+  
   auto cmain = fastcast!(Function) (sysmod.lookup("__c_main"));
   if (!cmain) { logln("fail 00"); fail(); }
   fixupSpecificMain(cmain, false);
@@ -70,6 +86,7 @@ void fixupMain() {
   
   auto main2 = fastcast!(Function)~ sysmod.lookup("main2");
   if (!main2) { logln("fail 10"); fail(); }
+  main2.parseMe;
   auto sc = fastcast!(Scope)~ main2.tree;
   if (!sc) { logln("fail 11: ", main2.tree); fail(); }
   auto argvar = fastcast!(Expr)~ sc.lookup("args");
