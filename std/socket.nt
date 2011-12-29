@@ -2,7 +2,7 @@
 Wraps the BSD Sockets API*/
 module std.socket;
 
-import std.string, c.unistd, c.sys.socket, c.netdb, c.string, c.errno;
+import std.string, c.unistd, c.sys.socket, c.sys.types, c.netdb, c.string, c.errno;
 
 /*Class: Address
 An internet address*/
@@ -131,6 +131,23 @@ Socket connect(string domain, short port) using new Socket {
   return that;
 }
 
+extern(C) {
+  int getpeername(int,sockaddr*,int*);
+  char *inet_ntoa(in_addr);
+}
+(string,int) peernameof(Socket s) {
+  sockaddr_in a;
+  int l = size-of sockaddr_in;
+  if getpeername(s.sockfd,sockaddr*:&a,&l) != 0
+    raise new Error "Unable to get peer name: $(CToString strerror errno)";
+  auto x = CToString inet_ntoa(a.sin_addr);
+  auto y = ntohs(a.sin_port);
+  return (x,y);
+}
+
+string ipof (Socket s)
+  return peernameof(s)[0];
+
 /*Template: readsocket
 Returns an iterator that yields data received from the socket argument*/
 template readsocket(T) {
@@ -191,3 +208,4 @@ struct SelectSet {
     if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
   }
 }
+
