@@ -130,6 +130,12 @@ string basedir(string file) {
   return file;
 }
 
+string basename(string path) {
+  int n=path.length-1;
+  while path[n] != "/" && n>=0 n--;
+  return path[n+1..$];
+}
+
 // in path1, access path2
 /*Function: sub
 Given two paths, returns the second path as seen from the first path. */
