@@ -48,21 +48,7 @@ class VarDecl : LineNumberedStatementClass {
       mixin(mustOffset("var.type.size"));
       int sz = var.type.size;
       // TODO: investigate why necessary for chars
-      if (isARM) {
-        var.initval.emitAsm(af);
-      } else {
-        if (sz == 1) af.salloc(1);
-        var.initval.emitAsm(af);
-        if (sz == 1) {
-          var.emitLocation(af);
-          with (af) {
-            // popStackDereference may need regs[0]
-            popStack(regs[1], nativePtrSize);
-            popStackDereference(regs[1], 0, var.initval.valueType().size);
-            nvm(regs[1]);
-          }
-        }
-      }
+      var.initval.emitAsm(af);
     }
   }
   override string toString() { return Format("declare ", var); }
