@@ -1,6 +1,6 @@
 module ast.platform;
 
-import ast.base, parseBase, ast.fun, ast.namespace, ast.pointer, ast.stringparse;
+import ast.base, parseBase, ast.fun, ast.namespace, ast.pointer, ast.stringparse, ast.scopes;
 
 import ast.modules;
 Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
@@ -15,7 +15,8 @@ Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("expected closing paren");
   t2.noMoreHeredoc();
   auto src = t2.coarseLexScope(true, false);
-  auto mod = current_module();
+  auto ns = namespace(), mod = current_module();
+  if (platname == "x86") platname = "default";
   bool match = platname~"-" == platform_prefix || platname == "default" && !platform_prefix;
   if (wild) match |= !!platform_prefix.startsWith(platname);
   if (neg) match = !match;
@@ -26,7 +27,9 @@ Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
         {
           if (auto n = fastcast!(Named) (obj))
             if (!addsSelf(obj))
-              mod.add(n);
+              ns.add(n);
+          if (auto st = fastcast!(Statement) (obj))
+            (fastcast!(Scope) (ns)).addStatement(st);
           if (auto tr = fastcast!(Tree) (obj)) mod.entries ~= tr;
         }
       ))
@@ -40,3 +43,4 @@ Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotPlatform, "tree.toplevel.platform", null, "platform(");
+mixin DefaultParser!(gotPlatform, "tree.stmt.platform", "311", "platform(");
