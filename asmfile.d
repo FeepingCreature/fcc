@@ -321,6 +321,7 @@ class AsmFile {
       throw new Exception("Floating point stack overflow .. that was unexpected. Simplify your expressions. ");
   }
   void loadFloat(string mem) {
+    if (isARM) fail;
     incFloatStack();
     Transaction t;
     t.kind = Transaction.Kind.FloatLoad;
