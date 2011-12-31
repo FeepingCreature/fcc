@@ -484,9 +484,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       (fastcast!(IsMangled) (rf)).markWeak();
       add(rf);
       auto backup = namespace();
-      namespace.set(rf);
       scope(exit) namespace.set(backup);
-      
+      namespace.set(rf);
       rf.fixup;
       
       auto sc = new Scope;
@@ -499,7 +498,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       void handleIntf(Intf intf) {
         // logln(name, ": offset for intf ", intf.name, ": ", intf_offset);
         as.stmts ~= iparse!(Statement, "cast_branch_intf", "tree.stmt")("if (streq(id, _test)) return void*:(void**:this + offs);",
-          rf, "_test", mkString(intf.mangle_id), "offs", mkInt(intf_offset)
+          namespace(), "_test", mkString(intf.mangle_id), "offs", mkInt(intf_offset)
         );
         intf_offset ++;
       }
@@ -522,9 +521,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
           handleIntf(intf);
       }
       handleClass(this);
-      as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return null; ", rf);
-      rf.addStatement(sc);
+      as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return null; ", namespace());
       sc._body = as;
+      rf.addStatement(sc);
       current_module().entries ~= rf;
     }
   }

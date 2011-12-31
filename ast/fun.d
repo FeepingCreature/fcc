@@ -81,10 +81,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string coarseSrc;
   Namespace coarseContext;
   void parseMe() {
-    if (tree || !coarseSrc) return;
+    if (!coarseSrc) return;
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     namespace.set(coarseContext);
+    if (tree) namespace.set(fastcast!(Scope) (tree));
     // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     
     // needed because we may be a template function (!)
@@ -92,15 +93,17 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     scope(exit) popCache();
     
     string t2 = coarseSrc;
-    tree = fastcast!(Tree) (parsecon.parse(t2, "tree.scope"));
-    opt(tree);
-    if (!tree) {
+    auto stmt = fastcast!(Statement) (parsecon.parse(t2, "tree.scope"));
+    if (!stmt) {
       // fail();
       t2.failparse("Couldn't parse function scope");
     }
+    addStatement(stmt);
+    opt(tree);
     t2 = t2.mystripl();
     if (t2.length)
       t2.failparse("Unknown text! ");
+    coarseSrc = null;
   }
   Function alloc() { return new Function; }
   Argument[] getParams() { return type.params; }
@@ -148,6 +151,25 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       add(new Variable(param.type, param.name, cur));
       cur += param.type.size;
     }
+    if (!releaseMode) {
+      if (tree) {
+        logln(tree);
+        fail;
+      }
+      if (!extern_c && name != "main2"[] /or/ "__win_main"[] /or/ "__c_main"[] && __getSysmod() && __getSysmod().lookup("FrameInfo")) {
+        auto type = fastcast!(IType) (__getSysmod().lookup("FrameInfo"));
+        auto var = new Variable(type, "__frame_info", boffs(type));
+        auto decl = new VarDecl(var);
+        addStatement(decl);
+        auto sc = fastcast!(Scope) (tree);
+        namespace.set(sc);
+        if (auto mistake = sc.lookup("__frame_info", true)) {
+          logln(mistake, " in ", sc, " ", sc.field, ": wtf");
+          fail;
+        }
+        sc.add(var);
+      } else logln("skip ", name);
+    }
     return cur;
   }
   string cleaned_name() { return name.cleanup(); }
@@ -180,7 +202,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string exit() { return mangleSelf() ~ "_exit_label"; }
   static int funid_count;
   void addStatement(Statement st) {
-    if (!tree) tree = new Scope;
+    if (!tree) {
+      if (auto sc = fastcast!(Scope) (st)) { tree = sc; return; }
+      else tree = new Scope;
+    }
     if (!fastcast!(Scope) (tree)) {
       logln(this);
       fail;
@@ -676,7 +701,9 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       gotMain = fun;
       fun.name = "__fcc_main";
     }
+    
     fun.fixup;
+    
     if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under ", ns, "! "); fail; } }
     text = t2;
     static if (Decl) {
@@ -692,9 +719,11 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       }
       if (fun.coarseSrc) return fun;
       else {
-        if (rest(text, "tree.scope", &fun.tree)) {
+        Scope sc;
+        if (rest(text, "tree.scope", &sc)) {
           if (!fun.type.ret)
             fun.type.ret = Single!(Void); // implicit return
+          fun.addStatement(sc);
           return fun;
         } else text.failparse("Couldn't parse function scope");
       }
@@ -713,11 +742,13 @@ Object gotGenericFunDeclNaked(T)(T fun, Namespace sup_override, bool addToNamesp
   return gotGenericFun!(T, true, true)(fun, sup_override, addToNamespace, text, cont, rest, forcename, shortform);
 }
 
-Object gotFunDef(ref string text, ParseCb cont, ParseCb rest) {
+Object gotFunDef(bool ExternC)(ref string text, ParseCb cont, ParseCb rest) {
   auto fun = new Function;
+  fun.extern_c = ExternC;
   return gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest);
 }
-mixin DefaultParser!(gotFunDef, "tree.fundef");
+mixin DefaultParser!(gotFunDef!(false), "tree.fundef");
+mixin DefaultParser!(gotFunDef!(true), "tree.fundef_externc");
 
 // ensuing code gleefully copypasted from nestfun
 // yes I wrote delegates first. how about that.

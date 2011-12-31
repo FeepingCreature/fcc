@@ -32,17 +32,17 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   static int hdlId;
   synchronized
     nf.name = Format("hdlfn_", hdlId++);
-  nf.fixup;
   nf.sup = mod;
   mod.entries ~= fastcast!(Tree)~ nf;
   {
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     namespace.set(nf);
+    nf.fixup;
     
     auto sc = new Scope;
     sc.configPosition(t2);
-    nf.tree = sc;
+    nf.addStatement(sc);
     namespace.set(sc);
     
     auto objvar = new Variable(it, null, boffs(it));
@@ -58,13 +58,14 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
       New(type);
       type.ret = Single!(Void);
       type.params ~= Argument(Single!(Array, Single!(Char)), "n");
-      fixup;
-      name = "invoke-exit";
       auto backup2 = namespace();
       scope(exit) namespace.set(backup2);
       namespace.set(nf2);
-      nf2.tree = iparse!(Statement, "cond_nest", "tree.stmt") // can't use hdlvar here, because it's in the wrong scope
-                        (`_lookupCM(n, &hdlvar, true).jump();`, namespace(), "hdlvar", lookup(hdlmarker));
+      fixup;
+      
+      name = "invoke-exit";
+      nf2.addStatement(iparse!(Statement, "cond_nest", "tree.stmt") // can't use hdlvar here, because it's in the wrong scope
+                        (`_lookupCM(n, &hdlvar, true).jump();`, namespace(), "hdlvar", lookup(hdlmarker)));
       hdlvar.name = null; // marker string not needed
     }
     mod.entries ~= fastcast!(Tree)~ nf2;

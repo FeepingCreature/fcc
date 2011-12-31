@@ -75,7 +75,7 @@ IType arrayAsStruct(IType base, bool rich) {
   scope(exit) namespace.set(backup);
   namespace.set(res);
   
-  void mkFun(string name, Tree delegate(RelFunction) dg) {
+  void mkFun(string name, Tree delegate() dg) {
     auto fun = new RelFunction(res);
     New(fun.type);
     fun.type.ret = Single!(Void);
@@ -86,17 +86,17 @@ IType arrayAsStruct(IType base, bool rich) {
     namespace.set(fun);
     
     fun.fixup;
-    fun.addStatement(fastcast!(Statement) (dg(fun)));
+    fun.addStatement(fastcast!(Statement) (dg()));
     
     res.add(fun);
     fun.weak = true;
     mod.entries ~= fun;
   }
-  mkFun("free", delegate Tree(RelFunction rf) {
+  mkFun("free", delegate Tree() {
     if (rich) return iparse!(Statement, "array_free", "tree.stmt")
-                  (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, rf);
+                  (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, namespace());
     else return iparse!(Statement, "array_free", "tree.stmt")
-                  (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, rf);
+                  (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, namespace());
   });
   if (!rich) {
     auto propbackup = propcfg().withTuple;
@@ -110,14 +110,14 @@ IType arrayAsStruct(IType base, bool rich) {
     ));
   }
   if (base != Single!(Void) && base.size <= 16 /* max supported return size */) {
-    mkFun("popEnd", delegate Tree(RelFunction rf) {
-      rf.type.ret = base;
+    mkFun("popEnd", delegate Tree() {
+      namespace().get!(RelFunction).type.ret = base;
       return new ReturnStmt(
         new StatementAndExpr(
           iparse!(Statement, "array_setpop", "tree.stmt")
-                (`length --;`, rf),
+                (`length --;`, namespace()),
           iparse!(Expr, "array_getpop", "tree.expr")
-                (`*(ptr + length)`, rf)
+                (`*(ptr + length)`, namespace())
         )
       );
     });

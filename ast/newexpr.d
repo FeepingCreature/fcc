@@ -9,7 +9,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
   Object obj;
-  if (!rest(t2, "type", &obj)) return null;
+  if (!rest(t2, "type", &obj)) { if (t2.accept("mapIterator")) { logln(namespace()); fail; } return null; }
   auto it = fastcast!(IType) (obj);
   if (!it) return null;
   auto cr = fastcast!(ClassRef) (resolveType(it));

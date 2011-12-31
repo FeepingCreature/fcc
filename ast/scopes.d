@@ -76,6 +76,10 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
     recalcRequiredDepth;
   }
   override Scope dup() {
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(sup);
+    
     auto res = new Scope;
     res.field = field.dup;
     if (_body) res._body = _body.dup;

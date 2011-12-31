@@ -28,7 +28,6 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     auto nf = new NestedFunction(sc), mod = current_module();
     New(nf.type);
     nf.type.ret = Single!(Void);
-    nf.fixup;
     nf.sup = mod;
     static int funId;
     synchronized
@@ -39,9 +38,11 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
       auto backup = namespace();
       scope(exit) namespace.set(backup);
       namespace.set(nf);
+      nf.fixup;
+      
       if (!rest(t4, "tree.scope", &st2))
         t4.failparse("No statement matched for ", type, " in exception guard context");
-      nf.tree = st2;
+      nf.addStatement(st2);
     }
     mod.entries ~= fastcast!(Tree) (nf);
     auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord");
