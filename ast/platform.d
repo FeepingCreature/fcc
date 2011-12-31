@@ -3,7 +3,7 @@ module ast.platform;
 import ast.base, parseBase, ast.fun, ast.namespace, ast.pointer, ast.stringparse, ast.scopes;
 
 import ast.modules;
-Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
+Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string platname;
   bool neg, wild;
@@ -23,14 +23,20 @@ Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
   if (match) {
     Object obj;
     if (!src.many(
-        !!rest(src, "tree.toplevel", &obj),
+        !!rest(src, Stmt?"tree.stmt":"tree.toplevel", &obj),
         {
-          if (auto n = fastcast!(Named) (obj))
-            if (!addsSelf(obj))
-              ns.add(n);
-          if (auto st = fastcast!(Statement) (obj))
-            (fastcast!(Scope) (ns)).addStatement(st);
-          if (auto tr = fastcast!(Tree) (obj)) mod.entries ~= tr;
+          static if (Stmt) {
+            if (auto st = fastcast!(Statement) (obj)) {
+              auto sc = fastcast!(Scope) (ns);
+              if (!sc) fail;
+              sc.addStatement(st);
+            }
+          } else {
+            if (auto n = fastcast!(Named) (obj))
+              if (!addsSelf(obj))
+                ns.add(n);
+            if (auto tr = fastcast!(Tree) (obj)) mod.entries ~= tr;
+          }
         }
       ))
       src.failparse("Failed to parse platform body. ");
@@ -42,5 +48,5 @@ Object gotPlatform(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotPlatform, "tree.toplevel.platform", null, "platform(");
-mixin DefaultParser!(gotPlatform, "tree.stmt.platform", "311", "platform(");
+mixin DefaultParser!(gotPlatform!(false), "tree.toplevel.platform", null, "platform(");
+mixin DefaultParser!(gotPlatform!(true), "tree.stmt.platform", "311", "platform(");

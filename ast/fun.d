@@ -1,7 +1,7 @@
 module ast.fun;
 
 import ast.namespace, ast.base, ast.variable, asmfile, ast.types, ast.scopes,
-  ast.constant, ast.pointer, ast.literals;
+  ast.constant, ast.pointer, ast.literals, ast.vardecl;
 
 import tools.functional;
 
@@ -179,6 +179,14 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   string exit() { return mangleSelf() ~ "_exit_label"; }
   static int funid_count;
+  void addStatement(Statement st) {
+    if (!tree) tree = new Scope;
+    if (!fastcast!(Scope) (tree)) {
+      logln(this);
+      fail;
+    }
+    fastcast!(Scope) (tree).addStatement(st);
+  }
   override {
     int framestart() { return _framestart; }
     bool addsSelf() { return true; }

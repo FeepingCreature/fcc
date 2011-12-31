@@ -52,6 +52,10 @@ void setupSysmods() {
       /*MARKER*/
     }
     alias string = char[]; // must be post-marker for free() to work properly
+    struct FrameInfo {
+      string fun, pos;
+      FrameInfo* prev;
+    }
     template sys_array_cast(T) {
       template sys_array_cast(U) {
         T sys_array_cast(U u) {
@@ -505,10 +509,6 @@ void setupSysmods() {
     }
     int _idiv(int a, b) { return _xdiv(a, b)[0]; }
     int _mod(int a, b) { return _xdiv(a, b)[1]; }
-    struct FrameInfo {
-      string fun, pos;
-      FrameInfo* prev;
-    }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;

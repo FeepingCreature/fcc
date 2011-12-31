@@ -80,15 +80,14 @@ IType arrayAsStruct(IType base, bool rich) {
     New(fun.type);
     fun.type.ret = Single!(Void);
     fun.name = name;
-    fun.fixup;
+    
     auto backup2 = namespace();
     scope(exit) namespace.set(backup2);
     namespace.set(fun);
-    auto sc = new Scope;
-    namespace.set(sc);
-    scope(exit) namespace.set(sc.sup);
-    fun.tree = sc;
-    sc.addStatement(fastcast!(Statement) (dg(fun)));
+    
+    fun.fixup;
+    fun.addStatement(fastcast!(Statement) (dg(fun)));
+    
     res.add(fun);
     fun.weak = true;
     mod.entries ~= fun;
