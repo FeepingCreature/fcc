@@ -127,7 +127,7 @@ IType dgAsStructType(Delegate dgtype) {
 
 import ast.casting;
 Expr dgAsStruct(Expr ex) {
-  auto dgtype = fastcast!(Delegate)~ ex.valueType();
+  auto dgtype = fastcast!(Delegate) (resolveType(ex.valueType()));
   if (!dgtype) return null;
   if (auto lv = fastcast!(LValue)~ ex) {
     return new ReinterpretCast!(LValue) (dgAsStructType(dgtype), lv);

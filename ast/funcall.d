@@ -361,11 +361,11 @@ class DgCall : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(dg, params);
   override void emitAsm(AsmFile af) {
-    auto dgtype = fastcast!(Delegate)~ dg.valueType();
+    auto dgtype = fastcast!(Delegate) (resolveType(dg.valueType()));
     callDg(af, dgtype.ret, params, dg);
   }
   override IType valueType() {
-    return (fastcast!(Delegate)~ dg.valueType()).ret;
+    return (fastcast!(Delegate) (resolveType(dg.valueType()))).ret;
   }
   override string toString() {
     return Format(dg, "(", params, ")");
