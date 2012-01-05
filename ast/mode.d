@@ -128,24 +128,25 @@ class PrefixCall : FunCall {
     this.prefix = prefix;
     this.sup = sup;
   }
-  Expr[] getParams() { return prefix ~ sup.getParams() ~ super.getParams(); }
+  Expr[] getParams() { return sup.getParams() ~ prefix ~ super.getParams(); }
   private this() { }
   PrefixCall dup() {
     auto res = new PrefixCall;
     res.fun = fun.flatdup;
     res.prefix = prefix.dup;
     res.sup = sup.dup;
+    foreach (param; params) res.params ~= param.dup;
     return res;
   }
   override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     defaultIterate!(prefix).iterate(dg, mode);
     sup.iterate(dg, mode);
+    super.iterate(dg, mode);
   }
   override void emitWithArgs(AsmFile af, Expr[] args) {
-    // logln("prefix call, prepend ", prefix);
     sup.emitWithArgs(af, prefix ~ args);
   }
-  override string toString() { return Format("prefixcall(", fun, " [prefix] ", prefix, " [rest] ", sup, ")"); }
+  override string toString() { return Format("prefixcall(", fun, " [prefix] ", prefix, " [rest] ", sup, ": ", super.getParams(), ")"); }
   override IType valueType() { return sup.valueType(); }
 }
 
