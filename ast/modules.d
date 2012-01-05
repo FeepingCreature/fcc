@@ -1,6 +1,6 @@
 module ast.modules;
 
-import ast.base, ast.namespace, ast.fun, ast.parse, ast.fold;
+import ast.base, ast.namespace, ast.parse, ast.fold, ast.fun;
 
 import tools.ctfe, tools.threadpool;
 
@@ -16,7 +16,7 @@ static this() {
 
 Threadpool tp;
 
-class Module : Namespace, Tree, Named, StoresDebugState {
+class Module : Namespace, IModule, Tree, Named, StoresDebugState {
   string name;
   string sourcefile;
   string cleaned_name() { return name.cleanup(); }
@@ -166,10 +166,8 @@ class Module : Namespace, Tree, Named, StoresDebugState {
   override Stuple!(IType, string, int)[] stackframe() { assert(false); }
 }
 
-TLS!(Module) current_module;
-
 static this() {
-  registerSetupable = (Setupable s) { current_module().addSetupable(s); };
+  registerSetupable = (Setupable s) { (fastcast!(Module) (current_module())).addSetupable(s); };
 }
 
 Module sysmod;

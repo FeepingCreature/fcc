@@ -36,7 +36,6 @@ void setupSysmods() {
       alias value-of = *T*:null;
     }
     void* memcpy2(void* dest, src, int n) {
-      // printf("memcpy(%p, %p, %i)\n", dest, src, n);
       return memcpy(dest, src, n);
     }
     context mem {
@@ -53,6 +52,10 @@ void setupSysmods() {
       /*MARKER*/
     }
     alias string = char[]; // must be post-marker for free() to work properly
+    struct FrameInfo {
+      string fun, pos;
+      FrameInfo* prev;
+    }
     template sys_array_cast(T) {
       template sys_array_cast(U) {
         T sys_array_cast(U u) {
@@ -61,8 +64,7 @@ void setupSysmods() {
           alias sz2 = u[2];
           auto destlen = ar.length * sz1;
           if destlen % sz2 {
-            writeln "Array cast failed: size/alignment mismatch - casting $(string-of U[0]) of $(size-of U[0]) to $(string-of T) of $(size-of T) (u of $(u[(1, 2)]) for $(ar.length) => $(destlen) => $(destlen % 1)). ";
-            _interrupt 3;
+            raise new Error "Array cast failed: size/alignment mismatch - casting $(string-of U[0]) of $(size-of U[0]) to $(string-of T) of $(size-of T) (u of $(u[(1, 2)]) for $(ar.length) => $(destlen) => $(destlen % 1)). ";
           }
           destlen /= sz2;
           T res;
@@ -153,17 +155,19 @@ void setupSysmods() {
       int length = snprintf(foo.ptr, foo.length, "%lli", l);
       if (length > 0) return foo[0 .. length];
       printf ("please increase the snprintf buffer %i\n", length);
-      _interrupt 3;
+      *int*:null=0;
     }
-    alias vec2f = vec(float, 2);
-    alias vec3f = vec(float, 3);
-    alias vec4f = vec(float, 4);
+    platform(!arm*) {
+      alias vec2f = vec(float, 2);
+      alias vec3f = vec(float, 3);
+      alias vec4f = vec(float, 4);
+      alias vec2d = vec(double, 2);
+      alias vec3d = vec(double, 3);
+      alias vec4d = vec(double, 4);
+    }
     alias vec2i = vec(int, 2);
     alias vec3i = vec(int, 3);
     alias vec4i = vec(int, 4);
-    alias vec2d = vec(double, 2);
-    alias vec3d = vec(double, 3);
-    alias vec4d = vec(double, 4);
     alias vec2l = vec(long, 2);
     alias vec3l = vec(long, 3);
     alias vec4l = vec(long, 4);
@@ -190,12 +194,14 @@ void setupSysmods() {
       if len > res.length len = res.length;
       return res[0 .. len];
     }
-    string ftoa(float f) {
-      short backup = fpucw;
-      fpucw = short:(fpucw | 0b111_111); // mask nans
-      string res = dtoa double:f;
-      fpucw = backup;
-      return res;
+    platform(!arm*) {
+      string ftoa(float f) {
+        short backup = fpucw;
+        fpucw = short:(fpucw | 0b111_111); // mask nans
+        string res = dtoa double:f;
+        fpucw = backup;
+        return res;
+      }
     }
     /*MARKER2*/
     class Object {
@@ -277,7 +283,7 @@ void setupSysmods() {
       }
       if needsResult {
         writeln "No exit matched $s!";
-        _interrupt 3;
+        *int*:null = 0;
       }
       // writeln "no matches";
       return _CondMarker*:null;
@@ -330,7 +336,7 @@ void setupSysmods() {
         cur = cur.prev;
       }
       writeln "Unhandled condition: $(err.toString()). ";
-      _interrupt 3;
+      *int*:null=0;
     }
     class MissedReturnError : Error {
       void init(string name) { super.init("End of $name reached without return"); }
@@ -362,26 +368,28 @@ void setupSysmods() {
       memcpy(res, ptr, length);
       return res;
     }
-    int fastfloor(float f) {
-      alias magicdelta = 0.000000015;
-      alias roundeps = 0.5 - magicdelta;
-      alias magic = 6755399441055744.0;
-      double d = double:f - roundeps + magic;
-      return (int*:&d)[0];
-    }
-    void fastfloor3f(vec3f v, vec3i* res) {
-      (vec4f*: &v).w = 0; // prevent fp error
-      if (v.x >= 1<<31 || v.y >= 1<<31 || v.z >= 1<<31) { // cvttps2dq will fail
-        res.x = fastfloor(v.x);
-        res.y = fastfloor(v.y);
-        res.z = fastfloor(v.z);
-        return;
+    platform(!arm*) {
+      int fastfloor(float f) {
+        alias magicdelta = 0.000000015;
+        alias roundeps = 0.5 - magicdelta;
+        alias magic = 6755399441055744.0;
+        double d = double:f - roundeps + magic;
+        return (int*:&d)[0];
       }
-      xmm[4] = v;
-      asm "cvttps2dq %xmm4, %xmm5";`"
-      asm `psrld $31, %xmm4`;"`
-      asm "psubd %xmm4, %xmm5";
-      *res = vec3i:xmm[5];
+      void fastfloor3f(vec3f v, vec3i* res) {
+        (vec4f*: &v).w = 0; // prevent fp error
+        if (v.x >= 1<<31 || v.y >= 1<<31 || v.z >= 1<<31) { // cvttps2dq will fail
+          res.x = fastfloor(v.x);
+          res.y = fastfloor(v.y);
+          res.z = fastfloor(v.z);
+          return;
+        }
+        xmm[4] = v;
+        asm "cvttps2dq %xmm4, %xmm5";`"
+        asm `psrld $31, %xmm4`;"`
+        asm "psubd %xmm4, %xmm5";
+        *res = vec3i:xmm[5];
+      }
     }
     struct RefCounted {
       void delegate() onZero;
@@ -442,7 +450,9 @@ void setupSysmods() {
       __setupModuleInfo();
       constructModules();
       
-      mxcsr |= (1 << 6) | (3 << 13) | (1 << 15); // Denormals Are Zero; Round To Zero; Flush To Zero.
+      platform(x86) {
+        mxcsr |= (1 << 6) | (3 << 13) | (1 << 15); // Denormals Are Zero; Round To Zero; Flush To Zero.
+      }
       executable = argv[0][0..strlen(argv[0])];
       argv ++; argc --;
       auto args = new string[] argc;
@@ -482,481 +492,24 @@ void setupSysmods() {
         if (mesg) raise new AssertError mesg;
         else raise new AssertError "Assertion failed! ";
     }
+    (int, int) _xdiv(int a, b) {
+      if (b > a) return (0, a);
+      int mask = 1, res;
+      int half_a = a >> 1;
+      while (b < half_a) { mask <<= 1; b <<= 1; }
+      while mask {
+        if (b <= a) {
+          res |= mask;
+          a -= b;
+        }
+        mask >>= 1;
+        b >>= 1;
+      }
+      return (res, a);
+    }
+    int _idiv(int a, b) { return _xdiv(a, b)[0]; }
+    int _mod(int a, b) { return _xdiv(a, b)[1]; }
   `.dup; // make sure we get different string on subsequent calls
-  if (isARM) {
-    src = `
-      module sys;
-      pragma(lib, "m");
-      alias strict bool = int;
-      alias true = bool:1;
-      alias false = bool:0;
-      alias null = void*:0;
-      alias ubyte = byte; // TODO
-      extern(C) {
-        void puts(char*);
-        void printf(char*, ...);
-        void* malloc(int);
-        void* calloc(int, int);
-        void free(void*);
-        void* realloc(void* ptr, size_t size);
-        void* memcpy(void* dest, src, int n);
-        int memcmp(void* s1, s2, int n);
-        int snprintf(char* str, int size, char* format, ...);
-        float sqrtf(float);
-        double sqrt(double);
-        int strlen(char*);
-      }
-      bool streq(char[] a, b) {
-        if a.length != b.length return false;
-        for (int i = 0; i < a.length; ++i)
-          if a[i] != b[i] return false;
-        return true;
-      }
-      template value-of(T) {
-        alias value-of = *T*:null;
-      }
-      void* memcpy2(void* dest, src, int n) {
-        int cmp = 0xbaffecc0;
-        if (int:dest == cmp) *int*:null=0;
-        return memcpy(dest, src, n);
-      }
-      context mem {
-        void* delegate(int)           malloc_dg = &malloc;
-        void* delegate(int, int)      calloc_dg = &calloc;
-        void* delegate(int)           calloc_atomic_dg; // allocate data, ie. memory containing no pointers
-        void delegate(void*)          free_dg = &free;
-        void* delegate(void*, size_t) realloc_dg = &realloc;
-        void* malloc (int i)             { return malloc_dg(i); }
-        void* calloc_atomic (int i)      { if (!calloc_atomic_dg) return calloc(i, 1); return calloc_atomic_dg(i); }
-        void* calloc (int i, int k)      { return calloc_dg(i, k); }
-        void  free   (void* p)           { free_dg(p); }
-        void* realloc(void* p, size_t s) { return realloc_dg(p, s); }
-        /*MARKER*/
-      }
-      alias string = char[]; // must be post-marker for free() to work properly
-      template sys_array_cast(T) {
-        template sys_array_cast(U) {
-          T sys_array_cast(U u) {
-            alias ar = u[0];
-            alias sz1 = u[1];
-            alias sz2 = u[2];
-            auto destlen = ar.length * sz1;
-            {
-              int d, x;
-              while (x + sz2 <= destlen) { x += sz2; d ++; }
-              int r = destlen - x;
-              if r {
-                writeln "Array cast failed: size/alignment mismatch - casting $(string-of U[0]) of $(size-of U[0]) to $(string-of T) of $(size-of T) (u of $(u[(1, 2)]) for $(ar.length) => $(destlen)). ";
-                *int*:null = 0;
-                // _interrupt 3;
-              }
-              destlen = d;
-            }
-            T res;
-            auto resptr = type-of res[0] * :ar.ptr;
-            res = resptr[0 .. destlen];
-            return res;
-          }
-        }
-      }
-      template append2(T) {
-        T[~] append2(T[~]* l, T[] r) {
-          // printf("append2 %i to %i, cap %i\n", r.length, l.length, l.capacity);
-          if (l.capacity < l.length + r.length) {
-            auto size = l.length + r.length, size2 = l.length * 2;
-            auto newsize = size;
-            if (size2 > newsize) newsize = size2;
-            T[~] res = (new T[] newsize)[0 .. size];
-            res[0 .. l.length] = (*l)[];
-            res[l.length .. size] = r;
-            res.capacity = newsize;
-            return res;
-          } else {
-            T[~] res = l.ptr[0 .. l.length + r.length]; // make space
-            res.capacity = l.capacity;
-            l.capacity = 0; // claimed!
-            res[l.length .. res.length] = r;
-            return res;
-          }
-        }
-      }
-      template append2e(T) {
-        T[~] append2e(T[~]* l, T r) {
-          return append2!T(l, (&r)[0..1]);
-        }
-      }
-      // maybe just a lil' copypaste
-      template append3(T) {
-        T[auto ~] append3(T[auto ~]* l, T[] r) {
-          // printf("append3(<%d %p %d>, <%d %p>)\n", l.length, l.ptr, l.capacity, r.length, r.ptr);
-          if !r.length return *l;
-          if (l.capacity < l.length + r.length) {
-            auto size = l.length + r.length, size2 = l.length * 2;
-            auto newsize = size2;
-            if (size > newsize) newsize = size;
-            auto full = new T[] newsize;
-            // printf("allocated %p as %d (%d)\n", full.ptr, full.length, newsize);
-            T[auto ~] res = T[auto~]:(full[0 .. size]);
-            res.capacity = newsize;
-            res[0 .. l.length] = (*l)[];
-            // printf("free %d, %p (cap %d)\n", l.length, l.ptr, l.capacity);
-            if l.length && l.capacity // otherwise, initialized from slice
-              mem.free(void*:l.ptr);
-            // printf("done\n");
-            res[l.length .. size] = r;
-            // printf("return %p, %d\n", res.ptr, res.length);
-            return res;
-          } else {
-            T[auto ~] res = T[auto~]:l.ptr[0 .. l.length + r.length]; // make space
-            res.capacity = l.capacity;
-            l.capacity = 0; // claimed!
-            // printf("reuse %p, %d with %p, %d\n", l.ptr, l.length, r.ptr, r.length);
-            res[l.length .. res.length] = r;
-            // printf("copied, return\n");
-            return res;
-          }
-        }
-      }
-      template append3e(T) {
-        T[auto ~] append3e(T[auto ~]* l, T r) {
-          // printf("hi, append3e here - incoming %d, add 1\n", l.length);
-          return append3!T(l, (&r)[0..1]);
-        }
-      }
-      string itoa(int i) {
-        auto res = new char[] 32;
-        int length = snprintf(res.ptr, res.length, "%li", i);
-        return res[0..length];
-      }
-      string btoa(bool b) {
-        if b return "true";
-        return "false";
-      }
-      string ltoa(long l) {
-        auto foo = new char[] 32;
-        int length = snprintf(foo.ptr, foo.length, "%lli", l);
-        if (length > 0) return foo[0 .. length];
-        printf ("please increase the snprintf buffer %i\n", length);
-        *int*:null = 0;
-        // _interrupt 3;
-      }
-      alias vec2i = vec(int, 2);
-      alias vec3i = vec(int, 3);
-      alias vec4i = vec(int, 4);
-      alias vec2d = vec(double, 2);
-      alias vec3d = vec(double, 3);
-      alias vec4d = vec(double, 4);
-      alias vec2l = vec(long, 2);
-      alias vec3l = vec(long, 3);
-      alias vec4l = vec(long, 4);
-      extern(C) int fgetc(void*);
-      extern(C) int fflush(void*);
-      extern(C) void* stdin, stdout;
-      string ptoa(void* p) {
-        auto res = new char[]((size-of size_t) * 2 + 2 + 1);
-        snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
-        return res[0 .. res.length - 1];
-      }
-      string readln() {
-        char[auto~] buffer;
-        while (!buffer.length || buffer[$-1] != "\n") { buffer ~= char:byte:fgetc(stdin); }
-        return buffer[0..$-1];
-      }
-      void writeln(string line) {
-        printf("%.*s\n", line.length, line.ptr);
-        fflush(stdout);
-      }
-      string dtoa(double d) {
-        auto res = new char[] 128; // yes, actually does need to be this big >_>
-        int len = snprintf(res.ptr, res.length, "%f", d);
-        if len > res.length len = res.length;
-        return res[0 .. len];
-      }
-      /*MARKER2*/
-      class Object {
-        string toString() return "Object";
-      }
-      void* _fcc_dynamic_cast(void* ex, string id, int isIntf) {
-        if (!ex) return null;
-        if (isIntf) ex = void*:(void**:ex + **int**:ex);
-        auto obj = Object: ex;
-        // writeln "dynamic cast: obj $ex to $id => $(obj.dynamicCastTo id)";
-        return obj.dynamicCastTo id;
-      }
-      struct _GuardRecord {
-        void delegate() dg;
-        _GuardRecord* prev;
-      }
-      _GuardRecord* _record;
-      interface IExprValue {
-        IExprValue take(string type, void* target);
-        bool isEmpty();
-      }
-      interface ITupleValue : IExprValue {
-        int getLength();
-        IExprValue getMember(int which);
-      }
-      template takeValue(T) {
-        (T, IExprValue) takeValue(IExprValue iev) {
-          T res = void;
-          auto niev = iev.take(T.mangleof, &res);
-          return (res, niev);
-        }
-      }
-      import std.c.setjmp; // for conditions
-      
-      struct _Handler {
-        string id;
-        _Handler* prev;
-        void* delimit;
-        void delegate(Object) dg;
-        bool accepts(Object obj) {
-          return eval !!obj.dynamicCastTo(id);
-        }
-      }
-
-      _Handler* __hdl__;
-      
-      void* _cm;
-      struct _CondMarker {
-        string name;
-        void delegate() guard_id;
-        _Handler* old_hdl;
-        _CondMarker* prev;
-        jmp_buf target;
-        void jump() {
-          if (!guard_id.fun) {
-            while _record { _record.dg(); _record = _record.prev; }
-          } else {
-            // TODO: dg comparisons
-            while (_record.dg.fun != guard_id.fun) && (_record.dg.data != guard_id.data) {
-              _record.dg();
-              _record = _record.prev;
-            }
-          }
-          _cm = &this;
-          __hdl__ = old_hdl;
-          
-          longjmp (&target, 1);
-        }
-      }
-      
-      _CondMarker* _lookupCM(string s, _Handler* h, bool needsResult) {
-        // writeln "look up condition marker for $s";
-        auto cur = _CondMarker*:_cm;
-        // if (h) writeln "h is $h, elements $(h.(id, prev, delimit, dg)), cur $cur";
-        while (cur && (!h || void*:cur != h.delimit)) {
-          // writeln "is it $(cur.name)?";
-          if (cur.name == s) return cur;
-          cur = cur.prev;
-        }
-        if needsResult {
-          writeln "No exit matched $s!";
-          *int*:null = 0;
-          // _interrupt 3;
-        }
-        // writeln "no matches";
-        return _CondMarker*:null;
-      }
-      
-      _Handler* _findHandler(Object obj) {
-        auto cur = __hdl__;
-        while cur {
-          if cur.accepts(obj) return cur;
-          cur = cur.prev;
-        }
-        return _Handler*:null;
-        // writeln "No handler found to match $obj. ";
-        // _interrupt 3;
-      }
-      class Error {
-        string msg;
-        void init(string s) msg = s;
-        string toString() { return "Error: $msg"; }
-      }
-      class Signal : Error {
-        void init(string s) { super.init s; }
-      }
-      class BoundsError : Error {
-        void init(string s) super.init s;
-        string toString() { return "BoundsError: $(super.toString())"; }
-      }
-      template bounded_array_access(T) {
-        alias ret = type-of (value-of!T)[0].ptr;
-        ret bounded_array_access(T t) {
-          auto ar = t[0];
-          auto pos = t[1];
-          auto info = t[2];
-          if (pos >= ar.length)
-            raise new BoundsError "Index access out of bounds: $pos >= length $(ar.length) at $info";
-          return ar.ptr + pos;
-        }
-      }
-      void raise-signal(Signal sig) {
-        auto cur = __hdl__;
-        while cur {
-          if cur.accepts(sig) cur.dg(sig);
-          cur = cur.prev;
-        }
-      }
-      void raise(Error err) {
-        auto cur = __hdl__;
-        while cur {
-          if cur.accepts(err) cur.dg(err);
-          cur = cur.prev;
-        }
-        writeln "Unhandled condition: $(err.toString()). ";
-        *int*:null = 0;
-        // _interrupt 3;
-      }
-      class MissedReturnError : Error {
-        void init(string name) { super.init("End of $name reached without return"); }
-      }
-      void[] dupvcache;
-      alias BLOCKSIZE = 16384;
-      void missed_return(string name) {
-        raise new MissedReturnError name;
-      }
-      void[] fastdupv(void[] v) {
-        void[] res;
-        if (v.length > BLOCKSIZE) {
-          res = mem.malloc(v.length)[0..v.length];
-        } else {
-          if (dupvcache.length && dupvcache.length < v.length) {
-            // can't free the middle!
-            // mem.free(dupvcache.ptr);
-            dupvcache = null;
-          }
-          if (!dupvcache.length) dupvcache = new void[] BLOCKSIZE;
-          res = dupvcache[0 .. v.length];
-          dupvcache = dupvcache[v.length .. $];
-        }
-        res[] = v;
-        return res;
-      }
-      void* dupv(void* ptr, int length) {
-        auto res = mem.malloc(length);
-        memcpy(res, ptr, length);
-        return res;
-      }
-      struct RefCounted {
-        void delegate() onZero;
-        int refs;
-        void claim() { refs ++; }
-        void release() { refs --; if !refs onZero(); }
-      }
-      reassign string replace(string source, string what, string with) {
-        int i = 0;
-        char[auto~] res;
-        while (source.length >= what.length && i <= source.length - what.length) {
-          if (source[i .. i+what.length] == what) {
-            res ~= source[0 .. i]; res ~= with;
-            source = source[i + what.length .. $];
-            i = 0;
-          } else i++;
-        }
-        if !res.length return source;
-        res ~= source;
-        return res[];
-      }
-      class ModuleInfo {
-        string name, sourcefile;
-        void* dataStart, dataEnd;
-        bool compiled; // does this have an .o file?
-        void function()[auto~] constructors;
-        bool constructed;
-        string[] _imports;
-        ModuleInfo[auto~] imports;
-        string toString() { return "[module $name]"; }
-      }
-      ModuleInfo[auto~] __modules;
-      ModuleInfo lookupInfo(string name) {
-        for auto mod <- __modules if mod.name == name return mod;
-        raise new Error "No such module: $name";
-      }
-      void __setupModuleInfo() { }
-      void constructModules() {
-        for auto mod <- __modules {
-          for auto str <- mod._imports
-            mod.imports ~= lookupInfo str;
-        }
-        void callConstructors(ModuleInfo mod) {
-          if mod.constructed return;
-          mod.constructed = true;
-          for auto mod2 <- mod.imports
-            callConstructors mod2;
-          for auto constr <- mod.constructors
-            constr();
-        }
-        for auto mod <- __modules { callConstructors mod; }
-      }
-      /* shared TODO figure out why this crashes */ string executable;
-      shared int __argc;
-      shared char** __argv;
-      int main2(int argc, char** argv) {
-        __argc = argc; __argv = argv;
-        __setupModuleInfo();
-        constructModules();
-        
-        // mxcsr |= (1 << 6) | (3 << 13) | (1 << 15); // Denormals Are Zero; Round To Zero; Flush To Zero.
-        executable = argv[0][0..strlen(argv[0])];
-        argv ++; argc --;
-        auto args = new string[] argc;
-        {
-          int i;
-          for (auto arg <- argv[0 .. argc]) {
-            args[i++] = arg[0 .. strlen(arg)];
-          }
-        }
-        int errnum;
-        set-handler (Error err) {
-          writeln "Unhandled error: '$(err.toString())'. ";
-          // writeln "Invoking debugger interrupt. Continue to exit. ";
-          // writeln "Invoking GDB. ";
-          // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
-          errnum = 1;
-          // _interrupt 3;
-          invoke-exit "main-return";
-        }
-        define-exit "main-return" return errnum;
-      }
-      int __c_main(int argc, char** argv) { // handle the callstack frame 16-byte alignment
-      }
-      int __win_main(void* instance, prevInstance, char* cmdline, int cmdShow) {
-      }
-      template Iterator(T) {
-        class Iterator {
-          T value;
-          bool advance() { raise new Error "Iterator::advance() not implemented! "; }
-        }
-      }
-      class AssertError : Error {
-        void init(string s) super.init "AssertError: $s";
-      }
-      void assert(bool cond, string mesg = string:null) {
-        if (!cond)
-          if (mesg) raise new AssertError mesg;
-          else raise new AssertError "Assertion failed! ";
-      }
-      (int, int) _xdiv(int a, b) {
-        if (b > a) return (0, a);
-        int mask = 1, res;
-        int half_a = a >> 1;
-        while (b < half_a) { mask <<= 1; b <<= 1; }
-        while mask {
-          if (b <= a) {
-            res |= mask;
-            a -= b;
-          }
-          mask >>= 1;
-          b >>= 1;
-        }
-        return (res, a);
-      }
-      int _idiv(int a, b) { return _xdiv(a, b)[0]; }
-      int _mod(int a, b) { return _xdiv(a, b)[1]; }
-    `.dup;
-  }
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;
   sysmod = fastcast!(Module) (parsecon.parse(src, "tree.module"));

@@ -396,11 +396,12 @@ abstract class BinopExpr : Expr, HasInfo {
     }
     string getInfo() { return op; }
     IType valueType() { // TODO: merge e1, e2
-      if (e1.valueType() != e2.valueType()) {
+      auto e1vt = e1.valueType();
+      if (e1vt != e2.valueType()) {
         logln("Divergent types: ", e1.valueType(), " and ", e2.valueType());
         fail;
       }
-      return e1.valueType();
+      return e1vt;
     }
     abstract BinopExpr dup();
     abstract void emitAsm(AsmFile af);

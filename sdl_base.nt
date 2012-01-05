@@ -1,0 +1,77 @@
+module sdl_base;
+
+public import c.SDL.SDL;
+import std.string;
+
+pragma(lib, "SDL");
+
+class Surface {
+  SDL_Surface* back;
+  RefCounted rc;
+  void free() { SDL_FreeSurface back; }
+  alias release = rc.release();
+  alias claim = rc.claim();
+  alias w = back.w;
+  alias h = back.h;
+  void flip() SDL_Flip back;
+  void init() {
+    rc.onZero = &free;
+  }
+  void init(SDL_Surface* surf) {
+    back = surf;
+    init();
+  }
+}
+
+void init() { SDL_Init(SDL_INIT_VIDEO); }
+
+shared bool x 1024 keyPressed, keyPushed;
+
+shared vec2i mouse-pos;
+
+shared bool mouse-clicked, mouse-pressed, mouse-released;
+
+shared void delegate(int, int) onResize;
+
+// pragma(msg, string-of type-of (*SDL_Event*: null).resize.w);
+
+void update() {
+  (mouse-clicked, mouse-released) = false x 2;
+  for int i <- 0..keyPushed.length
+    keyPushed[i] = false;
+  
+  while SDL_PollEvent &SDL_Event ev using ev {
+    if type == 12
+      raise new SDLQuit;
+    else if type == SDL_KEYDOWN using key.keysym {
+      if (sym < keyPressed.length) { keyPressed[sym] = true; keyPushed[sym] = true; }
+    }
+    else if type == SDL_KEYUP using key.keysym {
+      if (sym < keyPressed.length) { keyPressed[sym] = false; }
+    }
+    else if type == SDL_MOUSEMOTION using motion {
+      mouse-pos = vec2i(x, y);
+    }
+    else if type == SDL_MOUSEBUTTONDOWN {
+      mouse-clicked = true;
+      mouse-pressed = true;
+    }
+    else if type == SDL_MOUSEBUTTONUP {
+      mouse-pressed = false;
+      mouse-released = true;
+    } else if type == SDL_VIDEORESIZE using resize {
+      int w = w, h = h;
+      if (onResize) { onResize(w, h); }
+    } else writeln "| Unknown event: $$short:type";
+  }
+}
+
+class SDL-Error : Error {
+  void init(string fun, int res) {
+    super.init "$fun: $res: $(CToString SDL_GetError())";
+  }
+}
+
+class SDLQuit : Error {
+  void init() { super.init "SDL_QUIT"; }
+}

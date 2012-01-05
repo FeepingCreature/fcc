@@ -17,7 +17,7 @@ Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
     auto tr = fastcast!(Tree) (res);
     auto he = namespace().get!(HandlesEmits);
     if (!he || !he.handledEmit(tr))
-      current_module().entries ~= tr;
+      fastcast!(Module) (current_module()).entries ~= tr;
     return res;
   } else return null;
 }

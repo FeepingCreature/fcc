@@ -719,3 +719,12 @@ class OffsetExpr : LValue {
     }
   }
 }
+
+interface IModule : Named { }
+
+TLS!(IModule) current_module;
+
+// some namespaces behave differently when used in a using() statement than in property mode (a.b)
+interface WithAware {
+  Object forWith();
+}

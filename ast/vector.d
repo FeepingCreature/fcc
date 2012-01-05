@@ -471,7 +471,7 @@ Structure mkVecStruct(Vector vec) {
     res.add(new ExprAlias(weirdlen, "sqrt_sum"));
   }
 
-  cache ~= stuple(res, vec, current_module());
+  cache ~= stuple(res, vec, fastcast!(Module) (current_module()));
   return res;
 }
 

@@ -232,6 +232,10 @@ bool cantBeCall(string s) {
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
 bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res, bool test, bool precise) {
+  if (!params.length) {
+    auto t2 = text;
+    if (t2.accept(";")) return true; // paramless call
+  }
   Expr arg;
   auto backup_text = text; 
   if (!backup_text.length) return false; // wat
@@ -256,7 +260,8 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
   if (isTuple) propcfg().withTuple = false;
   
   if (!rest(text, "tree.expr.cond.other", &arg) && !rest(text, "tree.expr _tree.expr.arith", &arg)) {
-    return false;
+    if (params.length) return false;
+    else arg = mkTupleExpr();
   }
   return matchedCallWith(arg, params, res, info, backup_text, test, precise);
 }
@@ -361,11 +366,11 @@ class DgCall : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(dg, params);
   override void emitAsm(AsmFile af) {
-    auto dgtype = fastcast!(Delegate)~ dg.valueType();
+    auto dgtype = fastcast!(Delegate) (resolveType(dg.valueType()));
     callDg(af, dgtype.ret, params, dg);
   }
   override IType valueType() {
-    return (fastcast!(Delegate)~ dg.valueType()).ret;
+    return (fastcast!(Delegate) (resolveType(dg.valueType()))).ret;
   }
   override string toString() {
     return Format(dg, "(", params, ")");
@@ -402,7 +407,10 @@ static this() {
     auto smod = fastcast!(Module) (fc.fun.sup);
     if (!smod || !sysmod || smod !is sysmod) return null;
     auto args = fc.getParams();
-    assert(args.length == 3);
+    if (args.length != 3) {
+      logln("wrong number of args found: ", fc, " - ", args);
+      fail;
+    }
     string[3] str;
     foreach (i, arg; args) {
       arg = foldex(arg);

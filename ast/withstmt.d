@@ -2,6 +2,16 @@ module ast.withstmt;
 
 import ast.base, ast.parse, ast.vardecl, ast.namespace, ast.guard, ast.scopes, ast.fun, ast.casting, ast.assign;
 
+RelNamespace myresolve(RelNamespace rn) {
+  if (auto wa = fastcast!(WithAware) (rn)) return fastcast!(RelNamespace) (wa.forWith());
+  return rn;
+}
+
+Namespace myresolve(Namespace ns) {
+  if (auto wa = fastcast!(WithAware) (ns)) return fastcast!(Namespace) (wa.forWith());
+  return ns;
+}
+
 class WithStmt : Namespace, Statement, ScopeLike {
   RelNamespace rns;
   Stuple!(RelNamespace, Expr) [] rnslist;
@@ -64,10 +74,10 @@ class WithStmt : Namespace, Statement, ScopeLike {
     
     ex = context;
     
-    rns = fastcast!(RelNamespace)~ ex.valueType();
+    rns = fastcast!(RelNamespace) (ex.valueType());
     
     if (auto srns = fastcast!(SemiRelNamespace) (ex.valueType())) rns = srns.resolve();
-    ns = fastcast!(Namespace)~ ex; // say, context
+    ns = fastcast!(Namespace) (ex); // say, context
     
     if (!rns && !ns && !isc) {
       Expr ex2 = context;
@@ -123,14 +133,14 @@ class WithStmt : Namespace, Statement, ScopeLike {
       if (name == "this") block = true;
       if (!local && !block) {
         if (rns)
-          if (auto res = rns.lookupRel(name, context))
+          if (auto res = myresolve(rns).lookupRel(name, context))
             return res;
         if (rnslist)
           foreach (rns; rnslist)
-            if (auto res = rns._0.lookupRel(name, rns._1))
+            if (auto res = myresolve(rns._0).lookupRel(name, rns._1))
               return res;
         if (ns)
-          if (auto res = ns.lookup(name, true))
+          if (auto res = myresolve(ns).lookup(name, true))
             return res;
       }
       return sup.lookup(name);

@@ -78,7 +78,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(st, "tree.toplevel", &obj)) return false;
     // namespace().get!(Module).entries ~= tr;
     if (auto tr = fastcast!(Tree) (obj))
-      current_module().entries ~= tr;
+      fastcast!(Module) (current_module()).entries ~= tr;
     if (fastcast!(GlobVarDecl) (obj) || fastcast!(Function) (obj)) {
     } else if (!fastcast!(NoOp) (obj)) {
       logln("! ", obj);

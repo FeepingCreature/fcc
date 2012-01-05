@@ -18,11 +18,18 @@ bool incompat(IType a, IType b) {
 
 // man this is such a hack.
 import ast.templ; // this also!
-class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
+class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
   Expr firstParam;
   IType fpvt;
+  bool implicit;
   this(Expr firstParam) { this.firstParam = firstParam; sup = namespace(); fpvt = firstParam.valueType(); }
   override {
+    Object forWith() {
+      auto res = new FirstParamOverrideSpace(firstParam);
+      res.sup = sup;
+      res.implicit = true;
+      return res;
+    }
     string toString() { return Format("fpos(", firstParam, ")"); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
@@ -34,31 +41,36 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
         return new PrefixTemplate(firstParam, templ);
       }
       PrefixFunction processFun(Function fun) {
-        if (fastcast!(NestedFunction)~ fun) return null;
+        // if (fastcast!(NestedFunction)~ fun) return null;
         auto params = fun.getParams();
         if (!params.length) return null;
         auto pt = params[0].type;
-        auto ex = firstParam;
-        if (incompat(ex.valueType(), pt)) {
-          // logln("Incompatible types: ", ex.valueType(), " and ", pt);
+        if (incompat(fpvt, pt)) {
+          // logln("Incompatible types: ", fpvt, " and ", pt);
           // fail;
           return null;
         }
-        auto ex2 = ex;
+        auto ex2 = firstParam;
         if (!gotImplicitCast(ex2, (IType it) { return test(it == pt); })) {
-          // logln("no cast from ", ex, " to ", pt);
+          // logln("no cast from ", firstParam, " to ", pt);
           return null;
         }
         return new PrefixFunction(ex2, fun);
       }
       if (auto fun = fastcast!(Function) (res)) {
-        if (auto res = processFun(fun)) return res;
+        if (auto res2 = processFun(fun)) {
+          if (implicit) // comes from using() = not 100% sure if a match
+            return fastcast!(Object) ((new OverloadSet(fun.name)).extend(fun).extend(res2));
+          else // comes from a.b = definitely a match
+            return res2;
+        }
       }
       if (auto os = fastcast!(OverloadSet) (res)) {
         Extensible resx = new OverloadSet(os.name);
         foreach (fun; os.funs)
-          if (auto res = processFun(fun))
+          if (auto res = processFun(fun)) {
             resx = resx.extend(res);
+          }
         auto os2 = fastcast!(OverloadSet) (resx);
         if (!os2.funs.length) return null;
         if (os2.funs.length == 1) return os2.funs[0];

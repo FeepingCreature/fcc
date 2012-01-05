@@ -22,7 +22,7 @@ void fixupMain() {
         af.mmove4("$_sys_tls_data_start", "%esi");
       }
       if (af.currentStackDepth != 4 && !isARM) // scrap space for ReturnStmt
-        throw new Exception("stack depth assumption violated");
+        throw new Exception(Format("stack depth assumption violated (", af.currentStackDepth, ")"));
       // time for MAGIC
       int magic;
       Expr cvar, pvar;
@@ -90,7 +90,7 @@ void fixupMain() {
   auto sc = fastcast!(Scope)~ main2.tree;
   if (!sc) { logln("fail 11: ", main2.tree); fail(); }
   auto argvar = fastcast!(Expr)~ sc.lookup("args");
-  if (!argvar) { logln("fail 12: ", sc.field); fail(); }
+  if (!argvar) { logln("fail 12: ", sc.field, " ", main2.field); fail(); }
   auto cvar = fastcast!(Expr)~ sc.lookup("argc"), pvar = fastcast!(Expr)~ sc.lookup("argv");
   if (!gotMain) {
     logln("main function not found! ");

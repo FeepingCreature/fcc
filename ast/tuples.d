@@ -40,9 +40,14 @@ class Tuple : Type {
 Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
   Object obj; // exclusively for non-exprs.
   auto t2 = text;
-  if (!rest(t2, "tree.expr", &obj, (Object obj) { return !fastcast!(Expr) (obj); }))
+  bool globmode;
+  if (!t2.accept("(")) {
+    if (t2.accept("$")) globmode = true;
+    else return null;
+  }
+  if (!rest(t2, "tree.expr", &obj, (Object obj) { return globmode ^ !fastcast!(Expr) (obj); }))
     return null;
-  if (t2.accept(")")) {
+  if (globmode || t2.accept(")")) {
     text = t2;
     return obj;
   } else {
@@ -51,7 +56,7 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
 }
-mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6", "(");
+mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
 
 Tuple mkTuple(IType[] types...) {
   auto tup = new Tuple;

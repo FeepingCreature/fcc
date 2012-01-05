@@ -1,7 +1,7 @@
 module ast.enums;
 
 import parseBase;
-import ast.base, ast.types, ast.namespace, ast.casting, ast.math, ast.opers;
+import ast.base, ast.types, ast.namespace, ast.casting, ast.math, ast.opers, ast.fold;
 
 class Enum : Namespace, IType, Named, ExprLikeThingy {
   string name;
@@ -85,7 +85,7 @@ grabIdentifier:
       t2.failparse("Enum value of ", backupval.valueType(), " did not match ",
                     base);
   } else {
-    val = lookupOp("+", val, one);
+    val = foldex(lookupOp("+", val, one));
   }
   en.addEntry(idname, val);
   if (t2.accept(",")) goto grabIdentifier;

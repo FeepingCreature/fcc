@@ -16,7 +16,7 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("import")) return null;
   text = t2;
   // import a, b, c;
-  auto mod = current_module();
+  auto mod = fastcast!(Module) (current_module());
   string[] newImports;
   if (!(
     text.bjoin(text.gotIdentifier(m, true), text.accept(","),

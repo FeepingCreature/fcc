@@ -55,7 +55,7 @@ import ast.structfuns, ast.modules, ast.aliasing, ast.properties, ast.scopes;
 Stuple!(IType, bool, Module, IType)[] cache;
 bool[IType] isArrayStructType;
 IType arrayAsStruct(IType base, bool rich) {
-  auto mod = current_module();
+  auto mod = fastcast!(Module) (current_module());
   foreach (entry; cache)
     if (entry._0 == base /* hax */
      && entry._1 == rich
@@ -75,29 +75,29 @@ IType arrayAsStruct(IType base, bool rich) {
   scope(exit) namespace.set(backup);
   namespace.set(res);
   
-  void mkFun(string name, Tree delegate(RelFunction) dg) {
+  void mkFun(string name, Tree delegate() dg) {
     auto fun = new RelFunction(res);
     New(fun.type);
     fun.type.ret = Single!(Void);
     fun.name = name;
-    fun.fixup;
-    auto backup2 = namespace();
-    scope(exit) namespace.set(backup2);
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    fun.sup = backup;
     namespace.set(fun);
-    auto sc = new Scope;
-    namespace.set(sc);
-    scope(exit) namespace.set(sc.sup);
-    fun.tree = sc;
-    sc.addStatement(fastcast!(Statement) (dg(fun)));
+    
+    fun.fixup;
+    fun.addStatement(fastcast!(Statement) (dg()));
+    
     res.add(fun);
     fun.weak = true;
     mod.entries ~= fun;
   }
-  mkFun("free", delegate Tree(RelFunction rf) {
+  mkFun("free", delegate Tree() {
     if (rich) return iparse!(Statement, "array_free", "tree.stmt")
-                  (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, rf);
+                  (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, namespace());
     else return iparse!(Statement, "array_free", "tree.stmt")
-                  (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, rf);
+                  (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, namespace());
   });
   if (!rich) {
     auto propbackup = propcfg().withTuple;
@@ -111,14 +111,14 @@ IType arrayAsStruct(IType base, bool rich) {
     ));
   }
   if (base != Single!(Void) && base.size <= 16 /* max supported return size */) {
-    mkFun("popEnd", delegate Tree(RelFunction rf) {
-      rf.type.ret = base;
+    mkFun("popEnd", delegate Tree() {
+      namespace().get!(RelFunction).type.ret = base;
       return new ReturnStmt(
         new StatementAndExpr(
           iparse!(Statement, "array_setpop", "tree.stmt")
-                (`length --;`, rf),
+                (`length --;`, namespace()),
           iparse!(Expr, "array_getpop", "tree.expr")
-                (`*(ptr + length)`, rf)
+                (`*(ptr + length)`, namespace())
         )
       );
     });
