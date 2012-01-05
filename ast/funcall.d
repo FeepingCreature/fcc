@@ -407,7 +407,10 @@ static this() {
     auto smod = fastcast!(Module) (fc.fun.sup);
     if (!smod || !sysmod || smod !is sysmod) return null;
     auto args = fc.getParams();
-    assert(args.length == 3);
+    if (args.length != 3) {
+      logln("wrong number of args found: ", fc, " - ", args);
+      fail;
+    }
     string[3] str;
     foreach (i, arg; args) {
       arg = foldex(arg);

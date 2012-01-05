@@ -15,7 +15,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   Statement st1, st2;
   auto t3 = t2, t4 = t2;
   auto sc = namespace().get!(Scope)();
-  assert(!!sc, Format("::", namespace()));
+  if (!sc) { logln("::", namespace()); fail; }
   
   if (type == "onSuccess" || type == "onExit") {
     pushCache;
