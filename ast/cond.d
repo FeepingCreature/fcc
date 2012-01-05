@@ -60,6 +60,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
       type.params ~= Argument(Single!(Array, Single!(Char)), "n");
       auto backup2 = namespace();
       scope(exit) namespace.set(backup2);
+      sup = backup2;
       namespace.set(nf2);
       fixup;
       

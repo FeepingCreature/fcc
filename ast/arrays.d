@@ -81,8 +81,9 @@ IType arrayAsStruct(IType base, bool rich) {
     fun.type.ret = Single!(Void);
     fun.name = name;
     
-    auto backup2 = namespace();
-    scope(exit) namespace.set(backup2);
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    fun.sup = backup;
     namespace.set(fun);
     
     fun.fixup;

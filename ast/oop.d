@@ -337,8 +337,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   
   string coarseSrc;
   Namespace coarseCtx;
+  IModule coarseMod;
   void parseMe() {
-    if (!coarseSrc || !coarseCtx) {
+    if (!coarseSrc || !coarseCtx || !coarseMod) {
       if (!data) {
         asm { int 3; }
       }
@@ -362,6 +363,11 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     namespace.set(coarseCtx);
     coarseCtx = null;
     
+    auto backupmod = current_module();
+    scope(exit) current_module.set(backupmod);
+    current_module.set(coarseMod);
+    coarseMod = null;
+    
     pushCache();
     scope(exit) popCache();
     
@@ -382,14 +388,13 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     
     if (matchStructBody(t2, this)) {
       if (!t2.accept("}")) {
-        fail;
+        // fail;
         t2.failparse("Failed to parse class body");
       }
       // logln("register class ", cl.name);
       try finalize;
       catch (Exception ex) t2.failparse(ex);
       coarseSrc = null;
-      coarseCtx = null;
       return;
     } else {
       t2.failparse("Couldn't match class body");
@@ -766,6 +771,7 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   
   cl.coarseSrc = block;
   cl.coarseCtx = namespace();
+  cl.coarseMod = current_module();
   
   text = t2;
   return cast(Object) cl.getRefType();

@@ -80,12 +80,18 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   int _framestart;
   string coarseSrc;
   Namespace coarseContext;
+  IModule coarseModule;
   void parseMe() {
     if (!coarseSrc) return;
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     namespace.set(coarseContext);
     if (tree) namespace.set(fastcast!(Scope) (tree));
+    
+    auto backupmod = current_module();
+    scope(exit) current_module.set(backupmod);
+    current_module.set(coarseModule);
+    
     // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     
     // needed because we may be a template function (!)
@@ -115,6 +121,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     res.extern_c = extern_c;
     res.tree = tree;
     res.coarseSrc = coarseSrc;
+    res.coarseContext = coarseContext;
+    res.coarseModule = coarseModule;
     res._framestart = _framestart;
     res.sup = sup;
     res.field = field;
@@ -125,7 +133,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     auto res = flatdup();
     if (tree) res.tree = tree.dup;
     res.coarseSrc = coarseSrc.dup;
-    res.coarseContext = coarseContext;
     return res;
   }
   FunCall mkCall() {
@@ -716,6 +723,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
         auto block = text.coarseLexScope();
         fun.coarseSrc = block;
         fun.coarseContext = namespace();
+        fun.coarseModule = current_module();
       }
       if (fun.coarseSrc) return fun;
       else {
