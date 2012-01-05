@@ -1,7 +1,7 @@
 module ast.fun;
 
 import ast.namespace, ast.base, ast.variable, asmfile, ast.types, ast.scopes,
-  ast.constant, ast.pointer, ast.literals, ast.vardecl;
+  ast.constant, ast.pointer, ast.literals, ast.vardecl, ast.assign;
 
 import tools.functional;
 
@@ -163,9 +163,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         logln(tree);
         fail;
       }
-      if (!extern_c && name != "main2"[] /or/ "__win_main"[] /or/ "__c_main"[] && __getSysmod() && __getSysmod().lookup("FrameInfo")) {
-        auto type = fastcast!(IType) (__getSysmod().lookup("FrameInfo"));
+      /*auto sysmod = __getSysmod();
+      if (!extern_c && name != "main2"[] /or/ "__win_main"[] /or/ "__c_main"[] && !tools.base.startsWith(name, "guardfn_") && sysmod && sysmod.lookup("FrameInfo")) {
+        auto type = fastcast!(IType) (sysmod.lookup("FrameInfo"));
         auto var = new Variable(type, "__frame_info", boffs(type));
+        var.initInit;
         auto decl = new VarDecl(var);
         addStatement(decl);
         auto sc = fastcast!(Scope) (tree);
@@ -175,7 +177,14 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
           fail;
         }
         sc.add(var);
-      } else logln("skip ", name);
+        auto stackframe_var = fastcast!(Expr) (sysmod.lookup("stackframe"));
+        auto vartype = fastcast!(RelNamespace)(var.valueType());
+        addStatement(mkAssignment(fastcast!(Expr) (vartype.lookupRel("fun", var)), mkString(fqn())));
+        addStatement(mkAssignment(fastcast!(Expr) (vartype.lookupRel("prev", var)), stackframe_var));
+        addStatement(mkAssignment(stackframe_var, new RefExpr(var)));
+        addStatement(iparse!(Statement, "frame_guard", "tree.stmt.guard")
+                            (`onExit { sf = sf.prev; } `, namespace(), "sf", stackframe_var));
+      }*/
     }
     return cur;
   }
@@ -188,6 +197,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       if (isARM) return 4;
       else return 0;
     }
+  }
+  string fqn() {
+    return get!(IModule).getIdentifier()~"."~name;
   }
   override string mangleSelf() {
     if (extern_c) {

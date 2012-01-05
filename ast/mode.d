@@ -128,7 +128,7 @@ class PrefixCall : FunCall {
     this.prefix = prefix;
     this.sup = sup;
   }
-  Expr[] getParams() { return prefix ~ sup.getParams(); }
+  Expr[] getParams() { return prefix ~ sup.getParams() ~ super.getParams(); }
   private this() { }
   PrefixCall dup() {
     auto res = new PrefixCall;
