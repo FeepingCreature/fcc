@@ -34,7 +34,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType {
         return new PrefixTemplate(firstParam, templ);
       }
       PrefixFunction processFun(Function fun) {
-        if (fastcast!(NestedFunction)~ fun) return null;
+        // if (fastcast!(NestedFunction)~ fun) return null;
         auto params = fun.getParams();
         if (!params.length) return null;
         auto pt = params[0].type;
