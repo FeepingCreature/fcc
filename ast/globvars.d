@@ -49,8 +49,11 @@ class GlobVar : LValue, Named {
         af.mathOp("addl", "%esi", "%eax");
         af.pushStack("(%eax)", type.size);
       }
-      else
-        af.pushStack(mangled(), type.size);
+      else {
+        af.mmove4("$"~mangled(), "%eax");
+        af.pushStack("(%eax)", type.size);
+        // af.pushStack(mangled(), type.size);
+      }
     }
     void emitLocation(AsmFile af) {
       if (isARM) {
