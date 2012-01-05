@@ -79,9 +79,9 @@ class PrefixFunction : Function {
     Expr getPointer() { return supfun.getPointer(); }
     string toString() { return Format("prefix ", prefix, " to ", super.toString()); }
     Argument[] getParams() {
-      auto res = super.getParams();
+      auto res = supfun.getParams();
       if (res.length > 1) return res[1..$];
-    
+      
       auto tup = fastcast!(Tuple) (res[0].type);
       if (!tup) { return null; }
       
@@ -134,8 +134,7 @@ class PrefixCall : FunCall {
     auto res = new PrefixCall;
     res.fun = fun.flatdup;
     res.prefix = prefix.dup;
-    res.params = params.dup;
-    foreach (ref param; res.params) param = param.dup();
+    res.sup = sup.dup;
     return res;
   }
   override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
