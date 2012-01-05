@@ -15,7 +15,7 @@ Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("expected closing paren");
   t2.noMoreHeredoc();
   auto src = t2.coarseLexScope(true, false);
-  auto ns = namespace(), mod = current_module();
+  auto ns = namespace(), mod = fastcast!(Module) (current_module());
   if (platname == "x86") platname = "default";
   bool match = platname~"-" == platform_prefix || platname == "default" && !platform_prefix;
   if (wild) match |= !!platform_prefix.startsWith(platname);

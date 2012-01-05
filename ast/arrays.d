@@ -55,7 +55,7 @@ import ast.structfuns, ast.modules, ast.aliasing, ast.properties, ast.scopes;
 Stuple!(IType, bool, Module, IType)[] cache;
 bool[IType] isArrayStructType;
 IType arrayAsStruct(IType base, bool rich) {
-  auto mod = current_module();
+  auto mod = fastcast!(Module) (current_module());
   foreach (entry; cache)
     if (entry._0 == base /* hax */
      && entry._1 == rich

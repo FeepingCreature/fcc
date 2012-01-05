@@ -77,7 +77,7 @@ static this() {
 
 static this() {
   New(namespace, { return cast(Namespace) null; });
-  New(current_module, { return cast(Module) null; });
+  New(current_module, { return cast(IModule) null; });
   // placed here because it needs some circular importage
   foldopt ~= delegate Itr(Itr it) {
     auto mae = fastcast!(MemberAccess_Expr) (it);

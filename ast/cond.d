@@ -25,7 +25,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   assert(!!csc);
   csc.addStatement(new VarDecl(hdlvar));
   csc.add(hdlvar);
-  auto nf = new NestedFunction(csc), mod = current_module();
+  auto nf = new NestedFunction(csc), mod = fastcast!(Module) (current_module());
   New(nf.type);
   nf.type.ret = Single!(Void);
   nf.type.params ~= Argument(objtype, "_obj");

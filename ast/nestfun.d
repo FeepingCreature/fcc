@@ -113,7 +113,7 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   auto ns = namespace(), sc = ns.get!(Scope); // might be in a template!!
   if (!sc) return null;
   // sup of nested funs isn't the surrounding function .. that's what context is for.
-  auto mod = current_module();
+  auto mod = fastcast!(Module) (current_module());
   if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef({
     return new NestedFunction(ns);
   }, mod, true, text, cont, rest)) {
@@ -129,7 +129,7 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto sc = namespace().get!(Scope);
   if (!sc) return null;
   auto nf = new NestedFunction(sc);
-  auto mod = current_module();
+  auto mod = fastcast!(Module) (current_module());
   string name;
   static int i;
   bool shortform;
@@ -178,7 +178,7 @@ mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral", "2402");
 Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto fun = new Function();
-  auto mod = current_module();
+  auto mod = fastcast!(Module) (current_module());
   string name;
   static int i;
   synchronized name = Format("__nested_fn_literal_", i++);

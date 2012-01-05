@@ -719,3 +719,7 @@ class OffsetExpr : LValue {
     }
   }
 }
+
+interface IModule : Named { }
+
+TLS!(IModule) current_module;

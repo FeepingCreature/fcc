@@ -171,7 +171,7 @@ class TemplateInstance : Namespace, HandlesEmits {
   Module[] ematIn;
   void emitCopy(bool weakOnly = false) {
     if (!instRes) return;
-    auto mod = current_module();
+    auto mod = fastcast!(Module) (current_module());
     if (!mod) fail;
     // sysmod is linked into main module
     foreach (emod; ematIn) if (emod is mod || (mod.filename == mainfile && emod is sysmod)

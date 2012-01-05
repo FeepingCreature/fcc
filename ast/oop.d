@@ -441,8 +441,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       ctxFixup = *RefToParentModify.ptr();
     }
     sup = namespace();
-    if (namespace() !is current_module()) {
-      current_module().entries ~= this;
+    auto mod = fastcast!(Module) (current_module());
+    if (namespace() !is mod) {
+      mod.entries ~= this;
     }
   }
   bool finalized;
@@ -471,7 +472,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         
         rf.fixup;
         rf.addStatement(new ReturnStmt(mkString(name)));
-        current_module().entries ~= rf;
+        fastcast!(Module) (current_module()).entries ~= rf;
       }
     }
     {
@@ -524,7 +525,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return null; ", namespace());
       sc._body = as;
       rf.addStatement(sc);
-      current_module().entries ~= rf;
+      fastcast!(Module) (current_module()).entries ~= rf;
     }
   }
   // add interface refs
