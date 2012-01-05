@@ -232,6 +232,10 @@ bool cantBeCall(string s) {
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
 bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res, bool test, bool precise) {
+  if (!params.length) {
+    auto t2 = text;
+    if (t2.accept(";")) return true; // paramless call
+  }
   Expr arg;
   auto backup_text = text; 
   if (!backup_text.length) return false; // wat
@@ -256,7 +260,8 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
   if (isTuple) propcfg().withTuple = false;
   
   if (!rest(text, "tree.expr.cond.other", &arg) && !rest(text, "tree.expr _tree.expr.arith", &arg)) {
-    return false;
+    if (params.length) return false;
+    else arg = mkTupleExpr();
   }
   return matchedCallWith(arg, params, res, info, backup_text, test, precise);
 }

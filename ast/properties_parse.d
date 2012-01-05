@@ -29,7 +29,7 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
       if (t3.accept("=") || t3.accept(")") || t3.accept("!=") || t3.accept("+") || t3.accept("/")) {
         break;
       }
-      if (!fastcast!(Function) (sup) && t3.accept(";")) {
+      if (!fastcast!(Function) (sup) && !fastcast!(OverloadSet) (sup) && t3.accept(";")) {
         break;
       }
       string match = "tree.rhs_partial";

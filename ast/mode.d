@@ -122,12 +122,13 @@ class PrefixFunction : Function {
 
 class PrefixCall : FunCall {
   Expr prefix;
+  FunCall sup;
   this(Function fun, Expr prefix, FunCall sup) {
     this.fun = fun;
     this.prefix = prefix;
-    this.params = sup.params;
+    this.sup = sup;
   }
-  Expr[] getParams() { return prefix ~ super.getParams(); }
+  Expr[] getParams() { return prefix ~ sup.getParams(); }
   private this() { }
   PrefixCall dup() {
     auto res = new PrefixCall;
@@ -139,14 +140,14 @@ class PrefixCall : FunCall {
   }
   override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     defaultIterate!(prefix).iterate(dg, mode);
-    super.iterate(dg, mode);
+    sup.iterate(dg, mode);
   }
   override void emitWithArgs(AsmFile af, Expr[] args) {
     // logln("prefix call, prepend ", prefix);
-    super.emitWithArgs(af, prefix ~ args);
+    sup.emitWithArgs(af, prefix ~ args);
   }
-  override string toString() { return Format("prefixcall(", fun, " [prefix] ", prefix, " [regular] ", params, ")"); }
-  override IType valueType() { return super.valueType(); }
+  override string toString() { return Format("prefixcall(", fun, " [prefix] ", prefix, " [rest] ", sup, ")"); }
+  override IType valueType() { return sup.valueType(); }
 }
 
 class ModeSpace : Namespace, ScopeLike {
