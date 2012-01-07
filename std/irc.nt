@@ -714,6 +714,10 @@ class Server {
     sendCommand "PONG $s";
   }
   
+  void _nickUsed (User u, string[] args) {
+    nick(me.nick~"_");
+  }
+  
   void init(string nick, string host, int port = 6667, string user = "NeatIRCLib", string identd = "neatirclib", string realname = "Neat IRC Library", string pass = null) {
     sock = connect(host, short:port);
     iter = (castIter!string readsocket sock).splitAt "\n";
@@ -731,7 +735,7 @@ class Server {
     
     setCallback(Reply.RPL_MOTD, &_appendMotdCallback);
     
-    setCallback(Reply.ERR_NICKNAMEINUSE, new \(User u, string[] args) {me.nick = me.nick ~ "_"; sendCommand "NICK $(me.nick)";});
+    setCallback(Reply.ERR_NICKNAMEINUSE,&_nickUsed);
     
   }
   
@@ -844,6 +848,13 @@ class Server {
     channels ~= &c;
   }
   
+  void part(string chan) {
+    sendCommand "PART $chan";
+    /*for (int i=0;i<channels.length;i++)
+      if channels[i] && channels[i].name == chan
+        channels[i] = null;*/
+  }
+  
   void msg (string chan, string message) {
     int max = 500 - chan.length; // max is 512, "PRIVMSG " is 8, " :" is 2, "\r\n" is 2, thus 500 minus channel length.
     int min(int a, int b) {if a<b return a; else return b;}
@@ -851,10 +862,16 @@ class Server {
       for (int i = 0; i<l.length; i+=max)
         sendCommand "PRIVMSG $chan :$(l[i..min(i+max,l.length)])";
   }
+  
+  void nick (string n) {
+    sendCommand "NICK $n";
+    me.nick = n;
+  }
 }
 
 class Channel {
   string name;
   void delegate(User,string[])[] commands;
+  string[] users;
 }
 
