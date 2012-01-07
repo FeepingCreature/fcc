@@ -389,7 +389,7 @@ void lazySysmod() {
 bool allowProgbar = true;
 
 struct CompileSettings {
-  bool saveTemps, optimize, debugMode, profileMode;
+  bool saveTemps, optimize, debugMode, profileMode, singlethread;
   string configOpts;
 }
 
@@ -515,12 +515,16 @@ string delegate(int, int*)[] genCompilesWithDepends(string file, CompileSettings
 }
 
 string[] compileWithDepends(string file, CompileSettings cs) {
-  if (!emitpool) emitpool = new Threadpool(4);
+  if (!emitpool && !cs.singlethread) emitpool = new Threadpool(4);
   auto dgs = file.genCompilesWithDepends(cs);
   string[] objs;
   auto complete = new int;
   void process(string delegate(int, int*) dg) { auto obj = dg(dgs.length, complete); synchronized objs ~= obj; }
-  emitpool.mt_foreach(dgs, &process);
+  if (cs.singlethread) {
+    foreach (dg; dgs) process(dg);
+  } else {
+    emitpool.mt_foreach(dgs, &process);
+  }
   return objs;
 }
 
@@ -551,7 +555,7 @@ void link(string[] objects, string[] largs, bool saveTemps = false) {
     if (!saveTemps)
       foreach (obj; objects)
         unlink(obj.toStringz());
-  string cmdline = platform_prefix~"gcc -m32 -o "~output~" ";
+  string cmdline = platform_prefix~"gcc -m32 -Wl,--gc-sections -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
   foreach (larg; largs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
@@ -768,6 +772,10 @@ int main(string[] args) {
     if (arg == "-pg") {
       cs.profileMode = true;
       largs ~= "-pg";
+      continue;
+    }
+    if (arg == "-singlethread") {
+      cs.singlethread = true;
       continue;
     }
     if (arg == "-release") {

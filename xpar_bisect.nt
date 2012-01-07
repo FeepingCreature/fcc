@@ -4,12 +4,11 @@ import c.stdlib, std.string;
 
 void main(string[] args) {
   writeln "FCC -xpar bisect tool starting.";
-  (string exec, args) = args[(0, 1..$)];
   if (args.length != 1) raise new Error "fcc parameter arg expected! ($(args)) ";
   string arg = args[0];
   bool works(int xpar) {
-    string cmd = "fcc -o xpar_bisect_test $arg -xpar $xpar >/dev/null";
-    writeln "> fcc -o xpar_bisect_test ARGS -xpar $xpar >/dev/null";
+    string cmd = "fcc -o xpar_bisect_test -singlethread $arg -xpar $xpar >/dev/null";
+    writeln "> fcc -o xpar_bisect_test -singlethread ARGS -xpar $xpar >/dev/null";
     if (0 != system toStringz cmd)
       raise new Error "Compilation failed! Aborting. ";
     int res = system toStringz "./xpar_bisect_test";

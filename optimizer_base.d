@@ -452,7 +452,7 @@ void setupGenericOpts() {
   mixin(opt("push_pop_is_mov_sometimes", `^Push, ^Pop:
     $0.size == 4 && $1.size == 4 && $1.dest.isUtilityRegister()
     =>
-    $T t; t.kind = $TK.Mov; t.from = $0.source; t.to = $1.dest;
+    $T t; t.kind = $TK.Mov; t.from = $0.source; t.to = $1.dest; t.stackdepth = $0.stackdepth;
     if (t.from == t.to) $SUBST();
     else $SUBST(t);
   `));

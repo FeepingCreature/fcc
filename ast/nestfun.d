@@ -2,7 +2,8 @@ module ast.nestfun;
 
 import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.variable, ast.pointer, ast.structure, ast.namespace,
-       ast.vardecl, ast.parse, ast.assign, ast.constant, ast.dg;
+       ast.vardecl, ast.parse, ast.assign, ast.constant, ast.dg,
+       ast.properties;
 
 public import ast.fun: Argument;
 import ast.aliasing, ast.casting, ast.opers;
@@ -250,6 +251,11 @@ class NestFunRefExpr : mkDelegate {
 Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   NestedFunction nf;
+  
+  auto propbackup = propcfg().withCall;
+  propcfg().withCall = false;
+  scope(exit) propcfg().withCall = propbackup;
+  
   if (!rest(text, "tree.expr _tree.expr.arith", &nf))
     return null;
   

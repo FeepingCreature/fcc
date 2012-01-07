@@ -158,11 +158,18 @@ alias acceptT!(false) accept_mt;
 // statement terminator.
 // multiple semicolons can be substituted with a single one
 // and "}" counts as "};"
-bool mustAcceptTerminatorSoft(ref string s, lazy string err) {
+bool acceptTerminatorSoft(ref string s) {
   if (s.accept(";")) return true;
   auto s2 = (s.ptr - 1)[0..s.length + 1];
   if (s2.accept(";") || s2.accept("}")) return true;
-  s.failparse(err());
+  return false;
+}
+
+bool mustAcceptTerminatorSoft(ref string s, lazy string err) {
+  string s2 = s;
+  if (!acceptTerminatorSoft(s2)) s.failparse(err());
+  s = s2;
+  return true;
 }
 
 bool mustAccept(ref string s, string t, lazy string err) {

@@ -124,6 +124,10 @@ class WithStmt : Namespace, Statement, ScopeLike {
       auto res = sup.stackframe();
       if (vd)
         res ~= stuple(vd.var.type, vd.var.name, vd.var.baseOffset);
+      if (temps) {
+        auto var = fastcast!(Variable) (context);
+        res ~= stuple(var.type, var.name, var.baseOffset);
+      }
       return res;
     }
     Object lookup(string name, bool local = false) {
