@@ -1,11 +1,11 @@
 module edp;
 
-import std.string, std.file;
+import std.string, std.file, std.process;
 
 import c.unistd;
 
 import c.poll, c.stdlib;
-template process(T) <<EOF
+template process(T) {
   class ProcessorError : Error { void init() super.init "ProcessorError"; }
   class processor {
     T source;
@@ -36,51 +36,18 @@ template process(T) <<EOF
       int endpos = readTo "</exec?>";
       if !endpos {
         writeln "No closing exec tag! ";
-        raise-error new ProcessorError;
+        raise new ProcessorError;
       }
       (string pre, string main, string post)
         = buffer[(0..startpos, startpos + 7 .. endpos, endpos + 8 .. $)];
       if (main.find ">" == -1) {
         writeln "No > in \"$main\". ";
-        raise-error (new ProcessorError);
+        raise (new ProcessorError);
       }
       auto cmd = slice (&main, ">");
-      int x 2 hdl_sysward, hdl_selfward;
-      pipe hdl_sysward; // self -> system()
-      pipe hdl_selfward; // system() -> self
-      "exec $(hdl_sysward[1])>&-; exec $(hdl_selfward[0])>&-; <&$(hdl_sysward[0]) $cmd >&$(hdl_selfward[1]) &"
-        .toStringz().system();
-      close hdl_sysward[0]; // read side
-      close hdl_selfward[1]; // write side
-      char[auto~] newmain;
-      bool running = true;
-      int fdslength = 2;
-      while running {
-        pollfd x 2 fds;
-        fds[0].(fd, events) = (hdl_selfward[0], POLLIN);
-        fds[1].(fd, events) = (hdl_sysward [1], POLLOUT);
-        auto hits = poll(fds.ptr, fdslength, -1);
-        if fds[0].revents & POLLHUP running = false;
-        else {
-          if fds[0].revents & POLLIN {
-            char x 128 buf;
-            auto size = read buf.(hdl_selfward[0], ptr, length);
-            if (size > 0) {
-              newmain ~= buf[0 .. size];
-            }
-          }
-          if fds[1].revents & POLLOUT {
-            auto res = write main.(hdl_sysward[1], ptr, length);
-            if res < 0 {
-              raise-error new ProcessorError;
-            }
-            main = main[res .. $];
-            if !main.length { close hdl_sysward[1]; fdslength = 1; }
-          }
-        }
-      }
+      auto text = join readback ("sh", ["-c", cmd], main);
       yieldbuf ~= pre;
-      yieldbuf ~= newmain[];
+      yieldbuf ~= text;
       buffer = char[auto~]:post;
       return advance();
     }
@@ -89,7 +56,7 @@ template process(T) <<EOF
     source = src;
     return that;
   }
-EOF
+}
 
 void main() {
   auto stdin = readfile 0, stdout = writefile 1;
