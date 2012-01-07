@@ -2,7 +2,7 @@
 Wraps the BSD Sockets API*/
 module std.socket;
 
-import std.string, c.unistd, c.sys.socket, c.sys.types, c.netdb, c.string, c.errno;
+import std.string, c.unistd, c.sys.socket, c.netdb, c.string, c.errno;
 
 /*Class: Address
 An internet address*/
@@ -150,23 +150,20 @@ string ipof (Socket s)
 
 /*Template: readsocket
 Returns an iterator that yields data received from the socket argument*/
-template readsocket(T) {
-  class sockreader : Iterator!byte[] {
-    Socket sock;
-    bool done;
-    byte x 256  buf;
-    bool advance() {
-      auto size = sock.recv buf[];
-      if size <= 0 return false;
-      value = buf[0 .. size];
-      return true;
-    }
-  }
-  sockreader readsocket(T t) using new sockreader {
-    sock = t;
-    return that;
+class sockreader : Iterator!byte[] {
+  Socket sock;
+  bool done;
+  byte x 256  buf;
+  void init(Socket s) sock = s;
+  bool advance() {
+    auto size = sock.recv buf[];
+    if size <= 0 return false;
+    value = buf[0 .. size];
+    return true;
   }
 }
+
+sockreader readsocket(Socket s) return new sockreader s;
 
 /*Struct: SelectSet
 Allows waiting on multiple sockets*/
