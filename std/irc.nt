@@ -501,7 +501,7 @@ Miscellaneous:
 */
 enum Command {
   // connection registration
-  PASS,     NICK,     USER,     SERVER, OPER,     SQUIT,
+  PASS,     NICK,     USER,     SERVER, OPER,     QUIT,     SQUIT,
   // channel operations
   JOIN,     PART,     MODE,     TOPIC,  NAMES,    LIST,     INVITE, KICK,
   // server queries and commands
@@ -701,7 +701,7 @@ class Server {
     else {
       commands ~= new type-of commands ((c+1) - commands.length) #[];
       commands[c] = dg;
-      writeln "commands.length: $(commands.length); command: $c";
+      //writeln "commands.length: $(commands.length); command: $c";
     }
   }
   
@@ -709,9 +709,14 @@ class Server {
     motd ~= motdline[1] ~ "\n";
   }
   
+  void _pong (User u, string[] args) {
+    string s = std.string.join(args," ");
+    sendCommand "PONG $s";
+  }
+  
   void init(string nick, string host, int port = 6667, string user = "NeatIRCLib", string identd = "neatirclib", string realname = "Neat IRC Library", string pass = null) {
     sock = connect(host, short:port);
-    iter = (castIter!string readsocket sock).splitAt "\r" #.splitAt "\n";
+    iter = (castIter!string readsocket sock).splitAt "\n";
     sendCommand "NICK $nick";
     sendCommand "USER $user $identd $host :$realname";
     me.nick = nick;
@@ -722,6 +727,8 @@ class Server {
     
     motd = "";
     
+    setCommand(Command.PING, &_pong);
+    
     setCallback(Reply.RPL_MOTD, &_appendMotdCallback);
     
     setCallback(Reply.ERR_NICKNAMEINUSE, new \(User u, string[] args) {me.nick = me.nick ~ "_"; sendCommand "NICK $(me.nick)";});
@@ -731,15 +738,18 @@ class Server {
   void listen() {
     while true {
       string line = readLine;
-      writeln ">> $line";
+      if auto rest = line.endsWith "\r" line = rest;
+      //writeln ">> $line";
       // <message>  ::= [':' <prefix> <SPACE> ] <command> <params> <crlf>
-      line = line.startsWith ":";
-      if !line
-        raise new Error "wtf: line did not start with :";
-      string (userstring, commandstring) = line.slice " ";
+      string commandstring;
       User user;
-      (user.nick, userstring) = userstring.slice "!";
-      (user.user, user.host) = userstring.slice "@";
+      if line.startsWith ":" {
+        line = line.startsWith ":";
+        (string userstring, commandstring) = line.slice " ";
+        (user.nick, userstring) = userstring.slice "!";
+        (user.user, user.host) = userstring.slice "@";
+      } else
+        commandstring = line;
       
       (string command, commandstring) = commandstring.slice " ";
       string[] argsarr = commandstring.split " ";
@@ -759,61 +769,22 @@ class Server {
       }
       
       auto r = atoi command;
-      writeln "Command $command, args $(args[])";
+      //writeln "Command $command, args $(args[])";
       if r && r<callbacks.length
         callbacks[r]?(user,args[]);
       else if !r {
         Command command2;
       
-        // string s = "PASS, NICK, USER, SERVER, OPER, SQUIT, JOIN, PART, MODE, TOPIC, NAMES, LIST, INVITE, KICK, VERSION, STATS, LINKS, TIME, CONNECT, TRACE, ADMIN, INFO, PRIVMSG, NOTICE, WHO, WHOIS, WHOWAS, KILL, PING, PONG, ERROR, AWAY, REHASH, RESTART, SUMMON, WALLOPS,  USERHOST, ISON";
-        // for auto c<-s.split ", " writeln "case \"$c\": command2 = Command.$c;";
+        // string s = "PASS, NICK, USER, SERVER, OPER, QUIT, SQUIT, JOIN, PART, MODE, TOPIC, NAMES, LIST, INVITE, KICK, VERSION, STATS, LINKS, TIME, CONNECT, TRACE, ADMIN, INFO, PRIVMSG, NOTICE, WHO, WHOIS, WHOWAS, KILL, PING, PONG, ERROR, AWAY, REHASH, RESTART, SUMMON, WALLOPS,  USERHOST, ISON";
+        // for auto c<-s.split ", " writeln "if command == \"$c\" command2 = Command.$c;";
         // holy crap would I not write that manually
         //writeln "command = '$command'";
-        /*switch string c over command==c {
-          case "PASS": command2 = Command.PASS;
-          case "NICK": command2 = Command.NICK;
-          case "USER": command2 = Command.USER;
-          case "SERVER": command2 = Command.SERVER;
-          case "OPER": command2 = Command.OPER;
-          case "SQUIT": command2 = Command.SQUIT;
-          case "JOIN": command2 = Command.JOIN;
-          case "PART": command2 = Command.PART;
-          case "MODE": command2 = Command.MODE;
-          case "TOPIC": command2 = Command.TOPIC;
-          case "NAMES": command2 = Command.NAMES;
-          case "LIST": command2 = Command.LIST;
-          case "INVITE": command2 = Command.INVITE;
-          case "KICK": command2 = Command.KICK;
-          case "VERSION": command2 = Command.VERSION;
-          case "STATS": command2 = Command.STATS;
-          case "LINKS": command2 = Command.LINKS;
-          case "TIME": command2 = Command.TIME;
-          case "CONNECT": command2 = Command.CONNECT;
-          case "TRACE": command2 = Command.TRACE;
-          case "ADMIN": command2 = Command.ADMIN;
-          case "INFO": command2 = Command.INFO;
-          case "PRIVMSG": command2 = Command.PRIVMSG;
-          case "NOTICE": command2 = Command.NOTICE;
-          case "WHO": command2 = Command.WHO;
-          case "WHOIS": command2 = Command.WHOIS;
-          case "WHOWAS": command2 = Command.WHOWAS;
-          case "KILL": command2 = Command.KILL;
-          case "PING": command2 = Command.PING;
-          case "PONG": command2 = Command.PONG;
-          case "ERROR": command2 = Command.ERROR;
-          case "AWAY": command2 = Command.AWAY;
-          case "REHASH": command2 = Command.REHASH;
-          case "RESTART": command2 = Command.RESTART;
-          case "SUMMON": command2 = Command.SUMMON;
-          case "WALLOPS": command2 = Command.WALLOPS;
-          case "USERHOST": command2 = Command.USERHOST;
-          case "ISON": command2 = Command.ISON;
-        }*/
         if command == "PASS" command2 = Command.PASS;
         if command == "NICK" command2 = Command.NICK;
         if command == "USER" command2 = Command.USER;
         if command == "SERVER" command2 = Command.SERVER;
         if command == "OPER" command2 = Command.OPER;
+        if command == "QUIT" command2 = Command.QUIT;
         if command == "SQUIT" command2 = Command.SQUIT;
         if command == "JOIN" command2 = Command.JOIN;
         if command == "PART" command2 = Command.PART;
@@ -848,19 +819,6 @@ class Server {
         if command == "USERHOST" command2 = Command.USERHOST;
         if command == "ISON" command2 = Command.ISON;
         
-        /*writeln "command2 = $command2";
-        string commandtohex = "";
-        for byte x <- byte[]:command
-          commandtohex ~= " " ~ std.string.toString(int:x,16);
-        writeln "command = $commandtohex";
-        commandtohex = "";
-        for byte x <- byte[]:"NOTICE"
-          commandtohex ~= " " ~ std.string.toString(int:x,16);
-        writeln "command2 = $commandtohex";*/
-        
-        //if command == "NOTICE" writeln "mew";
-        //if command != "NOTICE" writeln "myu";
-        
         if !command2
           raise new Error "Command $command is non-standard!";
         if command2 < commands.length
@@ -876,7 +834,7 @@ class Server {
   
   void sendCommand(string s) {
     sock.sendAll byte[]:(s~"\r\n");
-    writeln "<< $s";
+    //writeln "<< $s";
   }
   
   void join(string chan) {
@@ -884,6 +842,14 @@ class Server {
     Channel c = new Channel;
     c.name = chan;
     channels ~= &c;
+  }
+  
+  void msg (string chan, string message) {
+    int max = 500 - chan.length; // max is 512, "PRIVMSG " is 8, " :" is 2, "\r\n" is 2, thus 500 minus channel length.
+    int min(int a, int b) {if a<b return a; else return b;}
+    for auto l <- message.split "\n"
+      for (int i = 0; i<l.length; i+=max)
+        sendCommand "PRIVMSG $chan :$(l[i..min(i+max,l.length)])";
   }
 }
 
