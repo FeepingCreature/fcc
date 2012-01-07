@@ -1,6 +1,6 @@
 module ast.intrinsic;
 
-import ast.modules, ast.pointer, ast.base, ast.oop, ast.casting;
+import ast.modules, ast.pointer, ast.base, ast.oop, ast.casting, ast.static_arrays;
 // not static this() to work around a precedence bug in phobos. called from main.
 void setupSysmods() {
   if (sysmod) return;
@@ -56,6 +56,7 @@ void setupSysmods() {
       string fun, pos;
       FrameInfo* prev;
     }
+    FrameInfo *stackframe;
     template sys_array_cast(T) {
       template sys_array_cast(U) {
         T sys_array_cast(U u) {
@@ -415,6 +416,7 @@ void setupSysmods() {
       string name, sourcefile;
       void* dataStart, dataEnd;
       bool compiled; // does this have an .o file?
+      void init(string a, b, void* c, d, bool e) (name, sourcefile, dataStart, dataEnd, compiled) = (a, b, c, d, e);
       void function()[auto~] constructors;
       bool constructed;
       string[] _imports;
@@ -491,6 +493,19 @@ void setupSysmods() {
       if (!cond)
         if (mesg) raise new AssertError mesg;
         else raise new AssertError "Assertion failed! ";
+    }
+    template refs(T) {
+      class refs_class {
+        T t;
+        int index;
+        type-of-elem t* value;
+        bool advance() {
+          if (index == t.length) return false;
+          value = &t[index++];
+          return true;
+        }
+      }
+      refs_class refs(T _t) using new refs_class { t = _t; index = 0; return that; }
     }
     (int, int) _xdiv(int a, b) {
       if (b > a) return (0, a);
@@ -569,27 +584,25 @@ void finalizeSysmod(Module mainmod) {
     }
     sc.addStatement(
       iparse!(Statement, "init_modinfo", "tree.stmt")
-             (`{var = new ModuleInfo;
-               __modules = __modules ~ var;
-               var.name = name;
-               var.sourcefile = sourcefile;
-               var.dataStart = symdstart;
-               var.dataEnd = symdend;
-               var.compiled = bool:compiled;
-             }` , "var", var, "name", mkString(mod.name),
+             (`{
+                 var = new ModuleInfo(name, sourcefile, symdstart, symdend, bool:compiled);
+                 __modules = __modules ~ var;
+               }` , "var", var, "name", mkString(mod.name),
                   "symdstart", symdstart,
                   "symdend", symdend,
                   "compiled", compiled,
                   "sourcefile", mkString(mod.sourcefile)
             )
     );
+    Expr[] constrs;
     foreach (fun; mod.constrs) {
-      sc.addStatement(
-        iparse!(Statement, "init_mod_constr", "tree.stmt")
-               (`var.constructors ~= fun;
-               `, "var", var, "fun", new FunRefExpr(fun))
-      );
+      constrs ~= new FunRefExpr(fun);
     }
+    sc.addStatement(
+      iparse!(Statement, "init_mod_constr", "tree.stmt")
+              (`var.constructors ~= funs;
+              `, sc, "var", var, "funs", new SALiteralExpr(new FunctionPointer(Single!(Void), null), constrs))
+    );
     auto imps = mod.getImports();
     sc.addStatement(
       iparse!(Statement, "init_mod_import_list", "tree.stmt")
@@ -607,6 +620,7 @@ void finalizeSysmod(Module mainmod) {
                 "var", var, "c", count, "mod2", mkString(mod2.name)));
     }
   }
+  opt(setupfun);
 }
 
 import ast.tuples;
