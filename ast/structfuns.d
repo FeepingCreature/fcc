@@ -1,7 +1,8 @@
 module ast.structfuns;
 
 import ast.fun, ast.nestfun, ast.base, ast.structure, ast.variable,
-  ast.pointer, ast.dg, ast.namespace, tools.base: This, This_fn, rmSpace;
+  ast.properties, ast.pointer, ast.dg, ast.namespace, tools.base: This,
+  This_fn, rmSpace;
 
 import ast.modules;
 Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
@@ -159,8 +160,10 @@ class StructFunRefExpr : mkDelegate {
 Object gotStructfunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   RelFunction rf;
-  if (!rest(text, "tree.expr _tree.expr.arith "
-  ~">tree.expr.properties.tup_call >tree.expr.properties.no_tup_call", &rf))
+  auto propbackup = propcfg().withCall;
+  propcfg().withCall = false;
+  scope(exit) propcfg().withCall = propbackup;
+  if (!rest(text, "tree.expr _tree.expr.arith", &rf))
     return null;
   
   return new StructFunRefExpr(rf);
