@@ -532,7 +532,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
         alignment_emitAligned(param, af);
       }
       
-      if (fp.valueType().size > nativePtrSize) fail;
+      if (fp.valueType().size > nativePtrSize) { logln("bad function pointer: ", fp); fail; }
       
       int inRegisters;
       if (isARM) {

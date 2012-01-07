@@ -34,10 +34,7 @@ static this() {
     if (auto ie = fastcast!(IntExpr) (len)) {
       return iparse!(Expr, "array_iterate_int", "tree.expr.iter.for")(`[for i <- 0..len extra arr: extra[i]]`, "arr", ex, "len", ie);
     } else {
-      auto lv = lvize(ex, &init);
-      auto res = iparse!(Expr, "array_iterate", "tree.expr.iter.for")(`[for i <- 0..arr.length extra arr: extra[i]]`, "arr", lv);
-      if (init) res = new StatementAndExpr(init, res);
-      return res;
+      return tmpize_maybe(ex, (Expr ex) { return iparse!(Expr, "array_iterate", "tree.expr.iter.for")(`[for i <- 0..arr.length extra arr: extra[i]]`, "arr", ex); });
     }
   };
 }

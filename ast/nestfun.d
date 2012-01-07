@@ -208,12 +208,12 @@ class NestedCall : FunCall {
     if (ebp) res.ebp = ebp.dup;
     return res;
   }
-  override void emitAsm(AsmFile af) {
+  override void emitWithArgs(AsmFile af, Expr[] args) {
     // if (dg) logln("call ", dg);
     // else logln("call {", fun.getPointer(), " @ebp");
     if (setup) setup.emitAsm(af);
-    if (dg) callDg(af, fun.type.ret, params, dg);
-    else callDg(af, fun.type.ret, params,
+    if (dg) callDg(af, fun.type.ret, args, dg);
+    else callDg(af, fun.type.ret, args,
       new DgConstructExpr(fun.getPointer(), ebp));
   }
   override IType valueType() {
