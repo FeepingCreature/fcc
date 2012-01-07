@@ -138,7 +138,6 @@ ReadbackStream readback(string cmd, Iterator!string data) {
   return readback(cmd, string[]:null, data);
 }
 
-import std.util;
 ReadbackStream readback(string cmd, string[] args, string data) return readback(cmd, args, Iterator!string: iterOnce data);
 ReadbackStream readback(string cmd, string data) return readback(cmd, string[]:null, Iterator!string: iterOnce data);
 ReadbackStream readback(string cmd, string[] args) return readback(cmd, args, Iterator!string: null);
@@ -147,7 +146,6 @@ ReadbackStream readback(string cmd) return readback(cmd, string[]:null, Iterator
 extern(C) char* getenv(char*);
 RenameIdentifier getenv C_getenv;
 
-import std.string;
 string getenv(string var) {
   return CToString C_getenv toStringz var;
 }
