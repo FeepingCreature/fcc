@@ -555,7 +555,7 @@ void link(string[] objects, string[] largs, bool saveTemps = false) {
     if (!saveTemps)
       foreach (obj; objects)
         unlink(obj.toStringz());
-  string cmdline = platform_prefix~"gcc -m32 -o "~output~" ";
+  string cmdline = platform_prefix~"gcc -m32 -Wl,--gc-sections -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
   foreach (larg; largs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
