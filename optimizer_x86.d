@@ -16,6 +16,10 @@ bool collide(string a, string b) {
   return (a == b);
 }
 
+bool isCommutative(string op) {
+  return op == "addl" || op == "imull" || op == "xorl";
+}
+
 bool isMemRef(string s) {
   if (s.find("(") != -1) return true;
   if (s.startsWith("$")) return false;
@@ -215,6 +219,7 @@ struct XArray(T) {
   int length() { return len; }
   void clear() { len = 0; }
   T[] opCall() { return back[0..len]; }
+  string toString() { return Format(back[0..len]); }
   static XArray opCall(T[] list, int len) {
     XArray res;
     res.back = list;
@@ -656,6 +661,14 @@ class ProcTrack : ExtToken {
                 mixin(Success);
               }
             }
+          } else if (dest == "%esp" && stack.length && !(offs % 4) && offs / 4 < stack.length && !isMemRef(stack()[$-1])) {
+            auto val = stack()[$-1];
+            fixupString(val, 4);
+            auto id = offs / 4;
+            stack()[$-1 - id] = val;
+            fixupESPDeps(-4);
+            stack.shrink(1);
+            mixin(Success);
           } else if (dest == "%esp" || dest.isUtilityRegister()) {
             if (stack.length && !isMemRef(stack()[$-1])) {
               auto val = stack()[$-1];
@@ -1155,7 +1168,7 @@ restart:
   mixin(opt("dont_be_silly", `^SSEOp, ^SAlloc||^SFree:
     $0.opName == "movaps"[] /or/ "movups"[] && $0.op1.isIndirect().hasUtilityRegister() && $0.op2.isSSERegister()
     =>
-    $SUBST($1, $0);
+    $SUBST($1, $0.dup);
   `));
   mixin(opt("load_address_into_source", `^LoadAddress, *:
     info($1).hasIndirectEq($0.to) && info($1).opSize() > 1
@@ -1233,7 +1246,7 @@ restart:
     $SUBST(t);
   `));
   mixin(opt("add_switch", `^MathOp, ^Mov:
-    $0.opName == "addl" && $0.op1 == $1.to && $1.from == $0.op2  =>  $T t = $0; swap(t.op1, t.op2); $SUBST(t); 
+    $0.opName.isCommutative() && $0.op1 == $1.to && $1.from == $0.op2  =>  $T t = $0; swap(t.op1, t.op2); $SUBST(t); 
   `));
   mixin(opt("fold_adds", `^MathOp, ^MathOp:
     $0.opName == "addl" && $1.opName == "addl" && $0.op2 == $1.op2 && $0.op2.isUtilityRegister() &&
@@ -1814,12 +1827,17 @@ restart:
   }
   opts ~= stuple(&remove_stack_push_pop_chain, "remove_stack_push_pop_chain", true);
   mixin(opt("remove_closing_leas", `^LoadAddress, ] => $SUBST();`));
+  mixin(opt("earlier_stackload", `^MathOp, ^Mov:
+    $1.from == "(%esp)" && $1.to.isUtilityRegister() && !info($0).opContains($1.to) && !info($0).opContains($1.from)
+    =>
+    $SUBST($1, $0);
+  `));
   mixin(opt("break_up_push_pop", `^Push || ^Pop:
     $0.size > 4 && ($0.size % 4) == 0 && $0.size <= 64 // just gets ridiculous beyond that point 
     =>
     auto sz = $0.size;
     $T[] res;
-    $T cur = $0.dup;
+    $T cur = $0;
     cur.size = 4;
     int offs;
     string* op;
@@ -1837,8 +1855,8 @@ restart:
     for (int i = 0; i < sz; i += 4) {
       if (indir) *op = qformat(offs, "(", indir, ")");
       res ~= cur;
-      if ($0.kind == $TK.Push) offs -= 4;
-      else offs += 4;
+      if ($0.kind == $TK.Push) { offs -= 4; if (cur.hasStackdepth) cur.stackdepth += 4; }
+      else { offs += 4; if (cur.hasStackdepth) cur.stackdepth -= 4; }
     }
     $SUBST(res);
   `));
