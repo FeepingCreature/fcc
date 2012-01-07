@@ -112,8 +112,8 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type", &base))
     return null;
   
-  auto arr = fastcast!(Array) (base);
-  if (!arr) return null;
+  auto arr = fastcast!(Array) (base), ea = fastcast!(ExtArray) (base);
+  if (!arr && !ea) return null;
   Expr len;
   if (!rest(t2, "tree.expr _tree.expr.arith.concat", &len))
     t2.failparse("Expected length for array-new");
@@ -123,30 +123,38 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   // logln("new1 ", base, " [", len, "]");
   Expr allocedPtr;
-  if (arr.elemType.isPointerLess()) {
+  IType et;
+  if (arr) et = arr.elemType;
+  else et = ea.elemType;
+  if (et.isPointerLess()) {
     allocedPtr = buildFunCall(
       fastcast!(Function) (
         (fastcast!(Namespace) (sysmod.lookup("mem")))
         .lookup("calloc_atomic")),
-      lookupOp("*", len, mkInt(arr.elemType.size)),
+      lookupOp("*", len, mkInt(et.size)),
       "calloc_atomic for new array");
   } else {
     allocedPtr = buildFunCall(
       fastcast!(Function) (
         (fastcast!(Namespace) (sysmod.lookup("mem")))
         .lookup("calloc")),
-      mkTupleExpr(len, mkInt(arr.elemType.size)),
+      mkTupleExpr(len, mkInt(et.size)),
       "calloc for new array");
   }
-  return fastcast!(Object) (
-    mkPointerSlice(
-      reinterpret_cast(
-        new Pointer(arr.elemType),
-        allocedPtr
-      ),
-      mkInt(0), len
-    )
+  Expr res = mkPointerSlice(
+    reinterpret_cast(
+      new Pointer(et),
+      allocedPtr
+    ),
+    mkInt(0), len
   );
+  if (arr) return fastcast!(Object) (res);
+  else {
+    auto ea2 = new ExtArray(ea.elemType, false);
+    if (!gotImplicitCast(res, (IType it) { return test(it == ea2); }))
+      text.failparse("Could not convert to correct array type");
+    return fastcast!(Object) (reinterpret_cast(ea, res));
+  }
 }
 mixin DefaultParser!(gotNewArrayExpr, "tree.expr.new.array", "12", "new");
 

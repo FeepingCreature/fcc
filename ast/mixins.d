@@ -49,7 +49,7 @@ Object gotMixinStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (src.mystripl().length)
       src.failparse("Unknown text found for stmt. ");
   } catch (Exception ex) {
-    t2.failparse("Executing mixin: ", ex);
+    t2.failparse("Executing mixin '", src.nextText(), "': ", ex);
   }
   text = t2;
   return res;

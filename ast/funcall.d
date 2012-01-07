@@ -261,6 +261,7 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
   
   if (!rest(text, "tree.expr.cond.other", &arg) && !rest(text, "tree.expr _tree.expr.arith", &arg)) {
     if (params.length) return false;
+    else if (info.startsWith("delegate")) return false;
     else arg = mkTupleExpr();
   }
   return matchedCallWith(arg, params, res, info, backup_text, test, precise);
@@ -315,7 +316,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
         t2.failparse("Failed to call function with ", params, ": ", error()._1);
       auto t3 = t2;
       // valid call terminators
-      if (params.length || !t3.accept(";"))
+      if (params.length || !t3.acceptTerminatorSoft())
         return null;
     } else text = t2;
     return fc;

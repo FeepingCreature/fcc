@@ -6,7 +6,13 @@ public import ast.variable;
 import ast.pointer, ast.casting;
 class VarDecl : LineNumberedStatementClass {
   Variable var;
-  this(Variable v) { var = v; }
+  this(Variable v) {
+    var = v;
+    if (v.valueType() == Single!(Void)) {
+      logln("tried to declare void variable");
+      fail;
+    }
+  }
   VarDecl dup() { return new VarDecl(var.dup); }
   mixin defaultIterate!(var);
   bool hasInitializer() {

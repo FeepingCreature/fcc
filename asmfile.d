@@ -485,7 +485,7 @@ class AsmFile {
       foreach (entry; opts) if (entry._2) {
         auto opt = entry._0, name = entry._1;
         if (opt(cache, labels_refcount)) {
-          if (debugOpts) {
+          if (false && debugOpts) { // causes difference in assembly .. somehow. wtf? todo!
             unused.remove(name);
             newOpts ~= name;
             goodOpts ~= name;
