@@ -140,7 +140,7 @@ struct Transaction {
     Mov, Mov2, Mov1, MovD, SAlloc, SFree, MathOp, Push, Pop, Compare, Call, Swap,
     FloatLoad, DoubleLoad, RealLoad, RegLoad,
     FloatCompare,
-    FloatPop, DoublePop, FPIntPop,
+    FloatPop, DoublePop, FPIntPop, FPLongPop,
     FloatStore, DoubleStore,
     FloatMath, FPSwap,
     FloatLongLoad, FloatIntLoad, /* fildq/l */
@@ -152,7 +152,7 @@ struct Transaction {
   const string[] KindDecode = ["Mov4", "Mov2", "Mov1", "MovD", "SAlloc", "SFree", "MathOp", "Push", "Pop", "Compare", "Call", "Swap",
     "FloatLoad", "DoubleLoad", "RealLoad", "RegLoad",
     "FloatCompare",
-    "FloatPop" , "DoublePop", "FPIntPop",
+    "FloatPop" , "DoublePop", "FPIntPop", "FPLongPop",
     "FloatStore", "DoubleStore",
     "FloatMath", "FPSwap",
     "FloatLongLoad", "FloatIntLoad",
@@ -189,6 +189,7 @@ struct Transaction {
       case FloatPop:    return Format("[float pop ", dest, "]");
       case DoublePop:   return Format("[double pop ", dest, "]");
       case FPIntPop:    return Format("[fp int pop ", dest, "]");
+      case FPLongPop:   return Format("[fp long pop ", dest, "]");
       case FloatStore:  return Format("[float store ", dest, "]");
       case DoubleStore: return Format("[double store ", dest, "]");
       case FloatMath:   return Format("[float math ", opName, " ", floatSelf, "]");
@@ -213,7 +214,7 @@ struct Transaction {
       case MathOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
       case Push: return source == t2.source && size == t2.size;
       case Pop: return dest == t2.dest && size == t2.size;
-      case FloatStore, DoubleStore, FloatPop, DoublePop, FPIntPop: return dest == t2.dest;
+      case FloatStore, DoubleStore, FloatPop, DoublePop, FPIntPop, FPLongPop: return dest == t2.dest;
       case Call, Jump: return dest == t2.dest;
       case Swap: return source == t2.source && dest == t2.dest && size == t2.size;
       case Compare: return op1 == t2.op1 && op2 == t2.op2;
@@ -492,6 +493,7 @@ struct Transaction {
       case FloatPop: return qformat("fstps ", dest);
       case DoublePop: return qformat("fstpl ", dest);
       case FPIntPop: return qformat("fistpl ", dest);
+      case FPLongPop: return qformat("fistpll ", dest);
       case FloatStore: return qformat("fsts ", dest);
       case DoubleStore: return qformat("fstl ", dest);
       case FloatMath:

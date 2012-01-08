@@ -369,6 +369,14 @@ class AsmFile {
     t.stackdepth = currentStackDepth;
     cache ~= t;
   }
+  void storeFPAsLong(string mem) {
+    floatStackDepth --;
+    Transaction t;
+    t.kind = Transaction.Kind.FPLongPop;
+    t.dest = mem;
+    t.stackdepth = currentStackDepth;
+    cache ~= t;
+  }
   void storeDouble(string mem) {
     floatStackDepth --;
     Transaction t;
