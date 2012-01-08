@@ -106,6 +106,7 @@ struct TransactionInfo {
     DoublePop  |           |        |&#.dest|  8  |
     DoubleStore|           |        |&#.dest|  8  |
     FPIntPop   |           |        |&#.dest|  4  |
+    FPLongPop  |           |        |&#.dest|  8  |
     FloatMath  |           |        |       | -1  |
     FPSwap     |           |        |       | -1  |
     Swap       | &#.source |&#.dest |&#.dest| -1  |
