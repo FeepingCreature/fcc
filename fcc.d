@@ -294,27 +294,54 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
   }
 }
 
+extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
+  bool cheaprecurse(Expr ex) {
+    if (auto rc = fastcast!(RC) (ex))
+      return cheaprecurse (rc.from);
+    if (fastcast!(Variable) (ex))
+      return true;
+    if (auto mae = fastcast!(MemberAccess_Expr) (ex))
+      return cheaprecurse (mae.base);
+    if (fastcast!(Literal) (ex))
+      return true;
+    if (auto ea = fastcast!(ExprAlias) (ex))
+      return cheaprecurse(ea.base);
+    if (fastcast!(GlobVar) (ex))
+      return true;
+    if (fastcast!(OffsetExpr) (ex))
+      return true;
+    if (auto re = fastcast!(RefExpr) (ex))
+      return cheaprecurse (re.src);
+    if (auto de = fastcast!(DerefExpr) (ex))
+      return cheaprecurse (de.src);
+    
+    if (mode == CheapMode.Flatten) {
+      if (auto sl = fastcast!(StructLiteral) (ex)) return true;
+      if (auto rt = fastcast!(RefTuple) (ex)) return true;
+      if (auto mae = fastcast!(MemberAccess_Expr) (ex))
+        return cheaprecurse (mae.base);
+    } else { // CheapMode.Multiple
+      if (auto sl = fastcast!(StructLiteral) (ex)) {
+        foreach (ex2; sl.exprs) if (!cheaprecurse(ex2)) return false;
+        return true;
+      }
+      if (auto rt = fastcast!(RefTuple) (ex)) {
+        foreach (ex2; rt.getAsExprs()) if (!cheaprecurse(ex2)) return false;
+        return true;
+      }
+    }
+    // logln("cheap? ", (cast(Object) (ex)).classinfo.name, " ", ex);
+    return false;
+  }
+  return cheaprecurse(ex);
+}
 
 // from ast.vardecl
 extern(C) Expr _tmpize_maybe(Expr thing, E2EOdg dg, bool force) {
   if (auto ea = fastcast!(ExprAlias) (thing)) thing = ea.base;
   if (!force) {
     bool cheap(Expr ex) {
-      if (fastcast!(Variable) (ex)) return true;
-      if (fastcast!(IntExpr) (ex)) return true;
-      if (auto rc = fastcast!(RC) (ex)) return cheap(rc.from);
-      if (auto sl = fastcast!(StructLiteral) (ex)) {
-        foreach (ex2; sl.exprs) if (!cheap(ex2)) return false;
-        return true;
-      }
-      if (auto ea = fastcast!(ExprAlias) (ex)) return cheap(ea.base);
-      if (fastcast!(Literal) (ex)) return true;
-      if (auto re = fastcast!(RefExpr) (ex)) return cheap(re.src);
-      if (auto de = fastcast!(DerefExpr) (ex)) return cheap(de.src);
-      if (auto mae = fastcast!(MemberAccess_Expr) (ex)) return cheap(mae.base);
-      if (fastcast!(GlobVar) (ex)) return true;
-      logln("cheap? ", (cast(Object) (ex)).classinfo.name, " ", ex);
-      return false;
+      return _is_cheap(ex, CheapMode.Multiple);
     }
     if (cheap(thing))
       return dg(thing, null); // cheap to emit

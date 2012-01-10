@@ -28,16 +28,30 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
   if (count) {
     Expr mkcheap(Expr ex, Statement* late_init = null) {
       bool isCheap(Expr ex) { // cheap to flatten
-        if (auto rce = fastcast!(RCE) (ex)) return isCheap(rce.from);
-        if (auto sl = fastcast!(StructLiteral) (ex)) return true;
-        if (auto rt = fastcast!(RefTuple) (ex)) return true;
-        if (auto var = fastcast!(Variable) (ex)) return true;
-        if (auto oe = fastcast!(OffsetExpr) (ex)) return true;
-        if (auto mae = fastcast!(MemberAccess_Expr) (ex)) return isCheap(mae.base);
-        // logln("not cheap: ", fastcast!(Object) (ex).classinfo.name, " ", ex);
-        return false;
+        return _is_cheap(ex, CheapMode.Flatten);
       }
       if (dontLvize || isCheap(ex)) return ex;
+      if (late_init) {
+        Statement st2; Expr ex2;
+        if (auto sam = fastcast!(StatementAndMValue) (ex)) {
+          st2 = sam.first;
+          ex2 = sam.second;
+        }
+        if (auto sal = fastcast!(StatementAndLValue) (ex)) {
+          st2 = sal.first;
+          ex2 = sal.second;
+        }
+        if (auto sae = fastcast!(StatementAndExpr) (ex)) {
+          st2 = sae.first;
+          ex2 = sae.second;
+        }
+        if (st2 && ex2) {
+          if (isCheap(ex2)) {
+            *late_init = st2;
+            return ex2;
+          }
+        }
+      }
       ex = lvize(ex, late_init);
       return ex;
     }

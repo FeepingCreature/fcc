@@ -50,7 +50,7 @@ GtkEntry* gtkCastEntry(GtkWidget* gw) {
   return GtkEntry*: gtcic (GTypeInstance*:gw, gtk_entry_get_type());
 }
 
-extern(C) size_t g_signal_connect_data (gpointer instance, char*, void*, void*, void*, GConnectFlags);
+// extern(C) size_t g_signal_connect_data (gpointer instance, char*, void*, void*, void*, GConnectFlags);
 
 // turn function-pointer(void*) type callbacks (with esi) into delegate callbacks
 (void*, void*, void*)[~] store;
@@ -81,17 +81,3 @@ template g_signal_connect(T) {
     g_signal_connect_data (gpointer: t[0], toStringz t[1], void*: dgvalue, &store[$-1], null, 0);
   }
 }
-
-RenameIdentifier gtk_hbox_new _gtk_hbox_new;
-GtkWidget* gtk_hbox_new(gboolean homogenous = false, gint spacing = 0) return _gtk_hbox_new(homogenous, spacing);
-
-RenameIdentifier gtk_vbox_new _gtk_vbox_new;
-GtkWidget* gtk_vbox_new(gboolean homogenous = false, gint spacing = 0) return _gtk_vbox_new(homogenous, spacing);
-
-RenameIdentifier gtk_box_pack_start _gtk_box_pack_start;
-void gtk_box_pack_start(GtkBox* box, GtkWidget* child, gboolean expand = false, gboolean fill = false, guint padding = 0)
-  return _gtk_box_pack_start (box, child, expand, fill, padding);
-
-RenameIdentifier gtk_box_pack_end _gtk_box_pack_end;
-void gtk_box_pack_end(GtkBox* box, GtkWidget* child, gboolean expand = false, gboolean fill = false, guint padding = 0)
-  return _gtk_box_pack_end (box, child, expand, fill, padding);

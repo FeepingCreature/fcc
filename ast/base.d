@@ -737,3 +737,7 @@ TLS!(IModule) current_module;
 interface WithAware {
   Object forWith();
 }
+
+// cheap to access multiple times, cheap to flatten into tuple
+enum CheapMode { Multiple, Flatten }
+extern(C) bool _is_cheap(Expr ex, CheapMode mode);

@@ -295,7 +295,6 @@ Object constructVector(Expr base, Vector vec) {
   if (tup) {
     if (tup.types.length != vec.len)
       throw new Exception(Format("Insufficient elements in vec initializer! "));
-    logln("tmpize? base is ", base);
     return fastcast!(Object)~ tmpize_maybe(base, (Expr base) {
       Expr[] exs;
       foreach (entry; getTupleEntries(base)) {
