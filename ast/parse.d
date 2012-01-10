@@ -54,21 +54,6 @@ class ExprStatement : LineNumberedStatementClass {
   }
 }
 
-static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    auto es = fastcast!(ExprStatement) (it);
-    if (!es) return null;
-    auto se = fastcast!(StatementAndExpr) (es.ex);
-    if (!se) return null;
-    auto stmt = se.first;
-    if (auto lns = fastcast!(LineNumberedStatementClass) (stmt)) {
-      lns.line = es.line;
-      lns.name = es.name;
-    }
-    return stmt;
-  };
-}
-
 Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto backup = text;
   if (auto obj = rest(text, "tree.semicol_stmt")) {

@@ -225,7 +225,9 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   res.type = type;
   res.exs = exs;
   Expr res_e = res;
-  res_e = ast_vardecl_lvize(res_e); // TODO: validate if correct
+  Statement st;
+  res_e = ast_vardecl_lvize(res_e, &st); // TODO: validate if correct
+  if (st) res_e = mkStatementAndExpr(st, res_e);
   return fastcast!(Object) (res_e);
 }
 mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array", "52", "[");

@@ -21,10 +21,34 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
   return reinterpret_cast(types[pos], res);
 }
 
-Expr[] getTupleEntries(Expr tuple) {
+Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = false) {
   auto tt = fastcast!(Tuple)~ tuple.valueType();
   if (!tt) return null;
   auto count = tt.types.length;
+  if (count) {
+    Expr mkcheap(Expr ex, Statement* late_init = null) {
+      bool isCheap(Expr ex) { // cheap to flatten
+        if (auto rce = fastcast!(RCE) (ex)) return isCheap(rce.from);
+        if (auto sl = fastcast!(StructLiteral) (ex)) return true;
+        if (auto rt = fastcast!(RefTuple) (ex)) return true;
+        if (auto var = fastcast!(Variable) (ex)) return true;
+        if (auto oe = fastcast!(OffsetExpr) (ex)) return true;
+        if (auto mae = fastcast!(MemberAccess_Expr) (ex)) return isCheap(mae.base);
+        // logln("not cheap: ", fastcast!(Object) (ex).classinfo.name, " ", ex);
+        return false;
+      }
+      if (dontLvize || isCheap(ex)) return ex;
+      ex = lvize(ex, late_init);
+      return ex;
+    }
+    if (!initst) {
+      tuple = mkcheap(tuple);
+    } else {
+      Statement st;
+      tuple = mkcheap(tuple, &st);
+      if (st) *initst = st;
+    }
+  }
   Expr[] res;
   for (int i = 0; i < count; ++i)
     res ~= mkTupleIndexAccess(tuple, i);
@@ -156,6 +180,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
         ex = new DerefExpr(lvize(new RefExpr(lv), &initLv));
       } else {
         ex = lvize(ex, &initLv);
+        ex = new RCE(ex.valueType(), ex, true); // make sure it's treated as an expr!
       }
       while (fastcast!(Pointer) (resolveType(ex.valueType())))
         ex = new DerefExpr(ex);
@@ -166,10 +191,10 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (auto cd = fastcast!(Cond) (obj))
         return new StatementAndCond(initLv, cd);
       if (auto ex = fastcast!(Expr) (obj)) {
-        // TODO: fix function call tuple flattening so this is feasible again
-        // return fastcast!(Object) (mkStatementAndExpr(initLv, ex));
-        namespace().get!(Scope).addStatement(initLv);
-        return fastcast!(Object) (ex);
+        // // TODO: fix function call tuple flattening so this is feasible again
+        return fastcast!(Object) (mkStatementAndExpr(initLv, ex));
+        // namespace().get!(Scope).addStatement(initLv);
+        // return fastcast!(Object) (ex);
       }
       logln("cannot fixup: unknown ", obj);
       fail;
@@ -212,11 +237,11 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     Object res;
     if (!rest(text, "tree.expr _tree.expr.arith", &res) && !rest(text, "cond", &res))
       text.failparse("Couldn't get with-tuple expr");
-    if (auto rt = fastcast!(RefTuple) (res)) if (rt.mvs.length == 1) {
+    /*if (auto rt = fastcast!(RefTuple) (res)) if (rt.mvs.length == 1) {
       auto lv2mv = fastcast!(LValueAsMValue) (rt.mvs[0]);
       if (lv2mv) return fixup(fastcast!(Object) (lv2mv.sup));
       return fixup(fastcast!(Object) (rt.mvs[0]));
-    }
+    }*/
     return fixup(res);
   };
 }

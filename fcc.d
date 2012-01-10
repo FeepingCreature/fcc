@@ -300,7 +300,7 @@ extern(C) Expr _tmpize_maybe(Expr thing, E2EOdg dg, bool force) {
   if (auto ea = fastcast!(ExprAlias) (thing)) thing = ea.base;
   if (!force) {
     bool cheap(Expr ex) {
-      if (fastcast!(Variable) (thing)) return true;
+      if (fastcast!(Variable) (ex)) return true;
       if (fastcast!(IntExpr) (ex)) return true;
       if (auto rc = fastcast!(RC) (ex)) return cheap(rc.from);
       if (auto sl = fastcast!(StructLiteral) (ex)) {
@@ -308,8 +308,12 @@ extern(C) Expr _tmpize_maybe(Expr thing, E2EOdg dg, bool force) {
         return true;
       }
       if (auto ea = fastcast!(ExprAlias) (ex)) return cheap(ea.base);
-      if (Format(ex).find("null") != -1)
-        logln(fastcast!(Object) (ex).classinfo.name, " ", ex);
+      if (fastcast!(Literal) (ex)) return true;
+      if (auto re = fastcast!(RefExpr) (ex)) return cheap(re.src);
+      if (auto de = fastcast!(DerefExpr) (ex)) return cheap(de.src);
+      if (auto mae = fastcast!(MemberAccess_Expr) (ex)) return cheap(mae.base);
+      if (fastcast!(GlobVar) (ex)) return true;
+      logln("cheap? ", (cast(Object) (ex)).classinfo.name, " ", ex);
       return false;
     }
     if (cheap(thing))

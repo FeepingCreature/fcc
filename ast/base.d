@@ -349,6 +349,8 @@ struct foldopt {
   }
 }
 
+static int stmt_and_t_marker;
+
 template StatementAndT(T) {
   class StatementAndT : T {
     static if (is(T == Expr)) const string NAME = "sae";
@@ -357,13 +359,20 @@ template StatementAndT(T) {
     Statement first;
     T second;
     bool permissive;
-    mixin MyThis!("first, second, permissive = false");
+    int marker;
+    this(Statement first, T second, bool permissive = false) {
+      this.first = first;
+      this.second = second;
+      this.permissive = permissive;
+      this.marker = stmt_and_t_marker ++;
+    }
     mixin defaultIterate!(first, second);
     bool once;
     bool check() {
+      // if (marker == 185) fail;
       if (once) {
         if (permissive) return false;
-        logln("Double emit ", this, ". NOT SAFE. ");
+        logln("Double emit ", marker, " ", this, ". NOT SAFE. ");
         fail;
       }
       once = true;
