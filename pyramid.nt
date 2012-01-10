@@ -2,9 +2,9 @@ module pyramid;
 
 import opengl, glsetup;
 
-import sdl, camera;
-
+import sdl, camera, std.time;
 import std.macros.switchover;
+
 void main(string[] args) {
   // resizeWindow (640, 480);
   auto vertices = [vec3f (-1, -1, -1), vec3f(1, 1, 1)];
@@ -118,6 +118,9 @@ void main(string[] args) {
       writeln "Size of the $info, in bits: $res";
     }
   }
+  vec2i lastmousepos;
+  int frame;
+  auto lastsec = sec();
   while true {
     mode GL {
       ClearColor (0 x 3, 0);
@@ -138,12 +141,35 @@ void main(string[] args) {
       DrawElements (QUADS, vertexIndexData.length, UNSIGNED_INT, null);
     }
     surf.update();
+    prefix glX {
+      // (*lookupFun!void function(int*) "glXGetVideoSyncSGI")(&int retraceCount);
+      // (*lookupFun!void function(int, int, int*) "glXWaitVideoSyncSGI")(2, (retraceCount+1)%2, &retraceCount);
+      auto tup = (GetCurrentDisplay(), GetCurrentDrawable());
+      (*lookupFun!bool function(Display*, GLXDrawable, long*, long*, long*) "glXGetSyncValuesOML")
+        (tup, &long ust, &long msc, &long sbc);
+      // writeln "ust $ust, msc $msc, sbc $sbc, frame delta $(*int*:&sbc - frame)";
+      // printf("\n");
+      frame ++;
+      if (sec() - lastsec > 1) {
+        // writeln "$frame fps";
+        frame = 0;
+        lastsec = sec();
+      }
+    }
     if (active) {
-      auto idelta = mouse-pos - vec2i(320, 240);
+      auto idelta = mouse-pos - lastmousepos;
+      lastmousepos = mouse-pos;
       auto delta = vec2f((0.001 * idelta).(x, y));
       using (ec, delta) { turn-left-x; turn-up-y; } // *MWAHAHAHAHAAAAAHAHA*
-      if idelta.x || idelta.y
-        SDL_WarpMouse(320, 240);
+      bool mustwarp;
+      alias border = 50;
+      if (mouse-pos.x < border || mouse-pos.y < border
+       || mouse-pos.x > surf.w - border || mouse-pos.y > surf.h - border)
+        mustwarp = true;
+      if mustwarp {
+        lastmousepos = vec2i(320, 240);
+        SDL_WarpMouse lastmousepos;
+      }
     }
     if (mouse-clicked) toggleActive;
     
