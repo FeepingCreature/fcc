@@ -866,7 +866,24 @@ class FSinExpr : Expr {
       mixin(mustOffset("4"));
       sup.emitAsm(af);
       af.loadFloat("(%esp)");
-      af.put("fsin");
+      af.fpuOp("fsin");
+      af.storeFloat("(%esp)");
+    }
+  }
+}
+
+class FAbsFExpr : Expr {
+  Expr sup;
+  this(Expr ex) { sup = ex; }
+  mixin defaultIterate!(sup);
+  override {
+    IType valueType() { return Single!(Float); }
+    FAbsFExpr dup() { return new FAbsFExpr(sup.dup); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("4"));
+      sup.emitAsm(af);
+      af.loadFloat("(%esp)");
+      af.fpuOp("fabs");
       af.storeFloat("(%esp)");
     }
   }
@@ -918,5 +935,14 @@ static this() {
     if (!isSinMath) return null;
     auto arg = foldex(fc.getParams()[0]);
     return new FSinExpr(arg);
+  };
+  foldopt ~= delegate Itr(Itr it) {
+    auto fc = fastcast!(FunCall) (it);
+    if (!fc) return null;
+    bool isFabsMath;
+    auto mod = fastcast!(Module) (fc.fun.sup);
+    if (fc.fun.name != "fabsf"[] || !fc.fun.extern_c) return null;
+    auto arg = foldex(fc.getParams()[0]);
+    return new FAbsFExpr(arg);
   };
 }

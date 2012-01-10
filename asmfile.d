@@ -415,9 +415,10 @@ class AsmFile {
     t.opName = op;
     cache ~= t;
   }
-  void swapFloats() {
+  void fpuOp(string opname) {
     Transaction t;
-    t.kind = Transaction.Kind.FPSwap;
+    t.kind = Transaction.Kind.PureFloat;
+    t.opName = opname;
     cache ~= t;
   }
   int labelCounter; // Limited to 2^31 labels, le omg.

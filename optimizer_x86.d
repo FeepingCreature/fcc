@@ -1311,7 +1311,8 @@ restart:
     $T t = $0.dup;
     t.kind = $TK.FloatStore;
     $T t2;
-    t2.kind = $TK.FPSwap;
+    t2.kind = $TK.PureFloat;
+    t2.opName = "fxch";
     $SUBST(t, $1, t2);
   `));
   // nvm opts
@@ -1362,7 +1363,7 @@ restart:
     =>
     $SUBST($0);
   `));
-  mixin(opt("pointless_fxch", `^FPSwap, ^FloatMath: $1.opName == "faddp"[] /or/ "fmulp"[] => $SUBST($1); `));
+  mixin(opt("pointless_fxch", `^PureFloat, ^FloatMath: $0.opName == "fxch" && $1.opName == "faddp"[] /or/ "fmulp"[] => $SUBST($1); `));
   /*mixin(opt("shufps_direct", `^SSEOp, ^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $2.opName == "movaps" &&
     $1.opName.startsWith("shufps") &&
@@ -1917,7 +1918,7 @@ restart:
             if (check == "(%esp)") break outer;
             continue;
           case Mov2, Mov1, Swap, Text: break outer; // weird stuff, not worth the confusion
-          case FloatMath, FPSwap:
+          case FloatMath, PureFloat:
             continue;    // no change
           
           case Jump:

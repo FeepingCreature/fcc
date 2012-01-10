@@ -108,7 +108,7 @@ struct TransactionInfo {
     FPIntPop   |           |        |&#.dest|  4  |
     FPLongPop  |           |        |&#.dest|  8  |
     FloatMath  |           |        |       | -1  |
-    FPSwap     |           |        |       | -1  |
+    PureFloat  |           |        |       | -1  |
     Swap       | &#.source |&#.dest |&#.dest| -1  |
     RegLoad    |           |        |       | -1  |
     SSEOp      |doSSE(&#.op1)|doSSE(&#.op2,true,#.opName)|doSSE(&#.op2)| 16  |
@@ -284,7 +284,7 @@ bool referencesStack(ref Transaction t, bool affects = false, bool active = fals
   with (Transaction.Kind)
     if (t.kind == SAlloc /or/ SFree /or/ Call /or/ Compare /or/ Label /or/ Jump)
       return true;
-    else if (t.kind == FloatMath /or/ FPSwap)
+    else if (t.kind == FloatMath /or/ PureFloat)
       return false;
     else if (affects && t.kind == Pop /or/ Push)
       return true;
@@ -336,7 +336,7 @@ bool pinsRegister(ref Transaction t, string reg) {
   with (Transaction.Kind)
     if (t.kind == Call /or/ Label /or/ Jump /or/ Compare /or/ FloatCompare /or/ ExtendDivide /* unsafe ones */)
       return true;
-    else if (t.kind == FloatMath /or/ FPSwap)
+    else if (t.kind == FloatMath /or/ PureFloat)
       return false;
   bool res;
   info(t).accessParams(delegate void(ref string s) {

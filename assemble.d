@@ -142,7 +142,7 @@ struct Transaction {
     FloatCompare,
     FloatPop, DoublePop, FPIntPop, FPLongPop,
     FloatStore, DoubleStore,
-    FloatMath, FPSwap,
+    FloatMath, PureFloat /* purely fpu state change */,
     FloatLongLoad, FloatIntLoad, /* fildq/l */
     SSEOp,
     ExtendDivide, /* cdq, [i]divl */
@@ -154,7 +154,7 @@ struct Transaction {
     "FloatCompare",
     "FloatPop" , "DoublePop", "FPIntPop", "FPLongPop",
     "FloatStore", "DoubleStore",
-    "FloatMath", "FPSwap",
+    "FloatMath", "PureFloat",
     "FloatLongLoad", "FloatIntLoad",
     "SSEOp",
     "ExtendDivide",
@@ -193,7 +193,7 @@ struct Transaction {
       case FloatStore:  return Format("[float store ", dest, "]");
       case DoubleStore: return Format("[double store ", dest, "]");
       case FloatMath:   return Format("[float math ", opName, " ", floatSelf, "]");
-      case FPSwap:      return Format("[x87 swap]");
+      case PureFloat:   return Format("[x87 ", opName, "]");
      case FloatLongLoad:return Format("[float long load ", source, "]");
       case FloatIntLoad:return Format("[float int load ", source, "]");
       case SSEOp:       return Format("[SSE ", opName, " ", op1, ", ", op2, stackinfo, "]");
@@ -221,7 +221,7 @@ struct Transaction {
       case FloatLoad, DoubleLoad, RealLoad, RegLoad: return source == t2.source;
       case FloatCompare: return source == t2.source && useIVariant == t2.useIVariant;
       case FloatMath: return opName == t2.opName && floatSelf == t2.floatSelf;
-      case FPSwap: return true;
+      case PureFloat: return true;
       case FloatLongLoad, FloatIntLoad: return source == t2.source;
       case SSEOp: return opName == t2.opName && op1 == t2.op1 && op2 == t2.op2;
       case ExtendDivide: return source == t2.source && signed == t2.signed;
@@ -500,7 +500,7 @@ struct Transaction {
         if (opName == "fsqrt") return opName;
         if (floatSelf) return qformat(opName, " %st, %st");
         else return qformat(opName, "p %st, %st(1)");
-      case FPSwap: return qformat("fxch");
+      case PureFloat: return qformat(opName);
       case FloatLongLoad: return qformat("fildq ", source);
       case FloatIntLoad: return qformat("fildl ", source);
       case SSEOp: return qformat(opName, " ", op1, ", ", op2);
