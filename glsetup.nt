@@ -1,6 +1,6 @@
 module glsetup;
 
-import opengl, sdl;
+import opengl, sdl_base;
 
 extern(C) void exit(int);
 
@@ -28,54 +28,16 @@ int initGL() mode GL {
   Enable COLOR_MATERIAL;
   DepthFunc LESS; // lequal is bad for mesa
   Enable TEXTURE_2D;
-  Hint (PERSPECTIVE_CORRECTION_HINT, NICEST);
+  PERSPECTIVE_CORRECTION_HINT.Hint NICEST;
   return true;
 }
 
 SDL_Surface* delegate(int, int) regenSurf;
 
-vec2i mousepos;
-
-bool mouseClicked, mousePressed;
-
-bool x 1024  keyPressed, keyPushed;
-
-bool update(SDL_Surface* surface) {
-  for int i <- 0..keyPushed.length
-    keyPushed[i] = false;
-  mouseClicked = false;
-  
-  SDL_GL_SwapBuffers();
-  
-  while SDL_PollEvent(&SDL_Event ev) using ev {
-    if type == SDL_QUIT return true;
-    else if type == SDL_VIDEORESIZE using resize {
-      regenSurf (w, h);
-      resizeWindow (w, h);
-    }
-    else if type == SDL_MOUSEMOTION using motion {
-      mousepos = vec2i(x, y);
-    }
-    else if type == SDL_MOUSEBUTTONDOWN using button {
-      mouseClicked = true;
-      mousePressed = true;
-    }
-    else if type == SDL_MOUSEBUTTONUP using button {
-      mousePressed = false;
-    }
-    else if type == SDL_KEYDOWN using key.keysym {
-      if (sym < keyPressed.length) { keyPressed[sym] = true; keyPushed[sym] = true; }
-    }
-    else if type == SDL_KEYUP using key.keysym {
-      if (sym < keyPressed.length) { keyPressed[sym] = false; }
-    }
-    else if type == SDL_VIDEOEXPOSE { // TODO .. what?
-    }
-    else if type == SDL_ACTIVEEVENT { // TODO: what either?
-    }
-    else writeln "type $(int:ev.type)";
-  }
-  return false;
+void update(SDL_Surface* surface) {
+  swap;
+  using scoped onResize:: onResize = \(int w, h) { regenSurf(w, h); resizeWindow(w, h); };
+  sdl_base.update;
 }
 
 void swap() { SDL_GL_SwapBuffers(); }
@@ -90,7 +52,7 @@ SDL_Surface* setup-gl(int extra-flags = 0) {
   regenSurf = new delegate SDL_Surface*(int w, int h) {
     writeln "regenSurf($w, $h, 0, $flags)";
     auto res = SDL_SetVideoMode (w, h, 0, flags);
-    if !res quit(1);
+    if !res quit 1;
     initGL;
     // IMPORTANT: init gl FIRST
     resizeWindow (w, h);

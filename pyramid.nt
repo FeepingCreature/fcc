@@ -137,15 +137,15 @@ void main(string[] args) {
       // DrawArrays (QUADS, 0, vertexQuadData.length);
       DrawElements (QUADS, vertexIndexData.length, UNSIGNED_INT, null);
     }
-    if surf.update() return;
+    surf.update();
     if (active) {
-      auto idelta = mousepos - vec2i(320, 240);
+      auto idelta = mouse-pos - vec2i(320, 240);
       auto delta = vec2f((0.001 * idelta).(x, y));
       using (ec, delta) { turn-left-x; turn-up-y; } // *MWAHAHAHAHAAAAAHAHA*
       if idelta.x || idelta.y
         SDL_WarpMouse(320, 240);
     }
-    if (mouseClicked) toggleActive;
+    if (mouse-clicked) toggleActive;
     
     alias movestep = 0.034;
     prefix SDLK_ {
