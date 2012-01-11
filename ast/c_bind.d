@@ -380,7 +380,10 @@ void parseHeader(string filename, string src) {
         string[] macroArgs;
         bool isMacroParams(ref string s) {
           auto s2 = s;
-          if (!s2.accept("(")) return false;
+          // NOT accept(): spacing matters!
+          // it's only a macro if the () comes directly after the name!
+          if (!s2.startsWith("(")) return false;
+          s2 = s2[1..$];
           while (true) {
             string id;
             if (!s2.gotIdentifier(id)) break;
