@@ -102,10 +102,11 @@ static this() {
 
 class FPAsInt : Expr {
   Expr fp;
-  bool dbl;
-  this(Expr fp, bool dbl = false) {
+  bool dbl, lng;
+  this(Expr fp, bool dbl = false, bool lng = false) {
     this.fp = fp;
     this.dbl = dbl;
+    this.lng = lng;
     if (dbl)
       assert(fp.valueType() == Single!(Double));
     else
@@ -115,15 +116,24 @@ class FPAsInt : Expr {
   mixin DefaultDup;
   mixin defaultIterate!(fp);
   override {
-    string toString() { return Format("int:", fp); }
-    IType valueType() { return Single!(SysInt); }
+    string toString() { if (lng) return Format("long:", fp); else return Format("int:", fp); }
+    IType valueType() { return lng?Single!(Long):Single!(SysInt); }
     void emitAsm(AsmFile af) {
-      mixin(mustOffset("4"));
-      fp.emitAsm(af);
-      if (dbl) af.loadDouble("(%esp)");
-      else af.loadFloat("(%esp)");
-      if (dbl) af.sfree(4);
-      af.storeFPAsInt("(%esp)");
+      if (lng) {
+        mixin(mustOffset("8"));
+        fp.emitAsm(af);
+        if (dbl) af.loadDouble("(%esp)");
+        else af.loadFloat("(%esp)");
+        if (!dbl) af.salloc(4);
+        af.storeFPAsLong("(%esp)");
+      } else {
+        mixin(mustOffset("4"));
+        fp.emitAsm(af);
+        if (dbl) af.loadDouble("(%esp)");
+        else af.loadFloat("(%esp)");
+        if (dbl) af.sfree(4);
+        af.storeFPAsInt("(%esp)");
+      }
     }
   }
 }
@@ -147,9 +157,19 @@ Expr doubleToInt(Expr ex, IType) {
   return new FPAsInt(ex, true);
 }
 
+Expr doubleToLong(Expr ex, IType) {
+  auto ex2 = ex;
+  if (gotImplicitCast(ex2, Single!(Long), (IType it) { return test(Single!(Long) == it); })
+   ||!gotImplicitCast(ex, Single!(Double), (IType it) { return test(Single!(Double) == it); }))
+    return null;
+  
+  return new FPAsInt(ex, true, true /* long */);
+}
+
 static this() {
   converts ~= &floatToInt /todg;
   converts ~= &doubleToInt /todg;
+  converts ~= &doubleToLong /todg;
 }
 
 class FloatAsDouble : Expr {
@@ -846,7 +866,24 @@ class FSinExpr : Expr {
       mixin(mustOffset("4"));
       sup.emitAsm(af);
       af.loadFloat("(%esp)");
-      af.put("fsin");
+      af.fpuOp("fsin");
+      af.storeFloat("(%esp)");
+    }
+  }
+}
+
+class FAbsFExpr : Expr {
+  Expr sup;
+  this(Expr ex) { sup = ex; }
+  mixin defaultIterate!(sup);
+  override {
+    IType valueType() { return Single!(Float); }
+    FAbsFExpr dup() { return new FAbsFExpr(sup.dup); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("4"));
+      sup.emitAsm(af);
+      af.loadFloat("(%esp)");
+      af.fpuOp("fabs");
       af.storeFloat("(%esp)");
     }
   }
@@ -898,5 +935,14 @@ static this() {
     if (!isSinMath) return null;
     auto arg = foldex(fc.getParams()[0]);
     return new FSinExpr(arg);
+  };
+  foldopt ~= delegate Itr(Itr it) {
+    auto fc = fastcast!(FunCall) (it);
+    if (!fc) return null;
+    bool isFabsMath;
+    auto mod = fastcast!(Module) (fc.fun.sup);
+    if (fc.fun.name != "fabsf"[] || !fc.fun.extern_c) return null;
+    auto arg = foldex(fc.getParams()[0]);
+    return new FAbsFExpr(arg);
   };
 }

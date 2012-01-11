@@ -3,15 +3,20 @@ module ast.vardecl;
 import ast.assign, ast.base, tools.base: Range;
 public import ast.variable;
 
+int vardecl_marker;
+
 import ast.pointer, ast.casting;
 class VarDecl : LineNumberedStatementClass {
   Variable var;
+  int marker;
   this(Variable v) {
     var = v;
     if (v.valueType() == Single!(Void)) {
       logln("tried to declare void variable");
       fail;
     }
+    marker = .vardecl_marker ++;
+    // if (marker == 906) { logln(this); fail; }
   }
   VarDecl dup() { return new VarDecl(var.dup); }
   mixin defaultIterate!(var);
@@ -118,7 +123,13 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
 }
 
 Expr lvize_if_possible(Expr ex, Statement* late_init = null) {
-  if (auto lv = fastcast!(LValue) (ex)) return ex;
+  if (auto var = fastcast!(Variable) (ex)) return ex;
+  if (late_init) if (auto sal = fastcast!(StatementAndLValue) (ex)) {
+    if (auto var = fastcast!(Variable) (sal.second)) {
+      *late_init = sal.first;
+      return sal.second;
+    }
+  }
   auto sc = namespace().get!(Scope);
   if (!sc) {
     return ex;

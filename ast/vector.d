@@ -92,19 +92,27 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
       }
       foreach (ch; str) if (!isValidChar(ch)) return null;
       if (auto res = getSSESwizzle(this, base, str)) return fastcast!(Object) (res);
-      auto parts = getTupleEntries(reinterpret_cast(asFilledTup, base));
-      Expr[] exprs;
-      foreach (ch; str) {
-             if (ch == 'x') exprs ~= parts[0];
-        else if (ch == 'y') exprs ~= parts[1];
-        else if (ch == 'z') exprs ~= parts[2];
-        else if (ch == 'w') exprs ~= parts[3];
-        else assert(false);
+      Expr generate(Expr ex) {
+        auto parts = getTupleEntries(ex, null, true);
+        Expr[] exprs;
+        foreach (ch; str) {
+              if (ch == 'x') exprs ~= parts[0];
+          else if (ch == 'y') exprs ~= parts[1];
+          else if (ch == 'z') exprs ~= parts[2];
+          else if (ch == 'w') exprs ~= parts[3];
+          else assert(false);
+        }
+        if (exprs.length == 1) return exprs[0];
+        auto new_vec = mkVec(this.base, exprs.length);
+        if (new_vec.extend) exprs ~= new ZeroFiller(this.base);
+        return reinterpret_cast(new_vec, mkTupleExpr(exprs));
       }
-      if (exprs.length == 1) return fastcast!(Object)~ exprs[0];
-      auto new_vec = mkVec(this.base, exprs.length);
-      if (new_vec.extend) exprs ~= new ZeroFiller(this.base);
-      return fastcast!(Object)~ reinterpret_cast(new_vec, mkTupleExpr(exprs));
+      if (auto lv = fastcast!(LValue) (base)) {
+        return fastcast!(Object)~ tmpize_maybe(new RefExpr(lv), (Expr ex) {
+          return generate(new DerefExpr(reinterpret_cast(new Pointer(asFilledTup), ex)));
+        });
+      }
+      return fastcast!(Object)~tmpize_maybe(reinterpret_cast(asFilledTup, base), &generate);
     }
   }
 }
@@ -287,17 +295,18 @@ Object constructVector(Expr base, Vector vec) {
   if (tup) {
     if (tup.types.length != vec.len)
       throw new Exception(Format("Insufficient elements in vec initializer! "));
-    Expr[] exs;
-    foreach (entry; getTupleEntries(base)) {
-      if (!gotImplicitCast(entry, (IType it) { return test(it == vec.base); }))
-        throw new Exception(Format("Invalid type in vec initializer: ", entry));
-      exs ~= entry;
-    }
-    
-    if (vec.extend) exs ~= new ZeroFiller(vec.base);
-    
-    return fastcast!(Object)~
-      reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
+    return fastcast!(Object)~ tmpize_maybe(base, (Expr base) {
+      Expr[] exs;
+      foreach (entry; getTupleEntries(base)) {
+        if (!gotImplicitCast(entry, (IType it) { return test(it == vec.base); }))
+          throw new Exception(Format("Invalid type in vec initializer: ", entry));
+        exs ~= entry;
+      }
+      
+      if (vec.extend) exs ~= new ZeroFiller(vec.base);
+      
+      return reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
+    });
   }
   assert(false);
 }
@@ -497,10 +506,17 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (auto vec = fastcast!(Vector)~ ex.valueType()) {
       if (vec.asFilledTup != vec.asTup) {
+        Expr generate(Expr ex) {
+          auto entries = getTupleEntries(ex, null, true);
+          assert(entries.length == 4);
+          return mkTupleExpr(entries[0], entries[1], entries[2]);
+        }
+        if (auto lv = fastcast!(LValue) (ex))
+          return tmpize_maybe(new RefExpr(lv), (Expr ex) {
+            return generate(new DerefExpr(reinterpret_cast(new Pointer(vec.asFilledTup), ex)));
+          });
         auto filled = reinterpret_cast(vec.asFilledTup, ex);
-        auto entries = getTupleEntries(filled);
-        assert(entries.length == 4);
-        return mkTupleExpr(entries[0], entries[1], entries[2]);
+        return tmpize_maybe(filled, &generate);
       } else
         return reinterpret_cast(vec.asTup, ex);
     }
@@ -531,7 +547,7 @@ bool pretransform(ref Expr ex, ref IType it) {
   it = resolveType(it);
   if (auto tup = fastcast!(Tuple)~ it) {
     if (tup.types.length == 1) {
-      ex = getTupleEntries(ex)[0];
+      ex = getTupleEntries(ex, null, true)[0];
       it = tup.types[0];
       return true;
     }

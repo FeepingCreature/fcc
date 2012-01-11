@@ -14,7 +14,7 @@ class Mode {
   ModeSpace translate(Expr ex, ParseCb rest) {
     auto res = new ModeSpace;
     string prefix, suffix;
-    auto cfg = config;
+    auto cfg = config.dup;
     while (cfg.length) {
       if (cfg.accept("prefix")) {
         if (!cfg.gotIdentifier(prefix))
@@ -159,6 +159,7 @@ class ModeSpace : Namespace, ScopeLike {
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     int framesize() { return (fastcast!(ScopeLike)~ sup).framesize(); }
+    string toString() { return Format("ModeSpace (", firstParam, ") <- ", sup); }
     mixin DefaultScopeLikeGuards!();
     Object lookup(string name, bool local = false) {
       Object funfilt(Object obj) {
@@ -324,5 +325,5 @@ Object gotPrefix(ref string text, ParseCb cont, ParseCb rest) {
 Object gotSuffix(ref string text, ParseCb cont, ParseCb rest) {
   return gotPreSufFix(text, true, cont, rest);
 }
-mixin DefaultParser!(gotPrefix, "tree.stmt.prefix", "155", "prefix");
-mixin DefaultParser!(gotSuffix, "tree.stmt.suffix", "1551", "suffix");
+mixin DefaultParser!(gotPrefix, "tree.stmt.prefix", "601", "prefix");
+mixin DefaultParser!(gotSuffix, "tree.stmt.suffix", "602", "suffix");

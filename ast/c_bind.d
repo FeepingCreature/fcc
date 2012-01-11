@@ -380,7 +380,10 @@ void parseHeader(string filename, string src) {
         string[] macroArgs;
         bool isMacroParams(ref string s) {
           auto s2 = s;
-          if (!s2.accept("(")) return false;
+          // NOT accept(): spacing matters!
+          // it's only a macro if the () comes directly after the name!
+          if (!s2.startsWith("(")) return false;
+          s2 = s2[1..$];
           while (true) {
             string id;
             if (!s2.gotIdentifier(id)) break;
@@ -465,23 +468,33 @@ void parseHeader(string filename, string src) {
           auto st = new Structure(ident);
           // st.minAlign = 4;
           st.isUnion = isUnion;
+          const debugStructs = false;
           while (true) {
             if (st2.startsWith("#define"))
               goto skip;
             auto ty = matchType(st2);
             // logln("for ", ident, ", match type @", st2, " = ", ty);
-            if (!ty) goto giveUp1;
+            if (!ty) {
+              static if (debugStructs) logln("type failed");
+              goto giveUp1;
+            }
             while (true) {
               auto pos = st2.find("sizeof");
               if (pos == -1) break;
               auto block = st2[pos .. $].between("(", ")");
               auto sty = matchType(block);
               if (!sty) {
+                static if (debugStructs) logln("sizeof loop match failed");
                 goto giveUp1;
               }
               auto translated = Format(sty.size);
               st2 = st2[0 .. pos] ~ translated ~ st2[pos .. $].between(")", "");
               // logln("st2 => ", st2);
+            }
+            while (true) {
+              auto atpos = st2.find("__attribute__");
+              if (atpos == -1) break;
+              st2 = st2[0..atpos] ~ st2[atpos .. $].between("))", "");
             }
             string name3;
             auto st3 = st2;
@@ -500,10 +513,14 @@ void parseHeader(string filename, string src) {
               }
               auto ie = fastcast!(IntExpr)~ size;
               // logln("size: ", size);
-              if (!ie) goto giveUp1;
+              if (!ie) {
+                static if (debugStructs) logln("size ie cast failed");
+                goto giveUp1;
+              }
               new RelMember(name3, new StaticArray(ty, ie.num), st);
               // logln("rest: ", st3);
               if (st3.strip().length) {
+                static if (debugStructs) logln("left over ", st3, ", failed");
                 goto giveUp1;
               }
               goto skip;
@@ -512,10 +529,14 @@ void parseHeader(string filename, string src) {
             if (st2.find("(") != -1) {
               // alias to void for now.
               add(ident, new TypeAlias(Single!(Void), ident));
+              static if (debugStructs) logln("can't handle the ", st2, ". fail. ");
               goto giveUp1; // can't handle yet
             }
             foreach (var; st2.split(",")) {
-              if (ty == Single!(Void)) goto giveUp1;
+              if (ty == Single!(Void)) {
+                static if (debugStructs) logln("void base type at ", startstr, ". fail. ");
+                goto giveUp1;
+              }
               new RelMember(var.strip(), ty, st);
             }
           skip:
@@ -528,6 +549,8 @@ void parseHeader(string filename, string src) {
           add(name, st);
           continue;
           giveUp1:
+          static if (debugStructs)
+            logln("give up on struct ", ident, " at ", st2);
           while (true) {
             // logln("stmt: ", st2, " in ", startstr);
             st2 = statements.take();
@@ -641,8 +664,14 @@ void parseHeader(string filename, string src) {
     if (auto ret = stmt.matchType()) {
       stmt.eatAttribute();
       string name;
-      if (!gotIdentifier(stmt, name))
-        goto giveUp;
+      bool funptr_mode;
+      if (!gotIdentifier(stmt, name)) {
+        if (stmt.accept("*")) funptr_mode = true;
+        // this is apparently valid syntax :o
+        if (!stmt.accept("(") || !gotIdentifier(stmt, name) || !stmt.accept(")")) {
+          goto giveUp;
+        }
+      }
       if (!stmt.accept("(")) {
         // weird, but, nope.
         // while (stmt.accept("[]")) ret = new Pointer(ret);
@@ -669,15 +698,24 @@ void parseHeader(string filename, string src) {
       foreach (ref arg; args)
         if (resolveType(arg) == Single!(Short))
           arg = Single!(SysInt);
-      auto fun = new Function;
-      fun.name = name;
-      fun.extern_c = true;
-      fun.type = new FunctionType;
-      fun.type.ret = ret;
-      fun.type.params = args /map/ (IType it) { return Argument(it); };
-      fun.type.stdcall = useStdcall;
-      fun.sup = null;
-      add(name, fun);
+      if (funptr_mode) {
+        auto fptype = new FunctionPointer;
+        fptype.ret = ret;
+        fptype.args = args /map/ (IType it) { return Argument(it); };
+        fptype.stdcall = useStdcall;
+        auto ec = new ExternCGlobVar(fptype, name);
+        add(name, ec);
+      } else {
+        auto fun = new Function;
+        fun.name = name;
+        fun.extern_c = true;
+        fun.type = new FunctionType;
+        fun.type.ret = ret;
+        fun.type.params = args /map/ (IType it) { return Argument(it); };
+        fun.type.stdcall = useStdcall;
+        fun.sup = null;
+        add(name, fun);
+      }
       continue;
     }
     giveUp:;

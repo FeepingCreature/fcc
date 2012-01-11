@@ -931,7 +931,7 @@ restart:
     // override conas
     if ((
       !changesOrNeedsActiveStack($0) ||
-      $0.kind == $TK.Mov /or/ $TK.MovD /or/ $TK.FloatPop /or/ $TK.FPIntPop /or/ $TK.DoublePop /or/
+      $0.kind == $TK.Mov /or/ $TK.MovD /or/ $TK.FloatPop /or/ $TK.FPIntPop /or/ $TK.FPLongPop /or/ $TK.DoublePop /or/
       $TK.FloatLoad /or/ $TK.FloatStore /or/ $TK.DoubleStore /or/ $TK.LoadAddress /or/ $TK.SSEOp
     ) && ((shift > 0 || shift == -1) && !dontDoIt)) {
       if (shift == -1) shift = $1.size;
@@ -1214,7 +1214,7 @@ restart:
   `));
   mixin(opt("store_into_pop", `*, ^Pop:
     info($0).numInOps() == 0 && info($0).outOp().isIndirect(0) == "%esp" && info($0).opSize == $1.size
-    && $0.kind != $TK.FPIntPop /* doesn't take register argument */
+    && $0.kind != $TK.FPIntPop /or/ $TK.FPLongPop /* doesn't take register argument */
     =>
     $T t1;
     t1.kind = $TK.SFree;
@@ -1245,9 +1245,14 @@ restart:
     t.dest = $0.dest;
     $SUBST(t);
   `));
-  mixin(opt("add_switch", `^MathOp, ^Mov:
-    $0.opName.isCommutative() && $0.op1 == $1.to && $1.from == $0.op2  =>  $T t = $0; swap(t.op1, t.op2); $SUBST(t); 
-  `));
+  /*mixin(opt("comm_switch", `^MathOp, ^Mov, ^MathOp:
+    $0.opName.isCommutative() && $0.op1 == $1.to && $1.from == $0.op2
+    && $2.op1.isNumLiteral() && $2.op2 == $1.to
+    =>
+    $T t0 = $0; swap(t0.op1, t0.op2);
+    $T t1 = $1; swap(t1.from, t1.to);
+    $SUBST(t0, t1, $2);
+  `));*/
   mixin(opt("fold_adds", `^MathOp, ^MathOp:
     $0.opName == "addl" && $1.opName == "addl" && $0.op2 == $1.op2 && $0.op2.isUtilityRegister() &&
     $0.op1.isNumLiteral() && $1.op1.isNumLiteral()
@@ -1306,7 +1311,8 @@ restart:
     $T t = $0.dup;
     t.kind = $TK.FloatStore;
     $T t2;
-    t2.kind = $TK.FPSwap;
+    t2.kind = $TK.PureFloat;
+    t2.opName = "fxch";
     $SUBST(t, $1, t2);
   `));
   // nvm opts
@@ -1357,7 +1363,7 @@ restart:
     =>
     $SUBST($0);
   `));
-  mixin(opt("pointless_fxch", `^FPSwap, ^FloatMath: $1.opName == "faddp"[] /or/ "fmulp"[] => $SUBST($1); `));
+  mixin(opt("pointless_fxch", `^PureFloat, ^FloatMath: $0.opName == "fxch" && $1.opName == "faddp"[] /or/ "fmulp"[] => $SUBST($1); `));
   /*mixin(opt("shufps_direct", `^SSEOp, ^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $2.opName == "movaps" &&
     $1.opName.startsWith("shufps") &&
@@ -1912,7 +1918,7 @@ restart:
             if (check == "(%esp)") break outer;
             continue;
           case Mov2, Mov1, Swap, Text: break outer; // weird stuff, not worth the confusion
-          case FloatMath, FPSwap:
+          case FloatMath, PureFloat:
             continue;    // no change
           
           case Jump:
@@ -1940,7 +1946,7 @@ restart:
           
           case Pop:
             if (check == "(%esp)") break outer;
-          case Nevermind, FloatPop, DoublePop, FPIntPop, FloatStore, DoubleStore:
+          case Nevermind, FloatPop, DoublePop, FPIntPop, FPLongPop, FloatStore, DoubleStore:
             if (entry.dest == check) { unneeded = true; break outer; }
             if (test(entry.dest)) break outer;
             continue;

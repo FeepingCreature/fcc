@@ -28,7 +28,7 @@ int initGL() mode GL {
   Enable COLOR_MATERIAL;
   DepthFunc LESS; // lequal is bad for mesa
   Enable TEXTURE_2D;
-  Hint (PERSPECTIVE_CORRECTION_HINT, NICEST);
+  PERSPECTIVE_CORRECTION_HINT.Hint NICEST;
   return true;
 }
 
@@ -52,7 +52,7 @@ SDL_Surface* setup-gl(int extra-flags = 0) {
   regenSurf = new delegate SDL_Surface*(int w, int h) {
     writeln "regenSurf($w, $h, 0, $flags)";
     auto res = SDL_SetVideoMode (w, h, 0, flags);
-    if !res quit(1);
+    if !res quit 1;
     initGL;
     // IMPORTANT: init gl FIRST
     resizeWindow (w, h);

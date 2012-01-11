@@ -1,6 +1,6 @@
 module ast.funcall;
 
-import ast.fun, ast.base;
+import ast.fun, ast.base, ast.vardecl, ast.aggregate, ast.structure;
 
 alias ast.fun.Argument Argument;
 
@@ -40,11 +40,14 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_1", "115"); // must be high-priority (above arith) to override subtraction.
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be below arith too, to be usable in stuff like paren-less calls
 
-bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = null, string text = null, bool probe = false, bool exact = false) {
+bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, string info = null, string text = null, bool probe = false, bool exact = false) {
   Expr[string] nameds;
   void removeNameds(ref Iterable it) {
     if (auto ex = fastcast!(Expr)~ it) {
-      if (auto tup = fastcast!(AstTuple)~ ex.valueType()) {
+      auto tup = fastcast!(AstTuple) (ex.valueType());
+      bool canHaveNameds = true;
+      if (fastcast!(StatementAndExpr) (ex)) canHaveNameds = false;
+      if (canHaveNameds && tup) {
         // filter out nameds from the tuple.
         auto exprs = getTupleEntries(ex);
         bool gotNamed;
@@ -102,15 +105,19 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, string info = 
   Expr[] args;
   args ~= arg;
   Expr[] flatten(Expr ex) {
-    if (fastcast!(AstTuple)~ ex.valueType())
-      return getTupleEntries(ex);
-    else
+    if (fastcast!(AstTuple)~ ex.valueType()) {
+      Statement st;
+      auto res = getTupleEntries(ex, &st);
+      if (st) inits ~= st;
+      return res;
+    } else {
       return null;
+    }
   }
   int flatLength(Expr ex) {
     int res;
     if (fastcast!(AstTuple)~ ex.valueType()) {
-      foreach (entry; getTupleEntries(ex))
+      foreach (entry; getTupleEntries(ex, null, true))
         res += flatLength(entry);
     } else {
       res ++;
@@ -231,7 +238,7 @@ bool cantBeCall(string s) {
 
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
-bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res, bool test, bool precise) {
+bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res, out Statement[] inits, bool test, bool precise) {
   if (!params.length) {
     auto t2 = text;
     if (t2.accept(";")) return true; // paramless call
@@ -264,14 +271,17 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
     else if (info.startsWith("delegate")) return false;
     else arg = mkTupleExpr();
   }
-  return matchedCallWith(arg, params, res, info, backup_text, test, precise);
+  return matchedCallWith(arg, params, res, inits, info, backup_text, test, precise);
 }
 
 Expr buildFunCall(Function fun, Expr arg, string info) {
   auto fc = fun.mkCall();
-  if (!matchedCallWith(arg, fun.getParams(), fc.params, info))
+  Statement[] inits;
+  if (!matchedCallWith(arg, fun.getParams(), fc.params, inits, info))
     return null;
-  return fc;
+  if (!inits.length) return fc;
+  else if (inits.length > 1) inits = [new AggrStatement(inits)];
+  return mkStatementAndExpr(inits[0], fc);
 }
 
 import ast.parse, ast.static_arrays;
@@ -289,7 +299,8 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       typeof(fun.getParams())[] parsets, candsets;
       foreach (osfun; os.funs) {
         auto t3 = t2;
-        if (matchCall(t3, osfun.name, osfun.getParams(), rest, osfun.mkCall().params, true, precise)) {
+        Statement[] inits;
+        if (matchCall(t3, osfun.name, osfun.getParams(), rest, osfun.mkCall().params, inits, true, precise)) {
           candidates ~= osfun;
           candsets ~= osfun.getParams();
         }
@@ -309,8 +320,13 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto params = fun.getParams();
     resetError();
     bool result;
-    try result = matchCall(t2, fun.name, params, rest, fc.params, false, false);
-    catch (Exception ex) text.failparse("cannot call: ", ex);
+    Statement[] inits;
+    Expr res = fc;
+    try {
+      result = matchCall(t2, fun.name, params, rest, fc.params, inits, false, false);
+      if (inits.length > 1) inits = [new AggrStatement(inits)];
+      if (inits.length) res = mkStatementAndExpr(inits[0], fc);
+    } catch (Exception ex) text.failparse("cannot call: ", ex);
     if (!result) {
       if (t2.accept("("))
         t2.failparse("Failed to call function with ", params, ": ", error()._1);
@@ -319,7 +335,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (params.length || !t3.acceptTerminatorSoft())
         return null;
     } else text = t2;
-    return fc;
+    return fastcast!(Object) (res);
   };
 }
 mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall");
@@ -351,11 +367,15 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto fc = new FpCall;
     fc.fp = ex;
     
-    if (!matchCall(t2, Format("delegate ", ex.valueType()), fptype.args, rest, fc.params, false, false))
+    Statement[] inits;
+    if (!matchCall(t2, Format("delegate ", ex.valueType()), fptype.args, rest, fc.params, inits, false, false))
       return null;
     
     text = t2;
-    return fc;
+    Expr res = fc;
+    if (inits.length > 1) inits = [new AggrStatement(inits)];
+    if (inits.length) res = mkStatementAndExpr(inits[0], res);
+    return fastcast!(Object) (res);
   };
 }
 mixin DefaultParser!(gotFpCallExpr, "tree.rhs_partial.fpcall");
@@ -389,10 +409,14 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     auto dc = new DgCall;
     dc.dg = ex;
-    if (!matchCall(t2, Format("delegate ", ex.valueType()), dgtype.args, rest, dc.params, false, false))
+    Statement[] inits;
+    if (!matchCall(t2, Format("delegate ", ex.valueType()), dgtype.args, rest, dc.params, inits, false, false))
       return null;
     text = t2;
-    return dc;
+    Expr res = dc;
+    if (inits.length > 1) inits = [new AggrStatement(inits)];
+    if (inits.length) res = mkStatementAndExpr(inits[0], res);
+    return fastcast!(Object) (res);
   };
 }
 mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall");

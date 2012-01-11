@@ -583,7 +583,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     while (restore--) {
       af.stackToFpu();
       if (ret == Single!(Float) || ret == Single!(Double))
-        af.swapFloats;
+        af.fpuOp("fxch");
     }
     af.sfree(alignCall);
     
