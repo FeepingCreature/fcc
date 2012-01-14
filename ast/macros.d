@@ -145,14 +145,15 @@ extern(C) void fcc_initTenth() {
     ifs.test = cd;
     namespace.set(ifs.wrapper);
     
-    ifs.branch1 = new Scope;
-    ifs.branch1.requiredDepthDebug ~= " (ast.macros:150)";
-    namespace.set(ifs.branch1);
+    auto branch1 = new Scope;
+    ifs.branch1 = branch1;
+    branch1.requiredDepthDebug ~= " (ast.macros:150)";
+    namespace.set(branch1);
     
     scope(exit) namespace.set(ifs.wrapper.sup);
     
     mixin(chaincast("st: Second arg for 'make-if', evaluated: args[1].eval(ctx)->ItrEntity: %.itr->Statement"));
-    ifs.branch1.addStatement(st);
+    branch1.addStatement(st);
     
     return new ItrEntity(ifs);
   }));

@@ -144,7 +144,7 @@ class Cross : Type, RichIterator {
       auto root = iparse!(IfStatement, "cross_iterate_init", "tree.stmt")
                          (`if (!tup[0]) { tup[0] = true; } else {}`, "tup", tup);
       foreach (i, type; types) {
-        root.branch1.addStatement(iparse!(Statement, "cross_iterate_init_specific", "tree.stmt")
+        (fastcast!(Scope) (root.branch1)).addStatement(iparse!(Statement, "cross_iterate_init_specific", "tree.stmt")
                                          (`{ eval tup[1+i] <- tup[1+len+i]; }`,
                                           "tup", tup, "i", mkInt(i), "len", mkInt(types.length)));
       }
@@ -155,17 +155,17 @@ class Cross : Type, RichIterator {
                            (`if (tup[1+i] <- tup[1+len+i]) { } else { tup[1+len+i] = tup[1+len*2+i]; eval tup[1+i] <- tup[1+len+i]; }`,
                             "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
         if (!current) {
-          root.branch2.addStatement(myIf);
+          (fastcast!(Scope) (root.branch2)).addStatement(myIf);
           current = myIf;
         } else {
-          current.branch2.addStatement(myIf);
+          (fastcast!(Scope) (current.branch2)).addStatement(myIf);
           current = myIf;
         }
       }
       auto term = iparse!(Statement, "cross_finalize", "tree.stmt")
                          (`tup[0] = false; `,
                           "tup", tup);
-      current.branch2.addStatement(term); // wrap initializer around again
+      (fastcast!(Scope) (current.branch2)).addStatement(term); // wrap initializer around again
       assert(!!root);
       auto cond = iparse!(Cond, "cross_test_result", "cond")
                          (`tup[0]`,
@@ -400,7 +400,7 @@ class Cat(T) : Type, T {
                              curBranch, "tup", tup, "i", mkInt(i), "len", mkInt(len)
                            );
         curBranch.addStatement(ifst);
-        curBranch = ifst.branch2; // fill the else{}
+        curBranch = fastcast!(Scope) (ifst.branch2); // fill the else{}
       }
       return new StatementAndCond(res_st, new ExprWrap(mkTupleIndexAccess(tup, 1+len+len-1 /* last bool, and be glad I didn't write "2*len" */)));
     }

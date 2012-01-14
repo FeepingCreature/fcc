@@ -3,7 +3,7 @@ module cpuid;
 void main() {
   {
     auto temp = cpuid 0;
-    auto ident = char[12]:(temp[1], temp[3], temp[2]);
+    auto ident = char x 12:(temp[1], temp[3], temp[2]);
     writeln "Vendor ID: $ident";
   }
   {
@@ -13,7 +13,7 @@ void main() {
   {
     auto temp = cpuid 0x8000_0000;
     if (temp[0] >= 0x8000_0004) {
-      auto brand = char[16]:(cpuid 0x8000_0002) ~ char[16]:(cpuid 0x8000_0003) ~ char[16]:(cpuid 0x8000_0004);
+      auto brand = char x 16:(cpuid 0x8000_0002) ~ char x 16:(cpuid 0x8000_0003) ~ char x 16:(cpuid 0x8000_0004);
       writeln "Processor brand: $brand";
     }
   }

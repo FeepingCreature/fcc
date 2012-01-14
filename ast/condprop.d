@@ -31,26 +31,25 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
       ifs.wrapper.requiredDepthDebug ~= " (ast.condprop:31)";
       ifs.wrapper.pad_framesize = base.valueType().size + ((prvt == Single!(Void))?0:oe.type.size);
       ifs.wrapper.requiredDepth += ifs.wrapper.pad_framesize;
-      namespace.set(ifs.wrapper);
-      scope(exit) namespace.set(ifs.wrapper.sup);
+      // namespace.set(ifs.wrapper);
+      // scope(exit) namespace.set(ifs.wrapper.sup);
       ifs.test = iparse!(Cond, "cp_cond", "cond")
                         (`base`, "base", base);
       configure(ifs.test);
-      ifs.branch1 = new Scope;
       
       Expr res;
       if (isVoid) {
-        ifs.branch1.addStatement (new ExprStatement(proprest));
+        ifs.branch1 = new ExprStatement(proprest);
         res = mkStatementAndExpr(ifs, Single!(VoidExpr));
       } else {
-        ifs.branch1.addStatement(new Assignment(oe, proprest));
-        New(ifs.branch2);
+        ifs.branch1 = new Assignment(oe, proprest);
         auto ovt = oe.valueType();
-        ifs.branch2.addStatement(new Assignment(
+        ifs.branch2 = new Assignment(
           oe,
-          reinterpret_cast(ovt, new DataExpr(ovt.initval()))));
+          reinterpret_cast(ovt, new DataExpr(ovt.initval())));
         res = mkStatementAndExpr(ifs, oe);
       }
+      ifs.wrapper.requiredDepth = int.max; // force tolerance
       text = t2;
       return res;
     }));

@@ -4,7 +4,7 @@ import ast.base, ast.scopes, ast.conditionals, ast.parse;
 
 class IfStatement : LineNumberedStatementClass {
   Scope wrapper;
-  Scope branch1, branch2;
+  Statement branch1, branch2;
   Cond test;
   mixin DefaultDup!();
   mixin defaultIterate!(test, wrapper, branch1, branch2);
