@@ -166,8 +166,24 @@ reassign string realpath(string path) {
   return CToString C_realpath(toStringz path, null);
 }
 
+/*
+  Function: exists
+  Returns whether a file exists.
+*/
 bool exists(string file) {
   return access(toStringz file, F_OK) != -1;
+}
+
+extern(C) int stat(char* path, void* buf);
+RenameIdentifier stat cstdlib-stat;
+
+/*
+  Function: isDir
+  Returns true if the argument is a directory
+*/
+bool isDir(string s) {
+  cstdlib-stat(toStringz s, &stat buf);
+  return !!(buf.st_mode & S_IFDIR);
 }
 
 extern(C) char* strerror(int errnum);
