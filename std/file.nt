@@ -14,7 +14,7 @@ class ErrnoError : Error {
     init();
     err = e;
   }
-  string toString() { return "ErrnoError $(err): $(CToString strerror(errno)) ($errno)"; }
+  string toString() { return "ErrnoError: $(CToString strerror(errno)) ($errno): $err"; }
 }
 
 /*Template: readfile
@@ -202,7 +202,7 @@ string[] listDirectory(string path) {
   
   auto dp = opendir toStringz path;
   if !dp {
-    auto err = new Error CToString strerror errno;
+    auto err = new ErrnoError path;
     raise err;
   }
   
