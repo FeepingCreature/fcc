@@ -365,11 +365,12 @@ template StatementAndT(T) {
       this.second = second;
       this.permissive = permissive;
       this.marker = stmt_and_t_marker ++;
+      // if (marker == 505) asm { int 3; }
     }
     mixin defaultIterate!(first, second);
     bool once;
     bool check() {
-      // if (marker == 185) fail;
+      // if (marker == 505) asm { int 3; }
       if (once) {
         if (permissive) return false;
         logln("Double emit ", marker, " ", this, ". NOT SAFE. ");

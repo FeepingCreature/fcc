@@ -23,8 +23,13 @@ alias Single!(Pointer, Single!(Void)) voidp;
 // &foo
 class RefExpr : Expr {
   CValue src;
-  this(CValue cv) { if (!cv) fail;; this.src = cv; }
-  private this() { }
+  int counter;
+  static int pointer_counter;
+  this(CValue cv) { if (!cv) fail; this.src = cv; this(); }
+  private this() {
+    counter = pointer_counter ++;
+    // if (counter == 5101) fail;
+  }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
   override {

@@ -371,15 +371,21 @@ class MemberAccess_Expr : Expr, HasInfo {
   Expr base;
   RelMember stm;
   string name;
+  int counter;
+  static int mae_counter;
   this(Expr base, string name) {
     this.base = base;
     this.name = name;
+    this();
     auto ns = fastcast!(Namespace) (base.valueType());
     if (!ns) { logln("Base is not NS-typed: ", base.valueType()); fail; }
     stm = fastcast!(RelMember) (ns.lookup(name));
     if (!stm) throw new Exception(Format("No member '", name, "' in ", base.valueType(), "!"));
   }
-  this() { }
+  this() {
+    counter = mae_counter ++;
+    // if (counter == 31735) fail;
+  }
   string getInfo() { return "."~name; }
   MemberAccess_Expr create() { return new MemberAccess_Expr; }
   MemberAccess_Expr dup() {

@@ -122,14 +122,14 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
   return var;
 }
 
-Expr lvize_if_possible(Expr ex, Statement* late_init = null) {
+Expr tmpize_if_possible(Expr ex, Statement* late_init = null) {
   if (auto var = fastcast!(Variable) (ex)) return ex;
-  if (late_init) if (auto sal = fastcast!(StatementAndLValue) (ex)) {
+  /*if (late_init) if (auto sal = fastcast!(StatementAndLValue) (ex)) {
     if (auto var = fastcast!(Variable) (sal.second)) {
       *late_init = sal.first;
       return sal.second;
     }
-  }
+  }*/
   auto sc = namespace().get!(Scope);
   if (!sc) {
     return ex;
@@ -163,7 +163,7 @@ extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null) {
     logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
     fail;
   }
-  return fastcast!(LValue) (lvize_if_possible(ex, late_init));
+  return fastcast!(LValue) (tmpize_if_possible(ex, late_init));
 }
 
 LValue lvize(Expr ex, Statement* late_init = null) { return ast_vardecl_lvize(ex, late_init); }

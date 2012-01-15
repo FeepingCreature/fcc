@@ -52,7 +52,8 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
           }
         }
       }
-      ex = lvize(ex, late_init);
+      // force allocation
+      ex = tmpize_if_possible(ex, late_init);
       return ex;
     }
     if (!initst) {
@@ -279,7 +280,8 @@ static this() {
     if (auto tup = fastcast!(Tuple)~ ex.valueType()) {
       if ((fastcast!(Tuple)~ it).types.length != tup.types.length)
         return;
-      auto exprs = getTupleEntries(ex);
+      Statement initst;
+      auto exprs = getTupleEntries(ex, &initst);
       Expr[] stack;
       Expr[][] casts;
       foreach (entry; exprs) {
@@ -297,6 +299,7 @@ static this() {
         while (i < exprs.length && !inc(i)) i++;
         if (i == exprs.length) break;
         auto t = mkTupleExpr(stack);
+        if (initst) t = mkStatementAndExpr(initst, t);
         if (it == t.valueType()) dg(t);
       }
     }
