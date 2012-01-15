@@ -200,6 +200,9 @@ extern(C) char* strerror(int errnum);
 string[] listDirectory(string path) {
   string[auto~] ret;
   
+  auto rest = path.startsWith "~";
+  if rest path = CToString getenv(toStringz "HOME") ~ rest;
+  
   auto dp = opendir toStringz path;
   if !dp {
     auto err = new ErrnoError path;
@@ -211,6 +214,8 @@ string[] listDirectory(string path) {
   } while entry {
     ret ~= CToString entry.d_name;
   }
+  
+  closedir dp;
   
   return ret[];
 }

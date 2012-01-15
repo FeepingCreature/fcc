@@ -64,6 +64,9 @@ class Socket {
   /*Function: open*/
   void open(TcpAddress ta) {
     auto res = c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+    if res == -1 {
+      raise new Error "Unable to open socket: $(CToString strerror errno) ($errno)";
+    }
   }
   /*Function: recv
   Fills the argument with data from the socket, returning the number of bytes received. */

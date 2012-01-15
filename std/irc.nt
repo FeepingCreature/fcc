@@ -731,6 +731,8 @@ class Server {
   }
   
   void init(string nick, string host, int port = 6667, string user = "NeatIRCLib", string identd = "neatirclib", string realname = "Neat IRC Library", string pass = null) {
+    //writeln "$nick $host $port $user $identd $realname $pass";
+    //writeln "connect($host, $(short:port))";
     sock = connect(host, short:port);
     iter = (castIter!string readsocket sock).splitAt "\n";
     sendCommand "NICK $nick";
@@ -851,8 +853,8 @@ class Server {
   }
   
   void sendCommand(string s) {
-    sock.sendAll byte[]:(s~"\r\n");
     writeln "$(address) << $s";
+    sock.sendAll byte[]:(s~"\r\n");
   }
   
   void join(string chan) {
@@ -880,6 +882,13 @@ class Server {
   void nick (string n) {
     sendCommand "NICK $n";
     me.nick = n;
+  }
+  
+  void quit(string msg = null) {
+    if msg
+      sendCommand "QUIT :$msg";
+    else
+      sendCommand "QUIT";
   }
 }
 
