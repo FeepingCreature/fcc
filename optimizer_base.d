@@ -338,6 +338,15 @@ bool pinsRegister(ref Transaction t, string reg) {
       return true;
     else if (t.kind == FloatMath /or/ PureFloat)
       return false;
+  if (auto reg2 = reg.isIndirect()) {
+    // a transaction that only accesses (other) registers does not pin a memory write
+    bool res;
+    info(t).accessParams(delegate void(ref string s) {
+      if (s.find(reg2) != -1) res = true;
+      if (s.isIndirect()) res = true;
+    });
+    return res;
+  }
   bool res;
   info(t).accessParams(delegate void(ref string s) {
     if (s.find(reg) != -1) res = true;
