@@ -804,7 +804,7 @@ class FailExpr : Expr {
   }
 }
 
-import ast.opers;
+import ast.opers, ast.aggregate;
 static this() {
   Expr handleVecOp(string op, Expr lhs, Expr rhs) {
     auto v1 = lhs.valueType(), v2 = rhs.valueType();
@@ -818,14 +818,19 @@ static this() {
     if (v1v) { len = v1v.len; real_len = v1v.real_len; }
     else { len = v2v.len; real_len = v2v.real_len; }
     
+    Statement st1, st2;
     IType type;
     if (v1v is v2v && v1v == v2v) type = v1v.base;
     else {
-      auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asFilledTup, lhs))[0];
-      auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs))[0];
+      auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asFilledTup, lhs), &st1)[0];
+      auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs), &st2)[0];
       type = lookupOp(op, l1, r1).valueType();
     }
-    return new VecOp(type, len, real_len, lhs, rhs, op);
+    Expr res = new VecOp(type, len, real_len, lhs, rhs, op);
+    if (!st1 && st2) st1 = st2;
+    if (st1 && st2) st1 = new AggrStatement([st1, st2]);
+    if (st1) res = new StatementAndExpr(st1, res);
+    return res;
   }
   Expr negate(Expr ex) {
     auto ty = resolveType(ex.valueType());

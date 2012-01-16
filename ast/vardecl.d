@@ -6,7 +6,7 @@ public import ast.variable;
 int vardecl_marker;
 
 import ast.pointer, ast.casting;
-class VarDecl : LineNumberedStatementClass {
+class VarDecl : LineNumberedStatementClass, HasInfo {
   Variable var;
   int marker;
   this(Variable v) {
@@ -16,12 +16,15 @@ class VarDecl : LineNumberedStatementClass {
       fail;
     }
     marker = .vardecl_marker ++;
-    // if (marker == 906) { logln(this); fail; }
+    // if (marker == 892) { logln(this); fail; }
   }
   VarDecl dup() { return new VarDecl(var.dup); }
   mixin defaultIterate!(var);
   bool hasInitializer() {
     return !var.dontInit;
+  }
+  override string getInfo() {
+    return Format(var.dontInit?"uninitialized":"initialized", "; ", marker);
   }
   override void emitAsm(AsmFile af) {
     if (hasInitializer) super.emitAsm(af); // otherwise not worth it
