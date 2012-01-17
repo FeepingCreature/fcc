@@ -20,7 +20,15 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
       auto proprest = fastcast!(Expr) (proprest_obj);
       if (!proprest_obj || !proprest)
         t2.failparse("couldn't get continuing property for ", base, " - ", proprest_obj);
+      Expr elsecase;
+      if (t2.accept(":")) {
+        if (!rest(t2, "tree.expr _tree.expr.arith", &elsecase))
+          t2.failparse("Else property expected");
+      }
       auto prvt = proprest.valueType();
+      if (elsecase.valueType() != prvt) {
+        t2.failparse("Mismatched types: ", prvt, " and ", elsecase.valueType());
+      }
       
       oe.type = prvt;
       
@@ -40,13 +48,13 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
       Expr res;
       if (isVoid) {
         ifs.branch1 = new ExprStatement(proprest);
+        if (elsecase) ifs.branch2 = new ExprStatement(elsecase);
         res = mkStatementAndExpr(ifs, Single!(VoidExpr));
       } else {
         ifs.branch1 = new Assignment(oe, proprest);
         auto ovt = oe.valueType();
-        ifs.branch2 = new Assignment(
-          oe,
-          reinterpret_cast(ovt, new DataExpr(ovt.initval())));
+        if (!elsecase) elsecase = reinterpret_cast(ovt, new DataExpr(ovt.initval()));
+        ifs.branch2 = new Assignment(oe, elsecase);
         res = mkStatementAndExpr(ifs, oe);
       }
       ifs.wrapper.requiredDepth = int.max; // force tolerance
