@@ -305,6 +305,7 @@ class CallbackExpr : Expr {
   override {
     IType valueType() { return type; }
     void emitAsm(AsmFile af) { dg(ex, af); }
+    string toString() { return Format("callback<", ex, ">"); }
     mixin defaultIterate!(ex);
   }
   private this() { }

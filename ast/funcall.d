@@ -43,6 +43,7 @@ mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be be
 bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, string info = null, string text = null, bool probe = false, bool exact = false) {
   Expr[string] nameds;
   void removeNameds(ref Iterable it) {
+    if (fastcast!(Variable) (it)) return;
     if (auto ex = fastcast!(Expr)~ it) {
       auto tup = fastcast!(AstTuple) (ex.valueType());
       bool canHaveNameds = true;
@@ -87,13 +88,14 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     Iterable forble = arg;
     removeNameds(forble);
     void checkNameds(ref Iterable it) {
+      if (fastcast!(Variable) (it)) return;
       /*logln("<", (cast(Object) it).classinfo.name, ">");
       if (auto rce = fastcast!(RCE) (it)) {
         logln(" - ", rce.to);
       }*/
       if (auto na = fastcast!(NamedArg) (it)) {
         // fail;
-        throw new Exception(Format("Nested named-arg found! :( ", na));
+        throw new Exception(Format("Nested named-arg found! :( ", na, " in ", forble, " (couldn't remove)"));
       }
       it.iterate(&checkNameds);
       // logln("</", (cast(Object) it).classinfo.name, ">");
