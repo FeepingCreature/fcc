@@ -14,7 +14,7 @@ class ErrnoError : Error {
     init();
     err = e;
   }
-  string toString() { return "ErrnoError $(err): $(CToString strerror(errno)) ($errno)"; }
+  string toString() { return "ErrnoError: $(CToString strerror(errno)) ($errno): $err"; }
 }
 
 /*Template: readfile
@@ -130,6 +130,12 @@ string basedir(string file) {
   return file;
 }
 
+string basename(string path) {
+  int n=path.length-1;
+  while path[n] != "/" && n>=0 n--;
+  return path[n+1..$];
+}
+
 // in path1, access path2
 /*Function: sub
 Given two paths, returns the second path as seen from the first path. */
@@ -194,9 +200,12 @@ extern(C) char* strerror(int errnum);
 string[] listDirectory(string path) {
   string[auto~] ret;
   
+  auto rest = path.startsWith "~";
+  if rest path = CToString getenv(toStringz "HOME") ~ rest;
+  
   auto dp = opendir toStringz path;
   if !dp {
-    auto err = new Error CToString strerror errno;
+    auto err = new ErrnoError path;
     raise err;
   }
   
@@ -205,6 +214,8 @@ string[] listDirectory(string path) {
   } while entry {
     ret ~= CToString entry.d_name;
   }
+  
+  closedir dp;
   
   return ret[];
 }

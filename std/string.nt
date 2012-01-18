@@ -298,20 +298,82 @@ string[] split(string s, string marker) {
   return res[];
 }
 
-extern(C) int asprintf(char** strp, char* fmt, ...);
-string toString(int i, int base = 10) {
-  if base == 2 {
+import std.math;
+/*Function: toString
+Converts an integer to a string with the specified base.*/
+string toString(int ini,int base=10) {
+  string nums="0123456789abcdefghijklmnopqrstuvwxyz";
+  // string ts(int n,int b){stringstream a;a<<n%b;for(int p=2;n>pow(b,p-2);p++)a<<(n%(int)pow(b,p)-n%(int)pow(b,p-1))/pow(b,p-1); return a.str();}
+  if base>36
+    raise new Error "Sorry, bases up to 36 are supported due to available symbols.";
+  if base==10 // no need to waste time with the algorithm below
+    return "$ini";
+  if base==1
+    raise new Error "Base 1 not supported.";
+  if base<=0
+    raise new Error "Invalid base.";
+  bool neg=false;
+  if ini<0 {ini = -ini;neg=true;}
+  // does not work with base 2, so special case:
+  if base==2 {
     string a;
-    for (int k=31; k>=0; k--)
-      a="$a$(i>>k & 1)";
-    return a;
+    for (int i=31;i>=0;i--)
+      a="$a$(ini>>i & 1)";
+    a=a.stripBeginning "0";
+    return ["","-"][neg]~a;
   }
-  if base == 10
-    return "$i";
-  if base == 16 {
-    char *a;
-    asprintf(&a,"%x", i);
-    return CToString a;
-  }
-  raise new Error "toString(base => $base) not supported";
+  string a;
+  a="$(nums[ini%base])";
+  for (int p=2; ini>int:pow(base,p-1); p++)
+    a="$(nums[(ini%int:pow(base,p) - ini%int:pow(base,p-1))/int:pow(base,p-1)])$a";
+  return ["","-"][neg]~a;
 }
+
+int toInt(string str, int base=10) {
+  if base==10
+    return atoi(str);
+  if base>36
+    raise new Error "Sorry, bases up to 36 are supported due to available symbols.";
+  if base==1
+    raise new Error "Base 1 not supported.";
+  if base<=0
+    raise new Error "Invalid base.";
+  
+  if base==2 {
+    int n=0;
+    for (int i=str.length-1;i>=0;i--) {
+      int d = (str[i]=="1");
+      int p = str.length-i;
+      if d
+        n += d * int:pow(2,p-1);
+    }
+    return n;
+  }
+  
+  string nums="0123456789abcdefghijklmnopqrstuvwxyz";
+  int n=0;
+  
+  for (int i=str.length-1;i>=0;i--) {
+    int d = nums.find "$(str[i])";
+    int p = str.length-i;
+    
+    n += d * int:pow(base,p-1);
+  }
+  
+  return n;
+}
+
+/*Function: stripBeginning
+Strips all of the m's from the beginning of s until it hits something that is not m.*/
+string stripBeginning(string s, string m) {
+  while s.length && s[0..m.length]==m s=s[m.length..$];
+  return s;
+}
+
+/*Function: stripTrailing
+The same as <stripBeginning> except from the end.*/
+string stripTrailing(string s, string m) {
+  while s.length && s[$-m.length..$]==m s=s[0..$-m.length];
+  return s;
+}
+

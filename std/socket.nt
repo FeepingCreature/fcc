@@ -64,6 +64,9 @@ class Socket {
   /*Function: open*/
   void open(TcpAddress ta) {
     auto res = c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+    if res == -1 {
+      raise new Error "Unable to open socket: $(CToString strerror errno) ($errno)";
+    }
   }
   /*Function: recv
   Fills the argument with data from the socket, returning the number of bytes received. */
@@ -131,25 +134,39 @@ Socket connect(string domain, short port) using new Socket {
   return that;
 }
 
+extern(C) {
+  int getpeername(int,sockaddr*,int*);
+  char *inet_ntoa(in_addr);
+}
+(string,int) peernameof(Socket s) {
+  sockaddr_in a;
+  int l = size-of sockaddr_in;
+  if getpeername(s.sockfd,sockaddr*:&a,&l) != 0
+    raise new Error "Unable to get peer name: $(CToString strerror errno)";
+  auto x = CToString inet_ntoa(a.sin_addr);
+  auto y = ntohs(a.sin_port);
+  return (x,y);
+}
+
+string ipof (Socket s)
+  return peernameof(s)[0];
+
 /*Template: readsocket
 Returns an iterator that yields data received from the socket argument*/
-template readsocket(T) {
-  class sockreader : Iterator!byte[] {
-    Socket sock;
-    bool done;
-    byte x 256  buf;
-    bool advance() {
-      auto size = sock.recv buf[];
-      if size <= 0 return false;
-      value = buf[0 .. size];
-      return true;
-    }
-  }
-  sockreader readsocket(T t) using new sockreader {
-    sock = t;
-    return that;
+class sockreader : Iterator!byte[] {
+  Socket sock;
+  bool done;
+  byte x 256  buf;
+  void init(Socket s) sock = s;
+  bool advance() {
+    auto size = sock.recv buf[];
+    if size <= 0 return false;
+    value = buf[0 .. size];
+    return true;
   }
 }
+
+sockreader readsocket(Socket s) return new sockreader s;
 
 /*Struct: SelectSet
 Allows waiting on multiple sockets*/
@@ -191,3 +208,4 @@ struct SelectSet {
     if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
   }
 }
+

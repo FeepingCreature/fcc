@@ -2,147 +2,10 @@
 Simple HTTP processing */
 module std.http;
 
-import std.string, std.util, std.socket;
+import std.string, std.util, std.socket, std.time;
 
 class DownloadError : Error {
   void init(string url, string msg) { super.init "While downloading '$url': $msg"; }
-}
-
-import c.stdio;
-/* Function: download
-*Deprecated!*
-Download a site. HTTP/1.0, very WIP.
-
-Parameters:
-url - URL
-onRedirect - Called when the request is redirected */
-byte[] download(string url, void delegate(string) onRedirect = null) {
-  auto original-url = url;
-  {
-    string rest = url.startsWith("http://");
-    if !rest raise new DownloadError(url, "Unknown protocol (forgot http://?)");
-    url = rest;
-  }
-  (string domain, url) = slice (url, "/");
-  url = "/" ~ url;
-  (domain, string portstr) = slice (domain, ":");
-  short port = 80;
-  if portstr.length port = short:portstr.atoi();
-  auto sock = connect(domain, port);
-  void sendLine(string line) {
-    sock.sendAll byte[]:line;
-    sock.sendAll byte[]:"\r\n";
-  }
-  sendLine "GET $url HTTP/1.0";
-  sendLine "Host: $domain";
-  sendLine "";
-  auto response = string: join readsocket sock;
-  string headerstr = slice(&response, "\r\n\r\n");
-  if (headerstr.find("Location: ")) {
-    auto url2 = original-url.followLink headerstr.between("Location: ", "\r\n");
-    if (onRedirect) { onRedirect url2; }
-    return download url2;
-  }
-  auto header = headerstr.split "\r\n";
-  return byte[]:response;
-}
-
-(byte[], string)[auto~] cache;
-/* Function: downloadCached
-*Deprecated!*
-Like <download>, but cached. Self-explanatory. */
-byte[] downloadCached(string url, void delegate(string) onRedirect = null) {
-  for auto tup <- cache
-    if tup[1] == url return tup[0];
-  
-  auto res = download (url, onRedirect);
-  cache ~= (res, url);
-  return res;
-}
-
-/*Function: followLink
-Returns the combined URL of the two parameters. For instance, if *from* is "google.de/webhp" and *to* is "/search", the result is "google.de/search".*/
-string followLink(string from, string to) {
-  if to.startsWith "http://" return to;
-  if !from.startsWith "http://" raise new Error "'$from' is not a valid HTTP URL! ";
-  if to.startsWith "/"
-    return "http://" ~ from.between("http://", "/") ~ to;
-  int pos_param = from.find("?");
-  if pos_param == -1 pos_param = from.length;
-  auto pos_last_slash = from[7..pos_param].rfind("/");
-  if pos_last_slash == -1 raise new Error "No separator slash in $from! ";
-  return from[0..pos_last_slash + 7 + 1] ~ to;
-}
-
-/*Function: urlEncode
-Encodes a string using percent encoding for use in HTTP. */
-string urlEncode(string uri) {
-  //ones that don't need encoding: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~
-  string safe="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~";
-  string encoded;
-  for (int i=0;i<uri.length;i++) {
-    if safe.find "$(uri[i])"
-      encoded="$encoded$(uri[i])";
-    else {
-      string a = std.string.toString(int:uri[i],16);
-      if a.length<2
-        a="0$a";
-      encoded="$encoded%$a";
-    }
-  }
-  return encoded;
-}
-
-/*Function: pathEncode
-Does exactly what <urlEncode> does, except / is a safe character. */
-string pathEncode(string uri) {
-  string safe="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~/";
-  string encoded;
-  for (int i=0;i<uri.length;i++) {
-    if safe.find "$(uri[i])"
-      encoded="$encoded$(uri[i])";
-    else {
-      string a=std.string.toString(int:uri[i],16);
-      if a.length<2
-        a="0$a";
-      encoded="$encoded%$a";
-    }
-  }
-  return encoded;
-}
-
-// TODO: make this function
-/*string urlDecode(string uri) {
-  for (int i=0;i<uri.length;i++) {
-    if uri[i] == "%"
-      uri = "$(uri[0..i])";
-  }
-  return uri;
-}*/
-
-/*Function: createURI
-Assembles a URI from the basic parts, used by <HTTP-URI>'s <toString> function.*/
-string createURI(string host, int port=80, string path="/", (string,string)[] get=null, bool ssl=false) {
-  string uri;
-  if ssl
-    uri="https://";
-  else
-    uri="http://";
-  uri="$uri$host";
-  if port!=80
-    uri="$uri:$port";
-  if path.startsWith "/"
-    uri="$uri$(pathEncode(path))";
-  else
-    uri="$uri/$(pathEncode(path))";
-  if get.length>0
-    uri="$uri?";
-  for auto x <- get {
-    if uri[$-1]!="?"
-      uri="$uri&";
-    uri="$uri$(urlEncode(x[0]))=$(urlEncode(x[1]))";
-  }
-  return uri;
 }
 
 /*Struct: HTTP-URI
@@ -160,6 +23,146 @@ struct HTTP-URI {
   int port;
   string path;
   (string,string)[] get;
+  string fragment;
+}
+
+//import c.stdio;
+
+/* Function: download
+Download a site. Now a wrapper around <downloadURI>.
+
+Parameters:
+url - URL
+onRedirect - Called when the request is redirected */
+byte[] download(string url, void delegate(string) onRedirect = null) {
+  HTTP-URI addr;
+  decodeURI (url, &addr);
+  
+  return downloadURI(addr,onRedirect=>onRedirect);
+}
+
+/* Function: downloadCached
+Like <download>, but cached. Self-explanatory. */
+byte[] downloadCached(string url, void delegate(string) onRedirect = null) {
+  HTTP-URI u;
+  decodeURI(url,&u);
+  
+  return downloadURI(u, onRedirect=>onRedirect, =>cached);
+}
+
+/*Function: followLink
+Returns the combined URL of the two parameters. For instance, if *from* is "google.de/webhp" and *to* is "/search", the result is "google.de/search".*/
+string followLink(string from, string to) {
+  if to.startsWith "http://" return to;
+  if !from.startsWith "http://" raise new Error "'$from' is not a valid HTTP URL! ";
+  if to.startsWith "/"
+    return "http://" ~ from.between("http://", "/") ~ to;
+  int pos_param = from.find("?");
+  if pos_param == -1 pos_param = from.length;
+  auto pos_last_slash = from[7..pos_param].rfind("/");
+  if pos_last_slash == -1 raise new Error "No separator slash in $from! ";
+  return from[0..pos_last_slash + 7 + 1] ~ to;
+}
+
+/*Function: percentEncode
+Encodes a string using percent encoding for use in HTTP. */
+string percentEncode(string uri, string safe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~") {
+  char[auto~] encoded;
+  for (int i=0;i<uri.length;i++) {
+    if safe.find "$(uri[i])"
+      encoded ~= uri[i];
+    else {
+      string a = std.string.toString(int:uri[i],16);
+      if a.length<2
+        a="0$a";
+      encoded ~= "%" ~ a;
+    }
+  }
+  return encoded[];
+}
+
+/*Function: pathEncode
+Does exactly what <percentEncode> does, except / is a safe character. */
+string pathEncode(string uri) {
+  return percentEncode(uri, safe=>"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkklmnopqrstuvwxyz1234567890-_.~/");
+}
+
+/*Function: percentDecode
+Decodes a percent-encoded URI. Any %xx value will be converted to its real-equivalent.*/
+string percentDecode(string uri) {
+  char[auto~] decoded;
+  for (int i=0;i<uri.length;i++) {
+    if uri[i] == "%" {
+      decoded ~= char:byte:toInt(uri[i+1..i+3],16);
+      i+=2;
+    } else
+      decoded ~= uri[i];
+  }
+  return decoded[];
+}
+
+/*Function: createURI
+Assembles a URI from the basic parts, used by <HTTP-URI>'s <toString> function.*/
+string createURI(string host, int port=80, string path="/", (string,string)[] get=null, bool ssl=false, string fragment = "") {
+  char[auto~] uri;
+  
+  // ssl
+  if ssl
+    uri="https://";
+  else
+    uri="http://";
+  
+  // hostname
+  uri ~= host;
+  
+  // port 
+  if (ssl && port!=443) || (!ssl && port!=80)
+    uri ~= "$port";
+  
+  // path
+  if path.startsWith "/"
+    uri ~= pathEncode(path);
+  else
+    uri ~= "/" ~ pathEncode(path);
+  
+  // query
+  if get.length>0
+    uri ~= "?";
+  for auto x <- get {
+    if uri[$-1]!="?"
+      uri ~= "&";
+    if x[1]==""
+      uri ~= percentEncode(x[0]);
+    else
+      uri ~= percentEncode(x[0]) ~ "=" ~ percentEncode(x[1]);
+  }
+  
+  // fragment
+  if fragment!=""
+    uri ~= "#" ~ fragment;
+  
+  return uri[];
+}
+
+/*Function: urlCompare
+Compares two HTTP-URI structs and returns whether they are equivalent.*/
+bool urlCompare(HTTP-URI u1, HTTP-URI u2, bool checkGet = false, bool checkFragment = false) {
+  if u1.ssl != u2.ssl
+    return false;
+  if u1.host.toLower() != u2.host.toLower()
+    return false;
+  if u1.port != u2.port
+    return false;
+  if u1.path != u2.path
+    return false;
+  if checkGet {
+    if u1.get.length != u2.get.length
+      return false;
+    // TODO: put in a get argument checker
+  }
+  if checkFragment && u1.fragment.toLower() != u2.fragment.toLower()
+    return false;
+  return true;
 }
 
 /*Function: decodeURI
@@ -174,33 +177,49 @@ void decodeURI(string url, HTTP-URI* uri) {
     rest=url.startsWith "https://";
     if rest
       obj.ssl=true;
-    else
-      raise new DownloadError(url,"Could not decode URI: Protocol is not HTTP");
+    else {
+      rest = url;
+      obj.ssl=false; //raise new DownloadError(url,"Could not decode URI: Protocol is not HTTP");
+    }
   }
   
-  //host
-  string (domain, path) = rest.slice "/";
-  (obj.host,string port) = domain.slice ":";
-  obj.port = atoi(port);
-  if !obj.port
-    if obj.ssl
-      obj.port=443;
-    else
-      obj.port=80;
+  // chop off the fragment
+  (rest, obj.fragment) = rest.slice "#";
   
-  //path
-  (obj.path,string get) = path.slice "?";
+  // chop off the query
+  (rest, string query) = rest.slice "?";
   
-  obj.path = "/" ~ obj.path;
-  
-  for auto kv <- iterOnce(get).splitAt "&" {
+  for auto kv <- iterOnce(query).splitAt "&" {
     (string,string) p=kv.slice "=";
-    obj.get ~= (p[0].dup,p[1].dup);
+    if p[0]!=""
+      obj.get ~= (p[0].dup,p[1].dup);
   }
+  
+  // chop off the path
+  (rest, obj.path) = rest.slice "/";
+  
+  if obj.path=="" || obj.path[0] != "/"
+    obj.path = "/" ~ obj.path;
+  obj.path = percentDecode obj.path;
+  
+  // chop off the port
+  (rest, string port) = rest.slice ":";
+  
+  obj.port = atoi port;
+  if obj.port == 0 {
+    if obj.ssl
+      obj.port = 443;
+    else
+      obj.port = 80;
+  }
+  
+  // the rest is the host name
+  obj.host = rest.toLower();
+  
 }
 
 string toString(HTTP-URI u) {
-  return createURI u.(host, port, path, get, ssl);
+  return createURI u.(host, port, path, get, ssl, fragment);
 }
 
 /* Function: sendRequest
@@ -211,12 +230,15 @@ Parameters:
   header  - optional, any header data. Host and content-length will be automatically handled
   msgbody - optional, the body of the request.
 Returns:
-  A tuple containing the status code, the header (an array of tuples of strings, (key,value)[]), and the body (byte[]). A status code of 0 means that there was an internal error with the function.
+  The server's status code. A status code of 0 means that there was an internal error with the function.
 TODO:
   Make it clear spaces from fields in the headers.*/
-int sendRequest(HTTP-URI url, string method = "GET",
-  (string, string)[] header_in = null, (string, string)[]* header_out = null,
-  byte[] body_in = null, byte[]* body_out = null) {
+int sendRequest( HTTP-URI url, 
+                 string method = "GET",
+                 (string, string)[] header_in = null, 
+                 (string, string)[]* header_out = null,
+                 byte[] body_in = null, 
+                 byte[]* body_out = null ) {
 
   // whine that there's no ssl support
   if url.ssl {
@@ -233,8 +255,11 @@ int sendRequest(HTTP-URI url, string method = "GET",
   }
   
   // send request
-  sendLine "$method $(url.path) HTTP/1.1";
-  sendLine "Host: $(url.host)";
+  sendLine "$method $(pathEncode url.path) HTTP/1.1";
+  string p;
+  if (url.ssl && url.port!=443) || (!url.ssl && url.port!=80)
+    p=":$(url.port)";
+  sendLine "Host: $(url.host)$p";
   sendLine "Connection: close";
   if body_in.length
     sendLine "Content-Length: $(body_in.length)";
@@ -258,7 +283,6 @@ int sendRequest(HTTP-URI url, string method = "GET",
   // ex: HTTP/1.1 200 OK
   int status = atoi ( statusline.split(" ")[1] ); //splits it into components and grabs the thing after the HTTP version (the status code)
   (string, string)[auto~] head;
-  // whitespace removal goes here:
   for auto l <- headsplit {
     head ~= l.dup.slice ":" #.(that[0].strip(), that[1].strip());
   }
@@ -275,3 +299,81 @@ int sendRequest(HTTP-URI url, string method = "GET",
   
   return status;
 }
+
+import std.zlib;
+(byte[], HTTP-URI, double, double)[auto~] cache;
+/*Function: downloadURI
+Newer version of <download>, HTTP 1.1. Raises an exception when the server returns an error. 
+Parameters:
+  addr      - address of thing to download
+  redirect  - whether to follow Location: headers
+  cache     - whether to cache data, not implemented
+  compress  - whether to request data compressed (gizp not implemented)
+  ssl       - whether to use SSL encryption (not implemented)
+  onRedirect- delegate called every time the address gets redirected*/
+byte[] downloadURI ( HTTP-URI addr, 
+                     bool redirect = true, 
+                     bool cached = false, 
+                     double cacheTime = 3600.0,
+                     bool compress = false, 
+                     void delegate(string) onRedirect = null ) {
+  
+  if cached {
+    for (int i=0;i<cache.length;i++) {
+      auto tup = cache[i];
+      if sec() - tup[2] <= tup[3] {
+        if urlCompare(tup[1],addr) {
+          //writeln "found cached: $(addr.toString())";
+          return tup[0];
+        }
+      } else {
+        //writeln "removing cached object $(tup[1].toString())";
+        cache = cache[0..i] ~ cache[i+1..$];
+        i--;
+      }
+    }
+  }
+  
+  //writeln "downloading $(addr.toString())";
+  
+  (string,string)[] header_in;
+  
+  // compression header is Accept-Encoding: gzip, deflate
+  if compress
+    header_in ~= ("Accept-Encoding","deflate");
+  
+  while true {
+    int status = sendRequest(addr, header_in => header_in, header_out => &(string, string)[] header, body_out => &byte[] mbody);
+    for auto h <- header {
+      if h[0]=="Location" {
+        auto addr2=followLink(addr.toString(),h[1]);
+        decodeURI(addr2,&addr);
+        if onRedirect {
+          onRedirect addr2;
+        }
+        return downloadURI ( addr,
+                             redirect,
+                             cached,
+                             cacheTime,
+                             compress,
+                             onRedirect );
+      } else {
+        if status<400 {
+          for auto l <- header {
+            if l[0]=="Content-Encoding" {
+              if l[1].toLower()=="deflate"
+                return std.zlib.inflate(mbody);
+              if l[1].toLower()=="gzip"
+                raise new DownloadError(addr.toString(),"Failed to download url: Compression scheme gzip not supported.");
+            }
+          }
+          if cached
+            cache ~= (mbody, addr, sec(), cacheTime);
+          return mbody;
+        } else
+          raise new DownloadError(addr.toString(),"Failed to download url: Server returned non-success status $status");
+      }
+    }
+  }
+}
+
