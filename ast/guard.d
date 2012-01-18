@@ -3,7 +3,7 @@ module ast.guard;
 import
   ast.parse, ast.base, ast.namespace, ast.scopes,
   ast.assign, ast.nestfun, ast.modules,
-  ast.variable, ast.vardecl;
+  ast.variable, ast.vardecl, ast.fun;
 
 Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -20,6 +20,15 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   if (type == "onSuccess" || type == "onExit") {
     pushCache;
     scope(exit) popCache;
+    if (!sc.lookup("__retval_holder")) {
+      auto ret = sc.get!(Function).type.ret;
+      if (ret && ret != Single!(Void)) {
+        auto var = new Variable(ret, "__retval_holder", boffs(ret));
+        auto vd = new VarDecl(var);
+        sc.addStatement(vd);
+        sc.add(var);
+      }
+    }
     if (!rest(t3, "tree.stmt", &st1))
       t3.failparse("No statement matched for ", type, " in scope context");
     sc.addGuard(st1);

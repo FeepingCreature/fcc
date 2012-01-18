@@ -54,7 +54,7 @@ void main(string[] args) {
     }
     notelist = res[];
   }
-  void sortList() { qsort!"eval %a[1] < %b[1]" notelist; }
+  void sortList() { qsort(\((Note, float) a, b) -> a[1] < b[1], notelist); }
   void addTrack(string notes) {
     float baseFreq = 220;
     float len = 0.3705;
@@ -126,11 +126,11 @@ void main(string[] args) {
   void addMidiTrack(string fn) {
     auto data = fn.readAll();
     if (data[0..4] != "MThd")
-      raise-error new Error "Not a midi file: invalid header code: $(data[0..4])";
+      raise new Error "Not a midi file: invalid header code: $(data[0..4])";
     data = data[8..$];
     auto fileFmt = data[0] << 8 + data[1]; data = data[2..$];
     if fileFmt != 0 && fileFmt != 1
-      raise-error new Error "Can only parse mode-0 or mode-1 files, not $fileFmt. ";
+      raise new Error "Can only parse mode-0 or mode-1 files, not $fileFmt. ";
     writeln "Format $fileFmt";
     auto tracks = data[0] << 8 + data[1]; data = data[2 ..$];
     writeln "$tracks tracks.";
@@ -140,7 +140,7 @@ void main(string[] args) {
     string info;
     while data.length {
       if (data[0..4] != "MTrk")
-        raise-error new Error "Not a midi track: invalid track code: $(data[0..4])";
+        raise new Error "Not a midi track: invalid track code: $(data[0..4])";
       data = data[4 .. $];
       int trklen = data[0] << 24 + data[1] << 16 + data[2] << 8 + data[3];
       writeln "$track_id: $trklen b";
