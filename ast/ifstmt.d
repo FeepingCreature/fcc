@@ -138,7 +138,8 @@ retry:
   }
   
   text = t3;
-  sc.addStatement(res);
-  return sc;
+  // merge
+  foreach (entry; sc.field) sc.sup.add(entry._0, entry._1);
+  return fastcast!(Object) (res);
 }
 mixin DefaultParser!(gotStaticIf, "tree.stmt.static_if", "190", "static if");
