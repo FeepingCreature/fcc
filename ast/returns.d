@@ -23,8 +23,9 @@ class ReturnStmt : Statement {
       foreach_reverse(i, stmt; guards) {
         auto delta = af.currentStackDepth - guard_offsets[i];
         if (delta) {
-          if (mustPreserveStack) fail;
-          else af.restoreCheckptStack(guard_offsets[i]);
+          if (mustPreserveStack) {
+            logln("WARN this may break");
+          } else af.restoreCheckptStack(guard_offsets[i]);
         }
         stmt.dup().emitAsm(af);
       }
@@ -42,17 +43,17 @@ class ReturnStmt : Statement {
         Expr value = fastcast!(Expr) (ns.lookup("__retval_holder"));
         int tofree;
         scope(success) af.sfree(tofree);
-        if (value) {
+        auto var = fastcast!(Variable) (value);
+        if (value && (!var || -var.baseOffset <= af.currentStackDepth)) {
           (new Assignment(fastcast!(LValue) (value), this.value)).emitAsm(af);
           emitGuards(false);
-          auto var = fastcast!(Variable) (value);
           if (!var) fail;
           if (af.currentStackDepth != -var.baseOffset) {
-            logln("bad place to grab ", var, " for return");
+            logln("bad place to grab ", var, " for return: declared at ", var.baseOffset, " currentStackDepth ", af.currentStackDepth);
           }
         } else {
           tofree = alignStackFor(vt, af);
-          auto var = new Variable(vt, null, boffs(vt, af.currentStackDepth));
+          var = new Variable(vt, null, boffs(vt, af.currentStackDepth));
           value = var;
           (new VarDecl(var)).emitAsm(af);
           tofree += vt.size; // pro forma
