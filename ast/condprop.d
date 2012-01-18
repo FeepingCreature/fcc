@@ -26,7 +26,7 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
           t2.failparse("Else property expected");
       }
       auto prvt = proprest.valueType();
-      if (elsecase.valueType() != prvt) {
+      if (elsecase && elsecase.valueType() != prvt) {
         t2.failparse("Mismatched types: ", prvt, " and ", elsecase.valueType());
       }
       
