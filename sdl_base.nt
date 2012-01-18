@@ -23,9 +23,12 @@ class Surface {
   }
 }
 
-void init() { SDL_Init(SDL_INIT_VIDEO); }
-
-shared bool x 1024 keyPressed, keyPushed;
+shared bool[] keyPressed, keyPushed;
+void init() {
+  SDL_Init SDL_INIT_VIDEO;
+  keyPressed = new bool[] 1K;
+  keyPushed = new bool[] 1K;
+}
 
 shared vec2i mouse-pos;
 

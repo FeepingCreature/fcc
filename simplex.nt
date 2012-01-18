@@ -520,7 +520,7 @@ void configNoiseContext(NoiseContext* nc, int delegate() rng) {
   }
 }
 
-float noise3(vec3f v, NoiseContext* nc = NoiseContext*: null) {
+float noise3(float x, y, z, NoiseContext* nc = NoiseContext*: null) {
   if !setupPerm permsetup;
   if (!nc) {
     if (!setupNoiseContext) {
@@ -530,8 +530,12 @@ float noise3(vec3f v, NoiseContext* nc = NoiseContext*: null) {
     }
     nc = &.nc;
   }
-  return noise3_asm(v.x, v.y, v.z, nc);
+  return noise3_asm(x, y, z, nc);
 }
+
+// float noise3(vec3f v, NoiseContext* nc = NoiseContext*:null) {
+//   return noise3(v.x, v.y, v.z, nc);
+// }
 
 import std.random.base;
 

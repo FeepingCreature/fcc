@@ -15,7 +15,6 @@ void cfgNote(Note res, float freq, float len) {
 }
 
 void main(string[] args) {
-  (string exec, args) = args[(0, 1..$)];
   Sound snd;
   if (args.length && args[0] == "-oss") {
     args = args[1 .. $];

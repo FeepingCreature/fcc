@@ -23,9 +23,9 @@ void init() {
 SDL_Color mkSDLColor(vec3f v) {
   SDL_Color res;
   // todo: wtf
-  res.r = char:short:int:(v.x * 255);
-  res.g = char:short:int:(v.y * 255);
-  res.b = char:short:int:(v.z * 255);
+  res.r = char:byte:int:(v.x * 255);
+  res.g = char:byte:int:(v.y * 255);
+  res.b = char:byte:int:(v.z * 255);
   return res;
 }
 
