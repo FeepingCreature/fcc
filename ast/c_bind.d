@@ -475,8 +475,13 @@ void parseHeader(string filename, string src) {
             auto ty = matchType(st2);
             // logln("for ", ident, ", match type @", st2, " = ", ty);
             if (!ty) {
-              static if (debugStructs) logln("type failed");
-              goto giveUp1;
+              if (isUnion) {
+                static if (debugStructs) logln("WARN incomplete union: experimental code!");
+                goto skip;
+              } else {
+                static if (debugStructs) logln("type failed");
+                goto giveUp1;
+              }
             }
             while (true) {
               auto pos = st2.find("sizeof");
@@ -527,10 +532,20 @@ void parseHeader(string filename, string src) {
             }
             // logln(">> ", st2);
             if (st2.find("(") != -1) {
-              // alias to void for now.
-              add(ident, new TypeAlias(Single!(Void), ident));
-              static if (debugStructs) logln("can't handle the ", st2, ". fail. ");
-              goto giveUp1; // can't handle yet
+              if (st2.accept("(") && st2.accept("*")) {
+                string name;
+                if (!gotIdentifier(st2, name)) {
+                  static if (debugStructs) logln("fail in fp ", st2);
+                  goto giveUp1;
+                }
+                ty = Single!(Pointer, Single!(Void));
+                st2 = name;
+              } else {
+                // alias to void for now.
+                add(ident, new TypeAlias(Single!(Void), ident));
+                static if (debugStructs) logln("can't handle the ", st2, ". fail. ");
+                goto giveUp1; // can't handle yet
+              }
             }
             foreach (var; st2.split(",")) {
               if (ty == Single!(Void)) {
@@ -543,10 +558,14 @@ void parseHeader(string filename, string src) {
             st2 = statements.take();
             if (st2.accept("}")) break;
           }
+          IType ty = st;
+          while (st2.accept("*")) {
+            ty = new Pointer(ty);
+          }
           auto name = st2.strip();
           if (!name.length) name = ident;
           if (!st.name.length) st.name = name;
-          add(name, st);
+          add(name, new TypeAlias(ty, name));
           continue;
           giveUp1:
           static if (debugStructs)
@@ -554,7 +573,10 @@ void parseHeader(string filename, string src) {
           while (true) {
             // logln("stmt: ", st2, " in ", startstr);
             st2 = statements.take();
-            if (st2.accept("}")) break;
+            if (st2.accept("}")) {
+              static if (debugStructs) logln("info ", st2);
+              break;
+            }
           }
           // logln(">>> ", st2);
           continue;
