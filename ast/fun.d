@@ -308,6 +308,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       af.jump_barrier();
       if (isARM) {
         af.put("bx lr");
+        af.pool;
       } else {
         af.put("ret");
       }

@@ -50,7 +50,7 @@ class FloatExpr : Expr, Literal {
     string getValue() { return Format(f_as_i); }
     void emitAsm(AsmFile af) {
       if (isARM) {
-        af.mmove4(af.number(f_as_i), af.regs[0]);
+        af.mmove4(qformat("=", f_as_i), af.regs[0]);
         af.pushStack(af.regs[0], 4);
       } else {
         if (!name_used) {

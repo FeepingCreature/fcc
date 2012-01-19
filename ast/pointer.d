@@ -181,9 +181,7 @@ class Symbol : Expr {
   override void emitAsm(AsmFile af) {
     if (isARM) {
       af.mmove4("="~getName(), "r0");
-      af.put("b 0f");
-      af.put(".ltorg");
-      af.put("0:");
+      // af.pool;
       af.pushStack("r0", 4);
     } else {
       af.pushStack("$"~getName(), nativePtrSize);
