@@ -2,6 +2,13 @@ module pyramid;
 
 import opengl, glsetup;
 
+import c.GL.glext;
+
+platform(i686-mingw32) {
+  pragma(lib, "winmm");
+  pragma(lib, "gdi32");
+}
+
 import sdl, camera, std.time;
 import std.macros.switchover;
 
@@ -133,29 +140,14 @@ void main(string[] args) {
       EnableClientState COLOR_ARRAY;
       
       ARRAY_BUFFER.BindBuffer lists[0];
-      VertexPointer(3, FLOAT, size-of vec3f, null);
+      VertexPointer(3, GL_FLOAT, size-of vec3f, null);
       ARRAY_BUFFER.BindBuffer lists[1];
-      ColorPointer(3, FLOAT, size-of vec3f, null);
+      ColorPointer(3, GL_FLOAT, size-of vec3f, null);
       ELEMENT_ARRAY_BUFFER.BindBuffer lists[2];
       // DrawArrays (QUADS, 0, vertexQuadData.length);
       DrawElements (QUADS, vertexIndexData.length, UNSIGNED_INT, null);
     }
     surf.update();
-    prefix glX {
-      // (*lookupFun!void function(int*) "glXGetVideoSyncSGI")(&int retraceCount);
-      // (*lookupFun!void function(int, int, int*) "glXWaitVideoSyncSGI")(2, (retraceCount+1)%2, &retraceCount);
-      auto tup = (GetCurrentDisplay(), GetCurrentDrawable());
-      (*lookupFun!bool function(Display*, GLXDrawable, long*, long*, long*) "glXGetSyncValuesOML")
-        (tup, &long ust, &long msc, &long sbc);
-      // writeln "ust $ust, msc $msc, sbc $sbc, frame delta $(*int*:&sbc - frame)";
-      // printf("\n");
-      frame ++;
-      if (sec() - lastsec > 1) {
-        // writeln "$frame fps";
-        frame = 0;
-        lastsec = sec();
-      }
-    }
     if (active) {
       auto idelta = mouse-pos - lastmousepos;
       lastmousepos = mouse-pos;

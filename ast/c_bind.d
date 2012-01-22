@@ -6,11 +6,6 @@ import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays, ast
 import tools.compat, tools.functional;
 alias asmfile.startsWith startsWith;
 
-extern(C) {
-  int pipe(int*);
-  int close(int);
-}
-
 string buf;
 string readStream(InputStream IS) {
   if (!buf) buf = new char[16384];
@@ -30,16 +25,77 @@ string readStream(InputStream IS) {
   return res;
 }
 
-string readback(string cmd) {
-  // logln("> ", cmd);
-  int[2] fd; // read end, write end
-  if (-1 == pipe(fd.ptr)) throw new Exception(Format("Can't open pipe! "));
-  scope(exit) close(fd[0]);
-  auto cmdstr = Format(cmd, " >&", fd[1], " &");
-  system(toStringz(cmdstr));
-  close(fd[1]);
-  scope fs = new CFile(fdopen(fd[0], "r"), FileMode.In);
-  return readStream(fs);
+
+// defines string readback(string)
+version(Windows) {
+  import std.c.windows.windows;
+  extern(System) {
+    bool CreatePipe(HANDLE*, HANDLE*, SECURITY_ATTRIBUTES*, int size);
+    bool SetHandleInformation(HANDLE, int mask, int flags);
+    const HANDLE_FLAG_INHERIT = 0x01;
+    struct PROCESS_INFORMATION {
+      HANDLE hProcess, hThread;
+      DWORD dwProcessId, dwThreadId;
+    }
+    struct STARTUPINFOA {
+      DWORD cb;
+      LPSTR lpReserved, lpDesktop, lpTitle;
+      DWORD dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+      WORD wShowWindow, cbReserved2;
+      PBYTE lpReserved2;
+      HANDLE hStdInput, hStdOutput, hStdError;
+    }
+    alias STARTUPINFOA STARTUPINFO;
+    const STARTF_USESTDHANDLES = 256;
+    const CREATE_NO_WINDOW = 0x08000000;
+    BOOL CreateProcessA(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD, PVOID, LPCSTR, STARTUPINFOA*, PROCESS_INFORMATION*);
+  }
+  extern(C) int _open_osfhandle(HANDLE, int = 0);
+  string readback(string cmd) {
+    SECURITY_ATTRIBUTES attr;
+    attr.nLength = SECURITY_ATTRIBUTES.sizeof;
+    attr.bInheritHandle = true;
+    attr.lpSecurityDescriptor = null;
+    HANDLE[2] fd;
+    if (!CreatePipe(&fd[0], &fd[1], &attr, 0)) fail("Couldn't create pipe");
+    if (!SetHandleInformation(fd[0], HANDLE_FLAG_INHERIT, 0)) fail("Couldn't set pipe to noinherit");
+    PROCESS_INFORMATION procinfo;
+    STARTUPINFO startinfo;
+    startinfo.cb = STARTUPINFO.sizeof;
+    startinfo.hStdError = fd[1];
+    startinfo.hStdOutput = fd[1];
+    startinfo.hStdInput = cast(HANDLE) 0;
+    startinfo.dwFlags |= STARTF_USESTDHANDLES;
+    auto succ = CreateProcessA(null, toStringz(cmd),
+      null, null, true, /* inherit handles */
+      CREATE_NO_WINDOW, null, null,
+      &startinfo, &procinfo);
+    if (!succ) fail(Format("Couldn't create process '", cmd, "'"));
+    CloseHandle(fd[1]);
+    CloseHandle(procinfo.hProcess);
+    CloseHandle(procinfo.hThread);
+    
+    scope fs = new CFile(fdopen(_open_osfhandle(fd[0]), "r"), FileMode.In);
+    return readStream(fs);
+    
+  }
+} else {
+  extern(C) {
+    int pipe(int*);
+    int close(int);
+  }
+  
+  string readback(string cmd) {
+    // logln("> ", cmd);
+    int[2] fd; // read end, write end
+    if (-1 == pipe(fd.ptr)) throw new Exception(Format("Can't open pipe! "));
+    scope(exit) close(fd[0]);
+    auto cmdstr = Format(cmd, " >&", fd[1], " &");
+    system(toStringz(cmdstr));
+    close(fd[1]);
+    scope fs = new CFile(fdopen(fd[0], "r"), FileMode.In);
+    return readStream(fs);
+  }
 }
 
 import
@@ -780,8 +836,11 @@ void performCImport(string name) {
     throw new Exception(Format("Couldn't find ", name, "! Tried ", include_path));
   string extra;
   if (!isARM) extra = "-m32";
+  string mygcc;
+  version(Windows) mygcc = path_prefix~"gcc";
+  else mygcc = path_prefix~platform_prefix~"gcc";
   auto cmdline = 
-    platform_prefix~"gcc "~extra~" -Xpreprocessor -dD -E "
+    mygcc~" "~extra~" -Xpreprocessor -dD -E "
     ~ (include_path
       /map/ (string s) { return "-I"~s; }
       ).join(" ")

@@ -298,7 +298,9 @@ string[] split(string s, string marker) {
   return res[];
 }
 
-extern(C) int asprintf(char** strp, char* fmt, ...);
+platform(!i686-mingw32) {
+  extern(C) int asprintf(char** strp, char* fmt, ...);
+}
 string toString(int i, int base = 10) {
   if base == 2 {
     string a;
@@ -308,10 +310,12 @@ string toString(int i, int base = 10) {
   }
   if base == 10
     return "$i";
-  if base == 16 {
-    char *a;
-    asprintf(&a,"%x", i);
-    return CToString a;
+  platform(!i686-mingw32) {
+    if base == 16 {
+      char *a;
+      asprintf(&a,"%x", i);
+      return CToString a;
+    }
   }
   raise new Error "toString(base => $base) not supported";
 }

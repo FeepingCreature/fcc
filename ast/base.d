@@ -8,7 +8,7 @@ import tools.base: Format, New, This_fn, rmSpace;
 
 const string EXT = ".nt";
 
-string platform_prefix;
+string path_prefix, platform_prefix;
 
 bool isWindoze() {
   return platform_prefix.find("mingw") != -1;
@@ -17,6 +17,8 @@ bool isWindoze() {
 bool isARM() {
   return !!platform_prefix.startsWith("arm-");
 }
+
+version(Windows) static this() { platform_prefix = "i686-mingw32-"; }
 
 string[] extra_linker_args;
 
@@ -550,14 +552,21 @@ int alignStackFor(IType t, AsmFile af) {
   return delta;
 }
 
-extern(C) {
-  struct winsize {
-    ushort row, col, xpixel, ypixel;
+version(Windows) { }
+else {
+  extern(C) {
+    struct winsize {
+      ushort row, col, xpixel, ypixel;
+    }
+    int ioctl(int d, int request, ...);
   }
-  int ioctl(int d, int request, ...);
-  void* stdin;
-  int fflush(void* stream);
 }
+
+extern(C) {
+  int fflush(void* stream);
+  void* stdin;
+}
+
 template logSmart(bool Mode) {
   void logSmart(T...)(T t) {
     tools.log.log("\r");
@@ -568,10 +577,15 @@ template logSmart(bool Mode) {
         while (text.length % 8 != 0) text ~= " ";
       } else text ~= ch;
     }
-    winsize ws;
-    ioctl(0, /*TIOCGWINSZ*/0x5413, &ws);
+    int col;
+    version(Windows) { col = 80; }
+    else {
+      winsize ws;
+      ioctl(0, /*TIOCGWINSZ*/0x5413, &ws);
+      col = ws.col;
+    }
     string empty;
-    for (int i = 0; i < ws.col - 1; ++i) empty ~= " ";
+    for (int i = 0; i < col - 1; ++i) empty ~= " ";
     tools.log.log("\r", empty, "\r");
     tools.log.log(text);
     if (Mode) tools.log.log("\r");

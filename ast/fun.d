@@ -12,6 +12,8 @@ interface StoresDebugState {
 
 extern(C) void alignment_emitAligned(Expr ex, AsmFile af);
 
+alias asmfile.startsWith startsWith;
+
 struct Argument {
   IType type;
   string name;
@@ -242,14 +244,25 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       parseMe();
       auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4");
-      af.put(".globl ", fmn);
       if (!isWindoze()) {// TODO: work out why win32 gas does not like this {
         if (isARM)
           af.put(".type ", fmn, ", %function");
         else
           af.put(".type ", fmn, ", @function");
       }
-      if (weak) af.put(".weak ", fmn);
+      if (isWindoze()) {
+        af.put(".global ", fmn);
+        if (weak) {
+          // ;_;
+          if (fmn.startsWith("struct")
+            ||fmn.startsWith("module_sys"))
+            af.put(".weak ", fmn);
+        }
+        // disregard weak
+      } else {
+        af.put(".global ", fmn);
+        if (weak) af.put(".weak ", fmn);
+      }
       af.put(fmn, ":"); // not really a label
       auto idnum = funid_count ++;
       af.put(".LFB", idnum, ":");

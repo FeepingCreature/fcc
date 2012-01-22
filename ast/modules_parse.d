@@ -5,7 +5,11 @@ import parseBase, ast.base, ast.parse, ast.modules;
 import tools.threads, tools.threadpool, tools.compat: read, castLike, exists, sub;
 import ast.structure, ast.namespace;
 
-extern(C) char* realpath(char* fn, char* wtf = null);
+version(Windows) string myRealpath(string s) { return s; }
+else {
+  extern(C) char* realpath(char* fn, char* wtf = null);
+  string myRealpath(string s) { return toString(realpath(toStringz(s))); }
+}
 
 Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   string m;
@@ -55,7 +59,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
     modname = pos._2.endsWith(".nt");
   }
   
-  New(mod, modname, toString(realpath(toStringz(lookupPos(t2)._2))));
+  New(mod, modname, myRealpath(lookupPos(t2)._2));
   
   modules_wip[modname] = mod;
   scope(exit) modules_wip.remove(modname);

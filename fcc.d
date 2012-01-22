@@ -30,6 +30,11 @@ const ProgbarLength = 60;
 
 string output;
 
+string my_prefix() {
+  version(Windows) { return path_prefix; }
+  else return path_prefix ~ platform_prefix;
+}
+
 static this() {
   New(optimizer_x86.cachething);
   New(optimizer_x86.proctrack_cachething); 
@@ -507,12 +512,14 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
     string flags;
     if (!platform_prefix) flags = "--32";
     if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
-    auto cmdline = Format(platform_prefix, "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
+    auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     (*complete) ++;
     logSmart!(false)("> (", (*complete * 100) / total,  "% ", len_emit, "s) ", cmdline);
-    if (system(cmdline.toStringz())) {
-      logln("ERROR: Compilation failed! ");
-      exit(1);
+    synchronized {
+      if (system(cmdline.toStringz())) {
+        logln("ERROR: Compilation failed! ");
+        exit(1);
+      }
     }
     mod.alreadyEmat = true;
     return objname;
@@ -586,7 +593,7 @@ void link(string[] objects, string[] largs, bool saveTemps = false) {
     if (!saveTemps)
       foreach (obj; objects)
         unlink(obj.toStringz());
-  string cmdline = platform_prefix~"gcc -m32 -Wl,--gc-sections -o "~output~" ";
+  string cmdline = my_prefix()~"gcc -m32 -Wl,--gc-sections -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
   foreach (larg; largs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
@@ -670,16 +677,35 @@ void loop(string start, string[] largs,
   }
 }
 
-extern(C) char* realpath(char* path, char* resolved_path = null);
+version(Windows) { const string pathsep = "\\"; }
+else { const string pathsep = "/"; }
+
+version(Windows) {
+  extern(Windows) int GetModuleFileNameA(void*, char*, int);
+  string myRealpath(string path) {
+    char[1024] mew;
+    auto res = GetModuleFileNameA(null, /*toStringz(path)*/ mew.ptr, mew.length);
+    if (!res) throw new Exception("GetModuleFileNameA failed");
+    return mew[0..res].dup;
+  }
+} else {
+  extern(C) char* realpath(char* path, char* resolved_path = null);
+  string myRealpath(string path) {
+    return toString(realpath(toStringz(path)));
+  }
+}
 
 import assemble: debugOpts;
 int main(string[] args) {
   string execpath;
-  if ("/proc/self/exe".exists()) execpath = toString(realpath("/proc/self/exe"));
-  else execpath = toString(realpath(toStringz(args[0])));
-  execpath = execpath[0 .. execpath.rfind("/") + 1];
-  if (execpath.length)
+  if ("/proc/self/exe".exists()) execpath = myRealpath("/proc/self/exe");
+  else execpath = myRealpath(args[0]);
+  execpath = execpath[0 .. execpath.rfind(pathsep) + 1];
+  if (execpath.length) {
     include_path ~= execpath;
+    include_path ~= Format(execpath, "..", sep, "include"); // assume .../[bin, include] structure
+    version(Windows) path_prefix = execpath;
+  }
   initCastTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);
@@ -694,7 +720,7 @@ int main(string[] args) {
     if (info._1.endsWith(EXT)) {
       foreach (path; include_path)
         if (auto rest = info._1.startsWith(path)) {
-          if (auto rest2 = rest.startsWith("/")) rest = rest2;
+          if (auto rest2 = rest.startsWith(pathsep)) rest = rest2;
           info._1 = rest;
         }
       if (allowProgbar) {

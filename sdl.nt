@@ -521,13 +521,15 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false,
   return display;
 }
 
-void saveBMP(string s) {
-  auto p = toStringz s;
-  onSuccess mem.free p;
-  auto res = SDL_SaveBMP_RW (display.surf.back, SDL_RWFromFile (p, "wb"), 1);
-  if res == -1 {
-    writeln "error - $(CToString SDL_GetError())";
-    _interrupt 3;
+platform(!i686-mingw32) {
+  void saveBMP(string s) {
+    auto p = toStringz s;
+    onSuccess mem.free p;
+    auto res = SDL_SaveBMP_RW (display.surf.back, SDL_RWFromFile (p, "wb"), 1);
+    if res == -1 {
+      writeln "error - $(CToString SDL_GetError())";
+      _interrupt 3;
+    }
   }
 }
 

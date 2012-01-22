@@ -52,6 +52,10 @@ platform(i686-mingw32) {
   alias tweak-mode = O_BINARY;
 }
 
+platform(arm*) {
+  alias read-mode = O_RDONLY, tweak-mode = 0;
+}
+
 /*
   Function: open
   Wrapper around C's open()
