@@ -68,6 +68,8 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
       if (auto os = fastcast!(OverloadSet) (res)) {
         Extensible resx = new OverloadSet(os.name);
         foreach (fun; os.funs)
+          resx = resx.extend(fun);
+        foreach (fun; os.funs)
           if (auto res = processFun(fun)) {
             resx = resx.extend(res);
           }
