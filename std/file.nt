@@ -104,7 +104,14 @@ Parameters:
   string file - the filename
   byte[] data - the data to write*/
 void writeAll(string file, byte[] data) using new writer {
-  hdl = file.open (O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  mode_t perms;
+  platform(i686-mingw32) {
+    perms = S_IREAD | S_IWRITE;
+  }
+  platform(!i686-mingw32) {
+    perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+  }
+  hdl = file.open (O_RDWR | O_CREAT, perms);
   step data;
   close;
 }
@@ -147,27 +154,47 @@ time_t accessed(string file) {
   int fd = open file;
   if (fd == -1) raise new ErrnoError;
   fstat(fd, &stat s);
-  return s.st_atim.tv_sec;
+  close fd;
+  platform(i686-mingw32) {
+    return s.st_atime;
+  }
+  platform(!i686-mingw32) {
+    return s.st_atim.tv_sec;
+  }
 }
 
 time_t modified(string file) {
   int fd = open file;
   if (fd == -1) raise new ErrnoError;
   fstat(fd, &stat s);
-  return s.st_mtim.tv_sec;
+  close fd;
+  platform(i686-mingw32) {
+    return s.st_mtime;
+  }
+  platform(!i686-mingw32) {
+    return s.st_mtim.tv_sec;
+  }
 }
 
 time_t statuschanged(string file) {
   int fd = open file;
   if (fd == -1) raise new ErrnoError;
   fstat(fd, &stat s);
-  return s.st_ctim.tv_sec;
+  close fd;
+  platform(i686-mingw32) {
+    return s.st_ctime;
+  }
+  platform(!i686-mingw32) {
+    return s.st_ctim.tv_sec;
+  }
 }
 
-alias C_realpath = realpath;
-
-reassign string realpath(string path) {
-  return CToString C_realpath(toStringz path, null);
+// TODO: win32
+platform(!i686-mingw32) {
+  alias C_realpath = realpath;
+  reassign string realpath(string path) {
+    return CToString C_realpath(toStringz path, null);
+  }
 }
 
 /*

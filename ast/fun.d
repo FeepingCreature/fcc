@@ -90,9 +90,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     namespace.set(coarseContext);
     if (tree) namespace.set(fastcast!(Scope) (tree));
     
-    auto backupmod = current_module();
-    scope(exit) current_module.set(backupmod);
-    current_module.set(coarseModule);
+    // No! Bad! Wrong!
+    // auto backupmod = current_module();
+    // scope(exit) current_module.set(backupmod);
+    // current_module.set(coarseModule);
     
     // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     
@@ -251,14 +252,16 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
           af.put(".type ", fmn, ", @function");
       }
       if (isWindoze()) {
-        af.put(".global ", fmn);
+        // af.put(".global ", fmn);
         if (weak) {
           // ;_;
           if (fmn.startsWith("struct")
-            ||fmn.startsWith("module_sys"))
-            af.put(".weak ", fmn);
-        }
-        // disregard weak
+            ||fmn.startsWith("module_sys")) {
+            // af.put(".weak ", fmn);
+          } else {
+            af.put(".global ", fmn);
+          }
+        } else af.put(".global ", fmn);
       } else {
         af.put(".global ", fmn);
         if (weak) af.put(".weak ", fmn);
