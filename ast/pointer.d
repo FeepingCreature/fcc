@@ -46,17 +46,21 @@ class RefExpr : Expr {
 }
 
 // *foo
-class DerefExpr : LValue {
+class DerefExpr : LValue, HasInfo {
   Expr src;
+  int count;
+  static int de_count;
   this(Expr ex) {
+    this();
     src = ex;
     if (!fastcast!(Pointer) (resolveType(src.valueType())))
       throw new Exception(Format("Can't dereference non-pointer: ", src));
   }
-  private this() { }
+  private this() { count = de_count ++; }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
   override {
+    string getInfo() { return Format("count: ", count); }
     IType valueType() {
       return fastcast!(Pointer) (resolveType(src.valueType())).target;
     }

@@ -211,13 +211,13 @@ class DontCastMeExpr : Expr {
 
 class DontCastMeCValue : DontCastMeExpr, CValue {
   this(CValue cv) { super(cv); }
-  typeof(this) dup() { return new typeof(this)(fastcast!(CValue)~ sup); }
+  typeof(this) dup() { return new typeof(this)(fastcast!(CValue) (sup.dup)); }
   override void emitLocation(AsmFile af) { (fastcast!(CValue)~ sup).emitLocation(af); }
 }
 
 class DontCastMeLValue : DontCastMeCValue, LValue {
   this(LValue lv) { super(lv); }
-  typeof(this) dup() { return new typeof(this)(fastcast!(LValue)~ sup); }
+  typeof(this) dup() { return new typeof(this)(fastcast!(LValue) (sup.dup)); }
 }
 
 Expr dcm(Expr ex) {
