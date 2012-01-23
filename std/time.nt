@@ -14,10 +14,25 @@ extern(C) int usleep(int); // I hope this really is int.
 
 /*Function: µsec
 The number of microseconds since the UNIX epoch*/
-long µsec() {
-  timeval tv;
-  gettimeofday(&tv, null);
-  return tv.tv_sec * long:1_000_000 + tv.tv_usec;
+platform(i686-mingw32) {
+  extern(Windows) {
+    bool QueryPerformanceCounter(long*);
+    bool QueryPerformanceFrequency(long*);
+  }
+  long µsec() {
+    QueryPerformanceCounter(&long t);
+    QueryPerformanceFrequency(&long freq);
+    double factor = double:1000000 / double:freq;
+    return long:(double:t * factor);
+  }
+}
+
+platform(!i686-mingw32) {
+  long µsec() {
+    timeval tv;
+    gettimeofday(&tv, null);
+    return tv.tv_sec * long:1_000_000 + tv.tv_usec;
+  }
 }
 
 /*Function: sec
