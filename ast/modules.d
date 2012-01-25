@@ -11,6 +11,7 @@ string[] include_path;
 bool dumpXMLRep;
 
 static this() {
+  include_path ~= "/usr/local/include";
   include_path ~= "/usr/include";
 }
 
