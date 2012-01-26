@@ -222,21 +222,23 @@ extern(C) char* strerror(int errnum);
   Function: listDirectory
   Lists a directory's contents and returns an array of file/directory names.
 */
-string[] listDirectory(string path) {
-  string[auto~] ret;
-  
-  auto dp = opendir toStringz path;
-  if !dp {
-    auto err = new Error CToString strerror errno;
-    raise err;
+platform(!i686-mingw32) {
+  string[] listDirectory(string path) {
+    string[auto~] ret;
+    
+    auto dp = opendir toStringz path;
+    if !dp {
+      auto err = new Error CToString strerror errno;
+      raise err;
+    }
+    
+    do {
+      auto entry = readdir dp;
+    } while entry {
+      ret ~= CToString entry.d_name;
+    }
+    
+    return ret[];
   }
-  
-  do {
-    auto entry = readdir dp;
-  } while entry {
-    ret ~= CToString entry.d_name;
-  }
-  
-  return ret[];
 }
 

@@ -123,10 +123,10 @@ static this() {
 
 // from ast.math
 static this() {
-  bool isInt(IType it) { return test(it == Single!(SysInt)); }
-  bool isFloat(IType it) { return test(it == Single!(Float)); }
-  bool isDouble(IType it) { return test(it == Single!(Double)); }
-  bool isLong(IType it) { return test(it == Single!(Long)); }
+  bool isInt(IType it) { return test(Single!(SysInt) == it); }
+  bool isFloat(IType it) { return test(Single!(Float) == it); }
+  bool isDouble(IType it) { return test(Single!(Double) == it); }
+  bool isLong(IType it) { return test(Single!(Long) == it); }
   bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
   bool isBool(IType it) { return test(it == fastcast!(IType) (sysmod.lookup("bool"))); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
