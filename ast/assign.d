@@ -2,6 +2,10 @@ module ast.assign;
 
 import ast.base, ast.pointer;
 
+class SelfAssignmentException : Exception {
+  this() { super("self assignment detected"); }
+}
+
 class _Assignment(T) : LineNumberedStatementClass {
   T target;
   Expr value;
@@ -136,6 +140,9 @@ static this() {
 }
 
 Statement mkAssignment(Expr to, Expr from) {
+  if (from is to) {
+    throw new SelfAssignmentException;
+  }
   if (auto lv = fastcast!(LValue) (to)) return new Assignment(lv, from);
   if (auto mv = fastcast!(MValue) (to)) return new AssignmentM(mv, from);
   logln("Invalid target for assignment: ", to);

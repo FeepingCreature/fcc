@@ -85,8 +85,9 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotTupleType, "type.tuple", "37", "(");
 
+import ast.assign;
+
 class RefTuple : MValue {
-  import ast.assign;
   IType baseTupleType;
   MValue[] mvs;
   mixin defaultIterate!(mvs);
@@ -134,6 +135,7 @@ class RefTuple : MValue {
   }
 }
 
+import ast.aggregate;
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     auto mae = fastcast!(MemberAccess_Expr) (it);
@@ -160,6 +162,35 @@ static this() {
     foreach (id, entry; mbs) if (entry is mae.stm) { offs = id; break; }
     if (offs == -1) fail();
     return fastcast!(Itr) (rt.mvs[offs]);
+  };
+  // translate mvalue tuple assignment into sequence of separate assignments
+  foldopt ~= delegate Itr(Itr it) {
+    auto am = fastcast!(AssignmentM) (it);
+    if (!am) return null;
+    auto rt1 = fastcast!(RefTuple) (am.target);
+    if (!rt1) return null;
+    Expr value = am.value; Statement stmt;
+    if (auto sam = fastcast!(StatementAndMValue) (value)) {
+      stmt = sam.first;
+      value = sam.second;
+    }
+    auto rt2 = fastcast!(RefTuple) (value);
+    if (!rt2) return null;
+    if (rt1.mvs.length != rt2.mvs.length) fail;
+    
+    try {
+      Statement[] stmts;
+      if (stmt) stmts ~= stmt;
+      for (int i = 0; i < rt1.mvs.length; ++i) {
+        Expr left = rt1.mvs[i], right = rt2.mvs[i];
+        if (auto lam = fastcast!(LValueAsMValue) (left)) left = lam.sup;
+        if (auto lam = fastcast!(LValueAsMValue) (right)) right = lam.sup;
+        stmts ~= mkAssignment(left, right);
+      }
+      return new AggrStatement(stmts);
+    } catch (SelfAssignmentException) {
+      throw new ParseEx(reverseLookupPos(am.line, 0, am.name), "self-assignment detected");
+    }
   };
 }
 

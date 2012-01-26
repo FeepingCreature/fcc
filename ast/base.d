@@ -612,7 +612,7 @@ class LineNumberedStatementClass : LineNumberedStatement {
   override void getInfo(ref string n, ref int l) { n = name; l = line; }
   override void configPosition(string text) {   
     auto pos = lookupPos(text);
-    line = pos._0 + 1;
+    line = pos._0;
     name = pos._2;
   }
   override void emitAsm(AsmFile af) {

@@ -81,6 +81,14 @@ Stuple!(int, ptrdiff_t, string, string) lookupPos(string text) {
   return stuple(0, cast(ptrdiff_t) 0, "<unknown>", cast(string) null);
 }
 
+string reverseLookupPos(int row, int col, string file) {
+  synchronized(SyncObj!(sourcefiles)) {
+    auto text = sourcefiles[file];
+    while (--row) text.slice("\n");
+    return text[col .. $];
+  }
+}
+
 class ParseEx : Exception {
   string pos;
   string[] rules;
