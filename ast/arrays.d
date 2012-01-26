@@ -3,7 +3,7 @@ module ast.arrays;
 import ast.base, ast.types, ast.static_arrays, ast.returns, tools.base: This, This_fn, rmSpace;
 
 // ptr, length
-class Array : Type {
+final class Array : Type {
   IType elemType;
   this() { }
   this(IType et) { elemType = et; }
