@@ -472,7 +472,7 @@ void parseHeader(string filename, string src) {
         } catch (Exception ex)
           goto giveUp; // On Error Fuck You
       }
-      auto ea = new ExprAlias(ex, id);
+      auto ea = fastalloc!(ExprAlias)(ex, id);
       // logln("got ", ea);
       add(id, ea);
       continue;

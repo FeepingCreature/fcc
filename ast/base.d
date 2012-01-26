@@ -5,6 +5,7 @@ public import asmfile, ast.types, parseBase, errors, tools.log: logln;
 public import casts;
 
 import tools.base: Format, New, This_fn, rmSpace;
+import tools.ctfe: ctReplace;
 
 const string EXT = ".nt";
 
@@ -72,6 +73,7 @@ void configure(Iterable it) {
 
 template MyThis(string S) {
   mixin(This_fn(rmSpace!(S)));
+  mixin(("\n" ~ This_fn(rmSpace!(S))).ctReplace("\nthis", "void construct").ctReplace("super", "super.construct"));
   private this() { }
 }
 
