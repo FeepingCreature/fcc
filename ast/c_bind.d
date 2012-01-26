@@ -156,19 +156,27 @@ bool parsingCHeader() {
 
 void parseHeader(string filename, string src) {
   auto start_time = sec();
-  string newsrc;
+  string[] newsrc_list; int newsrc_length;
+  void addSrc(string text) { newsrc_list ~= text; newsrc_length += text.length; }
   bool inEnum;
   string[] buffer;
-  void flushBuffer() { foreach (def; buffer) newsrc ~= def ~ ";"; buffer = null; }
+  void flushBuffer() { foreach (def; buffer) { addSrc(def); addSrc(";"); } buffer = null; }
   while (src.length) {
     string line = src.slice("\n");
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
-    if (line.startsWith("}")) { inEnum = false; newsrc ~= line; flushBuffer; continue; }
-    if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else {  newsrc ~= line; newsrc ~= ";"; } }
+    if (line.startsWith("}")) { inEnum = false; addSrc(line); flushBuffer; continue; }
+    if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else {  addSrc(line); addSrc(";"); } }
     if (line.startsWith("#")) continue;
-    newsrc ~= line ~ " ";
+    addSrc(line); addSrc(" ");
   }
+  auto newsrc = new char[newsrc_length];
+  int i;
+  foreach (text; newsrc_list) {
+    newsrc[i .. i+text.length] = text;
+    i += text.length;
+  }
+  delete newsrc_list;
   // no need to remove comments; the preprocessor already did that
   auto statements = newsrc.split(";") /map/ &strip;
   // mini parser
