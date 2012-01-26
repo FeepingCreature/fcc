@@ -40,7 +40,7 @@ class ReturnStmt : Statement {
         // mixin(mustOffset("0"));
         scope(failure) logln("while returning ", value);
         auto vt = value.valueType();
-        Expr value = fastcast!(Expr) (ns.lookup("__retval_holder"));
+        Expr value = fastcast!(Expr) (ns.lookup("__retval_holder", true));
         int tofree;
         scope(success) af.sfree(tofree);
         auto var = fastcast!(Variable) (value);
