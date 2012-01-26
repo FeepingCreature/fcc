@@ -24,7 +24,7 @@ class Mode {
       }
       
       if (cfg.accept("suffix")) {
-        if (!cfg.gotIdentifier(suffix))
+        if (!cfg.gotIdentifier(suffix, false, true /* accept numbers */))
           cfg.failparse("couldn't get suffix");
         res.suffixes ~= suffix;
         continue;
@@ -296,8 +296,13 @@ mixin DefaultParser!(gotMode, "tree.stmt.mode", "15", "mode");
 
 Object gotPreSufFix(ref string text, bool isSuf, ParseCb cont, ParseCb rest) {
   string id;
-  if (!text.gotIdentifier(id))
-    text.failparse("Couldn't match prefix string");
+  if (isSuf) {
+    if (!text.gotIdentifier(id, false, true /* allow number */))
+      text.failparse("Couldn't match suffix string");
+  } else {
+    if (!text.gotIdentifier(id))
+      text.failparse("Couldn't match prefix string");
+  }
   
   auto backup = namespace();
   scope(exit) namespace.set(backup);

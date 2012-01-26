@@ -144,8 +144,8 @@ class Namespace {
   void setCheckpt(typeof(field) field) { this.field = field.dup; rebuildCache(); /* prevent clobbering */ }
   Object lookup(string name, bool local = false) {
     if (name in reserved) return null;
-    { int temp; if (name.gotInt(temp)) return null; }
-    { float temp; if (name.gotFloat(temp)) return null; }
+    debug { int temp; if (name.gotInt(temp)) fail; }
+    debug { float temp; if (name.gotFloat(temp)) fail; }
     if (field.length > cachepoint) {
       if (auto p = name in field_cache) return *p;
     } else {

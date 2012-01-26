@@ -384,8 +384,10 @@ void parseHeader(string filename, string src) {
         // logln(args[k], " -> ", arg);
         myNS2._add(args[k], arg);
       }
-      pushCache;
-      scope(exit) popCache;
+      // pushCache;
+      // scope(exit) popCache;
+      scope(exit) str = str.dup; // faster because string is small
+      
       if (!readCExpr(str, res)) {
         // logln("macro fail ", str);
         return false;

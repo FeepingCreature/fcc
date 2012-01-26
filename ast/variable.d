@@ -33,7 +33,6 @@ class Variable : LValue, Named {
   bool dontInit;
   Expr initval;
   void initInit() {
-    if (type == Single!(Void)) return;
     if (initval) return;
     else {
       initval = reinterpret_cast(

@@ -56,7 +56,7 @@ import ast.modules;
 Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool isStdcall;
-  if (!t2.accept("extern(")) return null;
+  if (!t2.accept("extern") || !t2.accept("(")) return null;
   if (!t2.accept("C")) {
     if (!t2.accept("Windows")) return null;
     isStdcall = true;

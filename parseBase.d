@@ -115,12 +115,22 @@ bool gotInt(ref string text, out int i) {
 import tools.compat: replace;
 import tools.base: Stuple, stuple;
 
+string matchOneOf(dstring list, string var) {
+  string res;
+  foreach (dchar d; list) {
+    if (res.length) res ~= " || ";
+    string myu; myu ~= d;
+    res ~= "("~var~" == '"~myu~"')";
+  }
+  return res;
+}
+
 // TODO: unicode
 bool isNormal(wchar c) {
   return (c >= 'a' && c <= 'z') ||
          (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9') ||
-         "_µ".find(c) != -1;
+         mixin(matchOneOf("_µ", "c"));
 }
 
 string lastAccepted, lastAccepted_stripped;
@@ -145,9 +155,10 @@ bool acceptT(bool USECACHE)(ref string s, string t) {
     s2.eatComments();
   }
   
-  size_t idx = t.length;
+  size_t idx = t.length, zero = 0;
   // to be honest, I have zero idea what's up with the utf16 stuff.
-  return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t.toUTF16()[$-1]) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
+  // return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t.toUTF16()[$-1]) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
+  return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t.decode(zero)) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
     !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
   );
 }
@@ -208,7 +219,7 @@ bool many(ref string s, lazy bool b, void delegate() dg = null, string abort = n
 }
 
 import std.utf;
-bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
+bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, bool acceptNumbers = false) {
   auto t2 = text.mystripl();
   t2.eatComments();
   bool isValid(wchar w, bool first = false) {
@@ -216,6 +227,7 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false) {
   }
   // array length special handling
   if (t2.length && t2[0] == '$') { text = t2; ident = "$"; return true; }
+  if (!acceptNumbers && t2.length && t2[0] >= '0' && t2[0] <= '9') { return false; /* identifiers must not start with numbers */ }
   size_t idx = 0;
   if (!t2.length || !isValid(cast(wchar) t2.decode(idx), true)) return false;
   auto identlen = 0, backup = t2;

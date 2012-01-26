@@ -7,6 +7,7 @@ Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string platname;
   bool neg, wild;
+  if (!t2.accept("(")) return null;
   if (t2.accept("!")) neg = true;
   if (!t2.gotIdentifier(platname))
     t2.failparse("Invalid platform identifier");
@@ -48,5 +49,5 @@ Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotPlatform!(false), "tree.toplevel.platform", null, "platform(");
-mixin DefaultParser!(gotPlatform!(true), "tree.stmt.platform", "311", "platform(");
+mixin DefaultParser!(gotPlatform!(false), "tree.toplevel.platform", null, "platform");
+mixin DefaultParser!(gotPlatform!(true), "tree.stmt.platform", "311", "platform");
