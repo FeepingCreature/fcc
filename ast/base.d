@@ -543,7 +543,7 @@ void doAlign(ref int offset, IType type) {
 }
 
 int getFillerFor(IType t, int depth) {
-  if (t == Single!(Void)) return 0;
+  if (Single!(Void) == t) return 0;
   auto nd = -align_boffs(t, depth) - t.size;
   return nd - depth;
 }

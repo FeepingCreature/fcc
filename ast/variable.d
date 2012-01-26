@@ -7,7 +7,6 @@ class Variable : LValue, Named {
   string address() { return Format(baseOffset, "(%ebp)"); }
   override {
     void emitAsm(AsmFile af) {
-      if (type == Single!(Void)) return;
       mixin(mustOffset("type.size"));
       if (isARM) {
         if (type.size == 4) {

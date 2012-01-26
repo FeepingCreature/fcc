@@ -427,7 +427,7 @@ class ScopeAndExpr : Expr {
       // TODO: discover why the fuck this what wtf help
       sc._body = Single!(AggrStatement);
       sc.id = getuid();
-      if (ex.valueType() == Single!(Void)) {
+      if (Single!(Void) == ex.valueType()) {
         mixin(mustOffset("0"));
         auto dg = sc.open(af)();
         ex.emitAsm(af);
@@ -798,7 +798,7 @@ class EvalIterator(T) : Expr, Statement {
   mixin defaultIterate!(ex, target);
   override {
     IType valueType() {
-      if (iter.elemType() == Single!(Void))
+      if (Single!(Void) == iter.elemType())
         return Single!(Void);
       else
         static if (is(T == RichIterator))
@@ -846,7 +846,7 @@ class EvalIterator(T) : Expr, Statement {
       if (target) {
         emitStmtInto(target);
       } else {
-        if (valueType() == Single!(Void))
+        if (Single!(Void) == valueType())
           emitStmtInto(null);
         else {
           static if (is(T == RichIterator)) {

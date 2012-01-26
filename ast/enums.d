@@ -62,10 +62,10 @@ Object gotEnum(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(backup);
   
   Expr val, one;
-  if (base == Single!(Short)) {
+  if (Single!(Short) == base) {
     val = new IntLiteralAsShort(mkInt(0));
     one = new IntLiteralAsShort(mkInt(1));
-  } else if (base == Single!(Byte)) {
+  } else if (Single!(Byte) == base) {
     val = new ShortAsByte(new IntLiteralAsShort(mkInt(0)));
     one = new ShortAsByte(new IntLiteralAsShort(mkInt(1)));
   } else {

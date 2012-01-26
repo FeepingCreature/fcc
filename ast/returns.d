@@ -31,7 +31,7 @@ class ReturnStmt : Statement {
       }
     }
     if (value) {
-      if (value.valueType() == Single!(Void)) {
+      if (Single!(Void) == value.valueType()) {
         mixin(mustOffset("0"));
         scope(failure) logln("While returning ", value, " of ", value.valueType());
         value.emitAsm(af);
@@ -146,7 +146,7 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   if (!fun.type.ret) fun.type.ret = Single!(Void);
   
-  if (fun.type.ret == Single!(Void))
+  if (Single!(Void) == fun.type.ret)
     return rs; // permit no-expr
   text.failparse("Error parsing return expression");
 }

@@ -32,12 +32,12 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
       
       oe.type = prvt;
       
-      bool isVoid = test(prvt == Single!(Void));
+      bool isVoid = test(Single!(Void) == prvt);
       
       auto ifs = new IfStatement;
       ifs.wrapper = new Scope;
       ifs.wrapper.requiredDepthDebug ~= " (ast.condprop:31)";
-      ifs.wrapper.pad_framesize = base.valueType().size + ((prvt == Single!(Void))?0:oe.type.size);
+      ifs.wrapper.pad_framesize = base.valueType().size + isVoid?0:oe.type.size;
       ifs.wrapper.requiredDepth += ifs.wrapper.pad_framesize;
       // namespace.set(ifs.wrapper);
       // scope(exit) namespace.set(ifs.wrapper.sup);

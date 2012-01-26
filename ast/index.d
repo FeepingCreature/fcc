@@ -45,7 +45,7 @@ static this() {
     if (!fastcast!(StaticArray) (e1v) && !fastcast!(Array) (e1v) && !fastcast!(ExtArray) (e1v) && !fastcast!(Pointer) (e1v))
       return null;
     IType[] tried;
-    if (!gotImplicitCast(e2, (IType it) { tried ~= it; return !!(it == Single!(SysInt)); }))
+    if (!gotImplicitCast(e2, (IType it) { tried ~= it; return !!(Single!(SysInt) == it); }))
       return null;
     if (auto dcme = fastcast!(DontCastMeExpr) (e2)) e2 = dcme.sup;
     if (fastcast!(StaticArray) (e1v) && !fastcast!(CValue) (e1)) {

@@ -163,7 +163,7 @@ import ast.assign, ast.fold;
 void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
   af.comment("Begin delegate call");
   int retsize = ret.size;
-  if (ret == Single!(Void))
+  if (Single!(Void) == ret)
     retsize = 0;
   mixin(mustOffset("retsize"));
   auto dgs = dgAsStruct(dg);

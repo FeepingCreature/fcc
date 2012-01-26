@@ -108,7 +108,7 @@ import ast.ifstmt;
 Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text;
   Expr ex;
-  bool isString(IType it) { return test(it == Single!(Array, Single!(Char))); }
+  bool isString(IType it) { return test(Single!(Array, Single!(Char)) == it); }
   if (!rest(t2, "tree.expr", &ex) || !gotImplicitCast(ex, &isString))
     assert(false);
   IType cmtype = fastcast!(IType)~ sysmod.lookup("_CondMarker");

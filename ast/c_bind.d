@@ -3,7 +3,7 @@ module ast.c_bind;
 // Optimized for GL.h and SDL.h; may not work for others!! 
 import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays, ast.externs, ast.tuples: AstTuple = Tuple;
 
-import tools.compat, tools.functional;
+import tools.compat, tools.functional, alloc;
 alias asmfile.startsWith startsWith;
 
 string buf;
@@ -302,7 +302,7 @@ void parseHeader(string filename, string src) {
       IType ty;
       if (s2.accept("(") && (ty = matchType(s2), ty) && s2.accept(")") && readCExpr(s2, res)) {
         IType alt;
-        if (ty == Single!(Char)) alt = Single!(Byte); // same type in C
+        if (Single!(Char) == ty) alt = Single!(Byte); // same type in C
         res = foldex(forcedConvert(res));
         // res = reinterpret_cast(ty, res);
         if (!gotImplicitCast(res, ty, (IType it) { return test(it == ty || alt && it == alt); }))
@@ -604,7 +604,7 @@ void parseHeader(string filename, string src) {
               }
             }
             foreach (var; st2.split(",")) {
-              if (ty == Single!(Void)) {
+              if (Single!(Void) == ty) {
                 static if (debugStructs) logln("void base type at ", startstr, ". fail. ");
                 goto giveUp1;
               }
@@ -693,7 +693,7 @@ void parseHeader(string filename, string src) {
         auto st4 = stmt;
         if (st4.accept("__attribute__") && st4.accept("((")
         &&  st4.accept("__mode__") && st4.accept("(")) {
-          if (resolveType(target) == Single!(SysInt)) {
+          if (Single!(SysInt) == resolveType(target)) {
             if (st4.accept("__QI__") && st4.accept(")") && st4.accept("))")) {
               stmt = st4;
               target = Single!(Byte);
@@ -771,10 +771,10 @@ void parseHeader(string filename, string src) {
         else break;
       }
       if (!stmt.accept(")")) goto giveUp;
-      if (args.length == 1 && args[0] == Single!(Void))
+      if (args.length == 1 && Single!(Void) == args[0])
         args = null; // C is stupid.
       foreach (ref arg; args)
-        if (resolveType(arg) == Single!(Short))
+        if (Single!(Short) == resolveType(arg))
           arg = Single!(SysInt);
       if (funptr_mode) {
         auto fptype = new FunctionPointer;

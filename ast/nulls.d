@@ -85,7 +85,7 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
     IType[] _tried;
     IType Bool = fastcast!(IType) (sysmod.lookup("bool"));
     if (gotImplicitCast(ex2,         Bool   , (IType it) { _tried ~= it; return test(it == Bool); }) || (ex2 = null, false)
-     || gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return test(it == Single!(SysInt)); }) || (ex3 = null, false)) {
+     || gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return test(Single!(SysInt) == it); }) || (ex3 = null, false)) {
       if (!ex2) ex2 = ex3;
       text = t2;
       return new Compare(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0

@@ -11,7 +11,7 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
   int marker;
   this(Variable v) {
     var = v;
-    if (v.valueType() == Single!(Void)) {
+    if (Single!(Void) == v.valueType()) {
       logln("tried to declare void variable");
       fail;
     }
@@ -75,9 +75,9 @@ int boffs(IType t, int curdepth = -1) {
 }
 
 void mkVar(AsmFile af, IType type, bool dontInit, bool alignvar, void delegate(Variable) dg) {
-  int size = type.size;
   // void vars are fucking weird.
-  if (type == Single!(Void)) size = 0;
+  if (Single!(Void) == type) { dg(null); return; }
+  int size = type.size;
   mixin(mustOffset("size"));
   string name;
   static int x;
@@ -202,7 +202,7 @@ class WithTempExpr : Expr {
     }
     IType valueType() { return superthing.valueType(); }
     void emitAsm(AsmFile af) {
-      if (superthing.valueType() == Single!(Void)) {
+      if (Single!(Void) == superthing.valueType()) {
         thing.emitAsm(af);
         offs.offset = -af.currentStackDepth;
         {

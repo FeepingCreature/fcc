@@ -414,7 +414,7 @@ class FunCall : Expr {
   }
   void emitWithArgs(AsmFile af, Expr[] args) {
     if (setup) setup.emitAsm(af);
-    auto size = (fun.type.ret == Single!(Void))?0:fun.type.ret.size;
+    auto size = (Single!(Void) == fun.type.ret)?0:fun.type.ret.size;
     mixin(mustOffset("size"));
     callFunction(af, fun.type.ret, fun.extern_c, fun.type.stdcall, args, fun.getPointer());
   }
@@ -440,7 +440,7 @@ class FunCall : Expr {
 }
 
 void handleReturn(IType ret, AsmFile af) {
-  if (ret == Single!(Void)) return;
+  if (Single!(Void) == ret) return;
   if (isARM) {
     if (ret.size == 2) {
       af.salloc(2);
@@ -594,12 +594,13 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       af.salloc(inRegisters); // hax
     }
     
-    if (ret == Single!(Float) || ret == Single!(Double))
+    bool returnsFPU = Single!(Float) == ret || Single!(Double) == ret;
+    if (returnsFPU)
       af.floatStackDepth ++;
     
     while (restore--) {
       af.stackToFpu();
-      if (ret == Single!(Float) || ret == Single!(Double))
+      if (returnsFPU)
         af.fpuOp("fxch");
     }
     af.sfree(alignCall);
@@ -608,7 +609,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     if (isARM) af.popStack("r5", 4);
   }
   
-  auto size = (ret == Single!(Void))?0:ret.size;
+  auto size = (Single!(Void) == ret)?0:ret.size;
   mixin(mustOffset("size"));
   handleReturn(ret, af);
 }

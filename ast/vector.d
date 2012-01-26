@@ -45,7 +45,7 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
   }
   override bool isPointerLess() { return base.isPointerLess(); }
   // quietly treat n-size as n+1-size
-  bool extend() { return len == 3 && (base == Single!(Float) || base == Single!(SysInt) || base == Single!(Double)); }
+  bool extend() { return len == 3 && (Single!(Float) == base || Single!(SysInt) == base || Single!(Double) == base); }
   int real_len() {
     if (extend) return len + 1;
     return len;
@@ -422,7 +422,7 @@ Structure mkVecStruct(Vector vec) {
   
   {
     Expr sum;
-    if (vec.len == 3 && vec.base == Single!(Float)) {
+    if (vec.len == 3 && Single!(Float) == vec.base) {
       sum = new FastVec3Sum(fastcast!(Expr) (res.lookup("self")));
     } else {
       sum = fastcast!(Expr)~ res.lookup("x");
@@ -449,19 +449,20 @@ Structure mkVecStruct(Vector vec) {
   
   {
     Expr lensq = fastcast!(Expr)~ res.lookup("lensq");
+    IType lvt = lensq.valueType();
     Expr sum = fastcast!(Expr) (res.lookup("sum"));
     Expr len;
     Expr weirdlen;
-    if (lensq.valueType() == Single!(Float) || lensq.valueType() == Single!(SysInt)) {
+    if (Single!(Float) == lvt || Single!(SysInt) == lvt) {
       len = buildFunCall(
         fastcast!(Function)~ sysmod.lookup("sqrtf"), lensq, "sqrtf"
       );
       weirdlen = buildFunCall(
         fastcast!(Function)~ sysmod.lookup("sqrtf"), sum, "sqrtf"
       );
-    } else if (lensq.valueType() == Single!(Double) || lensq.valueType() == Single!(Long)) {
+    } else if (Single!(Double) == lvt || Single!(Long) == lvt) {
       auto mylensq = lensq, mysum = sum;
-      if (mylensq.valueType() == Single!(Long)) {
+      if (Single!(Long) == mylensq.valueType()) {
         mylensq = new LongAsDouble(mylensq);
         mysum = new LongAsDouble(mysum);
       }

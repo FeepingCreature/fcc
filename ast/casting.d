@@ -444,13 +444,14 @@ static this() {
     return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (ex.valueType() == Single!(Byte) || ex.valueType() == Single!(Char))
+    auto evt = ex.valueType();
+    if (Single!(Byte) == evt || Single!(Char) == evt)
       return new ByteToShortCast(ex);
     else
       return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (ex.valueType() == Single!(Short))
+    if (Single!(Short) == ex.valueType())
       return new ShortToIntCast(ex);
     else
       return null;
