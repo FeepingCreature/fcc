@@ -558,13 +558,17 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
 
 Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("(")) text.failparse("Opening paren expected. ");
-  StringExpr rulename, ruleid;
+  StringExpr rulename, ruleid, prematch;
   if (!rest(text, "tree.expr _tree.expr.arith", &rulename))
     text.failparse("Rule name expected");
   if (!text.accept(","))
     text.failparse("Comma expected");
   if (!rest(text, "tree.expr _tree.expr.arith", &ruleid))
     text.failparse("Rule ID expected");
+  if (text.accept(",")) {
+    if (!rest(text, "tree.expr _tree.expr.arith", &prematch))
+      text.failparse("Pre-match string expected");
+  }
   if (!text.accept(")"))
     text.failparse("Closing paren expected. ");
   StringExpr src;
@@ -581,7 +585,11 @@ Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   auto parser = (new DefaultParserImpl!(runTenth, null, true, null)(obj)).genParser();
   parser.id = rulename.str;
-  parsecon.addParser(parser, ruleid.str);
+  if (prematch) {
+    parsecon.addParser(parser, ruleid.str, prematch.str);
+  } else {
+    parsecon.addParser(parser, ruleid.str);
+  }
   return obj;
 }
 mixin DefaultParser!(gotMacroStmt, "tree.toplevel.macro", null, "macro");
