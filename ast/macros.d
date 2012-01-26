@@ -585,11 +585,9 @@ Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   auto parser = (new DefaultParserImpl!(runTenth, null, true, null)(obj)).genParser();
   parser.id = rulename.str;
-  if (prematch) {
-    parsecon.addParser(parser, ruleid.str, prematch.str);
-  } else {
-    parsecon.addParser(parser, ruleid.str);
-  }
+  if (prematch)
+    parser.key = prematch.str;
+  parsecon.addParser(parser, ruleid.str);
   return obj;
 }
 mixin DefaultParser!(gotMacroStmt, "tree.toplevel.macro", null, "macro");

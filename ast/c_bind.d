@@ -218,7 +218,9 @@ void parseHeader(string filename, string src) {
       text = t2;
       return true;
     }
-    if (auto rest = text.strip().startsWith("...")) { text = rest; return Single!(Variadic); }
+    text = text.mystripl();
+    if (auto rest = text.startsWith("...")) { text = rest; return Single!(Variadic); }
+    if (text.startsWith("(")) return null; // shortcut
     bool unsigned;
     if (accept("_Bool")) return Single!(Char);
     if (accept("unsigned")) unsigned = true;
@@ -264,8 +266,11 @@ void parseHeader(string filename, string src) {
     }
     string id;
     if (!text.gotIdentifier(id)) return null;
-    if (auto p = id in cache) return fastcast!(IType)~ *p;
-    if (auto ty = fastcast!(IType) (namespace().lookup(id))) return ty;
+    if (auto p = id in cache) return fastcast!(IType) (*p);
+    if (auto ty = fastcast!(IType) (namespace().lookup(id, true))) {
+      if (auto n = fastcast!(Named) (ty)) cache[id] = n;
+      return ty;
+    }
     return null;
   }
   IType matchType(ref string text) {
