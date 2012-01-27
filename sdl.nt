@@ -521,7 +521,7 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false,
   return display;
 }
 
-platform(!i686-mingw32) {
+/*
   void saveBMP(string s) {
     auto p = toStringz s;
     onSuccess mem.free p;
@@ -531,7 +531,7 @@ platform(!i686-mingw32) {
       _interrupt 3;
     }
   }
-}
+*/
 
 void flip() {
   display.surf.flip();

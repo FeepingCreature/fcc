@@ -33,6 +33,7 @@ class IntExpr : Expr, Literal, HasInfo {
     string getInfo()  { return Format(num); }
   }
   this(int i) { num = i; }
+  void construct(int i) { num = i; }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!();
@@ -41,8 +42,8 @@ class IntExpr : Expr, Literal, HasInfo {
 IntExpr[int] cache;
 
 IntExpr mkInt(int i) {
-  if (i > 1024 || i < -1024) return new IntExpr(i); // unlikely to be massively common.
-  else if (i > 64 && i < -64 && i % nativePtrSize != 0) return new IntExpr(i); // dito
+  if (i > 1024 || i < -1024) return fastalloc!(IntExpr)(i); // unlikely to be massively common.
+  else if (i > 64 && i < -64 && i % nativePtrSize != 0) return fastalloc!(IntExpr)(i); // dito
   if (auto p = i in cache) return *p;
   auto res = new IntExpr(i);
   cache[i] = res;

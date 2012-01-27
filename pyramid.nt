@@ -1,18 +1,21 @@
 module pyramid;
 
-import opengl, glsetup;
+import opengl, glsetup, gd, std.file;
 
 import c.GL.glext;
 
 platform(i686-mingw32) {
   pragma(lib, "winmm");
   pragma(lib, "gdi32");
+  pragma(lib, "png");
+  pragma(lib, "z");
 }
 
 import sdl, camera, std.time;
 import std.macros.switchover;
 
 void main(string[] args) {
+  auto img = gdImageCreateFromPngPtr(readAll "8r.png" #.(length, ptr));
   // resizeWindow (640, 480);
   auto vertices = [vec3f (-1, -1, -1), vec3f(1, 1, 1)];
   void dividePyramid(
@@ -147,7 +150,7 @@ void main(string[] args) {
       // DrawArrays (QUADS, 0, vertexQuadData.length);
       DrawElements (QUADS, vertexIndexData.length, UNSIGNED_INT, null);
     }
-    surf.update();
+    update surf;
     if (active) {
       auto idelta = mouse-pos - lastmousepos;
       lastmousepos = mouse-pos;

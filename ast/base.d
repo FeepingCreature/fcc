@@ -2,7 +2,7 @@ module ast.base;
 
 public import asmfile, ast.types, parseBase, errors, tools.log: logln;
 
-public import casts;
+public import casts, alloc;
 
 import tools.base: Format, New, This_fn, rmSpace;
 import tools.ctfe: ctReplace;

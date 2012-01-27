@@ -13,7 +13,7 @@ template blockcache(T) {
   }
   T allocate() {
     auto sz = getSize();
-    if (memory.length < sz) memory = new void[16384+sz];
+    if (memory.length < sz) memory = new void[sz*16];
     auto data = memory[0..sz];
     memory = memory[sz .. $];
     data[] = T.classinfo.init;
