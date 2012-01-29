@@ -90,10 +90,12 @@ static this() {
     Expr res;
     if (result) {
       if (cmp.trueOverride) res = cmp.trueOverride;
-      else res = True;
+      else if (True) res = True;
+      else return null;
     } else {
       if (cmp.falseOverride) res = cmp.falseOverride;
-      else res = False;
+      else if (False) res = False;
+      else return null;
     }
     return new ExprWrap(res);
   };

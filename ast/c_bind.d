@@ -313,6 +313,7 @@ void parseHeader(string filename, string src) {
     s2 = source;
     {
       IType ty;
+      auto s3 = s2;
       if (s2.accept("(") && (ty = matchType(s2), ty) && s2.accept(")") && readCExpr(s2, res)) {
         IType alt;
         if (Single!(Char) == ty) alt = Single!(Byte); // same type in C
@@ -323,6 +324,7 @@ void parseHeader(string filename, string src) {
         source = s2;
         return true;
       }
+      s2 = s3;
     }
     if (s2.accept("'")) { // char
       if (!s2.length) return false;

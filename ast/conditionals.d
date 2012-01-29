@@ -27,7 +27,11 @@ class FalseCond : Cond {
 
 class ExprWrap : Cond {
   Expr ex;
-  mixin MyThis!("ex");
+  this(Expr ex) {
+    this.ex = ex;
+    if (!ex) fail;
+  }
+  private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
   override {
@@ -253,7 +257,7 @@ class NegCond : Cond {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(c);
-  this(Cond c) { this.c = c; }
+  this(Cond c) { this.c = c; if (!c) fail; }
   override string toString() { return Format("!(", c, ")"); }
   override void jumpOn(AsmFile af, bool cond, string dest) {
     c.jumpOn(af, !cond, dest);
