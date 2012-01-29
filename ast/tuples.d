@@ -187,7 +187,11 @@ static this() {
         if (auto lam = fastcast!(LValueAsMValue) (right)) right = lam.sup;
         stmts ~= mkAssignment(left, right);
       }
-      return new AggrStatement(stmts);
+      // return new AggrStatement(stmts);
+      // this breaks (a, b) = (b, a).
+      // Don't actually do it, but act like we did so we get the benefit
+      // of the self-assignment error which is neat.
+      return null;
     } catch (SelfAssignmentException) {
       throw new ParseEx(reverseLookupPos(am.line, 0, am.name), "self-assignment detected");
     }

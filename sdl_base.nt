@@ -44,23 +44,21 @@ void update() {
   for int i <- 0..keyPushed.length
     keyPushed[i] = false;
   
-  while SDL_PollEvent &SDL_Event ev using ev {
-    switch int t over t == type {
-      case SDL_QUIT: raise new SDLQuit;
-      case SDL_ACTIVEEVENT: // TODO callback
-      case SDL_VIDEOEXPOSE: // TODO callback
-      case SDL_KEYDOWN: using key.keysym {
-        if (sym < keyPressed.length) { keyPressed[sym] = true; keyPushed[sym] = true; }
-      }
-      case SDL_KEYUP: using key.keysym {
-        if (sym < keyPressed.length) { keyPressed[sym] = false; }
-      }
-      case SDL_MOUSEMOTION: mouse-pos = motion.(vec2i(x, y));
-      case SDL_MOUSEBUTTONDOWN: mouse-clicked = true; mouse-pressed = true;
-      case SDL_MOUSEBUTTONUP: mouse-released = true; mouse-pressed = false;
-      case SDL_VIDEORESIZE: using resize if (onResize) { onResize(w, h); }
-      default: writeln "| Unknown event: $$short:type";
+  while SDL_PollEvent &SDL_Event ev using ev switch int t over t == type {
+    case SDL_QUIT: raise new SDLQuit;
+    case SDL_ACTIVEEVENT: // TODO callback
+    case SDL_VIDEOEXPOSE: // TODO callback
+    case SDL_KEYDOWN: using key.keysym {
+      if (sym < keyPressed.length) { keyPressed[sym] = true; keyPushed[sym] = true; }
     }
+    case SDL_KEYUP: using key.keysym {
+      if (sym < keyPressed.length) { keyPressed[sym] = false; }
+    }
+    case SDL_MOUSEMOTION: mouse-pos = motion.(vec2i(x, y));
+    case SDL_MOUSEBUTTONDOWN: mouse-clicked = true; mouse-pressed = true;
+    case SDL_MOUSEBUTTONUP: mouse-released = true; mouse-pressed = false;
+    case SDL_VIDEORESIZE: using resize if (onResize) { onResize(w, h); }
+    default: writeln "| Unknown event: $$short:type";
   }
 }
 

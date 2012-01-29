@@ -18,6 +18,8 @@ platform(i686-mingw32) {
   extern(Windows) {
     bool QueryPerformanceCounter(long*);
     bool QueryPerformanceFrequency(long*);
+    int timeBeginPeriod(int);
+    int timeEndPeriod(int);
   }
   long µsec() {
     QueryPerformanceCounter(&long t);
@@ -42,7 +44,14 @@ double sec() { return double:µsec() / 1_000_000; }
 /*Function: sleep
 Sleep at least *length* seconds*/
 void sleep(float length) {
-  usleep int:(length * 1_000_000);
+  platform(i686-mingw32) {
+    timeBeginPeriod 1;
+    usleep int:(length * 1_000_000);
+    timeEndPeriod 1;
+  }
+  platform(!i686-mingw32) {
+    usleep int:(length * 1_000_000);
+  }
 }
 
 /*Function: measure

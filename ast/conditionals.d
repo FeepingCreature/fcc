@@ -348,7 +348,9 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   
   if (!rest(t2, "cond.compare", &cd2) && // chaining
-      !rest(t2, "tree.expr _tree.expr.cond", &ex2) ) return null;
+      !rest(t2, "tree.expr _tree.expr.cond", &ex2)) {
+    t2.failparse("Could not parse second operator for comparison");
+  }
   auto finalize = delegate Cond(Cond cd) { return cd; };
   if (cd2) {
     if (auto cmp2 = fastcast!(Compare) (cd2)) {
@@ -361,10 +363,12 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
       return null;
     }
   }
-  text = t2;
   auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
   if (op == "=") op = "==";
-  return fastcast!(Object) (finalize(compare(op, ex1, ex2)));
+  auto res = fastcast!(Object) (finalize(compare(op, ex1, ex2)));
+  if (!res) text.failparse("Undefined comparison");
+  text = t2;
+  return res;
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
 
