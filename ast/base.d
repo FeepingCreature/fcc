@@ -417,6 +417,19 @@ Expr mkStatementAndExpr(Statement st, Expr ex, bool permissive = false) {
   return new StatementAndExpr(st, ex, permissive);
 }
 
+Statement unrollSAE(ref Expr ex) {
+  if (auto sae = fastcast!(StatementAndExpr) (ex)) {
+    ex = sae.second; return sae.first;
+  }
+  if (auto sal = fastcast!(StatementAndLValue) (ex)) {
+    ex = sal.second; return sal.first;
+  }
+  if (auto sam = fastcast!(StatementAndMValue) (ex)) {
+    ex = sam.second; return sam.first;
+  }
+  return null;
+}
+
 class PlaceholderToken : Expr {
   IType type;
   string info;

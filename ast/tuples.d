@@ -45,7 +45,9 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (t2.accept("$")) globmode = true;
     else return null;
   }
-  if (!rest(t2, "tree.expr", &obj, (Object obj) { return globmode ^ !fastcast!(Expr) (obj); }))
+  if (!rest(t2, "tree.expr", &obj))
+    return null;
+  if (!(globmode ^ !fastcast!(Expr) (obj)))
     return null;
   if (globmode || t2.accept(")")) {
     text = t2;

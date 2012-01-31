@@ -140,8 +140,10 @@ Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   if (t2.accept(":")) return null;
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
-    t2.failparse("Unable to parse cast source");
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
+    t2.setError("Unable to parse cast source");
+    return null;
+  }
   Expr res = tryConvert(ex, dest);
   if (res) text = t2;
   return fastcast!(Object)~ res;
@@ -155,7 +157,10 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type", &dest) || !t2.accept(":"))
     return null;
   IType[] types;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; })) {
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
+    t2.failparse("Failed to get expression");
+  }
+  if (!gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; })) {
     t2.setError("Expression not matched in cast; none of ", types, " matched ", dest.size, ". ");
     return null;
   }

@@ -142,7 +142,8 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   IType[] tried;
   if (!gotImplicitCast(ex, (Expr ex) {
-    auto f = foldex(ex);
+    auto f = foldex(forcedConvert(ex));
+    unrollSAE(f);
     tried ~= f.valueType();
     return test(fastcast!(CValue)~ f);
   })) {
@@ -152,10 +153,15 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   text = t2;
-  auto cv = fastcast!(CValue)~ fold(ex);
+  auto thing = foldex(forcedConvert(ex));
+  Statement st;
+  if (auto _st = unrollSAE(thing)) st = _st;
+  auto cv = fastcast!(CValue) (thing);
   assert(!!cv);
   
-  return new RefExpr(cv);
+  Expr res = new RefExpr(cv);
+  if (st) res = mkStatementAndExpr(st, res);
+  return fastcast!(Object) (res);
 }
 mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "21", "&");
 
