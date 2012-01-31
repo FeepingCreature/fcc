@@ -490,7 +490,7 @@ class BogusIterator : Iterator, IType { // tag
     string mangle() { assert(false); }
     ubyte[] initval() { assert(false); }
     int opEquals(IType it) { assert(false); }
-    IType proxyType() { assert(false); }
+    IType proxyType() { return null; }
     bool isPointerLess() { assert(false); }
     bool isComplete() { assert(false); }
   }
