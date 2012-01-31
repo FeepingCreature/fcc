@@ -69,7 +69,7 @@ Object gotEnum(ref string text, ParseCb cont, ParseCb rest) {
     val = new ShortAsByte(new IntLiteralAsShort(mkInt(0)));
     one = new ShortAsByte(new IntLiteralAsShort(mkInt(1)));
   } else {
-    val = mkInt(0);
+    val = mkInt(-1); // base-zero!
     one = mkInt(1);
   }
   
