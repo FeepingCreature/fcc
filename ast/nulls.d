@@ -33,6 +33,12 @@ static this() {
     return null;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
+    if (isNull(ex) && fastcast!(ExtArray) (resolveType(expect))) {
+      return reinterpret_cast(expect, mkTupleExpr(ex, ex, ex));
+    }
+    return null;
+  };
+  implicits ~= delegate Expr(Expr ex, IType expect) {
     if (isNull(ex) && (
       fastcast!(ClassRef)(resolveType(expect))
     ||fastcast!(IntfRef)(resolveType(expect)))) {
