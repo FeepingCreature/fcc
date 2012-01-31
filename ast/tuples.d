@@ -282,22 +282,30 @@ Expr mkTupleExpr(Expr[] exprs...) {
 import ast.math: AsmFloatBinopExpr;
 Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr[] exprs;
-  Expr ex;
   auto t2 = text;
   if (t2.accept(")")) {
     text = t2;
     // lol wat
     return fastcast!(Object)~ mkTupleExpr();
   }
-  if (!t2.bjoin(
-      !!rest(t2, "tree.expr", &ex),
-      t2.accept(","),
-      {
-        exprs ~= ex;
-      }
-    ) || !t2.accept(")")) {
-    t2.setError("Unknown identifier");
-    return null;
+  while (true) {
+    Expr ex;
+    if (exprs.length > 1) {
+      if (!t2.accept(","))
+        t2.failparse("tuple failed; comma expected");
+      if (!rest(t2, "tree.expr", &ex))
+        t2.failparse("tuple failed");
+    } else if (exprs.length) {
+      if (!t2.accept(","))
+        return null;
+      if (!rest(t2, "tree.expr", &ex))
+        return null;
+    } else {
+      if (!rest(t2, "tree.expr", &ex))
+        return null;
+    }
+    exprs ~= ex;
+    if (t2.accept(")")) break;
   }
   text = t2;
   return fastcast!(Object) (mkTupleExpr(exprs));

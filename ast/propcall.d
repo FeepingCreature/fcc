@@ -30,7 +30,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
       res.implicit = true;
       return res;
     }
-    string toString() { return Format("fpos(", firstParam, ")"); }
+    string toString() { return Format("fpos of a ", fpvt); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     bool isPointerLess() { return fpvt.isPointerLess(); }
