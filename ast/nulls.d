@@ -122,8 +122,9 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
   if (rest(t2, "<tree.expr >tree.expr.cond", &cd) || rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
     if (cd) { text = t2; return fastcast!(Object) (cd); } // Okaaaay.
     if (!ex) return null;
-    if (auto res = testNonzero(ex)) { text = t2; return fastcast!(Object) (res); }
     if (t2.accept(".")) return null; // wtf? definitely not a condition.
-  } else return null;
+    if (auto res = testNonzero(ex)) { text = t2; return fastcast!(Object) (res); }
+  }
+  return null;
 }
 mixin DefaultParser!(gotExprAsCond, "cond.expr", "99");

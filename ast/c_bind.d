@@ -278,7 +278,7 @@ void parseHeader(string filename, string src) {
     text.accept("__const");
     if (auto ty = matchSimpleType(text)) {
       while (text.accept("*")) ty = new Pointer(ty);
-      return ty;
+      return resolveType(ty);
     } else return null;
   }
   IType matchParam(ref string text) {
