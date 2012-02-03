@@ -19,11 +19,13 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   rest(t2, "tree.expr _tree.expr.arith", &initParam);
   
   text = t2;
-  return new CallbackExpr(cr, initParam, stuple(text, cr)
+  return new CallbackExpr(Format("class-new ", cr), cr, initParam, stuple(text, cr)
   /apply/ (string text, ClassRef cr, Expr initParam, AsmFile af)
   {
     mixin(mustOffset("nativePtrSize"));
+    af.comment("mk var");
     mkVar(af, cr, true, (Variable var) {
+      af.comment("new_class");
       mixin(mustOffset("0"));
       iparse!(Statement, "new_class", "tree.stmt")
       (`{

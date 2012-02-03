@@ -14,7 +14,7 @@ void fixupMain() {
     scope(exit) namespace.set(backup);
     namespace.set(cmain);
     
-    sc.addStatement(new ReturnStmt(new CallbackExpr(Single!(SysInt), null, stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, AsmFile af) {
+    sc.addStatement(new ReturnStmt(new CallbackExpr("main", Single!(SysInt), null, stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, AsmFile af) {
       // set up first tls pointer
       if (isARM) {
         af.mmove4("=_sys_tls_data_start", "r4");

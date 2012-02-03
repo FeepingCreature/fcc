@@ -299,14 +299,16 @@ string mustOffset(string value, string _hash = null) {
     }`).ctReplace("\n", "", "OFFS", hash); // fix up line numbers!
 }
 
-class CallbackExpr : Expr {
+class CallbackExpr : Expr, HasInfo {
   IType type;
   Expr ex; // held for dg so it can iterate properly
   void delegate(Expr, AsmFile) dg;
-  this(IType type, Expr ex, void delegate(Expr, AsmFile) dg) {
-    this.type = type; this.ex = ex; this.dg = dg;
+  string info;
+  this(string info, IType type, Expr ex, void delegate(Expr, AsmFile) dg) {
+    this.info = info; this.type = type; this.ex = ex; this.dg = dg;
   }
   override {
+    string getInfo() { return info; }
     IType valueType() { return type; }
     void emitAsm(AsmFile af) { dg(ex, af); }
     string toString() { return Format("callback<", ex, ">"); }

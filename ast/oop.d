@@ -543,7 +543,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   // this returns an Expr so that interface calls in a class method can resolve lazily, as they should.
   // interfaces come after the classinfo!
   Expr ownClassinfoLength() { // skipping interfaces
-    return new CallbackExpr(Single!(SysInt), null, this /apply/ (Class self, Expr, AsmFile af) {
+    return new CallbackExpr("classinfo", Single!(SysInt), null, this /apply/ (Class self, Expr, AsmFile af) {
       self.parseMe;
       int res;
       if (self.parent) res += self.parent.getClassinfo().length;
