@@ -305,7 +305,7 @@ class LitTemp : mkDelegate, Literal {
 import ast.casting: implicits;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    auto fp = fastcast!(FunctionPointer)~ ex.valueType();
+    auto fp = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
     if (!fp) return null;
     if (fastcast!(Literal)~ ex)
       return new FunPtrAsDgExpr!(LitTemp)(ex);

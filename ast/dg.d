@@ -61,7 +61,7 @@ class DgConstructExpr : mkDelegate {
 Object gotFpCloseExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto fptype = fastcast!(FunctionPointer)~ ex.valueType();
+    auto fptype = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
     if (!fptype) return null;
     
     if (t2.accept(".toDg(")) {
