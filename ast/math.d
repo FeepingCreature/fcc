@@ -621,7 +621,14 @@ class AsmFloatBinopExpr : BinopExpr {
         case "-": af.floatMath("fsub"); break;
         case "*": af.floatMath("fmul"); break;
         case "/": af.floatMath("fdiv"); break;
-        case "%": throw new Exception("Modulo not supported on floats. ");
+        case "%": // taken from glibc
+          af.floatStackDepth --;
+          af.put("1: fprem1"); // ieee-correct remainder
+          af.put("fstsw %ax"); // sets parity if unfinished
+          af.put("sahf");
+          af.put("jp 1b");     // in that case, rerun it
+          af.put("fstp %st(1)"); // pop unneeded
+          break;
       }
       af.storeFloat("(%esp)");
     }
