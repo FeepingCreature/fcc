@@ -1,0 +1,53 @@
+module std.png;
+
+import c.png;
+pragma(lib, "png");
+
+extern(C) void callback_write(png_structp png_ptr, png_bytep data, png_size_t length) {
+  auto backup = _esi;
+  (_esi, void delegate(string) write_dg) = *(void*, void delegate(string))*: png_get_io_ptr(png_ptr);
+  write_dg(data[0..length]);
+  _esi = backup;
+}
+
+// TODO
+extern(C) void callback_flush(png_structp png_ptr) {
+  auto backup = _esi;
+  (_esi, void delegate(string) write_dg) = *(void*, void delegate(string))*: png_get_io_ptr(png_ptr);
+  _esi = backup;
+}
+
+defmode PNG p "prefix png_ prefix PNG_ first-arg p";
+
+class PNGWriter {
+  png_structp ptr;
+  png_infop infoptr;
+  void init(void delegate(string) writefun) {
+    ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, null, null, null);
+    if (!ptr) raise new Error "failed to initialize libpng";
+    infoptr = png_create_info_struct (ptr);
+    if (!infoptr) raise new Error "failed to create libpng info struct";
+    auto data = new (void*, void delegate(string));
+    *data = (_esi, writefun);
+    png_set_write_fn(ptr, void*: data, &callback_write, &callback_flush);
+  }
+  void configure(int w, h) mode PNG ptr {
+    alias settings = (COLOR_TYPE_RGB_ALPHA, INTERLACE_NONE, COMPRESSION_TYPE_BASE, FILTER_TYPE_BASE);
+    set_IHDR(infoptr, w, h, 8, settings);
+    write_info(infoptr);
+    color_8 sigbits;
+    sigbits.(red, green, blue) = png_byte:8 x 3;
+    sigbits.(gray, alpha) = png_byte:0 x 2;
+    set_sBIT(infoptr, &sigbits);
+  }
+  void writeLine(byte[] data) mode PNG ptr {
+    write_row(png_const_bytep:data.ptr);
+  }
+  void flush() mode PNG ptr {
+    write_flush();
+  }
+  void end() mode PNG ptr {
+    write_end (infoptr);
+    destroy_write_struct(&ptr, &infoptr);
+  }
+}
