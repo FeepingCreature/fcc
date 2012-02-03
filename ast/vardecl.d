@@ -77,17 +77,33 @@ void mkVar(AsmFile af, IType type, bool dontInit, bool alignvar, void delegate(V
   string name;
   static int x;
   synchronized name = Format("__temp_res_var_", x++, "__");
-  auto var = new Variable(type, name,
-                          alignvar?boffs(type, af.currentStackDepth):-(af.currentStackDepth + type.size));
-  var.dontInit = dontInit;
-  if (size) {
-    mixin(mustOffset("size", "2"));
-    auto vd = new VarDecl(var);;
-    vd.emitAsm(af);
-  }
-  {
-    mixin(mustOffset("0"));
-    dg(var);
+  auto bof = boffs(type, af.currentStackDepth), naturalOffs = -(af.currentStackDepth + type.size);
+  bool needsAlignment = bof != naturalOffs;
+  if (alignvar && needsAlignment) { // write into temporary
+    mkVarUnaligned(af, type, true, (Variable var) {
+      auto delta = -(af.currentStackDepth + type.size) - boffs(type, af.currentStackDepth);
+      af.salloc(delta);
+      assert(!-(af.currentStackDepth + type.size) - boffs(type, af.currentStackDepth)); // copypaste yay
+      mkVar(af, type, true, (Variable var2) {
+        dg(var2);
+        (mkAssignment(var, var2)).emitAsm(af);
+      });
+      af.sfree(type.size);
+      af.sfree(delta);
+    });
+  } else {
+    auto var = new Variable(type, name,
+                            alignvar?bof:naturalOffs);
+    var.dontInit = dontInit;
+    if (size) {
+      mixin(mustOffset("size", "2"));
+      auto vd = new VarDecl(var);
+      vd.emitAsm(af);
+    }
+    {
+      mixin(mustOffset("0"));
+      dg(var);
+    }
   }
 }
 
