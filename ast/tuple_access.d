@@ -21,6 +21,7 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
   return reinterpret_cast(types[pos], res);
 }
 
+import ast.modules;
 Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = false) {
   auto tt = fastcast!(Tuple)~ tuple.valueType();
   if (!tt) return null;
@@ -51,6 +52,10 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
             return ex2;
           }
         }
+      }
+      if (namespace().get!(EmittingContext).isBeingEmat) {
+        logln("Too late to change stackframe via tmpizing!");
+        fail;
       }
       // force allocation
       ex = tmpize_if_possible(ex, late_init);

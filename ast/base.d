@@ -775,3 +775,11 @@ interface WithAware {
 // cheap to access multiple times, cheap to flatten into tuple
 enum CheapMode { Multiple, Flatten }
 extern(C) bool _is_cheap(Expr ex, CheapMode mode);
+
+// for the purpose of emitting asm, this can be treated as a unit
+// for instance, modules and functions
+// this is so expressions can "see" if their context is already being emat,
+// and ie. abort if it is
+interface EmittingContext {
+  bool isBeingEmat();
+}

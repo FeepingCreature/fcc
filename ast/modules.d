@@ -17,7 +17,7 @@ static this() {
 
 Threadpool tp;
 
-class Module : Namespace, IModule, Tree, Named, StoresDebugState {
+class Module : Namespace, IModule, Tree, Named, StoresDebugState, EmittingContext {
   string name;
   string sourcefile;
   string cleaned_name() { return name.cleanup(); }
@@ -58,6 +58,7 @@ class Module : Namespace, IModule, Tree, Named, StoresDebugState {
     if (inProgress) s.setup(inProgress);
   }
   override {
+    bool isBeingEmat() { return !!inProgress; }
     void _add(string name, Object obj) {
       if (auto fn = fastcast!(Function)(obj)) {
         if (fn.name == "init") {
