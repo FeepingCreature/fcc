@@ -465,6 +465,10 @@ static this() {
     else
       return null;
   };
+  implicits ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(Byte) != ex.valueType()) return null;
+    return reinterpret_cast(Single!(Char), ex); // concession to C libs
+  };
   // teh hax :D
   foreach (m; ModuleInfo.modules())
     if (m.name == "ast.casting") {
