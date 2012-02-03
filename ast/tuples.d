@@ -61,6 +61,10 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
 
 Tuple mkTuple(IType[] types...) {
+  foreach (type; types) if (Single!(Void) == type) {
+    logln("Cannot make tuple: must not contain void, ", types);
+    fail;
+  }
   auto tup = new Tuple;
   New(tup.wrapped, cast(string) null);
   tup.wrapped.packed = true;
