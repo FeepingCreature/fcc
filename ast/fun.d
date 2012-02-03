@@ -245,6 +245,14 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
       parseMe();
+      inEmitAsm = true;
+      scope(exit) inEmitAsm = false;
+      
+      if (af.floatStackDepth) {
+        logln("garbage float stack when start-emitting ", this);
+        fail;
+      }
+      
       auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4");
       if (!isWindoze()) {// TODO: work out why win32 gas does not like this {
@@ -336,6 +344,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       af.put(".LFE", idnum, ":");
       if (!isWindoze())
         af.put(".size ", fmn, ", .-", fmn);
+      if (af.floatStackDepth) {
+        logln("leftover float stack when end-emitting ", this);
+        fail;
+      }
       // af.put(".cfi_endproc");
     }
     Stuple!(IType, string, int)[] stackframe() {
