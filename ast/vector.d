@@ -767,7 +767,7 @@ class VecOp : Expr {
           reinterpret_cast(
             fastcast!(IType)~ (fastcast!(Vector)~ valueType()).asFilledTup,
             fastcast!(LValue)~ var
-        ));
+        ), null, true);
         void delegate() dg1, dg2;
         mixin(mustOffset("0"));
         // logln("SSE vec op: ", ex1, ", ", ex2, " and ", op);
@@ -777,8 +777,8 @@ class VecOp : Expr {
           auto filler2 = alignStackFor(t2, af); auto v2 = mkTemp(af, ex2, dg2);
           for (int i = 0; i < len; ++i) {
             Expr l1 = v1, l2 = v2;
-            if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1))[i];
-            if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2))[i];
+            if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1), null, true)[i];
+            if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2), null, true)[i];
             (new Assignment(fastcast!(LValue)~ entries[i], lookupOp(op, l1, l2))).emitAsm(af);
           }
           for (int i = len; i < real_len; ++i) {

@@ -197,7 +197,8 @@ class WithTempExpr : Expr {
     }
     IType valueType() { return superthing.valueType(); }
     void emitAsm(AsmFile af) {
-      if (Single!(Void) == superthing.valueType()) {
+      auto svt = superthing.valueType();
+      if (Single!(Void) == svt) {
         thing.emitAsm(af);
         offs.offset = -af.currentStackDepth;
         {
@@ -206,7 +207,8 @@ class WithTempExpr : Expr {
         }
         af.sfree(thing.valueType().size);
       } else {
-        mkVar(af, superthing.valueType(), true, (Variable var) {
+        mixin(mustOffset("svt.size"));
+        mkVar(af, svt, true, (Variable var) {
           offs_res.offset = var.baseOffset;
           thing.emitAsm(af);
           offs.offset = -af.currentStackDepth;
