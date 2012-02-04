@@ -380,6 +380,7 @@ class OverloadSet : Named, Extensible {
     name = n;
     foreach (fun; f) add(fun);
   }
+  override string toString() { return Format("overload of ", funs); }
   void add(Function f) {
     // don't add a function twice
     foreach (fun; funs) if (f is fun) return;
