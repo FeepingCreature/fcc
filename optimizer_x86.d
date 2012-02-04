@@ -608,8 +608,10 @@ class ProcTrack : ExtToken {
               if (offs % 4 == 0) {
                 auto id = offs / 4;
                 if (id >= 0 && id < stack.length) {
+                  auto newsrc = stack()[stack.length-1-id];
+                  fixupString(newsrc, (id + 1) * 4); // we're deeper into the stack than we were then!
                   fixupESPDeps(4);
-                  stack ~= stack()[stack.length-1-id];
+                  stack ~= newsrc;
                   mixin(Success);
                 }
               }
