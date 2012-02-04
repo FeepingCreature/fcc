@@ -125,7 +125,7 @@ string genIterates(int params) {
             // checkType(iter, dg);
             if (iter !is entry) {
               auto res = fastcast!(typeof(entry)) (iter);
-              if (!res) throw new Exception(Format("Cannot substitute ", $A, "[", i, "] with ", iter, " of ", (fastcast!(Object) (iter)).classinfo.name, ": ", typeof(entry).stringof, " expected! "));
+              if (!res) throw new Exception(Format(this, ": cannot substitute ", $A, "[", i, "] with ", iter, " of ", (fastcast!(Object) (iter)).classinfo.name, ": ", typeof(entry).stringof, " expected! "));
               entry = res;
             }
           }
@@ -138,7 +138,10 @@ string genIterates(int params) {
             // checkType(iter, dg);
             if (iter !is $A) {
               auto res = fastcast!(typeof($A)) (iter);
-              if (!res) throw new Exception(Format("Cannot substitute ", $A, " with ", res, ": ", typeof($A).stringof, " expected! "));
+              if (!res) {
+                logln(this, ": cannot substitute ", $A, " with ", res, ": ", typeof($A).stringof, " expected! ");
+                fail;
+              }
               $A = res;
             }
           }

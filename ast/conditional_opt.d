@@ -1,7 +1,7 @@
 module ast.conditional_opt;
 
-import ast.base, ast.conditionals, ast.index, ast.static_arrays, ast.fold;
-import ast.int_literal, ast.math, ast.casting, ast.pointer, ast.variable, ast.assign;
+import ast.base, ast.conditionals, ast.static_arrays, ast.fold;
+import ast.int_literal, ast.math, ast.casting, ast.pointer, ast.variable, ast.assign, ast.tuples;
 
 static this() {
   foldopt ~= delegate Itr(Itr it) {
@@ -19,7 +19,12 @@ static this() {
     return ew.ex;
   };
   foldopt ~= delegate Itr(Itr it) {
-    auto de = fastcast!(DerefExpr) (it);
+    auto nit = it;
+    
+    auto lvamv = fastcast!(LValueAsMValue) (it);
+    if (lvamv) nit = lvamv.sup;
+    
+    auto de = fastcast!(DerefExpr) (nit);
     if (!de) return null;
     auto rcp = fastcast!(RCE) (de.src);
     if (!rcp) return null;

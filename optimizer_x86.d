@@ -607,14 +607,13 @@ class ProcTrack : ExtToken {
             if (reg == "%esp") {
               if (offs % 4 == 0) {
                 auto id = offs / 4;
-                if (id < 0 || id >= stack.length) {
-                  return false;
+                if (id >= 0 && id < stack.length) {
+                  fixupESPDeps(4);
+                  stack ~= stack()[stack.length-1-id];
+                  mixin(Success);
                 }
-                fixupESPDeps(4);
-                stack ~= stack()[stack.length-1-id];
-                mixin(Success);
               }
-              return false;
+              // return false;
             }
             use[reg] = true;
           }
