@@ -363,12 +363,16 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   override Extensible extend(Extensible e2) {
     auto fun2 = fastcast!(Function) (e2);
-    if (!fun2)
-      throw new Exception(Format("Can't overload function "
-        "with non-function: ", this, " with ", e2, "!"
-      ));
-    auto set = new OverloadSet(name, this, fun2);
-    return set;
+    if (!fun2) {
+      auto os2 = fastcast!(OverloadSet) (e2);
+      if (!os2) {
+        throw new Exception(Format("Can't overload function "
+          "with non-function/overload set: ", this, " with ", e2, "!"
+        ));
+      }
+      return new OverloadSet(name, this ~ os2.funs);
+    }
+    return new OverloadSet(name, this, fun2);
   }
   override Extensible simplify() { return this; }
 }
@@ -397,12 +401,18 @@ class OverloadSet : Named, Extensible {
   override string getIdentifier() { return name; }
   override Extensible extend(Extensible e2) {
     auto fun2 = fastcast!(Function) (e2);
-    if (!fun2)
-      throw new Exception(Format("Can't overload '", name,
-        "' with non-function ", e2, "!"
-      ));
-    auto res = new OverloadSet;
-    res.name = name;
+    if (!fun2) {
+      auto os2 = fastcast!(OverloadSet) (e2);
+      if (!os2) {
+        throw new Exception(Format("Can't overload '", name,
+          "' with non-function/overload set ", e2, "!"
+        ));
+      }
+      auto res = new OverloadSet(name);
+      res.funs = funs ~ os2.funs;
+      return res;
+    }
+    auto res = new OverloadSet(name);
     res.funs = funs.dup;
     res.add(fun2);
     return res;
