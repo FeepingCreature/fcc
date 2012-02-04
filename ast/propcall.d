@@ -10,8 +10,9 @@ bool incompat(IType a, IType b) {
   if (p1 && !p2 || p2 && !p1) return true;
   if (p1 && p2) return incompat(p1.target, p2.target);
   
-  auto t1 = cast(TypeAlias) a, t2 = cast(TypeAlias) b;
-  if (t1 && t2 && t1.name != t2.name) return true;
+  // MEH!!
+  // auto t1 = cast(TypeAlias) a, t2 = cast(TypeAlias) b;
+  // if (t1 && t2 && t1.name != t2.name) return true;
   
   return false;
 }

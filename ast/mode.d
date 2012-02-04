@@ -131,10 +131,7 @@ class PrefixCall : FunCall {
   Expr[] getParams() { return sup.getParams() ~ prefix ~ super.getParams(); }
   private this() { }
   PrefixCall dup() {
-    auto res = new PrefixCall;
-    res.fun = fun.flatdup;
-    res.prefix = prefix.dup;
-    res.sup = sup.dup;
+    auto res = new PrefixCall(fun.flatdup, prefix.dup, sup.dup);
     foreach (param; params) res.params ~= param.dup;
     return res;
   }
@@ -163,12 +160,12 @@ class ModeSpace : Namespace, ScopeLike {
     mixin DefaultScopeLikeGuards!();
     Object lookup(string name, bool local = false) {
       Object funfilt(Object obj) {
-        if (auto fun = fastcast!(Function)~ obj) {
-          if (!firstParam) return fun;
-          if (!fun.extern_c) return fun;
-          if (!fun.type) return fun;
+        OverloadSet handleFun(Function fun) {
+          if (!firstParam) return null;
+          if (!fun.extern_c) return null;
+          if (!fun.type) return null;
           auto params = fun.type.params;
-          if (!params.length) return fun;
+          if (!params.length) return null;
           auto firstType = params[0].type;
           Expr fp = firstParam;
           bool exactlyEqual(IType a, IType b) {
@@ -190,17 +187,35 @@ class ModeSpace : Namespace, ScopeLike {
             if ( ca &&  cb) return (ca.name == cb.name) && ca.base == cb.base;
           }
           if (!gotImplicitCast(fp, (IType it) { return exactlyEqual(it, firstType); }))
-            return fun;
-          return new PrefixFunction(fp, fun);
-        } else return obj;
+            return null;
+          return new OverloadSet(fun.name, new PrefixFunction(fp, fun));
+        }
+        Extensible ext;
+        if (auto fun = fastcast!(Function) (obj)) {
+          ext = new OverloadSet(fun.name);
+          if (auto os = handleFun(fun))
+            ext = ext.extend(os);
+          else
+            ext = ext.extend(fun);
+        } else if (auto os = fastcast!(OverloadSet) (obj)) {
+          ext = new OverloadSet(os.name);
+          foreach (fun; os.funs)
+            if (auto os2 = handleFun(fun))
+              ext = ext.extend(os2);
+            else
+              ext = ext.extend(fun);
+        }
+        if (!ext) return obj;
+        if (auto res = fastcast!(Object) (ext.simplify())) return res;
+        return fastcast!(Object) (ext);
       }
       Object tryIt() {
-        if (auto res = sup.lookup(name, local))
-          return funfilt(res);
         const string TRY = `
           if (auto res = sup.lookup(%%, local))
             return funfilt(res);
         `;
+        mixin(TRY.ctReplace("%%", "name"));
+        
         foreach (prefix; prefixes)
           mixin(TRY.ctReplace("%%", "qformat(prefix, name)"));
         
