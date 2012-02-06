@@ -157,11 +157,13 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       add(new Variable(Single!(SizeT), "__fun_ret", 4));
       cur = _framestart = 8;
     }
-    // TODO: alignment
+    // TODO: 16-byte? alignment
     foreach (param; type.params) {
-      _framestart += param.type.size;
-      add(new Variable(param.type, param.name, cur));
+      auto pt = param.type;
+      _framestart += pt.size;
+      add(new Variable(pt, param.name, cur));
       cur += param.type.size;
+      cur = (cur + 3) & ~3; // round to 4
     }
     if (!releaseMode) {
       if (tree) {
@@ -555,7 +557,11 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     if (isARM) { af.pushStack("r5", 4); } // used for call
     
     int paramsize;
-    foreach (param; params) paramsize += param.valueType().size;
+    foreach (param; params) {
+      auto sz = param.valueType().size;
+      if (sz < 4) sz = 4; // cdecl
+      paramsize += sz;
+    }
     paramsize += af.floatStackDepth * 8;
     paramsize += 8; // push ip, push ebp
     
@@ -571,6 +577,9 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       mixin(mustOffset("0", "innerer"));
       foreach_reverse (param; params) {
         // af.comment("Push ", param);
+        // round to 4: cdecl treats <4b arguments as 4b (because push is 4b, presumably).
+        auto sz = param.valueType().size;
+        if (sz < 4) af.salloc(4 - sz);
         alignment_emitAligned(param, af);
       }
       
@@ -612,7 +621,9 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
           if (stdcall) {
             af.currentStackDepth -= param.valueType().size;
           } else {
-            af.sfree(param.valueType().size);
+            auto sz = param.valueType().size;
+            if (sz < 4) sz = 4;
+            af.sfree(sz);
           }
         }
       }
