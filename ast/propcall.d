@@ -37,7 +37,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
     bool isPointerLess() { return fpvt.isPointerLess(); }
     bool isComplete() { return fpvt.isComplete(); }
     Object lookup(string name, bool local = false) {
-      auto res = sup.lookup(name, false);
+      auto res = sup.lookup(name, local);
       if (auto templ = fastcast!(Template) (res)) {
         return new PrefixTemplate(firstParam, templ);
       }

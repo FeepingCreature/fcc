@@ -147,7 +147,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
           if (auto res = myresolve(ns).lookup(name, true))
             return res;
       }
-      return sup.lookup(name);
+      return sup.lookup(name, local);
     }
   }
 }

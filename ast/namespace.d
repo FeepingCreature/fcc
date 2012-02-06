@@ -85,10 +85,11 @@ class Namespace {
   void __add(string name, Object obj) {
     if (name) {
       if (auto thing = lookup(name, true)) {
+        // logln(name, " in ", this, "(local) => ", thing);
         if (auto et = fastcast!(Extensible) (thing)) {
           auto eo = fastcast!(Extensible) (obj);
           if (!eo) {
-            logln("Tried to overload ", name, ", but ", obj, " is not extensible!");
+            logln("Tried to overload ", name, " (", thing, ")", ", but ", obj, " is not extensible!");
             fail;
           }
           bool found;
