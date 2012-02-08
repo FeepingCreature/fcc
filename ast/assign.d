@@ -123,10 +123,14 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     
     // logln(target.valueType(), " <- ", value.valueType());
     LineNumberedStatementClass res;
-    if (lv)
-      res = new Assignment(lv, value);
-    else
-      res = new AssignmentM(mv, value);
+    try {
+      if (lv)
+        res = new Assignment(lv, value);
+      else
+        res = new AssignmentM(mv, value);
+    } catch (Exception ex) {
+      text.failparse(ex);
+    }
     res.configPosition(text);
     text = t2;
     return res;

@@ -4,7 +4,7 @@ import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace;
 
 class Pointer : Type {
   IType target;
-  this(IType t) { target = t; }
+  this(IType t) { target = forcedConvert(t); }
   override {
     int opEquals(IType ty) {
       ty = resolveType(ty);

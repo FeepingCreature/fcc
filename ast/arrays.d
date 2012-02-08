@@ -6,7 +6,7 @@ import ast.base, ast.types, ast.static_arrays, ast.returns, tools.base: This, Th
 final class Array : Type {
   IType elemType;
   this() { }
-  this(IType et) { elemType = et; }
+  this(IType et) { elemType = forcedConvert(et); }
   override {
     // bool isComplete() { return elemType.isComplete; }
     bool isComplete() { return true; /* size not determined by element size! */ }
@@ -31,7 +31,7 @@ class ExtArray : Type {
   IType elemType;
   bool freeOnResize;
   this() { }
-  this(IType et, bool fOR) { elemType = et; freeOnResize = fOR; }
+  this(IType et, bool fOR) { elemType = forcedConvert(et); freeOnResize = fOR; }
   override {
     int size() {
       return nativePtrSize + nativeIntSize * 2;

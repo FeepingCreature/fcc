@@ -369,10 +369,14 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   }
   auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
   if (op == "=") op = "==";
-  auto res = fastcast!(Object) (finalize(compare(op, ex1, ex2)));
-  if (!res) text.failparse("Undefined comparison");
-  text = t2;
-  return res;
+  try {
+    auto res = fastcast!(Object) (finalize(compare(op, ex1, ex2)));
+    if (!res) text.failparse("Undefined comparison");
+    text = t2;
+    return res;
+  } catch (Exception ex) {
+    text.failparse(ex);
+  }
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
 
