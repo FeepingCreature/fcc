@@ -820,19 +820,14 @@ static this() {
     if (v1v) { len = v1v.len; real_len = v1v.real_len; }
     else { len = v2v.len; real_len = v2v.real_len; }
     
-    Statement st1, st2;
     IType type;
     if (v1v is v2v && v1v == v2v) type = v1v.base;
     else {
-      auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asFilledTup, lhs), &st1)[0];
-      auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs), &st2)[0];
+      auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asFilledTup, lhs), null, true)[0];
+      auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs), null, true)[0];
       type = lookupOp(op, l1, r1).valueType();
     }
-    Expr res = new VecOp(type, len, real_len, lhs, rhs, op);
-    if (!st1 && st2) st1 = st2;
-    if (st1 && st2) st1 = new AggrStatement([st1, st2]);
-    if (st1) res = new StatementAndExpr(st1, res);
-    return res;
+    return new VecOp(type, len, real_len, lhs, rhs, op);
   }
   Expr negate(Expr ex) {
     auto ty = resolveType(ex.valueType());
