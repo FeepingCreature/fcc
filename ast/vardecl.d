@@ -19,7 +19,13 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
     // if (marker == 892) { logln(this); fail; }
   }
   VarDecl dup() { return new VarDecl(var.dup); }
-  mixin defaultIterate!(var);
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    if (!var.initval) return;
+    auto it = fastcast!(Iterable) (var.initval);
+    dg(it);
+    var.initval = fastcast!(Expr) (it);
+    if (!var.initval) fail;
+  }
   bool hasInitializer() {
     return !var.dontInit;
   }

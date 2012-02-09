@@ -448,6 +448,18 @@ void setupSysmods() {
       }
       for auto mod <- __modules callConstructors mod;
     }
+    extern(C) {
+      int getpid();
+      int readlink(char*, char* buf, int bufsz);
+      int system(char*);
+    }
+    void print-backtrace() {
+      platform(default) {
+        auto pid = getpid();
+        system("gdb --batch -n -ex thread -ex bt -p $pid\x00".ptr);
+        // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
+      }
+    }
     /* shared TODO figure out why this crashes */ string executable;
     shared int __argc;
     shared char** __argv;
@@ -473,7 +485,8 @@ void setupSysmods() {
         writeln "Unhandled error: '$(err.toString())'. ";
         // writeln "Invoking debugger interrupt. Continue to exit. ";
         // writeln "Invoking GDB. ";
-        // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
+        
+        print-backtrace;
         errnum = 1;
         // _interrupt 3;
         invoke-exit "main-return";

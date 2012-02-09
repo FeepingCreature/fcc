@@ -110,6 +110,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
           string info = Format(errorpos._2, ":", errorpos._0, ":", errorpos._1);
           res = iparse!(Expr, "check_bound", "tree.expr")
                        (`*bounded_array_access(ex, pos, info)`,
+                        namespace(),
                         "ex", ex, "pos", pos, "info", mkString(info),
                         "bounded_array_access", sysmod.lookup("bounded_array_access"));
         }

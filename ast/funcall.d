@@ -314,7 +314,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       }
       if (candidates.length > 1) {
         t2.failparse("Unable to call '", os.name,
-          "': ambiguity between ", candsets);
+          "': ambiguity between ", candsets, " btw ", os.funs);
       }
       fun = candidates[0];
     } else return null;
@@ -328,7 +328,9 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       result = matchCall(t2, fun.name, params, rest, fc.params, inits, false, false);
       if (inits.length > 1) inits = [new AggrStatement(inits)];
       if (inits.length) res = mkStatementAndExpr(inits[0], fc);
-    } catch (Exception ex) text.failparse("cannot call: ", ex);
+    }
+    catch (ParseEx pe) text.failparse("cannot call: ", pe.msg);
+    catch (Exception ex) text.failparse("cannot call: ", ex);
     if (!result) {
       if (t2.accept("("))
         t2.failparse("Failed to call function with ", params, ": ", error()._1);
@@ -456,7 +458,7 @@ static this() {
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name) {
   (new ExprStatement(buildFunCall(
     fastcast!(Function) (sysmod.lookup("missed_return")),
-    mkTupleExpr(new StringExpr(name)),
+    new StringExpr(name),
     "missed return signal"
   ))).emitAsm(af);
 }

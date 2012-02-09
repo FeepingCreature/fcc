@@ -41,7 +41,7 @@ class PNGWriter {
     set_sBIT(infoptr, &sigbits);
   }
   void writeLine(byte[] data) mode PNG ptr {
-    write_row(png_const_bytep:data.ptr);
+    write_row(png_bytep:data.ptr);
   }
   void flush() mode PNG ptr {
     write_flush();

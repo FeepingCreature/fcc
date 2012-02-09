@@ -361,6 +361,14 @@ struct foldopt {
 
 static int stmt_and_t_marker;
 
+void sae_markercheck(int marker) { // outside the template (because incremental builds)
+  // if (marker == 8276) asm { int 3; }
+}
+
+void sae_debugme(Expr ex) {
+  // logln(ex);
+}
+
 template StatementAndT(T) {
   class StatementAndT : T {
     static if (is(T == Expr)) const string NAME = "sae";
@@ -375,12 +383,12 @@ template StatementAndT(T) {
       this.second = second;
       this.permissive = permissive;
       this.marker = stmt_and_t_marker ++;
-      // if (marker == 505) asm { int 3; }
+      sae_markercheck(marker);
     }
     mixin defaultIterate!(first, second);
     bool once;
     bool check() {
-      // if (marker == 505) asm { int 3; }
+      sae_markercheck(marker);
       if (once) {
         if (permissive) return false;
         logln("Double emit ", marker, " ", this, ". NOT SAFE. ");
@@ -390,10 +398,11 @@ template StatementAndT(T) {
       return true;
     }
     override {
-      string toString() { return Format(NAME, "{", first, second, "}"); }
+      string toString() { return Format(NAME, " ", marker, "{", first, second, "}"); }
       StatementAndT dup() { return new StatementAndT(first.dup, second.dup); }
       IType valueType() { return second.valueType(); }
       void emitAsm(AsmFile af) {
+        sae_debugme(this);
         if (check) first.emitAsm(af);
         second.emitAsm(af);
       }

@@ -344,6 +344,9 @@ static this() {
     if (!t2.accept("]"))
       t2.failparse("Expected closing ']' for tuple index access");
     
+    auto types = tup.types();
+    if (!types.length) return null; // cannot possibly mean a type-tuple tuple access
+    
     auto backup_len = len;
     if (!gotImplicitCast(len, (IType it) { return test(Single!(SysInt) == it); }))
       t2.failparse("Need int for tuple index access, not ", backup_len);
@@ -351,9 +354,9 @@ static this() {
     len = foldex(len);
     if (auto ie = fastcast!(IntExpr) (len)) {
       text = t2;
-      auto types = tup.types();
-      if (ie.num >= types.length)
+      if (ie.num >= types.length) {
         text.failparse(ie.num, " too large for tuple of ", types.length, "!");
+      }
       return types[ie.num];
     } else
       t2.failparse("Need foldable constant for tuple index access, not ", len);

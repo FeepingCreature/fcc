@@ -383,6 +383,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
       }
       return fastcast!(Object) (fc);
     } catch (Exception ex) {
+      // fail;
       t2.failparse("ifti instantiating with ", nex.valueType(), ioApplies?Format(" (post ", io._1, ")"):"", ": ", ex);
     }
   };

@@ -74,7 +74,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   bool extern_c = false, weak = false, reassign = false;
   void markWeak() { weak = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
-    if (mode == IterMode.Lexical) defaultIterate!(tree).iterate(dg, mode);
+    if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
     // else to be defined in subclasses
   }
   string toString() { return Format("fun ", name, " ", type, " <- ", sup); }
@@ -137,7 +137,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   Function dup() {
     auto res = flatdup();
     if (tree) res.tree = tree.dup;
-    res.coarseSrc = coarseSrc.dup;
+    res.coarseSrc = coarseSrc;
     return res;
   }
   FunCall mkCall() {
@@ -312,7 +312,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       scope(exit) af.currentStackDepth = backup;
       af.currentStackDepth = framesize();
       if (!tree) { logln("Tree for ", this, " not generated! :( "); fail; }
-      withTLS(namespace, this, tree.emitAsm(af));
+      
+      auto backupns = namespace();
+      scope(exit) namespace.set(backupns);
+      namespace.set(this);
+      
+      tree.emitAsm(af);
       
       if (type.ret != Single!(Void)) {
         funcall_emit_fun_end_guard (af, name);
@@ -664,6 +669,16 @@ class FunctionType : ast.types.Type {
     return res;
   }
   override {
+    int opEquals(IType it) {
+      auto fun2 = fastcast!(FunctionType) (resolveType(it));
+      if (!fun2) return false;
+      if (ret != fun2.ret) return false;
+      if (params.length != fun2.params.length) return false;
+      foreach (i, param; params)
+        if (param.type != fun2.params[i].type) return false;
+      if (stdcall != fun2.stdcall) return false;
+      return true;
+    }
     bool isComplete() {
       if (!ret || !ret.isComplete) return false;
       foreach (par; params) if (!par.type.isComplete) return false;

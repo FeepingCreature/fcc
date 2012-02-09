@@ -36,8 +36,9 @@ extern(C) {
     (TTF_Font* font, char* text, SDL_Color fg, SDL_Color bg);
   SDL_Surface* TTF_RenderUTF8_Blended
     (TTF_Font* font, char* text, SDL_Color fg);
-  TTF_Font* TTF_OpenFontRW
-    (SDL_RWops* src, int freesrc, int ptsize);
+  alias TTF_Font = void, SDL_RWops = void;
+  TTF_Font* TTF_OpenFontRW(SDL_RWops* src, int freesrc, int ptsize);
+  SDL_RWops* SDL_RWFromMem(void*, int);
   char* SDL_GetError();
 }
 

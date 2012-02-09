@@ -41,6 +41,7 @@ static this() {
     auto ic = fastcast!(RCE) (aibe2.e1);
     if (!ic || Single!(SysInt) != ic.to) return null;
     auto ce = fastcast!(CondExpr) (ic.from);
+    if (!ce) return null;
     
     auto re = fastcast!(RefExpr) (rci.from);
     if (!re) return null;

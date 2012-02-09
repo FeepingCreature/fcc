@@ -85,18 +85,18 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       initClass(cr.myClass);
       try {
         if (initParam) {
-          (new ExprStatement(
-            iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
-                  (`var.init ex`,
-                    "var", var, "ex", initParam)
-          )).emitAsm(af);
+          (new ExprStatement(foldex(tmpize_maybe(initParam, (Expr ex) {
+            return iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
+                     (`var.init ex`,
+                      "var", var, "ex", ex);
+          })))).emitAsm(af);
         }
         else if (cr.myClass.lookupRel("init", var)) {
-          (new ExprStatement(
+          (new ExprStatement(foldex(
             iparse!(Expr, "call_constructor_void", "tree.expr _tree.expr.arith")
                    (`var.init()`,
                     "var", var)
-          )).emitAsm(af);
+          ))).emitAsm(af);
         }
       } catch (Exception ex) {
         text.failparse(ex);

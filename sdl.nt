@@ -129,13 +129,16 @@ class Area {
     res.surf = surf;
     return res;
   }
-  Area at(int x, int y) {
-    if (x < 0 || y < 0) raise new Error "Please don't call at() with negative coordinates; it breaks things";
+  Area add(int x, int y) {
     auto res = copy();
     if (x > w) { x = w; }
     if (y > h) { y = h; }
     res.rect[0] += vec2i(x, y);
     return res;
+  }
+  Area at(int x, y) {
+    if (x < 0 || y < 0) raise new Error "Please don't call at() with negative coordinates; it breaks things";
+    return add(x, y);
   }
   Area sub(int x1, int y1, int x2, int y2) {
     auto res = copy();
@@ -521,7 +524,7 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false,
   return display;
 }
 
-/*
+/*platform(!i686-mingw32) {
   void saveBMP(string s) {
     auto p = toStringz s;
     onSuccess mem.free p;
@@ -531,7 +534,7 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false,
       _interrupt 3;
     }
   }
-*/
+}*/
 
 void flip() {
   display.surf.flip();
