@@ -20,8 +20,6 @@ GtkButton* gtkCastButton(GtkWidget* gw) {
   return GtkButton*: gtcic (GTypeInstance*:gw, gtk_button_get_type());
 }
 
-alias G_TYPE_FUNDAMENTAL_SHIFT = 2;
-
 GtkObject* gtkCastObject(GtkWidget* gw) {
   return GtkObject*: gtcic (GTypeInstance*:gw, GType: (20 << G_TYPE_FUNDAMENTAL_SHIFT));
 }

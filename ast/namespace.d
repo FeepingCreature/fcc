@@ -322,12 +322,16 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNamedType, "type.named", "4");
 
-class LengthOverride : Namespace {
+class LengthOverride : Namespace, ScopeLike {
   Expr len;
   this(Namespace sup, Expr ex) { this.sup = sup; len = ex; }
   override {
+    int framesize() { return sup.get!(ScopeLike).framesize(); }
+    Statement[] getGuards() { return sup.get!(ScopeLike).getGuards(); }
+    int[] getGuardOffsets() { return sup.get!(ScopeLike).getGuardOffsets(); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
+    string toString() { return Format("[$ = ", len, "] <- ", sup); }
     Object lookup(string name, bool local = false) {
       if (name == "$") return fastcast!(Object)~ len;
       return sup.lookup(name, local);

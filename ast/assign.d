@@ -109,8 +109,9 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
       // logln("(note: ", (fastcast!(Object) (bexup.valueType())).classinfo.name, ")");
       // logln("(note 2: ", bexup.valueType() == value.valueType(), ")");
       // logln("btw backup ex is ", (cast(Object) ex).classinfo.name, ": ", ex);
-      setError(t2, "Could not match ", bexup.valueType(), " to ", value.valueType());
-      return null;
+      t2.failparse("Could not match ", bexup.valueType(), " to ", value.valueType());
+      // setError(t2, "Could not match ", bexup.valueType(), " to ", value.valueType());
+      // return null;
       // t2.failparse("Parsing error");
     }
 

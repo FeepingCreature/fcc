@@ -1,5 +1,5 @@
 module test;
-import c.SDL.SDL, simplex, std.thread, test_fun;
+import c.SDL.SDL, simplex, std.thread;
 
 pragma(lib, "SDL");
 
@@ -475,7 +475,7 @@ int main(string[] args) {
       set-handler (Error) invoke-exit "skip";
       bool skip;
       define-exit "skip" skip = true;
-      if !skip sdlfun(&fun5);
+      if !skip sdlfun(&fun4);
     }
     U u;
     u.F = 15;

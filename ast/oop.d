@@ -210,7 +210,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     }
     if (name == "this") return fastcast!(Object)~ base;
     // haaaaax
-    if (auto res = lookup(name)) {
+    if (auto res = lookup(name, true)) {
       if (auto rt = fastcast!(RelTransformable) (res))
         return rt.transform(base);
       return res;
