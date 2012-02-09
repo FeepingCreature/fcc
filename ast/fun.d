@@ -669,6 +669,16 @@ class FunctionType : ast.types.Type {
     return res;
   }
   override {
+    int opEquals(IType it) {
+      auto fun2 = fastcast!(FunctionType) (resolveType(it));
+      if (!fun2) return false;
+      if (ret != fun2.ret) return false;
+      if (params.length != fun2.params.length) return false;
+      foreach (i, param; params)
+        if (param.type != fun2.params[i].type) return false;
+      if (stdcall != fun2.stdcall) return false;
+      return true;
+    }
     bool isComplete() {
       if (!ret || !ret.isComplete) return false;
       foreach (par; params) if (!par.type.isComplete) return false;
