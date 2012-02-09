@@ -667,10 +667,31 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         return fastcast!(Object)~ res;
       }
       Extensible ext;
+      void extend(Extensible e) {
+        if (ext) {
+          if (auto os = fastcast!(OverloadSet) (ext)) {
+            if (auto fun = fastcast!(Function) (e)) {
+              foreach (fun2; os.funs) {
+                if (fun.type == fun2.type) {
+                  return; // already added
+                }
+              }
+            }
+          }
+          if (auto fun = fastcast!(Function) (ext)) {
+            if (auto fun2 = fastcast!(Function) (e)) {
+              if (fun.type == fun2.type)
+                return; // already added
+            }
+          }
+          ext = ext.extend(e);
+        } else {
+          ext = e;
+        }
+      }
       if (auto res = myfuns.lookup(str, base)) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
-          if (ext) ext = ext.extend(ext2);
-          else ext = ext2;
+          extend(ext2);
         } else return res;
       }
       Expr cl_offset = ownClassinfoLength;
@@ -678,16 +699,14 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         if (auto res = intf.lookupClass(str, cl_offset, base)) {
           auto obj = fastcast!(Object) (res);
           if (auto ext2 = fastcast!(Extensible) (res)) {
-            if (ext) ext = ext.extend(ext2);
-            else ext = ext2;
+            extend(ext2);
           } else return obj;
         }
         cl_offset = foldex(lookupOp("+", cl_offset, mkInt(intf.clsize)));
       }
       if (parent) if (auto res = parent.lookupRel(str, base)) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
-          if (ext) ext = ext.extend(ext2);
-          else ext = ext2;
+          extend(ext2);
         } else return res;
       }
       return fastcast!(Object) (ext);
