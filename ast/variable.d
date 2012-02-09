@@ -54,7 +54,7 @@ class Variable : LValue, Named {
   }
   override string getIdentifier() { return name; }
   mixin DefaultDup!();
-  mixin defaultIterate!(initval);
+  mixin defaultIterate!();
   string toString() {
     if (name) return name;
     return Format("[ var of ", type, " at ", baseOffset, initval?Format(" = ", initval):"", "]");
