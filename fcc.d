@@ -429,6 +429,35 @@ struct CompileSettings {
   string configOpts;
 }
 
+// structural verifier
+void verify(Iterable it) {
+  int[] res;
+  void handle(ref Iterable it) {
+    auto outside = res; res = null;
+    int[][] list;
+    Iterable[] subs;
+    void handle2(ref Iterable it) {
+      if (auto sae = fastcast!(StatementAndExpr) (it))
+        res ~= sae.marker;
+      subs ~= it;
+      handle(it);
+      list ~= res;
+      res = null;
+    }
+    it.iterate(&handle2, IterMode.Lexical);
+    res = outside;
+    foreach (i1, ar1; list) foreach (i2, ar2; list) if (i2 != i1) {
+      foreach (e1; ar1) foreach (e2; ar2) if (e1 == e2) {
+        logln("Error: sae marker collision (", ar1, ", ", ar2, ") beneath ", fastcast!(Object) (it).classinfo.name, "{1}", subs[i1], " {2}", subs[i2]);
+        fail;
+      }
+    }
+    foreach (ar; list) res ~= ar;
+  }
+  handle(it);
+  logln(res.length, " markers checked, no collisions. ");
+}
+
 extern(C) int mkdir(char*, int);
 string delegate(int, int*) compile(string file, CompileSettings cs) {
   while (file.startsWith("./")) file = file[2 .. $];
@@ -482,6 +511,7 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
   len_opt = time({
     .postprocessModule(mod);
   }) / 1_000_000f;
+  // verify(mod);
   auto len_gen = time({
     mod.emitAsm(af);
     if (!ematSysmod) {
