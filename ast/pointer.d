@@ -147,8 +147,9 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
     tried ~= f.valueType();
     return test(fastcast!(CValue)~ f);
   })) {
-    text.setError("Can't take reference: ", ex,
-    " does not become a cvalue (", tried, ")");
+    // text.setError("Can't take reference: ", ex,
+    // " does not become a cvalue (", tried, ")");
+    text.setError("Can't take reference: expression does not seem to have an address");
     return null;
   }
   

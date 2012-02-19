@@ -16,7 +16,7 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
       fail;
     }
     marker = .vardecl_marker ++;
-    // if (marker == 892) { logln(this); fail; }
+    // if (marker == 21) { logln(this); fail; }
   }
   VarDecl dup() { return new VarDecl(var.dup); }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {

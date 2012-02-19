@@ -35,14 +35,49 @@ string my_prefix() {
   else return path_prefix ~ platform_prefix;
 }
 
+string[] linkerArgs;
+
+string[] processCArgs(string[] ar) {
+  string[] res;
+  while (ar.length) {
+    auto arg = ar.take();
+    if (arg == "-pthread") continue; // silently ignore;
+    if (arg.startsWith("-D")) continue;
+    if (auto rest = arg.startsWith("-l").strip()) {
+      if (!rest.length) rest = ar.take();
+      linkerArgs ~= "-l"~rest;
+      continue;
+    }
+    if (auto rest = arg.startsWith("-L").strip()) {
+      if (!rest.length) rest = ar.take();
+      linkerArgs ~= "-L"~rest;
+      continue;
+    }
+    if (auto rest = arg.startsWith("-Wl")) {
+      rest.accept(",");
+      rest = rest.strip();
+      if (!rest.length) rest = ar.take();
+      linkerArgs ~= rest;
+      continue;
+    }
+    if (auto rest = arg.startsWith("-I")) {
+      rest = rest.strip();
+      if (!rest.length) rest = ar.take();
+      include_path = rest ~ include_path;
+      continue;
+    }
+    res ~= arg;
+  }
+  return res;
+}
+
 static this() {
   New(optimizer_x86.cachething);
   New(optimizer_x86.proctrack_cachething); 
   // Link with this library
+  bool isStringLiteral(Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }
   pragmas["lib"] = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, (Expr ex) {
-      return !!fastcast!(StringExpr) (foldex(ex));
-    }))
+    if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("Lib name expected. ");
     string str = (fastcast!(StringExpr) (foldex(ex))).str;
     string newarg = "-l" ~ str;
@@ -54,10 +89,19 @@ static this() {
     if (newarg) extra_linker_args ~= newarg;
     return Single!(NoOp);
   };
+  pragmas["pkg-config"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, &isStringLiteral))
+      throw new Exception("pkg-config packet identifier expected. ");
+    auto pkgname = fastcast!(StringExpr) (foldex(ex)).str;
+    auto lines = readback("sh -c 'pkg-config --cflags --libs "~pkgname~" 2>&1 || echo pkg-config FAILED'").strip().split("\n");
+    if (lines[$-1] == "pkg-config FAILED") {
+      throw new Exception("While evaluating pkg-config pragma for "~pkgname~": "~lines[$-2]);
+    }
+    processCArgs (lines[0].split(" "));
+    return Single!(NoOp);
+  };
   pragmas["binary"] = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, (Expr ex) {
-      return !!fastcast!(StringExpr) (foldex(ex));
-    }))
+    if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("Binary name expected. ");
     output = (fastcast!(StringExpr) (foldex(ex))).str;
     if (isWindoze()) output ~= ".exe";
@@ -617,7 +661,7 @@ void dumpXML() {
   std.c.stdio.fflush(stdout);
 }
 
-void link(string[] objects, string[] largs, bool saveTemps = false) {
+void link(string[] objects, bool saveTemps = false) {
   if (dumpXMLRep) dumpXML();
   scope(success)
     if (!saveTemps)
@@ -626,7 +670,7 @@ void link(string[] objects, string[] largs, bool saveTemps = false) {
   string linkflags = "-m32 -Wl,--gc-sections -L/usr/local/lib";
   string cmdline = my_prefix()~"gcc "~linkflags~" -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
-  foreach (larg; largs ~ extra_linker_args) cmdline ~= larg ~ " ";
+  foreach (larg; linkerArgs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz());
 }
@@ -635,7 +679,7 @@ import tools.threadpool;
 Threadpool emitpool;
 
 import std.file;
-void loop(string start, string[] largs,
+void loop(string start,
           CompileSettings cs, bool runMe)
 {
   string toModule(string file) { return file.replace("/", ".").endsWith(EXT); }
@@ -689,7 +733,7 @@ void loop(string start, string[] largs,
     lazySysmod();
     try {
       string[] objs = start.compileWithDepends(cs);
-      objs.link(largs, true);
+      objs.link(true);
     } catch (Exception ex) {
       logSmart!(false) (ex);
       goto retry;
@@ -776,37 +820,18 @@ int main(string[] args) {
     }
   }
   auto ar = args;
-  string[] largs;
   bool runMe;
   CompileSettings cs;
   bool willLoop;
+  ar = processCArgs(ar);
   while (ar.length) {
     auto arg = ar.take();
-    if (arg == "-pthread") continue; // silently ignore;
-    if (arg.startsWith("-D")) continue;
     if (arg == "-o") {
       output = ar.take();
       continue;
     }
     if (arg == "--loop" || arg == "-F") {
       willLoop = true;
-      continue;
-    }
-    if (auto rest = arg.startsWith("-l").strip()) {
-      if (!rest.length) rest = ar.take();
-      largs ~= "-l"~rest;
-      continue;
-    }
-    if (auto rest = arg.startsWith("-L").strip()) {
-      if (!rest.length) rest = ar.take();
-      largs ~= "-L"~rest;
-      continue;
-    }
-    if (auto rest = arg.startsWith("-Wl")) {
-      rest.accept(",");
-      rest = rest.strip();
-      if (!rest.length) rest = ar.take();
-      largs ~= rest;
       continue;
     }
     if (auto rest = arg.startsWith("-platform=")) {
@@ -818,12 +843,6 @@ int main(string[] args) {
           entry = "/usr/"~rest~"/include"; // fix up
         }
       }
-      continue;
-    }
-    if (auto rest = arg.startsWith("-I")) {
-      rest = rest.strip();
-      if (!rest.length) rest = ar.take();
-      include_path = rest ~ include_path;
       continue;
     }
     if (arg == "-save-temps" || arg == "-S") {
@@ -859,7 +878,7 @@ int main(string[] args) {
     }
     if (arg == "-pg") {
       cs.profileMode = true;
-      largs ~= "-pg";
+      linkerArgs ~= "-pg";
       continue;
     }
     if (arg == "-singlethread") {
@@ -908,10 +927,10 @@ int main(string[] args) {
   }
   if (!output) output = "exec";
   if (willLoop) {
-    loop(mainfile, largs, cs, runMe);
+    loop(mainfile, cs, runMe);
     return 0;
   }
-  objects.link(largs, cs.saveTemps);
+  objects.link(cs.saveTemps);
   if (runMe) system(toStringz("./"~output));
   if (accesses.length) logln("access info: ", accesses);
   return 0;

@@ -140,7 +140,7 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == ret); }))
       return rs;
     else {
-      text.failparse("Could not convert ", temp, " to ", fun.type.ret, " for return: tried ", tried);
+      text.failparse("Could not convert to return type ", fun.type.ret, "; expression had the type ", temp.valueType());
     }
   }
   

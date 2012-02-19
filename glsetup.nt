@@ -9,7 +9,7 @@ void quit(int code) {
   exit(code);
 }
 
-int resizeWindow(int w, int h) mode GL {
+int resizeWindow(int w, int h) using mode GL {
   if !h
     h = 1;
   auto ratio = w * 1.0 / h;
@@ -22,7 +22,7 @@ int resizeWindow(int w, int h) mode GL {
   return true;
 }
 
-int initGL() mode GL {
+int initGL() using mode GL {
   ShadeModel SMOOTH;
   Enable DEPTH_TEST;
   Enable COLOR_MATERIAL;

@@ -62,6 +62,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
       context = lv;
     } else if (auto mv = fastcast!(MValue)~ ex) {
       context = mv;
+    } else if (ex.valueType() == Single!(Void)) {
+      context = ex; // hackaround :)
     } else {
       auto var = new Variable;
       var.type = ex.valueType();
