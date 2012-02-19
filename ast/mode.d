@@ -358,6 +358,16 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
   Expr arg;
   if (mode.needsArg) {
     bool opened;
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    
+    if (mode.isGObjectMode) {
+      auto pre_ms = new ModeSpace;
+      pre_ms.prefixes ~= mode.ident.tolower() ~ "_";
+      namespace.set(new WithStmt(new PlaceholderTokenLV(pre_ms, "prefix/suffix pre thing")));
+    }
+    
     if (text.accept("(")) opened = true;
     if (!rest(text, "tree.expr _tree.expr.arith", &arg))
       text.failparse("Couldn't get mode argument! ");
