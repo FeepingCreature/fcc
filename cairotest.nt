@@ -74,7 +74,8 @@ void main() {
       writeln "$fps fps";
       fps = 0; lastTime = time null;
     }
-    return glsetup.update window;
+    glsetup.update window;
+    return false;
   }
   while !update() { }
 }

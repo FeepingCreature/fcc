@@ -71,7 +71,7 @@ void main(string[] args) {
   }
   int curDepth = 1;
   GLuint x 3 lists;
-  void regenList() mode GL {
+  void regenList() using mode GL {
     if (lists[0]) DeleteBuffers(3, lists.ptr);
     GenBuffers(3, lists.ptr);
     vertexQuadData.free; colorQuadData.free;
@@ -132,7 +132,7 @@ void main(string[] args) {
   int frame;
   auto lastsec = sec();
   while true {
-    mode GL {
+    using mode GL {
       ClearColor (0 x 3, 0);
       ClearDepth 1;
       Clear (COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
