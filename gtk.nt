@@ -1,56 +1,26 @@
 module gtk;
 
+pragma(pkg-config, "gtk+-2.0");
+
 public import c.gtk.gtk;
 
 import std.string;
 
 alias gtcic = g_type_check_instance_cast;
 
-// TODO: multi-alias template support for this
+defmode GTK_OBJECT "gobject-helper";
+defmode GTK_WIDGET "gobject-helper <GTK_OBJECT>";
+defmode GTK_CONTAINER "gobject-helper <GTK_WIDGET>";
+defmode GTK_BIN "gobject-helper <GTK_CONTAINER>";
+defmode GTK_WINDOW "gobject-helper <GTK_BIN>";
+defmode GTK_BUTTON "gobject-helper <GTK_BIN>";
+defmode GTK_BOX "gobject-helper <GTK_CONTAINER>";
+defmode GTK_SCROLLED_WINDOW "gobject-helper <GTK_BIN>";
+defmode GTK_TREE_VIEW "gobject-helper";
+defmode GTK_TREE_MODEL "gobject-helper";
+defmode GTK_TREE_STORE "gobject-helper";
+defmode GTK_ENTRY "gobject-helper <gtk_widget>";
 
-GtkContainer* gtkCastContainer(GtkWidget* gw) {
-  return GtkContainer*: gtcic (GTypeInstance*:gw, gtk_container_get_type());
-}
-
-GtkWindow* gtkCastWindow(GtkWidget* gw) {
-  return GtkWindow*: gtcic (GTypeInstance*:gw, gtk_window_get_type());
-}
-
-GtkButton* gtkCastButton(GtkWidget* gw) {
-  return GtkButton*: gtcic (GTypeInstance*:gw, gtk_button_get_type());
-}
-
-GtkObject* gtkCastObject(GtkWidget* gw) {
-  return GtkObject*: gtcic (GTypeInstance*:gw, GType: (20 << G_TYPE_FUNDAMENTAL_SHIFT));
-}
-
-GtkBox* gtkCastBox(GtkWidget* gw) {
-  return GtkButton*: gtcic (GTypeInstance*:gw, gtk_box_get_type());
-}
-
-GtkScrolledWindow* gtkCastScrolledWindow(GtkWidget* gw) {
-  return GtkScrolledWindow*: gtcic (GTypeInstance*:gw, gtk_scrolled_window_get_type());
-}
-
-GtkTextView* gtkCastTextView(GtkWidget* gw) {
-  return GtkTextView*: gtcic (GTypeInstance*:gw, gtk_text_view_get_type());
-}
-
-GtkTreeView* gtkCastTreeView(GtkWidget* gw) {
-  return GtkTreeView*: gtcic (GTypeInstance*:gw, gtk_tree_view_get_type());
-}
-
-GtkTreeView* gtkCastTreeModel(GtkWidget* gw) {
-  return GtkTreeView*: gtcic (GTypeInstance*:gw, gtk_tree_model_get_type());
-}
-
-GtkEntry* gtkCastEntry(GtkWidget* gw) {
-  return GtkEntry*: gtcic (GTypeInstance*:gw, gtk_entry_get_type());
-}
-
-// extern(C) size_t g_signal_connect_data (gpointer instance, char*, void*, void*, void*, GConnectFlags);
-
-// turn function-pointer(void*) type callbacks (with esi) into delegate callbacks
 (void*, void*, void*)[~] store;
 
 template call-dg-esi(T) {
@@ -76,6 +46,6 @@ template g_signal_connect(T) {
   void g_signal_connect (T t) {
     store ~= (void*, void*, void*): (t[2], _esi);
     auto dgvalue = &(call-dg-esi!type-of t[2]);
-    g_signal_connect_data (gpointer: t[0], toStringz t[1], void*: dgvalue, &store[$-1], null, 0);
+    g_signal_connect_data (gpointer: t[0], toStringz t[1], GCallback: dgvalue, &store[$-1], null, 0);
   }
 }

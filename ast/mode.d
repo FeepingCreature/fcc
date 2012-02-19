@@ -204,7 +204,10 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
       if (firstParam) return firstParam.valueType().size;
       assert(false);
     }
-    string mangle() { assert(false); }
+    string mangle() {
+      if (firstParam) return "mode_override_for_"~firstParam.valueType().mangle;
+      assert(false);
+    }
     ubyte[] initval() { assert(false); }
     int opEquals(IType it) { return it is this; }
     IType proxyType() { return null; }

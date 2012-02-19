@@ -272,8 +272,8 @@ class FunPtrAsDgExpr(T) : T {
   FunctionPointer fp;
   this(Expr ex) {
     this.ex = ex;
-    fp = fastcast!(FunctionPointer)~ ex.valueType();
-    assert(!!fp);
+    fp = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
+    if (!fp) { logln(ex); logln(fp); fail; }
     super(ex, mkInt(0));
   }
   void iterate(void delegate(ref Itr) dg, IterMode mode = IterMode.Lexical) {
