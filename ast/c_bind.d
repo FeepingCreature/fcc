@@ -111,7 +111,9 @@ class LateType : IType {
   string toString() { if (!me) return Format("(LateType (", name, "), unresolved)"); return Format("(LateType ", me, ")"); }
   void needMe() {
     if (!me) tryResolve();
-    assert(!!me);
+    if (!me)
+      throw new Exception(Format("Couldn't resolve ", this));
+    me = resolveType(me);
   }
   override {
     int size() { needMe; return me.size; }
@@ -256,6 +258,10 @@ void parseHeader(string filename, string src) {
                 fail;
               }
           }
+          /*else {
+            logln(name, " didn't resolve in time");
+            fail;
+          }*/
           // else assert(false, "'"~name~"' didn't resolve! ");
           else lt.me = Single!(Void);
         };
@@ -278,7 +284,7 @@ void parseHeader(string filename, string src) {
     text.accept("__const");
     if (auto ty = matchSimpleType(text)) {
       while (text.accept("*")) ty = new Pointer(ty);
-      return resolveType(ty);
+      return ty;
     } else return null;
   }
   IType matchParam(ref string text) {
@@ -438,7 +444,6 @@ void parseHeader(string filename, string src) {
   }
   while (statements.length) {
     auto stmt = statements.take(), start = stmt;
-    // logln("> ", stmt.replace("\n", "\\"));
     stmt.accept("__extension__");
     if (stmt.accept("#define")) {
       if (stmt.accept("__")) continue; // internal
