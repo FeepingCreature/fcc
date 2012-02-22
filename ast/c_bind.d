@@ -258,12 +258,11 @@ void parseHeader(string filename, string src) {
                 fail;
               }
           }
-          /*else {
-            logln(name, " didn't resolve in time");
-            fail;
-          }*/
-          // else assert(false, "'"~name~"' didn't resolve! ");
-          else lt.me = Single!(Void);
+          else {
+            // logln(name, " didn't resolve in time");
+            // fail;
+            lt.me = Single!(Void);
+          }
         };
         lt.tryResolve = dg;
         resolves ~= dg;
@@ -283,7 +282,11 @@ void parseHeader(string filename, string src) {
     text.accept("const");
     text.accept("__const");
     if (auto ty = matchSimpleType(text)) {
-      while (text.accept("*")) ty = new Pointer(ty);
+      while (text.accept("*")) {
+        auto p = new Pointer(Single!(SysInt));
+        p.target = ty; // manually initialize to skip forcedConvert so we give late types more time to resolve
+        ty = p;
+      }
       return ty;
     } else return null;
   }
@@ -507,6 +510,7 @@ void parseHeader(string filename, string src) {
       Named[] elems;
       foreach (entry; entries) {
         // logln("> ", entry);
+        entry = entry.replace("(unsigned long)", ""); // hack
         string id;
         if (!gotIdentifier(entry, id)) {
           stmt = entry;
@@ -548,6 +552,8 @@ void parseHeader(string filename, string src) {
           st.isUnion = isUnion;
           const debugStructs = false;
           while (true) {
+            static if (debugStructs)
+              logln(ident, ">", st2);
             if (st2.startsWith("#define"))
               goto skip;
             auto ty = matchType(st2);
@@ -644,6 +650,9 @@ void parseHeader(string filename, string src) {
           if (!name.length) name = ident;
           if (!st.name.length) st.name = name;
           add(name, new TypeAlias(ty, name));
+          if (ident && ident != name)
+            // neat doesn't have a separate struct namespace, so add it to regular one
+            add(ident, new TypeAlias(ty, ident));
           continue;
           giveUp1:
           static if (debugStructs)

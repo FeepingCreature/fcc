@@ -45,6 +45,9 @@ class Mode {
         foreach (part; capsname.split("_")) {
           leadcapsname ~= part[0] ~ part[1..$].tolower();
         }
+        if (cfg.accept("[")) {
+          leadcapsname = cfg.slice("]");
+        }
         res.prefixes ~= smallname ~ "_";
         // example: 
         // ClutterStage*:g_type_check_instance_cast(GTypeInstance*:obj, clutter_stage_get_type())
@@ -54,10 +57,14 @@ class Mode {
           logln("wth ", ex.valueType());
           fail;
         }
-        res.firstParam =
-          iparse!(Expr, "gobject-hack", "tree.expr _tree.expr.arith")
-                 (cast_expr,
-                  namespace(), "obj", ex);
+        if (cfg.accept("boxed")) {
+          res.firstParam = ex;
+        } else {
+          res.firstParam =
+            iparse!(Expr, "gobject-hack", "tree.expr _tree.expr.arith")
+                   (cast_expr,
+                    namespace(), "obj", ex);
+        }
         if (cfg.accept("<")) {
           string supertype;
           if (!cfg.gotIdentifier(supertype))
@@ -271,8 +278,6 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
           if (auto res = sup.lookup(%%, false))
             return funfilt(res);
         `;
-        mixin(TRY.ctReplace("%%", "name"));
-        
         foreach (prefix; prefixes)
           mixin(TRY.ctReplace("%%", "qformat(prefix, name)"));
         
@@ -282,6 +287,8 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
         foreach (suffix; suffixes)
           foreach (prefix; prefixes)
             mixin(TRY.ctReplace("%%", "qformat(prefix, name, suffix)"));
+        
+        mixin(TRY.ctReplace("%%", "name"));
         
         return null;
       }
@@ -364,7 +371,8 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
     
     if (mode.isGObjectMode) {
       auto pre_ms = new ModeSpace;
-      pre_ms.prefixes ~= mode.ident.tolower() ~ "_";
+      pre_ms.prefixes ~= mode.ident.tolower();
+      pre_ms.prefixes ~= mode.ident;
       namespace.set(new WithStmt(new PlaceholderTokenLV(pre_ms, "prefix/suffix pre thing")));
     }
     
