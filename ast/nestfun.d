@@ -118,6 +118,9 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef({
     return new NestedFunction(ns);
   }, mod, true, text, cont, rest)) {
+    // do this HERE, so we get the right context
+    // and don't accidentally see variables defined further down!
+    res.parseMe;
     mod.entries ~= fastcast!(Tree)~ res;
     return Single!(NoOp);
   } else return null;
