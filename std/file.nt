@@ -40,6 +40,7 @@ template readfile(T) {
 }
 
 alias C_open = open;
+alias C_close = close;
 
 import std.string;
 
@@ -50,6 +51,10 @@ platform(default) {
 platform(i686-mingw32) {
   alias read-mode = O_RDONLY | O_BINARY; // FUCK YOU SO HARD MICROSOFT WINDOWS.
   alias tweak-mode = O_BINARY;
+}
+
+platform(arm*) {
+  alias read-mode = O_RDONLY, tweak-mode = 0;
 }
 
 /*
@@ -100,7 +105,14 @@ Parameters:
   string file - the filename
   byte[] data - the data to write*/
 void writeAll(string file, byte[] data) using new writer {
-  hdl = file.open (O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  mode_t perms;
+  platform(i686-mingw32) {
+    perms = S_IREAD | S_IWRITE;
+  }
+  platform(!i686-mingw32) {
+    perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+  }
+  hdl = file.open (O_RDWR | O_CREAT, perms);
   step data;
   close;
 }
@@ -125,9 +137,65 @@ string getcwd() {
 Returns the directory component of its argument*/
 string basedir(string file) {
   if file.endsWith "/" return file;
-  while file.length && file[$-1] != "/"[0]
-    file = file[0 .. $-1];
-  return file;
+  auto slashpos = file.rfind("/");
+  if (!slashpos) raise new Error "No base dir in $file";
+  return file[0..slashpos+1];
+}
+
+string relativePathAt(string target, string where) {
+  if ((!!target.startsWith("/")) != (!!where.startsWith("/")))
+    raise new Error "relativePathAt ($target, $where): arguments must either be both relative or both absolute";
+  bool absolute = !!target.startsWith("/");
+  if (absolute) { target = target[1..$]; where = where[1..$]; }
+  
+  auto parts-target = target.split "/", parts-origin = where.split "/";
+  onSuccess[parts-target, parts-origin] {
+    parts-target.free; parts-origin.free;
+  }
+  
+  while (parts-target.length && parts-origin.length && parts-target[0] == parts-origin[0]) {
+    parts-target = parts-target[1..$];
+    parts-origin = parts-origin[1..$];
+  }
+  string res = ".".dup;
+  for 0..parts-origin.length {
+    onSuccess[res] res.free;
+    res = res.sub ".."; // undo path
+  }
+  for auto part <- parts-target {
+    onSuccess[res] res.free;
+    res = res.sub part; // redo path
+  }
+  return resolvePath res;
+}
+
+string resolvePath(string path) {
+  if (!path.find("/..")) return path;
+  auto backup = path;
+  bool absolute;
+  if (auto rest = path.startsWith "/") {
+    path = rest;
+    absolute = true;
+  }
+  auto parts = path.split "/";
+  onSuccess[parts] parts.free;
+  
+  string[~] resparts;
+  for auto part <- parts {
+    if (part == ".") { }
+    else if (part == "..") {
+      if (resparts.length && resparts[$-1] != "..") resparts = resparts[0..$-1];
+      else {
+        if (absolute)
+          raise new Error "Path resolves to location above the filesystem root: $backup";
+        resparts ~= part;
+      }
+    } else resparts ~= part;
+  }
+  path = resparts.join "/";
+  if (absolute) path = "/$path";
+  else if (!path.length) path = ".";
+  return path;
 }
 
 string basename(string path) {
@@ -140,36 +208,65 @@ string basename(string path) {
 /*Function: sub
 Given two paths, returns the second path as seen from the first path. */
 string sub(string path1, path2) {
+  // TODO: win32 special handling?
   if path2.startsWith "/" return path2;
-  if path1.endsWith "/" return path1 ~ path2;
-  return path1 ~ "/" ~ path2;
+  if path1.endsWith "/" return "$path1$path2";
+  return "$path1/$path2";
 }
 
 time_t accessed(string file) {
   int fd = open file;
   if (fd == -1) raise new ErrnoError;
   fstat(fd, &stat s);
-  return s.st_atim.tv_sec;
+  close fd;
+  platform(i686-mingw32) {
+    return s.st_atime;
+  }
+  platform(!i686-mingw32) {
+    return s.st_atim.tv_sec;
+  }
 }
 
 time_t modified(string file) {
   int fd = open file;
   if (fd == -1) raise new ErrnoError;
   fstat(fd, &stat s);
-  return s.st_mtim.tv_sec;
+  close fd;
+  platform(i686-mingw32) {
+    return s.st_mtime;
+  }
+  platform(!i686-mingw32) {
+    return s.st_mtim.tv_sec;
+  }
 }
 
 time_t statuschanged(string file) {
   int fd = open file;
   if (fd == -1) raise new ErrnoError;
   fstat(fd, &stat s);
-  return s.st_ctim.tv_sec;
+  close fd;
+  platform(i686-mingw32) {
+    return s.st_ctime;
+  }
+  platform(!i686-mingw32) {
+    return s.st_ctim.tv_sec;
+  }
 }
 
-alias C_realpath = realpath;
+int filesize(string file) {
+  int fd = open file;
+  if (fd == -1) raise new ErrnoError;
+  fstat(fd, &stat s);
+  close fd;
+  return s.st_size;
+}
 
-reassign string realpath(string path) {
-  return CToString C_realpath(toStringz path, null);
+// TODO: win32
+platform(!i686-mingw32) {
+  alias C_realpath = realpath;
+  reassign string realpath(string path) {
+    return CToString C_realpath(toStringz path, null);
+  }
 }
 
 /*
@@ -177,19 +274,88 @@ reassign string realpath(string path) {
   Returns whether a file exists.
 */
 bool exists(string file) {
-  return access(toStringz file, F_OK) != -1;
+  auto p = toStringz file;
+  onSuccess mem.free p;
+  return access(p, F_OK) != -1;
 }
 
 extern(C) int stat(char* path, void* buf);
 RenameIdentifier stat cstdlib-stat;
+extern(C) int lstat(char* path, void* buf);
+RenameIdentifier lstat cstdlib-lstat;
 
 /*
   Function: isDir
   Returns true if the argument is a directory
 */
 bool isDir(string s) {
-  cstdlib-stat(toStringz s, &stat buf);
-  return !!(buf.st_mode & S_IFDIR);
+  auto p = toStringz s;
+  cstdlib-stat(p, &stat buf);
+  mem.free p;
+  return !!((buf.st_mode & __S_IFMT) == __S_IFDIR);
+}
+
+extern(C) int rename(char*, char*);
+RenameIdentifier rename C_rename;
+/*
+  Function: rename
+  Renames a file
+*/
+void rename(string oldname, newname) {
+  auto p1 = toStringz oldname, p2 = toStringz newname;
+  onSuccess { mem.free p1; mem.free p2; }
+  auto res = C_rename(p1, p2);
+  if (res) raise new Error "Couldn't rename '$oldname' to '$newname': $res";
+}
+
+extern(C) int symlink(char*, char*);
+RenameIdentifier symlink C_symlink;
+/*
+  Function: symlink
+  Creates a symbolic link to 'target' with name 'name'
+*/
+void symlink(string target, name) {
+  auto p1 = toStringz target, p2 = toStringz name;
+  onSuccess { mem.free p1; mem.free p2; }
+  auto res = C_symlink (p1, p2);
+  if (res) raise new Error "Couldn't create symlink to '$target' at '$name': $res";
+}
+
+extern(C) int unlink(char*);
+RenameIdentifier unlink C_unlink;
+/*
+  Function: unlink
+  Deletes a file
+*/
+void unlink(string file) {
+  auto p = toStringz file;
+  onSuccess mem.free p;
+  auto res = C_unlink p;
+  if (res) raise new Error "Couldn't unlink '$file': $res";
+}
+
+extern(C) int mkdir(char*, mode_t);
+RenameIdentifier mkdir C_mkdir;
+/*
+  Function: mkdir
+  Creates a folder
+*/
+void mkdir(string name) {
+  auto p = toStringz name;
+  onSuccess mem.free p;
+  auto res = C_mkdir (p, 0755);
+  if (res) raise new Error "Couldn't create folder '$name': $res";
+}
+
+/*
+  Function: isSymbolicLink
+  Returns true if the argument is a symlink
+*/
+bool isSymbolicLink(string s) {
+  auto p = toStringz s;
+  cstdlib-lstat(p, &stat buf);
+  mem.free p;
+  return !!((buf.st_mode & __S_IFMT) == __S_IFLNK);
 }
 
 extern(C) char* strerror(int errnum);
@@ -197,25 +363,24 @@ extern(C) char* strerror(int errnum);
   Function: listDirectory
   Lists a directory's contents and returns an array of file/directory names.
 */
-string[] listDirectory(string path) {
-  string[auto~] ret;
-  
-  auto rest = path.startsWith "~";
-  if rest path = CToString getenv(toStringz "HOME") ~ rest;
-  
-  auto dp = opendir toStringz path;
-  if !dp {
-    auto err = new ErrnoError path;
-    raise err;
+platform(!i686-mingw32) {
+  string[] listDirectory(string path) {
+    string[auto~] ret;
+    
+    auto dp = opendir toStringz path;
+    if !dp {
+      auto err = new Error CToString strerror errno;
+      raise err;
+    }
+    
+    do {
+      auto entry = readdir dp;
+    } while entry {
+      auto name = CToString entry.d_name #.dup;
+      if (name != "." && name != "..") ret ~= name;
+    }
+    closedir dp;
+    
+    return ret[];
   }
-  
-  do {
-    auto entry = readdir dp;
-  } while entry {
-    ret ~= CToString entry.d_name;
-  }
-  
-  closedir dp;
-  
-  return ret[];
 }

@@ -12,6 +12,8 @@ interface StoresDebugState {
 
 extern(C) void alignment_emitAligned(Expr ex, AsmFile af);
 
+alias asmfile.startsWith startsWith;
+
 struct Argument {
   IType type;
   string name;
@@ -62,7 +64,7 @@ extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name);
 
-class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ScopeLike {
+class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ScopeLike, EmittingContext {
   string name;
   Expr getPointer() {
     return new FunSymbol(this);
@@ -72,7 +74,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   bool extern_c = false, weak = false, reassign = false;
   void markWeak() { weak = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
-    if (mode == IterMode.Lexical) defaultIterate!(tree).iterate(dg, mode);
+    if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
     // else to be defined in subclasses
   }
   string toString() { return Format("fun ", name, " ", type, " <- ", sup); }
@@ -81,6 +83,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string coarseSrc;
   Namespace coarseContext;
   IModule coarseModule;
+  bool inEmitAsm;
+  override bool isBeingEmat() { return inEmitAsm; }
   void parseMe() {
     if (!coarseSrc) return;
     auto backup = namespace();
@@ -88,9 +92,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     namespace.set(coarseContext);
     if (tree) namespace.set(fastcast!(Scope) (tree));
     
-    auto backupmod = current_module();
-    scope(exit) current_module.set(backupmod);
-    current_module.set(coarseModule);
+    // No! Bad! Wrong!
+    // auto backupmod = current_module();
+    // scope(exit) current_module.set(backupmod);
+    // current_module.set(coarseModule);
     
     // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     
@@ -132,7 +137,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   Function dup() {
     auto res = flatdup();
     if (tree) res.tree = tree.dup;
-    res.coarseSrc = coarseSrc.dup;
+    res.coarseSrc = coarseSrc;
     return res;
   }
   FunCall mkCall() {
@@ -152,11 +157,13 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       add(new Variable(Single!(SizeT), "__fun_ret", 4));
       cur = _framestart = 8;
     }
-    // TODO: alignment
+    // TODO: 16-byte? alignment
     foreach (param; type.params) {
-      _framestart += param.type.size;
-      add(new Variable(param.type, param.name, cur));
+      auto pt = param.type;
+      _framestart += pt.size;
+      add(new Variable(pt, param.name, cur));
       cur += param.type.size;
+      cur = (cur + 3) & ~3; // round to 4
     }
     if (!releaseMode) {
       if (tree) {
@@ -240,16 +247,37 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
       parseMe();
+      inEmitAsm = true;
+      scope(exit) inEmitAsm = false;
+      
+      if (af.floatStackDepth) {
+        logln("garbage float stack when start-emitting ", this);
+        fail;
+      }
+      
       auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4");
-      af.put(".globl ", fmn);
       if (!isWindoze()) {// TODO: work out why win32 gas does not like this {
         if (isARM)
           af.put(".type ", fmn, ", %function");
         else
           af.put(".type ", fmn, ", @function");
       }
-      if (weak) af.put(".weak ", fmn);
+      if (isWindoze()) {
+        // af.put(".global ", fmn);
+        if (weak) {
+          // ;_;
+          if (fmn.startsWith("struct")
+            ||fmn.startsWith("module_sys")) {
+            // af.put(".weak ", fmn);
+          } else {
+            af.put(".global ", fmn);
+          }
+        } else af.put(".global ", fmn);
+      } else {
+        af.put(".global ", fmn);
+        if (weak) af.put(".weak ", fmn);
+      }
       af.put(fmn, ":"); // not really a label
       auto idnum = funid_count ++;
       af.put(".LFB", idnum, ":");
@@ -284,7 +312,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       scope(exit) af.currentStackDepth = backup;
       af.currentStackDepth = framesize();
       if (!tree) { logln("Tree for ", this, " not generated! :( "); fail; }
-      withTLS(namespace, this, tree.emitAsm(af));
+      
+      auto backupns = namespace();
+      scope(exit) namespace.set(backupns);
+      namespace.set(this);
+      
+      tree.emitAsm(af);
       
       if (type.ret != Single!(Void)) {
         funcall_emit_fun_end_guard (af, name);
@@ -308,6 +341,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       af.jump_barrier();
       if (isARM) {
         af.put("bx lr");
+        af.pool;
       } else {
         af.put("ret");
       }
@@ -317,6 +351,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       af.put(".LFE", idnum, ":");
       if (!isWindoze())
         af.put(".size ", fmn, ", .-", fmn);
+      if (af.floatStackDepth) {
+        logln("leftover float stack when end-emitting ", this);
+        fail;
+      }
       // af.put(".cfi_endproc");
     }
     Stuple!(IType, string, int)[] stackframe() {
@@ -332,12 +370,16 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   override Extensible extend(Extensible e2) {
     auto fun2 = fastcast!(Function) (e2);
-    if (!fun2)
-      throw new Exception(Format("Can't overload function "
-        "with non-function: ", this, " with ", e2, "!"
-      ));
-    auto set = new OverloadSet(name, this, fun2);
-    return set;
+    if (!fun2) {
+      auto os2 = fastcast!(OverloadSet) (e2);
+      if (!os2) {
+        throw new Exception(Format("Can't overload function "
+          "with non-function/overload set: ", this, " with ", e2, "!"
+        ));
+      }
+      return new OverloadSet(name, this ~ os2.funs);
+    }
+    return new OverloadSet(name, this, fun2);
   }
   override Extensible simplify() { return this; }
 }
@@ -349,6 +391,7 @@ class OverloadSet : Named, Extensible {
     name = n;
     foreach (fun; f) add(fun);
   }
+  override string toString() { return Format("overload of ", funs); }
   void add(Function f) {
     // don't add a function twice
     foreach (fun; funs) if (f is fun) return;
@@ -365,12 +408,18 @@ class OverloadSet : Named, Extensible {
   override string getIdentifier() { return name; }
   override Extensible extend(Extensible e2) {
     auto fun2 = fastcast!(Function) (e2);
-    if (!fun2)
-      throw new Exception(Format("Can't overload '", name,
-        "' with non-function ", e2, "!"
-      ));
-    auto res = new OverloadSet;
-    res.name = name;
+    if (!fun2) {
+      auto os2 = fastcast!(OverloadSet) (e2);
+      if (!os2) {
+        throw new Exception(Format("Can't overload '", name,
+          "' with non-function/overload set ", e2, "!"
+        ));
+      }
+      auto res = new OverloadSet(name);
+      res.funs = funs ~ os2.funs;
+      return res;
+    }
+    auto res = new OverloadSet(name);
     res.funs = funs.dup;
     res.add(fun2);
     return res;
@@ -397,7 +446,7 @@ class FunCall : Expr {
   }
   void emitWithArgs(AsmFile af, Expr[] args) {
     if (setup) setup.emitAsm(af);
-    auto size = (fun.type.ret == Single!(Void))?0:fun.type.ret.size;
+    auto size = (Single!(Void) == fun.type.ret)?0:fun.type.ret.size;
     mixin(mustOffset("size"));
     callFunction(af, fun.type.ret, fun.extern_c, fun.type.stdcall, args, fun.getPointer());
   }
@@ -423,7 +472,7 @@ class FunCall : Expr {
 }
 
 void handleReturn(IType ret, AsmFile af) {
-  if (ret == Single!(Void)) return;
+  if (Single!(Void) == ret) return;
   if (isARM) {
     if (ret.size == 2) {
       af.salloc(2);
@@ -513,7 +562,11 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     if (isARM) { af.pushStack("r5", 4); } // used for call
     
     int paramsize;
-    foreach (param; params) paramsize += param.valueType().size;
+    foreach (param; params) {
+      auto sz = param.valueType().size;
+      if (sz < 4) sz = 4; // cdecl
+      paramsize += sz;
+    }
     paramsize += af.floatStackDepth * 8;
     paramsize += 8; // push ip, push ebp
     
@@ -529,6 +582,9 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       mixin(mustOffset("0", "innerer"));
       foreach_reverse (param; params) {
         // af.comment("Push ", param);
+        // round to 4: cdecl treats <4b arguments as 4b (because push is 4b, presumably).
+        auto sz = param.valueType().size;
+        if (sz < 4) af.salloc(4 - sz);
         alignment_emitAligned(param, af);
       }
       
@@ -570,19 +626,22 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
           if (stdcall) {
             af.currentStackDepth -= param.valueType().size;
           } else {
-            af.sfree(param.valueType().size);
+            auto sz = param.valueType().size;
+            if (sz < 4) sz = 4;
+            af.sfree(sz);
           }
         }
       }
       af.salloc(inRegisters); // hax
     }
     
-    if (ret == Single!(Float) || ret == Single!(Double))
+    bool returnsFPU = Single!(Float) == ret || Single!(Double) == ret;
+    if (returnsFPU)
       af.floatStackDepth ++;
     
     while (restore--) {
       af.stackToFpu();
-      if (ret == Single!(Float) || ret == Single!(Double))
+      if (returnsFPU)
         af.fpuOp("fxch");
     }
     af.sfree(alignCall);
@@ -591,7 +650,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     if (isARM) af.popStack("r5", 4);
   }
   
-  auto size = (ret == Single!(Void))?0:ret.size;
+  auto size = (Single!(Void) == ret)?0:ret.size;
   mixin(mustOffset("size"));
   handleReturn(ret, af);
 }
@@ -610,6 +669,16 @@ class FunctionType : ast.types.Type {
     return res;
   }
   override {
+    int opEquals(IType it) {
+      auto fun2 = fastcast!(FunctionType) (resolveType(it));
+      if (!fun2) return false;
+      if (ret != fun2.ret) return false;
+      if (params.length != fun2.params.length) return false;
+      foreach (i, param; params)
+        if (param.type != fun2.params[i].type) return false;
+      if (stdcall != fun2.stdcall) return false;
+      return true;
+    }
     bool isComplete() {
       if (!ret || !ret.isComplete) return false;
       foreach (par; params) if (!par.type.isComplete) return false;

@@ -31,6 +31,23 @@ class Options {
     flags ~= flag;
     if (cb2) { flags ~= ":"; }
   }
+  void printHelp() {
+    writeln "$executable options: ";
+    for auto opt <- options {
+      string info;
+      if (opt.longopt) info ~= "--$(opt.longopt)";
+      if (opt.shortopt) { if (info) info ~= ", "; info ~= "-$(opt.shortopt)"; }
+      int added;
+      void addInfo(string s) {
+        if (!added) info ~= ": ";
+        else info ~= ", ";
+        info ~= s;
+      }
+      if (opt.missing) addInfo "required";
+      if ((void*:opt.callback.fun != null) || (opt.callback.data != null)) addInfo "takes arg";
+      writeln "  $info";
+    }
+  }
   /*Function: addShort
     Add a short flag to be matched.
     Give callback a string parameter for flags with arguments, like "-f out.txt".
@@ -95,7 +112,8 @@ class Options {
           if (opt.shortopt == [char:byte:res]) {
             if (opt.callback) { opt.callback(arg); }
             else if (arg) raise new Error "-$(opt.shortopt) does not take an argument";
-            else opt.callback2();
+            else if (opt.callback2) { opt.callback2(); }
+            else raise new Error "no delegate found for $(opt.shortopt) ($(opt.(callback, callback2)))";
             matched = true;
             opt.missing = false;
           }

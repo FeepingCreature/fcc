@@ -30,14 +30,54 @@ const ProgbarLength = 60;
 
 string output;
 
+string my_prefix() {
+  version(Windows) { return path_prefix; }
+  else return path_prefix ~ platform_prefix;
+}
+
+string[] linkerArgs;
+
+string[] processCArgs(string[] ar) {
+  string[] res;
+  while (ar.length) {
+    auto arg = ar.take();
+    if (arg == "-pthread") continue; // silently ignore;
+    if (arg.startsWith("-D")) continue;
+    if (auto rest = arg.startsWith("-l").strip()) {
+      if (!rest.length) rest = ar.take();
+      linkerArgs ~= "-l"~rest;
+      continue;
+    }
+    if (auto rest = arg.startsWith("-L").strip()) {
+      if (!rest.length) rest = ar.take();
+      linkerArgs ~= "-L"~rest;
+      continue;
+    }
+    if (auto rest = arg.startsWith("-Wl")) {
+      rest.accept(",");
+      rest = rest.strip();
+      if (!rest.length) rest = ar.take();
+      linkerArgs ~= rest;
+      continue;
+    }
+    if (auto rest = arg.startsWith("-I")) {
+      rest = rest.strip();
+      if (!rest.length) rest = ar.take();
+      include_path = rest ~ include_path;
+      continue;
+    }
+    res ~= arg;
+  }
+  return res;
+}
+
 static this() {
   New(optimizer_x86.cachething);
   New(optimizer_x86.proctrack_cachething); 
   // Link with this library
+  bool isStringLiteral(Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }
   pragmas["lib"] = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, (Expr ex) {
-      return !!fastcast!(StringExpr) (foldex(ex));
-    }))
+    if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("Lib name expected. ");
     string str = (fastcast!(StringExpr) (foldex(ex))).str;
     string newarg = "-l" ~ str;
@@ -49,10 +89,19 @@ static this() {
     if (newarg) extra_linker_args ~= newarg;
     return Single!(NoOp);
   };
+  pragmas["pkg-config"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, &isStringLiteral))
+      throw new Exception("pkg-config packet identifier expected. ");
+    auto pkgname = fastcast!(StringExpr) (foldex(ex)).str;
+    auto lines = readback("sh -c 'pkg-config --cflags --libs "~pkgname~" 2>&1 || echo pkg-config FAILED'").strip().split("\n");
+    if (lines[$-1] == "pkg-config FAILED") {
+      throw new Exception("While evaluating pkg-config pragma for "~pkgname~": "~lines[$-2]);
+    }
+    processCArgs (lines[0].split(" "));
+    return Single!(NoOp);
+  };
   pragmas["binary"] = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, (Expr ex) {
-      return !!fastcast!(StringExpr) (foldex(ex));
-    }))
+    if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("Binary name expected. ");
     output = (fastcast!(StringExpr) (foldex(ex))).str;
     if (isWindoze()) output ~= ".exe";
@@ -118,10 +167,10 @@ static this() {
 
 // from ast.math
 static this() {
-  bool isInt(IType it) { return test(it == Single!(SysInt)); }
-  bool isFloat(IType it) { return test(it == Single!(Float)); }
-  bool isDouble(IType it) { return test(it == Single!(Double)); }
-  bool isLong(IType it) { return test(it == Single!(Long)); }
+  bool isInt(IType it) { return test(Single!(SysInt) == it); }
+  bool isFloat(IType it) { return test(Single!(Float) == it); }
+  bool isDouble(IType it) { return test(Single!(Double) == it); }
+  bool isLong(IType it) { return test(Single!(Long) == it); }
   bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
   bool isBool(IType it) { return test(it == fastcast!(IType) (sysmod.lookup("bool"))); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
@@ -286,7 +335,7 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
     if (!name) return;
     if (name.startsWith("<internal")) return;
     if (auto id = af.getFileId(name)) {
-      if (line >= 1) line -= 1; // wat!!
+      // if (line >= 1) line -= 1; // wat!!
       af.put(".loc ", id, " ", line, " ", 0);
       if (!name.length) fail("TODO");
       af.put(comment(" being '"), name, "' at ", af.currentStackDepth);
@@ -424,6 +473,35 @@ struct CompileSettings {
   string configOpts;
 }
 
+// structural verifier
+void verify(Iterable it) {
+  int[] res;
+  void handle(ref Iterable it) {
+    auto outside = res; res = null;
+    int[][] list;
+    Iterable[] subs;
+    void handle2(ref Iterable it) {
+      if (auto sae = fastcast!(StatementAndExpr) (it))
+        res ~= sae.marker;
+      subs ~= it;
+      handle(it);
+      list ~= res;
+      res = null;
+    }
+    it.iterate(&handle2, IterMode.Lexical);
+    res = outside;
+    foreach (i1, ar1; list) foreach (i2, ar2; list) if (i2 != i1) {
+      foreach (e1; ar1) foreach (e2; ar2) if (e1 == e2) {
+        logln("Error: sae marker collision (", ar1, ", ", ar2, ") beneath ", fastcast!(Object) (it).classinfo.name, "{1}", subs[i1], " {2}", subs[i2]);
+        fail;
+      }
+    }
+    foreach (ar; list) res ~= ar;
+  }
+  handle(it);
+  logln(res.length, " markers checked, no collisions. ");
+}
+
 extern(C) int mkdir(char*, int);
 string delegate(int, int*) compile(string file, CompileSettings cs) {
   while (file.startsWith("./")) file = file[2 .. $];
@@ -477,6 +555,7 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
   len_opt = time({
     .postprocessModule(mod);
   }) / 1_000_000f;
+  // verify(mod);
   auto len_gen = time({
     mod.emitAsm(af);
     if (!ematSysmod) {
@@ -507,12 +586,14 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
     string flags;
     if (!platform_prefix) flags = "--32";
     if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
-    auto cmdline = Format(platform_prefix, "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
+    auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     (*complete) ++;
     logSmart!(false)("> (", (*complete * 100) / total,  "% ", len_emit, "s) ", cmdline);
-    if (system(cmdline.toStringz())) {
-      logln("ERROR: Compilation failed! ");
-      exit(1);
+    synchronized {
+      if (system(cmdline.toStringz())) {
+        logln("ERROR: Compilation failed! ");
+        exit(1);
+      }
     }
     mod.alreadyEmat = true;
     return objname;
@@ -580,15 +661,16 @@ void dumpXML() {
   std.c.stdio.fflush(stdout);
 }
 
-void link(string[] objects, string[] largs, bool saveTemps = false) {
+void link(string[] objects, bool saveTemps = false) {
   if (dumpXMLRep) dumpXML();
   scope(success)
     if (!saveTemps)
       foreach (obj; objects)
         unlink(obj.toStringz());
-  string cmdline = platform_prefix~"gcc -m32 -Wl,--gc-sections -o "~output~" ";
+  string linkflags = "-m32 -Wl,--gc-sections -L/usr/local/lib";
+  string cmdline = my_prefix()~"gcc "~linkflags~" -o "~output~" ";
   foreach (obj; objects) cmdline ~= obj ~ " ";
-  foreach (larg; largs ~ extra_linker_args) cmdline ~= larg ~ " ";
+  foreach (larg; linkerArgs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
   system(cmdline.toStringz());
 }
@@ -597,7 +679,7 @@ import tools.threadpool;
 Threadpool emitpool;
 
 import std.file;
-void loop(string start, string[] largs,
+void loop(string start,
           CompileSettings cs, bool runMe)
 {
   string toModule(string file) { return file.replace("/", ".").endsWith(EXT); }
@@ -651,7 +733,7 @@ void loop(string start, string[] largs,
     lazySysmod();
     try {
       string[] objs = start.compileWithDepends(cs);
-      objs.link(largs, true);
+      objs.link(true);
     } catch (Exception ex) {
       logSmart!(false) (ex);
       goto retry;
@@ -670,16 +752,35 @@ void loop(string start, string[] largs,
   }
 }
 
-extern(C) char* realpath(char* path, char* resolved_path = null);
+version(Windows) { const string pathsep = "\\"; }
+else { const string pathsep = "/"; }
+
+version(Windows) {
+  extern(Windows) int GetModuleFileNameA(void*, char*, int);
+  string myRealpath(string path) {
+    char[1024] mew;
+    auto res = GetModuleFileNameA(null, /*toStringz(path)*/ mew.ptr, mew.length);
+    if (!res) throw new Exception("GetModuleFileNameA failed");
+    return mew[0..res].dup;
+  }
+} else {
+  extern(C) char* realpath(char* path, char* resolved_path = null);
+  string myRealpath(string path) {
+    return toString(realpath(toStringz(path)));
+  }
+}
 
 import assemble: debugOpts;
 int main(string[] args) {
   string execpath;
-  if ("/proc/self/exe".exists()) execpath = toString(realpath("/proc/self/exe"));
-  else execpath = toString(realpath(toStringz(args[0])));
-  execpath = execpath[0 .. execpath.rfind("/") + 1];
-  if (execpath.length)
+  if ("/proc/self/exe".exists()) execpath = myRealpath("/proc/self/exe");
+  else execpath = myRealpath(args[0]);
+  execpath = execpath[0 .. execpath.rfind(pathsep) + 1];
+  if (execpath.length) {
     include_path ~= execpath;
+    include_path ~= Format(execpath, "..", sep, "include"); // assume .../[bin, include] structure
+    version(Windows) path_prefix = execpath;
+  }
   initCastTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);
@@ -694,7 +795,7 @@ int main(string[] args) {
     if (info._1.endsWith(EXT)) {
       foreach (path; include_path)
         if (auto rest = info._1.startsWith(path)) {
-          if (auto rest2 = rest.startsWith("/")) rest = rest2;
+          if (auto rest2 = rest.startsWith(pathsep)) rest = rest2;
           info._1 = rest;
         }
       if (allowProgbar) {
@@ -719,37 +820,18 @@ int main(string[] args) {
     }
   }
   auto ar = args;
-  string[] largs;
   bool runMe;
   CompileSettings cs;
   bool willLoop;
+  ar = processCArgs(ar);
   while (ar.length) {
     auto arg = ar.take();
-    if (arg == "-pthread") continue; // silently ignore;
-    if (arg.startsWith("-D")) continue;
     if (arg == "-o") {
       output = ar.take();
       continue;
     }
     if (arg == "--loop" || arg == "-F") {
       willLoop = true;
-      continue;
-    }
-    if (auto rest = arg.startsWith("-l").strip()) {
-      if (!rest.length) rest = ar.take();
-      largs ~= "-l"~rest;
-      continue;
-    }
-    if (auto rest = arg.startsWith("-L").strip()) {
-      if (!rest.length) rest = ar.take();
-      largs ~= "-L"~rest;
-      continue;
-    }
-    if (auto rest = arg.startsWith("-Wl")) {
-      rest.accept(",");
-      rest = rest.strip();
-      if (!rest.length) rest = ar.take();
-      largs ~= rest;
       continue;
     }
     if (auto rest = arg.startsWith("-platform=")) {
@@ -761,12 +843,6 @@ int main(string[] args) {
           entry = "/usr/"~rest~"/include"; // fix up
         }
       }
-      continue;
-    }
-    if (auto rest = arg.startsWith("-I")) {
-      rest = rest.strip();
-      if (!rest.length) rest = ar.take();
-      include_path = rest ~ include_path;
       continue;
     }
     if (arg == "-save-temps" || arg == "-S") {
@@ -802,7 +878,7 @@ int main(string[] args) {
     }
     if (arg == "-pg") {
       cs.profileMode = true;
-      largs ~= "-pg";
+      linkerArgs ~= "-pg";
       continue;
     }
     if (arg == "-singlethread") {
@@ -851,10 +927,10 @@ int main(string[] args) {
   }
   if (!output) output = "exec";
   if (willLoop) {
-    loop(mainfile, largs, cs, runMe);
+    loop(mainfile, cs, runMe);
     return 0;
   }
-  objects.link(largs, cs.saveTemps);
+  objects.link(cs.saveTemps);
   if (runMe) system(toStringz("./"~output));
   if (accesses.length) logln("access info: ", accesses);
   return 0;

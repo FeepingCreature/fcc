@@ -7,7 +7,6 @@ class Variable : LValue, Named {
   string address() { return Format(baseOffset, "(%ebp)"); }
   override {
     void emitAsm(AsmFile af) {
-      if (type == Single!(Void)) return;
       mixin(mustOffset("type.size"));
       if (isARM) {
         if (type.size == 4) {
@@ -34,7 +33,6 @@ class Variable : LValue, Named {
   bool dontInit;
   Expr initval;
   void initInit() {
-    if (type == Single!(Void)) return;
     if (initval) return;
     else {
       initval = reinterpret_cast(
@@ -56,7 +54,7 @@ class Variable : LValue, Named {
   }
   override string getIdentifier() { return name; }
   mixin DefaultDup!();
-  mixin defaultIterate!(initval);
+  mixin defaultIterate!();
   string toString() {
     if (name) return name;
     return Format("[ var of ", type, " at ", baseOffset, initval?Format(" = ", initval):"", "]");

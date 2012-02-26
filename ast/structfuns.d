@@ -61,7 +61,7 @@ class RelFunCall : FunCall {
   }
 }
 
-class RelFunction : Function, RelTransformable {
+class RelFunction : Function, RelTransformable, HasInfo {
   Expr baseptr; // unique per instance
   IType basetype; // for mangling purposes
   RelNamespace context;
@@ -103,6 +103,7 @@ class RelFunction : Function, RelTransformable {
     string mangleSelf() {
       return basetype.mangle() ~ "_" ~ super.mangleSelf();
     }
+    string getInfo() { return Format(name, " under ", context); }
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ type.mangle()~"_"~name;
     }

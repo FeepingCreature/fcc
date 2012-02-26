@@ -2,6 +2,10 @@ module ast.assign;
 
 import ast.base, ast.pointer;
 
+class SelfAssignmentException : Exception {
+  this() { super("self assignment detected"); }
+}
+
 class _Assignment(T) : LineNumberedStatementClass {
   T target;
   Expr value;
@@ -13,7 +17,7 @@ class _Assignment(T) : LineNumberedStatementClass {
       logln("Can't assign: ", t);
       logln(" of ", t.valueType());
       logln(" <- ", e.valueType());
-      fail;
+      // fail;
       throw new Exception("Assignment type mismatch! ");
     }
     target = t;
@@ -105,8 +109,9 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
       // logln("(note: ", (fastcast!(Object) (bexup.valueType())).classinfo.name, ")");
       // logln("(note 2: ", bexup.valueType() == value.valueType(), ")");
       // logln("btw backup ex is ", (cast(Object) ex).classinfo.name, ": ", ex);
-      setError(t2, "Could not match ", bexup.valueType(), " to ", value.valueType());
-      return null;
+      t2.failparse("Could not match ", bexup.valueType(), " to ", value.valueType());
+      // setError(t2, "Could not match ", bexup.valueType(), " to ", value.valueType());
+      // return null;
       // t2.failparse("Parsing error");
     }
 
@@ -119,10 +124,14 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     
     // logln(target.valueType(), " <- ", value.valueType());
     LineNumberedStatementClass res;
-    if (lv)
-      res = new Assignment(lv, value);
-    else
-      res = new AssignmentM(mv, value);
+    try {
+      if (lv)
+        res = new Assignment(lv, value);
+      else
+        res = new AssignmentM(mv, value);
+    } catch (Exception ex) {
+      text.failparse(ex);
+    }
     res.configPosition(text);
     text = t2;
     return res;
@@ -136,6 +145,9 @@ static this() {
 }
 
 Statement mkAssignment(Expr to, Expr from) {
+  if (from is to) {
+    throw new SelfAssignmentException;
+  }
   if (auto lv = fastcast!(LValue) (to)) return new Assignment(lv, from);
   if (auto mv = fastcast!(MValue) (to)) return new AssignmentM(mv, from);
   logln("Invalid target for assignment: ", to);

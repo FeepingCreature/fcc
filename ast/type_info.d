@@ -111,21 +111,24 @@ import ast.conditionals;
 Object gotTypesEqual(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   auto t2 = text;
-  if (!rest(t2, "type", &ty))
-    t2.failparse("Expect type parameter for types-equal! ");
-  auto tup = fastcast!(ast.tuples.Tuple) (resolveType(ty));
-  if (!tup)
-    text.failparse("Parameter to types-equal must be tuple! ");
-  text = t2;
-  auto types = tup.types();
-  assert(types.length > 1);
-  auto base = resolveType(types[0]);
+  if (!t2.accept("("))
+    t2.failparse("Opening parenthesis expected");
   setupStaticBoolLits;
-  foreach (ty2; types[1..$]) {
-    if (resolveType(ty2) != base)
-      return fastcast!(Object) (new ExprWrap(False));
+  Object res;
+  while (true) {
+    if (t2.accept(")")) break;
+    IType ty2;
+    if (ty && !t2.accept(","))
+      t2.failparse("Comma expected");
+    if (!rest(t2, "type", &ty2))
+      t2.failparse("Expect type parameter for types-equal! ");
+    if (!ty) ty = resolveType(ty2);
+    else if (ty != resolveType(ty2))
+      res = new ExprWrap(False);
   }
-  return fastcast!(Object) (new ExprWrap(True));
+  if (!res) res = fastcast!(Object) (new ExprWrap(True));
+  text = t2;
+  return res;
 }
 mixin DefaultParser!(gotTypesEqual, "cond.types-equal", "81", "types-equal");
 

@@ -1,6 +1,6 @@
 module ast.returns;
 
-import ast.base, ast.namespace, ast.scopes, ast.fun, ast.parse, ast.math: loadFloatEx;
+import ast.base, ast.namespace, ast.scopes, ast.fun, ast.parse, ast.fun, ast.math: loadFloatEx;
 
 import ast.vardecl, ast.assign, ast.math;
 class ReturnStmt : Statement {
@@ -11,28 +11,55 @@ class ReturnStmt : Statement {
   mixin DefaultDup!();
   mixin defaultIterate!(value);
   Statement[] guards;
+  int[] guard_offsets;
   string toString() { return Format("return ", value); }
   override void emitAsm(AsmFile af) {
     auto fun = ns.get!(Function);
-    void emitGuards() {
-      foreach_reverse(stmt; guards)
+    
+    auto backup = af.checkptStack();
+    scope(exit) af.restoreCheckptStack(backup, true /* restoring to larger depth */);
+    
+    void emitGuards(bool mustPreserveStack) {
+      foreach_reverse(i, stmt; guards) {
+        auto delta = af.currentStackDepth - guard_offsets[i];
+        if (delta) {
+          if (mustPreserveStack) {
+            logln("WARN this may break");
+          } else af.restoreCheckptStack(guard_offsets[i]);
+        }
         stmt.dup().emitAsm(af);
+      }
     }
     if (value) {
-      mixin(mustOffset("0"));
-      if (value.valueType() == Single!(Void)) {
+      if (Single!(Void) == value.valueType()) {
+        mixin(mustOffset("0"));
         scope(failure) logln("While returning ", value, " of ", value.valueType());
         value.emitAsm(af);
-        emitGuards();
+        emitGuards(false);
       } else {
+        // mixin(mustOffset("0"));
         scope(failure) logln("while returning ", value);
         auto vt = value.valueType();
-        int filler = alignStackFor(vt, af);
-        scope(success) af.sfree(filler);
-        auto value = new Variable(vt, null, boffs(vt, af.currentStackDepth));
-        (new VarDecl(value)).emitAsm(af);
-        (new Assignment(value, this.value)).emitAsm(af);
-        emitGuards();
+        Expr value = fastcast!(Expr) (ns.lookup("__retval_holder", true));
+        int tofree;
+        scope(success) af.sfree(tofree);
+        auto var = fastcast!(Variable) (value);
+        if (value && (!var || -var.baseOffset <= af.currentStackDepth)) {
+          (new Assignment(fastcast!(LValue) (value), this.value)).emitAsm(af);
+          emitGuards(false);
+          if (!var) fail;
+          if (af.currentStackDepth != -var.baseOffset) {
+            logln("bad place to grab ", var, " for return: declared at ", var.baseOffset, " currentStackDepth ", af.currentStackDepth);
+          }
+        } else {
+          tofree = alignStackFor(vt, af);
+          var = new Variable(vt, null, boffs(vt, af.currentStackDepth));
+          value = var;
+          (new VarDecl(var)).emitAsm(af);
+          tofree += vt.size; // pro forma
+          (new Assignment(var, this.value)).emitAsm(af);
+          emitGuards(true);
+        }
         
         if (Single!(Float) == vt) {
           loadFloatEx(value, af);
@@ -81,9 +108,8 @@ class ReturnStmt : Statement {
           logln("Unsupported return type ", vt, ", being ", vt.size);
           fail;
         }
-        af.sfree(vt.size); // pro forma
       }
-    } else emitGuards();
+    } else emitGuards(false);
     // TODO: stack cleanup token here
     af.jump(fun.exit(), true);
   }
@@ -96,8 +122,10 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   rs.ns = namespace();
   
   // TODO: gather guards from all scopes
-  if (auto sc = fastcast!(Scope)~ namespace())
+  if (auto sc = fastcast!(Scope)~ namespace()) {
     rs.guards = sc.getGuards();
+    rs.guard_offsets = sc.getGuardOffsets();
+  }
   
   auto fun = namespace().get!(Function)();
   text = t2;
@@ -112,13 +140,13 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == ret); }))
       return rs;
     else {
-      text.failparse("Could not convert ", temp, " to ", fun.type.ret, " for return: tried ", tried);
+      text.failparse("Could not convert to return type ", fun.type.ret, "; expression had the type ", temp.valueType());
     }
   }
   
   if (!fun.type.ret) fun.type.ret = Single!(Void);
   
-  if (fun.type.ret == Single!(Void))
+  if (Single!(Void) == fun.type.ret)
     return rs; // permit no-expr
   text.failparse("Error parsing return expression");
 }

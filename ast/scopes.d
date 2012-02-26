@@ -18,6 +18,8 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   int pad_framesize;
   int requiredDepth; // sanity checking
   string requiredDepthDebug;
+  static int scope_count;
+  int count;
   mixin defaultIterate!(_body, guards);
   override void configPosition(string str) {
 		lnsc.configPosition(str);
@@ -59,6 +61,8 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   string exit() { return Format(".L", id, "_exit"); }
   string toString() { return Format("scope(", framesize(), ") <- ", sup); }
   this() {
+    count = scope_count ++;
+    // if (count == 3951) fail;
     id = getuid();
     sup = namespace();
     New(lnsc);

@@ -12,7 +12,7 @@ class Property : MValue, RelTransformable {
     if (s.type.params.length != 1)
       fail;
     IType gettype;
-    if (g.type.ret == Single!(Void)) {
+    if (Single!(Void) == g.type.ret) {
       if (g.type.params.length != 1) throw new Exception("void getter must take single pointer argument");
       auto ptr = fastcast!(Pointer) (g.type.params[0].type);
       if (!ptr) throw new Exception("void getter must take single pointer argument");
@@ -34,7 +34,7 @@ class Property : MValue, RelTransformable {
   override {
     Property dup() { return new Property(getter.dup, setter.dup, ph); }
     IType valueType() {
-      if (getter.type.ret == Single!(Void)) {
+      if (Single!(Void) == getter.type.ret) {
         return fastcast!(Pointer) (getter.type.params[0].type).target;
       } else {
         return getter.type.ret;
@@ -42,7 +42,7 @@ class Property : MValue, RelTransformable {
     }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("valueType().size"));
-      if (getter.type.ret == Single!(Void)) {
+      if (Single!(Void) == getter.type.ret) {
         mkVar(af, fastcast!(Pointer) (getter.type.params[0].type).target, false, (Variable var) {
           // logln("::", buildFunCall(getter, mkTupleExpr(new RefExpr(var)), "property-get-pointer-call"));
           // logln(fastcast!(Object) (buildFunCall(getter, mkTupleExpr(new RefExpr(var)), "property-get-pointer-call")).classinfo.name);

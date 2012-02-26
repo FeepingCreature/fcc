@@ -4,7 +4,7 @@ import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace;
 
 class Pointer : Type {
   IType target;
-  this(IType t) { target = t; }
+  this(IType t) { target = forcedConvert(t); }
   override {
     int opEquals(IType ty) {
       ty = resolveType(ty);
@@ -23,8 +23,13 @@ alias Single!(Pointer, Single!(Void)) voidp;
 // &foo
 class RefExpr : Expr {
   CValue src;
-  this(CValue cv) { if (!cv) fail;; this.src = cv; }
-  private this() { }
+  int counter;
+  static int pointer_counter;
+  this(CValue cv) { if (!cv) fail; this.src = cv; this(); }
+  private this() {
+    counter = pointer_counter ++;
+    // if (counter == 5101) fail;
+  }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
   override {
@@ -41,17 +46,21 @@ class RefExpr : Expr {
 }
 
 // *foo
-class DerefExpr : LValue {
+class DerefExpr : LValue, HasInfo {
   Expr src;
+  int count;
+  static int de_count;
   this(Expr ex) {
+    this();
     src = ex;
     if (!fastcast!(Pointer) (resolveType(src.valueType())))
       throw new Exception(Format("Can't dereference non-pointer: ", src));
   }
-  private this() { }
+  private this() { count = de_count ++; }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
   override {
+    string getInfo() { return Format("count: ", count); }
     IType valueType() {
       return fastcast!(Pointer) (resolveType(src.valueType())).target;
     }
@@ -133,20 +142,27 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   IType[] tried;
   if (!gotImplicitCast(ex, (Expr ex) {
-    auto f = foldex(ex);
+    auto f = foldex(forcedConvert(ex));
+    unrollSAE(f);
     tried ~= f.valueType();
     return test(fastcast!(CValue)~ f);
   })) {
-    text.setError("Can't take reference: ", ex,
-    " does not become a cvalue (", tried, ")");
+    // text.setError("Can't take reference: ", ex,
+    // " does not become a cvalue (", tried, ")");
+    text.setError("Can't take reference: expression does not seem to have an address");
     return null;
   }
   
   text = t2;
-  auto cv = fastcast!(CValue)~ fold(ex);
+  auto thing = foldex(forcedConvert(ex));
+  Statement st;
+  if (auto _st = unrollSAE(thing)) st = _st;
+  auto cv = fastcast!(CValue) (thing);
   assert(!!cv);
   
-  return new RefExpr(cv);
+  Expr res = new RefExpr(cv);
+  if (st) res = mkStatementAndExpr(st, res);
+  return fastcast!(Object) (res);
 }
 mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "21", "&");
 
@@ -176,9 +192,7 @@ class Symbol : Expr {
   override void emitAsm(AsmFile af) {
     if (isARM) {
       af.mmove4("="~getName(), "r0");
-      af.put("b 0f");
-      af.put(".ltorg");
-      af.put("0:");
+      // af.pool;
       af.pushStack("r0", 4);
     } else {
       af.pushStack("$"~getName(), nativePtrSize);

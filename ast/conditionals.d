@@ -27,7 +27,11 @@ class FalseCond : Cond {
 
 class ExprWrap : Cond {
   Expr ex;
-  mixin MyThis!("ex");
+  this(Expr ex) {
+    this.ex = ex;
+    if (!ex) fail;
+  }
+  private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
   override {
@@ -253,7 +257,7 @@ class NegCond : Cond {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(c);
-  this(Cond c) { this.c = c; }
+  this(Cond c) { this.c = c; if (!c) fail; }
   override string toString() { return Format("!(", c, ")"); }
   override void jumpOn(AsmFile af, bool cond, string dest) {
     c.jumpOn(af, !cond, dest);
@@ -348,7 +352,9 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   
   if (!rest(t2, "cond.compare", &cd2) && // chaining
-      !rest(t2, "tree.expr _tree.expr.cond", &ex2) ) return null;
+      !rest(t2, "tree.expr _tree.expr.cond", &ex2)) {
+    t2.failparse("Could not parse second operator for comparison");
+  }
   auto finalize = delegate Cond(Cond cd) { return cd; };
   if (cd2) {
     if (auto cmp2 = fastcast!(Compare) (cd2)) {
@@ -361,10 +367,16 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
       return null;
     }
   }
-  text = t2;
   auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
   if (op == "=") op = "==";
-  return fastcast!(Object) (finalize(compare(op, ex1, ex2)));
+  try {
+    auto res = fastcast!(Object) (finalize(compare(op, ex1, ex2)));
+    if (!res) text.failparse("Undefined comparison");
+    text = t2;
+    return res;
+  } catch (Exception ex) {
+    text.failparse(ex);
+  }
 }
 mixin DefaultParser!(gotCompare, "cond.compare", "71");
 

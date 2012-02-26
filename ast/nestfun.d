@@ -118,6 +118,9 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef({
     return new NestedFunction(ns);
   }, mod, true, text, cont, rest)) {
+    // do this HERE, so we get the right context
+    // and don't accidentally see variables defined further down!
+    res.parseMe;
     mod.entries ~= fastcast!(Tree)~ res;
     return Single!(NoOp);
   } else return null;
@@ -272,8 +275,8 @@ class FunPtrAsDgExpr(T) : T {
   FunctionPointer fp;
   this(Expr ex) {
     this.ex = ex;
-    fp = fastcast!(FunctionPointer)~ ex.valueType();
-    assert(!!fp);
+    fp = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
+    if (!fp) { logln(ex); logln(fp); fail; }
     super(ex, mkInt(0));
   }
   void iterate(void delegate(ref Itr) dg, IterMode mode = IterMode.Lexical) {
@@ -305,7 +308,7 @@ class LitTemp : mkDelegate, Literal {
 import ast.casting: implicits;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    auto fp = fastcast!(FunctionPointer)~ ex.valueType();
+    auto fp = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
     if (!fp) return null;
     if (fastcast!(Literal)~ ex)
       return new FunPtrAsDgExpr!(LitTemp)(ex);

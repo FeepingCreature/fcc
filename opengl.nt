@@ -2,10 +2,12 @@ module opengl;
 
 public import c.GL.gl;
 public import c.GL.glu;
+public import rgbcolor;
 
 platform(i686-mingw32) {
   pragma(lib, "opengl32");
   pragma(lib, "glu32");
+  public import c.GL.glext; // some handy stuff like GL_BGRA .. silly windows
   extern(Windows) void* wglGetProcAddress(char*);
   template lookupFun(T) {
     _markStdCall T lookupFun(char* c) { return _markStdCall T:wglGetProcAddress(c); }

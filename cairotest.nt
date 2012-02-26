@@ -6,10 +6,10 @@ pragma(lib, "cairo");
 
 void main() {
   writeln "Open SDL Window .. ";
-  gl-context-callbacks ~= delegate void() {
-    glMatrixMode GL_PROJECTION; glLoadIdentity;
-    glMatrixMode GL_MODELVIEW; glLoadIdentity;
-    glDisable GL_DEPTH_TEST;
+  gl-context-callbacks ~= \mode GL{
+    MatrixMode PROJECTION; LoadIdentity;
+    MatrixMode MODELVIEW; LoadIdentity;
+    Disable DEPTH_TEST;
   };
   auto window = setup-gl(SDL_HWPALETTE | SDL_HWSURFACE | SDL_HWACCEL);
   writeln "got $window";
@@ -74,7 +74,8 @@ void main() {
       writeln "$fps fps";
       fps = 0; lastTime = time null;
     }
-    return glsetup.update window;
+    glsetup.update window;
+    return false;
   }
   while !update() { }
 }

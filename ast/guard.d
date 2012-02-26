@@ -3,7 +3,8 @@ module ast.guard;
 import
   ast.parse, ast.base, ast.namespace, ast.scopes,
   ast.assign, ast.nestfun, ast.modules,
-  ast.variable, ast.vardecl;
+  ast.variable, ast.vardecl, ast.fun,
+  ast.aliasing;
 
 Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -12,14 +13,64 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   else if (t2.accept("onSuccess")) type = "onSuccess";
   else if (t2.accept("onFailure")) type = "onFailure";
   else return null;
+  
+  auto ns = namespace();
+  
+  string[] captures;
+  Variable[] capturevars;
+  if (t2.accept("[")) {
+    while (true) {
+      if (t2.accept("]")) break;
+      if (captures.length && !t2.accept(","))
+        t2.failparse("comma expected (capture must be identifier)");
+      string id;
+      if (!gotIdentifier(t2, id))
+        t2.failparse("capture identifier expected");
+      captures ~= id;
+      
+      auto ex = fastcast!(Expr) (ns.lookup(id));
+      if (!ex) t2.failparse("Unknown identifier '"~id~"' for capture, or not expression");
+      auto ty = ex.valueType();
+      auto var = new Variable(ty, null, boffs(ty));
+      var.initval = ex;
+      
+      auto sc = ns.get!(Scope);
+      if (!sc) {
+        t2.failparse("No scope found at ", namespace(), " for inserting capture variable");
+      }
+      sc.addStatement(new VarDecl(var));
+      ns.add(var);
+      capturevars ~= var;
+    }
+  }
+  
+  auto ms = new MiniNamespace("captures_holder");
+  ms.sup = ns;
+  ms.internalMode = true;
+  namespace.set(ms);
+  scope(exit) namespace.set(ms.sup);
+  foreach (i, cap; captures) {
+    ms.add(cap, new LValueAlias(capturevars[i], cap));
+  }
+  ms.internalMode = false;
+  
   Statement st1, st2;
   auto t3 = t2, t4 = t2;
-  auto sc = namespace().get!(Scope)();
+  auto sc = namespace().get!(Scope);
   if (!sc) { logln("::", namespace()); fail; }
   
   if (type == "onSuccess" || type == "onExit") {
     pushCache;
     scope(exit) popCache;
+    if (!sc.lookup("__retval_holder")) {
+      auto ret = sc.get!(Function).type.ret;
+      if (ret && ret != Single!(Void)) {
+        auto var = new Variable(ret, "__retval_holder", boffs(ret));
+        auto vd = new VarDecl(var);
+        sc.addStatement(vd);
+        sc.add(var);
+      }
+    }
     if (!rest(t3, "tree.stmt", &st1))
       t3.failparse("No statement matched for ", type, " in scope context");
     sc.addGuard(st1);

@@ -57,7 +57,7 @@ template offers(T) {
       return res;
     
     if auto t = Tag: obj
-      return T: t.offers T.__name;
+      return T: (t.offers (T.__name));
     
     return null;
   }

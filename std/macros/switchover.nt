@@ -1,56 +1,67 @@
 module std.macros.switchover;
 
-macro("tree.stmt.switchover", "411") `
-  (if
-    (not (matched-text 'switch))
-    'nil
-    '(last
-      (def 'ty (parse-type))
-      (def 'id (parse-ident))
-      (if
-        (not (and ty id (matched-text 'over)))
-        'nil
-        '(last
-          (def 'ph (make-placeholder ty))
-          (with-scope '(last
-            (insert-scope id ph)
-            (def 'cd (parse-cond))
-            (remove-scope id)
-            (def 'match-case (lambda '()
-              '(if (not (matched-text 'case)) 'nil '(last
-                (def 'short-or (lambda '(a b)
-                  '(if (eval a) 't '(if (eval b) 't 'nil))))
-                (def 'match-boolean-base (lambda '()
-                  '(substitute cd ph (parse-expr))))
-                (def 'match-boolean-and (lambda '()
-                  '(last
-                    (def 'cd1 (match-boolean-base))
-                    (if (matched-text 'and)
-                      '(last
-                        (def 'cd2 (match-boolean-and))
-                        (make-and cd1 cd2))
-                      'cd1))))
-                (def 'match-boolean-or (lambda '()
-                  '(last
-                    (def 'cd1 (match-boolean-and))
-                    (if (matched-text 'or)
-                      '(last
-                        (def 'cd2 (match-boolean-or))
-                        (make-or cd1 cd2))
-                      'cd1))))
-                (def 'subcd (match-boolean-or))
-                (match-text ":")
-                (def 'my-parse-stmts (lambda '()
-                  '(make-aggregate (while
-                    '(not (pushed-source '(short-or
+macro("tree.stmt.switchover", "411", "switch") `
+  (last
+    (def 'ty (parse-type))
+    (def 'id (parse-ident))
+    (if
+      (not (and ty id (matched-text 'over)))
+      'nil
+      '(last
+        (def 'ph (make-placeholder ty))
+        (with-scope '(last
+          (def 'check (make-temporary (basic-type 'int)))
+          (make-aggregate (list
+            (make-assignment check (make-int 1))
+            (last
+              (insert-scope id ph)
+              (def 'cd (parse-cond))
+              (remove-scope id)
+              (def 'short-or (lambda '(a b)
+                '(if (eval a) 't '(if (eval b) 't 'nil))))
+              (def 'my-parse-stmts (lambda '()
+                '(make-aggregate (while
+                  '(not (pushed-source '(short-or
+                    '(short-or
                       '(matched-text "case")
-                      '(matched-text "}"))))
-                    '(parse-stmt)))))
-                (make-if subcd '(my-parse-stmts))))))
-            (if (not (matched-text "{"))
-              '(match-case)
-              '(make-aggregate
-                (while
-                  '(not (matched-text "}"))
-                  '(match-case))))))))))
+                      '(matched-text "default"))
+                    '(matched-text "}"))))
+                  '(parse-stmt)))))
+              (def 'match-case (lambda '()
+                '(if (not (matched-text 'case))
+                  '(if (not (matched-text 'default))
+                    'nil
+                    '(last
+                      (match-text ":")
+                      (make-if check '(my-parse-stmts))))
+                  '(last
+                    (def 'match-boolean-base (lambda '()
+                      '(substitute cd ph (parse-expr))))
+                    (def 'match-boolean-and (lambda '()
+                      '(last
+                        (def 'cd1 (match-boolean-base))
+                        (if (matched-text 'and)
+                          '(last
+                            (def 'cd2 (match-boolean-and))
+                            (make-and cd1 cd2))
+                          'cd1))))
+                    (def 'match-boolean-or (lambda '()
+                      '(last
+                        (def 'cd1 (match-boolean-and))
+                        (if (matched-text 'or)
+                          '(last
+                            (def 'cd2 (match-boolean-or))
+                            (make-or cd1 cd2))
+                          'cd1))))
+                    (def 'subcd (match-boolean-or))
+                    (match-text ":")
+                    (make-if subcd '(make-aggregate (list
+                      (make-assignment check (make-int 0))
+                      (my-parse-stmts))))))))
+              (if (not (matched-text "{"))
+                '(match-case)
+                '(make-aggregate
+                  (while
+                    '(not (matched-text "}"))
+                    '(match-case))))))))))))
 `;

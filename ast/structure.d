@@ -157,12 +157,18 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     this.name = name;
   }
   string mangle() {
-    if (!name) {
-      auto res = "struct_"~name.cleanup();
-      select((string, RelMember member) { res ~= "_" ~ member.type.mangle ~ "_" ~ member.name; }, &rmcache);
-      return res;
+    if (!sup) {
+      if (!name) {
+        auto res = "struct_"~name.cleanup();
+        select((string, RelMember member) { res ~= "_" ~ member.type.mangle ~ "_" ~ member.name; }, &rmcache);
+        return res;
+      }
+      return "struct_"~name.cleanup();
     }
-    return "struct_"~name.cleanup();
+    if (!name) {
+      return mangle("struct", null);
+    }
+    return mangle("struct_"~name.cleanup(), null);
   }
   override {
     IType getRefType() { return new Pointer(this); }
@@ -184,14 +190,17 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
         return fastcast!(Object) (rt.transform(base));
       return res;
     }
+    // Let two structs be equal if their names and sizes are equal
+    // and all their members are of the same size
     int opEquals(IType it) {
       auto str = fastcast!(Structure)~ it;
       if (!str) return false;
       if (str is this) return true;
       if (str.name != name) return false;
+      if (str.size != size) return false;
       auto t1 = str.types(), t2 = types();
       if (t1.length != t2.length) return false;
-      foreach (i, v; t1) if (v != t2[i]) return false;
+      foreach (i, v; t1) if (v.size != t2[i].size) return false;
       return true;
     }
     string toString() {
@@ -371,15 +380,21 @@ class MemberAccess_Expr : Expr, HasInfo {
   Expr base;
   RelMember stm;
   string name;
+  int counter;
+  static int mae_counter;
   this(Expr base, string name) {
     this.base = base;
     this.name = name;
+    this();
     auto ns = fastcast!(Namespace) (base.valueType());
     if (!ns) { logln("Base is not NS-typed: ", base.valueType()); fail; }
     stm = fastcast!(RelMember) (ns.lookup(name));
     if (!stm) throw new Exception(Format("No member '", name, "' in ", base.valueType(), "!"));
   }
-  this() { }
+  this() {
+    counter = mae_counter ++;
+    // if (counter == 31735) fail;
+  }
   string getInfo() { return "."~name; }
   MemberAccess_Expr create() { return new MemberAccess_Expr; }
   MemberAccess_Expr dup() {

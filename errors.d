@@ -20,24 +20,25 @@ string nextText(string s, int i = 100) {
 void eatComments(ref string s) {
   s = s.mystripl();
   while (true) {
-    if (auto rest = s.startsWith("/*")) { rest.slice("*/"); s = rest.mystripl(); }
-    else if (auto rest = s.startsWith("/+")) {
+    if (s.length >= 2 && s[0] == '/' && s[1] == '*') { s = s[2..$]; s.slice("*/"); s = s.mystripl(); }
+    else if (s.length >= 2 && s[0] == '/' && s[1] == '+') {
+      s = s[2..$];
       int depth = 1;
       while (depth) {
-        auto a = rest.find("/+"), b = rest.find("+/");
+        auto a = s.find("/+"), b = s.find("+/");
         if (b == -1)
           throw new Exception("Unbalanced comments! ");
         if (a != -1 && a < b) {
           depth++;
-          rest = rest[a + 2 .. $];
+          s = s[a + 2 .. $];
           continue;
         }
         depth --;
-        rest = rest[b + 2 .. $];
+        s = s[b + 2 .. $];
       }
-      s = rest.mystripl();
+      s = s.mystripl();
     }
-    else if (auto rest = s.startsWith("//")) { rest.slice("\n"); s = rest.mystripl(); }
+    else if (s.length >= 2 && s[0] == '/' && s[1] == '/') { s = s[2..$]; s.slice("\n"); s = s.mystripl(); }
     else break;
   }
 }
@@ -78,6 +79,14 @@ Stuple!(int, ptrdiff_t, string, string) lookupPos(string text) {
     assert(false);
   }
   return stuple(0, cast(ptrdiff_t) 0, "<unknown>", cast(string) null);
+}
+
+string reverseLookupPos(int row, int col, string file) {
+  synchronized(SyncObj!(sourcefiles)) {
+    auto text = sourcefiles[file];
+    while (--row) text.slice("\n");
+    return text[col .. $];
+  }
 }
 
 class ParseEx : Exception {

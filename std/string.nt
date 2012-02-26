@@ -298,29 +298,25 @@ string[] split(string s, string marker) {
   return res[];
 }
 
-import std.math;
-/*Function: toString
-Converts an integer to a string with the specified base.*/
-string toString(int ini,int base=10) {
-  string nums="0123456789abcdefghijklmnopqrstuvwxyz";
-  // string ts(int n,int b){stringstream a;a<<n%b;for(int p=2;n>pow(b,p-2);p++)a<<(n%(int)pow(b,p)-n%(int)pow(b,p-1))/pow(b,p-1); return a.str();}
-  if base>36
-    raise new Error "Sorry, bases up to 36 are supported due to available symbols.";
-  if base==10 // no need to waste time with the algorithm below
-    return "$ini";
-  if base==1
-    raise new Error "Base 1 not supported.";
-  if base<=0
-    raise new Error "Invalid base.";
-  bool neg=false;
-  if ini<0 {ini = -ini;neg=true;}
-  // does not work with base 2, so special case:
-  if base==2 {
+platform(!i686-mingw32) {
+  extern(C) int asprintf(char** strp, char* fmt, ...);
+}
+string toString(int i, int base = 10) {
+  if base == 2 {
     string a;
     for (int i=31;i>=0;i--)
       a="$a$(ini>>i & 1)";
     a=a.stripBeginning "0";
     return ["","-"][neg]~a;
+  }
+  if base == 10
+    return "$i";
+  platform(!i686-mingw32) {
+    if base == 16 {
+      char *a;
+      asprintf(&a,"%x", i);
+      return CToString a;
+    }
   }
   string a;
   a="$(nums[ini%base])";
@@ -338,7 +334,6 @@ int toInt(string str, int base=10) {
     raise new Error "Base 1 not supported.";
   if base<=0
     raise new Error "Invalid base.";
-  
   if base==2 {
     int n=0;
     for (int i=str.length-1;i>=0;i--) {

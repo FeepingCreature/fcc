@@ -127,7 +127,7 @@ Expr simpleFormat(Expr ex) {
       return ex;
     }
     // logln("et is ", et);
-    return new CallbackExpr(Single!(Array, Single!(Char)), ex, (Expr ex, AsmFile af) {
+    return new CallbackExpr("format", Single!(Array, Single!(Char)), ex, (Expr ex, AsmFile af) {
       mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
         iparse!(Scope, "!safecode_gen_array_format", "tree.scope")
         (`{

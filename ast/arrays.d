@@ -3,10 +3,10 @@ module ast.arrays;
 import ast.base, ast.types, ast.static_arrays, ast.returns, tools.base: This, This_fn, rmSpace;
 
 // ptr, length
-class Array : Type {
+final class Array : Type {
   IType elemType;
   this() { }
-  this(IType et) { elemType = et; }
+  this(IType et) { elemType = forcedConvert(et); }
   override {
     // bool isComplete() { return elemType.isComplete; }
     bool isComplete() { return true; /* size not determined by element size! */ }
@@ -31,7 +31,7 @@ class ExtArray : Type {
   IType elemType;
   bool freeOnResize;
   this() { }
-  this(IType et, bool fOR) { elemType = et; freeOnResize = fOR; }
+  this(IType et, bool fOR) { elemType = forcedConvert(et); freeOnResize = fOR; }
   override {
     int size() {
       return nativePtrSize + nativeIntSize * 2;
@@ -363,11 +363,13 @@ static this() {
     bool isArray(IType it) { return !!fastcast!(Array) (it); }
     if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
       return null;
-    auto res = iparse!(Expr, "array_eq", "tree.expr.eval.cond")
-                  (`eval (ex1.length == ex2.length && memcmp(void*:ex1.ptr, void*:ex2.ptr, ex1.length * (size-of type-of ex1[0])) == 0)`,
-                   "ex1", lvize(ex1), "ex2", lvize(ex2));
-    assert(!!res);
-    return res;
+    return tmpize_maybe(ex1, (Expr ex1) {
+      return tmpize_maybe(ex2, (Expr ex2) {
+        return iparse!(Expr, "array_eq", "tree.expr.eval.cond")
+                      (`eval (ex1.length == ex2.length && memcmp(void*:ex1.ptr, void*:ex2.ptr, ex1.length * (size-of type-of ex1[0])) == 0)`,
+                       "ex1", ex1, "ex2", ex2);
+      });
+    });
   });
 }
 

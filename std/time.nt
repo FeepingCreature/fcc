@@ -14,10 +14,27 @@ extern(C) int usleep(int); // I hope this really is int.
 
 /*Function: µsec
 The number of microseconds since the UNIX epoch*/
-long µsec() {
-  timeval tv;
-  gettimeofday(&tv, null);
-  return tv.tv_sec * long:1_000_000 + tv.tv_usec;
+platform(i686-mingw32) {
+  extern(Windows) {
+    bool QueryPerformanceCounter(long*);
+    bool QueryPerformanceFrequency(long*);
+    int timeBeginPeriod(int);
+    int timeEndPeriod(int);
+  }
+  long µsec() {
+    QueryPerformanceCounter(&long t);
+    QueryPerformanceFrequency(&long freq);
+    double factor = double:1000000 / double:freq;
+    return long:(double:t * factor);
+  }
+}
+
+platform(!i686-mingw32) {
+  long µsec() {
+    timeval tv;
+    gettimeofday(&tv, null);
+    return tv.tv_sec * long:1_000_000 + tv.tv_usec;
+  }
 }
 
 /*Function: sec
@@ -27,7 +44,14 @@ double sec() { return double:µsec() / 1_000_000; }
 /*Function: sleep
 Sleep at least *length* seconds*/
 void sleep(float length) {
-  usleep int:(length * 1_000_000);
+  platform(i686-mingw32) {
+    timeBeginPeriod 1;
+    usleep int:(length * 1_000_000);
+    timeEndPeriod 1;
+  }
+  platform(!i686-mingw32) {
+    usleep int:(length * 1_000_000);
+  }
 }
 
 /*Function: measure

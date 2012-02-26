@@ -32,9 +32,11 @@ static this() {
     auto len = iparse!(Expr, "array_length", "tree.expr")(`arr.length`, "arr", ex);
     opt(len);
     if (auto ie = fastcast!(IntExpr) (len)) {
-      return iparse!(Expr, "array_iterate_int", "tree.expr.iter.for")(`[for i <- 0..len extra arr: extra[i]]`, "arr", ex, "len", ie);
+      return iparse!(Expr, "array_iterate_int", "tree.expr.iter.for")
+                    (`[for i <- 0..len extra arr: extra[i]]`, namespace(), "arr", ex, "len", ie);
     } else {
-      return tmpize_maybe(ex, (Expr ex) { return iparse!(Expr, "array_iterate", "tree.expr.iter.for")(`[for i <- 0..arr.length extra arr: extra[i]]`, "arr", ex); });
+      return tmpize_maybe(ex, (Expr ex) { return iparse!(Expr, "array_iterate", "tree.expr.iter.for")
+                         (`[for i <- 0..arr.length extra arr: extra[i]]`, namespace(), "arr", ex); });
     }
   };
 }

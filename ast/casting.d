@@ -103,8 +103,11 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   IType dest;
   if (!rest(t2, "type", &dest) || !t2.accept(":"))
     return null;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); }))
+  if (t2.accept(":")) return null;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
+    t2.setError("can't get ", ex, " into ", dest);
     return null;
+  }
   
   // confirm
   if (ex.valueType() != dest) return null;
@@ -138,8 +141,10 @@ Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   if (t2.accept(":")) return null;
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
-    t2.failparse("Unable to parse cast source");
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
+    t2.setError("Unable to parse cast source");
+    return null;
+  }
   Expr res = tryConvert(ex, dest);
   if (res) text = t2;
   return fastcast!(Object)~ res;
@@ -152,8 +157,12 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   IType dest;
   if (!rest(t2, "type", &dest) || !t2.accept(":"))
     return null;
+  if (t2.accept(":")) return null;
   IType[] types;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; })) {
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
+    t2.failparse("Failed to get expression");
+  }
+  if (!gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; })) {
     t2.setError("Expression not matched in cast; none of ", types, " matched ", dest.size, ". ");
     return null;
   }
@@ -211,13 +220,13 @@ class DontCastMeExpr : Expr {
 
 class DontCastMeCValue : DontCastMeExpr, CValue {
   this(CValue cv) { super(cv); }
-  typeof(this) dup() { return new typeof(this)(fastcast!(CValue)~ sup); }
+  typeof(this) dup() { return new typeof(this)(fastcast!(CValue) (sup.dup)); }
   override void emitLocation(AsmFile af) { (fastcast!(CValue)~ sup).emitLocation(af); }
 }
 
 class DontCastMeLValue : DontCastMeCValue, LValue {
   this(LValue lv) { super(lv); }
-  typeof(this) dup() { return new typeof(this)(fastcast!(LValue)~ sup); }
+  typeof(this) dup() { return new typeof(this)(fastcast!(LValue) (sup.dup)); }
 }
 
 Expr dcm(Expr ex) {
@@ -444,16 +453,21 @@ static this() {
     return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (ex.valueType() == Single!(Byte) || ex.valueType() == Single!(Char))
+    auto evt = ex.valueType();
+    if (Single!(Byte) == evt || Single!(Char) == evt)
       return new ByteToShortCast(ex);
     else
       return null;
   };
   implicits ~= delegate Expr(Expr ex) {
-    if (ex.valueType() == Single!(Short))
+    if (Single!(Short) == ex.valueType())
       return new ShortToIntCast(ex);
     else
       return null;
+  };
+  implicits ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(Byte) != ex.valueType()) return null;
+    return reinterpret_cast(Single!(Char), ex); // concession to C libs
   };
   // teh hax :D
   foreach (m; ModuleInfo.modules())

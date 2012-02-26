@@ -5,22 +5,7 @@ BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x
 Includes=*.nt,*.d
 
 [Launch]
-Launch Configurations=Launch Configuration 0
-
-[Launch][Launch Configuration 0]
-Configured Launch Modes=execute
-Configured Launchers=nativeAppLauncher
-Name=New Native Application Configuration
-Type=Native Application
-
-[Launch][Launch Configuration 0][Data]
-Arguments=-S -O teapot.cr -lSDL -lGL -lGLU -run
-Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
-Dependency Action=Nothing
-EnvironmentGroup=default
-Executable=fcc
-Working Directory=file:///home/feep/code/fcc
-isExecutable=true
+Launch Configurations=
 
 [MakeBuilder]
 Number Of Jobs=1

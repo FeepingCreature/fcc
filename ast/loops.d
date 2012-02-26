@@ -73,11 +73,11 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (!len) fail("static-loop iterator length is not constant int! ");
     string t3;
     for (int i = 0; i < len.num; ++i) {
-      auto ival = iter.index(iter_expr, mkInt(i));
+      auto ival = foldex(iter.index(iter_expr, mkInt(i)));
       string t4 = t2;
       sc.field = backupfield.dup;
       string name;
-      foreach (entry; sc.field) if (auto v = fastcast!(Variable) (entry._1)) { name = entry._0; break; }
+      foreach (entry; sc.field) if (entry._0.length) if (auto v = fastcast!(Variable) (entry._1)) { name = entry._0; break; }
       sc.field = [stuple(name, fastcast!(Object) (ival))];
       sc.rebuildCache;
       pushCache; // same code is parsed multiple times - do not cache!
@@ -132,6 +132,7 @@ class ForStatement : Statement {
 import ast.namespace;
 Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
+  if (!t2.accept("(")) return null;
   auto fs = new ForStatement, check = namespace().getCheckpt();
   if (rest(t2, "tree.stmt.vardecl", &fs.decl) &&
       rest(t2, "cond", &fs.cond) && (configure(fs.cond), true) && t2.accept(";") &&
@@ -144,7 +145,7 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
     return fs;
   } else t2.failparse("Failed to parse for statement");
 }
-mixin DefaultParser!(gotForStmt, "tree.stmt.for", "142", "for (");
+mixin DefaultParser!(gotForStmt, "tree.stmt.for", "142", "for");
 
 class DoWhileExt : Statement {
   Scope first, second;

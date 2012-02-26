@@ -6,6 +6,7 @@ import std.file;
 Object gotImportFile(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr filename;
+  if (!t2.accept("(")) return null;
   if (!rest(t2, "tree.expr", &filename)) {
     t2.failparse("Couldn't parse file name expression");
   }
@@ -21,4 +22,4 @@ Object gotImportFile(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return fastcast!(Object) (mkFullSlice(res));
 }
-mixin DefaultParser!(gotImportFile, "tree.expr.import_file", "24065", "import(");
+mixin DefaultParser!(gotImportFile, "tree.expr.import_file", "24065", "import");

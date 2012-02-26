@@ -3,13 +3,8 @@ module ast.c_bind;
 // Optimized for GL.h and SDL.h; may not work for others!! 
 import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays, ast.externs, ast.tuples: AstTuple = Tuple;
 
-import tools.compat, tools.functional;
+import tools.compat, tools.functional, alloc;
 alias asmfile.startsWith startsWith;
-
-extern(C) {
-  int pipe(int*);
-  int close(int);
-}
 
 string buf;
 string readStream(InputStream IS) {
@@ -30,16 +25,77 @@ string readStream(InputStream IS) {
   return res;
 }
 
-string readback(string cmd) {
-  // logln("> ", cmd);
-  int[2] fd; // read end, write end
-  if (-1 == pipe(fd.ptr)) throw new Exception(Format("Can't open pipe! "));
-  scope(exit) close(fd[0]);
-  auto cmdstr = Format(cmd, " >&", fd[1], " &");
-  system(toStringz(cmdstr));
-  close(fd[1]);
-  scope fs = new CFile(fdopen(fd[0], "r"), FileMode.In);
-  return readStream(fs);
+
+// defines string readback(string)
+version(Windows) {
+  import std.c.windows.windows;
+  extern(System) {
+    bool CreatePipe(HANDLE*, HANDLE*, SECURITY_ATTRIBUTES*, int size);
+    bool SetHandleInformation(HANDLE, int mask, int flags);
+    const HANDLE_FLAG_INHERIT = 0x01;
+    struct PROCESS_INFORMATION {
+      HANDLE hProcess, hThread;
+      DWORD dwProcessId, dwThreadId;
+    }
+    struct STARTUPINFOA {
+      DWORD cb;
+      LPSTR lpReserved, lpDesktop, lpTitle;
+      DWORD dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+      WORD wShowWindow, cbReserved2;
+      PBYTE lpReserved2;
+      HANDLE hStdInput, hStdOutput, hStdError;
+    }
+    alias STARTUPINFOA STARTUPINFO;
+    const STARTF_USESTDHANDLES = 256;
+    const CREATE_NO_WINDOW = 0x08000000;
+    BOOL CreateProcessA(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD, PVOID, LPCSTR, STARTUPINFOA*, PROCESS_INFORMATION*);
+  }
+  extern(C) int _open_osfhandle(HANDLE, int = 0);
+  string readback(string cmd) {
+    SECURITY_ATTRIBUTES attr;
+    attr.nLength = SECURITY_ATTRIBUTES.sizeof;
+    attr.bInheritHandle = true;
+    attr.lpSecurityDescriptor = null;
+    HANDLE[2] fd;
+    if (!CreatePipe(&fd[0], &fd[1], &attr, 0)) fail("Couldn't create pipe");
+    if (!SetHandleInformation(fd[0], HANDLE_FLAG_INHERIT, 0)) fail("Couldn't set pipe to noinherit");
+    PROCESS_INFORMATION procinfo;
+    STARTUPINFO startinfo;
+    startinfo.cb = STARTUPINFO.sizeof;
+    startinfo.hStdError = fd[1];
+    startinfo.hStdOutput = fd[1];
+    startinfo.hStdInput = cast(HANDLE) 0;
+    startinfo.dwFlags |= STARTF_USESTDHANDLES;
+    auto succ = CreateProcessA(null, toStringz(cmd),
+      null, null, true, /* inherit handles */
+      CREATE_NO_WINDOW, null, null,
+      &startinfo, &procinfo);
+    if (!succ) fail(Format("Couldn't create process '", cmd, "'"));
+    CloseHandle(fd[1]);
+    CloseHandle(procinfo.hProcess);
+    CloseHandle(procinfo.hThread);
+    
+    scope fs = new CFile(fdopen(_open_osfhandle(fd[0]), "r"), FileMode.In);
+    return readStream(fs);
+    
+  }
+} else {
+  extern(C) {
+    int pipe(int*);
+    int close(int);
+  }
+  
+  string readback(string cmd) {
+    // logln("> ", cmd);
+    int[2] fd; // read end, write end
+    if (-1 == pipe(fd.ptr)) throw new Exception(Format("Can't open pipe! "));
+    scope(exit) close(fd[0]);
+    auto cmdstr = Format(cmd, " >&", fd[1], " &");
+    system(toStringz(cmdstr));
+    close(fd[1]);
+    scope fs = new CFile(fdopen(fd[0], "r"), FileMode.In);
+    return readStream(fs);
+  }
 }
 
 import
@@ -55,7 +111,9 @@ class LateType : IType {
   string toString() { if (!me) return Format("(LateType (", name, "), unresolved)"); return Format("(LateType ", me, ")"); }
   void needMe() {
     if (!me) tryResolve();
-    assert(!!me);
+    if (!me)
+      throw new Exception(Format("Couldn't resolve ", this));
+    me = resolveType(me);
   }
   override {
     int size() { needMe; return me.size; }
@@ -100,19 +158,27 @@ bool parsingCHeader() {
 
 void parseHeader(string filename, string src) {
   auto start_time = sec();
-  string newsrc;
+  string[] newsrc_list; int newsrc_length;
+  void addSrc(string text) { newsrc_list ~= text; newsrc_length += text.length; }
   bool inEnum;
   string[] buffer;
-  void flushBuffer() { foreach (def; buffer) newsrc ~= def ~ ";"; buffer = null; }
+  void flushBuffer() { foreach (def; buffer) { addSrc(def); addSrc(";"); } buffer = null; }
   while (src.length) {
     string line = src.slice("\n");
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
-    if (line.startsWith("}")) { inEnum = false; newsrc ~= line; flushBuffer; continue; }
-    if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else {  newsrc ~= line; newsrc ~= ";"; } }
+    if (line.startsWith("}")) { inEnum = false; addSrc(line); flushBuffer; continue; }
+    if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else {  addSrc(line); addSrc(";"); } }
     if (line.startsWith("#")) continue;
-    newsrc ~= line ~ " ";
+    addSrc(line); addSrc(" ");
   }
+  auto newsrc = new char[newsrc_length];
+  int i;
+  foreach (text; newsrc_list) {
+    newsrc[i .. i+text.length] = text;
+    i += text.length;
+  }
+  delete newsrc_list;
   // no need to remove comments; the preprocessor already did that
   auto statements = newsrc.split(";") /map/ &strip;
   // mini parser
@@ -154,7 +220,9 @@ void parseHeader(string filename, string src) {
       text = t2;
       return true;
     }
-    if (auto rest = text.strip().startsWith("...")) { text = rest; return Single!(Variadic); }
+    text = text.mystripl();
+    if (auto rest = text.startsWith("...")) { text = rest; return Single!(Variadic); }
+    if (text.startsWith("(")) return null; // shortcut
     bool unsigned;
     if (accept("_Bool")) return Single!(Char);
     if (accept("unsigned")) unsigned = true;
@@ -190,8 +258,11 @@ void parseHeader(string filename, string src) {
                 fail;
               }
           }
-          // else assert(false, "'"~name~"' didn't resolve! ");
-          else lt.me = Single!(Void);
+          else {
+            // logln(name, " didn't resolve in time");
+            // fail;
+            lt.me = Single!(Void);
+          }
         };
         lt.tryResolve = dg;
         resolves ~= dg;
@@ -200,15 +271,22 @@ void parseHeader(string filename, string src) {
     }
     string id;
     if (!text.gotIdentifier(id)) return null;
-    if (auto p = id in cache) return fastcast!(IType)~ *p;
-    if (auto ty = fastcast!(IType) (namespace().lookup(id))) return ty;
+    if (auto p = id in cache) return fastcast!(IType) (*p);
+    if (auto ty = fastcast!(IType) (namespace().lookup(id, true))) {
+      if (auto n = fastcast!(Named) (ty)) cache[id] = n;
+      return ty;
+    }
     return null;
   }
   IType matchType(ref string text) {
     text.accept("const");
     text.accept("__const");
     if (auto ty = matchSimpleType(text)) {
-      while (text.accept("*")) ty = new Pointer(ty);
+      while (text.accept("*")) {
+        auto p = new Pointer(Single!(SysInt));
+        p.target = ty; // manually initialize to skip forcedConvert so we give late types more time to resolve
+        ty = p;
+      }
       return ty;
     } else return null;
   }
@@ -244,9 +322,10 @@ void parseHeader(string filename, string src) {
     s2 = source;
     {
       IType ty;
+      auto s3 = s2;
       if (s2.accept("(") && (ty = matchType(s2), ty) && s2.accept(")") && readCExpr(s2, res)) {
         IType alt;
-        if (ty == Single!(Char)) alt = Single!(Byte); // same type in C
+        if (Single!(Char) == ty) alt = Single!(Byte); // same type in C
         res = foldex(forcedConvert(res));
         // res = reinterpret_cast(ty, res);
         if (!gotImplicitCast(res, ty, (IType it) { return test(it == ty || alt && it == alt); }))
@@ -254,6 +333,7 @@ void parseHeader(string filename, string src) {
         source = s2;
         return true;
       }
+      s2 = s3;
     }
     if (s2.accept("'")) { // char
       if (!s2.length) return false;
@@ -328,8 +408,10 @@ void parseHeader(string filename, string src) {
         // logln(args[k], " -> ", arg);
         myNS2._add(args[k], arg);
       }
-      pushCache;
-      scope(exit) popCache;
+      // pushCache;
+      // scope(exit) popCache;
+      scope(exit) str = str.dup; // faster because string is small
+      
       if (!readCExpr(str, res)) {
         // logln("macro fail ", str);
         return false;
@@ -365,7 +447,6 @@ void parseHeader(string filename, string src) {
   }
   while (statements.length) {
     auto stmt = statements.take(), start = stmt;
-    // logln("> ", stmt.replace("\n", "\\"));
     stmt.accept("__extension__");
     if (stmt.accept("#define")) {
       if (stmt.accept("__")) continue; // internal
@@ -416,7 +497,7 @@ void parseHeader(string filename, string src) {
         } catch (Exception ex)
           goto giveUp; // On Error Fuck You
       }
-      auto ea = new ExprAlias(ex, id);
+      auto ea = fastalloc!(ExprAlias)(ex, id);
       // logln("got ", ea);
       add(id, ea);
       continue;
@@ -429,6 +510,7 @@ void parseHeader(string filename, string src) {
       Named[] elems;
       foreach (entry; entries) {
         // logln("> ", entry);
+        entry = entry.replace("(unsigned long)", ""); // hack
         string id;
         if (!gotIdentifier(entry, id)) {
           stmt = entry;
@@ -470,13 +552,20 @@ void parseHeader(string filename, string src) {
           st.isUnion = isUnion;
           const debugStructs = false;
           while (true) {
+            static if (debugStructs)
+              logln(ident, ">", st2);
             if (st2.startsWith("#define"))
               goto skip;
             auto ty = matchType(st2);
             // logln("for ", ident, ", match type @", st2, " = ", ty);
             if (!ty) {
-              static if (debugStructs) logln("type failed");
-              goto giveUp1;
+              if (isUnion) {
+                static if (debugStructs) logln("WARN incomplete union: experimental code!");
+                goto skip;
+              } else {
+                static if (debugStructs) logln("type failed");
+                goto giveUp1;
+              }
             }
             while (true) {
               auto pos = st2.find("sizeof");
@@ -527,13 +616,23 @@ void parseHeader(string filename, string src) {
             }
             // logln(">> ", st2);
             if (st2.find("(") != -1) {
-              // alias to void for now.
-              add(ident, new TypeAlias(Single!(Void), ident));
-              static if (debugStructs) logln("can't handle the ", st2, ". fail. ");
-              goto giveUp1; // can't handle yet
+              if (st2.accept("(") && st2.accept("*")) {
+                string name;
+                if (!gotIdentifier(st2, name)) {
+                  static if (debugStructs) logln("fail in fp ", st2);
+                  goto giveUp1;
+                }
+                ty = Single!(Pointer, Single!(Void));
+                st2 = name;
+              } else {
+                // alias to void for now.
+                add(ident, new TypeAlias(Single!(Void), ident));
+                static if (debugStructs) logln("can't handle the ", st2, ". fail. ");
+                goto giveUp1; // can't handle yet
+              }
             }
             foreach (var; st2.split(",")) {
-              if (ty == Single!(Void)) {
+              if (Single!(Void) == ty) {
                 static if (debugStructs) logln("void base type at ", startstr, ". fail. ");
                 goto giveUp1;
               }
@@ -543,10 +642,17 @@ void parseHeader(string filename, string src) {
             st2 = statements.take();
             if (st2.accept("}")) break;
           }
+          IType ty = st;
+          while (st2.accept("*")) {
+            ty = new Pointer(ty);
+          }
           auto name = st2.strip();
           if (!name.length) name = ident;
           if (!st.name.length) st.name = name;
-          add(name, st);
+          add(name, new TypeAlias(ty, name));
+          if (ident && ident != name)
+            // neat doesn't have a separate struct namespace, so add it to regular one
+            add(ident, new TypeAlias(ty, ident));
           continue;
           giveUp1:
           static if (debugStructs)
@@ -554,7 +660,10 @@ void parseHeader(string filename, string src) {
           while (true) {
             // logln("stmt: ", st2, " in ", startstr);
             st2 = statements.take();
-            if (st2.accept("}")) break;
+            if (st2.accept("}")) {
+              static if (debugStructs) logln("info ", st2);
+              break;
+            }
           }
           // logln(">>> ", st2);
           continue;
@@ -615,7 +724,7 @@ void parseHeader(string filename, string src) {
         auto st4 = stmt;
         if (st4.accept("__attribute__") && st4.accept("((")
         &&  st4.accept("__mode__") && st4.accept("(")) {
-          if (resolveType(target) == Single!(SysInt)) {
+          if (Single!(SysInt) == resolveType(target)) {
             if (st4.accept("__QI__") && st4.accept(")") && st4.accept("))")) {
               stmt = st4;
               target = Single!(Byte);
@@ -693,10 +802,10 @@ void parseHeader(string filename, string src) {
         else break;
       }
       if (!stmt.accept(")")) goto giveUp;
-      if (args.length == 1 && args[0] == Single!(Void))
+      if (args.length == 1 && Single!(Void) == args[0])
         args = null; // C is stupid.
       foreach (ref arg; args)
-        if (resolveType(arg) == Single!(Short))
+        if (Single!(Short) == resolveType(arg))
           arg = Single!(SysInt);
       if (funptr_mode) {
         auto fptype = new FunctionPointer;
@@ -758,8 +867,11 @@ void performCImport(string name) {
     throw new Exception(Format("Couldn't find ", name, "! Tried ", include_path));
   string extra;
   if (!isARM) extra = "-m32";
+  string mygcc;
+  version(Windows) mygcc = path_prefix~"gcc";
+  else mygcc = path_prefix~platform_prefix~"gcc";
   auto cmdline = 
-    platform_prefix~"gcc "~extra~" -Xpreprocessor -dD -E "
+    mygcc~" "~extra~" -Xpreprocessor -dD -E "
     ~ (include_path
       /map/ (string s) { return "-I"~s; }
       ).join(" ")

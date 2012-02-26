@@ -19,11 +19,13 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   rest(t2, "tree.expr _tree.expr.arith", &initParam);
   
   text = t2;
-  return new CallbackExpr(cr, initParam, stuple(text, cr)
+  return new CallbackExpr(Format("class-new ", cr), cr, initParam, stuple(text, cr)
   /apply/ (string text, ClassRef cr, Expr initParam, AsmFile af)
   {
     mixin(mustOffset("nativePtrSize"));
+    af.comment("mk var");
     mkVar(af, cr, true, (Variable var) {
+      af.comment("new_class");
       mixin(mustOffset("0"));
       iparse!(Statement, "new_class", "tree.stmt")
       (`{
@@ -83,18 +85,18 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       initClass(cr.myClass);
       try {
         if (initParam) {
-          (new ExprStatement(
-            iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
-                  (`var.init ex`,
-                    "var", var, "ex", initParam)
-          )).emitAsm(af);
+          (new ExprStatement(foldex(tmpize_maybe(initParam, (Expr ex) {
+            return iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
+                     (`var.init ex`,
+                      "var", var, "ex", ex);
+          })))).emitAsm(af);
         }
         else if (cr.myClass.lookupRel("init", var)) {
-          (new ExprStatement(
+          (new ExprStatement(foldex(
             iparse!(Expr, "call_constructor_void", "tree.expr _tree.expr.arith")
                    (`var.init()`,
                     "var", var)
-          )).emitAsm(af);
+          ))).emitAsm(af);
         }
       } catch (Exception ex) {
         text.failparse(ex);

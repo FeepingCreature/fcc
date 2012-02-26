@@ -8,7 +8,7 @@ void function(void delegate(bool, bool)) withPropcfgFn;
 
 class IntAsFloat : Expr {
   Expr i;
-  this(Expr i) { this.i = i; assert(i.valueType() == Single!(SysInt)); }
+  this(Expr i) { this.i = i; assert(Single!(SysInt) == i.valueType()); }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(i);
@@ -26,7 +26,7 @@ class IntAsFloat : Expr {
 
 class LongAsDouble : Expr {
   Expr l;
-  this(Expr l) { this.l = l; assert(l.valueType() == Single!(Long)); }
+  this(Expr l) { this.l = l; assert(Single!(Long) == l.valueType()); }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(l);
@@ -78,7 +78,7 @@ static this() {
 
 class IntAsLong : Expr {
   Expr i;
-  this(Expr i) { this.i = i; assert(i.valueType() == Single!(SysInt)); }
+  this(Expr i) { this.i = i; assert(Single!(SysInt) == i.valueType()); }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(i);
@@ -108,9 +108,9 @@ class FPAsInt : Expr {
     this.dbl = dbl;
     this.lng = lng;
     if (dbl)
-      assert(fp.valueType() == Single!(Double));
+      assert(Single!(Double) == fp.valueType());
     else
-      assert(fp.valueType() == Single!(Float));
+      assert(Single!(Float) == fp.valueType());
   }
   private this() { }
   mixin DefaultDup;
@@ -174,7 +174,7 @@ static this() {
 
 class FloatAsDouble : Expr {
   Expr f;
-  this(Expr f) { this.f = f; assert(f.valueType() == Single!(Float)); }
+  this(Expr f) { this.f = f; assert(Single!(Float) == f.valueType()); }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(f);
@@ -621,7 +621,14 @@ class AsmFloatBinopExpr : BinopExpr {
         case "-": af.floatMath("fsub"); break;
         case "*": af.floatMath("fmul"); break;
         case "/": af.floatMath("fdiv"); break;
-        case "%": throw new Exception("Modulo not supported on floats. ");
+        case "%": // taken from glibc
+          af.floatStackDepth --;
+          af.put("1: fprem1"); // ieee-correct remainder
+          af.put("fstsw %ax"); // sets parity if unfinished
+          af.put("sahf");
+          af.put("jp 1b");     // in that case, rerun it
+          af.put("fstp %st(1)"); // pop unneeded
+          break;
       }
       af.storeFloat("(%esp)");
     }
@@ -705,13 +712,13 @@ static this() { parsecon.addPrecedence("tree.expr.arith", "12"); }
 const oplist = [
   "+"[], "-", "*", "/",
   "xor", "|", "&", "%",
-  "<<", ">>", "^", "x"
+  "<<", ">>>", ">>", "^", "x"
 ];
 
 const oplevel = [
   0, 1, 2, 2,
   3, 4, 5, 6,
-  7, 7, 8, 8
+  7, 7, 7, 8, 8
 ];
 
 const lvcount = 9;

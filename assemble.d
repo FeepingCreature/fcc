@@ -28,8 +28,14 @@ bool isMemRef(string mem) {
 
 bool isRegister(string s) {
   if (isARM) {
-    logln("isRegister ", s);
-    fail;
+    if (s.length < 2) return false;
+    if (s[0] != 'r') return false;
+    int i;
+    s = s[1..$];
+    auto s2 = s;
+    if (!gotInt(s2, i)) return false;
+    if (s != qformat(i)) return false;
+    return true;
   }
   return s.length > 2 && s[0] == '%' && s[1] != '(';
 }
@@ -282,7 +288,12 @@ struct Transaction {
         case Mov: return xmove("", from, to);
         case Mov1: return xmove("b", from, to);
         case Mov2: return xmove("h", from, to);
-        case Call: if (isReg(dest)) return qformat("mov lr, pc\nbx ", dest); return qformat("bl ", dest);
+        case Call:
+          string txt;
+          if (isReg(dest)) txt = qformat("mov lr, pc\nbx ", dest);
+          else txt = qformat("bl ", dest);
+          txt ~= "\nb 0f\n.ltorg\n0:";
+          return txt;
         case SAlloc: return qformat("sub sp, sp, #", size);
         case SFree: return qformat("add sp, sp, #", size);
         case MathOp: return qformat(opName, " ", op1, ", ", op2, ", ", op3);

@@ -445,9 +445,10 @@ class ProcTrack : ExtToken {
         break;
       case SAlloc:
         if (noStack) return false;
-        if (t.size == 4) {
-          stack ~= null;
-          fixupESPDeps(4);
+        if (t.size % 4 == 0) {
+          for (int i = 0; i < t.size / 4; ++i)
+            stack ~= null;
+          fixupESPDeps(t.size);
           mixin(Success);
         } else break;
       case SFree:
@@ -582,6 +583,10 @@ class ProcTrack : ExtToken {
             if (partialKnown(src)) return false;
           }
           auto val = t.source;
+          if (val.isLiteral() && !known.length /* avoid colliding with direct_push_after_mov */) {
+            stack ~= val;
+            mixin(Success);
+          }
           if (auto p = t.source in known)
             val = *p;
           // Be VERY careful changing this
@@ -599,6 +604,19 @@ class ProcTrack : ExtToken {
             // TODO: only abort if we have outstanding stack writes
             if (reg == "%ebp" && offs < 0 && known.length)
               return false;
+            if (reg == "%esp") {
+              if (offs % 4 == 0) {
+                auto id = offs / 4;
+                if (id >= 0 && id < stack.length) {
+                  auto newsrc = stack()[stack.length-1-id];
+                  fixupString(newsrc, (id + 1) * 4); // we're deeper into the stack than we were then!
+                  fixupESPDeps(4);
+                  stack ~= newsrc;
+                  mixin(Success);
+                }
+              }
+              // return false;
+            }
             use[reg] = true;
           }
           if (val.isRegister()) use[val] = true;
@@ -699,7 +717,6 @@ class ProcTrack : ExtToken {
       if (auto rest = entry.startsWith("+(")) {
         return false;
       }
-      if (!entry.strip().length) return false;
     }
     foreach (mem, value; known) {
       if (!value) return false; // #INV
@@ -761,14 +778,28 @@ class ProcTrack : ExtToken {
         logln("Highly invalid processor state: ", this);
         fail;
       }
-      foreach (entry; stack) {
-        addTransaction(Transaction.Kind.Push, (ref Transaction t) {
-          t.source = entry;
-          t.size = 4;
-        }, (ref Transaction t) {
-          myStackdepth += nativeIntSize;
-        });
+      int toAlloc;
+      void flushAllocs() {
+        if (!toAlloc) return;
+        addTransaction(
+          Transaction.Kind.SAlloc,
+          (ref Transaction t) { t.size = toAlloc; },
+          (ref Transaction t) { myStackdepth += toAlloc; }
+        );
+        toAlloc = 0;
       }
+      foreach (entry; stack) {
+        if (entry.strip().length) {
+          flushAllocs;
+          addTransaction(Transaction.Kind.Push, (ref Transaction t) {
+            t.source = entry;
+            t.size = 4;
+          }, (ref Transaction t) {
+            myStackdepth += nativeIntSize;
+          });
+        } else toAlloc += 4;
+      }
+      flushAllocs;
       foreach (reg, value; known) {
         if (auto indir = mkIndirect(value)) {
           addTransaction(Transaction.Kind.LoadAddress, (ref Transaction t) {
@@ -1735,6 +1766,10 @@ restart:
     $T t = $1.dup;
     info(t).fixupStack(-$0.size);
     $SUBST(t, $0);
+  `));
+  mixin(opt("value_push_after_compare", `^Push, ^Compare:
+    $0.source.isNumLiteral() && $1.op1.isRegister() && $1.op2.isRegister()
+    => $SUBST($1.dup, $0.dup);
   `));
   // push foo, pop (%esp) => sfree 4; push foo
   bool remove_stack_push_pop_chain(Transcache cache, ref int[string] labels_refcount) {

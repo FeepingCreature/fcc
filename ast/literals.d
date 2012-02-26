@@ -49,10 +49,15 @@ class FloatExpr : Expr, Literal {
     IType valueType() { return Single!(Float); }
     string getValue() { return Format(f_as_i); }
     void emitAsm(AsmFile af) {
-      if (!name_used) {
-        name_used = af.allocConstantValue(qformat("cons_float_constant_", floatconscounter++, "___xfcc_encodes_", f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
+      if (isARM) {
+        af.mmove4(qformat("=", f_as_i), af.regs[0]);
+        af.pushStack(af.regs[0], 4);
+      } else {
+        if (!name_used) {
+          name_used = af.allocConstantValue(qformat("cons_float_constant_", floatconscounter++, "___xfcc_encodes_", f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
+        }
+        af.pushStack(name_used, 4);
       }
-      af.pushStack(name_used, 4);
     }
   }
 }

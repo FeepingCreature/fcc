@@ -62,6 +62,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
       context = lv;
     } else if (auto mv = fastcast!(MValue)~ ex) {
       context = mv;
+    } else if (ex.valueType() == Single!(Void)) {
+      context = ex; // hackaround :)
     } else {
       auto var = new Variable;
       var.type = ex.valueType();
@@ -147,7 +149,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
           if (auto res = myresolve(ns).lookup(name, true))
             return res;
       }
-      return sup.lookup(name);
+      return sup.lookup(name, local);
     }
   }
 }

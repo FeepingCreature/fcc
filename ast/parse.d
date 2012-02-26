@@ -47,7 +47,7 @@ class ExprStatement : LineNumberedStatementClass {
     super.emitAsm(af);
     auto cs = af.checkptStack();
     scope(success) af.restoreCheckptStack(cs);
-    auto type = ex.valueType(), size = (type == Single!(Void))?0:type.size;
+    auto type = ex.valueType(), size = (Single!(Void) == type)?0:type.size;
     alignStackFor(type, af);
     mixin(mustOffset("size"));
     ex.emitAsm(af);

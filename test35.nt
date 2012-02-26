@@ -1,8 +1,9 @@
 module test35;
 
-import c.ncurses, c.panel;
+import c.ncurses, c.panel, c.form;
 pragma(lib, "ncurses");
 pragma(lib, "panel");
+pragma(lib, "form");
 
 import std.string;
 
@@ -17,65 +18,42 @@ void createBox(int y, x, w, h) {
   mvvline(y + 1, x + w, ACS_VLINE, h - 1);
 }
 
+import std.macros.multicall;
 void main() {
-  writeln "$(string-of chtype)";
-  writeln "$(string-of ACS_ULCORNER)";
-  {
-    initscr;
-    start_color;
-    cbreak;
-    keypad(stdscr, char:true);
-    noecho;
-    init_pair (1, COLOR_BLACK, COLOR_CYAN);
-    int height = 2, width = 30;
-    int starty = (LINES - height) / 2;
-    int startx = (COLS - width) / 2;
-    attron(COLOR_PAIR(1));
-    createBox(starty, startx, width, height);
-    mvprintw(starty, startx + 3, "Hello World !!!");
-    mvprintw(starty + 1, startx + 1, " Type any char to exit       ");
-    mvprintw(0, 0, "");
-    refresh;
-    wgetch(stdscr);
-    clear();
-    endwin();
+  initscr;
+  cbreak;
+  noecho;
+  stdscr.keypad char:true;
+  auto fields = [new_field(1, 10, 4, 18, 0, 0), new_field(1, 10, 6, 18, 0, 0), FIELD*:null];
+  for int i <- [0,1] {
+    fields[i].set_field_back size_t:A_UNDERLINE;
+    fields[i].field_opts_off 0x0040;
   }
-  {
-    WINDOW*x 3 my_wins;
-    PANEL*x 3 my_panels;
-    
-    int lines = 10, cols = 40, y = 2, x = 4, i;
-    
-    initscr; cbreak; noecho;
-    
-    my_wins[0] = newwin(lines, cols, y, x);
-    my_wins[1] = newwin(lines, cols, y + 1, x + 5);
-    my_wins[2] = newwin(lines, cols, y + 2, x + 10);
-    
-    for auto win <- my_wins
-      box(win, size_t:0, size_t:0);
-    
-    my_panels[0] = new_panel my_wins[0];
-    my_panels[1] = new_panel my_wins[1];
-    my_panels[2] = new_panel my_wins[2];
-    update_panels;
-    
-    doupdate;
-    
-    getch;
-    endwin;
-  }
-  /+auto ch = getch;
-  if (ch == KEY_F0 + 1) printw "It's a F1! Homg. \n";
-  else {
-    printw toStringz "$LINES and $COLS - ";
-    printw "It's a ";
-    attron A_BOLD;
-    "%c".printw ch;
-    attroff A_BOLD;
-    printw "\n";
-  }
+  
+  auto my_form = new_form(fields.ptr);
+  my_form.post_form();
   refresh;
-  getch;
-  endwin;+/
+  
+  mvprintw(4, 10, "Value 1:");
+  mvprintw(6, 10, "Value 2:");
+  refresh;
+  
+  using my_form {
+    while (auto ch = getch()) != KEY_F0+1 {
+      if (ch == KEY_DOWN) {
+        form_driver REQ_NEXT_FIELD;
+        form_driver REQ_END_LINE;
+      } else if (ch == KEY_UP) {
+        form_driver REQ_PREV_FIELD;
+        form_driver REQ_END_LINE;
+      } else {
+        form_driver ch;
+      }
+    }
+    unpost_form;
+    free_form;
+  }
+  field[0].free_field();
+  field[1].free_field();
+  endwin;
 }

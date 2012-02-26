@@ -193,8 +193,9 @@ int macrocount;
 class TenthMacro : NoOp, Named {
   string identifier;
   Entity root;
+  string key;
   string getIdentifier() { return identifier; }
-  this(Entity e) { root = e; identifier = Format("__tenth_macro_", macrocount++); }
+  this(Entity e, string key) { root = e; this.key = key; identifier = Format("__tenth_macro_", macrocount++); }
 }
 
 Context rootctx;

@@ -79,9 +79,9 @@ class ConcatChain : Expr {
           auto c = getIndex(cache, mkInt(i));
           if (array.valueType() == type.elemType) {
             /// var[offset] = cache[i];
-            (new Assignment(getIndex(var, offset), array)).emitAsm(af);
+            optst(new Assignment(getIndex(var, offset), reinterpret_cast(type.elemType, array))).emitAsm(af);
             /// offset = offset + 1
-            (new Assignment(offset, lookupOp("+", offset, mkInt(1)))).emitAsm(af);
+            optst(new Assignment(offset, lookupOp("+", offset, mkInt(1)))).emitAsm(af);
           } else {
             auto len = getArrayLength(c);
             /// var[offset .. offset + cache[i].length] = cache[i];

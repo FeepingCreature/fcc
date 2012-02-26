@@ -14,7 +14,7 @@ void fixupMain() {
     scope(exit) namespace.set(backup);
     namespace.set(cmain);
     
-    sc.addStatement(new ReturnStmt(new CallbackExpr(Single!(SysInt), null, stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, AsmFile af) {
+    sc.addStatement(new ReturnStmt(new CallbackExpr("main", Single!(SysInt), null, stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, AsmFile af) {
       // set up first tls pointer
       if (isARM) {
         af.mmove4("=_sys_tls_data_start", "r4");
@@ -101,19 +101,19 @@ void fixupMain() {
   auto m = gotMain;
   bool mainReturnsInt, mainTakesStrings, mainTakesArgCV; // argc, argv
   with (m.type) {
-    if (ret == Single!(SysInt))
+    if (Single!(SysInt) == ret)
       mainReturnsInt = true;
     if (!params.length) { }
     else {
       if (params.length == 2) {
-        if (params[0].type == Single!(SysInt) && params[1].type == Single!(Pointer, Single!(Pointer, Single!(Char))))
+        if (Single!(SysInt) == params[0].type && Single!(Pointer, Single!(Pointer, Single!(Char))) == params[1].type)
           mainTakesArgCV = true;
         else {
           logln("invalid main form (1): ", m.type);
           fail();
         }
       } else if (params.length == 1) {
-        if (params[0].type == Single!(Array, Single!(Array, Single!(Char))))
+        if (Single!(Array, Single!(Array, Single!(Char))) == params[0].type)
           mainTakesStrings = true;
         else {
           logln("invalid main form (2): ", m.type);

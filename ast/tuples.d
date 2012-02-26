@@ -45,7 +45,9 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (t2.accept("$")) globmode = true;
     else return null;
   }
-  if (!rest(t2, "tree.expr", &obj, (Object obj) { return globmode ^ !fastcast!(Expr) (obj); }))
+  if (!rest(t2, "tree.expr", &obj))
+    return null;
+  if (!(globmode ^ !fastcast!(Expr) (obj)))
     return null;
   if (globmode || t2.accept(")")) {
     text = t2;
@@ -59,6 +61,10 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
 
 Tuple mkTuple(IType[] types...) {
+  foreach (type; types) if (Single!(Void) == type) {
+    logln("Cannot make tuple: must not contain void, ", types);
+    fail;
+  }
   auto tup = new Tuple;
   New(tup.wrapped, cast(string) null);
   tup.wrapped.packed = true;
@@ -85,8 +91,9 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotTupleType, "type.tuple", "37", "(");
 
+import ast.assign;
+
 class RefTuple : MValue {
-  import ast.assign;
   IType baseTupleType;
   MValue[] mvs;
   mixin defaultIterate!(mvs);
@@ -134,6 +141,7 @@ class RefTuple : MValue {
   }
 }
 
+import ast.aggregate;
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     auto mae = fastcast!(MemberAccess_Expr) (it);
@@ -160,6 +168,39 @@ static this() {
     foreach (id, entry; mbs) if (entry is mae.stm) { offs = id; break; }
     if (offs == -1) fail();
     return fastcast!(Itr) (rt.mvs[offs]);
+  };
+  // translate mvalue tuple assignment into sequence of separate assignments
+  foldopt ~= delegate Itr(Itr it) {
+    auto am = fastcast!(AssignmentM) (it);
+    if (!am) return null;
+    auto rt1 = fastcast!(RefTuple) (am.target);
+    if (!rt1) return null;
+    Expr value = am.value; Statement stmt;
+    if (auto sam = fastcast!(StatementAndMValue) (value)) {
+      stmt = sam.first;
+      value = sam.second;
+    }
+    auto rt2 = fastcast!(RefTuple) (value);
+    if (!rt2) return null;
+    if (rt1.mvs.length != rt2.mvs.length) fail;
+    
+    try {
+      Statement[] stmts;
+      if (stmt) stmts ~= stmt;
+      for (int i = 0; i < rt1.mvs.length; ++i) {
+        Expr left = rt1.mvs[i], right = rt2.mvs[i];
+        if (auto lam = fastcast!(LValueAsMValue) (left)) left = lam.sup;
+        if (auto lam = fastcast!(LValueAsMValue) (right)) right = lam.sup;
+        stmts ~= mkAssignment(left, right);
+      }
+      // return new AggrStatement(stmts);
+      // this breaks (a, b) = (b, a).
+      // Don't actually do it, but act like we did so we get the benefit
+      // of the self-assignment error which is neat.
+      return null;
+    } catch (SelfAssignmentException) {
+      throw new ParseEx(reverseLookupPos(am.line, 0, am.name), "self-assignment detected");
+    }
   };
 }
 
@@ -221,6 +262,7 @@ Expr mkTupleExpr(Expr[] exprs...) {
   bool allMValues = true;
   MValue[] arr;
   MValue toMValue(Expr ex) {
+    ex = foldex(ex);
     if (auto mv = fastcast!(MValue) (ex)) return mv;
     if (auto lv = fastcast!(LValue) (ex)) return new LValueAsMValue(lv);
     return null;
@@ -247,22 +289,30 @@ Expr mkTupleExpr(Expr[] exprs...) {
 import ast.math: AsmFloatBinopExpr;
 Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr[] exprs;
-  Expr ex;
   auto t2 = text;
   if (t2.accept(")")) {
     text = t2;
     // lol wat
     return fastcast!(Object)~ mkTupleExpr();
   }
-  if (!t2.bjoin(
-      !!rest(t2, "tree.expr", &ex),
-      t2.accept(","),
-      {
-        exprs ~= ex;
-      }
-    ) || !t2.accept(")")) {
-    t2.setError("Unknown identifier");
-    return null;
+  while (true) {
+    Expr ex;
+    if (exprs.length > 1) {
+      if (!t2.accept(","))
+        t2.failparse("tuple failed; comma expected");
+      if (!rest(t2, "tree.expr", &ex))
+        t2.failparse("tuple failed");
+    } else if (exprs.length) {
+      if (!t2.accept(","))
+        return null;
+      if (!rest(t2, "tree.expr", &ex))
+        return null;
+    } else {
+      if (!rest(t2, "tree.expr", &ex))
+        return null;
+    }
+    exprs ~= ex;
+    if (t2.accept(")")) break;
   }
   text = t2;
   return fastcast!(Object) (mkTupleExpr(exprs));
@@ -294,6 +344,9 @@ static this() {
     if (!t2.accept("]"))
       t2.failparse("Expected closing ']' for tuple index access");
     
+    auto types = tup.types();
+    if (!types.length) return null; // cannot possibly mean a type-tuple tuple access
+    
     auto backup_len = len;
     if (!gotImplicitCast(len, (IType it) { return test(Single!(SysInt) == it); }))
       t2.failparse("Need int for tuple index access, not ", backup_len);
@@ -301,9 +354,9 @@ static this() {
     len = foldex(len);
     if (auto ie = fastcast!(IntExpr) (len)) {
       text = t2;
-      auto types = tup.types();
-      if (ie.num >= types.length)
+      if (ie.num >= types.length) {
         text.failparse(ie.num, " too large for tuple of ", types.length, "!");
+      }
       return types[ie.num];
     } else
       t2.failparse("Need foldable constant for tuple index access, not ", len);

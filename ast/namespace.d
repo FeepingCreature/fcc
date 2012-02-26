@@ -85,10 +85,11 @@ class Namespace {
   void __add(string name, Object obj) {
     if (name) {
       if (auto thing = lookup(name, true)) {
+        // logln(name, " in ", this, "(local) => ", thing);
         if (auto et = fastcast!(Extensible) (thing)) {
           auto eo = fastcast!(Extensible) (obj);
           if (!eo) {
-            logln("Tried to overload ", name, ", but ", obj, " is not extensible!");
+            logln("Tried to overload ", name, " (", thing, ")", ", but ", obj, " is not extensible!");
             fail;
           }
           bool found;
@@ -144,8 +145,8 @@ class Namespace {
   void setCheckpt(typeof(field) field) { this.field = field.dup; rebuildCache(); /* prevent clobbering */ }
   Object lookup(string name, bool local = false) {
     if (name in reserved) return null;
-    { int temp; if (name.gotInt(temp)) return null; }
-    { float temp; if (name.gotFloat(temp)) return null; }
+    debug { int temp; if (name.gotInt(temp)) fail; }
+    debug { float temp; if (name.gotFloat(temp)) fail; }
     if (field.length > cachepoint) {
       if (auto p = name in field_cache) return *p;
     } else {
@@ -321,12 +322,16 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNamedType, "type.named", "4");
 
-class LengthOverride : Namespace {
+class LengthOverride : Namespace, ScopeLike {
   Expr len;
   this(Namespace sup, Expr ex) { this.sup = sup; len = ex; }
   override {
+    int framesize() { return sup.get!(ScopeLike).framesize(); }
+    Statement[] getGuards() { return sup.get!(ScopeLike).getGuards(); }
+    int[] getGuardOffsets() { return sup.get!(ScopeLike).getGuardOffsets(); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
+    string toString() { return Format("[$ = ", len, "] <- ", sup); }
     Object lookup(string name, bool local = false) {
       if (name == "$") return fastcast!(Object)~ len;
       return sup.lookup(name, local);

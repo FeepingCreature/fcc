@@ -2,13 +2,14 @@ module ast.base;
 
 public import asmfile, ast.types, parseBase, errors, tools.log: logln;
 
-public import casts;
+public import casts, alloc;
 
 import tools.base: Format, New, This_fn, rmSpace;
+import tools.ctfe: ctReplace;
 
 const string EXT = ".nt";
 
-string platform_prefix;
+string path_prefix, platform_prefix;
 
 bool isWindoze() {
   return platform_prefix.find("mingw") != -1;
@@ -17,6 +18,8 @@ bool isWindoze() {
 bool isARM() {
   return !!platform_prefix.startsWith("arm-");
 }
+
+version(Windows) static this() { platform_prefix = "i686-mingw32-"; }
 
 string[] extra_linker_args;
 
@@ -70,6 +73,7 @@ void configure(Iterable it) {
 
 template MyThis(string S) {
   mixin(This_fn(rmSpace!(S)));
+  mixin(("\n" ~ This_fn(rmSpace!(S))).ctReplace("\nthis", "void construct").ctReplace("super", "super.construct"));
   private this() { }
 }
 
@@ -121,7 +125,7 @@ string genIterates(int params) {
             // checkType(iter, dg);
             if (iter !is entry) {
               auto res = fastcast!(typeof(entry)) (iter);
-              if (!res) throw new Exception(Format("Cannot substitute ", $A, "[", i, "] with ", iter, " of ", (fastcast!(Object) (iter)).classinfo.name, ": ", typeof(entry).stringof, " expected! "));
+              if (!res) throw new Exception(Format(this, ": cannot substitute ", $A, "[", i, "] with ", iter, " of ", (fastcast!(Object) (iter)).classinfo.name, ": ", typeof(entry).stringof, " expected! "));
               entry = res;
             }
           }
@@ -134,7 +138,10 @@ string genIterates(int params) {
             // checkType(iter, dg);
             if (iter !is $A) {
               auto res = fastcast!(typeof($A)) (iter);
-              if (!res) throw new Exception(Format("Cannot substitute ", $A, " with ", res, ": ", typeof($A).stringof, " expected! "));
+              if (!res) {
+                logln(this, ": cannot substitute ", $A, " with ", res, ": ", typeof($A).stringof, " expected! ");
+                fail;
+              }
               $A = res;
             }
           }
@@ -295,16 +302,19 @@ string mustOffset(string value, string _hash = null) {
     }`).ctReplace("\n", "", "OFFS", hash); // fix up line numbers!
 }
 
-class CallbackExpr : Expr {
+class CallbackExpr : Expr, HasInfo {
   IType type;
   Expr ex; // held for dg so it can iterate properly
   void delegate(Expr, AsmFile) dg;
-  this(IType type, Expr ex, void delegate(Expr, AsmFile) dg) {
-    this.type = type; this.ex = ex; this.dg = dg;
+  string info;
+  this(string info, IType type, Expr ex, void delegate(Expr, AsmFile) dg) {
+    this.info = info; this.type = type; this.ex = ex; this.dg = dg;
   }
   override {
+    string getInfo() { return info; }
     IType valueType() { return type; }
     void emitAsm(AsmFile af) { dg(ex, af); }
+    string toString() { return Format("callback<", ex, ">"); }
     mixin defaultIterate!(ex);
   }
   private this() { }
@@ -351,6 +361,14 @@ struct foldopt {
 
 static int stmt_and_t_marker;
 
+void sae_markercheck(int marker) { // outside the template (because incremental builds)
+  // if (marker == 8276) asm { int 3; }
+}
+
+void sae_debugme(Expr ex) {
+  // logln(ex);
+}
+
 template StatementAndT(T) {
   class StatementAndT : T {
     static if (is(T == Expr)) const string NAME = "sae";
@@ -365,11 +383,12 @@ template StatementAndT(T) {
       this.second = second;
       this.permissive = permissive;
       this.marker = stmt_and_t_marker ++;
+      sae_markercheck(marker);
     }
     mixin defaultIterate!(first, second);
     bool once;
     bool check() {
-      // if (marker == 185) fail;
+      sae_markercheck(marker);
       if (once) {
         if (permissive) return false;
         logln("Double emit ", marker, " ", this, ". NOT SAFE. ");
@@ -379,10 +398,11 @@ template StatementAndT(T) {
       return true;
     }
     override {
-      string toString() { return Format(NAME, "{", first, second, "}"); }
+      string toString() { return Format(NAME, " ", marker, "{", first, second, "}"); }
       StatementAndT dup() { return new StatementAndT(first.dup, second.dup); }
       IType valueType() { return second.valueType(); }
       void emitAsm(AsmFile af) {
+        sae_debugme(this);
         if (check) first.emitAsm(af);
         second.emitAsm(af);
       }
@@ -409,6 +429,19 @@ Expr mkStatementAndExpr(Statement st, Expr ex, bool permissive = false) {
   if (auto lv = fastcast!(LValue) (ex))
     return new StatementAndLValue(st, lv, permissive);
   return new StatementAndExpr(st, ex, permissive);
+}
+
+Statement unrollSAE(ref Expr ex) {
+  if (auto sae = fastcast!(StatementAndExpr) (ex)) {
+    ex = sae.second; return sae.first;
+  }
+  if (auto sal = fastcast!(StatementAndLValue) (ex)) {
+    ex = sal.second; return sal.first;
+  }
+  if (auto sam = fastcast!(StatementAndMValue) (ex)) {
+    ex = sam.second; return sam.first;
+  }
+  return null;
 }
 
 class PlaceholderToken : Expr {
@@ -537,6 +570,7 @@ void doAlign(ref int offset, IType type) {
 }
 
 int getFillerFor(IType t, int depth) {
+  if (Single!(Void) == t) return 0;
   auto nd = -align_boffs(t, depth) - t.size;
   return nd - depth;
 }
@@ -547,14 +581,21 @@ int alignStackFor(IType t, AsmFile af) {
   return delta;
 }
 
-extern(C) {
-  struct winsize {
-    ushort row, col, xpixel, ypixel;
+version(Windows) { }
+else {
+  extern(C) {
+    struct winsize {
+      ushort row, col, xpixel, ypixel;
+    }
+    int ioctl(int d, int request, ...);
   }
-  int ioctl(int d, int request, ...);
-  void* stdin;
-  int fflush(void* stream);
 }
+
+extern(C) {
+  int fflush(void* stream);
+  void* stdin;
+}
+
 template logSmart(bool Mode) {
   void logSmart(T...)(T t) {
     tools.log.log("\r");
@@ -565,10 +606,15 @@ template logSmart(bool Mode) {
         while (text.length % 8 != 0) text ~= " ";
       } else text ~= ch;
     }
-    winsize ws;
-    ioctl(0, /*TIOCGWINSZ*/0x5413, &ws);
+    int col;
+    version(Windows) { col = 80; }
+    else {
+      winsize ws;
+      ioctl(0, /*TIOCGWINSZ*/0x5413, &ws);
+      col = ws.col;
+    }
     string empty;
-    for (int i = 0; i < ws.col - 1; ++i) empty ~= " ";
+    for (int i = 0; i < col - 1; ++i) empty ~= " ";
     tools.log.log("\r", empty, "\r");
     tools.log.log(text);
     if (Mode) tools.log.log("\r");
@@ -593,7 +639,7 @@ class LineNumberedStatementClass : LineNumberedStatement {
   override void getInfo(ref string n, ref int l) { n = name; l = line; }
   override void configPosition(string text) {   
     auto pos = lookupPos(text);
-    line = pos._0 + 1;
+    line = pos._0;
     name = pos._2;
   }
   override void emitAsm(AsmFile af) {
@@ -741,3 +787,11 @@ interface WithAware {
 // cheap to access multiple times, cheap to flatten into tuple
 enum CheapMode { Multiple, Flatten }
 extern(C) bool _is_cheap(Expr ex, CheapMode mode);
+
+// for the purpose of emitting asm, this can be treated as a unit
+// for instance, modules and functions
+// this is so expressions can "see" if their context is already being emat,
+// and ie. abort if it is
+interface EmittingContext {
+  bool isBeingEmat();
+}

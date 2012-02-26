@@ -61,7 +61,7 @@ class DgConstructExpr : mkDelegate {
 Object gotFpCloseExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto fptype = fastcast!(FunctionPointer)~ ex.valueType();
+    auto fptype = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
     if (!fptype) return null;
     
     if (t2.accept(".toDg(")) {
@@ -163,7 +163,7 @@ import ast.assign, ast.fold;
 void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
   af.comment("Begin delegate call");
   int retsize = ret.size;
-  if (ret == Single!(Void))
+  if (Single!(Void) == ret)
     retsize = 0;
   mixin(mustOffset("retsize"));
   auto dgs = dgAsStruct(dg);

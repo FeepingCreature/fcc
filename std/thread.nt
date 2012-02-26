@@ -66,7 +66,7 @@ class Semaphore {
   void release() { sem_post(&hdl); }
 }
 
-void* __start_routine(void* p) {
+extern(C) void* __start_routine(void* p) {
   void* ptemp = p; // will be top of the stack, so ..
   asm "popl %eax";
   asm "movl %esp, %ebx";

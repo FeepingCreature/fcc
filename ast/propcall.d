@@ -10,8 +10,9 @@ bool incompat(IType a, IType b) {
   if (p1 && !p2 || p2 && !p1) return true;
   if (p1 && p2) return incompat(p1.target, p2.target);
   
-  auto t1 = cast(TypeAlias) a, t2 = cast(TypeAlias) b;
-  if (t1 && t2 && t1.name != t2.name) return true;
+  // MEH!!
+  // auto t1 = cast(TypeAlias) a, t2 = cast(TypeAlias) b;
+  // if (t1 && t2 && t1.name != t2.name) return true;
   
   return false;
 }
@@ -30,13 +31,13 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
       res.implicit = true;
       return res;
     }
-    string toString() { return Format("fpos(", firstParam, ")"); }
+    string toString() { return Format("fpos of a ", fpvt); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     bool isPointerLess() { return fpvt.isPointerLess(); }
     bool isComplete() { return fpvt.isComplete(); }
     Object lookup(string name, bool local = false) {
-      auto res = sup.lookup(name, false);
+      auto res = sup.lookup(name, local);
       if (auto templ = fastcast!(Template) (res)) {
         return new PrefixTemplate(firstParam, templ);
       }
@@ -67,6 +68,8 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
       }
       if (auto os = fastcast!(OverloadSet) (res)) {
         Extensible resx = new OverloadSet(os.name);
+        foreach (fun; os.funs)
+          resx = resx.extend(fun);
         foreach (fun; os.funs)
           if (auto res = processFun(fun)) {
             resx = resx.extend(res);
@@ -114,6 +117,6 @@ class MyPlaceholderExpr : Expr {
 void setupPropCall() {
   implicits ~= delegate Expr(Expr ex) {
     if (fastcast!(MyPlaceholderExpr) (ex)) return null;
-    return new MyPlaceholderExpr(new FirstParamOverrideSpace(ex));
+    return new MyPlaceholderExpr(new FirstParamOverrideSpace(forcedConvert(ex)));
   };
 }

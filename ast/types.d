@@ -53,7 +53,7 @@ class Type : IType {
   string toString() { return mangle(); }
 }
 
-class Void : Type {
+final class Void : Type {
   override {
     int size() { return 1; }
     string mangle() { return "void"; }
@@ -62,7 +62,7 @@ class Void : Type {
   }
 }
 
-class Variadic : Type {
+final class Variadic : Type {
   override int size() { assert(false); }
   /// BAH
   // TODO: redesign parameter match system to account for automatic conversions in variadics.
@@ -70,13 +70,13 @@ class Variadic : Type {
   override ubyte[] initval() { assert(false, "Cannot declare variadic variable. "); } // wtf variadic variable?
 }
 
-class Char : Type {
+final class Char : Type {
   override int size() { return 1; }
   override string mangle() { return "char"; }
   override bool isPointerLess() { return true; }
 }
 
-class Byte : Type {
+final class Byte : Type {
   override int size() { return 1; }
   override string mangle() { return "byte"; }
   override bool isPointerLess() { return true; }
@@ -84,43 +84,43 @@ class Byte : Type {
 
 const nativeIntSize = 4, nativePtrSize = 4;
 
-class SizeT : Type {
+final class SizeT : Type {
   override int size() { return nativeIntSize; }
   override string mangle() { return "size_t"; }
   override bool isPointerLess() { return true; }
 }
 
-class Short : Type {
+final class Short : Type {
   override int size() { return 2; }
   override string mangle() { return "short"; }
   override bool isPointerLess() { return true; }
 }
 
-class SysInt : Type {
+final class SysInt : Type {
   override int size() { return nativeIntSize; }
   override string mangle() { return "int"; }
   override bool isPointerLess() { return true; }
 }
 
-class Long : Type {
+final class Long : Type {
   override int size() { return 8; }
   override string mangle() { return "long"; }
   override bool isPointerLess() { return true; }
 }
 
-class Float : Type {
+final class Float : Type {
   override int size() { return 4; }
   override string mangle() { return "float"; }
   override bool isPointerLess() { return true; }
 }
 
-class Double : Type {
+final class Double : Type {
   override int size() { return 8; }
   override string mangle() { return "double"; }
   override bool isPointerLess() { return true; }
 }
 
-class Real : Type {
+final class Real : Type {
   override int size() { return 10; }
   override string mangle() { return "real"; }
   override bool isPointerLess() { return true; }

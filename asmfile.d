@@ -648,6 +648,11 @@ class AsmFile {
     dg(".text\n");
     dg(code);
   }
+  void pool() {
+    put("b 0f");
+    put(".ltorg");
+    put("0:");
+  }
   // is cpu in post-comparison state?
   // disallow some operations (math) that woukld
   // overwrite it before the next branch

@@ -3,3 +3,7 @@ module gd;
 public import c.gd;
 
 pragma(lib, "gd");
+platform(i686-mingw32) {
+  pragma(lib, "png");
+  pragma(lib, "z");
+}

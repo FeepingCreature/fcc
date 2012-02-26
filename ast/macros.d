@@ -4,7 +4,7 @@ import ast.tenth;
 import parseBase, ast.base, ast.literal_string, ast.tuples, ast.fun, ast.funcall,
        ast.namespace, ast.tuple_access, ast.variable, ast.vardecl, ast.scopes,
        ast.aggregate, ast.assign, ast.ifstmt, ast.literals, ast.pointer, ast.casting,
-       ast.opers, ast.conditionals, ast.returns;
+       ast.opers, ast.conditionals, ast.returns, ast.nulls;
 
 import tools.base: This;
 
@@ -138,7 +138,12 @@ extern(C) void fcc_initTenth() {
   }));
   rootctx.add("make-if", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-if': 2 expected");
-    mixin(chaincast("cd: First arg for 'make-if': args[0]->ItrEntity: %.itr->Cond"));
+    mixin(chaincast("it: First arg for 'make-if': args[0]->ItrEntity: %.itr"));
+    Cond cd = fastcast!(Cond) (it);
+    if (!cd) {
+      mixin(chaincast("ex: First arg (cond or expr) for 'make-if': it->Expr"));
+      cd = testNonzero(ex);
+    }
     auto ifs = new IfStatement;
     ifs.wrapper = new Scope;
     ifs.wrapper.requiredDepthDebug ~= " (ast.macros:144)";
@@ -467,6 +472,7 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   auto mac = fastcast!(TenthMacro) (obj);
   auto findme = namespace().lookup(mac.identifier, false);
   if (findme !is mac) return null; // check if we're in scope
+  if (mac.key && !t2.accept(mac.key)) return null;
   auto ent = mac.root;
   fcc_initTenth;
   auto ctx = new Context(rootctx);
@@ -558,13 +564,17 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
 
 Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("(")) text.failparse("Opening paren expected. ");
-  StringExpr rulename, ruleid;
+  StringExpr rulename, ruleid, prematch;
   if (!rest(text, "tree.expr _tree.expr.arith", &rulename))
     text.failparse("Rule name expected");
   if (!text.accept(","))
     text.failparse("Comma expected");
   if (!rest(text, "tree.expr _tree.expr.arith", &ruleid))
     text.failparse("Rule ID expected");
+  if (text.accept(",")) {
+    if (!rest(text, "tree.expr _tree.expr.arith", &prematch))
+      text.failparse("Pre-match string expected");
+  }
   if (!text.accept(")"))
     text.failparse("Closing paren expected. ");
   StringExpr src;
@@ -576,11 +586,13 @@ Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
   {
     auto s2 = src.str;
     auto ent = parseTenth(s2);
-    auto mac = new TenthMacro(ent);
+    auto mac = new TenthMacro(ent, prematch?prematch.str:null);
     obj = mac;
   }
   auto parser = (new DefaultParserImpl!(runTenth, null, true, null)(obj)).genParser();
   parser.id = rulename.str;
+  if (prematch)
+    parser.key = prematch.str;
   parsecon.addParser(parser, ruleid.str);
   return obj;
 }

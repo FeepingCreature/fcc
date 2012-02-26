@@ -174,20 +174,24 @@ void setupSysmods() {
     alias vec4l = vec(long, 4);
     extern(C) int fgetc(void*);
     extern(C) int fflush(void*);
-    extern(C) void* stdin, stdout;
+    platform(default) {
+      extern(C) void* stdin, stdout;
+    }
     string ptoa(void* p) {
       auto res = new char[]((size-of size_t) * 2 + 2 + 1);
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
       return res[0 .. res.length - 1];
     }
-    string readln() {
-      char[auto~] buffer;
-      while (!buffer.length || buffer[$-1] != "\n") { buffer ~= char:byte:fgetc(stdin); }
-      return buffer[0..$-1];
+    platform(default) {
+      string readln() {
+        char[auto~] buffer;
+        while (!buffer.length || buffer[$-1] != "\n") { buffer ~= char:byte:fgetc(stdin); }
+        return buffer[0..$-1];
+      }
     }
     void writeln(string line) {
       printf("%.*s\n", line.length, line.ptr);
-      fflush(stdout);
+      platform(default) { fflush(stdout); }
     }
     string dtoa(double d) {
       auto res = new char[] 128; // yes, actually does need to be this big >_>
@@ -444,6 +448,18 @@ void setupSysmods() {
       }
       for auto mod <- __modules callConstructors mod;
     }
+    extern(C) {
+      int getpid();
+      int readlink(char*, char* buf, int bufsz);
+      int system(char*);
+    }
+    void print-backtrace() {
+      platform(default) {
+        auto pid = getpid();
+        system("gdb --batch -n -ex thread -ex bt -p $pid\x00".ptr);
+        // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
+      }
+    }
     /* shared TODO figure out why this crashes */ string executable;
     shared int __argc;
     shared char** __argv;
@@ -469,7 +485,8 @@ void setupSysmods() {
         writeln "Unhandled error: '$(err.toString())'. ";
         // writeln "Invoking debugger interrupt. Continue to exit. ";
         // writeln "Invoking GDB. ";
-        // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
+        
+        print-backtrace;
         errnum = 1;
         // _interrupt 3;
         invoke-exit "main-return";
@@ -511,7 +528,7 @@ void setupSysmods() {
       if (b > a) return (0, a);
       int mask = 1, res;
       int half_a = a >> 1;
-      while (b < half_a) { mask <<= 1; b <<= 1; }
+      while (b <= half_a) { mask <<= 1; b <<= 1; }
       while mask {
         if (b <= a) {
           res |= mask;

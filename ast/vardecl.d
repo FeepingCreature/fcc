@@ -6,22 +6,31 @@ public import ast.variable;
 int vardecl_marker;
 
 import ast.pointer, ast.casting;
-class VarDecl : LineNumberedStatementClass {
+class VarDecl : LineNumberedStatementClass, HasInfo {
   Variable var;
   int marker;
   this(Variable v) {
     var = v;
-    if (v.valueType() == Single!(Void)) {
+    if (Single!(Void) == v.valueType()) {
       logln("tried to declare void variable");
       fail;
     }
     marker = .vardecl_marker ++;
-    // if (marker == 906) { logln(this); fail; }
+    // if (marker == 21) { logln(this); fail; }
   }
   VarDecl dup() { return new VarDecl(var.dup); }
-  mixin defaultIterate!(var);
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    if (!var.initval) return;
+    auto it = fastcast!(Iterable) (var.initval);
+    dg(it);
+    var.initval = fastcast!(Expr) (it);
+    if (!var.initval) fail;
+  }
   bool hasInitializer() {
     return !var.dontInit;
+  }
+  override string getInfo() {
+    return Format(var.dontInit?"uninitialized":"initialized", "; ", marker);
   }
   override void emitAsm(AsmFile af) {
     if (hasInitializer) super.emitAsm(af); // otherwise not worth it
@@ -35,7 +44,9 @@ class VarDecl : LineNumberedStatementClass {
     }
     mixin(mustOffset("var.valueType().size()"));
     if (var.baseOffset + var.type.size != -af.currentStackDepth) {
-      logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var);
+      string name; int line;
+      (fastcast!(LineNumberedStatementClass) (this)).getInfo(name, line);
+      logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var, " at ", name, ":", line);
       foreach (elem; namespace().field) {
         if (auto var = fastcast!(Variable)~ elem._1) {
           auto csd = af.currentStackDepth;
@@ -51,11 +62,6 @@ class VarDecl : LineNumberedStatementClass {
     if (var.dontInit)
       af.salloc(var.type.size);
     else {
-      if (var.type == Single!(Void)) {
-        mixin(mustOffset("0"));
-        if (var.initval) var.initval.emitAsm(af);
-        return;
-      }
       mixin(mustOffset("var.type.size"));
       int sz = var.type.size;
       // TODO: investigate why necessary for chars
@@ -72,24 +78,40 @@ int boffs(IType t, int curdepth = -1) {
 }
 
 void mkVar(AsmFile af, IType type, bool dontInit, bool alignvar, void delegate(Variable) dg) {
-  int size = type.size;
   // void vars are fucking weird.
-  if (type == Single!(Void)) size = 0;
+  if (Single!(Void) == type) { dg(null); return; }
+  int size = type.size;
   mixin(mustOffset("size"));
   string name;
   static int x;
   synchronized name = Format("__temp_res_var_", x++, "__");
-  auto var = new Variable(type, name,
-                          alignvar?boffs(type, af.currentStackDepth):-(af.currentStackDepth + type.size));
-  var.dontInit = dontInit;
-  if (size) {
-    mixin(mustOffset("size", "2"));
-    auto vd = new VarDecl(var);;
-    vd.emitAsm(af);
-  }
-  {
-    mixin(mustOffset("0"));
-    dg(var);
+  auto bof = boffs(type, af.currentStackDepth), naturalOffs = -(af.currentStackDepth + type.size);
+  bool needsAlignment = bof != naturalOffs;
+  if (alignvar && needsAlignment) { // write into temporary
+    mkVarUnaligned(af, type, true, (Variable var) {
+      auto delta = -(af.currentStackDepth + type.size) - boffs(type, af.currentStackDepth);
+      af.salloc(delta);
+      assert(!-(af.currentStackDepth + type.size) - boffs(type, af.currentStackDepth)); // copypaste yay
+      mkVar(af, type, true, (Variable var2) {
+        dg(var2);
+        (mkAssignment(var, var2)).emitAsm(af);
+      });
+      af.sfree(type.size);
+      af.sfree(delta);
+    });
+  } else {
+    auto var = new Variable(type, name,
+                            alignvar?bof:naturalOffs);
+    var.dontInit = dontInit;
+    if (size) {
+      mixin(mustOffset("size", "2"));
+      auto vd = new VarDecl(var);
+      vd.emitAsm(af);
+    }
+    {
+      mixin(mustOffset("0"));
+      dg(var);
+    }
   }
 }
 
@@ -122,14 +144,14 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
   return var;
 }
 
-Expr lvize_if_possible(Expr ex, Statement* late_init = null) {
+Expr tmpize_if_possible(Expr ex, Statement* late_init = null) {
   if (auto var = fastcast!(Variable) (ex)) return ex;
-  if (late_init) if (auto sal = fastcast!(StatementAndLValue) (ex)) {
+  /*if (late_init) if (auto sal = fastcast!(StatementAndLValue) (ex)) {
     if (auto var = fastcast!(Variable) (sal.second)) {
       *late_init = sal.first;
       return sal.second;
     }
-  }
+  }*/
   auto sc = namespace().get!(Scope);
   if (!sc) {
     return ex;
@@ -163,7 +185,7 @@ extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null) {
     logln("No Scope beneath ", namespace(), " for lvizing ", ex, "!");
     fail;
   }
-  return fastcast!(LValue) (lvize_if_possible(ex, late_init));
+  return fastcast!(LValue) (tmpize_if_possible(ex, late_init));
 }
 
 LValue lvize(Expr ex, Statement* late_init = null) { return ast_vardecl_lvize(ex, late_init); }
@@ -199,7 +221,8 @@ class WithTempExpr : Expr {
     }
     IType valueType() { return superthing.valueType(); }
     void emitAsm(AsmFile af) {
-      if (superthing.valueType() == Single!(Void)) {
+      auto svt = superthing.valueType();
+      if (Single!(Void) == svt) {
         thing.emitAsm(af);
         offs.offset = -af.currentStackDepth;
         {
@@ -208,7 +231,8 @@ class WithTempExpr : Expr {
         }
         af.sfree(thing.valueType().size);
       } else {
-        mkVar(af, superthing.valueType(), true, (Variable var) {
+        mixin(mustOffset("svt.size"));
+        mkVar(af, svt, true, (Variable var) {
           offs_res.offset = var.baseOffset;
           thing.emitAsm(af);
           offs.offset = -af.currentStackDepth;

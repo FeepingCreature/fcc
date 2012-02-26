@@ -3,14 +3,23 @@ module ast.mode;
 import ast.base;
 import
   ast.namespace, ast.fun, ast.fold, ast.literal_string, ast.scopes,
-  ast.casting, ast.pointer, ast.aliasing, ast.vardecl: lvize;
+  ast.withstmt, ast.casting, ast.pointer, ast.aliasing, ast.vardecl: lvize;
 
 import tools.ctfe: ctReplace;
+import tools.base: tolower;
 
 class Mode {
   string config;
   string argname;
-  this(string c, string a) { config = c; argname = a; }
+  string ident;
+  bool isGObjectMode() { return config.find("gobject-helper") != -1; }
+  bool isFreeMode() { return isGObjectMode; }
+  bool needsArg() {
+    if (argname) return true;
+    if (isGObjectMode) return true;
+    return false;
+  }
+  this(string c, string a, string i) { config = c; argname = a; ident = i; }
   ModeSpace translate(Expr ex, ParseCb rest) {
     auto res = new ModeSpace;
     string prefix, suffix;
@@ -24,9 +33,49 @@ class Mode {
       }
       
       if (cfg.accept("suffix")) {
-        if (!cfg.gotIdentifier(suffix))
+        if (!cfg.gotIdentifier(suffix, false, true /* accept numbers */))
           cfg.failparse("couldn't get suffix");
         res.suffixes ~= suffix;
+        continue;
+      }
+      
+      if (cfg.accept("gobject-helper")) {
+        string capsname = ident;
+        string leadcapsname, smallname = capsname.tolower();
+        foreach (part; capsname.split("_")) {
+          leadcapsname ~= part[0] ~ part[1..$].tolower();
+        }
+        if (cfg.accept("[")) {
+          leadcapsname = cfg.slice("]");
+        }
+        res.prefixes ~= smallname ~ "_";
+        // example: 
+        // ClutterStage*:g_type_check_instance_cast(GTypeInstance*:obj, clutter_stage_get_type())
+        string cast_expr =
+          qformat(leadcapsname, "*: g_type_check_instance_cast(GTypeInstance*:obj, ", smallname, "_get_type())");
+        if (ex.valueType().size != 4) {
+          logln("wth ", ex.valueType());
+          fail;
+        }
+        if (cfg.accept("boxed")) {
+          res.firstParam = ex;
+        } else {
+          res.firstParam =
+            iparse!(Expr, "gobject-hack", "tree.expr _tree.expr.arith")
+                   (cast_expr,
+                    namespace(), "obj", ex);
+        }
+        if (cfg.accept("<")) {
+          string supertype;
+          if (!cfg.gotIdentifier(supertype))
+            cfg.failparse("couldn't get supertype");
+          if (!cfg.accept(">"))
+            cfg.failparse("closing '>' expected");
+          auto sup_ms = fastcast!(Mode) (namespace().lookup(supertype));
+          if (!sup_ms)
+            cfg.failparse("Unknown mode ", supertype);
+          res.supmode = sup_ms.translate(ex, rest);
+        }
         continue;
       }
       
@@ -131,10 +180,7 @@ class PrefixCall : FunCall {
   Expr[] getParams() { return sup.getParams() ~ prefix ~ super.getParams(); }
   private this() { }
   PrefixCall dup() {
-    auto res = new PrefixCall;
-    res.fun = fun.flatdup;
-    res.prefix = prefix.dup;
-    res.sup = sup.dup;
+    auto res = new PrefixCall(fun.flatdup, prefix.dup, sup.dup);
     foreach (param; params) res.params ~= param.dup;
     return res;
   }
@@ -150,27 +196,42 @@ class PrefixCall : FunCall {
   override IType valueType() { return sup.valueType(); }
 }
 
-class ModeSpace : Namespace, ScopeLike {
+class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */ {
+  Namespace sup;
   Expr firstParam;
   string[] prefixes, suffixes;
   bool substituteDashes;
+  ModeSpace supmode;
   this() { sup = namespace(); }
   override {
-    string mangle(string name, IType type) { return sup.mangle(name, type); }
-    Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     int framesize() { return (fastcast!(ScopeLike)~ sup).framesize(); }
-    string toString() { return Format("ModeSpace (", firstParam, ") <- ", sup); }
+    string toString() { return Format("ModeSpace (", firstParam?firstParam.valueType():null, ") <- ", sup); }
+    bool isTempNamespace() { return true; }
+    int size() {
+      if (firstParam) return firstParam.valueType().size;
+      assert(false);
+    }
+    string mangle() {
+      if (firstParam) return "mode_override_for_"~firstParam.valueType().mangle;
+      assert(false);
+    }
+    ubyte[] initval() { assert(false); }
+    int opEquals(IType it) { return it is this; }
+    IType proxyType() { return null; }
+    bool isPointerLess() { if (!firstParam) return true; return firstParam.valueType().isPointerLess; }
+    bool isComplete() { if (!firstParam) return true; return firstParam.valueType().isComplete; }
     mixin DefaultScopeLikeGuards!();
-    Object lookup(string name, bool local = false) {
+    Object lookupRel(string name, Expr context) {
       Object funfilt(Object obj) {
-        if (auto fun = fastcast!(Function)~ obj) {
-          if (!firstParam) return fun;
-          if (!fun.extern_c) return fun;
-          if (!fun.type) return fun;
+        OverloadSet handleFun(Function fun) {
+          if (!firstParam) return null;
+          if (!fun.extern_c) return null;
+          if (!fun.type) return null;
           auto params = fun.type.params;
-          if (!params.length) return fun;
+          if (!params.length) return null;
           auto firstType = params[0].type;
-          Expr fp = firstParam;
+          // Expr fp = firstParam;
+          Expr fp = reinterpret_cast(firstParam.valueType, context);
           bool exactlyEqual(IType a, IType b) {
             auto pa = fastcast!(Pointer)~ a, pb = fastcast!(Pointer)~ b;
             if (pa && pb) return exactlyEqual(pa.target, pb.target);
@@ -190,15 +251,31 @@ class ModeSpace : Namespace, ScopeLike {
             if ( ca &&  cb) return (ca.name == cb.name) && ca.base == cb.base;
           }
           if (!gotImplicitCast(fp, (IType it) { return exactlyEqual(it, firstType); }))
-            return fun;
-          return new PrefixFunction(fp, fun);
-        } else return obj;
+            return null;
+          return new OverloadSet(fun.name, new PrefixFunction(fp, fun));
+        }
+        Extensible ext;
+        if (auto fun = fastcast!(Function) (obj)) {
+          ext = new OverloadSet(fun.name);
+          if (auto os = handleFun(fun))
+            ext = ext.extend(os);
+          else
+            ext = ext.extend(fun);
+        } else if (auto os = fastcast!(OverloadSet) (obj)) {
+          ext = new OverloadSet(os.name);
+          foreach (fun; os.funs)
+            if (auto os2 = handleFun(fun))
+              ext = ext.extend(os2);
+            else
+              ext = ext.extend(fun);
+        }
+        if (!ext) return obj;
+        if (auto res = fastcast!(Object) (ext.simplify())) return res;
+        return fastcast!(Object) (ext);
       }
       Object tryIt() {
-        if (auto res = sup.lookup(name, local))
-          return funfilt(res);
         const string TRY = `
-          if (auto res = sup.lookup(%%, local))
+          if (auto res = sup.lookup(%%, false))
             return funfilt(res);
         `;
         foreach (prefix; prefixes)
@@ -211,6 +288,8 @@ class ModeSpace : Namespace, ScopeLike {
           foreach (prefix; prefixes)
             mixin(TRY.ctReplace("%%", "qformat(prefix, name, suffix)"));
         
+        mixin(TRY.ctReplace("%%", "name"));
+        
         return null;
       }
       if (auto res = tryIt()) return res;
@@ -218,6 +297,9 @@ class ModeSpace : Namespace, ScopeLike {
         name = name.replace("-", "_");
         if (auto res = tryIt()) return res;
       }
+      if (supmode)
+        if (auto res = supmode.lookupRel(name, context))
+          return res;
       return null;
     }
   }
@@ -257,7 +339,7 @@ Object gotModeDef(ref string text, ParseCb cont, ParseCb rest) {
   auto sex = fastcast!(StringExpr)~ foldex(str);
   if (!sex)
     text.failparse("String literal expected! ");
-  namespace().add(ident, new Mode(sex.str, par));
+  namespace().add(ident, new Mode(sex.str, par, ident));
   if (!text.accept(";"))
     text.failparse("Expected a semicolon! ");
   return Single!(NoOp);
@@ -265,39 +347,59 @@ Object gotModeDef(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotModeDef, "tree.toplevel.defmode", null, "defmode");
 
 Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
+  bool gotMode;
+  string t2 = text;
+  if (t2.accept("mode")) gotMode = true;
   string name;
-  if (!text.gotIdentifier(name))
-    text.failparse("Mode name expected");
+  if (!t2.gotIdentifier(name))
+    if (gotMode) t2.failparse("Mode name expected");
+    else return null;
   auto mode = cast(Mode) namespace().lookup(name);
   if (!mode)
-    text.failparse(name~" is not a mode! ");
+    if (gotMode) text.failparse(name~" is not a mode! ");
+    else return null;
+  if (!gotMode && !mode.isFreeMode) return null;
+  
+  text = t2;
+  
   Expr arg;
-  if (mode.argname) {
+  if (mode.needsArg) {
+    bool opened;
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    
+    if (mode.isGObjectMode) {
+      auto pre_ms = new ModeSpace;
+      pre_ms.prefixes ~= mode.ident.tolower();
+      pre_ms.prefixes ~= mode.ident;
+      namespace.set(new WithStmt(new PlaceholderTokenLV(pre_ms, "prefix/suffix pre thing")));
+    }
+    
+    if (text.accept("(")) opened = true;
     if (!rest(text, "tree.expr _tree.expr.arith", &arg))
       text.failparse("Couldn't get mode argument! ");
+    if (opened && !text.accept(")"))
+      text.failparse("Closing paren expected");
   }
   auto backup = namespace();
   scope(exit) namespace.set(backup);
   
-  auto wrap = new Scope;
-  namespace.set(wrap);
-  
   auto ms = mode.translate(arg, rest);
-  if (ms.firstParam) ms.firstParam = lvize(ms.firstParam);
-  namespace.set(ms);
-  
-  Scope sc;
-  if (!rest(text, "tree.scope", &sc))
-    text.failparse("Couldn't parse mode scope! ");
-  wrap.addStatement(sc);
-  return wrap;
+  if (ms.firstParam) return fastcast!(Object) (reinterpret_cast(ms, ms.firstParam));
+  else return new PlaceholderTokenLV(ms, "mode hack");
 }
-mixin DefaultParser!(gotMode, "tree.stmt.mode", "15", "mode");
+mixin DefaultParser!(gotMode, "tree.expr.mode", "24053");
 
 Object gotPreSufFix(ref string text, bool isSuf, ParseCb cont, ParseCb rest) {
   string id;
-  if (!text.gotIdentifier(id))
-    text.failparse("Couldn't match prefix string");
+  if (isSuf) {
+    if (!text.gotIdentifier(id, false, true /* allow number */))
+      text.failparse("Couldn't match suffix string");
+  } else {
+    if (!text.gotIdentifier(id))
+      text.failparse("Couldn't match prefix string");
+  }
   
   auto backup = namespace();
   scope(exit) namespace.set(backup);
@@ -311,7 +413,8 @@ Object gotPreSufFix(ref string text, bool isSuf, ParseCb cont, ParseCb rest) {
   } else {
     ms.prefixes ~= id;
   }
-  namespace.set(ms);
+  auto that_ex = new PlaceholderTokenLV(ms, "prefix/suffix thing");
+  namespace.set(new WithStmt(that_ex));
   
   Scope sc;
   if (!rest(text, "tree.scope", &sc))
@@ -327,3 +430,13 @@ Object gotSuffix(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotPrefix, "tree.stmt.prefix", "601", "prefix");
 mixin DefaultParser!(gotSuffix, "tree.stmt.suffix", "602", "suffix");
+
+static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    auto vt = ex.valueType();
+    auto ms = fastcast!(ModeSpace) (vt);
+    if (!ms || !ms.firstParam) return null;
+    // logln("to == ", ms.firstParam.valueType(), ", from == ", ex);
+    return reinterpret_cast(ms.firstParam.valueType(), ex);
+  };
+}

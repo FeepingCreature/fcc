@@ -1,0 +1,40 @@
+module rgbcolor;
+
+struct RGBColor {
+  vec3f rgb;
+  alias implicit-cast = (rgb.x, rgb.y, rgb.z);
+  RGBColor mix(RGBColor c2) { c2.rgb = c2.rgb * 0.5 + rgb * 0.5; return c2; }
+  RGBColor vary(float delegate() randf) {
+    auto res = this;
+    res.rgb += vec3f(randf(), randf(), randf());
+    for int i <- 0..3 {
+      if (rgb[i] < 0) rgb[i] = 0;
+      if (rgb[i] > 1) rgb[i] = 1;
+    }
+    return res;
+  }
+}
+
+RGBColor x 8 colors;
+alias
+  Black = colors[0], Blue    = colors[1], Green = colors[2], Cyan  = colors[3],
+  Red   = colors[4], Magenta = colors[5], Yellow = colors[6], White = colors[7];
+void init() {
+  for int (i, j, k) <- cross((0..2) x 3)
+    colors[i*4+j*2+k].rgb = vec3f(i, j, k);
+}
+
+RGBColor hexcol(string hex) {
+  int decodeHex(char c) {
+    if ("0" <= c <= "9") return c - "0";
+    if ("a" <= c <= "f") return c - "a" + 10;
+    if ("A" <= c <= "F") return c - "A" + 10;
+    assert false;
+  }
+  float decodePair(string st) {
+    return ((decodeHex st[0]) * 16 + (decodeHex st[1])) / 255f;
+  }
+  RGBColor res;
+  res.rgb = vec3f(decodePair hex[0..2], decodePair hex[2..4], decodePair hex[4..6]);
+  return res;
+}
