@@ -73,11 +73,11 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (!len) fail("static-loop iterator length is not constant int! ");
     string t3;
     for (int i = 0; i < len.num; ++i) {
-      auto ival = iter.index(iter_expr, mkInt(i));
+      auto ival = foldex(iter.index(iter_expr, mkInt(i)));
       string t4 = t2;
       sc.field = backupfield.dup;
       string name;
-      foreach (entry; sc.field) if (auto v = fastcast!(Variable) (entry._1)) { name = entry._0; break; }
+      foreach (entry; sc.field) if (entry._0.length) if (auto v = fastcast!(Variable) (entry._1)) { name = entry._0; break; }
       sc.field = [stuple(name, fastcast!(Object) (ival))];
       sc.rebuildCache;
       pushCache; // same code is parsed multiple times - do not cache!

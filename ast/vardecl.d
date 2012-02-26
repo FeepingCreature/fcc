@@ -44,7 +44,9 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
     }
     mixin(mustOffset("var.valueType().size()"));
     if (var.baseOffset + var.type.size != -af.currentStackDepth) {
-      logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var);
+      string name; int line;
+      (fastcast!(LineNumberedStatementClass) (this)).getInfo(name, line);
+      logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at ", var.baseOffset + var.type.size, " vs. stack at ", -af.currentStackDepth, ": ", var, " at ", name, ":", line);
       foreach (elem; namespace().field) {
         if (auto var = fastcast!(Variable)~ elem._1) {
           auto csd = af.currentStackDepth;
