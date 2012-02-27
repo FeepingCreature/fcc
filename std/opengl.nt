@@ -1,8 +1,8 @@
-module opengl;
+module std.opengl;
 
 public import c.GL.gl;
 public import c.GL.glu;
-public import rgbcolor;
+public import std.opengl.rgbcolor;
 
 platform(i686-mingw32) {
   pragma(lib, "opengl32");

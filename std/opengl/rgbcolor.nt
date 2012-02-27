@@ -1,4 +1,4 @@
-module rgbcolor;
+module std.opengl.rgbcolor;
 
 struct RGBColor {
   vec3f rgb;

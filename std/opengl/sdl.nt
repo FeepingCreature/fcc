@@ -1,6 +1,6 @@
-module glsetup;
+module std.opengl.sdl;
 
-import opengl, sdl_base;
+import std.opengl, std.sdl_base;
 
 extern(C) void exit(int);
 
@@ -37,7 +37,7 @@ SDL_Surface* delegate(int, int) regenSurf;
 void update(SDL_Surface* surface) {
   swap;
   using scoped onResize:: onResize = \(int w, h) { regenSurf(w, h); resizeWindow(w, h); };
-  sdl_base.update;
+  std.sdl_base.update;
 }
 
 void swap() { SDL_GL_SwapBuffers(); }
@@ -61,4 +61,18 @@ SDL_Surface* setup-gl(int extra-flags = 0) {
     return res;
   };
   return regenSurf(640, 480);
+}
+
+void delegate() count-fps(void delegate(float) dg) {
+  import std.time;
+  auto last = sec();
+  int fps;
+  return new \{
+    auto t = sec();
+    if (t - last) > 1 {
+      last = t;
+      dg(fps);
+      fps = 0;
+    } else fps ++;
+  };
 }

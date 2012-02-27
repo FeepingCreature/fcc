@@ -1,4 +1,4 @@
-module sdl_base;
+module std.sdl_base;
 
 public import c.SDL.SDL;
 import std.string;

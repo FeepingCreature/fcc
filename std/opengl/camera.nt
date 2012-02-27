@@ -1,6 +1,6 @@
-module camera;
+module std.opengl.camera;
 
-import std.math, opengl;
+import std.math, std.opengl;
 
 interface Camera {
   void gl-setup();
