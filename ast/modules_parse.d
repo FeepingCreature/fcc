@@ -12,22 +12,65 @@ else {
 }
 
 Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
-  string m;
-  auto t2 = text;
   bool pub, stat;
-  if (t2.accept("public")) pub = true;
-  else if (t2.accept("static")) stat = true;
-  if (!t2.accept("import")) return null;
-  text = t2;
-  // import a, b, c;
-  auto mod = fastcast!(Module) (current_module());
+  {
+    auto t2 = text;
+    if (t2.accept("public")) pub = true;
+    else if (t2.accept("static")) stat = true;
+    if (!t2.accept("import")) return null;
+    text = t2;
+  }
+  auto cap = namespace().get!(Importer);
   string[] newImports;
-  if (!(
-    text.bjoin(text.gotIdentifier(m, true), text.accept(","),
-    { newImports ~= m; },
-    true) &&
-    text.accept(";")
-  )) text.failparse("Unexpected text while parsing import statement");
+  {
+    string[][] importstack; importstack ~= null;
+    auto t2 = text;
+    string m;
+    // State machines are most effectively expressed as a goto-based structure.
+    // I'm .. I'm sorry, everybody.
+    
+  expect_identifier:
+    if (!t2.gotIdentifier(m, true)) {
+      string t3 = t2;
+      // std.foo(bar,) or std.foo(,bar)
+      if (t3.accept(",") || t3.accept(")"))
+        m = "";
+      else
+        t2.failparse("Import identifier expected");
+    }
+    importstack[$-1] ~= m;
+  
+  expect_separator:
+    if (t2.accept(","))
+      goto expect_identifier;
+    if (t2.accept("(")) {
+      importstack ~= null;
+      goto expect_identifier;
+    }
+    if (t2.accept(")")) {
+      auto block = importstack[$-1];
+      importstack = importstack[0..$-1];
+      if (!importstack.length) t2.failparse("Too many closing parentheses");
+      if (!importstack[$-1].length) t2.failparse("Invalid import statement structure");
+      auto prefix = importstack[$-1][$-1];
+      importstack[$-1] = importstack[$-1][0..$-1];
+      foreach (ref entry; block) {
+        if (entry.length) entry = prefix ~ "." ~ entry;
+        else entry = prefix;
+      }
+      importstack[$-1] ~= block;
+      goto expect_separator;
+    }
+    if (importstack.length != 1)
+      t2.failparse("Not enough closing parentheses");
+    if (!t2.accept(";"))
+      t2.failparse("Terminating semicolon expected");
+    if (!importstack[$-1].length)
+      t2.failparse("Nothing is being imported");
+    
+    newImports = importstack[$-1];
+    text = t2;
+  }
   void process(Importer cap, ImportType type, Module newmod) {
     auto test = cap;
     while (test) {
