@@ -28,21 +28,29 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
     true) &&
     text.accept(";")
   )) text.failparse("Unexpected text while parsing import statement");
-  void process(ref Module[] list, Module newmod) {
-    foreach (entry; list) {
-      if (entry.name == newmod.name) t2.failparse("Duplicate import");
+  void process(Importer cap, ImportType type, Module newmod) {
+    auto test = cap;
+    while (test) {
+      Namespace[] list = test.getImports();
+      foreach (entry; list) if (auto mod = fastcast!(Module) (entry)) {
+        if (mod.name == newmod.name) text.failparse("Duplicate import");
+      }
+      bool succeed;
+      if (auto ns = fastcast!(Namespace) (test)) if (ns.sup) { test = ns.sup.get!(Importer); succeed = true; }
+      if (!succeed) test = null;
     }
-    list ~= newmod;
+    (*cap.getImportsPtr(type)) ~= newmod;
   }
   foreach (str; newImports) {
     auto newmod = lookupMod(str);
-    if (pub) process(mod.public_imports, newmod);
-    else if (stat) process(mod.static_imports, newmod);
-    else process(mod.imports, newmod);
+    if (pub) process(cap, ImportType.Public, newmod);
+    else if (stat) process(cap, ImportType.Static, newmod);
+    else process(cap, ImportType.Regular, newmod);
   }
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotImport, "tree.import");
+mixin DefaultParser!(gotImport, "tree.semicol_stmt.import", "33");
 
 Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   auto t2 = text;

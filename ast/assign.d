@@ -89,7 +89,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Could not parse assignment source");
     }
     auto t3 = t2;
-    if (t3.mystripl().length && !t3.accept(";")) {
+    if (t3.mystripl().length && !t3.acceptTerminatorSoft()) {
       t2.failparse("Unknown text after assignment! ");
     }
     

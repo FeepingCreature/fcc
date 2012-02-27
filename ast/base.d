@@ -795,3 +795,7 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode);
 interface EmittingContext {
   bool isBeingEmat();
 }
+
+enum ImportType {
+  Regular, Public, Static
+}

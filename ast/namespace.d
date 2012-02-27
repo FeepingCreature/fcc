@@ -338,3 +338,81 @@ class LengthOverride : Namespace, ScopeLike {
     }
   }
 }
+
+bool* getPtrResizing(ref bool[] array, int offs) {
+  if (array.length <= offs) array.length = offs + 1;
+  return &array[offs];
+}
+
+interface Importer {
+  Namespace[] getImports();
+  void checkImportsUsage();
+  Namespace[]* getImportsPtr(ImportType);
+  Object lookupInImports(string name, bool local);
+}
+
+extern(C) void check_imports_usage(string info, Namespace[] imports, bool[] importsUsed);
+template ImporterImpl() {
+  Namespace[] imports, public_imports, static_imports;
+  Namespace[] getImports() { return imports ~ public_imports ~ static_imports; }
+  bool[] importsUsed; // print warnings on unused imports (but NOT public ones!)
+  Namespace[]* getImportsPtr(ImportType type) {
+    switch (type) {
+      case ImportType.Regular: return &imports;
+      case ImportType.Public: return &public_imports;
+      case ImportType.Static: return &static_imports;
+    }
+  }
+  void checkImportsUsage() { check_imports_usage(name, imports, importsUsed); }
+  Object lookupInImports(string name, bool local) {
+    Object res;
+    void addres(Object obj) {
+      if (!res) { res = obj; return; }
+      auto ex = fastcast!(Extensible) (res), ex2 = fastcast!(Extensible)(obj);
+      if (ex && !ex2 || !ex && ex2) {
+        throw new Exception(Format("While looking up ", name, ": ambiguity between ",
+          res, " and ", obj, ": one is overloadable and the other isn't"));
+      }
+      if (!ex) return;
+      res = fastcast!(Object) (ex.extend(ex2));
+    }
+    void finalize() {
+      auto xt = fastcast!(Extensible) (res);
+      if (!xt) return;
+      if (auto simp = xt.simplify()) res = fastcast!(Object) (simp);
+    }
+    
+    foreach (ns; public_imports) {
+      if (auto res = ns.lookup(name, true)) {
+        addres(res);
+      }
+    }
+    
+    foreach (ns; static_imports) if (auto imod = fastcast!(IModule) (ns)) {
+      if (auto lname = name.startsWith(imod.getIdentifier()).startsWith(".")) {
+        if (auto res = ns.lookup(lname)) return res;
+      }
+    }
+    
+    if (local) { finalize; return res; }
+    
+    foreach (i, ns; imports) {
+      if (auto res = ns.lookup(name, true)) {
+        *getPtrResizing(importsUsed, i) = true;
+        addres(res);
+      }
+    }
+    
+    if (sysmod && sysmod !is this && name != "std.c.setjmp")
+      if (auto res = sysmod.lookup(name, true))
+        addres(res);
+    
+    finalize;
+    return res;
+  }
+}
+
+abstract class NamespaceImporter : Namespace, Importer {
+}
+
+NamespaceImporter sysmod;

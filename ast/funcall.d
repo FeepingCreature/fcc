@@ -1,6 +1,6 @@
 module ast.funcall;
 
-import ast.fun, ast.base, ast.vardecl, ast.aggregate, ast.structure;
+import ast.fun, ast.base, ast.vardecl, ast.aggregate, ast.structure, ast.namespace;
 
 alias ast.fun.Argument Argument;
 

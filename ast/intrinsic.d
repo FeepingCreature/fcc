@@ -544,8 +544,9 @@ void setupSysmods() {
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;
-  sysmod = fastcast!(Module) (parsecon.parse(src, "tree.module"));
-  sysmod.splitIntoSections = true;
+  auto sysmodmod = fastcast!(Module) (parsecon.parse(src, "tree.module"));
+  sysmodmod.splitIntoSections = true;
+  sysmod = sysmodmod;
 }
 
 Module[] modlist;
@@ -565,7 +566,7 @@ void finalizeSysmod(Module mainmod) {
     if (mod.name in done) continue;
     list ~= mod;
     done[mod.name] = true;
-    left ~= mod.getImports();
+    left ~= mod.getAllModuleImports();
   }
   auto modtype = fastcast!(ClassRef) (sysmod.lookup("ModuleInfo"));
   auto backup = namespace();
@@ -582,7 +583,7 @@ void finalizeSysmod(Module mainmod) {
   
   auto backupmod = current_module();
   scope(exit) current_module.set(backupmod);
-  current_module.set(sysmod);
+  current_module.set(fastcast!(IModule) (sysmod));
   
   modlist = list;
   
@@ -630,7 +631,7 @@ void finalizeSysmod(Module mainmod) {
       iparse!(Statement, "init_mod_count_var", "tree.stmt")
              (`c = 0; `, sc, "c", count)
     );
-    foreach (mod2; imps) {
+    foreach (_mod2; imps) if (auto mod2 = fastcast!(Module) (_mod2)) {
       sc.addStatement(
         iparse!(Statement, "init_mod_imports", "tree.stmt")
                (`var._imports[c++] = mod2;`, sc,

@@ -64,7 +64,7 @@ extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name);
 
-class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ScopeLike, EmittingContext {
+class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ScopeLike, EmittingContext, Importer {
   string name;
   Expr getPointer() {
     return new FunSymbol(this);
@@ -84,6 +84,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   Namespace coarseContext;
   IModule coarseModule;
   bool inEmitAsm;
+  mixin ImporterImpl!();
   override bool isBeingEmat() { return inEmitAsm; }
   void parseMe() {
     if (!coarseSrc) return;
@@ -366,7 +367,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     }
   }
   override Object lookup(string name, bool local = false) {
-    return super.lookup(name, local);
+    if (auto res = super.lookup(name, local)) return res;
+    return lookupInImports(name, local);
   }
   override Extensible extend(Extensible e2) {
     auto fun2 = fastcast!(Function) (e2);

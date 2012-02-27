@@ -74,7 +74,7 @@ void fixupMain() {
     })));
   }
   auto backupmod = current_module();
-  current_module.set(sysmod);
+  current_module.set(fastcast!(Module) (sysmod));
   scope(exit) current_module.set(backupmod);
   
   auto cmain = fastcast!(Function) (sysmod.lookup("__c_main"));

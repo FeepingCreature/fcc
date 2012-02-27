@@ -312,7 +312,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Couldn't parse variable declaration");
     }
     if (abortGracefully) return null;
-    t2.mustAccept(";", "Missed trailing semicolon");
+    t2.mustAcceptTerminatorSoft("Missed trailing semicolon");
     text = t2;
     if (sc.guards.length) fail;
     // collapse
@@ -354,7 +354,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
     vd.configPosition(text);
     sc.addStatement(vd);
     sc.add(var); // was namespace()
-    if (t2.accept(";")) break;
+    if (t2.acceptTerminatorSoft()) break;
     if (t2.accept(",")) continue;
     t2.failparse("Unexpected text in auto expr");
   }

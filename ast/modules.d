@@ -17,30 +17,37 @@ static this() {
 
 Threadpool tp;
 
-class Module : Namespace, IModule, Tree, Named, StoresDebugState, EmittingContext {
+extern(C) void check_imports_usage(string info, Namespace[] imports, bool[] importsUsed) {
+  foreach (i, ns; imports) if (auto mod = fastcast!(Module) (ns)) {
+    // importing module with constructor can be valid reason to import never-used module.
+    if (!mod.constrs.length && !*getPtrResizing(importsUsed, i))
+      logSmart!(false)("WARN:", info, ": import ", mod.name, " never used. ");
+  }
+}
+
+class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, EmittingContext {
   string name;
   string sourcefile;
   string cleaned_name() { return name.cleanup(); }
-  Module[] imports, public_imports, static_imports;
-  Module[] getImports() { return imports ~ public_imports ~ static_imports; }
-  bool[] importsUsed; // print warnings on unused imports (but NOT public ones!)
-  static bool* getPtrResizing(ref bool[] array, int offs) {
-    if (array.length <= offs) array.length = offs + 1;
-    return &array[offs];
-  }
-  void checkImportsUsage() {
-    foreach (i, mod; imports) {
-      // importing module with constructor can be valid reason to import never-used module.
-      if (!mod.constrs.length && !*getPtrResizing(importsUsed, i))
-        logSmart!(false)("WARN:", name, ": import ", mod.name, " never used. ");
-    }
-  }
+  mixin ImporterImpl!();
   Function[] constrs;
   Tree[] entries;
   Setupable[] setupable;
   bool parsingDone;
   AsmFile inProgress; // late to the party;
   bool _hasDebug = true;
+  Module[] getAllModuleImports() {
+    Module[] res;
+    foreach (ns; getImports())
+      if (auto mod = fastcast!(Module) (ns))
+        res ~= mod;
+    foreach (entry; entries)
+      if (auto imp = fastcast!(Importer) (entry))
+        foreach (ns; imp.getImports())
+          if (auto mod = fastcast!(Module) (ns))
+            res ~= mod;
+    return res;
+  }
   bool isValid; // still in the build list; set to false if superceded by a newer Module
   bool doneEmitting, alreadyEmat; // one for the parser, the other for the linker
   bool dontEmit; // purely definitions, no symbols; nothing to actually compile.
@@ -120,48 +127,7 @@ class Module : Namespace, IModule, Tree, Named, StoresDebugState, EmittingContex
       if (auto lname = name.startsWith(this.name).startsWith("."))
         if (auto res = super.lookup(lname)) return res;
       
-      Object res;
-      void addres(Object obj) {
-        if (!res) { res = obj; return; }
-        auto ex = fastcast!(Extensible) (res), ex2 = fastcast!(Extensible)(obj);
-        if (ex && !ex2 || !ex && ex2) {
-          throw new Exception(Format("While looking up ", name, ": ambiguity between ",
-            res, " and ", obj, ": one is overloadable and the other isn't"));
-        }
-        if (!ex) return;
-        res = fastcast!(Object) (ex.extend(ex2));
-      }
-      void finalize() {
-        auto xt = fastcast!(Extensible) (res);
-        if (!xt) return;
-        if (auto simp = xt.simplify()) res = fastcast!(Object) (simp);
-      }
-
-      foreach (mod; public_imports)
-        if (auto res = mod.lookup(name, true))
-          addres(res);
-      
-      foreach (mod; static_imports) {
-        if (auto lname = name.startsWith(mod.name).startsWith(".")) {
-          if (auto res = mod.lookup(lname)) return res;
-        }
-      }
-      
-      if (local) { finalize; return res; }
-      
-      foreach (i, mod; imports) {
-        if (auto res = mod.lookup(name, true)) {
-          *getPtrResizing(importsUsed, i) = true;
-          addres(res);
-        }
-      }
-      
-      if (sysmod && sysmod !is this && name != "std.c.setjmp")
-        if (auto res = sysmod.lookup(name, true))
-          addres(res);
-      
-      finalize;
-      return res;
+      return lookupInImports(name, local);
     }
     string toString() { return "module "~name; }
   }
@@ -171,8 +137,6 @@ class Module : Namespace, IModule, Tree, Named, StoresDebugState, EmittingContex
 static this() {
   registerSetupable = (Setupable s) { (fastcast!(Module) (current_module())).addSetupable(s); };
 }
-
-Module sysmod;
 
 extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace
 
@@ -212,7 +176,7 @@ Module lookupMod(string name) {
   module_stack ~= name;
   scope(exit) module_stack = module_stack[0..$-1];
   if (name == "sys") {
-    return sysmod;
+    return fastcast!(Module) (sysmod);
   }
   Module res;
   cachelock.Synchronized = {

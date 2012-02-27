@@ -560,8 +560,9 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
     mod.emitAsm(af);
     if (!ematSysmod) {
       finalizeSysmod(mod);
-      .postprocessModule(sysmod);
-      sysmod.emitAsm(af);
+      auto sysmodmod = fastcast!(Module) (sysmod);
+      .postprocessModule(sysmodmod);
+      sysmodmod.emitAsm(af);
       ematSysmod = true;
     }
   }) / 1_000_000f;
@@ -610,8 +611,8 @@ string delegate(int, int*)[] genCompilesWithDepends(string file, CompileSettings
   Module[] todo;
   auto start = lookupMod(modname);
   
-  todo ~= start.getImports();
-  todo ~= sysmod.getImports();
+  todo ~= start.getAllModuleImports();
+  todo ~= (fastcast!(Module) (sysmod)).getAllModuleImports();
   done[start.name] = true;
   dgs ~= firstObj;
   
@@ -621,7 +622,7 @@ string delegate(int, int*)[] genCompilesWithDepends(string file, CompileSettings
     if (auto nuMod = compile(cur.name.replace(".", "/") ~ EXT, cs))
       dgs ~= nuMod;
     done[cur.name] = true;
-    todo ~= cur.getImports();
+    todo ~= cur.getAllModuleImports();
   }
   return dgs;
 }
@@ -653,7 +654,7 @@ void dumpXML() {
     it.iterate(&callback);
     logln("</node>");
   }
-  foreach (mod; sysmod~modlist) {
+  foreach (mod; fastcast!(Module) (sysmod)~modlist) {
     logln("----module ", mod.name);
     mod.iterate(&callback);
     logln("----done"); 
@@ -717,8 +718,8 @@ void loop(string start,
   bool needsRebuild(Module mod) {
     if (mod.dontEmit) return false;
     if (!isUpToDate(mod)) return true;
-    foreach (imp; mod.getImports())
-      if (needsRebuild(imp)) return true;
+    foreach (mod2; mod.getAllModuleImports())
+      if (needsRebuild(mod2)) return true;
     return false;
   }
   bool pass1 = true;
