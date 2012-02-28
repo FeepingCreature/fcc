@@ -614,17 +614,29 @@ static this() {
   parsecon.addPrecedence("tree.expr.iter", "441");
 }
 
+LValue getRefExpr(Expr ex) {
+  if (auto lv = fastcast!(LValue) (ex)) return lv;
+  if (auto sae = fastcast!(StatementAndExpr) (ex)) {
+    auto lv2 = getRefExpr(sae.second);
+    if (!lv2) return null;
+    return new StatementAndLValue(sae.first, lv2);
+  }
+  return null;
+}
+
 import ast.variable, ast.assign;
 class IterLetCond(T) : Cond, NeedsConfig {
   T target;
   Expr iter;
   LValue iref;
   Expr iref_pre;
+  LValue address_target;
   this() { }
-  this(T target, Expr iter, Expr iref_pre) {
+  this(T target, Expr iter, Expr iref_pre, LValue address_target) {
     this.target = target;
     this.iter = iter;
     this.iref_pre = iref_pre;
+    this.address_target = address_target;
   }
   mixin DefaultDup!();
   mixin defaultIterate!(iter, target, iref, iref_pre);
@@ -632,7 +644,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
   override void jumpOn(AsmFile af, bool cond, string dest) {
     auto itype = fastcast!(Iterator) (resolveType(iter.valueType()));
     auto stepcond = itype.testAdvance(iref);
-    auto value = itype.currentValue(iref);
+    auto value = foldex(itype.currentValue(iref));
     auto skip = af.genLabel();
     opt(stepcond);
     if (cond) {
@@ -645,9 +657,15 @@ class IterLetCond(T) : Cond, NeedsConfig {
       auto tv = target.valueType;
       if (!gotImplicitCast(value, tv, (IType it) { return test(it == tv); }))
         fail;
-      static if (is(T: MValue))
-        (new _Assignment!(MValue) (target, value)).emitAsm(af);
-      else (new Assignment(target, value)).emitAsm(af);
+      if (address_target) {
+        auto lv = getRefExpr(value);
+        if (!lv) throw new Exception(Format("Iterator ", itype, " does not offer reference iteration: ", value));
+        (new Assignment(address_target, new RefExpr(lv))).emitAsm(af);
+      } else {
+        static if (is(T: MValue))
+          (new _Assignment!(MValue) (target, value)).emitAsm(af);
+        else (new Assignment(target, value)).emitAsm(af);
+      }
     } else {
       value.emitAsm(af);
       if (value.valueType() != Single!(Void))
@@ -664,8 +682,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
   }
 }
 
-import ast.scopes, ast.vardecl;
-
+import ast.scopes, ast.vardecl, ast.aliasing;
 Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = true)(ref string text, ParseCb cont, ParseCb rest) {
   static if (!expressionTargetAllowed)
     static assert(!withoutIteratorAllowed);
@@ -674,10 +691,15 @@ Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = t
   MValue mv;
   string newVarName; IType newVarType;
   bool needIterator;
+  bool isRefDecl;
   const string myTE = "tree.expr _tree.expr.cond >tree.expr.arith";
   if (!expressionTargetAllowed || !rest(t2, myTE, &lv, (LValue lv) { return !fastcast!(Iterator) (lv.valueType()); })) {
     if (!expressionTargetAllowed || !rest(t2, myTE, &mv, (MValue mv) { return !fastcast!(Iterator) (mv.valueType()); })) {
-      if (!t2.accept("auto") && !rest(t2, "type", &newVarType) || !t2.gotIdentifier(newVarName))
+      if (t2.accept("ref")) isRefDecl = true;
+      else if (!t2.accept("auto") && !rest(t2, "type", &newVarType))
+        goto withoutIterator;
+        
+      if (!t2.gotIdentifier(newVarName))
         goto withoutIterator;
     }
   }
@@ -721,30 +743,44 @@ withoutIterator:
   // if (!sc) throw new Exception("Bad place for an iter cond: "~Format(namespace())~"!");
   if (!sc) return null;
   
+  LValue address_target;
+  
   if (newVarName) {
     if (!newVarType) newVarType = (fastcast!(Iterator) (resolveType(iter.valueType()))).elemType();
-    auto newvar = new Variable(newVarType, newVarName, boffs(newVarType));
+    
+    Variable newvar;
+    
+    if (isRefDecl) {
+      auto ty = new Pointer(newVarType);
+      newvar = new Variable(ty, null, boffs(ty));
+      sc.add(newvar); // still need to add the variable for stackframe layout purposes
+      lv = new DerefExpr(newvar);
+      address_target = newvar;
+      sc.add(new LValueAlias(lv, newVarName));
+    } else {
+      newvar = new Variable(newVarType, newVarName, boffs(newVarType));
+      sc.add(newvar);
+      lv = newvar;
+    }
     newvar.initInit();
-    lv = newvar;
     sc.addStatement(new VarDecl(newvar));
-    sc.add(newvar);
   }
   
   Expr ex;
   if (lv) ex = lv; else ex = mv;
-  if (ex) { // yes, no-iterator iteration is possible.
+  if (ex) { // yes, no-variable iteration is possible.
     auto vt = ex.valueType(), it = fastcast!(Iterator) (resolveType(iter.valueType())), et = it.elemType();
     Expr temp = new Placeholder(fastcast!(IType)~ et);
     if (!gotImplicitCast(temp, (IType it) { return test(it == vt); })) {
-      logln(text.nextText()); 
+      logln(text.nextText());
       text.failparse("Can't iterate ", it, " (elem type ", et, "), into variable of ",  vt);
     }
   }
   
   text = t2;
   
-  if (lv) return new IterLetCond!(LValue) (lv, iter, iter);
-  else return new IterLetCond!(MValue) (mv, iter, iter);
+  if (lv) return new IterLetCond!(LValue) (lv, iter, iter, address_target);
+  else return new IterLetCond!(MValue) (mv, iter, iter, address_target);
 }
 mixin DefaultParser!(gotIterCond!(false, false), "cond.iter_very_strict", "7050");
 mixin DefaultParser!(gotIterCond!(false, true), "cond.iter_strict", "705");
