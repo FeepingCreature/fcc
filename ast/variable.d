@@ -57,6 +57,6 @@ class Variable : LValue, Named {
   mixin defaultIterate!();
   string toString() {
     if (name) return name;
-    return Format("[ var of ", type, " at ", baseOffset, initval?Format(" = ", initval):"", "]");
+    return Format("[ var of ", type, " at ", baseOffset, "]");
   }
 }
