@@ -3,7 +3,7 @@ module std.opengl.camera;
 import std.math, std.opengl;
 
 interface Camera {
-  void gl-setup();
+  void apply();
 }
 
 class PerspectiveCam : Camera {
@@ -12,7 +12,7 @@ class PerspectiveCam : Camera {
   void init() {
     args = (45f, 1f, 0.01f, 100f);
   }
-  void gl-setup() using mode GL {
+  void apply() using mode GL {
     MatrixMode PROJECTION;
     LoadIdentity;
     gluPerspective args;
@@ -29,8 +29,8 @@ template WorldCam(T) {
       (up, pos) = (vec3f.Y, vec3f(0));
       setDir -vec3f.Z;
     }
-    void gl-setup() using mode GL {
-      super.gl-setup();
+    void apply() using mode GL {
+      super.apply();
       MatrixMode MODELVIEW;
       LoadIdentity;
       auto dirz = dir;
@@ -59,8 +59,8 @@ template EgoCam(T) {
     void turn-up(float f) { turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
     alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX).normalize3f;
     alias left = vec3f.Y.cross3f(dir).normalize3f;
-    void gl-setup() using mode GL {
-      super.gl-setup();
+    void apply() using mode GL {
+      super.apply();
       MatrixMode MODELVIEW;
       LoadIdentity;
       auto dirz = dir; dirz.z = -dirz.z;
