@@ -65,8 +65,12 @@ template EgoCam(T) {
       LoadIdentity;
       auto dirz = dir; dirz.z = -dirz.z;
       auto left = vec3f.Y.cross3f(dirz).normalized, up = dirz.cross3f(left).normalized;
-      (vec3f.Y.angle3f(up, left) / PI180).Rotatef vec3f.X;
-      (vec3f.X.angle3f(left, up) / PI180).Rotatef vec3f.Y;
+      auto angle1 = vec3f.Y.angle3f(up, left) / PI180,
+           angle2 = vec3f.X.angle3f(left, up) / PI180;
+      if (angle1.is-nan()) angle1 = 0;
+      if (angle2.is-nan()) angle2 = 180;
+      Rotatef (angle1, vec3f.X);
+      Rotatef (angle2, vec3f.Y);
       Translatef (-pos);
     }
   }

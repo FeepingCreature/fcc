@@ -1,6 +1,6 @@
 module std.opengl.sdl;
 
-import std.opengl, std.sdl_base;
+import std.(opengl, sdl_base);
 
 extern(C) void exit(int);
 
