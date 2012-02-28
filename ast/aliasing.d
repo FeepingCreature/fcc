@@ -3,14 +3,13 @@ module ast.aliasing;
 import ast.base, ast.parse, ast.structure, ast.namespace,
   tools.base: This, This_fn, rmSpace;
 
-class ExprAlias : RelTransformable, Named, Expr, SelfAdding {
+class ExprAlias : RelTransformable, Named, Expr {
   Expr base;
   string name;
   mixin MyThis!("base, name");
   mixin DefaultDup!();
   mixin defaultIterate!(base);
   override {
-    bool addsSelf() { return true; }
     string getIdentifier() { return name; }
     Object transform(Expr relbase) {
       void delegate(ref Iterable) dg;
