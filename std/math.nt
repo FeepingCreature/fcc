@@ -95,9 +95,9 @@ vec3f half(vec3f a, b) return (a + b) / 2;
 Convenience wrapper*/
 vec4f half(vec4f a, b) return (a + b) / 2;
 
-/*Function: isNan
+/*Function: is-nan
 Tests if its argument is the floating-point special value NaN*/
-bool isNan(float f) {
+bool is-nan(float f) {
   int i = *int*:&f;
   return eval (i & 0x7fff_ffff) > 0x7f80_0000;
 }
