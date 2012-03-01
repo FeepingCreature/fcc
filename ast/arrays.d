@@ -287,6 +287,7 @@ Expr getArrayPtr(Expr ex) {
 
 static this() {
   defineOp("length", delegate Expr(Expr ex) {
+    ex = forcedConvert(ex);
     while (true) {
       if (auto ptr = fastcast!(Pointer) (ex.valueType()))
         ex = new DerefExpr(ex);

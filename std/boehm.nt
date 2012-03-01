@@ -60,7 +60,7 @@ platform(i686-mingw32) {
 /*Function: initBoehm
 Initialize and enable the Boehm GC*/
 void initBoehm(bool debugMode = false) {
-  (mem.malloc_dg, mem.calloc_atomic_dg, mem.calloc_dg, mem.realloc_dg, mem.free_dg)
+  mem.(malloc_dg, calloc_atomic_dg, calloc_dg, realloc_dg, free_dg)
     = [(&myMalloc,      &myCallocAtomic,      &myCalloc,      &myRealloc,      &GC_free),
        (&myDebugMalloc, &myDebugCallocAtomic, &myDebugCalloc, &myDebugRealloc, &GC_debug_free)
       ][debugMode];

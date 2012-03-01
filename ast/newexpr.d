@@ -13,7 +13,11 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto it = fastcast!(IType) (obj);
   if (!it) return null;
   auto cr = fastcast!(ClassRef) (resolveType(it));
-  if (!cr) return null;
+  if (!cr) {
+    auto ir = fastcast!(IntfRef) (resolveType(it));
+    if (ir) t2.failparse("Cannot new an interface! ");
+    return null;
+  }
   
   Expr initParam;
   rest(t2, "tree.expr _tree.expr.arith", &initParam);
