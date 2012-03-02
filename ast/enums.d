@@ -1,7 +1,9 @@
 module ast.enums;
 
 import parseBase;
-import ast.base, ast.types, ast.namespace, ast.casting, ast.math, ast.opers, ast.fold;
+import
+  ast.base, ast.types, ast.namespace, ast.casting, ast.literals,
+  ast.math, ast.opers, ast.fold, ast.fun, ast.arrays, ast.modules;
 
 class Enum : Namespace, IType, Named, ExprLikeThingy {
   string name;
@@ -15,15 +17,21 @@ class Enum : Namespace, IType, Named, ExprLikeThingy {
   string[] names;
   Expr[] values;
   void addEntry(string s, Expr e) { names ~= s; values ~= e; }
+  string getParseFunName() {
+    return mangle() ~ "_parse_fun";
+  }
   override {
     string getIdentifier() { return name; }
     int size() { return base.size(); }
-    string mangle() { return "enum_"~name; }
+    string mangle() { return sup.mangle(null, null)~"_enum_"~name; }
     ubyte[] initval() { return base.initval; }
     bool isPointerLess() { return base.isPointerLess(); }
     bool isComplete() { return true; }
     mixin TypeDefaults!(false, true);
     Object lookup(string name, bool local = false) {
+      if (name == "parse") {
+        return sup.lookup(getParseFunName());
+      }
       foreach (i, n; names)
         if (n == name)
           return fastcast!(Object) (reinterpret_cast(this, values[i]));
@@ -94,6 +102,30 @@ grabIdentifier:
     t2.failparse("Expected closing bracket");
   text = t2;
   en.sup.add(en);
+  
+  auto fun = new Function;
+  New(fun.type);
+  fun.type.ret = en;
+  fun.type.params ~= Argument(Single!(Array, Single!(Char)), "name");
+  fun.name = en.getParseFunName();
+  fun.fixup;
+  en.sup.add(fun);
+  (fastcast!(Module) (current_module())).entries ~= fun;
+  namespace.set(fun);
+  foreach (i, name2; en.names) {
+    fun.addStatement(
+      iparse!(Statement, "enum_parse_branch", "tree.stmt")
+             (`if (name == str) return enum: ex; `, fun,
+              "str", mkString(name2), "ex", en.values[i],
+              "enum", en)
+    );
+  }
+  fun.addStatement(
+    iparse!(Statement, "enum_fail_branch", "tree.stmt")
+           (`raise new Error "No such enum value in $myname: '$name'"; `, fun,
+            "myname", mkString(name))
+  );
+  
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotEnum, "tree.toplevel.enum", null, "enum");
