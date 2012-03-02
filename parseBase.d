@@ -166,6 +166,12 @@ bool acceptT(bool USECACHE)(ref string s, string t) {
 alias acceptT!(true) accept;
 alias acceptT!(false) accept_mt;
 
+bool hadABracket(string s) {
+  auto s2 = (s.ptr - 1)[0..s.length + 1];
+  if (s2.accept("}")) return true;
+  return false;
+}
+
 // statement terminator.
 // multiple semicolons can be substituted with a single one
 // and "}" counts as "};"

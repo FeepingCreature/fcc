@@ -121,6 +121,7 @@ class DependencyEntry : Tree {
   this(Dependency dep) { sup = dep; }
   mixin defaultIterate!();
   DependencyEntry dup() { return this; }
+  string toString() { return Format("<dep ", sup, ">"); }
   void emitAsm(AsmFile af) {
     sup.emitDependency(af);
   }

@@ -122,9 +122,9 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   // continuations good
   void delegate(bool=false) delegate() open(AsmFile af) {
     lnsc.emitAsm(af);
-    // logln(lnsc.name, ":", lnsc.line, ": start ", this);
+    // logln(lnsc.name, ":", lnsc.line, ": start(", count, ") ", this);
     if (emitted) {
-      logln("double emit scope. ");
+      logln("double emit scope (", count, ") ", _body);
       fail;
     }
     emitted = true;
