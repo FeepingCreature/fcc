@@ -64,373 +64,6 @@ NOTES:
         clients with more useful information about who a message is
         from without the need for additional queries.
 
-:Name COMMAND parameter list
-
---------------------------------------------------------------------------------
--- Commands: ----
----------------
-
---------------------------------------------------------------------------------
-    PASS <password>
-
-Replies:
-
-       ERR_NEEDMOREPARAMS              ERR_ALREADYREGISTRED
-
---------------------------------------------------------------------------------
-    NICK <name> [hopcount]
-
-Numeric Replies:
-
-       ERR_NONICKNAMEGIVEN             ERR_ERRONEUSNICKNAME
-       ERR_NICKNAMEINUSE               ERR_NICKCOLLISION
-
---------------------------------------------------------------------------------
-    USER <username> <hostname> <servername> <realname>
-
-Numeric Replies:
-
-       ERR_NEEDMOREPARAMS              ERR_ALREADYREGISTRED
-
---------------------------------------------------------------------------------
-    SERVER <servername> <hopcount> <info>
-
-Numeric Replies:
-
-       ERR_ALREADYREGISTRED
-
---------------------------------------------------------------------------------
-    OPER <user> <pass>
-
-Numeric Replies:
-
-       ERR_NEEDMOREPARAMS              RPL_YOUREOPER
-       ERR_NOOPERHOST                  ERR_PASSWDMISMATCH
-
---------------------------------------------------------------------------------
-    QUIT [message]
-
---------------------------------------------------------------------------------
-    SQUIT <server> <comment>
-
-Numeric replies:
-
-       ERR_NOPRIVILEGES                ERR_NOSUCHSERVER
-
---------------------------------------------------------------------------------
-    JOIN <channel>{,<channel>} [<key>{,<key>}]
-
-Numeric Replies:
-
-       ERR_NEEDMOREPARAMS              ERR_BANNEDFROMCHAN
-       ERR_INVITEONLYCHAN              ERR_BADCHANNELKEY
-       ERR_CHANNELISFULL               ERR_BADCHANMASK
-       ERR_NOSUCHCHANNEL               ERR_TOOMANYCHANNELS
-       RPL_TOPIC
-
---------------------------------------------------------------------------------
-    PART <channel>{,<channel>}
-
-Numeric Replies:
-
-       ERR_NEEDMOREPARAMS              ERR_NOSUCHCHANNEL
-       ERR_NOTONCHANNEL
-
---------------------------------------------------------------------------------
-    MODE <channel> {[+|-]|o|p|s|i|t|n|b|v} [<limit>] [<user>] [<ban mask>]
-
- o - give/take channel operator privileges;
- p - private channel flag;
- s - secret channel flag;
- i - invite-only channel flag;
- t - topic settable by channel operator only flag;
- n - no messages to channel from clients on the outside;
- m - moderated channel;
- l - set the user limit to channel;
-
---------------------------------------------------------------------------------
-    MODE <nickname> {[+|-]|i|w|s|o}
-
- i - marks a users as invisible;
- s - marks a user for receipt of server notices;
- w - user receives wallops;
- o - operator flag.
-
-Replies:
-
-       ERR_NEEDMOREPARAMS              RPL_CHANNELMODEIS
-       ERR_CHANOPRIVSNEEDED            ERR_NOSUCHNICK
-       ERR_NOTONCHANNEL                ERR_KEYSET
-       RPL_BANLIST                     RPL_ENDOFBANLIST
-       ERR_UNKNOWNMODE                 ERR_NOSUCHCHANNEL
-
-       ERR_USERSDONTMATCH              RPL_UMODEIS
-       ERR_UMODEUNKNOWNFLAG
-
---------------------------------------------------------------------------------
-    TOPIC <channel> [<topic>]
-
-Numeric Replies:
-
-       ERR_NEEDMOREPARAMS              ERR_NOTONCHANNEL
-       RPL_NOTOPIC                     RPL_TOPIC
-       ERR_CHANOPRIVSNEEDED
-
---------------------------------------------------------------------------------
-    NAMES [<channel>{,<channel>}]
-
-Numerics:
-
-       RPL_NAMREPLY                    RPL_ENDOFNAMES
-
---------------------------------------------------------------------------------
-    LIST [<channel>{,<channel>} [<server>]]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER                RPL_LISTSTART
-       RPL_LIST                        RPL_LISTEND
-
---------------------------------------------------------------------------------
-    INVITE <nickname> <channel>
-
-Numeric Replies:
-
-       ERR_NEEDMOREPARAMS              ERR_NOSUCHNICK
-       ERR_NOTONCHANNEL                ERR_USERONCHANNEL
-       ERR_CHANOPRIVSNEEDED
-       RPL_INVITING                    RPL_AWAY
-
---------------------------------------------------------------------------------
-    KICK <channel> <user> [<comment>]
-
-Numeric Replies:
-
-       ERR_NEEDMOREPARAMS              ERR_NOSUCHCHANNEL
-       ERR_BADCHANMASK                 ERR_CHANOPRIVSNEEDED
-       ERR_NOTONCHANNEL
-
---------------------------------------------------------------------------------
-    VERSION [<server>]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER                RPL_VERSION
-
---------------------------------------------------------------------------------
-    STATS [<query> [<server>]]
-
- c - returns a list of servers which the server may connect
-     to or allow connections from;
- h - returns a list of servers which are either forced to be
-     treated as leaves or allowed to act as hubs;
- i - returns a list of hosts which the server allows a client
-     to connect from;
- k - returns a list of banned username/hostname combinations
-     for that server;
- l - returns a list of the server's connections, showing how
-     long each connection has been established and the traffic
-     over that connection in bytes and messages for each
-     direction;
- m - returns a list of commands supported by the server and
-     the usage count for each if the usage count is non zero;
- o - returns a list of hosts from which normal clients may
-     become operators;
- y - show Y (Class) lines from server's configuration file;
- u - returns a string showing how long the server has been up.
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER
-       RPL_STATSCLINE                  RPL_STATSNLINE
-       RPL_STATSILINE                  RPL_STATSKLINE
-       RPL_STATSQLINE                  RPL_STATSLLINE
-       RPL_STATSLINKINFO               RPL_STATSUPTIME
-       RPL_STATSCOMMANDS               RPL_STATSOLINE
-       RPL_STATSHLINE                  RPL_ENDOFSTATS
-
---------------------------------------------------------------------------------
-    LINKS [[<remote server>] <server mask>]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER
-       RPL_LINKS                       RPL_ENDOFLINKS
-
---------------------------------------------------------------------------------
-    TIME [<server>]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER                RPL_TIME
-
---------------------------------------------------------------------------------
-    CONNECT <target server> [<port> [<remote server>]]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER                ERR_NOPRIVILEGES
-       ERR_NEEDMOREPARAMS
-
---------------------------------------------------------------------------------
-    TRACE [<server>]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER
-
-If the TRACE message is destined for another server, all intermediate
-servers must return a RPL_TRACELINK reply to indicate that the TRACE
-passed through it and where its going next.
-
-       RPL_TRACELINK
-A TRACE reply may be composed of any number of the following numeric
-replies.
-
-       RPL_TRACECONNECTING             RPL_TRACEHANDSHAKE
-       RPL_TRACEUNKNOWN                RPL_TRACEOPERATOR
-       RPL_TRACEUSER                   RPL_TRACESERVER
-       RPL_TRACESERVICE                RPL_TRACENEWTYPE
-       RPL_TRACECLASS
-
---------------------------------------------------------------------------------
-    ADMIN [<server>]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER
-       RPL_ADMINME                     RPL_ADMINLOC1
-       RPL_ADMINLOC2                   RPL_ADMINEMAIL
-
---------------------------------------------------------------------------------
-    INFO [<server>]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER
-       RPL_INFO                        RPL_ENDOFINFO
-
---------------------------------------------------------------------------------
-    PRIVMSG <receiver>{,<receiver>} <text to be sent>
-
-Numeric Replies:
-
-       ERR_NORECIPIENT                 ERR_NOTEXTTOSEND
-       ERR_CANNOTSENDTOCHAN            ERR_NOTOPLEVEL
-       ERR_WILDTOPLEVEL                ERR_TOOMANYTARGETS
-       ERR_NOSUCHNICK
-       RPL_AWAY
-
---------------------------------------------------------------------------------
-    NOTICE <nickname> <text>
-
---------------------------------------------------------------------------------
-    WHO [<name> [<o>]]
-
-If the "o" parameter is passed only operators are returned according
-to the name mask supplied.
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER
-       RPL_WHOREPLY                    RPL_ENDOFWHO
-
---------------------------------------------------------------------------------
-    WHOIS [<server>] <nickmask>[,<nickmask>[,...]]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER                ERR_NONICKNAMEGIVEN
-       RPL_WHOISUSER                   RPL_WHOISCHANNELS
-       RPL_WHOISCHANNELS               RPL_WHOISSERVER
-       RPL_AWAY                        RPL_WHOISOPERATOR
-       RPL_WHOISIDLE                   ERR_NOSUCHNICK
-       RPL_ENDOFWHOIS
-
---------------------------------------------------------------------------------
-    WHOWAS <nickname> [<count> [<server>]]
-
-Numeric Replies:
-
-       ERR_NONICKNAMEGIVEN             ERR_WASNOSUCHNICK
-       RPL_WHOWASUSER                  RPL_WHOISSERVER
-       RPL_ENDOFWHOWAS
-
---------------------------------------------------------------------------------
-    KILL <nickname> <comment>
-
-Numeric Replies:
-
-       ERR_NOPRIVILEGES                ERR_NEEDMOREPARAMS
-       ERR_NOSUCHNICK                  ERR_CANTKILLSERVER
-
---------------------------------------------------------------------------------
-    PING <server1> [<server2>]
-
-Numeric Replies:
-
-       ERR_NOORIGIN                    ERR_NOSUCHSERVER
-
---------------------------------------------------------------------------------
-    PONG <daemon> [<daemon2>]
-
-Numeric Replies:
-
-       ERR_NOORIGIN                    ERR_NOSUCHSERVER
-
---------------------------------------------------------------------------------
-    ERROR <message>
-
---------------------------------------------------------------------------------
-    AWAY [message]
-
-Numeric Replies:
-
-       RPL_UNAWAY                      RPL_NOWAWAY
-
---------------------------------------------------------------------------------
-    REHASH
-
-Numeric Replies:
-
-    RPL_REHASHING                   ERR_NOPRIVILEGES
-
---------------------------------------------------------------------------------
-    RESTART
-
-Numeric Replies:
-
-       ERR_NOPRIVILEGES
-
---------------------------------------------------------------------------------
-    SUMMON <user> [<server>]
-
-Numeric Replies:
-
-       ERR_NORECIPIENT                 ERR_FILEERROR
-       ERR_NOLOGIN                     ERR_NOSUCHSERVER
-       RPL_SUMMONING
-
---------------------------------------------------------------------------------
-    USERS [<server>]
-
-Numeric Replies:
-
-       ERR_NOSUCHSERVER                ERR_FILEERROR
-       RPL_USERSSTART                  RPL_USERS
-       RPL_NOUSERS                     RPL_ENDOFUSERS
-       ERR_USERSDISABLED
-
-Disabled Reply:
-
-       ERR_USERSDISABLED
-
---------------------------------------------------------------------------------
-    WALLOPS <message>
-
-Numeric Replies:
-
-       ERR_NEEDMOREPARAMS
 */
 
 
@@ -531,158 +164,178 @@ enum Command {
 Contains all of the IRC reply numerics specified in <https://tools.ietf.org/html/rfc1459#section-6> */
 enum Reply {
 
-  // 5xx
+  // client-server
+  RPL_WELCOME = 001,
+  RPL_YOURHOST = 002,
+  RPL_CREATED = 003,
+  RPL_MYINFO = 004,
+  RPL_BOUNCE = 005,
   
-  ERR_UMODEUNKNOWNFLAG=501, 
-  ERR_USERSDONTMATCH=502, 
+  // replies
+  RPL_USERHOST = 302,
+  RPL_ISON = 303,
+  RPL_AWAY = 301,
+  RPL_UNAWAY = 305,
+  RPL_NOWAWAY = 306,
+  RPL_WHOISUSER = 311,
+  RPL_WHOISSERVER = 312,
+  RPL_WHOISOPERATOR = 313,
+  RPL_WHOISIDLE = 317,
+  RPL_ENDOFWHOIS = 318,
+  RPL_WHOISCHANNELS = 319,
+  RPL_WHOWASUSER = 314,
+  RPL_ENDOFWHOWAS = 369,
+  RPL_LISTSTART = 321,
+  RPL_LIST = 322,
+  RPL_LISTEND = 323,
+  RPL_UNIQOPIS = 325,
+  RPL_CHANNELMODEIS = 324,
+  RPL_NOTOPIC = 331,
+  RPL_TOPIC = 332,
+  RPL_INVITING = 341,
+  RPL_SUMMONING = 342,
+  RPL_INVITELIST = 346,
+  RPL_ENDOFINVITELIST = 347,
+  RPL_EXCEPTLIST = 348,
+  RPL_ENDOFEXCEPTLIST = 349,
+  RPL_VERSION = 351,
+  RPL_WHOREPLY = 352,
+  RPL_ENDOFWHO = 315,
+  RPL_NAMREPLY = 353,
+  RPL_ENDOFNAMES = 366,
+  RPL_LINKS = 364,
+  RPL_ENDOFLINKS = 365,
+  RPL_BANLIST = 367,
+  RPL_ENDOFBANLIST = 368,
+  RPL_INFO = 371,
+  RPL_ENDOFINFO = 374,
+  RPL_MOTDSTART = 375,
+  RPL_MOTD = 372,
+  RPL_ENDOFMOTD = 376,
+  RPL_YOUREOPER = 381,
+  RPL_REHASHING = 382,
+  RPL_YOURESERVICE = 383,
+  RPL_TIME = 391,
+  RPL_USERSSTART = 392,
+  RPL_USERS = 393,
+  RPL_ENDOFUSERS = 394,
+  RPL_NOUSERS = 395,
   
-  // 4xx
-  
-  ERR_NOSUCHNICK=401, 
-  ERR_NOSUCHSERVER=402, 
-  ERR_NOSUCHCHANNEL=403, 
-  ERR_CANNOTSENDTOCHAN=404, 
-  ERR_TOOMANYCHANNELS=405, 
-  ERR_WASNOSUCHNICK=406, 
-  ERR_TOOMANYTARGETS=407, 
-  ERR_NOORIGIN=409, 
-  ERR_NORECIPIENT=411, 
-  ERR_NOTEXTTOSEND=412, 
-  ERR_NOTOPLEVEL=413, 
-  ERR_WILDTOPLEVEL=414, 
-  ERR_UNKNOWNCOMMAND=421, 
-  ERR_NOMOTD=422, 
-  ERR_NOADMININFO=423, 
-  ERR_FILEERROR=424, 
-  ERR_NONICKNAMEGIVEN=431, 
-  ERR_ERRONEUSNICKNAME=432, 
-  ERR_NICKNAMEINUSE=433, 
-  ERR_NICKCOLLISION=436, 
-  ERR_USERNOTINCHANNEL=441, 
-  ERR_NOTONCHANNEL=442, 
-  ERR_USERONCHANNEL=443, 
-  ERR_NOLOGIN=444, 
-  ERR_SUMMONDISABLED=445, 
-  ERR_USERSDISABLED=446, 
-  ERR_NOTREGISTERED=451, 
-  ERR_NEEDMOREPARAMS=461, 
-  ERR_ALREADYREGISTRED=462, 
-  ERR_NOPERMFORHOST=463, 
-  ERR_PASSWDMISMATCH=464, 
-  ERR_YOUREBANNEDCREEP=465, 
-  ERR_KEYSET=467, 
-  ERR_CHANNELISFULL=471, 
-  ERR_UNKNOWNMODE=472, 
-  ERR_INVITEONLYCHAN=473, 
-  ERR_BANNEDFROMCHAN=474, 
-  ERR_BADCHANNELKEY=475, 
-  ERR_NOPRIVILEGES=481, 
-  ERR_CHANOPRIVSNEEDED=482, 
-  ERR_CANTKILLSERVER=483, 
-  ERR_NOOPERHOST=491, 
-  
-  // 3xx
-  
-  RPL_NONE=300, 
-  RPL_USERHOST=302, 
-  RPL_ISON=303, 
-  RPL_AWAY=301, 
-  RPL_UNAWAY=305, 
-  RPL_NOWAWAY=306, 
-  RPL_WHOISUSER=311, 
-  RPL_WHOISSERVER=312, 
-  RPL_WHOISOPERATOR=313, 
-  RPL_WHOISIDLE=317, 
-  RPL_ENDOFWHOIS=318, 
-  RPL_WHOISCHANNELS=319, 
-  RPL_WHOWASUSER=314, 
-  RPL_ENDOFWHOWAS=369, 
-  RPL_LISTSTART=321, 
-  RPL_LIST=322, 
-  RPL_LISTEND=323, 
-  RPL_CHANNELMODEIS=324, 
-  RPL_NOTOPIC=331, 
-  RPL_TOPIC=332, 
-  RPL_INVITING=341, 
-  RPL_SUMMONING=342, 
-  RPL_VERSION=351, 
-  RPL_WHOREPLY=352, 
-  RPL_ENDOFWHO=315, 
-  RPL_NAMREPLY=353, 
-  RPL_ENDOFNAMES=366, 
-  RPL_LINKS=364, 
-  RPL_ENDOFLINKS=365, 
-  RPL_BANLIST=367, 
-  RPL_ENDOFBANLIST=368, 
-  RPL_INFO=371, 
-  RPL_ENDOFINFO=374, 
-  RPL_MOTDSTART=375, 
-  RPL_MOTD=372, 
-  RPL_ENDOFMOTD=376, 
-  RPL_YOUREOPER=381, 
-  RPL_REHASHING=382, 
-  RPL_TIME=391, 
-  RPL_USERSSTART=392, 
-  RPL_USERS=393, 
-  RPL_ENDOFUSERS=394, 
-  RPL_NOUSERS=395,
-
-  // 2xx
-  
-  RPL_TRACELINK=200, 
-  RPL_TRACECONNECTING=201, 
-  RPL_TRACEHANDSHAKE=202, 
-  RPL_TRACEUNKNOWN=203, 
-  RPL_TRACEOPERATOR=204, 
-  RPL_TRACEUSER=205,
-  RPL_TRACESERVER=206, 
-  RPL_TRACENEWTYPE=208, 
-  RPL_TRACELOG=261, 
-  RPL_STATSLINKINFO=211, 
-  RPL_STATSCOMMANDS=212, 
-  RPL_STATSCLINE=213, 
-  RPL_STATSNLINE=214, 
-  RPL_STATSILINE=215, 
-  RPL_STATSKLINE=216, 
-  RPL_STATSYLINE=218, 
-  RPL_ENDOFSTATS=219, 
-  RPL_STATSLLINE=241, 
-  RPL_STATSUPTIME=242, 
-  RPL_STATSOLINE=243, 
-  RPL_STATSHLINE=244, 
-  RPL_UMODEIS=221, 
-  RPL_LUSERCLIENT=251, 
-  RPL_LUSEROP=252, 
-  RPL_LUSERUNKNOWN=253, 
-  RPL_LUSERCHANNELS=254, 
-  RPL_LUSERME=255, 
-  RPL_ADMINME=256, 
-  RPL_ADMINLOC=257,
-  RPL_ADMINLOC=258,
-  RPL_ADMINEMAIL=259,
-
-  // reserved
-  
+  // replies
+  RPL_TRACELINK = 200,
+  RPL_TRACECONNECTING = 201,
+  RPL_TRACEHANDSHAKE = 202,
+  RPL_TRACEUNKNOWN = 203,
+  RPL_TRACEOPERATOR = 204,
+  RPL_TRACEUSER = 205,
+  RPL_TRACESERVER = 206,
+  RPL_TRACESERVICE = 207,
+  RPL_TRACENEWTYPE = 208,
   RPL_TRACECLASS = 209,
-  RPL_STATSQLINE = 217,
+  RPL_TRACERECONNECT = 210,
+  RPL_TRACELOG = 261,
+  RPL_TRACEEND = 262,
+  RPL_STATSLINKINFO = 211,
+  RPL_STATSCOMMANDS = 212,
+  RPL_ENDOFSTATS = 219,
+  RPL_STATSUPTIME = 242,
+  RPL_STATSOLINE = 243,
+  RPL_UMODEIS = 221,
+  RPL_SERVLIST = 234,
+  RPL_SERVLISTEND = 235,
+  RPL_LUSERCLIENT = 251,
+  RPL_LUSEROP = 252,
+  RPL_LUSERUNKNOWN = 253,
+  RPL_LUSERCHANNELS = 254,
+  RPL_LUSERME = 255,
+  RPL_ADMINME = 256,
+  RPL_ADMINLOC1 = 257,
+  RPL_ADMINLOC2 = 258,
+  RPL_ADMINEMAIL = 259,
+  RPL_TRYAGAIN = 263,
+  
+  // errors
+  ERR_NOSUCHNICK = 401,
+  ERR_NOSUCHSERVER = 402,
+  ERR_NOSUCHCHANNEL = 403,
+  ERR_CANNOTSENDTOCHAN = 404,
+  ERR_TOOMANYCHANNELS = 405,
+  ERR_WASNOSUCHNICK = 406,
+  ERR_TOOMANYTARGETS = 407,
+  ERR_NOSUCHSERVICE = 408,
+  ERR_NOORIGIN = 409,
+  ERR_NORECIPIENT = 411,
+  ERR_NOTEXTTOSEND = 412,
+  ERR_NOTOPLEVEL = 413,
+  ERR_WILDTOPLEVEL = 414,
+  ERR_BADMASK = 415,
+  ERR_UNKNOWNCOMMAND = 421,
+  ERR_NOMOTD = 422,
+  ERR_NOADMININFO = 423,
+  ERR_FILEERROR = 424,
+  ERR_NONICKNAMEGIVEN = 431,
+  ERR_ERRONEUSNICKNAME = 432,
+  ERR_NICKNAMEINUSE = 433,
+  ERR_NICKCOLLISION = 436,
+  ERR_UNAVAILRESOURCE = 437,
+  ERR_USERNOTINCHANNEL = 441,
+  ERR_NOTONCHANNEL = 442,
+  ERR_USERONCHANNEL = 443,
+  ERR_NOLOGIN = 444,
+  ERR_SUMMONDISABLED = 445,
+  ERR_USERSDISABLED = 446,
+  ERR_NOTREGISTERED = 451,
+  ERR_NEEDMOREPARAMS = 461,
+  ERR_ALREADYREGISTRED = 462,
+  ERR_NOPERMFORHOST = 463,
+  ERR_PASSWDMISMATCH = 464,
+  ERR_YOUREBANNEDCREEP = 465,
+  ERR_YOUWILLBEBANNED = 466,
+  ERR_KEYSET = 467,
+  ERR_CHANNELISFULL = 471,
+  ERR_UNKNOWNMODE = 472,
+  ERR_INVITEONLYCHAN = 473,
+  ERR_BANNEDFROMCHAN = 474,
+  ERR_BADCHANNELKEY = 475,
+  ERR_BADCHANMASK = 476,
+  ERR_NOCHANMODES = 477,
+  ERR_BANLISTFULL = 478,
+  ERR_NOPRIVILEGES = 481,
+  ERR_CHANOPRIVSNEEDED = 482,
+  ERR_CANTKILLSERVER = 483,
+  ERR_RESTRICTED = 484,
+  ERR_UNIQOPPRIVSNEEDED = 485,
+  ERR_NOOPERHOST = 491,
+  
+  // errors
+  ERR_UMODEUNKNOWNFLAG = 501,
+  ERR_USERSDONTMATCH = 502,
+  
+  // reserved
   RPL_SERVICEINFO = 231,
   RPL_ENDOFSERVICES = 232,
   RPL_SERVICE = 233,
-  RPL_SERVLIST = 234,
-  RPL_SERVLISTEND = 235,
+  RPL_NONE = 300,
   RPL_WHOISCHANOP = 316,
   RPL_KILLDONE = 361,
   RPL_CLOSING = 362,
   RPL_CLOSEEND = 363,
   RPL_INFOSTART = 373,
   RPL_MYPORTIS = 384,
-  ERR_YOUWILLBEBANNED = 466,
-  ERR_BADCHANMASK = 476,
-  ERR_NOSERVICEHOST = 492,
-
-  // other
-  
-  RPL_WELCOME = 001
+  RPL_STATSCLINE = 213,
+  RPL_STATSNLINE = 214,
+  RPL_STATSILINE = 215,
+  RPL_STATSKLINE = 216,
+  RPL_STATSQLINE = 217,
+  RPL_STATSYLINE = 218,
+  RPL_STATSVLINE = 240,
+  RPL_STATSLLINE = 241,
+  RPL_STATSHLINE = 244,
+  RPL_STATSSLINE = 244,
+  RPL_STATSPING = 246,
+  RPL_STATSBLINE = 247,
+  RPL_STATSDLINE = 250,
+  ERR_NOSERVICEHOST = 492
 
 }
 
@@ -694,8 +347,12 @@ class Server {
   string address;
   User me;
   string motd;
+  bool connected;
+  string[auto~] buf;
   void delegate(User,string[])[auto~] callbacks;
+  void delegate(User,Reply,string[]) onCallback;
   void delegate(User,string[])[auto~] commands;
+  void delegate(User,Command,string[]) onCommand;
   
   void setCallback(Reply r, void delegate(User,string[]) dg) {
     if r<callbacks.length
@@ -716,6 +373,14 @@ class Server {
     }
   }
   
+  void _welcomeCallback(User u, string[] args) {
+    connected = true;
+    for auto l <- buf
+      sendCommand l;
+    buf.free;
+    buf = null;
+  }
+  
   void _appendMotdCallback(User u, string[] motdline) {
     motd ~= motdline[1] ~ "\n";
   }
@@ -723,7 +388,7 @@ class Server {
   void _pong (User u, string[] args) {
     string s = std.string.join(args," ");
     //writeln "PONG $s";
-    sendCommand "PONG $s";
+    sendCommand("PONG :$s",=>force);
   }
   
   void _nickUsed (User u, string[] args) {
@@ -735,18 +400,20 @@ class Server {
     //writeln "connect($host, $(short:port))";
     sock = connect(host, short:port);
     iter = (castIter!string readsocket sock).splitAt "\n";
-    sendCommand "NICK $nick";
-    sendCommand "USER $user $identd $host :$realname";
+    sendCommand("NICK $nick",=>force);
+    sendCommand("USER $user $identd $host :$realname",=>force);
     address = "$host:$port";
     me.nick = nick;
     me.user = user;
     me.host = identd;
     if pass
-      sendCommand "PASS $pass";
+      sendCommand("PASS $pass",=>force);
     
     motd = "";
     
     setCommand(Command.PING, &_pong);
+    
+    setCallback(Reply.RPL_WELCOME, &_welcomeCallback);
     
     setCallback(Reply.RPL_MOTD, &_appendMotdCallback);
     
@@ -789,9 +456,11 @@ class Server {
       
       auto r = atoi command;
       //writeln "Command $command, args $(args[])";
-      if r && r<callbacks.length
-        callbacks[r]?(user,args[]);
-      else if !r {
+      if r {
+        onCallback?(user,Reply:r,args[]);
+        if r<callbacks.length
+          callbacks[r]?(user,args[]);
+      } else if !r {
         Command command2;
       
         // string s = "PASS, NICK, USER, SERVER, OPER, QUIT, SQUIT, JOIN, PART, MODE, TOPIC, NAMES, LIST, INVITE, KICK, VERSION, STATS, LINKS, TIME, CONNECT, TRACE, ADMIN, INFO, PRIVMSG, NOTICE, WHO, WHOIS, WHOWAS, KILL, PING, PONG, ERROR, AWAY, REHASH, RESTART, SUMMON, WALLOPS,  USERHOST, ISON";
@@ -840,6 +509,7 @@ class Server {
         
         if !command2
           raise new Error "Command $command is non-standard!";
+        onCommand?(user,command2,args[]);
         if command2 < commands.length
           commands[command2]?(user,args[]);
       }
@@ -852,7 +522,11 @@ class Server {
     return buf;
   }
   
-  void sendCommand(string s) {
+  void sendCommand(string s, bool force = false) {
+    if !connected && !force {
+      buf ~= s;
+      return;
+    }
     writeln "$(address) << $s";
     sock.sendAll byte[]:(s~"\r\n");
   }
@@ -879,8 +553,16 @@ class Server {
         sendCommand "PRIVMSG $chan :$(l[i..min(i+max,l.length)])";
   }
   
+  void notice (string chan, string message) {
+    int max = 501 - chan.length; // max is 512, "NOTICE " is 7, " :" is 2, "\r\n" is 2, thus 501 minus channel length.
+    int min(int a, int b) {if a<b return a; else return b;}
+    for auto l <- message.split "\n"
+      for (int i = 0; i<l.length; i+=max)
+        sendCommand "NOTICE $chan :$(l[i..min(i+max,l.length)])";
+  }
+  
   void nick (string n) {
-    sendCommand "NICK $n";
+    sendCommand("NICK $n",=>force);
     me.nick = n;
   }
   

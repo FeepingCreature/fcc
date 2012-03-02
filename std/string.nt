@@ -302,12 +302,13 @@ platform(!i686-mingw32) {
   extern(C) int asprintf(char** strp, char* fmt, ...);
 }
 string toString(int i, int base = 10) {
+  import std.math;
   if base == 2 {
     string a;
-    for (int i=31;i>=0;i--)
-      a="$a$(ini>>i & 1)";
+    for (int j=31;j>=0;j--)
+      a="$a$(i>>j & 1)";
     a=a.stripBeginning "0";
-    return ["","-"][neg]~a;
+    return ["","-"][i>0]~a;
   }
   if base == 10
     return "$i";
@@ -318,14 +319,16 @@ string toString(int i, int base = 10) {
       return CToString a;
     }
   }
+  string nums="0123456789abcdefghijklmnopqrstuvwxyz";
   string a;
-  a="$(nums[ini%base])";
-  for (int p=2; ini>int:pow(base,p-1); p++)
-    a="$(nums[(ini%int:pow(base,p) - ini%int:pow(base,p-1))/int:pow(base,p-1)])$a";
-  return ["","-"][neg]~a;
+  a="$(nums[i%base])";
+  for (int p=2; i>int:pow(base,p-1); p++)
+    a="$(nums[(i%int:pow(base,p) - i%int:pow(base,p-1))/int:pow(base,p-1)])$a";
+  return ["","-"][i>0]~a;
 }
 
 int toInt(string str, int base=10) {
+  import std.math;
   if base==10
     return atoi(str);
   if base>36
