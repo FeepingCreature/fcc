@@ -1,11 +1,33 @@
 module ast.loops;
 
-import ast.base, ast.scopes, ast.vardecl, ast.conditionals, ast.parse;
+import ast.base, ast.scopes, ast.vardecl, ast.conditionals, ast.parse, ast.fun;
 import ast.iterator, ast.int_literal, ast.fold, ast.tuples, ast.tuple_access;
 
 // TODO: come up with a way to emit guards for a jump. this is necessary for continue/break to work correctly.
 
-class WhileStatement : Statement {
+interface Breakable {
+  Stuple!(string, int) getContinueLabel();
+  Stuple!(string, int) getBreakLabel();
+  Statement[] getOutsideGuards(); // guards at the point of exit; ie. break
+  Statement[] getInsideGuards(); // guards at the point of loop end; ie. continue
+}
+
+TLS!(Stuple!(Breakable, Function)) breakable_context;
+static this() { New(breakable_context); }
+
+template DefaultBreakableImpl() {
+  string chosenContinueLabel, chosenBreakLabel;
+  int continueDepth, breakDepth;
+  Statement[] outsideGuards, insideGuards;
+  override {
+    Stuple!(string, int) getContinueLabel() { return stuple(chosenContinueLabel, continueDepth); }
+    Stuple!(string, int) getBreakLabel() { return stuple(chosenBreakLabel, breakDepth); }
+    Statement[] getOutsideGuards() { return outsideGuards; }
+    Statement[] getInsideGuards() { return insideGuards; }
+  }
+}
+
+class WhileStatement : Statement, Breakable {
   Scope _body;
   Cond cond;
   Scope sup;
@@ -17,16 +39,22 @@ class WhileStatement : Statement {
     return res;
   }
   mixin defaultIterate!(cond, _body);
-  override void emitAsm(AsmFile af) {
-    auto start = af.genLabel(), done = af.genLabel();
-    af.emitLabel(start, !keepRegs, !isForward);
-    cond.jumpOn(af, false, done);
-    _body.emitAsm(af);
-    // TODO: rerun cond? check complexity?
-    af.jump(start);
-    af.emitLabel(done, !keepRegs, isForward);
+  mixin DefaultBreakableImpl!();
+  override {
+    void emitAsm(AsmFile af) {
+      auto start = af.genLabel(), done = af.genLabel();
+      continueDepth = breakDepth = af.currentStackDepth;
+      chosenContinueLabel = start;
+      chosenBreakLabel = done;
+      af.emitLabel(start, !keepRegs, !isForward);
+      cond.jumpOn(af, false, done);
+      _body.emitAsm(af);
+      // TODO: rerun cond? check complexity?
+      af.jump(start);
+      af.emitLabel(done, !keepRegs, isForward);
+    }
+    string toString() { return Format("while(", cond, ") { ", _body._body, "}"); }
   }
-  override string toString() { return Format("while(", cond, ") { ", _body._body, "}"); }
 }
 
 import ast.aggregate;
@@ -43,6 +71,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   auto ws = new WhileStatement;
   auto sc = new Scope;
+  ws.outsideGuards = sc.getGuards();
   sc.configPosition (t2);
   ws.sup = sc;
   namespace.set(sc);
@@ -52,6 +81,12 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't parse while cond");
   }
   configure(ws.cond);
+  ws.insideGuards = sc.getGuards();
+  
+  auto brbackup = *breakable_context.ptr();
+  *breakable_context.ptr() = stuple(fastcast!(Breakable)(ws), sc.get!(Function));
+  scope(exit) *breakable_context.ptr() = brbackup;
+  
   if (isStatic) {
     auto aggr = fastcast!(AggrStatement)(sc._body);
     if (!aggr) fail(Format("Malformed static while: ", sc._body));
@@ -106,23 +141,32 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141");
 
 import tools.log;
-class ForStatement : Statement {
+class ForStatement : Statement, Breakable {
   Statement decl;
   Cond cond;
   Statement step;
   Scope _body;
   mixin DefaultDup!();
+  mixin DefaultBreakableImpl!();
   mixin defaultIterate!(decl, cond, step, _body);
   override void emitAsm(AsmFile af) {
     auto backup = af.checkptStack();
     scope(exit)
       af.restoreCheckptStack(backup);
+    
     // logln("start depth is ", af.currentStackDepth);
     decl.emitAsm(af);
-    auto start = af.genLabel(), done = af.genLabel();
+    
+    continueDepth = breakDepth = af.currentStackDepth;
+    
+    auto start = af.genLabel(), done = af.genLabel(), cont = af.genLabel();
+    chosenContinueLabel = cont;
+    chosenBreakLabel = done;
+    
     af.emitLabel(start, !keepRegs, !isForward);
     cond.jumpOn(af, false, done);
     _body.emitAsm(af);
+    af.emitLabel(cont, !keepRegs, isForward);
     step.emitAsm(af);
     af.jump(start);
     af.emitLabel(done, !keepRegs, isForward);
@@ -134,16 +178,26 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("(")) return null;
   auto fs = new ForStatement, check = namespace().getCheckpt();
+  auto sl = namespace().get!(ScopeLike);
+  fs.outsideGuards = sl.getGuards();
   if (rest(t2, "tree.stmt.vardecl", &fs.decl) &&
       rest(t2, "cond", &fs.cond) && (configure(fs.cond), true) && t2.accept(";") &&
-      rest(t2, "tree.semicol_stmt", &fs.step) && t2.accept(")") &&
-      rest(t2, "tree.scope", &fs._body)
+      rest(t2, "tree.semicol_stmt", &fs.step) && t2.accept(")")
     )
   {
+    fs.insideGuards = sl.getGuards();
+    
+    auto brbackup = *breakable_context.ptr();
+    *breakable_context.ptr() = stuple(fastcast!(Breakable)(fs), namespace().get!(Function));
+    scope(exit) *breakable_context.ptr() = brbackup;
+    
+    if (!rest(t2, "tree.scope", &fs._body))
+      t2.failparse("Failed to parse 'for' body");
+    
     text = t2;
     namespace().setCheckpt(check);
     return fs;
-  } else t2.failparse("Failed to parse for statement");
+  } else t2.failparse("Failed to parse 'for' statement");
 }
 mixin DefaultParser!(gotForStmt, "tree.stmt.for", "142", "for");
 
@@ -193,3 +247,57 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   return sc;
 }
 mixin DefaultParser!(gotDoWhileExtStmt, "tree.stmt.do_while_ext", "143", "do");
+
+class ExecGuardsAndJump : Statement {
+  Statement[] guards;
+  int[] offsets;
+  bool modeContinue;
+  Breakable brk;
+  mixin defaultIterate!();
+  mixin MyThis!("guards, offsets, modeContinue, brk");
+  override {
+    ExecGuardsAndJump dup() {
+      return this; // no mutable parts, no iteration
+    }
+    void emitAsm(AsmFile af) {
+      auto depth = af.checkptStack();
+      // reset the stack so we can emit regular scope guards after us;
+      // despite the utter pointlessness of cleaning up after an unconditional jump,
+      // appearances must be honoured.
+      // the optimizer can remove all that crud anyway.
+      scope(success) af.restoreCheckptStack(depth, true);
+      
+      string targetlabel; int targetdepth;
+      ptuple(targetlabel, targetdepth) = modeContinue?brk.getContinueLabel():brk.getBreakLabel();
+      foreach_reverse (i, stmt; guards) {
+        auto delta = af.currentStackDepth - offsets[i];
+        if (delta) {
+          af.restoreCheckptStack(offsets[i]);
+        }
+        // justification for dup see class ReturnStmt in ast.returns
+        stmt.dup().emitAsm(af);
+      }
+      af.restoreCheckptStack(targetdepth);
+      af.jump(targetlabel);
+    }
+  }
+}
+
+Object gotContinueOrBreak(bool gotContinue)(ref string text, ParseCb cont, ParseCb rest) {
+  auto brc = *breakable_context.ptr();
+  auto fun = namespace().get!(Function);
+  if (fun !is brc._1 || !brc._0)
+    text.failparse("No continue-capable context found!");
+  auto sl = namespace().get!(ScopeLike);
+  auto guards = sl.getGuards();
+  auto guards2 = gotContinue?brc._0.getInsideGuards():brc._0.getOutsideGuards();
+  if (guards2.length > guards.length)
+    text.failparse("Invalid guard structure: ", guards, " vs. ", guards2);
+  foreach (i, guard; guards2)
+    if (guard !is guards2[i])
+      text.failparse("Invalid guard structure: ", guards, " vs. ", guards2, " at ", i);
+  auto gos = sl.getGuardOffsets();
+  return new ExecGuardsAndJump(guards[guards2.length .. $], gos[guards2.length .. $], gotContinue, brc._0);
+}
+mixin DefaultParser!(gotContinueOrBreak!(true), "tree.semicol_stmt.continue", "341", "continue");
+mixin DefaultParser!(gotContinueOrBreak!(false), "tree.semicol_stmt.break", "342", "break");
