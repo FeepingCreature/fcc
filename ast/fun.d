@@ -552,8 +552,8 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     else name = "(nil)";
     
     ret = resolveType(ret);
-    assert(ret.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret,
-      Format("Return bug: ", ret, " from ", name, ": ",
+    if (!(ret.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret))
+      throw new Exception(Format("Return bug: ", ret, " from ", name, ": ",
       ret.size, " is ", (fastcast!(Object)~ ret).classinfo.name));
     af.comment("Begin call to ", name);
     

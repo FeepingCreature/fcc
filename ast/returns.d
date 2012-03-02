@@ -146,6 +146,8 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   if (!fun.type.ret) fun.type.ret = Single!(Void);
+  else if (fun.type.ret.size > 16)
+    text.failparse("Return type cannot be larger than 16 bytes! ");
   
   if (Single!(Void) == fun.type.ret)
     return rs; // permit no-expr
