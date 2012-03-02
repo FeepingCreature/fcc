@@ -148,8 +148,12 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                      "var", cmvar);
   assert(!!ifs.test);
   configure(ifs.test);
-  if (!rest(t2, "tree.scope", &ifs.branch1))
-    t2.failparse("Couldn't get cond_exit branch");
+  if (t2.accept(";")) {
+    ifs.branch1 = new NoOp;
+  } else {
+    if (!rest(t2, "tree.scope", &ifs.branch1))
+      t2.failparse("Couldn't get cond_exit branch");
+  }
   text = t2;
   return ifs;
 }
