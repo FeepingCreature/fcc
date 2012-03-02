@@ -771,6 +771,10 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       t2.gotParlist(_params, rest) || shortform
     )
   {
+    if (ret) {
+      auto sz = ret.size();
+      if (sz > 16) t3.failparse("Return type must not be >16 bytes");
+    }
     static if (is(typeof(_fun()))) auto fun = _fun();
     else auto fun = _fun;
     New(fun.type);
