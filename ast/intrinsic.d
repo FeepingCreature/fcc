@@ -261,6 +261,11 @@ void setupSysmods() {
       _Handler* old_hdl;
       _CondMarker* prev;
       jmp_buf target;
+      string param_id;
+      bool accepts(Object obj) {
+        if (!param_id.length) return !obj;
+        else return !!obj?.dynamicCastTo param_id;
+      }
       void jump() {
         if (!guard_id.fun) {
           while _record { _record.dg(); _record = _record.prev; }
@@ -277,6 +282,8 @@ void setupSysmods() {
         longjmp (&target, 1);
       }
     }
+    
+    Object handler-argument-variable;
     
     _CondMarker* _lookupCM(string s, _Handler* h, bool needsResult) {
       // writeln "look up condition marker for $s";

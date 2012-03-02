@@ -27,7 +27,7 @@ class ReturnStmt : Statement {
             logln("WARN this may break");
           } else af.restoreCheckptStack(guard_offsets[i]);
         }
-        // dup because we know this is safe for multi-emit; it may get emitted multiple times, but it will only get called once.
+        // dup because we know this is safe for multi-emit; it may get emat multiple times, but it will only get called once.
         stmt.dup().emitAsm(af);
       }
     }

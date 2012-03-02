@@ -4,7 +4,7 @@ module ast.cond;
 import
   ast.base, ast.parse, ast.oop, ast.namespace, ast.modules, ast.vardecl,
   ast.variable, ast.scopes, ast.nestfun, ast.casting, ast.arrays,
-  ast.aliasing, ast.fun;
+  ast.aliasing, ast.fun, ast.literals;
 // I'm sorry this is so ugly.
 Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text;
@@ -58,6 +58,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
       New(type);
       type.ret = Single!(Void);
       type.params ~= Argument(Single!(Array, Single!(Char)), "n");
+      type.params ~= Argument(fastcast!(IType) (sysmod.lookup("Object")), "obj", fastcast!(Expr) (sysmod.lookup("null")));
       auto backup2 = namespace();
       scope(exit) namespace.set(backup2);
       sup = backup2;
@@ -66,7 +67,13 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
       
       name = "invoke-exit";
       nf2.addStatement(iparse!(Statement, "cond_nest", "tree.stmt") // can't use hdlvar here, because it's in the wrong scope
-                        (`_lookupCM(n, &hdlvar, true).jump();`, namespace(), "hdlvar", lookup(hdlmarker)));
+                        (`{
+                            auto cm = _lookupCM(n, &hdlvar, true);
+                            if (!cm.accepts(obj))
+                              raise new Error "Couldn't invoke $n: bad argument: $(obj?.toString():\"null\")";
+                            handler-argument-variable = obj;
+                            cm.jump();
+                          }`, namespace(), "hdlvar", lookup(hdlmarker)));
       hdlvar.name = null; // marker string not needed
     }
     mod.entries ~= fastcast!(Tree)~ nf2;
@@ -115,6 +122,20 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto cmvar = new Variable(cmtype, null, boffs(cmtype));
   cmvar.initInit;
   
+  IType argType; string argName, classTypeId;
+  if (t2.accept("(")) {
+    if (!rest(t2, "type", &argType))
+      t2.failparse("Exit parameter type expected");
+    auto cr = fastcast!(ClassRef) (argType), ir = fastcast!(IntfRef) (argType);
+    if (!cr && !ir)
+      t2.failparse("Class or intf type expected");
+    classTypeId = cr?cr.myClass.mangle_id:ir.myIntf.mangle_id;
+    
+    t2.gotIdentifier(argName);
+    if (!t2.accept(")"))
+      t2.failparse("Closing parenthesis for exit parameter expected");
+  }
+  
   auto csc = fastcast!(Scope)~ namespace();
   assert(!!csc);
   csc.addStatement(new VarDecl(cmvar));
@@ -128,9 +149,10 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                var.name = nex;
                if (_record) var.guard_id = _record.dg;
                var.old_hdl = __hdl__;
+               var.param_id = id;
                _cm = &var;
              }`,
-             "var", cmvar, "nex", ex);
+             "var", cmvar, "nex", ex, "id", mkString(classTypeId));
     assert(!!setup_st);
     csc.addStatement(setup_st);
   }
@@ -151,8 +173,31 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept(";")) {
     ifs.branch1 = new NoOp;
   } else {
-    if (!rest(t2, "tree.scope", &ifs.branch1))
+    auto sc = new Scope;
+    
+    auto nsbackup = namespace();
+    scope(exit) namespace.set(nsbackup);
+    namespace.set(sc);
+    
+    if (argType) {
+      auto var = new Variable(argType, argName, boffs(argType));
+      auto vd = new VarDecl(var);
+      var.dontInit = true;
+      sc.add(var);
+      sc.addStatement(vd);
+      sc.addStatement(iparse
+        !(Statement, "cm_cast", "tree.scope")
+         (`{
+             var = at: handler-argument-variable;
+             if !var raise new Error "Bad parameter type for exit: expected $(string-of at), got $(handler-argument-variable?.toString():\"(null)\")";
+           }`, "var", var, "at", argType)
+      );
+    }
+    Scope sc2;
+    if (!rest(t2, "tree.scope", &sc2))
       t2.failparse("Couldn't get cond_exit branch");
+    sc.addStatement(sc2);
+    ifs.branch1 = sc;
   }
   text = t2;
   return ifs;
