@@ -2,7 +2,7 @@ module ast.types;
 
 import tools.base: Stuple, take;
 
-import casts;
+import casts, quickformat;
 
 interface IType {
   int size();
