@@ -36,11 +36,6 @@ class SAIndexExpr : Expr {
 import ast.tuples, ast.tuple_access;
 static this() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
-    /*if (!gotImplicitCast(e1, (IType it) {
-      it = resolveType(it);
-      return fastcast!(StaticArray) (it) || fastcast!(Array) (it) || fastcast!(ExtArray) (it) || fastcast!(Pointer) (it);
-    }))
-      return null;*/
     auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
     if (!fastcast!(StaticArray) (e1v) && !fastcast!(Array) (e1v) && !fastcast!(ExtArray) (e1v) && !fastcast!(Pointer) (e1v))
       return null;
@@ -64,6 +59,18 @@ static this() {
       exprs ~= lookupOp("index", e1, entry);
     }
     return mkTupleExpr(exprs);
+  });
+  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+    auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
+    auto sa = fastcast!(StaticArray) (e2v);
+    if (!sa || !sa.length) return null;
+    return tmpize_maybe(e1, delegate Expr(Expr e1) {
+      Expr[] exprs;
+      for (int i = 0; i < sa.length; ++i) {
+        exprs ~= lookupOp("index", e1, lookupOp("index", e2, mkInt(i)));
+      }
+      return mkSALit(exprs[0].valueType(), exprs);
+    });
   });
 }
 

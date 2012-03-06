@@ -121,7 +121,7 @@ void time-it(string t, void delegate() dg) {
   // calibrate
   int from1, to1, from2, to2;
   from1 = rdtsc[1];
-  delegate void() { } ();
+  (delegate void() { }) ();
   to1 = rdtsc[1];
   // measure
   from2 = rdtsc[1];

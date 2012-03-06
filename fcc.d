@@ -504,6 +504,8 @@ void verify(Iterable it) {
 
 extern(C) int mkdir(char*, int);
 string delegate(int, int*) compile(string file, CompileSettings cs) {
+  scope(failure)
+    logSmart!(false)("While compiling ", file);
   while (file.startsWith("./")) file = file[2 .. $];
   auto af = new AsmFile(cs.optimize, cs.debugMode, cs.profileMode, file);
   if (!isARM) af.processorExtensions["sse3"] = true;

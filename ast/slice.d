@@ -100,6 +100,7 @@ Object gotFullSliceExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotFullSliceExpr, "tree.rhs_partial.full_slice", null, "[]");
 
+import ast.vardecl;
 Statement getSliceAssign(Expr slice, Expr array) {
   IType elemtype;
   IType[] tried;
@@ -112,12 +113,13 @@ Statement getSliceAssign(Expr slice, Expr array) {
   else if (auto ar = fastcast!(Array)~ avt)
     elemtype = ar.elemType;
   else fail;
-  
-  auto fc = (fastcast!(Function)~ sysmod.lookup("memcpy2")).mkCall;
-  fc.params ~= getArrayPtr(slice);
-  fc.params ~= getArrayPtr(array);
-  fc.params ~= lookupOp("*", getArrayLength(array), mkInt(elemtype.size));
-  return new ExprStatement(fc);
+  return new ExprStatement(tmpize_maybe(array, delegate Expr(Expr array) {
+    auto fc = (fastcast!(Function)~ sysmod.lookup("memcpy2")).mkCall;
+    fc.params ~= getArrayPtr(slice);
+    fc.params ~= getArrayPtr(array);
+    fc.params ~= lookupOp("*", getArrayLength(array), mkInt(elemtype.size));
+    return fc;
+  }));
 }
 
 import ast.namespace, tools.log;
