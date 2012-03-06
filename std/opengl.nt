@@ -2,6 +2,8 @@ module std.opengl;
 
 public import c.GL.gl;
 public import c.GL.glu;
+pragma(define, "GL_GLEXT_PROTOTYPES");
+public import c.GL.glext;
 public import std.opengl.rgbcolor;
 
 platform(i686-mingw32) {
@@ -23,11 +25,6 @@ platform(default) {
     T lookupFun(char* c) { return T:glXGetProcAddress(c); }
   }
 }
-
-alias glBindBufferARB = *lookupFun!void function(GLenum, GLuint) "glBindBufferARB";
-alias glBufferDataARB = *lookupFun!void function(GLenum, GLsizei, void*, GLenum) "glBufferDataARB";
-alias glGenBuffersARB = *lookupFun!void function(GLsizei, GLuint*) "glGenBuffersARB";
-alias glDeleteBuffersARB = *lookupFun!void function(GLsizei, GLuint*) "glDeleteBuffersARB";
 
 context Triangles {
   alias onUsing = glBegin GL_TRIANGLES;

@@ -842,6 +842,21 @@ void parseHeader(string filename, string src) {
   // logSmart!(false)("# Got ", cache.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
 }
 
+string[] defines;
+Object defines_sync;
+
+import ast.pragmas;
+static this() {
+  New(defines_sync);
+  pragmas["define"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, (Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }))
+      throw new Exception("String expected for pragma(define, ...)");
+    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    synchronized(defines_sync) defines ~= str.strip();
+    return Single!(NoOp);
+  };
+}
+
 void performCImport(string name) {
   // prevent injection attacks
   foreach (ch; name)
@@ -867,6 +882,9 @@ void performCImport(string name) {
     throw new Exception(Format("Couldn't find ", name, "! Tried ", include_path));
   string extra;
   if (!isARM) extra = "-m32";
+  synchronized(defines_sync) {
+    extra ~= (defines /map/ (string s) { return " -D"~s; }).join("");
+  }
   string mygcc;
   version(Windows) mygcc = path_prefix~"gcc";
   else mygcc = path_prefix~platform_prefix~"gcc";
