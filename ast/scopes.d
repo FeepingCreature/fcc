@@ -7,7 +7,7 @@ class Mew : LineNumberedStatementClass {
 	void iterate(void delegate(ref Iterable), IterMode mode = IterMode.Lexical) { assert(false); }
 }
 
-import ast.aggregate;
+import ast.aggregate, dwarf2;
 class Scope : Namespace, ScopeLike, LineNumberedStatement {
 	Mew lnsc; // "multiple inheritance" hack
   Statement _body;
@@ -128,7 +128,17 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       fail;
     }
     emitted = true;
-    if (needEntryLabel) af.emitLabel(entry(), !keepRegs, !isForward);
+    // TODO: check for -g?
+    Dwarf2Section backup_sect;
+    {
+      auto dwarf2 = af.dwarf2;
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("lexical block"));
+      backup_sect = dwarf2.current;
+      sect.data ~= qformat(".long\t", entry());
+      sect.data ~= qformat(".long\t", exit());
+      dwarf2.open(sect);
+    }
+    if (/*needEntryLabel*/true) af.emitLabel(entry(), !keepRegs, !isForward);
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
     // sanity checking
@@ -139,12 +149,18 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       logln("mew: ", _body);
       fail;
     }
-    return stuple(checkpt, backup, this, af) /apply/ (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af) {
+    return stuple(checkpt, backup, this, af, backup_sect) /apply/
+    (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af, Dwarf2Section backup_sect) {
       if (that._body) {
         that._body.emitAsm(af);
       }
-      return stuple(checkpt, that, backup, af) /apply/ (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, bool onlyCleanup) {
-        if (!onlyCleanup) af.emitLabel(that.exit(), !keepRegs, isForward);
+      return stuple(checkpt, that, backup, af, backup_sect) /apply/
+      (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, Dwarf2Section backup_sect, bool onlyCleanup) {
+        if (!onlyCleanup) {
+          af.markLabelInUse(that.exit());
+          af.emitLabel(that.exit(), !keepRegs, isForward);
+          af.dwarf2.closeUntil(backup_sect);
+        }
         
         foreach_reverse(i, guard; that.guards) {
           af.restoreCheckptStack(that.guard_offsets[i]);

@@ -4,6 +4,7 @@ import ast.namespace, ast.base, ast.variable, asmfile, ast.types, ast.scopes,
   ast.constant, ast.pointer, ast.literals, ast.vardecl, ast.assign;
 
 import tools.functional;
+import dwarf2;
 
 // workaround for inability to import ast.modules
 interface StoresDebugState {
@@ -197,6 +198,20 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     return cur;
   }
   string cleaned_name() { return name.cleanup(); }
+  string pretty_name() {
+    auto mod = current_module().modname();
+    auto res = Format(type.ret, " ", mod, ".", name);
+    res ~= "(";
+    foreach (i, arg; type.params) {
+      if (i) res ~= ", ";
+      res ~= Format(arg.type);
+      if (arg.name) res ~= " "~arg.name;
+      if (arg.initEx)
+        res ~= Format(" = ", arg.initEx);
+    }
+    res ~= ")";
+    return res;
+  }
   override { // ScopeLike
     Statement[] getGuards() { return null; }
     int[] getGuardOffsets() { return null; }
@@ -239,6 +254,41 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     }
     fastcast!(Scope) (tree).addStatement(st);
   }
+  void dwarfOpen(AsmFile af) {
+    auto dwarf2 = af.dwarf2;
+    {
+      auto sect = new Dwarf2Section(
+        dwarf2.cache.getKeyFor("subprogram"));
+      with (sect) {
+        data ~= ".byte\t0x1"; // external
+        data ~= dwarf2.strings.addString(pretty_name());
+        data ~= qformat(".4byte\t",
+          hex(af.getFileId(
+            current_module().filename())));
+        data ~= ".4byte\t0x0 /* line: todo */";
+        data ~= ".byte\t0x1 /* prototyped */";
+        sect.data ~= qformat(".long\t.LFB", funid_count);
+        data ~= qformat(".long\t.LFE", funid_count);
+        data ~= qformat(".byte\t1\t/* location description is one entry long */");
+        data ~= qformat(".byte\t", hex(DW.OP_reg5), "\t/* ebp */");
+      }
+      dwarf2.open(sect);
+    }
+    {
+      // for arguments
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("lexical block"));
+      sect.data ~= qformat(".long\t.LFB", funid_count);
+      sect.data ~= qformat(".long\t.LFE", funid_count);
+      dwarf2.open(sect);
+    }
+    foreach (param; type.params) if (param.name) if (auto var = fastcast!(Variable) (lookup(param.name, true))) {
+      var.registerDwarf2(dwarf2);
+    }
+  }
+  void dwarfClose(AsmFile af) {
+    af.dwarf2.close;
+    af.dwarf2.close;
+  }
   override {
     int framestart() { return _framestart; }
     bool addsSelf() { return true; }
@@ -255,6 +305,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         logln("garbage float stack when start-emitting ", this);
         fail;
       }
+      
+      dwarfOpen(af);
+      scope(exit) dwarfClose(af);
       
       auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4");

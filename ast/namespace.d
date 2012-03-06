@@ -8,6 +8,10 @@ T aadup(T)(T t) {
   return res;
 }
 
+class AlreadyDefinedException : Exception {
+  this(string mesg) { super("AlreadyDefinedException: "~mesg); }
+}
+
 // This is intended to be used for function overload sets.
 interface Extensible {
   // create compound object of this and obj.
@@ -108,7 +112,7 @@ class Namespace {
           if (field.length > cachepoint) rebuildCache;
           return;
         }
-        throw new Exception(Format(
+        throw new AlreadyDefinedException(Format(
           name, " already defined in ",
           this, ": ", lookup(name)
         ));

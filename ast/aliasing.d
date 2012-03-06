@@ -3,6 +3,8 @@ module ast.aliasing;
 import ast.base, ast.parse, ast.structure, ast.namespace,
   tools.base: This, This_fn, rmSpace;
 
+import dwarf2;
+
 class ExprAlias : RelTransformable, Named, Expr {
   Expr base;
   string name;
@@ -51,7 +53,7 @@ class MValueAlias : ExprAlias, MValue {
   override MValueAlias dup() { return new MValueAlias(base.dup, name); }
 }
 
-class TypeAlias : Named, IType, SelfAdding {
+class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
   IType base;
   bool strict;
   string name;
@@ -74,6 +76,13 @@ class TypeAlias : Named, IType, SelfAdding {
     }
     IType proxyType() { if (strict) return null; return base; }
     string toString() { return Format(name, ":", base); }
+    bool canEncode() {
+      auto d2e = fastcast!(Dwarf2Encodable)(resolveType(base));
+      return d2e && d2e.canEncode();
+    }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      return (fastcast!(Dwarf2Encodable) (resolveType(base))).encode(dwarf2);
+    }
   }
 }
 

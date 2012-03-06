@@ -2,7 +2,8 @@ module ast.pointer;
 
 import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace;
 
-class Pointer : Type {
+import dwarf2;
+class Pointer_ : Type, Dwarf2Encodable {
   IType target;
   this(IType t) { target = forcedConvert(t); }
   override {
@@ -15,7 +16,24 @@ class Pointer : Type {
     int size() { return nativePtrSize; }
     string mangle() { return "ptrto_"~target.mangle(); }
     string toString() { return Format(target, "*"); }
+    bool canEncode() {
+      auto d2e = fastcast!(Dwarf2Encodable)(resolveType(target));
+      return d2e && d2e.canEncode();
+    }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      auto targetref = registerType(dwarf2, fastcast!(Dwarf2Encodable) (resolveType(target)));
+      auto targetpsec = new Dwarf2Section(dwarf2.cache.getKeyFor("pointer type"));
+      with (targetpsec) {
+        data ~= targetref;
+        data ~= ".4byte\t4\t/* pointer size */";
+      }
+      return targetpsec;
+    }
   }
+}
+
+final class Pointer : Pointer_ {
+  this(IType t) { super(t); }
 }
 
 alias Single!(Pointer, Single!(Void)) voidp;

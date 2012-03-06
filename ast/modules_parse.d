@@ -13,6 +13,7 @@ else {
 
 Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   bool pub, stat;
+  auto original_text = text;
   {
     auto t2 = text;
     if (t2.accept("public")) pub = true;
@@ -86,6 +87,8 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
   }
   foreach (str; newImports) {
     auto newmod = lookupMod(str);
+    if (!newmod)
+      original_text.failparse("Could not find module ", str);
     if (pub) process(cap, ImportType.Public, newmod);
     else if (stat) process(cap, ImportType.Static, newmod);
     else process(cap, ImportType.Regular, newmod);
@@ -105,9 +108,14 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   if (!t2.gotIdentifier(modname, true) || !t2.accept(";"))
     t2.failparse("Failed to parse module header, 'module' expected! ");
   
-  if (modname =="auto") {
-    auto pos = lookupPos(t2);
-    modname = pos._2.endsWith(".nt");
+  {
+    auto filemod = lookupPos(t2)._2.endsWith(".nt").replace("/", ".");
+    if (modname == "auto") {
+      modname = filemod;
+    }
+    if (filemod && !filemod.endsWith(modname)) {
+      text.failparse("The module name '", modname, "' does not match the filename");
+    }
   }
   
   New(mod, modname, myRealpath(lookupPos(t2)._2));

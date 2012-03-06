@@ -44,7 +44,10 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       auto vd = new VarDecl(var);
       vd.configPosition(text);
       sc.addStatement(vd);
-      sc.add(var); // was: namespace()
+      try sc.add(var); // was: namespace()
+      catch (AlreadyDefinedException ade) {
+        text.failparse(ade);
+      }
     }, false)) {
       if (abortGracefully) return null;
       t2.failparse("Couldn't parse variable declaration");
@@ -99,6 +102,9 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
       var.name = varname;
     var.initval = ex;
     var.type = ex.valueType();
+    if (!var.type) {
+      t2.failparse("Expression has no type (wtf?) ", ex);
+    }
     var.baseOffset = boffs(var.type);
     auto vd = new VarDecl(var);
     vd.configPosition(text);

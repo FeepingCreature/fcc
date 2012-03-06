@@ -2,7 +2,7 @@ module ast.types;
 
 import tools.base: Stuple, take;
 
-import casts, quickformat;
+import casts, dwarf2, asmfile, quickformat;
 
 interface IType {
   int size();
@@ -44,6 +44,13 @@ template TypeDefaults(bool INITVAL = true, bool OPEQUALS = true) {
   IType proxyType() { return null; }
 }
 
+string registerType(Dwarf2Controller dwarf2, Dwarf2Encodable d2e) {
+  return dwarf2.addToRoot(
+    qformat(d2e),
+    d2e.encode(dwarf2)
+  );
+}
+
 class Type : IType {
   mixin TypeDefaults!();
   abstract int size();
@@ -53,14 +60,26 @@ class Type : IType {
   string toString() { return mangle(); }
 }
 
-final class Void : Type {
+class Void_ : Type, Dwarf2Encodable {
   override {
     int size() { return 1; }
     string mangle() { return "void"; }
     ubyte[] initval() { return null; }
     string toString() { return "void"; }
+    bool canEncode() { return true; }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+      with (sect) {
+        data ~= ".4byte\t0\t/* byte size */";
+        data ~= qformat(".byte\t", hex(DW.ATE_void), "\t/* void */");
+        data ~= dwarf2.strings.addString("void");
+      }
+      return sect;
+    }
   }
 }
+
+final class Void : Void_ { }
 
 final class Variadic : Type {
   override int size() { assert(false); }
@@ -70,17 +89,45 @@ final class Variadic : Type {
   override ubyte[] initval() { assert(false, "Cannot declare variadic variable. "); } // wtf variadic variable?
 }
 
-final class Char : Type {
-  override int size() { return 1; }
-  override string mangle() { return "char"; }
-  override bool isPointerLess() { return true; }
+class Char_ : Type, Dwarf2Encodable {
+  override {
+    int size() { return 1; }
+    string mangle() { return "char"; }
+    bool isPointerLess() { return true; }
+    bool canEncode() { return true; }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+      with (sect) {
+        data ~= ".4byte\t1\t/* byte size */";
+        data ~= qformat(".byte\t", hex(DW.ATE_signed_char), "\t/* signed char */");
+        data ~= dwarf2.strings.addString("char");
+      }
+      return sect;
+    }
+  }
 }
 
-final class Byte : Type {
-  override int size() { return 1; }
-  override string mangle() { return "byte"; }
-  override bool isPointerLess() { return true; }
+final class Char : Char_ { }
+
+class Byte_ : Type, Dwarf2Encodable {
+  override {
+    int size() { return 1; }
+    string mangle() { return "byte"; }
+    bool isPointerLess() { return true; }
+    bool canEncode() { return true; }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+      with (sect) {
+        data ~= ".4byte\t1\t/* byte size */";
+        data ~= qformat(".byte\t", hex(DW.ATE_signed), "\t/* signed */");
+        data ~= dwarf2.strings.addString("byte");
+      }
+      return sect;
+    }
+  }
 }
+
+final class Byte : Byte_ { }
 
 const nativeIntSize = 4, nativePtrSize = 4;
 
@@ -96,11 +143,23 @@ final class Short : Type {
   override bool isPointerLess() { return true; }
 }
 
-final class SysInt : Type {
+class SysInt_ : Type, Dwarf2Encodable {
   override int size() { return nativeIntSize; }
   override string mangle() { return "int"; }
   override bool isPointerLess() { return true; }
+  override bool canEncode() { return true; }
+  override Dwarf2Section encode(Dwarf2Controller dwarf2) {
+    auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+    with (sect) {
+      data ~= ".4byte\t4\t/* byte size */";
+      data ~= qformat(".byte\t", hex(DW.ATE_signed), "\t/* signed int */");
+      data ~= dwarf2.strings.addString("int");
+    }
+    return sect;
+  }
 }
+
+final class SysInt : SysInt_ {}
 
 final class Long : Type {
   override int size() { return 8; }
@@ -108,11 +167,25 @@ final class Long : Type {
   override bool isPointerLess() { return true; }
 }
 
-final class Float : Type {
-  override int size() { return 4; }
-  override string mangle() { return "float"; }
-  override bool isPointerLess() { return true; }
+class Float_ : Type, Dwarf2Encodable {
+  override {
+    int size() { return 4; }
+    string mangle() { return "float"; }
+    bool isPointerLess() { return true; }
+    bool canEncode() { return true; }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+      with (sect) {
+        data ~= ".4byte\t4\t/* byte size */";
+        data ~= qformat(".byte\t", hex(DW.ATE_float), "\t/* float */");
+        data ~= dwarf2.strings.addString("float");
+      }
+      return sect;
+    }
+  }
 }
+
+final class Float : Float_ { }
 
 final class Double : Type {
   override int size() { return 8; }

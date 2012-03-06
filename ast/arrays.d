@@ -2,8 +2,9 @@ module ast.arrays;
 
 import ast.base, ast.types, ast.static_arrays, ast.returns, tools.base: This, This_fn, rmSpace;
 
+import dwarf2;
 // ptr, length
-final class Array : Type {
+class Array_ : Type, Dwarf2Encodable {
   IType elemType;
   this() { }
   this(IType et) { elemType = forcedConvert(et); }
@@ -23,11 +24,51 @@ final class Array : Type {
       return (fastcast!(Array) (ty)).elemType == elemType;
     }
     bool isPointerLess() { return false; }
+    bool canEncode() {
+      auto d2e = fastcast!(Dwarf2Encodable)(resolveType(elemType));
+      return d2e && d2e.canEncode();
+    }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      auto elempref = registerType(dwarf2, fastcast!(Dwarf2Encodable) (new Pointer(resolveType(elemType))));
+      auto sizeref = registerType(dwarf2, Single!(SysInt));
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("structure type"));
+      with (sect) {
+        data ~= ".4byte\t8\t/* byte size */";
+        auto len = new Dwarf2Section(dwarf2.cache.getKeyFor("structure member"));
+        with (len) {
+          data ~= dwarf2.strings.addString("length");
+          data ~= sizeref;
+          data ~= ".byte\t1f - 0f\t/* size */";
+          data ~= "0:";
+          data ~= ".byte\t0x23\t/* DW_OP_plus_uconst */";
+          data ~= ".uleb128\t0x0\t/* offset */";
+          data ~= "1:";
+        }
+        sub ~= len;
+        auto ptr = new Dwarf2Section(dwarf2.cache.getKeyFor("structure member"));
+        with (ptr) {
+          data ~= dwarf2.strings.addString("ptr");
+          data ~= elempref;
+          data ~= ".byte\t1f - 0f\t/* size */";
+          data ~= "0:";
+          data ~= ".byte\t0x23\t/* DW_OP_plus_uconst */";
+          data ~= ".uleb128\t0x4\t/* offset */";
+          data ~= "1:";
+        }
+        sub ~= ptr;
+      }
+      return sect;
+    }
   }
 }
 
+final class Array : Array_ {
+  this() { super(); }
+  this(IType it) { super(it); }
+}
+
 // ptr, length, capacity
-class ExtArray : Type {
+class ExtArray : Type, Dwarf2Encodable {
   IType elemType;
   bool freeOnResize;
   this() { }
@@ -47,6 +88,53 @@ class ExtArray : Type {
     }
     string toString() {
       return Format(elemType, "[", freeOnResize?"auto ":"", "~]");
+    }
+    // copypaste from above :D
+    bool canEncode() {
+      auto d2e = fastcast!(Dwarf2Encodable)(resolveType(elemType));
+      return d2e && d2e.canEncode();
+    }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      auto elempref = registerType(dwarf2, fastcast!(Dwarf2Encodable) (new Pointer(resolveType(elemType))));
+      auto sizeref = registerType(dwarf2, Single!(SysInt));
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("structure type"));
+      with (sect) {
+        data ~= ".4byte\t12\t/* byte size */";
+        auto cap = new Dwarf2Section(dwarf2.cache.getKeyFor("structure member"));
+        with (cap) {
+          data ~= dwarf2.strings.addString("capacity");
+          data ~= sizeref;
+          data ~= ".byte\t1f - 0f\t/* size */";
+          data ~= "0:";
+          data ~= ".byte\t0x23\t/* DW_OP_plus_uconst */";
+          data ~= ".uleb128\t0x0\t/* offset */";
+          data ~= "1:";
+        }
+        sub ~= cap;
+        auto len = new Dwarf2Section(dwarf2.cache.getKeyFor("structure member"));
+        with (len) {
+          data ~= dwarf2.strings.addString("length");
+          data ~= sizeref;
+          data ~= ".byte\t1f - 0f\t/* size */";
+          data ~= "0:";
+          data ~= ".byte\t0x23\t/* DW_OP_plus_uconst */";
+          data ~= ".uleb128\t0x4\t/* offset */";
+          data ~= "1:";
+        }
+        sub ~= len;
+        auto ptr = new Dwarf2Section(dwarf2.cache.getKeyFor("structure member"));
+        with (ptr) {
+          data ~= dwarf2.strings.addString("ptr");
+          data ~= elempref;
+          data ~= ".byte\t1f - 0f\t/* size */";
+          data ~= "0:";
+          data ~= ".byte\t0x23\t/* DW_OP_plus_uconst */";
+          data ~= ".uleb128\t0x8\t/* offset */";
+          data ~= "1:";
+        }
+        sub ~= ptr;
+      }
+      return sect;
     }
   }
 }

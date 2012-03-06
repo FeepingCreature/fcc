@@ -547,6 +547,7 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
   auto start_parse = sec();
   bool fresh = true;
   auto mod = lookupMod(modname);
+  if (!mod) throw new Exception(Format("No such module: ", modname));
   if (mod.alreadyEmat) return objname /apply/ (string objname, int total, int* complete) { return objname; }; // fresh
   if (mod.dontEmit) return null;
   fixupMain();

@@ -59,7 +59,8 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     //                      needed by sysmod; avoid circle
     isValid = true;
   }
-  string filename() { return name.replace(".", "/") ~ EXT; }
+  override string filename() { return name.replace(".", "/") ~ EXT; }
+  override string modname() { return name; }
   void addSetupable(Setupable s) {
     setupable ~= s;
     if (inProgress) s.setup(inProgress);
@@ -214,6 +215,7 @@ Module lookupMod(string name) {
         }
       }
     }
+    if (!fn.exists()) return null;
     auto file = fn.read().castLike("");
     synchronized(SyncObj!(sourcefiles))
       sourcefiles[fn] = file;

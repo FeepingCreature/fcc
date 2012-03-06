@@ -460,8 +460,7 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
     auto et = resolveType(itr.elemType);
     if (!valueType) { valueType = et; return; }
     if (et == valueType) return;
-    logln(et, " into ", valueType);
-    fail;
+    text.failparse("Could not merge ", et, " into ", valueType);
   }
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = fastcast!(Tuple)~ ex.valueType();

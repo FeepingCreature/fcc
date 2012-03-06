@@ -1,28 +1,43 @@
 module ast.static_arrays;
 
-import ast.base, ast.types;
+import ast.base, ast.types, dwarf2;
 
-class StaticArray : Type, ForceAlignment {
+class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
   IType elemType;
   int length;
   this() { }
   this(IType et, int len) { elemType = et; length = len; }
-  override string toString() { return Format(elemType, "[", length, "] - %", alignment(), "%"); }
-  override int size() {
-    return length * elemType.size();
-  }
-  override int alignment() {
-    if (auto fa = fastcast!(ForceAlignment) (resolveType(elemType))) return fa.alignment();
-    return needsAlignment(elemType);
-  }
-  override string mangle() {
-    return Format("Static_", length, "_of_", elemType.mangle());
-  }
-  override int opEquals(IType ty) {
-    ty = resolveType(ty);
-    return super.opEquals(ty) &&
-      ((fastcast!(StaticArray)~ ty).elemType == elemType) &&
-      ((fastcast!(StaticArray)~ ty).length == length);
+  override {
+    string toString() { return Format(elemType, "[", length, "] - %", alignment(), "%"); }
+    int size() {
+      return length * elemType.size();
+    }
+    int alignment() {
+      if (auto fa = fastcast!(ForceAlignment) (resolveType(elemType))) return fa.alignment();
+      return needsAlignment(elemType);
+    }
+    string mangle() {
+      return Format("Static_", length, "_of_", elemType.mangle());
+    }
+    int opEquals(IType ty) {
+      ty = resolveType(ty);
+      return super.opEquals(ty) &&
+        ((fastcast!(StaticArray)~ ty).elemType == elemType) &&
+        ((fastcast!(StaticArray)~ ty).length == length);
+    }
+    bool canEncode() {
+      auto d2e = fastcast!(Dwarf2Encodable)(resolveType(elemType));
+      return d2e && d2e.canEncode();
+    }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      auto elemref = registerType(dwarf2, fastcast!(Dwarf2Encodable) (resolveType(elemType)));
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("array type"));
+      with (sect) {
+        data ~= elemref;
+        data ~= qformat(".4byte\t", size(), "\t/* static array size */");
+      }
+      return sect;
+    }
   }
 }
 

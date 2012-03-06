@@ -5,6 +5,7 @@ public import ast.variable;
 
 int vardecl_marker;
 
+import dwarf2;
 class VarDecl : LineNumberedStatementClass, HasInfo {
   Variable var;
   int marker;
@@ -40,6 +41,17 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
       // logln("alloc ", delta, " to compensate for stack being wrong for var ", var.name, " @", var.baseOffset);
       // logln("(", var.name, " at ", af.currentStackDepth, " wants ", -var.baseOffset - var.type.size, ")");
       af.salloc(delta);
+    }
+    {
+      auto end = namespace().get!(Scope).exit();
+      auto dwarf2 = af.dwarf2;
+      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("lexical block"));
+      string startname = qformat(".Lvardecl", marker);
+      af.emitLabel(startname, keepRegs, !isForward);
+      sect.data ~= qformat(".long\t", startname);
+      sect.data ~= qformat(".long\t", end);
+      dwarf2.open(sect);
+      var.registerDwarf2(dwarf2);
     }
     mixin(mustOffset("var.valueType().size()"));
     if (var.baseOffset + var.type.size != -af.currentStackDepth) {

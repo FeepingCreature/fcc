@@ -701,7 +701,10 @@ class OffsetExpr : LValue {
   }
 }
 
-interface IModule : Named { }
+interface IModule : Named {
+  string filename();
+  string modname();
+}
 
 TLS!(IModule) current_module;
 

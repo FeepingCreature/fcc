@@ -5,6 +5,8 @@ public import assemble;
 
 const bool keepRegs = true, isForward = true;
 
+import dwarf2;
+
 import tools.log, tools.functional: map;
 import tools.base: between, slice, split, stuple, apply, swap, Stuple;
 const string[] utilRegs = ["%eax", "%ebx", "%ecx", "%edx"];
@@ -28,6 +30,7 @@ class AsmFile {
   int file_idcounter;
   bool[string] processorExtensions;
   bool[string] weaks; // symbols marked as weak
+  Dwarf2Controller dwarf2;
   int getFileId(string name) {
     if (!name) name = "<nil>";
     if (auto ip = name in file_ids) return *ip;
@@ -68,6 +71,7 @@ class AsmFile {
   this(bool optimize, bool debugMode, bool profileMode, string id) {
     New(cache);
     New(finalized);
+    New(dwarf2);
     if (isARM) {
       regs = ["r0"[], "r1", "r2", "r3"].dup;
       stackbase = "fp";
@@ -213,9 +217,12 @@ class AsmFile {
     ttt  | jmp  | mov    | jmp     | mov      | b       | mov
   `;
   bool[string] jumpedForwardTo; // Emitting a forward label that hasn't been jumped to is redundant.
+  void markLabelInUse(string label) {
+    jumpedForwardTo[label] = true;
+  }
   void jumpOn(bool smaller, bool equal, bool greater, string label) {
     comparisonState = false;
-    jumpedForwardTo[label] = true;
+    markLabelInUse(label);
     labels_refcount[label]++;
     // TODO: unsigned?
     mixin(JumpTable.ctTableUnroll(`
@@ -244,7 +251,7 @@ class AsmFile {
   }
   void jumpOnFloat(bool smaller, bool equal, bool greater, string label, bool convert = true) {
     comparisonState = false;
-    jumpedForwardTo[label] = true;
+    markLabelInUse(label);
     labels_refcount[label]++;
     nvm("%eax");
     if (convert) {
@@ -427,7 +434,7 @@ class AsmFile {
   }
   void jump(string label, bool keepRegisters = false, string mode = null) {
     comparisonState = false;
-    jumpedForwardTo[label] = true;
+    markLabelInUse(label);
     labels_refcount[label] ++;
     Transaction t;
     t.kind = Transaction.Kind.Jump;
@@ -565,6 +572,8 @@ class AsmFile {
   }
   void genAsm(void delegate(string) dg) {
     flush();
+    dg(".section\t.debug_line\n");
+    dg(".Ldebug_line0:\n");
     if (isARM) {
       dg(".cpu\tarm9tdmi\n.fpu\tsoftvfp\n");
       foreach (pair; [[20,1],[21,1],[23,3],[24,1],[25,1],[26,2],[30,6],[18,4]]) {
@@ -646,7 +655,12 @@ class AsmFile {
       dg(qformat(".file ", value, " \"", key, "\"\n"));
     }
     dg(".text\n");
+    dg(".Ltext:\n");
     dg(code);
+    dg(".Letext:\n");
+    foreach (line; dwarf2.genData()) {
+      dg(line); dg("\n");
+    }
   }
   void pool() {
     put("b 0f");
