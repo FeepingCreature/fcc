@@ -30,23 +30,38 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
     // State machines are most effectively expressed as a goto-based structure.
     // I'm .. I'm sorry, everybody.
     
+    string t3;
   expect_identifier:
-    if (!t2.gotIdentifier(m, true)) {
-      string t3 = t2;
+    t3 = t2;
+    if (!t3.gotIdentifier(m, true)) {
       // std.foo(bar,) or std.foo(,bar)
       if (t3.accept(",") || t3.accept(")"))
         m = "";
       else
         t2.failparse("Import identifier expected");
+      t3 = t2;
     }
+    if (auto pre = m.endsWith(".")) { // nuh
+      m = pre;
+      t3 = t2;
+      if (!t3.accept(m))
+        fail;
+    }
+    t2 = t3;
     importstack[$-1] ~= m;
   
   expect_separator:
     if (t2.accept(","))
       goto expect_identifier;
-    if (t2.accept("(")) {
+    t3 = t2;
+    if (t3.accept(".") && t3.accept("(")) {
+      t2 = t3;
       importstack ~= null;
       goto expect_identifier;
+    }
+    t3 = t2;
+    if (t3.accept("(")) {
+      t2.failparse("Expected dot before opening parenthesis for group import");
     }
     if (t2.accept(")")) {
       auto block = importstack[$-1];
