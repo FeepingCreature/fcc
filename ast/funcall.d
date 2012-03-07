@@ -344,8 +344,9 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
         t2.failparse("Failed to call function with ", params, ": ", error()._1);
       auto t3 = t2;
       // valid call terminators
-      if (params.length && !t3.acceptTerminatorSoft()) return null;
-    } else text = t2;
+      if (params.length || !t3.acceptTerminatorSoft()) return null;
+    }
+    text = t2;
     return fastcast!(Object) (res);
   };
 }
