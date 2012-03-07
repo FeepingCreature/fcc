@@ -197,13 +197,15 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto ex = fastcast!(Expr) (obj);
     Statement initLv;
     if (ex) {
-      if (fastcast!(Variable) (ex)) {
-        // I guess we don't need to do anything in this case.
-      } else if (auto lv = fastcast!(LValue) (ex)) {
-        ex = new DerefExpr(lvize(new RefExpr(lv), &initLv));
-      } else {
-        ex = lvize(ex, &initLv);
-        ex = new RCE(ex.valueType(), ex, true); // make sure it's treated as an expr!
+      if (!_is_cheap(ex, CheapMode.Multiple)) {
+        if (fastcast!(Variable) (ex)) {
+          // I guess we don't need to do anything in this case.
+        } else if (auto lv = fastcast!(LValue) (ex)) {
+          ex = new DerefExpr(lvize(new RefExpr(lv), &initLv));
+        } else {
+          ex = lvize(ex, &initLv);
+          ex = new RCE(ex.valueType(), ex, true); // make sure it's treated as an expr!
+        }
       }
       while (fastcast!(Pointer) (resolveType(ex.valueType())))
         ex = new DerefExpr(ex);

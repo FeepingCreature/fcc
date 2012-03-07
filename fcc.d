@@ -345,6 +345,9 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
 
 extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
   bool cheaprecurse(Expr ex) {
+    // Not sure if valid, but needed for prefix(foo_).(bar) .. maybe add a flag for that case
+    if (auto pt = fastcast!(PlaceholderToken) (ex))
+      return true;
     if (auto rc = fastcast!(RC) (ex))
       return cheaprecurse (rc.from);
     if (fastcast!(Variable) (ex))

@@ -393,19 +393,22 @@ mixin DefaultParser!(gotMode, "tree.expr.mode", "24053");
 
 Object gotPreSufFix(ref string text, bool isSuf, ParseCb cont, ParseCb rest) {
   string id;
+  bool hadOpeningParen;
+  if (text.accept("(")) hadOpeningParen = true;
   if (isSuf) {
     if (!text.gotIdentifier(id, false, true /* allow number */))
-      text.failparse("Couldn't match suffix string");
+      return null;
+      // text.failparse("Couldn't match suffix string");
   } else {
     if (!text.gotIdentifier(id))
-      text.failparse("Couldn't match prefix string");
+      return null;
+      // text.failparse("Couldn't match prefix string");
   }
+  if (hadOpeningParen && !text.accept(")"))
+    text.failparse("Closing paren for pre/suffix argument expected");
   
   auto backup = namespace();
   scope(exit) namespace.set(backup);
-  
-  auto wrap = new Scope;
-  namespace.set(wrap);
   
   auto ms = new ModeSpace;
   if (isSuf) {
@@ -413,14 +416,8 @@ Object gotPreSufFix(ref string text, bool isSuf, ParseCb cont, ParseCb rest) {
   } else {
     ms.prefixes ~= id;
   }
-  auto that_ex = new PlaceholderTokenLV(ms, "prefix/suffix thing");
-  namespace.set(new WithStmt(that_ex));
   
-  Scope sc;
-  if (!rest(text, "tree.scope", &sc))
-    text.failparse("Couldn't parse prefix scope! ");
-  wrap.addStatement(sc);
-  return wrap;
+  return new PlaceholderTokenLV(ms, "pre/suffix mode hack");
 }
 Object gotPrefix(ref string text, ParseCb cont, ParseCb rest) {
   return gotPreSufFix(text, false, cont, rest);
@@ -428,8 +425,8 @@ Object gotPrefix(ref string text, ParseCb cont, ParseCb rest) {
 Object gotSuffix(ref string text, ParseCb cont, ParseCb rest) {
   return gotPreSufFix(text, true, cont, rest);
 }
-mixin DefaultParser!(gotPrefix, "tree.stmt.prefix", "601", "prefix");
-mixin DefaultParser!(gotSuffix, "tree.stmt.suffix", "602", "suffix");
+mixin DefaultParser!(gotPrefix, "tree.expr.prefix", "240531", "prefix");
+mixin DefaultParser!(gotSuffix, "tree.expr.suffix", "240532", "suffix");
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {
