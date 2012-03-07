@@ -270,12 +270,17 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
   scope(exit) *propcfg.ptr() = backup;
   if (isTuple) propcfg().withTuple = false;
   
-  if (!rest(text, "tree.expr.cond.other", &arg) && !rest(text, "tree.expr _tree.expr.arith", &arg)) {
-    if (params.length) return false;
-    else if (info.startsWith("delegate")) return false;
-    else arg = mkTupleExpr();
+  {
+    auto t2 = text;
+    if (!rest(t2, "tree.expr.cond.other", &arg) && !rest(t2, "tree.expr _tree.expr.arith", &arg)) {
+      if (params.length) return false;
+      else if (info.startsWith("delegate")) return false;
+      else arg = mkTupleExpr();
+    }
+    if (!matchedCallWith(arg, params, res, inits, info, backup_text, test, precise)) return false;
+    text = t2;
+    return true;
   }
-  return matchedCallWith(arg, params, res, inits, info, backup_text, test, precise);
 }
 
 Expr buildFunCall(Function fun, Expr arg, string info) {
@@ -326,6 +331,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     bool result;
     Statement[] inits;
     Expr res = fc;
+    auto t4 = t2;
     try {
       result = matchCall(t2, fun.name, params, rest, fc.params, inits, false, false);
       if (inits.length > 1) inits = [new AggrStatement(inits)];
@@ -338,8 +344,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
         t2.failparse("Failed to call function with ", params, ": ", error()._1);
       auto t3 = t2;
       // valid call terminators
-      if (params.length || !t3.acceptTerminatorSoft())
-        return null;
+      if (params.length && !t3.acceptTerminatorSoft()) return null;
     } else text = t2;
     return fastcast!(Object) (res);
   };
