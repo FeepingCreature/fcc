@@ -867,6 +867,14 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       }
       if (fun.coarseSrc) return fun;
       else {
+        t2 = text;
+        if (t2.accept(";")) { // undefined function
+          text = t2;
+          fun.addStatement(
+            iparse!(Statement, "undefined_function", "tree.stmt")
+                   (`raise new Error "Function $fun not implemented";`, "fun", mkString(fun.name)));
+          return fun;
+        }
         Scope sc;
         if (rest(text, "tree.scope", &sc)) {
           if (!fun.type.ret)
