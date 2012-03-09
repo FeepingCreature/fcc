@@ -312,15 +312,23 @@ void setupSysmods() {
       // writeln "No handler found to match $obj. ";
       // _interrupt 3;
     }
-    class Error {
+    class Condition {
       string msg;
       void init(string s) msg = s;
-      string toString() { return "Error: $msg"; }
+      string toString() { return "Condition: $msg"; }
     }
-    class Signal : Error {
-      void init(string s) { super.init s; }
+    // errors that change behavior in release mode
+    // note: catch at your own peril!
+    class UnrecoverableError : Condition {
+      void init(string s) super.init "UnrecoverableError: $s";
     }
-    class BoundsError : Error {
+    class Error : UnrecoverableError { // haha abuse of oop
+      void init(string s) super.init "Error: $s";
+    }
+    class Signal : Condition {
+      void init(string s) { super.init "Signal: $s"; }
+    }
+    class BoundsError : UnrecoverableError {
       void init(string s) super.init s;
       string toString() { return "BoundsError: $(super.toString())"; }
     }
@@ -335,14 +343,14 @@ void setupSysmods() {
         return ar.ptr + pos;
       }
     }
-    void raise-signal(Signal sig) {
+    void raise(Signal sig) {
       auto cur = __hdl__;
       while cur {
         if cur.accepts(sig) cur.dg(sig);
         cur = cur.prev;
       }
     }
-    void raise(Error err) {
+    void raise(UnrecoverableError err) {
       auto cur = __hdl__;
       while cur {
         if cur.accepts(err) cur.dg(err);
@@ -351,7 +359,7 @@ void setupSysmods() {
       writeln "Unhandled condition: $(err.toString()). ";
       *int*:null=0;
     }
-    class MissedReturnError : Error {
+    class MissedReturnError : UnrecoverableError {
       void init(string name) { super.init("End of $name reached without return"); }
     }
     void[] dupvcache;
@@ -511,7 +519,7 @@ void setupSysmods() {
         bool advance() { raise new Error "Iterator::advance() not implemented! "; }
       }
     }
-    class AssertError : Error {
+    class AssertError : UnrecoverableError {
       void init(string s) super.init "AssertError: $s";
     }
     void assert(bool cond, string mesg = string:null) {
