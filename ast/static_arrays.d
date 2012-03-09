@@ -46,7 +46,10 @@ static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb cont, ParseCb rest) {
     auto t2 = text;
     Expr len_ex;
-    if (!t2.accept("x")) return null;
+    {
+      string hasToBeX;
+      if (!t2.gotIdentifier(hasToBeX) || hasToBeX != "x") return null;
+    }
     if (!rest(t2, "tree.expr _tree.expr.arith", &len_ex)) return null;
     auto backup_len = len_ex;
     if (!gotImplicitCast(len_ex, (IType it) { return test(Single!(SysInt) == it); }))
