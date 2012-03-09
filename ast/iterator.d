@@ -693,15 +693,28 @@ Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = t
   bool needIterator;
   bool isRefDecl;
   const string myTE = "tree.expr _tree.expr.cond >tree.expr.arith";
-  if (!expressionTargetAllowed || !rest(t2, myTE, &lv, (LValue lv) { return !fastcast!(Iterator) (lv.valueType()); })) {
-    if (!expressionTargetAllowed || !rest(t2, myTE, &mv, (MValue mv) { return !fastcast!(Iterator) (mv.valueType()); })) {
-      if (t2.accept("ref")) isRefDecl = true;
-      else if (!t2.accept("auto") && !rest(t2, "type", &newVarType))
-        goto withoutIterator;
-        
-      if (!t2.gotIdentifier(newVarName))
-        goto withoutIterator;
+  bool wantTargetDecl = true;
+  if (expressionTargetAllowed) {
+    Object obj;
+    auto t3 = t2;
+    if (rest(t3, myTE, &obj)) {
+      lv = fastcast!(LValue) (obj);
+      mv = fastcast!(MValue) (obj);
+      if (lv && fastcast!(Iterator) (lv.valueType())) lv = null;
+      if (mv && fastcast!(Iterator) (mv.valueType())) mv = null;
+      if (lv || mv) {
+        wantTargetDecl = false;
+        t2 = t3;
+      }
     }
+  }
+  if (wantTargetDecl) {
+    if (t2.accept("ref")) isRefDecl = true;
+    else if (!t2.accept("auto") && !rest(t2, "type", &newVarType))
+      goto withoutIterator;
+      
+    if (!t2.gotIdentifier(newVarName))
+      goto withoutIterator;
   }
   if (!t2.accept("<-"))
     return null;
