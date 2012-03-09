@@ -798,6 +798,12 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotClassDef, "tree.typedef.class", null, "class");
 mixin DefaultParser!(gotClassDef, "struct_member.nested_class", null, "class");
 
+Object gotClassDefStmt(ref string text, ParseCb cont, ParseCb rest) {
+  if (!gotClassDef(text, cont, rest)) return null;
+  return Single!(NoOp);
+}
+mixin DefaultParser!(gotClassDefStmt, "tree.stmt.class", "312", "class");
+
 Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
