@@ -46,4 +46,16 @@ context glMatrix {
   alias onExit  = glPopMatrix ();
 }
 
+struct glWithCap {
+  GLenum cap;
+  alias onUsing = glEnable cap;
+  alias onExit = glDisable cap;
+}
+
+struct glWithoutCap {
+  GLenum cap;
+  alias onUsing = glDisable cap;
+  alias onExit = glEnable cap;
+}
+
 defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";
