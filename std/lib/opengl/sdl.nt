@@ -37,7 +37,7 @@ SDL_Surface* delegate(int, int) regenSurf;
 void update(SDL_Surface* surface) {
   swap;
   using scoped onResize:: onResize = \(int w, h) { regenSurf(w, h); resizeWindow(w, h); };
-  std.sdl_base.update;
+  std.lib.sdl_base.update;
 }
 
 void swap() { SDL_GL_SwapBuffers(); }
