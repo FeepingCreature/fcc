@@ -1,10 +1,10 @@
-module std.opengl;
+module std.lib.opengl;
 
 public import c.GL.gl;
 public import c.GL.glu;
 pragma(define, "GL_GLEXT_PROTOTYPES");
 public import c.GL.glext;
-public import std.opengl.rgbcolor;
+public import std.lib.opengl.rgbcolor;
 
 platform(i686-mingw32) {
   pragma(lib, "opengl32");
