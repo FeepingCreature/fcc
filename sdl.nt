@@ -1,6 +1,6 @@
 module sdl;
 
-public import sdl_base;
+public import std.lib.sdl_base;
 import std.string;
 
 int floatToIntColor(vec3f col) {
