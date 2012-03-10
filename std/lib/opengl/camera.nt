@@ -4,11 +4,16 @@ import std.math, std.lib.opengl;
 
 interface Camera {
   void apply();
+  void setAspect(float f);
+  float getAspect();
+  alias aspect = accessor_property(getAspect, setAspect);
 }
 
 class PerspectiveCam : Camera {
-  float fov, zNear, zFar, aspect;
-  alias args = (fov, aspect, zNear, zFar);
+  float fov, zNear, zFar, aspect-value;
+  alias args = (fov, aspect-value, zNear, zFar);
+  float getAspect() return aspect-value;
+  void setAspect(float f) aspect-value = f;
   void init() {
     args = (45f, 1f, 0.01f, 100f);
   }
@@ -24,6 +29,7 @@ template WorldCam(T) {
     vec3f up, pos, lookat;
     alias dir = lookat - pos;
     vec3f setDir(vec3f v) { lookat = pos + v; return lookat; }
+    string toString() { return "WorldCam <up $up, pos $pos, lookat $lookat>"; }
     void init() {
       super.init();
       (up, pos) = (vec3f.Y, vec3f(0));
@@ -38,8 +44,12 @@ template WorldCam(T) {
       auto
         left = up.cross3f(dirz).normalized,
         up = dirz.cross3f(left).normalized;
-      (vec3f.Y.angle3f(up, left) / PI180).Rotatef vec3f.X;
-      (vec3f.X.angle3f(left, up) / PI180).Rotatef vec3f.Y;
+      auto horz = vec3f.Y.angle3f(up, left) / PI180;
+      auto vert = vec3f.X.angle3f(left, up) / PI180;
+      if (is-nan horz) horz = 0;
+      if (is-nan vert) vert = -180;
+      horz.Rotatef vec3f.X;
+      vert.Rotatef vec3f.Y;
       Translatef (-pos);
     }
   }
@@ -47,8 +57,14 @@ template WorldCam(T) {
 
 vec3f normalize3f(vec3f v) return v.normalized;
 
+// controllable by a device that offers two-dimensional relative motion, like a mouse or joystick
+interface Supports2DControl {
+  void turn-up(float f);
+  void turn-left(float f);
+}
+
 template EgoCam(T) {
-  class EgoCam : T {
+  class EgoCam : T, Supports2DControl {
     vec3f pos;
     float turnX, turnY;
     void init(vec3f p, float x, y) { (pos, turnX, turnY) = (p, x, y); super.init(); }
@@ -72,6 +88,24 @@ template EgoCam(T) {
       Rotatef (angle1, vec3f.X);
       Rotatef (angle2, vec3f.Y);
       Translatef (-pos);
+    }
+  }
+}
+
+template OrbitCam(T) {
+  class OrbitCam : WorldCam!T, Supports2DControl {
+    float distance;
+    void init(vec3f p, t) { super.init(); (pos, lookat) = (p, t); distance = |lookat - pos|; writeln "inited to $this"; }
+    void turn-left(float f) {
+      auto delta = lookat - pos;
+      delta = delta.rotate3f(vec3f.Y, f);
+      pos = lookat - delta;
+    }
+    void turn-up(float f) {
+      auto delta = lookat - pos;
+      delta = delta.rotate3f(delta.cross3f(up).normalized, f);
+      delta *= distance / |delta|;
+      pos = lookat - delta;
     }
   }
 }
