@@ -1,8 +1,8 @@
 module ast.typeset;
 
-import ast.base, ast.types, ast.tuples, ast.casting, ast.vardecl, ast.tuple_access, ast.fold;
+import ast.base, ast.types, ast.tuples, ast.casting, ast.vardecl, ast.tuple_access, ast.fold, ast.namespace;
 
-class Typeset : Type {
+class Typeset : Type, RelNamespace {
   Tuple tup;
   mixin MyThis!("tup");
   override {
@@ -14,6 +14,19 @@ class Typeset : Type {
       return tup == tys.tup;
     }
     string mangle() { return "typeset_over_"~tup.mangle(); }
+    bool isTempNamespace() { return false; }
+    Object lookupRel(string name, Expr base) {
+      auto tup_ex = reinterpret_cast(tup, base);
+      foreach (i, ty; tup.types) {
+        if (auto srn = fastcast!(SemiRelNamespace) (ty)) ty = fastcast!(IType) (srn.resolve());
+        auto rn = fastcast!(RelNamespace) (ty);
+        if (rn) {
+          if (auto res = rn.lookupRel(name, mkTupleIndexAccess(tup_ex, i)))
+            return res; // TODO: overloading maybe
+        }
+      }
+      return null;
+    }
   }
 }
 

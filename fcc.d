@@ -399,7 +399,9 @@ extern(C) Expr _tmpize_maybe(Expr thing, E2EOdg dg, bool force) {
     if (cheap(thing))
       return dg(thing, null); // cheap to emit
   }
-  return new WithTempExpr(thing, dg);
+  auto wurble = new WithTempExpr(thing, dg);
+  if (!wurble.isValid()) return null;
+  return wurble;
 }
 
 

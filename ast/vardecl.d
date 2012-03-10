@@ -210,6 +210,8 @@ class WithTempExpr : Expr {
     this.thing = thing;
     superthing = dg(offs, offs_res);
   }
+  // did the dg() succeed?
+  bool isValid() { return !!superthing; }
   protected this() { }
   mixin defaultIterate!(thing, superthing);
   override {
