@@ -20,20 +20,26 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
     bool dontInit;
     Expr initval;
     if (t2.accept("=")) {
-      IType[] its;
-      if (!rest(t2, "tree.expr", &initval)
-        || type && !gotImplicitCast(initval, type, (IType it) {
-        its ~= it;
-        return test(type == it);
-      }))
-        t2.failparse("Could not parse variable initializer; tried ", its);
-      if (!type) type = initval.valueType();
+      if (t2.accept("void")) { dontInit = true; }
+      else {
+        IType[] its;
+        if (!rest(t2, "tree.expr", &initval)
+          || type && !gotImplicitCast(initval, type, (IType it) {
+          its ~= it;
+          return test(type == it);
+        }))
+          t2.failparse("Could not parse variable initializer; tried ", its);
+        if (!type) type = initval.valueType();
+      }
     } else {
       if (!type) {
         t2.setError("Auto vardecl exprs must be initialized. ");
         return false;
       }
       if (t2.accept("<-")) return false; // don't collide with iterator declaration
+    }
+    if (fastcast!(Void) (resolveType(type))) {
+      text.failparse("Cannot declare variable of type ", type, " which is void");
     }
     auto var = new Variable(type, name, boffs(type));
     auto sc = namespace().get!(Scope);
@@ -48,7 +54,8 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
       var.initInit; *ex = var;
     } else {
       var.dontInit = true;
-      *st = new Assignment(var, initval);
+      if (!dontInit)
+        *st = new Assignment(var, initval);
       *ex = var;
     }
     return true;
