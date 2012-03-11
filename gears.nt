@@ -1,0 +1,206 @@
+module gears;
+
+import std.(file, string, math, lib.opengl, lib.glfw3, macros.switchover);
+
+void main(string[] args) {
+  bool running = true;
+  int autoexit;
+  void gear(float inner-radius, outer-radius, width, int teeth, float tooth-depth) {
+    auto
+      r0 = inner-radius,
+      r1 = outer-radius - tooth-depth / 2f,
+      r2 = outer-radius + tooth-depth / 2f;
+    auto da = TAU / teeth / 4f;
+    
+    using mode GL {
+      ShadeModel FLAT;
+      Normal3f(0, 0, 1);
+      void vert1(float a, b) Vertex3f(a, b, width * 0.5);
+      void vert2(float a, b) Vertex3f(a, b, - width * 0.5);
+      vec2f cossin(vec2f v) return vec2f(v.(cos x, sin y));
+      vec2f cossin(float f) return cossin vec2f(f);
+      // front face
+      using QuadStrip for int i <- 0..teeth+1 {
+        auto angle = i * TAU / teeth;
+        
+        vert1 $ r0 * cossin $ angle;
+        vert1 $ r1 * cossin $ angle;
+        if (i < teeth) {
+          vert1 $ r0 * cossin $ angle;
+          vert1 $ r1 * cossin $ angle + 3 * da;
+        }
+      }
+      // draw front sides of teeth
+      using Quads for int i <- 0..teeth {
+        auto angle = i * TAU / teeth;
+        
+        vert1 $ r1 * cossin $ angle;
+        vert1 $ r2 * cossin $ angle + da;
+        vert1 $ r2 * cossin $ angle + 2 * da;
+        vert1 $ r1 * cossin $ angle + 3 * da;
+      }
+      Normal3f (0, 0, -1);
+      // draw back face
+      using QuadStrip for int i <- 0..teeth+1 {
+        auto angle = i * TAU / teeth;
+        
+        vert2 $ r1 * cossin angle;
+        vert2 $ r0 * cossin angle;
+        if (i < teeth) {
+          vert2 $ r1 * cossin $ angle + 3 * da;
+          vert2 $ r0 * cossin $ angle;
+        }
+      }
+      // draw back sides of teeth
+      using Quads for int i <- 0..teeth {
+        auto angle = i * TAU / teeth;
+        
+        vert2 $ r1 * cossin $ angle + 3 * da;
+        vert2 $ r2 * cossin $ angle + 2 * da;
+        vert2 $ r2 * cossin $ angle + da;
+        vert2 $ r1 * cossin $ angle;
+      }
+      // draw outward faces of teeth
+      using QuadStrip {
+        for int i <- 0..teeth {
+          auto angle = i * TAU / teeth;
+          vert1 $ r1 * cossin angle;
+          vert2 $ r1 * cossin angle;
+          auto uv = r2 * cossin (angle + da) - r1 * cossin angle;
+          uv /= |uv|;
+          Normal3f(uv.(y, -x), 0);
+          vert1 $ r2 * cossin $ angle + da;
+          vert2 $ r2 * cossin $ angle + da;
+          Normal3f(cossin angle, 0);
+          vert1 $ r2 * cossin $ angle + 2 * da;
+          vert2 $ r2 * cossin $ angle + 2 * da;
+          uv = r1 * cossin (angle + 3 * da) - r2 * cossin (angle + 2 * da);
+          Normal3f(uv.(y, -x), 0);
+          vert1 $ r1 * cossin $ angle + 3 * da;
+          vert2 $ r1 * cossin $ angle + 3 * da;
+          Normal3f(cossin angle, 0);
+        }
+        vert1 $ r1 * cossin 0;
+        vert2 $ r1 * cossin 0;
+      }
+      
+      ShadeModel SMOOTH;
+      // draw inside radius cylinder
+      using QuadStrip for int i <- 0..teeth+1 {
+        auto angle = i * TAU / teeth;
+        Normal3f(-cossin angle, 0f);
+        vert2 $ r0 * cossin angle;
+        vert1 $ r0 * cossin angle;
+      }
+    }
+  }
+  auto view_rot = vec3f(20, 30, 0);
+  int x 3 gears;
+  float angle = 0;
+  void draw() using mode GL {
+    Clear $ COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT;
+    using Matrix {
+      Rotatef (view_rot.x, vec3f.X);
+      Rotatef (view_rot.y, vec3f.Y);
+      Rotatef (view_rot.z, vec3f.Z);
+      for int i <- 0..3 &&
+      auto t <- [vec3f(-3, -2, 0), vec3f(3.1, -2, 0), vec3f(-3.1, 4.2, 0)] &&
+      auto rot <- [angle, -2 * angle - 9, -2 * angle - 25] {
+        using Matrix {
+          Translatef t;
+          Rotatef (rot, vec3f.Z);
+          // TODO: better error message
+          // CallList gears[id];
+          CallList gears[i];
+        }
+      }
+    }
+  }
+  void animate() angle = 100 * float:glfwGetTime();
+  void key(GLFWwindow window, int k, int action) {
+    if (action != GLFW_PRESS) return;
+    using prefix GLFW_KEY_ switch int i over i == k {
+      case ESCAPE: running = 0;
+      case UP: view_rot.x += 5;
+      case DOWN: view_rot.x -= 5;
+      case LEFT: view_rot.y += 5;
+      case RIGHT: view_rot.y -= 5;
+    }
+  }
+  void handleChar(GLFWwindow window, int k) {
+    if (k == "z") view_rot.z += 5;
+    if (k == "Z") view_rot.z -= 5;
+  }
+  void reshape(GLFWwindow window, int width, height) using mode GL {
+    auto ratio = float:height / width;
+    float znear = 5, zfar = 30, xmax = znear * 0.5;
+    Viewport(0, 0, width, height);
+    MatrixMode PROJECTION; LoadIdentity;
+    Frustum (-xmax, xmax, -xmax*ratio, xmax*ratio, znear, zfar);
+    MatrixMode MODELVIEW; LoadIdentity;
+    Translatef $ -20 * vec3f.Z;
+  }
+  void init() using mode GL {
+    auto
+      pos = [5f, 5f, 10f, 0],
+      red = [.8f, .1f, 0f, 1f], 
+      green = [0f, .8f, .2f, 1f],
+      blue = [.2f, .2f, 1f, 1f];
+    LIGHT0.Lightfv (POSITION, pos.ptr);
+    Enable CULL_FACE;
+    Enable LIGHTING;
+    Enable LIGHT0;
+    Enable DEPTH_TEST;
+    
+    for int id <- 0..3 &&
+    auto tup <- [(1f, 4f, 1f, 20), (.5f, 2f, 2f, 10), (1.3f, 2f, 0.5f, 10)] &&
+    auto color <- [&red, &green, &blue] {
+      gears[id] = GenLists(1);
+      gears[id].NewList COMPILE;
+      FRONT.Materialfv(AMBIENT_AND_DIFFUSE, color.ptr);
+      gear (tup, 0.7);
+      EndList;
+    }
+    Enable NORMALIZE;
+    for auto arg <- args {
+      if (arg == "-info") {
+        writeln "GL_RENDERER\t= $(CToString GetString RENDERER)";
+        writeln "GL_VERSION\t= $(CToString GetString VERSION)";
+        writeln "GL_VENDOR\t= $(CToString GetString VENDOR)";
+        writeln "GL_EXTENSIONS\t= $(CToString GetString EXTENSIONS)";
+      }
+      if (arg == "-exit") {
+        autoexit = 30;
+        writeln "close after $autoexit s";
+      }
+    }
+  }
+  using mode GLFW {
+    if (!Init()) raise new Error "Failed to init GLFW";
+    onExit Terminate;
+    
+    OpenWindowHint(DEPTH_BITS, 16);
+    auto wnd = OpenWindow (300, 300, WINDOWED, "Gears", null);
+    if (!wnd) raise new Error "Failed to open GLFW window";
+    
+    wnd.SetWindowUserPointer (_esi);
+    
+    wnd.SetInputMode (KEY_REPEAT, true);
+    SwapInterval 1;
+    
+    init();
+    
+    windowSizeCallback = &reshape;
+    keyCallback = &key;
+    charCallback = &handleChar;
+    initCallbacks();
+    
+    while running {
+      draw;
+      animate;
+      SwapBuffers;
+      PollEvents;
+      if (!IsWindow(wnd)) running = false;
+    }
+  }
+}

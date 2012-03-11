@@ -1,0 +1,51 @@
+module hellosfml;
+
+import std.lib.(csfml, opengl);
+
+void main() using mode SFML {
+  auto settings = WindowSettings:(24, 8, 0), mode = VideoMode:(800, 600, 32);
+  auto app = RenderWindow Create(mode, "SFML window", size_t: (sfResize | sfClose), settings);
+  if (!app) raise new Error "could not create window";
+  onExit app.Destroy;
+  
+  auto image = Image CreateFromFile "indianya.png";
+  if (!image) raise new Error "could not load image";
+  onExit image.Destroy;
+  
+  auto sprite = Sprite Create;
+  sprite.SetImage image;
+  onExit sprite.Destroy;
+  writeln "$(string-of type-of sprite)";
+  
+  auto font = Font CreateFromFile ("Vera.ttf", 50, null);
+  if (!font) raise new Error "could not open font";
+  onExit font.Destroy;
+  
+  auto text = String Create;
+  onExit text.Destroy;
+  using text {
+    SetText "Hello SFML";
+    SetFont font;
+    SetSize 50;
+  }
+  
+  auto music = Music CreateFromFile "Tristram Theme.ogg";
+  if (!music) raise new Error "could not open music";
+  onExit music.Destroy;
+  
+  music.Play;
+  
+  using app {
+    while (IsOpened) {
+      while (GetEvent &sfEvent ev) {
+        if (ev.Type == EvtClosed) {
+          app.Close();
+        }
+      }
+      Clear Black;
+      DrawSprite sprite;
+      DrawString text;
+      Display;
+    }
+  }
+}

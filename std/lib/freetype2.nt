@@ -1,0 +1,182 @@
+module std.lib.freetype2;
+
+pragma(pkg-config, "freetype2");
+
+import c.freetype;
+import std.math;
+
+void FTcheck(FT_Error err) {
+  if (err) raise new Error "Freetype error $err";
+}
+
+defmode FT "prefix FT_";
+
+FT_Library library;
+void init() {
+  FTcheck FT_Init_FreeType &library;
+}
+
+struct FontStyle {
+  bool bold, underlined;
+  vec4f color, bgcol;
+  int chars;
+  string toString() {
+    string res = "[";
+    if (bold) res ~= "bold, ";
+    if (underlined) res ~= "underlined, ";
+    res ~= "$color, length $chars]";
+    return res;
+  }
+}
+
+struct MyGlyph {
+  int uchar;
+  int index;
+  FontStyle style;
+  int left, top;
+}
+
+class Font {
+  FT_Face face;
+  void init(byte[] data, int size, int dpi) using mode FT {
+    FTcheck New_Memory_Face(library, data.(char*:ptr, length), 0, &face);
+    // FTcheck Set_Pixel_Sizes(face, 0, size);
+    FTcheck Set_Char_Size(face, 0, size*64, dpi, dpi);
+  }
+  vec4f[] toBuffer(string text, FontStyle[] styles, int* wp = null, hp = null) using mode FT {
+    // TODO: unicode
+    auto glyphs = new Glyph[] text.length, pos = new Vector[] text.length;
+    Vector pen;
+    int prevIndex;
+    for (int id, char ch) <- zip(0..-1, text) { // TODO: unicode
+      auto index = Get_Char_Index(face, FT_ULong:ch);
+      if (id && index) {
+        Vector delta;
+        Get_Kerning(face, prevIndex, index, 0, &delta);
+        pen.x += delta.x;
+      }
+      prevIndex = index;
+      pos[id] = pen;
+      FTcheck Load_Glyph(face, index, LOAD_DEFAULT);
+      FTcheck Get_Glyph(face.glyph, &glyphs[id]);
+      pen.x += face.glyph.advance.x;
+      pen.y += face.glyph.advance.y;
+    }
+    BBox bbox;
+    bbox.(xMin, yMin, xMax, yMax) = (32767, 32767, -32768, -32768);
+    for (int id, Glyph* glyph) <- zip(0..-1, refs glyphs) {
+      Glyph_Get_CBox (*glyph, GLYPH_BBOX_PIXELS, &BBox glyph_bbox);
+      using glyph_bbox {
+        using pos[id] { xMin += x>>6; xMax += x>>6; yMin += y>>6; yMax += y>>6; }
+        if (xMin < bbox.xMin) bbox.xMin = xMin;
+        if (yMin < bbox.yMin) bbox.yMin = yMin;
+        if (xMax > bbox.xMax) bbox.xMax = xMax;
+        if (yMax > bbox.yMax) bbox.yMax = yMax;
+      }
+      if (bbox.xMin > bbox.xMax) raise new sys.Error "Didn't grow the BBox!";
+    }
+    
+    // leave room for underlining
+    auto up = face.underline_position >> 6, uw = face.underline_thickness >> 6;
+    for auto style <- styles if (style.underlined && bbox.yMin > up - uw) bbox.yMin = up - uw;
+    
+    int w = bbox.(xMax - xMin), h = bbox.(yMax - yMin);
+    if (wp) *wp = w; if (hp) *hp = h;
+    
+    auto vecs = [for i <- 0 .. w*h: vec4f(0)].eval;
+    int x 4 bg_bounds;
+    bool first = true;
+    void expandBounds(int[] newRect) {
+      for (int i = 0; i < 2; ++i) {
+        if (first || newRect[i] < bg_bounds[i]) bg_bounds[i] = newRect[i];
+        if (first || newRect[i+2] > bg_bounds[i+2]) bg_bounds[i+2] = newRect[i+2];
+      }
+      first = false;
+    }
+    vec4f last_bg;
+    void nextBg(vec4f bg, bool flush) {
+      for (int i = 0; i < 2; ++i) if (bg_bounds[i] < 0) bg_bounds[i] = 0;
+      if (bg_bounds[2] !< w) bg_bounds[2] = w - 1;
+      if (bg_bounds[3] !< h) bg_bounds[3] = h - 1;
+      if (flush || last_bg != bg) {
+        first = true;
+        for (int y = bg_bounds[1]; y <= bg_bounds[3]; ++y) {
+          for (int x = bg_bounds[0]; x <= bg_bounds[2]; ++x) {
+            auto i = w * y + x;
+            auto v = vecs[i];
+            v = v * v.w + last_bg * (1 - v.w);
+            vecs[i] = v;
+          }
+        }
+        last_bg = bg;
+      }
+    }
+    
+    for (int id, Glyph glyph) <- zip(0..-1, glyphs) {
+      while (styles.length && !styles[0].chars) styles=styles[1..$];
+      if (!styles.length) raise new sys.Error "Has run out of formatting data";
+      styles[0].chars --;
+      auto style = styles[0];
+      
+      auto nextStyle() {
+        if (style.chars) return &styles[0];
+        for auto s <- refs styles if (s.chars) return s;
+        return null;
+      }
+      
+      FTcheck Glyph_To_Bitmap(&glyph, RENDER_MODE_NORMAL, &pos[id], false);
+      auto bit = BitmapGlyph: glyph;
+      
+      // if (id && !bit.left) continue; // space or something
+      if (!id || bit.left)::
+      
+      auto yt = bit.bitmap.rows + 1;
+      if (style.underlined) yt = bbox.(yMax - yMin) + 4; // draw down to the underline
+      auto xt = bit.bitmap.width + 1;
+      if (style.underlined && auto ns = nextStyle() && ns.underlined) xt = (pos[id+1].x>>6) - (pos[id].x>>6) + 1;
+      auto left = bit.left - bbox.xMin, top = bbox.yMax - bit.top;
+      bool inside(Bitmap* bmp, int x, int y) {
+        if (x < 0 || y < 0) return false;
+        if (x !< bmp.width || y !< bmp.rows) return false;
+        return true;
+      }
+      int index(Bitmap* bmp, int x, y) { return bmp.pitch * y + x; }
+      for int y <- -1..yt {
+        for int x <- -1..xt {
+          float a = 0f;
+          using &bit.bitmap {
+            if (inside(x, y)) a += buffer[index(x, y)]/255f;
+            if (style.bold) {
+              if (inside(x-1, y)) a += buffer[index(x-1, y)]/1024f;
+              if (inside(x+1, y)) a += buffer[index(x+1, y)]/1024f;
+              if (inside(x, y+1)) a += buffer[index(x, y+1)]/1024f;
+              if (inside(x, y+1)) a += buffer[index(x, y+1)]/1024f;
+            }
+            if (a>1f) a=1f;
+          }
+          auto
+            dx = left + x, dy = top + y,
+            i = w*dy + dx, u = bbox.yMax - (face.underline_position/64f);
+          if (style.underlined) {
+            auto na = 1f/abs(dy-u);
+            na *= na*na*na; // Naaa naaaaa naaaaaa nananaaaaaaa
+            if (na>0.1f) {
+              if (na>1f) na=1f;
+              if (na>a) a=na;
+            }
+          }
+          a = pow(a, 1/3.0);
+          auto me = style.color * vec4f(1f, 1f, 1f, a);
+          if (dx !< 0 && dx < w && dy !<0 && dy < h) {
+            if (a != 0 && vecs[i].w == 0) vecs[i] += me;
+          }
+        }
+      }
+      nextBg(style.bgcol, false);
+      expandBounds [left, top, left+xt, top+yt];
+      Done_Glyph glyph;
+    }
+    nextBg(vec4f(0), true); // finalize
+    return vecs;
+  }
+}

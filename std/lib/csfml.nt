@@ -1,0 +1,17 @@
+module std.lib.csfml;
+
+alias sfModeString = "prefix %IDENTIFIER_ prefix sf first-arg x free-mode";
+defmode sfRenderWindow x sfModeString;
+defmode sfImage x sfModeString;
+defmode sfSprite x sfModeString;
+defmode sfFont x sfModeString;
+defmode sfString x sfModeString;
+defmode sfMusic x sfModeString;
+
+public import c.SFML.(Audio, Graphics, Graphics.Font);
+pragma(lib, "csfml-window");
+pragma(lib, "csfml-graphics");
+pragma(lib, "csfml-audio");
+pragma(lib, "GLEW");
+
+defmode SFML "prefix sf";

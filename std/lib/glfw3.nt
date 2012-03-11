@@ -1,0 +1,32 @@
+module std.lib.glfw3;
+
+public import c.GL.glfw3;
+
+pragma(lib, "glfw");
+
+defmode GLFW "prefix GLFW_ prefix glfw";
+
+void delegate(GLFWwindow, int, int) windowSizeCallback;
+void delegate(GLFWwindow, int, int) keyCallback;
+void delegate(GLFWwindow, int) charCallback;
+
+extern(C) {
+  void WindowSizeCallback(GLFWwindow wnd, int w, h) {
+    _esi = glfwGetWindowUserPointer(wnd);
+    windowSizeCallback?(wnd, w, h);
+  }
+  void KeyCallback(GLFWwindow wnd, int k, action) {
+    _esi = glfwGetWindowUserPointer(wnd);
+    keyCallback?(wnd, k, action);
+  }
+  void CharCallback(GLFWwindow wnd, int k) {
+    _esi = glfwGetWindowUserPointer(wnd);
+    charCallback?(wnd, k);
+  }
+}
+
+void initCallbacks() using mode GLFW {
+  SetWindowSizeCallback &WindowSizeCallback;
+  SetKeyCallback &KeyCallback;
+  SetCharCallback &CharCallback;
+}

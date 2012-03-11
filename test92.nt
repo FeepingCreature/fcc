@@ -1,0 +1,50 @@
+module test92;
+
+import std.(file, time, lib.(freetype2, opengl.(, sdl)));
+
+void main() {
+  auto font = new Font(readAll "Vera.ttf", 16, 1200);
+  FontStyle fs;
+  fs.color = vec4f(1);
+  fs.chars = "Hello World".length;
+  auto buf = font.toBuffer("Hello World", [fs], &int width, &int height);
+  
+  using mode GL {
+    GLuint tex;
+    gl-context-callbacks ~= \{
+      GenTextures(1, &tex);
+      using TEXTURE_2D {
+        BindTexture tex;
+        auto data = [for v <- buf: int:(v.x*255)<<16 | int:(v.y*255)<<8 | int:(v.z*255)].eval;
+        gluBuild2DMipmaps (3, width, height, GL_BGRA, GL_UNSIGNED_BYTE, data.ptr);
+        data.free;
+        TEXTURE_MIN_FILTER.TexParameteri LINEAR_MIPMAP_LINEAR;
+        TEXTURE_MAG_FILTER.TexParameteri LINEAR;
+      }
+    };
+    auto surf = setup-gl();
+    auto fps = 0, lastChecked = sec();
+    while true {
+      fps++;
+      if (sec() - lastChecked > 1) {
+        writeln "$fps FPS. ";
+        lastChecked = sec();
+        fps = 0;
+      }
+      ClearColor (0, 0, 0, 0);
+      ClearDepth 1;
+      Clear (COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
+      MatrixMode PROJECTION; LoadIdentity;
+      glOrtho(0, 1, 1, 0, -1, 1);
+      MatrixMode MODELVIEW; LoadIdentity;
+      Color3f White;
+      using Quads {
+        TexCoord2f(0, 0); Vertex2f(0, 0);
+        TexCoord2f(0, 1); Vertex2f(0, 1);
+        TexCoord2f(1, 1); Vertex2f(1, 1);
+        TexCoord2f(1, 0); Vertex2f(1, 0);
+      }
+      update surf;
+    }
+  }
+}
