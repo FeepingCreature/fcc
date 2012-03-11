@@ -93,6 +93,14 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
       foreach (ch; str) if (!isValidChar(ch)) return null;
       if (auto res = getSSESwizzle(this, base, str)) return fastcast!(Object) (res);
       Expr generate(Expr ex) {
+        if (str.length == 1) {
+          auto ch = str[0];
+          if (ch == 'x') return mkTupleIndexAccess(ex, 0);
+          if (ch == 'y') return mkTupleIndexAccess(ex, 1);
+          if (ch == 'z') return mkTupleIndexAccess(ex, 2);
+          if (ch == 'w') return mkTupleIndexAccess(ex, 3);
+          assert(false);
+        }
         auto parts = getTupleEntries(ex, null, true);
         Expr[] exprs;
         foreach (ch; str) {
@@ -106,6 +114,10 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
         auto new_vec = mkVec(this.base, exprs.length);
         if (new_vec.extend) exprs ~= new ZeroFiller(this.base);
         return reinterpret_cast(new_vec, mkTupleExpr(exprs));
+      }
+      // no need for caching in this case
+      if (str.length == 1) {
+        return fastcast!(Object) (generate(reinterpret_cast(asFilledTup, base)));
       }
       if (auto lv = fastcast!(LValue) (base)) {
         return fastcast!(Object)~ tmpize_maybe(new RefExpr(lv), (Expr ex) {
