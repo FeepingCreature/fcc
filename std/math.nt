@@ -123,6 +123,8 @@ float abs(float f) { if f < 0 return -f; return f; }
 alias PI = 3.1415926538;
 /*Alias: PI2*/
 alias PI2 = PI * 2;
+/*Alias: TAU*/
+alias TAU = PI2;
 /*Alias: PI180*/
 alias PI180 = PI/180.0;
 
