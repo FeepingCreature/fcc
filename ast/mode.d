@@ -13,18 +13,23 @@ class Mode {
   string argname;
   string ident;
   bool isGObjectMode() { return config.find("gobject-helper") != -1; }
-  bool isFreeMode() { return isGObjectMode; }
+  bool isFreeMode() { return config.find("free-mode") != -1 || isGObjectMode; }
   bool needsArg() {
     if (argname) return true;
     if (isGObjectMode) return true;
     return false;
   }
-  this(string c, string a, string i) { config = c; argname = a; ident = i; }
+  this(string c, string a, string i) {
+    config = c.replace("%IDENTIFIER", i);
+    argname = a;
+    ident = i;
+  }
   ModeSpace translate(Expr ex, ParseCb rest) {
     auto res = new ModeSpace;
     string prefix, suffix;
     auto cfg = config.dup;
     while (cfg.length) {
+      if (cfg.accept("free-mode")) continue;
       if (cfg.accept("prefix")) {
         if (!cfg.gotIdentifier(prefix))
           cfg.failparse("couldn't get prefix");
@@ -40,6 +45,7 @@ class Mode {
       }
       
       if (cfg.accept("gobject-helper")) {
+        if (!ex) fail; // gobject always needs an ex
         string capsname = ident;
         string leadcapsname, smallname = capsname.tolower();
         foreach (part; capsname.split("_")) {
@@ -352,8 +358,8 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("mode")) gotMode = true;
   string name;
   if (!t2.gotIdentifier(name))
-    if (gotMode) t2.failparse("Mode name expected");
-    else return null;
+    if (!gotMode || namespace().lookup("mode")) return null;
+    else t2.failparse("Mode name expected");
   auto mode = cast(Mode) namespace().lookup(name);
   if (!mode)
     if (gotMode) text.failparse(name~" is not a mode! ");
@@ -374,6 +380,8 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
       pre_ms.prefixes ~= mode.ident.tolower();
       pre_ms.prefixes ~= mode.ident;
       namespace.set(new WithStmt(new PlaceholderTokenLV(pre_ms, "prefix/suffix pre thing")));
+    } else {
+      namespace.set(new WithStmt(new PlaceholderTokenLV(mode.translate(new PlaceholderToken(Single!(Void), "bogus"), rest), "prefix/suffix pre thing 2")));
     }
     
     if (text.accept("(")) opened = true;
