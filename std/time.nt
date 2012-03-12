@@ -62,3 +62,19 @@ double measure(void delegate() dg) {
   double end = sec();
   return end - start;
 }
+
+/*Function: count-fps
+Calls dg once every second passing as a number how often its return dg was called.
+Usage: call the returned dg once per frame redraw, and print FPS in the callback. */
+void delegate() count-fps(void delegate(float) dg) {
+  auto last = sec();
+  int fps;
+  return new \{
+    auto t = sec();
+    if (t - last) > 1 {
+      last = t;
+      dg(fps);
+      fps = 0;
+    } else fps ++;
+  };
+}
