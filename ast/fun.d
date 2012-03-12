@@ -870,9 +870,14 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
         t2 = text;
         if (t2.accept(";")) { // undefined function
           text = t2;
-          fun.addStatement(
-            iparse!(Statement, "undefined_function", "tree.stmt")
-                   (`raise new Error "Function $fun not implemented";`, "fun", mkString(fun.name)));
+          if (auto that = namespace().lookup("this"))
+            fun.addStatement(
+              iparse!(Statement, "undefined_function", "tree.stmt")
+                    (`raise new Error "Function $this::$fun is not implemented";`, "fun", mkString(fun.name), "this", that));
+          else
+            fun.addStatement(
+              iparse!(Statement, "undefined_function", "tree.stmt")
+                    (`raise new Error "Function $fun is not implemented";`, "fun", mkString(fun.toString())));
           return fun;
         }
         Scope sc;
