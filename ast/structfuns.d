@@ -117,8 +117,12 @@ class RelFunction : Function, RelTransformable, HasInfo {
       auto cur = super.fixup();
       if (!fastcast!(hasRefType) (context))
         logln("bad context: ", context, " is not reftype");
+      
       auto bp = new Variable((fastcast!(hasRefType) (context)).getRefType(), "__base_ptr", cur);
-      add(bp); cur += 4;
+      add(bp);
+      cur += 4;
+      _framestart += 4;
+      
       if (fastcast!(Pointer)~ bp.valueType())
         add(new ExprAlias(new DerefExpr(bp), "this"));
       return cur;

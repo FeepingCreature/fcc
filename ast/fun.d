@@ -164,7 +164,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       auto pt = param.type;
       _framestart += pt.size;
       add(new Variable(pt, param.name, cur));
-      cur += param.type.size;
+      cur += pt.size;
       cur = (cur + 3) & ~3; // round to 4
     }
     if (!releaseMode) {

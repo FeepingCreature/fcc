@@ -36,6 +36,7 @@ class NestedFunction : Function {
     int fixup() {
       auto cur = super.fixup();
       add(new Variable(voidp, "__base_ptr", cur));
+      _framestart += 4;
       cur += 4;
       return cur;
     }
