@@ -725,6 +725,7 @@ void loop(string start,
   }
   bool[string] checked;
   bool needsRebuild(Module mod) {
+    // logln("needsRebuild? ", mod.name, " ", mod.getAllModuleImports());
     if (mod.dontEmit) return false;
     if (!isUpToDate(mod)) return true;
     foreach (mod2; mod.getAllModuleImports())

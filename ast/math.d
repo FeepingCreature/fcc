@@ -826,7 +826,7 @@ Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
   bool isNeg;
   if (t2.accept("-")) { isNeg = true; }
   else {
-    if (!t2.accept("¬")) return null;
+    if (!t2.accept("¬") && !t2.accept("neg")) return null;
   }
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))

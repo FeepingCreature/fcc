@@ -14,9 +14,9 @@ alias FE_OVERFLOW = 0x8;
 alias FE_UNDERFLOW = 0x10;
 alias FE_INEXACT = 0x20;
 
-template vex3f(alias A) <<EOF
-  alias vex3f = A[0]~".(vec3f("~A[1].replace("%", "x")~", "~A[1].replace("%", "y")~", "~A[1].replace("%", "z")~"))";
-EOF
+template vex3f(alias A) {
+  alias vex3f = "vec3f("~A[1].replace("%", A[0]~".x")~", "~A[1].replace("%", A[0]~".y")~", "~A[1].replace("%", A[0]~".z")~")";
+}
 
 class FPUEx : Error {
   void init() { super.init "FPU Exception"; }
@@ -28,11 +28,10 @@ void init() { _fpuex = new FPUEx; }
 extern(C) void function(int) signal(int, void function(int) fn);
 alias SIGFPE = 8;
 void sigfun(int i) {
-  raise-error _fpuex;
+  raise _fpuex;
 }
 
 void main(string[] args) {
-	(string exec, args) = args[(0, 1..$)];
   int w = 640, h = 480; bool fs = false;
   if (args.length > 1 && args[1] == "full") { (w, h, fs, args) = (1920, 1080, true, args[0..1]~args[1..$]); }
   set-handler (SDLQuit) invoke-exit "return";
@@ -123,7 +122,8 @@ void main(string[] args) {
     iters += count;
     int w = w, h = h; // local copies
     auto scale = vec2f(w, h) / 4f;
-    int start;
+    int start, mchange;
+    onSuccess misses += mchange;
     define-exit "reset-pos" {
       pos = vec2f(randf() x 2); col = vec4f(0);
       feclearexcept fpmask;
@@ -135,25 +135,23 @@ void main(string[] args) {
       // hopelessly out of bounds
       if (pos.lensq > 1000000000000.0) { pos = vec2f(randf() x 2); col = vec4f(0); graceperiod = 20; }
       auto index = rng.rand() % funs.length;
-      alias fun = funs[index];
+      ref fun = funs[index];
       col = (col + fun[0]) * vec4f(0.5);
       pos = fun[1] pos;
       if graceperiod graceperiod--;
       else {
-        auto ipos = vec2i(int:((pos.x + 2) * scale.x), int:((pos.y + 2) * scale.y));
-        if ipos.(((eval x >= 0) & (eval y >= 0)) & ((eval x < w) & (eval y < h))) {
-          auto fp = &field[ipos.y * w + ipos.x];
-          alias f = *fp;
-          f.x += col.x;
-          f.y += col.y;
-          f.z += col.z;
-          f.w += 1 / col.w;
-        } else misses++;
+        int ix = int:((pos.x + 2) * scale.x), iy = int:((pos.y + 2) * scale.y);
+        mchange ++;
+        if (ix >= 0) if (iy >= 0) if (ix < w) if (iy < h) {
+          mchange --;
+          ref f = field[iy * w + ix];
+          f += col.(vec4f(x, y, z, 1/w));
+        }
       }
     }
   }
   bool shutdown;
-  void worker(IRandom rng) while !shutdown runSteps(1024, rng);
+  void worker(IRandom rng) while !shutdown runSteps(16384, rng);
   void startWorker(IRandom rng) { auto worker = &worker; tp.addTask new delegate void() worker rng;; }
   onExit {
     shutdown = true;
@@ -184,15 +182,15 @@ void main(string[] args) {
           float count = f[1] / basefactor;
           c = c * log(count + 1) / c.w;
           c *= 0.707;
-          c = mixin vex3f!("c", "min(%, 1)");
+          c = mixin vex3f!("c", "min(%, 1f)");
           alias gamma = 2.2;
           c = mixin vex3f!("c", "%.pow (1 / gamma)");
           display.pset (x, y, c.xyz);
         }
       }
     }
-    if targetfile
-      targetfile.saveBMP;
+    // if targetfile
+    //   targetfile.saveBMP;
     flip;
     if iterlimit return;
   }

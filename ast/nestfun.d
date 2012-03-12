@@ -17,7 +17,7 @@ class NestedFunction : Function {
   override {
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
-      return context.get!(Function).mangle(cleaned_name, type)~"_of_"~type.mangle();
+      return cleaned_name~"_of_"~type.mangle()~"_under_"~context.get!(Function).mangleSelf();
     }
     NestedFunction alloc() { return new NestedFunction; }
     NestedFunction flatdup() {

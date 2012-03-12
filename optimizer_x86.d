@@ -564,11 +564,17 @@ class ProcTrack : ExtToken {
         break;
       case Label: return false;
       case Push:
-        if (noStack)
+        if (noStack || "%esp" in use)
           return false;
         if (t.size == nativePtrSize) {
           int offs;
           if (auto src = t.source.isIndirect2(offs)) {
+            if (src == "%esp") {
+              bool hasMemoryAccess;
+              foreach (key, value; known) if (key.find("(")!=-1 || value.find("(")!=-1) hasMemoryAccess = true;
+              // really not safe!
+              if (hasMemoryAccess) return false;
+            }
             if (src in known) {
               if (auto indir = mkIndirect(known[src], offs)) {
                 fixupESPDeps(4);
@@ -892,15 +898,18 @@ restart:
       _changed = progress; //  v secretly
       skip:; //    < < < < < < /
     } else {
-      obj = allocProctrack();
-      t.obj = obj;
-      if (obj.update(first)) {
-        // $SUBST(t, $1);
-        first = t;
-        goto restart;
+      if (xpar == -1 || si < xpar) {
+        si++;
+        obj = allocProctrack();
+        t.obj = obj;
+        if (obj.update(first)) {
+          // $SUBST(t, $1);
+          first = t;
+          goto restart;
+        }
+        // else logln("Reject ", $0, ", ", $1);
+        markProctrackDone(obj);
       }
-      // else logln("Reject ", $0, ", ", $1);
-      markProctrackDone(obj);
     }
   `));
   // .ext_step = &ext_step; // export
@@ -1839,6 +1848,9 @@ restart:
     });
     bool changed;
     if (match.length) do {
+      if (xpar != -1 && si >= xpar) continue;
+      si ++;
+      
       Transaction t1;
       t1.kind = Transaction.Kind.SFree;
       t1.size = sz + postFree;
@@ -1872,6 +1884,30 @@ restart:
     $1.from == "(%esp)" && $1.to.isUtilityRegister() && !info($0).opContains($1.to) && !info($0).opContains($1.from)
     =>
     $SUBST($1, $0);
+  `));
+  mixin(opt("math_into_ref", `^MathOp, ^Mov:
+    $0.op1.isNumLiteral() && $0.op2.isUtilityRegister() && $0.opName == "addl" &&
+    $1.from.isIndirect() == $0.op2
+    =>
+    $T t1 = $1;
+    int indir; $1.from.isIndirect2(indir);
+    indir += $0.op1.literalToInt();
+    t1.from = qformat(indir, "(", $0.op2, ")");
+    if (t1.to == $0.op2) $SUBST(t1); // overwrite target, no need to keep the math
+    else if (t1.to.contains($0.op2)) { } // confusing
+    else $SUBST(t1, $0); // keep the math
+  `));
+  mixin(opt("move_lea_after_unrelated_op", `^LoadAddress, (^Pop || ^Mov):
+    $0.to.isUtilityRegister() && !info($1).opContains($0.to)
+    =>
+    $SUBST($1, $0);
+  `));
+  // this sequence would leave the target register pointing at an invalid area of the stack
+  // ergo it must be bogus
+  mixin(opt("sfree_cancels_lea", `^LoadAddress, ^SFree:
+    $0.from == "(%esp)" && $1.size
+    =>
+    $SUBST($1);
   `));
   mixin(opt("break_up_push_pop", `^Push || ^Pop:
     $0.size > 4 && ($0.size % 4) == 0 && $0.size <= 64 // just gets ridiculous beyond that point 
@@ -1952,7 +1988,7 @@ restart:
           case SAlloc:
             if (check == "(%esp)") break outer;
             continue;
-          case Mov2, Mov1, Swap, Text: break outer; // weird stuff, not worth the confusion
+          case Mov2, Mov1, Swap, Text, Extended: break outer; // weird stuff, not worth the confusion
           case FloatMath, PureFloat:
             continue;    // no change
           
@@ -2019,6 +2055,9 @@ restart:
       return false;
     });
     if (match.length) do {
+      if (xpar != -1 && si >= xpar) continue;
+      si ++;
+      
       if (pushMode) {
         Transaction t;
         t.kind = Transaction.Kind.SAlloc;

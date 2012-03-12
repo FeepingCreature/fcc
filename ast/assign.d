@@ -29,6 +29,25 @@ class _Assignment(T) : LineNumberedStatementClass {
   override string toString() { return Format(target, " := ", value, "; "); }
   override void emitAsm(AsmFile af) {
     super.emitAsm(af);
+    if (!isARM && value.valueType().size % 4 == 0) {
+      static if (is(T: LValue)) {
+        if (auto srclv = fastcast!(LValue) (value)) {
+          mixin(mustOffset("0"));
+          target.emitLocation(af);
+          srclv.emitLocation(af);
+          af.popStack("%eax", nativePtrSize);
+          af.popStack("%ecx", nativePtrSize);
+          // ebx = src, ecx = target
+          auto sz = value.valueType().size;
+          for (int i = 0; i < sz / 4; ++i) {
+            af.mmove4(qformat(i*4, "(%eax)"), "%ebx");
+            af.mmove4("%ebx", qformat(i*4, "(%ecx)"));
+            af.nvm("%ebx");
+          }
+          return;
+        }
+      }
+    }
     if (blind) {
       value.emitAsm(af);
       static if (is(T: MValue))

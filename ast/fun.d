@@ -239,7 +239,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         return "_WinMain@16";
       } else return "_WinMain_not_relevant_on_this_architecture";
     } else
-      return sup.mangle(cleaned_name, type);
+      return cleaned_name~"_"~sup.mangle(null, type);
   }
   string exit() { return mangleSelf() ~ "_exit_label"; }
   static int funid_count;

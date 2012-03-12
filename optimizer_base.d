@@ -406,7 +406,9 @@ string opt(string name, string s) {
     if (match.length) _loophead:do {
       match.modded = false;`;
   if (src.ctStrip().length) res ~= `
-      if (!(`~src~`)) continue;
+      if (!(`~src~`)) continue;`;
+  if (name != "ext_step") // handled differently
+    res ~= `
       if (xpar != -1 && si >= xpar) continue;
       si++;
       `;

@@ -143,10 +143,10 @@ alias acos = acosf;
 
 /*Template: min
 Returns the smaller of its two parameters*/
-template min(T) { auto min(T t) { static if (t.length != 2) { Please only pass two parameters to min! } if (t[0] > t[1]) return t[1]; return t[0]; } }
+template min(T) { auto min(T t) { static if (t.length != 2) { pragma(msg, string-of type-of t); Please only pass two parameters to min! } if (t[0] > t[1]) return t[1]; return t[0]; } }
 /*Template: max
 Returns the larger of its two parameters*/
-template max(T) { auto max(T t) { static if (t.length != 2) { Please only pass two parameters to max! } if (t[0] > t[1]) return t[0]; return t[1]; } }
+template max(T) { auto max(T t) { static if (t.length != 2) { pragma(msg, string-of type-of t); Please only pass two parameters to max! } if (t[0] > t[1]) return t[0]; return t[1]; } }
 
 /*Template: minlist
 Returns the smallest entry of the iterable argument*/
