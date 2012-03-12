@@ -153,7 +153,7 @@ static this() {
     return new CondExpr(new Compare(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
   }
   Expr ptreq(bool neg, Expr ex1, Expr ex2) {
-    auto p1 = fastcast!(Pointer) (ex1.valueType()), p2 = fastcast!(Pointer) (ex2.valueType());
+    auto p1 = fastcast!(Pointer) (resolveType(ex1.valueType())), p2 = fastcast!(Pointer) (resolveType(ex2.valueType()));
     if (!p1 || !p2) return null;
     assert(p1.target == p2.target, Format("Cannot compare ", p1, " and ", p2));
     return new CondExpr(new Compare(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
