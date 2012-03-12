@@ -9,6 +9,8 @@ defmode GLFW "prefix GLFW_ prefix glfw";
 void delegate(GLFWwindow, int, int) windowSizeCallback;
 void delegate(GLFWwindow, int, int) keyCallback;
 void delegate(GLFWwindow, int) charCallback;
+void delegate(GLFWwindow, int, int) mousePosCallback;
+void delegate(GLFWwindow, int, int) mouseButtonCallback;
 
 extern(C) {
   void WindowSizeCallback(GLFWwindow wnd, int w, h) {
@@ -23,10 +25,100 @@ extern(C) {
     _esi = glfwGetWindowUserPointer(wnd);
     charCallback?(wnd, k);
   }
+  void MousePosCallback(GLFWwindow wnd, int x, y) {
+    _esi = glfwGetWindowUserPointer(wnd);
+    mousePosCallback?(wnd, x, y);
+  }
+  void MouseButtonCallback(GLFWwindow wnd, int a, b) {
+    _esi = glfwGetWindowUserPointer(wnd);
+    mouseButtonCallback?(wnd, a, b);
+  }
 }
 
 void initCallbacks() using mode GLFW {
   SetWindowSizeCallback &WindowSizeCallback;
   SetKeyCallback &KeyCallback;
   SetCharCallback &CharCallback;
+  SetMousePosCallback &MousePosCallback;
+  SetMouseButtonCallback &MouseButtonCallback;
+}
+
+import std.lib.opengl.window;
+
+class GLFWWindow : GLWindow {
+  GLFWwindow handle;
+  int w, h;
+  vec2i size() { return vec2i(w, h); }
+  void key(GLFWwindow window, int k, int action) {
+    if (window != handle) raise new Error "wat";
+    // TODO
+    /*if (action != GLFW_PRESS) return;
+    using prefix GLFW_KEY_ switch int i over i == k {
+      case ESCAPE: running = 0;
+      case UP: view_rot.x += 5;
+      case DOWN: view_rot.x -= 5;
+      case LEFT: view_rot.y += 5;
+      case RIGHT: view_rot.y -= 5;
+    }*/
+  }
+  void handleChar(GLFWwindow window, int k) {
+    if (window != handle) raise new Error "wat";
+    // TODO
+  }
+  void reshape(GLFWwindow window, int width, height) {
+    if (window != handle) raise new Error "wat";
+    (w, h) = (width, height);
+    glViewport(0, 0, width, height);
+  }
+  void mousepos(GLFWwindow window, int x, y) {
+    if (window != handle) raise new Error "wat";
+    mouse-pos = vec2i(x, y);
+  }
+  void mousebutton(GLFWwindow window, int button, action) {
+    if (window != handle) raise new Error "wat";
+    if (action) onMouseDown?();
+    else onMouseUp?();
+  }
+  void setup() using mode GLFW {
+    if (!Init()) raise new Error "Failed to init GLFW";
+    onFailure Terminate;
+    
+    OpenWindowHint(DEPTH_BITS, 16);
+    (w, h) = (640, 480);
+    handle = OpenWindow (w, h, WINDOWED, "Gears", null);
+    if (!handle) raise new Error "Failed to open GLFW window";
+    
+    handle.SetWindowUserPointer (_esi);
+    
+    handle.SetInputMode (KEY_REPEAT, true);
+    // SwapInterval 0;
+    
+    windowSizeCallback = &reshape;
+    keyCallback = &key;
+    charCallback = &handleChar;
+    mousePosCallback = &mousepos;
+    mouseButtonCallback = &mousebutton;
+    initCallbacks();
+    for (auto dg <- context-callbacks) dg();
+  }
+  void update() using mode GLFW {
+    SwapBuffers;
+    PollEvents;
+    if (!IsWindow(handle)) raise new WindowClosed "GLFW exit";
+  }
+  bool claimed;
+  void claim-cursor() using mode GLFW {
+    handle.SetInputMode(CURSOR_MODE, CURSOR_CAPTURED);
+    warp $ size() / 2;
+    claimed = true;
+  }
+  void warp(vec2i to) using mode GLFW {
+    handle.SetMousePos to;
+    mouse-pos = to;
+  }
+  void release-cursor() using mode GLFW {
+    handle.SetInputMode(CURSOR_MODE, CURSOR_NORMAL);
+    claimed = false;
+  }
+  bool cursor-claimed() { return claimed; }
 }

@@ -1,0 +1,28 @@
+module std.lib.opengl.window;
+
+class WindowClosed : Error {
+  void init(string s) super.init "WindowClose: $s";
+}
+
+class GLWindow {
+  void delegate()[] context-callbacks;
+  // TODO: call dg if we're past setup
+  void addCallback(void delegate() dg) { context-callbacks ~= dg; }
+  void setup();
+  vec2i size();
+  void claim-cursor();
+  void release-cursor();
+  bool cursor-claimed();
+  void warp(vec2i);
+  void read-mouse-motion(void delegate(float, float) dg) {
+    auto idelta = mouse-pos - size() / 2;
+    auto delta = vec2f((0.001 * idelta).(x, y));
+    dg delta.(x, y);
+    if idelta.x || idelta.y
+      warp $ size() / 2;
+  }
+  void update();
+  bool mouse-pressed;
+  vec2i mouse-pos;
+  void delegate() onMouseDown, onMouseUp;
+}

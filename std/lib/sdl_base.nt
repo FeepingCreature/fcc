@@ -1,7 +1,7 @@
 module std.lib.sdl_base;
 
 public import c.SDL.SDL;
-import std.string;
+import std.string, std.lib.opengl.window;
 
 pragma(lib, "SDL");
 
@@ -68,6 +68,6 @@ class SDL-Error : Error {
   }
 }
 
-class SDLQuit : Error {
+class SDLQuit : WindowClosed {
   void init() { super.init "SDL_QUIT"; }
 }

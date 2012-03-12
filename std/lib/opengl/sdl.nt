@@ -1,6 +1,6 @@
 module std.lib.opengl.sdl;
 
-import std.lib.(opengl, sdl_base);
+import std.lib.(opengl, opengl.window, sdl_base);
 
 extern(C) void exit(int);
 
@@ -36,43 +36,53 @@ SDL_Surface* delegate(int, int) regenSurf;
 
 void update(SDL_Surface* surface) {
   swap;
-  using scoped onResize:: onResize = \(int w, h) { regenSurf(w, h); resizeWindow(w, h); };
+  using scoped onResize:: onResize = \(int w, h) {
+    regenSurf(w, h);
+    resizeWindow(w, h);
+  };
   std.lib.sdl_base.update;
 }
 
 void swap() { SDL_GL_SwapBuffers(); }
 
-void delegate()[] gl-context-callbacks;
-
-SDL_Surface* setup-gl(int extra-flags = 0) {
-  SDL_Init (SDL_INIT_VIDEO);
-  auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
-  flags |= extra-flags;
-  // SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
-  regenSurf = new delegate SDL_Surface*(int w, int h) {
-    writeln "regenSurf($w, $h, 0, $flags)";
-    auto res = SDL_SetVideoMode (w, h, 0, flags);
-    if !res quit 1;
-    initGL;
-    // IMPORTANT: init gl FIRST
-    resizeWindow (w, h);
-    for (auto dg <- gl-context-callbacks)
-      dg();
-    return res;
-  };
-  return regenSurf(640, 480);
-}
-
-void delegate() count-fps(void delegate(float) dg) {
-  import std.time;
-  auto last = sec();
-  int fps;
-  return new \{
-    auto t = sec();
-    if (t - last) > 1 {
-      last = t;
-      dg(fps);
-      fps = 0;
-    } else fps ++;
-  };
+class SDLWindow : GLWindow {
+  SDL_Surface* surf;
+  void setup() {
+    SDL_Init (SDL_INIT_VIDEO);
+    auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
+    // flags |= extra-flags;
+    // SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
+    SDL_Surface* regen(int w, int h) {
+      writeln "regenSurf($w, $h, 0, $flags)";
+      auto res = SDL_SetVideoMode (w, h, 0, flags);
+      if !res quit 1;
+      initGL;
+      // IMPORTANT: init gl FIRST
+      resizeWindow (w, h);
+      for (auto dg <- context-callbacks) dg();
+      return res;
+    }
+    regenSurf = new &regen;
+    surf = regenSurf(640, 480);
+  }
+  vec2i size() { return vec2i surf.(w, h); }
+  void update() {
+    .update surf;
+    mouse-pressed = .mouse-pressed;
+    mouse-pos = .mouse-pos;
+    if (.mouse-clicked) onMouseDown?();
+    if (.mouse-released) onMouseUp?();
+  }
+  bool claimed;
+  void claim-cursor() {
+    SDL_ShowCursor false;
+    warp $ size() / 2;
+    claimed = true;
+  }
+  void release-cursor() {
+    SDL_ShowCursor true;
+    claimed = false;
+  }
+  bool cursor-claimed() { return claimed; }
+  void warp(vec2i to) { SDL_WarpMouse to; mouse-pos = to; }
 }
