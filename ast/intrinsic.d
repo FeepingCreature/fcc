@@ -495,8 +495,7 @@ void setupSysmods() {
           // we need to make it [eax][ebp] because eax is storing our correct return address
           asm "movl (%esp), %ebx";        // store our prev-ebp
           asm "movl %eax, (%esp)";        // replace with eax (proper return address)
-          asm `~"`"~`subl $4, %esp`~"`"~`;// stack alloc four bytes
-          asm "movl %ebx, (%esp)";        // save prev-ebp four bytes deeper.. 
+          asm "pushl %ebx";               // save prev-ebp four bytes deeper.. 
           asm "mov %esp, %ebp";           // and update stackbase
           _esi = c.pthread.pthread_getspecific(tls_pointer);
           raise new LinuxSignal "SIGSEGV";
