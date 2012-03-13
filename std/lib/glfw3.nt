@@ -49,17 +49,23 @@ class GLFWWindow : GLWindow {
   GLFWwindow handle;
   int w, h;
   vec2i size() { return vec2i(w, h); }
+  bool[] keystates;
   void key(GLFWwindow window, int k, int action) {
     if (window != handle) raise new Error "wat";
-    // TODO
-    /*if (action != GLFW_PRESS) return;
+    // writeln "$k with $action";
+    void set(char ch) {
+      int keycode = ch;
+      if (keystates.length < keycode + 1) keystates ~= new bool[] keycode + 1 - keystates.length;
+      if (action == GLFW_PRESS) keystates[keycode] = true;
+      else keystates[keycode] = false;
+    }
+    import std.macros.switchover;
     using prefix GLFW_KEY_ switch int i over i == k {
-      case ESCAPE: running = 0;
-      case UP: view_rot.x += 5;
-      case DOWN: view_rot.x -= 5;
-      case LEFT: view_rot.y += 5;
-      case RIGHT: view_rot.y -= 5;
-    }*/
+      case W: set "w";
+      case S: set "s";
+      case A: set "a";
+      case D: set "d";
+    }
   }
   void handleChar(GLFWwindow window, int k) {
     if (window != handle) raise new Error "wat";
@@ -124,4 +130,8 @@ class GLFWWindow : GLWindow {
     claimed = false;
   }
   bool cursor-claimed() { return claimed; }
+  bool key-held(int keycode) {
+    if (keycode >= keystates.length) return false;
+    return keystates[keycode];
+  }
 }

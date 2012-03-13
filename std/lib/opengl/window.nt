@@ -28,4 +28,5 @@ class GLWindow {
   bool mouse-pressed;
   vec2i mouse-pos;
   void delegate() onMouseDown, onMouseUp;
+  bool key-held(int charcode);
 }
