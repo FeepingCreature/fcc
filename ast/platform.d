@@ -2,16 +2,24 @@ module ast.platform;
 
 import ast.base, parseBase, ast.fun, ast.namespace, ast.pointer, ast.stringparse, ast.scopes;
 
+import tools.base: endsWith;
+
 import ast.modules;
 Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string platname;
-  bool neg, wild;
+  bool neg, wildfront, wildback;
   if (!t2.accept("(")) return null;
   if (t2.accept("!")) neg = true;
-  if (!t2.gotIdentifier(platname))
-    t2.failparse("Invalid platform identifier");
-  if (t2.accept("*")) wild = true;
+  if (t2.accept("*")) wildfront = true;
+  {
+    bool gotNeg;
+    if (t2.accept("-")) gotNeg = true;
+    if (!t2.gotIdentifier(platname))
+      t2.failparse("Invalid platform identifier");
+    if (gotNeg) platname = "-"~platname;
+  }
+  if (t2.accept("*")) wildback = true;
   if (!t2.accept(")"))
     t2.failparse("expected closing paren");
   t2.noMoreHeredoc();
@@ -19,7 +27,9 @@ Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   auto ns = namespace(), mod = fastcast!(Module) (current_module());
   if (platname == "x86") platname = "default";
   bool match = platname~"-" == platform_prefix || platname == "default" && !platform_prefix;
-  if (wild) match |= !!platform_prefix.startsWith(platname);
+  if (wildfront && wildback) match |=   platform_prefix.find(platname) != -1;
+  if (wildfront &&!wildback) match |= !!platform_prefix.endsWith(platname);
+  if(!wildfront && wildback) match |= !!platform_prefix.startsWith(platname);
   if (neg) match = !match;
   if (match) {
     Object obj;
