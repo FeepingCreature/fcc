@@ -7,6 +7,7 @@ void setupSysmods() {
   string src = `
     module sys;
     pragma(lib, "m");
+    pragma(lib, "pthread");
     alias strict bool = int;
     alias true = bool:1;
     alias false = bool:0;
@@ -328,6 +329,9 @@ void setupSysmods() {
     class Signal : Condition {
       void init(string s) { super.init "Signal: $s"; }
     }
+    class LinuxSignal : Error {
+      void init(string s) { super.init "LinuxSignal: $s"; }
+    }
     class BoundsError : UnrecoverableError {
       void init(string s) super.init s;
       string toString() { return "BoundsError: $(super.toString())"; }
@@ -464,6 +468,60 @@ void setupSysmods() {
       }
       for auto mod <- __modules callConstructors mod;
     }
+    platform(default) {
+      static import c.pthread, c.signal;
+      void setup-segfault-handler() {
+        c.signal._sigaction sa;
+        sa.flags = c.signal.SA_SIGINFO;
+        sigemptyset (&sa.mask);
+        sa.sigaction = &seghandle;
+        if (sigaction(c.signal.SIGSEGV, &sa, null) == -1)
+          raise new Error "failed to setup SIGSEGV handler";
+      }
+      extern(C) {
+        enum X86Registers {
+          GS, FS, ES, DS, EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX, TRAPNO, ERR, EIP, CS, EFL, UESP, SS
+        }
+        struct ucontext {
+          size_t flags;
+          ucontext* link;
+          c.signal.stack_t stack;
+          c.signal.mcontext_t mcontext;
+          __sigset_t sigmask;
+        }
+        void seghandle_userspace() {
+          // move stackframe down one
+          // at this point, the stackframe is [ebp]
+          // we need to make it [eax][ebp] because eax is storing our correct return address
+          asm "movl (%esp), %ebx";        // store our prev-ebp
+          asm "movl %eax, (%esp)";        // replace with eax (proper return address)
+          asm `~"`"~`subl $4, %esp`~"`"~`;// stack alloc four bytes
+          asm "movl %ebx, (%esp)";        // save prev-ebp four bytes deeper.. 
+          asm "mov %esp, %ebp";           // and update stackbase
+          _esi = c.pthread.pthread_getspecific(tls_pointer);
+          raise new LinuxSignal "SIGSEGV";
+        }
+        void seghandle(int sig, void* si, void* unused) {
+          auto uc = ucontext*: unused;
+          ref gregs = uc.mcontext.gregs;
+          ref eip = void*:gregs[X86Registers.EIP], eax = void*:gregs[X86Registers.EAX];
+          eax = eip;
+          eip = void*: &seghandle_userspace; // return like call
+        }
+        struct __sigset_t {
+          byte x 128 __val;
+        }
+        struct _sigaction {
+          void function(int, void*, void*) sigaction;
+          __sigset_t mask;
+          int flags;
+          void function() restorer;
+        }
+        int pthread_key_create(c.pthread.pthread_key_t*, void function(void*));
+        int sigemptyset(__sigset_t* set);
+        int sigaction(int sig, _sigaction* act, _sigaction* oact);
+      }
+    }
     extern(C) {
       int getpid();
       int readlink(char*, char* buf, int bufsz);
@@ -479,8 +537,16 @@ void setupSysmods() {
     /* shared TODO figure out why this crashes */ string executable;
     shared int __argc;
     shared char** __argv;
+    shared c.pthread.pthread_key_t tls_pointer;
     int main2(int argc, char** argv) {
       __argc = argc; __argv = argv;
+      
+      platform(default) {
+        pthread_key_create(&tls_pointer, null);
+        c.pthread.pthread_setspecific(tls_pointer, _esi);
+        setup-segfault-handler();
+      }
+      
       __setupModuleInfo();
       constructModules();
       

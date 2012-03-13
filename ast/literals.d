@@ -129,7 +129,7 @@ class CValueAsPointer : Expr {
   override typeof(this) dup() { return new typeof(this) (sup.dup); }
   mixin defaultIterate!(sup);
   override IType valueType() {
-    if (auto sa = fastcast!(StaticArray)~ sup.valueType())
+    if (auto sa = fastcast!(StaticArray) (resolveType(sup.valueType())))
       return new Pointer(sa.elemType);
     throw new Exception(Format("The CValue ", sup, " has confused me. "));
   }
