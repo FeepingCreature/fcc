@@ -760,6 +760,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
             t3 = t2;
             opName = oplist[k]; _i = i;
             bool accepted = t3.accept(opName);
+            if (opName == "x") accepted &= !t3.startsWith("-"); // x-something is an identifier!
             if (t3.startsWith(opName)) accepted = false;
             if (accepted) {
               goto accepted_handler;
