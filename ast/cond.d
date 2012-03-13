@@ -150,6 +150,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                if (_record) var.guard_id = _record.dg;
                var.old_hdl = __hdl__;
                var.param_id = id;
+               var.esi = _esi; // for win32
                _cm = &var;
              }`,
              "var", cmvar, "nex", ex, "id", mkString(classTypeId));
@@ -170,35 +171,37 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                      "var", cmvar);
   assert(!!ifs.test);
   configure(ifs.test);
-  if (t2.accept(";")) {
-    ifs.branch1 = new NoOp;
-  } else {
-    auto sc = new Scope;
-    
-    auto nsbackup = namespace();
-    scope(exit) namespace.set(nsbackup);
-    namespace.set(sc);
-    
-    if (argType) {
-      auto var = new Variable(argType, argName, boffs(argType));
-      auto vd = new VarDecl(var);
-      var.dontInit = true;
-      sc.add(var);
-      sc.addStatement(vd);
-      sc.addStatement(iparse
-        !(Statement, "cm_cast", "tree.scope")
-         (`{
-             var = at: handler-argument-variable;
-             if !var raise new Error "Bad parameter type for exit: expected $(string-of at), got $(handler-argument-variable?.toString():\"(null)\")";
-           }`, "var", var, "at", argType)
-      );
-    }
+  auto sc = new Scope;
+  
+  auto nsbackup = namespace();
+  scope(exit) namespace.set(nsbackup);
+  namespace.set(sc);
+  
+  sc.addStatement(iparse!(Statement, "reset_esi", "tree.stmt")
+                         (`_esi = var.esi;`,
+                          "var", cmvar));
+  if (argType) {
+    auto var = new Variable(argType, argName, boffs(argType));
+    auto vd = new VarDecl(var);
+    var.dontInit = true;
+    sc.add(var);
+    sc.addStatement(vd);
+    sc.addStatement(iparse
+      !(Statement, "cm_cast", "tree.scope")
+        (`{
+            var = at: handler-argument-variable;
+            if !var raise new Error "Bad parameter type for exit: expected $(string-of at), got $(handler-argument-variable?.toString():\"(null)\")";
+          }`, "var", var, "at", argType)
+    );
+  }
+  if (!t2.accept(";")) {
     Scope sc2;
     if (!rest(t2, "tree.scope", &sc2))
       t2.failparse("Couldn't get cond_exit branch");
     sc.addStatement(sc2);
-    ifs.branch1 = sc;
   }
+  ifs.branch1 = sc;
+  
   text = t2;
   return ifs;
 }

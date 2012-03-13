@@ -2,7 +2,7 @@ module ast.main;
 
 import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace,
   ast.scopes, ast.arrays, ast.returns, ast.parse, ast.pointer, ast.opers,
-  ast.casting, ast.int_literal, ast.funcall, ast.tuples, ast.returns;
+  ast.casting, ast.int_literal, ast.funcall, ast.tuples, ast.returns, ast.literals;
 
 void fixupMain() {
   void fixupSpecificMain(Function cmain, bool isWinMain) {
@@ -128,7 +128,6 @@ void fixupMain() {
   
   if (mainTakesStrings) call.params ~= argvar;
   if (mainTakesArgCV) call.params ~= [cvar, pvar];
-  Statement res;
   
   auto backup = namespace();
   scope(exit) namespace.set(backup);
@@ -146,8 +145,10 @@ void fixupMain() {
     return new ExprStatement(buildFunCall(exitfn, ex, "exit call"));
   }
   
-  if (mainReturnsInt) res = doReturn(call);
-  else res = new ExprStatement(call);
-  sc.addStatement(res);
-  sc.addStatement(doReturn(new IntExpr(0)));
+  if (mainReturnsInt) {
+    sc.addStatement(doReturn(call));
+  } else {
+    sc.addStatement(new ExprStatement(call));
+    sc.addStatement(doReturn(new IntExpr(0)));
+  }
 }

@@ -262,6 +262,7 @@ void setupSysmods() {
       _CondMarker* prev;
       jmp_buf target;
       string param_id;
+      void* esi;
       bool accepts(Object obj) {
         if (!param_id.length) return !obj;
         else return !!obj?.dynamicCastTo param_id;
