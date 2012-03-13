@@ -346,7 +346,7 @@ Expr staticToArray(Expr sa) {
   if (auto cv = fastcast!(CValue) (sa)) {
     return new ArrayMaker(
       new CValueAsPointer(cv),
-      mkInt((fastcast!(StaticArray)~ sa.valueType()).length)
+      mkInt(fastcast!(StaticArray) (resolveType(sa.valueType())).length)
     );
   } else {
     return new AllocStaticArray(sa);
@@ -370,6 +370,8 @@ Expr getArrayLength(Expr ex) {
 }
 
 Expr getArrayPtr(Expr ex) {
+  if (auto sa = fastcast!(StaticArray) (resolveType(ex.valueType())))
+    ex = staticToArray(ex);
   return mkMemberAccess(arrayToStruct!(Expr) (ex), "ptr");
 }
 
