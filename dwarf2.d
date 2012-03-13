@@ -245,7 +245,8 @@ class Dwarf2Controller {
     root.data ~= strings.addString("test.nt");
     root.data ~= ".long .Ltext";
     root.data ~= ".long .Letext";
-    root.data ~= ".4byte\t.Ldebug_line0";
+    // root.data ~= ".4byte\t.Ldebug_line0";
+    root.data ~= ".long\t.Ldebug_line0";
     current = root;
     
     cache.allocAbbrev("subprogram",
@@ -334,7 +335,8 @@ class Dwarf2Controller {
     res ~= ".section\t.debug_info";
     res ~= ".Ldebug_info0:";
     res ~= "d:";
-    res ~= ".4byte\t.Lcu_end - 1f\t/* length */";
+    // res ~= ".4byte\t.Lcu_end - 1f\t/* length */";
+    res ~= ".long\t.Lcu_end - 1f\t/* length */";
     res ~= "1:";
     res ~= ".value\t0x2\t/* dwarf version */";
     res ~= ".long\t.Ldebug_abbrev0";

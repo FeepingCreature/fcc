@@ -6,9 +6,12 @@ class WindowClosed : Error {
 
 class GLWindow {
   void delegate()[] context-callbacks;
-  // TODO: call dg if we're past setup
-  void addCallback(void delegate() dg) { context-callbacks ~= dg; }
+  void addCallback(void delegate() dg) {
+    context-callbacks ~= dg;
+    if (isSetUp()) dg();
+  }
   void setup();
+  bool isSetUp();
   vec2i size();
   void claim-cursor();
   void release-cursor();

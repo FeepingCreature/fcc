@@ -34,7 +34,7 @@ class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("array type"));
       with (sect) {
         data ~= elemref;
-        data ~= qformat(".4byte\t", size(), "\t/* static array size */");
+        data ~= qformat(".int\t", size(), "\t/* static array size */");
       }
       return sect;
     }

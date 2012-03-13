@@ -79,6 +79,7 @@ class GLFWWindow : GLWindow {
     if (action) onMouseDown?();
     else onMouseUp?();
   }
+  bool is-set-up;
   void setup() using mode GLFW {
     if (!Init()) raise new Error "Failed to init GLFW";
     onFailure Terminate;
@@ -99,8 +100,10 @@ class GLFWWindow : GLWindow {
     mousePosCallback = &mousepos;
     mouseButtonCallback = &mousebutton;
     initCallbacks();
+    is-set-up = true;
     for (auto dg <- context-callbacks) dg();
   }
+  bool isSetUp() { return is-set-up; }
   void update() using mode GLFW {
     SwapBuffers;
     PollEvents;

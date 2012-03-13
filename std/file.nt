@@ -278,15 +278,17 @@ RenameIdentifier stat cstdlib-stat;
 extern(C) int lstat(char* path, void* buf);
 RenameIdentifier lstat cstdlib-lstat;
 
-/*
-  Function: isDir
-  Returns true if the argument is a directory
-*/
-bool isDir(string s) {
-  auto p = toStringz s;
-  cstdlib-stat(p, &stat buf);
-  mem.free p;
-  return !!((buf.st_mode & __S_IFMT) == __S_IFDIR);
+platform(!*-mingw*) {
+  /*
+    Function: isDir
+    Returns true if the argument is a directory
+  */
+  bool isDir(string s) {
+    auto p = toStringz s;
+    cstdlib-stat(p, &stat buf);
+    mem.free p;
+    return !!((buf.st_mode & __S_IFMT) == __S_IFDIR);
+  }
 }
 
 extern(C) int rename(char*, char*);
@@ -300,19 +302,6 @@ void rename(string oldname, newname) {
   onSuccess { mem.free p1; mem.free p2; }
   auto res = C_rename(p1, p2);
   if (res) raise new Error "Couldn't rename '$oldname' to '$newname': $res";
-}
-
-extern(C) int symlink(char*, char*);
-RenameIdentifier symlink C_symlink;
-/*
-  Function: symlink
-  Creates a symbolic link to 'target' with name 'name'
-*/
-void symlink(string target, name) {
-  auto p1 = toStringz target, p2 = toStringz name;
-  onSuccess { mem.free p1; mem.free p2; }
-  auto res = C_symlink (p1, p2);
-  if (res) raise new Error "Couldn't create symlink to '$target' at '$name': $res";
 }
 
 extern(C) int unlink(char*);
@@ -341,15 +330,29 @@ void mkdir(string name) {
   if (res) raise new Error "Couldn't create folder '$name': $res";
 }
 
-/*
-  Function: isSymbolicLink
-  Returns true if the argument is a symlink
-*/
-bool isSymbolicLink(string s) {
-  auto p = toStringz s;
-  cstdlib-lstat(p, &stat buf);
-  mem.free p;
-  return !!((buf.st_mode & __S_IFMT) == __S_IFLNK);
+platform(!*-mingw*) {
+  /*
+    Function: isSymbolicLink
+    Returns true if the argument is a symlink
+  */
+  bool isSymbolicLink(string s) {
+    auto p = toStringz s;
+    cstdlib-lstat(p, &stat buf);
+    mem.free p;
+    return !!((buf.st_mode & __S_IFMT) == __S_IFLNK);
+  }
+  extern(C) int symlink(char*, char*);
+  RenameIdentifier symlink C_symlink;
+  /*
+    Function: symlink
+    Creates a symbolic link to 'target' with name 'name'
+  */
+  void symlink(string target, name) {
+    auto p1 = toStringz target, p2 = toStringz name;
+    onSuccess { mem.free p1; mem.free p2; }
+    auto res = C_symlink (p1, p2);
+    if (res) raise new Error "Couldn't create symlink to '$target' at '$name': $res";
+  }
 }
 
 extern(C) char* strerror(int errnum);

@@ -2,6 +2,8 @@ module std.lib.freetype2;
 
 pragma(pkg-config, "freetype2");
 
+pragma(lib, "z"); // mingw bug?
+
 import c.freetype;
 import std.math;
 

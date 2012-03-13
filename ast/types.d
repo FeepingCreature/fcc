@@ -70,7 +70,7 @@ class Void_ : Type, Dwarf2Encodable {
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
       with (sect) {
-        data ~= ".4byte\t0\t/* byte size */";
+        data ~= ".int\t0\t/* byte size */";
         data ~= qformat(".byte\t", hex(DW.ATE_void), "\t/* void */");
         data ~= dwarf2.strings.addString("void");
       }
@@ -98,7 +98,7 @@ class Char_ : Type, Dwarf2Encodable {
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
       with (sect) {
-        data ~= ".4byte\t1\t/* byte size */";
+        data ~= ".int\t1\t/* byte size */";
         data ~= qformat(".byte\t", hex(DW.ATE_signed_char), "\t/* signed char */");
         data ~= dwarf2.strings.addString("char");
       }
@@ -118,7 +118,7 @@ class Byte_ : Type, Dwarf2Encodable {
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
       with (sect) {
-        data ~= ".4byte\t1\t/* byte size */";
+        data ~= ".int\t1\t/* byte size */";
         data ~= qformat(".byte\t", hex(DW.ATE_signed), "\t/* signed */");
         data ~= dwarf2.strings.addString("byte");
       }
@@ -151,7 +151,7 @@ class SysInt_ : Type, Dwarf2Encodable {
   override Dwarf2Section encode(Dwarf2Controller dwarf2) {
     auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
     with (sect) {
-      data ~= ".4byte\t4\t/* byte size */";
+      data ~= ".int\t4\t/* byte size */";
       data ~= qformat(".byte\t", hex(DW.ATE_signed), "\t/* signed int */");
       data ~= dwarf2.strings.addString("int");
     }
@@ -176,7 +176,7 @@ class Float_ : Type, Dwarf2Encodable {
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
       with (sect) {
-        data ~= ".4byte\t4\t/* byte size */";
+        data ~= ".int\t4\t/* byte size */";
         data ~= qformat(".byte\t", hex(DW.ATE_float), "\t/* float */");
         data ~= dwarf2.strings.addString("float");
       }

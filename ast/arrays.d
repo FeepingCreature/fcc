@@ -33,7 +33,7 @@ class Array_ : Type, Dwarf2Encodable {
       auto sizeref = registerType(dwarf2, Single!(SysInt));
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("structure type"));
       with (sect) {
-        data ~= ".4byte\t8\t/* byte size */";
+        data ~= ".int\t8\t/* byte size */";
         auto len = new Dwarf2Section(dwarf2.cache.getKeyFor("structure member"));
         with (len) {
           data ~= dwarf2.strings.addString("length");
@@ -99,7 +99,7 @@ class ExtArray : Type, Dwarf2Encodable {
       auto sizeref = registerType(dwarf2, Single!(SysInt));
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("structure type"));
       with (sect) {
-        data ~= ".4byte\t12\t/* byte size */";
+        data ~= ".int\t12\t/* byte size */";
         auto cap = new Dwarf2Section(dwarf2.cache.getKeyFor("structure member"));
         with (cap) {
           data ~= dwarf2.strings.addString("capacity");

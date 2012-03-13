@@ -7,7 +7,6 @@ void setupSysmods() {
   string src = `
     module sys;
     pragma(lib, "m");
-    pragma(lib, "pthread");
     alias strict bool = int;
     alias true = bool:1;
     alias false = bool:0;
@@ -356,12 +355,14 @@ void setupSysmods() {
     }
     void raise(UnrecoverableError err) {
       auto cur = __hdl__;
+      if (!cur) asm `~"`"~`int $3`~"`"~`;
       while cur {
         if cur.accepts(err) cur.dg(err);
         cur = cur.prev;
       }
       writeln "Unhandled condition: $(err.toString()). ";
-      *int*:null=0;
+      print-backtrace();
+      exit 1;
     }
     class MissedReturnError : UnrecoverableError {
       void init(string name) { super.init("End of $name reached without return"); }
@@ -469,6 +470,7 @@ void setupSysmods() {
       for auto mod <- __modules callConstructors mod;
     }
     platform(default) {
+      pragma(lib, "pthread");
       static import c.pthread, c.signal;
       void setup-segfault-handler() {
         c.signal._sigaction sa;
@@ -520,11 +522,13 @@ void setupSysmods() {
         int sigemptyset(__sigset_t* set);
         int sigaction(int sig, _sigaction* act, _sigaction* oact);
       }
+      shared c.pthread.pthread_key_t tls_pointer;
     }
     extern(C) {
       int getpid();
       int readlink(char*, char* buf, int bufsz);
       int system(char*);
+      void exit(int);
     }
     void print-backtrace() {
       platform(default) {
@@ -536,7 +540,6 @@ void setupSysmods() {
     /* shared TODO figure out why this crashes */ string executable;
     shared int __argc;
     shared char** __argv;
-    shared c.pthread.pthread_key_t tls_pointer;
     int main2(int argc, char** argv) {
       __argc = argc; __argv = argv;
       
@@ -545,6 +548,19 @@ void setupSysmods() {
         c.pthread.pthread_setspecific(tls_pointer, _esi);
         setup-segfault-handler();
       }
+      
+      int errnum;
+      set-handler (UnrecoverableError err) {
+        writeln "Unhandled error: '$(err.toString())'. ";
+        // writeln "Invoking debugger interrupt. Continue to exit. ";
+        // writeln "Invoking GDB. ";
+        
+        print-backtrace;
+        errnum = 1;
+        // _interrupt 3;
+        invoke-exit "main-return";
+      }
+      define-exit "main-return" return errnum;
       
       __setupModuleInfo();
       constructModules();
@@ -561,18 +577,6 @@ void setupSysmods() {
           args[i++] = arg[0 .. strlen(arg)];
         }
       }
-      int errnum;
-      set-handler (Error err) {
-        writeln "Unhandled error: '$(err.toString())'. ";
-        // writeln "Invoking debugger interrupt. Continue to exit. ";
-        // writeln "Invoking GDB. ";
-        
-        print-backtrace;
-        errnum = 1;
-        // _interrupt 3;
-        invoke-exit "main-return";
-      }
-      define-exit "main-return" return errnum;
     }
     int __c_main(int argc, char** argv) { // handle the callstack frame 16-byte alignment
     }

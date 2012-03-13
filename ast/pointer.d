@@ -25,7 +25,7 @@ class Pointer_ : Type, Dwarf2Encodable {
       auto targetpsec = new Dwarf2Section(dwarf2.cache.getKeyFor("pointer type"));
       with (targetpsec) {
         data ~= targetref;
-        data ~= ".4byte\t4\t/* pointer size */";
+        data ~= ".int\t4\t/* pointer size */";
       }
       return targetpsec;
     }

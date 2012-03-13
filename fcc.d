@@ -87,7 +87,7 @@ static this() {
       newarg = null;
       break;
     }
-    if (newarg) extra_linker_args ~= newarg;
+    if (newarg) extra_linker_args = newarg ~ extra_linker_args;
     return Single!(NoOp);
   };
   pragmas["pkg-config"] = delegate Object(Expr ex) {
@@ -120,7 +120,7 @@ static this() {
       newarg = null;
       break;
     }
-    if (newarg) extra_linker_args ~= newarg;
+    if (newarg) extra_linker_args = newarg ~ extra_linker_args;
     return Single!(NoOp);
   };
 }
