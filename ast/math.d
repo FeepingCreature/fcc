@@ -723,6 +723,9 @@ const oplevel = [
 
 const lvcount = 9;
 
+TLS!(string) octoless_marker;
+static this() { New(octoless_marker); }
+
 Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
   Object _curOp;
   auto t2 = text;
@@ -730,6 +733,9 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr curOp = fastcast!(Expr) (_curOp);
   if (!curOp) return null;
   curOp = forcedConvert(curOp);
+  bool octoless;
+  if (*octoless_marker.ptr() is text)
+    octoless = true;
   foreach (op; oplist) {
     if (op == "x") continue; // what, no, bad idea
     auto t3 = t2;
@@ -802,7 +808,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     correctlyAteOctothorpe = false;
     t2backup = t2;
-    if (!t2.accept("#")) break;
+    if (octoless || !t2.accept("#")) break;
     
     withPropcfgFn((bool withTuple, bool withCall) {
       if (auto res = getPropertiesFn(

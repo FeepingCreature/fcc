@@ -123,7 +123,9 @@ Expr mkRange(Expr from, Expr to) {
   // cur must start one early
   auto fvt = from.valueType();
   from = lookupOp("-", from, mkInt(1));
-  if (!gotImplicitCast(from, fvt, (IType it) { return !!(it == fvt); }) && !(from = tryConvert(from, fvt), from))
+  if (!gotImplicitCast(from, Single!(SysInt), (IType it) { return !!(Single!(SysInt) == it); })
+   && !gotImplicitCast(from, fvt, (IType it) { return !!(it == fvt); })
+   && !(from = tryConvert(from, fvt), from))
     throw new Exception(Format("mkRange: ", fvt, " does not cleanly implement integer subtraction or allow down-conversion. "));
   new RelMember("cur", from.valueType(), wrapped);
   new RelMember("end", to.valueType(), wrapped);

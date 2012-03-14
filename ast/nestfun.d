@@ -3,7 +3,7 @@ module ast.nestfun;
 import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.variable, ast.pointer, ast.structure, ast.namespace,
        ast.vardecl, ast.parse, ast.assign, ast.constant, ast.dg,
-       ast.properties;
+       ast.properties, ast.math;
 
 public import ast.fun: Argument;
 import ast.aliasing, ast.casting, ast.opers;
@@ -156,6 +156,9 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
       namespace.set(res);
       auto sc2 = new Scope;
       namespace.set(sc2);
+      
+      *octoless_marker.ptr() = t2;
+      scope(exit) *octoless_marker.ptr() = null;
       
       Expr ex;
       if (!rest(t2, "tree.expr", &ex))
