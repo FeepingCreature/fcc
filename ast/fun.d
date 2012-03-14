@@ -261,7 +261,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         dwarf2.cache.getKeyFor("subprogram"));
       with (sect) {
         data ~= ".byte\t0x1"; // external
-        data ~= dwarf2.strings.addString(pretty_name());
+        data ~= dwarf2.strings.addString(pretty_name().replace("\"", "\\\""));
         data ~= qformat(".int\t",
           hex(af.getFileId(
             current_module().filename())));
