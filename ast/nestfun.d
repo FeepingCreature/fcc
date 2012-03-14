@@ -164,7 +164,9 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
       if (!rest(t2, "tree.expr", &ex))
         t2.failparse("Expected result expression for lambda");
       res.type.ret = ex.valueType();
-      res.tree = new ReturnStmt(ex);
+      
+      sc2.addStatement(new ReturnStmt(ex));
+      res.addStatement(sc2);
       
       text = t2;
       mod.entries ~= fastcast!(Tree) (res);
