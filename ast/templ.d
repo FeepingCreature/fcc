@@ -190,13 +190,15 @@ class TemplateInstance : Namespace, HandlesEmits {
     }
     if (weakOnly) {
       foreach (inst; instRes) if (auto fun = fastcast!(Function) (inst)) if (fun.weak) {
-        mod.entries ~= fastcast!(Tree) (fun.dup);
-        handleDeps(fun);
+        auto copy = fun.dup;
+        mod.entries ~= fastcast!(Tree) (copy);
+        handleDeps(copy);
       }
     } else {
       foreach (inst; instRes) {
-        mod.entries ~= fastcast!(Tree) (inst).dup; // wtf
-        handleDeps(fastcast!(Iterable) (inst));
+        auto copy = fastcast!(Tree) (inst).dup;
+        mod.entries ~= copy;
+        handleDeps(fastcast!(Iterable) (copy));
       }
     }
     ematIn ~= mod;
