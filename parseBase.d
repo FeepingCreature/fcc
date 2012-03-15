@@ -130,7 +130,7 @@ bool isNormal(dchar c) {
   return (c >= 'a' && c <= 'z') ||
          (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9') ||
-         mixin(matchOneOf("_" "αβγδεζηθικλμνξοπρσςτυφχψω" "ð", "c"));
+         mixin(matchOneOf("_" "αβγδεζηθικλμνξοπρσςτυφχψω" "µð", "c"));
 }
 
 string lastAccepted, lastAccepted_stripped;
@@ -236,7 +236,6 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, b
   if (!acceptNumbers && t2.length && t2[0] >= '0' && t2[0] <= '9') { return false; /* identifiers must not start with numbers */ }
   size_t idx = 0;
   if (!t2.length || !isValid(t2.decode(idx), true)) return false;
-  auto backup = t2;
   size_t prev_idx = 0;
   dchar cur;
   do {
@@ -245,8 +244,8 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, b
     cur = t2.decode(idx);
   } while (isValid(cur));
   // prev_idx now is the start of the first invalid character
-  ident = backup[0 .. prev_idx];
-  text = t2[prev_idx .. $];
+  ident = t2[0 .. prev_idx];
+   text = t2[prev_idx .. $];
   return true;
 }
 
