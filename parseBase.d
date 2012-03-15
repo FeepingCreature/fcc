@@ -126,11 +126,11 @@ string matchOneOf(dstring list, string var) {
 }
 
 // TODO: unicode
-bool isNormal(wchar c) {
+bool isNormal(dchar c) {
   return (c >= 'a' && c <= 'z') ||
          (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9') ||
-         mixin(matchOneOf("_µ", "c"));
+         mixin(matchOneOf("_" "αβγδεζηθικλμνξοπρσςτυφχψω" "ð", "c"));
 }
 
 string lastAccepted, lastAccepted_stripped;
@@ -228,21 +228,25 @@ import std.utf;
 bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, bool acceptNumbers = false) {
   auto t2 = text.mystripl();
   t2.eatComments();
-  bool isValid(wchar w, bool first = false) {
-    return isNormal(w) || (!first && w == '-') || (acceptDots && w == '.');
+  bool isValid(dchar d, bool first = false) {
+    return isNormal(d) || (!first && d == '-') || (acceptDots && d == '.');
   }
   // array length special handling
   if (t2.length && t2[0] == '$') { text = t2; ident = "$"; return true; }
   if (!acceptNumbers && t2.length && t2[0] >= '0' && t2[0] <= '9') { return false; /* identifiers must not start with numbers */ }
   size_t idx = 0;
-  if (!t2.length || !isValid(cast(wchar) t2.decode(idx), true)) return false;
-  auto identlen = 0, backup = t2;
+  if (!t2.length || !isValid(t2.decode(idx), true)) return false;
+  auto backup = t2;
+  size_t prev_idx = 0;
+  dchar cur;
   do {
-    t2.take();
-    identlen ++;
-  } while (t2.length && isValid(t2[0]));
-  ident = backup[0 .. identlen];
-  text = t2;
+    prev_idx = idx;
+    if (idx == t2.length) break;
+    cur = t2.decode(idx);
+  } while (isValid(cur));
+  // prev_idx now is the start of the first invalid character
+  ident = backup[0 .. prev_idx];
+  text = t2[prev_idx .. $];
   return true;
 }
 

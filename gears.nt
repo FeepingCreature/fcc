@@ -10,7 +10,7 @@ void main(string[] args) {
       r0 = inner-radius,
       r1 = outer-radius - tooth-depth / 2f,
       r2 = outer-radius + tooth-depth / 2f;
-    auto da = TAU / teeth / 4f;
+    auto da = τ / teeth / 4f;
     
     using mode GL {
       ShadeModel FLAT;
@@ -21,7 +21,7 @@ void main(string[] args) {
       vec2f cossin(float f) return cossin vec2f(f);
       // front face
       using QuadStrip for int i <- 0..teeth+1 {
-        auto angle = i * TAU / teeth;
+        auto angle = i * τ / teeth;
         
         vert1 $ r0 * cossin $ angle;
         vert1 $ r1 * cossin $ angle;
@@ -32,7 +32,7 @@ void main(string[] args) {
       }
       // draw front sides of teeth
       using Quads for int i <- 0..teeth {
-        auto angle = i * TAU / teeth;
+        auto angle = i * τ / teeth;
         
         vert1 $ r1 * cossin $ angle;
         vert1 $ r2 * cossin $ angle + da;
@@ -42,7 +42,7 @@ void main(string[] args) {
       Normal3f (0, 0, -1);
       // draw back face
       using QuadStrip for int i <- 0..teeth+1 {
-        auto angle = i * TAU / teeth;
+        auto angle = i * τ / teeth;
         
         vert2 $ r1 * cossin angle;
         vert2 $ r0 * cossin angle;
@@ -53,7 +53,7 @@ void main(string[] args) {
       }
       // draw back sides of teeth
       using Quads for int i <- 0..teeth {
-        auto angle = i * TAU / teeth;
+        auto angle = i * τ / teeth;
         
         vert2 $ r1 * cossin $ angle + 3 * da;
         vert2 $ r2 * cossin $ angle + 2 * da;
@@ -63,7 +63,7 @@ void main(string[] args) {
       // draw outward faces of teeth
       using QuadStrip {
         for int i <- 0..teeth {
-          auto angle = i * TAU / teeth;
+          auto angle = i * τ / teeth;
           vert1 $ r1 * cossin angle;
           vert2 $ r1 * cossin angle;
           auto uv = r2 * cossin (angle + da) - r1 * cossin angle;
@@ -87,7 +87,7 @@ void main(string[] args) {
       ShadeModel SMOOTH;
       // draw inside radius cylinder
       using QuadStrip for int i <- 0..teeth+1 {
-        auto angle = i * TAU / teeth;
+        auto angle = i * τ / teeth;
         Normal3f(-cossin angle, 0f);
         vert2 $ r0 * cossin angle;
         vert1 $ r0 * cossin angle;

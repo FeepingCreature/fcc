@@ -527,7 +527,7 @@ template logSmart(bool Mode) {
     tools.log.log("\r");
     auto pretext = Format(t);
     string text;
-    foreach (ch; pretext) {
+    foreach (dchar ch; pretext) {
       if (ch == '\t') {
         while (text.length % 8 != 0) text ~= " ";
       } else text ~= ch;
