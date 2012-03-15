@@ -1,6 +1,6 @@
 module dwarf2;
 
-import asmfile, quickformat;
+import asmfile, quickformat, parseBase;
 import tools.ctfe: ctTableUnroll;
 import tools.base: Stuple, stuple;
 import tools.log;
@@ -164,16 +164,20 @@ class Dwarf2AbbrevCache {
 class Dwarf2Strings {
   string[] strings;
   string addString(string s) {
+    foreach (i, str; strings) {
+      if (faststreq(str, s)) return qformat(".long\t.LSTRING", i);
+    }
     auto key = qformat(".long\t.LSTRING", strings.length);
     strings ~= s;
     return key;
   }
   string[] genSection() {
-    string[] res;
-    res ~= ".section\t.debug_str";
+    auto res = new string[1 + strings.length * 2];
+    int q;
+    res[q++] = ".section\t.debug_str";
     foreach (i, v; strings) {
-      res ~= qformat(".LSTRING", i, ":");
-      res ~= qformat("\t.string \"", v, "\"");
+      res[q++] = qformat(".LSTRING", i, ":");
+      res[q++] = qformat("\t.string \"", v, "\"");
     }
     return res;
   }
@@ -209,14 +213,30 @@ class Dwarf2Section {
     return qformat(".long\t", getLabel(), " - d", "\t/* relative: ", abbrev, " */");
   }
   string[] genSection() {
-    string[] res;
-    res ~= getLabel()~":"~(comment?qformat("\t/* ", comment, " */"):"");
-    res ~= qformat(".uleb128 ", hex(abbrev), "\t/* abbrev code */");
-    res ~= data;
-    foreach (sect; sub)
-      res ~= sect.genSection();
+    auto subs = new string[][sub.length];
+    int sum = 1 + 1 + data.length;
+    foreach (i, sect; sub) {
+      subs[i] = sect.genSection();
+      sum += subs[i].length;
+    }
     if (has_children)
-      res ~= ".byte\t0\t/* end of "~getLabel()~" */";
+      sum += 1;
+    
+    auto res = new string[sum];
+    int q = 0;
+    res[q++] = getLabel()~":"~(comment?qformat("\t/* ", comment, " */"):"");
+    res[q++] = qformat(".uleb128 ", hex(abbrev), "\t/* abbrev code */");
+    res[q..q+data.length] = data;
+    q += data.length;
+    foreach (subsect; subs) {
+      res[q .. q+subsect.length] = subsect;
+      q += subsect.length;
+    }
+    
+    if (has_children)
+      res[q++] = ".byte\t0\t/* end of "~getLabel()~" */";
+    
+    if (q != res.length) fail;
     return res;
   }
 }
@@ -331,24 +351,51 @@ class Dwarf2Controller {
     return s.getRelative();
   }
   string[] genData() {
+    bool count;
+    int sum;
+    int q;
     string[] res;
-    res ~= ".section\t.debug_info";
-    res ~= ".Ldebug_info0:";
-    res ~= "d:";
-    // res ~= ".4byte\t.Lcu_end - 1f\t/* length */";
-    res ~= ".long\t.Lcu_end - 1f\t/* length */";
-    res ~= "1:";
-    res ~= ".value\t0x2\t/* dwarf version */";
-    res ~= ".long\t.Ldebug_abbrev0";
-    res ~= ".byte\t0x4\t/* pointer size */";
+    void addLine(string s) {
+      if (count) sum++;
+      else res[q++] = s;
+    }
+    void addLines(string[] s) {
+      if (count) sum += s.length;
+      else {
+        res[q .. q+s.length] = s;
+        q += s.length;
+      }
+    }
+    
     foreach (key, value; rootsections) {
       value.comment = ":"~key;
       root.sub ~= value;
     }
-    res ~= root.genSection();
-    res ~= ".Lcu_end:";
-    res ~= cache.genSection();
-    res ~= strings.genSection();
+    
+    auto rootsec = root.genSection();
+    auto cachesec = cache.genSection();
+    auto stringsec = strings.genSection();
+    
+    void generate() {
+      ".section\t.debug_info".addLine();
+      ".Ldebug_info0:".addLine();
+      "d:".addLine();
+      // ".4byte\t.Lcu_end - 1f\t/* length */".addLine();
+      ".long\t.Lcu_end - 1f\t/* length */".addLine();
+      "1:".addLine();
+      ".value\t0x2\t/* dwarf version */".addLine();
+      ".long\t.Ldebug_abbrev0".addLine();
+      ".byte\t0x4\t/* pointer size */".addLine();
+      rootsec.addLines();
+      ".Lcu_end:".addLine();
+      cachesec.addLines();
+      stringsec.addLines();
+    }
+    count = true;
+    generate();
+    res = new string[sum];
+    count = false;
+    generate();
     return res;
   }
 }

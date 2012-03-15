@@ -66,7 +66,7 @@ class AsmFile {
     longstants[name] = data;
     return name;
   }
-  string code;
+  string[] codelines;
   bool optimize, debugMode, profileMode;
   this(bool optimize, bool debugMode, bool profileMode, string id) {
     New(cache);
@@ -85,6 +85,11 @@ class AsmFile {
     this.id = id;
   }
   Transcache cache, finalized;
+  final void add(ref Transaction t) {
+    if (cache._list.length && cache.size == cache._list.length)
+      flush;
+    cache ~= t;
+  }
   int currentStackDepth;
   void pushStack(string expr, int size) {
     if (isARM && (expr.find("%") != -1 || expr.find("$") != -1 || expr.find("=") != -1)) fail;
@@ -95,7 +100,7 @@ class AsmFile {
     t.source = expr;
     t.size = size;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
     currentStackDepth += size;
   }
   void popStack(string dest, int size) {
@@ -106,7 +111,7 @@ class AsmFile {
     t.dest = dest;
     t.size = size;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
     currentStackDepth -= size;
   }
   void popStackDereference(string dest, int offset, int size) {
@@ -130,7 +135,7 @@ class AsmFile {
     Transaction t;
     t.kind = Transaction.Kind.Nevermind;
     t.dest = mem;
-    cache ~= t;
+    add(t);
   }
   void nvmRegisters() {
     foreach (reg; utilRegs)
@@ -145,7 +150,7 @@ class AsmFile {
       t.op1 = op2; t.op2 = op1;
     }
     t.test = test;
-    cache ~= t;
+    add(t);
     comparisonState = true;
   }
   // migratory move; contents of source become irrelevant
@@ -153,32 +158,32 @@ class AsmFile {
     Transaction t;
     t.kind = Transaction.Kind.Mov;
     t.from = from; t.to = to;
-    cache ~= t;
+    add(t);
   }
   void mmove2(string from, string to) {
     Transaction t;
     t.kind = Transaction.Kind.Mov2;
     t.from = from; t.to = to;
-    cache ~= t;
+    add(t);
   }
   void mmove1(string from, string to) {
     if (isARM && (from.find("sp") != -1 || to.find("sp") != -1) && currentStackDepth % 4) fail;
     Transaction t;
     t.kind = Transaction.Kind.Mov1;
     t.from = from; t.to = to;
-    cache ~= t;
+    add(t);
   }
   void movd(string from, string to) {
     Transaction t;
     t.kind = Transaction.Kind.MovD;
     t.from = from; t.to = to;
-    cache ~= t;
+    add(t);
   }
   void loadAddress(string mem, string to) {
     Transaction t;
     t.kind = Transaction.Kind.LoadAddress;
     t.from = mem; t.to = to;
-    cache ~= t;
+    add(t);
   }
   void loadOffsetAddress(string reg, int offset, string to) {
     if (isARM) {
@@ -193,7 +198,7 @@ class AsmFile {
     currentStackDepth += sz;
     t.kind = Transaction.Kind.SAlloc;
     t.size = sz;
-    cache ~= t;
+    add(t);
   }
   void sfree(int sz) { // alloc stack space
     willOverwriteComparison;
@@ -201,7 +206,7 @@ class AsmFile {
     currentStackDepth -= sz;
     t.kind = Transaction.Kind.SFree;
     t.size = sz;
-    cache ~= t;
+    add(t);
   }
   import tools.ctfe;
   const string JumpTable = `
@@ -286,7 +291,7 @@ class AsmFile {
     t.kind = Transaction.Kind.MathOp;
     t.opName = which;
     t.op1 = op1; t.op2 = op2; t.op3 = op3;
-    cache ~= t;
+    add(t);
   }
   void SSEOp(string which, string op1, string op2, bool ignoreStackAlignment = false /* true for movd */) {
     if ((op1 == "(%esp)" || op2 == "(%esp)") && currentStackDepth%16 != 0 && !ignoreStackAlignment) {
@@ -298,20 +303,20 @@ class AsmFile {
     t.opName = which;
     t.op1 = op1; t.op2 = op2;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
   }
   void extendDivide(string src, bool signed) {
     Transaction t;
     t.kind = Transaction.Kind.ExtendDivide;
     t.source = src;
     t.signed = signed;
-    cache ~= t;
+    add(t);
   }
   void call(string what) {
     Transaction t;
     t.kind = Transaction.Kind.Call;
     t.dest = what;
-    cache ~= t;
+    add(t);
   }
   void swap(string op1, string op2, int size = 4) {
     Transaction t;
@@ -319,7 +324,7 @@ class AsmFile {
     t.source = op1;
     t.dest = op2;
     t.size = size;
-    cache ~= t;
+    add(t);
   }
   int floatStackDepth;
   void incFloatStack() {
@@ -334,7 +339,7 @@ class AsmFile {
     t.kind = Transaction.Kind.FloatLoad;
     t.source = mem;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
   }
   void loadDouble(string mem) {
     incFloatStack();
@@ -342,7 +347,7 @@ class AsmFile {
     t.kind = Transaction.Kind.DoubleLoad;
     t.source = mem;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
   }
   void loadIntAsFloat(string mem) {
     incFloatStack();
@@ -350,7 +355,7 @@ class AsmFile {
     t.kind = Transaction.Kind.FloatIntLoad;
     t.source = mem;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
   }
   void loadLongAsFloat(string mem) {
     incFloatStack();
@@ -358,7 +363,7 @@ class AsmFile {
     t.kind = Transaction.Kind.FloatLongLoad;
     t.source = mem;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
   }
   void storeFloat(string mem) {
     floatStackDepth --;
@@ -366,7 +371,7 @@ class AsmFile {
     t.kind = Transaction.Kind.FloatPop;
     t.dest = mem;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
   }
   void storeFPAsInt(string mem) {
     floatStackDepth --;
@@ -374,7 +379,7 @@ class AsmFile {
     t.kind = Transaction.Kind.FPIntPop;
     t.dest = mem;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
   }
   void storeFPAsLong(string mem) {
     floatStackDepth --;
@@ -382,7 +387,7 @@ class AsmFile {
     t.kind = Transaction.Kind.FPLongPop;
     t.dest = mem;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
   }
   void storeDouble(string mem) {
     floatStackDepth --;
@@ -390,7 +395,7 @@ class AsmFile {
     t.kind = Transaction.Kind.DoublePop;
     t.dest = mem;
     t.stackdepth = currentStackDepth;
-    cache ~= t;
+    add(t);
   }
   void compareFloat(string mem, bool useIVariant) {
     bool isReg;
@@ -404,7 +409,7 @@ class AsmFile {
     t.source = mem;
     t.stackdepth = currentStackDepth;
     t.useIVariant = useIVariant;
-    cache ~= t;
+    add(t);
     comparisonState = true;
   }
   void fpuToStack() {
@@ -420,13 +425,13 @@ class AsmFile {
     Transaction t;
     t.kind = Transaction.Kind.FloatMath;
     t.opName = op;
-    cache ~= t;
+    add(t);
   }
   void fpuOp(string opname) {
     Transaction t;
     t.kind = Transaction.Kind.PureFloat;
     t.opName = opname;
-    cache ~= t;
+    add(t);
   }
   int labelCounter; // Limited to 2^31 labels, le omg.
   string genLabel() {
@@ -441,7 +446,7 @@ class AsmFile {
     t.dest = label;
     t.mode = mode;
     t.keepRegisters = keepRegisters;
-    cache ~= t;
+    add(t);
   }
   void emitLabel(string name, bool keepregs = false, bool isforward = false) {
     if (isforward && !(name in jumpedForwardTo)) return;
@@ -449,7 +454,7 @@ class AsmFile {
     t.kind = Transaction.Kind.Label;
     t.keepRegisters = keepregs;
     t.names ~= name;
-    cache ~= t;
+    add(t);
   }
   int[string] labels_refcount;
   // no jumps past this point
@@ -561,14 +566,14 @@ class AsmFile {
     Transaction tn;
     tn.kind = Transaction.Kind.Text;
     tn.text = qformat(t);
-    cache ~= tn;
+    add(tn);
   }
   /*void put(T...)(T t) {
     flush();
     _put(t);
   }*/
   void _put(T...)(T t) {
-    code ~= qformat(t, "\n");
+    codelines ~= qformat(t, "\n");
   }
   void genAsm(void delegate(string) dg) {
     flush();
@@ -656,7 +661,8 @@ class AsmFile {
     }
     dg(".text\n");
     dg(".Ltext:\n");
-    dg(code);
+    foreach (line; codelines)
+      dg(line);
     dg(".Letext:\n");
     foreach (line; dwarf2.genData()) {
       dg(line); dg("\n");

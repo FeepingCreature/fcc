@@ -114,14 +114,14 @@ class Delegate : Type {
 
 IType dgAsStructType(Delegate dgtype) {
   auto res = new Structure(null);
-  new RelMember("fun",
+  fastalloc!(RelMember)("fun",
     new FunctionPointer(
       dgtype.ret,
       dgtype.args ~ Argument(voidp)
     ),
     res
   );
-  new RelMember("data", voidp, res);
+  fastalloc!(RelMember)("data", voidp, res);
   return res;
 }
 

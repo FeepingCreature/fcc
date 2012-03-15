@@ -28,7 +28,95 @@ struct NSCache(T...) {
     Stuple!(T)[] field;
 }
 
-import tools.ctfe, tools.base: stuple, Format, Repeat;
+struct PreallocatedField(int StaticSize, T) {
+  int length;
+  T[StaticSize] static_;
+  T[][] dynamics_;
+  int opApply(int delegate(ref T t) dg) {
+    outer:for (int i = 0; i < length; ++i) {
+      if (i < static_.length) {
+        if (auto res = dg(static_[i])) return res;
+      } else {
+        int j = i - StaticSize;
+        foreach (field; dynamics_) {
+          if (j < field.length) {
+            if (auto res = dg(field[j])) return res;
+            else continue outer;
+          }
+          j -= field.length;
+        }
+        logln("Length ", length, " excessive due to ", StaticSize, ", ", dynamics_ /map/ ex!("f -> f.length"));
+        fail;
+      }
+    }
+    return 0;
+  }
+  string toString() {
+    string res = Format("PF[", length, "/", StaticSize, ": ");
+    bool first;
+    foreach (entry; *this) {
+      if (first) first = false;
+      else res ~= ", ";
+      res ~= Format(entry);
+    }
+    return res ~ "]";
+  }
+  void opCatAssign(ref T t) {
+    scope(success) length++;
+    if (length < StaticSize) {
+      static_[this.length] = t;
+    } else {
+      int len2 = length - StaticSize;
+      foreach (field; dynamics_) {
+        if (len2 < field.length) {
+          field[len2] = t;
+          return;
+        }
+        len2 -= field.length;
+      }
+      auto newsize = 1 << dynamics_.length;
+      dynamics_ ~= new T[newsize];
+      dynamics_[$-1][0] = t;
+    }
+  }
+  T opIndex(int i) {
+    if (i < static_.length) return static_[i];
+    else {
+      int j = i - StaticSize;
+      foreach (field; dynamics_) {
+        if (j < field.length) {
+          return field[j];
+        }
+        j -= field.length;
+      }
+      fail;
+    }
+  }
+  PreallocatedField dup() {
+    PreallocatedField res = void;
+    res.length = length;
+    
+    res.dynamics_ = null;
+    if (length > StaticSize) { // compress
+      res.dynamics_.length = 1;
+      res.dynamics_[0] = new T[this.length - StaticSize];
+    }
+    
+    int i;
+    foreach (ref value; *this) {
+      int j = i - StaticSize;
+      if (i < static_.length)
+        res.static_[i] = value;
+      else
+        res.dynamics_[0][j] = value;
+      i++;
+    }
+    
+    return res;
+  }
+}
+
+import tools.ctfe, tools.base: stuple, Format, Repeat, ex;
 import ast.int_literal, ast.float_literal;
 class Namespace {
   Namespace sup;
@@ -41,7 +129,9 @@ class Namespace {
     // logln("No ", T.stringof, " above ", this, "!");
     return null;
   }
-  Stuple!(string, Object)[] field;
+  // empirically determined: the overwhelming majority of namespaces contain less than 7 entries
+  PreallocatedField!(7, Stuple!(string, Object)) field;
+  int max_field_size;
   Object[string] field_cache;
   int mod_hash;
   void rebuildCache() {
@@ -120,6 +210,7 @@ class Namespace {
     }
     if (field.length == cachepoint) rebuildCache;
     field ~= stuple(name, obj);
+    max_field_size = max(max_field_size, field.length);
     if (field.length > cachepoint) field_cache[name] = obj;
     mod_hash ++;
   }

@@ -127,8 +127,8 @@ Expr mkRange(Expr from, Expr to) {
    && !gotImplicitCast(from, fvt, (IType it) { return !!(it == fvt); })
    && !(from = tryConvert(from, fvt), from))
     throw new Exception(Format("mkRange: ", fvt, " does not cleanly implement integer subtraction or allow down-conversion. "));
-  new RelMember("cur", from.valueType(), wrapped);
-  new RelMember("end", to.valueType(), wrapped);
+  fastalloc!(RelMember)("cur", from.valueType(), wrapped);
+  fastalloc!(RelMember)("end", to.valueType(), wrapped);
   auto range = new Range;
   range.wrapper = wrapped;
   return new RCE(range, new StructLiteral(wrapped, [from, to]));
@@ -385,10 +385,10 @@ class ForIter(I) : Type, I {
       Expr index(Expr ex, Expr pos) {
         auto we = castToWrapper(ex);
         auto st = new Structure(null);
-        new RelMember("var", var.valueType(), st);
+        fastalloc!(RelMember)("var", var.valueType(), st);
         Expr tup;
         if (extra) {
-          new RelMember("extra", extra.valueType(), st);
+          fastalloc!(RelMember)("extra", extra.valueType(), st);
           tup = mkTupleExpr(
             itertype.index(subexpr(we.dup), pos),
             mkMemberAccess(we, "extra")
@@ -583,9 +583,9 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     auto test = new Structure(null);
     void add(int i) {
       switch (i) {
-        case 0: new RelMember("subiter", sub.valueType(), test); break;
-        case 1: new RelMember("var", it.elemType(), test); break;
-        case 2: new RelMember("extra", extra.valueType(), test); break;
+        case 0: fastalloc!(RelMember)("subiter", sub.valueType(), test); break;
+        case 1: fastalloc!(RelMember)("var", it.elemType(), test); break;
+        case 2: fastalloc!(RelMember)("extra", extra.valueType(), test); break;
       }
     }
     foreach (entry; sorting) add(entry);

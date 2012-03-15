@@ -113,7 +113,8 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
       sc.field = backupfield.dup;
       string name;
       foreach (entry; sc.field) if (entry._0.length) if (auto v = fastcast!(Variable) (entry._1)) { name = entry._0; break; }
-      sc.field = [stuple(name, fastcast!(Object) (ival))];
+      sc.field.length = 0;
+      sc.field ~= stuple(name, fastcast!(Object) (ival));
       sc.rebuildCache;
       pushCache; // same code is parsed multiple times - do not cache!
       scope(exit) popCache;

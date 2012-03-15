@@ -355,7 +355,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     coarseSrc = null; // prevent infloop with the RelMember
     
     if (rtpt) {
-      ctx = new RelMember("context", rtpt, this);
+      ctx = fastalloc!(RelMember)("context", rtpt, this);
     }
     
     auto backup = namespace();
@@ -439,7 +439,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     this.parent = parent;
     if (!parent) {
       New(data, cast(string) null);
-      new RelMember("classinfo", voidp, data);
+      fastalloc!(RelMember)("classinfo", voidp, data);
     }
     if (auto it = RefToParentType()) {
       rtpt = it;

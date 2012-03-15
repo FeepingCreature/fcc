@@ -69,7 +69,7 @@ Tuple mkTuple(IType[] types...) {
   New(tup.wrapped, cast(string) null);
   tup.wrapped.packed = true;
   foreach (i, type; types)
-    new RelMember(qformat("tuple_member_", i), type, tup.wrapped);
+    fastalloc!(RelMember)(qformat("tuple_member_", i), type, tup.wrapped);
   return tup;
 }
 

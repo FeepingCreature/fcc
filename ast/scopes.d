@@ -73,7 +73,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
     if (requiredDepth == -1) {
       requiredDepth = int.max;
     }
-    requiredDepthDebug = Format(this);
+    // requiredDepthDebug = Format(this);
   }
   void setSup(Namespace ns) {
     sup = ns;

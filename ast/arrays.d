@@ -72,7 +72,8 @@ class ExtArray : Type, Dwarf2Encodable {
   IType elemType;
   bool freeOnResize;
   this() { }
-  this(IType et, bool fOR) { elemType = forcedConvert(et); freeOnResize = fOR; }
+  this(IType et, bool fOR) { construct(et, fOR); }
+  void construct(IType et, bool fOR) { elemType = forcedConvert(et); freeOnResize = fOR; }
   override {
     int size() {
       return nativePtrSize + nativeIntSize * 2;
@@ -151,11 +152,11 @@ IType arrayAsStruct(IType base, bool rich) {
   auto res = new Structure(null);
   res.sup = sysmod;
   if (rich)
-    new RelMember("capacity", Single!(SysInt), res);
+    fastalloc!(RelMember)("capacity", Single!(SysInt), res);
   // TODO: fix when int promotion is supported
   // Structure.Member("length", Single!(SizeT)),
-  new RelMember("length", Single!(SysInt), res);
-  new RelMember("ptr", new Pointer(base), res);
+  fastalloc!(RelMember)("length", Single!(SysInt), res);
+  fastalloc!(RelMember)("ptr", fastalloc!(Pointer)(base), res);
   res.name = "__array_as_struct__"~base.mangle()~(rich?"_rich":"");
   if (!mod || !sysmod || mod is sysmod || mod.name == "std.c.setjmp" /* hackaround */) return res;
   
@@ -410,7 +411,7 @@ class ArrayExtender : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(array, ext);
   override {
-    IType valueType() { return new ExtArray(baseType, false); }
+    IType valueType() { return fastalloc!(ExtArray)(baseType, false); }
     void emitAsm(AsmFile af) {
       array.emitAsm(af);
       ext.emitAsm(af);

@@ -44,13 +44,14 @@ class RelMember : Expr, Named, RelTransformable {
       return fastcast!(Object) (mkMemberAccess(base, name));
     }
   }
-  this(string name, IType type, int offset) {
+  void construct(string name, IType type, int offset) {
     this.name = name;
     this.type = type;
     this.offset = offset;
   }
-  this(string name, IType type, Namespace ns) {
-    this(name, type, 0);
+  this(string name, IType type, int offset) { construct(name, type, offset); }
+  void construct(string name, IType type, Namespace ns) {
+    construct(name, type, 0);
     auto st = fastcast!(Structure)~ ns;
     
     string stname;
@@ -73,6 +74,7 @@ class RelMember : Expr, Named, RelTransformable {
     if (!this.name) this.name = qformat("_anon_struct_member_", st.field.length, "_of_", type.mangle());
     ns.add(this);
   }
+  this(string name, IType type, Namespace ns) { construct(name, type, ns); }
   override RelMember dup() { return this; }
 }
 
@@ -145,7 +147,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     res.packed = packed;
     res.sup = sup;
     int i;
-    select((string, RelMember member) { if (i !< from && i < to) new RelMember(member.name, member.type, res); i++; }, &rmcache);
+    select((string, RelMember member) { if (i !< from && i < to) fastalloc!(RelMember)(member.name, member.type, res); i++; }, &rmcache);
     return res;
   }
   NSCache!(string) namecache;
@@ -280,7 +282,7 @@ bool matchStructBody(ref string text, Namespace ns,
       ) && text.accept(";")
       && {
         foreach (i, strname; names)
-          new RelMember(strname, types[i], ns);
+          fastalloc!(RelMember)(strname, types[i], ns);
         names = null; types = null;
         return true;
       }()
@@ -383,17 +385,23 @@ class MemberAccess_Expr : Expr, HasInfo {
   int counter;
   static int mae_counter;
   this(Expr base, string name) {
+    construct(base, name);
+  }
+  this() {
+    construct();
+  }
+  void construct() {
+    counter = mae_counter ++;
+    // if (counter == 31735) fail;
+  }
+  void construct(Expr base, string name) {
     this.base = base;
     this.name = name;
-    this();
+    construct();
     auto ns = fastcast!(Namespace) (base.valueType());
     if (!ns) { logln("Base is not NS-typed: ", base.valueType()); fail; }
     stm = fastcast!(RelMember) (ns.lookup(name));
     if (!stm) throw new Exception(Format("No member '", name, "' in ", base.valueType(), "!"));
-  }
-  this() {
-    counter = mae_counter ++;
-    // if (counter == 31735) fail;
   }
   string getInfo() { return "."~name; }
   MemberAccess_Expr create() { return new MemberAccess_Expr; }
@@ -590,7 +598,7 @@ static this() {
             if (fastcast!(MemberAccess_LValue) (from)) weird = new MemberAccess_LValue;
             else New(weird);
             weird.base = m2.base;
-            weird.stm = new RelMember(null, mae.stm.type, mae.stm.offset + m2.stm.offset);
+            weird.stm = fastalloc!(RelMember)(cast(string) null, mae.stm.type, mae.stm.offset + m2.stm.offset);
             return fastcast!(Iterable) (foldex(weird));
           }
         }

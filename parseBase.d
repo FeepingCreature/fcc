@@ -2,6 +2,13 @@ module parseBase;
 
 import casts;
 
+extern(C) int bcmp(void*, void*, int);
+bool faststreq(string a, string b) {
+  if (a.length != b.length) return false;
+  if (a.ptr == b.ptr) return true; // strings are assumed immutable
+  return bcmp(a.ptr, b.ptr, a.length) == 0;
+}
+
 int[int] accesses;
 
 char takech(ref string s, char deflt) {
@@ -142,7 +149,7 @@ bool acceptT(bool USECACHE)(ref string s, string t) {
     fail;
   }
   static if (USECACHE) {
-    if (s is lastAccepted) {
+    if (s.ptr == lastAccepted.ptr && s.length == lastAccepted.length) {
       s2 = lastAccepted_stripped;
     } else {
       s2 = s.mystripl();
@@ -156,11 +163,17 @@ bool acceptT(bool USECACHE)(ref string s, string t) {
   }
   
   size_t idx = t.length, zero = 0;
-  // to be honest, I have zero idea what's up with the utf16 stuff.
-  // return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t.toUTF16()[$-1]) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
-  return s2.startsWith(t) && (s2.length == t.length || t.length && !isNormal(t.decode(zero)) || !isNormal(s2.decode(idx))) && (s = s2[t.length .. $], true) && (
-    !sep || !s.length || s[0] == ' ' && (s = s[1 .. $], true)
-  );
+  if (!s2.startsWith(t)) return false;
+  if (s2.length != t.length) {
+    if ((!t.length || isNormal(t.decode(zero))) && isNormal(s2.decode(idx))) {
+      return false;
+    }
+  }
+  s = s2[t.length .. $];
+  if (!sep || !s.length) return true;
+  if (s[0] != ' ') return false;
+  s = s[1 .. $];
+  return true;
 }
 
 alias acceptT!(true) accept;
@@ -354,9 +367,9 @@ void freeRuleData(int offs) {
 }
 
 bool sectionStartsWith(string section, string rule) {
-  if (section == rule) return true;
+  if (section.faststreq(rule)) return true;
   if (section.length < rule.length) return false;
-  if (section[0..rule.length] != rule) return false;
+  if (!section[0..rule.length].faststreq(rule)) return false;
   if (section.length == rule.length) return true;
   // only count hits that match a complete section
   return section[rule.length] == '.';
@@ -609,18 +622,40 @@ void popCache() {
 }
 
 struct Stack(T) {
+  const StaticSize = 4;
+  T[StaticSize] static_backing_array;
   T[] backing_array;
   int curDepth;
   void push(ref T t) {
-    if (!backing_array.length) backing_array.length = 4;
+    scope(success) curDepth ++;
     
-    if (curDepth == backing_array.length)
+    int cd = curDepth;
+    if (cd < StaticSize) {
+      static_backing_array[cd] = t;
+      return;
+    }
+    
+    cd -= StaticSize;
+    
+    if (!backing_array.length) backing_array.length = 1;
+    
+    if (cd == backing_array.length)
       backing_array.length = backing_array.length * 2;
     
-    backing_array[curDepth ++] = t;
+    backing_array[cd] = t;
   }
   void pop(ref T t) {
-    t = backing_array[-- curDepth];
+    curDepth --;
+    
+    int cd = curDepth;
+    if (cd < StaticSize) {
+      t = static_backing_array[cd];
+      return;
+    }
+    
+    cd -= StaticSize;
+    
+    t = backing_array[cd];
   }
 }
 
@@ -962,7 +997,7 @@ void noMoreHeredoc(string text) {
 string startsWith(string text, string match)
 {
   if (text.length < match.length) return null;
-  if (text[0 .. match.length] != match) return null;
+  if (!text[0..match.length].faststreq(match)) return null;
   return text[match.length .. $];
 }
 

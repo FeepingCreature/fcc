@@ -446,6 +446,31 @@ extern(C) void exit(int);
 import tools.time, quicksort;
 import ast.fold;
 
+int[int] sizesums;
+
+void gatherSizeStats(Module mod) {
+  int[void*] ns_sizes;
+  void recurse(ref Iterable it) {
+    if (auto ns = fastcast!(Namespace) (it)) {
+      ns_sizes[cast(void*) ns] = ns.max_field_size;
+    }
+    it.iterate(&recurse);
+  }
+  mod.iterate(&recurse);
+  synchronized foreach (value; ns_sizes.values) sizesums[value] ++;
+  logSmart!(false)(mod.name, ": namespace field size distribution");
+  int maxsz;
+  foreach (entry; sizesums.values) if (entry > maxsz) maxsz = entry;
+  const Width = 40;
+  foreach (entry; sizesums.keys.dup.sort) {
+    auto sz = sizesums[entry];
+    auto frac = sz * 1f / maxsz;
+    string octs;
+    for (int i = 0; i < cast(int) (frac*Width); ++i) octs ~= "#";
+    logSmart!(false)(entry, ": ", sz, "\t", octs);
+  }
+}
+
 void postprocessModule(Module mod) {
   void recurse(ref Iterable it) {
     if (auto fc = fastcast!(FunCall) (it)) {
@@ -461,6 +486,8 @@ void postprocessModule(Module mod) {
     it.iterate(&recurse);
   }
   mod.iterate(&recurse);
+  // result: mostly below 7
+  // gatherSizeStats(mod);
 }
 
 bool ematSysmod;
@@ -509,7 +536,7 @@ void verify(Iterable it) {
 }
 
 extern(C) int mkdir(char*, int);
-string delegate(int, int*) compile(string file, CompileSettings cs) {
+string delegate() compile(string file, CompileSettings cs) {
   scope(failure)
     logSmart!(false)("While compiling ", file);
   while (file.startsWith("./")) file = file[2 .. $];
@@ -556,7 +583,7 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
   bool fresh = true;
   auto mod = lookupMod(modname);
   if (!mod) throw new Exception(Format("No such module: ", modname));
-  if (mod.alreadyEmat) return objname /apply/ (string objname, int total, int* complete) { return objname; }; // fresh
+  if (mod.alreadyEmat) return objname /apply/ (string objname) { return objname; }; // fresh
   if (mod.dontEmit) return null;
   fixupMain();
   auto len_parse = sec() - start_parse;
@@ -584,7 +611,7 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
   // logSmart!(false)("Subsegments: ", entries, "; total ", total);
   mod.alreadyEmat = true;
   return stuple(objname, srcname, af, mod, cs) /apply/
-  (string objname, string srcname, AsmFile af, Module mod, CompileSettings cs, int total, int* complete) {
+  (string objname, string srcname, AsmFile af, Module mod, CompileSettings cs) {
     scope(exit)
       if (!cs.saveTemps)
         unlink(srcname.toStringz());
@@ -597,8 +624,7 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
     if (!platform_prefix) flags = "--32";
     if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
-    (*complete) ++;
-    logSmart!(false)("> (", (*complete * 100) / total,  "% ", len_emit, "s) ", cmdline);
+    logSmart!(false)("> (", len_emit, "s) ", cmdline);
     synchronized {
       if (system(cmdline.toStringz())) {
         logln("ERROR: Compilation failed! ");
@@ -610,11 +636,10 @@ string delegate(int, int*) compile(string file, CompileSettings cs) {
   };
 }
 
-string delegate(int, int*)[] genCompilesWithDepends(string file, CompileSettings cs) {
+void genCompilesWithDepends(string file, CompileSettings cs, void delegate(string delegate()) assemble) {
   while (file.startsWith("./")) file = file[2 .. $];
   auto firstObj = compile(file, cs);
   auto modname = file.replace("/", ".")[0..$-3];
-  string delegate(int, int*)[] dgs;
   bool[string] done;
   done["sys"] = true;
   Module[] todo;
@@ -623,29 +648,42 @@ string delegate(int, int*)[] genCompilesWithDepends(string file, CompileSettings
   todo ~= start.getAllModuleImports();
   todo ~= (fastcast!(Module) (sysmod)).getAllModuleImports();
   done[start.name] = true;
-  dgs ~= firstObj;
+  assemble(firstObj);
   
   while (todo.length) {
     auto cur = todo.take();
     if (cur.name in done) continue;
     if (auto nuMod = compile(cur.name.replace(".", "/") ~ EXT, cs))
-      dgs ~= nuMod;
+      assemble(nuMod);
     done[cur.name] = true;
     todo ~= cur.getAllModuleImports();
   }
-  return dgs;
 }
 
 string[] compileWithDepends(string file, CompileSettings cs) {
-  if (!emitpool && !cs.singlethread) emitpool = new Threadpool(4);
-  auto dgs = file.genCompilesWithDepends(cs);
   string[] objs;
-  auto complete = new int;
-  void process(string delegate(int, int*) dg) { auto obj = dg(dgs.length, complete); synchronized objs ~= obj; }
-  if (cs.singlethread) {
-    foreach (dg; dgs) process(dg);
-  } else {
-    emitpool.mt_foreach(dgs, &process);
+  int waits;
+  auto seph = new Semaphore;
+  void process(string delegate() dg) {
+    if (cs.singlethread) dg();
+    else {
+      synchronized {
+        waits++;
+        if (!emitpool) emitpool = new Threadpool(4);
+      }
+      emitpool.addTask(stuple(dg, seph, &objs) /apply/ (string delegate() dg, Semaphore seph, string[]* objs) {
+        auto obj = dg();
+        synchronized {
+          *objs ~= obj;
+          seph.release();
+        }
+      });
+    }
+  }
+  file.genCompilesWithDepends(cs, &process);
+  if (waits) {
+    for (int i = 0; i < waits; ++i)
+      seph.acquire();
   }
   return objs;
 }
@@ -783,6 +821,7 @@ version(Windows) {
 
 import assemble: debugOpts;
 int main(string[] args) {
+  // std.gc.disable();
   string execpath;
   if ("/proc/self/exe".exists()) execpath = myRealpath("/proc/self/exe");
   else execpath = myRealpath(args[0]);

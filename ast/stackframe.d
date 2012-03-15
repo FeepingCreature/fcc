@@ -13,7 +13,7 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
   int lastPos = -1;
   RelMember lastMember;
   foreach (member; frame) {
-    auto rm = new RelMember(member._1, member._0, str);
+    auto rm = fastalloc!(RelMember)(member._1, member._0, str);
     // make sure it has the same layout as the stackframe
     // note: structs are constructed forwards, stackframes backwards!
     if (lastPos == -1) { lastPos = member._2; lastMember = rm; }

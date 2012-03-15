@@ -10,7 +10,7 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
   
   MemberAccess_Expr res;
   if (fastcast!(LValue)~ tuple) res = new MemberAccess_LValue;
-  else res = new MemberAccess_Expr;
+  else res = fastalloc!(MemberAccess_Expr)();
   res.base = reinterpret_cast(wrapped, tuple);
   
   auto temps = wrapped.selectMap!(RelMember, "$");

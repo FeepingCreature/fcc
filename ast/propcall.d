@@ -23,7 +23,8 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
   Expr firstParam;
   IType fpvt;
   bool implicit;
-  this(Expr firstParam) { this.firstParam = firstParam; sup = namespace(); fpvt = firstParam.valueType(); }
+  this(Expr firstParam) { construct(firstParam); }
+  void construct(Expr firstParam) { this.firstParam = firstParam; sup = namespace(); fpvt = firstParam.valueType(); }
   override {
     Object forWith() {
       auto res = new FirstParamOverrideSpace(firstParam);
@@ -96,7 +97,8 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
 // haaack.
 class MyPlaceholderExpr : Expr {
   FirstParamOverrideSpace fpos;
-  this(typeof(fpos) fpos) { this.fpos = fpos; }
+  this(typeof(fpos) fpos) { construct(fpos); }
+  void construct(typeof(fpos) fpos) { this.fpos = fpos; }
   override {
     string toString() { return Format("propcall form for ", fpos.firstParam); }
     void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
@@ -117,6 +119,6 @@ class MyPlaceholderExpr : Expr {
 void setupPropCall() {
   implicits ~= delegate Expr(Expr ex) {
     if (fastcast!(MyPlaceholderExpr) (ex)) return null;
-    return new MyPlaceholderExpr(new FirstParamOverrideSpace(forcedConvert(ex)));
+    return fastalloc!(MyPlaceholderExpr)(fastalloc!(FirstParamOverrideSpace)(forcedConvert(ex)));
   };
 }

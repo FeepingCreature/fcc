@@ -5,7 +5,8 @@ import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace;
 import dwarf2;
 class Pointer_ : Type, Dwarf2Encodable {
   IType target;
-  this(IType t) { target = forcedConvert(t); }
+  this(IType it) { construct(it); }
+  void construct(IType t) { target = forcedConvert(t); }
   override {
     int opEquals(IType ty) {
       ty = resolveType(ty);

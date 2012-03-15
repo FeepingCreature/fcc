@@ -522,9 +522,10 @@ extern(C) {
   void* stdin;
 }
 
+string prevLogLine;
+
 template logSmart(bool Mode) {
   void logSmart(T...)(T t) {
-    tools.log.log("\r");
     auto pretext = Format(t);
     string text;
     foreach (dchar ch; pretext) {
@@ -532,7 +533,11 @@ template logSmart(bool Mode) {
         while (text.length % 8 != 0) text ~= " ";
       } else text ~= ch;
     }
+    if (Mode) {
+      if (faststreq(text, prevLogLine)) return;
+    }
     int col;
+    tools.log.log("\r");
     version(Windows) { col = 80; }
     else {
       winsize ws;

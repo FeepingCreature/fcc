@@ -416,12 +416,12 @@ Structure mkVecStruct(Vector vec) {
   namespace.set(res);
   scope(exit) namespace.set(backup);
   for (int i = 0; i < vec.len; ++i)
-    new RelMember(["xyzw"[i]], vec.base, res);
+    fastalloc!(RelMember)(["xyzw"[i]], vec.base, res);
   
   if (vec.extend)
-    new RelMember(null, vec.base, res);
+    fastalloc!(RelMember)(cast(string) null, vec.base, res);
   
-  res.add(new RelMember("self", vec, 0));
+  res.add(fastalloc!(RelMember)("self", vec, 0));
   
   Expr sqr(Expr ex) { return lookupOp("*", ex, ex); }
   
@@ -446,7 +446,7 @@ Structure mkVecStruct(Vector vec) {
   }
   
   res.add(new TypeAlias(vec.base, "base"));
-  // auto vv = new RelMember("vec", vec, 0);
+  // auto vv = fastalloc!(RelMember)("vec", vec, 0);
   // res.add(new ExprAlias(reinterpret_cast(vec, fastcast!(Expr) (vv)), "vec"));
   
   if (vec.len == 3) {

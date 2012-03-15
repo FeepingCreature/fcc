@@ -383,8 +383,8 @@ extern(C) void fcc_initTenth() {
     if (args.length != 1) tnte("Wrong number of args to 'remove-scope': 1 expected");
     mixin(chaincast("name: First arg for 'remove-scope': args[0]->Token: %.name"));
     
-    Stuple!(string, Object)[] res;
     auto ns = namespace();
+    typeof(ns.field) res;
     foreach (pair; ns.field) {
       if (pair._0 != name) res ~= pair;
     }

@@ -20,8 +20,15 @@ class Context : Namespace, MValue, Named {
         dg(ex);
       }
     }
-    if (reverse) foreach_reverse (entry; field) _body(entry._1);
-    else foreach (entry; field) _body(entry._1);
+    if (reverse) {
+      // no opApply
+      // foreach_reverse (entry; field) _body(entry._1);
+      for (int i = field.length - 1; i >= 0; --i) {
+        _body(field[i]._1);
+      }
+    } else {
+      foreach (entry; field) _body(entry._1);
+    }
   }
   void iterValid_rev(void delegate(Expr) dg) { return iterValid(dg, true); }
   override {

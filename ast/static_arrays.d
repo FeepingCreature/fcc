@@ -6,7 +6,9 @@ class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
   IType elemType;
   int length;
   this() { }
-  this(IType et, int len) { elemType = et; length = len; }
+  this(IType et, int len) { construct(et, len); }
+  void construct() { }
+  void construct(IType et, int len) { elemType = et; length = len; }
   override {
     string toString() { return Format(elemType, "[", length, "] - %", alignment(), "%"); }
     int size() {

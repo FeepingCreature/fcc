@@ -7,21 +7,26 @@ import tools.compat, tools.functional, alloc;
 alias asmfile.startsWith startsWith;
 
 string buf;
+int bufbase;
+int buflen;
 string readStream(InputStream IS) {
-  if (!buf) buf = new char[16384];
+  if (!buf) { buf = new char[16384]; buflen = 16384; }
   int reslen;
   ubyte[16384] buffer;
   int i;
   do {
     i = IS.read(buffer);
     if (i < 0) throw new Exception(Format("Read error: ", i));
-    while (buf.length < reslen + i)
-      buf.length = cast(int) (buf.length * 2);
-    buf[reslen .. reslen + i] = cast(string) buffer[0 .. i];
+    while ((buf.length - bufbase) < reslen + i) {
+      buflen *= 2;
+      buf = buf[bufbase .. bufbase + reslen] ~ new char[buflen - bufbase - reslen];
+      bufbase = 0;
+    }
+    buf[bufbase .. $][reslen .. reslen + i] = cast(string) buffer[0 .. i];
     reslen += i;
   } while (i);
-  auto res = buf[0 .. reslen];
-  buf = buf[reslen .. $];
+  auto res = buf[bufbase .. $][0 .. reslen];
+  bufbase += reslen;
   return res;
 }
 
@@ -606,7 +611,7 @@ void parseHeader(string filename, string src) {
                 static if (debugStructs) logln("size ie cast failed");
                 goto giveUp1;
               }
-              new RelMember(name3, new StaticArray(ty, ie.num), st);
+              fastalloc!(RelMember)(name3, fastalloc!(StaticArray)(ty, ie.num), st);
               // logln("rest: ", st3);
               if (st3.strip().length) {
                 static if (debugStructs) logln("left over ", st3, ", failed");
@@ -636,7 +641,7 @@ void parseHeader(string filename, string src) {
                 static if (debugStructs) logln("void base type at ", startstr, ". fail. ");
                 goto giveUp1;
               }
-              new RelMember(var.strip(), ty, st);
+              fastalloc!(RelMember)(var.strip(), ty, st);
             }
           skip:
             st2 = statements.take();
