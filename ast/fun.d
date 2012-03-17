@@ -199,7 +199,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   string cleaned_name() { return name.cleanup(); }
   string pretty_name() {
-    auto mod = current_module().modname();
+    auto mod = get!(IModule).modname();
     auto res = Format(type.ret, " ", mod, ".", name);
     res ~= "(";
     foreach (i, arg; type.params) {
