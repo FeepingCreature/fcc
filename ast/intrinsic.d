@@ -598,7 +598,7 @@ void setupSysmods() {
         else raise new AssertError "Assertion failed! ";
     }
     class FailError : UnrecoverableError {
-      void init(string s) super.init "Something went wrong. ";
+      void init() super.init "Something went wrong. ";
     }
     void fail() {
       raise new FailError;
