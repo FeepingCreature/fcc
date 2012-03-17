@@ -55,9 +55,10 @@ static this() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
     auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
     if (fastcast!(StaticArray)~ e1v) {
-      assert(!!fastcast!(LValue) (e1));
-      e1 = mkFullSlice(e1);
-      e1v = resolveType(e1.valueType());
+      if (fastcast!(LValue) (e1)) {
+        e1 = mkFullSlice(e1);
+        e1v = resolveType(e1.valueType());
+      }
     }
     if (!fastcast!(Array) (e1v) && !fastcast!(ExtArray) (e1v) && !fastcast!(Pointer) (e1v))
       return null;

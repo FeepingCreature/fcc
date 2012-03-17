@@ -23,94 +23,93 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   rest(t2, "tree.expr _tree.expr.arith", &initParam);
   
   text = t2;
-  return new CallbackExpr(Format("class-new ", cr), cr, initParam, stuple(text, cr)
-  /apply/ (string text, ClassRef cr, Expr initParam, AsmFile af)
-  {
-    mixin(mustOffset("nativePtrSize"));
-    af.comment("mk var");
-    mkVar(af, cr, true, (Variable var) {
-      af.comment("new_class");
-      mixin(mustOffset("0"));
-      iparse!(Statement, "new_class", "tree.stmt")
-      (`{
-          var = type-of var: mem.calloc(size, 1);
-          (void**:var)[0] = _classinfo;
-        }`,
-        "var", var,
-        "size", mkInt(cr.myClass.size),
-        "_classinfo", new Symbol(cr.myClass.ci_name())
-      ).emitAsm(af);
-      
-      if (cr.myClass.ctx) {
-        auto transformed = cr.myClass.ctx.transform(
-          new DerefExpr(reinterpret_cast(new Pointer(cr.myClass.data), var))
-        );
-        auto bp = namespace().lookup("__base_ptr");
-        if (bp) {
-          // logln("transformed: ", transformed);
-          // logln("baseptr: ", bp);
-          (new Assignment(
-            fastcast!(LValue) (transformed),
-            fastcast!(Expr) (namespace().lookup("__base_ptr"))
-          )).emitAsm(af);
+  Expr doit(Expr initParam) {
+    return new CallbackExpr(Format("class-new ", cr), cr, initParam, stuple(text, cr)
+    /apply/ (string text, ClassRef cr, Expr initParam, AsmFile af)
+    {
+      mixin(mustOffset("nativePtrSize"));
+      af.comment("mk var");
+      mkVar(af, cr, true, (Variable var) {
+        af.comment("new_class");
+        mixin(mustOffset("0"));
+        iparse!(Statement, "new_class", "tree.stmt")
+        (`{
+            var = type-of var: mem.calloc(size, 1);
+            (void**:var)[0] = _classinfo;
+          }`,
+          "var", var,
+          "size", mkInt(cr.myClass.size),
+          "_classinfo", new Symbol(cr.myClass.ci_name())
+        ).emitAsm(af);
+        
+        if (cr.myClass.ctx) {
+          auto transformed = cr.myClass.ctx.transform(
+            new DerefExpr(reinterpret_cast(new Pointer(cr.myClass.data), var))
+          );
+          auto bp = namespace().lookup("__base_ptr");
+          if (bp) {
+            // logln("transformed: ", transformed);
+            // logln("baseptr: ", bp);
+            (new Assignment(
+              fastcast!(LValue) (transformed),
+              fastcast!(Expr) (namespace().lookup("__base_ptr"))
+            )).emitAsm(af);
+          }
         }
-      }
-      void initClass(Class cl) {
-        if (cl.parent) initClass(cl.parent);
-        auto base = cl.classSize(false);
-        doAlign(base, voidp);
-        base /= 4;
-        int id = 0;
-        void iterLeaves(void delegate(Intf, Expr) dg) {
-          void recurse(Intf intf, Expr myOffs) {
-            if (intf.parents.length) foreach (i, intf2; intf.parents) {
-              recurse(intf2, myOffs);
-              myOffs = foldex(lookupOp("+", myOffs, mkInt(intf2.clsize())));
+        void initClass(Class cl) {
+          if (cl.parent) initClass(cl.parent);
+          auto base = cl.classSize(false);
+          doAlign(base, voidp);
+          base /= 4;
+          int id = 0;
+          void iterLeaves(void delegate(Intf, Expr) dg) {
+            void recurse(Intf intf, Expr myOffs) {
+              if (intf.parents.length) foreach (i, intf2; intf.parents) {
+                recurse(intf2, myOffs);
+                myOffs = foldex(lookupOp("+", myOffs, mkInt(intf2.clsize())));
+              }
+              else dg(intf, myOffs);
             }
-            else dg(intf, myOffs);
+            auto offs = cl.ownClassinfoLength;
+            foreach (i, intf; cl.iparents) {
+              recurse(intf, offs);
+              offs = foldex(lookupOp("+", offs, mkInt(intf.clsize())));
+            }
           }
-          auto offs = cl.ownClassinfoLength;
-          foreach (i, intf; cl.iparents) {
-            recurse(intf, offs);
-            offs = foldex(lookupOp("+", offs, mkInt(intf.clsize())));
+          iterLeaves((Intf intf, Expr offs) {
+            // logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
+            iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
+            (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
+              "var", var,
+              "base", mkInt(base), "id", mkInt(id++),
+              "_classinfo", new Symbol(cr.myClass.ci_name()),
+              "offs", offs
+            ).emitAsm(af);
+          });
+        }
+        initClass(cr.myClass);
+        try {
+          if (initParam) {
+            (new ExprStatement(foldex(
+              iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
+                      (`var.init ex`, namespace(),
+                      "var", var, "ex", initParam, af)))).emitAsm(af);
           }
+          else if (cr.myClass.lookupRel("init", var)) {
+            (new ExprStatement(foldex(
+              iparse!(Expr, "call_constructor_void", "tree.expr _tree.expr.arith")
+                      (`var.init()`, namespace(),
+                      "var", var)
+            ))).emitAsm(af);
+          }
+        } catch (Exception ex) {
+          text.failparse(ex);
         }
-        iterLeaves((Intf intf, Expr offs) {
-          // logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
-          iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
-          (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
-            "var", var,
-            "base", mkInt(base), "id", mkInt(id++),
-            "_classinfo", new Symbol(cr.myClass.ci_name()),
-            "offs", offs
-          ).emitAsm(af);
-        });
-      }
-      initClass(cr.myClass);
-      try {
-        if (initParam) {
-          /*(new ExprStatement(foldex(tmpize_maybe(initParam, (Expr ex) {
-            return iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
-                     (`var.init ex`,
-                      "var", var, "ex", ex);
-          })))).emitAsm(af);*/
-          (new ExprStatement(foldex(
-            iparse!(Expr, "call_constructor", "tree.expr _tree.expr.arith")
-                   (`var.init ex`,
-                    "var", var, "ex", initParam, af)))).emitAsm(af);
-        }
-        else if (cr.myClass.lookupRel("init", var)) {
-          (new ExprStatement(foldex(
-            iparse!(Expr, "call_constructor_void", "tree.expr _tree.expr.arith")
-                   (`var.init()`,
-                    "var", var)
-          ))).emitAsm(af);
-        }
-      } catch (Exception ex) {
-        text.failparse(ex);
-      }
+      });
     });
-  });
+  }
+  if (initParam) return fastcast!(Object) (tmpize_maybe(initParam, &doit));
+  else return fastcast!(Object) (doit(null));
 }
 mixin DefaultParser!(gotNewClassExpr, "tree.expr.new.class", "125", "new");
 

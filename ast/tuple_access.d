@@ -56,6 +56,9 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
       if (!namespace()) {
         fail;
       }
+      if (!namespace().get!(EmittingContext)) {
+        logln("no EmitCtx beneath ", namespace());
+      }
       if (namespace().get!(EmittingContext).isBeingEmat) {
         logln("Too late to change stackframe via tmpizing!");
         fail;

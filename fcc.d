@@ -4,6 +4,7 @@ module fcc; // feep's crazed compiler
 import tools.log, tools.compat, tools.smart_import;
 alias ast.types.Type Type;
 import classgraph;
+static import std.gc;
 
 mixin(expandImport(`ast.[
   aggregate_parse, returns, ifstmt, loops, assign,
