@@ -597,6 +597,12 @@ void setupSysmods() {
         if (mesg) raise new AssertError mesg;
         else raise new AssertError "Assertion failed! ";
     }
+    class FailError : UnrecoverableError {
+      void init(string s) super.init "Something went wrong. ";
+    }
+    void fail() {
+      raise new FailError;
+    }
     template refs(T) {
       class refs_class {
         T t;
