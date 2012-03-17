@@ -485,6 +485,12 @@ void setupSysmods() {
         enum X86Registers {
           GS, FS, ES, DS, EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX, TRAPNO, ERR, EIP, CS, EFL, UESP, SS
         }
+        struct mcontext_t {
+          int x 19 gregs;
+          void* fpregs;
+          size_t oldmask;
+          size_t cr2;
+        }
         struct ucontext {
           size_t flags;
           ucontext* link;
