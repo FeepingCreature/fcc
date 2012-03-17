@@ -149,3 +149,17 @@ RenameIdentifier getenv C_getenv;
 string getenv(string var) {
   return CToString C_getenv toStringz var;
 }
+
+string read-backtrace(int skipFirst = 8) {
+  platform(default) {
+    auto pid = getpid();
+    return
+      readback("gdb", ["--batch", "-n", "-ex", "thread", "-ex", "bt", "-p", "$pid"])
+      #.splitAt "\n"
+      #.grep "^#"
+      #.iterFrom skipFirst
+      #.join "\n"
+    ;
+  }
+  return null;
+}

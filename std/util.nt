@@ -20,6 +20,26 @@ template iterOnce(T) {
   }
 }
 
+/*Template: iterFrom
+Skips the first n values from the iterator */
+template iterFrom(T) {
+  class from : Iterator!type-of-elem T[0] {
+    int count;
+    type-of (*T[0]*:null).iterator iter;
+    void init(T t) { iter = t[0].iterator; count = t[1]; }
+    bool advance() {
+      for value <- iter {
+        if (count) count --;
+        else return true;
+      }
+      return false;
+    }
+  }
+  from iterFrom(T t) {
+    return new from t;
+  }
+}
+
 template iteratorType(T) {
   alias iteratorType = type-of value-of!T.iterator;
 }

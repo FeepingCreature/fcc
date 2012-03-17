@@ -319,3 +319,29 @@ string toString(int i, int base = 10) {
   }
   raise new Error "toString(base => $base) not supported";
 }
+
+template grep(T) {
+  T[0] bogus;
+  class GrepIterator : Iterator!string {
+    type-of bogus.iterator src;
+    string match;
+    void init(T[0] src, string match) this.(src, match) = (type-of this.src: src.iterator, match);
+    bool matches(string str) {
+      if (auto rest = match.startsWith(`^`)) {
+        if (auto r2 = rest.endsWith(`$`)) return str == r2;
+        return !! str.startsWith rest;
+      }
+      if (auto rest = match.endsWith(`$`)) {
+        return !! str.endsWith rest;
+      }
+      return str.find match;
+    }
+    bool advance() {
+      while auto str <- src {
+        if (matches str) { value = str; return true; }
+      }
+      return false;
+    }
+  }
+  auto grep(T t) { return new GrepIterator t; }
+}
