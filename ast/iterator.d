@@ -972,15 +972,23 @@ mixin DefaultParser!(gotIteratorAssign, "tree.semicol_stmt.assign_iterator", "11
 Object gotElemTypeOf(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  string match = "tree.expr _tree.expr.arith";
+  IType ty;
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+    if (!rest(t2, "type", &ty))
+      t2.failparse("Failed to parse type-of-elem");
   
-  if (!rest(t2, match, &ex))
-    t2.failparse("Failed to parse type-of-elem expression");
-  
-  if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
-    text.failparse("Expected iterator");
-  
-  auto it = fastcast!(Iterator) (ex.valueType());
+  Iterator it;
+  if (ty) {
+    ty = resolveType(ty);
+    Expr pt = new PlaceholderToken(ty, "elem-type-of temp");
+    if (!gotImplicitCast(pt, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+      text.failparse("Expected iterator, not ", ty);
+    it = fastcast!(Iterator) (pt.valueType());
+  } else {
+    if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+      text.failparse("Expected iterator, not ", ex.valueType());
+    it = fastcast!(Iterator) (ex.valueType());
+  }
   
   text = t2;
   return fastcast!(Object) (it.elemType());
