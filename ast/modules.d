@@ -153,10 +153,25 @@ bool delegate(Module) rereadMod;
 // for instance, c.*
 Module delegate(string) specialHandler;
 
+TLS!(IType) RefToParentType;
+TLS!(Expr delegate(Expr refexpr)) RefToParentModify;
+
+static this() {
+  New(RefToParentType, delegate IType() { return null; });
+  New(RefToParentModify, delegate Expr delegate(Expr) *() {
+    return &(new Stuple!(Expr delegate(Expr)))._0;
+  });
+}
+
 import tools.compat: read, castLike, exists, sub;
 string[] module_stack;
 Module[string] modules_wip;
 Module lookupMod(string name) {
+  // reset for in-member function imports
+  auto rtpt_backup = RefToParentType();
+  scope(exit) RefToParentType.set(rtpt_backup);
+  RefToParentType.set(null);
+  
   foreach (i, mod; module_stack) {
     if (mod == name) {
       string loop() {

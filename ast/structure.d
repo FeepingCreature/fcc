@@ -235,16 +235,6 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   }
 }
 
-TLS!(IType) RefToParentType;
-TLS!(Expr delegate(Expr refexpr)) RefToParentModify;
-
-static this() {
-  New(RefToParentType, delegate IType() { return null; });
-  New(RefToParentModify, delegate Expr delegate(Expr) *() {
-    return &(new Stuple!(Expr delegate(Expr)))._0;
-  });
-}
-
 import ast.modules;
 bool matchStructBody(ref string text, Namespace ns,
                      ParseCb* rest = null) {
