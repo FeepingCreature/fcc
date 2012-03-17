@@ -112,7 +112,7 @@ Expr simpleFormat(Expr ex) {
     auto res = new ConcatChain(new StringExpr("{")); // put here for type
     foreach (i, entry; getTupleEntries(ex)) {
       if (i) res.addArray(new StringExpr(", "));
-      res.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, "entry", entry));
+      res.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, namespace(), "entry", entry));
     }
     res.addArray(new StringExpr("}"));
     return res;
