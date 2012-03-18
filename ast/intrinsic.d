@@ -831,6 +831,7 @@ class RegExpr : MValue {
   this(string r) { reg = r; }
   mixin defaultIterate!();
   override {
+    string toString() { return qformat("<reg ", reg, ">"); }
     RegExpr dup() { return this; }
     IType valueType() { return voidp; }
     void emitAsm(AsmFile af) { if (isARM && reg == "%ebp") reg = "fp"; af.pushStack(reg, nativePtrSize); }
