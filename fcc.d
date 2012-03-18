@@ -666,7 +666,7 @@ string[] compileWithDepends(string file, CompileSettings cs) {
   int waits;
   auto seph = new Semaphore;
   void process(string delegate() dg) {
-    if (cs.singlethread) dg();
+    if (cs.singlethread) objs ~= dg();
     else {
       synchronized {
         waits++;

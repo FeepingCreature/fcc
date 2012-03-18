@@ -543,7 +543,7 @@ class AsmFile {
         if (entry) finalized ~= *entry;
         cache.clear;
       }
-      while (full_list.list().length) {
+      outer:while (full_list.list().length) {
         foreach (i, entry; full_list.list()) {
           if (entry.kind != Transaction.Kind.Text) {
             cache ~= entry;
@@ -551,9 +551,10 @@ class AsmFile {
             flush2(&entry);
             full_list._list = full_list._list[i+1 .. $];
             full_list.size -= i+1;
-            break;
+            continue outer;
           }
         }
+        break;
       }
       flush2;
     }

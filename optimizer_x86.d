@@ -577,10 +577,10 @@ class ProcTrack : ExtToken {
             }
             if (src in known) {
               if (auto indir = mkIndirect(known[src], offs)) {
-                fixupESPDeps(4);
                 if (auto id = indir.isIndirect())
                   // depends on a register that we've yet to emit on stackbuild time
                   if (partialKnown(id)) return false;
+                fixupESPDeps(4);
                 
                 stack ~= indir;
                 mixin(Success);
@@ -1879,7 +1879,8 @@ restart:
     return changed;
   }
   opts ~= stuple(&remove_stack_push_pop_chain, "remove_stack_push_pop_chain", true);
-  mixin(opt("remove_closing_leas", `^LoadAddress, ] => $SUBST();`));
+  // can't be sure we're actually at the end since 1024 flushes now
+  // mixin(opt("remove_closing_leas", `^LoadAddress, ] => $SUBST();`));
   mixin(opt("earlier_stackload", `^MathOp, ^Mov:
     $1.from == "(%esp)" && $1.to.isUtilityRegister() && !info($0).opContains($1.to) && !info($0).opContains($1.from)
     =>

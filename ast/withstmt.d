@@ -55,6 +55,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       sc.add(backupvar);
       sc.addStatement(new VarDecl(backupvar));
       sc.addGuard(mkAssignment(ex, backupvar));
+      
       assert(!!fastcast!(LValue) (ex) || !!fastcast!(MValue) (ex), Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
     
