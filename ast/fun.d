@@ -75,10 +75,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   bool extern_c = false, weak = false, reassign = false;
   void markWeak() { weak = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
-    if (!needed && mode == IterMode.Lexical) {
-      logln("iteration of function that isn't needed: bad");
-      fail;
-    }
     if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
     // else to be defined in subclasses
   }
@@ -88,16 +84,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string coarseSrc;
   Namespace coarseContext;
   IModule coarseModule;
-  bool inEmitAsm, needed;
-  Function dup_prev;
+  bool inEmitAsm;
   mixin ImporterImpl!();
-  void setNeeded() {
-    auto cur = this;
-    while (cur) {
-      cur.needed = true;
-      cur = cur.dup_prev;
-    }
-  }
   override bool isBeingEmat() { return inEmitAsm; }
   void parseMe() {
     if (!coarseSrc) return;
@@ -134,7 +122,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   Argument[] getParams() { return type.params; }
   Function flatdup() { // NEVER dup the tree!
     auto res = alloc();
-    res.dup_prev = this;
     res.name = name;
     res.type = type;
     res.weak = weak;
@@ -157,7 +144,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   FunCall mkCall() {
     auto res = new FunCall;
-    setNeeded;
     res.fun = this;
     return res;
   }
@@ -323,7 +309,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       dwarfOpen(af);
       scope(exit) dwarfClose(af);
       
-      auto fmn = mangleSelf();
+      auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4");
       if (!isWindoze()) {// TODO: work out why win32 gas does not like this {
         if (isARM)
@@ -971,7 +957,7 @@ class FunctionPointer : ast.types.Type {
 // &fun
 class FunRefExpr : Expr, Literal {
   Function fun;
-  this(Function fun) { fun.setNeeded; this.fun = fun; }
+  this(Function fun) { this.fun = fun; }
   private this() { }
   mixin DefaultDup!();
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {

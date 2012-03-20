@@ -14,7 +14,7 @@ void qformat_append(T...)(T t) {
   void qbuffer_resize(int i) {
     if (qbuffer.length < i) {
       auto backup = qbuffer;
-      qbuffer = new char[max(65536, i)];
+      qbuffer = new char[max(16384, i)];
       qbuffer[0 .. backup.length] = backup;
     }
     _qbuffer() = qbuffer;

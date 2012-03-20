@@ -46,10 +46,6 @@ class Font {
     FTcheck Set_Char_Size(face, 0, size*64, dpi, dpi);
   }
   vec4f[] toBuffer(string text, FontStyle[] styles, int* wp = null, hp = null) using mode FT {
-    if (!text.length) {
-      (*wp, *hp) = (0, 0);
-      return null;
-    }
     // TODO: unicode
     auto glyphs = new Glyph[] text.length, pos = new Vector[] text.length;
     Vector pen;

@@ -29,7 +29,6 @@ class NestedFunction : Function {
       return mangleSelf() ~ "_" ~ name;
     }
     FunCall mkCall() {
-      setNeeded;
       auto res = new NestedCall;
       res.fun = this;
       return res;
@@ -238,7 +237,6 @@ class NestFunRefExpr : mkDelegate {
   Expr base;
   this(NestedFunction fun, Expr base = null) {
     if (!base) base = new Register!("ebp");
-    fun.setNeeded;
     this.fun = fun;
     this.base = base;
     // dup base so that iteration treats them separately. SUBTLE BUGFIX, DON'T CHANGE.
@@ -356,7 +354,6 @@ class PointerFunction(T) : T {
   override PointerFunction dup() { return new PointerFunction(ptr.dup, setup); }
   override {
     FunCall mkCall() {
-      setNeeded;
       if (fastcast!(Delegate)~ ptr.valueType()) {
         auto res = new NestedCall;
         res.fun = this;
