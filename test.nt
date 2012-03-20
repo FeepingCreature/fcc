@@ -1,6 +1,8 @@
 module test;
 import c.SDL.SDL, simplex, std.thread;
 
+void garble() { functions that are never called are never even parsed. heh. this means I can write anything in here as long as it isn't { or }. :D }
+
 pragma(lib, "SDL");
 
 SDL_Surface* surf;
@@ -110,7 +112,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   }
   auto last = time(null), tstart = last;
   while true {
-    if (time(null) - tstart > 5) return;
+    if (time(null) - tstart > 12) return;
     run();
     SDL_Flip surf;
     while SDL_PollEvent &SDL_Event ev using ev

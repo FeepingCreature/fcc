@@ -3,6 +3,7 @@ module test92;
 import std.(file, time, lib.(freetype2, opengl.(, sdl)));
 
 void main() {
+  auto wnd = new SDLWindow;
   auto font = new Font(readAll "Vera.ttf", 16, 1200);
   FontStyle fs;
   fs.color = vec4f(1);
@@ -11,18 +12,20 @@ void main() {
   
   using mode GL {
     GLuint tex;
-    gl-context-callbacks ~= \{
+    wnd.addCallback \{
       GenTextures(1, &tex);
       using TEXTURE_2D {
         BindTexture tex;
         auto data = [for v <- buf: int:(v.x*255)<<16 | int:(v.y*255)<<8 | int:(v.z*255)].eval;
         gluBuild2DMipmaps (3, width, height, GL_BGRA, GL_UNSIGNED_BYTE, data.ptr);
         data.free;
-        TEXTURE_MIN_FILTER.TexParameteri LINEAR_MIPMAP_LINEAR;
-        TEXTURE_MAG_FILTER.TexParameteri LINEAR;
+        // TEXTURE_MIN_FILTER.TexParameteri LINEAR_MIPMAP_LINEAR;
+        // TEXTURE_MAG_FILTER.TexParameteri LINEAR;
+        TEXTURE_MIN_FILTER.TexParameteri NEAREST;
+        TEXTURE_MAG_FILTER.TexParameteri NEAREST;
       }
     };
-    auto surf = setup-gl();
+    wnd.setup();
     auto fps = 0, lastChecked = sec();
     while true {
       fps++;
@@ -44,7 +47,7 @@ void main() {
         TexCoord2f(1, 1); Vertex2f(1, 1);
         TexCoord2f(1, 0); Vertex2f(1, 0);
       }
-      update surf;
+      wnd.update;
     }
   }
 }

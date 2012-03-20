@@ -49,12 +49,14 @@ struct glWithCap {
   GLenum cap;
   alias onUsing = glEnable cap;
   alias onExit = glDisable cap;
+  alias toString = "glWithCap $cap";
 }
 
 struct glWithoutCap {
   GLenum cap;
   alias onUsing = glDisable cap;
   alias onExit = glEnable cap;
+  alias toString = "glWithoutCap $cap";
 }
 
 defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";
