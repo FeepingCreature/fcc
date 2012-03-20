@@ -22,15 +22,14 @@ bool delete_event(void* widget, void* event, gpointer data) {
 
 alias G_TYPE_STRING = GType:(16 << 2);
 
-extern(C) FILE* stdout;
 int main (int argc, char **argv) {
   gtk_init (&argc, &argv);
   
-  auto window = GTK_WINDOW gtk_window_new GTK_WINDOW_TOPLEVEL;
+  auto window = GTK_WINDOW _new _TOPLEVEL;
   
   window.set_title "Hello Buttons!";
   
-  auto model = GTK_TREE_STORE gtk_tree_store_new (2, G_TYPE_STRING, G_TYPE_STRING);
+  auto model = GTK_TREE_STORE _new (2, G_TYPE_STRING, G_TYPE_STRING);
   
   string line;
   GtkTreeIter[auto~] iters;
@@ -70,21 +69,21 @@ int main (int argc, char **argv) {
     }
   }
   
-  auto sw = GTK_SCROLLED_WINDOW gtk_scrolled_window_new (null, null);
+  auto sw = GTK_SCROLLED_WINDOW _new (null, null);
   sw.set_policy (GTK_POLICY_AUTOMATIC x 2);
   
-  auto tree = GTK_TREE_VIEW gtk_tree_view_new ();
+  auto tree = GTK_TREE_VIEW _new ();
   tree.set_headers_visible true;
   
   sw.add tree;
   window.add sw;
   
   {
-    auto renderer = gtk_cell_renderer_text_new ();
-    auto column = GTK_TREE_VIEW gtk_tree_view_column_new_with_attributes ("Class",
+    auto renderer = GTK_CELL_RENDERER_TEXT _new ();
+    auto column = GTK_TREE_VIEW _column_new_with_attributes ("Class",
                     renderer, "text".ptr, 0, null);
     tree.append_column column;
-    column = GTK_TREE_VIEW gtk_tree_view_column_new_with_attributes ("Info",
+    column = GTK_TREE_VIEW _column_new_with_attributes ("Info",
                     renderer, "text".ptr, 1, null);
     tree.append_column column;
     tree.set_model GTK_TREE_MODEL(GtkWidget*:model);
@@ -97,7 +96,7 @@ int main (int argc, char **argv) {
     void*: null, void*: null, GConnectFlags: 0
   );
   
-  g_signal_connect (window, "destroy", delegate void(GtkWidget*) { gtk_main_quit(); });
+  g_signal_connect (window, "destroy", \(GtkWidget*) { gtk_main_quit(); });
   
   window.set_border_width 10;
   
