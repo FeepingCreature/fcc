@@ -368,6 +368,8 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
       return cheaprecurse (re.src);
     if (auto de = fastcast!(DerefExpr) (ex))
       return cheaprecurse (de.src);
+    if (auto lvamv = fastcast!(LValueAsMValue) (ex))
+      return cheaprecurse (lvamv.sup);
     
     if (mode == CheapMode.Flatten) {
       if (auto sl = fastcast!(StructLiteral) (ex)) return true;
@@ -734,7 +736,6 @@ void loop(string start,
     } else assert(false);
   }
   bool isUpToDate(Module mod) {
-    if (mod is sysmod) return true;
     auto file = mod.name.undo();
     string obj, src;
     file.translate(obj, src);
@@ -759,9 +760,9 @@ void loop(string start,
   bool needsRebuild(Module mod) {
     // logln("needsRebuild? ", mod.name, " ", mod.getAllModuleImports());
     if (mod.dontEmit) return false;
-    if (!isUpToDate(mod)) return true;
+    if (mod is sysmod || !isUpToDate(mod)) return true;
     foreach (mod2; mod.getAllModuleImports())
-      if (needsRebuild(mod2)) return true;
+      if (mod2 !is sysmod && needsRebuild(mod2)) return true;
     return false;
   }
   bool pass1 = true;

@@ -1,8 +1,6 @@
 module test;
 import c.SDL.SDL, simplex, std.thread;
 
-void garble() { functions that are never called are never even parsed. heh. this means I can write anything in here as long as it isn't { or }. :D }
-
 pragma(lib, "SDL");
 
 SDL_Surface* surf;
