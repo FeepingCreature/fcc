@@ -17,6 +17,7 @@ defmode GTK_BUTTON "gobject-helper <GTK_BIN>";
 defmode GTK_BOX "gobject-helper <GTK_CONTAINER>";
 defmode GTK_SCROLLED_WINDOW "gobject-helper <GTK_BIN>";
 defmode GTK_TREE_VIEW "gobject-helper";
+defmode GTK_TREE_VIEW_COLUMN "gobject-helper";
 defmode GTK_TREE_MODEL "gobject-helper";
 defmode GTK_TREE_STORE "gobject-helper";
 defmode GTK_ENTRY "gobject-helper <GTK_WIDGET>";

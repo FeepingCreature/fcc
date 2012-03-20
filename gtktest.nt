@@ -33,8 +33,8 @@ int main (int argc, char **argv) {
   
   string line;
   GtkTreeIter[auto~] iters;
-  auto current() { return &iters[iters.length-1]; }
-  auto prev() { return &iters[iters.length-2]; }
+  auto current() { return &iters[$-1]; }
+  auto prev() { return &iters[$-2]; }
   bool reading;
   writeln "Building model. ";
   while line <- splitAt(castIter!string readfile open "xmldump.txt", "\n") {
@@ -57,7 +57,7 @@ int main (int argc, char **argv) {
         auto classnamep = toStringz line.between(" classname=\"", "\"");
         auto namep = toStringz line.between (" name=\"", "\" ");
         auto infop = toStringz line.between (" info=\"", "\" ");
-        if (line.find " info=" == -1) infop = namep;
+        if (!line.find " info=") infop = namep;
         GtkTreeIter iter;
         iters ~= iter;
         model.append (current(), prev());
@@ -80,13 +80,14 @@ int main (int argc, char **argv) {
   
   {
     auto renderer = GTK_CELL_RENDERER_TEXT _new ();
-    auto column = GTK_TREE_VIEW _column_new_with_attributes ("Class",
-                    renderer, "text".ptr, 0, null);
-    tree.append_column column;
-    column = GTK_TREE_VIEW _column_new_with_attributes ("Info",
-                    renderer, "text".ptr, 1, null);
-    tree.append_column column;
-    tree.set_model GTK_TREE_MODEL(GtkWidget*:model);
+    
+    tree.append_column GTK_TREE_VIEW_COLUMN _new_with_attributes
+      ("Class", renderer, "text".ptr, 0, null);
+    tree.append_column GTK_TREE_VIEW_COLUMN _new_with_attributes
+      ("Info",  renderer, "text".ptr, 1, null);
+    
+    tree.set_model GTK_TREE_MODEL GtkWidget*:model;
+    
     g_object_unref (model);
   }
   
