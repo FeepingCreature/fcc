@@ -652,15 +652,9 @@ string delegate() compile(string file, CompileSettings cs) {
     .postprocessModule(mod);
   }) / 1_000_000f;
   // verify(mod);
+  finalizeSysmod(mod);
   auto len_gen = time({
     mod.emitAsm(af);
-    if (!ematSysmod) {
-      finalizeSysmod(mod);
-      auto sysmodmod = fastcast!(Module) (sysmod);
-      .postprocessModule(sysmodmod);
-      sysmodmod.emitAsm(af);
-      ematSysmod = true;
-    }
   }) / 1_000_000f;
   // logSmart!(false)(len_parse, " to parse, ", len_opt, " to optimize. ");
   Stuple!(string, float)[] entries;
@@ -701,12 +695,10 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   auto firstObj = compile(file, cs);
   auto modname = file.replace("/", ".")[0..$-3];
   bool[string] done;
-  done["sys"] = true;
   Module[] todo;
   auto start = lookupMod(modname);
   
   todo ~= start.getAllModuleImports();
-  todo ~= (fastcast!(Module) (sysmod)).getAllModuleImports();
   done[start.name] = true;
   assemble(firstObj);
   
@@ -801,6 +793,7 @@ void loop(string start,
     } else assert(false);
   }
   bool isUpToDate(Module mod) {
+    if (mod is sysmod) return true;
     auto file = mod.name.undo();
     string obj, src;
     file.translate(obj, src);

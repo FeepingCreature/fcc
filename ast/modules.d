@@ -38,6 +38,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
   bool _hasDebug = true;
   Module[] getAllModuleImports() {
     Module[] res;
+    res ~= fastcast!(Module) (sysmod);
     foreach (ns; getImports())
       if (auto mod = fastcast!(Module) (ns))
         res ~= mod;
