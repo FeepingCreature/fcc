@@ -18,7 +18,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       var.name = name;
       var.type = type;
       bool dontInit;
-      if (t2.accept("<-")) { abortGracefully = true; return; } // aaaa
+      if (t2.acceptLeftArrow()) { abortGracefully = true; return; } // aaaa
       if (t2.accept("=")) {
         IType[] its;
         auto t3 = t2;
@@ -85,7 +85,7 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
   while (true) {
     if (!t2.gotValidIdentifier(varname, true))
       t2.failparse("Could not get variable identifier");
-    if (t2.accept("<-")) return null; // is an iterator-construct
+    if (t2.acceptLeftArrow()) return null; // is an iterator-construct
     if (!t2.accept("="))
       t2.failparse("Could not get auto initializer");
     if (!rest(t2, "tree.expr", &ex))

@@ -510,7 +510,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   
   string ivarname;
   auto t3 = t2;
-  if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
+  if (t3.gotIdentifier(ivarname) && t3.acceptLeftArrow()) {
     t2 = t3;
   } else ivarname = null;
   if (!rest(t2, "tree.expr", &sub))
@@ -718,7 +718,7 @@ Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = t
     if (!t2.gotIdentifier(newVarName))
       goto withoutIterator;
   }
-  if (!t2.accept("<-"))
+  if (!t2.acceptLeftArrow())
     return null;
   needIterator = true;
 withoutIterator:

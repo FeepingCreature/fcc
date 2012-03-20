@@ -341,7 +341,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex1, ex2; Cond cd2;
   if (!rest(t2, "tree.expr _tree.expr.cond", &ex1)) return null;
   // oopsie-daisy, iterator assign is not the same as "smaller than negative"!
-  if (t2.accept("<-")) return null;
+  if (t2.acceptLeftArrow()) return null;
   if (t2.accept("!")) not = true;
   if (t2.accept("<")) smaller = true;
   if (t2.accept(">")) greater = true;
