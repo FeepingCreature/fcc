@@ -70,6 +70,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     void _add(string name, Object obj) {
       if (auto fn = fastcast!(Function)(obj)) {
         if (fn.name == "init") {
+          fn.setNeeded;
           fn.sup = this;
           constrs ~= fn;
           return;
@@ -95,6 +96,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       foreach (s; setupable) s.setup(af);
       scope(exit) inProgress = null;
       
+      int idx;
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
@@ -103,7 +105,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
         // globvars don't write any code!
         // keep our assembly clean. :D
         if ((fastcast!(Object) (entry)).classinfo.name != "ast.globvars.GlobVarDecl" && splitIntoSections) {
-          auto codename = Format("index_", i);
+          auto codename = Format("index_", idx++);
           if (auto mang = fastcast!(IsMangled) (entry)) codename = mang.mangleSelf();
           if (isWindoze())
             af.put(".section .text.", codename, ", \"ax\"");
@@ -112,9 +114,13 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
           else
             af.put(".section .text.", codename, ", \"ax\", @progbits");
         }
+        if (auto fun = fastcast!(Function) (entry)) {
+          if (!fun.needed) continue;
+        }
         opt(entry);
         entry.emitAsm(af);
       }
+      
       if (!isARM) af.put(".section .text");
       doneEmitting = true;
       checkImportsUsage;

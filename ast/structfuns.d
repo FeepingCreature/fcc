@@ -108,6 +108,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
       return mangleSelf() ~ "_" ~ type.mangle()~"_"~name;
     }
     FunCall mkCall() {
+      setNeeded;
       auto res = new RelFunCall(baseptr);
       res.fun = this;
       return res;
@@ -148,6 +149,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
 class StructFunRefExpr : mkDelegate {
   RelFunction fun;
   this(RelFunction fun) {
+    fun.setNeeded;
     this.fun = fun;
     logln("base ptr is ", fun.baseptr);
     assert(fun.baseptr);

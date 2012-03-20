@@ -192,12 +192,14 @@ class TemplateInstance : Namespace, HandlesEmits {
       foreach (inst; instRes) if (auto fun = fastcast!(Function) (inst)) if (fun.weak) {
         auto copy = fun.dup;
         mod.entries ~= fastcast!(Tree) (copy);
+        if (auto fun = fastcast!(Function) (copy)) fun.setNeeded();
         handleDeps(copy);
       }
     } else {
       foreach (inst; instRes) {
         auto copy = fastcast!(Tree) (inst).dup;
         mod.entries ~= copy;
+        if (auto fun = fastcast!(Function) (copy)) fun.setNeeded();
         handleDeps(fastcast!(Iterable) (copy));
       }
     }

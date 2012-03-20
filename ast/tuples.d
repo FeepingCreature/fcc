@@ -262,7 +262,6 @@ Expr mkTupleExpr(Expr[] exprs...) {
   bool allMValues = true;
   MValue[] arr;
   MValue toMValue(Expr ex) {
-    ex = foldex(ex);
     if (auto mv = fastcast!(MValue) (ex)) return mv;
     if (auto lv = fastcast!(LValue) (ex)) return new LValueAsMValue(lv);
     return null;

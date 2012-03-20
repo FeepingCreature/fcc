@@ -368,6 +368,8 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
       return cheaprecurse (re.src);
     if (auto de = fastcast!(DerefExpr) (ex))
       return cheaprecurse (de.src);
+    if (auto lvamv = fastcast!(LValueAsMValue) (ex))
+      return cheaprecurse (lvamv.sup);
     
     if (mode == CheapMode.Flatten) {
       if (auto sl = fastcast!(StructLiteral) (ex)) return true;
@@ -472,21 +474,78 @@ void gatherSizeStats(Module mod) {
   }
 }
 
-void postprocessModule(Module mod) {
-  void recurse(ref Iterable it) {
-    if (auto fc = fastcast!(FunCall) (it)) {
-      if (fc.fun.weak) {
-        auto ti = fc.fun.get!(TemplateInstance);
-        if (ti) {
-          ti.emitCopy(true); // called funs must be emitted in every
-                             // module that _uses_ them, because on
-                             // win32, weak symbols are always local.
-        }
+void parseNeeded(Module mod) {
+  auto backup = current_module();
+  scope(exit) current_module.set(backup);
+  current_module.set(mod);
+  
+  Function[] delayed;
+  
+  bool handle(Function fun) {
+    auto fqn = fun.mangleSelf();
+    // ugly workarounds everywhere
+    if (!fun.needed && fqn != "main" && !fqn.startsWith("main2") && fqn.find("_class_") == -1) {
+      delayed ~= fun;
+      return false;
+    }
+    // logln("BUG ", fqn);
+    fun.setNeeded;
+    fun.parseMe;
+    return true;
+  }
+  
+  bool running = true;
+  
+  int i;
+  while (running) {
+    running = false;
+    while (i < mod.entries.length) {
+      auto entry = mod.entries[i++];
+      if (auto fun = fastcast!(Function) (entry)) {
+        running = true;
+        handle(fun);
       }
     }
-    it.iterate(&recurse);
+    auto toCheck = delayed; delayed = null;
+    foreach (entry; toCheck) {
+      if (handle(entry)) running = true;
+    }
   }
-  mod.iterate(&recurse);
+}
+
+void postprocessModule(Module mod) {
+  {
+    bool[string] parsed;
+    void recurse_parse(Module mod) {
+      auto name = mod.name;
+      if (name in parsed) return;
+      parsed[name] = true;
+      
+      parseNeeded(mod);
+      foreach (m2; mod.getAllModuleImports())
+        recurse_parse(m2);
+    }
+    recurse_parse(mod);
+  }
+  {
+    void recurse(ref Iterable it) {
+      if (auto fun = fastcast!(Function) (it)) {
+        if (!fun.needed) return; // wasn't needed, don't emit, don't process
+      }
+      if (auto fc = fastcast!(FunCall) (it)) {
+        if (fc.fun.weak) {
+          auto ti = fc.fun.get!(TemplateInstance);
+          if (ti) {
+            ti.emitCopy(true); // called funs must be emitted in every
+                              // module that _uses_ them, because on
+                              // win32, weak symbols are always local.
+          }
+        }
+      }
+      it.iterate(&recurse);
+    }
+    mod.iterate(&recurse);
+  }
   // result: mostly below 7
   // gatherSizeStats(mod);
 }

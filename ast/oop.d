@@ -163,14 +163,15 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         res ~= par.genClassinfo(offset, overrides);
     }
     
-    foreach (fun; funs)
+    foreach (fun; funs) {
+      fun.setNeeded;
       if (auto rel = overrides.hasLike(fun))
         res ~= rel.mangleSelf();
       else
         throw new Exception(
           Format("Cannot generate classinfo for ", this.name,
             ": ", fun.name, " not overridden. "));
-    
+    }
     return res;
   }
   import ast.index;
@@ -570,10 +571,15 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     if (parent) res = parent.getClassinfo(copy);
     
     foreach (fun; myfuns.funs) {
+      Function which;
+      
       if (auto f2 = copy.hasLike(fun)) // if a child class overrode this, use its relfun
-        res ~= f2.mangleSelf();
+        which = f2;
       else
-        res ~= fun.mangleSelf();
+        which = fun;
+      
+      which.setNeeded;
+      res ~= which.mangleSelf();
     }
     
     // interfaces
