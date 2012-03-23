@@ -53,7 +53,7 @@ class FloatExpr : Expr, Literal {
         af.mmove4(qformat("=", f_as_i), af.regs[0]);
         af.pushStack(af.regs[0], 4);
       } else {
-        if (!name_used) {
+        if (!name_used || !af.knowsConstant(name_used)) {
           name_used = af.allocConstantValue(qformat("cons_float_constant_", floatconscounter++, "___xfcc_encodes_", f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
         }
         af.pushStack(name_used, 4);

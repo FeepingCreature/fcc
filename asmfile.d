@@ -59,6 +59,9 @@ class AsmFile {
     constants[name] = data;
     return name;
   }
+  bool knowsConstant(string name) {
+    return !!(name in constants);
+  }
   string allocLongstant(string name, string[] data, bool forceRealloc = false) {
     if (!forceRealloc)
       foreach (key, value; longstants)
