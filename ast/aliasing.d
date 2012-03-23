@@ -15,15 +15,25 @@ class ExprAlias : RelTransformable, Named, Expr {
     string getIdentifier() { return name; }
     Object transform(Expr relbase) {
       void delegate(ref Iterable) dg;
+      auto it = fastcast!(Iterable) (base);
+      
+      bool needsTransform;
       dg = (ref Iterable iter) {
-        if (auto rt = cast(RelTransformable) iter)
-          iter = fastcast!(Iterable)~ rt.transform(relbase);
+        if (auto rt = fastcast!(RelTransformable) (iter))
+          needsTransform = true;
         iter.iterate(dg);
       };
-      auto it = fastcast!(Iterable)~ base.dup();
       dg(it);
-      it.iterate(dg);
-      return fastcast!(Object)~ it;
+      if (!needsTransform) return fastcast!(Object) (base);
+      
+      it = it.dup;
+      dg = (ref Iterable iter) {
+        if (auto rt = fastcast!(RelTransformable) (iter))
+          iter = fastcast!(Iterable) (rt.transform(relbase));
+        iter.iterate(dg);
+      };
+      dg(it);
+      return fastcast!(Object) (it);
     }
     void emitAsm(AsmFile af) {
       fail; // Should never happen - the below foldopt should substitute them

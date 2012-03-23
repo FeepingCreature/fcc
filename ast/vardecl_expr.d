@@ -36,7 +36,7 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
         t2.setError("Auto vardecl exprs must be initialized. ");
         return false;
       }
-      if (t2.accept("<-")) return false; // don't collide with iterator declaration
+      if (t2.acceptLeftArrow()) return false; // don't collide with iterator declaration
     }
     if (fastcast!(Void) (resolveType(type))) {
       text.failparse("Cannot declare variable of type ", type, " which is void");

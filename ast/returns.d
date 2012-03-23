@@ -50,7 +50,11 @@ class ReturnStmt : Statement {
           emitGuards(false);
           if (!var) fail;
           if (af.currentStackDepth != -var.baseOffset) {
-            logln("bad place to grab ", var, " for return: declared at ", var.baseOffset, " currentStackDepth ", af.currentStackDepth);
+            if (af.currentStackDepth > -var.baseOffset) {
+              af.restoreCheckptStack(-var.baseOffset);
+            } else {
+              logln("bad place to grab ", var, " for return: declared at ", -var.baseOffset, " currentStackDepth ", af.currentStackDepth);
+            }
           }
         } else {
           tofree = alignStackFor(vt, af);

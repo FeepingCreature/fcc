@@ -31,13 +31,25 @@ mixin DefaultParser!(gotSizeof, "tree.expr.sizeof", "231", "size-of");
 import ast.fold;
 Object gotTypeStringof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
+  bool detailed;
+  if (t2.accept("detailed")) detailed = true;
   Object obj;
   if (!rest(t2, "type", &obj) && !rest(t2, "tree.expr _tree.expr.arith", &obj))
     return null;
+  if (auto ex = fastcast!(Expr) (obj)) obj = fastcast!(Object) (foldex(ex));
   text = t2;
-  if (fastcast!(Iterable) (obj))
+  auto res = qformat(obj);
+  if (auto it = fastcast!(Iterable) (obj)) {
     opt(obj);
-  return fastcast!(Object)~ mkString(Format(obj));
+    void add(ref Iterable it) {
+      res ~= (fastcast!(Object) (it)).classinfo.name;
+      res ~= "(";
+      it.iterate(&add);
+      res ~= ")";
+    }
+    if (detailed) add(it);
+  }
+  return fastcast!(Object) (mkString(res));
 }
 mixin DefaultParser!(gotTypeStringof, "tree.expr.stringof", "232", "string-of");
 

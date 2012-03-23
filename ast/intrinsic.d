@@ -40,17 +40,23 @@ void setupSysmods() {
       return memcpy(dest, src, n);
     }
     context mem {
-      void* delegate(int)           malloc_dg = &malloc;
-      void* delegate(int, int)      calloc_dg = &calloc;
+      void* delegate(int)           malloc_dg;
+      void* delegate(int, int)      calloc_dg;
       void* delegate(int)           calloc_atomic_dg; // allocate data, ie. memory containing no pointers
-      void delegate(void*)          free_dg = &free;
-      void* delegate(void*, size_t) realloc_dg = &realloc;
+      void delegate(void*)          free_dg;
+      void* delegate(void*, size_t) realloc_dg;
       void* malloc (int i)             { return malloc_dg(i); }
       void* calloc_atomic (int i)      { if (!calloc_atomic_dg) return calloc(i, 1); return calloc_atomic_dg(i); }
       void* calloc (int i, int k)      { return calloc_dg(i, k); }
       void  free   (void* p)           { free_dg(p); }
       void* realloc(void* p, size_t s) { return realloc_dg(p, s); }
       /*MARKER*/
+    }
+    void mem_init() {
+      mem. malloc_dg = &malloc;
+      mem. calloc_dg = &calloc;
+      mem.   free_dg = &free;
+      mem.realloc_dg = &realloc;
     }
     alias string = char[]; // must be post-marker for free() to work properly
     struct FrameInfo {
@@ -550,6 +556,7 @@ void setupSysmods() {
     int main2(int argc, char** argv) {
       __argc = argc; __argv = argv;
       
+      mem_init();
       platform(default) {
         pthread_key_create(&tls_pointer, null);
         c.pthread.pthread_setspecific(tls_pointer, _esi);
@@ -837,6 +844,7 @@ class RegExpr : MValue {
   this(string r) { reg = r; }
   mixin defaultIterate!();
   override {
+    string toString() { return qformat("<reg ", reg, ">"); }
     RegExpr dup() { return this; }
     IType valueType() { return voidp; }
     void emitAsm(AsmFile af) { if (isARM && reg == "%ebp") reg = "fp"; af.pushStack(reg, nativePtrSize); }

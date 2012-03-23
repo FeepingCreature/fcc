@@ -131,7 +131,7 @@ Expr mkRange(Expr from, Expr to) {
   fastalloc!(RelMember)("end", to.valueType(), wrapped);
   auto range = new Range;
   range.wrapper = wrapped;
-  return new RCE(range, new StructLiteral(wrapped, [from, to]));
+  return new RCE(range, new StructLiteral(wrapped, [from, to], [0, from.valueType().size]));
 }
 
 import ast.tuples, ast.literal_string;
@@ -406,8 +406,9 @@ class ForIter(I) : Type, I {
         Expr[] field = [fastcast!(Expr)~ itertype.slice(subexpr(wr.dup), from, to),
                         new Filler(itertype.elemType())];
         if (extra) field ~= extra;
+        auto st = fastcast!(Structure) (wrapper);
         return new RCE(this,
-          new StructLiteral(fastcast!(Structure)~ wrapper, field));
+          new StructLiteral(st, field, st.selectMap!(RelMember, "$.offset")()));
       }
     }
   }
@@ -510,7 +511,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   
   string ivarname;
   auto t3 = t2;
-  if (t3.gotIdentifier(ivarname) && t3.accept("<-")) {
+  if (t3.gotIdentifier(ivarname) && t3.acceptLeftArrow()) {
     t2 = t3;
   } else ivarname = null;
   if (!rest(t2, "tree.expr", &sub))
@@ -609,7 +610,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   }
   foreach (entry; bsorting) add(entry);
   ipt = stuple(best, new ScopeAndExpr(sc, main), ph, extra);
-  return fastcast!(Object)~ reinterpret_cast(fastcast!(IType)~ restype, new StructLiteral(best, field));
+  return fastcast!(Object)~ reinterpret_cast(fastcast!(IType)~ restype, new StructLiteral(best, field, best.selectMap!(RelMember, "$.offset")()));
 }
 mixin DefaultParser!(gotForIter, "tree.expr.iter.for", null, "[");
 static this() {
@@ -718,7 +719,7 @@ Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = t
     if (!t2.gotIdentifier(newVarName))
       goto withoutIterator;
   }
-  if (!t2.accept("<-"))
+  if (!t2.acceptLeftArrow())
     return null;
   needIterator = true;
 withoutIterator:

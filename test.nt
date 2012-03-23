@@ -110,7 +110,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   }
   auto last = time(null), tstart = last;
   while true {
-    if (time(null) - tstart > 5) return;
+    if (time(null) - tstart > 12) return;
     run();
     SDL_Flip surf;
     while SDL_PollEvent &SDL_Event ev using ev
@@ -302,10 +302,6 @@ int main(string[] args) {
     var = 14;
     writeln("now it's $var");
   }
-  // auto pos = 2.5f;
-  // writeln "noise of $pos 0 0 is $(noise3 vec3f(pos, 0, 0))";
-  // writeln "alt noise of $pos 0 0 is $(noise3_alt vec3f(pos, 0, 0))";
-  // _interrupt 3;
   writeln("now back to $$ctest.var. ");
   void memtest() using sys.mem {
     writeln("memtest! ");

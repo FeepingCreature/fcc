@@ -1004,3 +1004,7 @@ string startsWith(string text, string match)
 string cleanup(string s) {
   return s.replace("-", "_dash_");
 }
+
+bool acceptLeftArrow(ref string text) {
+  return text.accept("<-") || text.accept("←");
+}

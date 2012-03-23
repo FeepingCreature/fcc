@@ -1,6 +1,6 @@
 module xpar_bisect;
 
-import c.stdlib, std.string;
+import std.string;
 
 void main(string[] args) {
   writeln "FCC -xpar bisect tool starting.";

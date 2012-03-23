@@ -45,16 +45,20 @@ context glMatrix {
   alias onExit  = glPopMatrix ();
 }
 
-struct glWithCap {
-  GLenum cap;
-  alias onUsing = glEnable cap;
-  alias onExit = glDisable cap;
+template glWithCap(alias Cap) {
+  GLboolean[auto~] capstack;
+  context glWithCap {
+    void onUsing() { auto state = glIsEnabled Cap; if (!state) glEnable Cap; capstack ~= state; }
+    void onExit() { auto prev = capstack.popEnd(); if (!prev) glDisable Cap; }
+  }
 }
 
-struct glWithoutCap {
-  GLenum cap;
-  alias onUsing = glDisable cap;
-  alias onExit = glEnable cap;
+template glWithoutCap(alias Cap) {
+  GLboolean[auto~] capstack;
+  context glWithoutCap {
+    void onUsing() { auto state = glIsEnabled Cap; if (state) glDisable Cap; capstack ~= state; }
+    void onExit() { auto prev = capstack.popEnd(); if (prev) glEnable Cap; }
+  }
 }
 
 defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";

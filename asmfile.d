@@ -26,7 +26,7 @@ class AsmFile {
   ubyte[][string] constants;
   string[][string] longstants; // sorry
   int[string] file_ids; // DWARF2 File IDs
-  Stuple!(int, string)[string] globvars, tlsvars;
+  Stuple!(int, string, bool)[string] globvars, tlsvars;
   int file_idcounter;
   bool[string] processorExtensions;
   bool[string] weaks; // symbols marked as weak
@@ -42,9 +42,9 @@ class AsmFile {
   void markWeak(string symbol) {
     weaks[symbol] = true;
   }
-  void addTLS(string name, int size, string init) {
+  void addTLS(string name, int size, string init, bool weak = false) {
     if (!size) fail;
-    tlsvars[name] = stuple(size, init);
+    tlsvars[name] = stuple(size, init, weak);
   }
   string allocConstantValue(string name, ubyte[] data, bool forceAlloc = false) {
     if (data.length == 4 && !forceAlloc) {
@@ -543,7 +543,7 @@ class AsmFile {
         if (entry) finalized ~= *entry;
         cache.clear;
       }
-      while (full_list.list().length) {
+      outer:while (full_list.list().length) {
         foreach (i, entry; full_list.list()) {
           if (entry.kind != Transaction.Kind.Text) {
             cache ~= entry;
@@ -551,9 +551,10 @@ class AsmFile {
             flush2(&entry);
             full_list._list = full_list._list[i+1 .. $];
             full_list.size -= i+1;
-            break;
+            continue outer;
           }
         }
+        break;
       }
       flush2;
     }
@@ -587,6 +588,8 @@ class AsmFile {
     }
     dg(qformat(".file \"", id, "\"\n"));
     foreach (name, data; globvars) {
+      auto weak = data._2;
+      if (weak) { dg("\t.weak "); dg(name); dg("\n"); }
       dg(qformat(".comm\t", name, ",", data._0, "\n"));
       assert(!data._1, "4");
     }
@@ -601,11 +604,13 @@ class AsmFile {
       dg(qformat(".weak ", name, "\n"));
     }
     foreach (name, data; tlsvars) {
+      auto weak = data._2;
       auto alignment = data._0;
       if (alignment >= 16) alignment = 16;
       else {
         if (alignment > 8) alignment = 8;
       }
+      if (weak) { dg("\t.weak "); dg(name); dg("\n"); }
       dg(qformat("\t.balign ", alignment, "\n"));
       dg("\t.globl "); dg(name); dg("\n");
       // dg(qformat("\t.size ", name, ", ", data._0, "\n"));

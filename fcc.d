@@ -14,7 +14,7 @@ mixin(expandImport(`ast.[
   concat, stringex, c_bind, eval, iterator[,_ext], properties,
   tuples, tuple_access, literal_string, literals, funcall, vector, externs,
   intr, conditionals, opers, conditional_opt, cond, casting,
-  pointer, nulls, sa_index_opt, intrinsic, mode,
+  pointer, nulls, sa_index_opt, intrinsic, mode, repl,
   propcall, properties_parse, main, alignment, modules_parse,
   platform, math, longmath, base, mixins, int_literal, static_arrays,
   enums, import_parse, pragmas, trivial, fp, expr_statement,
@@ -358,6 +358,8 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
       return cheaprecurse (mae.base);
     if (fastcast!(Literal) (ex))
       return true;
+    if (fastcast!(StringExpr) (ex))
+      return true;
     if (auto ea = fastcast!(ExprAlias) (ex))
       return cheaprecurse(ea.base);
     if (fastcast!(GlobVar) (ex))
@@ -368,6 +370,10 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
       return cheaprecurse (re.src);
     if (auto de = fastcast!(DerefExpr) (ex))
       return cheaprecurse (de.src);
+    if (auto lvamv = fastcast!(LValueAsMValue) (ex))
+      return cheaprecurse (lvamv.sup);
+    if (auto na = fastcast!(NamedArg) (ex))
+      return cheaprecurse (na.base);
     
     if (mode == CheapMode.Flatten) {
       if (auto sl = fastcast!(StructLiteral) (ex)) return true;
@@ -593,15 +599,9 @@ string delegate() compile(string file, CompileSettings cs) {
     .postprocessModule(mod);
   }) / 1_000_000f;
   // verify(mod);
+  // finalizeSysmod(mod);
   auto len_gen = time({
     mod.emitAsm(af);
-    if (!ematSysmod) {
-      finalizeSysmod(mod);
-      auto sysmodmod = fastcast!(Module) (sysmod);
-      .postprocessModule(sysmodmod);
-      sysmodmod.emitAsm(af);
-      ematSysmod = true;
-    }
   }) / 1_000_000f;
   // logSmart!(false)(len_parse, " to parse, ", len_opt, " to optimize. ");
   Stuple!(string, float)[] entries;
@@ -642,12 +642,11 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   auto firstObj = compile(file, cs);
   auto modname = file.replace("/", ".")[0..$-3];
   bool[string] done;
-  done["sys"] = true;
   Module[] todo;
   auto start = lookupMod(modname);
+  finalizeSysmod(start);
   
   todo ~= start.getAllModuleImports();
-  todo ~= (fastcast!(Module) (sysmod)).getAllModuleImports();
   done[start.name] = true;
   assemble(firstObj);
   
@@ -666,7 +665,7 @@ string[] compileWithDepends(string file, CompileSettings cs) {
   int waits;
   auto seph = new Semaphore;
   void process(string delegate() dg) {
-    if (cs.singlethread) dg();
+    if (cs.singlethread) objs ~= dg();
     else {
       synchronized {
         waits++;
@@ -691,7 +690,7 @@ string[] compileWithDepends(string file, CompileSettings cs) {
 
 void dumpXML() {
   void callback(ref Iterable it) {
-    if (cast(NoOp) it) return;
+    if (fastcast!(NoOp) (it)) return;
     string info = Format("<node classname=\"", (fastcast!(Object)~ it).classinfo.name, "\"");
     if (auto n = fastcast!(Named)~ it)
       info ~= Format(" name=\"", n.getIdentifier(), "\"");
@@ -766,9 +765,9 @@ void loop(string start,
   bool needsRebuild(Module mod) {
     // logln("needsRebuild? ", mod.name, " ", mod.getAllModuleImports());
     if (mod.dontEmit) return false;
-    if (!isUpToDate(mod)) return true;
+    if (mod is sysmod || !isUpToDate(mod)) return true;
     foreach (mod2; mod.getAllModuleImports())
-      if (needsRebuild(mod2)) return true;
+      if (mod2 !is sysmod && needsRebuild(mod2)) return true;
     return false;
   }
   bool pass1 = true;
@@ -791,9 +790,6 @@ void loop(string start,
     if (runMe) system(toStringz("./"~output));
   retry:
     pass1 = false;
-    ematSysmod = false;
-    initedSysmod = false;
-    sysmod = null;
     checked = null;
     gotMain = null;
     resetTemplates();

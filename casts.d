@@ -69,7 +69,6 @@ const string[] quicklist = [
   "ast.nestfun.NestedCall",
   "ast.parse.ExprStatement",
   "ast.iterator_ext.CrossIndexExpr",
-  "ast.context.Context",
   "ast.aggregate.AggrStatement",
   "ast.casting.DontCastMeExpr",
   "ast.casting.DontCastMeCValue",

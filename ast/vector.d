@@ -301,7 +301,7 @@ Object constructVector(Expr base, Vector vec) {
   auto tup = fastcast!(Tuple) (base.valueType());
   if (!tup) throw new Exception(Format("WTF? No tuple param for vec constructor: ", base.valueType()));
   if (tup.types.length == 1) {
-    base = getTupleEntries(base)[0];
+    base = reinterpret_cast(tup.types[0], base);
     goto retryTup;
   }
   if (tup) {
@@ -318,7 +318,7 @@ Object constructVector(Expr base, Vector vec) {
       
       if (vec.extend) exs ~= new ZeroFiller(vec.base);
       
-      return reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs));
+      return reinterpret_cast(vec, new StructLiteral(vec.asStruct, exs, vec.asFilledTup.offsets));
     });
   }
   assert(false);
@@ -561,7 +561,7 @@ bool pretransform(ref Expr ex, ref IType it) {
   it = resolveType(it);
   if (auto tup = fastcast!(Tuple)~ it) {
     if (tup.types.length == 1) {
-      ex = getTupleEntries(ex, null, true)[0];
+      ex = reinterpret_cast(tup.types[0], ex);
       it = tup.types[0];
       return true;
     }
@@ -852,7 +852,7 @@ static this() {
       list ~= lookupOp("-", ex2);
     }
     if (vt.extend) list ~= new ZeroFiller(vt.base);
-    return reinterpret_cast(vt, new StructLiteral(vt.asFilledTup.wrapped, list));
+    return reinterpret_cast(vt, new StructLiteral(vt.asFilledTup.wrapped, list, vt.asFilledTup.offsets));
   }
   Expr handleVecEquals(Expr e1, Expr e2) {
     auto t1 = resolveType(e1.valueType()), t2 = resolveType(e2.valueType());

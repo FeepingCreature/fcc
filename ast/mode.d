@@ -215,6 +215,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     bool isTempNamespace() { return true; }
     int size() {
       if (firstParam) return firstParam.valueType().size;
+      return 0; // :((
       assert(false);
     }
     string mangle() {

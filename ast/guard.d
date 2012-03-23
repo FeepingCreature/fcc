@@ -6,6 +6,18 @@ import
   ast.variable, ast.vardecl, ast.fun,
   ast.aliasing;
 
+void genRetvalHolder(Scope sc) {
+  if (!sc.lookup("__retval_holder")) {
+    auto ret = sc.get!(Function).type.ret;
+    if (ret && ret != Single!(Void)) {
+      auto var = new Variable(ret, "__retval_holder", boffs(ret));
+      auto vd = new VarDecl(var);
+      sc.addStatement(vd);
+      sc.add(var);
+    }
+  }
+} 
+
 Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string type;
@@ -62,15 +74,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   if (type == "onSuccess" || type == "onExit") {
     pushCache;
     scope(exit) popCache;
-    if (!sc.lookup("__retval_holder")) {
-      auto ret = sc.get!(Function).type.ret;
-      if (ret && ret != Single!(Void)) {
-        auto var = new Variable(ret, "__retval_holder", boffs(ret));
-        auto vd = new VarDecl(var);
-        sc.addStatement(vd);
-        sc.add(var);
-      }
-    }
+    genRetvalHolder(sc);
     if (!rest(t3, "tree.stmt", &st1))
       t3.failparse("No statement matched for ", type, " in scope context");
     sc.addGuard(st1);
@@ -166,6 +170,8 @@ class Scoped(T) : T, IScoped {
 }
 
 Expr genScoped(Expr ex) {
+  if (auto sc = namespace().get!(Scope)) genRetvalHolder(sc); // make sure we can place the ensuing scope gard properly
+  else { logln("uh-oh ", namespace()); fail; }
   if (auto mv = fastcast!(MValue)~ ex) return new Scoped!(MValue)(mv);
   if (auto lv = fastcast!(LValue)~ ex) return new Scoped!(LValue)(lv);
   throw new Exception(Format("cannot scope ", ex));

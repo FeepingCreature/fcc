@@ -181,10 +181,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
       return sup.mangle(name, null)~"_"~type_mangle~name;
     }
     Stuple!(IType, string, int)[] stackframe() {
-      auto res = selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
-      // ignore unionesques
-      while (res.length > 1 && res[$-1]._2 == 0) res = res[0..$-1];
-      return res;
+      return selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
     }
     Object lookupRel(string str, Expr base) {
       auto res = lookup(str, true);
@@ -212,7 +209,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
           if (auto n = fastcast!(Named) (elem._1)) {
             string id = n.getIdentifier();
             if (auto rm = fastcast!(RelMember) (elem._1))
-              id = Format(id, "@", rm.offset);
+              id = Format(id, "<", rm.valueType().size, ">@", rm.offset);
             names ~= id;
           }
         return Format("{struct ", names.join(", "), "}");
@@ -321,9 +318,12 @@ mixin DefaultParser!(gotStructDef, "tree.stmt.typedef_struct", "32");
 class StructLiteral : Expr {
   Structure st;
   Expr[] exprs;
-  this(Structure st, Expr[] exprs...) {
+  int[] offsets;
+  this(Structure st, Expr[] exprs, int[] offsets) {
+    if (exprs.length && !offsets.length) fail;
     this.st = st;
-    foreach (ex; exprs) assert(ex);
+    foreach (ex; exprs) if (!ex) fail;
+    this.offsets = offsets.dup;
     this.exprs = exprs.dup;
   }
   private this() { }
@@ -333,33 +333,24 @@ class StructLiteral : Expr {
     StructLiteral dup() {
       auto res = new StructLiteral;
       res.st = st;
+      res.offsets = offsets;
       res.exprs = exprs.dup;
       foreach (ref entry; res.exprs) entry = entry.dup;
       return res;
     }
     IType valueType() { return st; }
     void emitAsm(AsmFile af) {
-      auto sf = st.stackframe();
       mixin(mustOffset("st.size"));
-      int offset;
-      // structs are pushed on the stack in reverse order.
-      // This makes things .. complicated.
-      foreach_reverse (i, entry; sf) {
-        auto rev_offs = st.size - entry._2 - entry._0.size; // end of variable
-        if (rev_offs > offset) {
-          af.salloc(rev_offs - offset);
-          offset = rev_offs;
-        }
-        auto ex = exprs[i];
-        if (ex.valueType() != entry._0)
-          throw new Exception(Format("Cannot use ", ex, " in struct literal: doesn't match ", entry._0, "!"));
-        {
-          auto type = ex.valueType(), size = (Single!(Void) == type)?0:type.size;
-          mixin(mustOffset("size"));
-          ex.emitAsm(af);
-        }
-        offset += ex.valueType().size;
+      int offset = valueType().size;
+      foreach_reverse (i, ex; exprs) {
+        int wanted_pos = offsets[i];
+        int emit_pos = wanted_pos + ex.valueType().size;
+        if (emit_pos < offset) af.salloc(offset - emit_pos);
+        if (emit_pos > offset) fail;
+        ex.emitAsm(af);
+        offset = wanted_pos;
       }
+      if (offset) af.salloc(offset);
     }
   }
 }
@@ -372,6 +363,9 @@ class MemberAccess_Expr : Expr, HasInfo {
   Expr base;
   RelMember stm;
   string name;
+  /// intended as part of a set of accesses that will access every member of a struct.
+  /// if true, we can optimize each individual access while assuming that side effects won't get lost.
+  bool intendedForSplit;
   int counter;
   static int mae_counter;
   this(Expr base, string name) {
@@ -601,6 +595,19 @@ static this() {
       }
       
       if (auto sl = fastcast!(StructLiteral)~ base) {
+        if (!mae.intendedForSplit && sl.exprs.length > 1) {
+          bool cheap = true;
+          foreach (ref ex; sl.exprs) {
+            ex = foldex(ex);
+            // if it was for multiple access, it'd already have checked for that separately
+            if (!_is_cheap(ex, CheapMode.Flatten)) {
+              // logln("not cheap: ", ex);
+              cheap = false;
+              break;
+            }
+          }
+          if (!cheap) return null; // may be side effects of other expressions in the SL
+        }
         Expr res;
         int i;
         if (!st)

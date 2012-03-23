@@ -9,7 +9,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
   Object obj;
-  if (!rest(t2, "type", &obj)) { if (t2.accept("mapIterator")) { logln(namespace()); fail; } return null; }
+  if (!rest(t2, "type", &obj)) { return null; }
   auto it = fastcast!(IType) (obj);
   if (!it) return null;
   auto cr = fastcast!(ClassRef) (resolveType(it));
@@ -141,18 +141,19 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   IType et;
   if (arr) et = arr.elemType;
   else et = ea.elemType;
+  auto mem = fastcast!(Expr) (sysmod.lookup("mem"));
   if (et.isPointerLess()) {
     allocedPtr = buildFunCall(
       fastcast!(Function) (
-        (fastcast!(Namespace) (sysmod.lookup("mem")))
-        .lookup("calloc_atomic")),
+        fastcast!(RelNamespace) (mem.valueType()).lookupRel("calloc_atomic", mem)
+      ),
       lookupOp("*", len, mkInt(et.size)),
       "calloc_atomic for new array");
   } else {
     allocedPtr = buildFunCall(
       fastcast!(Function) (
-        (fastcast!(Namespace) (sysmod.lookup("mem")))
-        .lookup("calloc")),
+        fastcast!(RelNamespace)(mem.valueType()).lookupRel("calloc", mem)
+      ),
       mkTupleExpr(len, mkInt(et.size)),
       "calloc for new array");
   }
