@@ -2,7 +2,7 @@ module ast.tuple_access;
 
 import ast.base, ast.tuples, ast.structure, ast.scopes;
 
-Expr mkTupleIndexAccess(Expr tuple, int pos) {
+Expr mkTupleIndexAccess(Expr tuple, int pos, bool intendedForSplit = false) {
   if (auto rt = fastcast!(RefTuple) (tuple)) {
     return rt.mvs[pos];
   }
@@ -12,6 +12,7 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
   if (fastcast!(LValue)~ tuple) res = new MemberAccess_LValue;
   else res = fastalloc!(MemberAccess_Expr)();
   res.base = reinterpret_cast(wrapped, tuple);
+  res.intendedForSplit = intendedForSplit;
   
   auto temps = wrapped.selectMap!(RelMember, "$");
   if (pos >= temps.length) { logln("index access length violation: ", pos, " > ", temps.length, " for ", tuple); fail; }
@@ -22,6 +23,9 @@ Expr mkTupleIndexAccess(Expr tuple, int pos) {
 }
 
 import ast.modules;
+// Note: if you use this method, you MUST make use of each returned expr,
+// or else be sure that your base expression has NO side effects for partial evaluation.
+// Otherwise, use mkTupleIndexAccess.
 Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = false) {
   auto tt = fastcast!(Tuple)~ tuple.valueType();
   if (!tt) return null;
@@ -77,7 +81,7 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
   }
   Expr[] res;
   for (int i = 0; i < count; ++i)
-    res ~= mkTupleIndexAccess(tuple, i);
+    res ~= mkTupleIndexAccess(tuple, i, true);
   return res;
 }
 

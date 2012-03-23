@@ -14,7 +14,7 @@ mixin(expandImport(`ast.[
   concat, stringex, c_bind, eval, iterator[,_ext], properties,
   tuples, tuple_access, literal_string, literals, funcall, vector, externs,
   intr, conditionals, opers, conditional_opt, cond, casting,
-  pointer, nulls, sa_index_opt, intrinsic, mode,
+  pointer, nulls, sa_index_opt, intrinsic, mode, repl,
   propcall, properties_parse, main, alignment, modules_parse,
   platform, math, longmath, base, mixins, int_literal, static_arrays,
   enums, import_parse, pragmas, trivial, fp, expr_statement,
@@ -358,6 +358,8 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
       return cheaprecurse (mae.base);
     if (fastcast!(Literal) (ex))
       return true;
+    if (fastcast!(StringExpr) (ex))
+      return true;
     if (auto ea = fastcast!(ExprAlias) (ex))
       return cheaprecurse(ea.base);
     if (fastcast!(GlobVar) (ex))
@@ -370,6 +372,8 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
       return cheaprecurse (de.src);
     if (auto lvamv = fastcast!(LValueAsMValue) (ex))
       return cheaprecurse (lvamv.sup);
+    if (auto na = fastcast!(NamedArg) (ex))
+      return cheaprecurse (na.base);
     
     if (mode == CheapMode.Flatten) {
       if (auto sl = fastcast!(StructLiteral) (ex)) return true;
@@ -595,7 +599,7 @@ string delegate() compile(string file, CompileSettings cs) {
     .postprocessModule(mod);
   }) / 1_000_000f;
   // verify(mod);
-  finalizeSysmod(mod);
+  // finalizeSysmod(mod);
   auto len_gen = time({
     mod.emitAsm(af);
   }) / 1_000_000f;
@@ -640,6 +644,7 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   bool[string] done;
   Module[] todo;
   auto start = lookupMod(modname);
+  finalizeSysmod(start);
   
   todo ~= start.getAllModuleImports();
   done[start.name] = true;
@@ -685,7 +690,7 @@ string[] compileWithDepends(string file, CompileSettings cs) {
 
 void dumpXML() {
   void callback(ref Iterable it) {
-    if (cast(NoOp) it) return;
+    if (fastcast!(NoOp) (it)) return;
     string info = Format("<node classname=\"", (fastcast!(Object)~ it).classinfo.name, "\"");
     if (auto n = fastcast!(Named)~ it)
       info ~= Format(" name=\"", n.getIdentifier(), "\"");
@@ -785,9 +790,6 @@ void loop(string start,
     if (runMe) system(toStringz("./"~output));
   retry:
     pass1 = false;
-    ematSysmod = false;
-    initedSysmod = false;
-    sysmod = null;
     checked = null;
     gotMain = null;
     resetTemplates();

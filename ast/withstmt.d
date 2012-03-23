@@ -46,6 +46,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
     sc = new Scope;
     assert(!!sc.sup);
     
+    namespace.set(sc);
+    
     if (auto isc = fastcast!(IScoped) (ex)) {
       this.isc = isc;
       ex = isc.getSup;

@@ -109,9 +109,8 @@ class Font {
         for (int y = bg_bounds[1]; y <= bg_bounds[3]; ++y) {
           for (int x = bg_bounds[0]; x <= bg_bounds[2]; ++x) {
             auto i = w * y + x;
-            auto v = vecs[i];
+            ref v = vecs[i];
             v = v * v.w + last_bg * (1 - v.w);
-            vecs[i] = v;
           }
         }
         last_bg = bg;

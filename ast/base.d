@@ -125,7 +125,10 @@ string genIterates(int params) {
             // checkType(iter, dg);
             if (iter !is entry) {
               auto res = fastcast!(typeof(entry)) (iter);
-              if (!res) throw new Exception(Format(this, ": cannot substitute ", $A, "[", i, "] with ", iter, " of ", (fastcast!(Object) (iter)).classinfo.name, ": ", typeof(entry).stringof, " expected! "));
+              if (!res) {
+                logln(this, "\n\n: cannot substitute ", $A, "\n\n[", i, "]with ", iter, " of ", (fastcast!(Object) (iter)).classinfo.name, ": ", typeof(entry).stringof, " expected! ");
+                fail;
+              }
               entry = res;
             }
           }
@@ -444,7 +447,7 @@ Statement unrollSAE(ref Expr ex) {
   return null;
 }
 
-class PlaceholderToken : Expr {
+class PlaceholderToken : Expr, HasInfo {
   IType type;
   string info;
   this(IType type, string info) { this.type = type; this.info = info; }
@@ -454,6 +457,7 @@ class PlaceholderToken : Expr {
     IType valueType() { return type; }
     void emitAsm(AsmFile af) { logln("DIAF ", info, " of ", type); fail; assert(false); }
     string toString() { return Format("PlaceholderToken(", info, ")"); }
+    string getInfo() { return info; }
   }
 }
 

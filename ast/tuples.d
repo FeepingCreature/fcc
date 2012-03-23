@@ -206,7 +206,7 @@ static this() {
 
 Expr mkTupleValueExpr(Expr[] exprs...) {
   auto tup = mkTuple(exprs /map/ (Expr ex) { return ex.valueType(); });
-  return new RCE(tup, new StructLiteral(tup.wrapped, exprs.dup));
+  return new RCE(tup, new StructLiteral(tup.wrapped, exprs.dup, tup.offsets));
 }
 
 class LValueAsMValue : MValue {

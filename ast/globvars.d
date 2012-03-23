@@ -33,6 +33,7 @@ class GlobVar : LValue, Named {
     IType valueType() { return type; }
     string getIdentifier() { return cleanedName(); }
     void emitAsm(AsmFile af) {
+      if (!type.size) return; // hah
       if (isARM) {
         af.mmove4(qformat("=", mangled()), "r2");
         if (tls) {
@@ -56,6 +57,11 @@ class GlobVar : LValue, Named {
       }
     }
     void emitLocation(AsmFile af) {
+      if (!type.size) {
+        af.mmove4("$0", "%eax"); // lol
+        af.pushStack("%eax", 4);
+        return;
+      }
       if (isARM) {
         af.mmove4(qformat("=", mangled()), "r2");
         if (tls) {
