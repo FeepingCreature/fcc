@@ -62,3 +62,24 @@ template glWithoutCap(alias Cap) {
 }
 
 defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";
+
+class OpenGLError : Error {
+  void init(string s) { super.init "OpenGLError: $s"; }
+}
+
+void gl-check() {
+  using prefix GL_ {
+    import std.macros.switchover;
+    auto err = glGetError();
+    switch GLenum i over i == err {
+      case NO_ERROR: return;
+      case INVALID_ENUM: raise new OpenGLError "invalid enum";
+      case INVALID_VALUE: raise new OpenGLError "invalid value";
+      case INVALID_OPERATION: raise new OpenGLError "invalid operation";
+      case STACK_OVERFLOW: raise new OpenGLError "stack overflow";
+      case STACK_UNDERFLOW: raise new OpenGLError "stack underflow";
+      case OUT_OF_MEMORY: raise new OpenGLError "out of memory";
+    }
+    raise new OpenGLError "Unknown OpenGL error $err";
+  }
+}

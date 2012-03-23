@@ -51,7 +51,9 @@ class Font {
       return null;
     }
     // TODO: unicode
+    // TODO: scope new / new scope / whichever
     auto glyphs = new Glyph[] text.length, pos = new Vector[] text.length;
+    onExit { glyphs.free; pos.free; }
     Vector pen;
     int prevIndex;
     for (int id, char ch) <- zip(0..-1, text) { // TODO: unicode
