@@ -2,13 +2,14 @@ module ast.globvars;
 
 import ast.base, ast.parse, ast.modules, ast.namespace, ast.pointer;
 
-class GlobVar : LValue, Named {
+class GlobVar : LValue, Named, IsMangled {
   IType type;
   string name;
   bool tls;
   Namespace ns;
   mixin defaultIterate!();
   Expr initval;
+  bool weak;
   GlobVar dup() { return this; /* invariant */ }
   string getInit() {
     if (!initval) return null;
@@ -26,16 +27,17 @@ class GlobVar : LValue, Named {
   string cleanedName() {
     return name.replace("-", "_dash_");
   }
-  string mangled() {
-    return (tls?"tls_":"")~"global_"~ns.mangle(cleanedName(), type);
-  }
   override {
+    string mangleSelf() {
+      return (tls?"tls_":"")~"global_"~ns.mangle(cleanedName(), type);
+    }
+    void markWeak() { weak = true; }
     IType valueType() { return type; }
     string getIdentifier() { return cleanedName(); }
     void emitAsm(AsmFile af) {
       if (!type.size) return; // hah
       if (isARM) {
-        af.mmove4(qformat("=", mangled()), "r2");
+        af.mmove4(qformat("=", mangleSelf()), "r2");
         if (tls) {
           af.mmove4("=_sys_tls_data_start", "r3");
           af.mathOp("sub", "r2", "r2", "r3");
@@ -45,15 +47,15 @@ class GlobVar : LValue, Named {
         return;
       }
       if (tls) {
-        af.mmove4(qformat("$", mangled()), "%eax");
+        af.mmove4(qformat("$", mangleSelf()), "%eax");
         af.mathOp("subl", "$_sys_tls_data_start", "%eax");
         af.mathOp("addl", "%esi", "%eax");
         af.pushStack("(%eax)", type.size);
       }
       else {
-        af.mmove4("$"~mangled(), "%eax");
+        af.mmove4("$"~mangleSelf(), "%eax");
         af.pushStack("(%eax)", type.size);
-        // af.pushStack(mangled(), type.size);
+        // af.pushStack(mangleSelf(), type.size);
       }
     }
     void emitLocation(AsmFile af) {
@@ -63,7 +65,7 @@ class GlobVar : LValue, Named {
         return;
       }
       if (isARM) {
-        af.mmove4(qformat("=", mangled()), "r2");
+        af.mmove4(qformat("=", mangleSelf()), "r2");
         if (tls) {
           af.mmove4("=_sys_tls_data_start", "r3");
           af.mathOp("sub", "r2", "r2", "r3");
@@ -73,13 +75,13 @@ class GlobVar : LValue, Named {
         return;
       }
       if (tls) {
-        af.mmove4(qformat("$", mangled()), "%eax");
+        af.mmove4(qformat("$", mangleSelf()), "%eax");
         af.mathOp("subl", "$_sys_tls_data_start", "%eax");
         af.mathOp("addl", "%esi", "%eax");
         af.pushStack("%eax", nativePtrSize);
         af.nvm("%eax");
       } else {
-        af.pushStack(qformat("$", mangled()), nativePtrSize);
+        af.pushStack(qformat("$", mangleSelf()), nativePtrSize);
       }
     }
     string toString() { return Format("global ", name, " of ", type); }
@@ -92,16 +94,16 @@ class GlobVarDecl : Statement, IsMangled {
   mixin defaultIterate!();
   override {
     string mangleSelf() {
-      return vars[0].mangled();
+      return vars[0].mangleSelf();
     }
     void markWeak() {
-      // logln("weak globvar?! ", this);
-      // ^ wat
+      foreach (var; vars) var.markWeak();
     }
     typeof(this) dup() {
       auto res = new GlobVarDecl;
       foreach (var; vars) {
         auto v2 = new GlobVar(var.type, var.name, var.ns, var.tls, var.initval?var.initval.dup:null);
+        v2.weak = var.weak;
         res.vars ~= v2;
       }
       res.tls = tls;
@@ -112,11 +114,11 @@ class GlobVarDecl : Statement, IsMangled {
       if (tls) {
         foreach (var; vars)
           with (var) if (type.size)
-            af.addTLS(mangled(), type.size, getInit());
+            af.addTLS(mangleSelf(), type.size, getInit(), var.weak);
       } else {
         foreach (var; vars)
           with (var) if (type.size)
-            af.globvars[mangled()] = stuple(type.size, getInit());
+            af.globvars[mangleSelf()] = stuple(type.size, getInit(), var.weak);
       }
     }
   }
