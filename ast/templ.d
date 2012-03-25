@@ -128,7 +128,7 @@ class DependencyEntry : Tree {
 }
 
 import ast.structure, ast.scopes, ast.literal_string;
-class TemplateInstance : Namespace, HandlesEmits {
+class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
   Namespace context;
   union {
     IType type;
@@ -142,6 +142,11 @@ class TemplateInstance : Namespace, HandlesEmits {
     if (embedded && local && name != parent.name /* lol */)
       return sup.lookup(name, true); // return results from surrounding function for a nestfun
     return null;
+  }
+  override string modify(string s) {
+    auto res = qformat(parent.name, "!", parent.isAlias?fastcast!(Object) (tr):fastcast!(Object) (type));
+    if (s != parent.name) res ~= "."~s;
+    return res;
   }
   override bool handledEmit(Tree tr) {
     // TODO: I feel VERY iffy about this.

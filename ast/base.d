@@ -737,3 +737,8 @@ interface EmittingContext {
 enum ImportType {
   Regular, Public, Static
 }
+
+// for instance, a template instance modifies the name of all types and variables inside it.
+interface ModifiesName {
+  string modify(string);
+}

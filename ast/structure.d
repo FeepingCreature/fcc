@@ -214,6 +214,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
           }
         return Format("{struct ", names.join(", "), "}");
       }
+      if (auto mn = get!(ModifiesName)) return mn.modify(name);
       return name;
     }
     bool isTempNamespace() { return isTempStruct; }
