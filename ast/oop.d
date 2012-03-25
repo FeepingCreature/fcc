@@ -174,8 +174,9 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     return res;
   }
   import ast.index;
-  Function lookupIntf(string name, Expr intp) {
+  Object lookupIntf(string name, Expr intp) {
     assert(own_offset);
+    Function[] set;
     foreach (id, fun; funs) {
       if (fun.name == name) {
         if (!intp) return fun;
@@ -183,7 +184,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         auto pp_fntype = new Pointer(new Pointer(fntype));
         auto pp_int = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
         // *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
-        return new PointerFunction!(NestedFunction) (
+        set ~= new PointerFunction!(NestedFunction) (
           tmpize_maybe(intp, delegate Expr(Expr intp) {
             return new DgConstructExpr(
               new PA_Access(new DerefExpr(reinterpret_cast(pp_fntype, intp)), mkInt(id + own_offset)),
@@ -196,7 +197,8 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         );
       }
     }
-    return null;
+    if (!set) return null;
+    return new OverloadSet(set[0].name, set);
   }
   override Object lookupRel(string name, Expr base) {
     if (!base) {
