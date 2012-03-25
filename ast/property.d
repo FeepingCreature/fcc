@@ -91,24 +91,25 @@ Object gotPropertyExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.gotIdentifier(sid)) t2.failparse("Function name expected. ");
   t2.mustAccept(")", "closing paren expected");
   Function g, s;
+  Object go, so;
   PlaceholderToken ph;
   if (auto rn = fastcast!(RelNamespace) (namespace())) {
     auto hrt = fastcast!(hasRefType) (rn);
     if (!hrt) { logln(rn); fail; }
     auto rt = hrt.getRefType();
     ph = new PlaceholderToken(rt, "interface placeholder");
-    auto go = rn.lookupRel(gid, ph), so = rn.lookupRel(sid, ph);
+    go = rn.lookupRel(gid, ph); so = rn.lookupRel(sid, ph);
     if (!go) text.failparse(gid, " not found");
     if (!so) text.failparse(gid, " not found");
     g = fastcast!(Function) (go); s = fastcast!(Function) (so);
   } else {
-    auto go = namespace().lookup(gid), so = namespace().lookup(sid);
+    go = namespace().lookup(gid); so = namespace().lookup(sid);
     if (!go) text.failparse(gid, " not found");
     if (!so) text.failparse(gid, " not found");
     g = fastcast!(Function) (go); s = fastcast!(Function) (so);
   }
-  if (!g) text.failparse(gid, " is not a function");
-  if (!s) text.failparse(sid, " is not a function");
+  if (!g) text.failparse(gid, " is not a function: ", go);
+  if (!s) text.failparse(sid, " is not a function: ", so);
   text = t2;
   return new Property(g, s, ph);
 }

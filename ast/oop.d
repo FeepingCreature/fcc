@@ -198,6 +198,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
       }
     }
     if (!set) return null;
+    if (set.length == 1) return set[0];
     return new OverloadSet(set[0].name, set);
   }
   override Object lookupRel(string name, Expr base) {
