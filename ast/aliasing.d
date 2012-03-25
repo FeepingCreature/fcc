@@ -107,13 +107,14 @@ static this() {
 import ast.modules;
 Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  Expr ex;
-  IType ty;
-  Object obj;
   string id;
   bool notDone;
   
 redo:
+  Expr ex;
+  IType ty;
+  Object obj;
+  
   bool strict;
   if (t2.accept("strict")) strict = true;
   if (!(t2.gotIdentifier(id) &&
@@ -131,16 +132,23 @@ redo:
   if (rest(t3, "type", &ty) && gotTerm()) {
     t2 = t3;
   } else {
-    t3 = t2;
     ty = null;
-    if (rest(t3, "tree.expr", &obj) && gotTerm()) {
-      t2 = t3;
-      if (auto e = fastcast!(Expr)~ obj) { obj = null; ex = e; }
-      else {
-        namespace().__add(id, obj); // for instance, function alias
+    t3 = t2;
+    string id2;
+    if (t3.gotIdentifier(id2, true) && gotTerm()) {
+      obj = namespace().lookup(id2);
+      if (obj) t2 = t3;
+    }
+    if (!obj) {
+      t3 = t2;
+      if (rest(t3, "tree.expr", &obj) && gotTerm()) {
+        t2 = t3;
+      } else {
+        t2.failparse("Couldn't parse alias target");
       }
-    } else
-      t2.failparse("Couldn't parse alias target");
+    }
+    if (auto e = fastcast!(Expr) (obj)) { obj = null; ex = e; }
+    else namespace().__add(id, obj); // for instance, function alias
   }
   
   assert(ex || ty || obj);
