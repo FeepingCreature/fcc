@@ -46,7 +46,10 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (!sc) {
       t2.failparse("There is a lack of a scope here; trying to define ", name);
     }
-    sc.add(var);
+    try sc.add(var);
+    catch (AlreadyDefinedException ex) {
+      t2.failparse(ex);
+    }
     auto vd = new VarDecl(var);
     vd.configPosition(text);
     sc.addStatement(vd);

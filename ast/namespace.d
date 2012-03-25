@@ -9,7 +9,10 @@ T aadup(T)(T t) {
 }
 
 class AlreadyDefinedException : Exception {
-  this(string mesg) { super("AlreadyDefinedException: "~mesg); }
+  this(string mesg) {
+    super("AlreadyDefinedException: "~mesg);
+    // fail;
+  }
 }
 
 // This is intended to be used for function overload sets.
@@ -202,8 +205,17 @@ class Namespace {
           if (field.length > cachepoint) rebuildCache;
           return;
         }
+        if (auto named = fastcast!(Named) (thing)) {
+          auto ident = named.getIdentifier();
+          auto tup = lookupPos(ident);
+          auto row = tup._0, col = tup._1, file = tup._2;
+          throw new AlreadyDefinedException(Format(
+            "'", name, "' already defined\n",
+            file, ":", row, ":", col, ": previously defined here"
+          ));
+        }
         throw new AlreadyDefinedException(Format(
-          name, " already defined in ",
+          "'", name, "' already defined in ",
           this, ": ", lookup(name)
         ));
       }
