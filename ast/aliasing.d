@@ -19,18 +19,18 @@ class ExprAlias : RelTransformable, Named, Expr {
       
       bool needsTransform;
       dg = (ref Iterable iter) {
+        iter.iterate(dg);
         if (auto rt = fastcast!(RelTransformable) (iter))
           needsTransform = true;
-        iter.iterate(dg);
       };
       dg(it);
       if (!needsTransform) return fastcast!(Object) (base);
       
       it = it.dup;
       dg = (ref Iterable iter) {
+        iter.iterate(dg);
         if (auto rt = fastcast!(RelTransformable) (iter))
           iter = fastcast!(Iterable) (rt.transform(relbase));
-        iter.iterate(dg);
       };
       dg(it);
       return fastcast!(Object) (it);
