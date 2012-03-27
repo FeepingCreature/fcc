@@ -76,10 +76,12 @@ Object gotFpCloseExpr(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotFpCloseExpr, "tree.rhs_partial.fpclose", null, null, true);
 
 class Delegate : Type {
-  IType ret;
-  Argument[] args;
+  FunctionType ft;
+  final IType ret() { return ft.ret; }
+  final Argument[] args() { return ft.params; }
   this() { }
-  this(IType ret, Argument[] args) { this.ret = ret; this.args = args; }
+  this(IType ret, Argument[] args) { New(ft); ft.ret = ret; ft.params = args; }
+  this(FunctionType ft) { this.ft = ft; }
   override {
     bool isComplete() {
       if (!ret || !ret.isComplete) return false;
@@ -87,13 +89,14 @@ class Delegate : Type {
       return true;
     }
     string toString() {
+      if (ret is this) return Format("self delegate ", args);
       return Format(ret, " delegate ", args);
     }
     int size() {
       return nativePtrSize * 2;
     }
     string mangle() {
-      auto res = "dg_ret_"~ret.mangle()~"_args";
+      auto res = "dg_ret_"~((ret is this)?"self":ret.mangle())~"_args";
       if (!args.length) res ~= "_none";
       else foreach (arg; args)
         res ~= "_"~arg.type.mangle();
@@ -103,7 +106,8 @@ class Delegate : Type {
       if (!super.opEquals(ty)) return false;
       auto dg = fastcast!(Delegate)~ ty;
       if (!dg.ret || !ret) { fail; }
-      if (dg.ret != ret) return false;
+      if (dg.ret is ret || (dg.ret is dg && ret is this) || dg.ret == ret) { }
+      else return false;
       if (dg.args.length != args.length) return false;
       foreach (i, arg; dg.args)
         if (arg.type != args[i].type) return false;
@@ -151,10 +155,7 @@ static this() {
       t2.gotParlist(list, rest)
     ) {
       text = t2;
-      auto res = new Delegate;
-      res.ret = cur;
-      res.args = list;
-      return res;
+      return new Delegate(cur, list);
     } else return null;
   };
 }

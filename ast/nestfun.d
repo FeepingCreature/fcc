@@ -252,7 +252,7 @@ class NestFunRefExpr : mkDelegate {
   }
   // TODO: emit asm directly in case of PointerFunction.
   override IType valueType() {
-    return new Delegate(fun.type.ret, fun.type.params);
+    return new Delegate(fun.type);
   }
   override NestFunRefExpr dup() { return new NestFunRefExpr(fun, base.dup); }
 }

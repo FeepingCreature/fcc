@@ -386,7 +386,10 @@ class MemberAccess_Expr : Expr, HasInfo {
     auto ns = fastcast!(Namespace) (base.valueType());
     if (!ns) { logln("Base is not NS-typed: ", base.valueType()); fail; }
     stm = fastcast!(RelMember) (ns.lookup(name));
-    if (!stm) throw new Exception(Format("No member '", name, "' in ", base.valueType(), "!"));
+    if (!stm) {
+      logln("No member '", name, "' in ", base.valueType(), "!");
+      fail;
+    }
   }
   string getInfo() { return "."~name; }
   MemberAccess_Expr create() { return new MemberAccess_Expr; }
