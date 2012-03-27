@@ -1,50 +1,6 @@
 module test43;
 
-macro("tree.expr.multicall", "33") `
-  (if
-    (not (matched-ident 'multicall))
-    'nil
-    '(last
-      (def 'ident (parse-ident))
-      (def 'tup (parse-tuple))
-      (def 'fun (lookup ident))
-      (def 'res (make-temporary (type-of (make-tuple-expr (for (tuple-exprs tup) 'ex
-        '(make-call fun ex))))))
-      (make-sae
-        (make-aggregate
-          (for 0 (tuple-length tup) 'i
-            '(make-assignment (make-tuple-index res i) (make-call fun (make-tuple-index tup i)))))
-        res)))
-`;
-
-macro("tree.stmt.switchover", "411") `
-  (if
-    (not (matched-ident 'switch))
-    'nil
-    '(last
-      (def 'ty (parse-type))
-      (def 'id (parse-ident))
-      (if
-        (or (not ty) (not id) (not (matched-ident 'over)))
-        'nil
-        '(last
-          (def 'ph (make-placeholder ty))
-          (with-scope '(last
-            (insert-scope id ph)
-            (def 'cd (parse-cond))
-            (remove-scope id)
-            (def 'match-case (lambda () '(
-              (if (not (matched-ident 'case)) 'nil '(last
-                (def 'subex (parse-expr))
-                (match-text ":")
-                (make-if (substitute cd ph subex) (match-stmt)))))))
-            (if (not (matched-text "{"))
-              '(match-case)
-              '(make-aggregate
-                (while
-                  '(not (matched-text "}"))
-                  '(match-case))))))))))
-`;
+import std.macros.(multicall, switchover);
 
 int foo(int i) { writeln "$i"; return i * 2; }
 

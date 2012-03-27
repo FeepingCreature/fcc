@@ -151,7 +151,7 @@ class Database : DatabaseSup {
           if (result == SQLITE_BUSY) raise new SQLiteBusy;
           sqlite3fail "while executing $(sql): $(CToString sqlite3_errmsg db)";
         }
-
+        
         T bogosity;
         
         auto res = new QueryIterator!T (this, stmt);

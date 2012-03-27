@@ -209,10 +209,12 @@ class Namespace {
           auto ident = named.getIdentifier();
           auto tup = lookupPos(ident);
           auto row = tup._0, col = tup._1, file = tup._2;
-          throw new AlreadyDefinedException(Format(
-            "'", name, "' already defined\n",
-            file, ":", row, ":", col, ": previously defined here"
-          ));
+          if (row || col) {
+            throw new AlreadyDefinedException(Format(
+              "'", name, "' already defined\n",
+              file, ":", row, ":", col, ": previously defined here"
+            ));
+          }
         }
         throw new AlreadyDefinedException(Format(
           "'", name, "' already defined in ",

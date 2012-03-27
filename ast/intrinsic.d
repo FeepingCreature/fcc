@@ -612,9 +612,13 @@ void setupSysmods() {
     }
     class FailError : UnrecoverableError {
       void init() super.init "Something went wrong. ";
+      void init(string s) super.init "Something went wrong: $s. ";
     }
     void fail() {
       raise new FailError;
+    }
+    void fail(string s) {
+      raise new FailError s;
     }
     template refs(T) {
       class refs_class {

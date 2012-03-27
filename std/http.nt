@@ -8,7 +8,6 @@ class DownloadError : Error {
   void init(string url, string msg) { super.init "While downloading '$url': $msg"; }
 }
 
-import c.stdio;
 /* Function: download
 *Deprecated!*
 Download a site. HTTP/1.0, very WIP.
