@@ -256,7 +256,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   void dwarfOpen(AsmFile af) {
     auto dwarf2 = af.dwarf2;
-    {
+    if (dwarf2) {
       auto sect = new Dwarf2Section(
         dwarf2.cache.getKeyFor("subprogram"));
       with (sect) {
@@ -274,20 +274,24 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       }
       dwarf2.open(sect);
     }
-    {
+    if (dwarf2) {
       // for arguments
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("lexical block"));
       sect.data ~= qformat(".long\t.LFB", funid_count);
       sect.data ~= qformat(".long\t.LFE", funid_count);
       dwarf2.open(sect);
     }
-    foreach (param; type.params) if (param.name) if (auto var = fastcast!(Variable) (lookup(param.name, true))) {
-      var.registerDwarf2(dwarf2);
+    if (dwarf2) {
+      foreach (param; type.params) if (param.name) if (auto var = fastcast!(Variable) (lookup(param.name, true))) {
+        var.registerDwarf2(dwarf2);
+      }
     }
   }
   void dwarfClose(AsmFile af) {
-    af.dwarf2.close;
-    af.dwarf2.close;
+    if (af.dwarf2) {
+      af.dwarf2.close;
+      af.dwarf2.close;
+    }
   }
   override {
     int framestart() { return _framestart; }

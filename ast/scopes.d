@@ -130,7 +130,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
     emitted = true;
     // TODO: check for -g?
     Dwarf2Section backup_sect;
-    {
+    if (af.dwarf2) {
       auto dwarf2 = af.dwarf2;
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("lexical block"));
       backup_sect = dwarf2.current;
@@ -138,7 +138,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       sect.data ~= qformat(".long\t", exit());
       dwarf2.open(sect);
     }
-    if (/*needEntryLabel*/true) af.emitLabel(entry(), !keepRegs, !isForward);
+    if (/*needEntryLabel*/af.dwarf2) af.emitLabel(entry(), !keepRegs, !isForward);
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
     // sanity checking
@@ -157,9 +157,11 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       return stuple(checkpt, that, backup, af, backup_sect) /apply/
       (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, Dwarf2Section backup_sect, bool onlyCleanup) {
         if (!onlyCleanup) {
-          af.markLabelInUse(that.exit());
-          af.emitLabel(that.exit(), !keepRegs, isForward);
-          af.dwarf2.closeUntil(backup_sect);
+          if (af.dwarf2) {
+            af.markLabelInUse(that.exit());
+            af.emitLabel(that.exit(), !keepRegs, isForward);
+            af.dwarf2.closeUntil(backup_sect);
+          }
         }
         
         foreach_reverse(i, guard; that.guards) {

@@ -74,7 +74,7 @@ class AsmFile {
   this(bool optimize, bool debugMode, bool profileMode, string id) {
     New(cache);
     New(finalized);
-    New(dwarf2);
+    if (debugMode) New(dwarf2);
     if (isARM) {
       regs = ["r0"[], "r1", "r2", "r3"].dup;
       stackbase = "fp";
@@ -672,7 +672,7 @@ class AsmFile {
     foreach (line; codelines)
       dg(line);
     dg(".Letext:\n");
-    foreach (line; dwarf2.genData()) {
+    if (dwarf2) foreach (line; dwarf2.genData()) {
       dg(line); dg("\n");
     }
   }

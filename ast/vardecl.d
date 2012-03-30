@@ -42,7 +42,7 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
       // logln("(", var.name, " at ", af.currentStackDepth, " wants ", -var.baseOffset - var.type.size, ")");
       af.salloc(delta);
     }
-    {
+    if (af.dwarf2) {
       auto end = namespace().get!(Scope).exit();
       auto dwarf2 = af.dwarf2;
       auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("lexical block"));
