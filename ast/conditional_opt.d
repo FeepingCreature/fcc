@@ -125,8 +125,16 @@ static this() {
     auto e2 = foldex(cmp.e2);
     auto i1 = fastcast!(IntExpr) (e1);
     auto i2 = fastcast!(IntExpr) (e2);
-    // logln("i1: ", i1);
-    // logln("i2: ", i2);
+    if (auto ce1 = fastcast!(CondExpr) (e1)) {
+      auto cd = fastcast!(Cond) (fold(ce1.cd));
+      if (isStaticTrue (cd)) i1 = mkInt(1);
+      if (isStaticFalse(cd)) i1 = mkInt(0);
+    }
+    if (auto ce2 = fastcast!(CondExpr) (e2)) {
+      auto cd = fastcast!(Cond) (fold(ce2.cd));
+      if (isStaticTrue (cd)) i2 = mkInt(1);
+      if (isStaticFalse(cd)) i2 = mkInt(0);
+    }
     if (!i1 || !i2) return null;
     bool result;
     if (cmp.smaller && i1.num < i2.num) result = true;
