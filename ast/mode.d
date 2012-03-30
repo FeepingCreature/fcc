@@ -276,7 +276,12 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
             else
               ext = ext.extend(fun);
         }
-        if (!ext) return obj;
+        if (!ext) {
+          if (auto tmpl = fastcast!(Template) (obj)) {
+            return new PrefixTemplate(context, tmpl);
+          }
+          return obj;
+        }
         if (auto res = fastcast!(Object) (ext.simplify())) return res;
         return fastcast!(Object) (ext);
       }
