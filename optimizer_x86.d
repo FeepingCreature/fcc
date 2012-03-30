@@ -1899,7 +1899,7 @@ restart:
     else $SUBST(t1, $0); // keep the math
   `));
   mixin(opt("move_lea_after_unrelated_op", `^LoadAddress, (^Pop || ^Mov):
-    $0.to.isUtilityRegister() && !info($1).opContains($0.to)
+    $0.to.isUtilityRegister() && !info($1).opContains($0.to) && !info($0).opContains(($1.kind == $TK.Pop)?$1.dest:$1.to)
     =>
     $SUBST($1, $0);
   `));
