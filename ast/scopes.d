@@ -138,7 +138,7 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       sect.data ~= qformat(".long\t", exit());
       dwarf2.open(sect);
     }
-    if (/*needEntryLabel*/af.dwarf2) af.emitLabel(entry(), !keepRegs, !isForward);
+    if (needEntryLabel || af.dwarf2) af.emitLabel(entry(), !keepRegs, !isForward);
     auto checkpt = af.checkptStack(), backup = namespace();
     namespace.set(this);
     // sanity checking
@@ -159,7 +159,9 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
         if (!onlyCleanup) {
           if (af.dwarf2) {
             af.markLabelInUse(that.exit());
-            af.emitLabel(that.exit(), !keepRegs, isForward);
+          }
+          af.emitLabel(that.exit(), !keepRegs, isForward);
+          if (af.dwarf2) {
             af.dwarf2.closeUntil(backup_sect);
           }
         }

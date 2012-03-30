@@ -720,7 +720,8 @@ void link(string[] objects, bool saveTemps = false) {
   foreach (obj; objects) cmdline ~= obj ~ " ";
   foreach (larg; linkerArgs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
-  system(cmdline.toStringz());
+  if (system(cmdline.toStringz()))
+    throw new Exception("Failed to link");
 }
 
 import tools.threadpool;
