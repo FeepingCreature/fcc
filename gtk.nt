@@ -27,19 +27,31 @@ defmode GTK_CELL_RENDERER_TEXT "gobject-helper <GTK_CELL_RENDERER>";
 (void*, void*, void*)[~] store;
 
 template call-dg-esi(T) {
-  ReturnType T call-dg-esi (ParamTypes T p, void* data) {
+  ReturnType T call-dg-esi (GtkObject* obj, void* data) {
     alias ret = ReturnType T;
-    auto tup = *(ret delegate(ParamTypes T), void*)*: data;
-    auto backup_esi = _esi;
-    _esi = tup[1];
-    static if types-equal(ret, void) {
-      tup[0] p;
-      _esi = backup_esi;
-      return;
+    alias paramless = !!types-equal(ParamTypes T, ParamTypes void delegate());
+    static if paramless {
+      auto tup = *(ret delegate(), void*)*: data;
     } else {
-      auto res = tup[0] p;
-      _esi = backup_esi;
-      return res;
+      auto tup = *(ret delegate(ParamTypes T), void*)*: data;
+    }
+    
+    auto backup_esi = _esi;
+    onSuccess _esi = backup_esi;
+    _esi = tup[1];
+    
+    static if types-equal(ret, void) {
+      static if paramless {
+        tup[0] ();
+      } else {
+        tup[0] obj;
+      }
+    } else {
+      static if paramless {
+        return tup[0] ();
+      } else {
+        return tup[0] obj;
+      }
     }
   }
 }
