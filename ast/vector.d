@@ -74,7 +74,7 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
       if (!vec) return false;
       return vec.base == base && vec.len == len;
     }
-    Object lookupRel(string str, Expr base) {
+    Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
       if (!base) {
         if (len > 0 && str == "X") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(0, len)), this));
         if (len > 1 && str == "Y") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(1, len)), this));

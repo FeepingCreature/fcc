@@ -184,7 +184,7 @@ class WithSpace : Namespace {
           rns = srns.resolve();
         
         if (rns)
-          if (auto res = rns.lookupRel(name, values[i])) return res;
+          if (auto res = rns.lookupRel(name, values[i], false)) return res;
         
         if (auto ns = fastcast!(Namespace) (space))
           if (auto res = ns.lookup(name, local)) return res;

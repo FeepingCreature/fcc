@@ -142,11 +142,11 @@ class WithStmt : Namespace, Statement, ScopeLike {
       if (name == "this") block = true;
       if (!local && !block) {
         if (rns)
-          if (auto res = myresolve(rns).lookupRel(name, context))
+          if (auto res = myresolve(rns).lookupRel(name, context, false))
             return res;
         if (rnslist)
           foreach (rns; rnslist)
-            if (auto res = myresolve(rns._0).lookupRel(name, rns._1))
+            if (auto res = myresolve(rns._0).lookupRel(name, rns._1, false))
               return res;
         if (ns)
           if (auto res = myresolve(ns).lookup(name, true))

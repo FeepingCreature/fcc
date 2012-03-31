@@ -274,7 +274,7 @@ class NoNameSpace : Namespace {
 }
 
 interface RelNamespace {
-  Object lookupRel(string str, Expr base);
+  Object lookupRel(string str, Expr base, bool isDirectLookup = true);
   bool isTempNamespace(); // temporary namespace - not an error if lookup fails
 }
 

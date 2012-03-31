@@ -15,13 +15,13 @@ class Typeset : Type, RelNamespace {
     }
     string mangle() { return "typeset_over_"~tup.mangle(); }
     bool isTempNamespace() { return false; }
-    Object lookupRel(string name, Expr base) {
+    Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       auto tup_ex = reinterpret_cast(tup, base);
       foreach (i, ty; tup.types) {
         if (auto srn = fastcast!(SemiRelNamespace) (ty)) ty = fastcast!(IType) (srn.resolve());
         auto rn = fastcast!(RelNamespace) (ty);
         if (rn) {
-          if (auto res = rn.lookupRel(name, mkTupleIndexAccess(tup_ex, i)))
+          if (auto res = rn.lookupRel(name, mkTupleIndexAccess(tup_ex, i), isDirectLookup))
             return res; // TODO: overloading maybe
         }
       }

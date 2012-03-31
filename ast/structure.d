@@ -183,7 +183,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     Stuple!(IType, string, int)[] stackframe() {
       return selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
     }
-    Object lookupRel(string str, Expr base) {
+    Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
       auto res = lookup(str, true);
       if (auto rt = fastcast!(RelTransformable) (res))
         return fastcast!(Object) (rt.transform(base));

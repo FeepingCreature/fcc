@@ -201,7 +201,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     if (set.length == 1) return set[0];
     return new OverloadSet(set[0].name, set);
   }
-  override Object lookupRel(string name, Expr base) {
+  override Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
     if (!base) {
       if (name == "__name") // T.name
         return fastcast!(Object) (mkString(this.name));
@@ -309,7 +309,7 @@ class SuperType : IType, RelNamespace {
     int opEquals(IType it) { return false; /* wut */ }
     bool isPointerLess() { return false; }
     override bool isComplete() { return true; }
-    Object lookupRel(string name, Expr base) {
+    Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       auto sup2 = fastcast!(SuperType) (base.valueType());
       if (sup2 !is this) fail;
       // iterate parents
@@ -649,7 +649,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       res ~= selectMap!(RelMember, "stuple($.type, $.name, $.offset)");
       return res;
     }
-    Object lookupRel(string str, Expr base) {
+    Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
       if (!base && str == "__name") // T.name
         return fastcast!(Object) (mkString(name));
       auto crType = fastcast!(ClassRef) (resolveType(base.valueType()));
@@ -707,7 +707,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         }
         cl_offset = foldex(lookupOp("+", cl_offset, mkInt(intf.clsize)));
       }
-      if (parent) if (auto res = parent.lookupRel(str, base)) {
+      if (parent) if (auto res = parent.lookupRel(str, base, isDirectLookup)) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
           extend(ext2);
         } else return res;

@@ -228,7 +228,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     bool isPointerLess() { if (!firstParam) return true; return firstParam.valueType().isPointerLess; }
     bool isComplete() { if (!firstParam) return true; return firstParam.valueType().isComplete; }
     mixin DefaultScopeLikeGuards!();
-    Object lookupRel(string name, Expr context) {
+    Object lookupRel(string name, Expr context, bool isDirectLookup = true) {
       Object funfilt(Object obj) {
         OverloadSet handleFun(Function fun) {
           if (!firstParam) return null;
@@ -277,7 +277,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
               ext = ext.extend(fun);
         }
         if (!ext) {
-          if (auto tmpl = fastcast!(Template) (obj)) {
+          if (context && isDirectLookup) if (auto tmpl = fastcast!(Template) (obj)) {
             return new PrefixTemplate(context, tmpl);
           }
           return obj;
@@ -310,7 +310,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
         if (auto res = tryIt()) return res;
       }
       if (supmode)
-        if (auto res = supmode.lookupRel(name, context))
+        if (auto res = supmode.lookupRel(name, context, isDirectLookup))
           return res;
       return null;
     }

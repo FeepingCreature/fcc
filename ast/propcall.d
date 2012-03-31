@@ -82,7 +82,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
       }
       return null;
     }
-    Object lookupRel(string name, Expr base) {
+    Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       return lookup(name, false);
     }
     bool isTempNamespace() { return true; }
