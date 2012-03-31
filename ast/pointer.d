@@ -115,7 +115,7 @@ bool isVoidP(IType it) {
   if (!it) return false;
   auto p = fastcast!(Pointer)~ it;
   if (!p) return false;
-  return !!fastcast!(Void) (p.target);
+  return !!fastcast!(Void) (resolveType(p.target));
 }
 
 static this() {
