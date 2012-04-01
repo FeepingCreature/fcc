@@ -623,7 +623,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     int paramsize;
     foreach (param; params) {
       auto sz = param.valueType().size;
-      if (sz < 4) sz = 4; // cdecl
+      if (sz && sz < 4) sz = 4; // cdecl
       paramsize += sz;
     }
     paramsize += af.floatStackDepth * 8;
