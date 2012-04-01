@@ -139,6 +139,7 @@ class Database : DatabaseSup {
   template exec(U) {
     template exec(T) {
       auto exec(U u) {
+        define-exit "retry" { }
         static if type-is-tuple U { string sql = u[0]; }
         else { string sql = u; }
         sqlite3_stmt* stmt;
