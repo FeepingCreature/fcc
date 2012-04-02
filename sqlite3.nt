@@ -20,10 +20,6 @@ int callback(void* esiState, int argc, char** argv, char** colName) using (scope
   return 0;
 }
 
-class DatabaseSup { // break type loop
-  sqlite3* db;
-}
-
 void* mallocDupData(byte[] data) {
   auto res = malloc data.length;
   memcpy(res, data.ptr, data.length);
@@ -42,9 +38,21 @@ interface IQueryIterator {
   void finalize();
 }
 
+shared (string, int, int)[] profiledata;
+
+shared bool profile;
+void record(string qs, int ms) {
+  if (!profile) return;
+  // TODO: sync
+  for ref tup <- profiledata {
+    if (tup[0] == qs) { tup[1] ++; tup[2] += ms; return; }
+  }
+  profiledata ~= (qs, 1, ms);
+}
+
 template QueryIterator(T) {
   class QueryIterator : IQueryIterator {
-    DatabaseSup db;
+    Database db;
     sqlite3_stmt* stmt;
     int bindCount;
     string sql;
@@ -91,6 +99,9 @@ template QueryIterator(T) {
       sqlite3_finalize stmt;
     }
     bool advance() {
+      import std.time;
+      auto start = msec();
+      onSuccess record(sql, msec() - start);
       define-exit "retry" { }
       auto res = sqlite3_step stmt;
       if res == SQLITE_DONE {
@@ -111,7 +122,7 @@ template QueryIterator(T) {
       }
       return true;
     }
-    void init(DatabaseSup db, sqlite3_stmt* stmt) {
+    void init(Database db, sqlite3_stmt* stmt) {
       this.db = db;
       this.stmt = stmt;
       bindCount = 1;
@@ -119,7 +130,8 @@ template QueryIterator(T) {
   }
 }
 
-class Database : DatabaseSup {
+class Database {
+  sqlite3* db;
   IQueryIterator[auto~][] stack;
   void openStatementList() {
     IQueryIterator[auto~] qi;
@@ -131,6 +143,9 @@ class Database : DatabaseSup {
   }
   void sqlite3fail(string msg) {
     raise new Error "in sqlite3: $msg";
+  }
+  void mkfast() {
+    exec("pragma cache_size=100000"); // 100MB may be used for cache
   }
   void init(string dbname) {
     if sqlite3_open(toStringz dbname, &db)
