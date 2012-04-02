@@ -102,6 +102,12 @@ Expr simpleFormat(Expr ex) {
       type = ex.valueType();
     }
   }
+  if (auto fp = fastcast!(FunctionPointer)~ type) {
+    return iparse!(Expr, "gen_fp_format", "tree.expr")
+      (`"fp($(void*:fp))"`,
+        "fp", ex
+      );
+  }
   if (auto dg = fastcast!(Delegate)~ type) {
     return iparse!(Expr, "gen_dg_format", "tree.expr")
       (`"dg(fun $(void*:dg.fun), data $(void*:dg.data))"`,
