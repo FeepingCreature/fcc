@@ -47,15 +47,23 @@ byte[] download(string url, void delegate(string) onRedirect = null) {
 }
 
 (byte[], string)[auto~] cache;
+import std.thread;
+Mutex cachelock;
+
+void init() cachelock = new Mutex;
+
 /* Function: downloadCached
 *Deprecated!*
 Like <download>, but cached. Self-explanatory. */
 byte[] downloadCached(string url, void delegate(string) onRedirect = null) {
-  for auto tup <- cache
-    if tup[1] == url return tup[0];
+  using MutexWrapper:cachelock {
+    for auto tup <- cache
+      if tup[1] == url return tup[0];
+  }
   
   auto res = download (url, onRedirect);
-  cache ~= (res, url);
+  using MutexWrapper:cachelock
+    cache ~= (res, url);
   return res;
 }
 

@@ -83,6 +83,7 @@ extern(C) void* __start_routine(void* p) {
     mxcsr = arg[2];
     setupStackBase;
     arg[3].release;
+    dupvcache = null;
     if (onThreadCreation) {
       onThreadCreation(_ebp);
     }
@@ -245,6 +246,7 @@ class ThreadPool {
   /*Function: addTask
   Adds a task to be executed. The task is called with the id of the thread that's executing it. */
   void addTask(void delegate(int) dg) {
+    if (!numThreads) { dg(0); return; }
     using autoLock(m) tasksLeft ++;
     using autoLock writelock writequeue ~= dg;
     s.release;
@@ -252,6 +254,7 @@ class ThreadPool {
   /*Function: addTask
   Adds a task to be executed. */
   void addTask(void delegate() dg) {
+    if (!numThreads) { dg(); return; }
     addTask new delegate void(int) { dg(); };
   }
 }

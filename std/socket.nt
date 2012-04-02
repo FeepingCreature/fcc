@@ -26,9 +26,10 @@ class TcpAddress : Address {
   /*Function: init
   Create a TCP address from host name and port*/
   void init(string dns, short port) {
-    auto he = gethostbyname(toStringz(dns));
     using saddr {
-      sin_addr.s_addr = *uint*:he.h_addr_list[0];
+      addrinfo* addr;
+      getaddrinfo(toStringz dns, null, null, &addr);
+      *sockaddr*:&saddr = *addr.ai_addr;
       sin_family = AF_INET;
       sin_port = htons(port);
     }

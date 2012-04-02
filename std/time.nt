@@ -35,6 +35,11 @@ platform(!i686-mingw32) {
     gettimeofday(&tv, null);
     return tv.tv_sec * long:1_000_000 + tv.tv_usec;
   }
+  int msec() {
+    timeval tv;
+    gettimeofday(&tv, null);
+    return tv.tv_sec * 1_000 + tv.tv_usec / 1_000;
+  }
 }
 
 /*Function: sec
