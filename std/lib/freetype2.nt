@@ -45,6 +45,18 @@ class Font {
     // FTcheck Set_Pixel_Sizes(face, 0, size);
     FTcheck Set_Char_Size(face, 0, size*64, dpi, dpi);
   }
+  vec2i getKerning(int ch1, ch2) using mode FT {
+    auto id1 = Get_Char_Index(face, FT_ULong: ch1);
+    auto id2 = Get_Char_Index(face, FT_ULong: ch2);
+    Get_Kerning (face, id1, id2, 0, &Vector delta);
+    return delta.(vec2i(x, y));
+  }
+  vec2i getAdvance(int ch) using mode FT {
+    auto index = Get_Char_Index(face, FT_ULong:ch);
+    FTcheck Load_Glyph (face, index, LOAD_DEFAULT);
+    FTcheck Get_Glyph (face.glyph, &Glyph glyph);
+    return face.glyph.advance.(vec2i(x, y));
+  }
   vec4f[] toBuffer(string text, FontStyle[] styles, int* wp = null, hp = null) using mode FT {
     if (!text.length) {
       (*wp, *hp) = (0, 0);
@@ -59,8 +71,7 @@ class Font {
     for (int id, char ch) <- zip(0..-1, text) { // TODO: unicode
       auto index = Get_Char_Index(face, FT_ULong:ch);
       if (id && index) {
-        Vector delta;
-        Get_Kerning(face, prevIndex, index, 0, &delta);
+        Get_Kerning (face, prevIndex, index, 0, &Vector delta);
         pen.x += delta.x;
       }
       prevIndex = index;
