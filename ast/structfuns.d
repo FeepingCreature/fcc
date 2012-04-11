@@ -25,18 +25,24 @@ Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotStructFunDef, "struct_member.struct_fundef");
 
 import ast.vardecl, ast.assign;
-class RelFunCall : FunCall {
+class RelFunCall : FunCall, RelTransformable {
   Expr baseptr;
   this(Expr ex) {
-    if (!ex) fail;
     baseptr = ex;
   }
   mixin defaultIterate!(baseptr, params);
   override RelFunCall dup() {
-    auto res = new RelFunCall(baseptr.dup);
+    auto res = new RelFunCall(baseptr?baseptr.dup:null);
     res.fun = fun;
     res.params = params.dup;
     foreach (ref entry; params) entry = entry.dup;
+    return res;
+  }
+  override Object transform(Expr base) {
+    if (baseptr) { logln("RelFunCall was pretransformed: ", baseptr); fail; }
+    if (!base) fail;
+    auto res = dup();
+    res.baseptr = base;
     return res;
   }
   override void emitAsm(AsmFile af) {
@@ -76,7 +82,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
   RelFunction dup() {
     auto res = fastcast!(RelFunction) (super.dup());
     res.context = context;
-    res.baseptr = baseptr;
+    res.baseptr = baseptr?baseptr.dup:null;
     res.basetype = basetype;
     return res;
   }
