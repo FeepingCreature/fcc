@@ -82,17 +82,20 @@ class GLFWWindow : GLWindow {
   }
   void mousebutton(GLFWwindow window, int button, action) {
     if (window != handle) raise new Error "wat";
-    if (action) onMouseDown?();
-    else onMouseUp?();
+    if (action) mouse-clicked = true;
+    else mouse-released = true;
   }
   bool is-set-up;
+  string title;
   void setup() using mode GLFW {
     if (!Init()) raise new Error "Failed to init GLFW";
     onFailure Terminate;
     
     OpenWindowHint(DEPTH_BITS, 16);
     (w, h) = (640, 480);
-    handle = OpenWindow (w, h, WINDOWED, "Gears", null);
+    if (!title) title = "GLFW Window";
+    import std.string;
+    handle = OpenWindow (w, h, WINDOWED, toStringz title, null);
     if (!handle) raise new Error "Failed to open GLFW window";
     
     handle.SetWindowUserPointer (_esi);
@@ -111,6 +114,8 @@ class GLFWWindow : GLWindow {
   }
   bool isSetUp() { return is-set-up; }
   void update() using mode GLFW {
+    mouse-clicked = false;
+    mouse-released = false;
     SwapBuffers;
     PollEvents;
     if (!IsWindow(handle)) raise new WindowClosed "GLFW exit";

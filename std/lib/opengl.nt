@@ -25,6 +25,8 @@ platform(default) {
   }
 }
 
+defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";
+
 context Triangles {
   alias onUsing = glBegin GL_TRIANGLES;
   alias onExit = glEnd;
@@ -41,8 +43,22 @@ context QuadStrip {
 }
 
 context glMatrix {
-  alias onUsing = glPushMatrix();
-  alias onExit  = glPopMatrix ();
+  void pushAll() using mode GL {
+    GetIntegerv(MATRIX_MODE, &int mode);
+    onSuccess MatrixMode mode;
+    MatrixMode PROJECTION; PushMatrix;
+    MatrixMode MODELVIEW;  PushMatrix;
+    MatrixMode TEXTURE;    PushMatrix;
+  }
+  void popAll() using mode GL {
+    GetIntegerv(MATRIX_MODE, &int mode);
+    onSuccess MatrixMode mode;
+    MatrixMode PROJECTION; PopMatrix;
+    MatrixMode MODELVIEW;  PopMatrix;
+    MatrixMode TEXTURE;    PopMatrix;
+  }
+  alias onUsing = pushAll();
+  alias onExit  = popAll ();
 }
 
 template glWithCap(alias Cap) {
@@ -60,8 +76,6 @@ template glWithoutCap(alias Cap) {
     void onExit() { auto prev = capstack.popEnd(); if (prev) glEnable Cap; }
   }
 }
-
-defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";
 
 class OpenGLError : Error {
   void init(string s) { super.init "OpenGLError: $s"; }

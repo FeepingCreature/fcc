@@ -73,8 +73,8 @@ class SDLWindow : GLWindow {
     .update surf;
     mouse-pressed = .mouse-pressed;
     mouse-pos = .mouse-pos;
-    if (.mouse-clicked) onMouseDown?();
-    if (.mouse-released) onMouseUp?();
+    mouse-clicked = .mouse-clicked;
+    mouse-released = .mouse-released;
   }
   bool claimed;
   void claim-cursor() {
