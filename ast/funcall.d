@@ -19,6 +19,13 @@ class NamedArg : Expr {
   }
 }
 
+IType[] relevant(IType[] array) {
+  IType[] res;
+  foreach (it; array)
+    if (!Format(it).startsWith("fpos of a")) res ~= it;
+  return res;
+}
+
 Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
@@ -190,10 +197,10 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
       logln("Not enough parameters for '", info, "'; left over ", type, "!");
       fail;
     }
+    IType[] tried;
   retry:
     auto ex = args.take();
     auto backup = ex;
-    IType[] tried;
     
     ex = foldex(ex);
     
@@ -208,7 +215,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
         goto retry;
       } else {
         if (probe) return false;
-        text.failparse("Couldn't match ", backup.valueType(), " to function call '", info, "', ", params[i], " (", i, "); tried ", tried);
+        text.failparse("Couldn't match ", backup.valueType(), " to function call '", info, "', ", params[i], " (", i, "); tried ", relevant(tried));
       }
     }
     res ~= ex;
