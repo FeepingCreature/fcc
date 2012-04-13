@@ -157,3 +157,23 @@ template apply(T) {
     }
   }
 }
+
+template reverse(T) {
+  alias IT = type-of-elem T;
+  class rev : Iterator!IT {
+    IT[] back;
+    int pos;
+    bool advance() {
+      if (pos == -1) return false;
+      value = back[pos];
+      pos--;
+      if (pos == -1) back.free;
+      return true;
+    }
+  }
+  auto reverse(T t) using new rev {
+    back = t.iterator.eval[];
+    pos = back.length - 1;
+    return that;
+  }
+}
