@@ -285,9 +285,9 @@ static this() {
   };
 }
 
-Object constructVector(Expr base, Vector vec) {
+Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true) {
   auto ex2 = base;
-  if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
+  if (allowCastVecTest && gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
     return fastcast!(Object) (reinterpret_cast(
       vec,
       new MultiplesExpr(ex2, vec.real_len())
@@ -535,6 +535,14 @@ static this() {
         return reinterpret_cast(vec.asTup, ex);
     }
     return null;
+  };
+  // veci to vecf
+  implicits ~= delegate Expr(Expr ex) {
+    auto vec = fastcast!(Vector) (resolveType(ex.valueType()));
+    if (!vec) return null;
+    if (!fastcast!(SysInt) (resolveType(vec.base))) return null;
+    auto to = new Vector(Single!(Float), vec.len);
+    return fastcast!(Expr) (constructVector(mkTupleValueExpr(getTupleEntries(reinterpret_cast(vec.asFilledTup, ex), null, true)[0..vec.len]), to, false));
   };
 }
 
