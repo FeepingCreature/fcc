@@ -452,6 +452,7 @@ void parseHeader(string filename, string src) {
   }
   while (statements.length) {
     auto stmt = statements.take(), start = stmt;
+    // logln(filename, "> ", stmt);
     stmt.accept("__extension__");
     if (stmt.accept("#define")) {
       if (stmt.accept("__")) continue; // internal
@@ -848,6 +849,7 @@ void parseHeader(string filename, string src) {
 }
 
 string[] defines;
+string[][string] prepend;
 Object defines_sync;
 
 import ast.pragmas;
@@ -858,6 +860,20 @@ static this() {
       throw new Exception("String expected for pragma(define, ...)");
     string str = (fastcast!(StringExpr) (foldex(ex))).str;
     synchronized(defines_sync) defines ~= str.strip();
+    return Single!(NoOp);
+  };
+  pragmas["include_prepend"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, (Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }))
+      throw new Exception("\"file1 < file2\" string expected for pragma(include_prepend, ...)");
+    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    auto file1 = str.slice("<").strip(), file2 = str.strip();
+    if (!file1.length || !file2.length) 
+      throw new Exception(
+        Format("Invalid pragma parameter for include_prepend (\"file1 < file2\" expected): ", ex));
+    synchronized(defines_sync) {
+      if (!(file2 in prepend)) prepend[file2] = null;
+      prepend[file2] ~= file1;
+    }
     return Single!(NoOp);
   };
 }
@@ -875,26 +891,26 @@ void performCImport(string name) {
   if (name.find("..") != -1)
     throw new Exception("Can't use .. in "~name~"!");
   
-  string filename;
-  if (name.exists()) filename = name;
-  else {
+  string findfile(string s) {
+    if (s.exists()) return s;
     foreach (path; include_path) {
-      auto combined = path.sub(name);
-      if (combined.exists()) { filename = combined; break; }
+      auto combined = path.sub(s);
+      if (combined.exists()) return combined;
     }
+    throw new Exception(Format("Couldn't find ", s, "! Tried ", include_path));
   }
-  if (!filename)
-    throw new Exception(Format("Couldn't find ", name, "! Tried ", include_path));
+  string filename = findfile(name);
   string extra;
-  if (!isARM) extra = "-m32";
+  if (!isARM) extra = " -m32";
   synchronized(defines_sync) {
     extra ~= (defines /map/ (string s) { return " -D"~s; }).join("");
+    if (name in prepend) extra ~= " "~(prepend[name] /map/ &findfile).join(" ");
   }
   string mygcc;
   version(Windows) mygcc = path_prefix~"gcc";
   else mygcc = path_prefix~platform_prefix~"gcc";
   auto cmdline = 
-    mygcc~" "~extra~" -Xpreprocessor -dD -E "
+    mygcc~extra~" -Xpreprocessor -dD -E "
     ~ (include_path
       /map/ (string s) { return "-I"~s; }
       ).join(" ")

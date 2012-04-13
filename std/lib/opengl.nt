@@ -1,8 +1,9 @@
 module std.lib.opengl;
 
+pragma(define, "GL_GLEXT_PROTOTYPES");
+pragma(include_prepend, "GL/gl.h < GL/glext.h");
 public import c.GL.gl;
 public import c.GL.glu;
-pragma(define, "GL_GLEXT_PROTOTYPES");
 public import c.GL.glext;
 public import std.lib.opengl.rgbcolor;
 
