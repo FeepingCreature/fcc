@@ -65,6 +65,10 @@ extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name);
 
+bool[string] symbol_emit_win32_hack_check;
+Object hack_sync;
+static this() { hack_sync = new Object; }
+
 class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ScopeLike, EmittingContext, Importer {
   string name;
   Expr getPointer() {
@@ -324,13 +328,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       if (isWindoze()) {
         // af.put(".global ", fmn);
         if (weak) {
-          // ;_;
-          if (fmn.find("_struct__") != -1
-            ||fmn.find("_module_sys__") != -1) {
-            // af.put(".weak ", fmn);
-          } else {
-            af.put(".global ", fmn);
-          }
+          if (fmn in symbol_emit_win32_hack_check) return; // fucking windows
+          symbol_emit_win32_hack_check[fmn] = true;
+          af.put(".global ", fmn);
         } else af.put(".global ", fmn);
       } else {
         af.put(".global ", fmn);

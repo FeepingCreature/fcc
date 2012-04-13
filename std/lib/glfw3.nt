@@ -2,6 +2,8 @@ module std.lib.glfw3;
 
 public import c.GL.glfw3;
 
+import std.lib.opengl; // enforce library ordering
+
 pragma(lib, "glfw");
 
 defmode GLFW "prefix GLFW_ prefix glfw";

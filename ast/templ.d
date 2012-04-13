@@ -66,7 +66,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
       assert(!isAlias);
       TemplateInstance ti;
       foreach (entry; emat_type)
-        if (entry._1 == type) { ti = entry._0; break; }
+        if (qformat(entry._1) == qformat(type)) { ti = entry._0; break; }
       if (!ti) {
         ti = new TemplateInstance(this, type, rest);
       }

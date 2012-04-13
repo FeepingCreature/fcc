@@ -1,6 +1,8 @@
 module std.lib.opengl;
 
-pragma(define, "GL_GLEXT_PROTOTYPES");
+// only opengl 1.2 is supported: most of these will be linker errors!
+// pragma(define, "GL_GLEXT_PROTOTYPES");
+// depends on GLsizei, which is defined in gl.h - yuck
 pragma(include_prepend, "GL/gl.h < GL/glext.h");
 public import c.GL.gl;
 public import c.GL.glu;
@@ -14,6 +16,9 @@ platform(i686-mingw32) {
   template lookupFun(T) {
     _markStdCall T lookupFun(char* c) { return _markStdCall T:wglGetProcAddress(c); }
   }
+  alias glGenBuffers = *lookupFun!void function(GLsizei, GLuint*) "glGenBuffers";
+  alias glBindBuffer = *lookupFun!void function(GLenum, GLuint) "glBindBuffer";
+  alias glBufferData = *lookupFun!void function(GLenum, GLsizeiptr, void*, GLenum) "glBufferData";
 }
 
 platform(default) {
