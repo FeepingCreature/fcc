@@ -337,7 +337,6 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
     if (!name) return;
     if (name.startsWith("<internal")) return;
     if (auto id = af.getFileId(name)) {
-      // if (line >= 1) line -= 1; // wat!!
       af.put(".loc ", id, " ", line, " ", 0);
       if (!name.length) fail("TODO");
       af.put(comment(" being '"), name, "' at ", af.currentStackDepth);

@@ -28,7 +28,7 @@ Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   if (platname == "x86") platname = "default";
   bool match = platname~"-" == platform_prefix || platname == "default" && !platform_prefix;
   if (wildfront && wildback) match |=   platform_prefix.find(platname) != -1;
-  if (wildfront &&!wildback) match |= !!platform_prefix.endsWith(platname);
+  if (wildfront &&!wildback) match |= !!platform_prefix.endsWith(platname~"-");
   if(!wildfront && wildback) match |= !!platform_prefix.startsWith(platname);
   if (neg) match = !match;
   if (match) {

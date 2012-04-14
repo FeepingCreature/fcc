@@ -1,7 +1,9 @@
 module std.lib.opengl;
 
-// only opengl 1.2 is supported: most of these will be linker errors!
-// pragma(define, "GL_GLEXT_PROTOTYPES");
+platform(!*-mingw32) {
+  // only opengl 1.2 is supported on windows: thus, must only enable this under linux
+  pragma(define, "GL_GLEXT_PROTOTYPES");
+}
 // depends on GLsizei, which is defined in gl.h - yuck
 pragma(include_prepend, "GL/gl.h < GL/glext.h");
 public import c.GL.gl;

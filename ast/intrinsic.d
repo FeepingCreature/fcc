@@ -570,6 +570,7 @@ void setupSysmods() {
         // writeln "Invoking GDB. ";
         
         print-backtrace;
+        platform(*-mingw32) { _interrupt 3; }
         errnum = 1;
         // _interrupt 3;
         invoke-exit "main-return";

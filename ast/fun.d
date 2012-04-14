@@ -314,17 +314,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         fail;
       }
       
-      dwarfOpen(af);
-      scope(exit) dwarfClose(af);
-      
       auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4");
-      if (!isWindoze()) {// TODO: work out why win32 gas does not like this {
-        if (isARM)
-          af.put(".type ", fmn, ", %function");
-        else
-          af.put(".type ", fmn, ", @function");
-      }
       if (isWindoze()) {
         // af.put(".global ", fmn);
         if (weak) {
@@ -336,6 +327,18 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         af.put(".global ", fmn);
         if (weak) af.put(".weak ", fmn);
       }
+      if (isWindoze()) {
+        af.put(".def ", fmn, "; .val ", fmn, "; .scl 2; .type 32; .endef");
+      } else {
+        if (isARM)
+          af.put(".type ", fmn, ", %function");
+        else
+          af.put(".type ", fmn, ", @function");
+      }
+
+      dwarfOpen(af);
+      scope(exit) dwarfClose(af);
+
       af.put(fmn, ":"); // not really a label
       auto idnum = funid_count ++;
       af.put(".LFB", idnum, ":");
