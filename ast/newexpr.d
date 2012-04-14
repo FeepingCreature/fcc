@@ -22,6 +22,9 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr initParam;
   rest(t2, "tree.expr _tree.expr.arith", &initParam);
   
+  if (cr && cr.myClass.isabstract())
+    text.failparse("cannot instantiate abstract class");
+  
   text = t2;
   Expr protConstCall;
   PlaceholderTokenLV var_token;

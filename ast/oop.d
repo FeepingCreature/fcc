@@ -5,6 +5,14 @@ import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun,
   ast.tenth;
 
+/*
+  An abstract function is a function that does not define a body.
+  An abstract class is a class that declares abstract member functions,
+    or inherits an abstract class without implementing its abstract member functions.
+  Abstract classes must be declared with the 'abstract' keyword.
+  Abstract classes can not be allocated.
+ */
+
 struct RelFunSet {
   Stuple!(RelFunction, string, IType[])[] set;
   string toString() {
@@ -333,6 +341,26 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   Structure data;
   string name;
   Class parent;
+  RelFunction[] getAbstractFuns() {
+    parseMe();
+    RelFunction[] res;
+    // An abstract class is a class that declares abstract member functions,
+    foreach (fun; myfuns.funs) if (fun.isabstract) res ~= fun;
+    // or inherits an abstract class without implementing its abstract member functions.
+    if (parent)
+      foreach (fun; parent.getAbstractFuns()) {
+        if (auto f2 = overrides.hasLike(fun)) {
+          fun = f2;
+        }
+        if (fun.isabstract) res ~= fun;
+      }
+    return res;
+  }
+  bool isabstract() {
+    return !!getAbstractFuns().length;
+  }
+  bool declared_abstract;
+   
   Intf[] iparents;
   RelMember ctx; // context of parent reference
   Expr delegate(Expr) ctxFixup;
@@ -356,9 +384,17 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     
     auto cstemp = coarseSrc;
     coarseSrc = null; // prevent infloop with the RelMember
+    auto csstart = cstemp;
+    scope(exit) {
+      if (isabstract() && !declared_abstract) {
+        csstart.failparse("Class '", name, "' contains abstract functions (",
+          (getAbstractFuns() /map/ ex!("x -> x.name")).join(", "), "), but is not declared abstract! ");
+      }
+    }
     
     if (rtpt) {
-      ctx = fastalloc!(RelMember)("context", rtpt, this);
+      if (auto c = fastcast!(RelMember) (lookup("context", true))) ctx = c; // reuse parent's
+      else ctx = fastalloc!(RelMember)("context", rtpt, this);
     }
     
     auto backup = namespace();
@@ -758,7 +794,10 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
 Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
+  bool isabstract;
+  if (t2.accept("abstract")) isabstract = true;
   Class cl;
+  if (!t2.accept("class")) return null;
   if (!t2.gotIdentifier(name)) return null;
   auto t3 = t2;
   string sup;
@@ -784,6 +823,7 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
       false
   )) t3.failparse("Invalid inheritance spec");
   New(cl, name, supclass);
+  cl.declared_abstract = isabstract;
   cl.iparents = supints;
   
   auto classref = fastcast!(ClassRef) (cl.getRefType());
@@ -798,14 +838,14 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return cast(Object) cl.getRefType();
 }
-mixin DefaultParser!(gotClassDef, "tree.typedef.class", null, "class");
-mixin DefaultParser!(gotClassDef, "struct_member.nested_class", null, "class");
+mixin DefaultParser!(gotClassDef, "tree.typedef.class");
+mixin DefaultParser!(gotClassDef, "struct_member.nested_class");
 
 Object gotClassDefStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (!gotClassDef(text, cont, rest)) return null;
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotClassDefStmt, "tree.stmt.class", "312", "class");
+mixin DefaultParser!(gotClassDefStmt, "tree.stmt.class", "312");
 
 Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

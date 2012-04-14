@@ -76,7 +76,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   FunctionType type;
   Tree tree;
-  bool extern_c = false, weak = false, reassign = false;
+  bool extern_c = false, weak = false, reassign = false, isabstract = false;
   void markWeak() { weak = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
@@ -876,6 +876,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       else {
         t2 = text;
         if (t2.accept(";")) { // undefined function
+          fun.isabstract = true;
           text = t2;
           if (auto that = namespace().lookup("this"))
             fun.addStatement(
