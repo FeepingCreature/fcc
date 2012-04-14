@@ -11,7 +11,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   {
     string st;
     if (!gotString(t2, st)) return null;
-    strlit = new StringExpr(st);
+    strlit = new StringExpr(st, false);
   }
   text = t2;
   auto str = (fastcast!(StringExpr)~ strlit).str;

@@ -6,8 +6,9 @@ static int string_counter;
 
 class StringExpr : Expr, HasInfo, Dependency {
   string str;
+  bool generated;
   this() { }
-  this(string s) { str = s; this(); }
+  this(string s, bool g = true) { str = s; generated = g; this(); }
   mixin defaultIterate!();
   string name_used;
   void selectName(AsmFile af) {
@@ -20,7 +21,7 @@ class StringExpr : Expr, HasInfo, Dependency {
   }
   override {
     string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }
-    StringExpr dup() { return new StringExpr(str); }
+    StringExpr dup() { return new StringExpr(str, generated); }
     string toString() { return '"'~str.replace("\n", "\\n")~'"'; }
     // default action: place in string segment, load address on stack
     void emitAsm(AsmFile af) {
@@ -46,7 +47,7 @@ Object gotStringLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   // "" handled in ast.stringex now.
   string st;
   if (text.gotString(st, "`", true)) {
-    return new StringExpr(st);
+    return new StringExpr(st, false);
   } else return null;
 }
 mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string", "551", "`");
@@ -64,8 +65,8 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (resolveType(ex.valueType()) != Single!(Array, Single!(Char)))
       return null;
-    if (auto str = fastcast!(StringExpr) (foldex(ex))) {
-      if (str.str.length == 1)
+    if (auto str = fastcast!(StringExpr) (ex)) {
+      if (!str.generated && str.str.length == 1)
         return reinterpret_cast(Single!(Char), new DataExpr(cast(ubyte[]) str.str));
     }
     return null;
