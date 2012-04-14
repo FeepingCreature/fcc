@@ -327,6 +327,33 @@ static this() {
   };*/
 }
 
+// from ast.scopes
+Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
+  // Copypasted from ast.structure
+  auto rtptbackup = RefToParentType();
+  scope(exit) RefToParentType.set(rtptbackup);
+  RefToParentType.set(Single!(Pointer, Single!(Void))); // ast.newexpr depends on this!
+  
+  auto rtpmbackup = *RefToParentModify();
+  scope(exit) *RefToParentModify.ptr() = rtpmbackup;
+  *RefToParentModify.ptr() = delegate Expr(Expr baseref) { return baseref; };
+  // end copypaste
+  
+  if (auto res = rest(text, "tree.stmt.aggregate")) return res; // always scope anyway
+  auto sc = new Scope;
+  sc.configPosition(text);
+  
+  namespace.set(sc);
+  scope(exit) namespace.set(sc.sup);
+  
+  auto t2 = text;
+  Statement _body;
+  if (rest(t2, "tree.stmt", &_body)) { text = t2; sc.addStatement(_body); return sc; }
+  t2.failparse("Couldn't match scope");
+}
+mixin DefaultParser!(gotScope, "tree.scope");
+
+
 extern(C)
 void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
   if (!af.debugMode) return;

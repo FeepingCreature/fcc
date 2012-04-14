@@ -75,37 +75,8 @@ class NestedFunction : Function {
       logln("no base pointer found in ", this, "!!");
       fail;
     }
-    bool needsDup, checkDup;
-    void convertToDeref(ref Iterable itr) {
-      // do this first so that variable initializers get fixed up
-      // but not our substituted __base_ptr.
-      itr.iterate(&convertToDeref, IterMode.Semantic);
-      if (auto var = fastcast!(Variable) (itr)) {
-        if (checkDup) needsDup = true;
-        else {
-          auto type = var.valueType();
-          // *type*:(void*:ebp + baseOffset)
-          auto nuex = new DerefExpr(
-            reinterpret_cast(new Pointer(type),
-              lookupOp("+",
-                reinterpret_cast(voidp, ebp),
-                mkInt(var.baseOffset)
-              )
-            )
-          );
-          itr = fastcast!(Iterable) (nuex);
-        }
-      } else if (auto r = fastcast!(Register!("ebp")) (itr)) {
-        if (checkDup) needsDup = true;
-        else itr = fastcast!(Iterable) (reinterpret_cast(r.valueType(), ebp));
-      }
-    }
     auto itr = fastcast!(Iterable) (_res);
-    checkDup = true; convertToDeref(itr); checkDup = false;
-    if (needsDup) {
-      itr = itr.dup;
-      convertToDeref(itr);
-    }
+    fixupEBP(itr, ebp);
     return fastcast!(Object) (itr);
   }
 }

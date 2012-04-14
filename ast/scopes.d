@@ -1,14 +1,50 @@
 module ast.scopes;
 
-import ast.base, ast.namespace, ast.variable, parseBase, tools.base: apply;
+import ast.base, ast.namespace, ast.variable, ast.pointer, ast.casting, ast.opers, ast.literals;
+import parseBase, tools.base: apply;
 
 class Mew : LineNumberedStatementClass {
 	LineNumberedStatement dup() { assert(false); }
 	void iterate(void delegate(ref Iterable), IterMode mode = IterMode.Lexical) { assert(false); }
 }
 
+void fixupEBP(ref Iterable itr, Expr ebp) {
+  bool needsDup, checkDup;
+  void convertToDeref(ref Iterable itr) {
+    // do this first so that variable initializers get fixed up
+    // but not our substituted __base_ptr.
+    itr.iterate(&convertToDeref, IterMode.Semantic);
+    if (auto var = fastcast!(Variable) (itr)) {
+      if (checkDup) needsDup = true;
+      else {
+        auto type = var.valueType();
+        // *type*:(void*:ebp + baseOffset)
+        auto nuex = new DerefExpr(
+          reinterpret_cast(new Pointer(type),
+            lookupOp("+",
+              reinterpret_cast(voidp, ebp),
+              mkInt(var.baseOffset)
+            )
+          )
+        );
+        itr = fastcast!(Iterable) (nuex);
+      }
+    } else if (auto r = fastcast!(Register!("ebp")) (itr)) {
+      if (checkDup) needsDup = true;
+      else itr = fastcast!(Iterable) (reinterpret_cast(r.valueType(), ebp));
+    }
+  }
+  checkDup = true;
+  convertToDeref(itr);
+  checkDup = false;
+  if (needsDup) {
+    itr = itr.dup;
+    convertToDeref(itr);
+  }
+}
+
 import ast.aggregate, dwarf2;
-class Scope : Namespace, ScopeLike, LineNumberedStatement {
+class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
 	Mew lnsc; // "multiple inheritance" hack
   Statement _body;
   Statement[] guards;
@@ -187,6 +223,14 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
       if (res) return res;
       return sup.lookup(name, local);
     }
+    Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
+      auto res = lookup(name, true);
+      if (!res) return null;
+      auto itr = fastcast!(Iterable) (res);
+      fixupEBP(itr, base);
+      return fastcast!(Object) (itr);
+    }
+    bool isTempNamespace() { return false; }
     string mangle(string name, IType type) {
       // fail;
       return sup.mangle(name, type) ~ "_local";
@@ -203,15 +247,4 @@ class Scope : Namespace, ScopeLike, LineNumberedStatement {
   int frame_end() { int res; foreach (entry; stackframe()) { res = min(res, entry._2); } return res; }
 }
 
-Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
-  if (auto res = rest(text, "tree.stmt.aggregate")) return res; // always scope anyway
-  auto sc = new Scope;
-  sc.configPosition(text);
-  namespace.set(sc);
-  scope(exit) namespace.set(sc.sup);
-  auto t2 = text;
-  Statement _body;
-  if (rest(t2, "tree.stmt", &_body)) { text = t2; sc.addStatement(_body); return sc; }
-  t2.failparse("Couldn't match scope");
-}
-mixin DefaultParser!(gotScope, "tree.scope");
+// gotScope moved to fcc.d

@@ -54,15 +54,18 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         auto transformed = cr.myClass.ctx.transform(
           new DerefExpr(reinterpret_cast(new Pointer(cr.myClass.data), var))
         );
-        auto bp = namespace().lookup("__base_ptr");
-        if (bp) {
-          // logln("transformed: ", transformed);
-          // logln("baseptr: ", bp);
-          (new Assignment(
-            fastcast!(LValue) (transformed),
-            fastcast!(Expr) (namespace().lookup("__base_ptr"))
-          )).emitAsm(af);
+        Expr bp;
+        if (Single!(Pointer, Single!(Void)) == cr.myClass.rtpt)
+          bp = reinterpret_cast(Single!(Pointer, Single!(Void)), Single!(Register!("ebp")));
+        else
+          bp = fastcast!(Expr) (namespace().lookup("__base_ptr"));
+        if (!bp) {
+          logln("no base ptr found in ", namespace());
+          fail;
         }
+        // logln("transformed: ", transformed);
+        // logln("baseptr: ", bp);
+        (new Assignment(fastcast!(LValue) (transformed), bp)).emitAsm(af);
       }
       void initClass(Class cl) {
         if (cl.parent) initClass(cl.parent);
