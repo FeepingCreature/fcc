@@ -224,8 +224,10 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
       return sup.lookup(name, local);
     }
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
-      auto res = lookup(name, true);
+      auto res = lookup(name, false);
       if (!res) return null;
+      auto r2 = fastcast!(Namespace) (get!(IModule)).lookup(name, false);
+      if (r2 is res) return null; // nonlocal
       auto itr = fastcast!(Iterable) (res);
       fixupEBP(itr, base);
       return fastcast!(Object) (itr);

@@ -760,8 +760,10 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
           if (bp) {
             bp = new DerefExpr(reinterpret_cast(new Pointer(data), bp));
             // logln(bp);
-            // logln("for ", namespace());
+            // logln("for ", namespace(), ", ", ctx);
             Object mew(Expr cref, RelNamespace rn) {
+              // rn := Scope
+              // cref := this.context := __base_ptr
               cref = ctxFixup(cref);
               if (auto res = rn.lookupRel(id, cref))
                 return res;
@@ -784,6 +786,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
           logln("use regular lookup (into rn) for ", id, " to ", sup);
           logln(" => ", sup.lookup(id, false));
         }*/
+        return get!(Module).lookup(id, false);
       }
       return sup.lookup(id, false);
     }

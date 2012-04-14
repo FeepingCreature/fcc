@@ -88,7 +88,7 @@ static this() {
       if (rce.from.valueType() == rce.to)
         return rce.from;
       
-      if (auto rce2 = fastcast!(RCE)~ fold(rce.from)) {
+      if (auto rce2 = fastcast!(RCE) (foldex(rce.from))) {
         return reinterpret_cast(rce.to, rce2.from);
       }
     }
