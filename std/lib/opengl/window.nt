@@ -4,7 +4,7 @@ class WindowClosed : Error {
   void init(string s) super.init "WindowClose: $s";
 }
 
-class GLWindow {
+abstract class GLWindow {
   void delegate()[] context-callbacks;
   void addCallback(void delegate() dg) {
     context-callbacks ~= dg;

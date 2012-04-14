@@ -88,4 +88,9 @@ class SDLWindow : GLWindow {
   }
   bool cursor-claimed() { return claimed; }
   void warp(vec2i to) { SDL_WarpMouse to; mouse-pos = to; }
+  bool key-held(int charcode) {
+    if ("a" <= charcode <= "z") charcode = charcode - "a" + SDLK_a;
+    if (charcode < keyPressed.length) return keyPressed[charcode];
+    return false;
+  }
 }
