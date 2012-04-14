@@ -120,7 +120,7 @@ class DataExpr : CValue {
   mixin defaultIterate!();
   override {
     DataExpr dup() { return new DataExpr(data); }
-    IType valueType() { return new StaticArray(Single!(Char), data.length); }
+    IType valueType() { return new StaticArray(Single!(Byte), data.length); }
     string toString() {
       if (data.length > 128) return Format("[byte x", data.length, "]");
       return Format(data);
