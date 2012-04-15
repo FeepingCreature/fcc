@@ -432,7 +432,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       }
       // logln("register class ", cl.name);
       try finalize;
-      catch (Exception ex) t2.failparse(ex);
+      catch (Exception ex) cstemp.failparse(ex);
       coarseSrc = null;
       return;
     } else {
