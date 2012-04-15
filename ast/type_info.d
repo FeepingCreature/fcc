@@ -36,7 +36,7 @@ Object gotTypeStringof(ref string text, ParseCb cont, ParseCb rest) {
   Object obj;
   if (!rest(t2, "type", &obj) && !rest(t2, "tree.expr _tree.expr.arith", &obj))
     return null;
-  opt(obj);
+  if (fastcast!(Iterable) (obj)) opt(obj);
   text = t2;
   auto res = qformat(obj);
   if (auto it = fastcast!(Iterable) (obj)) {
