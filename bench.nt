@@ -1,10 +1,11 @@
 module bench;
+import std.math;
 
+extern(C) int rand();
 void main() {
-  alias max = 10_000_000;
-  auto l = 0 .. max;
-  auto l2 = [for a <- l: double:a / 2];
-  auto l3 = [for a <- l2: a + 2];
-  auto v = sum l3;
-  writeln "$v";
+  float x 16 mat;
+  for int i <- 0..16 mat[i] = float:rand();
+  for 0..32_000_000
+    matrix4x4-invert &mat;
+  writeln "$mat";
 }
