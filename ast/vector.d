@@ -111,6 +111,7 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
           else assert(false);
         }
         if (exprs.length == 1) return exprs[0];
+        if (exprs.length > 4) throw new Exception("Cannot use swizzle to create vector larger than four elements");
         auto new_vec = mkVec(this.base, exprs.length);
         if (new_vec.extend) exprs ~= new ZeroFiller(this.base);
         return reinterpret_cast(new_vec, mkTupleExpr(exprs));
@@ -405,6 +406,8 @@ class FastVec3Norm : Expr {
   }
 }
 
+const letters = "xyzw";
+
 import ast.templ, ast.math;
 Stuple!(Structure, Vector, Module)[] cache;
 Structure mkVecStruct(Vector vec) {
@@ -416,7 +419,7 @@ Structure mkVecStruct(Vector vec) {
   namespace.set(res);
   scope(exit) namespace.set(backup);
   for (int i = 0; i < vec.len; ++i)
-    fastalloc!(RelMember)(["xyzw"[i]], vec.base, res);
+    fastalloc!(RelMember)([letters[i]], vec.base, res);
   
   if (vec.extend)
     fastalloc!(RelMember)(cast(string) null, vec.base, res);
@@ -428,7 +431,7 @@ Structure mkVecStruct(Vector vec) {
   {
     Expr lensq = sqr(fastcast!(Expr)~ res.lookup("x"));
     for (int i = 1; i < vec.len; ++i)
-      lensq = lookupOp("+", lensq, sqr(fastcast!(Expr)~ res.lookup(["xyzw"[i]])));
+      lensq = lookupOp("+", lensq, sqr(fastcast!(Expr)~ res.lookup([letters[i]])));
     res.add(new ExprAlias(lensq, "lensq"));
     res.add(new ExprAlias(lensq, "selfdot"));
   }
@@ -440,7 +443,7 @@ Structure mkVecStruct(Vector vec) {
     } else {
       sum = fastcast!(Expr)~ res.lookup("x");
       for (int i = 1; i < vec.len; ++i)
-        sum = lookupOp("+", sum, fastcast!(Expr)~ res.lookup(["xyzw"[i]]));
+        sum = lookupOp("+", sum, fastcast!(Expr)~ res.lookup([letters[i]]));
     }
     res.add(new ExprAlias(sum, "sum"));
   }

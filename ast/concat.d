@@ -107,57 +107,45 @@ static this() {
     return test(resolveType(i1) == resolveType(i2));
   }
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
-    auto cc = fastcast!(ConcatChain) (ex1), ex22 = ex2; // lol
-    bool failed1;
-    if (!cc
-      ||
-      !gotImplicitCast(ex2, (IType it) {
-        auto base = isArray(it);
-        if (!base) return false;
-        return test(base == cc.type.elemType);
-      })
-      &&
-      (failed1 = true, true)
-      &&
-      !gotImplicitCast(ex22, cc.type.elemType /apply/ &isEqual)
-    )
-      return null;
-    if (failed1) ex2 = ex22;
+    auto cc = fastcast!(ConcatChain) (ex1); // lol
+    if (!cc) return null;
+    if (!gotImplicitCast(ex2, (IType it) {
+      auto base = isArray(it);
+      if (!base) return false;
+      return test(base == cc.type.elemType);
+    })) {
+      Expr ex22 = ex2;
+      if (!gotImplicitCast(ex22, cc.type.elemType, cc.type.elemType /apply/ &isEqual))
+        return null;
+      ex2 = ex22;
+    }
     return new ConcatChain(cc.arrays ~ ex2);
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
-    auto ex22 = ex2;
     IType base1;
-    bool failed1;
-    if (
-      !gotImplicitCast(ex1, (IType it) {
-        auto b1 = isArray(it);
-        if (b1) base1 = b1;
-        return !!b1; 
-      })
-      ||
-        !gotImplicitCast(ex2, (IType it) {
-          auto b2 = isArray(it);
-          if (!b2) return false;
-          return test(b2 == base1);
-        })
-        &&
-        (failed1 = true, true)
-        &&
-        !gotImplicitCast(ex22, base1 /apply/ &isEqual)
-      )
-      return null;
-    if (failed1) ex2 = ex22;
+    if (!gotImplicitCast(ex1, (IType it) {
+      auto b1 = isArray(it);
+      if (b1) base1 = b1;
+      return !!b1; 
+    })) return null;
+    if (!gotImplicitCast(ex2, (IType it) {
+      auto b2 = isArray(it);
+      if (!b2) return false;
+      return test(b2 == base1);
+    })) {
+      auto ex22 = ex2;
+      if (!gotImplicitCast(ex22, base1, base1 /apply/ &isEqual)) return null;
+      ex2 = ex22;
+    }
     return new ConcatChain(ex1, ex2);
   });
   defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
     auto e1vt = resolveType(ex1.valueType());
-    if (
-      !isExtArray(e1vt) ||
-      !gotImplicitCast(ex2, (IType it) {
-        return test(new Array((fastcast!(ExtArray)~ e1vt).elemType) == it);
-      }))
-      return null;
+    if (!isExtArray(e1vt)) return null;
+    auto comparison = new Array((fastcast!(ExtArray)~ e1vt).elemType);
+    if (!gotImplicitCast(ex2, comparison, (IType it) {
+      return test(comparison == it);
+    })) return null;
     if (!fastcast!(LValue) (ex1)) {
       logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: ", ex1, ex2);
       fail;
@@ -179,7 +167,7 @@ static this() {
     auto e1vt = resolveType(ex1.valueType());
     if (!isExtArray(e1vt)) return null;
     auto et = resolveType((fastcast!(ExtArray)~ e1vt).elemType);
-    if (!gotImplicitCast(ex2, (IType it) { return !!(it == et); }))
+    if (!gotImplicitCast(ex2, et, (IType it) { return !!(it == et); }))
       return null;
     if (!fastcast!(LValue) (ex1)) {
       logln("Cannot concatenate ext+elem: ext is not lvalue; cannot invalidate: ", ex1, ex2);

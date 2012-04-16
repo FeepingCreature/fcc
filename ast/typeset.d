@@ -13,6 +13,7 @@ class Typeset : Type, RelNamespace {
       if (!tys) return false;
       return tup == tys.tup;
     }
+    string toString() { return Format("<", tup.types(), ">"); }
     string mangle() { return "typeset_over_"~tup.mangle(); }
     bool isTempNamespace() { return false; }
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
