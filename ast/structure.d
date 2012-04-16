@@ -377,7 +377,7 @@ class MemberAccess_Expr : Expr, HasInfo {
   }
   void construct() {
     counter = mae_counter ++;
-    // if (counter == 31735) fail;
+    // if (counter == 2017) fail;
   }
   void construct(Expr base, string name) {
     this.base = base;

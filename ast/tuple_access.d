@@ -9,10 +9,11 @@ Expr mkTupleIndexAccess(Expr tuple, int pos, bool intendedForSplit = false) {
   auto wrapped = (fastcast!(Tuple)~ tuple.valueType()).wrapped;
   
   MemberAccess_Expr res;
-  if (fastcast!(LValue)~ tuple) res = new MemberAccess_LValue;
+  if (fastcast!(LValue)~ tuple) res = fastalloc!(MemberAccess_LValue)();
   else res = fastalloc!(MemberAccess_Expr)();
   res.base = reinterpret_cast(wrapped, tuple);
   res.intendedForSplit = intendedForSplit;
+  res.name = qformat("_", pos);
   
   auto temps = wrapped.selectMap!(RelMember, "$");
   if (pos >= temps.length) { logln("index access length violation: ", pos, " > ", temps.length, " for ", tuple); fail; }

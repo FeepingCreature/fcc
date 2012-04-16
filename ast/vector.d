@@ -781,6 +781,7 @@ class VecOp : Expr {
     this.op = op; this.real_len = real_len;
   }
   override {
+    string toString() { return Format("(", ex1, " ", op, " ", ex2, ")"); }
     IType valueType() { return mkVec(type, len); }
     void emitAsm(AsmFile af) {
       auto t1 = ex1.valueType(), t2 = ex2.valueType();

@@ -693,6 +693,11 @@ class OffsetExpr : LValue {
   this(int o, IType i) { offset = o; type = i; }
   mixin defaultIterate!();
   override {
+    string toString() {
+      if (offset == int.max)
+        return Format("open offset<", type, ">");
+      return Format("offset<", type, "> at ", offset);
+    }
     OffsetExpr dup() { return this; } // can't dup, is a marker
     IType valueType() { return type; }
     void emitAsm(AsmFile af) {
