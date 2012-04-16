@@ -146,13 +146,15 @@ mixin DefaultParser!(gotGuard, "tree.stmt.guard", "17");
 
 interface IScoped {
   Expr getSup();
+  Expr getAssign();
 }
 
 import ast.tuples: LValueAsMValue;
 class Scoped(T) : T, IScoped {
   T sup;
+  Expr newval;
   static assert(is(T: LValue) || is(T: MValue));
-  this(T t) { sup = t; }
+  this(T t, Expr newval) { sup = t; this.newval = newval; }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(sup);
@@ -160,6 +162,7 @@ class Scoped(T) : T, IScoped {
     void emitAsm(AsmFile af) { assert(false); }
     IType valueType() { return sup.valueType(); }
     Expr getSup() { return sup; }
+    Expr getAssign() { return newval; }
     static if (is(T: LValue)) {
       void emitLocation(AsmFile af) { assert(false); }
     }
@@ -169,21 +172,25 @@ class Scoped(T) : T, IScoped {
   }
 }
 
-Expr genScoped(Expr ex) {
+Expr genScoped(Expr ex, Expr newval = null) {
   if (auto sc = namespace().get!(Scope)) genRetvalHolder(sc); // make sure we can place the ensuing scope gard properly
   else { logln("uh-oh ", namespace()); fail; }
-  if (auto mv = fastcast!(MValue)~ ex) return new Scoped!(MValue)(mv);
-  if (auto lv = fastcast!(LValue)~ ex) return new Scoped!(LValue)(lv);
+  if (auto mv = fastcast!(MValue) (ex)) return new Scoped!(MValue)(mv, newval);
+  if (auto lv = fastcast!(LValue) (ex)) return new Scoped!(LValue)(lv, newval);
   throw new Exception(Format("cannot scope ", ex));
 }
 
 import tools.log;
 Object gotScoped(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  Expr ex;
+  Expr ex, newval;
   if (!rest(t2, "tree.expr", &ex))
     t2.failparse("Failed to match expr for scoped");
+  if (t2.accept("=")) {
+    if (!rest(t2, "tree.expr", &newval))
+      t2.failparse("Failed to match new-value expr for scoped");
+  }
   text = t2;
-  return fastcast!(Object)~ genScoped(ex);
+  return fastcast!(Object) (genScoped(ex, newval));
 }
 mixin DefaultParser!(gotScoped, "tree.expr.scoped", "26", "scoped");

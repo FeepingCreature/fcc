@@ -57,6 +57,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
       sc.add(backupvar);
       sc.addStatement(new VarDecl(backupvar));
       sc.addGuard(mkAssignment(ex, backupvar));
+      if (auto aex = isc.getAssign())
+        sc.addStatement(mkAssignment(ex, aex));
       
       assert(!!fastcast!(LValue) (ex) || !!fastcast!(MValue) (ex), Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
@@ -172,14 +174,25 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   WithStmt ws, outer;
   
   bool scoped;
+  Expr newval;
   if (auto isc = fastcast!(IScoped) (ex)) {
     ex = isc.getSup;
+    newval = isc.getAssign();
     scoped = true;
   }
   
   if (auto list = getTupleEntries(ex)) {
-    foreach (entry; list) {
-      if (scoped) entry = genScoped(entry);
+    Expr[] list2;
+    if (newval) {
+      list2 = getTupleEntries(newval);
+      if (list2.length != list.length) t2.failparse("Bad assignment list for tuple-with");
+    }
+    foreach (i, entry; list) {
+      if (scoped) {
+        Expr e2;
+        if (list2) e2 = list2[i];
+        entry = genScoped(entry, e2);
+      }
       
       auto prev = ws;
       ws = new WithStmt(entry);
@@ -189,7 +202,7 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
       if (prev) prev.sc.addStatement(ws);
     }
   } else {
-    if (scoped) ex = genScoped(ex);
+    if (scoped) ex = genScoped(ex, newval);
     ws = new WithStmt(ex);
     ws.sc.configPosition(t2);
     outer = ws;
