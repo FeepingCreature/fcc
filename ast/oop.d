@@ -357,7 +357,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     return res;
   }
   bool isabstract() {
-    return !!getAbstractFuns().length;
+    return getAbstractFuns().length > 0;
   }
   bool declared_abstract;
    
@@ -385,7 +385,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     auto cstemp = coarseSrc;
     coarseSrc = null; // prevent infloop with the RelMember
     auto csstart = cstemp;
-    scope(exit) {
+    scope(success) {
       if (isabstract() && !declared_abstract) {
         csstart.failparse("Class '", name, "' contains abstract functions (",
           (getAbstractFuns() /map/ ex!("x -> x.name")).join(", "), "), but is not declared abstract! ");
