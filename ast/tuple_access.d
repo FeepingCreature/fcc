@@ -322,3 +322,27 @@ static this() {
     }
   };
 }
+
+static this() {
+  defineOp("==", delegate Expr(Expr ex1, Expr ex2) {
+    bool isTuple(IType it) { return !!fastcast!(Tuple) (resolveType(it)); }
+    // if (!gotImplicitCast(ex1, &isTuple) || !gotImplicitCast(ex2, &isTuple))
+    //   return null;
+    auto tup1 = fastcast!(Tuple) (resolveType(ex1.valueType())), tup2 = fastcast!(Tuple) (resolveType(ex2.valueType()));
+    if (!tup1 || !tup2) return null;
+    if (tup1 != tup2) throw new Exception(Format("Cannot compare: incompatible tuples, ", tup1, ", ", tup2));
+    return tmpize_maybe(ex1, delegate Expr(Expr ex1) {
+      return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
+        Cond res;
+        auto ent1 = getTupleEntries(ex1), ent2 = getTupleEntries(ex2);
+        foreach (i, se1; ent1) {
+          auto se2 = ent2[i];
+          auto cmp = new ExprWrap(lookupOp("==", se1, se2));
+          if (!res) res = cmp;
+          else res = new AndOp(res, cmp);
+        }
+        return new CondExpr(res);
+      });
+    });
+  });
+}
