@@ -205,10 +205,13 @@ class WithTempExpr : Expr {
   OffsetExpr offs, offs_res;
   Expr thing, superthing;
   this(Expr thing, Expr delegate(Expr, OffsetExpr) dg) {
+    this(thing);
+    superthing = dg(offs, offs_res);
+  }
+  this(Expr thing) { // delayed setup. WARN: expert use only!
     offs = new OffsetExpr(int.max, thing.valueType());
     offs_res = new OffsetExpr(int.max, null);
     this.thing = thing;
-    superthing = dg(offs, offs_res);
   }
   // did the dg() succeed?
   bool isValid() { return !!superthing; }

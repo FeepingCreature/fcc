@@ -195,7 +195,8 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
       }
       
       auto prev = ws;
-      ws = new WithStmt(entry);
+      try ws = new WithStmt(entry);
+      catch (Exception ex) t2.failparse(ex);
       ws.sc.configPosition(t2);
       if (!outer) outer = ws;
       namespace.set(ws.sc);
@@ -203,7 +204,8 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
     }
   } else {
     if (scoped) ex = genScoped(ex, newval);
-    ws = new WithStmt(ex);
+    try ws = new WithStmt(ex);
+    catch (Exception ex) t2.failparse(ex);
     ws.sc.configPosition(t2);
     outer = ws;
     namespace.set(ws.sc);

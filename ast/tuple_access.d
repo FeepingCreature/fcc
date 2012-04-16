@@ -204,6 +204,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     }
     auto ex = fastcast!(Expr) (obj);
     Statement initLv;
+    WithTempExpr wte; // Careful!!
     if (ex) {
       if (!_is_cheap(ex, CheapMode.Multiple)) {
         if (fastcast!(Variable) (ex)) {
@@ -211,8 +212,13 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
         } else if (auto lv = fastcast!(LValue) (ex)) {
           ex = new DerefExpr(lvize(new RefExpr(lv), &initLv));
         } else {
-          ex = lvize(ex, &initLv);
-          ex = new RCE(ex.valueType(), ex, true); // make sure it's treated as an expr!
+          if (namespace().get!(Scope)) {
+            ex = lvize(ex, &initLv);
+            ex = new RCE(ex.valueType(), ex, true); // make sure it's treated as an expr!
+          } else {
+            wte = new WithTempExpr(ex);
+            ex = wte.offs;
+          }
         }
       }
       while (fastcast!(Pointer) (resolveType(ex.valueType())))
@@ -275,7 +281,14 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (lv2mv) return fixup(fastcast!(Object) (lv2mv.sup));
       return fixup(fastcast!(Object) (rt.mvs[0]));
     }*/
-    return fixup(res);
+    res = fixup(res);
+    if (wte) {
+      auto rex = fastcast!(Expr) (res);
+      if (!rex) text.failparse("Bad: used non-expr in context where expr is sole viable option");
+      wte.superthing = rex;
+      return wte;
+    }
+    else return res;
   };
 }
 mixin DefaultParser!(gotWithTupleExpr, "tree.rhs_partial.withtuple", null, ".");
