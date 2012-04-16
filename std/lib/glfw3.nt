@@ -55,19 +55,14 @@ class GLFWWindow : GLWindow {
   void key(GLFWwindow window, int k, int action) {
     if (window != handle) raise new Error "wat";
     // writeln "$k with $action";
-    void set(char ch) {
-      int keycode = ch;
+    void set(int keycode) {
       if (keystates.length < keycode + 1) keystates ~= new bool[] keycode + 1 - keystates.length;
       if (action == GLFW_PRESS) keystates[keycode] = true;
       else keystates[keycode] = false;
     }
     import std.macros.switchover;
-    using prefix GLFW_KEY_ switch int i over i == k {
-      case W: set "w";
-      case S: set "s";
-      case A: set "a";
-      case D: set "d";
-    }
+    if (GLFW_KEY_A <= k <= GLFW_KEY_Z)
+      set $ "a" + k - GLFW_KEY_A;
   }
   void handleChar(GLFWwindow window, int k) {
     if (window != handle) raise new Error "wat";
