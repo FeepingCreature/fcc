@@ -1,53 +1,15 @@
 module std.tag;
 
-interface Tag {
+interface Tag { }
+
+interface Tagged {
   Tag offers(string name);
-  string ident();
 }
 
-class DefaultTag : Tag {
+class DefaultTag : Tag, Tagged {
   string id;
   void init(string s) id = s;
   Tag offers(string s) { return [Tag:null, Tag:this][eval s == id]; }
-  string ident() { return id; }
-}
-
-interface ITaggedObject : Tag {
-  void annotate(Tag t);
-}
-
-// TODO: move to Object
-interface Iterable {
-  // false if aborted; false to abort
-  bool iterate(bool delegate(Object));
-}
-
-class Parented : DefaultTag {
-  ITaggedObject parent;
-  void init() super.init "Parented";
-}
-
-class TaggedObject : ITaggedObject, Tag {
-  Tag[] extensions;
-  string ident() { writeln "Can't call base method for TaggedObject:ident()!"; _interrupt 3; }
-  Tag offers(string name) {
-    for Tag tag <- extensions {
-      if (auto res = tag.offers name) return res;
-    }
-    return null;
-  }
-  void annotate(Tag t) {
-    auto name = t.ident();
-    if auto par = Parented:t.offers "Parented" {
-      par.parent = this;
-    }
-    for int i <- 0..extensions.length
-      if (extensions[i].offers name) {
-        extensions[i] = t;
-        return;
-      }
-    extensions ~= t;
-  }
 }
 
 template offers(T) {
@@ -56,9 +18,16 @@ template offers(T) {
     if auto res = T: obj
       return res;
     
-    if auto t = Tag: obj
+    if auto t = Tagged: obj
       return T: (t.offers (T.__name));
     
     return null;
+  }
+}
+
+template get-tag(T) {
+  T get-tag(Object obj) {
+    if (auto res = offers!T obj) return res;
+    assert(false, "$obj does not offer $(T.__name)!");
   }
 }
