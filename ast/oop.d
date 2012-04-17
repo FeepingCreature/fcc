@@ -213,6 +213,8 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     if (!base) {
       if (name == "__name") // T.name
         return fastcast!(Object) (mkString(this.name));
+      if (name == "__mangle")
+        return fastcast!(Object) (mkString(this.mangle_id));
       return lookupIntf(name, null);
     }
     if (!fastcast!(IntfRef) (base.valueType())) {
@@ -686,8 +688,12 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       return res;
     }
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
-      if (!base && str == "__name") // T.name
-        return fastcast!(Object) (mkString(name));
+      if (!base) {
+        if (str == "__name") // T.name
+          return fastcast!(Object) (mkString(name));
+        if (name == "__mangle")
+          return fastcast!(Object) (mkString(mangle_id));
+      }
       auto crType = fastcast!(ClassRef) (resolveType(base.valueType()));
       if (!crType) {
         logln("Bad class ref: ", base, " of ", base.valueType());
