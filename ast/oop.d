@@ -793,18 +793,11 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   }
 }
 
-// copypaste from ast/structure.d :(
-Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
+ClassRef parseClassBody(ref string text, ParseCb cont, ParseCb rest, string name, bool hadAbstract = false) {
   auto t2 = text;
-  string name;
-  bool isabstract;
-  if (t2.accept("abstract")) isabstract = true;
-  Class cl;
-  if (!t2.accept("class")) return null;
-  if (!t2.gotIdentifier(name)) return null;
   auto t3 = t2;
   string sup;
-  Class supclass;
+  Class cl, supclass;
   Intf[] supints;
   IType suptype;
   if (t3.accept(":"))
@@ -826,7 +819,7 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
       false
   )) t3.failparse("Invalid inheritance spec");
   New(cl, name, supclass);
-  cl.declared_abstract = isabstract;
+  cl.declared_abstract = hadAbstract;
   cl.iparents = supints;
   
   auto classref = fastcast!(ClassRef) (cl.getRefType());
@@ -839,7 +832,22 @@ Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   cl.coarseMod = current_module();
   
   text = t2;
-  return cast(Object) cl.getRefType();
+  return fastcast!(ClassRef) (cl.getRefType());
+}
+
+// copypaste from ast/structure.d :(
+Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  string name;
+  bool isabstract;
+  if (t2.accept("abstract")) isabstract = true;
+  if (!t2.accept("class")) return null;
+  if (!t2.gotIdentifier(name)) return null;
+  if (auto res = parseClassBody(t2, cont, rest, name, isabstract)) {
+    text = t2;
+    return res;
+  }
+  t2.failparse("logic error");
 }
 mixin DefaultParser!(gotClassDef, "tree.typedef.class");
 mixin DefaultParser!(gotClassDef, "struct_member.nested_class");
@@ -849,6 +857,28 @@ Object gotClassDefStmt(ref string text, ParseCb cont, ParseCb rest) {
   return Single!(NoOp);
 }
 mixin DefaultParser!(gotClassDefStmt, "tree.stmt.class", "312");
+
+int anonclasscounter;
+
+Object gotAnonymousClassType(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  bool isabstract;
+  if (t2.accept("abstract")) isabstract = true;
+  if (!t2.accept("class")) return null;
+  if (t2.accept("-")) return null; // class-stuff
+  string bogus;
+  if (t2.gotIdentifier(bogus)) return null; // NON-anonymous class!
+  if (isabstract)
+    text.failparse("Anonymous classes must not be abstract");
+  string name;
+  synchronized name = qformat("_anonymous_class_", anonclasscounter ++);
+  if (auto res = parseClassBody(t2, cont, rest, name, false)) {
+    text = t2;
+    return res;
+  }
+  t2.failparse("logic error");
+}
+mixin DefaultParser!(gotAnonymousClassType, "type.anonclass", "7");
 
 Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
