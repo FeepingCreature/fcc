@@ -6,21 +6,21 @@ interface Tagged {
   Tag offers(string name);
 }
 
-class DefaultTag : Tag, Tagged {
-  string id;
-  void init(string s) id = s;
-  Tag offers(string s) { return [Tag:null, Tag:this][eval s == id]; }
+Tag offers-name(string mangle, Object obj) {
+  if auto res = obj.dynamicCastTo(mangle)
+    return Tag: res;
+  
+  if auto t = Tagged: obj
+    return t.offers mangle;
+  
+  return null;
 }
 
 template offers(T) {
   T offers(Object obj) {
     if !obj return null;
-    if auto res = T: obj
+    if (auto res = T: offers-name (T.__mangle, obj))
       return res;
-    
-    if auto t = Tagged: obj
-      return T: (t.offers (T.__name));
-    
     return null;
   }
 }
