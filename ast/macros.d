@@ -487,7 +487,7 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     if (args.length) tnte("Too many arguments to parse-tuple: 0 expected");
     Expr tup;
     if (!rest(t2, "tree.expr _tree.expr.arith", &tup)
-     || !fastcast!(Tuple) (tup.valueType()))
+     || !fastcast!(Tuple) (resolveType(tup.valueType())))
       t2.failparse("Tuple expected");
     return new ItrEntity(tup);
   }));
