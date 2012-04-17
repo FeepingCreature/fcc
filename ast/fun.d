@@ -730,6 +730,12 @@ class FunctionType : ast.types.Type {
     foreach (i, entry; params) res[i] = entry.type;
     return res;
   }
+  IType[] alltypes() {
+    auto res = new IType[params.length + 1];
+    res[0] = ret;
+    foreach (i, entry; params) res[i+1] = entry.type;
+    return res;
+  }
   override {
     int opEquals(IType it) {
       auto fun2 = fastcast!(FunctionType) (resolveType(it));
@@ -747,7 +753,7 @@ class FunctionType : ast.types.Type {
       return true;
     }
     string mangle() {
-      if (!ret) throw new Exception("Function return type indeterminate! ");
+      if (!ret) { logln("Function return type indeterminate! "); fail; }
       string res = "function_to_"~ret.mangle();
       if (!params.length) return res;
       foreach (i, param; params) {

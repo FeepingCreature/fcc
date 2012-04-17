@@ -37,10 +37,10 @@ struct RelFunSet {
     return null;
   }
   RelFunction hasLike(Function f) {
-    return lookup(f.name, f.type.types());
+    return lookup(f.name, f.type.alltypes());
   }
   void add(string name, RelFunction rf) {
-    set ~= stuple(rf, name, rf.type.types());
+    set ~= stuple(rf, name, rf.type.alltypes());
   }
   // append to set those of rfs.set _not_ yet in set
   void fillIn(RelFunSet rfs) {
