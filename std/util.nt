@@ -147,13 +147,15 @@ macro("tree.expr.flatten_tuple", "331") `
 
 template apply(T) {
   auto apply(T t) {
-    alias FT = T[0];
+    alias FT = T[1];
     alias PT = ParamTypes FT;
     // pragma(msg, string-of PT);
     alias pt = value-of!PT;
-    return new \(type-of pt[1..pt.length] rest) {
-      // pragma(msg, string-of type-of t[0]~" # "~string-of (t[1], rest));
-      return t[0] (__flatten_tuple (t[1], rest));
+    static if (type-is-tuple PT) { alias Rest = type-of pt[1..length]; }
+    else { alias Rest = type-of (); }
+    return new \(Rest rest) {
+      // pragma(msg, string-of type-of t[1]~" # "~string-of (t[0], rest));
+      return t[1] (__flatten_tuple (t[0], rest));
     }
   }
 }
