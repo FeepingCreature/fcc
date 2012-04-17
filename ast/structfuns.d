@@ -111,7 +111,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
     }
     string getInfo() { return Format(name, " under ", context); }
     string mangle(string name, IType type) {
-      return mangleSelf() ~ "_" ~ type.mangle()~"_"~name;
+      return mangleSelf() ~ (type?("_" ~ type.mangle()):"")~"_"~name;
     }
     FunCall mkCall() {
       auto res = new RelFunCall(baseptr);

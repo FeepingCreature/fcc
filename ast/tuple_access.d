@@ -6,7 +6,8 @@ Expr mkTupleIndexAccess(Expr tuple, int pos, bool intendedForSplit = false) {
   if (auto rt = fastcast!(RefTuple) (tuple)) {
     return rt.mvs[pos];
   }
-  auto wrapped = (fastcast!(Tuple)~ tuple.valueType()).wrapped;
+  auto tup = fastcast!(Tuple) (resolveType(tuple.valueType()));
+  auto wrapped = tup.wrapped;
   
   MemberAccess_Expr res;
   if (fastcast!(LValue)~ tuple) res = fastalloc!(MemberAccess_LValue)();
@@ -19,7 +20,7 @@ Expr mkTupleIndexAccess(Expr tuple, int pos, bool intendedForSplit = false) {
   if (pos >= temps.length) { logln("index access length violation: ", pos, " > ", temps.length, " for ", tuple); fail; }
   res.stm = temps[pos];
   
-  auto types = (fastcast!(Tuple)~ tuple.valueType()).types();
+  auto types = tup.types();
   return reinterpret_cast(types[pos], res);
 }
 
@@ -28,7 +29,7 @@ import ast.modules;
 // or else be sure that your base expression has NO side effects for partial evaluation.
 // Otherwise, use mkTupleIndexAccess.
 Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = false) {
-  auto tt = fastcast!(Tuple)~ tuple.valueType();
+  auto tt = fastcast!(Tuple) (resolveType(tuple.valueType()));
   if (!tt) return null;
   auto count = tt.types.length;
   if (count) {
@@ -91,7 +92,7 @@ static this() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
     Tuple tup;
     if (!gotImplicitCast(e1, (IType it) {
-      tup = fastcast!(Tuple) (it);
+      tup = fastcast!(Tuple) (resolveType(it));
       return tup && tup.types.length != 1; // resolve ambiguity with array index
     }))
       return null;
@@ -113,7 +114,7 @@ static this() {
   defineOp("length", delegate Expr(Expr ex) {
     Tuple tup;
     if (!gotImplicitCast(ex, (IType it) {
-      tup = fastcast!(Tuple) (it);
+      tup = fastcast!(Tuple) (resolveType(it));
       return tup && tup.types.length != 1; // resolve ambiguity with array length
     }))
       return null;
@@ -307,9 +308,10 @@ static this() {
   };
   // cast into tuples
   implicits ~= delegate void(Expr ex, IType it, void delegate(Expr) dg) {
+    it = resolveType(it);
     if (!it || !fastcast!(Tuple) (it)) return;
-    if (auto tup = fastcast!(Tuple)~ ex.valueType()) {
-      if ((fastcast!(Tuple)~ it).types.length != tup.types.length)
+    if (auto tup = fastcast!(Tuple) (resolveType(ex.valueType()))) {
+      if ((fastcast!(Tuple) (it)).types.length != tup.types.length)
         return;
       Statement initst;
       auto exprs = getTupleEntries(ex, &initst);
