@@ -344,7 +344,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (inits.length > 1) inits = [new AggrStatement(inits)];
       if (inits.length) res = mkStatementAndExpr(inits[0], fc);
     }
-    catch (ParseEx pe) text.failparse("cannot call: ", pe.msg);
+    catch (ParseEx pe) text.failparse("cannot call: ", pe);
     catch (Exception ex) text.failparse("cannot call: ", ex);
     if (!result) {
       if (t2.accept("("))
