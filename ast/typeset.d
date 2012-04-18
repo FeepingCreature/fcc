@@ -53,6 +53,7 @@ static this() {
       return reinterpret_cast(tys, mkTupleExpr(exprs));
     }));
   };
+  // typeset casts to component types
   implicits ~= delegate void(Expr ex, void delegate(Expr) consider) {
     auto tys = fastcast!(Typeset) (ex.valueType());
     if (!tys) return;
@@ -60,6 +61,15 @@ static this() {
     foreach (i, type; tys.tup.types()) {
       consider(mkTupleIndexAccess(ex_as_tup, i));
     }
+  };
+  // tuple of component types casts to typeset (manual creation)
+  implicits ~= delegate void(Expr ex, IType dest, void delegate(Expr) consider) {
+    auto tys = fastcast!(Typeset) (dest);
+    if (!tys) return;
+    auto tup = fastcast!(Tuple) (resolveType(ex.valueType()));
+    if (!tup) return;
+    if (tup != tys.tup) return;
+    consider(reinterpret_cast(tys, ex));
   };
 }
 
