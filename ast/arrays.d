@@ -4,7 +4,7 @@ import ast.base, ast.types, ast.static_arrays, ast.returns, tools.base: This, Th
 
 import dwarf2;
 // ptr, length
-class Array_ : Type, Dwarf2Encodable {
+class Array_ : Type, RelNamespace, Dwarf2Encodable {
   IType elemType;
   this() { }
   this(IType et) { elemType = forcedConvert(et); }
@@ -13,6 +13,13 @@ class Array_ : Type, Dwarf2Encodable {
     bool isComplete() { return true; /* size not determined by element size! */ }
     int size() {
       return nativePtrSize + nativeIntSize;
+    }
+    bool isTempNamespace() { return false; }
+    Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
+      int idx;
+      if (readIndexShorthand(str, idx))
+        return fastcast!(Object) (lookupOp("index", base, mkInt(idx)));
+      return null;
     }
     string mangle() {
       return "array_of_"~elemType.mangle();
@@ -68,13 +75,20 @@ final class Array : Array_ {
 }
 
 // ptr, length, capacity
-class ExtArray : Type, Dwarf2Encodable {
+class ExtArray : Type, RelNamespace, Dwarf2Encodable {
   IType elemType;
   bool freeOnResize;
   this() { }
   this(IType et, bool fOR) { construct(et, fOR); }
   void construct(IType et, bool fOR) { elemType = forcedConvert(et); freeOnResize = fOR; }
   override {
+    bool isTempNamespace() { return false; }
+    Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
+      int idx;
+      if (readIndexShorthand(str, idx))
+        return fastcast!(Object) (lookupOp("index", base, mkInt(idx)));
+      return null;
+    }
     int size() {
       return nativePtrSize + nativeIntSize * 2;
     }

@@ -86,7 +86,8 @@ bool gotInt(ref string text, out int i) {
     static int[4] factor = [2, 8, 10, 16];
     bool gotSomeDigits = false;
     outer:while (true) {
-      while (accept('_')) { }
+      // if it starts with _, it's an identifier
+      while (gotSomeDigits && accept('_')) { }
       switch (scheme) {
         case Scheme.Hex:
           if (accept('a', 'f')) { ub += 10; break; }

@@ -1,6 +1,6 @@
 module ast.tuples;
 
-import ast.base, ast.structure, ast.namespace, ast.casting;
+import ast.base, ast.structure, ast.namespace, ast.casting, ast.opers;
 
 /++
   1. A tuple behaves like a struct
@@ -9,7 +9,7 @@ import ast.base, ast.structure, ast.namespace, ast.casting;
   4. A tuple is matched via '()' and ','.
 ++/
 
-class Tuple : Type {
+class Tuple : Type, RelNamespace {
   /// 1.
   Structure wrapped;
   NSCache!(IType) typecache;
@@ -17,6 +17,13 @@ class Tuple : Type {
   IType[] types() { return wrapped.selectMap!(RelMember, "$.type")(&typecache); }
   int[] offsets() { return wrapped.selectMap!(RelMember, "$.offset")(&offsetcache); }
   override {
+    bool isTempNamespace() { return false; }
+    Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
+      int idx;
+      if (readIndexShorthand(str, idx))
+        return fastcast!(Object) (lookupOp("index", base, mkInt(idx)));
+      return null;
+    }
     int size() { return wrapped.size; }
     bool isComplete() { return wrapped.isComplete; }
     string mangle() { return "tuple_"~wrapped.mangle(); }

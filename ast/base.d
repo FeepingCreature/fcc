@@ -752,3 +752,13 @@ enum ImportType {
 interface ModifiesName {
   string modify(string);
 }
+
+bool readIndexShorthand(string name, ref int i) {
+  auto idxstr = name.startsWith("_");
+  if (!idxstr) return false;
+  auto idx = my_atoi(idxstr);
+  if (idxstr != Format(idx))
+    return false;
+  i = idx;
+  return true;
+}
