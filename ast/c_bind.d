@@ -161,6 +161,8 @@ bool parsingCHeader() {
   return false;
 }
 
+Named[string] global_c_memo_cache;
+
 void parseHeader(string filename, string src) {
   auto start_time = sec();
   string[] newsrc_list; int newsrc_length;
@@ -203,8 +205,12 @@ void parseHeader(string filename, string src) {
         fail;
       }
     }
+    
+    if (auto p = name in global_c_memo_cache) {
+      n = *p; // memoize: use global C namespace to disambiguate stuff
+    } else global_c_memo_cache[name] = n;
     // logln("add ", name, " <- ", n);
-    myNS._add(name, fastcast!(Object)~ n);
+    myNS._add(name, fastcast!(Object) (n));
     if (auto ns = fastcast!(Namespace) (n)) ns.sup = null; // lol
     cache[name] = n;
   }
@@ -554,7 +560,7 @@ void parseHeader(string filename, string src) {
       auto st2 = stmt;
       if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
         string ident;
-        if (!gotIdentifier(st2, ident)) continue;
+        gotIdentifier(st2, ident);
         if (st2.accept("{")) {
           auto startstr = st2;
           auto st = new Structure(ident);
@@ -657,7 +663,8 @@ void parseHeader(string filename, string src) {
             ty = new Pointer(ty);
           }
           auto name = st2.strip();
-          if (!name.length) name = ident;
+          if (!name.length) name = ident.strip();
+          if (!name.length) goto giveUp1;
           if (!st.name.length) st.name = name;
           add(name, new TypeAlias(ty, name));
           if (ident && ident != name)

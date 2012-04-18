@@ -51,7 +51,8 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
   }
   bool isValid; // still in the build list; set to false if superceded by a newer Module
   bool doneEmitting, alreadyEmat; // one for the parser, the other for the linker
-  bool dontEmit; // purely definitions, no symbols; nothing to actually compile.
+  bool dontEmit; // purely definitions, no symbols; nothing to actually compile. for instance: C modules.
+  override bool getDontEmit() { return dontEmit; } // IModule workaround
   bool splitIntoSections;
   private this() { assert(false); }
   this(string name, string sourcefile) {

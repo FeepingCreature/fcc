@@ -722,6 +722,7 @@ class OffsetExpr : LValue {
 interface IModule : Named {
   string filename();
   string modname();
+  bool getDontEmit();
 }
 
 TLS!(IModule) current_module;

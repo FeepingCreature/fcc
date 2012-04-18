@@ -84,7 +84,7 @@ class GlobVar : LValue, Named, IsMangled {
         af.pushStack(qformat("$", mangleSelf()), nativePtrSize);
       }
     }
-    string toString() { return Format("global ", name, " of ", type); }
+    string toString() { return Format("global ", ns.get!(Module)().name, ".", name, " of ", type); }
   }
 }
 

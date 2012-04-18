@@ -6,11 +6,13 @@ static int arm_var_fixup_count;
 class ExternCGlobVar : LValue, Named {
   IType type;
   string name;
+  Namespace ns;
   mixin defaultIterate!();
   ExternCGlobVar dup() { return this; /* invariant */ }
   this(IType t, string n) {
     this.type = t;
     this.name = n;
+    ns = namespace();
   }
   override {
     IType valueType() { return type; }
@@ -33,7 +35,7 @@ class ExternCGlobVar : LValue, Named {
         af.pushStack(qformat("$", name), nativePtrSize);
       }
     }
-    string toString() { return Format("extern(C) global ", name, " of ", type); }
+    string toString() { return Format("extern(C) global ", ns.get!(Module)().name, ".", name, " of ", type); }
   }
 }
 
