@@ -420,9 +420,13 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
   if (t2.gotIdentifier(id, true)) {
     retry:
-    if (auto type = fastcast!(IType) (namespace().lookup(id))) {
-      text = t2;
-      return fastcast!(Object) (forcedConvert(type));
+    if (auto obj = namespace().lookup(id)) {
+      if (auto type = fastcast!(IType) (obj)) {
+        text = t2;
+        return fastcast!(Object) (forcedConvert(type));
+      } else {
+        return null;
+      }
     }
     else if (t2.eatDash(id)) goto retry;
     else if (t2.eatDot(id)) goto retry;
