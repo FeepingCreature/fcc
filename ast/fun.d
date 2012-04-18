@@ -780,8 +780,9 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
     text = t2;
     return true;
   }
-  if (t2.accept("(") &&
-      t2.bjoin(
+  if (!t2.accept("(")) return false;
+  
+  if (t2.bjoin(
         ( // can omit types for subsequent parameters
           test(ptype = fastcast!(IType)~ rest(t2, "type")) || test(ptype = lastType)
         ) && (
@@ -797,7 +798,7 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
     str = t2;
     return true;
   } else {
-    return false;
+    t2.failparse("Failed to get parameter list");
   }
 }
 
