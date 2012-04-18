@@ -156,7 +156,7 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   }
   bool emitted;
   // continuations good
-  void delegate(bool=false) delegate() open(AsmFile af) {
+  void delegate(bool onlyCleanup) delegate() open(AsmFile af) {
     lnsc.emitAsm(af);
     // logln(lnsc.name, ":", lnsc.line, ": start(", count, ") ", this);
     if (emitted) {
@@ -214,7 +214,7 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   }
   override {
     void emitAsm(AsmFile af) {
-      open(af)()(); // lol
+      open(af)()(false); // lol
     }
     Object lookup(string name, bool local = false) {
       auto res = super.lookup(name, true);

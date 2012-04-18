@@ -42,7 +42,7 @@ class ConcatChain : Expr {
         
         sc._body = Single!(NoOp);
         auto dg = sc.open(af);
-        scope(exit) dg()();
+        scope(exit) dg()(false);
         
         auto sa = new StaticArray(valueType(), arrays.length);
         auto

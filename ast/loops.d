@@ -217,7 +217,7 @@ class DoWhileExt : Statement {
     fdg(true); // close before jump! variables must be cleaned up .. don't set the label though
     af.jump(first.entry());
     af.restoreCheckptStack(atJump, true);
-    fdg(); // close for real
+    fdg(false); // close for real
   }
 }
 

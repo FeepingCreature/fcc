@@ -434,13 +434,13 @@ class ScopeAndExpr : Expr {
         mixin(mustOffset("0"));
         auto dg = sc.open(af)();
         ex.emitAsm(af);
-        dg();
+        dg(false);
       } else {
         mixin(mustOffset("ex.valueType().size"));
         mkVar(af, ex.valueType(), true, (Variable var) {
           auto dg = sc.open(af)();
           (new Assignment(var, ex)).emitAsm(af);
-          dg();
+          dg(false);
         });
       }
     }

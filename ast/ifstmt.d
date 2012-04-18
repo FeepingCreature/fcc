@@ -19,7 +19,7 @@ class IfStatement : LineNumberedStatementClass {
       if (branch2) { dg(true); af.jump(past2); }
       af.currentStackDepth = backupStack;
       af.emitLabel(past1, !keepRegs, isForward);
-    dg();
+    dg(false);
     
     if (branch2) {
       branch2.emitAsm(af);
