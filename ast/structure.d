@@ -219,13 +219,6 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
     }
     bool isTempNamespace() { return isTempStruct; }
     void __add(string name, Object obj) {
-      if (name && lookup(name, true)) {
-        logln("Can't add ", obj, ": already defined in ", this, "!");
-        fail;
-        /*throw new Exception(Format("While adding ", obj, ": "
-          "already defined in ", this, "!"
-        ));*/
-      }
       auto ex = fastcast!(Expr) (obj);
       if (ex && fastcast!(Variadic) (ex.valueType())) throw new Exception("Variadic tuple: Wtf is wrong with you. ");
       super.__add(name, obj);

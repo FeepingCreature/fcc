@@ -46,6 +46,10 @@ class RelFunCall : FunCall, RelTransformable {
     return res;
   }
   override void emitAsm(AsmFile af) {
+    if (!baseptr) {
+      logln("Untransformed rel-funcall: ", this);
+      fail;
+    }
     if (auto lv = fastcast!(LValue)~ baseptr) {
       callDg(af, fun.type.ret, params,
         new DgConstructExpr(fun.getPointer(), new RefExpr(lv)));
@@ -55,15 +59,35 @@ class RelFunCall : FunCall, RelTransformable {
         scope(exit) af.restoreCheckptStack(backup);
         auto temp = new Variable(baseptr.valueType(), null, baseptr, boffs(baseptr.valueType(), af.currentStackDepth));
         (new VarDecl(temp)).emitAsm(af);
-        auto res = new Variable(valueType(), null, boffs(valueType(), af.currentStackDepth));
+        Variable res;
+        // don't process res if void
+        if (var) res = new Variable(valueType(), null, boffs(valueType(), af.currentStackDepth));
         callDg(af, fun.type.ret, params,
           new DgConstructExpr(fun.getPointer(), new RefExpr(temp)));
-        (new Assignment(var, res)).emitAsm(af);
+        if (var) (new Assignment(var, res)).emitAsm(af);
       });
     }
   }
   override IType valueType() {
     return fun.type.ret;
+  }
+}
+
+class RelExtensibleOverloadWrapper : OverloadSet, RelTransformable {
+  this(string name, Function[] funs...) { super(name, funs); }
+  override {
+    Object transform(Expr ex) {
+      foreach (ref fun; funs) {
+        if (auto rt = fastcast!(RelTransformable) (fun))
+          fun = fastcast!(Function) (rt.transform(ex));
+      }
+      return this;
+    }
+    Extensible extend(Extensible ex) {
+      auto os = fastcast!(OverloadSet) (super.extend(ex));
+      if (!os) fail;
+      return new RelExtensibleOverloadWrapper(os.name, os.funs);
+    }
   }
 }
 
@@ -94,6 +118,14 @@ class RelFunction : Function, RelTransformable, HasInfo {
     res.baseptr = base;
     return res;
   }
+  override Extensible extend(Extensible e2) {
+    auto res = super.extend(e2);
+    if (!res) return null;
+    auto os = fastcast!(OverloadSet) (res);
+    if (!os || fastcast!(RelTransformable) (res)) return res;
+    return new RelExtensibleOverloadWrapper(os.name, os.funs);
+  }
+  override Extensible simplify() { return this; }
   FunctionPointer typeAsFp() {
     auto res = new FunctionPointer;
     res.ret = type.ret;
