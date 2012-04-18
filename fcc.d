@@ -858,11 +858,6 @@ int main(string[] args) {
   initCastTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);
-  /*
-  logln("<?xml version=\"1.0\" ?><body>");
-  scope(exit) logln("</body>");
-  verboseXML = true;
-  */
   auto exec = args.take();
   justAcceptedCallback = 0 /apply/ (ref int prevHalfway, string s) {
     auto info = lookupProgress(s);
@@ -976,10 +971,6 @@ int main(string[] args) {
     }
     if (arg == "-debug-parser") {
       verboseParser = true;
-      continue;
-    }
-    if (arg == "-debug-parser-xml") {
-      verboseXML = true;
       continue;
     }
     if (arg == "-dump-xml") {

@@ -312,7 +312,7 @@ bool ckbranch(ref string s, bool delegate()[] dgs...) {
   return false;
 }
 
-bool verboseParser = false, verboseXML = false;
+bool verboseParser = false;
 
 string[bool delegate(string)] condInfo;
 
@@ -921,9 +921,6 @@ class ParseContext {
       // rulestack ~= stuple(id, text);
       // scope(exit) rulestack = rulestack[0 .. $-1];
       
-      string xid() { return id.replace(".", "_"); }
-      if (verboseXML) logln("<", xid, " text='", text.nextText(16).xmlmark(), "'>");
-      scope(failure) if (verboseXML) logln("Exception</", xid, ">");
       if (cond(id)) {
         if (verboseParser) logln("TRY PARSER [", id, "] for '", text.nextText(16), "'");
         matched = true;
@@ -939,14 +936,12 @@ class ParseContext {
             if (ctl == ParseCtl.RejectAbort || ctl.state == 3) {
               if (verboseParser) logln("    PARSER [", id, "] rejected (", ctl.reason, "): ", Format(res));
               // if (verboseParser) logln("    PARSER [", id, "] @", rulestack /map/ ex!("a, b -> a"));
-              if (verboseXML) logln("Reject</", xid, ">");
               text = backup;
               if (ctl == ParseCtl.RejectAbort) return null;
               continue;
             }
           }
           if (verboseParser) logln("    PARSER [", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
-          if (verboseXML) logln("Success</", xid, ">");
           if (ctl == ParseCtl.AcceptAbort) {
             if (justAcceptedCallback) justAcceptedCallback(text);
             return res;
@@ -957,12 +952,10 @@ class ParseContext {
           }
         } else {
           if (verboseParser) logln("    PARSER [", id, "] failed");
-          if (verboseXML) logln("Fail</", xid, ">");
         }
         text = backup;
       }/* else {
         if (verboseParser) logln("   PARSER [", id, "] - refuse outright");
-        if (verboseXML) logln("Ignore</", xid, ">");
       }*/
     }
     if (longestMatchRes) {
