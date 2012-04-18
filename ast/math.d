@@ -781,6 +781,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (opName == "|") return op;
       // may be start of a heredoc
       if (opName == "<<") return op;
+      if (*lenient.ptr()) return null;
       t3.failparse("Could not find second operand for ", opName);
     }
     nextOp = forcedConvert(nextOp);
@@ -836,8 +837,10 @@ Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (!t2.accept("¬") && !t2.accept("neg")) return null;
   }
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
+    if (*lenient.ptr()) return null; // maybe in a C-expr?
     t2.failparse("Found no expression for negation");
+  }
   text = t2;
   string op;
   if (isNeg) op = "-";

@@ -621,6 +621,10 @@ static this() { New(templInstOverride); }
 TLS!(string) currentPropBase;
 static this() { New(currentPropBase); }
 
+// react to more errors with return null; useful for C parsing
+TLS!(bool) lenient;
+static this() { New(lenient); }
+
 interface Dependency {
   void emitDependency(AsmFile af);
 }

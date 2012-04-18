@@ -444,6 +444,9 @@ void parseHeader(string filename, string src) {
     }
     *specialCallback() = &callback;
     scope(exit) *specialCallback() = old_dg;
+    auto lenbackup = *lenient.ptr();
+    *lenient.ptr() = true;
+    scope(exit) *lenient.ptr() = lenbackup;
     try res = fastcast!(Expr) (parsecon.parse(s2, mixin(c_tree_expr_matcher)));
     catch (Exception ex) return false; // no biggie
     if (!res) return false;
