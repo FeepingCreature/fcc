@@ -194,6 +194,7 @@ void parseHeader(string filename, string src) {
   namespace.set(myNS);
   scope(exit) namespace.set(myNS.sup);
   void add(string name, Named n) {
+    if (!name.strip().length) fail;
     if (myNS.lookup(name)) { return; } // duplicate definition. meh.
     auto ea = fastcast!(ExprAlias)~ n;
     if (ea) {
@@ -553,7 +554,7 @@ void parseHeader(string filename, string src) {
       auto st2 = stmt;
       if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
         string ident;
-        gotIdentifier(st2, ident);
+        if (!gotIdentifier(st2, ident)) continue;
         if (st2.accept("{")) {
           auto startstr = st2;
           auto st = new Structure(ident);
