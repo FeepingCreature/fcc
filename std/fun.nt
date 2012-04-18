@@ -52,6 +52,23 @@ template map(T) {
   }
 }
 
+/*Template: reduce
+  Reduces an iterator via a combining function, returning a value
+
+Parameters:
+  iter - the iterator to reduce
+  merge - the combining function */
+template reduce(T) {
+  auto reduce(T t) {
+    auto iter = t[0].iterator;
+    auto merge = t[1];
+    auto aggr <- iter;
+    for auto value <- iter
+      aggr = merge (aggr, value);
+    return aggr;
+  }
+}
+
 /*Template: selectAs
   Combines the functionality of map and select
 
