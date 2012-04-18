@@ -367,8 +367,8 @@ void setupSysmods() {
         if cur.accepts(err) cur.dg(err);
         cur = cur.prev;
       }
-      writeln "Unhandled condition: $(err.toString()). ";
       print-backtrace();
+      writeln "Unhandled condition: $(err.toString()). ";
       exit 1;
     }
     class MissedReturnError : UnrecoverableError {
@@ -565,11 +565,9 @@ void setupSysmods() {
       
       int errnum;
       set-handler (UnrecoverableError err) {
-        writeln "Unhandled error: '$(err.toString())'. ";
-        // writeln "Invoking debugger interrupt. Continue to exit. ";
-        // writeln "Invoking GDB. ";
-        
         print-backtrace;
+        writeln "Unhandled error: '$(err.toString())'. ";
+        
         platform(*-mingw32) { _interrupt 3; }
         errnum = 1;
         // _interrupt 3;
