@@ -138,6 +138,11 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   override string mangleSelf() { return mangle(); }
   Function[] funs;
   Intf[] parents;
+  Function[] getAbstractFuns() {
+    Function[] res = funs;
+    foreach (parent; parents) res ~= parent.getAbstractFuns();
+    return res;
+  }
   string mangle_id;
   this(string name) {
     this.name = name;
@@ -343,9 +348,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   Structure data;
   string name;
   Class parent;
-  RelFunction[] getAbstractFuns() {
+  Function[] getAbstractFuns() {
     parseMe();
-    RelFunction[] res;
+    Function[] res;
     // An abstract class is a class that declares abstract member functions,
     foreach (fun; myfuns.funs) if (fun.isabstract) res ~= fun;
     // or inherits an abstract class without implementing its abstract member functions.
@@ -355,6 +360,12 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
           fun = f2;
         }
         if (fun.isabstract) res ~= fun;
+      }
+      foreach (intf; iparents) foreach (ifun; intf.getAbstractFuns()) {
+        if (auto f2 = overrides.hasLike(ifun)) {
+          ifun = f2;
+        }
+        if (ifun.isabstract) res ~= ifun;
       }
     return res;
   }
