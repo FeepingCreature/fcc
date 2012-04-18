@@ -119,6 +119,14 @@ int abs(int i) { if i < 0 return -i; return i; }
 /*Function: abs*/
 float abs(float f) { if f < 0 return -f; return f; }
 
+/*Function: bound
+  Limits f to {from, to}*/
+float bound(float from, to, f) {
+  if (f < from) f = from;
+  if (f > to) f = to;
+  return f;
+}
+
 /*Alias: PI*/
 alias PI = 3.1415926538;
 alias π = PI;
@@ -149,14 +157,6 @@ template min(T) { auto min(T t) { static if (t.length != 2) { pragma(msg, string
 /*Template: max
 Returns the larger of its two parameters*/
 template max(T) { auto max(T t) { static if (t.length != 2) { pragma(msg, string-of type-of t); Please only pass two parameters to max! } if (t[0] > t[1]) return t[0]; return t[1]; } }
-
-/*Function: bound
-  Limits f to {from, to}*/
-float bound(float from, to, f) {
-  if (f < from) f = from;
-  if (f > to) f = to;
-  return f;
-}
 
 /*Template: minlist
 Returns the smallest entry of the iterable argument*/
