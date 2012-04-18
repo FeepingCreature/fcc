@@ -479,14 +479,30 @@ template ImporterImpl() {
   void checkImportsUsage() { check_imports_usage(name, imports, importsUsed); }
   Object lookupInImports(string name, bool local) {
     Object res;
-    void addres(Object obj) {
-      if (!res) { res = obj; return; }
+    bool useCModules = false;
+    // set to false when parsing with C imports, because those are just fuck... fuck
+    bool cautious = true;
+    Namespace source;
+    const debug_lookup = false;
+    void addres(Object obj, Namespace src) {
+      static if (debug_lookup) logln("mew: ", useCModules, ", ", name, " => ", obj, " - ", obj.classinfo.name);
+      if (!useCModules && obj.classinfo.name == "ast.externs.ExternCGlobVar") return; // Try them later
+      if (!res) { res = obj; source = src; return; }
       auto ex = fastcast!(Extensible) (res), ex2 = fastcast!(Extensible)(obj);
       if (ex && !ex2 || !ex && ex2) {
         throw new Exception(Format("While looking up ", name, ": ambiguity between ",
           res, " and ", obj, ": one is overloadable and the other isn't"));
       }
-      if (!ex) return;
+      if (!ex) {
+        if (!cautious || res is obj) return;
+        auto t1 = fastcast!(IType) (res);
+        auto t2 = fastcast!(IType) (obj);
+        if (t1 && t2 && t1 == t2) return;
+        throw new Exception(Format(
+          "Name ambiguous: '", name, "' can refer to both ", res, "(", source, ") and ", obj, " (", src, ")"
+        ));
+        // fail;
+      }
       res = fastcast!(Object) (ex.extend(ex2));
     }
     void finalize() {
@@ -495,32 +511,60 @@ template ImporterImpl() {
       if (auto simp = xt.simplify()) res = fastcast!(Object) (simp);
     }
     
+    bool skip(Namespace ns) {
+      static if (debug_lookup) logln("skip ", ns, "? ", fastcast!(IModule) (ns).getDontEmit(), " and ", useCModules);
+      if (fastcast!(IModule) (ns).getDontEmit() && !useCModules) return true;
+      if (!fastcast!(IModule) (ns).getDontEmit() && useCModules) return true;
+      return false;
+    }
+    bool retry() {
+      static if (debug_lookup) logln("retry ", name, " => ", res, "?");
+      if (res) return false; // already found a match
+      if (useCModules) return false; // already retried
+      // try with C imports
+      useCModules = true;
+      cautious = false;
+      return true;
+    }
+  _retry:
     foreach (ns; public_imports) {
+      if (skip(ns)) continue;
+      static if (debug_lookup) logln("1: ", name, " in ", ns, "?");
       if (auto res = ns.lookup(name, true)) {
-        addres(res);
+        addres(res, ns);
       }
     }
     
     foreach (ns; static_imports) if (auto imod = fastcast!(IModule) (ns)) {
+      static if (debug_lookup) logln("2: ", name, " in ", ns, "?");
       if (auto lname = name.startsWith(imod.getIdentifier()).startsWith(".")) {
         if (auto res = ns.lookup(lname)) return res;
       }
     }
     
-    if (local) { finalize; return res; }
+    if (local) {
+      if (retry()) goto _retry;
+      finalize;
+      static if (debug_lookup) logln("local: ", res);
+      return res;
+    }
     
     foreach (i, ns; imports) {
+      if (skip(ns)) continue;
+      static if (debug_lookup) logln("3: ", name, " in ", ns, "?");
       if (auto res = ns.lookup(name, true)) {
         *getPtrResizing(importsUsed, i) = true;
-        addres(res);
+        addres(res, ns);
       }
     }
+    if (retry()) goto _retry;
     
     if (sysmod && sysmod !is this && name != "std.c.setjmp")
       if (auto res = sysmod.lookup(name, true))
-        addres(res);
+        addres(res, sysmod);
     
     finalize;
+    static if (debug_lookup) logln("nonlocal: ", res);
     return res;
   }
 }
