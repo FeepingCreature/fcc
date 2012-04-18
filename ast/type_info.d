@@ -110,7 +110,6 @@ Object gotParamTypes(ref string text, ParseCb cont, ParseCb rest) {
       } else res ~= it;
     }
     handle(it);
-    logln(res);
     return mkTuple(res);
   }
   if (fun) return fastcast!(Object) (forcedConvert(flatten(mkTuple(fun.args /map/ ex!("x -> x.type")))));
