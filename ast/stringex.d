@@ -163,7 +163,7 @@ Expr simpleFormat(Expr ex) {
   auto obj = fastcast!(IType) (sysmod.lookup("Object"));
   if (gotImplicitCast(ex, obj, (IType it) { return test(it == obj); })) {
     return iparse!(Expr, "gen_obj_toString_call", "tree.expr")
-                  (`obj.toString()`, "obj", lvize(ex));
+                  (`obj.toString()`, "obj", cvize(ex));
   }
   if (fastcast!(IType) (sysmod.lookup("bool")) == type) {
     return iparse!(Expr, "bool_tostring", "tree.expr")

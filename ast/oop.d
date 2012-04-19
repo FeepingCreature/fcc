@@ -971,7 +971,7 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
     auto intf = (fastcast!(IntfRef)~ ex.valueType()).myIntf;
     int offs = 0;
     foreach (id, par; intf.parents) {
-      auto nex = reinterpret_cast(new IntfRef(par), lookupOp("+", reinterpret_cast(voidpp, ex), mkInt(offs)));
+      auto nex = reinterpret_cast_safe(new IntfRef(par), lookupOp("+", reinterpret_cast(voidpp, ex), mkInt(offs)));
       par.getLeaves((Intf) { offs++; });
       testIntf(nex);
     }
@@ -981,13 +981,13 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
     auto cl = (fastcast!(ClassRef) (ex.valueType())).myClass;
     if (!cl.parent && !cl.iparents) return; // just to clarify
     if (cl.parent) {
-      testClass(reinterpret_cast(cl.parent.getRefType(), ex));
+      testClass(reinterpret_cast_safe(cl.parent.getRefType(), ex));
     }
     int offs = cl.classSize (false);
     doAlign(offs, voidp);
     offs /= 4;
     foreach (id, par; cl.iparents) {
-      auto iex = reinterpret_cast(new IntfRef(par), lookupOp("+", reinterpret_cast(voidpp, ex), mkInt(offs)));
+      auto iex = reinterpret_cast_safe(new IntfRef(par), lookupOp("+", reinterpret_cast(voidpp, ex), mkInt(offs)));
       par.getLeaves((Intf) { offs++; });
       testIntf(iex);
     }

@@ -8,11 +8,11 @@ class RC {
 }
 
 template ReinterpretCast_Contents(T) {
-  this(IType to, T from, bool beingDupped = false /* don't panic if it's just a dup */) {
+  this(IType to, T from, bool allowCValue = false) {
     this.from = from;
     this.to = to;
     static if (is(T==Expr)) {
-      if (!beingDupped && (fastcast!(LValue)~ from || fastcast!(CValue)~ from)) {
+      if (!allowCValue && (fastcast!(LValue)~ from || fastcast!(CValue)~ from)) {
         logln(this, "? Suure? ");
         fail;
       }
@@ -428,12 +428,19 @@ class ByteToIntCast : Expr {
 }
 
 Expr reinterpret_cast(IType to, Expr from) {
-  if (auto lv = fastcast!(LValue)~ from)
+  if (auto lv = fastcast!(LValue) (from))
     return new RCL(to, lv);
-  if (auto cv = fastcast!(CValue)~ from)
+  if (auto cv = fastcast!(CValue) (from))
     return new RCC(to, cv);
-  if (auto mv = fastcast!(MValue)~ from)
+  if (auto mv = fastcast!(MValue) (from))
     return new RCM(to, mv);
+  return new RCE(to, from);
+}
+
+// don't allow write access
+Expr reinterpret_cast_safe(IType to, Expr from) {
+  if (auto cv = fastcast!(CValue) (from))
+    return new RCC(to, cv);
   return new RCE(to, from);
 }
 
