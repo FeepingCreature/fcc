@@ -57,15 +57,24 @@ template map(T) {
 
 Parameters:
   iter - the iterator to reduce
-  merge - the combining function */
+  [initial] - the initial value. optional.
+  merge - the combining function*/
 template reduce(T) {
   auto reduce(T t) {
     auto iter = t[0].iterator;
-    auto merge = t[1];
-    auto aggr <- iter;
-    for auto value <- iter
-      aggr = merge (aggr, value);
-    return aggr;
+    static if (t.length == 3) {
+      auto aggr = t[1], merge = t[2];
+      for auto value <- iter
+        aggr = merge (aggr, value);
+      return aggr;
+    } else {
+      auto merge = t[1];
+      if (auto aggr <- iter) {
+        for auto value <- iter
+          aggr = merge (aggr, value);
+        return aggr;
+      } else raise new Error "Cannot reduce empty iterator - please provide an initial value";
+    }
   }
 }
 
