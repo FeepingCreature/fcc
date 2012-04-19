@@ -44,14 +44,18 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       af.comment("new_class");
       mixin(mustOffset("0"));
       iparse!(Statement, "new_class", "tree.stmt")
-      (`{
-          var = type-of var: mem.calloc(size, 1);
-          (void**:var)[0] = _classinfo;
-        }`,
+      (`var = type-of var: mem.calloc(size, 1);`
         "var", var,
         "size", mkInt(cr.myClass.size),
         "_classinfo", new Symbol(cr.myClass.ci_name())
       ).emitAsm(af);
+      // (void**:var)[0] = _classinfo;
+      (new Assignment(
+        lookupOp("index",
+          reinterpret_cast(voidpp, var),
+          mkInt(0)),
+        reinterpret_cast(voidp, new Symbol(cr.myClass.ci_name()))
+      )).emitAsm(af);
       
       if (cr.myClass.ctx) {
         auto transformed = cr.myClass.ctx.transform(
@@ -92,13 +96,22 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         }
         iterLeaves((Intf intf, Expr offs) {
           // logln("init [", base, " + ", id, "] with intf ", intf.name, "; offs ", offs);
-          iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
+          /*iparse!(Statement, "init_intfs", "tree.semicol_stmt.assign")
           (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
             "var", var,
             "base", mkInt(base), "id", mkInt(id++),
             "_classinfo", new Symbol(cr.myClass.ci_name()),
             "offs", offs
-          ).emitAsm(af);
+          ).emitAsm(af);*/
+          auto slot = fastcast!(LValue) (lookupOp("index",
+            reinterpret_cast(voidpp, var),
+            mkInt(base + (id ++))
+          ));
+          auto classinfo_reference = reinterpret_cast(voidp, lookupOp("+",
+            reinterpret_cast(voidpp, new Symbol(cr.myClass.ci_name())),
+            offs
+          ));
+          (new Assignment(slot, classinfo_reference)).emitAsm(af);
         });
       }
       initClass(cr.myClass);

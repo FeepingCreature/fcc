@@ -154,7 +154,7 @@ class ExtArray : Type, RelNamespace, Dwarf2Encodable {
   }
 }
 
-import ast.structfuns, ast.modules, ast.aliasing, ast.properties, ast.scopes;
+import ast.structfuns, ast.modules, ast.aliasing, ast.properties, ast.scopes, ast.assign;
 Stuple!(IType, bool, Module, IType)[] cache;
 bool[IType] isArrayStructType;
 IType arrayAsStruct(IType base, bool rich) {
@@ -216,12 +216,17 @@ IType arrayAsStruct(IType base, bool rich) {
   if (base != Single!(Void) && base.size <= 16 /* max supported return size */) {
     mkFun("popEnd", delegate Tree() {
       namespace().get!(RelFunction).type.ret = base;
+      auto len = fastcast!(LValue) (namespace().lookup("length"));
+      auto p = fastcast!(Expr) (namespace().lookup("ptr"));
       return new ReturnStmt(
         new StatementAndExpr(
+          /*
           iparse!(Statement, "array_setpop", "tree.stmt")
                 (`length --;`, namespace()),
           iparse!(Expr, "array_getpop", "tree.expr")
-                (`*(ptr + length)`, namespace())
+                (`*(ptr + length)`, namespace())*/
+          new Assignment(len, lookupOp("-", len, mkInt(1))),
+          new DerefExpr(lookupOp("+", p, len))
         )
       );
     });

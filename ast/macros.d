@@ -596,4 +596,4 @@ Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
   parsecon.addParser(parser, ruleid.str);
   return obj;
 }
-mixin DefaultParser!(gotMacroStmt, "tree.toplevel.macro", null, "macro");
+mixin DefaultParser!(gotMacroStmt, "tree.toplevel.a_macro", null, "macro"); // sort first because is cheap to exclude

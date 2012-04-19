@@ -347,7 +347,7 @@ Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest
   }
   // logln("instantiate ", t.name, " with ", ty);
 }
-mixin DefaultParser!(gotTemplateInst!(false), "type.templ_inst", "2");
+mixin DefaultParser!(gotTemplateInst!(false), "type.templ_inst", "32");
 mixin DefaultParser!(gotTemplateInst!(false), "tree.expr.templ_expr", "2401");
 mixin DefaultParser!(gotTemplateInst!(true), "tree.rhs_partial.instance");
 

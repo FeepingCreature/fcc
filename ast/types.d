@@ -232,7 +232,7 @@ Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   `));
   return null;
 }
-mixin DefaultParser!(gotBasicType, "type.basic", "3");
+mixin DefaultParser!(gotBasicType, "type.basic", "2");
 
 // postfix type modifiers
 IType delegate(ref string text, IType cur, ParseCb cont, ParseCb rest)[]

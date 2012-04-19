@@ -59,5 +59,5 @@ Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotPlatform!(false), "tree.toplevel.platform", null, "platform");
+mixin DefaultParser!(gotPlatform!(false), "tree.toplevel.a_platform", null, "platform"); // sort first because is cheap to exclude
 mixin DefaultParser!(gotPlatform!(true), "tree.stmt.platform", "311", "platform");

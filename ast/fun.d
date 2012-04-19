@@ -228,22 +228,28 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string fqn() {
     return get!(IModule).getIdentifier()~"."~name;
   }
+  string cached_selfmangle;
   override string mangleSelf() {
+    if (cached_selfmangle) return cached_selfmangle;
     if (extern_c) {
       auto res = cleaned_name;
       if (platform_prefix == "i686-mingw32-") {
         res = "_"~res;
         if (res == "_setjmp") res = "__setjmp"; // lol wat.
       }
-      return res;
+      cached_selfmangle = res;
     } else if (name == "__c_main") {
+      cached_selfmangle = "main";
       return "main";
     } else if (name == "__win_main") {
       if (platform_prefix == "i686-mingw32-") {
-        return "_WinMain@16";
-      } else return "_WinMain_not_relevant_on_this_architecture";
+        cached_selfmangle = "_WinMain@16";
+      } else {
+        cached_selfmangle = "_WinMain_not_relevant_on_this_architecture";
+      }
     } else
-      return cleaned_name~"_"~sup.mangle(null, type);
+      cached_selfmangle = cleaned_name~"_"~sup.mangle(null, type);
+    return cached_selfmangle;
   }
   string exit() { return mangleSelf() ~ "_exit_label"; }
   static int funid_count;
@@ -754,14 +760,15 @@ class FunctionType : ast.types.Type {
     }
     string mangle() {
       if (!ret) { logln("Function return type indeterminate! "); fail; }
-      string res = "function_to_"~ret.mangle();
-      if (!params.length) return res;
-      foreach (i, param; params) {
+      string[] res;
+      res ~= "function_to_";
+      res ~= ret.mangle();
+      if (params.length) foreach (i, param; params) {
         if (!i) res ~= "_of_";
         else res ~= "_and_";
         res ~= param.type.mangle();
       }
-      return res;
+      return res.qjoin();
     }
     string toString() { return Format("Function of ", params, " => ", ret); }
   }

@@ -165,7 +165,8 @@ import tools.log, ast.tuple_access, ast.pointer;
 Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr", &ex))
+  string t3;
+  if (!(rest(t2, "tree.expr _tree.expr.arith", &ex) && ( t3 = t2, true ) && t3.accept("{")) && (t2 = text, true) && !rest(t2, "tree.expr", &ex))
     t2.failparse("Couldn't match with-expr");
   auto backup = namespace();
   scope(exit) namespace.set(backup);

@@ -328,7 +328,7 @@ Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true) {
 Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;
-  if (t2.accept("\"") || t2.accept("[")) return null;
+  if (t2.accept("\"") || t2.accept("[") || t2.accept("(")) return null;
   if (!rest(t2, "type", &ty)) {
     // logln("fail 1 @", t2.mystripl().nextText());
     return null;

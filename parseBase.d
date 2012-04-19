@@ -423,13 +423,14 @@ bool delegate(string) matchrule(string rules, out int id) {
     auto rule = rules.slice(" ");
     bool smaller, greater, equal, before, after;
     assert(rule.length);
+  restartRule:
     auto first = rule[0], rest = rule[1 .. $];
     switch (first) {
-      case '<': smaller = true; rule = rest; break;
-      case '>': greater = true; rule = rest; break;
-      case '=': equal = true; rule = rest; break;
-      case '^': before = true; rule = rest; break;
-      case '_': after = true; rule = rest; break;
+      case '<': smaller = true; rule = rest; goto restartRule;
+      case '>': greater = true; rule = rest; goto restartRule;
+      case '=': equal = true; rule = rest; goto restartRule;
+      case '^': before = true; rule = rest; goto restartRule;
+      case '_': after = true; rule = rest; goto restartRule;
       default: break;
     }
     
@@ -862,17 +863,14 @@ class ParseContext {
     return parse(text, cond, 0, accept);
   }
   string condStr;
-  import tools.time: sec;
+  import tools.time: sec, µsec;
   Object parse(ref string text, bool delegate(string) cond,
       int offs = 0, ParseCtl delegate(Object) accept = null) {
     if (!text.length) return null;
     resort;
     bool matched;
-    string xmlmark(string x) {
-      return x.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "?");
-    }
     if (verboseParser)
-      logln("BEGIN PARSE '", text.nextText(16).xmlmark(), "'");
+      logln("BEGIN PARSE '", text.nextText(16), "'");
     
     ubyte[RULEPTR_SIZE_HAX] cond_copy = void;
     ParseCb cont = void, rest = void;
@@ -896,21 +894,26 @@ class ParseContext {
     
     Object longestMatchRes;
     string longestMatchStr = text;
-    /*auto start_time = sec();
-    auto start_text = text;
-    static float min_speed = float.infinity;
-    scope(exit) if (text.ptr !is start_text.ptr) {
-      auto delta = (sec() - start_time) * 1000;
-      auto speed = (text.ptr - start_text.ptr) / delta;
-      if (speed < min_speed) {
-        min_speed = speed;
-        if (delta > 5) logln("New worst slowdown: '",
-          condStr, "' at '", start_text.nextText(), "'"
-          ": ", speed, " characters/ms "
-          "(", (text.ptr - start_text.ptr), " in ", delta, "ms). ");
+    const ProfileMode = false;
+    static if (ProfileMode) {
+      auto start_time = µsec();
+      auto start_text = text;
+      static float min_speed = float.infinity;
+      scope(exit) if (text.ptr !is start_text.ptr) {
+        auto delta = (µsec() - start_time) / 1000f;
+        auto speed = (text.ptr - start_text.ptr) / delta;
+        if (speed < min_speed) {
+          min_speed = speed;
+          if (delta > 5) {
+            logln("New worst slowdown: '",
+              condStr, "' at '", start_text.nextText(), "'"
+              ": ", speed, " characters/ms "
+              "(", (text.ptr - start_text.ptr), " in ", delta, "ms). ");
+          }
+        }
+        // min_speed *= 1.01;
       }
-      min_speed *= 1.01;
-    }*/
+    }
     bool tried;
     foreach (j, parser; parsers[offs .. $]) {
       i = j;

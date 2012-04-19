@@ -433,7 +433,7 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   }
   return null;
 }
-mixin DefaultParser!(gotNamedType, "type.named", "4");
+mixin DefaultParser!(gotNamedType, "type.named", "21");
 
 class LengthOverride : Namespace, ScopeLike {
   Expr len;

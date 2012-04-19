@@ -581,7 +581,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
           handleIntf(intf);
       }
       handleClass(this);
-      as.stmts ~= iparse!(Statement, "cast_fallthrough", "tree.stmt")("return null; ", namespace());
+      as.stmts ~= new ReturnStmt(fastcast!(Expr) (sysmod.lookup("null")));
       sc._body = as;
       rf.addStatement(sc);
       fastcast!(Module) (current_module()).entries ~= rf;
@@ -690,8 +690,13 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     }
     string mangle(string name, IType type) {
       string typemangle;
-      if (type) typemangle = "_of_"~type.mangle();
-      return "class_"~this.name.cleanup()~"_"~name~typemangle;
+      if (type) typemangle = type.mangle();
+      auto cleanname = name.cleanup();
+      qappend("class_", cleanname, "_", name);
+      if (type) {
+        qappend("_of_", typemangle);
+      }
+      return qfinalize();
     }
     Stuple!(IType, string, int)[] stackframe() {
       parseMe;

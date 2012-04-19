@@ -195,7 +195,7 @@ Object gotRename(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotRename, "tree.toplevel.rename", null, "RenameIdentifier");
+mixin DefaultParser!(gotRename, "tree.toplevel.a_rename", null, "RenameIdentifier"); // sort first because is cheap to exclude
 
 import parseBase, tools.log;
 Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {

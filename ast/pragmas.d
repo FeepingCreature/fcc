@@ -13,7 +13,7 @@ Object gotPragma(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Identifier expected. ");
   Expr param;
   if (t2.accept(","))
-    if (!rest(t2, "tree.expr", &param))
+    if (!rest(t2, "tree.expr.literal.stringex", &param) && !rest(t2, "tree.expr", &param))
       t2.failparse("Expected pragma parameter. ");
   if (!t2.accept(")")) t2.failparse("Expected closing paren! ");
   if (!t2.accept(";")) t2.failparse("Expected terminating semicolon! ");
@@ -24,5 +24,5 @@ Object gotPragma(ref string text, ParseCb cont, ParseCb rest) {
   try return (*dg)(param);
   catch (Exception ex) text.failparse("In pragma ", pragname, ": ", ex);
 }
-mixin DefaultParser!(gotPragma, "tree.toplevel.pragma", null, "pragma");
+mixin DefaultParser!(gotPragma, "tree.toplevel.a_pragma", null, "pragma"); // sort first because is cheap to exclude
 mixin DefaultParser!(gotPragma, "tree.stmt.pragma", "31", "pragma");

@@ -4,7 +4,7 @@ import parseBase, ast.base, ast.vardecl, ast.aliasing, ast.namespace,
        ast.casting, ast.pointer, ast.aggregate, ast.scopes, ast.types, tools.compat: find;
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto sc = new Scope;
+  auto sc = fastalloc!(Scope)();
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   

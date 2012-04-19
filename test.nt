@@ -298,9 +298,9 @@ int main(string[] args) {
   globvar = 17;
   ctest.var = 17;
   using scoped ctest {
-    writeln("var: $var");
-    var = 14;
-    writeln("now it's $var");
+    writeln("var: $(that.var)");
+    that.var = 14;
+    writeln("now it's $(that.var)");
   }
   writeln("now back to $$ctest.var. ");
   void memtest() using sys.mem {
@@ -311,7 +311,7 @@ int main(string[] args) {
   }
   memtest();
   auto old_malloc = sys.mem.malloc_dg;
-  using scoped sys.mem {
+  using scoped sys.mem using that {
     void* fun(int i) {
       writeln("malloc()");
       return old_malloc(i);

@@ -712,6 +712,10 @@ Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = t
     }
   }
   if (wantTargetDecl) {
+    if (!withoutIteratorAllowed && !expressionTargetAllowed)
+      // it's waay too early to commit to trying to parse a type!
+      // that's okay, we'll just try later.
+      return null;
     if (t2.accept("ref")) isRefDecl = true;
     else if (!t2.accept("auto") && !rest(t2, "type", &newVarType))
       goto withoutIterator;

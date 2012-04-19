@@ -96,7 +96,8 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   string entry() { return Format(".L", id, "_entry"); }
   string exit() { return Format(".L", id, "_exit"); }
   string toString() { return Format("scope(", framesize(), ") <- ", sup); }
-  this() {
+  this() { construct(); }
+  void construct() {
     count = scope_count ++;
     // if (count == 3951) fail;
     id = getuid();
