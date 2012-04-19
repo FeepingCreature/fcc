@@ -10,6 +10,9 @@ abstract class GLWindow {
     context-callbacks ~= dg;
     if (isSetUp()) dg();
   }
+  void init() {
+    mouse-pos = vec2i(-1, -1);
+  }
   void setup();
   bool isSetUp();
   vec2i size();

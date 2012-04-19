@@ -81,10 +81,12 @@ class WithStmt : Namespace, Statement, ScopeLike {
     
     ex = context;
     
-    rns = fastcast!(RelNamespace) (ex.valueType());
-    
-    if (auto srns = fastcast!(SemiRelNamespace) (ex.valueType())) rns = srns.resolve();
-    ns = fastcast!(Namespace) (ex); // say, context
+    if (!isc) { // IScoped does not do implicit namespace merge!
+      rns = fastcast!(RelNamespace) (ex.valueType());
+      
+      if (auto srns = fastcast!(SemiRelNamespace) (ex.valueType())) rns = srns.resolve();
+      ns = fastcast!(Namespace) (ex); // say, context
+    }
     
     if (!rns && !ns && !isc) {
       Expr ex2 = context;
