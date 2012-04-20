@@ -162,7 +162,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
       _framestart += 4;
       
       if (fastcast!(Pointer)~ bp.valueType())
-        add(fastalloc!(ExprAlias)(fastalloc!(DerefExpr)(bp), "this"[]));
+        add(fastalloc!(LValueAlias)(fastalloc!(DerefExpr)(bp), "this"[]));
       return cur;
     }
     Object lookup(string name, bool local = false) {
