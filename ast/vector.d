@@ -716,7 +716,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   // af.nvm("%xmm0"[]); // rarely helps
   mixin(mustOffset("-16"[]));
   if (auto lv = cast(LValue) res) {
-    (fastalloc!(Assignment)(lv, fastalloc!(Placeholder)(op1.valueType()), false, true)).emitAsm(af);
+    emitAssign(af, lv, fastalloc!(Placeholder)(op1.valueType()), false, true);
   } else if (auto mv = cast(MValue) res) {
     mv.emitAssignment(af);
   } else fail;
@@ -793,10 +793,10 @@ class VecOp : Expr {
             Expr l1 = v1, l2 = v2;
             if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1), null, true)[i];
             if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2), null, true)[i];
-            (fastalloc!(Assignment)(fastcast!(LValue)~ entries[i], lookupOp(op, l1, l2))).emitAsm(af);
+            emitAssign(af, fastcast!(LValue) (entries[i]), lookupOp(op, l1, l2));
           }
           for (int i = len; i < real_len; ++i) {
-            (fastalloc!(Assignment)(fastcast!(LValue)~ entries[i], fastalloc!(ZeroFiller)(entries[i].valueType()))).emitAsm(af);
+            emitAssign(af, fastcast!(LValue) (entries[i]), fastalloc!(ZeroFiller)(entries[i].valueType()));
           }
           if (dg2) dg2(); af.sfree(filler2);
           if (dg1) dg1(); af.sfree(filler1);

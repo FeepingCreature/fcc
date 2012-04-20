@@ -45,7 +45,7 @@ class FullSlice : Expr {
         
         (fastalloc!(VarDecl)(temp)).emitAsm(af);
         
-        (fastalloc!(Assignment)(var, mkArraySlice(temp, mkInt(0), foldex(getArrayLength(temp))))).emitAsm(af);
+        emitAssign(af, var, foldex(mkArraySlice(temp, mkInt(0), getArrayLength(temp))));
       });
     }
   }

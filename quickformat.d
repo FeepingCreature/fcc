@@ -3,20 +3,23 @@ module quickformat;
 import tools.threads, tools.base;
 import casts;
 
-TLS!(Stuple!(string, int)) _qbuffer;
-static this() { New(_qbuffer); }
+extern(C) Stuple!(string, int)* get_qbuffer_ptr();
 
 void qbuffer_resize_internal(int i, string* qbufferp, int* offsp) {
   if ((*qbufferp).length < i) {
     auto backup = (*qbufferp);
-    (*qbufferp) = new char[max(65536, i)];
+    // there's no chance to free this anyway, so don't let the gc bother with it
+    // otherwise the get_qbuffer_ptr will fail because we keep reference in C space
+    // (*qbufferp) = new char[max(65536, i)];
+    (*qbufferp) = (cast(char*) std.c.stdlib.malloc(max(65536, i)))[0..65536];
     (*qbufferp)[0 .. backup.length] = backup;
   }
 }
 
 void qappend(string[] args...) {
+  auto qp = get_qbuffer_ptr();
   string qbuffer; int offs;
-  ptuple(qbuffer, offs) = *_qbuffer();
+  ptuple(qbuffer, offs) = *qp;
   
   int total_len;
   foreach (arg; args) total_len += arg.length;
@@ -27,7 +30,7 @@ void qappend(string[] args...) {
     offs += arg.length;
   }
   
-  *_qbuffer() = stuple(qbuffer, offs);
+  *qp = stuple(qbuffer, offs);
 }
 
 void qformat_append(T...)(T t) {
@@ -80,11 +83,12 @@ void qformat_append(T...)(T t) {
 }
 
 string qfinalize() {
+  auto qp = get_qbuffer_ptr();
   string qbuffer; int offs;
-  ptuple(qbuffer, offs) = *_qbuffer();
+  ptuple(qbuffer, offs) = *qp;
   auto res = qbuffer[0 .. offs];
   qbuffer = qbuffer[offs .. $];
-  *_qbuffer() = stuple(qbuffer, 0);
+  *qp = stuple(qbuffer, 0);
   return res;
 }
 

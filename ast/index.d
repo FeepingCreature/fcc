@@ -26,7 +26,7 @@ class SAIndexExpr : Expr {
       mkVar(af, valueType(), true, (Variable var) {
         auto v2 = fastalloc!(Variable)(ex.valueType(), cast(string) null, boffs(ex.valueType(), af.currentStackDepth));
         ex.emitAsm(af);
-        (fastalloc!(Assignment)(var, getIndex(v2, pos))).emitAsm(af);
+        emitAssign(af, var, getIndex(v2, pos));
         af.sfree(ex.valueType().size);
       });
     }

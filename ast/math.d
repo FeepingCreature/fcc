@@ -522,9 +522,7 @@ class AsmIntBinopExpr : BinopExpr {
         e1 = foldex(aibe.e1), ie1 = fastcast!(IntExpr)~ e1,
         e2 = foldex(aibe.e2), ie2 = fastcast!(IntExpr)~ e2;
       if (!ie1 || !ie2) {
-        if (e1 !is aibe.e1 || e2 !is aibe.e2) {
-          return fastalloc!(AsmIntBinopExpr)(e1, e2, aibe.op);
-        }
+        aibe.e1 = e1; aibe.e2 = e2; // sshhhhhhhhhh
         return null;
       }
       void checkZero(string kind, int num) {

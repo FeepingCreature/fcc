@@ -241,15 +241,19 @@ static this() {
     return null;
   }
   Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
-    ex1 = foldex(ex1);
-    ex2 = foldex(ex2);
-    if (Single!(Double) == ex1.valueType() && !fastcast!(DoubleExpr) (ex1))
-      return null;
+    if (Single!(Double) == ex1.valueType()) {
+      ex1 = foldex(ex1);
+      if (!fastcast!(DoubleExpr) (ex1))
+        return null;
+    }
     
-    if (Single!(Double) == ex2.valueType() && !fastcast!(DoubleExpr) (ex2))
-      return null;
+    if (Single!(Double) == ex2.valueType()) {
+      ex2 = foldex(ex2);
+      if (!fastcast!(DoubleExpr) (ex2))
+        return null;
+    }
     
-    if (fastcast!(DoubleExpr)~ ex1 && fastcast!(DoubleExpr)~ ex2) return null;
+    if (fastcast!(DoubleExpr) (ex1) && fastcast!(DoubleExpr) (ex2)) return null;
     
     if (!gotImplicitCast(ex1, Single!(Float), &isFloat) || !gotImplicitCast(ex2, Single!(Float), &isFloat))
       return null;

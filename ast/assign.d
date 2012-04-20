@@ -172,3 +172,8 @@ Statement mkAssignment(Expr to, Expr from) {
   logln("Invalid target for assignment: "[], to);
   fail;
 }
+
+void emitAssign(AsmFile af, LValue target, Expr source, bool force = false, bool blind = false) {
+  scope as = new Assignment(target, source, force, blind);
+  as.emitAsm(af);
+}

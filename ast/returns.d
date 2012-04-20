@@ -46,7 +46,7 @@ class ReturnStmt : Statement {
         scope(success) af.sfree(tofree);
         auto var = fastcast!(Variable) (value);
         if (value && (!var || -var.baseOffset <= af.currentStackDepth)) {
-          (fastalloc!(Assignment)(fastcast!(LValue) (value), this.value)).emitAsm(af);
+          emitAssign(af, fastcast!(LValue) (value), this.value);
           emitGuards(false);
           if (!var) fail;
           if (af.currentStackDepth != -var.baseOffset) {
@@ -62,7 +62,7 @@ class ReturnStmt : Statement {
           value = var;
           (fastalloc!(VarDecl)(var)).emitAsm(af);
           tofree += vt.size; // pro forma
-          (fastalloc!(Assignment)(var, this.value)).emitAsm(af);
+          emitAssign(af, var, this.value);
           emitGuards(true);
         }
         

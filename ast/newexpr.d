@@ -71,7 +71,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         }
         // logln("transformed: "[], transformed);
         // logln("baseptr: "[], bp);
-        (fastalloc!(Assignment)(fastcast!(LValue) (transformed), bp)).emitAsm(af);
+        emitAssign(af, fastcast!(LValue) (transformed), bp);
       }
       void initClass(Class cl) {
         if (cl.parent) initClass(cl.parent);
@@ -110,7 +110,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
             reinterpret_cast(voidpp, fastalloc!(Symbol)(cr.myClass.ci_name())),
             offs
           ));
-          (fastalloc!(Assignment)(slot, classinfo_reference)).emitAsm(af);
+          emitAssign(af, slot, classinfo_reference);
         });
       }
       initClass(cr.myClass);

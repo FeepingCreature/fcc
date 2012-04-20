@@ -46,7 +46,7 @@ extern(C) void alignment_emitAligned(Expr ex, AsmFile af) {
     if (myAl && ((af.currentStackDepth + ex.valueType().size) % myAl) != 0) {
       // need realignment
       mkVar(af, fastalloc!(UnAlignedPlaceholder)(ex.valueType()), true, (Variable var) {
-        (fastalloc!(Assignment)(var, ex)).emitAsm(af);
+        emitAssign(af, var, ex);
       });
       return;
     }

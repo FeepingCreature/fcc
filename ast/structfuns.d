@@ -64,7 +64,7 @@ class RelFunCall : FunCall, RelTransformable {
         if (var) res = fastalloc!(Variable)(valueType(), cast(string) null, boffs(valueType(), af.currentStackDepth));
         callDg(af, fun.type.ret, params,
           fastalloc!(DgConstructExpr)(fun.getPointer(), fastalloc!(RefExpr)(temp)));
-        if (var) (fastalloc!(Assignment)(var, res)).emitAsm(af);
+        if (var) emitAssign(af, var, res);
       });
     }
   }

@@ -62,11 +62,9 @@ class ConcatChain : Expr {
           } else {
             // cache[i] = array
             auto cachepos = getIndex(cache, mkInt(i));
-            (fastalloc!(Assignment)(cachepos, array)).emitAsm(af);
+            emitAssign(af, cachepos, array);
             // total = total + cache[i].length
-            (fastalloc!(Assignment)(total,
-              lookupOp("+"[], total, getArrayLength(cachepos))
-            )).emitAsm(af);
+            emitAssign(af, total, lookupOp("+"[], total, getArrayLength(cachepos)));
           }
         }
         iparse!(Statement, "alloc_array"[], "tree.semicol_stmt.assign"[])
@@ -79,15 +77,15 @@ class ConcatChain : Expr {
           auto c = getIndex(cache, mkInt(i));
           if (array.valueType() == type.elemType) {
             /// var[offset] = cache[i];
-            optst(fastalloc!(Assignment)(getIndex(var, offset), reinterpret_cast(type.elemType, array))).emitAsm(af);
+            emitAssign(af, getIndex(var, offset), reinterpret_cast(type.elemType, array));
             /// offset = offset + 1
-            optst(fastalloc!(Assignment)(offset, lookupOp("+"[], offset, mkInt(1)))).emitAsm(af);
+            emitAssign(af, offset, lookupOp("+"[], offset, mkInt(1)));
           } else {
             auto len = getArrayLength(c);
             /// var[offset .. offset + cache[i].length] = cache[i];
             optst(getSliceAssign(mkArraySlice(var, offset, lookupOp("+"[], offset, len)), c.dup)).emitAsm(af);
             /// offset = offset + cache[i].length;
-            optst(fastalloc!(Assignment)(offset, lookupOp("+"[], offset, len))).emitAsm(af);
+            emitAssign(af, offset, lookupOp("+"[], offset, len));
           }
         }
       });

@@ -439,7 +439,7 @@ class ScopeAndExpr : Expr {
         mixin(mustOffset("ex.valueType().size"[]));
         mkVar(af, ex.valueType(), true, (Variable var) {
           auto dg = sc.open(af)();
-          (fastalloc!(Assignment)(var, ex)).emitAsm(af);
+          emitAssign(af, var, ex);
           dg(false);
         });
       }
@@ -663,11 +663,11 @@ class IterLetCond(T) : Cond, NeedsConfig {
       if (address_target) {
         auto lv = getRefExpr(value);
         if (!lv) throw new Exception(Format("Iterator "[], itype, " does not offer reference iteration: "[], value));
-        (fastalloc!(Assignment)(address_target, fastalloc!(RefExpr)(lv))).emitAsm(af);
+        emitAssign(af, address_target, fastalloc!(RefExpr)(lv));
       } else {
         static if (is(T: MValue))
-          (new _Assignment!(MValue) (target, value)).emitAsm(af);
-        else (fastalloc!(Assignment)(target, value)).emitAsm(af);
+          (fastalloc!(_Assignment!(MValue))(target, value)).emitAsm(af);
+        else emitAssign(af, target, value);
       }
     } else {
       value.emitAsm(af);
