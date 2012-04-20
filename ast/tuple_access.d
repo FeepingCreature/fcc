@@ -353,7 +353,7 @@ static this() {
         auto ent1 = getTupleEntries(ex1), ent2 = getTupleEntries(ex2);
         foreach (i, se1; ent1) {
           auto se2 = ent2[i];
-          auto cmp = fastalloc!(ExprWrap)(lookupOp("=="[], se1, se2));
+          auto cmp = compare("==", se1, se2);
           if (!res) res = cmp;
           else res = fastalloc!(AndOp)(res, cmp);
         }
