@@ -78,7 +78,7 @@ string[] formatAbbrevSection(int key, DW[] data) {
   string[] res;
   void addLine(string s) { res ~= s; }
   void addWide(DW value, string comment) {
-    addLine(qformat(".uleb128 ", hex(value), "\t/* ", comment, " */"));
+    addLine(qformat(".uleb128 "[], hex(value), "\t/* "[], comment, " */"[]));
   }
   void add(DW dw, string mode) {
     string tagname, atname, formname;
@@ -96,15 +96,15 @@ string[] formatAbbrevSection(int key, DW[] data) {
     string comment;
     switch (mode) {
       case "TAG":
-        if (!tagname || tagname == "DW_TAG_") fail;
+        if (!tagname || tagname == "DW_TAG_"[]) fail;
         comment = "TAG: "~tagname;
         break;
       case "AT":
-        if (!atname || atname == "DW_AT_") fail;
+        if (!atname || atname == "DW_AT_"[]) fail;
         comment = atname;
         break;
       case "FORM":
-        if (!formname || formname == "DW_FORM_") fail;
+        if (!formname || formname == "DW_FORM_"[]) fail;
         comment = formname;
         break;
     }
@@ -118,23 +118,23 @@ string[] formatAbbrevSection(int key, DW[] data) {
     return res;
   }
   
-  addWide(cast(DW) key, "abbrev code");
-  add(take(), "TAG");
+  addWide(cast(DW) key, "abbrev code"[]);
+  add(take(), "TAG"[]);
   {
     auto ch = take();
     if (ch == DW.children_no)
-      addLine(".byte 0\t /* DW_children_no */");
+      addLine(".byte 0\t /* DW_children_no */"[]);
     else if (ch == DW.children_yes)
-      addLine(".byte 1\t /* DW_children_yes */");
+      addLine(".byte 1\t /* DW_children_yes */"[]);
     else fail;
   }
   while (rest.length) {
     auto at = take(), form = take();
-    add(at, "AT");
-    add(form, "FORM");
+    add(at, "AT"[]);
+    add(form, "FORM"[]);
   }
-  addLine(".byte 0");
-  addLine(".byte 0");
+  addLine(".byte 0"[]);
+  addLine(".byte 0"[]);
   return res;
 }
 
@@ -165,9 +165,9 @@ class Dwarf2Strings {
   string[] strings;
   string addString(string s) {
     foreach (i, str; strings) {
-      if (faststreq(str, s)) return qformat(".long\t.LSTRING", i);
+      if (faststreq(str, s)) return qformat(".long\t.LSTRING"[], i);
     }
-    auto key = qformat(".long\t.LSTRING", strings.length);
+    auto key = qformat(".long\t.LSTRING"[], strings.length);
     strings ~= s;
     return key;
   }
@@ -176,8 +176,8 @@ class Dwarf2Strings {
     int q;
     res[q++] = ".section\t.debug_str";
     foreach (i, v; strings) {
-      res[q++] = qformat(".LSTRING", i, ":");
-      res[q++] = qformat("\t.string \"", v, "\"");
+      res[q++] = qformat(".LSTRING"[], i, ":"[]);
+      res[q++] = qformat("\t.string \""[], v, "\""[]);
     }
     return res;
   }
@@ -207,10 +207,10 @@ class Dwarf2Section {
     abbrev = info._1;
   }
   string getLabel() {
-    return qformat(".Ldie", key);
+    return qformat(".Ldie"[], key);
   }
   string getRelative() {
-    return qformat(".long\t", getLabel(), " - d", "\t/* relative: ", abbrev, " */");
+    return qformat(".long\t"[], getLabel(), " - d"[], "\t/* relative: "[], abbrev, " */"[]);
   }
   string[] genSection() {
     auto subs = new string[][sub.length];
@@ -224,8 +224,8 @@ class Dwarf2Section {
     
     auto res = new string[sum];
     int q = 0;
-    res[q++] = getLabel()~":"~(comment?qformat("\t/* ", comment, " */"):"");
-    res[q++] = qformat(".uleb128 ", hex(abbrev), "\t/* abbrev code */");
+    res[q++] = getLabel()~":"~(comment?qformat("\t/* "[], comment, " */"[]):""[]);
+    res[q++] = qformat(".uleb128 "[], hex(abbrev), "\t/* abbrev code */"[]);
     res[q..q+data.length] = data;
     q += data.length;
     foreach (subsect; subs) {
@@ -249,7 +249,7 @@ class Dwarf2Controller {
   this() {
     New(strings);
     New(cache);
-    cache.allocAbbrev("compile unit",
+    cache.allocAbbrev("compile unit"[],
       [DW.TAG_compile_unit,
        DW.children_yes,
        DW.AT_producer,  DW.FORM_strp,
@@ -259,17 +259,17 @@ class Dwarf2Controller {
        DW.AT_high_pc,   DW.FORM_addr,
        DW.AT_stmt_list, DW.FORM_data4
       ]);
-    New(root, cache.getKeyFor("compile unit"));
-    root.data ~= strings.addString("Neat FCC 1");
+    New(root, cache.getKeyFor("compile unit"[]));
+    root.data ~= strings.addString("Neat FCC 1"[]);
     root.data ~= ".byte\t0x1\t/* language whatevs */";
-    root.data ~= strings.addString("test.nt");
+    root.data ~= strings.addString("test.nt"[]);
     root.data ~= ".long .Ltext";
     root.data ~= ".long .Letext";
     // root.data ~= ".4byte\t.Ldebug_line0";
     root.data ~= ".long\t.Ldebug_line0";
     current = root;
     
-    cache.allocAbbrev("subprogram",
+    cache.allocAbbrev("subprogram"[],
       [DW.TAG_subprogram,
        DW.children_yes,
        DW.AT_external,  DW.FORM_flag,
@@ -281,44 +281,44 @@ class Dwarf2Controller {
        DW.AT_high_pc,   DW.FORM_addr,
        DW.AT_frame_base,DW.FORM_block1
       ]);
-    cache.allocAbbrev("lexical block",
+    cache.allocAbbrev("lexical block"[],
       [DW.TAG_lexical_block,
        DW.children_yes,
        DW.AT_low_pc,  DW.FORM_addr,
        DW.AT_high_pc, DW.FORM_addr
       ]);
-    cache.allocAbbrev("variable",
+    cache.allocAbbrev("variable"[],
       [DW.TAG_variable,
        DW.children_no,
        DW.AT_name,     DW.FORM_strp,
        DW.AT_type,     DW.FORM_ref4,
        DW.AT_location, DW.FORM_block1
       ]);
-    cache.allocAbbrev("base type",
+    cache.allocAbbrev("base type"[],
       [DW.TAG_base_type,
        DW.children_no,
        DW.AT_byte_size, DW.FORM_data4,
        DW.AT_encoding,  DW.FORM_data1,
        DW.AT_name,      DW.FORM_strp
       ]);
-    cache.allocAbbrev("structure type",
+    cache.allocAbbrev("structure type"[],
       [DW.TAG_structure_type,
        DW.children_yes,
        DW.AT_byte_size, DW.FORM_data4
       ]);
-    cache.allocAbbrev("pointer type",
+    cache.allocAbbrev("pointer type"[],
       [DW.TAG_pointer_type,
        DW.children_no,
        DW.AT_type,      DW.FORM_ref4,
        DW.AT_byte_size, DW.FORM_data4
       ]);
-    cache.allocAbbrev("array type",
+    cache.allocAbbrev("array type"[],
       [DW.TAG_array_type,
        DW.children_no,
        DW.AT_type,      DW.FORM_ref4,
        DW.AT_byte_size, DW.FORM_data4
       ]);
-    cache.allocAbbrev("structure member",
+    cache.allocAbbrev("structure member"[],
       [DW.TAG_member,
        DW.children_no,
        DW.AT_name, DW.FORM_strp,

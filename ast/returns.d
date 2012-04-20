@@ -12,7 +12,7 @@ class ReturnStmt : Statement {
   mixin defaultIterate!(value);
   Statement[] guards;
   int[] guard_offsets;
-  string toString() { return Format("return ", value); }
+  string toString() { return Format("return "[], value); }
   override void emitAsm(AsmFile af) {
     auto fun = ns.get!(Function);
     
@@ -24,7 +24,7 @@ class ReturnStmt : Statement {
         auto delta = af.currentStackDepth - guard_offsets[i];
         if (delta) {
           if (mustPreserveStack) {
-            logln("WARN this may break");
+            logln("WARN this may break"[]);
           } else af.restoreCheckptStack(guard_offsets[i]);
         }
         // dup because we know this is safe for multi-emit; it may get emat multiple times, but it will only get called once.
@@ -33,36 +33,36 @@ class ReturnStmt : Statement {
     }
     if (value) {
       if (Single!(Void) == value.valueType()) {
-        mixin(mustOffset("0"));
-        scope(failure) logln("While returning ", value, " of ", value.valueType());
+        mixin(mustOffset("0"[]));
+        scope(failure) logln("While returning "[], value, " of "[], value.valueType());
         value.emitAsm(af);
         emitGuards(false);
       } else {
-        // mixin(mustOffset("0"));
-        scope(failure) logln("while returning ", value);
+        // mixin(mustOffset("0"[]));
+        scope(failure) logln("while returning "[], value);
         auto vt = value.valueType();
-        Expr value = fastcast!(Expr) (ns.lookup("__retval_holder", true));
+        Expr value = fastcast!(Expr) (ns.lookup("__retval_holder"[], true));
         int tofree;
         scope(success) af.sfree(tofree);
         auto var = fastcast!(Variable) (value);
         if (value && (!var || -var.baseOffset <= af.currentStackDepth)) {
-          (new Assignment(fastcast!(LValue) (value), this.value)).emitAsm(af);
+          (fastalloc!(Assignment)(fastcast!(LValue) (value), this.value)).emitAsm(af);
           emitGuards(false);
           if (!var) fail;
           if (af.currentStackDepth != -var.baseOffset) {
             if (af.currentStackDepth > -var.baseOffset) {
               af.restoreCheckptStack(-var.baseOffset);
             } else {
-              logln("bad place to grab ", var, " for return: declared at ", -var.baseOffset, " currentStackDepth ", af.currentStackDepth);
+              logln("bad place to grab "[], var, " for return: declared at "[], -var.baseOffset, " currentStackDepth "[], af.currentStackDepth);
             }
           }
         } else {
           tofree = alignStackFor(vt, af);
-          var = new Variable(vt, null, boffs(vt, af.currentStackDepth));
+          var = fastalloc!(Variable)(vt, cast(string) null, boffs(vt, af.currentStackDepth));
           value = var;
-          (new VarDecl(var)).emitAsm(af);
+          (fastalloc!(VarDecl)(var)).emitAsm(af);
           tofree += vt.size; // pro forma
-          (new Assignment(var, this.value)).emitAsm(af);
+          (fastalloc!(Assignment)(var, this.value)).emitAsm(af);
           emitGuards(true);
         }
         
@@ -76,15 +76,15 @@ class ReturnStmt : Statement {
           af.salloc(3);
           value.emitAsm(af);
           if (isARM) {
-            af.mmove1("[sp]", "r0");
+            af.mmove1("[sp]"[], "r0"[]);
             af.sfree(1);
           } else {
-            af.popStack("%al", 1);
+            af.popStack("%al"[], 1);
           }
           af.sfree(3);
         } else if (vt.size == 2) {
           value.emitAsm(af);
-          af.popStack("%ax", 2);
+          af.popStack("%ax"[], 2);
         } else if (vt.size == 4) {
           value.emitAsm(af);
           af.popStack(af.regs[0], 4);
@@ -110,7 +110,7 @@ class ReturnStmt : Statement {
             popStack(regs[3], 4);
           }
         } else {
-          logln("Unsupported return type ", vt, ", being ", vt.size);
+          logln("Unsupported return type "[], vt, "[], being "[], vt.size);
           fail;
         }
       }
@@ -135,7 +135,7 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto fun = namespace().get!(Function)();
   text = t2;
   IType[] tried;
-  if (rest(text, "tree.expr", &rs.value)) {
+  if (rest(text, "tree.expr"[], &rs.value)) {
     auto temp = rs.value;
     
     // auto deduction!
@@ -147,16 +147,16 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == ret); }))
       return rs;
     else {
-      text.failparse("Could not convert to return type ", fun.type.ret, "; expression had the type ", temp.valueType());
+      text.failparse("Could not convert to return type "[], fun.type.ret, "; expression had the type "[], temp.valueType());
     }
   }
   
   if (!fun.type.ret) fun.type.ret = Single!(Void);
   else if (fun.type.ret.size > 16)
-    text.failparse("Return type cannot be larger than 16 bytes! ");
+    text.failparse("Return type cannot be larger than 16 bytes! "[]);
   
   if (Single!(Void) == fun.type.ret)
     return rs; // permit no-expr
-  text.failparse("Error parsing return expression");
+  text.failparse("Error parsing return expression"[]);
 }
-mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return", "3", "return");
+mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return"[], "3"[], "return"[]);

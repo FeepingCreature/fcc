@@ -11,11 +11,11 @@ Itr fold(Itr i) {
     debug e1 = fastcast!(Expr)~ start;
     foreach (dg; foldopt) {
       if (auto res = dg(cur)) cur = res;
-      // logln("TEST ", (fastcast!(Object)~ cur.valueType()).classinfo.name, " != ", (fastcast!(Object)~ start.valueType()).classinfo.name, ": ", cur.valueType() != start.valueType());
+      // logln("TEST "[], (fastcast!(Object)~ cur.valueType()).classinfo.name, " != "[], (fastcast!(Object)~ start.valueType()).classinfo.name, ": "[], cur.valueType() != start.valueType());
       debug {
         auto e2 = fastcast!(Expr)~ cur;
         if (e1 && e2 && e1.valueType() != e2.valueType()) {
-          throw new Exception(Format("Fold has violated type consistency: ", start, " => ", cur));
+          throw new Exception(Format("Fold has violated type consistency: "[], start, " => "[], cur));
         }
       }
     }

@@ -8,11 +8,11 @@ import ast.modules;
 Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
   /*auto rs = fastcast!(RelNamespace)~ namespace();
   if (!rs)
-    throw new Exception(Format("Fail: namespace is ", namespace(), ". "));*/
+    throw new Exception(Format("Fail: namespace is "[], namespace(), ". "[]));*/
   auto rs = namespace().get!(RelNamespace);
   if (!rs)
-    throw new Exception(Format("Fail: no relns beneath ", namespace(), ". "));
-  auto fun = new RelFunction(rs);
+    throw new Exception(Format("Fail: no relns beneath "[], namespace(), ". "[]));
+  auto fun = fastalloc!(RelFunction)(rs);
   
   if (auto res = gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest)) {
     auto tr = fastcast!(Tree) (res);
@@ -22,7 +22,7 @@ Object gotStructFunDef(ref string text, ParseCb cont, ParseCb rest) {
     return res;
   } else return null;
 }
-mixin DefaultParser!(gotStructFunDef, "struct_member.struct_fundef");
+mixin DefaultParser!(gotStructFunDef, "struct_member.struct_fundef"[]);
 
 import ast.vardecl, ast.assign;
 class RelFunCall : FunCall, RelTransformable {
@@ -32,14 +32,14 @@ class RelFunCall : FunCall, RelTransformable {
   }
   mixin defaultIterate!(baseptr, params);
   override RelFunCall dup() {
-    auto res = new RelFunCall(baseptr?baseptr.dup:null);
+    auto res = fastalloc!(RelFunCall)(baseptr?baseptr.dup:null);
     res.fun = fun;
     res.params = params.dup;
     foreach (ref entry; params) entry = entry.dup;
     return res;
   }
   override Object transform(Expr base) {
-    if (baseptr) { logln("RelFunCall was pretransformed: ", baseptr); fail; }
+    if (baseptr) { logln("RelFunCall was pretransformed: "[], baseptr); fail; }
     if (!base) fail;
     auto res = dup();
     res.baseptr = base;
@@ -47,24 +47,24 @@ class RelFunCall : FunCall, RelTransformable {
   }
   override void emitAsm(AsmFile af) {
     if (!baseptr) {
-      logln("Untransformed rel-funcall: ", this);
+      logln("Untransformed rel-funcall: "[], this);
       fail;
     }
     if (auto lv = fastcast!(LValue)~ baseptr) {
       callDg(af, fun.type.ret, params,
-        new DgConstructExpr(fun.getPointer(), new RefExpr(lv)));
+        fastalloc!(DgConstructExpr)(fun.getPointer(), fastalloc!(RefExpr)(lv)));
     } else {
       mkVar(af, valueType(), true, (Variable var) {
         auto backup = af.checkptStack();
         scope(exit) af.restoreCheckptStack(backup);
-        auto temp = new Variable(baseptr.valueType(), null, baseptr, boffs(baseptr.valueType(), af.currentStackDepth));
-        (new VarDecl(temp)).emitAsm(af);
+        auto temp = fastalloc!(Variable)(baseptr.valueType(), cast(string) null, baseptr, boffs(baseptr.valueType(), af.currentStackDepth));
+        (fastalloc!(VarDecl)(temp)).emitAsm(af);
         Variable res;
         // don't process res if void
-        if (var) res = new Variable(valueType(), null, boffs(valueType(), af.currentStackDepth));
+        if (var) res = fastalloc!(Variable)(valueType(), cast(string) null, boffs(valueType(), af.currentStackDepth));
         callDg(af, fun.type.ret, params,
-          new DgConstructExpr(fun.getPointer(), new RefExpr(temp)));
-        if (var) (new Assignment(var, res)).emitAsm(af);
+          fastalloc!(DgConstructExpr)(fun.getPointer(), fastalloc!(RefExpr)(temp)));
+        if (var) (fastalloc!(Assignment)(var, res)).emitAsm(af);
       });
     }
   }
@@ -86,7 +86,7 @@ class RelExtensibleOverloadWrapper : OverloadSet, RelTransformable {
     Extensible extend(Extensible ex) {
       auto os = fastcast!(OverloadSet) (super.extend(ex));
       if (!os) fail;
-      return new RelExtensibleOverloadWrapper(os.name, os.funs);
+      return fastalloc!(RelExtensibleOverloadWrapper)(os.name, os.funs);
     }
   }
 }
@@ -111,7 +111,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
     return res;
   }
   override Object transform(Expr base) {
-    assert(!baseptr, Format("RelFun was pretransformed: ", baseptr));
+    assert(!baseptr, Format("RelFun was pretransformed: "[], baseptr));
     assert(!!fastcast!(RelNamespace) (basetype));
     auto res = dup();
     if (!base) fail;
@@ -123,7 +123,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
     if (!res) return null;
     auto os = fastcast!(OverloadSet) (res);
     if (!os || fastcast!(RelTransformable) (res)) return res;
-    return new RelExtensibleOverloadWrapper(os.name, os.funs);
+    return fastalloc!(RelExtensibleOverloadWrapper)(os.name, os.funs);
   }
   override Extensible simplify() { return this; }
   FunctionPointer typeAsFp() {
@@ -133,7 +133,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
     if (auto rnfb = fastcast!(RelNamespaceFixupBase) (context))
       res.args ~= Argument(rnfb.genCtxType(context));
     else
-      res.args ~= Argument(new Pointer(basetype));
+      res.args ~= Argument(fastalloc!(Pointer)(basetype));
     return res;
   }
   mixin defaultIterate!(baseptr, tree);
@@ -141,12 +141,12 @@ class RelFunction : Function, RelTransformable, HasInfo {
     string mangleSelf() {
       return basetype.mangle() ~ "_" ~ super.mangleSelf();
     }
-    string getInfo() { return Format(name, " under ", context); }
+    string getInfo() { return Format(name, " under "[], context); }
     string mangle(string name, IType type) {
-      return mangleSelf() ~ (type?("_" ~ type.mangle()):"")~"_"~name;
+      return mangleSelf() ~ (type?("_" ~ type.mangle()):""[])~"_"~name;
     }
     FunCall mkCall() {
-      auto res = new RelFunCall(baseptr);
+      auto res = fastalloc!(RelFunCall)(baseptr);
       res.fun = this;
       return res;
     }
@@ -154,15 +154,15 @@ class RelFunction : Function, RelTransformable, HasInfo {
     int fixup() {
       auto cur = super.fixup();
       if (!fastcast!(hasRefType) (context))
-        logln("bad context: ", context, " is not reftype");
+        logln("bad context: "[], context, " is not reftype"[]);
       
-      auto bp = new Variable((fastcast!(hasRefType) (context)).getRefType(), "__base_ptr", cur);
+      auto bp = fastalloc!(Variable)((fastcast!(hasRefType) (context)).getRefType(), "__base_ptr"[], cur);
       add(bp);
       cur += 4;
       _framestart += 4;
       
       if (fastcast!(Pointer)~ bp.valueType())
-        add(new ExprAlias(new DerefExpr(bp), "this"));
+        add(fastalloc!(ExprAlias)(fastalloc!(DerefExpr)(bp), "this"[]));
       return cur;
     }
     Object lookup(string name, bool local = false) {
@@ -170,9 +170,9 @@ class RelFunction : Function, RelTransformable, HasInfo {
       if (res) return res;
       else if (local) return null;
       
-      auto bp = fastcast!(Expr) (lookup("__base_ptr", true));
+      auto bp = fastcast!(Expr) (lookup("__base_ptr"[], true));
       if (bp) { // initialized already?
-        if (auto ptr = fastcast!(Pointer)~ bp.valueType()) bp = new DerefExpr(bp);
+        if (auto ptr = fastcast!(Pointer)~ bp.valueType()) bp = fastalloc!(DerefExpr)(bp);
         if (auto res = context.lookupRel(name, bp))
           return res;
       }
@@ -187,16 +187,16 @@ class StructFunRefExpr : mkDelegate {
   RelFunction fun;
   this(RelFunction fun) {
     this.fun = fun;
-    logln("base ptr is ", fun.baseptr);
+    logln("base ptr is "[], fun.baseptr);
     assert(fun.baseptr);
-    super(fun.getPointer(), new RefExpr(fastcast!(CValue)~ fun.baseptr));
+    super(fun.getPointer(), fastalloc!(RefExpr)(fastcast!(CValue)~ fun.baseptr));
   }
   override typeof(this) dup() { return new typeof(this)(fun); }
   override string toString() {
-    return Format("&", fun.baseptr, ".", fun);
+    return Format("&"[], fun.baseptr, "."[], fun);
   }
   override IType valueType() {
-    return new Delegate(fun.type.ret, fun.type.params);
+    return fastalloc!(Delegate)(fun.type.ret, fun.type.params);
   }
 }
 
@@ -206,9 +206,9 @@ Object gotStructfunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto propbackup = propcfg().withCall;
   propcfg().withCall = false;
   scope(exit) propcfg().withCall = propbackup;
-  if (!rest(text, "tree.expr _tree.expr.arith", &rf))
+  if (!rest(text, "tree.expr _tree.expr.arith"[], &rf))
     return null;
   
-  return new StructFunRefExpr(rf);
+  return fastalloc!(StructFunRefExpr)(rf);
 }
-mixin DefaultParser!(gotStructfunRefExpr, "tree.expr.dg_struct_ref", "21010", "&");
+mixin DefaultParser!(gotStructfunRefExpr, "tree.expr.dg_struct_ref"[], "21010"[], "&"[]);

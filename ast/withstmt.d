@@ -31,7 +31,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
     return res;
   }
   mixin DefaultScopeLikeGuards!();
-  string toString() { return Format("with (", context, ") <- ", sup); }
+  string toString() { return Format("with ("[], context, ") <- "[], sup); }
   int temps;
   override int framesize() {
     auto supsz = (fastcast!(ScopeLike) (sup)).framesize();
@@ -53,9 +53,9 @@ class WithStmt : Namespace, Statement, ScopeLike {
       ex = isc.getSup;
       auto vt = ex.valueType();
       
-      auto backupvar = new Variable(vt, null, ex, boffs(vt));
+      auto backupvar = fastalloc!(Variable)(vt, cast(string) null, ex, boffs(vt));
       sc.add(backupvar);
-      sc.addStatement(new VarDecl(backupvar));
+      sc.addStatement(fastalloc!(VarDecl)(backupvar));
       sc.addGuard(mkAssignment(ex, backupvar));
       if (auto aex = isc.getAssign())
         sc.addStatement(mkAssignment(ex, aex));
@@ -76,7 +76,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       var.baseOffset = boffs(var.type);
       temps += var.type.size;
       context = var;
-      sc.addStatement(new VarDecl(var));
+      sc.addStatement(fastalloc!(VarDecl)(var));
     }
     
     ex = context;
@@ -103,7 +103,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
           return false;
         });
         if (fastcast!(Pointer) (ex2.valueType())) {
-          ex2 = new DerefExpr(ex2);
+          ex2 = fastalloc!(DerefExpr)(ex2);
           continue;
         }
         break;
@@ -115,12 +115,17 @@ class WithStmt : Namespace, Statement, ScopeLike {
     }
     
     if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
-                              ("evaluate ex.onUsing", "ex", context))
+                              ("evaluate ex.onUsing", "ex"[], context))
       sc.addStatement(onUsing);
     
     if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
-                              ("evaluate ex.onExit", "ex", context))
+                              ("evaluate ex.onExit", "ex"[], context))
       sc.addGuard(onExit);
+    if (rns) rns = myresolve(rns);
+    if (rnslist)
+      foreach (ref rns; rnslist)
+        rns._0 = myresolve(rns._0);
+    if (ns) ns = myresolve(ns);
   }
   private this() { }
   override {
@@ -146,14 +151,14 @@ class WithStmt : Namespace, Statement, ScopeLike {
       if (name == "this") block = true;
       if (!local && !block) {
         if (rns)
-          if (auto res = myresolve(rns).lookupRel(name, context, false))
+          if (auto res = rns.lookupRel(name, context, false))
             return res;
         if (rnslist)
           foreach (rns; rnslist)
-            if (auto res = myresolve(rns._0).lookupRel(name, rns._1, false))
+            if (auto res = rns._0.lookupRel(name, rns._1, false))
               return res;
         if (ns)
-          if (auto res = myresolve(ns).lookup(name, true))
+          if (auto res = ns.lookup(name, true))
             return res;
       }
       return sup.lookup(name, local);
@@ -172,7 +177,7 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(backup);
   
   // if (fastcast!(Pointer) (ex.valueType()))
-  //   ex = new DerefExpr(ex);
+  //   ex = fastalloc!(DerefExpr)(ex);
   
   WithStmt ws, outer;
   
@@ -198,7 +203,7 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
       }
       
       auto prev = ws;
-      try ws = new WithStmt(entry);
+      try ws = fastalloc!(WithStmt)(entry);
       catch (Exception ex) t2.failparse(ex);
       ws.sc.configPosition(t2);
       if (!outer) outer = ws;
@@ -207,14 +212,14 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
     }
   } else {
     if (scoped) ex = genScoped(ex, newval);
-    try ws = new WithStmt(ex);
+    try ws = fastalloc!(WithStmt)(ex);
     catch (Exception ex) t2.failparse(ex);
     ws.sc.configPosition(t2);
     outer = ws;
     namespace.set(ws.sc);
   }
   Statement st;
-  if (!rest(t2, "tree.stmt", &st))
+  if (!rest(t2, "tree.stmt"[], &st))
     t2.failparse("Couldn't match with-body");
   ws.sc.addStatement(st);
   text = t2;

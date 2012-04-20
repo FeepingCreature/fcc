@@ -45,7 +45,7 @@ bool isSSERegister(string reg) {
 }
 
 bool isSSEMathOp(string op) {
-  return !!(op == "addps"[] /or/ "subps"[] /or/ "mulps"[] /or/ "divps"[]);
+  return !!(op == "addps" /or/ "subps" /or/ "mulps" /or/ "divps");
 }
 
 struct OrderedFastHashlike(K, V, FastKeys...) {
@@ -438,7 +438,7 @@ class ProcTrack : ExtToken {
         if (t.op1.isNumLiteral() && t.op2 == "(%esp)" && stack.length && stack()[$-1].startsWith("+(")) {
           auto mop2 = stack()[$-1].between("+(", ")"), mop1 = mop2.slice(", ");
           if (mop2.isNumLiteral()) {
-            stack()[$-1] = qformat("+(", mop1, ", $", mop2.literalToInt() + t.op1.literalToInt(), ")");
+            stack()[$-1] = qformat("+("[], mop1, ", $"[], mop2.literalToInt() + t.op1.literalToInt(), ")"[]);
             mixin(Success);
           }
         }
@@ -959,9 +959,9 @@ restart:
       if (!s.isIndirect().contains("%esp")) return;
       auto offs = s.between("", "(").my_atoi();
       if ($1.kind == $TK.SAlloc) {
-        s = qformat(offs + shift, "(", s.isIndirect(), ")");
+        s = qformat(offs + shift, "("[], s.isIndirect(), ")"[]);
       } else {
-        s = qformat(offs - shift, "(", s.isIndirect(), ")");
+        s = qformat(offs - shift, "("[], s.isIndirect(), ")"[]);
       }
     }
     info(t).accessParams((ref string s) { detShift(s); });
@@ -1047,7 +1047,7 @@ restart:
         if ($1.opName == "addl") n += t.op1.literalToInt();
         else n *= t.op1.literalToInt();
         $T t2 = $0;
-        t2.from = qformat("$", n);
+        t2.from = qformat("$"[], n);
         $SUBST(t2);
       } else {
         $T t2 = $0;
@@ -1100,7 +1100,7 @@ restart:
       if (sum != 0) {
         $T t0;
         t0.kind = $TK.LoadAddress;
-        t0.from = qformat(sum, "(", t0from, ")");
+        t0.from = qformat(sum, "("[], t0from, ")"[]);
         t0.to = t0from;
         if (t0to == t0.to) $SUBST(t0);
         else $SUBST($0, t0);
@@ -1220,7 +1220,7 @@ restart:
         int offs2;
         string srcreg = $0.from.isIndirect2(offs2);
         if (!srcreg) { offs2 = 0; srcreg = $0.from; }
-        st = qformat(offs + offs2, "(", srcreg, ")");
+        st = qformat(offs + offs2, "("[], srcreg, ")"[]);
       }
     });
     $T t2 = $0;
@@ -1298,7 +1298,7 @@ restart:
     $0.op1.isNumLiteral() && $1.op1.isNumLiteral()
     =>
     $T t = $0;
-    t.op1 = qformat("$", $0.op1.literalToInt() + $1.op1.literalToInt());
+    t.op1 = qformat("$"[], $0.op1.literalToInt() + $1.op1.literalToInt());
     if (t.op1 != "$0") $SUBST(t);
     else $SUBST();
   `));
@@ -1492,7 +1492,7 @@ restart:
       // can't rely on alignment!
       if (t.opName == "movaps")
         t.opName = "movups";
-      t.op1 = qformat(offs, "(%esp)");
+      t.op1 = qformat(offs, "(%esp)"[]);
       $SUBST(t, $0, $1, $2, $3);
     }
   `));
@@ -1529,7 +1529,7 @@ restart:
     $T t = $0;
     int offs;
     $0.from.isIndirect2(offs);
-    t.from = qformat(offs, "(%esp,", $1.op1, ")");
+    t.from = qformat(offs, "(%esp,"[], $1.op1, ")"[]);
     $SUBST(t);
   `));
   string pfpsource(Transaction* t) {
@@ -1557,9 +1557,9 @@ restart:
     pfpsource(&$1).isIndirect2(offs);
     string newsource;
     if ($0.op1.isUtilityRegister())
-      newsource = qformat(offs, "(", $0.op2, ",", $0.op1, ")");
+      newsource = qformat(offs, "("[], $0.op2, ","[], $0.op1, ")"[]);
     else
-      newsource = qformat(offs + $0.op1.literalToInt(), "(", $0.op2, ")");
+      newsource = qformat(offs + $0.op1.literalToInt(), "("[], $0.op2, ")"[]);
     pfpsetsource(&t, newsource);
     $SUBST(t, $0);
   `));
@@ -1586,7 +1586,7 @@ restart:
     // mul = 2 ^ shl
     if ($0.opName == "shl") { int mul2 = 1; while (mul--) mul2 *= 2; mul = mul2; }
     if (mul == 1 /or/ 2 /or/ 4 /or/ 8) {
-      pfpsetsource(&t, qformat(offs, "(", regs, ",", mul, ")"));
+      pfpsetsource(&t, qformat(offs, "("[], regs, ","[], mul, ")"[]));
       $SUBST(t, $0);
     }
   `));
@@ -1620,21 +1620,21 @@ restart:
     =>
     $T t;
     t.kind = $TK.LoadAddress;
-    t.from = qformat("(", $0.to, ",", $2.to, ",", $1.op1.literalToInt(), ")");
+    t.from = qformat("("[], $0.to, ","[], $2.to, ","[], $1.op1.literalToInt(), ")"[]);
     t.to = $3.op2;
     $SUBST($0, $2, t);
   `));*/
   mixin(opt("lea_mov_into_push_pop", `^LoadAddress, ^Mov, ^Push || ^Pop || ^FloatLoad:
     $0.from.isIndirect() == "%esp" &&
-    pfpsource(&$2).isIndirect().startsWith(qformat($0.to, ",", $1.to))
+    pfpsource(&$2).isIndirect().startsWith(qformat($0.to, ","[], $1.to))
     =>
     $T t = $2;
     int offs1, offs2;
     pfpsource(&t).isIndirect2(offs1);
     $0.from.isIndirect2(offs2);
-    auto rest = pfpsource(&$2).isIndirect().startsWith(qformat($0.to, ",", $1.to));
+    auto rest = pfpsource(&$2).isIndirect().startsWith(qformat($0.to, ","[], $1.to));
     int combined_offset = offs1 + offs2;
-    pfpsetsource(&t, qformat(combined_offset, "(%esp,", $1.to, rest, ")"));
+    pfpsetsource(&t, qformat(combined_offset, "(%esp,"[], $1.to, rest, ")"[]));
     $SUBST($1, t);
   `));
   mixin(opt("rename_earlier", `^MathOp, ^Mov, ^Mov || ^LoadAddress:
@@ -1724,7 +1724,7 @@ restart:
     int offs1, offs2;
     $0.from.isIndirect2(offs1);
     t.source.isIndirect2(offs2);
-    t.source = qformat(offs1 + offs2, "(%esp)");
+    t.source = qformat(offs1 + offs2, "(%esp)"[]);
     $SUBST(t, $0);
   `));
   mixin(opt("movaps_later", `^SSEOp, *:
@@ -1816,8 +1816,8 @@ restart:
         int loffs;
         string lindir = curAddr.isIndirect2(loffs);
         if (lindir != "%esp")
-          if (loffs - 4) curAddr = qformat(loffs - 4, "(", lindir, ")");
-          else curAddr = qformat("(", lindir, ")");
+          if (loffs - 4) curAddr = qformat(loffs - 4, "("[], lindir, ")"[]);
+          else curAddr = qformat("("[], lindir, ")"[]);
       }
       foreach (entry; list[marker .. marker2]) {
         if (entry.dest.isIndirect() != "%esp") return false;
@@ -1860,9 +1860,9 @@ restart:
       int offs;
       auto relTo = firstAddr.isIndirect2(offs);
       if (relTo == "%esp") {
-        t2.source = qformat(offs + 4 - 2 * sz - postFree, "(%esp)");
+        t2.source = qformat(offs + 4 - 2 * sz - postFree, "(%esp)"[]);
       } else {
-        t2.source = qformat(offs + 4 - sz, "(", relTo, ")");
+        t2.source = qformat(offs + 4 - sz, "("[], relTo, ")"[]);
       }
       t2.size = sz;
       
@@ -1893,7 +1893,7 @@ restart:
     $T t1 = $1;
     int indir; $1.from.isIndirect2(indir);
     indir += $0.op1.literalToInt();
-    t1.from = qformat(indir, "(", $0.op2, ")");
+    t1.from = qformat(indir, "("[], $0.op2, ")"[]);
     if (t1.to == $0.op2) $SUBST(t1); // overwrite target, no need to keep the math
     else if (t1.to.contains($0.op2)) { } // confusing
     else $SUBST(t1, $0); // keep the math
@@ -1928,10 +1928,10 @@ restart:
     if ($0.kind == $TK.Push) {
       if (indir) offs = offs + $0.size - 4;
     }
-    if (indir) cur.source = qformat(offs, "(", indir, ")");
+    if (indir) cur.source = qformat(offs, "("[], indir, ")"[]);
     if (indir == "%esp") indir = null;
     for (int i = 0; i < sz; i += 4) {
-      if (indir) *op = qformat(offs, "(", indir, ")");
+      if (indir) *op = qformat(offs, "("[], indir, ")"[]);
       res ~= cur;
       if ($0.kind == $TK.Push) { offs -= 4; if (cur.hasStackdepth) cur.stackdepth += 4; }
       else { offs += 4; if (cur.hasStackdepth) cur.stackdepth -= 4; }
@@ -2071,12 +2071,12 @@ restart:
     } while (match.advance());
     return changed;
   }
-  opts ~= stuple(&lookahead_remove_redundants, "lookahead_remove_redundants", true);
+  opts ~= stuple(&lookahead_remove_redundants, "lookahead_remove_redundants"[], true);
   mixin(opt("finally_push_memref_to_int", `^Push:
     $0.source.find("___xfcc_encodes_") != -1
     =>
     $T t = $0;
-    t.source = qformat("$", t.source.between("___xfcc_encodes_", "").atoll());
+    t.source = qformat("$"[], t.source.between("___xfcc_encodes_", "").atoll());
     $SUBST(t);
   `));
   mixin(opt("finally_remove_nvm", `^Nevermind => $SUBST(); `));

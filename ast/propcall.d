@@ -23,16 +23,15 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
   Expr firstParam;
   IType fpvt;
   bool implicit;
-  this(Expr firstParam) { construct(firstParam); }
-  void construct(Expr firstParam) { this.firstParam = firstParam; sup = namespace(); fpvt = firstParam.valueType(); }
+  this(Expr firstParam) { this.firstParam = firstParam; sup = namespace(); fpvt = firstParam.valueType(); }
   override {
     Object forWith() {
-      auto res = new FirstParamOverrideSpace(firstParam);
+      auto res = fastalloc!(FirstParamOverrideSpace)(firstParam);
       res.sup = sup;
       res.implicit = true;
       return res;
     }
-    string toString() { return Format("fpos of a ", fpvt); }
+    string toString() { return Format("fpos of a "[], fpvt); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     bool isPointerLess() { return fpvt.isPointerLess(); }
@@ -40,7 +39,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
     Object lookup(string name, bool local = false) {
       auto res = sup.lookup(name, local);
       if (auto templ = fastcast!(Template) (res)) {
-        return new PrefixTemplate(firstParam, templ);
+        return fastalloc!(PrefixTemplate)(firstParam, templ);
       }
       PrefixFunction processFun(Function fun) {
         // if (fastcast!(NestedFunction)~ fun) return null;
@@ -48,27 +47,27 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
         if (!params.length) return null;
         auto pt = params[0].type;
         if (incompat(fpvt, pt)) {
-          // logln("Incompatible types: ", fpvt, " and ", pt);
+          // logln("Incompatible types: "[], fpvt, " and "[], pt);
           // fail;
           return null;
         }
         auto ex2 = firstParam;
         if (!gotImplicitCast(ex2, (IType it) { return test(it == pt); })) {
-          // logln("no cast from ", firstParam, " to ", pt);
+          // logln("no cast from "[], firstParam, " to "[], pt);
           return null;
         }
-        return new PrefixFunction(ex2, fun);
+        return fastalloc!(PrefixFunction)(ex2, fun);
       }
       if (auto fun = fastcast!(Function) (res)) {
         if (auto res2 = processFun(fun)) {
           if (implicit) // comes from using() = not 100% sure if a match
-            return fastcast!(Object) ((new OverloadSet(fun.name)).extend(fun).extend(res2));
+            return fastcast!(Object) ((fastalloc!(OverloadSet)(fun.name)).extend(fun).extend(res2));
           else // comes from a.b = definitely a match
             return res2;
         }
       }
       if (auto os = fastcast!(OverloadSet) (res)) {
-        Extensible resx = new OverloadSet(os.name);
+        Extensible resx = fastalloc!(OverloadSet)(os.name);
         foreach (fun; os.funs)
           resx = resx.extend(fun);
         foreach (fun; os.funs)
@@ -97,10 +96,9 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
 // haaack.
 class MyPlaceholderExpr : Expr {
   FirstParamOverrideSpace fpos;
-  this(typeof(fpos) fpos) { construct(fpos); }
-  void construct(typeof(fpos) fpos) { this.fpos = fpos; }
+  this(typeof(fpos) fpos) { this.fpos = fpos; }
   override {
-    string toString() { return Format("propcall form for ", fpos.firstParam); }
+    string toString() { return Format("propcall form for "[], fpos.firstParam); }
     void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
       Iterable forble = fpos.firstParam, forble2 = forble;
       dg(forble);
@@ -117,8 +115,9 @@ class MyPlaceholderExpr : Expr {
 
 // SUCH a hack. (do this last, save some time)
 void setupPropCall() {
-  implicits ~= delegate Expr(Expr ex) {
+  implicits ~= delegate Expr(Expr ex, IType it) {
     if (fastcast!(MyPlaceholderExpr) (ex)) return null;
+    if (it) return null; // we want a specific type - no sense in trying the overrides
     return fastalloc!(MyPlaceholderExpr)(fastalloc!(FirstParamOverrideSpace)(forcedConvert(ex)));
   };
 }

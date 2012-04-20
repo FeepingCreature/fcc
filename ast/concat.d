@@ -13,10 +13,10 @@ class ConcatChain : Expr {
     auto base = exprs.take();
     auto sa = fastcast!(StaticArray)~ base.valueType();
     if (sa) {
-      type = new Array(sa.elemType);
+      type = fastalloc!(Array)(sa.elemType);
     } else {
       type = fastcast!(Array)~ base.valueType();
-      assert(!!type, Format(base, " is not array or static array! "));
+      assert(!!type, Format(base, " is not array or static array! "[]));
     }
     addArray(base);
     foreach (expr; exprs)
@@ -30,11 +30,11 @@ class ConcatChain : Expr {
   }
   override {
     IType valueType() { return type; }
-    string toString() { return Format("~", arrays); }
+    string toString() { return Format("~"[], arrays); }
     void emitAsm(AsmFile af) {
-      mixin(mustOffset("valueType().size"));
+      mixin(mustOffset("valueType().size"[]));
       mkVar(af, type, true, (Variable var) {
-        mixin(mustOffset("0"));
+        mixin(mustOffset("0"[]));
         auto sc = new Scope;
         namespace.set(sc);
         scope(exit) namespace.set(sc.sup);
@@ -44,50 +44,50 @@ class ConcatChain : Expr {
         auto dg = sc.open(af);
         scope(exit) dg()(false);
         
-        auto sa = new StaticArray(valueType(), arrays.length);
+        auto sa = fastalloc!(StaticArray)(valueType(), arrays.length);
         auto
-          offset = new Variable(Single!(SysInt), null, boffs(Single!(SysInt), af.currentStackDepth)),
-          total  = new Variable(Single!(SysInt), null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize)),
-          cache  = new Variable(sa,              null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
+          offset = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), af.currentStackDepth)),
+          total  = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize)),
+          cache  = fastalloc!(Variable)(sa,              cast(string) null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
         cache.dontInit = true;
         total.initInit;
         offset.initInit;
-        (new VarDecl(offset)).emitAsm(af);
-        (new VarDecl(total)).emitAsm(af);
-        (new VarDecl(cache)).emitAsm(af);
+        (fastalloc!(VarDecl)(offset)).emitAsm(af);
+        (fastalloc!(VarDecl)(total)).emitAsm(af);
+        (fastalloc!(VarDecl)(cache)).emitAsm(af);
         foreach (i, array; arrays) {
           if (array.valueType() == type.elemType) {
-            iparse!(Statement, "inc_array_length", "tree.stmt")
-                   (`total ++; `, "total", total).emitAsm(af);
+            iparse!(Statement, "inc_array_length"[], "tree.stmt"[])
+                   (`total ++; `, "total"[], total).emitAsm(af);
           } else {
             // cache[i] = array
             auto cachepos = getIndex(cache, mkInt(i));
-            (new Assignment(cachepos, array)).emitAsm(af);
+            (fastalloc!(Assignment)(cachepos, array)).emitAsm(af);
             // total = total + cache[i].length
-            (new Assignment(total,
-              lookupOp("+", total, getArrayLength(cachepos))
+            (fastalloc!(Assignment)(total,
+              lookupOp("+"[], total, getArrayLength(cachepos))
             )).emitAsm(af);
           }
         }
-        iparse!(Statement, "alloc_array", "tree.semicol_stmt.assign")
+        iparse!(Statement, "alloc_array"[], "tree.semicol_stmt.assign"[])
         (
-          "var = new T[] total",
-          "var", var, "T", type.elemType,
-          "total", total
+          "var = new T[] total"[],
+          "var"[], var, "T"[], type.elemType,
+          "total"[], total
         ).emitAsm(af);
         foreach (i, array; arrays) {
           auto c = getIndex(cache, mkInt(i));
           if (array.valueType() == type.elemType) {
             /// var[offset] = cache[i];
-            optst(new Assignment(getIndex(var, offset), reinterpret_cast(type.elemType, array))).emitAsm(af);
+            optst(fastalloc!(Assignment)(getIndex(var, offset), reinterpret_cast(type.elemType, array))).emitAsm(af);
             /// offset = offset + 1
-            optst(new Assignment(offset, lookupOp("+", offset, mkInt(1)))).emitAsm(af);
+            optst(fastalloc!(Assignment)(offset, lookupOp("+"[], offset, mkInt(1)))).emitAsm(af);
           } else {
             auto len = getArrayLength(c);
             /// var[offset .. offset + cache[i].length] = cache[i];
-            optst(getSliceAssign(mkArraySlice(var, offset, lookupOp("+", offset, len)), c.dup)).emitAsm(af);
+            optst(getSliceAssign(mkArraySlice(var, offset, lookupOp("+"[], offset, len)), c.dup)).emitAsm(af);
             /// offset = offset + cache[i].length;
-            optst(new Assignment(offset, lookupOp("+", offset, len))).emitAsm(af);
+            optst(fastalloc!(Assignment)(offset, lookupOp("+"[], offset, len))).emitAsm(af);
           }
         }
       });
@@ -106,7 +106,7 @@ static this() {
   bool isEqual(IType i1, IType i2) {
     return test(resolveType(i1) == resolveType(i2));
   }
-  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+  defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
     auto cc = fastcast!(ConcatChain) (ex1); // lol
     if (!cc) return null;
     if (!gotImplicitCast(ex2, (IType it) {
@@ -119,9 +119,9 @@ static this() {
         return null;
       ex2 = ex22;
     }
-    return new ConcatChain(cc.arrays ~ ex2);
+    return fastalloc!(ConcatChain)(cc.arrays ~ ex2);
   });
-  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+  defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
     IType base1;
     if (!gotImplicitCast(ex1, (IType it) {
       auto b1 = isArray(it);
@@ -137,54 +137,54 @@ static this() {
       if (!gotImplicitCast(ex22, base1, base1 /apply/ &isEqual)) return null;
       ex2 = ex22;
     }
-    return new ConcatChain(ex1, ex2);
+    return fastalloc!(ConcatChain)(ex1, ex2);
   });
-  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+  defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
     auto e1vt = resolveType(ex1.valueType());
     if (!isExtArray(e1vt)) return null;
-    auto comparison = new Array((fastcast!(ExtArray)~ e1vt).elemType);
+    auto comparison = fastalloc!(Array)((fastcast!(ExtArray)~ e1vt).elemType);
     if (!gotImplicitCast(ex2, comparison, (IType it) {
       return test(comparison == it);
     })) return null;
     if (!fastcast!(LValue) (ex1)) {
-      logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: ", ex1, ex2);
+      logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: "[], ex1, ex2);
       fail;
     }
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
-      return iparse!(Expr, "concat_into_ext_fOR", "tree.expr")
+      return iparse!(Expr, "concat_into_ext_fOR"[], "tree.expr"[])
                     (`sap!T(&l, r)`,
                     namespace(),
-                    "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append3"));
+                    "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append3"[]));
     } else {
-      return iparse!(Expr, "concat_into_ext", "tree.expr")
+      return iparse!(Expr, "concat_into_ext"[], "tree.expr"[])
                     (`sap!T(&l, r)`,
                     namespace(),
-                    "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append2"));
+                    "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append2"[]));
     }
   });
-  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+  defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
     auto e1vt = resolveType(ex1.valueType());
     if (!isExtArray(e1vt)) return null;
     auto et = resolveType((fastcast!(ExtArray)~ e1vt).elemType);
     if (!gotImplicitCast(ex2, et, (IType it) { return !!(it == et); }))
       return null;
     if (!fastcast!(LValue) (ex1)) {
-      logln("Cannot concatenate ext+elem: ext is not lvalue; cannot invalidate: ", ex1, ex2);
+      logln("Cannot concatenate ext+elem: ext is not lvalue; cannot invalidate: "[], ex1, ex2);
       fail;
     }
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
-      return iparse!(Expr, "concat_into_ext_fOR_elem", "tree.expr")
+      return iparse!(Expr, "concat_into_ext_fOR_elem"[], "tree.expr"[])
                     (`sap!T(&l, r)`, namespace(),
-                    "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append3e"));
+                    "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append3e"[]));
     } else {
-      return iparse!(Expr, "concat_into_ext_elem", "tree.expr")
+      return iparse!(Expr, "concat_into_ext_elem"[], "tree.expr"[])
                     (`sap!T(&l, r)`, namespace(),
-                    "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append2e"));
+                    "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append2e"[]));
     }
   });
-  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
+  defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
     auto e1vt = resolveType(ex1.valueType());
     if (!isExtArray(e1vt)) return null;
     auto et = resolveType((fastcast!(ExtArray)~ e1vt).elemType);
@@ -194,34 +194,34 @@ static this() {
     }))
       return null;
     if (!fastcast!(LValue) (ex1)) {
-      logln("Cannot concatenate ext+elem x ?: ext is not lvalue; cannot invalidate: ", ex1, ex2);
+      logln("Cannot concatenate ext+elem x ?: ext is not lvalue; cannot invalidate: "[], ex1, ex2);
       fail;
     }
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
-      return new StatementAndExpr(
-        iparse!(Statement, "concat_into_ext_fOR_static_array", "tree.stmt")
+      return fastalloc!(StatementAndExpr)(
+        iparse!(Statement, "concat_into_ext_fOR_static_array"[], "tree.stmt"[])
                (`for auto e <- r l = sap!T(&l, e);`, namespace(),
-                "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append3e"))
+                "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append3e"[]))
         , ex1
       );
     } else {
-      return new StatementAndExpr(
-        iparse!(Statement, "concat_into_ext_static_array", "tree.stmt")
+      return fastalloc!(StatementAndExpr)(
+        iparse!(Statement, "concat_into_ext_static_array"[], "tree.stmt"[])
                (`for auto e <- r l = sap!T(&l, e);`, namespace(),
-                "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append2e"))
+                "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append2e"[]))
         , ex1
       );
     }
   });
-  defineOp("~", delegate Expr(Expr ex1, Expr ex2) {
-    // logln("op: concat");
-    // logln("ex1: ", ex1.valueType());
-    // logln("ex2: ", ex2.valueType());
+  defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
+    // logln("op: concat"[]);
+    // logln("ex1: "[], ex1.valueType());
+    // logln("ex2: "[], ex2.valueType());
     // fail;
-    // throw new Exception("Concatenation error");
-    throw new Exception(Format("Concatenation error: incompatible types: ",
-      ex1.valueType(), " and ", ex2.valueType()));
+    // throw new Exception("Concatenation error"[]);
+    throw new Exception(Format("Concatenation error: incompatible types: "[],
+      ex1.valueType(), " and "[], ex2.valueType()));
     // return null;
   });
   // fold string concats
@@ -235,7 +235,7 @@ static this() {
       if (auto se = fastcast!(StringExpr) (ex2)) res ~= se.str;
       else return null;
     }
-    return new StringExpr(res);
+    return fastalloc!(StringExpr)(res);
   };
 }
 
@@ -249,22 +249,22 @@ Object gotConcatChain(ref string text, ParseCb cont, ParseCb rest) {
   try {
     retry:
     auto t3 = t2;
-    if (t3.accept("~=") && rest(t3, "tree.expr", &op2)) {
-      op = lookupOp("~=", op, op2);
+    if (t3.accept("~="[]) && rest(t3, "tree.expr"[], &op2)) {
+      op = lookupOp("~="[], op, op2);
       if (!op) return null;
       t2 = t3;
       goto retry;
     }
-    if (t2.accept("~") && cont(t2, &op2)) {
-      op = lookupOp("~", op, op2);
+    if (t2.accept("~"[]) && cont(t2, &op2)) {
+      op = lookupOp("~"[], op, op2);
       if (!op) return null;
       goto retry;
     }
   } catch (Exception ex) {
-    t2.failparse("Could not concatenate: ", ex);
+    t2.failparse("Could not concatenate: "[], ex);
   }
   if (op is first) return null;
   text = t2;
   return fastcast!(Object)~ op;
 }
-mixin DefaultParser!(gotConcatChain, "tree.expr.arith.concat", "305");
+mixin DefaultParser!(gotConcatChain, "tree.expr.arith.concat"[], "305"[]);

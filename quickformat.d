@@ -6,15 +6,12 @@ import casts;
 TLS!(Stuple!(string, int)) _qbuffer;
 static this() { New(_qbuffer); }
 
-void qbuffer_resize(int i) {
-  string qbuffer; int offs;
-  ptuple(qbuffer, offs) = *_qbuffer();
-  if (qbuffer.length < i) {
-    auto backup = qbuffer;
-    qbuffer = new char[max(65536, i)];
-    qbuffer[0 .. backup.length] = backup;
+void qbuffer_resize_internal(int i, string* qbufferp, int* offsp) {
+  if ((*qbufferp).length < i) {
+    auto backup = (*qbufferp);
+    (*qbufferp) = new char[max(65536, i)];
+    (*qbufferp)[0 .. backup.length] = backup;
   }
-  *_qbuffer() = stuple(qbuffer, offs);
 }
 
 void qappend(string[] args...) {
@@ -23,15 +20,14 @@ void qappend(string[] args...) {
   
   int total_len;
   foreach (arg; args) total_len += arg.length;
-  qbuffer_resize(offs + total_len);
-  ptuple(qbuffer, offs) = *_qbuffer();
+  qbuffer_resize_internal(offs + total_len, &qbuffer, &offs);
   
   foreach (arg; args) {
     qbuffer[offs .. offs + arg.length] = arg;
     offs += arg.length;
   }
   
-  _qbuffer()._1 = offs;
+  *_qbuffer() = stuple(qbuffer, offs);
 }
 
 void qformat_append(T...)(T t) {
@@ -41,10 +37,10 @@ void qformat_append(T...)(T t) {
     }
     else static if (is(typeof(entry): ulong)) {
       auto num = entry;
-      if (!num) { qappend("0"); continue; }
-      if (num == -0x8000_0000) { qappend("-2147483648"); }
+      if (!num) { qappend("0"[]); continue; }
+      if (num == -0x8000_0000) { qappend("-2147483648"[]); }
       else {
-        if (num < 0) { qappend("-"); num = -num; }
+        if (num < 0) { qappend("-"[]); num = -num; }
         
         // gotta do this left to right!
         static if (typeof(num).sizeof == 4) alias int IntType;
@@ -65,18 +61,19 @@ void qformat_append(T...)(T t) {
       }
     }
     else static if (is(typeof(entry[0]))) {
-      qappend("[");
+      qappend("["[]);
       bool first = true;
       foreach (element; entry) {
         if (first) first = false;
-        else qappend(", ");
+        else qappend(", "[]);
         qformat_append(element);
       }
-      qappend("]");
+      qappend("]"[]);
     }
     else static if (is(typeof(fastcast!(Object) (entry)))) {
       auto obj = fastcast!(Object) (entry);
-      qappend(obj.toString());
+      if (obj) qappend(obj.toString());
+      else { qappend(typeof(entry).stringof); qappend(":null"); }
     }
     else static assert(false, "not supported in qformat: "~typeof(entry).stringof);
   }

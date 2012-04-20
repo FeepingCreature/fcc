@@ -48,14 +48,14 @@ struct PreallocatedField(int StaticSize, T) {
           }
           j -= field.length;
         }
-        logln("Length ", length, " excessive due to ", StaticSize, ", ", dynamics_ /map/ ex!("f -> f.length"));
+        logln("Length "[], length, " excessive due to "[], StaticSize, ", "[], dynamics_ /map/ ex!("f -> f.length"[]));
         fail;
       }
     }
     return 0;
   }
   string toString() {
-    string res = Format("PF[", length, "/", StaticSize, ": ");
+    string res = Format("PF["[], length, "/"[], StaticSize, ": "[]);
     bool first;
     foreach (entry; *this) {
       if (first) first = false;
@@ -128,12 +128,12 @@ class Namespace {
     do {
       if (auto res = fastcast!(T)~ cur) return res;
     } while (null !is (cur = cur.sup));
-    // throw new Exception(Format("No ", T.stringof, " above ", this, "!"));
-    // logln("No ", T.stringof, " above ", this, "!");
+    // throw new Exception(Format("No "[], T.stringof, " above "[], this, "!"[]));
+    // logln("No "[], T.stringof, " above "[], this, "!"[]);
     return null;
   }
-  // empirically determined: the overwhelming majority of namespaces contain less than 7 entries
-  PreallocatedField!(7, Stuple!(string, Object)) field;
+  // benched to be optimal; the overwhelming majority of namespaces contain less than 7 entries
+  PreallocatedField!(6, Stuple!(string, Object)) field;
   int max_field_size;
   Object[string] field_cache;
   int mod_hash;
@@ -142,16 +142,16 @@ class Namespace {
     foreach (entry; field) field_cache[entry._0] = entry._1;
     mod_hash ++;
   }
-  typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)")))[] selectMap(T, string S)(NSCache!(typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)"))))* cachep = null) {
+  typeof(mixin(S.ctReplace("$"[], "(fastcast!(T)~ field[0]._1)"[])))[] selectMap(T, string S)(NSCache!(typeof(mixin(S.ctReplace("$"[], "(fastcast!(T)~ field[0]._1)"[]))))* cachep = null) {
     if (cachep && cachep.hash == mod_hash) return cachep.field;
     int count;
     foreach (entry; field) if (fastcast!(T)~ entry._1) count++;
-    alias typeof(mixin(S.ctReplace("$", "(fastcast!(T)~ field[0]._1)"))) restype;
+    alias typeof(mixin(S.ctReplace("$"[], "(fastcast!(T)~ field[0]._1)"[]))) restype;
     auto res = new restype[count];
     int i;
     foreach (entry; field)
       if (auto t = fastcast!(T)~ entry._1)
-        res[i++] = mixin(S.ctReplace("$", "t"));
+        res[i++] = mixin(S.ctReplace("$"[], "t"[]));
     if (cachep) { cachep.hash = mod_hash; cachep.field = res; }
     return res;
   }
@@ -182,11 +182,11 @@ class Namespace {
   void __add(string name, Object obj) {
     if (name) {
       if (auto thing = lookup(name, true)) {
-        // logln(name, " in ", this, "(local) => ", thing);
+        // logln(name, " in "[], this, "(local) => "[], thing);
         if (auto et = fastcast!(Extensible) (thing)) {
           auto eo = fastcast!(Extensible) (obj);
           if (!eo) {
-            logln("Tried to overload ", name, " (", thing, ")", ", but ", obj, " is not extensible!");
+            logln("Tried to overload "[], name, " ("[], thing, ")", "[], but "[], obj, " is not extensible!"[]);
             fail;
           }
           bool found;
@@ -199,8 +199,8 @@ class Namespace {
             }
           }
           if (!found) throw new Exception(Format(
-            "Tried to overload ", thing, " with ",
-            obj, " @", this, " but it's not in the field! "
+            "Tried to overload "[], thing, " with "[],
+            obj, " @"[], this, " but it's not in the field! "
           ));
           if (field.length > cachepoint) rebuildCache;
           return;
@@ -211,14 +211,14 @@ class Namespace {
           auto row = tup._0, col = tup._1, file = tup._2;
           if (row || col) {
             throw new AlreadyDefinedException(Format(
-              "'", name, "' already defined\n",
-              file, ":", row, ":", col, ": previously defined here"
+              "'"[], name, "' already defined\n"[],
+              file, ":"[], row, ":"[], col, ": previously defined here"
             ));
           }
         }
         throw new AlreadyDefinedException(Format(
-          "'", name, "' already defined in ",
-          this, ": ", lookup(name)
+          "'"[], name, "' already defined in "[],
+          this, ": "[], lookup(name)
         ));
       }
     }
@@ -231,7 +231,7 @@ class Namespace {
   void _add(string name, Object obj) {
     if (auto ns = fastcast!(Namespace)~ obj) {
       if (ns.sup && ns.sup !is this) {
-        logln("While adding ", obj, " to ", this, ": object already in ", ns.sup, "! ");
+        logln("While adding "[], obj, " to "[], this, ": object already in "[], ns.sup, "! "[]);
         fail;
       }
       ns.sup = this;
@@ -242,12 +242,12 @@ class Namespace {
     static if (T.length == 1) {
       alias t[0] n;
       static assert(is(typeof(n.getIdentifier()): string),
-        T[0].stringof~" not named identifier and no name given. ");
+        T[0].stringof~" not named identifier and no name given. "[]);
       string name = n.getIdentifier();
     } else static if (T.length == 2) {
       alias t[1] n;
       string name = t[0];
-    } else static assert(false, "wtfux");
+    } else static assert(false, "wtfux"[]);
     _add(name, fastcast!(Object)~ n);
   }
   typeof(field) getCheckpt() { return field; }
@@ -314,7 +314,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
       assert(false); // wtfux.
     }
     mixin DefaultScopeLikeGuards!();
-    string toString() { return Format("mini[", id, "](", framesize(), ") <- ", sup); }
+    string toString() { return Format("mini["[], id, "]("[], framesize(), "[]) <- "[], sup); }
     void _add(string name, Object obj) {
       if (sup && !internalMode) sup._add(name, obj);
       else super.__add(name, obj);
@@ -328,7 +328,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
         else return supsz;
       } else {
         return -1;
-        // throw new Exception(Format("No metric for framesize of ", id, ": sup is ", sup, "."));
+        // throw new Exception(Format("No metric for framesize of "[], id, ": sup is "[], sup, "."[]));
       }
     }
     Object lookup(string name, bool local = false) {
@@ -337,7 +337,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
         auto sysmod = __getSysmod();
         if (sysmod) res = sysmod.lookup(name, local);
       }
-      // logln("mini lookup ", name, " => ", res);
+      // logln("mini lookup "[], name, " => "[], res);
       return res;
     }
   }
@@ -365,7 +365,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     
     static assert(T4.length % 2 == 0);
     
-    auto myns = new MiniNamespace(id);
+    auto myns = fastalloc!(MiniNamespace)(id);
     
     auto backup = namespace();
     namespace.set(myns);
@@ -405,9 +405,9 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     auto res = parsecon.parse(text, rule);
     auto rc = fastcast!(R) (res);
     static if (mustParse) {
-      if (text.mystripl().length) text.failparse("Unknown text: '"~text~"'");
-      if (!res)                text.failparse("Failed to parse");
-      if (!rc)                 text.failparse("Wrong result type: wanted ", R.stringof, ", got ", res);
+      if (text.mystripl().length) text.failparse("Unknown text: '"~text~"'"[]);
+      if (!res)                text.failparse("Failed to parse"[]);
+      if (!rc)                 text.failparse("Wrong result type: wanted "[], R.stringof, "[], got "[], res);
     } else {
       if (text.length || !rc) return null;
     }
@@ -433,7 +433,7 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   }
   return null;
 }
-mixin DefaultParser!(gotNamedType, "type.named", "21");
+mixin DefaultParser!(gotNamedType, "type.named"[], "21"[]);
 
 class LengthOverride : Namespace, ScopeLike {
   Expr len;
@@ -444,9 +444,9 @@ class LengthOverride : Namespace, ScopeLike {
     int[] getGuardOffsets() { return sup.get!(ScopeLike).getGuardOffsets(); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
-    string toString() { return Format("[$ = ", len, "] <- ", sup); }
+    string toString() { return Format("[$ = "[], len, "] <- "[], sup); }
     Object lookup(string name, bool local = false) {
-      if (name == "$") return fastcast!(Object)~ len;
+      if (name == "$"[]) return fastcast!(Object)~ len;
       return sup.lookup(name, local);
     }
   }
@@ -485,13 +485,13 @@ template ImporterImpl() {
     Namespace source;
     const debug_lookup = false;
     void addres(Object obj, Namespace src) {
-      static if (debug_lookup) logln("mew: ", useCModules, ", ", name, " => ", obj, " - ", obj.classinfo.name);
-      if (!useCModules && obj.classinfo.name == "ast.externs.ExternCGlobVar") return; // Try them later
+      static if (debug_lookup) logln("mew: "[], useCModules, ", "[], name, " => "[], obj, " - "[], obj.classinfo.name);
+      if (!useCModules && obj.classinfo.name == "ast.externs.ExternCGlobVar"[]) return; // Try them later
       if (!res) { res = obj; source = src; return; }
       auto ex = fastcast!(Extensible) (res), ex2 = fastcast!(Extensible)(obj);
       if (ex && !ex2 || !ex && ex2) {
-        throw new Exception(Format("While looking up ", name, ": ambiguity between ",
-          res, " and ", obj, ": one is overloadable and the other isn't"));
+        throw new Exception(Format("While looking up "[], name, ": ambiguity between "[],
+          res, " and "[], obj, ": one is overloadable and the other isn't"[]));
       }
       if (!ex) {
         if (!cautious || res is obj) return;
@@ -512,13 +512,13 @@ template ImporterImpl() {
     }
     
     bool skip(Namespace ns) {
-      static if (debug_lookup) logln("skip ", ns, "? ", fastcast!(IModule) (ns).getDontEmit(), " and ", useCModules);
+      static if (debug_lookup) logln("skip ", ns, "? ", fastcast!(IModule) (ns).getDontEmit(), " and "[], useCModules);
       if (fastcast!(IModule) (ns).getDontEmit() && !useCModules) return true;
       if (!fastcast!(IModule) (ns).getDontEmit() && useCModules) return true;
       return false;
     }
     bool retry() {
-      static if (debug_lookup) logln("retry ", name, " => ", res, "?");
+      static if (debug_lookup) logln("retry "[], name, " => "[], res, "?"[]);
       if (res) return false; // already found a match
       if (useCModules) return false; // already retried
       // try with C imports
@@ -529,15 +529,15 @@ template ImporterImpl() {
   _retry:
     foreach (ns; public_imports) {
       if (skip(ns)) continue;
-      static if (debug_lookup) logln("1: ", name, " in ", ns, "?");
+      static if (debug_lookup) logln("1: "[], name, " in "[], ns, "?"[]);
       if (auto res = ns.lookup(name, true)) {
         addres(res, ns);
       }
     }
     
     foreach (ns; static_imports) if (auto imod = fastcast!(IModule) (ns)) {
-      static if (debug_lookup) logln("2: ", name, " in ", ns, "?");
-      if (auto lname = name.startsWith(imod.getIdentifier()).startsWith(".")) {
+      static if (debug_lookup) logln("2: "[], name, " in "[], ns, "?"[]);
+      if (auto lname = name.startsWith(imod.getIdentifier()).startsWith("."[])) {
         if (auto res = ns.lookup(lname)) return res;
       }
     }
@@ -545,13 +545,13 @@ template ImporterImpl() {
     if (local) {
       if (retry()) goto _retry;
       finalize;
-      static if (debug_lookup) logln("local: ", res);
+      static if (debug_lookup) logln("local: "[], res);
       return res;
     }
     
     foreach (i, ns; imports) {
       if (skip(ns)) continue;
-      static if (debug_lookup) logln("3: ", name, " in ", ns, "?");
+      static if (debug_lookup) logln("3: "[], name, " in "[], ns, "?"[]);
       if (auto res = ns.lookup(name, true)) {
         *getPtrResizing(importsUsed, i) = true;
         addres(res, ns);
@@ -559,12 +559,12 @@ template ImporterImpl() {
     }
     if (retry()) goto _retry;
     
-    if (sysmod && sysmod !is this && name != "std.c.setjmp")
+    if (sysmod && sysmod !is this && name != "std.c.setjmp"[])
       if (auto res = sysmod.lookup(name, true))
         addres(res, sysmod);
     
     finalize;
-    static if (debug_lookup) logln("nonlocal: ", res);
+    static if (debug_lookup) logln("nonlocal: "[], res);
     return res;
   }
 }

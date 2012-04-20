@@ -11,13 +11,13 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   {
     string st;
     if (!gotString(t2, st)) return null;
-    strlit = new StringExpr(st, false);
+    strlit = fastalloc!(StringExpr)(st, false);
   }
   text = t2;
   auto str = (fastcast!(StringExpr)~ strlit).str;
-  auto res = new ConcatChain(new StringExpr(""));
+  auto res = fastalloc!(ConcatChain)(fastalloc!(StringExpr)(""[]));
   ubyte[] buf;
-  void flush() { if (!buf) return; res.addArray(new StringExpr(cast(string) buf)); buf = null; }
+  void flush() { if (!buf) return; res.addArray(fastalloc!(StringExpr)(cast(string) buf)); buf = null; }
   ubyte xtake() {
     auto res = (cast(ubyte[]) str)[0];
     str = cast(string) (cast(ubyte[]) str)[1..$];
@@ -33,12 +33,12 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
       flush;
       assert(str.length);
       Expr ex;
-      if (auto left = str.startsWith("$")) {
-        if (!rest(left, "tree.expr", &ex))
+      if (auto left = str.startsWith("$"[])) {
+        if (!rest(left, "tree.expr"[], &ex))
           left.failparse("Failed to parse expr");
         str = left;
-      } else if (auto left = str.startsWith("(")) {
-        if (!rest(left, "tree.expr", &ex))
+      } else if (auto left = str.startsWith("("[])) {
+        if (!rest(left, "tree.expr"[], &ex))
           left.failparse("Failed to parse expr");
         if (!left.accept(")"))
           left.failparse("Unmatched expr");
@@ -84,7 +84,7 @@ Expr simpleFormat(Expr ex) {
     return buildFunCall(fastcast!(Function)~ sysmod.lookup("ltoa"), ex, "ltoa");
   }
   if (Single!(Char) == type) {
-    return iparse!(Expr, "fmt_char", "tree.expr")(`""~ch`, "ch", ex);
+    return iparse!(Expr, "fmt_char"[], "tree.expr"[])(`""~ch`, "ch", ex);
   }
   if (Single!(Float) == type) {
     return buildFunCall(fastcast!(Function)~ sysmod.lookup("ftoa"), ex, "ftoa");
@@ -115,12 +115,12 @@ Expr simpleFormat(Expr ex) {
       );
   }
   if (auto tup = fastcast!(Tuple)~ type) {
-    auto res = new ConcatChain(new StringExpr("{")); // put here for type
+    auto res = fastalloc!(ConcatChain)(fastalloc!(StringExpr)("{")); // put here for type
     foreach (i, entry; getTupleEntries(ex)) {
-      if (i) res.addArray(new StringExpr(", "));
-      res.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, namespace(), "entry", entry));
+      if (i) res.addArray(fastalloc!(StringExpr)(", "));
+      res.addArray(iparse!(Expr, "!safecode_gen_tuple_member_format", "tree.expr.literal.stringex")(`"$entry"`, namespace(), "entry"[], entry));
     }
-    res.addArray(new StringExpr("}"));
+    res.addArray(fastalloc!(StringExpr)("}"[]));
     return res;
   }
   auto ar = fastcast!(Array)~ type;
@@ -133,7 +133,7 @@ Expr simpleFormat(Expr ex) {
       return ex;
     }
     // logln("et is ", et);
-    return new CallbackExpr("format", Single!(Array, Single!(Char)), ex, (Expr ex, AsmFile af) {
+    return fastalloc!(CallbackExpr)("format"[], Single!(Array, Single!(Char)), ex, (Expr ex, AsmFile af) {
       mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
         iparse!(Scope, "!safecode_gen_array_format", "tree.scope")
         (`{
@@ -149,7 +149,7 @@ Expr simpleFormat(Expr ex) {
             var = res[];
           }`,
           namespace(),
-          "var", var, "array", ex,
+          "var"[], var, "array"[], ex,
           af
         ).emitAsm(af);
       });
@@ -157,17 +157,17 @@ Expr simpleFormat(Expr ex) {
   }
   if (auto str = fastcast!(Structure) (ex.valueType())) {
     try return iparse!(Expr, "struct_tostring", "tree.expr")
-                      (`evaluate ex.toString`, "ex", ex);
+                      (`evaluate ex.toString`, "ex"[], ex);
     catch (Exception ex) { return null; } // myeh.
   }
   auto obj = fastcast!(IType) (sysmod.lookup("Object"));
   if (gotImplicitCast(ex, obj, (IType it) { return test(it == obj); })) {
     return iparse!(Expr, "gen_obj_toString_call", "tree.expr")
-                  (`obj.toString()`, "obj", cvize(ex));
+                  (`obj.toString()`, "obj"[], cvize(ex));
   }
   if (fastcast!(IType) (sysmod.lookup("bool")) == type) {
     return iparse!(Expr, "bool_tostring", "tree.expr")
-                   (`btoa ex`, "btoa", sysmod.lookup("btoa"), "ex", ex);
+                   (`btoa ex`, "btoa"[], sysmod.lookup("btoa"), "ex"[], ex);
   }
   return null;
 }

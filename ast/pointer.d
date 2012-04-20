@@ -5,8 +5,7 @@ import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace;
 import dwarf2;
 class Pointer_ : Type, Dwarf2Encodable {
   IType target;
-  this(IType it) { construct(it); }
-  void construct(IType t) { target = forcedConvert(t); }
+  this(IType t) { target = forcedConvert(t); }
   override {
     int opEquals(IType ty) {
       ty = resolveType(ty);
@@ -16,14 +15,14 @@ class Pointer_ : Type, Dwarf2Encodable {
     }
     int size() { return nativePtrSize; }
     string mangle() { return "ptrto_"~target.mangle(); }
-    string toString() { return Format(target, "*"); }
+    string toString() { return Format(target, "*"[]); }
     bool canEncode() {
       auto d2e = fastcast!(Dwarf2Encodable)(resolveType(target));
       return d2e && d2e.canEncode();
     }
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
       auto targetref = registerType(dwarf2, fastcast!(Dwarf2Encodable) (resolveType(target)));
-      auto targetpsec = new Dwarf2Section(dwarf2.cache.getKeyFor("pointer type"));
+      auto targetpsec = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("pointer type"[]));
       with (targetpsec) {
         data ~= targetref;
         data ~= ".int\t4\t/* pointer size */";
@@ -51,15 +50,17 @@ class RefExpr : Expr {
   }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
+  IType type_cache;
   override {
     IType valueType() {
-      return new Pointer(src.valueType());
+      if (!type_cache) type_cache = fastalloc!(Pointer)(src.valueType());
+      return type_cache;
     }
     void emitAsm(AsmFile af) {
       src.emitLocation(af);
     }
     string toString() {
-      return Format("&", src);
+      return Format("&"[], src);
     }
   }
 }
@@ -73,42 +74,42 @@ class DerefExpr : LValue, HasInfo {
     this();
     src = ex;
     if (!fastcast!(Pointer) (resolveType(src.valueType())))
-      throw new Exception(Format("Can't dereference non-pointer: ", src));
+      throw new Exception(Format("Can't dereference non-pointer: "[], src));
   }
   private this() { count = de_count ++; }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
   override {
-    string getInfo() { return Format("count: ", count); }
+    string getInfo() { return Format("count: "[], count); }
     IType valueType() {
       return fastcast!(Pointer) (resolveType(src.valueType())).target;
     }
     void emitAsm(AsmFile af) {
       int sz = valueType().size;
-      mixin(mustOffset("sz"));
+      mixin(mustOffset("sz"[]));
       if (isARM && sz == 1) {
         af.salloc(1);
         src.emitAsm(af);
-        af.popStack("r2", 4);
-        af.mmove1("[r2]", "r2");
-        af.mmove1("r2", "[sp]");
+        af.popStack("r2"[], 4);
+        af.mmove1("[r2]"[], "r2"[]);
+        af.mmove1("r2"[], "[sp]"[]);
         return;
       }
       src.emitAsm(af);
       if (isARM) {
-        af.popStack("r2", nativePtrSize);
-        armpush(af, "r2", sz);
+        af.popStack("r2"[], nativePtrSize);
+        armpush(af, "r2"[], sz);
       } else {
-        af.popStack("%edx", nativePtrSize);
-        af.pushStack("(%edx)", sz);
-        af.nvm("%edx");
+        af.popStack("%edx"[], nativePtrSize);
+        af.pushStack("(%edx)"[], sz);
+        af.nvm("%edx"[]);
       }
     }
     void emitLocation(AsmFile af) {
       src.emitAsm(af);
     }
   }
-  string toString() { return Format("*", src); }
+  string toString() { return Format("*"[], src); }
 }
 
 bool isVoidP(IType it) {
@@ -120,7 +121,7 @@ bool isVoidP(IType it) {
 
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
-    if (text.accept("*")) { return new Pointer(cur); }
+    if (text.accept("*"[])) { return fastalloc!(Pointer)(cur); }
     else return null;
   };
   foldopt ~= delegate Itr(Itr it) {
@@ -154,8 +155,8 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
-    text.setError("Address operator found but nothing to take address matched");
+  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
+    text.setError("Address operator found but nothing to take address matched"[]);
     return null;
   }
   
@@ -166,9 +167,9 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
     tried ~= f.valueType();
     return test(fastcast!(CValue)~ f);
   })) {
-    // text.setError("Can't take reference: ", ex,
-    // " does not become a cvalue (", tried, ")");
-    text.setError("Can't take reference: expression does not seem to have an address");
+    // text.setError("Can't take reference: "[], ex,
+    // " does not become a cvalue ("[], tried, ")"[]);
+    text.setError("Can't take reference: expression does not seem to have an address"[]);
     return null;
   }
   
@@ -179,26 +180,26 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto cv = fastcast!(CValue) (thing);
   assert(!!cv);
   
-  Expr res = new RefExpr(cv);
+  Expr res = fastalloc!(RefExpr)(cv);
   if (st) res = mkStatementAndExpr(st, res);
   return fastcast!(Object) (res);
 }
-mixin DefaultParser!(gotRefExpr, "tree.expr.ref", "21", "&");
+mixin DefaultParser!(gotRefExpr, "tree.expr.ref"[], "21"[], "&"[]);
 
 Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
-    t2.failparse("Dereference operator found but no expression matched");
+  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
+    t2.failparse("Dereference operator found but no expression matched"[]);
   
   if (!gotImplicitCast(ex, (IType it) { return !!fastcast!(Pointer) (it); })) {
     return null;
   }
   text = t2;
-  return new DerefExpr(ex);
+  return fastalloc!(DerefExpr)(ex);
 }
-mixin DefaultParser!(gotDerefExpr, "tree.expr.deref", "22", "*");
+mixin DefaultParser!(gotDerefExpr, "tree.expr.deref"[], "22"[], "*"[]);
 
 class Symbol : Expr {
   string _name;
@@ -210,9 +211,9 @@ class Symbol : Expr {
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
     if (isARM) {
-      af.mmove4("="~getName(), "r0");
+      af.mmove4("="~getName(), "r0"[]);
       // af.pool;
-      af.pushStack("r0", 4);
+      af.pushStack("r0"[], 4);
     } else {
       af.pushStack("$"~getName(), nativePtrSize);
     }
@@ -225,14 +226,14 @@ class LateSymbol : Expr {
   string* name;
   this(void delegate(AsmFile) dg, string* name) { this.dg = dg; this.name = name; }
   private this() { }
-  LateSymbol dup() { return new LateSymbol(dg, name); }
+  LateSymbol dup() { return fastalloc!(LateSymbol)(dg, name); }
   mixin defaultIterate!();
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
     if (!*name) dg(af);
     if (isARM) {
-      af.mmove4("="~*name, "r0");
-      af.pushStack("r0", 4);
+      af.mmove4("="~*name, "r0"[]);
+      af.pushStack("r0"[], 4);
     } else {
       af.pushStack("$"~*name, nativePtrSize);
     }

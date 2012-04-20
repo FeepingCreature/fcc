@@ -60,15 +60,22 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
   void resetme() { emat_type = null; emat_alias = null; }
   override {
     Object transform(Expr base) {
-      return new RelTemplate(this, base);
+      return fastalloc!(RelTemplate)(this, base);
     }
     TemplateInstance getInstance(IType type, ParseCb rest) {
       assert(!isAlias);
       TemplateInstance ti;
-      foreach (entry; emat_type)
-        if (qformat(entry._1) == qformat(type)) { ti = entry._0; break; }
+      foreach (entry; emat_type) {
+        debug if ((qformat(entry._1) == qformat(type)) != (entry._1.mangle() == type.mangle())) {
+          logln("1: ", entry._1, ": ", entry._1.mangle());
+          logln("2: ", type, ": ", type.mangle());
+          fail;
+        }
+        // if (qformat(entry._1) == qformat(type)) { ti = entry._0; break; }
+        if (entry._1.mangle() == type.mangle()) { ti = entry._0; break; }
+      }
       if (!ti) {
-        ti = new TemplateInstance(this, type, rest);
+        ti = fastalloc!(TemplateInstance)(this, type, rest);
       }
       ti.emitCopy();
       return ti;
@@ -79,7 +86,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
       foreach (entry; emat_alias)
         if (entry._1 == tr) { ti = entry._0; break; }
       if (!ti) {
-        ti = new TemplateInstance(this, tr, rest);
+        ti = fastalloc!(TemplateInstance)(this, tr, rest);
       }
       ti.emitCopy();
       return ti;
@@ -90,7 +97,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
     string getIdentifier() { return name; }
     bool addsSelf() { return true; }
     string toString() {
-      return Format("template ", name);
+      return Format("template "[], name);
     }
     Object postprocess(Object obj) { return obj; }
   }
@@ -121,7 +128,7 @@ class DependencyEntry : Tree {
   this(Dependency dep) { sup = dep; }
   mixin defaultIterate!();
   DependencyEntry dup() { return this; }
-  string toString() { return Format("<dep ", sup, ">"); }
+  string toString() { return Format("<dep "[], sup, ">"[]); }
   void emitAsm(AsmFile af) {
     sup.emitDependency(af);
   }
@@ -144,7 +151,7 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
     return null;
   }
   override string modify(string s) {
-    auto res = qformat(parent.name, "!", parent.isAlias?fastcast!(Object) (tr):fastcast!(Object) (type));
+    auto res = qformat(parent.name, "!"[], parent.isAlias?fastcast!(Object) (tr):fastcast!(Object) (type));
     if (s != parent.name) res ~= "."~s;
     return res;
   }
@@ -188,7 +195,7 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
       void addDependencies(ref Iterable it) {
         it.iterate(&addDependencies);
         if (auto dep = fastcast!(Dependency) (it)) {
-          mod.entries ~= new DependencyEntry(dep);
+          mod.entries ~= fastalloc!(DependencyEntry)(dep);
         }
       }
       addDependencies(outer);
@@ -274,8 +281,8 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
   static string[Tree] mangcache;
   override {
     string toString() {
-      if (parent.isAlias) return Format("Instance of ", parent, " (", tr, ") <- ", sup);
-      else return Format("Instance of ", parent, " (", type, ") <- ", sup);
+      if (parent.isAlias) return Format("Instance of "[], parent, " ("[], tr, ") <- "[], sup);
+      else return Format("Instance of "[], parent, " ("[], type, ") <- "[], sup);
     }
     string mangle(string name, IType type) {
       string mangl;
@@ -286,7 +293,7 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
         } else {
           if (auto ptr = tr in mangcache) mangl = *ptr;
           else {
-            auto id = Format("tree_", mangcache.length);
+            auto id = Format("tree_"[], mangcache.length);
             mangcache[tr] = id;
             mangl = id;
           }
@@ -312,11 +319,11 @@ Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest
     if (t.isAliasTemplate()) {
       Tree tr;
       // try plain named first
-      if (!rest(t2, "tree.expr.named", &tr) && !rest(t2, "tree.expr _tree.expr.arith", &tr))
+      if (!rest(t2, "tree.expr.named"[], &tr) && !rest(t2, "tree.expr _tree.expr.arith"[], &tr))
         t2.failparse("Couldn't match tree object for instantiation");
       inst = t.getInstance(tr, rest);
     } else {
-      if (!rest(t2, "type", &ty))
+      if (!rest(t2, "type"[], &ty))
         t2.failparse("Couldn't match type for instantiation");
       try inst = t.getInstance(ty, rest);
       catch (Exception ex) throw new Exception(Format("with ", ty, ": ", ex));
@@ -337,7 +344,7 @@ Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest
   } else {
     try {
       Object obj;
-      if (!rest(t2, "tree.expr.named", &obj)) return null;
+      if (!rest(t2, "tree.expr.named"[], &obj)) return null;
       auto res = getInstance(obj);
       if (res) text = t2;
       return res;
@@ -359,7 +366,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     auto templ = fastcast!(ITemplate) (obj);
     if (!templ) return null;
     Expr nex;
-    if (!rest(t2, "tree.expr _tree.expr.arith", &nex)) return null;
+    if (!rest(t2, "tree.expr _tree.expr.arith"[], &nex)) return null;
     
     auto io = *templInstOverride.ptr(); // first level
     bool ioApplies;

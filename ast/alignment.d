@@ -7,13 +7,13 @@ extern(C) int align_boffs(IType t, int curdepth = -1) {
   if (curdepth == -1) {
     auto sl = namespace().get!(ScopeLike);
     if (!sl) {
-      logln("no ScopeLike beneath ", namespace(), " for placing a ", t);
+      logln("no ScopeLike beneath "[], namespace(), " for placing a "[], t);
       fail;
     }
     curdepth = sl.framesize();
   }
   if (curdepth == -1) {
-    logln("Could not align ", t, ": insufficient framesize information from ", namespace().get!(ScopeLike));
+    logln("Could not align "[], t, ": insufficient framesize information from "[], namespace().get!(ScopeLike));
     fail;
   }
   int sz = t.size;
@@ -40,13 +40,13 @@ class UnAlignedPlaceholder : IType {
 // TODO: change function call api to allow aligned parameters internally
 // NEEDED_FOR SSE support
 extern(C) void alignment_emitAligned(Expr ex, AsmFile af) {
-  mixin(mustOffset("ex.valueType().size"));
+  mixin(mustOffset("ex.valueType().size"[]));
   if (auto al = fastcast!(ForceAlignment) (resolveType(ex.valueType()))) {
     auto myAl = al.alignment();
     if (myAl && ((af.currentStackDepth + ex.valueType().size) % myAl) != 0) {
       // need realignment
-      mkVar(af, new UnAlignedPlaceholder(ex.valueType()), true, (Variable var) {
-        (new Assignment(var, ex)).emitAsm(af);
+      mkVar(af, fastalloc!(UnAlignedPlaceholder)(ex.valueType()), true, (Variable var) {
+        (fastalloc!(Assignment)(var, ex)).emitAsm(af);
       });
       return;
     }

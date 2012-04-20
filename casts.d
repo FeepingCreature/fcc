@@ -2,93 +2,95 @@ module casts;
 
 import tools.log, tools.ctfe, tools.compat: min;
 import tools.base: Format, Stuple, stuple, Init, Repeat;
+import alloc;
 
 // list of class names to optimize
 const string[] quicklist = [
-  "ast.structure.Structure",
-  "ast.structure.MemberAccess_LValue",
-  "ast.types.Float",
-  "ast.types.Void",
-  "ast.pointer.Pointer",
-  "ast.types.SysInt", 
-  "ast.pointer.RefExpr",
-  "ast.math.AsmIntBinopExpr",
-  "ast.arrays.ArrayMaker",
-  "ast.structure.StructLiteral",
-  "ast.int_literal.IntExpr",
-  "ast.propcall.MyPlaceholderExpr",
-  "ast.casting.ReinterpretCast!(Expr).ReinterpretCast",
-  "ast.propcall.FirstParamOverrideSpace",
-  "ast.pointer.DerefExpr",
-  "ast.casting.ReinterpretCast!(LValue).ReinterpretCast",
-  "ast.variable.Variable",
-  "ast.arrays.ExtArray",
-  "ast.math.IntLiteralAsShort",
-  "ast.fun.FunCall",
-  "ast.modules.Module",
-  "ast.types.Byte",
-  "ast.literals.FloatExpr",
-  "ast.casting.ReinterpretCast!(MValue).ReinterpretCast",
-  "ast.fun.Function",
-  "ast.globvars.GlobVar",
-  "ast.arrays.Array",
-  "ast.tuples.Tuple",
-  "ast.types.Char",
-  "ast.math.IntAsFloat",
-  "ast.casting.ShortToIntCast",
-  "ast.tuples.RefTuple",
-  "ast.structure.RelMember",
-  "ast.math.IntAsLong",
-  "ast.scopes.Scope",
-  "ast.types.Long",
-  "ast.types.Short",
-  "ast.math.FloatAsDouble",
-  "ast.types.Double",
-  "ast.vector.Vector",
-  "ast.structure.MemberAccess_Expr",
-  "ast.funcall.DgCall",
-  "ast.literals.CValueAsPointer",
-  "ast.aliasing.ExprAlias",
-  "ast.literal_string.StringExpr",
-  "ast.tuples.LValueAsMValue",
-  "ast.static_arrays.DataExpr",
-  "ast.vector.VecOp",
-  "ast.static_arrays.StaticArray",
-  "ast.aliasing.TypeAlias",
-  "ast.base.Filler",
-  "ast.oop.ClassRef",
-  "ast.oop.IntfRef",
-  "ast.casting.ReinterpretCast!(CValue).ReinterpretCast",
-  "ast.mode.PrefixCall",
-  "ast.arrays.ArrayLength!(MValue).ArrayLength",
-  "ast.base.PlaceholderToken",
-  "ast.math.AsmFloatBinopExpr",
-  "ast.vardecl.VarDecl",
-  "ast.aliasing.LValueAlias",
-  "ast.arrays.ArrayLength!(Expr).ArrayLength",
-  "ast.nestfun.NestedCall",
-  "ast.parse.ExprStatement",
-  "ast.iterator_ext.CrossIndexExpr",
-  "ast.aggregate.AggrStatement",
-  "ast.casting.DontCastMeExpr",
-  "ast.casting.DontCastMeCValue",
-  "ast.longmath.AsmLongBinopExpr",
-  "ast.assign._Assignment!(LValue)._Assignment",
-  "ast.base.Register!(\"ebp\").Register",
-  "ast.dg.Delegate",
-  "ast.structfuns.RelFunction",
-  "ast.literals.DoubleExpr",
-  "ast.vector.SSESwizzle",
-  "ast.vector.AlignedVec4Literal",
-  "ast.conditionals.Compare",
-  "ast.vector.MultiplesExpr",
-  "ast.vector.SSEIntToFloat",
-  "ast.static_arrays.SALiteralExpr",
-  "ast.namespace.MiniNamespace"
+  "ast.structure.Structure"[],
+  "ast.structure.MemberAccess_LValue"[],
+  "ast.types.Float"[],
+  "ast.types.Void"[],
+  "ast.pointer.Pointer"[],
+  "ast.types.SysInt"[], 
+  "ast.pointer.RefExpr"[],
+  "ast.math.AsmIntBinopExpr"[],
+  "ast.arrays.ArrayMaker"[],
+  "ast.structure.StructLiteral"[],
+  "ast.int_literal.IntExpr"[],
+  "ast.propcall.MyPlaceholderExpr"[],
+  "ast.casting.ReinterpretCast!(Expr).ReinterpretCast"[],
+  "ast.propcall.FirstParamOverrideSpace"[],
+  "ast.pointer.DerefExpr"[],
+  "ast.casting.ReinterpretCast!(LValue).ReinterpretCast"[],
+  "ast.variable.Variable"[],
+  "ast.arrays.ExtArray"[],
+  "ast.math.IntLiteralAsShort"[],
+  "ast.fun.FunCall"[],
+  "ast.modules.Module"[],
+  "ast.types.Byte"[],
+  "ast.literals.FloatExpr"[],
+  "ast.casting.ReinterpretCast!(MValue).ReinterpretCast"[],
+  "ast.fun.Function"[],
+  "ast.globvars.GlobVar"[],
+  "ast.arrays.Array"[],
+  "ast.tuples.Tuple"[],
+  "ast.types.Char"[],
+  "ast.math.IntAsFloat"[],
+  "ast.casting.ShortToIntCast"[],
+  "ast.tuples.RefTuple"[],
+  "ast.structure.RelMember"[],
+  "ast.math.IntAsLong"[],
+  "ast.scopes.Scope"[],
+  "ast.types.Long"[],
+  "ast.types.Short"[],
+  "ast.math.FloatAsDouble"[],
+  "ast.types.Double"[],
+  "ast.vector.Vector"[],
+  "ast.structure.MemberAccess_Expr"[],
+  "ast.funcall.DgCall"[],
+  "ast.literals.CValueAsPointer"[],
+  "ast.aliasing.ExprAlias"[],
+  "ast.literal_string.StringExpr"[],
+  "ast.tuples.LValueAsMValue"[],
+  "ast.static_arrays.DataExpr"[],
+  "ast.vector.VecOp"[],
+  "ast.static_arrays.StaticArray"[],
+  "ast.aliasing.TypeAlias"[],
+  "ast.base.Filler"[],
+  "ast.oop.ClassRef"[],
+  "ast.oop.IntfRef"[],
+  "ast.casting.ReinterpretCast!(CValue).ReinterpretCast"[],
+  "ast.mode.PrefixCall"[],
+  "ast.arrays.ArrayLength!(MValue).ArrayLength"[],
+  "ast.base.PlaceholderToken"[],
+  "ast.math.AsmFloatBinopExpr"[],
+  "ast.vardecl.VarDecl"[],
+  "ast.aliasing.LValueAlias"[],
+  "ast.arrays.ArrayLength!(Expr).ArrayLength"[],
+  "ast.nestfun.NestedCall"[],
+  "ast.parse.ExprStatement"[],
+  "ast.iterator_ext.CrossIndexExpr"[],
+  "ast.aggregate.AggrStatement"[],
+  "ast.casting.DontCastMeExpr"[],
+  "ast.casting.DontCastMeCValue"[],
+  "ast.longmath.AsmLongBinopExpr"[],
+  "ast.assign._Assignment!(LValue)._Assignment"[],
+  "ast.base.Register!(\"ebp\").Register"[],
+  "ast.dg.Delegate"[],
+  "ast.structfuns.RelFunction"[],
+  "ast.literals.DoubleExpr"[],
+  "ast.vector.SSESwizzle"[],
+  "ast.vector.AlignedVec4Literal"[],
+  "ast.conditionals.Compare"[],
+  "ast.vector.MultiplesExpr"[],
+  "ast.vector.SSEIntToFloat"[],
+  "ast.static_arrays.SALiteralExpr"[],
+  "ast.namespace.MiniNamespace"[],
+  "ast.conditionals.NegCond"[]
 ];
 
 Stuple!(void*, int)[] idtable;
-const predIdtableLength = 161; // predicted idtable length - slight hash speed up
+// const predIdtableLength = 161; // predicted idtable length - slight hash speed up
 
 int xor;
 const uint knuthMagic = 2654435761;
@@ -124,13 +126,13 @@ void initCastTable() {
   foreach (entry; quicklist) {
     auto cl = ClassInfo.find(entry);
     if (!cl) {
-      logln("No such class: ", entry);
+      logln("No such class: "[], entry);
       continue;
     }
     ci ~= cl;
   }
   int bestXOR, bestXORSize = int.max;
-  auto rng = new Mersenne(23);
+  auto rng = fastalloc!(Mersenne)(23);
   auto backing_pretable = new bool[1024];
   bool[] pretable;
   void resize_pretable(int to) {
@@ -162,7 +164,7 @@ void initCastTable() {
   xor = bestXOR;
   idtable.length = bestXORSize;
   /*if (idtable.length != predIdtableLength) {
-    logln("please update pred const to ", idtable.length);
+    logln("please update pred const to "[], idtable.length);
     fail;
   }*/
   memset(idtable.ptr, 0, idtable.length * typeof(idtable[0]).sizeof);
@@ -204,7 +206,7 @@ struct _fastcast(T) {
     if (!u) return null;
     static assert (!is(U == void*));
     
-    // logln("Cast ", (cast(Object) u).classinfo.name);
+    // logln("Cast "[], (cast(Object) u).classinfo.name);
     // this doesn't do much but I'm leaving it in so you don't think I didn't think of it.
     static if (is(U: T) && !is(T: Object)) {{ // liskov says we can do this deterministically
       // direct parent of interface cast
@@ -234,7 +236,7 @@ struct _fastcast(T) {
     static if (is(U: T) && is(T: Object)) { return *cast(T*) &obj; }
     auto id = getId(obj.classinfo);
     if (id == -1) {
-      // logln("Boring cast: ", obj.classinfo.name);
+      // logln("Boring cast: "[], obj.classinfo.name);
       return cast(T) u;
     }
     auto hint = offsets[id];

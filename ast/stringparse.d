@@ -3,7 +3,7 @@ module ast.stringparse;
 import ast.base, parseBase;
 
 bool gotString(ref string text, ref string res,
-  string sep = "\"", bool alreadyMatched = false)
+  string sep = "\""[], bool alreadyMatched = false)
 {
   auto t2 = text;
   if (!alreadyMatched && !t2.accept(sep)) return false;
@@ -43,29 +43,29 @@ bool gotString(ref string text, ref string res,
 
 string coarseLexScope(ref string text, bool forceMatch = false, bool includeBrackets = true) {
   string local = text;
-  if (!local.accept("{")) {
+  if (!local.accept("{"[])) {
     if (forceMatch)
-      local.failparse("COARSE: Opening bracket expected !");
+      local.failparse("COARSE: Opening bracket expected !"[]);
     return null;
   }
   if (!includeBrackets) text = local;
   int depth = 1;
   while (depth) {
     while (local.length && local[0] == '/') { auto backup = local; local.eatComments(); if (local is backup) break; }
-    if (!local.length) text.failparse("COARSE: Unbalanced {}! ");
+    if (!local.length) text.failparse("COARSE: Unbalanced {}! "[]);
     auto ch = local[0];
     local = local[1..$];
     if (ch == '{') depth++;
     else if (ch == '}') depth--;
     else if (ch == '"') {
       string bogus;
-      if (!gotString(local, bogus, "\"", true))
-        if (forceMatch) local.failparse("COARSE: Couldn't match string! ");
+      if (!gotString(local, bogus, "\""[], true))
+        if (forceMatch) local.failparse("COARSE: Couldn't match string! "[]);
         else return null;
     } else if (ch == '`') {
       string bogus;
-      if (!gotString(local, bogus, "`", true))
-        if (forceMatch) local.failparse("COARSE: Couldn't match literal string! ");
+      if (!gotString(local, bogus, "`"[], true))
+        if (forceMatch) local.failparse("COARSE: Couldn't match literal string! "[]);
         else return null;
     }
   }

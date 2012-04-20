@@ -88,8 +88,8 @@ class List : Entity {
 
 Entity NilEnt, NonNilEnt;
 static this() {
-  NilEnt = new List();
-  NonNilEnt = new List([new List]);
+  NilEnt = fastalloc!(List)();
+  NonNilEnt = fastalloc!(List)([new List]);
 }
 
 class DgCallable : Entity, Callable {
@@ -103,26 +103,26 @@ class DgCallable : Entity, Callable {
 
 Entity _parseTenth(ref string src) {
   if (src.accept("'")) {
-    return new Escape(_parseTenth(src));
+    return fastalloc!(Escape)(_parseTenth(src));
   }
   if (src.accept("\"")) {
     auto mew = src.slice("\"");
-    return new Escape(new Token(mew)); // haaaaax
+    return fastalloc!(Escape)(fastalloc!(Token)(mew)); // haaaaax
   }
   if (src.accept("(")) {
     Entity[] res;
     while (true) {
-      if (src.accept(")")) return new List(res);
+      if (src.accept(")")) return fastalloc!(List)(res);
       res ~= _parseTenth(src);
     }
   }
   int val;
   if (src.gotInt(val)) {
-    return new Integer(val);
+    return fastalloc!(Integer)(val);
   }
   string id;
   if (src.gotIdentifier(id)) {
-    return new Token(id);
+    return fastalloc!(Token)(id);
   }
   src.failparse("Unknown Tenth code");
 }
@@ -204,14 +204,14 @@ extern(C) void fcc_initTenth();
 
 Object runTenthPure(void delegate(void delegate(string, Object)) setupDg, Entity root) {
   fcc_initTenth;
-  auto ctx = new Context(rootctx);
+  auto ctx = fastalloc!(Context)(rootctx);
   setupDg((string name, Object obj) {
     if (auto itr = fastcast!(Iterable) (obj)) {
-      ctx.add(name, new ItrEntity(itr));
+      ctx.add(name, fastalloc!(ItrEntity)(itr));
       return;
     }
     if (auto ty = fastcast!(Type) (obj)) {
-      ctx.add(name, new TypeEntity(ty));
+      ctx.add(name, fastalloc!(TypeEntity)(ty));
       return;
     }
     logln("No idea now to add ", name, ": ", obj);

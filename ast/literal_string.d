@@ -13,19 +13,19 @@ class StringExpr : Expr, HasInfo, Dependency {
   string name_used;
   void selectName(AsmFile af) {
     if (!name_used) {
-      name_used = af.allocConstant(Format("string_constant_", string_counter ++), cast(ubyte[]) str);
+      name_used = af.allocConstant(Format("string_constant_"[], string_counter ++), cast(ubyte[]) str);
     }
   }
   Expr getPointer() {
-    return reinterpret_cast(Single!(Pointer, Single!(Char)), new LateSymbol(&selectName, &name_used)); 
+    return reinterpret_cast(Single!(Pointer, Single!(Char)), fastalloc!(LateSymbol)(&selectName, &name_used)); 
   }
   override {
     string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }
-    StringExpr dup() { return new StringExpr(str, generated); }
-    string toString() { return '"'~str.replace("\n", "\\n")~'"'; }
+    StringExpr dup() { return fastalloc!(StringExpr)(str, generated); }
+    string toString() { return '"'~str.replace("\n"[], "\\n"[])~'"'; }
     // default action: place in string segment, load address on stack
     void emitAsm(AsmFile af) {
-      // if (name_used == "string_constant_232") fail;
+      // if (name_used == "string_constant_232"[]) fail;
       getPointer().emitAsm(af);
       (mkInt(str.length)).emitAsm(af);
     }
@@ -34,23 +34,23 @@ class StringExpr : Expr, HasInfo, Dependency {
       af.allocConstant(name_used, cast(ubyte[]) str, true);
       af.markWeak(name_used);
     }
-    // IType valueType() { return new StaticArray(Single!(Char), str.length); }
+    // IType valueType() { return fastalloc!(StaticArray)(Single!(Char), str.length); }
     IType valueType() { return Single!(Array, Single!(Char)); }
   }
 }
 
 static this() {
-  mkString = delegate Expr(string s) { return new StringExpr(s); };
+  mkString = delegate Expr(string s) { return fastalloc!(StringExpr)(s); };
 }
 
 Object gotStringLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   // "" handled in ast.stringex now.
   string st;
-  if (text.gotString(st, "`", true)) {
-    return new StringExpr(st, false);
+  if (text.gotString(st, "`"[], true)) {
+    return fastalloc!(StringExpr)(st, false);
   } else return null;
 }
-mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string", "551", "`");
+mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string"[], "551"[], "`"[]);
 
 import ast.casting, ast.fold;
 static this() {
@@ -67,7 +67,7 @@ static this() {
       return null;
     if (auto str = fastcast!(StringExpr) (ex)) {
       if (!str.generated && str.str.length == 1)
-        return reinterpret_cast(Single!(Char), new DataExpr(cast(ubyte[]) str.str));
+        return reinterpret_cast(Single!(Char), fastalloc!(DataExpr)(cast(ubyte[]) str.str));
     }
     return null;
   };

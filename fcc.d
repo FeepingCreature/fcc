@@ -151,13 +151,13 @@ static this() {
   Expr fpeq(bool neg, Expr ex1, Expr ex2) {
     auto fp1 = fastcast!(FunctionPointer) (ex1.valueType()), fp2 = fastcast!(FunctionPointer) (ex2.valueType());
     if (!fp1 || !fp2) return null;
-    return new CondExpr(new Compare(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
+    return fastalloc!(CondExpr)(fastalloc!(Compare)(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
   }
   Expr ptreq(bool neg, Expr ex1, Expr ex2) {
     auto p1 = fastcast!(Pointer) (resolveType(ex1.valueType())), p2 = fastcast!(Pointer) (resolveType(ex2.valueType()));
     if (!p1 || !p2) return null;
     assert(p1.target == p2.target, Format("Cannot compare ", p1, " and ", p2));
-    return new CondExpr(new Compare(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
+    return fastalloc!(CondExpr)(fastalloc!(Compare)(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
   }
   defineOp("==", false /apply/  &fpeq);
   defineOp("==", false /apply/ &ptreq);
@@ -199,19 +199,19 @@ static this() {
     if (isARM && op == "%" && nontrivial()) {
       res = buildFunCall(fastcast!(Function) (sysmod.lookup("_mod")), mkTupleExpr(ex1, ex2), "_mod");
     }
-    if (!res) res = new AsmIntBinopExpr(ex1, ex2, op);
+    if (!res) res = fastalloc!(AsmIntBinopExpr)(ex1, ex2, op);
     if (b1 && b2) res = reinterpret_cast(fastcast!(IType) (sysmod.lookup("bool")), res);
     return res;
   }
   Expr handleIntUnary(string op, Expr ex) {
     if (!gotImplicitCast(ex, Single!(SysInt), &isInt))
       return null;
-    return new AsmIntUnaryExpr(ex, op);
+    return fastalloc!(AsmIntUnaryExpr)(ex, op);
   }
   Expr handleLongUnary(string op, Expr ex) {
     if (!gotImplicitCast(ex, Single!(Long), &isLong))
       return null;
-    return new AsmLongUnaryExpr(ex, op);
+    return fastalloc!(AsmLongUnaryExpr)(ex, op);
   }
   Expr handleNeg(Expr ex) {
     return lookupOp("-", mkInt(0), ex);
@@ -254,7 +254,7 @@ static this() {
     if (!gotImplicitCast(ex1, Single!(Float), &isFloat) || !gotImplicitCast(ex2, Single!(Float), &isFloat))
       return null;
     
-    return new AsmFloatBinopExpr(ex1, ex2, op);
+    return fastalloc!(AsmFloatBinopExpr)(ex1, ex2, op);
   }
   Expr handleDoubleMath(string op, Expr ex1, Expr ex2) {
     if (Single!(Double) != resolveTup(ex1.valueType())
@@ -263,7 +263,7 @@ static this() {
     if (!gotImplicitCast(ex1, Single!(Double), &isDouble) || !gotImplicitCast(ex2, Single!(Double), &isDouble))
       return null;
     
-    return new AsmDoubleBinopExpr(ex1, ex2, op);
+    return fastalloc!(AsmDoubleBinopExpr)(ex1, ex2, op);
   }
   Expr handleLongMath(string op, Expr ex1, Expr ex2) {
     if (Single!(Long) != resolveTup(ex1.valueType())
@@ -309,7 +309,7 @@ extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
       from.emitAsm(af);
     } else {
       mkVarUnaligned(af, to, true, (Variable var) {
-        (new Assignment(var, from, true)).emitAsm(af);
+        (fastalloc!(Assignment)(var, from, true)).emitAsm(af);
       });
     }
   }
@@ -432,7 +432,7 @@ extern(C) Expr _tmpize_maybe(Expr thing, E2EOdg dg, bool force) {
     if (cheap(thing))
       return dg(thing, null); // cheap to emit
   }
-  auto wurble = new WithTempExpr(thing, dg);
+  auto wurble = fastalloc!(WithTempExpr)(thing, dg);
   if (!wurble.isValid()) return null;
   return wurble;
 }
@@ -573,7 +573,7 @@ string delegate() compile(string file, CompileSettings cs) {
   scope(failure)
     logSmart!(false)("While compiling ", file);
   while (file.startsWith("./")) file = file[2 .. $];
-  auto af = new AsmFile(cs.optimize, cs.debugMode, cs.profileMode, file);
+  auto af = fastalloc!(AsmFile)(cs.optimize, cs.debugMode, cs.profileMode, file);
   if (!isARM) af.processorExtensions["sse3"] = true;
   setupGenericOpts();
   if (isARM) setupARMOpts();
@@ -642,7 +642,7 @@ string delegate() compile(string file, CompileSettings cs) {
     scope(exit)
       if (!cs.saveTemps)
         unlink(srcname.toStringz());
-    scope f = new BufferedFile(srcname, FileMode.OutNew);
+    scope f = fastalloc!(BufferedFile)(srcname, FileMode.OutNew);
     auto len_emit = time({
       af.genAsm((string s) { f.write(cast(ubyte[]) s); });
     }) / 1_000_000f;
@@ -695,7 +695,7 @@ string[] compileWithDepends(string file, CompileSettings cs) {
     else {
       synchronized {
         waits++;
-        if (!emitpool) emitpool = new Threadpool(4);
+        if (!emitpool) emitpool = fastalloc!(Threadpool)(4);
       }
       emitpool.addTask(stuple(dg, seph, &objs) /apply/ (string delegate() dg, Semaphore seph, string[]* objs) {
         auto obj = dg();
@@ -790,7 +790,7 @@ void loop(string start,
   }
   bool[string] checked;
   bool needsRebuild(Module mod) {
-    // logln("needsRebuild? ", mod.name, " ", mod.getAllModuleImports());
+    // logln("needsRebuild? "[], mod.name, " "[], mod.getAllModuleImports());
     if (mod.dontEmit) return false;
     if (mod is sysmod || !isUpToDate(mod)) return true;
     foreach (mod2; mod.getAllModuleImports())

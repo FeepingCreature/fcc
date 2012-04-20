@@ -21,7 +21,7 @@ class Tuple : Type, RelNamespace {
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
       int idx;
       if (readIndexShorthand(str, idx))
-        return fastcast!(Object) (lookupOp("index", base, mkInt(idx)));
+        return fastcast!(Object) (lookupOp("index"[], base, mkInt(idx)));
       return null;
     }
     int size() { return wrapped.size; }
@@ -48,35 +48,35 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
   Object obj; // exclusively for non-exprs.
   auto t2 = text;
   bool globmode;
-  if (!t2.accept("(")) {
-    if (t2.accept("$")) globmode = true;
+  if (!t2.accept("("[])) {
+    if (t2.accept("$"[])) globmode = true;
     else return null;
   }
-  if (!rest(t2, "tree.expr", &obj))
+  if (!rest(t2, "tree.expr"[], &obj))
     return null;
   if (!(globmode ^ !fastcast!(Expr) (obj)))
     return null;
-  if (globmode || t2.accept(")")) {
+  if (globmode || t2.accept(")"[])) {
     text = t2;
     return obj;
   } else {
-    if (!t2.accept(","))
-      t2.setError("Failed to match single-tuple");
+    if (!t2.accept(","[]))
+      t2.setError("Failed to match single-tuple"[]);
     return null;
   }
 }
-mixin DefaultParser!(gotBraceExpr, "tree.expr.braces", "6");
+mixin DefaultParser!(gotBraceExpr, "tree.expr.braces"[], "6"[]);
 
 Tuple mkTuple(IType[] types...) {
   foreach (type; types) if (Single!(Void) == type) {
-    logln("Cannot make tuple: must not contain void, ", types);
+    logln("Cannot make tuple: must not contain void, "[], types);
     fail;
   }
   auto tup = new Tuple;
   New(tup.wrapped, cast(string) null);
   tup.wrapped.packed = true;
   foreach (i, type; types)
-    fastalloc!(RelMember)(qformat("tuple_member_", i), type, tup.wrapped);
+    fastalloc!(RelMember)(qformat("tuple_member_"[], i), type, tup.wrapped);
   return tup;
 }
 
@@ -85,18 +85,18 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
   IType[] types;
   if (t2.bjoin(
-        !!rest(t2, "type", &ty),
-        t2.accept(","),
+        !!rest(t2, "type"[], &ty),
+        t2.accept(","[]),
         { types ~= ty; }
       ) &&
-      t2.accept(")")
+      t2.accept(")"[])
     ) {
     if (!types.length) { text = t2; return mkTuple(); } // templateFoo!()
     text = t2;
     return mkTuple(types);
   } else return null;
 }
-mixin DefaultParser!(gotTupleType, "type.tuple", "37", "(");
+mixin DefaultParser!(gotTupleType, "type.tuple"[], "37"[], "("[]);
 
 import ast.assign;
 
@@ -118,17 +118,17 @@ class RefTuple : MValue {
     RefTuple dup() {
       auto newlist = mvs.dup;
       foreach (ref entry; newlist) entry = entry.dup;
-      return new RefTuple(newlist);
+      return fastalloc!(RefTuple)(newlist);
     }
     IType valueType() { return baseTupleType; }
     void emitAsm(AsmFile af) {
       mkTupleValueExpr(getAsExprs).emitAsm(af);
     }
     string toString() {
-      return Format("reftuple(", mvs, ")");
+      return Format("reftuple("[], mvs, ")"[]);
     }
     void emitAssignment(AsmFile af) {
-      mixin(mustOffset("-valueType().size"));
+      mixin(mustOffset("-valueType().size"[]));
       auto tup = fastcast!(Tuple)~ baseTupleType;
       
       auto offsets = tup.offsets();
@@ -138,7 +138,7 @@ class RefTuple : MValue {
           assert(offsets[i] > data_offs);
           af.sfree(offsets[i] - data_offs);
         }
-        mixin(mustOffset("-target.valueType().size"));
+        mixin(mustOffset("-target.valueType().size"[]));
         target.emitAssignment(af);
         data_offs += target.valueType().size;
       }
@@ -159,7 +159,7 @@ static this() {
     auto str = fastcast!(Structure)~ rc.to;
     if (!rt || !str) return null;
     retry:
-    // logln("member access to a ", rc, " - ", mae.stm);
+    // logln("member access to a "[], rc, " - "[], mae.stm);
     auto mbs = str.members();
     if (mbs.length > 1 && rt.mvs.length == 1) {
       rt = fastcast!(RefTuple) (rt.mvs[0]);
@@ -167,8 +167,8 @@ static this() {
       else return null; // TODO: I don't get this. 
     }
     if (!rt || rt.mvs.length != mbs.length) {
-      logln("ref tuple not large enough for this cast! ");
-      logln(rt, " but ", mbs);
+      logln("ref tuple not large enough for this cast! "[]);
+      logln(rt, " but "[], mbs);
       fail;
     }
     int offs = -1;
@@ -200,36 +200,36 @@ static this() {
         if (auto lam = fastcast!(LValueAsMValue) (right)) right = lam.sup;
         stmts ~= mkAssignment(left, right);
       }
-      // return new AggrStatement(stmts);
+      // return fastalloc!(AggrStatement)(stmts);
       // this breaks (a, b) = (b, a).
       // Don't actually do it, but act like we did so we get the benefit
       // of the self-assignment error which is neat.
       return null;
     } catch (SelfAssignmentException) {
-      throw new ParseEx(reverseLookupPos(am.line, 0, am.name), "self-assignment detected");
+      throw fastalloc!(ParseEx)(reverseLookupPos(am.line, 0, am.name), "self-assignment detected"[]);
     }
   };
 }
 
 Expr mkTupleValueExpr(Expr[] exprs...) {
   auto tup = mkTuple(exprs /map/ (Expr ex) { return ex.valueType(); });
-  return new RCE(tup, new StructLiteral(tup.wrapped, exprs.dup, tup.offsets));
+  return fastalloc!(RCE)(tup, fastalloc!(StructLiteral)(tup.wrapped, exprs.dup, tup.offsets));
 }
 
 class LValueAsMValue : MValue {
   LValue sup;
-  mixin MyThis!("sup");
+  mixin MyThis!("sup"[]);
   mixin defaultIterate!(sup);
   override {
-    LValueAsMValue dup() { return new LValueAsMValue(sup.dup); }
-    string toString() { return Format("lvtomv(", sup, ")"); }
+    LValueAsMValue dup() { return fastalloc!(LValueAsMValue)(sup.dup); }
+    string toString() { return Format("lvtomv("[], sup, ")"[]); }
     void emitAsm(AsmFile af) { sup.emitAsm(af); }
     IType valueType() { return sup.valueType(); }
     import ast.assign;
     void emitAssignment(AsmFile af) {
-      (new Assignment(
+      (fastalloc!(Assignment)(
         sup,
-        new Placeholder(sup.valueType()),
+        fastalloc!(Placeholder)(sup.valueType()),
         false, true
       )).emitAsm(af);
     }
@@ -270,7 +270,7 @@ Expr mkTupleExpr(Expr[] exprs...) {
   MValue[] arr;
   MValue toMValue(Expr ex) {
     if (auto mv = fastcast!(MValue) (ex)) return mv;
-    if (auto lv = fastcast!(LValue) (ex)) return new LValueAsMValue(lv);
+    if (auto lv = fastcast!(LValue) (ex)) return fastalloc!(LValueAsMValue)(lv);
     return null;
   }
   // first check if all are mvalues even without the foldex
@@ -287,7 +287,7 @@ Expr mkTupleExpr(Expr[] exprs...) {
       else { allMValues = false; break; }
     }
   }
-  if (allMValues) return new RefTuple(arr);
+  if (allMValues) return fastalloc!(RefTuple)(arr);
   else return mkTupleValueExpr(exprs);
 }
 
@@ -296,7 +296,7 @@ import ast.math: AsmFloatBinopExpr;
 Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr[] exprs;
   auto t2 = text;
-  if (t2.accept(")")) {
+  if (t2.accept(")"[])) {
     text = t2;
     // lol wat
     return fastcast!(Object)~ mkTupleExpr();
@@ -304,26 +304,26 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   while (true) {
     Expr ex;
     if (exprs.length > 1) {
-      if (!t2.accept(","))
-        t2.failparse("tuple failed; comma expected");
-      if (!rest(t2, "tree.expr", &ex))
-        t2.failparse("tuple failed");
+      if (!t2.accept(","[]))
+        t2.failparse("tuple failed; comma expected"[]);
+      if (!rest(t2, "tree.expr"[], &ex))
+        t2.failparse("tuple failed"[]);
     } else if (exprs.length) {
-      if (!t2.accept(","))
+      if (!t2.accept(","[]))
         return null;
-      if (!rest(t2, "tree.expr", &ex))
+      if (!rest(t2, "tree.expr"[], &ex))
         return null;
     } else {
-      if (!rest(t2, "tree.expr", &ex))
+      if (!rest(t2, "tree.expr"[], &ex))
         return null;
     }
     exprs ~= ex;
-    if (t2.accept(")")) break;
+    if (t2.accept(")"[])) break;
   }
   text = t2;
   return fastcast!(Object) (mkTupleExpr(exprs));
 }
-mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple", "60", "(");
+mixin DefaultParser!(gotTupleExpr, "tree.expr.tuple"[], "60"[], "("[]);
 
 import ast.fold, ast.int_literal;
 static this() {
@@ -340,31 +340,31 @@ static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb cont, ParseCb rest) {
     auto t2 = text;
     Expr len;
-    if (!t2.accept("[")) return null;
+    if (!t2.accept("["[])) return null;
     
     auto tup = fastcast!(Tuple) (cur);
     if (!tup)
       return null;
     
-    if (!rest(t2, "tree.expr", &len)) return null;
-    if (!t2.accept("]"))
-      t2.failparse("Expected closing ']' for tuple index access");
+    if (!rest(t2, "tree.expr"[], &len)) return null;
+    if (!t2.accept("]"[]))
+      t2.failparse("Expected closing ']' for tuple index access"[]);
     
     auto types = tup.types();
     if (!types.length) return null; // cannot possibly mean a type-tuple tuple access
     
     auto backup_len = len;
     if (!gotImplicitCast(len, (IType it) { return test(Single!(SysInt) == it); }))
-      t2.failparse("Need int for tuple index access, not ", backup_len);
+      t2.failparse("Need int for tuple index access, not "[], backup_len);
     opt(len);
     len = foldex(len);
     if (auto ie = fastcast!(IntExpr) (len)) {
       text = t2;
       if (ie.num >= types.length) {
-        text.failparse(ie.num, " too large for tuple of ", types.length, "!");
+        text.failparse(ie.num, " too large for tuple of "[], types.length, "!"[]);
       }
       return types[ie.num];
     } else
-      t2.failparse("Need foldable constant for tuple index access, not ", len);
+      t2.failparse("Need foldable constant for tuple index access, not "[], len);
   };
 }

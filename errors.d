@@ -1,6 +1,6 @@
 module errors;
 
-import tools.base;
+import alloc, tools.base;
 
 string mystripl(string s) {
   while (s.length && (
@@ -14,20 +14,20 @@ string mystripl(string s) {
 
 string nextText(string s, int i = 100) {
   if (s.length > i) s = s[0 .. i];
-  return s.replace("\n", "\\");
+  return s.replace("\n"[], "\\"[]);
 }
 
 void eatComments(ref string s) {
   s = s.mystripl();
   while (true) {
-    if (s.length >= 2 && s[0] == '/' && s[1] == '*') { s = s[2..$]; s.slice("*/"); s = s.mystripl(); }
+    if (s.length >= 2 && s[0] == '/' && s[1] == '*') { s = s[2..$]; s.slice("*/"[]); s = s.mystripl(); }
     else if (s.length >= 2 && s[0] == '/' && s[1] == '+') {
       s = s[2..$];
       int depth = 1;
       while (depth) {
-        auto a = s.find("/+"), b = s.find("+/");
+        auto a = s.find("/+"[]), b = s.find("+/"[]);
         if (b == -1)
-          throw new Exception("Unbalanced comments! ");
+          throw new Exception("Unbalanced comments! "[]);
         if (a != -1 && a < b) {
           depth++;
           s = s[a + 2 .. $];
@@ -38,7 +38,7 @@ void eatComments(ref string s) {
       }
       s = s.mystripl();
     }
-    else if (s.length >= 2 && s[0] == '/' && s[1] == '/') { s = s[2..$]; s.slice("\n"); s = s.mystripl(); }
+    else if (s.length >= 2 && s[0] == '/' && s[1] == '/') { s = s[2..$]; s.slice("\n"[]); s = s.mystripl(); }
     else break;
   }
 }
@@ -63,13 +63,13 @@ Stuple!(float, string) lookupProgress(string text) {
 // row, col, file
 Stuple!(int, ptrdiff_t, string, string) lookupPos(string text) {
   eatComments(text);
-  text = text.strip();
+  text = text.mystripl();
   synchronized(SyncObj!(sourcefiles)) foreach (key, value; sourcefiles) {
     if (text.ptr < value.ptr || text.ptr > value.ptr + value.length)
       continue;
     int i;
     while (value) {
-      auto line = value.slice("\n");
+      auto line = value.slice("\n"[]);
       if (text.ptr < line.ptr || text.ptr > line.ptr + line.length) {
         i++;
         continue;
@@ -78,13 +78,13 @@ Stuple!(int, ptrdiff_t, string, string) lookupPos(string text) {
     }
     assert(false);
   }
-  return stuple(0, cast(ptrdiff_t) 0, "<unknown>", cast(string) null);
+  return stuple(0, cast(ptrdiff_t) 0, "<unknown>"[], cast(string) null);
 }
 
 string reverseLookupPos(int row, int col, string file) {
   synchronized(SyncObj!(sourcefiles)) {
     auto text = sourcefiles[file];
-    while (--row) text.slice("\n");
+    while (--row) text.slice("\n"[]);
     return text[col .. $];
   }
 }
@@ -96,18 +96,18 @@ class ParseEx : Exception {
   void addRule(string s) { rules ~= s; }
   string toString() {
     auto info = lookupPos(pos);
-    if (info._2 == "<unknown>") info._2 = "@`"~pos.nextText()~"`";
+    if (info._2 == "<unknown>"[]) info._2 = "@`"~pos.nextText()~"`";
     string res;
     if (info._3) {
       auto prefix = "At line: ";
-      res = Format("\n", prefix, info._3, "\n");
+      res = Format("\n"[], prefix, info._3, "\n"[]);
       for (int i = 0; i < prefix.length + info._1; ++i)
         res ~= " ";
       res ~= "^\n";
     }
     
-    res ~= Format(info._2, ":", info._0, ":", info._1, ": ", msg);
-    if (rules) res ~= Format(" ", rules);
+    res ~= Format(info._2, ":"[], info._0, ":"[], info._1, ": "[], msg);
+    if (rules) res ~= Format(" "[], rules);
     return res;
   } 
 }
@@ -121,7 +121,7 @@ TLS!(Stuple!(string, string)) error;
 void failparse(T...)(string text, T t) {
   auto str = Format(t);
   if (auto mesg = error()._1) str ~= ": "~mesg;
-  throw new ParseEx(text, str);
+  throw fastalloc!(ParseEx)(text, str);
 }
 
 static this() { New(error); }

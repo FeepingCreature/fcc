@@ -52,43 +52,43 @@ import ast.pointer, ast.tuples, ast.tuple_access, ast.namespace, ast.scopes, ast
 Cond testNeq(Expr ex1, Expr ex2) {
   assert(ex1.valueType().size == ex2.valueType().size);
   if (ex1.valueType().size == 4)
-    return new Compare(ex1, true, false, true, false, ex2);
+    return fastalloc!(Compare)(ex1, true, false, true, false, ex2);
   assert(ex1.valueType().size == 8);
   auto t2 = mkTuple(voidp, voidp);
-  return new ExprWrap(tmpize_maybe(ex1, delegate Expr(Expr ex1) {
+  return fastalloc!(ExprWrap)(tmpize_maybe(ex1, delegate Expr(Expr ex1) {
     return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
       auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex1));
       auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex2));
-      Cond cd = new BooleanOp!("||")(
-        new ExprWrap(lookupOp("!=", ex1s[0], ex2s[0])),
-        new ExprWrap(lookupOp("!=", ex1s[1], ex2s[1]))
+      Cond cd = new BooleanOp!("||"[])(
+        fastalloc!(ExprWrap)(lookupOp("!="[], ex1s[0], ex2s[0])),
+        fastalloc!(ExprWrap)(lookupOp("!="[], ex1s[1], ex2s[1]))
       );
-      return new CondExpr(cd);
+      return fastalloc!(CondExpr)(cd);
     });
   }));
   /*auto v1 = lvize(ex1, &init1);
   auto v2 = lvize(ex2, &init2);
   auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v1));
   auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v2));
-  Cond res = new BooleanOp!("||")(
-    new ExprWrap(lookupOp("!=", ex1s[0], ex2s[0])),
-    new ExprWrap(lookupOp("!=", ex1s[1], ex2s[1]))
+  Cond res = new BooleanOp!("||"[])(
+    fastalloc!(ExprWrap)(lookupOp("!="[], ex1s[0], ex2s[0])),
+    fastalloc!(ExprWrap)(lookupOp("!="[], ex1s[1], ex2s[1]))
   );
-  if (init1) res = new StatementAndCond(init1, res);
-  if (init2) res = new StatementAndCond(init2, res);
+  if (init1) res = fastalloc!(StatementAndCond)(init1, res);
+  if (init2) res = fastalloc!(StatementAndCond)(init2, res);
   return res;*/
 }
 
 Cond testNonzero(Expr ex) {
   auto ex2 = ex, ex3 = ex; // test for int-like
   IType[] _tried;
-  IType Bool = fastcast!(IType) (sysmod.lookup("bool"));
+  IType Bool = fastcast!(IType) (sysmod.lookup("bool"[]));
   if (gotImplicitCast(ex2,         Bool   , (IType it) { _tried ~= it; return test(it == Bool); }) || (ex2 = null, false)
     || gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return test(Single!(SysInt) == it); }) || (ex3 = null, false)) {
     if (!ex2) ex2 = ex3;
-    return new Compare(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0
+    return fastalloc!(Compare)(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0
   }
-  auto n = fastcast!(Expr)~ sysmod.lookup("null");
+  auto n = fastcast!(Expr)~ sysmod.lookup("null"[]);
   if (!n) return null;
   auto ev = ex.valueType();
   Expr cmp1, cmp2;
@@ -111,7 +111,7 @@ Cond testNonzero(Expr ex) {
   if (cmp1 && cmp2) {
     return testNeq(cmp1, cmp2);
   }
-  // logln("Failed overlaps: ", overlaps);
+  // logln("Failed overlaps: "[], overlaps);
   return null;
 }
 
@@ -119,12 +119,12 @@ import ast.literals, ast.casting, ast.modules, ast.conditionals, ast.opers;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex; Cond cd;
   auto t2 = text;
-  if (rest(t2, "<tree.expr >tree.expr.cond", &cd) || rest(t2, "<tree.expr >tree.expr.cond", &ex)) {
+  if (rest(t2, "<tree.expr >tree.expr.cond"[], &cd) || rest(t2, "<tree.expr >tree.expr.cond"[], &ex)) {
     if (cd) { text = t2; return fastcast!(Object) (cd); } // Okaaaay.
     if (!ex) return null;
-    if (t2.accept(".")) return null; // wtf? definitely not a condition.
+    if (t2.accept("."[])) return null; // wtf? definitely not a condition.
     if (auto res = testNonzero(ex)) { text = t2; return fastcast!(Object) (res); }
   }
   return null;
 }
-mixin DefaultParser!(gotExprAsCond, "cond.expr", "99");
+mixin DefaultParser!(gotExprAsCond, "cond.expr"[], "99"[]);

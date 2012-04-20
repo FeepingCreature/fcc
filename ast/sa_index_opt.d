@@ -12,7 +12,7 @@ static this() {
     auto rce1 = fastcast!(RCE)~ dre.src; if (!rce1)  return null;
     auto pe = fastcast!(AsmIntBinopExpr) (rce1.from);
                                    if (!pe)    return null;
-                                   if (pe.op != "+")
+                                   if (pe.op != "+"[])
                                                return null;
     auto rce2 = fastcast!(RCE)~ fold(pe.e1); 
                                    if (!rce2)  return null;
@@ -29,7 +29,7 @@ static this() {
                                    if (!ioffs) return null;
     auto field = cast(int[]) de.data;
     auto index = ioffs.num;
-    assert(!(index & 3), "Bad index!! ");
+    assert(!(index & 3), "Bad index!! "[]);
     index /= 4;
     // yay
     return fastcast!(Iterable) (mkInt(field[index]));

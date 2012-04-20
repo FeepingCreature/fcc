@@ -13,18 +13,18 @@ template ReinterpretCast_Contents(T) {
     this.to = to;
     static if (is(T==Expr)) {
       if (!allowCValue && (fastcast!(LValue)~ from || fastcast!(CValue)~ from)) {
-        logln(this, "? Suure? ");
+        logln(this, "? Suure? "[]);
         fail;
       }
     }
     // if (to.size != from.valueType().size) fail;
     if (to.size != from.valueType().size) {
-      logln("Can't cast ", from, " to ", to, "; ", from.valueType(), " size ", from.valueType().size, " vs. ", to.size, "!");
+      logln("Can't cast "[], from, " to "[], to, "; "[], from.valueType(), " size "[], from.valueType().size, " vs. "[], to.size, "!"[]);
       fail();
     }
   }
   private this() { }
-  typeof(this) dup() { return new typeof(this)(to, fastcast!(T) (from.dup), true); }
+  typeof(this) dup() { return fastalloc!(typeof(this))(to, fastcast!(T) (from.dup), true); }
   // mixin defaultIterate!(from);
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     auto backup = from;
@@ -32,10 +32,10 @@ template ReinterpretCast_Contents(T) {
     auto new_from_test = fastcast!(T) (from);
     if (!new_from_test) {
       // Liskov, if already deceased, is getting quite a spin here.
-      logln("Missubstitution!");
-      logln("In cast of ", T.stringof);
-      logln("Was: ", backup);
-      logln(" To: ", from);
+      logln("Missubstitution!"[]);
+      logln("In cast of "[], T.stringof);
+      logln("Was: "[], backup);
+      logln(" To: "[], from);
       fail;
     }
   }
@@ -56,9 +56,9 @@ template ReinterpretCast(T) {
     class ReinterpretCast : RC, Expr, HasInfo {
       mixin ReinterpretCast_Contents!(Expr);
       override {
-        string toString() { return Format("(", to, ": ", from, ")"); }
+        string toString() { return Format("("[], to, ": "[], from, ")"[]); }
         IType valueType() { return to; }
-        string getInfo() { return Format(to, ":"); }
+        string getInfo() { return Format(to, ":"[]); }
         void emitAsm(AsmFile af) {
           _reinterpret_cast_expr(this, af);
         }
@@ -101,11 +101,11 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
   IType dest;
-  if (!rest(t2, "type", &dest) || !t2.accept(":"))
+  if (!rest(t2, "type"[], &dest) || !t2.accept(":"[]))
     return null;
-  if (t2.accept(":")) return null;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
-    t2.setError("can't get ", ex, " into ", dest);
+  if (t2.accept(":"[])) return null;
+  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
+    t2.setError("can't get "[], ex, " into "[], dest);
     return null;
   }
   
@@ -115,7 +115,7 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return fastcast!(Object)~ reinterpret_cast(dest, ex);
 }
-mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default", "241801");
+mixin DefaultParser!(gotExplicitDefaultCastExpr, "tree.expr.cast_explicit_default"[], "241801"[]);
 
 // IType parameter is just advisory!
 // Functions may ignore it.
@@ -137,61 +137,71 @@ Expr tryConvert(Expr ex, IType dest) {
 Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType dest;
-  if (!rest(t2, "type", &dest) || !t2.accept(":"))
+  if (!rest(t2, "type"[], &dest) || !t2.accept(":"[]))
     return null;
-  if (t2.accept(":")) return null;
+  if (t2.accept(":"[])) return null;
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
-    t2.setError("Unable to parse cast source");
+  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
+    t2.setError("Unable to parse cast source"[]);
     return null;
   }
   Expr res = tryConvert(ex, dest);
   if (res) text = t2;
   return fastcast!(Object)~ res;
 }
-mixin DefaultParser!(gotConversionCast, "tree.expr.cast_convert", "241802");
+mixin DefaultParser!(gotConversionCast, "tree.expr.cast_convert"[], "241802"[]);
 
 Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
   IType dest;
-  if (!rest(t2, "type", &dest) || !t2.accept(":"))
+  if (!rest(t2, "type"[], &dest) || !t2.accept(":"[]))
     return null;
-  if (t2.accept(":")) return null;
+  if (t2.accept(":"[])) return null;
   IType[] types;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) {
-    t2.failparse("Failed to get expression");
+  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
+    t2.failparse("Failed to get expression"[]);
   }
   if (!gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; })) {
-    t2.setError("Expression not matched in cast; none of ", types, " matched ", dest.size, ". ");
+    t2.setError("Expression not matched in cast; none of "[], types, " matched "[], dest.size, ". "[]);
     return null;
   }
   
   text = t2;
   return fastcast!(Object)~ reinterpret_cast(dest, ex);
 }
-mixin DefaultParser!(gotCastExpr, "tree.expr.cast", "2418");
+mixin DefaultParser!(gotCastExpr, "tree.expr.cast"[], "2418"[]);
 
 import tools.base: toDg;
 
 // implicit conversions
 struct implicits { static {
-  void delegate(Expr, IType, void delegate(Expr))[] dgs;
+  void delegate(Expr, IType, bool delegate(Expr))[] dgs;
   void opCatAssign(void delegate(Expr, IType, void delegate(Expr)) dg) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
+      dg(ex, it, (Expr ex) { dg2(ex); });
+    };
+  }
+  void opCatAssign(void delegate(Expr, IType, bool delegate(Expr)) dg) {
     dgs ~= dg;
   }
-  void opCatAssign(void delegate(Expr, void delegate(Expr)) dg) {
-    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, void delegate(Expr) dg2) {
+  void opCatAssign(void delegate(Expr, bool delegate(Expr)) dg) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
       dg(ex, dg2);
     };
   }
+  void opCatAssign(void delegate(Expr, void delegate(Expr)) dg) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
+      dg(ex, (Expr ex) { dg2(ex); });
+    };
+  }
   void opCatAssign(Expr delegate(Expr) dg) {
-    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, void delegate(Expr) dg2) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
       if (auto res = dg(ex)) dg2(res);
     };
   }
   void opCatAssign(Expr delegate(Expr, IType) dg) {
-    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, void delegate(Expr) dg2) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
       if (auto res = dg(ex, it)) dg2(res);
     };
   }
@@ -214,7 +224,7 @@ class DontCastMeExpr : Expr {
   override {
     IType valueType() { return sup.valueType(); }
     void emitAsm(AsmFile af) { sup.emitAsm(af); }
-    string toString() { return Format("__dcm(", sup, ")"); }
+    string toString() { return Format("__dcm("[], sup, ")"[]); }
   }
 }
 
@@ -230,20 +240,20 @@ class DontCastMeLValue : DontCastMeCValue, LValue {
 }
 
 Expr dcm(Expr ex) {
-  if (auto lv = fastcast!(LValue)~ ex) return new DontCastMeLValue(lv);
-  else if (auto cv = fastcast!(CValue)~ ex) return new DontCastMeCValue(cv);
-  else return new DontCastMeExpr(ex);
+  if (auto lv = fastcast!(LValue)~ ex) return fastalloc!(DontCastMeLValue)(lv);
+  else if (auto cv = fastcast!(CValue)~ ex) return fastalloc!(DontCastMeCValue)(cv);
+  else return fastalloc!(DontCastMeExpr)(ex);
 }
 
 Object gotDCMExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (t2.accept("__dcm(") && rest(t2, "tree.expr", &ex) && t2.accept(")")) {
+  if (t2.accept("__dcm("[]) && rest(t2, "tree.expr"[], &ex) && t2.accept(")"[])) {
     text = t2;
-    return new DontCastMeExpr(ex);
+    return fastalloc!(DontCastMeExpr)(ex);
   } else return null;
 }
-mixin DefaultParser!(gotDCMExpr, "tree.expr.dcm", "53");
+mixin DefaultParser!(gotDCMExpr, "tree.expr.dcm"[], "53"[]);
 
 import tools.threads: TLS;
 import ast.namespace;
@@ -274,10 +284,13 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
     foreach (dg; implicits) {
       Expr res;
       dg(ex, want, (Expr ce) {
-        if (res || haveVisited(ce)) return;
+        if (res || haveVisited(ce)) return false;
         addVisitor(ce.valueType());
-        if (accept(ce)) res = ce;
         recurseInto ~= ce;
+        if (accept(ce)) {
+          res = ce;
+        }
+        return true;
       });
       if (res) return res;
     }
@@ -320,9 +333,10 @@ Expr[] getAllImplicitCasts(Expr ex) {
     auto start = res.length;
     foreach (dg; implicits) {
       dg(ex, null, (Expr ce) {
-        if (haveVisited(ce)) return;
+        if (haveVisited(ce)) return false;
         visited ~= ce.valueType();
         res ~= ce;
+        return true;
       });
     }
     foreach (entry; res[start .. $])
@@ -344,19 +358,19 @@ class ShortToIntCast : Expr {
     IType valueType() { return Single!(SysInt); }
     void emitAsm(AsmFile af) {
       sh.emitAsm(af);
-      af.comment("short to int cast");
+      af.comment("short to int cast"[]);
       if (isARM) {
         // TODO: proper conversion
-        af.mmove2("[sp]", "r0");
+        af.mmove2("[sp]"[], "r0"[]);
         af.salloc(2);
-        af.mmove4("r0", "[sp]");
+        af.mmove4("r0"[], "[sp]"[]);
         return;
       }
-      af.popStack("%ax", sh.valueType().size);
-      af.put("cwde");
-      af.pushStack("%eax", 4);
+      af.popStack("%ax"[], sh.valueType().size);
+      af.put("cwde"[]);
+      af.pushStack("%eax"[], 4);
     }
-    string toString() { return Format("int:", sh); }
+    string toString() { return Format("int:"[], sh); }
   }
 }
 
@@ -365,7 +379,7 @@ class ByteToShortCast : Expr {
   this(Expr b) {
     this.b = b;
     if (b.valueType().size != 1) {
-      logln("Can't byte-to-short cast: wtf, ", b.valueType(), " on ", b);
+      logln("Can't byte-to-short cast: wtf, "[], b.valueType(), " on "[], b);
       fail;
     }
   }
@@ -373,18 +387,18 @@ class ByteToShortCast : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(b);
   override {
-    string toString() { return Format("short:", b); }
+    string toString() { return Format("short:"[], b); }
     IType valueType() { return Single!(Short); }
     void emitAsm(AsmFile af) {
       {
-        mixin(mustOffset("1"));
+        mixin(mustOffset("1"[]));
         b.emitAsm(af);
       }
       // lol.
-      af.comment("byte to short cast lol");
-      af.put("xorw %ax, %ax");
-      af.popStack("%al", b.valueType().size);
-      af.pushStack("%ax", 2);
+      af.comment("byte to short cast lol"[]);
+      af.put("xorw %ax, %ax"[]);
+      af.popStack("%al"[], b.valueType().size);
+      af.pushStack("%ax"[], 2);
     }
   }
 }
@@ -394,7 +408,7 @@ class ByteToIntCast : Expr {
   this(Expr b) {
     this.b = b;
     if (b.valueType().size != 1) {
-      logln("Can't byte-to-int cast: wtf, ", b.valueType(), " on ", b);
+      logln("Can't byte-to-int cast: wtf, "[], b.valueType(), " on "[], b);
       fail;
     }
   }
@@ -402,26 +416,26 @@ class ByteToIntCast : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(b);
   override {
-    string toString() { return Format("int:", b); }
+    string toString() { return Format("int:"[], b); }
     IType valueType() { return Single!(SysInt); }
     void emitAsm(AsmFile af) {
       {
-        mixin(mustOffset("4"));
+        mixin(mustOffset("4"[]));
         af.salloc(3);
         b.emitAsm(af);
       }
       // lol.
-      af.comment("byte to int cast lol");
+      af.comment("byte to int cast lol"[]);
       if (isARM) {
-        af.mmove4("#0", "r0");
-        af.mmove1("[sp]", "r0");
+        af.mmove4("#0"[], "r0"[]);
+        af.mmove1("[sp]"[], "r0"[]);
         af.sfree(4);
-        af.pushStack("r0", 4);
+        af.pushStack("r0"[], 4);
       } else {
-        af.put("xorl %eax, %eax");
-        af.popStack("%al", b.valueType().size);
+        af.put("xorl %eax, %eax"[]);
+        af.popStack("%al"[], b.valueType().size);
         af.sfree(3);
-        af.pushStack("%eax", 4);
+        af.pushStack("%eax"[], 4);
       }
     }
   }
@@ -429,19 +443,19 @@ class ByteToIntCast : Expr {
 
 Expr reinterpret_cast(IType to, Expr from) {
   if (auto lv = fastcast!(LValue) (from))
-    return new RCL(to, lv);
+    return fastalloc!(RCL)(to, lv);
   if (auto cv = fastcast!(CValue) (from))
-    return new RCC(to, cv);
+    return fastalloc!(RCC)(to, cv);
   if (auto mv = fastcast!(MValue) (from))
-    return new RCM(to, mv);
-  return new RCE(to, from);
+    return fastalloc!(RCM)(to, mv);
+  return fastalloc!(RCE)(to, from);
 }
 
 // don't allow write access
 Expr reinterpret_cast_safe(IType to, Expr from) {
   if (auto cv = fastcast!(CValue) (from))
-    return new RCC(to, cv);
-  return new RCE(to, from);
+    return fastalloc!(RCC)(to, cv);
+  return fastalloc!(RCE)(to, from);
 }
 
 import std.moduleinit;
@@ -462,13 +476,13 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto evt = ex.valueType();
     if (Single!(Byte) == evt || Single!(Char) == evt)
-      return new ByteToShortCast(ex);
+      return fastalloc!(ByteToShortCast)(ex);
     else
       return null;
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(Short) == ex.valueType())
-      return new ShortToIntCast(ex);
+      return fastalloc!(ShortToIntCast)(ex);
     else
       return null;
   };
@@ -478,7 +492,7 @@ static this() {
   };
   // teh hax :D
   foreach (m; ModuleInfo.modules())
-    if (m.name == "ast.casting") {
+    if (m.name == "ast.casting"[]) {
       m.localClasses ~= RCE.classinfo;
       m.localClasses ~= RCL.classinfo;
       m.localClasses ~= RCM.classinfo;

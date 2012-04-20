@@ -21,7 +21,7 @@ extern(C) void check_imports_usage(string info, Namespace[] imports, bool[] impo
   foreach (i, ns; imports) if (auto mod = fastcast!(Module) (ns)) {
     // importing module with constructor can be valid reason to import never-used module.
     if (!mod.constrs.length && !*getPtrResizing(importsUsed, i))
-      logSmart!(false)("WARN:", info, ": import ", mod.name, " never used. ");
+      logSmart!(false)("WARN:"[], info, ": import "[], mod.name, " never used. "[]);
   }
 }
 
@@ -61,7 +61,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     //                      needed by sysmod; avoid circle
     isValid = true;
   }
-  override string filename() { return name.replace(".", "/") ~ EXT; }
+  override string filename() { return name.replace("."[], "/"[]) ~ EXT; }
   override string modname() { return name; }
   void addSetupable(Setupable s) {
     setupable ~= s;
@@ -71,7 +71,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     bool isBeingEmat() { return !!inProgress; }
     void _add(string name, Object obj) {
       if (auto fn = fastcast!(Function)(obj)) {
-        if (fn.name == "init") {
+        if (fn.name == "init"[]) {
           fn.sup = this;
           constrs ~= fn;
           return;
@@ -87,7 +87,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       current_module.set(this);
       defaultIterate!(entries).iterate(dg);
     }
-    Module dup() { assert(false, "What the hell are you doing, man. "); }
+    Module dup() { assert(false, "What the hell are you doing, man. "[]); }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
       auto backup = current_module();
@@ -100,34 +100,34 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       int i; // NOTE: not a foreach! entries may yet grow.
       while (i < entries.length) {
         auto entry = entries[i++];
-        // logln("emit entry ", entry);
+        // logln("emit entry "[], entry);
         if (fastcast!(NoOp) (entry)) continue;
         // globvars don't write any code!
         // keep our assembly clean. :D
         if ((fastcast!(Object) (entry)).classinfo.name != "ast.globvars.GlobVarDecl" && splitIntoSections) {
-          auto codename = Format("index_", i);
+          auto codename = Format("index_"[], i);
           if (auto mang = fastcast!(IsMangled) (entry)) codename = mang.mangleSelf();
           if (isWindoze())
-            af.put(".section .text.", codename, ", \"ax\"");
+            af.put(".section .text."[], codename, ", \"ax\""[]);
           else if (isARM)
             {}
           else
-            af.put(".section .text.", codename, ", \"ax\", @progbits");
+            af.put(".section .text."[], codename, ", \"ax\", @progbits"[]);
         }
         opt(entry);
         entry.emitAsm(af);
       }
-      if (!isARM) af.put(".section .text");
+      if (!isARM) af.put(".section .text"[]);
       doneEmitting = true;
       checkImportsUsage;
     }
     string mangle(string name, IType type) {
-      return "module_"~cleaned_name()~"_"~name.cleanup()~(type?("_of_"~type.mangle()):"");
+      return "module_"~cleaned_name()~"_"~name.cleanup()~(type?("_of_"~type.mangle()):""[]);
     }
     Object lookup(string name, bool local = false) {
       if (auto res = super.lookup(name)) return res;
       
-      if (auto lname = name.startsWith(this.name).startsWith("."))
+      if (auto lname = name.startsWith(this.name).startsWith("."[]))
         if (auto res = super.lookup(lname)) return res;
       
       return lookupInImports(name, local);
@@ -187,13 +187,13 @@ Module lookupMod(string name) {
         add(name);
         return res;
       }
-      logln("WARN: module loop ", loop(), ". This is not well tested. ");
+      logln("WARN: module loop "[], loop(), ". This is not well tested. "[]);
       return modules_wip[name];
     }
   }
   module_stack ~= name;
   scope(exit) module_stack = module_stack[0..$-1];
-  if (name == "sys") {
+  if (name == "sys"[]) {
     return fastcast!(Module) (sysmod);
   }
   Module res;
@@ -220,7 +220,7 @@ Module lookupMod(string name) {
     currentlyParsing.remove(name);
   };
   Module mod;
-  auto fn = (name.replace(".", "/") ~ EXT);
+  auto fn = (name.replace("."[], "/"[]) ~ EXT);
   if (specialHandler) mod = specialHandler(name);
   if (!mod) {
     if (!fn.exists()) {
@@ -233,14 +233,14 @@ Module lookupMod(string name) {
       }
     }
     if (!fn.exists()) return null;
-    auto file = fn.read().castLike("");
+    auto file = fn.read().castLike(""[]);
     synchronized(SyncObj!(sourcefiles))
       sourcefiles[fn] = file;
-    mod = fastcast!(Module) (parsecon.parse(file, "tree.module"));
+    mod = fastcast!(Module) (parsecon.parse(file, "tree.module"[]));
     if (!mod)
-      file.failparse("Could not parse module");
+      file.failparse("Could not parse module"[]);
     if (file.strip().length)
-      file.failparse("Failed to parse module");
+      file.failparse("Failed to parse module"[]);
   }
   cachelock.Synchronized = {
     cache[name] = mod;

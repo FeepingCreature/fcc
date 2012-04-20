@@ -170,7 +170,7 @@ struct Transaction {
   string toString() {
     string extra() {
       if (!hasStackdepth) return "@?";
-      else return qformat("@", stackdepth);
+      else return qformat("@"[], stackdepth);
     }
     with (Kind) switch (kind) {
       case Mov:         return Format("[movl ", from, " -> ", to, stackinfo, "]");
@@ -243,11 +243,11 @@ struct Transaction {
     if (auto betw = s.between("(", ")")) {
       auto offs = s.between("", "(").my_atoi();
       if (betw.startsWith("$")) {
-        return qformat(betw[1 .. $], "+", offs);
+        return qformat(betw[1 .. $], "+"[], offs);
       }
       if (betw.startsWith("%esi+$")) {
         auto name = betw.between("+$", "");
-        return qformat("(", name, " + ", offs, ")(%esi)");
+        return qformat("("[], name, " + "[], offs, ")(%esi)"[]);
       }
     }
     return s;
@@ -273,41 +273,41 @@ struct Transaction {
             int i = num.atoi();
             if (neg) i = -i;
             if (i < 256 && i >= 0) // TODO
-              return qformat("mov", suffix, " ", to, ", ", "#", i);
+              return qformat("mov"[], suffix, " "[], to, ", "[], "#"[], i);
           }
-          return qformat("ldr", suffix, " ", to, ", ", from);
+          return qformat("ldr"[], suffix, " "[], to, ", "[], from);
         }
         if (isReg(from) && isMem(to)) {
-          return qformat("str", suffix, " ", from, ", ", to);
+          return qformat("str"[], suffix, " "[], from, ", "[], to);
         }
-        return qformat("mov", suffix, " ", to, ", ", from);
+        return qformat("mov"[], suffix, " "[], to, ", "[], from);
       }
       with (Kind) switch (kind) {
-        case Push: return qformat("stmfd sp!, {", source, "} @", size);
-        case Pop: return qformat("ldmfd sp!, {", dest, "} @", size);
+        case Push: return qformat("stmfd sp!, {"[], source, "} @"[], size);
+        case Pop: return qformat("ldmfd sp!, {"[], dest, "} @"[], size);
         case Mov: return xmove("", from, to);
         case Mov1: return xmove("b", from, to);
         case Mov2: return xmove("h", from, to);
         case Call:
           string txt;
-          if (isReg(dest)) txt = qformat("mov lr, pc\nbx ", dest);
-          else txt = qformat("bl ", dest);
+          if (isReg(dest)) txt = qformat("mov lr, pc\nbx "[], dest);
+          else txt = qformat("bl "[], dest);
           txt ~= "\nb 0f\n.ltorg\n0:";
           return txt;
-        case SAlloc: return qformat("sub sp, sp, #", size);
-        case SFree: return qformat("add sp, sp, #", size);
-        case MathOp: return qformat(opName, " ", op1, ", ", op2, ", ", op3);
+        case SAlloc: return qformat("sub sp, sp, #"[], size);
+        case SFree: return qformat("add sp, sp, #"[], size);
+        case MathOp: return qformat(opName, " "[], op1, ", "[], op2, ", "[], op3);
         case Compare:
-          if (test) return qformat("cmp ", op1, ", #0");
-          return qformat("cmp ", op1, ", ", op2);
-        case Jump: if (mode) return qformat(mode, " ", dest); return qformat("b ", dest);
+          if (test) return qformat("cmp "[], op1, ", #0"[]);
+          return qformat("cmp "[], op1, ", "[], op2);
+        case Jump: if (mode) return qformat(mode, " "[], dest); return qformat("b "[], dest);
         case LoadAddress:
           if (from.startsWith("[")) {
             auto parts = from.between("[", "]").split(",");
             if (parts[1][0] != '#') fail;
-            return qformat("mov ", to, ", ", parts[0], "\nadd ", to, ", ", to, ", ", parts[1]);
+            return qformat("mov "[], to, ", "[], parts[0], "\nadd "[], to, ", "[], to, ", "[], parts[1]);
           }
-          return qformat("adrl ", to, ", ", from);
+          return qformat("adrl "[], to, ", "[], from);
         case Text, Label, Nevermind: break;
         default:
           logln(*this);
@@ -316,41 +316,41 @@ struct Transaction {
     }
     with (Kind) switch (kind) {
       case MovD:
-        return qformat("movd ", from.asmformat(), ", ", to.asmformat());
+        return qformat("movd "[], from.asmformat(), ", "[], to.asmformat());
       case Mov:
         if (from.isRelative() && to.isRelative()) {
           if (!usableScratch) {
-            logln("Cannot do relative memmove without scratch register: ", from, " -> ", to);
+            logln("Cannot do relative memmove without scratch register: "[], from, " -> "[], to);
             fail();
           }
-          return qformat("movl ", from.asmformat(), ", ", usableScratch, "\nmovl ", usableScratch, ", ", to.asmformat());
+          return qformat("movl "[], from.asmformat(), ", "[], usableScratch, "\nmovl "[], usableScratch, ", "[], to.asmformat());
         } else {
-          return qformat("movl ", from.asmformat(), ", ", to.asmformat(), " #mov4.2");
+          return qformat("movl "[], from.asmformat(), ", "[], to.asmformat(), " #mov4.2"[]);
         }
       case Mov2:
         if (from.isRelative() && to.isRelative()) {
-          assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
-          return qformat("movw ", from.asmformat(), ", ", usableScratch, "\nmovw ", usableScratch, ", ", to.asmformat());
+          assert(usableScratch, Format("Cannot do relative memmove without scratch register: "[], from, " -> "[], to));
+          return qformat("movw "[], from.asmformat(), ", "[], usableScratch, "\nmovw "[], usableScratch, ", "[], to.asmformat());
         } else {
-          return qformat("movw ", from.asmformat(), ", ", to.asmformat());
+          return qformat("movw "[], from.asmformat(), ", "[], to.asmformat());
         }
       case Mov1:
         if (from.isRelative() && to.isRelative()) {
-          assert(usableScratch, Format("Cannot do relative memmove without scratch register: ", from, " -> ", to));
-          return qformat("movb ", from.asmformat(), ", ", usableScratch, "\nmovw ", usableScratch, ", ", to.asmformat());
+          assert(usableScratch, Format("Cannot do relative memmove without scratch register: "[], from, " -> "[], to));
+          return qformat("movb "[], from.asmformat(), ", "[], usableScratch, "\nmovw "[], usableScratch, ", "[], to.asmformat());
         } else {
-          return qformat("movb ", from.asmformat(), ", ", to.asmformat());
+          return qformat("movb "[], from.asmformat(), ", "[], to.asmformat());
         }
       case SAlloc:
           if (!size) return null;
-          return qformat("subl $", size, ", %esp # salloc");
+          return qformat("subl $"[], size, ", %esp # salloc"[]);
       case SFree:
           if (!size) return null;
-          return qformat("addl $", size, ", %esp # sfree");
+          return qformat("addl $"[], size, ", %esp # sfree"[]);
       case MathOp:
-        if (opName == "addl" && op1 == "$1") return qformat("incl ", op2);
-        if (opName == "subl" && op1 == "$1") return qformat("decl ", op2);
-        return qformat(opName, " ", op1, ", ", op2);
+        if (opName == "addl" && op1 == "$1") return qformat("incl "[], op2);
+        if (opName == "subl" && op1 == "$1") return qformat("decl "[], op2);
+        return qformat(opName, " "[], op1, ", "[], op2);
       case Push, Pop:
         string res;
         // res = toString();
@@ -399,18 +399,18 @@ struct Transaction {
                 offs = op.between("", "(").my_atoi();
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
-                op = qformat(first_offs + size - sz, "(%esi+", varname, ")");
+                op = qformat(first_offs + size - sz, "(%esi+"[], varname, ")"[]);
                 m_offs_push = true;
                 
               }*/
               if (auto mem = op.gotMemoryOffset(offs)) {
                 if (first_offs != -1) offs = first_offs;
                 else first_offs = offs;
-                // logln("rewrite op ", op, " to ", qformat(first_offs + size - sz, "(%", reg, ")"), ": ", first_offs, " + ", size, " - ", sz); 
-                op = qformat(first_offs + size - sz + ((mem.contains("%esp"))?stack_changed:0), "(", mem, ")");
+                // logln("rewrite op "[], op, " to "[], qformat(first_offs + size - sz, "(%"[], reg, ")"[]), ": "[], first_offs, " + ", size, " - "[], sz); 
+                op = qformat(first_offs + size - sz + ((mem.contains("%esp"))?stack_changed:0), "("[], mem, ")"[]);
                 m_offs_push = true;
               }
-              if (op.startsWith("+")) {
+              if (op.startsWith("+"[])) {
                 logln(op, " (", *this, ")");
                 fail;
               }
@@ -427,25 +427,25 @@ struct Transaction {
                 string opsh = op;
                 // hackaround
                 if (opsh.isIndirect2(offs).contains("%esp"))
-                  opsh = qformat(offs - 1, "(", opsh.isIndirect(), ")");
-                addLine("movb 2(%esp), %bl");
+                  opsh = qformat(offs - 1, "("[], opsh.isIndirect(), ")"[]);
+                addLine("movb 2(%esp), %bl"[]);
                 addLine("movb %bl, "~opsh);
-                addLine("popw %bx");
-                addLine("incl %esp");
+                addLine("popw %bx"[]);
+                addLine("incl %esp"[]);
               }
             // x86 pop foo(%esp) operand is evaluated
             // after increment, says intel manual
             } else {
               if (kind == Pop && op.isIndirect2(offs).contains("%esp")) {
-                op = qformat(offs - sz, "(", op.isIndirect(), ")");
+                op = qformat(offs - sz, "("[], op.isIndirect(), ")"[]);
               }
               auto temp = op; int toffs;
               temp = asmformat(temp);
               if (temp.startsWith("+")) {
-                logln(temp, " (", *this, ")");
+                logln(temp, " ("[], *this, ")");
                 fail;
               }
-              addLine(qformat(mnemo, pf, " ", temp, " #", size));
+              addLine(qformat(mnemo, pf, " "[], temp, " #"[], size));
               stack_changed += sz;
             }
             auto s2 = op;
@@ -453,17 +453,17 @@ struct Transaction {
             if (null !is (reg = op.matchRegister())) {
               auto regsize = (reg[0] == 'e')?4:(reg[0] == 'r')?8:(reg[$-1]== 'l' /or/ 'h')?1:2;
               if (size != regsize)
-                throw new Exception(Format("Can't pop/push ", size, " of ", reg, ": size mismatch! "));
+                throw new Exception(Format("Can't pop/push "[], size, " of "[], reg, ": size mismatch! "[]));
             }
             else if (kind == Push && op.gotLiteral(num, ident)) {
               // just duplicate the number
-              // if (size != sz) throw new Exception(Format("Can't push ", size, " of ", ident?ident:Format(num), ": size mismatch! "));
+              // if (size != sz) throw new Exception(Format("Can't push "[], size, " of "[], ident?ident:Format(num), ": size mismatch! "[]));
             }
             else if (kind == Pop && null !is (reg = op.gotMemoryOffset(offs))) {
-              op = qformat(offs + sz, "(", reg, ")");
+              op = qformat(offs + sz, "("[], reg, ")"[]);
             }
             else if (kind == Push && null !is (reg = op.gotMemoryOffset(offs))) {
-              op = qformat(offs + sz, "(", reg, ")");
+              op = qformat(offs + sz, "("[], reg, ")"[]);
             }
             else if (!m_offs_push && (op.find("%") != -1 || op.find("(") != -1))
               throw new Exception("Unknown address format: '"~op~"'");
@@ -476,49 +476,49 @@ struct Transaction {
         doOp(1, "b");
         return res;
       case Compare:
-        if (test) return qformat("testl ", op1, ", ", op2);
-        else return qformat("cmpl ", op1, ", ", op2);
+        if (test) return qformat("testl "[], op1, ", "[], op2);
+        else return qformat("cmpl "[], op1, ", "[], op2);
       case Call:
-        if (dest.find("%") != -1) return qformat("call *", dest);
-        if (dest[0] == '$') return qformat("call ", dest[1 .. $]);
+        if (dest.find("%"[]) != -1) return qformat("call *"[], dest);
+        if (dest[0] == '$') return qformat("call "[], dest[1 .. $]);
         assert(false, "::"~dest);
       case Swap:
-        if (size == 4) return qformat("xchgl ", source.fixupLiterals(), ", ", dest.fixupLiterals());
-        if (size == 2) return qformat("xchgw ", source.fixupLiterals(), ", ", dest.fixupLiterals());
-        if (size == 1) return qformat("xchgb ", source.fixupLiterals(), ", ", dest.fixupLiterals());
+        if (size == 4) return qformat("xchgl "[], source.fixupLiterals(), ", "[], dest.fixupLiterals());
+        if (size == 2) return qformat("xchgw "[], source.fixupLiterals(), ", "[], dest.fixupLiterals());
+        if (size == 1) return qformat("xchgb "[], source.fixupLiterals(), ", "[], dest.fixupLiterals());
         assert(false, Format(this, "#", size));
-      case FloatLoad: return qformat("flds ", source.fixupLiterals());
-      case DoubleLoad: return qformat("fldl ", source.fixupLiterals());
-      case RealLoad: return qformat("fldt ", source.fixupLiterals());
-      case RegLoad: return qformat("fld ", source);
+      case FloatLoad: return qformat("flds "[], source.fixupLiterals());
+      case DoubleLoad: return qformat("fldl "[], source.fixupLiterals());
+      case RealLoad: return qformat("fldt "[], source.fixupLiterals());
+      case RegLoad: return qformat("fld "[], source);
       case FloatCompare:
         if (useIVariant) {
           if (source != "%st(1)")
             throw new Exception("fcomi require ST1 arg! ");
-          return qformat("fcomip\nfstp %st"); // fcomipp
+          return qformat("fcomip\nfstp %st"[]); // fcomipp
         }
         if (source == "%st(1)") {
-          return qformat("fcompp");
+          return qformat("fcompp"[]);
         }
-        return qformat("fcomps ", source);
-      case FloatPop: return qformat("fstps ", dest);
-      case DoublePop: return qformat("fstpl ", dest);
-      case FPIntPop: return qformat("fistpl ", dest);
-      case FPLongPop: return qformat("fistpll ", dest);
-      case FloatStore: return qformat("fsts ", dest);
-      case DoubleStore: return qformat("fstl ", dest);
+        return qformat("fcomps "[], source);
+      case FloatPop: return qformat("fstps "[], dest);
+      case DoublePop: return qformat("fstpl "[], dest);
+      case FPIntPop: return qformat("fistpl "[], dest);
+      case FPLongPop: return qformat("fistpll "[], dest);
+      case FloatStore: return qformat("fsts "[], dest);
+      case DoubleStore: return qformat("fstl "[], dest);
       case FloatMath:
         if (opName == "fsqrt") return opName;
-        if (floatSelf) return qformat(opName, " %st, %st");
-        else return qformat(opName, "p %st, %st(1)");
+        if (floatSelf) return qformat(opName, " %st, %st"[]);
+        else return qformat(opName, "p %st, %st(1)"[]);
       case PureFloat: return qformat(opName);
-      case FloatLongLoad: return qformat("fildq ", source);
-      case FloatIntLoad: return qformat("fildl ", source);
-      case SSEOp: return qformat(opName, " ", op1, ", ", op2);
+      case FloatLongLoad: return qformat("fildq "[], source);
+      case FloatIntLoad: return qformat("fildl "[], source);
+      case SSEOp: return qformat(opName, " "[], op1, ", "[], op2);
       case ExtendDivide:
-        if (signed) return qformat("cdq\nidivl ", source);
-        else return qformat("xorl %edx, %edx\ndivl ", source); // no sign extension if unsigned, duh
-      case Jump: if (mode) return qformat(mode, " ", dest); return qformat("jmp ", dest);
+        if (signed) return qformat("cdq\nidivl "[], source);
+        else return qformat("xorl %edx, %edx\ndivl "[], source); // no sign extension if unsigned, duh
+      case Jump: if (mode) return qformat(mode, " "[], dest); return qformat("jmp "[], dest);
       case Label:
         assert(names.length);
         string res;
@@ -527,8 +527,8 @@ struct Transaction {
         foreach (name; names) res ~= name ~ ":\n";
         return res[0 .. $-1];
       case Extended: return obj.toAsm();
-      case Nevermind: return qformat(comment("forget "), dest, ". ");
-      case LoadAddress: return qformat("leal ", from.asmformat(), ", ", to);
+      case Nevermind: return qformat(comment("forget "[]), dest, ". "[]);
+      case LoadAddress: return qformat("leal "[], from.asmformat(), ", "[], to);
       case Text: return text;
     }
   }
@@ -566,7 +566,7 @@ struct Transaction {
     }
   }
   bool hasStackdepth() { return stackdepth != -1; }
-  string stackinfo() { return stackdepth == -1 ? "" : qformat("@", stackdepth); }
+  string stackinfo() { return stackdepth == -1 ? "" : qformat("@"[], stackdepth); }
   Transaction dup() {
     Transaction res = *this;
     res.stackdepth = -1;

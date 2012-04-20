@@ -23,7 +23,7 @@ bool tryFixupString(ref string s, int shift) {
     assert(op2);
     auto sum = op2.my_atoi() + shift;
     if (sum < 0) return false;
-    s = qformat("+(", op1, ", $", sum, ")");
+    s = qformat("+("[], op1, ", $"[], sum, ")"[]);
     return true;
   }
   int offs;
@@ -31,7 +31,7 @@ bool tryFixupString(ref string s, int shift) {
     if (offs + shift < 0) { // never a good idea
       return false;
     }
-    s = qformat(offs + shift, "(", s.isIndirect2(offs), ")").cleanup();
+    s = qformat(offs + shift, "("[], s.isIndirect2(offs), ")"[]).cleanup();
   }
   return true;
 }

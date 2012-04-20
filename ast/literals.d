@@ -19,15 +19,15 @@ class DoubleExpr : Expr, Literal {
   mixin defaultIterate!();
   string name_used;
   override {
-    DoubleExpr dup() { return new DoubleExpr(d); }
+    DoubleExpr dup() { return fastalloc!(DoubleExpr)(d); }
     string toString() { return Format(d); }
     IType valueType() { return Single!(Double); }
     string getValue() { assert(false); }
     void emitAsm(AsmFile af) {
       if (!name_used) {
-        name_used = af.allocConstant(Format("dcons_", dconscounter ++), cast(ubyte[]) i);
+        name_used = af.allocConstant(Format("dcons_"[], dconscounter ++), cast(ubyte[]) i);
       }
-      af.pushStack(qformat("0($", name_used, ")"), 8);
+      af.pushStack(qformat("0($"[], name_used, ")"[]), 8);
     }
   }
 }
@@ -50,11 +50,11 @@ class FloatExpr : Expr, Literal {
     string getValue() { return Format(f_as_i); }
     void emitAsm(AsmFile af) {
       if (isARM) {
-        af.mmove4(qformat("=", f_as_i), af.regs[0]);
+        af.mmove4(qformat("="[], f_as_i), af.regs[0]);
         af.pushStack(af.regs[0], 4);
       } else {
         if (!name_used || !af.knowsConstant(name_used)) {
-          name_used = af.allocConstantValue(qformat("cons_float_constant_", floatconscounter++, "___xfcc_encodes_", f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
+          name_used = af.allocConstantValue(qformat("cons_float_constant_"[], floatconscounter++, "___xfcc_encodes_"[], f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
         }
         af.pushStack(name_used, 4);
       }
@@ -73,7 +73,7 @@ bool fpPrecheck(string s) {
 Object gotFloatExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!fpPrecheck(text)) return null;
   float f;
-  if (gotFloat(text, f)) return new FloatExpr(f);
+  if (gotFloat(text, f)) return fastalloc!(FloatExpr)(f);
   return null;
 }
 mixin DefaultParser!(gotFloatExpr, "tree.expr.float_literal_early", "230");
@@ -82,14 +82,14 @@ mixin DefaultParser!(gotFloatExpr, "tree.expr.literal.float", "54");
 Object gotDoubleExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!fpPrecheck(text)) return null;
   double d;
-  if (gotDouble(text, d)) return new DoubleExpr(d);
+  if (gotDouble(text, d)) return fastalloc!(DoubleExpr)(d);
   return null;
 }
 mixin DefaultParser!(gotDoubleExpr, "tree.expr.literal.double", "545");
 
 Object gotLiteralSuffixExpr(ref string text, ParseCb cont, ParseCb rest) {
   IntExpr res;
-  if (!rest(text, "tree.expr.int_literal", &res)) return null;
+  if (!rest(text, "tree.expr.int_literal"[], &res)) return null;
   if (text.accept("K")) return mkInt(res.num * 1024);
   else if (text.accept("M")) return mkInt(res.num * 1024 * 1024);
   else if (text.accept("G")) return mkInt(res.num * 1024 * 1024 * 1024);
@@ -130,7 +130,7 @@ class CValueAsPointer : Expr {
   mixin defaultIterate!(sup);
   override IType valueType() {
     if (auto sa = fastcast!(StaticArray) (resolveType(sup.valueType())))
-      return new Pointer(sa.elemType);
+      return fastalloc!(Pointer)(sa.elemType);
     throw new Exception(Format("The CValue ", sup, " has confused me. "));
   }
   override void emitAsm(AsmFile af) {

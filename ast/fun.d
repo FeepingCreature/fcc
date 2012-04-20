@@ -22,7 +22,7 @@ struct Argument {
   int opEquals(Argument other) {
     return name == other.name && type == other.type;
   }
-  string toString() { return qformat(type, " ", name); }
+  string toString() { return qformat(type, " "[], name); }
   static Argument opCall(IType it, string name = null, Expr initEx = null) {
     Argument res;
     res.type = it;
@@ -40,7 +40,7 @@ class FunSymbol : Symbol {
       int size;
       foreach (entry; fun.type.params)
         size += entry.type.size();
-      res ~= Format("@", size);
+      res ~= qformat("@"[], size);
     }
     return res;
   }
@@ -50,7 +50,7 @@ class FunSymbol : Symbol {
   }
   private this() { }
   mixin DefaultDup!();
-  string toString() { return Format("symbol<", fun, ">"); }
+  string toString() { return qformat("symbol<"[], fun, ">"[]); }
   override IType valueType() {
     auto res = new FunctionPointer;
     res.ret = fun.type.ret;
@@ -72,8 +72,9 @@ static this() { hack_sync = new Object; }
 class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ScopeLike, EmittingContext, Importer {
   string name;
   Expr getPointer() {
-    return new FunSymbol(this);
+    return fastalloc!(FunSymbol)(this);
   }
+  this() { }
   FunctionType type;
   Tree tree;
   bool extern_c = false, weak = false, reassign = false, isabstract = false;
@@ -82,7 +83,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
     // else to be defined in subclasses
   }
-  string toString() { return Format("fun ", name, " ", type, " <- ", sup); }
+  string toString() { return qformat("fun "[], name, " "[], type, " <- "[], sup); }
   // add parameters to namespace
   int _framestart;
   string coarseSrc;
@@ -155,19 +156,19 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     // cdecl: 0 old ebp, 4 return address, 8 parameters
     int cur;
     if (isARM) {
-      add(new Variable(Single!(SizeT), "__old_ebp", -4));
-      add(new Variable(Single!(SizeT), "__fun_ret", 0));
+      add(fastalloc!(Variable)(Single!(SizeT), "__old_ebp"[], -4));
+      add(fastalloc!(Variable)(Single!(SizeT), "__fun_ret"[], 0));
       cur = _framestart = 4;
     } else {
-      add(new Variable(Single!(SizeT), "__old_ebp", 0));
-      add(new Variable(Single!(SizeT), "__fun_ret", 4));
+      add(fastalloc!(Variable)(Single!(SizeT), "__old_ebp"[], 0));
+      add(fastalloc!(Variable)(Single!(SizeT), "__fun_ret"[], 4));
       cur = _framestart = 8;
     }
     // TODO: 16-byte? alignment
     foreach (param; type.params) {
       auto pt = param.type;
       _framestart += pt.size;
-      add(new Variable(pt, param.name, cur));
+      add(fastalloc!(Variable)(pt, param.name, cur));
       cur += pt.size;
       cur = (cur + 3) & ~3; // round to 4
     }
@@ -177,26 +178,26 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         fail;
       }
       /*auto sysmod = __getSysmod();
-      if (!extern_c && name != "main2"[] /or/ "__win_main"[] /or/ "__c_main"[] && !tools.base.startsWith(name, "guardfn_") && sysmod && sysmod.lookup("FrameInfo")) {
-        auto type = fastcast!(IType) (sysmod.lookup("FrameInfo"));
-        auto var = new Variable(type, "__frame_info", boffs(type));
+      if (!extern_c && name != "main2"[] /or/ "__win_main"[] /or/ "__c_main"[] && !tools.base.startsWith(name, "guardfn_"[]) && sysmod && sysmod.lookup("FrameInfo"[])) {
+        auto type = fastcast!(IType) (sysmod.lookup("FrameInfo"[]));
+        auto var = fastalloc!(Variable)(type, "__frame_info"[], boffs(type));
         var.initInit;
-        auto decl = new VarDecl(var);
+        auto decl = fastalloc!(VarDecl)(var);
         addStatement(decl);
         auto sc = fastcast!(Scope) (tree);
         namespace.set(sc);
-        if (auto mistake = sc.lookup("__frame_info", true)) {
-          logln(mistake, " in ", sc, " ", sc.field, ": wtf");
+        if (auto mistake = sc.lookup("__frame_info"[], true)) {
+          logln(mistake, " in "[], sc, " "[], sc.field, ": wtf"[]);
           fail;
         }
         sc.add(var);
-        auto stackframe_var = fastcast!(Expr) (sysmod.lookup("stackframe"));
+        auto stackframe_var = fastcast!(Expr) (sysmod.lookup("stackframe"[]));
         auto vartype = fastcast!(RelNamespace)(var.valueType());
-        addStatement(mkAssignment(fastcast!(Expr) (vartype.lookupRel("fun", var)), mkString(fqn())));
-        addStatement(mkAssignment(fastcast!(Expr) (vartype.lookupRel("prev", var)), stackframe_var));
-        addStatement(mkAssignment(stackframe_var, new RefExpr(var)));
-        addStatement(iparse!(Statement, "frame_guard", "tree.stmt.guard")
-                            (`onExit { sf = sf.prev; } `, namespace(), "sf", stackframe_var));
+        addStatement(mkAssignment(fastcast!(Expr) (vartype.lookupRel("fun"[], var)), mkString(fqn())));
+        addStatement(mkAssignment(fastcast!(Expr) (vartype.lookupRel("prev"[], var)), stackframe_var));
+        addStatement(mkAssignment(stackframe_var, fastalloc!(RefExpr)(var)));
+        addStatement(iparse!(Statement, "frame_guard"[], "tree.stmt.guard"[])
+                            (`onExit { sf = sf.prev; } `, namespace(), "sf"[], stackframe_var));
       }*/
     }
     return cur;
@@ -204,14 +205,14 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string cleaned_name() { return name.cleanup(); }
   string pretty_name() {
     auto mod = get!(IModule).modname();
-    auto res = Format(type.ret, " ", mod, ".", name);
+    auto res = qformat(type.ret, " "[], mod, "."[], name);
     res ~= "(";
     foreach (i, arg; type.params) {
       if (i) res ~= ", ";
       res ~= Format(arg.type);
       if (arg.name) res ~= " "~arg.name;
       if (arg.initEx)
-        res ~= Format(" = ", arg.initEx);
+        res ~= Format(" = "[], arg.initEx);
     }
     res ~= ")";
     return res;
@@ -267,28 +268,28 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   void dwarfOpen(AsmFile af) {
     auto dwarf2 = af.dwarf2;
     if (dwarf2) {
-      auto sect = new Dwarf2Section(
+      auto sect = fastalloc!(Dwarf2Section)(
         dwarf2.cache.getKeyFor("subprogram"));
       with (sect) {
         data ~= ".byte\t0x1"; // external
         data ~= dwarf2.strings.addString(pretty_name().replace("\"", "\\\""));
-        data ~= qformat(".int\t",
+        data ~= qformat(".int\t"[],
           hex(af.getFileId(
             current_module().filename())));
         data ~= ".int\t0x0 /* line: todo */";
         data ~= ".byte\t0x1 /* prototyped */";
-        sect.data ~= qformat(".long\t.LFB", funid_count);
-        data ~= qformat(".long\t.LFE", funid_count);
-        data ~= qformat(".byte\t1\t/* location description is one entry long */");
-        data ~= qformat(".byte\t", hex(DW.OP_reg5), "\t/* ebp */");
+        sect.data ~= qformat(".long\t.LFB"[], funid_count);
+        data ~= qformat(".long\t.LFE"[], funid_count);
+        data ~= qformat(".byte\t1\t/* location description is one entry long */"[]);
+        data ~= qformat(".byte\t"[], hex(DW.OP_reg5), "\t/* ebp */"[]);
       }
       dwarf2.open(sect);
     }
     if (dwarf2) {
       // for arguments
-      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("lexical block"));
-      sect.data ~= qformat(".long\t.LFB", funid_count);
-      sect.data ~= qformat(".long\t.LFE", funid_count);
+      auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("lexical block"[]));
+      sect.data ~= qformat(".long\t.LFB"[], funid_count);
+      sect.data ~= qformat(".long\t.LFE"[], funid_count);
       dwarf2.open(sect);
     }
     if (dwarf2) {
@@ -321,35 +322,35 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       }
       
       auto fmn = mangleSelf(); // full mangled name
-      af.put(".p2align 4");
+      af.put(".p2align 4"[]);
       if (isWindoze()) {
-        // af.put(".global ", fmn);
+        // af.put(".global "[], fmn);
         if (weak) {
           if (fmn in symbol_emit_win32_hack_check) return; // fucking windows
           symbol_emit_win32_hack_check[fmn] = true;
-          af.put(".global ", fmn);
-        } else af.put(".global ", fmn);
+          af.put(".global "[], fmn);
+        } else af.put(".global "[], fmn);
       } else {
-        af.put(".global ", fmn);
-        if (weak) af.put(".weak ", fmn);
+        af.put(".global "[], fmn);
+        if (weak) af.put(".weak "[], fmn);
       }
       if (isWindoze()) {
-        af.put(".def ", fmn, "; .val ", fmn, "; .scl 2; .type 32; .endef");
+        af.put(".def "[], fmn, "; .val "[], fmn, "; .scl 2; .type 32; .endef"[]);
       } else {
         if (isARM)
-          af.put(".type ", fmn, ", %function");
+          af.put(".type "[], fmn, ", %function"[]);
         else
-          af.put(".type ", fmn, ", @function");
+          af.put(".type "[], fmn, ", @function"[]);
       }
 
       dwarfOpen(af);
       scope(exit) dwarfClose(af);
 
-      af.put(fmn, ":"); // not really a label
+      af.put(fmn, ":"[]); // not really a label
       auto idnum = funid_count ++;
-      af.put(".LFB", idnum, ":");
+      af.put(".LFB"[], idnum, ":"[]);
       af.jump_barrier();
-      // af.put(".cfi_startproc");
+      // af.put(".cfi_startproc"[]);
       
       int psize;
       if (isARM) {
@@ -367,12 +368,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         if (psize >= 8)  af.pushStack("r1", 4);
         if (psize >= 4)  af.pushStack("r0", 4);
         af.pushStack("fp, lr", 8);
-        af.put("add fp, sp, #4");
+        af.put("add fp, sp, #4"[]);
       } else {
         af.pushStack("%ebp", nativePtrSize);
         af.mmove4("%esp", "%ebp");
         if (af.profileMode)
-          af.put("call mcount");
+          af.put("call mcount"[]);
       }
       
       auto backup = af.currentStackDepth;
@@ -395,34 +396,34 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       // af.mmove4("%ebp", "%esp");
       // af.popStack("%ebp", nativePtrSize);
       if (isARM) {
-        af.put("sub sp, fp, #4");
+        af.put("sub sp, fp, #4"[]);
         af.popStack("fp, lr", 8);
         if (psize >= 16) af.sfree(16);
         else if (psize >= 12) af.sfree(12);
         else if (psize >= 8) af.sfree(8);
         else if (psize >= 4) af.sfree(4);
       } else {
-        af.put("leave");
+        af.put("leave"[]);
       }
       
       af.jump_barrier();
       if (isARM) {
-        af.put("bx lr");
+        af.put("bx lr"[]);
         af.pool;
       } else {
-        af.put("ret");
+        af.put("ret"[]);
       }
       if (isARM) {
-        af.put(".ltorg");
+        af.put(".ltorg"[]);
       }
-      af.put(".LFE", idnum, ":");
+      af.put(".LFE"[], idnum, ":"[]);
       if (!isWindoze())
-        af.put(".size ", fmn, ", .-", fmn);
+        af.put(".size "[], fmn, ", .-"[], fmn);
       if (af.floatStackDepth) {
         logln("leftover float stack when end-emitting ", this);
         fail;
       }
-      // af.put(".cfi_endproc");
+      // af.put(".cfi_endproc"[]);
     }
     Stuple!(IType, string, int)[] stackframe() {
       Stuple!(IType, string, int)[] res;
@@ -445,9 +446,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
           "with non-function/overload set: ", this, " with ", e2, "!"
         ));
       }
-      return new OverloadSet(name, this ~ os2.funs);
+      return fastalloc!(OverloadSet)(name, this ~ os2.funs);
     }
-    return new OverloadSet(name, this, fun2);
+    return fastalloc!(OverloadSet)(name, this, fun2);
   }
   override Extensible simplify() { return this; }
 }
@@ -483,11 +484,11 @@ class OverloadSet : Named, Extensible {
           "' with non-function/overload set ", e2, "!"
         ));
       }
-      auto res = new OverloadSet(name);
+      auto res = fastalloc!(OverloadSet)(name);
       res.funs = funs ~ os2.funs;
       return res;
     }
-    auto res = new OverloadSet(name);
+    auto res = fastalloc!(OverloadSet)(name);
     res.funs = funs.dup;
     res.add(fun2);
     return res;
@@ -621,7 +622,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     if (!(ret.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret))
       throw new Exception(Format("Return bug: ", ret, " from ", name, ": ",
       ret.size, " is ", (fastcast!(Object)~ ret).classinfo.name));
-    af.comment("Begin call to ", name);
+    debug af.comment("Begin call to "[], name);
     
     bool backupESI = external && name != "setjmp";
     backupESI &= !isARM();
@@ -770,7 +771,7 @@ class FunctionType : ast.types.Type {
       }
       return res.qjoin();
     }
-    string toString() { return Format("Function of ", params, " => ", ret); }
+    string toString() { return Format("Function of "[], params, " => "[], ret); }
   }
 }
 
@@ -782,7 +783,7 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
   bool gotInitializer(ref string text, out Expr res) {
     auto t2 = text;
     if (!t2.accept("=")) return false;
-    if (!rest(t2, "tree.expr", &res))
+    if (!rest(t2, "tree.expr"[], &res))
       return false;
     text = t2;
     return true;
@@ -797,15 +798,15 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
         ) && (
           gotInitializer(t2, init) || ((init = null), true)
         ),
-        t2.accept(","),
+        t2.accept(","[]),
         { lastType = ptype; res ~= Argument(ptype, parname, init); }
       ) &&
-      t2.accept(")")
+      t2.accept(")"[])
   ) {
     str = t2;
     return true;
   } else {
-    t2.failparse("Failed to get parameter list");
+    t2.failparse("Failed to get parameter list"[]);
   }
 }
 
@@ -818,9 +819,9 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
   IType ptype;
   auto t2 = text;
   bool reassign;
-  if (t2.accept("reassign")) reassign = true;
+  if (t2.accept("reassign"[])) reassign = true;
   string parname;
-  *error.ptr() = stuple("", "");
+  *error.ptr() = stuple(""[], ""[]);
   auto ns = namespace();
   assert(!!ns);
   
@@ -833,9 +834,9 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       (
         shortform
         ||
-        (test(ret = fastcast!(IType) (rest(t3, "type"))) && (t2 = t3, true))
+        (test(ret = fastcast!(IType) (rest(t3, "type"[]))) && (t2 = t3, true))
         ||
-        t2.accept("auto")
+        t2.accept("auto"[])
       )
       &&
       (
@@ -847,7 +848,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
   {
     if (ret) {
       auto sz = ret.size();
-      if (sz > 16) t3.failparse("Return type must not be >16 bytes");
+      if (sz > 16) t3.failparse("Return type must not be >16 bytes"[]);
     }
     static if (is(typeof(_fun()))) auto fun = _fun();
     else auto fun = _fun;
@@ -862,9 +863,9 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
     namespace.set(fun);
     scope(exit) namespace.set(backup);
     
-    if (fun.name == "main") {
+    if (fun.name == "main"[]) {
       if (gotMain) {
-        t2.failparse("Main already defined! ");
+        t2.failparse("Main already defined! "[]);
       }
       gotMain = fun;
       fun.name = "__fcc_main";
@@ -872,15 +873,15 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
     
     fun.fixup;
     
-    if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under ", ns, "! "); fail; } }
+    if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under "[], ns, "! "[]); fail; } }
     text = t2;
     static if (Decl) {
-      if (Naked || text.accept(";")) return fun;
-      else t2.failparse("Expected ';'");
+      if (Naked || text.accept(";"[])) return fun;
+      else t2.failparse("Expected ';'"[]);
     } else {
       auto t4 = text;
       // if ret is null(auto), cannot wait to parse scope until later since we need the full type NOW
-      if (fun.type.isComplete && t4.accept("{")) {
+      if (fun.type.isComplete && t4.accept("{"[])) {
         auto block = text.coarseLexScope();
         fun.coarseSrc = block;
         fun.coarseContext = namespace();
@@ -889,26 +890,26 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       if (fun.coarseSrc) return fun;
       else {
         t2 = text;
-        if (t2.accept(";")) { // undefined function
+        if (t2.accept(";"[])) { // undefined function
           fun.isabstract = true;
           text = t2;
-          if (auto that = namespace().lookup("this"))
+          if (auto that = namespace().lookup("this"[]))
             fun.addStatement(
-              iparse!(Statement, "undefined_function", "tree.stmt")
-                    (`raise new Error "Function $this::$fun is not implemented";`, "fun", mkString(fun.name), "this", that));
+              iparse!(Statement, "undefined_function"[], "tree.stmt"[])
+                    (`raise new Error "Function $this::$fun is not implemented";`, "fun"[], mkString(fun.name), "this"[], that));
           else
             fun.addStatement(
-              iparse!(Statement, "undefined_function", "tree.stmt")
-                    (`raise new Error "Function $fun is not implemented";`, "fun", mkString(fun.toString())));
+              iparse!(Statement, "undefined_function"[], "tree.stmt"[])
+                    (`raise new Error "Function $fun is not implemented";`, "fun"[], mkString(fun.toString())));
           return fun;
         }
         Scope sc;
-        if (rest(text, "tree.scope", &sc)) {
+        if (rest(text, "tree.scope"[], &sc)) {
           if (!fun.type.ret)
             fun.type.ret = Single!(Void); // implicit return
           fun.addStatement(sc);
           return fun;
-        } else text.failparse("Couldn't parse function scope");
+        } else text.failparse("Couldn't parse function scope"[]);
       }
     }
   } else return null;
@@ -930,8 +931,8 @@ Object gotFunDef(bool ExternC)(ref string text, ParseCb cont, ParseCb rest) {
   fun.extern_c = ExternC;
   return gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest);
 }
-mixin DefaultParser!(gotFunDef!(false), "tree.fundef");
-mixin DefaultParser!(gotFunDef!(true), "tree.fundef_externc");
+mixin DefaultParser!(gotFunDef!(false), "tree.fundef"[]);
+mixin DefaultParser!(gotFunDef!(true), "tree.fundef_externc"[]);
 
 // ensuing code gleefully copypasted from nestfun
 // yes I wrote delegates first. how about that.
@@ -940,7 +941,7 @@ class FunctionPointer : ast.types.Type {
   Argument[] args;
   bool stdcall;
   this() { }
-  string toString() { return Format(ret, " function(", args, ")", stdcall?" stdcall":""); }
+  string toString() { return Format(ret, " function("[], args, ")"[], stdcall?" stdcall":""[]); }
   this(IType ret, Argument[] args) {
     this.ret = ret;
     this.args = args.dup;
@@ -987,10 +988,10 @@ class FunRefExpr : Expr, Literal {
   }
   override {
     IType valueType() {
-      return new FunctionPointer(fun);
+      return fastalloc!(FunctionPointer)(fun);
     }
     void emitAsm(AsmFile af) {
-      (new Constant(fun.mangleSelf())).emitAsm(af);
+      (fastalloc!(Constant)(fun.mangleSelf())).emitAsm(af);
     }
     string getValue() { return fun.mangleSelf(); }
   }
@@ -999,19 +1000,19 @@ class FunRefExpr : Expr, Literal {
 import ast.casting;
 Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   Function fun;
-  if (!rest(text, "tree.expr _tree.expr.arith", &fun))
+  if (!rest(text, "tree.expr _tree.expr.arith"[], &fun))
     return null;
   
-  return new FunRefExpr(fun);
+  return fastalloc!(FunRefExpr)(fun);
 }
-mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref", "2101", "&");
+mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref"[], "2101"[], "&"[]);
 
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
     IType ptype;
     Argument[] list;
     auto t2 = text;
-    if (t2.accept("function") &&
+    if (t2.accept("function"[]) &&
       t2.gotParlist(list, rest)
     ) {
       text = t2;

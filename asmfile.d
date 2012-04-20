@@ -14,12 +14,12 @@ class AsmFile {
   string[] regs;
   string stackbase;
   static string number(int i) {
-    if (isARM) return qformat("#", i);
-    return qformat("$", i);
+    if (isARM) return qformat("#"[], i);
+    return qformat("$"[], i);
   }
   static string addressof(string s) {
-    if (isARM) return qformat("=", s);
-    else return qformat("$", s);
+    if (isARM) return qformat("="[], s);
+    else return qformat("$"[], s);
   }
   string id;
   int[string] globals;
@@ -48,7 +48,7 @@ class AsmFile {
   }
   string allocConstantValue(string name, ubyte[] data, bool forceAlloc = false) {
     if (data.length == 4 && !forceAlloc) {
-      return qformat("$", (cast(int[]) data)[0]);
+      return qformat("$"[], (cast(int[]) data)[0]);
     }
     return allocConstant(name, data);
   }
@@ -69,17 +69,24 @@ class AsmFile {
     longstants[name] = data;
     return name;
   }
+  string[][] codelines_finished;
   string[] codelines;
+  int codelines_length;
+  void codelines_prealloc(int i) {
+    codelines_finished ~= codelines[0..codelines_length];
+    codelines = new string[i];
+    codelines_length = i;
+  }
   bool optimize, debugMode, profileMode;
   this(bool optimize, bool debugMode, bool profileMode, string id) {
     New(cache);
     New(finalized);
     if (debugMode) New(dwarf2);
     if (isARM) {
-      regs = ["r0"[], "r1", "r2", "r3"].dup;
+      regs = ["r0", "r1", "r2", "r3"].dup;
       stackbase = "fp";
     } else {
-      regs = ["%eax"[], "%ebx", "%ecx", "%edx"].dup;
+      regs = ["%eax", "%ebx", "%ecx", "%edx"].dup;
       stackbase = "%ebp";
     }
     this.optimize = optimize;
@@ -121,7 +128,7 @@ class AsmFile {
     if (isARM) {
       armpop(this, dest, size, offset);
     } else {
-      popStack(qformat(offset, "(", dest, ")"), size);
+      popStack(qformat(offset, "("[], dest, ")"[]), size);
     }
   }
   int checkptStack() {
@@ -190,9 +197,9 @@ class AsmFile {
   }
   void loadOffsetAddress(string reg, int offset, string to) {
     if (isARM) {
-      loadAddress(qformat("[", reg, ",#", offset, "]"), to);
+      loadAddress(qformat("["[], reg, ",#"[], offset, "]"[]), to);
     } else {
-      loadAddress(qformat(offset, "(", reg, ")"), to);
+      loadAddress(qformat(offset, "("[], reg, ")"[]), to);
     }
   }
   void salloc(int sz) { // alloc stack space
@@ -251,7 +258,7 @@ class AsmFile {
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { static if ("$cmov".length) if (isARM) put("$armcmov ", to, ", ", from); else put("$cmov ", from, ", ", to); return; }
+        ) { static if ("$cmov".length) if (isARM) put("$armcmov "[], to, ", "[], from); else put("$cmov "[], from, ", "[], to); return; }
     `));
     throw new Exception(Format(
       "Impossibility yay (", smaller, ", ", equal, ", ", greater, ")"
@@ -263,8 +270,8 @@ class AsmFile {
     labels_refcount[label]++;
     nvm("%eax");
     if (convert) {
-      put("fnstsw %ax");
-      put("sahf");
+      put("fnstsw %ax"[]);
+      put("sahf"[]);
     }
     mixin(JumpTable.ctTableUnroll(`
         if (
@@ -278,15 +285,15 @@ class AsmFile {
     comparisonState = false;
     nvm("%eax");
     if (convert) {
-      put("fnstsw %ax");
-      put("sahf");
+      put("fnstsw %ax"[]);
+      put("sahf"[]);
     }
     mixin(JumpTable.ctTableUnroll(`
         if (
           (("$cond"[0] == 't') == smaller) &&
           (("$cond"[1] == 't') == equal) &&
           (("$cond"[2] == 't') == greater)
-        ) { static if ("$floatmov".length) put("$floatmov ", from, ", ", to); return; }
+        ) { static if ("$floatmov".length) put("$floatmov "[], from, ", "[], to); return; }
     `));
   }
   void mathOp(string which, string op1, string op2, string op3 = null) {
@@ -438,7 +445,7 @@ class AsmFile {
   }
   int labelCounter; // Limited to 2^31 labels, le omg.
   string genLabel() {
-    return qformat(".Label", labelCounter++);
+    return qformat(".Label"[], labelCounter++);
   }
   void jump(string label, bool keepRegisters = false, string mode = null) {
     comparisonState = false;
@@ -483,7 +490,7 @@ class AsmFile {
     if (!optimize) {
       string comment = "#";
       if (isARM) comment = "@";
-      put(comment, " [", currentStackDepth, ": ", currentStackDepth - lastStackDepth, "]: ", t);
+      put(comment, " ["[], currentStackDepth, ": "[], currentStackDepth - lastStackDepth, "]: "[], t);
     }
     lastStackDepth = currentStackDepth;
   }
@@ -561,6 +568,7 @@ class AsmFile {
       }
       flush2;
     }
+    codelines_prealloc(finalized.list.length + cache.list.length);
     foreach (entry; finalized.list) if (auto line = entry.toAsm()) _put(line);
     foreach (entry; cache.list)     if (auto line = entry.toAsm()) _put(line);
     finalized.clear;
@@ -577,7 +585,12 @@ class AsmFile {
     _put(t);
   }*/
   void _put(T...)(T t) {
-    codelines ~= qformat(t, "\n");
+    if (codelines_length == codelines.length) {
+      codelines_finished ~= codelines;
+      codelines = new string[4096];
+      codelines_length = 0;
+    }
+    codelines[codelines_length ++] = qformat(t, "\n"[]);
   }
   void genAsm(void delegate(string) dg) {
     flush();
@@ -593,7 +606,7 @@ class AsmFile {
     foreach (name, data; globvars) {
       auto weak = data._2;
       if (weak) { dg("\t.weak "); dg(name); dg("\n"); }
-      dg(qformat(".comm\t", name, ",", data._0, "\n"));
+      dg(qformat(".comm\t"[], name, ","[], data._0, "\n"[]));
       assert(!data._1, "4");
     }
     dg(".section\t.data,\"aw\"\n");
@@ -604,7 +617,7 @@ class AsmFile {
     dg(".globl _sys_tls_data_"); dg(id2); dg("_start\n");
     dg("_sys_tls_data_"); dg(id2); dg("_start:\n");
     foreach (name, bogus; weaks) {
-      dg(qformat(".weak ", name, "\n"));
+      dg(qformat(".weak "[], name, "\n"[]));
     }
     foreach (name, data; tlsvars) {
       auto weak = data._2;
@@ -616,7 +629,7 @@ class AsmFile {
       if (weak) { dg("\t.weak "); dg(name); dg("\n"); }
       dg(qformat("\t.balign ", alignment, "\n"));
       dg("\t.globl "); dg(name); dg("\n");
-      // dg(qformat("\t.size ", name, ", ", data._0, "\n"));
+      // dg(qformat("\t.size "[], name, ", "[], data._0, "\n"[]));
       dg("\t"); dg(name); dg(":\n");
       if (data._1) {
         auto parts = data._1.split(",");
@@ -630,7 +643,7 @@ class AsmFile {
         }
         dg("\n");
       } else { // zeroes
-        dg(qformat("\t.fill ", data._0, ", 1\n"));
+        dg(qformat("\t.fill "[], data._0, ", 1\n"[]));
       }
     }
     dg(".globl _sys_tls_data_"); dg(id2); dg("_end\n");
@@ -660,26 +673,34 @@ class AsmFile {
       if (array.length >= 4) dg(".balign 16\n");
       dg(name); dg(":\n");
       dg(".long ");
-      foreach (val; array) dg(qformat(val, ", "));
+      foreach (val; array) dg(qformat(val, ", "[]));
       dg("0\n");
       dg(".global "); dg(name); dg("\n");
     }
     foreach (key, value; file_ids) {
-      dg(qformat(".file ", value, " \"", key, "\"\n"));
+      dg(qformat(".file "[], value, " \""[], key, "\"\n"[]));
     }
     dg(".text\n");
     dg(".Ltext:\n");
-    foreach (line; codelines)
+    foreach (array; codelines_finished) {
+      foreach (line; array) {
+        dg(line);
+      }
+      delete array;
+    }
+    delete codelines_finished;
+    foreach (line; codelines[0..codelines.length])
       dg(line);
+    delete codelines;
     dg(".Letext:\n");
     if (dwarf2) foreach (line; dwarf2.genData()) {
       dg(line); dg("\n");
     }
   }
   void pool() {
-    put("b 0f");
-    put(".ltorg");
-    put("0:");
+    put("b 0f"[]);
+    put(".ltorg"[]);
+    put("0:"[]);
   }
   // is cpu in post-comparison state?
   // disallow some operations (math) that woukld

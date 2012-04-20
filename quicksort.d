@@ -4,15 +4,15 @@ module quicksort;
 class KISS {
   int x = 123456789, y = 362436000, z = 521288629, c = 7654321; // seeds
   invariant {
-    assert(y, "y must never be set to zero! ");
-    assert(c, "c shouldn't be zero itself");
+    assert(y, "y must never be set to zero! "[]);
+    assert(c, "c shouldn't be zero itself"[]);
   }
   uint opCall() {
     ulong a = 698769069UL;
     x = 69069 * x + 12345;
     y ^= (y << 13); y ^= (y >> 17); y ^= (y << 5);
     ulong t = a * z + c;
-    assert(t, "this shouldn't be 0 either! ");
+    assert(t, "this shouldn't be 0 either! "[]);
     c = (t >> 32);
     z = t;
     return x + y + z;
@@ -52,8 +52,8 @@ import tools.log;
 void main() {
   int[] test;
   for (int i = 0; i < 100; ++i) test ~= global_rng() % 100;
-  logln(" original ", test);
+  logln(" original "[], test);
   qsort(test, (int a, int b) { return a < b; });
-  logln("   sorted ", test);
+  logln("   sorted "[], test);
 }
 */

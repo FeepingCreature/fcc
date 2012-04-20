@@ -680,14 +680,14 @@ void finalizeSysmod(Module mainmod) {
   auto backup = namespace();
   scope(exit) namespace.set(backup);
   namespace.set(sc);
-  auto var = new Variable(modtype, null, boffs(modtype));
+  auto var = fastalloc!(Variable)(modtype, cast(string) null, boffs(modtype));
   sc.add(var);
-  auto count = new Variable(Single!(SysInt), null, boffs(Single!(SysInt)));
+  auto count = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt)));
   sc.add(count);
   count.initInit;
   var.initInit;
-  sc.addStatement(new VarDecl(var));
-  sc.addStatement(new VarDecl(count));
+  sc.addStatement(fastalloc!(VarDecl)(var));
+  sc.addStatement(fastalloc!(VarDecl)(count));
   
   auto backupmod = current_module();
   scope(exit) current_module.set(backupmod);
@@ -704,8 +704,8 @@ void finalizeSysmod(Module mainmod) {
       symdend = reinterpret_cast(voidp, mkInt(0));
       compiled = mkInt(0);
     } else {
-      symdstart = new Symbol("_sys_tls_data_"~fltname~"_start");
-      symdend = new Symbol("_sys_tls_data_"~fltname~"_end");
+      symdstart = fastalloc!(Symbol)("_sys_tls_data_"~fltname~"_start");
+      symdend = fastalloc!(Symbol)("_sys_tls_data_"~fltname~"_end");
       compiled = mkInt(1);
     }
     sc.addStatement(
@@ -722,12 +722,12 @@ void finalizeSysmod(Module mainmod) {
     );
     Expr[] constrs;
     foreach (fun; mod.constrs) {
-      constrs ~= new FunRefExpr(fun);
+      constrs ~= fastalloc!(FunRefExpr)(fun);
     }
     sc.addStatement(
       iparse!(Statement, "init_mod_constr", "tree.stmt")
               (`var.constructors ~= funs;
-              `, sc, "var", var, "funs", new SALiteralExpr(new FunctionPointer(Single!(Void), null), constrs))
+              `, sc, "var", var, "funs", fastalloc!(SALiteralExpr)(fastalloc!(FunctionPointer)(Single!(Void), cast(Argument[]) null), constrs))
     );
     auto imps = mod.getImports();
     sc.addStatement(
@@ -755,7 +755,7 @@ class CPUIDExpr : Expr {
   mixin defaultIterate!(which);
   this(Expr ex) { which = ex; }
   override {
-    CPUIDExpr dup() { return new CPUIDExpr(which); }
+    CPUIDExpr dup() { return fastalloc!(CPUIDExpr)(which); }
     IType valueType() { return mkTuple(Single!(SysInt), Single!(SysInt), Single!(SysInt), Single!(SysInt)); }
     void emitAsm(AsmFile af) {
       which.emitAsm(af);
@@ -777,7 +777,7 @@ Object gotCPUID(ref string text, ParseCb cont, ParseCb rest) {
   if (ex.valueType() != Single!(SysInt))
     t2.failparse("Expected number for cpuid, but got ", ex.valueType(), "!");
   text = t2;
-  return new CPUIDExpr(ex);
+  return fastalloc!(CPUIDExpr)(ex);
 }
 mixin DefaultParser!(gotCPUID, "tree.expr.cpuid", "24044", "cpuid");
 
@@ -887,7 +887,7 @@ Object gotAsm(ref string text, ParseCb cont, ParseCb rest) {
   auto lit = fastcast!(StringExpr) (foldex(ex));
   if (!lit)
     t2.failparse("Expected string literal, not ", ex.valueType(), "!");
-  auto res = new Assembly(lit.str);
+  auto res = fastalloc!(Assembly)(lit.str);
   res.configPosition(text);
   text = t2;
   return res;
@@ -931,7 +931,7 @@ Object gotConstant(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept(");"))
     t2.failparse("Missing ');' for constant definition. ");
   text = t2;
-  return new ConstantDefinition(name, values);
+  return fastalloc!(ConstantDefinition)(name, values);
 }
 mixin DefaultParser!(gotConstant, "tree.toplevel.constant", null, "__defConstant");
 
@@ -945,7 +945,7 @@ Object gotInternal(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Expected static string expr for internal lookup");
   auto p = t.str in internals;
   if (!p)
-    t2.failparse(Format("No '", t.str, "' found in internals[] map! "));
+    t2.failparse(Format("No '", t.str, "' found in internals map! "));
   if (!*p)
     t2.failparse(Format("Result for '", t.str, "' randomly null! "));
   text = t2;

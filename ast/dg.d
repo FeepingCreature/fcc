@@ -11,15 +11,15 @@ class mkDelegate : Expr {
   this(Expr ptr, Expr data) {
     if (ptr.valueType().size != 4) {
       fail;
-      throw new Exception(Format("Cannot construct delegate from ", ptr, " (data ", data, ")!"));
+      throw new Exception(Format("Cannot construct delegate from "[], ptr, " (data "[], data, "[])!"[]));
     }
     this.ptr = ptr;
     this.data = data;
   }
   mixin defaultIterate!(ptr, data);
-  override string toString() { return Format("dg(ptr=", ptr, ", data=", data, ")"); }
+  override string toString() { return Format("dg(ptr="[], ptr, "[], data="[], data, ")"[]); }
   override void emitAsm(AsmFile af) {
-    mixin(mustOffset("nativePtrSize * 2"));
+    mixin(mustOffset("nativePtrSize * 2"[]));
     // TODO: stack growth order
     data.emitAsm(af);
     ptr.emitAsm(af);
@@ -40,20 +40,20 @@ class DgConstructExpr : mkDelegate {
   this(Expr fun, Expr base) {
     if (auto dg = fastcast!(Delegate)~ fun.valueType()) {
       assert(false);
-      fun = iparse!(Expr, "dg_to_fun", "tree.expr")("fun.fun", "fun", fun);
+      fun = iparse!(Expr, "dg_to_fun"[], "tree.expr"[])("fun.fun"[], "fun"[], fun);
     }
     super(fun, base);
   }
   override DgConstructExpr dup() {
-    return new DgConstructExpr(ptr.dup, data.dup);
+    return fastalloc!(DgConstructExpr)(ptr.dup, data.dup);
   }
   override IType valueType() {
     auto ft = fastcast!(FunctionPointer)~ ptr.valueType();
-    // logln("ptr is ", ptr, ", data ", data, ", ft ", ft);
-    // logln("ptr type is ", ptr.valueType());
+    // logln("ptr is "[], ptr, "[], data "[], data, "[], ft "[], ft);
+    // logln("ptr type is "[], ptr.valueType());
     assert(ft.args.length);
     assert(ft.args[$-1].type.size == data.valueType().size);
-    return new Delegate(ft.ret, ft.args[0 .. $-1]);
+    return fastalloc!(Delegate)(ft.ret, ft.args[0 .. $-1]);
   }
 }
 
@@ -64,16 +64,16 @@ Object gotFpCloseExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto fptype = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
     if (!fptype) return null;
     
-    if (t2.accept(".toDg(")) {
+    if (t2.accept(".toDg("[])) {
       Expr dataptr;
-      if (!(rest(t2, "tree.expr", &dataptr) && t2.accept(")")))
-        t2.failparse("Invalid syntax for toDg");
+      if (!(rest(t2, "tree.expr"[], &dataptr) && t2.accept(")"[])))
+        t2.failparse("Invalid syntax for toDg"[]);
       text = t2;
-      return new DgConstructExpr(ex, dataptr);
+      return fastalloc!(DgConstructExpr)(ex, dataptr);
     } else return null;
   };
 }
-mixin DefaultParser!(gotFpCloseExpr, "tree.rhs_partial.fpclose", null, null, true);
+mixin DefaultParser!(gotFpCloseExpr, "tree.rhs_partial.fpclose"[], null, null, true);
 
 class Delegate : Type {
   FunctionType ft;
@@ -89,8 +89,8 @@ class Delegate : Type {
       return true;
     }
     string toString() {
-      if (ret is this) return Format("self delegate ", args);
-      return Format(ret, " delegate ", args);
+      if (ret is this) return Format("self delegate "[], args);
+      return Format(ret, " delegate "[], args);
     }
     int size() {
       return nativePtrSize * 2;
@@ -117,15 +117,15 @@ class Delegate : Type {
 }
 
 IType dgAsStructType(Delegate dgtype) {
-  auto res = new Structure(null);
-  fastalloc!(RelMember)("fun",
-    new FunctionPointer(
+  auto res = fastalloc!(Structure)(cast(string) null);
+  fastalloc!(RelMember)("fun"[],
+    fastalloc!(FunctionPointer)(
       dgtype.ret,
       dgtype.args ~ Argument(voidp)
     ),
     res
   );
-  fastalloc!(RelMember)("data", voidp, res);
+  fastalloc!(RelMember)("data"[], voidp, res);
   return res;
 }
 
@@ -151,39 +151,39 @@ static this() {
     IType ptype;
     Argument[] list;
     auto t2 = text;
-    if (t2.accept("delegate") &&
+    if (t2.accept("delegate"[]) &&
       t2.gotParlist(list, rest)
     ) {
       text = t2;
-      return new Delegate(cur, list);
+      return fastalloc!(Delegate)(cur, list);
     } else return null;
   };
 }
 
 import ast.assign, ast.fold;
 void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
-  af.comment("Begin delegate call");
+  af.comment("Begin delegate call"[]);
   int retsize = ret.size;
   if (Single!(Void) == ret)
     retsize = 0;
-  mixin(mustOffset("retsize"));
+  mixin(mustOffset("retsize"[]));
   auto dgs = dgAsStruct(dg);
   mkVar(af, ret, true, (Variable retvar) {
-    mixin(mustOffset("0"));
+    mixin(mustOffset("0"[]));
     // cheap call - fun ptr is predetermined, no need to lvize the dg
-    if (auto sym = fastcast!(Symbol) (foldex(mkMemberAccess(dgs, "fun")))) {
-      params ~= foldex(mkMemberAccess(dgs, "data"));
+    if (auto sym = fastcast!(Symbol) (foldex(mkMemberAccess(dgs, "fun"[])))) {
+      params ~= foldex(mkMemberAccess(dgs, "data"[]));
       callFunction(af, ret, true, false, params, sym);
       if (ret != Single!(Void))
-        (new Assignment(retvar, new Placeholder(ret), false, true)).emitAsm(af);
+        (fastalloc!(Assignment)(retvar, fastalloc!(Placeholder)(ret), false, true)).emitAsm(af);
     } else {
       int toFree = alignStackFor(dgs.valueType(), af);
       void doit(Variable dgvar) {
-        mixin(mustOffset("0"));
-        params ~= foldex(mkMemberAccess(dgvar, "data"));
-        callFunction(af, ret, true, false, params, mkMemberAccess(dgvar, "fun"));
+        mixin(mustOffset("0"[]));
+        params ~= foldex(mkMemberAccess(dgvar, "data"[]));
+        callFunction(af, ret, true, false, params, mkMemberAccess(dgvar, "fun"[]));
         if (ret != Single!(Void))
-          (new Assignment(retvar, new Placeholder(ret), false, true)).emitAsm(af);
+          (fastalloc!(Assignment)(retvar, fastalloc!(Placeholder)(ret), false, true)).emitAsm(af);
         // Assignment, assuming Placeholder was "really"
         // emitted, has already done this.
         // if (ret != Single!(Void)) af.sfree(ret.size);
@@ -191,7 +191,7 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
       if (auto var = fastcast!(Variable) (dgs)) doit(var);
       else {
         mkVar(af, dgs.valueType(), true, (Variable dgvar) {
-          (new Assignment(dgvar, dgs)).emitAsm(af);
+          (fastalloc!(Assignment)(dgvar, dgs)).emitAsm(af);
           doit(dgvar);
         });
         af.sfree(dgs.valueType().size);

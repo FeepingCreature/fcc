@@ -35,7 +35,7 @@ class NestedFunction : Function {
     }
     int fixup() {
       auto cur = super.fixup();
-      add(new Variable(voidp, "__base_ptr", cur));
+      add(fastalloc!(Variable)(voidp, "__base_ptr"[], cur));
       _framestart += 4;
       cur += 4;
       return cur;
@@ -63,16 +63,16 @@ class NestedFunction : Function {
     if (nf && !prev_nf) {
       // massive hack
       // this basically serves to introduce the EBP into the lookup, so that we can properly fix it up
-      fun = new PointerFunction!(NestedFunction)(new NestFunRefExpr(nf));
+      fun = new PointerFunction!(NestedFunction)(fastalloc!(NestFunRefExpr)(nf));
     }
     if (!res && !fun) return _res;
     if (res) _res = fastcast!(Object) (res);
     if (fun) _res = fastcast!(Object) (fun);
     // pointer to our immediate parent's base.
     // since this is a variable also, nesting rewrite will work correctly here
-    auto ebp = fastcast!(Expr) (lookup("__base_ptr", true));
+    auto ebp = fastcast!(Expr) (lookup("__base_ptr"[], true));
     if (!ebp) {
-      logln("no base pointer found in ", this, "!!");
+      logln("no base pointer found in "[], this, "!!"[]);
       fail;
     }
     auto itr = fastcast!(Iterable) (_res);
@@ -88,7 +88,7 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
   // sup of nested funs isn't the surrounding function .. that's what context is for.
   auto mod = fastcast!(Module) (current_module());
   if (auto res = fastcast!(NestedFunction)~ gotGenericFunDef({
-    return new NestedFunction(ns);
+    return fastalloc!(NestedFunction)(ns);
   }, mod, true, text, cont, rest)) {
     // do this HERE, so we get the right context
     // and don't accidentally see variables defined further down!
@@ -97,27 +97,27 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
     return Single!(NoOp);
   } else return null;
 }
-mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef", "20");
+mixin DefaultParser!(gotNestedFunDef, "tree.stmt.nested_fundef"[], "20"[]);
 
 import ast.returns;
 Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto sc = namespace().get!(Scope);
   if (!sc) return null;
-  auto nf = new NestedFunction(sc);
+  auto nf = fastalloc!(NestedFunction)(sc);
   auto mod = fastcast!(Module) (current_module());
   string name;
   static int i;
   bool shortform;
-  if (!t2.accept("delegate")) {
-    if (t2.accept("\\")) {
-      synchronized name = Format("__nested_dg_literal_", i++);
+  if (!t2.accept("delegate"[])) {
+    if (t2.accept("\\"[])) {
+      synchronized name = Format("__nested_dg_literal_"[], i++);
       auto t3 = t2;
       auto res = fastcast!(NestedFunction) (gotGenericFunDeclNaked(nf, mod, true, t3, cont, rest, name, true));
-      if (!t3.accept("->")) {
-        t3.setError("missing result-arrow for lambda");
+      if (!t3.accept("->"[])) {
+        t3.setError("missing result-arrow for lambda"[]);
         shortform = true;
-        nf = new NestedFunction(sc);
+        nf = fastalloc!(NestedFunction)(sc);
         goto tryRegularDg;
       }
       t2 = t3;
@@ -132,47 +132,47 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
       scope(exit) *octoless_marker.ptr() = null;
       
       Expr ex;
-      if (!rest(t2, "tree.expr", &ex))
-        t2.failparse("Expected result expression for lambda");
+      if (!rest(t2, "tree.expr"[], &ex))
+        t2.failparse("Expected result expression for lambda"[]);
       res.type.ret = ex.valueType();
       
-      sc2.addStatement(new ReturnStmt(ex));
+      sc2.addStatement(fastalloc!(ReturnStmt)(ex));
       res.addStatement(sc2);
       
       text = t2;
       mod.entries ~= fastcast!(Tree) (res);
-      return new NestFunRefExpr(res);
+      return fastalloc!(NestFunRefExpr)(res);
     }
     return null;
   }
-  synchronized name = Format("__nested_dg_literal_", i++);
+  synchronized name = Format("__nested_dg_literal_"[], i++);
 tryRegularDg:
   auto res = fastcast!(NestedFunction) (gotGenericFunDef(nf, mod, true, t2, cont, rest, name, shortform /* true when using the backslash-shortcut */));
   if (!res)
-    t2.failparse("Could not parse delegate literal");
+    t2.failparse("Could not parse delegate literal"[]);
   text = t2;
   mod.entries ~= fastcast!(Tree)~ res;
-  return new NestFunRefExpr(res);
+  return fastalloc!(NestFunRefExpr)(res);
 }
-mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral", "2402");
+mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral"[], "2402"[]);
 
 Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto fun = new Function();
+  auto fun = fastalloc!(Function)();
   auto mod = fastcast!(Module) (current_module());
   string name;
   static int i;
-  synchronized name = Format("__nested_fn_literal_", i++);
+  synchronized name = Format("__nested_fn_literal_"[], i++);
   auto res = fastcast!(Function)~
     gotGenericFunDef(fun, mod, true, t2, cont, rest, name);
   
   if (!res)
-    t2.failparse("Could not parse delegate literal");
+    t2.failparse("Could not parse delegate literal"[]);
   text = t2;
   mod.entries ~= fastcast!(Tree)~ res;
-  return new FunRefExpr(res);
+  return fastalloc!(FunRefExpr)(res);
 }
-mixin DefaultParser!(gotNestedFnLiteral, "tree.expr.fnliteral", "2403", "function");
+mixin DefaultParser!(gotNestedFnLiteral, "tree.expr.fnliteral"[], "2403"[], "function"[]);
 
 class NestedCall : FunCall {
   Expr dg; Expr ebp; // may be substituted by a lookup
@@ -180,8 +180,8 @@ class NestedCall : FunCall {
     defaultIterate!(dg, ebp).iterate(dg2, mode);
     super.iterate(dg2, mode);
   }
-  this() { ebp = new Register!("ebp"); }
-  string toString() { return Format("dg ", dg, "- ", super.toString()); }
+  this() { ebp = new Register!("ebp"[]); }
+  string toString() { return Format("dg "[], dg, "- "[], super.toString()); }
   override NestedCall construct() { return new NestedCall; }
   override NestedCall dup() {
     NestedCall res = fastcast!(NestedCall) (super.dup());
@@ -190,12 +190,12 @@ class NestedCall : FunCall {
     return res;
   }
   override void emitWithArgs(AsmFile af, Expr[] args) {
-    // if (dg) logln("call ", dg);
-    // else logln("call {", fun.getPointer(), " @ebp");
+    // if (dg) logln("call "[], dg);
+    // else logln("call {"[], fun.getPointer(), " @ebp"[]);
     if (setup) setup.emitAsm(af);
     if (dg) callDg(af, fun.type.ret, args, dg);
     else callDg(af, fun.type.ret, args,
-      new DgConstructExpr(fun.getPointer(), ebp));
+      fastalloc!(DgConstructExpr)(fun.getPointer(), ebp));
   }
   override IType valueType() {
     return fun.type.ret;
@@ -207,7 +207,7 @@ class NestFunRefExpr : mkDelegate {
   NestedFunction fun;
   Expr base;
   this(NestedFunction fun, Expr base = null) {
-    if (!base) base = new Register!("ebp");
+    if (!base) base = new Register!("ebp"[]);
     this.fun = fun;
     this.base = base;
     // dup base so that iteration treats them separately. SUBTLE BUGFIX, DON'T CHANGE.
@@ -219,13 +219,13 @@ class NestFunRefExpr : mkDelegate {
     super.iterate(dg, mode);
   }
   override string toString() {
-    return Format("&", fun, " (", super.data, ")");
+    return Format("&"[], fun, " ("[], super.data, ")"[]);
   }
   // TODO: emit asm directly in case of PointerFunction.
   override IType valueType() {
-    return new Delegate(fun.type);
+    return fastalloc!(Delegate)(fun.type);
   }
-  override NestFunRefExpr dup() { return new NestFunRefExpr(fun, base.dup); }
+  override NestFunRefExpr dup() { return fastalloc!(NestFunRefExpr)(fun, base.dup); }
 }
 
 Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -236,14 +236,14 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   propcfg().withCall = false;
   scope(exit) propcfg().withCall = propbackup;
   
-  if (!rest(text, "tree.expr _tree.expr.arith", &nf))
+  if (!rest(text, "tree.expr _tree.expr.arith"[], &nf))
     return null;
   
   if (auto pnf = cast(PointerFunction!(NestedFunction)) nf) return fastcast!(Object)~ pnf.ptr;
   if (auto  pf = cast(PointerFunction!(Function)) nf)       return fastcast!(Object)~  pf.ptr;
-  return new NestFunRefExpr(nf);
+  return fastalloc!(NestFunRefExpr)(nf);
 }
-mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref", "210", "&");
+mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref"[], "210"[], "&"[]);
 
 import ast.int_literal;
 // &fun as dg
@@ -261,18 +261,18 @@ class FunPtrAsDgExpr(T) : T {
     defaultIterate!(ex).iterate(dg, mode);
   }
   override string toString() {
-    return Format("dg(", fp, ")");
+    return Format("dg("[], fp, ")"[]);
   }
   // TODO: emit asm directly in case of PointerFunction.
   override IType valueType() {
-    return new Delegate(fp.ret, fp.args);
+    return fastalloc!(Delegate)(fp.ret, fp.args);
   }
-  override FunPtrAsDgExpr dup() { return new FunPtrAsDgExpr(ex); }
+  override FunPtrAsDgExpr dup() { return fastalloc!(FunPtrAsDgExpr)(ex); }
   static if (is(T: Literal)) {
     override string getValue() {
       auto l2 = fastcast!(Literal)~ ex;
-      assert(!!l2, Format("Not a literal: ", ex));
-      return l2.getValue()~", 0";
+      assert(!!l2, Format("Not a literal: "[], ex));
+      return l2.getValue()~"[], 0";
     }
   }
 }
@@ -317,12 +317,12 @@ class PointerFunction(T) : T {
       type.params = fp.args.dup;
       type.stdcall = fp.stdcall;
     } else {
-      logln("TYPE ", ptr.valueType());
+      logln("TYPE "[], ptr.valueType());
       fail;
     }
   }
-  override PointerFunction flatdup() { return new PointerFunction(ptr.dup, setup); }
-  override PointerFunction dup() { return new PointerFunction(ptr.dup, setup); }
+  override PointerFunction flatdup() { return fastalloc!(PointerFunction)(ptr.dup, setup); }
+  override PointerFunction dup() { return fastalloc!(PointerFunction)(ptr.dup, setup); }
   override {
     FunCall mkCall() {
       if (fastcast!(Delegate)~ ptr.valueType()) {
@@ -340,20 +340,20 @@ class PointerFunction(T) : T {
       assert(false);
     }
     string mangleSelf() { fail; return ""; }
-    Expr getPointer() { if (setup) return new StatementAndExpr(setup, ptr); return ptr; }
+    Expr getPointer() { if (setup) return fastalloc!(StatementAndExpr)(setup, ptr); return ptr; }
     string toString() {
-      return Format("*", ptr);
+      return Format("*"[], ptr);
     }
   }
 }
 
 Object gotFpDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr", &ex)) return null;
+  if (!rest(text, "tree.expr"[], &ex)) return null;
   auto fp = fastcast!(FunctionPointer)~ ex.valueType(), dg = fastcast!(Delegate)~ ex.valueType();
   if (!fp && !dg) return null;
   
   if (dg) return new PointerFunction!(NestedFunction) (ex);
   else return new PointerFunction!(Function) (ex);
 }
-mixin DefaultParser!(gotFpDerefExpr, "tree.expr.fp_deref", "2102", "*");
+mixin DefaultParser!(gotFpDerefExpr, "tree.expr.fp_deref"[], "2102"[], "*"[]);

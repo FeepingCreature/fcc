@@ -15,7 +15,7 @@ string readStream(InputStream IS) {
   int i;
   do {
     i = IS.read(buffer);
-    if (i < 0) throw new Exception(Format("Read error: ", i));
+    if (i < 0) throw new Exception(Format("Read error: "[], i));
     res ~= cast(string) buffer[0 .. i];
   } while (i);
   return res;
@@ -23,12 +23,12 @@ string readStream(InputStream IS) {
 
 string readback(string cmd) {
   int[2] fd; // read end, write end
-  if (-1 == pipe(fd.ptr)) throw new Exception(Format("Can't open pipe! "));
+  if (-1 == pipe(fd.ptr)) throw new Exception(Format("Can't open pipe! "[]));
   scope(exit) close(fd[0]);
-  auto cmdstr = Format(cmd, " >&", fd[1], " &");
+  auto cmdstr = Format(cmd, " >&"[], fd[1], " &"[]);
   system(toStringz(cmdstr));
   close(fd[1]);
-  scope fs = new CFile(fdopen(fd[0], "r"), FileMode.In);
+  scope fs = fastalloc!(CFile)(fdopen(fd[0], "r"[]), FileMode.In);
   return readStream(fs);
 }
 
@@ -39,20 +39,20 @@ enum State {
 int main(string[] args) {
   auto exec = args.take();
   if (args.length != 1) {
-    writefln(exec, " \"fcc params\"");
+    writefln(exec, " \"fcc params\""[]);
     return 1;
   }
-  auto info = readback("fcc -config-opts \"info\" "~args[0]~" -o bughunt_test").split("\n");
+  auto info = readback("fcc -config-opts \"info\" "~args[0]~" -o bughunt_test"[]).split("\n"[]);
   void build(string flags) {
-    auto line = Format("fcc -config-opts \""~flags~"\" "~args[0]~" -o bughunt_test >/dev/null");
-    logln("> ", line);
+    auto line = Format("fcc -config-opts \""~flags~"\" "~args[0]~" -o bughunt_test >/dev/null"[]);
+    logln("> "[], line);
     system(toStringz(line));
   }
   string[] names;
-  writefln("info: ", info);
+  writefln("info: "[], info);
   foreach (line; info)
-    if (auto rest = line.startsWith("id:"))
-      names ~= line.between("name:", " ");
+    if (auto rest = line.startsWith("id:"[]))
+      names ~= line.between("name:"[], " "[]);
   auto states = new State[names.length];
   
   int[] left;
@@ -60,7 +60,7 @@ int main(string[] args) {
   
   auto rowheight = 10;
   void delegate() maindg;
-  auto tp = new Threadpool(1), mainpool = new Threadpool(0);
+  auto tp = fastalloc!(Threadpool)(1), mainpool = fastalloc!(Threadpool)(0);
   void render() {
     auto offs = 24;
     foreach (i, state; states) {
@@ -75,8 +75,8 @@ int main(string[] args) {
   string genFlags() {
     string res;
     foreach (i, state; states) if (state != State.On) {
-      if (res) res ~= ",";
-      res ~= Format("disable ", i);
+      if (res) res ~= "[],";
+      res ~= Format("disable "[], i);
     }
     return res;
   }
@@ -84,7 +84,7 @@ int main(string[] args) {
   bool works() {
     update;
     build(genFlags());
-    int res = system("./bughunt_test");
+    int res = system("./bughunt_test"[]);
     bool itWorked = res == 0;
     /*
     auto dialog = display.select(300, 20, 150, 40);
@@ -92,9 +92,9 @@ int main(string[] args) {
     bool forb, res;
     synchronized(SyncObj!(maindg)) maindg = {
       line(dialog.tl, dialog.br, Box=White, Fill=Black);
-      print(dialog, "Did it work?", Top);
-      print(dialog, "Yes", Left|Bottom);
-      print(dialog, "No", Right|Bottom);
+      print(dialog, "Did it work?"[], Top);
+      print(dialog, "Yes"[], Left|Bottom);
+      print(dialog, "No"[], Right|Bottom);
       if (mouse in dialog && mouse.clicked) {
         res = mouse.pos.x < (dialog.tl.x + dialog.br.x) / 2;
         synchronized(SyncObj!(maindg)) maindg = null;
@@ -103,15 +103,15 @@ int main(string[] args) {
       }
     };
     while (!forb) slowyield; // idlespin lol
-    logln("You clicked ", res?"Yes":"No", ".");
+    logln("You clicked "[], res?"Yes":"No"[], "."[]);
     return res;*/
-    logln("Code ", res, ": ", itWorked?"Success":"Failure");
+    logln("Code "[], res, ": "[], itWorked?"Success":"Failure"[]);
     return itWorked;
   }
   float threshold = 0.5;
   int bisect() {
     while (true) {
-      logln("threshold: ", threshold);
+      logln("threshold: "[], threshold);
       for (int i = 0; i < left.length; ++i) {
         states[left[i]] = ((rand() * 1f / typeof(rand()).max) < threshold)  ? State.On : State.Testing;
       }
@@ -134,7 +134,7 @@ int main(string[] args) {
         left = newleft;
       }
     }
-    logln("required to fail: ", left /map/ ex!("a -> b -> a[b]")(names));
+    logln("required to fail: "[], left /map/ ex!("a -> b -> a[b]"[])(names));
     return 0;
   }
   

@@ -11,7 +11,7 @@ import
 static this() {
   isRichIterator = delegate bool(IType it) { return !!fastcast!(RichIterator) (it); };
   isIterator = delegate bool(IType it) { return !!fastcast!(Iterator) (it); };
-  defineOp("x", delegate Expr(Expr ex1, Expr ex2) {
+  defineOp("x"[], delegate Expr(Expr ex1, Expr ex2) {
     if (!gotImplicitCast(ex2, (Expr ex) { return !!fastcast!(IntExpr) (fold(ex)); }))
       return null;
     auto ex22 = ex2;
@@ -29,14 +29,14 @@ static this() {
     if (!expect || !fastcast!(Iterator) (expect))
       return null;
     Statement init;
-    auto len = iparse!(Expr, "array_length", "tree.expr")(`arr.length`, "arr", ex);
+    auto len = iparse!(Expr, "array_length"[], "tree.expr"[])(`arr.length`, "arr"[], ex);
     opt(len);
     if (auto ie = fastcast!(IntExpr) (len)) {
-      return iparse!(Expr, "array_iterate_int", "tree.expr.iter.for")
-                    (`[for i <- 0..len extra arr: extra[i]]`, namespace(), "arr", ex, "len", ie);
+      return iparse!(Expr, "array_iterate_int"[], "tree.expr.iter.for"[])
+                    (`[for i <- 0..len extra arr: extra[i]]`, namespace(), "arr"[], ex, "len"[], ie);
     } else {
-      return tmpize_maybe(ex, (Expr ex) { return iparse!(Expr, "array_iterate", "tree.expr.iter.for")
-                         (`[for i <- 0..arr.length extra arr: extra[i]]`, namespace(), "arr", ex); });
+      return tmpize_maybe(ex, (Expr ex) { return iparse!(Expr, "array_iterate"[], "tree.expr.iter.for"[])
+                         (`[for i <- 0..arr.length extra arr: extra[i]]`, namespace(), "arr"[], ex); });
     }
   };
 }
@@ -54,10 +54,10 @@ class CrossIndexExpr : Expr {
       auto len = cross.myTypes().length, tup = cross.castToTuple(ex);
       auto lenex = mkInt(len);
       mkVar(af, valueType(), true, (Variable var) {
-        auto root = iparse!(Scope, "cross_index_init", "tree.stmt")
+        auto root = iparse!(Scope, "cross_index_init"[], "tree.stmt"[])
                           (`{ auto count = idx; }`,
-                            "tup", tup, "idx", idx, af);
-        auto count = fastcast!(LValue)~ root.lookup("count");
+                            "tup"[], tup, "idx"[], idx, af);
+        auto count = fastcast!(LValue)~ root.lookup("count"[]);
         assert(!!count);
         for (int i = len - 1; i >= 0; --i) {
           auto iex = mkInt(i);
@@ -66,16 +66,16 @@ class CrossIndexExpr : Expr {
           assert(!!itype);
           // value = iter[count % length]
           auto len = itype.length(iter);
-          root.addStatement(new Assignment(
+          root.addStatement(fastalloc!(Assignment)(
             fastcast!(LValue)~ mkTupleIndexAccess(var, i),
             itype.index(iter,
-              lookupOp("%", count, len)
+              lookupOp("%"[], count, len)
             )
           ));
           // count /= orig.length
-          root.addStatement(new Assignment(
+          root.addStatement(fastalloc!(Assignment)(
             count,
-            lookupOp("/", count, len)
+            lookupOp("/"[], count, len)
           ));
         }
         root.emitAsm(af);
@@ -118,13 +118,13 @@ import ast.ifstmt, ast.conditionals, ast.scopes;
 class Cross : Type, RichIterator {
   Tuple tup; // bool inited, then first third current values, second third running state, last third original iterators
   LValue castToTuple(LValue lv) {
-    return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
-                  ("*tup*:&lv", "lv", lv, "tup", tup);
+    return iparse!(LValue, "cross_cast_to_tuple"[], "tree.expr"[])
+                  ("*tup*:&lv"[], "lv"[], lv, "tup"[], tup);
   }
   Expr castToTuple(Expr ex) {
     if (auto lv = fastcast!(LValue)~ ex) return castToTuple(lv);
-    return iparse!(Expr, "cross_cast_expr_to_tuple", "tree.expr")
-                  ("tup:ex", "ex", ex, "tup", tup);
+    return iparse!(Expr, "cross_cast_expr_to_tuple"[], "tree.expr"[])
+                  ("tup:ex"[], "ex"[], ex, "tup"[], tup);
   }
   IType[] myTypes() {
     return tup.types[1..$][0..$/3];
@@ -137,25 +137,25 @@ class Cross : Type, RichIterator {
     IType elemType() {
       return mkTuple(myTypes());
     }
-    string toString() { return Format("Cross[", size, "](", elemType, ")"); }
+    string toString() { return Format("Cross["[], size, "]("[], elemType, ")"[]); }
     int size() { return tup.size; }
     string mangle() { return "cross_over_"~tup.mangle(); }
     ubyte[] initval() { return tup.initval(); }
     Cond testAdvance(LValue lv) {
       auto types = myTypes(), tup = castToTuple(lv);
-      auto root = iparse!(IfStatement, "cross_iterate_init", "tree.stmt")
-                         (`if (!tup[0]) { tup[0] = true; } else {}`, "tup", tup);
+      auto root = iparse!(IfStatement, "cross_iterate_init"[], "tree.stmt"[])
+                         (`if (!tup[0]) { tup[0] = true; } else {}`, "tup"[], tup);
       foreach (i, type; types) {
-        (fastcast!(Scope) (root.branch1)).addStatement(iparse!(Statement, "cross_iterate_init_specific", "tree.stmt")
+        (fastcast!(Scope) (root.branch1)).addStatement(iparse!(Statement, "cross_iterate_init_specific"[], "tree.stmt"[])
                                          (`{ eval tup[1+i] <- tup[1+len+i]; }`,
-                                          "tup", tup, "i", mkInt(i), "len", mkInt(types.length)));
+                                          "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(types.length)));
       }
       IfStatement current;
       // build if tree
       foreach_reverse (i, type; types) {
-        auto myIf = iparse!(IfStatement, "cross_iterate_step", "tree.stmt")
+        auto myIf = iparse!(IfStatement, "cross_iterate_step"[], "tree.stmt"[])
                            (`if (tup[1+i] <- tup[1+len+i]) { } else { tup[1+len+i] = tup[1+len*2+i]; eval tup[1+i] <- tup[1+len+i]; }`,
-                            "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
+                            "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(types.length));
         if (!current) {
           (fastcast!(Scope) (root.branch2)).addStatement(myIf);
           current = myIf;
@@ -164,21 +164,21 @@ class Cross : Type, RichIterator {
           current = myIf;
         }
       }
-      auto term = iparse!(Statement, "cross_finalize", "tree.stmt")
+      auto term = iparse!(Statement, "cross_finalize"[], "tree.stmt"[])
                          (`tup[0] = false; `,
-                          "tup", tup);
+                          "tup"[], tup);
       (fastcast!(Scope) (current.branch2)).addStatement(term); // wrap initializer around again
       assert(!!root);
-      auto cond = iparse!(Cond, "cross_test_result", "cond")
+      auto cond = iparse!(Cond, "cross_test_result"[], "cond"[])
                          (`tup[0]`,
-                          "tup", tup);
-      return new StatementAndCond(root, cond);
+                          "tup"[], tup);
+      return fastalloc!(StatementAndCond)(root, cond);
     }
     Expr currentValue(Expr ex) {
       auto tup = castToTuple(ex), types = myTypes();
-      auto expr = iparse!(Expr, "cross_test_result", "tree.expr")
+      auto expr = iparse!(Expr, "cross_test_result"[], "tree.expr"[])
                          (`tup[1..len+1]`,
-                          "tup", tup, "len", mkInt(types.length));
+                          "tup"[], tup, "len"[], mkInt(types.length));
       return expr;
     }
     Expr length(Expr ex) {
@@ -186,8 +186,8 @@ class Cross : Type, RichIterator {
       auto types = myTypes(), tup = castToTuple(ex);
       int staticlength = 1;
       foreach (i, type; types) {
-        auto entry = iparse!(Expr, "cross_subcond_for_len", "tree.expr")
-                           (`tup[i + len*2 + 1]`, "tup", tup, "i", mkInt(i), "len", mkInt(types.length));
+        auto entry = iparse!(Expr, "cross_subcond_for_len"[], "tree.expr"[])
+                           (`tup[i + len*2 + 1]`, "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(types.length));
         auto len = (fastcast!(RichIterator)~ entry.valueType()).length(entry);
         if (staticlength != -1) {
           if (auto ie = fastcast!(IntExpr)~ foldex(len)) {
@@ -197,7 +197,7 @@ class Cross : Type, RichIterator {
           }
         }
         if (!res) res = len;
-        else res = lookupOp("*", res, len);
+        else res = lookupOp("*"[], res, len);
       }
       if (staticlength != -1)
         return mkInt(staticlength);
@@ -205,7 +205,7 @@ class Cross : Type, RichIterator {
       return res;
     }
     Expr index(Expr ex, Expr pos) {
-      return new CrossIndexExpr(this, ex, pos);
+      return fastalloc!(CrossIndexExpr)(this, ex, pos);
     }
     Expr slice(Expr ex, Expr from, Expr to) { assert(false); /* meh */ }
   }
@@ -216,11 +216,11 @@ Expr _false;
 Expr mkCross(Expr[] exprs) {
   synchronized {
     if (!_false)
-      _false = iparse!(Expr, "get_false", "tree.expr")(`sys.false`);
+      _false = iparse!(Expr, "get_false"[], "tree.expr"[])(`sys.false`);
   }
   Expr[] inits;
   foreach (ex; exprs) {
-    inits ~= new Filler((fastcast!(Iterator)~ ex.valueType()).elemType());
+    inits ~= fastalloc!(Filler)((fastcast!(Iterator)~ ex.valueType()).elemType());
   }
   auto es = mkTupleExpr(exprs);
   auto tup = mkTupleExpr([_false] ~ inits ~ exprs ~ exprs);
@@ -228,25 +228,25 @@ Expr mkCross(Expr[] exprs) {
   
   auto cross = new Cross;
   cross.tup = fastcast!(Tuple) (tuptype);
-  return new RCE(cross, tup);
+  return fastalloc!(RCE)(cross, tup);
 }
 
 Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr", &ex))
-    text.failparse("Could not match expr for cross");
+  if (!rest(text, "tree.expr"[], &ex))
+    text.failparse("Could not match expr for cross"[]);
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
       ex2 = foldex(ex2);
-      // logln("got tuple entry ", ex2);
+      // logln("got tuple entry "[], ex2);
       if (!gotImplicitCast(ex2, Single!(BogusIterator), isRichIterator))
         return false;
     }
     return true;
   }))
-    text.failparse("Cannot convert ", ex, " into acceptable tuple form");
+    text.failparse("Cannot convert "[], ex, " into acceptable tuple form"[]);
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
@@ -255,26 +255,26 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   }
   return fastcast!(Object)~ mkCross(list);
 }
-mixin DefaultParser!(gotIteratorCross, "tree.expr.iter.cross", null, "cross");
+mixin DefaultParser!(gotIteratorCross, "tree.expr.iter.cross"[], null, "cross"[]);
 
 import ast.aggregate;
 class Zip(T) : Type, T {
   Tuple tup;
   LValue castToTuple(LValue lv) {
-    return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
-                  ("*tup*:&lv", "lv", lv, "tup", tup);
+    return iparse!(LValue, "cross_cast_to_tuple"[], "tree.expr"[])
+                  ("*tup*:&lv"[], "lv"[], lv, "tup"[], tup);
   }
   Expr castToTuple(Expr ex) {
     if (auto lv = fastcast!(LValue)~ ex) return castToTuple(lv);
-    return iparse!(Expr, "cross_cast_expr_to_tuple", "tree.expr")
-                  ("tup:ex", "ex", ex, "tup", tup);
+    return iparse!(Expr, "cross_cast_expr_to_tuple"[], "tree.expr"[])
+                  ("tup:ex"[], "ex"[], ex, "tup"[], tup);
   }
   IType[] myTypes() {
     return tup.types /map/ (IType it) { return (fastcast!(Iterator) (it)).elemType(); };
   }
   override {
     IType elemType() { return mkTuple(myTypes()); }
-    string toString() { return Format("Zip[", size, "](", tup.types, ")"); }
+    string toString() { return Format("Zip["[], size, "]("[], tup.types, ")"[]); }
     int size() { return tup.size; }
     string mangle() { return "zip_over_"~tup.mangle(); }
     ubyte[] initval() { return tup.initval(); }
@@ -286,7 +286,7 @@ class Zip(T) : Type, T {
         if (!entry) fail;
         auto cond = (fastcast!(Iterator) (entry.valueType())).testAdvance(entry);
         if (!res) res = cond;
-        else res = new BooleanOp!("&&")(res, cond);
+        else res = new BooleanOp!("&&"[])(res, cond);
       }
       assert(!!res);
       return res;
@@ -304,19 +304,19 @@ class Zip(T) : Type, T {
       Expr length(Expr ex) {
         // TODO: min
         auto types = myTypes();
-        auto entry = iparse!(Expr, "zip_simple_len", "tree.expr")
-                            (`tup[0]`, "tup", castToTuple(ex));
+        auto entry = iparse!(Expr, "zip_simple_len"[], "tree.expr"[])
+                            (`tup[0]`, "tup"[], castToTuple(ex));
         return (fastcast!(RichIterator)~ entry.valueType()).length(entry);
       }
       Expr index(Expr ex, Expr pos) {
         auto types = myTypes(), tup = castToTuple(ex);
         Expr[] exprs;
         foreach (i, type; types) {
-          exprs ~= iparse!(Expr, "zip_index", "tree.expr")
+          exprs ~= iparse!(Expr, "zip_index"[], "tree.expr"[])
                           (`tup[i][pos]`,
-                          "tup", tup, "i", mkInt(i),
-                          "len", mkInt(types.length),
-                          "pos", pos);
+                          "tup"[], tup, "i"[], mkInt(i),
+                          "len"[], mkInt(types.length),
+                          "pos"[], pos);
         }
         return mkTupleExpr(exprs);
       }
@@ -332,18 +332,18 @@ Expr mkZip(Expr[] exprs, bool rich) {
   if (rich) {
     auto zip = new Zip!(RichIterator);
     zip.tup = fastcast!(Tuple)~ tup.valueType();
-    return new RCE(zip, tup);
+    return fastalloc!(RCE)(zip, tup);
   } else {
     auto zip = new Zip!(Iterator);
     zip.tup = fastcast!(Tuple)~ tup.valueType();
-    return new RCE(zip, tup);
+    return fastalloc!(RCE)(zip, tup);
   }
 }
 
 Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr", &ex))
-    text.failparse("Could not match expr for zip");
+  if (!rest(text, "tree.expr"[], &ex))
+    text.failparse("Could not match expr for zip"[]);
   bool rich = true;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
@@ -360,7 +360,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     }
     return true;
   }))
-    text.failparse("Cannot convert ", ex, " into acceptable tuple form");
+    text.failparse("Cannot convert "[], ex, " into acceptable tuple form"[]);
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
@@ -370,23 +370,23 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   }
   return fastcast!(Object)~ mkZip(list, rich);
 }
-mixin DefaultParser!(gotIteratorZip, "tree.expr.iter.zip", null, "zip");
+mixin DefaultParser!(gotIteratorZip, "tree.expr.iter.zip"[], null, "zip"[]);
 
 class Cat(T) : Type, T {
   Tuple tup; // current value, iterators, completion-bools (true when done)
   LValue castToTuple(LValue lv) {
-    return iparse!(LValue, "cross_cast_to_tuple", "tree.expr")
-                  ("*tup*:&lv", "lv", lv, "tup", tup);
+    return iparse!(LValue, "cross_cast_to_tuple"[], "tree.expr"[])
+                  ("*tup*:&lv"[], "lv"[], lv, "tup"[], tup);
   }
   Expr castToTuple(Expr ex) {
     if (auto lv = fastcast!(LValue)~ ex) return castToTuple(lv);
-    return iparse!(Expr, "cross_cast_expr_to_tuple", "tree.expr")
-                  ("tup:ex", "ex", ex, "tup", tup);
+    return iparse!(Expr, "cross_cast_expr_to_tuple"[], "tree.expr"[])
+                  ("tup:ex"[], "ex"[], ex, "tup"[], tup);
   }
   IType myType;
   override {
     IType elemType() { return myType; }
-    string toString() { return Format("Cat(", tup.types, ")"); }
+    string toString() { return Format("Cat("[], tup.types, ")"[]); }
     int size() { return tup.size; }
     string mangle() { return "cat_over_"~tup.mangle(); }
     ubyte[] initval() { return tup.initval(); }
@@ -397,14 +397,14 @@ class Cat(T) : Type, T {
       auto res_st = new Scope;
       Scope curBranch = res_st;
       for (int i = 0; i < len; ++i) {
-        auto ifst = iparse!(IfStatement, "cat_step", "tree.stmt")
+        auto ifst = iparse!(IfStatement, "cat_step"[], "tree.stmt"[])
                            (`if tup[1+len+i] && tup[0] <- tup[1+i] { } else { tup[1+len+i] = false; }`,
-                             curBranch, "tup", tup, "i", mkInt(i), "len", mkInt(len)
+                             curBranch, "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(len)
                            );
         curBranch.addStatement(ifst);
         curBranch = fastcast!(Scope) (ifst.branch2); // fill the else{}
       }
-      return new StatementAndCond(res_st, new ExprWrap(mkTupleIndexAccess(tup, 1+len+len-1 /* last bool, and be glad I didn't write "2*len" */)));
+      return fastalloc!(StatementAndCond)(res_st, fastalloc!(ExprWrap)(mkTupleIndexAccess(tup, 1+len+len-1 /* last bool, and be glad I didn't write "2*len" */)));
     }
     Expr currentValue(Expr ex) {
       return mkTupleIndexAccess(castToTuple(ex), 0);
@@ -414,10 +414,10 @@ class Cat(T) : Type, T {
         auto len = (tup.types.length - 1) / 2;
         Expr res = mkInt(0);
         for (int i = 0; i < len; ++i) {
-          auto term = iparse!(Expr, "cat_len", "tree.expr")
-                             (`tup[i + 1]`, "tup", castToTuple(ex), "i", mkInt(i));
+          auto term = iparse!(Expr, "cat_len"[], "tree.expr"[])
+                             (`tup[i + 1]`, "tup"[], castToTuple(ex), "i"[], mkInt(i));
           auto sublen = (fastcast!(RichIterator)~ term.valueType()).length(term);
-          res = lookupOp("+", res, sublen);
+          res = lookupOp("+"[], res, sublen);
         }
         return res;
       }
@@ -436,31 +436,31 @@ Expr mkCat(IType type, Expr[] exprs, bool rich) {
   Expr[] bools;
   setupStaticBoolLits();
   foreach (ex; exprs) bools ~= True;
-  auto tup = mkTupleExpr(fastcast!(Expr) (new Filler(type)) ~ exprs ~ bools);
+  auto tup = mkTupleExpr(fastcast!(Expr) (fastalloc!(Filler)(type)) ~ exprs ~ bools);
   if (rich) {
     auto cat = new Cat!(RichIterator);
     cat.myType = type;
     cat.tup = fastcast!(Tuple)~ tup.valueType();
-    return new RCE(cat, tup);
+    return fastalloc!(RCE)(cat, tup);
   } else {
     auto cat = new Cat!(Iterator);
     cat.myType = type;
     cat.tup = fastcast!(Tuple)~ tup.valueType();
-    return new RCE(cat, tup);
+    return fastalloc!(RCE)(cat, tup);
   }
 }
 
 Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr", &ex))
-    text.failparse("Could not match exprs for cat");
+  if (!rest(text, "tree.expr"[], &ex))
+    text.failparse("Could not match exprs for cat"[]);
   bool rich = true;
   IType valueType;
   void merge(Iterator itr) {
     auto et = resolveType(itr.elemType);
     if (!valueType) { valueType = et; return; }
     if (et == valueType) return;
-    text.failparse("Could not merge ", et, " into ", valueType);
+    text.failparse("Could not merge "[], et, " into "[], valueType);
   }
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
@@ -478,7 +478,7 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
     }
     return true;
   }))
-    text.failparse("Cannot convert ", ex.valueType(), " into acceptable tuple form");
+    text.failparse("Cannot convert "[], ex.valueType(), " into acceptable tuple form"[]);
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
@@ -488,21 +488,21 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
   }
   return fastcast!(Object) (mkCat(valueType, list, rich));
 }
-mixin DefaultParser!(gotIteratorCat, "tree.expr.iter.cat", null, "cat");
+mixin DefaultParser!(gotIteratorCat, "tree.expr.iter.cat"[], null, "cat"[]);
 
 class SumExpr : Expr {
   Iterator iter;
   Expr ex;
-  mixin MyThis!("iter, ex");
+  mixin MyThis!("iter, ex"[]);
   mixin defaultIterate!(ex);
-  SumExpr dup() { return new SumExpr(iter, ex.dup); }
+  SumExpr dup() { return fastalloc!(SumExpr)(iter, ex.dup); }
   override {
     IType valueType() { return iter.elemType(); }
     void emitAsm(AsmFile af) {
       mkVar(af, iter.elemType(), true, (Variable var) {
         if (auto ri = fastcast!(RichIterator)~ iter) {
           // unroll. TODO: decide when.
-          auto stmt = iparse!(Statement, "sum_1", "tree.stmt")
+          auto stmt = iparse!(Statement, "sum_1"[], "tree.stmt"[])
           (`
           {
             auto i2 = iter;
@@ -516,18 +516,18 @@ class SumExpr : Expr {
               eval val <- i2; var += val;
             }
             while temp <- i2 { var += temp; }
-          } `, "iter", ex, "T", iter.elemType(), "var", var, af);
+          } `, "iter"[], ex, "T"[], iter.elemType(), "var"[], var, af);
           // opt(stmt);
           stmt.emitAsm(af);
         } else {
-          auto stmt = iparse!(Statement, "sum_2", "tree.stmt")
+          auto stmt = iparse!(Statement, "sum_2"[], "tree.stmt"[])
           (`
           {
             auto i2 = iter;
             T temp;
             eval var <- i2;
             while temp <- i2 { var += temp; }
-          }`, "iter", ex, "T", iter.elemType(), "var", var, af);
+          }`, "iter"[], ex, "T"[], iter.elemType(), "var"[], var, af);
           // opt(stmt);
           stmt.emitAsm(af);
         }
@@ -539,24 +539,24 @@ class SumExpr : Expr {
 import ast.vardecl;
 Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr", &ex)) {
-    text.setError("Could not match expr for sum");
+  if (!rest(text, "tree.expr"[], &ex)) {
+    text.setError("Could not match expr for sum"[]);
     return null;
   }
   IType[] tried;
   if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) { tried ~= it; return !!fastcast!(RichIterator) (it); }))
-    text.failparse("Cannot convert ", ex, " to valid iterator");
+    text.failparse("Cannot convert "[], ex, " to valid iterator"[]);
   
-  return new SumExpr(fastcast!(RichIterator)~ ex.valueType(), ex);
+  return fastalloc!(SumExpr)(fastcast!(RichIterator)~ ex.valueType(), ex);
 }
-mixin DefaultParser!(gotSum, "tree.expr.iter.sum", null, "sum");
+mixin DefaultParser!(gotSum, "tree.expr.iter.sum"[], null, "sum"[]);
 
 import ast.templ, ast.iterator;
 // struct iterator or explicit iterator cast
 Object gotXIterator(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
-    if (!t2.accept(".iterator")) return null; // Because fuck you.
+    if (!t2.accept(".iterator"[])) return null; // Because fuck you.
     auto iter = fastcast!(Expr) (obj);
     if (!iter) return null;
     
@@ -576,34 +576,34 @@ Object gotXIterator(ref string text, ParseCb cont, ParseCb rest) {
     if (auto srn = fastcast!(SemiRelNamespace) (thingy)) thingy = fastcast!(Object) (srn.resolve());
     if (auto ns = fastcast!(Namespace)~ thingy) { _ns = ns; lookup = &fun_ns; }
     else if (auto rn = fastcast!(RelNamespace)~ thingy) { _rns = rn; lookup = &fun_rns; }
-    if (!lookup || !lookup("value") || !lookup("advance")) {
-      text.setError(obj, " does not form a valid iterator: value or advance missing. ");
+    if (!lookup || !lookup("value"[]) || !lookup("advance"[])) {
+      text.setError(obj, " does not form a valid iterator: value or advance missing. "[]);
       return null;
     }
-    // logln("try ", t2.nextText(), "; ", thingy);
-    auto test1 = iparse!(Expr, "si_test_step", "tree.expr")
-                      (`evaluate (iter.value)`, "iter", iter);
-    auto test2 = iparse!(Cond, "si_test_ivalid", "cond")
-                      (`evaluate (iter.advance)`, "iter", iter);
+    // logln("try "[], t2.nextText(), "; "[], thingy);
+    auto test1 = iparse!(Expr, "si_test_step"[], "tree.expr"[])
+                      (`evaluate (iter.value)`, "iter"[], iter);
+    auto test2 = iparse!(Cond, "si_test_ivalid"[], "cond"[])
+                      (`evaluate (iter.advance)`, "iter"[], iter);
     if (!test1 || !test2) {
-      logln("test failed: ", !test1, ", ", !test2);
+      logln("test failed: "[], !test1, ", "[], !test2);
       fail;
     }
     text = t2;
-    auto si = new StructIterator(iter.valueType());
+    auto si = fastalloc!(StructIterator)(iter.valueType());
     auto res = fastcast!(Object)~ reinterpret_cast(si, iter);
-    // logln(" => ", res);
+    // logln(" => "[], res);
     return res;
   };
 }
-mixin DefaultParser!(gotXIterator, "tree.rhs_partial.x_iter");
+mixin DefaultParser!(gotXIterator, "tree.rhs_partial.x_iter"[]);
 
 import ast.templ, ast.parse, ast.structure, ast.oop;
 StructIterator[IType] cache;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto mns = namespace().get!(MiniNamespace);
-    if (mns && !mns.id.startsWith("!safecode"))
+    if (mns && !mns.id.startsWith("!safecode"[]))
       return null; // only allow this conversion in user code
     auto evt = ex.valueType();
     if (auto p = evt in cache) { if (!*p) return null; return reinterpret_cast(*p, ex); }
@@ -613,18 +613,18 @@ static this() {
     const string FAIL = "{ cache[evt] = null; return null; }";
     if (!st && !cr && !ir) mixin(FAIL);
     if (st && !(
-      st.lookupRel("value", ex) &&
-      st.lookupRel("advance", ex)))
+      st.lookupRel("value"[], ex) &&
+      st.lookupRel("advance"[], ex)))
       mixin(FAIL);
     if (cr && !(
-      cr.myClass.lookupRel("value", ex) &&
-      cr.myClass.lookupRel("advance", ex)))
+      cr.myClass.lookupRel("value"[], ex) &&
+      cr.myClass.lookupRel("advance"[], ex)))
       mixin(FAIL);
     if (ir && !(
-      ir.myIntf.lookupRel("value", ex) &&
-      ir.myIntf.lookupRel("advance", ex)))
+      ir.myIntf.lookupRel("value"[], ex) &&
+      ir.myIntf.lookupRel("advance"[], ex)))
       mixin(FAIL);
-    auto si = new StructIterator(evt);
+    auto si = fastalloc!(StructIterator)(evt);
     Expr res = reinterpret_cast(si, ex);
     cache[evt] = si;
     return res;

@@ -80,7 +80,7 @@ version(Windows) {
     CloseHandle(procinfo.hProcess);
     CloseHandle(procinfo.hThread);
     
-    scope fs = new CFile(fdopen(_open_osfhandle(fd[0]), "r"), FileMode.In);
+    scope fs = fastalloc!(CFile)(fdopen(_open_osfhandle(fd[0]), "r"), FileMode.In);
     return readStream(fs);
     
   }
@@ -95,10 +95,10 @@ version(Windows) {
     int[2] fd; // read end, write end
     if (-1 == pipe(fd.ptr)) throw new Exception(Format("Can't open pipe! "));
     scope(exit) close(fd[0]);
-    auto cmdstr = Format(cmd, " >&", fd[1], " &");
+    auto cmdstr = Format(cmd, " >&"[], fd[1], " &"[]);
     system(toStringz(cmdstr));
     close(fd[1]);
-    scope fs = new CFile(fdopen(fd[0], "r"), FileMode.In);
+    scope fs = fastalloc!(CFile)(fdopen(fd[0], "r"), FileMode.In);
     return readStream(fs);
   }
 }
@@ -113,7 +113,7 @@ class LateType : IType {
   IType me;
   void delegate() tryResolve;
   this(string n) { name = n; }
-  string toString() { if (!me) return Format("(LateType (", name, "), unresolved)"); return Format("(LateType ", me, ")"); }
+  string toString() { if (!me) return Format("(LateType ("[], name, "), unresolved)"); return Format("(LateType ", me, ")"); }
   void needMe() {
     if (!me) tryResolve();
     if (!me)
@@ -169,13 +169,13 @@ void parseHeader(string filename, string src) {
   void addSrc(string text) { newsrc_list ~= text; newsrc_length += text.length; }
   bool inEnum;
   string[] buffer;
-  void flushBuffer() { foreach (def; buffer) { addSrc(def); addSrc(";"); } buffer = null; }
+  void flushBuffer() { foreach (def; buffer) { addSrc(def); addSrc(";"); } delete buffer; buffer = null; }
   while (src.length) {
-    string line = src.slice("\n");
+    string line = src.slice("\n"[]);
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
     if (line.startsWith("}")) { inEnum = false; addSrc(line); flushBuffer; continue; }
-    if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else {  addSrc(line); addSrc(";"); } }
+    if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else { addSrc(line); addSrc(";"); } }
     if (line.startsWith("#")) continue;
     addSrc(line); addSrc(" ");
   }
@@ -190,7 +190,7 @@ void parseHeader(string filename, string src) {
   auto statements = newsrc.split(";") /map/ &strip;
   // mini parser
   Named[string] cache;
-  auto myNS = new MiniNamespace("parse_header");
+  auto myNS = fastalloc!(MiniNamespace)("parse_header"[]);
   myNS.sup = namespace();
   myNS.internalMode = true;
   namespace.set(myNS);
@@ -259,7 +259,7 @@ void parseHeader(string filename, string src) {
         return Single!(Void);
       if (auto p = name in cache) return fastcast!(IType)~ *p;
       else {
-        auto lt = new LateType(name);
+        auto lt = fastalloc!(LateType)(name);
         auto dg = stuple(lt, name, &cache) /apply/
         delegate void(LateType lt, string name, typeof(cache)* cachep) {
           if (auto p = name in *cachep) {
@@ -295,7 +295,7 @@ void parseHeader(string filename, string src) {
     text.accept("__const");
     if (auto ty = matchSimpleType(text)) {
       while (text.accept("*")) {
-        auto p = new Pointer(Single!(SysInt));
+        auto p = fastalloc!(Pointer)(Single!(SysInt));
         p.target = ty; // manually initialize to skip forcedConvert so we give late types more time to resolve
         ty = p;
       }
@@ -312,10 +312,10 @@ void parseHeader(string filename, string src) {
     string id;
     gotIdentifier(text, id);
     if (auto sa = fastcast!(StaticArray)~ resolveType(ty)) {
-      ty = new Pointer(sa.elemType);
+      ty = fastalloc!(Pointer)(sa.elemType);
     }
     redo:if (text.startsWith("[")) {
-      ty = new Pointer(ty);
+      ty = fastalloc!(Pointer)(ty);
       text.slice("]");
       goto redo;
     }
@@ -329,7 +329,7 @@ void parseHeader(string filename, string src) {
     if (!source.length) return false;
     auto s2 = source;
     // fairly obvious what this is
-    if (source.endsWith("_TYPE") || s2.matchType()) return false;
+    if (source.endsWith("_TYPE"[]) || s2.matchType()) return false;
     int i;
     s2 = source;
     {
@@ -351,22 +351,22 @@ void parseHeader(string filename, string src) {
       if (!s2.length) return false;
       auto ch = s2[0..1]; s2 = s2[1 .. $];
       if (!s2.accept("'")) return false;
-      res = reinterpret_cast(Single!(Char), new DataExpr(cast(ubyte[]) ch));
+      res = reinterpret_cast(Single!(Char), fastalloc!(DataExpr)(cast(ubyte[]) ch));
       source = s2;
       return true;
     }
     if (s2.gotInt(i)) {
-      if (auto rest = s2.startsWith("U")) s2 = rest; // TODO
+      if (auto rest = s2.startsWith("U"[])) s2 = rest; // TODO
       if (s2.accept("LL")) return false; // long long
       s2.accept("L");
-      if (!s2.length /* special handling for separators */ || s2.startsWith(",") || s2.startsWith(")")) {
-        res = new IntExpr(i);
+      if (!s2.length /* special handling for separators */ || s2.startsWith(","[]) || s2.startsWith(")"[])) {
+        res = fastalloc!(IntExpr)(i);
         source = s2;
         return true;
       }
     }
     s2 = source;
-    if (s2.startsWith("__PRI")) return false; // no chance to parse
+    if (s2.startsWith("__PRI"[])) return false; // no chance to parse
     s2 = source;
     string ident;
     if (s2.gotIdentifier(ident) && !s2.length) {
@@ -411,7 +411,7 @@ void parseHeader(string filename, string src) {
         // logln("length fail");
         return false;
       }
-      auto myNS2 = new MiniNamespace("parse_macro");
+      auto myNS2 = fastalloc!(MiniNamespace)("parse_macro"[]);
       myNS2.sup = namespace();
       myNS2.internalMode = true;
       namespace.set(myNS2);
@@ -434,7 +434,7 @@ void parseHeader(string filename, string src) {
       return true;
     }
     s2 = source;
-    if (s2.startsWith("__attribute__ ((")) s2 = s2.between("))", "");
+    if (s2.startsWith("__attribute__ (("[])) s2 = s2.between("))", "");
     // logln(" @ '", source, "'");
     s2 = s2.mystripl();
     if (!s2.length) return false;
@@ -479,7 +479,7 @@ void parseHeader(string filename, string src) {
           auto s2 = s;
           // NOT accept(): spacing matters!
           // it's only a macro if the () comes directly after the name!
-          if (!s2.startsWith("(")) return false;
+          if (!s2.startsWith("("[])) return false;
           s2 = s2[1..$];
           while (true) {
             string id;
@@ -525,7 +525,7 @@ void parseHeader(string filename, string src) {
       Expr cur = mkInt(0);
       Named[] elems;
       foreach (entry; entries) {
-        // logln("> ", entry);
+        // logln("> "[], entry);
         entry = entry.replace("(unsigned long)", ""); // hack
         string id;
         if (!gotIdentifier(entry, id)) {
@@ -540,7 +540,7 @@ void parseHeader(string filename, string src) {
           }
           cur = foldex(ex);
         }
-        elems ~= new ExprAlias(cur, id);
+        elems ~= fastalloc!(ExprAlias)(cur, id);
         cur = foldex(lookupOp("+", cur, mkInt(1)));
       }
       // logln("Got from enum: ", elems);
@@ -552,7 +552,7 @@ void parseHeader(string filename, string src) {
       }
       foreach (elem; elems) add(elem.getIdentifier(), elem);
       if (name)
-        add(name, new TypeAlias(Single!(SysInt), name));
+        add(name, fastalloc!(TypeAlias)(Single!(SysInt), name));
       continue;
     }
     bool isUnion;
@@ -563,14 +563,14 @@ void parseHeader(string filename, string src) {
         gotIdentifier(st2, ident);
         if (st2.accept("{")) {
           auto startstr = st2;
-          auto st = new Structure(ident);
+          auto st = fastalloc!(Structure)(ident);
           // st.minAlign = 4;
           st.isUnion = isUnion;
           const debugStructs = false;
           while (true) {
             static if (debugStructs)
               logln(ident, ">", st2);
-            if (st2.startsWith("#define"))
+            if (st2.startsWith("#define"[]))
               goto skip;
             auto ty = matchType(st2);
             // logln("for ", ident, ", match type @", st2, " = ", ty);
@@ -642,7 +642,7 @@ void parseHeader(string filename, string src) {
                 st2 = name;
               } else {
                 // alias to void for now.
-                add(ident, new TypeAlias(Single!(Void), ident));
+                add(ident, fastalloc!(TypeAlias)(Single!(Void), ident));
                 static if (debugStructs) logln("can't handle the ", st2, ". fail. ");
                 goto giveUp1; // can't handle yet
               }
@@ -660,16 +660,16 @@ void parseHeader(string filename, string src) {
           }
           IType ty = st;
           while (st2.accept("*")) {
-            ty = new Pointer(ty);
+            ty = fastalloc!(Pointer)(ty);
           }
           auto name = st2.strip();
           if (!name.length) name = ident.strip();
           if (!name.length) goto giveUp1;
           if (!st.name.length) st.name = name;
-          add(name, new TypeAlias(ty, name));
+          add(name, fastalloc!(TypeAlias)(ty, name));
           if (ident && ident != name)
             // neat doesn't have a separate struct namespace, so add it to regular one
-            add(ident, new TypeAlias(ty, ident));
+            add(ident, fastalloc!(TypeAlias)(ty, ident));
           continue;
           giveUp1:
           static if (debugStructs)
@@ -712,7 +712,7 @@ void parseHeader(string filename, string src) {
         } while (st2.accept(","));
         if (!st2.accept(")")) goto giveUp;
         // logln("get function pointer named ", name, " (ret ", target, ") , params ", args, " @", st2);
-        target = new FunctionPointer(target, args);
+        target = fastalloc!(FunctionPointer)(target, args);
         stmt = st2;
       }
       string typename = name;
@@ -732,7 +732,7 @@ void parseHeader(string filename, string src) {
           goto redo3;
         }
         if (!fastcast!(IntExpr) (size)) goto giveUp;
-        target = new StaticArray(target, (fastcast!(IntExpr)~ size).num);
+        target = fastalloc!(StaticArray)(target, (fastcast!(IntExpr)~ size).num);
         stmt = st3;
         goto redo2;
       }
@@ -770,7 +770,7 @@ void parseHeader(string filename, string src) {
         if (proxy.name == name)
           target = Single!(Void); // would set up a loop .. produce _something_
       
-      auto ta = new TypeAlias(target, name);
+      auto ta = fastalloc!(TypeAlias)(target, name);
       cache[name] = ta;
       continue;
     }
@@ -778,7 +778,7 @@ void parseHeader(string filename, string src) {
     bool useStdcall;
     void eatAttribute(ref string s) {
       retry: s = s.strip();
-      if (auto rest = s.startsWith("__attribute__")) {
+      if (auto rest = s.startsWith("__attribute__"[])) {
         if (rest.between("((", "))") == "__stdcall__") useStdcall = true;
         s = rest.between(") ", "");
         goto retry;
@@ -800,13 +800,13 @@ void parseHeader(string filename, string src) {
       }
       if (!stmt.accept("(")) {
         // weird, but, nope.
-        // while (stmt.accept("[]")) ret = new Pointer(ret);
-        if (stmt.accept("[]") && !stmt.length) {
-          add(name, new ExprAlias(reinterpret_cast(new Pointer(ret), new RefExpr(new ExternCGlobVar(ret, name))), name));
+        // while (stmt.accept("")) ret = fastalloc!(Pointer)(ret);
+        if (stmt.accept("") && !stmt.length) {
+          add(name, fastalloc!(ExprAlias)(reinterpret_cast(fastalloc!(Pointer)(ret), fastalloc!(RefExpr)(fastalloc!(ExternCGlobVar)(ret, name))), name));
           continue;
         }
         if (!stmt.length) {
-          add(name, new ExternCGlobVar(ret, name));
+          add(name, fastalloc!(ExternCGlobVar)(ret, name));
           continue;
         }
         // logln("MEEP ", name, ", '", stmt, "'");
@@ -829,7 +829,7 @@ void parseHeader(string filename, string src) {
         fptype.ret = ret;
         fptype.args = args /map/ (IType it) { return Argument(it); };
         fptype.stdcall = useStdcall;
-        auto ec = new ExternCGlobVar(fptype, name);
+        auto ec = fastalloc!(ExternCGlobVar)(fptype, name);
         add(name, ec);
       } else {
         auto fun = new Function;
@@ -935,7 +935,7 @@ import ast.fold, ast.literal_string;
 Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("c_include")) return null;
   Expr ex;
-  if (!rest(text, "tree.expr", &ex))
+  if (!rest(text, "tree.expr"[], &ex))
     text.failparse("Couldn't find c_import string expr");
   if (!text.accept(";")) text.failparse("Missing trailing semicolon");
   auto str = fastcast!(StringExpr)~ foldex(ex);
@@ -961,11 +961,11 @@ mixin DefaultParser!(gotSpecialCallback, "tree.expr.special_callback", "999"); /
 
 static this() {
   ast.modules.specialHandler = delegate Module(string name) {
-    auto hdr = name.startsWith("c.");
+    auto hdr = name.startsWith("c."[]);
     if (!hdr) return null;
     auto hfile = hdr.replace(".", "/") ~ ".h";
     
-    auto mod = new Module(name, hfile);
+    auto mod = fastalloc!(Module)(name, hfile);
     mod.dontEmit = true;
     
     auto backup = namespace();

@@ -14,7 +14,7 @@ class GlobVar : LValue, Named, IsMangled {
   string getInit() {
     if (!initval) return null;
     auto l = fastcast!(Literal) (initval);
-    assert(!!l, Format(initval, " is not constant! "));
+    assert(!!l, Format(initval, " is not constant! "[]));
     return l.getValue();
   }
   this(IType t, string n, Namespace ns, bool tls, Expr initval) {
@@ -25,11 +25,11 @@ class GlobVar : LValue, Named, IsMangled {
     this.initval = initval;
   }
   string cleanedName() {
-    return name.replace("-", "_dash_");
+    return name.replace("-"[], "_dash_"[]);
   }
   override {
     string mangleSelf() {
-      return (tls?"tls_":"")~"global_"~ns.mangle(cleanedName(), type);
+      return (tls?"tls_":""[])~"global_"~ns.mangle(cleanedName(), type);
     }
     void markWeak() { weak = true; }
     IType valueType() { return type; }
@@ -37,54 +37,54 @@ class GlobVar : LValue, Named, IsMangled {
     void emitAsm(AsmFile af) {
       if (!type.size) return; // hah
       if (isARM) {
-        af.mmove4(qformat("=", mangleSelf()), "r2");
+        af.mmove4(qformat("="[], mangleSelf()), "r2"[]);
         if (tls) {
-          af.mmove4("=_sys_tls_data_start", "r3");
-          af.mathOp("sub", "r2", "r2", "r3");
-          af.mathOp("add", "r2", "r2", "r4");
+          af.mmove4("=_sys_tls_data_start"[], "r3"[]);
+          af.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
+          af.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
         }
-        armpush(af, "r2", type.size);
+        armpush(af, "r2"[], type.size);
         return;
       }
       if (tls) {
-        af.mmove4(qformat("$", mangleSelf()), "%eax");
-        af.mathOp("subl", "$_sys_tls_data_start", "%eax");
-        af.mathOp("addl", "%esi", "%eax");
-        af.pushStack("(%eax)", type.size);
+        af.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
+        af.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
+        af.mathOp("addl"[], "%esi"[], "%eax"[]);
+        af.pushStack("(%eax)"[], type.size);
       }
       else {
-        af.mmove4("$"~mangleSelf(), "%eax");
-        af.pushStack("(%eax)", type.size);
+        af.mmove4("$"~mangleSelf(), "%eax"[]);
+        af.pushStack("(%eax)"[], type.size);
         // af.pushStack(mangleSelf(), type.size);
       }
     }
     void emitLocation(AsmFile af) {
       if (!type.size) {
-        af.mmove4("$0", "%eax"); // lol
-        af.pushStack("%eax", 4);
+        af.mmove4("$0"[], "%eax"[]); // lol
+        af.pushStack("%eax"[], 4);
         return;
       }
       if (isARM) {
-        af.mmove4(qformat("=", mangleSelf()), "r2");
+        af.mmove4(qformat("="[], mangleSelf()), "r2"[]);
         if (tls) {
-          af.mmove4("=_sys_tls_data_start", "r3");
-          af.mathOp("sub", "r2", "r2", "r3");
-          af.mathOp("add", "r2", "r2", "r4");
+          af.mmove4("=_sys_tls_data_start"[], "r3"[]);
+          af.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
+          af.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
         }
-        af.pushStack("r2", 4);
+        af.pushStack("r2"[], 4);
         return;
       }
       if (tls) {
-        af.mmove4(qformat("$", mangleSelf()), "%eax");
-        af.mathOp("subl", "$_sys_tls_data_start", "%eax");
-        af.mathOp("addl", "%esi", "%eax");
-        af.pushStack("%eax", nativePtrSize);
-        af.nvm("%eax");
+        af.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
+        af.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
+        af.mathOp("addl"[], "%esi"[], "%eax"[]);
+        af.pushStack("%eax"[], nativePtrSize);
+        af.nvm("%eax"[]);
       } else {
-        af.pushStack(qformat("$", mangleSelf()), nativePtrSize);
+        af.pushStack(qformat("$"[], mangleSelf()), nativePtrSize);
       }
     }
-    string toString() { return Format("global ", ns.get!(Module)().name, ".", name, " of ", type); }
+    string toString() { return Format("global "[], ns.get!(Module)().name, "."[], name, " of "[], type); }
   }
 }
 
@@ -102,14 +102,14 @@ class GlobVarDecl : Statement, IsMangled {
     typeof(this) dup() {
       auto res = new GlobVarDecl;
       foreach (var; vars) {
-        auto v2 = new GlobVar(var.type, var.name, var.ns, var.tls, var.initval?var.initval.dup:null);
+        auto v2 = fastalloc!(GlobVar)(var.type, var.name, var.ns, var.tls, var.initval?var.initval.dup:null);
         v2.weak = var.weak;
         res.vars ~= v2;
       }
       res.tls = tls;
       return res;
     }
-    string toString() { return Format("declare ", tls?"tls ":"", vars); }
+    string toString() { return Format("declare "[], tls?"tls ":""[], vars); }
     void emitAsm(AsmFile af) {
       if (tls) {
         foreach (var; vars)
@@ -130,8 +130,8 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   string name;
   auto t2 = text;
   bool shared;
-  if (t2.accept("shared")) shared = true;
-  if (!rest(t2, "type", &ty)) return null;
+  if (t2.accept("shared"[])) shared = true;
+  if (!rest(t2, "type"[], &ty)) return null;
   auto gvd = new GlobVarDecl;
   gvd.tls = !shared;
   auto ns = namespace();
@@ -141,22 +141,22 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       t2.gotIdentifier(name) &&
       (
         (
-          t3 = t2, t3.accept("=")
-          && rest(t3, "tree.expr", &initval) && gotImplicitCast(initval, (Expr ex) {
+          t3 = t2, t3.accept("="[])
+          && rest(t3, "tree.expr"[], &initval) && gotImplicitCast(initval, (Expr ex) {
             return ex.valueType() == ty
                    && !! fastcast!(Literal) (fold(ex));
           })
           && (t2 = t3, true)
         ) || true
       ),
-      t2.accept(","),
+      t2.accept(","[]),
       {
-        gvd.vars ~= new GlobVar(ty, name, ns, gvd.tls, foldex(initval));
+        gvd.vars ~= fastalloc!(GlobVar)(ty, name, ns, gvd.tls, foldex(initval));
         initval = null;
       },
       false
     )
-    || !t2.accept(";")
+    || !t2.accept(";"[])
   )
     return null;
   
@@ -165,4 +165,4 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return gvd;
 }
-mixin DefaultParser!(gotGlobVarDecl, "tree.toplevel.globvar");
+mixin DefaultParser!(gotGlobVarDecl, "tree.toplevel.globvar"[]);

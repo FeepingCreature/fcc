@@ -8,7 +8,7 @@ class IfStatement : LineNumberedStatementClass {
   Cond test;
   mixin DefaultDup!();
   mixin defaultIterate!(test, wrapper, branch1, branch2);
-  string toString() { return Format("if ", test, " ", branch1, " else ", branch2); }
+  string toString() { return Format("if "[], test, " "[], branch1, " else "[], branch2); }
   override void emitAsm(AsmFile af) {
     super.emitAsm(af);
     auto past1 = af.genLabel(), past2 = af.genLabel();
@@ -62,31 +62,31 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   ifs.configPosition(text);
   ifs.wrapper = new Scope;
   namespace.set(ifs.wrapper);
-  if (!rest(t2, "cond", &ifs.test))
-    t2.failparse("Couldn't get if condition");
+  if (!rest(t2, "cond"[], &ifs.test))
+    t2.failparse("Couldn't get if condition"[]);
   configure(ifs.test);
-  if (!rest(t2, "tree.scope", &ifs.branch1))
-    t2.failparse("Couldn't get if branch");
+  if (!rest(t2, "tree.scope"[], &ifs.branch1))
+    t2.failparse("Couldn't get if branch"[]);
   namespace.set(ifs.wrapper.sup); // else is OUTSIDE the wrapper!
-  if (t2.accept("else")) {
+  if (t2.accept("else"[])) {
     auto t3 = t2.retreat(4);
     if (haveIndentConflict(pos1, t3)) {
-      t3.failparse("Else must be on same indentation level as opening if! ");
+      t3.failparse("Else must be on same indentation level as opening if! "[]);
     }
-    if (!rest(t2, "tree.scope", &ifs.branch2))
-      t2.failparse("Couldn't get else branch");
+    if (!rest(t2, "tree.scope"[], &ifs.branch2))
+      t2.failparse("Couldn't get else branch"[]);
   }
   text = t2;
   return ifs;
 }
-mixin DefaultParser!(gotIfStmt, "tree.stmt.if", "19", "if");
+mixin DefaultParser!(gotIfStmt, "tree.stmt.if"[], "19"[], "if"[]);
 
 import ast.fold, ast.stringparse;
 Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond test;
-  if (!rest(t2, "cond", &test))
-    t2.failparse("Couldn't get static-if condition");
+  if (!rest(t2, "cond"[], &test))
+    t2.failparse("Couldn't get static-if condition"[]);
   string branch1, branch2;
   t2.noMoreHeredoc();
   test = fastcast!(Cond) (fold(test));
@@ -99,7 +99,7 @@ retry:
   
   branch1 = t3.coarseLexScope(true, keepBrackets1);
   
-  if (t3.accept("else"))
+  if (t3.accept("else"[]))
     branch2 = t3.coarseLexScope(true, keepBrackets2);
   
   Statement res;
@@ -112,29 +112,29 @@ retry:
   scope(exit) popCache;
   
   if (isStaticTrue(test)) {
-    if (!rest(branch1, "tree.stmt", &res))
-      branch1.failparse("No statements matched in static if");
+    if (!rest(branch1, "tree.stmt"[], &res))
+      branch1.failparse("No statements matched in static if"[]);
     
     branch1 = branch1.mystripl();
     if (branch1.length) {
       if (!keepBrackets1) { keepBrackets1 = true; goto retry; }
-      branch1.failparse("Unknown text in static if");
+      branch1.failparse("Unknown text in static if"[]);
     }
   } else if (isStaticFalse(test)) {
     if (branch2) {
-      if (!rest(branch2, "tree.stmt", &res))
-        branch2.failparse("No statements matched in static else");
+      if (!rest(branch2, "tree.stmt"[], &res))
+        branch2.failparse("No statements matched in static else"[]);
       
       branch2 = branch2.mystripl();
       if (branch2.length) {
         if (!keepBrackets2) { keepBrackets2 = true; goto retry; }
-        branch2.failparse("Unknown text in static else");
+        branch2.failparse("Unknown text in static else"[]);
       }
     } else {
       res = new NoOp;
     }
   } else {
-    text.failparse("condition not static: ", test);
+    text.failparse("condition not static: "[], test);
   }
   
   text = t3;
@@ -142,4 +142,4 @@ retry:
   foreach (entry; sc.field) sc.sup.add(entry._0, entry._1);
   return fastcast!(Object) (res);
 }
-mixin DefaultParser!(gotStaticIf, "tree.stmt.static_if", "190", "static if");
+mixin DefaultParser!(gotStaticIf, "tree.stmt.static_if"[], "190"[], "static if"[]);

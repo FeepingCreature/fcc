@@ -9,9 +9,9 @@ class NamedArg : Expr {
   string name, reltext;
   this(string name, string text, Expr base) { this.name = name; this.reltext = text; this.base = base; }
   override {
-    string toString() { return Format(name, " => ", base); }
+    string toString() { return Format(name, " => "[], base); }
     IType valueType() { return base.valueType(); }
-    NamedArg dup() { return new NamedArg(name, reltext, base.dup); }
+    NamedArg dup() { return fastalloc!(NamedArg)(name, reltext, base.dup); }
     mixin defaultIterate!(base);
     void emitAsm(AsmFile af) {
       reltext.failparse("Named argument ", name, " could not be assigned to a function call! ");
@@ -22,7 +22,7 @@ class NamedArg : Expr {
 IType[] relevant(IType[] array) {
   IType[] res;
   foreach (it; array)
-    if (!Format(it).startsWith("fpos of a")) res ~= it;
+    if (!Format(it).startsWith("fpos of a"[])) res ~= it;
   return res;
 }
 
@@ -37,10 +37,10 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
   } else {
     if (!t2.gotIdentifier(name)) return null;
     if (!t2.accept("=>")) return null;
-    if (!rest(t2, "tree.expr", &base))
+    if (!rest(t2, "tree.expr"[], &base))
       t2.failparse("Could not get base expression for named argument '", name, "'");
   }
-  auto res = new NamedArg(name, text, base);
+  auto res = fastalloc!(NamedArg)(name, text, base);
   text = t2;
   return res;
 }
@@ -230,13 +230,13 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   if (flat.length) {
     // logln("flattened to ", flat);
     // text.failparse("Extraneous parameters to '", info, "' of ", params, ": ", args);
-    text.setError("Extraneous parameters to '", info, "' of ", params, ": ", args);
+    text.setError("Extraneous parameters to '"[], info, "' of "[], params, ": "[], args);
     return false;
   }
   if (nameds.length) {
     string fninfo = info;
     if (!fninfo) fninfo = "function";
-    throw new Exception(Format(fninfo, " has no arguments named ", nameds.keys));
+    throw new Exception(Format(fninfo, " has no arguments named "[], nameds.keys));
   }
   return true;
 }
@@ -279,9 +279,9 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
   
   {
     auto t2 = text;
-    if (!rest(t2, "tree.expr.cond.other", &arg) && !rest(t2, "tree.expr _tree.expr.arith", &arg)) {
+    if (!rest(t2, "tree.expr.cond.other"[], &arg) && !rest(t2, "tree.expr _tree.expr.arith"[], &arg)) {
       if (params.length) return false;
-      else if (info.startsWith("delegate")) return false;
+      else if (info.startsWith("delegate"[])) return false;
       else arg = mkTupleExpr();
     }
     if (!matchedCallWith(arg, params, res, inits, info, backup_text, test, precise)) return false;
@@ -296,7 +296,7 @@ Expr buildFunCall(Function fun, Expr arg, string info) {
   if (!matchedCallWith(arg, fun.getParams(), fc.params, inits, info))
     return null;
   if (!inits.length) return fc;
-  else if (inits.length > 1) inits = [new AggrStatement(inits)];
+  else if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
   return mkStatementAndExpr(inits[0], fc);
 }
 
@@ -341,7 +341,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto t4 = t2;
     try {
       result = matchCall(t2, fun.name, params, rest, fc.params, inits, false, false);
-      if (inits.length > 1) inits = [new AggrStatement(inits)];
+      if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
       if (inits.length) res = mkStatementAndExpr(inits[0], fc);
     }
     catch (ParseEx pe) text.failparse("cannot call: ", pe);
@@ -388,12 +388,12 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     fc.fp = ex;
     
     Statement[] inits;
-    if (!matchCall(t2, Format("delegate ", ex.valueType()), fptype.args, rest, fc.params, inits, false, false))
+    if (!matchCall(t2, Format("delegate "[], ex.valueType()), fptype.args, rest, fc.params, inits, false, false))
       return null;
     
     text = t2;
     Expr res = fc;
-    if (inits.length > 1) inits = [new AggrStatement(inits)];
+    if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
     if (inits.length) res = mkStatementAndExpr(inits[0], res);
     return fastcast!(Object) (res);
   };
@@ -414,7 +414,7 @@ class DgCall : Expr {
     return (fastcast!(Delegate) (resolveType(dg.valueType()))).ret;
   }
   override string toString() {
-    return Format(dg, "(", params, ")");
+    return qformat(dg, "("[], params, ")"[]);
   }
 }
 
@@ -430,11 +430,11 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto dc = new DgCall;
     dc.dg = ex;
     Statement[] inits;
-    if (!matchCall(t2, Format("delegate ", ex.valueType()), dgtype.args, rest, dc.params, inits, false, false))
+    if (!matchCall(t2, Format("delegate "[], ex.valueType()), dgtype.args, rest, dc.params, inits, false, false))
       return null;
     text = t2;
     Expr res = dc;
-    if (inits.length > 1) inits = [new AggrStatement(inits)];
+    if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
     if (inits.length) res = mkStatementAndExpr(inits[0], res);
     return fastcast!(Object) (res);
   };
@@ -466,15 +466,15 @@ static this() {
         return null;
       }
     }
-    return new StringExpr(str[0].replace(str[1], str[2]));
+    return fastalloc!(StringExpr)(str[0].replace(str[1], str[2]));
   };
 }
 
 // helper for ast.fun
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name) {
-  (new ExprStatement(buildFunCall(
+  (fastalloc!(ExprStatement)(buildFunCall(
     fastcast!(Function) (sysmod.lookup("missed_return")),
-    new StringExpr(name),
+    fastalloc!(StringExpr)(name),
     "missed return signal"
   ))).emitAsm(af);
 }

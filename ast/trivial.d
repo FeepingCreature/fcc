@@ -24,7 +24,7 @@ bool isTrivial(Expr ex) {
   if (auto aibe = fastcast!(AsmIntBinopExpr) (ex)) {
     return isTrivial(aibe.e1) && isTrivial(aibe.e2);
   }
-  // logln("Not trivial: ", (cast(Object) ex).classinfo.name, " : ", ex);
+  // logln("Not trivial: "[], (cast(Object) ex).classinfo.name, " : "[], ex);
   return false;
 }
 

@@ -19,9 +19,9 @@ void fixupEBP(ref Iterable itr, Expr ebp) {
       else {
         auto type = var.valueType();
         // *type*:(void*:ebp + baseOffset)
-        auto nuex = new DerefExpr(
-          reinterpret_cast(new Pointer(type),
-            lookupOp("+",
+        auto nuex = fastalloc!(DerefExpr)(
+          reinterpret_cast(fastalloc!(Pointer)(type),
+            lookupOp("+"[],
               reinterpret_cast(voidp, ebp),
               mkInt(var.baseOffset)
             )
@@ -29,7 +29,7 @@ void fixupEBP(ref Iterable itr, Expr ebp) {
         );
         itr = fastcast!(Iterable) (nuex);
       }
-    } else if (auto r = fastcast!(Register!("ebp")) (itr)) {
+    } else if (auto r = fastcast!(Register!("ebp"[])) (itr)) {
       if (checkDup) needsDup = true;
       else itr = fastcast!(Iterable) (reinterpret_cast(r.valueType(), ebp));
     }
@@ -93,11 +93,10 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
       _body = as;
     }
   }
-  string entry() { return Format(".L", id, "_entry"); }
-  string exit() { return Format(".L", id, "_exit"); }
-  string toString() { return Format("scope(", framesize(), ") <- ", sup); }
-  this() { construct(); }
-  void construct() {
+  string entry() { return Format(".L"[], id, "_entry"[]); }
+  string exit() { return Format(".L"[], id, "_exit"[]); }
+  string toString() { return Format("scope("[], framesize(), "[]) <- "[], sup); }
+  this() {
     count = scope_count ++;
     // if (count == 3951) fail;
     id = getuid();
@@ -159,9 +158,9 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   // continuations good
   void delegate(bool onlyCleanup) delegate() open(AsmFile af) {
     lnsc.emitAsm(af);
-    // logln(lnsc.name, ":", lnsc.line, ": start(", count, ") ", this);
+    // logln(lnsc.name, ":"[], lnsc.line, ": start("[], count, "[]) "[], this);
     if (emitted) {
-      logln("double emit scope (", count, ") ", _body);
+      logln("double emit scope ("[], count, "[]) "[], _body);
       fail;
     }
     emitted = true;
@@ -169,10 +168,10 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     Dwarf2Section backup_sect;
     if (af.dwarf2) {
       auto dwarf2 = af.dwarf2;
-      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("lexical block"));
+      auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("lexical block"[]));
       backup_sect = dwarf2.current;
-      sect.data ~= qformat(".long\t", entry());
-      sect.data ~= qformat(".long\t", exit());
+      sect.data ~= qformat(".long\t"[], entry());
+      sect.data ~= qformat(".long\t"[], exit());
       dwarf2.open(sect);
     }
     if (needEntryLabel || af.dwarf2) af.emitLabel(entry(), !keepRegs, !isForward);
@@ -180,10 +179,10 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     namespace.set(this);
     // sanity checking
     if (requiredDepth != int.max && af.currentStackDepth != requiredDepth) {
-      logln("Scope emit failure: expected stack depth ", requiredDepth, ", but got ", af.currentStackDepth);
-      logln("was: ", requiredDepthDebug);
-      logln(" is: ", this);
-      logln("mew: ", _body);
+      logln("Scope emit failure: expected stack depth "[], requiredDepth, "[], but got "[], af.currentStackDepth);
+      logln("was: "[], requiredDepthDebug);
+      logln(" is: "[], this);
+      logln("mew: "[], _body);
       fail;
     }
     return stuple(checkpt, backup, this, af, backup_sect) /apply/

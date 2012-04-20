@@ -6,11 +6,9 @@ class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
   IType elemType;
   int length;
   this() { }
-  this(IType et, int len) { construct(et, len); }
-  void construct() { }
-  void construct(IType et, int len) { elemType = et; length = len; }
+  this(IType et, int len) { elemType = et; length = len; }
   override {
-    string toString() { return Format(elemType, "[", length, "] - %", alignment(), "%"); }
+    string toString() { return Format(elemType, "["[], length, "] - %"[], alignment(), "%"[]); }
     int size() {
       return length * elemType.size();
     }
@@ -19,7 +17,7 @@ class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
       return needsAlignment(elemType);
     }
     string mangle() {
-      return Format("Static_", length, "_of_", elemType.mangle());
+      return Format("Static_"[], length, "_of_"[], elemType.mangle());
     }
     int opEquals(IType ty) {
       ty = resolveType(ty);
@@ -33,10 +31,10 @@ class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
     }
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
       auto elemref = registerType(dwarf2, fastcast!(Dwarf2Encodable) (resolveType(elemType)));
-      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("array type"));
+      auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("array type"[]));
       with (sect) {
         data ~= elemref;
-        data ~= qformat(".int\t", size(), "\t/* static array size */");
+        data ~= qformat(".int\t"[], size(), "\t/* static array size */"[]);
       }
       return sect;
     }
@@ -50,19 +48,19 @@ static this() {
     Expr len_ex;
     {
       string hasToBeX;
-      if (!t2.gotIdentifier(hasToBeX) || hasToBeX != "x") return null;
+      if (!t2.gotIdentifier(hasToBeX) || hasToBeX != "x"[]) return null;
     }
-    if (!rest(t2, "tree.expr _tree.expr.arith", &len_ex)) return null;
+    if (!rest(t2, "tree.expr _tree.expr.arith"[], &len_ex)) return null;
     auto backup_len = len_ex;
     if (!gotImplicitCast(len_ex, (IType it) { return test(Single!(SysInt) == it); }))
-      t2.failparse("Need int for static array, not ", backup_len);
+      t2.failparse("Need int for static array, not "[], backup_len);
     opt(len_ex);
     auto len = foldex(len_ex);
     if (auto ie = fastcast!(IntExpr) (len)) {
       text = t2;
-      return new StaticArray(cur, ie.num);
+      return fastalloc!(StaticArray)(cur, ie.num);
     } else
-      t2.failparse("Need foldable constant for static array, not ", len);
+      t2.failparse("Need foldable constant for static array, not "[], len);
   };
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(StaticArray) (resolveType(ex.valueType()))) return null;
@@ -81,12 +79,12 @@ Object gotSALength(ref string text, ParseCb cont, ParseCb rest) {
     } else return null;
   };
 }
-mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length", null, ".length");
+mixin DefaultParser!(gotSALength, "tree.rhs_partial.static_array_length"[], null, ".length"[]);
 
 Expr getSAPtr(Expr sa) {
   auto vt = fastcast!(StaticArray) (resolveType(sa.valueType()));
   assert(!!fastcast!(CValue) (sa));
-  return reinterpret_cast(new Pointer(vt.elemType), new RefExpr(fastcast!(CValue) (sa)));
+  return reinterpret_cast(fastalloc!(Pointer)(vt.elemType), fastalloc!(RefExpr)(fastcast!(CValue) (sa)));
 }
 
 import ast.parse, ast.namespace, ast.int_literal, ast.pointer, ast.casting;
@@ -95,13 +93,13 @@ Object gotSAPointer(ref string text, ParseCb cont, ParseCb rest) {
     if (auto sa = fastcast!(StaticArray)~ ex.valueType()) {
       auto cv = fastcast!(CValue)~ ex;
       if (!cv) throw new Exception(
-        Format("Tried to reference non-cvalue for .ptr: ", ex)
+        Format("Tried to reference non-cvalue for .ptr: "[], ex)
       );
       return fastcast!(Object)~ getSAPtr(ex);
     } else return null;
   };
 }
-mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr", null, ".ptr");
+mixin DefaultParser!(gotSAPointer, "tree.rhs_partial.static_array_ptr"[], null, ".ptr"[]);
 
 ubyte[] takeEnd(ref ubyte[] ub, int b = 1) {
   auto res = ub[$-b .. $];
@@ -119,10 +117,10 @@ class DataExpr : CValue {
   this() { }
   mixin defaultIterate!();
   override {
-    DataExpr dup() { return new DataExpr(data); }
-    IType valueType() { return new StaticArray(Single!(Byte), data.length); }
+    DataExpr dup() { return fastalloc!(DataExpr)(data); }
+    IType valueType() { return fastalloc!(StaticArray)(Single!(Byte), data.length); }
     string toString() {
-      if (data.length > 128) return Format("[byte x", data.length, "]");
+      if (data.length > 128) return Format("[byte x"[], data.length, "]"[]);
       return Format(data);
     }
     void emitAsm(AsmFile af) {
@@ -136,22 +134,22 @@ class DataExpr : CValue {
         // sure?
         if (isARM) {
           int len = data.length;
-          af.mmove4("#0", "r0");
+          af.mmove4("#0"[], "r0"[]);
           while (len) {
             if (len >= 4) {
-              af.pushStack("r0", 4);
+              af.pushStack("r0"[], 4);
               len -= 4;
             } else if (len >= 2) {
-              af.pushStack("r0", 2);
+              af.pushStack("r0"[], 2);
               len -= 2;
             } else {
               af.salloc(1);
-              af.mmove1("r0", "[sp]");
+              af.mmove1("r0"[], "[sp]"[]);
               len --;
             }
           }
         } else {
-          af.pushStack(Format("$", 0), data.length); // better optimizable
+          af.pushStack(Format("$"[], 0), data.length); // better optimizable
         }
         // af.flush();
         // af.optimize = backup;
@@ -161,30 +159,30 @@ class DataExpr : CValue {
       while (d2.length >= 4) {
         auto i = (cast(int[]) d2.takeEnd(4))[0];
         if (isARM) {
-          af.mmove4(Format("#", i), "r0");
-          af.pushStack("r0", 4);
+          af.mmove4(Format("#"[], i), "r0"[]);
+          af.pushStack("r0"[], 4);
         } else {
-          af.pushStack(Format("$", i), 4);
+          af.pushStack(Format("$"[], i), 4);
         }
       }
       while (d2.length) {
         auto c = d2.takeEnd();
         if (isARM) {
           af.salloc(1);
-          af.mmove4(Format("#", c), "r0");
-          af.mmove1("r0", "[sp]");
+          af.mmove4(Format("#"[], c), "r0"[]);
+          af.mmove1("r0"[], "[sp]"[]);
         } else {
-          af.pushStack(Format("$", c), 1);
+          af.pushStack(Format("$"[], c), 1);
         }
       }
     }
     void emitLocation(AsmFile af) {
       if (!name_used) {
-        name_used = af.allocConstant(Format("data_", constants_id++), data);
+        name_used = af.allocConstant(Format("data_"[], constants_id++), data);
       }
       if (isARM) {
-        af.mmove4("="~name_used, "r0");
-        af.pushStack("r0", 4);
+        af.mmove4("="~name_used, "r0"[]);
+        af.pushStack("r0"[], 4);
       } else {
         af.pushStack("$"~name_used, nativePtrSize);
       }
@@ -200,14 +198,14 @@ class SALiteralExpr : Expr {
   mixin defaultIterate!(exs);
   IType type;
   override {
-    IType valueType() { return new StaticArray(type, exs.length); }
+    IType valueType() { return fastalloc!(StaticArray)(type, exs.length); }
     void emitAsm(AsmFile af) {
       // stack emit order: reverse!
       // TODO: Alignment.
       foreach_reverse (ex; exs)
         ex.emitAsm(af);
     }
-    string toString() { return Format("SA literal ", exs); }
+    string toString() { return Format("SA literal "[], exs); }
   }
 }
 
@@ -232,26 +230,26 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
   IType type;
   Expr ex;
   if (!t2.bjoin(
-    !!rest(t2, "tree.expr", &ex),
-    t2.accept(","),
+    !!rest(t2, "tree.expr"[], &ex),
+    t2.accept(","[]),
     {
       IType[] types;
       if (!type) type = ex.valueType();
       else if (!gotImplicitCast(ex, (IType it) { types ~= it; return test(it == type); }))
-        t2.failparse("Invalid SA literal member; none of ", types, " match ", type);
+        t2.failparse("Invalid SA literal member; none of "[], types, " match "[], type);
       if (auto ie = fastcast!(IntExpr)~ fold(ex)) statics ~= ie.num;
       else isStatic = false;
       exs ~= ex;
     }
-  )) t2.failparse("Failed to parse array literal");
-  if (!t2.accept("]"))
-    t2.failparse("Expected closing ']'");
+  )) t2.failparse("Failed to parse array literal"[]);
+  if (!t2.accept("]"[]))
+    t2.failparse("Expected closing ']'"[]);
   if (!exs.length)
     return null;
   text = t2;
   if (isStatic) {
-    return fastcast!(Object)~ reinterpret_cast(fastcast!(IType)~ new StaticArray(type, exs.length), fastcast!(CValue)~ new DataExpr(cast(ubyte[]) statics));
+    return fastcast!(Object)~ reinterpret_cast(fastcast!(IType)~ fastalloc!(StaticArray)(type, exs.length), fastcast!(CValue)~ fastalloc!(DataExpr)(cast(ubyte[]) statics));
   }
   return fastcast!(Object) (mkSALit(type, exs));
 }
-mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array", "52", "[");
+mixin DefaultParser!(gotSALiteral, "tree.expr.literal.array"[], "52"[], "["[]);

@@ -2,7 +2,7 @@ module ast.types;
 
 import tools.base: Stuple, take;
 
-import casts, dwarf2, asmfile, quickformat;
+import alloc, casts, dwarf2, asmfile, quickformat;
 
 interface IType {
   int size();
@@ -68,11 +68,11 @@ class Void_ : Type, Dwarf2Encodable {
     string toString() { return "void"; }
     bool canEncode() { return true; }
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
-      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+      auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("base type"[]));
       with (sect) {
         data ~= ".int\t0\t/* byte size */";
-        data ~= qformat(".byte\t", hex(DW.ATE_void), "\t/* void */");
-        data ~= dwarf2.strings.addString("void");
+        data ~= qformat(".byte\t"[], hex(DW.ATE_void), "\t/* void */"[]);
+        data ~= dwarf2.strings.addString("void"[]);
       }
       return sect;
     }
@@ -86,7 +86,7 @@ final class Variadic : Type {
   /// BAH
   // TODO: redesign parameter match system to account for automatic conversions in variadics.
   override string mangle() { return "variadic"; }
-  override ubyte[] initval() { assert(false, "Cannot declare variadic variable. "); } // wtf variadic variable?
+  override ubyte[] initval() { assert(false, "Cannot declare variadic variable. "[]); } // wtf variadic variable?
 }
 
 class Char_ : Type, Dwarf2Encodable {
@@ -96,11 +96,11 @@ class Char_ : Type, Dwarf2Encodable {
     bool isPointerLess() { return true; }
     bool canEncode() { return true; }
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
-      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+      auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("base type"[]));
       with (sect) {
         data ~= ".int\t1\t/* byte size */";
-        data ~= qformat(".byte\t", hex(DW.ATE_signed_char), "\t/* signed char */");
-        data ~= dwarf2.strings.addString("char");
+        data ~= qformat(".byte\t"[], hex(DW.ATE_signed_char), "\t/* signed char */"[]);
+        data ~= dwarf2.strings.addString("char"[]);
       }
       return sect;
     }
@@ -116,11 +116,11 @@ class Byte_ : Type, Dwarf2Encodable {
     bool isPointerLess() { return true; }
     bool canEncode() { return true; }
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
-      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+      auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("base type"[]));
       with (sect) {
         data ~= ".int\t1\t/* byte size */";
-        data ~= qformat(".byte\t", hex(DW.ATE_signed), "\t/* signed */");
-        data ~= dwarf2.strings.addString("byte");
+        data ~= qformat(".byte\t"[], hex(DW.ATE_signed), "\t/* signed */"[]);
+        data ~= dwarf2.strings.addString("byte"[]);
       }
       return sect;
     }
@@ -149,11 +149,11 @@ class SysInt_ : Type, Dwarf2Encodable {
   override bool isPointerLess() { return true; }
   override bool canEncode() { return true; }
   override Dwarf2Section encode(Dwarf2Controller dwarf2) {
-    auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+    auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("base type"[]));
     with (sect) {
       data ~= ".int\t4\t/* byte size */";
-      data ~= qformat(".byte\t", hex(DW.ATE_signed), "\t/* signed int */");
-      data ~= dwarf2.strings.addString("int");
+      data ~= qformat(".byte\t"[], hex(DW.ATE_signed), "\t/* signed int */"[]);
+      data ~= dwarf2.strings.addString("int"[]);
     }
     return sect;
   }
@@ -174,11 +174,11 @@ class Float_ : Type, Dwarf2Encodable {
     bool isPointerLess() { return true; }
     bool canEncode() { return true; }
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
-      auto sect = new Dwarf2Section(dwarf2.cache.getKeyFor("base type"));
+      auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("base type"[]));
       with (sect) {
         data ~= ".int\t4\t/* byte size */";
-        data ~= qformat(".byte\t", hex(DW.ATE_float), "\t/* float */");
-        data ~= dwarf2.strings.addString("float");
+        data ~= qformat(".byte\t"[], hex(DW.ATE_float), "\t/* float */"[]);
+        data ~= dwarf2.strings.addString("float"[]);
       }
       return sect;
     }
@@ -228,11 +228,11 @@ const string BasicTypeTable = `
 import parseBase, tools.ctfe: ctTableUnroll;
 Object gotBasicType(ref string text, ParseCb cont, ParseCb rest) {
   mixin(BasicTypeTable.ctTableUnroll(`
-    if (text.accept("$name")) return Single!($type);
+    if (text.accept("$name"[])) return Single!($type);
   `));
   return null;
 }
-mixin DefaultParser!(gotBasicType, "type.basic", "2");
+mixin DefaultParser!(gotBasicType, "type.basic"[], "2"[]);
 
 // postfix type modifiers
 IType delegate(ref string text, IType cur, ParseCb cont, ParseCb rest)[]
@@ -250,4 +250,4 @@ Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
   }
   return fastcast!(Object)~ type;
 }
-mixin DefaultParser!(gotExtType, "type.ext", "1");
+mixin DefaultParser!(gotExtType, "type.ext"[], "1"[]);

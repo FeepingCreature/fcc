@@ -34,7 +34,7 @@ static this() {
       if (!rci || Single!(SysInt) != rci.to) return null;
       
       auto aibe2 = fastcast!(AsmIntBinopExpr) (aibe.e2);
-      if (!aibe2 || aibe2.op != "*") return null;
+      if (!aibe2 || aibe2.op != "*"[]) return null;
       auto mulie = fastcast!(IntExpr) (aibe2.e2);
       if (!mulie || mulie.num != 4) return null;
       auto ic = fastcast!(RCE) (aibe2.e1);
@@ -58,7 +58,7 @@ static this() {
       
       auto cmp = fastcast!(Compare) (ce.cd);
       if (!cmp) return null;
-      // logln("salit ", salit.exs, " INDEX ", ce.cd);
+      // logln("salit "[], salit.exs, " INDEX "[], ce.cd);
       cmp = cmp.dup;
       cmp.falseOverride = salit.exs[0];
       cmp.trueOverride = salit.exs[1];
@@ -135,8 +135,8 @@ static this() {
       if (isStaticTrue (cd)) i2 = mkInt(1);
       if (isStaticFalse(cd)) i2 = mkInt(0);
     }
-    // logln("e1: ", e1, "  ", !!i1);
-    // logln("e2: ", e2, "  ", !!i2);
+    // logln("e1: "[], e1, "  "[], !!i1);
+    // logln("e2: "[], e2, "  "[], !!i2);
     if (!i1 || !i2) return null;
     bool result;
     if (cmp.smaller && i1.num < i2.num) result = true;
@@ -152,6 +152,6 @@ static this() {
       else if (False) res = False;
       else return null;
     }
-    return new ExprWrap(res);
+    return fastalloc!(ExprWrap)(res);
   };
 }

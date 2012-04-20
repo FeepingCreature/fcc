@@ -32,10 +32,10 @@ class Enum : Namespace, IType, Named, ExprLikeThingy {
     bool isComplete() { return true; }
     mixin TypeDefaults!(false, true);
     Object lookup(string name, bool local = false) {
-      if (name == "parse") {
+      if (name == "parse"[]) {
         return sup.lookup(getParseFunName());
       }
-      if (name == "toString") {
+      if (name == "toString"[]) {
         return sup.lookup(getToStringFunName());
       }
       foreach (i, n; names)
@@ -61,15 +61,15 @@ Object gotEnum(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
   if (!t2.gotIdentifier(name))
-    t2.failparse("Enum name expected! ");
+    t2.failparse("Enum name expected! "[]);
   IType base = Single!(SysInt);
-  if (t2.accept(":")) {
-    if (!rest(t2, "type", &base))
-      t2.failparse("Expected enum base type! ");
+  if (t2.accept(":"[])) {
+    if (!rest(t2, "type"[], &base))
+      t2.failparse("Expected enum base type! "[]);
   }
-  if (!t2.accept("{"))
-    t2.failparse("Expected opening bracket for enum. ");
-  auto en = new Enum(name, base);
+  if (!t2.accept("{"[]))
+    t2.failparse("Expected opening bracket for enum. "[]);
+  auto en = fastalloc!(Enum)(name, base);
   
   auto backup = namespace();
   namespace.set(en);
@@ -77,11 +77,11 @@ Object gotEnum(ref string text, ParseCb cont, ParseCb rest) {
   
   Expr val, one;
   if (Single!(Short) == base) {
-    val = new IntLiteralAsShort(mkInt(0));
-    one = new IntLiteralAsShort(mkInt(1));
+    val = fastalloc!(IntLiteralAsShort)(mkInt(0));
+    one = fastalloc!(IntLiteralAsShort)(mkInt(1));
   } else if (Single!(Byte) == base) {
-    val = new ShortAsByte(new IntLiteralAsShort(mkInt(0)));
-    one = new ShortAsByte(new IntLiteralAsShort(mkInt(1)));
+    val = fastalloc!(ShortAsByte)(fastalloc!(IntLiteralAsShort)(mkInt(0)));
+    one = fastalloc!(ShortAsByte)(fastalloc!(IntLiteralAsShort)(mkInt(1)));
   } else {
     val = mkInt(-1); // base-zero!
     one = mkInt(1);
@@ -90,22 +90,22 @@ Object gotEnum(ref string text, ParseCb cont, ParseCb rest) {
 grabIdentifier:
   string idname;
   if (!t2.gotIdentifier(idname))
-    t2.failparse("Expected enum member identifier");
-  if (t2.accept("=")) {
-    if (!rest(t2, "tree.expr", &val))
-      t2.failparse("Expected enum value expr");
+    t2.failparse("Expected enum member identifier"[]);
+  if (t2.accept("="[])) {
+    if (!rest(t2, "tree.expr"[], &val))
+      t2.failparse("Expected enum value expr"[]);
     auto backupval = val;
     if (!gotImplicitCast(val, (IType it) { return test(it == base); }))
-      t2.failparse("Enum value of ", backupval.valueType(), " did not match ",
+      t2.failparse("Enum value of "[], backupval.valueType(), " did not match "[],
                     base);
   } else {
-    val = foldex(lookupOp("+", val, one));
+    val = foldex(lookupOp("+"[], val, one));
   }
   en.addEntry(idname, val);
-  if (t2.accept(",")) goto grabIdentifier;
+  if (t2.accept(","[])) goto grabIdentifier;
   // end goto
-  if (!t2.accept("}"))
-    t2.failparse("Expected closing bracket");
+  if (!t2.accept("}"[]))
+    t2.failparse("Expected closing bracket"[]);
   text = t2;
   en.sup.add(en);
   
@@ -113,7 +113,7 @@ grabIdentifier:
     auto fun = new Function;
     New(fun.type);
     fun.type.ret = en;
-    fun.type.params ~= Argument(Single!(Array, Single!(Char)), "name");
+    fun.type.params ~= Argument(Single!(Array, Single!(Char)), "name"[]);
     fun.name = en.getParseFunName();
     fun.fixup;
     en.sup.add(fun);
@@ -123,16 +123,16 @@ grabIdentifier:
     namespace.set(fun);
     foreach (i, name2; en.names) {
       fun.addStatement(
-        iparse!(Statement, "enum_parse_branch", "tree.stmt")
+        iparse!(Statement, "enum_parse_branch"[], "tree.stmt"[])
               (`if (name == str) return enum: ex; `, fun,
-                "str", mkString(name2), "ex", en.values[i],
-                "enum", en)
+                "str"[], mkString(name2), "ex"[], en.values[i],
+                "enum"[], en)
       );
     }
     fun.addStatement(
-      iparse!(Statement, "enum_fail_branch", "tree.stmt")
+      iparse!(Statement, "enum_fail_branch"[], "tree.stmt"[])
             (`raise new Error "No such enum value in $myname: '$name'"; `, fun,
-              "myname", mkString(name))
+              "myname"[], mkString(name))
     );
   }
   
@@ -140,7 +140,7 @@ grabIdentifier:
     auto fun = new Function;
     New(fun.type);
     fun.type.ret = Single!(Array, Single!(Char));
-    fun.type.params ~= Argument(en, "value");
+    fun.type.params ~= Argument(en, "value"[]);
     fun.name = en.getToStringFunName();
     fun.fixup;
     en.sup.add(fun);
@@ -150,21 +150,21 @@ grabIdentifier:
     namespace.set(fun);
     foreach (i, name2; en.names) {
       fun.addStatement(
-        iparse!(Statement, "enum_tostring_branch", "tree.stmt")
+        iparse!(Statement, "enum_tostring_branch"[], "tree.stmt"[])
               (`if (value == ex) return str; `, fun,
-                "str", mkString(name2), "ex", en.values[i])
+                "str"[], mkString(name2), "ex"[], en.values[i])
       );
     }
     fun.addStatement(
-      iparse!(Statement, "enum_tostring_fail_branch", "tree.stmt")
+      iparse!(Statement, "enum_tostring_fail_branch"[], "tree.stmt"[])
             (`raise new Error "Invalid enum value for $myname: $value"; `, fun,
-              "myname", mkString(name))
+              "myname"[], mkString(name))
     );
   }
   
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotEnum, "tree.toplevel.enum", null, "enum");
+mixin DefaultParser!(gotEnum, "tree.toplevel.enum"[], null, "enum"[]);
 
 // enums cast implicitly to their base type
 // this can be useful when wrapping APIs
@@ -176,7 +176,7 @@ static this() {
     auto en = fastcast!(Enum) (vt);
     if (!en) return null;
     if (auto lv = fastcast!(LValue) (ex))
-      return new RCC(en.base, lv);
+      return fastalloc!(RCC)(en.base, lv);
     return reinterpret_cast(en.base, ex);
   };
 }

@@ -14,7 +14,7 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
       return null; // don't
   }
   
-  // logln("prop match for ", sup, " @", text.nextText());
+  // logln("prop match for "[], sup, " @"[], text.nextText());
   void check(Object sup, string text) {
     auto backup = lhs_partial();
     scope(exit) lhs_partial.set(backup);
@@ -26,10 +26,10 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
     while (true) {
       auto t3 = t2;
       // terminators
-      if (t3.accept("=") || t3.accept(")") || t3.accept("!=") || t3.accept("+") || t3.accept("/")) {
+      if (t3.accept("="[]) || t3.accept(")"[]) || t3.accept("!="[]) || t3.accept("+"[]) || t3.accept("/"[])) {
         break;
       }
-      if (!fastcast!(Function) (sup) && !fastcast!(OverloadSet) (sup) && t3.accept(";")) {
+      if (!fastcast!(Function) (sup) && !fastcast!(OverloadSet) (sup) && t3.accept(";"[])) {
         break;
       }
       string match = "tree.rhs_partial";
@@ -90,4 +90,4 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   });
   return res;
 }
-mixin DefaultParser!(gotProperties, "tree.expr.properties", "240");
+mixin DefaultParser!(gotProperties, "tree.expr.properties"[], "240"[]);

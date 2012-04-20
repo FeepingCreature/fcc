@@ -14,10 +14,10 @@ Expr mkTupleIndexAccess(Expr tuple, int pos, bool intendedForSplit = false) {
   else res = fastalloc!(MemberAccess_Expr)();
   res.base = reinterpret_cast(wrapped, tuple);
   res.intendedForSplit = intendedForSplit;
-  res.name = qformat("_", pos);
+  res.name = qformat("_"[], pos);
   
-  auto temps = wrapped.selectMap!(RelMember, "$");
-  if (pos >= temps.length) { logln("index access length violation: ", pos, " > ", temps.length, " for ", tuple); fail; }
+  auto temps = wrapped.selectMap!(RelMember, "$"[]);
+  if (pos >= temps.length) { logln("index access length violation: "[], pos, " > "[], temps.length, " for "[], tuple); fail; }
   res.stm = temps[pos];
   
   auto types = tup.types();
@@ -63,10 +63,10 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
         fail;
       }
       if (!namespace().get!(EmittingContext)) {
-        logln("no EmitCtx beneath ", namespace());
+        logln("no EmitCtx beneath "[], namespace());
       }
       if (namespace().get!(EmittingContext).isBeingEmat) {
-        logln("Too late to change stackframe via tmpizing!");
+        logln("Too late to change stackframe via tmpizing!"[]);
         fail;
       }
       // force allocation
@@ -89,7 +89,7 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
 
 import ast.parse, ast.fold, ast.int_literal, ast.namespace, ast.opers;
 static this() {
-  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+  defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
     Tuple tup;
     if (!gotImplicitCast(e1, (IType it) {
       tup = fastcast!(Tuple) (resolveType(it));
@@ -105,13 +105,13 @@ static this() {
     auto ie = fastcast!(IntExpr) (e2);
     if (!ie) {
       return null;
-      // throw new Exception(Format(e2, " could not be simplified to an int in tuple index access"));
+      // throw new Exception(Format(e2, " could not be simplified to an int in tuple index access"[]));
     }
     if (ie.num < 0 || ie.num !< count)
-      throw new Exception(Format(ie.num, " out of bounds for tuple access"));
+      throw new Exception(Format(ie.num, " out of bounds for tuple access"[]));
     return fastcast!(Expr) (mkTupleIndexAccess(e1, ie.num));
   });
-  defineOp("length", delegate Expr(Expr ex) {
+  defineOp("length"[], delegate Expr(Expr ex) {
     Tuple tup;
     if (!gotImplicitCast(ex, (IType it) {
       tup = fastcast!(Tuple) (resolveType(it));
@@ -124,7 +124,7 @@ static this() {
 
 import ast.iterator, ast.casting;
 static this() {
-  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+  defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
     auto tup = fastcast!(Tuple) (resolveType(e1.valueType()));
     if (!tup) return null;
     int count;
@@ -138,16 +138,16 @@ static this() {
       from = rish.getPos(e2),
       to   = rish.getEnd(e2);
     auto ifrom = fastcast!(IntExpr) (fold(from)), ito = fastcast!(IntExpr) (fold(to));
-    if (!ifrom || !ito) fail("fail");
+    if (!ifrom || !ito) fail("fail"[]);
     auto start = tup.wrapped.selectMember(ifrom.num).offset;
     if (ifrom.num == ito.num) {
       return mkTupleExpr();
     }
     auto restype = mkTuple(tup.wrapped.slice(ifrom.num, ito.num).types);
-    auto res = iparse!(Expr, "tuple_slice", "tree.expr")
+    auto res = iparse!(Expr, "tuple_slice"[], "tree.expr"[])
                       (`*restype*:(void*:&lv + base)`,
-                       "restype", restype, "lv", fastcast!(LValue)~ e1,
-                       "base", mkInt(start));
+                       "restype"[], restype, "lv"[], fastcast!(LValue)~ e1,
+                       "base"[], mkInt(start));
     return res;
   });
 }
@@ -171,8 +171,8 @@ class WithSpace : Namespace {
     string mangle(string name, IType type) { assert(false); }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) {
-      if (name == "that") {
-        if (!pureValue) throw new Exception("Oops. ");
+      if (name == "that"[]) {
+        if (!pureValue) throw new Exception("Oops. "[]);
         return fastcast!(Object) (pureValue);
       }
       foreach (i, space; spaces) {
@@ -201,7 +201,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Object obj) {
     {
       auto t2 = text;
-      if (!t2.accept("(")) return null;
+      if (!t2.accept("("[])) return null;
     }
     auto ex = fastcast!(Expr) (obj);
     Statement initLv;
@@ -211,32 +211,32 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
         if (fastcast!(Variable) (ex)) {
           // I guess we don't need to do anything in this case.
         } else if (auto lv = fastcast!(LValue) (ex)) {
-          ex = new DerefExpr(lvize(new RefExpr(lv), &initLv));
+          ex = fastalloc!(DerefExpr)(lvize(fastalloc!(RefExpr)(lv), &initLv));
         } else {
           if (namespace().get!(Scope)) {
             ex = lvize(ex, &initLv);
-            ex = new RCE(ex.valueType(), ex, true); // make sure it's treated as an expr!
+            ex = fastalloc!(RCE)(ex.valueType(), ex, true); // make sure it's treated as an expr!
           } else {
-            wte = new WithTempExpr(ex);
+            wte = fastalloc!(WithTempExpr)(ex);
             ex = wte.offs;
           }
         }
       }
       while (fastcast!(Pointer) (resolveType(ex.valueType())))
-        ex = new DerefExpr(ex);
+        ex = fastalloc!(DerefExpr)(ex);
     }
     
     Object fixup(Object obj) {
       if (!initLv) return obj;
       if (auto cd = fastcast!(Cond) (obj))
-        return new StatementAndCond(initLv, cd);
+        return fastalloc!(StatementAndCond)(initLv, cd);
       if (auto ex = fastcast!(Expr) (obj)) {
         // // TODO: fix function call tuple flattening so this is feasible again
         return fastcast!(Object) (mkStatementAndExpr(initLv, ex));
         // namespace().get!(Scope).addStatement(initLv);
         // return fastcast!(Object) (ex);
       }
-      logln("cannot fixup: unknown ", obj);
+      logln("cannot fixup: unknown "[], obj);
       fail;
     }
     
@@ -266,17 +266,17 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     if (!spaces.length)
       if (ex)
-        text.failparse("Not a [rel]namespace: type ", ex.valueType());
+        text.failparse("Not a [rel]namespace: type "[], ex.valueType());
       else
-        text.failparse("Not a [rel]namespace: obj ", obj.classinfo.name, ": ", obj);
+        text.failparse("Not a [rel]namespace: obj "[], obj.classinfo.name, ": "[], obj);
     
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    namespace.set(new WithSpace(spaces, ex, values));
+    namespace.set(fastalloc!(WithSpace)(spaces, ex, values));
     
     Object res;
-    if (!rest(text, "tree.expr _tree.expr.arith", &res) && !rest(text, "cond", &res))
-      text.failparse("Couldn't get with-tuple expr");
+    if (!rest(text, "tree.expr _tree.expr.arith"[], &res) && !rest(text, "cond"[], &res))
+      text.failparse("Couldn't get with-tuple expr"[]);
     /*if (auto rt = fastcast!(RefTuple) (res)) if (rt.mvs.length == 1) {
       auto lv2mv = fastcast!(LValueAsMValue) (rt.mvs[0]);
       if (lv2mv) return fixup(fastcast!(Object) (lv2mv.sup));
@@ -285,14 +285,14 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     res = fixup(res);
     if (wte) {
       auto rex = fastcast!(Expr) (res);
-      if (!rex) text.failparse("Bad: used non-expr in context where expr is sole viable option");
+      if (!rex) text.failparse("Bad: used non-expr in context where expr is sole viable option"[]);
       wte.superthing = rex;
       return wte;
     }
     else return res;
   };
 }
-mixin DefaultParser!(gotWithTupleExpr, "tree.rhs_partial.withtuple", null, ".");
+mixin DefaultParser!(gotWithTupleExpr, "tree.rhs_partial.withtuple"[], null, "."[]);
 
 static this() {
   /// 3.
@@ -340,24 +340,24 @@ static this() {
 }
 
 static this() {
-  defineOp("==", delegate Expr(Expr ex1, Expr ex2) {
+  defineOp("=="[], delegate Expr(Expr ex1, Expr ex2) {
     bool isTuple(IType it) { return !!fastcast!(Tuple) (resolveType(it)); }
     // if (!gotImplicitCast(ex1, &isTuple) || !gotImplicitCast(ex2, &isTuple))
     //   return null;
     auto tup1 = fastcast!(Tuple) (resolveType(ex1.valueType())), tup2 = fastcast!(Tuple) (resolveType(ex2.valueType()));
     if (!tup1 || !tup2) return null;
-    if (tup1 != tup2) throw new Exception(Format("Cannot compare: incompatible tuples, ", tup1, ", ", tup2));
+    if (tup1 != tup2) throw new Exception(Format("Cannot compare: incompatible tuples, "[], tup1, ", "[], tup2));
     return tmpize_maybe(ex1, delegate Expr(Expr ex1) {
       return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
         Cond res;
         auto ent1 = getTupleEntries(ex1), ent2 = getTupleEntries(ex2);
         foreach (i, se1; ent1) {
           auto se2 = ent2[i];
-          auto cmp = new ExprWrap(lookupOp("==", se1, se2));
+          auto cmp = fastalloc!(ExprWrap)(lookupOp("=="[], se1, se2));
           if (!res) res = cmp;
-          else res = new AndOp(res, cmp);
+          else res = fastalloc!(AndOp)(res, cmp);
         }
-        return new CondExpr(res);
+        return fastalloc!(CondExpr)(res);
       });
     });
   });

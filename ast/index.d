@@ -10,7 +10,7 @@ LValue getIndex(Expr array, Expr pos) {
     ptr = getSAPtr(array);
   else
     ptr = getArrayPtr(array);
-  return new DerefExpr(lookupOp("+", ptr, pos));
+  return fastalloc!(DerefExpr)(lookupOp("+", ptr, pos));
 }
 
 class SAIndexExpr : Expr {
@@ -18,15 +18,15 @@ class SAIndexExpr : Expr {
   this(Expr ex, Expr pos) { this.ex = ex; this.pos = pos; }
   mixin defaultIterate!(ex, pos);
   override {
-    string toString() { return Format(ex, "[", pos, "]"); }
-    SAIndexExpr dup() { return new SAIndexExpr(ex.dup, pos.dup); }
+    string toString() { return Format(ex, "["[], pos, "]"[]); }
+    SAIndexExpr dup() { return fastalloc!(SAIndexExpr)(ex.dup, pos.dup); }
     IType valueType() { return (fastcast!(StaticArray)~ ex.valueType()).elemType; }
     import ast.vardecl, ast.assign;
     void emitAsm(AsmFile af) {
       mkVar(af, valueType(), true, (Variable var) {
-        auto v2 = new Variable(ex.valueType(), null, boffs(ex.valueType(), af.currentStackDepth));
+        auto v2 = fastalloc!(Variable)(ex.valueType(), cast(string) null, boffs(ex.valueType(), af.currentStackDepth));
         ex.emitAsm(af);
-        (new Assignment(var, getIndex(v2, pos))).emitAsm(af);
+        (fastalloc!(Assignment)(var, getIndex(v2, pos))).emitAsm(af);
         af.sfree(ex.valueType().size);
       });
     }
@@ -44,10 +44,10 @@ static this() {
       return null;
     if (auto dcme = fastcast!(DontCastMeExpr) (e2)) e2 = dcme.sup;
     if (fastcast!(StaticArray) (e1v) && !fastcast!(CValue) (e1)) {
-      return new SAIndexExpr(e1, e2);
+      return fastalloc!(SAIndexExpr)(e1, e2);
     }
     if (fastcast!(Pointer)~ e1v)
-      return new DerefExpr(lookupOp("+", e1, e2));
+      return fastalloc!(DerefExpr)(lookupOp("+", e1, e2));
     return getIndex(e1, e2);
   });
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
@@ -98,10 +98,10 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     if (isArrayOrPtr)
-      namespace.set(new LengthOverride(backup, getArrayLength(ex)));
+      namespace.set(fastalloc!(LengthOverride)(backup, getArrayLength(ex)));
     
     if (t2.accept("]")) return null; // [] shortcut
-    if (rest(t2, "tree.expr", &pos) && t2.accept("]")) {
+    if (rest(t2, "tree.expr"[], &pos) && t2.accept("]")) {
       Expr res;
       try {
         res = lookupOp("index", true, ex, pos);
@@ -118,8 +118,8 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
           res = iparse!(Expr, "check_bound", "tree.expr")
                        (`*bounded_array_access(ex, pos, info)`,
                         namespace(),
-                        "ex", ex, "pos", pos, "info", mkString(info),
-                        "bounded_array_access", sysmod.lookup("bounded_array_access"));
+                        "ex"[], ex, "pos"[], pos, "info"[], mkString(info),
+                        "bounded_array_access"[], sysmod.lookup("bounded_array_access"[]));
         }
         text = t2;
       } catch (Exception ex) text.failparse(ex);
@@ -136,11 +136,11 @@ class PA_Access : LValue {
   mixin DefaultDup!();
   mixin defaultIterate!(ptr, pos);
   override {
-    string toString() { return Format(ptr, "[", pos, "]"); }
+    string toString() { return Format(ptr, "["[], pos, "]"[]); }
     IType valueType() { return (fastcast!(Pointer)~ ptr.valueType()).target; }
     // TODO generic case
     void emitAsm(AsmFile af) {
-      (new DerefExpr(lookupOp("+", ptr, pos))).emitAsm(af);
+      (fastalloc!(DerefExpr)(lookupOp("+", ptr, pos))).emitAsm(af);
     }
     void emitLocation(AsmFile af) {
       (lookupOp("+", ptr, pos)).emitAsm(af);
@@ -154,7 +154,7 @@ Object gotPointerIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     auto t2 = text;
     Expr pos;
     
-    if (rest(t2, "tree.expr", &pos) && t2.accept("]")) {
+    if (rest(t2, "tree.expr"[], &pos) && t2.accept("]")) {
       if (fastcast!(RangeIsh)~ pos.valueType()) return null; // belongs to slice
       if (pos.valueType().size() != 4) throw new Exception(Format("Invalid index: ", pos));
       text = t2;

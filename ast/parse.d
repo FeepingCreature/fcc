@@ -5,12 +5,12 @@ import tools.base: min, swap, apply, New, slice, stuple;
 public import parseBase;
 
 Object gotToplevel(ref string text, ParseCb cont, ParseCb rest) {
-  if (auto res = rest(text, "tree.fundef")) return res;
-  if (auto res = rest(text, "tree.typedef")) return res;
-  if (auto res = rest(text, "tree.import")) return res;
+  if (auto res = rest(text, "tree.fundef"[])) return res;
+  if (auto res = rest(text, "tree.typedef"[])) return res;
+  if (auto res = rest(text, "tree.import"[])) return res;
   return null;
 }
-mixin DefaultParser!(gotToplevel, "tree.toplevel");
+mixin DefaultParser!(gotToplevel, "tree.toplevel"[]);
 
 TLS!(Object) _lhs_partial;
 static this() {
@@ -33,7 +33,7 @@ struct lhs_partial {
 
 static this() {
   int ignore; // leak memory .. meh
-  globalStateMatchers ~= matchrule("tree.rhs_partial", ignore);
+  globalStateMatchers ~= matchrule("tree.rhs_partial"[], ignore);
 }
 
 class ExprStatement : LineNumberedStatementClass {
@@ -49,19 +49,19 @@ class ExprStatement : LineNumberedStatementClass {
     scope(success) af.restoreCheckptStack(cs);
     auto type = ex.valueType(), size = (Single!(Void) == type)?0:type.size;
     alignStackFor(type, af);
-    mixin(mustOffset("size"));
+    mixin(mustOffset("size"[]));
     ex.emitAsm(af);
   }
 }
 
 Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto backup = text;
-  if (auto obj = rest(text, "tree.semicol_stmt")) {
-    text.mustAcceptTerminatorSoft(Format("Missing semicolon to terminate ", obj));
-    // logln("obj = ", (cast(Object) obj).classinfo.name, ", ", obj);
+  if (auto obj = rest(text, "tree.semicol_stmt"[])) {
+    text.mustAcceptTerminatorSoft(Format("Missing semicolon to terminate "[], obj));
+    // logln("obj = "[], (cast(Object) obj).classinfo.name, ", "[], obj);
     if (auto lns = fastcast!(LineNumberedStatement) (obj))
       lns.configPosition(backup);
     return obj;
   } else return null;
 }
-mixin DefaultParser!(gotSemicolStmt, "tree.stmt.semicolonized", "5");
+mixin DefaultParser!(gotSemicolStmt, "tree.stmt.semicolonized"[], "5"[]);

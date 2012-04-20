@@ -53,7 +53,7 @@ class WhileStatement : Statement, Breakable {
       af.jump(start);
       af.emitLabel(done, !keepRegs, isForward);
     }
-    string toString() { return Format("while(", cond, ") { ", _body._body, "}"); }
+    string toString() { return Format("while("[], cond, "[]) { "[], _body._body, "}"[]); }
   }
 }
 
@@ -61,10 +61,10 @@ import ast.aggregate;
 Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool isStatic;
-  if (t2.accept("static")) isStatic = true;
+  if (t2.accept("static"[])) isStatic = true;
   bool forMode;
-  if (!t2.accept("while")) {
-    if (!t2.accept("for"))
+  if (!t2.accept("while"[])) {
+    if (!t2.accept("for"[]))
       return null;
     forMode = true;
     assert(!isStatic);
@@ -76,9 +76,9 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   ws.sup = sc;
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
-  if (!rest(t2, "cond", &ws.cond)) {
+  if (!rest(t2, "cond"[], &ws.cond)) {
     if (forMode) return null;
-    t2.failparse("Couldn't parse while cond");
+    t2.failparse("Couldn't parse while cond"[]);
   }
   configure(ws.cond);
   ws.insideGuards = sc.getGuards();
@@ -89,23 +89,23 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   if (isStatic) {
     auto aggr = fastcast!(AggrStatement)(sc._body);
-    if (!aggr) fail(Format("Malformed static while: ", sc._body));
+    if (!aggr) fail(Format("Malformed static while: "[], sc._body));
     if (!fastcast!(VarDecl) (aggr.stmts[0]))
-      fail(Format("Malformed static while (2): ", aggr.stmts));
+      fail(Format("Malformed static while (2): "[], aggr.stmts));
     aggr.stmts = null; // remove loop variable declaration/s
     
     auto backupfield = sc.field;
     Expr iter_expr;
     if (auto ilc = fastcast!(IterLetCond!(LValue)) (ws.cond)) iter_expr = ilc.iter;
     if (auto imc = fastcast!(IterLetCond!(MValue)) (ws.cond)) iter_expr = imc.iter;
-    if (!iter_expr) fail("Could not interpret static-loop expression");
+    if (!iter_expr) fail("Could not interpret static-loop expression"[]);
     
     auto iter = fastcast!(RichIterator) (iter_expr.valueType());
-    if (!iter) fail("static-loop expression not an iteratr! ");
+    if (!iter) fail("static-loop expression not an iteratr! "[]);
     
     auto len = fastcast!(IntExpr)~ foldex(iter.length(iter_expr));
-    // logln("foldex length is ", foldex(iter.length(iter_expr)));
-    if (!len) fail("static-loop iterator length is not constant int! ");
+    // logln("foldex length is "[], foldex(iter.length(iter_expr)));
+    if (!len) fail("static-loop iterator length is not constant int! "[]);
     string t3;
     for (int i = 0; i < len.num; ++i) {
       auto ival = foldex(iter.index(iter_expr, mkInt(i)));
@@ -119,8 +119,8 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
       pushCache; // same code is parsed multiple times - do not cache!
       scope(exit) popCache;
       Scope sc2;
-      if (!rest(t4, "tree.scope", &sc2)) {
-        t4.failparse("Couldn't parse during static-while expansion! ");
+      if (!rest(t4, "tree.scope"[], &sc2)) {
+        t4.failparse("Couldn't parse during static-while expansion! "[]);
       }
       if (!t3) t3 = t4;
       else assert(t3 is t4);
@@ -129,9 +129,9 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     }
     t2 = t3;
   } else {
-    if (!rest(t2, "tree.scope", &ws._body)) {
+    if (!rest(t2, "tree.scope"[], &ws._body)) {
       if (forMode) return null;
-      t2.failparse("Couldn't parse while body");
+      t2.failparse("Couldn't parse while body"[]);
     }
     sc.addStatement(ws);
   }
@@ -139,7 +139,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   sc.rebuildCache;
   return sc;
 }
-mixin DefaultParser!(gotWhileStmt, "tree.stmt.while", "141");
+mixin DefaultParser!(gotWhileStmt, "tree.stmt.while"[], "141"[]);
 
 import tools.log;
 class ForStatement : Statement, Breakable {
@@ -155,7 +155,7 @@ class ForStatement : Statement, Breakable {
     scope(exit)
       af.restoreCheckptStack(backup);
     
-    // logln("start depth is ", af.currentStackDepth);
+    // logln("start depth is "[], af.currentStackDepth);
     decl.emitAsm(af);
     
     continueDepth = breakDepth = af.currentStackDepth;
@@ -177,13 +177,13 @@ class ForStatement : Statement, Breakable {
 import ast.namespace;
 Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  if (!t2.accept("(")) return null;
+  if (!t2.accept("("[])) return null;
   auto fs = new ForStatement, check = namespace().getCheckpt();
   auto sl = namespace().get!(ScopeLike);
   fs.outsideGuards = sl.getGuards();
-  if (rest(t2, "tree.stmt.vardecl", &fs.decl) &&
-      rest(t2, "cond", &fs.cond) && (configure(fs.cond), true) && t2.accept(";") &&
-      rest(t2, "tree.semicol_stmt", &fs.step) && t2.accept(")")
+  if (rest(t2, "tree.stmt.vardecl"[], &fs.decl) &&
+      rest(t2, "cond"[], &fs.cond) && (configure(fs.cond), true) && t2.accept(";"[]) &&
+      rest(t2, "tree.semicol_stmt"[], &fs.step) && t2.accept(")"[])
     )
   {
     fs.insideGuards = sl.getGuards();
@@ -192,15 +192,15 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
     *breakable_context.ptr() = stuple(fastcast!(Breakable)(fs), namespace().get!(Function));
     scope(exit) *breakable_context.ptr() = brbackup;
     
-    if (!rest(t2, "tree.scope", &fs._body))
-      t2.failparse("Failed to parse 'for' body");
+    if (!rest(t2, "tree.scope"[], &fs._body))
+      t2.failparse("Failed to parse 'for' body"[]);
     
     text = t2;
     namespace().setCheckpt(check);
     return fs;
-  } else t2.failparse("Failed to parse 'for' statement");
+  } else t2.failparse("Failed to parse 'for' statement"[]);
 }
-mixin DefaultParser!(gotForStmt, "tree.stmt.for", "142", "for");
+mixin DefaultParser!(gotForStmt, "tree.stmt.for"[], "142"[], "for"[]);
 
 class DoWhileExt : Statement {
   Scope first, second;
@@ -208,7 +208,7 @@ class DoWhileExt : Statement {
   mixin DefaultDup!();
   mixin defaultIterate!(first, second, cond);
   override void emitAsm(AsmFile af) {
-    mixin(mustOffset("0"));
+    mixin(mustOffset("0"[]));
     first.needEntryLabel = true;
     auto fdg = first.open(af)(); // open and body
     auto atJump = af.checkptStack();
@@ -230,24 +230,24 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   
-  if (!rest(t2, "tree.scope", &dw.first))
-    t2.failparse("Couldn't parse scope after do");
+  if (!rest(t2, "tree.scope"[], &dw.first))
+    t2.failparse("Couldn't parse scope after do"[]);
   auto backup = namespace();
   namespace.set(dw.first);
   scope(exit) namespace.set(backup);
-  if (!t2.accept("while")) return null; // not a do/while extloop
+  if (!t2.accept("while"[])) return null; // not a do/while extloop
   
-  if (!rest(t2, "cond", &dw.cond))
-    t2.failparse("Could not match do/while cond");
+  if (!rest(t2, "cond"[], &dw.cond))
+    t2.failparse("Could not match do/while cond"[]);
   configure(dw.cond);
   
-  if (!rest(t2, "tree.scope", &dw.second))
-    t2.failparse("do/while extended second scope not matched");
+  if (!rest(t2, "tree.scope"[], &dw.second))
+    t2.failparse("do/while extended second scope not matched"[]);
   text = t2;
   sc.addStatement(dw);
   return sc;
 }
-mixin DefaultParser!(gotDoWhileExtStmt, "tree.stmt.do_while_ext", "143", "do");
+mixin DefaultParser!(gotDoWhileExtStmt, "tree.stmt.do_while_ext"[], "143"[], "do"[]);
 
 class ExecGuardsAndJump : Statement {
   Statement[] guards;
@@ -255,7 +255,7 @@ class ExecGuardsAndJump : Statement {
   bool modeContinue;
   Breakable brk;
   mixin defaultIterate!();
-  mixin MyThis!("guards, offsets, modeContinue, brk");
+  mixin MyThis!("guards, offsets, modeContinue, brk"[]);
   override {
     ExecGuardsAndJump dup() {
       return this; // no mutable parts, no iteration
@@ -288,17 +288,17 @@ Object gotContinueOrBreak(bool gotContinue)(ref string text, ParseCb cont, Parse
   auto brc = *breakable_context.ptr();
   auto fun = namespace().get!(Function);
   if (fun !is brc._1 || !brc._0)
-    text.failparse("No continue-capable context found!");
+    text.failparse("No continue-capable context found!"[]);
   auto sl = namespace().get!(ScopeLike);
   auto guards = sl.getGuards();
   auto guards2 = gotContinue?brc._0.getInsideGuards():brc._0.getOutsideGuards();
   if (guards2.length > guards.length)
-    text.failparse("Invalid guard structure: ", guards, " vs. ", guards2);
+    text.failparse("Invalid guard structure: "[], guards, " vs. "[], guards2);
   foreach (i, guard; guards2)
     if (guard !is guards2[i])
-      text.failparse("Invalid guard structure: ", guards, " vs. ", guards2, " at ", i);
+      text.failparse("Invalid guard structure: "[], guards, " vs. "[], guards2, " at "[], i);
   auto gos = sl.getGuardOffsets();
-  return new ExecGuardsAndJump(guards[guards2.length .. $], gos[guards2.length .. $], gotContinue, brc._0);
+  return fastalloc!(ExecGuardsAndJump)(guards[guards2.length .. $], gos[guards2.length .. $], gotContinue, brc._0);
 }
-mixin DefaultParser!(gotContinueOrBreak!(true), "tree.semicol_stmt.continue", "341", "continue");
-mixin DefaultParser!(gotContinueOrBreak!(false), "tree.semicol_stmt.break", "342", "break");
+mixin DefaultParser!(gotContinueOrBreak!(true), "tree.semicol_stmt.continue"[], "341"[], "continue"[]);
+mixin DefaultParser!(gotContinueOrBreak!(false), "tree.semicol_stmt.break"[], "342"[], "break"[]);

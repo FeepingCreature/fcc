@@ -6,7 +6,7 @@ bool gotDouble(ref string text, ref double d) {
   auto t2 = text;
   bool neg;
   t2.eatComments();
-  if (t2.accept("-")) { neg = true; }
+  if (t2.accept("-"[])) { neg = true; }
   d = 0;
   bool isDigit(char c) { return c >= '0' && c <= '9'; }
   while (t2.length) {

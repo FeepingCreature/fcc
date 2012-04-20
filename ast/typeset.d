@@ -4,7 +4,7 @@ import ast.base, ast.types, ast.tuples, ast.casting, ast.vardecl, ast.tuple_acce
 
 class Typeset : Type, RelNamespace {
   Tuple tup;
-  mixin MyThis!("tup");
+  mixin MyThis!("tup"[]);
   override {
     int size() { return tup.size; }
     ubyte[] initval() { return tup.initval; }
@@ -13,7 +13,7 @@ class Typeset : Type, RelNamespace {
       if (!tys) return false;
       return tup == tys.tup;
     }
-    string toString() { return Format("<", tup.types(), ">"); }
+    string toString() { return Format("<"[], tup.types(), ">"[]); }
     string mangle() { return "typeset_over_"~tup.mangle(); }
     bool isTempNamespace() { return false; }
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
@@ -77,17 +77,17 @@ Object gotTypeset(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
   Tuple tup;
-  // if (!rest(t2, "type.tuple", &tup))
-  //   t2.failparse("Tuple expected");
+  // if (!rest(t2, "type.tuple"[], &tup))
+  //   t2.failparse("Tuple expected"[]);
   IType[] typelist;
-  if (!t2.accept("<")) return null;
+  if (!t2.accept("<"[])) return null;
   while (true) {
-    if (t2.accept(">")) break;
-    if (typelist.length) if (!t2.accept(",")) return null;
+    if (t2.accept(">"[])) break;
+    if (typelist.length) if (!t2.accept(","[])) return null;
     IType ty;
-    if (!rest(t2, "type", &ty)) {
+    if (!rest(t2, "type"[], &ty)) {
       if (typelist.length) // definitely a typeset wanted
-        t2.failparse("type expected");
+        t2.failparse("type expected"[]);
       else
         return null;
     }
@@ -95,6 +95,6 @@ Object gotTypeset(ref string text, ParseCb cont, ParseCb rest) {
   }
   tup = mkTuple(typelist);
   text = t2;
-  return new Typeset(tup);
+  return fastalloc!(Typeset)(tup);
 }
-mixin DefaultParser!(gotTypeset, "type.set", "61");
+mixin DefaultParser!(gotTypeset, "type.set"[], "61"[]);

@@ -12,11 +12,11 @@ const string EXT = ".nt";
 string path_prefix, platform_prefix;
 
 bool isWindoze() {
-  return platform_prefix.find("mingw") != -1;
+  return platform_prefix.find("mingw"[]) != -1;
 }
 
 bool isARM() {
-  return !!platform_prefix.startsWith("arm-");
+  return !!platform_prefix.startsWith("arm-"[]);
 }
 
 version(Windows) static this() { platform_prefix = "i686-mingw32-"; }
@@ -73,7 +73,6 @@ void configure(Iterable it) {
 
 template MyThis(string S) {
   mixin(This_fn(rmSpace!(S)));
-  mixin(("\n" ~ This_fn(rmSpace!(S))).ctReplace("\nthis", "void construct").ctReplace("super", "super.construct"));
   private this() { }
 }
 
@@ -254,8 +253,8 @@ class Register(string Reg) : Expr, IRegister {
   mixin defaultIterate!();
   override IType valueType() { return Single!(SysInt); }
   override void emitAsm(AsmFile af) {
-    if (isARM && Reg == "ebp") {
-      af.pushStack("fp", 4);
+    if (isARM && Reg == "ebp"[]) {
+      af.pushStack("fp"[], 4);
       return;
     }
     af.pushStack("%"~Reg, 4);
@@ -300,9 +299,9 @@ string mustOffset(string value, string _hash = null) {
   return (`
     auto OFFS = af.currentStackDepth;
     scope(success) if (af.currentStackDepth != OFFS + `~value~`) {
-      logln("Stack offset violated: got ", af.currentStackDepth, "; expected ", OFFS, " + ", `~value~`);
+      logln("Stack offset violated: got "[], af.currentStackDepth, "; expected "[], OFFS, " + "[], `~value~`);
       fail();
-    }`).ctReplace("\n", "", "OFFS", hash); // fix up line numbers!
+    }`).ctReplace("\n"[], ""[], "OFFS"[], hash); // fix up line numbers!
 }
 
 class CallbackExpr : Expr, HasInfo {
@@ -317,7 +316,7 @@ class CallbackExpr : Expr, HasInfo {
     string getInfo() { return info; }
     IType valueType() { return type; }
     void emitAsm(AsmFile af) { dg(ex, af); }
-    string toString() { return Format("callback<", ex, ">"); }
+    string toString() { return Format("callback<"[], ex, ">"[]); }
     mixin defaultIterate!(ex);
   }
   private this() { }
@@ -394,15 +393,15 @@ template StatementAndT(T) {
       sae_markercheck(marker);
       if (once) {
         if (permissive) return false;
-        logln("Double emit ", marker, " ", this, ". NOT SAFE. ");
+        logln("Double emit "[], marker, " "[], this, ". NOT SAFE. "[]);
         fail;
       }
       once = true;
       return true;
     }
     override {
-      string toString() { return Format(NAME, " ", marker, "{", first, second, "}"); }
-      StatementAndT dup() { return new StatementAndT(first.dup, second.dup); }
+      string toString() { return Format(NAME, " "[], marker, "{"[], first, second, "}"[]); }
+      StatementAndT dup() { return fastalloc!(StatementAndT)(first.dup, second.dup); }
       IType valueType() { return second.valueType(); }
       void emitAsm(AsmFile af) {
         sae_debugme(this);
@@ -428,10 +427,10 @@ alias StatementAndT!(MValue) StatementAndMValue;
 Expr mkStatementAndExpr(Statement st, Expr ex, bool permissive = false) {
   if (!st) return ex; // convenience
   if (auto mv = fastcast!(MValue) (ex))
-    return new StatementAndMValue(st, mv, permissive);
+    return fastalloc!(StatementAndMValue)(st, mv, permissive);
   if (auto lv = fastcast!(LValue) (ex))
-    return new StatementAndLValue(st, lv, permissive);
-  return new StatementAndExpr(st, ex, permissive);
+    return fastalloc!(StatementAndLValue)(st, lv, permissive);
+  return fastalloc!(StatementAndExpr)(st, ex, permissive);
 }
 
 Statement unrollSAE(ref Expr ex) {
@@ -455,8 +454,8 @@ class PlaceholderToken : Expr, HasInfo {
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { logln("DIAF ", info, " of ", type); fail; assert(false); }
-    string toString() { return Format("PlaceholderToken(", info, ")"); }
+    void emitAsm(AsmFile af) { logln("DIAF "[], info, " of "[], type); fail; assert(false); }
+    string toString() { return Format("PlaceholderToken("[], info, ")"[]); }
     string getInfo() { return info; }
   }
 }
@@ -465,7 +464,7 @@ class PlaceholderTokenLV : PlaceholderToken, LValue {
   PlaceholderTokenLV dup() { return this; }
   this(IType type, string info) { super(type, info); }
   override void emitLocation(AsmFile af) { assert(false); }
-  override string toString() { return Format("PlaceholderLV(", info, ")"); }
+  override string toString() { return Format("PlaceholderLV("[], info, ")"[]); }
 }
 
 interface ForceAlignment {
@@ -541,7 +540,7 @@ template logSmart(bool Mode) {
       if (faststreq(text, prevLogLine)) return;
     }
     int col;
-    tools.log.log("\r");
+    tools.log.log("\r"[]);
     version(Windows) { col = 80; }
     else {
       winsize ws;
@@ -550,10 +549,10 @@ template logSmart(bool Mode) {
     }
     string empty;
     for (int i = 0; i < col - 1; ++i) empty ~= " ";
-    tools.log.log("\r", empty, "\r");
+    tools.log.log("\r"[], empty, "\r"[]);
     tools.log.log(text);
-    if (Mode) tools.log.log("\r");
-    else tools.log.log("\n");
+    if (Mode) tools.log.log("\r"[]);
+    else tools.log.log("\n"[]);
     fflush(stdin);
   }
 }
@@ -593,7 +592,7 @@ void registerClass(string modname, Object obj) {
 }
 
 static this() {
-  registerClass("ast.base", new Register!("ebp"));
+  registerClass("ast.base"[], new Register!("ebp"[]));
 }
 
 bool function(Expr) isTrivial;
@@ -631,7 +630,7 @@ interface Dependency {
 
 extern(C) int atoi(char*);
 int my_atoi(string s) {
-  auto mew = qformat(s, "\x00");
+  auto mew = qformat(s, "\x00"[]);
   return atoi(mew.ptr);
 }
 
@@ -642,42 +641,42 @@ class NamedNull : NoOp, Named, SelfAdding {
 
 void armpush(AsmFile af, string base, int size, int offset = 0) {
   if (size == 1) {
-    af.mmove1(qformat("[", base, ", #", offset, "]"), "r0");
+    af.mmove1(qformat("["[], base, "[], #"[], offset, "]"[]), "r0"[]);
     af.salloc(1);
-    af.mmove1("r0", "[sp]"); // full stack
+    af.mmove1("r0"[], "[sp]"[]); // full stack
     return;
   }
   if (size == 2) {
-    af.mmove2(qformat("[", base, ", #", offset, "]"), "r0");
+    af.mmove2(qformat("["[], base, "[], #"[], offset, "]"[]), "r0"[]);
     af.salloc(2);
-    af.mmove2("r0", "[sp]"); // full stack
+    af.mmove2("r0"[], "[sp]"[]); // full stack
     return;
   }
-  if (size % 4 || !size) { logln("!! ", size); fail; }
+  if (size % 4 || !size) { logln("!! "[], size); fail; }
   for (int i = size / 4 - 1; i >= 0; --i) {
-    af.mmove4(qformat("[", base, ", #", offset + i * 4, "]"), "r0");
-    af.pushStack("r0", 4);
+    af.mmove4(qformat("["[], base, "[], #"[], offset + i * 4, "]"[]), "r0"[]);
+    af.pushStack("r0"[], 4);
   }
 }
 
 void armpop(AsmFile af, string base, int size, int offset = 0) {
-  if (base == "r0") { logln("bad register use"); fail; }
+  if (base == "r0"[]) { logln("bad register use"[]); fail; }
   if (size == 1) {
-    af.mmove1("[sp]", "r0");
+    af.mmove1("[sp]"[], "r0"[]);
     af.sfree(1);
-    af.mmove1("r0", qformat("[", base, ", #", offset, "]"));
+    af.mmove1("r0"[], qformat("["[], base, "[], #"[], offset, "]"[]));
     return;
   }
   if (size == 2) {
-    af.mmove2("[sp]", "r0");
+    af.mmove2("[sp]"[], "r0"[]);
     af.sfree(2);
-    af.mmove2("r0", qformat("[", base, ", #", offset, "]"));
+    af.mmove2("r0"[], qformat("["[], base, "[], #"[], offset, "]"[]));
     return;
   }
-  if (size % 4 || !size) { logln("!! ", size); fail; }
+  if (size % 4 || !size) { logln("!! "[], size); fail; }
   for (int i = 0; i < size / 4; ++i) {
-    af.popStack("r0", 4);
-    af.mmove4("r0", qformat("[", base, ", #", offset + i * 4, "]"));
+    af.popStack("r0"[], 4);
+    af.mmove4("r0"[], qformat("["[], base, "[], #"[], offset + i * 4, "]"[]));
   }
 }
 extern(C) void printThing(AsmFile af, string s, Expr ex);
@@ -699,17 +698,17 @@ class OffsetExpr : LValue {
   override {
     string toString() {
       if (offset == int.max)
-        return Format("open offset<", type, ">");
-      return Format("offset<", type, "> at ", offset);
+        return Format("open offset<"[], type, ">"[]);
+      return Format("offset<"[], type, "> at "[], offset);
     }
     OffsetExpr dup() { return this; } // can't dup, is a marker
     IType valueType() { return type; }
     void emitAsm(AsmFile af) {
       if (offset == int.max) fail;
       if (isARM) {
-        armpush(af, "fp", type.size, offset);
+        armpush(af, "fp"[], type.size, offset);
       } else {
-        af.pushStack(qformat(offset, "(%ebp)"), type.size);
+        af.pushStack(qformat(offset, "(%ebp)"[]), type.size);
       }
     }
     void emitLocation(AsmFile af) {
@@ -754,7 +753,7 @@ interface ModifiesName {
 }
 
 bool readIndexShorthand(string name, ref int i) {
-  auto idxstr = name.startsWith("_");
+  auto idxstr = name.startsWith("_"[]);
   if (!idxstr) return false;
   auto idx = my_atoi(idxstr);
   if (idxstr != Format(idx))

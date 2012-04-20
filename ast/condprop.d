@@ -8,7 +8,7 @@ import
 Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto nullthing = fastcast!(Expr) (sysmod.lookup("null"));
+    auto nullthing = fastcast!(Expr) (sysmod.lookup("null"[]));
     auto evt = ex.valueType();
     
     auto testthing = nullthing;
@@ -19,15 +19,15 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
       auto proprest_obj = getProperties(t2, fastcast!(Object) (base), true, true, cont, rest);
       auto proprest = fastcast!(Expr) (proprest_obj);
       if (!proprest_obj || !proprest)
-        t2.failparse("couldn't get continuing property for ", base, " - ", proprest_obj);
+        t2.failparse("couldn't get continuing property for "[], base, " - "[], proprest_obj);
       Expr elsecase;
-      if (t2.accept(":")) {
-        if (!rest(t2, "tree.expr _tree.expr.arith", &elsecase))
-          t2.failparse("Else property expected");
+      if (t2.accept(":"[])) {
+        if (!rest(t2, "tree.expr _tree.expr.arith"[], &elsecase))
+          t2.failparse("Else property expected"[]);
       }
       auto prvt = proprest.valueType();
       if (elsecase && elsecase.valueType() != prvt) {
-        t2.failparse("Mismatched types: ", prvt, " and ", elsecase.valueType());
+        t2.failparse("Mismatched types: "[], prvt, " and "[], elsecase.valueType());
       }
       
       oe.type = prvt;
@@ -41,20 +41,20 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
       ifs.wrapper.requiredDepth += ifs.wrapper.pad_framesize;
       // namespace.set(ifs.wrapper);
       // scope(exit) namespace.set(ifs.wrapper.sup);
-      ifs.test = iparse!(Cond, "cp_cond", "cond")
-                        (`base`, "base", base);
+      ifs.test = iparse!(Cond, "cp_cond"[], "cond"[])
+                        (`base`, "base"[], base);
       configure(ifs.test);
       
       Expr res;
       if (isVoid) {
-        ifs.branch1 = new ExprStatement(proprest);
-        if (elsecase) ifs.branch2 = new ExprStatement(elsecase);
+        ifs.branch1 = fastalloc!(ExprStatement)(proprest);
+        if (elsecase) ifs.branch2 = fastalloc!(ExprStatement)(elsecase);
         res = mkStatementAndExpr(ifs, Single!(VoidExpr));
       } else {
-        ifs.branch1 = new Assignment(oe, proprest);
+        ifs.branch1 = fastalloc!(Assignment)(oe, proprest);
         auto ovt = oe.valueType();
-        if (!elsecase) elsecase = reinterpret_cast(ovt, new DataExpr(ovt.initval()));
-        ifs.branch2 = new Assignment(oe, elsecase);
+        if (!elsecase) elsecase = reinterpret_cast(ovt, fastalloc!(DataExpr)(ovt.initval()));
+        ifs.branch2 = fastalloc!(Assignment)(oe, elsecase);
         res = mkStatementAndExpr(ifs, oe);
       }
       ifs.wrapper.requiredDepth = int.max; // force tolerance
@@ -63,4 +63,4 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
     }));
   };
 }
-mixin DefaultParser!(gotCondProperty, "tree.rhs_partial.condprop", null, "?");
+mixin DefaultParser!(gotCondProperty, "tree.rhs_partial.condprop"[], null, "?"[]);
