@@ -959,7 +959,7 @@ static this() {
     ex = foldex(ex);
     auto se = fastcast!(StringExpr) (ex);
     if (!se) throw new Exception(Format("Expected string expression for pragma(msg), not ", ex));
-    logln("# ", se.str);
+    logSmart!(false)("# ", se.str);
     return Single!(NoOp);
   };
 }
