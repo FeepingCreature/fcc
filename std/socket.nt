@@ -19,7 +19,7 @@ class TcpAddress : Address {
     return (sockaddr*:&saddr, size-of sockaddr_in);
   }
   Address dup() using new TcpAddress {
-    saddr = this.saddr;
+    that.saddr = this.saddr;
     return that;
   }
   void init() { }
@@ -111,11 +111,11 @@ class Socket {
   /*Function: accept
   Once incoming connections occur, return a socket for them*/
   Socket accept() using new Socket {
-    boundAddr = this.boundAddr.dup;
-    auto hdl = boundAddr.getAddrHandle();
+    that.boundAddr = this.boundAddr.dup;
+    auto hdl = that.boundAddr.getAddrHandle();
     int gotLength = hdl[1];
-    sockfd = .accept(this.sockfd, hdl[0], &gotLength);
-    if (sockfd == -1) {
+    that.sockfd = .accept(this.sockfd, hdl[0], &gotLength);
+    if (that.sockfd == -1) {
       raise new Error "While accepting connections on $(this.sockfd): $(CToString strerror errno)";
     }
     if (gotLength != hdl[1])

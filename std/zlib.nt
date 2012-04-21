@@ -75,12 +75,12 @@ class Inflate {
 Deflates the argument, returning the compressed version*/
 byte[] deflate(byte[] data) using new Deflate {
   onSuccess fini();
-  return deflate data;
+  return that.deflate data;
 }
 
 /*Function: inflate
 Inflates the argument, returning the decompressed version*/
 byte[] inflate(byte[] data) using new Inflate {
   onSuccess fini();
-  return inflate data;
+  return that.inflate data;
 }

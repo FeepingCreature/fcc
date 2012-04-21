@@ -12,6 +12,20 @@ Namespace myresolve(Namespace ns) {
   return ns;
 }
 
+bool same(Object a, Object b) {
+  if (a is b) return true;
+  {
+    auto os1 = fastcast!(OverloadSet) (a), os2 = fastcast!(OverloadSet) (b);
+    if (os1 && os2) {
+      if (os1.name != os2.name) return false;
+      if (os1.funs.length != os2.funs.length) return false;
+      foreach (i, f1; os1.funs) if (f1 !is os2.funs[i]) return false;
+      return true;
+    }
+  }
+  return false;
+}
+
 class WithStmt : Namespace, Statement, ScopeLike {
   RelNamespace rns;
   Stuple!(RelNamespace, Expr) [] rnslist;
@@ -149,17 +163,36 @@ class WithStmt : Namespace, Statement, ScopeLike {
       bool block;
       /* already have "that" to accomplish this */
       if (name == "this") block = true;
+      auto supres = sup.lookup(name, local);
+      void checkShadow(Object res, Object containing) {
+        if (!supres || same(res, supres)) return;
+        if (fastcast!(ISafeSpaceTag) (containing)) return;
+        auto ex = new Exception(Format(
+          "Use of '", name, "' shadows outside identifier. "
+          "Please disambiguate using '.', 'this' or 'that'."
+          // "\nThe shadowed value is : '", supres, "'.\n"
+          // "\nThe local value is    : '", res, "'. \n"
+        ));
+        // logln(ex); fail;
+        throw ex;
+      }
       if (!local && !block) {
         if (rns)
-          if (auto res = rns.lookupRel(name, context, false))
+          if (auto res = rns.lookupRel(name, context, false)) {
+            checkShadow(res, fastcast!(Object) (rns));
             return res;
+          }
         if (rnslist)
           foreach (rns; rnslist)
-            if (auto res = rns._0.lookupRel(name, rns._1, false))
+            if (auto res = rns._0.lookupRel(name, rns._1, false)) {
+              checkShadow(res, fastcast!(Object) (rns._0));
               return res;
+            }
         if (ns)
-          if (auto res = ns.lookup(name, true))
+          if (auto res = ns.lookup(name, true)) {
+            checkShadow(res, fastcast!(Object) (ns));
             return res;
+          }
       }
       return sup.lookup(name, local);
     }

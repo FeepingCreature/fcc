@@ -420,7 +420,7 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
   if (t2.gotIdentifier(id, true)) {
     retry:
-    if (auto obj = namespace().lookup(id)) {
+    try if (auto obj = namespace().lookup(id)) {
       if (auto type = fastcast!(IType) (obj)) {
         text = t2;
         return fastcast!(Object) (forcedConvert(type));
@@ -430,6 +430,9 @@ Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
     }
     else if (t2.eatDash(id)) goto retry;
     else if (t2.eatDot(id)) goto retry;
+    catch (Exception ex) {
+      text.failparse(ex);
+    }
   }
   return null;
 }
@@ -573,3 +576,6 @@ abstract class NamespaceImporter : Namespace, Importer {
 }
 
 NamespaceImporter sysmod;
+
+// namespace that shouldn't be protected from accidental shadowing
+interface ISafeSpaceTag { }

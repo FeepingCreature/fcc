@@ -286,9 +286,9 @@ int main(string[] args) {
   {
     Blarg lolz() { Blarg res; return res; }
     using blg::
-    ib = 7;
+    that.ib = 7;
     using lolz()::
-    ib = 5;
+    that.ib = 5;
   }
   blg.fun();
   do int i = rand() % 10; while (i) writeln("::$i");
@@ -305,8 +305,8 @@ int main(string[] args) {
   writeln("now back to $$ctest.var. ");
   void memtest() using sys.mem {
     writeln("memtest! ");
-    auto p = malloc(16);
-    free(p);
+    auto p = that.malloc(16);
+    that.free(p);
     writeln("again.. ");
   }
   memtest();

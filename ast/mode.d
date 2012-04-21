@@ -202,7 +202,7 @@ class PrefixCall : FunCall {
   override IType valueType() { return sup.valueType(); }
 }
 
-class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */ {
+class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */, ISafeSpaceTag {
   Namespace sup;
   Expr firstParam;
   string[] prefixes, suffixes;

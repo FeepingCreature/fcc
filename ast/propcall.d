@@ -19,7 +19,7 @@ bool incompat(IType a, IType b) {
 
 // man this is such a hack.
 import ast.templ; // this also!
-class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware {
+class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafeSpaceTag {
   Expr firstParam;
   IType fpvt;
   bool implicit;
