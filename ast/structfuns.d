@@ -39,7 +39,10 @@ class RelFunCall : FunCall, RelTransformable {
     return res;
   }
   override Object transform(Expr base) {
-    if (baseptr) { logln("RelFunCall was pretransformed: "[], baseptr); fail; }
+    // if (baseptr) { logln("RelFunCall was pretransformed: "[], baseptr, "; new base would be ", base); fail; }
+    // I AM REALLY REALLY NOT SURE ABOUT THIS
+    // TODO: smother in asserts
+    if (baseptr) return this;
     if (!base) fail;
     auto res = dup();
     res.baseptr = base;

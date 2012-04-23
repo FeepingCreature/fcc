@@ -901,12 +901,14 @@ static this() {
           while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }
           auto t1v = fastcast!(Vector) (t1), t2v = fastcast!(Vector) (t2);
           // logln("id is "[], id, " because of "[], mae.stm.offset, " into "[], vo.type.size(), "; compare "[], vo.valueType().size(), " / "[], (cast(Vector) vo.valueType()).real_len());
-          if (t1v) ex1 = getTupleEntries(reinterpret_cast(t1v.asFilledTup, ex1))[id];
+          // if (t1v) ex1 = getTupleEntries(reinterpret_cast(t1v.asFilledTup, ex1))[id];
+          if (t1v) ex1 = mkTupleIndexAccess(reinterpret_cast(t1v.asFilledTup, ex1), id);
           if (t2v) {
             // logln("filled tup for "[], t2v, " is "[], t2v.asFilledTup, " -- "[], ex);
-            auto ar = getTupleEntries(reinterpret_cast(t2v.asFilledTup, ex2));
-            if (ar.length !> id) ex2 = fastalloc!(FailExpr)("oh fuck"[], ar[0].valueType());
-            else ex2 = ar[id];
+            // auto ar = getTupleEntries(reinterpret_cast(t2v.asFilledTup, ex2));
+            // if (ar.length !> id) ex2 = fastalloc!(FailExpr)("oh fuck"[], ar[0].valueType());
+            // else ex2 = ar[id];
+            ex2 = mkTupleIndexAccess(reinterpret_cast(t2v.asFilledTup, ex2), id);
           }
           return fastcast!(Itr) (lookupOp(vo.op, ex1, ex2));
         }
