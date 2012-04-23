@@ -467,10 +467,13 @@ extern(C) void fcc_initTenth() {
   }));
 }
 
+import ast.modules;
 Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto mac = fastcast!(TenthMacro) (obj);
-  auto findme = namespace().lookup(mac.identifier, false);
+  auto mod = namespace().get!(Module);
+  if (!mod) return null; // iparse, no need for macros
+  auto findme = mod.lookup(mac.identifier, false);
   if (findme !is mac) return null; // check if we're in scope
   if (mac.key && !t2.accept(mac.key)) return null;
   auto ent = mac.root;

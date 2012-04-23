@@ -69,11 +69,13 @@ class VTable {
     return false;
   }
   Object lookup(string name, Expr classref) {
-    int base = (parent.parent?parent.parent.getClassinfo().length:0);
+    int base = -1;
     Function[] res;
     foreach (id, fun; funs)
       if (fun.name == name) {
         if (!classref) return fun;
+        if (base == -1) // lazy init
+          base = (parent.parent?parent.parent.getClassinfo().length:0);
         res ~= 
           new PointerFunction!(NestedFunction) (
             tmpize_maybe(classref, delegate Expr(Expr classref) {
@@ -757,7 +759,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
           extend(ext2);
         } else return res;
       }
-      Expr cl_offset = ownClassinfoLength;
+      Expr cl_offset = ownClassinfoLength();
       foreach (intf; iparents) {
         if (auto res = intf.lookupClass(str, cl_offset, base)) {
           auto obj = fastcast!(Object) (res);
