@@ -144,7 +144,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
   private this() { }
   override {
     void emitAsm(AsmFile af) {
-      assert(false); // see below: "shortcut"
+      mixin(mustOffset("0"));
+      sc.emitAsm(af);
     }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     Stuple!(IType, string, int)[] stackframe() {
@@ -240,7 +241,7 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
       ws.sc.configPosition(t2);
       if (!outer) outer = ws;
       namespace.set(ws.sc);
-      if (prev) prev.sc.addStatement(ws.sc /* shortcut */);
+      if (prev) prev.sc.addStatement(ws);
     }
   } else {
     if (scoped) ex = genScoped(ex, newval);
