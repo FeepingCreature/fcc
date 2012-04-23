@@ -471,9 +471,16 @@ import ast.modules;
 Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto mac = fastcast!(TenthMacro) (obj);
-  auto mod = namespace().get!(Module);
-  if (!mod) return null; // iparse, no need for macros
-  auto findme = mod.lookup(mac.identifier, false);
+  // imports can be found in functions ..
+  auto fun = namespace().get!(Function);
+  Object findme;
+  if (fun) { findme = fun.lookup(mac.identifier, false); }
+  if (!findme) {
+    // .. and modules.
+    auto mod = namespace().get!(Module);
+    if (!mod) return null; // iparse, probably - no need for macros
+    findme = mod.lookup(mac.identifier, false);
+  }
   if (findme !is mac) return null; // check if we're in scope
   if (mac.key && !t2.accept(mac.key)) return null;
   auto ent = mac.root;
