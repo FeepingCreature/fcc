@@ -1,6 +1,6 @@
 module cairo;
 
-import opengl;
+import std.lib.opengl;
 public import c.cairo.cairo;
 extern(C) cairo_device_t* cairo_glx_device_create (Display* dpy, GLXContext gl_ctx);
 extern(C) cairo_surface_t* cairo_gl_surface_create_for_window (cairo_device_t *device, Window win, int width, height);

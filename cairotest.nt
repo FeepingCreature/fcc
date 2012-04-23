@@ -1,19 +1,18 @@
 module cairotest;
 
-import sdl, std.math, opengl, cairo, glsetup, std.time;
+import sdl, std.math, std.lib.opengl, cairo, std.lib.opengl.sdl, std.time;
 
 pragma(lib, "cairo");
 
 void main() {
   writeln "Open SDL Window .. ";
-  gl-context-callbacks ~= \mode GL{
+  auto wnd = new SDLWindow;
+  wnd.context-callbacks ~= \using mode GL{
     MatrixMode PROJECTION; LoadIdentity;
     MatrixMode MODELVIEW; LoadIdentity;
     Disable DEPTH_TEST;
   };
-  auto window = setup-gl(SDL_HWPALETTE | SDL_HWSURFACE | SDL_HWACCEL);
-  writeln "got $window";
-  resizeWindow(640, 480);
+  writeln "got $wnd";
   auto backup =
     (glXGetCurrentDisplay(), glXGetCurrentDrawable(), glXGetCurrentContext());
   auto dev = cairo_glx_device_create (backup[0], backup[2]);
@@ -22,14 +21,14 @@ void main() {
   writeln "create surf for $dev";
   writeln "post: $(glXGetCurrentContext()), $(glXGetCurrentDisplay())";
   auto surface = cairo_gl_surface_create_for_window
-    (dev, backup[1], window.w, window.h);
+    (dev, backup[1], wnd.size());
   
   float f = 0;
   void draw() {
     f += 0.1;
     glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
-    mode cairo-context cairo_create surface {
+    using mode cairo-context cairo_create surface {
       onSuccess destroy; // social commentary lol
       set_source_rgb (0, 0.1, 0.1);
       paint;
@@ -74,7 +73,7 @@ void main() {
       writeln "$fps fps";
       fps = 0; lastTime = time null;
     }
-    glsetup.update window;
+    wnd.update;
     return false;
   }
   while !update() { }

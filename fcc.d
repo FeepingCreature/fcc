@@ -75,7 +75,15 @@ string[] processCArgs(string[] ar) {
 
 static this() {
   New(optimizer_x86.cachething);
-  New(optimizer_x86.proctrack_cachething); 
+  New(optimizer_x86.proctrack_cachething);
+  pragmas["fast"] = delegate Object(Expr ex) {
+    if (ex) throw new Exception("pragma 'fast' does not take arguments");
+    auto fun = namespace().get!(Function);
+    if (!fun) throw new Exception("pragma 'fast' must be inside a function");
+    fun.optimize = true;
+    releaseMode = true; // it'll be restored at the end of the function - no harm
+    return Single!(NoOp);
+  };
   // Link with this library
   bool isStringLiteral(Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }
   pragmas["lib"] = delegate Object(Expr ex) {

@@ -152,8 +152,8 @@ class Area {
     for (int i, SDL_Rect* rp) <- zip(0..2, [&sdlrect1, &sdlrect2])
       using *rp {
         auto r = [rect, dest.rect][i];
-        (x, y) = r[0].(short:x, short:y);
-        (w, h) = (short:(r[1].x - r[0].x), short: (r[1].y - r[0].y));
+        that.(x, y) = r[0].(short:x, short:y);
+        that.(w, h) = (short:(r[1].x - r[0].x), short: (r[1].y - r[0].y));
       }
     auto res = SDL_UpperBlit (surf.back, &sdlrect1, dest.surf.back, &sdlrect2);
     if res raise new SDL-Error("SDL_UpperBlit", res);

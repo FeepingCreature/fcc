@@ -77,7 +77,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   this() { }
   FunctionType type;
   Tree tree;
-  bool extern_c = false, weak = false, reassign = false, isabstract = false;
+  bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false;
   void markWeak() { weak = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
@@ -312,7 +312,22 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
+      auto backup_opt = af.optimize, backup_rm = releaseMode, backup_dbg = af.debugMode;
+      auto backup_dwarf = af.dwarf2;
+      scope(exit) {
+        af.optimize = backup_opt;
+        releaseMode = backup_rm;
+        af.debugMode = backup_dbg;
+        af.dwarf2 = backup_dwarf;
+      }
+      
       parseMe();
+      if (optimize) {
+        af.optimize = true;
+        af.debugMode = false;
+        af.dwarf2 = null;
+      }
+      
       inEmitAsm = true;
       scope(exit) inEmitAsm = false;
       
@@ -423,6 +438,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         logln("leftover float stack when end-emitting ", this);
         fail;
       }
+      af.flush;
       // af.put(".cfi_endproc"[]);
     }
     Stuple!(IType, string, int)[] stackframe() {
