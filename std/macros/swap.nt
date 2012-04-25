@@ -5,10 +5,18 @@ macro("tree.stmt.swap", "412") `
     (not (matched-text 'swap))
     'nil
     '(last
-      (def 'ex1 (parse-lvalue))
-      (match-text ",")
-      (def 'ex2 (parse-lvalue))
+      (def 'ex1 (parse-expr))
+      (if
+        (matched-text ",")
+        '(last
+          (def 'ex2 (parse-expr)))
+        '(last
+          (def 'tupex (tuple-exprs ex1))
+          (def 'ex1 (index tupex 0))
+          (def 'ex2 (index tupex 1))))
       (match-text ";")
+      (assert (or (is-lvalue ex1) (is-mvalue ex1)))
+      (assert (or (is-lvalue ex2) (is-mvalue ex2)))
       (assert (types-equal (type-of ex1) (type-of ex2)))
       (make-swap ex1 ex2)))
 `;
