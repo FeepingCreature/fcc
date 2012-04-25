@@ -18,9 +18,10 @@ platform(i686-mingw32) {
   template lookupFun(T) {
     _markStdCall T lookupFun(char* c) { return _markStdCall T:wglGetProcAddress(c); }
   }
-  alias glGenBuffers = *lookupFun!void function(GLsizei, GLuint*) "glGenBuffers";
-  alias glBindBuffer = *lookupFun!void function(GLenum, GLuint) "glBindBuffer";
-  alias glBufferData = *lookupFun!void function(GLenum, GLsizeiptr, void*, GLenum) "glBufferData";
+  alias glGenBuffers    = *lookupFun!void function(GLsizei, GLuint*) "glGenBuffers";
+  alias glDeleteBuffers = *lookupFun!void function(GLsizei, GLuint*) "glDeleteBuffers";
+  alias glBindBuffer    = *lookupFun!void function(GLenum, GLuint) "glBindBuffer";
+  alias glBufferData    = *lookupFun!void function(GLenum, GLsizeiptr, void*, GLenum) "glBufferData";
 }
 
 platform(default) {

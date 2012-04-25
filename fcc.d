@@ -833,7 +833,9 @@ void loop(string start,
     gotMain = null;
     resetTemplates();
     logln("please press return to continue. ");
-    if (system("read")) return;
+    auto fdes = fdopen(0, "rb");
+    readln(fdes);
+    fclose(fdes);
   }
 }
 

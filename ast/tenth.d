@@ -47,6 +47,7 @@ class Token : Entity {
 class Integer : Entity {
   int value;
   mixin This!("value");
+  string toString() { return Format(value); }
   override Entity eval(Context ctx) { return this; }
 }
 

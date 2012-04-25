@@ -10,6 +10,7 @@ import tools.base: This;
 
 class Swap : Statement {
   LValue lv1, lv2;
+  MValue mv1, mv2;
   int sz;
   this(LValue lv1, LValue lv2) {
     this.lv1 = lv1;
@@ -21,10 +22,30 @@ class Swap : Statement {
     }
     sz = vt1.size;
   }
-  mixin defaultIterate!(lv1, lv2);
+  this(MValue mv1, MValue mv2) {
+    this.mv1 = mv1;
+    this.mv2 = mv2;
+    auto vt1 = mv1.valueType(), vt2 = mv2.valueType();
+    if (vt1 != vt2) {
+      logln("halt: swap(", mv1, ", ", mv2, ")");
+      fail;
+    }
+    sz = vt1.size;
+  }
+  mixin defaultIterate!(lv1, lv2, mv1, mv2);
   override {
-    Swap dup() { return fastalloc!(Swap)(lv1.dup, lv2.dup); }
+    Swap dup() {
+      if (mv1) return fastalloc!(Swap)(mv1.dup, mv2.dup);
+      else return fastalloc!(Swap)(lv1.dup, lv2.dup);
+    }
     void emitAsm(AsmFile af) {
+      if (mv1) {
+        mv1.emitAsm(af);
+        mv2.emitAsm(af);
+        mv1.emitAssignment(af);
+        mv2.emitAssignment(af);
+        return;
+      }
       lv1.emitLocation(af);
       lv2.emitLocation(af);
       af.popStack("%eax", 4);
@@ -115,9 +136,13 @@ extern(C) void fcc_initTenth() {
   }));
   rootctx.add("make-swap"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-swap': 2 expected"[]);
-    mixin(chaincast("lv1:  First arg to 'make-swap': args[0]->ItrEntity: %.itr->LValue"[]));
-    mixin(chaincast("lv2: Second arg to 'make-swap': args[1]->ItrEntity: %.itr->LValue"[]));
-    return fastalloc!(ItrEntity)(fastalloc!(Swap)(lv1, lv2));
+    mixin(chaincast("arg1:  First arg to 'make-swap': args[0]->ItrEntity: %.itr"[]));
+    mixin(chaincast("arg2: Second arg to 'make-swap': args[1]->ItrEntity: %.itr"[]));
+    auto lv1 = fastcast!(LValue)(arg1), lv2 = fastcast!(LValue)(arg2);
+    if (lv1 && lv2) return fastalloc!(ItrEntity)(fastalloc!(Swap)(lv1, lv2));
+    auto mv1 = fastcast!(MValue)(arg1), mv2 = fastcast!(MValue)(arg2);
+    if (mv1 && mv2) return fastalloc!(ItrEntity)(fastalloc!(Swap)(mv1, mv2));
+    tnte("arguments to make-swap must be lv, lv or mv, mv");
   }));
   rootctx.add("make-string"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'make-string': 1 expected"[]);
@@ -395,6 +420,15 @@ extern(C) void fcc_initTenth() {
   rootctx.add("list"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     return fastalloc!(List)(args);
   }));
+  rootctx.add("index"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'index': 2 expected: list and index"[]);
+    mixin(chaincast("list: First arg to 'length': args[0]->List"[]));
+    mixin(chaincast("index: Second arg to 'length': args[1]->Integer"[]));
+    auto iv = index.value, le = list.entries;
+    if (iv < 0 || iv >= le.length)
+      tnte("Bad index: (index "[], list, " "[], iv, ")"[]);
+    return le[iv];
+  }));
   rootctx.add("length"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'length': 1 expected"[]);
     mixin(chaincast("len: Arg to 'length': args[0]->List: %.entries.length"[]));
@@ -512,11 +546,17 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, match, &ex)) t2.failparse("Expression expected"[]);
     return fastalloc!(ItrEntity)(ex);
   }));
-  ctx.add("parse-lvalue"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
-    if (args.length) tnte("Too many arguments to 'parse-lvalue': 0 expected"[]);
-    LValue lv;
-    if (!rest(t2, "tree.expr _tree.expr.arith"[], &lv)) t2.failparse("LValue expected"[]);
-    return fastalloc!(ItrEntity)(lv);
+  ctx.add("is-lvalue"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of arguments to 'is-lvalue': 1 expected"[]);
+    mixin(chaincast("ex: First argument for 'is-lvalue': args[0]->ItrEntity: %.itr"));
+    if (fastcast!(LValue) (ex)) return NonNilEnt;
+    else return NilEnt;
+  }));
+  ctx.add("is-mvalue"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of arguments to 'is-mvalue': 1 expected"[]);
+    mixin(chaincast("ex: First argument for 'is-mvalue': args[0]->ItrEntity: %.itr"));
+    if (fastcast!(MValue) (ex)) return NonNilEnt;
+    else return NilEnt;
   }));
   ctx.add("parse-stmt"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length) tnte("Too many arguments to parse-stmt: 0 expected"[]);
