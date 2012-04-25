@@ -57,6 +57,14 @@ class Font {
     FTcheck Get_Glyph (face.glyph, &Glyph glyph);
     return face.glyph.advance.(vec2i(x, y));
   }
+  (vec2i, vec2i) getControlBox(int ch) using mode FT {
+    auto index = Get_Char_Index(face, FT_ULong:ch);
+    FTcheck Load_Glyph (face, index, LOAD_DEFAULT);
+    FTcheck Get_Glyph (face.glyph, &Glyph glyph);
+    
+    Glyph_Get_CBox (glyph, FT_GLYPH_BBOX_PIXELS, &BBox box);
+    return box.(vec2i(xMin, yMin), vec2i(xMax, yMax));
+  }
   vec4f[] toBuffer(string text, FontStyle[] styles, int* wp = null, hp = null) using mode FT {
     if (!text.length) {
       (*wp, *hp) = (0, 0);
