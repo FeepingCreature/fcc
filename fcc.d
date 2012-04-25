@@ -718,11 +718,15 @@ string[] compileWithDepends(string file, CompileSettings cs) {
       });
     }
   }
-  file.genCompilesWithDepends(cs, &process);
-  if (waits) {
-    for (int i = 0; i < waits; ++i)
-      seph.acquire();
+  void waitup() {
+    if (waits) {
+      for (int i = 0; i < waits; ++i)
+        seph.acquire();
+    }
   }
+  scope(failure) waitup;
+  file.genCompilesWithDepends(cs, &process);
+  waitup;
   return objs;
 }
 
@@ -833,9 +837,7 @@ void loop(string start,
     gotMain = null;
     resetTemplates();
     logln("please press return to continue. ");
-    auto fdes = fdopen(0, "rb");
-    readln(fdes);
-    fclose(fdes);
+    if (system("read")) return;
   }
 }
 
