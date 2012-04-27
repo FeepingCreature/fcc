@@ -11,10 +11,12 @@ Expr mkPointerSlice(Expr ptr, Expr from, Expr to) {
 }
 
 Expr mkArraySlice(Expr array, Expr from = null, Expr to = null) {
-  return fastalloc!(ArrayMaker)(
-    lookupOp("+"[], new MemberAccess_Expr(arrayToStruct(array), "ptr"[]), from),
-    lookupOp("-"[], to, from)
-  );
+  return tmpize_maybe(array, delegate Expr(Expr array) {
+    return fastalloc!(ArrayMaker)(
+      lookupOp("+"[], new MemberAccess_Expr(arrayToStruct(array), "ptr"[]), from),
+      lookupOp("-"[], to, from)
+    );
+  });
 }
 
 class FullSlice : Expr {
