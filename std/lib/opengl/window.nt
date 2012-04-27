@@ -29,6 +29,8 @@ abstract class GLWindow {
   }
   void update();
   bool mouse-pressed, mouse-clicked, mouse-released;
+  // TODO: replace with a proper property system
+  bool right-mouse-pressed, right-mouse-clicked, right-mouse-released;
   vec2i mouse-pos;
   bool key-held(int charcode);
 }

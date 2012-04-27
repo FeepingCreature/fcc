@@ -79,8 +79,13 @@ class GLFWWindow : GLWindow {
   }
   void mousebutton(GLFWwindow window, int button, action) {
     if (window != handle) raise new Error "wat";
-    if (action) mouse-clicked = true;
-    else mouse-released = true;
+    if (button == 0) {
+      if (action) mouse-clicked = true;
+      else mouse-released = true;
+    } else if (button == 1) {
+      if (action) right-mouse-clicked = true;
+      else right-mouse-released = true;
+    }
   }
   bool is-set-up;
   string title;
@@ -113,6 +118,8 @@ class GLFWWindow : GLWindow {
   void update() using mode GLFW {
     mouse-clicked = false;
     mouse-released = false;
+    right-mouse-clicked = false;
+    right-mouse-released = false;
     SwapBuffers;
     PollEvents;
     if (!IsWindow(handle)) raise new WindowClosed "GLFW exit";
