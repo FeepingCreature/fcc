@@ -1,0 +1,71 @@
+module std.hashmap;
+
+// todo~
+template hash(T) {
+  int hash(T t) {
+    static if (types-equal (T, int)) {
+      // TODO: do properly
+      if (t < 0) t &= 0x7fff_ffff;
+      return t;
+    } else {
+      pragma(msg, string-of T ~ ": how do I hash web?");
+      parsing failure
+    }
+  }
+}
+
+template Hashmap(T) {
+  alias Key = T[0], Value = T[1];
+  struct Hashmap {
+    (Key, Value)[] backing;
+    Key nullkey; Value nullvalue;
+    bool nullset;
+    int length;
+    float load() {
+      if (!backing.length) return 1;
+      return length * 1f / backing.length;
+    }
+    void iterate(void delegate(Key, Value) dg) {
+      if (nullset) dg(nullkey, nullvalue);
+      for ref entry <- backing
+        if (entry[0] != nullkey)
+          dg entry;
+    }
+    void realloc(int newsize) {
+      type-of this newmap;
+      newmap.nullvalue = nullvalue;
+      newmap.backing = new type-of backing newsize;
+      iterate(\(Key k, Value v) newmap.insert(k, v););
+      this = newmap;
+    }
+    void insert(Key k, Value v) {
+      if (k == nullkey) {
+        nullset = true;
+        nullvalue = v;
+        return;
+      }
+      do auto loadf = load();
+      while (loadf > 0.7) {
+        auto newsize = backing.length * 2;
+        if (!newsize) newsize = 16;
+        realloc newsize;
+      }
+      auto pos = (hash k) % backing.length;
+      while (backing[pos][0] != nullkey) {
+        pos = (pos + 1) % backing.length;
+      }
+      backing[pos] = (k, v);
+      length ++;
+    }
+    Value* get(Key k) {
+      if (nullset && k == nullkey) return &nullvalue;
+      if (!backing.length) return null;
+      auto pos = (hash k) % backing.length;
+      while (backing[pos][0] != nullkey) {
+        if (backing[pos][0] == k) return &backing[pos][1];
+        pos = (pos + 1) % backing.length;
+      }
+      return null;
+    }
+  }
+}
