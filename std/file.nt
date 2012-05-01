@@ -64,7 +64,9 @@ platform(arm*) {
 int open(string file, int read-mode = read-mode, mode_t perms = 0) {
   auto ptr = toStringz(file);
   onExit mem.free(ptr);
-  return C_open(ptr, read-mode | tweak-mode, perms);
+  auto fd = C_open(ptr, read-mode | tweak-mode, perms);
+  if (fd == -1) raise new ErrnoError;
+  return fd;
 }
 
 /*Function: readAll
