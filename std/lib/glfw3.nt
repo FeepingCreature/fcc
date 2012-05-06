@@ -54,14 +54,22 @@ class GLFWWindow : GLWindow {
   void key(GLFWwindow window, int k, int action) {
     if (window != handle) raise new Error "wat";
     // writeln "$k with $action";
-    void set(int keycode) {
-      if (key-held.length < keycode + 1) key-held ~= new bool[] keycode + 1 - key-held.length;
-      if (action == GLFW_PRESS) key-held[keycode] = true;
-      else key-held[keycode] = false;
+    void set(Key code) {
+      if (key-held.length < code + 1) key-held ~= new bool[] code + 1 - key-held.length;
+      if (key-pressed.length < code + 1) key-pressed ~= new bool[] code + 1 - key-pressed.length;
+      if (key-released.length < code + 1) key-released ~= new bool[] code + 1 - key-released.length;
+      
+      if (action == GLFW_PRESS) {
+        key-held[code] = true;
+        key-pressed[code] = true;
+      } else {
+        key-held[code] = false;
+        key-released[code] = true;
+      }
     }
     
     if (GLFW_KEY_A <= k <= GLFW_KEY_Z)
-      set $ Key.A + k - GLFW_KEY_A;
+      set Key:$ Key.A + k - GLFW_KEY_A;
     
     import std.macros.switchover;
     switch int i over i == k {
@@ -129,6 +137,8 @@ class GLFWWindow : GLWindow {
     mouse-released = false;
     right-mouse-clicked = false;
     right-mouse-released = false;
+    key-pressed[] = [for key-pressed: false];
+    key-released[] = [for key-released: false];
     SwapBuffers;
     PollEvents;
     if (!IsWindow(handle)) raise new WindowClosed "GLFW exit";
