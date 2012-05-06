@@ -73,6 +73,7 @@ class GLFWWindow : GLWindow {
     
     import std.macros.switchover;
     switch int i over i == k {
+      case GLFW_KEY_ENTER: set Key.Return;
       case GLFW_KEY_RIGHT: set Key.RightArrow;
       case GLFW_KEY_LEFT : set Key.LeftArrow;
       case GLFW_KEY_DOWN : set Key.DownArrow;

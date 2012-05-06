@@ -55,17 +55,23 @@ class Font {
     auto index = Get_Char_Index(face, FT_ULong:ch);
     FTcheck Load_Glyph (face, index, LOAD_DEFAULT);
     FTcheck Get_Glyph (face.glyph, &Glyph glyph);
+    onExit Done_Glyph glyph;
+    
     return face.glyph.advance.(vec2i(x, y));
   }
   (vec2i, vec2i) getControlBox(int ch) using mode FT {
     auto index = Get_Char_Index(face, FT_ULong:ch);
     FTcheck Load_Glyph (face, index, LOAD_DEFAULT);
     FTcheck Get_Glyph (face.glyph, &Glyph glyph);
+    onExit Done_Glyph glyph;
     
     Glyph_Get_CBox (glyph, FT_GLYPH_BBOX_PIXELS, &BBox box);
     return box.(vec2i(xMin, yMin), vec2i(xMax, yMax));
   }
-  vec4f[] toBuffer(string text, FontStyle[] styles, int* wp = null, hp = null) using mode FT {
+  void getSize(string text, FontStyle[] styles, int* wp = null, hp = null) {
+    toBuffer(text, styles, wp, hp, dontRender => true);
+  }
+  vec4f[] toBuffer(string text, FontStyle[] styles, int* wp = null, hp = null, bool dontRender = false) using mode FT {
     if (!text.length) {
       (*wp, *hp) = (0, 0);
       return null;
@@ -73,10 +79,15 @@ class Font {
     // TODO: unicode
     // TODO: scope new / new scope / whichever
     auto glyphs = new Glyph[] text.length, pos = new Vector[] text.length;
-    onExit { glyphs.free; pos.free; }
+    onExit {
+      for ref glyph <- glyphs
+        Done_Glyph glyph;
+      glyphs.free;
+      pos.free;
+    }
     Vector pen;
     int prevIndex;
-    for (int id, char ch) <- zip(0..-1, text) { // TODO: unicode
+    for (int id, char ch) <- zip(ints, text) { // TODO: unicode
       auto index = Get_Char_Index(face, FT_ULong:ch);
       if (id && index) {
         Get_Kerning (face, prevIndex, index, 0, &Vector delta);
@@ -91,8 +102,8 @@ class Font {
     }
     BBox bbox;
     bbox.(xMin, yMin, xMax, yMax) = (32767, 32767, -32768, -32768);
-    for (int id, Glyph* glyph) <- zip(0..-1, refs glyphs) {
-      Glyph_Get_CBox (*glyph, GLYPH_BBOX_PIXELS, &BBox glyph_bbox);
+    for int id <- ints && ref glyph <- glyphs {
+      Glyph_Get_CBox (glyph, GLYPH_BBOX_PIXELS, &BBox glyph_bbox);
       using glyph_bbox {
         using pos[id] { xMin += x>>6; xMax += x>>6; yMin += y>>6; yMax += y>>6; }
         if (xMin < bbox.xMin) bbox.xMin = xMin;
@@ -109,6 +120,8 @@ class Font {
     
     int w = bbox.(xMax - xMin), h = bbox.(yMax - yMin);
     if (wp) *wp = w; if (hp) *hp = h;
+    
+    if (dontRender) return null;
     
     auto vecs = [for i <- 0 .. w*h: vec4f(0)].eval;
     int x 4 bg_bounds;
@@ -138,7 +151,7 @@ class Font {
       }
     }
     
-    for (int id, Glyph glyph) <- zip(0..-1, glyphs) {
+    for int id <- ints && auto glyph <- glyphs {
       while (styles.length && !styles[0].chars) styles=styles[1..$];
       if (!styles.length) raise new sys.Error "Has run out of formatting data";
       styles[0].chars --;
@@ -153,8 +166,7 @@ class Font {
       FTcheck Glyph_To_Bitmap(&glyph, RENDER_MODE_NORMAL, &pos[id], false);
       auto bit = BitmapGlyph: glyph;
       
-      // if (id && !bit.left) continue; // space or something
-      if (!id || bit.left)::
+      if (id && !bit.left) continue; // space or something
       
       auto yt = bit.bitmap.rows + 1;
       if (style.underlined) yt = bbox.(yMax - yMin) + 4; // draw down to the underline
@@ -200,7 +212,6 @@ class Font {
       }
       nextBg(style.bgcol, false);
       expandBounds [left, top, left+xt, top+yt];
-      Done_Glyph glyph;
     }
     nextBg(vec4f(0), true); // finalize
     return vecs;
