@@ -104,8 +104,8 @@ class Delegate : Type {
     }
     int opEquals(IType ty) {
       if (!super.opEquals(ty)) return false;
-      auto dg = fastcast!(Delegate)~ ty;
-      if (!dg.ret || !ret) { fail; }
+      auto dg = fastcast!(Delegate) (resolveType(ty));
+      if (!dg || !dg.ret || !ret) { logln(ty); fail; }
       if (dg.ret is ret || (dg.ret is dg && ret is this) || dg.ret == ret) { }
       else return false;
       if (dg.args.length != args.length) return false;
