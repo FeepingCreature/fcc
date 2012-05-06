@@ -113,9 +113,12 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     }
     
     auto bexup = ex;
+    bool thereWereAssignables;
     if (!gotImplicitCast(ex, value.valueType(), (Expr ex) {
       if (!fastcast!(LValue) (ex) && !fastcast!(MValue) (ex))
         return false;
+      thereWereAssignables = true;
+      
       auto ex2 = value;
       auto ev = ex.valueType();
       if (!gotImplicitCast(ex2, ev, (IType it) {
@@ -124,6 +127,8 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
       value = ex2;
       return true;
     })) {
+      if (!thereWereAssignables) // this was never an assignment
+        return null;
       // logln("Could not match "[], bexup.valueType(), " to "[], value.valueType());
       // logln("(note: "[], (fastcast!(Object) (bexup.valueType())).classinfo.name, ")"[]);
       // logln("(note 2: "[], bexup.valueType() == value.valueType(), ")"[]);
