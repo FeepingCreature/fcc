@@ -65,6 +65,9 @@ class NestedFunction : Function {
       // this basically serves to introduce the EBP into the lookup, so that we can properly fix it up
       fun = new PointerFunction!(NestedFunction)(fastalloc!(NestFunRefExpr)(nf));
     }
+    if (!_res) {
+      _res = lookupInImports(name, local);
+    }
     if (!res && !fun) return _res;
     if (res) _res = fastcast!(Object) (res);
     if (fun) _res = fastcast!(Object) (fun);

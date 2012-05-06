@@ -812,7 +812,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
           logln("use regular lookup (into rn) for "[], id, " to "[], sup);
           logln(" => "[], sup.lookup(id, false));
         }*/
-        return get!(Module).lookup(id, false);
+        return fastcast!(Namespace) (get!(Importer)).lookup(id, false);
       }
       return sup.lookup(id, false);
     }
