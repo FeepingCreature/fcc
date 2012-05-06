@@ -97,6 +97,9 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   Object res = namespace();
   Object llookup(string s) {
     // logln("llookup ", s, " in ", res);
+    if (auto it = fastcast!(IType) (res))
+      res = fastcast!(Object) (resolveType(it));
+    
     if (auto cr = fastcast!(ClassRef) (res)) {
       // special handling
       cr.myClass.parseMe;
