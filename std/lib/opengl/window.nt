@@ -4,6 +4,38 @@ class WindowClosed : Error {
   void init(string s) super.init "WindowClose: $s";
 }
 
+template CallSet(T) {
+  struct CallSet {
+    alias DG = void delegate(T);
+    DG[auto~] dgs;
+    void call(T t) {
+      for auto dg <- dgs dg?(t);
+    }
+    void add(DG dg) {
+      writeln "add $dg";
+      for ref dg2 <- dgs
+        if (!dg2) { dg2 = dg; return; }
+      dgs ~= dg;
+    }
+    void remove(DG dg) {
+      writeln "remove $dg";
+      for ref dg2 <- dgs
+        if ((void*,void*):dg == (void*,void*):dg2) dg2 = null;
+    }
+  }
+}
+
+// NOTE: uses the USB HID standard key codes
+// see: http://www.usb.org/developers/devclass_docs/Hut1_11.pdf
+// pages 53 - 59
+enum Key {
+  Reserved, ErrorRollOver, POSTFail, ErrorUndefined,
+  A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,
+  Num1,Num2,Num3,Num4,Num5,Num6,Num7,Num8,Num9,Num0,
+  Return,Esc,Backspace,Tab,Space,Dash,Equals,
+  RightArrow=79,LeftArrow,DownArrow,UpArrow
+}
+
 abstract class GLWindow {
   void delegate()[] context-callbacks;
   void addCallback(void delegate() dg) {
@@ -28,9 +60,10 @@ abstract class GLWindow {
       warp $ size() / 2;
   }
   void update();
-  bool mouse-pressed, mouse-clicked, mouse-released;
-  // TODO: replace with a proper property system
-  bool right-mouse-pressed, right-mouse-clicked, right-mouse-released;
+  bool mouse-held, mouse-clicked, mouse-released;
+  // TODO: replace with a proper property system?
+  bool right-mouse-held, right-mouse-clicked, right-mouse-released;
   vec2i mouse-pos;
-  bool key-held(int charcode);
+  bool[] key-held, key-pressed, key-released;
+  CallSet!string onTextInput;
 }
