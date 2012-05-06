@@ -173,7 +173,13 @@ static this() {
     }
     int offs = -1;
     foreach (id, entry; mbs) if (entry is mae.stm) { offs = id; break; }
-    if (offs == -1) fail();
+    if (offs == -1) {
+      // this can happen, for instance, if we
+      // (erroneously!) collapsed two maes, one of which 
+      // was larger -
+      // for example, (a, (b, c)) accessing 'b' won't be found in the outer tuple
+      return null;
+    }
     return fastcast!(Itr) (rt.mvs[offs]);
   };
   // translate mvalue tuple assignment into sequence of separate assignments
