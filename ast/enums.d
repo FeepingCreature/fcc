@@ -23,6 +23,9 @@ class Enum : Namespace, IType, Named, ExprLikeThingy {
   string getToStringFunName() {
     return mangle() ~ "_to_string";
   }
+  string getIsDefinedFunName() {
+    return mangle() ~ "_is_defined";
+  }
   override {
     string getIdentifier() { return name; }
     int size() { return base.size(); }
@@ -32,11 +35,14 @@ class Enum : Namespace, IType, Named, ExprLikeThingy {
     bool isComplete() { return true; }
     mixin TypeDefaults!(false, true);
     Object lookup(string name, bool local = false) {
-      if (name == "parse"[]) {
+      if (name == "parse") {
         return sup.lookup(getParseFunName());
       }
-      if (name == "toString"[]) {
+      if (name == "toString") {
         return sup.lookup(getToStringFunName());
+      }
+      if (name == "isDefined") {
+        return sup.lookup(getIsDefinedFunName());
       }
       foreach (i, n; names)
         if (n == name)
@@ -109,58 +115,69 @@ grabIdentifier:
   text = t2;
   en.sup.add(en);
   
-  {
+  void deffun(string name, IType ret, Argument arg, void delegate(Function) dg) {
     auto fun = new Function;
     New(fun.type);
-    fun.type.ret = en;
-    fun.type.params ~= Argument(Single!(Array, Single!(Char)), "name"[]);
-    fun.name = en.getParseFunName();
+    fun.type.ret = ret;
+    fun.type.params ~= arg;
+    fun.name = name;
     fun.fixup;
     en.sup.add(fun);
     (fastcast!(Module) (current_module())).entries ~= fun;
     auto backup2 = namespace();
     scope(exit) namespace.set(backup2);
     namespace.set(fun);
-    foreach (i, name2; en.names) {
+    dg(fun);
+  }
+  // TODO: optimize by detecting runs
+  deffun(en.getParseFunName(), en, Argument(Single!(Array, Single!(Char)), "name"),
+    (Function fun) {
+      foreach (i, str; en.names) {
+        fun.addStatement(
+          iparse!(Statement, "enum_parse_branch"[], "tree.stmt"[])
+                 (`if (name == str) return enum: ex; `, fun,
+                  "str"[], mkString(str), "ex"[], en.values[i],
+                  "enum"[], en)
+        );
+      }
       fun.addStatement(
-        iparse!(Statement, "enum_parse_branch"[], "tree.stmt"[])
-              (`if (name == str) return enum: ex; `, fun,
-                "str"[], mkString(name2), "ex"[], en.values[i],
-                "enum"[], en)
+        iparse!(Statement, "enum_fail_branch"[], "tree.stmt"[])
+               (`raise new Error "No such enum value in $myname: '$name'"; `, fun,
+                "myname"[], mkString(name))
       );
     }
-    fun.addStatement(
-      iparse!(Statement, "enum_fail_branch"[], "tree.stmt"[])
-            (`raise new Error "No such enum value in $myname: '$name'"; `, fun,
-              "myname"[], mkString(name))
-    );
-  }
-  
-  {
-    auto fun = new Function;
-    New(fun.type);
-    fun.type.ret = Single!(Array, Single!(Char));
-    fun.type.params ~= Argument(en, "value"[]);
-    fun.name = en.getToStringFunName();
-    fun.fixup;
-    en.sup.add(fun);
-    (fastcast!(Module) (current_module())).entries ~= fun;
-    auto backup2 = namespace();
-    scope(exit) namespace.set(backup2);
-    namespace.set(fun);
-    foreach (i, name2; en.names) {
+  );
+  deffun(en.getIsDefinedFunName(), fastcast!(IType) (sysmod.lookup("bool")), Argument(en.base, "arg"),
+    (Function fun) {
+      foreach (i, str; en.names) {
+        fun.addStatement(
+          iparse!(Statement, "enum_isdefined_branch"[], "tree.stmt"[])
+                 (`if (arg == ex) return true; `, fun,
+                  "ex"[], en.values[i])
+        );
+      }
       fun.addStatement(
-        iparse!(Statement, "enum_tostring_branch"[], "tree.stmt"[])
-              (`if (value == ex) return str; `, fun,
-                "str"[], mkString(name2), "ex"[], en.values[i])
+        iparse!(Statement, "enum_isdefined_fail"[], "tree.stmt"[])
+               (`return false; `, fun)
       );
     }
-    fun.addStatement(
-      iparse!(Statement, "enum_tostring_fail_branch"[], "tree.stmt"[])
-            (`raise new Error "Invalid enum value for $myname: $value"; `, fun,
-              "myname"[], mkString(name))
-    );
-  }
+  );
+  deffun(en.getToStringFunName(), Single!(Array, Single!(Char)), Argument(en, "value"),
+    (Function fun) {
+      foreach (i, str; en.names) {
+        fun.addStatement(
+          iparse!(Statement, "enum_tostring_branch"[], "tree.stmt"[])
+                 (`if (value == ex) return str; `, fun,
+                  "str"[], mkString(str), "ex"[], en.values[i])
+        );
+      }
+      fun.addStatement(
+        iparse!(Statement, "enum_tostring_fail_branch"[], "tree.stmt"[])
+               (`raise new Error "Invalid enum value for $myname: $value"; `, fun,
+                "myname"[], mkString(name))
+      );
+    }
+  );
   
   return Single!(NoOp);
 }
