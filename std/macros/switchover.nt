@@ -30,7 +30,7 @@ macro("tree.stmt.switchover", "411", "switch") `
               (def 'match-case (lambda '()
                 '(if (not (matched-text 'case))
                   '(if (not (matched-text 'default))
-                    'nil
+                    '(failparse "No case matched for switchover")
                     '(last
                       (match-text ":")
                       (make-if check '(my-parse-stmts))))
