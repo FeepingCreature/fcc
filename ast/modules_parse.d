@@ -202,9 +202,14 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   string name; string t2 = text;
   Namespace ns = namespace();
   bool gotDot;
-  if (t2.accept("."[])) { gotDot = true; ns = ns.get!(Module); } // module-scope lookup
+  if (t2.accept(".")) { gotDot = true; ns = ns.get!(Module); } // module-scope lookup
   if (t2.gotIdentifier(name, true)) {
     retry:
+    // hack: get t2 into its expected state
+    t2 = text;
+    if (gotDot) t2.accept(".");
+    if (!t2.accept(name)) t2.failparse("wat :(");
+    
     if (auto res = ns.lookup(name)) {
       if (auto ty = fastcast!(IType) (res)) {
         if (t2.accept(":"[])) return null; // HACK: oops, was a cast
