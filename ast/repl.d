@@ -4,7 +4,7 @@ module ast.repl;
 import ast.base, parseBase;
 import
   ast.oop, ast.namespace, ast.scopes, ast.variable, ast.fun,
-  ast.modules, ast.literals, ast.vardecl;
+  ast.modules, ast.literals, ast.vardecl, ast.pointer;
 
 void captureContext(Scope sc, Variable repl) {
   Namespace cur = sc;
@@ -16,15 +16,24 @@ void captureContext(Scope sc, Variable repl) {
         auto mod = lookupMod("std.repl"[]);
         auto vt = resolveType(var.valueType());
         Object kind;
-        if (Single!(SysInt) == vt) kind = mod.lookup("IntValue"[]);
-        if (Single!(Float) == vt) kind = mod.lookup("FloatValue"[]);
+        IType wanted;
+        void select(Object thing, IType w) {
+          kind = thing; wanted = w;
+        }
+        if (Single!(SysInt) == vt) select(mod.lookup("IntValue"), Single!(SysInt));
+        if (Single!(Float) == vt) select(mod.lookup("FloatValue"), Single!(Float));
+        if (fastcast!(ClassRef) (vt)) select(
+          mod.lookup("ObjectValue"),
+          new Pointer(fastcast!(IType) (sysmod.lookup("Object")))
+        );
         IType kind_type = fastcast!(IType) (kind);
         if (kind_type) {
           sc.addStatement(
             iparse!(Statement, "bind_var"[], "tree.semicol_stmt"[])
-                  (`repl.add(name, new ClassType &var)`,
+                  (`repl.add(name, new ClassType WantedType: &var)`,
                     "repl"[], repl, "name"[], mkString(var.name),
-                    "ClassType"[], kind_type, "var"[], var)
+                    "ClassType"[], kind_type, "WantedType"[], wanted,
+                    "var"[], var)
           );
         }
       }
