@@ -520,6 +520,14 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   auto ent = mac.root;
   fcc_initTenth;
   auto ctx = fastalloc!(Context)(rootctx);
+  ctx.add("failparse", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of arguments to 'failparse': 1 expected"[]);
+    mixin(chaincast("str: First argument for 'failparse': args[0]->Token: %.name"));
+    logln("meep");
+    logln(t2.nextText());
+    t2.failparse(str);
+    assert(false);
+  }));
   ctx.add("parse-ident"[], fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length) tnte("Too many arguments to parse-ident: 0 expected"[]);
     string ident;
