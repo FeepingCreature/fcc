@@ -87,11 +87,13 @@ class GLFWWindow : GLWindow {
       case GLFW_KEY_BACKSPACE: set Key.Backspace;
     }
   }
+  string queuedInput;
   void handleChar(GLFWwindow window, int k) {
     if (window != handle) raise new Error "wat";
     auto ch = char:byte:k;
     auto asUTF8 = &ch #[0..1]; // THIS IS SO WRONG. TODO fix.
-    onTextInput.call asUTF8;
+    // don't callback yet; we're called from C so we can't trust the alignment
+    queuedInput ~= asUTF8;
   }
   void reshape(GLFWwindow window, int width, height) {
     if (window != handle) raise new Error "wat";
@@ -149,6 +151,8 @@ class GLFWWindow : GLWindow {
     key-released[] = [for key-released: false];
     SwapBuffers;
     PollEvents;
+    if (queuedInput) onTextInput.call queuedInput;
+    queuedInput = null;
     if (!IsWindow(handle)) raise new WindowClosed "GLFW exit";
   }
   bool claimed;
