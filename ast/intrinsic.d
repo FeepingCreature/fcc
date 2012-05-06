@@ -182,19 +182,35 @@ void setupSysmods() {
     extern(C) int fgetc(void*);
     extern(C) int fflush(void*);
     platform(default) {
-      extern(C) void* stdin, stdout;
+      extern(C) void* stdin, stdout, stderr;
+    }
+    platform(*-mingw*) {
+      struct __FILE {
+        char* _ptr;
+        int _cnt;
+        char* _base;
+        int _flag;
+        int _file;
+        int _charbuf;
+        int _bufsiz;
+        char* _tmpfname;
+      }
+      // extern(C) __FILE* _iob;
+      extern(C) __FILE** __imp___iob;
+      alias _iob = *__imp___iob;
+      alias stdin  = void*:&_iob[0];
+      alias stdout = void*:&_iob[1];
+      alias stderr = void*:&_iob[2];
     }
     string ptoa(void* p) {
       auto res = new char[]((size-of size_t) * 2 + 2 + 1);
       snprintf(res.ptr, res.length, "0x%08x", p); // TODO: adapt for 64-bit
       return res[0 .. res.length - 1];
     }
-    platform(default) {
-      string readln() {
-        char[auto~] buffer;
-        while (!buffer.length || buffer[$-1] != "\n") { buffer ~= char:byte:fgetc(stdin); }
-        return buffer[0..$-1];
-      }
+    string readln() {
+      char[auto~] buffer;
+      while (!buffer.length || buffer[$-1] != "\n") { buffer ~= char:byte:fgetc(stdin); }
+      return buffer[0..$-1];
     }
     void writeln(string line) {
       printf("%.*s\n", line.length, line.ptr);
