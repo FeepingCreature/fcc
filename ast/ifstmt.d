@@ -81,7 +81,7 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIfStmt, "tree.stmt.if"[], "19"[], "if"[]);
 
-import ast.fold, ast.stringparse;
+import ast.fold, ast.stringparse, ast.aggregate_parse;
 Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond test;
@@ -90,45 +90,33 @@ Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
   string branch1, branch2;
   t2.noMoreHeredoc();
   test = fastcast!(Cond) (fold(test));
-
-  bool keepBrackets1 = false, keepBrackets2 = false;
-  
-retry:
   
   auto t3 = t2;
   
-  branch1 = t3.coarseLexScope(true, keepBrackets1);
+  branch1 = t3.coarseLexScope(true, false);
   
   if (t3.accept("else"[]))
-    branch2 = t3.coarseLexScope(true, keepBrackets2);
+    branch2 = t3.coarseLexScope(true, false);
   
   Statement res;
   
-  auto sc = new Scope;
-  // yes, scope is goto-safe (tested!)
-  namespace.set(sc);
-  scope(exit) namespace.set(sc.sup);
   pushCache;
   scope(exit) popCache;
   
   if (isStaticTrue(test)) {
-    if (!rest(branch1, "tree.stmt"[], &res))
-      branch1.failparse("No statements matched in static if"[]);
+    res = branch1.parseAggregateBody(rest, true);
     
     branch1 = branch1.mystripl();
     if (branch1.length) {
-      if (!keepBrackets1) { keepBrackets1 = true; goto retry; }
-      branch1.failparse("Unknown text in static if"[]);
+      branch1.failparse("Unknown text in static if");
     }
   } else if (isStaticFalse(test)) {
     if (branch2) {
-      if (!rest(branch2, "tree.stmt"[], &res))
-        branch2.failparse("No statements matched in static else"[]);
+      res = branch2.parseAggregateBody(rest, true);
       
       branch2 = branch2.mystripl();
       if (branch2.length) {
-        if (!keepBrackets2) { keepBrackets2 = true; goto retry; }
-        branch2.failparse("Unknown text in static else"[]);
+        branch2.failparse("Unknown text in static else");
       }
     } else {
       res = new NoOp;
@@ -138,8 +126,6 @@ retry:
   }
   
   text = t3;
-  // merge
-  foreach (entry; sc.field) sc.sup.add(entry._0, entry._1);
   return fastcast!(Object) (res);
 }
 mixin DefaultParser!(gotStaticIf, "tree.stmt.static_if"[], "190"[], "static if"[]);

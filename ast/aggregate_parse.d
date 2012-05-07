@@ -1,18 +1,34 @@
 module ast.aggregate_parse;
 
 import ast.aggregate, ast.parse, ast.base, ast.scopes, ast.namespace, ast.fun;
+
+AggrStatement parseAggregateBody(ref string text, ParseCb rest, bool error = false, Statement* outp = null) {
+  auto t2 = text;
+  auto as = new AggrStatement;
+  if (outp) *outp = as;
+  Statement st;
+  if (t2.many(!!rest(t2, "tree.stmt"[], &st), { as.stmts ~= st; }, "}")) {
+    text = t2;
+    return as;
+  }
+  else {
+    if (error) t2.failparse("Could not parse statement");
+    return null;
+  }
+}
+
 Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto sc = new Scope;
   sc.configPosition(t2);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
-  auto as = new AggrStatement;
-  sc._body = as;
-  Statement st;
-  if (t2.many(!!rest(t2, "tree.stmt"[], &st), { as.stmts ~= st; }, "}"[]) &&
-      t2.mustAccept("}"[], "Encountered unknown statement"[])
-    ) { text = t2; return sc; }
+  if (auto as = t2.parseAggregateBody(rest, false, &sc._body)) {
+    t2.mustAccept("}", "unknown statement");
+    sc._body = as;
+    text = t2;
+    return sc;
+  }
   else return null;
 }
 mixin DefaultParser!(gotAggregateStmt, "tree.stmt.aggregate"[], "131"[], "{"[]);
