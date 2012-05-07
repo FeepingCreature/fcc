@@ -140,7 +140,7 @@ Object gotTypesEqual(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return res;
 }
-mixin DefaultParser!(gotTypesEqual, "cond.types-equal"[], "81"[], "types-equal"[]);
+mixin DefaultParser!(gotTypesEqual, "cond.types-equal", "651", "types-equal");
 
 import ast.conditionals;
 Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
@@ -156,4 +156,42 @@ Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
   else res = False;
   return fastcast!(Object) (fastalloc!(ExprWrap)(res));
 }
-mixin DefaultParser!(gotTypeIsTuple, "cond.type-is-tuple"[], "82"[], "type-is-tuple"[]);
+mixin DefaultParser!(gotTypeIsTuple, "cond.type-is-tuple", "652", "type-is-tuple");
+
+import ast.namespace;
+Object gotExists(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  bool local;
+  if (t2.accept("local")) local = true;
+  string ident;
+  if (!t2.gotIdentifier(ident))
+    t2.failparse("thing-exists expects identifier");
+  text = t2;
+  
+  setupStaticBoolLits;
+  if (namespace().lookup(ident, local))
+    return fastcast!(Object) (fastalloc!(ExprWrap)(True));
+  else
+    return fastcast!(Object) (fastalloc!(ExprWrap)(False));
+}
+mixin DefaultParser!(gotExists, "cond.thing-exists", "653", "thing-exists");
+
+Object gotConvertsTo(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  
+  IType it;
+  if (!rest(t2, "type"[], &it))
+    t2.failparse("implicitly-converts-to expects target type");
+  it = resolveType(it);
+  
+  Expr ex;
+  if (!rest(t2, "tree.expr"[], &ex))
+    t2.failparse("implicitly-converts-to expects source expr");
+  
+  text = t2;
+  if (gotImplicitCast(ex, (IType it2) { return test(resolveType(it2) == it); }))
+    return fastcast!(Object) (fastalloc!(ExprWrap)(True));
+  else
+    return fastcast!(Object) (fastalloc!(ExprWrap)(False));
+}
+mixin DefaultParser!(gotConvertsTo, "cond.implicitly-converts-to", "654", "implicitly-converts-to");
