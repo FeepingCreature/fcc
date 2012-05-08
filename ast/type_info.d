@@ -149,7 +149,7 @@ Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type"[], &ty))
     t2.failparse("Expect type parameter for type-is-tuple! "[]);
   text = t2;
-  auto tup = fastcast!(ast.tuples.Tuple) (resolveType(ty));
+  auto tup = fastcast!(ast.tuples.Tuple) (forcedConvert(ty));
   setupStaticBoolLits;
   Expr res;
   if (tup) res = True;
