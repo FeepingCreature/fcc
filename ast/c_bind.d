@@ -561,6 +561,14 @@ void parseHeader(string filename, string src) {
       if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
         string ident;
         gotIdentifier(st2, ident);
+        if (isTypedef && st2.accept("*")) {
+          string target;
+          if (st2.gotIdentifier(target)) {
+            // hax
+            add(target, fastalloc!(TypeAlias)(voidp, target));
+            continue;
+          }
+        }
         if (st2.accept("{")) {
           auto startstr = st2;
           auto st = fastalloc!(Structure)(ident);
