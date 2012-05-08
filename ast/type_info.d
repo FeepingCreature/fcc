@@ -193,7 +193,7 @@ Object gotExists(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("local")) local = true;
   string ident;
   if (!t2.gotIdentifier(ident))
-    t2.failparse("thing-exists expects identifier");
+    t2.failparse("is-defined expects identifier");
   text = t2;
   
   setupStaticBoolLits;
@@ -202,7 +202,7 @@ Object gotExists(ref string text, ParseCb cont, ParseCb rest) {
   else
     return fastcast!(Object) (fastalloc!(ExprWrap)(False));
 }
-mixin DefaultParser!(gotExists, "cond.thing-exists", "653", "thing-exists");
+mixin DefaultParser!(gotExists, "cond.is-defined", "653", "is-defined");
 
 Object gotConvertsTo(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
