@@ -144,6 +144,8 @@ mixin DefaultParser!(gotTypesEqual, "cond.types-equal", "651", "types-equal");
 
 import ast.conditionals;
 Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
+  logSmart!(false)("WARN: 'type-is-tuple' is deprecated; please use 'type-is tuple' instead");
+  logSmart!(false)(" at ", text.nextText());
   IType ty;
   auto t2 = text;
   if (!rest(t2, "type"[], &ty))
@@ -157,6 +159,32 @@ Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
   return fastcast!(Object) (fastalloc!(ExprWrap)(res));
 }
 mixin DefaultParser!(gotTypeIsTuple, "cond.type-is-tuple", "652", "type-is-tuple");
+
+import ast.conditionals, ast.arrays;
+Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  string mode;
+  if (t2.accept("tuple")) mode = "tuple";
+  if (t2.accept("array")) mode = "array";
+  if (!mode) t2.failparse("type-is expected type qualifier");
+  IType ty;
+  if (!rest(t2, "type"[], &ty))
+    t2.failparse("Expect type parameter for type-is! "[]);
+  ty = resolveType(forcedConvert(ty));
+  text = t2;
+  
+  bool res;
+  switch (mode) {
+    case "tuple": res = !!fastcast!(ast.tuples.Tuple) (ty); break;
+    case "array": res = !!fastcast!(Array) (ty) || !!fastcast!(ExtArray) (ty); break;
+  }
+  setupStaticBoolLits;
+  Expr ex;
+  if (res) ex = True;
+  else ex = False;
+  return fastcast!(Object) (fastalloc!(ExprWrap)(ex));
+}
+mixin DefaultParser!(gotTypeIs, "cond.type-is", "6521", "type-is");
 
 import ast.namespace;
 Object gotExists(ref string text, ParseCb cont, ParseCb rest) {

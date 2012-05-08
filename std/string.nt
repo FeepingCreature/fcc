@@ -115,7 +115,7 @@ template betweens(T) {
 Evaluates and concatenates the argument. */
 template join(T) {
   auto join(T t) {
-    static if (type-is-tuple T) {
+    static if (type-is tuple T) {
       alias T0 = T[0];
       alias VAL = value-of!type-of-elem t[0];
       type-of VAL[0] [auto~] res;

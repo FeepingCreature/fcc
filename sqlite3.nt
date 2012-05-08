@@ -111,7 +111,7 @@ template QueryIterator(T) {
       if res == SQLITE_BUSY raise new SQLiteBusy;
       if res != SQLITE_ROW
         raise new SQLiteError "Failed to iterate query '$sql': $res";
-      static if type-is-tuple T {
+      static if type-is tuple T {
         static if value.length {
           static while int i <- 0 .. value.length {
             value[i] = getColumn!type-of value[i] i;
@@ -155,7 +155,7 @@ class Database {
     template exec(T) {
       auto exec(U u) {
         define-exit "retry" { }
-        static if type-is-tuple U { string sql = u[0]; }
+        static if type-is tuple U { string sql = u[0]; }
         else { string sql = u; }
         sqlite3_stmt* stmt;
         if SQLITE_OK != auto result = sqlite3_prepare_v2(
@@ -175,12 +175,12 @@ class Database {
         
         if (stack.length) stack[$-1] ~= res;
         
-        static if type-is-tuple U {
+        static if type-is tuple U {
           static while int i <- 0 .. (u.length - 1) {
             res.addBind u[1+i];
           }
         }
-        static if type-is-tuple T {
+        static if type-is tuple T {
           static if bogosity.length == 0 {
             res.advance();
             return;
