@@ -64,6 +64,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
     }
     TemplateInstance getInstance(IType type, ParseCb rest) {
       assert(!isAlias);
+      type = resolveType(type);
       TemplateInstance ti;
       foreach (entry; emat_type) {
         debug if ((qformat(entry._1) == qformat(type)) != (entry._1.mangle() == type.mangle())) {
