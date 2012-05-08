@@ -1,0 +1,20 @@
+module std.lib.ecl;
+
+import c.ecl.ecl;
+
+defmode CL "prefix cl_";
+pragma(lib, "ecl");
+
+auto c_string_to_object(string s) {
+  import std.string;
+  return si_string_to_object(1, ecl_make_simple_base_string(toStringz s, -1));
+}
+
+/**
+void main() using mode CL {
+  boot (__argc, __argv);
+  auto obj = c_string_to_object "\"Hello World\n\"";
+  pprint(1, obj);
+  shutdown();
+}
+**/
