@@ -978,4 +978,10 @@ static this() {
     logSmart!(false)("# ", se.str);
     return Single!(NoOp);
   };
+  pragmas["fail"] = delegate Object(Expr ex) {
+    ex = foldex(ex);
+    auto se = fastcast!(StringExpr) (ex);
+    if (!se) throw new Exception(Format("Expected string expression for pragma(fail), not ", ex));
+    throw new Exception(se.str);
+  };
 }
