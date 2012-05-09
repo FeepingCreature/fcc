@@ -76,7 +76,7 @@ class RelMember : Expr, Named, RelTransformable {
   override RelMember dup() { return this; }
 }
 
-class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
+class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer {
   mixin TypeDefaults!(true, false);
   string name;
   bool isUnion, packed, isTempStruct;
@@ -91,6 +91,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType {
   */
   bool immutableNow;
   int cached_length, cached_size;
+  mixin ImporterImpl!();
   NSCache!(string, RelMember) rmcache;
   override bool isPointerLess() {
     bool pointerless = true;

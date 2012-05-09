@@ -11,7 +11,7 @@ else {
   string myRealpath(string s) { return toString(realpath(toStringz(s))); }
 }
 
-Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
+Object gotImport(bool ReturnNamed)(ref string text, ParseCb cont, ParseCb rest) {
   bool pub, stat;
   auto original_text = text;
   {
@@ -108,10 +108,15 @@ Object gotImport(ref string text, ParseCb cont, ParseCb rest) {
     else if (stat) process(cap, ImportType.Static, newmod);
     else process(cap, ImportType.Regular, newmod);
   }
-  return Single!(NoOp);
+  static if (ReturnNamed) {
+    return new NamedNull;
+  } else {
+    return Single!(NoOp);
+  }
 }
-mixin DefaultParser!(gotImport, "tree.import"[]);
-mixin DefaultParser!(gotImport, "tree.semicol_stmt.import"[], "33"[]);
+mixin DefaultParser!(gotImport!(false), "tree.import");
+mixin DefaultParser!(gotImport!(false), "tree.semicol_stmt.import", "33");
+mixin DefaultParser!(gotImport!(true), "struct_member.import");
 
 Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   auto t2 = text;

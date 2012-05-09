@@ -479,7 +479,7 @@ template ImporterImpl() {
       case ImportType.Static: return &static_imports;
     }
   }
-  void checkImportsUsage() { check_imports_usage(name, imports, importsUsed); }
+  void checkImportsUsage() { ast.namespace.check_imports_usage(name, imports, importsUsed); }
   Object lookupInImports(string name, bool local) {
     Object res;
     bool useCModules = false;
