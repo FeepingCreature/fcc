@@ -29,7 +29,7 @@ Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotMixinExpr, "tree.expr.mixin"[], "222"[], "mixin"[]);
 
-Object gotMixinStmt(ref string text, ParseCb cont, ParseCb rest) {
+Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
   if (!rest(t2, "tree.expr"[], &ex)) 
@@ -44,14 +44,20 @@ Object gotMixinStmt(ref string text, ParseCb cont, ParseCb rest) {
   Object res;
   pushCache(); scope(exit) popCache();
   try {
-    if (!rest(src, "tree.stmt"[], &res))
+    if (!rest(src, submode, &res))
       src.failparse("Couldn't parse mixin string for stmt"[]);
     if (src.mystripl().length)
       src.failparse("Unknown text found for stmt. "[]);
   } catch (Exception ex) {
     t2.failparse("Executing mixin '"[], src.nextText(), "': "[], ex);
   }
+  static if (submode != "tree.stmt") {
+    if (!t2.accept(";"))
+      t2.failparse("semicolon expected");
+  }
   text = t2;
   return res;
 }
-mixin DefaultParser!(gotMixinStmt, "tree.semicol_stmt.mixin"[], "100"[], "mixin"[]);
+mixin DefaultParser!(gotMixinStmt!("tree.stmt"), "tree.semicol_stmt.mixin", "100", "mixin");
+mixin DefaultParser!(gotMixinStmt!("tree.toplevel"), "tree.toplevel.mixin",  null, "mixin");
+mixin DefaultParser!(gotMixinStmt!("struct_member"), "struct_member.mixin",  null, "mixin");
