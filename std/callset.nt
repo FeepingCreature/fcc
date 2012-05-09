@@ -5,8 +5,6 @@ template CallSet(T) {
     static if (types-equal (T, void)) { return \() { }; }
     else { return \(T t) { }; }
   }
-  // this is horrible.
-  // TODO! Template mixins! Alternately: string mixins in structs!
   alias callset-str = `
     template CallSet(U) {
       struct CallSet {
