@@ -4,58 +4,7 @@ class WindowClosed : Error {
   void init(string s) super.init "WindowClose: $s";
 }
 
-template CallSet(T) {
-  auto helper() {
-    static if (types-equal (T, void)) { return \() { }; }
-    else { return \(T t) { }; }
-  }
-  // this is horrible.
-  // TODO! Template mixins! Alternately: string mixins in structs!
-  template CallSetA(U) {
-    struct CallSetA {
-      alias DG = type-of helper();
-      DG[auto~] dgs;
-      void call() {
-        for auto dg <- dgs dg?();
-      }
-      void add(DG dg) {
-        for ref dg2 <- dgs
-          if (!dg2) { dg2 = dg; return; }
-        dgs ~= dg;
-      }
-      void remove(DG dg) {
-        for ref dg2 <- dgs
-          if ((void*,void*):dg == (void*,void*):dg2) dg2 = null;
-      }
-    }
-  }
-  template CallSetB(U) {
-    struct CallSetB {
-      alias DG = type-of helper();
-      DG[auto~] dgs;
-      void call(T t) {
-        for auto dg <- dgs dg?(t);
-      }
-      void add(DG dg) {
-        for ref dg2 <- dgs
-          if (!dg2) { dg2 = dg; return; }
-        dgs ~= dg;
-      }
-      void remove(DG dg) {
-        for ref dg2 <- dgs
-          if ((void*,void*):dg == (void*,void*):dg2) dg2 = null;
-      }
-    }
-  }
-  auto helper2() {
-    static if (types-equal(T, void)) {
-      return CallSetA!(int) A;
-    } else {
-      return CallSetB!(int) B;
-    }
-  }
-  alias CallSet = type-of helper2();
-}
+import std.callset;
 
 // NOTE: uses the USB HID standard key codes
 // see: http://www.usb.org/developers/devclass_docs/Hut1_11.pdf
