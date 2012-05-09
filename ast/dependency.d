@@ -43,13 +43,13 @@ class CodeDependency : Expr, Named {
   mixin defaultIterate!();
   override {
     string getIdentifier() { return get_id(info); }
-    IType valueType() { assert(false); }
+    IType valueType() { return Single!(Void); }
     void emitAsm(AsmFile af) { assert(false); }
     CodeDependency dup() { return this; }
   }
 }
 
-Object gotProvide(ref string text, ParseCb cont, ParseCb rest) {
+Object gotProvide(bool Statement)(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
   bool removed;
@@ -79,11 +79,19 @@ Object gotProvide(ref string text, ParseCb cont, ParseCb rest) {
     cd.removed_info = se2.str;
   }
   
-  ns.add(cd);
   text = t2;
-  return Single!(NoOp);
+  static if (Statement) {
+    ns.add(cd);
+    return Single!(NoOp);
+  } else {
+    if (!text.accept(";"))
+      text.failparse("semicolon expected");
+    return cd;
+  }
 }
-mixin DefaultParser!(gotProvide, "tree.semicol_stmt.provide", "51", "provide");
+mixin DefaultParser!(gotProvide!(true), "tree.semicol_stmt.provide", "51", "provide");
+mixin DefaultParser!(gotProvide!(false), "tree.toplevel.a_provide", null, "provide");
+mixin DefaultParser!(gotProvide!(false), "struct_member.provide", null, "provide");
 
 import ast.oop;
 Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
@@ -96,10 +104,10 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   // resolve
   Object res = namespace();
   Object llookup(string s) {
-    // logln("llookup ", s, " in ", res);
     if (auto it = fastcast!(IType) (res))
       res = fastcast!(Object) (resolveType(it));
     
+    // logln("llookup ", s, " in ", res);
     if (auto cr = fastcast!(ClassRef) (res)) {
       // special handling
       cr.myClass.parseMe;
@@ -109,10 +117,10 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
           return fun;
         }
       }
-      return null;
+      return cr.myClass.data.lookup(s, true);
     }
     if (auto ns = fastcast!(Namespace) (res))
-      return ns.lookup(s, false);
+      return ns.lookup(s, true);
     auto rns = fastcast!(RelNamespace) (res);
     IType it = fastcast!(IType) (res);
     if (!rns) if (auto srns = fastcast!(SemiRelNamespace) (res))
