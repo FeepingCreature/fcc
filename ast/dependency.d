@@ -103,7 +103,7 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Expected target identifier for 'depend'. ");
   // resolve
   Object res = namespace();
-  Object llookup(string s) {
+  Object llookup(string s, bool local = false) {
     if (auto it = fastcast!(IType) (res))
       res = fastcast!(Object) (resolveType(it));
     
@@ -117,10 +117,10 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
           return fun;
         }
       }
-      return cr.myClass.data.lookup(s, true);
+      return cr.myClass.data.lookup(s, local);
     }
     if (auto ns = fastcast!(Namespace) (res))
-      return ns.lookup(s, true);
+      return ns.lookup(s, local);
     auto rns = fastcast!(RelNamespace) (res);
     IType it = fastcast!(IType) (res);
     if (!rns) if (auto srns = fastcast!(SemiRelNamespace) (res))
@@ -164,7 +164,7 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   
   auto name = get_id(se.str);
   
-  if (auto cdep = fastcast!(CodeDependency) (llookup(name))) {
+  if (auto cdep = fastcast!(CodeDependency) (llookup(name, true))) {
     if (cdep.removed_info)
       text.failparse("Dependency '", se.str, "' removed from ", start_ident, ": ",
         cdep.removed_info);
