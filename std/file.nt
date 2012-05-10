@@ -86,7 +86,7 @@ class WriterError : Error {
 class writer {
   int hdl;
   void init(int hdl) this.hdl = hdl;
-  void init(string file) hdl = open(file, O_RDWR | O_CREAT);
+  void init(string file) hdl = open(file, O_RDWR | O_CREAT | O_TRUNC);
   void step(byte[] data) {
     while data.length {
       auto res = write(hdl, data.ptr, data.length);
@@ -107,11 +107,12 @@ void delegate(byte[]) writefile(int hdl) using new writer hdl return &step;
 
 /*Function: writeAll
 Writes data to a file.
+If the file exists, it will be truncated; otherwise, it will be created.
 
 Parameters:
   string file - the filename
   byte[] data - the data to write*/
-void writeAll(string file, byte[] data) using new writer open(file, O_RDWR | O_CREAT) {
+void writeAll(string file, byte[] data) using new writer file {
   step data;
   that.close;
 }

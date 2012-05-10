@@ -322,7 +322,7 @@ Thing parse(string* text) {
   }
   auto t2 = *text #.strip();
   char[auto~] token;
-  while (t2.length && t2[0] != " " && t2[0] != ")" && t2[0] != "(") {
+  while (t2.length && t2[0] != " " && t2[0] != ")" && t2[0] != "(" && t2[0] != "\r" && t2[0] != "\n") {
     token ~= t2[0];
     t2 = t2[1..$];
   }
