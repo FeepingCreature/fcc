@@ -1,0 +1,67 @@
+module std.repl;
+
+import std.string;
+
+interface ReplCommandInterface {
+  void writeLine(string line);
+  string readLine();
+}
+
+// TODO: add GTK+ interface?
+class CommandLine : ReplCommandInterface {
+  void writeLine(string line) {
+    writeln "$line";
+  }
+  string readLine() {
+    printf `repl$ `;
+    return sys.readln();
+  }
+}
+
+import std.wren;
+
+class WrenInputError : WrenError {
+  void init(string s) { super.init "WrenInputError: Unknown input: $s"; }
+}
+
+class WrenRepl : ListNamespace {
+  ReplCommandInterface intf;
+  void init(type-of intf intf) {
+    this.intf = intf;
+  }
+  void run() {
+    bool done;
+    add ("print", new Function ("print", delegate Thing(Thing[] things) {
+      writeln "> $things";
+      return nil;
+    }));
+    add ("list-things", new Function ("list-things", delegate Thing(Thing[] things, Namespace ns) {
+      writeln "Listing $ns";
+      ns.iterate \(string name, Thing thing) {
+        writeln "  [$name] $thing";
+      }
+      return nil;
+    }));
+    add ("continue", new Function ("continue", delegate Thing(Thing[] things) {
+      done = true;
+      return nil;
+    }));
+    while !done && auto input = intf.readLine() {
+      define-exit "print-error" (Error err) {
+        writeln "Error happened: $err";
+        continue;
+      }
+      auto thing = parse &input;
+      if ((string inp = input.strip()).length) {
+        define-exit "print-error" (WrenInputError) {
+          writeln "Error: unknown input: '$inp'";
+          continue;
+        }
+        raise new WrenInputError inp;
+      }
+      auto res = thing.eval this;
+      if (!res) raise new WrenInputError input;
+      intf.writeLine "$thing => $res";
+    }
+  }
+}

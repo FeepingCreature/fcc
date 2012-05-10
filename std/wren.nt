@@ -1,0 +1,361 @@
+/**
+<feep> so
+<feep> Ralith
+<feep> name for my lisp
+<feep> thing
+<Ralith> feeparen
+<feep> can't pronounce that
+<Ralith> ...?
+<feep> I keep trying to say it "feep a ren"
+<Ralith> that is how you pronounce it!
+<feep> what is a ren
+<feep> and how do you feep it
+<Ralith> a wren is a kind of bird
+<feep> std.wren?
+<Ralith> presumably you feep it by flailing in its direction
+<feep> oh. looks tiny and loud. perfect.
+**/
+module std.wren;
+
+class WrenError : Error {
+  void init(string s) { super.init "WrenError: $s"; }
+}
+
+void error(string s) { raise new WrenError s; }
+
+interface Thing;
+
+interface Namespace {
+  Thing lookup(string match);
+  void iterate(void delegate(string, Thing) dg);
+}
+
+interface Thing {
+  Thing eval(Namespace);
+  string toString();
+}
+
+class Token : Thing {
+  string name;
+  void init(string s) name = s;
+  Thing eval(Namespace ns) {
+    auto res = ns.lookup name;
+    if (!res) error "Cannot evaluate $this: no $name found in $ns";
+    return res;
+  }
+  string toString() { return "$name"; }
+}
+
+class Number : Thing {
+  float num;
+  void init(float f) num = f;
+  Thing eval(Namespace) { return this; }
+  string toString() { return "$num"; }
+}
+
+class Integer : Thing {
+  int num;
+  void init(int i) num = i;
+  Thing eval(Namespace) { return this; }
+  string toString() { return "$num"; }
+}
+
+class String : Thing {
+  string s;
+  void init(string s) this.s = s;
+  Thing eval(Namespace) { return this; }
+  string toString() { return "\"$s\""; }
+}
+
+class Vec2f : Thing {
+  vec2f value;
+  void init(vec2f v) value = v;
+  Thing eval(Namespace) { return this; }
+  string toString() { return "vec2f($(value.x), $(value.y))"; }
+}
+
+interface IArray : Thing {
+  Thing getIndex(int i);
+  int getLength();
+  IArray concat(IArray);
+}
+
+interface Assignable {
+  void assign(Thing newval);
+}
+
+interface Slotted {
+  Thing lookup(string name);
+}
+
+template Array(T) {
+  class Array : Thing, IArray {
+    T[] value;
+    void init(T[] t) { value = t; }
+    Thing eval(Namespace ns) { assert(false, "cannot evaluate array"); }
+    Thing getIndex(int i) {
+      return neat-to-repl value[i];
+    }
+    IArray concat(IArray b) {
+      auto arr = Array:b;
+      if (!arr) error
+        "Incompatible arrays for concatenation: $(string-of T) and $b";
+      return new Array $ value ~ arr.value;
+    }
+    int getLength() { return value.length; }
+    string toString() {
+      return "$(string-of T)[] $value";
+    }
+  }
+}
+
+IArray array-from-thing(Thing t) {
+  if (auto num = Number:t) using new Array!float null {
+    value ~= num.num;
+    return that;
+  }
+  if (auto vec = Vec2f:t) using new Array!vec2f null {
+    value ~= vec.value;
+    return that;
+  }
+  raise new Error "Cannot construct array from $t";
+}
+
+template Reference(T) {
+  class Reference : Thing, Assignable {
+    T* ptr;
+    void init(T* t) { ptr = t; }
+    Thing eval(Namespace) { return neat-to-repl *ptr; }
+    void assign(Thing newval) {
+      *ptr = repl-to-neat!T newval;
+    }
+  }
+}
+
+template neat-to-repl(T) {
+  Thing neat-to-repl(T t) {
+    static if (implicitly-converts-to Thing t) {
+      return Thing: t;
+      alias match-found = true;
+    }
+    static if (implicitly-converts-to int t) {
+      return Thing: new Integer t;
+      alias match-found = true;
+    }
+    static if (implicitly-converts-to float t) {
+      return Thing: new Number t;
+      alias match-found = true;
+    }
+    static if (implicitly-converts-to vec2f t) {
+      return Thing: new Vec2f t;
+      alias match-found = true;
+    }
+    static if (type-is array T) {
+      alias AT = type-of t[0];
+      return new Array!AT t;
+      alias match-found = true;
+    }
+    static if (!is-defined match-found) {
+      pragma(fail, string-of type-of t ~ ": can't convert to repl form");
+    }
+  }
+}
+
+template repl-to-neat(T) {
+  T repl-to-neat(Thing thing) {
+    static if (type-is array T) {
+      alias AT = type-of (*T*:null)[0];
+      if (auto arr = Array!AT: thing)
+        return arr.value;
+      else error "Can't create $(string-of T) ($(string-of AT)) from $thing";
+      alias match-found = true;
+    }
+    static if (!is-defined match-found) {
+      pragma(fail, string-of T ~ ": can't create from repl form");
+    }
+  }
+}
+
+class ObjectThing : Thing {
+  Slotted obj;
+  void init(Slotted s) { this.obj = s; }
+  Thing eval(Namespace) { return this; }
+  string toString() { return "$obj"; }
+}
+
+interface Operator {
+  Thing call(Thing[] args, Namespace ns);
+}
+
+class Function : Thing, Operator {
+  string info;
+  Thing delegate(Thing[]) fn;
+  Thing delegate(Thing[], Namespace) fn2;
+  void init(string s, Thing delegate(Thing[]) dg) (info, fn) = (s, dg);
+  void init(string s, Thing delegate(Thing[], Namespace) dg) (info, fn2) = (s, dg);
+  Thing call(Thing[] list, Namespace ns) {
+    Thing[auto~] args;
+    onSuccess args.free;
+    for auto thing <- list
+      args ~= thing.eval ns;
+    if (fn2) return fn2 (args[], ns);
+    return fn args[];
+  }
+  Thing eval(Namespace) {
+    error "Cannot evaluate $this";
+  }
+  string toString() { return "{$info}"; }
+}
+
+class Escape : Thing {
+  Thing inside;
+  void init(Thing t) inside = t;
+  Thing eval(Namespace) { return inside; }
+  string toString() { return "'$inside"; }
+}
+
+class List : Thing {
+  Thing[] list;
+  void init(Thing[] l) list = l;
+  Thing eval(Namespace ns) {
+    if !list.length error "Cannot evaluate $this: list empty";
+    auto op = Operator: list[0].eval(ns);
+    if !op error "Cannot evaluate $this: first entry is not an operator (function)";
+    return op.call (list[1..$], ns);
+  }
+  string toString() {
+    char[auto~] res;
+    res ~= "(";
+    for auto thing <- list && int i <- ints {
+      if i res ~= " ";
+      res ~= thing?.toString():"(null)";
+    }
+    res ~= ")";
+    return res[];
+  }
+}
+
+class IntValue : Thing, Assignable {
+  int* target;
+  void init(int* ip) target = ip;
+  string toString() { return "<ref $(*target)>"; }
+  Thing eval(Namespace ns) {
+    return new Number(*target);
+  }
+  void assign(Thing t) {
+    auto n = Number:t;
+    if !n error "Cannot assign: $t is not a number";
+    *target = int: n.num;
+  }
+}
+
+class FloatValue : Thing, Assignable {
+  float* target;
+  void init(float* fp) target = fp;
+  string toString() { return "<ref $(*target)>"; }
+  Thing eval(Namespace ns) {
+    return new Number(*target);
+  }
+  void assign(Thing t) {
+    auto n = Number:t;
+    if !n error "Cannot assign: $t is not a number";
+    *target = float: n.num;
+  }
+}
+
+class ObjectValue : Thing {
+  Object* target;
+  void init(Object* op) target = op;
+  string toString() { return "<ref $(*target)>"; }
+  Thing eval(Namespace ns) {
+    return new String "$(*target)";
+  }
+}
+
+class DataArray : Thing {
+  (int, void*)* target;
+  void init((int, void*)* ap) target = ap;
+  string toString() { return "<data-array $(*target#[0]): $(*target#[1])>"; }
+  Thing eval(Namespace ns) {
+    error "Cannot evaluate data-array";
+  }
+}
+
+import std.string;
+
+bool accept(string* text, string match) {
+  string t2 = *text #.strip();
+  if (auto rest = t2.startsWith(match)) { *text = rest; return true; }
+  return false;
+}
+
+bool gotNum(string* text, float* num) {
+  float res = 0;
+  auto t2 = *text #.strip();
+  char[auto~] n;
+  while (t2.length && ("0" <= t2[0] <= "9" || t2[0] == ".")) {
+    n ~= t2[0]; t2 = t2[1..$];
+  }
+  if (!n.length) return false;
+  *num = n[].atof();
+  *text = t2;
+  return true;
+}
+
+Thing parse(string* text) {
+  if (text.accept "(") {
+    Thing[] things;
+    while (!text.accept ")")
+      things ~= parse text;
+    return new List things;
+  }
+  if (gotNum(text, &float f)) {
+    return new Number f;
+  }
+  if (text.accept("\"")) {
+    auto str = slice(text, "\"");
+    return new String str;
+  }
+  if (text.accept("'")) {
+    return new Escape (parse text);
+  }
+  auto t2 = *text #.strip();
+  char[auto~] token;
+  while (t2.length && t2[0] != " " && t2[0] != ")" && t2[0] != "(") {
+    token ~= t2[0];
+    t2 = t2[1..$];
+  }
+  if (!token.length)
+    error "Don't know what to do at $t2";
+  *text = t2;
+  return new Token token[];
+}
+
+bool matches(string name, match) {
+  return name == match;
+}
+
+class ListNamespace : Namespace {
+  (Thing, string)[auto~] list;
+  void add(string name, Thing t) {
+    list ~= (t, name);
+  }
+  Thing lookup(string match) {
+    for ref entry <- list
+      if (entry[1].matches match)
+        return entry[0];
+    return null;
+  }
+  void iterate(void delegate(string, Thing) dg) {
+    for auto pair <- list
+      dg pair[(1, 0)];
+  }
+}
+
+shared Thing nil, t;
+void init() {
+  nil = new List null;
+  auto arr = new Thing[] 1;
+  arr[0] = nil;
+  t = new List arr;
+}
