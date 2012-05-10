@@ -67,7 +67,6 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (!t2.accept("for"[]))
       return null;
     forMode = true;
-    assert(!isStatic);
   }
   auto ws = new WhileStatement;
   auto sc = new Scope;
@@ -107,6 +106,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     // logln("foldex length is "[], foldex(iter.length(iter_expr)));
     if (!len) fail("static-loop iterator length is not constant int! "[]);
     string t3;
+    if (!len.num) fail("static-loop must not be empty");
     for (int i = 0; i < len.num; ++i) {
       auto ival = foldex(iter.index(iter_expr, mkInt(i)));
       string t4 = t2;
