@@ -111,9 +111,7 @@ Writes data to a file.
 Parameters:
   string file - the filename
   byte[] data - the data to write*/
-void writeAll(string file, byte[] data) using new writer {
-  mode_t perms;
-  hdl = open(file, O_RDWR | O_CREAT);
+void writeAll(string file, byte[] data) using new writer open(file, O_RDWR | O_CREAT) {
   step data;
   that.close;
 }
