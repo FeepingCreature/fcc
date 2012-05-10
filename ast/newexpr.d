@@ -30,10 +30,14 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   PlaceholderTokenLV var_token;
   if (initParam) {
     New(var_token, it, "early constructor call"[]);
-    protConstCall =
-      iparse!(Expr, "call_constructor_early"[], "tree.expr _tree.expr.arith"[])
-              (`var.init ex`, namespace(),
-              "var"[], var_token, "ex"[], initParam);
+    try {
+      protConstCall =
+        iparse!(Expr, "call_constructor_early"[], "tree.expr _tree.expr.arith"[])
+               (`var.init ex`, namespace(),
+                "var"[], var_token, "ex"[], initParam);
+    } catch (Exception ex) {
+      text.failparse(ex);
+    }
   }
   return fastalloc!(CallbackExpr)(Format("class-new "[], cr), cr, protConstCall, stuple(text, cr, var_token)
   /apply/ (string text, ClassRef cr, PlaceholderTokenLV var_token, Expr protConstCall, AsmFile af)
