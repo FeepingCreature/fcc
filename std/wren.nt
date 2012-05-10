@@ -18,7 +18,8 @@
 module std.wren;
 
 class WrenError : Error {
-  void init(string s) { super.init "WrenError: $s"; }
+  string unadorned-str;
+  void init(string s) { super.init "WrenError: $s"; unadorned-str = s; }
 }
 
 void error(string s) { raise new WrenError s; }
