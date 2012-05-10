@@ -105,6 +105,9 @@ Object gotAutoDecl(ref string text, ParseCb cont, ParseCb rest) {
     if (!var.type) {
       t2.failparse("Expression has no type (wtf?) "[], ex);
     }
+    if (Single!(Void) == var.type) {
+      t2.failparse("Cannot declare variable of type void");
+    }
     var.baseOffset = boffs(var.type);
     auto vd = fastalloc!(VarDecl)(var);
     vd.configPosition(text);
