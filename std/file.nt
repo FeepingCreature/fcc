@@ -61,10 +61,16 @@ platform(arm*) {
   Function: open
   Wrapper around C's open()
 */
-int open(string file, int read-mode = read-mode, mode_t perms = 0) {
+int open(string file, int file-mode = read-mode, mode_t perms = -1) {
+  platform(i686-mingw32) {
+    if (perms == -1) perms = S_IREAD | S_IWRITE;
+  }
+  platform(!i686-mingw32) {
+    if (perms == -1) perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+  }
   auto ptr = toStringz(file);
   onExit mem.free(ptr);
-  auto fd = C_open(ptr, read-mode | tweak-mode, perms);
+  auto fd = C_open(ptr, file-mode | tweak-mode, perms);
   if (fd == -1) raise new ErrnoError;
   return fd;
 }
@@ -79,6 +85,8 @@ class WriterError : Error {
 
 class writer {
   int hdl;
+  void init(int hdl) this.hdl = hdl;
+  void init(string file) hdl = open(file, O_RDWR | O_CREAT);
   void step(byte[] data) {
     while data.length {
       auto res = write(hdl, data.ptr, data.length);
@@ -93,12 +101,9 @@ class writer {
 Returns a delegate that, when called, will write its parameter to a handle.
 
 Parameters:
-  _hdl - a file handle
+  hdl - a file handle
 */
-void delegate(byte[]) writefile(int _hdl) using new writer {
-  hdl = _hdl;
-  return &step;
-}
+void delegate(byte[]) writefile(int hdl) using new writer hdl return &step;
 
 /*Function: writeAll
 Writes data to a file.
@@ -108,13 +113,7 @@ Parameters:
   byte[] data - the data to write*/
 void writeAll(string file, byte[] data) using new writer {
   mode_t perms;
-  platform(i686-mingw32) {
-    perms = S_IREAD | S_IWRITE;
-  }
-  platform(!i686-mingw32) {
-    perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-  }
-  hdl = file.open (O_RDWR | O_CREAT, perms);
+  hdl = open(file, O_RDWR | O_CREAT);
   step data;
   that.close;
 }
