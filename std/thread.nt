@@ -241,9 +241,9 @@ class ThreadPool {
   void waitComplete() {
     using autoLock(m) {
       while (tasksLeft) { 
-        m.unlock;
+        this.m.unlock;
         t.claim;
-        m.lock;
+        this.m.lock;
         tasksLeft --;
       }
     }
