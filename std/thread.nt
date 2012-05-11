@@ -239,9 +239,14 @@ class ThreadPool {
   /*Function: waitComplete
   Wait until all tasks have been completed. */
   void waitComplete() {
-    int i;
-    using autoLock(m) { i = tasksLeft; tasksLeft = 0; }
-    while 0..i t.claim();
+    using autoLock(m) {
+      while (tasksLeft) { 
+        m.unlock;
+        t.claim;
+        m.lock;
+        tasksLeft --;
+      }
+    }
   }
   /*Function: addTask
   Adds a task to be executed. The task is called with the id of the thread that's executing it. */
