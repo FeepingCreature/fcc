@@ -81,8 +81,8 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIfStmt, "tree.stmt.if"[], "19"[], "if"[]);
 
-import ast.fold, ast.stringparse, ast.aggregate_parse;
-Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
+import ast.fold, ast.stringparse, ast.aggregate_parse, ast.platform;
+Object gotStaticIf(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond test;
   if (!rest(t2, "cond"[], &test))
@@ -104,20 +104,12 @@ Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) popCache;
   
   if (isStaticTrue(test)) {
-    res = branch1.parseAggregateBody(rest, true);
-    
-    branch1 = branch1.mystripl();
-    if (branch1.length) {
-      branch1.failparse("Unknown text in static if");
-    }
+    static if (Stmt) { res = branch1.parseFullAggregateBody(rest); }
+    else { res = Single!(NoOp); branch1.parseGlobalBody(rest, Stmt); }
   } else if (isStaticFalse(test)) {
     if (branch2) {
-      res = branch2.parseAggregateBody(rest, true);
-      
-      branch2 = branch2.mystripl();
-      if (branch2.length) {
-        branch2.failparse("Unknown text in static else");
-      }
+      static if (Stmt) { res = branch2.parseFullAggregateBody(rest); }
+      else { res = Single!(NoOp); branch2.parseGlobalBody(rest, Stmt); }
     } else {
       res = new NoOp;
     }
@@ -128,4 +120,5 @@ Object gotStaticIf(ref string text, ParseCb cont, ParseCb rest) {
   text = t3;
   return fastcast!(Object) (res);
 }
-mixin DefaultParser!(gotStaticIf, "tree.stmt.static_if"[], "190"[], "static if"[]);
+mixin DefaultParser!(gotStaticIf!(false), "tree.toplevel.a_static_if", null, "static if"); // sort first because is also cheap to exclude
+mixin DefaultParser!(gotStaticIf!(true) , "tree.stmt.static_if", "190", "static if");

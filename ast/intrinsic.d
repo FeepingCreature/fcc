@@ -76,7 +76,8 @@ void setupSysmods() {
           }
           destlen /= sz2;
           T res;
-          auto resptr = type-of res[0] * :ar.ptr;
+          alias restype = type-of res[0];
+          auto resptr = restype* :ar.ptr;
           res = resptr[0 .. destlen];
           return res;
         }

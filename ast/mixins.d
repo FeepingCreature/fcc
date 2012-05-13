@@ -1,6 +1,6 @@
 module ast.mixins;
 
-import ast.base, ast.parse, ast.literal_string, ast.fold, ast.casting;
+import ast.base, ast.parse, ast.literal_string, ast.fold, ast.casting, ast.aggregate_parse;
 
 Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

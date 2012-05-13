@@ -4,6 +4,33 @@ import ast.base, parseBase, ast.fun, ast.namespace, ast.pointer, ast.stringparse
 
 import tools.base: endsWith;
 
+void parseGlobalBody(ref string src, ParseCb rest, bool stmt) {
+  Object obj;
+  auto ns = namespace(), mod = fastcast!(Module) (current_module());
+  if (!src.many(
+      !!rest(src, stmt?"tree.stmt":"tree.toplevel"[], &obj),
+      {
+        if (stmt) {
+          if (auto st = fastcast!(Statement) (obj)) {
+            auto sc = fastcast!(Scope) (ns);
+            if (!sc) fail;
+            sc.addStatement(st);
+          }
+        } else {
+          if (auto n = fastcast!(Named) (obj))
+            if (!addsSelf(obj))
+              ns.add(n);
+          if (auto tr = fastcast!(Tree) (obj)) mod.entries ~= tr;
+        }
+      }
+    ))
+    src.failparse("Failed to parse platform body. "[]);
+  src.eatComments();
+  if (src.mystripl().length) {
+    src.failparse("Unknown statement. "[]);
+  }
+}
+
 import ast.modules;
 Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -32,32 +59,10 @@ Object gotPlatform(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   if(!wildfront && wildback) match |= !!platform_prefix.startsWith(platname);
   if (neg) match = !match;
   if (match) {
-    Object obj;
-    if (!src.many(
-        !!rest(src, Stmt?"tree.stmt":"tree.toplevel"[], &obj),
-        {
-          static if (Stmt) {
-            if (auto st = fastcast!(Statement) (obj)) {
-              auto sc = fastcast!(Scope) (ns);
-              if (!sc) fail;
-              sc.addStatement(st);
-            }
-          } else {
-            if (auto n = fastcast!(Named) (obj))
-              if (!addsSelf(obj))
-                ns.add(n);
-            if (auto tr = fastcast!(Tree) (obj)) mod.entries ~= tr;
-          }
-        }
-      ))
-      src.failparse("Failed to parse platform body. "[]);
-    src.eatComments();
-    if (src.mystripl().length) {
-      src.failparse("Unknown statement. "[]);
-    }
+    src.parseGlobalBody (rest, Stmt);
   }
   text = t2;
   return Single!(NoOp);
 }
-mixin DefaultParser!(gotPlatform!(false), "tree.toplevel.a_platform"[], null, "platform"[]); // sort first because is cheap to exclude
-mixin DefaultParser!(gotPlatform!(true), "tree.stmt.platform"[], "311"[], "platform"[]);
+mixin DefaultParser!(gotPlatform!(false), "tree.toplevel.a_platform", null, "platform"); // sort first because is cheap to exclude
+mixin DefaultParser!(gotPlatform!(true), "tree.stmt.platform", "311", "platform");

@@ -17,6 +17,15 @@ AggrStatement parseAggregateBody(ref string text, ParseCb rest, bool error = fal
   }
 }
 
+AggrStatement parseFullAggregateBody(ref string src, ParseCb rest) {
+  auto res = parseAggregateBody(src, rest, true);
+  src = src.mystripl();
+  if (src.length) {
+    src.failparse("unknown text in aggregate body");
+  }
+  return res;
+}
+
 Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto sc = new Scope;
