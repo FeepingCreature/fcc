@@ -1,6 +1,15 @@
 module ast.expr_statement;
 
-import ast.base, ast.parse, ast.fold, ast.fun, ast.assign;
+import ast.base, ast.parse, ast.fold, ast.fun, ast.assign, ast.scopes, ast.vardecl, ast.namespace;
+
+bool showsAnySignOfHaving(Expr ex, string thing) {
+  auto it = ex.valueType();
+  if (Single!(Void) == it) return false;
+  if (auto ns = fastcast!(Namespace) (it)) {
+    if (ns.lookup(thing)) return true;
+  }
+  return false;
+}
 
 Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
@@ -15,6 +24,19 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
     }
     // logln("expr as statement on "[], fc.fun);
     return fastcast!(Object) (mkAssignment(args[0], ex));
+  }
+  if (showsAnySignOfHaving(ex, "onDiscard")) {
+    auto sc = fastalloc!(Scope)();
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(sc);
+    
+    auto lv = lvize(ex);
+    if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
+                              ("evaluate lv.onDiscard"[], "lv"[], lv))
+      sc.addStatement(onUsing);
+    return sc;
   }
   return fastalloc!(ExprStatement)(ex);
 }
