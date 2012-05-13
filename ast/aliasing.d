@@ -1,6 +1,6 @@
 module ast.aliasing;
 
-import ast.base, ast.parse, ast.structure, ast.namespace,
+import ast.base, ast.parse, ast.structure, ast.namespace, ast.properties,
   tools.base: This, This_fn, rmSpace;
 
 import dwarf2;
@@ -115,8 +115,10 @@ redo:
   IType ty;
   Object obj;
   
-  bool strict;
+  bool strict, raw;
   if (t2.accept("strict"[])) strict = true;
+  if (t2.accept("raw"[]))    raw = true;
+  
   if (!(t2.gotIdentifier(id) &&
         t2.accept("="[])))
     t2.failparse("Couldn't parse alias"[]);
@@ -141,6 +143,11 @@ redo:
     }
     if (!obj) {
       t3 = t2;
+      
+      auto backup = *rawmode_loc.ptr();
+      if (raw) *rawmode_loc.ptr() = t3.ptr;
+      scope(exit) if (raw) *rawmode_loc.ptr() = backup;
+      
       if (rest(t3, "tree.expr"[], &obj) && gotTerm()) {
         t2 = t3;
       } else {

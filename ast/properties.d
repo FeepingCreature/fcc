@@ -10,6 +10,14 @@ TLS!(PropArgs) propcfg;
 
 static this() { New(propcfg); }
 
+TLS!(char*) rawmode_loc;
+
+static this() { New(rawmode_loc); }
+
+bool rawmode(string s) {
+  return s.ptr == *rawmode_loc.ptr();
+}
+
 // placed here to break import cycle
 import ast.vardecl;
 Object gotLVize(ref string text, ParseCb cont, ParseCb rest) {

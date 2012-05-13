@@ -3,7 +3,7 @@ module ast.math;
 import ast.base, ast.namespace, ast.parse;
 import tools.base: This, This_fn, rmSpace, and, or, find, todg;
 
-Object function(ref string, Object, bool, bool, ParseCb, ParseCb) getPropertiesFn;
+Object function(ref string, Object, bool, bool, ParseCb, ParseCb, bool rawmode = false) getPropertiesFn;
 void function(void delegate(bool, bool)) withPropcfgFn;
 
 class IntAsFloat : Expr {

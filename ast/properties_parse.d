@@ -4,7 +4,7 @@ import ast.base, ast.fun, ast.properties, ast.parse, ast.casting, ast.math;
 
 import tools.base, tools.log;
 Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
-  ParseCb cont, ParseCb rest)
+  ParseCb cont, ParseCb rest, bool rawmode = false)
 {
   string longest; Object res;
   // check all possible continuations
@@ -29,7 +29,7 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
       if (t3.accept("="[]) || t3.accept(")"[]) || t3.accept("!="[]) || t3.accept("+"[]) || t3.accept("/"[])) {
         break;
       }
-      if (!fastcast!(Function) (sup) && !fastcast!(OverloadSet) (sup) && t3.accept(";"[])) {
+      if (rawmode || !fastcast!(Function) (sup) && !fastcast!(OverloadSet) (sup) && t3.accept(";"[])) {
         break;
       }
       string match = "tree.rhs_partial";
@@ -57,7 +57,7 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
   
   /*if (auto ex = fastcast!(Expr)~ sup) {
     gotImplicitCast(ex, (Expr ex) { check(fastcast!(Object)~ ex, text); return false; });
-  } else */check(sup, text);
+  } else */if (!rawmode) check(sup, text);
   
   assert(!res || longest);
   if (longest) text = longest;
@@ -82,11 +82,13 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   
   *currentPropBase.ptr() = text;
   
+  auto rawmode = text.rawmode();
+  
   Object res;
   withPropcfg((bool withTuple, bool withCall) {
     Object sup;
     if (!cont(text, &sup)) return;
-    res = getProperties(text, sup, withTuple, withCall, cont, rest);
+    res = getProperties(text, sup, withTuple, withCall, cont, rest, rawmode);
   });
   return res;
 }
