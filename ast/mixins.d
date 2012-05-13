@@ -1,6 +1,6 @@
 module ast.mixins;
 
-import ast.base, ast.parse, ast.literal_string, ast.fold, ast.casting, ast.aggregate_parse;
+import ast.base, ast.parse, ast.literal_string, ast.fold, ast.casting, ast.aggregate_parse, ast.platform;
 
 Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -46,6 +46,9 @@ Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest)
   try {
     static if (submode == "tree.stmt") {
       res = src.parseFullAggregateBody(rest);
+    } else static if (submode == "tree.toplevel") {
+      res = Single!(NoOp);
+      src.parseGlobalBody(rest, false);
     } else {
       if (!rest(src, submode, &res))
         src.failparse("Couldn't parse mixin string for stmt"[]);
