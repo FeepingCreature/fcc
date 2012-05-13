@@ -44,10 +44,14 @@ Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest)
   Object res;
   pushCache(); scope(exit) popCache();
   try {
-    if (!rest(src, submode, &res))
-      src.failparse("Couldn't parse mixin string for stmt"[]);
-    if (src.mystripl().length)
-      src.failparse("Unknown text found for stmt. "[]);
+    static if (submode == "tree.stmt") {
+      res = src.parseFullAggregateBody(rest);
+    } else {
+      if (!rest(src, submode, &res))
+        src.failparse("Couldn't parse mixin string for stmt"[]);
+      if (src.mystripl().length)
+        src.failparse("Unknown text found for stmt. "[]);
+      }
   } catch (Exception ex) {
     t2.failparse("Executing mixin '"[], src.nextText(), "': "[], ex);
   }
