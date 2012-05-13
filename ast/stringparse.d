@@ -18,7 +18,7 @@ bool gotString(ref string text, ref string res,
       return res;
     }
     auto ch = xtake();
-    if (ch == '\\') {
+    if (ch == '\\' && sep != "`") {
       auto ch2 = xtake();
       if (ch2 == 'n') { ba ~= cast(ubyte[]) "\n"; }
       else if (ch2 == 'r') { ba ~= cast(ubyte[]) "\r"; }
