@@ -797,8 +797,8 @@ static this() {
     if (!st) return;
     for (int i = 1; true; i++) {
       if (auto res = fastcast!(Expr) (st.lookupRel("implicit-cast"~(i>1?Format("-"[], i):""[]), ex))) {
-        if (!goal || res.valueType() == goal)
-          consider(res);
+        // if (!goal || res.valueType() == goal) consider(res);
+        consider(res);
       } else return;
     }
   };

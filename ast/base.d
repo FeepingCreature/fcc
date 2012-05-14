@@ -761,3 +761,5 @@ bool readIndexShorthand(string name, ref int i) {
   i = idx;
   return true;
 }
+
+Object delegate(Object) getOpCall;

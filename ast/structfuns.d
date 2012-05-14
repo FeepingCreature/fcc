@@ -191,7 +191,8 @@ class StructFunRefExpr : mkDelegate {
   this(RelFunction fun) {
     this.fun = fun;
     logln("base ptr is "[], fun.baseptr);
-    assert(fun.baseptr);
+    if (!fun.baseptr)
+      fail;
     super(fun.getPointer(), fastalloc!(RefExpr)(fastcast!(CValue)~ fun.baseptr));
   }
   override typeof(this) dup() { return new typeof(this)(fun); }
@@ -215,3 +216,14 @@ Object gotStructfunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   return fastalloc!(StructFunRefExpr)(rf);
 }
 mixin DefaultParser!(gotStructfunRefExpr, "tree.expr.dg_struct_ref"[], "21010"[], "&"[]);
+
+static this() {
+  getOpCall = delegate Object(Object obj) {
+    auto ex = fastcast!(Expr) (obj); if (!ex) return null;
+    auto st = fastcast!(Structure) (resolveType(ex.valueType()));
+    if (!st) return null;
+    auto oc = st.lookupRel("opCall", ex);
+    if (!oc) return null;
+    return oc;
+  };
+}

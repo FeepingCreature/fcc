@@ -249,10 +249,11 @@ bool cantBeCall(string s) {
 
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
-bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res, out Statement[] inits, bool test, bool precise) {
+bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res, out Statement[] inits, bool test, bool precise, bool allowAutoCall) {
   if (!params.length) {
     auto t2 = text;
-    if (t2.accept(";")) return true; // paramless call
+    // paramless call
+    if (t2.accept(";")) return true;
   }
   Expr arg;
   auto backup_text = text; 
@@ -282,7 +283,8 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
     if (!rest(t2, "tree.expr.cond.other"[], &arg) && !rest(t2, "tree.expr _tree.expr.arith"[], &arg)) {
       if (params.length) return false;
       else if (info.startsWith("delegate"[])) return false;
-      else arg = mkTupleExpr();
+      else if (allowAutoCall) arg = mkTupleExpr();
+      else return false;
     }
     if (!matchedCallWith(arg, params, res, inits, info, backup_text, test, precise)) return false;
     text = t2;
@@ -305,6 +307,10 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
     if (t2.cantBeCall()) return null;
+    // is this an expr that has alternatives? ie. is it okay to maybe return null here?
+    bool exprHasAlternativesToACall;
+    auto oobj = obj;
+    if (auto nobj = getOpCall(obj)) { exprHasAlternativesToACall = true; obj = nobj; }
     Function fun;
     if (auto f = fastcast!(Function) (obj)) {
       fun = f;
@@ -316,17 +322,20 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       foreach (osfun; os.funs) {
         auto t3 = t2;
         Statement[] inits;
-        if (matchCall(t3, osfun.name, osfun.getParams(), rest, osfun.mkCall().params, inits, true, precise)) {
+        // logln(t3.nextText(), ": consider ", osfun);
+        if (matchCall(t3, osfun.name, osfun.getParams(), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall)) {
           candidates ~= osfun;
           candsets ~= osfun.getParams();
         }
         parsets ~= osfun.getParams();
       }
       if (!candidates) {
-        if (precise) { precise = false; goto retry_match; } // none _quite_ match .. 
+        if (precise) { precise = false; goto retry_match; } // none _quite_ match ..
+        if (exprHasAlternativesToACall) return null;
         t2.failparse("Unable to call '", os.name, "': matched none of ", parsets);
       }
       if (candidates.length > 1) {
+        // ambiguity is still ambiguous even if expr has alternatives to a call
         t2.failparse("Unable to call '", os.name,
           "': ambiguity between ", candsets, " btw ", os.funs);
       }
@@ -340,7 +349,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr res = fc;
     auto t4 = t2;
     try {
-      result = matchCall(t2, fun.name, params, rest, fc.params, inits, false, false);
+      result = matchCall(t2, fun.name, params, rest, fc.params, inits, false, false, !exprHasAlternativesToACall);
       if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
       if (inits.length) res = mkStatementAndExpr(inits[0], fc);
     }
@@ -388,7 +397,7 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     fc.fp = ex;
     
     Statement[] inits;
-    if (!matchCall(t2, Format("delegate "[], ex.valueType()), fptype.args, rest, fc.params, inits, false, false))
+    if (!matchCall(t2, Format("delegate "[], ex.valueType()), fptype.args, rest, fc.params, inits, false, false, false))
       return null;
     
     text = t2;
@@ -430,7 +439,7 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto dc = new DgCall;
     dc.dg = ex;
     Statement[] inits;
-    if (!matchCall(t2, Format("delegate "[], ex.valueType()), dgtype.args, rest, dc.params, inits, false, false))
+    if (!matchCall(t2, Format("delegate "[], ex.valueType()), dgtype.args, rest, dc.params, inits, false, false, false))
       return null;
     text = t2;
     Expr res = dc;
