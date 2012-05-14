@@ -1,0 +1,102 @@
+module std.cgi;
+
+string getEnvVar(string name) {
+  import c.stdlib, std.string;
+  return CToString c.stdlib.getenv toStringz name;
+}
+
+alias QUERY_STRING = getEnvVar "QUERY_STRING";
+
+string urldecode(string st) {
+  char take() {
+    (char res, st) = st[(0, 1..$)];
+    return res;
+  }
+  char[auto~] res;
+  while (st.length) {
+    int hexdecode(char c) {
+      if (c >= "A" && c <= "F") return c - "A" + 10;
+      if (c >= "a" && c <= "f") return c - "a" + 10;
+      if (c >= "0" && c <= "9") return c - "0";
+      raise new Error "Invalid hex char: $c";
+    }
+    auto ch = take();
+    if (ch == "%") {
+      auto ch1 = hexdecode take(), ch2 = hexdecode take();
+      int chcode = ch1 * 16 + ch2;
+      res ~= *char*:&chcode;
+    } else {
+      res ~= ch;
+    }
+  }
+  return res[];
+}
+
+void delegate(string) outputfn;
+
+struct AutoCall {
+  void delegate() dg;
+  alias implicit-cast = dg;
+  alias onDiscard = dg();
+}
+
+template tag(alias Tagname) {
+  alias open = "<" ~ Tagname ~ ">";
+  alias close = "</" ~ Tagname ~ ">";
+  alias fstuff = `
+    auto f = outputfn;
+    if (!f) { f = \(string s) printf("%.*s", s); }
+  `;
+  struct tagstruct {
+    string attr;
+    auto tag(void delegate()[] rest) {
+      auto t = this;
+      return AutoCall: new \{
+        mixin fstuff;
+        if (t.attr) { f $ "<" ~ Tagname; f t.attr; f ">"; }
+        else f open;
+        for auto dg <- rest dg();
+        f close;
+      }
+    }
+    tagstruct style(string s) { auto t = this; t.attr ~= " style=\"$s\""; return t; }
+    tagstruct href(string s) { auto t = this; t.attr ~= " href=\"$s\""; return t; }
+    tagstruct src(string s) { auto t = this; t.attr ~= " src=\"$s\""; return t; }
+    tagstruct alt(string s) { auto t = this; t.attr ~= " alt=\"$s\""; return t; }
+    tagstruct width(int i) { auto t = this; t.attr ~= " width=\"$i\""; return t; }
+    tagstruct height(int i) { auto t = this; t.attr ~= " height=\"$i\""; return t; }
+    auto tag(AutoCall[] calls) return tag void delegate()[]: calls;
+    auto tag(void delegate() dg) using new void delegate()[] 1 { _0 = dg; return tag that[]; }
+    auto tag(string s) return tag new \{ mixin fstuff; f s; }
+    auto tag() {
+      auto t = this;
+      return AutoCall: new \{
+        mixin fstuff;
+        if (t.attr) { f $ "<"~Tagname; f t.attr; f "/>"; }
+        else f $ "<"~Tagname~"/>";
+      }
+    }
+    alias implicit-cast = tag();
+    alias opCall = tag; // todo
+  }
+  shared tagstruct t;
+  alias tag = t;
+}
+
+void call(void delegate() dg) dg();
+
+template _mkalias(alias A) {
+  alias Tup = A[0], Idx = A[1], Val = Tup[Idx];
+  alias src = "alias raw "~Val~" = tag!\""~Val~"\"; ";
+  static if (Idx < Tup.length - 1) {
+    alias _mkalias = src ~ _mkalias!(Tup, Idx + 1);
+  } else {
+    alias _mkalias = src;
+  }
+}
+
+template mkalias(alias A) {
+  alias mkalias = _mkalias!(A, 0);
+}
+
+mixin mkalias!("html", "head", "title", "body", "h1", "h2", "h3", "br", "b", "i", "u", "ul", "li", "p", "a", "img");
