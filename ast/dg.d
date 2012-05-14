@@ -47,13 +47,17 @@ class DgConstructExpr : mkDelegate {
   override DgConstructExpr dup() {
     return fastalloc!(DgConstructExpr)(ptr.dup, data.dup);
   }
+  Delegate cached_type;
   override IType valueType() {
-    auto ft = fastcast!(FunctionPointer)~ ptr.valueType();
-    // logln("ptr is "[], ptr, "[], data "[], data, "[], ft "[], ft);
-    // logln("ptr type is "[], ptr.valueType());
-    assert(ft.args.length);
-    assert(ft.args[$-1].type.size == data.valueType().size);
-    return fastalloc!(Delegate)(ft.ret, ft.args[0 .. $-1]);
+    if (!cached_type) {
+      auto ft = fastcast!(FunctionPointer)~ ptr.valueType();
+      // logln("ptr is "[], ptr, "[], data "[], data, "[], ft "[], ft);
+      // logln("ptr type is "[], ptr.valueType());
+      assert(ft.args.length);
+      assert(ft.args[$-1].type.size == data.valueType().size);
+      cached_type = fastalloc!(Delegate)(ft.ret, ft.args[0 .. $-1]);
+    }
+    return cached_type;
   }
 }
 

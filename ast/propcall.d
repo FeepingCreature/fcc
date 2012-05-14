@@ -86,7 +86,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
     }
     bool isTempNamespace() { return true; }
     int size() { return fpvt.size(); }
-    string mangle() { assert(false); }
+    string mangle() { return fpvt.mangle(); /* equivalent */ }
     ubyte[] initval() { return fpvt.initval(); }
     int opEquals(IType it) { return it is this; }
     IType proxyType() { return null; }

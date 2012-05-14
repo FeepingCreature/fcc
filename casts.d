@@ -86,7 +86,16 @@ const string[] quicklist = [
   "ast.vector.SSEIntToFloat"[],
   "ast.static_arrays.SALiteralExpr"[],
   "ast.namespace.MiniNamespace"[],
-  "ast.conditionals.NegCond"[]
+  "ast.conditionals.NegCond"[],
+  "ast.base.OffsetExpr"[],
+  "ast.fun.FunSymbol"[],
+  "ast.base.PlaceholderTokenLV"[],
+  "ast.structfuns.RelFunCall"[],
+  "ast.conditionals.CondExpr"[],
+  "ast.base.CallbackExpr"[],
+  "ast.fun.FunctionPointer"[],
+  "ast.vardecl.WithTempExpr"[],
+  "ast.conditionals.ExprWrap"[]
 ];
 
 Stuple!(void*, int)[] idtable;
@@ -234,9 +243,10 @@ struct _fastcast(T) {
     static if (is(T == Object)) return obj;
     // implicit downcast - make sure we want a class!
     static if (is(U: T) && is(T: Object)) { return *cast(T*) &obj; }
-    auto id = getId(obj.classinfo);
+    auto info = obj.classinfo;
+    auto id = getId(info);
     if (id == -1) {
-      // logln("Boring cast: "[], obj.classinfo.name);
+      // logln("Boring cast: "[], info.name);
       return cast(T) u;
     }
     auto hint = offsets[id];

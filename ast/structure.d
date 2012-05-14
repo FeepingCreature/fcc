@@ -521,18 +521,20 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
       auto st = fastcast!(Structure)~ base.valueType();
       int[] offs;
       if (st) offs = st.selectMap!(RelMember, "$.offset"[]);
-      if (!af.optimize) af.comment("emit location for member address of '"[], stm.name, "' @"[], stm.offset, " of "[], offs);
+      af.comment("emit location for member address of '"[], stm.name, "' @"[], stm.offset, " of "[], offs);
       (fastcast!(LValue)~ base).emitLocation(af);
-      if (!af.optimize) af.comment("add offset "[], stm.offset);
-      if (isARM) {
-        (fastalloc!(IntExpr)(stm.offset)).emitAsm(af);
-        af.popStack("r1"[], 4);
-        af.mmove4("[sp]"[], "r0"[]);
-        // af.mmove4(Format("#"[], stm.offset), "r1"[]);
-        af.mathOp("add"[], "r0"[], "r1"[], "r0"[]);
-        af.mmove4("r0"[], "[sp]"[]);
-      } else {
-        af.mathOp("addl"[], Format("$"[], stm.offset), "(%esp)"[]);
+      if (stm.offset) {
+        af.comment("add offset "[], stm.offset);
+        if (isARM) {
+          (fastalloc!(IntExpr)(stm.offset)).emitAsm(af);
+          af.popStack("r1"[], 4);
+          af.mmove4("[sp]"[], "r0"[]);
+          // af.mmove4(Format("#"[], stm.offset), "r1"[]);
+          af.mathOp("add"[], "r0"[], "r1"[], "r0"[]);
+          af.mmove4("r0"[], "[sp]"[]);
+        } else {
+          af.mathOp("addl"[], Format("$"[], stm.offset), "(%esp)"[]);
+        }
       }
     }
   }

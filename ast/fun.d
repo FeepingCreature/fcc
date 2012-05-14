@@ -323,6 +323,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       
       parseMe();
       if (optimize) {
+        af.flush();
         af.optimize = true;
         af.debugMode = false;
         af.dwarf2 = null;
@@ -438,7 +439,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         logln("leftover float stack when end-emitting ", this);
         fail;
       }
-      af.flush;
+      if (optimize) {
+        af.flush;
+      }
       // af.put(".cfi_endproc"[]);
     }
     Stuple!(IType, string, int)[] stackframe() {

@@ -100,6 +100,12 @@ class AsmFile {
       flush;
     cache ~= t;
   }
+  final Transaction* last() {
+    return cache.lastp();
+  }
+  final void replace(ref Transaction t) {
+    *last() = t;
+  }
   int currentStackDepth;
   void pushStack(string expr, int size) {
     if (isARM && (expr.find("%") != -1 || expr.find("$") != -1 || expr.find("=") != -1)) fail;
@@ -115,6 +121,20 @@ class AsmFile {
   }
   void popStack(string dest, int size) {
     if (isARM && dest.find("%") != -1) fail;
+    if (auto prevp = last()) {
+      if (size == 4 && last.kind == Transaction.Kind.Push && last.size == 4
+        &&last.source.isUtilityRegister() && dest.isUtilityRegister())
+      {
+        Transaction t;
+        t.kind = Transaction.Kind.Mov;
+        t.from = last.source;
+        t.to = dest;
+        currentStackDepth -= 4;
+        t.stackdepth = currentStackDepth;
+        replace(t);
+        return;
+      }
+    }
     willOverwriteComparison;
     Transaction t;
     t.kind = Transaction.Kind.Pop;
@@ -487,7 +507,7 @@ class AsmFile {
   }+/
   int lastStackDepth;
   void comment(T...)(T t) {
-    if (!optimize) {
+    if (!optimize && verboseAsm) {
       string comment = "#";
       if (isARM) comment = "@";
       put(comment, " ["[], currentStackDepth, ": "[], currentStackDepth - lastStackDepth, "]: "[], t);
@@ -543,7 +563,7 @@ class AsmFile {
       logln("Unused: ", unused.keys);
     }
   }
-  void flush() {
+  void flush(void delegate(string) direct = null) {
     if (optimize) {
       auto full_list = cache;
       New(cache);
@@ -568,9 +588,14 @@ class AsmFile {
       }
       flush2;
     }
-    codelines_prealloc(finalized.list.length + cache.list.length);
-    foreach (entry; finalized.list) if (auto line = entry.toAsm()) _put(line);
-    foreach (entry; cache.list)     if (auto line = entry.toAsm()) _put(line);
+    if (direct) {
+      foreach (entry; finalized.list) if (auto line = entry.toAsm()) { direct(line); direct("\n"); }
+      foreach (entry; cache.list)     if (auto line = entry.toAsm()) { direct(line); direct("\n"); }
+    } else {
+      codelines_prealloc(finalized.list.length + cache.list.length);
+      foreach (entry; finalized.list) if (auto line = entry.toAsm()) _put(line);
+      foreach (entry; cache.list)     if (auto line = entry.toAsm()) _put(line);
+    }
     finalized.clear;
     cache.clear;
   }
@@ -593,7 +618,6 @@ class AsmFile {
     codelines[codelines_length ++] = qformat(t, "\n"[]);
   }
   void genAsm(void delegate(string) dg) {
-    flush();
     dg(".section\t.debug_line\n");
     dg(".Ldebug_line0:\n");
     if (isARM) {
@@ -613,7 +637,7 @@ class AsmFile {
     dg(".weak _sys_tls_data_start\n");
     dg(".globl _sys_tls_data_start\n");
     dg("_sys_tls_data_start:\n");
-    string id2 = id[0..$-3].replace("/", "_").replace("-", "_dash_");
+    string id2 = .replace(.replace(id[0..$-3], "/", "_"), "-", "_dash_");
     dg(".globl _sys_tls_data_"); dg(id2); dg("_start\n");
     dg("_sys_tls_data_"); dg(id2); dg("_start:\n");
     foreach (name, bogus; weaks) {
@@ -692,6 +716,7 @@ class AsmFile {
     foreach (line; codelines[0..codelines.length])
       dg(line);
     delete codelines;
+    flush(dg);
     dg(".Letext:\n");
     if (dwarf2) foreach (line; dwarf2.genData()) {
       dg(line); dg("\n");

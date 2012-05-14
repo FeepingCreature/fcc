@@ -47,7 +47,7 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_1", "115"); // must be high-priority (above arith) to override subtraction.
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be below arith too, to be usable in stuff like paren-less calls
 
-bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, string info = null, string text = null, bool probe = false, bool exact = false) {
+bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, lazy string info, string text = null, bool probe = false, bool exact = false) {
   Expr[string] nameds;
   void removeNameds(ref Iterable it) {
     if (fastcast!(Variable) (it)) return;
@@ -159,13 +159,13 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
             if (probe)
               return false;
             else
-              text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " exactly to function call '", info, "', ", type, ".");
+              text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " exactly to function call '", info(), "', ", type, ".");
         } else {
           if (!gotImplicitCast(ex, type, (IType it) { tried ~= it; return test(it == type); }))
             if (probe)
               return false;
             else
-              text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " to function call '", info, "', ", type, "; tried ", tried, ".");
+              text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " to function call '", info(), "', ", type, "; tried ", tried, ".");
         }
         res ~= ex;
         continue;
@@ -193,8 +193,8 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
       }
       if (probe) return false;
       if (text)
-        text.failparse("Not enough parameters for '", info, "'; left over ", type, "!");
-      logln("Not enough parameters for '", info, "'; left over ", type, "!");
+        text.failparse("Not enough parameters for '", info(), "'; left over ", type, "!");
+      logln("Not enough parameters for '", info(), "'; left over ", type, "!");
       fail;
     }
     IType[] tried;
@@ -215,7 +215,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
         goto retry;
       } else {
         if (probe) return false;
-        text.failparse("Couldn't match ", backup.valueType(), " to function call '", info, "', ", params[i], " (", i, "); tried ", relevant(tried));
+        text.failparse("Couldn't match ", backup.valueType(), " to function call '", info(), "', ", params[i], " (", i, "); tried ", relevant(tried));
       }
     }
     res ~= ex;
@@ -229,12 +229,12 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   foreach (arg2; args) recurse(arg2);
   if (flat.length) {
     // logln("flattened to ", flat);
-    // text.failparse("Extraneous parameters to '", info, "' of ", params, ": ", args);
-    text.setError("Extraneous parameters to '"[], info, "' of "[], params, ": "[], args);
+    // text.failparse("Extraneous parameters to '", info(), "' of ", params, ": ", args);
+    text.setError("Extraneous parameters to '"[], info(), "' of "[], params, ": "[], args);
     return false;
   }
   if (nameds.length) {
-    string fninfo = info;
+    string fninfo = info();
     if (!fninfo) fninfo = "function";
     throw new Exception(Format(fninfo, " has no arguments named "[], nameds.keys));
   }
@@ -249,7 +249,10 @@ bool cantBeCall(string s) {
 
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
-bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, ref Expr[] res, out Statement[] inits, bool test, bool precise, bool allowAutoCall) {
+bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseCb rest, ref Expr[] res, out Statement[] inits, bool test, bool precise, bool allowAutoCall) {
+  string infocache;
+  string info() { if (!infocache) infocache = lazy_info(); return infocache; }
+  
   if (!params.length) {
     auto t2 = text;
     // paramless call
@@ -282,11 +285,11 @@ bool matchCall(ref string text, string info, Argument[] params, ParseCb rest, re
     auto t2 = text;
     if (!rest(t2, "tree.expr.cond.other"[], &arg) && !rest(t2, "tree.expr _tree.expr.arith"[], &arg)) {
       if (params.length) return false;
-      else if (info.startsWith("delegate"[])) return false;
+      else if (info().startsWith("delegate"[])) return false;
       else if (allowAutoCall) arg = mkTupleExpr();
       else return false;
     }
-    if (!matchedCallWith(arg, params, res, inits, info, backup_text, test, precise)) return false;
+    if (!matchedCallWith(arg, params, res, inits, info(), backup_text, test, precise)) return false;
     text = t2;
     return true;
   }

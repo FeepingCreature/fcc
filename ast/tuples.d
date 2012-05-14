@@ -67,16 +67,24 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotBraceExpr, "tree.expr.braces"[], "6"[]);
 
+Tuple[string] tupcache;
+
 Tuple mkTuple(IType[] types...) {
+  string hash;
+  if (types.length == 1) {
+    hash = types[0].mangle();
+    if (auto p = hash in tupcache) return *p;
+  }
   foreach (type; types) if (Single!(Void) == type) {
     logln("Cannot make tuple: must not contain void, "[], types);
     fail;
   }
-  auto tup = new Tuple;
-  New(tup.wrapped, cast(string) null);
+  auto tup = fastalloc!(Tuple)();
+  tup.wrapped = fastalloc!(Structure)(cast(string) null);
   tup.wrapped.packed = true;
   foreach (i, type; types)
     fastalloc!(RelMember)(qformat("tuple_member_"[], i), type, tup.wrapped);
+  if (hash) tupcache[hash] = tup;
   return tup;
 }
 
@@ -106,8 +114,8 @@ class RefTuple : MValue {
   mixin defaultIterate!(mvs);
   IType[] types() { return (fastcast!(Tuple) (baseTupleType)).types(); }
   Expr[] getAsExprs() {
-    Expr[] exprs;
-    foreach (mv; mvs) exprs ~= mv;
+    auto exprs = new Expr[mvs.length];
+    foreach (i, mv; mvs) exprs[i] = mv;
     return exprs;
   }
   this(MValue[] mvs...) {

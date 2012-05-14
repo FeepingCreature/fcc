@@ -20,7 +20,13 @@ class Variable : LValue, Named {
       }
     }
     void emitLocation(AsmFile af) {
-      lookupOp("+"[], new Register!("ebp"[]), mkInt(baseOffset)).emitAsm(af);
+      if (isARM) {
+        lookupOp("+"[], new Register!("ebp"[]), mkInt(baseOffset)).emitAsm(af);
+      } else {
+        af.loadAddress(qformat(baseOffset, "(%ebp)"), "%eax");
+        af.pushStack("%eax", nativePtrSize);
+      }
+      
     }
     IType valueType() {
       return type;

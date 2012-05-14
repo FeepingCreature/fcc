@@ -6,6 +6,8 @@ import tools.base: New, or, and, slice, between, fail;
 import tools.compat: find, abs, replace, atoi;
 import tools.log;
 
+const bool verboseAsm = false;
+
 bool isRelative(string reg) {
   if (!reg.length) fail;
   if (isARM) {
@@ -527,7 +529,9 @@ struct Transaction {
         foreach (name; names) res ~= name ~ ":\n";
         return res[0 .. $-1];
       case Extended: return obj.toAsm();
-      case Nevermind: return qformat(comment("forget "[]), dest, ". "[]);
+      case Nevermind:
+        if (verboseAsm) return qformat(comment("forget "[]), dest, ". "[]);
+        else return null;
       case LoadAddress: return qformat("leal "[], from.asmformat(), ", "[], to);
       case Text: return text;
     }
@@ -680,6 +684,10 @@ class Transcache {
     if (!_list.length) _list = new Transaction[1024];
     if (size == _list.length) _list.length = _list.length * 2;
     _list[size++] = t;
+  }
+  final Transaction* lastp() {
+    if (!_list.length || !size) return null;
+    return &_list[size - 1];
   }
   final void opCatAssign(Transaction[] newlist) {
     if (!_list.length) { _list = newlist.dup; size = newlist.length; return; }

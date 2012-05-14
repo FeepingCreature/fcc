@@ -481,15 +481,21 @@ int roundTo(int i, int to) {
   else return i;
 }
 
+// TODO tls
+int[string] alignment_cache; 
+
 int needsAlignment(IType it) {
+  auto hash = it.mangle();
+  if (auto p = hash in alignment_cache) return *p;
+  int store(int i) { alignment_cache[hash] = i; return i; }
   foreach (check; alignChecks)
-    if (auto res = check(it)) return res;
+    if (auto res = check(it)) return store(res);
   const limit = 4;
   it = resolveType(it);
   if (auto fa = fastcast!(ForceAlignment) (it))
-    if (auto res = fa.alignment()) return res;
-  if (it.size > limit) return limit;
-  else return it.size;
+    if (auto res = fa.alignment()) return store(res);
+  if (it.size > limit) return store(limit);
+  else return store(it.size);
 }
 
 void doAlign(ref int offset, IType type) {
