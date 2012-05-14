@@ -875,7 +875,12 @@ int main(string[] args) {
   log_threads = false;
   // New(tp, 4);
   auto exec = args.take();
-  justAcceptedCallback = 0 /apply/ (ref int prevHalfway, string s) {
+  justAcceptedCallback = stuple(0, cast(typeof(sec())) 0) /apply/ (ref int prevHalfway, ref typeof(sec()) lastProg, string s) {
+    // rate limit
+    auto t = sec();
+    if (abs(t - lastProg) < 0.02) return;
+    lastProg = t;
+    
     auto info = lookupProgress(s);
     if (info._1.endsWith(EXT)) {
       foreach (path; include_path)
