@@ -309,8 +309,6 @@ Cond compare(string op, Expr ex1, Expr ex2) {
 }
 
 import ast.modules;
-Expr True, False;
-Cond cTrue, cFalse;
 void setupStaticBoolLits() {
   if (True && False) return;
   True = fastcast!(Expr) (sysmod.lookup("true"[]));

@@ -763,3 +763,6 @@ bool readIndexShorthand(string name, ref int i) {
 }
 
 Object delegate(Object) getOpCall;
+
+Expr True, False;
+Cond cTrue, cFalse;
