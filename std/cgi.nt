@@ -49,34 +49,61 @@ template tag(alias Tagname) {
   `;
   struct tagstruct {
     string attr;
-    auto tag(void delegate()[] rest) {
+    auto tag(void delegate() dg) {
       auto t = this;
       return AutoCall: new \{
         mixin fstuff;
-        if (t.attr) { f $ "<" ~ Tagname; f t.attr; f ">"; }
-        else f open;
-        for auto dg <- rest dg();
-        f close;
+        static if (Tagname == "text") {
+          if (t.attr) raise new Error "text cannot have attributes: $(t.attr)";
+          dg();
+        } else {
+          if (t.attr) { f $ "<" ~ Tagname; f t.attr; f ">"; }
+          else f open;
+          dg();
+          f close;
+        }
       }
     }
+    // in theory we could select the ones appropriate for each tag
+    // TODO: develop a DSL for this
     tagstruct style(string s) { auto t = this; t.attr ~= " style=\"$s\""; return t; }
+    tagstruct class(string s) { auto t = this; t.attr ~= " class=\"$s\""; return t; }
+    tagstruct id(string s) { auto t = this; t.attr ~= " id=\"$s\""; return t; }
     tagstruct href(string s) { auto t = this; t.attr ~= " href=\"$s\""; return t; }
     tagstruct src(string s) { auto t = this; t.attr ~= " src=\"$s\""; return t; }
     tagstruct alt(string s) { auto t = this; t.attr ~= " alt=\"$s\""; return t; }
     tagstruct width(int i) { auto t = this; t.attr ~= " width=\"$i\""; return t; }
     tagstruct height(int i) { auto t = this; t.attr ~= " height=\"$i\""; return t; }
-    auto tag(AutoCall[] calls) return tag void delegate()[]: calls;
-    auto tag(void delegate() dg) using new void delegate()[] 1 { _0 = dg; return tag that[]; }
+    tagstruct size(int i) { auto t = this; t.attr ~= " size=\"$i\""; return t; }
+    tagstruct colspan(int i) { auto t = this; t.attr ~= " colspan=\"$i\""; return t; }
+    tagstruct frameborder(int i) { auto t = this; t.attr ~= " frameborder=\"$i\""; return t; }
+    
+    tagstruct type(string s) { auto t = this; t.attr ~= " type=\"$s\""; return t; }
+    tagstruct name(string s) { auto t = this; t.attr ~= " name=\"$s\""; return t; }
+    tagstruct value(string s) { auto t = this; t.attr ~= " value=\"$s\""; return t; }
+    
+    tagstruct action(string s) { auto t = this; t.attr ~= " action=\"$s\""; return t; }
+    tagstruct method(string s) { auto t = this; t.attr ~= " method=\"$s\""; return t; }
+    
+    tagstruct onclick(string s) { auto t = this; t.attr ~= " onclick=\"$s\""; return t; }
+    tagstruct scrolling(string s) { auto t = this; t.attr ~= " scrolling=\"$s\""; return t; }
+    
     auto tag(string s) return tag new \{ mixin fstuff; f s; }
     auto tag() {
       auto t = this;
       return AutoCall: new \{
         mixin fstuff;
-        if (t.attr) { f $ "<"~Tagname; f t.attr; f "/>"; }
-        else f $ "<"~Tagname~"/>";
+        static if (Tagname == "text") {
+          if (t.attr) raise new Error "text cannot have attributes: $(t.attr)";
+          else raise new Error "text cannot be evaluated on its own";
+        } else {
+          if (t.attr) { f $ "<"~Tagname; f t.attr; f "/>"; }
+          else f $ "<"~Tagname~"/>";
+        }
       }
     }
     alias implicit-cast = tag();
+    alias onDiscard = tag()();
     alias opCall = tag; // todo
   }
   shared tagstruct t;
@@ -99,4 +126,10 @@ template mkalias(alias A) {
   alias mkalias = _mkalias!(A, 0);
 }
 
-mixin mkalias!("html", "head", "title", "body", "h1", "h2", "h3", "br", "b", "i", "u", "ul", "li", "p", "a", "img");
+mixin mkalias!(
+  "html", "head", "title", "body", "p", "a",
+  "div", "span", "iframe",
+  "h1", "h2", "h3", "br", "b", "i", "u",
+  "ul", "li", "img", "text",
+  "table", "tr", "th", "td",
+  "form", "input");
