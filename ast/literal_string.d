@@ -41,6 +41,12 @@ class StringExpr : Expr, HasInfo, Dependency {
 
 static this() {
   mkString = delegate Expr(string s) { return fastalloc!(StringExpr)(s); };
+  constantStringsCompare = delegate bool(Expr e1, Expr e2, bool* bp) {
+    auto se1 = fastcast!(StringExpr) (e1), se2 = fastcast!(StringExpr) (e2);
+    if (!se1 || !se2) return false;
+    *bp = se1.str == se2.str;
+    return true;
+  };
 }
 
 Object gotStringLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
