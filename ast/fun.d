@@ -438,7 +438,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       if (!isWindoze())
         af.put(".size "[], fmn, ", .-"[], fmn);
       
-      af.put(".section .text$debug_section_"[], fmn, ", \"r\""[]);
+      if (isWindoze()) af.put(".section .text$debug_section_"[], fmn, ", \"r\""[]);
       af.put(".global "[], fun_linenr_sym());
       af.put(fun_linenr_sym(), ":"[]);
       af.put(".long "[], linecounter);
@@ -796,10 +796,11 @@ class FunctionType : ast.types.Type {
       return true;
     }
     string mangle() {
-      if (!ret) { logln("Function return type indeterminate! "); fail; }
+      // if (!ret) { logln("Function return type indeterminate! "); fail; }
       string[] res;
-      res ~= "function_to_";
-      res ~= ret.mangle();
+      // res ~= "function_to_";
+      // res ~= ret.mangle();
+      res ~= "function";
       if (params.length) foreach (i, param; params) {
         if (!i) res ~= "_of_";
         else res ~= "_and_";

@@ -769,13 +769,15 @@ void finalizeSysmod(Module mainmod) {
                (`var._imports[c++] = mod2;`, sc,
                 "var", var, "c", count, "mod2", mkString(mod2.name)));
     }
-    foreach (entry; mod.entries) if (auto fun = fastcast!(Function) (entry)) if (!fun.extern_c) {
-      sc.addStatement(
-        iparse!(Statement, "init_fun_list", "tree.stmt")
-               (`var.functions ~= FunctionInfo:(name, from, to, linenr);`, sc,
-                 "var", var,
-                 "from", new Symbol(fun.fun_start_sym()), "to", new Symbol(fun.fun_end_sym()),
-                 "name", mkString(fun.name), "linenr", new Symbol(fun.fun_linenr_sym())));
+    version(CustomDebugInfo) {
+      foreach (entry; mod.entries) if (auto fun = fastcast!(Function) (entry)) if (!fun.extern_c) {
+        sc.addStatement(
+          iparse!(Statement, "init_fun_list", "tree.stmt")
+                (`var.functions ~= FunctionInfo:(name, from, to, linenr);`, sc,
+                  "var", var,
+                  "from", new Symbol(fun.fun_start_sym()), "to", new Symbol(fun.fun_end_sym()),
+                  "name", mkString(fun.name), "linenr", new Symbol(fun.fun_linenr_sym())));
+      }
     }
   }
   opt(setupfun);

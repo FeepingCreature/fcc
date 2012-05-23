@@ -696,9 +696,13 @@ class AsmFile {
     void emitLongstant(string name, string[] array, bool weak) {
       if (array.length >= 4) dg(".balign 16\n");
       bool resetSection;
-      if (weak && isWindoze()) {
-        dg(".section\t.text$weak_"); dg(name); dg("\n.linkonce same_contents\n");
-        resetSection = true;
+      if (weak) {
+        if (isWindoze()) {
+          dg(".section\t.text$weak_"); dg(name); dg("\n.linkonce same_contents\n");
+          resetSection = true;
+        } else {
+          dg(".weak\t"); dg(name); dg("\n");
+        }
       }
       dg(name); dg(":\n");
       dg(".long ");

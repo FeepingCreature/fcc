@@ -379,7 +379,7 @@ void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
         if (!name.length) fail("TODO");
         af.put(comment(" being '"), name, "' at ", af.currentStackDepth);
       }
-      if (auto fun = current_emitting_function()) {
+      version(CustomDebugInfo) if (auto fun = current_emitting_function()) {
         fun.add_line_number(af, line);
       }
     }

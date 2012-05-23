@@ -41,14 +41,14 @@ extern(System) {
 }
 
 void init() {
-  // FTcheck FT_Init_FreeType &library;
-  auto mem = new FT_MemoryRec_;
+  FTcheck FT_Init_FreeType &library;
+  /*auto mem = new FT_MemoryRec_;
   mem.user = _esi;
   mem.alloc = void*: &memalloc;
   mem.free = void*: &memfree;
   mem.realloc = void*: &memrealloc;
   FTcheck FT_New_Library(mem, &library);
-  FT_Add_Default_Modules (library);
+  FT_Add_Default_Modules (library);*/
 }
 
 struct FontStyle {
