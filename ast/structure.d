@@ -126,7 +126,8 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer {
     immutableNow = true;
     if (field.length == cached_length)
       if (cached_size) return cached_size;
-    auto res = _size(); //, pre = res;
+    auto res = _size();
+	// auto pre = res;
     doAlign(res, this);
     // if (res != pre) logln(pre, " -> "[], res, ": "[], this);
     cached_size = res;
@@ -158,18 +159,15 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer {
     this.name = name;
   }
   string mangle() {
+	string ersatzname = "struct_"~name.cleanup();
+	if (!name) {
+	  ersatzname = "anon_struct";
+	  select((string, RelMember member) { ersatzname ~= "_" ~ member.type.mangle ~ "_" ~ member.name; }, &rmcache);
+	}
     if (!sup) {
-      if (!name) {
-        auto res = "struct_"~name.cleanup();
-        select((string, RelMember member) { res ~= "_" ~ member.type.mangle ~ "_" ~ member.name; }, &rmcache);
-        return res;
-      }
-      return "struct_"~name.cleanup();
+	  return ersatzname;
     }
-    if (!name) {
-      return mangle("struct"[], null);
-    }
-    return mangle("struct_"~name.cleanup(), null);
+    return mangle(ersatzname, null);
   }
   override {
     IType getRefType() { return fastalloc!(Pointer)(this); }

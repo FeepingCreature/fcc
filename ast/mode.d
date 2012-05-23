@@ -220,7 +220,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     }
     string mangle() {
       if (firstParam) return "mode_override_for_"~firstParam.valueType().mangle;
-      assert(false);
+      return qformat("modespace_", cast(int) this); // used for caching!
     }
     ubyte[] initval() { assert(false); }
     int opEquals(IType it) { return it is this; }

@@ -24,7 +24,7 @@ class AsmFile {
   string id;
   int[string] globals;
   ubyte[][string] constants;
-  string[][string] longstants; // sorry
+  string[][string] longstants, weak_longstants; // sorry
   int[string] file_ids; // DWARF2 File IDs
   Stuple!(int, string, bool)[string] globvars, tlsvars;
   int file_idcounter;
@@ -693,13 +693,26 @@ class AsmFile {
       // not win32 compatible
       // dg(".local "); dg(name); dg("\n");
     }
-    foreach (name, array; longstants) { // lol
+    void emitLongstant(string name, string[] array, bool weak) {
       if (array.length >= 4) dg(".balign 16\n");
+      bool resetSection;
+      if (weak && isWindoze()) {
+        dg(".section\t.text$weak_"); dg(name); dg("\n.linkonce same_contents\n");
+        resetSection = true;
+      }
       dg(name); dg(":\n");
       dg(".long ");
       foreach (val; array) dg(qformat(val, ", "[]));
       dg("0\n");
       dg(".global "); dg(name); dg("\n");
+      if (resetSection)
+        dg(".section\t.rodata\n");
+    }
+    foreach (name, array; longstants) { // lol
+      emitLongstant(name, array, false);
+    }
+    foreach (name, array; weak_longstants) {
+      emitLongstant(name, array, true);
     }
     foreach (key, value; file_ids) {
       dg(qformat(".file "[], value, " \""[], key, "\"\n"[]));

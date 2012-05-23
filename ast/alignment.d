@@ -31,14 +31,14 @@ class UnAlignedPlaceholder : IType {
     override string mangle() { return base.mangle; }
     ubyte[] initval() { return base.initval(); }
     int opEquals(IType it) {
-      if (auto uap = fastcast!(UnAlignedPlaceholder) (it))
-        return base.opEquals(uap.base);
-      return base.opEquals(it);
-    }
+	  if (auto uap = fastcast!(UnAlignedPlaceholder) (it))
+		return base.opEquals(uap.base);
+	  return base.opEquals(it);
+	}
     IType proxyType() { return null; }
     bool isPointerLess() { return base.isPointerLess(); }
     bool isComplete() { return base.isComplete(); }
-    string toString() { return qformat("unaligned ", base); }
+	string toString() { return qformat("unaligned ", base); }
   }
 }
 

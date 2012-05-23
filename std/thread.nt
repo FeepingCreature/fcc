@@ -4,6 +4,10 @@ module std.thread;
 
 import c.pthread;
 
+platform(*-mingw*) {
+  pragma(lib, "pthreadGC2");
+}
+
 extern(C) {
   int pthread_create(pthread_t*, pthread_attr_t*,
                      void* function(void*), void*);

@@ -2,7 +2,17 @@ module parseBase;
 
 import casts;
 
-extern(C) int bcmp(void*, void*, int);
+version(Windows) {
+  int bcmp (char* from, char* to, int count) {
+    while (count-- > 0) {
+      if (*from++ != *to++) return 1;
+    }
+    return 0;
+  }
+} else {
+  extern(C) int bcmp(char*, char*, int);
+}
+
 bool faststreq(string a, string b) {
   if (a.length != b.length) return false;
   if (a.ptr == b.ptr) return true; // strings are assumed immutable

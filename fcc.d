@@ -368,17 +368,20 @@ mixin DefaultParser!(gotScope, "tree.scope");
 
 extern(C)
 void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
-  if (!af.debugMode) return;
   with (lns) {
-    auto mod = current_module();
     string name; int line;
     lns.getInfo(name, line);
     if (!name) return;
     if (name.startsWith("<internal")) return;
     if (auto id = af.getFileId(name)) {
-      af.put(".loc ", id, " ", line, " ", 0);
-      if (!name.length) fail("TODO");
-      af.put(comment(" being '"), name, "' at ", af.currentStackDepth);
+      if (af.debugMode) {
+        af.put(".loc ", id, " ", line, " ", 0);
+        if (!name.length) fail("TODO");
+        af.put(comment(" being '"), name, "' at ", af.currentStackDepth);
+      }
+      if (auto fun = current_emitting_function()) {
+        fun.add_line_number(af, line);
+      }
     }
   }
 }
@@ -830,14 +833,19 @@ void loop(string start,
       logSmart!(false) (ex);
       goto retry;
     }
-    if (runMe) system(toStringz("./"~output));
+    if (runMe) {
+	  auto cmd = "./"~output;
+	  version(Windows) cmd = output;
+	  logSmart!(false)("> ", cmd); system(toStringz(cmd));
+	}
   retry:
     pass1 = false;
     checked = null;
     gotMain = null;
     resetTemplates();
     logln("please press return to continue. ");
-    if (system("read")) return;
+    version(Windows) { if (system("pause")) return; }
+	else { if (system("read")) return; }
   }
 }
 
@@ -869,7 +877,7 @@ int main(string[] args) {
   if (execpath.length) {
     include_path ~= execpath;
     include_path ~= Format(execpath, "..", sep, "include"); // assume .../[bin, include] structure
-    version(Windows) path_prefix = execpath;
+    // version(Windows) path_prefix = execpath;
   }
   initCastTable(); // NOT in static this!
   log_threads = false;
@@ -1017,7 +1025,11 @@ int main(string[] args) {
     return 0;
   }
   objects.link(cs.saveTemps);
-  if (runMe) system(toStringz("./"~output));
+  if (runMe) {
+	auto cmd = "./"~output;
+	version(Windows) cmd = output;
+	logSmart!(false)("> ", cmd); system(toStringz(cmd));
+  }
   if (accesses.length) logln("access info: ", accesses);
   return 0;
 }

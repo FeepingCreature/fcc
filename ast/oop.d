@@ -670,12 +670,9 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     }
     void emitAsm(AsmFile af) {
       auto name = ci_name().dup;
-      if (isWindoze()) {
-        if (name in symbol_emit_win32_hack_check) return; // fucking windows, again
-        symbol_emit_win32_hack_check[ci_name] = true;
-      }
-      af.longstants[name] = getClassinfo().dup;
-      if (weak && !isWindoze()) af.put(".weak "[], name);
+      if (weak)
+        af.weak_longstants[name] = getClassinfo().dup;
+      else af.longstants[name] = getClassinfo().dup;
     }
     int size() {
       // we return partial size so the struct thinks we contain our parent's struct

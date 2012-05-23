@@ -19,7 +19,11 @@ template ReinterpretCast_Contents(T) {
     }
     // if (to.size != from.valueType().size) fail;
     if (to.size != from.valueType().size) {
-      logln("Can't cast "[], from, " to "[], to, "; "[], from.valueType(), " size "[], from.valueType().size, " vs. "[], to.size, "!"[]);
+      logln("Can't cast "[], from);
+	  logln();
+	  logln("from: ", from.valueType());
+	  logln("to:   ", to);
+	  logln("size: ", from.valueType().size, " vs. "[], to.size, "!"[]);
       fail();
     }
   }

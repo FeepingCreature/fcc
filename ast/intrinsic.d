@@ -384,7 +384,7 @@ void setupSysmods() {
         if cur.accepts(err) cur.dg(err);
         cur = cur.prev;
       }
-      print-backtrace();
+      gdb-print-backtrace();
       writeln "Unhandled condition: $(err.toString()). ";
       exit 1;
     }
@@ -461,6 +461,12 @@ void setupSysmods() {
       res ~= source;
       return res[];
     }
+    struct FunctionInfo {
+      string name;
+      void* ip-from, ip-to;
+      int* linenr_sym;
+      string toString() { return "($name[$ip-from..$ip-to] $(*linenr_sym) line entries)"; }
+    }
     class ModuleInfo {
       string name, sourcefile;
       void* dataStart, dataEnd;
@@ -469,10 +475,11 @@ void setupSysmods() {
       void function()[auto~] constructors;
       bool constructed;
       string[] _imports;
+      FunctionInfo[auto~] functions;
       ModuleInfo[auto~] imports;
-      string toString() { return "[module $name]"; }
+      string toString() { return "[module $name ($functions)]"; }
     }
-    ModuleInfo[auto~] __modules;
+    shared ModuleInfo[auto~] __modules;
     ModuleInfo lookupInfo(string name) {
       for auto mod <- __modules if mod.name == name return mod;
       raise new Error "No such module: $name";
@@ -560,7 +567,7 @@ void setupSysmods() {
       int system(char*);
       void exit(int);
     }
-    void print-backtrace() {
+    void gdb-print-backtrace() {
       platform(default) {
         auto pid = getpid();
         system("gdb --batch -n -ex thread -ex bt -p $pid\x00".ptr);
@@ -582,7 +589,7 @@ void setupSysmods() {
       
       int errnum;
       set-handler (UnrecoverableError err) {
-        print-backtrace;
+        gdb-print-backtrace;
         writeln "Unhandled error: '$(err.toString())'. ";
         
         platform(*-mingw32) { _interrupt 3; }
@@ -761,6 +768,14 @@ void finalizeSysmod(Module mainmod) {
         iparse!(Statement, "init_mod_imports", "tree.stmt")
                (`var._imports[c++] = mod2;`, sc,
                 "var", var, "c", count, "mod2", mkString(mod2.name)));
+    }
+    foreach (entry; mod.entries) if (auto fun = fastcast!(Function) (entry)) if (!fun.extern_c) {
+      sc.addStatement(
+        iparse!(Statement, "init_fun_list", "tree.stmt")
+               (`var.functions ~= FunctionInfo:(name, from, to, linenr);`, sc,
+                 "var", var,
+                 "from", new Symbol(fun.fun_start_sym()), "to", new Symbol(fun.fun_end_sym()),
+                 "name", mkString(fun.name), "linenr", new Symbol(fun.fun_linenr_sym())));
     }
   }
   opt(setupfun);

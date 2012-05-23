@@ -13,6 +13,7 @@ bool dumpXMLRep;
 static this() {
   include_path ~= "/usr/local/include";
   include_path ~= "/usr/include";
+  version(Windows) include_path ~= "/mingw/include";
 }
 
 Threadpool tp;

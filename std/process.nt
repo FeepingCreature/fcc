@@ -2,7 +2,7 @@
 Create and interact with processes*/
 module std.process;
 
-import c.poll, c.stdlib, c.unistd;
+import c.stdlib, c.unistd;
 import std.string, std.util;
 
 alias C_system = system;
@@ -11,137 +11,138 @@ int system(string cmd) {
   return C_system toStringz cmd;
 }
 
-class ReadbackError : Error {
-  void init(string s) super.init "ReadbackError: $s";
-}
-
-import c.signal, c.sys.wait;
-class ReadbackStream : Iterator!string {
-  int x 2 hdl_sysward, hdl_selfward;
-  bool hup, done; int fdslength;
-  Iterator!string input; string inbuffer;
-  char x 128 buf;
-  pid_t child;
-  int wait() {
-    int res;
-    waitpid(child, &res, 0);
-    return res;
+platform(default) {
+  class ReadbackError : Error {
+    void init(string s) super.init "ReadbackError: $s";
   }
-  void init(string cmd, string[] args, Iterator!string input) {
-    pipe hdl_sysward; // self -> system()
-    pipe hdl_selfward; // system() -> self
-    
-    char* fp = malloc(cmd.length + 1);
-    fp[0..cmd.length] = cmd;
-    fp[cmd.length] = char:0;
-    char** argv = malloc(args.length + 1 + 1 #*size-of char*);
-    argv[0] = fp;
-    for (int id, string arg) <- zip(0..-1, args) {
-      char* argp = malloc(arg.length + 1);
-      argp[0..arg.length] = arg;
-      argp[arg.length] = char:0;
-      argv[id + 1] = argp;
+  import c.signal, c.sys.wait, c.poll;
+  class ReadbackStream : Iterator!string {
+    int x 2 hdl_sysward, hdl_selfward;
+    bool hup, done; int fdslength;
+    Iterator!string input; string inbuffer;
+    char x 128 buf;
+    pid_t child;
+    int wait() {
+      int res;
+      waitpid(child, &res, 0);
+      return res;
     }
-    argv[args.length + 1] = null;
-    
-    child = fork();
-    if (child == 0) {
-      .close hdl_sysward[1];
-      .close hdl_selfward[0];
-      dup2(hdl_sysward[0], 0); // overwrite standard input
-      dup2(hdl_selfward[1], 1); // overwrite standard output
-      exit(execvp(fp, argv));
-    }
-    .close hdl_sysward[0]; // read side
-    .close hdl_selfward[1]; // write side
-    fdslength = 2;
-    this.input = input;
-  }
-  void close() {
-    kill(child, SIGTERM);
-    waitpid(child, null, 0);
-  }
-  bool advance() {
-    UnreliableIterator!string uni;
-    if (input) uni = type-of uni: input;
-    while !done { // while we still have data to write .. 
-      pollfd x 2 fds;
-      fds[0].(fd, events) = (hdl_selfward[0], POLLIN);
-      fds[1].(fd, events) = (hdl_sysward [1], POLLOUT);
+    void init(string cmd, string[] args, Iterator!string input) {
+      pipe hdl_sysward; // self -> system()
+      pipe hdl_selfward; // system() -> self
       
-      auto my-fdslength = fdslength;
-      if (uni && !uni.canAdvance()) my-fdslength = 1;
-      
-      auto hits = poll(fds.ptr, my-fdslength, -1);
-      
-      // don't quit yet - there may still be data to be read!
-      if (fds[0].revents & POLLHUP) { hup = true; }
-      // if (fds[0].revents & POLLHUP) { writeln "HUP0"; }
-      // if (fds[0].revents & POLLIN) { writeln "IN0"; }
-      // if (fds[1].revents & POLLOUT) { writeln "OUT1"; }
-      bool handleRead() {
-        auto size = read buf.(hdl_selfward[0], ptr, length);
-        if (size > 0) {
-          value = buf[0 .. size];
-          return true;
-        }
-        done = true;
-        return false;
+      char* fp = malloc(cmd.length + 1);
+      fp[0..cmd.length] = cmd;
+      fp[cmd.length] = char:0;
+      char** argv = malloc(args.length + 1 + 1 #*size-of char*);
+      argv[0] = fp;
+      for (int id, string arg) <- zip(0..-1, args) {
+        char* argp = malloc(arg.length + 1);
+        argp[0..arg.length] = arg;
+        argp[arg.length] = char:0;
+        argv[id + 1] = argp;
       }
-      void handleWrite() {
-        if (!inbuffer.length) {
-          if (!input || !input.advance()) {
-            // no more data to write
-            .close hdl_sysward[1];
-            fdslength = 1;
-            return;
+      argv[args.length + 1] = null;
+      
+      child = fork();
+      if (child == 0) {
+        .close hdl_sysward[1];
+        .close hdl_selfward[0];
+        dup2(hdl_sysward[0], 0); // overwrite standard input
+        dup2(hdl_selfward[1], 1); // overwrite standard output
+        exit(execvp(fp, argv));
+      }
+      .close hdl_sysward[0]; // read side
+      .close hdl_selfward[1]; // write side
+      fdslength = 2;
+      this.input = input;
+    }
+    void close() {
+      kill(child, SIGTERM);
+      waitpid(child, null, 0);
+    }
+    bool advance() {
+      UnreliableIterator!string uni;
+      if (input) uni = type-of uni: input;
+      while !done { // while we still have data to write .. 
+        pollfd x 2 fds;
+        fds[0].(fd, events) = (hdl_selfward[0], POLLIN);
+        fds[1].(fd, events) = (hdl_sysward [1], POLLOUT);
+        
+        auto my-fdslength = fdslength;
+        if (uni && !uni.canAdvance()) my-fdslength = 1;
+        
+        auto hits = poll(fds.ptr, my-fdslength, -1);
+        
+        // don't quit yet - there may still be data to be read!
+        if (fds[0].revents & POLLHUP) { hup = true; }
+        // if (fds[0].revents & POLLHUP) { writeln "HUP0"; }
+        // if (fds[0].revents & POLLIN) { writeln "IN0"; }
+        // if (fds[1].revents & POLLOUT) { writeln "OUT1"; }
+        bool handleRead() {
+          auto size = read buf.(hdl_selfward[0], ptr, length);
+          if (size > 0) {
+            value = buf[0 .. size];
+            return true;
           }
-          assert(input.value.length != 0, "input claimed to advance but data is null");
-          inbuffer = input.value;
+          done = true;
+          return false;
         }
-        auto res = write inbuffer.(hdl_sysward[1], ptr, length);
-        if res < 0
-          raise new ReadbackError "Writing to stream failed! ";
-        inbuffer = inbuffer[res .. $];
-      }
-      bool active;
-      if (fds[0].revents & POLLIN) { if (handleRead()) return true; active = true; }
-      // read until you can't read anymore before resuming writing
-      else if (my-fdslength == 2 && fds[1].revents & POLLOUT) { handleWrite; active = true; }
-      if (uni && fdslength == 2 && my-fdslength == 1) { // shortened
-        if (!active) {// nothing to read
-          writeln "Problem: iterator had nothing to do this loop";
+        void handleWrite() {
+          if (!inbuffer.length) {
+            if (!input || !input.advance()) {
+              // no more data to write
+              .close hdl_sysward[1];
+              fdslength = 1;
+              return;
+            }
+            assert(input.value.length != 0, "input claimed to advance but data is null");
+            inbuffer = input.value;
+          }
+          auto res = write inbuffer.(hdl_sysward[1], ptr, length);
+          if res < 0
+            raise new ReadbackError "Writing to stream failed! ";
+          inbuffer = inbuffer[res .. $];
         }
+        bool active;
+        if (fds[0].revents & POLLIN) { if (handleRead()) return true; active = true; }
+        // read until you can't read anymore before resuming writing
+        else if (my-fdslength == 2 && fds[1].revents & POLLOUT) { handleWrite; active = true; }
+        if (uni && fdslength == 2 && my-fdslength == 1) { // shortened
+          if (!active) {// nothing to read
+            writeln "Problem: iterator had nothing to do this loop";
+          }
+        }
+        // basically done.
+        if (!active && hup) return false;
       }
-      // basically done.
-      if (!active && hup) return false;
+      return false;
     }
-    return false;
   }
+
+  /*Function: readback
+  Efficiently execute a command, reading its standard output until it terminates.
+
+  Arguments:
+    cmd - the command
+    args - parameters
+    data - Used as the standard input for the command
+
+  Returns:
+    an iterator that yields the output of the command as it executs. */
+  ReadbackStream readback(string cmd, string[] args, Iterator!string data) {
+    return new ReadbackStream (cmd, args, data);
+  }
+
+  ReadbackStream readback(string cmd, Iterator!string data) {
+    return readback(cmd, string[]:null, data);
+  }
+
+  ReadbackStream readback(string cmd, string[] args, string data) return readback(cmd, args, Iterator!string: iterOnce data);
+  ReadbackStream readback(string cmd, string data) return readback(cmd, string[]:null, Iterator!string: iterOnce data);
+  ReadbackStream readback(string cmd, string[] args) return readback(cmd, args, Iterator!string: null);
+  ReadbackStream readback(string cmd) return readback(cmd, string[]:null, Iterator!string: null);
 }
-
-/*Function: readback
-Efficiently execute a command, reading its standard output until it terminates.
-
-Arguments:
-  cmd - the command
-  args - parameters
-  data - Used as the standard input for the command
-
-Returns:
-  an iterator that yields the output of the command as it executs. */
-ReadbackStream readback(string cmd, string[] args, Iterator!string data) {
-  return new ReadbackStream (cmd, args, data);
-}
-
-ReadbackStream readback(string cmd, Iterator!string data) {
-  return readback(cmd, string[]:null, data);
-}
-
-ReadbackStream readback(string cmd, string[] args, string data) return readback(cmd, args, Iterator!string: iterOnce data);
-ReadbackStream readback(string cmd, string data) return readback(cmd, string[]:null, Iterator!string: iterOnce data);
-ReadbackStream readback(string cmd, string[] args) return readback(cmd, args, Iterator!string: null);
-ReadbackStream readback(string cmd) return readback(cmd, string[]:null, Iterator!string: null);
 
 extern(C) char* getenv(char*);
 RenameIdentifier getenv C_getenv;
@@ -150,7 +151,7 @@ string getenv(string var) {
   return CToString C_getenv toStringz var;
 }
 
-string read-backtrace(int skipFirst = 8) {
+string read-gdb-backtrace(int skipFirst = 8) {
   platform(default) {
     auto pid = getpid();
     return
@@ -162,4 +163,72 @@ string read-backtrace(int skipFirst = 8) {
     ;
   }
   return null;
+}
+
+void*[] get-raw-backtrace() {
+  void*[auto~] res;
+  void** cur-bp = _ebp;
+  while (cur-bp) {
+    res ~= cur-bp[1];
+    cur-bp = void**: cur-bp[0];
+  }
+  return res[];
+}
+
+void findFunction(void* ip, (string, string, int)* res) {
+  int getLineNumber(int* sym) {
+    auto len = *sym;
+    auto array = ((int,int)*: (sym+1))[0..len];
+    int prev_nr;
+    for auto pair <- array {
+      alias line_ip = pair[0], linenum = pair[1];
+      if (int:line_ip > int:ip) return prev_nr; // moved past the ip
+      prev_nr = linenum;
+    }
+    return prev_nr;
+  }
+  for auto mod <- __modules {
+    for auto fun <- mod.functions {
+      if (fun.(int:ip-from <= int:ip <= int:ip-to)) { writeln "-- $fun"; *res = (fun.name, mod.name, getLineNumber(fun.linenr_sym)); return; }
+    }
+  }
+  *res = (string:null, string:null, 0);
+  return;
+}
+
+/*Function: get-backtrace
+  Returns an array of (void*, string, string, int) describing the backtrace of the current thread.
+  The meaning of the tuple is (ip, function, filename, line number).
+  Due to the custom debug info, the function/filename/line number info only works with Neat functions.
+  This was done so the backtraces would be maximally useful on Windows as well as Linux, which have
+  incompatible and hard-to-parse debug formats.*/
+auto get-backtrace() {
+  (void*, string, string, int)[auto~] res;
+  auto temp = get-raw-backtrace();
+  onExit temp.free;
+  for auto bp <- temp {
+    findFunction (bp, &(string, string, int) position);
+    res ~= position.(bp, _0, _1?.(replace(".", "/") ~ ".nt"), _2);
+  }
+  return res[];
+}
+
+/*Function: print-backtrace
+  Prints a backtrace of the current thread. The format is similar to gdb. */
+void print-backtrace() {
+  for auto tup <- get-backtrace() && int i <- ints {
+    if (tup[1]) {
+      if (tup[2]) {
+        if (tup[3]) {
+          writeln tup.("#$i\t$_0 in $_1 at $_2:$_3");
+        } else {
+          writeln tup.("#$i\t$_0 in $_1 at $_2");
+        }
+      } else {
+        writeln tup.("#$i\t$_0 in $_1");
+      }
+    } else {
+      writeln tup.("#$i\t$_0 in ??");
+    }
+  }
 }

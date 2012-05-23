@@ -60,8 +60,12 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   bool isStdcall;
   if (!t2.accept("extern"[]) || !t2.accept("("[])) return null;
   if (!t2.accept("C"[])) {
-    if (!t2.accept("Windows"[])) return null;
-    isStdcall = true;
+    if (!t2.accept("Windows"[])) {
+	  if (!t2.accept("System"[])) return null;
+	  isStdcall = isWindoze();
+	} else {
+	  isStdcall = true;
+	}
   }
   if (!t2.accept(")"[])) return null;
   string tx;

@@ -65,16 +65,17 @@ extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name);
 
-bool[string] symbol_emit_win32_hack_check;
-Object hack_sync;
-static this() { hack_sync = new Object; }
+TLS!(Function) current_emitting_function;
+static this() { New(current_emitting_function); }
 
 class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ScopeLike, EmittingContext, Importer {
   string name;
   Expr getPointer() {
     return fastalloc!(FunSymbol)(this);
   }
-  this() { }
+  int idnum;
+  static int funid_count;
+  this() { idnum = funid_count ++; }
   FunctionType type;
   Tree tree;
   bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false;
@@ -163,6 +164,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       add(fastalloc!(Variable)(Single!(SizeT), "__old_ebp"[], 0));
       add(fastalloc!(Variable)(Single!(SizeT), "__fun_ret"[], 4));
       cur = _framestart = 8;
+      if (isWindoze() && extern_c) {
+        // ebx backup
+        add(fastalloc!(Variable)(Single!(SizeT), "__ebx_backup"[], -4));
+      }
     }
     // TODO: 16-byte? alignment
     foreach (param; type.params) {
@@ -177,28 +182,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         logln(tree);
         fail;
       }
-      /*auto sysmod = __getSysmod();
-      if (!extern_c && name != "main2"[] /or/ "__win_main"[] /or/ "__c_main"[] && !tools.base.startsWith(name, "guardfn_"[]) && sysmod && sysmod.lookup("FrameInfo"[])) {
-        auto type = fastcast!(IType) (sysmod.lookup("FrameInfo"[]));
-        auto var = fastalloc!(Variable)(type, "__frame_info"[], boffs(type));
-        var.initInit;
-        auto decl = fastalloc!(VarDecl)(var);
-        addStatement(decl);
-        auto sc = fastcast!(Scope) (tree);
-        namespace.set(sc);
-        if (auto mistake = sc.lookup("__frame_info"[], true)) {
-          logln(mistake, " in "[], sc, " "[], sc.field, ": wtf"[]);
-          fail;
-        }
-        sc.add(var);
-        auto stackframe_var = fastcast!(Expr) (sysmod.lookup("stackframe"[]));
-        auto vartype = fastcast!(RelNamespace)(var.valueType());
-        addStatement(mkAssignment(fastcast!(Expr) (vartype.lookupRel("fun"[], var)), mkString(fqn())));
-        addStatement(mkAssignment(fastcast!(Expr) (vartype.lookupRel("prev"[], var)), stackframe_var));
-        addStatement(mkAssignment(stackframe_var, fastalloc!(RefExpr)(var)));
-        addStatement(iparse!(Statement, "frame_guard"[], "tree.stmt.guard"[])
-                            (`onExit { sf = sf.prev; } `, namespace(), "sf"[], stackframe_var));
-      }*/
     }
     return cur;
   }
@@ -223,6 +206,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     int framesize() {
       /* mixed frame on arm */
       if (isARM) return 4;
+      else if (isWindoze() && extern_c) return 4; // ebx backup
       else return 0;
     }
   }
@@ -253,7 +237,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     return cached_selfmangle;
   }
   string exit() { return mangleSelf() ~ "_exit_label"; }
-  static int funid_count;
   void addStatement(Statement st) {
     if (!tree) {
       if (auto sc = fastcast!(Scope) (st)) { tree = sc; return; }
@@ -278,8 +261,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
             current_module().filename())));
         data ~= ".int\t0x0 /* line: todo */";
         data ~= ".byte\t0x1 /* prototyped */";
-        sect.data ~= qformat(".long\t.LFB"[], funid_count);
-        data ~= qformat(".long\t.LFE"[], funid_count);
+        sect.data ~= qformat(".long\t.LFB"[], idnum);
+        data ~= qformat(".long\t.LFE"[], idnum);
         data ~= qformat(".byte\t1\t/* location description is one entry long */"[]);
         data ~= qformat(".byte\t"[], hex(DW.OP_reg5), "\t/* ebp */"[]);
       }
@@ -288,8 +271,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     if (dwarf2) {
       // for arguments
       auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("lexical block"[]));
-      sect.data ~= qformat(".long\t.LFB"[], funid_count);
-      sect.data ~= qformat(".long\t.LFE"[], funid_count);
+      sect.data ~= qformat(".long\t.LFB"[], idnum);
+      sect.data ~= qformat(".long\t.LFE"[], idnum);
       dwarf2.open(sect);
     }
     if (dwarf2) {
@@ -304,6 +287,18 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       af.dwarf2.close;
     }
   }
+  string fun_start_sym() { return qformat(".LFB"[], idnum); }
+  string fun_end_sym() { return qformat(".LFE"[], idnum); }
+  string fun_linenr_sym() { return qformat(".DebugInfo_LineInfo"[], idnum); }
+  int[] linenumbers;
+  int linecounter;
+  string linedebug(int id) {
+    return qformat(".DebugInfo_"[], idnum, "_Line_"[], id);
+  }
+  void add_line_number(AsmFile af, int line) {
+    af.put(linedebug(linecounter++), ":"[]);
+    linenumbers ~= line;
+  }
   override {
     int framestart() { return _framestart; }
     bool addsSelf() { return true; }
@@ -312,6 +307,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     }
     string getIdentifier() { return name; }
     void emitAsm(AsmFile af) {
+      auto cef_backup = current_emitting_function();
+      current_emitting_function.set(this);
+      scope(exit) current_emitting_function.set(cef_backup);
+      
       auto backup_opt = af.optimize, backup_rm = releaseMode, backup_dbg = af.debugMode;
       auto backup_dwarf = af.dwarf2;
       scope(exit) {
@@ -340,12 +339,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       auto fmn = mangleSelf(); // full mangled name
       af.put(".p2align 4"[]);
       if (isWindoze()) {
-        // af.put(".global "[], fmn);
-        if (weak) {
-          if (fmn in symbol_emit_win32_hack_check) return; // fucking windows
-          symbol_emit_win32_hack_check[fmn] = true;
-          af.put(".global "[], fmn);
-        } else af.put(".global "[], fmn);
+        af.put(".section .text$section_for_"[], fmn, ", \"ax\""[]);
+        af.put(".linkonce discard"[]);
+        af.put(".globl "[], fmn);
       } else {
         af.put(".global "[], fmn);
         if (weak) af.put(".weak "[], fmn);
@@ -358,15 +354,16 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         else
           af.put(".type "[], fmn, ", @function"[]);
       }
-
+      
       dwarfOpen(af);
       scope(exit) dwarfClose(af);
-
+      
       af.put(fmn, ":"[]); // not really a label
-      auto idnum = funid_count ++;
-      af.put(".LFB"[], idnum, ":"[]);
-      af.jump_barrier();
+      af.put(".global "[], fun_start_sym());
+      af.put(fun_start_sym(), ":"[]);
       // af.put(".cfi_startproc"[]);
+      
+      af.jump_barrier();
       
       int psize;
       if (isARM) {
@@ -388,6 +385,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       } else {
         af.pushStack("%ebp", nativePtrSize);
         af.mmove4("%esp", "%ebp");
+        if (isWindoze() && extern_c) { af.pushStack("%ebx", nativePtrSize); }
         if (af.profileMode)
           af.put("call mcount"[]);
       }
@@ -419,6 +417,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         else if (psize >= 8) af.sfree(8);
         else if (psize >= 4) af.sfree(4);
       } else {
+        if (isWindoze() && extern_c) { af.mmove4("-4(%ebp)", "%ebx"); }
         af.put("leave"[]);
       }
       
@@ -432,9 +431,26 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       if (isARM) {
         af.put(".ltorg"[]);
       }
-      af.put(".LFE"[], idnum, ":"[]);
+      
+      af.put(".global "[], fun_end_sym());
+      af.put(fun_end_sym(), ":"[]);
+      
       if (!isWindoze())
         af.put(".size "[], fmn, ", .-"[], fmn);
+      
+      af.put(".section .text$debug_section_"[], fmn, ", \"r\""[]);
+      af.put(".global "[], fun_linenr_sym());
+      af.put(fun_linenr_sym(), ":"[]);
+      af.put(".long "[], linecounter);
+      for (int i = 0; i < linecounter; ++i) {
+        af.put(".long "[], linedebug(i));
+        af.put(".long "[], linenumbers[i]);
+      }
+      
+      if (isWindoze()) {
+        af.put(".section rodata");
+      }
+      
       if (af.floatStackDepth) {
         logln("leftover float stack when end-emitting ", this);
         fail;
@@ -444,6 +460,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       }
       // af.put(".cfi_endproc"[]);
     }
+
     Stuple!(IType, string, int)[] stackframe() {
       Stuple!(IType, string, int)[] res;
       foreach (obj; field)
