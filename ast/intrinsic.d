@@ -218,10 +218,10 @@ void setupSysmods() {
       platform(default) { fflush(stdout); }
     }
     string dtoa(double d) {
-      auto res = new char[] 128; // yes, actually does need to be this big >_>
-      int len = snprintf(res.ptr, res.length, "%f", d);
-      if len > res.length len = res.length;
-      return res[0 .. len];
+      int len = snprintf(null, 0, "%f", d);
+      auto res = new char[] $ len + 1;
+      snprintf(res.ptr, res.length, "%f", d);
+      return res[0..$-1];
     }
     platform(!arm*) {
       string ftoa(float f) {
@@ -235,6 +235,7 @@ void setupSysmods() {
     /*MARKER2*/
     class Object {
       string toString() return "Object";
+      void free() mem.free void*:this; // wow.
     }
     void* _fcc_dynamic_cast(void* ex, string id, int isIntf) {
       if (!ex) return null;

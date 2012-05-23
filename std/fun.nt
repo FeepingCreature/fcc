@@ -16,6 +16,7 @@ template select(T) {
     T[1] test;
     bool advance() {
       while value <- iter if (test value) { return true; }
+      free;
       return false;
     }
   }
@@ -41,6 +42,7 @@ template map(T) {
     T[1] transform;
     bool advance() {
       if (auto val <- iter) { value = transform val; return true; }
+      free;
       return false;
     }
   }

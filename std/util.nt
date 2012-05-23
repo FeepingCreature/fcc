@@ -166,7 +166,7 @@ template reverse(T) {
     IT[] back;
     int pos;
     bool advance() {
-      if (pos == -1) return false;
+      if (pos == -1) { free; return false; }
       value = back[pos];
       pos--;
       if (pos == -1) back.free;
