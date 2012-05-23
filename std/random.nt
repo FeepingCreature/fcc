@@ -6,5 +6,4 @@ import std.random.crng, std.random.mersenne;
 IRandom deflt;
 void init() { deflt = getPRNG s => 5; }
 
-float randf() { return std.random.base.randf deflt; }
 int rand() { return deflt.rand(); }
