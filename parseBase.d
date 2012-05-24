@@ -152,43 +152,46 @@ bool isNormal(dchar c) {
 }
 
 string lastAccepted, lastAccepted_stripped;
-bool acceptT(bool USECACHE)(ref string s, string t) {
-  string s2;
-  bool sep = t.length && t[$-1] == ' ';
-  debug if (t !is t.strip()) {
-    logln("bad t: '", t, "'");
-    fail;
-  }
-  static if (USECACHE) {
-    if (s.ptr == lastAccepted.ptr && s.length == lastAccepted.length) {
-      s2 = lastAccepted_stripped;
+template acceptT(bool USECACHE) {
+  pragma(attribute, optimize("-O3"))
+  bool acceptT(ref string s, string t) {
+    string s2;
+    bool sep = t.length && t[$-1] == ' ';
+    debug if (t !is t.strip()) {
+      logln("bad t: '", t, "'");
+      fail;
+    }
+    static if (USECACHE) {
+      if (s.ptr == lastAccepted.ptr && s.length == lastAccepted.length) {
+        s2 = lastAccepted_stripped;
+      } else {
+        s2 = s.mystripl();
+        s2.eatComments();
+        lastAccepted = s;
+        lastAccepted_stripped = s2;
+      }
     } else {
       s2 = s.mystripl();
       s2.eatComments();
-      lastAccepted = s;
-      lastAccepted_stripped = s2;
     }
-  } else {
-    s2 = s.mystripl();
-    s2.eatComments();
-  }
-  
-  size_t idx = t.length, zero = 0;
-  if (!s2.startsWith(t)) return false;
-  if (s2.length != t.length) {
-    if ((!t.length || isNormal(t.decode(zero))) && isNormal(s2.decode(idx))) {
-      return false;
+    
+    size_t idx = t.length, zero = 0;
+    if (!s2.startsWith(t)) return false;
+    if (s2.length != t.length) {
+      if ((!t.length || isNormal(t.decode(zero))) && isNormal(s2.decode(idx))) {
+        return false;
+      }
     }
+    s = s2[t.length .. $];
+    if (!sep || !s.length) return true;
+    if (s[0] != ' ') return false;
+    s = s[1 .. $];
+    return true;
   }
-  s = s2[t.length .. $];
-  if (!sep || !s.length) return true;
-  if (s[0] != ' ') return false;
-  s = s[1 .. $];
-  return true;
 }
 
-alias acceptT!(true) accept;
-alias acceptT!(false) accept_mt;
+alias acceptT!(true).acceptT accept;
+alias acceptT!(false).acceptT accept_mt;
 
 bool hadABracket(string s) {
   auto s2 = (s.ptr - 1)[0..s.length + 1];
@@ -426,6 +429,34 @@ string matchrule_static(string rules) {
   return falsestr ~ "delegate bool("~preparams~"string text) { \n" ~ res ~ "return true; \n}";
 }
 
+// cases: smaller, greater, equal, before, after
+pragma(attribute, optimize("-O3"))
+bool fun(Stuple!(RuleData)* data, string text) {
+  auto op1 = data._1;
+  if (op1 && !op1(text)) return false;
+  // avoid allocation from ~"."
+  auto rule = data._0, cases = data._2;
+  if ((cases&1) && text.sectionStartsWith(rule)) // all "below" in the tree
+    return true;
+  if ((cases&4) && text == rule)
+    return true;
+  if ((cases&2) && !text.sectionStartsWith(rule)) // arguable
+    return true;
+  
+  auto hit = &data._3;
+  if (cases&8) {
+    if (text.sectionStartsWith(rule))
+      *hit = true;
+    return !*hit;
+  }
+  if (cases&16) {
+    if (text.sectionStartsWith(rule))
+      *hit = true;
+    else return *hit;
+  }
+  return false;
+}
+
 bool delegate(string) matchrule(string rules, out int id) {
   bool delegate(string) res;
   auto rules_backup = rules;
@@ -448,33 +479,7 @@ bool delegate(string) matchrule(string rules, out int id) {
       smaller = equal = true; // default
     // different modes
     assert((smaller || greater || equal) ^ before ^ after);
-    
-    // cases: smaller, greater, equal, before, after
-    static bool fun(Stuple!(RuleData)* data, string text) {
-      auto op1 = data._1;
-      if (op1 && !op1(text)) return false;
-      // avoid allocation from ~"."
-      auto rule = data._0, cases = data._2;
-      if ((cases&1) && text.sectionStartsWith(rule)) // all "below" in the tree
-        return true;
-      if ((cases&4) && text == rule)
-        return true;
-      if ((cases&2) && !text.sectionStartsWith(rule)) // arguable
-        return true;
-      
-      auto hit = &data._3;
-      if (cases&8) {
-        if (text.sectionStartsWith(rule))
-          *hit = true;
-        return !*hit;
-      }
-      if (cases&16) {
-        if (text.sectionStartsWith(rule))
-          *hit = true;
-        else return *hit;
-      }
-      return false;
-    };
+
     alias allocRuleData!(fun) ard;
     const string src = `
       res = ard(
@@ -875,109 +880,117 @@ class ParseContext {
   string condStr;
   import tools.time: sec, µsec;
   Object parse(ref string text, bool delegate(string) cond,
-      int offs = 0, ParseCtl delegate(Object) accept = null) {
-    if (!text.length) return null;
-    resort;
-    bool matched;
-    if (verboseParser)
-      logln("BEGIN PARSE '", text.nextText(16), "'");
-    
-    ubyte[RULEPTR_SIZE_HAX] cond_copy = void;
-    ParseCb cont = void, rest = void;
-    cont.dg = null; // needed for null check further in
-    int i;
-    Object cont_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
-      return this.parse(text, cond, offs + i + 1, accept);
-    }
-    Object rest_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
-      return this.parse(text, cond, accept);
-    }
-    void fill_cont_rest() {
-      // make copy
-      cond_copy[] = (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX];
-      cond.ptr = cond_copy.ptr;
-      cont.dg = &cont_dg;
-      cont.cur = cond;
-      rest.dg = &rest_dg;
-      rest.cur = cond;
-    }
-    
-    Object longestMatchRes;
-    string longestMatchStr = text;
-    const ProfileMode = false;
-    static if (ProfileMode) {
-      auto start_time = µsec();
-      auto start_text = text;
-      static float min_speed = float.infinity;
-      scope(exit) if (text.ptr !is start_text.ptr) {
-        auto delta = (µsec() - start_time) / 1000f;
-        auto speed = (text.ptr - start_text.ptr) / delta;
-        if (speed < min_speed) {
-          min_speed = speed;
-          if (delta > 5) {
-            logln("New worst slowdown: '",
-              condStr, "' at '", start_text.nextText(), "'"
-              ": ", speed, " characters/ms "
-              "(", (text.ptr - start_text.ptr), " in ", delta, "ms). ");
-          }
-        }
-        // min_speed *= 1.01;
+      int offs = 0, ParseCtl delegate(Object) accept = null)
+  {
+    if (verboseParser) return _parse!(true)._parse(text, cond, offs, accept);
+    else return _parse!(false)._parse(text, cond, offs, accept);
+  }
+  template _parse(bool Verbose) {
+    pragma(attribute, optimize("-O3", "-fno-tree-vrp"))
+    Object _parse(ref string text, bool delegate(string) cond,
+        int offs = 0, ParseCtl delegate(Object) accept = null) {
+      if (!text.length) return null;
+      resort;
+      bool matched;
+      static if (Verbose)
+        logln("BEGIN PARSE '", text.nextText(16), "'");
+      
+      ubyte[RULEPTR_SIZE_HAX] cond_copy = void;
+      ParseCb cont = void, rest = void;
+      cont.dg = null; // needed for null check further in
+      int i = void;
+      Object cont_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
+        return this.parse(text, cond, offs + i + 1, accept);
       }
-    }
-    bool tried;
-    foreach (j, parser; parsers[offs .. $]) {
-      i = j;
-      auto id = parser.id;
+      Object rest_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
+        return this.parse(text, cond, accept);
+      }
       
-      auto tx = text;
-      if (parser.key && !.accept(tx, parser.key)) continue; // skip
-      
-      // rulestack ~= stuple(id, text);
-      // scope(exit) rulestack = rulestack[0 .. $-1];
-      
-      if (cond(id)) {
-        if (verboseParser) logln("TRY PARSER [", id, "] for '", text.nextText(16), "'");
-        matched = true;
-        
-        if (!cont.dg) fill_cont_rest();
-        
-        auto backup = text;
-        if (auto res = parser.match(text, accept, cont, rest)) {
-          auto ctl = ParseCtl.AcceptAbort;
-          if (accept) {
-            ctl = accept(res);
-            if (verboseParser) logln("    PARSER [", id, "]: control flow ", ctl.decode);
-            if (ctl == ParseCtl.RejectAbort || ctl.state == 3) {
-              if (verboseParser) logln("    PARSER [", id, "] rejected (", ctl.reason, "): ", Format(res));
-              // if (verboseParser) logln("    PARSER [", id, "] @", rulestack /map/ ex!("a, b -> a"));
-              text = backup;
-              if (ctl == ParseCtl.RejectAbort) return null;
-              continue;
+      Object longestMatchRes;
+      string longestMatchStr = text;
+      const ProfileMode = false;
+      static if (ProfileMode) {
+        auto start_time = µsec();
+        auto start_text = text;
+        static float min_speed = float.infinity;
+        scope(exit) if (text.ptr !is start_text.ptr) {
+          auto delta = (µsec() - start_time) / 1000f;
+          auto speed = (text.ptr - start_text.ptr) / delta;
+          if (speed < min_speed) {
+            min_speed = speed;
+            if (delta > 5) {
+              logln("New worst slowdown: '",
+                condStr, "' at '", start_text.nextText(), "'"
+                ": ", speed, " characters/ms "
+                "(", (text.ptr - start_text.ptr), " in ", delta, "ms). ");
             }
           }
-          if (verboseParser) logln("    PARSER [", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
-          if (ctl == ParseCtl.AcceptAbort) {
-            if (justAcceptedCallback) justAcceptedCallback(text);
-            return res;
-          }
-          if (text.ptr > longestMatchStr.ptr) {
-            longestMatchStr = text;
-            longestMatchRes = res;
-          }
-        } else {
-          if (verboseParser) logln("    PARSER [", id, "] failed");
+          // min_speed *= 1.01;
         }
-        text = backup;
-      }/* else {
-        if (verboseParser) logln("   PARSER [", id, "] - refuse outright");
-      }*/
+      }
+      bool tried;
+      foreach (j, ref parser; parsers[offs..$]) {
+        i = j;
+        
+        auto id = parser.id;
+        
+        auto tx = text;
+        if (parser.key && !.accept(tx, parser.key)) continue; // skip
+        
+        // rulestack ~= stuple(id, text);
+        // scope(exit) rulestack = rulestack[0 .. $-1];
+        
+        if (cond(id)) {
+          static if (Verbose) logln("TRY PARSER [", id, "] for '", text.nextText(16), "'");
+          matched = true;
+          
+          if (!cont.dg) {
+            cond_copy[] = (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX];
+            cond.ptr = cond_copy.ptr;
+            cont.dg = &cont_dg;
+            cont.cur = cond;
+            rest.dg = &rest_dg;
+            rest.cur = cond;
+          }
+          
+          auto backup = text;
+          if (auto res = parser.match(text, accept, cont, rest)) {
+            auto ctl = ParseCtl.AcceptAbort;
+            if (accept) {
+              ctl = accept(res);
+              static if (Verbose) logln("    PARSER [", id, "]: control flow ", ctl.decode);
+              if (ctl == ParseCtl.RejectAbort || ctl.state == 3) {
+                static if (Verbose) logln("    PARSER [", id, "] rejected (", ctl.reason, "): ", Format(res));
+                // static if (Verbose) logln("    PARSER [", id, "] @", rulestack /map/ ex!("a, b -> a"));
+                text = backup;
+                if (ctl == ParseCtl.RejectAbort) return null;
+                continue;
+              }
+            }
+            static if (Verbose) logln("    PARSER [", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
+            if (ctl == ParseCtl.AcceptAbort) {
+              if (justAcceptedCallback) justAcceptedCallback(text);
+              return res;
+            }
+            if (text.ptr > longestMatchStr.ptr) {
+              longestMatchStr = text;
+              longestMatchRes = res;
+            }
+          } else {
+            static if (Verbose) logln("    PARSER [", id, "] failed");
+          }
+          text = backup;
+        }/* else {
+          static if (Verbose) logln("   PARSER [", id, "] - refuse outright");
+        }*/
+      }
+      if (longestMatchRes) {
+        text = longestMatchStr;
+        if (justAcceptedCallback) justAcceptedCallback(text);
+        return longestMatchRes;
+      }
+      return null;
     }
-    if (longestMatchRes) {
-      text = longestMatchStr;
-      if (justAcceptedCallback) justAcceptedCallback(text);
-      return longestMatchRes;
-    }
-    return null;
   }
   Object parse(ref string text, string cond) {
     condStr = cond;
