@@ -260,6 +260,9 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
       if (!t2.many(
         !!rest(t2, parsemode, &obj),
         {
+          auto mg = fastcast!(IsMangled) (obj);
+          if (mg) mg.markWeak();
+          
           auto tr = fastcast!(Tree) (obj);
           if (!tr) return;
           if (fastcast!(NoOp) (obj)) return;
@@ -273,10 +276,8 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
             logln("add ", fun.mangleSelf(), " to ", current_module().name,
               ", at ", current_module().entries.length, "; ", cast(void*) current_module());*/
           // current_module().entries ~= tr;
-          auto mg = fastcast!(IsMangled) (tr);
-          if (!mg) { logln("!! ", tr); fail; }
-          mg.markWeak();
           // addExtra(mg);
+          if (!mg) { logln("!! ", tr); fail; }
           instRes ~= mg;
         }
       ) || t2.mystripl().length)
