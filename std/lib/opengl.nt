@@ -74,6 +74,21 @@ context glMatrix {
   alias onExit  = popAll ();
 }
 
+context glModelviewMatrix {
+  void push() using mode GL {
+    GetIntegerv(MATRIX_MODE, &int mode);
+    if (mode != MODELVIEW) raise new Error "cannot push modelview matrix: not in modelview mode";
+    PushMatrix;
+  }
+  void pop() using mode GL {
+    GetIntegerv(MATRIX_MODE, &int mode);
+    if (mode != MODELVIEW) raise new Error "cannot pop modelview matrix: not in modelview mode";
+    PopMatrix;
+  }
+  alias onUsing = push();
+  alias onExit  = pop ();
+}
+
 template glWithCap(alias Cap) {
   GLboolean[auto~] capstack;
   context glWithCap {
