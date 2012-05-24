@@ -13,6 +13,7 @@ version(Windows) {
   extern(C) int bcmp(char*, char*, int);
 }
 
+pragma(attribute, optimize("-O3"))
 bool faststreq(string a, string b) {
   if (a.length != b.length) return false;
   if (a.ptr == b.ptr) return true; // strings are assumed immutable

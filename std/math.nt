@@ -120,10 +120,19 @@ int abs(int i) { if i < 0 return -i; return i; }
 float abs(float f) { if f < 0 return -f; return f; }
 
 /*Function: bound
-  Limits f to {from, to}*/
+  Limits f to {from, to} by clamping*/
 float bound(float from, to, f) {
   if (f < from) f = from;
   if (f > to) f = to;
+  return f;
+}
+
+/*Function: wrap
+  Limits f to {from, to} by wrapping*/
+float wrap(float from, to, f) {
+  auto sz = to - from;
+  if (f < from) f += floor((to - f) / sz) * sz;
+  if (f > to) f -= floor((f - from) / sz) * sz;
   return f;
 }
 
