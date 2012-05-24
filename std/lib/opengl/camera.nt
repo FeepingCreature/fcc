@@ -4,12 +4,13 @@ import std.math, std.lib.opengl;
 
 interface Camera {
   void apply();
+  void unrotate(); // undo just the rotation transforms
   void setAspect(float f);
   float getAspect();
   alias aspect = accessor_property(getAspect, setAspect);
 }
 
-class PerspectiveCam : Camera {
+abstract class PerspectiveCam : Camera {
   float fov, zNear, zFar, aspect-value;
   alias args = (fov, aspect-value, zNear, zFar);
   float getAspect() return aspect-value;
@@ -22,6 +23,7 @@ class PerspectiveCam : Camera {
     LoadIdentity;
     gluPerspective args;
   }
+  void unrotate();
 }
 
 template WorldCam(T) {
@@ -30,15 +32,7 @@ template WorldCam(T) {
     alias dir = lookat - pos;
     vec3f setDir(vec3f v) { lookat = pos + v; return lookat; }
     string toString() { return "WorldCam <up $up, pos $pos, lookat $lookat>"; }
-    void init() {
-      super.init();
-      (up, pos) = (vec3f.Y, vec3f(0));
-      setDir -vec3f.Z;
-    }
-    void apply() using mode GL {
-      super.apply();
-      MatrixMode MODELVIEW;
-      LoadIdentity;
+    alias calc = `
       auto dirz = dir;
       dirz.z = -dirz.z;
       auto
@@ -48,9 +42,25 @@ template WorldCam(T) {
       auto vert = vec3f.X.angle3f(left, up) / PI180;
       if (is-nan horz) horz = 0;
       if (is-nan vert) vert = -180;
+    `;
+    void init() {
+      super.init();
+      (up, pos) = (vec3f.Y, vec3f(0));
+      setDir -vec3f.Z;
+    }
+    void apply() using mode GL {
+      super.apply();
+      MatrixMode MODELVIEW;
+      LoadIdentity;
+      mixin calc;
       horz.Rotatef vec3f.X;
       vert.Rotatef vec3f.Y;
       Translatef (-pos);
+    }
+    void unrotate() using mode GL {
+      mixin calc;
+      vert.Rotatef -vec3f.Y;
+      horz.Rotatef -vec3f.X;
     }
   }
 }
@@ -75,19 +85,27 @@ template EgoCam(T) {
     void turn-up(float f) { turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
     alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX).normalize3f;
     alias left = vec3f.Y.cross3f(dir).normalize3f;
-    void apply() using mode GL {
-      super.apply();
-      MatrixMode MODELVIEW;
-      LoadIdentity;
+    alias calc = `
       auto dirz = dir; dirz.z = -dirz.z;
       auto left = vec3f.Y.cross3f(dirz).normalized, up = dirz.cross3f(left).normalized;
       auto angle1 = vec3f.Y.angle3f(up, left) / PI180,
            angle2 = vec3f.X.angle3f(left, up) / PI180;
       if (angle1.is-nan()) angle1 = 0;
       if (angle2.is-nan()) angle2 = 180;
+    `;
+    void apply() using mode GL {
+      super.apply();
+      MatrixMode MODELVIEW;
+      LoadIdentity;
+      mixin calc;
       Rotatef (angle1, vec3f.X);
       Rotatef (angle2, vec3f.Y);
       Translatef (-pos);
+    }
+    void unrotate() using mode GL {
+      mixin calc;
+      Rotatef (angle2, -vec3f.Y);
+      Rotatef (angle1, -vec3f.X);
     }
   }
 }

@@ -220,8 +220,11 @@ Object gotConvertsTo(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr"[], &ex))
     t2.failparse("implicitly-converts-to expects source expr");
   
+  it = resolveType(it);
+  ex = forcedConvert(ex);
+  
   text = t2;
-  if (gotImplicitCast(ex, (IType it2) { return test(resolveType(it2) == it); }))
+  if (gotImplicitCast(ex, it, (IType it2) { return test(resolveType(it2) == it); }))
     return fastcast!(Object) (fastalloc!(ExprWrap)(True));
   else
     return fastcast!(Object) (fastalloc!(ExprWrap)(False));

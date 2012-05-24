@@ -66,14 +66,19 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
       assert(!isAlias);
       type = resolveType(type);
       TemplateInstance ti;
-      foreach (entry; emat_type) {
+      foreach (ref entry; emat_type) {
         debug if ((qformat(entry._1) == qformat(type)) != (entry._1.mangle() == type.mangle())) {
           logln("1: ", entry._1, ": ", entry._1.mangle());
           logln("2: ", type, ": ", type.mangle());
           fail;
         }
         // if (qformat(entry._1) == qformat(type)) { ti = entry._0; break; }
-        if (entry._1.mangle() == type.mangle()) { ti = entry._0; break; }
+        // if (entry._1.mangle() == type.mangle()) {
+        // DON'T SWITCH THIS BACK WITHOUT DOCUMENTING WHY
+        if (entry._1 == type) {
+          ti = entry._0;
+          break;
+        }
       }
       if (!ti) {
         ti = fastalloc!(TemplateInstance)(this, type, rest);
