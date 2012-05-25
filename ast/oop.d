@@ -473,7 +473,14 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   RelFunSet overrides;
   string mangle_id;
   bool weak;
-  void markWeak() { parseMe; weak = true; foreach (fun; myfuns.funs) (fastcast!(IsMangled) (fun)).markWeak(); }
+  void markWeak() {
+    parseMe;
+    weak = true;
+    foreach (fun; myfuns.funs)
+      (fastcast!(IsMangled) (fun)).markWeak();
+    foreach (tup; overrides.set)
+      (fastcast!(IsMangled) (tup._0)).markWeak();
+  }
   override string mangle() { return mangle_id; }
   override Class dup() { return this; }
   bool isTempNamespace() { return false; }
