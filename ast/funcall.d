@@ -56,7 +56,6 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
       if (tup) {
         bool canHaveNameds = true;
         if (fastcast!(StatementAndExpr) (ex)) canHaveNameds = false;
-        logln(canHaveNameds, ": ", tup);
         if (canHaveNameds) {
           // filter out nameds from the tuple.
           auto exprs = getTupleEntries(ex, null, true);
