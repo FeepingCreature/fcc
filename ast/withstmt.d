@@ -100,9 +100,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       
       if (auto srns = fastcast!(SemiRelNamespace) (ex.valueType())) rns = srns.resolve();
       ns = fastcast!(Namespace) (ex); // say, context
-    }
-    
-    if (!rns && !ns && !isc) {
+      
       Expr ex2 = context;
       auto backup = namespace();
       namespace.set(sup);
@@ -194,7 +192,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
             return res;
           }
       }
-      return sup.lookup(name, local);
+      return supres;
     }
   }
 }
