@@ -507,7 +507,7 @@ class AsmFile {
   }+/
   int lastStackDepth;
   void comment(T...)(T t) {
-    if (!optimize && verboseAsm) {
+    if (verboseAsm) {
       string comment = "#";
       if (isARM) comment = "@";
       put(comment, " ["[], currentStackDepth, ": "[], currentStackDepth - lastStackDepth, "]: "[], t);

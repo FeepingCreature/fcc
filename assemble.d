@@ -6,7 +6,7 @@ import tools.base: New, or, and, slice, between, fail;
 import tools.compat: find, abs, replace, atoi;
 import tools.log;
 
-const bool verboseAsm = false;
+bool verboseAsm = false;
 
 bool isRelative(string reg) {
   if (!reg.length) fail;
