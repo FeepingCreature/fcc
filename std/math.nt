@@ -23,12 +23,17 @@ float sqrt(float f) {
 }
 
 /*Function: angle3f
-Angle between two vectors, optionally in reference to a third vector */
+Angle between two vectors, optionally in reference to a third vector
+credit to http://tomyeah.com/signed-angle-between-two-vectors3d-in-cc/ */
 float angle3f(vec3f v, vec3f to, vec3f refer = vec3f(0)) {
-  // yay, http://tomyeah.com/signed-angle-between-two-vectors3d-in-cc/
   auto v1 = v.cross3f(to) * refer;
-  bool flipped = eval (v1.sum < 0);
-  auto res = acosf((v*to).sum / sqrt(v.selfdot * to.selfdot));
+  bool flipped = v1.sum < 0;
+  auto ratio = (v*to).sum / sqrt(v.selfdot * to.selfdot);
+  float res = void;
+  // rounding errors here are a recipe for NaNs, so avoid by clamping
+  if (ratio <= -1) res = PI;
+  else if (ratio >= 1) res = 0;
+  else res = acosf ratio;
   // fudge
   if (flipped) res = -res;
   return res;
