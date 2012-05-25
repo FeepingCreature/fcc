@@ -31,7 +31,7 @@ class PNGWriter {
     *data = (_esi, writefun);
     png_set_write_fn(ptr, void*: data, &callback_write, &callback_flush);
   }
-  void configure(int w, h) mode PNG ptr {
+  void configure(int w, h) using mode PNG ptr {
     alias settings = (COLOR_TYPE_RGB_ALPHA, INTERLACE_NONE, COMPRESSION_TYPE_BASE, FILTER_TYPE_BASE);
     set_IHDR(infoptr, w, h, 8, settings);
     write_info(infoptr);
@@ -40,13 +40,13 @@ class PNGWriter {
     sigbits.(gray, alpha) = png_byte:0 x 2;
     set_sBIT(infoptr, &sigbits);
   }
-  void writeLine(byte[] data) mode PNG ptr {
+  void writeLine(byte[] data) using mode PNG ptr {
     write_row(png_bytep:data.ptr);
   }
-  void flush() mode PNG ptr {
+  void flush() using mode PNG ptr {
     write_flush();
   }
-  void end() mode PNG ptr {
+  void end() using mode PNG ptr {
     write_end (infoptr);
     destroy_write_struct(&ptr, &infoptr);
   }
