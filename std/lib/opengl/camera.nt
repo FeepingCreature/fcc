@@ -16,7 +16,7 @@ abstract class PerspectiveCam : Camera {
   float getAspect() return aspect-value;
   void setAspect(float f) aspect-value = f;
   void init() {
-    args = (45f, 1f, 0.01f, 100f);
+    args = (45f, 1f, 0.01f, 1000f);
   }
   void apply() using mode GL {
     MatrixMode PROJECTION;

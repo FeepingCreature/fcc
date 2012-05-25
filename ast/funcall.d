@@ -53,36 +53,36 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     if (fastcast!(Variable) (it)) return;
     if (auto ex = fastcast!(Expr)~ it) {
       auto tup = fastcast!(AstTuple) (ex.valueType());
-      bool canHaveNameds = true;
-      if (fastcast!(StatementAndExpr) (ex)) canHaveNameds = false;
-      if (canHaveNameds && tup) {
-        // filter out nameds from the tuple.
-        auto exprs = getTupleEntries(ex);
-        bool gotNamed;
-        int optimized;
-        foreach (ref subexpr; exprs) {
-          subexpr = foldex(subexpr);
-          optimized ++;
-          if (fastcast!(NamedArg) (subexpr)) {
-            gotNamed = true;
-            break;
+      if (tup) {
+        bool canHaveNameds = true;
+        if (fastcast!(StatementAndExpr) (ex)) canHaveNameds = false;
+        logln(canHaveNameds, ": ", tup);
+        if (canHaveNameds) {
+          // filter out nameds from the tuple.
+          auto exprs = getTupleEntries(ex, null, true);
+          bool gotNamed;
+          foreach (ref subexpr; exprs) {
+            subexpr = foldex(subexpr);
+            auto sit = fastcast!(Iterable) (subexpr);
+            removeNameds(sit);
+            subexpr = fastcast!(Expr) (sit);
           }
-        }
-        if (gotNamed) {
-          Expr[] left;
-          foreach (i, subexpr; exprs) {
-            
-            Expr fs;
-            if (i < optimized) fs = subexpr;
-            else fs = foldex(subexpr);
-            
-            if (auto na = fastcast!(NamedArg) (fs)) {
-              nameds[na.name] = na.base;
-            } else {
-              left ~= fs;
+          foreach (i, ref subexpr; exprs) {
+            if (fastcast!(NamedArg) (subexpr)) {
+              gotNamed = true;
+              break;
             }
           }
-          it = mkTupleExpr(left);
+          Expr[] left;
+          foreach (i, subexpr; exprs) {
+            if (auto na = fastcast!(NamedArg) (subexpr)) {
+              nameds[na.name] = na.base;
+            } else if (subexpr.valueType() != mkTuple()) {
+              left ~= subexpr;
+            }
+          }
+          exprs = left;
+          it = mkTupleExpr(exprs);
         }
       }
       if (auto na = fastcast!(NamedArg) (ex)) {
@@ -102,7 +102,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
       }*/
       if (auto na = fastcast!(NamedArg) (it)) {
         // fail;
-        throw new Exception(Format("Nested named-arg found! :( ", na, " in ", forble, " (couldn't remove)"));
+        throw new Exception(Format("Leftover named-arg found! ", na, " (couldn't remove)"));
       }
       it.iterate(&checkNameds);
       // logln("</", (cast(Object) it).classinfo.name, ">");
