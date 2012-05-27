@@ -190,7 +190,7 @@ class StructFunRefExpr : mkDelegate {
   RelFunction fun;
   this(RelFunction fun) {
     this.fun = fun;
-    logln("base ptr is "[], fun.baseptr);
+    // logln("base ptr is "[], fun.baseptr);
     if (!fun.baseptr)
       fail;
     super(fun.getPointer(), fastalloc!(RefExpr)(fastcast!(CValue)~ fun.baseptr));
