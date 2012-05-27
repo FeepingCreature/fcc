@@ -49,6 +49,7 @@ mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be be
 
 bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, lazy string info, string text = null, bool probe = false, bool exact = false) {
   Expr[string] nameds;
+  bool changed;
   void removeNameds(ref Iterable it) {
     if (fastcast!(Variable) (it)) return;
     if (auto ex = fastcast!(Expr)~ it) {
@@ -60,6 +61,11 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
           // filter out nameds from the tuple.
           auto exprs = getTupleEntries(ex, null, true);
           bool gotNamed;
+          
+          bool backup = changed;
+          changed = false;
+          scope(exit) changed = backup;
+          
           foreach (ref subexpr; exprs) {
             subexpr = foldex(subexpr);
             auto sit = fastcast!(Iterable) (subexpr);
@@ -75,16 +81,19 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
           Expr[] left;
           foreach (i, subexpr; exprs) {
             if (auto na = fastcast!(NamedArg) (subexpr)) {
+              changed = true;
               nameds[na.name] = na.base;
             } else if (subexpr.valueType() != mkTuple()) {
               left ~= subexpr;
-            }
+            } else changed = true;
           }
           exprs = left;
-          it = mkTupleExpr(exprs);
+          if (changed) it = mkTupleExpr(exprs);
+          changed = false;
         }
       }
       if (auto na = fastcast!(NamedArg) (ex)) {
+        changed = true;
         nameds[na.name] = na.base;
         it = mkTupleExpr();
       }
