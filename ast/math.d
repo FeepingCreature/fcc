@@ -47,9 +47,24 @@ extern(C) float sqrtf(float);
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     if (auto iaf = fastcast!(IntAsFloat) (it)) {
-      auto i = fold(iaf.i);
-      if (auto ie = fastcast!(IntExpr)~ i) {
+      auto i = foldex(iaf.i);
+      if (auto ie = fastcast!(IntExpr) (i)) {
         return fastalloc!(FloatExpr)(ie.num);
+      }
+    }
+    if (auto lad = fastcast!(LongAsDouble) (it)) {
+      auto l = foldex(lad.l);
+      if (auto ial = fastcast!(IntAsLong) (l)) {
+        auto i = foldex(ial.i);
+        if (auto ie = fastcast!(IntExpr) (i)) {
+          return fastalloc!(DoubleExpr)(ie.num);
+        }
+      }
+    }
+    if (auto fad = fastcast!(FloatAsDouble) (it)) {
+      auto f = foldex(fad.f);
+      if (auto fe = fastcast!(FloatExpr) (f)) {
+        return fastalloc!(DoubleExpr) (fe.f);
       }
     }
     return null;
@@ -639,6 +654,11 @@ class AsmFloatBinopExpr : BinopExpr {
         e1 = foldex(afbe.e1), fe1 = fastcast!(FloatExpr)~ e1,
         e2 = foldex(afbe.e2), fe2 = fastcast!(FloatExpr)~ e2;
       if (!fe1 || !fe2) {
+        if (afbe.op == "/" && fe2) { // optimize constant division into multiplication
+          auto val = fe2.f;
+          if (val == 0) throw new Exception("division by zero");
+          return fastalloc!(AsmFloatBinopExpr)(e1, fastalloc!(FloatExpr)(1f / val), "*");
+        }
         if (e1 !is afbe.e1 || e2 !is afbe.e2)
           return fastalloc!(AsmFloatBinopExpr)(e1, e2, afbe.op);
         return null;
@@ -685,6 +705,11 @@ class AsmDoubleBinopExpr : BinopExpr {
         e1 = foldex(adbe.e1), de1 = fastcast!(DoubleExpr)~ e1,
         e2 = foldex(adbe.e2), de2 = fastcast!(DoubleExpr)~ e2;
       if (!de1 || !de2) {
+        if (adbe.op == "/" && de2) { // see above
+          auto val = de2.d;
+          if (val == 0) throw new Exception("division by zero");
+          return fastalloc!(AsmDoubleBinopExpr)(e1, fastalloc!(DoubleExpr)(1.0 / val), "*");
+        }
         if (e1 !is adbe.e1 || e2 !is adbe.e2)
           return fastalloc!(AsmDoubleBinopExpr)(e1, e2, adbe.op);
         return null;

@@ -1462,6 +1462,38 @@ restart:
       $SUBST(t);
     }
   `));
+  // common with doubles
+  mixin(opt("direct_double_store", `^DoubleStore || ^DoublePop, ^Pop, ^Pop:
+    $0.dest == "(%esp)" &&
+    $1.size == 4 && $1.dest.isIndirect() == "%esp" &&
+    $2.size == 4 && $2.dest == $1.dest
+    =>
+    $T t0 = $0.dup;
+    t0.dest = $1.dest;
+    $T t1;
+    t1.kind = $TK.SFree;
+    t1.size = 8;
+    $SUBST(t0, t1);
+  `));
+  mixin(opt("direct_double_load", `^Push, ^Push, ^DoubleLoad:
+    $0.size == 4 && $0.source.isIndirect() == "%esp" &&
+    $1.size == 4 && $1.source == $0.source &&
+    $2.source == "(%esp)"
+    =>
+    int o0;
+    $0.source.isIndirect2(o0);
+    $T t0 = $2.dup;
+    t0.source = qformat(o0-4, "(%esp)");
+    $T t1;
+    t1.kind = $TK.SAlloc;
+    t1.size = 8;
+    // probably not needed but make sure for correctness sake.
+    // if unnecessary, sfree will get rid of it.
+    $T t2;
+    t2.kind = $TK.DoubleStore;
+    t2.dest = "(%esp)";
+    $SUBST(t0, t1, t2);
+  `));
   bool sequal(string[] str...) {
     foreach (s; str[1..$]) if (s != str[0]) return false;
     return true;

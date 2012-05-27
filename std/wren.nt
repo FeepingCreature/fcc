@@ -75,6 +75,13 @@ class Vec2f : Thing {
   string toString() { return "vec2f($(value.x), $(value.y))"; }
 }
 
+class Vec3f : Thing {
+  vec3f value;
+  void init(vec3f v) value = v;
+  Thing eval(Namespace) { return this; }
+  string toString() { return "vec3f($(value.x), $(value.y), $(value.z))"; }
+}
+
 interface IArray : Thing {
   Thing getIndex(int i);
   int getLength();
@@ -119,6 +126,10 @@ IArray array-from-thing(Thing t) {
     value ~= vec.value;
     return that;
   }
+  if (auto vec = Vec3f:t) using new Array!vec3f null {
+    value ~= vec.value;
+    return that;
+  }
   raise new Error "Cannot construct array from $t";
 }
 
@@ -149,6 +160,10 @@ template neat-to-repl(T) {
     }
     static if (implicitly-converts-to vec2f t) {
       return Thing: new Vec2f t;
+      alias match-found = true;
+    }
+    static if (implicitly-converts-to vec3f t) {
+      return Thing: new Vec3f t;
       alias match-found = true;
     }
     static if (type-is array T) {
@@ -294,7 +309,7 @@ bool gotNum(string* text, float* num) {
   float res = 0;
   auto t2 = *text #.strip();
   char[auto~] n;
-  while (t2.length && ("0" <= t2[0] <= "9" || t2[0] == ".")) {
+  while (t2.length && ("0" <= t2[0] <= "9" || t2[0] == "." || t2[0] == "-")) {
     n ~= t2[0]; t2 = t2[1..$];
   }
   if (!n.length) return false;

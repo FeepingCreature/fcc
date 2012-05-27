@@ -32,6 +32,8 @@ const ProgbarLength = 60;
 
 string output;
 
+bool sigmode;
+
 string my_prefix() {
   version(Windows) { return path_prefix; }
   else return path_prefix ~ platform_prefix;
@@ -772,6 +774,17 @@ void link(string[] objects, bool saveTemps = false) {
 import tools.threadpool;
 Threadpool emitpool;
 
+version(Windows) {
+} else {
+  import std.c.unix.unix: sigset_t, sigemptyset, SIGXCPU;
+  extern(C) {
+    int sigaddset(sigset_t*, int);
+    int sigprocmask(int, sigset_t*, sigset_t*);
+    int sigwait(sigset_t*, int*);
+    const SIG_BLOCK = 0;
+  }
+}
+
 import std.file;
 void loop(string start,
           CompileSettings cs, bool runMe)
@@ -834,18 +847,32 @@ void loop(string start,
       goto retry;
     }
     if (runMe) {
-	  auto cmd = "./"~output;
-	  version(Windows) cmd = output;
-	  logSmart!(false)("> ", cmd); system(toStringz(cmd));
-	}
+      auto cmd = "./"~output;
+      version(Windows) cmd = output;
+      logSmart!(false)("> ", cmd); system(toStringz(cmd));
+    }
   retry:
     pass1 = false;
     checked = null;
     gotMain = null;
     resetTemplates();
-    logln("please press return to continue. ");
     version(Windows) { if (system("pause")) return; }
-	else { if (system("read")) return; }
+    else {
+      if (!sigmode) {
+        logln("please press return to continue. ");
+        if (system("read"))
+          return;
+      } else {
+        logln("Waiting for refcc");
+        sigset_t waitset;
+        
+        sigemptyset(&waitset);
+        sigaddset(&waitset, SIGXCPU);
+        sigprocmask(SIG_BLOCK, &waitset, null);
+        int sig;
+        sigwait(&waitset, &sig);
+      }
+    }
   }
 }
 
@@ -930,6 +957,10 @@ int main(string[] args) {
     }
     if (arg == "--loop" || arg == "-F") {
       willLoop = true;
+      continue;
+    }
+    if (arg == "-sig") {
+      sigmode = true;
       continue;
     }
     if (auto rest = arg.startsWith("-platform=")) {

@@ -1,5 +1,13 @@
 module std.callset;
 
+/**
+  Usage:
+    CallSet!void foo;
+    ...
+    foo.add \{};
+    foo.call();
+**/
+
 template CallSet(T) {
   auto helper() {
     static if (types-equal (T, void)) { return \() { }; }

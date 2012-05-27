@@ -234,12 +234,14 @@ struct TransactionInfo {
   }
   bool opContainsSrc(string s) {
     if (!s) return false;
+    if (s == "%ax" && opContainsSrc("%eax")) return true;
     return
       inOp1().find(s) != -1
     ||inOp2().find(s) != -1;
   }
   bool opContains(string s) {
     if (!s) return false;
+    if (s == "%ax" && opContains("%eax")) return true;
     return
       opContainsSrc(s)
     ||outOp().find(s) != -1;

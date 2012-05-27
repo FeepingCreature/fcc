@@ -2,19 +2,17 @@ module std.lib.opengl.camera;
 
 import std.math, std.lib.opengl;
 
-interface Camera {
+abstract class Camera {
   void apply();
   void unrotate(); // undo just the rotation transforms
-  void setAspect(float f);
-  float getAspect();
-  alias aspect = accessor_property(getAspect, setAspect);
+  float aspect;
+  import std.callset;
+  CallSet!void onMovement;
 }
 
 abstract class PerspectiveCam : Camera {
-  float fov, zNear, zFar, aspect-value;
-  alias args = (fov, aspect-value, zNear, zFar);
-  float getAspect() return aspect-value;
-  void setAspect(float f) aspect-value = f;
+  float fov, zNear, zFar;
+  alias args = (fov, aspect, zNear, zFar);
   void init() {
     args = (45f, 1f, 0.01f, 1000f);
   }
@@ -79,10 +77,12 @@ template EgoCam(T) {
     float turnX, turnY;
     void init(vec3f p, float x, y) { (pos, turnX, turnY) = (p, x, y); super.init(); }
     void init() { init(vec3f(0), 0, 0); }
-    void turn-left(float f) { turnX += f; }
+    void turn-left(float f) { onMovement.call(); turnX += f; }
     alias lowlimit = -PI / 2 + 0.1;
     alias highlimit = PI / 2 - 0.1;
-    void turn-up(float f) { turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
+    void turn-up(float f) { onMovement.call(); turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
+    void move-forward(float f) { onMovement.call(); pos += dir * f; }
+    void move-left(float f) { onMovement.call(); pos += left * f; }
     alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX).normalize3f;
     alias left = vec3f.Y.cross3f(dir).normalize3f;
     alias calc = `
