@@ -24,6 +24,51 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
   IType fpvt;
   bool implicit;
   this(Expr firstParam) { this.firstParam = firstParam; sup = namespace(); fpvt = firstParam.valueType(); }
+  Object lookupInternal(string name, bool local = false, bool isDirectLookup = true) {
+    auto res = sup.lookup(name, local);
+    if (isDirectLookup) if (auto templ = fastcast!(Template) (res)) {
+      return fastalloc!(PrefixTemplate)(firstParam, templ);
+    }
+    PrefixFunction processFun(Function fun) {
+      // if (fastcast!(NestedFunction)~ fun) return null;
+      auto params = fun.getParams();
+      if (!params.length) return null;
+      auto pt = params[0].type;
+      if (incompat(fpvt, pt)) {
+        // logln("Incompatible types: "[], fpvt, " and "[], pt);
+        // fail;
+        return null;
+      }
+      auto ex2 = firstParam;
+      if (!gotImplicitCast(ex2, (IType it) { return test(it == pt); })) {
+        // logln("no cast from "[], firstParam, " to "[], pt);
+        return null;
+      }
+      return fastalloc!(PrefixFunction)(ex2, fun);
+    }
+    if (auto fun = fastcast!(Function) (res)) {
+      if (auto res2 = processFun(fun)) {
+        if (implicit) // comes from using() = not 100% sure if a match
+          return fastcast!(Object) ((fastalloc!(OverloadSet)(fun.name)).extend(fun).extend(res2));
+        else // comes from a.b = definitely a match
+          return res2;
+      }
+    }
+    if (auto os = fastcast!(OverloadSet) (res)) {
+      Extensible resx = fastalloc!(OverloadSet)(os.name);
+      foreach (fun; os.funs)
+        resx = resx.extend(fun);
+      foreach (fun; os.funs)
+        if (auto res = processFun(fun)) {
+          resx = resx.extend(res);
+        }
+      auto os2 = fastcast!(OverloadSet) (resx);
+      if (!os2.funs.length) return null;
+      if (os2.funs.length == 1) return os2.funs[0];
+      return os2;
+    }
+    return null;
+  }
   override {
     Object forWith() {
       auto res = fastalloc!(FirstParamOverrideSpace)(firstParam);
@@ -37,52 +82,10 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
     bool isPointerLess() { return fpvt.isPointerLess(); }
     bool isComplete() { return fpvt.isComplete(); }
     Object lookup(string name, bool local = false) {
-      auto res = sup.lookup(name, local);
-      if (auto templ = fastcast!(Template) (res)) {
-        return fastalloc!(PrefixTemplate)(firstParam, templ);
-      }
-      PrefixFunction processFun(Function fun) {
-        // if (fastcast!(NestedFunction)~ fun) return null;
-        auto params = fun.getParams();
-        if (!params.length) return null;
-        auto pt = params[0].type;
-        if (incompat(fpvt, pt)) {
-          // logln("Incompatible types: "[], fpvt, " and "[], pt);
-          // fail;
-          return null;
-        }
-        auto ex2 = firstParam;
-        if (!gotImplicitCast(ex2, (IType it) { return test(it == pt); })) {
-          // logln("no cast from "[], firstParam, " to "[], pt);
-          return null;
-        }
-        return fastalloc!(PrefixFunction)(ex2, fun);
-      }
-      if (auto fun = fastcast!(Function) (res)) {
-        if (auto res2 = processFun(fun)) {
-          if (implicit) // comes from using() = not 100% sure if a match
-            return fastcast!(Object) ((fastalloc!(OverloadSet)(fun.name)).extend(fun).extend(res2));
-          else // comes from a.b = definitely a match
-            return res2;
-        }
-      }
-      if (auto os = fastcast!(OverloadSet) (res)) {
-        Extensible resx = fastalloc!(OverloadSet)(os.name);
-        foreach (fun; os.funs)
-          resx = resx.extend(fun);
-        foreach (fun; os.funs)
-          if (auto res = processFun(fun)) {
-            resx = resx.extend(res);
-          }
-        auto os2 = fastcast!(OverloadSet) (resx);
-        if (!os2.funs.length) return null;
-        if (os2.funs.length == 1) return os2.funs[0];
-        return os2;
-      }
-      return null;
+      return lookupInternal(name, local, true);
     }
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
-      return lookup(name, false);
+      return lookupInternal(name, false, isDirectLookup);
     }
     bool isTempNamespace() { return true; }
     int size() { return fpvt.size(); }
