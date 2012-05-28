@@ -119,17 +119,17 @@ int count;
 
 void time-it(string t, void delegate() dg) {
   // calibrate
-  int from1, to1, from2, to2;
-  from1 = rdtsc[1];
+  long from1, to1, from2, to2;
+  from1 = rdtsc;
   (delegate void() { }) ();
-  to1 = rdtsc[1];
+  to1 = rdtsc;
   // measure
-  from2 = rdtsc[1];
+  from2 = rdtsc;
   dg();
-  to2 = rdtsc[1];
+  to2 = rdtsc;
   auto delta = (to2 - from2) - (to1 - from1);
   if !count sumval = 0;
-  sumval += delta; count += 1;
+  sumval += double:delta; count += 1;
   writeln "$t: $delta, average $(sumval / count)";
 }
 

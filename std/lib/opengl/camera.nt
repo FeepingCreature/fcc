@@ -27,7 +27,8 @@ abstract class PerspectiveCam : Camera {
 template WorldCam(T) {
   class WorldCam : T {
     vec3f up, pos, lookat;
-    alias dir = lookat - pos;
+    alias dir = (lookat - pos).normalize3f;
+    alias left = up.cross3f(dir).normalize3f;
     vec3f setDir(vec3f v) { lookat = pos + v; return lookat; }
     string toString() { return "WorldCam <up $up, pos $pos, lookat $lookat>"; }
     alias calc = `
@@ -114,12 +115,19 @@ template OrbitCam(T) {
   class OrbitCam : WorldCam!T, Supports2DControl {
     float distance;
     void init(vec3f p, t) { super.init(); (pos, lookat) = (p, t); distance = |lookat - pos|; writeln "inited to $this"; }
+    void move(vec3f v) {
+      onMovement.call();
+      pos += v;
+      lookat += v;
+    }
     void turn-left(float f) {
+      onMovement.call();
       auto delta = lookat - pos;
       delta = delta.rotate3f(vec3f.Y, f);
       pos = lookat - delta;
     }
     void turn-up(float f) {
+      onMovement.call();
       auto delta = lookat - pos;
       delta = delta.rotate3f(delta.cross3f(up).normalized, f);
       delta *= distance / |delta|;
