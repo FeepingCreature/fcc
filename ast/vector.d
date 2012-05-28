@@ -286,7 +286,7 @@ static this() {
   };
 }
 
-Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true) {
+Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true, bool canfail = false) {
   auto ex2 = base;
   if (allowCastVecTest && gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
     return fastcast!(Object) (reinterpret_cast(
@@ -300,20 +300,27 @@ Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true) {
     return fastalloc!(SSEIntToFloat)(base);
   }
   auto tup = fastcast!(Tuple) (base.valueType());
-  if (!tup) throw new Exception(Format("WTF? No tuple param for vec constructor: ", base.valueType()));
+  if (!tup) {
+    if (canfail) return null;
+    else throw new Exception(Format("WTF? No tuple param for vec constructor: ", base.valueType()));
+  }
   if (tup.types.length == 1) {
     base = reinterpret_cast(tup.types[0], base);
     goto retryTup;
   }
   if (tup) {
-    if (tup.types.length != vec.len)
-      throw new Exception(Format("Insufficient elements in vec initializer! "));
+    if (tup.types.length != vec.len) {
+      if (canfail) return null;
+      else throw new Exception(Format("Insufficient elements in vec initializer! "));
+    }
     base = foldex(base);
-    return fastcast!(Object)~ tmpize_maybe(base, (Expr base) {
+    return fastcast!(Object)~ tmpize_maybe(base, delegate Expr(Expr base) {
       Expr[] exs;
       foreach (entry; getTupleEntries(base)) {
-        if (!gotImplicitCast(entry, (IType it) { return test(it == vec.base); }))
-          throw new Exception(Format("Invalid type in vec initializer: ", entry));
+        if (!gotImplicitCast(entry, (IType it) { return test(it == vec.base); })) {
+          if (canfail) return null;
+          else throw new Exception(Format("Invalid type in vec initializer: ", entry));
+        }
         exs ~= entry;
       }
       
@@ -322,6 +329,7 @@ Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true) {
       return reinterpret_cast(vec, fastalloc!(StructLiteral)(vec.asStruct, exs, vec.asFilledTup.offsets));
     });
   }
+  if (canfail) return null;
   assert(false);
 }
 
@@ -535,6 +543,19 @@ static this() {
     if (!fastcast!(SysInt) (resolveType(vec.base))) return null;
     auto to = fastalloc!(Vector)(Single!(Float), vec.len);
     return fastcast!(Expr) (constructVector(mkTupleValueExpr(getTupleEntries(reinterpret_cast(vec.asFilledTup, ex), null, true)[0..vec.len]), to, false));
+  };
+  // tuple to vec, if demanded
+  implicits ~= delegate void(Expr ex, IType dest, void delegate(Expr) dg) {
+    if (auto vec = fastcast!(Vector) (resolveType(dest))) {
+      auto exvt = ex.valueType();
+      if (auto tup = fastcast!(Tuple) (exvt)) {
+        if (auto res = fastcast!(Expr) (constructVector(ex, vec, true, true))) {
+          dg(res);
+          return;
+        }
+      }
+    }
+    return;
   };
 }
 
