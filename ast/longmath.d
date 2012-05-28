@@ -31,6 +31,15 @@ class AsmLongBinopExpr : BinopExpr {
           af.pushStack("%edx"[], 4);
           af.pushStack("%eax"[], 4);
           break;
+        case "-":
+          af.mmove4("(%esp)"[], "%eax"[]);
+          af.mmove4("4(%esp)"[], "%edx"[]);
+          af.mathOp("subl"[], "8(%esp)"[], "%eax"[]);
+          af.mathOp("sbbl"[], "12(%esp)"[], "%edx"[]);
+          af.sfree(16);
+          af.pushStack("%edx"[], 4);
+          af.pushStack("%eax"[], 4);
+          break;
         case "*":
           // (a * f b) + (c * f d) = ac + f(bc + ad) + ff(bd) ^W^W^W^W
           // where f is 2^32

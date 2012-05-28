@@ -820,11 +820,11 @@ class RDTSCExpr : Expr {
   mixin defaultIterate!();
   override {
     RDTSCExpr dup() { return this; }
-    IType valueType() { return mkTuple(Single!(SysInt), Single!(SysInt)); }
+    IType valueType() { return mkTuple(Single!(Long)); }
     void emitAsm(AsmFile af) {
       af.put("rdtsc");
-      af.pushStack("%eax", 4);
       af.pushStack("%edx", 4);
+      af.pushStack("%eax", 4);
     }
   }
 }

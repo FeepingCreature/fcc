@@ -10,8 +10,8 @@ module std.callset;
 
 template CallSet(T) {
   auto helper() {
-    static if (types-equal (T, void)) { return \() { }; }
-    else { return \(T t) { }; }
+    static if (types-equal (T, void)) { return void delegate():null; }
+    else { return void delegate(T): null; }
   }
   alias callset-str = `
     template CallSet(U) {
