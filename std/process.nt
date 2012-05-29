@@ -2,14 +2,18 @@
 Create and interact with processes*/
 module std.process;
 
-import c.stdlib, c.unistd;
-import std.string, std.util;
+import c.stdlib, c.unistd, c.errno;
+import std.string, std.util, std.file;
 
 alias C_system = system;
 
 int system(string cmd) {
   return C_system toStringz cmd;
 }
+
+int WEXITSTATUS(int status) { return (status & 0xff00) >> 8; }
+int WTERMSIG(int status) { return status & 0x7f; }
+bool WIFEXITED(int res) { return WTERMSIG(res) == 0; }
 
 platform(default) {
   class ReadbackError : Error {
@@ -19,6 +23,7 @@ platform(default) {
   class ReadbackStream : Iterator!string {
     int x 2 hdl_sysward, hdl_selfward;
     bool hup, done; int fdslength;
+    string infotext;
     Iterator!string input; string inbuffer;
     char x 128 buf;
     pid_t child;
@@ -27,7 +32,16 @@ platform(default) {
       waitpid(child, &res, 0);
       return res;
     }
+    void complete() {
+      auto result = wait();
+      if (WIFEXITED(result)) {
+        auto wex = WEXITSTATUS(result);
+        if (wex >= 0x80) wex -= 0x100;
+        if (wex < 0) { auto err = new ErrnoError "in readback $infotext"; err.errno = -wex; raise err; }
+      }
+    }
     void init(string cmd, string[] args, Iterator!string input) {
+      infotext = "'$cmd $args'";
       pipe hdl_sysward; // self -> system()
       pipe hdl_selfward; // system() -> self
       
@@ -50,7 +64,9 @@ platform(default) {
         .close hdl_selfward[0];
         dup2(hdl_sysward[0], 0); // overwrite standard input
         dup2(hdl_selfward[1], 1); // overwrite standard output
-        exit(execvp(fp, argv));
+        auto res = execvp(fp, argv);
+        if (res == -1) exit(-errno);
+        exit(res);
       }
       .close hdl_sysward[0]; // read side
       .close hdl_selfward[1]; // write side
@@ -75,7 +91,10 @@ platform(default) {
         auto hits = poll(fds.ptr, my-fdslength, -1);
         
         // don't quit yet - there may still be data to be read!
-        if (fds[0].revents & POLLHUP) { hup = true; }
+        if (fds[0].revents & POLLHUP) {
+          hup = true;
+          complete;
+        }
         // if (fds[0].revents & POLLHUP) { writeln "HUP0"; }
         // if (fds[0].revents & POLLIN) { writeln "IN0"; }
         // if (fds[1].revents & POLLOUT) { writeln "OUT1"; }
@@ -86,6 +105,7 @@ platform(default) {
             return true;
           }
           done = true;
+          complete;
           return false;
         }
         void handleWrite() {
@@ -116,6 +136,7 @@ platform(default) {
         // basically done.
         if (!active && hup) return false;
       }
+      complete;
       return false;
     }
   }
