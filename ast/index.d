@@ -163,3 +163,15 @@ Object gotPointerIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotPointerIndexAccess, "tree.rhs_partial.pointer_index_access", null, "[");
+
+import ast.expr_statement;
+static this() {
+  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+    if (!showsAnySignOfHaving(e1, "opIndex"))
+      return null;
+    if (auto res = iparse!(Expr, "index_overload", "tree.expr _tree.expr.arith")
+                          (`e1.opIndex e2`, "e1", e1, "e2", e2))
+      return res;
+    return null;
+  });
+}

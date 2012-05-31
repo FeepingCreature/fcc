@@ -8,6 +8,10 @@ bool showsAnySignOfHaving(Expr ex, string thing) {
   if (auto ns = fastcast!(Namespace) (it)) {
     if (ns.lookup(thing)) return true;
   }
+  RelNamespace rns;
+  if (auto srns = fastcast!(SemiRelNamespace) (it)) rns = srns.resolve();
+  if (!rns) rns = fastcast!(RelNamespace) (it);
+  if (rns && rns.lookupRel(thing, ex)) return true;
   return false;
 }
 
