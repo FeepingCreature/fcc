@@ -26,7 +26,8 @@ struct RelFunSet {
   }
   static bool IType_eq(IType[] a, IType[] b) {
     if (a.length != b.length) return false;
-    foreach (i, v; a) if (v != b[i]) return false;
+    // null stuff, like null return types, is taken as a wildcard
+    foreach (i, v; a) if (v && v != b[i]) return false;
     return true;
   }
   RelFunction lookup(string st, IType[] types) {

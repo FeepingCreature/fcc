@@ -107,8 +107,8 @@ class GLFWWindow : GLWindow {
   void mousebutton(GLFWwindow window, int button, action) {
     if (window != handle) raise new Error "wat";
     if (button == 0) {
-      if (action) mouse-clicked = true;
-      else mouse-released = true;
+      if (action) { mouse-clicked = true; mouse-held = true; }
+      else { mouse-released = true; mouse-held = false; }
     } else if (button == 1) {
       if (action) right-mouse-clicked = true;
       else right-mouse-released = true;
