@@ -438,13 +438,16 @@ class DgCall : Expr {
   }
 }
 
+HintType!(Delegate) anyDelegateTypeHint;
+
 Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
     if (t2.cantBeCall()) return null;
     
     Delegate dgtype;
-    if (!gotImplicitCast(ex, (IType it) { dgtype = fastcast!(Delegate) (it); return !!dgtype; }))
+    if (!anyDelegateTypeHint) New(anyDelegateTypeHint);
+    if (!gotImplicitCast(ex, anyDelegateTypeHint, (IType it) { dgtype = fastcast!(Delegate) (it); return !!dgtype; }))
       return null;
     
     auto dc = new DgCall;

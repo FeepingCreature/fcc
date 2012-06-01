@@ -507,14 +507,21 @@ class AsmIntBinopExpr : BinopExpr {
           if (num == 4) { top = "<<"; op2 = "$2"; }
         }
         
-        auto asm_op = ([
-          "+"[]: "addl"[], "-": "subl"[],
-          "*": "imull"[], "/": "idivl"[],
-          "xor": "xorl"[],
-          "&": "andl"[], "|": "orl"[],
-          "%": "imodl"[],
-          "<<": "shl"[], ">>": "sar"[], ">>>": "shr"
-        ])[top];
+        string asm_op;
+        switch (top) {
+          case "+": asm_op = "addl"; break;
+          case "-": asm_op = "subl"; break;
+          case "*": asm_op = "imull"; break;
+          case "/": asm_op = "idivl"; break;
+          case "xor": asm_op = "xorl"; break;
+          case "&": asm_op = "andl"; break;
+          case "|": asm_op = "orl"; break;
+          case "%": asm_op = "imodl"; break;
+          case "<<": asm_op = "shl"; break;
+          case ">>": asm_op = "sar"; break;
+          case ">>>": asm_op = "shr"; break;
+          default: fail;
+        }
         
         if (op2.isRegister())
           af.popStack(op2, 4);

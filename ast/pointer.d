@@ -14,7 +14,7 @@ class Pointer_ : Type, Dwarf2Encodable {
       return target == p.target;
     }
     int size() { return nativePtrSize; }
-    string mangle() { return "ptrto_"~target.mangle(); }
+    string mangle() { return qformat("ptrto_", target.mangle()); }
     string toString() { return Format(target, "*"[]); }
     bool canEncode() {
       auto d2e = fastcast!(Dwarf2Encodable)(resolveType(target));

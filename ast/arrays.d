@@ -171,7 +171,10 @@ IType arrayAsStruct(IType base, bool rich) {
   fastalloc!(RelMember)("length"[], Single!(SysInt), res);
   fastalloc!(RelMember)("ptr"[], fastalloc!(Pointer)(base), res);
   res.name = "__array_as_struct__"~base.mangle()~(rich?"_rich":""[]);
-  if (!mod || !sysmod || mod is sysmod || mod.name == "std.c.setjmp" /* hackaround */) return res;
+  if (!mod || !sysmod || mod is sysmod || mod.name == "std.c.setjmp" /* hackaround */) {
+    cache ~= stuple(base, rich, mod, fastcast!(IType) (res));
+    return res;
+  }
   
   auto backup = namespace();
   scope(exit) namespace.set(backup);
@@ -419,7 +422,7 @@ mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.a_array_length"[], null, 
 
 class ArrayExtender : Expr {
   Expr array, ext;
-  IType baseType;
+  IType baseType, cachedType;
   this(Expr a, Expr e) {
     array = a;
     ext = e;
@@ -429,7 +432,7 @@ class ArrayExtender : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(array, ext);
   override {
-    IType valueType() { return fastalloc!(ExtArray)(baseType, false); }
+    IType valueType() { if (!cachedType) cachedType = fastalloc!(ExtArray)(baseType, false); return cachedType; }
     void emitAsm(AsmFile af) {
       array.emitAsm(af);
       ext.emitAsm(af);

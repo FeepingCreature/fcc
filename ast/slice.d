@@ -86,9 +86,9 @@ Expr mkFullSlice(Expr ex) {
       logln("Not a cv for full slice: "[], ex);
       fail;
     }
-    return mkPointerSlice(
+    return fastalloc!(ArrayMaker)(
       reinterpret_cast(fastalloc!(Pointer)(sa.elemType), fastalloc!(RefExpr)(cv)),
-      mkInt(0), foldex(getArrayLength(ex))
+      foldex(getArrayLength(ex))
     );
   } else return fastalloc!(FullSlice)(ex);
 }
@@ -160,9 +160,8 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto sa = fastcast!(StaticArray) (ex.valueType());
     if (!sa || !fastcast!(CValue) (ex)) return null;
-    return mkPointerSlice(
-      getSAPtr(dcm(ex)),
-      mkInt(0),
+    return fastalloc!(ArrayMaker)(
+      getSAPtr(ex),
       mkInt(sa.length)
     );
   };

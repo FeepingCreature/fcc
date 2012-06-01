@@ -186,7 +186,7 @@ void initCastTable() {
 const getIdCacheSize = 1;
 Stuple!(void*, int)[getIdCacheSize] getIdCache;
 int getIdLoopPtr;
-pragma(attribute, optimize("-O3"))
+// pragma(attribute, optimize("-O3"))
 int getId(ClassInfo ci) {
   auto cp = cast(void*) ci;
   for (int i = 0; i < getIdCacheSize; ++i) {

@@ -116,6 +116,21 @@ class VTable {
   }
 }
 
+class LazyDeltaInt : Expr {
+  int delegate() dg;
+  int delta;
+  this(int delegate() dg, int d = 0) { this.dg = dg; delta = d; }
+  mixin defaultIterate!();
+  override {
+    IType valueType() { return Single!(SysInt); }
+    LazyDeltaInt dup() { return new LazyDeltaInt(dg, delta); }
+    void emitAsm(AsmFile af) {
+      auto res = dg() + delta;
+      af.pushStack(qformat("$", res), 4);
+    }
+  }
+}
+
 // lookupRel in interfaces/classes takes the class *reference*.
 // This is IMPORTANT for compat with using.
 
@@ -133,7 +148,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   override bool isComplete() { return true; }
   IntfRef getRefType() { return fastalloc!(IntfRef)(this); }
   string toString() { return "interface "~name; }
-  string mangle() { return "interface_"~mangle_id; }
+  string mangle() { return qformat("interface_", mangle_id); }
   override string mangle(string name, IType type) { assert(false); }
   override Stuple!(IType, string, int)[] stackframe() { assert(false); }
   bool weak;
@@ -238,7 +253,8 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     }
     return lookupIntf(name, base);
   }
-  Function lookupClass(string name, Expr offs, Expr classref) {
+  // takes ownership of offs, except if returns null
+  Function lookupClass(string name, LazyDeltaInt offs, Expr classref) {
     assert(own_offset, this.name~": interface lookup for "~name~" but classinfo uninitialized. "[]);
     foreach (id, fun; funs) {
       if (fun.name == name) {
@@ -253,10 +269,12 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         );
       }
     }
+    auto backup = offs.delta;
     foreach (par; parents) {
       if (auto res = par.lookupClass(name, offs, classref)) return res;
-      offs = foldex(lookupOp("+"[], offs, mkInt(par.clsize)));
+      offs.delta += par.clsize;
     }
+    offs.delta = backup;
     return null;
   }
   void getLeaves(void delegate(Intf) dg) {
@@ -607,15 +625,16 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   mixin TypeDefaults!();
   // this returns an Expr so that interface calls in a class method can resolve lazily, as they should.
   // interfaces come after the classinfo!
-  Expr ownClassinfoLength() { // skipping interfaces
-    return fastalloc!(CallbackExpr)("classinfo"[], Single!(SysInt), cast(Expr) null, this /apply/ (Class self, Expr, AsmFile af) {
-      self.parseMe;
-      int res;
-      if (self.parent) res += self.parent.getClassinfo().length;
-      res += self.myfuns.funs.length;
-      // logln("for "[], self.name, "[], res is "[], res);
-      mkInt(res).emitAsm(af);
-    });
+  int getFinalClassinfoLengthValue() {
+    parseMe;
+    int res;
+    if (parent) res += parent.getClassinfo().length;
+    res += myfuns.funs.length;
+    // logln("for "[], name, "[], res is "[], res);
+    return res;
+  }
+  LazyDeltaInt ownClassinfoLength() { // skipping interfaces
+    return fastalloc!(LazyDeltaInt)(&getFinalClassinfoLengthValue);
   }
   // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
   string[] getClassinfo(RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
@@ -770,15 +789,18 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
           extend(ext2);
         } else return res;
       }
-      Expr cl_offset = ownClassinfoLength();
+      auto cl_offset = ownClassinfoLength();
       foreach (intf; iparents) {
+        auto prev = cl_offset.delta;
         if (auto res = intf.lookupClass(str, cl_offset, base)) {
           auto obj = fastcast!(Object) (res);
           if (auto ext2 = fastcast!(Extensible) (res)) {
             extend(ext2);
+            cl_offset = cl_offset.dup;
+            cl_offset.delta = prev;
           } else return obj;
         }
-        cl_offset = foldex(lookupOp("+"[], cl_offset, mkInt(intf.clsize)));
+        cl_offset.delta += intf.clsize;
       }
       if (parent) if (auto res = parent.lookupRel(str, base, isDirectLookup)) {
         if (auto ext2 = fastcast!(Extensible) (res)) {

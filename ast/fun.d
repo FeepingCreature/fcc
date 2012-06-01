@@ -1000,11 +1000,14 @@ class FunctionPointer : ast.types.Type {
     if (stdcall != ft.stdcall) return false;
     return true;
   }
+  string manglecache;
   override string mangle() {
+    if (manglecache) return manglecache;
     auto res = "fp_ret_"~ret.mangle()~"_args";
     if (!args.length) res ~= "_none";
     else foreach (arg; args)
       res ~= "_"~arg.type.mangle();
+    manglecache = res;
     return res;
   }
   override bool isComplete() {

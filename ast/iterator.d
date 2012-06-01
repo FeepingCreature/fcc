@@ -810,10 +810,13 @@ mixin DefaultParser!(gotIterCond!(false, false), "cond.iter_very_strict"[], "705
 mixin DefaultParser!(gotIterCond!(false, true), "cond.iter_strict"[], "705"[]);
 mixin DefaultParser!(gotIterCond!(true), "cond.iter_loose"[], "735"[]);
 
+HintType!(Iterator) anyIteratorTypeHint;
+
 import ast.opers;
 static this() {
   defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
-    if (!gotImplicitCast(e1, (IType it) {
+    if (!anyIteratorTypeHint) New(anyIteratorTypeHint);
+    if (!gotImplicitCast(e1, anyIteratorTypeHint, (IType it) {
       return test(fastcast!(Iterator) (resolveType(it)));
     })) return null;
     auto iter = fastcast!(Iterator) (resolveType(e1.valueType()));

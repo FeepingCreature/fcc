@@ -276,7 +276,7 @@ class Zip(T) : Type, T {
     IType elemType() { return mkTuple(myTypes()); }
     string toString() { return Format("Zip["[], size, "]("[], tup.types, ")"[]); }
     int size() { return tup.size; }
-    string mangle() { return "zip_over_"~tup.mangle(); }
+    string mangle() { return qformat("zip_over_", tup.mangle()); }
     ubyte[] initval() { return tup.initval(); }
     Cond testAdvance(LValue lv) {
       Cond res;

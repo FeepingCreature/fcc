@@ -142,7 +142,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
   mixin defaultIterate!(baseptr, tree);
   override {
     string mangleSelf() {
-      return basetype.mangle() ~ "_" ~ super.mangleSelf();
+      return qformat(basetype.mangle(), "_", super.mangleSelf());
     }
     string getInfo() { return Format(name, " under "[], context); }
     string mangle(string name, IType type) {

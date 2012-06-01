@@ -158,16 +158,18 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer {
   this(string name) {
     this.name = name;
   }
+  string manglecache;
   string mangle() {
-	string ersatzname = "struct_"~name.cleanup();
-	if (!name) {
-	  ersatzname = "anon_struct";
-	  select((string, RelMember member) { ersatzname ~= "_" ~ member.type.mangle ~ "_" ~ member.name; }, &rmcache);
-	}
-    if (!sup) {
-	  return ersatzname;
+    if (!manglecache) {
+      string ersatzname = "struct_"~name.cleanup();
+      if (!name) {
+        ersatzname = "anon_struct";
+        select((string, RelMember member) { ersatzname ~= "_" ~ member.type.mangle ~ "_" ~ member.name; }, &rmcache);
+      }
+      if (sup) manglecache = mangle(ersatzname, null);
+      else manglecache = ersatzname;
     }
-    return mangle(ersatzname, null);
+    return manglecache;
   }
   override {
     IType getRefType() { return fastalloc!(Pointer)(this); }

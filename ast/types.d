@@ -251,3 +251,15 @@ Object gotExtType(ref string text, ParseCb cont, ParseCb rest) {
   return fastcast!(Object)~ type;
 }
 mixin DefaultParser!(gotExtType, "type.ext"[], "1"[]);
+
+class HintType(T) : IType {
+  override {
+    int size() { fail; return 0; }
+    int opEquals(IType other) { return !!fastcast!(T) (other); }
+    string mangle() { fail; return null; }
+    ubyte[] initval() { fail; return null; }
+    IType proxyType() { return null; }
+    bool isPointerLess() { return false; }
+    bool isComplete() { return false; }
+  }
+}

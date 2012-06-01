@@ -154,7 +154,7 @@ bool isNormal(dchar c) {
 
 string lastAccepted, lastAccepted_stripped;
 template acceptT(bool USECACHE) {
-  pragma(attribute, optimize("-O3"))
+  // pragma(attribute, optimize("-O3"))
   bool acceptT(ref string s, string t) {
     string s2;
     bool sep = t.length && t[$-1] == ' ';
@@ -191,8 +191,8 @@ template acceptT(bool USECACHE) {
   }
 }
 
-alias acceptT!(true).acceptT accept;
-alias acceptT!(false).acceptT accept_mt;
+alias acceptT!(true)/*.acceptT*/ accept;
+alias acceptT!(false)/*.acceptT*/ accept_mt;
 
 bool hadABracket(string s) {
   auto s2 = (s.ptr - 1)[0..s.length + 1];

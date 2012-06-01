@@ -84,17 +84,20 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         base /= 4;
         int id = 0;
         void iterLeaves(void delegate(Intf, Expr) dg) {
-          void recurse(Intf intf, Expr myOffs) {
+          void recurse(Intf intf, LazyDeltaInt myOffs) {
+            auto backup = myOffs.delta;
+            scope(success) myOffs.delta = backup;
+            
             if (intf.parents.length) foreach (i, intf2; intf.parents) {
               recurse(intf2, myOffs);
-              myOffs = foldex(lookupOp("+"[], myOffs, mkInt(intf2.clsize())));
+              myOffs.delta += intf2.clsize();
             }
             else dg(intf, myOffs);
           }
           auto offs = cl.ownClassinfoLength;
           foreach (i, intf; cl.iparents) {
             recurse(intf, offs);
-            offs = foldex(lookupOp("+"[], offs, mkInt(intf.clsize())));
+            offs.delta += intf.clsize();
           }
         }
         iterLeaves((Intf intf, Expr offs) {

@@ -243,9 +243,16 @@ class DontCastMeLValue : DontCastMeCValue, LValue {
   typeof(this) dup() { return new typeof(this)(fastcast!(LValue) (sup.dup)); }
 }
 
+class DontCastMeMValue : DontCastMeExpr, MValue {
+  this(MValue mv) { super(mv); }
+  override typeof(this) dup() { return new typeof(this)(fastcast!(MValue) (sup.dup)); }
+  override void emitAssignment(AsmFile af) { (fastcast!(MValue) (sup)).emitAssignment(af); }
+}
+
 Expr dcm(Expr ex) {
   if (auto lv = fastcast!(LValue)~ ex) return fastalloc!(DontCastMeLValue)(lv);
   else if (auto cv = fastcast!(CValue)~ ex) return fastalloc!(DontCastMeCValue)(cv);
+  else if (auto mv = fastcast!(MValue) (ex)) return fastalloc!(DontCastMeMValue)(mv);
   else return fastalloc!(DontCastMeExpr)(ex);
 }
 

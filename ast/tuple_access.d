@@ -311,30 +311,18 @@ static this() {
     it = resolveType(it);
     if (!it || !fastcast!(Tuple) (it)) return;
     if (auto tup = fastcast!(Tuple) (resolveType(ex.valueType()))) {
-      if ((fastcast!(Tuple) (it)).types.length != tup.types.length)
+      auto types = (fastcast!(Tuple) (it)).types;
+      if (types.length != tup.types.length)
         return;
       Statement initst;
       auto exprs = getTupleEntries(ex, &initst);
-      Expr[] stack;
-      Expr[][] casts;
-      foreach (entry; exprs) {
-        stack ~= entry;
-        casts ~= getAllImplicitCasts(entry);
+      foreach (i, ref ex2; exprs) {
+        if (!gotImplicitCast(ex2, types[i], (IType it) { return !!(it == types[i]); }))
+          return;
       }
-      auto offs = new int[exprs.length];
-      int inc(int i) {
-        stack[i] = casts[i][offs[i]++];
-        if (offs[i] == casts[i].length) offs[i] = 0;
-        return offs[i];
-      }
-      while (true) {
-        int i;
-        while (i < exprs.length && !inc(i)) i++;
-        if (i == exprs.length) break;
-        auto t = mkTupleExpr(stack);
-        if (initst) t = mkStatementAndExpr(initst, t);
-        if (it == t.valueType()) dg(t);
-      }
+      auto t = mkTupleExpr(exprs);
+      if (initst) t = mkStatementAndExpr(initst, t);
+      dg(t);
     }
   };
 }
