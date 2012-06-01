@@ -7,7 +7,40 @@ bool delegate(IType) isRichIterator, isIterator;
 import
   ast.casting, ast.int_literal, ast.opers, ast.modules,
   ast.fold, ast.namespace, ast.arrays, ast.static_arrays,
-  ast.tuples, ast.tuple_access;
+  ast.tuples, ast.tuple_access, ast.slice;
+
+class ArrayIterator : Type, RichIterator {
+  Array arr;
+  this(Array arr) { this.arr = arr; }
+  override {
+    IType elemType() { return arr.elemType; }
+    string toString() { return Format("ArrayIterator[", arr, "]"); }
+    int size() { return arr.size; }
+    string mangle() { return qformat("array_iterate_", arr.mangle()); }
+    ubyte[] initval() { return arr.initval(); }
+    
+    Cond testAdvance(LValue lv) {
+      auto arrlv = reinterpret_cast(arr, lv);
+      auto next = mkArraySlice(arrlv, mkInt(1), getArrayLength(arrlv));
+      auto st = mkAssignment(arrlv, next);
+      auto cd = fastalloc!(ExprWrap)(getArrayLength(arrlv));
+      return new StatementAndCond(st, cd);
+    }
+    Expr currentValue(Expr ex) {
+      return lookupOp("index", reinterpret_cast(arr, ex), mkInt(0));
+    }
+    Expr length(Expr ex) {
+      return lookupOp("-", getArrayLength(reinterpret_cast(arr, ex)), mkInt(1));;
+    }
+    Expr index(Expr ex, Expr pos) {
+      return lookupOp("index", reinterpret_cast(arr, ex), lookupOp("+", pos, mkInt(1)));
+    }
+    Expr slice(Expr ex, Expr from, Expr to) {
+      return reinterpret_cast(this, mkArraySlice(reinterpret_cast(arr, ex), from, to));
+    }
+  }
+}
+
 static this() {
   isRichIterator = delegate bool(IType it) { return !!fastcast!(RichIterator) (it); };
   isIterator = delegate bool(IType it) { return !!fastcast!(Iterator) (it); };
@@ -23,11 +56,7 @@ static this() {
     while (count--) rep ~= ex1.dup;
     return mkTupleExpr(rep);
   });
-  implicits ~= delegate Expr(Expr ex, IType expect) {
-    if (!fastcast!(Array) (ex.valueType()) && !fastcast!(StaticArray) (ex.valueType()) && !fastcast!(ExtArray) (ex.valueType())) return null;
-    if (!sysmod) return null; // required
-    if (!expect || !fastcast!(Iterator) (expect))
-      return null;
+  Expr fallback_array_iteration(Expr ex) {
     Statement init;
     auto len = iparse!(Expr, "array_length"[], "tree.expr"[])(`arr.length`, "arr"[], ex);
     opt(len);
@@ -38,6 +67,21 @@ static this() {
       return tmpize_maybe(ex, (Expr ex) { return iparse!(Expr, "array_iterate"[], "tree.expr.iter.for"[])
                          (`[for i <- 0..arr.length extra arr: extra[i]]`, namespace(), "arr"[], ex); });
     }
+  }
+  implicits ~= delegate Expr(Expr ex, IType expect) {
+    if (!sysmod) return null; // required
+    if (!expect || !fastcast!(Iterator) (expect))
+      return null;
+    auto evt = ex.valueType();
+    if (fastcast!(StaticArray) (evt) && !fastcast!(CValue) (ex)) { // cannot slice, use fallback
+      return fallback_array_iteration(ex);
+    }
+    if (fastcast!(ExtArray) (evt) || fastcast!(StaticArray) (evt)) { ex = mkFullSlice(ex); evt = ex.valueType(); }
+    auto arr = fastcast!(Array) (evt);
+    if (!arr) return null;
+    auto itr = new ArrayIterator(arr);
+    ex = tmpize_maybe(ex, (Expr ex) { return mkArraySlice(ex, mkInt(-1), getArrayLength(ex)); });
+    return reinterpret_cast(itr, ex);
   };
 }
 

@@ -106,13 +106,8 @@ class GLFWWindow : GLWindow {
   }
   void mousebutton(GLFWwindow window, int button, action) {
     if (window != handle) raise new Error "wat";
-    if (button == 0) {
-      if (action) (mouse-clicked, mouse-pressed) = (true, true);
-      else (mouse-released, mouse-pressed) = (true, false);
-    } else if (button == 1) {
-      if (action) right-mouse-clicked = true;
-      else right-mouse-released = true;
-    }
+    if (action) buttons[button].(clicked, pressed) = (true, true);
+    else buttons[button].(released, pressed) = (true, false);
   }
   bool is-set-up;
   string title;
@@ -143,10 +138,9 @@ class GLFWWindow : GLWindow {
   }
   bool isSetUp() { return is-set-up; }
   void update() using mode GLFW {
-    mouse-clicked = false;
-    mouse-released = false;
-    right-mouse-clicked = false;
-    right-mouse-released = false;
+    for ref button <- buttons {
+      button.(clicked, released) = (false, false);
+    }
     key-pressed[] = [for key-pressed: false];
     key-released[] = [for key-released: false];
     SwapBuffers;

@@ -76,7 +76,7 @@ class RelMember : Expr, Named, RelTransformable {
   override RelMember dup() { return this; }
 }
 
-class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer {
+class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, SelfAdding {
   mixin TypeDefaults!(true, false);
   string name;
   bool isUnion, packed, isTempStruct;
@@ -93,6 +93,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer {
   int cached_length, cached_size;
   mixin ImporterImpl!();
   NSCache!(string, RelMember) rmcache;
+  override bool addsSelf() { return true; }
   override bool isPointerLess() {
     bool pointerless = true;
     select((string, RelMember member) { pointerless &= member.type.isPointerLess(); });
@@ -270,7 +271,7 @@ bool matchStructBody(ref string text, Namespace ns,
   );
 }
 
-Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
+Object gotStructDef(bool returnIt)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool isUnion;
   if (!t2.accept("struct"[])) {
@@ -283,7 +284,11 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.gotIdentifier(name) && t2.accept("{"[])) {
     New(st, name);
     st.isUnion = isUnion;
-    namespace().add(st); // gotta do this here so the sup is set
+    
+    auto ns = namespace();
+    ns.add(st);
+    while (fastcast!(Structure) (ns)) ns = ns.sup;
+    st.sup = ns; // implicitly static
     
     auto rtptbackup = RefToParentType();
     scope(exit) RefToParentType.set(rtptbackup);
@@ -299,14 +304,16 @@ Object gotStructDef(ref string text, ParseCb cont, ParseCb rest) {
       if (!t2.accept("}"[]))
         t2.failparse("Missing closing struct bracket"[]);
       text = t2;
-      return Single!(NoOp);
+      static if (returnIt) return st;
+      else return Single!(NoOp);
     } else {
       t2.failparse("Couldn't match structure body"[]);
     }
   } else return null;
 }
-mixin DefaultParser!(gotStructDef, "tree.typedef.struct"[]);
-mixin DefaultParser!(gotStructDef, "tree.stmt.typedef_struct"[], "32"[]);
+mixin DefaultParser!(gotStructDef!(false), "tree.typedef.struct"[]);
+mixin DefaultParser!(gotStructDef!(false), "tree.stmt.typedef_struct"[], "32"[]);
+mixin DefaultParser!(gotStructDef!(true), "struct_member.struct"[]);
 
 class StructLiteral : Expr {
   Structure st;

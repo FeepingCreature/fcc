@@ -376,7 +376,11 @@ class ForIter(I) : Type, I {
       }
       LValue wlv;
       auto stmt = mkForIterAssign(lv, wlv);
-      return fastalloc!(StatementAndExpr)(stmt, update(this.ex.dup, wlv));
+      Expr exonly(Expr ex) {
+        auto vt = ex.valueType();
+        return new RCE(vt, ex, true);
+      }
+      return fastalloc!(StatementAndExpr)(stmt, exonly(update(this.ex.dup, wlv)));
     }
     static if (is(I: RichIterator)) {
       Expr length(Expr ex) {

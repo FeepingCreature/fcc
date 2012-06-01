@@ -10,7 +10,7 @@ Expr mkPointerSlice(Expr ptr, Expr from, Expr to) {
   );
 }
 
-Expr mkArraySlice(Expr array, Expr from = null, Expr to = null) {
+Expr mkArraySlice(Expr array, Expr from, Expr to) {
   return tmpize_maybe(array, delegate Expr(Expr array) {
     return fastalloc!(ArrayMaker)(
       lookupOp("+"[], new MemberAccess_Expr(arrayToStruct(array), "ptr"[]), from),
