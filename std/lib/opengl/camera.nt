@@ -5,6 +5,7 @@ import std.math, std.lib.opengl;
 abstract class Camera {
   void apply();
   void unrotate(); // undo just the rotation transforms
+  vec3f invert(vec3f screen); // translate from device space into world space
   float aspect;
   import std.callset;
   CallSet!void onMovement;
@@ -22,6 +23,22 @@ abstract class PerspectiveCam : Camera {
     gluPerspective args;
   }
   void unrotate();
+  vec3f invert(vec3f v) using mode GL {
+    float x 16 modelview, projection;
+    vec4f mat-multiply(float* matrix, vec4f v) {
+      return vec4f(
+        matrix[0 ]*v.x + matrix[4 ]*v.y + matrix[8 ]*v.z + matrix[12]*v.w,
+        matrix[1 ]*v.x + matrix[5 ]*v.y + matrix[9 ]*v.z + matrix[13]*v.w,
+        matrix[2 ]*v.x + matrix[6 ]*v.y + matrix[10]*v.z + matrix[14]*v.w,
+        matrix[3 ]*v.x + matrix[7 ]*v.y + matrix[11]*v.z + matrix[15]*v.w
+      );
+    }
+    GetFloatv(MODELVIEW_MATRIX, modelview.ptr);
+    GetFloatv(PROJECTION_MATRIX, projection.ptr);
+    matrix4x4-invert &modelview;
+    matrix4x4-invert &projection;
+    return mat-multiply(modelview, mat-multiply(projection, vec4f(v.x, v.y, v.z, 1))).(xyz/w);
+  }
 }
 
 template WorldCam(T) {
@@ -114,7 +131,7 @@ template EgoCam(T) {
 template OrbitCam(T) {
   class OrbitCam : WorldCam!T, Supports2DControl {
     float distance;
-    void init(vec3f p, t) { super.init(); (pos, lookat) = (p, t); distance = |lookat - pos|; writeln "inited to $this"; }
+    void init(vec3f p, t, float fov = 45f) { super.init(); this.fov = fov; (pos, lookat) = (p, t); distance = |lookat - pos|; writeln "inited to $this"; }
     void move(vec3f v) {
       onMovement.call();
       pos += v;

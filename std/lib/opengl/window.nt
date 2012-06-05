@@ -45,18 +45,10 @@ abstract class GLWindow {
   void update();
   struct Button {
     bool pressed, clicked, released;
-    string toString() {
-      char[auto~] res;
-      res ~= "[button";
-      if (pressed) res ~= " [pressed]";
-      if (clicked) res ~= " [clicked]";
-      if (released) res ~= " [released]";
-      res ~= "]";
-      return res[];
-    }
   }
   Button x 5 buttons;
   vec2i mouse-pos;
+  vec2i scroll-state;
   bool[] key-held, key-pressed, key-released;
   CallSet!string onTextInput;
 }
