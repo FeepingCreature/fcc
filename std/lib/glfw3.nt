@@ -13,6 +13,7 @@ void delegate(GLFWwindow, int, int) keyCallback;
 void delegate(GLFWwindow, int) charCallback;
 void delegate(GLFWwindow, int, int) mousePosCallback;
 void delegate(GLFWwindow, int, int) mouseButtonCallback;
+void delegate(GLFWwindow, int, int) scrollCallback;
 
 extern(C) {
   void WindowSizeCallback(GLFWwindow wnd, int w, h) {
@@ -35,6 +36,10 @@ extern(C) {
     _esi = glfwGetWindowUserPointer(wnd);
     mouseButtonCallback?(wnd, a, b);
   }
+  void ScrollCallback(GLFWwindow wnd, int x, y) {
+    _esi = glfwGetWindowUserPointer(wnd);
+    scrollCallback?(wnd, x, y);
+  }
 }
 
 void initCallbacks() using mode GLFW {
@@ -43,6 +48,7 @@ void initCallbacks() using mode GLFW {
   SetCharCallback &CharCallback;
   SetMousePosCallback &MousePosCallback;
   SetMouseButtonCallback &MouseButtonCallback;
+  SetScrollCallback &ScrollCallback;
 }
 
 import std.lib.opengl.window;
@@ -109,6 +115,9 @@ class GLFWWindow : GLWindow {
     if (action) buttons[button].(clicked, pressed) = (true, true);
     else buttons[button].(released, pressed) = (true, false);
   }
+  void scroll(GLFWwindow window, int x, y) {
+    scroll-state += vec2i(x, y);
+  }
   bool is-set-up;
   string title;
   void setup() using mode GLFW {
@@ -132,6 +141,7 @@ class GLFWWindow : GLWindow {
     charCallback = &handleChar;
     mousePosCallback = &mousepos;
     mouseButtonCallback = &mousebutton;
+    scrollCallback = &scroll;
     initCallbacks();
     is-set-up = true;
     for (auto dg <- context-callbacks) dg();
@@ -143,24 +153,28 @@ class GLFWWindow : GLWindow {
     }
     key-pressed[] = [for key-pressed: false];
     key-released[] = [for key-released: false];
+    scroll-state = vec2i 0;
     SwapBuffers;
     PollEvents;
     if (queuedInput) onTextInput.call queuedInput;
     queuedInput = null;
     if (!IsWindow(handle)) raise new WindowClosed "GLFW exit";
   }
-  bool claimed;
-  void claim-cursor() using mode GLFW {
-    handle.SetInputMode(CURSOR_MODE, CURSOR_CAPTURED);
-    warp $ size() / 2;
-    claimed = true;
-  }
   void warp(vec2i to) using mode GLFW {
     handle.SetMousePos to;
     mouse-pos = to;
   }
+  bool claimed;
+  vec2i prev-pos;
+  void claim-cursor() using mode GLFW {
+    prev-pos = mouse-pos;
+    handle.SetInputMode(CURSOR_MODE, CURSOR_CAPTURED);
+    warp $ size() / 2;
+    claimed = true;
+  }
   void release-cursor() using mode GLFW {
     handle.SetInputMode(CURSOR_MODE, CURSOR_NORMAL);
+    warp $ prev-pos;
     claimed = false;
   }
   bool cursor-claimed() { return claimed; }
