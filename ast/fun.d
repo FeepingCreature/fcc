@@ -112,6 +112,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     scope(exit) popCache();
     
     string t2 = coarseSrc;
+    coarseSrc = null;
     auto stmt = fastcast!(Statement) (parsecon.parse(t2, "tree.scope"));
     if (!stmt) {
       // fail();
@@ -122,7 +123,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     t2 = t2.mystripl();
     if (t2.length)
       t2.failparse("Unknown text! ");
-    coarseSrc = null;
   }
   Function alloc() { return new Function; }
   Argument[] getParams() { return type.params; }
@@ -470,6 +470,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     }
   }
   override Object lookup(string name, bool local = false) {
+    parseMe;
     if (auto res = super.lookup(name, local)) return res;
     return lookupInImports(name, local);
   }
