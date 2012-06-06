@@ -1,5 +1,7 @@
 module simplex;
 
+import std.math;
+
 int[] perm, mperm; // perm mod 12
 vec3i x 12 grad3;
 
@@ -72,7 +74,7 @@ void permsetup() {
 
 float noise2(vec2f f) {
   if !setupPerm permsetup;
-  alias sqrt3 = sqrtf(3);
+  alias sqrt3 = sqrt float:3;
   alias f2 = 0.5 * (sqrt3 - 1);
   alias g2 = (3 - sqrt3) / 6;
   float x 3  n = void;

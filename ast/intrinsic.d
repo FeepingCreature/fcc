@@ -24,7 +24,9 @@ void setupSysmods() {
       int memcmp(void* s1, s2, int n);
       int snprintf(char* str, int size, char* format, ...);
       float sqrtf(float);
+      RenameIdentifier sqrtf C_sqrtf;
       double sqrt(double);
+      RenameIdentifier sqrt C_sqrt;
       int strlen(char*);
     }
     bool streq(char[] a, b) {
@@ -478,7 +480,10 @@ void setupSysmods() {
       string[] _imports;
       FunctionInfo[auto~] functions;
       ModuleInfo[auto~] imports;
-      string toString() { return "[module $name ($functions)]"; }
+      string toString() {
+        if !functions return "[module $name imports $([for m <- imports: m.name].eval[])]";
+        return "[module $name imports $([for m <- imports: m.name].eval[]) ($functions)]";
+      }
     }
     shared ModuleInfo[auto~] __modules;
     ModuleInfo lookupInfo(string name) {

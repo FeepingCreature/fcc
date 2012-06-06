@@ -468,10 +468,10 @@ Structure mkVecStruct(Vector vec) {
     Expr weirdlen;
     if (Single!(Float) == lvt || Single!(SysInt) == lvt) {
       len = buildFunCall(
-        fastcast!(Function)~ sysmod.lookup("sqrtf"), lensq, "sqrtf"
+        fastcast!(Function)~ sysmod.lookup("C_sqrtf"), lensq, "sqrtf"
       );
       weirdlen = buildFunCall(
-        fastcast!(Function)~ sysmod.lookup("sqrtf"), sum, "sqrtf"
+        fastcast!(Function)~ sysmod.lookup("C_sqrtf"), sum, "sqrtf"
       );
     } else if (Single!(Double) == lvt || Single!(Long) == lvt) {
       auto mylensq = lensq, mysum = sum;
@@ -480,10 +480,10 @@ Structure mkVecStruct(Vector vec) {
         mysum = fastalloc!(LongAsDouble)(mysum);
       }
       len = buildFunCall(
-        fastcast!(Function)~ sysmod.lookup("sqrt"), mylensq, "sqrt"
+        fastcast!(Function)~ sysmod.lookup("C_sqrt"), mylensq, "sqrt"
       );
       weirdlen = buildFunCall(
-        fastcast!(Function)~ sysmod.lookup("sqrt"), mysum, "sqrt"
+        fastcast!(Function)~ sysmod.lookup("C_sqrt"), mysum, "sqrt"
       );
     }
     res.add(fastalloc!(ExprAlias)(fastalloc!(FastVec3Norm)(fastcast!(Expr) (res.lookup("self")), vec), "normalized"[]));

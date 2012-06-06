@@ -50,19 +50,34 @@ static this() {
 
 import ast.pointer, ast.tuples, ast.tuple_access, ast.namespace, ast.scopes, ast.variable, ast.vardecl;
 Cond testNeq(Expr ex1, Expr ex2) {
-  assert(ex1.valueType().size == ex2.valueType().size);
-  if (ex1.valueType().size == 4)
+  auto e1vt = ex1.valueType(), e2vt = ex2.valueType();
+  assert(e1vt.size == e2vt.size);
+  if (e1vt.size == 4)
     return fastalloc!(Compare)(ex1, true, false, true, false, ex2);
-  assert(ex1.valueType().size == 8);
-  auto t2 = mkTuple(voidp, voidp);
+  assert(e1vt.size == 8);
+  IType t2;
+  if (e1vt.size == 8) t2 = mkTuple(voidp, voidp);
+  if (e1vt.size == 12) t2 = mkTuple(voidp, voidp, voidp);
+  if (!t2) fail;
   return fastalloc!(ExprWrap)(tmpize_maybe(ex1, delegate Expr(Expr ex1) {
     return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
       auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex1));
       auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex2));
-      Cond cd = new BooleanOp!("||"[])(
-        fastalloc!(ExprWrap)(lookupOp("!="[], ex1s[0], ex2s[0])),
-        fastalloc!(ExprWrap)(lookupOp("!="[], ex1s[1], ex2s[1]))
-      );
+      Cond cd;
+      if (e1vt.size == 8) {
+        cd = new BooleanOp!("||")(
+          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[0], ex2s[0])),
+          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[1], ex2s[1]))
+        );
+      }
+      if (e1vt.size == 12) {
+        cd = new BooleanOp!("||"[])(
+          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[0], ex2s[0])), new BooleanOp!("||")(
+          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[1], ex2s[1])),
+          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[2], ex2s[2]))
+        ));
+      }
+      if (!cd) fail;
       return fastalloc!(CondExpr)(cd);
     });
   }));

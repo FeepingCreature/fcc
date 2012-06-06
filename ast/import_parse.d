@@ -22,4 +22,4 @@ Object gotImportFile(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return fastcast!(Object) (mkFullSlice(res));
 }
-mixin DefaultParser!(gotImportFile, "tree.expr.import_file"[], "24065"[], "import"[]);
+mixin DefaultParser!(gotImportFile, "tree.expr.import_file", "24065", "import");
