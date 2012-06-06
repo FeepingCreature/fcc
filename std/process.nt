@@ -253,3 +253,19 @@ void print-backtrace() {
     }
   }
 }
+
+void dumpModuleGraph(bool includeStdMods = false) {
+  // -Kneato -Goverlap=portho_xy -Gconcentrate=true -Gsplines=true
+  writeln "Digraph D {";
+  onSuccess writeln "}";
+  string clean(string s) { return s.replace(".", "_"); }
+  for auto mod <- __modules {
+    import std.string;
+    if (includeStdMods || !mod.name.startsWith("std."))
+      for auto mod2 <- mod.imports {
+        writeln "  $(clean mod.name)  [label=\"$(mod.name)\"]; ";
+        writeln "  $(clean mod2.name)  [label=\"$(mod2.name)\"]; ";
+        writeln "  $(clean mod.name) -> $(clean mod2.name); ";
+      }
+  }
+}
