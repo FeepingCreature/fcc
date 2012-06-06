@@ -126,13 +126,13 @@ class WithStmt : Namespace, Statement, ScopeLike {
       }
     }
     
-    if (auto onUsing = iparse!(Statement, "onUsing", "tree.semicol_stmt.expr", canFail)
-                              ("evaluate ex.onUsing", "ex"[], context))
-      sc.addStatement(onUsing);
+    if (auto onUsing = iparse!(Expr, "onUsing", "tree.expr", canFail)
+                              ("evaluate ex.onUsing"[], "ex"[], context))
+      sc.addStatement(new ExprStatement(onUsing));
     
-    if (auto onExit = iparse!(Statement, "onExit", "tree.semicol_stmt.expr", canFail)
-                              ("evaluate ex.onExit", "ex"[], context))
-      sc.addGuard(onExit);
+    if (auto onExit = iparse!(Expr, "onExit", "tree.expr", canFail)
+                              ("evaluate ex.onExit"[], "ex"[], context))
+      sc.addGuard(new ExprStatement(onExit));
     if (rns) rns = myresolve(rns);
     if (rnslist)
       foreach (ref rns; rnslist)

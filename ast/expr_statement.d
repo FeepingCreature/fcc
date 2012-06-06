@@ -15,8 +15,10 @@ bool showsAnySignOfHaving(Expr ex, string thing) {
   return false;
 }
 
+import ast.dg;
 Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
+  auto t0 = text;
   if (!rest(text, "tree.expr"[], &ex)) return null;
   ex = foldex(ex);
   auto fc = fastcast!(FunCall) (ex);
@@ -42,6 +44,8 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
       sc.addStatement(onUsing);
     return sc;
   }
+  if (fastcast!(Delegate) (ex.valueType()))
+    t0.failparse("discarding delegate without calling");
   return fastalloc!(ExprStatement)(ex);
 }
 mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr"[], "2"[]);
