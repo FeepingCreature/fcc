@@ -471,8 +471,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   override Object lookup(string name, bool local = false) {
     parseMe;
-    if (auto res = super.lookup(name, local)) return res;
-    return lookupInImports(name, local);
+    if (auto res = super.lookup(name, true)) return res;
+    if (auto res = lookupInImports(name, local)) return res;
+    if (local) return null;
+    return super.lookup(name, local);
   }
   override Extensible extend(Extensible e2) {
     auto fun2 = fastcast!(Function) (e2);
