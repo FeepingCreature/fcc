@@ -48,6 +48,7 @@ template iteratorType(T) {
 Loops the argument infinitely. Argument must have value semantics! */
 template loop(T) {
   class loopclass {
+    T safeCopy;
     iteratorType!T running, iter;
     type-of-elem value-of!T value;
     bool advance() {
@@ -62,8 +63,9 @@ template loop(T) {
   }
   loopclass loop(T t) {
     auto res = new loopclass;
-    res.iter = type-of res.iter: t.iterator;
-    res.running = type-of res.running: t.iterator;
+    res.safeCopy = t;
+    res.iter = type-of res.iter: res.safeCopy.iterator;
+    res.running = type-of res.running: res.safeCopy.iterator;
     return res;
   }
 }
