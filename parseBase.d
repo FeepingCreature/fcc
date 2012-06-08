@@ -789,6 +789,8 @@ SplitIter!(T) splitIter(T)(T d, T s) {
 
 void delegate(string) justAcceptedCallback;
 
+int[string] idepth;
+
 class ParseContext {
   Parser[] parsers;
   string[string] prec; // precedence mapping
@@ -942,7 +944,13 @@ class ParseContext {
         // scope(exit) rulestack = rulestack[0 .. $-1];
         
         if (cond(id)) {
-          static if (Verbose) logln("TRY PARSER [", id, "] for '", text.nextText(16), "'");
+          static if (Verbose) {
+            if (!(id in idepth)) idepth[id] = 0;
+            idepth[id] ++;
+            scope(exit) idepth[id] --;
+            logln("TRY PARSER [", idepth[id], " ", id, "] for '", text.nextText(16), "'");
+          }
+          
           matched = true;
           
           if (!cont.dg) {
@@ -959,16 +967,15 @@ class ParseContext {
             auto ctl = ParseCtl.AcceptAbort;
             if (accept) {
               ctl = accept(res);
-              static if (Verbose) logln("    PARSER [", id, "]: control flow ", ctl.decode);
+              static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "]: control flow ", ctl.decode);
               if (ctl == ParseCtl.RejectAbort || ctl.state == 3) {
-                static if (Verbose) logln("    PARSER [", id, "] rejected (", ctl.reason, "): ", Format(res));
-                // static if (Verbose) logln("    PARSER [", id, "] @", rulestack /map/ ex!("a, b -> a"));
+                static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] rejected (", ctl.reason, "): ", Format(res));
                 text = backup;
                 if (ctl == ParseCtl.RejectAbort) return null;
                 continue;
               }
             }
-            static if (Verbose) logln("    PARSER [", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
+            static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
             if (ctl == ParseCtl.AcceptAbort) {
               if (justAcceptedCallback) justAcceptedCallback(text);
               return res;
@@ -978,12 +985,10 @@ class ParseContext {
               longestMatchRes = res;
             }
           } else {
-            static if (Verbose) logln("    PARSER [", id, "] failed");
+            static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] failed");
           }
           text = backup;
-        }/* else {
-          static if (Verbose) logln("   PARSER [", id, "] - refuse outright");
-        }*/
+        }
       }
       if (longestMatchRes) {
         text = longestMatchStr;
