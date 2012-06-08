@@ -44,8 +44,9 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
       sc.addStatement(onUsing);
     return sc;
   }
-  if (fastcast!(Delegate) (ex.valueType()))
-    t0.failparse("discarding delegate without calling");
+  if (auto dg = fastcast!(Delegate) (ex.valueType()))
+    if (dg !is dg.ret)
+      t0.failparse("discarding delegate without calling");
   return fastalloc!(ExprStatement)(ex);
 }
 mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr"[], "2"[]);
