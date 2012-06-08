@@ -88,7 +88,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   // add parameters to namespace
   int _framestart;
   string coarseSrc;
-  Namespace coarseContext;
   IModule coarseModule;
   bool inEmitAsm;
   mixin ImporterImpl!();
@@ -97,8 +96,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     if (!coarseSrc) return;
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    namespace.set(coarseContext);
     if (tree) namespace.set(fastcast!(Scope) (tree));
+    else namespace.set(this);
     
     // No! Bad! Wrong!
     // auto backupmod = current_module();
@@ -134,7 +133,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     res.extern_c = extern_c;
     res.tree = tree;
     res.coarseSrc = coarseSrc;
-    res.coarseContext = coarseContext;
     res.coarseModule = coarseModule;
     res._framestart = _framestart;
     res.sup = sup;
@@ -924,7 +922,8 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       if (fun.type.isComplete && t4.accept("{"[])) {
         auto block = text.coarseLexScope();
         fun.coarseSrc = block;
-        fun.coarseContext = namespace();
+        auto cur_ns = namespace();
+        if (cur_ns !is fun) { logln("huh. ", cur_ns, " ||| ", fun); fail; }
         fun.coarseModule = current_module();
       }
       if (fun.coarseSrc) return fun;

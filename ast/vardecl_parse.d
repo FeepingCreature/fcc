@@ -1,6 +1,6 @@
 module ast.vardecl_parse;
 
-import parseBase, ast.base, ast.vardecl, ast.aliasing, ast.namespace, ast.expr_statement,
+import parseBase, ast.base, ast.vardecl, ast.aliasing, ast.namespace, ast.expr_statement, ast.arrays,
        ast.casting, ast.pointer, ast.aggregate, ast.scopes, ast.types, tools.compat: find;
 
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
