@@ -34,7 +34,18 @@ void qappend(string[] args...) {
 }
 
 void qformat_append(T...)(T t) {
-  foreach (entry; t) {
+  string[T.length] prestuff;
+  // do the objects up-front because they might call qformat recursively
+  foreach (i, entry; t) {
+    static if (is(typeof(entry): string)) { }
+    else static if (is(typeof(entry): ulong)) { }
+    else static if (is(typeof(entry[0]))) { }
+    else static if (is(typeof(cast(Object) entry))) {
+      auto obj = fastcast!(Object) (entry);
+      if (obj) prestuff[i] = obj.toString();
+    }
+  }
+  foreach (i, entry; t) {
     static if (is(typeof(entry): string)) {
       qappend(entry);
     }
@@ -73,9 +84,9 @@ void qformat_append(T...)(T t) {
       }
       qappend("]"[]);
     }
-    else static if (is(typeof(fastcast!(Object) (entry)))) {
+    else static if (is(typeof(cast(Object) entry))) {
       auto obj = fastcast!(Object) (entry);
-      if (obj) qappend(obj.toString());
+      if (obj) qappend(prestuff[i]); // use cache from earlier
       else { qappend(typeof(entry).stringof); qappend(":null"); }
     }
     else static assert(false, "not supported in qformat: "~typeof(entry).stringof);
