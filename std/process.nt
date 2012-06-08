@@ -225,8 +225,7 @@ void findFunction(void* ip, (string, string, int)* res) {
   incompatible and hard-to-parse debug formats.*/
 auto get-backtrace() {
   (void*, string, string, int)[auto~] res;
-  auto temp = get-raw-backtrace();
-  onExit temp.free;
+  scope temp = get-raw-backtrace();
   for auto bp <- temp {
     findFunction (bp, &(string, string, int) position);
     res ~= position.(bp, _0, _1?.(replace(".", "/") ~ ".nt"), _2);

@@ -68,8 +68,7 @@ int open(string file, int file-mode = read-mode, mode_t perms = -1) {
   platform(!i686-mingw32) {
     if (perms == -1) perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
   }
-  auto ptr = toStringz(file);
-  onExit mem.free(ptr);
+  scope ptr = toStringz(file);
   auto fd = C_open(ptr, file-mode | tweak-mode, perms);
   if (fd == -1) raise new ErrnoError;
   return fd;
@@ -268,8 +267,7 @@ platform(!i686-mingw32) {
   Returns whether a file exists.
 */
 bool exists(string file) {
-  auto p = toStringz file;
-  onSuccess mem.free p;
+  scope p = toStringz file;
   return access(p, F_OK) != -1;
 }
 
@@ -284,9 +282,8 @@ platform(!*-mingw*) {
     Returns true if the argument is a directory
   */
   bool isDir(string s) {
-    auto p = toStringz s;
+    scope p = toStringz s;
     cstdlib-stat(p, &stat buf);
-    mem.free p;
     return !!((buf.st_mode & __S_IFMT) == __S_IFDIR);
   }
 }
@@ -298,8 +295,7 @@ RenameIdentifier rename C_rename;
   Renames a file
 */
 void rename(string oldname, newname) {
-  auto p1 = toStringz oldname, p2 = toStringz newname;
-  onSuccess { mem.free p1; mem.free p2; }
+  scope p1 = toStringz oldname, p2 = toStringz newname;
   auto res = C_rename(p1, p2);
   if (res) raise new Error "Couldn't rename '$oldname' to '$newname': $res";
 }
@@ -311,8 +307,7 @@ RenameIdentifier unlink C_unlink;
   Deletes a file
 */
 void unlink(string file) {
-  auto p = toStringz file;
-  onSuccess mem.free p;
+  scope p = toStringz file;
   auto res = C_unlink p;
   if (res) raise new Error "Couldn't unlink '$file': $res";
 }
@@ -324,8 +319,7 @@ RenameIdentifier mkdir C_mkdir;
   Creates a folder
 */
 void mkdir(string name) {
-  auto p = toStringz name;
-  onSuccess mem.free p;
+  scope p = toStringz name;
   auto res = C_mkdir (p, 0755);
   if (res) raise new Error "Couldn't create folder '$name': $res";
 }
@@ -336,9 +330,8 @@ platform(!*-mingw*) {
     Returns true if the argument is a symlink
   */
   bool isSymbolicLink(string s) {
-    auto p = toStringz s;
+    scope p = toStringz s;
     cstdlib-lstat(p, &stat buf);
-    mem.free p;
     return !!((buf.st_mode & __S_IFMT) == __S_IFLNK);
   }
   extern(C) int symlink(char*, char*);
@@ -348,8 +341,7 @@ platform(!*-mingw*) {
     Creates a symbolic link to 'target' with name 'name'
   */
   void symlink(string target, name) {
-    auto p1 = toStringz target, p2 = toStringz name;
-    onSuccess { mem.free p1; mem.free p2; }
+    scope p1 = toStringz target, p2 = toStringz name;
     auto res = C_symlink (p1, p2);
     if (res) raise new Error "Couldn't create symlink to '$target' at '$name': $res";
   }

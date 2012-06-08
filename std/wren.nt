@@ -210,8 +210,7 @@ class Function : Thing, Operator {
   void init(string s, Thing delegate(Thing[]) dg) (info, fn) = (s, dg);
   void init(string s, Thing delegate(Thing[], Namespace) dg) (info, fn2) = (s, dg);
   Thing call(Thing[] list, Namespace ns) {
-    Thing[auto~] args;
-    onSuccess args.free;
+    scope Thing[auto~] args;
     for auto thing <- list
       args ~= thing.eval ns;
     if (fn2) return fn2 (args[], ns);
