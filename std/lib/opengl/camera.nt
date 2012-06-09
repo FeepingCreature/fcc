@@ -3,6 +3,7 @@ module std.lib.opengl.camera;
 import std.math, std.lib.opengl;
 
 abstract class Camera {
+  vec3f pos;
   void apply();
   void unrotate(); // undo just the rotation transforms
   vec3f invert(vec3f screen); // translate from device space into world space
@@ -43,7 +44,7 @@ abstract class PerspectiveCam : Camera {
 
 template WorldCam(T) {
   class WorldCam : T {
-    vec3f up, pos, lookat;
+    vec3f up, lookat;
     alias dir = (lookat - pos).normalize3f;
     alias left = up.cross3f(dir).normalize3f;
     vec3f setDir(vec3f v) { lookat = pos + v; return lookat; }
@@ -91,7 +92,6 @@ interface Supports2DControl {
 
 template EgoCam(T) {
   class EgoCam : T, Supports2DControl {
-    vec3f pos;
     float turnX, turnY;
     void init(vec3f p, float x, y) { (pos, turnX, turnY) = (p, x, y); super.init(); }
     void init() { init(vec3f(0), 0, 0); }
