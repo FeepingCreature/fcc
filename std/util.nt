@@ -134,6 +134,18 @@ template take(T) {
   }
 }
 
+/// head frees the input iterator!!
+template head(T) {
+  auto head(T t) {
+    if auto val <- t {
+      using t static if (is-defined local free) {
+        free;
+      }
+      return val;
+    } else raise new Error "No elements left in $t";
+  }
+}
+
 macro("tree.expr.flatten_tuple", "331") `
   (if
     (not (matched-text "__flatten_tuple"))
@@ -158,6 +170,21 @@ template apply(T) {
     return new \(Rest rest) {
       // pragma(msg, string-of type-of t[1]~" # "~string-of type-of (__flatten_tuple (t[0], rest)));
       return t[1] (__flatten_tuple (t[0], rest));
+    }
+  }
+}
+
+template rapply(T) {
+  auto rapply(T t) {
+    alias FT = T[1];
+    alias PT = ParamTypes FT;
+    // pragma(msg, string-of PT);
+    alias pt = value-of!PT;
+    static if (type-is tuple PT) { alias Rest = type-of pt[0..pt.length-1]; }
+    else { alias Rest = type-of (); }
+    return new \(Rest rest) {
+      // pragma(msg, string-of type-of t[1]~" # "~string-of type-of (__flatten_tuple (t[0], rest)));
+      return t[1] (__flatten_tuple (rest, t[0]));
     }
   }
 }
