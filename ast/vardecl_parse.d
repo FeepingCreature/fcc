@@ -71,6 +71,9 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     if (Single!(Void) == var.type) {
       t2.failparse("Cannot declare variable of type void");
     }
+    if (isScopeDecl) {
+      genRetvalHolder(sc); // do this before we grab the var position
+    }
     var.baseOffset = boffs(var.type);
     auto vd = fastalloc!(VarDecl)(var);
     vd.configPosition(text);
@@ -83,10 +86,10 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     if (isScopeDecl) {
       auto vt = var.valueType();
       if (fastcast!(Array) (vt) || fastcast!(ExtArray) (vt) || showsAnySignOfHaving(var, "free")) {
-        (fastcast!(Scope) (sc.sup)).addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
+        sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
                           (`var.free;`, "var", var));
       } else {
-        (fastcast!(Scope) (sc.sup)).addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
+        sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
                           (`mem.free var;`, "var", var));
       }
     }
@@ -95,12 +98,17 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Unexpected text in auto expr"[]);
   }
   text = t2;
-  if (sc.guards.length) fail;
-  // collapse
+  
+  if (sc.guards.length) {
+    auto supsc = fastcast!(Scope) (sc.sup);
+    supsc.guards ~= sc.guards;
+    supsc.guard_offsets ~= sc.guard_offsets;
+  }
   foreach (entry; sc.field) {
     if (auto sa = fastcast!(SelfAdding) (entry._1)) if (sa.addsSelf()) continue;
     sc.sup.add(entry._0, entry._1);
   }
+  
   return fastcast!(Object) (sc._body);
 }
 mixin DefaultParser!(gotVarDecl, "tree.stmt.vardecl"[], "21"[]);

@@ -309,6 +309,19 @@ extern(C) void printThing(AsmFile af, string s, Expr ex) {
   (buildFunCall(fastcast!(Function) (sysmod.lookup("printf")), mkTupleExpr(mkString(s), ex), "mew")).emitAsm(af);
 }
 
+// from ast.scopes
+extern(C) void genRetvalHolder(Scope sc) {
+  if (!sc.lookup("__retval_holder", true)) {
+    auto ret = sc.get!(Function).type.ret;
+    if (ret && ret != Single!(Void)) {
+      auto var = fastalloc!(Variable)(ret, "__retval_holder", boffs(ret));
+      auto vd = fastalloc!(VarDecl)(var);
+      sc.addStatement(vd);
+      sc.add(var);
+    }
+  }
+}
+
 // from ast.casting
 import asmfile, ast.vardecl;
 extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {

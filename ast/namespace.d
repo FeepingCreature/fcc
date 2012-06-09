@@ -314,7 +314,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
       assert(false); // wtfux.
     }
     mixin DefaultScopeLikeGuards!();
-    string toString() { return Format("mini["[], id, "]("[], framesize(), "[]) <- "[], sup); }
+    string toString() { return qformat("mini[", id, "](", framesize(), ") <- ", sup); }
     void _add(string name, Object obj) {
       if (sup && !internalMode) sup._add(name, obj);
       else super.__add(name, obj);

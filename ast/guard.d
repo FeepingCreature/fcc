@@ -6,18 +6,6 @@ import
   ast.variable, ast.vardecl, ast.fun,
   ast.aliasing;
 
-void genRetvalHolder(Scope sc) {
-  if (!sc.lookup("__retval_holder"[])) {
-    auto ret = sc.get!(Function).type.ret;
-    if (ret && ret != Single!(Void)) {
-      auto var = fastalloc!(Variable)(ret, "__retval_holder"[], boffs(ret));
-      auto vd = fastalloc!(VarDecl)(var);
-      sc.addStatement(vd);
-      sc.add(var);
-    }
-  }
-} 
-
 Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string type;

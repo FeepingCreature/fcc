@@ -43,6 +43,8 @@ void fixupEBP(ref Iterable itr, Expr ebp) {
   }
 }
 
+extern(C) void genRetvalHolder(Scope sc);
+
 import ast.aggregate, dwarf2;
 class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
 	Mew lnsc; // "multiple inheritance" hack
@@ -80,8 +82,15 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     }
   }
   void addGuard(Statement st) {
+    auto depth = framesize();
+    if (auto sc = fastcast!(Scope) (st)) {
+      if (depth != sc.requiredDepth) {
+        logln("sc: ", sc);
+        fail;
+      }
+    }
     guards ~= st;
-    guard_offsets ~= namespace().get!(ScopeLike).framesize();
+    guard_offsets ~= depth;
   }
   void addStatementToFront(Statement st) {
     if (auto as = fastcast!(AggrStatement) (_body)) as.stmts = st ~ as.stmts;
@@ -179,10 +188,10 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     namespace.set(this);
     // sanity checking
     if (requiredDepth != int.max && af.currentStackDepth != requiredDepth) {
-      logln("Scope emit failure: expected stack depth "[], requiredDepth, "[], but got "[], af.currentStackDepth);
-      logln("was: "[], requiredDepthDebug);
-      logln(" is: "[], this);
-      logln("mew: "[], _body);
+      logln("Scope emit failure: expected stack depth ", requiredDepth, ", but got ", af.currentStackDepth);
+      logln("was: ", requiredDepthDebug);
+      logln(" is: ", this);
+      logln("mew: ", _body);
       fail;
     }
     return stuple(checkpt, backup, this, af, backup_sect) /apply/

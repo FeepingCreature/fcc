@@ -67,6 +67,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
       ex = isc.getSup;
       auto vt = ex.valueType();
       
+      genRetvalHolder(sc);
       auto backupvar = fastalloc!(Variable)(vt, cast(string) null, ex, boffs(vt));
       sc.add(backupvar);
       sc.addStatement(fastalloc!(VarDecl)(backupvar));

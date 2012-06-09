@@ -6,12 +6,26 @@ import ast.vardecl, ast.assign, ast.math;
 class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
-  this(Expr ex) { ns = namespace(); value = ex; this(); }
+  Expr myRetvalHolder;
+  this(Expr ex) {
+    ns = namespace();
+    value = ex; this();
+    myRetvalHolder = fastcast!(Expr) (ns.lookup("__retval_holder", true));
+  }
   private this() { }
   mixin DefaultDup!();
-  mixin defaultIterate!(value);
+  mixin defaultIterate!(value, myRetvalHolder);
   Statement[] guards;
   int[] guard_offsets;
+  void setGuards(Scope sc) {
+    guards = sc.getGuards();
+    guard_offsets = sc.getGuardOffsets();
+    if (guards && !myRetvalHolder && ns.get!(Function).type.ret != Single!(Void)) {
+      logln("for ", guards);
+      logln("in ", ns);
+      asm { int 3; }
+    }
+  }
   string toString() { return Format("return "[], value); }
   override void emitAsm(AsmFile af) {
     auto fun = ns.get!(Function);
@@ -24,7 +38,9 @@ class ReturnStmt : Statement {
         auto delta = af.currentStackDepth - guard_offsets[i];
         if (delta) {
           if (mustPreserveStack) {
-            logln("WARN this may break"[]);
+            logln("WARN this may break: ", delta, " between ", af.currentStackDepth, " since we wanted [", i, "] ", guard_offsets[i]);
+            logln("guard is ", stmt);
+            asm { int 3; }
           } else af.restoreCheckptStack(guard_offsets[i]);
         }
         // dup because we know this is safe for multi-emit; it may get emat multiple times, but it will only get called once.
@@ -34,26 +50,38 @@ class ReturnStmt : Statement {
     if (value) {
       if (Single!(Void) == value.valueType()) {
         mixin(mustOffset("0"[]));
-        scope(failure) logln("While returning "[], value, " of "[], value.valueType());
+        scope(failure) logln("While returning ", value, " of ", value.valueType());
         value.emitAsm(af);
         emitGuards(false);
       } else {
         // mixin(mustOffset("0"[]));
         scope(failure) logln("while returning "[], value);
         auto vt = value.valueType();
-        Expr value = fastcast!(Expr) (ns.lookup("__retval_holder"[], true));
+        Expr value = myRetvalHolder;
         int tofree;
         scope(success) af.sfree(tofree);
         auto var = fastcast!(Variable) (value);
-        if (value && (!var || -var.baseOffset <= af.currentStackDepth)) {
+        if (value && !var) fail;
+        if (guards && var && -var.baseOffset > af.currentStackDepth) {
+          logln("var is ", var, " at ", -var.baseOffset, " while we're at ", af.currentStackDepth, ", with ", guards);
+          fail;
+        }
+        if (var) {
+          if (af.currentStackDepth != -var.baseOffset) {
+            if (af.currentStackDepth > -var.baseOffset) {
+              // af.restoreCheckptStack(-var.baseOffset);
+            } else {
+              logln("bad place to grab ", var, " for return: declared at ", -var.baseOffset, " currentStackDepth ", af.currentStackDepth, " btw ", guards);
+              asm { int 3; }
+            }
+          }
           emitAssign(af, fastcast!(LValue) (value), this.value);
           emitGuards(false);
-          if (!var) fail;
           if (af.currentStackDepth != -var.baseOffset) {
             if (af.currentStackDepth > -var.baseOffset) {
               af.restoreCheckptStack(-var.baseOffset);
             } else {
-              logln("bad place to grab "[], var, " for return: declared at "[], -var.baseOffset, " currentStackDepth "[], af.currentStackDepth);
+              logln("bad place to grab ", var, " for return: declared at ", -var.baseOffset, " currentStackDepth ", af.currentStackDepth, " btw ", guards);
             }
           }
         } else {
@@ -123,13 +151,10 @@ class ReturnStmt : Statement {
 import ast.casting;
 Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto rs = new ReturnStmt;
-  rs.ns = namespace();
+  auto rs = new ReturnStmt(null);
   
-  // TODO: gather guards from all scopes
   if (auto sc = fastcast!(Scope)~ namespace()) {
-    rs.guards = sc.getGuards();
-    rs.guard_offsets = sc.getGuardOffsets();
+    rs.setGuards(sc);
   }
   
   auto fun = namespace().get!(Function)();
