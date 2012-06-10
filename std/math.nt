@@ -167,10 +167,44 @@ alias acos = acosf;
 
 /*Template: min
 Returns the smaller of its two parameters*/
-template min(T) { auto min(T t) { static if (t.length != 2) { pragma(msg, string-of type-of t); Please only pass two parameters to min! } if (t[0] > t[1]) return t[1]; return t[0]; } }
+template min(T) {
+  auto min(T t) {
+    static if (t.length != 2) {
+      pragma(fail, string-of type-of t~": please only pass two parameters to min");
+    }
+    // TODO: generically distribute over vectors
+    static if (types-equal(vec2f, T[0])) {
+      return vec2f(.min(t[0].x, t[1].x), .min(t[0].y, t[1].y));
+    } else {
+      static if (types-equal(vec3f, T[0])) {
+        return vec3f(.min(t[0].x, t[1].x), .min(t[0].y, t[1].y), .min(t[0].z, t[1].z));
+      } else {
+        if (t[0] > t[1]) return t[1];
+        return t[0];
+      }
+    }
+  }
+}
+
 /*Template: max
 Returns the larger of its two parameters*/
-template max(T) { auto max(T t) { static if (t.length != 2) { pragma(msg, string-of type-of t); Please only pass two parameters to max! } if (t[0] > t[1]) return t[0]; return t[1]; } }
+template max(T) {
+  auto max(T t) {
+    static if (t.length != 2) {
+      pragma(fail, string-of type-of t~": please only pass two parameters to max");
+    }
+    static if (types-equal(vec2f, T[0])) {
+      return vec2f(.max(t[0].x, t[1].x), .max(t[0].y, t[1].y));
+    } else {
+      static if (types-equal(vec3f, T[0])) {
+        return vec3f(.max(t[0].x, t[1].x), .max(t[0].y, t[1].y), .max(t[0].z, t[1].z));
+      } else {
+        if (t[0] > t[1]) return t[0];
+        return t[1];
+      }
+    }
+  }
+}
 
 /*Template: minlist
 Returns the smallest entry of the iterable argument*/
@@ -285,4 +319,13 @@ void matrix4x4-invert(float x 16* matp) {
   det = 1/det;
   for int i <- 0..16
     mat[i] = dst[i] * det; // output
+}
+
+vec4f mat-multiply(float* matrix, vec4f v) {
+  return vec4f(
+    matrix[0 ]*v.x + matrix[4 ]*v.y + matrix[8 ]*v.z + matrix[12]*v.w,
+    matrix[1 ]*v.x + matrix[5 ]*v.y + matrix[9 ]*v.z + matrix[13]*v.w,
+    matrix[2 ]*v.x + matrix[6 ]*v.y + matrix[10]*v.z + matrix[14]*v.w,
+    matrix[3 ]*v.x + matrix[7 ]*v.y + matrix[11]*v.z + matrix[15]*v.w
+  );
 }
