@@ -20,10 +20,13 @@ class ReturnStmt : Statement {
   void setGuards(Scope sc) {
     guards = sc.getGuards();
     guard_offsets = sc.getGuardOffsets();
-    if (guards && !myRetvalHolder && ns.get!(Function).type.ret != Single!(Void)) {
-      logln("for ", guards);
-      logln("in ", ns);
-      asm { int 3; }
+    debug if (guards && !myRetvalHolder) {
+      auto supfun = ns.get!(Function);
+      if (supfun && supfun.type.ret && supfun.type.ret != Single!(Void)) {
+        logln("WARN unsafe case");
+        logln("for ", guards);
+        logln("in ", ns);
+      }
     }
   }
   string toString() { return Format("return "[], value); }
@@ -38,9 +41,10 @@ class ReturnStmt : Statement {
         auto delta = af.currentStackDepth - guard_offsets[i];
         if (delta) {
           if (mustPreserveStack) {
-            logln("WARN this may break: ", delta, " between ", af.currentStackDepth, " since we wanted [", i, "] ", guard_offsets[i]);
+            logln("WARN this is unsafe: ", delta, " between ", af.currentStackDepth, " since we wanted [", i, "] ", guard_offsets[i]);
             logln("guard is ", stmt);
-            asm { int 3; }
+            logln("we are forced to use a wrong stack offset for a statement because the return type of a function was indeterminate when a retval holder was requested");
+            // asm { int 3; }
           } else af.restoreCheckptStack(guard_offsets[i]);
         }
         // dup because we know this is safe for multi-emit; it may get emat multiple times, but it will only get called once.

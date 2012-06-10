@@ -313,7 +313,8 @@ extern(C) void printThing(AsmFile af, string s, Expr ex) {
 extern(C) void genRetvalHolder(Scope sc) {
   if (!sc.lookup("__retval_holder", true)) {
     auto ret = sc.get!(Function).type.ret;
-    if (ret && ret != Single!(Void)) {
+    if (!ret) return;
+    if (ret != Single!(Void)) {
       auto var = fastalloc!(Variable)(ret, "__retval_holder", boffs(ret));
       auto vd = fastalloc!(VarDecl)(var);
       sc.addStatement(vd);
