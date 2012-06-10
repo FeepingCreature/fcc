@@ -185,11 +185,11 @@ class WithSpace : Namespace {
         if (auto srns = fastcast!(SemiRelNamespace) (rns))
           rns = srns.resolve();
         
-        if (rns)
+        if (rns) {
           if (auto res = rns.lookupRel(name, values[i], false)) return res;
-        
-        if (auto ns = fastcast!(Namespace) (space))
+        } else if (auto ns = fastcast!(Namespace) (space)) {
           if (auto res = ns.lookup(name, local)) return res;
+        }
       }
       return sup.lookup(name, local);
     }
