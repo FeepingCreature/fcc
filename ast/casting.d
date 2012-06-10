@@ -108,6 +108,7 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type"[], &dest) || !t2.accept(":"[]))
     return null;
   if (t2.accept(":"[])) return null;
+  dest = forcedConvert(dest);
   if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
     t2.setError("can't get "[], ex, " into "[], dest);
     return null;
@@ -144,6 +145,7 @@ Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type"[], &dest) || !t2.accept(":"[]))
     return null;
   if (t2.accept(":"[])) return null;
+  dest = forcedConvert(dest);
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
     t2.setError("Unable to parse cast source"[]);
@@ -162,6 +164,7 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type"[], &dest) || !t2.accept(":"[]))
     return null;
   if (t2.accept(":"[])) return null;
+  dest = forcedConvert(dest);
   IType[] types;
   if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
     t2.failparse("Failed to get expression"[]);
