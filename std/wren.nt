@@ -141,6 +141,7 @@ template Reference(T) {
     void assign(Thing newval) {
       *ptr = repl-to-neat!T newval;
     }
+    string toString() { return "&$(ptr)"; }
   }
 }
 

@@ -89,7 +89,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   int _framestart;
   string coarseSrc;
   IModule coarseModule;
-  bool inEmitAsm;
+  bool inEmitAsm, inParse;
   mixin ImporterImpl!();
   override bool isBeingEmat() { return inEmitAsm; }
   void parseMe() {
@@ -112,6 +112,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     
     string t2 = coarseSrc;
     coarseSrc = null;
+    
+    inParse = true;
+    scope(exit) inParse = false;
+    
+    auto s = sup;
     auto stmt = fastcast!(Statement) (parsecon.parse(t2, "tree.scope"));
     if (!stmt) {
       // fail();
@@ -488,6 +493,18 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     return fastalloc!(OverloadSet)(name, this, fun2);
   }
   override Extensible simplify() { return this; }
+}
+
+void mkAbstract(Function fun) {
+  fun.isabstract = true;
+  if (auto that = namespace().lookup("this"[]))
+    fun.addStatement(
+      iparse!(Statement, "undefined_function"[], "tree.stmt"[])
+            (`raise new Error "Function $this::$fun is not implemented";`, "fun"[], mkString(fun.name), "this"[], that));
+  else
+    fun.addStatement(
+      iparse!(Statement, "undefined_function"[], "tree.stmt"[])
+            (`raise new Error "Function $fun is not implemented";`, "fun"[], mkString(fun.toString())));
 }
 
 class OverloadSet : Named, Extensible {
@@ -930,16 +947,8 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       else {
         t2 = text;
         if (t2.accept(";"[])) { // undefined function
-          fun.isabstract = true;
           text = t2;
-          if (auto that = namespace().lookup("this"[]))
-            fun.addStatement(
-              iparse!(Statement, "undefined_function"[], "tree.stmt"[])
-                    (`raise new Error "Function $this::$fun is not implemented";`, "fun"[], mkString(fun.name), "this"[], that));
-          else
-            fun.addStatement(
-              iparse!(Statement, "undefined_function"[], "tree.stmt"[])
-                    (`raise new Error "Function $fun is not implemented";`, "fun"[], mkString(fun.toString())));
+          mkAbstract(fun);
           return fun;
         }
         Scope sc;
