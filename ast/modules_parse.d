@@ -11,6 +11,16 @@ else {
   string myRealpath(string s) { return toString(realpath(toStringz(s))); }
 }
 
+string locate_name(string name) {
+  string res;
+  cachelock.Synchronized = {
+    foreach (key, value; ast.modules.cache) {
+      if (value.lookup(name, true)) { if (res.length) res ~= ", "; res ~= key; }
+    }
+  };
+  return res;
+}
+
 Object gotImport(bool ReturnNamed)(ref string text, ParseCb cont, ParseCb rest) {
   bool pub, stat;
   auto original_text = text;
@@ -209,6 +219,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   bool gotDot;
   if (t2.accept(".")) { gotDot = true; ns = ns.get!(Module); } // module-scope lookup
   if (t2.gotIdentifier(name, true)) {
+    bool retried;
     retry:
     // hack: get t2 into its expected state
     t2 = text;
@@ -238,6 +249,15 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
       if (dotpos > dashpos) goto checkDot;
       else goto checkDash;
     
+    if (!retried) { // only does this for the full name
+      if (auto hint = locate_name(name)) {
+        t2.setError("unknown identifier: '"[], name, "', found in "[], hint);
+      } else {
+        t2.setError("unknown identifier: '"[], name, "'"[]);
+      }
+    }
+    retried = true;
+    
     checkDash:
     if (t2.eatDash(name)) goto retry;
     
@@ -247,7 +267,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
       goto retry;
     }
     
-    t2.setError("unknown identifier: '"[], name, "'"[]);
+
   }
   return null;
 }
