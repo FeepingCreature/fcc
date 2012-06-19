@@ -368,7 +368,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     catch (Exception ex) text.failparse("cannot call: ", ex);
     if (!result) {
       if (t2.accept("("))
-        t2.failparse("Failed to call function with ", params, ": ", error()._1);
+        t2.failparse("Failed to call function with ", params);
       auto t3 = t2;
       if (params.length || !t3.acceptTerminatorSoft()) {
         t2.failparse("Failed to build paramless call");
