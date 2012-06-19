@@ -977,8 +977,12 @@ static this() {
     mod.dontEmit = true;
     
     auto backup = namespace();
-    namespace.set(mod);
     scope(exit) namespace.set(backup);
+    namespace.set(mod);
+    
+    auto backupmod = current_module();
+    scope(exit) current_module.set(backupmod);
+    current_module.set(mod);
     
     performCImport(hfile);
     return mod;
