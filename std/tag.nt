@@ -1,14 +1,12 @@
 module std.tag;
 
-interface Tag { }
-
 interface Tagged {
-  Tag offers(string name);
+  Object offers(string name);
 }
 
-Tag offers-name(string mangle, Object obj) {
-  if auto res = obj.dynamicCastTo(mangle)
-    return Tag: res;
+Object offers-name(string mangle, Object obj) {
+  if obj.dynamicCastTo(mangle)
+    return obj;
   
   if auto t = Tagged: obj
     return t.offers mangle;
