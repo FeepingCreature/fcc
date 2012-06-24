@@ -119,6 +119,7 @@ class LateType : IType {
     if (!me)
       throw new Exception(Format("Couldn't resolve ", this));
     me = resolveType(me);
+    if (!me) throw new Exception(Format("Still no ", this));
   }
   override {
     int size() { needMe; return me.size; }
@@ -714,6 +715,7 @@ src_cleanup_redo: // count, then copy
         Argument[] args;
         do {
           auto partype = matchType(st2);
+          if (!partype) goto giveUp;
           string parname;
           st2.gotIdentifier(parname);
           args ~= Argument(partype);

@@ -84,12 +84,15 @@ alias ReinterpretCast!(CValue) RCC;
 alias ReinterpretCast!(LValue) RCL; // class LCL omitted due to tang-related concerns
 alias ReinterpretCast!(MValue) RCM;
 extern(C) void _reinterpret_cast_expr(RCE, AsmFile);
+extern(C) bool _exactly_equals(IType a, IType b);
+
+bool exactlyEquals(IType a, IType b) { return _exactly_equals(a, b); }
 
 import ast.fold;
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     if (auto rce = fastcast!(RCE) (it)) {
-      if (rce.from.valueType() == rce.to)
+      if (exactlyEquals(rce.from.valueType(), rce.to))
         return rce.from;
       
       if (auto rce2 = fastcast!(RCE) (foldex(rce.from))) {

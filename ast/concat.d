@@ -175,7 +175,7 @@ static this() {
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR_elem"[], "tree.expr"[])
                     (`sap!T(&l, r)`, namespace(),
-                    "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append3e"[]));
+                    "T"[], resolveType(ea.elemType), "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append3e"[]));
     } else {
       return iparse!(Expr, "concat_into_ext_elem"[], "tree.expr"[])
                     (`sap!T(&l, r)`, namespace(),

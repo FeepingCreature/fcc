@@ -7,6 +7,7 @@ class Pointer_ : Type, Dwarf2Encodable {
   IType target;
   this(IType t) { target = forcedConvert(t); }
   override {
+    IType proxyType() { if (auto tp = target.proxyType()) return new Pointer(tp); return null; }
     int opEquals(IType ty) {
       ty = resolveType(ty);
       if (!super.opEquals(ty)) return false;

@@ -343,6 +343,25 @@ extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
   }
 }
 
+extern(C) bool _exactly_equals(IType a, IType b) {
+  auto pa = fastcast!(Pointer)~ a, pb = fastcast!(Pointer)~ b;
+  if (pa && pb) return _exactly_equals(pa.target, pb.target);
+  if (!pa && pb || pa && !pb) return false;
+  IType resolveMyType(IType it) {
+    if (fastcast!(TypeAlias) (it)) return it;
+    if (auto tp = it.proxyType())
+      return resolveMyType(tp);
+    return it;
+  }   
+  auto
+    ca = fastcast!(TypeAlias) (resolveMyType(a)),
+    cb = fastcast!(TypeAlias) (resolveMyType(b));
+  if (!ca && !cb) return test(a == b);
+  if ( ca && !cb) return false;
+  if (!ca &&  cb) return false;
+  if ( ca &&  cb) return (ca.name == cb.name) && ca.base == cb.base;
+}
+
 // from ast.static_arrays
 static this() {
   /*implicits ~= delegate Expr(Expr ex) {

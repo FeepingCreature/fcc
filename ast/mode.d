@@ -231,6 +231,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     Object lookupRel(string name, Expr context, bool isDirectLookup = true) {
       Object funfilt(Object obj) {
         OverloadSet handleFun(Function fun) {
+          // logln("handle ", fun, " !! ", firstParam, " !! ", fun.extern_c, " !! ", fun.type, " !! ", fun.type.params);
           if (!firstParam) return null;
           if (!fun.extern_c) return null;
           if (!fun.type) return null;
@@ -239,26 +240,10 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
           auto firstType = params[0].type;
           // Expr fp = firstParam;
           Expr fp = reinterpret_cast(firstParam.valueType, context);
-          bool exactlyEqual(IType a, IType b) {
-            auto pa = fastcast!(Pointer)~ a, pb = fastcast!(Pointer)~ b;
-            if (pa && pb) return exactlyEqual(pa.target, pb.target);
-            if (!pa && pb || pa && !pb) return false;
-            IType resolveMyType(IType it) {
-              if (fastcast!(TypeAlias) (it)) return it;
-              if (auto tp = it.proxyType())
-                return resolveMyType(tp);
-              return it;
-            }
-            auto
-              ca = fastcast!(TypeAlias) (resolveMyType(a)),
-              cb = fastcast!(TypeAlias) (resolveMyType(b));
-            if (!ca && !cb) return test(a == b);
-            if ( ca && !cb) return false;
-            if (!ca &&  cb) return false;
-            if ( ca &&  cb) return (ca.name == cb.name) && ca.base == cb.base;
-          }
-          if (!gotImplicitCast(fp, (IType it) { return exactlyEqual(it, firstType); }))
+          if (!gotImplicitCast(fp, (IType it) { return exactlyEquals(it, firstType); })) {
+            // logln("bail because mismatch: ", fp.valueType(), " against ", firstType);
             return null;
+          }
           return fastalloc!(OverloadSet)(fun.name, fastalloc!(PrefixFunction)(fp, fun));
         }
         Extensible ext;

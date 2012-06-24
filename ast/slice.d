@@ -140,7 +140,7 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
       auto svt = resolveType(src.valueType());
       IType[] tried;
       if (!gotImplicitCast(src, (IType it) { auto rit = resolveType(it); tried ~= rit; return test(ar == rit); })) {
-        auto mesg = Format("Mismatching types in slice assignment: "[], ar, " []= "[], svt, "[], tried "[], tried);
+        auto mesg = Format("Mismatching types in slice assignment: ", ar, " = ", svt, ", tried ", tried);
         if (fastcast!(Array)(svt)
          || fastcast!(ExtArray)(svt))
           text.failparse(mesg);

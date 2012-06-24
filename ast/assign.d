@@ -13,7 +13,7 @@ class _Assignment(T) : LineNumberedStatementClass {
   import tools.log;
   this(T t, Expr e, bool force = false, bool blind = false) {
     this.blind = blind;
-    if (!force && t.valueType() != e.valueType()) {
+    if (!force && resolveType(t.valueType()) != resolveType(e.valueType())) {
       logln("Can't assign: "[], t);
       logln(" of "[], t.valueType());
       logln(" <- "[], e.valueType());

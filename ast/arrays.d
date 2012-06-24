@@ -11,6 +11,7 @@ class Array_ : Type, RelNamespace, Dwarf2Encodable {
   override {
     // bool isComplete() { return elemType.isComplete; }
     bool isComplete() { return true; /* size not determined by element size! */ }
+    IType proxyType() { if (auto ep = elemType.proxyType()) return new Array(ep); return null; }
     int size() {
       return nativePtrSize + nativeIntSize;
     }
@@ -82,6 +83,7 @@ class ExtArray : Type, RelNamespace, Dwarf2Encodable {
   this(IType et, bool fOR) { elemType = forcedConvert(et); freeOnResize = fOR; }
   override {
     bool isTempNamespace() { return false; }
+    IType proxyType() { if (auto ep = elemType.proxyType()) return new ExtArray(ep, freeOnResize); return null; }
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
       int idx;
       if (readIndexShorthand(str, idx))

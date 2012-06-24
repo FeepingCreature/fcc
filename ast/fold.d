@@ -8,14 +8,18 @@ Itr fold(Itr i) {
   while (true) {
     auto start = cur;
     Expr e1;
-    debug e1 = fastcast!(Expr)~ start;
+    debug
+      e1 = fastcast!(Expr)~ start;
     foreach (dg; foldopt) {
+      auto backup = cur;
       if (auto res = dg(cur)) cur = res;
-      // logln("TEST "[], (fastcast!(Object)~ cur.valueType()).classinfo.name, " != "[], (fastcast!(Object)~ start.valueType()).classinfo.name, ": "[], cur.valueType() != start.valueType());
       debug {
         auto e2 = fastcast!(Expr)~ cur;
         if (e1 && e2 && e1.valueType() != e2.valueType()) {
-          throw new Exception(Format("Fold has violated type consistency: "[], start, " => "[], cur));
+          logln("Fold has violated type consistency: "[], start, " => "[], cur);
+          logln("I will now run the dg again so you can step into it");
+          asm { int 3; }
+          dg(backup);
         }
       }
     }
