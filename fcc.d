@@ -698,7 +698,8 @@ string delegate() compile(string file, CompileSettings cs) {
     }) / 1_000_000f;
     f.close;
     string flags;
-    if (!platform_prefix) flags = "--32";
+    if (!platform_prefix || platform_prefix.endsWith("-mingw32"))
+      flags = "--32";
     if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     logSmart!(false)("> (", len_emit, "s) ", cmdline);
