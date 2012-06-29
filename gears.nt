@@ -2,6 +2,10 @@ module gears;
 
 import std.(file, string, math, lib.opengl, lib.glfw3, macros.switchover);
 
+platform(default) {
+  pragma(lib, "Xxf86vm");
+}
+
 void main(string[] args) {
   bool running = true;
   int autoexit;

@@ -14,11 +14,7 @@ import sys;
  * email to leggett@eecs.tulane.edu
  */
 
-c_include "stdio.h";
-c_include "stdlib.h";
-c_include "GL/gl.h";
-c_include "GL/glu.h";
-c_include "SDL/SDL.h";
+import c.stdio, c.stdlib, c.GL.gl, c.GL.glu, c.SDL.SDL;
 
 alias SCREEN_SIZE = (640, 480), SCREEN_BPP = 16;
 alias NumStars = 256;
@@ -29,13 +25,13 @@ struct Star {
   float dist, angle;
 }
 
-Star[NumStars] stars;
+Star x NumStars stars;
 
 float zoom = -15, tilt = 90;
 
 SDL_Surface* surface;
 
-GLuint[1] texture;
+GLuint x 1 texture;
 
 void quit(int code) {
   SDL_Quit;

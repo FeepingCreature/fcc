@@ -3,7 +3,7 @@ module ast.concat;
 import
   ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal,
   ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index,
-  ast.assign, ast.opers, ast.slice, ast.fold, ast.literal_string, tools.base: take;
+  ast.assign, ast.opers, ast.slice, ast.fold, ast.literal_string, ast.literals, tools.base: take;
 
 class ConcatChain : Expr {
   Array type;
@@ -25,8 +25,18 @@ class ConcatChain : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(arrays);
   void addArray(Expr ex) {
-    if (fastcast!(StaticArray)~ ex.valueType()) arrays ~= staticToArray(ex);
-    else arrays ~= ex;
+    Expr nuArray;
+    if (fastcast!(StaticArray)~ ex.valueType()) nuArray = staticToArray(ex);
+    else nuArray = ex;
+    if (arrays.length) {
+      auto se1 = fastcast!(StringExpr) (foldex(arrays[$-1]));
+      auto se2 = fastcast!(StringExpr) (foldex(nuArray));
+      if (se1 && se2) {
+        arrays[$-1] = mkString(se1.str~se2.str);
+        return;
+      }
+    }
+    arrays ~= nuArray;
   }
   override {
     IType valueType() { return type; }
@@ -44,24 +54,46 @@ class ConcatChain : Expr {
         auto dg = sc.open(af);
         scope(exit) dg()(false);
         
-        auto sa = fastalloc!(StaticArray)(valueType(), arrays.length);
+        string lit;
+        bool isLiteral(Expr ex) {
+          if (auto se = fastcast!(StringExpr) (foldex(ex))) {
+            lit = se.str;
+            return true;
+          }
+          return false;
+        }
+        
+        int cacheNeeded;
+        foreach (array; arrays)
+          if (array.valueType() != type.elemType && !isLiteral(array)) cacheNeeded ++;
+          
+        auto sa = fastalloc!(StaticArray)(valueType(), cacheNeeded);
         auto
           offset = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), af.currentStackDepth)),
           total  = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize)),
           cache  = fastalloc!(Variable)(sa,              cast(string) null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
+        
         cache.dontInit = true;
+        int literals_len;
+        foreach (array; arrays)
+          if (array.valueType() != type.elemType && isLiteral(array))
+            literals_len += lit.length;
+        
+        total.initval = mkInt(literals_len);
         total.initInit;
         offset.initInit;
         (fastalloc!(VarDecl)(offset)).emitAsm(af);
         (fastalloc!(VarDecl)(total)).emitAsm(af);
         (fastalloc!(VarDecl)(cache)).emitAsm(af);
-        foreach (i, array; arrays) {
+        int cacheId = 0;
+        foreach (array; arrays) {
           if (array.valueType() == type.elemType) {
             iparse!(Statement, "inc_array_length"[], "tree.stmt"[])
                    (`total ++; `, "total"[], total).emitAsm(af);
           } else {
+            if (isLiteral(array)) continue;
             // cache[i] = array
-            auto cachepos = getIndex(cache, mkInt(i));
+            auto cachepos = getIndex(cache, mkInt(cacheId++));
             emitAssign(af, cachepos, array);
             // total = total + cache[i].length
             emitAssign(af, total, lookupOp("+"[], total, getArrayLength(cachepos)));
@@ -73,14 +105,17 @@ class ConcatChain : Expr {
           "var"[], var, "T"[], type.elemType,
           "total"[], total
         ).emitAsm(af);
-        foreach (i, array; arrays) {
-          auto c = getIndex(cache, mkInt(i));
+        cacheId = 0;
+        foreach (array; arrays) {
           if (array.valueType() == type.elemType) {
             /// var[offset] = cache[i];
             emitAssign(af, getIndex(var, offset), reinterpret_cast(type.elemType, array));
             /// offset = offset + 1
             emitAssign(af, offset, lookupOp("+"[], offset, mkInt(1)));
           } else {
+            Expr c;
+            if (isLiteral(array)) c = array;
+            else c = getIndex(cache, mkInt(cacheId ++));
             auto len = getArrayLength(c);
             /// var[offset .. offset + cache[i].length] = cache[i];
             optst(getSliceAssign(mkArraySlice(var, offset, lookupOp("+"[], offset, len)), c.dup)).emitAsm(af);
