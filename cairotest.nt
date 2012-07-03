@@ -1,10 +1,10 @@
 module cairotest;
 
-import sdl, std.math, std.lib.opengl, cairo, std.lib.opengl.sdl, std.time;
+import sdl, std.math, std.lib.opengl, std.lib.cairo, std.lib.opengl.sdl, std.time;
 
 pragma(lib, "cairo");
 
-void main() {
+void main() using mode cairo {
   writeln "Open SDL Window .. ";
   auto wnd = new SDLWindow;
   wnd.context-callbacks ~= \using mode GL{

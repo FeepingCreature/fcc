@@ -11,6 +11,7 @@ platform(!*-mingw*) {
   extern(C) void cairo_gl_surface_swapbuffers (cairo_surface_t*);
 }
 
-defmode cairo-context x "prefix cairo_ first-arg x";
+defmode cairo "prefix cairo_ prefix CAIRO_";
+defmode cairo-context x "first-arg x";
 defmode cairo-pattern p "prefix pattern_ first-arg p";
 defmode sdl-window w "prefix SDL_ first-arg w";
