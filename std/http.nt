@@ -36,14 +36,16 @@ byte[] download(string url, void delegate(string) onRedirect = null) {
   sendLine "Host: $domain";
   sendLine "";
   auto response = string: join readsocket sock;
+  onSuccess[response] response.free;
   string headerstr = slice(&response, "\r\n\r\n");
   if (headerstr.find("Location: ")) {
     auto url2 = original-url.followLink headerstr.between("Location: ", "\r\n");
-    if (onRedirect) { onRedirect url2; }
+    if (onRedirect) { onRedirect url2.dup; }
     return download url2;
   }
+  // careful: response will be freed on function end
   auto header = headerstr.split "\r\n";
-  return byte[]:response;
+  return byte[]:response.dup;
 }
 
 (byte[], string)[auto~] cache;

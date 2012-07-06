@@ -46,6 +46,7 @@ class Mode {
       
       if (cfg.accept("gobject-helper"[])) {
         if (!ex) fail; // gobject always needs an ex
+        res.fixupErrorsToNull = true;
         string capsname = ident;
         string leadcapsname, smallname = capsname.tolower();
         foreach (part; capsname.split("_"[])) {
@@ -115,27 +116,32 @@ class Mode {
 class PrefixFunction : Function {
   Expr prefix;
   Function supfun;
-  this(Expr prefix, Function sup) {
+  void delegate(Argument[]) fixupDefaultArgs;
+  this(Expr prefix, Function sup, void delegate(Argument[]) fda = null) {
     this.prefix = prefix;
     this.type = sup.type;
     this.name = "[wrap]"~sup.name;
     this.sup = sup.sup;
     this.supfun = sup;
     this.reassign = sup.reassign;
+    this.fixupDefaultArgs = fda;
     // assert(sup.extern_c);
     // TODO: this may later cause problems
     extern_c = true; // sooorta.
   }
   private this() { }
-  // this pains me.
+  Argument[] fixupArgs(Argument[] arg) {
+    if (fixupDefaultArgs) fixupDefaultArgs(arg);
+    return arg;
+  }
   override {
-    // This pains me more.
+    // haax
     // Expr getPointer() { logln("Can't get pointer to prefix-extended function! "[]); assert(false); }
     Expr getPointer() { return supfun.getPointer(); }
     string toString() { return Format("prefix "[], prefix, " to "[], super.toString()); }
     Argument[] getParams() {
       auto res = supfun.getParams();
-      if (res.length > 1) return res[1..$];
+      if (res.length > 1) return fixupArgs(res[1..$]);
       
       auto tup = fastcast!(Tuple) (res[0].type);
       if (!tup) { return null; }
@@ -143,7 +149,7 @@ class PrefixFunction : Function {
       auto restypes = tup.types[1 .. $];
       Argument[] resargs;
       foreach (type; restypes) resargs ~= Argument(type);
-      return resargs;
+      return fixupArgs(resargs);
     }
     PrefixFunction alloc() { return new PrefixFunction; }
     void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
@@ -158,6 +164,7 @@ class PrefixFunction : Function {
       res.prefix = prefix.dup;
       res.supfun = supfun;
       res.sup = sup;
+      res.fixupDefaultArgs = fixupDefaultArgs;
       return res;
     }
     PrefixFunction dup() {
@@ -202,11 +209,25 @@ class PrefixCall : FunCall {
   override IType valueType() { return sup.valueType(); }
 }
 
+import ast.int_literal;
 class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */, ISafeSpaceTag {
   Namespace sup;
   Expr firstParam;
   string[] prefixes, suffixes;
-  bool substituteDashes;
+  bool substituteDashes, fixupErrorsToNull;
+  void fixupArgs(Argument[] args) {
+    if (fixupErrorsToNull) {
+      foreach (ref arg; args) {
+        if (auto p1 = fastcast!(Pointer) (resolveType(arg.type))) {
+          if (auto p2 = fastcast!(Pointer) (resolveType(p1.target))) {
+            if (p2.target.mangle == "struct__GError") {
+              arg.initEx = reinterpret_cast(arg.type, mkInt(0));
+            }
+          }
+        }
+      }
+    }
+  }
   ModeSpace supmode;
   this() { sup = namespace(); }
   override {
@@ -230,9 +251,15 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     mixin DefaultScopeLikeGuards!();
     Object lookupRel(string name, Expr context, bool isDirectLookup = true) {
       Object funfilt(Object obj) {
-        OverloadSet handleFun(Function fun) {
+        OverloadSet handleFun(ref Function fun) {
           // logln("handle ", fun, " !! ", firstParam, " !! ", fun.extern_c, " !! ", fun.type, " !! ", fun.type.params);
-          if (!firstParam) return null;
+          if (!firstParam) {
+            if (!fixupErrorsToNull) return null;
+            fun = fun.flatdup;
+            fun.type = fun.type.dup;
+            fixupArgs(fun.type.params);
+            return null;
+          }
           if (!fun.extern_c) return null;
           if (!fun.type) return null;
           auto params = fun.type.params;
@@ -244,7 +271,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
             // logln("bail because mismatch: ", fp.valueType(), " against ", firstType);
             return null;
           }
-          return fastalloc!(OverloadSet)(fun.name, fastalloc!(PrefixFunction)(fp, fun));
+          return fastalloc!(OverloadSet)(fun.name, fastalloc!(PrefixFunction)(fp, fun, &fixupArgs));
         }
         Extensible ext;
         if (auto fun = fastcast!(Function) (obj)) {
@@ -370,6 +397,7 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
       auto pre_ms = new ModeSpace;
       pre_ms.prefixes ~= mode.ident.tolower();
       pre_ms.prefixes ~= mode.ident;
+      pre_ms.fixupErrorsToNull = true;
       namespace.set(fastalloc!(WithStmt)(fastalloc!(PlaceholderTokenLV)(pre_ms, "prefix/suffix pre thing"[])));
     } else {
       namespace.set(fastalloc!(WithStmt)(fastalloc!(PlaceholderTokenLV)(mode.translate(fastalloc!(PlaceholderToken)(Single!(Void), "bogus"[]), rest), "prefix/suffix pre thing 2"[])));

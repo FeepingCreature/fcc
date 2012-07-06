@@ -782,6 +782,13 @@ class FunctionType : ast.types.Type {
   IType ret;
   Argument[] params;
   bool stdcall;
+  FunctionType dup() {
+    auto res = fastalloc!(FunctionType)();
+    res.ret = ret;
+    res.params = params.dup;
+    res.stdcall = stdcall;
+    return res;
+  }
   override int size() {
     fail;
     assert(false);

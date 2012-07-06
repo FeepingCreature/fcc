@@ -32,6 +32,13 @@ reassign int abgr_to_argb(int i) {
   return i;
 }
 
+struct RGBResult {
+  int value;
+  alias implicit-cast = value;
+  alias implicit-cast-2 = intToFloatColor(value);
+  alias implicit-cast-3 = intToFloatColor(value).xyz;
+}
+
 /*extern(C) void stamp_ptr(int* srcp, dstp, int w) {
   for int x <- 0..w {
     auto src = *srcp; alias dst = *dstp;
@@ -202,11 +209,11 @@ class Area {
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + x]);
     *p = icol;
   }
-  int getp(int x, y) {
+  RGBResult getp(int x, y) {
     x += x0; y += y0;
     if !( 0 <= x < surf.w && 0 <= y < surf.h ) raise new Error "Pixel access out of bounds: $x, $y";
     auto p = &((int*:surf.back.pixels)[y * int:surf.back.pitch / 4 + x]);
-    return *p;
+    return RGBResult: *p;
   }
   vec4f delegate(int, int) fillfun;
   void hline_fillfun(int from-x, y, to-x) {
