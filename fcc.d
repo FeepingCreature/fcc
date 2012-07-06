@@ -855,10 +855,13 @@ void loop(string start,
     ast.modules.cache.remove(modname);
   }
   bool[string] checked;
+  bool[string] checking;
   bool needsRebuild(Module mod) {
     // logln("needsRebuild? "[], mod.name, " "[], mod.getAllModuleImports());
     if (mod.dontEmit) return false;
     if (mod is sysmod || !isUpToDate(mod)) return true;
+    if (mod.name in checking) return false; // break the circle
+    checking[mod.name] = true;
     foreach (mod2; mod.getAllModuleImports())
       if (mod2 !is sysmod && needsRebuild(mod2)) return true;
     return false;
@@ -888,6 +891,7 @@ void loop(string start,
   retry:
     pass1 = false;
     checked = null;
+    checking = null;
     gotMain = null;
     resetTemplates();
     version(Windows) { if (system("pause")) return; }
