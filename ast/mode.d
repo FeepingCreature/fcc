@@ -209,6 +209,22 @@ class PrefixCall : FunCall {
   override IType valueType() { return sup.valueType(); }
 }
 
+// only add those functions from ext2 that are not like any already in ext
+Extensible extend_masked(Extensible ext, Extensible ext2) {
+  auto os = fastcast!(OverloadSet) (ext);
+  if (!os) return ext;
+  Function[] newfuns;
+  if (auto os2 = fastcast!(OverloadSet) (ext2)) newfuns = os2.funs;
+  else if (auto fun2 = fastcast!(Function) (ext2)) newfuns ~= fun2;
+  outer:foreach (newfun; newfuns) {
+    foreach (fun; os.funs) {
+      if (fun.type == newfun.type) continue outer; // mask
+    }
+    os = fastcast!(OverloadSet) (os.extend(newfun));
+  }
+  return os;
+}
+
 import ast.int_literal;
 class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */, ISafeSpaceTag {
   Namespace sup;
@@ -236,21 +252,22 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     bool isTempNamespace() { return true; }
     int size() {
       if (firstParam) return firstParam.valueType().size;
-      return 0; // :((
+      // return 0; // :((
       assert(false);
     }
     string mangle() {
       if (firstParam) return "mode_override_for_"~firstParam.valueType().mangle;
       return qformat("modespace_", cast(int) this); // used for caching!
     }
-    ubyte[] initval() { assert(false); }
+    ubyte[] initval() { return firstParam.valueType().initval(); }
     int opEquals(IType it) { return it is this; }
     IType proxyType() { return null; }
     bool isPointerLess() { if (!firstParam) return true; return firstParam.valueType().isPointerLess; }
     bool isComplete() { if (!firstParam) return true; return firstParam.valueType().isComplete; }
     mixin DefaultScopeLikeGuards!();
     Object lookupRel(string name, Expr context, bool isDirectLookup = true) {
-      Object funfilt(Object obj) {
+      Object funfilt(Object obj, bool allowUnchangedOverload) {
+        bool foundAnyFirstParSubsts;
         OverloadSet handleFun(ref Function fun) {
           // logln("handle ", fun, " !! ", firstParam, " !! ", fun.extern_c, " !! ", fun.type, " !! ", fun.type.params);
           if (!firstParam) {
@@ -271,6 +288,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
             // logln("bail because mismatch: ", fp.valueType(), " against ", firstType);
             return null;
           }
+          foundAnyFirstParSubsts = true;
           return fastalloc!(OverloadSet)(fun.name, fastalloc!(PrefixFunction)(fp, fun, &fixupArgs));
         }
         Extensible ext;
@@ -278,20 +296,23 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
           ext = fastalloc!(OverloadSet)(fun.name);
           if (auto os = handleFun(fun))
             ext = ext.extend(os);
-          else
+          if (!isDirectLookup)
             ext = ext.extend(fun);
         } else if (auto os = fastcast!(OverloadSet) (obj)) {
           ext = fastalloc!(OverloadSet)(os.name);
-          foreach (fun; os.funs)
+          foreach (fun; os.funs) {
             if (auto os2 = handleFun(fun))
               ext = ext.extend(os2);
-            else
+            if (!isDirectLookup && allowUnchangedOverload)
               ext = ext.extend(fun);
+          }
         }
+        if (!ext || !fastcast!(OverloadSet) (ext).funs.length) ext = null;
         if (!ext) {
-          if (context && isDirectLookup) if (auto tmpl = fastcast!(Template) (obj)) {
+          if (isDirectLookup && context) if (auto tmpl = fastcast!(Template) (obj)) {
             return fastalloc!(PrefixTemplate)(context, tmpl);
           }
+          if (isDirectLookup && !foundAnyFirstParSubsts) return null;
           return obj;
         }
         if (auto res = fastcast!(Object) (ext.simplify())) return res;
@@ -300,30 +321,44 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
       Object tryIt() {
         const string TRY = `
           if (auto res = sup.lookup(%%, false))
-            return funfilt(res);
+            reslist ~= funfilt(res, ??);
         `;
+        // optimization: collapse em as they come
+        Object[] reslist;
         foreach (prefix; prefixes)
-          mixin(TRY.ctReplace("%%"[], "qformat(prefix, name)"[]));
+          mixin(TRY.ctReplace("%%", "qformat(prefix, name)", "??", "true"));
         
         foreach (suffix; suffixes)
-          mixin(TRY.ctReplace("%%"[], "qformat(name, suffix)"[]));
+          mixin(TRY.ctReplace("%%", "qformat(name, suffix)", "??", "true"));
         
-        foreach (suffix; suffixes)
-          foreach (prefix; prefixes)
-            mixin(TRY.ctReplace("%%"[], "qformat(prefix, name, suffix)"[]));
+        if (prefixes && suffixes) {
+          foreach (suffix; suffixes)
+            foreach (prefix; prefixes)
+              mixin(TRY.ctReplace("%%", "qformat(prefix, name, suffix)", "??", "true"));
+        }
         
-        mixin(TRY.ctReplace("%%"[], "name"[]));
+        if (supmode) {
+          reslist ~= supmode.lookupRel(name, context, isDirectLookup);
+        }
         
-        return null;
+        mixin(TRY.ctReplace("%%", "name", "??", "false"));
+        
+        if (!reslist.length) return null;
+        if (auto ext = fastcast!(Extensible) (reslist[0])) {
+          foreach (obj; reslist[1..$]) {
+            if (auto e2 = fastcast!(Extensible) (obj))
+              ext = extend_masked(ext, e2);
+          }
+          if (auto res = fastcast!(Object) (ext.simplify())) return res;
+          return fastcast!(Object) (ext);
+        }
+        return reslist[0];
       }
       if (auto res = tryIt()) return res;
       if (substituteDashes) {
         name = name.replace("-"[], "_"[]);
         if (auto res = tryIt()) return res;
       }
-      if (supmode)
-        if (auto res = supmode.lookupRel(name, context, isDirectLookup))
-          return res;
       return null;
     }
   }
