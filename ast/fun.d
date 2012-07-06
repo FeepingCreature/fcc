@@ -22,7 +22,7 @@ struct Argument {
   int opEquals(Argument other) {
     return name == other.name && type == other.type;
   }
-  string toString() { return qformat(type, " "[], name); }
+  string toString() { if (initEx) return qformat(type, " "[], name, " = ", initEx); return qformat(type, " "[], name); }
   static Argument opCall(IType it, string name = null, Expr initEx = null) {
     Argument res;
     res.type = it;

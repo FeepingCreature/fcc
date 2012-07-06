@@ -261,7 +261,9 @@ bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseC
   string infocache;
   string info() { if (!infocache) infocache = lazy_info(); return infocache; }
   
-  if (!params.length) {
+  int neededParams;
+  foreach (par; params) if (!par.initEx) neededParams ++;
+  if (!neededParams) {
     auto t2 = text;
     // paramless call
     if (t2.accept(";")) return true;
