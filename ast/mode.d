@@ -252,8 +252,10 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     bool isTempNamespace() { return true; }
     int size() {
       if (firstParam) return firstParam.valueType().size;
-      // return 0; // :((
-      assert(false);
+      // so you can have tuples including modes for stuff like using()
+      // switch back if using ever handles (,) itself
+      return 0;
+      // assert(false);
     }
     string mangle() {
       if (firstParam) return "mode_override_for_"~firstParam.valueType().mangle;
