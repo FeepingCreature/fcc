@@ -317,7 +317,7 @@ void setupStaticBoolLits() {
   cFalse = new FalseCond;
 }
 
-import ast.fold;
+import ast.fold, ast.static_arrays;
 bool isStaticTrue(Cond cd) {
   if (fastcast!(TrueCond) (cd)) return true;
   auto ew = fastcast!(ExprWrap) (cd);
@@ -335,7 +335,7 @@ bool isStaticFalse(Cond cd) {
 import ast.casting, ast.opers;
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  bool not, smaller, equal, greater;
+  bool not, smaller, equal, greater, identical;
   Expr ex1, ex2; Cond cd2;
   if (!rest(t2, "tree.expr _tree.expr.cond"[], &ex1)) return null;
   // oopsie-daisy, iterator assign is not the same as "smaller than negative"!
@@ -343,10 +343,12 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("!"[])) not = true;
   if (t2.accept("<"[])) smaller = true;
   if (t2.accept(">"[])) greater = true;
-  if ((not || smaller || greater) && t2.accept("="[]) || t2.accept("=="[]))
+  if ((not || smaller || greater) && t2.accept("=") || t2.accept("=="))
     equal = true;
+  if (!smaller && !greater && !equal && t2.accept("is"))
+    identical = true;
   
-  if (!not && !smaller && !greater && !equal)
+  if (!not && !smaller && !greater && !equal && !identical)
     return null;
   
   if (!rest(t2, "cond.compare"[], &cd2) && // chaining
@@ -365,8 +367,19 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
       return null;
     }
   }
-  auto op = (not?"!":""[])~(smaller?"<":""[])~(greater?">":""[])~(equal?"=":""[]);
-  if (op == "="[]) op = "==";
+  auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
+  if (op == "=") op = "==";
+  if (identical) {
+    if (not) op = "!=";
+    else op = "==";
+    auto vts = ex1.valueType().size;
+    IType cmptype;
+    if (vts == 4) cmptype = Single!(SysInt);
+    else cmptype = fastalloc!(StaticArray)(Single!(Byte), vts);
+    // force value comparison
+    ex1 = reinterpret_cast(cmptype, ex1);
+    ex2 = reinterpret_cast(cmptype, ex2);
+  }
   try {
     auto res = fastcast!(Object) (finalize(compare(op, ex1, ex2)));
     if (!res) text.failparse("Undefined comparison"[]);
