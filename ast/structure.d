@@ -271,6 +271,20 @@ bool matchStructBody(ref string text, Namespace ns,
   );
 }
 
+// so templates can mark us as weak
+class NoOpMangleHack : Statement, IsMangled {
+  Structure sup;
+  this(Structure s) { sup = s; }
+  NoOpMangleHack dup() { return this; }
+  override void emitAsm(AsmFile af) { }
+  mixin defaultIterate!();
+  override string mangleSelf() { return sup.mangle(); }
+  override void markWeak() {
+    foreach (entry; sup.field)
+      if (auto mg = fastcast!(IsMangled) (entry._1)) mg.markWeak();
+  }
+}
+
 Object gotStructDef(bool returnIt)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool isUnion;
@@ -305,7 +319,7 @@ Object gotStructDef(bool returnIt)(ref string text, ParseCb cont, ParseCb rest) 
         t2.failparse("Missing closing struct bracket"[]);
       text = t2;
       static if (returnIt) return st;
-      else return Single!(NoOp);
+      else return fastalloc!(NoOpMangleHack)(st);
     } else {
       t2.failparse("Couldn't match structure body"[]);
     }
