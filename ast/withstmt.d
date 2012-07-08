@@ -110,9 +110,10 @@ class WithStmt : Namespace, Statement, ScopeLike {
       while (true) {
         auto ex3 = ex2;
         gotImplicitCast(ex3, (Expr ex) {
-          auto it = ex.valueType();
-          if (auto ns = fastcast!(RelNamespace)~ it)
-            rnslist ~= stuple(ns, ex);
+          auto it = resolveType(ex.valueType());
+          auto rns = fastcast!(RelNamespace) (it);
+          if (auto srns = fastcast!(SemiRelNamespace) (it)) rns = srns.resolve();
+          if (rns) rnslist ~= stuple(rns, reinterpret_cast(it, ex));
           return false;
         });
         if (fastcast!(Pointer) (ex2.valueType())) {
@@ -182,11 +183,12 @@ class WithStmt : Namespace, Statement, ScopeLike {
             return res;
           }
         if (rnslist)
-          foreach (rns; rnslist)
+          foreach (rns; rnslist) {
             if (auto res = rns._0.lookupRel(name, rns._1, false)) {
               checkShadow(res, fastcast!(Object) (rns._0));
               return res;
             }
+          }
         if (ns)
           if (auto res = ns.lookup(name, true)) {
             checkShadow(res, fastcast!(Object) (ns));
