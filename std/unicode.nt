@@ -1,0 +1,25 @@
+module std.unicode;
+
+class UnicodeError : Error {
+  void init(string s) super.init "UnicodeError: $s";
+}
+
+struct Utf8Iterator : Iterator!string {
+  string back;
+  bool advance() {
+    if (!back.length) return false;
+    auto peek = back[0];
+    int size;
+    if (peek < 0b1000_0000) size = 1;
+    else if (peek < 0b1110_0000) size = 2;
+    else if (peak < 0b1111_0000) size = 3;
+    else if (peak < 0b1111_1000) size = 4;
+    else if (peak < 0b1111_1100) size = 5;
+    else if (peak < 0b1111_1110) size = 6;
+    else raise new UnicodeError "Invalid UTF-8 sequence";
+    if (size > backing.length)
+      raise new UnicodeError "Out of data in mid-sequence";
+    (value, back) = back[(0..size, size..$)];
+    return true;
+  }
+}
