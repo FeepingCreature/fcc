@@ -295,7 +295,7 @@ class ArrayLength(T) : ArrayLength_Base, T {
     super(fastcast!(Expr) (at));
   }
   private this() { super(); }
-  ArrayLength dup() { return fastalloc!(ArrayLength)(fastcast!(AT) (array)); }
+  ArrayLength dup() { return fastalloc!(ArrayLength)(fastcast!(AT) (array.dup)); }
   override {
     IType valueType() {
       return Single!(SysInt); // TODO: size_t when unsigned conversion works
