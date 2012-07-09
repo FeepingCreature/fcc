@@ -82,4 +82,12 @@ static this() {
       return null;
     return reinterpret_cast(Single!(Byte), ex);
   };
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto al = fastcast!(ArrayLength_Base)(it)) {
+      if (auto se = fastcast!(StringExpr) (foldex(al.array))) {
+        return mkInt(se.str.length);
+      }
+    }
+    return null;
+  };
 }
