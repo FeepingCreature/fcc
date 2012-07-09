@@ -5,16 +5,17 @@ module std.util;
 /*Template: once
 For any value, forms an iterator that yields only that value, exactly once. */
 template once(T) {
-  class one : Iterator!T {
-    bool done;
-    bool advance() {
-      if done return false;
-      done = true;
-      return true;
+  auto once(T t) {
+    struct one {
+      T value;
+      bool done;
+      bool advance() {
+        if done return false;
+        done = true;
+        return true;
+      }
     }
-  }
-  one once(T t) {
-    auto res = new one;
+    one res;
     res.value = t;
     return res;
   }
