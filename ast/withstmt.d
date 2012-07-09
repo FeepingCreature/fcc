@@ -128,13 +128,18 @@ class WithStmt : Namespace, Statement, ScopeLike {
       }
     }
     
-    if (auto onUsing = iparse!(Expr, "onUsing", "tree.expr", canFail)
-                              ("evaluate ex.onUsing"[], "ex"[], context))
-      sc.addStatement(new ExprStatement(onUsing));
+    if (showsAnySignOfHaving(context, "onUsing")) {
+      if (auto onUsing = iparse!(Expr, "onUsing", "tree.expr", canFail)
+                                ("evaluate ex.onUsing"[], "ex"[], context))
+        sc.addStatement(new ExprStatement(onUsing));
+    }
     
-    if (auto onExit = iparse!(Expr, "onExit", "tree.expr", canFail)
-                              ("evaluate ex.onExit"[], "ex"[], context))
-      sc.addGuard(new ExprStatement(onExit));
+    if (showsAnySignOfHaving(context, "onExit")) {
+      if (auto onExit = iparse!(Expr, "onExit", "tree.expr", canFail)
+                                ("evaluate ex.onExit"[], "ex"[], context))
+        sc.addGuard(new ExprStatement(onExit));
+    }
+    
     if (rns) rns = myresolve(rns);
     if (rnslist)
       foreach (ref rns; rnslist)

@@ -2,19 +2,6 @@ module ast.expr_statement;
 
 import ast.base, ast.parse, ast.fold, ast.fun, ast.assign, ast.scopes, ast.vardecl, ast.namespace;
 
-bool showsAnySignOfHaving(Expr ex, string thing) {
-  auto it = ex.valueType();
-  if (Single!(Void) == it) return false;
-  if (auto ns = fastcast!(Namespace) (it)) {
-    if (ns.lookup(thing)) return true;
-  }
-  RelNamespace rns;
-  if (auto srns = fastcast!(SemiRelNamespace) (it)) rns = srns.resolve();
-  if (!rns) rns = fastcast!(RelNamespace) (it);
-  if (rns && rns.lookupRel(thing, ex)) return true;
-  return false;
-}
-
 import ast.dg;
 Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
