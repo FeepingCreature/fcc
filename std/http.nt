@@ -202,7 +202,7 @@ void decodeURI(string url, HTTP-URI* uri) {
   
   obj.path = "/" ~ obj.path;
   
-  for auto kv <- iterOnce(get).splitAt "&" {
+  for auto kv <- once(get).splitAt "&" {
     (string,string) p=kv.slice "=";
     obj.get ~= (p[0].dup,p[1].dup);
   }
@@ -258,7 +258,7 @@ int sendRequest(HTTP-URI url, string method = "GET",
   string (reshead, resbody) = response.slice "\r\n\r\n"; // splits header from body at the empty line separating them
   
   // process header
-  //string[] head_split = (iterOnce ((iterOnce reshead).splitAt "\r\n "#.join)).splitAt "\r\n"; // splits the header into individual lines
+  //string[] head_split = (once ((once reshead).splitAt "\r\n "#.join)).splitAt "\r\n"; // splits the header into individual lines
   string[] headsplit = (reshead.split("\r\n ").join()).split "\r\n";
   // removes separation of lines starting with " " as per standard: http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
   (string statusline, headsplit) = headsplit[(0, 1..$)]; // pops the first element into statusline

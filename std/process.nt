@@ -159,8 +159,8 @@ platform(default) {
     return readback(cmd, string[]:null, data);
   }
 
-  ReadbackStream readback(string cmd, string[] args, string data) return readback(cmd, args, Iterator!string: iterOnce data);
-  ReadbackStream readback(string cmd, string data) return readback(cmd, string[]:null, Iterator!string: iterOnce data);
+  ReadbackStream readback(string cmd, string[] args, string data) return readback(cmd, args, Iterator!string: once data);
+  ReadbackStream readback(string cmd, string data) return readback(cmd, string[]:null, Iterator!string: once data);
   ReadbackStream readback(string cmd, string[] args) return readback(cmd, args, Iterator!string: null);
   ReadbackStream readback(string cmd) return readback(cmd, string[]:null, Iterator!string: null);
 }

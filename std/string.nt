@@ -151,7 +151,7 @@ class SplitIterator : Iterator!string {
   char[auto~] buffer;
   int offset;
   bool done;
-  auto rest() { return wrap!string(cat(iterOnce buffer[offset..$], sup)); }
+  auto rest() { return wrap!string(cat(once buffer[offset..$], sup)); }
   bool advance() {
     if (done) { buffer.free; return false; }
     int pos;

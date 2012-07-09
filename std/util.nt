@@ -2,9 +2,9 @@
 Iterator-related helper functions*/
 module std.util;
 
-/*Template: iterOnce
+/*Template: once
 For any value, forms an iterator that yields only that value, exactly once. */
-template iterOnce(T) {
+template once(T) {
   class one : Iterator!T {
     bool done;
     bool advance() {
@@ -13,7 +13,7 @@ template iterOnce(T) {
       return true;
     }
   }
-  one iterOnce(T t) {
+  one once(T t) {
     auto res = new one;
     res.value = t;
     return res;
