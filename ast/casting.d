@@ -20,10 +20,10 @@ template ReinterpretCast_Contents(T) {
     // if (to.size != from.valueType().size) fail;
     if (to.size != from.valueType().size) {
       logln("Can't cast "[], from);
-	  logln();
-	  logln("from: ", from.valueType());
-	  logln("to:   ", to);
-	  logln("size: ", from.valueType().size, " vs. "[], to.size, "!"[]);
+      logln();
+      logln("from: ", from.valueType());
+      logln("to:   ", to);
+      logln("size: ", from.valueType().size, " vs. "[], to.size, "!"[]);
       fail();
     }
   }
@@ -34,12 +34,12 @@ template ReinterpretCast_Contents(T) {
     auto backup = from;
     defaultIterate!(from).iterate(dg, mode);
     auto new_from_test = fastcast!(T) (from);
-    if (!new_from_test) {
+    if (!new_from_test/* || from.valueType().size != backup.valueType().size*/) {
       // Liskov, if already deceased, is getting quite a spin here.
       logln("Missubstitution!"[]);
       logln("In cast of "[], T.stringof);
-      logln("Was: "[], backup);
-      logln(" To: "[], from);
+      logln("Was: "[], backup, " ", backup.valueType());
+      logln(" To: "[], from, " ", from.valueType());
       fail;
     }
   }
