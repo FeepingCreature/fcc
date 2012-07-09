@@ -343,7 +343,8 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
           reslist ~= supmode.lookupRel(name, context, isDirectLookup);
         }
         
-        mixin(TRY.ctReplace("%%", "name", "??", "false"));
+        if (firstParam) // otherwise, no point
+          mixin(TRY.ctReplace("%%", "name", "??", "false"));
         
         if (!reslist.length) return null;
         if (auto ext = fastcast!(Extensible) (reslist[0])) {
