@@ -41,8 +41,21 @@ bool gotString(ref string text, ref string res,
   return true;
 }
 
+bool canCoarseLexScope(string text) {
+  // eat a number of plain identifiers such as "using mode GL"
+  string id;
+  while (text.gotIdentifier(id)) { }
+  if (text.accept("{"[])) return true;
+  else return false;
+}
+
 string coarseLexScope(ref string text, bool forceMatch = false, bool includeBrackets = true) {
   string local = text;
+  if (includeBrackets) {
+    // see canCoarseLexScope
+    string ident;
+    while (local.gotIdentifier(ident)) { }
+  }
   if (!local.accept("{"[])) {
     if (forceMatch)
       local.failparse("COARSE: Opening bracket expected !"[]);

@@ -943,7 +943,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
     } else {
       auto t4 = text;
       // if ret is null(auto), cannot wait to parse scope until later since we need the full type NOW
-      if (fun.type.isComplete && t4.accept("{"[])) {
+      if (fun.type.isComplete && t4.canCoarseLexScope()) {
         auto block = text.coarseLexScope();
         fun.coarseSrc = block;
         auto cur_ns = namespace();
