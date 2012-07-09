@@ -557,6 +557,15 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, match, &ex)) t2.failparse("Expression expected");
     return fastalloc!(ItrEntity)(ex);
   }));
+  ctx.add("got-implicit-cast", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'got-implicit-cast' expected type expr");
+    mixin(chaincast("ty: First argument for 'got-implicit-cast': args[0]->TypeEntity: %.ty"));
+    mixin(chaincast("ex: Second argument for 'got-implicit-cast': args[1]->ItrEntity: %.itr->Expr"));
+    auto backupex = ex;
+    if (gotImplicitCast(ex, ty, (IType it) { return test(ty == it); }))
+      return fastalloc!(ItrEntity)(ex);
+    else tnte("Cannot implicitly cast to ", ty, ": ", backupex);
+  }));
   ctx.add("is-lvalue", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of arguments to 'is-lvalue': 1 expected");
     mixin(chaincast("ex: First argument for 'is-lvalue': args[0]->ItrEntity: %.itr"));
