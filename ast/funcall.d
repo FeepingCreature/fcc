@@ -293,6 +293,7 @@ bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseC
   
   {
     auto t2 = text;
+    
     if (!rest(t2, "tree.expr.cond.other"[], &arg) && !rest(t2, "tree.expr _tree.expr.arith"[], &arg)) {
       if (params.length) return false;
       else if (info().startsWith("delegate"[])) return false;
