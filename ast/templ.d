@@ -365,7 +365,7 @@ mixin DefaultParser!(gotTemplateInst!(false), "type.templ_inst", "32");
 mixin DefaultParser!(gotTemplateInst!(false), "tree.expr.templ_expr", "2401");
 mixin DefaultParser!(gotTemplateInst!(true), "tree.rhs_partial.instance");
 
-import ast.funcall, ast.tuples;
+import ast.funcall, ast.tuples, ast.properties;
 Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Object obj) {
@@ -373,7 +373,20 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     auto templ = fastcast!(ITemplate) (obj);
     if (!templ) return null;
     Expr nex;
-    if (!rest(t2, "tree.expr _tree.expr.arith"[], &nex)) return null;
+    {
+      bool argIsTuple;
+      {
+        auto t3 = t2;
+        if (t3.accept("(")) argIsTuple = true;
+      }
+      
+      // match no properties if our arg is a tuple/()
+      auto backup = propcfg().withTuple;
+      scope(exit) propcfg().withTuple = backup;
+      if (argIsTuple) propcfg().withTuple = false;
+      
+      if (!rest(t2, "tree.expr _tree.expr.arith"[], &nex)) return null;
+    }
     
     auto io = *templInstOverride.ptr(); // first level
     bool ioApplies;
