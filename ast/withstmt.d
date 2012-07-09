@@ -222,8 +222,8 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
     newval = isc.getAssign();
     scoped = true;
   }
-  
-  if (auto list = getTupleEntries(ex)) {
+  auto list = getTupleEntries(ex);
+  if (list && !scoped /* scoped is not split */) {
     Expr[] list2;
     if (newval) {
       list2 = getTupleEntries(newval);
