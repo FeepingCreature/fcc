@@ -156,6 +156,8 @@ alias PI180 = PI/180.0;
 alias pow = powf;
 /*Alias: log*/
 alias log = logf;
+/*Alias: log2*/
+alias log2 = log2f;
 // float log(float f) { return logf f; }
 // float pow(float a, b) { return powf (a, b); }
 /*Alias: atan2*/
