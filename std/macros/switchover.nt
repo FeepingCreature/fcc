@@ -36,7 +36,7 @@ macro("tree.stmt.switchover", "411", "switch") `
                       (make-if check '(my-parse-stmts))))
                   '(last
                     (def 'match-boolean-base (lambda '()
-                      '(substitute cd ph (parse-expr))))
+                      '(substitute cd ph (got-implicit-cast ty (parse-expr)))))
                     (def 'match-boolean-and (lambda '()
                       '(last
                         (def 'cd1 (match-boolean-base))
