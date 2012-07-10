@@ -15,7 +15,12 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
     if (!gotImplicitCast(testthing, evt, (IType it) { return test(it == evt); }))
       return null;
     
-    return fastcast!(Object) (tmpize(ex, delegate Expr(Expr base, OffsetExpr oe) {
+    auto ex_to_tmp = ex;
+    bool indirected;
+    if (auto cv = fastcast!(CValue) (ex_to_tmp)) { indirected = true; ex_to_tmp = fastalloc!(RefExpr)(cv); }
+    
+    return fastcast!(Object) (tmpize(ex_to_tmp, delegate Expr(Expr base, OffsetExpr oe) {
+      if (indirected) base = fastalloc!(DerefExpr)(base);
       auto proprest_obj = getProperties(t2, fastcast!(Object) (base), true, true, cont, rest);
       auto proprest = fastcast!(Expr) (proprest_obj);
       if (!proprest_obj || !proprest)
