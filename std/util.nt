@@ -6,8 +6,7 @@ module std.util;
 For any value, forms an iterator that yields only that value, exactly once. */
 template once(T) {
   auto once(T t) {
-    struct one {
-      T value;
+    class one : Iterator!T {
       bool done;
       bool advance() {
         if done return false;
