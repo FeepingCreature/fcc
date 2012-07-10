@@ -493,7 +493,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     coarseSrc = null;
   }
   
-  string toString() { return Format("class "[], name, " <- "[], sup); }
+  string toString() { return name; }
   override int opEquals(Object obj2) {
     if (this is obj2) return true;
     auto cl2 = fastcast!(Class) (obj2);
