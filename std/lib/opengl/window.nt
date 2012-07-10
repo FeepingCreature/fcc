@@ -16,7 +16,8 @@ enum Key {
   Return,Esc,Backspace,Tab,Space,Dash,Equals,
   F1=58,F2,F3,F4,F5,F6,F7,F8,F9,F10,F11,F12,
   Insert=73,Home,PageUp,Delete,End,PageDown,
-  RightArrow=79,LeftArrow,DownArrow,UpArrow
+  RightArrow=79,LeftArrow,DownArrow,UpArrow,
+  LeftShift=225,RightShift=229
 }
 
 abstract class GLWindow {
