@@ -152,6 +152,7 @@ static this() {
   });
 }
 
+import ast.fun;
 class WithSpace : Namespace {
   Object[] spaces;
   Expr pureValue;
@@ -171,6 +172,8 @@ class WithSpace : Namespace {
     string mangle(string name, IType type) { assert(false); }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) {
+      if (name == "this") // skip the riffraff
+        return get!(Function).lookup("this", local);
       if (name == "that"[]) {
         if (!pureValue) throw new Exception("Oops. "[]);
         return fastcast!(Object) (pureValue);
