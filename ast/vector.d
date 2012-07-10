@@ -854,7 +854,8 @@ static this() {
     auto v1v = fastcast!(Vector)~ v1, v2v = fastcast!(Vector)~ v2;
     if (!v1v && !v2v) return null;
     
-    assert(!v1v || !v2v || v1v.asTup.types.length == v2v.asTup.types.length, Format("Mismatching tuple types: "[], v1v, " and "[], v2v));
+    if (v1v && v2v && v1v.asTup.types.length != v2v.asTup.types.length)
+      throw new Exception(Format("Mismatching tuple types: "[], v1v, " and "[], v2v));
     int len, real_len;
     if (v1v) { len = v1v.len; real_len = v1v.real_len; }
     else { len = v2v.len; real_len = v2v.real_len; }
