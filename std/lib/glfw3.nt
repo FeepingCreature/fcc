@@ -93,6 +93,8 @@ class GLFWWindow : GLWindow {
       case GLFW_KEY_BACKSPACE: set Key.Backspace;
       case GLFW_KEY_LSHIFT: set Key.LeftShift;
       case GLFW_KEY_RSHIFT: set Key.RightShift;
+      case GLFW_KEY_LCTRL: set Key.LeftControl;
+      case GLFW_KEY_RCTRL: set Key.RightControl;
     }
   }
   string queuedInput;
