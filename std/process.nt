@@ -255,16 +255,49 @@ void print-backtrace() {
 }
 
 void dumpModuleGraph(bool includeStdMods = false) {
-  // -Kneato -Goverlap=portho_xy -Gconcentrate=true -Gsplines=true
+  writeln "/* use neato or -Kneato */";
   writeln "Digraph D {";
+  writeln "Graph [overlap=portho_xy, concentrate=true, splines=true];";
   onSuccess writeln "}";
   string clean(string s) { return s.replace(".", "_"); }
-  for auto mod <- __modules {
-    if (includeStdMods || !mod.name.startsWith("std."))
-      for auto mod2 <- mod.imports {
-        writeln "  $(clean mod.name)  [label=\"$(mod.name)\"]; ";
-        writeln "  $(clean mod2.name)  [label=\"$(mod2.name)\"]; ";
-        writeln "  $(clean mod.name) -> $(clean mod2.name); ";
-      }
+  bool included(ModuleInfo mod) {
+    return eval includeStdMods || !mod.name.startsWith "std.";
   }
+  // TODO precompute to prevent O(n^2)
+  int countImportedBy(ModuleInfo check) {
+    int res;
+    for auto mod <- __modules if (included(mod)) {
+      for auto mod2 <- mod.imports if (included(mod2))
+        if mod2 is check res++;
+    }
+    return res;
+  }
+  bool relevant(ModuleInfo mod) {
+    for auto mod2 <- mod.imports if (included(mod2)) return true;
+    return eval countImportedBy(mod);
+  }
+  ModuleInfo[auto~] includedMods;
+  onExit includedMods.free;
+  for auto mod <- __modules if included(mod) && relevant(mod) includedMods ~= mod;
+  for auto mod <- includedMods {
+    writeln "  $(clean mod.name) [label=\"$(mod.name)\"]; ";
+  }
+  (float, string)[auto~] links;
+  onExit links.free;
+  for auto mod <- includedMods {
+    for auto mod2 <- mod.imports {
+      if (!included(mod2)) continue;
+      float len = countImportedBy(mod2);
+      float weight = 1 / len, fatness = weight * 3;
+      string color = "black";
+      if (fatness < 1) {
+        color = "\"0 0 $(1 - fatness)\"";
+        fatness = 1;
+      }
+      links ~= (weight, "  $(clean mod2.name) -> $(clean mod.name) [len=$len, penwidth=$fatness, color=$color]; ");
+    }
+  }
+  import std.sort;
+  qsort(\(float a, string, float b, string) -> a < b, links);
+  for auto link <- links writeln link._1;
 }
