@@ -295,40 +295,44 @@ Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true, bool
     ));
   }
   checkVecs();
-  retryTup:
   if (vec == vec3f && base.valueType() == vec3i) {
     return fastalloc!(SSEIntToFloat)(base);
   }
-  auto tup = fastcast!(Tuple) (base.valueType());
-  if (!tup) {
-    if (canfail) return null;
-    else throw new Exception(Format("WTF? No tuple param for vec constructor: ", base.valueType()));
-  }
-  if (tup.types.length == 1) {
-    base = reinterpret_cast(tup.types[0], base);
-    goto retryTup;
-  }
-  if (tup) {
-    if (tup.types.length != vec.len) {
-      if (canfail) return null;
-      else throw new Exception(Format("Insufficient elements in vec initializer! "));
-    }
-    base = foldex(base);
-    return fastcast!(Object)~ tmpize_maybe(base, delegate Expr(Expr base) {
-      Expr[] exs;
-      foreach (entry; getTupleEntries(base)) {
-        if (!gotImplicitCast(entry, (IType it) { return test(it == vec.base); })) {
-          if (canfail) return null;
-          else throw new Exception(Format("Invalid type in vec initializer: ", entry));
+  base = foldex(base);
+  return fastcast!(Object)~ tmpize_maybe(base, delegate Expr(Expr base) {
+    Expr[] exs;
+    bool failed;
+    void decompose(Expr ex) {
+      auto ex2 = ex;
+      if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
+        exs ~= ex2;
+        if (exs.length > vec.len) {
+          if (canfail) { failed = true; return; }
+          else throw new Exception(Format("Extraneous argument to ", vec, " constructor: ", exs[$-1]));
         }
-        exs ~= entry;
+        return;
       }
-      
-      if (vec.extend) exs ~= fastalloc!(ZeroFiller)(vec.base);
-      
-      return reinterpret_cast(vec, fastalloc!(StructLiteral)(vec.asStruct, exs, vec.asFilledTup.offsets));
-    });
-  }
+      auto tup = fastcast!(Tuple) (base.valueType());
+      ex2 = ex;
+      if (gotImplicitCast(ex2, (IType it) { return !!fastcast!(Tuple) (it); })) {
+        foreach (entry; getTupleEntries(ex2)) { decompose(entry); if (failed) break; }
+        return;
+      }
+      if (canfail) { failed = true; return; }
+      else throw new Exception(Format("Unexpected type in ", vec, " constructor: ", ex.valueType()));
+    }
+    
+    decompose(base);
+    if (failed) return null;
+    
+    if (exs.length < vec.len) {
+      if (canfail) return null;
+      else throw new Exception(Format("Insufficient values for ", vec, " constructor"));
+    }
+    
+    if (vec.extend) exs ~= fastalloc!(ZeroFiller)(vec.base);
+    return reinterpret_cast(vec, fastalloc!(StructLiteral)(vec.asStruct, exs, vec.asFilledTup.offsets));
+  });
   if (canfail) return null;
   assert(false);
 }
@@ -341,6 +345,7 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
     // logln("fail 1 @", t2.mystripl().nextText());
     return null;
   }
+  if (t2.accept(".")) return null; // vec.XYZ
   auto vec = fastcast!(Vector) (resolveType(ty));
   if (!vec) {
     // logln("fail 2 @", t2.nextText());
