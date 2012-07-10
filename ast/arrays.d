@@ -200,6 +200,8 @@ IType arrayAsStruct(IType base, bool rich) {
     fun.weak = true;
     mod.entries ~= fun;
   }
+  cache ~= stuple(base, rich, mod, fastcast!(IType) (res));
+  isArrayStructType[res] = true;
   mkFun("free"[], delegate Tree() {
     if (rich) return iparse!(Statement, "array_free"[], "tree.stmt"[])
                   (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, namespace());
@@ -236,8 +238,6 @@ IType arrayAsStruct(IType base, bool rich) {
     });
   }
   
-  cache ~= stuple(base, rich, mod, fastcast!(IType) (res));
-  isArrayStructType[res] = true;
   return res;
 }
 
