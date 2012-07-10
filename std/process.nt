@@ -259,7 +259,6 @@ void dumpModuleGraph(bool includeStdMods = false) {
   onSuccess writeln "}";
   string clean(string s) { return s.replace(".", "_"); }
   for auto mod <- __modules {
-    import std.string;
     if (includeStdMods || !mod.name.startsWith("std."))
       for auto mod2 <- mod.imports {
         writeln "  $(clean mod.name)  [label=\"$(mod.name)\"]; ";

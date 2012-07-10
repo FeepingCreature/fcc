@@ -987,8 +987,8 @@ Object gotMagnitude(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   if (!t2.accept("|"[]))
     t2.failparse("Expected closing '|' for magnitude after "[], ex);
-  auto vt = resolveType(ex.valueType());
-  if (auto v = fastcast!(Vector) (vt)) {
+  auto ty = resolveType(ex.valueType());
+  if (auto v = fastcast!(Vector) (ty)) {
     text = t2;
     Statement init1, init2;
     Expr tmp = lvize(ex, &init1);
