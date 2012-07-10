@@ -25,6 +25,8 @@ void setupSysmods() {
       int snprintf(char* str, int size, char* format, ...);
       float sqrtf(float);
       RenameIdentifier sqrtf C_sqrtf;
+      float fabsf(float);
+      RenameIdentifier fabsf C_fabsf;
       double sqrt(double);
       RenameIdentifier sqrt C_sqrt;
       int strlen(char*);

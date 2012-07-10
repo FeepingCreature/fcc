@@ -1000,6 +1000,10 @@ Object gotMagnitude(ref string text, ParseCb cont, ParseCb rest) {
     if (init1) tmp = fastalloc!(StatementAndExpr)(init1, tmp);
     return fastcast!(Object) (tmp);
   }
-  t2.failparse("Invalid type for magnitude: "[], vt);
+  if (Single!(Float) == ty) {
+    text = t2;
+    return fastcast!(Object)(iparse!(Expr, "abs_magn", "tree.expr")(`C_fabsf f`, "f", ex));
+  }
+  t2.failparse("Invalid type for magnitude: "[], ty);
 }
 mixin DefaultParser!(gotMagnitude, "tree.expr.magnitude"[], "24064"[], "|"[]);
