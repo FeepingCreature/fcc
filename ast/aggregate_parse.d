@@ -1,6 +1,6 @@
 module ast.aggregate_parse;
 
-import ast.aggregate, ast.parse, ast.base, ast.scopes, ast.namespace, ast.fun;
+import ast.aggregate, ast.parse, ast.base, ast.scopes, ast.namespace, ast.fun, ast.modules;
 
 AggrStatement parseAggregateBody(ref string text, ParseCb rest, bool error = false, Statement* outp = null) {
   auto t2 = text;
@@ -33,7 +33,16 @@ Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   if (auto as = t2.parseAggregateBody(rest, false, &sc._body)) {
-    t2.mustAccept("}", "unknown statement");
+    string tryId;
+    if (!t2.accept("}")) {
+      auto t3 = t2;
+      if (t2.gotIdentifier(tryId)) {
+        if (auto hint = locate_name(tryId)) {
+          t3.failparse("unknown statement: identifier '", tryId, "' appears in ", hint);
+        }
+      }
+      t3.failparse("unknown statement");
+    }
     sc._body = as;
     text = t2;
     return sc;

@@ -11,16 +11,6 @@ else {
   string myRealpath(string s) { return toString(realpath(toStringz(s))); }
 }
 
-string locate_name(string name) {
-  string res;
-  cachelock.Synchronized = {
-    foreach (key, value; ast.modules.cache) {
-      if (value.lookup(name, true)) { if (res.length) res ~= ", "; res ~= key; }
-    }
-  };
-  return res;
-}
-
 Object gotImport(bool ReturnNamed)(ref string text, ParseCb cont, ParseCb rest) {
   bool pub, stat;
   auto original_text = text;
@@ -250,11 +240,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
       else goto checkDash;
     
     if (!retried) { // only does this for the full name
-      if (auto hint = locate_name(name)) {
-        t2.setError("unknown identifier: '"[], name, "', found in "[], hint);
-      } else {
-        t2.setError("unknown identifier: '"[], name, "'"[]);
-      }
+      unknownId(name, t2);
     }
     retried = true;
     

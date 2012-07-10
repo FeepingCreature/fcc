@@ -3,7 +3,7 @@ module ast.condprop; // conditional property
 import
   parseBase, ast.base, ast.properties, ast.parse, ast.modules,
   ast.casting, ast.vardecl, ast.properties_parse, ast.static_arrays,
-  ast.namespace, ast.scopes, ast.ifstmt, ast.assign;
+  ast.namespace, ast.scopes, ast.ifstmt, ast.assign, ast.pointer;
 
 Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

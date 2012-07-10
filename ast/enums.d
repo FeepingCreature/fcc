@@ -47,8 +47,8 @@ class Enum : Namespace, IType, Named, ExprLikeThingy {
       foreach (i, n; names)
         if (n == name)
           return fastcast!(Object) (reinterpret_cast(this, values[i]));
-      if (local) return null;
-      return sup.lookup(name, local);
+      if (!local) if (auto res = sup.lookup(name, local)) return res;
+      throw new Exception("no such enum member");
     }
     string mangle(string name, IType type) {
       fail; // what are you DOING

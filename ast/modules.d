@@ -248,3 +248,21 @@ Module lookupMod(string name) {
   };
   return mod;
 }
+
+string locate_name(string name) {
+  string res;
+  cachelock.Synchronized = {
+    foreach (key, value; ast.modules.cache) {
+      if (value.lookup(name, true)) { if (res.length) res ~= ", "; res ~= key; }
+    }
+  };
+  return res;
+}
+
+void unknownId(string id, string text) {
+  if (auto hint = locate_name(id)) {
+    text.setError("unknown identifier: '", id, "', appears in ", hint);
+  } else {
+    text.setError("unknown identifier: '", id, "'");
+  }
+}

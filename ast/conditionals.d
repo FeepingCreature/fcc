@@ -467,12 +467,18 @@ Object gotNamedCond(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string id;
   if (!t2.gotIdentifier(id)) return null;
+  bool retried;
   retry:
   if (auto cd = fastcast!(Cond) (namespace().lookup(id))) {
     text = t2;
     return fastcast!(Object)~ cd;
-  } else if (t2.eatDash(id)) goto retry;
-  else return null;
+  } else {
+    if (!retried) {
+      unknownId(id, t2);
+    }
+    if (t2.eatDash(id)) { retried = true; goto retry; }
+    return null;
+  }
 }
 mixin DefaultParser!(gotNamedCond, "cond.named"[], "75"[]);
 
