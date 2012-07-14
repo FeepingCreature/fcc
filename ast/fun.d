@@ -521,9 +521,6 @@ class OverloadSet : Named, Extensible {
   void add(Function f) {
     // don't add a function twice
     foreach (fun; funs) if (f is fun) return;
-    if (f.extern_c) foreach (fun; funs) {
-      if (fun.extern_c && fun.name == f.name) return;
-    }
     funs ~= f;
   }
   override Extensible simplify() {
