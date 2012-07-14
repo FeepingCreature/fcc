@@ -1,0 +1,6 @@
+module test81;
+
+void main() {
+  string foo(string a, b) return "$a $b";
+  using "holy" using "shit" writeln foo();
+}

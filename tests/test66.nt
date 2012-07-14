@@ -1,0 +1,105 @@
+module test66;
+
+import std.random, std.string;
+IRandom rng;
+void init() { rng = getPRNG 23; }
+
+class InvalidOption : Error {
+  void init() super.init "Invalid option";
+}
+
+void decide((string, void delegate())[] options) {
+  int num = options.length;
+  int i = 1;
+  define-exit "retry" {}
+  for auto option <- options {
+    writeln "$i. $(option[0])";
+  }
+  printf("> ");
+  auto id = readln().atoi();
+  if (id < 1 || id > num) {
+    raise new InvalidOption;
+  }
+  options[id-1][1]();
+}
+
+class Player {
+  string type, gender, name;
+  int health, mana, xp;
+  vec2i position;
+  int potions, skillpoints;
+  (string, string)[] skills;
+  string select-skill(string id) {
+    for auto tup <- skills
+      if tup[0] == id return tup[1];
+    return null;
+  }
+  void increase-skill(string id) {
+    for int i <- 0..skills.length {
+      alias sk = skills[i];
+      if sk[0] == id {
+        sk[1] = "$(atoi sk[1] + 1)";
+      }
+    }
+    skills ~= (id, "1");
+  }
+  int level() {
+    int xpleft = xp;
+    int level = 1;
+    while (xpleft / auto x = (level*level*50)) >= 1 {
+      xpleft -= x;
+      level ++;
+    }
+    return level;
+  }
+  void giveXP(int xp) {
+    auto oldlv = level();
+    this.xp += xp;
+    auto newlv = level();
+    if (int gained = newlv - oldlv) {
+      skillpoints += 5 * gained;
+      spendMenu();
+    }
+  }
+  void spendMenu() {
+    writeln "Available abilities: ";
+    set-handler (InvalidOption) {
+      writeln "Invalid option. ";
+      invoke-exit "retry";
+    }
+    decide [
+      ("Potion Regen: current level $(
+        select-skill \"regen\")",
+        \() increase-skill "regen"; )
+    ];
+  }
+  // void regenPotion() {
+  // }
+}
+
+class Mob {
+  int hp;
+  vec2i pos;
+}
+
+Player player;
+
+import std.macros.switchover;
+int parseDirection(string dir) {
+  switch string d over d == dir {
+    case "north" or "n" or "1" or "up": return 1;
+    case "east" or "e" or "2" or "right": return 2;
+    case "south" or "s" or "3" or "down": return 3;
+    case "west" or "w" or "4" or "left": return 4;
+    case "action" or "look" or "look around"
+      or "l" or "5": return 5;
+    case "spendskills" or "spendpoints"
+      or "spendabilities" or "spend":
+      player.spendMenu;
+      return false;
+  }
+  return false;
+}
+
+void main() {
+}

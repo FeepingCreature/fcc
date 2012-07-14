@@ -1,0 +1,192 @@
+module test86;
+
+import c.GL.gl3, std.string;
+
+defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";
+
+pragma(lib, "SDL13");
+pragma(lib, "GL");
+
+struct Vertex {
+  vec3f v, n;
+  vec2f x 3 texcoords;
+  string toString() return "v $v n $n texcoords $texcoords";
+}
+
+void checkError(string err) {
+  auto num = glGetError();
+  if (num != GL_NO_ERROR) {
+    raise new Error "OpenGL error:$num: $err";
+  }
+}
+
+import c.SDL13.SDL;
+
+void main() {
+  printf("init sdl\n");
+  if (int err = SDL_Init(SDL_INIT_VIDEO)) < 0 {
+    raise new Error "Failed to init SDL: $err";
+  }
+  
+  prefix SDL_GL_ {
+    writeln "specify gl 4.2";
+    CONTEXT_MAJOR_VERSION.SetAttribute 4;
+    CONTEXT_MINOR_VERSION.SetAttribute 2;
+    
+    writeln "doublebuffer with 24bpp depth buffer";
+    DOUBLEBUFFER.SetAttribute true;
+    DEPTH_SIZE.SetAttribute 24;
+  }
+  
+  writeln "create window";
+  SDL_Window* window;
+  prefix SDL_ 
+  if (auto w = CreateWindow("Test case", WINDOWPOS_CENTERED, WINDOWPOS_CENTERED, 640, 480, WINDOW_OPENGL | WINDOW_SHOWN))
+    window = w;
+  else
+    raise new Error "Failed to create window.";
+  
+  writeln "create 4.2 context";
+  
+  auto context = window.SDL_GL_CreateContext();
+  if (!context) raise new Error "Failed to create context.";
+  
+  mode GL::
+  writeln CToString GetString(VERSION);
+  
+  writeln "create program";
+  auto program = CreateProgram();
+  checkError "Failed to create program.";
+  
+  writeln "create shaders";
+  auto vertsource = "#version 120
+  attribute vec4 InVertex;
+  attribute vec3 InNormal;
+  attribute vec2 InTexCoord0;
+  attribute vec2 InTexCoord1;
+  attribute vec2 InTexCoord2;
+  
+  void main() {
+    gl_Position = InVertex;
+  }";
+  
+  auto vertshader = VERTEX_SHADER.CreateShader();
+  vertshader.ShaderSource(1, [vertsource.ptr], null);
+  checkError "Failed to set vertex shader source";
+  
+  auto fragsource = "#version 120
+  void main() {
+    gl_FragColor = vec4(0, 0, 255, 255);
+  }";
+
+  auto fragshader = FRAGMENT_SHADER.CreateShader();
+  fragshader.ShaderSource(1, [fragsource.ptr], null);
+  checkError "Failed to set fragment shader source";
+  
+  writeln "compile shaders";
+  
+  void compileShader(GLuint shader) using shader {
+    CompileShader();
+    checkError "Failed to compile shader";
+    GetShaderiv(GL_COMPILE_STATUS, &int stat);
+    if (!stat) {
+      GetShaderiv(INFO_LOG_LENGTH, &int len);
+      auto log = new char[] len;
+      GetShaderInfoLog(len, &len, log.ptr);
+      writeln "$log";
+      raise new Error "compilation failed";
+    }
+  }
+  
+  void linkShader(GLuint program) using program {
+    LinkProgram();
+    checkError "Failed to link program";
+    GetProgramiv (GL_LINK_STATUS,&int stat);
+    if (!stat) {
+      GetProgramiv(INFO_LOG_LENGTH, &int len);
+      auto log = new char[] len;
+      GetProgramInfoLog(len, &len, log.ptr);
+      writeln "$log";
+      raise new Error "link failed";
+    }
+  }
+  
+  using program {
+    compileShader vertshader;
+    AttachShader vertshader;
+    checkError("Failed to attach vert shader");
+    
+    compileShader fragshader;
+    AttachShader fragshader;
+    checkError("Failed to attach frag shader");
+    
+    writeln "linking program";
+    linkShader();
+    
+    writeln "using program";
+    UseProgram();
+    checkError "Failed to use program";
+  }
+  
+  writeln "generating buffers";
+  
+  GenBuffers(1, &GLuint vbo);
+  checkError "Failed to create VBO";
+  
+  GenVertexArrays(1, &GLuint vao);
+  checkError "Failed to create VAO";
+  
+  vao.BindVertexArray();
+  checkError "Failed to bind vertex array";
+  
+  ARRAY_BUFFER.BindBuffer vbo;
+  checkError "Failed to bind vbo";
+  
+  auto vertices = [
+    Vertex: (vec3f.X,  vec3f(0), vec2f(0), vec2f(0), vec2f(0)),
+    Vertex: (vec3f.Y,  vec3f(0), vec2f(0), vec2f(0), vec2f(0)),
+    Vertex: (vec3f.Z,  vec3f(0), vec2f(0), vec2f(0), vec2f(0)),
+    Vertex: (vec3f(0), vec3f(0), vec2f(0), vec2f(0), vec2f(0))
+  ];
+  
+  writeln "uploading vertices";
+  BufferData(ARRAY_BUFFER, size-of Vertex #* vertices.length, void*:vertices.ptr, STATIC_DRAW);
+  checkError "Failed to upload vertices";
+  
+  writeln "binding attrib locations";
+  for auto tup <- zip(0..-1, ["InVertex", "InNormal", "InTexCoord0", "InTexCoord1", "InTexCoord2"])
+    program.BindAttribLocation (tup[0], tup[1].ptr);
+  checkError "Failed to call glBindAttribLocation";
+  
+  writeln "setting attrib pointers";
+  for auto tup <- zip(0..-1, [(3, 0), (3, 4), (2, 8), (2, 10), (2, 12)]) {
+    VertexAttribPointer(tup[0], tup[1][0], FLOAT, FALSE, size-of Vertex, void*:$ tup[1][1] * 4);
+  }
+  checkError "Failed to call glVertexAttribPointer";
+  
+  writeln "enabling attrib pointers";
+  EnableVertexAttribArray 0;
+  //EnableVertexAttribArray 1;
+  //EnableVertexAttribArray 2;
+  //EnableVertexAttribArray 3;
+  //EnableVertexAttribArray 4;
+  
+  writeln "main loop";
+  
+  void test(byte b) { writeln "$(int:b)"; }
+  test 4;
+  
+  while true {
+    ClearColor (vec3f(1), 1);
+    COLOR_BUFFER_BIT.Clear();
+    
+    DrawArrays(TRIANGLES, 0, 3);
+    
+    SDL_GL_SwapWindow window;
+    while SDL_PollEvent &SDL_Event ev using ev {
+      if type == SDL_QUIT return;
+    }
+  }
+
+  return;
+}

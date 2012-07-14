@@ -1,0 +1,6 @@
+module test79;
+import std.file;
+void main() {
+  writeln "$(isDir \".\")";
+  writeln "$(isDir \"fcc\")";
+}

@@ -1,0 +1,12 @@
+module test80;
+
+void main() {
+  int foo(string s) { return 3; }
+  int bar() { return 4; }
+  string a;
+  int x = a?.foo():bar();
+  writeln "$x";
+  a = "mew";
+  x = a?.foo():bar();
+  writeln "$x";
+}

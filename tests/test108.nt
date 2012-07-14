@@ -1,0 +1,11 @@
+module test108;
+
+interface Runner { void run(); }
+
+void do(Runner r) { r.run(); }
+
+void main() {
+  do (new class : Runner { void run() writeln "Hello World"; });
+  auto foo() { return new class { void whee() writeln "Hello World"; }; }
+  foo().whee();
+}

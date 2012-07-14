@@ -1,0 +1,17 @@
+module test51;
+
+import std.boehm, std.time;
+
+void main() {
+  initBoehm false;
+  if (!getenv("TESTSUITE")) sleep 5;
+  byte[auto~] test;
+  writeln "begin allocating";
+  for (int i <- 0..256) {
+    writeln " $i";
+    for (0..1024*1024) test ~= byte:i;
+  }
+  writeln "free";
+  test.free;
+  if (!getenv("TESTSUITE")) sleep 50;
+}

@@ -1,0 +1,43 @@
+module test41;
+
+import std.file, sdl;
+
+import c.librsvg.rsvg;
+
+void main() {
+  auto svgdata = readAll "Example.svg";
+  // init GLib
+  g_type_init();
+  GdkPixbuf* pb;
+  // render svg to pixbuf
+  prefix rsvg_handle using _new() {
+    if (!_write(svgdata.(guchar*:ptr, gsize:length), null))
+      raise new Error "SVG decoding failed! ";
+    if (!_close(null))
+      raise new Error "SVG finalizing failed! ";
+    pb = _get_pixbuf();
+    _free();
+  }
+  // render pixbuf to sdl surface
+  prefix gdk_pixbuf_get using pb {
+    int width = _width(), height = _height();
+    assert(_bits_per_sample() == 8);
+    assert(_n_channels() == 4);
+    writeln "$(width)x$(height), sanity checks pass";
+    auto pixels = _pixels();
+    int rowstride = _rowstride();
+    
+    screen(width, height);
+    display.cls vec4f(1);
+    
+    // actual render
+    for (int y, int x) <- cross(0..height, 0..width) {
+      int val = *int*:(pixels + y * rowstride + x * 4);
+      abgr_to_argb val;
+      auto col = intToFloatColor val;
+      col = col * col.w + intToFloatColor display.getp(x, y) * (1-col.w);
+      display.pset(x, y, col.xyz);
+    }
+  }
+  while true flip;
+}

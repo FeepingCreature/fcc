@@ -1,0 +1,5 @@
+module test60;
+
+void main() {
+  \writeln "Hello World" ;();
+}

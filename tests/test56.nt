@@ -1,0 +1,12 @@
+module test56;
+
+macro("tree.expr.rootveg", "991")
+`(if
+  (not (and (matched-text 'root) (matched-text 'vegetable) (matched-text 'dynamic)))
+  'nil
+  '(make-call (lookup "writeln") (make-string "Radish&Beets! So dynamic. ")))
+`;
+
+void main() {
+  root vegetable dynamic;
+}

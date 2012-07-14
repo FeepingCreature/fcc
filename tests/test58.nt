@@ -1,0 +1,6 @@
+module test58;
+
+void main() {
+  int a = 34;
+  writeln "$(char:byte:a)";
+}

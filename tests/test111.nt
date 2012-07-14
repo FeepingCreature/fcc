@@ -1,0 +1,11 @@
+module test111;
+
+void main() {
+  static if (types-equal (float, float)) {
+    alias i-j = true;
+    int foo;
+  }
+  static if (!is-defined i-j) {
+    writeln "oops";
+  }
+}

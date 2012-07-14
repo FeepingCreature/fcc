@@ -1,0 +1,4 @@
+module test84;
+void main() {
+  *float*:&(int n = 2);
+}

@@ -1,0 +1,25 @@
+module test106;
+
+template foo(T) {
+  auto foo(int val) {
+    int nested() return val;
+    int escaping(T ignored) return nested();
+    return new &escaping;
+  }
+}
+
+struct Bar { }
+class Baz { }
+void main() {
+  auto func1 = foo!int(55);
+  auto val1 = func1(12);
+  writeln "$val1";
+  auto func2 = foo!Bar(55);
+  Bar bar;
+  auto val2 = func2(bar);
+  writeln "$val2";
+  auto func3 = foo!Baz(55);
+  auto baz = new Baz;
+  auto val3 = func3(baz);
+  writeln "$val3";
+}

@@ -1,0 +1,8 @@
+module test45;
+
+import std.process, std.util, std.string;
+
+void main() {
+  auto res = join readback ("markdown.pl", "Hello _World_! 'tis a tag: <a href>");
+  writeln "$res";
+}

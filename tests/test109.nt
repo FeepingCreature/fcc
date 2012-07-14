@@ -1,0 +1,6 @@
+module test109;
+
+void main() {
+  auto test = (0..10).eval[];
+  writeln "$(test.(_2, _5, _6))";
+}

@@ -1,0 +1,7 @@
+module test113;
+
+void main() {
+  auto a = vec3f(1, 2, 3);
+  vec3f b = a.(x,3,z);
+  writeln "$b";
+}

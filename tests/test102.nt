@@ -1,0 +1,12 @@
+module test102;
+
+context test {
+  int[auto~] foo;
+  void mew() {
+    foo ~= 2; foo ~= 3; foo ~= 4;
+    auto val = foo.popEnd();
+    writeln "$val $foo";
+  }
+}
+
+void main() { test.mew(); test.mew(); }

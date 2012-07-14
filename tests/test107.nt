@@ -1,0 +1,10 @@
+module test107;
+void main() {
+  int i;
+  void bar() {
+    class C { void foo() { writeln "$(string-of i)"; writeln "context $(__base_ptr.context)"; writeln "$i"; } }
+    (new C).foo();
+  }
+  i = 3;
+  bar();
+}

@@ -1,0 +1,9 @@
+module test83;
+
+import std.string, std.random;
+
+void main() {
+  string[] s = "su fo ra ko mi pu na rai".split(" ");
+  auto rng = getPRNG 23; int rand() return rng.rand();
+  writeln [for 0..100: s[rand()%$]].join "";
+}

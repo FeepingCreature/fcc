@@ -4,6 +4,7 @@ import sdl, std.random, std.math;
 extern(C) int time(int*);
 
 void main() {
+  if (getenv("TESTSUITE")) return;
   screen (800, 800);
   (string, Object)[0] str;
   int offs;
@@ -19,7 +20,7 @@ void main() {
         auto angle = i * PI2 / j, s = sin angle, c = cos angle, c2 = cos (angle * offs * 0.01 + offs * 0.2) * 0.5 + 0.5;
         display.circle(display.w / 2 + int:(display.w * 0.45 * jf * s),
                        display.h / 2 + int:(display.h * 0.45 * jf * c),
-                       int:(c2 * 16), vec3f(1), fill => vec3f(randf(rng) x 3));
+                       int:(c2 * 16), col => vec3f(1), fill => vec3f(randf(rng) x 3));
       }
     }
     flip;

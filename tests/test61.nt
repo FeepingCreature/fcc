@@ -1,0 +1,7 @@
+module test61;
+import std.file;
+
+void main() {
+  writeln "$(listDirectory \".\")";
+  makeDirectory ("mew", user|group|world);
+}

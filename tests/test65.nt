@@ -1,0 +1,21 @@
+module test65;
+
+interface I {
+  void setter(int i);
+  int getter();
+  alias fp = accessor_property(getter, setter);
+}
+
+class C : I {
+  void setter(int i) { writeln "setter $i"; }
+  int getter() { writeln "getter return 5"; return 5; }
+}
+
+void main() {
+  C c = new C;
+  writeln "pre by class ($(c.fp))";
+  ++c.fp;
+  I i = c;
+  writeln "post by intf ($(i.fp))";
+  i.fp ++;
+}

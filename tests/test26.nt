@@ -1,0 +1,7 @@
+module test26;
+
+void main() {
+  writeln "hi";
+  for int i <- 0..10 writeln "$i";
+  for auto tup <- zip(0..4, 4..8) writeln "$tup";
+}

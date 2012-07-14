@@ -1,0 +1,64 @@
+module test91;
+
+pragma(pkg-config, "clutter-1.0");
+
+import c.clutter.clutter, std.string;
+  
+alias runes = "ᚠᛇᚻ᛫ᛒᛦᚦ᛫ᚠᚱᚩᚠᚢᚱ᛫ᚠᛁᚱᚪ᛫ᚷᛖᚻᚹᛦᛚᚳᚢᛗ
+ᛋᚳᛖᚪᛚ᛫ᚦᛖᚪᚻ᛫ᛗᚪᚾᚾᚪ᛫ᚷᛖᚻᚹᛦᛚᚳ᛫ᛗᛁᚳᛚᚢᚾ᛫ᚻᛦᛏ᛫ᛞᚫᛚᚪᚾ
+ᚷᛁᚠ᛫ᚻᛖ᛫ᚹᛁᛚᛖ᛫ᚠᚩᚱ᛫ᛞᚱᛁᚻᛏᚾᛖ᛫ᛞᚩᛗᛖᛋ᛫ᚻᛚᛇᛏᚪᚾ᛬
+";
+
+alias FONT = "Sans Bold 24px";
+
+defmode CLUTTER_ACTOR "gobject-helper";
+defmode CLUTTER_CONTAINER "gobject-helper <CLUTTER_ACTOR>";
+defmode CLUTTER_STAGE "gobject-helper <CLUTTER_CONTAINER>";
+defmode CLUTTER_TEXT "gobject-helper <CLUTTER_ACTOR>";
+
+int main(string[] args) {
+  ClutterColor text_color, cursor_color, background_color, selected_text_color;
+  text_color.(red, green, blue, alpha) = (0x33, 0xff, 0x33, 0xff);
+  cursor_color.(red, green, blue, alpha) = (0xff, 0x33, 0x33, 0xff);
+  background_color.(red, green, blue, alpha) = (0x00, 0x00, 0x00, 0xff);
+  selected_text_color.(red, green, blue, alpha) = (0x00, 0x00, 0xff, 0xff);
+  
+  if (clutter_init (&__argc, &__argv) != CLUTTER_INIT_SUCCESS)
+    return 1;
+  
+  auto stage = CLUTTER_STAGE _get_default;
+  
+  stage.set_color &background_color;
+  
+  auto text = CLUTTER_TEXT _new_full (FONT, "·", &text_color);
+
+  stage.add (text, null);
+  using text {
+    set_position (40, 30);
+    set_width (1024);
+    set_line_wrap true;
+    set_reactive true;
+    stage.set_key_focus text;
+    set_editable true;
+    set_selectable true;
+    set_cursor_color &cursor_color;
+    set_selected_text_color &selected_text_color;
+  }
+  
+  if (args.length) {
+    g_file_get_contents (toStringz args[0], &gchar* utf8, null, &GError* error);
+    if (error) {
+      utf8 = toStringz "Unable to open $(args[0]): $(error.message)";
+      g_error_free error;
+    }
+    text.set_text utf8;
+  } else {
+    text.set_text runes;
+  }
+  stage.set_size (1024, 768);
+  stage.show();
+  
+  clutter_main ();
+  
+  return 0;
+}

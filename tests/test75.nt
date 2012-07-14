@@ -1,0 +1,8 @@
+module test75;
+
+class A { A[] a; }
+
+void main() {
+  A b = new A;
+  for auto x <- b.a writeln "nya";
+}

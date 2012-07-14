@@ -4,19 +4,19 @@ import std.string;
 
 struct Foo {
   int u;
-  template bar(T) <<EOF
+  template bar(T) {
     void bar(T t) { writeln "Hi, bar here with $t and $u. "; }
-  EOF
-  template baz(alias A) <<EOF
+  }
+  template baz(alias A) {
     alias baz = mixin A.replace("%", "u");
-  EOF
+  }
 }
 
 void main() {
   int foo;
-  template test(T) <<EOF
+  template test(T) {
     void test(T t) writeln "hi - $(string-of T) is $t, and foo $(++foo)";
-  EOF
+  }
   test 5;
   test "hi";
   Foo foo2;
@@ -25,6 +25,6 @@ void main() {
   auto res = foo2.baz!`%+2`;
   writeln "$res";
   auto vec = vec3f(2, 3, 4);
-  vec = vec.ex!`%+2`;
+  vec = vec + 2;
   writeln "$(vec.(x, y, z))";
 }

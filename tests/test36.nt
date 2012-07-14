@@ -1,0 +1,3 @@
+module test36;
+
+void main() { for 0..10 writeln "Hello World"; }

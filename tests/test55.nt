@@ -1,0 +1,5 @@
+module test55;
+
+void main() {
+  writeln "$(1K)";
+}

@@ -1,0 +1,10 @@
+module test62;
+
+void main()::
+
+auto mew = cat("A".."Z", "a".."z", "0".."9").eval[];
+auto myuu = string:mew;
+writeln "$(mew.length) $mew";
+writeln "$(byte[]: myuu)";
+printf("%.*s\n", myuu.length, myuu.ptr);
+writeln "$(myuu.length) $(myuu[(0, 1, 2, 3, 4)]) $myuu";

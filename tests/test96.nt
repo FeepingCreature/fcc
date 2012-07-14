@@ -1,0 +1,20 @@
+module test96;
+
+void main() {
+  writeln "I am the main function.";
+  onSuccess writeln "I am the outside guard.";
+  // for int i <- 0..10 {
+  for (int i = 0; i < 10; ++i) {
+    onSuccess writeln "$i loop guard success";
+    if (i < 5) {
+      onSuccess writeln "I am the continue guard";
+      continue;
+    }
+    if (i == 8) {
+      onSuccess writeln "I am the break guard";
+      break;
+    }
+    // \{ continue; }(); // XFAIL
+    writeln "$i";
+  }
+}

@@ -1,0 +1,7 @@
+module test98;
+
+void main() {
+  int* foo;
+  string s = "bar".dup;
+  int b = *foo;
+}

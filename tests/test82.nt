@@ -1,0 +1,11 @@
+module test82;
+
+import std.string, std.util, std.math, std.fun, std.time, std.random;
+
+void main() {
+  Iterator!int it = select(2..100, \(int n)->true);
+  for auto i <- it {
+    writeln "$i";
+    it = it.select new \(int n) -> bool:(n%i);
+  }
+}

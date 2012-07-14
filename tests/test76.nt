@@ -1,0 +1,38 @@
+module test76;
+import turtle, sdl, std.math, std.time;
+
+alias proc = void delegate();
+
+void recur2(int d, proc dg1, void delegate(proc) dg2) {
+  void step(int n) {
+    if (!n) { dg1(); return; }
+    dg2(\->step(n-1));
+  }
+  step d;
+}
+
+void dragon(Turtle t, int n) {
+  recur2(n, &t.forward, \(proc dg) {
+    dg();
+    t.turnLeft(PI/4);
+    dg();
+    for 0..3 {
+      t.turnRight(PI/2);
+      dg();
+    }
+    t.turnLeft(PI/4);
+    // dg();
+  });
+}
+
+void main()::
+if (getenv("TESTSUITE")) return;
+screen(640, 480);
+auto t = new Turtle vec2f(320, 240);
+t.scale 1;
+for int n <- 0..-1 {
+  display.cls vec3f(0);
+  dragon(t, n);
+  flip;
+  sleep 1;
+}

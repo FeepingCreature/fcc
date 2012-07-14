@@ -1,0 +1,3 @@
+module test54;
+
+void main() { writeln "a"; asm `int $3`; writeln "b"; }

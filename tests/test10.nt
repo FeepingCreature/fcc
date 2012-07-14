@@ -1,0 +1,7 @@
+module test10;
+
+import std.c.setjmp;
+
+void main() {
+  writeln "::$(size-of jmp_buf)";
+}

@@ -1,0 +1,7 @@
+module test95;
+
+import std.string, std.util, std.math, std.fun, std.time, std.random;
+
+void main() {
+import std.sort; auto array = [5, 7, 3, 2, 7, 1, 8]; \(int a, b) -> (a < b) #.qsort array[]; writeln "$array";
+}

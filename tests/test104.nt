@@ -1,0 +1,6 @@
+module test104;
+
+void main() {
+  auto foo(int i) { writeln "$i"; return &foo; }
+  foo 2 3 4 5 6;
+}

@@ -1,0 +1,12 @@
+module test37;
+
+import postgres;
+
+void main() {
+  using new Database "host=localhost user=feep dbname=quest"::
+  onSuccess fini;
+  writeln "DB open";
+  for (int id, string name, string mail, string level, int iters, string salt, string pass, string date)
+    <- exec "select * from \"user\"; "
+    writeln "id: $id name: $name mail: $mail";
+}

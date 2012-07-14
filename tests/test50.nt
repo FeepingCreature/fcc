@@ -1,0 +1,9 @@
+module test50;
+
+struct S { void delegate() bar; }
+
+void main() {
+  void foo(string s) { }
+  S s;
+  s.bar = &foo;
+}

@@ -1,0 +1,11 @@
+module test77;
+import std.thread;
+class Mew { void listen() writeln "hi"; }
+void main() {
+  auto tp = new ThreadPool 4;
+  using new Mew {
+    tp.addTask \that.listen;
+    tp.waitComplete;
+  }
+  ["mew", "mew"] ~ ["nya", "nya"];
+}

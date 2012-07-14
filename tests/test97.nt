@@ -1,0 +1,10 @@
+module test97;
+
+enum Foo { Foo, Bar, Baz }
+
+void main() {
+  if (getenv("TESTSUITE")) return;
+  auto line = readln();
+  auto val = Foo.parse line;
+  writeln "$val";
+}

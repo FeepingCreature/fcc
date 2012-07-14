@@ -1,0 +1,10 @@
+module test29;
+
+struct S { int a, b; alias c = a + b; }
+
+S foo() { S res; res.a = 2; res.b = 3; writeln "foo called"; return res; }
+
+void main() {
+  int c = foo().c;
+  writeln "=> $c";
+}

@@ -1,0 +1,7 @@
+module test93;
+
+void main() {
+  int i = 3;
+  onExit[i] writeln "$i";
+  i = 5;
+}

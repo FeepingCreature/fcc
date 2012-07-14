@@ -1,0 +1,7 @@
+module test78;
+
+void main() {
+  int[auto~] foo;
+  // foo ~= new type-of foo (4 - foo.length);
+  foo ~= new int[auto~] 4;
+}

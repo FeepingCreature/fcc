@@ -1,0 +1,10 @@
+module test85;
+
+import std.random;
+
+void main() {
+  auto rand = &(getPRNG 23).rand;
+  auto mkc() { int i; return new \->i++; }
+  auto dg1 = mkc(), dg2 = mkc();
+  for 0..10 writeln "$([dg1,dg2][rand() % $]())";
+}

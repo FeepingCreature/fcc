@@ -1,0 +1,8 @@
+module test27;
+
+import std.util;
+
+void main() {
+  for (int i, string val) <- zip(1..10, loop ["even", "odd"])
+    writeln "$val";
+}

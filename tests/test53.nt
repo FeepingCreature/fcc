@@ -1,0 +1,17 @@
+module test53;
+import std.socket, std.string, std.time, std.thread;
+void main() using connect("irc.esper.net", 6667) {
+  if (getenv("TESTSUITE")) return;
+auto n = "hibot";
+void S(string s) sendAll byte[]:"$s\r\n";
+new ThreadPool 1 #.addTask \() while auto line <- splitAt(castIter!string readsocket that, "\r\n")
+  if auto rest=line.startsWith "PING" S "PONG$rest";
+;
+S "NICK $n";
+S "USER $n $n $n $n $n";
+sleep 8;
+S "JOIN #navajo";
+S "PRIVMSG #navajo :hi";
+sleep 8;
+S "QUIT";
+}

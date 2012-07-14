@@ -1,0 +1,9 @@
+module test72;
+
+void foo() {
+  static for (int i <- 0..2) {
+    writeln "$i";
+  }
+}
+
+void main() foo();

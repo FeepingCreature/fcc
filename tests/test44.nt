@@ -1,0 +1,22 @@
+module test44;
+
+import std.fun;
+
+template take(T) {
+  auto take(T t) {
+    alias Elem = type-of-elem t[0];
+    Elem[auto~] res;
+    for 0..t[1] {
+      if auto val <- t[0] res ~= val;
+      else raise-error new Error "Not enough elements available to take $(t[1])";
+    }
+    return res[];
+  }
+}
+
+void main() {
+  auto seq = 0..-1;
+  auto seq2 = [for i <- seq.select \(int x) -> x%3 == 0: i*i];
+  auto test = seq2.take 10;
+  writeln "$test";
+}

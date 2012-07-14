@@ -1,0 +1,6 @@
+module test30;
+
+void main() {
+  if int a = 5 writeln "$a";
+  else if int a = 5 writeln "$a";
+}

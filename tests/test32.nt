@@ -1,0 +1,10 @@
+module test32;
+void main() {
+  void foo() { }
+  void bar() { }
+  int a, b;
+  if (a)
+   if (b)
+     foo();
+  else bar();
+}

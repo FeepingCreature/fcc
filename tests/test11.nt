@@ -1,0 +1,7 @@
+module test11;
+
+void main() {
+  alias x = 3;
+  auto foo = x x x;
+  writeln "$foo";
+}

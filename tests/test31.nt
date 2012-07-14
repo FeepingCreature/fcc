@@ -1,0 +1,8 @@
+module test31;
+
+void main() {
+  float f = 16384, g = f;
+  alias i = *int*:&g;
+  i++;
+  writeln "$(g-f)";
+}

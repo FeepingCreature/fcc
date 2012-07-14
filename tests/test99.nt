@@ -1,0 +1,15 @@
+module test99;
+
+interface A { void foo(); }
+interface B { void bar(); }
+
+class Class : A, B {
+  void foo() writeln "foo";
+  void bar() writeln "bar";
+}
+
+void main() {
+  <A,B> ts = new Class;
+  ts.foo();
+  ts.bar();
+}

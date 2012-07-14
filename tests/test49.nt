@@ -1,0 +1,15 @@
+module test49;
+
+struct Accum {
+  int sum;
+  // This crashes the compiler.
+  auto add(int i) { sum += i; return &add; }
+  alias implicit-cast = sum;
+  alias implicit-cast-2 = &add;
+}
+
+void main() {
+  Accum ac;
+  ac(2)(3)(4)(5);
+  writeln "$(int:ac)";
+}

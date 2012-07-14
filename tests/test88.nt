@@ -1,0 +1,7 @@
+module test88;
+
+(int, int) test() { return (2,3); }
+
+void main() {
+  test()[0];
+}

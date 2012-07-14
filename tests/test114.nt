@@ -1,0 +1,8 @@
+module test114;
+
+void main() {
+  int i = 10;
+  void print(int i) writeln "$i";
+  i.print;
+  8 #.print;
+}

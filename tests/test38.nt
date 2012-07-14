@@ -1,0 +1,6 @@
+module test38;
+
+void main() {
+  float f;
+  f  = double:0;
+}

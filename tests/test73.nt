@@ -1,0 +1,13 @@
+module test73;
+import std.socket, std.thread;
+void main() using new ThreadPool 4 {
+  if (getenv("TESTSUITE")) return;
+  void handle(Socket sock) {
+    while auto data <- readsocket sock sock.sendAll data;
+  }
+  using new Socket {
+    bind new TcpAddress("0.0.0.0", 3090);
+    listen();
+    while auto sock = accept() addTask new \handle(sock);
+  }
+}

@@ -1,0 +1,5 @@
+module test74;
+import c.GLES.gl;
+
+void main() {
+}

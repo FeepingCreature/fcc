@@ -1,0 +1,12 @@
+module test70;
+
+import test71;
+
+class B : A {
+  B foo() { return this; }
+}
+
+void main() {
+  auto q = new B;
+  q.foo();
+}

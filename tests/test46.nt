@@ -1,0 +1,34 @@
+module test46;
+import c.X11.Xlib;
+pragma(lib, "X11");
+
+import std.time, std.math;
+
+void switchLed(int led, bool state) {
+  auto dpy = XOpenDisplay(null);
+  onExit XCloseDisplay dpy;
+  XKeyboardControl values;
+  values.led_mode = int:state;
+  values.led = led;
+  size_t mode = size_t: 0b11_0000; // KBLed | KBLedMode
+  XChangeKeyboardControl(dpy, mode, &values);
+}
+
+void main() {
+  if (getenv("TESTSUITE")) return;
+  auto start = sec();
+  void run-and-sleep(void delegate() dg, float t) {
+    auto a = sec();
+    dg();
+    auto b = sec();
+    auto d = float:(b - a);
+    if (t > d) sleep(t - d);
+  }
+  while (true) {
+    float t = float:(sec() - start);
+    float st = (sin (t * 15) + 1) / 2; // 0..1
+    float f = 50;
+    run-and-sleep (\() { switchLed(3, true); }, (1 - st) / f);
+    run-and-sleep (\() { switchLed(3, false); }, st / f);
+  }
+}

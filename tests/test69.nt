@@ -1,0 +1,15 @@
+module test69;
+
+class A { void foo() { writeln "mewhi"; } }
+
+void main() {
+  A a;
+  a?.foo();
+  a = new A;
+  a?.foo();
+  void delegate()[] b;
+  b ~= void delegate(): null;
+  b[0]?();
+  b[0] = \{ writeln "mewtwo hi"; };
+  b[0]?();
+}

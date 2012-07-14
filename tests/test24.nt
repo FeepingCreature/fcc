@@ -1,0 +1,8 @@
+module test24;
+
+void main() {
+  auto iter = 0..10;
+  int zero, one, two;
+  eval zero <- iter; eval one <- iter; eval two <- iter;
+  writeln "$zero, $one, $two";
+}

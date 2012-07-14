@@ -1,0 +1,12 @@
+module test59;
+
+auto mew() {
+  struct S { int a, b; }
+  using S s { a = 2; b = 3; return that; }
+}
+
+void main() {
+  int two = mew().a;
+  // S s; // errors
+  writeln "$two";
+}

@@ -1,0 +1,12 @@
+module auto;
+
+import std.string, std.util, std.math, std.fun, std.time, std.random;
+
+void main() {
+  int a;
+  template hi(T) {
+    void hi() { writeln "hi I am $a"; }
+  }
+  a = 4;
+  hi!int;
+}
