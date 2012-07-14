@@ -149,7 +149,7 @@ bool isNormal(dchar c) {
   return (c >= 'a' && c <= 'z') ||
          (c >= 'A' && c <= 'Z') ||
          (c >= '0' && c <= '9') ||
-         mixin(matchOneOf("_" "αβγδεζηθικλμνξοπρσςτυφχψω" "µð", "c"));
+         mixin(matchOneOf("_" "αβγδεζηθικλμνξοπρσςτυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ" "µð", "c"));
 }
 
 string lastAccepted, lastAccepted_stripped;
