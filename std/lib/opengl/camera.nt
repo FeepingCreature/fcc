@@ -5,9 +5,13 @@ import std.math, std.lib.opengl;
 abstract class Camera {
   vec3f pos;
   void apply();
-  void unrotate(); // undo just the rotation transforms
-  vec3f apply(vec3f world);   // translate from world space to device space
-  vec3f invert(vec3f screen); // translate from device space to world space
+  // undo just the rotation transforms
+  void unrotate();
+  // translate from world space to device space
+  vec3f apply(vec3f world);
+  // translate from device space to world space
+  // if transforms = true, translate from local space to world space
+  vec3f invert(vec3f screen, bool transforms = false);
   float aspect;
   import std.callset;
   CallSet!void onMovement;
@@ -25,21 +29,43 @@ abstract class PerspectiveCam : Camera {
     gluPerspective args;
   }
   void unrotate();
-  vec3f invert(vec3f v) using mode GL {
-    float x 16 modelview, projection;
-    v = v * 2 - 1;
-    v.y = -v.y; // Oh OpenGL.
-    GetFloatv(MODELVIEW_MATRIX, modelview.ptr);
-    GetFloatv(PROJECTION_MATRIX, projection.ptr);
-    matrix4x4-invert &modelview;
-    matrix4x4-invert &projection;
-    return mat-multiply(modelview, mat-multiply(projection, vec4f(v.x, v.y, v.z, 1))).(xyz/w);
+  vec3f invert(vec3f v, bool transforms = false) using mode GL {
+    float x 16 mvmat;
+    GetFloatv(MODELVIEW_MATRIX, mvmat.ptr);
+    if (transforms) {
+      float x 16 origmat;
+      using ModelviewMatrix {
+        apply;
+        GetFloatv(MODELVIEW_MATRIX, origmat.ptr);
+      }
+      void transpose(float x 16* matp) {
+        float x 16 temp = void;
+        alias mat = *matp;
+        for int i <- 0..4 {
+          temp[i]      = mat[i*4];
+          temp[i + 4]  = mat[i*4 + 1];
+          temp[i + 8]  = mat[i*4 + 2];
+          temp[i + 12] = mat[i*4 + 3];
+        }
+        mat = temp;
+      }
+      matrix4x4-invert &origmat;
+      return mat-multiply(origmat, mat-multiply(mvmat, vec4f(v, 1))).(xyz/w);
+    } else {
+      v = v * 2 - 1;
+      v.y = -v.y; // Oh OpenGL.
+      matrix4x4-invert &mvmat;
+      float x 16 prmat;
+      GetFloatv(PROJECTION_MATRIX, prmat.ptr);
+      matrix4x4-invert &prmat;
+      return mat-multiply(mvmat, mat-multiply(prmat, vec4f(v, 1))).(xyz/w);
+    }
   }
   vec3f apply(vec3f v) using mode GL {
-    float x 16 modelview, projection;
-    GetFloatv(MODELVIEW_MATRIX, modelview.ptr);
-    GetFloatv(PROJECTION_MATRIX, projection.ptr);
-    auto res = mat-multiply(projection, mat-multiply(modelview, vec4f(v.x, v.y, v.z, 1))).(xyz/w);
+    float x 16 mvmat, prmat;
+    GetFloatv(MODELVIEW_MATRIX, mvmat.ptr);
+    GetFloatv(PROJECTION_MATRIX, prmat.ptr);
+    auto res = mat-multiply(prmat, mat-multiply(mvmat, vec4f(v, 1))).(xyz/w);
     res.y = -res.y;
     res = res * 0.5 + 0.5;
     return res;
@@ -79,6 +105,9 @@ template WorldCam(T) {
       Translatef (-pos);
     }
     void unrotate() using mode GL {
+      auto origin = invert(vec3f(0), => transforms);
+      apply;
+      Translatef origin;
       mixin calc;
       vert.Rotatef -vec3f.Y;
       horz.Rotatef -vec3f.X;
