@@ -569,7 +569,7 @@ src_cleanup_redo: // count, then copy
       auto st2 = stmt;
       if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
         string ident;
-        gotIdentifier(st2, ident);
+        if (!gotIdentifier(st2, ident)) goto giveUp1;
         if (st2.accept("{")) {
           auto startstr = st2;
           auto st = fastalloc!(Structure)(ident);
