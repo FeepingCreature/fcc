@@ -749,11 +749,11 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       
       foreach (param; params) {
         if (param.valueType() != Single!(Void)) {
+          auto sz = param.valueType().size;
+          if (sz < 4) sz = 4;
           if (stdcall) {
-            af.currentStackDepth -= param.valueType().size;
+            af.currentStackDepth -= sz;
           } else {
-            auto sz = param.valueType().size;
-            if (sz < 4) sz = 4;
             af.sfree(sz);
           }
         }
