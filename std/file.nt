@@ -48,9 +48,9 @@ platform(default) {
   alias read-mode = O_RDONLY, tweak-mode = 0;
 }
 
-platform(i686-mingw32) {
-  alias read-mode = O_RDONLY | O_BINARY; // FUCK YOU SO HARD MICROSOFT WINDOWS.
-  alias tweak-mode = O_BINARY;
+platform(*-mingw*) {
+  alias read-mode = O_RDONLY;
+  alias tweak-mode = O_BINARY; // FUCK YOU SO HARD MICROSOFT WINDOWS.
 }
 
 platform(arm*) {
