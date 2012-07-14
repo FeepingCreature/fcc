@@ -30,7 +30,6 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
       return fastalloc!(PrefixTemplate)(firstParam, templ);
     }
     PrefixFunction processFun(Function fun) {
-      // if (fastcast!(NestedFunction)~ fun) return null;
       auto params = fun.getParams();
       if (!params.length) return null;
       auto pt = params[0].type;

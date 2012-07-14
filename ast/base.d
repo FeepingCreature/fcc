@@ -364,20 +364,24 @@ struct foldopt {
 static int stmt_and_t_marker;
 
 void sae_markercheck(int marker) { // outside the template (because incremental builds)
-  // if (marker == 8276) asm { int 3; }
+  // if (marker == 6) asm { int 3; }
 }
 
-void sae_debugme(Expr ex) {
+void sae_debugme(Expr ex, int marker) {
+  // if (marker == 6) asm { int 3; }
   // logln(ex);
 }
 
+class StatementAnd {
+  Statement first;
+  Expr second;
+}
+
 template StatementAndT(T) {
-  class StatementAndT : T {
+  class StatementAndT : StatementAnd, T {
     static if (is(T == Expr)) const string NAME = "sae";
     static if (is(T == LValue)) const string NAME = "sal";
     static if (is(T == MValue)) const string NAME = "sam"; // Seriously?
-    Statement first;
-    T second;
     bool permissive;
     int marker;
     this(Statement first, T second, bool permissive = false) {
@@ -401,20 +405,22 @@ template StatementAndT(T) {
     }
     override {
       string toString() { return Format(NAME, " "[], marker, "{"[], first, second, "}"[]); }
-      StatementAndT dup() { return fastalloc!(StatementAndT)(first.dup, second.dup); }
+      StatementAndT dup() { return fastalloc!(StatementAndT)(first.dup, fastcast!(T) (second.dup)); }
       IType valueType() { return second.valueType(); }
       void emitAsm(AsmFile af) {
-        sae_debugme(this);
+        sae_debugme(this, marker);
         if (check) first.emitAsm(af);
         second.emitAsm(af);
       }
       static if (is(T: LValue)) void emitLocation(AsmFile af) {
+        sae_debugme(this, marker);
         if (check) first.emitAsm(af);
-        second.emitLocation(af);
+        fastcast!(T) (second).emitLocation(af);
       }
       static if (is(T: MValue)) void emitAssignment(AsmFile af) {
+        sae_debugme(this, marker);
         if (check) first.emitAsm(af);
-        second.emitAssignment(af);
+        fastcast!(T) (second).emitAssignment(af);
       }
     }
   }

@@ -382,6 +382,8 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(StaticArray)(ex.valueType()) || !fastcast!(CValue) (ex))
       return null;
+    if (auto sa = fastcast!(StatementAnd) (ex))
+      return mkStatementAndExpr(sa.first, staticToArray(sa.second));
     return staticToArray(ex);
   };
 }
@@ -445,10 +447,15 @@ class ArrayExtender : Expr {
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(Array) (ex.valueType()) && !fastcast!(ExtArray) (ex.valueType())) return null;
-    if (auto lv = fastcast!(LValue)~ ex)
+    if (auto lv = fastcast!(LValue) (ex)) {
+      if (auto sal = fastcast!(StatementAndLValue) (ex))
+        return fastalloc!(StatementAndLValue)(sal.first, arrayToStruct!(LValue) (fastcast!(LValue) (sal.second)));
       return arrayToStruct!(LValue) (lv);
-    else
+    } else {
+      if (auto sae = fastcast!(StatementAndExpr) (ex))
+        return fastalloc!(StatementAndExpr)(sae.first, arrayToStruct!(Expr) (sae.second));
       return arrayToStruct!(Expr) (ex);
+    }
   };
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(Array) (ex.valueType())) return null;

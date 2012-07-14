@@ -14,8 +14,18 @@ class ExprAlias : RelTransformable, Named, Expr {
   override {
     string getIdentifier() { return name; }
     Object transform(Expr relbase) {
+      Statement st;
+      if (auto sa = fastcast!(StatementAnd) (relbase)) {
+        st = sa.first;
+        relbase = sa.second;
+      }
       void delegate(ref Iterable) dg;
       auto it = fastcast!(Iterable) (base);
+      
+      Expr finalize(Expr ex) {
+        if (!st) return ex;
+        return mkStatementAndExpr(st, ex);
+      }
       
       bool needsTransform;
       dg = (ref Iterable iter) {
@@ -24,7 +34,7 @@ class ExprAlias : RelTransformable, Named, Expr {
           needsTransform = true;
       };
       dg(it);
-      if (!needsTransform) return fastcast!(Object) (base);
+      if (!needsTransform) return fastcast!(Object) (finalize(base));
       
       it = it.dup;
       dg = (ref Iterable iter) {
@@ -33,7 +43,7 @@ class ExprAlias : RelTransformable, Named, Expr {
           iter = fastcast!(Iterable) (rt.transform(relbase));
       };
       dg(it);
-      return fastcast!(Object) (it);
+      return fastcast!(Object) (finalize(fastcast!(Expr) (it)));
     }
     void emitAsm(AsmFile af) {
       fail; // Should never happen - the below foldopt should substitute them

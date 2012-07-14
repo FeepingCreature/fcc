@@ -125,6 +125,7 @@ class CValueAsPointer : Expr {
   this(CValue sup) {
     this.sup = sup;
     if (!sup) fail;
+    if (fastcast!(StatementAnd)(sup)) fail;
   }
   override typeof(this) dup() { return new typeof(this) (sup.dup); }
   mixin defaultIterate!(sup);
