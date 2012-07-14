@@ -1,7 +1,0 @@
-module test87;
-
-import std.string, std.util;
-
-void main() {
-  int i = (2, 2) > 3;
-}

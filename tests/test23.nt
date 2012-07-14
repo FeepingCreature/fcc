@@ -1,3 +1,0 @@
-module test23;
-
-void main() { int e = 00128; writeln "$e"; }

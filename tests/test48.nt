@@ -1,6 +1,0 @@
-module test48;
-
-void main() {
-  void foo() { }
-  foo 3;
-}

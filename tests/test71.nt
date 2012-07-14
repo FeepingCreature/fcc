@@ -1,5 +1,0 @@
-module test71;
-
-import test70;
-
-class A { B foo() { writeln "Not available yet. "; } }

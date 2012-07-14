@@ -1,3 +1,0 @@
-module test63;
-
-void main() { writeln "$(1/0)"; }
