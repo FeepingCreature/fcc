@@ -333,12 +333,22 @@ class StructLiteral : Expr {
   Structure st;
   Expr[] exprs;
   int[] offsets;
+  final void validate() {
+    int offset = valueType().size;
+    foreach_reverse (i, ex; exprs) {
+      int wanted_pos = offsets[i];
+      int emit_pos = wanted_pos + ex.valueType().size;
+      if (emit_pos > offset) { logln(i, ": for ", st, ": ", emit_pos, " > ", offset, " (", offsets, "): ", exprs); fail; }
+      offset = wanted_pos;
+    }
+  }
   this(Structure st, Expr[] exprs, int[] offsets) {
     if (exprs.length && !offsets.length) fail;
     this.st = st;
     foreach (ex; exprs) if (!ex) fail;
     this.offsets = offsets.dup;
     this.exprs = exprs.dup;
+    validate();
   }
   private this() { }
   mixin defaultIterate!(exprs);
@@ -354,13 +364,13 @@ class StructLiteral : Expr {
     }
     IType valueType() { return st; }
     void emitAsm(AsmFile af) {
+      validate();
       mixin(mustOffset("st.size"[]));
       int offset = valueType().size;
       foreach_reverse (i, ex; exprs) {
         int wanted_pos = offsets[i];
         int emit_pos = wanted_pos + ex.valueType().size;
         if (emit_pos < offset) af.salloc(offset - emit_pos);
-        if (emit_pos > offset) fail;
         ex.emitAsm(af);
         offset = wanted_pos;
       }

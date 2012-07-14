@@ -104,7 +104,17 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
                      "pos"[], pos);
     }
     Expr slice(Expr ex, Expr from, Expr to) {
-      // TODO specialize for int from, to
+      auto ifrom = fastcast!(IntExpr) (fold(from)), ito = fastcast!(IntExpr) (fold(to));
+      if (ifrom && ito) {
+        auto res = new ConstIntRange(this.from+ifrom.num, this.to+ito.num);
+        return reinterpret_cast(res, lookupOp("+",
+          lookupOp("-",
+            reinterpret_cast(Single!(SysInt), ex),
+            mkInt(this.from)
+          ),
+          ifrom
+        ));
+      }
       return iparse!(Expr, "slice_range"[], "tree.expr"[])
                     ("(ex + from) .. (ex + to)"[],
                      "ex"[], reinterpret_cast(Single!(SysInt), ex),
@@ -407,10 +417,16 @@ class ForIter(I) : Type, I {
       }
       Expr slice(Expr ex, Expr from, Expr to) {
         auto wr = castToWrapper(ex);
-        Expr[] field = [fastcast!(Expr)~ itertype.slice(subexpr(wr.dup), from, to),
-                        fastalloc!(Filler)(itertype.elemType())];
-        if (extra) field ~= extra;
         auto st = fastcast!(Structure) (wrapper);
+        auto slice = fastcast!(Expr) (itertype.slice(subexpr(wr.dup), from, to));
+        if (slice.valueType().size != st.selectMap!(RelMember, "$.type.size()")()[0]) {
+          logln("Weird thing: slice type ", slice.valueType(), " differs from native slice ", st.selectMap!(RelMember, "$.type")()[0]);
+          logln("you probably tried to slice a 'for' range over a const-int subrange with args that aren't const ints. ");
+          logln("for compiler-internal reasons this cannot be supported. we apologize for the inconvenience. ");
+          fail;
+        }
+        Expr[] field = [slice, fastalloc!(Filler)(itertype.elemType())];
+        if (extra) field ~= extra;
         return fastalloc!(RCE)(this,
           fastalloc!(StructLiteral)(st, field, st.selectMap!(RelMember, "$.offset"[])()));
       }
