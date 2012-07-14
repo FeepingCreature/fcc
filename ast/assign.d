@@ -17,7 +17,7 @@ class _Assignment(T) : LineNumberedStatementClass {
       logln("Can't assign: "[], t);
       logln(" of "[], t.valueType());
       logln(" <- "[], e.valueType());
-      // fail;
+      fail;
       throw new Exception("Assignment type mismatch! "[]);
     }
     target = t;
