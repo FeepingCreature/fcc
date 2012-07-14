@@ -3,7 +3,7 @@ module test47;
 import std.string, std.process;
 
 void main() {
-  auto files = ("cat".readback("ls".readback)).splitAt("\n");
+  auto files = ("cat".readback("ls".readback())).splitAt("\n");
   writeln "$([for file <- files: file.dup].eval)";
   auto data = join readback("wget", ["-q", "-O-", "http://www.google.de/"]);
   writeln "$data";

@@ -2,15 +2,18 @@ module test41;
 
 import std.file, sdl;
 
+pragma(pkg-config, "librsvg-2.0");
+
 import c.librsvg.rsvg;
 
 void main() {
-  auto svgdata = readAll "Example.svg";
+  if (getenv "TESTSUITE") return;
+  auto svgdata = readAll "../Example.svg";
   // init GLib
   g_type_init();
   GdkPixbuf* pb;
   // render svg to pixbuf
-  prefix rsvg_handle using _new() {
+  using prefix rsvg_handle using _new() {
     if (!_write(svgdata.(guchar*:ptr, gsize:length), null))
       raise new Error "SVG decoding failed! ";
     if (!_close(null))
@@ -19,7 +22,7 @@ void main() {
     _free();
   }
   // render pixbuf to sdl surface
-  prefix gdk_pixbuf_get using pb {
+  using prefix gdk_pixbuf_get using pb {
     int width = _width(), height = _height();
     assert(_bits_per_sample() == 8);
     assert(_n_channels() == 4);
