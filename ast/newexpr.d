@@ -235,10 +235,10 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   text = t2;
   
-  return fastcast!(Object)~ iparse!(Expr, "new_value"[], "tree.expr"[])
-    ("type*:mem.calloc(1, size-of type)"[],
+  return fastcast!(Object)~ reinterpret_cast(new Pointer(ty), iparse!(Expr, "new_value"[], "tree.expr"[])
+    ("mem.calloc(1, size-of type)"[],
      "type"[], ty
-    );
+    ));
 }
 mixin DefaultParser!(gotNewValueExpr, "tree.expr.new.value"[], "2"[], "new"[]);
 
