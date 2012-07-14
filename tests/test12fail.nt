@@ -1,0 +1,16 @@
+module test12fail;
+
+class A {
+  class SubA {
+    void bar() { writeln "bar under SubA under A: $context"; }
+  }
+  SubA foo() { return new SubA; }
+}
+
+class C {
+  class SubC : A.SubA { }
+  A.SubA foo() { return new SubC; }
+}
+
+void main() {
+}

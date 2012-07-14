@@ -1,6 +1,6 @@
 module test70;
 
-import test71;
+import test71fail;
 
 class B : A {
   B foo() { return this; }

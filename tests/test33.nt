@@ -1,6 +1,7 @@
 module test33;
 import sdl, sdl_ttf;
 void main() {
+  if (getenv("TESTSUITE")) return;
   screen(640, 480);
   new TTF_FontClass(void[]:import("Vera.ttf"), 16)
   #.render("Hello World")

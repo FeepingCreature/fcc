@@ -8,7 +8,7 @@ template take(T) {
     Elem[auto~] res;
     for 0..t[1] {
       if auto val <- t[0] res ~= val;
-      else raise-error new Error "Not enough elements available to take $(t[1])";
+      else raise new Error "Not enough elements available to take $(t[1])";
     }
     return res[];
   }

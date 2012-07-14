@@ -1,5 +1,5 @@
 module test53;
-import std.socket, std.string, std.time, std.thread;
+import std.socket, std.string, std.time, std.thread, std.process;
 void main() using connect("irc.esper.net", 6667) {
   if (getenv("TESTSUITE")) return;
 auto n = "hibot";

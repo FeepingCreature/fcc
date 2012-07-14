@@ -1,5 +1,5 @@
 module test90;
-import std.macros.switchover, std.string;
+import std.macros.switchover, std.string, std.process;
 void game(int min,max) {
   auto guess = min+max #/2;
   writeln "Is your number $guess (y|h|l)?";

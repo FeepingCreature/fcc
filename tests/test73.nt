@@ -1,5 +1,5 @@
 module test73;
-import std.socket, std.thread;
+import std.socket, std.thread, std.process;
 void main() using new ThreadPool 4 {
   if (getenv("TESTSUITE")) return;
   void handle(Socket sock) {

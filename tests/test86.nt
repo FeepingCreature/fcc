@@ -23,12 +23,13 @@ void checkError(string err) {
 import c.SDL13.SDL;
 
 void main() {
+  if (getenv("TESTSUITE")) return;
   printf("init sdl\n");
   if (int err = SDL_Init(SDL_INIT_VIDEO)) < 0 {
     raise new Error "Failed to init SDL: $err";
   }
   
-  prefix SDL_GL_ {
+  using prefix SDL_GL_ {
     writeln "specify gl 4.2";
     CONTEXT_MAJOR_VERSION.SetAttribute 4;
     CONTEXT_MINOR_VERSION.SetAttribute 2;
@@ -40,18 +41,18 @@ void main() {
   
   writeln "create window";
   SDL_Window* window;
-  prefix SDL_ 
+  using prefix SDL_ 
   if (auto w = CreateWindow("Test case", WINDOWPOS_CENTERED, WINDOWPOS_CENTERED, 640, 480, WINDOW_OPENGL | WINDOW_SHOWN))
     window = w;
   else
-    raise new Error "Failed to create window.";
+    raise new sys.Error "Failed to create window.";
   
   writeln "create 4.2 context";
   
   auto context = window.SDL_GL_CreateContext();
   if (!context) raise new Error "Failed to create context.";
   
-  mode GL::
+  using mode GL::
   writeln CToString GetString(VERSION);
   
   writeln "create program";

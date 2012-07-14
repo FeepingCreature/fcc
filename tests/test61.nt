@@ -3,5 +3,5 @@ import std.file;
 
 void main() {
   writeln "$(listDirectory \".\")";
-  makeDirectory ("mew", user|group|world);
+  // makeDirectory ("mew", user|group|world);
 }

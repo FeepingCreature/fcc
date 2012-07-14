@@ -1,6 +1,6 @@
 module test51;
 
-import std.boehm, std.time;
+import std.boehm, std.time, std.process;
 
 void main() {
   initBoehm false;

@@ -3,8 +3,10 @@ module test92;
 import std.(file, time, lib.(freetype2, opengl.(, sdl)));
 
 void main() {
+  import std.process;
+  if (getenv("TESTSUITE")) return;
   auto wnd = new SDLWindow;
-  auto font = new Font(readAll "Vera.ttf", 16, 1200);
+  auto font = new std.lib.freetype2.Font(readAll "Vera.ttf", 16, 1200);
   FontStyle fs;
   fs.color = vec4f(1);
   fs.chars = "Hello World".length;

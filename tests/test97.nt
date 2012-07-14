@@ -1,5 +1,7 @@
 module test97;
 
+import std.process;
+
 enum Foo { Foo, Bar, Baz }
 
 void main() {

@@ -17,6 +17,8 @@ defmode CLUTTER_STAGE "gobject-helper <CLUTTER_CONTAINER>";
 defmode CLUTTER_TEXT "gobject-helper <CLUTTER_ACTOR>";
 
 int main(string[] args) {
+  import std.process;
+  if (getenv("TESTSUITE")) return;
   ClutterColor text_color, cursor_color, background_color, selected_text_color;
   text_color.(red, green, blue, alpha) = (0x33, 0xff, 0x33, 0xff);
   cursor_color.(red, green, blue, alpha) = (0xff, 0x33, 0x33, 0xff);

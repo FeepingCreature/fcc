@@ -1,7 +1,7 @@
 module test8;
 import std.thread, std.string;
 void main() {
-  auto tp = mkThreadPool(4); onExit tp.waitComplete;
+  auto tp = new ThreadPool 4; onExit tp.waitComplete;
   while (auto word <- "I put a thread in your thread so you can compute while you compute".split(" "))
     tp.addTask new delegate void() { writeln "$word"; };
 }

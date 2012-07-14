@@ -1,0 +1,6 @@
+module test48fail;
+
+void main() {
+  void foo() { }
+  foo 3;
+}

@@ -1,0 +1,9 @@
+module test21fail;
+
+void main() {
+  bool b = true, c = true;
+  if b
+    if c writeln "Hello World";
+  else
+    if !c writeln "Fine then. ";
+}

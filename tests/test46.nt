@@ -2,7 +2,7 @@ module test46;
 import c.X11.Xlib;
 pragma(lib, "X11");
 
-import std.time, std.math;
+import std.time, std.math, std.process;
 
 void switchLed(int led, bool state) {
   auto dpy = XOpenDisplay(null);

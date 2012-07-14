@@ -2,7 +2,7 @@ module test3;
 
 import sys, std.c.setjmp;
 
-class Forble { }
+class Forble : Signal { void init() super.init "Forble"; }
 class Garble : Forble { }
 
 void main(int argc, char** argv) {
@@ -16,5 +16,5 @@ void main(int argc, char** argv) {
   }
   writeln "$(i++)";
   onExit writeln ("Failure guard called! ");
-  raise-signal (new Garble);
+  raise new Garble;
 }

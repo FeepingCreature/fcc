@@ -1,0 +1,25 @@
+module test1;
+
+class A {
+  class SubA {
+    void bar() { writeln "bar under SubA under A: $context"; }
+  }
+  SubA foo() { return new SubA; }
+}
+
+class B : A {
+  class SubB : SubA {
+    void bar() { writeln "bar under subB under B: $context"; }
+  }
+  SubA foo() { return new SubB; }
+}
+
+class C {
+  class SubC : A.SubA { }
+  A.SubA foo() { return new SubC; }
+}
+
+void main() {
+  new A #.foo() #.bar();
+  new B #.foo() #.bar();
+}
