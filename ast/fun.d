@@ -38,8 +38,11 @@ class FunSymbol : Symbol {
     string res = fun.mangleSelf();
     if (fun.type.stdcall) {
       int size;
-      foreach (entry; fun.type.params)
-        size += entry.type.size();
+      foreach (entry; fun.type.params) {
+        auto sz = entry.type.size();
+        if (sz < 4) sz = 4;
+        size += sz;
+      }
       res ~= qformat("@"[], size);
     }
     return res;
