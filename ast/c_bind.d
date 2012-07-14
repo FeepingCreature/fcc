@@ -569,7 +569,7 @@ src_cleanup_redo: // count, then copy
       auto st2 = stmt;
       if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
         string ident;
-        if (!gotIdentifier(st2, ident)) goto giveUp1;
+        gotIdentifier(st2, ident);
         if (st2.accept("{")) {
           auto startstr = st2;
           auto st = fastalloc!(Structure)(ident);
@@ -651,7 +651,7 @@ src_cleanup_redo: // count, then copy
                 st2 = name;
               } else {
                 // alias to void for now.
-                add(ident, fastalloc!(TypeAlias)(Single!(Void), ident));
+                if (ident) add(ident, fastalloc!(TypeAlias)(Single!(Void), ident));
                 static if (debugStructs) logln("can't handle the ", st2, ". fail. ");
                 goto giveUp1; // can't handle yet
               }
