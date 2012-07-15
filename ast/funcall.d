@@ -252,6 +252,11 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
 bool cantBeCall(string s) {
   // brackets are always implicit terminators. this prevents the ugliness of };
   // if (s.hadABracket()) return true;
+  auto s2 = s;
+  if (s2.hadABracket()) {
+    while (s2.length && s2[0] == ' ') s2 = s2[1..$];
+    if (s2.length && (s2[0] == '\r' || s2[0] == '\n')) return true;
+  }
   return s.accept(".") || s.accept("{");
 }
 
