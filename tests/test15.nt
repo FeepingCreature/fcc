@@ -1,4 +1,4 @@
-module test12;
+module test15;
 
 void main() {
   // will be called
