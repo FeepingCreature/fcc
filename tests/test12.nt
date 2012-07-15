@@ -1,0 +1,17 @@
+module test12;
+
+void main() {
+  // will be called
+  bool res;
+  \(int i) { res = true; } 5;
+  // will be called
+  auto dg = \(int i) { res &= true; }
+  dg
+  5;
+  // won't be called
+  \(void delegate() dg) { } $ \{
+    res = false;
+  }
+  5;
+  assert res;
+}
