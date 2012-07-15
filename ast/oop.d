@@ -444,7 +444,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     scope(success) {
       if (isabstract() && !declared_abstract) {
         csstart.failparse("Class '"[], name, "' contains abstract functions ("[],
-          (getAbstractFuns() /map/ ex!("x -> x.name"[])).join(", "[]), "[]), but is not declared abstract! "[]);
+          (getAbstractFuns() /map/ ex!("x -> x.name"[])).join(", "[]), "), but is not declared abstract! "[]);
       }
     }
     

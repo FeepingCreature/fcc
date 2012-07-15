@@ -247,7 +247,10 @@ src_cleanup_redo: // count, then copy
     bool unsigned;
     if (accept("_Bool")) return Single!(Char);
     if (accept("unsigned")) unsigned = true;
-    else accept("signed");
+    else {
+      accept("signed");
+      accept("__signed__"); // gcc??
+    }
     
     if (accept("long")) {
       if (accept("int")) return Single!(SysInt);
