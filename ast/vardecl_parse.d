@@ -84,7 +84,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       sc.add(ea);
     }
     if (isScopeDecl) {
-      auto vt = var.valueType();
+      auto vt = resolveType(var.valueType());
       if (fastcast!(Array) (vt) || fastcast!(ExtArray) (vt) || showsAnySignOfHaving(var, "free")) {
         sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
                           (`var.free;`, "var", var));
