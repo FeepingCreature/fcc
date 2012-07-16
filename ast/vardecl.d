@@ -189,18 +189,6 @@ Expr tmpize_if_possible(Expr ex, Statement* late_init = null) {
   return var;
 }
 
-// create read-only temporary if needed
-extern(C) CValue ast_vardecl_cvize(Expr ex, Statement* late_init = null) {
-  if (auto cv = fastcast!(CValue) (ex)) return cv;
-  if (!namespace().get!(Scope)) {
-    logln("No Scope beneath "[], namespace(), " for lvizing "[], ex, "!"[]);
-    fail;
-  }
-  return fastcast!(CValue) (tmpize_if_possible(ex, late_init));
-}
-
-CValue cvize(Expr ex, Statement* late_init = null) { return ast_vardecl_cvize(ex, late_init); }
-
 // create temporary if needed
 extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null) {
   if (auto lv = fastcast!(LValue) (ex)) return lv;
