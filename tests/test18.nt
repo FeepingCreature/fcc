@@ -1,0 +1,8 @@
+module test18;
+
+void main() {
+  static if 1 {
+    if (true) { }
+    int u;
+  }
+}

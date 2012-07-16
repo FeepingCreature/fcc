@@ -79,7 +79,7 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
       var.initval.emitAsm(af);
     }
   }
-  override string toString() { return Format("declare "[], var); }
+  override string toString() { return Format("declare [", marker, "] ", var); }
 }
 
 extern(C) int align_boffs(IType, int);
@@ -175,8 +175,6 @@ Expr tmpize_if_possible(Expr ex, Statement* late_init = null) {
   // only use lvize() if you are aware of this!
   // NOTE: for this reason, late_init was added
   
-  sc.add(var);
-  
   if (late_init) {
     *late_init = fastalloc!(Assignment)(var, ex);
     var.dontInit = true;
@@ -186,6 +184,7 @@ Expr tmpize_if_possible(Expr ex, Statement* late_init = null) {
   
   auto decl = fastalloc!(VarDecl)(var);
   sc.addStatement(decl);
+  sc.add(var);
   return var;
 }
 
