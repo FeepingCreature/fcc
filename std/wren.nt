@@ -182,18 +182,24 @@ template neat-to-repl(T) {
         PT neatargs;
         static if (type-is tuple PT) {
           if (args.length != neatargs.length) error "Neat function $(string-of PT) called with too many arguments: $args";
-          static for int i <- 0..neatargs.length {
-            neatargs[i] = repl-to-neat!type-of neatargs[i] args[i];
+          static if neatargs.length {
+            static for int i <- 0..neatargs.length {
+              neatargs[i] = repl-to-neat!type-of neatargs[i] args[i];
+            }
+            alias call = t neatargs;
+          } else {
+            alias call = t();
           }
         } else {
           if (args.length != 1) error "Neat function $(string-of PT) called with too many arguments: $args";
           neatargs = repl-to-neat!type-of neatargs args[0];
+          alias call = t neatargs;
         }
-        static if (types-equal (void, type-of t neatargs)) {
-          t neatargs;
+        static if (types-equal (void, type-of call)) {
+          call;
           return .t;
         } else {
-          return neat-to-repl t neatargs;
+          return neat-to-repl call;
         }
       });
       alias match-found = true;
