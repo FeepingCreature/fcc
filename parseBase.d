@@ -14,10 +14,20 @@ version(Windows) {
 }
 
 pragma(attribute, optimize("-O3"))
-bool faststreq(string a, string b) {
-  if (a.length != b.length) return false;
+int faststreq_samelen_nonz(string a, string b) {
   if (a.ptr == b.ptr) return true; // strings are assumed immutable
+  if (a.length >= 4) {
+    if ((cast(int*) a.ptr)[0] != (cast(int*) b.ptr)[0]) return false;
+    return bcmp(a.ptr + 4, b.ptr + 4, a.length - 4) == 0;
+  }
   return bcmp(a.ptr, b.ptr, a.length) == 0;
+}
+
+pragma(attribute, optimize("-O3"))
+int faststreq(string a, string b) {
+  if (a.length != b.length) return false;
+  if (!b.length) return true;
+  return faststreq_samelen_nonz(a, b);
 }
 
 int[int] accesses;
@@ -157,7 +167,6 @@ template acceptT(bool USECACHE) {
   // pragma(attribute, optimize("-O3"))
   bool acceptT(ref string s, string t) {
     string s2;
-    bool sep = t.length && t[$-1] == ' ';
     debug if (t !is t.strip()) {
       logln("bad t: '", t, "'");
       fail;
@@ -184,7 +193,7 @@ template acceptT(bool USECACHE) {
       }
     }
     s = s2[t.length .. $];
-    if (!sep || !s.length) return true;
+    if (!(t.length && t[$-1] == ' ') || !s.length) return true;
     if (s[0] != ' ') return false;
     s = s[1 .. $];
     return true;
@@ -1023,7 +1032,8 @@ void noMoreHeredoc(string text) {
 string startsWith(string text, string match)
 {
   if (text.length < match.length) return null;
-  if (!text[0..match.length].faststreq(match)) return null;
+  if (!match.length) return text;
+  if (!text[0..match.length].faststreq_samelen_nonz(match)) return null;
   return text[match.length .. $];
 }
 

@@ -920,7 +920,7 @@ static this() {
     if (auto mae = fastcast!(MemberAccess_Expr) (it)) {
       auto base = foldex(mae.base);
       if (auto rce = fastcast!(RCE) (base)) {
-        if (auto vo = cast(VecOp) rce.from) {
+        if (auto vo = fastcast!(VecOp) (rce.from)) {
           assert(mae.stm.offset % vo.type.size() == 0);
           auto id = mae.stm.offset / vo.type.size();
           auto ex1 = vo.ex1, ex2 = vo.ex2;

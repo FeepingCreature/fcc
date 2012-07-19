@@ -99,7 +99,6 @@ const string[] quicklist = [
 ];
 
 Stuple!(void*, int)[] idtable;
-// const predIdtableLength = 161; // predicted idtable length - slight hash speed up
 
 int xor;
 const uint knuthMagic = 2654435761;
@@ -113,11 +112,10 @@ uint internal_hash(void* p) {
   return cast(uint) (((cast(int) ((cast(size_t) p) >> 3)) ^ xor) * knuthMagic);
 }
 
-// int is okay here; we don't expect variation in the upper bits
-int hash(void* p) {
+uint hash(void* p) {
   foreach_reverse (i, bogus; Repeat!(void, cachesize))
     if (pcache[i] == p) return rescache[i];
-  int res = internal_hash(p);
+  uint res = internal_hash(p);
   foreach (i, bogus; Repeat!(void, cachesize - 1)) {
     pcache[i] = pcache[i+1];
     rescache[i] = rescache[i+1];
@@ -172,21 +170,21 @@ void initCastTable() {
   }
   xor = bestXOR;
   idtable.length = bestXORSize;
-  /*if (idtable.length != predIdtableLength) {
+  if (idtable.length != PredictedTableLength) {
     logln("please update pred const to "[], idtable.length);
-    fail;
-  }*/
+    asm { int 3; }
+  }
   memset(idtable.ptr, 0, idtable.length * typeof(idtable[0]).sizeof);
   resetHash();
   foreach (int i, entry; ci) {
-    idtable[hash(cast(void*) entry) % $] = stuple(cast(void*) entry, i);
+    idtable[hash(cast(void*) entry) % PredictedTableLength] = stuple(cast(void*) entry, i);
   }
 }
 
 const getIdCacheSize = 1;
 Stuple!(void*, int)[getIdCacheSize] getIdCache;
 int getIdLoopPtr;
-// pragma(attribute, optimize("-O3"))
+pragma(attribute, optimize("-O3"))
 int getId(ClassInfo ci) {
   auto cp = cast(void*) ci;
   for (int i = 0; i < getIdCacheSize; ++i) {
@@ -194,8 +192,7 @@ int getId(ClassInfo ci) {
     if (getIdCache[idx]._0 == cp)
       return getIdCache[idx]._1;
   }
-  // we know it's a valid index
-  auto entry = idtable.ptr[hash(cp) % idtable.length];
+  auto entry = idtable.ptr[hash(cp) % PredictedTableLength];
   int res = -1;
   if (entry._0 == cp) res = entry._1;
   getIdCache[getIdLoopPtr] = stuple(cp, res);
@@ -203,6 +200,8 @@ int getId(ClassInfo ci) {
   if (getIdLoopPtr < 0) getIdLoopPtr += getIdCacheSize;
   return res;
 }
+
+const PredictedTableLength = 405;
 
 extern(C) void fastcast_marker() { }
 
