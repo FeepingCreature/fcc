@@ -45,7 +45,8 @@ Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest)
   pushCache(); scope(exit) popCache();
   try {
     static if (submode == "tree.stmt") {
-      res = src.parseFullAggregateBody(rest);
+      res = Single!(NoOp);
+      src.parseFullAggregateBody(rest);
     } else static if (submode == "tree.toplevel") {
       res = Single!(NoOp);
       src.parseGlobalBody(rest, false);

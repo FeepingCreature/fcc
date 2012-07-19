@@ -2,10 +2,10 @@ module ast.aggregate_parse;
 
 import ast.aggregate, ast.parse, ast.base, ast.scopes, ast.namespace, ast.fun, ast.modules;
 
-AggrStatement parseAggregateBody(ref string text, ParseCb rest, bool error = false, Statement* outp = null) {
+AggrStatement parseAggregateBody(ref string text, ParseCb rest, bool error = false, void delegate(Statement) outdg = null) {
   auto t2 = text;
   auto as = new AggrStatement;
-  if (outp) *outp = as;
+  if (outdg) outdg(as);
   Statement st;
   if (t2.many(!!rest(t2, "tree.stmt"[], &st), { as.stmts ~= st; }, "}")) {
     text = t2;
@@ -17,13 +17,14 @@ AggrStatement parseAggregateBody(ref string text, ParseCb rest, bool error = fal
   }
 }
 
-AggrStatement parseFullAggregateBody(ref string src, ParseCb rest) {
-  auto res = parseAggregateBody(src, rest, true);
+Statement parseFullAggregateBody(ref string src, ParseCb rest) {
+  auto sc = namespace().get!(Scope);
+  parseAggregateBody(src, rest, true, (Statement st) { sc.addStatement(st); });
   src = src.mystripl();
   if (src.length) {
     src.failparse("unknown text in aggregate body");
   }
-  return res;
+  return Single!(NoOp);
 }
 
 Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
@@ -32,7 +33,7 @@ Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
   sc.configPosition(t2);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
-  if (auto as = t2.parseAggregateBody(rest, false, &sc._body)) {
+  if (auto as = t2.parseAggregateBody(rest, false, (Statement st) { sc._body = st; })) {
     string tryId;
     if (!t2.accept("}")) {
       auto t3 = t2;
@@ -43,7 +44,6 @@ Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
       }
       t3.failparse("unknown statement");
     }
-    sc._body = as;
     text = t2;
     return sc;
   }

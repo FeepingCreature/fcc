@@ -16,7 +16,7 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
       fail;
     }
     marker = .vardecl_marker ++;
-    // if (marker == 62) { logln(this); fail; }
+    // if (marker == 10578) { logln(this); asm { int 3; } }
   }
   VarDecl dup() { return fastalloc!(VarDecl)(var.dup); }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
@@ -79,7 +79,7 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
       var.initval.emitAsm(af);
     }
   }
-  override string toString() { return Format("declare "[], var); }
+  override string toString() { return Format("declare [", marker, "] ", var); }
 }
 
 extern(C) int align_boffs(IType, int);
@@ -175,8 +175,6 @@ Expr tmpize_if_possible(Expr ex, Statement* late_init = null) {
   // only use lvize() if you are aware of this!
   // NOTE: for this reason, late_init was added
   
-  sc.add(var);
-  
   if (late_init) {
     *late_init = fastalloc!(Assignment)(var, ex);
     var.dontInit = true;
@@ -186,20 +184,9 @@ Expr tmpize_if_possible(Expr ex, Statement* late_init = null) {
   
   auto decl = fastalloc!(VarDecl)(var);
   sc.addStatement(decl);
+  sc.add(var);
   return var;
 }
-
-// create read-only temporary if needed
-extern(C) CValue ast_vardecl_cvize(Expr ex, Statement* late_init = null) {
-  if (auto cv = fastcast!(CValue) (ex)) return cv;
-  if (!namespace().get!(Scope)) {
-    logln("No Scope beneath "[], namespace(), " for lvizing "[], ex, "!"[]);
-    fail;
-  }
-  return fastcast!(CValue) (tmpize_if_possible(ex, late_init));
-}
-
-CValue cvize(Expr ex, Statement* late_init = null) { return ast_vardecl_cvize(ex, late_init); }
 
 // create temporary if needed
 extern(C) LValue ast_vardecl_lvize(Expr ex, Statement* late_init = null) {

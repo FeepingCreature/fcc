@@ -74,6 +74,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       if (auto fn = fastcast!(Function)(obj)) {
         if (fn.name == "init"[]) {
           fn.sup = this;
+          fn.name = qformat("init", constrs.length);
           constrs ~= fn;
           return;
         }

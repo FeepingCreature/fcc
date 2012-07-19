@@ -857,11 +857,12 @@ void loop(string start,
   bool[string] checked;
   bool[string] checking;
   bool needsRebuild(Module mod) {
-    // logln("needsRebuild? "[], mod.name, " "[], mod.getAllModuleImports());
+    // logln("needsRebuild? ", mod.name, " ", mod.dontEmit, " ", mod is sysmod, " ", isUpToDate(mod), " ", !!(mod.name in checking), " ", mod.getAllModuleImports());
     if (mod.dontEmit) return false;
     if (mod is sysmod || !isUpToDate(mod)) return true;
     if (mod.name in checking) return false; // break the circle
     checking[mod.name] = true;
+    scope(exit) checking.remove(mod.name);
     foreach (mod2; mod.getAllModuleImports())
       if (mod2 !is sysmod && needsRebuild(mod2)) return true;
     return false;

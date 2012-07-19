@@ -1,0 +1,9 @@
+module test23;
+
+int i;
+void init() i++;
+void init() i--;
+
+void main() {
+  assert (i == 0);
+}

@@ -9,7 +9,7 @@ class AggrStatement : Statement {
   mixin defaultIterate!(stmts);
   override void emitAsm(AsmFile af) {
     foreach (i, stmt; stmts) {
-      // logln("aggr @", af.currentStackDepth, " [", i+1, "/", stmts.length, "] ", stmt, " - ", stmts);
+      // logln("aggr @", af.currentStackDepth, " [", i+1, "/", stmts.length, "] ", stmt/*, " - ", stmts*/);
       stmt.emitAsm(af);
     }
   }

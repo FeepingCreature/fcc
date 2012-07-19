@@ -1,7 +1,7 @@
 module ast.vardecl_parse;
 
 import parseBase, ast.base, ast.vardecl, ast.aliasing, ast.namespace, ast.expr_statement, ast.arrays,
-       ast.casting, ast.pointer, ast.aggregate, ast.scopes, ast.types, tools.compat: find;
+       ast.casting, ast.pointer, ast.aggregate, ast.scopes, ast.types, ast.dg, tools.compat: find;
 
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, varname;
@@ -84,10 +84,13 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       sc.add(ea);
     }
     if (isScopeDecl) {
-      auto vt = var.valueType();
+      auto vt = resolveType(var.valueType());
       if (fastcast!(Array) (vt) || fastcast!(ExtArray) (vt) || showsAnySignOfHaving(var, "free")) {
         sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
                           (`var.free;`, "var", var));
+      } else if (fastcast!(Delegate) (vt)) {
+        sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
+                          (`dupvfree var.data;`, "var", var));
       } else {
         sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
                           (`mem.free var;`, "var", var));

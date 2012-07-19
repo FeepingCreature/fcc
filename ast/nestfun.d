@@ -11,8 +11,9 @@ class NestedFunction : Function {
   Namespace context;
   this(Namespace context) {
     this.context = context;
+    this();
   }
-  private this() { }
+  private this() { super(); }
   string cleaned_name() { return name.cleanup(); }
   override {
     string toString() { return "nested "~super.toString(); }

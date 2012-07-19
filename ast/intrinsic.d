@@ -396,10 +396,23 @@ void setupSysmods() {
     class MissedReturnError : UnrecoverableError {
       void init(string name) { super.init("End of $name reached without return"); }
     }
-    void[] dupvcache;
-    alias BLOCKSIZE = 16384;
     void missed_return(string name) {
       raise new MissedReturnError name;
+    }
+    void[] dupvcache, initial_dupvcache; int referents;
+    alias BLOCKSIZE = 16384;
+    // range, references
+    (void[], int)[auto~] dupv_archive;
+    void dupvfree(void* p) {
+      for (int i = dupv_archive.length - 1; i >= 0; --i) {
+        ref entry = dupv_archive[i];
+        if (!entry[1]) continue;
+        if (entry[0].(int:ptr <= int:p < int:ptr+length)) entry[1] --;
+        if (!entry[1]) { // cleanup
+          // entry[0].free; // doesn't work yet in intrinsic
+          mem.free entry[0].ptr;
+        }
+      }
     }
     void[] fastdupv(void[] v) {
       void[] res;
@@ -407,13 +420,18 @@ void setupSysmods() {
         res = mem.malloc(v.length)[0..v.length];
       } else {
         if (dupvcache.length && dupvcache.length < v.length) {
-          // can't free the middle!
-          // mem.free(dupvcache.ptr);
           dupvcache = null;
         }
-        if (!dupvcache.length) dupvcache = new void[] BLOCKSIZE;
+        if (!dupvcache.length) {
+          if (initial_dupvcache)
+            dupv_archive ~= (initial_dupvcache, referents);
+          referents = 0;
+          dupvcache = new void[] BLOCKSIZE;
+          initial_dupvcache = dupvcache;
+        }
         res = dupvcache[0 .. v.length];
         dupvcache = dupvcache[v.length .. $];
+        referents ++;
       }
       res[] = v;
       return res;

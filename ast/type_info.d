@@ -168,6 +168,8 @@ Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("array")) mode = "array";
   if (t2.accept("class")) mode = "class";
   if (t2.accept("interface")) mode = "interface";
+  if (t2.accept("function")) mode = "function";
+  if (t2.accept("delegate")) mode = "delegate";
   if (!mode) t2.failparse("type-is expected type qualifier");
   IType ty;
   if (!rest(t2, "type"[], &ty))
@@ -181,6 +183,8 @@ Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
     case "array": res = !!fastcast!(Array) (ty) || !!fastcast!(ExtArray) (ty); break;
     case "class": res = !!fastcast!(ClassRef) (ty); break;
     case "interface": res = !!fastcast!(IntfRef) (ty); break;
+    case "function": res = !!fastcast!(FunctionPointer) (ty); break;
+    case "delegate": res = !!fastcast!(Delegate) (ty); break;
   }
   setupStaticBoolLits;
   Expr ex;

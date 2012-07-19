@@ -92,7 +92,7 @@ interface Assignable {
   void assign(Thing newval);
 }
 
-interface Slotted {
+interface WrenObject {
   Thing lookup(string name);
 }
 
@@ -141,35 +141,61 @@ template Reference(T) {
     void assign(Thing newval) {
       *ptr = repl-to-neat!T newval;
     }
-    string toString() { return "&$(ptr)"; }
+    string toString() { return "&$(*ptr)"; }
   }
 }
 
 template neat-to-repl(T) {
   Thing neat-to-repl(T t) {
     static if (implicitly-converts-to Thing t) {
-      return Thing: t;
+      return t;
+      alias match-found = true;
+    }
+    static if (!is-defined match-found && implicitly-converts-to Object t) {
+      return new ObjectThing t;
       alias match-found = true;
     }
     static if (implicitly-converts-to int t) {
-      return Thing: new Integer t;
+      return new Integer t;
       alias match-found = true;
     }
     static if (implicitly-converts-to float t) {
-      return Thing: new Number t;
+      return new Number t;
       alias match-found = true;
     }
     static if (implicitly-converts-to vec2f t) {
-      return Thing: new Vec2f t;
+      return new Vec2f t;
       alias match-found = true;
     }
     static if (implicitly-converts-to vec3f t) {
-      return Thing: new Vec3f t;
+      return new Vec3f t;
       alias match-found = true;
     }
     static if (type-is array T) {
       alias AT = type-of t[0];
       return new Array!AT t;
+      alias match-found = true;
+    }
+    static if (type-is delegate T) || (type-is function T) {
+      return new Function("neat-wrapper", new delegate Thing(Thing[] args) {
+        alias PT = ParamTypes T;
+        PT neatargs;
+        static if (type-is tuple PT) {
+          if (args.length != neatargs.length) error "Neat function $(string-of PT) called with too many arguments: $args";
+          static for int i <- 0..neatargs.length {
+            neatargs[i] = repl-to-neat!type-of neatargs[i] args[i];
+          }
+        } else {
+          if (args.length != 1) error "Neat function $(string-of PT) called with too many arguments: $args";
+          neatargs = repl-to-neat!type-of neatargs args[0];
+        }
+        static if (types-equal (void, type-of t neatargs)) {
+          t neatargs;
+          return .t;
+        } else {
+          return neat-to-repl t neatargs;
+        }
+      });
       alias match-found = true;
     }
     static if (!is-defined match-found) {
@@ -180,6 +206,14 @@ template neat-to-repl(T) {
 
 template repl-to-neat(T) {
   T repl-to-neat(Thing thing) {
+    static if (type-is class T) || (type-is interface T) {
+      if (auto as = Assignable: thing) thing = thing.eval(null); // get at the juicy value beneath
+      if (auto ot = ObjectThing: thing) {
+        if (auto res = T: ot.obj) return res;
+      }
+      error "Can't convert to $(string-of T): $thing";
+      alias match-found = true;
+    }
     static if (type-is array T) {
       alias AT = type-of (*T*:null)[0];
       if (auto arr = Array!AT: thing)
@@ -194,8 +228,8 @@ template repl-to-neat(T) {
 }
 
 class ObjectThing : Thing {
-  Slotted obj;
-  void init(Slotted s) { this.obj = s; }
+  Object obj;
+  void init(Object obj) { this.obj = obj; if (!obj) error "Tried to make null ObjectThing"; }
   Thing eval(Namespace) { return this; }
   string toString() { return "$obj"; }
 }
@@ -211,6 +245,7 @@ class Function : Thing, Operator {
   void init(string s, Thing delegate(Thing[]) dg) (info, fn) = (s, dg);
   void init(string s, Thing delegate(Thing[], Namespace) dg) (info, fn2) = (s, dg);
   Thing call(Thing[] list, Namespace ns) {
+    onFailure writeln "while calling $info";
     scope Thing[auto~] args;
     for auto thing <- list
       args ~= thing.eval ns;
@@ -351,6 +386,19 @@ bool matches(string name, match) {
   return name == match;
 }
 
+class MultiNamespace : Namespace {
+  Namespace[auto~] set;
+  void add(Namespace ns) { set ~= ns; }
+  string toString() { return "mns $(set[])"; }
+  Thing lookup(string match) {
+    for auto ns <- set if auto res = ns.lookup(match) return res;
+    return null;
+  }
+  void iterate(void delegate(string, Thing) dg) {
+    for auto ns <- set ns.iterate dg;
+  }
+}
+
 class ListNamespace : Namespace {
   (Thing, string)[auto~] list;
   void add(string name, Thing t) {
@@ -361,6 +409,11 @@ class ListNamespace : Namespace {
       if (entry[1].matches match)
         return entry[0];
     return null;
+  }
+  string toString() {
+    auto temp = [for tup <- list: tup[1]].eval;
+    onExit temp.free;
+    return "$(temp[])";
   }
   void iterate(void delegate(string, Thing) dg) {
     for auto pair <- list

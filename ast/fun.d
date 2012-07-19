@@ -102,10 +102,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     if (tree) namespace.set(fastcast!(Scope) (tree));
     else namespace.set(this);
     
-    // No! Bad! Wrong!
-    // auto backupmod = current_module();
-    // scope(exit) current_module.set(backupmod);
-    // current_module.set(coarseModule);
+    // TODO: document why this is bad and wrong as soon as I figure it out again
+    // // No! Bad! Wrong!
+    auto backupmod = current_module();
+    scope(exit) current_module.set(backupmod);
+    current_module.set(coarseModule);
     
     // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     
@@ -330,7 +331,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       if (optimize) {
         af.flush();
         af.optimize = true;
-        af.debugMode = false;
+        // still emit line number info when -g is on, even in pragma(fast)
+        // af.debugMode = false;
         af.dwarf2 = null;
       }
       
