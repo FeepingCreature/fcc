@@ -342,16 +342,26 @@ static this() {
     if (!dex) return null;
     return fastalloc!(FloatExpr)(cast(float) dex.d);
   };
-  implicits ~= delegate Expr(Expr ex) {
+  implicits ~= delegate Expr(Expr ex, IType desired) {
     if (Single!(SysInt) != ex.valueType()) return null;
     auto ie = fastcast!(IntExpr) (foldex(ex));
-    if (!ie || ie.num > 65535 || ie.num < -32767) return null;
+    if (!ie) return null;
+    if (ie.num > 65535 || ie.num < -32767) {
+      if (desired && Single!(Short) == desired)
+        throw new Exception(Format(ie.num, " does not fit into short"));
+      return null;
+    }
     return fastalloc!(IntLiteralAsShort)(ie);
   };
-  implicits ~= delegate Expr(Expr ex) {
+  implicits ~= delegate Expr(Expr ex, IType desired) {
     if (Single!(SysInt) != ex.valueType()) return null;
     auto ie = fastcast!(IntExpr) (foldex(ex));
-    if (!ie || ie.num > 255 || ie.num < -127) return null;
+    if (!ie) return null;
+    if (ie.num > 255 || ie.num < -127) {
+      if (desired && Single!(Byte) == desired)
+        throw new Exception(Format(ie.num, " does not fit into byte"));
+      return null;
+    }
     return fastalloc!(IntLiteralAsByte)(ie);
   };
   converts ~= delegate Expr(Expr ex, IType it) {

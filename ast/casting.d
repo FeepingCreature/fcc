@@ -112,9 +112,13 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   if (t2.accept(":"[])) return null;
   dest = forcedConvert(dest);
-  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
-    t2.setError("can't get "[], ex, " into "[], dest);
-    return null;
+  try {
+    if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
+      t2.setError("can't get "[], ex, " into "[], dest);
+      return null;
+    }
+  } catch (Exception ex) {
+    t2.failparse(ex);
   }
   
   // confirm

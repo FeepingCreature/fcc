@@ -1,0 +1,8 @@
+module test67;
+
+void main() {
+  int i = 123456;
+  byte b1 = byte:i;
+  byte b2 = byte:int:123456;
+  byte b3 = byte:123456;
+}
