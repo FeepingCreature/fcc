@@ -77,12 +77,15 @@ class ConcatChain : Expr {
           cache  = fastalloc!(Variable)(sa,              cast(string) null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
         
         cache.dontInit = true;
-        int literals_len;
-        foreach (array; arrays)
-          if (array.valueType() != type.elemType && isLiteral(array))
-            literals_len += lit.length;
+        int known_len;
+        foreach (array; arrays) {
+          if (array.valueType() == type.elemType) { known_len ++; }
+          else if (isLiteral(array)) {
+            known_len += lit.length;
+          }
+        }
         
-        total.initval = mkInt(literals_len);
+        total.initval = mkInt(known_len);
         total.initInit;
         offset.initInit;
         (fastalloc!(VarDecl)(offset)).emitAsm(af);
@@ -90,17 +93,13 @@ class ConcatChain : Expr {
         (fastalloc!(VarDecl)(cache)).emitAsm(af);
         int cacheId = 0;
         foreach (array; arrays) {
-          if (array.valueType() == type.elemType) {
-            iparse!(Statement, "inc_array_length"[], "tree.stmt"[])
-                   (`total ++; `, "total"[], total).emitAsm(af);
-          } else {
-            if (isLiteral(array)) continue;
-            // cache[i] = array
-            auto cachepos = getIndex(cache, mkInt(cacheId++));
-            emitAssign(af, cachepos, array);
-            // total = total + cache[i].length
-            emitAssign(af, total, lookupOp("+"[], total, getArrayLength(cachepos)));
-          }
+          if (array.valueType() == type.elemType) continue;
+          if (isLiteral(array)) continue;
+          // cache[i] = array
+          auto cachepos = getIndex(cache, mkInt(cacheId++));
+          emitAssign(af, cachepos, array);
+          // total = total + cache[i].length
+          emitAssign(af, total, lookupOp("+"[], total, getArrayLength(cachepos)));
         }
         iparse!(Statement, "alloc_array"[], "tree.semicol_stmt.assign"[])
         (
@@ -120,10 +119,12 @@ class ConcatChain : Expr {
             if (isLiteral(array)) c = array;
             else c = getIndex(cache, mkInt(cacheId ++));
             auto len = getArrayLength(c);
+            auto end = lookupOp("+", offset, len);
+            opt(end);
             /// var[offset .. offset + cache[i].length] = cache[i];
-            optst(getSliceAssign(mkArraySlice(var, offset, lookupOp("+"[], offset, len)), c)).emitAsm(af);
+            optst(getSliceAssign(mkArraySlice(var, offset, end), c)).emitAsm(af);
             /// offset = offset + cache[i].length;
-            emitAssign(af, offset, lookupOp("+"[], offset, len));
+            emitAssign(af, offset, end);
           }
         }
       });
