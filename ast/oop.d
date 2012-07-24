@@ -253,7 +253,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     }
     return lookupIntf(name, base);
   }
-  // takes ownership of offs, except if returns null
+  // takes ownership of offs
   Function lookupClass(string name, LazyDeltaInt offs, Expr classref) {
     assert(own_offset, this.name~": interface lookup for "~name~" but classinfo uninitialized. "[]);
     foreach (id, fun; funs) {
@@ -269,12 +269,11 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         );
       }
     }
-    auto backup = offs.delta;
+    scope(exit) delete offs;
     foreach (par; parents) {
-      if (auto res = par.lookupClass(name, offs, classref)) return res;
+      if (auto res = par.lookupClass(name, offs.dup, classref)) return res;
       offs.delta += par.clsize;
     }
-    offs.delta = backup;
     return null;
   }
   void getLeaves(void delegate(Intf) dg) {
@@ -652,10 +651,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     // logln("for "[], name, "[], res is "[], res);
     return res;
   }
-  LazyDeltaInt deltacache;
   LazyDeltaInt ownClassinfoLength() { // skipping interfaces
-    if (!deltacache) deltacache = fastalloc!(LazyDeltaInt)(&getFinalClassinfoLengthValue);
-    return deltacache;
+    return new LazyDeltaInt(&getFinalClassinfoLengthValue);
   }
   // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
   string[] getClassinfo(RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
@@ -812,17 +809,15 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       }
       auto cl_offset = ownClassinfoLength();
       foreach (intf; iparents) {
-        auto prev = cl_offset.delta;
-        if (auto res = intf.lookupClass(str, cl_offset, base)) {
+        if (auto res = intf.lookupClass(str, cl_offset.dup, base)) {
           auto obj = fastcast!(Object) (res);
           if (auto ext2 = fastcast!(Extensible) (res)) {
             extend(ext2);
-            cl_offset = cl_offset.dup;
-            cl_offset.delta = prev;
           } else return obj;
         }
         cl_offset.delta += intf.clsize;
       }
+      delete cl_offset;
       if (parent) if (auto res = parent.lookupRel(str, base, isDirectLookup)) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
           extend(ext2);
