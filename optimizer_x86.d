@@ -2112,4 +2112,81 @@ restart:
     $SUBST(t);
   `));
   mixin(opt("finally_remove_nvm", `^Nevermind => $SUBST(); `));
+  mixin(opt("stack_2push_2pop_free_into_free_2pop_free", `^Push, ^Push, ^Pop, ^Pop, ^SFree:
+    $0.size == 4 && $1.size == 4 && $2.size == 4 && $3.size == 4 &&
+    $0.source.isIndirect() == "%esp" && $1.source.isIndirect() == "%esp" &&
+    $0.source == $1.source
+    =>
+    int d0; $0.source.isIndirect2(d0);
+    auto tofree = d0 - 4;
+    if (!tofree) { // right up against the bottom of the stack
+      if ($4.size >= 8) {
+        $T t2 = $2.dup, t3 = $3.dup;
+        info(t2).fixupStack(-8);
+        info(t3).fixupStack(-8);
+        $T ts;
+        ts.kind = $TK.SFree;
+        ts.size = $4.size - 8;
+        if (ts.size) $SUBST(t2, t3, ts);
+        else $SUBST(t2, t3);
+      }
+    } else {
+      if ($4.size >= tofree) {
+        $T t0 = $0.dup, t1 = $1.dup, t2 = $2.dup, t3 = $3.dup;
+        info(t0).fixupStack(-tofree);
+        info(t1).fixupStack(-tofree);
+        info(t2).fixupStack(-tofree);
+        info(t3).fixupStack(-tofree);
+        $T ts;
+        ts.kind = $TK.SFree;
+        ts.size = tofree;
+        $T tr;
+        tr.kind = $TK.SFree;
+        tr.size = $4.size - tofree;
+        if (tr.size) $SUBST(ts, t0, t1, t2, t3, tr);
+        else $SUBST(ts, t0, t1, t2, t3);
+      }
+    }
+  `));
+  mixin(opt("stack_push_pop_free_into_free_pop_free", `^Push, ^Pop, ^SFree:
+    $0.size == 4 && $1.size == 4 &&
+    $0.source.isIndirect() == "%esp"
+    =>
+    int d0; $0.source.isIndirect2(d0);
+    auto tofree = d0;
+    if (!tofree) {
+      if ($2.size >= 4) {
+        $T t1 = $1.dup;
+        info(t1).fixupStack(-4);
+        $T ts;
+        ts.kind = $TK.SFree;
+        ts.size = $2.size - 4;
+        if (ts.size) $SUBST(t1, ts);
+        else $SUBST(t1);
+      }
+    } else {
+      if ($2.size >= tofree) {
+        $T t0 = $0.dup, t1 = $1.dup;
+        info(t0).fixupStack(-tofree);
+        info(t1).fixupStack(-tofree);
+        $T ts;
+        ts.kind = $TK.SFree;
+        ts.size = tofree;
+        $T tr;
+        tr.kind = $TK.SFree;
+        tr.size = $2.size - tofree;
+        if (tr.size) $SUBST(ts, t0, t1, tr);
+        else $SUBST(ts, t0, t1);
+      }
+    }
+  `));
+  mixin(opt("stack_2push_2pop_resort", `^Push, ^Push, ^Pop, ^Pop:
+    $0.size == 4 && $1.size == 4 && $2.size == 4 && $3.size == 4 &&
+    $0.source == "4(%esp)" && $1.source == "4(%esp)"
+    =>
+    auto t2 = $2.dup, t1 = $1.dup;
+    info(t1).fixupStack(-4);
+    info(t2).fixupStack(-4);
+    $SUBST($0, $3, t1, t2);
+  `));
 }
