@@ -248,7 +248,7 @@ static this() {
     auto me = fastcast!(MultiplesExpr) (it);
     if (!me) return null;
     bool canDup; // no side effects
-    auto fbase = foldex(me.base);
+    auto fbase = me.base;
     if (auto lt = fastcast!(Literal) (fbase)) {
       if (me.factor == 3 || me.factor == 4) if (auto fe = fastcast!(FloatExpr) (lt)) {
         return fastalloc!(AlignedVec4Literal)(me.type, fe, me.factor);
@@ -257,7 +257,7 @@ static this() {
     }
     if (auto var = fastcast!(Variable) (fbase)) canDup = true;
     if (!canDup) {
-      // logln("me of ", foldex(me.base));
+      // logln("me of ", me.base);
       return null;
     }
     Expr[] list;
@@ -267,9 +267,9 @@ static this() {
   foldopt ~= delegate Itr(Itr it) {
     auto mae = fastcast!(MemberAccess_Expr) (it);
     if (!mae) return null;
-    auto rce = fastcast!(RCE) (foldex(mae.base));
+    auto rce = fastcast!(RCE) (mae.base);
     if (!rce) return null;
-    auto fe = foldex(rce.from);
+    auto fe = rce.from;
     auto mult = fastcast!(MultiplesExpr) (fe);
     auto avlit = fastcast!(AlignedVec4Literal) (fe);
     if (!mult && !avlit) return null;
@@ -298,7 +298,7 @@ Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true, bool
   if (vec == vec3f && base.valueType() == vec3i) {
     return fastalloc!(SSEIntToFloat)(base);
   }
-  base = foldex(base);
+  opt(base);
   return fastcast!(Object)~ tmpize_maybe(base, delegate Expr(Expr base) {
     Expr[] exs;
     bool failed;
@@ -314,7 +314,7 @@ Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true, bool
       }
       auto tup = fastcast!(Tuple) (base.valueType());
       ex2 = ex;
-      if (gotImplicitCast(ex2, (IType it) { return !!fastcast!(Tuple) (it); })) {
+      if (gotImplicitCast(ex2, Single!(HintType!(Tuple)), (IType it) { return !!fastcast!(Tuple) (it); })) {
         foreach (entry; getTupleEntries(ex2)) { decompose(entry); if (failed) break; }
         return;
       }
@@ -918,7 +918,7 @@ static this() {
   defineOp("<"[], &handleVecSmaller);
   foldopt ~= delegate Itr(Itr it) {
     if (auto mae = fastcast!(MemberAccess_Expr) (it)) {
-      auto base = foldex(mae.base);
+      auto base = mae.base;
       if (auto rce = fastcast!(RCE) (base)) {
         if (auto vo = fastcast!(VecOp) (rce.from)) {
           assert(mae.stm.offset % vo.type.size() == 0);
@@ -972,7 +972,8 @@ Object gotXMM(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(t2, "tree.expr"[], &ex) || !t2.accept("]"[]))
     t2.failparse("Expected index expression for SSE op! "[]);
-  auto lit = cast(IntExpr) foldex(ex);
+  opt(ex);
+  auto lit = fastcast!(IntExpr) (ex);
   if (!lit)
     t2.failparse("Expected integer constant for SSE reg access! "[]);
   text = t2;

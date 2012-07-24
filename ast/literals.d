@@ -114,7 +114,7 @@ Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 
 static this() {
-  parsecon.addPrecedence("tree.expr.literal", "55");
+  addPrecedence("tree.expr.literal", "55");
 }
 
 mixin DefaultParser!(gotLiteralExpr, "tree.expr.int_literal", "23");

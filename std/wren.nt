@@ -276,8 +276,8 @@ class List : Thing {
   void init(Thing[] l) list = l;
   Thing eval(Namespace ns) {
     if !list.length error "Cannot evaluate $this: list empty";
-    auto op = Operator: list[0].eval(ns);
-    if !op error "Cannot evaluate $this: first entry is not an operator (function)";
+    auto op = Operator: auto first = list[0].eval(ns);
+    if !op error "Cannot evaluate $this: first entry is not an operator (function), but $(first?.toString():\"null\")";
     return op.call (list[1..$], ns);
   }
   string toString() {

@@ -173,10 +173,11 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
   mixin(mustOffset("retsize"[]));
   auto dgs = dgAsStruct(dg);
   mkVar(af, ret, true, (Variable retvar) {
+    scope(success) delete retvar;
     mixin(mustOffset("0"[]));
     // cheap call - fun ptr is predetermined, no need to lvize the dg
-    if (auto sym = fastcast!(Symbol) (foldex(mkMemberAccess(dgs, "fun"[])))) {
-      params ~= foldex(mkMemberAccess(dgs, "data"[]));
+    if (auto sym = fastcast!(Symbol) (optex(mkMemberAccess(dgs, "fun"[])))) {
+      params ~= mkMemberAccess(dgs, "data"); opt(params[$-1]);
       callFunction(af, ret, true, false, params, sym);
       if (ret != Single!(Void))
         emitAssign(af, retvar, fastalloc!(Placeholder)(ret), false, true);
@@ -184,7 +185,7 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
       int toFree = alignStackFor(dgs.valueType(), af);
       void doit(Variable dgvar) {
         mixin(mustOffset("0"[]));
-        params ~= foldex(mkMemberAccess(dgvar, "data"[]));
+        params ~= mkMemberAccess(dgvar, "data"); opt(params[$-1]);
         callFunction(af, ret, true, false, params, mkMemberAccess(dgvar, "fun"[]));
         if (ret != Single!(Void))
           emitAssign(af, retvar, fastalloc!(Placeholder)(ret), false, true);

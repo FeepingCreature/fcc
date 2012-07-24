@@ -47,23 +47,19 @@ extern(C) float sqrtf(float);
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     if (auto iaf = fastcast!(IntAsFloat) (it)) {
-      auto i = foldex(iaf.i);
-      if (auto ie = fastcast!(IntExpr) (i)) {
+      if (auto ie = fastcast!(IntExpr) (iaf.i)) {
         return fastalloc!(FloatExpr)(ie.num);
       }
     }
     if (auto lad = fastcast!(LongAsDouble) (it)) {
-      auto l = foldex(lad.l);
-      if (auto ial = fastcast!(IntAsLong) (l)) {
-        auto i = foldex(ial.i);
-        if (auto ie = fastcast!(IntExpr) (i)) {
+      if (auto ial = fastcast!(IntAsLong) (lad.l)) {
+        if (auto ie = fastcast!(IntExpr) (ial.i)) {
           return fastalloc!(DoubleExpr)(ie.num);
         }
       }
     }
     if (auto fad = fastcast!(FloatAsDouble) (it)) {
-      auto f = foldex(fad.f);
-      if (auto fe = fastcast!(FloatExpr) (f)) {
+      if (auto fe = fastcast!(FloatExpr) (fad.f)) {
         return fastalloc!(DoubleExpr) (fe.f);
       }
     }
@@ -74,9 +70,10 @@ static this() {
       if (fc.fun.extern_c && fc.fun.name == "sqrtf"[]) {
         assert(fc.params.length == 1);
         auto fe = fc.params[0];
-        if (!gotImplicitCast(fe, (Expr ex) { return test(fastcast!(FloatExpr) (foldex(ex))); }))
+        if (!gotImplicitCast(fe, (Expr ex) { opt(ex); return test(fastcast!(FloatExpr) (ex)); }))
           return null;
-        return fastalloc!(FloatExpr)(sqrtf((fastcast!(FloatExpr) (foldex(fe))).f));
+        opt(fe);
+        return fastalloc!(FloatExpr)(sqrtf((fastcast!(FloatExpr) (fe)).f));
       }
     }
     return null;
@@ -338,13 +335,15 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(Double) != ex.valueType()) return null;
-    auto dex = fastcast!(DoubleExpr) (foldex(ex));
+    opt(ex);
+    auto dex = fastcast!(DoubleExpr) (ex);
     if (!dex) return null;
     return fastalloc!(FloatExpr)(cast(float) dex.d);
   };
   implicits ~= delegate Expr(Expr ex, IType desired) {
     if (Single!(SysInt) != ex.valueType()) return null;
-    auto ie = fastcast!(IntExpr) (foldex(ex));
+    opt(ex);
+    auto ie = fastcast!(IntExpr) (ex);
     if (!ie) return null;
     if (ie.num > 65535 || ie.num < -32767) {
       if (desired && Single!(Short) == desired)
@@ -355,7 +354,8 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex, IType desired) {
     if (Single!(SysInt) != ex.valueType()) return null;
-    auto ie = fastcast!(IntExpr) (foldex(ex));
+    opt(ex);
+    auto ie = fastcast!(IntExpr) (ex);
     if (!ie) return null;
     if (ie.num > 255 || ie.num < -127) {
       if (desired && Single!(Byte) == desired)
@@ -406,19 +406,6 @@ void loadDoubleEx(Expr ex, AsmFile af) {
     af.loadDouble("(%esp)"[]);
     af.sfree(8);
   }
-}
-
-void opt(Expr ex) {
-  void delegate(ref Iterable) dg;
-  dg = (ref Iterable it) {
-    it.iterate(dg);
-    if (auto iaf = fastcast!(IntAsFloat)~ it) {
-      if (auto ie = fastcast!(IntExpr)~ iaf.i) {
-        it = fastalloc!(FloatExpr)(ie.num);
-      }
-    }
-  };
-  ex.iterate(dg);
 }
 
 abstract class BinopExpr : Expr, HasInfo {
@@ -550,13 +537,10 @@ class AsmIntBinopExpr : BinopExpr {
     foldopt ~= delegate Itr(Itr it) {
       auto aibe = fastcast!(AsmIntBinopExpr) (it);
       if (!aibe) return null;
-      auto
-        e1 = foldex(aibe.e1), ie1 = fastcast!(IntExpr)~ e1,
-        e2 = foldex(aibe.e2), ie2 = fastcast!(IntExpr)~ e2;
-      if (!ie1 || !ie2) {
-        aibe.e1 = e1; aibe.e2 = e2; // sshhhhhhhhhh
-        return null;
-      }
+      auto ie1 = fastcast!(IntExpr) (aibe.e1);
+      if (!ie1) return null;
+      auto ie2 = fastcast!(IntExpr) (aibe.e2);
+      if (!ie2) return null;
       void checkZero(string kind, int num) {
         if (!num) throw new Exception(Format("Could not compute "~kind~": division by zero"[]));
       }
@@ -668,8 +652,8 @@ class AsmFloatBinopExpr : BinopExpr {
       auto afbe = fastcast!(AsmFloatBinopExpr) (it);
       if (!afbe) return null;
       auto
-        e1 = foldex(afbe.e1), fe1 = fastcast!(FloatExpr)~ e1,
-        e2 = foldex(afbe.e2), fe2 = fastcast!(FloatExpr)~ e2;
+        e1 = afbe.e1, fe1 = fastcast!(FloatExpr) (e1),
+        e2 = afbe.e2, fe2 = fastcast!(FloatExpr) (e2);
       if (!fe1 || !fe2) {
         if (afbe.op == "/" && fe2) { // optimize constant division into multiplication
           auto val = fe2.f;
@@ -719,8 +703,8 @@ class AsmDoubleBinopExpr : BinopExpr {
       auto adbe = fastcast!(AsmDoubleBinopExpr) (it);
       if (!adbe) return null;
       auto
-        e1 = foldex(adbe.e1), de1 = fastcast!(DoubleExpr)~ e1,
-        e2 = foldex(adbe.e2), de2 = fastcast!(DoubleExpr)~ e2;
+        e1 = adbe.e1, de1 = fastcast!(DoubleExpr)~ e1,
+        e2 = adbe.e2, de2 = fastcast!(DoubleExpr)~ e2;
       if (!de1 || !de2) {
         if (adbe.op == "/" && de2) { // see above
           auto val = de2.d;
@@ -747,7 +731,7 @@ BinopExpr delegate(Expr, Expr, string) mkLongExpr;
 
 extern(C) IType resolveTup(IType, bool onlyIfChanged = false);
 
-static this() { parsecon.addPrecedence("tree.expr.arith"[], "12"[]); }
+static this() { addPrecedence("tree.expr.arith"[], "12"[]); }
 
 const oplist = [
   "+"[], "-"[], "*"[], "/"[],

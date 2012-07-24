@@ -568,7 +568,7 @@ void postprocessModule(Module mod) {
     }
     it.iterate(&recurse);
   }
-  mod.iterate(&recurse);
+  if (isWindoze()) mod.iterate(&recurse);
   // result: mostly below 7
   // gatherSizeStats(mod);
 }
@@ -1038,7 +1038,7 @@ int main(string[] args) {
       continue;
     }
     if (arg == "-dump-info" || "parsers.txt".exists()) {
-      write("parsers.txt", parsecon.dumpInfo());
+      write("parsers.txt", dumpInfo());
     }
     if (arg == "-g") {
       cs.debugMode = true;

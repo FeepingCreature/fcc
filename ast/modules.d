@@ -124,7 +124,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       checkImportsUsage;
     }
     string mangle(string name, IType type) {
-      return "module_"~cleaned_name()~"_"~name.cleanup()~(type?("_of_"~type.mangle()):""[]);
+      return qformat("module_"[], cleaned_name(), "_"[], name.cleanup(), type?qformat("_of_"[], type.mangle()):""[]);
     }
     Object lookup(string name, bool local = false) {
       if (auto res = super.lookup(name)) return res;
@@ -238,7 +238,7 @@ Module lookupMod(string name) {
     auto file = fn.read().castLike(""[]);
     synchronized(SyncObj!(sourcefiles))
       sourcefiles[fn] = file;
-    mod = fastcast!(Module) (parsecon.parse(file, "tree.module"[]));
+    mod = fastcast!(Module) (parse(file, "tree.module"[]));
     if (!mod)
       file.failparse("Could not parse module"[]);
     if (file.strip().length)

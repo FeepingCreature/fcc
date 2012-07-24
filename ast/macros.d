@@ -663,7 +663,7 @@ Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
   parser.id = rulename.str;
   if (prematch)
     parser.key = prematch.str;
-  parsecon.addParser(parser, ruleid.str);
+  addParser(parser, ruleid.str);
   return obj;
 }
 mixin DefaultParser!(gotMacroStmt, "tree.toplevel.a_macro", null, "macro"); // sort first because is cheap to exclude

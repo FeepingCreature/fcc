@@ -54,13 +54,17 @@ class FunSymbol : Symbol {
   private this() { }
   mixin DefaultDup!();
   string toString() { return qformat("symbol<"[], fun, ">"[]); }
+  IType vt_cache;
   override IType valueType() {
-    auto res = new FunctionPointer;
-    res.ret = fun.type.ret;
-    res.args = fun.type.params;
-    res.args ~= Argument(Single!(SysInt));
-    res.stdcall = fun.type.stdcall;
-    return res;
+    if (!vt_cache) {
+      auto fp = new FunctionPointer;
+      fp.ret = fun.type.ret;
+      fp.args = fun.type.params;
+      fp.args ~= Argument(Single!(SysInt));
+      fp.stdcall = fun.type.stdcall;
+      vt_cache = fp;
+    }
+    return vt_cache;
   }
 }
 
@@ -121,7 +125,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     scope(exit) inParse = false;
     
     auto s = sup;
-    auto stmt = fastcast!(Statement) (parsecon.parse(t2, "tree.scope"));
+    auto stmt = fastcast!(Statement) (parse(t2, "tree.scope"));
     if (!stmt) {
       // fail();
       t2.failparse("Couldn't parse function scope");
@@ -670,7 +674,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     // logln("CALL ", fp, " ", params);
     mixin(mustOffset("0", "outer"));
     string name;
-    fp = foldex(fp);
+    opt(fp);
     if (auto s = fastcast!(Symbol) (fp)) name = s.getName();
     else name = "(nil)";
     
@@ -1046,12 +1050,16 @@ class FunRefExpr : Expr, Literal {
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     fun.iterate(dg, IterMode.Semantic);
   }
+  IType typecache;
   override {
     IType valueType() {
-      return fastalloc!(FunctionPointer)(fun);
+      if (!typecache) typecache = fastalloc!(FunctionPointer)(fun);
+      return typecache;
     }
     void emitAsm(AsmFile af) {
-      (fastalloc!(Constant)(fun.mangleSelf())).emitAsm(af);
+      auto c = new Constant(fun.mangleSelf());
+      c.emitAsm(af);
+      delete c;
     }
     string getValue() { return fun.mangleSelf(); }
   }

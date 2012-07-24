@@ -163,7 +163,8 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   IType[] tried;
   if (!gotImplicitCast(ex, (Expr ex) {
-    auto f = foldex(forcedConvert(ex));
+    auto f = forcedConvert(ex);
+    opt(f);
     unrollSAE(f);
     tried ~= f.valueType();
     return test(fastcast!(CValue)~ f);
@@ -175,7 +176,8 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   text = t2;
-  auto thing = foldex(forcedConvert(ex));
+  auto thing = forcedConvert(ex);
+  opt(thing);
   Statement st;
   if (auto _st = unrollSAE(thing)) st = _st;
   auto cv = fastcast!(CValue) (thing);

@@ -273,7 +273,6 @@ Expr tmpize(Expr thing, Expr delegate(Expr, OffsetExpr) dg) {
 
 import ast.fold;
 Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
-  auto fex = foldex(ex);
-  if (fastcast!(Literal)~ fex) return fex;
-  return mkRef(af, fex, post);
+  if (fastcast!(Literal) (ex)) return ex;
+  return mkRef(af, ex, post);
 }

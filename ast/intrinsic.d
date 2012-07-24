@@ -702,7 +702,7 @@ void setupSysmods() {
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;
-  auto sysmodmod = fastcast!(Module) (parsecon.parse(src, "tree.module"));
+  auto sysmodmod = fastcast!(Module) (parse(src, "tree.module"));
   sysmodmod.splitIntoSections = true;
   sysmod = sysmodmod;
 }
@@ -944,7 +944,8 @@ Object gotAsm(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     t2.failparse("Expected string literal for asm! ");
-  auto lit = fastcast!(StringExpr) (foldex(ex));
+  opt(ex);
+  auto lit = fastcast!(StringExpr) (ex);
   if (!lit)
     t2.failparse("Expected string literal, not ", ex.valueType(), "!");
   auto res = fastalloc!(Assembly)(lit.str);
@@ -970,9 +971,10 @@ Object gotConstant(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.accept("(")) t2.failparse("Opening paren required. ");
   Expr nex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &nex)
-   || !gotImplicitCast(nex, (Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }))
+   || !gotImplicitCast(nex, (Expr ex) { opt(ex); return !!fastcast!(StringExpr) (ex); }))
     t2.failparse("Expected name for constant! ");
-  string name = (fastcast!(StringExpr) (foldex(nex))).str;
+  opt(nex);
+  string name = (fastcast!(StringExpr) (nex)).str;
     
   if (!t2.accept(",")) t2.failparse("Expected comma separator. ");
   
@@ -982,9 +984,10 @@ Object gotConstant(ref string text, ParseCb cont, ParseCb rest) {
     !!rest(t2, "tree.expr", &value),
     t2.accept(","),
     {
-      if (!gotImplicitCast(value, (Expr ex) { return !!fastcast!(IntExpr) (foldex(ex)); }))
+      if (!gotImplicitCast(value, (Expr ex) { opt(ex); return !!fastcast!(IntExpr) (ex); }))
         t2.failparse("Expected integer for constant value. ");
-      values ~= Format((fastcast!(IntExpr) (foldex(value))).num);
+      opt(value);
+      values ~= Format((fastcast!(IntExpr) (value)).num);
     },
     false
   )) t2.failparse("Couldn't parse constant definition. ");
@@ -1000,7 +1003,8 @@ Object gotInternal(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
     t2.failparse("Expected expr string for internal lookup");
-  auto t = fastcast!(StringExpr) (foldex(ex));
+  opt(ex);
+  auto t = fastcast!(StringExpr) (ex);
   if (!t)
     t2.failparse("Expected static string expr for internal lookup");
   auto p = t.str in internals;
@@ -1016,14 +1020,14 @@ mixin DefaultParser!(gotInternal, "tree.expr.internal", "24052", "__internal");
 import ast.pragmas;
 static this() {
   pragmas["msg"] = delegate Object(Expr ex) {
-    ex = foldex(ex);
+    opt(ex);
     auto se = fastcast!(StringExpr) (ex);
     if (!se) throw new Exception(Format("Expected string expression for pragma(msg), not ", ex));
     logSmart!(false)("# ", se.str);
     return Single!(NoOp);
   };
   pragmas["fail"] = delegate Object(Expr ex) {
-    ex = foldex(ex);
+    opt(ex);
     auto se = fastcast!(StringExpr) (ex);
     if (!se) throw new Exception(Format("Expected string expression for pragma(fail), not ", ex));
     throw new Exception(se.str);

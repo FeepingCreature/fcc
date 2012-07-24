@@ -231,6 +231,7 @@ class Dwarf2Section {
     foreach (subsect; subs) {
       res[q .. q+subsect.length] = subsect;
       q += subsect.length;
+      delete subsect;
     }
     
     if (has_children)

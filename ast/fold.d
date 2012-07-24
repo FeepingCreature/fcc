@@ -28,12 +28,49 @@ Itr fold(Itr i) {
   return cur;
 }
 
-Expr foldex(Expr ex) {
+Expr inner_foldex(Expr ex) {
   if (!ex) return null;
   auto itr = fastcast!(Itr) (ex);
   itr = fold(itr);
   ex = fastcast!(Expr) (itr);
   return ex;
+}
+
+Stuple!(int, int)[void*] balance;
+Expr outer_foldex(Expr ex) {
+  auto backup = ex;
+  auto res = inner_foldex(ex);
+  void* caller;
+  asm { mov EAX, int ptr [EBP+4]; mov caller, EAX; }
+  Stuple!(int, int)* ptr;
+  if (auto p = caller in balance) ptr = p;
+  else { balance[caller] = Init!(Stuple!(int, int)); ptr = caller in balance; }
+
+  bool oftenUseless;
+  auto total = ptr._0 + ptr._1;
+  if (total > 128) {
+    auto uselessf = ptr._0 * 1f / total;
+    if (uselessf > 0.9) oftenUseless = true;
+  }
+  if (res is backup) {
+    ptr._0 ++;
+  } else {
+    ptr._1 ++;
+    if (oftenUseless) {
+      logln("foldex was usually useless, but not this time (", ptr._0, " / ", ptr._1, "): ", backup, " to ", res);
+      asm { int 3; }
+    }
+  }
+  if (oftenUseless && !ptr._1) {
+    logln("foldex did not do anything");
+    asm { int 3; }
+  }
+  return res;
+}
+
+Expr foldex(Expr ex) {
+  // return outer_foldex(ex);
+  return inner_foldex(ex);
 }
 
 Statement optst(Statement st) {
@@ -42,14 +79,27 @@ Statement optst(Statement st) {
   return st;
 }
 
+Expr optex(Expr ex) {
+  if (!ex) return null;
+  opt(ex);
+  return ex;
+}
+
 void opt(T)(ref T t) {
+  static T cache;
+  if (t is cache) return;
   void fun(ref Itr it) {
-    it = fold(it);
-    it.iterate(&fun);
+    while (true) {
+      it.iterate(&fun);
+      auto new_it = fold(it);
+      if (new_it is it) break;
+      it = new_it;
+    }
   }
   Itr it = fastcast!(Itr) (t);
   if (!it) fail;
   fun(it);
   t = fastcast!(T) (it);
   if (!t) fail;
+  cache = t;
 }

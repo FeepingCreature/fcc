@@ -350,7 +350,8 @@ src_cleanup_redo: // count, then copy
       if (s2.accept("(") && (ty = matchType(s2), ty) && s2.accept(")") && readCExpr(s2, res)) {
         IType alt;
         if (Single!(Char) == ty) alt = Single!(Byte); // same type in C
-        res = foldex(forcedConvert(res));
+        res = forcedConvert(res);
+        opt(res);
         // res = reinterpret_cast(ty, res);
         if (!gotImplicitCast(res, ty, (IType it) { return test(it == ty || alt && it == alt); }))
           return false;
@@ -466,7 +467,7 @@ src_cleanup_redo: // count, then copy
     auto lenbackup = *lenient.ptr();
     *lenient.ptr() = true;
     scope(exit) *lenient.ptr() = lenbackup;
-    try res = fastcast!(Expr) (parsecon.parse(s2, mixin(c_tree_expr_matcher)));
+    try res = fastcast!(Expr) (parse(s2, mixin(c_tree_expr_matcher)));
     catch (Exception ex) return false; // no biggie
     if (!res) return false;
     source = s2;
@@ -550,10 +551,12 @@ src_cleanup_redo: // count, then copy
             // logln("--", entry);
             goto giveUp;
           }
-          cur = foldex(ex);
+          opt(ex);
+          cur = ex;
         }
         elems ~= fastalloc!(ExprAlias)(cur, id);
-        cur = foldex(lookupOp("+", cur, mkInt(1)));
+        cur = lookupOp("+", cur, mkInt(1));
+        opt(cur);
       }
       // logln("Got from enum: ", elems);
       stmt = stmt.between("}", "");
@@ -619,7 +622,7 @@ src_cleanup_redo: // count, then copy
             st3 = st3.replace("(int)", ""); // hax
             if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
               redo:
-              size = foldex(size);
+              opt(size);
               if (fastcast!(AstTuple)~ size.valueType()) {
                 // unwrap "(foo)"
                 logln("at ", st2.nextText(), ":");
@@ -738,7 +741,7 @@ src_cleanup_redo: // count, then copy
       auto st3 = stmt;
       if (st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
         redo3:
-        size = foldex(size);
+        opt(size);
         // unwrap "(bar)" again
         if (fastcast!(AstTuple)~ size.valueType()) {
           size = (fastcast!(StructLiteral)~ (fastcast!(RCE)~ size).from).exprs[$-1];
@@ -814,7 +817,10 @@ src_cleanup_redo: // count, then copy
       if (!stmt.accept("(")) {
         // weird, but, nope.
         // while (stmt.accept("")) ret = fastalloc!(Pointer)(ret);
-        if (stmt.accept("") && !stmt.length) {
+        goto giveUp;
+        logln(">> ", stmt); // TODO: work out what this is for
+        fail;
+        if (!stmt.length) {
           add(name, fastalloc!(ExprAlias)(reinterpret_cast(fastalloc!(Pointer)(ret), fastalloc!(RefExpr)(fastalloc!(ExternCGlobVar)(ret, name))), name));
           continue;
         }
@@ -880,16 +886,18 @@ import ast.pragmas;
 static this() {
   New(defines_sync);
   pragmas["define"] = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, (Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }))
+    if (!gotImplicitCast(ex, (Expr ex) { opt(ex); return !!fastcast!(StringExpr) (ex); }))
       throw new Exception("String expected for pragma(define, ...)");
-    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    opt(ex);
+    string str = (fastcast!(StringExpr) (ex)).str;
     synchronized(defines_sync) defines ~= str.strip();
     return Single!(NoOp);
   };
   pragmas["include_prepend"] = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, (Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }))
+    if (!gotImplicitCast(ex, (Expr ex) { opt(ex); return !!fastcast!(StringExpr) (ex); }))
       throw new Exception("\"file1 < file2\" string expected for pragma(include_prepend, ...)");
-    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    opt(ex);
+    string str = (fastcast!(StringExpr) (ex)).str;
     auto file1 = str.slice("<").strip(), file2 = str.strip();
     if (!file1.length || !file2.length) 
       throw new Exception(
@@ -951,9 +959,10 @@ Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(text, "tree.expr"[], &ex))
     text.failparse("Couldn't find c_import string expr");
   if (!text.accept(";")) text.failparse("Missing trailing semicolon");
-  auto str = fastcast!(StringExpr)~ foldex(ex);
+  opt(ex);
+  auto str = fastcast!(StringExpr) (ex);
   if (!str)
-    text.failparse(foldex(ex), " is not a string");
+    text.failparse(ex, " is not a string");
   performCImport(str.str);
   return Single!(NoOp);
 }

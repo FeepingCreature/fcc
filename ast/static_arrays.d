@@ -64,7 +64,7 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(StaticArray) (resolveType(ex.valueType()))) return null;
-    ex = foldex(ex);
+    opt(ex);
     if (!fastcast!(CValue) (ex))
       return null;
     return getSAPtr(ex);
@@ -237,7 +237,8 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
       if (!type) type = ex.valueType();
       else if (!gotImplicitCast(ex, (IType it) { types ~= it; return test(it == type); }))
         t2.failparse("Invalid SA literal member; none of "[], types, " match "[], type);
-      if (auto ie = fastcast!(IntExpr)~ fold(ex)) statics ~= ie.num;
+      opt(ex);
+      if (auto ie = fastcast!(IntExpr) (ex)) statics ~= ie.num;
       else isStatic = false;
       exs ~= ex;
     }

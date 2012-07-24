@@ -9,10 +9,12 @@ Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't match mixin string! "[]);
   auto ex2 = ex;
   if (!gotImplicitCast(ex2, (Expr ex) {
-    return !!fastcast!(StringExpr) (foldex(ex));
+    opt(ex);
+    return !!fastcast!(StringExpr) (ex);
   }))
     t2.failparse("Couldn't mixin: Not a string constant: "[], ex);
-  auto se = fastcast!(StringExpr) (foldex(ex2));
+  opt(ex2);
+  auto se = fastcast!(StringExpr) (ex2);
   auto src = se.str;
   Object res;
   pushCache(); scope(exit) popCache();
@@ -36,10 +38,12 @@ Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest)
     t2.failparse("Couldn't match mixin string! "[]);
   auto ex2 = ex;
   if (!gotImplicitCast(ex2, (Expr ex) {
-    return !!fastcast!(StringExpr) (foldex(ex));
+    opt(ex);
+    return !!fastcast!(StringExpr) (ex);
   }))
     t2.failparse("Couldn't mixin: Not a string constant: "[], ex);
-  auto se = fastcast!(StringExpr) (foldex(ex2));
+  opt(ex2);
+  auto se = fastcast!(StringExpr) (ex2);
   auto src = se.str;
   Object res;
   pushCache(); scope(exit) popCache();

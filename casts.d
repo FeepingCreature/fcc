@@ -170,38 +170,46 @@ void initCastTable() {
   }
   xor = bestXOR;
   idtable.length = bestXORSize;
-  if (idtable.length != PredictedTableLength) {
+  if (PredictedTableLength != -1 && idtable.length != PredictedTableLength) {
     logln("please update pred const to "[], idtable.length);
     asm { int 3; }
   }
   memset(idtable.ptr, 0, idtable.length * typeof(idtable[0]).sizeof);
   resetHash();
   foreach (int i, entry; ci) {
-    idtable[hash(cast(void*) entry) % PredictedTableLength] = stuple(cast(void*) entry, i);
+    static if (PredictedTableLength == -1) int len = idtable.length;
+    else const len = PredictedTableLength;
+    idtable[hash(cast(void*) entry) % len] = stuple(cast(void*) entry, i);
   }
 }
 
-const getIdCacheSize = 1;
+const getIdCacheSize = 1; // more is sliightly slower, less is way slower
 Stuple!(void*, int)[getIdCacheSize] getIdCache;
 int getIdLoopPtr;
 pragma(attribute, optimize("-O3"))
 int getId(ClassInfo ci) {
   auto cp = cast(void*) ci;
-  for (int i = 0; i < getIdCacheSize; ++i) {
+  static if (getIdCacheSize) foreach (i, bogus; Repeat!(void, getIdCacheSize)) {
     int idx = (i + getIdLoopPtr + 1) % getIdCacheSize;
     if (getIdCache[idx]._0 == cp)
       return getIdCache[idx]._1;
   }
-  auto entry = idtable.ptr[hash(cp) % PredictedTableLength];
-  int res = -1;
-  if (entry._0 == cp) res = entry._1;
-  getIdCache[getIdLoopPtr] = stuple(cp, res);
-  getIdLoopPtr --;
-  if (getIdLoopPtr < 0) getIdLoopPtr += getIdCacheSize;
+  static if (PredictedTableLength == -1) int len = idtable.length;
+  else const len = PredictedTableLength;
+  auto entry = idtable.ptr[hash(cp) % len];
+  int res = (entry._0 == cp)?entry._1:-1;
+  static if (getIdCacheSize) {
+    auto p = &getIdCache[getIdLoopPtr];
+    p._0 = cp; p._1 = res; //  = stuple(cp, res);
+    static if (getIdCacheSize > 1) {
+      getIdLoopPtr --;
+      if (getIdLoopPtr < 0) getIdLoopPtr += getIdCacheSize;
+    }
+  }
   return res;
 }
 
-const PredictedTableLength = 405;
+const PredictedTableLength = -1;
 
 extern(C) void fastcast_marker() { }
 

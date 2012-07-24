@@ -17,7 +17,18 @@ string nextText(string s, int i = 100) {
   return s.replace("\n"[], "\\"[]);
 }
 
+// char* cache_marker, cache_res;
+
 void eatComments(ref string s) {
+  /// benched this, it doesn't help
+  /*
+  if (s.ptr is cache_marker) { s = cache_res[0..s.ptr+s.length-cache_res]; return; }
+  if (s.ptr is cache_res) { return; }
+  auto backupptr = s.ptr;
+  scope(success) {
+    cache_marker = backupptr;
+    cache_res = s.ptr;
+  }*/
   s = s.mystripl();
   while (true) {
     if (s.length >= 2 && s[0] == '/' && s[1] == '*') { s = s[2..$]; s.slice("*/"[]); s = s.mystripl(); }

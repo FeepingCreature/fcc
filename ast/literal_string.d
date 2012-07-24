@@ -63,7 +63,8 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (resolveType(ex.valueType()) != Single!(Array, Single!(Char)))
       return null;
-    if (fastcast!(StringExpr) (foldex(ex))) {
+    opt(ex);
+    if (fastcast!(StringExpr) (ex)) {
       return getArrayPtr(ex);
     }
     return null;
@@ -84,7 +85,8 @@ static this() {
   };
   foldopt ~= delegate Itr(Itr it) {
     if (auto al = fastcast!(ArrayLength_Base)(it)) {
-      if (auto se = fastcast!(StringExpr) (foldex(al.array))) {
+      opt(al.array);
+      if (auto se = fastcast!(StringExpr) (al.array)) {
         return mkInt(se.str.length);
       }
     }

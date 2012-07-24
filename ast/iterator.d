@@ -104,7 +104,8 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
                      "pos"[], pos);
     }
     Expr slice(Expr ex, Expr from, Expr to) {
-      auto ifrom = fastcast!(IntExpr) (fold(from)), ito = fastcast!(IntExpr) (fold(to));
+      opt(from); opt(to);
+      auto ifrom = fastcast!(IntExpr) (from), ito = fastcast!(IntExpr) (to);
       if (ifrom && ito) {
         auto res = new ConstIntRange(this.from+ifrom.num, this.to+ito.num);
         return reinterpret_cast(res, lookupOp("+",
@@ -157,10 +158,10 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   bool isByte(IType it) { return !!fastcast!(Byte) (it); }
   gotImplicitCast(from, &notATuple);
   gotImplicitCast(to  , &notATuple);
-  from = foldex(from); to = foldex(to);
+  opt(from); opt(to);
   if (auto sl = fastcast!(StringExpr) (from)) if (sl.str.length == 1) gotImplicitCast(from, &isByte);
   if (auto sl = fastcast!(StringExpr) (to))   if (sl.str.length == 1) gotImplicitCast(to,   &isByte);
-  auto ifrom = fastcast!(IntExpr)~ fold(from), ito = fastcast!(IntExpr)~ fold(to);
+  auto ifrom = fastcast!(IntExpr) (from), ito = fastcast!(IntExpr) (to);
   if (ifrom && ito)
     return fastcast!(Object)~ reinterpret_cast(fastalloc!(ConstIntRange)(ifrom.num, ito.num), mkInt(ifrom.num - 1));
   return fastcast!(Object)~ mkRange(from, to);
@@ -634,7 +635,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotForIter, "tree.expr.iter.for"[], null, "["[]);
 static this() {
-  parsecon.addPrecedence("tree.expr.iter"[], "441"[]);
+  addPrecedence("tree.expr.iter"[], "441"[]);
 }
 
 LValue getRefExpr(Expr ex) {
@@ -667,9 +668,10 @@ class IterLetCond(T) : Cond, NeedsConfig {
   override void jumpOn(AsmFile af, bool cond, string dest) {
     auto itype = fastcast!(Iterator) (resolveType(iter.valueType()));
     auto stepcond = itype.testAdvance(iref);
-    auto value = foldex(itype.currentValue(iref));
+    auto value = itype.currentValue(iref);
     auto skip = af.genLabel();
     opt(stepcond);
+    opt(value);
     if (cond) {
       // if jump fails, value is available; write it, then jump
       stepcond.jumpOn(af, false, skip);

@@ -241,7 +241,7 @@ bool matchStructBody(ref string text, Namespace ns,
   Object match(ref string text, string rule) {
     if (rest) { Object res; if (!(*rest)(text, rule, &res)) return null; return res; }
     else {
-      return parsecon.parse(text, rule);
+      return parse(text, rule);
     }
   }
   
@@ -587,7 +587,7 @@ static this() {
   };
   foldopt ~= delegate Itr(Itr it) {
     if (auto mae = fastcast!(MemberAccess_Expr) (it)) {
-      auto base = foldex(mae.base);
+      auto base = mae.base;
       auto basebackup = base;
       // logln(mae.name, "::"[], mae.stm.type.size, " vs. "[], base.valueType().size);
       if (mae.stm.type.size == base.valueType().size) {
@@ -597,8 +597,8 @@ static this() {
       {
         Expr from;
         if (auto mae2 = fastcast!(MemberAccess_Expr)~ base) from = base; // lol direct
-        if (auto c = fastcast!(RCL) (base)) from = foldex(c.from);
-        if (auto c = fastcast!(RCE) (base)) from = foldex(c.from);
+        if (auto c = fastcast!(RCL) (base)) from = c.from;
+        if (auto c = fastcast!(RCE) (base)) from = c.from;
         if (from) {
           if (auto m2 = fastcast!(MemberAccess_Expr)~ from) {
             MemberAccess_Expr weird;
@@ -621,7 +621,6 @@ static this() {
         if (!mae.intendedForSplit && sl.exprs.length > 1) {
           bool cheap = true;
           foreach (ref ex; sl.exprs) {
-            ex = foldex(ex);
             // if it was for multiple access, it'd already have checked for that separately
             if (!_is_cheap(ex, CheapMode.Flatten)) {
               // logln("not cheap: "[], ex);
@@ -647,7 +646,7 @@ static this() {
           }
           i++;
         }, &st.rmcache);
-        if (auto it = fastcast!(Iterable) (res?foldex(res):res))
+        if (auto it = fastcast!(Iterable) (res))
           return it;
       }
     }

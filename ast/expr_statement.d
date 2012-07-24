@@ -7,7 +7,7 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t0 = text;
   if (!rest(text, "tree.expr"[], &ex)) return null;
-  ex = foldex(ex);
+  opt(ex);
   auto fc = fastcast!(FunCall) (ex);
   if (fc && fc.fun.reassign) {
     auto args = fc.getParams();

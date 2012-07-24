@@ -445,8 +445,9 @@ class ArrayExtender : Expr {
 }
 
 static this() {
-  implicits ~= delegate Expr(Expr ex) {
+  implicits ~= delegate Expr(Expr ex, IType it) {
     if (!fastcast!(Array) (ex.valueType()) && !fastcast!(ExtArray) (ex.valueType())) return null;
+    if (it && Single!(HintType!(Array)) != it && Single!(HintType!(ExtArray)) != it) return null;
     if (auto lv = fastcast!(LValue) (ex)) {
       if (auto sal = fastcast!(StatementAndLValue) (ex))
         return fastalloc!(StatementAndLValue)(sal.first, arrayToStruct!(LValue) (fastcast!(LValue) (sal.second)));
@@ -457,8 +458,9 @@ static this() {
       return arrayToStruct!(Expr) (ex);
     }
   };
-  implicits ~= delegate Expr(Expr ex) {
+  implicits ~= delegate Expr(Expr ex, IType it) {
     if (!fastcast!(Array) (ex.valueType())) return null;
+    if (it && Single!(HintType!(Array)) != it && Single!(HintType!(ExtArray)) != it) return null;
     // if (!isTrivial(ex)) ex = lvize(ex);
     // equiv to extended with 0 cap
     return fastalloc!(ArrayExtender)(ex, mkInt(0));

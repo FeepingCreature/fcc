@@ -27,6 +27,7 @@ class Property : MValue, RelTransformable {
       fail;
     }
     if (s.type.ret != Single!(Void)) {
+      throw new Exception("Setter must return void");
       fail;
     }
   }

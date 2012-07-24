@@ -16,8 +16,11 @@ interface IType {
   bool isComplete(); // is this type completely defined or does it depend on future stuff?
 }
 
+import tools.log;
 // Strips out type-alias and the like
+IType resolvecache;
 IType resolveType(IType t) {
+  if (t is resolvecache) return t; // shortcut for repeated call
   while (t) {
     if (auto tp = t.proxyType()) {
       t = tp;
@@ -25,6 +28,7 @@ IType resolveType(IType t) {
     }
     break;
   }
+  resolvecache = t;
   return t;
 }
 

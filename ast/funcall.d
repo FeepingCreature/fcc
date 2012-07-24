@@ -67,7 +67,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
           scope(exit) changed = backup;
           
           foreach (ref subexpr; exprs) {
-            subexpr = foldex(subexpr);
+            opt(subexpr);
             auto sit = fastcast!(Iterable) (subexpr);
             removeNameds(sit);
             subexpr = fastcast!(Expr) (sit);
@@ -210,7 +210,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     auto ex = args.take();
     auto backup = ex;
     
-    ex = foldex(ex);
+    opt(ex);
     
     if (exact ? (ex.valueType() != type) : !gotImplicitCast(ex, type, (IType it) {
       tried ~= it;
@@ -411,7 +411,7 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (t2.cantBeCall()) return null;
 
     FunctionPointer fptype;
-    if (!gotImplicitCast(ex, (IType it) { fptype = fastcast!(FunctionPointer) (it); return !!fptype; }))
+    if (!gotImplicitCast(ex, Single!(HintType!(FunctionPointer)), (IType it) { fptype = fastcast!(FunctionPointer) (it); return !!fptype; }))
       return null;
     
     auto fc = new FpCall;
@@ -491,7 +491,6 @@ static this() {
     }
     string[3] str;
     foreach (i, arg; args) {
-      arg = foldex(arg);
       if (auto se = fastcast!(StringExpr) (arg)) str[i] = se.str;
       else {
         // logln("couldn't fold properly because arg was ", arg);

@@ -95,7 +95,7 @@ static this() {
       if (exactlyEquals(rce.from.valueType(), rce.to))
         return rce.from;
       
-      if (auto rce2 = fastcast!(RCE) (foldex(rce.from))) {
+      if (auto rce2 = fastcast!(RCE) (rce.from)) {
         return reinterpret_cast(rce.to, rce2.from);
       }
     }
@@ -176,7 +176,7 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
     t2.failparse("Failed to get expression"[]);
   }
-  if (!gotImplicitCast(ex, (IType it) { types ~= it; return it.size == dest.size; })) {
+  if (!gotImplicitCast(ex, dest, (IType it) { types ~= it; return it.size == dest.size; })) {
     t2.setError("Expression not matched in cast; none of "[], types, " matched "[], dest.size, ". "[]);
     return null;
   }

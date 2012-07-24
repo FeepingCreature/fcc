@@ -28,16 +28,21 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   Expr protConstCall;
   PlaceholderTokenLV var_token;
-  if (initParam) {
-    New(var_token, it, "early constructor call"[]);
-    try {
+  New(var_token, it, "early constructor call"[]);
+  try {
+    if (initParam) {
       protConstCall =
-        iparse!(Expr, "call_constructor_early"[], "tree.expr _tree.expr.arith"[])
+        iparse!(Expr, "call_constructor_early", "tree.expr _tree.expr.arith")
                (`var.init ex`, namespace(),
                 "var"[], var_token, "ex"[], initParam);
-    } catch (Exception ex) {
-      text.failparse(ex);
+    } else if (cr.myClass.lookupRel("init", var_token)) {
+      protConstCall =
+        iparse!(Expr, "call_constructor_early_void", "tree.expr _tree.expr.arith")
+               (`var.init()`, namespace(),
+                "var"[], var_token);
     }
+  } catch (Exception ex) {
+    text.failparse(ex);
   }
   return fastalloc!(CallbackExpr)(Format("class-new "[], cr), cr, protConstCall, stuple(text, cr, var_token)
   /apply/ (string text, ClassRef cr, PlaceholderTokenLV var_token, Expr protConstCall, AsmFile af)
@@ -127,23 +132,13 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         });
       }
       initClass(cr.myClass);
-      try {
-        if (protConstCall) {
-          void subst(ref Iterable it) {
-            if (it is var_token) it = var;
-            else it.iterate(&subst);
-          }
-          protConstCall.iterate(&subst);
-          (fastalloc!(ExprStatement)(foldex(protConstCall))).emitAsm(af);
-        } else if (cr.myClass.lookupRel("init"[], var)) {
-          (fastalloc!(ExprStatement)(foldex(
-            iparse!(Expr, "call_constructor_void"[], "tree.expr _tree.expr.arith"[])
-                    (`var.init()`, namespace(),
-                    "var"[], var)
-          ))).emitAsm(af);
+      if (protConstCall) {
+        void subst(ref Iterable it) {
+          if (it is var_token) it = var;
+          else it.iterate(&subst);
         }
-      } catch (Exception ex) {
-        text.failparse(ex);
+        protConstCall.iterate(&subst);
+        (fastalloc!(ExprStatement)(protConstCall)).emitAsm(af);
       }
     });
   });
@@ -248,4 +243,4 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotNewValueExpr, "tree.expr.new.value"[], "2"[], "new"[]);
 
-static this() { parsecon.addPrecedence("tree.expr.new"[], /*"20"*/"24015"[]); }
+static this() { addPrecedence("tree.expr.new"[], /*"20"*/"24015"[]); }

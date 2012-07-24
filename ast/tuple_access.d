@@ -91,7 +91,7 @@ import ast.parse, ast.fold, ast.int_literal, ast.namespace, ast.opers;
 static this() {
   defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
     Tuple tup;
-    if (!gotImplicitCast(e1, (IType it) {
+    if (!gotImplicitCast(e1, Single!(HintType!(Tuple)), (IType it) {
       tup = fastcast!(Tuple) (resolveType(it));
       return tup && tup.types.length != 1; // resolve ambiguity with array index
     }))
@@ -99,9 +99,9 @@ static this() {
     int count;
     tup.wrapped.select((string, RelMember rm) { count ++; }, &tup.wrapped.rmcache);
     /// 2.1
-    if (!gotImplicitCast(e2, (IType it) { return test(Single!(SysInt) == it); }))
+    if (!gotImplicitCast(e2, Single!(SysInt), (IType it) { return test(Single!(SysInt) == it); }))
       return null;
-    e2 = foldex(e2);
+    opt(e2);
     auto ie = fastcast!(IntExpr) (e2);
     if (!ie) {
       return null;
@@ -137,7 +137,8 @@ static this() {
     auto rish = fastcast!(RangeIsh) (e2.valueType()),
       from = rish.getPos(e2),
       to   = rish.getEnd(e2);
-    auto ifrom = fastcast!(IntExpr) (fold(from)), ito = fastcast!(IntExpr) (fold(to));
+    opt(from); opt(to);
+    auto ifrom = fastcast!(IntExpr) (from), ito = fastcast!(IntExpr) (to);
     if (!ifrom || !ito) fail("fail"[]);
     auto start = tup.wrapped.selectMember(ifrom.num).offset;
     if (ifrom.num == ito.num) {

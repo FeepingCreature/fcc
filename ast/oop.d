@@ -652,8 +652,10 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     // logln("for "[], name, "[], res is "[], res);
     return res;
   }
+  LazyDeltaInt deltacache;
   LazyDeltaInt ownClassinfoLength() { // skipping interfaces
-    return fastalloc!(LazyDeltaInt)(&getFinalClassinfoLengthValue);
+    if (!deltacache) deltacache = fastalloc!(LazyDeltaInt)(&getFinalClassinfoLengthValue);
+    return deltacache;
   }
   // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
   string[] getClassinfo(RelFunSet loverrides = Init!(RelFunSet)) { // local overrides

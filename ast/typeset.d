@@ -57,7 +57,7 @@ static this() {
   implicits ~= delegate void(Expr ex, void delegate(Expr) consider) {
     auto tys = fastcast!(Typeset) (ex.valueType());
     if (!tys) return;
-    auto ex_as_tup = foldex(reinterpret_cast(tys.tup, ex));
+    auto ex_as_tup = reinterpret_cast(tys.tup, ex);
     foreach (i, type; tys.tup.types()) {
       consider(mkTupleIndexAccess(ex_as_tup, i));
     }

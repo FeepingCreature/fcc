@@ -47,7 +47,7 @@ class FullSlice : Expr {
         
         (fastalloc!(VarDecl)(temp)).emitAsm(af);
         
-        emitAssign(af, var, foldex(mkArraySlice(temp, mkInt(0), getArrayLength(temp))));
+        emitAssign(af, var, optex(mkArraySlice(temp, mkInt(0), getArrayLength(temp))));
       });
     }
   }
@@ -55,7 +55,11 @@ class FullSlice : Expr {
 
 static this() {
   defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
-    auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
+    auto e2v = resolveType(e2.valueType());
+    auto rish = fastcast!(RangeIsh)~ e2v;
+    if (!rish) return null;
+    
+    auto e1v = resolveType(e1.valueType());
     if (fastcast!(StaticArray)~ e1v) {
       if (fastcast!(LValue) (e1)) {
         e1 = mkFullSlice(e1);
@@ -64,10 +68,10 @@ static this() {
     }
     if (!fastcast!(Array) (e1v) && !fastcast!(ExtArray) (e1v) && !fastcast!(Pointer) (e1v))
       return null;
-    auto rish = fastcast!(RangeIsh)~ e2v;
-    if (!rish) return null;
-    auto from = foldex(rish.getPos(e2));
-    auto to   = foldex(rish.getEnd(e2));
+    
+    auto from = rish.getPos(e2);
+    auto to   = rish.getEnd(e2);
+    opt(from); opt(to);
     if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: "[], from));
     if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: "[], from));
     
@@ -86,10 +90,10 @@ Expr mkFullSlice(Expr ex) {
       logln("Not a cv for full slice: "[], ex);
       fail;
     }
-    return fastalloc!(ArrayMaker)(
+    return optex(fastalloc!(ArrayMaker)(
       reinterpret_cast(fastalloc!(Pointer)(sa.elemType), fastalloc!(RefExpr)(cv)),
-      foldex(getArrayLength(ex))
-    );
+      getArrayLength(ex)
+    ));
   } else return fastalloc!(FullSlice)(ex);
 }
 

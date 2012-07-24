@@ -313,6 +313,7 @@ void setupStaticBoolLits() {
   if (True && False) return;
   True = fastcast!(Expr) (sysmod.lookup("true"[]));
   False = fastcast!(Expr) (sysmod.lookup("false"[]));
+  opt(True); opt(False);
   cTrue = new TrueCond;
   cFalse = new FalseCond;
 }
@@ -449,7 +450,7 @@ Object gotBoolOp(string Op, alias Class)(ref string text, ParseCb cont, ParseCb 
 mixin DefaultParser!(gotBoolOp!("&&"[], AndOp), "cond.bin.and"[], "2"[]);
 mixin DefaultParser!(gotBoolOp!("||"[], OrOp), "cond.bin.or"[], "1"[]);
 static this() {
-  parsecon.addPrecedence("cond.bin"[], "5"[]);
+  addPrecedence("cond.bin"[], "5"[]);
 }
 
 Object gotBraces(ref string text, ParseCb cont, ParseCb rest) {
@@ -535,7 +536,7 @@ Object gotComplexCondAsExpr(bool mode)(ref string text, ParseCb cont, ParseCb re
 mixin DefaultParser!(gotComplexCondAsExpr!(true),  "tree.expr.cond.compare_negate"[], "1"[]);
 mixin DefaultParser!(gotComplexCondAsExpr!(false), "tree.expr.cond_other"[], "13"[]);
 static this() {
-  parsecon.addPrecedence("tree.expr.cond"[], "120"[]);
+  addPrecedence("tree.expr.cond"[], "120"[]);
 }
 
 Expr longOp(string Code)(Expr e1, Expr e2) {

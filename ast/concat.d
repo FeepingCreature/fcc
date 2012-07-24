@@ -28,9 +28,10 @@ class ConcatChain : Expr {
     Expr nuArray;
     if (fastcast!(StaticArray)~ ex.valueType()) nuArray = staticToArray(ex);
     else nuArray = ex;
+    opt(nuArray);
     if (arrays.length) {
-      auto se1 = fastcast!(StringExpr) (foldex(arrays[$-1]));
-      auto se2 = fastcast!(StringExpr) (foldex(nuArray));
+      auto se1 = fastcast!(StringExpr) (arrays[$-1]);
+      auto se2 = fastcast!(StringExpr) (nuArray);
       if (se1 && se2) {
         arrays[$-1] = mkString(se1.str~se2.str);
         return;
@@ -56,7 +57,7 @@ class ConcatChain : Expr {
         
         string lit;
         bool isLiteral(Expr ex) {
-          if (auto se = fastcast!(StringExpr) (foldex(ex))) {
+          if (auto se = fastcast!(StringExpr) (ex)) {
             lit = se.str;
             return true;
           }
@@ -64,8 +65,10 @@ class ConcatChain : Expr {
         }
         
         int cacheNeeded;
-        foreach (array; arrays)
+        foreach (ref array; arrays) {
+          opt(array);
           if (array.valueType() != type.elemType && !isLiteral(array)) cacheNeeded ++;
+        }
           
         auto sa = fastalloc!(StaticArray)(valueType(), cacheNeeded);
         auto
@@ -118,7 +121,7 @@ class ConcatChain : Expr {
             else c = getIndex(cache, mkInt(cacheId ++));
             auto len = getArrayLength(c);
             /// var[offset .. offset + cache[i].length] = cache[i];
-            optst(getSliceAssign(mkArraySlice(var, offset, lookupOp("+"[], offset, len)), c.dup)).emitAsm(af);
+            optst(getSliceAssign(mkArraySlice(var, offset, lookupOp("+"[], offset, len)), c)).emitAsm(af);
             /// offset = offset + cache[i].length;
             emitAssign(af, offset, lookupOp("+"[], offset, len));
           }
@@ -264,7 +267,6 @@ static this() {
     if (cc.type != Single!(Array, Single!(Char))) return null;
     string res;
     foreach (ex2; cc.arrays) {
-      ex2 = foldex(ex2);
       if (auto se = fastcast!(StringExpr) (ex2)) res ~= se.str;
       else return null;
     }

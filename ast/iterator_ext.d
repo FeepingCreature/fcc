@@ -234,7 +234,8 @@ class Cross : Type, RichIterator {
                            (`tup[i + len*2 + 1]`, "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(types.length));
         auto len = (fastcast!(RichIterator)~ entry.valueType()).length(entry);
         if (staticlength != -1) {
-          if (auto ie = fastcast!(IntExpr)~ foldex(len)) {
+          opt(len);
+          if (auto ie = fastcast!(IntExpr) (len)) {
             staticlength *= ie.num;
           } else {
             staticlength = -1;
@@ -282,8 +283,8 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
-    foreach (ex2; getTupleEntries(ex)) {
-      ex2 = foldex(ex2);
+    foreach (ref ex2; getTupleEntries(ex)) {
+      opt(ex2);
       // logln("got tuple entry "[], ex2);
       if (!gotImplicitCast(ex2, Single!(BogusIterator), isRichIterator))
         return false;
@@ -294,7 +295,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
-    entry = foldex(entry);
+    opt(entry);
     gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
   }
   return fastcast!(Object)~ mkCross(list);
@@ -393,7 +394,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
-      ex2 = foldex(ex2);
+      opt(ex2);
       if (!gotImplicitCast(ex2, Single!(BogusIterator), isIterator))
         return false;
       auto test = ex2;
@@ -408,7 +409,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
-    entry = foldex(entry);
+    opt(entry);
     if (rich) gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
     else gotImplicitCast(entry, Single!(BogusIterator), isIterator);
   }
@@ -510,7 +511,7 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
-      ex2 = foldex(ex2);
+      opt(ex2);
       if (!gotImplicitCast(ex2, Single!(BogusIterator), isIterator))
         return false;
       merge(fastcast!(Iterator) (ex2.valueType()));
@@ -526,7 +527,7 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
-    entry = foldex(entry);
+    opt(entry);
     if (rich) gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
     else gotImplicitCast(entry, Single!(BogusIterator), isIterator);
   }

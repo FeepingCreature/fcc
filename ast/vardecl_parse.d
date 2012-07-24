@@ -3,31 +3,36 @@ module ast.vardecl_parse;
 import parseBase, ast.base, ast.vardecl, ast.aliasing, ast.namespace, ast.expr_statement, ast.arrays,
        ast.casting, ast.pointer, ast.aggregate, ast.scopes, ast.types, ast.dg, tools.compat: find;
 
+Scope cached_sc;
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, varname;
   bool isRefDecl, isScopeDecl;
   
-  auto sc = new Scope;
+  Scope sc;
+  if (cached_sc) { sc = cached_sc; sc = sc._ctor(); cached_sc = null; }
+  else { sc = new Scope; }
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   
   resetError();
   IType vartype;
   
+  const abort = `cached_sc = sc; return null; `;
+  
   if (!t2.accept("auto"[])) {
     if (t2.accept("ref"[])) isRefDecl = true;
     else if (t2.accept("scope"[])) isScopeDecl = true;
     
-    if (!rest(t2, "type", &vartype) && !isScopeDecl && !isRefDecl) return null;
-    if (t2.accept(":"[])) return null; // cast
+    if (!rest(t2, "type", &vartype) && !isScopeDecl && !isRefDecl) mixin(abort);
+    if (t2.accept(":"[])) mixin(abort); // cast
   }
   
-  if (t2.accept("("[])) return null; // compound var expr
+  if (t2.accept("("[])) mixin(abort); // compound var expr
   
   while (true) {
     if (!t2.gotValidIdentifier(varname, true))
       t2.failparse("Could not get variable identifier"[]);
-    if (t2.acceptLeftArrow()) return null; // is an iterator-construct
+    if (t2.acceptLeftArrow()) mixin(abort); // is an iterator-construct
     Expr ex;
     bool dontInit;
     if (t2.accept("="[])) {

@@ -27,9 +27,12 @@ class GlobVar : LValue, Named, IsMangled {
   string cleanedName() {
     return name.replace("-"[], "_dash_"[]);
   }
+  string manglecache;
   override {
     string mangleSelf() {
-      return (tls?"tls_":""[])~"global_"~ns.mangle(cleanedName(), type);
+      if (!manglecache)
+        manglecache = qformat(tls?"tls_"[]:""[], "global_", ns.mangle(cleanedName(), type));
+      return manglecache;
     }
     void markWeak() { weak = true; }
     IType valueType() { return type; }
@@ -151,7 +154,8 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       ),
       t2.accept(","[]),
       {
-        gvd.vars ~= fastalloc!(GlobVar)(ty, name, ns, gvd.tls, foldex(initval));
+        if (initval) opt(initval);
+        gvd.vars ~= fastalloc!(GlobVar)(ty, name, ns, gvd.tls, initval);
         initval = null;
       },
       false

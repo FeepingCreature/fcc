@@ -89,7 +89,7 @@ Object gotStaticIf(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't get static-if condition"[]);
   string branch1, branch2;
   t2.noMoreHeredoc();
-  test = fastcast!(Cond) (fold(test));
+  opt(test);
   
   auto t3 = t2;
   

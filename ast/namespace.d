@@ -402,7 +402,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     
     sourcefiles["<internal:"~id~">"] = text;
     
-    auto res = parsecon.parse(text, rule);
+    auto res = parse(text, rule);
     auto rc = fastcast!(R) (res);
     static if (mustParse) {
       if (text.mystripl().length) text.failparse("Unknown text: '"~text~"'"[]);

@@ -28,7 +28,7 @@ static this() {
       auto rcp = fastcast!(RCE) (de.src);
       if (!rcp) return null;
       
-      auto aibe = fastcast!(AsmIntBinopExpr) (foldex(rcp.from));
+      auto aibe = fastcast!(AsmIntBinopExpr) (rcp.from);
       if (!aibe) return null;
       auto rci = fastcast!(RCE) (aibe.e1);
       if (!rci || Single!(SysInt) != rci.to) return null;
@@ -121,17 +121,17 @@ static this() {
   foldopt ~= delegate Itr(Itr it) {
     auto cmp = fastcast!(Compare) (it);
     if (!cmp) return null;
-    auto e1 = foldex(cmp.e1);
-    auto e2 = foldex(cmp.e2);
+    auto e1 = cmp.e1;
+    auto e2 = cmp.e2;
     auto i1 = fastcast!(IntExpr) (e1);
     auto i2 = fastcast!(IntExpr) (e2);
     if (auto ce1 = fastcast!(CondExpr) (e1)) {
-      auto cd = fastcast!(Cond) (fold(ce1.cd));
+      auto cd = fastcast!(Cond) (ce1.cd);
       if (isStaticTrue (cd)) i1 = mkInt(1);
       if (isStaticFalse(cd)) i1 = mkInt(0);
     }
     if (auto ce2 = fastcast!(CondExpr) (e2)) {
-      auto cd = fastcast!(Cond) (fold(ce2.cd));
+      auto cd = fastcast!(Cond) (ce2.cd);
       if (isStaticTrue (cd)) i2 = mkInt(1);
       if (isStaticFalse(cd)) i2 = mkInt(0);
     }
