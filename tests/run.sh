@@ -10,7 +10,7 @@ do
   set +m
   exec 3>&2
   exec 2>/dev/null
-  fcc -run $file >/dev/null
+  fcc -O -run $file >/dev/null
   res=$?
   exec 2>&3
   exec 3>&-
