@@ -37,3 +37,26 @@ class Coroutine {
     if (swapcontext(&prev, &ctx) == -1) raise new ErrnoError;
   }
 }
+
+template setupCoIterator(T) {
+  Iterator!T setupCoIterator(void delegate(void delegate(T)) dg) {
+    ref res = * T*: mem.malloc size-of T, done = *new bool;
+    auto coro = new Coroutine new \(void delegate() yield) {
+      dg \(T t) { res = t; yield(); };
+      done = true;
+      yield(); fail;
+    };
+    return new class : Iterator!T {
+      T* rp; bool* dp; Coroutine coro;
+      alias res = *rp; alias done = *dp;
+      void init(T* rp, bool* dp, Coroutine coro) { this.(rp, dp, coro) = (rp, dp, coro); }
+      bool advance() {
+        if (done) return false;
+        coro.enter();
+        if (done) return false;
+        value = res;
+        return true;
+      }
+    } (&res, &done, coro);
+  }
+}
