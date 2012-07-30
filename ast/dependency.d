@@ -24,7 +24,7 @@ module ast.dependency;
  **/
 
 import ast.base, ast.arrays, ast.literal_string, ast.fold, ast.namespace,
-       ast.casting, ast.scopes,
+       ast.casting, ast.scopes, ast.fun,
        parseBase;
 
 string get_id(string s) {
@@ -40,6 +40,7 @@ string get_id(string s) {
 class CodeDependency : Expr, Named {
   string info, removed_info;
   this(string i) { info = i; }
+  string toString() { return qformat("dep ", info); }
   mixin defaultIterate!();
   override {
     string getIdentifier() { return get_id(info); }
@@ -108,6 +109,14 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
       res = fastcast!(Object) (resolveType(it));
     
     // logln("llookup ", s, " in ", res);
+    if (fastcast!(Scope) (res)) { // if we're just starting to look for our function .. 
+      if (auto fun = namespace().get!(Function)) {
+        if (auto cl = fastcast!(Class) (fun.sup)) { // and we're in a class method ..
+          // use the in-class lookup.
+          res = fastcast!(Object) (cl.getRefType());
+        }
+      }
+    }
     if (auto cr = fastcast!(ClassRef) (res)) {
       // special handling
       cr.myClass.parseMe;

@@ -1,0 +1,8 @@
+module test68;
+
+class A {
+  void foo() { provide "hello"; }
+  void bar() { depend foo "hello"; }
+}
+
+void main() { }
