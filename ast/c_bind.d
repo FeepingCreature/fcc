@@ -206,7 +206,7 @@ src_cleanup_redo: // count, then copy
   scope(exit) namespace.set(myNS.sup);
   void add(string name, Named n) {
     if (!name.strip().length) fail;
-    if (myNS.lookup(name)) { return; } // duplicate definition. meh.
+    if (myNS.lookup(name, true)) { return; } // duplicate definition. meh.
     auto ea = fastcast!(ExprAlias)~ n;
     if (ea) {
       if (!gotImplicitCast(ea.base, (IType it) { return !fastcast!(AstTuple) (it); })) {

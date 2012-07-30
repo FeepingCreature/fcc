@@ -1,0 +1,15 @@
+module test87;
+
+import std.coroutine;
+
+void main() {
+  using new Coroutine \(void delegate() yield) {
+    writeln "Hello";
+    yield();
+    writeln "World";
+    yield();
+  } {
+    enter;
+    enter;
+  }
+}

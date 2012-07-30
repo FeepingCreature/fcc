@@ -1,0 +1,39 @@
+module std.coroutine; // coroutines. TODO: make play nice with boehm by explicitly registering stack on leaving
+
+import std.file, c.ucontext, c.sys.mman;
+
+extern(C) void makecontext(ucontext_t* ucp, void function() func, int argc, ...);
+
+void call(void delegate() dg, void* esi) {
+  _esi = esi;
+  dg();
+}
+
+class Coroutine {
+  void[] stack;
+  ucontext_t ctx;
+  void delegate() leave;
+  void delegate(void delegate() yield) task;
+  void exit() { leave(); }
+  void run() {
+    task(&exit);
+    raise new Error "Coroutine invoked but task has returned. ";
+  }
+  void init(void delegate(void delegate() yield) task, int stacksize = 1024*1024) {
+    this.task = task;
+    assert(!!task);
+    auto ptr = mmap(null, stacksize, PROT_READ|PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_STACK, -1, 0);
+    if (!ptr) raise new ErrnoError;
+    stack = ptr[0..stacksize];
+    if (getcontext(&ctx) == -1) raise new ErrnoError;
+    ctx.uc_stack.(ss_sp, ss_size, ss_flags) = (stack.ptr, stacksize, 0);
+    makecontext(&ctx, void function(): &call, size-of (void delegate(), void*)/size-of int, &run, _esi);
+  }
+  void enter() {
+    ucontext_t prev;
+    leave = \{
+      if (swapcontext(&ctx, &prev) == -1) raise new ErrnoError;
+    }
+    if (swapcontext(&prev, &ctx) == -1) raise new ErrnoError;
+  }
+}
