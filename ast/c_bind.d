@@ -1,7 +1,8 @@
 module ast.c_bind;
 
 // Optimized for GL.h and SDL.h; may not work for others!! 
-import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays, ast.externs, ast.tuples: AstTuple = Tuple;
+import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays,
+  ast.externs, ast.stringparse, ast.literals, ast.tuples: AstTuple = Tuple;
 
 import tools.compat, tools.functional, alloc;
 alias asmfile.startsWith startsWith;
@@ -303,6 +304,8 @@ src_cleanup_redo: // count, then copy
     return null;
   }
   IType matchType(ref string text) {
+    auto t2 = text;
+    if (t2.accept(")")) return null;
     text.accept("const");
     text.accept("__const");
     if (auto ty = matchSimpleType(text)) {
@@ -485,7 +488,12 @@ src_cleanup_redo: // count, then copy
       if (!stmt.strip().length) continue; // ignore this kind of #define.
       // logln("parse expr ", stmt, "; id '", id, "'");
       auto backup = stmt;
-      if (!gotIntExpr(stmt, ex) || stmt.strip().length) {
+      void eatSuffix(ref string s) {
+        if (s.accept("LL")) return;
+        if (s.accept("L")) return;
+        if (s.accept("U")) return;
+      }
+      if (!gotIntExpr(stmt, ex) || (eatSuffix(stmt), false) || stmt.strip().length) {
         stmt = backup;
         string[] macroArgs;
         bool isMacroParams(ref string s) {
@@ -509,23 +517,31 @@ src_cleanup_redo: // count, then copy
           // logln("macro: ", id, " (", macroArgs, ") => ", stmt);
           continue;
         }
-        // logln("full-parse ", stmt, " | ", start);
-        // muahaha
-        try {
-          try {
-            if (!readCExpr(stmt, ex) || stmt.strip().length) {
-              goto alternative;
-            }
-          } catch (Exception ex)
-            goto alternative;
-          if (false) {
-            alternative:
-            if (!readCExpr(stmt, ex))
-              goto giveUp;
+        auto st2 = stmt;
+        if (auto ty = matchType(st2)) {
+          if (!st2.mystripl().length) {
+            auto ta = fastalloc!(TypeAlias)(ty, id);
+            add(id, ta);
+            continue;
           }
-        } catch (Exception ex)
-          goto giveUp; // On Error Fuck You
+        }
+        st2 = stmt;
+        if (st2.accept("\"")) {
+          string res;
+          if (gotString(st2, res, "\"", true) && !st2.mystripl().length) {
+            ex = mkString(res);
+            goto gotEx;
+          }
+        }
+        // logln("full-parse ", stmt, " | ", start);
+        try {
+          if (!readCExpr(stmt, ex) || stmt.mystripl().length)
+            goto giveUp;
+        } catch (Exception ex) {
+          goto giveUp;
+        }
       }
+    gotEx:
       auto ea = fastalloc!(ExprAlias)(ex, id);
       // logln("got ", ea);
       add(id, ea);
