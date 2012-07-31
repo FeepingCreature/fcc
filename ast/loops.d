@@ -300,5 +300,5 @@ Object gotContinueOrBreak(bool gotContinue)(ref string text, ParseCb cont, Parse
   auto gos = sl.getGuardOffsets();
   return fastalloc!(ExecGuardsAndJump)(guards[guards2.length .. $], gos[guards2.length .. $], gotContinue, brc._0);
 }
-mixin DefaultParser!(gotContinueOrBreak!(true), "tree.semicol_stmt.continue"[], "341"[], "continue"[]);
-mixin DefaultParser!(gotContinueOrBreak!(false), "tree.semicol_stmt.break"[], "342"[], "break"[]);
+mixin DefaultParser!(gotContinueOrBreak!(true), "tree.semicol_stmt.continue", "221", "continue");
+mixin DefaultParser!(gotContinueOrBreak!(false), "tree.semicol_stmt.break", "222", "break");

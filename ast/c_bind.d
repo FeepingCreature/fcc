@@ -187,8 +187,10 @@ src_cleanup_redo: // count, then copy
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
     if (line.startsWith("}")) { inEnum = false; addSrc(line); flushBuffer; continue; }
-    if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else { addSrc(line); addSrc(";"); } }
-    if (line.startsWith("#")) continue;
+    if (line.startsWith("#")) {
+      if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else { addSrc(line); addSrc(";"); } }
+      continue;
+    }
     addSrc(line); addSrc(" ");
   }
   if (!newsrc) {

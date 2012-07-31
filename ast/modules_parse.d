@@ -115,7 +115,7 @@ Object gotImport(bool ReturnNamed)(ref string text, ParseCb cont, ParseCb rest) 
   }
 }
 mixin DefaultParser!(gotImport!(false), "tree.import");
-mixin DefaultParser!(gotImport!(false), "tree.semicol_stmt.import", "33");
+mixin DefaultParser!(gotImport!(false), "tree.semicol_stmt.import", "21");
 mixin DefaultParser!(gotImport!(true), "struct_member.import");
 
 Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
@@ -125,7 +125,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   auto backup = namespace.ptr();
   scope(exit) namespace.set(backup);
   string modname;
-  if (!t2.gotIdentifier(modname, true) || !t2.accept(";"[]))
+  if ((!(t2.accept("auto") && (modname = "auto", true)) && !t2.gotIdentifier(modname, true)) || !t2.accept(";"[]))
     t2.failparse("Failed to parse module header, 'module' expected! "[]);
   
   {

@@ -36,4 +36,4 @@ Object gotExprAsStmt(ref string text, ParseCb cont, ParseCb rest) {
       t0.failparse("discarding delegate without calling");
   return fastalloc!(ExprStatement)(ex);
 }
-mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr"[], "2"[]);
+mixin DefaultParser!(gotExprAsStmt, "tree.semicol_stmt.expr", "3");

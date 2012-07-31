@@ -953,7 +953,7 @@ Object gotAsm(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return res;
 }
-mixin DefaultParser!(gotAsm, "tree.semicol_stmt.asm", "32", "asm");
+mixin DefaultParser!(gotAsm, "tree.semicol_stmt.asm", "25", "asm");
 
 class ConstantDefinition : Tree {
   string name;
