@@ -258,7 +258,7 @@ class Namespace {
     if (field.length > cachepoint) {
       if (auto p = name in field_cache) return *p;
     } else {
-      foreach (entry; field) if (entry._0 == name) return entry._1;
+      foreach (entry; field) if (faststreq(entry._0, name)) return entry._1;
     }
     if (!local && sup) return sup.lookup(name, local);
     return null;

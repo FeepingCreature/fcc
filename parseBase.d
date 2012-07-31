@@ -15,12 +15,24 @@ version(Windows) {
 
 pragma(attribute, optimize("-O3"))
 int faststreq_samelen_nonz(string a, string b) {
-  if (a.ptr == b.ptr) return true; // strings are assumed immutable
-  if (a.length >= 4) {
+  // the chance of this happening is approximately 0.1% (I benched it)
+  // as such, it's not worth it
+  // if (a.ptr == b.ptr) return true; // strings are assumed immutable
+  if (a.length > 4) {
     if ((cast(int*) a.ptr)[0] != (cast(int*) b.ptr)[0]) return false;
     return bcmp(a.ptr + 4, b.ptr + 4, a.length - 4) == 0;
   }
-  return bcmp(a.ptr, b.ptr, a.length) == 0;
+  int ai = *cast(int*) a.ptr, bi = *cast(int*) b.ptr;
+  /**
+   1 => 0x000000ff => 2^8 -1
+   2 => 0x0000ffff => 2^16-1
+   3 => 0x00ffffff => 2^24-1
+   4 => 0xffffffff => 2^32-1
+   **/
+  uint mask = (0x01010101U >> ((4-a.length)*8))*0xff;
+  // uint mask = (1<<((a.length<<3)&0x1f))-(((a.length<<3)&32)>>5)-1;
+  // uint mask = (((1<<((a.length<<3)-1))-1)<<1)|1;
+  return (ai & mask) == (bi & mask);
 }
 
 pragma(attribute, optimize("-O3"))
@@ -381,7 +393,7 @@ void freeRuleData(int offs) {
 }
 
 bool sectionStartsWith(string section, string rule) {
-  if (section.faststreq(rule)) return true;
+  if (section.length == rule.length && section.faststreq_samelen_nonz(rule)) return true;
   if (section.length < rule.length) return false;
   if (!section[0..rule.length].faststreq/*_samelen_nonz*/(rule)) return false;
   if (section.length == rule.length) return true;
