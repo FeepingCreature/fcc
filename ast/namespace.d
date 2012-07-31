@@ -56,7 +56,7 @@ struct PreallocatedField(int StaticSize, T) {
   }
   string toString() {
     string res = Format("PF["[], length, "/"[], StaticSize, ": "[]);
-    bool first;
+    bool first = true;
     foreach (entry; *this) {
       if (first) first = false;
       else res ~= ", ";
@@ -182,7 +182,6 @@ class Namespace {
   void __add(string name, Object obj) {
     if (name) {
       if (auto thing = lookup(name, true)) {
-        // logln(name, " in "[], this, "(local) => "[], thing);
         if (auto et = fastcast!(Extensible) (thing)) {
           auto eo = fastcast!(Extensible) (obj);
           if (!eo) {

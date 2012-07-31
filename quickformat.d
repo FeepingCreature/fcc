@@ -33,6 +33,10 @@ void qappend(string[] args...) {
   *qp = stuple(qbuffer, offs);
 }
 
+uint[] stepsize_int = [1, 100, 10_000, 1_000_000, 100_000_000];
+ulong[] stepsize_long = [1UL, 100UL, 10_000UL, 1_000_000UL, 100_000_000UL, 10_000_000_000UL,
+  1_000_000_000_000UL, 100_000_000_000_000UL, 10_000_000_000_000_000UL, 1_000_000_000_000_000_000UL];
+
 void qformat_append(T...)(T t) {
   string[T.length] prestuff;
   // do the objects up-front because they might call qformat recursively
@@ -56,21 +60,36 @@ void qformat_append(T...)(T t) {
       else {
         if (num < 0) { qappend("-"[]); num = -num; }
         
-        // gotta do this left to right!
-        static if (typeof(num).sizeof == 4) alias int IntType;
-        else static if (typeof(num).sizeof == 8) alias long IntType;
-        else static if (typeof(num).sizeof == 2) alias short IntType;
-        else static if (typeof(num).sizeof == 1) alias byte IntType;
-        else static assert(false, typeof(num).stringof);
-        IntType ifact = 1;
-        while (ifact <= num / 10) ifact *= 10;
-        while (ifact) {
+        static if (typeof(num).sizeof == 8) alias long IntType;
+        else alias int IntType;
+        int steps;
+        static if (typeof(num).sizeof == 8) alias stepsize_long stepsize;
+        else alias stepsize_int stepsize;
+        while (stepsize[steps] <= num && steps < stepsize.length) steps ++;
+        steps --;
+        {
+          IntType ifact = stepsize[steps];
           int inum = num / ifact;
-          char[1] ch;
-          ch[0] = "0123456789"[inum];
+          if (inum < 10) {
+            char[1] ch;
+            ch[0] = "0123456789"[inum];
+            qappend(ch[]);
+          } else {
+            char[2] ch;
+            ch[0] = "0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999"[inum];
+            ch[1] = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"[inum];
+            qappend(ch[]);
+          }
+          num -= cast(IntType) inum * ifact;
+        }
+        for (int k = steps - 1; k >= 0; --k) {
+          IntType ifact = stepsize[k];
+          int inum = num / ifact;
+          char[2] ch;
+          ch[0] = "0000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999"[inum];
+          ch[1] = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"[inum];
           qappend(ch);
-          num -= cast(long) inum * cast(long) ifact;
-          ifact /= 10L;
+          num -= cast(IntType) inum * ifact;
         }
       }
     }

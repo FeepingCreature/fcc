@@ -219,7 +219,7 @@ src_cleanup_redo: // count, then copy
       n = *p; // memoize: use global C namespace to disambiguate stuff
     } else global_c_memo_cache[name] = n;
     // logln("add ", name, " <- ", n);
-    myNS._add(name, fastcast!(Object) (n));
+    myNS._add(name, fastcast!(Object)(n));
     if (auto ns = fastcast!(Namespace) (n)) ns.sup = null; // lol
     cache[name] = n;
   }
@@ -815,21 +815,13 @@ src_cleanup_redo: // count, then copy
         }
       }
       if (!stmt.accept("(")) {
-        // weird, but, nope.
-        // while (stmt.accept("")) ret = fastalloc!(Pointer)(ret);
-        goto giveUp;
-        logln(">> ", stmt); // TODO: work out what this is for
-        fail;
-        if (!stmt.length) {
-          add(name, fastalloc!(ExprAlias)(reinterpret_cast(fastalloc!(Pointer)(ret), fastalloc!(RefExpr)(fastalloc!(ExternCGlobVar)(ret, name))), name));
-          continue;
-        }
         if (!stmt.length) {
           add(name, fastalloc!(ExternCGlobVar)(ret, name));
           continue;
         }
-        // logln("MEEP ", name, ", '", stmt, "'");
         goto giveUp;
+        logln(">> ", stmt);
+        fail;
       }
       IType[] args;
       // logln(name, "@ ", stmt, ", get types");

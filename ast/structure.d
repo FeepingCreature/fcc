@@ -162,10 +162,10 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
   string manglecache;
   string mangle() {
     if (!manglecache) {
-      string ersatzname = "struct_"~name.cleanup();
+      string ersatzname = qformat("struct_"[], name.cleanup());
       if (!name) {
         ersatzname = "anon_struct";
-        select((string, RelMember member) { ersatzname ~= "_" ~ member.type.mangle ~ "_" ~ member.name; }, &rmcache);
+        select((string, RelMember member) { ersatzname = qformat(ersatzname, "_", member.type.mangle, "_", member.name); }, &rmcache);
       }
       if (sup) manglecache = mangle(ersatzname, null);
       else manglecache = ersatzname;
@@ -197,8 +197,10 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
       if (str is this) return true;
       if (str.name != name) return false;
       if (str.size != size) return false;
+      auto n1 = str.names(), n2 = names();
+      if (n1.length != n2.length) return false;
+      foreach (i, n; n1) if (n != n2[i]) return false;
       auto t1 = str.types(), t2 = types();
-      if (t1.length != t2.length) return false;
       foreach (i, v; t1) if (v.size != t2[i].size) return false;
       return true;
     }
@@ -421,7 +423,7 @@ class MemberAccess_Expr : Expr, HasInfo {
   override {
     import tools.log;
     string toString() {
-      return Format("("[], base, "[])."[], name);
+      return qformat(counter, " ("[], base, "[])."[], name);
     }
     IType valueType() { return stm.type; }
     import tools.base;

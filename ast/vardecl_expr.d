@@ -65,7 +65,7 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   Statement setVar;
   Expr res;
-  if (t2.gotValidIdentifier(name)) {
+  if (t2.gotIdentifier(name)) {
     if (!completeDeclaration(&setVar, &res)) return null;
   } else if (t2.accept("("[])) {
     bool firstTime = true;
@@ -77,7 +77,7 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
       else {
         if (!t2.accept(","[])) t2.failparse("Comma expected"[]);
       }
-      if (!t2.gotValidIdentifier(name)) t2.failparse("Identifier expected"[]);
+      if (!t2.gotIdentifier(name)) t2.failparse("Identifier expected"[]);
       Statement st; Expr ex;
       if (!completeDeclaration(&st, &ex)) t2.failparse("Declaration completion expected"[]);
       exprs ~= ex;

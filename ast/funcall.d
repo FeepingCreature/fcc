@@ -104,6 +104,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     removeNameds(forble);
     void checkNameds(ref Iterable it) {
       if (fastcast!(Variable) (it)) return;
+      if (fastcast!(FunCall) (it)) return;
       /*logln("<", (cast(Object) it).classinfo.name, ">");
       if (auto rce = fastcast!(RCE) (it)) {
         logln(" - ", rce.to);
@@ -370,7 +371,8 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     try {
       result = matchCall(t2, fun.name, params, rest, fc.params, inits, false, false, !exprHasAlternativesToACall);
       if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
-      if (inits.length) res = mkStatementAndExpr(inits[0], fc);
+      if (inits.length) res = mkStatementAndExpr(inits[0], foldex(fc));
+      else res = foldex(res);
     }
     catch (ParseEx pe) text.failparse("cannot call: ", pe);
     catch (Exception ex) text.failparse("cannot call: ", ex);

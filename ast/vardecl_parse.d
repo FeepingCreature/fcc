@@ -30,7 +30,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("("[])) mixin(abort); // compound var expr
   
   while (true) {
-    if (!t2.gotValidIdentifier(varname, true))
+    if (!t2.gotIdentifier(varname, true))
       t2.failparse("Could not get variable identifier"[]);
     if (t2.acceptLeftArrow()) mixin(abort); // is an iterator-construct
     Expr ex;

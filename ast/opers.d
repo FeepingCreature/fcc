@@ -61,5 +61,5 @@ Expr lookupOp(string op, bool allowNone, Expr[] exprs...) {
 }
 
 Expr lookupOp(string op, Expr[] exprs...) {
-  return lookupOp(op, false, exprs);
+  return lookupOp(null, op, false, exprs);
 }

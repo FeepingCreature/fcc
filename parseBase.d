@@ -281,6 +281,7 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, b
   // prev_idx now is the start of the first invalid character
   ident = t2[0 .. prev_idx];
    text = t2[prev_idx .. $];
+  if (ident in reserved) return false;
   return true;
 }
 
@@ -290,15 +291,6 @@ static this() {
   reserved["return"] = true;
   reserved["function"] = true;
   reserved["delegate"] = true;
-}
-
-bool gotValidIdentifier(ref string text, out string ident, bool acceptDots = false) {
-  string t2 = text;
-  if (t2.gotIdentifier(ident, acceptDots) && !(ident in reserved)) {
-    text = t2;
-    return true;
-  }
-  return false;
 }
 
 // This isn't a symbol! Maybe I was wrong about the dash .. 
@@ -811,7 +803,7 @@ string lookupPrecedence(string id) {
 
 import tools.compat: split, join;
 string dumpInfo() {
-  resort;
+  if (listModified) resort;
   string res;
   int maxlen;
   foreach (parser; parsers) {
@@ -885,10 +877,8 @@ void addParser(Parser p, string pred) {
 import quicksort: qsort_ = qsort;
 import tools.time: sec, µsec;
 void resort() {
-  if (listModified) { // NOT in addParser - precedence info might not be registered yet!
-    parsers.qsort_(&idSmaller);
-    listModified = false;
-  }
+  parsers.qsort_(&idSmaller);
+  listModified = false;
 }
 
 // manually inline because gdc is a poopyhead
@@ -908,7 +898,7 @@ template _parse(bool Verbose) {
   Object _parse(ref string text, bool delegate(string) cond,
       int offs = 0, ParseCtl delegate(Object) accept = null) {
     if (!text.length) return null;
-    resort;
+    if (listModified) resort;
     bool matched;
     static if (Verbose)
       logln("BEGIN PARSE '", text.nextText(16), "'");

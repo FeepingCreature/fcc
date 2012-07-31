@@ -470,11 +470,12 @@ Object gotNamedCond(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.gotIdentifier(id)) return null;
   bool retried;
   retry:
-  if (auto cd = fastcast!(Cond) (namespace().lookup(id))) {
+  auto thing = namespace().lookup(id);
+  if (auto cd = fastcast!(Cond) (thing)) {
     text = t2;
     return fastcast!(Object)~ cd;
   } else {
-    if (!retried) {
+    if (!retried && !thing) {
       unknownId(id, t2);
     }
     if (t2.eatDash(id)) { retried = true; goto retry; }

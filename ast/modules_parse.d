@@ -239,7 +239,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
       if (dotpos > dashpos) goto checkDot;
       else goto checkDash;
     
-    if (!retried) { // only does this for the full name
+    if (!retried && dotpos == -1) { // only does this for the full name, but not if it's a compound (too many false hits)
       unknownId(name, t2);
     }
     retried = true;

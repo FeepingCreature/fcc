@@ -227,28 +227,30 @@ static this() {
     return lookupOp("-", mkInt(0), ex);
   }
   Expr handlePointerMath(string op, Expr ex1, Expr ex2) {
-    auto ex22 = ex2;
-    if (fastcast!(Pointer) (resolveTup(ex22.valueType()))) {
+    Pointer e1pt;
+    if (auto p = fastcast!(Pointer) (resolveTup(ex2.valueType()))) {
       if (op == "-") {
         return null; // wut
       }
       swap(ex1, ex2);
+      e1pt = p;
     }
-    if (fastcast!(Pointer) (resolveTup(ex1.valueType()))) {
-      if (isPointer(ex2.valueType())) return null;
-      if (fastcast!(Float) (ex2.valueType())) {
-        logln(ex1, " ", op, " ", ex2, "; WTF?! ");
-        logln("is ", ex1.valueType(), " and ", ex2.valueType());
-        // fail();
-        throw new Exception("Invalid pointer op");
-      }
-      assert(!isFloat(ex2.valueType()));
-      auto mul = (fastcast!(Pointer) (resolveTup(ex1.valueType()))).target.size;
-      ex2 = handleIntMath("*", ex2, mkInt(mul));
-      if (!ex2) return null;
-      return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
+    if (!e1pt) e1pt = fastcast!(Pointer) (resolveTup(ex1.valueType()));
+    if (!e1pt) return null;
+    if (isPointer(ex2.valueType())) return null;
+    if (fastcast!(Float) (ex2.valueType())) {
+      logln(ex1, " ", op, " ", ex2, "; WTF?! ");
+      logln("is ", ex1.valueType(), " and ", ex2.valueType());
+      // fail();
+      throw new Exception("Invalid pointer op");
     }
-    return null;
+    if (auto ie = fastcast!(IntExpr) (ex2)) { // shortcut
+      ex2 = mkInt(ie.num * e1pt.target.size);
+    } else {
+      ex2 = handleIntMath("*", ex2, mkInt(e1pt.target.size));
+    }
+    if (!ex2) return null;
+    return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
   }
   Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
     if (Single!(Double) == ex1.valueType()) {

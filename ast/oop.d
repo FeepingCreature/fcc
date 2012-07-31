@@ -1021,7 +1021,7 @@ Expr intfToClass(Expr ex) {
   return reinterpret_cast(fastcast!(IType) (sysmod.lookup("Object"[])), lookupOp("+"[], reinterpret_cast(voidpp, ex), fastalloc!(DerefExpr)(fastalloc!(DerefExpr)(reinterpret_cast(intpp, ex)))));
 }
 
-void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
+void doImplicitClassCast(Expr ex, IType target, void delegate(Expr) dg) {
   void testIntf(Expr ex) {
     dg(ex);
     auto intf = (fastcast!(IntfRef)~ ex.valueType()).myIntf;
@@ -1048,7 +1048,12 @@ void doImplicitClassCast(Expr ex, void delegate(Expr) dg) {
       testIntf(iex);
     }
   }
-  auto cr = fastcast!(ClassRef)~ ex.valueType(), ir = fastcast!(IntfRef)~ ex.valueType();
+  auto cr = fastcast!(ClassRef)(ex.valueType()), ir = fastcast!(IntfRef)(ex.valueType());
+  if (!cr && !ir) return;
+  if (target) {
+    auto crt = fastcast!(ClassRef)(target), irt = fastcast!(IntfRef)(target);
+    if (!crt && !irt) return;
+  }
   if (cr) testClass(ex);
   if (ir) testIntf(ex);
 }

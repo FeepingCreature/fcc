@@ -190,14 +190,14 @@ static this() {
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR"[], "tree.expr"[])
-                    (`sap!T(&l, r)`,
+                    (`sap!T tup`,
                     namespace(),
-                    "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append3"[]));
+                    "T"[], ea.elemType, "tup"[], mkTupleExpr(fastalloc!(RefExpr)(fastcast!(CValue)(ex1)), ex2), "sap"[], sysmod.lookup("append3"[]));
     } else {
       return iparse!(Expr, "concat_into_ext"[], "tree.expr"[])
-                    (`sap!T(&l, r)`,
+                    (`sap!T tup`,
                     namespace(),
-                    "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append2"[]));
+                    "T"[], ea.elemType, "tup"[], mkTupleExpr(fastalloc!(RefExpr)(fastcast!(CValue)(ex1)), ex2), "sap"[], sysmod.lookup("append2"[]));
     }
   });
   defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
@@ -213,12 +213,12 @@ static this() {
     auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR_elem"[], "tree.expr"[])
-                    (`sap!T(&l, r)`, namespace(),
-                    "T"[], resolveType(ea.elemType), "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append3e"[]));
+                    (`sap!T tup`, namespace(),
+                    "T"[], resolveType(ea.elemType), "tup"[], mkTupleExpr(fastalloc!(RefExpr)(fastcast!(CValue)(ex1)), ex2), "sap"[], sysmod.lookup("append3e"[]));
     } else {
       return iparse!(Expr, "concat_into_ext_elem"[], "tree.expr"[])
-                    (`sap!T(&l, r)`, namespace(),
-                    "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append2e"[]));
+                    (`sap!T tup`, namespace(),
+                    "T"[], ea.elemType, "tup"[], mkTupleExpr(fastalloc!(RefExpr)(fastcast!(CValue)(ex1)), ex2), "sap"[], sysmod.lookup("append2e"[]));
     }
   });
   defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {

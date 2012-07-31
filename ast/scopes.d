@@ -163,6 +163,23 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   int framestart() {
     return get!(FrameRoot).framestart();
   }
+  override void __add(string name, Object obj) {
+    debug if (auto var1 = fastcast!(Variable) (obj)) {
+      auto from = var1.baseOffset, to = from + var1.type.size;
+      foreach (obj2; field) {
+        if (auto var2 = fastcast!(Variable) (obj2._1)) {
+          auto from2 = var2.baseOffset, to2 = from2 + var2.type.size;
+          if (!(from2 >= to || from >= to2)) {
+            logln("tried to add variable overlapping existing variable");
+            logln("existing (", from2, "..", to2, "): ", obj2);
+            logln("new      (", from, "..", to, "): ", obj);
+            fail;
+          }
+        }
+      }
+    }
+    super.__add(name, obj);
+  }
   bool emitted;
   // continuations good
   void delegate(bool onlyCleanup) delegate() open(AsmFile af) {
@@ -192,6 +209,8 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
       logln("was: ", requiredDepthDebug);
       logln(" is: ", this);
       logln("mew: ", _body);
+      logln("nyan: ", sup.field);
+      logln("fs: ", framesize());
       fail;
     }
     return stuple(checkpt, backup, this, af, backup_sect) /apply/

@@ -1,12 +1,12 @@
 module ast.nulls;
 
-import ast.base, ast.casting, ast.int_literal, ast.aliasing, ast.tuples;
+import ast.base, ast.casting, ast.int_literal, ast.aliasing, ast.tuples, ast.fold;
 import ast.arrays, ast.dg, ast.fun, ast.oop;
 bool isNull(Expr ex) {
   auto ea = fastcast!(ExprAlias)~ ex;
   if (ea) ex = ea.base;
   auto rce = fastcast!(RCE)~ ex;
-  if (!rce) return false;
+  if (!rce || Single!(Pointer, Single!(Void)) != rce.to) return false;
   ex = rce.from;
   auto ie = fastcast!(IntExpr)~ ex;
   if (!ie) return false;
