@@ -484,23 +484,6 @@ import ast.opers, ast.namespace;
 bool delegate(Expr, Expr, bool*) constantStringsCompare;
 static this() {
   converts ~= &arrayCast /todg;
-  defineOp("=="[], delegate Expr(Expr ex1, Expr ex2) {
-    bool isArray(IType it) { return !!fastcast!(Array) (it); }
-    auto oex1 = ex1, oex2 = ex2;
-    if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
-      return null;
-    {
-      bool cres;
-      if (constantStringsCompare(oex1, oex2, &cres)) return cres?True:False;
-    }
-    return tmpize_maybe(ex1, (Expr ex1) {
-      return tmpize_maybe(ex2, (Expr ex2) {
-        return iparse!(Expr, "array_eq"[], "tree.expr.eval.cond"[])
-                      (`eval (ex1.length == ex2.length && memcmp(void*:ex1.ptr, void*:ex2.ptr, ex1.length * (size-of type-of ex1[0])) == 0)`,
-                       "ex1"[], ex1, "ex2"[], ex2);
-      });
-    });
-  });
 }
 
 static this() {

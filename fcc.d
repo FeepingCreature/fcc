@@ -364,16 +364,37 @@ extern(C) bool _exactly_equals(IType a, IType b) {
   if ( ca &&  cb) return (ca.name == cb.name) && ca.base == cb.base;
 }
 
-// from ast.static_arrays
+// from ast.arrays
 static this() {
-  /*implicits ~= delegate Expr(Expr ex) {
-    auto sa = fastcast!(StaticArray) (resolveType(ex.valueType()));
-    if (!sa) return null;
-    IType[] itlist;
-    for (int i = 0; i < sa.length; ++i)
-      itlist ~= sa.elemType;
-    return reinterpret_cast(mkTuple(itlist), ex);
-  };*/
+  defineOp("=="[], delegate Expr(Expr ex1, Expr ex2) {
+    bool isArray(IType it) { return !!fastcast!(Array) (it); }
+    auto oex1 = ex1, oex2 = ex2;
+    if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
+      return null;
+    auto a1 = fastcast!(Array) (ex1.valueType());
+    {
+      bool cres;
+      if (constantStringsCompare(oex1, oex2, &cres)) return cres?True:False;
+    }
+    return tmpize_maybe(ex1, delegate Expr(Expr ex1) {
+      return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
+        auto e1l = getArrayLength(ex1), e2l = getArrayLength(ex2),
+              e1p = reinterpret_cast(voidp, getArrayPtr(ex1)), e2p = reinterpret_cast(voidp, getArrayPtr(ex2)),
+              mcl = lookupOp("*", e1l, mkInt(a1.elemType.size));
+        return fastalloc!(CondExpr)(fastalloc!(AndOp)(
+          fastalloc!(Compare)(e1l, "==", e2l),
+          fastalloc!(Compare)(mkInt(0), "==", buildFunCall(
+            fastcast!(Function)(sysmod.lookup("memcmp")),
+            mkTupleExpr(e1p, e2p, mcl),
+            "memcmp for array equal"
+          )
+        )));
+        // return iparse!(Expr, "array_eq"[], "tree.expr.eval.cond"[])
+        //               (`eval (e1l == e2l && memcmp(e1p, e2p, mcl) == 0)`,
+        //                "e1l", e1l, "e2l", e2l, "e1p", e1p, "e2p", e2p, "mcl", mcl);
+      });
+    });
+  });
 }
 
 // from ast.scopes
