@@ -2,7 +2,7 @@ module ast.concat;
 
 import
   ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal,
-  ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index,
+  ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index, ast.tuples, ast.pointer,
   ast.assign, ast.opers, ast.slice, ast.fold, ast.literal_string, ast.literals, tools.base: take;
 
 class ConcatChain : Expr {
