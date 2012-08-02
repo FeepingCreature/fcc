@@ -219,7 +219,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
       return test(it == type);
     })) {
       Expr[] list;
-      if (gotImplicitCast(ex, (IType it) { return !!fastcast!(Tuple) (it); }) && (list = flatten(ex), !!list)) {
+      if (gotImplicitCast(ex, Single!(HintType!(Tuple)), (IType it) { return !!fastcast!(Tuple) (it); }) && (list = flatten(ex), !!list)) {
         args = list ~ args;
         goto retry;
       } else {
