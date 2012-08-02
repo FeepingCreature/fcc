@@ -117,14 +117,6 @@ void main(string[] args) {
   }
   // addTrack "<a>e<h>ec-de+dg-aeh>c<h->c<h+agegde+.c<-h+ a>e<h>ec-de+dg-aeh>c<h->c<h+ag++a";
   // addTrack "<+fgaefgaefgaefg+a";
-  string str = "-efef+ga-efef+ga-cdcd+ef-cdcd+fe", st2;
-  for 0..8 st2 ~= str;
-  st2 ~= "-c8d8<b8f4e4>c8d8<b8++fg--b8>c8<a8>d4c4<b8>c8<a8>d4c4<b14__+>";
-  for 0..2 st2 ~= str;
-  st2 ~= "-_>[f16,c16]  [d16,<a16>][f16,c16]  [d14__,<a14__>]<+";
-  st2 ~= "- <[f16,>c16<][d16,a16]  [f16,>c16<][d15,a15]+>";
-  for 0..2 st2 ~= str;
-  st2 ~= "-<b8>c8<a8>d4c4<b8>c8<a8>d4c4<b14__+>";
   void addMidiTrack(string fn) using fn.readAll() {
     void step(int i) {
       that = that[i .. $];
@@ -152,8 +144,8 @@ void main(string[] args) {
       track_id ++;
       auto track = that[0 .. trklen]; step trklen;
       byte[] takeTrack(int i) {
-	(byte[] res, track) = track[(0..i, i..$)];
-	return res;
+        (byte[] res, track) = track[(0..i, i..$)];
+        return res;
       }
       int pos;
       int x 128  pressedOn;
@@ -232,7 +224,7 @@ void main(string[] args) {
       else
         addTrack arg;
     }
-  } else addTrack st2;
+  }
   sortList();
   writeln "added $(notelist.length) notes";
   int lastDoneAt; bool lastHadNotes;
