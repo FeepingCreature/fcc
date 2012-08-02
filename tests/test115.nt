@@ -1,0 +1,6 @@
+module test115;
+
+import std.util;
+void main() {
+  void delegate() dg = new int #.apply new \(int* i) { }
+}

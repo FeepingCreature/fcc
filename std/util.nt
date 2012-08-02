@@ -165,11 +165,14 @@ template apply(T) {
     alias PT = ParamTypes FT;
     // pragma(msg, string-of PT);
     alias pt = value-of!PT;
-    static if (type-is tuple PT) { alias Rest = type-of pt[1..pt.length]; }
-    else { alias Rest = type-of (); }
-    return new \(Rest rest) {
-      // pragma(msg, string-of type-of t[1]~" # "~string-of type-of (__flatten_tuple (t[0], rest)));
-      return t[1] (__flatten_tuple (t[0], rest));
+    static if (type-is tuple PT) {
+      alias Rest = type-of pt[1..pt.length];
+      return new \(Rest rest) {
+        // pragma(msg, string-of type-of t[1]~" # "~string-of type-of (__flatten_tuple (t[0], rest)));
+        return t[1] (__flatten_tuple (t[0], rest));
+      }
+    } else {
+      return new \{ return t[1] t[0]; }
     }
   }
 }
