@@ -277,13 +277,6 @@ bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseC
   Expr arg;
   auto backup_text = text; 
   if (!backup_text.length) return false; // wat
-  // speed opt - a call can only begin
-  // with one of those separating tokens
-  const string valid_call_start_tokens = "( \r\n\t-\\";
-  bool token_match;
-  foreach (ch; valid_call_start_tokens)
-    if (text.startsWith([ch])) { token_match = true; break; }
-  if (!token_match) return false;
   
   bool isTuple;
   {
