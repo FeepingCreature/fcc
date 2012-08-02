@@ -448,8 +448,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     }
     
     if (rtpt) {
-      if (auto c = fastcast!(RelMember) (lookup("context"[], true))) ctx = c; // reuse parent's
-      else ctx = fastalloc!(RelMember)("context"[], rtpt, this);
+      if (auto c = fastcast!(RelMember) (lookup("__context"[], true))) ctx = c; // reuse parent's
+      else ctx = fastalloc!(RelMember)("__context"[], rtpt, this);
     }
     
     auto backup = namespace();

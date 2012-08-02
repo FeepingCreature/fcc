@@ -2,7 +2,7 @@ module test107;
 void main() {
   int i;
   void bar() {
-    class C { void foo() { writeln "$(string-of i)"; writeln "context $(__base_ptr.context)"; writeln "$i"; } }
+    class C { void foo() { writeln "$(string-of i)"; writeln "context $(__base_ptr.__context)"; writeln "$i"; } }
     (new C).foo();
   }
   i = 3;

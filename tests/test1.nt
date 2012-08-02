@@ -2,14 +2,14 @@ module test1;
 
 class A {
   class SubA {
-    void bar() { writeln "bar under SubA under A: $context"; }
+    void bar() { writeln "bar under SubA under A: $__context"; }
   }
   SubA foo() { return new SubA; }
 }
 
 class B : A {
   class SubB : SubA {
-    void bar() { writeln "bar under subB under B: $context"; }
+    void bar() { writeln "bar under subB under B: $__context"; }
   }
   SubA foo() { return new SubB; }
 }
