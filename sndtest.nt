@@ -19,6 +19,9 @@ void main(string[] args) {
   if (args.length && args[0] == "-oss") {
     args = args[1 .. $];
     snd = new OSSSound("/dev/dsp");
+  } else if (args.length && args[0] == "-wav") {
+    args = args[1 .. $];
+    snd = new WAVCreator "out.wav";
   } else
     snd = new AlsaSound("default");
   

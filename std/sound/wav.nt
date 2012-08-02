@@ -1,0 +1,37 @@
+module std.sound.wav;
+
+import std.sound.base, std.string;
+
+class WAVCreator : Sound {
+  string filename;
+  void init(string fn) { filename = fn; }
+  short[auto~] samples;
+  void open() { samples = null; }
+  void close() { save; }
+  void writeCopydump(int len) { samples ~= copydump[0 .. len]; }
+  void save() {
+    byte[auto~] filedata;
+    import std.file;
+    onSuccess { filename.writeAll data => filedata[]; filedata.free; }
+    void add(string s) { filedata ~= byte[]: s; }
+    void add(int i) { filedata ~= byte[]: (&i)[0..1]; }
+    void add(short s) { filedata ~= byte[]: (&s)[0..1]; }
+    // see http://www.topherlee.com/software/pcm-tut-wavformat.html
+    add "RIFF";
+    add 0; // total size - 8
+    onSuccess (int*:filedata.ptr)[1] = filedata.length - 8;
+    add "WAVE";
+    add "fmt ";
+    add 16;
+    add short:1;
+    add short:1;
+    add 48000;
+    add 96000;
+    add short:2;
+    add short:16;
+    add "data";
+    add $ samples.length * 2;
+    assert(filedata.length == 44);
+    for auto val <- samples add val;
+  }
+}
