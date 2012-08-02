@@ -33,7 +33,7 @@ class OSSSound : Sound {
     int i;
     auto this2 = this; // hackaround
     void my_ioctl(int mode, int val) using this2 {
-      auto res = ioctl(fd, mode, &val);
+      auto res = ioctl(that.fd, mode, &val);
       if (res != 0) raise new Error "ioctl with $mode failed: $val, errno $(getErrno())";
     }
     my_ioctl(SNDCTL_DSP_SETFMT, AFMT_S16_LE);
