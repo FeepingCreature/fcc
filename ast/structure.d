@@ -195,7 +195,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
       auto str = fastcast!(Structure)~ it;
       if (!str) return false;
       if (str is this) return true;
-      if (str.name != name) return false;
+      if (str.mangle() != mangle()) return false;
       if (str.size != size) return false;
       auto n1 = str.names(), n2 = names();
       if (n1.length != n2.length) return false;

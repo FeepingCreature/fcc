@@ -65,6 +65,11 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
     TemplateInstance getInstance(IType type, ParseCb rest) {
       assert(!isAlias);
       type = resolveType(type);
+      if (auto tup = fastcast!(Tuple) (type)) {
+        IType[] resolved;
+        foreach (t2; tup.types) resolved ~= resolveType(t2);
+        type = mkTuple(resolved);
+      }
       TemplateInstance ti;
       foreach (ref entry; emat_type) {
         debug if ((qformat(entry._1) == qformat(type)) != (entry._1.mangle() == type.mangle())) {

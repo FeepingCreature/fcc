@@ -1,0 +1,72 @@
+module test103;
+template S(T) { struct S { alias P = T; alias ToInt = value-of!T.ToInt + 1; } }
+struct Z { alias ToInt = 0; }
+template ToType(alias T) {
+  static if (T > 0) { alias ToType=S!ToType!(T-1); }
+  else { alias ToType=Z; }
+}
+template Func2(T) {
+  alias Func2 = T[2] function(T[0], T[1]);
+}
+
+template List(T) {
+  static if (value-of!T[1].ToInt) {
+    struct List {
+      T[0] data;
+      .List!(T[0], T[1].P) next;
+      template foldl(A) {
+        A foldl(Func2!(A, T[0], A) f, A a) {
+          return next.foldl!A(f, f(a, data));
+       }
+      }
+    }
+  } else {
+    struct List {
+      T[0] data;
+      template foldl(A) {
+        A foldl(Func2!(A, T[0], A) f, A a) {
+          return a;
+        }
+      }
+    }
+  }
+}
+template sort(T) {
+  void sort((List!T)* list) {
+    static if (!types-equal(T[1], S!Z)) {
+      auto rest = list.next;
+      .sort!(T[0], T[1].P) &rest;
+      if (list.data > rest.data) {
+	(list.data, rest.data) = (rest.data, list.data);
+	.sort!(T[0], T[1].P) &rest;
+      }
+      list.next = rest;
+    }
+  }
+}
+template create(N) {
+  auto create() {
+    static if (!types-equal(N, Z)) {
+      auto newHead = new List!(int, N);
+      newHead.data = value-of!N.ToInt;
+      newHead.next = *.create!N.P();
+      return newHead;
+    } else {
+      return new List!(int, Z);
+    }
+  }
+}
+template accumulate(T) {
+  T[] accumulate(T[] in, T t) { return in ~ t; }
+}
+void main() {
+  alias hundred = ToType!100;
+  auto list = create!hundred();
+  writeln "Initial list: ";
+  auto initlist = list.foldl!int[](&accumulate!int, null);
+  writeln "$initlist";
+  sort!(int, hundred) list;
+  writeln "After sorting";
+  auto sorted = list.foldl!int[](&accumulate!int, null);
+  writeln "$sorted";
+}
