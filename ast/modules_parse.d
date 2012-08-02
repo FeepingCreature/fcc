@@ -209,51 +209,49 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   bool gotDot;
   if (t2.accept(".")) { gotDot = true; ns = ns.get!(Module); } // module-scope lookup
   if (t2.gotIdentifier(name, true)) {
-    bool retried;
-    retry:
-    // hack: get t2 into its expected state
-    t2 = text;
-    if (gotDot) t2.accept(".");
-    if (!t2.accept(name)) t2.failparse("wat :(");
-    
-    if (auto res = ns.lookup(name)) {
-      if (auto ty = fastcast!(IType) (res)) {
-        if (t2.accept(":"[])) return null; // HACK: oops, was a cast
-        if (!fastcast!(ExprLikeThingy)(resolveType(ty)))
-          return null; // Positively NOT an expr, and not a thingy either.
+    int dot_end;
+    while (dot_end < name.length) {
+      // for each dot-separated component .. 
+      int dotpos = name[dot_end..$].find(".");
+      string ident;
+      if (dotpos == -1) {
+        ident = name;
+        dot_end = name.length;
+      } else {
+        ident = name[0..dot_end + dotpos];
+        dot_end += dotpos + 1;
       }
-      if (gotDot) if (!text.accept("."[]))
-        text.failparse("No dot?! "[]);
-      if (!text.accept(name))
-        text.failparse("WTF "[], name);
+      retry:
+      // hack: get t2 into its expected state
+      t2 = text;
+      if (gotDot) t2.accept(".");
+      if (!t2.accept(ident)) t2.failparse("wat :(");
       
-      if (auto ex = fastcast!(Expr) (res))
-        return fastcast!(Object) (forcedConvert(ex));
-      return res;
+      if (auto res = ns.lookup(ident)) {
+        if (auto ty = fastcast!(IType) (res)) {
+          if (t2.accept(":"[])) return null; // HACK: oops, was a cast
+          if (!fastcast!(ExprLikeThingy)(resolveType(ty)))
+            return null; // Positively NOT an expr, and not a thingy either.
+        }
+        if (gotDot) if (!text.accept("."[]))
+          text.failparse("No dot?! "[]);
+        if (!text.accept(ident))
+          text.failparse("WTF "[], ident);
+        
+        if (auto ex = fastcast!(Expr) (res))
+          return fastcast!(Object) (forcedConvert(ex));
+        return res;
+      }
+      // only do this for the full identifier, but not if it's a compound (too many false hits)
+      if (ident.length == name.length && ident.find(".") == -1) {
+        unknownId(ident, t2);
+      }
       
-    } else {
-      // logln("No "[], name, " in "[], ns);
+      auto pos_dot = ident.rfind("."), pos_dash = ident.rfind("-");
+      // if we have any dashes in our current ident's rightmost component ..
+      if (pos_dash != -1 && (pos_dot == -1 || pos_dot < pos_dash) && t2.eatDash(ident))
+        goto retry;
     }
-    int dotpos = name.rfind("."[]), dashpos = name.rfind("-"[]);
-    if (dotpos != -1 && dashpos != -1)
-      if (dotpos > dashpos) goto checkDot;
-      else goto checkDash;
-    
-    if (!retried && dotpos == -1) { // only does this for the full name, but not if it's a compound (too many false hits)
-      unknownId(name, t2);
-    }
-    retried = true;
-    
-    checkDash:
-    if (t2.eatDash(name)) goto retry;
-    
-    checkDot:
-    if (dotpos != -1) {
-      name = name[0 .. dotpos]; // chop up what _may_ be members!
-      goto retry;
-    }
-    
-
   }
   return null;
 }
