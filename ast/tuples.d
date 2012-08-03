@@ -175,6 +175,7 @@ static this() {
       else return null; // TODO: I don't get this. 
     }
     if (!rt || rt.mvs.length != mbs.length) {
+      return null; // :(
       logln("ref tuple not large enough for this cast! "[]);
       logln(rt, " but "[], mbs);
       fail;

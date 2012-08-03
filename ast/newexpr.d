@@ -137,9 +137,11 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         if (it is var_token) it = var;
         else it.iterate(&subst);
       }
-      protConstCall = protConstCall.dup;
-      protConstCall.iterate(&subst);
-      (fastalloc!(ExprStatement)(protConstCall)).emitAsm(af);
+      if (protConstCall) {
+        protConstCall = protConstCall.dup;
+        protConstCall.iterate(&subst);
+        (fastalloc!(ExprStatement)(protConstCall)).emitAsm(af);
+      }
     });
   });
 }
