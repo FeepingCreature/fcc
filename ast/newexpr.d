@@ -132,14 +132,14 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         });
       }
       initClass(cr.myClass);
-      if (protConstCall) {
-        void subst(ref Iterable it) {
-          if (it is var_token) it = var;
-          else it.iterate(&subst);
-        }
-        protConstCall.iterate(&subst);
-        (fastalloc!(ExprStatement)(protConstCall)).emitAsm(af);
+      assert(!!protConstCall);
+      void subst(ref Iterable it) {
+        if (it is var_token) it = var;
+        else it.iterate(&subst);
       }
+      protConstCall = protConstCall.dup;
+      protConstCall.iterate(&subst);
+      (fastalloc!(ExprStatement)(protConstCall)).emitAsm(af);
     });
   });
 }

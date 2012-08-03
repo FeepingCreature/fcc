@@ -1,0 +1,12 @@
+module test116;
+
+interface I { }
+
+class A : I {
+  void init() { }
+}
+
+void main() {
+  alias ss = I: new A;
+  auto array = [ss, ss];
+}
