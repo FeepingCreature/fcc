@@ -23,6 +23,10 @@ template offers(T) {
   }
 }
 
+template request-is(T) {
+  bool request-is(string s) { return s == T.__mangle; }
+}
+
 template get-tag(T) {
   T get-tag(Object obj) {
     if (auto res = offers!T obj) return res;

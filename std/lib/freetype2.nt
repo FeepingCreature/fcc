@@ -110,18 +110,16 @@ class Font {
       (*wp, *hp) = (0, 0);
       return null;
     }
-    // TODO: unicode
-    // TODO: scope new / new scope / whichever
-    auto glyphs = new Glyph[] text.length, pos = new Vector[] text.length;
+    scope Glyph[auto~] glyphs; scope Vector[auto~] pos;
     onExit {
       for ref glyph <- glyphs
         Done_Glyph glyph;
-      glyphs.free;
-      pos.free;
     }
     Vector pen;
     int prevIndex;
-    for (int id, char ch) <- zip(ints, text) { // TODO: unicode
+    for (int id, int ch) <- zip(ints, new UTF8Decoder text) {
+      { Glyph gl; glyphs ~= gl; }
+      { Vector v; pos ~= v; }
       auto index = Get_Char_Index(face, FT_ULong:ch);
       if (id && index) {
         Get_Kerning (face, prevIndex, index, 0, &Vector delta);
@@ -140,7 +138,7 @@ class Font {
     int uptochar;
     for int id <- ints && ref glyph <- glyphs {
       while (prestyles.length && prestyles[0].chars == uptochar) { prestyles=prestyles[1..$]; uptochar = 0; }
-      if (!prestyles.length) raise new sys.Error "Has run out of formatting data";
+      if (!prestyles.length) raise new sys.Error "1:Has run out of formatting data";
       uptochar ++;
       auto style = prestyles[0];
       
@@ -202,7 +200,7 @@ class Font {
     
     for int id <- ints && auto glyph <- glyphs {
       while (styles.length && !styles[0].chars) styles=styles[1..$];
-      if (!styles.length) raise new sys.Error "Has run out of formatting data";
+      if (!styles.length) raise new sys.Error "2:Has run out of formatting data";
       styles[0].chars --;
       auto style = styles[0];
       
