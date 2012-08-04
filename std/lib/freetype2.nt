@@ -5,7 +5,7 @@ pragma(pkg-config, "freetype2");
 pragma(lib, "z"); // mingw bug?
 
 import c.freetype;
-import std.math;
+import std.math, std.unicode;
 
 void FTcheck(FT_Error err) {
   if (err) raise new Error "Freetype error $err";

@@ -842,7 +842,9 @@ version(Windows) {
   }
 }
 
-import std.file;
+import memconserve_stdfile;
+alias memconserve_stdfile.exists exists;
+alias memconserve_stdfile.getTimes getTimes;
 void loop(string start,
           CompileSettings cs, bool runMe)
 {
