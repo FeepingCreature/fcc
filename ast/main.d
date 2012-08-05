@@ -50,6 +50,7 @@ void fixupMain() {
         af.mmove4("%esp"[], "%ebp"[]);
         af.pushStack("%edx"[], 4);
         af.pushStack("%eax"[], nativePtrSize);
+        af.flush; // avoid problems when force changing the stack depth
         af.currentStackDepth = nativePtrSize * 2;
         auto ncvar = fastalloc!(DerefExpr)(lookupOp("-"[],
           reinterpret_cast(Single!(Pointer, Single!(SysInt)), Single!(RegExpr, "%ebp"[])),

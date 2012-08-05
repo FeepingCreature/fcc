@@ -10,7 +10,8 @@ void main(string[] args) {
     string cmd = "fcc -o xpar_bisect_test -singlethread $arg -xpar $xpar >/dev/null";
     writeln "> fcc -o xpar_bisect_test -singlethread ARGS -xpar $xpar >/dev/null";
     if (0 != system toStringz cmd)
-      raise new Error "Compilation failed! Aborting. ";
+      // raise new Error "Compilation failed! Aborting. ";
+      return false;
     int res = system toStringz "./xpar_bisect_test";
     return eval res == 0;
   }

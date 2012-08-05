@@ -280,7 +280,7 @@ class ProcTrack : ExtToken {
       (stackdepth != -1)?Format("@", stackdepth):"@?", " ",
       isValid?"[OK]":"[BAD]", " ", known,
       ", stack", noStack?"[none] ":" ", stack.length, "; ", stack,
-      ", pop ", latepop, ", used ", use.keys,
+      ", pop ", latepop, /*", used ", use.keys,*/
     ")");
   }
   int getStackDelta() {
@@ -311,8 +311,13 @@ class ProcTrack : ExtToken {
     return stack.length || latepop.length;
   }
   bool update(Transaction t) {
-    if (stackdepth == -1 && t.stackdepth != -1 && !modsStack()) {
-      stackdepth = t.stackdepth;
+    if (t.stackdepth != -1 && !modsStack()) {
+      if (stackdepth == -1) stackdepth = t.stackdepth;
+      else if (stackdepth != t.stackdepth) {
+        logln("tried to update proctrack with invalid stack depth: ", t.stackdepth, " but we have ", stackdepth);
+        logln(t, " into ", this);
+        fail;
+      }
     }
     info(t).accessParams((ref string s) { s = s.cleanup(); });
     scope(exit) {
@@ -1857,11 +1862,17 @@ restart:
         else if (entry.dest != secondAddr) return false;
       }
       
+      sz = marker * 4;
+      
       int offs;
+      if (secondAddr.isIndirect2(offs) && sz + sfreeBias > offs) {
+        // sfree eats into our pop target. be careful, ignore sfree.
+        sfreeBias = 0;
+        hasSfree = false;
+      }
+      
       if (firstAddr.isIndirect2(offs) == "%esp" && offs < marker * 4 + sfreeBias)
         return false; // too close to home
-      
-      sz = marker * 4;
       int offs2; secondAddr.isIndirect2(offs2);
       offs2 -= sz;
       if (offs2 < 0) {
