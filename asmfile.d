@@ -213,6 +213,7 @@ class AsmFile {
     Transaction t;
     t.kind = Transaction.Kind.LoadAddress;
     t.from = mem; t.to = to;
+    t.stackdepth = currentStackDepth;
     add(t);
   }
   void loadOffsetAddress(string reg, int offset, string to) {
@@ -531,11 +532,15 @@ class AsmFile {
       }
     }
     // ext_step(cache, labels_refcount); // run this first
-    while (true) {
+    outer:while (true) {
       bool anyChange;
       if (debugOpts) logln("optimize ", cache.list());
       foreach (entry; opts) if (entry._2) {
-        auto opt = entry._0, name = entry._1;
+        auto opt = entry._0, name = entry._1, barrier = entry._3;
+        
+        // barrier: only run opt once the ones before have been exhausted
+        if (anyChange && barrier) continue outer;
+        
         if (opt(cache, labels_refcount)) {
           if (false && debugOpts) { // causes difference in assembly .. somehow. wtf? todo!
             unused.remove(name);
@@ -544,7 +549,7 @@ class AsmFile {
           }
           anyChange = true;
         }
-        if (debugOpts && anyChange) logln(name, " => ", cache.list());
+        // if (debugOpts && anyChange) logln(name, " => ", cache.list());
         // logln("Executed ", name, " => ", anyChange, "; ", cache.list.length);
       }
       // logln("::", anyChange, "; ", cache.list);

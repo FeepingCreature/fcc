@@ -2,6 +2,18 @@ module fflame;
 
 import sdl, std.random, std.math, std.thread, std.time, std.string;
 
+extern(C) int SDL_SaveBMP_RW(SDL_Surface*, void*, int);
+extern(C) void* SDL_RWFromFile(char* file, mode);
+void saveBMP(Area area, string s) { 
+  auto p = toStringz s;  
+  onSuccess mem.free p;  
+  auto res = SDL_SaveBMP_RW (area.surf.back, SDL_RWFromFile (p, "wb"), 1);
+  if res == -1 {
+    writeln "error - $(CToString SDL_GetError())";
+    _interrupt 3;
+  }
+}  
+
 alias atoi = std.string.atoi;
 alias atof = std.string.atof;
 
@@ -32,8 +44,9 @@ void sigfun(int i) {
 }
 
 void main(string[] args) {
+  // args = ["1", "1", "1", "1000000", "throwaway"];
   int w = 640, h = 480; bool fs = false;
-  if (args.length > 1 && args[1] == "full") { (w, h, fs, args) = (1920, 1080, true, args[0..1]~args[1..$]); }
+  if (args.length  && args[0] == "full") { (w, h, fs, args) = (1920, 1080, true, args[1..$]); }
   set-handler (SDLQuit) invoke-exit "return";
   define-exit "return" return;
   
@@ -41,15 +54,15 @@ void main(string[] args) {
   fpucw = short:(fpucw & ¬fpmask);
   signal(SIGFPE, &sigfun);
   
-  void delegate(vec2f*)[] funlist;
+  void delegate(vec2f*)[auto~] funlist;
   
   funlist ~= delegate void(vec2f* fp) { };
-  funlist ~= delegate void(vec2f* fp) { auto f = *fp; *fp = vec2f(sin f.x, sin f.y); };
-  funlist ~= delegate void(vec2f* fp) { auto f = *fp; *fp = f / f.lensq; };
-  funlist ~= delegate void(vec2f* fp) { auto f = *fp; using f:: auto r2 = lensq, s = sin r2, c = cos r2; *fp = vec2f(x * s - y * c, x * c + y * s); };
+  funlist ~= delegate void(vec2f* fp) { ref f = *fp; f = vec2f(sin f.x, sin f.y); };
+  funlist ~= delegate void(vec2f* fp) { ref f = *fp; f = f / f.lensq; };
+  funlist ~= delegate void(vec2f* fp) { ref f = *fp; using f:: auto r2 = lensq, s = sin r2, c = cos r2; f = vec2f(x * s - y * c, x * c + y * s); };
   // (x - y) * (x + y) = x*x + x*y - y*x - y*y
   // funlist ~= delegate vec2f(vec2f f) using f { return vec2f((x - y) * (x + y), 2 * x * y) / sqrt lensq; };
-  funlist ~= delegate void(vec2f* fp) { auto f = *fp; auto fprod = f * f; float lsq = fprod.(x+y); *fp = vec2f(fprod.(x-y), 2*f.x*f.y) / std.math.sqrt lsq; };
+  funlist ~= delegate void(vec2f* fp) { ref f = *fp; auto fprod = f * f; float lsq = fprod.(x+y); f = vec2f(fprod.(x-y), 2*f.x*f.y) / std.math.sqrt lsq; };
   
   int seed;
   if args.length (seed, args) = (args[0].atoi(), args[1..$]);
@@ -76,7 +89,7 @@ void main(string[] args) {
   
   bool hidden = eval targetfile;
   
-  screen (w, h, fullscreen => fs, surface => hidden);
+  auto surf = screen (w, h, fullscreen => fs, surface => hidden);
   
   float randf(IRandom r) { return (r.rand() & 0x7fff_ffff) * 1f / 0x7fff_ffff; }
   vec3f rand3f() { return vec3f(randf(rng) x 3); }
@@ -86,7 +99,7 @@ void main(string[] args) {
     float x 12 factors;
     for int i <- 0..12 {
       factors[i] = randf(rng) * 4 - 2;
-      factors[i] = factors[i].pow 3;
+      // factors[i] = factors[i].pow 3;
     }
     for int i <- [2, 5, 8, 11] factors[i] /= 5;
     if rng2 {
@@ -185,13 +198,12 @@ void main(string[] args) {
           c = mixin vex3f!("c", "min(%, 1f)");
           alias gamma = 2.2;
           c = mixin vex3f!("c", "%.pow (1 / gamma)");
-          display.pset (x, y, c.xyz);
+          surf.pset (x, y, c.xyz);
         }
       }
     }
-    // if targetfile
-    //   targetfile.saveBMP;
-    flip;
+    if (targetfile) { surf.saveBMP targetfile; }
+    else flip;
     if iterlimit return;
   }
 }

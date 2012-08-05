@@ -620,8 +620,14 @@ string getAddr(AsmFile af, Expr src) {
   else return null;
 }
 
-bool emitUnalignedAddr(AsmFile af, Expr src) {
+bool emitUnalignedAddr(AsmFile af, Expr src, ref bool wasAligned) {
+  wasAligned = false;
   if (auto cv = fastcast!(CValue) (src)) {
+    if (auto var = fastcast!(Variable) (cv)) {
+      auto offs = var.baseOffset;
+      while (offs < 0) offs += 16;
+      if (offs % 16 == 0) wasAligned = true;
+    }
     cv.emitLocation(af);
     return true;
   } else return false;
@@ -652,10 +658,11 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   bool alignedVar1 = var1 && (var1.baseOffset & 15) == 0;
   bool alignedVar2 = var2 && (var2.baseOffset & 15) == 0;
   void load(Expr src, string to, string scrap1 = null, string scrap2 = null) {
+    bool wasAligned;
     if (auto addr = getAddr(af, src)) af.SSEOp("movaps"[], addr, to);
-    else if (emitUnalignedAddr(af, src)) {
+    else if (emitUnalignedAddr(af, src, wasAligned)) {
       af.popStack("%eax"[], 4);
-      af.SSEOp("movups"[], "(%eax)"[], to);
+      af.SSEOp(wasAligned?"movaps"[]:"movups"[], "(%eax)"[], to);
     } else {
       // logln("src is "[], (cast(Object) src).classinfo.name, ", "[], src);
       src.emitAsm(af);
@@ -701,28 +708,29 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     af.salloc(4);
   }
   if (!alignedVar1 && !alignedVar2) {
-    string prep1; bool prep1u;
+    string prep1; bool prep1u, prep1u_align;
     if (auto addr = getAddr(af, op1)) prep1 = addr;
-    else if (emitUnalignedAddr(af, op1)) prep1u = true; // don't pop into register yet!!
+    else if (emitUnalignedAddr(af, op1, prep1u_align)) prep1u = true; // don't pop into register yet!!
     else op1.emitAsm(af);
+    bool wasAligned;
     if (auto s = getAddr(af, op2)) srcOp = s;
-    else if (emitUnalignedAddr(af, op2)) {
-      if (prep1u) { af.sfree(8); emitUnalignedAddr(af, op2); } // resort
+    else if (emitUnalignedAddr(af, op2, wasAligned)) {
+      if (prep1u) { af.sfree(8); emitUnalignedAddr(af, op2, wasAligned); } // resort
       af.popStack("%eax"[], 4);
-      af.SSEOp("movups"[], "(%eax)"[], "%xmm1"[]);
-      if (prep1u) { emitUnalignedAddr(af, op1); }
+      af.SSEOp(wasAligned?"movaps"[]:"movups"[], "(%eax)"[], "%xmm1"[]);
+      if (prep1u) { emitUnalignedAddr(af, op1, prep1u_align); }
     } else {
       // logln("op2 is "[], (cast(Object) op2).classinfo.name, ", "[], op2);
       if (prep1u) { af.sfree(4); } // force unload
       op2.emitAsm(af);
       af.SSEOp("movaps"[], "(%esp)"[], "%xmm1"[]);
       af.sfree(16);
-      if (prep1u) emitUnalignedAddr(af, op1); // reemit
+      if (prep1u) emitUnalignedAddr(af, op1, prep1u_align); // reemit
     }
     if (prep1) af.SSEOp("movaps"[], prep1, "%xmm0"[]);
     else if (prep1u) {
       af.popStack("%edx"[], 4);
-      af.SSEOp("movups"[], "(%edx)"[], "%xmm0"[]);
+      af.SSEOp(prep1u_align?"movaps"[]:"movups"[], "(%edx)"[], "%xmm0"[]);
     } else {
       // logln("op1 is "[], (cast(Object) op1).classinfo.name, ", "[], op1);
       af.SSEOp("movaps"[], "(%esp)"[], "%xmm0"[]);

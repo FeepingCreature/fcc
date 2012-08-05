@@ -377,7 +377,7 @@ src_cleanup_redo: // count, then copy
       if (auto rest = s2.startsWith("U"[])) s2 = rest; // TODO
       if (s2.accept("LL")) return false; // long long
       s2.accept("L");
-      if (!s2.length /* special handling for separators */ || s2.startsWith(","[]) || s2.startsWith(")"[])) {
+      if (!s2.length /* special handling for separators */ || s2.startsWith(","[]) || s2.startsWith(")"[]) || s2.startsWith("<"[]) || s2.startsWith(">"[])) {
         res = fastalloc!(IntExpr)(i);
         source = s2;
         return true;
@@ -385,7 +385,6 @@ src_cleanup_redo: // count, then copy
     }
     s2 = source;
     if (s2.startsWith("__PRI"[])) return false; // no chance to parse
-    s2 = source;
     string ident;
     if (s2.gotIdentifier(ident) && !s2.length) {
       // float science notation constants
@@ -519,23 +518,23 @@ src_cleanup_redo: // count, then copy
           // logln("macro: ", id, " (", macroArgs, ") => ", stmt);
           continue;
         }
-        auto st2 = stmt;
-        if (auto ty = matchType(st2)) {
-          if (!st2.mystripl().length) {
+        stmt = backup;
+        if (auto ty = matchType(stmt)) {
+          if (!stmt.mystripl().length) {
             auto ta = fastalloc!(TypeAlias)(ty, id);
             add(id, ta);
             continue;
           }
         }
-        st2 = stmt;
-        if (st2.accept("\"")) {
+        stmt = backup;
+        if (stmt.accept("\"")) {
           string res;
-          if (gotString(st2, res, "\"", true) && !st2.mystripl().length) {
+          if (gotString(stmt, res, "\"", true) && !stmt.mystripl().length) {
             ex = mkString(res);
             goto gotEx;
           }
         }
-        // logln("full-parse ", stmt, " | ", start);
+        stmt = backup;
         try {
           if (!readCExpr(stmt, ex) || stmt.mystripl().length)
             goto giveUp;
@@ -588,137 +587,159 @@ src_cleanup_redo: // count, then copy
         add(name, fastalloc!(TypeAlias)(Single!(SysInt), name));
       continue;
     }
-    bool isUnion;
     {
       auto st2 = stmt;
-      if (st2.accept("struct") || (st2.accept("union") && (isUnion = true, true))) {
+      bool advanced;
+      bool consumedStruct(void delegate(string, string, IType) match) {
+        bool isUnion;
+        if (!st2.accept("struct")) {
+          if (st2.accept("union")) isUnion = true;
+          else return false;
+        }
         string ident;
         gotIdentifier(st2, ident);
-        if (st2.accept("{")) {
-          auto startstr = st2;
-          auto st = fastalloc!(Structure)(ident);
-          // st.minAlign = 4;
-          st.isUnion = isUnion;
-          const debugStructs = false;
-          while (true) {
-            static if (debugStructs)
-              logln(ident, ">", st2);
-            if (st2.startsWith("#define"[]))
-              goto skip;
-            auto ty = matchType(st2);
-            // logln("for ", ident, ", match type @", st2, " = ", ty);
-            if (!ty) {
-              if (isUnion) {
-                static if (debugStructs) logln("WARN incomplete union: experimental code!");
-                goto skip;
-              } else {
-                static if (debugStructs) logln("type failed");
-                goto giveUp1;
-              }
-            }
-            while (true) {
-              auto pos = st2.find("sizeof");
-              if (pos == -1) break;
-              auto block = st2[pos .. $].between("(", ")");
-              auto sty = matchType(block);
-              if (!sty) {
-                static if (debugStructs) logln("sizeof loop match failed");
-                goto giveUp1;
-              }
-              auto translated = Format(sty.size);
-              st2 = st2[0 .. pos] ~ translated ~ st2[pos .. $].between(")", "");
-              // logln("st2 => ", st2);
-            }
-            while (true) {
-              auto atpos = st2.find("__attribute__");
-              if (atpos == -1) break;
-              st2 = st2[0..atpos] ~ st2[atpos .. $].between("))", "");
-            }
-            string name3;
-            auto st3 = st2;
-            Expr size;
-            st3 = st3.replace("(int)", ""); // hax
-            if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
-              redo:
-              opt(size);
-              if (fastcast!(AstTuple)~ size.valueType()) {
-                // unwrap "(foo)"
-                logln("at ", st2.nextText(), ":");
-                logln("unwrap ", (cast(Object) size).classinfo.name, " ", size);
-                size = (fastcast!(StructLiteral)~ (fastcast!(RCE)~ size).from)
-                  .exprs[$-1];
-                goto redo;
-              }
-              auto ie = fastcast!(IntExpr)~ size;
-              // logln("size: ", size);
-              if (!ie) {
-                static if (debugStructs) logln("size ie cast failed");
-                goto giveUp1;
-              }
-              fastalloc!(RelMember)(name3, fastalloc!(StaticArray)(ty, ie.num), st);
-              // logln("rest: ", st3);
-              if (st3.strip().length) {
-                static if (debugStructs) logln("left over ", st3, ", failed");
-                goto giveUp1;
-              }
-              goto skip;
-            }
-            // logln(">> ", st2);
-            if (st2.find("(") != -1) {
-              if (st2.accept("(") && st2.accept("*")) {
-                string name;
-                if (!gotIdentifier(st2, name)) {
-                  static if (debugStructs) logln("fail in fp ", st2);
-                  goto giveUp1;
-                }
-                ty = Single!(Pointer, Single!(Void));
-                st2 = name;
-              } else {
-                // alias to void for now.
-                if (ident) add(ident, fastalloc!(TypeAlias)(Single!(Void), ident));
-                static if (debugStructs) logln("can't handle the ", st2, ". fail. ");
-                goto giveUp1; // can't handle yet
-              }
-            }
-            foreach (var; st2.split(",")) {
-              if (Single!(Void) == ty) {
-                static if (debugStructs) logln("void base type at ", startstr, ". fail. ");
-                goto giveUp1;
-              }
-              fastalloc!(RelMember)(var.strip(), ty, st);
-            }
-          skip:
-            st2 = statements.take();
-            if (st2.accept("}")) break;
-          }
-          IType ty = st;
-          while (st2.accept("*")) {
-            ty = fastalloc!(Pointer)(ty);
-          }
-          auto name = st2.strip();
-          if (!name.length) name = ident.strip();
-          if (!name.length) goto giveUp1;
-          if (!st.name.length) st.name = name;
-          add(name, fastalloc!(TypeAlias)(ty, name));
-          if (ident && ident != name)
-            // neat doesn't have a separate struct namespace, so add it to regular one
-            add(ident, fastalloc!(TypeAlias)(ty, ident));
-          continue;
-          giveUp1:
+        if (!st2.accept("{")) return false;
+        auto startstr = st2;
+        auto st = fastalloc!(Structure)(ident);
+        // st.minAlign = 4;
+        st.isUnion = isUnion;
+        const debugStructs = false;
+        while (true) {
           static if (debugStructs)
-            logln("give up on struct ", ident, " at ", st2);
-          while (true) {
-            // logln("stmt: ", st2, " in ", startstr);
-            st2 = statements.take();
-            if (st2.accept("}")) {
-              static if (debugStructs) logln("info ", st2);
-              break;
+            logln(ident, ">", st2);
+          if (st2.startsWith("#define"[]))
+            goto skip;
+          IType ty;
+          {
+            auto st3 = st2;
+            if ((st3.accept("struct") || st3.accept("union")) && st3.accept("{")) {
+              if (!consumedStruct((string name, string ident, IType type) {
+                ty = type;
+                st2 = name;
+              })) return false;
             }
           }
-          // logln(">>> ", st2);
-          continue;
+          if (!ty) ty = matchType(st2);
+          if (!ty) {
+            if (isUnion) {
+              static if (debugStructs) logln("WARN incomplete union: experimental code!");
+              goto skip;
+            } else {
+              static if (debugStructs) logln("type failed");
+              goto giveUp1;
+            }
+          }
+          while (true) {
+            auto pos = st2.find("sizeof");
+            if (pos == -1) break;
+            auto block = st2[pos .. $].between("(", ")");
+            auto sty = matchType(block);
+            if (!sty) {
+              static if (debugStructs) logln("sizeof loop match failed");
+              goto giveUp1;
+            }
+            auto translated = Format(sty.size);
+            st2 = st2[0 .. pos] ~ translated ~ st2[pos .. $].between(")", "");
+            // logln("st2 => ", st2);
+          }
+          while (true) {
+            auto atpos = st2.find("__attribute__");
+            if (atpos == -1) break;
+            st2 = st2[0..atpos] ~ st2[atpos .. $].between("))", "");
+          }
+          string name3;
+          auto st3 = st2;
+          Expr size;
+          st3 = st3.replace("(int)", ""); // hax
+          if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
+            redo:
+            opt(size);
+            if (fastcast!(AstTuple)~ size.valueType()) {
+              // unwrap "(foo)"
+              logln("at ", st2.nextText(), ":");
+              logln("unwrap ", (cast(Object) size).classinfo.name, " ", size);
+              size = (fastcast!(StructLiteral)~ (fastcast!(RCE)~ size).from)
+                .exprs[$-1];
+              goto redo;
+            }
+            auto ie = fastcast!(IntExpr)~ size;
+            // logln("size: ", size);
+            if (!ie) {
+              static if (debugStructs) logln("size ie cast failed");
+              goto giveUp1;
+            }
+            fastalloc!(RelMember)(name3, fastalloc!(StaticArray)(ty, ie.num), st);
+            // logln("rest: ", st3);
+            if (st3.strip().length) {
+              static if (debugStructs) logln("left over ", st3, ", failed");
+              goto giveUp1;
+            }
+            goto skip;
+          }
+          // logln(">> ", st2);
+          if (st2.find("(") != -1) {
+            if (st2.accept("(") && st2.accept("*")) {
+              string name;
+              if (!gotIdentifier(st2, name)) {
+                static if (debugStructs) logln("fail in fp ", st2);
+                goto giveUp1;
+              }
+              ty = Single!(Pointer, Single!(Void));
+              st2 = name;
+            } else {
+              // alias to void for now.
+              if (ident) add(ident, fastalloc!(TypeAlias)(Single!(Void), ident));
+              static if (debugStructs) logln("can't handle the ", st2, ". fail. ");
+              goto giveUp1; // can't handle yet
+            }
+          }
+          foreach (var; st2.split(",")) {
+            if (Single!(Void) == ty) {
+              static if (debugStructs) logln("void base type at ", startstr, ". fail. ");
+              goto giveUp1;
+            }
+            fastalloc!(RelMember)(var.strip(), ty, st);
+          }
+        skip:
+          st2 = statements.take(); advanced = true;
+          if (st2.accept("}")) break;
         }
+        IType ty = st;
+        while (st2.accept("*")) {
+          ty = fastalloc!(Pointer)(ty);
+        }
+        auto name = st2.strip();
+        if (!name.length) name = ident.strip();
+        if (!name.length) goto giveUp1;
+        if (!st.name.length) st.name = name;
+        static if (debugStructs)
+          logln(ident, "> success: '", name, "' -> ", ty);
+        match(name, ident, ty);
+        return true;
+        giveUp1:
+        static if (debugStructs)
+          logln("give up on struct ", ident, " at ", st2);
+        while (true) {
+          static if (debugStructs) logln("stmt: ", st2, " in ", startstr);
+          st2 = statements.take();
+          advanced = true;
+          if (st2.accept("}")) {
+            static if (debugStructs) logln("info ", st2);
+            return false;
+          }
+        }
+        // logln(">>> ", st2);
+        return false;
       }
+      bool addedSomething;
+      consumedStruct((string name, string ident, IType type) {
+        addedSomething = true;
+        add(name, fastalloc!(TypeAlias)(type, name));
+        if (ident && ident != name)
+          // neat doesn't have a separate struct namespace, so add it to regular one
+          add(ident, fastalloc!(TypeAlias)(type, ident));
+      });
+      if (addedSomething || advanced) continue;
     }
     if (isTypedef) {
       auto target = matchType(stmt);
@@ -989,7 +1010,7 @@ Object gotSpecialCallback(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return fastcast!(Object) (res);
 }
-mixin DefaultParser!(gotSpecialCallback, "tree.expr.special_callback", "999"); // not super important
+mixin DefaultParser!(gotSpecialCallback, "tree.expr.special_callback", "2302"); // must be before int literal
 
 static this() {
   ast.modules.specialHandler = delegate Module(string name) {

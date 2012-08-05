@@ -7,8 +7,8 @@ alias tools.base.Stuple Stuple;
 
 int xpar = -1; // for debugging
 
-// dg, name, allow
-Stuple!(bool delegate(Transcache, ref int[string]), string, bool)[] opts;
+// dg, name, allow, barrier
+Stuple!(bool delegate(Transcache, ref int[string]), string, bool, bool)[] opts;
 
 // return false on failure
 // note: not applicable is not a failure!
@@ -365,12 +365,14 @@ bool isUtilityRegister(string reg) {
     }
     return false;
   }
-  if (reg == "%eax"[] /or/ "%ebx"[] /or/ "%ecx"[] /or/ "%edx"[])
+  if (reg == "%eax"[] /or/ "%ebx"[] /or/ "%ecx"[] /or/ "%edx"[] /or/ "%edi"[])
     return true;
   return false;
 }
 
 string opt(string name, string s) {
+  bool barrier;
+  if (s.length >= 8 && s[0..8] == "barrier:") { barrier = true; s = s[8..$]; }
   string src = s.ctSlice("=>"), dest = s;
   string stmt_match = src.ctSlice(":");
   int instrs = 0;
@@ -421,7 +423,7 @@ string opt(string name, string s) {
     } while (match.advance());
     return _changed;
   }
-  opts ~= stuple(&`~name~`, "`~name~`", true);`;
+  opts ~= stuple(&`~name~`, "`~name~`", true, `; if (barrier) res ~= `true`; else res ~= `false`; res ~= `);`;
   res = res.ctReplace(
         "$SUBSTWITH", `foreach (ref $T res; onceThenCall(($T t) { match.replaceWith(t); })) with (res)`,
         "$SUBST", `match.replaceWith`,
