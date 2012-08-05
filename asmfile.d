@@ -533,6 +533,7 @@ class AsmFile {
     // ext_step(cache, labels_refcount); // run this first
     while (true) {
       bool anyChange;
+      if (debugOpts) logln("optimize ", cache.list());
       foreach (entry; opts) if (entry._2) {
         auto opt = entry._0, name = entry._1;
         if (opt(cache, labels_refcount)) {
@@ -543,6 +544,7 @@ class AsmFile {
           }
           anyChange = true;
         }
+        if (debugOpts && anyChange) logln(name, " => ", cache.list());
         // logln("Executed ", name, " => ", anyChange, "; ", cache.list.length);
       }
       // logln("::", anyChange, "; ", cache.list);

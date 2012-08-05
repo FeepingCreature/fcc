@@ -1944,7 +1944,9 @@ restart:
   mixin(opt("move_lea_after_unrelated_op", `^LoadAddress, (^Pop || ^Mov):
     $0.to.isUtilityRegister() && !info($1).opContains($0.to) && !info($0).opContains(($1.kind == $TK.Pop)?$1.dest:$1.to)
     =>
-    $SUBST($1, $0);
+    $T t = $0;
+    if ($1.kind == $TK.Pop && t.hasStackdepth) t.stackdepth -= $1.size;
+    $SUBST($1, t);
   `));
   // this sequence would leave the target register pointing at an invalid area of the stack
   // ergo it must be bogus
