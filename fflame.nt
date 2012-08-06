@@ -45,8 +45,11 @@ void sigfun(int i) {
 
 void main(string[] args) {
   // args = ["1", "1", "1", "1000000", "throwaway"];
-  int w = 640, h = 480; bool fs = false;
-  if (args.length  && args[0] == "full") { (w, h, fs, args) = (1920, 1080, true, args[1..$]); }
+  // int w = 640, h = 480;
+  int w = 1280, h = 720;
+  bool fs = false;
+  string targetfile;
+  if (args.length  && args[0] == "full") { (w, h, fs, args, targetfile) = (1920, 1080, true, args[1..$], "full.bmp"); }
   set-handler (SDLQuit) invoke-exit "return";
   define-exit "return" return;
   
@@ -59,35 +62,41 @@ void main(string[] args) {
   funlist ~= delegate void(vec2f* fp) { };
   funlist ~= delegate void(vec2f* fp) { ref f = *fp; f = vec2f(sin f.x, sin f.y); };
   funlist ~= delegate void(vec2f* fp) { ref f = *fp; f = f / f.lensq; };
-  funlist ~= delegate void(vec2f* fp) { ref f = *fp; using f:: auto r2 = lensq, s = sin r2, c = cos r2; f = vec2f(x * s - y * c, x * c + y * s); };
+  funlist ~= delegate void(vec2f* fp) { ref f = *fp; using f:: auto r2 = lensq, s = sin r2, c = cos r2; that = vec2f(x * s - y * c, x * c + y * s); };
   // (x - y) * (x + y) = x*x + x*y - y*x - y*y
   // funlist ~= delegate vec2f(vec2f f) using f { return vec2f((x - y) * (x + y), 2 * x * y) / sqrt lensq; };
-  funlist ~= delegate void(vec2f* fp) { ref f = *fp; auto fprod = f * f; float lsq = fprod.(x+y); f = vec2f(fprod.(x-y), 2*f.x*f.y) / std.math.sqrt lsq; };
+  funlist ~= delegate void(vec2f* fp) { ref f = *fp; auto fprod = f * f; float len = std.math.sqrt fprod.(x+y); f = vec2f(fprod.(x-y), 2*f.(x*y)) / len; };
   
   int seed;
   if args.length (seed, args) = (args[0].atoi(), args[1..$]);
   auto rng = getPRNG seed;
   
-  IRandom rng2;
+  IRandom rng2, rng3;
   float mul = 1;
   int iterlimit;
-  string targetfile;
   
   if args.length {
-    (int num, args) = (args[0].atoi(), args[1..$]);
-    if num
-      rng2 = getPRNG num;
+    if (args[0].find(":") == -1) {
+      (int num, args) = (args[0].atoi(), args[1..$]);
+      if num
+        rng2 = getPRNG num;
+    } else {
+      (string arg, args) = args[(0, 1..$)];
+      string (a, b) = slice(arg, ":");
+      rng2 = getPRNG a.atoi();
+      rng3 = getPRNG b.atoi();
+    }
   }
   float xatof(string s) {
     if s.find(":") == -1 return s.atof();
-    (string a, string b) = slice(s, ":");
+    string (a, b) = slice(s, ":");
     return atoi a * 1f / atoi b;
   }
   if args.length (mul, args) = (xatof(args[0]), args[1..$]);
   if args.length (iterlimit, args) = (args[0].atoi(), args[1..$]);
   if args.length (targetfile, args) = args[(0, 1..$)];
   
-  bool hidden = eval targetfile;
+  bool hidden = eval targetfile && !fs;
   
   auto surf = screen (w, h, fullscreen => fs, surface => hidden);
   
@@ -97,33 +106,66 @@ void main(string[] args) {
   
   vec2f delegate(vec2f) transform(void delegate(vec2f*) dg) {
     float x 12 factors;
-    for int i <- 0..12 {
+    /*for int i <- 0..12 {
+      factors[i] = randf(rng) * 4 - 2;
+      // factors[i] = factors[i].pow 3;
+    }*/
+    for int i <- 0..6 {
       factors[i] = randf(rng) * 4 - 2;
       // factors[i] = factors[i].pow 3;
     }
-    for int i <- [2, 5, 8, 11] factors[i] /= 5;
+    // for int i <- [2, 5, 8, 11] { factors[i] *= randf(rng) + 0.2; factors[i] *= randf(rng) + 0.2; }
+    for int i <- [2, 5] { factors[i] *= randf(rng) + 0.2; factors[i] *= randf(rng) + 0.2; }
+    {
+      alias f = factors;
+      f[8] = -f[2];
+      f[11] = -f[5];
+      {
+        alias a = f[0], b = f[1], c = f[3], d = f[4];
+        alias a_ = f[6], b_ = f[7], c_ = f[9], d_ = f[10];
+        auto idet = 1 / (a*d-b*c);
+        a_ = idet * d;
+        b_ = -idet * b;
+        c_ = -idet * c;
+        d_ = idet * a;
+      }
+    }
+    for int i <- 6..12 { factors[i] += (randf(rng) * 2f - 1f).pow(5); }
     if rng2 {
-      for int i <- 0..12
-        factors[i] += (randf(rng2) - 0.5) * 2 * mul;
+      if (rng3) {
+        for int i <- 0..12
+          factors[i] += (randf(rng2) - 0.5) * 2 * (1 - mul) + (randf(rng3) - 0.5) * 2 * mul;
+      } else {
+        for int i <- 0..12
+          factors[i] += (randf(rng2) - 0.5) * 2 * mul;
+      }
     }
     auto meep = funlist;
     return new delegate vec2f(vec2f v) {
-      auto fp = &factors; alias f = *fp;
+      ref f = factors;
       vec2f v2 = void;
       v2.x = v.x * f[0] + v.y * f[1] + f[2];
       v2.y = v.x * f[3] + v.y * f[4] + f[5];
       dg(&v2);
-      v.x = v2.x * f[6] + v2.y * f[7] + f[8];
-      v.y = v2.x * f[9] + v2.y * f[10] + f[11];
+      v2.x -= f[8];
+      v2.y -= f[11];
+      v.x = v2.x * f[6] + v2.y * f[7];
+      v.y = v2.x * f[9] + v2.y * f[10];
+      // v.x = v2.x * f[6] + v2.y * f[7] + f[8];
+      // v.y = v2.x * f[9] + v2.y * f[10] + f[11];
       return v;
     };
   }
   
   (vec4f, vec2f delegate(vec2f))[] funs;
-  for 0..rng.rand()%2 + 3
-    funs ~= (rand4f(), transform funlist[rng.rand()%$]);
+  for 0..rng.rand()%5 + 2 {
+    auto fun = transform funlist[rng.rand()%$];
+    auto esi = _esi;
+    funs ~= (rand4f(), new delegate vec2f(vec2f p) { auto backup = _esi; onSuccess _esi = backup; _esi = esi; return fun p; });
+  }
   
-  auto field = new vec4f[] w * h;
+  auto field = new vec4f[] w * h + 1;
+  if (int:field.ptr & 15) field.ptr = vec4f*:((int:field.ptr + 16) & ¬15);
   for int i <- 0..field.length field[i] = vec4f(0);
 
   long iters; int nanfails; long misses;
@@ -142,6 +184,7 @@ void main(string[] args) {
       feclearexcept fpmask;
       nanfails ++;
     }
+    
     int graceperiod = 20; // give color time to stabilize
     // done this way so reset-pos can resume correctly
     for start <- start..count {
@@ -155,7 +198,7 @@ void main(string[] args) {
       else {
         int ix = int:((pos.x + 2) * scale.x), iy = int:((pos.y + 2) * scale.y);
         mchange ++;
-        if (ix >= 0) if (iy >= 0) if (ix < w) if (iy < h) {
+        if (ix >= 0 && iy >= 0 && ix < w && iy < h) {
           mchange --;
           ref f = field[iy * w + ix];
           f += col.(vec4f(x, y, z, 1/w));
@@ -186,8 +229,9 @@ void main(string[] args) {
   while true {
     if iterlimit { writeln "wait for threadpool completion"; tp.waitComplete; writeln "done"; }
     float basefactor = float:(double:iters / (w * h));
-    writeln "base factor $basefactor; $(basefactor/(sec() - start)) / s - $iters, $nanfails nans, $(double:misses * 100.0 / double:iters)% misses";
-    if basefactor > 0.01 {
+    auto δ = float:(sec() - start);
+    if basefactor > 0.01 && δ != 0 {
+      writeln "base factor $basefactor; $(basefactor/δ)/s - $iters; $(double:iters/δ)/s, $nanfails nans, $(double:misses * 100.0 / double:iters)% misses";
       for (int y, int x) <- cross(0..h, 0..w) {
         auto f = field[y * w + x];
         if f[1] > 0.01 {
@@ -203,7 +247,7 @@ void main(string[] args) {
       }
     }
     if (targetfile) { surf.saveBMP targetfile; }
-    else flip;
+    if (!targetfile || fs) flip;
     if iterlimit return;
   }
 }
