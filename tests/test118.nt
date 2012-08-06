@@ -1,0 +1,18 @@
+module test118;
+
+alias NestDg = void delegate(int delegate(NestDg));
+
+int testfun(NestDg dg) {
+  int test2(NestDg dg) { return 4; }
+  dg(&test2);
+  dg(&test2);
+  return 5;
+}
+
+void main() {
+  void callme(int delegate(NestDg) dg) {
+    auto res = dg(&callme);
+    writeln ": $res";
+  }
+  callme &testfun;
+}

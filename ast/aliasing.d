@@ -78,15 +78,27 @@ class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
   bool strict;
   string name;
   mixin This!("base, name, strict = false"[]);
+  bool currently_recursing;
   override {
-    bool isComplete() { return base.isComplete; }
+    bool isComplete() {
+      // break circles
+      if (currently_recursing) return true; // blind assumption
+      currently_recursing = true; scope(exit) currently_recursing = false;
+      return base.isComplete;
+    }
     bool addsSelf() { return true; }
     string getIdentifier() { return name; }
     bool isPointerLess() { return base.isPointerLess(); }
     int size() { return base.size; }
-    string mangle() { return "type_alias_"~name.replace("-"[], "_dash_"[])~"_"~base.mangle; }
+    string mangle() {
+      // breeak
+      if (currently_recursing) return qformat("recursive_alias_", name.replace("-", "_dash_"));
+      currently_recursing = true; scope(exit) currently_recursing = false;
+      return qformat("type_alias_", name.replace("-", "_dash_"), "_", base.mangle);
+    }
     ubyte[] initval() { return base.initval; }
     int opEquals(IType ty) {
+      if (ty is this) return true;
       if (strict) {
         auto ta2 = fastcast!(TypeAlias) (ty);
         if (!ta2) return false;
@@ -141,10 +153,23 @@ redo:
     }
     return false;
   }
-  if (rest(t3, "type"[], &ty) && gotTerm()) {
+  auto ta = fastalloc!(TypeAlias)(cast(IType) null, id, strict);
+  bool typematch;
+  {
+    auto os = fastalloc!(MiniNamespace)("type_alias_predefine"[]);
+    os.sup = namespace();
+    os.internalMode = true;
+    os.add(ta);
+    namespace.set(os);
+    typematch = !!rest(t3, "type"[], &ty);
+    namespace.set(os.sup);
+  }
+  
+  if (typematch && gotTerm()) {
+    ta.base = ty;
     t2 = t3;
   } else {
-    ty = null;
+    ta = null;
     t3 = t2;
     string id2;
     if (t3.gotIdentifier(id2, true) && gotTerm()) {
@@ -168,7 +193,7 @@ redo:
     else namespace().__add(id, obj); // for instance, function alias
   }
   
-  assert(ex || ty || obj);
+  assert(ex || ta || obj);
   text = t2;
   auto cv = fastcast!(CValue)~ ex, mv = fastcast!(MValue)~ ex, lv = fastcast!(LValue)~ ex;
   if (ex) {
@@ -180,7 +205,7 @@ redo:
     else res = fastalloc!(ExprAlias)(ex, id);
     namespace().add(res);
   }
-  if (ty) namespace().add(fastalloc!(TypeAlias)(ty, id, strict));
+  if (ta) namespace().add(ta);
   if (notDone) {
     notDone = false;
     goto redo;
