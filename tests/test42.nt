@@ -1,0 +1,9 @@
+module test42;
+
+void main() {
+  auto ia = new int[] 5; ia.free;
+  int[] ia2; ia2.free;
+  void[] va; va.free;
+  (void[], int)[auto~] ta; ta ~= (void[]:null, 0); 
+  ref ra = ta[0]; ra[0].free;
+}

@@ -1,0 +1,8 @@
+module test35;
+
+void main() {
+  import std.string;
+  string str = "fwoo", match = "barwl";
+  int res = str.find(match) + 1;
+  writeln "$res";
+}
