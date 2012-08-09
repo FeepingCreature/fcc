@@ -211,6 +211,14 @@ Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   auto re = fastcast!(NestFunRefExpr) (ex);
   if (!re) return null;
+  if (!re.fun.type.ret) {
+    re.fun.parseMe;
+    if (!re.fun.type.ret) {
+      logln("wat: ", re);
+      logln("::", !!re.fun.coarseSrc, " ", re.fun.inFixup);
+      fail;
+    }
+  }
   
   text = t2;
   

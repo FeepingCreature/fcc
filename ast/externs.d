@@ -77,7 +77,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     auto t3 = t2;
     if (test(fun.type.ret = fastcast!(IType)~ rest(t3, "type"[])) &&
         t3.gotIdentifier(fun.name) &&
-        t3.gotParlist(fun.type.params, rest) &&
+        t3.gotParlist(fun.type.params, rest, false) &&
         t3.accept(";"[])
       )
     {

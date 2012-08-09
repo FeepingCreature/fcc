@@ -648,8 +648,9 @@ StructIterator[IType] cache;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto mns = namespace().get!(MiniNamespace);
-    if (mns && !mns.id.startsWith("!safecode"[]))
+    if (mns && !mns.id.startsWith("!safecode"[])) {
       return null; // only allow this conversion in user code
+    }
     auto evt = ex.valueType();
     if (auto p = evt in cache) { if (!*p) return null; return reinterpret_cast(*p, ex); }
     auto st = fastcast!(Structure)~ evt;

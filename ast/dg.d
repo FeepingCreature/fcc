@@ -108,13 +108,20 @@ class Delegate : Type {
     }
     int opEquals(IType ty) {
       if (!super.opEquals(ty)) return false;
+      if (ty is this) return true;
+      // break recursion loop
+      if (alreadyRecursing(this, ty)) return true;
+      pushRecurse(this, ty); scope(exit) popRecurse();
+      
       auto dg = fastcast!(Delegate) (resolveType(ty));
+      if (!ret || dg && !dg.ret) return false;
       if (!dg || !dg.ret || !ret) { logln(ty); fail; }
       if (dg.ret is ret || (dg.ret is dg && ret is this) || dg.ret == ret) { }
       else return false;
       if (dg.args.length != args.length) return false;
+      auto myargs = args();
       foreach (i, arg; dg.args)
-        if (arg.type != args[i].type) return false;
+        if (!arg.type || !myargs[i].type || arg.type != myargs[i].type) return false;
       return true;
     }
   }
@@ -136,7 +143,7 @@ IType dgAsStructType(Delegate dgtype) {
 import ast.casting;
 Expr dgAsStruct(Expr ex) {
   auto dgtype = fastcast!(Delegate) (resolveType(ex.valueType()));
-  if (!dgtype) return null;
+  if (!dgtype || dgtype.ft.types_open()) return null;
   if (auto lv = fastcast!(LValue)~ ex) {
     return new ReinterpretCast!(LValue) (dgAsStructType(dgtype), lv);
   } else {
@@ -156,7 +163,7 @@ static this() {
     Argument[] list;
     auto t2 = text;
     if (t2.accept("delegate"[]) &&
-      t2.gotParlist(list, rest)
+      t2.gotParlist(list, rest, false)
     ) {
       text = t2;
       return fastalloc!(Delegate)(cur, list);

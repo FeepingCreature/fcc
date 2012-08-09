@@ -112,8 +112,11 @@ Object gotParamTypes(ref string text, ParseCb cont, ParseCb rest) {
     handle(it);
     return mkTuple(res);
   }
-  if (fun) return fastcast!(Object) (forcedConvert(flatten(mkTuple(fun.args /map/ ex!("x -> x.type"[])))));
-  else     return fastcast!(Object) (forcedConvert(flatten(mkTuple(dg .args /map/ ex!("x -> x.type"[])))));
+  Argument[] args;
+  if (fun) args = fun.args;
+  else     args =  dg.args;
+  foreach (arg; args) if (!arg.type) text.failparse("Function arguments incomplete: ", arg.name, " untyped");
+  return fastcast!(Object) (forcedConvert(flatten(mkTuple(args /map/ ex!("x -> x.type"[])))));
 }
 mixin DefaultParser!(gotParamTypes, "type.fun_param_type"[], "52"[], "ParamTypes"[]);
 

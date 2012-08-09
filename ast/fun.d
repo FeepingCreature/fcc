@@ -96,11 +96,16 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   int _framestart;
   string coarseSrc;
   IModule coarseModule;
-  bool inEmitAsm, inParse;
+  bool inEmitAsm, inParse, inFixup /* suppress fixup -> add -> lookup -> parseMe chain */;
   mixin ImporterImpl!();
   override bool isBeingEmat() { return inEmitAsm; }
   void parseMe() {
     if (!coarseSrc) return;
+    if (inFixup) return;
+    if (type.args_open) {
+      logln("Tried to parse function but function has open args: ", this);
+      fail;
+    }
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     if (tree) namespace.set(fastcast!(Scope) (tree));
@@ -132,6 +137,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     }
     addStatement(stmt);
     opt(tree);
+    
+    if (!type.ret)
+      type.ret = Single!(Void); // implicit return
+    
     t2 = t2.mystripl();
     if (t2.length)
       t2.failparse("Unknown text! ");
@@ -165,6 +174,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     return res;
   }
   int fixup() {
+    inFixup = true; scope(exit) inFixup = false;
     // cdecl: 0 old ebp, 4 return address, 8 parameters
     int cur;
     if (isARM) {
@@ -183,6 +193,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     // TODO: 16-byte? alignment
     foreach (param; type.params) {
       auto pt = param.type;
+      if (!pt) {
+        logln("Function parameter type still undefined in ", name, ": ", param.name);
+        asm { int 3; }
+        // throw new Exception(qformat("Function parameter type still undefined in ", name, ": ", param.name));
+      }
       _framestart += pt.size;
       add(fastalloc!(Variable)(pt, param.name, cur));
       cur += pt.size;
@@ -795,6 +810,14 @@ class FunctionType : ast.types.Type {
     res.stdcall = stdcall;
     return res;
   }
+  bool args_open() {
+    foreach (arg; params) if (!arg.type) return true;
+    return false;
+  }
+  bool types_open() {
+    if (!ret) return true;
+    return args_open();
+  }
   override int size() {
     fail;
     assert(false);
@@ -843,7 +866,7 @@ class FunctionType : ast.types.Type {
   }
 }
 
-bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
+bool gotParlist(ref string str, ref Argument[] res, ParseCb rest, bool allowNull) {
   auto t2 = str;
   IType ptype, lastType;
   string parname;
@@ -860,14 +883,14 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest) {
   
   if (t2.bjoin(
         ( // can omit types for subsequent parameters
-          test(ptype = fastcast!(IType)~ rest(t2, "type")) || test(ptype = lastType)
+          test(ptype = fastcast!(IType)~ rest(t2, "type")) || test(ptype = lastType) || allowNull
         ) && (
           t2.gotIdentifier(parname) || ((parname = null), true)
         ) && (
           gotInitializer(t2, init) || ((init = null), true)
         ),
         t2.accept(","[]),
-        { lastType = ptype; res ~= Argument(ptype, parname, init); }
+        { lastType = ptype; if (ptype || parname) res ~= Argument(ptype, parname, init); }
       ) &&
       t2.accept(")"[])
   ) {
@@ -911,7 +934,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
         forcename || t2.gotIdentifier(fun_name)
       )
       &&
-      t2.gotParlist(_params, rest) || shortform
+      t2.gotParlist(_params, rest, true) || shortform
     )
   {
     if (ret) {
@@ -939,7 +962,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       fun.name = "__fcc_main";
     }
     
-    fun.fixup;
+    if (!fun.type.args_open) fun.fixup;
     
     if (addToNamespace) { fun.sup = null; ns.add(fun); if (!fun.sup) { logln("FAIL under "[], ns, "! "[]); fail; } }
     text = t2;
@@ -949,7 +972,13 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
     } else {
       auto t4 = text;
       // if ret is null(auto), cannot wait to parse scope until later since we need the full type NOW
-      if (fun.type.isComplete && t4.canCoarseLexScope()) {
+      // do we really, though? We can grab it when we need it ..
+      /*
+        compromise: if ret is null, and we are NOT also doing parameter deduction, parse it immediately
+        // == if ret or we have open params, delay parsing
+        parameter deduction is the only reason to delay.
+      */
+      if ((fun.type.isComplete || fun.type.args_open) && t4.canCoarseLexScope()) {
         auto block = text.coarseLexScope();
         fun.coarseSrc = block;
         auto cur_ns = namespace();
@@ -958,6 +987,9 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       }
       if (fun.coarseSrc) return fun;
       else {
+        if (fun.type.args_open) {
+          t2.failparse("Could not delay function parsing but type not yet known");
+        }
         t2 = text;
         if (t2.accept(";"[])) { // undefined function
           text = t2;
@@ -1081,7 +1113,7 @@ static this() {
     Argument[] list;
     auto t2 = text;
     if (t2.accept("function"[]) &&
-      t2.gotParlist(list, rest)
+      t2.gotParlist(list, rest, false)
     ) {
       text = t2;
       auto res = new FunctionPointer;

@@ -36,6 +36,7 @@ class NestedFunction : Function {
     }
     int fixup() {
       auto cur = super.fixup();
+      inFixup = true; scope(exit) inFixup = false;
       add(fastalloc!(Variable)(voidp, "__base_ptr"[], cur));
       _framestart += 4;
       cur += 4;
@@ -290,6 +291,56 @@ class LitTemp : mkDelegate, Literal {
 
 import ast.casting: implicits;
 static this() {
+  // the next two implicits are BLATANT cheating.
+  implicits ~= delegate Expr(Expr ex, IType hint) {
+    if (!hint) return null;
+    auto dg = fastcast!(Delegate) (resolveType(hint));
+    if (!dg) return null;
+    if (auto nfr = fastcast!(NestFunRefExpr) (ex)) {
+      auto fun = nfr.fun;
+      auto type1 = fun.type, type2 = dg.ft;
+      if (type1.args_open) {
+        auto params1 = type1.params;
+        auto params2 = type2.params;
+        if (params1.length != params2.length) return null;
+        // logln("fixup! [1 ", params1, "] [2", params2, "]");
+        foreach (i, ref p1; params1) {
+          auto p2 = params2[i];
+          if (p1.type && p2.type && p1.type != p2.type) {
+            logln("oh shit");
+            logln(":", type1);
+            logln(":", type2);
+            asm { int 3; }
+          }
+          if (!p1.type) p1.type = p2.type;
+        }
+        if (!type1.args_open) {
+          fun.fixup;
+        }
+        // logln(" => ", fun.tree);
+      }
+    }
+    return null;
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    auto nfr = fastcast!(NestFunRefExpr) (ex);
+    if (!nfr) {
+      auto dg = fastcast!(Delegate) (resolveType(ex.valueType()));
+      if (dg && !dg.ret) {
+        logln("huh. ", ex);
+        logln(".. ", fastcast!(Object) (ex).classinfo.name);
+        fail;
+      }
+      return null;
+    }
+    auto fun = nfr.fun;
+    if (!fun.type.ret) {
+      fun.parseMe;
+      if (fun.type.ret)
+        return ex;
+    }
+    return null;
+  };
   implicits ~= delegate Expr(Expr ex) {
     auto fp = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
     if (!fp) return null;

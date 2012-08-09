@@ -325,6 +325,29 @@ extern(C) void genRetvalHolder(Scope sc) {
   }
 }
 
+Object gotAsType(ref string text, ParseCb cont, ParseCb rest) {
+  string ident;
+  auto t2 = text;
+  if (t2.accept("(") && t2.gotIdentifier(ident) && t2.accept(")")) {
+    text = t2;
+  } else {
+    if (!text.gotIdentifier(ident)) text.failparse("Identifier expected for as_type");
+  }
+  auto ta = fastalloc!(TypeAlias)(cast(IType) null, ident, false);
+  {
+    auto as_type_ns = fastalloc!(MiniNamespace)("as_type_ident_override");
+    as_type_ns.sup = namespace();
+    as_type_ns.internalMode = true;
+    as_type_ns.add(ta);
+    namespace.set(as_type_ns);
+    scope(exit) namespace.set(as_type_ns.sup);
+    if (!rest(text, "type", &ta.base))
+      text.failparse("Type expected");
+  }
+  return ta;
+}
+mixin DefaultParser!(gotAsType, "type.as_type", "8", "as_type");
+
 // from ast.casting
 import asmfile, ast.vardecl;
 extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {

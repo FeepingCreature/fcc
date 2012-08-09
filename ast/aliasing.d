@@ -78,12 +78,12 @@ class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
   bool strict;
   string name;
   mixin This!("base, name, strict = false"[]);
-  bool currently_recursing;
   override {
     bool isComplete() {
       // break circles
-      if (currently_recursing) return true; // blind assumption
-      currently_recursing = true; scope(exit) currently_recursing = false;
+      if (alreadyRecursing(this)) return true;
+      pushRecurse(this);
+      scope(exit) popRecurse();
       return base.isComplete;
     }
     bool addsSelf() { return true; }
@@ -92,22 +92,28 @@ class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
     int size() { return base.size; }
     string mangle() {
       // breeak
-      if (currently_recursing) return qformat("recursive_alias_", name.replace("-", "_dash_"));
-      currently_recursing = true; scope(exit) currently_recursing = false;
+      if (alreadyRecursing(this)) return qformat("recursive_alias_", name.replace("-", "_dash_"));
+      pushRecurse(this); scope(exit) popRecurse();
       return qformat("type_alias_", name.replace("-", "_dash_"), "_", base.mangle);
+    }
+    string toString() {
+      if (alreadyRecursing(this)) return qformat("recursive ", name);
+      pushRecurse(this); scope(exit) popRecurse();
+      return Format(name, ":", base);
     }
     ubyte[] initval() { return base.initval; }
     int opEquals(IType ty) {
       if (ty is this) return true;
+      if (alreadyRecursing(this, ty)) return true; // break loop
+      pushRecurse(this, ty); scope(exit) popRecurse();
+      auto ta2 = fastcast!(TypeAlias) (ty);
       if (strict) {
-        auto ta2 = fastcast!(TypeAlias) (ty);
         if (!ta2) return false;
-        return base == ta2.base && name == ta2.name;
+        return name == ta2.name && base == ta2.base;
       }
       return base.opEquals(resolveType(ty));
     }
     IType proxyType() { if (strict) return null; return base; }
-    string toString() { return Format(name, ":"[], base); }
     bool canEncode() {
       auto d2e = fastcast!(Dwarf2Encodable)(resolveType(base));
       return d2e && d2e.canEncode();
@@ -156,7 +162,7 @@ redo:
   auto ta = fastalloc!(TypeAlias)(cast(IType) null, id, strict);
   bool typematch;
   {
-    auto os = fastalloc!(MiniNamespace)("type_alias_predefine"[]);
+    auto os = fastalloc!(MiniNamespace)("!safecode type_alias_predefine"[]);
     os.sup = namespace();
     os.internalMode = true;
     os.add(ta);

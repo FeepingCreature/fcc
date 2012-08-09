@@ -267,3 +267,23 @@ class HintType(T) : IType {
     bool isComplete() { return false; }
   }
 }
+
+/* used to break recursion loops on types that allow self-reference, like type alias and delegate */
+Stuple!(IType, IType)[] recursestack;
+int rs_size;
+void pushRecurse(IType a, IType b = null) {
+  if (rs_size == recursestack.length) {
+    if (!recursestack.length) recursestack.length = 16;
+    else recursestack.length = recursestack.length * 2;
+  }
+  recursestack[rs_size++] = stuple(a, b);
+}
+void popRecurse() {
+  rs_size --;
+  assert(rs_size);
+}
+bool alreadyRecursing(IType a, IType b = null) {
+  foreach (entry; recursestack[0 .. rs_size])
+    if (entry._0 is a && entry._1 is b) return true;
+  return false;
+}
