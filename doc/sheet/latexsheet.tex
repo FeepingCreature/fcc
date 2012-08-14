@@ -1,0 +1,737 @@
+\documentclass[a4paper,10pt,landscape]{article}
+\usepackage{multicol}
+\usepackage{calc}
+\usepackage{ifthen}
+\usepackage{verbatim}
+\usepackage[landscape]{geometry}
+\usepackage[framemethod=tikz]{mdframed}
+%\usepackage[style=1]{mdframed}
+\usepackage{color}
+\usepackage{listings}
+
+\pagestyle{empty}
+\definecolor{gray10}{rgb}{0.1,0.1,0.1}
+\definecolor{gray90}{rgb}{0.9,0.9,0.9}
+\definecolor{code}{rgb}{0.92, 0.92, 0.95}
+
+\newenvironment{segment}[1]
+{\begin{mdframed}[roundcorner=5pt]\subsection{#1}}
+{\end{mdframed}\vspace{2pt plus 5pt}}
+\newcommand{\important}[1]{\textbf{#1}}
+\newcommand{\mysection}[1]{
+\vspace{0cm plus 5cm}
+
+\section{#1}}
+
+% http://stackoverflow.com/questions/586572/make-code-in-latex-look-nice
+\lstset{
+language=Java,
+basicstyle=\footnotesize,
+%numbers=left,
+%numberstyle=\footnotesize,
+%stepnumber=1,
+%numbersep=5pt,
+backgroundcolor=\color{code},
+showspaces=false,
+showtabs=false,
+showstringspaces=false,
+frame=single,
+tabsize=2,
+captionpos=b,
+boxpos=t,
+breaklines=true,
+breakatwhitespace=false,
+xleftmargin=1em
+}
+
+% based on http://www.stdout.org/~winston/latex/
+% see there for further doc
+
+\geometry{top=.5in,left=.5in,right=.5in,bottom=.5in}
+
+% Redefine section commands to use less space
+\makeatletter
+\renewcommand{\section}{\@startsection{section}{1}{0mm}%
+			      {-1ex plus -.5ex minus -.2ex}%
+			      {0.5ex plus .2ex}%x
+			      {\normalfont\large\bfseries}}
+\renewcommand{\subsection}{\@startsection{subsection}{2}{0mm}%
+			      {-1explus -.5ex minus -.2ex}%
+			      {0.5ex plus .2ex}%
+			      {\normalfont\normalsize\bfseries}}
+\renewcommand{\subsubsection}{\@startsection{subsubsection}{3}{0mm}%
+			      {-1ex plus -.5ex minus -.2ex}%
+			      {1ex plus .2ex}%
+			      {\normalfont\small\bfseries}}
+\makeatother
+
+% Don't print section numbers
+\setcounter{secnumdepth}{0}
+
+\setlength{\parindent}{0pt}
+% \setlength{\parskip}{2pt plus 0.5ex}
+
+% -----------------------------------------------------------------------
+
+\begin{document}
+
+\raggedright
+\footnotesize
+\begin{multicols}{3}
+
+% multicol parameters
+% These lengths are set only within the two main columns
+%\setlength{\columnseprule}{0.25pt}
+\setlength{\premulticols}{1pt}
+\setlength{\postmulticols}{1pt}
+\setlength{\multicolsep}{1pt}
+\setlength{\columnsep}{2pt}
+
+\begin{center}
+    \Large{\textbf{Neat Info}} \\
+\end{center}
+
+\begin{segment}{Basic File Structure}
+\begin{lstlisting}
+// hello.nt
+module hello;
+
+void main() {
+  writeln "Hello World";
+}
+\end{lstlisting}
+
+All files begin with \texttt{module}, followed by the name of the module, which is the name
+of the file combined with the folder it is in, relative to the root of the folder hierarchy.
+For instance, \texttt{src/a/b.nt} is \texttt{module src.a.b} or \texttt{module a.b},
+depending on the root.\\
+
+The main file, which is the file that is passed to the compiler,
+must contain the \texttt{main} function. The main function returns \texttt{void}
+or \texttt{int}, and may take a \texttt{string[]} parameter,
+corresponding to the commandline arguments of the program.
+\begin{lstlisting}
+~ $ fcc hello.nt
+\end{lstlisting}
+\end{segment}
+
+\begin{segment}{Comments}
+The following comments are supported
+\begin{itemize}
+\item \texttt{//}: rest of the line.
+\item \texttt{/* */}: everything in-between is a comment.
+\item \texttt{/+ +/}: everything in-between is a comment. Nestable.
+\end{itemize}
+\end{segment}
+\begin{segment}{Index access}
+Where \texttt{a} is an array or tuple, a specific element can be accessed using index notation
+\texttt{a[i]}, where \texttt{i} is an integer expression. Index access is always zero-based.\\
+If \texttt{t} is a tuple, \texttt{a[t]} is equivalent to a tuple of index accesses with the tuple
+members. Example: \texttt{a[(2, (3, 4))] == (a[2], (a[3], a[4]))}.\\
+If \texttt{r} is a range, \texttt{a[r]} is a \emph{slice}, or sub-array of \texttt{a}.
+Slices are start-inclusive and end-exclusive.
+Example: \texttt{"Hello World"[6..\$] == "World"}\\
+In an index access, \texttt{\$} is the length of the array or tuple.
+\end{segment}
+\mysection{Types}
+Types indicate the memory layout and "meaning" of a value.
+\begin{segment}{Basic Types}
+The following \important{basic types} exist:\\
+\begin{tabular}{@{}ll@{}}
+\verb!void!  & The Untype. Indicates the absence of a value.\\
+\verb!byte!  & 8-bit signed integer\\
+\verb!short! & 16-bit signed integer\\
+\verb!int!   & 32-bit signed integer\\
+\verb!long!  & 64-bit signed integer\\
+\verb!char!  & 8-bit UTF8 code unit\\
+\verb!bool!  & 32-bit truth value: either 0 or 1.\\
+\verb!float!  & 32-bit floating-point number\\
+\verb!double!& 64-bit floating-point number\\
+\verb!real!  & \begin{tabular}[x]{@{}l@{}}
+Largest native float number. 80-bit on x86.
+\end{tabular} \\
+\end{tabular}
+\end{segment}
+\begin{segment}{Derived Types}
+
+There are also \important{derived types}.
+
+\begin{tabular}{@{}ll@{}}
+\texttt{T*}  & Pointer to T \\
+\texttt{T[]} & Array of T\\
+\texttt{T[\textasciitilde]}& Extended Array of T\\
+\texttt{T[auto\textasciitilde]}& Managed Array of T\\
+\texttt{T function(args)}& Function pointer returning T\\
+\texttt{T delegate(args)}& Fat function pointer or delegate.
+\end{tabular}
+
+\end{segment}
+\begin{segment}{struct}
+A \important{struct} is a compound type, declared like so:
+
+\begin{lstlisting}
+struct TypeName {
+  // these are members
+  Type identifier;
+  Type2 identifier2, identifier3;
+  // this is a member function
+  Type func() statement
+}
+\end{lstlisting}
+The size of the struct type is identical to the sum of the size of its members.
+Members of a struct can be accessed by name. If \texttt{ex} is an expression of type
+\texttt{TypeName}, the member \texttt{identifier} is accessed as \texttt{ex.identifier}.
+This also works if \texttt{ex} is a pointer to a struct.
+
+Structs can contain member functions; a member function can access all members of the struct
+that contains it.
+\end{segment}
+
+\begin{segment}{tuple type}
+A \important{tuple type} is something like a free-form struct. It is specified by listing
+its component types in parens.
+
+Example tuples:
+
+\begin{lstlisting}
+()
+(int, int)
+(int, float, (string, string))
+\end{lstlisting}
+
+There is no such thing as a one-sized tuple.
+\end{segment}
+\begin{segment}{array}
+Arrays are equivalent to
+\begin{lstlisting}
+struct {
+  T* ptr;
+  int length;
+}
+\end{lstlisting}
+
+Extended arrays are equivalent to
+\begin{lstlisting}
+struct {
+  T* ptr;
+  int length, capacity;
+}
+\end{lstlisting}
+
+Capacity indicates the amount of space allocated at the location starting with \texttt{ptr}.
+Appending to a managed array makes use of the capacity, where possible; otherwise, new memory
+will be allocated.
+
+Managed arrays are equivalent to extended arrays. The difference is, when appending to a managed
+array causes a new allocation, the old memory will be freed. This is also known as an "appender"
+or "array builder".
+
+\end{segment}
+
+\begin{segment}{\texttt{bool} and \texttt{string}}
+\texttt{bool} is a strict alias to \texttt{int}. Neat defines two boolean values,
+\texttt{true = bool:1} and \texttt{false = bool:0}.\\
+\texttt{string} is just an alias for \texttt{char[]}. Note that the standard library assumes
+that all strings are UTF-8. If you are not using UTF-8, you are probably making a mistake.
+\end{segment}
+
+\begin{segment}{Conditionals}
+Conditionals can be either true or false. \important{Expressions and conditionals are not interchangeable.}
+However, since \texttt{!} is used for negation, and \texttt{!expr} is a conditional, the \texttt{!!expr}
+pseudo-operator can be used to convert an expression to a conditional, and the \texttt{eval} operator
+can be used to explicitly convert a conditional to a boolean expression.
+
+Expressions with a well-defined zero, such as integers, pointers and arrays, are also conditionals.
+
+If \texttt{a} and \texttt{b} are expressions, \texttt{a CMP b} is a conditional, where
+\texttt{CMP} may be one of \texttt{== != is < > <= >= <>= !< !> !<= !>= !<>=}, and the meaning of each
+operator is equivalent to its comparative symbols "or"ed together. Example: \texttt{!<>=} means "not
+smaller, greater or equal", though this is only relevant for exotic float numbers such as NaN.
+
+If \texttt{a} and \texttt{b} are conditionals, \texttt{a CMP b} is a conditional, where \texttt{CMP}
+is \texttt{\&\&} or \texttt{||}: boolean "and" and "or". Note that evaluation is short-circuiting.
+
+The difference between \texttt{==} and \texttt{is} is that \texttt{==} checks for \emph{equality},
+and  \texttt{is} checks for \emph{identity}. For instance, two strings at separate areas in memory
+but with the same content are equal but not identical.
+
+\end{segment}
+
+\clearpage
+\mysection{Expressions}
+Expressions are things that have a value and a type.
+\begin{segment}{Basic Expressions}
+Numbers (8) are expressions of type \texttt{int}.
+
+Floating-point numbers (8.5) are expressions of type \texttt{double}.
+
+Floating-point numbers with an \texttt{f} suffix (8.5f) are expressions of type \texttt{float}.
+
+Strings ("Hello World") are expressions of type \texttt{char[]}.
+
+\texttt{true} and \texttt{false} 
+\end{segment}
+
+\begin{segment}{implicit conversions}
+Numbers, despite being \texttt{int}, implicitly convert to smaller types when they fit.
+
+\begin{lstlisting}
+byte b = 125;
+\end{lstlisting}
+
+String literals implicitly convert to pointers to char. This is intended to be used with C libraries.
+To ensure this is safe, all string literals are zero-terminated. The terminating zero is not
+counted as part of the string.
+
+\end{segment}
+
+\begin{segment}{Combined Expressions}
+
+Arithmetic expressions ($a+b$, $a-b$, $a*b$, $a/b$, $a\%b$, $a$ xor $b$, $a \& b$, $a | b$,
+$a << b$, $a >> b$, $a >>> b$)
+have the type \texttt{int} when the terms ($a$ and $b$) are \texttt{int} or below; otherwise, the type of the
+largest term is used.
+
+There are also two unary operators, $!a$ and $-a$, to boolean-negate and numeric-negate respectively.
+
+\end{segment}
+
+\begin{segment}{casts}
+Casts are conversions between one type and another.
+
+They take the form: \texttt{Type : expression}
+
+Casts are a "dwim operation": they try to be smart. For instance, casting
+float to int or int to float converts the data instead of blindly reinterpreting it.
+
+\texttt{float:2} is a \important{conversion cast}.
+
+Where implicit conversions are possible, casts will use them.
+
+The following are equivalent:
+
+\begin{lstlisting}
+byte b = 125;
+byte b = byte: 125;
+byte b = byte: int: 125;
+\end{lstlisting}
+The following is \emph{not} equivalent:
+
+\begin{lstlisting}
+int i = 125;
+byte b = byte: i;
+\end{lstlisting}
+Though appearing identical, this code actually performs a conversion cast, which may lose data.
+
+As a general rule, \textbf{implicit casts never lose data}.
+\end{segment}
+
+\begin{segment}{precedence}
+
+Arithmetic follows the following precedence rules, in order from higher to lower:
+\begin{itemize}
+\item The "duplicate" operator: $x$
+\item The shift operators: $<<$, $>>$ and $>>>$
+\item modulo: $\%$
+\item binary-and: $\&$
+\item binary-or: $|$
+\item binary-exclusive or: $xor$
+\item multiplication and division: $*$ and $/$
+\item addition and subtraction: $+$ and $-$
+\end{itemize}
+Parens $()$ can be used to force precedence.
+\end{segment}
+\begin{segment}{\$ and \#}
+
+The $\#$ symbol is equivalent to putting everything left of it into parens:
+
+$a \# b \Rightarrow (a) b$.
+
+The $\$$ symbol is equivalent to putting everything right of it into parens:
+
+$a \$ b \Rightarrow a (b)$.
+
+$\$$ takes precedence over $\#$.
+\end{segment}
+\begin{segment}{pointer operations}
+\texttt{*p} dereferences a pointer. If the type of \texttt{p} is \texttt{T*},
+then the type of \texttt{*p} is \texttt{T}.\\
+\texttt{\&l} references an expression, creating a pointer. The expression must have an address.
+If the type of \texttt{l} is \texttt{T}, the type of \texttt{\&l} is \texttt{T*}.
+\end{segment}
+\begin{segment}{calls}
+
+Functions, global or nested, struct member functions, class member functions, function pointers
+and delegates are all called with this syntax: \texttt{function argument}.
+
+When the function is declared as taking multiple parameters, the argument must be a tuple matching
+the types of the function's parameters.
+
+Tuples will be \important{distributed} over the arguments!
+
+For instance, the following code is equivalent:
+\begin{lstlisting}
+void fun(int a, int b, int c) { }
+fun (2, 3, 4);
+fun (2, (3, 4));
+fun ((2, 3), 4);
+\end{lstlisting}
+
+Note that the function can also be written as\\ \texttt{void fun(int a, b, c)}.
+
+\end{segment}
+
+\begin{segment}{variable declarations}
+Variable declarations can be used as expressions.
+\end{segment}
+
+\begin{segment}{\emph{new} expressions}
+\texttt{new} always indicates an allocation of memory.
+
+\begin{itemize}
+\item \texttt{new ArrayType size} allocates an array of type \texttt{ArrayType} and size \texttt{size}.
+Example: \texttt{new int[] 10}.
+\item \texttt{new delegate-literal} allocates the literal as a closure. The stack-bound variables 
+it can access are moved to the heap. Note that at present this only operates one level deep.
+Example: \texttt{int i = 5; return new \\\{ return i; \};}
+\item \texttt{new OtherType} allocates memory for \texttt{OtherType} on the heap, returning a pointer.
+\end{itemize}
+\end{segment}
+
+\begin{segment}{function pointers and delegates}
+The address of a function is taken with the \texttt{\&} operator. This creates a function pointer
+with the return type and parameter types of the function.
+
+When taking the address of a class or struct member function, or a nested function, which can access
+contextual data (the class or struct, or the surrounding function's stackframe), an additional pointer
+must be carried. This creates a \important{delegate} with the return type and parameter types of the 
+member function. Delegates are known as "fat pointers" in other languages. Heap-allocated delegates
+(see above, \emph{new} expressions) are similar to closures.\\
+
+The following code is equivalent.
+\begin{lstlisting}
+void main() {
+int delegate(int, int) dg1, dg2, dg3;
+
+int add(int a, b) { return a + b; }
+
+dg1 = &add;
+dg2 = delegate int(int a, b) {
+  return a + b;
+} // After a closing '}', a newline
+  // can substitute for semicolon.
+dg3 = \(int a, b) -> a+b;
+}
+\end{lstlisting}
+
+\end{segment}
+
+\begin{segment}{tuples}
+A tuple value works just like a tuple type. 
+\begin{lstlisting}
+(int, (int, float)) variable
+  = (2, (3, 4.0f));
+\end{lstlisting}
+The type of a tuple value is the tuple of its values' types. Rolls off the tongue, doesn't it.\\
+Note that in order to avoid collision with parens used to disambiguate arithmetic, there is
+no such thing as a one-element tuple. The type of \texttt{(4)} is \texttt{int}, not \texttt{(int)}.
+\end{segment}
+
+\clearpage
+\mysection{Statements}
+
+\begin{segment}{Top-level statements}
+Top-level statements are statements that can appear at module level.
+\end{segment}
+
+\begin{segment}{Function Declarations}
+\important{Function declarations} have the form \texttt{ReturnType functionname([Type parametername[, ...]]) Statement}.
+
+The following two functions are equivalent.
+
+\begin{lstlisting}
+int add(int a, int b) { return a + b; }
+int add(int a, b) { return a + b; }
+\end{lstlisting}
+
+The return type may be \texttt{void}, in which case no value is returned.
+
+Note that \texttt{\{\}} may be omitted if the body of the function consists of a single statement.
+For instance, the following two functions are equivalent:
+\begin{lstlisting}
+void helloworld1()
+writeln "Hello World";
+
+void helloworld2() {
+writeln "Hello World";
+}
+\end{lstlisting}
+\end{segment}
+\begin{segment}{Import}
+Modules may \important{import} other modules. The \texttt{import} keyword takes a sequence of
+module names, separated by commas. Standard modules have the prefix \texttt{std.} and are located in
+the std/ folder. It is an error to import a module twice. When importing a module that is not used,
+a warning will be printed. Please avoid importing unnecessary modules.\\
+Note that \texttt{import} may also be used inside functions.
+
+\begin{lstlisting}
+module hello;
+import std.math;
+void main() { float f = sin(4); }
+\end{lstlisting}
+\end{segment}
+\begin{segment}{Declarations}
+\important{Struct declarations} and class declarations are top-level statements. \\
+\important{Variables} declared at module level are \important{global variables}. Their initializers must be constant.
+
+\begin{lstlisting}
+module hello;
+int globvar;
+\end{lstlisting}
+
+\end{segment}
+
+\columnbreak
+\begin{segment}{Function-level statements}
+These are statements that can appear in functions.\\
+The most basic statement is the \emph{aggregate statement}: \texttt{\{\}}.
+It may contain any number of statements, which are executed in order.\\
+\emph{Expressions} may also be used as statements, although they must be
+terminated by a semicolon. Example: \texttt{2+2;} is a statement.\\
+\emph{Assignment} takes the form \texttt{a = b;}.
+\end{segment}
+
+\begin{segment}{variable declarations}
+Variable declarations take the form \texttt{Type identifier}.
+
+Variable declarations may include an \important{initializer} expression, which is assigned
+to the variable at the point of declaration. The default initializer is zero.\\
+The syntax takes the form \texttt{Type identifier = initializer}.\\
+Multiple variables can be declared in a single statement, separated by commas.
+
+The following are equivalent:
+
+\begin{lstlisting}
+int a; int b;
+int a, b;
+int a = 0, b = 0;
+auto a = 0, b = 0;
+\end{lstlisting}
+\texttt{auto} is a \important{placeholder} for the type. When using \texttt{auto}, initializers
+\texttt{must} be provided; the type of the variable will be the type of the initializer.\\
+
+There are two alternate keywords to \texttt{auto}, \texttt{ref} and \texttt{scope}.
+\texttt{ref} indicates a \emph{reference variable}; it acts like a pointer to the initializer that
+is automatically dereferenced for you.
+\texttt{scope} is used for variables containing arrays and similar allocated memory. At the end of
+the scope surrounding the variable, the memory will be freed.
+
+\begin{lstlisting}
+int a;
+ref b = a; b = 5;
+assert(a == 5);
+string s = new string 128;
+{ scope var = s; }
+// Accessing s now would trigger a segfault.
+\end{lstlisting}
+
+\end{segment}
+\begin{segment}{using}
+\texttt{using} is equivalent to \texttt{with} in Javascript and Pascal. It takes the form
+\texttt{using Expression Statement}. \texttt{Expression} is evaluated and saved at the start
+of the \texttt{using} block.
+When parsing \texttt{Statement}, the properties of \texttt{Expression} are implicitly available.
+\end{segment}
+\columnbreak
+\subsection {control flow statements}
+\begin{segment}{while}
+The \texttt{while} loop acts as in C. While the conditional evaluates to true, the loop body will be
+repeatedly executed. Note that parens for the conditional are not required.
+\begin{lstlisting}
+  int i;
+  while i < 5 { i++; }
+\end{lstlisting}
+\end{segment}
+\begin{segment}{for}
+The \texttt{for} loop acts as in C. Note that the comma expression does not exist in Neat!
+\begin{lstlisting}
+  for (int i = 0; i < 5; ++i) { }
+  for (declaration; conditional; statement)
+    loopbody;
+  // The following code is equivalent
+  {
+    declaration;
+    while (conditional) {
+      loopbody;
+      statement;
+    }
+  }
+\end{lstlisting}
+The \texttt{for} keyword can also be used as a synonym for \texttt{while}.\\
+
+\important{Using a variable declaration with an initializer in a \emph{conditional} that is repeatedly evaluated is undefined behavior.}\\
+
+\end{segment}
+\begin{segment}{if}
+The \texttt{if} statement acts as in C, Note that parens are still not required.
+\begin{lstlisting}
+if 2 + 2 == 4
+  writeln "sanity still applies";
+else
+  writeln "abandon all hope";
+\end{lstlisting}
+\end{segment}
+\begin{segment}{in general}
+
+In general, variables declared in a conditional will be valid
+in the scope that is executed if the conditional is true.
+
+For instance, a common idiom takes this form:
+
+\begin{lstlisting}
+if auto result = someFunction() {
+  // result is valid here
+} else {
+  // but not here
+}
+\end{lstlisting}
+
+\end{segment}
+\pagebreak
+\mysection{Neat Stuff}
+\textbf{Other Neat Features\footnote{Neatures, if you will.}}
+
+\vspace{1cm}
+
+\begin{segment}{with-tuple}
+The syntax \texttt{Expression.(TupleExpression)} is equivalent to \texttt{TupleType result; using (Expression) result = TupleExpression;}\\
+Example!
+\begin{lstlisting}
+struct S {
+  int a, b;
+}
+S s;
+
+s.(a, b) = (2, 3);
+// is equivalent to
+using s { (a, b) = (2, 3); }
+
+int c, d;
+
+(c, d) = s.(a + b, a - b);
+// is equivalent to
+using s { (c, d) = (a + b, a - b); }
+\end{lstlisting}
+
+Inside a with-tuple, just like inside \texttt{using}, the identifier \texttt{that} references the
+stored context expression.
+
+\end{segment}
+
+\begin{segment}{alias}
+\texttt{alias} can be used to give expressions and types new names. Expression alias works like
+a variable declaration, but the initializer expression is \important{evaluated every time the name is used}.
+\begin{lstlisting}
+int a = 2, b = 3;
+alias c = a + b;
+assert(c == 5);
+b = 4;
+assert(c == 6);
+\end{lstlisting}
+Note that \texttt{alias} can be used inside struct and class bodies.
+\begin{lstlisting}
+struct S {
+  int a, b;
+  alias c = a + b;
+}
+S s; s.(a, b) = (2, 3);
+assert(s.c == 5);
+\end{lstlisting}
+\end{segment}
+
+\begin{segment}{Iterators}
+Iterators are values that can be used as a source of other values.
+
+The simplest iterator is the \emph{Range}: \texttt{From..To}, where both From and To are integer.
+
+Each iterator is equivalent to a conditional that, when evaluated, advances the iterator and evaluates
+to the new value.
+
+\begin{lstlisting}
+while 0..10
+  writeln "Hello";
+\end{lstlisting}
+
+The expression used to advance an iterator and return its new value is \texttt{<-}, pronounced
+"from". For instance, \texttt{while (int i <- 0..10)}: "while int i from [zero to ten]".
+Arrays also behave as iterators.
+
+\begin{lstlisting}
+while char ch <- "Hello World"
+  writeln "$(int:ch)";
+\end{lstlisting}
+\end{segment}
+
+\begin{segment}{Scope guards}
+Sometimes, a piece of code should be executed when the current scope is exited.
+
+The syntax for this is \texttt{onExit Statement}.
+
+\begin{lstlisting}
+int i = 2;
+{
+  onExit i = 4;
+  assert(i == 2);
+} // onExit is executed here
+assert(i == 4);
+\end{lstlisting}
+
+Scope guards are run at three spots: at the closing bracket of the current scope, on \texttt{return},
+or when a signal is raised causing an exit to before the scope guard.
+
+To only execute code when the scope is left by a signal, use \texttt{onFailure}. To only execute code
+when the scope is left by \texttt{return} or \texttt{\}}, use \texttt{onSuccess}.
+
+\end{segment}
+
+\begin{segment}{Lambdas}
+Lambdas, or \emph{anonymous functions}, are nested functions defined via a short-hand syntax
+so that no name is required. Lambdas combine function declaration and expression; they are
+equivalent to declaring a nested function, then taking its reference with \texttt{\&}.
+
+There are several ways of defining a lambda, in order of verbosity:
+
+\begin{lstlisting}
+auto dg1 = delegate ReturnType(Params) Statement;
+auto dg2 = \(Params) Statement;
+auto dg3 = \(Params) -> ReturnValue;
+\end{lstlisting}
+
+For example, these three functions all add an \texttt{int} and a \texttt{float}:
+
+\begin{lstlisting}
+// remember, the semicolon for the
+// variable add1 can be left out
+// because the last line ends on '}'
+auto add1 = delegate float(int a, float b)
+{ return a + b; }
+
+// Here, the return type is taken from
+// the type of the first return statement.
+auto add2 = \(int a, float b)
+{ return a + b; }
+
+auto add3 = \(int a, float b) -> a + b;
+\end{lstlisting}
+
+Furthermore, if the parameter list is empty, it can be left out.
+
+\begin{lstlisting}
+auto fun1 = \{ writeln "Hello World"; }
+auto fun2 = \-> 5;
+\end{lstlisting}
+
+\end{segment}
+
+\end{multicols}
+\end{document}
