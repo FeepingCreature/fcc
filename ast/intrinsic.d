@@ -537,6 +537,8 @@ void setupSysmods() {
         if (sigaction(c.signal.SIGSEGV, &sa, null) == -1)
           raise new Error "failed to setup SIGSEGV handler";
       }
+      bool already_handling_segfault;
+      shared LinuxSignal preallocated_sigsegv;
       extern(C) {
         enum X86Registers {
           GS, FS, ES, DS, EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX, TRAPNO, ERR, EIP, CS, EFL, UESP, SS
@@ -562,7 +564,14 @@ void setupSysmods() {
           asm "movl %eax, (%esp)";        // replace with eax (proper return address)
           asm "pushl %ebx";               // save prev-ebp four bytes deeper.. 
           asm "mov %esp, %ebp";           // and update stackbase
+          if (already_handling_segfault) {
+            writeln "A segfault has occurred while handling a previous segfault. Error handling is compromised; program will exit. ";
+            exit(1);
+          }
+          already_handling_segfault = true;
+          onExit already_handling_segfault = false;
           _esi = c.pthread.pthread_getspecific(tls_pointer);
+          if (preallocated_sigsegv) raise preallocated_sigsegv;
           raise new LinuxSignal "SIGSEGV";
         }
         void seghandle(int sig, void* si, void* unused) {
@@ -596,7 +605,12 @@ void setupSysmods() {
     void gdb-print-backtrace() {
       platform(default) {
         auto pid = getpid();
-        system("gdb --batch -n -ex thread -ex bt -p $pid\x00".ptr);
+        alias text = "gdb --batch -n -ex thread -ex bt -p %i";
+        auto size = snprintf(null, 0, text, pid);
+        auto ptr = malloc(size+1);
+        snprintf(ptr, size+1, text, pid);
+        system(ptr);
+        // system("gdb --batch -n -ex thread -ex bt -p $pid\x00".ptr);
         // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
       }
     }
@@ -611,12 +625,14 @@ void setupSysmods() {
         pthread_key_create(&tls_pointer, null);
         c.pthread.pthread_setspecific(tls_pointer, _esi);
         setup-segfault-handler();
+        preallocated_sigsegv = new LinuxSignal "SIGSEGV";
       }
       
       int errnum;
       set-handler (UnrecoverableError err) {
         gdb-print-backtrace;
-        writeln "Unhandled error: '$(err.toString())'. ";
+        if (!!mem.calloc_dg) writeln "Unhandled error: '$(err.toString())'. ";
+        else writeln "Unhandled error: memory context compromised"; // huh.
         
         platform(*-mingw32) { _interrupt 3; }
         errnum = 1;
