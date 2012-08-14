@@ -481,14 +481,10 @@ template ImporterImpl() {
   void checkImportsUsage() { ast.namespace.check_imports_usage(name, imports, importsUsed); }
   Object lookupInImports(string name, bool local) {
     Object res;
-    bool useCModules = false;
-    // set to false when parsing with C imports, because those are just fuck... fuck
-    bool cautious = true;
     Namespace source;
     const debug_lookup = false;
     void addres(Object obj, Namespace src) {
-      static if (debug_lookup) logln("mew: "[], useCModules, ", "[], name, " => "[], obj, " - "[], obj.classinfo.name);
-      if (!useCModules && obj.classinfo.name == "ast.externs.ExternCGlobVar"[]) return; // Try them later
+      static if (debug_lookup) logln("mew: "[], name, " => "[], obj, " - "[], obj.classinfo.name);
       if (!res) { res = obj; source = src; return; }
       auto ex = fastcast!(Extensible) (res), ex2 = fastcast!(Extensible)(obj);
       if (ex && !ex2 || !ex && ex2) {
@@ -496,7 +492,7 @@ template ImporterImpl() {
           res, " and "[], obj, ": one is overloadable and the other isn't"[]));
       }
       if (!ex) {
-        if (!cautious || res is obj) return;
+        if (res is obj) return;
         auto t1 = fastcast!(IType) (res);
         auto t2 = fastcast!(IType) (obj);
         if (t1 && t2 && t1 == t2) return;
@@ -513,24 +509,7 @@ template ImporterImpl() {
       if (auto simp = xt.simplify()) res = fastcast!(Object) (simp);
     }
     
-    bool skip(Namespace ns) {
-      static if (debug_lookup) logln("skip ", ns, "? ", fastcast!(IModule) (ns).getDontEmit(), " and "[], useCModules);
-      if (fastcast!(IModule) (ns).getDontEmit() && !useCModules) return true;
-      if (!fastcast!(IModule) (ns).getDontEmit() && useCModules) return true;
-      return false;
-    }
-    bool retry() {
-      static if (debug_lookup) logln("retry "[], name, " => "[], res, "?"[]);
-      if (res) return false; // already found a match
-      if (useCModules) return false; // already retried
-      // try with C imports
-      useCModules = true;
-      cautious = false;
-      return true;
-    }
-  _retry:
     foreach (ns; public_imports) {
-      if (skip(ns)) continue;
       static if (debug_lookup) logln("1: "[], name, " in "[], ns, "?"[]);
       if (auto res = ns.lookup(name, true)) {
         addres(res, ns);
@@ -545,21 +524,18 @@ template ImporterImpl() {
     }
     
     if (local) {
-      if (retry()) goto _retry;
       finalize;
       static if (debug_lookup) logln("local: "[], res);
       return res;
     }
     
     foreach (i, ns; imports) {
-      if (skip(ns)) continue;
       static if (debug_lookup) logln("3: "[], name, " in "[], ns, "?"[]);
       if (auto res = ns.lookup(name, true)) {
         *getPtrResizing(importsUsed, i) = true;
         addres(res, ns);
       }
     }
-    if (retry()) goto _retry;
     
     if (sysmod && sysmod !is this && name != "std.c.setjmp"[])
       if (auto res = sysmod.lookup(name, true))
