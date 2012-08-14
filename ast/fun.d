@@ -1097,16 +1097,6 @@ class FunRefExpr : Expr, Literal {
   }
 }
 
-import ast.casting;
-Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
-  Function fun;
-  if (!rest(text, "tree.expr _tree.expr.arith"[], &fun))
-    return null;
-  
-  return fastalloc!(FunRefExpr)(fun);
-}
-mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref"[], "2101"[], "&"[]);
-
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
     IType ptype;

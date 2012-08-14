@@ -311,6 +311,28 @@ extern(C) void printThing(AsmFile af, string s, Expr ex) {
   (buildFunCall(fastcast!(Function) (sysmod.lookup("printf")), mkTupleExpr(mkString(s), ex), "mew")).emitAsm(af);
 }
 
+// from ast.fun
+import ast.casting;
+Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  Object obj;
+  if (!rest(text, "tree.expr _tree.expr.arith"[], &obj)) return null;
+  if (auto fun = fastcast!(Function) (obj)) {
+    return fastalloc!(FunRefExpr)(fun);
+  }
+  if (auto os = fastcast!(OverloadSet) (obj)) {
+    Function matched;
+    foreach (fun; os.funs) {
+      if (fastcast!(PrefixFunction) (fun)) continue;
+      if (matched) { text.setError("Cannot take address of overload set"); return null; }
+      matched = fun;
+    }
+    if (matched) return fastalloc!(FunRefExpr)(matched);
+  }
+  return null;
+}
+mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref"[], "2101"[], "&"[]);
+
+
 // from ast.scopes
 extern(C) void genRetvalHolder(Scope sc) {
   if (!sc.lookup("__retval_holder", true)) {
