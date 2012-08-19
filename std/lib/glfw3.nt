@@ -124,12 +124,12 @@ class GLFWWindow : GLWindow {
   }
   bool is-set-up;
   string title;
-  void setup() using mode GLFW {
+  void setup(vec2i size) using mode GLFW {
     if (!Init()) raise new Error "Failed to init GLFW";
     onFailure Terminate;
     
     OpenWindowHint(DEPTH_BITS, 16);
-    (w, h) = (640, 480);
+    (w, h) = size;
     if (!title) title = "GLFW Window";
     import std.string;
     handle = OpenWindow (w, h, WINDOWED, toStringz title, null);

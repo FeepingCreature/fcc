@@ -29,7 +29,7 @@ abstract class GLWindow {
   void init() {
     mouse-pos = vec2i(-1, -1);
   }
-  void setup();
+  void setup(vec2i size = vec2i(640, 480));
   bool isSetUp();
   vec2i size();
   void claim-cursor();

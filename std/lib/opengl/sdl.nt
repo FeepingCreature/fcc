@@ -49,7 +49,7 @@ class SDLWindow : GLWindow {
   SDL_Surface* surf;
   bool is-set-up;
   bool isSetUp() { return is-set-up; }
-  void setup() {
+  void setup(vec2i size) {
     SDL_Init (SDL_INIT_VIDEO);
     auto flags = SDL_OPENGL | SDL_GL_DOUBLEBUFFER | SDL_RESIZABLE;
     // flags |= extra-flags;
@@ -66,7 +66,7 @@ class SDLWindow : GLWindow {
       return res;
     }
     regenSurf = new &regen;
-    surf = regenSurf(640, 480);
+    surf = regenSurf size;
   }
   vec2i size() { return vec2i surf.(w, h); }
   void update() {
