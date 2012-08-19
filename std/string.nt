@@ -48,34 +48,41 @@ reassign string endsWith(string s, string m) {
 
 /*Function: between
 If *s* contains *from*, and after that, *to*, return the string between *from* and *to* in *s*.
-Otherwise, return null.*/
-reassign string between(string s, string from, string to) {
-  int pos1;
-  if (from.length) pos1 = find(s, from);
-  if (pos1 == -1) return null;
-  s = s[pos1 + from.length .. $];
-  
-  int pos2 = s.length;
-  if (to.length) pos2 = find(s, to);
-  if (pos2 == -1) return null;
-  s = s[0 .. pos2];
-  
-  return s;
-}
-
-/*Function: between_r
-Like between, but searches for *to* first, then backwards to *from*. */
-reassign string between_r(string s, string from, string to) {
-  int pos2 = s.length;
-  if (to.length) pos2 = find(s, to);
-  if (pos2 == -1) return null;
-  s = s[0 .. pos2];
-  
-  int pos1 = 0;
-  if (from.length) pos1 = rfind(s, from);
-  if (pos1 == -1) return null;
-  s = s[pos1 + from.length .. $];
-  
+Otherwise, return null.
+*reverse-search* and *reverse-order* modify the behavior of between.
+(): search forwards for *from*, then forwards for *to*.
+=>reverse-search: search backwards for *from*, then forwards for *to*.
+=>reverse-order: search forwards for *to*, then backwards for *from*.
+=>reverse-search,=>reverse-order: search backwards for *to*, then backwards for *from*.
+*/
+reassign string between(string s, string from, string to, bool reverse-search = false, reverse-order = false) {
+  if (!reverse-order) {
+    int pos1;
+    if (from.length) {
+      if (reverse-search) pos1 = rfind(s, from);
+      else pos1 = find(s, from);
+    }
+    if (pos1 == -1) return null;
+    s = s[pos1 + from.length .. $];
+    
+    int pos2 = s.length;
+    if (to.length) pos2 = find(s, to);
+    if (pos2 == -1) return null;
+    s = s[0 .. pos2];
+  } else {
+    int pos2 = s.length;
+    if (to.length) {
+      if (reverse-search) pos2 = rfind(s, to);
+      else pos2 = find(s, to);
+    }
+    if (pos2 == -1) return null;
+    s = s[0 .. pos2];
+    
+    int pos1 = 0;
+    if (from.length) pos1 = rfind(s, from);
+    if (pos1 == -1) return null;
+    s = s[pos1 + from.length .. $];
+  }
   return s;
 }
 
