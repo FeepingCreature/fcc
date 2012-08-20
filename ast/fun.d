@@ -111,11 +111,15 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     if (tree) namespace.set(fastcast!(Scope) (tree));
     else namespace.set(this);
     
-    // TODO: document why this is bad and wrong as soon as I figure it out again
-    // // No! Bad! Wrong!
-    auto backupmod = current_module();
-    scope(exit) current_module.set(backupmod);
-    current_module.set(coarseModule);
+    /**
+     * No! Bad! Wrong!
+     * current_module is for emitting, not for parsing;
+     * and the module of a function might have already been emat by this point!
+     * for instance if it's a template
+     **/
+    // auto backupmod = current_module();
+    // scope(exit) current_module.set(backupmod);
+    // current_module.set(coarseModule);
     
     // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     

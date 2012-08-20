@@ -157,6 +157,9 @@ tryRegularDg:
   auto res = fastcast!(NestedFunction) (gotGenericFunDef(nf, mod, true, t2, cont, rest, name, shortform /* true when using the backslash-shortcut */));
   if (!res)
     t2.failparse("Could not parse delegate literal"[]);
+  if (mod.alreadyEmat) {
+    t2.failparse("Internal compiler error: attempted to add nested dg literal to a module that was already emat: ", mod);
+  }
   text = t2;
   mod.entries ~= fastcast!(Tree)~ res;
   return fastalloc!(NestFunRefExpr)(res);
