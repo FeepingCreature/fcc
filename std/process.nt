@@ -254,12 +254,52 @@ void print-backtrace() {
   }
 }
 
-void dumpModuleGraph(bool includeStdMods = false) {
+void dumpGraph(void delegate(void delegate(string, string, string=null)) dg) {
   writeln "/* use neato or -Kneato */";
   writeln "Digraph D {";
   writeln "Graph [overlap=portho_xy, concentrate=true, splines=true];";
   onSuccess writeln "}";
   string clean(string s) { return s.replace(".", "_"); }
+  scope (string, string)[auto~] words;
+  void add-word(string s, style = null) {
+    for auto w <- words if w._0 == s return;
+    words ~= (s, style);
+  }
+  struct Link {
+    string from, to;
+  }
+  scope Link[auto~] links;
+  int countSources(string s) {
+    int res;
+    for ref link <- links
+      if (link.from == s) res ++;
+    return res;
+  }
+  void callback(string from, to, style = null) {
+    add-word from;
+    add-word (to, style);
+    for ref link <- links
+      if (link.from == from && link.to == to) return;
+    links ~= Link: (from, to);
+  }
+  dg(&callback);
+  for auto word <- words {
+    if (word._1) writeln "  $(clean word._0) [label=\"$(word._0)\", $(word._1)]; ";
+    else writeln "  $(clean word._0) [label=\"$(word._0)\"]; ";
+  }
+  for auto link <- links {
+    float len = countSources(link.from);
+    float weight = 1 / len, fatness = weight * 3;
+    string color = "black";
+    if (fatness < 1) {
+      color = "\"0 0 $(1 - fatness)\"";
+      fatness = 1;
+    }
+    writeln "  $(clean link.from) -> $(clean link.to) [len=$len, penwidth=$fatness, color=$color]; ";
+  }
+}
+
+void dumpModuleGraph(bool includeStdMods = false) {
   bool included(ModuleInfo mod) {
     return eval includeStdMods || !mod.name.startsWith "std.";
   }
@@ -276,28 +316,34 @@ void dumpModuleGraph(bool includeStdMods = false) {
     for auto mod2 <- mod.imports if (included(mod2)) return true;
     return eval countImportedBy(mod);
   }
-  ModuleInfo[auto~] includedMods;
-  onExit includedMods.free;
+  scope ModuleInfo[auto~] includedMods;
   for auto mod <- __modules if included(mod) && relevant(mod) includedMods ~= mod;
-  for auto mod <- includedMods {
-    writeln "  $(clean mod.name) [label=\"$(mod.name)\"]; ";
-  }
-  (float, string)[auto~] links;
-  onExit links.free;
-  for auto mod <- includedMods {
-    for auto mod2 <- mod.imports {
-      if (!included(mod2)) continue;
-      float len = countImportedBy(mod2);
-      float weight = 1 / len, fatness = weight * 3;
-      string color = "black";
-      if (fatness < 1) {
-        color = "\"0 0 $(1 - fatness)\"";
-        fatness = 1;
+  dumpGraph \(dg) {
+    for auto mod <- includedMods {
+      for auto mod2 <- mod.imports {
+        if (!included(mod2)) continue;
+        dg(mod2.name, mod.name);
       }
-      links ~= (weight, "  $(clean mod2.name) -> $(clean mod.name) [len=$len, penwidth=$fatness, color=$color]; ");
     }
   }
-  import std.sort;
-  qsort(\(float a, string, float b, string) -> a < b, links);
-  for auto link <- links writeln link._1;
+}
+
+void dumpClassGraph(bool includeStdMods = false, includeObject = false) {
+  bool included(ModuleInfo mod) {
+    return eval (includeStdMods || !mod.name.startsWith "std.");
+  }
+  dumpGraph \(dg) {
+    for auto mod <- __modules if included(mod) {
+      for auto cl <- mod.classes {
+        if (cl.parent) if (cl.parent.name != "Object"  || includeObject) {
+          dg(cl.name, cl.parent.name, "fontname=\"Times-Roman\"");
+        }
+        void recurseIntf(string from, InterfaceData* ip) {
+          dg(from, ip.name, "fontname=\"Times-Italic\"");
+          for auto p <- ip.parents recurseIntf(ip.name, p);
+        }
+        for auto ip <- cl.iparents recurseIntf(cl.name, ip);
+      }
+    }
+  }
 }
