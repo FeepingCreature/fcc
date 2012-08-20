@@ -116,10 +116,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
      * current_module is for emitting, not for parsing;
      * and the module of a function might have already been emat by this point!
      * for instance if it's a template
+     * ON THE OTHER HAND, sometimes this helps prevent linker errors.
+     * Compromise: override iff the coarse module has not yet been emat
      **/
-    // auto backupmod = current_module();
-    // scope(exit) current_module.set(backupmod);
-    // current_module.set(coarseModule);
+    auto backupmod = current_module();
+    scope(exit) current_module.set(backupmod);
+    if (!coarseModule.getDoneEmitting()) current_module.set(coarseModule);
     
     // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     

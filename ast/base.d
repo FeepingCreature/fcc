@@ -734,6 +734,7 @@ interface IModule : Named {
   string filename();
   string modname();
   bool getDontEmit();
+  bool getDoneEmitting();
 }
 
 TLS!(IModule) current_module;
