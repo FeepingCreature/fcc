@@ -76,6 +76,16 @@ class RelMember : Expr, Named, RelTransformable {
   override RelMember dup() { return this; }
 }
 
+class RelMemberLV : RelMember, LValue {
+  void emitLocation(AsmFile af) {
+    logln("Untransformed rel member "[], this, ": cannot emit location. "[]);
+    fail;
+  }
+  RelMemberLV dup() { return new RelMemberLV(name, type, offset); }
+  this(string name, IType type, int offs) { super(name, type, offs); }
+  this(string name, IType type, Namespace ns) { super(name, type, ns); }
+}
+
 class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, SelfAdding {
   mixin TypeDefaults!(true, false);
   string name;
@@ -230,7 +240,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
 
 import ast.modules;
 bool matchStructBody(ref string text, Namespace ns,
-                     ParseCb* rest = null) {
+                     ParseCb* rest = null, bool alwaysReference = false) {
   auto backup = namespace();
   namespace.set(ns);
   scope(exit) namespace.set(backup);
@@ -265,7 +275,10 @@ bool matchStructBody(ref string text, Namespace ns,
       ) && text.accept(";"[])
       && {
         foreach (i, strname; names)
-          fastalloc!(RelMember)(strname, types[i], ns);
+          if (alwaysReference)
+            fastalloc!(RelMemberLV)(strname, types[i], ns);
+          else
+            fastalloc!(RelMember)(strname, types[i], ns);
         names = null; types = null;
         return true;
       }()

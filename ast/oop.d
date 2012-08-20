@@ -480,7 +480,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     
     if (!t2.accept("{"[])) t2.failparse("Missing opening bracket for class def"[]);
     
-    if (!matchStructBody(t2, this))
+    if (!matchStructBody(t2, this, null, true))
       t2.failparse("Couldn't match class body"[]);
     if (!t2.accept("}"[])) {
       // fail;
