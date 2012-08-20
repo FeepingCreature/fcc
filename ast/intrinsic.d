@@ -237,7 +237,17 @@ void setupSysmods() {
       }
     }
     /*MARKER2*/
+    struct InterfaceData {
+      string name;
+      InterfaceData*[] parents;
+    }
+    struct ClassData {
+      string name;
+      ClassData* parent;
+      InterfaceData*[] iparents;
+    }
     class Object {
+      alias classinfo = ***ClassData***: &__vtable;
       string toString() return "Object";
       void free() mem.free void*:this; // wow.
     }

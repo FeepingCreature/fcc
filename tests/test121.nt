@@ -1,0 +1,27 @@
+module test121;
+
+interface I { }
+interface K { }
+interface L : I, K { }
+
+class A : L { }
+
+void main() {
+  A a = new A;
+  auto refl = a.classinfo;
+  writeln "$(refl.name)";
+  assert(refl.name == "A");
+  writeln "$(refl.parent.name)";
+  assert(refl.parent.name == "Object");
+  assert(refl.parent.parent == null);
+  assert(refl.iparents.length == 1);
+  auto ip = refl.iparents[0];
+  writeln "$(ip.name)";
+  assert(ip.name == "L");
+  writeln "parents: $(ip.parents.length)";
+  assert(ip.parents.length == 2);
+  writeln "  $(ip.parents[0].name)";
+  assert(ip.parents[0].name == "I");
+  writeln "  $(ip.parents[1].name)";
+  assert(ip.parents[1].name == "K");
+}

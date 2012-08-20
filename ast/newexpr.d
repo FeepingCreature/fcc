@@ -62,7 +62,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         fastcast!(LValue) (lookupOp("index"[],
           reinterpret_cast(voidpp, var),
           mkInt(0))),
-        reinterpret_cast(voidp, fastalloc!(Symbol)(cr.myClass.ci_name()))
+        reinterpret_cast(voidp, fastalloc!(Symbol)(cr.myClass.vt_name()))
       )).emitAsm(af);
       
       if (cr.myClass.ctx) {
@@ -117,7 +117,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
           (`(void**:var)[base + id] = (void**:_classinfo + offs)`,
             "var"[], var,
             "base"[], mkInt(base), "id"[], mkInt(id++),
-            "_classinfo"[], fastalloc!(Symbol)(cr.myClass.ci_name()),
+            "_classinfo"[], fastalloc!(Symbol)(cr.myClass.vt_name()),
             "offs"[], offs
           ).emitAsm(af);*/
           auto slot = fastcast!(LValue) (lookupOp("index"[],
@@ -125,7 +125,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
             mkInt(base + (id ++))
           ));
           auto classinfo_reference = reinterpret_cast(voidp, lookupOp("+"[],
-            reinterpret_cast(voidpp, fastalloc!(Symbol)(cr.myClass.ci_name())),
+            reinterpret_cast(voidpp, fastalloc!(Symbol)(cr.myClass.vt_name())),
             offs
           ));
           emitAssign(af, slot, classinfo_reference);

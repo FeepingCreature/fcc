@@ -76,7 +76,7 @@ class VTable {
       if (fun.name == name) {
         if (!classref) return fun;
         if (base == -1) // lazy init
-          base = (parent.parent?parent.parent.getClassinfo().length:0);
+          base = (parent.parent?parent.parent.getClassinfo().length:1);
         res ~= 
           new PointerFunction!(NestedFunction) (
             tmpize_maybe(classref, delegate Expr(Expr classref) {
@@ -184,14 +184,14 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   int own_offset;
   void initOffset() { own_offset = clsize() - funs.length; }
   // offset is size of preceding data, in steps of nativePtrSize
-  string[] genClassinfo(ref int offset, RelFunSet overrides) {
+  string[] genVTable(ref int offset, RelFunSet overrides) {
     string[] res;
     if (!parents.length)
       res ~= Format("-"[], offset++);
     else {
-      res = parents[0].genClassinfo(offset, overrides);
+      res = parents[0].genVTable(offset, overrides);
       foreach (par; parents[1 .. $])
-        res ~= par.genClassinfo(offset, overrides);
+        res ~= par.genVTable(offset, overrides);
     }
     
     foreach (fun; funs)
@@ -203,6 +203,20 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
             ": "[], fun.name, " not overridden. "[]));
     
     return res;
+  }
+  string getIntfinfoDataPtr(AsmFile af) {
+    auto prefix = mangle_id;
+    string[] res;
+    res ~= qformat(this.name.length);
+    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name);
+    {
+      string[] pp;
+      foreach (intf; parents)
+        pp ~= intf.getIntfinfoDataPtr(af);
+      res ~= qformat(pp.length);
+      res ~= af.allocLongstant(prefix~"_parents", pp);
+    }
+    return af.allocLongstant(prefix~"_intfinfo", res);
   }
   import ast.index;
   Object lookupIntf(string name, Expr intp) {
@@ -537,7 +551,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     this.parent = parent;
     if (!parent) {
       New(data, cast(string) null);
-      fastalloc!(RelMember)("classinfo"[], voidp, data);
+      fastalloc!(RelMemberLV)("__vtable"[], voidp, data);
     }
     if (auto it = RefToParentType()) {
       rtpt = it;
@@ -642,12 +656,11 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     getClassinfo; // no-op to generate stuff
   }
   mixin TypeDefaults!();
-  // this returns an Expr so that interface calls in a class method can resolve lazily, as they should.
   // interfaces come after the classinfo!
   int getFinalClassinfoLengthValue() {
     parseMe;
-    int res;
-    if (parent) res += parent.getClassinfo().length;
+    int res = 1; // space for reflection data
+    if (parent) res += parent.getVTable().length;
     res += myfuns.funs.length;
     // logln("for "[], name, "[], res is "[], res);
     return res;
@@ -656,7 +669,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     return new LazyDeltaInt(&getFinalClassinfoLengthValue);
   }
   // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
-  string[] getClassinfo(RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
+  string[] getVTable(RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
     parseMe;
     RelFunSet copy;
     copy.fillIn (loverrides);
@@ -670,7 +683,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     
     string[] res;
     // Liskov at work
-    if (parent) res = parent.getClassinfo(copy);
+    if (parent) res = parent.getVTable(copy);
     
     foreach (fun; myfuns.funs) {
       if (auto f2 = copy.hasLike(fun)) // if a child class overrode this, use its relfun
@@ -685,9 +698,33 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       doAlign(offset, voidp);
       offset /= 4; // steps of (void*).sizeof
       foreach (intf; iparents)
-        res ~= intf.genClassinfo(offset, copy);
+        res ~= intf.genVTable(offset, copy);
     }
     
+    return res;
+  }
+  
+  string[] getClassinfo() {
+    string[] res;
+    res ~= cd_name();
+    res ~= getVTable();
+    return res;
+  }
+  string[] getClassinfoData(AsmFile af) {
+    auto prefix = cd_name();
+    string[] res;
+    res ~= qformat(this.name.length);
+    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name);
+    if (parent) res ~= parent.cd_name();
+    else res ~= "0";
+    {
+      string[] iplist;
+      foreach (intf; iparents) {
+        iplist ~= intf.getIntfinfoDataPtr(af);
+      }
+      res ~= qformat(iplist.length);
+      res ~= af.allocLongstant(prefix~"_iparents", iplist);
+    }
     return res;
   }
   bool funAlreadyDefinedAbove(Function fun) {
@@ -710,16 +747,22 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   }
   // TODO
   mixin defaultIterate!();
-  string ci_name() { return "classinfo_"~mangle(); }
+  string vt_name() { return "vtable_"~mangle(); }
+  string cd_name() { return "classdata_"~mangle(); }
   override {
     IType getRefType() {
       return fastalloc!(ClassRef)(this);
     }
     void emitAsm(AsmFile af) {
-      auto name = ci_name().dup;
-      if (weak)
+      auto name = vt_name().dup;
+      auto cd = cd_name().dup;
+      if (weak) {
         af.weak_longstants[name] = getClassinfo().dup;
-      else af.longstants[name] = getClassinfo().dup;
+        af.weak_longstants[cd]   = getClassinfoData(af).dup;
+      } else {
+        af.longstants[name] = getClassinfo().dup;
+        af.longstants[cd]   = getClassinfoData(af).dup;
+      }
     }
     int size() {
       // we return partial size so the struct thinks we contain our parent's struct
