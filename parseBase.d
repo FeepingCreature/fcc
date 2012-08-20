@@ -746,7 +746,8 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
         }
         auto ptr = t2.ptr;
         if (auto p = ptr in cache) {
-          text = p._1[0 .. t2.ptr + t2.length - p._1];
+          if (!p._1) text = null;
+          else text = p._1[0 .. t2.ptr + t2.length - p._1];
           return p._0;
         }
         auto res = fnredir(t2, accept, cont, rest);
