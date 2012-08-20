@@ -603,10 +603,11 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       assert(!!streq);
       void handleIntf(Intf intf) {
         // logln(name, ": offset for intf "[], intf.name, ": "[], intf_offset);
-        as.stmts ~= iparse!(Statement, "cast_branch_intf"[], "tree.stmt"[])("if (streq(id, _test)) return void*:(void**:this + offs);"[],
+        as.stmts ~= iparse!(Statement, "cast_branch_intf"[], "tree.stmt"[])(`if (streq(id, _test)) return void*:(void**:this + offs);`[],
           namespace(), "_test"[], mkString(intf.mangle_id), "offs"[], mkInt(intf_offset)
         );
-        intf_offset ++;
+        if (intf.parents) foreach (ip; intf.parents) handleIntf(ip);
+        else intf_offset ++;
       }
       void handleClass(Class cl) {
         as.stmts ~= fastcast!(Statement) (runTenthPure((void delegate(string,Object) dg) {

@@ -1,0 +1,18 @@
+module test120;
+
+interface A { void foo(); }
+interface B { void bar(); }
+interface C : A, B { }
+interface D { void whee(); }
+string called;
+class Q : C, D {
+  void foo() { called = "foo"; }
+  void bar() { called = "bar"; }
+  void whee() { called = "whee"; }
+}
+
+void main() {
+  auto q = Object: new Q;
+  (D: q).whee();
+  assert(called == "whee");
+}
