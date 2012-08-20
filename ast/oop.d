@@ -208,15 +208,15 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     auto prefix = mangle_id;
     string[] res;
     res ~= qformat(this.name.length);
-    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name);
+    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name, false, true);
     {
       string[] pp;
       foreach (intf; parents)
         pp ~= intf.getIntfinfoDataPtr(af);
       res ~= qformat(pp.length);
-      res ~= af.allocLongstant(prefix~"_parents", pp);
+      res ~= af.allocLongstant(prefix~"_parents", pp, false, true);
     }
-    return af.allocLongstant(prefix~"_intfinfo", res);
+    return af.allocLongstant(prefix~"_intfinfo", res, false, true);
   }
   import ast.index;
   Object lookupIntf(string name, Expr intp) {
@@ -714,7 +714,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     auto prefix = cd_name();
     string[] res;
     res ~= qformat(this.name.length);
-    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name);
+    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name, false, true);
     if (parent) res ~= parent.cd_name();
     else res ~= "0";
     {
@@ -723,7 +723,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         iplist ~= intf.getIntfinfoDataPtr(af);
       }
       res ~= qformat(iplist.length);
-      res ~= af.allocLongstant(prefix~"_iparents", iplist);
+      res ~= af.allocLongstant(prefix~"_iparents", iplist, false, true);
     }
     return res;
   }

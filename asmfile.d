@@ -52,21 +52,26 @@ class AsmFile {
     }
     return allocConstant(name, data);
   }
-  string allocConstant(string name, ubyte[] data, bool force = false) {
+  string allocConstant(string name, ubyte[] data, bool force = false, bool weak = false) {
     if (!force)
       foreach (key, value; constants)
         if (value == data) return key;
     constants[name] = data;
+    if (weak) weaks[name] = true;
     return name;
   }
   bool knowsConstant(string name) {
     return !!(name in constants);
   }
-  string allocLongstant(string name, string[] data, bool forceRealloc = false) {
+  string allocLongstant(string name, string[] data, bool forceRealloc = false, bool weak = false) {
+    string[][string]* ap;
+    if (weak) ap = &weak_longstants;
+    else ap = &longstants;
+    
     if (!forceRealloc)
-      foreach (key, value; longstants)
+      foreach (key, value; *ap)
         if (value == data) return key;
-    longstants[name] = data;
+    (*ap)[name] = data;
     return name;
   }
   string[][] codelines_finished;
