@@ -211,6 +211,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     Statement initLv;
     WithTempExpr wte; // Careful!!
     if (ex) {
+      ex = forcedConvert(ex);
       if (!_is_cheap(ex, CheapMode.Multiple)) {
         if (fastcast!(Variable) (ex)) {
           // I guess we don't need to do anything in this case.
@@ -251,7 +252,6 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr[] values;
     
     if (ex) {
-      auto outer_ex = ex;
       gotImplicitCast(ex, (Expr ex) {
         auto it = ex.valueType();
         if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it) || fastcast!(SemiRelNamespace) (it)) {
@@ -281,11 +281,6 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     Object res;
     if (!rest(text, "tree.expr _tree.expr.arith"[], &res) && !rest(text, "cond"[], &res))
       text.failparse("Couldn't get with-tuple expr"[]);
-    /*if (auto rt = fastcast!(RefTuple) (res)) if (rt.mvs.length == 1) {
-      auto lv2mv = fastcast!(LValueAsMValue) (rt.mvs[0]);
-      if (lv2mv) return fixup(fastcast!(Object) (lv2mv.sup));
-      return fixup(fastcast!(Object) (rt.mvs[0]));
-    }*/
     res = fixup(res);
     if (wte) {
       auto rex = fastcast!(Expr) (res);
