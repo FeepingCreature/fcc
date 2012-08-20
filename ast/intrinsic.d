@@ -510,6 +510,7 @@ void setupSysmods() {
       string[] _imports;
       FunctionInfo[auto~] functions;
       ModuleInfo[auto~] imports;
+      ClassData*[auto~] classes;
       string toString() {
         if !functions return "[module $name imports $([for m <- imports: m.name].eval[])]";
         return "[module $name imports $([for m <- imports: m.name].eval[]) ($functions)]";
@@ -820,6 +821,17 @@ void finalizeSysmod(Module mainmod) {
         iparse!(Statement, "init_mod_imports", "tree.stmt")
                (`var._imports[c++] = mod2;`, sc,
                 "var", var, "c", count, "mod2", mkString(mod2.name)));
+    }
+    foreach (entry; mod.entries) {
+      Class cl;
+      if (auto cr = fastcast!(ClassRef) (entry)) cl = cr.myClass;
+      else if (auto entry_cl = fastcast!(Class) (entry)) cl = entry_cl;
+      if (cl) {
+        sc.addStatement(
+          iparse!(Statement, "init_mod_classes", "tree.stmt")
+                (`var.classes ~= classp;`, sc,
+                  "var", var, "classp", new Symbol(cl.cd_name())));
+      }
     }
     version(CustomDebugInfo) {
       foreach (entry; mod.entries) if (auto fun = fastcast!(Function) (entry)) if (!fun.extern_c) {

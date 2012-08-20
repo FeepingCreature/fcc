@@ -24,4 +24,8 @@ void main() {
   assert(ip.parents[0].name == "I");
   writeln "  $(ip.parents[1].name)";
   assert(ip.parents[1].name == "K");
+  auto info = lookupInfo("test121");
+  assert(info.classes.length == 1);
+  assert(info.classes[0].name == "A");
+  writeln "moduleinfo present";
 }
