@@ -1,7 +1,7 @@
 module ast.vardecl_parse;
 
 import parseBase, ast.base, ast.vardecl, ast.aliasing, ast.namespace, ast.expr_statement, ast.arrays,
-       ast.casting, ast.pointer, ast.aggregate, ast.scopes, ast.types, ast.dg, tools.compat: find;
+       ast.casting, ast.pointer, ast.aggregate, ast.scopes, ast.types, ast.dg, ast.tuples, tools.compat: find;
 
 Scope cached_sc;
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
@@ -30,8 +30,13 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("("[])) mixin(abort); // compound var expr
   
   while (true) {
-    if (!t2.gotIdentifier(varname, true))
+    if (!t2.gotIdentifier(varname, true)) {
+      if (vartype && fastcast!(Tuple) (vartype)) { // might be a (vardecl) form tuple!
+        t2.setError("Could not get variable identifier");
+        return null;
+      }
       t2.failparse("Could not get variable identifier"[]);
+    }
     if (t2.acceptLeftArrow()) mixin(abort); // is an iterator-construct
     Expr ex;
     bool dontInit;
@@ -65,7 +70,8 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       var.name = varname;
     if (ex) {
       var.initval = ex;
-      var.type = ex.valueType();
+      if (vartype) var.type = vartype;
+      else var.type = ex.valueType();
     } else {
       if (!vartype) fail; // shouldn't happen
       var.type = vartype;

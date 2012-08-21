@@ -12,6 +12,7 @@ import ast.base, ast.structure, ast.namespace, ast.casting, ast.opers;
 class Tuple : Type, RelNamespace {
   /// 1.
   Structure wrapped;
+  string[] names;
   NSCache!(IType) typecache;
   NSCache!(int) offsetcache;
   IType[] types() { return wrapped.selectMap!(RelMember, "$.type")(&typecache); }
@@ -22,13 +23,14 @@ class Tuple : Type, RelNamespace {
       int idx;
       if (readIndexShorthand(str, idx))
         return fastcast!(Object) (lookupOp("index"[], base, mkInt(idx)));
+      if (auto res = wrapped.lookupRel(str, reinterpret_cast(wrapped, base), isDirectLookup)) return res;
       return null;
     }
     int size() { return wrapped.size; }
     bool isComplete() { return wrapped.isComplete; }
     string mangle() { return "tuple_"~wrapped.mangle(); }
     ubyte[] initval() { return wrapped.initval(); }
-    string toString() { string res; foreach (i, ty; types()) { if (i) res ~= ", "; res ~= Format(ty); } return "(" ~ res ~ ")"; }
+    string toString() { string res; foreach (i, ty; types()) { if (i) res ~= ", "; res ~= Format(ty); if (names && names[i]) res ~= Format(" ", names[i]); } return "(" ~ res ~ ")"; }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
       it = resolveType(it);
@@ -69,10 +71,12 @@ mixin DefaultParser!(gotBraceExpr, "tree.expr.braces"[], "6"[]);
 
 Tuple[string] tupcache;
 
-Tuple mkTuple(IType[] types...) {
+Tuple mkTuple(IType[] types...) { return mkTuple(types, null); }
+Tuple mkTuple(IType[] types, string[] names) {
   string hash;
   if (types.length == 1) {
     hash = types[0].mangle();
+    if (names) hash ~= names[0];
     if (auto p = hash in tupcache) return *p;
   }
   foreach (type; types) if (Single!(Void) == type) {
@@ -82,8 +86,13 @@ Tuple mkTuple(IType[] types...) {
   auto tup = fastalloc!(Tuple)();
   tup.wrapped = fastalloc!(Structure)(cast(string) null);
   tup.wrapped.packed = true;
-  foreach (i, type; types)
-    fastalloc!(RelMember)(qformat("tuple_member_"[], i), type, tup.wrapped);
+  tup.names = names;
+  foreach (i, type; types) {
+    if (names && names[i])
+      fastalloc!(RelMember)(names[i], type, tup.wrapped);
+    else
+      fastalloc!(RelMember)(qformat("tuple_member_"[], i), type, tup.wrapped);
+  }
   if (hash) tupcache[hash] = tup;
   return tup;
 }
@@ -92,16 +101,20 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;
   IType[] types;
+  string[] names;
+  string ident;
+  IType lastTypeAdded;
   if (t2.bjoin(
-        !!rest(t2, "type"[], &ty),
+        (rest(t2, "type"[], &ty) || (ty = lastTypeAdded, ty)) && (t2.gotIdentifier(ident) || (ident = null, true)),
         t2.accept(","[]),
-        { types ~= ty; }
+        { types ~= ty; lastTypeAdded = ty; names ~= ident; }
       ) &&
       t2.accept(")"[])
     ) {
     if (!types.length) { text = t2; return mkTuple(); } // templateFoo!()
     text = t2;
-    return mkTuple(types);
+    // logln("mkTuple(", types, ", ", names, ")");
+    return mkTuple(types, names);
   } else return null;
 }
 mixin DefaultParser!(gotTupleType, "type.tuple"[], "37"[], "("[]);
