@@ -257,7 +257,7 @@ void print-backtrace() {
 void dumpGraph(void delegate(void delegate(string, string, string=null)) dg) {
   writeln "/* use neato or -Kneato */";
   writeln "Digraph D {";
-  writeln "Graph [overlap=portho_xy, concentrate=true, splines=true];";
+  writeln "Graph [overlap=portho_xy, concentrate=true, splines=true, rankdir=LR];";
   onSuccess writeln "}";
   string clean(string s) { return s.replace(".", "_"); }
   scope (string, string)[auto~] words;
@@ -288,7 +288,7 @@ void dumpGraph(void delegate(void delegate(string, string, string=null)) dg) {
     else writeln "  $(clean word._0) [label=\"$(word._0)\"]; ";
   }
   for auto link <- links {
-    float len = countSources(link.from);
+    float len = countSources(link.from) - 1 # * 0.4 # + 2;
     float weight = 1 / len, fatness = weight * 3;
     string color = "black";
     if (fatness < 1) {

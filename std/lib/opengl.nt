@@ -42,20 +42,25 @@ platform(default) {
 
 defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";
 
-context Triangles {
-  alias onUsing = glBegin GL_TRIANGLES;
-  alias onExit = glEnd;
+template PrimitiveContext(alias A) {
+  context PrimitiveContext {
+    alias onUsing = glBegin A;
+    alias onExit = glEnd;
+  }
 }
 
-context Quads {
-  alias onUsing = glBegin GL_QUADS;
-  alias onExit = glEnd;
-}
+alias Points = PrimitiveContext!GL_POINTS;
 
-context QuadStrip {
-  alias onUsing = glBegin GL_QUAD_STRIP;
-  alias onExit = glEnd;
-}
+alias Lines = PrimitiveContext!GL_LINES;
+alias LineStrip = PrimitiveContext!GL_LINE_STRIP;
+alias LineLoop = PrimitiveContext!GL_LINE_LOOP;
+
+alias Triangles = PrimitiveContext!GL_TRIANGLES;
+alias TriangleStrip = PrimitiveContext!GL_TRIANGLE_STRIP;
+alias TriangleFan = PrimitiveContext!GL_TRIANGLE_FAN;
+// deprecated in GL3
+alias Quads = PrimitiveContext!GL_QUADS;
+alias QuadStrip = PrimitiveContext!GL_QUAD_STRIP;
 
 context glMatrix {
   void pushAll() using mode GL {
