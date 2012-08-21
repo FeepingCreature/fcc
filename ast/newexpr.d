@@ -7,6 +7,7 @@ import
 
 Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
+  if (t2.accept("-")) return null; // new-foo
   
   Object obj;
   if (!rest(t2, "type"[], &obj)) { return null; }
@@ -150,6 +151,7 @@ mixin DefaultParser!(gotNewClassExpr, "tree.expr.new.class"[], "125"[], "new"[])
 import ast.casting, ast.slice: mkPointerSlice;
 Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
+  if (t2.accept("-")) return null; // new-bar
   
   IType base;
   if (!rest(t2, "type"[], &base))
@@ -205,6 +207,7 @@ mixin DefaultParser!(gotNewArrayExpr, "tree.expr.new.array"[], "12"[], "new"[]);
 import ast.nestfun, ast.opers, ast.dg, ast.arrays, ast.fun, ast.scopes;
 Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
+  if (t2.accept("-")) return null; // new-baz
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
     return null;
@@ -239,6 +242,7 @@ mixin DefaultParser!(gotNewDelegateExpr, "tree.expr.new.dg"[], "13"[], "new"[]);
 
 Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
+  if (t2.accept("-")) return null; // new-whee
   
   IType ty;
   if (!rest(t2, "type"[], &ty))
