@@ -1,0 +1,5 @@
+module test123;
+
+void main() {
+  λ{ writeln "Hello World"; } ();
+}

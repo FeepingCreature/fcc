@@ -115,7 +115,7 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   static int i;
   bool shortform;
   if (!t2.accept("delegate"[])) {
-    if (t2.accept("\\"[])) {
+    if (t2.accept("\\") || t2.accept("λ")) {
       synchronized name = Format("__nested_dg_literal_"[], i++);
       auto t3 = t2;
       nf = fastalloc!(NestedFunction)(sc);
