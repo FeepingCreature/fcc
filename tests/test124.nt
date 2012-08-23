@@ -1,0 +1,15 @@
+module test124;
+
+class Mew {
+  int foo() { return 5; }
+}
+
+void main() {
+  int add(int a, b) return a + b;
+  int c = (new Mew)?.foo().add(2);
+  assert(c == 7);
+  int d = (Mew:null)?.foo().add(2);
+  assert(d == 0);
+  int e = ((Mew:null)?.foo()).add(2);
+  assert(e == 2);
+}
