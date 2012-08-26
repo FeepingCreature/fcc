@@ -2,7 +2,7 @@
 PASS=0
 FAIL=0
 TOTAL=0
-FAILSTR=""
+PROGRESS=""
 export TESTSUITE="y"
 for file in $(ls *.nt)
 do
@@ -21,13 +21,15 @@ do
   if [ "$res" -eq "0" ]
   then
     PASS=$(($PASS + 1))
+    PROGRESS="${PROGRESS}."
     echo -n "."
   else
     FAIL=$(($FAIL + 1))
-    FAILSTR="$FAILSTR $file";
-    echo -n "!"
+    PROGRESS="${PROGRESS}!"
+    echo -e "\r\033[KFailed: $file";
+    echo -en "$PROGRESS"
   fi
 done
 echo
 echo "Pass: $PASS / $TOTAL"
-echo "Fail: $FAIL / $TOTAL $FAILSTR"
+echo "Fail: $FAIL / $TOTAL"
