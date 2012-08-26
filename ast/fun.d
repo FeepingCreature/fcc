@@ -718,10 +718,13 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       paramsize += sz;
     }
     paramsize += af.floatStackDepth * 8;
-    paramsize += 8; // push ip, push ebp
     
-    auto alignCall = 16 - (af.currentStackDepth + paramsize) % 16;
+    // distance to alignment border
+    auto align_offset = af.currentStackDepth + esp_alignment_delta;
+    // what do we have to do to align the callsite?
+    auto alignCall = 16 - (align_offset + paramsize) % 16;
     if (alignCall == 16) alignCall = 0;
+    // logln("at call to ", name, ", depth is ", af.currentStackDepth, " and ", align_offset, " and ", alignCall, " due to ", paramsize);
     af.salloc(alignCall);
     
     auto restore = af.floatStackDepth;
@@ -734,7 +737,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
         // af.comment("Push ", param);
         // round to 4: cdecl treats <4b arguments as 4b (because push is 4b, presumably).
         auto sz = param.valueType().size;
-        if (sz < 4) af.salloc(4 - sz);
+        if (sz && sz < 4) af.salloc(4 - sz);
         alignment_emitAligned(param, af);
       }
       
@@ -768,13 +771,19 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
           fp.emitAsm(af);
         }
         af.popStack("%eax", 4);
+        if (af.currentStackDepth % 16 != 8) {
+          logln("at call, depth is ", af.currentStackDepth, " ", af.currentStackDepth % 16);
+          logln("thus, unaligned! :o");
+          fail;
+        }
+        // af.put("test $15, %esp; jz 1f; call abort; 1:");
         af.call("%eax");
       }
       
       foreach (param; params) {
         if (param.valueType() != Single!(Void)) {
           auto sz = param.valueType().size;
-          if (sz < 4) sz = 4;
+          if (sz && sz < 4) sz = 4;
           if (stdcall) {
             af.currentStackDepth -= sz;
           } else {

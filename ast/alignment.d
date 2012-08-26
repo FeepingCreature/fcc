@@ -18,7 +18,9 @@ extern(C) int align_boffs(IType t, int curdepth = -1) {
   }
   int sz = t.size;
   int offs = curdepth + sz;
+  offs += esp_alignment_delta;
   doAlign(offs, t);
+  offs -= esp_alignment_delta;
   if (isARM && sz == 1) offs = (offs + 3) & ~3; // make sure sp stays aligned
   return -offs;
 }
@@ -48,7 +50,7 @@ extern(C) void alignment_emitAligned(Expr ex, AsmFile af) {
   mixin(mustOffset("ex.valueType().size"[]));
   if (auto al = fastcast!(ForceAlignment) (resolveType(ex.valueType()))) {
     auto myAl = al.alignment();
-    if (myAl && ((af.currentStackDepth + ex.valueType().size) % myAl) != 0) {
+    if (myAl && ((af.currentStackDepth + esp_alignment_delta + ex.valueType().size) % myAl) != 0) {
       // need realignment
       mkVar(af, fastalloc!(UnAlignedPlaceholder)(ex.valueType()), true, (Variable var) {
         emitAssign(af, var, ex);

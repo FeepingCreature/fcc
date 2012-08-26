@@ -655,8 +655,8 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     af.SSEOp("punpckldq"[], scrap1, dest);
   }
   auto var1 = fastcast!(Variable) (op1), var2 = fastcast!(Variable) (op2);
-  bool alignedVar1 = var1 && (var1.baseOffset & 15) == 0;
-  bool alignedVar2 = var2 && (var2.baseOffset & 15) == 0;
+  bool alignedVar1 = var1 && ((var1.baseOffset - esp_alignment_delta) & 15) == 0;
+  bool alignedVar2 = var2 && ((var2.baseOffset - esp_alignment_delta) & 15) == 0;
   void load(Expr src, string to, string scrap1 = null, string scrap2 = null) {
     bool wasAligned;
     if (auto addr = getAddr(af, src)) af.SSEOp("movaps"[], addr, to);

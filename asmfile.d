@@ -330,7 +330,7 @@ class AsmFile {
     add(t);
   }
   void SSEOp(string which, string op1, string op2, bool ignoreStackAlignment = false /* true for movd */) {
-    if ((op1 == "(%esp)" || op2 == "(%esp)") && currentStackDepth%16 != 0 && !ignoreStackAlignment) {
+    if ((op1 == "(%esp)" || op2 == "(%esp)") && (currentStackDepth+esp_alignment_delta)%16 != 0 && !ignoreStackAlignment) {
       logln("stack misaligned for SSE");
       fail;
     }

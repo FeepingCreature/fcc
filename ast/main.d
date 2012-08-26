@@ -41,11 +41,11 @@ void fixupMain() {
       } else {
         cvar.emitAsm(af);
         pvar.emitAsm(af);
-        magic = isWinMain?12:12;
+        magic = isWinMain?4:4; // stack aligned -> call(<-4) -> push ebp
         af.popStack("%eax"[], nativePtrSize);
         af.popStack("%edx"[], 4);
         af.mathOp("andl"[], "$-16"[], "%esp"[]); // This is where the magic happens,
-        af.salloc(magic); // magic constant align to 16
+        af.salloc(magic); // magic constant align pretend-base to 16
         af.pushStack("%ebp"[], nativePtrSize);
         af.mmove4("%esp"[], "%ebp"[]);
         af.pushStack("%edx"[], 4);

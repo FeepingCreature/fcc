@@ -779,3 +779,5 @@ Object delegate(Object) getOpCall;
 
 Expr True, False;
 Cond cTrue, cFalse;
+
+const esp_alignment_delta = 8; // call, push ebp
