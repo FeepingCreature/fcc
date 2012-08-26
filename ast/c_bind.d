@@ -113,14 +113,13 @@ class LateType : IType {
   string name;
   IType me;
   void delegate() tryResolve;
+  bool release;
   this(string n) { name = n; }
   string toString() { if (!me) return Format("(LateType ("[], name, "), unresolved)"); return Format("(LateType ", me, ")"); }
   void needMe() {
     if (!me) tryResolve();
     if (!me)
       throw new Exception(Format("Couldn't resolve ", this));
-    me = resolveType(me);
-    if (!me) throw new Exception(Format("Still no ", this));
   }
   override {
     int size() { needMe; return me.size; }
@@ -135,7 +134,7 @@ class LateType : IType {
       return it is me || it == me;
     }
     string mangle() { needMe; return me.mangle(); }
-    IType proxyType() { needMe; return me; }
+    IType proxyType() { if (!release) return null; /* delay, defer */ needMe; return me; }
   }
 }
 
@@ -291,18 +290,25 @@ src_cleanup_redo: // count, then copy
             lt.me = fastcast!(IType)~ *p;
             if (auto al = fastcast!(TypeAlias) (lt.me))
               if (al.base is lt) {
-                logln("CIRCULAR TYPE: ", name);
-                fail;
+                // logln("CIRCULAR TYPE: ", name);
+                // fail;
+                goto makevoid;
               }
           }
           else {
             // logln(name, " didn't resolve in time");
             // fail;
+            makevoid:
             lt.me = Single!(Void);
           }
         };
+        auto dg2 = stuple(lt, dg) /apply/
+        delegate void(LateType lt, void delegate() dg) {
+          lt.release = true;
+          dg();
+        };
         lt.tryResolve = dg;
-        resolves ~= dg;
+        resolves ~= dg2;
         return lt;
       }
     }
@@ -856,9 +862,6 @@ src_cleanup_redo: // count, then copy
           goto giveUp;
         }
       }
-      if (auto proxy = fastcast!(LateType) (target))
-        if (proxy.name == name)
-          target = Single!(Void); // would set up a loop .. produce _something_
       
     typedef_done:
       auto ta = fastalloc!(TypeAlias)(target, name);

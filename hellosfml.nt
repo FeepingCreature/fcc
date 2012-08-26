@@ -36,7 +36,7 @@ void main() using mode SFML {
   music.Play;
   
   using app {
-    while (IsOpened) {
+    while (IsOpened()) {
       while (GetEvent &sfEvent ev) {
         if (ev.Type == EvtClosed) {
           app.Close();
