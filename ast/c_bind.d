@@ -183,12 +183,22 @@ src_cleanup_redo: // count, then copy
   string[] buffer;
   void flushBuffer() { foreach (def; buffer) { addSrc(def); addSrc(";"); } delete buffer; buffer = null; }
   while (src.length) {
-    string line = src.slice("\n"[]);
+    string line;
+    void advance() { line = src.slice("\n"[]); }
+    advance;
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
     if (line.startsWith("}")) { inEnum = false; addSrc(line); flushBuffer; continue; }
     if (line.startsWith("#")) {
       if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else { addSrc(line); addSrc(";"); } }
+      continue;
+    }
+    if (line.startsWith("static inline")) {
+      if (line.endsWith("}")) continue; // oneliner
+      // skip across
+      do {
+        advance;
+      } while (!line.startsWith("#") && !line.startsWith("}"));
       continue;
     }
     addSrc(line); addSrc(" ");
@@ -552,6 +562,8 @@ src_cleanup_redo: // count, then copy
     if (stmt.accept("typedef")) isTypedef = true;
     if (stmt.accept("enum")) {
       auto entries = stmt.between("{", "}").split(",");
+      if (entries.length && !entries[$-1].strip().length)
+        entries = entries[0..$-1]; // A, B, C,
       Expr cur = mkInt(0);
       Named[] elems;
       foreach (entry; entries) {
@@ -743,6 +755,7 @@ src_cleanup_redo: // count, then copy
     }
     if (isTypedef) {
       auto target = matchType(stmt);
+      // logln("typedef target ", target, ", left ", stmt);
       string name;
       if (!target) goto giveUp;
       if (stmt.accept("{")) {
@@ -751,10 +764,32 @@ src_cleanup_redo: // count, then copy
           if (stmt.accept("}")) break;
         }
       }
+      {
+        auto st2 = stmt;
+        if (st2.accept("(") && st2.accept("*") && gotIdentifier(st2, name) && st2.accept(")")) {
+          if (!st2.accept("(")) goto giveUp;
+          IType ret = target; Argument[] args;
+          while (true) {
+            IType argtype = matchType(st2);
+            if (!argtype) {
+              // logln("Bad type in FP ", stmt, " at ", st2);
+              goto giveUp;
+            }
+            string argname;
+            gotIdentifier(st2, argname);
+            
+            args ~= Argument(argtype);
+            if (st2.accept(",")) continue;
+            if (st2.accept(")")) break;
+            goto giveUp;
+          }
+          target = fastalloc!(FunctionPointer)(ret, args);
+          stmt = st2;
+          goto typedef_done;
+        }
+      }
       if (!gotIdentifier(stmt, name)) {
         auto st2 = stmt;
-        if (!st2.accept("(") || !st2.accept("*") || !gotIdentifier(st2, name) || !st2.accept(")"))
-          goto giveUp;
         // function pointer
         if (!st2.accept("(")) goto giveUp;
         Argument[] args;
@@ -825,6 +860,7 @@ src_cleanup_redo: // count, then copy
         if (proxy.name == name)
           target = Single!(Void); // would set up a loop .. produce _something_
       
+    typedef_done:
       auto ta = fastalloc!(TypeAlias)(target, name);
       cache[name] = ta;
       continue;
@@ -859,7 +895,7 @@ src_cleanup_redo: // count, then copy
           continue;
         }
         goto giveUp;
-        logln(">> ", stmt);
+        // logln(">> ", stmt);
         fail;
       }
       IType[] args;

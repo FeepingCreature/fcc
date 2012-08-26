@@ -1,6 +1,6 @@
 module ast.mixins;
 
-import ast.base, ast.parse, ast.literal_string, ast.fold, ast.casting, ast.aggregate_parse, ast.platform;
+import ast.base, ast.parse, ast.literal_string, ast.fold, ast.casting, ast.aggregate_parse, ast.platform, ast.aliasing, ast.namespace;
 
 Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -42,9 +42,18 @@ Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest)
     return !!fastcast!(StringExpr) (ex);
   }))
     t2.failparse("Couldn't mixin: Not a string constant: "[], ex);
+  static if (submode != "tree.stmt") {
+    if (!t2.accept(";"))
+      t2.failparse("semicolon expected");
+  }
   opt(ex2);
   auto se = fastcast!(StringExpr) (ex2);
   auto src = se.str;
+  if (!src.length) {
+    text = t2;
+    if (submode == "struct_member") return fastalloc!(ExprAlias)(fastcast!(Expr)(sysmod.lookup("null")), cast(string) null);
+    return Single!(NoOp);
+  }
   Object res;
   pushCache(); scope(exit) popCache();
   try {
@@ -62,10 +71,6 @@ Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest)
       }
   } catch (Exception ex) {
     t2.failparse("Executing mixin '"[], src.nextText(), "': "[], ex);
-  }
-  static if (submode != "tree.stmt") {
-    if (!t2.accept(";"))
-      t2.failparse("semicolon expected");
   }
   text = t2;
   return res;

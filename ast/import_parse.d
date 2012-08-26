@@ -12,7 +12,7 @@ Object gotImportFile(ref string text, ParseCb cont, ParseCb rest) {
   }
   if (!t2.accept(")"[]))
     t2.failparse("Expected closing paren"[]);
-  filename = foldex(filename);
+  opt(filename);
   auto se = fastcast!(StringExpr) (filename);
   if (!se)
     text.failparse("Expected string expr, got "[], (cast(Object) filename).classinfo.name);

@@ -49,6 +49,8 @@ static this() {
     {
       string hasToBeX;
       if (!t2.gotIdentifier(hasToBeX) || hasToBeX != "x"[]) return null;
+      IType bogus;
+      if (rest(t2, "type", &bogus)) return null;
     }
     if (!rest(t2, "tree.expr _tree.expr.arith"[], &len_ex)) return null;
     auto backup_len = len_ex;

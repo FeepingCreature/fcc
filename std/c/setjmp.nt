@@ -10,7 +10,8 @@ platform(*-mingw32) {
 platform(!*-mingw32) {
   alias __jmp_buf = size_t x 8;
   struct __sigset_t {
-    (size_t x (1024 / (8*size-of size_t))) __val;
+    alias size = 1024 / (8 * size-of size_t);
+    (size_t x size) __val;
   }
   struct jmp_buf {
     __jmp_buf __jmpbuf;

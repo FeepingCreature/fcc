@@ -1,17 +1,9 @@
 module hello;
 
-import std.fun;
-
-import std.socket, std.string, std.stream, std.random, std.util, std.process, std.getopt;
-
 void main() {
   writeln "Hello World";
   using "Hello there. " writeln();
   auto add = \(int a) -> new \(int b) { return a+b; };
   int x = (add 2 3);
   writeln "$x";
-  int[] mew;
-  using [2, 3, 4] mew = map \(int x) -> x * 2 #.eval[];
-  // auto mew = [2, 3, 4].map \(int x) -> x*2;
-  writeln "$mew";
 }
