@@ -212,6 +212,10 @@ static this() {
 
 import tools.base: This, This_fn, rmSpace, PTuple, Stuple, ptuple, stuple;
 
+interface IArrayIterator {
+  Expr castToArray(Expr ex);
+}
+
 import ast.fold, ast.conditionals;
 class ForIter(I) : Type, I {
   override int opEquals(IType it) {
@@ -368,13 +372,12 @@ class ForIter(I) : Type, I {
     Cond testAdvance(LValue lv) {
       auto res = itertype.testAdvance(subexpr(castToWrapper(lv).dup));
       if (autofree) {
-        // res || ('ex.subiter.extra.free', false)
-        // logln("btw 1 ex is type "[], subexpr(castToWrapper(lv)).valueType());
-        auto fi = fastcast!(ForIter!(RichIterator)) (subexpr(castToWrapper(lv)).valueType());
-        auto sub = fi.castToWrapper(subexpr(castToWrapper(lv)));
+        logln("btw 1 ex is type "[], subexpr(castToWrapper(lv)).valueType());
+        auto ai = fastcast!(IArrayIterator) (subexpr(castToWrapper(lv)).valueType());
+        auto sub = ai.castToArray(subexpr(castToWrapper(lv)));
         // logln("auto-free() of type "[], iparse!(Expr, "mew"[], "tree.expr"[])(`ex.extra`, "ex"[], sub).valueType());
         Statement freest = iparse!(Statement, "autofree_exec"[], "tree.stmt"[])
-                                  (`ex.extra.free();`, "ex"[], sub);
+                                  (`ex.free();`, "ex"[], sub);
         res = fastalloc!(OrOp)(res, fastalloc!(StatementAndCond)(freest, cFalse));
       }
       return res;

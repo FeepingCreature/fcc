@@ -9,34 +9,49 @@ import
   ast.fold, ast.namespace, ast.arrays, ast.static_arrays,
   ast.tuples, ast.tuple_access, ast.slice;
 
-class ArrayIterator : Type, RichIterator {
+class ArrayIterator : Type, RichIterator, IArrayIterator {
   Array arr;
-  this(Array arr) { this.arr = arr; }
+  Tuple tup;
+  this(Array arr) { this.arr = arr; tup = mkTuple(arr, Single!(SysInt)); }
   override {
+    Expr castToArray(Expr ex) {
+      return mkTupleIndexAccess(reinterpret_cast(tup, ex), 0);
+    }
     IType elemType() { return arr.elemType; }
-    string toString() { return Format("ArrayIterator[", arr, "]"); }
-    int size() { return arr.size; }
-    string mangle() { return qformat("array_iterate_", arr.mangle()); }
-    ubyte[] initval() { return arr.initval(); }
+    string toString() { return Format("ArrayIterator[", tup, "]"); }
+    int size() { return tup.size; }
+    string mangle() { return qformat("array_iterate_", tup.mangle()); }
+    ubyte[] initval() { return tup.initval(); }
     
     Cond testAdvance(LValue lv) {
-      auto arrlv = reinterpret_cast(arr, lv);
-      auto next = mkArraySlice(arrlv, mkInt(1), getArrayLength(arrlv));
-      auto st = mkAssignment(arrlv, next);
-      auto cd = fastalloc!(ExprWrap)(getArrayLength(arrlv));
+      auto entries = getTupleEntries(reinterpret_cast(tup, lv));
+      auto arrlv = entries[0], idxlv = entries[1];
+      auto next = lookupOp("+", idxlv, mkInt(1));
+      auto st = mkAssignment(idxlv, next);
+      Cond cd = fastalloc!(Compare)(idxlv, "<", getArrayLength(arrlv));
       return new StatementAndCond(st, cd);
     }
     Expr currentValue(Expr ex) {
-      return lookupOp("index", reinterpret_cast(arr, ex), mkInt(0));
+      auto entries = getTupleEntries(reinterpret_cast(tup, ex));
+      return lookupOp("index", entries[0], entries[1]);
     }
     Expr length(Expr ex) {
-      return lookupOp("-", getArrayLength(reinterpret_cast(arr, ex)), mkInt(1));;
+      auto entries = getTupleEntries(reinterpret_cast(tup, ex));
+      return lookupOp("-",
+        getArrayLength(entries[0]),
+        lookupOp("+", mkInt(1), entries[1]));
     }
     Expr index(Expr ex, Expr pos) {
-      return lookupOp("index", reinterpret_cast(arr, ex), lookupOp("+", pos, mkInt(1)));
+      auto entries = getTupleEntries(reinterpret_cast(tup, ex));
+      return lookupOp("index",
+        entries[0],
+        lookupOp("+", pos, lookupOp("+", entries[1], mkInt(1))));
     }
     Expr slice(Expr ex, Expr from, Expr to) {
-      return reinterpret_cast(this, mkArraySlice(reinterpret_cast(arr, ex), from, to));
+      auto entries = getTupleEntries(reinterpret_cast(tup, ex));
+      return reinterpret_cast(this, mkTupleExpr(
+        mkArraySlice(entries[0], from, to),
+        entries[1]));
     }
   }
 }
@@ -80,7 +95,7 @@ static this() {
     auto arr = fastcast!(Array) (evt);
     if (!arr) return null;
     auto itr = new ArrayIterator(arr);
-    ex = tmpize_maybe(ex, (Expr ex) { return mkArraySlice(ex, mkInt(-1), getArrayLength(ex)); });
+    ex = mkTupleExpr(ex, mkInt(-1));
     return reinterpret_cast(itr, ex);
   };
 }
