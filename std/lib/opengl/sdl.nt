@@ -93,4 +93,5 @@ class SDLWindow : GLWindow {
     if (charcode < keyPressed.length) return keyPressed[charcode];
     return false;
   }
+  void close() { SDL_Quit(); }
 }
