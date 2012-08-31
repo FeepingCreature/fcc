@@ -380,10 +380,14 @@ mixin DefaultParser!(gotSuffix, "tree.expr.suffix"[], "240532"[], "suffix"[]);
 
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    auto vt = ex.valueType();
-    auto ms = fastcast!(ModeSpace) (vt);
+    auto ms = fastcast!(ModeSpace) (ex.valueType());
     if (!ms || !ms.firstParam) return null;
     // logln("to == "[], ms.firstParam.valueType(), "[], from == "[], ex);
     return reinterpret_cast(ms.firstParam.valueType(), ex);
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    auto ms = fastcast!(ModeSpace) (ex.valueType());
+    if (!ms || !ms.supmode) return null;
+    return reinterpret_cast(ms.supmode, ex);
   };
 }
