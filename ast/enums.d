@@ -3,9 +3,10 @@ module ast.enums;
 import parseBase;
 import
   ast.base, ast.types, ast.namespace, ast.casting, ast.literals,
-  ast.math, ast.opers, ast.fold, ast.fun, ast.arrays, ast.modules;
+  ast.math, ast.opers, ast.fold, ast.fun, ast.arrays, ast.modules,
+  ast.prefixfun;
 
-class Enum : Namespace, IType, Named, ExprLikeThingy {
+class Enum : Namespace, RelNamespace, IType, Named, ExprLikeThingy {
   string name;
   IType base;
   this(string n, IType b) {
@@ -34,6 +35,15 @@ class Enum : Namespace, IType, Named, ExprLikeThingy {
     bool isPointerLess() { return base.isPointerLess(); }
     bool isComplete() { return true; }
     mixin TypeDefaults!(false, true);
+    Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
+      if (base && name == "toString") {
+        auto res = fastcast!(Function) (sup.lookup(getToStringFunName()));
+        if (!res) return null; // huh
+        return fastalloc!(PrefixFunction)(base, res);
+      }
+      return null;
+    }
+    bool isTempNamespace() { return true; }
     Object lookup(string name, bool local = false) {
       if (name == "parse") {
         return sup.lookup(getParseFunName());

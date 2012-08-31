@@ -155,15 +155,15 @@ Expr simpleFormat(Expr ex) {
       });
     });
   }
-  if (auto str = fastcast!(Structure) (ex.valueType())) {
-    try return iparse!(Expr, "struct_tostring", "tree.expr")
-                      (`evaluate ex.toString`, "ex"[], ex);
-    catch (Exception ex) { return null; } // myeh.
-  }
   auto obj = fastcast!(IType) (sysmod.lookup("Object"));
   if (gotImplicitCast(ex, obj, (IType it) { return test(it == obj); })) {
     return iparse!(Expr, "gen_obj_toString_call", "tree.expr")
                   (`obj?.toString():"null"`, "obj"[], ex);
+  }
+  if (showsAnySignOfHaving(ex, "toString")) {
+    try return iparse!(Expr, "thing_tostring", "tree.expr")
+                      (`evaluate ex.toString`, "ex"[], ex);
+    catch (Exception ex) { logln("agh :( ", ex); return null; } // myeh.
   }
   if (fastcast!(IType) (sysmod.lookup("bool")) == type) {
     return iparse!(Expr, "bool_tostring", "tree.expr")

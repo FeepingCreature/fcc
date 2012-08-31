@@ -60,7 +60,7 @@ const string[] quicklist = [
   "ast.oop.ClassRef"[],
   "ast.oop.IntfRef"[],
   "ast.casting.ReinterpretCast!(CValue).ReinterpretCast"[],
-  "ast.mode.PrefixCall"[],
+  "ast.prefixfun.PrefixCall"[],
   "ast.arrays.ArrayLength!(MValue).ArrayLength"[],
   "ast.base.PlaceholderToken"[],
   "ast.math.AsmFloatBinopExpr"[],

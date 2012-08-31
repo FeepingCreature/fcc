@@ -1,0 +1,10 @@
+module test126;
+
+enum Foo { Bar, Baz }
+
+void main() {
+  Foo f = Foo.Bar;
+  writeln "$(f.toString()), $f";
+  assert(f.toString() == "Bar");
+  assert("$f" == "Bar");
+}

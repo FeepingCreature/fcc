@@ -2,7 +2,7 @@
 module ast.propcall;
 
 import
-  ast.base, ast.mode, ast.namespace, ast.fun, ast.parse,
+  ast.base, ast.mode, ast.namespace, ast.fun, ast.parse, ast.prefixfun,
   ast.pointer, ast.nestfun, ast.casting, ast.aliasing, ast.pointer;
 
 bool incompat(IType a, IType b) {

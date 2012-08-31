@@ -763,8 +763,8 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     
     auto rn = fastcast!(RelNamespace) (space);
   retry:
-    if (!ex) {
-      auto ns = fastcast!(Namespace) (space);
+    auto ns = fastcast!(Namespace) (space);
+    if (!ex || !rn) {
       Object m;
       if (ns) m = ns.lookup(member, true);
       if (!m && rn) m = rn.lookupRel(member, null);
