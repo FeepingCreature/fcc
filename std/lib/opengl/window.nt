@@ -53,3 +53,5 @@ abstract class GLWindow {
   bool[] key-held, key-pressed, key-released;
   CallSet!string onTextInput;
 }
+
+GLWindow glwindow;

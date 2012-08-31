@@ -1,0 +1,126 @@
+module std.lib.opengl.texture;
+
+import std.lib.opengl.(,window);
+
+interface ITexture {
+  void register();
+  void bind();
+  void upload();
+  void coord(vec2f);
+  vec2f getSize();
+}
+
+enum TexMode { MipMapped, Linear, Nearest }
+
+void fast_vec4f_to_ints(vec4f[] vecs, int[] ints) {
+  pragma(fast);
+  for (int i = 0; i < vecs.length; ++i) {
+    ref v = vecs[i];
+    ref res = ints[i];
+    xmm[4] = v * vec4f(255);
+    asm `cvttps2dq %xmm4, %xmm5`;
+    vec4i iv = vec4i:xmm[5];
+    res = iv.x | iv.y << 8 | iv.z << 16 | iv.w << 24;
+    /*asm `movsbl 4(%esp), %eax`;
+    asm `movsbl 8(%esp), %ecx`;
+    asm `shll $8, %eax`;
+    asm `shll $16, %ecx`;
+    asm `orl %ecx, %eax`;
+    asm `movsbl (%esp), %ecx`;
+    asm `movsbl 12(%esp), %edx`;
+    asm `orl %ecx, %eax`;
+    asm `shll $24, %edx`;
+    asm `orl %edx, %eax`;
+    asm `movl %eax, (%esp)`;
+    res = iv.x;*/
+  }
+}
+
+class Texture : ITexture {
+  int width, height;
+  alias size = vec2i(width, height);
+  vec4f[] data;
+  byte[] translated_data;
+  TexMode mode;
+  void init() { mode = TexMode.MipMapped; register; }
+  void init(int w, h, vec4f[] data) { init(); this.(width,height,data) = (w,h,data); }
+  void init(int w, h, vec3f[] data) this.init(w, h, vec4f[]: data);
+  void init(int w, h, vec4f delegate(float, float) dg) {
+    vec4f[auto~] data;
+    float xf = 1f / w, yf = 1f / h;
+    for int y <- 0..h for int x <- 0..w {
+      float fx = (x + 0.5f) * xf;
+      float fy = (y + 0.5f) * yf;
+      data ~= dg(fx, fy);
+    }
+    init(w, h, data[]);
+    upload;
+    cleanup;
+  }
+  void init(int w, h, vec3f delegate(float, float) dg) {
+    init(w, h, \(float u,v) { return vec4f(dg(u,v).(x,y,z,1)); });
+  }
+  GLuint id;
+  void register() {
+    glwindow.addCallback &upload;
+  }
+  void cleanup() {
+    if (data) data.free;
+    if (translated_data) translated_data.free;
+  }
+  void bind() using mode GL { TEXTURE_2D.BindTexture id; }
+  void upload() using mode GL {
+    if (!id) GenTextures(1, &id);
+    bind;
+    using TEXTURE_2D {
+      if (!translated_data) {
+        auto data = new int[] this.data.length;
+        fast_vec4f_to_ints(this.data, data);
+        translated_data = byte[]: data;
+        if (!this.data) translated_data = null;
+      }
+      onExit translated_data.free;
+      
+      auto param2 = LINEAR;
+      if (mode == TexMode.Nearest) param2 = NEAREST;
+      
+      alias tup = (RGBA, UNSIGNED_BYTE, void*:translated_data.ptr);
+      if (mode == TexMode.MipMapped) {
+        gluBuild2DMipmaps (4, size, tup);
+        TEXTURE_MIN_FILTER.TexParameteri LINEAR_MIPMAP_LINEAR;
+      } else {
+        TexImage2D (0, 4, size, 0, tup);
+        TEXTURE_MIN_FILTER.TexParameteri param2;
+      }
+      TEXTURE_MAG_FILTER.TexParameteri param2;
+    }
+  }
+  void coord(vec2f v) { glTexCoord2f v; }
+  vec2f getSize() { return vec2f(width, height); }
+}
+
+class SubTexture : ITexture {
+  ITexture sup;
+  vec2i from, size;
+  string toString() return "SubTexture($sup, $from +$size)";
+  void register() fail;
+  void bind() sup.bind;
+  void upload() fail;
+  void coord(vec2f v) {
+    v *= size;
+    v += from;
+    v /= sup.getSize();
+    glTexCoord2f v;
+  }
+  vec2f getSize() { return size; }
+  void overwrite(vec4f[] data) {
+    if (data.length != size.(x*y)) fail "Bad data length for overwriting $this ($(data.length))";
+    using mode GL {
+      gl-check;
+      sup.bind;
+      gl-check;
+      TEXTURE_2D.TexSubImage2D(0, from, size, RGBA, FLOAT, data.ptr);
+      gl-check;
+    }
+  }
+}

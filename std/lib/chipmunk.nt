@@ -1,0 +1,25 @@
+module std.lib.chipmunk;
+
+public import c.chipmunk.chipmunk;
+
+defmode cp "prefix cp";
+pragma(lib, "chipmunk");
+
+// bloody inline functions
+void cpSpaceSetGravity(cpSpace* space, vec2d value) {
+  space.gravity = cpVect:value;
+}
+void cpShapeSetFriction(cpShape* shape, float value) {
+  if (true && shape.body) cpBodyActivate(shape.body);
+  shape.u = value;
+}
+void cpShapeSetElasticity(cpShape* shape, float value) {
+  if (false && shape.body) cpBodyActivate(shape.body);
+  shape.e = value;
+}
+cpVect cpBodyGetPos(cpBody* body) {
+  return body.p;
+}
+cpVect cpBodyGetVel(cpBody* body) {
+  return body.v;
+}

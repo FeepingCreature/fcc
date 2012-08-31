@@ -7,6 +7,7 @@ defmode sfSprite x sfModeString;
 defmode sfFont x sfModeString;
 defmode sfString x sfModeString;
 defmode sfMusic x sfModeString;
+defmode sfClock x sfModeString;
 
 public import c.SFML.(Audio, Graphics, Graphics.Font);
 pragma(lib, "csfml-window");

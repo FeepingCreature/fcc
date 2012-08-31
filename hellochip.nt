@@ -1,0 +1,56 @@
+module hellochip;
+
+import std.lib.chipmunk;
+
+int main() using mode cp {
+  // cpVect is a 2D vector and cpv() is a shortcut for initializing them.
+  auto gravity = vec2d(0, -100);
+  
+  // Create an empty space.
+  auto space = SpaceNew();
+  onExit space.SpaceFree;
+  space.SpaceSetGravity gravity;
+  
+  // Add a static line segment shape for the ground.
+  // We'll make it slightly tilted so the ball will roll off.
+  // We attach it to space->staticBody to tell Chipmunk it shouldn't be movable.
+  auto ground = SegmentShapeNew(space.staticBody, cpVect:vec2d(-20, 5), cpVect:vec2d(20, -5), 0);
+  onExit ground.ShapeFree;
+  ground.ShapeSetFriction 1;
+  space.SpaceAddShape ground;
+  
+  // Now let's make a ball that falls onto the line and rolls off.
+  // First we need to make a cpBody to hold the physical properties of the object.
+  // These include the mass, position, velocity, angle, etc. of the object.
+  // Then we attach collision shapes to the cpBody to give it a size and shape.
+  
+  float radius = 5, mass = 1;
+  
+  // The moment of inertia is like mass for rotation
+  // Use the cpMomentFor*() functions to help you approximate it.
+  auto moment = MomentForCircle(mass, 0, radius, cpVect:vec2d(0));
+  
+  // The cpSpaceAdd*() functions return the thing that you are adding.
+  // It's convenient to create and add an object in one line.
+  auto ballBody = space.SpaceAddBody BodyNew(mass, moment);
+  onExit ballBody.BodyFree();
+  ballBody.BodySetPos(cpVect:vec2d(0, 15));
+  
+  // Now we create the collision shape for the ball.
+  // You can create multiple collision shapes that point to the same body.
+  // They will all be attached to the body and move around to follow it.
+  auto ballShape = space.SpaceAddShape(CircleShapeNew(ballBody, radius, cpVect:vec2d(0)));
+  onExit ballShape.ShapeFree();
+  ballShape.ShapeSetFriction(0.7);
+  
+  // Now that it's all set up, we simulate all the objects in the space by
+  // stepping forward through time in small increments called steps.
+  // It is *highly* recommended to use a fixed size time step.
+  double timeStep = 1f/60;
+  for (double time = 0; time < 2; time += timeStep){
+    auto pos = ballBody.BodyGetPos(), vel = ballBody.BodyGetVel();
+    writeln "Time is $time, ballBody is at $(pos.(x, y)). Its velocity is $(vel.(x, y))";
+    space.SpaceStep timeStep;
+  }
+  return 0;
+}
