@@ -163,7 +163,7 @@ Expr simpleFormat(Expr ex) {
   if (showsAnySignOfHaving(ex, "toString")) {
     try return iparse!(Expr, "thing_tostring", "tree.expr")
                       (`evaluate ex.toString`, "ex"[], ex);
-    catch (Exception ex) { logln("agh :( ", ex); return null; } // myeh.
+    catch (Exception ex) { return null; } // myeh.
   }
   if (fastcast!(IType) (sysmod.lookup("bool")) == type) {
     return iparse!(Expr, "bool_tostring", "tree.expr")

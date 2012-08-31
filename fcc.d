@@ -155,6 +155,22 @@ static this() {
   };
 }
 alias ast.parse.startsWith startsWith;
+
+// from ast.namespace
+extern(C) bool C_showsAnySignOfHaving(Expr ex, string thing) {
+  if (fastcast!(MyPlaceholderExpr) (ex)) return false; // nuh-uh.
+  auto it = ex.valueType();
+  if (Single!(Void) == it) return false;
+  if (auto ns = fastcast!(Namespace) (it)) {
+    if (ns.lookup(thing)) return true;
+  }
+  RelNamespace rns;
+  if (auto srns = fastcast!(SemiRelNamespace) (it)) rns = srns.resolve();
+  if (!rns) rns = fastcast!(RelNamespace) (it);
+  if (rns && rns.lookupRel(thing, ex)) return true;
+  return false;
+}
+
 // from ast.fun
 static this() {
   // Assumption: SysInt is size_t.
