@@ -133,7 +133,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
   this() { sup = namespace(); }
   override {
     int framesize() { return (fastcast!(ScopeLike)~ sup).framesize(); }
-    string toString() { return Format("ModeSpace ("[], firstParam?firstParam.valueType():null, "[]) <- "[], sup); }
+    string toString() { return Format("ModeSpace ("[], firstParam?firstParam.valueType():null, ")" /*" <- ", sup*/); }
     bool isTempNamespace() { return true; }
     int size() {
       if (firstParam) return firstParam.valueType().size;

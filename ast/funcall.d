@@ -150,7 +150,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   foreach (i, tuple; params) {
     auto type = tuple.type, name = tuple.name;
     type = resolveType(type);
-    if (cast(Variadic) type) {
+    if (fastcast!(Variadic) (type)) {
       foreach (ref rest_arg; args)
         if (!gotImplicitCast(rest_arg, (IType it) { return !fastcast!(StaticArray) (it); }))
           throw new Exception(Format("Invalid argument to variadic: ", rest_arg));
@@ -224,7 +224,19 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
         goto retry;
       } else {
         if (probe) return false;
-        text.failparse("Couldn't match ", backup.valueType(), " to function call '", info(), "', ", params[i], " (", i, "); tried ", relevant(tried));
+        string formatlines(IType[] types) {
+          string res;
+          foreach (i, type; types)
+            res ~= qformat(" ", i, ": ", type, "\n");
+          if (!res) res = " none\n";
+          res = res[0..$-1];
+          return res;
+        }
+        text.failparse("Couldn't match\n",
+          "  ", backup.valueType(), "\n",
+          "to function call '", info(), "' (", i, "):\n"
+          "  ", params[i], "\n",
+          "tried:\n", formatlines(relevant(tried)));
       }
     }
     res ~= ex;
