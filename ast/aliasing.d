@@ -111,7 +111,10 @@ class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
         if (!ta2) return false;
         return name == ta2.name && base == ta2.base;
       }
-      return base.opEquals(resolveType(ty));
+      // try this first!
+      if (ta2 && name == ta2.name && base == ta2.base) return true;
+      // then fall back to resolved check
+      return resolveType(base).opEquals(resolveType(ty));
     }
     IType proxyType() { if (strict) return null; return base; }
     bool canEncode() {
