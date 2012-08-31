@@ -205,15 +205,60 @@ class WithStmt : Namespace, Statement, ScopeLike {
   }
 }
 
+import ast.enums;
+class EnumWrapperType : RelNamespace, IType {
+  Enum en;
+  this(Enum en) { this.en = en; }
+  override {
+    string mangle() { return "enwrap_"~en.mangle(); }
+    int size() { return 0; }
+    ubyte[] initval() { return null; }
+    IType proxyType() { return null; }
+    bool isPointerLess() { return true; }
+    bool isComplete() { return true; }
+    mixin TypeDefaults!(false, true);
+    Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
+      if (base.valueType() !is this) {
+        logln("assumefail ", base);
+        fail;
+      }
+      return en.lookup(name);
+    }
+    bool isTempNamespace() { return true; }
+  }
+}
+
+class EnumWrapper : Expr {
+  Enum en;
+  this(Enum en) { this.en = en; }
+  mixin defaultIterate!();
+  override {
+    EnumWrapper dup() { return this; }
+    IType valueType() { return fastalloc!(EnumWrapperType)(en); }
+    void emitAsm(AsmFile af) { }
+  }
+}
+
 import tools.log, ast.tuple_access, ast.pointer;
 Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
+  IType it;
   string t3;
-  if (!(rest(t2, "tree.expr _tree.expr.arith", &ex) && ( t3 = t2, true ) && t3.accept("{")) && (t2 = text, true) && !rest(t2, "tree.expr", &ex))
-    t2.failparse("Couldn't match with-expr");
+  if (rest(t2, "type", &it) && fastcast!(Enum) (it)) {
+  } else if (rest(t2, "tree.expr _tree.expr.arith", &ex) &&
+    (t3 = t2, true) && t3.accept("{")) {
+  } else {
+    t2 = text;
+    if (rest(t2, "tree.expr", &ex)) {
+    } else t2.failparse("Couldn't match with-expr or with-enum");
+  }
   auto backup = namespace();
   scope(exit) namespace.set(backup);
+  
+  if (auto en = fastcast!(Enum) (it)) {
+    ex = fastalloc!(EnumWrapper)(en);
+  }
   
   // if (fastcast!(Pointer) (ex.valueType()))
   //   ex = fastalloc!(DerefExpr)(ex);
