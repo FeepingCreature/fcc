@@ -36,7 +36,19 @@ macro("tree.stmt.switchover", "411", "switch") `
                       (make-if check '(my-parse-stmts))))
                   '(last
                     (def 'match-boolean-base (lambda '()
-                      '(substitute cd ph (got-implicit-cast ty (parse-expr)))))
+                      '(last
+                        (def 'ex (parse-expr))
+                        (def 'exty (type-of ex))
+                        (if (is-const-int-range exty)
+                          '(last
+                            (def 'rangelist (access-const-int-range exty))
+                            (def 'from (index rangelist 0))
+                            (def 'to (index rangelist 1))
+                            (def 'rangecond (substitute cd ph (reinterpret-cast ty (make-int from))))
+                            (for (add from 1) (add to 1) 'i '(def 'rangecond
+                              (make-or rangecond (substitute cd ph (reinterpret-cast ty (make-int i))))))
+                            rangecond)
+                          '(substitute cd ph (got-implicit-cast ty ex))))))
                     (def 'match-boolean-and (lambda '()
                       '(last
                         (def 'cd1 (match-boolean-base))

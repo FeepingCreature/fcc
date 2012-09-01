@@ -29,6 +29,12 @@ class Context {
   void add(string name, Entity ent) { defs[name] = ent; }
 }
 
+class PassthroughContext : Context {
+  this(Context c) { super(c); }
+  void addDirectly(string name, Entity ent) { super.add(name, ent); }
+  void add(string name, Entity ent) { sup.add(name, ent); }
+}
+
 abstract class Entity {
   Entity eval(Context);
 }

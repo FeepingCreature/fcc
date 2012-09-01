@@ -4,7 +4,7 @@ import ast.tenth;
 import parseBase, ast.base, ast.literal_string, ast.tuples, ast.fun, ast.funcall,
        ast.namespace, ast.tuple_access, ast.variable, ast.vardecl, ast.scopes,
        ast.aggregate, ast.assign, ast.ifstmt, ast.literals, ast.pointer, ast.casting,
-       ast.opers, ast.conditionals, ast.returns, ast.nulls;
+       ast.opers, ast.conditionals, ast.returns, ast.nulls, ast.iterator;
 
 import tools.base: This;
 
@@ -454,10 +454,20 @@ extern(C) void fcc_initTenth() {
     foreach (i, ex; exprs) list[i] = fastalloc!(ItrEntity)(ex);
     return fastalloc!(List)(list);
   }));
+  rootctx.add("is-const-int-range", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'is-const-int-range': 1 expected");
+    mixin(chaincast("ty: Arg to 'is-const-int-range': args[0]->TypeEntity: %.ty"));
+    return fastcast!(ConstIntRange)(resolveType(ty))?NonNilEnt:NilEnt;
+  }));
+  rootctx.add("access-const-int-range", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'access-const-int-range': 1 expected");
+    mixin(chaincast("ty: Arg to 'access-const-int-range': args[0]->TypeEntity: %.ty"));
+    auto cr = fastcast!(ConstIntRange)(resolveType(ty));
+    return fastalloc!(List)([fastalloc!(Integer)(cr.from), fastalloc!(Integer)(cr.to)]);
+  }));
   rootctx.add("for", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 3 && args.length != 4) tnte("Wrong number of args to 'for': 3 or 4 expected");
-    auto loopct = new Context;
-    loopct.sup = ctx;
+    auto loopct = new PassthroughContext(ctx);
     Entity[] res;
     if (args.length == 4) {
       mixin(chaincast(" from:  First arg to 'for': args[0]->Integer: %.value"));
@@ -465,7 +475,7 @@ extern(C) void fcc_initTenth() {
       mixin(chaincast("ident:  Third arg to 'for': args[2]->Token: %.name"));
       res = new Entity[to-from];
       for (int i = from; i < to; ++i) {
-        loopct.add(ident, fastalloc!(Integer)(i));
+        loopct.addDirectly(ident, fastalloc!(Integer)(i));
         res[i] = args[3].eval(loopct);
       }
     } else {
@@ -473,7 +483,7 @@ extern(C) void fcc_initTenth() {
       mixin(chaincast("ident: Second arg to 'for': args[1]->Token: %.name"));
       res = new Entity[list.length];
       foreach (i, ent; list) {
-        loopct.add(ident, ent);
+        loopct.addDirectly(ident, ent);
         res[i] = args[2].eval(loopct);
       }
     }
@@ -531,6 +541,12 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse(str);
     assert(false);
   }));
+  ctx.add("dump", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    logln("  dump  ");
+    logln(t2.nextText());
+    logln(args);
+    return NonNilEnt;
+  }));
   ctx.add("parse-ident", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length) tnte("Too many arguments to parse-ident: 0 expected");
     string ident;
@@ -557,8 +573,16 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, match, &ex)) t2.failparse("Expression expected");
     return fastalloc!(ItrEntity)(ex);
   }));
+  ctx.add("can-implicit-cast", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'can-implicit-cast', expected type expr");
+    mixin(chaincast("ty: First argument for 'can-implicit-cast': args[0]->TypeEntity: %.ty"));
+    mixin(chaincast("ex: Second argument for 'can-implicit-cast': args[1]->ItrEntity: %.itr->Expr"));
+    if (gotImplicitCast(ex, ty, (IType it) { return test(ty == it); }))
+      return NonNilEnt;
+    else return NilEnt;
+  }));
   ctx.add("got-implicit-cast", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
-    if (args.length != 2) tnte("Wrong number of args to 'got-implicit-cast' expected type expr");
+    if (args.length != 2) tnte("Wrong number of args to 'got-implicit-cast', expected type expr");
     mixin(chaincast("ty: First argument for 'got-implicit-cast': args[0]->TypeEntity: %.ty"));
     mixin(chaincast("ex: Second argument for 'got-implicit-cast': args[1]->ItrEntity: %.itr->Expr"));
     auto backupex = ex;
