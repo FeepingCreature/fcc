@@ -116,6 +116,7 @@ void setupSysmods() {
     // maybe just a lil' copypaste
     template append3(T) {
       T[auto ~] append3(T[auto ~]* l, T[] r) {
+        // printf("hi, append3 here - incoming %d, add %d\n", l.length, r.length);
         if !r.length return *l;
         if (l.capacity < l.length + r.length) {
           auto size = l.length + r.length, size2 = l.length * 2;

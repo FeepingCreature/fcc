@@ -178,16 +178,25 @@ static this() {
   });
   defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
     auto e1vt = resolveType(ex1.valueType());
-    if (!isExtArray(e1vt)) return null;
-    auto comparison = fastalloc!(Array)((fastcast!(ExtArray)~ e1vt).elemType);
+    auto ea = fastcast!(ExtArray) (e1vt);
+    if (!ea) return null;
+    auto comparison = fastalloc!(Array)(ea.elemType);
+    auto ex2test = ex2;
     if (!gotImplicitCast(ex2, comparison, (IType it) {
       return test(comparison == it);
     })) return null;
+    {
+      auto et = resolveType(ea.elemType);
+      auto backup = ex2test;
+      if (gotImplicitCast(ex2test, et, (IType it) { return !!(it == et); })) {
+        throw new Exception(Format("Concat error: '", backup,
+          "' can be interpreted as both ", et, " and ", comparison, ". "));
+      }
+    }
     if (!fastcast!(LValue) (ex1)) {
       logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: "[], ex1, ex2);
       fail;
     }
-    auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR"[], "tree.expr"[])
                     (`sap!T tup`,
@@ -202,15 +211,15 @@ static this() {
   });
   defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
     auto e1vt = resolveType(ex1.valueType());
-    if (!isExtArray(e1vt)) return null;
-    auto et = resolveType((fastcast!(ExtArray)~ e1vt).elemType);
+    auto ea = fastcast!(ExtArray) (e1vt);
+    if (!ea) return null;
+    auto et = resolveType(ea.elemType);
     if (!gotImplicitCast(ex2, et, (IType it) { return !!(it == et); }))
       return null;
     if (!fastcast!(LValue) (ex1)) {
       logln("Cannot concatenate ext+elem: ext is not lvalue; cannot invalidate: "[], ex1, ex2);
       fail;
     }
-    auto ea = fastcast!(ExtArray)~ e1vt;
     if (ea.freeOnResize) {
       return iparse!(Expr, "concat_into_ext_fOR_elem"[], "tree.expr"[])
                     (`sap!T tup`, namespace(),
