@@ -180,39 +180,6 @@ static this() {
     auto e1vt = resolveType(ex1.valueType());
     auto ea = fastcast!(ExtArray) (e1vt);
     if (!ea) return null;
-    auto comparison = fastalloc!(Array)(ea.elemType);
-    auto ex2test = ex2;
-    if (!gotImplicitCast(ex2, comparison, (IType it) {
-      return test(comparison == it);
-    })) return null;
-    {
-      auto et = resolveType(ea.elemType);
-      auto backup = ex2test;
-      if (gotImplicitCast(ex2test, et, (IType it) { return !!(it == et); })) {
-        throw new Exception(Format("Concat error: '", backup,
-          "' can be interpreted as both ", et, " and ", comparison, ". "));
-      }
-    }
-    if (!fastcast!(LValue) (ex1)) {
-      logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: "[], ex1, ex2);
-      fail;
-    }
-    if (ea.freeOnResize) {
-      return iparse!(Expr, "concat_into_ext_fOR"[], "tree.expr"[])
-                    (`sap!T tup`,
-                    namespace(),
-                    "T"[], ea.elemType, "tup"[], mkTupleExpr(fastalloc!(RefExpr)(fastcast!(CValue)(ex1)), ex2), "sap"[], sysmod.lookup("append3"[]));
-    } else {
-      return iparse!(Expr, "concat_into_ext"[], "tree.expr"[])
-                    (`sap!T tup`,
-                    namespace(),
-                    "T"[], ea.elemType, "tup"[], mkTupleExpr(fastalloc!(RefExpr)(fastcast!(CValue)(ex1)), ex2), "sap"[], sysmod.lookup("append2"[]));
-    }
-  });
-  defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
-    auto e1vt = resolveType(ex1.valueType());
-    auto ea = fastcast!(ExtArray) (e1vt);
-    if (!ea) return null;
     auto et = resolveType(ea.elemType);
     if (!gotImplicitCast(ex2, et, (IType it) { return !!(it == et); }))
       return null;
@@ -228,6 +195,31 @@ static this() {
       return iparse!(Expr, "concat_into_ext_elem"[], "tree.expr"[])
                     (`sap!T tup`, namespace(),
                     "T"[], ea.elemType, "tup"[], mkTupleExpr(fastalloc!(RefExpr)(fastcast!(CValue)(ex1)), ex2), "sap"[], sysmod.lookup("append2e"[]));
+    }
+  });
+  defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
+    auto e1vt = resolveType(ex1.valueType());
+    auto ea = fastcast!(ExtArray) (e1vt);
+    if (!ea) return null;
+    auto comparison = fastalloc!(Array)(ea.elemType);
+    auto ex2test = ex2;
+    if (!gotImplicitCast(ex2, comparison, (IType it) {
+      return test(comparison == it);
+    })) return null;
+    if (!fastcast!(LValue) (ex1)) {
+      logln("Cannot concatenate ext+array: ext is not lvalue; cannot invalidate: "[], ex1, ex2);
+      fail;
+    }
+    if (ea.freeOnResize) {
+      return iparse!(Expr, "concat_into_ext_fOR"[], "tree.expr"[])
+                    (`sap!T tup`,
+                    namespace(),
+                    "T"[], ea.elemType, "tup"[], mkTupleExpr(fastalloc!(RefExpr)(fastcast!(CValue)(ex1)), ex2), "sap"[], sysmod.lookup("append3"[]));
+    } else {
+      return iparse!(Expr, "concat_into_ext"[], "tree.expr"[])
+                    (`sap!T tup`,
+                    namespace(),
+                    "T"[], ea.elemType, "tup"[], mkTupleExpr(fastalloc!(RefExpr)(fastcast!(CValue)(ex1)), ex2), "sap"[], sysmod.lookup("append2"[]));
     }
   });
   defineOp("~"[], delegate Expr(Expr ex1, Expr ex2) {
