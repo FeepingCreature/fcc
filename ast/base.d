@@ -11,6 +11,11 @@ const string EXT = ".nt";
 
 string path_prefix, platform_prefix;
 
+bool doBreak;
+void breakpoint() {
+  if (doBreak) asm { int 3; }
+}
+
 bool isWindoze() {
   return platform_prefix.find("mingw"[]) != -1;
 }

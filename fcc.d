@@ -1076,6 +1076,10 @@ int main(string[] args) {
   ar = processCArgs(ar);
   while (ar.length) {
     auto arg = ar.take();
+    if (arg == "-break") {
+      doBreak = true;
+      continue;
+    }
     if (arg == "-o") {
       output = ar.take();
       continue;
