@@ -151,7 +151,7 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!cont(t2, &from)) return null;
   if (!t2.accept(".."[])) return null;
-  if (!cont(t2, &to))
+  if (!rest(t2, "tree.expr ,tree.expr.arith", &to))
     t2.failparse("Unable to acquire second half of range def"[]);
   text = t2;
   bool notATuple(IType it) { return !fastcast!(Tuple) (it); }
