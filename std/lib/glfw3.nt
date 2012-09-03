@@ -78,24 +78,26 @@ class GLFWWindow : GLWindow {
       set Key:$ Key.A + k - GLFW_KEY_A;
     
     import std.macros.switchover;
-    switch int i over i == k {
-      case GLFW_KEY_ENTER: set Key.Return;
-      case GLFW_KEY_RIGHT: set Key.RightArrow;
-      case GLFW_KEY_LEFT : set Key.LeftArrow;
-      case GLFW_KEY_DOWN : set Key.DownArrow;
-      case GLFW_KEY_UP   : set Key.UpArrow;
-      case GLFW_KEY_INSERT : set Key.Insert;
-      case GLFW_KEY_HOME   : set Key.Home;
-      case GLFW_KEY_PAGE_UP: set Key.PageUp;
-      case GLFW_KEY_DELETE : set Key.Delete;
-      case GLFW_KEY_END    : set Key.End;
-      case GLFW_KEY_PAGE_DOWN: set Key.PageDown;
-      case GLFW_KEY_BACKSPACE: set Key.Backspace;
-      case GLFW_KEY_LSHIFT: set Key.LeftShift;
-      case GLFW_KEY_RSHIFT: set Key.RightShift;
-      case GLFW_KEY_LCTRL: set Key.LeftControl;
-      case GLFW_KEY_RCTRL: set Key.RightControl;
-      case GLFW_KEY_ESC  : set Key.Escape;
+    using Key using prefix GLFW_KEY_ switch int i over i == k {
+      case ENTER: set Return;
+      case RIGHT: set RightArrow;
+      case LEFT : set LeftArrow;
+      case DOWN : set DownArrow;
+      case UP   : set UpArrow;
+      case INSERT : set Insert;
+      case HOME   : set Home;
+      case PAGE_UP: set PageUp;
+      case DELETE : set Delete;
+      case END    : set End;
+      case PAGE_DOWN: set PageDown;
+      case BACKSPACE: set Backspace;
+      case LSHIFT   : set LeftShift;
+      case RSHIFT   : set RightShift;
+      case LCTRL    : set LeftControl;
+      case RCTRL    : set RightControl;
+      case ESC  : set Escape;
+      case PAUSE: set Pause;
+      case GLFW_KEY_F1..GLFW_KEY_F12: set Key:(Key.F1 + k - GLFW_KEY_F1);
     }
   }
   string queuedInput;

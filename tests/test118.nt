@@ -1,6 +1,6 @@
 module test118;
 
-alias NestDg = void delegate(int delegate(NestDg));
+alias NestDg = as_type(x) void delegate(int delegate(x));
 
 int testfun(NestDg dg) {
   int test2(NestDg dg) { return 4; }
