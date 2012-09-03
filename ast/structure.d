@@ -1,6 +1,7 @@
 module ast.structure;
 
-import ast.types, ast.base, ast.namespace, ast.vardecl, ast.int_literal, parseBase;
+import ast.types, ast.base, ast.namespace, ast.vardecl,
+  ast.static_arrays, ast.int_literal, parseBase;
 
 import tools.base: ex, This, This_fn, rmSpace, join;
 int sum(S, T)(S s, T t) {
@@ -848,5 +849,18 @@ static this() {
         consider(res);
       } else return;
     }
+  };
+  implicits ~= delegate void(Expr ex, IType goal, void delegate(Expr) consider) {
+    auto st = fastcast!(Structure) (goal);
+    if (!st) return;
+    auto initval = reinterpret_cast(goal, fastalloc!(DataExpr)(goal.initval()));
+    if (!showsAnySignOfHaving(initval, "init")) return;
+    auto res = tmpize_maybe(initval, delegate Expr(Expr initval) {
+      auto st = iparse!(Statement, "init_struct", "tree.stmt")
+                       (`initval.init arg;`,
+                        "initval", initval, "arg", ex);
+      return mkStatementAndExpr(st, initval);
+    });
+    consider(res);
   };
 }
