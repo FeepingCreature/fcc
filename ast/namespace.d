@@ -181,7 +181,9 @@ class Namespace {
   
   void __add(string name, Object obj) {
     if (name) {
-      if (auto thing = lookup(name, true)) {
+      // don't do lookup(name, true) because that matches stuff like public imports also!
+      // only try to overload truly local funs
+      if (auto thing = lookupInField(name)) {
         if (auto et = fastcast!(Extensible) (thing)) {
           auto eo = fastcast!(Extensible) (obj);
           if (!eo) {
@@ -251,15 +253,19 @@ class Namespace {
   }
   typeof(field) getCheckpt() { return field; }
   void setCheckpt(typeof(field) field) { this.field = field.dup; rebuildCache(); /* prevent clobbering */ }
-  Object lookup(string name, bool local = false) {
-    if (name in reserved) return null;
-    debug { int temp; if (name.gotInt(temp)) fail; }
-    debug { float temp; if (name.gotFloat(temp)) fail; }
+  Object lookupInField(string name) {
     if (field.length > cachepoint) {
       if (auto p = name in field_cache) return *p;
     } else {
       foreach (entry; field) if (faststreq(entry._0, name)) return entry._1;
     }
+    return null;
+  }
+  Object lookup(string name, bool local = false) {
+    if (name in reserved) return null;
+    debug { int temp; if (name.gotInt(temp)) fail; }
+    debug { float temp; if (name.gotFloat(temp)) fail; }
+    if (auto res = lookupInField(name)) return res;
     if (!local && sup) return sup.lookup(name, local);
     return null;
   }

@@ -302,7 +302,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
   override {
     bool isPointerLess() { return false; }
     RelNamespace resolve() { return myClass; }
-    string toString() { return Format("ref "[], myClass); }
+    string toString() { return Format("ref ", myClass); }
     bool addsSelf() { return true; }
     string getIdentifier() { return myClass.name; }
     int size() { return nativePtrSize; }
