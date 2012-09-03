@@ -158,6 +158,7 @@ Object gotConversionCast(ref string text, ParseCb cont, ParseCb rest) {
     t2.setError("Unable to parse cast source"[]);
     return null;
   }
+  ex = forcedConvert(ex);
   Expr res = tryConvert(ex, dest);
   if (res) text = t2;
   return fastcast!(Object)~ res;

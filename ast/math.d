@@ -42,6 +42,24 @@ class LongAsDouble : Expr {
   }
 }
 
+class LongAsInt : Expr {
+  Expr l;
+  this(Expr l) { this.l = l; assert(Single!(Long) == l.valueType()); }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(l);
+  override {
+    string toString() { return Format("int(", l, ")"); }
+    IType valueType() { return Single!(SysInt); }
+    void emitAsm(AsmFile af) {
+      mixin(mustOffset("4"[]));
+      l.emitAsm(af);
+      // overwrite high int with low
+      af.popStack("4(%esp)", 4);
+    }
+  }
+}
+
 import ast.casting, ast.fold, ast.literals, ast.fun;
 extern(C) float sqrtf(float);
 static this() {
@@ -86,6 +104,10 @@ static this() {
     if (Single!(Long) != resolveType(ex.valueType())) return null;
     return fastalloc!(LongAsDouble)(ex);
   };
+  converts ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(Long) != resolveType(ex.valueType())) return null;
+    return fastalloc!(LongAsInt)(ex);
+  };
 }
 
 class IntAsLong : Expr {
@@ -99,8 +121,11 @@ class IntAsLong : Expr {
     IType valueType() { return Single!(Long); }
     void emitAsm(AsmFile af) {
       mixin(mustOffset("8"[]));
-      (mkInt(0)).emitAsm(af);
       i.emitAsm(af);
+      // duplicate
+      af.pushStack("(%esp)", 4);
+      // sign extend high int
+      af.mathOp("sarl", "$31", "4(%esp)");
     }
   }
 }
@@ -858,7 +883,7 @@ Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
   bool isNeg;
   if (t2.accept("-"[])) { isNeg = true; }
   else {
-    if (!t2.accept("¬"[]) && !t2.accept("neg"[])) return null;
+    if (!t2.accept("¬")/* && !t2.accept("neg"[])*/) return null;
   }
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
