@@ -264,3 +264,137 @@ class Font {
     return vecs;
   }
 }
+
+class TextureAtlas {
+  Texture backing;
+  vec2i cursor;
+  int current-height;
+  alias current-free = backing.size - cursor;
+  void linebreak() {
+    cursor.x = 0;
+    cursor.y += current-height;
+    current-height = 0;
+  }
+  SubTexture alloc(int w, h) {
+    w += 2; // leave some edge space
+    h += 2; // likewise
+    if (w > backing.width) fail "Backing texture not large enough for $((w,h))";
+    if (w > current-free.x) linebreak;
+    if (h > current-free.y) fail "Ran out of vertical space while allocating $((w,h))";
+    auto st = new SubTexture;
+    st.sup = backing;
+    st.from = cursor + 1;
+    st.size = vec2i(w - 2, h - 2);
+    cursor.x += w;
+    current-height = [current-height, h][current-height < h];
+    return st;
+  }
+}
+
+alias Settings = (int size, vec4f fore, vec4f back, bool bold, bool italic);
+
+class TextureCache {
+  TextureAtlas back;
+  void init(TextureAtlas ta) back = ta;
+  alias Key = (string, Settings);
+  (Key, SubTexture)[auto~] allocated;
+  SubTexture alloc(int w, h, Key key, bool* was-in-cache) {
+    *was-in-cache = false;
+    // TODO: trie?
+    for auto thing <- allocated
+      if (thing[0] == key) {
+        *was-in-cache = true;
+        return thing[1];
+      }
+    auto res = back.alloc(w, h);
+    // writeln "'$key' ($w, $h) => $(res.(from, size))";
+    allocated ~= (key, res);
+    return res;
+  }
+}
+
+TextureCache cache;
+void initCache() {
+  if cache return;
+  using new TextureAtlas {
+    backing = new Texture (512, 512, vec4f[]: null);
+    backing.mode = TexMode.Nearest;
+    backing.upload;
+    cache = new TextureCache that;
+  }
+}
+
+import std.lib.opengl.texture;
+(SubTexture tex, vec2i offs)[] layoutText(Font font, string text, Settings settings, int* widthp, maxheightp, baselinep) {
+  ref width = *widthp;
+  ref maxheight = *maxheightp;
+  ref baseline = *baselinep;
+  initCache;
+  (SubTexture, vec2i)[auto~] res;
+  maxheight = 0;
+  baseline = 0;
+  FontStyle fs;
+  fs.color = settings.fore;
+  fs.bgcol = settings.back;
+  fs.chars = 1;
+  fs.bold  = settings.bold;
+  fs.italic = settings.italic;
+  bool first = true;
+  vec2i pos, prev-pos;
+  bool debugme = false;
+  int overhang;
+  auto it1 = cat([""], new UTF8Iterator text);
+  auto it2 = new UTF8Iterator text;
+  int bottomdist = 99999;
+    
+  for string (prev-ch, ch) <- zip(it1, it2) {
+    font.getSize(ch, [fs], &int width, &int height);
+    if (debugme) writeln "$ch => $((width, height))";
+    
+    using cache.alloc(width, height, (ch, settings), &bool was-found) {
+      if (!was-found) {
+        auto buf = font.toBuffer(ch, [fs], null, null);
+        overwrite buf;
+        buf.free;
+      }
+      if (!first) {
+        auto kern = font.getKerning(int:*prev-ch.ptr, int:*ch.ptr);
+        if (debugme) writeln "kern $kern";
+        pos.x += kern.x >> 6;
+      }
+      
+      auto box = font.getControlBox(int:*ch.ptr);
+      if (box[0].y < bottomdist) bottomdist = box[0].y;
+      if (debugme) writeln "box $box $bottomdist";
+      
+      auto shift = box[0].(vec2i(x, -y)); // box is up from baseline!
+      if (shift.y > 0) height -= shift.y;
+      
+      if (height > maxheight) maxheight = height;
+      if (shift.y > baseline) baseline = shift.y;
+      
+      pos += shift;
+      
+      res ~= (that, pos - prev-pos);
+      prev-pos = pos;
+      
+      pos -= shift;
+      
+      auto step = font.getAdvance(int:*ch.ptr);
+      pos += step.(vec2i(x >> 6, y >> 6));
+      overhang = 0;
+      if (settings.italic) overhang += 2;
+    }
+    first = false;
+  }
+  if (bottomdist != 99999 && bottomdist > 0) {
+    if (debugme) writeln "$text: correct by $bottomdist";
+    for ref sub <- res {
+      sub[1].y += bottomdist;
+    }
+    if (debugme) writeln "=> $res";
+  }
+  if (debugme) writeln "$text maxheight = $maxheight";
+  width = pos.x + overhang;
+  return res[];
+}
