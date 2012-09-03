@@ -218,7 +218,7 @@ class Font {
       auto yt = bit.bitmap.rows + 1;
       if (style.underlined) yt = bbox.(yMax - yMin) + 4; // draw down to the underline
       auto xt = bit.bitmap.width + 1;
-      if (style.underlined && auto ns = nextStyle() && ns.underlined) xt = (pos[id+1].x>>6) - (pos[id].x>>6) + 1;
+      if (style.underlined && (auto ns = nextStyle()) && ns.underlined) xt = (pos[id+1].x>>6) - (pos[id].x>>6) + 1;
       auto left = bit.left - bbox.xMin, top = bbox.yMax - bit.top;
       bool inside(Bitmap* bmp, int x, int y) {
         if (x < 0 || y < 0) return false;

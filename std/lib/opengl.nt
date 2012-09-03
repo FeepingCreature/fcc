@@ -84,12 +84,14 @@ context glMatrix {
 context glModelviewMatrix {
   void push() using mode GL {
     GetIntegerv(MATRIX_MODE, &int mode);
-    if (mode != MODELVIEW) raise new Error "cannot push modelview matrix: not in modelview mode";
+    if (mode != MODELVIEW) raise new Error
+      "cannot push modelview matrix: not in modelview mode, but $mode";
     PushMatrix;
   }
   void pop() using mode GL {
     GetIntegerv(MATRIX_MODE, &int mode);
-    if (mode != MODELVIEW) raise new Error "cannot pop modelview matrix: not in modelview mode";
+    if (mode != MODELVIEW) raise new Error
+      "cannot pop modelview matrix: not in modelview mode, but $mode";
     PopMatrix;
   }
   alias onUsing = push();

@@ -75,7 +75,7 @@ extern(C) void* __start_routine(void* p) {
   asm "popl %eax";
   asm "movl %esp, %ebx";
   asm `andl $0xfffffff0, %esp`;
-  asm `subl $8, %esp`; // alignment
+  // asm `subl $8, %esp`; // alignment
   asm "pushl %ebx";
   asm "pushl %ebp";
   asm "pushl %eax";
@@ -205,7 +205,7 @@ class ThreadPool {
     New &t;
   }
   void threadFun(int id) {
-    if (int:_ebp & 0xf) {
+    if (int:_ebp & 0xf != 0x8) {
       writeln "FEEEP! YOU BROKE THE FUCKING THREAD FRAME ALIGNMENT AGAIN. $(_ebp) ";
       *int*:null=0;
     }

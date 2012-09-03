@@ -2,6 +2,6 @@ module test25;
 
 void main() {
   auto FOO = 100, BAR = 480;
-  auto c = eval 0 <= 100 < BAR;
+  auto c = 0 <= 100 < BAR;
   writeln "$c";
 }

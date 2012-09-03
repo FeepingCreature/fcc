@@ -137,13 +137,13 @@ Object gotTypesEqual(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Expect type parameter for types-equal! "[]);
     if (!ty) ty = resolveType(ty2);
     else if (ty != resolveType(ty2))
-      res = fastalloc!(ExprWrap)(False);
+      res = fastcast!(Object)(False);
   }
-  if (!res) res = fastcast!(Object) (fastalloc!(ExprWrap)(True));
+  if (!res) res = fastcast!(Object)(True);
   text = t2;
   return res;
 }
-mixin DefaultParser!(gotTypesEqual, "cond.types-equal", "651", "types-equal");
+mixin DefaultParser!(gotTypesEqual, "tree.expr.types-equal", "2351", "types-equal");
 
 import ast.conditionals;
 Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
@@ -159,9 +159,9 @@ Object gotTypeIsTuple(ref string text, ParseCb cont, ParseCb rest) {
   Expr res;
   if (tup) res = True;
   else res = False;
-  return fastcast!(Object) (fastalloc!(ExprWrap)(res));
+  return fastcast!(Object)(res);
 }
-mixin DefaultParser!(gotTypeIsTuple, "cond.type-is-tuple", "652", "type-is-tuple");
+mixin DefaultParser!(gotTypeIsTuple, "tree.expr.type-is-tuple", "2352", "type-is-tuple");
 
 import ast.conditionals, ast.arrays;
 Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
@@ -193,9 +193,9 @@ Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   if (res) ex = True;
   else ex = False;
-  return fastcast!(Object) (fastalloc!(ExprWrap)(ex));
+  return fastcast!(Object)(ex);
 }
-mixin DefaultParser!(gotTypeIs, "cond.type-is", "6521", "type-is");
+mixin DefaultParser!(gotTypeIs, "tree.expr.type-is", "2353", "type-is");
 
 import ast.namespace;
 Object gotExists(ref string text, ParseCb cont, ParseCb rest) {
@@ -209,11 +209,11 @@ Object gotExists(ref string text, ParseCb cont, ParseCb rest) {
   
   setupStaticBoolLits;
   if (namespace().lookup(ident, local))
-    return fastcast!(Object) (fastalloc!(ExprWrap)(True));
+    return fastcast!(Object) (True);
   else
-    return fastcast!(Object) (fastalloc!(ExprWrap)(False));
+    return fastcast!(Object) (False);
 }
-mixin DefaultParser!(gotExists, "cond.is-defined", "653", "is-defined");
+mixin DefaultParser!(gotExists, "tree.expr.is-defined", "2354", "is-defined");
 
 Object gotConvertsTo(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -232,8 +232,8 @@ Object gotConvertsTo(ref string text, ParseCb cont, ParseCb rest) {
   
   text = t2;
   if (gotImplicitCast(ex, it, (IType it2) { return test(resolveType(it2) == it); }))
-    return fastcast!(Object) (fastalloc!(ExprWrap)(True));
+    return fastcast!(Object)(True);
   else
-    return fastcast!(Object) (fastalloc!(ExprWrap)(False));
+    return fastcast!(Object)(False);
 }
-mixin DefaultParser!(gotConvertsTo, "cond.implicitly-converts-to", "654", "implicitly-converts-to");
+mixin DefaultParser!(gotConvertsTo, "tree.expr.implicitly-converts-to", "2355", "implicitly-converts-to");

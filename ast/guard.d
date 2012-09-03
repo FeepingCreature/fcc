@@ -60,8 +60,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   if (!sc) { logln("::"[], namespace()); fail; }
   
   if (type == "onSuccess" || type == "onExit"[]) {
-    pushCache;
-    scope(exit) popCache;
+    auto popCache = pushCache(); scope(exit) popCache();
     genRetvalHolder(sc);
     if (!rest(t3, "tree.stmt"[], &st1))
       t3.failparse("No statement matched for "[], type, " in scope context"[]);
@@ -76,8 +75,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     synchronized
       nf.name = Format("guardfn_"[], funId++);
     {
-      pushCache;
-      scope(exit) popCache;
+      auto popCache = pushCache(); scope(exit) popCache();
       auto backup = namespace();
       scope(exit) namespace.set(backup);
       namespace.set(nf);

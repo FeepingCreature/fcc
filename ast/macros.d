@@ -476,7 +476,7 @@ extern(C) void fcc_initTenth() {
       res = new Entity[to-from];
       for (int i = from; i < to; ++i) {
         loopct.addDirectly(ident, fastalloc!(Integer)(i));
-        res[i] = args[3].eval(loopct);
+        res[i-from] = args[3].eval(loopct);
       }
     } else {
       mixin(chaincast("list: First arg to 'for': args[0]->List: %.entries"));

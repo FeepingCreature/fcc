@@ -30,6 +30,7 @@ void setupSysmods() {
       double sqrt(double);
       RenameIdentifier sqrt C_sqrt;
       int strlen(char*);
+      long lldiv(long numerator, denominator);
     }
     bool streq(char[] a, b) {
       if a.length != b.length return false;

@@ -301,7 +301,7 @@ void dumpGraph(void delegate(void delegate(string, string, string=null)) dg) {
 
 void dumpModuleGraph(bool includeStdMods = false) {
   bool included(ModuleInfo mod) {
-    return eval includeStdMods || !mod.name.startsWith "std.";
+    return includeStdMods || !mod.name.startsWith "std.";
   }
   // TODO precompute to prevent O(n^2)
   int countImportedBy(ModuleInfo check) {
@@ -314,7 +314,7 @@ void dumpModuleGraph(bool includeStdMods = false) {
   }
   bool relevant(ModuleInfo mod) {
     for auto mod2 <- mod.imports if (included(mod2)) return true;
-    return eval countImportedBy(mod);
+    return !!countImportedBy(mod);
   }
   scope ModuleInfo[auto~] includedMods;
   for auto mod <- __modules if included(mod) && relevant(mod) includedMods ~= mod;
@@ -330,7 +330,7 @@ void dumpModuleGraph(bool includeStdMods = false) {
 
 void dumpClassGraph(bool includeStdMods = false, includeObject = false) {
   bool included(ModuleInfo mod) {
-    return eval (includeStdMods || !mod.name.startsWith "std.");
+    return includeStdMods || !mod.name.startsWith "std.";
   }
   dumpGraph \(dg) {
     for auto mod <- __modules if included(mod) {

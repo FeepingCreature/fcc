@@ -280,7 +280,7 @@ void pushRecurse(IType a, IType b = null) {
 }
 void popRecurse() {
   rs_size --;
-  assert(rs_size);
+  assert(rs_size >= 0);
 }
 bool alreadyRecursing(IType a, IType b = null) {
   foreach (entry; recursestack[0 .. rs_size])

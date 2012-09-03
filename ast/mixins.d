@@ -17,7 +17,7 @@ Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto se = fastcast!(StringExpr) (ex2);
   auto src = se.str;
   Object res;
-  pushCache(); scope(exit) popCache();
+  auto popCache = pushCache(); scope(exit) popCache();
   try {
     if (!rest(src, "tree.expr"[], &res))
       src.failparse("Couldn't parse mixin string for expr"[]);
@@ -55,7 +55,7 @@ Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest)
     return Single!(NoOp);
   }
   Object res;
-  pushCache(); scope(exit) popCache();
+  auto popCache = pushCache(); scope(exit) popCache();
   try {
     static if (submode == "tree.stmt") {
       res = Single!(NoOp);

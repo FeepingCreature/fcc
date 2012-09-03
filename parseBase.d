@@ -413,22 +413,24 @@ string matchrule_static(string rules) {
     i++;
     auto rule = ctSlice(rules, " ");
     auto first = rule[0], rest = rule[1 .. $];
-    bool smaller, greater, equal, before, after;
+    bool smaller, greater, equal, before, after, after_incl;
     switch (first) {
       case '<': smaller = true; rule = rest; break;
       case '>': greater = true; rule = rest; break;
       case '=': equal = true; rule = rest; break;
       case '^': before = true; preparams ~= "bool "~flagname~", "; falses ++; rule = rest; break;
       case '_': after = true; preparams ~= "bool "~flagname~", "; falses ++; rule = rest; break;
+      case ',': after_incl = true; preparams ~= "bool "~flagname~", "; falses ++; rule = rest; break;
       default: break;
     }
-    if (!smaller && !greater && !equal && !before && !after)
+    if (!smaller && !greater && !equal && !before && !after && !after_incl)
       smaller = equal = true; // default (see below)
     if (smaller) res ~= "if (text.sectionStartsWith(\""~rule~"\")) goto "~passlabel~";\n";
     if (equal)   res ~= "if (text == \""~rule~"\") goto "~passlabel~";\n";
     if (greater) res ~= "if (!text.sectionStartsWith(\""~rule~"\")) goto "~passlabel~";\n";
     if (before)  res ~= "if (text.sectionStartsWith(\""~rule~"\")) hit = true; if (!hit) goto "~passlabel~";\n";
     if (after)   res ~= "if (text.sectionStartsWith(\""~rule~"\")) hit = true; else if (hit) goto "~passlabel~";\n";
+    if (after_incl)res~="if (text.sectionStartsWith(\""~rule~"\")) hit = true; if (hit) goto "~passlabel~";\n";
     res ~= "return false; "~passlabel~": \n";
   }
   string falsestr;
@@ -466,6 +468,11 @@ bool fun(Stuple!(RuleData)* data, string text) {
       *hit = true;
     else return *hit;
   }
+  if (cases&32) {
+    if (text.sectionStartsWith(rule))
+      *hit = true;
+    return *hit;
+  }
   return false;
 }
 
@@ -474,7 +481,7 @@ bool delegate(string) matchrule(string rules, out int id) {
   auto rules_backup = rules;
   while (rules.length) {
     auto rule = rules.slice(" ");
-    bool smaller, greater, equal, before, after;
+    bool smaller, greater, equal, before, after, after_incl;
     assert(rule.length);
   restartRule:
     auto first = rule[0], rest = rule[1 .. $];
@@ -484,19 +491,20 @@ bool delegate(string) matchrule(string rules, out int id) {
       case '=': equal = true; rule = rest; goto restartRule;
       case '^': before = true; rule = rest; goto restartRule;
       case '_': after = true; rule = rest; goto restartRule;
+      case ',': after_incl = true; rule = rest; goto restartRule;
       default: break;
     }
     
-    if (!smaller && !greater && !equal && !before && !after)
+    if (!smaller && !greater && !equal && !before && !after && !after_incl)
       smaller = equal = true; // default
     // different modes
-    assert((smaller || greater || equal) ^ before ^ after);
+    assert((smaller || greater || equal) ^ before ^ after ^ after_incl);
 
     alias allocRuleData!(fun) ard;
     const string src = `
       res = ard(
         rule, res,
-        (smaller<<0) | (greater<<1) | (equal<<2) | (before<<3) | (after<<4),
+        (smaller<<0) | (greater<<1) | (equal<<2) | (before<<3) | (after<<4) | (after_incl<<5),
         false, id
       );
     `;
@@ -642,12 +650,11 @@ bool delegate(string)[] globalStateMatchers;
 
 void delegate()[] _pushCache, _popCache;
 
-void pushCache() {
+void delegate() pushCache() {
   foreach (dg; _pushCache) dg();
-}
-
-void popCache() {
-  foreach (dg; _popCache) dg();
+  return _popCache /apply/ delegate void(void delegate()[] dgs) {
+    foreach (dg; dgs) dg();
+  };
 }
 
 struct Stack(T) {
@@ -675,6 +682,7 @@ struct Stack(T) {
   }
   void pop(ref T t) {
     curDepth --;
+    if (curDepth < 0) fail;
     
     int cd = curDepth;
     if (cd < StaticSize) {

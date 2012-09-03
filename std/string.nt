@@ -145,7 +145,7 @@ template wrap(T) {
   template wrap(U) {
     class Wrap : Iterator!T {
       U u;
-      bool advance() { return eval value <- u; }
+      bool advance() { return !!(value <- u); }
     }
     Iterator!T wrap(U u) { auto res = new Wrap; res.u = u; return res; }
   }
@@ -303,6 +303,17 @@ string[] split(string s, string marker) {
     }
   }
   return res[];
+}
+
+/*Function: chomp
+Remove extraneous \r or \n from the end of a line
+*/
+reassign string chomp(string s) {
+  while (s.length) {
+    if (s[$-1] == "\r" || s[$-1] == "\n") { s.popEnd; continue; }
+    break;
+  }
+  return s;
 }
 
 platform(!i686-mingw32) {

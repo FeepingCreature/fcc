@@ -78,22 +78,22 @@ import ast.dg, ast.tuples, ast.tuple_access, ast.funcall, ast.fun, ast.modules, 
 Expr simpleFormat(Expr ex) {
   auto type = resolveType(ex.valueType());
   if (Single!(SysInt) == type || Single!(Short) == type || Single!(Byte) == type) {
-    return buildFunCall(fastcast!(Function)~ sysmod.lookup("itoa"), ex, "itoa");
+    return buildFunCall(sysmod.lookup("itoa"), ex, "itoa");
   }
   if (Single!(Long) == type) {
-    return buildFunCall(fastcast!(Function)~ sysmod.lookup("ltoa"), ex, "ltoa");
+    return buildFunCall(sysmod.lookup("ltoa"), ex, "ltoa");
   }
   if (Single!(Char) == type) {
     return iparse!(Expr, "fmt_char"[], "tree.expr"[])(`""~ch`, "ch", ex);
   }
   if (Single!(Float) == type) {
-    return buildFunCall(fastcast!(Function)~ sysmod.lookup("ftoa"), ex, "ftoa");
+    return buildFunCall(sysmod.lookup("ftoa"), ex, "ftoa");
   }
   if (Single!(Double) == type) {
-    return buildFunCall(fastcast!(Function)~ sysmod.lookup("dtoa"), ex, "dtoa");
+    return buildFunCall(sysmod.lookup("dtoa"), ex, "dtoa");
   }
   if (auto p = fastcast!(Pointer)~ type) {
-    return buildFunCall(fastcast!(Function)~ sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex), "ptoa");
+    return buildFunCall(sysmod.lookup("ptoa"), reinterpret_cast(voidp, ex), "ptoa");
   }
   
   if (auto sa = fastcast!(StaticArray)~ type) {

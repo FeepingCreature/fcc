@@ -123,7 +123,10 @@ class RelFunction : Function, RelTransformable, HasInfo {
       return res;
     }
     Object transform(Expr base) {
-      assert(!baseptr, Format("RelFun was pretransformed: "[], baseptr));
+      if (baseptr) {
+        debug logln("WARN: RelFun was already transformed with ", baseptr, ", new ", base);
+        // fail;
+      }
       assert(!!fastcast!(RelNamespace) (basetype));
       auto res = flatdup();
       if (!base) fail;

@@ -163,18 +163,8 @@ redo:
     return false;
   }
   auto ta = fastalloc!(TypeAlias)(cast(IType) null, id, strict);
-  bool typematch;
-  {
-    auto os = fastalloc!(MiniNamespace)("!safecode type_alias_predefine"[]);
-    os.sup = namespace();
-    os.internalMode = true;
-    os.add(ta);
-    namespace.set(os);
-    typematch = !!rest(t3, "type"[], &ty);
-    namespace.set(os.sup);
-  }
   
-  if (typematch && gotTerm()) {
+  if (rest(t3, "type"[], &ty) && gotTerm()) {
     ta.base = ty;
     t2 = t3;
   } else {

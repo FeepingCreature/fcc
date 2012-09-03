@@ -53,6 +53,10 @@ void qformat_append(T...)(T t) {
     static if (is(typeof(entry): string)) {
       qappend(entry);
     }
+    else static if (is(typeof(entry) == bool)) {
+      if (entry) qappend("true");
+      else qappend("false");
+    }
     else static if (is(typeof(entry): ulong)) {
       auto num = entry;
       if (!num) { qappend("0"[]); continue; }
@@ -65,7 +69,7 @@ void qformat_append(T...)(T t) {
         int steps;
         static if (typeof(num).sizeof == 8) alias stepsize_long stepsize;
         else alias stepsize_int stepsize;
-        while (stepsize[steps] <= num && steps < stepsize.length) steps ++;
+        while (steps < stepsize.length && stepsize[steps] <= num) steps ++;
         steps --;
         {
           IntType ifact = stepsize[steps];

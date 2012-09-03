@@ -3,7 +3,7 @@ module test64;
 import std.util, std.fun;
 
 void main() {
-  auto zti = \(int a, b, c) -> eval a > c || c == a * 2;
+  auto zti = \(int a, b, c) -> a > c || c == a * 2;
   auto fun = select(1..100, (0).apply $(5).apply zti).eval[];
   writeln "$(fun.ptr) $(fun.length)";
   writeln "$fun";

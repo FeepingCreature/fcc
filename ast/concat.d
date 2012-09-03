@@ -239,15 +239,15 @@ static this() {
     if (ea.freeOnResize) {
       return fastalloc!(StatementAndExpr)(
         iparse!(Statement, "concat_into_ext_fOR_static_array"[], "tree.stmt"[])
-               (`for auto e <- r l = sap!T(&l, e);`, namespace(),
-                "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append3e"[]))
+               (`for auto __e <- r l = sap!T(&l, __e);`, namespace(),
+                "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append3e"[]))
         , ex1
       );
     } else {
       return fastalloc!(StatementAndExpr)(
         iparse!(Statement, "concat_into_ext_static_array"[], "tree.stmt"[])
-               (`for auto e <- r l = sap!T(&l, e);`, namespace(),
-                "T"[], ea.elemType, "l"[], ex1, "r"[], ex2, "sap"[], sysmod.lookup("append2e"[]))
+               (`for auto __e <- r l = sap!T(&l, __e);`, namespace(),
+                "T", ea.elemType, "l", ex1, "r", ex2, "sap", sysmod.lookup("append2e"[]))
         , ex1
       );
     }

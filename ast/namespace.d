@@ -206,6 +206,7 @@ class Namespace {
           if (field.length > cachepoint) rebuildCache;
           return;
         }
+        breakpoint;
         if (auto named = fastcast!(Named) (thing)) {
           auto ident = named.getIdentifier();
           auto tup = lookupPos(ident);
@@ -356,8 +357,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
   R iparse(T...)(string text, T _t) {
     auto start = sec();
     scope(exit) bench[id] += sec() - start;
-    pushCache();
-    scope(exit) popCache();
+    auto popCache = pushCache(); scope(exit) popCache();
     
     static if (is(T[$-1] == AsmFile)) alias T[0 .. $-1] T2;
     else alias T T2;
@@ -396,6 +396,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     myns.internalMode = true;
     // compile-time for loop LALZ
     foreach (i, bogus; T4[0 .. $/2]) {
+      if (!t[i*2+1]) fail;
       myns.add(t[i*2], t[i*2+1]);
     }
     

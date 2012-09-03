@@ -1,7 +1,9 @@
 // conditionals, ie. if tests
 module ast.conditionals;
 
-import ast.base, ast.namespace, ast.parse, ast.math, tools.base: This, This_fn, rmSpace;
+import
+  ast.base, ast.namespace, ast.parse, ast.math, ast.assign, ast.scopes,
+  tools.base: This, This_fn, rmSpace;
 
 class TrueCond : Cond {
   mixin DefaultDup!();
@@ -25,6 +27,27 @@ class FalseCond : Cond {
   }
 }
 
+Cond exprwrap(Expr ex) {
+  // unpack: ExprWrap is type agnostic anyway
+  while (true) {
+    if (auto rce = fastcast!(RCE) (ex)) {
+      ex = rce.from;
+      continue;
+    }
+    if (auto sl = fastcast!(StructLiteral) (ex)) {
+      if (sl.exprs.length == 1 && sl.offsets[0] == 0) {
+        ex = sl.exprs[0];
+        continue;
+      }
+    }
+    break;
+  }
+  if (auto ce = fastcast!(CondExpr) (ex))
+    return ce.cd;
+  return fastalloc!(ExprWrap)(ex);
+}
+
+import ast.structure;
 class ExprWrap : Cond {
   Expr ex;
   this(Expr ex) {
@@ -266,13 +289,13 @@ class NegCond : Cond {
 
 Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  Cond c;
-  if (!rest(t2, "cond >cond.bin"[], &c))
+  Expr ex;
+  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
     t2.failparse("Couldn't match condition to negate"[]);
   text = t2;
-  return fastalloc!(NegCond)(c);
+  return fastcast!(Object)(cond2ex(fastalloc!(NegCond)(ex2cond(ex))));
 }
-mixin DefaultParser!(gotNegate, "cond.negate"[], "6"[], "!"[]);
+mixin DefaultParser!(gotNegate, "tree.expr.cond_negate"[], "2103"[], "!"[]);
 
 Cond compare(string op, Expr ex1, Expr ex2) {
   bool not, smaller, equal, greater;
@@ -305,7 +328,7 @@ Cond compare(string op, Expr ex1, Expr ex2) {
       return fastalloc!(Compare)(de1, not, smaller, equal, greater, de2);
     }
   }
-  return fastalloc!(ExprWrap)(lookupOp(op, ex1, ex2));
+  return ex2cond(lookupOp(op, ex1, ex2));
 }
 
 import ast.modules;
@@ -319,25 +342,47 @@ void setupStaticBoolLits() {
 }
 
 import ast.fold, ast.static_arrays;
+bool isStaticTrue(Expr ex) {
+  if (ex is True) return true;
+  if (auto rce = fastcast!(RCE) (ex)) {
+    if (fastcast!(IType) (sysmod.lookup("bool")) == rce.to) {
+      if (auto ie = fastcast!(IntExpr) (rce.from))
+        if (ie.num == 1) return true;
+    }
+  }
+  return false;
+}
+
 bool isStaticTrue(Cond cd) {
   if (fastcast!(TrueCond) (cd)) return true;
   auto ew = fastcast!(ExprWrap) (cd);
   if (!ew) return false;
-  return ew.ex is True;
+  return isStaticTrue(ew.ex);
+}
+
+bool isStaticFalse(Expr ex) {
+  if (ex is False) return true;
+  if (auto rce = fastcast!(RCE) (ex)) {
+    if (fastcast!(IType) (sysmod.lookup("bool")) == rce.to) {
+      if (auto ie = fastcast!(IntExpr) (rce.from))
+        if (ie.num == 0) return true;
+    }
+  }
+  return false;
 }
 
 bool isStaticFalse(Cond cd) {
   if (fastcast!(FalseCond) (cd)) return true;
   auto ew = fastcast!(ExprWrap) (cd);
   if (!ew) return false;
-  return ew.ex is False;
+  return isStaticFalse(ew.ex);
 }
 
 import ast.casting, ast.opers;
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   bool not, smaller, equal, greater, identical;
-  Expr ex1, ex2; Cond cd2;
+  Expr ex1, ex2;
   if (!rest(t2, "tree.expr _tree.expr.cond"[], &ex1)) return null;
   // oopsie-daisy, iterator assign is not the same as "smaller than negative"!
   if (t2.acceptLeftArrow()) return null;
@@ -352,20 +397,16 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   if (!not && !smaller && !greater && !equal && !identical)
     return null;
   
-  if (!rest(t2, "cond.compare"[], &cd2) && // chaining
-      !rest(t2, "tree.expr _tree.expr.cond"[], &ex2)) {
+  if (!rest(t2, "tree.expr ,tree.expr.cond.compare"[], &ex2)) {
     t2.failparse("Could not parse second operator for comparison"[]);
   }
-  auto finalize = delegate Cond(Cond cd) { return cd; };
-  if (cd2) {
-    if (auto cmp2 = fastcast!(Compare) (cd2)) {
+  auto finalize = delegate Expr(Cond cd) { return cond2ex(cd); };
+  if (auto ce = fastcast!(CondExpr)(ex2)) {
+    if (auto cmp2 = fastcast!(Compare) (ce.cd)) {
       ex2 = cmp2.e1;
-      finalize = cmp2 /apply/ delegate Cond(Compare cmp2, Cond cd) {
-        return new BooleanOp!("&&"[])(cd, cmp2);
+      finalize = cmp2 /apply/ delegate Expr(Compare cmp2, Cond cd) {
+        return cond2ex(fastalloc!(BooleanOp!("&&"[]))(cd, cmp2));
       };
-    } else {
-      text.failparse("can't chain condition: "[], cd2);
-      return null;
     }
   }
   auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
@@ -390,7 +431,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     text.failparse(ex);
   }
 }
-mixin DefaultParser!(gotCompare, "cond.compare"[], "71"[]);
+mixin DefaultParser!(gotCompare, "tree.expr.cond.compare"[], "71"[]);
 
 import ast.literals;
 class BooleanOp(string Which) : Cond, HasInfo {
@@ -429,28 +470,43 @@ class BooleanOp(string Which) : Cond, HasInfo {
   }
 }
 
+extern(C) Cond _testNonzero(Expr ex);
+Cond ex2cond(Expr ex) {
+  if (!ex) return null;
+  if (auto ce = fastcast!(CondExpr)(ex))
+    return ce.cd;
+  return _testNonzero(ex);
+}
+
+Expr cond2ex(Cond cd) {
+  if (!cd) return null;
+  if (auto ew = fastcast!(ExprWrap)(cd))
+    return ew.ex;
+  return fastalloc!(CondExpr)(cd);
+}
+
 alias BooleanOp!("&&"[]) AndOp;
 alias BooleanOp!("||"[]) OrOp;
 
-Object gotBoolOp(string Op, alias Class)(ref string text, ParseCb cont, ParseCb rest) {
+Object gotBoolOpExpr(string Op, alias Class)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  Cond cd;
-  if (!cont(t2, &cd)) return null;
-  auto old_cd = cd;
+  Expr ex;
+  if (!cont(t2, &ex)) return null;
+  auto old_ex = ex;
   while (t2.accept(Op)) {
-    Cond cd2;
-    if (!cont(t2, &cd2))
+    Expr ex2;
+    if (!cont(t2, &ex2))
       t2.failparse("Couldn't get second cond after '"[], Op, "'"[]);
-    cd = fastalloc!(Class)(cd, cd2);
+    ex = cond2ex(fastalloc!(Class)(ex2cond(ex), ex2cond(ex2)));
   }
-  if (old_cd is cd) return null;
+  if (old_ex is ex) return null; // only matched one
   text = t2;
-  return fastcast!(Object)~ cd;
+  return fastcast!(Object) (ex);
 }
-mixin DefaultParser!(gotBoolOp!("&&"[], AndOp), "cond.bin.and"[], "2"[]);
-mixin DefaultParser!(gotBoolOp!("||"[], OrOp), "cond.bin.or"[], "1"[]);
+mixin DefaultParser!(gotBoolOpExpr!("&&"[], AndOp), "tree.expr.cond.bin.and"[], "1"[]);
+mixin DefaultParser!(gotBoolOpExpr!("||"[], OrOp), "tree.expr.cond.bin.or"[], "2"[]);
 static this() {
-  addPrecedence("cond.bin"[], "5"[]);
+  addPrecedence("tree.expr.cond.bin"[], "101"[]);
 }
 
 Object gotBraces(ref string text, ParseCb cont, ParseCb rest) {
@@ -482,7 +538,7 @@ Object gotNamedCond(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
 }
-mixin DefaultParser!(gotNamedCond, "cond.named"[], "75"[]);
+mixin DefaultParser!(gotNamedCond, "cond.named"[], "99"[]);
 
 import ast.vardecl;
 class CondExpr : Expr {
@@ -502,9 +558,23 @@ class CondExpr : Expr {
       } else {
         mkVar(af, Single!(SysInt), true, (Variable var) {
           mixin(mustOffset("0"[]));
-          iparse!(Statement, "cond_expr_ifstmt"[], "tree.stmt"[])
-                (`if !cond { var = false;} else {var = true;} `,
-                  "cond"[], cd, "var"[], var, af).emitAsm(af);
+          auto backup = namespace();
+          scope(exit) namespace.set(backup);
+          
+          auto mns = fastalloc!(MiniNamespace)("!safecode condexpr");
+          namespace.set(mns);
+          auto sc = fastalloc!(Scope)();
+          namespace.set(sc);
+          mns.fs = af.currentStackDepth;
+          configure(cd);
+          
+          auto close = sc.open(af)();
+          (mkAssignment(var, mkInt(0))).emitAsm(af);
+          auto skip = af.genLabel();
+          cd.jumpOn(af, false, skip);
+          (mkAssignment(var, mkInt(1))).emitAsm(af);
+          af.emitLabel(skip);
+          close(false);
         });
       }
     }
@@ -523,19 +593,6 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond"[], null, "eval"[]);
 
-Object gotComplexCondAsExpr(bool mode)(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Cond cd;
-  if ((!mode || !rest(t2, "cond.compare"[], &cd) && !rest(t2, "cond.negate"[], &cd))
-   && ( mode || !rest(t2, "cond.iter_very_strict"[], &cd))) return null;
-  text = t2;
-  if (auto ew = fastcast!(ExprWrap) (cd)) {
-    return fastcast!(Object) (ew.ex);
-  }
-  return fastalloc!(CondExpr)(cd);
-}
-mixin DefaultParser!(gotComplexCondAsExpr!(true),  "tree.expr.cond.compare_negate"[], "1"[]);
-mixin DefaultParser!(gotComplexCondAsExpr!(false), "tree.expr.cond_other"[], "13"[]);
 static this() {
   addPrecedence("tree.expr.cond"[], "120"[]);
 }
@@ -558,7 +615,7 @@ import ast.tuples;
 static this() {
   defineOp("!="[], delegate Expr(Expr ex1, Expr ex2) {
     if (auto op = lookupOp("=="[], true, ex1, ex2)) {
-      return fastalloc!(CondExpr)(fastalloc!(NegCond)(fastalloc!(ExprWrap)(op)));
+      return cond2ex(fastalloc!(NegCond)(ex2cond(op)));
     }
     return null;
   });

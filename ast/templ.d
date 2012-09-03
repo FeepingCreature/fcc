@@ -234,8 +234,8 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
       RefToParentType.set(null);
       
       auto t2 = parent.source;
-      pushCache(); // open new memoizer level
-      scope(exit) popCache();
+      // open new memoizer level
+      auto popCache = pushCache(); scope(exit) popCache();
       Object obj;
       
       while (true) {
@@ -428,4 +428,4 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
     }
   };
 }
-mixin DefaultParser!(gotIFTI, "tree.rhs_partial.ifti");
+mixin DefaultParser!(gotIFTI, "tree.rhs_partial.k_ifti"); // k so it comes after "instance" :p

@@ -1,6 +1,8 @@
 module ast.longmath;
 
-import ast.math, ast.tuples, ast.vardecl, ast.base, ast.namespace, ast.casting;
+import
+  ast.math, ast.tuples, ast.vardecl, ast.base, ast.namespace,
+  ast.casting, ast.fun, ast.funcall;
 
 // copypasta from long
 class AsmLongBinopExpr : BinopExpr {
@@ -12,9 +14,6 @@ class AsmLongBinopExpr : BinopExpr {
       assert(e1.valueType().size == 8);
       assert(e2.valueType().size == 8);
       mixin(mustOffset("8"[]));
-      auto pair = mkTuple(Single!(SysInt), Single!(SysInt));
-      e2.emitAsm(af);
-      e1.emitAsm(af);
       /**
         * e2[1] = d
         * e2[0] = c
@@ -23,6 +22,7 @@ class AsmLongBinopExpr : BinopExpr {
         **/
       switch (op) {
         case "+":
+          e2.emitAsm(af); e1.emitAsm(af);
           af.mmove4("(%esp)"[], "%eax"[]);
           af.mmove4("4(%esp)"[], "%edx"[]);
           af.mathOp("addl"[], "8(%esp)"[], "%eax"[]);
@@ -32,6 +32,7 @@ class AsmLongBinopExpr : BinopExpr {
           af.pushStack("%eax"[], 4);
           break;
         case "-":
+          e2.emitAsm(af); e1.emitAsm(af);
           af.mmove4("(%esp)"[], "%eax"[]);
           af.mmove4("4(%esp)"[], "%edx"[]);
           af.mathOp("subl"[], "8(%esp)"[], "%eax"[]);
@@ -41,7 +42,8 @@ class AsmLongBinopExpr : BinopExpr {
           af.pushStack("%eax"[], 4);
           break;
         case "*":
-          // (a * f b) + (c * f d) = ac + f(bc + ad) + ff(bd) ^W^W^W^W
+          e2.emitAsm(af); e1.emitAsm(af);
+          // (a + f b) * (c + f d) = ac + f(bc + ad) + ff(bd) ^W^W^W^W
           // where f is 2^32
           af.mmove4("4(%esp)"[], "%eax"[]); // b
           af.put("imull 8(%esp)"[]); // eax:edx = b*c
@@ -55,6 +57,13 @@ class AsmLongBinopExpr : BinopExpr {
           af.sfree(16);
           af.pushStack("%edx"[], 4);
           af.pushStack("%eax"[], 4);
+          break;
+        case "/":
+          // defer to cstdlib
+          buildFunCall(
+            sysmod.lookup("lldiv"),
+            mkTupleExpr(e1, e2), "lldiv math call"
+          ).emitAsm(af);
           break;
         default:
           logln("Unknown op for long binop expr: "[], op);

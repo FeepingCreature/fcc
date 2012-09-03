@@ -105,8 +105,8 @@ static this() {
     auto ew = fastcast!(ExprWrap) (it);
     if (!ew) return null;
     setupStaticBoolLits();
-    if (isStaticTrue(ew)) return cTrue;
-    if (isStaticFalse(ew)) return cFalse;
+    if (isStaticTrue(ew.ex)) return cTrue;
+    if (isStaticFalse(ew.ex)) return cFalse;
     return null;
   };
   foldopt ~= delegate Itr(Itr it) {
@@ -117,6 +117,17 @@ static this() {
     if (isStaticTrue(sub)) return cFalse;
     if (isStaticFalse(sub)) return cTrue;
     return null;
+  };
+  foldopt ~= delegate Itr(Itr it) {
+    auto ew = fastcast!(ExprWrap) (it);
+    if (!ew) return null;
+    setupStaticBoolLits();
+    if (isStaticTrue(ew.ex)) return cTrue;
+    if (isStaticTrue(ew.ex)) return cFalse;
+    auto ie = fastcast!(IntExpr) (ew.ex);
+    if (!ie) return null;
+    if (ie.num) return cTrue;
+    else return cFalse;
   };
   foldopt ~= delegate Itr(Itr it) {
     auto cmp = fastcast!(Compare) (it);

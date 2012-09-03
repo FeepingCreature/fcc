@@ -670,7 +670,7 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
         af.pushStack("%esp"[], 4);
         packLoad(to, scrap1, scrap2);
       } else {
-        af.SSEOp("movaps"[], "(%esp)"[], to);
+        af.SSEOp("movaps", "(%esp)", to);
       }
       af.sfree(16);
     }

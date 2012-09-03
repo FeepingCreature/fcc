@@ -39,7 +39,7 @@ class TcpAddress : Address {
 alias __NFDBITS = 8 * size-of __fd_mask;
 __fd_mask __FDMASK(int d) { return __fd_mask: (1 << (d % __NFDBITS)); }
 void __FD_SET(int d, fd_set* set) { set.__fds_bits[d / __NFDBITS] |= __FDMASK d; }
-bool __FD_ISSET(int d, fd_set* set) { return eval set.__fds_bits[d / __NFDBITS] & __FDMASK d; }
+bool __FD_ISSET(int d, fd_set* set) { return !!$ set.__fds_bits[d / __NFDBITS] & __FDMASK d; }
 alias FD_SET = __FD_SET;
 alias FD_ISSET = __FD_ISSET;
 

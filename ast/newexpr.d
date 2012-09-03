@@ -133,7 +133,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         });
       }
       initClass(cr.myClass);
-      assert(!!protConstCall);
+      // assert(!!protConstCall);
       void subst(ref Iterable it) {
         if (it is var_token) it = var;
         else it.iterate(&subst);
@@ -174,16 +174,12 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto mem = fastcast!(Expr) (sysmod.lookup("mem"[]));
   if (et.isPointerLess()) {
     allocedPtr = buildFunCall(
-      fastcast!(Function) (
-        fastcast!(RelNamespace) (mem.valueType()).lookupRel("calloc_atomic"[], mem)
-      ),
+      fastcast!(RelNamespace) (mem.valueType()).lookupRel("calloc_atomic"[], mem),
       lookupOp("*"[], len, mkInt(et.size)),
       "calloc_atomic for new array"[]);
   } else {
     allocedPtr = buildFunCall(
-      fastcast!(Function) (
-        fastcast!(RelNamespace)(mem.valueType()).lookupRel("calloc"[], mem)
-      ),
+      fastcast!(RelNamespace)(mem.valueType()).lookupRel("calloc"[], mem),
       mkTupleExpr(len, mkInt(et.size)),
       "calloc for new array"[]);
   }
@@ -233,7 +229,7 @@ Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto framestartp = lookupOp("+"[], reinterpret_cast(voidp, re.base), mkInt(end));
   auto array = mkPointerSlice(framestartp, mkInt(0), mkInt(size));
   auto array2p = getArrayPtr(buildFunCall(
-    fastcast!(Function) (sysmod.lookup("fastdupv"[])),
+    sysmod.lookup("fastdupv"[]),
     array, "new dg fastdupv call"[]));
   auto base2 = lookupOp("+"[], array2p, mkInt(-end));
   return fastalloc!(DgConstructExpr)(re.fun.getPointer(), base2);

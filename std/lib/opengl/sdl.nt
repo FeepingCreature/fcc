@@ -72,7 +72,7 @@ class SDLWindow : GLWindow {
   void update() {
     .update surf;
     mouse-pressed = .mouse-pressed;
-    mouse-pos = .mouse-pos;
+    mouse-pos = std.lib.sdl_base.mouse-pos;
     mouse-clicked = .mouse-clicked;
     mouse-released = .mouse-released;
   }

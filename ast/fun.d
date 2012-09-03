@@ -126,8 +126,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     
     // needed because we may be a template function (!)
-    pushCache();
-    scope(exit) popCache();
+    auto popCache = pushCache(); scope(exit) popCache();
     
     string t2 = coarseSrc;
     coarseSrc = null;

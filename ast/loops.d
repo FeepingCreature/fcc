@@ -79,6 +79,9 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (forMode) return null;
     t2.failparse("Couldn't parse while cond"[]);
   }
+  if (auto ew = fastcast!(ExprWrap) (ws.cond)) if (auto ce = fastcast!(CondExpr) (ew.ex)) {
+    fail;
+  }
   configure(ws.cond);
   ws.insideGuards = sc.getGuards();
   
@@ -97,7 +100,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     Expr iter_expr;
     if (auto ilc = fastcast!(IterLetCond!(LValue)) (ws.cond)) iter_expr = ilc.iter;
     if (auto imc = fastcast!(IterLetCond!(MValue)) (ws.cond)) iter_expr = imc.iter;
-    if (!iter_expr) fail("Could not interpret static-loop expression"[]);
+    if (!iter_expr) fail(Format("Could not interpret static-loop expression: ", ws.cond));
     
     auto iter = fastcast!(RichIterator) (iter_expr.valueType());
     if (!iter) fail("static-loop expression not an iteratr! "[]);
@@ -116,8 +119,7 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
       sc.field.length = 0;
       sc.field ~= stuple(name, fastcast!(Object) (ival));
       sc.rebuildCache;
-      pushCache; // same code is parsed multiple times - do not cache!
-      scope(exit) popCache;
+      auto popCache = pushCache(); scope(exit) popCache(); // same code is parsed multiple times - do not cache!
       Scope sc2;
       if (!rest(t4, "tree.scope"[], &sc2)) {
         t4.failparse("Couldn't parse during static-while expansion! "[]);

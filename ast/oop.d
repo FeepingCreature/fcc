@@ -476,8 +476,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     current_module.set(coarseMod);
     coarseMod = null;
     
-    pushCache();
-    scope(exit) popCache();
+    auto popCache = pushCache(); scope(exit) popCache();
     
     string t2 = cstemp;
     coarseSrc = null;

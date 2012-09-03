@@ -10,6 +10,7 @@ bool gotDouble(ref string text, ref double d) {
   d = 0;
   bool isDigit(char c) { return c >= '0' && c <= '9'; }
   while (t2.length) {
+    if (t2[0] == '_') { t2.take(); continue; }
     auto digit = t2[0];
     if (!isDigit(digit)) break;
     t2.take();

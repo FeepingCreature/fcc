@@ -453,8 +453,7 @@ src_cleanup_redo: // count, then copy
         // logln(args[k], " -> ", arg);
         myNS2._add(args[k], arg);
       }
-      // pushCache;
-      // scope(exit) popCache;
+      // auto popCache = pushCache(); scope(exit) popCache();
       scope(exit) str = str.dup; // faster because string is small
       
       if (!readCExpr(str, res)) {

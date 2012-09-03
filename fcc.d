@@ -182,7 +182,7 @@ static this() {
   Expr ptreq(bool neg, Expr ex1, Expr ex2) {
     auto p1 = fastcast!(Pointer) (resolveType(ex1.valueType())), p2 = fastcast!(Pointer) (resolveType(ex2.valueType()));
     if (!p1 || !p2) return null;
-    assert(p1.target == p2.target, Format("Cannot compare ", p1, " and ", p2));
+    // assert(p1.target == p2.target, Format("Cannot compare ", p1, " and ", p2));
     return fastalloc!(CondExpr)(fastalloc!(Compare)(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
   }
   defineOp("==", false /apply/  &fpeq);
@@ -191,6 +191,11 @@ static this() {
   defineOp("!=",  true /apply/ &ptreq);
   
   setupPropCall();
+}
+
+extern(C) void rt_print(AsmFile af, string s) {
+  auto printf = sysmod.lookup("printf");
+  buildFunCall(printf, mkString(s~"\n"), "printf").emitAsm(af);
 }
 
 // from ast.math
@@ -220,10 +225,10 @@ static this() {
         logln("too early for division");
         fail;
       }
-      res = buildFunCall(fastcast!(Function) (sysmod.lookup("_idiv")), mkTupleExpr(ex1, ex2), "_idiv");
+      res = buildFunCall(sysmod.lookup("_idiv"), mkTupleExpr(ex1, ex2), "_idiv");
     }
     if (isARM && op == "%" && nontrivial()) {
-      res = buildFunCall(fastcast!(Function) (sysmod.lookup("_mod")), mkTupleExpr(ex1, ex2), "_mod");
+      res = buildFunCall(sysmod.lookup("_mod"), mkTupleExpr(ex1, ex2), "_mod");
     }
     if (!res) res = fastalloc!(AsmIntBinopExpr)(ex1, ex2, op);
     if (b1 && b2) res = reinterpret_cast(fastcast!(IType) (sysmod.lookup("bool")), res);
@@ -324,7 +329,7 @@ static this() {
 }
 
 extern(C) void printThing(AsmFile af, string s, Expr ex) {
-  (buildFunCall(fastcast!(Function) (sysmod.lookup("printf")), mkTupleExpr(mkString(s), ex), "mew")).emitAsm(af);
+  (buildFunCall(sysmod.lookup("printf"), mkTupleExpr(mkString(s), ex), "mew")).emitAsm(af);
 }
 
 // from ast.fun
@@ -445,7 +450,7 @@ static this() {
         return fastalloc!(CondExpr)(fastalloc!(AndOp)(
           fastalloc!(Compare)(e1l, "==", e2l),
           fastalloc!(Compare)(mkInt(0), "==", buildFunCall(
-            fastcast!(Function)(sysmod.lookup("memcmp")),
+            sysmod.lookup("memcmp"),
             mkTupleExpr(e1p, e2p, mcl),
             "memcmp for array equal"
           )

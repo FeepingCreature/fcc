@@ -9,7 +9,7 @@ bool gotString(ref string text, ref string res,
   if (!alreadyMatched && !t2.accept(sep)) return false;
   ubyte[] ba;
   while (true) {
-    assert(t2.length);
+    if (!t2.length) return false;
     // if (t2.accept(sep)) break; // eats comments in strings
     if (auto rest = t2.startsWith(sep)) { t2 = rest; break; }
     byte xtake() {

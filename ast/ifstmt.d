@@ -100,8 +100,7 @@ Object gotStaticIf(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   
   Statement res;
   
-  pushCache;
-  scope(exit) popCache;
+  auto popCache = pushCache(); scope(exit) popCache();
   
   if (isStaticTrue(test)) {
     static if (Stmt) { res = branch1.parseFullAggregateBody(rest); }

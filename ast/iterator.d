@@ -651,7 +651,9 @@ LValue getRefExpr(Expr ex) {
   return null;
 }
 
-import ast.variable, ast.assign;
+extern(C) void rt_print(AsmFile af, string s);
+
+import ast.variable, ast.assign, ast.tuples, ast.literals;
 class IterLetCond(T) : Cond, NeedsConfig {
   T target;
   Expr iter;
@@ -669,6 +671,11 @@ class IterLetCond(T) : Cond, NeedsConfig {
   mixin defaultIterate!(iter, target, iref, iref_pre);
   override void configure() { iref = lvize(iref_pre); }
   override void jumpOn(AsmFile af, bool cond, string dest) {
+    if (!iref) {
+      logln("in iter cond ", this);
+      breakpoint;
+      fail("iter cond not configured");
+    }
     auto itype = fastcast!(Iterator) (resolveType(iter.valueType()));
     auto stepcond = itype.testAdvance(iref);
     auto value = itype.currentValue(iref);
@@ -711,16 +718,14 @@ class IterLetCond(T) : Cond, NeedsConfig {
 }
 
 import ast.scopes, ast.vardecl, ast.aliasing;
-Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = true)(ref string text, ParseCb cont, ParseCb rest) {
-  static if (!expressionTargetAllowed)
-    static assert(!withoutIteratorAllowed);
+Object gotIterCond(bool expressionTargetAllowed = true)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue lv;
   MValue mv;
   string newVarName; IType newVarType;
   bool needIterator;
   bool isRefDecl;
-  const string myTE = "tree.expr _tree.expr.cond >tree.expr.arith";
+  const string myTE = "tree.expr _tree.expr.arith _tree.expr.iter_loose";
   bool wantTargetDecl = true;
   if (expressionTargetAllowed) {
     Object obj;
@@ -737,7 +742,7 @@ Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = t
     }
   }
   if (wantTargetDecl) {
-    if (!withoutIteratorAllowed && !expressionTargetAllowed) {
+    if (!expressionTargetAllowed) {
       // it's waay too early to commit to trying to parse a type!
       // maybe we can guess if we need to?
       auto t3 = t2;
@@ -756,7 +761,7 @@ Object gotIterCond(bool withoutIteratorAllowed, bool expressionTargetAllowed = t
     return null;
   needIterator = true;
 withoutIterator:
-  if (!withoutIteratorAllowed && !needIterator) return null;
+  if (!needIterator) return null;
   Expr iter;
   resetError();
   
@@ -771,7 +776,7 @@ withoutIterator:
     
     if (ty) *templInstOverride.ptr() = stuple(t2, ty);
     
-    if (!rest(t2, "tree.expr >tree.expr.cond"[], &iter)) {
+    if (!rest(t2, "tree.expr >tree.expr.cond >tree.expr.arith"[], &iter)) {
       
       if (needIterator) t2.failparse("Can't parse iterator"[]);
       else return null;
@@ -828,17 +833,23 @@ withoutIterator:
   
   text = t2;
   
-  if (lv) return new IterLetCond!(LValue) (lv, iter, iter, address_target);
-  else return new IterLetCond!(MValue) (mv, iter, iter, address_target);
+  if (lv) return fastcast!(Object)(
+    cond2ex(fastalloc!(IterLetCond!(LValue))(lv, iter, iter, address_target)));
+  else return fastcast!(Object)(
+    cond2ex(fastalloc!(IterLetCond!(MValue))(mv, iter, iter, address_target)));
 }
-mixin DefaultParser!(gotIterCond!(false, false), "cond.iter_very_strict"[], "7050"[]);
-mixin DefaultParser!(gotIterCond!(false, true), "cond.iter_strict"[], "705"[]);
-mixin DefaultParser!(gotIterCond!(true), "cond.iter_loose"[], "735"[]);
+mixin DefaultParser!(gotIterCond!(false), "tree.expr.iter_strict"[], "121"[]);
+mixin DefaultParser!(gotIterCond!(true), "tree.expr.iter_loose"[], "220"[]);
 
 HintType!(Iterator) anyIteratorTypeHint;
 
 import ast.opers;
 static this() {
+  implicits ~= delegate Expr(Expr ex) {
+    if (!fastcast!(Iterator) (ex.valueType())) return null;
+    return cond2ex(fastalloc!(IterLetCond!(LValue))
+      (cast(LValue)null, ex, ex, cast(LValue)null));
+  };
   defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
     if (!anyIteratorTypeHint) New(anyIteratorTypeHint);
     if (!gotImplicitCast(e1, anyIteratorTypeHint, (IType it) {

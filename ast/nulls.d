@@ -54,54 +54,45 @@ Cond testNeq(Expr ex1, Expr ex2) {
   assert(e1vt.size == e2vt.size);
   if (e1vt.size == 4)
     return fastalloc!(Compare)(ex1, true, false, true, false, ex2);
-  assert(e1vt.size == 8);
+  assert(e1vt.size == 8 || e1vt.size == 12);
   IType t2;
   if (e1vt.size == 8) t2 = mkTuple(voidp, voidp);
   if (e1vt.size == 12) t2 = mkTuple(voidp, voidp, voidp);
   if (!t2) fail;
-  return fastalloc!(ExprWrap)(tmpize_maybe(ex1, delegate Expr(Expr ex1) {
+  return ex2cond(tmpize_maybe(ex1, delegate Expr(Expr ex1) {
     return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
       auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex1));
       auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex2));
       Cond cd;
       if (e1vt.size == 8) {
         cd = new BooleanOp!("||")(
-          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[0], ex2s[0])),
-          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[1], ex2s[1]))
+          ex2cond(lookupOp("!=", ex1s[0], ex2s[0])),
+          ex2cond(lookupOp("!=", ex1s[1], ex2s[1]))
         );
       }
       if (e1vt.size == 12) {
         cd = new BooleanOp!("||"[])(
-          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[0], ex2s[0])), new BooleanOp!("||")(
-          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[1], ex2s[1])),
-          fastalloc!(ExprWrap)(lookupOp("!=", ex1s[2], ex2s[2]))
+          ex2cond(lookupOp("!=", ex1s[0], ex2s[0])), new BooleanOp!("||")(
+          ex2cond(lookupOp("!=", ex1s[1], ex2s[1])),
+          ex2cond(lookupOp("!=", ex1s[2], ex2s[2]))
         ));
       }
       if (!cd) fail;
-      return fastalloc!(CondExpr)(cd);
+      return cond2ex(cd);
     });
   }));
-  /*auto v1 = lvize(ex1, &init1);
-  auto v2 = lvize(ex2, &init2);
-  auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v1));
-  auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType)~ t2, fastcast!(LValue)~ v2));
-  Cond res = new BooleanOp!("||"[])(
-    fastalloc!(ExprWrap)(lookupOp("!="[], ex1s[0], ex2s[0])),
-    fastalloc!(ExprWrap)(lookupOp("!="[], ex1s[1], ex2s[1]))
-  );
-  if (init1) res = fastalloc!(StatementAndCond)(init1, res);
-  if (init2) res = fastalloc!(StatementAndCond)(init2, res);
-  return res;*/
 }
 
-Cond testNonzero(Expr ex) {
+extern(C) Cond _testNonzero(Expr ex) {
   auto ex2 = ex, ex3 = ex; // test for int-like
   IType[] _tried;
   IType Bool = fastcast!(IType) (sysmod.lookup("bool"[]));
   if (gotImplicitCast(ex2,         Bool   , (IType it) { _tried ~= it; return test(it == Bool); }) || (ex2 = null, false)
-    || gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return test(Single!(SysInt) == it); }) || (ex3 = null, false)) {
+    ||gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return test(Single!(SysInt) == it); }) || (ex3 = null, false)) {
     if (!ex2) ex2 = ex3;
-    return fastalloc!(Compare)(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0
+    if (auto ce = fastcast!(CondExpr) (ex2)) return ce.cd;
+    return exprwrap(ex2);
+    // return fastalloc!(Compare)(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0
   }
   auto n = fastcast!(Expr)~ sysmod.lookup("null"[]);
   if (!n) return null;
@@ -130,16 +121,19 @@ Cond testNonzero(Expr ex) {
   return null;
 }
 
+Cond testNonzero(Expr ex) { return _testNonzero(ex); }
+
 import ast.literals, ast.casting, ast.modules, ast.conditionals, ast.opers;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex; Cond cd;
+  Object obj;
   auto t2 = text;
-  if (rest(t2, "<tree.expr >tree.expr.cond"[], &cd) || rest(t2, "<tree.expr >tree.expr.cond"[], &ex)) {
-    if (cd) { text = t2; return fastcast!(Object) (cd); } // Okaaaay.
+  if (rest(t2, "tree.expr", &obj)) {
+    if (fastcast!(Cond)(obj)) { text = t2; return obj; } // Okaaaay.
+    auto ex = fastcast!(Expr) (obj);
     if (!ex) return null;
     if (t2.accept("."[])) return null; // wtf? definitely not a condition.
     if (auto res = testNonzero(ex)) { text = t2; return fastcast!(Object) (res); }
   }
   return null;
 }
-mixin DefaultParser!(gotExprAsCond, "cond.expr"[], "99"[]);
+mixin DefaultParser!(gotExprAsCond, "cond.expr"[], "73"[]);

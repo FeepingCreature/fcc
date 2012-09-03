@@ -208,7 +208,7 @@ int main(string[] args) {
   mem.calloc_dg = &myCalloc;
   mem.realloc_dg = &myRealloc;
   mem.free_dg = &GC_free;*/
-  if (int:_ebp & 0xf) {
+  if (int:_ebp & 0xf != 8) {
     writeln "FEEEP! YOU BROKE THE FUCKING FRAME ALIGNMENT AGAIN. $(_ebp) ";
     _interrupt 3;
   }

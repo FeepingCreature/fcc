@@ -317,7 +317,9 @@ bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseC
   }
 }
 
-Expr buildFunCall(Function fun, Expr arg, string info) {
+extern(C) Expr _buildFunCall(Object obj, Expr arg, string info) {
+  auto fun = fastcast!(Function) (obj);
+  if (!fun) fail;
   auto fc = fun.mkCall();
   Statement[] inits;
   if (!matchedCallWith(arg, fun.getParams(), fc.params, inits, info))
@@ -512,7 +514,7 @@ static this() {
 // helper for ast.fun
 extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name) {
   (fastalloc!(ExprStatement)(buildFunCall(
-    fastcast!(Function) (sysmod.lookup("missed_return")),
+    sysmod.lookup("missed_return"),
     fastalloc!(StringExpr)(name),
     "missed return signal"
   ))).emitAsm(af);

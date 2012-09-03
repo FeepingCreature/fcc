@@ -786,3 +786,8 @@ Expr True, False;
 Cond cTrue, cFalse;
 
 const esp_alignment_delta = 8; // call, push ebp
+
+extern(C) Expr _buildFunCall(Object obj, Expr arg, string info);
+Expr buildFunCall(Object obj, Expr arg, string info) {
+  return _buildFunCall(obj, arg, info);
+}
