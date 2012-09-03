@@ -133,6 +133,14 @@ Slices are start-inclusive and end-exclusive.
 Example: \texttt{"Hello World"[6..\$] == "World"}\\
 In an index access, \texttt{\$} is the length of the array or tuple.
 \end{segment}
+\begin{segment}{named tuples}
+You can give tuple entries names. The syntax is similar to variable declarations.
+\begin{lstlisting}
+(int a, float b) c = (2, 3f);
+c.b += c.a;
+\end{lstlisting}
+
+\end{segment}
 \mysection{Types}
 Types indicate the memory layout and "meaning" of a value.
 \begin{segment}{Basic Types}
@@ -664,11 +672,33 @@ while 0..10
 
 The expression used to advance an iterator and return its new value is \texttt{<-}, pronounced
 "from". For instance, \texttt{while (int i <- 0..10)}: "while int i from [zero to ten]".
-Arrays also behave as iterators.
+
+Arrays also behave as iterators, though note that if you try to iterate a string you will not get characters but bytes.
+There's iterators for strings in \texttt{std.unicode}.
 
 \begin{lstlisting}
-while char ch <- "Hello World"
-  writeln "$(int:ch)";
+import std.unicode;
+string str = "Hello World";
+while int ch <- new UTF8Decoder str
+  writeln "$ch";
+\end{lstlisting}
+
+Structs and classes can behave as iterators by implementing two properties, \texttt{value}
+of arbitrary type which is the "output" of the iterator, and \texttt{advance} of
+type bool. When making an iterator class, please extend \texttt{Iterator!T}, which provides \texttt{value}.
+
+The following snippets are equivalent for an iterator struct or class:
+\begin{lstlisting}
+MyIteratorStruct iter;
+
+for auto value <- iter {
+  [...]
+}
+
+while (iter.advance) {
+  auto value = iter.value;
+  [...]
+}
 \end{lstlisting}
 \end{segment}
 
