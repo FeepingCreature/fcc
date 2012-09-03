@@ -493,10 +493,17 @@ Object gotBoolOpExpr(string Op, alias Class)(ref string text, ParseCb cont, Pars
   Expr ex;
   if (!cont(t2, &ex)) return null;
   auto old_ex = ex;
-  while (t2.accept(Op)) {
+  auto t3 = t2;
+  while (t3.accept(Op)) {
     Expr ex2;
-    if (!cont(t2, &ex2))
-      t2.failparse("Couldn't get second cond after '"[], Op, "'"[]);
+    // trust me
+    auto popCache = pushCache(); scope(exit) popCache();
+    if (!cont(t3, &ex2)) {
+      // t2.failparse("Couldn't get second cond after '"[], Op, "'"[]);
+      t2.setError("Couldn't get second cond after '"[], Op, "'"[]);
+      break;
+    }
+    t2 = t3;
     ex = cond2ex(fastalloc!(Class)(ex2cond(ex), ex2cond(ex2)));
   }
   if (old_ex is ex) return null; // only matched one

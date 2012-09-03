@@ -504,7 +504,7 @@ template ImporterImpl() {
         auto t2 = fastcast!(IType) (obj);
         if (t1 && t2 && t1 == t2) return;
         throw new Exception(Format(
-          "Name ambiguous: '", name, "' can refer to both ", res, "(", source, ") and ", obj, " (", src, ")"
+          "Name ambiguous: '", name, "' can refer to both ", source, ".", name, " and ", src, ".", name
         ));
         // fail;
       }
