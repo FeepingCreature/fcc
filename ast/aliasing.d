@@ -89,6 +89,7 @@ class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
     bool addsSelf() { return true; }
     string getIdentifier() { return name; }
     bool isPointerLess() { return base.isPointerLess(); }
+    bool returnsInMemory() { return base.returnsInMemory(); }
     int size() { return base.size; }
     string mangle() {
       // breeak

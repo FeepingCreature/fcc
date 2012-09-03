@@ -126,6 +126,7 @@ class LateType : IType {
     ubyte[] initval() { needMe; return me.initval; }
     bool isPointerLess() { needMe; return me.isPointerLess(); }
     bool isComplete() { return !!me; } // TODO: ??
+    bool returnsInMemory() { needMe; return me.returnsInMemory(); }
     int opEquals(IType it) {
       auto lt = fastcast!(LateType) (it);
       if (lt && name == lt.name) return true;

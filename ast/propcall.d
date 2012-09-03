@@ -80,6 +80,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
     Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     bool isPointerLess() { return fpvt.isPointerLess(); }
     bool isComplete() { return fpvt.isComplete(); }
+    bool returnsInMemory() { return fpvt.returnsInMemory(); }
     Object lookup(string name, bool local = false) {
       return lookupInternal(name, local, true);
     }

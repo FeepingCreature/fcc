@@ -135,6 +135,10 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     int framesize() { return (fastcast!(ScopeLike)~ sup).framesize(); }
     string toString() { return Format("ModeSpace ("[], firstParam?firstParam.valueType():null, ")" /*" <- ", sup*/); }
     bool isTempNamespace() { return true; }
+    bool returnsInMemory() {
+      if (firstParam) return firstParam.valueType().returnsInMemory();
+      return false;
+    }
     int size() {
       if (firstParam) return firstParam.valueType().size;
       // so you can have tuples including modes for stuff like using()

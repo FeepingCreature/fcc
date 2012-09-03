@@ -520,6 +520,7 @@ class BogusIterator : Iterator, IType { // tag
     IType proxyType() { return null; }
     bool isPointerLess() { assert(false); }
     bool isComplete() { assert(false); }
+    bool returnsInMemory() { assert(false); }
   }
 }
 

@@ -142,10 +142,13 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!();
-  override void emitAsm(AsmFile af) { }
-  override bool isTempNamespace() { return false; }
-  override bool isPointerLess() { return false; }
-  override bool isComplete() { return true; }
+  override {
+    void emitAsm(AsmFile af) { }
+    bool isTempNamespace() { return false; }
+    bool isPointerLess() { return false; }
+    bool isComplete() { return true; }
+    bool returnsInMemory() { return false; }
+  }
   IntfRef getRefType() { return fastalloc!(IntfRef)(this); }
   string toString() { return "interface "~name; }
   string mangle() { return qformat("interface_", mangle_id); }
@@ -309,6 +312,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
     void markWeak() { myClass.markWeak(); }
     string mangle() { return "ref_"~myClass.mangle(); }
     string mangleSelf() { return mangle(); }
+    bool returnsInMemory() { return false; }
     int opEquals(IType type) {
       if (!super.opEquals(type)) return false;
       // logln("test "[], type, " against "[], this);
@@ -358,6 +362,7 @@ class SuperType : IType, RelNamespace {
     ubyte[] initval() { logln("Excuse me what are you doing declaring variables of super-type you weirdo"[]); fail; return null; }
     int opEquals(IType it) { return false; /* wut */ }
     bool isPointerLess() { return false; }
+    bool returnsInMemory() { assert(false); }
     override bool isComplete() { return true; }
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       auto sup2 = fastcast!(SuperType) (base.valueType());
@@ -532,6 +537,7 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   }
   override string mangle() { return mangle_id; }
   override Class dup() { return this; }
+  override bool returnsInMemory() { return false; }
   bool isTempNamespace() { return false; }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, null);

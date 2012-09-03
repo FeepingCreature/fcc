@@ -104,16 +104,21 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
   int cached_length, cached_size;
   mixin ImporterImpl!();
   NSCache!(string, RelMember) rmcache;
-  override bool addsSelf() { return true; }
-  override bool isPointerLess() {
-    bool pointerless = true;
-    select((string, RelMember member) { pointerless &= member.type.isPointerLess(); });
-    return pointerless;
-  }
-  override bool isComplete() {
-    bool complete = true;
-    select((string, RelMember member) { complete &= member.type.isComplete(); });
-    return complete;
+  override {
+    bool addsSelf() { return true; }
+    bool isPointerLess() {
+      bool pointerless = true;
+      select((string, RelMember member) { pointerless &= member.type.isPointerLess(); });
+      return pointerless;
+    }
+    bool isComplete() {
+      bool complete = true;
+      select((string, RelMember member) { complete &= member.type.isComplete(); });
+      return complete;
+    }
+    bool returnsInMemory() {
+      return true;
+    }
   }
   Structure dup() {
     auto res = fastalloc!(Structure)(name);

@@ -14,6 +14,7 @@ interface IType {
   IType proxyType();
   bool isPointerLess(); // concerns the VALUE ITSELF - ie. an array is always pointerful
   bool isComplete(); // is this type completely defined or does it depend on future stuff?
+  bool returnsInMemory(); // for C compat. ugh.
 }
 
 import tools.log;
@@ -62,6 +63,7 @@ class Type : IType {
   bool isPointerLess() { return false; } // default
   bool isComplete() { return true; } // also default
   string toString() { return mangle(); }
+  bool returnsInMemory() { return false; }
 }
 
 class Void_ : Type, Dwarf2Encodable {
@@ -265,6 +267,7 @@ class HintType(T) : IType {
     IType proxyType() { return null; }
     bool isPointerLess() { return false; }
     bool isComplete() { return false; }
+    bool returnsInMemory() { return false; }
   }
 }
 

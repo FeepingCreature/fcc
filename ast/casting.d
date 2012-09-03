@@ -114,7 +114,7 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   dest = forcedConvert(dest);
   try {
     if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
-      t2.setError("can't get "[], ex, " into "[], dest);
+      t2.setError("can't get "[], ex.valueType(), " into "[], dest);
       return null;
     }
   } catch (Exception ex) {
@@ -183,6 +183,7 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   text = t2;
+  resetError;
   return fastcast!(Object)~ reinterpret_cast(dest, ex);
 }
 mixin DefaultParser!(gotCastExpr, "tree.expr.cast"[], "2418"[]);

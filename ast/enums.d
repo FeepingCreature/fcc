@@ -34,6 +34,7 @@ class Enum : Namespace, RelNamespace, IType, Named, ExprLikeThingy {
     ubyte[] initval() { return base.initval; }
     bool isPointerLess() { return base.isPointerLess(); }
     bool isComplete() { return true; }
+    bool returnsInMemory() { return base.returnsInMemory(); }
     mixin TypeDefaults!(false, true);
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       if (base && name == "toString") {
