@@ -6,7 +6,7 @@ pragma(lib, "SOIL");
 import std.string, std.lib.opengl, std.lib.opengl.texture;
 
 class SOILError : Error {
-  void init() { super.init "SOILError: $(CToString SOIL_last_result())"; }
+  void init(string fn) { super.init "SOILError ($fn): $(CToString SOIL_last_result())"; }
 }
 
 extern(C) int SOIL_load_OGL_texture_from_memory(char*, int, int, int, int);
@@ -23,16 +23,16 @@ class SOILTexture : Texture {
           toStringz file,
           LOAD_AUTO,
           CREATE_NEW_ID,
-          prefix(FLAG_).(MIPMAPS | INVERT_Y)));
+          FLAG_MIPMAPS));
     } else if (imgdata) {
       id = prefix(SOIL_).(
         load_OGL_texture_from_memory (
           imgdata.(char*:ptr, length),
           LOAD_AUTO,
           CREATE_NEW_ID,
-          prefix(FLAG_).(MIPMAPS | INVERT_Y)));
+          FLAG_MIPMAPS));
     }
-    if (!id) raise new SOILError;
+    if (!id) raise new SOILError file;
     bind;
     TEXTURE_2D.GetTexLevelParameteriv(0, TEXTURE_WIDTH, &width);
     TEXTURE_2D.GetTexLevelParameteriv(0, TEXTURE_HEIGHT, &height);

@@ -837,8 +837,14 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto backupt2 = t2;
     t2 = t3;
     try {
-      auto op2 = lookupOp(opName, true, op, recurse(nextOp, _i + 1));
-      if (!op2) { backupt2.setError("No "[], op, " defined! "[]); t2 = backupt2; return null; }
+      auto recursed = recurse(nextOp, _i + 1);
+      auto op2 = lookupOp(opName, true, op, recursed);
+      if (!op2) {
+	if( recursed)
+	  backupt2.setError("Undefined operation: ", op.valueType(), " ", opName, " ", recursed.valueType());
+	t2 = backupt2;
+	return null;
+      }
       op = op2;
     } catch (Exception ex) t2.failparse(ex);
     goto retry;

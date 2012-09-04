@@ -61,7 +61,7 @@ class AsmLongBinopExpr : BinopExpr {
         case "/":
           // defer to cstdlib
           buildFunCall(
-            sysmod.lookup("lldiv"),
+            sysmod.lookup("__divdi3"),
             mkTupleExpr(e1, e2), "lldiv math call"
           ).emitAsm(af);
           break;

@@ -30,7 +30,7 @@ void setupSysmods() {
       double sqrt(double);
       RenameIdentifier sqrt C_sqrt;
       int strlen(char*);
-      long lldiv(long numerator, denominator);
+      long __divdi3(long numerator, denominator);
     }
     bool streq(char[] a, b) {
       if a.length != b.length return false;
@@ -382,8 +382,9 @@ void setupSysmods() {
         auto ar = t[0];
         auto pos = t[1];
         auto info = t[2];
-        if (pos >= ar.length)
+        if (pos >= ar.length) {
           raise new BoundsError "Index access out of bounds: $pos >= length $(ar.length) at $info";
+        }
         return ar.ptr + pos;
       }
     }
