@@ -11,7 +11,7 @@ defmode GLFW "prefix GLFW_ prefix glfw";
 void delegate(GLFWwindow, int, int) windowSizeCallback;
 void delegate(GLFWwindow, int, int) keyCallback;
 void delegate(GLFWwindow, int) charCallback;
-void delegate(GLFWwindow, int, int) mousePosCallback;
+void delegate(GLFWwindow, int, int) cursorPosCallback;
 void delegate(GLFWwindow, int, int) mouseButtonCallback;
 void delegate(GLFWwindow, int, int) scrollCallback;
 
@@ -28,9 +28,9 @@ extern(C) {
     _esi = glfwGetWindowUserPointer(wnd);
     charCallback?(wnd, k);
   }
-  void MousePosCallback(GLFWwindow wnd, int x, y) {
+  void CursorPosCallback(GLFWwindow wnd, int x, y) {
     _esi = glfwGetWindowUserPointer(wnd);
-    mousePosCallback?(wnd, x, y);
+    cursorPosCallback?(wnd, x, y);
   }
   void MouseButtonCallback(GLFWwindow wnd, int a, b) {
     _esi = glfwGetWindowUserPointer(wnd);
@@ -46,7 +46,7 @@ void initCallbacks() using mode GLFW {
   SetWindowSizeCallback &WindowSizeCallback;
   SetKeyCallback &KeyCallback;
   SetCharCallback &CharCallback;
-  SetMousePosCallback &MousePosCallback;
+  SetCursorPosCallback &CursorPosCallback;
   SetMouseButtonCallback &MouseButtonCallback;
   SetScrollCallback &ScrollCallback;
 }
@@ -176,7 +176,7 @@ class GLFWWindow : GLWindow {
     handle.CloseWindow();
   }
   void warp(vec2i to) using mode GLFW {
-    handle.SetMousePos to;
+    handle.SetCursorPos to;
     mouse-pos = to;
   }
   bool claimed;
