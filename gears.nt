@@ -183,9 +183,13 @@ void main(string[] args) {
     if (!Init()) raise new Error "Failed to init GLFW";
     onExit Terminate;
     
-    OpenWindowHint(DEPTH_BITS, 16);
-    auto wnd = OpenWindow (300, 300, WINDOWED, "Gears", null);
+    WindowHint(DEPTH_BITS, 16);
+    auto wnd = CreateWindow (300, 300, WINDOWED, "Gears", null);
     if (!wnd) raise new Error "Failed to open GLFW window";
+    MakeContextCurrent wnd;
+    SwapInterval 1;
+    GetWindowSize(wnd, &int width, &int height);
+    reshape(wnd, width, height);
     
     wnd.SetWindowUserPointer (_esi);
     
@@ -202,9 +206,9 @@ void main(string[] args) {
     while running {
       draw;
       animate;
-      SwapBuffers;
+      SwapBuffers wnd;
       PollEvents;
-      if (!IsWindow(wnd)) running = false;
+      // if (!IsWindow(wnd)) running = false;
     }
   }
 }

@@ -13,7 +13,8 @@ void delegate(GLFWwindow, int, int) keyCallback;
 void delegate(GLFWwindow, int) charCallback;
 void delegate(GLFWwindow, int, int) cursorPosCallback;
 void delegate(GLFWwindow, int, int) mouseButtonCallback;
-void delegate(GLFWwindow, int, int) scrollCallback;
+void delegate(GLFWwindow, double, double) scrollCallback;
+int delegate(GLFWwindow) windowCloseCallback;
 
 extern(C) {
   void WindowSizeCallback(GLFWwindow wnd, int w, h) {
@@ -36,9 +37,13 @@ extern(C) {
     _esi = glfwGetWindowUserPointer(wnd);
     mouseButtonCallback?(wnd, a, b);
   }
-  void ScrollCallback(GLFWwindow wnd, int x, y) {
+  void ScrollCallback(GLFWwindow wnd, double x, y) {
     _esi = glfwGetWindowUserPointer(wnd);
     scrollCallback?(wnd, x, y);
+  }
+  int WindowCloseCallback(GLFWwindow wnd) {
+    _esi = glfwGetWindowUserPointer(wnd);
+    return windowCloseCallback?(wnd);
   }
 }
 
@@ -49,6 +54,7 @@ void initCallbacks() using mode GLFW {
   SetCursorPosCallback &CursorPosCallback;
   SetMouseButtonCallback &MouseButtonCallback;
   SetScrollCallback &ScrollCallback;
+  SetWindowCloseCallback &WindowCloseCallback;
 }
 
 import std.lib.opengl.window;
@@ -122,10 +128,11 @@ class GLFWWindow : GLWindow {
     if (action) buttons[button].(clicked, pressed) = (true, true);
     else buttons[button].(released, pressed) = (true, false);
   }
-  void scroll(GLFWwindow window, int x, y) {
-    scroll-state += vec2i(x, y);
+  void scroll(GLFWwindow window, double x, y) {
+    scroll-state += vec2i(int:x, int:y);
   }
-  bool is-set-up;
+  int closedfn(GLFWwindow window) { closed = true; return true; }
+  bool is-set-up, closed;
   string title;
   void setTitle(string s) {
     import std.string;
@@ -136,11 +143,12 @@ class GLFWWindow : GLWindow {
     if (!Init()) raise new Error "Failed to init GLFW";
     onFailure Terminate;
     
-    OpenWindowHint(DEPTH_BITS, 16);
+    WindowHint(DEPTH_BITS, 16);
     (w, h) = size;
     if (!title) title = "GLFW Window";
     import std.string;
-    handle = OpenWindow (w, h, WINDOWED, toStringz title, null);
+    handle = CreateWindow (w, h, WINDOWED, toStringz title, null);
+    MakeContextCurrent handle;
     if (!handle) raise new Error "Failed to open GLFW window";
     
     handle.SetWindowUserPointer (_esi);
@@ -151,9 +159,10 @@ class GLFWWindow : GLWindow {
     windowSizeCallback = &reshape;
     keyCallback = &key;
     charCallback = &handleChar;
-    mousePosCallback = &mousepos;
+    cursorPosCallback = &mousepos;
     mouseButtonCallback = &mousebutton;
     scrollCallback = &scroll;
+    windowCloseCallback = &closedfn;
     initCallbacks();
     is-set-up = true;
     for (auto dg <- context-callbacks) dg();
@@ -166,14 +175,16 @@ class GLFWWindow : GLWindow {
     key-pressed[] = [for key-pressed: false];
     key-released[] = [for key-released: false];
     scroll-state = vec2i 0;
-    SwapBuffers;
+    SwapBuffers handle;
     PollEvents;
     if (queuedInput) onTextInput.call queuedInput;
     queuedInput = null;
-    if (!IsWindow(handle)) raise new WindowClosed "GLFW exit";
+    if (closed) raise new WindowClosed "GLFW exit";
+    // if (!IsWindow(handle)) raise new WindowClosed "GLFW exit";
   }
   void close() using mode GLFW {
-    handle.CloseWindow();
+    // handle.CloseWindow();
+    writeln "TODO";
   }
   void warp(vec2i to) using mode GLFW {
     handle.SetCursorPos to;
