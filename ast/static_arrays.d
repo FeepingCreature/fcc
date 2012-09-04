@@ -120,7 +120,7 @@ class DataExpr : CValue {
   mixin defaultIterate!();
   override {
     DataExpr dup() { return fastalloc!(DataExpr)(data); }
-    IType valueType() { return fastalloc!(StaticArray)(Single!(Byte), data.length); }
+    IType valueType() { return fastalloc!(StaticArray)(Single!(UByte), data.length); }
     string toString() {
       if (data.length > 128) return Format("[byte x"[], data.length, "]"[]);
       return Format(data);
