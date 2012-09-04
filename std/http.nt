@@ -15,7 +15,7 @@ Download a site. HTTP/1.0, very WIP.
 Parameters:
 url - URL
 onRedirect - Called when the request is redirected */
-byte[] download(string url, void delegate(string) onRedirect = null) {
+ubyte[] download(string url, void delegate(string) onRedirect = null) {
   auto original-url = url;
   {
     string rest = url.startsWith("http://");
@@ -29,8 +29,8 @@ byte[] download(string url, void delegate(string) onRedirect = null) {
   if portstr.length port = short:portstr.atoi();
   auto sock = connect(domain, port);
   void sendLine(string line) {
-    sock.sendAll byte[]:line;
-    sock.sendAll byte[]:"\r\n";
+    sock.sendAll ubyte[]:line;
+    sock.sendAll ubyte[]:"\r\n";
   }
   sendLine "GET $url HTTP/1.0";
   sendLine "Host: $domain";
@@ -45,10 +45,10 @@ byte[] download(string url, void delegate(string) onRedirect = null) {
   }
   // careful: response will be freed on function end
   auto header = headerstr.split "\r\n";
-  return byte[]:response.dup;
+  return ubyte[]:response.dup;
 }
 
-(byte[], string)[auto~] cache;
+(ubyte[], string)[auto~] cache;
 import std.thread;
 Mutex cachelock;
 
@@ -57,7 +57,7 @@ void init() cachelock = new Mutex;
 /* Function: downloadCached
 *Deprecated!*
 Like <download>, but cached. Self-explanatory. */
-byte[] downloadCached(string url, void delegate(string) onRedirect = null) {
+ubyte[] downloadCached(string url, void delegate(string) onRedirect = null) {
   using MutexWrapper:cachelock {
     for auto tup <- cache
       if tup[1] == url return tup[0];
@@ -220,12 +220,12 @@ Parameters:
   header  - optional, any header data. Host and content-length will be automatically handled
   msgbody - optional, the body of the request.
 Returns:
-  A tuple containing the status code, the header (an array of tuples of strings, (key,value)[]), and the body (byte[]). A status code of 0 means that there was an internal error with the function.
+  A tuple containing the status code, the header (an array of tuples of strings, (key,value)[]), and the body (ubyte[]). A status code of 0 means that there was an internal error with the function.
 TODO:
   Make it clear spaces from fields in the headers.*/
 int sendRequest(HTTP-URI url, string method = "GET",
   (string, string)[] header_in = null, (string, string)[]* header_out = null,
-  byte[] body_in = null, byte[]* body_out = null) {
+  ubyte[] body_in = null, ubyte[]* body_out = null) {
 
   // whine that there's no ssl support
   if url.ssl {
@@ -237,8 +237,8 @@ int sendRequest(HTTP-URI url, string method = "GET",
   auto sock=connect(url.host,short:url.port);
   
   void sendLine(string line) {
-    sock.sendAll byte[]:line;
-    sock.sendAll byte[]:"\r\n";
+    sock.sendAll ubyte[]:line;
+    sock.sendAll ubyte[]:"\r\n";
   }
   
   // send request
@@ -280,7 +280,7 @@ int sendRequest(HTTP-URI url, string method = "GET",
   
   // return parsed response
   if (header_out) *header_out = head[];
-  if (body_out) *body_out = byte[]: resbody;
+  if (body_out) *body_out = ubyte[]: resbody;
   
   return status;
 }

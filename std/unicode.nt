@@ -38,7 +38,7 @@ class UTF8Decoder : Iterator!int {
     } else if (s.length == 3) {
       value = (s[0] & 0b0000_1111) << 12 | (s[1] & 0b0011_1111) << 6 | (s[2] & 0b0011_1111);
     } else {
-      writeln "help how do I decode utf8 length $(s.length) $(byte[]: s)";
+      writeln "help how do I decode utf8 length $(s.length) $(ubyte[]: s)";
       fail;
     }
     return true;

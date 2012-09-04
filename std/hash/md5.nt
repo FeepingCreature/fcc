@@ -7,17 +7,17 @@ struct MD5Hash {
   ubyte x 16 hash;
   int x 4 buf;
   int x 2 bits;
-  byte x 64 in;
+  ubyte x 64 in;
   void init() {
     buf[(0,1,2,3)] = (0x67452301,0xefcdab89,0x98badcfe,0x10325476);
     bits[(0,1)] = (0,0);
   }
-  void sum(byte[] data) {
+  void sum(ubyte[] data) {
     init;
     update data;
     finalize;
   }
-  void update(byte[] data) {
+  void update(ubyte[] data) {
     int t = bits[0];
     alias len = data.length;
     bits[0] = t + (len << 3);
@@ -25,7 +25,7 @@ struct MD5Hash {
     bits[1] += len >> 29;
     t = (t >>> 3) & 0x3f;
     if (t) {
-      byte* p = &in[t];
+      ubyte* p = &in[t];
       t = 64 - t;
       if (len < 3) {
         p[0..len] = data;
@@ -44,7 +44,7 @@ struct MD5Hash {
   }
   void finalize() {
     auto count = (bits[0] >>> 3) &0x3f;
-    byte* p = &in[count];
+    ubyte* p = &in[count];
     *p = 0x80;
     ++p;
     count = 64 - 1 - count;
@@ -57,7 +57,7 @@ struct MD5Hash {
     }
     (int*:&in[0])[(14, 15)] = bits[(0, 1)];
     transform();
-    hash[] = (byte*:buf)[0..16];
+    hash[] = (ubyte*:buf)[0..16];
   }
   void transform() {
     // buf, in
@@ -65,7 +65,7 @@ struct MD5Hash {
     alias f1 = `(#z xor $ #x & $ #y xor #z)`;
     alias f2 = `(#y xor $ #z & $ #x xor #y)`;
     alias f3 = `(#x xor #y xor #z)`;
-    alias f4 = `(#y xor $ #x | neg #z)`;
+    alias f4 = `(#y xor $ #x | ¬ #z)`;
     alias md5step = `{
       %w += mixin(%f.replace("#x", "%x").replace("#y", "%y").replace("#z", "%z")) + %data; %w = (%w << %s) | (%w >>> (32-%s)); %w += %x; }`;
     alias in = int*:&in[0];
@@ -153,7 +153,7 @@ struct MD5Hash {
   }
 }
 
-string format-hash(byte[] hash) {
+string format-hash(ubyte[] hash) {
   char[auto~] res;
   for auto value <- hash {
     alias hex = "0123456789abcdef";

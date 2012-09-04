@@ -40,7 +40,7 @@ class PNGWriter {
     sigbits.(gray, alpha) = png_byte:0 x 2;
     set_sBIT(infoptr, &sigbits);
   }
-  void writeLine(byte[] data) using mode PNG ptr {
+  void writeLine(ubyte[] data) using mode PNG ptr {
     write_row(png_bytep:data.ptr);
   }
   void flush() using mode PNG ptr {

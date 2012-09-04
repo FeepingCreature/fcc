@@ -67,8 +67,8 @@ template QueryIterator(T) {
         static if types-equal(T, string) {
           return sqlite3_bind_text(stmt, bindCount ++, char*: mallocDupData byte[]:t, t.length, &sysFree);
         }
-        static if types-equal(T, byte[]) {
-          return sqlite3_bind_blob(stmt, bindCount ++, mallocDupData t, t.length, &sysFree);
+        static if types-equal(T, byte[]) || types-equal(T, ubyte[]) {
+          return sqlite3_bind_blob(stmt, bindCount ++, mallocDupData byte[]:t, t.length, &sysFree);
         }
         raise new Error "Unknown bind type $(string-of T)";
       }

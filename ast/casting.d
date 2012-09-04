@@ -114,6 +114,8 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   dest = forcedConvert(dest);
   try {
     if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
+      if (!ex)
+	t2.failparse("Cannot parse cast source");
       t2.setError("can't get "[], ex.valueType(), " into "[], dest);
       return null;
     }

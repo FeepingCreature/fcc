@@ -1,7 +1,7 @@
 module test52;
 import std.string, std.process;
 
-byte[] download(string url) { return byte[]: join readback("wget", ["-q", "-O-", url]); }
+ubyte[] download(string url) { return ubyte[]: join readback("wget", ["-q", "-O-", url]); }
 
 void main() {
   writeln "$(string:download \"http://www.google.de\")";

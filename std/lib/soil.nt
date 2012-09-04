@@ -13,9 +13,9 @@ extern(C) int SOIL_load_OGL_texture_from_memory(char*, int, int, int, int);
 
 class SOILTexture : Texture {
   string file;
-  byte[] imgdata;
+  ubyte[] imgdata;
   void init(string f) { file = f; super.init(); }
-  void init(byte[] d) { imgdata = d; super.init(); }
+  void init(ubyte[] d) { imgdata = d; super.init(); }
   void upload() using mode GL {
     if (file) {
       id = prefix(SOIL_).(

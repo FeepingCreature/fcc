@@ -74,7 +74,7 @@ struct MyGlyph {
 
 class Font {
   FT_Face face;
-  void init(byte[] data, int size, int dpi) using mode FT {
+  void init(ubyte[] data, int size, int dpi) using mode FT {
     FTcheck New_Memory_Face(library, data.(char*:ptr, length), 0, &face);
     // FTcheck Set_Pixel_Sizes(face, 0, size);
     FTcheck Set_Char_Size(face, 0, size*64, dpi, dpi);

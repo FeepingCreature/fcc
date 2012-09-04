@@ -40,7 +40,7 @@ class Texture : ITexture {
   int width, height;
   alias size = vec2i(width, height);
   vec4f[] data;
-  byte[] translated_data;
+  ubyte[] translated_data;
   TexMode mode;
   void init() { mode = TexMode.MipMapped; register; }
   void init(int w, h, vec4f[] data) { init(); this.(width,height,data) = (w,h,data); }
@@ -76,7 +76,7 @@ class Texture : ITexture {
       if (!translated_data) {
         auto data = new int[] this.data.length;
         fast_vec4f_to_ints(this.data, data);
-        translated_data = byte[]: data;
+        translated_data = ubyte[]: data;
         if (!this.data) translated_data = null;
       }
       onExit translated_data.free;

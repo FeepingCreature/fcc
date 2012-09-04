@@ -18,12 +18,12 @@ void main() {
     writeln "$(line[0]): $(line[1])";
   auto foo = new int[] 4;
   foo[0] = 1000;
-  writeln "$(byte[]:foo)";
+  writeln "$(ubyte[]:foo)";
   auto sock = new Socket;
   sock.open new TcpAddress ("www.google.de", 80);
-  sock.send byte[]:"GET / HTTP/1.0\r\n";
-  sock.send byte[]:"Host: www.google.de\r\n";
-  sock.send byte[]:"\r\n";
+  sock.send ubyte[]:"GET / HTTP/1.0\r\n";
+  sock.send ubyte[]:"Host: www.google.de\r\n";
+  sock.send ubyte[]:"\r\n";
   auto iter2 = [for part <- splitAt (castIter!string readDg &sock.recv, "\r\n"): part.dup];
   writeln "$(iter2.eval)";
 }

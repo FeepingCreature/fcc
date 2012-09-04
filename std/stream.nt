@@ -1,8 +1,8 @@
 module std.stream;
 
-class iter : Iterator!byte[] {
-  int delegate(byte[]) dg;
-  byte x 512 buffer;
+class iter : Iterator!ubyte[] {
+  int delegate(ubyte[]) dg;
+  ubyte x 512 buffer;
   bool advance() {
     int pos = dg buffer[];
     if pos == -1 {
@@ -13,7 +13,7 @@ class iter : Iterator!byte[] {
   }
 }
 
-iter readDg(int delegate(byte[]) dg) {
+iter readDg(int delegate(ubyte[]) dg) {
   auto res = new iter;
   res.dg = dg;
   return res;

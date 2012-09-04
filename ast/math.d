@@ -411,6 +411,12 @@ static this() {
       return null;
     return fastalloc!(ShortAsByte)(fastalloc!(IntAsShort)(ex));
   };
+  converts ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(SysInt) != resolveTup(ex.valueType()))
+      return null;
+    return reinterpret_cast(Single!(UByte),
+      fastalloc!(ShortAsByte)(fastalloc!(IntAsShort)(ex)));
+  };
 }
 
 void loadFloatEx(Expr ex, AsmFile af) {

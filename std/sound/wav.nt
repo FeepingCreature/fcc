@@ -10,12 +10,12 @@ class WAVCreator : Sound {
   void close() { save; }
   void writeCopydump(int len) { samples ~= copydump[0 .. len]; }
   void save() {
-    byte[auto~] filedata;
+    ubyte[auto~] filedata;
     import std.file;
     onSuccess { filename.writeAll data => filedata[]; filedata.free; }
-    void add(string s) { filedata ~= byte[]: s; }
-    void add(int i) { filedata ~= byte[]: (&i)[0..1]; }
-    void add(short s) { filedata ~= byte[]: (&s)[0..1]; }
+    void add(string s) { filedata ~= ubyte[]: s; }
+    void add(int i) { filedata ~= ubyte[]: (&i)[0..1]; }
+    void add(short s) { filedata ~= ubyte[]: (&s)[0..1]; }
     // see http://www.topherlee.com/software/pcm-tut-wavformat.html
     add "RIFF";
     add 0; // total size - 8

@@ -30,8 +30,8 @@ void* myCallocAtomic(int a) {
 void* myCalloc(int a, b) {
   auto len = a * b;
   auto res = myMalloc(len);
-  auto bp = byte*:res;
-  for 0..len { *(bp++) = byte:0; }
+  auto bp = ubyte*:res;
+  for 0..len { *(bp++) = ubyte:0; }
   return res;
 }
 

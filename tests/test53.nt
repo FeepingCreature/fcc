@@ -3,7 +3,7 @@ import std.socket, std.string, std.time, std.thread, std.process;
 void main() using connect("irc.esper.net", 6667) {
   if (getenv("TESTSUITE")) return;
 auto n = "hibot";
-void S(string s) sendAll byte[]:"$s\r\n";
+void S(string s) sendAll ubyte[]:"$s\r\n";
 new ThreadPool 1 #.addTask \() while auto line <- splitAt(castIter!string readsocket that, "\r\n")
   if auto rest=line.startsWith "PING" S "PONG$rest";
 ;

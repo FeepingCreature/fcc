@@ -18,12 +18,12 @@ class ErrnoError : Error {
 }
 
 /*Template: readfile
-  Returns an iterator over byte[] that yields incremental chunks from a file.
+  Returns an iterator over ubyte[] that yields incremental chunks from a file.
 */
 template readfile(T) {
-  class reader : Iterator!byte[] {
+  class reader : Iterator!ubyte[] {
     int fd;
-    byte x 256  buf;
+    ubyte x 256  buf;
     void close() { .close(fd); }
     bool advance() {
       auto size = read(fd, buf.ptr, buf.length);
@@ -86,7 +86,7 @@ class writer {
   int hdl;
   void init(int hdl) this.hdl = hdl;
   void init(string file) hdl = open(file, O_RDWR | O_CREAT | O_TRUNC);
-  void step(byte[] data) {
+  void step(ubyte[] data) {
     while data.length {
       auto res = write(hdl, data.ptr, data.length);
       if res == -1 { perror "While writing $(data.length) bytes".toStringz(); raise (new WriterError); }
@@ -102,7 +102,7 @@ Returns a delegate that, when called, will write its parameter to a handle.
 Parameters:
   hdl - a file handle
 */
-void delegate(byte[]) writefile(int hdl) using new writer hdl return &step;
+void delegate(ubyte[]) writefile(int hdl) using new writer hdl return &step;
 
 /*Function: writeAll
 Writes data to a file.
@@ -110,8 +110,8 @@ If the file exists, it will be truncated; otherwise, it will be created.
 
 Parameters:
   string file - the filename
-  byte[] data - the data to write*/
-void writeAll(string file, byte[] data) using new writer file {
+  ubyte[] data - the data to write*/
+void writeAll(string file, ubyte[] data) using new writer file {
   step data;
   that.close;
 }

@@ -24,8 +24,8 @@ void main() {
   import std.process;
   if (getenv "TESTSUITE") return;
   void handle(Socket sock) using sock {
-    send byte[]: "HTTP/1.0 200 OK\r\n\r\n";
-    send byte[]: "$([for i <- 0..50: memofib i].eval[])";
+    send ubyte[]: "HTTP/1.0 200 OK\r\n\r\n";
+    send ubyte[]: "$([for i <- 0..50: memofib i].eval[])";
     close;
   }
   using new Socket::
