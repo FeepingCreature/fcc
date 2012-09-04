@@ -135,6 +135,26 @@ class Byte_ : Type, Dwarf2Encodable {
 
 final class Byte : Byte_ { }
 
+class UByte_ : Type, Dwarf2Encodable {
+  override {
+    int size() { return 1; }
+    string mangle() { return "ubyte"; }
+    bool isPointerLess() { return true; }
+    bool canEncode() { return true; }
+    Dwarf2Section encode(Dwarf2Controller dwarf2) {
+      auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("base type"[]));
+      with (sect) {
+        data ~= ".int\t1\t/* byte size */";
+        data ~= qformat(".byte\t"[], hex(DW.ATE_unsigned), "\t/* unsigned */"[]);
+        data ~= dwarf2.strings.addString("ubyte"[]);
+      }
+      return sect;
+    }
+  }
+}
+
+final class UByte : UByte_ { }
+
 const nativeIntSize = 4, nativePtrSize = 4;
 
 final class SizeT : Type {
@@ -225,6 +245,7 @@ const string BasicTypeTable = `
   short  | Short
   char   | Char
   byte   | Byte
+  ubyte  | UByte
   float  | Float
   double | Double
   real   | Real

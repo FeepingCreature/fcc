@@ -377,17 +377,19 @@ static this() {
     }
     return fastalloc!(IntLiteralAsShort)(ie);
   };
-  implicits ~= delegate Expr(Expr ex, IType desired) {
-    if (Single!(SysInt) != ex.valueType()) return null;
+  implicits ~= delegate void(Expr ex, IType desired, void delegate(Expr) dg) {
+    if (Single!(SysInt) != ex.valueType()) return;
     opt(ex);
     auto ie = fastcast!(IntExpr) (ex);
-    if (!ie) return null;
+    if (!ie) return;
     if (ie.num > 255 || ie.num < -127) {
       if (desired && Single!(Byte) == desired)
         throw new Exception(Format(ie.num, " does not fit into byte"));
-      return null;
+      return;
     }
-    return fastalloc!(IntLiteralAsByte)(ie);
+    auto litbyte = fastalloc!(IntLiteralAsByte)(ie);
+    dg(litbyte);
+    dg(reinterpret_cast(Single!(UByte), litbyte));
   };
   converts ~= delegate Expr(Expr ex, IType it) {
     if (Single!(SysInt) != resolveTup(ex.valueType()))
@@ -398,6 +400,11 @@ static this() {
     if (Single!(Short) != resolveTup(ex.valueType()))
       return null;
     return fastalloc!(ShortAsByte)(ex);
+  };
+  converts ~= delegate Expr(Expr ex, IType it) {
+    if (Single!(Byte) != resolveTup(ex.valueType()))
+      return null;
+    return reinterpret_cast(Single!(UByte), ex);
   };
   converts ~= delegate Expr(Expr ex, IType it) {
     if (Single!(SysInt) != resolveTup(ex.valueType()))

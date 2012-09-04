@@ -399,12 +399,17 @@ class ShortToIntCast : Expr {
 
 class ByteToShortCast : Expr {
   Expr b;
+  bool signed;
   this(Expr b) {
     this.b = b;
-    if (b.valueType().size != 1) {
-      logln("Can't byte-to-short cast: wtf, "[], b.valueType(), " on "[], b);
+    auto bt = resolveType(b.valueType());
+    if (bt.size != 1) {
+      logln("Can't byte-to-short cast: wtf, "[], bt, " on "[], b);
       fail;
     }
+    if (Single!(Byte) == bt) signed = true;
+    else if (Single!(UByte) == bt || Single!(Char) == bt) signed = false;
+    else { logln("!> ", bt); fail; }
   }
   private this() { }
   mixin DefaultDup!();
@@ -421,6 +426,8 @@ class ByteToShortCast : Expr {
       af.comment("byte to short cast lol"[]);
       af.put("xorw %ax, %ax"[]);
       af.popStack("%al"[], b.valueType().size);
+      if (signed)
+        af.put("cbtw");
       af.pushStack("%ax"[], 2);
     }
   }
@@ -428,12 +435,17 @@ class ByteToShortCast : Expr {
 
 class ByteToIntCast : Expr {
   Expr b;
+  bool signed;
   this(Expr b) {
     this.b = b;
-    if (b.valueType().size != 1) {
-      logln("Can't byte-to-int cast: wtf, "[], b.valueType(), " on "[], b);
+    auto bt = resolveType(b.valueType());
+    if (bt.size != 1) {
+      logln("Can't byte-to-short cast: wtf, "[], bt, " on "[], b);
       fail;
     }
+    if (Single!(Byte) == bt) signed = true;
+    else if (Single!(UByte) == bt || Single!(Char) == bt) signed = false;
+    else { logln("!> ", bt); fail; }
   }
   private this() { }
   mixin DefaultDup!();
@@ -457,6 +469,10 @@ class ByteToIntCast : Expr {
       } else {
         af.put("xorl %eax, %eax"[]);
         af.popStack("%al"[], b.valueType().size);
+        if (signed) {
+          af.put("cbtw");
+          af.put("cwtl");
+        }
         af.sfree(3);
         af.pushStack("%eax"[], 4);
       }
@@ -498,7 +514,7 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     auto evt = ex.valueType();
-    if (Single!(Byte) == evt || Single!(Char) == evt)
+    if (Single!(Byte) == evt || Single!(Char) == evt || Single!(UByte) == evt)
       return fastalloc!(ByteToShortCast)(ex);
     else
       return null;
@@ -510,7 +526,7 @@ static this() {
       return null;
   };
   implicits ~= delegate Expr(Expr ex, IType it) {
-    if (Single!(Byte) != ex.valueType()) return null;
+    if (Single!(Byte) != ex.valueType() && Single!(UByte) != ex.valueType()) return null;
     return reinterpret_cast(Single!(Char), ex); // concession to C libs
   };
   // teh hax :D
