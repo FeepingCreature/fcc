@@ -140,6 +140,11 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
       Expr ex;
       if (!rest(t2, "tree.expr"[], &ex))
         t2.failparse("Expected result expression for lambda"[]);
+      auto evt = ex.valueType();
+      if (evt.returnsInMemory()) {
+        evt = fastalloc!(NoNoDontReturnInMemoryWrapper)(evt);
+        ex = reinterpret_cast(evt, ex);
+      }
       res.type.ret = ex.valueType();
       
       sc2.addStatement(fastalloc!(ReturnStmt)(ex));

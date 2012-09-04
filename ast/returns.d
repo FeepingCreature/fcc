@@ -1,8 +1,9 @@
 module ast.returns;
 
-import ast.base, ast.namespace, ast.scopes, ast.fun, ast.parse, ast.fun, ast.math: loadFloatEx;
+import
+  ast.base, ast.namespace, ast.scopes, ast.fun, ast.parse, ast.fun,
+  ast.vardecl, ast.pointer, ast.math, ast.assign;
 
-import ast.vardecl, ast.assign, ast.math;
 class ReturnStmt : Statement {
   Expr value;
   Namespace ns;
@@ -98,7 +99,14 @@ class ReturnStmt : Statement {
           emitGuards(true);
         }
         
-        if (Single!(Float) == vt) {
+        if (vt.returnsInMemory()) {
+          auto target = fastcast!(Expr) (namespace().lookup("__return_pointer"));
+          if (!target) {
+            logln("no return pointer found in function that demands one: ", namespace());
+            fail;
+          }
+          emitAssign(af, new DerefExpr(target), value);
+        } else if (Single!(Float) == vt) {
           loadFloatEx(value, af);
           af.floatStackDepth --; // doesn't count
         } else if (Single!(Double) == vt) {
@@ -169,12 +177,20 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     
     // auto deduction!
     if (!fun.type.ret) {
+      auto vt = rs.value.valueType();
+      if (vt.returnsInMemory()) {
+        // AAAAAAAAAAAAAAAAAaaaaaaaaaaaaaaaaaaaaa
+        // panic panic panic
+        vt = fastalloc!(NoNoDontReturnInMemoryWrapper)(vt);
+        rs.value = reinterpret_cast(vt, rs.value);
+      }
       fun.type.ret = rs.value.valueType();
     }
     
     auto ret = resolveType(fun.type.ret);
-    if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == ret); }))
+    if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == ret); })) {
       return rs;
+    }
     else {
       text.failparse("Could not convert to return type "[], fun.type.ret, "; expression had the type "[], temp.valueType());
     }

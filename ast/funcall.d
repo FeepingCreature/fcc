@@ -418,7 +418,7 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
     if (t2.cantBeCall()) return null;
-
+    
     FunctionPointer fptype;
     if (!gotImplicitCast(ex, Single!(HintType!(FunctionPointer)), (IType it) { fptype = fastcast!(FunctionPointer) (it); return !!fptype; }))
       return null;

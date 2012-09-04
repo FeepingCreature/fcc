@@ -195,6 +195,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         add(fastalloc!(Variable)(Single!(SizeT), "__ebx_backup"[], -4));
       }
     }
+    if (type.ret && type.ret.returnsInMemory()) {
+      auto pt = fastalloc!(Pointer)(type.ret);
+      add(fastalloc!(Variable)(pt, "__return_pointer", cur));
+      _framestart += pt.size;
+      cur += pt.size;
+    }
     // TODO: 16-byte? alignment
     foreach (param; type.params) {
       auto pt = param.type;
@@ -458,7 +464,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         af.put("bx lr"[]);
         af.pool;
       } else {
-        af.put("ret"[]);
+        if (type.ret.returnsInMemory()) {
+          af.put("ret $4"); // clean off pointer
+        } else {
+          af.put("ret");
+        }
       }
       if (isARM) {
         af.put(".ltorg"[]);
@@ -622,6 +632,11 @@ class FunCall : Expr {
 
 void handleReturn(IType ret, AsmFile af) {
   if (Single!(Void) == ret) return;
+  if (ret.returnsInMemory()) {
+    // the funcall routine already allocated space for us in just
+    // the right spot, so we actually have nothing left to do.
+    return;
+  }
   if (isARM) {
     if (ret.size == 2) {
       af.salloc(2);
@@ -690,9 +705,10 @@ void handleReturn(IType ret, AsmFile af) {
 import tools.log, ast.fold;
 void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
   if (!ret) throw new Exception("Tried to call function but return type not yet known! ");
+  auto size = (Single!(Void) == ret)?0:ret.size;
+  mixin(mustOffset("size"));
   {
-    // logln("CALL ", fp, " ", params);
-    mixin(mustOffset("0", "outer"));
+    // logln("CALL ", fp, " ", params, " => ", ret);
     string name;
     opt(fp);
     if (auto s = fastcast!(Symbol) (fp)) name = s.getName();
@@ -703,6 +719,13 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       throw new Exception(Format("Return bug: ", ret, " from ", name, ": ",
       ret.size, " is ", (fastcast!(Object)~ ret).classinfo.name));
     debug af.comment("Begin call to "[], name);
+    
+    bool returnInMemory = ret.returnsInMemory();
+    string ret_location;
+    if (returnInMemory) {
+      af.salloc(ret.size);
+      ret_location = qformat(-af.currentStackDepth, "(%ebp)");
+    }
     
     bool backupESI = external && name != "setjmp";
     backupESI &= !isARM();
@@ -720,6 +743,7 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     
     // distance to alignment border
     auto align_offset = af.currentStackDepth + esp_alignment_delta;
+    if (returnInMemory) align_offset += 4;
     // what do we have to do to align the callsite?
     auto alignCall = 16 - (align_offset + paramsize) % 16;
     if (alignCall == 16) alignCall = 0;
@@ -770,13 +794,21 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
           fp.emitAsm(af);
         }
         af.popStack("%eax", 4);
+        // af.put("test $15, %esp; jz 1f; call abort; 1:");
+        if (ret_location) {
+          af.loadAddress(ret_location, "%ebx");
+          af.pushStack("%ebx", 4);
+        }
         if (af.currentStackDepth % 16 != 8) {
           logln("at call, depth is ", af.currentStackDepth, " ", af.currentStackDepth % 16);
           logln("thus, unaligned! :o");
           fail;
         }
-        // af.put("test $15, %esp; jz 1f; call abort; 1:");
         af.call("%eax");
+        if (ret_location) {
+          // eaten by callee
+          af.currentStackDepth -= 4;
+        }
       }
       
       foreach (param; params) {
@@ -808,8 +840,6 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     if (isARM) af.popStack("r5", 4);
   }
   
-  auto size = (Single!(Void) == ret)?0:ret.size;
-  mixin(mustOffset("size"));
   handleReturn(ret, af);
 }
 

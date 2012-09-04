@@ -182,10 +182,10 @@ IType arrayAsStruct(IType base, bool rich) {
   scope(exit) namespace.set(backup);
   namespace.set(res);
   
-  void mkFun(string name, Tree delegate() dg) {
+  void mkFun(string name, IType ret, Tree delegate() dg) {
     auto fun = fastalloc!(RelFunction)(res);
     New(fun.type);
-    fun.type.ret = Single!(Void);
+    fun.type.ret = ret;
     fun.name = name;
     
     auto backup = namespace();
@@ -202,7 +202,7 @@ IType arrayAsStruct(IType base, bool rich) {
   }
   cache ~= stuple(base, rich, mod, fastcast!(IType) (res));
   isArrayStructType[res] = true;
-  mkFun("free"[], delegate Tree() {
+  mkFun("free"[], Single!(Void), delegate Tree() {
     if (rich) return iparse!(Statement, "array_free"[], "tree.stmt"[])
                   (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, namespace());
     else return iparse!(Statement, "array_free"[], "tree.stmt"[])
@@ -220,8 +220,7 @@ IType arrayAsStruct(IType base, bool rich) {
     ));
   }
   if (base != Single!(Void) && base.size <= 16 /* max supported return size */) {
-    mkFun("popEnd"[], delegate Tree() {
-      namespace().get!(RelFunction).type.ret = base;
+    mkFun("popEnd"[], base, delegate Tree() {
       auto len = fastcast!(LValue) (namespace().lookup("length"[]));
       auto p = fastcast!(Expr) (namespace().lookup("ptr"[]));
       return fastalloc!(ReturnStmt)(

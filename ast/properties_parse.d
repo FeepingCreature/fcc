@@ -8,10 +8,17 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
 {
   string longest; Object res;
   // check all possible continuations
-  auto ex = fastcast!(Expr)~ sup;
+  auto ex = fastcast!(Expr) (sup);
   if (!withTuple) {
     if (ex && fastcast!(AstTuple) (ex.valueType()))
       return null; // don't
+  }
+  
+  void cleanup(ref Object obj) {
+    if (auto ex = fastcast!(Expr) (obj)) {
+      ex = forcedConvert(ex);
+      obj = fastcast!(Object) (ex);
+    }
   }
   
   // logln("prop match for "[], sup, " @"[], text.nextText());
@@ -19,6 +26,7 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
     auto backup = lhs_partial();
     scope(exit) lhs_partial.set(backup);
     
+    cleanup(sup);
     lhs_partial.set(sup);
     auto t2 = text;
     
@@ -37,6 +45,7 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
         match ~= " >tree.rhs_partial.funcall";
       if (auto nl = rest(t2, match)) {
         matched = true;
+        cleanup(nl);
         lhs_partial.set(nl);
         sup = nl;
       } else break;

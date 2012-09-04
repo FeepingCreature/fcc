@@ -15,7 +15,7 @@ template select(T) {
     type-of value-of!T[0].iterator iter;
     T[1] test;
     bool advance() {
-      while value <- iter if (test value) { return true; }
+      while value <- iter if (test value) return true;
       free;
       return false;
     }

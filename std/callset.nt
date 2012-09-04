@@ -9,14 +9,14 @@ module std.callset;
 **/
 
 template CallSet(T) {
-  auto helper() {
-    static if (types-equal (T, void)) { return void delegate():null; }
-    else { return void delegate(T): null; }
+  static if (types-equal (T, void)) {
+    alias DG = void delegate();
+  } else {
+    alias DG = void delegate(T);
   }
   alias callset-str = `
     template CallSet(U) {
       struct CallSet {
-        alias DG = type-of helper();
         DG[auto~] dgs;
         void call(%ARG%) {
           for auto dg <- dgs dg?(%ARGVAL%);
@@ -35,12 +35,9 @@ template CallSet(T) {
   `;
   mixin(callset-str.replace("CallSet","CallSetA").replace("%ARG%","").replace("%ARGVAL%", ""));
   mixin(callset-str.replace("CallSet","CallSetB").replace("%ARG%","T t").replace("%ARGVAL%", "t"));
-  auto helper2() {
-    static if (types-equal(T, void)) {
-      return CallSetA!(int) A;
-    } else {
-      return CallSetB!(int) B;
-    }
+  static if (types-equal(T, void)) {
+    alias CallSet = CallSetA!(int);
+  } else {
+    alias CallSet = CallSetB!(int);
   }
-  alias CallSet = type-of helper2();
 }
