@@ -1,0 +1,10 @@
+module test132;
+
+void main() {
+  int a;
+  if (ref ar = a) { ar = 5; }
+  assert(a == 0);
+  a = 2;
+  if (ref ar = a) { ar = 5; }
+  assert(a == 5);
+}

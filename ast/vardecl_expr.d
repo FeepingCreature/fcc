@@ -1,7 +1,7 @@
 module ast.vardecl_expr;
 
 import ast.scopes, ast.namespace, ast.casting, ast.base, ast.types, ast.parse, ast.vardecl, ast.tuples,
-       ast.assign, ast.aggregate, ast.c_bind;
+       ast.assign, ast.aggregate, ast.c_bind, ast.pointer, ast.aliasing;
 
 Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -13,15 +13,20 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
       return null; // whew.
   }
   if (parsingCHeader()) return null;
-  if (!t2.accept("auto"[]))
-    if (!rest(t2, "type"[], &type)) return null;
+  bool isRefDecl;
+  if (!t2.accept("auto"[])) {
+    if (t2.accept("ref")) isRefDecl = true;
+    if (!rest(t2, "type"[], &type) && !isRefDecl) return null;
+  }
   if (t2.accept(":"[])) return null; // cast
   bool completeDeclaration(Statement* st, Expr* ex) {
     bool dontInit;
     Expr initval;
     if (t2.accept("="[])) {
-      if (t2.accept("void"[])) { dontInit = true; }
-      else {
+      if (t2.accept("void"[])) {
+        dontInit = true;
+        if (!type) text.failparse("uninitialized variables must have type");
+      } else {
         IType[] its;
         if (!rest(t2, "tree.expr"[], &initval)
           || type && !gotImplicitCast(initval, type, (IType it) {
@@ -29,7 +34,6 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
           return test(type == it);
         }))
           t2.failparse("Could not parse variable initializer; tried "[], its);
-        if (!type) type = initval.valueType();
       }
     } else {
       if (!type) {
@@ -38,28 +42,53 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
       }
       if (t2.acceptLeftArrow()) return false; // don't collide with iterator declaration
     }
+    Variable var;
+    if (isRefDecl) {
+      if (!initval)
+        text.failparse("ref declaration must have initializer");
+      auto lv = fastcast!(LValue)(initval);
+      if (!lv)
+        text.failparse("initializer of a ref decl must be referentiable");
+      initval = fastalloc!(RefExpr)(lv);
+      if (type && type != initval.valueType())
+        text.failparse("Type mismatch: declared ", type, " but got ", initval.valueType());
+      type = initval.valueType();
+      var = fastalloc!(Variable)(type, cast(string) null, boffs(type));
+    } else {
+      if (!type) {
+        if (!initval) text.failparse("internal compiler bug - no init no type");
+        type = initval.valueType();
+      }
+      var = fastalloc!(Variable)(type, name, boffs(type));
+    }
     if (fastcast!(Void) (resolveType(type))) {
       text.failparse("Cannot declare variable of type "[], type, " which is void"[]);
     }
-    auto var = fastalloc!(Variable)(type, name, boffs(type));
     auto sc = namespace().get!(Scope);
     if (!sc) {
       t2.failparse("There is a lack of a scope here; trying to define "[], name);
     }
-    try sc.add(var);
-    catch (AlreadyDefinedException ex) {
+    try {
+      sc.add(var);
+    } catch (AlreadyDefinedException ex) {
       t2.failparse(ex);
+    }
+    if (isRefDecl) {
+      auto ea = fastalloc!(LValueAlias)(fastalloc!(DerefExpr)(var), name);
+      sc.add(ea);
+      *ex = ea;
+    } else {
+      *ex = var;
     }
     auto vd = fastalloc!(VarDecl)(var);
     vd.configPosition(text);
     sc.addStatement(vd);
     if (!initval) {
-      var.initInit; *ex = var;
+      var.initInit;
     } else {
       var.dontInit = true;
       if (!dontInit)
         *st = fastalloc!(Assignment)(var, initval);
-      *ex = var;
     }
     return true;
   }
