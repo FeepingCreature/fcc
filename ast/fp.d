@@ -10,4 +10,12 @@ Object gotFloatProperty(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("epsilon"[])) { text = t2; return fastalloc!(FloatExpr)(float.epsilon); }
   return null;
 }
-mixin DefaultParser!(gotFloatProperty, "tree.expr.fprop", "2303", "float");
+mixin DefaultParser!(gotFloatProperty, "tree.expr.fprop", "23030", "float");
+
+Object gotIntProperty(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (!t2.accept(".")) return null;
+  if (t2.accept("max"[])) { text = t2; return fastalloc!(FloatExpr)(int.max); }
+  return null;
+}
+mixin DefaultParser!(gotIntProperty, "tree.expr.iprop", "23031", "int");
