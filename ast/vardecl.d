@@ -271,6 +271,14 @@ Expr tmpize(Expr thing, Expr delegate(Expr, OffsetExpr) dg) {
   return _tmpize_maybe(thing, (Expr ex, OffsetExpr oe) { return dg(ex, oe); }, true);
 }
 
+import ast.pointer;
+Expr tmpize_ref_maybe(Expr thing, Expr delegate(Expr) dg) {
+  if (auto lv = fastcast!(LValue) (thing)) {
+    return tmpize_maybe(new RefExpr(lv), delegate Expr(Expr ex) { return dg(new DerefExpr(ex)); });
+  }
+  return tmpize_maybe(thing, dg);
+}
+
 import ast.fold;
 Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
   if (fastcast!(Literal) (ex)) return ex;

@@ -57,7 +57,8 @@ class ExprStatement : LineNumberedStatementClass {
 Object gotSemicolStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto backup = text;
   if (auto obj = rest(text, "tree.semicol_stmt"[])) {
-    text.mustAcceptTerminatorSoft(Format("Missing semicolon to terminate "[], obj));
+    // text.mustAcceptTerminatorSoft(Format("Missing semicolon to terminate "[], obj));
+    text.mustAcceptTerminatorSoft("Missing semicolon to terminate statement");
     // logln("obj = "[], (cast(Object) obj).classinfo.name, ", "[], obj);
     if (auto lns = fastcast!(LineNumberedStatement) (obj))
       lns.configPosition(backup);

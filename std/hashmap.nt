@@ -1,69 +1,128 @@
 module std.hashmap;
 
 // todo~
-template hash(T) {
-  int hash(T t) {
+template hashptr(PTR) {
+  int hashptr(PTR ptr) {
+    pragma(fast);
+    alias t = *ptr;
+    alias T = type-of t;
+    // TODO: do properly (?)
     static if (types-equal (T, int)) {
-      // TODO: do properly
-      if (t < 0) t &= 0x7fff_ffff;
-      return t;
-    } else {
-      pragma(msg, string-of T ~ ": how do I hash web?");
-      parsing failure
+      auto i = t;
+      if (i < 0) i &= 0x7fff_ffff;
+      return i;
+      bool matched;
+    }
+    static if (types-equal (T, float) || types-equal (T, bool)) {
+      auto i = *int*:&t;
+      if (i < 0) i &= 0x7fff_ffff;
+      return i;
+      bool matched;
+    }
+    static if (!is-defined matched && (type-is tuple T || type-is vector T)) {
+      int res;
+      static for (int i <- 0..t.length)
+        res += .hashptr &t[i];
+      return res;
+      bool matched;
+    }
+    static if (!is-defined matched && type-is struct T) {
+      int res;
+      static for (int i <- 0..t.tupleof.length) {
+        alias entry = t.tupleof[i];
+        res += .hashptr &entry;
+      }
+      return res;
+      bool matched;
+    }
+    static if (!is-defined matched && types-equal (T, string)) {
+      // FNV hash, compare http://isthe.com/chongo/tech/comp/fnv/#FNV-1a
+      alias FNV_prime = 16777619;
+      int res = 2166136261;
+      string str = t, rest;
+      int last;
+      if (str.length % 4 != 0) {
+        auto marker = str.length - str.length % 4;
+        (str, rest) = str[(0..marker, marker..$)];
+        for auto ub <- ubyte[]:rest last = (last << 8) + ub;
+      }
+      alias FNVStep = `
+        res = res xor %V;
+        res = res * FNV_prime;
+      `;
+      import std.string;
+      for int i <- int[]:str mixin FNVStep.replace("%V", "i");
+      mixin FNVStep.replace("%V", "last");
+      return res;
+      bool matched;
+    }
+    static if (!is-defined matched) {
+      pragma(fail, string-of T ~ ": how do I hash web?");
     }
   }
 }
 
 template Hashmap(T) {
   alias Key = T[0], Value = T[1];
+  alias α = 0.5;
   struct Hashmap {
-    (Key, Value)[] backing;
+    (Key key, Value value)[] backing;
     Key nullkey; Value nullvalue;
     bool nullset;
     int length;
     float load() {
+      pragma(fast);
       if (!backing.length) return 1;
       return length * 1f / backing.length;
     }
-    void iterate(void delegate(Key, Value) dg) {
-      if (nullset) dg(nullkey, nullvalue);
+    void iterate(void delegate(Key*, Value*) dg) {
+      pragma(fast);
+      if (nullset) dg(&nullkey, &nullvalue);
       for ref entry <- backing
         if (entry[0] != nullkey)
-          dg entry;
+          dg (&entry[0], &entry[1]);
     }
     void realloc(int newsize) {
+      pragma(fast);
       type-of this newmap;
       newmap.nullvalue = nullvalue;
       newmap.backing = new type-of backing newsize;
-      iterate(\(Key k, Value v) newmap.insert(k, v););
+      iterate(\(Key* kp, Value* vp) newmap.insert(kp, vp););
       this = newmap;
     }
-    void insert(Key k, Value v) {
+    Value* insert(Key k, Value v) { return insert(&k, &v); }
+    Value* insert(Key* kp, Value* vp) {
+      pragma(fast);
+      alias k = Key:*kp, v = Value:*vp;
       if (k == nullkey) {
         nullset = true;
         nullvalue = v;
-        return;
+        return &nullvalue;
       }
       do auto loadf = load();
-      while (loadf > 0.7) {
+      while (loadf > α) {
         auto newsize = backing.length * 2;
         if (!newsize) newsize = 16;
         realloc newsize;
       }
-      auto pos = (hash k) % backing.length;
+      auto pos = (hashptr &k) % backing.length;
       while (backing[pos][0] != nullkey) {
-        pos = (pos + 1) % backing.length;
+        if (++pos == backing.length) pos = 0;
       }
       backing[pos] = (k, v);
       length ++;
+      return &backing[pos].value;
     }
-    Value* get(Key k) {
+    Value* get(Key k) { return get &k; }
+    Value* get(Key* kp) {
+      pragma(fast);
+      alias k = *kp;
       if (nullset && k == nullkey) return &nullvalue;
       if (!backing.length) return null;
-      auto pos = (hash k) % backing.length;
-      while (backing[pos][0] != nullkey) {
-        if (backing[pos][0] == k) return &backing[pos][1];
-        pos = (pos + 1) % backing.length;
+      auto pos = (hashptr &k) % backing.length;
+      while (backing[pos].key != nullkey) {
+        if (backing[pos].key == k) return &backing[pos].value;
+        if (++pos == backing.length) pos = 0;
       }
       return null;
     }

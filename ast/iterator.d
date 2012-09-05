@@ -1,23 +1,12 @@
 module ast.iterator;
 
-import ast.base, ast.parse, ast.types, ast.namespace, ast.structure, ast.casting, ast.pointer;
-
-interface Iterator {
-  IType elemType();
-  Cond testAdvance(LValue); // false => couldn't get a value
-  Expr currentValue(Expr);
-}
-
-interface RichIterator : Iterator {
-  Expr length(Expr);
-  Expr index(Expr, Expr pos);
-  Expr slice(Expr, Expr from, Expr to);
-}
-
-interface RangeIsh {
-  Expr getPos(Expr base);
-  Expr getEnd(Expr base);
-}
+import
+  ast.base, ast.parse, ast.types, ast.namespace, ast.structure,
+  ast.casting, ast.pointer, ast.tuples, ast.tuple_access,
+  ast.literal_string, ast.variable, ast.assign, ast.literals,
+  ast.int_literal, ast.fold, ast.conditionals, ast.literal_string,
+  ast.scopes, ast.static_arrays, ast.aggregate, ast.vardecl,
+  ast.aliasing, ast.opers, ast.arrays, ast.modules;
 
 class Range : Type, RichIterator, RangeIsh {
   IType wrapper;
@@ -70,7 +59,6 @@ class Range : Type, RichIterator, RangeIsh {
   }
 }
 
-import ast.int_literal;
 class ConstIntRange : Type, RichIterator, RangeIsh {
   int from, to;
   this(int f, int t) { this.from = f; this.to = t; }
@@ -145,7 +133,6 @@ Expr mkRange(Expr from, Expr to) {
   return fastalloc!(RCE)(range, fastalloc!(StructLiteral)(wrapped, [from, to], [0, from.valueType().size]));
 }
 
-import ast.tuples, ast.literal_string;
 Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr from, to;
   auto t2 = text;
@@ -216,7 +203,6 @@ interface IArrayIterator {
   Expr castToArray(Expr ex);
 }
 
-import ast.fold, ast.conditionals;
 class ForIter(I) : Type, I {
   override int opEquals(IType it) {
     auto fi = fastcast!(ForIter) (it);
@@ -260,7 +246,6 @@ class ForIter(I) : Type, I {
     opt(res);
     return res;
   }
-  import ast.literal_string;
   Expr[] todocache;
   Expr update(Expr ex, PlaceholderToken var, Expr newvar) {
     auto todo = todocache;
@@ -438,7 +423,6 @@ class ForIter(I) : Type, I {
   }
 }
 
-import ast.scopes;
 class ScopeAndExpr : Expr {
   Scope sc;
   Expr ex;
@@ -506,8 +490,6 @@ class ScopeAndExpr : Expr {
   }
 }
 
-import ast.static_arrays;
-
 class BogusIterator : Iterator, IType { // tag
   override {
     IType elemType() { assert(false); }
@@ -524,7 +506,6 @@ class BogusIterator : Iterator, IType { // tag
   }
 }
 
-import ast.aggregate, ast.literals: DataExpr;
 Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr sub, main;
   auto t2 = text;
@@ -654,7 +635,6 @@ LValue getRefExpr(Expr ex) {
 
 extern(C) void rt_print(AsmFile af, string s);
 
-import ast.variable, ast.assign, ast.tuples, ast.literals;
 class IterLetCond(T) : Cond, NeedsConfig {
   T target;
   Expr iter;
@@ -718,12 +698,11 @@ class IterLetCond(T) : Cond, NeedsConfig {
   }
 }
 
-import ast.scopes, ast.vardecl, ast.aliasing;
 Object gotIterCond(bool expressionTargetAllowed = true)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue lv;
   MValue mv;
-  string newVarName; IType newVarType;
+  string[] newVarNames; IType newVarType;
   bool needIterator;
   bool isRefDecl;
   const string myTE = "tree.expr _tree.expr.arith _tree.expr.iter_loose";
@@ -754,9 +733,18 @@ Object gotIterCond(bool expressionTargetAllowed = true)(ref string text, ParseCb
     if (t2.accept("ref"[])) isRefDecl = true;
     else if (!t2.accept("auto"[]) && !rest(t2, "type"[], &newVarType))
       goto withoutIterator;
-      
-    if (!t2.gotIdentifier(newVarName))
-      goto withoutIterator;
+    string newVarName;
+    if (t2.gotIdentifier(newVarName)) {
+      newVarNames ~= newVarName;
+    } else if (t2.accept("(")) {
+      while (t2.gotIdentifier(newVarName)) {
+        newVarNames ~= newVarName;
+        if (t2.accept(")")) break;
+        if (t2.accept(",")) continue;
+        return null;
+      }
+      if (!newVarNames.length) return null;
+    } else goto withoutIterator;
   }
   if (!t2.acceptLeftArrow())
     return null;
@@ -800,18 +788,40 @@ withoutIterator:
   
   LValue address_target;
   
-  if (newVarName) {
-    if (!newVarType) newVarType = (fastcast!(Iterator) (resolveType(iter.valueType()))).elemType();
+  if (newVarNames) {
+    bool makeTuple = newVarNames.length > 1;
+    if (newVarType) {
+      if (makeTuple) {
+        IType[] repeated;
+        foreach (name; newVarNames) repeated ~= newVarType;
+        newVarType = mkTuple(repeated);
+      }
+    } else {
+      newVarType = (fastcast!(Iterator) (resolveType(iter.valueType()))).elemType();
+    }
+    auto tup = fastcast!(Tuple) (newVarType);
+    if (makeTuple) {
+      if (!tup) {
+        text.failparse("Iterating into tuple but iterator base type is ", newVarType);
+      }
+      if (tup.types().length != newVarNames.length) {
+        text.failparse("Iterating into tuple but base type ",
+          newVarType, " doesn't match tuple size ", newVarNames.length);
+      }
+    }
+    
+    string newVarName;
+    if (newVarNames.length == 1) newVarName = newVarNames[0];
     
     Variable newvar;
-    
     if (isRefDecl) {
       auto ty = fastalloc!(Pointer)(newVarType);
       newvar = fastalloc!(Variable)(ty, cast(string) null, boffs(ty));
       sc.add(newvar); // still need to add the variable for stackframe layout purposes
       lv = fastalloc!(DerefExpr)(newvar);
       address_target = newvar;
-      sc.add(fastalloc!(LValueAlias)(lv, newVarName));
+      if (newVarName)
+        sc.add(fastalloc!(LValueAlias)(lv, newVarName));
     } else {
       newvar = fastalloc!(Variable)(newVarType, newVarName, boffs(newVarType));
       sc.add(newvar);
@@ -819,6 +829,14 @@ withoutIterator:
     }
     newvar.initInit();
     sc.addStatement(fastalloc!(VarDecl)(newvar));
+    
+    if (makeTuple) {
+      foreach (i, name; newVarNames) {
+        sc.add(fastalloc!(LValueAlias)(mkTupleIndexAccess(
+          lv, i, true
+        ), name));
+      }
+    }
   }
   
   Expr ex;
@@ -844,7 +862,6 @@ mixin DefaultParser!(gotIterCond!(true), "tree.expr.iter_loose"[], "220"[]);
 
 HintType!(Iterator) anyIteratorTypeHint;
 
-import ast.opers;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(Iterator) (ex.valueType())) return null;
@@ -869,7 +886,6 @@ static this() {
   });
 }
 
-import ast.arrays, ast.modules, ast.aggregate;
 // Statement with target, Expr without. Lol.
 class EvalIterator(T) : Expr, Statement {
   Expr ex;

@@ -180,7 +180,6 @@ void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
   mixin(mustOffset("retsize"[]));
   auto dgs = dgAsStruct(dg);
   mkVar(af, ret, true, (Variable retvar) {
-    scope(success) delete retvar;
     mixin(mustOffset("0"[]));
     // cheap call - fun ptr is predetermined, no need to lvize the dg
     if (auto sym = fastcast!(Symbol) (optex(mkMemberAccess(dgs, "fun"[])))) {

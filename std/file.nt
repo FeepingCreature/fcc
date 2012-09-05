@@ -89,11 +89,18 @@ class writer {
   void step(ubyte[] data) {
     while data.length {
       auto res = write(hdl, data.ptr, data.length);
-      if res == -1 { perror "While writing $(data.length) bytes".toStringz(); raise (new WriterError); }
+      if res == -1 { perror "While writing $(data.length) bytes to $hdl".toStringz(); raise (new WriterError); }
       data = data[res .. $];
     }
   }
   void close() { .close hdl; }
+}
+
+struct writeclose {
+  void delegate(ubyte[]) writedg;
+  void delegate() closedg;
+  void close() { closedg(); }
+  alias implicit-cast = writedg;
 }
 
 /*Function: writefile
@@ -102,8 +109,13 @@ Returns a delegate that, when called, will write its parameter to a handle.
 Parameters:
   hdl - a file handle
 */
-void delegate(ubyte[]) writefile(int hdl) using new writer hdl return &step;
+writeclose writefile(int hdl)
+  using new writer hdl
+    return writeclose:(&step, &that.close);
 
+writeclose writefile(string fn)
+  using new writer fn
+    return writeclose:(&step, &that.close);
 /*Function: writeAll
 Writes data to a file.
 If the file exists, it will be truncated; otherwise, it will be created.

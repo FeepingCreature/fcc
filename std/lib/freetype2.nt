@@ -5,7 +5,7 @@ pragma(pkg-config, "freetype2");
 pragma(lib, "z"); // mingw bug?
 
 import c.freetype;
-import std.math, std.unicode;
+import std.math, std.unicode, std.hashmap;
 
 void FTcheck(FT_Error err) {
   if (err) raise new Error "Freetype error $err";
@@ -55,6 +55,7 @@ struct FontStyle {
   bool bold, italic, underlined;
   vec4f color, bgcol;
   int chars;
+  alias tup = (bold, italic, underlined, color, bgcol, chars);
   string toString() {
     string res = "[";
     if (bold) res ~= "bold, ";
@@ -85,22 +86,38 @@ class Font {
     Get_Kerning (face, id1, id2, 0, &Vector delta);
     return delta.(vec2i(x, y));
   }
+  Hashmap!(int, vec2i) advancecache;
+  Hashmap!(int, (vec2i, vec2i)) controlboxcache;
+  Hashmap!((int, FontStyle), (int, int)) charsizecache;
   vec2i getAdvance(int ch) using mode FT {
+    if (auto p = advancecache.get(ch)) return *p;
     auto index = Get_Char_Index(face, FT_ULong:ch);
     FTcheck Load_Glyph (face, index, LOAD_DEFAULT);
     FTcheck Get_Glyph (face.glyph, &Glyph glyph);
     onExit Done_Glyph glyph;
     
-    return face.glyph.advance.(vec2i(x, y));
+    auto res = face.glyph.advance.(vec2i(x, y));
+    advancecache.insert(ch, res);
+    return res;
   }
   (vec2i, vec2i) getControlBox(int ch) using mode FT {
+    if (auto p = controlboxcache.get(ch)) return *p;
     auto index = Get_Char_Index(face, FT_ULong:ch);
     FTcheck Load_Glyph (face, index, LOAD_DEFAULT);
     FTcheck Get_Glyph (face.glyph, &Glyph glyph);
     onExit Done_Glyph glyph;
     
     Glyph_Get_CBox (glyph, FT_GLYPH_BBOX_PIXELS, &BBox box);
-    return box.(vec2i(xMin, yMin), vec2i(xMax, yMax));
+    auto res = box.(vec2i(xMin, yMin), vec2i(xMax, yMax));
+    controlboxcache.insert(ch, res);
+    return res;
+  }
+  void getCharSize(int ch, string str, FontStyle style, int* wp, hp) {
+    auto key = (ch, style);
+    if (auto p = charsizecache.get(&key)) { (*wp, *hp) = *p; return; }
+    toBuffer(str, [style], &int width, &int height, dontRender => true);
+    charsizecache.insert(&key, &auto size = (width, height));
+    (*wp, *hp) = size;
   }
   void getSize(string text, FontStyle[] styles, int* wp = null, hp = null) {
     toBuffer(text, styles, wp, hp, dontRender => true);
@@ -281,10 +298,7 @@ class TextureAtlas {
     if (w > backing.width) fail "Backing texture not large enough for $((w,h))";
     if (w > current-free.x) linebreak;
     if (h > current-free.y) fail "Ran out of vertical space while allocating $((w,h))";
-    auto st = new SubTexture;
-    st.sup = backing;
-    st.from = cursor + 1;
-    st.size = vec2i(w - 2, h - 2);
+    auto st = new SubTexture(backing, from => cursor + 1, size => vec2i(w - 2, h - 2));
     cursor.x += w;
     current-height = [current-height, h][current-height < h];
     return st;
@@ -296,19 +310,17 @@ alias Settings = (int size, vec4f fore, vec4f back, bool bold, bool italic);
 class TextureCache {
   TextureAtlas back;
   void init(TextureAtlas ta) back = ta;
-  alias Key = (string, Settings);
-  (Key, SubTexture)[auto~] allocated;
+  alias Key = (int, Settings);
+  Hashmap!(Key, SubTexture) allocated;
   SubTexture alloc(int w, h, Key key, bool* was-in-cache) {
     *was-in-cache = false;
-    // TODO: trie?
-    for auto thing <- allocated
-      if (thing[0] == key) {
-        *was-in-cache = true;
-        return thing[1];
-      }
+    if (auto p = allocated.get(&key)) {
+      *was-in-cache = true;
+      return *p;
+    }
     auto res = back.alloc(w, h);
     // writeln "'$key' ($w, $h) => $(res.(from, size))";
-    allocated ~= (key, res);
+    allocated.insert(&key, &res);
     return res;
   }
 }
@@ -326,11 +338,11 @@ void initCache() {
 
 import std.lib.opengl.texture;
 (SubTexture tex, vec2i offs)[] layoutText(Font font, string text, Settings settings, int* widthp, maxheightp, baselinep) {
+  pragma(fast);
   ref width = *widthp;
   ref maxheight = *maxheightp;
   ref baseline = *baselinep;
   initCache;
-  (SubTexture, vec2i)[auto~] res;
   maxheight = 0;
   baseline = 0;
   FontStyle fs;
@@ -343,27 +355,32 @@ import std.lib.opengl.texture;
   vec2i pos, prev-pos;
   bool debugme = false;
   int overhang;
-  auto it1 = cat([""], new UTF8Iterator text);
-  auto it2 = new UTF8Iterator text;
+  int utf8length;
+  scope d1 = new UTF8Decoder text, d2 = new UTF8Decoder text;
+  for d1 utf8length ++;
+  auto res = new (SubTexture, vec2i)[] utf8length;
+  auto it1 = cat([-1], d2);
+  scope it2 = new UTF8Decoder text;
+  scope it3 = new UTF8Iterator text;
   int bottomdist = 99999;
     
-  for string (prev-ch, ch) <- zip(it1, it2) {
-    font.getSize(ch, [fs], &int width, &int height);
-    if (debugme) writeln "$ch => $((width, height))";
+  for (int prev-ch, int ch, string str, int i) <- zip(it1, it2, it3, ints) {
+    font.getCharSize(ch, str, fs, &int width, &int height);
+    if (debugme) writeln "$str => $((width, height))";
     
     using cache.alloc(width, height, (ch, settings), &bool was-found) {
       if (!was-found) {
-        auto buf = font.toBuffer(ch, [fs], null, null);
+        auto buf = font.toBuffer(str, [fs], null, null);
         overwrite buf;
         buf.free;
       }
       if (!first) {
-        auto kern = font.getKerning(int:*prev-ch.ptr, int:*ch.ptr);
+        auto kern = font.getKerning(prev-ch, ch);
         if (debugme) writeln "kern $kern";
         pos.x += kern.x >> 6;
       }
       
-      auto box = font.getControlBox(int:*ch.ptr);
+      auto box = font.getControlBox(ch);
       if (box[0].y < bottomdist) bottomdist = box[0].y;
       if (debugme) writeln "box $box $bottomdist";
       
@@ -375,12 +392,12 @@ import std.lib.opengl.texture;
       
       pos += shift;
       
-      res ~= (that, pos - prev-pos);
+      res[i] = (that, pos - prev-pos);
       prev-pos = pos;
       
       pos -= shift;
       
-      auto step = font.getAdvance(int:*ch.ptr);
+      auto step = font.getAdvance(ch);
       pos += step.(vec2i(x >> 6, y >> 6));
       overhang = 0;
       if (settings.italic) overhang += 2;

@@ -4,7 +4,9 @@ import ast.base, ast.tuples, ast.structure, ast.scopes;
 
 Expr mkTupleIndexAccess(Expr tuple, int pos, bool intendedForSplit = false) {
   if (auto rt = fastcast!(RefTuple) (tuple)) {
-    return rt.mvs[pos];
+    Expr res = rt.mvs[pos];
+    if (auto lvtomv = fastcast!(LValueAsMValue) (res)) res = lvtomv.sup;
+    return res;
   }
   auto tup = fastcast!(Tuple) (resolveType(tuple.valueType()));
   auto wrapped = tup.wrapped;
@@ -122,7 +124,7 @@ static this() {
   });
 }
 
-import ast.iterator, ast.casting;
+import ast.casting;
 static this() {
   defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
     auto tup = fastcast!(Tuple) (resolveType(e1.valueType()));
@@ -200,7 +202,7 @@ class WithSpace : Namespace {
   }
 }
 
-import ast.iterator, ast.casting, ast.pointer, ast.vardecl, ast.conditionals;
+import ast.casting, ast.pointer, ast.vardecl, ast.conditionals;
 Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Object obj) {
     {
@@ -328,14 +330,11 @@ static this() {
 
 static this() {
   defineOp("=="[], delegate Expr(Expr ex1, Expr ex2) {
-    bool isTuple(IType it) { return !!fastcast!(Tuple) (resolveType(it)); }
-    // if (!gotImplicitCast(ex1, &isTuple) || !gotImplicitCast(ex2, &isTuple))
-    //   return null;
     auto tup1 = fastcast!(Tuple) (resolveType(ex1.valueType())), tup2 = fastcast!(Tuple) (resolveType(ex2.valueType()));
     if (!tup1 || !tup2) return null;
     if (tup1 != tup2) throw new Exception(Format("Cannot compare: incompatible tuples, "[], tup1, ", "[], tup2));
-    return tmpize_maybe(ex1, delegate Expr(Expr ex1) {
-      return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
+    return tmpize_ref_maybe(ex1, delegate Expr(Expr ex1) {
+      return tmpize_ref_maybe(ex2, delegate Expr(Expr ex2) {
         Cond res;
         auto ent1 = getTupleEntries(ex1), ent2 = getTupleEntries(ex2);
         foreach (i, se1; ent1) {
@@ -348,4 +347,30 @@ static this() {
       });
     });
   });
+  // and for structs too while we're here ..
+  defineOp("=="[], delegate Expr(Expr ex1, Expr ex2) {
+    auto str1 = fastcast!(Structure) (resolveType(ex1.valueType())), str2 = fastcast!(Structure) (resolveType(ex2.valueType()));
+    if (!str1 || !str2) return null;
+    if (str1 != str2) throw new Exception(Format("cannot compare: different structs, "[], str1, ", "[], str2));
+    return tmpize_ref_maybe(ex1, delegate Expr(Expr ex1) {
+      return tmpize_ref_maybe(ex2, delegate Expr(Expr ex2) {
+        Cond res;
+        auto ml1 = str1.members(), ml2 = str2.members();
+        foreach (i, m1; ml1) {
+          auto m2 = ml2[i];
+          auto cmp = compare("==", fastcast!(Expr) (m1.transform(ex1)), fastcast!(Expr) (m2.transform(ex2)));
+          if (!res) res = cmp;
+          else res = fastalloc!(AndOp)(res, cmp);
+        }
+        return fastalloc!(CondExpr)(res);
+      });
+    });
+  });
+}
+
+extern(C) Expr _make_tupleof(Structure str, Expr ex) {
+  auto ml = str.members();
+  Expr[] reslist;
+  foreach (member; ml) reslist ~= fastcast!(Expr) (member.transform(ex));
+  return mkTupleExpr(reslist);
 }

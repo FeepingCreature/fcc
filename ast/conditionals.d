@@ -436,7 +436,12 @@ mixin DefaultParser!(gotCompare, "tree.expr.cond.compare"[], "71"[]);
 import ast.literals;
 class BooleanOp(string Which) : Cond, HasInfo {
   Cond c1, c2;
-  mixin MyThis!("c1, c2"[]);
+  this(Cond c1, Cond c2) {
+    if (!c1 || !c2) fail;
+    this.c1 = c1;
+    this.c2 = c2;
+  }
+  private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(c1, c2);
   override {
@@ -473,9 +478,14 @@ class BooleanOp(string Which) : Cond, HasInfo {
 extern(C) Cond _testNonzero(Expr ex);
 Cond ex2cond(Expr ex) {
   if (!ex) return null;
-  if (auto ce = fastcast!(CondExpr)(ex))
+  if (auto ce = fastcast!(CondExpr)(ex)) {
+    if (!ce.cd) fail;
     return ce.cd;
-  return _testNonzero(ex);
+  }
+  if (auto res = _testNonzero(ex)) return res;
+  logln(ex);
+  breakpoint;
+  throw new Exception(Format("cannot test for zero: ", ex.valueType()));
 }
 
 Expr cond2ex(Cond cd) {
@@ -503,8 +513,11 @@ Object gotBoolOpExpr(string Op, alias Class)(ref string text, ParseCb cont, Pars
       t2.setError("Couldn't get second cond after '"[], Op, "'"[]);
       break;
     }
+    try ex = cond2ex(fastalloc!(Class)(ex2cond(ex), ex2cond(ex2)));
+    catch (Exception ex) {
+      t2.failparse(ex);
+    }
     t2 = t3;
-    ex = cond2ex(fastalloc!(Class)(ex2cond(ex), ex2cond(ex2)));
   }
   if (old_ex is ex) return null; // only matched one
   text = t2;

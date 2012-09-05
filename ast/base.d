@@ -802,3 +802,20 @@ class NoNoDontReturnInMemoryWrapper : Type {
     bool returnsInMemory() { return false; }
   }
 }
+
+interface Iterator {
+  IType elemType();
+  Cond testAdvance(LValue); // false => couldn't get a value
+  Expr currentValue(Expr);
+}
+
+interface RichIterator : Iterator {
+  Expr length(Expr);
+  Expr index(Expr, Expr pos);
+  Expr slice(Expr, Expr from, Expr to);
+}
+
+interface RangeIsh {
+  Expr getPos(Expr base);
+  Expr getEnd(Expr base);
+}

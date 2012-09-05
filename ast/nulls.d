@@ -94,8 +94,9 @@ extern(C) Cond _testNonzero(Expr ex) {
     return exprwrap(ex2);
     // return fastalloc!(Compare)(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0
   }
-  auto n = fastcast!(Expr)~ sysmod.lookup("null"[]);
-  if (!n) return null;
+  auto n = fastcast!(Expr)~ sysmod.lookup("null");
+  // if (!n) return null;
+  if (!n) fail;
   auto ev = ex.valueType();
   Expr cmp1, cmp2;
   Stuple!(IType, IType)[] overlaps;
@@ -117,7 +118,8 @@ extern(C) Cond _testNonzero(Expr ex) {
   if (cmp1 && cmp2) {
     return testNeq(cmp1, cmp2);
   }
-  // logln("Failed overlaps: "[], overlaps);
+  // logln("Failed overlaps: ", overlaps);
+  // fail;
   return null;
 }
 

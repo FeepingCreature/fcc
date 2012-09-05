@@ -87,6 +87,7 @@ class RelMemberLV : RelMember, LValue {
   this(string name, IType type, Namespace ns) { super(name, type, ns); }
 }
 
+extern(C) Expr _make_tupleof(Structure str, Expr ex);
 class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, SelfAdding {
   mixin TypeDefaults!(true, false);
   string name;
@@ -200,6 +201,9 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
       return selectMap!(RelMember, "stuple($.type, $.name, $.offset)"[]);
     }
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
+      if (str == "tupleof") {
+        return fastcast!(Object) (_make_tupleof(this, base));
+      }
       auto res = lookup(str, true);
       if (auto rt = fastcast!(RelTransformable) (res))
         return fastcast!(Object) (rt.transform(base));

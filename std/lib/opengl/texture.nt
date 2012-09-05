@@ -103,14 +103,19 @@ class SubTexture : ITexture {
   ITexture sup;
   vec2i from, size;
   string toString() return "SubTexture($sup, $from +$size)";
+  vec2f sizediv, fromdiv;
+  void init(ITexture sup, vec2i from, size) {
+    this.sup = sup;
+    this.from = from;
+    this.size = size;
+    sizediv = size / sup.getSize();
+    fromdiv = from / sup.getSize();
+  }
   void register() fail;
   void bind() sup.bind;
   void upload() fail;
   void coord(vec2f v) {
-    v *= size;
-    v += from;
-    v /= sup.getSize();
-    glTexCoord2f v;
+    glTexCoord2f $ fromdiv + $ sizediv * v;
   }
   vec2f getSize() { return size; }
   void overwrite(vec4f[] data) {

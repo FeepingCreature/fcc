@@ -8,6 +8,7 @@ class UTF8Iterator : Iterator!string {
   string back;
   void init(string s) { back = s; }
   bool advance() {
+    pragma(fast);
     if (!back.length) return false;
     auto peek = back[0];
     int size;
@@ -28,6 +29,7 @@ class UTF8Iterator : Iterator!string {
 class UTF8Decoder : Iterator!int {
   UTF8Iterator back;
   void init(string s) { back = new UTF8Iterator s; }
+  void free() { back.free; super.free(); }
   bool advance() {
     if (!back.advance()) return false;
     auto s = back.value;
