@@ -86,10 +86,10 @@ template QueryIterator(T) {
           auto reslen = sqlite3_column_bytes(stmt, i);
           return resptr[0..reslen];
         }
-        static if types-equal(T, byte[]) {
+        static if types-equal(T, byte[]) || types-equal(T, ubyte[]) {
           auto resptr = byte*:sqlite3_column_blob(stmt, i);
           auto reslen = sqlite3_column_bytes(stmt, i);
-          return resptr[0..reslen];
+          return T:resptr[0..reslen];
         }
         raise new Error "Unknown column type $(string-of T)";
       }

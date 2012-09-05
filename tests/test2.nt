@@ -14,7 +14,7 @@ void main() {
   writeln("------");
   auto squares = [for k <- 0..10: k*k];
   writeln("$(squares.eval)");
-  while auto line <- zip (0..-1, splitAt(castIter!string readfile open "parsers.txt", "\n"))
+  while auto line <- zip (ints, splitAt(castIter!string readfile open "parsers.txt", "\n"))
     writeln "$(line[0]): $(line[1])";
   auto foo = new int[] 4;
   foo[0] = 1000;

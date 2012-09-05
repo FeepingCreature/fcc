@@ -264,7 +264,7 @@ Slices off the start of *s* up to *m*. Returns a tuple of "*s* before *m*", "*s*
 (string, string) slice(string s, string m, bool yieldNull = true) {
   auto pos = find(s, m);
   if (!pos) {
-    if (yieldNull) return (s, string:(null x 2));
+    if (yieldNull) return (s, string:null);
     raise new Error "|$m| not found in |$s| for slice! ";
   }
   return (s[0 .. pos], s[pos + m.length .. s.length]);

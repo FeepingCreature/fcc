@@ -76,7 +76,7 @@ class SectorCache {
       auto sec = last;
       return (v - sec.base).(sec.cache[x][y][z]);
     }
-    for (int id, Sector sec) <- zip(0..-1, sectors) {
+    for (int id, Sector sec) <- zip(ints, sectors) {
       if (sec.contains v) {
         lastMatched = id;
         return (v - sec.base).(sec.cache[x][y][z]);
@@ -95,7 +95,7 @@ class SectorCache {
     if lastMatched < list.length && (auto sec = list[lastMatched]).contains v {
       return (v - sec.base).(sec.cache[x][y][z]);
     }
-    for (int id, Sector sec) <- zip(0..-1, list) if id != lastMatched && sec.contains v {
+    for (int id, Sector sec) <- zip(ints, list) if id != lastMatched && sec.contains v {
       lastMatched = id;
       return (v - sec.base).(sec.cache[x][y][z]);
     }

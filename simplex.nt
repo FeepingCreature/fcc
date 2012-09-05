@@ -60,7 +60,7 @@ void permsetup() {
                   0,-1, 1,
                   0, 1,-1,
                   0,-1,-1];
-  while ((int k, int l), int idx) <- zip (cross (0..12, 0..3), 0..-1) {
+  while ((int k, int l), int idx) <- zip (cross (0..12, 0..3), ints) {
     grad3[k][l] = values[idx];
   }
   offsets = new vec3i x 2[] 8;
@@ -507,9 +507,9 @@ void configNoiseContext(NoiseContext* nc, int delegate() rng) {
     [[0, 0, 1, 0], [1, 0, 1, 0]],
     [[0, 0, 1, 0], [0, 1, 1, 0]]
   ];
-  for auto tup1 <- zip(0..-1, array) {
-    for auto tup2 <- zip(0..-1, tup1[1]) {
-      for auto tup3 <- zip(0..-1, tup2[1]) {
+  for auto tup1 <- zip(ints, array) {
+    for auto tup2 <- zip(ints, tup1[1]) {
+      for auto tup3 <- zip(ints, tup2[1]) {
         nc.offsets[tup1[0]][tup2[0]][tup3[0]] = tup3[1];
       }
     }

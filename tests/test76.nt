@@ -30,7 +30,7 @@ if (getenv("TESTSUITE")) return;
 screen(640, 480);
 auto t = new Turtle vec2f(320, 240);
 t.scale 1;
-for int n <- 0..-1 {
+for int n <- ints {
   display.cls vec3f(0);
   dragon(t, n);
   flip;

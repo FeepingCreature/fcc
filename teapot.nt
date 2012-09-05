@@ -76,7 +76,7 @@ void drawScene(DataSet ds) {
     entries = 0;
     vec3f[auto~] data;
     onExit { data.free; }
-    while auto ind <- zip (0..-1, ds.indices) {
+    while auto ind <- zip (ints, ds.indices) {
       float f = ind[0] * 1.0 / ds.indices.length;
       glColor3f (f, f, f);
       vec3f vcross(vec3f a, vec3f b) {

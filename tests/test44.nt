@@ -15,7 +15,7 @@ template take(T) {
 }
 
 void main() {
-  auto seq = 0..-1;
+  auto seq = ints;
   auto seq2 = [for i <- seq.select \(int x) -> x%3 == 0: i*i];
   auto test = seq2.take 10;
   writeln "$test";

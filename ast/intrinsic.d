@@ -12,7 +12,7 @@ void setupSysmods() {
     alias false = bool:0;
     alias null = void*:0;
     alias ubyte = byte; // TODO
-    alias ints = 0..-1;
+    alias ints = 0..int.max;
     extern(C) {
       void puts(char*);
       void printf(char*, ...);

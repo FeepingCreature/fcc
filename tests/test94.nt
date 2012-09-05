@@ -4,6 +4,6 @@ import std.fun;
 
 void main() {
   auto list = [1, 2, 0, 6, 8, 3, 9];
-  auto indices = [for pair <- zip(0..-1, list): \(int i,k) { if (k > 5) return i; else return -1; } pair].select\(int i) -> i != -1;
+  auto indices = [for pair <- zip(ints, list): \(int i,k) { if (k > 5) return i; else return -1; } pair].select\(int i) -> i != -1;
   writeln "$(indices.eval)";
 }

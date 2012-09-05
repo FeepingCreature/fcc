@@ -155,12 +155,12 @@ void main() {
   checkError "Failed to upload vertices";
   
   writeln "binding attrib locations";
-  for auto tup <- zip(0..-1, ["InVertex", "InNormal", "InTexCoord0", "InTexCoord1", "InTexCoord2"])
+  for auto tup <- zip(ints, ["InVertex", "InNormal", "InTexCoord0", "InTexCoord1", "InTexCoord2"])
     program.BindAttribLocation (tup[0], tup[1].ptr);
   checkError "Failed to call glBindAttribLocation";
   
   writeln "setting attrib pointers";
-  for auto tup <- zip(0..-1, [(3, 0), (3, 4), (2, 8), (2, 10), (2, 12)]) {
+  for auto tup <- zip(ints, [(3, 0), (3, 4), (2, 8), (2, 10), (2, 12)]) {
     VertexAttribPointer(tup[0], tup[1][0], FLOAT, FALSE, size-of Vertex, void*:$ tup[1][1] * 4);
   }
   checkError "Failed to call glVertexAttribPointer";

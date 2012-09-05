@@ -42,7 +42,7 @@ class Range : Type, RichIterator, RangeIsh {
     import ast.conditionals: Compare;
     Cond testAdvance(LValue lv) {
       return iparse!(Cond, "test_advance_range"[], "cond"[])
-                    ("++lv.cur != lv.end"[], "lv"[], castToWrapper(lv));
+                    ("++lv.cur < lv.end"[], "lv"[], castToWrapper(lv));
     }
     Expr length(Expr ex) {
       return iparse!(Expr, "length_range"[], "tree.expr"[])
@@ -86,7 +86,7 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
     import ast.conditionals: Compare;
     Cond testAdvance(LValue lv) {
       return iparse!(Cond, "test_advance_int_range"[], "cond"[])
-                    ("++lv != to"[],
+                    ("++lv < to"[],
                      "lv"[], reinterpret_cast(Single!(SysInt), lv),
                      "to"[], mkInt(to)
                     );
