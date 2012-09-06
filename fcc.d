@@ -659,7 +659,7 @@ void gatherSizeStats(Module mod) {
   }
 }
 
-void postprocessModule(Module mod) {
+void postprocessModule(Module mod, AsmFile af) {
   void recurse(ref Iterable it) {
     if (auto fc = fastcast!(FunCall) (it)) {
       if (fc.fun.weak) {
@@ -670,6 +670,9 @@ void postprocessModule(Module mod) {
                              // win32, weak symbols are always local.
         }
       }
+    }
+    if (auto dep = fastcast!(Dependency) (it)) {
+      dep.emitDependency(af);
     }
     it.iterate(&recurse);
   }
@@ -777,7 +780,7 @@ string delegate() compile(string file, CompileSettings cs) {
   auto len_parse = sec() - start_parse;
   double len_opt;
   len_opt = time({
-    .postprocessModule(mod);
+    .postprocessModule(mod, af);
   }) / 1_000_000f;
   // verify(mod);
   // finalizeSysmod(mod);

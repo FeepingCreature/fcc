@@ -152,7 +152,10 @@ class RelFunction : Function, RelTransformable, HasInfo {
       res.args ~= Argument(fastalloc!(Pointer)(basetype));
     return res;
   }
-  mixin defaultIterate!(baseptr, tree);
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    super.iterate(dg, mode);
+    defaultIterate!(baseptr).iterate(dg, mode);
+  }
   override {
     string mangleSelf() {
       return qformat(basetype.mangle(), "_", super.mangleSelf());

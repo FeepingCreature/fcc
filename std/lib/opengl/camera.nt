@@ -85,8 +85,8 @@ template WorldCam(T) {
       auto
         left = up.cross3f(dirz).normalized,
         up = dirz.cross3f(left).normalized;
-      auto horz = vec3f.Y.angle3f(up, left) / PI180;
-      auto vert = vec3f.X.angle3f(left, up) / PI180;
+      auto horz = vec3f.Y.angle3f(up, left) / float:PI180;
+      auto vert = vec3f.X.angle3f(left, up) / float:PI180;
       if (is-nan horz) horz = 0;
       if (is-nan vert) vert = -180;
     `;

@@ -17,7 +17,7 @@ class StringExpr : Expr, HasInfo, Dependency {
     }
   }
   Expr getPointer() {
-    return reinterpret_cast(Single!(Pointer, Single!(Char)), fastalloc!(LateSymbol)(&selectName, &name_used)); 
+    return reinterpret_cast(Single!(Pointer, Single!(Char)), fastalloc!(LateSymbol)(this, &selectName, &name_used)); 
   }
   override {
     string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }

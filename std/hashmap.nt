@@ -7,7 +7,6 @@ alias FNVStep = `
   i = i xor (%V);
   i = i * FNV_prime;
 `;
-import std.string;
 template hashptr_fnv(PTR) {
   void hashptr_fnv(PTR ptr, int* ip) {
     pragma(fast);

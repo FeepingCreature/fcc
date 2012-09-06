@@ -227,10 +227,11 @@ class Symbol : Expr {
 class LateSymbol : Expr {
   void delegate(AsmFile) dg;
   string* name;
-  this(void delegate(AsmFile) dg, string* name) { this.dg = dg; this.name = name; }
+  Expr referent; // expr that we reference, so that iteration can see it
+  this(Expr referent, void delegate(AsmFile) dg, string* name) { this.referent = referent; this.dg = dg; this.name = name; }
   private this() { }
-  LateSymbol dup() { return fastalloc!(LateSymbol)(dg, name); }
-  mixin defaultIterate!();
+  LateSymbol dup() { return fastalloc!(LateSymbol)(referent, dg, name); }
+  mixin defaultIterate!(referent);
   override IType valueType() { return voidp; }
   override void emitAsm(AsmFile af) {
     if (!*name) dg(af);
