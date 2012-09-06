@@ -245,9 +245,10 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
       open(af)()(false); // lol
     }
     Object lookup(string name, bool local = false) {
-      auto res = super.lookup(name, true);
-      // TODO: &&? ||? WHO KNOWS =D
-      // if (!res && fastcast!(Scope)~ sup)
+      bool pointless;
+      if (name.find(".") != -1) pointless = true; // only modules match this
+      Object res;
+      if (!pointless) res = super.lookup(name, true);
       if (res) return res;
       return sup.lookup(name, local);
     }

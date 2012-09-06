@@ -134,9 +134,9 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr dest, src;
   if (rest(t2, "tree.expr _tree.expr.arith"[], &dest) && t2.accept("="[])) {
+    if (fastcast!(LValue)~ dest) return null; // leave to normal assignment
     auto ar = fastcast!(Array)~ resolveType(dest.valueType());
     if (!ar) return null;
-    if (fastcast!(LValue)~ dest) return null; // leave to normal assignment
     if (rest(t2, "tree.expr"[], &src)) {
       auto t3 = t2;
       if (t3.mystripl().length && !t3.accept(";"[]))

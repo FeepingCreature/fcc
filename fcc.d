@@ -792,8 +792,8 @@ string delegate() compile(string file, CompileSettings cs) {
   foreach (entry; entries) total += entry._1;
   // logSmart!(false)("Subsegments: ", entries, "; total ", total);
   mod.alreadyEmat = true;
-  return stuple(objname, srcname, af, mod, cs) /apply/
-  (string objname, string srcname, AsmFile af, Module mod, CompileSettings cs) {
+  return stuple(len_parse, len_gen, objname, srcname, af, mod, cs) /apply/
+  (double len_parse, double len_gen, string objname, string srcname, AsmFile af, Module mod, CompileSettings cs) {
     scope(exit)
       if (!cs.saveTemps)
         unlink(srcname.toStringz());
@@ -807,7 +807,7 @@ string delegate() compile(string file, CompileSettings cs) {
       flags = "--32";
     if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
-    logSmart!(false)("> (", len_emit, "s) ", cmdline);
+    logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
     synchronized {
       if (system(cmdline.toStringz())) {
         logln("ERROR: Compilation failed! ");

@@ -452,8 +452,8 @@ abstract class BinopExpr : Expr, HasInfo {
   this(Expr e1, Expr e2, string op) {
     if (!e1 || !e2)
       fail;
-    opt(e1);
-    opt(e2);
+    // opt(e1);
+    // opt(e2);
     this.e1 = e1;
     this.e2 = e2;
     this.op = op;

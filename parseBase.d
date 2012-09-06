@@ -293,7 +293,10 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, b
   // prev_idx now is the start of the first invalid character
   ident = t2[0 .. prev_idx];
    text = t2[prev_idx .. $];
-  if (ident in reserved) return false;
+  /*if (ident in reserved) {
+    logln("reject ", ident);
+    return false;
+  }*/
   return true;
 }
 
@@ -345,7 +348,7 @@ string[bool delegate(string)] condInfo;
 alias Tuple!(string, bool delegate(string), ubyte, bool)
   RuleData;
 
-const RULEPTR_SIZE_HAX = (Stuple!(RuleData)).sizeof;
+const RULEPTR_SIZE_HAX = (Stuple!(int, RuleData)).sizeof;
 void[RULEPTR_SIZE_HAX][] slab;
 int slab_freeptr = -1, slab_top;
 
@@ -358,17 +361,24 @@ struct RuleStruct(alias A) {
 
 template allocRuleData(alias A) {
   bool delegate(Params!(typeof(&A))[1 .. $])
-  allocRuleData(RuleData rd, out int id) {
+  allocRuleData(RuleData rd, ref int id) {
     void* res;
     if (slab_freeptr != -1) {
-      res = slab[slab_freeptr].ptr;
+      auto ptr = slab[slab_freeptr].ptr;
+      *cast(int*) ptr = id;
+      res = ptr + 4;
+      
       id = slab_freeptr;
       slab_freeptr = *cast(int*) res;
     } else {
       if (!slab) slab = new void[RULEPTR_SIZE_HAX][65536];
       if (slab_top >= slab.length) slab.length = slab.length * 2;
-      id = slab_top;
-      res = slab[slab_top++].ptr;
+      
+      auto ptr = slab[slab_top].ptr;
+      *cast(int*) ptr = id;
+      res = ptr + 4;
+      
+      id = slab_top++;
     }
     auto strp = cast(RuleStruct!(A)*) res;
     strp.tuple = stuple(rd);
@@ -382,9 +392,13 @@ static this() { New(ardlock); }
 void freeRuleData(int offs) {
   const string SRC = `
     auto ptr = slab[offs].ptr;
-    *cast(int*) ptr = slab_freeptr;
+    auto data = ptr + 4;
+    *cast(int*) data = slab_freeptr;
     slab_freeptr = offs;
+    auto prevId = *cast(int*) ptr;
+    if (prevId != -1) freeRuleData(prevId);
   `;
+  // logln("free ", offs);
   version(MT) {
     synchronized(ardlock) { mixin(SRC); }
   } else {
@@ -395,7 +409,7 @@ void freeRuleData(int offs) {
 bool sectionStartsWith(string section, string rule) {
   if (section.length == rule.length && section.faststreq_samelen_nonz(rule)) return true;
   if (section.length < rule.length) return false;
-  if (!section[0..rule.length].faststreq/*_samelen_nonz*/(rule)) return false;
+  if (!section[0..rule.length].faststreq_samelen_nonz(rule)) return false;
   if (section.length == rule.length) return true;
   // only count hits that match a complete section
   return section[rule.length] == '.';
@@ -450,33 +464,35 @@ bool fun(Stuple!(RuleData)* data, string text) {
   if (op1 && !op1(text)) return false;
   // avoid allocation from ~"."
   auto rule = data._0, cases = data._2;
-  if ((cases&1) && text.sectionStartsWith(rule)) // all "below" in the tree
-    return true;
   if ((cases&4) && text == rule)
     return true;
-  if ((cases&2) && !text.sectionStartsWith(rule)) // arguable
+  
+  bool startswith = text.sectionStartsWith(rule);
+  if ((cases&1) && startswith) // all "below" in the tree
+    return true;
+  if ((cases&2) && !startswith) // arguable
     return true;
   
   auto hit = &data._3;
   if (cases&8) {
-    if (text.sectionStartsWith(rule))
+    if (startswith)
       *hit = true;
     return !*hit;
   }
   if (cases&16) {
-    if (text.sectionStartsWith(rule))
+    if (startswith)
       *hit = true;
     else return *hit;
   }
   if (cases&32) {
-    if (text.sectionStartsWith(rule))
+    if (startswith)
       *hit = true;
     return *hit;
   }
   return false;
 }
 
-bool delegate(string) matchrule(string rules, out int id) {
+bool delegate(string) matchrule(string rules, ref int id) {
   bool delegate(string) res;
   auto rules_backup = rules;
   while (rules.length) {
@@ -499,7 +515,7 @@ bool delegate(string) matchrule(string rules, out int id) {
       smaller = equal = true; // default
     // different modes
     assert((smaller || greater || equal) ^ before ^ after ^ after_incl);
-
+    
     alias allocRuleData!(fun) ard;
     const string src = `
       res = ard(
@@ -515,9 +531,8 @@ bool delegate(string) matchrule(string rules, out int id) {
     } else {
       mixin(src);
     }
-    // res = res /apply/ (bool delegate(string) dg, string s) { auto res = dg(s); logln(s, " -> ", res); return res; };
+    // logln("allocate ", id);
   }
-  // condInfo[res] = rules_backup;
   return res;
 }
 
@@ -696,21 +711,41 @@ struct Stack(T) {
   }
 }
 
+bool[string] unreserved;
+static this() {
+  unreserved["enum"] = true;
+  unreserved["sum"] = true;
+  unreserved["prefix"] = true;
+  unreserved["suffix"] = true;
+  unreserved["vec"] = true;
+}
+
+void reserve(string key) {
+  if (key in unreserved) return;
+  reserved[key] = true;
+}
+
 template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
   final class DefaultParserImpl {
-    bool dontMemoMe;
     Object info;
+    bool dontMemoMe;
+    static this() {
+      static if (Key) reserve(Key);
+    }
+    final void push() {
+      stack.push(cache);
+      cache = Init!(typeof(cache));
+    }
+    final void pop() {
+      stack.pop(cache);
+    }
     this(Object obj = null) {
       info = obj;
-      foreach (dg; globalStateMatchers) 
+      foreach (dg; globalStateMatchers)
         if (dg(Id)) { dontMemoMe = true; break; }
-      _pushCache ~= this /apply/ (typeof(this) that) {
-        that.stack.push(that.cache);
-        that.cache = Init!(typeof(that.cache));
-      };
-      _popCache ~= this /apply/ (typeof(this) that) {
-        that.stack.pop(that.cache);
-      };
+      
+      _pushCache ~= &push;
+      _popCache ~= &pop;
     }
     Parser genParser() {
       Parser res;
@@ -740,14 +775,12 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
       Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         auto t2 = text;
         if (.accept(t2, "]")) return null; // never a valid start
-        static if (Key) {
-          if (!.accept(t2, Key)) return null;
-        }
         bool acceptRelevant;
         static if (is(typeof((&Fn)(t2, accept, cont, rest))))
           acceptRelevant = true;
         acceptRelevant &= !!accept;
         if (acceptRelevant || dontMemoMe) {
+          static if (Key) if (!.accept(t2, Key)) return null;
           auto res = fnredir(t2, accept, cont, rest);
           if (res) text = t2;
           return res;
@@ -758,6 +791,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
           else text = p._1[0 .. t2.ptr + t2.length - p._1];
           return p._0;
         }
+        static if (Key) if (!.accept(t2, Key)) return null;
         auto res = fnredir(t2, accept, cont, rest);
         cache[ptr] = stuple(res, t2.ptr);
         if (res) text = t2;
@@ -977,7 +1011,6 @@ template _parse(bool Verbose) {
       // scope(exit) rulestack = rulestack[0 .. $-1];
       
       if (cond(id)) {
-        // if (parser.key && !.accept(tx, parser.key)) continue; // skip late
         static if (Verbose) {
           if (!(id in idepth)) idepth[id] = 0;
           idepth[id] ++;

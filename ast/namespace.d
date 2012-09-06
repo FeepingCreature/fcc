@@ -119,7 +119,7 @@ struct PreallocatedField(int StaticSize, T) {
   }
 }
 
-import tools.ctfe, tools.base: stuple, Format, Repeat, ex;
+import tools.ctfe, tools.base: stuple, Format, Repeat, ex, TTTuple=Tuple;
 import ast.int_literal, ast.float_literal;
 class Namespace {
   Namespace sup;
@@ -262,12 +262,19 @@ class Namespace {
     }
     return null;
   }
+  Object[string] supcache;
   Object lookup(string name, bool local = false) {
     if (name in reserved) return null;
     debug { int temp; if (name.gotInt(temp)) fail; }
     debug { float temp; if (name.gotFloat(temp)) fail; }
     if (auto res = lookupInField(name)) return res;
-    if (!local && sup) return sup.lookup(name, local);
+    if (!local && sup) {
+      if (auto p = name in supcache) return *p;
+      auto res = sup.lookup(name, false);
+      supcache[name] = res;
+      // logln(" => ", supcache.length, " ", name);
+      return res;
+    }
     return null;
   }
   abstract string mangle(string name, IType type);
@@ -353,7 +360,8 @@ class MiniNamespace : Namespace, ScopeLike, Named {
 float[string] bench;
 import tools.time, ast.fold;
 const bool canFail = false;
-template iparse(R, string id, string rule, bool mustParse = true) {
+alias TTTuple!(true, false) dontopt;
+template iparse(R, string id, string rule, bool mustParse = true, bool optres = true) {
   R iparse(T...)(string text, T _t) {
     auto start = sec();
     scope(exit) bench[id] += sec() - start;
@@ -417,7 +425,7 @@ template iparse(R, string id, string rule, bool mustParse = true) {
     } else {
       if (text.length || !rc) return null;
     }
-    opt(rc);
+    if (optres) opt(rc);
     return rc;
   }
 }

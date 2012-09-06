@@ -11,7 +11,7 @@ import
 class Range : Type, RichIterator, RangeIsh {
   IType wrapper;
   LValue castToWrapper(LValue lv) {
-    return iparse!(LValue, "range_cast_to_wrapper"[], "tree.expr"[])
+    return iparse!(LValue, "range_cast_to_wrapper", "tree.expr", dontopt)
                   ("*wrapper*:&lv"[], "lv"[], lv, "wrapper"[], wrapper);
   }
   Expr castExprToWrapper(Expr ex) {
@@ -225,16 +225,14 @@ class ForIter(I) : Type, I {
     return res;
   }
   LValue castToWrapper(LValue lv) {
-    return iparse!(LValue, "foriter_cast_to_wrapper"[], "tree.expr"[])
-                  ("*wrapper*:&lv"[], "lv"[], lv, "wrapper"[], wrapper);
+    return fastalloc!(DerefExpr)(reinterpret_cast(fastalloc!(Pointer)(wrapper), fastalloc!(RefExpr)(lv)));
   }
   Expr castToWrapper(Expr ex) {
-    if (auto lv = fastcast!(LValue)~ ex) return castToWrapper(lv);
-    return iparse!(Expr, "foriter_cast_ex_to_wrapper"[], "tree.expr"[])
-                  ("wrapper:ex"[], "ex"[], ex, "wrapper"[], wrapper);
+    if (auto lv = fastcast!(LValue) (ex)) return castToWrapper(lv);
+    return reinterpret_cast(wrapper, ex);
   }
   LValue subexpr(LValue lv) {
-    return iparse!(LValue, "foriter_get_subexpr_lv"[], "tree.expr"[])
+    return iparse!(LValue, "foriter_get_subexpr_lv", "tree.expr", dontopt)
                   ("lv.subiter"[], "lv"[], lv);
   }
   Expr subexpr(Expr ex) {
@@ -340,7 +338,7 @@ class ForIter(I) : Type, I {
   }
   Statement mkForIterAssign(LValue lv, ref LValue wlv) {
     wlv = castToWrapper(lv);
-    auto var = iparse!(LValue, "foriter_wlv_var"[], "tree.expr"[])
+    auto var = iparse!(LValue, "foriter_wlv_var", "tree.expr", dontopt)
                       ("wlv.var"[], "wlv"[], wlv);
     return fastalloc!(Assignment)(var, itertype.currentValue(subexpr(wlv.dup)));
   }

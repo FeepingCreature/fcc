@@ -11,9 +11,10 @@ string buf;
 int bufbase;
 int buflen;
 string readStream(InputStream IS) {
-  if (!buf) { buf = new char[16384]; buflen = 16384; }
+  const SIZE = 65536; // enough?
+  if (!buf) { buf = new char[SIZE]; buflen = SIZE; }
   int reslen;
-  ubyte[16384] buffer;
+  ubyte[SIZE] buffer = void;
   int i;
   do {
     i = IS.read(buffer);

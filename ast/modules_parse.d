@@ -115,7 +115,7 @@ Object gotImport(bool ReturnNamed)(ref string text, ParseCb cont, ParseCb rest) 
   }
 }
 mixin DefaultParser!(gotImport!(false), "tree.import");
-mixin DefaultParser!(gotImport!(false), "tree.semicol_stmt.import", "21");
+mixin DefaultParser!(gotImport!(false), "tree.semicol_stmt.import", "102");
 mixin DefaultParser!(gotImport!(true), "struct_member.import");
 
 Object gotModule(ref string text, ParseCb cont, ParseCb restart) {

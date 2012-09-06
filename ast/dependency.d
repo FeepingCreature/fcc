@@ -90,7 +90,7 @@ Object gotProvide(bool Statement)(ref string text, ParseCb cont, ParseCb rest) {
     return cd;
   }
 }
-mixin DefaultParser!(gotProvide!(true), "tree.semicol_stmt.provide", "231", "provide");
+mixin DefaultParser!(gotProvide!(true), "tree.semicol_stmt.provide", "112", "provide");
 mixin DefaultParser!(gotProvide!(false), "tree.toplevel.a_provide", null, "provide");
 mixin DefaultParser!(gotProvide!(false), "struct_member.provide", null, "provide");
 
@@ -183,4 +183,4 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   }
   text.failparse("Dependency '", se.str, "' not provided by ", start_ident);
 }
-mixin DefaultParser!(gotDepend, "tree.semicol_stmt.depend", "232", "depend");
+mixin DefaultParser!(gotDepend, "tree.semicol_stmt.depend", "111", "depend");

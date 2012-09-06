@@ -5,6 +5,7 @@ import std.file, std.date, std.string;
 // std.file with more delete()
 
 version(Win32) {
+  import std.c.windows.windows;
   void getTimes(char[] name, out d_time ftc, out d_time fta, out d_time ftm)
   {
     HANDLE findhndl;

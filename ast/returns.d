@@ -204,4 +204,4 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     return rs; // permit no-expr
   text.failparse("Error parsing return expression"[]);
 }
-mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return", "20", "return");
+mixin DefaultParser!(gotRetStmt, "tree.semicol_stmt.return", "101", "return");

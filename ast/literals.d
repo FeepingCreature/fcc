@@ -87,20 +87,10 @@ Object gotDoubleExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotDoubleExpr, "tree.expr.literal.double", "545");
 
-Object gotLiteralSuffixExpr(ref string text, ParseCb cont, ParseCb rest) {
-  IntExpr res;
-  if (!rest(text, "tree.expr.int_literal"[], &res)) return null;
-  if (text.accept("K")) return mkInt(res.num * 1024);
-  else if (text.accept("M")) return mkInt(res.num * 1024 * 1024);
-  else if (text.accept("G")) return mkInt(res.num * 1024 * 1024 * 1024);
-  else return null;
-}
-mixin DefaultParser!(gotLiteralSuffixExpr, "tree.expr.int_literal_suffix", "2301");
-
 Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
-  Expr ex;
+  int i;
   auto t2 = text;
-  if (t2.gotIntExpr(ex)) {
+  if (t2.gotInt(i)) {
     // allow for a..b .. HAX!
     if (t2.length >= 2) {
       auto t3 = t2;
@@ -108,8 +98,11 @@ Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (ch1 == '.' && ch2 != '.')
         return null;
     }
+    if (t2.accept("K")) i *= 1024;
+    else if (t2.accept("M")) i *= 1024*1024;
+    else if (t2.accept("G")) i *= 1024*1024*1024;
     text = t2;
-    return fastcast!(Object)~ ex;
+    return fastcast!(Object)(mkInt(i));
   } else return null;
 }
 

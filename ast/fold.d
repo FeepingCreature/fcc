@@ -57,12 +57,12 @@ Expr outer_foldex(Expr ex) {
   } else {
     ptr._1 ++;
     if (oftenUseless) {
-      logln("foldex was usually useless, but not this time (", ptr._0, " / ", ptr._1, "): ", backup, " to ", res);
+      logln("opt_itr was usually useless, but not this time (", ptr._0, " / ", ptr._1, "): ", backup, " => ", res);
       asm { int 3; }
     }
   }
   if (oftenUseless && !ptr._1) {
-    logln("foldex did not do anything");
+    logln("opt_itr did not do anything");
     asm { int 3; }
   }
   return res;
@@ -85,10 +85,15 @@ Expr optex(Expr ex) {
   return ex;
 }
 
-void opt(T)(ref T t) {
-  static T cache;
-  if (t is cache) return;
+Itr[void*] optimized;
+void opt_itr(ref Itr it) {
+  auto p = cast(void*) it;
+  scope(success) optimized[p] = it;
+  
   void fun(ref Itr it) {
+    auto p = cast(void*) it;
+    if (auto ip = p in optimized) { it = *ip; return; }
+    
     while (true) {
       it.iterate(&fun);
       auto new_it = fold(it);
@@ -96,10 +101,13 @@ void opt(T)(ref T t) {
       it = new_it;
     }
   }
+  fun(it);
+}
+
+void opt(T)(ref T t) {
   Itr it = fastcast!(Itr) (t);
   if (!it) fail;
-  fun(it);
+  opt_itr(it);
   t = fastcast!(T) (it);
   if (!t) fail;
-  cache = t;
 }

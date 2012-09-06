@@ -705,10 +705,13 @@ import ast.parse, ast.fun, tools.base: or;
 Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   assert(lhs_partial());
   auto first_ex = fastcast!(Expr)~ lhs_partial();
+  auto t2 = text;
+  string member;
+  if (!t2.gotIdentifier(member)) return null;
+  
   Expr ex;
   Expr[] alts;
   IType[] spaces;
-  auto t2 = text;
   if (first_ex) {
     ex = first_ex;
     auto ex3 = ex;
@@ -757,66 +760,62 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   
-  string member;
+  auto backupmember = member;
+  auto backupt2 = t2;
+try_next_alt:
+  member = backupmember; // retry from start again
+  t2 = backupt2;
+  if (!alts.length)
+    return null;
+  ex = alts[0]; alts = alts[1 .. $];
+  auto space = spaces[0]; spaces = spaces[1 .. $];
   
-  if (t2.gotIdentifier(member)) {
-    auto backupmember = member;
-    auto backupt2 = t2;
-  try_next_alt:
-    member = backupmember; // retry from start again
-    t2 = backupt2;
-    if (!alts.length)
-      return null;
-    ex = alts[0]; alts = alts[1 .. $];
-    auto space = spaces[0]; spaces = spaces[1 .. $];
+  auto pre_ex = ex;
+  
+  auto rn = fastcast!(RelNamespace) (space);
+retry:
+  auto ns = fastcast!(Namespace) (space);
+  if (!ex || !rn) {
+    Object m;
+    if (ns) m = ns.lookup(member, true);
+    if (!m && rn) m = rn.lookupRel(member, null);
+    if (!m) goto try_next_alt;
     
-    auto pre_ex = ex;
-    
-    auto rn = fastcast!(RelNamespace) (space);
-  retry:
-    auto ns = fastcast!(Namespace) (space);
-    if (!ex || !rn) {
-      Object m;
-      if (ns) m = ns.lookup(member, true);
-      if (!m && rn) m = rn.lookupRel(member, null);
-      if (!m) goto try_next_alt;
-      
-      // auto ex2 = fastcast!(Expr) (m);
-      // if (!ex2) {
-      // what
-      /*if (!m) {
-        if (t2.eatDash(member)) { logln("1 Reject "[], member, ": no match"[]); goto retry; }
-        text.setError(Format("No "[], member, " in "[], ns, "!"[]));
-        goto try_next_alt;
-      }*/
-      
-      text = t2;
-      return m;
-    }
-    auto m = rn.lookupRel(member, ex);
-    if (!m) {
-      if (t2.eatDash(member)) { goto retry; }
-      string mesg, name;
-      auto info = Format(pre_ex.valueType());
-      if (info.length > 64) info = info[0..64] ~ " [snip]";
-      if (auto st = fastcast!(Structure) (resolveType(fastcast!(IType) (rn)))) {
-        name = st.name;
-        /*logln("alts1 "[]);
-        foreach (i, alt; alts)
-          logln("  "[], i, ": "[], alt);*/
-        mesg = Format(member, " is not a member of "[], pre_ex.valueType(), "[], containing "[], st.names);
-      } else {
-        /*logln("alts2: "[]);
-        foreach (i, alt; alts)
-          logln("  "[], i, ": "[], alt);*/
-        mesg = Format(member, " is not a member of non-struct "[], info);
-      }
-      text.setError(mesg);
+    // auto ex2 = fastcast!(Expr) (m);
+    // if (!ex2) {
+    // what
+    /*if (!m) {
+      if (t2.eatDash(member)) { logln("1 Reject "[], member, ": no match"[]); goto retry; }
+      text.setError(Format("No "[], member, " in "[], ns, "!"[]));
       goto try_next_alt;
-    }
+    }*/
+    
     text = t2;
     return m;
-  } else return null;
+  }
+  auto m = rn.lookupRel(member, ex);
+  if (!m) {
+    if (t2.eatDash(member)) { goto retry; }
+    string mesg, name;
+    auto info = Format(pre_ex.valueType());
+    if (info.length > 64) info = info[0..64] ~ " [snip]";
+    if (auto st = fastcast!(Structure) (resolveType(fastcast!(IType) (rn)))) {
+      name = st.name;
+      /*logln("alts1 "[]);
+      foreach (i, alt; alts)
+        logln("  "[], i, ": "[], alt);*/
+      mesg = Format(member, " is not a member of "[], pre_ex.valueType(), "[], containing "[], st.names);
+    } else {
+      /*logln("alts2: "[]);
+      foreach (i, alt; alts)
+        logln("  "[], i, ": "[], alt);*/
+      mesg = Format(member, " is not a member of non-struct "[], info);
+    }
+    text.setError(mesg);
+    goto try_next_alt;
+  }
+  text = t2;
+  return m;
 }
 mixin DefaultParser!(gotMemberExpr, "tree.rhs_partial.access_rel_member"[], null, "."[]);
 
