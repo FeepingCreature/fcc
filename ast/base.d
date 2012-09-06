@@ -499,6 +499,7 @@ int needsAlignment(IType it) {
   auto hash = it.mangle();
   if (auto p = hash in alignment_cache) return *p;
   int store(int i) { alignment_cache[hash] = i; return i; }
+  it = resolveType(it);
   foreach (check; alignChecks)
     if (auto res = check(it)) return store(res);
   const limit = 4;
@@ -818,4 +819,11 @@ interface RichIterator : Iterator {
 interface RangeIsh {
   Expr getPos(Expr base);
   Expr getEnd(Expr base);
+}
+
+static this() {
+  alignChecks ~= (IType it) {
+    if (isWindoze() && Single!(Double) == resolveType(it)) return 8;
+    return 0;
+  };
 }

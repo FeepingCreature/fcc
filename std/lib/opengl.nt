@@ -22,6 +22,7 @@ platform(i686-mingw32) {
   alias glDeleteBuffers = *lookupFun!void function(GLsizei, GLuint*) "glDeleteBuffers";
   alias glBindBuffer    = *lookupFun!void function(GLenum, GLuint) "glBindBuffer";
   alias glBufferData    = *lookupFun!void function(GLenum, GLsizeiptr, void*, GLenum) "glBufferData";
+  alias glBufferSubData = *lookupFun!void function(GLenum, GLintptr, GLsizeiptr, void*) "glBufferSubData";
   /*
   alias GL_ARRAY_BUFFER = GLenum: 0x8892;
   alias GL_STREAM_DRAW  = 0x88E0, GL_STREAM_READ  = 0x88E1, GL_STREAM_COPY  = 0x88E2,

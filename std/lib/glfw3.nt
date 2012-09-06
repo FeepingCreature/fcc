@@ -59,6 +59,15 @@ void initCallbacks() using mode GLFW {
 
 import std.lib.opengl.window;
 
+class GLFWError : Error {
+  void init(string s) using mode GLFW {
+    auto num = GetError();
+    import std.string;
+    auto text = CToString ErrorString num;
+    super.init "GLFWError: $s: $num($text)";
+  }
+}
+
 class GLFWWindow : GLWindow {
   GLFWwindow handle;
   int w, h;
@@ -140,22 +149,13 @@ class GLFWWindow : GLWindow {
     mem.free ptr;
   }
   void setup(vec2i size) using mode GLFW {
-    if (!Init()) raise new Error "Failed to init GLFW";
+    if (!Init()) raise new GLFWError "Failed to init GLFW";
     onFailure Terminate;
     
     WindowHint(DEPTH_BITS, 16);
     (w, h) = size;
     if (!title) title = "GLFW Window";
-    import std.string;
-    handle = CreateWindow (w, h, WINDOWED, toStringz title, null);
-    MakeContextCurrent handle;
-    if (!handle) raise new Error "Failed to open GLFW window";
-    
-    handle.SetWindowUserPointer (_esi);
-    
-    handle.SetInputMode (KEY_REPEAT, true);
-    // SwapInterval 0;
-    
+
     windowSizeCallback = &reshape;
     keyCallback = &key;
     charCallback = &handleChar;
@@ -164,6 +164,17 @@ class GLFWWindow : GLWindow {
     scrollCallback = &scroll;
     windowCloseCallback = &closedfn;
     initCallbacks();
+    
+    import std.string;
+    handle = CreateWindow (w, h, WINDOWED, toStringz title, null);
+    if (!handle) raise new GLFWError "Failed to open GLFW window";
+    MakeContextCurrent handle;
+    
+    handle.SetWindowUserPointer (_esi);
+    
+    handle.SetInputMode (KEY_REPEAT, true);
+    // SwapInterval 0;
+    
     is-set-up = true;
     for (auto dg <- context-callbacks) dg();
   }

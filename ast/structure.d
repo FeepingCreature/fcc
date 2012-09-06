@@ -678,8 +678,9 @@ static this() {
     return null;
   };
   alignChecks ~= (IType it) {
-    if (auto st = fastcast!(Structure) (it))
+    if (auto st = fastcast!(Structure) (it)) {
       return needsAlignmentStruct(st);
+    }
     return 0;
   };
 }
