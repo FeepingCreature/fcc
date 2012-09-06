@@ -2293,4 +2293,31 @@ restart:
     info(t2).fixupStack(-4);
     $SUBST(t1, t2);
   `));
+  mixin(opt("loopy_push_mov_mov_pop_fold", `^Push, ^Mov, ^Mov, ^Pop:
+    $0.size == 4 && $3.size == 4 &&
+    $0.source.isIndirect().isUtilityRegister() &&
+    $1.from.isIndirect() == "%esp" && $1.to.isUtilityRegister() &&
+    $0.source.isIndirect() == $1.to && $0.source.isIndirect() != $2.to && $2.from.isIndirect() == $1.to &&
+    $2.to.isUtilityRegister() && $2.to != $1.to &&
+    $3.dest == $1.to && $3.dest == $0.source.isIndirect()
+    =>
+    // mov q(eax) -> eax
+    $T t0;
+    t0.kind = $TK.Mov;
+    t0.from = $0.source;
+    t0.to = $3.dest;
+    
+    // mov r(esp) -> edx
+    $T t1 = $1.dup;
+    t1.to = $2.to;
+    info(t1).fixupStack(-4);
+    
+    // mov s(edx) -> edx
+    $T t2 = $2.dup;
+    int delta; $2.from.isIndirect2(delta);
+    t2.from = qformat(delta, "(", t1.to, ")");
+    info(t2).fixupStack(-4);
+    
+    $SUBST(t0, t1, t2);
+  `));
 }

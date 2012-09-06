@@ -469,7 +469,7 @@ class ByteToIntCast : Expr {
         af.sfree(4);
         af.pushStack("r0"[], 4);
       } else {
-        af.put("xorl %eax, %eax"[]);
+        af.mathOp("xorl", "%eax", "%eax");
         af.popStack("%al"[], b.valueType().size);
         if (signed) {
           af.put("cbtw");

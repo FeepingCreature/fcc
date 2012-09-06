@@ -3,7 +3,7 @@ module ast.nestfun;
 import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.variable, ast.pointer, ast.structure, ast.namespace,
        ast.vardecl, ast.parse, ast.assign, ast.constant, ast.dg,
-       ast.properties, ast.math;
+       ast.properties, ast.math, ast.fold;
 
 public import ast.fun: Argument;
 import ast.aliasing, ast.casting, ast.opers;
@@ -210,7 +210,7 @@ class NestedCall : FunCall {
     if (setup) setup.emitAsm(af);
     if (dg) callDg(af, fun.type.ret, args, dg);
     else callDg(af, fun.type.ret, args,
-      fastalloc!(DgConstructExpr)(fun.getPointer(), ebp));
+      optex(fastalloc!(DgConstructExpr)(fun.getPointer(), ebp)));
   }
   override IType valueType() {
     return fun.type.ret;

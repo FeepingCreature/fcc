@@ -1,44 +1,44 @@
 module std.hashmap;
 
-// todo~
-template hashptr(PTR) {
-  int hashptr(PTR ptr) {
+// FNV hash, compare http://isthe.com/chongo/tech/comp/fnv/#FNV-1a
+alias FNV_prime = 16777619;
+alias FNV_offset = 2166136261;
+alias FNVStep = `
+  i = i xor (%V);
+  i = i * FNV_prime;
+`;
+import std.string;
+template hashptr_fnv(PTR) {
+  void hashptr_fnv(PTR ptr, int* ip) {
     pragma(fast);
     alias t = *ptr;
     alias T = type-of t;
-    // TODO: do properly (?)
+    alias i = *ip;
     static if (types-equal (T, int)) {
-      auto i = t;
-      if (i < 0) i &= 0x7fff_ffff;
-      return i;
+      mixin FNVStep.replace("%V", "t");
+      return;
       bool matched;
     }
     static if (types-equal (T, float) || types-equal (T, bool)) {
-      auto i = *int*:&t;
-      if (i < 0) i &= 0x7fff_ffff;
-      return i;
+      mixin FNVStep.replace("%V", "*int*:&t");
+      return;
       bool matched;
     }
     static if (!is-defined matched && (type-is tuple T || type-is vector T)) {
-      int res;
       static for (int i <- 0..t.length)
-        res += .hashptr &t[i];
-      return res;
+        .hashptr_fnv!type-of &t[i] (&t[i], ip);
+      return;
       bool matched;
     }
     static if (!is-defined matched && type-is struct T) {
-      int res;
       static for (int i <- 0..t.tupleof.length) {
         alias entry = t.tupleof[i];
-        res += .hashptr &entry;
+        .hashptr_fnv!type-of &entry (&entry, ip);
       }
-      return res;
+      return;
       bool matched;
     }
     static if (!is-defined matched && types-equal (T, string)) {
-      // FNV hash, compare http://isthe.com/chongo/tech/comp/fnv/#FNV-1a
-      alias FNV_prime = 16777619;
-      int res = 2166136261;
       string str = t, rest;
       int last;
       if (str.length % 4 != 0) {
@@ -46,14 +46,9 @@ template hashptr(PTR) {
         (str, rest) = str[(0..marker, marker..$)];
         for auto ub <- ubyte[]:rest last = (last << 8) + ub;
       }
-      alias FNVStep = `
-        res = res xor %V;
-        res = res * FNV_prime;
-      `;
-      import std.string;
-      for int i <- int[]:str mixin FNVStep.replace("%V", "i");
+      for int v <- int[]:str mixin FNVStep.replace("%V", "v");
       mixin FNVStep.replace("%V", "last");
-      return res;
+      return;
       bool matched;
     }
     static if (!is-defined matched) {
@@ -62,13 +57,20 @@ template hashptr(PTR) {
   }
 }
 
+template hashptr(PTR) {
+  int hashptr(PTR ptr) {
+    int res = FNV_offset;
+    hashptr_fnv!PTR(ptr, &res);
+    return res;
+  }
+}
+
 template Hashmap(T) {
   alias Key = T[0], Value = T[1];
   alias α = 0.5;
   struct Hashmap {
     (Key key, Value value)[] backing;
-    Key nullkey; Value nullvalue;
-    bool nullset;
+    bool[] isset;
     int length;
     float load() {
       pragma(fast);
@@ -77,16 +79,14 @@ template Hashmap(T) {
     }
     void iterate(void delegate(Key*, Value*) dg) {
       pragma(fast);
-      if (nullset) dg(&nullkey, &nullvalue);
-      for ref entry <- backing
-        if (entry[0] != nullkey)
-          dg (&entry[0], &entry[1]);
+      for ref entry <- backing && int i <- ints
+        if (isset[i]) dg (&entry[0], &entry[1]);
     }
     void realloc(int newsize) {
       pragma(fast);
       type-of this newmap;
-      newmap.nullvalue = nullvalue;
       newmap.backing = new type-of backing newsize;
+      newmap.isset = new type-of isset newsize;
       iterate(\(Key* kp, Value* vp) newmap.insert(kp, vp););
       this = newmap;
     }
@@ -94,11 +94,6 @@ template Hashmap(T) {
     Value* insert(Key* kp, Value* vp) {
       pragma(fast);
       alias k = Key:*kp, v = Value:*vp;
-      if (k == nullkey) {
-        nullset = true;
-        nullvalue = v;
-        return &nullvalue;
-      }
       do auto loadf = load();
       while (loadf > α) {
         auto newsize = backing.length * 2;
@@ -106,10 +101,11 @@ template Hashmap(T) {
         realloc newsize;
       }
       auto pos = (hashptr &k) % backing.length;
-      while (backing[pos][0] != nullkey) {
+      while (isset[pos]) {
         if (++pos == backing.length) pos = 0;
       }
       backing[pos] = (k, v);
+      isset[pos] = true;
       length ++;
       return &backing[pos].value;
     }
@@ -117,10 +113,9 @@ template Hashmap(T) {
     Value* get(Key* kp) {
       pragma(fast);
       alias k = *kp;
-      if (nullset && k == nullkey) return &nullvalue;
       if (!backing.length) return null;
       auto pos = (hashptr &k) % backing.length;
-      while (backing[pos].key != nullkey) {
+      while (isset[pos]) {
         if (backing[pos].key == k) return &backing[pos].value;
         if (++pos == backing.length) pos = 0;
       }

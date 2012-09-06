@@ -131,6 +131,15 @@ class LazyDeltaInt : Expr {
   }
 }
 
+static this() {
+  foldopt ~= delegate Itr(Itr it) {
+    auto ldi = fastcast!(LazyDeltaInt)(it);
+    if (!ldi) return null;
+    auto val = ldi.dg() + ldi.delta;
+    return mkInt(val);
+  };
+}
+
 // lookupRel in interfaces/classes takes the class *reference*.
 // This is IMPORTANT for compat with using.
 
