@@ -53,7 +53,8 @@ class FullSlice : Expr {
   }
 }
 
-static this() {
+void setupSlice() {
+  scope(success) setupSlice2();
   defineOp("index"[], delegate Expr(Expr e1, Expr e2) {
     auto e2v = resolveType(e2.valueType());
     auto rish = fastcast!(RangeIsh)~ e2v;
@@ -160,7 +161,7 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSliceAssignment, "tree.semicol_stmt.assign_slice"[], "10"[]);
 
-static this() {
+void setupSlice2() {
   implicits ~= delegate Expr(Expr ex) {
     auto sa = fastcast!(StaticArray) (ex.valueType());
     if (!sa || !fastcast!(CValue) (ex)) return null;

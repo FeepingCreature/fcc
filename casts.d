@@ -186,7 +186,7 @@ void initCastTable() {
 const getIdCacheSize = 1; // more is sliightly slower, less is way slower
 Stuple!(void*, int)[getIdCacheSize] getIdCache;
 int getIdLoopPtr;
-pragma(attribute, optimize("-O3"))
+version(Windows) { } else pragma(set_attribute, getId, optimize("-O3"));
 int getId(ClassInfo ci) {
   auto cp = cast(void*) ci;
   static if (getIdCacheSize) foreach (i, bogus; Repeat!(void, getIdCacheSize)) {

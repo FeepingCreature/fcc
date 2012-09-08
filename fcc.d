@@ -76,6 +76,8 @@ string[] processCArgs(string[] ar) {
 }
 
 static this() {
+  setupSlice();
+  setupIndex();
   New(optimizer_x86.cachething);
   New(optimizer_x86.proctrack_cachething);
   pragmas["fast"] = delegate Object(Expr ex) {
@@ -221,7 +223,7 @@ static this() {
   bool isDouble(IType it) { return test(Single!(Double) == it); }
   bool isLong(IType it) { return test(Single!(Long) == it); }
   bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
-  bool isBool(IType it) { return test(it == fastcast!(IType) (sysmod.lookup("bool"))); }
+  bool isBool(IType it) { if (!sysmod) return false; return test(it == fastcast!(IType)(sysmod.lookup("bool"))); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
     bool b1 = isBool(ex1.valueType()), b2 = isBool(ex2.valueType());
     if (!gotImplicitCast(ex1, Single!(SysInt), &isInt) || !gotImplicitCast(ex2, Single!(SysInt), &isInt))
@@ -827,6 +829,7 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   auto modname = file.replace("/", ".")[0..$-3];
   bool[string] done;
   Module[] todo;
+  lazySysmod();
   auto start = lookupMod(modname);
   finalizeSysmod(start);
   

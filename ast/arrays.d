@@ -225,11 +225,6 @@ IType arrayAsStruct(IType base, bool rich) {
       auto p = fastcast!(Expr) (namespace().lookup("ptr"[]));
       return fastalloc!(ReturnStmt)(
         fastalloc!(StatementAndExpr)(
-          /*
-          iparse!(Statement, "array_setpop"[], "tree.stmt"[])
-                (`length --;`, namespace()),
-          iparse!(Expr, "array_getpop"[], "tree.expr"[])
-                (`*(ptr + length)`, namespace())*/
           fastalloc!(Assignment)(len, lookupOp("-"[], len, mkInt(1))),
           fastalloc!(DerefExpr)(lookupOp("+"[], p, len))
         )

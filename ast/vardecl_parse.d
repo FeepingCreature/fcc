@@ -58,6 +58,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
         if (!lv)
           t2.failparse("Initializer of a ref decl must be referentiable");
         ex = fastalloc!(RefExpr)(lv);
+        if (vartype) vartype = fastalloc!(Pointer)(vartype);
       }
     } else if (isRefDecl) {
       t2.failparse("ref declaration must have initializer");

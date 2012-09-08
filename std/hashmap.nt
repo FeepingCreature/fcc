@@ -115,7 +115,10 @@ template Hashmap(T) {
       if (!backing.length) return null;
       auto pos = (hashptr &k) % backing.length;
       while (isset[pos]) {
-        if (backing[pos].key == k) return &backing[pos].value;
+        if (backing[pos].key == k) {
+          // writeln "for $k: $(backing[pos].key)";
+          return &backing[pos].value;
+        }
         if (++pos == backing.length) pos = 0;
       }
       return null;

@@ -185,7 +185,7 @@ src_cleanup_redo: // count, then copy
   void flushBuffer() { foreach (def; buffer) { addSrc(def); addSrc(";"); } delete buffer; buffer = null; }
   while (src.length) {
     string line;
-    void advance() { line = src.slice("\n"[]); }
+    void advance() { line = src.slice("\n"[]).chomp(); }
     advance;
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;

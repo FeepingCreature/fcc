@@ -13,7 +13,7 @@ version(Windows) {
   extern(C) int bcmp(char*, char*, int);
 }
 
-pragma(attribute, optimize("-O3"))
+version(Windows) { } else pragma(set_attribute, faststreq_samelen_nonz, optimize("-O3"));
 int faststreq_samelen_nonz(string a, string b) {
   // the chance of this happening is approximately 0.1% (I benched it)
   // as such, it's not worth it
@@ -35,7 +35,7 @@ int faststreq_samelen_nonz(string a, string b) {
   return (ai & mask) == (bi & mask);
 }
 
-pragma(attribute, optimize("-O3"))
+version(Windows) { } else pragma(set_attribute, faststreq, optimize("-O3"));
 int faststreq(string a, string b) {
   if (a.length != b.length) return false;
   if (!b.length) return true;
@@ -458,7 +458,7 @@ string matchrule_static(string rules) {
 }
 
 // cases: smaller, greater, equal, before, after
-pragma(attribute, optimize("-O3"))
+version(Windows) { } else pragma(set_attribute, fun, optimize("-O3"));
 bool fun(Stuple!(RuleData)* data, string text) {
   auto op1 = data._1;
   if (op1 && !op1(text)) return false;
@@ -938,8 +938,8 @@ void resort() {
 
 // manually inline because gdc is a poopyhead
 const string parsecall = `
-  if (verboseParser) return _parse!(true)._parse(%);
-  else return _parse!(false)._parse(%);
+  if (verboseParser) return _parse!(true).parse(%);
+  else return _parse!(false).parse(%);
 `;
 
 Object parse(ref string text, bool delegate(string) cond,
@@ -949,8 +949,7 @@ Object parse(ref string text, bool delegate(string) cond,
 }
 
 template _parse(bool Verbose) {
-  pragma(attribute, optimize("-O3", "-fno-tree-vrp"))
-  Object _parse(ref string text, bool delegate(string) cond,
+  Object parse(ref string text, bool delegate(string) cond,
       int offs = 0, ParseCtl delegate(Object) accept = null) {
     if (!text.length) return null;
     if (listModified) resort;
@@ -1064,6 +1063,7 @@ template _parse(bool Verbose) {
     }
     return null;
   }
+  version(Windows) { } else pragma(set_attribute, parse, optimize("-O3", "-fno-tree-vrp"));
 }
 
 string condStr;

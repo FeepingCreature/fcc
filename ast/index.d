@@ -34,7 +34,7 @@ class SAIndexExpr : Expr {
 }
 
 import ast.tuples, ast.tuple_access;
-static this() {
+void setupIndex() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
     auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
     if (!fastcast!(StaticArray) (e1v) && !fastcast!(Array) (e1v) && !fastcast!(ExtArray) (e1v) && !fastcast!(Pointer) (e1v))
@@ -72,12 +72,20 @@ static this() {
       return mkSALit(exprs[0].valueType(), exprs);
     });
   });
+  defineOp("index", delegate Expr(Expr e1, Expr e2) {
+    if (!showsAnySignOfHaving(e1, "opIndex"))
+      return null;
+    if (auto res = iparse!(Expr, "index_overload", "tree.expr _tree.expr.arith")
+                          (`e1.opIndex e2`, "e1", e1, "e2", e2)) {
+      return res;
+    }
+    return null;
+  });
 }
 
 import ast.vardecl, ast.scopes, ast.literals, ast.modules;
 Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    // logln("access ", ex.valueType(), " @", text.nextText());
     bool isArrayOrPtr = true;
     {
       auto backup = ex;
@@ -163,15 +171,3 @@ Object gotPointerIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
   };
 }
 mixin DefaultParser!(gotPointerIndexAccess, "tree.rhs_partial.pointer_index_access", null, "[");
-
-import ast.expr_statement;
-static this() {
-  defineOp("index", delegate Expr(Expr e1, Expr e2) {
-    if (!showsAnySignOfHaving(e1, "opIndex"))
-      return null;
-    if (auto res = iparse!(Expr, "index_overload", "tree.expr _tree.expr.arith")
-                          (`e1.opIndex e2`, "e1", e1, "e2", e2))
-      return res;
-    return null;
-  });
-}
