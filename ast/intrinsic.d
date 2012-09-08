@@ -524,7 +524,7 @@ void setupSysmods() {
       for auto mod <- __modules if mod.name == name return mod;
       raise new Error "No such module: $name";
     }
-    void __setupModuleInfo() { }
+    extern(C) void __setupModuleInfo();
     void constructModules() {
       for auto mod <- __modules {
         for auto str <- mod._imports
@@ -742,8 +742,19 @@ Module[] modlist;
 import ast.fun, ast.scopes, ast.namespace,
        ast.variable, ast.vardecl, ast.literals;
 void finalizeSysmod(Module mainmod) {
-  auto setupfun = fastcast!(Function) (sysmod.lookup("__setupModuleInfo"));
-  setupfun.parseMe();
+  // auto setupfun = fastcast!(Function) (sysmod.lookup("__setupModuleInfo"));
+  auto setupfun = new Function;
+  with (setupfun) {
+    name = "__setupModuleInfo";
+    extern_c = true;
+    type = new FunctionType;
+    type.ret = Single!(Void);
+    sup = mainmod;
+    coarseSrc = "{}".dup;
+    coarseModule = mainmod;
+    parseMe();
+  }
+  mainmod.entries ~= setupfun;
   auto sc = fastcast!(Scope) (setupfun.tree);
   Module[] list;
   Module[] left;

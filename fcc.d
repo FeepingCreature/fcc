@@ -824,7 +824,6 @@ string delegate() compile(string file, CompileSettings cs) {
 
 void genCompilesWithDepends(string file, CompileSettings cs, void delegate(string delegate()) assemble) {
   while (file.startsWith("./")) file = file[2 .. $];
-  auto firstObj = compile(file, cs);
   auto modname = file.replace("/", ".")[0..$-3];
   bool[string] done;
   Module[] todo;
@@ -832,6 +831,7 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   finalizeSysmod(start);
   
   todo ~= start.getAllModuleImports();
+  auto firstObj = compile(file, cs);
   done[start.name] = true;
   assemble(firstObj);
   
@@ -967,7 +967,7 @@ void loop(string start,
   bool[string] checked;
   bool[string] checking;
   bool needsRebuild(Module mod) {
-    // logln("needsRebuild? ", mod.name, " ", mod.dontEmit, " ", mod is sysmod, " ", isUpToDate(mod), " ", !!(mod.name in checking), " ", mod.getAllModuleImports());
+    // if (mod.name == "sys") logln("needsRebuild? ", mod.name, " ", mod.dontEmit, " ", mod is sysmod, " ", isUpToDate(mod), " ", !!(mod.name in checking), " ", mod.getAllModuleImports());
     if (mod.dontEmit) return false;
     if (mod is sysmod || !isUpToDate(mod)) return true;
     if (mod.name in checking) return false; // break the circle
