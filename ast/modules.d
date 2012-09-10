@@ -236,7 +236,9 @@ Module lookupMod(string name) {
         }
       }
     }
-    if (!fn.exists()) return null;
+    if (!fn.exists()) {
+      throw new Exception("No such module: "~name);
+    }
     auto file = fn.read().castLike(""[]);
     synchronized(SyncObj!(sourcefiles))
       sourcefiles[fn] = file;

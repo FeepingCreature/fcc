@@ -21,6 +21,7 @@ platform(i686-mingw32) {
     int timeBeginPeriod(int);
     int timeEndPeriod(int);
   }
+  pragma(lib, "winmm");
   long µsec() {
     QueryPerformanceCounter(&long t);
     QueryPerformanceFrequency(&long freq);
