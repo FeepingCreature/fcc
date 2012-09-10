@@ -2,7 +2,16 @@
 Wraps the BSD Sockets API*/
 module std.socket;
 
-import std.string, c.unistd, c.sys.socket, c.netdb, c.string, c.errno;
+import std.string, c.unistd;
+platform(*-mingw32) {
+  pragma(define, "_WIN32_WINNT=0x0501"); // target xp
+  import c.winsock2, c.ws2tcpip;
+  pragma(lib, "ws2_32");
+  void init() { WSAStartup(2<<8 | 2, &WSADATA bogus); }
+}
+platform(default) {
+  import c.sys.socket, c.netdb, c.string, c.errno;
+}
 
 /*Class: Address
 An internet address*/
@@ -36,12 +45,23 @@ class TcpAddress : Address {
   }
 }
 
-alias __NFDBITS = 8 * size-of __fd_mask;
-__fd_mask __FDMASK(int d) { return __fd_mask: (1 << (d % __NFDBITS)); }
-void __FD_SET(int d, fd_set* set) { set.__fds_bits[d / __NFDBITS] |= __FDMASK d; }
-bool __FD_ISSET(int d, fd_set* set) { return !!$ set.__fds_bits[d / __NFDBITS] & __FDMASK d; }
-alias FD_SET = __FD_SET;
-alias FD_ISSET = __FD_ISSET;
+platform(default) {
+  alias __NFDBITS = 8 * size-of __fd_mask;
+  __fd_mask __FDMASK(int d) { return __fd_mask: (1 << (d % __NFDBITS)); }
+  void __FD_SET(int d, fd_set* set) { set.__fds_bits[d / __NFDBITS] |= __FDMASK d; }
+  bool __FD_ISSET(int d, fd_set* set) { return !!$ set.__fds_bits[d / __NFDBITS] & __FDMASK d; }
+  alias FD_SET = __FD_SET;
+  alias FD_ISSET = __FD_ISSET;
+}
+platform(*-mingw32) {
+  alias FD_SETSIZE = 64;
+  void FD_SET(int d, fd_set* set) {
+    if (set.fd_count < FD_SETSIZE) set.fd_array[set.fd_count++] = d;
+  }
+  bool FD_ISSET(int d, fd_set* set) {
+    return !!__WSAFDIsSet(d, set);
+  }
+}
 
 /*Class: Socket
 A BSD Socket*/
@@ -59,17 +79,32 @@ class Socket {
   /*Function: reuse
   Marks the socket as reusable*/
   void reuse(bool b) {
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &b, size-of bool);
+    platform(*-mingw32) {
+	  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, char*:&b, size-of bool);
+	}
+	platform(default) {
+	  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &b, size-of bool);
+	}
   }
   // alias isOpen = sockfd;
   /*Function: open*/
   void open(TcpAddress ta) {
-    auto res = c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+    platform(default) {
+      auto res = c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+	}
+	platform(*-mingw32) {
+	  auto res = c.winsock2.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+	}
   }
   /*Function: recv
   Fills the argument with data from the socket, returning the number of bytes received. */
   int recv(ubyte[] buf) {
-    auto res = .recv(sockfd, buf.ptr, buf.length, 0);
+    platform(default) {
+      auto res = .recv(sockfd, buf.ptr, buf.length, 0);
+	}
+	platform(*-mingw32) {
+	  auto res = .recv(sockfd, char*:buf.ptr, buf.length, 0);
+	}
     if (res <= 0) {
       close;
     }
@@ -78,7 +113,12 @@ class Socket {
   /*Function: send
   Sends some of the argument, returning the number of bytes sent. */
   int send(ubyte[] buf) {
-    auto res = .send(sockfd, buf.ptr, buf.length, 0);
+    platform(default) {
+      auto res = .send(sockfd, buf.ptr, buf.length, 0);
+	}
+	platform(*-mingw32) {
+	  auto res = .send(sockfd, char*:buf.ptr, buf.length, 0);
+	}
     if (res <= 0) {
       close;
     }
@@ -128,7 +168,7 @@ class Socket {
 /*Function: connect
 Open a socket for the given domain/port*/
 Socket connect(string domain, short port) using new Socket {
-  open new TcpAddress(domain, port);
+  that.open new TcpAddress(domain, port);
   return that;
 }
 

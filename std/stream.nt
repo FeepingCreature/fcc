@@ -5,7 +5,7 @@ class iter : Iterator!ubyte[] {
   ubyte x 512 buffer;
   bool advance() {
     int pos = dg buffer[];
-    if pos == -1 {
+    if pos == -1 || pos == 0 {
       return false;
     }
     value = buffer[0..pos];
