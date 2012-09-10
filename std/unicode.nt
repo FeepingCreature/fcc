@@ -1,9 +1,14 @@
+/*Title: std.unicode
+UTF-8 related functions*/
 module std.unicode;
 
 class UnicodeError : Error {
   void init(string s) super.init "UnicodeError: $s";
 }
 
+/*Class: UTF8Iterator
+Iterator over string. Initialized with a string, iterates the
+Unicode codepoints in the string as substrings.*/
 class UTF8Iterator : Iterator!string {
   string back;
   void init(string s) { back = s; }
@@ -26,6 +31,9 @@ class UTF8Iterator : Iterator!string {
   }
 }
 
+/*Class: UTF8Decoder
+Iterator over int. Initialized with a string, iterates the
+Unicode codepoints in the string as 32-bit integers.*/
 class UTF8Decoder : Iterator!int {
   UTF8Iterator back;
   void init(string s) { back = new UTF8Iterator s; }
