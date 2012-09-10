@@ -80,31 +80,31 @@ class Socket {
   Marks the socket as reusable*/
   void reuse(bool b) {
     platform(*-mingw32) {
-	  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, char*:&b, size-of bool);
-	}
-	platform(default) {
-	  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &b, size-of bool);
-	}
+      setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, char*:&b, size-of bool);
+    }
+    platform(default) {
+      setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &b, size-of bool);
+    }
   }
   // alias isOpen = sockfd;
   /*Function: open*/
   void open(TcpAddress ta) {
     platform(default) {
       auto res = c.sys.socket.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
-	}
-	platform(*-mingw32) {
-	  auto res = c.winsock2.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
-	}
+    }
+    platform(*-mingw32) {
+      auto res = c.winsock2.connect (sockfd, sockaddr*:&ta.saddr, size-of type-of ta.saddr);
+    }
   }
   /*Function: recv
   Fills the argument with data from the socket, returning the number of bytes received. */
   int recv(ubyte[] buf) {
     platform(default) {
       auto res = .recv(sockfd, buf.ptr, buf.length, 0);
-	}
-	platform(*-mingw32) {
-	  auto res = .recv(sockfd, char*:buf.ptr, buf.length, 0);
-	}
+    }
+    platform(*-mingw32) {
+      auto res = .recv(sockfd, char*:buf.ptr, buf.length, 0);
+    }
     if (res <= 0) {
       close;
     }
@@ -115,10 +115,10 @@ class Socket {
   int send(ubyte[] buf) {
     platform(default) {
       auto res = .send(sockfd, buf.ptr, buf.length, 0);
-	}
-	platform(*-mingw32) {
-	  auto res = .send(sockfd, char*:buf.ptr, buf.length, 0);
-	}
+    }
+    platform(*-mingw32) {
+      auto res = .send(sockfd, char*:buf.ptr, buf.length, 0);
+    }
     if (res <= 0) {
       close;
     }
