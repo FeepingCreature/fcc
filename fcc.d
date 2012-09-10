@@ -1100,6 +1100,10 @@ int main(string[] args) {
   auto ar = args;
   bool runMe;
   CompileSettings cs;
+  if (isWindoze()) {
+    // TODO: fix TLS under Windows (wtf is wrong with it!)
+    cs.singlethread = true;
+  }
   bool willLoop;
   ar = processCArgs(ar);
   while (ar.length) {

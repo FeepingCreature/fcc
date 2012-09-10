@@ -52,7 +52,9 @@ platform(i686-mingw32) {
     if (!stackbase)
       raise new Error "Must supply stackbase for Boehm under Windows! ";
     gsb.mem_base = stackbase;
-    GC_register_my_thread(&gsb);
+    static if (is-defined GC_register_my_thread) {
+      GC_register_my_thread(&gsb);
+    }
     GC_add_roots(_esi, _esi + tls_size);
   }
 }
@@ -65,7 +67,9 @@ void initBoehm(bool debugMode = false) {
        (&myDebugMalloc, &myDebugCallocAtomic, &myDebugCalloc, &myDebugRealloc, &GC_debug_free)
       ][debugMode];
   GC_init;
-  GC_allow_register_threads;
+  static if (is-defined GC_allow_register_threads) {
+    GC_allow_register_threads;
+  }
   GC_add_roots(_esi, _esi + tls_size); // remind me why I need to do this
   auto oldDg = onThreadCreation;
   onThreadCreation = new delegate void(void* stackbase) {
