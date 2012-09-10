@@ -3,6 +3,10 @@ module std.lib.sdl_base;
 public import c.SDL.SDL;
 import std.string, std.lib.opengl.window;
 
+platform(*-mingw32) {
+  pragma(lib, "winmm");
+  pragma(lib, "gdi32");
+}
 pragma(lib, "SDL");
 
 class Surface {

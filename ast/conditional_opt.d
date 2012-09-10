@@ -3,7 +3,7 @@ module ast.conditional_opt;
 import ast.base, ast.conditionals, ast.static_arrays, ast.fold;
 import ast.int_literal, ast.math, ast.casting, ast.pointer, ast.variable, ast.assign, ast.tuples;
 
-static this() {
+void setupConditionalOpt() {
   foldopt ~= delegate Itr(Itr it) {
     auto ew = fastcast!(ExprWrap) (it);
     if (!ew) return null;
@@ -163,6 +163,6 @@ static this() {
       else if (False) res = False;
       else return null;
     }
-    return fastalloc!(ExprWrap)(res);
+    return ex2cond(res);
   };
 }

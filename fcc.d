@@ -78,6 +78,7 @@ string[] processCArgs(string[] ar) {
 static this() {
   setupSlice();
   setupIndex();
+  setupConditionalOpt();
   New(optimizer_x86.cachething);
   New(optimizer_x86.proctrack_cachething);
   pragmas["fast"] = delegate Object(Expr ex) {
@@ -785,7 +786,6 @@ string delegate() compile(string file, CompileSettings cs) {
     .postprocessModule(mod, af);
   }) / 1_000_000f;
   // verify(mod);
-  // finalizeSysmod(mod);
   auto len_gen = time({
     mod.emitAsm(af);
   }) / 1_000_000f;
@@ -830,6 +830,7 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   bool[string] done;
   Module[] todo;
   lazySysmod();
+  setupStaticBoolLits();
   auto start = lookupMod(modname);
   finalizeSysmod(start);
   
@@ -1099,6 +1100,10 @@ int main(string[] args) {
   auto ar = args;
   bool runMe;
   CompileSettings cs;
+  if (isWindoze()) {
+    // TODO: fix TLS under Windows (wtf is wrong with it!)
+    cs.singlethread = true;
+  }
   bool willLoop;
   ar = processCArgs(ar);
   while (ar.length) {
