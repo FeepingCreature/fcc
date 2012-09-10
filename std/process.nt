@@ -50,7 +50,7 @@ platform(default) {
       fp[cmd.length] = char:0;
       char** argv = malloc(args.length + 1 + 1 #*size-of char*);
       argv[0] = fp;
-      for (int id, string arg) <- zip(0..-1, args) {
+      for (int id, string arg) <- zip(ints, args) {
         char* argp = malloc(arg.length + 1);
         argp[0..arg.length] = arg;
         argp[arg.length] = char:0;

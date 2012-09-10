@@ -308,7 +308,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   }
 }
 
-class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy {
+class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy, ReferenceType {
   Class myClass;
   this(Class cl) { myClass = cl; if (!cl) fail; }
   override {
@@ -338,7 +338,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
   }
 }
 
-class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy {
+class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy, ReferenceType {
   Intf myIntf;
   this(Intf i) { myIntf = i; }
   override {

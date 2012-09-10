@@ -4,7 +4,7 @@ import ast.base, ast.types, ast.static_arrays, ast.returns, tools.base: This, Th
 
 import dwarf2;
 // ptr, length
-class Array_ : Type, RelNamespace, Dwarf2Encodable {
+class Array_ : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
   IType elemType;
   this() { }
   this(IType et) { elemType = forcedConvert(et); }
@@ -76,7 +76,7 @@ final class Array : Array_ {
 }
 
 // ptr, length, capacity
-class ExtArray : Type, RelNamespace, Dwarf2Encodable {
+class ExtArray : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
   IType elemType;
   bool freeOnResize;
   this() { }

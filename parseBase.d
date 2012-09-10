@@ -718,6 +718,8 @@ static this() {
   unreserved["prefix"] = true;
   unreserved["suffix"] = true;
   unreserved["vec"] = true;
+  unreserved["context"] = true;
+  unreserved["do"] = true;
 }
 
 void reserve(string key) {

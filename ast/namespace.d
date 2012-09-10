@@ -482,9 +482,13 @@ interface Importer {
 }
 
 extern(C) void check_imports_usage(string info, Namespace[] imports, bool[] importsUsed);
-template ImporterImpl() {
+void noop() { }
+template ImporterImpl(alias parseme = noop) {
   Namespace[] imports, public_imports, static_imports;
-  Namespace[] getImports() { return imports ~ public_imports ~ static_imports; }
+  Namespace[] getImports() {
+    parseme();
+    return imports ~ public_imports ~ static_imports;
+  }
   bool[] importsUsed; // print warnings on unused imports (but NOT public ones!)
   Namespace[]* getImportsPtr(ImportType type) {
     switch (type) {
@@ -493,7 +497,7 @@ template ImporterImpl() {
       case ImportType.Static: return &static_imports;
     }
   }
-  void checkImportsUsage() { ast.namespace.check_imports_usage(name, imports, importsUsed); }
+  void checkImportsUsage() { parseme(); ast.namespace.check_imports_usage(name, imports, importsUsed); }
   Object lookupInImports(string name, bool local) {
     Object res;
     Namespace source;

@@ -97,7 +97,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string coarseSrc;
   IModule coarseModule;
   bool inEmitAsm, inParse, inFixup /* suppress fixup -> add -> lookup -> parseMe chain */;
-  mixin ImporterImpl!();
   override bool isBeingEmat() { return inEmitAsm; }
   void parseMe() {
     if (!coarseSrc) return;
@@ -150,6 +149,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     if (t2.length)
       t2.failparse("Unknown text! ");
   }
+  mixin ImporterImpl!(parseMe);
   Function alloc() { return new Function; }
   Argument[] getParams() { return type.params; }
   Function flatdup() { // NEVER dup the tree!

@@ -84,39 +84,54 @@ Cond testNeq(Expr ex1, Expr ex2) {
 }
 
 extern(C) Cond _testNonzero(Expr ex) {
-  auto ex2 = ex, ex3 = ex; // test for int-like
-  IType[] _tried;
-  IType Bool = fastcast!(IType) (sysmod.lookup("bool"[]));
-  if (gotImplicitCast(ex2,         Bool   , (IType it) { _tried ~= it; return test(it == Bool); }) || (ex2 = null, false)
-    ||gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return test(Single!(SysInt) == it); }) || (ex3 = null, false)) {
-    if (!ex2) ex2 = ex3;
-    if (auto ce = fastcast!(CondExpr) (ex2)) return ce.cd;
-    return exprwrap(ex2);
-    // return fastalloc!(Compare)(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0
+  Cond testNull() {
+    auto n = fastcast!(Expr)~ sysmod.lookup("null");
+    // if (!n) return null;
+    if (!n) fail;
+    auto ev = ex.valueType();
+    Expr cmp1, cmp2;
+    Stuple!(IType, IType)[] overlaps;
+    void test(Expr e1, Expr e2) {
+      auto i1 = e1.valueType(), i2 = e2.valueType();
+      Expr e1t;
+      if (gotImplicitCast(e1, i2, (IType it) {
+	auto e2t = e2;
+	auto res = gotImplicitCast(e2t, it, (IType it2) {
+	  overlaps ~= stuple(it,  it2);
+	  return .test(it == it2);
+	});
+	if (res) cmp2 = e2t;
+	return res;
+      })) { cmp1 = e1; }
+    }
+    test(ex, n);
+    if (!cmp1) test(n, ex);
+    if (cmp1 && cmp2) {
+      return testNeq(cmp1, cmp2);
+    }
+    return null;
   }
-  auto n = fastcast!(Expr)~ sysmod.lookup("null");
-  // if (!n) return null;
-  if (!n) fail;
-  auto ev = ex.valueType();
-  Expr cmp1, cmp2;
-  Stuple!(IType, IType)[] overlaps;
-  void test(Expr e1, Expr e2) {
-    auto i1 = e1.valueType(), i2 = e2.valueType();
-    Expr e1t;
-    if (gotImplicitCast(e1, i2, (IType it) {
-      auto e2t = e2;
-      auto res = gotImplicitCast(e2t, it, (IType it2) {
-        overlaps ~= stuple(it,  it2);
-        return .test(it == it2);
-      });
-      if (res) cmp2 = e2t;
-      return res;
-    })) { cmp1 = e1; }
+  Cond testBool() {
+    auto ex2 = ex, ex3 = ex; // test for int-like
+    IType[] _tried;
+    IType Bool = fastcast!(IType) (sysmod.lookup("bool"[]));
+    if (gotImplicitCast(ex2,         Bool   , (IType it) { _tried ~= it; return .test(it == Bool); }) || (ex2 = null, false)
+      ||gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return .test(Single!(SysInt) == it); }) || (ex3 = null, false)) {
+      if (!ex2) ex2 = ex3;
+      if (auto ce = fastcast!(CondExpr) (ex2)) return ce.cd;
+      return exprwrap(ex2);
+      // return fastalloc!(Compare)(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0
+    }
+    return null;
   }
-  test(ex, n);
-  if (!cmp1) test(n, ex);
-  if (cmp1 && cmp2) {
-    return testNeq(cmp1, cmp2);
+  auto vt = resolveType(ex.valueType());
+  // "intuitive" ordering
+  if (fastcast!(ReferenceType) (vt)) {
+    if (auto res = testNull()) return res;
+    if (auto res = testBool()) return res;
+  } else {
+    if (auto res = testBool()) return res;
+    if (auto res = testNull()) return res;
   }
   // logln("Failed overlaps: ", overlaps);
   // fail;

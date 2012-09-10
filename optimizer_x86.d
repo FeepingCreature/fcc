@@ -485,6 +485,7 @@ class ProcTrack : ExtToken {
         int delta;
         if (t.from.isRegister()) {
           string src = t.from;
+          bool unsafe;
           if (auto p = src in known) {
             auto src2 = *p;
             // would cause a mem move
@@ -492,12 +493,14 @@ class ProcTrack : ExtToken {
             /*if (src2.isRelative() && t.to.isRelative()) { }
             else */
               src = src2;
+            if (src.isIndirect()) unsafe = true;
           }
           use[src] = true;
           if (t.to.isRegister()) {
             if (!set(t.to, src))
               return false;
           } else if (t.to == "(%esp)") {
+	    if (unsafe) return false;
             if (!stack.length) {
               if (latepop.length) break;
               auto mysrc = src;

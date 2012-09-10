@@ -43,11 +43,12 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     foreach (ns; getImports())
       if (auto mod = fastcast!(Module) (ns))
         res ~= mod;
-    foreach (entry; entries)
+    foreach (entry; entries) {
       if (auto imp = fastcast!(Importer) (entry))
         foreach (ns; imp.getImports())
           if (auto mod = fastcast!(Module) (ns))
             res ~= mod;
+    }
     return res;
   }
   bool isValid; // still in the build list; set to false if superceded by a newer Module

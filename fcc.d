@@ -1212,11 +1212,14 @@ int main(string[] args) {
     return 0;
   }
   objects.link(cs.saveTemps);
+  scope(exit) if (accesses.length) logln("access info: ", accesses);
   if (runMe) {
 	auto cmd = "./"~output;
 	version(Windows) cmd = output;
-	logSmart!(false)("> ", cmd); system(toStringz(cmd));
+	logSmart!(false)("> ", cmd);
+	auto res = system(toStringz(cmd));
+	if (res < 256) return res;
+	return (res & 0xff00) >> 8;
   }
-  if (accesses.length) logln("access info: ", accesses);
   return 0;
 }

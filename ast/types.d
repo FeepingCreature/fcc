@@ -17,6 +17,8 @@ interface IType {
   bool returnsInMemory(); // for C compat. ugh.
 }
 
+interface ReferenceType { } // tag for if(foo) checks
+
 import tools.log;
 // Strips out type-alias and the like
 IType resolvecache;
