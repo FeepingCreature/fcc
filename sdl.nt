@@ -510,30 +510,32 @@ Area screen13(int w, h, bool fullscreen = false, bool surface = false,
 }
 */
 
-import c.SDL.SDL_syswm;
-struct SDL_SysWMinfo {
-  SDL_version version;
-  int subsystem;
-  
-  Display *display;       /**< The X11 display */
-  Window window;          /**< The X11 display window */
-  /** These locking functions should be called around
-    *  any X11 functions using the display variable, 
-    *  but not the gfxdisplay variable.
-    *  They lock the event thread, so should not be
-    *  called around event functions or from event filters.
-    */
-  void function() lock_func, unlock_func;
+platform(default) {
+  import c.SDL.SDL_syswm;
+  struct SDL_SysWMinfo {
+    SDL_version version;
+    int subsystem;
+    
+    Display *display;       /**< The X11 display */
+    Window window;          /**< The X11 display window */
+    /** These locking functions should be called around
+      *  any X11 functions using the display variable, 
+      *  but not the gfxdisplay variable.
+      *  They lock the event thread, so should not be
+      *  called around event functions or from event filters.
+      */
+    void function() lock_func, unlock_func;
 
-  /** @name Introduced in SDL 1.0.2 */
-  Window fswindow;        /**< The X11 fullscreen window */
-  Window wmwindow;        /**< The X11 managed input window */
+    /** @name Introduced in SDL 1.0.2 */
+    Window fswindow;        /**< The X11 fullscreen window */
+    Window wmwindow;        /**< The X11 managed input window */
 
-  /** @name Introduced in SDL 1.2.12 */
-  Display *gfxdisplay;    /**< The X11 display to which rendering is done */
+    /** @name Introduced in SDL 1.2.12 */
+    Display *gfxdisplay;    /**< The X11 display to which rendering is done */
+  }
+  extern(C) int SDL_GetWMInfo(SDL_SysWMinfo*);
+  pragma(lib, "X11");
 }
-extern(C) int SDL_GetWMInfo(SDL_SysWMinfo*);
-pragma(lib, "X11");
 
 Area screen(int w, h, bool fullscreen = false, bool surface = false,
   int flags = 0) {
@@ -546,22 +548,27 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false,
   else
     surf = SDL_SetVideoMode(w, h, 32, cfg);
   if (fullscreen) {
-    SDL_SysWMinfo info;
-    if (SDL_GetWMInfo(&info) == true) using XOpenDisplay(null) {
-      Atom
-        _NET_WM_STATE = XInternAtom("_NET_WM_STATE", true),
-        _NET_WM_STATE_FULLSCREEN = XInternAtom("_NET_WM_STATE_FULLSCREEN", true),
-        _NET_WM_STATE_ADD = Atom:1,
-        _NET_WM_STATE_TOGGLE = Atom:2;
-      assert eval int:_NET_WM_STATE && int:_NET_WM_STATE_FULLSCREEN;
-      XEvent e;
-      e.xany.type = ClientMessage;
-      info.window.XQueryTree(&Window root, &Window parent, &Window* children, &int nchildren);
-      e.xclient.(send_event, message_type, format, window) = (true, _NET_WM_STATE, 32, parent);
-      e.xclient.data.l[0..2] = [int:_NET_WM_STATE_ADD, int:_NET_WM_STATE_FULLSCREEN, 0];
-      XSendEvent(root, false,
-        SubstructureNotifyMask | SubstructureRedirectMask, &e);
-      XFlush;
+    platform(!default) {
+      assert(false, "don't know how to reliably fullscreen on this platform");
+    }
+    platform(default) {
+      SDL_SysWMinfo info;
+      if (SDL_GetWMInfo(&info) == true) using XOpenDisplay(null) {
+	Atom
+	  _NET_WM_STATE = XInternAtom("_NET_WM_STATE", true),
+	  _NET_WM_STATE_FULLSCREEN = XInternAtom("_NET_WM_STATE_FULLSCREEN", true),
+	  _NET_WM_STATE_ADD = Atom:1,
+	  _NET_WM_STATE_TOGGLE = Atom:2;
+	assert eval int:_NET_WM_STATE && int:_NET_WM_STATE_FULLSCREEN;
+	XEvent e;
+	e.xany.type = ClientMessage;
+	info.window.XQueryTree(&Window root, &Window parent, &Window* children, &int nchildren);
+	e.xclient.(send_event, message_type, format, window) = (true, _NET_WM_STATE, 32, parent);
+	e.xclient.data.l[0..2] = [int:_NET_WM_STATE_ADD, int:_NET_WM_STATE_FULLSCREEN, 0];
+	XSendEvent(root, false,
+	  SubstructureNotifyMask | SubstructureRedirectMask, &e);
+	XFlush;
+      }
     }
   }
   if !surf raise new Error "Couldn't init screen with $w x $h - $(CToString SDL_GetError())! ";
