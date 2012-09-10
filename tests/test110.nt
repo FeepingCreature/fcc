@@ -1,8 +1,0 @@
-module test110;
-
-import std.util;
-
-void main() {
-  auto ex = loop["Fizz", "", "", "", ""]#.eval[0..20];
-  writeln "$ex";
-}

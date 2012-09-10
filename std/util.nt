@@ -14,7 +14,7 @@ template once(T) {
         return true;
       }
     }
-    one res;
+    auto res = new one;
     res.value = t;
     return res;
   }
