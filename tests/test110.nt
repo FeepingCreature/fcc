@@ -1,0 +1,16 @@
+module test110;
+
+interface A { void foo(); }
+interface B : A { void bar(); }
+abstract class C { void baz(); }
+class D : C, B {
+  override void foo() { }
+  override {
+    void bar() { }
+    void baz() { }
+  }
+}
+
+void main() {
+  auto d = new D;
+}

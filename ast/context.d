@@ -30,7 +30,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   // end copypaste
   
   if (!t2.accept("{"[])) t2.failparse("expected opening context bracket"[]);
-  if (matchStructBody(t2, st, &rest)) {
+  if (matchStructBodySegment(t2, st, &rest)) {
     if (!t2.accept("}"[]))
       t2.failparse("expected closing context bracket"[]);
   } else {

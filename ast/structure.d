@@ -249,8 +249,8 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
 }
 
 import ast.modules;
-bool matchStructBody(ref string text, Namespace ns,
-                     ParseCb* rest = null, bool alwaysReference = false) {
+bool matchStructBodySegment(ref string text, Namespace ns,
+                     ParseCb* rest = null, bool alwaysReference = false, bool matchMany = true) {
   auto backup = namespace();
   namespace.set(ns);
   scope(exit) namespace.set(backup);
@@ -267,33 +267,33 @@ bool matchStructBody(ref string text, Namespace ns,
     }
   }
   
-  return (
-    text.many(
-      (t2 = text, true)
-      && test(smem = fastcast!(Named)(match(text, "struct_member"[])))
-      && {
-        if (!addsSelf(smem)) ns.add(smem);
-        return true;
-      }()
-      ||
-      (text = t2, true)
-      && test(strtype = fastcast!(IType) (match(text, "type"[])))
+  bool expr() {
+    auto backup = text;
+    if (test(smem = fastcast!(Named)(match(text, "struct_member")))) {
+      if (!addsSelf(smem)) ns.add(smem);
+      return true;
+    }
+    text = backup;
+    if (test(strtype = fastcast!(IType) (match(text, "type")))
       && text.bjoin(
         text.gotIdentifier(strname),
         text.accept(","[]),
         { names ~= strname; types ~= strtype; }
-      ) && text.accept(";"[])
-      && {
-        foreach (i, strname; names)
-          if (alwaysReference)
-            fastalloc!(RelMemberLV)(strname, types[i], ns);
-          else
-            fastalloc!(RelMember)(strname, types[i], ns);
-        names = null; types = null;
-        return true;
-      }()
-    )
-  );
+      ) && text.accept(";"[])) {
+      foreach (i, strname; names)
+        if (alwaysReference)
+          fastalloc!(RelMemberLV)(strname, types[i], ns);
+        else
+          fastalloc!(RelMember)(strname, types[i], ns);
+      names = null; types = null;
+      return true;
+    }
+    text = backup;
+    return false;
+  }
+  
+  if (matchMany) return text.many(expr());
+  else return expr();
 }
 
 // so templates can mark us as weak
@@ -339,7 +339,7 @@ Object gotStructDef(bool returnIt)(ref string text, ParseCb cont, ParseCb rest) 
       return fastalloc!(DerefExpr)(baseref);
     };
     
-    if (matchStructBody(t2, st, &rest)) {
+    if (matchStructBodySegment(t2, st, &rest)) {
       if (!t2.accept("}"[]))
         t2.failparse("Missing closing struct bracket"[]);
       text = t2;

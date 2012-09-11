@@ -1,0 +1,12 @@
+module test134fail;
+
+class B {
+  override {
+    override { }
+    void foo();
+  }
+}
+
+void main() {
+  auto b = new B;
+}

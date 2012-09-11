@@ -397,6 +397,10 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   Structure data;
   string name;
   Class parent;
+  // if true, newly added functions are required to override a function
+  // specified by inheritance. This avoids cases where a function is intended
+  // to be overridden but is accidentally added as a new class function.
+  bool overridingFunctionState;
   Function[] getAbstractFuns() {
     parseMe();
     Function[] res;
@@ -507,12 +511,30 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     
     if (!t2.accept("{"[])) t2.failparse("Missing opening bracket for class def"[]);
     
-    if (!matchStructBody(t2, this, null, true))
-      t2.failparse("Couldn't match class body"[]);
-    if (!t2.accept("}"[])) {
-      // fail;
-      t2.failparse("Failed to parse class body"[]);
+    bool parsed(bool matchGroup = true, bool overrideKeyword = false) {
+      if (matchGroup) {
+        while (true) {
+          if (parsed(false, overrideKeyword)) continue;
+          if (t2.accept("}")) return true;
+          t2.failparse("expected class statement or closing bracket");
+        }
+      } else {
+        if (t2.accept("override")) {
+          bool isGroup = t2.accept("{");
+          return parsed(isGroup, true);
+        }
+        auto backup = overridingFunctionState;
+        scope(exit) overridingFunctionState = backup;
+        overridingFunctionState = overrideKeyword;
+        auto t3 = t2;
+        try if (matchStructBodySegment(t2, this, null, false, false)) return true;
+        catch (Exception ex) {
+          t3.failparse(ex);
+        }
+        return false;
+      }
     }
+    parsed();
     // logln("register class "[], cl.name);
     try finalize;
     catch (Exception ex) cstemp.failparse(ex);
@@ -790,8 +812,14 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       if (auto rf = fastcast!(RelFunction) (obj)) {
         if (funAlreadyDefinedAbove(rf))
           overrides.add(name, rf);
-        else
+        else {
+          if (overridingFunctionState) {
+            breakpoint();
+            throw new Exception
+              (qformat("tried to override function '", name, "' but could not find parent function to override"));
+          }
           myfuns.funs ~= rf;
+        }
       } else {
         data._add(name, obj);
       }
