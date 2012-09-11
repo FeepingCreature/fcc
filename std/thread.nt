@@ -72,16 +72,22 @@ class Semaphore {
 
 extern(C) void* __start_routine(void* p) {
   void* ptemp = p; // will be top of the stack, so ..
+  asm "popl %eax";
+  asm "movl %esp, %ebx";
+  asm `andl $0xfffffff0, %esp`;
+  platform(*-mingw32) {
+    asm `subl $4, %esp`; // alignment
+  }
+  // asm `subl $8, %esp`; // alignment
+  asm "pushl %ebx";
+  asm "pushl %ebp";
+  asm "pushl %eax";
+  asm "movl %esp, %ebp";
   platform(default) {
-    asm "popl %eax";
-    asm "movl %esp, %ebx";
-    asm `andl $0xfffffff0, %esp`;
-    // asm `subl $8, %esp`; // alignment
-    asm "pushl %ebx";
-    asm "pushl %ebp";
-    asm "pushl %eax";
-    asm "movl %esp, %ebp";
     asm `addl $4, %ebp`;
+  }
+  platform(*-mingw32) {
+    asm `addl $8, %ebp`;
   }
   {
     auto arg = *(void delegate(), void*, int, Semaphore)*:ptemp;
@@ -95,14 +101,12 @@ extern(C) void* __start_routine(void* p) {
     }
     arg[0]();
   }
-  platform(default) {
-    // and undo
-    asm `addl $4, %esp`; // undo pushl %eax
-    asm "popl %ebp";
-    asm "popl %ebx";
-    asm "movl %ebx, %esp";
-    asm `pushl $0`; // undo popl %eax; pointer not needed anymore.
-  }
+  // and undo
+  asm `addl $4, %esp`; // undo pushl %eax
+  asm "popl %ebp";
+  asm "popl %ebx";
+  asm "movl %ebx, %esp";
+  asm `pushl $0`; // undo popl %eax; pointer not needed anymore.
   return null;
 }
 
@@ -209,11 +213,9 @@ class ThreadPool {
     New &t;
   }
   void threadFun(int id) {
-    platform(default) {
-      if (int:_ebp & 0xf != 0x8) {
-        writeln "FEEEP! YOU BROKE THE FUCKING THREAD FRAME ALIGNMENT AGAIN. $(_ebp) ";
-        *int*:null=0;
-      }
+    if (int:_ebp & 0xf != 0x8) {
+      writeln "FEEEP! YOU BROKE THE FUCKING THREAD FRAME ALIGNMENT AGAIN. $(_ebp) ";
+      *int*:null=0;
     }
     while (true) {
       s.claim;
