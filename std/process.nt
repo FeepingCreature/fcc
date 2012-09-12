@@ -79,14 +79,14 @@ platform(default) {
     }
     bool advance() {
       UnreliableIterator!string uni;
-      if (input) uni = type-of uni: input;
+      if (!!input) uni = type-of uni: input;
       while !done { // while we still have data to write .. 
         pollfd x 2 fds;
         fds[0].(fd, events) = (hdl_selfward[0], POLLIN);
         fds[1].(fd, events) = (hdl_sysward [1], POLLOUT);
         
         auto my-fdslength = fdslength;
-        if (uni && !uni.canAdvance()) my-fdslength = 1;
+        if (!!uni && !uni.canAdvance()) my-fdslength = 1;
         
         auto hits = poll(fds.ptr, my-fdslength, -1);
         
@@ -128,7 +128,7 @@ platform(default) {
         if (fds[0].revents & POLLIN) { if (handleRead()) return true; active = true; }
         // read until you can't read anymore before resuming writing
         else if (my-fdslength == 2 && fds[1].revents & POLLOUT) { handleWrite; active = true; }
-        if (uni && fdslength == 2 && my-fdslength == 1) { // shortened
+        if (!!uni && fdslength == 2 && my-fdslength == 1) { // shortened
           if (!active) {// nothing to read
             writeln "Problem: iterator had nothing to do this loop";
           }

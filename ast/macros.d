@@ -167,7 +167,7 @@ extern(C) void fcc_initTenth() {
     Cond cd = fastcast!(Cond) (it);
     if (!cd) {
       mixin(chaincast("ex: First arg (cond or expr) for 'make-if': it->Expr"));
-      cd = testNonzero(ex);
+      cd = testTrue(ex);
     }
     auto ifs = new IfStatement;
     ifs.wrapper = new Scope;

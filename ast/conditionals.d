@@ -293,7 +293,7 @@ Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
     t2.failparse("Couldn't match condition to negate"[]);
   text = t2;
-  return fastcast!(Object)(cond2ex(fastalloc!(NegCond)(ex2cond(ex))));
+  return fastcast!(Object)(cond2ex(fastalloc!(NegCond)(ex2cond(ex, true))));
 }
 mixin DefaultParser!(gotNegate, "tree.expr.cond_negate"[], "2103"[], "!"[]);
 
@@ -475,14 +475,14 @@ class BooleanOp(string Which) : Cond, HasInfo {
   }
 }
 
-extern(C) Cond _testNonzero(Expr ex);
-Cond ex2cond(Expr ex) {
+extern(C) Cond _testTrue(Expr ex, bool nonzeroPreferred = false);
+Cond ex2cond(Expr ex, bool nonzeroPreferred = false) {
   if (!ex) return null;
   if (auto ce = fastcast!(CondExpr)(ex)) {
     if (!ce.cd) fail;
     return ce.cd;
   }
-  if (auto res = _testNonzero(ex)) return res;
+  if (auto res = _testTrue(ex, nonzeroPreferred)) return res;
   logln(ex);
   breakpoint;
   throw new Exception(Format("cannot test for zero: ", ex.valueType()));

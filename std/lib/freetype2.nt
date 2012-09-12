@@ -357,7 +357,7 @@ import std.lib.opengl.texture;
   int overhang;
   int utf8length;
   scope d1 = new UTF8Decoder text, d2 = new UTF8Decoder text;
-  for d1 utf8length ++;
+  for auto bogus <- d1 utf8length ++;
   auto res = new (SubTexture, vec2i)[] utf8length;
   auto it1 = cat([-1], d2);
   scope it2 = new UTF8Decoder text;

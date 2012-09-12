@@ -83,7 +83,7 @@ Cond testNeq(Expr ex1, Expr ex2) {
   }));
 }
 
-extern(C) Cond _testNonzero(Expr ex) {
+extern(C) Cond _testTrue(Expr ex, bool nonzeroPreferred = false) {
   Cond testNull() {
     auto n = fastcast!(Expr)~ sysmod.lookup("null");
     // if (!n) return null;
@@ -125,10 +125,15 @@ extern(C) Cond _testNonzero(Expr ex) {
     return null;
   }
   auto vt = resolveType(ex.valueType());
-  // "intuitive" ordering
   if (fastcast!(ReferenceType) (vt)) {
-    if (auto res = testNull()) return res;
-    if (auto res = testBool()) return res;
+    auto n = testNull(), b = testBool();
+    if (n && b) {
+      if (nonzeroPreferred) return n;
+      breakpoint();
+      throw new Exception(Format(vt, " can be interpreted as both a reference (zero/nonzero) and a bool (false/true). Please disambiguate. "));
+    }
+    if (n) return n;
+    if (b) return b;
   } else {
     if (auto res = testBool()) return res;
     if (auto res = testNull()) return res;
@@ -138,7 +143,8 @@ extern(C) Cond _testNonzero(Expr ex) {
   return null;
 }
 
-Cond testNonzero(Expr ex) { return _testNonzero(ex); }
+Cond testNonzero(Expr ex) { return _testTrue(ex, true); }
+Cond testTrue(Expr ex) { return _testTrue(ex); }
 
 import ast.literals, ast.casting, ast.modules, ast.conditionals, ast.opers;
 Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
@@ -149,7 +155,10 @@ Object gotExprAsCond(ref string text, ParseCb cont, ParseCb rest) {
     auto ex = fastcast!(Expr) (obj);
     if (!ex) return null;
     if (t2.accept("."[])) return null; // wtf? definitely not a condition.
-    if (auto res = testNonzero(ex)) { text = t2; return fastcast!(Object) (res); }
+    try if (auto res = testTrue(ex)) { text = t2; return fastcast!(Object) (res); }
+    catch (Exception ex) {
+      text.failparse(ex);
+    }
   }
   return null;
 }
