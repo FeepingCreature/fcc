@@ -832,13 +832,8 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   lazySysmod();
   setupStaticBoolLits();
   auto start = lookupMod(modname);
-  finalizeSysmod(start);
   
   todo ~= start.getAllModuleImports();
-  auto firstObj = compile(file, cs);
-  done[start.name] = true;
-  assemble(firstObj);
-  
   while (todo.length) {
     auto cur = todo.take();
     if (cur.name in done) continue;
@@ -847,6 +842,11 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
     done[cur.name] = true;
     todo ~= cur.getAllModuleImports();
   }
+  
+  finalizeSysmod(start);
+  auto firstObj = compile(file, cs);
+  done[start.name] = true;
+  assemble(firstObj);
 }
 
 string[] compileWithDepends(string file, CompileSettings cs) {

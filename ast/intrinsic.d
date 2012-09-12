@@ -782,7 +782,7 @@ void finalizeSysmod(Module mainmod) {
   
   auto backupmod = current_module();
   scope(exit) current_module.set(backupmod);
-  current_module.set(fastcast!(IModule) (sysmod));
+  current_module.set(fastcast!(IModule) (mainmod));
   
   modlist = list;
   
