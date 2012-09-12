@@ -1,0 +1,11 @@
+module test135;
+
+void main() {
+  writeln string-of ints;
+  writeln string-of ints[0];
+  assert(ints[0] == 0);
+  
+  int i = 0;
+  alias ir = i..int.max;
+  assert(ir[0] == 0);
+}

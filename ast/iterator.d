@@ -39,7 +39,7 @@ class Range : Type, RichIterator, RangeIsh {
     }
     Expr index(Expr ex, Expr pos) {
       return iparse!(Expr, "index_range"[], "tree.expr"[])
-                    ("ex.cur + pos"[],
+                    ("ex.cur + pos + 1"[],
                      "ex"[], castExprToWrapper(ex),
                      "pos"[], pos);
     }
@@ -257,14 +257,6 @@ class ForIter(I) : Type, I {
       return todo[--size];
     }
     scope(exit) todocache = todo;
-    // The whole substmap business is major hax.
-    // basically I'm doing this because I can't work out why
-    // my recursion keeps going cyclical,
-    // and this is a haphazard way of breaking the cycle.
-    // If you have to maintain this for whatever reason, don't even try.
-    // Throw it out and start over.
-    // Or pray your error isn't in the next bit, because God knows I have no idea why it works.
-    IType[IType] substmap;
     Expr resolveRC(Expr ex) {
       while (true) {
         if (auto rc = fastcast!(RC) (ex))
@@ -281,23 +273,13 @@ class ForIter(I) : Type, I {
         if (ex) {
           if (auto fi = fastcast!(ForIter!(RichIterator)) (ex.valueType())) {
             ex = resolveRC(ex);
-            if (auto p = fi in substmap) {
-              it = fastcast!(Iterable)~ reinterpret_cast(*p, ex);
-              return;
-            }
             auto fi2 = fi.dup;
-            substmap[fi] = fi2;
-            substmap[fi2] = fi2; // what why FFUUUU
             add(fi2.ex);
             ex.iterate(&subst);
             it = fastcast!(Iterable)~ reinterpret_cast(fi2, ex);
             return;
           } else if (auto fi = fastcast!(ForIter!(Iterator)) (ex.valueType())) {
             ex = resolveRC(ex);
-            if (auto p = fi in substmap) {
-              it = fastcast!(Iterable)~ reinterpret_cast(*p, ex);
-              return;
-            }
             auto fi2 = fi.dup;
             add(fi2.ex);
             ex.iterate(&subst);
@@ -400,7 +382,7 @@ class ForIter(I) : Type, I {
           );
         }
         auto casted = reinterpret_cast(st, tup);
-        return update(this.ex.dup, casted);
+        return update(this.ex, casted);
       }
       Expr slice(Expr ex, Expr from, Expr to) {
         auto wr = castToWrapper(ex);
