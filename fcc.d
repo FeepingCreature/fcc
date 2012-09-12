@@ -833,6 +833,7 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   setupStaticBoolLits();
   auto start = lookupMod(modname);
   
+  done[start.name] = true; // mark here to unbreak circular import of main file (really only relevant for testsuite)
   todo ~= start.getAllModuleImports();
   while (todo.length) {
     auto cur = todo.take();
@@ -845,7 +846,6 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   
   finalizeSysmod(start);
   auto firstObj = compile(file, cs);
-  done[start.name] = true;
   assemble(firstObj);
 }
 
