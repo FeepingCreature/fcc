@@ -227,7 +227,7 @@ struct {
 \end{lstlisting}
 
 Capacity indicates the amount of space allocated at the location starting with \texttt{ptr}.
-Appending to a managed array makes use of the capacity, where possible; otherwise, new memory
+Appending to an extended array makes use of the capacity, where possible; otherwise, new memory
 will be allocated.
 
 Managed arrays are equivalent to extended arrays. The difference is, when appending to a managed
@@ -244,12 +244,13 @@ that all strings are UTF-8. If you are not using UTF-8, you are probably making 
 \end{segment}
 
 \begin{segment}{Conditionals}
-Conditionals can be either true or false. \important{Expressions and conditionals are not interchangeable.}
-However, since \texttt{!} is used for negation, and \texttt{!expr} is a conditional, the \texttt{!!expr}
-pseudo-operator can be used to convert an expression to a conditional, and the \texttt{eval} operator
-can be used to explicitly convert a conditional to a boolean expression.
+Conditionals can be either true or false. A quick way to explicitly convert any expression to a
+conditional is the \texttt{!!} "operator", since negation converts any value to a truth value,
+\texttt{!!} or double negation converts any expression to the equivalent bool. This is only necessary
+when assigning to a bool variable, not in \texttt{if} or \texttt{while} statements.
 
-Expressions with a well-defined zero, such as integers, pointers and arrays, are also conditionals.
+Expressions with a well-defined zero, such as integers, pointers and arrays, are interpreted as
+the conditional \texttt{expr != null}.
 
 If \texttt{a} and \texttt{b} are expressions, \texttt{a CMP b} is a conditional, where
 \texttt{CMP} may be one of \texttt{== != is < > <= >= <>= !< !> !<= !>= !<>=}, and the meaning of each
@@ -401,7 +402,7 @@ Variable declarations can be used as expressions.
 Example: \texttt{new int[] 10}.
 \item \texttt{new delegate-literal} allocates the literal as a closure. The stack-bound variables 
 it can access are moved to the heap. Note that at present this only operates one level deep.
-Example: \texttt{int i = 5; return new \\\{ return i; \};}
+Example: \texttt{int i = 5; return new \textbackslash\{ return i; \};}
 \item \texttt{new OtherType} allocates memory for \texttt{OtherType} on the heap, returning a pointer.
 \end{itemize}
 \end{segment}
@@ -419,16 +420,16 @@ member function. Delegates are known as "fat pointers" in other languages. Heap-
 The following code is equivalent.
 \begin{lstlisting}
 void main() {
-int delegate(int, int) dg1, dg2, dg3;
-
-int add(int a, b) { return a + b; }
-
-dg1 = &add;
-dg2 = delegate int(int a, b) {
-  return a + b;
-} // After a closing '}', a newline
-  // can substitute for semicolon.
-dg3 = \(int a, b) -> a+b;
+  int delegate(int, int) dg1, dg2, dg3;
+  
+  int add(int a, b) { return a + b; }
+  
+  dg1 = &add;
+  dg2 = delegate int(int a, b) {
+    return a + b;
+  } // After a closing '}', a newline
+    // can substitute for semicolon.
+  dg3 = \(int a, b) -> a+b;
 }
 \end{lstlisting}
 
@@ -662,8 +663,8 @@ Iterators are values that can be used as a source of other values.
 
 The simplest iterator is the \emph{Range}: \texttt{From..To}, where both From and To are integer.
 
-Each iterator is equivalent to a conditional that, when evaluated, advances the iterator and evaluates
-to the new value.
+Each iterator is equivalent to a conditional that, when evaluated, advances the iterator and yields
+a bool value that indicates whether the iterator could successfully advance to a new value.
 
 \begin{lstlisting}
 while 0..10
@@ -720,7 +721,8 @@ Scope guards are run at three spots: at the closing bracket of the current scope
 or when a signal is raised causing an exit to before the scope guard.
 
 To only execute code when the scope is left by a signal, use \texttt{onFailure}. To only execute code
-when the scope is left by \texttt{return} or \texttt{\}}, use \texttt{onSuccess}.
+when the scope is left by \texttt{return} or \texttt{\}}, use \texttt{onSuccess}. Scope guards
+are executed in reverse order of their declaration.
 
 \end{segment}
 
