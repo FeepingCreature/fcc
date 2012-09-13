@@ -197,9 +197,7 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
     if (!instRes) return;
     auto mod = fastcast!(Module) (current_module());
     if (!mod) fail;
-    // sysmod is linked into main module
-    foreach (emod; ematIn) if (emod is mod || (mod.filename == mainfile && emod is sysmod)
-                                           || (mod is sysmod && emod.filename == mainfile)) {
+    foreach (emod; ematIn) if (emod is mod) {
       return;
     }
     void handleDeps(Iterable outer) {
