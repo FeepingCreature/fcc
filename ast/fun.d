@@ -363,6 +363,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         af.optimize = true;
         // still emit line number info when -g is on, even in pragma(fast)
         // af.debugMode = false;
+        // ...... why?
+        af.debugMode = false;
         af.dwarf2 = null;
       }
       
