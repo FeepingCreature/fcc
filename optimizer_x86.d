@@ -1793,7 +1793,8 @@ restart:
     $SUBST(t, $0);
   `));
   mixin(opt("movaps_later", `^SSEOp, *:
-    $0.opName == "movaps" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" && $1.kind != $TK.Push /or/ $TK.Pop
+    $0.opName == "movaps" && $0.op1.isSSERegister() && $0.op2 == "(%esp)" &&
+    $1.kind != $TK.Push /or/ $TK.Pop && !info($1).opContains($0.op1)
     =>
      if (info($1).couldFixup(-16))
       $SUBST($1, $0);
