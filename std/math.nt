@@ -6,7 +6,7 @@ import c.math;
 
 /*Function: cross3f
 The vector cross product*/
-vec3f cross3f(vec3f a, vec3f b) { return a.yzx * b.zxy - a.zxy * b.yzx; }
+vec3f cross3f(vec3f a, vec3f b) { pragma(fast); return a.yzx * b.zxy - a.zxy * b.yzx; }
 
 /*Function: sqrt
 Square root. Gets inlined. */
@@ -22,10 +22,22 @@ float sqrt(float f) {
   return local;
 }
 
+// http://www.lomont.org/math/papers/2003/invsqrt.pdf
+float fastinvsqrt(float f) {
+  pragma(fast);
+  float half = 0.5f*f;
+  int i = *int*:&f;
+  i = 0x5f3759df - (i>>1);
+  f = *float*:&i;
+  f = f*(1.5f-half*f*f);
+  return f;
+}
+
 /*Function: angle3f
 Angle between two vectors, optionally in reference to a third vector
 credit to http://tomyeah.com/signed-angle-between-two-vectors3d-in-cc/ */
 float angle3f(vec3f v, vec3f to, vec3f refer = vec3f(0)) {
+  pragma(fast);
   auto v1 = v.cross3f(to) * refer;
   bool flipped = v1.sum < 0;
   auto ratio = (v*to).sum / sqrt(v.selfdot * to.selfdot);
@@ -230,6 +242,7 @@ template maxlist(T) {
 
 // thanks, intel
 void matrix4x4-invert(float x 16* matp) {
+  pragma(fast);
   float x 16 tmp = void; /* temp array for pairs */
   float x 16 src = void; /* array of transpose source matrix */
   float x 16 dst = void; /* destination array */
