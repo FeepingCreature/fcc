@@ -472,4 +472,9 @@ void setupGenericOpts() {
     if (t.from == t.to) $SUBST();
     else $SUBST(t);
   `));
+  mixin(opt("code_between_jump_and_label_is_dead", `^Jump, *:
+    $1.kind != $TK.Label && !$0.mode
+    =>
+    $SUBST($0);
+  `));
 }

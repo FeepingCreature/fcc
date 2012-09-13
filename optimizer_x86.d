@@ -1030,7 +1030,8 @@ restart:
     $1.hasLabel($0.dest)
     =>
     l_refc[$0.dest] --;
-    $SUBST($1);
+    if (!l_refc[$0.dest]) $SUBST();
+    else $SUBST($1);
   `));
   mixin(opt("move_lea_down", `^LoadAddress, *:
     $1.kind != $TK.LoadAddress && ($1.kind != $TK.Mov || !$1.from.isLiteral() || $1.from.isNumLiteral()) && !pinsRegister($1, $0.to) &&
