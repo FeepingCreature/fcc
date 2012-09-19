@@ -1,0 +1,6 @@
+module test136;
+
+void main() {
+  bool b = true && true || true && false;
+  assert(b);
+}

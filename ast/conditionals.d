@@ -523,8 +523,8 @@ Object gotBoolOpExpr(string Op, alias Class)(ref string text, ParseCb cont, Pars
   text = t2;
   return fastcast!(Object) (ex);
 }
-mixin DefaultParser!(gotBoolOpExpr!("&&"[], AndOp), "tree.expr.cond.bin.and"[], "1"[]);
-mixin DefaultParser!(gotBoolOpExpr!("||"[], OrOp), "tree.expr.cond.bin.or"[], "2"[]);
+mixin DefaultParser!(gotBoolOpExpr!("&&"[], AndOp), "tree.expr.cond.bin.and"[], "2"[]);
+mixin DefaultParser!(gotBoolOpExpr!("||"[], OrOp), "tree.expr.cond.bin.or"[], "1"[]);
 static this() {
   addPrecedence("tree.expr.cond.bin"[], "101"[]);
 }
