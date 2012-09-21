@@ -1,0 +1,11 @@
+module test138fail;
+
+class A {
+  int value;
+  bool advance() { return false; }
+}
+
+void main() {
+  auto a = new A;
+  while a { }
+}
