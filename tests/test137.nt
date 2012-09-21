@@ -1,0 +1,11 @@
+module test137;
+
+void main() {
+  int[] arr; arr ~= 5;
+  int sum, len;
+  while (arr) { if (len++) break; }
+  assert(len == 2); // (arr) -> (arr != null)
+  len = 0;
+  for (arr) { if (len++) break; }
+  assert(len == 2); // in any form
+}
