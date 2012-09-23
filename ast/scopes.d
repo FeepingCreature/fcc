@@ -181,6 +181,36 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     super.__add(name, obj);
   }
   bool emitted;
+  // assume the same scope won't be opened twice
+  int active_checkpt;
+  Namespace active_backup_ns;
+  AsmFile active_af;
+  Dwarf2Section active_backup_sect;
+  void open3(bool onlyCleanup) {
+    auto af = active_af;
+    if (!onlyCleanup) {
+      if (af.dwarf2) {
+        af.markLabelInUse(exit());
+      }
+      af.emitLabel(exit(), !keepRegs, isForward);
+      if (af.dwarf2) {
+        af.dwarf2.closeUntil(active_backup_sect);
+      }
+    }
+    foreach_reverse(i, guard; guards) {
+      af.restoreCheckptStack(guard_offsets[i]);
+      guard.emitAsm(af);
+    }
+    
+    af.restoreCheckptStack(active_checkpt);
+    if (!onlyCleanup) namespace.set(active_backup_ns);
+  }
+  void delegate(bool onlyCleanup) open2() {
+    if (_body) {
+      _body.emitAsm(active_af);
+    }
+    return &open3;
+  }
   // continuations good
   void delegate(bool onlyCleanup) delegate() open(AsmFile af) {
     lnsc.emitAsm(af);
@@ -213,32 +243,11 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
       logln("fs: ", framesize());
       fail;
     }
-    return stuple(checkpt, backup, this, af, backup_sect) /apply/
-    (typeof(checkpt) checkpt, typeof(backup) backup, typeof(this) that, AsmFile af, Dwarf2Section backup_sect) {
-      if (that._body) {
-        that._body.emitAsm(af);
-      }
-      return stuple(checkpt, that, backup, af, backup_sect) /apply/
-      (typeof(checkpt) checkpt, typeof(that) that, typeof(backup) backup, AsmFile af, Dwarf2Section backup_sect, bool onlyCleanup) {
-        if (!onlyCleanup) {
-          if (af.dwarf2) {
-            af.markLabelInUse(that.exit());
-          }
-          af.emitLabel(that.exit(), !keepRegs, isForward);
-          if (af.dwarf2) {
-            af.dwarf2.closeUntil(backup_sect);
-          }
-        }
-        
-        foreach_reverse(i, guard; that.guards) {
-          af.restoreCheckptStack(that.guard_offsets[i]);
-          guard.emitAsm(af);
-        }
-        
-        af.restoreCheckptStack(checkpt);
-        if (!onlyCleanup) namespace.set(backup);
-      };
-    };
+    active_checkpt = checkpt;
+    active_backup_ns = backup;
+    active_af = af;
+    active_backup_sect = backup_sect;
+    return &open2;
   }
   override {
     void emitAsm(AsmFile af) {

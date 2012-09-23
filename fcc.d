@@ -156,6 +156,45 @@ static this() {
     if (ar) return fastcast!(Itr) (ar.ptr);
     return null;
   };
+  // placed here because it needs Variable
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto re = fastcast!(RefExpr)(it)) {
+      if (auto var = fastcast!(Variable)(re.src)) {
+        return new StackOffsetLocation(var.baseOffset, re.valueType());
+      }
+    }
+    return null;
+  };
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto rce = fastcast!(RCE)(it)) if (auto sol = fastcast!(StackOffsetLocation)(rce.from)) {
+      return fastalloc!(StackOffsetLocation)(sol.offs, rce.to);
+    }
+    return null;
+  };
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto de = fastcast!(DerefExpr)(it)) {
+      if (auto sol = fastcast!(StackOffsetLocation)(de.src)) {
+        return fastalloc!(Variable)(de.valueType(), cast(string) null, sol.offs);
+      }
+    }
+    return null;
+  };
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto aibe = fastcast!(AsmIntBinopExpr)(it)) {
+      auto e1 = aibe.e1, e2 = aibe.e2;
+      retry:
+      if (auto rce = fastcast!(RCE)(e1)) {
+        e1 = rce.from;
+        goto retry;
+      }
+      if (auto sol = fastcast!(StackOffsetLocation)(e1)) if (auto ie = fastcast!(IntExpr)(e2)) {
+        if (aibe.op == "+") { return fastalloc!(StackOffsetLocation)(sol.offs+ie.num, sol.type); }
+        if (aibe.op == "-") { return fastalloc!(StackOffsetLocation)(sol.offs-ie.num, sol.type); }
+        if (aibe.op == "*") { return fastalloc!(StackOffsetLocation)(sol.offs*ie.num, sol.type); }
+      }
+    }
+    return null;
+  };
 }
 alias ast.parse.startsWith startsWith;
 

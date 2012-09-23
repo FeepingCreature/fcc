@@ -76,3 +76,23 @@ class Variable : LValue, Named {
     }
   }
 }
+
+class StackOffsetLocation : Expr {
+  int offs;
+  IType type;
+  this(int o, IType t) { offs = o; type = t; }
+  mixin defaultIterate!();
+  override {
+    StackOffsetLocation dup() { return fastalloc!(StackOffsetLocation)(offs, type); }
+    IType valueType() { return type; }
+    void emitAsm(AsmFile af) {
+      if (isARM) {
+        lookupOp("+", new Register!("ebp"), mkInt(offs)).emitAsm(af);
+      } else {
+        af.loadAddress(qformat(offs, "(%ebp)"), "%eax");
+        af.pushStack("%eax", nativePtrSize);
+      }      
+    }
+    string toString() { return qformat(type, ": stack[", offs, "]"); }
+  }
+}
