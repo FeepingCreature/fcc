@@ -1,0 +1,13 @@
+module test139;
+
+import std.math;
+
+void main() {
+  (float, bool)[] array = [(0.2f, true), (0.5f, false), (0.5f, true), (0.9f, true), (0.95f, true)];
+  writeln "array $array";
+  auto s = sum [for v <- array: log [1-v[0],v[0]][v[1]]];
+  writeln "$s";
+  auto t = log(0.2)+log(1-0.5)+log(0.5)+log(0.9)+log(0.95);
+  writeln "$t";
+  assert(s == t);
+}
