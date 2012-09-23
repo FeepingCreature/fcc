@@ -1,0 +1,19 @@
+module test127;
+
+void main() {
+  import std.macros.switchover;
+  void test(int i, bool outcome) {
+    bool hit;
+    switch int k over k == i {
+      case 0 or 2..4 or 6: hit = true;
+    }
+    assert(hit == outcome, "Failed for $i");
+  }
+  test(0, true);
+  test(1, false);
+  test(2, true);
+  test(3, true);
+  test(4, true);
+  test(5, false);
+  test(6, true);
+}

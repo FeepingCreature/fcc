@@ -1,0 +1,6 @@
+module test128;
+
+void main() {
+  alias istrue = 1 > 0;
+  assert(istrue);
+}

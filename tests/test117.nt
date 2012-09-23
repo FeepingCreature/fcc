@@ -1,0 +1,11 @@
+module test117;
+
+import c.X11.Xlib;
+
+void main() {
+  return;
+  auto disp = _XPrivDisplay:null;
+  auto scr1 = disp.screens[disp.default_screen];
+  auto scr2 = disp.(screens[default_screen]);
+  auto scr3 = (disp).(screens[default_screen]);
+}

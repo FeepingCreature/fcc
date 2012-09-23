@@ -1,0 +1,20 @@
+module test122;
+
+void main() {
+  {
+    (float f, float g) = (3, 4);
+    f = 3;
+  }
+  {
+    (float f, g) tup;
+    tup.f = 3;
+  }
+  {
+    (float f, g) tup = (2, 4);
+    tup.f = 3;
+  }
+  {
+    float (f, g);
+    f = 3;
+  }
+}

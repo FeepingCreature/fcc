@@ -1,0 +1,10 @@
+module test130;
+
+void main() {
+  long l = int:3;
+  int i = int:l; // test long-int convert
+  i = -5;
+  long neg = long:i; // test sign extension
+  long test = 5 * neg;
+  assert(int:test == -25);
+}

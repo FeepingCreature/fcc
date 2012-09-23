@@ -1,0 +1,18 @@
+module test133;
+
+import std.unicode;
+
+string reverse(string s) {
+  char[auto~] res;
+  scope arr = new UTF8Iterator s #.eval[];
+  for (int i = arr.length - 1; i >= 0; --i)
+    res ~= arr[i];
+  return res[];
+}
+
+void main() {
+  // todo use actual combining characters for hardcoar testan
+  auto res = reverse "Les Misérables";
+  writeln res;
+  assert(res == "selbarésiM seL");
+}

@@ -1,0 +1,9 @@
+module test125;
+
+class A {
+  void x(int i) { }
+}
+
+void main() {
+  auto a = new A;
+}
