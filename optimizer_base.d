@@ -107,7 +107,7 @@ struct TransactionInfo {
     DoubleStore|           |        |&#.dest|  8  |
     FPIntPop   |           |        |&#.dest|  4  |
     FPLongPop  |           |        |&#.dest|  8  |
-    FloatMath  |           |        |       | -1  |
+    FloatMath  | &#.op1    |        |       | -1  |
     PureFloat  |           |        |       | -1  |
     Swap       | &#.source |&#.dest |&#.dest| -1  |
     RegLoad    |           |        |       | -1  |
@@ -253,7 +253,7 @@ struct TransactionInfo {
   }
   bool couldFixup(int shift) {
     with (Transaction.Kind)
-      if (tp.kind != SSEOp /or/ MathOp /or/ Mov /or/ Mov2 /or/ Mov1 /or/ Push /or/ Pop /or/ FloatLoad) 
+      if (tp.kind != SSEOp /or/ MathOp /or/ Mov /or/ Mov2 /or/ Mov1 /or/ Push /or/ Pop /or/ FloatLoad /or/ FloatMath /or/ PureFloat) 
         return false;
     return couldFixup(inOp1(), shift) && couldFixup(inOp2(), shift) && couldFixup(outOp(), shift);
   }
@@ -313,6 +313,15 @@ bool referencesStack(ref Transaction t, bool affects = false, bool active = fals
 
 bool changesOrNeedsActiveStack(ref Transaction t) {
   return referencesStack(t, false, true) || referencesStack(t, true, true);
+}
+
+bool doesntWriteStack(ref Transaction t) {
+  with (Transaction.Kind) {
+    if (t.kind == FloatMath /or/ PureFloat /or/ FloatLoad) {
+      return true;
+    }
+  }
+  return false;
 }
 
 struct onceThenCall {
@@ -439,15 +448,17 @@ void setupGenericOpts() {
     optsSetup = true;
   }
   mixin(opt("sort_mem", `*, ^SAlloc || ^SFree:
-    !referencesStack($0) && !affectsStack($0)
+    (doesntWriteStack($0) || !referencesStack($0)) && !affectsStack($0)
     =>
     int delta;
     if ($1.kind == $TK.SAlloc) delta = $1.size;
     else if ($1.kind == $TK.SFree) delta = -$1.size;
     else assert(false);
     auto t2 = $0;
-    if (t2.hasStackdepth) t2.stackdepth += delta;
-    $SUBST($1, t2);
+    if (info(t2).couldFixup(delta)) {
+      info(t2).fixupStack(delta);
+      $SUBST($1, t2);
+    }
   `));
   mixin(opt("collapse_alloc_frees", `^SAlloc || ^SFree, ^SAlloc || ^SFree =>
     int sum_inc;

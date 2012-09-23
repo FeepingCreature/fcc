@@ -17,7 +17,8 @@ bool collide(string a, string b) {
 }
 
 bool isCommutative(string op) {
-  return op == "addl" || op == "imull" || op == "xorl";
+  return op == "addl"  || op == "imull" || op == "xorl"
+      || op == "fadd" || op == "fmul";
 }
 
 bool isMemRef(string s) {
@@ -1435,7 +1436,6 @@ restart:
     =>
     $SUBST($0);
   `));
-  mixin(opt("pointless_fxch", `^PureFloat, ^FloatMath: $0.opName == "fxch" && $1.opName == "faddp"[] /or/ "fmulp"[] => $SUBST($1); `));
   /*mixin(opt("shufps_direct", `^SSEOp, ^SSEOp, ^SSEOp:
     $0.opName == "movaps" && $2.opName == "movaps" &&
     $1.opName.startsWith("shufps") &&
@@ -1717,7 +1717,7 @@ restart:
   `));
   mixin(opt("pop_sooner", `^Mov || ^MathOp, ^Pop:
     $1.dest.isUtilityRegister() && $0.kind != $TK.Push && !pinsRegister($0, $1.dest) && info($0).couldFixup(-$1.size) &&
-    $0.from.isIndirect() != "%ebp" && $0.to.isIndirect() != "%ebp" /* unsafe for push/pop */
+    $0.from.isIndirect() != "%ebp" && !$0.to.isIndirect() /* unsafe for push/pop */
     =>
     $T t = $0.dup;
     info(t).fixupStack(-$1.size);
@@ -2093,7 +2093,7 @@ restart:
             if (check == "(%esp)") break outer;
             continue;
           case Mov2, Mov1, Swap, Text, Extended: break outer; // weird stuff, not worth the confusion
-          case FloatMath, PureFloat:
+          case PureFloat:
             continue;    // no change
           
           case Jump:
@@ -2126,6 +2126,9 @@ restart:
             if (test(entry.dest)) break outer;
             continue;
           
+          case FloatMath:
+	    if (entry.op1 && test(entry.op1)) break outer;
+	    continue;
           case MathOp:
             if (test(entry.op1) || test(entry.op2)) break outer;
             continue;
@@ -2324,5 +2327,31 @@ restart:
     info(t2).fixupStack(-4);
     
     $SUBST(t0, t1, t2);
+  `));
+  mixin(opt("pointless_fxch", `^PureFloat, ^FloatMath:
+    $0.opName == "fxch" && $1.opName.isCommutative() && !$1.floatSelf && !$1.op1
+    =>
+    $SUBST($1);
+  `));
+  mixin(opt("load_math_direct", `^FloatLoad, ^FloatLoad, ^FloatMath:
+    !$2.op1 && !$2.floatSelf
+    =>
+    $T t = $2;
+    t.op1 = $0.source;
+    $SUBST($1, t);
+  `));
+  mixin(opt("load_math_direct_2", `^FloatLoad, ^FloatMath:
+    !$1.op1 && !$1.floatSelf && $1.opName.isCommutative()
+    =>
+    $T t = $1;
+    t.op1 = $0.source;
+    $SUBST(t);
+  `));
+  mixin(opt("load_math_direct_3", `^FloatLoad, ^PureFloat, ^FloatMath:
+    !$2.op1 && !$2.floatSelf && $1.opName == "fxch"
+    =>
+    $T t = $2;
+    t.op1 = $0.source;
+    $SUBST(t);
   `));
 }

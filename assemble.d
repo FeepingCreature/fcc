@@ -200,7 +200,7 @@ struct Transaction {
       case FPLongPop:   return Format("[fp long pop ", dest, "]");
       case FloatStore:  return Format("[float store ", dest, "]");
       case DoubleStore: return Format("[double store ", dest, "]");
-      case FloatMath:   return Format("[float math ", opName, " ", floatSelf, "]");
+      case FloatMath:   return Format("[float math ", opName, " ", op1, " ", floatSelf, "]");
       case PureFloat:   return Format("[x87 ", opName, "]");
      case FloatLongLoad:return Format("[float long load ", source, "]");
       case FloatIntLoad:return Format("[float int load ", source, "]");
@@ -512,6 +512,7 @@ struct Transaction {
       case FloatMath:
         if (opName == "fsqrt") return opName;
         if (floatSelf) return qformat(opName, " %st, %st"[]);
+        else if (op1) return qformat(opName, "s ", op1);
         else return qformat(opName, "p %st, %st(1)"[]);
       case PureFloat: return qformat(opName);
       case FloatLongLoad: return qformat("fildq "[], source);
@@ -682,7 +683,12 @@ class Transcache {
   final void clear() { size = 0; }
   final void opCatAssign(Transaction t) {
     if (!_list.length) _list = new Transaction[1024];
-    if (size == _list.length) _list.length = _list.length * 2;
+    if (size == _list.length) {
+      auto nlist = _list;
+      nlist.length = nlist.length * 2;
+      if (nlist.ptr !is _list.ptr) delete _list;
+      _list = nlist;
+    }
     _list[size++] = t;
   }
   final Transaction* lastp() {

@@ -80,7 +80,7 @@ class AsmFile {
   void codelines_prealloc(int i) {
     codelines_finished ~= codelines[0..codelines_length];
     codelines = new string[i];
-    codelines_length = i;
+    codelines_length = 0;
   }
   bool optimize, debugMode, profileMode;
   this(bool optimize, bool debugMode, bool profileMode, string id) {
@@ -461,6 +461,7 @@ class AsmFile {
     Transaction t;
     t.kind = Transaction.Kind.FloatMath;
     t.opName = op;
+    t.op1 = null;
     add(t);
   }
   void fpuOp(string opname) {
@@ -623,9 +624,7 @@ class AsmFile {
   }*/
   void _put(T...)(T t) {
     if (codelines_length == codelines.length) {
-      codelines_finished ~= codelines;
-      codelines = new string[4096];
-      codelines_length = 0;
+      codelines_prealloc(4096);
     }
     codelines[codelines_length ++] = qformat(t, "\n"[]);
   }
