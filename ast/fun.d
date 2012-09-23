@@ -849,6 +849,7 @@ class FunctionType : ast.types.Type {
   IType ret;
   Argument[] params;
   bool stdcall;
+  this() { }
   FunctionType dup() {
     auto res = fastalloc!(FunctionType)();
     res.ret = ret;

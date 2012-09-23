@@ -1,6 +1,6 @@
 module ast.vardecl;
 
-import ast.assign, ast.base, ast.namespace, ast.scopes, tools.base: Range;
+import ast.assign, ast.base, ast.namespace, ast.scopes, ast.casting, ast.static_arrays, tools.base: Range;
 public import ast.variable;
 
 int vardecl_marker;
@@ -9,28 +9,52 @@ import dwarf2;
 class VarDecl : LineNumberedStatementClass, HasInfo {
   Variable var;
   int marker;
-  this(Variable v) {
+  Expr initval;
+  bool dontInit;
+  this(Variable v, Expr initval = null) {
     var = v;
-    if (Single!(Void) == v.valueType()) {
+    if (Single!(Void) == v.type) {
       logln("tried to declare void variable"[]);
       fail;
     }
     marker = .vardecl_marker ++;
     // if (marker == 10578) { logln(this); asm { int 3; } }
+    if (!initval) {
+      /*
+      if (marker == 12) { logln(this); asm { int 3; } }
+      if (xpar == -1 || marker < xpar) dontInit = true;
+      else initInit();*/
+      dontInit = true;
+    } else this.initval = initval;
   }
-  VarDecl dup() { return fastalloc!(VarDecl)(var.dup); }
+  static Stuple!(Expr, IType)[] initval_cache;
+  void initInit() {
+    // if (initval) fail("initval already present");
+    if (initval) return;
+    dontInit = false;
+    auto vt = var.valueType();
+    synchronized {
+      foreach (ref entry; initval_cache)
+        if (entry._1 == vt) {
+          initval = entry._0;
+          return;
+        }
+      initval = reinterpret_cast(
+        vt,
+        fastalloc!(DataExpr)(vt.initval())
+      );
+      initval_cache ~= stuple(initval, vt);
+    }
+  }
+  VarDecl dup() { return fastalloc!(VarDecl)(var.dup, initval?initval.dup:null); }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
-    if (!var.initval) return;
-    auto it = fastcast!(Iterable) (var.initval);
-    dg(it);
-    var.initval = fastcast!(Expr) (it);
-    if (!var.initval) fail;
+    defaultIterate!(initval).iterate(dg, mode);
   }
   bool hasInitializer() {
-    return !var.dontInit;
+    return !!initval;
   }
   override string getInfo() {
-    return Format(var.dontInit?"uninitialized":"initialized"[], "; "[], marker);
+    return Format(dontInit?"uninitialized":"initialized"[], "; "[], marker);
   }
   override void emitAsm(AsmFile af) {
     if (hasInitializer) super.emitAsm(af); // otherwise not worth it
@@ -70,13 +94,13 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
       // assert(false);
     }
     // sanity checking end!
-    if (var.dontInit)
+    if (!hasInitializer())
       af.salloc(var.type.size);
     else {
-      mixin(mustOffset("var.type.size"[]));
       int sz = var.type.size;
+      mixin(mustOffset("sz"));
       // TODO: investigate why necessary for chars
-      var.initval.emitAsm(af);
+      initval.emitAsm(af);
     }
   }
   override string toString() { return Format("declare [", marker, "] ", var); }
@@ -113,10 +137,11 @@ void mkVar(AsmFile af, IType type, bool dontInit, bool alignvar, void delegate(V
   } else {
     auto var = fastalloc!(Variable)(type, name,
                             alignvar?bof:naturalOffs);
-    var.dontInit = dontInit;
     if (size) {
       mixin(mustOffset("size"[], "2"[]));
       auto vd = fastalloc!(VarDecl)(var);
+      if (dontInit) vd.dontInit = true;
+      else vd.initInit;
       vd.emitAsm(af);
     }
     {
@@ -148,9 +173,9 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
   synchronized name = Format("__temp_var_"[], x++, "__"[]);
   auto var = fastalloc!(Variable)(type, name,
                           boffs(type, af.currentStackDepth));
-  var.initval = ex;
   post = stuple(af, af.checkptStack()) /apply/ (AsmFile af, typeof(af.checkptStack()) forble) { af.restoreCheckptStack(forble); };
   auto vd = fastalloc!(VarDecl)(var);
+  vd.initval = ex;
   vd.emitAsm(af);
   return var;
 }
@@ -175,14 +200,13 @@ Expr tmpize_if_possible(Expr ex, Statement* late_init = null) {
   // only use lvize() if you are aware of this!
   // NOTE: for this reason, late_init was added
   
+  auto decl = fastalloc!(VarDecl)(var);
   if (late_init) {
     *late_init = fastalloc!(Assignment)(var, ex);
-    var.dontInit = true;
+    decl.dontInit = true;
   } else {
-    var.initval = ex;
+    decl.initval = ex;
   }
-  
-  auto decl = fastalloc!(VarDecl)(var);
   sc.addStatement(decl);
   sc.add(var);
   return var;

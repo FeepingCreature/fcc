@@ -43,9 +43,9 @@ class FullSlice : Expr {
         auto backup = af.checkptStack();
         scope(exit) af.restoreCheckptStack(backup);
         
-        auto temp = fastalloc!(Variable)(sup.valueType(), cast(string) null, sup, boffs(sup.valueType(), af.currentStackDepth));
+        auto temp = fastalloc!(Variable)(sup.valueType(), cast(string) null, boffs(sup.valueType(), af.currentStackDepth));
         
-        (fastalloc!(VarDecl)(temp)).emitAsm(af);
+        (fastalloc!(VarDecl)(temp, sup)).emitAsm(af);
         
         emitAssign(af, var, optex(mkArraySlice(temp, mkInt(0), getArrayLength(temp))));
       });

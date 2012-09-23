@@ -83,12 +83,11 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto vd = fastalloc!(VarDecl)(var);
     vd.configPosition(text);
     sc.addStatement(vd);
-    if (!initval) {
-      var.initInit;
-    } else {
-      var.dontInit = true;
+    if (initval) {
       if (!dontInit)
         *st = fastalloc!(Assignment)(var, initval);
+    } else {
+      vd.initInit;
     }
     return true;
   }

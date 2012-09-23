@@ -52,7 +52,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       if (vartype && !dontInit && !gotImplicitCast(ex, vartype, (IType it) { tried ~= it; return test(vartype == it); })) {
         t2.failparse("Couldn't init var: none of ", tried, " matched ", vartype);
       }
-        
+      
       if (isRefDecl) {
         auto lv = fastcast!(LValue) (ex);
         if (!lv)
@@ -67,17 +67,18 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
     }
     
     auto var = new Variable;
+    VarDecl vd;
     if (!isRefDecl)
       var.name = varname;
     if (ex) {
-      var.initval = ex;
       if (vartype) var.type = vartype;
       else var.type = ex.valueType();
+      vd = fastalloc!(VarDecl)(var, ex);
     } else {
       if (!vartype) fail; // shouldn't happen
       var.type = vartype;
-      if (dontInit) var.dontInit = true;
-      else var.initInit;
+      vd = fastalloc!(VarDecl)(var);
+      if (!dontInit) vd.initInit;
     }
     if (!var.type) fail; // shouldn't happen
     if (Single!(Void) == var.type) {
@@ -87,7 +88,6 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       genRetvalHolder(sc); // do this before we grab the var position
     }
     var.baseOffset = boffs(var.type);
-    auto vd = fastalloc!(VarDecl)(var);
     vd.configPosition(text);
     sc.addStatement(vd);
     sc.add(var); // was namespace()

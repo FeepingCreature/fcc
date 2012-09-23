@@ -8,10 +8,11 @@ class Array_ : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
   IType elemType;
   this() { }
   this(IType et) { elemType = forcedConvert(et); }
+  IType proxyCache;
   override {
     // bool isComplete() { return elemType.isComplete; }
     bool isComplete() { return true; /* size not determined by element size! */ }
-    IType proxyType() { if (auto ep = elemType.proxyType()) return new Array(ep); return null; }
+    IType proxyType() { if (proxyCache) return proxyCache; if (auto ep = elemType.proxyType()) { proxyCache = fastalloc!(Array)(ep); return proxyCache; } return null; }
     int size() {
       return nativePtrSize + nativeIntSize;
     }

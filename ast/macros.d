@@ -298,10 +298,10 @@ extern(C) void fcc_initTenth() {
     if (args.length != 1) tnte("Wrong number of args to 'make-temporary': 1 expected");
     mixin(chaincast("ty: Arg for make-temporary: args[0]->TypeEntity: %.ty"));
     auto var = fastalloc!(Variable)(ty, cast(string) null, boffs(ty));
-    var.dontInit = true;
+    auto vd = fastalloc!(VarDecl)(var);
     auto sc = namespace().get!(Scope);
     sc.add(var);
-    sc.addStatement(fastalloc!(VarDecl)(var));
+    sc.addStatement(vd);
     return fastalloc!(ItrEntity)(var);
   }));
   rootctx.add("type-of", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {

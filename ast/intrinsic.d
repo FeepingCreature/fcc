@@ -775,10 +775,12 @@ void finalizeSysmod(Module mainmod) {
   sc.add(var);
   auto count = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt)));
   sc.add(count);
-  count.initInit;
-  var.initInit;
-  sc.addStatement(fastalloc!(VarDecl)(var));
-  sc.addStatement(fastalloc!(VarDecl)(count));
+  auto vs = fastalloc!(VarDecl)(var);
+  vs.initInit;
+  auto cs = fastalloc!(VarDecl)(count);
+  cs.initInit;
+  sc.addStatement(vs);
+  sc.addStatement(cs);
   
   auto backupmod = current_module();
   scope(exit) current_module.set(backupmod);

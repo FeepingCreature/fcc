@@ -1049,7 +1049,6 @@ version(Windows) {
 
 import assemble: debugOpts;
 int main(string[] args) {
-  // std.gc.disable();
   string execpath;
   if ("/proc/self/exe".exists()) execpath = myRealpath("/proc/self/exe");
   else execpath = myRealpath(args[0]);

@@ -76,7 +76,6 @@ class ConcatChain : Expr {
           total  = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize)),
           cache  = fastalloc!(Variable)(sa,              cast(string) null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
         
-        cache.dontInit = true;
         int known_len;
         foreach (array; arrays) {
           if (array.valueType() == type.elemType) { known_len ++; }
@@ -84,12 +83,11 @@ class ConcatChain : Expr {
             known_len += lit.length;
           }
         }
-        
-        total.initval = mkInt(known_len);
-        total.initInit;
-        offset.initInit;
-        (fastalloc!(VarDecl)(offset)).emitAsm(af);
-        (fastalloc!(VarDecl)(total)).emitAsm(af);
+
+        auto od = fastalloc!(VarDecl)(offset);
+        od.initInit;
+        od.emitAsm(af);
+        (fastalloc!(VarDecl)(total, mkInt(known_len))).emitAsm(af);
         (fastalloc!(VarDecl)(cache)).emitAsm(af);
         int cacheId = 0;
         foreach (array; arrays) {

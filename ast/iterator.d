@@ -408,24 +408,52 @@ class ScopeAndExpr : Expr {
   Expr ex;
   this(Scope sc, Expr ex) { this.sc = sc; this.ex = ex; }
   mixin defaultIterate!(sc, ex);
+  void fixUpVariables(int toDepth) {
+    int locallyAllocated;
+    void rewriteVardeclStatement(ref Iterable it) {
+      if (auto vd = fastcast!(VarDecl)(it)) {
+        auto sz = vd.var.type.size;
+        locallyAllocated += sz;
+        auto newDepth = toDepth + locallyAllocated;
+        vd.var.baseOffset = -newDepth; // reallocate locally
+      }
+      it.iterate(&rewriteVardeclStatement);
+    }
+    if (auto ib = fastcast!(Itr) (sc._body)) {
+      rewriteVardeclStatement(ib);
+      sc._body = fastcast!(Statement) (ib);
+    }
+    // logln("  We are at ", toDepth);
+    // logln("  and we get ", sc.field);
+    // logln("  as well as ", sc._body);
+  }
   override {
     string toString() { return Format("sae("[], sc._body, ", "[], ex, ")"[]); }
     ScopeAndExpr dup() { return fastalloc!(ScopeAndExpr)(sc.dup, ex.dup); }
     IType valueType() { return ex.valueType(); }
     void emitAsm(AsmFile af) {
+      // logln("We are at ", af.currentStackDepth);
+      // logln("and we get ", sc.field);
+      // logln("as well as ", sc._body);
+      
       // logln("emit "[], this);
       // dirty, dirty hackaround (!)
       // TODO: discover why the fuck this what wtf help
-      sc._body = Single!(AggrStatement);
+      // okay. basically, what's going on here is if we leave the body
+      // then the variable declarations will error! because the scope is actually at MASSIVELY the wrong offset
+      // of course, hacking it like this will just bug silently so fuck you past me
+      // sc._body = Single!(AggrStatement);
       sc.id = getuid();
       if (Single!(Void) == ex.valueType()) {
         mixin(mustOffset("0"[]));
+        fixUpVariables(af.currentStackDepth);
         auto dg = sc.open(af)();
         ex.emitAsm(af);
         dg(false);
       } else {
         mixin(mustOffset("ex.valueType().size"[]));
         mkVar(af, ex.valueType(), true, (Variable var) {
+          fixUpVariables(af.currentStackDepth);
           auto dg = sc.open(af)();
           emitAssign(af, var, ex);
           dg(false);
@@ -542,6 +570,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   sc.configPosition(t2);
   namespace.set(sc);
   
+  auto tmain = t2;
   if (!rest(t2, "tree.expr"[], &main))
     t2.failparse("Cannot parse iterator expression"[]);
   if (!t2.accept("]"[]))
@@ -807,8 +836,9 @@ withoutIterator:
       sc.add(newvar);
       lv = newvar;
     }
-    newvar.initInit();
-    sc.addStatement(fastalloc!(VarDecl)(newvar));
+    auto newdecl = fastalloc!(VarDecl)(newvar);
+    newdecl.initInit();
+    sc.addStatement(newdecl);
     
     if (makeTuple) {
       foreach (i, name; newVarNames) {
@@ -972,7 +1002,7 @@ class EvalIterator(T) : Expr, Statement {
 
 Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, (IType it) {
+    if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) {
       return !!fastcast!(Iterator) (resolveType(it)); 
     })) return null;
     auto iter = fastcast!(Iterator) (resolveType(ex.valueType()));

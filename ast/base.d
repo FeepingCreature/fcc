@@ -1,5 +1,7 @@
 module ast.base;
 
+int xpar = -1; // for debugging. see xpar_bisect.nt
+
 public import asmfile, ast.types, parseBase, errors, tools.log: logln;
 
 public import casts, alloc, quickformat;
@@ -146,7 +148,8 @@ string genIterates(int params) {
             if (iter !is $A) {
               auto res = fastcast!(typeof($A)) (iter);
               if (!res) {
-                logln(this, ": cannot substitute ", $A, " with ", res, ": ", typeof($A).stringof, " expected! ");
+                logln(this, ": cannot substitute ", $A);
+                logln(" with ", iter, ": got ", fastcast!(Object)(iter).classinfo.name, ", expected ", typeof($A).stringof);
                 fail;
               }
               $A = res;

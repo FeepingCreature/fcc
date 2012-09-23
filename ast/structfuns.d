@@ -60,8 +60,8 @@ class RelFunCall : FunCall, RelTransformable {
       mkVar(af, valueType(), true, (Variable var) {
         auto backup = af.checkptStack();
         scope(exit) af.restoreCheckptStack(backup);
-        auto temp = fastalloc!(Variable)(baseptr.valueType(), cast(string) null, baseptr, boffs(baseptr.valueType(), af.currentStackDepth));
-        (fastalloc!(VarDecl)(temp)).emitAsm(af);
+        auto temp = fastalloc!(Variable)(baseptr.valueType(), cast(string) null, boffs(baseptr.valueType(), af.currentStackDepth));
+        (fastalloc!(VarDecl)(temp, baseptr)).emitAsm(af);
         Variable res;
         // don't process res if void
         if (var) res = fastalloc!(Variable)(valueType(), cast(string) null, boffs(valueType(), af.currentStackDepth));

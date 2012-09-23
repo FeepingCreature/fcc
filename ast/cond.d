@@ -20,10 +20,11 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   string hdlmarker = Format("__hdlmarker_var_special_"[], getuid());
   assert(!namespace().lookup(hdlmarker));
   auto hdlvar = fastalloc!(Variable)(hdltype, hdlmarker, boffs(hdltype));
-  hdlvar.initInit;
   auto csc = fastcast!(Scope)~ namespace();
   assert(!!csc);
-  csc.addStatement(fastalloc!(VarDecl)(hdlvar));
+  auto hdlst = fastalloc!(VarDecl)(hdlvar);
+  hdlst.initInit;
+  csc.addStatement(hdlst);
   csc.add(hdlvar);
   auto nf = fastalloc!(NestedFunction)(csc), mod = fastcast!(Module) (current_module());
   New(nf.type);
@@ -46,8 +47,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
     namespace.set(sc);
     
     auto objvar = fastalloc!(Variable)(it, cast(string) null, boffs(it));
-    objvar.initval = reinterpret_cast(it, fastcast!(Expr)~ nf.lookup("_obj"[], true));
-    sc.addStatement(fastalloc!(VarDecl)(objvar));
+    sc.addStatement(fastalloc!(VarDecl)(objvar, reinterpret_cast(it, fastcast!(Expr)~ nf.lookup("_obj"[], true))));
     sc.add(objvar);
     {
       auto ea = fastalloc!(ExprAlias)(objvar, pname);
@@ -120,7 +120,6 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
     assert(false);
   IType cmtype = fastcast!(IType)~ sysmod.lookup("_CondMarker"[]);
   auto cmvar = fastalloc!(Variable)(cmtype, cast(string) null, boffs(cmtype));
-  cmvar.initInit;
   
   IType argType; string argName, classTypeId;
   if (t2.accept("("[])) {
@@ -138,7 +137,9 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   auto csc = fastcast!(Scope)~ namespace();
   assert(!!csc);
-  csc.addStatement(fastalloc!(VarDecl)(cmvar));
+  auto cmdecl = fastalloc!(VarDecl)(cmvar);
+  cmdecl.initInit;
+  csc.addStatement(cmdecl);
   csc.add(cmvar);
   {
     auto setup_st =
@@ -183,7 +184,6 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (argType) {
     auto var = fastalloc!(Variable)(argType, argName, boffs(argType));
     auto vd = fastalloc!(VarDecl)(var);
-    var.dontInit = true;
     sc.add(var);
     sc.addStatement(vd);
     sc.addStatement(iparse

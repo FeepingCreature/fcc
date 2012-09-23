@@ -36,40 +36,18 @@ class Variable : LValue, Named {
   string name;
   // offset off ebp
   int baseOffset;
-  bool dontInit;
-  Expr initval;
-  static Stuple!(Expr, IType)[] initval_cache;
-  void initInit() {
-    if (initval) return;
-    else {
-      auto vt = valueType();
-      synchronized {
-        foreach (ref entry; initval_cache)
-          if (entry._1 == vt) {
-            initval = entry._0;
-            return;
-          }
-        initval = reinterpret_cast(
-          vt,
-          fastalloc!(DataExpr)(type.initval())
-        );
-        initval_cache ~= stuple(initval, vt);
-      }
-    }
-  }
   this() { }
   this(IType t, string s, int i) {
     type = t;
     name = s;
     baseOffset = i;
-    initInit();
-  }
-  this(IType t, string s, Expr ex, int i) {
-    this(t, s, i);
-    initval = ex;
   }
   override string getIdentifier() { return name; }
-  mixin DefaultDup!();
+  // Variable has no modifiable sub-expressions,
+  // and we WANT modifications to refer back to the original!
+  // (for instance, base_offset rewrites)
+  // TODO: find some way to make this safe(r)
+  override Variable dup() { return this; }
   mixin defaultIterate!();
   string toString() {
     if (name) return name;

@@ -63,8 +63,8 @@ Object gotInvokeRepl(ref string text, ParseCb cont, ParseCb rest) {
   Variable mkVarFor(Expr ex) {
     auto ty = ex.valueType();
     auto var = fastalloc!(Variable)(ty, cast(string) null, boffs(ty));
-    var.initval = ex;
     auto vd = fastalloc!(VarDecl)(var);
+    vd.initval = ex;
     sc.addStatement(vd);
     sc.add(var);
     return var;

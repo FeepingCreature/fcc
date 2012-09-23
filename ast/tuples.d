@@ -15,6 +15,7 @@ class Tuple : Type, RelNamespace {
   string[] names;
   NSCache!(IType) typecache;
   NSCache!(int) offsetcache;
+  this() { }
   IType[] types() { return wrapped.selectMap!(RelMember, "$.type")(&typecache); }
   int[] offsets() { return wrapped.selectMap!(RelMember, "$.offset")(&offsetcache); }
   override {

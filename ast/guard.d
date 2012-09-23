@@ -32,13 +32,12 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
       if (!ex) t2.failparse("Unknown identifier '"~id~"' for capture, or not expression"[]);
       auto ty = ex.valueType();
       auto var = fastalloc!(Variable)(ty, cast(string) null, boffs(ty));
-      var.initval = ex;
       
       auto sc = ns.get!(Scope);
       if (!sc) {
         t2.failparse("No scope found at "[], namespace(), " for inserting capture variable"[]);
       }
-      sc.addStatement(fastalloc!(VarDecl)(var));
+      sc.addStatement(fastalloc!(VarDecl)(var, ex));
       ns.add(var);
       capturevars ~= var;
     }
@@ -90,8 +89,9 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     assert(!!grtype);
     {
       auto gr = fastalloc!(Variable)(grtype, cast(string) null, boffs(grtype));
-      gr.initInit;
-      sc.addStatement(fastalloc!(VarDecl)(gr));
+      auto gd = fastalloc!(VarDecl)(gr);
+      gd.initInit;
+      sc.addStatement(gd);
       auto sl = namespace().get!(ScopeLike);
       namespace().add(gr);
       {

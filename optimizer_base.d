@@ -5,8 +5,6 @@ import assemble;
 alias asmfile.startsWith startsWith;
 alias tools.base.Stuple Stuple;
 
-int xpar = -1; // for debugging
-
 // dg, name, allow, barrier
 Stuple!(bool delegate(Transcache, ref int[string]), string, bool, bool)[] opts;
 

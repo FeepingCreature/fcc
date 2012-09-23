@@ -78,7 +78,8 @@ void setupConditionalOpt() {
       if (!succeeded) return null;
       return mkTupleExpr(exprs);
     }
-    return subtransform(it);
+    return null;
+    // return subtransform(it); // not safe: may replace lvalue with expr!
   };
   foldopt ~= delegate Itr(Itr it) {
     auto isAnd = fastcast!(AndOp) (it), isOr = fastcast!(OrOp) (it);

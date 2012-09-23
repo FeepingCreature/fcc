@@ -1,6 +1,6 @@
 module ast.type_info;
 
-import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop, ast.vector, ast.structure;
+import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop, ast.vector, ast.structure, ast.pointer;
 
 // Most of those must come before tree.expr.named
 // due to dash-parsing rules!

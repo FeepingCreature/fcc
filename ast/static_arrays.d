@@ -217,9 +217,10 @@ Expr mkSALit(IType ty, Expr[] exs) {
   auto res = new SALiteralExpr;
   res.type = ty;
   res.exs = exs;
+  // TODO: validate if correct
   Expr res_e = res;
   Statement st;
-  res_e = ast_vardecl_lvize(res_e, &st); // TODO: validate if correct
+  res_e = ast_vardecl_lvize(res_e, &st);
   if (st) res_e = mkStatementAndExpr(st, res_e);
   return res_e;
 }

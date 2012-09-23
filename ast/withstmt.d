@@ -68,9 +68,9 @@ class WithStmt : Namespace, Statement, ScopeLike {
       auto vt = ex.valueType();
       
       genRetvalHolder(sc);
-      auto backupvar = fastalloc!(Variable)(vt, cast(string) null, ex, boffs(vt));
+      auto backupvar = fastalloc!(Variable)(vt, cast(string) null, boffs(vt));
       sc.add(backupvar);
-      sc.addStatement(fastalloc!(VarDecl)(backupvar));
+      sc.addStatement(fastalloc!(VarDecl)(backupvar, ex));
       sc.addGuard(mkAssignment(ex, backupvar));
       if (auto aex = isc.getAssign())
         sc.addStatement(mkAssignment(ex, aex));
@@ -87,11 +87,10 @@ class WithStmt : Namespace, Statement, ScopeLike {
     } else {
       auto var = new Variable;
       var.type = ex.valueType();
-      var.initval = ex;
       var.baseOffset = boffs(var.type);
       temps += var.type.size;
       context = var;
-      sc.addStatement(fastalloc!(VarDecl)(var));
+      sc.addStatement(fastalloc!(VarDecl)(var, ex));
     }
     
     ex = context;
