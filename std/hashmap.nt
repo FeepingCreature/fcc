@@ -18,7 +18,7 @@ template hashptr_fnv(PTR) {
       return;
       bool matched;
     }
-    static if (types-equal (T, float) || types-equal (T, bool)) {
+    static if (types-equal (T, float) || types-equal (T, bool) || type-is pointer T) {
       mixin FNVStep.replace("%V", "*int*:&t");
       return;
       bool matched;
@@ -107,6 +107,20 @@ template Hashmap(T) {
       isset[pos] = true;
       length ++;
       return &backing[pos].value;
+    }
+    void remove(Key k) { return remove(&k); }
+    void remove(Key* kp) {
+      pragma(fast);
+      if (!backing.length) return;
+      alias k = Key:*kp;
+      auto pos = (hashptr &k) % backing.length;
+      while (isset[pos]) {
+        if (backing[pos].key == k) {
+          isset[pos] = false;
+          return;
+        }
+        if (++pos == backing.length) pos = 0;
+      }
     }
     Value* get(Key k) { return get &k; }
     Value* get(Key* kp) {

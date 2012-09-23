@@ -25,6 +25,8 @@ string urldecode(string st) {
       auto ch1 = hexdecode take(), ch2 = hexdecode take();
       int chcode = ch1 * 16 + ch2;
       res ~= *char*:&chcode;
+    } else if (ch == "+") {
+      res ~= " ";
     } else {
       res ~= ch;
     }
