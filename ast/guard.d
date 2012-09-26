@@ -3,7 +3,7 @@ module ast.guard;
 import
   ast.parse, ast.base, ast.namespace, ast.scopes,
   ast.assign, ast.nestfun, ast.modules,
-  ast.variable, ast.vardecl, ast.fun,
+  ast.variable, ast.vardecl, ast.fun, ast.casting,
   ast.aliasing;
 
 Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
@@ -176,6 +176,9 @@ Object gotScoped(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, "tree.expr"[], &newval))
       t2.failparse("Failed to match new-value expr for scoped"[]);
   }
+  auto evt = ex.valueType();
+  if (newval && !gotImplicitCast(newval, evt, (IType it) { return test(it == evt); }))
+    text.failparse("Cannot convert scoped-initializer to ", evt);
   text = t2;
   return fastcast!(Object) (genScoped(ex, newval));
 }
