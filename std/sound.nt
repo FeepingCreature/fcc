@@ -1,3 +1,3 @@
 module std.sound;
 
-public import std.sound.base, std.sound.alsa, std.sound.oss, std.sound.wav, std.sound.notesynth;
+public import std.sound.(base, alsa, oss, wav, threaded, notesynth);
