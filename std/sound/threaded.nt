@@ -1,0 +1,55 @@
+module std.sound.threaded; // separate playback thread
+
+import std.sound.base, std.thread, std.time, std.list;
+
+class ThreadedOutput : SoundOutput {
+  ThreadPool tp;
+  SoundOutput sup;
+  int maxOutstandingSamples;
+  void init(SoundOutput sup) {
+    tp = new ThreadPool 1;
+    this.sup = sup;
+    maxOutstandingSamples = 16384;
+    m = new Mutex;
+    gotNewData = new Semaphore;
+    tp.addTask &playBuffer;
+  }
+  void wait() sleep(0.01);
+  void playBuffer() {
+    using LockedMutex:this.m {
+      while (true) {
+        while (buffer.hasData) {
+          scope data = buffer.popTail();
+          bufferlen -= data.length;
+          writeln "dump $(data.length), left $(bufferlen)";
+          using UnlockedMutex:this.m sup.dump data;
+        }
+        using UnlockedMutex:this.m gotNewData.claim();
+      }
+    }
+  }
+  DoubleLinkedList!(Sample[]) buffer;
+  int bufferlen;
+  Mutex m;
+  Semaphore gotNewData;
+  void block() {
+    using LockedMutex:this.m {
+      while (bufferlen) using UnlockedMutex:this.m wait;
+    }
+  }
+  override {
+    void open() sup.open;
+    void close() { block; sup.close; }
+    void writeCopydump(int len) {
+      if (!len) return;
+      auto copy = copydump[0..len].dup;
+      using LockedMutex:this.m {
+        if (!buffer.hasData) gotNewData.release();
+        buffer.pushHead copy;
+        bufferlen += len;
+        while (bufferlen > maxOutstandingSamples)
+          using UnlockedMutex:this.m wait;
+      }
+    }
+  }
+}
