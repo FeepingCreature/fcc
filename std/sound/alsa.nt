@@ -40,16 +40,21 @@ context Access {
 class AlsaOutput : SoundOutput {
   snd_pcm_t* hdl;
   string name;
-  void init(string n) { name = n; }
+  void init(string n) { name = n; buffer = 500_000; }
+  int buffer;
+  void setBuffer(int i) { buffer = i; }
   void open() {
     auto foo = Stream.Playback;
-    check!snd_pcm_open(&hdl, toStringz name, Stream.Playback,  0);
-    check!snd_pcm_set_params(hdl, SndFormat.S16_LE, Access.RW_Interleaved, 1, 48000, 1, 400000);
+    check!snd_pcm_open(&hdl, toStringz name, Stream.Playback, SND_PCM_NONBLOCK);
+    check!snd_pcm_set_params(hdl, SndFormat.S16_LE, Access.RW_Interleaved, 1, 48000, 1, buffer);
     check!snd_pcm_nonblock(hdl, false);
   }
   void close() {
     check!snd_pcm_close(hdl);
     hdl = null;
+  }
+  void setBlocking(bool block) {
+    check!snd_pcm_nonblock(hdl, block);
   }
   void writeCopydump(int len) {
     bool closeAfter;
@@ -60,6 +65,8 @@ class AlsaOutput : SoundOutput {
       // writeln "< $(cd.length)";
       // writeln "$cd";
       auto frames = snd_pcm_writei(hdl, cd.ptr, cd.length);
+      import c.errno;
+      if (frames == -EAGAIN) continue;
       if (frames < 0) {
         writeln "Attempt to recover: $frames";
         frames = snd_pcm_recover(hdl, frames, 0);
