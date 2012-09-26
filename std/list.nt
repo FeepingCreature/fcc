@@ -1,0 +1,46 @@
+module std.list;
+
+template DoubleLinkedList(T) {
+  struct Data {
+    T data;
+    Data* prev, next;
+  }
+  struct DoubleLinkedList {
+    Data* head, tail;
+    alias hasData = !!head;
+    void pushHead(T t) {
+      auto wasHead = head;
+      head = new Data;
+      head.data = t;
+      head.prev = wasHead;
+      if (wasHead) wasHead.next = head;
+      if (!tail) tail = head;
+    }
+    void pushTail(T t) {
+      auto wasTail = tail;
+      tail = new Data;
+      tail.data = t;
+      tail.next = wasTail;
+      if (wasTail) wasTail.prev = tail;
+      if (!head) head = tail;
+    }
+    T popHead() {
+      assert(!!head);
+      auto wasHead = head, res = head.data;
+      head = head.prev;
+      mem.free wasHead;
+      if (head) head.next = null;
+      else tail = null;
+      return res;
+    }
+    T popTail() {
+      assert(!!tail);
+      auto wasTail = tail, res = tail.data;
+      tail = tail.next;
+      mem.free wasTail;
+      if (tail) tail.prev = null;
+      else head = null;
+      return res;
+    }
+  }
+}
