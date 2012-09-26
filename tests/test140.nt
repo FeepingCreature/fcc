@@ -1,0 +1,6 @@
+module test140;
+
+template Foo(T) { alias strict Foo = T; }
+void main() {
+  assert types-equal (Foo!int[], Foo!(int[]));
+}
