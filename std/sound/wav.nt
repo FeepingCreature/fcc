@@ -2,7 +2,7 @@ module std.sound.wav;
 
 import std.sound.base, std.string;
 
-class WAVCreator : Sound {
+class WAVCreator : SoundOutput {
   string filename;
   void init(string fn) { filename = fn; }
   short[auto~] samples;

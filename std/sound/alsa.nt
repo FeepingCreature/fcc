@@ -37,7 +37,7 @@ context Access {
   alias RW_Interleaved = 3; alias RW_NonInterleaved = 4;
 }
 
-class AlsaSound : Sound {
+class AlsaOutput : SoundOutput {
   snd_pcm_t* hdl;
   string name;
   void init(string n) { name = n; }

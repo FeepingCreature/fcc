@@ -22,7 +22,7 @@ extern(C) {
 int getErrno() { return *__errno_location(); } // lol
 
 // blatantly ripped off from http://www.int21.de/linux4k/
-class OSSSound : Sound {
+class OSSOutput : SoundOutput {
   string file;
   int fd;
   void init(string f) { file = f; }
