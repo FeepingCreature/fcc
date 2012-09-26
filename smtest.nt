@@ -105,7 +105,7 @@ class SectorCache {
 
 void initLight(SectorCache sc) {
   Sector[] list;
-  using autoLock sc.m list = sc.getBackup(initIt => true);
+  using LockedMutex:sc.m list = sc.getBackup(initIt => true);
   Sector[auto~] tops;
   onSuccess tops.free;
   for (auto sector <- list) {
@@ -130,7 +130,7 @@ void initLight(SectorCache sc) {
 void stepLight(SectorCache sc) {
   BlockType nothing;
   Sector[] list;
-  using autoLock sc.m list = sc.getBackup();
+  using LockedMutex:sc.m list = sc.getBackup();
   for (auto sector <- list) {
     for auto vec <- [for tup <- cross((0..SectorSize) x 3): vec3i(tup)] {
       alias myBlock = vec.(sector.cache[x][y][z]);
@@ -151,7 +151,7 @@ void stepLight(SectorCache sc) {
       }
     }
   }
-  using autoLock sc.m sc.swapBackup;
+  using LockedMutex:sc.m sc.swapBackup;
 }
 
 import camera;

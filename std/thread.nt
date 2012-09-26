@@ -179,13 +179,17 @@ class ReadWriteLock {
   void unlock() { pthread_rwlock_unlock &lock; }
 }
 
-struct MutexWrapper {
+struct LockedMutex {
   Mutex m;
-  void onUsing() { m.lock(); }
-  void onExit() { m.unlock(); }
+  void onUsing() m.lock();
+  void onExit() m.unlock();
 }
 
-MutexWrapper autoLock(Mutex m) { MutexWrapper mw; mw.m = m; return mw; }
+struct UnlockedMutex {
+  Mutex m;
+  void onUsing() m.unlock();
+  void onExit() m.lock();
+}
 
 template New(T) {
   void New(T t) {
@@ -220,10 +224,10 @@ class ThreadPool {
     while (true) {
       s.claim;
       void delegate(int) dg;
-      using autoLock readlock {
+      using LockedMutex:readlock {
         if (!readqueue.length) {
           readqueue-full.free;
-          using autoLock writelock {
+          using LockedMutex:writelock {
             readqueue = writequeue[];
             readqueue-full = readqueue;
             writequeue = type-of writequeue: type-of readqueue: null;
@@ -251,7 +255,7 @@ class ThreadPool {
   /*Function: waitComplete
   Wait until all tasks have been completed. */
   void waitComplete() {
-    using autoLock(m) {
+    using LockedMutex:m {
       while (tasksLeft) { 
         this.m.unlock;
         t.claim;
@@ -264,8 +268,8 @@ class ThreadPool {
   Adds a task to be executed. The task is called with the id of the thread that's executing it. */
   void addTask(void delegate(int) dg) {
     if (!numThreads) { dg(0); return; }
-    using autoLock(m) tasksLeft ++;
-    using autoLock writelock writequeue ~= dg;
+    using LockedMutex:m tasksLeft ++;
+    using LockedMutex:writelock writequeue ~= dg;
     s.release;
   }
   /*Function: addTask
@@ -302,7 +306,7 @@ class LoopPool {
     while true {
       s.claim;
       int myId;
-      do using autoLock m myId = runningId ++;
+      do using LockedMutex:m myId = runningId ++;
       while (myId < maxId) dg(myId, thr-id);
       t.release;
       u.claim;
