@@ -180,15 +180,15 @@ class ReadWriteLock {
 }
 
 struct LockedMutex {
-  Mutex m;
-  void onUsing() m.lock();
-  void onExit() m.unlock();
+  Mutex __m;
+  void onUsing() __m.lock();
+  void onExit() __m.unlock();
 }
 
 struct UnlockedMutex {
-  Mutex m;
-  void onUsing() m.unlock();
-  void onExit() m.lock();
+  Mutex __m;
+  void onUsing() __m.unlock();
+  void onExit() __m.lock();
 }
 
 template New(T) {
@@ -235,8 +235,15 @@ class ThreadPool {
         }
         (dg, readqueue) = readqueue[(0, 1..$)];
       }
+      set-handler (UnrecoverableError err) {
+        gdb-print-backtrace;
+        writeln "Unhandled error in task: '$err'. ";
+        
+        invoke-exit "task-continue";
+      }
+      define-exit "task-continue" continue;
+      onExit t.release();
       dg(id);
-      t.release();
     }
   }
   /*Function: addThread

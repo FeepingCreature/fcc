@@ -9,22 +9,22 @@ class ThreadedOutput : SoundOutput {
   void init(SoundOutput sup) {
     tp = new ThreadPool 1;
     this.sup = sup;
-    maxOutstandingSamples = 16384;
+    maxOutstandingSamples = 32768;
     m = new Mutex;
     gotNewData = new Semaphore;
     tp.addTask &playBuffer;
   }
   void wait() sleep(0.01);
   void playBuffer() {
-    using LockedMutex:this.m {
+    using LockedMutex:m {
       while (true) {
         while (buffer.hasData) {
           scope data = buffer.popTail();
           bufferlen -= data.length;
-          writeln "dump $(data.length), left $(bufferlen)";
-          using UnlockedMutex:this.m sup.dump data;
+          // writeln "dump $(data.length), left $(bufferlen)";
+          using UnlockedMutex:m sup.dump data;
         }
-        using UnlockedMutex:this.m gotNewData.claim();
+        using UnlockedMutex:m gotNewData.claim();
       }
     }
   }
@@ -33,8 +33,8 @@ class ThreadedOutput : SoundOutput {
   Mutex m;
   Semaphore gotNewData;
   void block() {
-    using LockedMutex:this.m {
-      while (bufferlen) using UnlockedMutex:this.m wait;
+    using LockedMutex:m {
+      while (bufferlen) using UnlockedMutex:m wait;
     }
   }
   override {
@@ -43,12 +43,12 @@ class ThreadedOutput : SoundOutput {
     void writeCopydump(int len) {
       if (!len) return;
       auto copy = copydump[0..len].dup;
-      using LockedMutex:this.m {
+      using LockedMutex:m {
         if (!buffer.hasData) gotNewData.release();
         buffer.pushHead copy;
         bufferlen += len;
         while (bufferlen > maxOutstandingSamples)
-          using UnlockedMutex:this.m wait;
+          using UnlockedMutex:m wait;
       }
     }
   }
