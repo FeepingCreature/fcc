@@ -18,13 +18,13 @@ class ThreadedOutput : SoundOutput {
   void playBuffer() {
     using LockedMutex:m {
       while (true) {
+        using UnlockedMutex:m gotNewData.claim();
         while (buffer.hasData) {
           scope data = buffer.popTail();
           bufferlen -= data.length;
           // writeln "dump $(data.length), left $(bufferlen)";
           using UnlockedMutex:m sup.dump data;
         }
-        using UnlockedMutex:m gotNewData.claim();
       }
     }
   }
