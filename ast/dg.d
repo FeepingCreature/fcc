@@ -100,6 +100,7 @@ class Delegate : Type {
       return nativePtrSize * 2;
     }
     string mangle() {
+      if (!ret) throw new Exception("Could not mangle delegate: return type indeterminate");
       auto res = "dg_ret_"~((ret is this)?"self":ret.mangle())~"_args";
       if (!args.length) res ~= "_none";
       else foreach (arg; args)
