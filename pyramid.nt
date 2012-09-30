@@ -1,6 +1,6 @@
 module pyramid;
 
-import opengl, glsetup, gd, std.file;
+import std.lib.sdl_base, std.lib.opengl.(, window, camera, sdl), gd, std.file;
 
 import c.GL.glext;
 
@@ -11,7 +11,7 @@ platform(i686-mingw32) {
   pragma(lib, "z");
 }
 
-import sdl, camera, std.time;
+import std.time;
 import std.macros.switchover;
 
 void main(string[] args) {
@@ -92,7 +92,7 @@ void main(string[] args) {
     }
   }
   bool active;
-  void toggleActive() prefix SDL_ {
+  void toggleActive() using prefix SDL_ {
     if (active) {
       ShowCursor true;
     } else {
@@ -102,16 +102,16 @@ void main(string[] args) {
     }
     active = !active;
   }
-  gl-context-callbacks ~= \{
+  glwindow = new SDLWindow;
+  glwindow.context-callbacks ~= \{
     writeln "regenList()";
     regenList();
   };
-  auto surf = setup-gl();
   {
     int res;
     SDL_GL_GetAttribute(SDL_GL_DOUBLEBUFFER, &res);
     writeln "0 or 1, enable or disable double buffering: $(res)";
-    prefix SDL_GL_ suffix _SIZE for (int num, string info) <- [
+    using prefix SDL_GL_ using suffix _SIZE for (int num, string info) <- [
       (RED,         "framebuffer red component"),
       (GREEN,       "framebuffer green component"),
       (BLUE,        "framebuffer blue component"),
@@ -136,8 +136,8 @@ void main(string[] args) {
       ClearColor (0 x 3, 0);
       ClearDepth 1;
       Clear (COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT);
-      ec.aspect = surf.w * 1f / surf.h;
-      ec.gl-setup();
+      ec.aspect = glwindow.size().(x * 1f / y);
+      ec.apply();
       // Rotatef (t++, 0, 1, 0);
       EnableClientState VERTEX_ARRAY;
       EnableClientState COLOR_ARRAY;
@@ -150,8 +150,9 @@ void main(string[] args) {
       // DrawArrays (QUADS, 0, vertexQuadData.length);
       DrawElements (QUADS, vertexIndexData.length, UNSIGNED_INT, null);
     }
-    update surf;
+    glwindow.update;
     if (active) {
+      alias mouse-pos = glwindow.mouse-pos;
       auto idelta = mouse-pos - lastmousepos;
       lastmousepos = mouse-pos;
       auto delta = vec2f((0.001 * idelta).(x, y));
@@ -159,7 +160,7 @@ void main(string[] args) {
       bool mustwarp;
       alias border = 50;
       if (mouse-pos.x < border || mouse-pos.y < border
-       || mouse-pos.x > surf.w - border || mouse-pos.y > surf.h - border)
+       || mouse-pos.x > glwindow.size().x - border || mouse-pos.y > glwindow.size().y - border)
         mustwarp = true;
       if mustwarp {
         lastmousepos = vec2i(320, 240);
@@ -169,7 +170,7 @@ void main(string[] args) {
     if (mouse-clicked) toggleActive;
     
     alias movestep = 0.034;
-    prefix SDLK_ {
+    using prefix SDLK_ {
       switch int i over keyPressed[i] {
         case w: ec.pos += ec.dir * movestep;
         case s: ec.pos -= ec.dir * movestep;
