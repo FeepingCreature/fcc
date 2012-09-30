@@ -254,7 +254,11 @@ void print-backtrace() {
   }
 }
 
-void dumpGraph(void delegate(void delegate(string, string, string=null)) dg) {
+void dumpGraphReverse(void delegate(void delegate(string, string, string=null)) dg) {
+  return dumpGraph(dg, =>reverse);
+}
+
+void dumpGraph(void delegate(void delegate(string, string, string=null)) dg, bool reverse = false) {
   writeln "/* use neato or -Kneato */";
   writeln "Digraph D {";
   writeln "Graph [overlap=portho_xy, concentrate=true, splines=true, rankdir=LR];";
@@ -295,7 +299,11 @@ void dumpGraph(void delegate(void delegate(string, string, string=null)) dg) {
       color = "\"0 0 $(1 - fatness)\"";
       fatness = 1;
     }
-    writeln "  $(clean link.from) -> $(clean link.to) [len=$len, penwidth=$fatness, color=$color]; ";
+    if (!reverse) {
+      writeln "  $(clean link.from) -> $(clean link.to) [len=$len, penwidth=$fatness, color=$color]; ";
+    } else {
+      writeln "  $(clean link.to) -> $(clean link.from) [len=$len, penwidth=$fatness, color=$color, dir=\"back\"]; ";
+    }
   }
 }
 
@@ -332,7 +340,7 @@ void dumpClassGraph(bool includeStdMods = false, includeObject = false) {
   bool included(ModuleInfo mod) {
     return includeStdMods || !mod.name.startsWith "std.";
   }
-  dumpGraph \(dg) {
+  dumpGraphReverse \(dg) {
     for auto mod <- __modules if included(mod) {
       for auto cl <- mod.classes {
         if (cl.parent) if (cl.parent.name != "Object"  || includeObject) {
