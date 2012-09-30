@@ -12,6 +12,16 @@ struct timeval {
 extern(C) int gettimeofday(timeval*, void*);
 extern(C) int usleep(int); // I hope this really is int.
 
+/*Function: floatToTimeval
+Converts a float number (seconds) to a timeval struct*/
+timeval floatToTimeval(float t) {
+  import std.math;
+  timeval tv;
+  tv.tv_sec = int:$ floor(t)+0.25; // round down, works with floor(t) and floor(t+0.5) modes
+  tv.tv_usec = int:$ (t - tv.tv_sec) * 1_000_000;
+  return tv;
+}
+
 /*Function: µsec
 The number of microseconds since the UNIX epoch*/
 platform(i686-mingw32) {
