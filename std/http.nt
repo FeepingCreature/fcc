@@ -15,7 +15,7 @@ Download a site. HTTP/1.0, very WIP.
 Parameters:
 url - URL
 onRedirect - Called when the request is redirected */
-ubyte[] download(string url, void delegate(string) onRedirect = null) {
+ubyte[] download(string url, void delegate(string) onRedirect = null, int timeout = 0) {
   auto original-url = url;
   {
     string rest = url.startsWith("http://");
@@ -28,6 +28,7 @@ ubyte[] download(string url, void delegate(string) onRedirect = null) {
   short port = 80;
   if portstr.length port = short:portstr.atoi();
   auto sock = connect(domain, port);
+  if (timeout) sock.setTimeout(timeout);
   void sendLine(string line) {
     sock.sendAll ubyte[]:line;
     sock.sendAll ubyte[]:"\r\n";
@@ -57,14 +58,14 @@ void init() cachelock = new Mutex;
 /* Function: downloadCached
 *Deprecated!*
 Like <download>, but cached. Self-explanatory. */
-ubyte[] downloadCached(string url, void delegate(string) onRedirect = null) {
-  using MutexWrapper:cachelock {
+ubyte[] downloadCached(string url, void delegate(string) onRedirect = null, int timeout = 0) {
+  using LockedMutex:cachelock {
     for auto tup <- cache
       if tup[1] == url return tup[0];
   }
   
-  auto res = download (url, onRedirect);
-  using MutexWrapper:cachelock
+  auto res = download (url, onRedirect, timeout);
+  using LockedMutex:cachelock
     cache ~= (res, url);
   return res;
 }

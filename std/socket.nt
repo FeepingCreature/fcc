@@ -63,6 +63,10 @@ platform(*-mingw32) {
   }
 }
 
+class SocketError : Error {
+  void init(int i) { super.init("socket operation failed: $i"); }
+}
+
 /*Class: Socket
 A BSD Socket*/
 class Socket {
@@ -75,6 +79,13 @@ class Socket {
   /*Function: init*/
   void init() {
     sockfd = socket (AF_INET, SOCK_STREAM, 0);
+  }
+  (bool got, float value) myTimeout;
+  /*Function: setTimeout
+  Sets a timeout for socket read/write operations (in seconds)*/
+  void setTimeout(float t) {
+    // DO NOT USE SETSOCKOPT HERE !!!!!!!!!
+    myTimeout = (true, t);
   }
   /*Function: reuse
   Marks the socket as reusable*/
@@ -99,6 +110,13 @@ class Socket {
   /*Function: recv
   Fills the argument with data from the socket, returning the number of bytes received. */
   int recv(ubyte[] buf) {
+    if (myTimeout.got) {
+      SelectSet ss;
+      ss.add(this, =>read);
+      ss.select(int:(myTimeout.value*1_000_000));
+      if (!ss.isReady(this, =>read))
+        raise new SocketError "read timed out";
+    }
     platform(default) {
       auto res = .recv(sockfd, buf.ptr, buf.length, 0);
     }
@@ -179,7 +197,8 @@ class sockreader : Iterator!ubyte[] {
   void init(Socket s) sock = s;
   bool advance() {
     auto size = sock.recv buf[];
-    if size <= 0 return false;
+    if size == -1 raise new SocketError errno;
+    if size == 0 return false;
     value = buf[0 .. size];
     return true;
   }
@@ -223,7 +242,12 @@ struct SelectSet {
     timeval tv;
     tv.tv_sec = timeout / 1_000_000;
     tv.tv_usec = timeout - tv.tv_sec * 1_000_000;
-    auto res = .select(largest + 1, &rdset, &wrset, &errset, &tv);
+    int res;
+    while (true) {
+      res = .select(largest + 1, &rdset, &wrset, &errset, &tv);
+      if (res == -1 && errno == EINTR) continue;
+      break;
+    }
     if (res == -1) raise new Error "While trying to select: $(CToString strerror errno)";
   }
 }
