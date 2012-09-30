@@ -822,7 +822,7 @@ void finalizeSysmod(Module mainmod) {
               (`var.constructors ~= funs;
               `, sc, "var", var, "funs", fastalloc!(SALiteralExpr)(fastalloc!(FunctionPointer)(Single!(Void), cast(Argument[]) null), constrs))
     );
-    auto imps = mod.getImports();
+    auto imps = mod.getAllModuleImports();
     sc.addStatement(
       iparse!(Statement, "init_mod_import_list", "tree.stmt")
              (`var._imports = new string[] len; `,

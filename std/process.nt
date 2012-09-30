@@ -309,6 +309,7 @@ void dumpGraph(void delegate(void delegate(string, string, string=null)) dg, boo
 
 void dumpModuleGraph(bool includeStdMods = false) {
   bool included(ModuleInfo mod) {
+    if (mod.name == "sys") return false;
     return includeStdMods || !mod.name.startsWith "std.";
   }
   // TODO precompute to prevent O(n^2)
