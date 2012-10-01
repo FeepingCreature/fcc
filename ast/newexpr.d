@@ -24,7 +24,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   rest(t2, "tree.expr _tree.expr.arith"[], &initParam);
   
   if (cr && cr.myClass.isabstract())
-    text.failparse("cannot instantiate abstract class"[]);
+    text.failparse("cannot instantiate abstract class: unimplemented ", cr.myClass.getAbstractFuns());
   
   text = t2;
   Expr protConstCall;
@@ -167,29 +167,31 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Index is a "[], backuplen.valueType(), "[], not an int! "[]);
   text = t2;
   // logln("new1 "[], base, " ["[], len, "]"[]);
-  Expr allocedPtr;
-  IType et;
-  if (arr) et = arr.elemType;
-  else et = ea.elemType;
-  auto mem = fastcast!(Expr) (sysmod.lookup("mem"[]));
-  if (et.isPointerLess()) {
-    allocedPtr = buildFunCall(
-      fastcast!(RelNamespace) (mem.valueType()).lookupRel("calloc_atomic"[], mem),
-      lookupOp("*"[], len, mkInt(et.size)),
-      "calloc_atomic for new array"[]);
-  } else {
-    allocedPtr = buildFunCall(
-      fastcast!(RelNamespace)(mem.valueType()).lookupRel("calloc"[], mem),
-      mkTupleExpr(len, mkInt(et.size)),
-      "calloc for new array"[]);
-  }
-  Expr res = mkPointerSlice(
-    reinterpret_cast(
-      fastalloc!(Pointer)(et),
-      allocedPtr
-    ),
-    mkInt(0), len
-  );
+  Expr res = tmpize_maybe(len, delegate Expr(Expr len) {
+    Expr allocedPtr;
+    IType et;
+    if (arr) et = arr.elemType;
+    else et = ea.elemType;
+    auto mem = fastcast!(Expr) (sysmod.lookup("mem"[]));
+    if (et.isPointerLess()) {
+      allocedPtr = buildFunCall(
+        fastcast!(RelNamespace) (mem.valueType()).lookupRel("calloc_atomic"[], mem),
+        lookupOp("*"[], len, mkInt(et.size)),
+        "calloc_atomic for new array"[]);
+    } else {
+      allocedPtr = buildFunCall(
+        fastcast!(RelNamespace)(mem.valueType()).lookupRel("calloc"[], mem),
+        mkTupleExpr(len, mkInt(et.size)),
+        "calloc for new array"[]);
+    }
+    return mkPointerSlice(
+      reinterpret_cast(
+        fastalloc!(Pointer)(et),
+        allocedPtr
+      ),
+      mkInt(0), len
+    );
+  });
   if (arr) return fastcast!(Object) (res);
   else {
     auto ea2 = fastalloc!(ExtArray)(ea.elemType, false);

@@ -302,12 +302,19 @@ class ArrayLength(T) : ArrayLength_Base, T {
   }
 }
 
+static int am_count;
+
 // construct array from two (three?) expressions
 class ArrayMaker : Expr {
   Expr ptr, length;
   Expr cap;
-  private this() { }
+  int count;
+  private this() {
+    count = am_count ++;
+    // if (count == 8302) asm { int 3; }
+  }
   this(Expr ptr, Expr length, Expr cap = null) {
+    this();
     this.ptr = ptr; this.length = length; this.cap = cap;
   }
   mixin MyThis!("ptr, length, cap = null"[]);
@@ -316,7 +323,7 @@ class ArrayMaker : Expr {
   IType elemType() {
     return (fastcast!(Pointer) (resolveType(ptr.valueType()))).target;
   }
-  override string toString() { return Format("array(ptr="[], ptr, "[], length="[], length, cap?Format("[], cap="[], cap):""[], ")"[]); }
+  override string toString() { return Format("array ", count, " (ptr="[], ptr, "[], length="[], length, cap?Format("[], cap="[], cap):""[], ")"[]); }
   IType cachedType;
   override IType valueType() {
     if (!cachedType) {
@@ -327,7 +334,9 @@ class ArrayMaker : Expr {
   }
   import ast.vardecl, ast.assign;
   override void emitAsm(AsmFile af) {
-    // TODO: stack direction/order
+    // logln("emit array maker ", count);
+    // logln("PTR ", ptr);
+    // logln("LEN ", length);
     ptr.emitAsm(af);
     length.emitAsm(af);
     if (cap)

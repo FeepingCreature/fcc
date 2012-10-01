@@ -362,11 +362,28 @@ class Zip(T) : Type, T {
     }
     static if (is(T: RichIterator)) {
       Expr length(Expr ex) {
-        // TODO: min
         auto types = myTypes();
-        auto entry = iparse!(Expr, "zip_simple_len"[], "tree.expr"[])
-                            (`tup[0]`, "tup"[], castToTuple(ex));
-        return (fastcast!(RichIterator)~ entry.valueType()).length(entry);
+        auto tup = castToTuple(ex);
+        auto sc = fastalloc!(Scope)();
+        sc.requiredDepth = int.max;
+        
+        auto backup = namespace();
+        scope(exit) namespace.set(backup);
+        namespace.set(sc);
+        
+        Expr transform(Expr ex) {
+          return lvize((fastcast!(RichIterator) (resolveType(ex.valueType()))).length(ex));
+        }
+        return fastalloc!(ScopeAndExpr)(sc, tmpize_maybe(tup, delegate Expr(Expr tup) {
+          auto entries = getTupleEntries(tup);
+          auto res = transform(entries[0]);
+          
+          foreach (entry; entries[1..$]) {
+            res = iparse!(Expr, "zip_min_len", "tree.expr")
+                         (`[r, e][e<r]`, sc, "r", res, "e", transform(entry));
+          }
+          return res;
+        }));
       }
       Expr index(Expr ex, Expr pos) {
         auto types = myTypes(), tup = castToTuple(ex);
