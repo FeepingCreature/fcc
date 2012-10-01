@@ -17,15 +17,18 @@ class ThreadedOutput : SoundOutput {
   void wait() sleep(0.01);
   void playBuffer() {
     using LockedMutex:m {
-      while (true) {
-        using UnlockedMutex:m gotNewData.claim();
-        while (buffer.hasData) {
-          scope data = buffer.popTail();
-          bufferlen -= data.length;
-          // writeln "dump $(data.length), left $(bufferlen)";
-          using UnlockedMutex:m sup.dump data;
-        }
+      if (!buffer.hasData) using UnlockedMutex:m gotNewData.claim(); // initial data
+      while (buffer.hasData /* true */) {
+        scope data = buffer.popTail();
+        bufferlen -= data.length;
+        // the next time we go to add data, we'll release the semaphore
+        // so we need to collect that token before looping
+        bool wasEmptied = !bufferlen;
+        // writeln "dump $(data.length), left $(bufferlen)";
+        using UnlockedMutex:m sup.dump data;
+        if (wasEmptied) using UnlockedMutex:m gotNewData.claim();
       }
+      fail;
     }
   }
   DoubleLinkedList!(Sample[]) buffer;
