@@ -11,30 +11,25 @@ class ThreadedOutput : SoundOutput {
     this.sup = sup;
     maxOutstandingSamples = 32768;
     m = new Mutex;
-    gotNewData = new Semaphore;
+    gotData = new Semaphore;
     tp.addTask &playBuffer;
   }
   void wait() sleep(0.01);
   void playBuffer() {
     using LockedMutex:m {
-      if (!buffer.hasData) using UnlockedMutex:m gotNewData.claim(); // initial data
-      while (buffer.hasData /* true */) {
+      while (true) {
+        using UnlockedMutex:m gotData.claim();
         scope data = buffer.popTail();
         bufferlen -= data.length;
-        // the next time we go to add data, we'll release the semaphore
-        // so we need to collect that token before looping
-        bool wasEmptied = !bufferlen;
         // writeln "dump $(data.length), left $(bufferlen)";
         using UnlockedMutex:m sup.dump data;
-        if (wasEmptied) using UnlockedMutex:m gotNewData.claim();
       }
-      fail;
     }
   }
   DoubleLinkedList!(Sample[]) buffer;
   int bufferlen;
   Mutex m;
-  Semaphore gotNewData;
+  Semaphore gotData;
   void block() {
     using LockedMutex:m {
       while (bufferlen) using UnlockedMutex:m wait;
@@ -47,8 +42,8 @@ class ThreadedOutput : SoundOutput {
       if (!len) return;
       auto copy = copydump[0..len].dup;
       using LockedMutex:m {
-        if (!buffer.hasData) gotNewData.release();
         buffer.pushHead copy;
+        gotData.release();
         bufferlen += len;
         while (bufferlen > maxOutstandingSamples)
           using UnlockedMutex:m wait;
