@@ -41,17 +41,18 @@ class WhileStatement : Statement, Breakable {
   mixin defaultIterate!(cond, _body);
   mixin DefaultBreakableImpl!();
   override {
-    void emitAsm(AsmFile af) {
-      auto start = af.genLabel(), done = af.genLabel();
-      continueDepth = breakDepth = af.currentStackDepth;
+    void emitLLVM(LLVMFile lf) {
+      todo("WhileStatement::emitLLVM");
+      /*auto start = lf.genLabel(), done = lf.genLabel();
+      continueDepth = breakDepth = lf.currentStackDepth;
       chosenContinueLabel = start;
       chosenBreakLabel = done;
-      af.emitLabel(start, !keepRegs, !isForward);
-      cond.jumpOn(af, false, done);
-      _body.emitAsm(af);
+      lf.emitLabel(start, !keepRegs, !isForward);
+      cond.jumpOn(lf, false, done);
+      _body.emitLLVM(lf);
       // TODO: rerun cond? check complexity?
-      af.jump(start);
-      af.emitLabel(done, !keepRegs, isForward);
+      lf.jump(start);
+      lf.emitLabel(done, !keepRegs, isForward);*/
     }
     string toString() { return Format("while("[], cond, "[]) { "[], _body._body, "}"[]); }
   }
@@ -91,9 +92,9 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   if (isStatic) {
     auto aggr = fastcast!(AggrStatement)(sc._body);
-    if (!aggr) fail(Format("Malformed static while: "[], sc._body));
+    if (!aggr) fail(Format("Ma(lf)ormed static while: "[], sc._body));
     if (!fastcast!(VarDecl) (aggr.stmts[0]))
-      fail(Format("Malformed static while (2): "[], aggr.stmts));
+      fail(Format("Ma(lf)ormed static while (2): "[], aggr.stmts));
     aggr.stmts = null; // remove loop variable declaration/s
     
     auto backupfield = sc.field;
@@ -152,27 +153,28 @@ class ForStatement : Statement, Breakable {
   mixin DefaultDup!();
   mixin DefaultBreakableImpl!();
   mixin defaultIterate!(decl, cond, step, _body);
-  override void emitAsm(AsmFile af) {
-    auto backup = af.checkptStack();
+  override void emitLLVM(LLVMFile lf) {
+    todo("ForStatement::emitLLVM");
+    /*auto backup = lf.checkptStack();
     scope(exit)
-      af.restoreCheckptStack(backup);
+      lf.restoreCheckptStack(backup);
     
-    // logln("start depth is "[], af.currentStackDepth);
-    decl.emitAsm(af);
+    // logln("start depth is "[], lf.currentStackDepth);
+    decl.emitLLVM(lf);
     
-    continueDepth = breakDepth = af.currentStackDepth;
+    continueDepth = breakDepth = lf.currentStackDepth;
     
-    auto start = af.genLabel(), done = af.genLabel(), cont = af.genLabel();
+    auto start = lf.genLabel(), done = lf.genLabel(), cont = lf.genLabel();
     chosenContinueLabel = cont;
     chosenBreakLabel = done;
     
-    af.emitLabel(start, !keepRegs, !isForward);
-    cond.jumpOn(af, false, done);
-    _body.emitAsm(af);
-    af.emitLabel(cont, !keepRegs, isForward);
-    step.emitAsm(af);
-    af.jump(start);
-    af.emitLabel(done, !keepRegs, isForward);
+    lf.emitLabel(start, !keepRegs, !isForward);
+    cond.jumpOn(lf, false, done);
+    _body.emitLLVM(lf);
+    lf.emitLabel(cont, !keepRegs, isForward);
+    step.emitLLVM(lf);
+    lf.jump(start);
+    lf.emitLabel(done, !keepRegs, isForward);*/
   }
 }
 
@@ -209,17 +211,18 @@ class DoWhileExt : Statement {
   Cond cond;
   mixin DefaultDup!();
   mixin defaultIterate!(first, second, cond);
-  override void emitAsm(AsmFile af) {
-    mixin(mustOffset("0"[]));
+  override void emitLLVM(LLVMFile lf) {
+    todo("DoWhileExt::emitLLVM");
+    /*mixin(mustOffset("0"[]));
     first.needEntryLabel = true;
-    auto fdg = first.open(af)(); // open and body
-    auto atJump = af.checkptStack();
-    cond.jumpOn(af, false, first.exit());
-    second.emitAsm(af);
+    auto fdg = first.open(lf)(); // open and body
+    auto atJump = lf.checkptStack();
+    cond.jumpOn(lf, false, first.exit());
+    second.emitLLVM(lf);
     fdg(true); // close before jump! variables must be cleaned up .. don't set the label though
-    af.jump(first.entry());
-    af.restoreCheckptStack(atJump, true);
-    fdg(false); // close for real
+    lf.jump(first.entry());
+    lf.restoreCheckptStack(atJump, true);
+    fdg(false); // close for real*/
   }
 }
 
@@ -262,26 +265,27 @@ class ExecGuardsAndJump : Statement {
     ExecGuardsAndJump dup() {
       return this; // no mutable parts, no iteration
     }
-    void emitAsm(AsmFile af) {
-      auto depth = af.checkptStack();
+    void emitLLVM(LLVMFile lf) {
+      todo("ExecGuardsAndJump::emitLLVM");
+      /*auto depth = lf.checkptStack();
       // reset the stack so we can emit regular scope guards after us;
       // despite the utter pointlessness of cleaning up after an unconditional jump,
       // appearances must be honoured.
       // the optimizer can remove all that crud anyway.
-      scope(success) af.restoreCheckptStack(depth, true);
+      scope(success) lf.restoreCheckptStack(depth, true);
       
       string targetlabel; int targetdepth;
       ptuple(targetlabel, targetdepth) = modeContinue?brk.getContinueLabel():brk.getBreakLabel();
       foreach_reverse (i, stmt; guards) {
-        auto delta = af.currentStackDepth - offsets[i];
+        auto delta = lf.currentStackDepth - offsets[i];
         if (delta) {
-          af.restoreCheckptStack(offsets[i]);
+          lf.restoreCheckptStack(offsets[i]);
         }
         // justification for dup see class ReturnStmt in ast.returns
-        stmt.dup().emitAsm(af);
+        stmt.dup().emitLLVM(lf);
       }
-      af.restoreCheckptStack(targetdepth);
-      af.jump(targetlabel);
+      lf.restoreCheckptStack(targetdepth);
+      lf.jump(targetlabel);*/
     }
   }
 }

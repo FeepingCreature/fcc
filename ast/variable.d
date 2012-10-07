@@ -6,26 +6,28 @@ import dwarf2, tools.log;
 class Variable : LValue, Named {
   string address() { return Format(baseOffset, "(%ebp)"[]); }
   override {
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("type.size"[]));
+    void emitLLVM(LLVMFile lf) {
+      todo("Variable::emitLLVM");
+      /*mixin(mustOffset("type.size"[]));
       if (isARM) {
         if (type.size == 4) {
-          af.mmove4(qformat("[fp, #"[], baseOffset, "]"[]), "r0"[]);
-          af.pushStack("r0"[], 4);
+          lf.mmove4(qformat("[fp, #"[], baseOffset, "]"[]), "r0"[]);
+          lf.pushStack("r0"[], 4);
         } else {
-          armpush(af, "fp"[], type.size, baseOffset);
+          armpush(lf, "fp"[], type.size, baseOffset);
         }
       } else {
-        af.pushStack(address, type.size);
-      }
+        lf.pushStack(address, type.size);
+      }*/
     }
-    void emitLocation(AsmFile af) {
-      if (isARM) {
-        lookupOp("+"[], new Register!("ebp"[]), mkInt(baseOffset)).emitAsm(af);
+    void emitLocation(LLVMFile lf) {
+      todo("Variable::emitLocation");
+      /*if (isARM) {
+        lookupOp("+"[], new Register!("ebp"[]), mkInt(baseOffset)).emitLLVM(lf);
       } else {
-        af.loadAddress(qformat(baseOffset, "(%ebp)"), "%eax");
-        af.pushStack("%eax", nativePtrSize);
-      }
+        lf.loadAddress(qformat(baseOffset, "(%ebp)"), "%eax");
+        lf.pushStack("%eax", nativePtrSize);
+      }*/
       
     }
     IType valueType() {
@@ -85,13 +87,14 @@ class StackOffsetLocation : Expr {
   override {
     StackOffsetLocation dup() { return fastalloc!(StackOffsetLocation)(offs, type); }
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) {
-      if (isARM) {
-        lookupOp("+", new Register!("ebp"), mkInt(offs)).emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("StackOffsetLocation::emitLLVM");
+      /*if (isARM) {
+        lookupOp("+", new Register!("ebp"), mkInt(offs)).emitLLVM(lf);
       } else {
-        af.loadAddress(qformat(offs, "(%ebp)"), "%eax");
-        af.pushStack("%eax", nativePtrSize);
-      }      
+        lf.loadAddress(qformat(offs, "(%ebp)"), "%eax");
+        lf.pushStack("%eax", nativePtrSize);
+      }*/     
     }
     string toString() { return qformat(type, ": stack[", offs, "]"); }
   }

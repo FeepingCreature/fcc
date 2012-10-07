@@ -125,69 +125,71 @@ class DataExpr : CValue {
       if (data.length > 128) return Format("[byte x"[], data.length, "]"[]);
       return Format(data);
     }
-    void emitAsm(AsmFile af) {
-      bool allNull = true;
+    void emitLLVM(LLVMFile lf) {
+      todo("DataExpr::emitLLVM");
+      /*bool allNull = true;
       foreach (val; data) if (val) { allNull = false; break; }
       if (allNull) {
-        /*af.flush();
-        auto backup = af.optimize;
+        / *(lf).flush();
+        auto backup = lf.optimize;
         // don't even try to opt this
-        af.optimize = false;*/
+        lf.optimize = false;* /
         // sure?
         if (isARM) {
           int len = data.length;
-          af.mmove4("#0"[], "r0"[]);
+          lf.mmove4("#0"[], "r0"[]);
           while (len) {
             if (len >= 4) {
-              af.pushStack("r0"[], 4);
+              lf.pushStack("r0"[], 4);
               len -= 4;
             } else if (len >= 2) {
-              af.pushStack("r0"[], 2);
+              lf.pushStack("r0"[], 2);
               len -= 2;
             } else {
-              af.salloc(1);
-              af.mmove1("r0"[], "[sp]"[]);
+              lf.salloc(1);
+              lf.mmove1("r0"[], "[sp]"[]);
               len --;
             }
           }
         } else {
-          af.pushStack(Format("$"[], 0), data.length); // better optimizable
+          lf.pushStack(Format("$"[], 0), data.length); // better optimizable
         }
-        // af.flush();
-        // af.optimize = backup;
+        // lf.flush();
+        // lf.optimize = backup;
         return;
       }
       auto d2 = data;
       while (d2.length >= 4) {
         auto i = (cast(int[]) d2.takeEnd(4))[0];
         if (isARM) {
-          af.mmove4(Format("#"[], i), "r0"[]);
-          af.pushStack("r0"[], 4);
+          lf.mmove4(Format("#"[], i), "r0"[]);
+          lf.pushStack("r0"[], 4);
         } else {
-          af.pushStack(Format("$"[], i), 4);
+          lf.pushStack(Format("$"[], i), 4);
         }
       }
       while (d2.length) {
         auto c = d2.takeEnd();
         if (isARM) {
-          af.salloc(1);
-          af.mmove4(Format("#"[], c), "r0"[]);
-          af.mmove1("r0"[], "[sp]"[]);
+          lf.salloc(1);
+          lf.mmove4(Format("#"[], c), "r0"[]);
+          lf.mmove1("r0"[], "[sp]"[]);
         } else {
-          af.pushStack(Format("$"[], c), 1);
+          lf.pushStack(Format("$"[], c), 1);
         }
-      }
+      }*/
     }
-    void emitLocation(AsmFile af) {
-      if (!name_used) {
-        name_used = af.allocConstant(Format("data_"[], constants_id++), data);
+    void emitLocation(LLVMFile lf) {
+      todo("DataExpr::emitLocation");
+      /*if (!name_used) {
+        name_used = lf.allocConstant(Format("data_"[], constants_id++), data);
       }
       if (isARM) {
-        af.mmove4("="~name_used, "r0"[]);
-        af.pushStack("r0"[], 4);
+        lf.mmove4("="~name_used, "r0"[]);
+        lf.pushStack("r0"[], 4);
       } else {
-        af.pushStack("$"~name_used, nativePtrSize);
-      }
+        lf.pushStack("$"~name_used, nativePtrSize);
+      }*/
     }
   }
 }
@@ -201,11 +203,12 @@ class SALiteralExpr : Expr {
   IType type;
   override {
     IType valueType() { return fastalloc!(StaticArray)(type, exs.length); }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
+      todo("SALiteralExpr::emitLLVM");
       // stack emit order: reverse!
       // TODO: Alignment.
-      foreach_reverse (ex; exs)
-        ex.emitAsm(af);
+      /*foreach_reverse (ex; exs)
+        ex.emitLLVM(lf);*/
     }
     string toString() { return Format("SA literal "[], exs); }
   }

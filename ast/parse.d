@@ -43,14 +43,9 @@ class ExprStatement : LineNumberedStatementClass {
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
   override string toString() { return Format(ex); }
-  override void emitAsm(AsmFile af) {
-    super.emitAsm(af);
-    auto cs = af.checkptStack();
-    scope(success) af.restoreCheckptStack(cs);
-    auto type = ex.valueType(), size = (Single!(Void) == type)?0:type.size;
-    alignStackFor(type, af);
-    mixin(mustOffset("size"[]));
-    ex.emitAsm(af);
+  override void emitLLVM(LLVMFile lf) {
+    super.emitLLVM(lf);
+    ex.emitLLVM(lf);
   }
 }
 

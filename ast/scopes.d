@@ -184,36 +184,39 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   // assume the same scope won't be opened twice
   int active_checkpt;
   Namespace active_backup_ns;
-  AsmFile active_af;
+  LLVMFile active_lf;
   Dwarf2Section active_backup_sect;
   void open3(bool onlyCleanup) {
-    auto af = active_af;
+    todo("Scope::open3");
+    /*auto lf = active_lf;
     if (!onlyCleanup) {
-      if (af.dwarf2) {
-        af.markLabelInUse(exit());
+      if (lf.dwarf2) {
+        lf.markLabelInUse(exit());
       }
-      af.emitLabel(exit(), !keepRegs, isForward);
-      if (af.dwarf2) {
-        af.dwarf2.closeUntil(active_backup_sect);
+      lf.emitLabel(exit(), !keepRegs, isForward);
+      if (lf.dwarf2) {
+        lf.dwarf2.closeUntil(active_backup_sect);
       }
     }
     foreach_reverse(i, guard; guards) {
-      af.restoreCheckptStack(guard_offsets[i]);
-      guard.emitAsm(af);
+      lf.restoreCheckptStack(guard_offsets[i]);
+      guard.emitLLVM(lf);
     }
     
-    af.restoreCheckptStack(active_checkpt);
-    if (!onlyCleanup) namespace.set(active_backup_ns);
+    lf.restoreCheckptStack(active_checkpt);
+    if (!onlyCleanup) namespace.set(active_backup_ns);*/
   }
   void delegate(bool onlyCleanup) open2() {
     if (_body) {
-      _body.emitAsm(active_af);
+      _body.emitLLVM(active_lf);
     }
     return &open3;
   }
   // continuations good
-  void delegate(bool onlyCleanup) delegate() open(AsmFile af) {
-    lnsc.emitAsm(af);
+  void delegate(bool onlyCleanup) delegate() open(LLVMFile lf) {
+    todo("Scope::open");
+    return null;
+    /*lnsc.emitLLVM(lf);
     // logln(lnsc.name, ":"[], lnsc.line, ": start("[], count, "[]) "[], this);
     if (emitted) {
       logln("double emit scope ("[], count, "[]) "[], _body);
@@ -222,20 +225,20 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     emitted = true;
     // TODO: check for -g?
     Dwarf2Section backup_sect;
-    if (af.dwarf2) {
-      auto dwarf2 = af.dwarf2;
+    if (lf.dwarf2) {
+      auto dwarf2 = lf.dwarf2;
       auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("lexical block"[]));
       backup_sect = dwarf2.current;
       sect.data ~= qformat(".long\t"[], entry());
       sect.data ~= qformat(".long\t"[], exit());
       dwarf2.open(sect);
     }
-    if (needEntryLabel || af.dwarf2) af.emitLabel(entry(), !keepRegs, !isForward);
-    auto checkpt = af.checkptStack(), backup = namespace();
+    if (needEntryLabel || lf.dwarf2) lf.emitLabel(entry(), !keepRegs, !isForward);
+    auto checkpt = lf.checkptStack(), backup = namespace();
     namespace.set(this);
     // sanity checking
-    if (requiredDepth != int.max && af.currentStackDepth != requiredDepth) {
-      logln("Scope emit failure: expected stack depth ", requiredDepth, ", but got ", af.currentStackDepth);
+    if (requiredDepth != int.max && lf.currentStackDepth != requiredDepth) {
+      logln("Scope emit failure: expected stack depth ", requiredDepth, ", but got ", lf.currentStackDepth);
       logln("was: ", requiredDepthDebug);
       logln(" is: ", this);
       logln("mew: ", _body);
@@ -245,13 +248,13 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     }
     active_checkpt = checkpt;
     active_backup_ns = backup;
-    active_af = af;
+    active_lf = lf;
     active_backup_sect = backup_sect;
-    return &open2;
+    return &open2;*/
   }
   override {
-    void emitAsm(AsmFile af) {
-      open(af)()(false); // lol
+    void emitLLVM(LLVMFile lf) {
+      open(lf)()(false); // lol
     }
     Object lookup(string name, bool local = false) {
       bool pointless;

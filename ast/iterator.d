@@ -139,7 +139,7 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   if (!cont(t2, &from)) return null;
   if (!t2.accept(".."[])) return null;
   if (!rest(t2, "tree.expr ,tree.expr.arith", &to))
-    t2.failparse("Unable to acquire second half of range def"[]);
+    t2.failparse("Unable to acquire second ha(lf) of range def"[]);
   text = t2;
   bool notATuple(IType it) { return !fastcast!(Tuple) (it); }
   bool isByte(IType it) { return !!fastcast!(Byte) (it); }
@@ -431,8 +431,9 @@ class ScopeAndExpr : Expr {
     string toString() { return Format("sae("[], sc._body, ", "[], ex, ")"[]); }
     ScopeAndExpr dup() { return fastalloc!(ScopeAndExpr)(sc.dup, ex.dup); }
     IType valueType() { return ex.valueType(); }
-    void emitAsm(AsmFile af) {
-      // logln("We are at ", af.currentStackDepth);
+    void emitLLVM(LLVMFile lf) {
+      todo("ScopeAndExpr::emitLLVM");
+      // logln("We are at ", lf.currentStackDepth);
       // logln("and we get ", sc.field);
       // logln("as well as ", sc._body);
       
@@ -443,22 +444,22 @@ class ScopeAndExpr : Expr {
       // then the variable declarations will error! because the scope is actually at MASSIVELY the wrong offset
       // of course, hacking it like this will just bug silently so fuck you past me
       // sc._body = Single!(AggrStatement);
-      sc.id = getuid();
+      /*sc.id = getuid();
       if (Single!(Void) == ex.valueType()) {
         mixin(mustOffset("0"[]));
-        fixUpVariables(af.currentStackDepth);
-        auto dg = sc.open(af)();
-        ex.emitAsm(af);
+        fixUpVariables(lf.currentStackDepth);
+        auto dg = sc.open(lf)();
+        ex.emitLLVM(lf);
         dg(false);
       } else {
         mixin(mustOffset("ex.valueType().size"[]));
-        mkVar(af, ex.valueType(), true, (Variable var) {
-          fixUpVariables(af.currentStackDepth);
-          auto dg = sc.open(af)();
-          emitAssign(af, var, ex);
+        mkVar(lf, ex.valueType(), true, (Variable var) {
+          fixUpVariables(lf.currentStackDepth);
+          auto dg = sc.open(lf)();
+          emitAssign(lf, var, ex);
           dg(false);
         });
-      }
+      }*/
     }
   }
   static this() {
@@ -642,7 +643,7 @@ LValue getRefExpr(Expr ex) {
   return null;
 }
 
-extern(C) void rt_print(AsmFile af, string s);
+extern(C) void rt_print(LLVMFile lf, string s);
 
 class IterLetCond(T) : Cond, NeedsConfig {
   T target;
@@ -660,8 +661,9 @@ class IterLetCond(T) : Cond, NeedsConfig {
   mixin DefaultDup!();
   mixin defaultIterate!(iter, target, iref, iref_pre);
   override void configure() { iref = lvize(iref_pre); }
-  override void jumpOn(AsmFile af, bool cond, string dest) {
-    if (!iref) {
+  override void jumpOn(LLVMFile lf, bool cond, string dest) {
+    todo("IterLetCond!("~T.stringof~")::jumpOn");
+    /*if (!iref) {
       logln("in iter cond ", this);
       breakpoint;
       fail("iter cond not configured");
@@ -669,14 +671,14 @@ class IterLetCond(T) : Cond, NeedsConfig {
     auto itype = fastcast!(Iterator) (resolveType(iter.valueType()));
     auto stepcond = itype.testAdvance(iref);
     auto value = itype.currentValue(iref);
-    auto skip = af.genLabel();
+    auto skip = lf.genLabel();
     opt(stepcond);
     opt(value);
     if (cond) {
       // if jump fails, value is available; write it, then jump
-      stepcond.jumpOn(af, false, skip);
+      stepcond.jumpOn(lf, false, skip);
     } else {
-      stepcond.jumpOn(af, false, dest);
+      stepcond.jumpOn(lf, false, dest);
     }
     if (target) {
       auto tv = target.valueType;
@@ -685,21 +687,21 @@ class IterLetCond(T) : Cond, NeedsConfig {
       if (address_target) {
         auto lv = getRefExpr(value);
         if (!lv) throw new Exception(Format("Iterator "[], itype, " does not offer reference iteration: "[], value));
-        emitAssign(af, address_target, fastalloc!(RefExpr)(lv));
+        emitAssign(lf, address_target, fastalloc!(RefExpr)(lv));
       } else {
         static if (is(T: MValue))
-          (fastalloc!(_Assignment!(MValue))(target, value)).emitAsm(af);
-        else emitAssign(af, target, value);
+          (fastalloc!(_Assignment!(MValue))(target, value)).emitLLVM(lf);
+        else emitAssign(lf, target, value);
       }
     } else {
-      value.emitAsm(af);
+      value.emitLLVM(lf);
       if (value.valueType() != Single!(Void))
-        af.sfree(value.valueType().size);
+        lf.sfree(value.valueType().size);
     }
     if (cond) {
-      af.jump(dest); // now jump
-      af.emitLabel(skip, !keepRegs, isForward); // otherwise nothing
-    }
+      lf.jump(dest); // now jump
+      lf.emitLabel(skip, !keepRegs, isForward); // otherwise nothing
+    }*/
   }
   override string toString() {
     if (target) return Format(target, " <- "[], iter);
@@ -933,23 +935,24 @@ class EvalIterator(T) : Expr, Statement {
           return fastalloc!(ExtArray)(iter.elemType(), true);
     }
     string toString() { return Format("Eval("[], ex, ")"[]); }
-    void emitAsm(AsmFile af) {
-      int offs;
+    void emitLLVM(LLVMFile lf) {
+      todo("EvalIterator!("~T.stringof~")::emitLLVM");
+      /*int offs;
       void emitStmtInto(Expr var, Expr ex2 = null) {
         if (!ex2) ex2 = ex;
         auto lv = fastcast!(LValue) (ex2);
         if (lv && var) {
           iparse!(Statement, "iter_array_eval_step_1"[], "tree.stmt"[])
                  (` { int i; while var[i++] <- _iter { } }`,
-                  "var"[], var, "_iter"[], lv, af).emitAsm(af);
+                  "var"[], var, "_iter"[], lv, lf).emitLLVM(lf);
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_2"[], "tree.stmt"[])
                  (` { int i; auto temp = _iter; while var[i++] <- temp { } }`,
-                  "var"[], var, "_iter"[], ex2, af).emitAsm(af);
+                  "var"[], var, "_iter"[], ex2, lf).emitLLVM(lf);
         } else {
           iparse!(Statement, "iter_eval_step_3"[], "tree.stmt"[])
                  (` { auto temp = _iter; while temp { } }`,
-                  "_iter"[], ex2, af).emitAsm(af);
+                  "_iter"[], ex2, lf).emitLLVM(lf);
         }
       }
       void emitStmtConcat(Expr var) {
@@ -957,16 +960,16 @@ class EvalIterator(T) : Expr, Statement {
           iparse!(Statement, "iter_array_eval_step_4"[], "tree.stmt"[])
                  (` { type-of-elem _iter temp; while temp <- _iter { var ~= temp; } }`,
                   namespace(),
-                  "var"[], var, "_iter"[], lv, af).emitAsm(af);
+                  "var"[], var, "_iter"[], lv, lf).emitLLVM(lf);
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_5"[], "tree.stmt"[])
                  (` { auto temp = _iter; type-of-elem temp temp2; while temp2 <- temp { var ~= temp2; } }`,
                   namespace(),
-                  "var"[], var, "_iter"[], ex, af).emitAsm(af);
+                  "var"[], var, "_iter"[], ex, lf).emitLLVM(lf);
         } else {
           iparse!(Statement, "iter_eval_step_6"[], "tree.stmt"[])
                  (` { auto temp = _iter; while temp { } }`,
-                  "_iter"[], ex, af).emitAsm(af);
+                  "_iter"[], ex, lf).emitLLVM(lf);
         }
       }
       if (target) {
@@ -976,26 +979,26 @@ class EvalIterator(T) : Expr, Statement {
           emitStmtInto(null);
         else {
           static if (is(T == RichIterator)) {
-            mkVar(af, valueType(), true, (Variable var) {
+            mkVar(lf, valueType(), true, (Variable var) {
               // manual lvize
-              mkVar(af, ex.valueType(), true, (Variable lv) {
+              mkVar(lf, ex.valueType(), true, (Variable lv) {
                 iparse!(Statement, "initLvVar"[], "tree.semicol_stmt.assign"[])
                        (`lvvar = ex`,
-                        "lvvar"[], lv, "ex"[], ex).emitAsm(af);
+                        "lvvar"[], lv, "ex"[], ex).emitLLVM(lf);
                 iparse!(Statement, "initVar"[], "tree.semicol_stmt.assign"[])
                        (`var = new elem[] len`,
-                        "var"[], var, "len"[], iter.length(lv), "elem"[], iter.elemType()).emitAsm(af);
+                        "var"[], var, "len"[], iter.length(lv), "elem"[], iter.elemType()).emitLLVM(lf);
                 emitStmtInto(var, lv);
               });
-              af.sfree(ex.valueType().size);
+              lf.sfree(ex.valueType().size);
             });
           } else {
-            mkVar(af, fastalloc!(ExtArray)(iter.elemType(), true), false, (Variable var) {
+            mkVar(lf, fastalloc!(ExtArray)(iter.elemType(), true), false, (Variable var) {
               emitStmtConcat(var);
             });
           }
         }
-      }
+      }*/
     }
   }
 }

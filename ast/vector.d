@@ -13,14 +13,15 @@ class ZeroFiller : Expr {
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("type.size"));
-      if (fastcast!(SysInt) (type)) { af.pushStack("$0", 4); }
+    void emitLLVM(LLVMFile lf) {
+      todo("ZeroFiller::emitLLVM");
+      /*mixin(mustOffset("type.size"));
+      if (fastcast!(SysInt) (type)) { lf.pushStack("$0", 4); }
       else if (fastcast!(Float) (type)) {
-        (fastalloc!(FloatExpr)(0)).emitAsm(af);
+        (fastalloc!(FloatExpr)(0)).emitLLVM(lf);
       } else {
         throw new Exception(Format("Don't know how to zero ", type, "!"));
-      }
+      }*/
     }
   }
 }
@@ -140,8 +141,9 @@ class SSESwizzle : Expr {
   mixin DefaultDup!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) {
-      int mask;
+    void emitLLVM(LLVMFile lf) {
+      todo("SSESwizzle::emitLLVM");
+      /*int mask;
       foreach_reverse (ch; rule) switch (ch) {
         case 'x': mask = mask*4 + 0; break;
         case 'y': mask = mask*4 + 1; break;
@@ -149,17 +151,17 @@ class SSESwizzle : Expr {
         case 'w': mask = mask*4 + 3; break;
       }
       if (auto cv = fastcast!(CValue) (sup)) {
-        cv.emitLocation(af);
-        af.popStack("%eax", 4);
-        af.SSEOp("movups", "(%eax)", "%xmm0");
-        af.nvm("%eax");
-        af.salloc(16);
+        cv.emitLocation(lf);
+        lf.popStack("%eax", 4);
+        lf.SSEOp("movups", "(%eax)", "%xmm0");
+        lf.nvm("%eax");
+        lf.salloc(16);
       } else {
-        sup.emitAsm(af);
-        af.SSEOp("movaps", "(%esp)", "%xmm0");
+        sup.emitLLVM(lf);
+        lf.SSEOp("movaps", "(%esp)", "%xmm0");
       }
-      af.SSEOp(qformat("shufps $"[], mask, ", "[]), "%xmm0"[], "%xmm0"[]);
-      af.SSEOp("movaps", "%xmm0", "(%esp)");
+      lf.SSEOp(qformat("shufps $"[], mask, ", "[]), "%xmm0"[], "%xmm0"[]);
+      lf.SSEOp("movaps", "%xmm0", "(%esp)");*/
     }
   }
 }
@@ -181,10 +183,11 @@ class SSEIntToFloat : Expr {
   SSEIntToFloat dup() { return fastalloc!(SSEIntToFloat)(base.dup()); }
   override {
     IType valueType() { checkVecs(); return vec3f; }
-    void emitAsm(AsmFile af) {
-      base.emitAsm(af);
-      af.SSEOp("cvtdq2ps", "(%esp)", "%xmm0");
-      af.SSEOp("movaps", "%xmm0", "(%esp)");
+    void emitLLVM(LLVMFile lf) {
+      todo("SSEIntToFloat::emitLLVM");
+      /*base.emitLLVM(lf);
+      lf.SSEOp("cvtdq2ps", "(%esp)", "%xmm0");
+      lf.SSEOp("movaps", "%xmm0", "(%esp)");*/
     }
   }
 }
@@ -206,12 +209,13 @@ class MultiplesExpr : Expr {
   override {
     MultiplesExpr dup() { return fastalloc!(MultiplesExpr)(base.dup, factor); }
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) {
-      base.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("MultiplesExpr::emitLLVM");
+      /*base.emitLLVM(lf);
       auto bvts = base.valueType().size;
       for (int i = 1; i < factor; ++i) {
-        af.pushStack("(%esp)", bvts);
-      }
+        lf.pushStack("(%esp)", bvts);
+      }*/
     }
   }
 }
@@ -222,12 +226,13 @@ class AlignedVec4Literal : Expr, Literal {
   IType type;
   FloatExpr base; int len;
   this(IType t, FloatExpr fe, int l) { type = t; base = fe; len = l; }
-  string getID(AsmFile af) {
-    if (!id) {
+  string getID(LLVMFile lf) {
+    todo("AlignedVec4Literal::getId");
+    /*if (!id) {
       float[4] meep;
       foreach (ref v; meep) v = base.f;
-      id = af.allocConstant(Format("__vec_constant_"[], af.constants.length), cast(ubyte[]) meep.dup);
-    }
+      id = lf.allocConstant(Format("__vec_constant_"[], lf.constants.length), cast(ubyte[]) meep.dup);
+    }*/
     return id;
   }
   override {
@@ -235,10 +240,11 @@ class AlignedVec4Literal : Expr, Literal {
     typeof(this) dup() { return new typeof(this) (type, base, len); }
     IType valueType() { return type; }
     string getValue() { assert(false, "Use getID instead! "); }
-    void emitAsm(AsmFile af) {
-      // af.put("#avlit of "[], type, " * "[], len);
-      for (int i = 0; i < len; ++i)
-        base.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      // lf.put("#avlit of "[], type, " * "[], len);
+      todo("AlignedVec4Literal::emitLLVM");
+      // for (int i = 0; i < len; ++i)
+        // base.emitLLVM(lf);
     }
   }
 }
@@ -370,25 +376,26 @@ class FastVec3Sum : Expr {
     mixin defaultIterate!(base);
     FastVec3Sum dup() { return fastalloc!(FastVec3Sum)(base.dup); }
     IType valueType() { return Single!(Float); }
-    void emitAsm(AsmFile af) {
-      auto filler = alignStackFor(base.valueType(), af);
-      base.emitAsm(af);
-      af.SSEOp("movaps", "(%esp)", "%xmm0");
-      if ("sse3" in af.processorExtensions) {
-        af.SSEOp("movaps", "%xmm0", "%xmm1");
-        af.SSEOp("haddps", "%xmm1", "%xmm1"); // [x+y, z+w, x+y, z+w]
-        af.SSEOp(qformat("shufps $"[], 0b1010_1010, ", "[]), "%xmm0"[], "%xmm0"[]); // zzzz
-        af.SSEOp("addss", "%xmm1", "%xmm0");
+    void emitLLVM(LLVMFile lf) {
+      todo("FastVec3Sum::emitLLVM");
+      /*auto filler = alignStackFor(base.valueType(), lf);
+      base.emitLLVM(lf);
+      lf.SSEOp("movaps", "(%esp)", "%xmm0");
+      if ("sse3" in lf.processorExtensions) {
+        lf.SSEOp("movaps", "%xmm0", "%xmm1");
+        lf.SSEOp("haddps", "%xmm1", "%xmm1"); // [x+y, z+w, x+y, z+w]
+        lf.SSEOp(qformat("shufps $"[], 0b1010_1010, ", "[]), "%xmm0"[], "%xmm0"[]); // zzzz
+        lf.SSEOp("addss", "%xmm1", "%xmm0");
       } else {
-        af.SSEOp("movaps", "%xmm0", "%xmm1");
-        af.SSEOp("movaps", "%xmm0", "%xmm2");
-        af.SSEOp(qformat("shufps $"[], 0b0101_0101, ", "[]), "%xmm1"[], "%xmm1"[]); // yyyy
-        af.SSEOp(qformat("shufps $"[], 0b1010_1010, ", "[]), "%xmm2"[], "%xmm2"[]); // zzzz
-        af.SSEOp("addss", "%xmm1", "%xmm0");
-        af.SSEOp("addss", "%xmm2", "%xmm0");
+        lf.SSEOp("movaps", "%xmm0", "%xmm1");
+        lf.SSEOp("movaps", "%xmm0", "%xmm2");
+        lf.SSEOp(qformat("shufps $"[], 0b0101_0101, ", "[]), "%xmm1"[], "%xmm1"[]); // yyyy
+        lf.SSEOp(qformat("shufps $"[], 0b1010_1010, ", "[]), "%xmm2"[], "%xmm2"[]); // zzzz
+        lf.SSEOp("addss", "%xmm1", "%xmm0");
+        lf.SSEOp("addss", "%xmm2", "%xmm0");
       }
-      af.sfree(12 + filler);
-      af.SSEOp("movd", "%xmm0", "(%esp)", true /* ignore stack alignment */);
+      lf.sfree(12 + filler);
+      lf.SSEOp("movd", "%xmm0", "(%esp)", true /* ignore stack alignment * /);*/
     }
   }
 }
@@ -400,21 +407,22 @@ class FastVec3Norm : Expr {
     mixin defaultIterate!(base);
     FastVec3Norm dup() { return fastalloc!(FastVec3Norm)(base.dup, vec); }
     IType valueType() { return vec; }
-    void emitAsm(AsmFile af) {
-      base.emitAsm(af);
-      af.SSEOp("movaps", "(%esp)", "%xmm0");
-      af.SSEOp("movaps", "%xmm0", "%xmm3");
-      af.SSEOp("mulps", "%xmm3", "%xmm3");
-      af.SSEOp("movaps", "%xmm3", "%xmm1");
-      af.SSEOp("movaps", "%xmm3", "%xmm2");
-      af.SSEOp(qformat("shufps $"[], 0b0101_0101, ", "[]), "%xmm1"[], "%xmm1"[]); // yyyy
-      af.SSEOp(qformat("shufps $"[], 0b1010_1010, ", "[]), "%xmm2"[], "%xmm2"[]); // zzzz
-      af.SSEOp("addss", "%xmm1", "%xmm3");
-      af.SSEOp("addss", "%xmm2", "%xmm3");
-      af.SSEOp("rsqrtss", "%xmm3", "%xmm3");
-      af.SSEOp(qformat("shufps $"[], 0b0000_0000, ", "[]), "%xmm3"[], "%xmm3"[]); // spread
-      af.SSEOp("mulps", "%xmm3", "%xmm0");
-      af.SSEOp("movaps", "%xmm0", "(%esp)");
+    void emitLLVM(LLVMFile lf) {
+      todo("FastVec3Norm::emitLLVM");
+      /*base.emitLLVM(lf);
+      lf.SSEOp("movaps", "(%esp)", "%xmm0");
+      lf.SSEOp("movaps", "%xmm0", "%xmm3");
+      lf.SSEOp("mulps", "%xmm3", "%xmm3");
+      lf.SSEOp("movaps", "%xmm3", "%xmm1");
+      lf.SSEOp("movaps", "%xmm3", "%xmm2");
+      lf.SSEOp(qformat("shufps $"[], 0b0101_0101, ", "[]), "%xmm1"[], "%xmm1"[]); // yyyy
+      lf.SSEOp(qformat("shufps $"[], 0b1010_1010, ", "[]), "%xmm2"[], "%xmm2"[]); // zzzz
+      lf.SSEOp("addss", "%xmm1", "%xmm3");
+      lf.SSEOp("addss", "%xmm2", "%xmm3");
+      lf.SSEOp("rsqrtss", "%xmm3", "%xmm3");
+      lf.SSEOp(qformat("shufps $"[], 0b0000_0000, ", "[]), "%xmm3"[], "%xmm3"[]); // spread
+      lf.SSEOp("mulps", "%xmm3", "%xmm0");
+      lf.SSEOp("movaps", "%xmm0", "(%esp)");*/
     }
   }
 }
@@ -613,14 +621,13 @@ void checkVecs() {
   if (!vec3i) vec3i = mkVec(Single!(SysInt), 3);
 }
 
-string getAddr(AsmFile af, Expr src) {
+string getAddr(LLVMFile lf, Expr src) {
   if (auto rce = fastcast!(RCE) (src)) src = rce.from; // immaterial
-  if (auto xmm = fastcast!(XMM) (src)) return xmm.getValue();
-  else if (auto lit = fastcast!(AlignedVec4Literal) (src)) return lit.getID(af);
+  if (auto lit = fastcast!(AlignedVec4Literal) (src)) return lit.getID(lf);
   else return null;
 }
 
-bool emitUnalignedAddr(AsmFile af, Expr src, ref bool wasAligned) {
+bool emitUnalignedAddr(LLVMFile lf, Expr src, ref bool wasAligned) {
   wasAligned = false;
   if (auto cv = fastcast!(CValue) (src)) {
     if (auto var = fastcast!(Variable) (cv)) {
@@ -628,13 +635,15 @@ bool emitUnalignedAddr(AsmFile af, Expr src, ref bool wasAligned) {
       while (offs < 0) offs += 16;
       if (offs % 16 == 0) wasAligned = true;
     }
-    cv.emitLocation(af);
+    cv.emitLocation(lf);
     return true;
   } else return false;
 }
 
-bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
-  mixin(mustOffset("0"[]));
+bool gotSSEVecOp(LLVMFile lf, Expr op1, Expr op2, Expr res, string op) {
+  todo("gotSSEVecOp");
+  return false;
+  /*mixin(mustOffset("0"[]));
   checkVecs;
   if (op1.valueType() != vec3f && op1.valueType() != vec4f
    || op2.valueType() != vec3f && op2.valueType() != vec4f
@@ -642,101 +651,101 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
     return false;
   if (op != "+"[] /or/ "-"[] /or/ "*"[] /or/ "/"[] /or/ "^"[]) return false;
   void packLoad(string dest, string scrap1, string scrap2) {
-    af.popStack("%eax"[], 4);
-    // af.SSEOp("movaps"[], "(%eax)"[], dest);
+    lf.popStack("%eax"[], 4);
+    // lf.SSEOp("movaps"[], "(%eax)"[], dest);
     // recommended by the intel core opt manual, 3-50
     // also benchmarked and YES it's faster .. IFF there's a dependency.
-    af.movd("(%eax)"[], dest);
-    af.movd("8(%eax)"[], scrap1);
-    af.SSEOp("punpckldq"[], scrap1, dest); // can't do directly! punpckldq requires alignment; movd doesn't.
-    af.movd("4(%eax)"[], scrap1);
-    af.movd("12(%eax)"[], scrap2);
-    af.SSEOp("punpckldq"[], scrap2, scrap1);
-    af.SSEOp("punpckldq"[], scrap1, dest);
+    lf.movd("(%eax)"[], dest);
+    lf.movd("8(%eax)"[], scrap1);
+    lf.SSEOp("punpckldq"[], scrap1, dest); // can't do directly! punpckldq requires alignment; movd doesn't.
+    lf.movd("4(%eax)"[], scrap1);
+    lf.movd("12(%eax)"[], scrap2);
+    lf.SSEOp("punpckldq"[], scrap2, scrap1);
+    lf.SSEOp("punpckldq"[], scrap1, dest);
   }
   auto var1 = fastcast!(Variable) (op1), var2 = fastcast!(Variable) (op2);
   bool alignedVar1 = var1 && ((var1.baseOffset - esp_alignment_delta) & 15) == 0;
   bool alignedVar2 = var2 && ((var2.baseOffset - esp_alignment_delta) & 15) == 0;
   void load(Expr src, string to, string scrap1 = null, string scrap2 = null) {
     bool wasAligned;
-    if (auto addr = getAddr(af, src)) af.SSEOp("movaps"[], addr, to);
-    else if (emitUnalignedAddr(af, src, wasAligned)) {
-      af.popStack("%eax"[], 4);
-      af.SSEOp(wasAligned?"movaps"[]:"movups"[], "(%eax)"[], to);
+    if (auto addr = getAddr(lf, src)) lf.SSEOp("movaps"[], addr, to);
+    else if (emitUnalignedAddr(lf, src, wasAligned)) {
+      lf.popStack("%eax"[], 4);
+      lf.SSEOp(wasAligned?"movaps"[]:"movups"[], "(%eax)"[], to);
     } else {
       // logln("src is "[], (cast(Object) src).classinfo.name, ", "[], src);
-      src.emitAsm(af);
+      src.emitLLVM(lf);
       if (scrap1 && scrap2 && false) {
-        af.pushStack("%esp"[], 4);
+        lf.pushStack("%esp"[], 4);
         packLoad(to, scrap1, scrap2);
       } else {
-        af.SSEOp("movaps", "(%esp)", to);
+        lf.SSEOp("movaps", "(%esp)", to);
       }
-      af.sfree(16);
+      lf.sfree(16);
     }
   }
   string srcOp = "%xmm1";
   if (alignedVar1 && alignedVar2) {
-    var1.emitLocation(af);
-    var2.emitLocation(af);
-    /*packLoad("%xmm1"[], "%xmm0"[], "%xmm2"[]);
-    packLoad("%xmm0"[], "%xmm2"[], "%xmm3"[]);*/
-    af.popStack("%eax"[], 4);
-    af.popStack("%edx"[], 4);
-    af.SSEOp("movaps"[], "(%eax)"[], "%xmm1"[]);
-    af.SSEOp("movaps"[], "(%edx)"[], "%xmm0"[]);
-    af.salloc(16);
+    var1.emitLocation(lf);
+    var2.emitLocation(lf);
+    /+packLoad("%xmm1"[], "%xmm0"[], "%xmm2"[]);
+    packLoad("%xmm0"[], "%xmm2"[], "%xmm3"[]);+/
+    lf.popStack("%eax"[], 4);
+    lf.popStack("%edx"[], 4);
+    lf.SSEOp("movaps"[], "(%eax)"[], "%xmm1"[]);
+    lf.SSEOp("movaps"[], "(%edx)"[], "%xmm0"[]);
+    lf.salloc(16);
   }
   if (alignedVar1 && !alignedVar2) {
-    af.salloc(12);
-    var1.emitLocation(af);
+    lf.salloc(12);
+    var1.emitLocation(lf);
     load(op2, "%xmm1"[], "%xmm2"[], "%xmm3"[]);
     // logln("param 2 is "[], op2, "[], what to do .. "[]);
     packLoad("%xmm0"[], "%xmm2"[], "%xmm3"[]);
-    // af.popStack("%eax"[], 4);
-    // af.SSEOp("movaps"[], "(%eax)"[], "%xmm0"[]);
-    af.salloc(4);
+    // lf.popStack("%eax"[], 4);
+    // lf.SSEOp("movaps"[], "(%eax)"[], "%xmm0"[]);
+    lf.salloc(4);
   }
   if (!alignedVar1 && alignedVar2) {
-    af.salloc(12);
-    var2.emitLocation(af);
+    lf.salloc(12);
+    var2.emitLocation(lf);
     load(op1, "%xmm0"[], "%xmm2"[], "%xmm3"[]);
     // logln("param 1 is "[], op1, "[], what to do .. "[]);
     packLoad("%xmm1"[], "%xmm2"[], "%xmm3"[]);
-    // af.popStack("%eax"[], 4);
-    // af.SSEOp("movaps"[], "(%eax)"[], "%xmm1"[]);
-    af.salloc(4);
+    // lf.popStack("%eax"[], 4);
+    // lf.SSEOp("movaps"[], "(%eax)"[], "%xmm1"[]);
+    lf.salloc(4);
   }
   if (!alignedVar1 && !alignedVar2) {
     string prep1; bool prep1u, prep1u_align;
-    if (auto addr = getAddr(af, op1)) prep1 = addr;
-    else if (emitUnalignedAddr(af, op1, prep1u_align)) prep1u = true; // don't pop into register yet!!
-    else op1.emitAsm(af);
+    if (auto addr = getAddr(lf, op1)) prep1 = addr;
+    else if (emitUnalignedAddr(lf, op1, prep1u_align)) prep1u = true; // don't pop into register yet!!
+    else op1.emitLLVM(lf);
     bool wasAligned;
-    if (auto s = getAddr(af, op2)) srcOp = s;
-    else if (emitUnalignedAddr(af, op2, wasAligned)) {
-      if (prep1u) { af.sfree(8); emitUnalignedAddr(af, op2, wasAligned); } // resort
-      af.popStack("%eax"[], 4);
-      af.SSEOp(wasAligned?"movaps"[]:"movups"[], "(%eax)"[], "%xmm1"[]);
-      if (prep1u) { emitUnalignedAddr(af, op1, prep1u_align); }
+    if (auto s = getAddr(lf, op2)) srcOp = s;
+    else if (emitUnalignedAddr(lf, op2, wasAligned)) {
+      if (prep1u) { lf.sfree(8); emitUnalignedAddr(lf, op2, wasAligned); } // resort
+      lf.popStack("%eax"[], 4);
+      lf.SSEOp(wasAligned?"movaps"[]:"movups"[], "(%eax)"[], "%xmm1"[]);
+      if (prep1u) { emitUnalignedAddr(lf, op1, prep1u_align); }
     } else {
       // logln("op2 is "[], (cast(Object) op2).classinfo.name, ", "[], op2);
-      if (prep1u) { af.sfree(4); } // force unload
-      op2.emitAsm(af);
-      af.SSEOp("movaps"[], "(%esp)"[], "%xmm1"[]);
-      af.sfree(16);
-      if (prep1u) emitUnalignedAddr(af, op1, prep1u_align); // reemit
+      if (prep1u) { lf.sfree(4); } // force unload
+      op2.emitLLVM(lf);
+      lf.SSEOp("movaps"[], "(%esp)"[], "%xmm1"[]);
+      lf.sfree(16);
+      if (prep1u) emitUnalignedAddr(lf, op1, prep1u_align); // reemit
     }
-    if (prep1) af.SSEOp("movaps"[], prep1, "%xmm0"[]);
+    if (prep1) lf.SSEOp("movaps"[], prep1, "%xmm0"[]);
     else if (prep1u) {
-      af.popStack("%edx"[], 4);
-      af.SSEOp(prep1u_align?"movaps"[]:"movups"[], "(%edx)"[], "%xmm0"[]);
+      lf.popStack("%edx"[], 4);
+      lf.SSEOp(prep1u_align?"movaps"[]:"movups"[], "(%edx)"[], "%xmm0"[]);
     } else {
       // logln("op1 is "[], (cast(Object) op1).classinfo.name, ", "[], op1);
-      af.SSEOp("movaps"[], "(%esp)"[], "%xmm0"[]);
-      af.sfree(16);
+      lf.SSEOp("movaps"[], "(%esp)"[], "%xmm0"[]);
+      lf.sfree(16);
     }
-    af.salloc(16);
+    lf.salloc(16);
   }
   string sse;
   if (op == "+"[]) sse = "addps";
@@ -744,17 +753,17 @@ bool gotSSEVecOp(AsmFile af, Expr op1, Expr op2, Expr res, string op) {
   if (op == "*"[]) sse = "mulps";
   if (op == "/"[]) sse = "divps";
   if (op == "^"[]) sse = "xorps";
-  af.SSEOp(sse, srcOp, "%xmm0"[]);
-  // af.nvm("%xmm1"[]); // tend to get in the way
-  af.SSEOp("movaps"[], "%xmm0"[], "(%esp)"[]);
-  // af.nvm("%xmm0"[]); // rarely helps
+  lf.SSEOp(sse, srcOp, "%xmm0"[]);
+  // lf.nvm("%xmm1"[]); // tend to get in the way
+  lf.SSEOp("movaps"[], "%xmm0"[], "(%esp)"[]);
+  // lf.nvm("%xmm0"[]); // rarely helps
   mixin(mustOffset("-16"[]));
   if (auto lv = cast(LValue) res) {
-    emitAssign(af, lv, fastalloc!(Placeholder)(op1.valueType()), false, true);
+    emitAssign(lf, lv, fastalloc!(Placeholder)(op1.valueType()), false, true);
   } else if (auto mv = cast(MValue) res) {
-    mv.emitAssignment(af);
+    mv.emitAssignment(lf);
   } else fail;
-  return true;
+  return true;*/
 }
 
 class Vec4fSmaller : Expr {
@@ -765,26 +774,27 @@ class Vec4fSmaller : Expr {
   private this() { }
   override {
     IType valueType() { return Single!(SysInt); }
-    void emitAsm(AsmFile af) {
-      checkVecs();
+    void emitLLVM(LLVMFile lf) {
+      todo("Vec4fSmaller::emitLLVM");
+      /*checkVecs();
       auto t1 = ex1.valueType(), t2 = ex2.valueType();
       if (vec4f != t1 || vec4f != t2) {
         logln("Fuck. "[], t1, " or "[], t2);
         fail;
       }
-      auto filler = alignStackFor(t1, af);
-      ex1.emitAsm(af);
-      ex2.emitAsm(af);
-      af.SSEOp("movaps"[], "(%esp)"[], "%xmm0"[]);
-      af.sfree(16);
-      af.SSEOp("movaps"[], "(%esp)"[], "%xmm1"[]);
-      af.sfree(16);
-      af.sfree(filler);
-      af.SSEOp("cmpltps"[], "%xmm0"[], "%xmm1"[]);
-      af.nvm("%edx"[]);
-      af.nvm("%eax"[]);
-      af.put("movmskps %xmm1, %eax"[]);
-      af.pushStack("%eax"[], 4);
+      auto filler = alignStackFor(t1, lf);
+      ex1.emitLLVM(lf);
+      ex2.emitLLVM(lf);
+      lf.SSEOp("movaps"[], "(%esp)"[], "%xmm0"[]);
+      lf.sfree(16);
+      lf.SSEOp("movaps"[], "(%esp)"[], "%xmm1"[]);
+      lf.sfree(16);
+      lf.sfree(filler);
+      lf.SSEOp("cmpltps"[], "%xmm0"[], "%xmm1"[]);
+      lf.nvm("%edx"[]);
+      lf.nvm("%eax"[]);
+      lf.put("movmskps %xmm1, %eax"[]);
+      lf.pushStack("%eax"[], 4);*/
     }
   }
 }
@@ -806,11 +816,12 @@ class VecOp : Expr {
   override {
     string toString() { return Format("("[], ex1, " "[], op, " "[], ex2, ")"[]); }
     IType valueType() { return mkVec(type, len); }
-    void emitAsm(AsmFile af) {
-      auto t1 = ex1.valueType(), t2 = ex2.valueType();
+    void emitLLVM(LLVMFile lf) {
+      todo("VecOp::emitLLVM");
+      /*auto t1 = ex1.valueType(), t2 = ex2.valueType();
       while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }
       auto e1v = fastcast!(Vector)~ t1, e2v = fastcast!(Vector)~ t2;
-      mkVar(af, valueType(), true, (Variable var) {
+      mkVar(lf, valueType(), true, (Variable var) {
         auto entries = getTupleEntries(
           reinterpret_cast(
             fastcast!(IType)~ (fastcast!(Vector)~ valueType()).asFilledTup,
@@ -820,22 +831,22 @@ class VecOp : Expr {
         mixin(mustOffset("0"[]));
         // logln("SSE vec op: "[], ex1, ", "[], ex2, " and "[], op);
         // SSE needs no temps!
-        if (!gotSSEVecOp(af, ex1, ex2, fastcast!(Expr) (var), op)) {
-          auto filler1 = alignStackFor(t1, af); auto v1 = mkTemp(af, ex1, dg1);
-          auto filler2 = alignStackFor(t2, af); auto v2 = mkTemp(af, ex2, dg2);
+        if (!gotSSEVecOp(lf, ex1, ex2, fastcast!(Expr) (var), op)) {
+          auto filler1 = alignStackFor(t1, lf); auto v1 = mkTemp(lf, ex1, dg1);
+          auto filler2 = alignStackFor(t2, lf); auto v2 = mkTemp(lf, ex2, dg2);
           for (int i = 0; i < len; ++i) {
             Expr l1 = v1, l2 = v2;
             if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1), null, true)[i];
             if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2), null, true)[i];
-            emitAssign(af, fastcast!(LValue) (entries[i]), lookupOp(op, l1, l2));
+            emitAssign(lf, fastcast!(LValue) (entries[i]), lookupOp(op, l1, l2));
           }
           for (int i = len; i < real_len; ++i) {
-            emitAssign(af, fastcast!(LValue) (entries[i]), fastalloc!(ZeroFiller)(entries[i].valueType()));
+            emitAssign(lf, fastcast!(LValue) (entries[i]), fastalloc!(ZeroFiller)(entries[i].valueType()));
           }
-          if (dg2) dg2(); af.sfree(filler2);
-          if (dg1) dg1(); af.sfree(filler1);
+          if (dg2) dg2(); lf.sfree(filler2);
+          if (dg1) dg1(); lf.sfree(filler1);
         }
-      });
+      });*/
     }
   }
 }
@@ -847,7 +858,7 @@ class FailExpr : Expr {
   void fail() { logln("Fail: "[], mesg); fail; }
   override {
     IType valueType() { if (typeMaybe) return typeMaybe; fail(); return null; }
-    void emitAsm(AsmFile af) { fail(); }
+    void emitLLVM(LLVMFile lf) { fail(); }
     mixin defaultIterate!();
     FailExpr dup() { return this; }
   }
@@ -952,42 +963,6 @@ static this() {
     return null;
   };
 }
-
-class XMM : MValue, Literal {
-  int which;
-  this(int w) { which = w; }
-  mixin defaultIterate!();
-  override {
-    XMM dup() { return this; }
-    IType valueType() { checkVecs(); return vec4f; }
-    string getValue() { return qformat("%xmm"[], which); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("16"[]));
-      af.salloc(16);
-      af.SSEOp("movaps"[], getValue(), "(%esp)"[]);
-    }
-    void emitAssignment(AsmFile af) {
-      mixin(mustOffset("-16"[]));
-      af.SSEOp("movaps"[], "(%esp)"[], getValue());
-      af.sfree(16);
-    }
-  }
-}
-
-Object gotXMM(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  if (!t2.accept("["[])) t2.failparse("Expected [index] for SSE op"[]);
-  Expr ex;
-  if (!rest(t2, "tree.expr"[], &ex) || !t2.accept("]"[]))
-    t2.failparse("Expected index expression for SSE op! "[]);
-  opt(ex);
-  auto lit = fastcast!(IntExpr) (ex);
-  if (!lit)
-    t2.failparse("Expected integer constant for SSE reg access! "[]);
-  text = t2;
-  return fastalloc!(XMM)(lit.num);
-}
-mixin DefaultParser!(gotXMM, "tree.expr.xmm"[], "2406"[], "xmm"[]);
 
 Object gotMagnitude(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

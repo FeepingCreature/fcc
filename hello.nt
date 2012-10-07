@@ -1,9 +1,10 @@
 module hello;
 
 void main() {
-  writeln "Hello World";
+  printf "Hello World\n";
+  /*writeln "Hello World";
   using "Hello there. " writeln();
   auto add = \(int a) -> new \(int b) { return a+b; };
   int x = (add 2 3);
-  writeln "$x";
+  writeln "$x";*/
 }

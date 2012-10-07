@@ -1,6 +1,6 @@
 module ast.opers; // generalized operator handling
 
-import ast.base, ast.assign, tools.base;
+import ast.base, ast.assign, tools.base, tools.functional;
 
 Expr delegate(Expr[])[][string] operdb;
 

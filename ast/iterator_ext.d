@@ -109,13 +109,14 @@ class CrossIndexExpr : Expr {
   override {
     typeof(this) dup() { return new typeof(this) (cross, ex.dup, idx.dup); }
     IType valueType() { return mkTuple(cross.myTypes()); }
-    void emitAsm(AsmFile af) {
-      auto len = cross.myTypes().length, tup = cross.castToTuple(ex);
+    void emitLLVM(LLVMFile lf) {
+      todo("CrossIndexExpr::emitLLVM");
+      /*auto len = cross.myTypes().length, tup = cross.castToTuple(ex);
       auto lenex = mkInt(len);
-      mkVar(af, valueType(), true, (Variable var) {
+      mkVar(lf, valueType(), true, (Variable var) {
         auto root = iparse!(Scope, "cross_index_init"[], "tree.stmt"[])
                           (`{ auto count = idx; }`,
-                            "tup"[], tup, "idx"[], idx, af);
+                            "tup"[], tup, "idx"[], idx, lf);
         auto count = fastcast!(LValue)~ root.lookup("count"[]);
         assert(!!count);
         for (int i = len - 1; i >= 0; --i) {
@@ -137,8 +138,8 @@ class CrossIndexExpr : Expr {
             lookupOp("/"[], count, len)
           ));
         }
-        root.emitAsm(af);
-      });
+        root.emitLLVM(lf);
+      });*/
     }
   }
   static this() {
@@ -575,8 +576,9 @@ class SumExpr : Expr {
   SumExpr dup() { return fastalloc!(SumExpr)(iter, ex.dup); }
   override {
     IType valueType() { return iter.elemType(); }
-    void emitAsm(AsmFile af) {
-      mkVar(af, iter.elemType(), true, (Variable var) {
+    void emitLLVM(LLVMFile lf) {
+      todo("SumExpr::emitLLVM");
+      /*mkVar(lf, iter.elemType(), true, (Variable var) {
         if (auto ri = fastcast!(RichIterator)~ iter) {
           // unroll. TODO: decide when.
           auto stmt = iparse!(Statement, "sum_1"[], "tree.stmt"[])
@@ -593,9 +595,9 @@ class SumExpr : Expr {
               eval val <- i2; var += val;
             }
             while temp <- i2 { var += temp; }
-          } `, "iter"[], ex, "T"[], iter.elemType(), "var"[], var, af);
+          } `, "iter"[], ex, "T"[], iter.elemType(), "var"[], var, lf);
           // opt(stmt);
-          stmt.emitAsm(af);
+          stmt.emitLLVM(lf);
         } else {
           auto stmt = iparse!(Statement, "sum_2"[], "tree.stmt"[])
           (`
@@ -604,11 +606,11 @@ class SumExpr : Expr {
             T temp;
             eval var <- i2;
             while temp <- i2 { var += temp; }
-          }`, "iter"[], ex, "T"[], iter.elemType(), "var"[], var, af);
+          }`, "iter"[], ex, "T"[], iter.elemType(), "var"[], var, lf);
           // opt(stmt);
-          stmt.emitAsm(af);
+          stmt.emitLLVM(lf);
         }
-      });
+      });*/
     }
   }
 }

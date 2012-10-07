@@ -32,7 +32,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   nf.type.params ~= Argument(objtype, "_obj"[]);
   static int hdlId;
   synchronized
-    nf.name = Format("hdlfn_"[], hdlId++);
+    nf.name = Format("hd(lf)n_"[], hdlId++);
   nf.sup = mod;
   mod.entries ~= fastcast!(Tree)~ nf;
   {

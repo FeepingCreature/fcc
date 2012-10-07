@@ -42,17 +42,18 @@ class ConcatChain : Expr {
   override {
     IType valueType() { return type; }
     string toString() { return Format("~"[], arrays); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("valueType().size"[]));
-      mkVar(af, type, true, (Variable var) {
+    void emitLLVM(LLVMFile lf) {
+      todo("ConcatChain::emitLLVM");
+      /*mixin(mustOffset("valueType().size"[]));
+      mkVar(lf, type, true, (Variable var) {
         mixin(mustOffset("0"[]));
         auto sc = new Scope;
         namespace.set(sc);
         scope(exit) namespace.set(sc.sup);
-        sc.requiredDepth = af.currentStackDepth;
+        sc.requiredDepth = lf.currentStackDepth;
         
         sc._body = Single!(NoOp);
-        auto dg = sc.open(af);
+        auto dg = sc.open(lf);
         scope(exit) dg()(false);
         
         string lit;
@@ -72,9 +73,9 @@ class ConcatChain : Expr {
           
         auto sa = fastalloc!(StaticArray)(valueType(), cacheNeeded);
         auto
-          offset = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), af.currentStackDepth)),
-          total  = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize)),
-          cache  = fastalloc!(Variable)(sa,              cast(string) null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
+          offset = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), lf.currentStackDepth)),
+          total  = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), lf.currentStackDepth + nativeIntSize)),
+          cache  = fastalloc!(Variable)(sa,              cast(string) null, boffs(sa             , lf.currentStackDepth + nativeIntSize * 2));
         
         int known_len;
         foreach (array; arrays) {
@@ -86,32 +87,32 @@ class ConcatChain : Expr {
 
         auto od = fastalloc!(VarDecl)(offset);
         od.initInit;
-        od.emitAsm(af);
-        (fastalloc!(VarDecl)(total, mkInt(known_len))).emitAsm(af);
-        (fastalloc!(VarDecl)(cache)).emitAsm(af);
+        od.emitLLVM(lf);
+        (fastalloc!(VarDecl)(total, mkInt(known_len))).emitLLVM(lf);
+        (fastalloc!(VarDecl)(cache)).emitLLVM(lf);
         int cacheId = 0;
         foreach (array; arrays) {
           if (array.valueType() == type.elemType) continue;
           if (isLiteral(array)) continue;
           // cache[i] = array
           auto cachepos = getIndex(cache, mkInt(cacheId++));
-          emitAssign(af, cachepos, array);
+          emitAssign(lf, cachepos, array);
           // total = total + cache[i].length
-          emitAssign(af, total, lookupOp("+"[], total, getArrayLength(cachepos)));
+          emitAssign(lf, total, lookupOp("+"[], total, getArrayLength(cachepos)));
         }
         iparse!(Statement, "alloc_array"[], "tree.semicol_stmt.assign"[])
         (
           "var = new T[] total"[],
           "var"[], var, "T"[], type.elemType,
           "total"[], total
-        ).emitAsm(af);
+        ).emitLLVM(lf);
         cacheId = 0;
         foreach (array; arrays) {
           if (array.valueType() == type.elemType) {
             /// var[offset] = cache[i];
-            emitAssign(af, getIndex(var, offset), reinterpret_cast(type.elemType, array));
+            emitAssign(lf, getIndex(var, offset), reinterpret_cast(type.elemType, array));
             /// offset = offset + 1
-            emitAssign(af, offset, lookupOp("+"[], offset, mkInt(1)));
+            emitAssign(lf, offset, lookupOp("+"[], offset, mkInt(1)));
           } else {
             Expr c;
             if (isLiteral(array)) c = array;
@@ -120,12 +121,12 @@ class ConcatChain : Expr {
             auto end = lookupOp("+", offset, len);
             opt(end);
             /// var[offset .. offset + cache[i].length] = cache[i];
-            optst(getSliceAssign(mkArraySlice(var, offset, end), c)).emitAsm(af);
+            optst(getSliceAssign(mkArraySlice(var, offset, end), c)).emitLLVM(lf);
             /// offset = offset + cache[i].length;
-            emitAssign(af, offset, end);
+            emitAssign(lf, offset, end);
           }
         }
-      });
+      });*/
     }
   }
 }

@@ -17,23 +17,25 @@ class ExternCGlobVar : LValue, Named {
   override {
     IType valueType() { return type; }
     string getIdentifier() { return name; }
-    void emitAsm(AsmFile af) {
-      if (isARM) {
+    void emitLLVM(LLVMFile lf) {
+      todo("ExternCGlobVar::emitLLVM");
+      /*if (isARM) {
         if (type.size != 4) fail;
-        af.mmove4(qformat("="[], name), "r0"[]);
-        af.mmove4("[r0]"[], "r0"[]);
-        af.pushStack("r0"[], 4);
+        lf.mmove4(qformat("="[], name), "r0"[]);
+        lf.mmove4("[r0]"[], "r0"[]);
+        lf.pushStack("r0"[], 4);
       } else {
-        af.pushStack(name, type.size);
-      }
+        lf.pushStack(name, type.size);
+      }*/
     }
-    void emitLocation(AsmFile af) {
-      if (isARM) {
-        af.loadAddress(qformat("#"[], name), "r0"[]);
-        af.pushStack("r0"[], 4);
+    void emitLocation(LLVMFile lf) {
+      todo("ExternCGlobVar::emitLocation");
+      /*if (isARM) {
+        lf.loadAddress(qformat("#"[], name), "r0"[]);
+        lf.pushStack("r0"[], 4);
       } else {
-        af.pushStack(qformat("$"[], name), nativePtrSize);
-      }
+        lf.pushStack(qformat("$"[], name), nativePtrSize);
+      }*/
     }
     string toString() { return Format("extern(C) global "[], ns.get!(Module)().name, "."[], name, " of "[], type); }
   }

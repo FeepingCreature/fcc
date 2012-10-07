@@ -204,12 +204,12 @@ class NestedCall : FunCall {
     if (ebp) res.ebp = ebp.dup;
     return res;
   }
-  override void emitWithArgs(AsmFile af, Expr[] args) {
+  override void emitWithArgs(LLVMFile lf, Expr[] args) {
     // if (dg) logln("call "[], dg);
     // else logln("call {"[], fun.getPointer(), " @ebp"[]);
-    if (setup) setup.emitAsm(af);
-    if (dg) callDg(af, fun.type.ret, args, dg);
-    else callDg(af, fun.type.ret, args,
+    if (setup) setup.emitLLVM(lf);
+    if (dg) callDg(lf, fun.type.ret, args, dg);
+    else callDg(lf, fun.type.ret, args,
       optex(fastalloc!(DgConstructExpr)(fun.getPointer(), ebp)));
   }
   override IType valueType() {

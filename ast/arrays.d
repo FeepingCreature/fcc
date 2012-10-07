@@ -203,13 +203,15 @@ IType arrayAsStruct(IType base, bool rich) {
   }
   cache ~= stuple(base, rich, mod, fastcast!(IType) (res));
   isArrayStructType[res] = true;
-  mkFun("free"[], Single!(Void), delegate Tree() {
+  logln("todo array.free");
+  /*mkFun("free"[], Single!(Void), delegate Tree() {
     if (rich) return iparse!(Statement, "array_free"[], "tree.stmt"[])
                   (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, namespace());
     else return iparse!(Statement, "array_free"[], "tree.stmt"[])
                   (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, namespace());
-  });
-  if (!rich) {
+  });*/
+  logln("todo array.dup");
+  /*if (!rich) {
     auto propbackup = propcfg().withTuple;
     propcfg().withTuple = true;
     scope(exit) propcfg().withTuple = propbackup;
@@ -219,8 +221,9 @@ IType arrayAsStruct(IType base, bool rich) {
               res, "base"[], base),
       "dup"
     ));
-  }
-  if (base != Single!(Void) && base.size <= 16 /* max supported return size */) {
+  }*/
+  logln("todo array.popEnd");
+  /*if (base != Single!(Void)) {
     mkFun("popEnd"[], base, delegate Tree() {
       auto len = fastcast!(LValue) (namespace().lookup("length"[]));
       auto p = fastcast!(Expr) (namespace().lookup("ptr"[]));
@@ -231,7 +234,7 @@ IType arrayAsStruct(IType base, bool rich) {
         )
       );
     });
-  }
+  }*/
   
   return res;
 }
@@ -273,8 +276,8 @@ class ArrayLength_Base : Expr {
   IType valueType() {
     return Single!(SysInt); // TODO: size_t when unsigned conversion works
   }
-  void emitAsm(AsmFile af) {
-    (new MemberAccess_Expr(arrayToStruct(array), "length"[])).emitAsm(af);
+  void emitLLVM(LLVMFile lf) {
+    (new MemberAccess_Expr(arrayToStruct(array), "length"[])).emitLLVM(lf);
   }
   mixin defaultIterate!(array);
   mixin DefaultDup!();
@@ -296,7 +299,7 @@ class ArrayLength(T) : ArrayLength_Base, T {
       return Single!(SysInt); // TODO: size_t when unsigned conversion works
     }
     string toString() { return Format("length("[], array, ")"[]); }
-    static if (is(T == MValue)) void emitAssignment(AsmFile af) {
+    static if (is(T == MValue)) void emitAssignment(LLVMFile lf) {
       assert(false, "TODO"[]);
     }
   }
@@ -333,14 +336,14 @@ class ArrayMaker : Expr {
     return cachedType;
   }
   import ast.vardecl, ast.assign;
-  override void emitAsm(AsmFile af) {
+  override void emitLLVM(LLVMFile lf) {
     // logln("emit array maker ", count);
     // logln("PTR ", ptr);
     // logln("LEN ", length);
-    ptr.emitAsm(af);
-    length.emitAsm(af);
+    ptr.emitLLVM(lf);
+    length.emitLLVM(lf);
     if (cap)
-      cap.emitAsm(af);
+      cap.emitLLVM(lf);
   }
 }
 
@@ -356,16 +359,17 @@ class AllocStaticArray : Expr {
   override {
     AllocStaticArray dup() { return fastalloc!(AllocStaticArray)(sa.dup); }
     IType valueType() { return fastalloc!(Array)(st.elemType); }
-    void emitAsm(AsmFile af) {
-      mkVar(af, valueType(), true, (Variable var) {
-        sa.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("AllocStaticArray::emitLLVM");
+      /*mkVar(lf, valueType(), true, (Variable var) {
+        sa.emitLLVM(lf);
         iparse!(Statement, "new_sa"[], "tree.stmt"[])
                (`var = new T[] size; `
                ,"var"[], var, "T"[], st.elemType, "size"[], mkInt(st.length)
-               ).emitAsm(af);
-        af.mmove4(qformat(4 + st.length, "(%esp)"[]), "%eax"[]);
-        af.popStack("(%eax)"[], st.size);
-      });
+               ).emitLLVM(lf);
+        lf.mmove4(qformat(4 + st.length, "(%esp)"[]), "%eax"[]);
+        lf.popStack("(%eax)"[], st.size);
+      });*/
     }
   }
 }
@@ -441,9 +445,9 @@ class ArrayExtender : Expr {
   mixin defaultIterate!(array, ext);
   override {
     IType valueType() { if (!cachedType) cachedType = fastalloc!(ExtArray)(baseType, false); return cachedType; }
-    void emitAsm(AsmFile af) {
-      array.emitAsm(af);
-      ext.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      array.emitLLVM(lf);
+      ext.emitLLVM(lf);
     }
   }
 }

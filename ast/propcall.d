@@ -110,7 +110,7 @@ class MyPlaceholderExpr : Expr {
         fpos.fpvt = fpos.firstParam.valueType();
       }
     }
-    void emitAsm(AsmFile af) { fpos.firstParam.emitAsm(af); }
+    void emitLLVM(LLVMFile lf) { fpos.firstParam.emitLLVM(lf); }
     MyPlaceholderExpr dup() { assert(false); }
     IType valueType() { return fpos; }
   }

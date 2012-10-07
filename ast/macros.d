@@ -38,41 +38,42 @@ class Swap : Statement {
       if (mv1) return fastalloc!(Swap)(mv1.dup, mv2.dup);
       else return fastalloc!(Swap)(lv1.dup, lv2.dup);
     }
-    void emitAsm(AsmFile af) {
-      if (mv1) {
-        mv1.emitAsm(af);
-        mv2.emitAsm(af);
-        mv1.emitAssignment(af);
-        mv2.emitAssignment(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("Swap::emitLLVM");
+      /*if (mv1) {
+        mv1.emitLLVM(lf);
+        mv2.emitLLVM(lf);
+        mv1.emitAssignment(lf);
+        mv2.emitAssignment(lf);
         return;
       }
-      lv1.emitLocation(af);
-      lv2.emitLocation(af);
-      af.popStack("%eax", 4);
-      af.popStack("%ebx", 4);
+      lv1.emitLocation(lf);
+      lv2.emitLocation(lf);
+      lf.popStack("%eax", 4);
+      lf.popStack("%ebx", 4);
       int sz = sz;
       int offs;
       if (sz % 4 == 0) {
         while (sz) {
-          af.mmove4(qformat(offs, "(%eax)"[]), "%ecx");
-          af.mmove4(qformat(offs, "(%ebx)"[]), "%edx");
-          af.mmove4("%ecx", qformat(offs, "(%ebx)"[]));
-          af.mmove4("%edx", qformat(offs, "(%eax)"[])); // faster than af.swap!
+          lf.mmove4(qformat(offs, "(%eax)"[]), "%ecx");
+          lf.mmove4(qformat(offs, "(%ebx)"[]), "%edx");
+          lf.mmove4("%ecx", qformat(offs, "(%ebx)"[]));
+          lf.mmove4("%edx", qformat(offs, "(%eax)"[])); // faster than lf.swap!
           offs += 4;
           sz -= 4;
         }
       } else {
         while (sz) {
-          af.mmove1(qformat(offs, "(%eax)"[]), "%cl");
-          af.mmove1(qformat(offs, "(%ebx)"[]), "%dl");
-          af.mmove1("%cl", qformat(offs, "(%ebx)"[]));
-          af.mmove1("%dl", qformat(offs, "(%eax)"[])); // faster than af.swap!
+          lf.mmove1(qformat(offs, "(%eax)"[]), "%cl");
+          lf.mmove1(qformat(offs, "(%ebx)"[]), "%dl");
+          lf.mmove1("%cl", qformat(offs, "(%ebx)"[]));
+          lf.mmove1("%dl", qformat(offs, "(%eax)"[])); // faster than lf.swap!
           offs ++;
           sz --;
         }
       }
-      af.nvm("%eax");
-      af.nvm("%ebx");
+      lf.nvm("%eax");
+      lf.nvm("%ebx");*/
     }
   }
 }

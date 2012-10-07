@@ -9,8 +9,9 @@ class Constant : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!();
   override IType valueType() { return voidp; }
-  override void emitAsm(AsmFile af) {
-    af.mmove4(af.addressof(name), af.regs[0]);
-    af.pushStack(af.regs[0], nativePtrSize);
+  override void emitLLVM(LLVMFile lf) {
+    todo("Constant::emitLLVM");
+    /*lf.mmove4(lf.addressof(name), lf.regs[0]);
+    lf.pushStack(lf.regs[0], nativePtrSize);*/
   }
 }

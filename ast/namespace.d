@@ -1,6 +1,7 @@
 module ast.namespace;
 
 import ast.base;
+import tools.base, tools.functional;
 
 T aadup(T)(T t) {
   T res;
@@ -367,7 +368,7 @@ template iparse(R, string id, string rule, bool mustParse = true, bool optres = 
     scope(exit) bench[id] += sec() - start;
     auto popCache = pushCache(); scope(exit) popCache();
     
-    static if (is(T[$-1] == AsmFile)) alias T[0 .. $-1] T2;
+    static if (is(T[$-1] == LLVMFile)) alias T[0 .. $-1] T2;
     else alias T T2;
     
     static if (T2.length && is(T2[0]: Namespace)) alias T2[1 .. $] T3;
@@ -408,7 +409,8 @@ template iparse(R, string id, string rule, bool mustParse = true, bool optres = 
       myns.add(t[i*2], t[i*2+1]);
     }
     
-    static if (is(T[$-1] == AsmFile)) {
+    static if (is(T[$-1] == LLVMFile)) {
+      static assert(false, "TODO: LLVMFile");
       myns.fs = t[$-1].currentStackDepth;
     }
     
@@ -537,7 +539,7 @@ template ImporterImpl(alias parseme = noop) {
     
     foreach (ns; static_imports) if (auto imod = fastcast!(IModule) (ns)) {
       static if (debug_lookup) logln("2: "[], name, " in "[], ns, "?"[]);
-      if (auto lname = name.startsWith(imod.getIdentifier()).startsWith("."[])) {
+      if (auto lname = parseBase.startsWith(parseBase.startsWith(name, imod.getIdentifier()), ".")) {
         if (auto res = ns.lookup(lname)) return res;
       }
     }

@@ -68,7 +68,7 @@ class PrefixFunction : Function {
     int fixup() { assert(false); } // this better be extern(C)
     string exit() { assert(false); }
     int framestart() { assert(false); }
-    void emitAsm(AsmFile af) { assert(false); }
+    void emitLLVM(LLVMFile lf) { assert(false); }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) { assert(false); }
   }
@@ -94,8 +94,8 @@ class PrefixCall : FunCall {
     sup.iterate(dg, mode);
     super.iterate(dg, mode);
   }
-  override void emitWithArgs(AsmFile af, Expr[] args) {
-    sup.emitWithArgs(af, prefix ~ args);
+  override void emitWithArgs(LLVMFile lf, Expr[] args) {
+    sup.emitWithArgs(lf, prefix ~ args);
   }
   override string toString() { return Format("prefixcall("[], fun, " [prefix] "[], prefix, " [rest] "[], sup, ": "[], super.getParams(), ")"[]); }
   override IType valueType() { return sup.valueType(); }

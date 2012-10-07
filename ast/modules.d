@@ -4,8 +4,6 @@ import ast.base, ast.namespace, ast.parse, ast.fold, ast.fun;
 
 import tools.ctfe, tools.threadpool;
 
-alias asmfile.startsWith startsWith;
-
 string[] include_path;
 
 bool dumpXMLRep;
@@ -35,7 +33,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
   Tree[] entries;
   Setupable[] setupable;
   bool parsingDone;
-  AsmFile inProgress; // late to the party;
+  LLVMFile inProgress; // late to the party;
   bool _hasDebug = true;
   Module[] getAllModuleImports() {
     Module[] res;
@@ -93,12 +91,13 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     }
     Module dup() { assert(false, "What the hell are you doing, man. "[]); }
     string getIdentifier() { return name; }
-    void emitAsm(AsmFile af) {
-      auto backup = current_module();
+    void emitLLVM(LLVMFile lf) {
+      todo("Module::emitLLVM");
+      /*auto backup = current_module();
       scope(exit) current_module.set(backup);
       current_module.set(this);
-      inProgress = af;
-      foreach (s; setupable) s.setup(af);
+      inProgress = (lf);
+      foreach (s; setupable) s.setup(lf);
       scope(exit) inProgress = null;
       
       int i; // NOTE: not a foreach! entries may yet grow.
@@ -112,18 +111,18 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
           auto codename = Format("index_"[], i);
           if (auto mang = fastcast!(IsMangled) (entry)) codename = mang.mangleSelf();
           if (isWindoze())
-            af.put(".section .text."[], codename, ", \"ax\""[]);
+            lf.put(".section .text."[], codename, ", \"ax\""[]);
           else if (isARM)
             {}
           else
-            af.put(".section .text."[], codename, ", \"ax\", @progbits"[]);
+            lf.put(".section .text."[], codename, ", \"ax\", @progbits"[]);
         }
         opt(entry);
-        entry.emitAsm(af);
+        entry.emitLLVM(lf);
       }
-      if (!isARM) af.put(".section .text"[]);
+      if (!isARM) lf.put(".section .text"[]);
       doneEmitting = true;
-      checkImportsUsage;
+      checkImportsUsage;*/
     }
     string mangle(string name, IType type) {
       return qformat("module_"[], cleaned_name(), "_"[], name.cleanup(), type?qformat("_of_"[], type.mangle()):""[]);
@@ -131,7 +130,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     Object lookup(string name, bool local = false) {
       if (auto res = super.lookup(name)) return res;
       
-      if (auto lname = name.startsWith(this.name).startsWith("."[]))
+      if (auto lname = parseBase.startsWith(parseBase.startsWith(name, this.name), "."))
         if (auto res = super.lookup(lname)) return res;
       
       return lookupInImports(name, local);
@@ -169,7 +168,7 @@ static this() {
   });
 }
 
-import tools.compat: read, castLike, exists, sub;
+import tools.base: read, castLike, exists, sub;
 string[] module_stack;
 Module[string] modules_wip;
 Module lookupMod(string name) {

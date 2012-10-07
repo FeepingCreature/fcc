@@ -41,17 +41,18 @@ class Property : MValue, RelTransformable {
         return getter.type.ret;
       }
     }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("valueType().size"[]));
+    void emitLLVM(LLVMFile lf) {
+      todo("Property::emitLLVM");
+      /*mixin(mustOffset("valueType().size"[]));
       if (Single!(Void) == getter.type.ret) {
-        mkVar(af, fastcast!(Pointer) (getter.type.params[0].type).target, false, (Variable var) {
+        mkVar(lf, fastcast!(Pointer) (getter.type.params[0].type).target, false, (Variable var) {
           // logln("::"[], buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(var)), "property-get-pointer-call"[]));
           // logln(fastcast!(Object) (buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(var)), "property-get-pointer-call"[])).classinfo.name);
-          (buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(var)), "property-get-pointer-call"[])).emitAsm(af);
+          (buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(var)), "property-get-pointer-call"[])).emitLLVM(lf);
         });
       } else {
-        (buildFunCall(getter, mkTupleExpr(), "property-call"[])).emitAsm(af);
-      }
+        (buildFunCall(getter, mkTupleExpr(), "property-call"[])).emitLLVM(lf);
+      }*/
     }
     Object transform(Expr ex) {
       if (!ph) fail;
@@ -74,11 +75,12 @@ class Property : MValue, RelTransformable {
       s2.iterate(&replace, IterMode.Semantic);
       return fastalloc!(Property)(g2, s2);
     }
-    void emitAssignment(AsmFile af) {
-      auto type = setter.type.params[0].type;
-      auto var = fastalloc!(OffsetExpr)(-af.currentStackDepth, type);
-      (buildFunCall(setter, var, "property-write-call"[])).emitAsm(af);
-      af.sfree(type.size);
+    void emitAssignment(LLVMFile lf) {
+      todo("Property::emitAssignment");
+      /*auto type = setter.type.params[0].type;
+      auto var = fastalloc!(OffsetExpr)(-(lf).currentStackDepth, type);
+      (buildFunCall(setter, var, "property-write-call"[])).emitLLVM(lf);
+      lf.sfree(type.size);*/
     }
   }
 }

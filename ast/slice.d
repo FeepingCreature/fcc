@@ -38,17 +38,18 @@ class FullSlice : Expr {
     FullSlice dup() { return fastalloc!(FullSlice)(sup.dup); }
     IType valueType() { return type; }
     import ast.vardecl, ast.assign;
-    void emitAsm(AsmFile af) {
-      mkVarUnaligned(af, valueType(), true, (Variable var) {
-        auto backup = af.checkptStack();
-        scope(exit) af.restoreCheckptStack(backup);
+    void emitLLVM(LLVMFile lf) {
+      todo("FullSlice::emitLLVM");
+      /*mkVarUnaligned(lf, valueType(), true, (Variable var) {
+        auto backup = lf.checkptStack();
+        scope(exit) lf.restoreCheckptStack(backup);
         
-        auto temp = fastalloc!(Variable)(sup.valueType(), cast(string) null, boffs(sup.valueType(), af.currentStackDepth));
+        auto temp = fastalloc!(Variable)(sup.valueType(), cast(string) null, boffs(sup.valueType(), lf.currentStackDepth));
         
-        (fastalloc!(VarDecl)(temp, sup)).emitAsm(af);
+        (fastalloc!(VarDecl)(temp, sup)).emitLLVM(lf);
         
-        emitAssign(af, var, optex(mkArraySlice(temp, mkInt(0), getArrayLength(temp))));
-      });
+        emitAssign(lf, var, optex(mkArraySlice(temp, mkInt(0), getArrayLength(temp))));
+      });*/
     }
   }
 }

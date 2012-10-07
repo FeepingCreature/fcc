@@ -6,7 +6,7 @@ import
   ast.withstmt, ast.casting, ast.pointer, ast.aliasing, ast.vardecl: lvize;
 
 import tools.ctfe: ctReplace;
-import tools.base: tolower;
+import tools.base: tolower, slice;
 
 class Mode {
   string config;

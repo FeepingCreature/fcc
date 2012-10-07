@@ -48,28 +48,29 @@ class RelFunCall : FunCall, RelTransformable {
     res.baseptr = base;
     return res;
   }
-  override void emitAsm(AsmFile af) {
-    if (!baseptr) {
+  override void emitLLVM(LLVMFile lf) {
+    todo("RelFunCall::emitLLVM");
+    /*if (!baseptr) {
       logln("Untransformed rel-funcall: "[], this);
       fail;
     }
     if (auto lv = fastcast!(LValue)~ baseptr) {
-      callDg(af, fun.type.ret, params,
+      callDg(lf, fun.type.ret, params,
         fastalloc!(DgConstructExpr)(fun.getPointer(), fastalloc!(RefExpr)(lv)));
     } else {
-      mkVar(af, valueType(), true, (Variable var) {
-        auto backup = af.checkptStack();
-        scope(exit) af.restoreCheckptStack(backup);
-        auto temp = fastalloc!(Variable)(baseptr.valueType(), cast(string) null, boffs(baseptr.valueType(), af.currentStackDepth));
-        (fastalloc!(VarDecl)(temp, baseptr)).emitAsm(af);
+      mkVar(lf, valueType(), true, (Variable var) {
+        auto backup = lf.checkptStack();
+        scope(exit) lf.restoreCheckptStack(backup);
+        auto temp = fastalloc!(Variable)(baseptr.valueType(), cast(string) null, boffs(baseptr.valueType(), lf.currentStackDepth));
+        (fastalloc!(VarDecl)(temp, baseptr)).emitLLVM(lf);
         Variable res;
         // don't process res if void
-        if (var) res = fastalloc!(Variable)(valueType(), cast(string) null, boffs(valueType(), af.currentStackDepth));
-        callDg(af, fun.type.ret, params,
+        if (var) res = fastalloc!(Variable)(valueType(), cast(string) null, boffs(valueType(), lf.currentStackDepth));
+        callDg(lf, fun.type.ret, params,
           fastalloc!(DgConstructExpr)(fun.getPointer(), fastalloc!(RefExpr)(temp)));
-        if (var) emitAssign(af, var, res);
+        if (var) emitAssign(lf, var, res);
       });
-    }
+    }*/
   }
   override IType valueType() {
     return fun.type.ret;

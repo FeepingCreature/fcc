@@ -175,7 +175,7 @@ class WithSpace : Namespace {
     string mangle(string name, IType type) { assert(false); }
     Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) {
-      if (name == "this") // skip the riffraff
+      if (name == "this") // skip the riffr(lf)f
         return get!(Function).lookup("this", local);
       if (name == "that"[]) {
         if (!pureValue) throw new Exception("Oops. "[]);

@@ -37,55 +37,57 @@ class GlobVar : LValue, Named, IsMangled {
     void markWeak() { weak = true; }
     IType valueType() { return type; }
     string getIdentifier() { return cleanedName(); }
-    void emitAsm(AsmFile af) {
-      if (!type.size) return; // hah
+    void emitLLVM(LLVMFile lf) {
+      todo("GlobVar::emitLLVM");
+      /*if (!type.size) return; // hah
       if (isARM) {
-        af.mmove4(qformat("="[], mangleSelf()), "r2"[]);
+        lf.mmove4(qformat("="[], mangleSelf()), "r2"[]);
         if (tls) {
-          af.mmove4("=_sys_tls_data_start"[], "r3"[]);
-          af.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
-          af.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
+          lf.mmove4("=_sys_tls_data_start"[], "r3"[]);
+          lf.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
+          lf.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
         }
-        armpush(af, "r2"[], type.size);
+        armpush(lf, "r2"[], type.size);
         return;
       }
       if (tls) {
-        af.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
-        af.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
-        af.mathOp("addl"[], "%esi"[], "%eax"[]);
-        af.pushStack("(%eax)"[], type.size);
+        lf.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
+        lf.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
+        lf.mathOp("addl"[], "%esi"[], "%eax"[]);
+        lf.pushStack("(%eax)"[], type.size);
       }
       else {
-        af.mmove4("$"~mangleSelf(), "%eax"[]);
-        af.pushStack("(%eax)"[], type.size);
-        // af.pushStack(mangleSelf(), type.size);
-      }
+        lf.mmove4("$"~mangleSelf(), "%eax"[]);
+        lf.pushStack("(%eax)"[], type.size);
+        // lf.pushStack(mangleSelf(), type.size);
+      }*/
     }
-    void emitLocation(AsmFile af) {
-      if (!type.size) {
-        af.mmove4("$0"[], "%eax"[]); // lol
-        af.pushStack("%eax"[], 4);
+    void emitLocation(LLVMFile lf) {
+      todo("GlobVar::emitLocation");
+      /*if (!type.size) {
+        lf.mmove4("$0"[], "%eax"[]); // lol
+        lf.pushStack("%eax"[], 4);
         return;
       }
       if (isARM) {
-        af.mmove4(qformat("="[], mangleSelf()), "r2"[]);
+        lf.mmove4(qformat("="[], mangleSelf()), "r2"[]);
         if (tls) {
-          af.mmove4("=_sys_tls_data_start"[], "r3"[]);
-          af.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
-          af.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
+          lf.mmove4("=_sys_tls_data_start"[], "r3"[]);
+          lf.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
+          lf.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
         }
-        af.pushStack("r2"[], 4);
+        lf.pushStack("r2"[], 4);
         return;
       }
       if (tls) {
-        af.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
-        af.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
-        af.mathOp("addl"[], "%esi"[], "%eax"[]);
-        af.pushStack("%eax"[], nativePtrSize);
-        af.nvm("%eax"[]);
+        lf.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
+        lf.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
+        lf.mathOp("addl"[], "%esi"[], "%eax"[]);
+        lf.pushStack("%eax"[], nativePtrSize);
+        lf.nvm("%eax"[]);
       } else {
-        af.pushStack(qformat("$"[], mangleSelf()), nativePtrSize);
-      }
+        lf.pushStack(qformat("$"[], mangleSelf()), nativePtrSize);
+      }*/
     }
     string toString() { return Format("global "[], ns.get!(Module)().name, "."[], name, " of "[], type); }
   }
@@ -113,16 +115,17 @@ class GlobVarDecl : Statement, IsMangled {
       return res;
     }
     string toString() { return Format("declare "[], tls?"tls ":""[], vars); }
-    void emitAsm(AsmFile af) {
-      if (tls) {
+    void emitLLVM(LLVMFile lf) {
+      todo("GlobVarDecl::emitLLVM");
+      /*if (tls) {
         foreach (var; vars)
           with (var) if (type.size)
-            af.addTLS(mangleSelf(), type.size, getInit(), var.weak);
+            lf.addTLS(mangleSelf(), type.size, getInit(), var.weak);
       } else {
         foreach (var; vars)
           with (var) if (type.size)
-            af.globvars[mangleSelf()] = stuple(type.size, getInit(), var.weak);
-      }
+            lf.globvars[mangleSelf()] = stuple(type.size, getInit(), var.weak);
+      }*/
     }
   }
 }

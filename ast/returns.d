@@ -31,32 +31,33 @@ class ReturnStmt : Statement {
     }
   }
   string toString() { return Format("return "[], value); }
-  override void emitAsm(AsmFile af) {
-    auto fun = ns.get!(Function);
+  override void emitLLVM(LLVMFile lf) {
+    todo("ReturnStmt::emitLLVM");
+    /*auto fun = ns.get!(Function);
     
-    auto backup = af.checkptStack();
-    scope(exit) af.restoreCheckptStack(backup, true /* restoring to larger depth */);
+    auto backup = lf.checkptStack();
+    scope(exit) lf.restoreCheckptStack(backup, true /* restoring to larger depth * /);
     
     void emitGuards(bool mustPreserveStack) {
       foreach_reverse(i, stmt; guards) {
-        auto delta = af.currentStackDepth - guard_offsets[i];
+        auto delta = lf.currentStackDepth - guard_offsets[i];
         if (delta) {
           if (mustPreserveStack) {
-            logln("WARN this is unsafe: ", delta, " between ", af.currentStackDepth, " since we wanted [", i, "] ", guard_offsets[i]);
+            logln("WARN this is unsafe: ", delta, " between ", lf.currentStackDepth, " since we wanted [", i, "] ", guard_offsets[i]);
             logln("guard is ", stmt);
             logln("we are forced to use a wrong stack offset for a statement because the return type of a function was indeterminate when a retval holder was requested");
             // asm { int 3; }
-          } else af.restoreCheckptStack(guard_offsets[i]);
+          } else lf.restoreCheckptStack(guard_offsets[i]);
         }
         // dup because we know this is safe for multi-emit; it may get emat multiple times, but it will only get called once.
-        stmt.dup().emitAsm(af);
+        stmt.dup().emitLLVM(lf);
       }
     }
     if (value) {
       if (Single!(Void) == value.valueType()) {
         mixin(mustOffset("0"[]));
         scope(failure) logln("While returning ", value, " of ", value.valueType());
-        value.emitAsm(af);
+        value.emitLLVM(lf);
         emitGuards(false);
       } else {
         // mixin(mustOffset("0"[]));
@@ -64,38 +65,38 @@ class ReturnStmt : Statement {
         auto vt = value.valueType();
         Expr value = myRetvalHolder;
         int tofree;
-        scope(success) af.sfree(tofree);
+        scope(success) lf.sfree(tofree);
         auto var = fastcast!(Variable) (value);
         if (value && !var) fail;
-        if (guards && var && -var.baseOffset > af.currentStackDepth) {
-          logln("var is ", var, " at ", -var.baseOffset, " while we're at ", af.currentStackDepth, ", with ", guards);
+        if (guards && var && -var.baseOffset > lf.currentStackDepth) {
+          logln("var is ", var, " at ", -var.baseOffset, " while we're at ", lf.currentStackDepth, ", with ", guards);
           fail;
         }
         if (var) {
-          if (af.currentStackDepth != -var.baseOffset) {
-            if (af.currentStackDepth > -var.baseOffset) {
-              // af.restoreCheckptStack(-var.baseOffset);
+          if (lf.currentStackDepth != -var.baseOffset) {
+            if (lf.currentStackDepth > -var.baseOffset) {
+              // lf.restoreCheckptStack(-var.baseOffset);
             } else {
-              logln("bad place to grab ", var, " for return: declared at ", -var.baseOffset, " currentStackDepth ", af.currentStackDepth, " btw ", guards);
+              logln("bad place to grab ", var, " for return: declared at ", -var.baseOffset, " currentStackDepth ", lf.currentStackDepth, " btw ", guards);
               asm { int 3; }
             }
           }
-          emitAssign(af, fastcast!(LValue) (value), this.value);
+          emitAssign(lf, fastcast!(LValue) (value), this.value);
           emitGuards(false);
-          if (af.currentStackDepth != -var.baseOffset) {
-            if (af.currentStackDepth > -var.baseOffset) {
-              af.restoreCheckptStack(-var.baseOffset);
+          if (lf.currentStackDepth != -var.baseOffset) {
+            if (lf.currentStackDepth > -var.baseOffset) {
+              lf.restoreCheckptStack(-var.baseOffset);
             } else {
-              logln("bad place to grab ", var, " for return: declared at ", -var.baseOffset, " currentStackDepth ", af.currentStackDepth, " btw ", guards);
+              logln("bad place to grab ", var, " for return: declared at ", -var.baseOffset, " currentStackDepth ", lf.currentStackDepth, " btw ", guards);
             }
           }
         } else {
-          tofree = alignStackFor(vt, af);
-          var = fastalloc!(Variable)(vt, cast(string) null, boffs(vt, af.currentStackDepth));
+          tofree = alignStackFor(vt, lf);
+          var = fastalloc!(Variable)(vt, cast(string) null, boffs(vt, lf.currentStackDepth));
           value = var;
-          (fastalloc!(VarDecl)(var)).emitAsm(af);
+          (fastalloc!(VarDecl)(var)).emitLLVM(lf);
           tofree += vt.size; // pro forma
-          emitAssign(af, var, this.value);
+          emitAssign(lf, var, this.value);
           emitGuards(true);
         }
         
@@ -105,45 +106,45 @@ class ReturnStmt : Statement {
             logln("no return pointer found in function that demands one: ", namespace());
             fail;
           }
-          emitAssign(af, new DerefExpr(target), value);
+          emitAssign(lf, new DerefExpr(target), value);
         } else if (Single!(Float) == vt) {
-          loadFloatEx(value, af);
-          af.floatStackDepth --; // doesn't count
+          loadFloatEx(value, lf);
+          lf.floatStackDepth --; // doesn't count
         } else if (Single!(Double) == vt) {
-          loadDoubleEx(value, af);
-          af.floatStackDepth --; // doesn't count
+          loadDoubleEx(value, lf);
+          lf.floatStackDepth --; // doesn't count
         } else if (vt.size == 1) {
-          af.salloc(3);
-          value.emitAsm(af);
+          lf.salloc(3);
+          value.emitLLVM(lf);
           if (isARM) {
-            af.mmove1("[sp]"[], "r0"[]);
-            af.sfree(1);
+            lf.mmove1("[sp]"[], "r0"[]);
+            lf.sfree(1);
           } else {
-            af.popStack("%al"[], 1);
+            lf.popStack("%al"[], 1);
           }
-          af.sfree(3);
+          lf.sfree(3);
         } else if (vt.size == 2) {
-          value.emitAsm(af);
-          af.popStack("%ax"[], 2);
+          value.emitLLVM(lf);
+          lf.popStack("%ax"[], 2);
         } else if (vt.size == 4) {
-          value.emitAsm(af);
-          af.popStack(af.regs[0], 4);
+          value.emitLLVM(lf);
+          lf.popStack(lf.regs[0], 4);
         } else if (vt.size == 8) {
-          value.emitAsm(af);
-          af.popStack(af.regs[0], 4);
-          af.popStack(af.regs[3], 4);
+          value.emitLLVM(lf);
+          lf.popStack(lf.regs[0], 4);
+          lf.popStack(lf.regs[3], 4);
         // Well, C compatible this ain't.
         // TODO
         } else if (vt.size == 12) {
-          value.emitAsm(af);
-          with (af) {
+          value.emitLLVM(lf);
+          with (lf) {
             popStack(regs[0], 4);
             popStack(regs[2], 4);
             popStack(regs[3], 4);
           }
         } else if (vt.size == 16) {
-          value.emitAsm(af);
-          with (af) {
+          value.emitLLVM(lf);
+          with (lf) {
             popStack(regs[0], 4);
             popStack(regs[1], 4);
             popStack(regs[2], 4);
@@ -156,7 +157,8 @@ class ReturnStmt : Statement {
       }
     } else emitGuards(false);
     // TODO: stack cleanup token here
-    af.jump(fun.exit(), true);
+    lf.jump(fun.exit(), true);
+    */
   }
 }
 

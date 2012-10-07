@@ -45,9 +45,9 @@ class ExprAlias : RelTransformable, Named, Expr {
       dg(it);
       return fastcast!(Object) (finalize(fastcast!(Expr) (it)));
     }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       fail; // Should never happen - the below foldopt should substitute them
-      base.emitAsm(af); // may work .. or not.
+      base.emitLLVM(lf); // may work .. or not.
     }
     IType valueType() { return base.valueType(); }
     string toString() {
@@ -58,7 +58,7 @@ class ExprAlias : RelTransformable, Named, Expr {
 
 class CValueAlias : ExprAlias, CValue {
   mixin MyThis!("super(base, name)"[]);
-  override void emitLocation(AsmFile af) { (fastcast!(CValue)~ base).emitLocation(af); }
+  override void emitLocation(LLVMFile lf) { (fastcast!(CValue)~ base).emitLocation(lf); }
   override CValueAlias dup() { return fastalloc!(CValueAlias)(base.dup, name); }
 }
 
@@ -69,7 +69,7 @@ class LValueAlias : CValueAlias, LValue {
 
 class MValueAlias : ExprAlias, MValue {
   mixin MyThis!("super(base, name)"[]);
-  override void emitAssignment(AsmFile af) { (fastcast!(MValue)~ base).emitAssignment(af); }
+  override void emitAssignment(LLVMFile lf) { (fastcast!(MValue)~ base).emitAssignment(lf); }
   override MValueAlias dup() { return fastalloc!(MValueAlias)(base.dup, name); }
 }
 

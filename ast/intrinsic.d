@@ -715,8 +715,8 @@ void setupSysmods() {
     (int, int) _xdiv(int a, b) {
       if (b > a) return (0, a);
       int mask = 1, res;
-      int half_a = a >> 1;
-      while (b <= half_a) { mask <<= 1; b <<= 1; }
+      int ha(lf)_a = a >> 1;
+      while (b <= ha(lf)_a) { mask <<= 1; b <<= 1; }
       while mask {
         if (b <= a) {
           res |= mask;
@@ -730,6 +730,36 @@ void setupSysmods() {
     int _idiv(int a, b) { return _xdiv(a, b)[0]; }
     int _mod(int a, b) { return _xdiv(a, b)[1]; }
   `.dup; // make sure we get different string on subsequent calls
+  // smaller version for llvm's sake
+  src = `
+    module sys;
+    pragma(lib, "m");
+    alias strict bool = int;
+    alias true = bool:1;
+    alias false = bool:0;
+    alias null = void*:0;
+    alias ubyte = byte; // TODO
+    alias ints = 0..int.max;
+    extern(C) {
+      void puts(char*);
+      void printf(char*, ...);
+      void* malloc(int);
+      void* calloc(int, int);
+      void free(void*);
+      void* realloc(void* ptr, size_t size);
+      void* memcpy(void* dest, src, int n);
+      int memcmp(void* s1, s2, int n);
+      int snprintf(char* str, int size, char* format, ...);
+      float sqrtf(float);
+      RenameIdentifier sqrtf C_sqrtf;
+      float fabsf(float);
+      RenameIdentifier fabsf C_fabsf;
+      double sqrt(double);
+      RenameIdentifier sqrt C_sqrt;
+      int strlen(char*);
+      long __divdi3(long numerator, denominator);
+    }
+  `.dup;
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["<internal:sys>"] = src;
   auto sysmodmod = fastcast!(Module) (parse(src, "tree.module"));
@@ -871,14 +901,15 @@ class CPUIDExpr : Expr {
   override {
     CPUIDExpr dup() { return fastalloc!(CPUIDExpr)(which); }
     IType valueType() { return mkTuple(Single!(SysInt), Single!(SysInt), Single!(SysInt), Single!(SysInt)); }
-    void emitAsm(AsmFile af) {
-      which.emitAsm(af);
-      af.popStack("%eax", 4);
-      af.put("cpuid");
-      af.pushStack("%edx", 4);
-      af.pushStack("%ecx", 4);
-      af.pushStack("%ebx", 4);
-      af.pushStack("%eax", 4);
+    void emitLLVM(LLVMFile lf) {
+      todo("CPUIDExpr::emitLLVM");
+      /*which.emitLLVM(lf);
+      lf.popStack("%eax", 4);
+      lf.put("cpuid");
+      lf.pushStack("%edx", 4);
+      lf.pushStack("%ecx", 4);
+      lf.pushStack("%ebx", 4);
+      lf.pushStack("%eax", 4);*/
     }
   }
 }
@@ -900,10 +931,11 @@ class RDTSCExpr : Expr {
   override {
     RDTSCExpr dup() { return this; }
     IType valueType() { return mkTuple(Single!(Long)); }
-    void emitAsm(AsmFile af) {
-      af.put("rdtsc");
-      af.pushStack("%edx", 4);
-      af.pushStack("%eax", 4);
+    void emitLLVM(LLVMFile lf) {
+      todo("RDTSCExpr::emitLLVM");
+      /*lf.put("rdtsc");
+      lf.pushStack("%edx", 4);
+      lf.pushStack("%eax", 4);*/
     }
   }
 }
@@ -918,14 +950,16 @@ class MXCSR : MValue {
   override {
     MXCSR dup() { return this; }
     IType valueType() { return Single!(SysInt); }
-    void emitAsm(AsmFile af) {
-      af.salloc(4);
-      af.put("stmxcsr (%esp)");
+    void emitLLVM(LLVMFile lf) {
+      todo("MXCSR::emitLLVM");
+      // lf.salloc(4);
+      // lf.put("stmxcsr (%esp)");
     }
   }
-  void emitAssignment(AsmFile af) {
-    af.put("ldmxcsr (%esp)");
-    af.sfree(4);
+  void emitAssignment(LLVMFile lf) {
+    todo("MXCSR::emitAssignment");
+    // lf.put("ldmxcsr (%esp)");
+    // lf.sfree(4);
   }
 }
 
@@ -939,14 +973,16 @@ class FPUCW : MValue {
   override {
     FPUCW dup() { return this; }
     IType valueType() { return Single!(Short); }
-    void emitAsm(AsmFile af) {
-      af.salloc(2);
-      af.put("fstcw (%esp)");
+    void emitLLVM(LLVMFile lf) {
+      todo("FPUCW::emitLLVM");
+      // lf.salloc(2);
+      // lf.put("fstcw (%esp)");
     }
   }
-  void emitAssignment(AsmFile af) {
-    af.put("fldcw (%esp)");
-    af.sfree(2);
+  void emitAssignment(LLVMFile lf) {
+    todo("FPUCW::emitAssignment");
+    // lf.put("fldcw (%esp)");
+    // lf.sfree(2);
   }
 }
 
@@ -964,8 +1000,14 @@ class RegExpr : MValue {
     string toString() { return qformat("<reg ", reg, ">"); }
     RegExpr dup() { return this; }
     IType valueType() { return voidp; }
-    void emitAsm(AsmFile af) { if (isARM && reg == "%ebp") reg = "fp"; af.pushStack(reg, nativePtrSize); }
-    void emitAssignment(AsmFile af) { af.popStack(reg, nativePtrSize); }
+    void emitLLVM(LLVMFile lf) {
+      todo("RegExpr::emitLLVM");
+      // if (isARM && reg == "%ebp") reg = "fp"; lf.pushStack(reg, nativePtrSize);
+    }
+    void emitAssignment(LLVMFile lf) {
+      todo("RegExpr::emitAssignment");
+      // lf.popStack(reg, nativePtrSize);
+    }
   }
 }
 
@@ -989,7 +1031,10 @@ class Assembly : LineNumberedStatementClass {
   this(string s) { text = s; }
   mixin defaultIterate!();
   override Assembly dup() { return this; }
-  override void emitAsm(AsmFile af) { super.emitAsm(af); af.put(text); }
+  override void emitLLVM(LLVMFile lf) {
+    todo("Assembly::emitLLVM .. :sigh:");
+    // super.emitLLVM(lf); lf.put(text);
+  }
 }
 
 import ast.literal_string, ast.fold;
@@ -1013,8 +1058,9 @@ class ConstantDefinition : Tree {
   string name;
   string[] values;
   this(string n, string[] v) { name = n; values = v; }
-  void emitAsm(AsmFile af) {
-    af.allocLongstant(name, values, true);
+  void emitLLVM(LLVMFile lf) {
+    todo("ConstantDefinition::emitLLVM");
+    // lf.allocLongstant(name, values, true);
   }
   ConstantDefinition dup() { assert(false); }
   mixin defaultIterate!();

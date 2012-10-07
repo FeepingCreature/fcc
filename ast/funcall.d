@@ -13,7 +13,7 @@ class NamedArg : Expr {
     IType valueType() { return base.valueType(); }
     NamedArg dup() { return fastalloc!(NamedArg)(name, reltext, base.dup); }
     mixin defaultIterate!(base);
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       reltext.failparse("Named argument ", name, " could not be assigned to a function call! ");
     }
   }
@@ -405,9 +405,9 @@ class FpCall : Expr {
   this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(fp, params);
-  override void emitAsm(AsmFile af) {
+  override void emitLLVM(LLVMFile lf) {
     auto fntype = fastcast!(FunctionPointer)~ fp.valueType();
-    callFunction(af, fntype.ret, true, fntype.stdcall, params, fp);
+    callFunction(lf, fntype.ret, true, fntype.stdcall, params, fp);
   }
   override IType valueType() {
     return (fastcast!(FunctionPointer)~ fp.valueType()).ret;
@@ -445,9 +445,9 @@ class DgCall : Expr {
   Expr[] params;
   mixin DefaultDup!();
   mixin defaultIterate!(dg, params);
-  override void emitAsm(AsmFile af) {
+  override void emitLLVM(LLVMFile lf) {
     auto dgtype = fastcast!(Delegate) (resolveType(dg.valueType()));
-    callDg(af, dgtype.ret, params, dg);
+    callDg(lf, dgtype.ret, params, dg);
   }
   override IType valueType() {
     return (fastcast!(Delegate) (resolveType(dg.valueType()))).ret;
@@ -512,10 +512,10 @@ static this() {
 }
 
 // helper for ast.fun
-extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name) {
+extern(C) void funcall_emit_fun_end_guard(LLVMFile lf, string name) {
   (fastalloc!(ExprStatement)(buildFunCall(
     sysmod.lookup("missed_return"),
     fastalloc!(StringExpr)(name),
     "missed return signal"
-  ))).emitAsm(af);
+  ))).emitLLVM(lf);
 }

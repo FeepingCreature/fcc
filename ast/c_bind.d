@@ -5,7 +5,7 @@ import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays,
   ast.externs, ast.stringparse, ast.literals, ast.tuples: AstTuple = Tuple;
 
 import tools.compat, tools.functional, alloc;
-alias asmfile.startsWith startsWith;
+alias parseBase.startsWith startsWith;
 
 string buf;
 int bufbase;

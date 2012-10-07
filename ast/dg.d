@@ -18,11 +18,11 @@ class mkDelegate : Expr {
   }
   mixin defaultIterate!(ptr, data);
   override string toString() { return Format("dg(ptr="[], ptr, "[], data="[], data, ")"[]); }
-  override void emitAsm(AsmFile af) {
-    mixin(mustOffset("nativePtrSize * 2"[]));
-    // TODO: stack growth order
-    data.emitAsm(af);
-    ptr.emitAsm(af);
+  override void emitLLVM(LLVMFile lf) {
+    todo("mkDelegate::emitLLVM");
+    /*mixin(mustOffset("nativePtrSize * 2"[]));
+    data.emitLLVM(lf);
+    ptr.emitLLVM(lf);*/
   }
 }
 
@@ -173,42 +173,43 @@ static this() {
 }
 
 import ast.assign, ast.fold;
-void callDg(AsmFile af, IType ret, Expr[] params, Expr dg) {
-  af.comment("Begin delegate call"[]);
+void callDg(LLVMFile lf, IType ret, Expr[] params, Expr dg) {
+  todo("callDg");
+  /*lf.comment("Begin delegate call"[]);
   int retsize = ret.size;
   if (Single!(Void) == ret)
     retsize = 0;
   mixin(mustOffset("retsize"[]));
   auto dgs = dgAsStruct(dg);
-  mkVar(af, ret, true, (Variable retvar) {
+  mkVar(lf, ret, true, (Variable retvar) {
     mixin(mustOffset("0"[]));
     // cheap call - fun ptr is predetermined, no need to lvize the dg
     if (auto sym = fastcast!(Symbol) (optex(mkMemberAccess(dgs, "fun"[])))) {
       params ~= mkMemberAccess(dgs, "data"); opt(params[$-1]);
-      callFunction(af, ret, true, false, params, sym);
+      callFunction(lf, ret, true, false, params, sym);
       if (ret != Single!(Void))
-        emitAssign(af, retvar, fastalloc!(Placeholder)(ret), false, true);
+        emitAssign(lf, retvar, fastalloc!(Placeholder)(ret), false, true);
     } else {
-      int toFree = alignStackFor(dgs.valueType(), af);
+      int toFree = alignStackFor(dgs.valueType(), lf);
       void doit(Variable dgvar) {
         mixin(mustOffset("0"[]));
         params ~= mkMemberAccess(dgvar, "data"); opt(params[$-1]);
-        callFunction(af, ret, true, false, params, mkMemberAccess(dgvar, "fun"[]));
+        callFunction(lf, ret, true, false, params, mkMemberAccess(dgvar, "fun"[]));
         if (ret != Single!(Void))
-          emitAssign(af, retvar, fastalloc!(Placeholder)(ret), false, true);
+          emitAssign(lf, retvar, fastalloc!(Placeholder)(ret), false, true);
         // Assignment, assuming Placeholder was "really"
         // emitted, has already done this.
-        // if (ret != Single!(Void)) af.sfree(ret.size);
+        // if (ret != Single!(Void)) lf.sfree(ret.size);
       }
       if (auto var = fastcast!(Variable) (dgs)) doit(var);
       else {
-        mkVar(af, dgs.valueType(), true, (Variable dgvar) {
-          emitAssign(af, dgvar, dgs);
+        mkVar(lf, dgs.valueType(), true, (Variable dgvar) {
+          emitAssign(lf, dgvar, dgs);
           doit(dgvar);
         });
-        af.sfree(dgs.valueType().size);
+        lf.sfree(dgs.valueType().size);
       }
-      af.sfree(toFree);
+      lf.sfree(toFree);
     }
-  });
+  });*/
 }

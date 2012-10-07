@@ -35,7 +35,7 @@ class RelMember : Expr, Named, RelTransformable {
   override {
     string toString() { return Format("["[], name, ": "[], type, " @"[], offset, "]"[]); }
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       logln("Untransformed rel member "[], this, ": cannot emit. "[]);
       fail;
     }
@@ -78,7 +78,7 @@ class RelMember : Expr, Named, RelTransformable {
 }
 
 class RelMemberLV : RelMember, LValue {
-  void emitLocation(AsmFile af) {
+  void emitLocation(LLVMFile lf) {
     logln("Untransformed rel member "[], this, ": cannot emit location. "[]);
     fail;
   }
@@ -301,7 +301,7 @@ class NoOpMangleHack : Statement, IsMangled {
   Structure sup;
   this(Structure s) { sup = s; }
   NoOpMangleHack dup() { return this; }
-  override void emitAsm(AsmFile af) { }
+  override void emitLLVM(LLVMFile lf) { }
   mixin defaultIterate!();
   override string mangleSelf() { return sup.mangle(); }
   override void markWeak() {
@@ -388,18 +388,19 @@ class StructLiteral : Expr {
       return res;
     }
     IType valueType() { return st; }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       validate();
-      mixin(mustOffset("st.size"[]));
+      todo("StructLiteral::emitLLVM");
+      /*mixin(mustOffset("st.size"[]));
       int offset = valueType().size;
       foreach_reverse (i, ex; exprs) {
         int wanted_pos = offsets[i];
         int emit_pos = wanted_pos + ex.valueType().size;
-        if (emit_pos < offset) af.salloc(offset - emit_pos);
-        ex.emitAsm(af);
+        if (emit_pos < offset) lf.salloc(offset - emit_pos);
+        ex.emitLLVM(lf);
         offset = wanted_pos;
       }
-      if (offset) af.salloc(offset);
+      if (offset) lf.salloc(offset);*/
     }
   }
 }
@@ -450,61 +451,62 @@ class MemberAccess_Expr : Expr, HasInfo {
     }
     IType valueType() { return stm.type; }
     import tools.base;
-    void emitAsm(AsmFile af) {
-      auto st = base.valueType();
+    void emitLLVM(LLVMFile lf) {
+      todo("MemberAccess_Expr::emitLLVM");
+      /*auto st = base.valueType();
       if (auto lv = fastcast!(LValue)~ base) {
         if (stm.type.size <= 16) {
-          af.comment("emit location for member access to "[], stm.name, " @"[], stm.offset);
-          lv.emitLocation(af);
-          af.comment("pop and dereference"[]);
+          lf.comment("emit location for member access to "[], stm.name, " @"[], stm.offset);
+          lv.emitLocation(lf);
+          lf.comment("pop and dereference"[]);
           if (isARM) {
-            af.popStack("r0"[], nativePtrSize);
+            lf.popStack("r0"[], nativePtrSize);
             int sz = stm.type.size;
             if (sz == 2) {
-              af.salloc(2);
-              af.mmove2(qformat("[r0, #"[], stm.offset, "]"[]), "r1"[]);
-              af.mmove2("r1"[], "[sp]"[]);
+              lf.salloc(2);
+              lf.mmove2(qformat("[r0, #"[], stm.offset, "]"[]), "r1"[]);
+              lf.mmove2("r1"[], "[sp]"[]);
             } else if (sz % 4 == 0) {
               for (int i = sz / 4 - 1; i >= 0; --i) {
-                af.mmove4(qformat("[r0, #"[], i * 4 + stm.offset, "]"[]), "r1"[]);
-                af.pushStack("r1"[], 4);
+                lf.mmove4(qformat("[r0, #"[], i * 4 + stm.offset, "]"[]), "r1"[]);
+                lf.pushStack("r1"[], 4);
               }
             } else {
               logln(this, " with "[], stm);
               fail;
             }
           } else {
-            af.popStack("%eax"[], nativePtrSize);
-            af.comment("push back "[], stm.type.size);
-            af.pushStack(Format(stm.offset, "(%eax)"[]), stm.type.size);
-            af.nvm("%eax"[]);
+            lf.popStack("%eax"[], nativePtrSize);
+            lf.comment("push back "[], stm.type.size);
+            lf.pushStack(Format(stm.offset, "(%eax)"[]), stm.type.size);
+            lf.nvm("%eax"[]);
           }
         } else {
-          mkVar(af, stm.type, true, (Variable var) {
+          mkVar(lf, stm.type, true, (Variable var) {
             iparse!(Statement, "copy_struct_member"[], "tree.semicol_stmt.expr"[])
             ("memcpy(tempvarp, varp + offset, size)"[],
               "tempvarp"[], reinterpret_cast(voidp, fastalloc!(RefExpr)(var)),
               "varp"[], reinterpret_cast(voidp, fastalloc!(RefExpr)(lv)),
               "size"[], mkInt(stm.type.size),
               "offset"[], mkInt(stm.offset)
-            ).emitAsm(af);
+            ).emitLLVM(lf);
           });
         }
       } else {
         if (isARM) {
-          base.emitAsm(af);
+          base.emitLLVM(lf);
           if (stm.type.size == 4) {
-            af.mmove4(qformat("[sp, #"[], stm.offset, "]"[]), "r0"[]);
-            af.sfree(st.size);
-            af.pushStack("r0"[], 4);
+            lf.mmove4(qformat("[sp, #"[], stm.offset, "]"[]), "r0"[]);
+            lf.sfree(st.size);
+            lf.pushStack("r0"[], 4);
             return;
           }
           if (stm.type.size == 8) {
-            af.mmove4(qformat("[sp, #"[], stm.offset, "]"[]), "r0"[]);
-            af.mmove4(qformat("[sp, #"[], stm.offset + 4, "]"[]), "r1"[]);
-            af.sfree(st.size);
-            af.pushStack("r1"[], 4);
-            af.pushStack("r0"[], 4);
+            lf.mmove4(qformat("[sp, #"[], stm.offset, "]"[]), "r0"[]);
+            lf.mmove4(qformat("[sp, #"[], stm.offset + 4, "]"[]), "r1"[]);
+            lf.sfree(st.size);
+            lf.pushStack("r1"[], 4);
+            lf.pushStack("r0"[], 4);
             return;
           }
           logln("--"[], stm);
@@ -515,51 +517,51 @@ class MemberAccess_Expr : Expr, HasInfo {
         // fail;
         assert(stm.type.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for "[], stm, " in "[], base.valueType(), "; bad size; cannot get "[], stm.type.size(), " from non-lvalue ("[], !fastcast!(LValue) (base), "[]) of "[], base.valueType().size(), ". "[]));
         auto bvt = base.valueType();
-        af.comment("emit semi-structure of "[], bvt, " for member access"[]);
+        lf.comment("emit semi-structure of "[], bvt, " for member access"[]);
         if (auto rce = fastcast!(RCE)~ base) bvt = rce.from.valueType();
-        auto filler = alignStackFor(bvt, af);
-        base.emitAsm(af);
-        af.comment("store member and free: "[], stm.name);
+        auto filler = alignStackFor(bvt, lf);
+        base.emitLLVM(lf);
+        lf.comment("store member and free: "[], stm.name);
         if (stm.type.size == 1)
-          af.mmove1(Format(stm.offset, "(%esp)"[]), "%dl"[]);
+          lf.mmove1(Format(stm.offset, "(%esp)"[]), "%dl"[]);
         if (stm.type.size == 2)
-          af.mmove2(Format(stm.offset, "(%esp)"[]), "%dx"[]);
+          lf.mmove2(Format(stm.offset, "(%esp)"[]), "%dx"[]);
         if (stm.type.size >= 4)
-          af.mmove4(Format(stm.offset, "(%esp)"[]), "%edx"[]);
+          lf.mmove4(Format(stm.offset, "(%esp)"[]), "%edx"[]);
         if (stm.type.size >= 8)
-          af.mmove4(Format(stm.offset + 4, "(%esp)"[]), "%ecx"[]);
+          lf.mmove4(Format(stm.offset + 4, "(%esp)"[]), "%ecx"[]);
         if (stm.type.size >= 12)
-          af.mmove4(Format(stm.offset + 8, "(%esp)"[]), "%eax"[]);
+          lf.mmove4(Format(stm.offset + 8, "(%esp)"[]), "%eax"[]);
         if (stm.type.size == 16)
-          af.mmove4(Format(stm.offset + 12, "(%esp)"[]), "%ebx"[]);
-        af.sfree(st.size);
-        af.sfree(filler);
-        af.comment("repush member"[]);
+          lf.mmove4(Format(stm.offset + 12, "(%esp)"[]), "%ebx"[]);
+        lf.sfree(st.size);
+        lf.sfree(filler);
+        lf.comment("repush member"[]);
         if (stm.type.size == 16) {
-          af.pushStack("%ebx"[], 4);
-          af.nvm("%ebx"[]);
+          lf.pushStack("%ebx"[], 4);
+          lf.nvm("%ebx"[]);
         }
         if (stm.type.size >= 12) {
-          af.pushStack("%eax"[], 4);
-          af.nvm("%eax"[]);
+          lf.pushStack("%eax"[], 4);
+          lf.nvm("%eax"[]);
         }
         if (stm.type.size >= 8) {
-          af.pushStack("%ecx"[], 4);
-          af.nvm("%ecx"[]);
+          lf.pushStack("%ecx"[], 4);
+          lf.nvm("%ecx"[]);
         }
         if (stm.type.size >= 4) {
-          af.pushStack("%edx"[], 4);
-          af.nvm("%edx"[]);
+          lf.pushStack("%edx"[], 4);
+          lf.nvm("%edx"[]);
         }
         if (stm.type.size == 2) {
-          af.pushStack("%dx"[], 2);
-          af.nvm("%dx"[]);
+          lf.pushStack("%dx"[], 2);
+          lf.nvm("%dx"[]);
         }
         if (stm.type.size == 1) {
-          af.pushStack("%dl"[], 1);
-          af.nvm("%dl"[]);
+          lf.pushStack("%dl"[], 1);
+          lf.nvm("%dl"[]);
         }
-      }
+      }*/
     }
   }
 }
@@ -573,25 +575,26 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
   override {
     MemberAccess_LValue create() { return new MemberAccess_LValue; }
     MemberAccess_LValue dup() { return fastcast!(MemberAccess_LValue) (super.dup()); }
-    void emitLocation(AsmFile af) {
-      auto st = fastcast!(Structure)~ base.valueType();
+    void emitLocation(LLVMFile lf) {
+      todo("MemberAccess_LValue::emitLocation");
+      /*auto st = fastcast!(Structure)~ base.valueType();
       int[] offs;
       if (st) offs = st.selectMap!(RelMember, "$.offset"[]);
-      af.comment("emit location for member address of '"[], stm.name, "' @"[], stm.offset, " of "[], offs);
-      (fastcast!(LValue)~ base).emitLocation(af);
+      lf.comment("emit location for member address of '"[], stm.name, "' @"[], stm.offset, " of "[], offs);
+      (fastcast!(LValue)~ base).emitLocation(lf);
       if (stm.offset) {
-        af.comment("add offset "[], stm.offset);
+        lf.comment("add offset "[], stm.offset);
         if (isARM) {
-          (fastalloc!(IntExpr)(stm.offset)).emitAsm(af);
-          af.popStack("r1"[], 4);
-          af.mmove4("[sp]"[], "r0"[]);
-          // af.mmove4(Format("#"[], stm.offset), "r1"[]);
-          af.mathOp("add"[], "r0"[], "r1"[], "r0"[]);
-          af.mmove4("r0"[], "[sp]"[]);
+          (fastalloc!(IntExpr)(stm.offset)).emitLLVM(lf);
+          lf.popStack("r1"[], 4);
+          lf.mmove4("[sp]"[], "r0"[]);
+          // lf.mmove4(Format("#"[], stm.offset), "r1"[]);
+          lf.mathOp("add"[], "r0"[], "r1"[], "r0"[]);
+          lf.mmove4("r0"[], "[sp]"[]);
         } else {
-          af.mathOp("addl"[], Format("$"[], stm.offset), "(%esp)"[]);
+          lf.mathOp("addl"[], Format("$"[], stm.offset), "(%esp)"[]);
         }
-      }
+      }*/
     }
   }
 }

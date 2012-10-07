@@ -11,10 +11,11 @@ class StringExpr : Expr, HasInfo, Dependency {
   this(string s, bool g = true) { str = s; generated = g; this(); }
   mixin defaultIterate!();
   string name_used;
-  void selectName(AsmFile af) {
-    if (!name_used) {
-      name_used = af.allocConstant(Format("string_constant_"[], string_counter ++), cast(ubyte[]) str);
-    }
+  void selectName(LLVMFile lf) {
+    todo("StringExpr::selectName");
+    /*if (!name_used) {
+      name_used = lf.allocConstant(Format("string_constant_"[], string_counter ++), cast(ubyte[]) str);
+    }*/
   }
   Expr getPointer() {
     return reinterpret_cast(Single!(Pointer, Single!(Char)), fastalloc!(LateSymbol)(this, &selectName, &name_used)); 
@@ -24,15 +25,17 @@ class StringExpr : Expr, HasInfo, Dependency {
     StringExpr dup() { return fastalloc!(StringExpr)(str, generated); }
     string toString() { return '"'~str.replace("\n"[], "\\n"[])~'"'; }
     // default action: place in string segment, load address on stack
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       // if (name_used == "string_constant_232"[]) fail;
-      getPointer().emitAsm(af);
-      (mkInt(str.length)).emitAsm(af);
+      todo("StringExpr::emitLLVM");
+      /*getPointer().emitLLVM(lf);
+      (mkInt(str.length)).emitLLVM(lf);*/
     }
-    void emitDependency(AsmFile af) {
-      selectName(af);
-      af.allocConstant(name_used, cast(ubyte[]) str, true);
-      af.markWeak(name_used);
+    void emitDependency(LLVMFile lf) {
+      todo("StringExpr::emitDependency");
+      /*selectName(lf);
+      lf.allocConstant(name_used, cast(ubyte[]) str, true);
+      lf.markWeak(name_used);*/
     }
     // IType valueType() { return fastalloc!(StaticArray)(Single!(Char), str.length); }
     IType valueType() { return Single!(Array, Single!(Char)); }

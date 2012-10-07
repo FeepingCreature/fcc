@@ -20,7 +20,7 @@ mixin(expandImport(`ast.[
   enums, import_parse, pragmas, trivial, fp, expr_statement,
   typeset, dependency, prefixfun,
   macros, tenth, vardecl_expr, vardecl_parse, property, condprop],
-  casts, optimizer_arm, optimizer_x86, optimizer_base`));
+  casts`));
 
 alias ast.tuples.resolveTup resolveTup;
 // placed here to resolve circular dependency issues
@@ -79,8 +79,6 @@ static this() {
   setupSlice();
   setupIndex();
   setupConditionalOpt();
-  New(optimizer_x86.cachething);
-  New(optimizer_x86.proctrack_cachething);
   pragmas["fast"] = delegate Object(Expr ex) {
     if (ex) throw new Exception("pragma 'fast' does not take arguments");
     auto fun = namespace().get!(Function);
@@ -235,9 +233,9 @@ static this() {
   setupPropCall();
 }
 
-extern(C) void rt_print(AsmFile af, string s) {
+extern(C) void rt_print(LLVMFile lf, string s) {
   auto printf = sysmod.lookup("printf");
-  buildFunCall(printf, mkString(s~"\n"), "printf").emitAsm(af);
+  buildFunCall(printf, mkString(s~"\n"), "printf").emitLLVM(lf);
 }
 
 static this() {
@@ -386,8 +384,8 @@ static this() {
   defineOps(&handlePointerMath, true);
 }
 
-extern(C) void printThing(AsmFile af, string s, Expr ex) {
-  (buildFunCall(sysmod.lookup("printf"), mkTupleExpr(mkString(s), ex), "mew")).emitAsm(af);
+extern(C) void printThing(LLVMFile lf, string s, Expr ex) {
+  (buildFunCall(sysmod.lookup("printf"), mkTupleExpr(mkString(s), ex), "mew")).emitLLVM(lf);
 }
 
 // from ast.fun
@@ -450,23 +448,25 @@ Object gotAsType(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotAsType, "type.as_type", "8", "as_type");
 
 // from ast.casting
-import asmfile, ast.vardecl;
-extern(C) void _reinterpret_cast_expr(RCE rce, AsmFile af) {
+import llvmfile, ast.vardecl;
+extern(C) void _reinterpret_cast_expr(RCE rce, LLVMFile lf) {
+  todo("_reinterpret_cast_expr");
+  /*
   with (rce) {
     int size = to.size;
     if (Single!(Void) == to) size = 0;
     mixin(mustOffset("size"));
     auto fromtype = from.valueType();
-    auto depth = af.currentStackDepth + fromtype.size;
+    auto depth = lf.currentStackDepth + fromtype.size;
     doAlign(depth, fromtype);
-    if (depth == af.currentStackDepth + fromtype.size) {
-      from.emitAsm(af);
+    if (depth == lf.currentStackDepth + fromtype.size) {
+      from.emitLLVM(lf);
     } else {
-      mkVarUnaligned(af, to, true, (Variable var) {
-        (fastalloc!(Assignment)(var, from, true)).emitAsm(af);
+      mkVarUnaligned(lf, to, true, (Variable var) {
+        (fastalloc!(Assignment)(var, from, true)).emitLLVM(lf);
       });
     }
-  }
+  }*/
 }
 
 extern(C) bool _exactly_equals(IType a, IType b) {
@@ -549,23 +549,24 @@ mixin DefaultParser!(gotScope, "tree.scope");
 
 
 extern(C)
-void _line_numbered_statement_emitAsm(LineNumberedStatement lns, AsmFile af) {
-  with (lns) {
+void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
+  todo("_line_numbered_statement_emitLLVM");
+  /*with (lns) {
     string name; int line;
     lns.getInfo(name, line);
     if (!name) return;
     if (name.startsWith("<internal")) return;
-    if (auto id = af.getFileId(name)) {
-      if (af.debugMode) {
-        af.put(".loc ", id, " ", line, " ", 0);
+    if (auto id = lf.getFileId(name)) {
+      if (lf.debugMode) {
+        lf.put(".loc ", id, " ", line, " ", 0);
         if (!name.length) fail("TODO");
-        af.put(comment(" being '"), name, "' at ", af.currentStackDepth);
+        lf.put(comment(" being '"), name, "' at ", lf.currentStackDepth);
       }
       version(CustomDebugInfo) if (auto fun = current_emitting_function()) {
-        fun.add_line_number(af, line);
+        fun.add_line_number(lf, line);
       }
     }
-  }
+  }*/
 }
 
 extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
@@ -701,7 +702,7 @@ void gatherSizeStats(Module mod) {
   }
 }
 
-void postprocessModule(Module mod, AsmFile af) {
+void postprocessModule(Module mod, LLVMFile lf) {
   void recurse(ref Iterable it) {
     if (auto fc = fastcast!(FunCall) (it)) {
       if (fc.fun.weak) {
@@ -714,7 +715,7 @@ void postprocessModule(Module mod, AsmFile af) {
       }
     }
     if (auto dep = fastcast!(Dependency) (it)) {
-      dep.emitDependency(af);
+      dep.emitDependency(lf);
     }
     it.iterate(&recurse);
   }
@@ -736,7 +737,6 @@ bool allowProgbar = true;
 
 struct CompileSettings {
   bool saveTemps, optimize, debugMode, profileMode, singlethread;
-  string configOpts;
 }
 
 // structural verifier
@@ -773,28 +773,7 @@ string delegate() compile(string file, CompileSettings cs) {
   scope(failure)
     logSmart!(false)("While compiling ", file);
   while (file.startsWith("./")) file = file[2 .. $];
-  auto af = fastalloc!(AsmFile)(cs.optimize, cs.debugMode, cs.profileMode, file);
-  if (!isARM) af.processorExtensions["sse3"] = true;
-  setupGenericOpts();
-  if (isARM) setupARMOpts();
-  else setupX86Opts();
-  if (cs.configOpts) {
-    auto cmds = cs.configOpts.split(",");
-    foreach (cmd; cmds) {
-      if (cmd == "info") {
-        logln("count: ", opts.length);
-        foreach (i, opt; opts) {
-          logln("id:", i, " name:", opt._1, " ", opt._2?"on":"off");
-        }
-        exit(1);
-      }
-      if (auto rest = cmd.startsWith("disable ")) {
-        int which = rest.my_atoi();
-        opts[which]._2 = false;
-        continue;
-      }
-    }
-  }
+  auto lf = fastalloc!(LLVMFile)(cs.optimize, cs.debugMode, cs.profileMode, file);
   lazySysmod();
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
@@ -822,11 +801,11 @@ string delegate() compile(string file, CompileSettings cs) {
   auto len_parse = sec() - start_parse;
   double len_opt;
   len_opt = time({
-    .postprocessModule(mod, af);
+    .postprocessModule(mod, lf);
   }) / 1_000_000f;
   // verify(mod);
   auto len_gen = time({
-    mod.emitAsm(af);
+    mod.emitLLVM(lf);
   }) / 1_000_000f;
   // logSmart!(false)(len_parse, " to parse, ", len_opt, " to optimize. ");
   Stuple!(string, float)[] entries;
@@ -836,14 +815,14 @@ string delegate() compile(string file, CompileSettings cs) {
   foreach (entry; entries) total += entry._1;
   // logSmart!(false)("Subsegments: ", entries, "; total ", total);
   mod.alreadyEmat = true;
-  return stuple(len_parse, len_gen, objname, srcname, af, mod, cs) /apply/
-  (double len_parse, double len_gen, string objname, string srcname, AsmFile af, Module mod, CompileSettings cs) {
+  return stuple(len_parse, len_gen, objname, srcname, lf, mod, cs) /apply/
+  (double len_parse, double len_gen, string objname, string srcname, LLVMFile lf, Module mod, CompileSettings cs) {
     scope(exit)
       if (!cs.saveTemps)
         unlink(srcname.toStringz());
     scope f = fastalloc!(BufferedFile)(srcname, FileMode.OutNew);
     auto len_emit = time({
-      af.genAsm((string s) { f.write(cast(ubyte[]) s); });
+      lf.dumpLLVM((string s) { f.write(cast(ubyte[]) s); });
     }) / 1_000_000f;
     f.close;
     string flags;
@@ -1086,7 +1065,6 @@ version(Windows) {
   }
 }
 
-import assemble: debugOpts;
 int main(string[] args) {
   string execpath;
   if ("/proc/self/exe".exists()) execpath = myRealpath("/proc/self/exe");
@@ -1181,20 +1159,12 @@ int main(string[] args) {
       cs.optimize = true;
       continue;
     }
-    if (arg == "-debug-opts") {
-      debugOpts = true;
-      continue;
-    }
     if (arg == "-noprogress") {
       allowProgbar = false;
       continue;
     }
     if (arg == "-run") {
       runMe = true;
-      continue;
-    }
-    if (arg == "-config-opts") {
-      cs.configOpts = ar.take();
       continue;
     }
     if (arg == "-dump-info" || "parsers.txt".exists()) {

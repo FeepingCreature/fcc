@@ -1,6 +1,7 @@
 module ast.tuples;
 
 import ast.base, ast.structure, ast.namespace, ast.casting, ast.opers;
+import tools.functional: map, apply;
 
 /++
   1. A tuple behaves like a struct
@@ -143,14 +144,15 @@ class RefTuple : MValue {
       return fastalloc!(RefTuple)(newlist);
     }
     IType valueType() { return baseTupleType; }
-    void emitAsm(AsmFile af) {
-      mkTupleValueExpr(getAsExprs).emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      mkTupleValueExpr(getAsExprs).emitLLVM(lf);
     }
     string toString() {
       return Format("reftuple("[], mvs, ")"[]);
     }
-    void emitAssignment(AsmFile af) {
-      mixin(mustOffset("-valueType().size"[]));
+    void emitAssignment(LLVMFile lf) {
+      todo("RefTuple::emitAssignment");
+      /*mixin(mustOffset("-valueType().size"[]));
       auto tup = fastcast!(Tuple)~ baseTupleType;
       
       auto offsets = tup.offsets();
@@ -158,14 +160,15 @@ class RefTuple : MValue {
       foreach (i, target; mvs) {
         if (offsets[i] != data_offs) {
           assert(offsets[i] > data_offs);
-          af.sfree(offsets[i] - data_offs);
+          lf.sfree(offsets[i] - data_offs);
         }
         mixin(mustOffset("-target.valueType().size"[]));
-        target.emitAssignment(af);
+        target.emitAssignment(lf);
         data_offs += target.valueType().size;
       }
       if (tup.size != data_offs)
-        af.sfree(tup.size - data_offs);
+        lf.sfree(tup.size - data_offs);
+      */
     }
   }
 }
@@ -252,15 +255,15 @@ class LValueAsMValue : MValue {
   override {
     LValueAsMValue dup() { return fastalloc!(LValueAsMValue)(sup.dup); }
     string toString() { return Format("lvtomv("[], sup, ")"[]); }
-    void emitAsm(AsmFile af) { sup.emitAsm(af); }
+    void emitLLVM(LLVMFile lf) { sup.emitLLVM(lf); }
     IType valueType() { return sup.valueType(); }
     import ast.assign;
-    void emitAssignment(AsmFile af) {
+    void emitAssignment(LLVMFile lf) {
       (fastalloc!(Assignment)(
         sup,
         fastalloc!(Placeholder)(sup.valueType()),
         false, true
-      )).emitAsm(af);
+      )).emitLLVM(lf);
     }
   }
 }

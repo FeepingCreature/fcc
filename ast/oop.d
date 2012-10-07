@@ -5,6 +5,8 @@ import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun,
   ast.tenth;
 
+import tools.functional: map;
+
 /*
   An abstract function is a function that does not define a body.
   An abstract class is a class that declares abstract member functions,
@@ -52,7 +54,7 @@ struct RelFunSet {
   }
 }
 
-import tools.log, tools.compat: max;
+import tools.log, tools.base: max;
 import ast.vardecl;
 class VTable {
   RelFunction[] funs;
@@ -124,9 +126,10 @@ class LazyDeltaInt : Expr {
   override {
     IType valueType() { return Single!(SysInt); }
     LazyDeltaInt dup() { return new LazyDeltaInt(dg, delta); }
-    void emitAsm(AsmFile af) {
-      auto res = dg() + delta;
-      af.pushStack(qformat("$", res), 4);
+    void emitLLVM(LLVMFile lf) {
+      todo("LazyDeltaInt::emitLLVM");
+      // auto res = dg() + delta;
+      // lf.pushStack(qformat("$", res), 4);
     }
   }
 }
@@ -152,7 +155,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   mixin DefaultDup!();
   mixin defaultIterate!();
   override {
-    void emitAsm(AsmFile af) { }
+    void emitLLVM(LLVMFile lf) { }
     bool isTempNamespace() { return false; }
     bool isPointerLess() { return false; }
     bool isComplete() { return true; }
@@ -216,19 +219,21 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     
     return res;
   }
-  string getIntfinfoDataPtr(AsmFile af) {
-    auto prefix = mangle_id;
+  string getIntfinfoDataPtr(LLVMFile lf) {
+    todo("Intf::getIntfinfoDataPtr");
+    return null;
+    /*auto prefix = mangle_id;
     string[] res;
     res ~= qformat(this.name.length);
-    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name, false, true);
+    res ~= lf.allocConstant(prefix~"_name", cast(ubyte[]) this.name, false, true);
     {
       string[] pp;
       foreach (intf; parents)
-        pp ~= intf.getIntfinfoDataPtr(af);
+        pp ~= intf.getIntfinfoDataPtr(lf);
       res ~= qformat(pp.length);
-      res ~= af.allocLongstant(prefix~"_parents", pp, false, true);
+      res ~= lf.allocLongstant(prefix~"_parents", pp, false, true);
     }
-    return af.allocLongstant(prefix~"_intfinfo", res, false, true);
+    return lf.allocLongstant(prefix~"_intfinfo", res, false, true);*/
   }
   import ast.index;
   Object lookupIntf(string name, Expr intp) {
@@ -333,7 +338,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
                     (`obj.toString()`, "obj"[], lvize(ex));
     }
     ClassRef dup() { return fastalloc!(ClassRef)(myClass.dup); }
-    void emitAsm(AsmFile af) { myClass.emitAsm(af); }
+    void emitLLVM(LLVMFile lf) { myClass.emitLLVM(lf); }
     void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myClass.iterate(dg, mode); }
   }
 }
@@ -356,7 +361,7 @@ class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, Expr
       return myIntf.mangleSelf() == (fastcast!(IntfRef) (resolveType(type))).myIntf.mangleSelf(); // cheap hack to match obsoleted types (TODO fix properly)
     }
     IntfRef dup() { return fastalloc!(IntfRef)(myIntf.dup); }
-    void emitAsm(AsmFile af) { myIntf.emitAsm(af); }
+    void emitLLVM(LLVMFile lf) { myIntf.emitLLVM(lf); }
     void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myIntf.iterate(dg, mode); }
   }
 }
@@ -746,22 +751,24 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     res ~= getVTable();
     return res;
   }
-  string[] getClassinfoData(AsmFile af) {
-    auto prefix = cd_name();
+  string[] getClassinfoData(LLVMFile lf) {
+    todo("Class::getClassinfoData");
+    return null;
+    /*auto prefix = cd_name();
     string[] res;
     res ~= qformat(this.name.length);
-    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name, false, true);
+    res ~= lf.allocConstant(prefix~"_name", cast(ubyte[]) this.name, false, true);
     if (parent) res ~= parent.cd_name();
     else res ~= "0";
     {
       string[] iplist;
       foreach (intf; iparents) {
-        iplist ~= intf.getIntfinfoDataPtr(af);
+        iplist ~= intf.getIntfinfoDataPtr(lf);
       }
       res ~= qformat(iplist.length);
-      res ~= af.allocLongstant(prefix~"_iparents", iplist, false, true);
+      res ~= lf.allocLongstant(prefix~"_iparents", iplist, false, true);
     }
-    return res;
+    return res;*/
   }
   bool funAlreadyDefinedAbove(Function fun) {
     if (parent) parent.parseMe;
@@ -789,16 +796,17 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     IType getRefType() {
       return fastalloc!(ClassRef)(this);
     }
-    void emitAsm(AsmFile af) {
-      auto name = vt_name().dup;
+    void emitLLVM(LLVMFile lf) {
+      todo("Class::emitLLVM");
+      /*auto name = vt_name().dup;
       auto cd = cd_name().dup;
       if (weak) {
-        af.weak_longstants[name] = getClassinfo().dup;
-        af.weak_longstants[cd]   = getClassinfoData(af).dup;
+        lf.weak_longstants[name] = getClassinfo().dup;
+        lf.weak_longstants[cd]   = getClassinfoData(lf).dup;
       } else {
-        af.longstants[name] = getClassinfo().dup;
-        af.longstants[cd]   = getClassinfoData(af).dup;
-      }
+        lf.longstants[name] = getClassinfo().dup;
+        lf.longstants[cd]   = getClassinfoData(lf).dup;
+      }*/
     }
     int size() {
       // we return partial size so the struct thinks we contain our parent's struct

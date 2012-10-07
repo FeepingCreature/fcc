@@ -46,25 +46,27 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
     text.failparse(ex);
   }
   return fastalloc!(CallbackExpr)(Format("class-new "[], cr), cr, protConstCall, stuple(text, cr, var_token)
-  /apply/ (string text, ClassRef cr, PlaceholderTokenLV var_token, Expr protConstCall, AsmFile af)
+  /apply/ (string text, ClassRef cr, PlaceholderTokenLV var_token, Expr protConstCall, LLVMFile lf)
   {
-    mixin(mustOffset("nativePtrSize"[]));
-    af.comment("mk var"[]);
-    mkVar(af, cr, true, (Variable var) {
-      af.comment("new_class"[]);
+    todo("class-new callback");
+    return;
+    /*mixin(mustOffset("nativePtrSize"[]));
+    lf.comment("mk var"[]);
+    mkVar(lf, cr, true, (Variable var) {
+      lf.comment("new_class"[]);
       mixin(mustOffset("0"[]));
       iparse!(Statement, "new_class"[], "tree.stmt"[])
       (`var = type-of var: mem.calloc(size, 1);`,
         "var"[], var,
         "size"[], mkInt(cr.myClass.size)
-      ).emitAsm(af);
+      ).emitLLVM(lf);
       // (void**:var)[0] = _classinfo;
       (fastalloc!(Assignment)(
         fastcast!(LValue) (lookupOp("index"[],
           reinterpret_cast(voidpp, var),
           mkInt(0))),
         reinterpret_cast(voidp, fastalloc!(Symbol)(cr.myClass.vt_name()))
-      )).emitAsm(af);
+      )).emitLLVM(lf);
       
       if (cr.myClass.ctx) {
         auto transformed = cr.myClass.ctx.transform(
@@ -87,7 +89,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         }
         // logln("transformed: "[], transformed);
         // logln("baseptr: "[], bp);
-        emitAssign(af, fastcast!(LValue) (transformed), bp);
+        emitAssign(lf, fastcast!(LValue) (transformed), bp);
       }
       void initClass(Class cl) {
         if (cl.parent) initClass(cl.parent);
@@ -120,7 +122,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
             "base"[], mkInt(base), "id"[], mkInt(id++),
             "_classinfo"[], fastalloc!(Symbol)(cr.myClass.vt_name()),
             "offs"[], offs
-          ).emitAsm(af);*/
+          ).emitLLVM(lf);* /
           auto slot = fastcast!(LValue) (lookupOp("index"[],
             reinterpret_cast(voidpp, var),
             mkInt(base + (id ++))
@@ -129,7 +131,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
             reinterpret_cast(voidpp, fastalloc!(Symbol)(cr.myClass.vt_name())),
             offs
           ));
-          emitAssign(af, slot, classinfo_reference);
+          emitAssign(lf, slot, classinfo_reference);
         });
       }
       initClass(cr.myClass);
@@ -141,9 +143,9 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (protConstCall) {
         protConstCall = protConstCall.dup;
         protConstCall.iterate(&subst);
-        (fastalloc!(ExprStatement)(protConstCall)).emitAsm(af);
+        (fastalloc!(ExprStatement)(protConstCall)).emitLLVM(lf);
       }
-    });
+    });*/
   });
 }
 mixin DefaultParser!(gotNewClassExpr, "tree.expr.new.class"[], "125"[], "new"[]);
@@ -244,7 +246,7 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   IType ty;
   if (!rest(t2, "type"[], &ty))
-    t2.failparse("Malformed value-new"[]);
+    t2.failparse("Ma(lf)ormed value-new"[]);
   
   text = t2;
   

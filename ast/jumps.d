@@ -4,14 +4,14 @@ import ast.base;
 
 class Label : Statement {
   string name;
-  override void emitAsm(AsmFile af) {
-    af.emitLabel(name, !keepRegs, !isForward);
+  override void emitLLVM(LLVMFile lf) {
+    lf.emitLabel(name, !keepRegs, !isForward);
   }
 }
 
 class GotoStmt : Statement {
   string target;
-  override void emitAsm(AsmFile af) {
-    af.jump(target);
+  override void emitLLVM(LLVMFile lf) {
+    lf.jump(target);
   }
 }

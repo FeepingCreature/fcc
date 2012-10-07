@@ -57,8 +57,8 @@ class RefExpr : Expr {
       if (!type_cache) type_cache = fastalloc!(Pointer)(src.valueType());
       return type_cache;
     }
-    void emitAsm(AsmFile af) {
-      src.emitLocation(af);
+    void emitLLVM(LLVMFile lf) {
+      src.emitLocation(lf);
     }
     string toString() {
       return Format("&"[], src);
@@ -85,29 +85,30 @@ class DerefExpr : LValue, HasInfo {
     IType valueType() {
       return fastcast!(Pointer) (resolveType(src.valueType())).target;
     }
-    void emitAsm(AsmFile af) {
-      int sz = valueType().size;
+    void emitLLVM(LLVMFile lf) {
+      todo("Pointer::emitLLVM");
+      /*int sz = valueType().size;
       mixin(mustOffset("sz"[]));
       if (isARM && sz == 1) {
-        af.salloc(1);
-        src.emitAsm(af);
-        af.popStack("r2"[], 4);
-        af.mmove1("[r2]"[], "r2"[]);
-        af.mmove1("r2"[], "[sp]"[]);
+        lf.salloc(1);
+        src.emitLLVM(lf);
+        lf.popStack("r2"[], 4);
+        lf.mmove1("[r2]"[], "r2"[]);
+        lf.mmove1("r2"[], "[sp]"[]);
         return;
       }
-      src.emitAsm(af);
+      src.emitLLVM(lf);
       if (isARM) {
-        af.popStack("r2"[], nativePtrSize);
-        armpush(af, "r2"[], sz);
+        lf.popStack("r2"[], nativePtrSize);
+        armpush(lf, "r2"[], sz);
       } else {
-        af.popStack("%edx"[], nativePtrSize);
-        af.pushStack("(%edx)"[], sz);
-        af.nvm("%edx"[]);
-      }
+        lf.popStack("%edx"[], nativePtrSize);
+        lf.pushStack("(%edx)"[], sz);
+        lf.nvm("%edx"[]);
+      }*/
     }
-    void emitLocation(AsmFile af) {
-      src.emitAsm(af);
+    void emitLocation(LLVMFile lf) {
+      src.emitLLVM(lf);
     }
   }
   string toString() { return Format("*"[], src); }
@@ -212,34 +213,36 @@ class Symbol : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!();
   override IType valueType() { return voidp; }
-  override void emitAsm(AsmFile af) {
-    if (isARM) {
-      af.mmove4("="~getName(), "r0"[]);
-      // af.pool;
-      af.pushStack("r0"[], 4);
+  override void emitLLVM(LLVMFile lf) {
+    todo("Symbol::emitLLVM");
+    /*if (isARM) {
+      lf.mmove4("="~getName(), "r0"[]);
+      // lf.pool;
+      lf.pushStack("r0"[], 4);
     } else {
-      af.pushStack("$"~getName(), nativePtrSize);
-    }
+      lf.pushStack("$"~getName(), nativePtrSize);
+    }*/
   }
 }
 
-// fill string at emitAsm-time via dg
+// fill string at emitLLVM-time via dg
 class LateSymbol : Expr {
-  void delegate(AsmFile) dg;
+  void delegate(LLVMFile) dg;
   string* name;
   Expr referent; // expr that we reference, so that iteration can see it
-  this(Expr referent, void delegate(AsmFile) dg, string* name) { this.referent = referent; this.dg = dg; this.name = name; }
+  this(Expr referent, void delegate(LLVMFile) dg, string* name) { this.referent = referent; this.dg = dg; this.name = name; }
   private this() { }
   LateSymbol dup() { return fastalloc!(LateSymbol)(referent, dg, name); }
   mixin defaultIterate!(referent);
   override IType valueType() { return voidp; }
-  override void emitAsm(AsmFile af) {
-    if (!*name) dg(af);
-    if (isARM) {
-      af.mmove4("="~*name, "r0"[]);
-      af.pushStack("r0"[], 4);
+  override void emitLLVM(LLVMFile lf) {
+    if (!*name) dg(lf);
+    todo("LateSymbol::emitLLVM");
+    /*if (isARM) {
+      lf.mmove4("="~*name, "r0"[]);
+      lf.pushStack("r0"[], 4);
     } else {
-      af.pushStack("$"~*name, nativePtrSize);
-    }
+      lf.pushStack("$"~*name, nativePtrSize);
+    }*/
   }
 }

@@ -1,8 +1,8 @@
 module ast.types;
 
-import tools.base: Stuple, take;
+import tools.base: Stuple, take, fail;
 
-import alloc, casts, dwarf2, asmfile, quickformat;
+import alloc, casts, dwarf2, llvmfile, quickformat;
 
 interface IType {
   int size();

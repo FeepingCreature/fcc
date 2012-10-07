@@ -13,7 +13,7 @@ class PrePostOpExpr(bool Post, bool Inc) : Expr {
   mixin defaultIterate!(ex);
   override {
     IType valueType() { return ex.valueType(); }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       auto op = lookupOp(Inc?"+":"-"[], ex, mkInt(1));
       Expr cv;
       if (ex.valueType() == op.valueType()) cv = op;
@@ -23,11 +23,11 @@ class PrePostOpExpr(bool Post, bool Inc) : Expr {
       }
       auto as = mkAssignment(ex, cv);
       static if (Post) {
-        ex.emitAsm(af);
-        as.emitAsm(af);
+        ex.emitLLVM(lf);
+        as.emitLLVM(lf);
       } else {
-        as.emitAsm(af);
-        ex.emitAsm(af);
+        as.emitLLVM(lf);
+        ex.emitLLVM(lf);
       }
     }
   }

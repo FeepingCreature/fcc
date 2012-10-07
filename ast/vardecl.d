@@ -56,35 +56,36 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
   override string getInfo() {
     return Format(dontInit?"uninitialized":"initialized"[], "; "[], marker);
   }
-  override void emitAsm(AsmFile af) {
-    if (hasInitializer) super.emitAsm(af); // otherwise not worth it
-    // logln("emit at "[], af.currentStackDepth, ": "[], vars);
+  override void emitLLVM(LLVMFile lf) {
+    todo("VarDecl::emitLLVM");
+    /*if (hasInitializer) super.emitLLVM(lf); // otherwise not worth it
+    // logln("emit at "[], lf.currentStackDepth, ": "[], vars);
     // sanity checking start!
-    if (var.baseOffset + var.type.size < -af.currentStackDepth) {
-      auto delta = -af.currentStackDepth - (var.baseOffset + var.type.size);
+    if (var.baseOffset + var.type.size < -(lf).currentStackDepth) {
+      auto delta = -(lf).currentStackDepth - (var.baseOffset + var.type.size);
       // logln("alloc "[], delta, " to compensate for stack being wrong for var "[], var.name, " @"[], var.baseOffset);
-      // logln("("[], var.name, " at "[], af.currentStackDepth, " wants "[], -var.baseOffset - var.type.size, ")"[]);
-      af.salloc(delta);
+      // logln("("[], var.name, " at "[], lf.currentStackDepth, " wants "[], -var.baseOffset - var.type.size, ")"[]);
+      lf.salloc(delta);
     }
-    if (af.dwarf2) {
+    if (lf.dwarf2) {
       auto end = namespace().get!(Scope).exit();
-      auto dwarf2 = af.dwarf2;
+      auto dwarf2 = lf.dwarf2;
       auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("lexical block"[]));
       string startname = qformat(".Lvardecl"[], marker);
-      af.emitLabel(startname, keepRegs, !isForward);
+      lf.emitLabel(startname, keepRegs, !isForward);
       sect.data ~= qformat(".long\t"[], startname);
       sect.data ~= qformat(".long\t"[], end);
       dwarf2.open(sect);
       var.registerDwarf2(dwarf2);
     }
     mixin(mustOffset("var.valueType().size()"[]));
-    if (var.baseOffset + var.type.size != -af.currentStackDepth) {
+    if (var.baseOffset + var.type.size != -(lf).currentStackDepth) {
       string name; int line;
       (fastcast!(LineNumberedStatementClass) (this)).getInfo(name, line);
-      logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at "[], var.baseOffset + var.type.size, " vs. stack at "[], -af.currentStackDepth, ": "[], var, " at "[], name, ":"[], line);
+      logln("Stack wrong for var emit: LOGIC ERROR; variable needs to start at "[], var.baseOffset + var.type.size, " vs. stack at "[], -(lf).currentStackDepth, ": "[], var, " at "[], name, ":"[], line);
       foreach (elem; namespace().field) {
         if (auto var = fastcast!(Variable)~ elem._1) {
-          auto csd = af.currentStackDepth;
+          auto csd = lf.currentStackDepth;
           if (csd in
             Range[var.baseOffset .. var.baseOffset + var.type.size].endIncl)
             logln("Clobbered by "[], var, ". "[]);
@@ -95,13 +96,13 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
     }
     // sanity checking end!
     if (!hasInitializer())
-      af.salloc(var.type.size);
+      lf.salloc(var.type.size);
     else {
       int sz = var.type.size;
       mixin(mustOffset("sz"));
       // TODO: investigate why necessary for chars
-      initval.emitAsm(af);
-    }
+      initval.emitLLVM(lf);
+    }*/
   }
   override string toString() { return Format("declare [", marker, "] ", var); }
 }
@@ -112,27 +113,28 @@ int boffs(IType t, int curdepth = -1) {
   return align_boffs(t, curdepth);
 }
 
-void mkVar(AsmFile af, IType type, bool dontInit, bool alignvar, void delegate(Variable) dg) {
+void mkVar(LLVMFile lf, IType type, bool dontInit, bool alignvar, void delegate(Variable) dg) {
+  todo("mkVar");
   // void vars are fucking weird.
-  if (Single!(Void) == type) { dg(null); return; }
+  /*if (Single!(Void) == type) { dg(null); return; }
   int size = type.size;
   mixin(mustOffset("size"[]));
   string name;
   static int x;
   synchronized name = Format("__temp_res_var_"[], x++, "__"[]);
-  auto bof = boffs(type, af.currentStackDepth), naturalOffs = -(af.currentStackDepth + type.size);
+  auto bof = boffs(type, lf.currentStackDepth), naturalOffs = -(lf.currentStackDepth + type.size);
   bool needsAlignment = bof != naturalOffs;
   if (alignvar && needsAlignment) { // write into temporary
-    mkVarUnaligned(af, type, true, (Variable var) {
-      auto delta = -(af.currentStackDepth + type.size) - boffs(type, af.currentStackDepth);
-      af.salloc(delta);
-      assert(!-(af.currentStackDepth + type.size) - boffs(type, af.currentStackDepth)); // copypaste yay
-      mkVar(af, type, true, (Variable var2) {
+    mkVarUnaligned(lf, type, true, (Variable var) {
+      auto delta = -(lf.currentStackDepth + type.size) - boffs(type, lf.currentStackDepth);
+      lf.salloc(delta);
+      assert(!-(lf.currentStackDepth + type.size) - boffs(type, lf.currentStackDepth)); // copypaste yay
+      mkVar(lf, type, true, (Variable var2) {
         dg(var2);
-        (mkAssignment(var, var2)).emitAsm(af);
+        (mkAssignment(var, var2)).emitLLVM(lf);
       });
-      af.sfree(type.size);
-      af.sfree(delta);
+      lf.sfree(type.size);
+      lf.sfree(delta);
     });
   } else {
     auto var = fastalloc!(Variable)(type, name,
@@ -142,26 +144,28 @@ void mkVar(AsmFile af, IType type, bool dontInit, bool alignvar, void delegate(V
       auto vd = fastalloc!(VarDecl)(var);
       if (dontInit) vd.dontInit = true;
       else vd.initInit;
-      vd.emitAsm(af);
+      vd.emitLLVM(lf);
     }
     {
       mixin(mustOffset("0"[]));
       dg(var);
     }
-  }
+  }*/
 }
 
-void mkVar(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
-  mkVar(af, type, dontInit, true, dg);
+void mkVar(LLVMFile lf, IType type, bool dontInit, void delegate(Variable) dg) {
+  mkVar(lf, type, dontInit, true, dg);
 }
 
-void mkVarUnaligned(AsmFile af, IType type, bool dontInit, void delegate(Variable) dg) {
-  mkVar(af, type, dontInit, false, dg);
+void mkVarUnaligned(LLVMFile lf, IType type, bool dontInit, void delegate(Variable) dg) {
+  mkVar(lf, type, dontInit, false, dg);
 }
 
 import tools.base;
-LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
-  if (auto lv = fastcast!(LValue)~ ex)
+LValue mkRef(LLVMFile lf, Expr ex, ref void delegate() post) {
+  todo("mkRef");
+  return null;
+  /*if (auto lv = fastcast!(LValue)~ ex)
     return lv;
   
   auto type = ex.valueType();
@@ -172,12 +176,12 @@ LValue mkRef(AsmFile af, Expr ex, ref void delegate() post) {
   static int x;
   synchronized name = Format("__temp_var_"[], x++, "__"[]);
   auto var = fastalloc!(Variable)(type, name,
-                          boffs(type, af.currentStackDepth));
-  post = stuple(af, af.checkptStack()) /apply/ (AsmFile af, typeof(af.checkptStack()) forble) { af.restoreCheckptStack(forble); };
+                          boffs(type, lf.currentStackDepth));
+  post = stuple(lf, lf.checkptStack()) /apply/ (LLVMFile lf, typeof(lf.checkptStack()) forble) { lf.restoreCheckptStack(forble); };
   auto vd = fastalloc!(VarDecl)(var);
   vd.initval = ex;
-  vd.emitAsm(af);
-  return var;
+  vd.emitLLVM(lf);
+  return var;*/
 }
 
 Expr tmpize_if_possible(Expr ex, Statement* late_init = null) {
@@ -259,26 +263,27 @@ class WithTempExpr : Expr {
       return res;
     }
     IType valueType() { return superthing.valueType(); }
-    void emitAsm(AsmFile af) {
-      auto svt = superthing.valueType();
+    void emitLLVM(LLVMFile lf) {
+      todo("WithTempExpr::emitLLVM");
+      /*auto svt = superthing.valueType();
       if (Single!(Void) == svt) {
-        thing.emitAsm(af);
-        offs.offset = -af.currentStackDepth;
+        thing.emitLLVM(lf);
+        offs.offset = -(lf).currentStackDepth;
         {
           mixin(mustOffset("0"[]));
-          superthing.emitAsm(af);
+          superthing.emitLLVM(lf);
         }
-        af.sfree(thing.valueType().size);
+        lf.sfree(thing.valueType().size);
       } else {
         mixin(mustOffset("svt.size"[]));
-        mkVar(af, svt, true, (Variable var) {
+        mkVar(lf, svt, true, (Variable var) {
           offs_res.offset = var.baseOffset;
-          thing.emitAsm(af);
-          offs.offset = -af.currentStackDepth;
-          (mkAssignment(var, superthing)).emitAsm(af);
-          af.sfree(thing.valueType().size);
+          thing.emitLLVM(lf);
+          offs.offset = -(lf).currentStackDepth;
+          (mkAssignment(var, superthing)).emitLLVM(lf);
+          lf.sfree(thing.valueType().size);
         });
-      }
+      }*/
     }
   }
 }
@@ -304,7 +309,7 @@ Expr tmpize_ref_maybe(Expr thing, Expr delegate(Expr) dg) {
 }
 
 import ast.fold;
-Expr mkTemp(AsmFile af, Expr ex, ref void delegate() post) {
+Expr mkTemp(LLVMFile lf, Expr ex, ref void delegate() post) {
   if (fastcast!(Literal) (ex)) return ex;
-  return mkRef(af, ex, post);
+  return mkRef(lf, ex, post);
 }

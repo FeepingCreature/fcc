@@ -45,12 +45,12 @@ template ReinterpretCast_Contents(T) {
   }
   override {
     static if (is(typeof((fastcast!(T)~ from).emitLocation(null))))
-      void emitLocation(AsmFile af) {
-        (fastcast!(T)~ from).emitLocation(af);
+      void emitLocation(LLVMFile lf) {
+        (fastcast!(T)~ from).emitLocation(lf);
       }
     static if (is(typeof((fastcast!(T)~ from).emitAssignment(null))))
-      void emitAssignment(AsmFile af) {
-        (fastcast!(T)~ from).emitAssignment(af);
+      void emitAssignment(LLVMFile lf) {
+        (fastcast!(T)~ from).emitAssignment(lf);
       }
   }
 }
@@ -63,8 +63,8 @@ template ReinterpretCast(T) {
         string toString() { return Format("("[], to, ": "[], from, ")"[]); }
         IType valueType() { return to; }
         string getInfo() { return Format(to, ":"[]); }
-        void emitAsm(AsmFile af) {
-          _reinterpret_cast_expr(this, af);
+        void emitLLVM(LLVMFile lf) {
+          _reinterpret_cast_expr(this, lf);
         }
       }
     }
@@ -83,7 +83,7 @@ alias ReinterpretCast!(Expr) RCE;
 alias ReinterpretCast!(CValue) RCC;
 alias ReinterpretCast!(LValue) RCL; // class LCL omitted due to tang-related concerns
 alias ReinterpretCast!(MValue) RCM;
-extern(C) void _reinterpret_cast_expr(RCE, AsmFile);
+extern(C) void _reinterpret_cast_expr(RCE, LLVMFile);
 extern(C) bool _exactly_equals(IType a, IType b);
 
 bool exactlyEquals(IType a, IType b) { return _exactly_equals(a, b); }
@@ -241,7 +241,7 @@ class DontCastMeExpr : Expr {
   mixin defaultIterate!(sup);
   override {
     IType valueType() { return sup.valueType(); }
-    void emitAsm(AsmFile af) { sup.emitAsm(af); }
+    void emitLLVM(LLVMFile lf) { sup.emitLLVM(lf); }
     string toString() { return Format("__dcm("[], sup, ")"[]); }
   }
 }
@@ -249,7 +249,7 @@ class DontCastMeExpr : Expr {
 class DontCastMeCValue : DontCastMeExpr, CValue {
   this(CValue cv) { super(cv); }
   typeof(this) dup() { return new typeof(this)(fastcast!(CValue) (sup.dup)); }
-  override void emitLocation(AsmFile af) { (fastcast!(CValue)~ sup).emitLocation(af); }
+  override void emitLocation(LLVMFile lf) { (fastcast!(CValue)~ sup).emitLocation(lf); }
 }
 
 class DontCastMeLValue : DontCastMeCValue, LValue {
@@ -260,7 +260,7 @@ class DontCastMeLValue : DontCastMeCValue, LValue {
 class DontCastMeMValue : DontCastMeExpr, MValue {
   this(MValue mv) { super(mv); }
   override typeof(this) dup() { return new typeof(this)(fastcast!(MValue) (sup.dup)); }
-  override void emitAssignment(AsmFile af) { (fastcast!(MValue) (sup)).emitAssignment(af); }
+  override void emitAssignment(LLVMFile lf) { (fastcast!(MValue) (sup)).emitAssignment(lf); }
 }
 
 Expr dcm(Expr ex) {
@@ -381,19 +381,20 @@ class ShortToIntCast : Expr {
   mixin defaultIterate!(sh);
   override {
     IType valueType() { return Single!(SysInt); }
-    void emitAsm(AsmFile af) {
-      sh.emitAsm(af);
-      af.comment("short to int cast"[]);
+    void emitLLVM(LLVMFile lf) {
+      todo("ShortToIntCast::emitLLVM");
+      /*sh.emitLLVM(lf);
+      lf.comment("short to int cast"[]);
       if (isARM) {
         // TODO: proper conversion
-        af.mmove2("[sp]"[], "r0"[]);
-        af.salloc(2);
-        af.mmove4("r0"[], "[sp]"[]);
+        lf.mmove2("[sp]"[], "r0"[]);
+        lf.salloc(2);
+        lf.mmove4("r0"[], "[sp]"[]);
         return;
       }
-      af.popStack("%ax"[], sh.valueType().size);
-      af.put("cwde"[]);
-      af.pushStack("%eax"[], 4);
+      lf.popStack("%ax"[], sh.valueType().size);
+      lf.put("cwde"[]);
+      lf.pushStack("%eax"[], 4);*/
     }
     string toString() { return Format("int:"[], sh); }
   }
@@ -419,18 +420,19 @@ class ByteToShortCast : Expr {
   override {
     string toString() { return Format("short:"[], b); }
     IType valueType() { return Single!(Short); }
-    void emitAsm(AsmFile af) {
-      {
+    void emitLLVM(LLVMFile lf) {
+      todo("ByteToShortCast::emitLLVM");
+      /*{
         mixin(mustOffset("1"[]));
-        b.emitAsm(af);
+        b.emitLLVM(lf);
       }
       // lol.
-      af.comment("byte to short cast lol"[]);
-      af.put("xorw %ax, %ax"[]);
-      af.popStack("%al"[], b.valueType().size);
+      lf.comment("byte to short cast lol"[]);
+      lf.put("xorw %ax, %ax"[]);
+      lf.popStack("%al"[], b.valueType().size);
       if (signed)
-        af.put("cbtw");
-      af.pushStack("%ax"[], 2);
+        lf.put("cbtw");
+      lf.pushStack("%ax"[], 2);*/
     }
   }
 }
@@ -455,29 +457,30 @@ class ByteToIntCast : Expr {
   override {
     string toString() { return Format("int:"[], b); }
     IType valueType() { return Single!(SysInt); }
-    void emitAsm(AsmFile af) {
-      {
+    void emitLLVM(LLVMFile lf) {
+      todo("ByteToIntCast::emitLLVM");
+      /*{
         mixin(mustOffset("4"[]));
-        af.salloc(3);
-        b.emitAsm(af);
+        lf.salloc(3);
+        b.emitLLVM(lf);
       }
       // lol.
-      af.comment("byte to int cast lol"[]);
+      lf.comment("byte to int cast lol"[]);
       if (isARM) {
-        af.mmove4("#0"[], "r0"[]);
-        af.mmove1("[sp]"[], "r0"[]);
-        af.sfree(4);
-        af.pushStack("r0"[], 4);
+        lf.mmove4("#0"[], "r0"[]);
+        lf.mmove1("[sp]"[], "r0"[]);
+        lf.sfree(4);
+        lf.pushStack("r0"[], 4);
       } else {
-        af.mathOp("xorl", "%eax", "%eax");
-        af.popStack("%al"[], b.valueType().size);
+        lf.mathOp("xorl", "%eax", "%eax");
+        lf.popStack("%al"[], b.valueType().size);
         if (signed) {
-          af.put("cbtw");
-          af.put("cwtl");
+          lf.put("cbtw");
+          lf.put("cwtl");
         }
-        af.sfree(3);
-        af.pushStack("%eax"[], 4);
-      }
+        lf.sfree(3);
+        lf.pushStack("%eax"[], 4);
+      }*/
     }
   }
 }

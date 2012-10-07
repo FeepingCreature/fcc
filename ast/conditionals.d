@@ -10,8 +10,9 @@ class TrueCond : Cond {
   mixin defaultIterate!();
   override {
     string toString() { return Format("true"[]); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      if (cond) af.jump(dest);
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      todo("TrueCond::jumpOn");
+      // if (cond) lf.jump(dest);
     }
   }
 }
@@ -21,8 +22,9 @@ class FalseCond : Cond {
   mixin defaultIterate!();
   override {
     string toString() { return Format("false"[]); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      if (!cond) af.jump(dest);
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      todo("FalseCond::jumpOn");
+      // if (!cond) lf.jump(dest);
     }
   }
 }
@@ -59,10 +61,11 @@ class ExprWrap : Cond {
   mixin defaultIterate!(ex);
   override {
     string toString() { return Format("!!"[], ex); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      mixin(mustOffset("0"[]));
-      ex.emitAsm(af);
-      with (af) {
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      todo("ExprWrap::jumpOn");
+      /*mixin(mustOffset("0"[]));
+      ex.emitLLVM(lf);
+      with (lf) {
         popStack(regs[0], 4);
         compare(regs[0], regs[0], true);
         nvm(regs[0]);
@@ -70,7 +73,7 @@ class ExprWrap : Cond {
           jumpOn(true, false, true, dest); // Jump on !=0
         else
           jumpOn(false, true, false, dest); // jump on 0.
-      }
+      }*/
     }
   }
 }
@@ -83,10 +86,11 @@ class StatementAndCond : Cond {
   mixin defaultIterate!(first, second);
   override {
     string toString() { return Format("{ "[], first, " "[], second, " }"[]); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      mixin(mustOffset("0"[]));
-      first.emitAsm(af);
-      second.jumpOn(af, cond, dest);
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      todo("StatementAndCond::jumpOn");
+      /*mixin(mustOffset("0"[]));
+      first.emitLLVM(lf);
+      second.jumpOn(lf, cond, dest);*/
     }
   }
 }
@@ -170,43 +174,46 @@ class Compare : Cond, Expr {
       e1 = fastalloc!(IntAsFloat)(e1);
     }
   }
-  private void emitComparison(AsmFile af) { with (af) {
-    mixin(mustOffset("0"[]));
-    prelude;
-    if (isARM) {
+  private void emitComparison(LLVMFile lf) {
+    todo("Compare::emitComparison");
+    /*with (lf) {
+      mixin(mustOffset("0"[]));
+      prelude;
+      if (isARM) {
+        if (isDouble) {
+          fail;
+          return;
+        }
+        if (isFloat) {
+          fail;
+          return;
+        }
+      }
       if (isDouble) {
-        fail;
-        return;
+        e2.emitLLVM(lf); loadDouble("(%esp)"[]); sfree(8);
+        e1.emitLLVM(lf); loadDouble("(%esp)"[]); sfree(8);
+        compareFloat("%st(1)"[], useIVariant);
+      } else if (isFloat) {
+        e2.emitLLVM(lf); loadFloat("(%esp)"[]); sfree(4);
+        e1.emitLLVM(lf); loadFloat("(%esp)"[]); sfree(4);
+        compareFloat("%st(1)"[], useIVariant);
+        // e1.emitLLVM(lf); e2.emitLLVM(lf);
+        // SSEOp("movd"[], "(%esp)"[], "%xmm1"[], true / * ignore alignment * /); sfree(4);
+        // SSEOp("movd"[], "(%esp)"[], "%xmm0"[], true); sfree(4);
+        // SSEOp("comiss"[], "%xmm1"[], "%xmm0"[]);
+      } else if (auto ie = fastcast!(IntExpr) (e2)) {
+        e1.emitLLVM(lf);
+        popStack(regs[0], 4);
+        compare(regs[0], number(ie.num));
+      } else {
+        e2.emitLLVM(lf);
+        e1.emitLLVM(lf);
+        popStack(regs[3], 4);
+        popStack(regs[0], 4);
+        compare(regs[3], regs[0]);
       }
-      if (isFloat) {
-        fail;
-        return;
-      }
-    }
-    if (isDouble) {
-      e2.emitAsm(af); loadDouble("(%esp)"[]); sfree(8);
-      e1.emitAsm(af); loadDouble("(%esp)"[]); sfree(8);
-      compareFloat("%st(1)"[], useIVariant);
-    } else if (isFloat) {
-      e2.emitAsm(af); loadFloat("(%esp)"[]); sfree(4);
-      e1.emitAsm(af); loadFloat("(%esp)"[]); sfree(4);
-      compareFloat("%st(1)"[], useIVariant);
-      // e1.emitAsm(af); e2.emitAsm(af);
-      // SSEOp("movd"[], "(%esp)"[], "%xmm1"[], true /* ignore alignment */); sfree(4);
-      // SSEOp("movd"[], "(%esp)"[], "%xmm0"[], true); sfree(4);
-      // SSEOp("comiss"[], "%xmm1"[], "%xmm0"[]);
-    } else if (auto ie = fastcast!(IntExpr) (e2)) {
-      e1.emitAsm(af);
-      popStack(regs[0], 4);
-      compare(regs[0], number(ie.num));
-    } else {
-      e2.emitAsm(af);
-      e1.emitAsm(af);
-      popStack(regs[3], 4);
-      popStack(regs[0], 4);
-      compare(regs[3], regs[0]);
-    }
-  }}
+    }*/
+  }
   override {
     IType valueType() {
       if (falseOverride && trueOverride) {
@@ -215,49 +222,52 @@ class Compare : Cond, Expr {
       }
       return Single!(SysInt);
     }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("valueType().size"[]));
+    void emitLLVM(LLVMFile lf) {
+      todo("Compare::emitLLVM");
+      /*mixin(mustOffset("valueType().size"[]));
       if (falseOverride && trueOverride) {
-        falseOverride.emitAsm(af);
-        trueOverride.emitAsm(af);
+        falseOverride.emitLLVM(lf);
+        trueOverride.emitLLVM(lf);
       }
-      emitComparison(af);
-      if (isARM) { af.put("mrs r0, cpsr"[]); }
+      emitComparison(lf);
+      if (isARM) { lf.put("mrs r0, cpsr"[]); }
       auto s = smaller, e = equal, g = greater;
       if (falseOverride && trueOverride) {
         if (isARM) {
-          af.mmove4("[sp]"[], "r3"[]);
-          af.mmove4("[sp,#4]"[], "r2"[]);
+          lf.mmove4("[sp]"[], "r3"[]);
+          lf.mmove4("[sp,#4]"[], "r2"[]);
         } else {
           // DO NOT POP! POP IS MOVE/SFREE! SFREE OVERWRITES COMPARISON!
-          af.mmove4( "(%esp)"[], "%edx"[]);
-          af.mmove4("4(%esp)"[], "%ecx"[]);
+          lf.mmove4( "(%esp)"[], "%edx"[]);
+          lf.mmove4("4(%esp)"[], "%ecx"[]);
         }
       } else {
-        af.mmove4(af.number(1), af.regs[3]);
-        af.mmove4(af.number(0), af.regs[2]);
+        lf.mmove4(lf.number(1), lf.regs[3]);
+        lf.mmove4(lf.number(0), lf.regs[2]);
       }
-      if (isARM) { af.put("msr cpsr, r0"[]); }
+      if (isARM) { lf.put("msr cpsr, r0"[]); }
       // can't use eax, moveOnFloat needs ax .. or does it? (SSE mode)
       if (isFloat || isDouble)
-        af.moveOnFloat(s, e, g, af.regs[3], af.regs[2], /* convert */ !useIVariant);
+        lf.moveOnFloat(s, e, g, lf.regs[3], lf.regs[2], /* convert * / !useIVariant);
       else
-        af.cmov(s, e, g, af.regs[3], af.regs[2]);
+        lf.cmov(s, e, g, lf.regs[3], lf.regs[2]);
       // now can safely free.
       if (falseOverride && trueOverride)
-        af.sfree(8);
-      af.pushStack(af.regs[2], 4);
+        lf.sfree(8);
+      lf.pushStack(lf.regs[2], 4);
+      */
     }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      emitComparison(af);
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      todo("Compare::jumpOn");
+      /*emitComparison(lf);
       auto s = smaller, e = equal, g = greater;
       if (!cond) { // negate
         s = !s; e = !e; g = !g; // TODO: validate
       }
       if (isFloat || isDouble)
-        af.jumpOnFloat(s, e, g, dest, /* convert */ !useIVariant);
+        lf.jumpOnFloat(s, e, g, dest, /* convert * / !useIVariant);
       else
-        af.jumpOn(s, e, g, dest);
+        lf.jumpOn(s, e, g, dest);*/
     }
   }
 }
@@ -282,8 +292,8 @@ class NegCond : Cond {
   mixin defaultIterate!(c);
   this(Cond c) { this.c = c; if (!c) fail; }
   override string toString() { return Format("!("[], c, ")"[]); }
-  override void jumpOn(AsmFile af, bool cond, string dest) {
-    c.jumpOn(af, !cond, dest);
+  override void jumpOn(LLVMFile lf, bool cond, string dest) {
+    c.jumpOn(lf, !cond, dest);
   }
 }
 
@@ -447,30 +457,31 @@ class BooleanOp(string Which) : Cond, HasInfo {
   override {
     string getInfo()  { return Which; }
     string toString() { return Format(Which, "("[], c1, ", "[], c2, ")"[]); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      static if (Which == "&&"[]) {
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      todo("BooleanOp!("~Which~")::jumpOn");
+      /*static if (Which == "&&"[]) {
         if (cond) {
-          auto past = af.genLabel();
-          c1.jumpOn(af, false, past);
-          c2.jumpOn(af, true, dest);
-          af.emitLabel(past, !keepRegs, isForward);
+          auto past = lf.genLabel();
+          c1.jumpOn(lf, false, past);
+          c2.jumpOn(lf, true, dest);
+          lf.emitLabel(past, !keepRegs, isForward);
         } else {
-          c1.jumpOn(af, false, dest);
-          c2.jumpOn(af, false, dest);
+          c1.jumpOn(lf, false, dest);
+          c2.jumpOn(lf, false, dest);
         }
       } else
       static if (Which == "||"[]) {
         if (cond) {
-          c1.jumpOn(af, true, dest);
-          c2.jumpOn(af, true, dest);
+          c1.jumpOn(lf, true, dest);
+          c2.jumpOn(lf, true, dest);
         } else {
-          auto past = af.genLabel();
-          c1.jumpOn(af, true, past);
-          c2.jumpOn(af, false, dest);
-          af.emitLabel(past, !keepRegs, isForward);
+          auto past = lf.genLabel();
+          c1.jumpOn(lf, true, past);
+          c2.jumpOn(lf, false, dest);
+          lf.emitLabel(past, !keepRegs, isForward);
         }
       } else
-      static assert(false, "unknown boolean op: "~Which);
+      static assert(false, "unknown boolean op: "~Which);*/
     }
   }
 }
@@ -572,11 +583,12 @@ class CondExpr : Expr {
     string toString() { return Format("eval "[], cd); }
     IType valueType() { return fastcast!(IType) (sysmod.lookup("bool"[])); }
     CondExpr dup() { return fastalloc!(CondExpr)(cd.dup); }
-    void emitAsm(AsmFile af) {
-      if (auto ex = cast(Expr) cd) {
-        ex.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("CondExpr::emitLLVM");
+      /*if (auto ex = cast(Expr) cd) {
+        ex.emitLLVM(lf);
       } else {
-        mkVar(af, Single!(SysInt), true, (Variable var) {
+        mkVar(lf, Single!(SysInt), true, (Variable var) {
           mixin(mustOffset("0"[]));
           auto backup = namespace();
           scope(exit) namespace.set(backup);
@@ -585,18 +597,18 @@ class CondExpr : Expr {
           namespace.set(mns);
           auto sc = fastalloc!(Scope)();
           namespace.set(sc);
-          mns.fs = af.currentStackDepth;
+          mns.fs = lf.currentStackDepth;
           configure(cd);
           
-          auto close = sc.open(af)();
-          (mkAssignment(var, mkInt(0))).emitAsm(af);
-          auto skip = af.genLabel();
-          cd.jumpOn(af, false, skip);
-          (mkAssignment(var, mkInt(1))).emitAsm(af);
-          af.emitLabel(skip);
+          auto close = sc.open(lf)();
+          (mkAssignment(var, mkInt(0))).emitLLVM(lf);
+          auto skip = lf.genLabel();
+          cd.jumpOn(lf, false, skip);
+          (mkAssignment(var, mkInt(1))).emitLLVM(lf);
+          lf.emitLabel(skip);
           close(false);
         });
-      }
+      }*/
     }
   }
 }

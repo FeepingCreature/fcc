@@ -2,11 +2,11 @@ module ast.base;
 
 int xpar = -1; // for debugging. see xpar_bisect.nt
 
-public import asmfile, ast.types, parseBase, errors, tools.log: logln;
+public import llvmfile, ast.types, parseBase, errors, tools.log: logln;
 
 public import casts, alloc, quickformat;
 
-import tools.base: Format, New, This_fn, rmSpace;
+import tools.base: fail, find, Format, New, This_fn, rmSpace;
 import tools.ctfe: ctReplace;
 
 const string EXT = ".nt";
@@ -40,12 +40,12 @@ interface Iterable {
 }
 
 interface Tree : Iterable {
-  void emitAsm(AsmFile);
+  void emitLLVM(LLVMFile);
   Tree dup();
 }
 
 interface Setupable {
-  void setup(AsmFile); // register globals and such
+  void setup(LLVMFile); // register globals and such
 }
 void delegate(Setupable) registerSetupable;
 
@@ -191,7 +191,7 @@ interface Literal {
 
 class NoOp : Statement {
   NoOp dup() { return this; }
-  override void emitAsm(AsmFile af) { }
+  override void emitLLVM(LLVMFile lf) { }
   mixin defaultIterate!();
 }
 
@@ -202,7 +202,7 @@ interface Expr : Tree {
 
 // has a pointer, but please don't modify it - ie. string literals
 interface CValue : Expr {
-  void emitLocation(AsmFile);
+  void emitLocation(LLVMFile);
   override CValue dup();
 }
 
@@ -213,7 +213,7 @@ interface LValue : CValue {
 
 // more than rvalue, less than lvalue
 interface MValue : Expr {
-  void emitAssignment(AsmFile); // eat value from stack and store
+  void emitAssignment(LLVMFile); // eat value from stack and store
   override MValue dup();
 }
 
@@ -223,7 +223,7 @@ class Placeholder : Expr {
   mixin defaultIterate!();
   this(IType type) { this.type = type; }
   override IType valueType() { return type; }
-  override void emitAsm(AsmFile af) { }
+  override void emitLLVM(LLVMFile lf) { }
   private this() { }
   mixin DefaultDup!();
 }
@@ -236,7 +236,10 @@ class Filler : Expr {
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { af.salloc(type.size); }
+    void emitLLVM(LLVMFile lf) {
+      todo("Filler::emitLLVM");
+      // af.salloc(type.size);
+    }
   }
 }
 
@@ -248,7 +251,7 @@ interface Formatable {
 /// Emitting this sets up FLAGS.
 /// TODO: how does this work on non-x86?
 interface Cond : Iterable {
-  void jumpOn(AsmFile af, bool cond, string dest);
+  void jumpOn(LLVMFile lf, bool cond, string dest);
   override Cond dup();
 }
 
@@ -260,12 +263,13 @@ class Register(string Reg) : Expr, IRegister {
   override string getReg() { return Reg; }
   mixin defaultIterate!();
   override IType valueType() { return Single!(SysInt); }
-  override void emitAsm(AsmFile af) {
-    if (isARM && Reg == "ebp"[]) {
+  override void emitLLVM(LLVMFile lf) {
+    todo("Register!("~Reg~")::emitLLVM");
+    /*if (isARM && Reg == "ebp"[]) {
       af.pushStack("fp"[], 4);
       return;
     }
-    af.pushStack("%"~Reg, 4);
+    af.pushStack("%"~Reg, 4);*/
   }
   override Register dup() { return this; }
 }
@@ -315,15 +319,15 @@ string mustOffset(string value, string _hash = null) {
 class CallbackExpr : Expr, HasInfo {
   IType type;
   Expr ex; // held for dg so it can iterate properly
-  void delegate(Expr, AsmFile) dg;
+  void delegate(Expr, LLVMFile) dg;
   string info;
-  this(string info, IType type, Expr ex, void delegate(Expr, AsmFile) dg) {
+  this(string info, IType type, Expr ex, void delegate(Expr, LLVMFile) dg) {
     this.info = info; this.type = type; this.ex = ex; this.dg = dg;
   }
   override {
     string getInfo() { return info; }
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { dg(ex, af); }
+    void emitLLVM(LLVMFile lf) { dg(ex, lf); }
     string toString() { return Format("callback<"[], ex, ">"[]); }
     mixin defaultIterate!(ex);
   }
@@ -415,20 +419,20 @@ template StatementAndT(T) {
       string toString() { return Format(NAME, " "[], marker, "{"[], first, second, "}"[]); }
       StatementAndT dup() { return fastalloc!(StatementAndT)(first.dup, fastcast!(T) (second.dup)); }
       IType valueType() { return second.valueType(); }
-      void emitAsm(AsmFile af) {
+      void emitLLVM(LLVMFile lf) {
         sae_debugme(this, marker);
-        if (check) first.emitAsm(af);
-        second.emitAsm(af);
+        if (check) first.emitLLVM(lf);
+        second.emitLLVM(lf);
       }
-      static if (is(T: LValue)) void emitLocation(AsmFile af) {
+      static if (is(T: LValue)) void emitLocation(LLVMFile lf) {
         sae_debugme(this, marker);
-        if (check) first.emitAsm(af);
-        fastcast!(T) (second).emitLocation(af);
+        if (check) first.emitLLVM(lf);
+        fastcast!(T) (second).emitLocation(lf);
       }
-      static if (is(T: MValue)) void emitAssignment(AsmFile af) {
+      static if (is(T: MValue)) void emitAssignment(LLVMFile lf) {
         sae_debugme(this, marker);
-        if (check) first.emitAsm(af);
-        fastcast!(T) (second).emitAssignment(af);
+        if (check) first.emitLLVM(lf);
+        fastcast!(T) (second).emitAssignment(lf);
       }
     }
   }
@@ -468,7 +472,7 @@ class PlaceholderToken : Expr, HasInfo {
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { logln("DIAF "[], info, " of "[], type); fail; assert(false); }
+    void emitLLVM(LLVMFile lf) { logln("DIAF "[], info, " of "[], type); fail; assert(false); }
     string toString() { return Format("PlaceholderToken("[], info, ")"[]); }
     string getInfo() { return info; }
   }
@@ -477,7 +481,7 @@ class PlaceholderToken : Expr, HasInfo {
 class PlaceholderTokenLV : PlaceholderToken, LValue {
   PlaceholderTokenLV dup() { return this; }
   this(IType type, string info) { super(type, info); }
-  override void emitLocation(AsmFile af) { assert(false); }
+  override void emitLocation(LLVMFile lf) { assert(false); }
   override string toString() { return Format("PlaceholderLV("[], info, ")"[]); }
 }
 
@@ -525,10 +529,12 @@ int getFillerFor(IType t, int depth) {
   return nd - depth;
 }
 
-int alignStackFor(IType t, AsmFile af) {
-  auto delta = getFillerFor(t, af.currentStackDepth);
+int alignStackFor(IType t, LLVMFile lf) {
+  todo("alignStackFor");
+  return 0;
+  /*auto delta = getFillerFor(t, af.currentStackDepth);
   af.salloc(delta);
-  return delta;
+  return delta;*/
 }
 
 version(Windows) { }
@@ -578,7 +584,7 @@ template logSmart(bool Mode) {
   }
 }
 
-extern(C) void _line_numbered_statement_emitAsm(LineNumberedStatement, AsmFile);
+extern(C) void _line_numbered_statement_emitLLVM(LineNumberedStatement, LLVMFile);
 
 interface LineNumberedStatement : Statement {
 	LineNumberedStatement dup();
@@ -597,8 +603,8 @@ class LineNumberedStatementClass : LineNumberedStatement {
     line = pos._0;
     name = pos._2;
   }
-  override void emitAsm(AsmFile af) {
-    _line_numbered_statement_emitAsm(this, af);
+  override void emitLLVM(LLVMFile lf) {
+    _line_numbered_statement_emitLLVM(this, lf);
   }
 }
 
@@ -646,7 +652,7 @@ TLS!(bool) lenient;
 static this() { New(lenient); }
 
 interface Dependency {
-  void emitDependency(AsmFile af);
+  void emitDependency(LLVMFile lf);
 }
 
 extern(C) int atoi(char*);
@@ -660,54 +666,14 @@ class NamedNull : NoOp, Named, SelfAdding {
   override bool addsSelf() { return true; }
 }
 
-void armpush(AsmFile af, string base, int size, int offset = 0) {
-  if (size == 1) {
-    af.mmove1(qformat("["[], base, "[], #"[], offset, "]"[]), "r0"[]);
-    af.salloc(1);
-    af.mmove1("r0"[], "[sp]"[]); // full stack
-    return;
-  }
-  if (size == 2) {
-    af.mmove2(qformat("["[], base, "[], #"[], offset, "]"[]), "r0"[]);
-    af.salloc(2);
-    af.mmove2("r0"[], "[sp]"[]); // full stack
-    return;
-  }
-  if (size % 4 || !size) { logln("!! "[], size); fail; }
-  for (int i = size / 4 - 1; i >= 0; --i) {
-    af.mmove4(qformat("["[], base, "[], #"[], offset + i * 4, "]"[]), "r0"[]);
-    af.pushStack("r0"[], 4);
-  }
-}
-
-void armpop(AsmFile af, string base, int size, int offset = 0) {
-  if (base == "r0"[]) { logln("bad register use"[]); fail; }
-  if (size == 1) {
-    af.mmove1("[sp]"[], "r0"[]);
-    af.sfree(1);
-    af.mmove1("r0"[], qformat("["[], base, "[], #"[], offset, "]"[]));
-    return;
-  }
-  if (size == 2) {
-    af.mmove2("[sp]"[], "r0"[]);
-    af.sfree(2);
-    af.mmove2("r0"[], qformat("["[], base, "[], #"[], offset, "]"[]));
-    return;
-  }
-  if (size % 4 || !size) { logln("!! "[], size); fail; }
-  for (int i = 0; i < size / 4; ++i) {
-    af.popStack("r0"[], 4);
-    af.mmove4("r0"[], qformat("["[], base, "[], #"[], offset + i * 4, "]"[]));
-  }
-}
-extern(C) void printThing(AsmFile af, string s, Expr ex);
+extern(C) void printThing(LLVMFile lf, string s, Expr ex);
 
 class VoidExpr : Expr {
   override {
     mixin defaultIterate!();
     VoidExpr dup() { return this; }
     IType valueType() { return Single!(Void); }
-    void emitAsm(AsmFile af) { }
+    void emitLLVM(LLVMFile lf) { }
   }
 }
 
@@ -724,17 +690,19 @@ class OffsetExpr : LValue {
     }
     OffsetExpr dup() { return this; } // can't dup, is a marker
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) {
-      if (offset == int.max) fail;
+    void emitLLVM(LLVMFile lf) {
+      todo("OffsetExpr::emitLLVM");
+      /*if (offset == int.max) fail;
       if (isARM) {
         armpush(af, "fp"[], type.size, offset);
       } else {
         af.pushStack(qformat(offset, "(%ebp)"[]), type.size);
-      }
+      }*/
     }
-    void emitLocation(AsmFile af) {
-      af.loadOffsetAddress(af.stackbase, offset, af.regs[0]);
-      af.pushStack(af.regs[0], 4);
+    void emitLocation(LLVMFile lf) {
+      todo("OffsetExpr::emitLocation");
+      /*af.loadOffsetAddress(af.stackbase, offset, af.regs[0]);
+      af.pushStack(af.regs[0], 4);*/
     }
   }
 }

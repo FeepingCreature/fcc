@@ -133,8 +133,9 @@ Expr simpleFormat(Expr ex) {
       return ex;
     }
     // logln("et is ", et);
-    return fastalloc!(CallbackExpr)("format"[], Single!(Array, Single!(Char)), ex, (Expr ex, AsmFile af) {
-      mkVar(af, Single!(Array, Single!(Char)), true, (Variable var) {
+    return fastalloc!(CallbackExpr)("format"[], Single!(Array, Single!(Char)), ex, (Expr ex, LLVMFile lf) {
+      todo("format callback");
+      /*mkVar(lf, Single!(Array, Single!(Char)), true, (Variable var) {
         iparse!(Scope, "!safecode_gen_array_format", "tree.scope")
         (`{
             char[auto ~] res;
@@ -150,9 +151,9 @@ Expr simpleFormat(Expr ex) {
           }`,
           namespace(),
           "var"[], var, "array"[], ex,
-          af
-        ).emitAsm(af);
-      });
+          (lf)
+        ).emitLLVM(lf);
+      });*/
     });
   }
   auto obj = fastcast!(IType) (sysmod.lookup("Object"));

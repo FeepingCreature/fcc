@@ -9,22 +9,23 @@ class IfStatement : LineNumberedStatementClass {
   mixin DefaultDup!();
   mixin defaultIterate!(test, wrapper, branch1, branch2);
   string toString() { return Format("if "[], test, " "[], branch1, " else "[], branch2); }
-  override void emitAsm(AsmFile af) {
-    super.emitAsm(af);
-    auto past1 = af.genLabel(), past2 = af.genLabel();
-    auto dg = wrapper.open(af)();
-      test.jumpOn(af, false, past1);
-      branch1.emitAsm(af);
-      auto backupStack = af.currentStackDepth;
-      if (branch2) { dg(true); af.jump(past2); }
-      af.currentStackDepth = backupStack;
-      af.emitLabel(past1, !keepRegs, isForward);
+  override void emitLLVM(LLVMFile lf) {
+    todo("IfStatement::emitLLVM");
+    /*super.emitLLVM(lf);
+    auto past1 = lf.genLabel(), past2 = lf.genLabel();
+    auto dg = wrapper.open(lf)();
+      test.jumpOn(lf, false, past1);
+      branch1.emitLLVM(lf);
+      auto backupStack = lf.currentStackDepth;
+      if (branch2) { dg(true); lf.jump(past2); }
+      lf.currentStackDepth = backupStack;
+      lf.emitLabel(past1, !keepRegs, isForward);
     dg(false);
     
     if (branch2) {
-      branch2.emitAsm(af);
-      af.emitLabel(past2, !keepRegs, isForward);
-    }
+      branch2.emitLLVM(lf);
+      lf.emitLabel(past2, !keepRegs, isForward);
+    }*/
   }
 }
 

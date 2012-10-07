@@ -47,17 +47,18 @@ class UnAlignedPlaceholder : IType {
 
 // TODO: change function call api to allow aligned parameters internally
 // NEEDED_FOR SSE support
-extern(C) void alignment_emitAligned(Expr ex, AsmFile af) {
-  mixin(mustOffset("ex.valueType().size"[]));
+extern(C) void alignment_emitAligned(Expr ex, LLVMFile lf) {
+  todo("alignment_emitAligned");
+  /*mixin(mustOffset("ex.valueType().size"[]));
   if (auto al = fastcast!(ForceAlignment) (resolveType(ex.valueType()))) {
     auto myAl = al.alignment();
-    if (myAl && ((af.currentStackDepth + esp_alignment_delta + ex.valueType().size) % myAl) != 0) {
+    if (myAl && ((lf.currentStackDepth + esp_alignment_delta + ex.valueType().size) % myAl) != 0) {
       // need realignment
-      mkVar(af, fastalloc!(UnAlignedPlaceholder)(ex.valueType()), true, (Variable var) {
-        emitAssign(af, var, ex);
+      mkVar(lf, fastalloc!(UnAlignedPlaceholder)(ex.valueType()), true, (Variable var) {
+        emitAssign(lf, var, ex);
       });
       return;
     }
   }
-  ex.emitAsm(af);
+  ex.emitLLVM(lf);*/
 }

@@ -145,15 +145,15 @@ class Scoped(T) : T, IScoped {
   mixin DefaultDup!();
   mixin defaultIterate!(sup);
   override {
-    void emitAsm(AsmFile af) { assert(false); }
+    void emitLLVM(LLVMFile lf) { assert(false); }
     IType valueType() { return sup.valueType(); }
     Expr getSup() { return sup; }
     Expr getAssign() { return newval; }
     static if (is(T: LValue)) {
-      void emitLocation(AsmFile af) { assert(false); }
+      void emitLocation(LLVMFile lf) { assert(false); }
     }
     static if (is(T: MValue)) {
-      void emitAssignment(AsmFile af) { assert(false); }
+      void emitAssignment(LLVMFile lf) { assert(false); }
     }
   }
 }

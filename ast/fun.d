@@ -1,6 +1,6 @@
 module ast.fun;
 
-import ast.namespace, ast.base, ast.variable, asmfile, ast.types, ast.scopes,
+import ast.namespace, ast.base, ast.variable, llvmfile, ast.types, ast.scopes,
   ast.constant, ast.pointer, ast.literals, ast.vardecl, ast.assign;
 
 import tools.functional;
@@ -11,9 +11,7 @@ interface StoresDebugState {
   bool hasDebug();
 }
 
-extern(C) void alignment_emitAligned(Expr ex, AsmFile af);
-
-alias asmfile.startsWith startsWith;
+extern(C) void alignment_emitAligned(Expr ex, LLVMFile lf);
 
 struct Argument {
   IType type;
@@ -70,7 +68,7 @@ class FunSymbol : Symbol {
 
 extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
-extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name);
+extern(C) void funcall_emit_fun_end_guard(LLVMFile lf, string name);
 
 TLS!(Function) current_emitting_function;
 static this() { New(current_emitting_function); }
@@ -285,8 +283,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     }
     fastcast!(Scope) (tree).addStatement(st);
   }
-  void dwarfOpen(AsmFile af) {
-    auto dwarf2 = af.dwarf2;
+  void dwarfOpen(LLVMFile lf) {
+    todo("Function::dwarfOpen");
+    /*auto dwarf2 = lf.dwarf2;
     if (dwarf2) {
       auto sect = fastalloc!(Dwarf2Section)(
         dwarf2.cache.getKeyFor("subprogram"));
@@ -294,14 +293,14 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         data ~= ".byte\t0x1"; // external
         data ~= dwarf2.strings.addString(pretty_name().replace("\"", "\\\""));
         data ~= qformat(".int\t"[],
-          hex(af.getFileId(
+          hex(lf.getFileId(
             current_module().filename())));
-        data ~= ".int\t0x0 /* line: todo */";
-        data ~= ".byte\t0x1 /* prototyped */";
+        data ~= ".int\t0x0 /* line: todo * /";
+        data ~= ".byte\t0x1 /* prototyped * /";
         sect.data ~= qformat(".long\t.LFB"[], idnum);
         data ~= qformat(".long\t.LFE"[], idnum);
-        data ~= qformat(".byte\t1\t/* location description is one entry long */"[]);
-        data ~= qformat(".byte\t"[], hex(DW.OP_reg5), "\t/* ebp */"[]);
+        data ~= qformat(".byte\t1\t/* location description is one entry long * /"[]);
+        data ~= qformat(".byte\t"[], hex(DW.OP_reg5), "\t/* ebp * /"[]);
       }
       dwarf2.open(sect);
     }
@@ -316,13 +315,14 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       foreach (param; type.params) if (param.name) if (auto var = fastcast!(Variable) (lookup(param.name, true))) {
         var.registerDwarf2(dwarf2);
       }
-    }
+    }*/
   }
-  void dwarfClose(AsmFile af) {
-    if (af.dwarf2) {
-      af.dwarf2.close;
-      af.dwarf2.close;
-    }
+  void dwarfClose(LLVMFile lf) {
+    todo("Function::dwarfClose");
+    /*if (lf.dwarf2) {
+      lf.dwarf2.close;
+      lf.dwarf2.close;
+    }*/
   }
   string fun_start_sym() { return qformat(".LFB"[], idnum); }
   string fun_end_sym() { return qformat(".LFE"[], idnum); }
@@ -332,9 +332,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string linedebug(int id) {
     return qformat(".DebugInfo_"[], idnum, "_Line_"[], id);
   }
-  void add_line_number(AsmFile af, int line) {
-    af.put(linedebug(linecounter++), ":"[]);
-    linenumbers ~= line;
+  void add_line_number(LLVMFile lf, int line) {
+    todo("Function::add_line_number");
+    /*lf.put(linedebug(linecounter++), ":"[]);
+    linenumbers ~= line;*/
   }
   override {
     int framestart() { return _framestart; }
@@ -343,67 +344,68 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       return mangleSelf() ~ "_" ~ name;
     }
     string getIdentifier() { return name; }
-    void emitAsm(AsmFile af) {
-      auto cef_backup = current_emitting_function();
+    void emitLLVM(LLVMFile lf) {
+      todo("Function::emitLLVM");
+      /*auto cef_backup = current_emitting_function();
       current_emitting_function.set(this);
       scope(exit) current_emitting_function.set(cef_backup);
       
-      auto backup_opt = af.optimize, backup_rm = releaseMode, backup_dbg = af.debugMode;
-      auto backup_dwarf = af.dwarf2;
+      auto backup_opt = lf.optimize, backup_rm = releaseMode, backup_dbg = lf.debugMode;
+      auto backup_dwarf = lf.dwarf2;
       scope(exit) {
-        af.optimize = backup_opt;
+        lf.optimize = backup_opt;
         releaseMode = backup_rm;
-        af.debugMode = backup_dbg;
-        af.dwarf2 = backup_dwarf;
+        lf.debugMode = backup_dbg;
+        lf.dwarf2 = backup_dwarf;
       }
       
       parseMe();
       if (optimize) {
-        af.flush();
-        af.optimize = true;
+        lf.flush();
+        lf.optimize = true;
         // still emit line number info when -g is on, even in pragma(fast)
-        // af.debugMode = false;
+        // lf.debugMode = false;
         // ...... why?
-        af.debugMode = false;
-        af.dwarf2 = null;
+        lf.debugMode = false;
+        lf.dwarf2 = null;
       }
       
       inEmitAsm = true;
       scope(exit) inEmitAsm = false;
       
-      if (af.floatStackDepth) {
+      if (lf.floatStackDepth) {
         logln("garbage float stack when start-emitting ", this);
         fail;
       }
       
       auto fmn = mangleSelf(); // full mangled name
-      af.put(".p2align 4"[]);
+      lf.put(".p2align 4"[]);
       if (isWindoze()) {
-        af.put(".section .text$section_for_"[], fmn, ", \"ax\""[]);
-        af.put(".linkonce discard"[]);
-        af.put(".globl "[], fmn);
+        lf.put(".section .text$section_for_"[], fmn, ", \"ax\""[]);
+        lf.put(".linkonce discard"[]);
+        lf.put(".globl "[], fmn);
       } else {
-        af.put(".global "[], fmn);
-        if (weak) af.put(".weak "[], fmn);
+        lf.put(".global "[], fmn);
+        if (weak) lf.put(".weak "[], fmn);
       }
       if (isWindoze()) {
-        af.put(".def "[], fmn, "; .val "[], fmn, "; .scl 2; .type 32; .endef"[]);
+        lf.put(".def "[], fmn, "; .val "[], fmn, "; .scl 2; .type 32; .endef"[]);
       } else {
         if (isARM)
-          af.put(".type "[], fmn, ", %function"[]);
+          lf.put(".type "[], fmn, ", %function"[]);
         else
-          af.put(".type "[], fmn, ", @function"[]);
+          lf.put(".type "[], fmn, ", @function"[]);
       }
       
-      dwarfOpen(af);
-      scope(exit) dwarfClose(af);
+      dwarfOpen(lf);
+      scope(exit) dwarfCloself;
       
-      af.put(fmn, ":"[]); // not really a label
-      af.put(".global "[], fun_start_sym());
-      af.put(fun_start_sym(), ":"[]);
-      // af.put(".cfi_startproc"[]);
+      lf.put(fmn, ":"[]); // not really a label
+      lf.put(".global "[], fun_start_sym());
+      lf.put(fun_start_sym(), ":"[]);
+      // lf.put(".cfi_startproc"[]);
       
-      af.jump_barrier();
+      lf.jump_barrier();
       
       int psize;
       if (isARM) {
@@ -416,93 +418,94 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
           logln("bad size ", type.params);
           // fail;
         }
-        if (psize >= 16) af.pushStack("r3", 4);
-        if (psize >= 12) af.pushStack("r2", 4);
-        if (psize >= 8)  af.pushStack("r1", 4);
-        if (psize >= 4)  af.pushStack("r0", 4);
-        af.pushStack("fp, lr", 8);
-        af.put("add fp, sp, #4"[]);
+        if (psize >= 16) lf.pushStack("r3", 4);
+        if (psize >= 12) lf.pushStack("r2", 4);
+        if (psize >= 8)  lf.pushStack("r1", 4);
+        if (psize >= 4)  lf.pushStack("r0", 4);
+        lf.pushStack("fp, lr", 8);
+        lf.put("add fp, sp, #4"[]);
       } else {
-        af.pushStack("%ebp", nativePtrSize);
-        af.mmove4("%esp", "%ebp");
-        if (isWindoze() && extern_c) { af.pushStack("%ebx", nativePtrSize); }
-        if (af.profileMode)
-          af.put("call mcount"[]);
+        lf.pushStack("%ebp", nativePtrSize);
+        lf.mmove4("%esp", "%ebp");
+        if (isWindoze() && extern_c) { lf.pushStack("%ebx", nativePtrSize); }
+        if (lf.profileMode)
+          lf.put("call mcount"[]);
       }
       
-      auto backup = af.currentStackDepth;
-      scope(exit) af.currentStackDepth = backup;
-      af.currentStackDepth = framesize();
+      auto backup = lf.currentStackDepth;
+      scope(exit) lf.currentStackDepth = backup;
+      lf.currentStackDepth = framesize();
       if (!tree) { logln("Tree for ", this, " not generated! :( "); fail; }
       
       auto backupns = namespace();
       scope(exit) namespace.set(backupns);
       namespace.set(this);
       
-      tree.emitAsm(af);
+      tree.emitLLVM(lf);
       
       if (type.ret != Single!(Void)) {
-        funcall_emit_fun_end_guard (af, name);
+        funcall_emit_fun_end_guard (lf, name);
       }
       
-      af.emitLabel(exit(), keepRegs, isForward);
+      lf.emitLabel(exit(), keepRegs, isForward);
       
-      // af.mmove4("%ebp", "%esp");
-      // af.popStack("%ebp", nativePtrSize);
+      // lf.mmove4("%ebp", "%esp");
+      // lf.popStack("%ebp", nativePtrSize);
       if (isARM) {
-        af.put("sub sp, fp, #4"[]);
-        af.popStack("fp, lr", 8);
-        if (psize >= 16) af.sfree(16);
-        else if (psize >= 12) af.sfree(12);
-        else if (psize >= 8) af.sfree(8);
-        else if (psize >= 4) af.sfree(4);
+        lf.put("sub sp, fp, #4"[]);
+        lf.popStack("fp, lr", 8);
+        if (psize >= 16) lf.sfree(16);
+        else if (psize >= 12) lf.sfree(12);
+        else if (psize >= 8) lf.sfree(8);
+        else if (psize >= 4) lf.sfree(4);
       } else {
-        if (isWindoze() && extern_c) { af.mmove4("-4(%ebp)", "%ebx"); }
-        af.put("leave"[]);
+        if (isWindoze() && extern_c) { lf.mmove4("-4(%ebp)", "%ebx"); }
+        lf.put("leave"[]);
       }
       
-      af.jump_barrier();
+      lf.jump_barrier();
       if (isARM) {
-        af.put("bx lr"[]);
-        af.pool;
+        lf.put("bx lr"[]);
+        lf.pool;
       } else {
         if (type.ret.returnsInMemory()) {
-          af.put("ret $4"); // clean off pointer
+          lf.put("ret $4"); // clean off pointer
         } else {
-          af.put("ret");
+          lf.put("ret");
         }
       }
       if (isARM) {
-        af.put(".ltorg"[]);
+        lf.put(".ltorg"[]);
       }
       
-      af.put(".global "[], fun_end_sym());
-      af.put(fun_end_sym(), ":"[]);
+      lf.put(".global "[], fun_end_sym());
+      lf.put(fun_end_sym(), ":"[]);
       
       if (!isWindoze())
-        af.put(".size "[], fmn, ", .-"[], fmn);
+        lf.put(".size "[], fmn, ", .-"[], fmn);
       
-      if (isWindoze()) af.put(".section .text$debug_section_"[], fmn, ", \"r\""[]);
-      af.put(".global "[], fun_linenr_sym());
-      af.put(fun_linenr_sym(), ":"[]);
-      af.put(".long "[], linecounter);
+      if (isWindoze()) lf.put(".section .text$debug_section_"[], fmn, ", \"r\""[]);
+      lf.put(".global "[], fun_linenr_sym());
+      lf.put(fun_linenr_sym(), ":"[]);
+      lf.put(".long "[], linecounter);
       for (int i = 0; i < linecounter; ++i) {
-        af.put(".long "[], linedebug(i));
-        af.put(".long "[], linenumbers[i]);
+        lf.put(".long "[], linedebug(i));
+        lf.put(".long "[], linenumbers[i]);
       }
       
       if (isWindoze()) {
-        af.put(".section rodata");
+        lf.put(".section rodata");
       }
       
-      if (af.floatStackDepth) {
+      if (lf.floatStackDepth) {
         logln("leftover float stack when end-emitting ", this);
         fail;
       }
       if (optimize) {
-        af.flush;
+        lf.flush;
       }
-      // af.put(".cfi_endproc"[]);
+      // lf.put(".cfi_endproc"[]);
+      */
     }
 
     Stuple!(IType, string, int)[] stackframe() {
@@ -605,14 +608,15 @@ class FunCall : Expr {
     fun.iterate(dg, IterMode.Semantic);
     defaultIterate!(params, setup).iterate(dg);
   }
-  void emitWithArgs(AsmFile af, Expr[] args) {
-    if (setup) setup.emitAsm(af);
+  void emitWithArgs(LLVMFile lf, Expr[] args) {
+    todo("FunCall::emitWithArgs");
+    /*if (setup) setup.emitLLVM(lf);
     auto size = (Single!(Void) == fun.type.ret)?0:fun.type.ret.size;
     mixin(mustOffset("size"));
-    callFunction(af, fun.type.ret, fun.extern_c, fun.type.stdcall, args, fun.getPointer());
+    callFunction(lf, fun.type.ret, fun.extern_c, fun.type.stdcall, args, fun.getPointer());*/
   }
-  override void emitAsm(AsmFile af) {
-    emitWithArgs(af, params);
+  override void emitLLVM(LLVMFile lf) {
+    emitWithArgs(lf, params);
   }
   override string toString() { return Format("(", fun.name, "(", params, "))"); }
   override IType valueType() {
@@ -632,8 +636,9 @@ class FunCall : Expr {
   }
 }
 
-void handleReturn(IType ret, AsmFile af) {
-  if (Single!(Void) == ret) return;
+void handleReturn(IType ret, LLVMFile lf) {
+  todo("handleReturn");
+  /*if (Single!(Void) == ret) return;
   if (ret.returnsInMemory()) {
     // the funcall routine already allocated space for us in just
     // the right spot, so we actually have nothing left to do.
@@ -641,72 +646,73 @@ void handleReturn(IType ret, AsmFile af) {
   }
   if (isARM) {
     if (ret.size == 2) {
-      af.salloc(2);
-      af.mmove2("r0", "[sp]");
+      lf.salloc(2);
+      lf.mmove2("r0", "[sp]");
       return;
     }
     if (ret.size == 4) {
-      af.pushStack("r0", 4);
+      lf.pushStack("r0", 4);
       return;
     }
     if (ret.size == 8) {
-      af.pushStack("r3", 4);
-      af.pushStack("r0", 4);
+      lf.pushStack("r3", 4);
+      lf.pushStack("r0", 4);
       return;
     }
     if (ret.size == 12) {
-      af.pushStack("r3", 4);
-      af.pushStack("r2", 4);
-      af.pushStack("r0", 4);
+      lf.pushStack("r3", 4);
+      lf.pushStack("r2", 4);
+      lf.pushStack("r0", 4);
       return;
     }
     if (ret.size == 16) {
-      af.pushStack("r3", 4);
-      af.pushStack("r2", 4);
-      af.pushStack("r1", 4);
-      af.pushStack("r0", 4);
+      lf.pushStack("r3", 4);
+      lf.pushStack("r2", 4);
+      lf.pushStack("r1", 4);
+      lf.pushStack("r0", 4);
       return;
     }
     logln(ret);
     fail;
   }
   if (Single!(Float) == ret) {
-    af.salloc(4);
-    af.storeFloat("(%esp)");
+    lf.salloc(4);
+    lf.storeFloat("(%esp)");
     return;
   }
   if (Single!(Double) == ret) {
-    af.salloc(8);
-    af.storeDouble("(%esp)");
+    lf.salloc(8);
+    lf.storeDouble("(%esp)");
     return;
   }
   if (ret.size >= 8) {
-    af.pushStack("%edx", 4);
-    af.nvm("%edx");
+    lf.pushStack("%edx", 4);
+    lf.nvm("%edx");
   }
   if (ret.size >= 12) {
-    af.pushStack("%ecx", 4);
-    af.nvm("%ecx");
+    lf.pushStack("%ecx", 4);
+    lf.nvm("%ecx");
   }
   if (ret.size == 16) {
-    af.pushStack("%ebx", 4);
-    af.nvm("%ebx");
+    lf.pushStack("%ebx", 4);
+    lf.nvm("%ebx");
   }
   if (ret.size >= 4) {
-    af.pushStack("%eax", 4);
-    af.nvm("%eax");
+    lf.pushStack("%eax", 4);
+    lf.nvm("%eax");
   } else if (ret.size == 2) {
-    af.pushStack("%ax", 2);
-    af.nvm("%ax");
+    lf.pushStack("%ax", 2);
+    lf.nvm("%ax");
   } else if (ret.size == 1) {
-    af.pushStack("%al", 1);
-    af.nvm("%al");
-  }
+    lf.pushStack("%al", 1);
+    lf.nvm("%al");
+  }*/
 }
 
 import tools.log, ast.fold;
-void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
-  if (!ret) throw new Exception("Tried to call function but return type not yet known! ");
+void callFunction(LLVMFile lf, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
+  todo("callFunction");
+  /*if (!ret) throw new Exception("Tried to call function but return type not yet known! ");
   auto size = (Single!(Void) == ret)?0:ret.size;
   mixin(mustOffset("size"));
   {
@@ -720,20 +726,20 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
     if (!(ret.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret))
       throw new Exception(Format("Return bug: ", ret, " from ", name, ": ",
       ret.size, " is ", (fastcast!(Object)~ ret).classinfo.name));
-    debug af.comment("Begin call to "[], name);
+    debug lf.comment("Begin call to "[], name);
     
     bool returnInMemory = ret.returnsInMemory();
     string ret_location;
     if (returnInMemory) {
-      af.salloc(ret.size);
-      ret_location = qformat(-af.currentStackDepth, "(%ebp)");
+      lf.salloc(ret.size);
+      ret_location = qformat(-(lf).currentStackDepth, "(%ebp)");
     }
     
     bool backupESI = external && name != "setjmp";
     backupESI &= !isARM();
     
-    if (backupESI) af.pushStack("%esi", nativePtrSize);
-    if (isARM) { af.pushStack("r5", 4); } // used for call
+    if (backupESI) lf.pushStack("%esi", nativePtrSize);
+    if (isARM) { lf.pushStack("r5", 4); } // used for call
     
     int paramsize;
     foreach (param; params) {
@@ -741,29 +747,29 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       if (sz && sz < 4) sz = 4; // cdecl
       paramsize += sz;
     }
-    paramsize += af.floatStackDepth * 8;
+    paramsize += lf.floatStackDepth * 8;
     
     // distance to alignment border
-    auto align_offset = af.currentStackDepth + esp_alignment_delta;
+    auto align_offset = lf.currentStackDepth + esp_alignment_delta;
     if (returnInMemory) align_offset += 4;
     // what do we have to do to align the callsite?
     auto alignCall = 16 - (align_offset + paramsize) % 16;
     if (alignCall == 16) alignCall = 0;
-    // logln("at call to ", name, ", depth is ", af.currentStackDepth, " and ", align_offset, " and ", alignCall, " due to ", paramsize);
-    af.salloc(alignCall);
+    // logln("at call to ", name, ", depth is ", lf.currentStackDepth, " and ", align_offset, " and ", alignCall, " due to ", paramsize);
+    lf.salloc(alignCall);
     
-    auto restore = af.floatStackDepth;
-    while (af.floatStackDepth)
-      af.fpuToStack();
+    auto restore = lf.floatStackDepth;
+    while (lf.floatStackDepth)
+      lf.fpuToStack();
     
     {
       mixin(mustOffset("0", "innerer"));
       foreach_reverse (param; params) {
-        // af.comment("Push ", param);
+        // lf.comment("Push ", param);
         // round to 4: cdecl treats <4b arguments as 4b (because push is 4b, presumably).
         auto sz = param.valueType().size;
-        if (sz && sz < 4) af.salloc(4 - sz);
-        alignment_emitAligned(param, af);
+        if (sz && sz < 4) lf.salloc(4 - sz);
+        alignment_emitAligned(param, lf);
       }
       
       if (fp.valueType().size > nativePtrSize) { logln("bad function pointer: ", fp); fail; }
@@ -775,13 +781,13 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
         void doPop(string reg) {
           // TODO: account for things like char
           if (effectivesize >= 4) {
-            af.popStack(reg, 4);
+            lf.popStack(reg, 4);
             inRegisters += 4;
             effectivesize -= 4;
           }
         }
-        fp.emitAsm(af);
-        af.popStack("r5", 4); // must not be r0-r3 or r4!
+        fp.emitLLVM(lf);
+        lf.popStack("r5", 4); // must not be r0-r3 or r4!
         doPop("r0");
         doPop("r1");
         doPop("r2");
@@ -789,27 +795,27 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
       }
       
       if (isARM) {
-        af.call("r5");
+        lf.call("r5");
       } else {
         {
           mixin(mustOffset("nativePtrSize", "innerest"));
-          fp.emitAsm(af);
+          fp.emitLLVM(lf);
         }
-        af.popStack("%eax", 4);
-        // af.put("test $15, %esp; jz 1f; call abort; 1:");
+        lf.popStack("%eax", 4);
+        // lf.put("test $15, %esp; jz 1f; call abort; 1:");
         if (ret_location) {
-          af.loadAddress(ret_location, "%ebx");
-          af.pushStack("%ebx", 4);
+          lf.loadAddress(ret_location, "%ebx");
+          lf.pushStack("%ebx", 4);
         }
-        if (af.currentStackDepth % 16 != 8) {
-          logln("at call, depth is ", af.currentStackDepth, " ", af.currentStackDepth % 16);
+        if (lf.currentStackDepth % 16 != 8) {
+          logln("at call, depth is ", lf.currentStackDepth, " ", lf.currentStackDepth % 16);
           logln("thus, unaligned! :o");
           fail;
         }
-        af.call("%eax");
+        lf.call("%eax");
         if (ret_location) {
           // eaten by callee
-          af.currentStackDepth -= 4;
+          lf.currentStackDepth -= 4;
         }
       }
       
@@ -818,31 +824,31 @@ void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] par
           auto sz = param.valueType().size;
           if (sz && sz < 4) sz = 4;
           if (stdcall) {
-            af.currentStackDepth -= sz;
+            lf.currentStackDepth -= sz;
           } else {
-            af.sfree(sz);
+            lf.sfree(sz);
           }
         }
       }
-      af.salloc(inRegisters); // hax
+      lf.salloc(inRegisters); // hax
     }
     
     bool returnsFPU = Single!(Float) == ret || Single!(Double) == ret;
     if (returnsFPU)
-      af.floatStackDepth ++;
+      lf.floatStackDepth ++;
     
     while (restore--) {
-      af.stackToFpu();
+      lf.stackToFpu();
       if (returnsFPU)
-        af.fpuOp("fxch");
+        lf.fpuOp("fxch");
     }
-    af.sfree(alignCall);
+    lf.sfree(alignCall);
     
-    if (backupESI) af.popStack("%esi", nativePtrSize);
-    if (isARM) af.popStack("r5", 4);
+    if (backupESI) lf.popStack("%esi", nativePtrSize);
+    if (isARM) lf.popStack("r5", 4);
   }
   
-  handleReturn(ret, af);
+  handleReturn(ret, lf);*/
 }
 
 class FunctionType : ast.types.Type {
@@ -1135,9 +1141,9 @@ class FunRefExpr : Expr, Literal {
       if (!typecache) typecache = fastalloc!(FunctionPointer)(fun);
       return typecache;
     }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       auto c = new Constant(fun.mangleSelf());
-      c.emitAsm(af);
+      c.emitLLVM(lf);
       delete c;
     }
     string getValue() { return fun.mangleSelf(); }

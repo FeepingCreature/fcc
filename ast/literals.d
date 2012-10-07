@@ -23,11 +23,12 @@ class DoubleExpr : Expr, Literal {
     string toString() { return Format(d); }
     IType valueType() { return Single!(Double); }
     string getValue() { assert(false); }
-    void emitAsm(AsmFile af) {
-      if (!name_used) {
-        name_used = af.allocConstant(Format("dcons_"[], dconscounter ++), cast(ubyte[]) i);
+    void emitLLVM(LLVMFile lf) {
+      todo("DoubleExpr::emitLLVM");
+      /*if (!name_used) {
+        name_used = lf.allocConstant(Format("dcons_"[], dconscounter ++), cast(ubyte[]) i);
       }
-      af.pushStack(qformat("0($"[], name_used, ")"[]), 8);
+      lf.pushStack(qformat("0($"[], name_used, ")"[]), 8);*/
     }
   }
 }
@@ -48,16 +49,17 @@ class FloatExpr : Expr, Literal {
     string toString() { return Format(f); }
     IType valueType() { return Single!(Float); }
     string getValue() { return Format(f_as_i); }
-    void emitAsm(AsmFile af) {
-      if (isARM) {
-        af.mmove4(qformat("="[], f_as_i), af.regs[0]);
-        af.pushStack(af.regs[0], 4);
+    void emitLLVM(LLVMFile lf) {
+      todo("FloatExpr::emitLLVM");
+      /*if (isARM) {
+        lf.mmove4(qformat("="[], f_as_i), lf.regs[0]);
+        lf.pushStack(lf.regs[0], 4);
       } else {
-        if (!name_used || !af.knowsConstant(name_used)) {
-          name_used = af.allocConstantValue(qformat("cons_float_constant_"[], floatconscounter++, "___xfcc_encodes_"[], f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
+        if (!name_used || !(lf).knowsConstant(name_used)) {
+          name_used = lf.allocConstantValue(qformat("cons_float_constant_"[], floatconscounter++, "___xfcc_encodes_"[], f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
         }
-        af.pushStack(name_used, 4);
-      }
+        lf.pushStack(name_used, 4);
+      }*/
     }
   }
 }
@@ -127,8 +129,8 @@ class CValueAsPointer : Expr {
       return fastalloc!(Pointer)(sa.elemType);
     throw new Exception(Format("The CValue ", sup, " has confused me. "));
   }
-  override void emitAsm(AsmFile af) {
-    sup.emitLocation(af);
+  override void emitLLVM(LLVMFile lf) {
+    sup.emitLocation(lf);
   }
   override string toString() { return Format("cvalue& ", sup); }
 }

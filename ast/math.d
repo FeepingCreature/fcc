@@ -15,11 +15,12 @@ class IntAsFloat : Expr {
   override {
     string toString() { return Format("float("[], i, ")"[]); }
     IType valueType() { return Single!(Float); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("4"[]));
-      i.emitAsm(af);
-      af.loadIntAsFloat("(%esp)"[]);
-      af.storeFloat("(%esp)"[]);
+    void emitLLVM(LLVMFile lf) {
+      todo("IntAsFloat::emitLLVM");
+      /*mixin(mustOffset("4"[]));
+      i.emitLLVM(lf);
+      lf.loadIntAsFloat("(%esp)"[]);
+      lf.storeFloat("(%esp)"[]);*/
     }
   }
 }
@@ -33,11 +34,12 @@ class LongAsDouble : Expr {
   override {
     string toString() { return Format("double("[], l, ")"[]); }
     IType valueType() { return Single!(Double); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("8"[]));
-      l.emitAsm(af);
-      af.loadLongAsFloat("(%esp)"[]);
-      af.storeDouble("(%esp)"[]);
+    void emitLLVM(LLVMFile lf) {
+      todo("LongAsDouble::emitLLVM");
+      /*mixin(mustOffset("8"[]));
+      l.emitLLVM(lf);
+      lf.loadLongAsFloat("(%esp)"[]);
+      lf.storeDouble("(%esp)"[]);*/
     }
   }
 }
@@ -51,11 +53,12 @@ class LongAsInt : Expr {
   override {
     string toString() { return Format("int(", l, ")"); }
     IType valueType() { return Single!(SysInt); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("4"[]));
-      l.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("LongAsInt::emitLLVM");
+      /*mixin(mustOffset("4"[]));
+      l.emitLLVM(lf);
       // overwrite high int with low
-      af.popStack("4(%esp)", 4);
+      lf.popStack("4(%esp)", 4);*/
     }
   }
 }
@@ -119,13 +122,14 @@ class IntAsLong : Expr {
   override {
     string toString() { return Format("long("[], i, ")"[]); }
     IType valueType() { return Single!(Long); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("8"[]));
-      i.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("IntAsLong::emitLLVM");
+      /*mixin(mustOffset("8"[]));
+      i.emitLLVM(lf);
       // duplicate
-      af.pushStack("(%esp)", 4);
+      lf.pushStack("(%esp)", 4);
       // sign extend high int
-      af.mathOp("sarl", "$31", "4(%esp)");
+      lf.mathOp("sarl", "$31", "4(%esp)");*/
     }
   }
 }
@@ -155,22 +159,23 @@ class FPAsInt : Expr {
   override {
     string toString() { if (lng) return Format("long:"[], fp); else return Format("int:"[], fp); }
     IType valueType() { return lng?Single!(Long):Single!(SysInt); }
-    void emitAsm(AsmFile af) {
-      if (lng) {
+    void emitLLVM(LLVMFile lf) {
+      todo("FPAsInt::emitLLVM");
+      /*if (lng) {
         mixin(mustOffset("8"[]));
-        fp.emitAsm(af);
-        if (dbl) af.loadDouble("(%esp)"[]);
-        else af.loadFloat("(%esp)"[]);
-        if (!dbl) af.salloc(4);
-        af.storeFPAsLong("(%esp)"[]);
+        fp.emitLLVM(lf);
+        if (dbl) lf.loadDouble("(%esp)"[]);
+        else lf.loadFloat("(%esp)"[]);
+        if (!dbl) lf.salloc(4);
+        lf.storeFPAsLong("(%esp)"[]);
       } else {
         mixin(mustOffset("4"[]));
-        fp.emitAsm(af);
-        if (dbl) af.loadDouble("(%esp)"[]);
-        else af.loadFloat("(%esp)"[]);
-        if (dbl) af.sfree(4);
-        af.storeFPAsInt("(%esp)"[]);
-      }
+        fp.emitLLVM(lf);
+        if (dbl) lf.loadDouble("(%esp)"[]);
+        else lf.loadFloat("(%esp)"[]);
+        if (dbl) lf.sfree(4);
+        lf.storeFPAsInt("(%esp)"[]);
+      }*/
     }
   }
 }
@@ -217,12 +222,13 @@ class FloatAsDouble : Expr {
   mixin defaultIterate!(f);
   override {
     IType valueType() { return Single!(Double); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("8"[]));
-      f.emitAsm(af);
-      af.loadFloat("(%esp)"[]);
-      af.salloc(4);
-      af.storeDouble("(%esp)"[]);
+    void emitLLVM(LLVMFile lf) {
+      todo("FloatAsDouble::emitLLVM");
+      /*mixin(mustOffset("8"[]));
+      f.emitLLVM(lf);
+      lf.loadFloat("(%esp)"[]);
+      lf.salloc(4);
+      lf.storeDouble("(%esp)"[]);*/
     }
   }
 }
@@ -239,12 +245,13 @@ class DoubleAsFloat : Expr {
   override {
     IType valueType() { return Single!(Float); }
     string toString() { return Format("float:"[], d); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("4"[]));
-      d.emitAsm(af);
-      af.loadDouble("(%esp)"[]);
-      af.sfree(4);
-      af.storeFloat("(%esp)"[]);
+    void emitLLVM(LLVMFile lf) {
+      todo("DoubleAsFloat::emitLLVM");
+      /*mixin(mustOffset("4"[]));
+      d.emitLLVM(lf);
+      lf.loadDouble("(%esp)"[]);
+      lf.sfree(4);
+      lf.storeFloat("(%esp)"[]);*/
     }
   }
 }
@@ -258,17 +265,18 @@ class IntLiteralAsShort : Expr {
   override {
     IType valueType() { return Single!(Short); }
     string toString() { return Format("short:"[], ie); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("2"[]));
+    void emitLLVM(LLVMFile lf) {
+      todo("IntLiteralAsShort::emitLLVM");
+      /*mixin(mustOffset("2"[]));
       if (isARM) {
-        af.salloc(2);
-        ie.emitAsm(af);
-        af.popStack("r0"[], 4);
-        af.mmove2("r0"[], "[sp]"[]);
+        lf.salloc(2);
+        ie.emitLLVM(lf);
+        lf.popStack("r0"[], 4);
+        lf.mmove2("r0"[], "[sp]"[]);
       } else {
-        af.mmove2(Format("$"[], ie.num), "%ax"[]);
-        af.pushStack("%ax"[], 2);
-      }
+        lf.mmove2(Format("$"[], ie.num), "%ax"[]);
+        lf.pushStack("%ax"[], 2);
+      }*/
     }
   }
 }
@@ -282,15 +290,16 @@ class IntLiteralAsByte : Expr {
   override {
     IType valueType() { return Single!(Byte); }
     string toString() { return Format("byte:"[], ie); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("1"[]));
-      af.salloc(1);
+    void emitLLVM(LLVMFile lf) {
+      todo("IntLiteralAsByte::emitLLVM");
+      /*mixin(mustOffset("1"[]));
+      lf.salloc(1);
       if (isARM) {
-        af.mmove4(af.number(ie.num), "r0"[]);
-        af.mmove1("r0"[], "[sp]"[]);
+        lf.mmove4(lf.number(ie.num), "r0"[]);
+        lf.mmove1("r0"[], "[sp]"[]);
       } else {
-        af.mmove1(af.number(ie.num), "(%esp)"[]);
-      }
+        lf.mmove1(lf.number(ie.num), "(%esp)"[]);
+      }*/
     }
   }
 }
@@ -304,23 +313,24 @@ class IntAsShort : Expr {
   override {
     IType valueType() { return Single!(Short); }
     string toString() { return Format("short:"[], ex); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("2"[]));
-      ex.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("IntAsShort::emitLLVM");
+      /*mixin(mustOffset("2"[]));
+      ex.emitLLVM(lf);
       if (isARM) {
-        af.popStack("r0"[], 4);
+        lf.popStack("r0"[], 4);
         logln("TODO: proper int to short"[]);
-        af.salloc(2);
-        af.mmove2("r0"[], "[sp]"[]);
+        lf.salloc(2);
+        lf.mmove2("r0"[], "[sp]"[]);
         return;
       }
-      af.popStack("%eax"[], 4);
-      af.mmove4("%eax"[], "%ebx"[]);
-      af.mathOp("shrl"[], "$16"[], "%ebx"[]); // move eah into eal
-      af.mathOp("andw"[], "$32768"[], "%bx"[]); // select high bit
-      af.mathOp("andw"[], "$32767"[], "%ax"[]); // mask out high bit
-      af.mathOp("orw"[], "%bx"[], "%ax"[]); // copy bit
-      af.pushStack("%ax"[], 2);
+      lf.popStack("%eax"[], 4);
+      lf.mmove4("%eax"[], "%ebx"[]);
+      lf.mathOp("shrl"[], "$16"[], "%ebx"[]); // move eah into eal
+      lf.mathOp("andw"[], "$32768"[], "%bx"[]); // select high bit
+      lf.mathOp("andw"[], "$32767"[], "%ax"[]); // mask out high bit
+      lf.mathOp("orw"[], "%bx"[], "%ax"[]); // copy bit
+      lf.pushStack("%ax"[], 2);*/
     }
   }
 }
@@ -333,17 +343,18 @@ class ShortAsByte : Expr {
   mixin defaultIterate!(ex);
   override {
     IType valueType() { return Single!(Byte); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("1"[]));
-      ex.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("ShortAsByte::emitLLVM");
+      /*mixin(mustOffset("1"[]));
+      ex.emitLLVM(lf);
       if (isARM) {
-        af.mmove2("[sp]"[], "r0"[]);
-        af.sfree(1);
-        af.mmove1("r0"[], "[sp]"[]);
+        lf.mmove2("[sp]"[], "r0"[]);
+        lf.sfree(1);
+        lf.mmove1("r0"[], "[sp]"[]);
         return;
       }
-      af.popStack("%ax"[], 2);
-      af.pushStack("%al"[], 1);
+      lf.popStack("%ax"[], 2);
+      lf.pushStack("%al"[], 1);*/
     }
   }
 }
@@ -419,31 +430,33 @@ static this() {
   };
 }
 
-void loadFloatEx(Expr ex, AsmFile af) {
-  if (auto lv = fastcast!(CValue)~ ex) {
-    lv.emitLocation(af);
-    af.popStack("%eax"[], nativePtrSize);
-    af.loadFloat("(%eax)"[]);
-    af.nvm("%eax"[]);
+void loadFloatEx(Expr ex, LLVMFile lf) {
+  todo("loadFloatEx");
+  /*if (auto lv = fastcast!(CValue)~ ex) {
+    lv.emitLocation(lf);
+    lf.popStack("%eax"[], nativePtrSize);
+    lf.loadFloat("(%eax)"[]);
+    lf.nvm("%eax"[]);
   } else {
-    int toFree = 4 + alignStackFor(ex.valueType(), af);
-    ex.emitAsm(af);
-    af.loadFloat("(%esp)"[]);
-    af.sfree(toFree);
-  }
+    int toFree = 4 + alignStackFor(ex.valueType(), lf);
+    ex.emitLLVM(lf);
+    lf.loadFloat("(%esp)"[]);
+    lf.sfree(toFree);
+  }*/
 }
 
-void loadDoubleEx(Expr ex, AsmFile af) {
-  if (auto cv = fastcast!(CValue)~ ex) {
-    cv.emitLocation(af);
-    af.popStack("%eax"[], nativePtrSize);
-    af.loadDouble("(%eax)"[]);
-    af.nvm("%eax"[]);
+void loadDoubleEx(Expr ex, LLVMFile lf) {
+  todo("loadDoubleEx");
+  /*if (auto cv = fastcast!(CValue)~ ex) {
+    cv.emitLocation(lf);
+    lf.popStack("%eax"[], nativePtrSize);
+    lf.loadDouble("(%eax)"[]);
+    lf.nvm("%eax"[]);
   } else {
-    ex.emitAsm(af);
-    af.loadDouble("(%esp)"[]);
-    af.sfree(8);
-  }
+    ex.emitLLVM(lf);
+    lf.loadDouble("(%esp)"[]);
+    lf.sfree(8);
+  }*/
 }
 
 abstract class BinopExpr : Expr, HasInfo {
@@ -474,7 +487,7 @@ abstract class BinopExpr : Expr, HasInfo {
       return e1vt;
     }
     abstract BinopExpr dup();
-    abstract void emitAsm(AsmFile af);
+    abstract void emitLLVM(LLVMFile lf);
   }
 }
 
@@ -485,14 +498,15 @@ class AsmIntBinopExpr : BinopExpr {
   private this() { super(); }
   AsmIntBinopExpr dup() { return fastalloc!(AsmIntBinopExpr)(e1.dup, e2.dup, op); }
   override {
-    void emitAsm(AsmFile af) {
-      assert(e1.valueType().size == 4);
+    void emitLLVM(LLVMFile lf) {
+      todo("AsmIntBinopExpr::emitLLVM");
+      /*assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
       if (isARM) {
-        e2.emitAsm(af);
-        e1.emitAsm(af);
-        af.popStack("r1"[], 4);
-        af.popStack("r0"[], 4);
+        e2.emitLLVM(lf);
+        e1.emitLLVM(lf);
+        lf.popStack("r1"[], 4);
+        lf.popStack("r0"[], 4);
         string asmop;
         if (op == "+"[]) asmop = "add";
         if (op == "-"[]) asmop = "sub";
@@ -504,22 +518,22 @@ class AsmIntBinopExpr : BinopExpr {
         if (op == "xor"[]) asmop = "eor";
         
         if (!asmop) { logln(op); fail; }
-        af.mathOp(asmop, "r0"[], "r1"[], "r0"[]);
-        af.pushStack("r0"[], 4);
+        lf.mathOp(asmop, "r0"[], "r1"[], "r0"[]);
+        lf.pushStack("r0"[], 4);
         return;
       }
       if (op == "/" || op == "%"[]) {
-        e2.emitAsm(af);
-        e1.emitAsm(af);
-        af.popStack("%eax"[], 4);
-        af.extendDivide("(%esp)"[], op == "/"[]);
-        af.sfree(4);
+        e2.emitLLVM(lf);
+        e1.emitLLVM(lf);
+        lf.popStack("%eax"[], 4);
+        lf.extendDivide("(%esp)"[], op == "/"[]);
+        lf.sfree(4);
         if (op == "%"[]) {
-          af.pushStack("%edx"[], 4);
-          af.nvm("%edx"[]);
+          lf.pushStack("%edx"[], 4);
+          lf.nvm("%edx"[]);
         } else {
-          af.pushStack("%eax"[], 4);
-          af.nvm("%eax"[]);
+          lf.pushStack("%eax"[], 4);
+          lf.nvm("%eax"[]);
         }
       } else {
         string op1, op2;
@@ -527,14 +541,14 @@ class AsmIntBinopExpr : BinopExpr {
           op2 = Format("$"[], c2.num);
         } else {
           op2 = "%ecx";
-          e2.emitAsm(af);
+          e2.emitLLVM(lf);
         }
         if (auto c1 = fastcast!(IntExpr) (e1)) {
           op1 = Format("$"[], c1.num);
-          af.mmove4(op1, "%edx"[]);
+          lf.mmove4(op1, "%edx"[]);
         } else {
-          e1.emitAsm(af);
-          af.popStack("%edx"[], 4);
+          e1.emitLLVM(lf);
+          lf.popStack("%edx"[], 4);
         }
         string top = op;
         if (top == "*" && op2.startsWith("$"[])) {
@@ -559,16 +573,16 @@ class AsmIntBinopExpr : BinopExpr {
         }
         
         if (op2.isRegister())
-          af.popStack(op2, 4);
+          lf.popStack(op2, 4);
         
         if (asm_op == "sar" || asm_op == "shl" || asm_op == "%shr"[])
           if (op2 == "%ecx"[])
             op2 = "%cl"; // shl/r really want %cl.
         
-        af.mathOp(asm_op, op2, "%edx"[]);
-        af.pushStack("%edx"[], 4);
-        af.nvm("%edx"[]);
-      }
+        lf.mathOp(asm_op, op2, "%edx"[]);
+        lf.pushStack("%edx"[], 4);
+        lf.nvm("%edx"[]);
+      }*/
     }
   }
   static this() {
@@ -607,19 +621,20 @@ class AsmIntUnaryExpr : Expr {
   override {
     AsmIntUnaryExpr dup() { return fastalloc!(AsmIntUnaryExpr)(ex.dup, op); }
     IType valueType() { return ex.valueType(); }
-    void emitAsm(AsmFile af) {
-      if (op == "-"[]) (fastalloc!(AsmIntBinopExpr)(mkInt(0), ex, "-"[])).emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("AsmIntUnaryExpr::emitLLVM");
+      /*if (op == "-"[]) (fastalloc!(AsmIntBinopExpr)(mkInt(0), ex, "-"[])).emitLLVM(lf);
       else if (op == "¬"[]) {
-        ex.emitAsm(af);
-        af.popStack("%eax"[], 4);
-        af.put("notl %eax"[]);
-        af.pushStack("%eax"[], 4);
+        ex.emitLLVM(lf);
+        lf.popStack("%eax"[], 4);
+        lf.put("notl %eax"[]);
+        lf.pushStack("%eax"[], 4);
       }
       else
       {
         logln("!! "[], op, " "[], ex);
         fail;
-      }
+      }*/
     }
   }
 }
@@ -632,20 +647,21 @@ class AsmLongUnaryExpr : Expr {
   override {
     AsmLongUnaryExpr dup() { return fastalloc!(AsmLongUnaryExpr)(ex.dup, op); }
     IType valueType() { return ex.valueType(); }
-    void emitAsm(AsmFile af) {
-      ex.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      todo("AsmLongUnaryExpr::emitLLVM");
+      /*ex.emitLLVM(lf);
       if (op == "-"[]) {
-        af.put("negl 4(%esp)"[]);
-        af.put("notl (%esp)"[]);
+        lf.put("negl 4(%esp)"[]);
+        lf.put("notl (%esp)"[]);
       } else if (op == "¬"[]) {
-        af.put("notl 4(%esp)"[]);
-        af.put("notl (%esp)"[]);
+        lf.put("notl 4(%esp)"[]);
+        lf.put("notl (%esp)"[]);
       }
       else
       {
         logln("!! "[], op, " "[], ex);
         fail;
-      }
+      }*/
     }
   }
 }
@@ -655,8 +671,9 @@ class AsmFloatBinopExpr : BinopExpr {
   private this() { super(); }
   override {
     AsmFloatBinopExpr dup() { return fastalloc!(AsmFloatBinopExpr)(e1.dup, e2.dup, op); }
-    void emitAsm(AsmFile af) {
-      assert(e1.valueType().size == 4);
+    void emitLLVM(LLVMFile lf) {
+      todo("AsmFloatBinopExpr::emitLLVM");
+      /*assert(e1.valueType().size == 4);
       assert(e2.valueType().size == 4);
       // TODO: belongs in optimizer
       bool commutative = op == "+" || op == "*";
@@ -665,24 +682,24 @@ class AsmFloatBinopExpr : BinopExpr {
         if ((fastcast!(Object)~ e2).classinfo.name.find("Variable"[]) != -1 || fastcast!(FloatExpr)~ e2 || fastcast!(IntAsFloat)~ e2)
           swap(e1, e2); // try to eval simpler expr last
       }
-      loadFloatEx(e2, af);
-      loadFloatEx(e1, af);
-      af.salloc(4);
+      loadFloatEx(e2, lf);
+      loadFloatEx(e1, lf);
+      lf.salloc(4);
       switch (op) {
-        case "+": af.floatMath("fadd"[]); break;
-        case "-": af.floatMath("fsub"[]); break;
-        case "*": af.floatMath("fmul"[]); break;
-        case "/": af.floatMath("fdiv"[]); break;
+        case "+": lf.floatMath("fadd"[]); break;
+        case "-": lf.floatMath("fsub"[]); break;
+        case "*": lf.floatMath("fmul"[]); break;
+        case "/": lf.floatMath("fdiv"[]); break;
         case "%": // taken from glibc
-          af.floatStackDepth --;
-          af.put("1: fprem1"[]); // ieee-correct remainder
-          af.put("fstsw %ax"[]); // sets parity if unfinished
-          af.put("sahf"[]);
-          af.put("jp 1b"[]);     // in that case, rerun it
-          af.put("fstp %st(1)"[]); // pop unneeded
+          lf.floatStackDepth --;
+          lf.put("1: fprem1"[]); // ieee-correct remainder
+          lf.put("fstsw %ax"[]); // sets parity if unfinished
+          lf.put("sahf"[]);
+          lf.put("jp 1b"[]);     // in that case, rerun it
+          lf.put("fstp %st(1)"[]); // pop unneeded
           break;
       }
-      af.storeFloat("(%esp)"[]);
+      lf.storeFloat("(%esp)"[]);*/
     }
   }
   static this() {
@@ -720,20 +737,21 @@ class AsmDoubleBinopExpr : BinopExpr {
   private this() { super(); }
   override {
     AsmDoubleBinopExpr dup() { return fastalloc!(AsmDoubleBinopExpr)(e1.dup, e2.dup, op); }
-    void emitAsm(AsmFile af) {
-      assert(e1.valueType().size == 8);
+    void emitLLVM(LLVMFile lf) {
+      todo("AsmDoubleBinopExpr::emitLLVM");
+      /*assert(e1.valueType().size == 8);
       assert(e2.valueType().size == 8);
-      loadDoubleEx(e2, af);
-      loadDoubleEx(e1, af);
-      af.salloc(8);
+      loadDoubleEx(e2, lf);
+      loadDoubleEx(e1, lf);
+      lf.salloc(8);
       switch (op) {
-        case "+": af.floatMath("fadd"[]); break;
-        case "-": af.floatMath("fsub"[]); break;
-        case "*": af.floatMath("fmul"[]); break;
-        case "/": af.floatMath("fdiv"[]); break;
+        case "+": lf.floatMath("fadd"[]); break;
+        case "-": lf.floatMath("fsub"[]); break;
+        case "*": lf.floatMath("fmul"[]); break;
+        case "/": lf.floatMath("fdiv"[]); break;
         case "%": assert(false, "Modulo not supported on floats. "[]);
       }
-      af.storeDouble("(%esp)"[]);
+      lf.storeDouble("(%esp)"[]);*/
     }
   }
   static this() {
@@ -930,12 +948,13 @@ class FSqrtExpr : Expr {
   override {
     IType valueType() { return Single!(Float); }
     FSqrtExpr dup() { return fastalloc!(FSqrtExpr)(sup.dup); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("4"[]));
-      sup.emitAsm(af);
-      af.loadFloat("(%esp)"[]);
-      af.floatMath("fsqrt"[], false);
-      af.storeFloat("(%esp)"[]);
+    void emitLLVM(LLVMFile lf) {
+      todo("FSqrtExpr::emitLLVM");
+      /*mixin(mustOffset("4"[]));
+      sup.emitLLVM(lf);
+      lf.loadFloat("(%esp)"[]);
+      lf.floatMath("fsqrt"[], false);
+      lf.storeFloat("(%esp)"[]);*/
     }
   }
 }
@@ -947,12 +966,13 @@ class FSinExpr : Expr {
   override {
     IType valueType() { return Single!(Float); }
     FSinExpr dup() { return fastalloc!(FSinExpr)(sup.dup); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("4"[]));
-      sup.emitAsm(af);
-      af.loadFloat("(%esp)"[]);
-      af.fpuOp("fsin"[]);
-      af.storeFloat("(%esp)"[]);
+    void emitLLVM(LLVMFile lf) {
+      todo("FSinExpr::emitLLVM");
+      /*mixin(mustOffset("4"[]));
+      sup.emitLLVM(lf);
+      lf.loadFloat("(%esp)"[]);
+      lf.fpuOp("fsin"[]);
+      lf.storeFloat("(%esp)"[]);*/
     }
   }
 }
@@ -964,12 +984,13 @@ class FAbsFExpr : Expr {
   override {
     IType valueType() { return Single!(Float); }
     FAbsFExpr dup() { return fastalloc!(FAbsFExpr)(sup.dup); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("4"[]));
-      sup.emitAsm(af);
-      af.loadFloat("(%esp)"[]);
-      af.fpuOp("fabs"[]);
-      af.storeFloat("(%esp)"[]);
+    void emitLLVM(LLVMFile lf) {
+      todo("FAbsFExpr::emitLLVM");
+      /*mixin(mustOffset("4"[]));
+      sup.emitLLVM(lf);
+      lf.loadFloat("(%esp)"[]);
+      lf.fpuOp("fabs"[]);
+      lf.storeFloat("(%esp)"[]);*/
     }
   }
 }
@@ -981,12 +1002,13 @@ class SSESqrtExpr : Expr {
   override {
     IType valueType() { return Single!(Float); }
     FSqrtExpr dup() { return fastalloc!(FSqrtExpr)(sup.dup); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("4"[]));
-      sup.emitAsm(af);
-      af.SSEOp("movd"[], "(%esp)"[], "%xmm0"[], true /* ignore stack alignment */);
-      af.SSEOp("sqrtss"[], "%xmm0"[], "%xmm0"[]);
-      af.SSEOp("movd"[], "%xmm0"[], "(%esp)"[], true);
+    void emitLLVM(LLVMFile lf) {
+      todo("SSESqrtExpr::emitLLVM");
+      /*mixin(mustOffset("4"[]));
+      sup.emitLLVM(lf);
+      lf.SSEOp("movd"[], "(%esp)"[], "%xmm0"[], true /* ignore stack alignment * /);
+      lf.SSEOp("sqrtss"[], "%xmm0"[], "%xmm0"[]);
+      lf.SSEOp("movd"[], "%xmm0"[], "(%esp)"[], true);*/
     }
   }
 }
