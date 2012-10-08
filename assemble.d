@@ -581,7 +581,7 @@ struct Transaction {
 
 bool debugOpts;
 
-import tools.compat: max;
+import tools.base: max;
 
 struct Transsection(C) {
   Transcache parent;

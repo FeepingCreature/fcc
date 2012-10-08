@@ -1,6 +1,6 @@
 module casts;
 
-import tools.log, tools.ctfe, tools.compat: min;
+import tools.log, tools.ctfe, tools.base: min;
 import tools.base: Format, Stuple, stuple, Init, Repeat;
 import alloc;
 

@@ -169,7 +169,7 @@ static this() {
   });
 }
 
-import tools.compat: read, castLike, exists, sub;
+import tools.base: read, castLike, exists, sub;
 string[] module_stack;
 Module[string] modules_wip;
 Module lookupMod(string name) {

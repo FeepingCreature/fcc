@@ -52,7 +52,7 @@ struct RelFunSet {
   }
 }
 
-import tools.log, tools.compat: max;
+import tools.log, tools.base: max;
 import ast.vardecl;
 class VTable {
   RelFunction[] funs;

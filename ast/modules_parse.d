@@ -2,7 +2,7 @@ module ast.modules_parse;
 
 import parseBase, ast.base, ast.parse, ast.modules;
 
-import tools.threads, tools.threadpool, tools.compat: read, castLike, exists, sub;
+import tools.threads, tools.threadpool, tools.base: read, castLike, exists, sub;
 import ast.structure, ast.namespace;
 
 version(Windows) string myRealpath(string s) { return s; }
