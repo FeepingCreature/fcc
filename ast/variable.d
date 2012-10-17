@@ -1,34 +1,25 @@
 module ast.variable;
 
-import ast.base, ast.opers, ast.literals, parseBase, ast.casting, ast.static_arrays;
+import ast.base, ast.opers, ast.literals, parseBase, ast.casting, ast.static_arrays, ast.namespace;
 
 import dwarf2, tools.log;
 class Variable : LValue, Named {
-  string address() { return Format(baseOffset, "(%ebp)"[]); }
+  string address() {
+    todo("Variable::address");
+    return null;
+    // return Format(baseOffset, "(%ebp)"[]);
+  }
   override {
     void emitLLVM(LLVMFile lf) {
-      todo("Variable::emitLLVM");
-      /*mixin(mustOffset("type.size"[]));
-      if (isARM) {
-        if (type.size == 4) {
-          lf.mmove4(qformat("[fp, #"[], baseOffset, "]"[]), "r0"[]);
-          lf.pushStack("r0"[], 4);
-        } else {
-          armpush(lf, "fp"[], type.size, baseOffset);
-        }
-      } else {
-        lf.pushStack(address, type.size);
-      }*/
+      if (!stacktype) fail;
+      auto stackp = bitcastptr(lf, "i8", stacktype, "%__stackframe");
+      auto varp = save(lf, "getelementptr inbounds ", stacktype, "* ", stackp, ", i32 0, i32 ", baseIndex);
+      load(lf, "load ", typeToLLVM(type), "* ", varp);
     }
     void emitLocation(LLVMFile lf) {
-      todo("Variable::emitLocation");
-      /*if (isARM) {
-        lookupOp("+"[], new Register!("ebp"[]), mkInt(baseOffset)).emitLLVM(lf);
-      } else {
-        lf.loadAddress(qformat(baseOffset, "(%ebp)"), "%eax");
-        lf.pushStack("%eax", nativePtrSize);
-      }*/
-      
+      if (!stacktype) fail;
+      auto stackp = bitcastptr(lf, "i8", stacktype, "%__stackframe");
+      load(lf, "getelementptr inbounds ", stacktype, "* ", stackp, ", i32 0, i32 ", baseIndex);
     }
     IType valueType() {
       return type;
@@ -36,13 +27,14 @@ class Variable : LValue, Named {
   }
   IType type;
   string name;
-  // offset off ebp
-  int baseOffset;
+  int baseIndex;
+  string stacktype;
   this() { }
-  this(IType t, string s, int i) {
+  this(IType t, int i, string s) {
     type = t;
     name = s;
-    baseOffset = i;
+    baseIndex = i;
+    stacktype = frametypePlus(type);
   }
   override string getIdentifier() { return name; }
   // Variable has no modifiable sub-expressions,
@@ -53,11 +45,11 @@ class Variable : LValue, Named {
   mixin defaultIterate!();
   string toString() {
     if (name) return name;
-    return Format("[ var of "[], type, " at "[], baseOffset, "]"[]);
+    return Format("[ var of "[], type, " at "[], baseIndex, "]"[]);
   }
   void registerDwarf2(Dwarf2Controller dwarf2) {
     if (name && !name.startsWith("__temp"[])) {
-      auto ty = resolveType(type);
+      /*auto ty = resolveType(type);
       auto dw2t = fastcast!(Dwarf2Encodable) (ty);
       if (!dw2t || !dw2t.canEncode) {
         // fallback
@@ -68,13 +60,15 @@ class Variable : LValue, Named {
       with (varinfo) {
         data ~= dwarf2.strings.addString(name);
         data ~= typeref;
-        data ~= ".byte\t2f-1f\t/* fbreg, offset */";
+        data ~= ".byte\t2f-1f\t/* fbreg, offset * /";
         data ~= "1:";
-        data ~= qformat(".byte\t"[], hex(DW.OP_fbreg), "\t/* fbreg */"[]);
-        data ~= qformat(".sleb128\t"[], baseOffset, "\t/* base offset */"[]);
+        data ~= qformat(".byte\t"[], hex(DW.OP_fbreg), "\t/* fbreg * /"[]);
+        data ~= qformat(".sleb128\t"[], baseOffset, "\t/* base offset * /"[]);
         data ~= "2:";
       }
       dwarf2.add(varinfo);
+      */
+      todo("Variable::registerDwarf2");
     }
   }
 }

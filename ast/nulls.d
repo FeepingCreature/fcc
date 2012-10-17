@@ -51,26 +51,29 @@ static this() {
 import ast.pointer, ast.tuples, ast.tuple_access, ast.namespace, ast.scopes, ast.variable, ast.vardecl;
 Cond testNeq(Expr ex1, Expr ex2) {
   auto e1vt = ex1.valueType(), e2vt = ex2.valueType();
-  assert(e1vt.size == e2vt.size);
-  if (e1vt.size == 4)
+  assert(e1vt.llvmType() == e2vt.llvmType());
+  if (e1vt.llvmSize() == "4")
     return fastalloc!(Compare)(ex1, true, false, true, false, ex2);
-  assert(e1vt.size == 8 || e1vt.size == 12);
+  if (e1vt.llvmSize() != "8" && e1vt.llvmSize() != "12") {
+    logln("wat ", e1vt.llvmType(), " being ", e1vt.llvmSize());
+    fail;
+  }
   IType t2;
-  if (e1vt.size == 8) t2 = mkTuple(voidp, voidp);
-  if (e1vt.size == 12) t2 = mkTuple(voidp, voidp, voidp);
+  if (e1vt.llvmSize() == "8")  t2 = mkTuple(voidp, voidp);
+  if (e1vt.llvmSize() == "12") t2 = mkTuple(voidp, voidp, voidp);
   if (!t2) fail;
   return ex2cond(tmpize_maybe(ex1, delegate Expr(Expr ex1) {
     return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
       auto ex1s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex1));
       auto ex2s = getTupleEntries(reinterpret_cast(fastcast!(IType) (t2), ex2));
       Cond cd;
-      if (e1vt.size == 8) {
+      if (e1vt.llvmSize() == "8") {
         cd = new BooleanOp!("||")(
           ex2cond(lookupOp("!=", ex1s[0], ex2s[0])),
           ex2cond(lookupOp("!=", ex1s[1], ex2s[1]))
         );
       }
-      if (e1vt.size == 12) {
+      if (e1vt.llvmSize() == "12") {
         cd = new BooleanOp!("||"[])(
           ex2cond(lookupOp("!=", ex1s[0], ex2s[0])), new BooleanOp!("||")(
           ex2cond(lookupOp("!=", ex1s[1], ex2s[1])),
@@ -95,13 +98,13 @@ extern(C) Cond _testTrue(Expr ex, bool nonzeroPreferred = false) {
       auto i1 = e1.valueType(), i2 = e2.valueType();
       Expr e1t;
       if (gotImplicitCast(e1, i2, (IType it) {
-	auto e2t = e2;
-	auto res = gotImplicitCast(e2t, it, (IType it2) {
-	  overlaps ~= stuple(it,  it2);
-	  return .test(it == it2);
-	});
-	if (res) cmp2 = e2t;
-	return res;
+  auto e2t = e2;
+  auto res = gotImplicitCast(e2t, it, (IType it2) {
+    overlaps ~= stuple(it,  it2);
+    return .test(it == it2);
+  });
+  if (res) cmp2 = e2t;
+  return res;
       })) { cmp1 = e1; }
     }
     test(ex, n);

@@ -5,27 +5,6 @@ import
   ast.fun, ast.funcall, ast.aliasing, ast.conditionals,
   ast.structure, ast.namespace, ast.modules, ast.structfuns, ast.returns;
 
-class ZeroFiller : Expr {
-  IType type;
-  this(IType type) { this.type = type; }
-  private this() { }
-  mixin DefaultDup!();
-  mixin defaultIterate!();
-  override {
-    IType valueType() { return type; }
-    void emitLLVM(LLVMFile lf) {
-      todo("ZeroFiller::emitLLVM");
-      /*mixin(mustOffset("type.size"));
-      if (fastcast!(SysInt) (type)) { lf.pushStack("$0", 4); }
-      else if (fastcast!(Float) (type)) {
-        (fastalloc!(FloatExpr)(0)).emitLLVM(lf);
-      } else {
-        throw new Exception(Format("Don't know how to zero ", type, "!"));
-      }*/
-    }
-  }
-}
-
 Expr[] genInitPattern(int i, int len) {
   Expr[] res;
   for (int k = 0; k < len; ++k) {
@@ -41,7 +20,8 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
   Structure asStruct;
   int len;
   override int alignment() {
-    if (base.size < 4 || len < 3) return 4;
+    todo(qformat("what is alignment of ", base));
+    // if (base.size < 4 || len < 3) return 4;
     return 16;
   }
   override bool isPointerLess() { return base.isPointerLess(); }
@@ -65,11 +45,15 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
     asStruct = mkVecStruct(this);
   }
   override {
-    int size() { return asFilledTup.size; }
     string mangle() { return qformat("vec_"[], len, "_"[], base.mangle()); }
     string toString() { return qformat("vec("[], base, ", "[], len, ")"[]); }
-    ubyte[] initval() { return asFilledTup.initval(); }
     bool isTempNamespace() { return false; }
+    string llvmType() {
+      return qformat("<", real_len(), " x ", typeToLLVM(base), ">"); 
+    }
+    string llvmSize() {
+      return asFilledTup.llvmSize();
+    }
     int opEquals(IType it) {
       auto vec = fastcast!(Vector) (resolveType(it));
       if (!vec) return false;
@@ -92,7 +76,7 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
         return false;
       }
       foreach (ch; str) if (!isValidChar(ch)) return null;
-      if (auto res = getSSESwizzle(this, base, str)) return fastcast!(Object) (res);
+      // if (auto res = getSSESwizzle(this, base, str)) return fastcast!(Object) (res);
       Expr generate(Expr ex) {
         if (str.length == 1) {
           auto ch = str[0];
@@ -114,7 +98,7 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
         if (exprs.length == 1) return exprs[0];
         if (exprs.length > 4) throw new Exception("Cannot use swizzle to create vector larger than four elements");
         auto new_vec = mkVec(this.base, exprs.length);
-        if (new_vec.extend) exprs ~= fastalloc!(ZeroFiller)(this.base);
+        if (new_vec.extend) exprs ~= fastalloc!(ZeroInitializer)(this.base);
         return reinterpret_cast(new_vec, mkTupleExpr(exprs));
       }
       // no need for caching in this case
@@ -135,7 +119,15 @@ class SSESwizzle : Expr {
   Expr sup;
   string rule;
   IType type;
-  this(Expr e, IType t, string r) { sup = e; type = t; rule = r; if (sup.valueType().size != type.size) { logln("sup ", sup, ", type ", type, ". "); fail; } }
+  this(Expr e, IType t, string r) {
+    sup = e;
+    type = t;
+    rule = r;
+    if (sup.valueType().llvmType() != type.llvmType()) {
+      logln("sup ", sup, ", type ", type, ". ");
+      fail;
+    }
+  }
   private this() { }
   mixin defaultIterate!(sup);
   mixin DefaultDup!();
@@ -194,28 +186,26 @@ class SSEIntToFloat : Expr {
 
 class MultiplesExpr : Expr {
   Expr base;
-  int factor;
-  IType type;
-  this(Expr b, int f) {
+  Vector type;
+  int vecsize;
+  this(Expr b, int sz) {
     this.base = b;
-    this.factor = f;
-    IType[] types;
-    types ~= b.valueType();
-    for (int i = 1; i < factor; ++i)
-      types ~= types[0];
-    this.type = mkTuple(types);
+    this.vecsize = sz;
+    this.type = fastalloc!(Vector)(b.valueType(), sz);
   }
   mixin defaultIterate!(base);
   override {
-    MultiplesExpr dup() { return fastalloc!(MultiplesExpr)(base.dup, factor); }
+    MultiplesExpr dup() { return fastalloc!(MultiplesExpr)(base.dup, vecsize); }
     IType valueType() { return type; }
     void emitLLVM(LLVMFile lf) {
-      todo("MultiplesExpr::emitLLVM");
-      /*base.emitLLVM(lf);
-      auto bvts = base.valueType().size;
-      for (int i = 1; i < factor; ++i) {
-        lf.pushStack("(%esp)", bvts);
-      }*/
+      auto b = save(lf, base);
+      string bs = typeToLLVM(base.valueType());
+      string ms = typeToLLVM(valueType());
+      string res = "undef";
+      for (int i = 0; i < vecsize; ++i) {
+        res = save(lf, "insertelement ", ms, " ", res, ", ", bs, " ", b, ", i32 ", i);
+      }
+      push(lf, res);
     }
   }
 }
@@ -236,28 +226,34 @@ class AlignedVec4Literal : Expr, Literal {
     return id;
   }
   override {
+    string toString() { return qformat(type, " (", base, " x ", len, ")"); }
     mixin defaultIterate!(base);
     typeof(this) dup() { return new typeof(this) (type, base, len); }
     IType valueType() { return type; }
     string getValue() { assert(false, "Use getID instead! "); }
     void emitLLVM(LLVMFile lf) {
       // lf.put("#avlit of "[], type, " * "[], len);
-      todo("AlignedVec4Literal::emitLLVM");
-      // for (int i = 0; i < len; ++i)
-        // base.emitLLVM(lf);
+      string[] parts;
+      string bs = typeToLLVM(base.valueType());
+      for (int i = 0; i < len; ++i) {
+        parts ~= bs;
+        parts ~= save(lf, base);
+      }
+      formTuple(lf, parts);
     }
   }
 }
 
 static this() {
-  foldopt ~= delegate Itr(Itr it) {
+  // probably not safe due to differing alignment
+  /*foldopt ~= delegate Itr(Itr it) {
     auto me = fastcast!(MultiplesExpr) (it);
     if (!me) return null;
     bool canDup; // no side effects
     auto fbase = me.base;
     if (auto lt = fastcast!(Literal) (fbase)) {
-      if (me.factor == 3 || me.factor == 4) if (auto fe = fastcast!(FloatExpr) (lt)) {
-        return fastalloc!(AlignedVec4Literal)(me.type, fe, me.factor);
+      if (me.vecsize == 3 || me.vecsize == 4) if (auto fe = fastcast!(FloatExpr) (lt)) {
+        return fastalloc!(AlignedVec4Literal)(me.type, fe, me.vecsize);
       }
       canDup = true;
     }
@@ -267,9 +263,9 @@ static this() {
       return null;
     }
     Expr[] list;
-    for (int i = 0; i < me.factor; ++i) list ~= fbase;
+    for (int i = 0; i < me.vecsize; ++i) list ~= fbase;
     return fastcast!(Itr) (reinterpret_cast(me.type, mkTupleExpr(list)));
-  };
+  };*/
   foldopt ~= delegate Itr(Itr it) {
     auto mae = fastcast!(MemberAccess_Expr) (it);
     if (!mae) return null;
@@ -283,9 +279,11 @@ static this() {
     if (mult) { basetype = mult.base.valueType(); res = mult.base; }
     if (avlit) { basetype = avlit.base.valueType(); res = avlit.base; }
     if (basetype != mae.stm.type) {
-      logln("type mismatch: accessing ", mae.stm.type, " from set of ",
+      /*logln("type mismatch: accessing ", mae.stm.type, " from set of ",
         basetype);
-      fail;
+      logln("mae ", mae);
+      logln("rce ", rce);
+      fail;*/
       return null;
     }
     return fastcast!(Iterable) (res);
@@ -295,10 +293,7 @@ static this() {
 Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true, bool canfail = false) {
   auto ex2 = base;
   if (allowCastVecTest && gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
-    return fastcast!(Object) (reinterpret_cast(
-      vec,
-      fastalloc!(MultiplesExpr)(ex2, vec.real_len())
-    ));
+    return fastalloc!(MultiplesExpr)(ex2, vec.len);
   }
   checkVecs();
   if (vec == vec3f && base.valueType() == vec3i) {
@@ -336,8 +331,8 @@ Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true, bool
       else throw new Exception(Format("Insufficient values for ", vec, " constructor"));
     }
     
-    if (vec.extend) exs ~= fastalloc!(ZeroFiller)(vec.base);
-    return reinterpret_cast(vec, fastalloc!(StructLiteral)(vec.asStruct, exs, vec.asFilledTup.offsets));
+    if (vec.extend) exs ~= fastalloc!(ZeroInitializer)(vec.base);
+    return reinterpret_cast(vec, fastalloc!(StructLiteral)(vec.asStruct, exs));
   });
   if (canfail) return null;
   assert(false);
@@ -377,25 +372,15 @@ class FastVec3Sum : Expr {
     FastVec3Sum dup() { return fastalloc!(FastVec3Sum)(base.dup); }
     IType valueType() { return Single!(Float); }
     void emitLLVM(LLVMFile lf) {
-      todo("FastVec3Sum::emitLLVM");
-      /*auto filler = alignStackFor(base.valueType(), lf);
-      base.emitLLVM(lf);
-      lf.SSEOp("movaps", "(%esp)", "%xmm0");
-      if ("sse3" in lf.processorExtensions) {
-        lf.SSEOp("movaps", "%xmm0", "%xmm1");
-        lf.SSEOp("haddps", "%xmm1", "%xmm1"); // [x+y, z+w, x+y, z+w]
-        lf.SSEOp(qformat("shufps $"[], 0b1010_1010, ", "[]), "%xmm0"[], "%xmm0"[]); // zzzz
-        lf.SSEOp("addss", "%xmm1", "%xmm0");
-      } else {
-        lf.SSEOp("movaps", "%xmm0", "%xmm1");
-        lf.SSEOp("movaps", "%xmm0", "%xmm2");
-        lf.SSEOp(qformat("shufps $"[], 0b0101_0101, ", "[]), "%xmm1"[], "%xmm1"[]); // yyyy
-        lf.SSEOp(qformat("shufps $"[], 0b1010_1010, ", "[]), "%xmm2"[], "%xmm2"[]); // zzzz
-        lf.SSEOp("addss", "%xmm1", "%xmm0");
-        lf.SSEOp("addss", "%xmm2", "%xmm0");
-      }
-      lf.sfree(12 + filler);
-      lf.SSEOp("movd", "%xmm0", "(%esp)", true /* ignore stack alignment * /);*/
+      auto bv = save(lf, base);
+      auto bt = typeToLLVM(base.valueType());
+      auto v0 = save(lf, "extractelement ", bt, " ", bv, ", i32 0");
+      auto v1 = save(lf, "extractelement ", bt, " ", bv, ", i32 1");
+      auto v2 = save(lf, "extractelement ", bt, " ", bv, ", i32 2");
+      auto res = v0;
+      res = save(lf, "fadd float ", res, ", ", v1);
+      res = save(lf, "fadd float ", res, ", ", v2);
+      push(lf, res);
     }
   }
 }
@@ -408,21 +393,34 @@ class FastVec3Norm : Expr {
     FastVec3Norm dup() { return fastalloc!(FastVec3Norm)(base.dup, vec); }
     IType valueType() { return vec; }
     void emitLLVM(LLVMFile lf) {
-      todo("FastVec3Norm::emitLLVM");
-      /*base.emitLLVM(lf);
-      lf.SSEOp("movaps", "(%esp)", "%xmm0");
-      lf.SSEOp("movaps", "%xmm0", "%xmm3");
-      lf.SSEOp("mulps", "%xmm3", "%xmm3");
-      lf.SSEOp("movaps", "%xmm3", "%xmm1");
-      lf.SSEOp("movaps", "%xmm3", "%xmm2");
-      lf.SSEOp(qformat("shufps $"[], 0b0101_0101, ", "[]), "%xmm1"[], "%xmm1"[]); // yyyy
-      lf.SSEOp(qformat("shufps $"[], 0b1010_1010, ", "[]), "%xmm2"[], "%xmm2"[]); // zzzz
-      lf.SSEOp("addss", "%xmm1", "%xmm3");
-      lf.SSEOp("addss", "%xmm2", "%xmm3");
-      lf.SSEOp("rsqrtss", "%xmm3", "%xmm3");
-      lf.SSEOp(qformat("shufps $"[], 0b0000_0000, ", "[]), "%xmm3"[], "%xmm3"[]); // spread
-      lf.SSEOp("mulps", "%xmm3", "%xmm0");
-      lf.SSEOp("movaps", "%xmm0", "(%esp)");*/
+      auto b2 = base;
+      logln("FROM: ", base);
+      opt(b2);
+      logln("  TO: ", b2);
+      auto bv = save(lf, base);
+      auto bt = typeToLLVM(base.valueType());
+      // logln("emit ", base, " being ", base.valueType());
+      auto sqv = save(lf, "fmul ", bt, " ", bv, ", ", bv);
+      string sum;
+      {
+        auto v0 = save(lf, "extractelement ", bt, " ", sqv, ", i32 0");
+        auto v1 = save(lf, "extractelement ", bt, " ", sqv, ", i32 1");
+        auto v2 = save(lf, "extractelement ", bt, " ", sqv, ", i32 2");
+        sum = v0;
+        sum = save(lf, "fadd float ", sum, ", ", v1);
+        sum = save(lf, "fadd float ", sum, ", ", v2);
+      }
+      // see bottom of ast.math
+      if (once(lf, "intrinsic llvm.sqrt.f32")) {
+        lf.decls["llvm.sqrt.f32"] = qformat("declare float @llvm.sqrt.f32 (float)");
+      }
+      auto root = save(lf, "call float @llvm.sqrt.f32(float ", sum, ")");
+      string vec = "undef";
+      vec = save(lf, "insertelement <4 x float> ", vec, ", float ", root, ", i32 0");
+      vec = save(lf, "insertelement <4 x float> ", vec, ", float ", root, ", i32 1");
+      vec = save(lf, "insertelement <4 x float> ", vec, ", float ", root, ", i32 2");
+      vec = save(lf, "insertelement <4 x float> ", vec, ", float 1.0, i32 3");
+      load(lf, "fdiv <4 x float> ", bv, ", ", vec);
     }
   }
 }
@@ -459,7 +457,7 @@ Structure mkVecStruct(Vector vec) {
   
   {
     Expr sum;
-    if (vec.len == 3 && Single!(Float) == vec.base) {
+    if (false && vec.len == 3 && Single!(Float) == vec.base) {
       sum = fastalloc!(FastVec3Sum)(fastcast!(Expr) (res.lookup("self")));
     } else {
       sum = fastcast!(Expr)~ res.lookup("x");
@@ -631,9 +629,10 @@ bool emitUnalignedAddr(LLVMFile lf, Expr src, ref bool wasAligned) {
   wasAligned = false;
   if (auto cv = fastcast!(CValue) (src)) {
     if (auto var = fastcast!(Variable) (cv)) {
-      auto offs = var.baseOffset;
+      todo(qformat("wat.. emitUnalignedAddr ", src));
+      /*auto offs = var.baseOffset;
       while (offs < 0) offs += 16;
-      if (offs % 16 == 0) wasAligned = true;
+      if (offs % 16 == 0) wasAligned = true;*/
     }
     cv.emitLocation(lf);
     return true;
@@ -775,26 +774,33 @@ class Vec4fSmaller : Expr {
   override {
     IType valueType() { return Single!(SysInt); }
     void emitLLVM(LLVMFile lf) {
-      todo("Vec4fSmaller::emitLLVM");
-      /*checkVecs();
-      auto t1 = ex1.valueType(), t2 = ex2.valueType();
+      checkVecs();
+      auto t1 = fastcast!(Vector)(resolveType(ex1.valueType())), t2 = ex2.valueType();
       if (vec4f != t1 || vec4f != t2) {
         logln("Fuck. "[], t1, " or "[], t2);
         fail;
       }
-      auto filler = alignStackFor(t1, lf);
+      auto vectype = qformat("<", t1.len, " x ", typeToLLVM(t1.base), ">");
+      
       ex1.emitLLVM(lf);
+      // llcast(lf, typeToLLVM(t1), vectype, lf.pop(), t1.llvmSize());
+      auto s1 = lf.pop();
+      
       ex2.emitLLVM(lf);
-      lf.SSEOp("movaps"[], "(%esp)"[], "%xmm0"[]);
-      lf.sfree(16);
-      lf.SSEOp("movaps"[], "(%esp)"[], "%xmm1"[]);
-      lf.sfree(16);
-      lf.sfree(filler);
-      lf.SSEOp("cmpltps"[], "%xmm0"[], "%xmm1"[]);
-      lf.nvm("%edx"[]);
-      lf.nvm("%eax"[]);
-      lf.put("movmskps %xmm1, %eax"[]);
-      lf.pushStack("%eax"[], 4);*/
+      // llcast(lf, typeToLLVM(t1), vectype, lf.pop(), t1.llvmSize());
+      auto s2 = lf.pop();
+      
+      auto cmp = save(lf, "fcmp olt ", vectype, " ", s1, ", ", s2);
+      string getbit(int i) {
+        return save(lf, "zext i1 ",
+          save(lf, "extractelement <4 x i1> ", cmp, ", i32 ", i),
+          " to i32");
+      }
+      auto res = getbit(0);
+      res = save(lf, "or i32 ", res, ", ", save(lf, "shl i32 ", getbit(1), ", 1"));
+      res = save(lf, "or i32 ", res, ", ", save(lf, "shl i32 ", getbit(2), ", 2"));
+      res = save(lf, "or i32 ", res, ", ", save(lf, "shl i32 ", getbit(3), ", 3"));
+      lf.push(res);
     }
   }
 }
@@ -817,36 +823,38 @@ class VecOp : Expr {
     string toString() { return Format("("[], ex1, " "[], op, " "[], ex2, ")"[]); }
     IType valueType() { return mkVec(type, len); }
     void emitLLVM(LLVMFile lf) {
-      todo("VecOp::emitLLVM");
-      /*auto t1 = ex1.valueType(), t2 = ex2.valueType();
+      auto t1 = ex1.valueType(), t2 = ex2.valueType();
       while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }
       auto e1v = fastcast!(Vector)~ t1, e2v = fastcast!(Vector)~ t2;
-      mkVar(lf, valueType(), true, (Variable var) {
-        auto entries = getTupleEntries(
-          reinterpret_cast(
-            fastcast!(IType)~ (fastcast!(Vector)~ valueType()).asFilledTup,
-            fastcast!(LValue)~ var
-        ), null, true);
-        void delegate() dg1, dg2;
-        mixin(mustOffset("0"[]));
-        // logln("SSE vec op: "[], ex1, ", "[], ex2, " and "[], op);
-        // SSE needs no temps!
-        if (!gotSSEVecOp(lf, ex1, ex2, fastcast!(Expr) (var), op)) {
-          auto filler1 = alignStackFor(t1, lf); auto v1 = mkTemp(lf, ex1, dg1);
-          auto filler2 = alignStackFor(t2, lf); auto v2 = mkTemp(lf, ex2, dg2);
-          for (int i = 0; i < len; ++i) {
-            Expr l1 = v1, l2 = v2;
-            if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1), null, true)[i];
-            if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2), null, true)[i];
-            emitAssign(lf, fastcast!(LValue) (entries[i]), lookupOp(op, l1, l2));
-          }
-          for (int i = len; i < real_len; ++i) {
-            emitAssign(lf, fastcast!(LValue) (entries[i]), fastalloc!(ZeroFiller)(entries[i].valueType()));
-          }
-          if (dg2) dg2(); lf.sfree(filler2);
-          if (dg1) dg1(); lf.sfree(filler1);
+      
+      auto var = fastalloc!(LLVMRef)(valueType());
+      var.allocate(lf);
+      scope(success) var.emitLLVM(lf);
+      
+      auto entries = getTupleEntries(
+        reinterpret_cast(
+          fastcast!(IType)~ (fastcast!(Vector)~ valueType()).asFilledTup,
+          fastcast!(LValue)~ var
+      ), null, true);
+      void delegate() dg1, dg2;
+      mixin(mustOffset("0"));
+      // logln("SSE vec op: "[], ex1, ", "[], ex2, " and "[], op);
+      // SSE needs no temps!
+      if (true || !gotSSEVecOp(lf, ex1, ex2, fastcast!(Expr) (var), op)) {
+        /*auto filler1 = alignStackFor(t1, lf); */auto v1 = mkTemp(lf, ex1, dg1);
+        /*auto filler2 = alignStackFor(t2, lf); */auto v2 = mkTemp(lf, ex2, dg2);
+        for (int i = 0; i < len; ++i) {
+          Expr l1 = v1, l2 = v2;
+          if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1), null, true)[i];
+          if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2), null, true)[i];
+          emitAssign(lf, fastcast!(LValue) (entries[i]), lookupOp(op, l1, l2));
         }
-      });*/
+        for (int i = len; i < real_len; ++i) {
+          emitAssign(lf, fastcast!(LValue) (entries[i]), fastalloc!(ZeroInitializer)(entries[i].valueType()));
+        }
+        if (dg2) dg2(); // lf.sfree(filler2);
+        if (dg1) dg1(); // lf.sfree(filler1);
+      }
     }
   }
 }
@@ -898,8 +906,8 @@ static this() {
     foreach (ex2; getTupleEntries(reinterpret_cast(vt.asFilledTup, ex))[0 .. $-vt.extend]) {
       list ~= lookupOp("-"[], ex2);
     }
-    if (vt.extend) list ~= fastalloc!(ZeroFiller)(vt.base);
-    return reinterpret_cast(vt, fastalloc!(StructLiteral)(vt.asFilledTup.wrapped, list, vt.asFilledTup.offsets));
+    if (vt.extend) list ~= fastalloc!(ZeroInitializer)(vt.base);
+    return reinterpret_cast(vt, fastalloc!(StructLiteral)(vt.asFilledTup.wrapped, list));
   }
   Expr handleVecEquals(Expr e1, Expr e2) {
     auto t1 = resolveType(e1.valueType()), t2 = resolveType(e2.valueType());
@@ -935,7 +943,7 @@ static this() {
   defineOp("|"[], "|" /apply/ &handleVecOp);
   defineOp("=="[], &handleVecEquals);
   defineOp("<"[], &handleVecSmaller);
-  foldopt ~= delegate Itr(Itr it) {
+  /*foldopt ~= delegate Itr(Itr it) {
     if (auto mae = fastcast!(MemberAccess_Expr) (it)) {
       auto base = mae.base;
       if (auto rce = fastcast!(RCE) (base)) {
@@ -961,7 +969,7 @@ static this() {
       }
     }
     return null;
-  };
+  };*/
 }
 
 Object gotMagnitude(ref string text, ParseCb cont, ParseCb rest) {

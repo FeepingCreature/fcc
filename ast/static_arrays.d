@@ -8,10 +8,9 @@ class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
   this() { }
   this(IType et, int len) { elemType = et; length = len; }
   override {
-    string toString() { return Format(elemType, "["[], length, "] - %"[], alignment(), "%"[]); }
-    int size() {
-      return length * elemType.size();
-    }
+    string toString() { return Format(elemType, "["[], length, "] - %"[], "todo", "%"[]); }
+    string llvmSize() { return llmul(qformat(length), elemType.llvmSize()); }
+    string llvmType() { return qformat("[ ", length, " x ", typeToLLVM(elemType), " ]"); }
     int alignment() {
       if (auto fa = fastcast!(ForceAlignment) (resolveType(elemType))) return fa.alignment();
       return needsAlignment(elemType);
@@ -30,13 +29,15 @@ class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
       return d2e && d2e.canEncode();
     }
     Dwarf2Section encode(Dwarf2Controller dwarf2) {
-      auto elemref = registerType(dwarf2, fastcast!(Dwarf2Encodable) (resolveType(elemType)));
+      todo("StaticArray::encode");
+      return null;
+      /*auto elemref = registerType(dwarf2, fastcast!(Dwarf2Encodable) (resolveType(elemType)));
       auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("array type"[]));
       with (sect) {
         data ~= elemref;
-        data ~= qformat(".int\t"[], size(), "\t/* static array size */"[]);
+        data ~= qformat(".int\t"[], size(), "\t/* static array size * /"[]);
       }
-      return sect;
+      return sect;*/
     }
   }
 }
@@ -126,70 +127,18 @@ class DataExpr : CValue {
       return Format(data);
     }
     void emitLLVM(LLVMFile lf) {
-      todo("DataExpr::emitLLVM");
-      /*bool allNull = true;
-      foreach (val; data) if (val) { allNull = false; break; }
-      if (allNull) {
-        / *(lf).flush();
-        auto backup = lf.optimize;
-        // don't even try to opt this
-        lf.optimize = false;* /
-        // sure?
-        if (isARM) {
-          int len = data.length;
-          lf.mmove4("#0"[], "r0"[]);
-          while (len) {
-            if (len >= 4) {
-              lf.pushStack("r0"[], 4);
-              len -= 4;
-            } else if (len >= 2) {
-              lf.pushStack("r0"[], 2);
-              len -= 2;
-            } else {
-              lf.salloc(1);
-              lf.mmove1("r0"[], "[sp]"[]);
-              len --;
-            }
-          }
-        } else {
-          lf.pushStack(Format("$"[], 0), data.length); // better optimizable
-        }
-        // lf.flush();
-        // lf.optimize = backup;
-        return;
+      string array;
+      foreach (b; data) {
+        if (array) array ~= ", ";
+        array ~= qformat("i8 ", b);
       }
-      auto d2 = data;
-      while (d2.length >= 4) {
-        auto i = (cast(int[]) d2.takeEnd(4))[0];
-        if (isARM) {
-          lf.mmove4(Format("#"[], i), "r0"[]);
-          lf.pushStack("r0"[], 4);
-        } else {
-          lf.pushStack(Format("$"[], i), 4);
-        }
-      }
-      while (d2.length) {
-        auto c = d2.takeEnd();
-        if (isARM) {
-          lf.salloc(1);
-          lf.mmove4(Format("#"[], c), "r0"[]);
-          lf.mmove1("r0"[], "[sp]"[]);
-        } else {
-          lf.pushStack(Format("$"[], c), 1);
-        }
-      }*/
+      push(lf, "[", array, "]");
     }
     void emitLocation(LLVMFile lf) {
-      todo("DataExpr::emitLocation");
-      /*if (!name_used) {
-        name_used = lf.allocConstant(Format("data_"[], constants_id++), data);
+      if (!name_used) {
+        name_used = allocConstant(lf, Format("data_"[], constants_id++), data, true);
       }
-      if (isARM) {
-        lf.mmove4("="~name_used, "r0"[]);
-        lf.pushStack("r0"[], 4);
-      } else {
-        lf.pushStack("$"~name_used, nativePtrSize);
-      }*/
+      push(lf, "@", name_used);
     }
   }
 }
@@ -204,11 +153,14 @@ class SALiteralExpr : Expr {
   override {
     IType valueType() { return fastalloc!(StaticArray)(type, exs.length); }
     void emitLLVM(LLVMFile lf) {
-      todo("SALiteralExpr::emitLLVM");
-      // stack emit order: reverse!
-      // TODO: Alignment.
-      /*foreach_reverse (ex; exs)
-        ex.emitLLVM(lf);*/
+      auto bts = typeToLLVM(type);
+      auto ars = qformat("[", exs.length, " x ", bts, "]");
+      string res = "undef";
+      foreach (i, ex; exs) {
+        auto val = save(lf, ex);
+        res = save(lf, "insertvalue ", ars, " ", res, ", ", bts, " ", val, ", ", i);
+      }
+      push(lf, res);
     }
     string toString() { return Format("SA literal "[], exs); }
   }

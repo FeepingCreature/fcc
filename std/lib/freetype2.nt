@@ -24,19 +24,23 @@ extern(C) {
 }
 extern(System) {
   void* memalloc(FT_Memory mem, size_t size) {
-    auto oesi = _esi; onSuccess _esi = oesi;
-    _esi = mem.user;
+    // auto oesi = _esi; onSuccess _esi = oesi;
+    // _esi = mem.user;
     return .mem.malloc int:size;
   }
   void memfree(FT_Memory mem, void* block) {
-    auto oesi = _esi; onSuccess _esi = oesi;
-    _esi = mem.user;
+    // auto oesi = _esi; onSuccess _esi = oesi;
+    // _esi = mem.user;
     .mem.free block;
   }
   void* memrealloc(FT_Memory mem, size_t cur_size, new_size, void* block) {
-    auto oesi = _esi; onSuccess _esi = oesi;
-    _esi = mem.user;
-    return .mem.realloc(block, new_size);
+    // auto oesi = _esi; onSuccess _esi = oesi;
+    // _esi = mem.user;
+    // return .mem.realloc(block, new_size);
+    auto res = .mem.malloc(int: new_size);
+    memcpy(res, block, int: cur_size);
+    .mem.free(block);
+    return res;
   }
 }
 

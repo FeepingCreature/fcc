@@ -51,6 +51,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   Expr[string] nameds;
   bool changed;
   void removeNameds(ref Iterable it) {
+    // logln("removeNameds <", fastcast!(Object)(it).classinfo.name, " ", it, ">");
     if (fastcast!(Variable) (it)) return;
     if (auto ex = fastcast!(Expr)~ it) {
       auto tup = fastcast!(AstTuple) (ex.valueType());
@@ -249,7 +250,6 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   }
   foreach (arg2; args) recurse(arg2);
   if (flat.length) {
-    // logln("flattened to ", flat);
     // text.failparse("Extraneous parameters to '", info(), "' of ", params, ": ", args);
     text.setError("Extraneous parameters to '"[], info(), "' of "[], params, ": "[], args);
     return false;
@@ -319,10 +319,13 @@ bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseC
 
 extern(C) Expr _buildFunCall(Object obj, Expr arg, string info) {
   auto fun = fastcast!(Function) (obj);
-  if (!fun) fail;
+  if (!fun) {
+    logln("you want me to call a ", obj, "?");
+    fail;
+  }
   auto fc = fun.mkCall();
   Statement[] inits;
-  if (!matchedCallWith(arg, fun.getParams(), fc.params, inits, info))
+  if (!matchedCallWith(arg, fun.getParams(false), fc.params, inits, info))
     return null;
   if (!inits.length) return fc;
   else if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
@@ -345,16 +348,16 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       bool precise = true;
       retry_match:
       Function[] candidates;
-      typeof(fun.getParams())[] parsets, candsets;
+      typeof(fun.getParams(false))[] parsets, candsets;
       foreach (osfun; os.funs) {
         auto t3 = t2;
         Statement[] inits;
         // logln(t3.nextText(), ": consider ", osfun);
-        if (matchCall(t3, osfun.name, osfun.getParams(), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall)) {
+        if (matchCall(t3, osfun.name, osfun.getParams(false), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall)) {
           candidates ~= osfun;
-          candsets ~= osfun.getParams();
+          candsets ~= osfun.getParams(false);
         }
-        parsets ~= osfun.getParams();
+        parsets ~= osfun.getParams(false);
       }
       if (!candidates) {
         if (precise) { precise = false; goto retry_match; } // none _quite_ match ..
@@ -369,7 +372,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       fun = candidates[0];
     } else return null;
     auto fc = fun.mkCall();
-    auto params = fun.getParams();
+    auto params = fun.getParams(false);
     resetError();
     bool result;
     Statement[] inits;

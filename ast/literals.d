@@ -1,14 +1,12 @@
 module ast.literals;
 
-import ast.base, ast.pointer, tools.base: slice, replace;
+import ast.base, ast.pointer, tools.base: slice, replace, toString;
 
 public import ast.int_literal, ast.float_literal;
 
 import ast.static_arrays, parseBase;
 
 Expr delegate(string) mkString; // defined in literal_string
-
-int dconscounter;
 
 class DoubleExpr : Expr, Literal {
   union {
@@ -24,17 +22,22 @@ class DoubleExpr : Expr, Literal {
     IType valueType() { return Single!(Double); }
     string getValue() { assert(false); }
     void emitLLVM(LLVMFile lf) {
-      todo("DoubleExpr::emitLLVM");
-      /*if (!name_used) {
-        name_used = lf.allocConstant(Format("dcons_"[], dconscounter ++), cast(ubyte[]) i);
-      }
-      lf.pushStack(qformat("0($"[], name_used, ")"[]), 8);*/
+      push(lf, "0x", toHex(i[1]), toHex(i[0]));
     }
   }
 }
 
 int floatconscounter;
 
+string toHex(uint u) {
+  auto chars = "0123456789abcdef";
+  string res;
+  for (int i = 28; i >= 0; i -= 4)
+    res ~= chars[(u>>i)&0xf];
+  return res;
+}
+
+union UHAX { double d; uint[2] u; }
 class FloatExpr : Expr, Literal {
   union {
     float f;
@@ -50,16 +53,9 @@ class FloatExpr : Expr, Literal {
     IType valueType() { return Single!(Float); }
     string getValue() { return Format(f_as_i); }
     void emitLLVM(LLVMFile lf) {
-      todo("FloatExpr::emitLLVM");
-      /*if (isARM) {
-        lf.mmove4(qformat("="[], f_as_i), lf.regs[0]);
-        lf.pushStack(lf.regs[0], 4);
-      } else {
-        if (!name_used || !(lf).knowsConstant(name_used)) {
-          name_used = lf.allocConstantValue(qformat("cons_float_constant_"[], floatconscounter++, "___xfcc_encodes_"[], f_as_i), cast(ubyte[]) (&f_as_i)[0 .. 1], true);
-        }
-        lf.pushStack(name_used, 4);
-      }*/
+      UHAX hax;
+      hax.d = f;
+      push(lf, "0x", toHex(hax.u[1]), toHex(hax.u[0]&0b1110_0000_0000_0000_00000000_00000000));
     }
   }
 }
@@ -131,6 +127,8 @@ class CValueAsPointer : Expr {
   }
   override void emitLLVM(LLVMFile lf) {
     sup.emitLocation(lf);
+    auto from = typeToLLVM(sup.valueType())~"*", to = typeToLLVM(valueType());
+    llcast(lf, from, to, lf.pop(), valueType().llvmSize());
   }
   override string toString() { return Format("cvalue& ", sup); }
 }

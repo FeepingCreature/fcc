@@ -11,7 +11,8 @@ void qbuffer_resize_internal(int i, string* qbufferp, int* offsp) {
     // there's no chance to free this anyway, so don't let the gc bother with it
     // otherwise the get_qbuffer_ptr will fail because we keep reference in C space
     // (*qbufferp) = new char[max(65536, i)];
-    (*qbufferp) = (cast(char*) std.c.stdlib.malloc(65536))[0..65536];
+    auto newlen = max(i, 65536);
+    (*qbufferp) = (cast(char*) std.c.stdlib.malloc(newlen))[0..newlen];
     (*qbufferp)[0 .. backup.length] = backup;
   }
 }

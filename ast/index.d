@@ -165,7 +165,7 @@ Object gotPointerIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     
     if (rest(t2, "tree.expr"[], &pos) && t2.accept("]")) {
       if (fastcast!(RangeIsh)~ pos.valueType()) return null; // belongs to slice
-      if (pos.valueType().size() != 4) throw new Exception(Format("Invalid index: ", pos));
+      if (pos.valueType().llvmSize() != "i32") throw new Exception(Format("Invalid index: ", pos));
       text = t2;
       return new PA_Access (ex, pos);
     } else return null;

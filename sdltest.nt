@@ -25,8 +25,9 @@ void test(int foo) {
     writeln("Countdown with $temp");
     temp = temp - 1;
   }
-  for (int x = 0; x < 10; ++x)
+  for (int x = 0; x < 10; ++x) {
     writeln("Test: $x");
+  }
 }
 
 int acker(int m, int n) {
@@ -73,7 +74,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   auto start = time(int*: null);
   float t = 0;
   int fps;
-  auto tp = new ThreadPool(4);
+  // auto tp = new ThreadPool(4);
   void run() {
     t += 0.02;
     void calc(int from, int to) {
@@ -102,10 +103,10 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       void delegate() myApply(int from, int to, void delegate(int, int) dg) {
         return new delegate void() { return dg(from, to); };
       }
-      // myApply(from, to, &calc)();
-      tp.addTask myApply(from, to, &calc);
+      myApply(from, to, &calc)();
+      // tp.addTask myApply(from, to, &calc);
     }
-    tp.waitComplete;
+    // tp.waitComplete;
     fps ++;
   }
   auto last = time(null), tstart = last;
@@ -208,10 +209,10 @@ int main(string[] args) {
   mem.calloc_dg = &myCalloc;
   mem.realloc_dg = &myRealloc;
   mem.free_dg = &GC_free;*/
-  if (int:_ebp & 0xf != 8) {
+  /*if (int:_ebp & 0xf != 8) {
     writeln "FEEEP! YOU BROKE THE FUCKING FRAME ALIGNMENT AGAIN. $(_ebp) ";
     _interrupt 3;
-  }
+  }*/
   auto cdg = mem.calloc_dg;
   mem.calloc_dg = delegate void*(int a, b) {
     // printf("Allocate %i, %i\n", a, b);
@@ -277,7 +278,8 @@ int main(string[] args) {
   sub.icfun();
   sub.idfun();
   IA ia = sub;
-  writeln "call ia on implicit IA cast from sub; ia is $(void*:ia), sub is $(void*:sub), iafun is $(&ia.iafun), on sub would be $(&sub.iafun). ";
+  writeln "call ia on implicit IA cast from sub; ia is $(void*:ia), sub is $(void*:sub), ia delta is $(**int**:ia)";
+  writeln "iafun is $(string-of &ia.iafun) $(&ia.iafun), on sub would be $(&sub.iafun). ";
   ia.iafun();
   auto ic = IC:ia;
   ic.icfun();
@@ -410,7 +412,7 @@ int main(string[] args) {
 
       // Octave 3: Streak
       noise += noise3 vec3f(x, y * 100, t) * 0.7;
-
+      
       // Adjust range to [0, 1]
       noise = (noise + 1) / 2;
 

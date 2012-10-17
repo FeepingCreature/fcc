@@ -64,13 +64,6 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
       if (!namespace()) {
         fail;
       }
-      if (!namespace().get!(EmittingContext)) {
-        logln("no EmitCtx beneath "[], namespace());
-      }
-      if (namespace().get!(EmittingContext).isBeingEmat) {
-        logln("Too late to change stackframe via tmpizing!"[]);
-        fail;
-      }
       // force allocation
       ex = tmpize_if_possible(ex, late_init);
       return ex;
@@ -142,7 +135,8 @@ static this() {
     opt(from); opt(to);
     auto ifrom = fastcast!(IntExpr) (from), ito = fastcast!(IntExpr) (to);
     if (!ifrom || !ito) fail("fail"[]);
-    auto start = tup.wrapped.selectMember(ifrom.num).offset;
+    
+    auto start = tup.wrapped.selectMember(ifrom.num).makeOffset(tup.wrapped);
     if (ifrom.num == ito.num) {
       return mkTupleExpr();
     }
@@ -150,7 +144,7 @@ static this() {
     auto res = iparse!(Expr, "tuple_slice"[], "tree.expr"[])
                       (`*restype*:(void*:&lv + base)`,
                        "restype"[], restype, "lv"[], fastcast!(LValue)~ e1,
-                       "base"[], mkInt(start));
+                       "base"[], llvmval(start));
     return res;
   });
 }
@@ -173,7 +167,6 @@ class WithSpace : Namespace {
   }
   override {
     string mangle(string name, IType type) { assert(false); }
-    Stuple!(IType, string, int)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) {
       if (name == "this") // skip the riffr(lf)f
         return get!(Function).lookup("this", local);
@@ -225,7 +218,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
             ex = fastalloc!(RCE)(ex.valueType(), ex, true); // make sure it's treated as an expr!
           } else {
             wte = fastalloc!(WithTempExpr)(ex);
-            ex = wte.offs;
+            ex = wte.val;
           }
         }
       }

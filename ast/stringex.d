@@ -134,32 +134,32 @@ Expr simpleFormat(Expr ex) {
     }
     // logln("et is ", et);
     return fastalloc!(CallbackExpr)("format"[], Single!(Array, Single!(Char)), ex, (Expr ex, LLVMFile lf) {
-      todo("format callback");
-      /*mkVar(lf, Single!(Array, Single!(Char)), true, (Variable var) {
-        iparse!(Scope, "!safecode_gen_array_format", "tree.scope")
-        (`{
-            char[auto ~] res;
-            res = res ~ "[";
-            auto ar = array;
-            for (int i = 0; i < ar.length; ++i) {
-              if i res = res ~ ", ";
-              auto elem = ar[i];
-              res = res ~ "$elem";
-            }
-            res = res ~ "]";
-            var = res[];
-          }`,
-          namespace(),
-          "var"[], var, "array"[], ex,
-          (lf)
-        ).emitLLVM(lf);
-      });*/
+      mixin(mustOffset("1"));
+      auto var = fastalloc!(LLVMRef)(Single!(Array, Single!(Char)));
+      var.allocate(lf);
+      scope(success) var.emitLLVM(lf);
+      iparse!(Scope, "!safecode_gen_array_format", "tree.scope")
+      (`{
+          char[auto ~] res;
+          res = res ~ "[";
+          auto ar = array;
+          for (int i = 0; i < ar.length; ++i) {
+            if i res = res ~ ", ";
+            auto elem = ar[i];
+            res = res ~ "$elem";
+          }
+          res = res ~ "]";
+          var = res[];
+        }`,
+        namespace(),
+        "var"[], var, "array"[], ex
+      ).emitLLVM(lf);
     });
   }
   auto obj = fastcast!(IType) (sysmod.lookup("Object"));
   if (gotImplicitCast(ex, obj, (IType it) { return test(it == obj); })) {
     return iparse!(Expr, "gen_obj_toString_call", "tree.expr")
-                  (`obj?.toString():"null"`, "obj"[], ex);
+                  (`obj?.toString():"null"`, namespace(), "obj"[], ex);
   }
   if (showsAnySignOfHaving(ex, "toString")) {
     try return iparse!(Expr, "thing_tostring", "tree.expr")

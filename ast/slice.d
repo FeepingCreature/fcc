@@ -37,19 +37,15 @@ class FullSlice : Expr {
   override {
     FullSlice dup() { return fastalloc!(FullSlice)(sup.dup); }
     IType valueType() { return type; }
+    string toString() { return fastcast!(Object)(sup).toString()~"[]"; }
     import ast.vardecl, ast.assign;
     void emitLLVM(LLVMFile lf) {
-      todo("FullSlice::emitLLVM");
-      /*mkVarUnaligned(lf, valueType(), true, (Variable var) {
-        auto backup = lf.checkptStack();
-        scope(exit) lf.restoreCheckptStack(backup);
-        
-        auto temp = fastalloc!(Variable)(sup.valueType(), cast(string) null, boffs(sup.valueType(), lf.currentStackDepth));
-        
-        (fastalloc!(VarDecl)(temp, sup)).emitLLVM(lf);
-        
-        emitAssign(lf, var, optex(mkArraySlice(temp, mkInt(0), getArrayLength(temp))));
-      });*/
+      auto svt= sup.valueType();
+      auto svts=typeToLLVM(svt);
+      auto tp = alloca(lf, "1", svts);
+      put(lf, "store ", svts, " ", save(lf, sup), ", ", svts, "* ", tp);
+      auto temp = fastalloc!(DerefExpr)(fastalloc!(LLVMValue)(tp, fastalloc!(Pointer)(svt)));
+      mkArraySlice(temp, mkInt(0), getArrayLength(temp)).emitLLVM(lf);
     }
   }
 }
@@ -74,8 +70,8 @@ void setupSlice() {
     auto from = rish.getPos(e2);
     auto to   = rish.getEnd(e2);
     opt(from); opt(to);
-    if (from.valueType().size() != 4) throw new Exception(Format("Invalid slice start: "[], from));
-    if (to.valueType().size() != 4) throw new Exception(Format("Invalid slice end: "[], from));
+    if (from.valueType().llvmSize() != "4") throw new Exception(Format("Invalid slice start: "[], from.valueType().llvmSize(), " ", from));
+    if (to.valueType().llvmSize() != "4") throw new Exception(Format("Invalid slice end: "[], to.valueType().llvmSize(), " ", to));
     
     if (fastcast!(Array)~ e1v || fastcast!(ExtArray)~ e1v)
       return mkArraySlice(e1, from, to);
@@ -124,9 +120,9 @@ Statement getSliceAssign(Expr slice, Expr array) {
   else fail;
   return fastalloc!(ExprStatement)(tmpize_maybe(array, delegate Expr(Expr array) {
     auto fc = (fastcast!(Function)~ sysmod.lookup("memcpy2"[])).mkCall;
-    fc.params ~= getArrayPtr(slice);
-    fc.params ~= getArrayPtr(array);
-    fc.params ~= lookupOp("*"[], getArrayLength(array), mkInt(elemtype.size));
+    fc.params ~= reinterpret_cast(voidp, getArrayPtr(slice));
+    fc.params ~= reinterpret_cast(voidp, getArrayPtr(array));
+    fc.params ~= lookupOp("*"[], getArrayLength(array), llvmval(elemtype.llvmSize()));
     return fc;
   }));
 }

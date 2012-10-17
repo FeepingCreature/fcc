@@ -49,28 +49,22 @@ class RelFunCall : FunCall, RelTransformable {
     return res;
   }
   override void emitLLVM(LLVMFile lf) {
-    todo("RelFunCall::emitLLVM");
-    /*if (!baseptr) {
+    if (!baseptr) {
       logln("Untransformed rel-funcall: "[], this);
       fail;
     }
-    if (auto lv = fastcast!(LValue)~ baseptr) {
+    if (auto lv = fastcast!(LValue) (baseptr)) {
       callDg(lf, fun.type.ret, params,
         fastalloc!(DgConstructExpr)(fun.getPointer(), fastalloc!(RefExpr)(lv)));
     } else {
-      mkVar(lf, valueType(), true, (Variable var) {
-        auto backup = lf.checkptStack();
-        scope(exit) lf.restoreCheckptStack(backup);
-        auto temp = fastalloc!(Variable)(baseptr.valueType(), cast(string) null, boffs(baseptr.valueType(), lf.currentStackDepth));
-        (fastalloc!(VarDecl)(temp, baseptr)).emitLLVM(lf);
-        Variable res;
-        // don't process res if void
-        if (var) res = fastalloc!(Variable)(valueType(), cast(string) null, boffs(valueType(), lf.currentStackDepth));
-        callDg(lf, fun.type.ret, params,
-          fastalloc!(DgConstructExpr)(fun.getPointer(), fastalloc!(RefExpr)(temp)));
-        if (var) emitAssign(lf, var, res);
-      });
-    }*/
+      // allocate a temporary
+      auto bt = baseptr.valueType();
+      auto bts=typeToLLVM(bt);
+      auto bp = alloca(lf, "1", bts);
+      put(lf, "store ", bts, " ", save(lf, baseptr), ", ", bts, "* ", bp);
+      callDg(lf, fun.type.ret, params,
+        fastalloc!(DgConstructExpr)(fun.getPointer(), fastalloc!(LLVMValue)(bp, fastalloc!(Pointer)(bt))));
+    }
   }
   override IType valueType() {
     return fun.type.ret;
@@ -109,6 +103,12 @@ class RelFunction : Function, RelTransformable, HasInfo {
   }
   override {
     RelFunction alloc() { return new RelFunction; }
+    Expr getPointer() { return fastalloc!(FunSymbol)(this, fastcast!(hasRefType)(context).getRefType()); }
+    Argument[] getParams(bool implicits) {
+      auto res = super.getParams(implicits);
+      if (implicits) res ~= Argument(fastcast!(hasRefType)(context).getRefType(), "__base_ptr");
+      return res;
+    }
     RelFunction flatdup() {
       auto res = fastcast!(RelFunction) (super.flatdup());
       res.context = context;
@@ -144,9 +144,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
     Extensible simplify() { return this; }
   }
   FunctionPointer typeAsFp() {
-    auto res = new FunctionPointer;
-    res.ret = type.ret;
-    res.args = type.params.dup;
+    auto res = new FunctionPointer(this);
     if (auto rnfb = fastcast!(RelNamespaceFixupBase) (context))
       res.args ~= Argument(rnfb.genCtxType(context));
     else
@@ -172,18 +170,22 @@ class RelFunction : Function, RelTransformable, HasInfo {
     }
     import ast.aliasing;
     int fixup() {
-      auto cur = super.fixup();
+      auto id = super.fixup();
       if (!fastcast!(hasRefType) (context))
         logln("bad context: "[], context, " is not reftype"[]);
       
-      auto bp = fastalloc!(Variable)((fastcast!(hasRefType) (context)).getRefType(), "__base_ptr"[], cur);
-      add(bp);
-      cur += 4;
-      _framestart += 4;
+      auto bp = fastcast!(Expr)(lookup("__base_ptr"));
+      if (!bp) {
+        logln("in ", this);
+        logln("field = ", field);
+        fail;
+      }
+      // auto bp = fastalloc!(Variable)((fastcast!(hasRefType) (context)).getRefType(), id++, "__base_ptr");
+      // add(bp);
       
       if (fastcast!(Pointer)~ bp.valueType())
         add(fastalloc!(LValueAlias)(fastalloc!(DerefExpr)(bp), "this"[]));
-      return cur;
+      return id;
     }
     Object lookup(string name, bool local = false) {
       auto res = super.lookup(name, true);

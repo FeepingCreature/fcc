@@ -13,8 +13,13 @@ class Array_ : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
     // bool isComplete() { return elemType.isComplete; }
     bool isComplete() { return true; /* size not determined by element size! */ }
     IType proxyType() { if (proxyCache) return proxyCache; if (auto ep = elemType.proxyType()) { proxyCache = fastalloc!(Array)(ep); return proxyCache; } return null; }
-    int size() {
-      return nativePtrSize + nativeIntSize;
+    string llvmSize() {
+      if (nativePtrSize == 4) return "8";
+      fail;
+    }
+    string llvmType() {
+      if (nativePtrSize == 4) return qformat("{i32, ", typeToLLVM(fastalloc!(Pointer)(elemType)), "}");
+      fail;
     }
     bool isTempNamespace() { return false; }
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
@@ -91,8 +96,13 @@ class ExtArray : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
         return fastcast!(Object) (lookupOp("index"[], base, mkInt(idx)));
       return null;
     }
-    int size() {
-      return nativePtrSize + nativeIntSize * 2;
+    string llvmSize() {
+      if (nativePtrSize == 4) return "12";
+      fail;
+    }
+    string llvmType() {
+      if (nativePtrSize == 4) return qformat("{i32, i32, ", typeToLLVM(fastalloc!(Pointer)(elemType)), "}");
+      fail;
     }
     string mangle() {
       return qformat("rich_"[], freeOnResize?"auto_"[]:null, "array_of_"[], elemType.mangle());
@@ -203,15 +213,13 @@ IType arrayAsStruct(IType base, bool rich) {
   }
   cache ~= stuple(base, rich, mod, fastcast!(IType) (res));
   isArrayStructType[res] = true;
-  logln("todo array.free");
-  /*mkFun("free"[], Single!(Void), delegate Tree() {
+  mkFun("free"[], Single!(Void), delegate Tree() {
     if (rich) return iparse!(Statement, "array_free"[], "tree.stmt"[])
                   (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, namespace());
     else return iparse!(Statement, "array_free"[], "tree.stmt"[])
                   (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, namespace());
-  });*/
-  logln("todo array.dup");
-  /*if (!rich) {
+  });
+  if (!rich) {
     auto propbackup = propcfg().withTuple;
     propcfg().withTuple = true;
     scope(exit) propcfg().withTuple = propbackup;
@@ -221,9 +229,8 @@ IType arrayAsStruct(IType base, bool rich) {
               res, "base"[], base),
       "dup"
     ));
-  }*/
-  logln("todo array.popEnd");
-  /*if (base != Single!(Void)) {
+  }
+  if (base != Single!(Void)) {
     mkFun("popEnd"[], base, delegate Tree() {
       auto len = fastcast!(LValue) (namespace().lookup("length"[]));
       auto p = fastcast!(Expr) (namespace().lookup("ptr"[]));
@@ -234,7 +241,7 @@ IType arrayAsStruct(IType base, bool rich) {
         )
       );
     });
-  }*/
+  }
   
   return res;
 }
@@ -338,12 +345,16 @@ class ArrayMaker : Expr {
   import ast.vardecl, ast.assign;
   override void emitLLVM(LLVMFile lf) {
     // logln("emit array maker ", count);
-    // logln("PTR ", ptr);
+    // logln("PTR ", ptr, "  ", ptr.valueType());
     // logln("LEN ", length);
-    ptr.emitLLVM(lf);
-    length.emitLLVM(lf);
-    if (cap)
-      cap.emitLLVM(lf);
+    auto ps = save(lf, ptr);
+    auto ls = save(lf, length);
+    if (cap) {
+      auto cs = save(lf, cap);
+      formTuple(lf, "i32", cs, "i32", ls, typeToLLVM(ptr.valueType()), ps);
+    } else {
+      formTuple(lf, "i32", ls, typeToLLVM(ptr.valueType()), ps);
+    }
   }
 }
 
@@ -446,8 +457,13 @@ class ArrayExtender : Expr {
   override {
     IType valueType() { if (!cachedType) cachedType = fastalloc!(ExtArray)(baseType, false); return cachedType; }
     void emitLLVM(LLVMFile lf) {
-      array.emitLLVM(lf);
-      ext.emitLLVM(lf);
+      auto ars = save(lf, array); // length, ptr
+      auto art = typeToLLVM(array.valueType());
+      auto exs = save(lf, ext); // cap
+      // extract length, ptr
+      auto l = save(lf, "extractvalue ", art, " ", ars, ", 0");
+      auto p = save(lf, "extractvalue ", art, " ", ars, ", 1");
+      formTuple(lf, "i32", exs, "i32", l, typeToLLVM(fastalloc!(Pointer)(baseType)), p);
     }
   }
 }
@@ -483,8 +499,8 @@ Expr arrayCast(Expr ex, IType it) {
   return iparse!(Expr, "array_cast_convert_call"[], "tree.expr"[])
                 (`sys_array_cast!Res(from, sz1, sz2)`,
                  "Res"[], ar2, "from"[], ex,
-                 "sz1"[], mkInt(ar1.elemType.size),
-                 "sz2"[], mkInt(ar2.elemType.size));
+                 "sz1"[], llvmval(ar1.elemType.llvmSize()),
+                 "sz2"[], llvmval(ar2.elemType.llvmSize()));
 }
 
 import tools.base: todg;

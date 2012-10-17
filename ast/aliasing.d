@@ -90,7 +90,8 @@ class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
     string getIdentifier() { return name; }
     bool isPointerLess() { return base.isPointerLess(); }
     bool returnsInMemory() { return base.returnsInMemory(); }
-    int size() { return base.size; }
+    string llvmType() { return base.llvmType(); }
+    string llvmSize() { return base.llvmSize(); }
     string mangle() {
       // breeak
       if (alreadyRecursing(this)) return qformat("recursive_alias_", name.replace("-", "_dash_"));
@@ -102,7 +103,6 @@ class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
       pushRecurse(this); scope(exit) popRecurse();
       return Format(name, ":", base);
     }
-    ubyte[] initval() { return base.initval; }
     int opEquals(IType ty) {
       if (ty is this) return true;
       if (alreadyRecursing(this, ty)) return true; // break loop
@@ -190,7 +190,9 @@ redo:
       }
     }
     if (auto e = fastcast!(Expr) (obj)) { obj = null; ex = e; }
-    else namespace().__add(id, obj); // for instance, function alias
+    else {
+      namespace().__add(id, obj); // for instance, function alias
+    }
   }
   
   assert(ex || ta || obj);

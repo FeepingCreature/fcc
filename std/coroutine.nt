@@ -5,7 +5,8 @@ import std.file, c.ucontext, c.sys.mman;
 extern(C) void makecontext(ucontext_t* ucp, void function() func, int argc, ...);
 
 void call(void delegate() dg, void* esi) {
-  _esi = esi;
+  writeln "TODO __thread";
+  // _esi = esi;
   dg();
 }
 
@@ -27,7 +28,7 @@ class Coroutine {
     stack = ptr[0..stacksize];
     if (getcontext(&ctx) == -1) raise new ErrnoError;
     ctx.uc_stack.(ss_sp, ss_size, ss_flags) = (stack.ptr, stacksize, 0);
-    makecontext(&ctx, void function(): &call, size-of (void delegate(), void*)/size-of int, &run, _esi);
+    makecontext(&ctx, void function(): &call, size-of (void delegate(), void*)/size-of int, &run/*, _esi*/);
   }
   void enter() {
     ucontext_t prev;

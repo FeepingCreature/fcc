@@ -19,6 +19,7 @@ class _Assignment(T) : LineNumberedStatementClass {
       logln(" of "[], t.valueType());
       logln(" <- "[], e.valueType());
       breakpoint();
+      asm { int 3; }
       throw new Exception("Assignment type mismatch! "[]);
     }
     target = t;
@@ -30,69 +31,16 @@ class _Assignment(T) : LineNumberedStatementClass {
   override string toString() { return Format(target, " := "[], value, "; "[]); }
   override void emitLLVM(LLVMFile lf) {
     super.emitLLVM(lf);
-    todo("Assignment::emitLLVM");
-    /*if (!isARM && value.valueType().size % 4 == 0) {
-      static if (is(T: LValue)) {
-        if (auto srclv = fastcast!(LValue) (value)) {
-          mixin(mustOffset("0"[]));
-          target.emitLocation(lf);
-          srclv.emitLocation(lf);
-          lf.popStack("%eax"[], nativePtrSize);
-          lf.popStack("%ecx"[], nativePtrSize);
-          // ebx = src, ecx = target
-          auto sz = value.valueType().size;
-          for (int i = 0; i < sz / 4; ++i) {
-            lf.mmove4(qformat(i*4, "(%eax)"[]), "%ebx"[]);
-            lf.mmove4("%ebx"[], qformat(i*4, "(%ecx)"[]));
-            lf.nvm("%ebx"[]);
-          }
-          return;
-        }
-      }
-    }
-    if (blind) {
-      value.emitLLVM(lf);
-      static if (is(T: MValue))
-        target.emitAssignment(lf);
-      else {
-        target.emitLocation(lf);
-        if (isARM) {
-          lf.popStack("r2"[], 4);
-          armpop(lf, "r2"[], value.valueType().size);
-        } else {
-          lf.popStack("%edx"[], nativePtrSize);
-          lf.popStack("(%edx)"[], value.valueType().size);
-          lf.nvm("%edx"[]);
-        }
-      }
+    
+    push(lf, save(lf, value));
+    static if (is(T: MValue)) {
+      target.emitAssignment(lf);
     } else {
-      mixin(mustOffset("0"[]));
-      int filler;
-      auto vt = value.valueType();
-      {
-        filler = alignStackFor(vt, lf);
-        mixin(mustOffset("vt.size"[]));
-        value.emitLLVM(lf);
-      }
-      static if (is(T: MValue)) {{ // Double-brackets. Trust me.
-        mixin(mustOffset("-vt.size"[]));
-        target.emitAssignment(lf);
-      }} else {
-        {
-          mixin(mustOffset("nativePtrSize"[]));
-          target.emitLocation(lf);
-        }
-        if (isARM) {
-          lf.popStack("r2"[], 4);
-          armpop(lf, "r2"[], vt.size);
-        } else {
-          lf.popStack("%edx"[], nativePtrSize);
-          lf.popStack("(%edx)"[], vt.size);
-          lf.nvm("%edx"[]);
-        }
-      }
-      lf.sfree(filler);
-    }*/
+      target.emitLocation(lf);
+      auto dest = lf.pop(), src = lf.pop();
+      if (value.valueType().llvmSize() != "0")
+        put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
+    }
   }
 }
 

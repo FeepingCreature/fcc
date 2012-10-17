@@ -45,7 +45,7 @@ class ExprStatement : LineNumberedStatementClass {
   override string toString() { return Format(ex); }
   override void emitLLVM(LLVMFile lf) {
     super.emitLLVM(lf);
-    ex.emitLLVM(lf);
+    save(lf, ex);
   }
 }
 

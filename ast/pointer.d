@@ -14,7 +14,11 @@ class Pointer_ : Type, Dwarf2Encodable {
       auto p = fastcast!(Pointer)~ ty;
       return target == p.target;
     }
-    int size() { return nativePtrSize; }
+    string llvmSize() { if (nativePtrSize == 4) return "4"; if (nativePtrSize == 8) return "8"; assert(false); }
+    // string llvmType() { return typeToLLVM(target) ~ "*"; }
+    string llvmType() {
+      return typeToLLVM(target)~"*"; // hax
+    }
     string mangle() { return qformat("ptrto_", target.mangle()); }
     string toString() { return Format(target, "*"[]); }
     bool canEncode() {
@@ -82,30 +86,9 @@ class DerefExpr : LValue, HasInfo {
   mixin defaultIterate!(src);
   override {
     string getInfo() { return Format("count: "[], count); }
-    IType valueType() {
-      return fastcast!(Pointer) (resolveType(src.valueType())).target;
-    }
+    IType valueType() { return fastcast!(Pointer) (resolveType(src.valueType())).target; }
     void emitLLVM(LLVMFile lf) {
-      todo("Pointer::emitLLVM");
-      /*int sz = valueType().size;
-      mixin(mustOffset("sz"[]));
-      if (isARM && sz == 1) {
-        lf.salloc(1);
-        src.emitLLVM(lf);
-        lf.popStack("r2"[], 4);
-        lf.mmove1("[r2]"[], "r2"[]);
-        lf.mmove1("r2"[], "[sp]"[]);
-        return;
-      }
-      src.emitLLVM(lf);
-      if (isARM) {
-        lf.popStack("r2"[], nativePtrSize);
-        armpush(lf, "r2"[], sz);
-      } else {
-        lf.popStack("%edx"[], nativePtrSize);
-        lf.pushStack("(%edx)"[], sz);
-        lf.nvm("%edx"[]);
-      }*/
+      load(lf, "load ", typeToLLVM(src.valueType), " ", save(lf, src));
     }
     void emitLocation(LLVMFile lf) {
       src.emitLLVM(lf);
@@ -170,8 +153,8 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
     tried ~= f.valueType();
     return test(fastcast!(CValue)~ f);
   })) {
-    // text.setError("Can't take reference: "[], ex,
-    // " does not become a cvalue ("[], tried, ")"[]);
+    // logln("Can't take reference: "[], ex,
+    //   " does not become a cvalue ("[], tried, ")"[]);
     text.setError("Can't take reference: expression does not seem to have an address"[]);
     return null;
   }
@@ -205,44 +188,60 @@ Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotDerefExpr, "tree.expr.deref"[], "22"[], "*"[]);
 
+/*
+      // emit declaration
+      if (!tree && extern_c && name) {
+        auto ret = typeToLLVM(type.ret);
+        string pars;
+        foreach (arg; type.params) {
+          if (pars) pars ~= ", ";
+          pars ~= typeToLLVM(arg.type);
+        }
+        putSection(lf, "module", "declare ", ret, " @", fmn, "(", pars, ")");
+        return;
+      }
+*/
+
 class Symbol : Expr {
   string _name;
   string getName() { return _name; }
-  this(string name) { this._name = name; }
-  this() { }
-  mixin DefaultDup!();
+  IType type;
+  bool defineme;
+  this(string name, IType type) {
+    this._name = name;
+    this.type = type; if (!this.type) fail;
+  }
+  Symbol dup() { return new Symbol(getName(), type); }
   mixin defaultIterate!();
-  override IType valueType() { return voidp; }
+  override IType valueType() { return fastalloc!(Pointer)(type); }
   override void emitLLVM(LLVMFile lf) {
-    todo("Symbol::emitLLVM");
-    /*if (isARM) {
-      lf.mmove4("="~getName(), "r0"[]);
-      // lf.pool;
-      lf.pushStack("r0"[], 4);
-    } else {
-      lf.pushStack("$"~getName(), nativePtrSize);
-    }*/
+    auto ts = typeToLLVM(type);
+    if (ts == "void") { ts = "i8"; }
+    if (once(lf, "symbol ", getName())) {
+      lf.decls[getName()] = qformat("@", getName(), " = external global ", ts);
+    }
+    push(lf, "@", getName());
   }
 }
 
-// fill string at emitLLVM-time via dg
+// fill string at emit-time via dg
 class LateSymbol : Expr {
   void delegate(LLVMFile) dg;
   string* name;
+  IType type;
   Expr referent; // expr that we reference, so that iteration can see it
-  this(Expr referent, void delegate(LLVMFile) dg, string* name) { this.referent = referent; this.dg = dg; this.name = name; }
+  this(Expr referent, IType type, void delegate(LLVMFile) dg, string* name) { this.referent = referent; this.type = type; this.dg = dg; this.name = name; }
   private this() { }
-  LateSymbol dup() { return fastalloc!(LateSymbol)(referent, dg, name); }
+  LateSymbol dup() { return fastalloc!(LateSymbol)(referent, type, dg, name); }
   mixin defaultIterate!(referent);
-  override IType valueType() { return voidp; }
+  override IType valueType() { return type; }
+  override string toString() { return qformat("(", type, ") ", *name); }
   override void emitLLVM(LLVMFile lf) {
     if (!*name) dg(lf);
-    todo("LateSymbol::emitLLVM");
-    /*if (isARM) {
-      lf.mmove4("="~*name, "r0"[]);
-      lf.pushStack("r0"[], 4);
-    } else {
-      lf.pushStack("$"~*name, nativePtrSize);
-    }*/
+    if (!*name) {
+      logln("wat");
+      fail;
+    }
+    push(lf, "@", *name);
   }
 }

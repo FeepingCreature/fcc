@@ -19,7 +19,7 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
     bool indirected;
     if (auto cv = fastcast!(CValue) (ex_to_tmp)) { indirected = true; ex_to_tmp = fastalloc!(RefExpr)(cv); }
     
-    return fastcast!(Object) (tmpize(ex_to_tmp, delegate Expr(Expr base, OffsetExpr oe) {
+    return fastcast!(Object) (tmpize(ex_to_tmp, delegate Expr(Expr base, LLVMRef llout) {
       if (indirected) base = fastalloc!(DerefExpr)(base);
       auto proprest_obj = getProperties(t2, fastcast!(Object) (base), true, true, cont, rest);
       auto proprest = fastcast!(Expr) (proprest_obj);
@@ -35,15 +35,12 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
         t2.failparse("Mismatched types: "[], prvt, " and "[], elsecase.valueType());
       }
       
-      oe.type = prvt;
+      llout.type = prvt;
       
       bool isVoid = test(Single!(Void) == prvt);
       
       auto ifs = new IfStatement;
       ifs.wrapper = new Scope;
-      ifs.wrapper.requiredDepthDebug ~= " (ast.condprop:31)";
-      ifs.wrapper.pad_framesize = base.valueType().size + isVoid?0:oe.type.size;
-      ifs.wrapper.requiredDepth += ifs.wrapper.pad_framesize;
       // namespace.set(ifs.wrapper);
       // scope(exit) namespace.set(ifs.wrapper.sup);
       ifs.test = iparse!(Cond, "cp_cond"[], "cond"[])
@@ -56,13 +53,13 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
         if (elsecase) ifs.branch2 = fastalloc!(ExprStatement)(elsecase);
         res = mkStatementAndExpr(ifs, Single!(VoidExpr));
       } else {
-        ifs.branch1 = fastalloc!(Assignment)(oe, proprest);
-        auto ovt = oe.valueType();
-        if (!elsecase) elsecase = reinterpret_cast(ovt, fastalloc!(DataExpr)(ovt.initval()));
-        ifs.branch2 = fastalloc!(Assignment)(oe, elsecase);
-        res = mkStatementAndExpr(ifs, oe);
+        ifs.branch1 = fastalloc!(Assignment)(llout, proprest);
+        auto ovt = llout.type;
+        if (!elsecase) elsecase = fastalloc!(ZeroInitializer)(ovt);
+        
+        ifs.branch2 = fastalloc!(Assignment)(llout, elsecase);
+        res = mkStatementAndExpr(ifs, llout);
       }
-      ifs.wrapper.requiredDepth = int.max; // force tolerance
       text = t2;
       return res;
     }));

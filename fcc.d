@@ -11,7 +11,7 @@ mixin(expandImport(`ast.[
   structure, variable, fun, unary, arrays, index, slice,
   nestfun, structfuns, type_info, aliasing, oop, dg,
   newexpr, guard, withstmt, templ, globvars, context,
-  concat, stringex, c_bind, eval, iterator[,_ext], properties,
+  concat, stringex, c_bind, eval, iterator, iterator_ext, properties,
   tuples, tuple_access, literal_string, literals, funcall, vector, externs,
   intr, conditionals, opers, conditional_opt, cond, casting,
   pointer, nulls, sa_index_opt, intrinsic, mode, repl,
@@ -20,9 +20,10 @@ mixin(expandImport(`ast.[
   enums, import_parse, pragmas, trivial, fp, expr_statement,
   typeset, dependency, prefixfun,
   macros, tenth, vardecl_expr, vardecl_parse, property, condprop],
-  casts`));
+  casts, llvmtype`));
 
 alias ast.tuples.resolveTup resolveTup;
+alias ast.c_bind.readback readback;
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
 // from ast.modules_parse
@@ -78,6 +79,7 @@ string[] processCArgs(string[] ar) {
 static this() {
   setupSlice();
   setupIndex();
+  setupIterIndex();
   setupConditionalOpt();
   pragmas["fast"] = delegate Object(Expr ex) {
     if (ex) throw new Exception("pragma 'fast' does not take arguments");
@@ -154,45 +156,6 @@ static this() {
     if (ar) return fastcast!(Itr) (ar.ptr);
     return null;
   };
-  // placed here because it needs Variable
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto re = fastcast!(RefExpr)(it)) {
-      if (auto var = fastcast!(Variable)(re.src)) {
-        return new StackOffsetLocation(var.baseOffset, re.valueType());
-      }
-    }
-    return null;
-  };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto rce = fastcast!(RCE)(it)) if (auto sol = fastcast!(StackOffsetLocation)(rce.from)) {
-      return fastalloc!(StackOffsetLocation)(sol.offs, rce.to);
-    }
-    return null;
-  };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto de = fastcast!(DerefExpr)(it)) {
-      if (auto sol = fastcast!(StackOffsetLocation)(de.src)) {
-        return fastalloc!(Variable)(de.valueType(), cast(string) null, sol.offs);
-      }
-    }
-    return null;
-  };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto aibe = fastcast!(AsmIntBinopExpr)(it)) {
-      auto e1 = aibe.e1, e2 = aibe.e2;
-      retry:
-      if (auto rce = fastcast!(RCE)(e1)) {
-        e1 = rce.from;
-        goto retry;
-      }
-      if (auto sol = fastcast!(StackOffsetLocation)(e1)) if (auto ie = fastcast!(IntExpr)(e2)) {
-        if (aibe.op == "+") { return fastalloc!(StackOffsetLocation)(sol.offs+ie.num, sol.type); }
-        if (aibe.op == "-") { return fastalloc!(StackOffsetLocation)(sol.offs-ie.num, sol.type); }
-        if (aibe.op == "*") { return fastalloc!(StackOffsetLocation)(sol.offs*ie.num, sol.type); }
-      }
-    }
-    return null;
-  };
 }
 alias ast.parse.startsWith startsWith;
 
@@ -209,6 +172,15 @@ extern(C) bool C_showsAnySignOfHaving(Expr ex, string thing) {
   if (!rns) rns = fastcast!(RelNamespace) (it);
   if (rns && rns.lookupRel(thing, ex)) return true;
   return false;
+}
+
+extern(C) Stuple!(IType, string)[] _mns_stackframe(Namespace sup, typeof(Namespace.field) field) {
+  Stuple!(IType, string)[] res;
+  if (sup) res = sup.get!(ScopeLike).stackframe();
+  foreach (obj; field)
+    if (auto var = fastcast!(Variable) (obj._1))
+      res ~= stuple(var.type, var.name);
+  return res;
 }
 
 // from ast.fun
@@ -287,6 +259,10 @@ static this() {
       res = buildFunCall(sysmod.lookup("_mod"), mkTupleExpr(ex1, ex2), "_mod");
     }
     if (!res) res = fastalloc!(AsmIntBinopExpr)(ex1, ex2, op);
+    if (qformat(res).find("+ 0) + 0) + 0) + 0) + 0) + 0) + 0)") != -1) {
+      logln("?? ", res);
+      fail;
+    }
     if (b1 && b2) res = reinterpret_cast(fastcast!(IType) (sysmod.lookup("bool")), res);
     return res;
   }
@@ -322,9 +298,9 @@ static this() {
       throw new Exception("Invalid pointer op");
     }
     if (auto ie = fastcast!(IntExpr) (ex2)) { // shortcut
-      ex2 = mkInt(ie.num * e1pt.target.size);
+      ex2 = llvmval(llmul(qformat(ie.num), e1pt.target.llvmSize()));
     } else {
-      ex2 = handleIntMath("*", ex2, mkInt(e1pt.target.size));
+      ex2 = handleIntMath("*", ex2, llvmval(e1pt.target.llvmSize()));
     }
     if (!ex2) return null;
     return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
@@ -409,21 +385,6 @@ Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotFunRefExpr, "tree.expr.fun_ref"[], "2101"[], "&"[]);
 
-
-// from ast.scopes
-extern(C) void genRetvalHolder(Scope sc) {
-  if (!sc.lookup("__retval_holder", true)) {
-    auto ret = sc.get!(Function).type.ret;
-    if (!ret) return;
-    if (ret != Single!(Void)) {
-      auto var = fastalloc!(Variable)(ret, "__retval_holder", boffs(ret));
-      auto vd = fastalloc!(VarDecl)(var);
-      sc.addStatement(vd);
-      sc.add(var);
-    }
-  }
-}
-
 Object gotAsType(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   auto t2 = text;
@@ -449,24 +410,75 @@ mixin DefaultParser!(gotAsType, "type.as_type", "8", "as_type");
 
 // from ast.casting
 import llvmfile, ast.vardecl;
+alias ast.types.typeToLLVM typeToLLVM;
 extern(C) void _reinterpret_cast_expr(RCE rce, LLVMFile lf) {
-  todo("_reinterpret_cast_expr");
-  /*
-  with (rce) {
-    int size = to.size;
-    if (Single!(Void) == to) size = 0;
-    mixin(mustOffset("size"));
-    auto fromtype = from.valueType();
-    auto depth = lf.currentStackDepth + fromtype.size;
-    doAlign(depth, fromtype);
-    if (depth == lf.currentStackDepth + fromtype.size) {
-      from.emitLLVM(lf);
+  auto from = typeToLLVM(rce.from.valueType()), to = typeToLLVM(rce.to);
+  string v = save(lf, rce.from);
+  // logln("rce ", rce, " (", rce.from.valueType(), ", ", rce.to, "): ", from, " -> ", to);
+  llcast(lf, from, to, v, rce.from.valueType().llvmSize());
+}
+extern(C) void llcast(LLVMFile lf, string from, string to, string v, string fromsize = null) {
+  if (from != to) {
+    checkcasttypes(from, to);
+    if (from.endsWith("}") || from.endsWith("]") || from.endsWith(">") || to.endsWith("}")) {
+      if ((from.endsWith("}") || from.endsWith(">"))&& (to.endsWith("}") || to.endsWith(">"))) {
+        bool fromIsStruct = !!from.endsWith("}"), toIsStruct = !!to.endsWith("}");
+        string[] a, b;
+        if (fromIsStruct) a = llvmtype.structDecompose(from);
+        else a = getVecTypes(from);
+        if (  toIsStruct) b = llvmtype.structDecompose(  to);
+        else b = getVecTypes(  to);
+        if (a.length == b.length) {
+          bool samelayout = true;
+          foreach (i, t1; a) {
+            auto t2 = b[i];
+            // if types are not (the same or both pointers)
+            if (!(t1 == t2 || t1.endsWith("*") && t2.endsWith("*"))) {
+              samelayout = false;
+              break;
+            }
+          }
+          if (samelayout) {
+            // logln("use elaborate conversion for ", from, " -> ", to);
+            // extract, cast and recombine
+            string res = "undef";
+            foreach (i, t1; a) {
+              auto t2 = b[i];
+              string val;
+              if (fromIsStruct) val = save(lf, "extractvalue ", from, " ", v, ", ", i);
+              else val = save(lf, "extractelement ", from, " ", v, ", i32 ", i);
+              if (t1 != t2) {
+                llcast(lf, t1, t2, val);
+                val = lf.pop();
+              }
+              if (toIsStruct) res = save(lf, "insertvalue ", to, " ", res, ", ", t2, " ", val, ", ", i);
+              else res = save(lf, "insertelement ", to, " ", res, ", ", t2, " ", val, ", i32 ", i);
+            }
+            lf.push(res);
+            return;
+          }
+        }
+      }
+      if (from.endsWith(">")) {
+        auto ap = alloca(lf, "1", from);
+        auto fs = bitcastptr(lf, from, to, ap);
+        put(lf, "store ", from, " ", v, ", ", from, "* ", ap);
+        v = save(lf, "load ", to, "* ", fs);
+      } else {
+        auto ap = alloca(lf, "1", to);
+        auto fs = bitcastptr(lf, to, from, ap);
+        put(lf, "store ", from, " ", v, ", ", from, "* ", fs);
+        v = save(lf, "load ", to, "* ", ap);
+      }
+    } else if (from.endsWith("*") && to == "i32") {
+      v = save(lf, "ptrtoint ", from, " ", v, " to i32");
+    } else if (from == "i32" && to.endsWith("*")) {
+      v = save(lf, "inttoptr i32 ", v, " to ", to);
     } else {
-      mkVarUnaligned(lf, to, true, (Variable var) {
-        (fastalloc!(Assignment)(var, from, true)).emitLLVM(lf);
-      });
+      v = save(lf, "bitcast ", from, " ", v, " to ", to);
     }
-  }*/
+  }
+  push(lf, v);
 }
 
 extern(C) bool _exactly_equals(IType a, IType b) {
@@ -504,7 +516,7 @@ static this() {
       return tmpize_maybe(ex2, delegate Expr(Expr ex2) {
         auto e1l = getArrayLength(ex1), e2l = getArrayLength(ex2),
               e1p = reinterpret_cast(voidp, getArrayPtr(ex1)), e2p = reinterpret_cast(voidp, getArrayPtr(ex2)),
-              mcl = lookupOp("*", e1l, mkInt(a1.elemType.size));
+              mcl = lookupOp("*", e1l, llvmval(a1.elemType.llvmSize()));
         return fastalloc!(CondExpr)(fastalloc!(AndOp)(
           fastalloc!(Compare)(e1l, "==", e2l),
           fastalloc!(Compare)(mkInt(0), "==", buildFunCall(
@@ -550,7 +562,8 @@ mixin DefaultParser!(gotScope, "tree.scope");
 
 extern(C)
 void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
-  todo("_line_numbered_statement_emitLLVM");
+  // logln("todo _line_numbered_statement_emitLLVM");
+  return;
   /*with (lns) {
     string name; int line;
     lns.getInfo(name, line);
@@ -588,7 +601,7 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
       return cheaprecurse(ea.base);
     if (fastcast!(GlobVar) (ex))
       return true;
-    if (fastcast!(OffsetExpr) (ex))
+    if (fastcast!(LLVMValue) (ex))
       return true;
     if (auto re = fastcast!(RefExpr) (ex))
       return cheaprecurse (re.src);
@@ -621,7 +634,7 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
 }
 
 // from ast.vardecl
-extern(C) Expr _tmpize_maybe(Expr thing, E2EOdg dg, bool force) {
+extern(C) Expr _tmpize_maybe(Expr thing, E2ERdg dg, bool force) {
   if (auto ea = fastcast!(ExprAlias) (thing)) thing = ea.base;
   if (!force) {
     bool cheap(Expr ex) {
@@ -777,8 +790,8 @@ string delegate() compile(string file, CompileSettings cs) {
   lazySysmod();
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
-    srcname = ".obj/" ~ end ~ ".s";
-    objname = ".obj/" ~ end ~ ".o";
+    srcname = ".obj/" ~ end ~ ".ll";
+    objname = ".obj/" ~ end ~ ".bc";
     auto path = srcname[0 .. srcname.rfind("/")];
     string mew = ".";
     foreach (component; path.split("/")) {
@@ -826,10 +839,9 @@ string delegate() compile(string file, CompileSettings cs) {
     }) / 1_000_000f;
     f.close;
     string flags;
-    if (!platform_prefix || platform_prefix.endsWith("-mingw32-"))
-      flags = "--32";
-    if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
-    auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
+    // if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
+    // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
+    string cmdline = Format("llvm-as ", flags, "-o ", objname, " ", srcname, " 2>&1");
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
     synchronized {
       if (system(cmdline.toStringz())) {
@@ -920,15 +932,40 @@ void dumpXML() {
   std.c.stdio.fflush(stdout);
 }
 
-void link(string[] objects, bool saveTemps = false) {
+void link(string[] objects, bool optimize, bool saveTemps = false) {
   if (dumpXMLRep) dumpXML();
   scope(success)
     if (!saveTemps)
       foreach (obj; objects)
         unlink(obj.toStringz());
+  string linkedfile = ".obj/"~output~".all.bc";
+  string llvmlink = "llvm-link -o "~linkedfile~" ";
+  foreach (obj; objects) llvmlink ~= obj ~ " ";
+  logSmart!(false)("> ", llvmlink);
+  if (system(llvmlink.toStringz()))
+    throw new Exception("llvm-link failed");
+  
+  if (optimize) {
+    void optrun(string flags, string marker = null) {
+      if (marker) marker ~= ".";
+      string optfile = ".obj/"~output~".opt."~marker~"bc";
+      string myflags = flags;
+      string optline = "opt "~flags~" -o "~optfile~" "~linkedfile;
+      logSmart!(false)("> ", optline);
+      if (system(optline.toStringz()))
+        throw new Exception("opt failed");
+      linkedfile = optfile;
+    }
+    optrun("-internalize -internalize-public-api-list=main"~preserve~" -O3 -std-compile-opts -std-link-opts");
+  }
+  string objfile = ".obj/"~output~".o";
+  string llcline = "llc -filetype=obj -o "~objfile~" "~linkedfile;
+  logSmart!(false)("> ", llcline);
+  if (system(llcline.toStringz()))
+    throw new Exception("llc failed");
+  
   string linkflags = "-m32 -Wl,--gc-sections -L/usr/local/lib";
-  string cmdline = my_prefix()~"gcc "~linkflags~" -o "~output~" ";
-  foreach (obj; objects) cmdline ~= obj ~ " ";
+  string cmdline = my_prefix()~"gcc "~linkflags~" -o "~output~" "~objfile~" ";
   foreach (larg; linkerArgs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
   if (system(cmdline.toStringz()))
@@ -961,8 +998,8 @@ void loop(string start,
   }
   void translate(string file, ref string obj, ref string src) {
     if (auto pre = file.endsWith(EXT)) {
-      src = ".obj/" ~ pre ~ ".s";
-      obj = ".obj/" ~ pre ~ ".o";
+      src = ".obj/" ~ pre ~ ".ll";
+      obj = ".obj/" ~ pre ~ ".bc";
     } else assert(false);
   }
   bool isUpToDate(Module mod) {
@@ -1011,7 +1048,7 @@ void loop(string start,
     lazySysmod();
     try {
       string[] objs = start.compileWithDepends(cs);
-      objs.link(true);
+      objs.link(cs.optimize, true);
     } catch (Exception ex) {
       logSmart!(false) (ex);
       goto retry;
@@ -1078,6 +1115,7 @@ int main(string[] args) {
   initCastTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);
+  datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a128:128:128-a0:0:64-f80:32:32-n8:16:32-S128";
   auto exec = args.take();
   justAcceptedCallback = stuple(0, cast(typeof(sec())) 0) /apply/ (ref int prevHalfway, ref typeof(sec()) lastProg, string s) {
     // rate limit
@@ -1109,6 +1147,10 @@ int main(string[] args) {
       auto arg = ar.take();
       if (arg == "-xpar") {
         xpar = ar.take().my_atoi();
+        continue;
+      }
+      if (arg == "-xbreak") {
+        xbreak = ar.take();
         continue;
       }
     }
@@ -1187,7 +1229,7 @@ int main(string[] args) {
       releaseMode = true;
       continue;
     }
-    if (arg == "-xpar") {
+    if (arg == "-xpar" || arg == "-xbreak") {
       ar.take();
       continue;
     }
@@ -1224,7 +1266,7 @@ int main(string[] args) {
     loop(mainfile, cs, runMe);
     return 0;
   }
-  objects.link(cs.saveTemps);
+  objects.link(cs.optimize, cs.saveTemps);
   scope(exit) if (accesses.length) logln("access info: ", accesses);
   if (runMe) {
 	auto cmd = "./"~output;

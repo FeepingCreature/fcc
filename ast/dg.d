@@ -9,7 +9,8 @@ class mkDelegate : Expr {
   abstract mkDelegate dup();
   Expr ptr, data;
   this(Expr ptr, Expr data) {
-    if (ptr.valueType().size != 4) {
+    if (ptr.valueType().llvmSize() != "4") {
+      logln("unknown size for delegate: ", ptr.valueType(), " ", ptr.valueType().llvmSize());
       fail;
       throw new Exception(Format("Cannot construct delegate from "[], ptr, " (data "[], data, "[])!"[]));
     }
@@ -19,10 +20,9 @@ class mkDelegate : Expr {
   mixin defaultIterate!(ptr, data);
   override string toString() { return Format("dg(ptr="[], ptr, "[], data="[], data, ")"[]); }
   override void emitLLVM(LLVMFile lf) {
-    todo("mkDelegate::emitLLVM");
-    /*mixin(mustOffset("nativePtrSize * 2"[]));
-    data.emitLLVM(lf);
-    ptr.emitLLVM(lf);*/
+    auto i8ds = save(lf, reinterpret_cast(voidp, data));
+    auto i8ps = save(lf, reinterpret_cast(voidp, ptr));
+    formTuple(lf, "i8*", i8ps, "i8*", i8ds);
   }
 }
 
@@ -43,6 +43,8 @@ class DgConstructExpr : mkDelegate {
       fun = iparse!(Expr, "dg_to_fun"[], "tree.expr"[])("fun.fun"[], "fun"[], fun);
     }
     super(fun, base);
+    auto ft = fastcast!(FunctionPointer)~ ptr.valueType();
+    if (!ft.args.length) fail;
   }
   override DgConstructExpr dup() {
     return fastalloc!(DgConstructExpr)(ptr.dup, data.dup);
@@ -53,9 +55,9 @@ class DgConstructExpr : mkDelegate {
       auto ft = fastcast!(FunctionPointer)~ ptr.valueType();
       // logln("ptr is "[], ptr, "[], data "[], data, "[], ft "[], ft);
       // logln("ptr type is "[], ptr.valueType());
-      assert(ft.args.length);
-      assert(ft.args[$-1].type.size == data.valueType().size);
-      cached_type = fastalloc!(Delegate)(ft.ret, ft.args[0 .. $-1]);
+      if (!ft.args.length) fail;
+      assert(ft.args[$-1].type.llvmSize() == data.valueType().llvmSize());
+      cached_type = fastalloc!(Delegate)(ft.ret, ft.args[0..$-1]);
     }
     return cached_type;
   }
@@ -96,8 +98,16 @@ class Delegate : Type {
       if (ret is this) return Format("self delegate "[], args);
       return Format(ret, " delegate "[], args);
     }
-    int size() {
-      return nativePtrSize * 2;
+    string llvmSize() {
+      if (nativePtrSize + nativeIntSize == 8)
+        return "8";
+      todo("Delegate::llvmSize");
+      return null;
+    }
+    string llvmType() {
+      if (nativePtrSize + nativeIntSize == 8)
+        return "{i8*, i8*}";
+      todo("Delegate::llvmType"); return null;
     }
     string mangle() {
       if (!ret) throw new Exception("Could not mangle delegate: return type indeterminate");
@@ -174,42 +184,8 @@ static this() {
 
 import ast.assign, ast.fold;
 void callDg(LLVMFile lf, IType ret, Expr[] params, Expr dg) {
-  todo("callDg");
-  /*lf.comment("Begin delegate call"[]);
-  int retsize = ret.size;
-  if (Single!(Void) == ret)
-    retsize = 0;
-  mixin(mustOffset("retsize"[]));
   auto dgs = dgAsStruct(dg);
-  mkVar(lf, ret, true, (Variable retvar) {
-    mixin(mustOffset("0"[]));
-    // cheap call - fun ptr is predetermined, no need to lvize the dg
-    if (auto sym = fastcast!(Symbol) (optex(mkMemberAccess(dgs, "fun"[])))) {
-      params ~= mkMemberAccess(dgs, "data"); opt(params[$-1]);
-      callFunction(lf, ret, true, false, params, sym);
-      if (ret != Single!(Void))
-        emitAssign(lf, retvar, fastalloc!(Placeholder)(ret), false, true);
-    } else {
-      int toFree = alignStackFor(dgs.valueType(), lf);
-      void doit(Variable dgvar) {
-        mixin(mustOffset("0"[]));
-        params ~= mkMemberAccess(dgvar, "data"); opt(params[$-1]);
-        callFunction(lf, ret, true, false, params, mkMemberAccess(dgvar, "fun"[]));
-        if (ret != Single!(Void))
-          emitAssign(lf, retvar, fastalloc!(Placeholder)(ret), false, true);
-        // Assignment, assuming Placeholder was "really"
-        // emitted, has already done this.
-        // if (ret != Single!(Void)) lf.sfree(ret.size);
-      }
-      if (auto var = fastcast!(Variable) (dgs)) doit(var);
-      else {
-        mkVar(lf, dgs.valueType(), true, (Variable dgvar) {
-          emitAssign(lf, dgvar, dgs);
-          doit(dgvar);
-        });
-        lf.sfree(dgs.valueType().size);
-      }
-      lf.sfree(toFree);
-    }
-  });*/
+  auto dgst = fastalloc!(LLVMValue)(save(lf, dgs), dgs.valueType());
+  auto fun = mkMemberAccess(dgst, "fun"), data = mkMemberAccess(dgst, "data");
+  callFunction(lf, ret, true, false, params ~ data, fun);
 }

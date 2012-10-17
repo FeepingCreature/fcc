@@ -9,5 +9,5 @@ void main() {
   writeln "$s";
   auto t = log(0.2)+log(1-0.5)+log(0.5)+log(0.9)+log(0.95);
   writeln "$t";
-  assert(s == t);
+  assert(abs(s-t) < 0.00001);
 }

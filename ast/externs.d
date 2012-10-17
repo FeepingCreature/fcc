@@ -14,28 +14,23 @@ class ExternCGlobVar : LValue, Named {
     this.name = n;
     ns = namespace();
   }
+  void checkSection(LLVMFile lf, string lltype) {
+    if (once(lf, "c global ", name)) {
+      putSection(lf, "module", "@", name, " = external global ", lltype);
+    }
+  }
   override {
     IType valueType() { return type; }
     string getIdentifier() { return name; }
     void emitLLVM(LLVMFile lf) {
-      todo("ExternCGlobVar::emitLLVM");
-      /*if (isARM) {
-        if (type.size != 4) fail;
-        lf.mmove4(qformat("="[], name), "r0"[]);
-        lf.mmove4("[r0]"[], "r0"[]);
-        lf.pushStack("r0"[], 4);
-      } else {
-        lf.pushStack(name, type.size);
-      }*/
+      auto lltype = typeToLLVM(type);
+      checkSection(lf, lltype);
+      load(lf, "load ", lltype, "* @", name);
     }
     void emitLocation(LLVMFile lf) {
-      todo("ExternCGlobVar::emitLocation");
-      /*if (isARM) {
-        lf.loadAddress(qformat("#"[], name), "r0"[]);
-        lf.pushStack("r0"[], 4);
-      } else {
-        lf.pushStack(qformat("$"[], name), nativePtrSize);
-      }*/
+      auto lltype = typeToLLVM(type);
+      checkSection(lf, lltype);
+      push(lf, "@", name);
     }
     string toString() { return Format("extern(C) global "[], ns.get!(Module)().name, "."[], name, " of "[], type); }
   }
@@ -48,9 +43,7 @@ Object gotMarkStdCall(ref string text, ParseCb cont, ParseCb rest) {
   auto fp = fastcast!(FunctionPointer) (resolveType(ty));
   if (!fp)
     text.failparse(ty, " is not a function pointer! "[]);
-  auto fp2 = new FunctionPointer;
-  fp2.ret = fp.ret;
-  fp2.args = fp.args;
+  auto fp2 = new FunctionPointer(fp.ret, fp.args);
   fp2.stdcall = true;
   return fp2;
 }

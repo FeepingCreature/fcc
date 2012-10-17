@@ -16,15 +16,11 @@ void fixupMain() {
     
     sc.addStatement(fastalloc!(ReturnStmt)(fastalloc!(CallbackExpr)("main"[], Single!(SysInt), cast(Expr) null,
     stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, LLVMFile lf) {
-      // set up first tls pointer
-      todo("main fixup callback");
       /*if (isARM) {
         lf.mmove4("=_sys_tls_data_start"[], "r4"[]);
       } else {
         lf.mmove4("$_sys_tls_data_start"[], "%esi"[]);
-      }
-      if (lf.currentStackDepth != 4 && !isARM) // scrap space for ReturnStmt
-        throw new Exception(Format("stack depth assumption violated ("[], lf.currentStackDepth, ")"[]));
+      }*/
       // time for MAGIC
       int magic;
       Expr cvar, pvar;
@@ -33,14 +29,15 @@ void fixupMain() {
       } else {
         cvar = fastcast!(Expr) (sc.lookup("argc"[])); pvar = fastcast!(Expr) (sc.lookup("argv"[]));
       }
-      if (isARM) {
+      if (true || isARM) {
         buildFunCall(
           fastcast!(Function) (sysmod.lookup("main2"[])),
           mkTupleExpr(cvar, pvar),
           "main2 aligned call"
         ).emitLLVM(lf);
       } else {
-        cvar.emitLLVM(lf);
+        fail;
+        /*cvar.emitLLVM(lf);
         pvar.emitLLVM(lf);
         magic = isWinMain?4:4; // stack aligned -> call(<-4) -> push ebp
         lf.popStack("%eax"[], nativePtrSize);
@@ -72,16 +69,14 @@ void fixupMain() {
         lf.popStack("%ebp"[], nativePtrSize);
         lf.mmove4("%ebp"[], "%esp"[]);
         lf.currentStackDepth = 4;
-        lf.pushStack("%eax"[], 4); // return this
-      }*/
+        lf.pushStack("%eax"[], 4); // return this*/
+      }
     })));
   }
   auto backupmod = current_module();
   current_module.set(fastcast!(Module) (sysmod));
   scope(exit) current_module.set(backupmod);
   
-  logln("todo main fixup");
-  return;
   auto cmain = fastcast!(Function) (sysmod.lookup("__c_main"[]));
   if (!cmain) { logln("fail 00"[]); fail(); }
   fixupSpecificMain(cmain, false);

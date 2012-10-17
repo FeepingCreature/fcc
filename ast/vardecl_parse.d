@@ -81,13 +81,12 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       if (!dontInit) vd.initInit;
     }
     if (!var.type) fail; // shouldn't happen
+    var.stacktype = frametypePlus(var.type);
+    
     if (Single!(Void) == var.type) {
       t2.failparse("Cannot declare variable of type void");
     }
-    if (isScopeDecl) {
-      genRetvalHolder(sc); // do this before we grab the var position
-    }
-    var.baseOffset = boffs(var.type);
+    var.baseIndex = framelength();
     vd.configPosition(text);
     sc.addStatement(vd);
     sc.add(var); // was namespace()

@@ -5,7 +5,7 @@ import ast.base;
 class Label : Statement {
   string name;
   override void emitLLVM(LLVMFile lf) {
-    lf.emitLabel(name, !keepRegs, !isForward);
+    lf.emitLabel(name, false);
   }
 }
 

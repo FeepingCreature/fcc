@@ -53,7 +53,7 @@ void setupConditionalOpt() {
       auto salit = fastcast!(SALiteralExpr) (as.value);
       
       if (salit.exs.length != 2) return null;
-      if (salit.exs[0].valueType().size != 4 || salit.exs[1].valueType().size != 4)
+      if (salit.exs[0].valueType().llvmType() != "i32" || salit.exs[1].valueType().llvmType != "i32")
         return null;
       
       auto cmp = fastcast!(Compare) (ce.cd);

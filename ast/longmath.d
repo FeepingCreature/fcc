@@ -11,65 +11,24 @@ class AsmLongBinopExpr : BinopExpr {
   override {
     AsmLongBinopExpr dup() { return fastalloc!(AsmLongBinopExpr)(e1.dup, e2.dup, op); }
     void emitLLVM(LLVMFile lf) {
-      todo("AsmLongBinopExpr::emitLLVM");
-      /+assert(e1.valueType().size == 8);
-      assert(e2.valueType().size == 8);
-      mixin(mustOffset("8"[]));
-      /**
-        * e2[1] = d
-        * e2[0] = c
-        * e1[1] = b
-        * e1[0] = a
-        **/
+      assert(e1.valueType().llvmType() == "i64");
+      assert(e2.valueType().llvmType() == "i64");
+      auto v1 = save(lf, e1), v2 = save(lf, e2);
+      string cmd;
       switch (op) {
-        case "+":
-          e2.emitLLVM(lf); e1.emitLLVM(lf);
-          lf.mmove4("(%esp)"[], "%eax"[]);
-          lf.mmove4("4(%esp)"[], "%edx"[]);
-          lf.mathOp("addl"[], "8(%esp)"[], "%eax"[]);
-          lf.mathOp("adcl"[], "12(%esp)"[], "%edx"[]);
-          lf.sfree(16);
-          lf.pushStack("%edx"[], 4);
-          lf.pushStack("%eax"[], 4);
-          break;
-        case "-":
-          e2.emitLLVM(lf); e1.emitLLVM(lf);
-          lf.mmove4("(%esp)"[], "%eax"[]);
-          lf.mmove4("4(%esp)"[], "%edx"[]);
-          lf.mathOp("subl"[], "8(%esp)"[], "%eax"[]);
-          lf.mathOp("sbbl"[], "12(%esp)"[], "%edx"[]);
-          lf.sfree(16);
-          lf.pushStack("%edx"[], 4);
-          lf.pushStack("%eax"[], 4);
-          break;
-        case "*":
-          e2.emitLLVM(lf); e1.emitLLVM(lf);
-          // (a + f b) * (c + f d) = ac + f(bc + ad) + ff(bd) ^W^W^W^W
-          // where f is 2^32
-          lf.mmove4("4(%esp)"[], "%eax"[]); // b
-          lf.put("imull 8(%esp)"[]); // eax:edx = b*c
-          lf.mmove4("%eax"[], "%ecx"[]); // save for later
-          lf.mmove4("(%esp)"[], "%eax"[]); // a
-          lf.put("imull 12(%esp)"[]); // eax:edx = a*d
-          lf.mathOp("addl"[], "%eax"[], "%ecx"[]); // add for later
-          lf.mmove4("(%esp)"[], "%eax"[]); // a
-          lf.put("mull 8(%esp)"[]); // eax:edx = a*c
-          lf.mathOp("addl"[], "%ecx"[], "%edx"[]); // final summation
-          lf.sfree(16);
-          lf.pushStack("%edx"[], 4);
-          lf.pushStack("%eax"[], 4);
-          break;
-        case "/":
-          // defer to cstdlib
-          buildFunCall(
-            sysmod.lookup("__divdi3"),
-            mkTupleExpr(e1, e2), "lldiv math call"
-          ).emitLLVM(lf);
-          break;
-        default:
-          logln("Unknown op for long binop expr: "[], op);
-          fail;
-      }+/
+        case "+": cmd = "add"; break;
+        case "-": cmd = "sub"; break;
+        case "*": cmd = "mul"; break;
+        case "/": cmd = "sdiv"; break;
+        case "xor":cmd= "xor"; break;
+        case "&": cmd = "and"; break;
+        case "|": cmd = "or" ; break;
+        case "%": cmd = "urem";break;
+        case "<<":cmd = "shl"; break;
+        case ">>":cmd = "ashr";break;
+        case ">>>":cmd= "lshr";break;
+      }
+      load(lf, cmd, " i64 ", v1, ", ", v2);
     }
   }
 }

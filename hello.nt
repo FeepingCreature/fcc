@@ -1,10 +1,27 @@
 module hello;
 
-void main() {
-  printf "Hello World\n";
-  /*writeln "Hello World";
+int fac(int i) {
+  printf("fac %i\n", i);
+  if (!i) return 1;
+  else {
+    auto res = i*fac(i-1);
+    return res;
+  }
+}
+
+void main(string[] args) {
+  printf("Hello World %i fac %i\n", 5, fac(5));
+  writeln "Hello World";
   using "Hello there. " writeln();
-  auto add = \(int a) -> new \(int b) { return a+b; };
-  int x = (add 2 3);
-  writeln "$x";*/
+  writeln "args = $args";
+  auto add = \(float a) -> new \(float b) { return a+b; };
+  float x = (add 2 3);
+  writeln "$x";
+  alias V = vec3f;
+  // alias itest = [for tup  <- cross([-1, 1] x 2): tup];
+  alias itest = cross([5, 6], [5, 6]);
+  auto itest2 = itest;
+  writeln "$(itest.length) $(itest2.length)";
+  auto points = itest.eval[];
+  writeln "$(points.length)";
 }

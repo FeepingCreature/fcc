@@ -92,11 +92,26 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     Module dup() { assert(false, "What the hell are you doing, man. "[]); }
     string getIdentifier() { return name; }
     void emitLLVM(LLVMFile lf) {
-      todo("Module::emitLLVM");
-      /*auto backup = current_module();
+      lf.beginSection("module");
+      put(lf, `target datalayout = "`, datalayout, `"`);
+      put(lf, `target triple = "i386-pc-linux-gnu"`);
+      scope(success) {
+        auto tlsbase = qformat("_sys_tls_data_", name.replace(".", "_").replace("-", "_dash_"));
+        put(lf, "@", tlsbase, "_start = global i8 0");
+        put(lf, "@", tlsbase, "_end   = global i8 0");
+        lf.undecls[qformat(tlsbase, "_start")] = true;
+        lf.undecls[qformat(tlsbase, "_end"  )] = true;
+        foreach (key, value; lf.decls) {
+          if (!(key in lf.undecls)) {
+            put(lf, value);
+          }
+        }
+      }
+      
+      auto backup = current_module();
       scope(exit) current_module.set(backup);
       current_module.set(this);
-      inProgress = (lf);
+      inProgress = lf;
       foreach (s; setupable) s.setup(lf);
       scope(exit) inProgress = null;
       
@@ -105,24 +120,12 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
         auto entry = entries[i++];
         // logln("emit entry "[], entry);
         if (fastcast!(NoOp) (entry)) continue;
-        // globvars don't write any code!
-        // keep our assembly clean. :D
-        if ((fastcast!(Object) (entry)).classinfo.name != "ast.globvars.GlobVarDecl" && splitIntoSections) {
-          auto codename = Format("index_"[], i);
-          if (auto mang = fastcast!(IsMangled) (entry)) codename = mang.mangleSelf();
-          if (isWindoze())
-            lf.put(".section .text."[], codename, ", \"ax\""[]);
-          else if (isARM)
-            {}
-          else
-            lf.put(".section .text."[], codename, ", \"ax\", @progbits"[]);
-        }
         opt(entry);
         entry.emitLLVM(lf);
       }
-      if (!isARM) lf.put(".section .text"[]);
+      // if (!isARM) lf.put(".section .text"[]);
       doneEmitting = true;
-      checkImportsUsage;*/
+      checkImportsUsage;
     }
     string mangle(string name, IType type) {
       return qformat("module_"[], cleaned_name(), "_"[], name.cleanup(), type?qformat("_of_"[], type.mangle()):""[]);
@@ -137,7 +140,6 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     }
     string toString() { return "module "~name; }
   }
-  override Stuple!(IType, string, int)[] stackframe() { assert(false); }
 }
 
 static this() {

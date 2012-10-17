@@ -3,35 +3,13 @@ module ast.alignment;
 import ast.base, ast.structure, ast.vardecl,
   ast.namespace, ast.vector, ast.modules, ast.assign;
 
-extern(C) int align_boffs(IType t, int curdepth = -1) {
-  if (curdepth == -1) {
-    auto sl = namespace().get!(ScopeLike);
-    if (!sl) {
-      logln("no ScopeLike beneath "[], namespace(), " for placing a "[], t);
-      fail;
-    }
-    curdepth = sl.framesize();
-  }
-  if (curdepth == -1) {
-    logln("Could not align "[], t, ": insufficient framesize information from "[], namespace().get!(ScopeLike));
-    fail;
-  }
-  int sz = t.size;
-  int offs = curdepth + sz;
-  offs += esp_alignment_delta;
-  doAlign(offs, t);
-  offs -= esp_alignment_delta;
-  if (isARM && sz == 1) offs = (offs + 3) & ~3; // make sure sp stays aligned
-  return -offs;
-}
-
 class UnAlignedPlaceholder : IType {
   IType base;
   this(IType base) { this.base = base; }
   override {
-    int size() { return base.size; }
-    override string mangle() { return base.mangle; }
-    ubyte[] initval() { return base.initval(); }
+    string llvmType() { return base.llvmType(); }
+    string llvmSize() { return base.llvmSize(); }
+    string mangle() { return base.mangle; }
     int opEquals(IType it) {
       if (auto uap = fastcast!(UnAlignedPlaceholder) (it))
       return base.opEquals(uap.base);

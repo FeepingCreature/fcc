@@ -18,12 +18,13 @@ template ReinterpretCast_Contents(T) {
       }
     }
     // if (to.size != from.valueType().size) fail;
-    if (to.size != from.valueType().size) {
+    auto fromtype = from.valueType();
+    if (to.llvmType() != fromtype.llvmType() && to.llvmSize() != fromtype.llvmSize()) {
       logln("Can't cast "[], from);
       logln();
       logln("from: ", from.valueType());
       logln("to:   ", to);
-      logln("size: ", from.valueType().size, " vs. "[], to.size, "!"[]);
+      logln("size: ", from.valueType().llvmSize(), " vs. "[], to.llvmSize(), "!"[]);
       fail();
     }
   }
@@ -47,9 +48,15 @@ template ReinterpretCast_Contents(T) {
     static if (is(typeof((fastcast!(T)~ from).emitLocation(null))))
       void emitLocation(LLVMFile lf) {
         (fastcast!(T)~ from).emitLocation(lf);
+        auto fvt = from.valueType();
+        auto from = typeToLLVM(fvt)~"*", to = typeToLLVM(to)~"*";
+        if (from != to) {
+          llcast(lf, from, to, lf.pop(), fvt.llvmSize());
+        }
       }
     static if (is(typeof((fastcast!(T)~ from).emitAssignment(null))))
       void emitAssignment(LLVMFile lf) {
+        llcast(lf, typeToLLVM(to), typeToLLVM(from.valueType()), lf.pop(), from.valueType().llvmSize());
         (fastcast!(T)~ from).emitAssignment(lf);
       }
   }
@@ -179,8 +186,8 @@ Object gotCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
     t2.failparse("Failed to get expression"[]);
   }
-  if (!gotImplicitCast(ex, dest, (IType it) { types ~= it; return it.size == dest.size; })) {
-    t2.setError("Expression not matched in cast; none of "[], types, " matched "[], dest.size, ". "[]);
+  if (!gotImplicitCast(ex, dest, (IType it) { types ~= it; return it.llvmSize() == dest.llvmSize(); })) {
+    t2.setError("Expression not matched in cast; none of "[], types, " matched "[], dest.llvmSize(), ". "[]);
     return null;
   }
   
@@ -301,7 +308,7 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
   // want = resolveType(want);
   bool haveVisited(Expr ex) {
     auto t1 = ex.valueType();
-    foreach (t2; visited[0 .. visited_offs]) if (t1 == t2) return true;
+    foreach (t2; visited[0 .. visited_offs]) if (t2 == t1) return true;
     return false;
   }
   Expr recurse(Expr ex) {
@@ -309,7 +316,18 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
     foreach (dg; implicits) {
       Expr res;
       dg(ex, want, (Expr ce) {
-        if (res || haveVisited(ce)) return false;
+        if (res || haveVisited(ce)) {
+          /*
+          logln("ignore ", ce.valueType());
+          if (res) logln("because already matched");
+          else {
+            foreach (i, t2; visited[0..visited_offs]) if (ce.valueType() == t2) {
+              logln("because already visited - ", visited[0..visited_offs], "[", i, "]");
+              break;
+            }
+          }*/
+          return false;
+        }
         addVisitor(ce.valueType());
         recurseInto ~= ce;
         if (accept(ce)) {
@@ -382,19 +400,7 @@ class ShortToIntCast : Expr {
   override {
     IType valueType() { return Single!(SysInt); }
     void emitLLVM(LLVMFile lf) {
-      todo("ShortToIntCast::emitLLVM");
-      /*sh.emitLLVM(lf);
-      lf.comment("short to int cast"[]);
-      if (isARM) {
-        // TODO: proper conversion
-        lf.mmove2("[sp]"[], "r0"[]);
-        lf.salloc(2);
-        lf.mmove4("r0"[], "[sp]"[]);
-        return;
-      }
-      lf.popStack("%ax"[], sh.valueType().size);
-      lf.put("cwde"[]);
-      lf.pushStack("%eax"[], 4);*/
+      load(lf, "sext i16 ", save(lf, sh), " to i32");
     }
     string toString() { return Format("int:"[], sh); }
   }
@@ -406,7 +412,7 @@ class ByteToShortCast : Expr {
   this(Expr b) {
     this.b = b;
     auto bt = resolveType(b.valueType());
-    if (bt.size != 1) {
+    if (bt.llvmType() != "i8") {
       logln("Can't byte-to-short cast: wtf, "[], bt, " on "[], b);
       fail;
     }
@@ -421,18 +427,8 @@ class ByteToShortCast : Expr {
     string toString() { return Format("short:"[], b); }
     IType valueType() { return Single!(Short); }
     void emitLLVM(LLVMFile lf) {
-      todo("ByteToShortCast::emitLLVM");
-      /*{
-        mixin(mustOffset("1"[]));
-        b.emitLLVM(lf);
-      }
-      // lol.
-      lf.comment("byte to short cast lol"[]);
-      lf.put("xorw %ax, %ax"[]);
-      lf.popStack("%al"[], b.valueType().size);
-      if (signed)
-        lf.put("cbtw");
-      lf.pushStack("%ax"[], 2);*/
+      if (signed) load(lf, "sext i8 ", save(lf, b), " to i16");
+      else load(lf, "zext i8 ", save(lf, b), " to i16");
     }
   }
 }
@@ -443,8 +439,8 @@ class ByteToIntCast : Expr {
   this(Expr b) {
     this.b = b;
     auto bt = resolveType(b.valueType());
-    if (bt.size != 1) {
-      logln("Can't byte-to-short cast: wtf, "[], bt, " on "[], b);
+    if (bt.llvmType() != "i8") {
+      logln("Can't byte-to-int cast: wtf, "[], bt, " on "[], b);
       fail;
     }
     if (Single!(Byte) == bt) signed = true;
@@ -458,29 +454,8 @@ class ByteToIntCast : Expr {
     string toString() { return Format("int:"[], b); }
     IType valueType() { return Single!(SysInt); }
     void emitLLVM(LLVMFile lf) {
-      todo("ByteToIntCast::emitLLVM");
-      /*{
-        mixin(mustOffset("4"[]));
-        lf.salloc(3);
-        b.emitLLVM(lf);
-      }
-      // lol.
-      lf.comment("byte to int cast lol"[]);
-      if (isARM) {
-        lf.mmove4("#0"[], "r0"[]);
-        lf.mmove1("[sp]"[], "r0"[]);
-        lf.sfree(4);
-        lf.pushStack("r0"[], 4);
-      } else {
-        lf.mathOp("xorl", "%eax", "%eax");
-        lf.popStack("%al"[], b.valueType().size);
-        if (signed) {
-          lf.put("cbtw");
-          lf.put("cwtl");
-        }
-        lf.sfree(3);
-        lf.pushStack("%eax"[], 4);
-      }*/
+      if (signed) load(lf, "sext i8 ", save(lf, b), " to i32");
+      else load(lf, "zext i8 ", save(lf, b), " to i32");
     }
   }
 }

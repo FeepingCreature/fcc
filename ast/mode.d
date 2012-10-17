@@ -60,8 +60,9 @@ class Mode {
         // ClutterStage*:g_type_check_instance_cast(GTypeInstance*:obj, clutter_stage_get_type())
         string cast_expr =
           qformat(leadcapsname, "*: g_type_check_instance_cast(GTypeInstance*:obj, "[], smallname, "_get_type())"[]);
-        if (ex.valueType().size != 4) {
-          logln("wth "[], ex.valueType());
+        auto lt = ex.valueType().llvmType();
+        if (lt != "i32" && !lt.endsWith("*")) {
+          logln("wth "[], lt, " ", ex.valueType());
           fail;
         }
         if (cfg.accept("boxed"[])) {
@@ -132,27 +133,32 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
   ModeSpace supmode;
   this() { sup = namespace(); }
   override {
-    int framesize() { return (fastcast!(ScopeLike)~ sup).framesize(); }
+    Stuple!(IType, string)[] stackframe() { return (fastcast!(ScopeLike)(sup)).stackframe(); }
     string toString() { return Format("ModeSpace ("[], firstParam?firstParam.valueType():null, ")" /*" <- ", sup*/); }
     bool isTempNamespace() { return true; }
     bool returnsInMemory() {
       if (firstParam) return firstParam.valueType().returnsInMemory();
       return false;
     }
-    int size() {
-      if (firstParam) return firstParam.valueType().size;
+    string llvmType() {
+      if (firstParam) return firstParam.valueType().llvmType();
+      return "{}";
+      // fail;
+    }
+    string llvmSize() {
+      if (firstParam) return firstParam.valueType().llvmSize();
       // so you can have tuples including modes for stuff like using()
       // switch back if using ever handles (,) itself
-      return 0;
+      return "0";
       // assert(false);
     }
     string mangle() {
       if (firstParam) return "mode_override_for_"~firstParam.valueType().mangle;
       return qformat("modespace_", cast(int) this); // used for caching!
     }
-    ubyte[] initval() { return firstParam.valueType().initval(); }
     int opEquals(IType it) { return it is this; }
-    IType proxyType() { return null; }
+    // IType proxyType() { return null; }
+    IType proxyType() { if (!firstParam) return null; return firstParam.valueType(); }
     bool isPointerLess() { if (!firstParam) return true; return firstParam.valueType().isPointerLess; }
     bool isComplete() { if (!firstParam) return true; return firstParam.valueType().isComplete; }
     mixin DefaultScopeLikeGuards!();
@@ -386,7 +392,8 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto ms = fastcast!(ModeSpace) (ex.valueType());
     if (!ms || !ms.firstParam) return null;
-    // logln("to == "[], ms.firstParam.valueType(), "[], from == "[], ex);
+    // logln("to == "[], ms.firstParam.valueType(), ", from == "[], ex);
+    // logln("  ", resolveType(ms.firstParam.valueType()));
     return reinterpret_cast(ms.firstParam.valueType(), ex);
   };
   implicits ~= delegate Expr(Expr ex) {

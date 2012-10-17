@@ -10,22 +10,19 @@ class IfStatement : LineNumberedStatementClass {
   mixin defaultIterate!(test, wrapper, branch1, branch2);
   string toString() { return Format("if "[], test, " "[], branch1, " else "[], branch2); }
   override void emitLLVM(LLVMFile lf) {
-    todo("IfStatement::emitLLVM");
-    /*super.emitLLVM(lf);
-    auto past1 = lf.genLabel(), past2 = lf.genLabel();
+    super.emitLLVM(lf);
+    auto past1 = lf.allocLabel(), past2 = lf.allocLabel();
     auto dg = wrapper.open(lf)();
       test.jumpOn(lf, false, past1);
       branch1.emitLLVM(lf);
-      auto backupStack = lf.currentStackDepth;
-      if (branch2) { dg(true); lf.jump(past2); }
-      lf.currentStackDepth = backupStack;
-      lf.emitLabel(past1, !keepRegs, isForward);
+      if (branch2) { dg(true); jump(lf, past2); }
+      lf.emitLabel(past1, true);
     dg(false);
     
     if (branch2) {
       branch2.emitLLVM(lf);
-      lf.emitLabel(past2, !keepRegs, isForward);
-    }*/
+      lf.emitLabel(past2, true);
+    }
   }
 }
 

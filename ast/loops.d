@@ -6,8 +6,8 @@ import ast.iterator, ast.int_literal, ast.fold, ast.tuples, ast.tuple_access;
 // TODO: come up with a way to emit guards for a jump. this is necessary for continue/break to work correctly.
 
 interface Breakable {
-  Stuple!(string, int) getContinueLabel();
-  Stuple!(string, int) getBreakLabel();
+  string getContinueLabel();
+  string getBreakLabel();
   Statement[] getOutsideGuards(); // guards at the point of exit; ie. break
   Statement[] getInsideGuards(); // guards at the point of loop end; ie. continue
 }
@@ -17,11 +17,10 @@ static this() { New(breakable_context); }
 
 template DefaultBreakableImpl() {
   string chosenContinueLabel, chosenBreakLabel;
-  int continueDepth, breakDepth;
   Statement[] outsideGuards, insideGuards;
   override {
-    Stuple!(string, int) getContinueLabel() { return stuple(chosenContinueLabel, continueDepth); }
-    Stuple!(string, int) getBreakLabel() { return stuple(chosenBreakLabel, breakDepth); }
+    string getContinueLabel() { return chosenContinueLabel; }
+    string getBreakLabel() { return chosenBreakLabel; }
     Statement[] getOutsideGuards() { return outsideGuards; }
     Statement[] getInsideGuards() { return insideGuards; }
   }
@@ -42,17 +41,15 @@ class WhileStatement : Statement, Breakable {
   mixin DefaultBreakableImpl!();
   override {
     void emitLLVM(LLVMFile lf) {
-      todo("WhileStatement::emitLLVM");
-      /*auto start = lf.genLabel(), done = lf.genLabel();
-      continueDepth = breakDepth = lf.currentStackDepth;
+      auto start = lf.allocLabel("while_start"), done = lf.allocLabel("while_end");
       chosenContinueLabel = start;
       chosenBreakLabel = done;
-      lf.emitLabel(start, !keepRegs, !isForward);
+      lf.emitLabel(start);
       cond.jumpOn(lf, false, done);
       _body.emitLLVM(lf);
       // TODO: rerun cond? check complexity?
-      lf.jump(start);
-      lf.emitLabel(done, !keepRegs, isForward);*/
+      jump(lf, start);
+      lf.emitLabel(done, true);
     }
     string toString() { return Format("while("[], cond, "[]) { "[], _body._body, "}"[]); }
   }
@@ -154,27 +151,21 @@ class ForStatement : Statement, Breakable {
   mixin DefaultBreakableImpl!();
   mixin defaultIterate!(decl, cond, step, _body);
   override void emitLLVM(LLVMFile lf) {
-    todo("ForStatement::emitLLVM");
-    /*auto backup = lf.checkptStack();
-    scope(exit)
-      lf.restoreCheckptStack(backup);
-    
     // logln("start depth is "[], lf.currentStackDepth);
     decl.emitLLVM(lf);
     
-    continueDepth = breakDepth = lf.currentStackDepth;
-    
-    auto start = lf.genLabel(), done = lf.genLabel(), cont = lf.genLabel();
+    auto start = lf.allocLabel("for_start"), done = lf.allocLabel("for_done"), cont = lf.allocLabel("for_cont");
     chosenContinueLabel = cont;
     chosenBreakLabel = done;
     
-    lf.emitLabel(start, !keepRegs, !isForward);
+    lf.emitLabel(start);
+    put(lf, "; jump on ", cond);
     cond.jumpOn(lf, false, done);
     _body.emitLLVM(lf);
-    lf.emitLabel(cont, !keepRegs, isForward);
+    lf.emitLabel(cont, true);
     step.emitLLVM(lf);
-    lf.jump(start);
-    lf.emitLabel(done, !keepRegs, isForward);*/
+    jump(lf, start);
+    lf.emitLabel(done, true);
   }
 }
 
@@ -182,15 +173,20 @@ import ast.namespace;
 Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("("[])) return null;
-  auto fs = new ForStatement, check = namespace().getCheckpt();
-  auto sl = namespace().get!(ScopeLike);
-  fs.outsideGuards = sl.getGuards();
+  
+  auto sc = fastalloc!(Scope)();
+  auto backup = namespace();
+  scope(exit) namespace.set(backup);
+  namespace.set(sc);
+  
+  auto fs = new ForStatement;
+  fs.outsideGuards = sc.getGuards();
   if (rest(t2, "tree.stmt.vardecl"[], &fs.decl) &&
       rest(t2, "cond"[], &fs.cond) && (configure(fs.cond), true) && t2.accept(";"[]) &&
       rest(t2, "tree.semicol_stmt"[], &fs.step) && t2.accept(")"[])
     )
   {
-    fs.insideGuards = sl.getGuards();
+    fs.insideGuards = sc.getGuards();
     
     auto brbackup = *breakable_context.ptr();
     *breakable_context.ptr() = stuple(fastcast!(Breakable)(fs), namespace().get!(Function));
@@ -200,8 +196,9 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Failed to parse 'for' body"[]);
     
     text = t2;
-    namespace().setCheckpt(check);
-    return fs;
+    
+    sc.addStatement(fs);
+    return sc;
   } else t2.failparse("Failed to parse 'for' statement"[]);
 }
 mixin DefaultParser!(gotForStmt, "tree.stmt.for"[], "142"[], "for"[]);
@@ -212,17 +209,14 @@ class DoWhileExt : Statement {
   mixin DefaultDup!();
   mixin defaultIterate!(first, second, cond);
   override void emitLLVM(LLVMFile lf) {
-    todo("DoWhileExt::emitLLVM");
-    /*mixin(mustOffset("0"[]));
+    mixin(mustOffset("0"));
     first.needEntryLabel = true;
     auto fdg = first.open(lf)(); // open and body
-    auto atJump = lf.checkptStack();
     cond.jumpOn(lf, false, first.exit());
     second.emitLLVM(lf);
     fdg(true); // close before jump! variables must be cleaned up .. don't set the label though
-    lf.jump(first.entry());
-    lf.restoreCheckptStack(atJump, true);
-    fdg(false); // close for real*/
+    jump(lf, first.entry());
+    fdg(false); // close for real
   }
 }
 
@@ -266,26 +260,12 @@ class ExecGuardsAndJump : Statement {
       return this; // no mutable parts, no iteration
     }
     void emitLLVM(LLVMFile lf) {
-      todo("ExecGuardsAndJump::emitLLVM");
-      /*auto depth = lf.checkptStack();
-      // reset the stack so we can emit regular scope guards after us;
-      // despite the utter pointlessness of cleaning up after an unconditional jump,
-      // appearances must be honoured.
-      // the optimizer can remove all that crud anyway.
-      scope(success) lf.restoreCheckptStack(depth, true);
-      
-      string targetlabel; int targetdepth;
-      ptuple(targetlabel, targetdepth) = modeContinue?brk.getContinueLabel():brk.getBreakLabel();
+      string targetlabel = modeContinue?brk.getContinueLabel():brk.getBreakLabel();
       foreach_reverse (i, stmt; guards) {
-        auto delta = lf.currentStackDepth - offsets[i];
-        if (delta) {
-          lf.restoreCheckptStack(offsets[i]);
-        }
         // justification for dup see class ReturnStmt in ast.returns
         stmt.dup().emitLLVM(lf);
       }
-      lf.restoreCheckptStack(targetdepth);
-      lf.jump(targetlabel);*/
+      jump(lf, targetlabel);
     }
   }
 }

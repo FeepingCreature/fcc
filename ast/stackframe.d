@@ -3,10 +3,12 @@ module ast.stackframe;
 import ast.namespace, ast.structure, ast.namespace, ast.base, ast.int_literal, ast.casting, ast.pointer, ast.opers;
 
 import quicksort;
-LValue namespaceToStruct(Namespace ns, Expr baseptr) {
-  auto frame = ns.stackframe().dup;
-  qsort(frame, ex!("a, b -> a._2 < b._2"[]));
-  assert(frame[0]._2 < frame[1]._2);
+LValue scopelikeToStruct(ScopeLike sl, Expr baseptr) {
+  auto frame = sl.stackframe();
+  logln("scopelikeToStruct on ", frame);
+  todo("scopelikeToStruct");
+  return null;
+  /*assert(frame[0]._2 < frame[1]._2);
   auto str = fastalloc!(Structure)(cast(string) null);
   // nu! stack variables are aligned now.
   // str.packed = true; // !!
@@ -30,5 +32,5 @@ LValue namespaceToStruct(Namespace ns, Expr baseptr) {
       fastalloc!(Pointer)(str),
       lookupOp("-"[], baseptr, mkInt(-frame[0]._2))
     )
-  );
+  );*/
 }

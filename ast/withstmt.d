@@ -40,6 +40,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
     res.rns = rns; res.rnslist = rnslist;
     res.ns = ns; res.vd = vd; res.context = context.dup;
     res.sc = sc.dup;
+    res.sup = sup;
+    nsfix(res.sc, this, res);
     res.isc = isc;
     res.temps = temps;
     return res;
@@ -47,11 +49,6 @@ class WithStmt : Namespace, Statement, ScopeLike {
   mixin DefaultScopeLikeGuards!();
   string toString() { return Format("with ("[], context, ") <- "[], sup); }
   int temps;
-  override int framesize() {
-    auto supsz = (fastcast!(ScopeLike) (sup)).framesize();
-    if (supsz == -1) return -1;
-    return supsz + temps;
-  }
   this(Expr ex) {
     sup = namespace();
     namespace.set(this);
@@ -67,8 +64,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
       ex = isc.getSup;
       auto vt = ex.valueType();
       
-      genRetvalHolder(sc);
-      auto backupvar = fastalloc!(Variable)(vt, cast(string) null, boffs(vt));
+      // genRetvalHolder(sc);
+      auto backupvar = fastalloc!(Variable)(vt, framelength(), cast(string) null);
       sc.add(backupvar);
       sc.addStatement(fastalloc!(VarDecl)(backupvar, ex));
       sc.addGuard(mkAssignment(ex, backupvar));
@@ -85,10 +82,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
     } else if (ex.valueType() == Single!(Void)) {
       context = ex; // hackaround :)
     } else {
-      auto var = new Variable;
-      var.type = ex.valueType();
-      var.baseOffset = boffs(var.type);
-      temps += var.type.size;
+      auto var = fastalloc!(Variable)(ex.valueType(), framelength(), cast(string) null);;
+      temps ++;
       context = var;
       sc.addStatement(fastalloc!(VarDecl)(var, ex));
     }
@@ -148,18 +143,21 @@ class WithStmt : Namespace, Statement, ScopeLike {
   private this() { }
   override {
     void emitLLVM(LLVMFile lf) {
-      todo("WithStmt::emitLLVM");
-      /*mixin(mustOffset("0"));
-      sc.emitLLVM(lf);*/
+      mixin(mustOffset("0"));
+      sc.emitLLVM(lf);
     }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
-    Stuple!(IType, string, int)[] stackframe() {
-      auto res = sup.stackframe();
+    Stuple!(IType, string)[] stackframe() {
+      if (!sup) {
+        logln("No sup beneath ", this);
+        fail;
+      }
+      auto res = sup.get!(ScopeLike).stackframe();
       if (vd)
-        res ~= stuple(vd.var.type, vd.var.name, vd.var.baseOffset);
+        res ~= stuple(vd.var.type, vd.var.name);
       if (temps) {
         auto var = fastcast!(Variable) (context);
-        res ~= stuple(var.type, var.name, var.baseOffset);
+        res ~= stuple(var.type, var.name);
       }
       return res;
     }
@@ -211,13 +209,13 @@ class EnumWrapperType : RelNamespace, IType {
   this(Enum en) { this.en = en; }
   override {
     string mangle() { return "enwrap_"~en.mangle(); }
-    int size() { return 0; }
-    ubyte[] initval() { return null; }
+    string llvmSize() { return "0"; }
+    string llvmType() { return "{}"; }
     IType proxyType() { return null; }
     bool isPointerLess() { return true; }
     bool isComplete() { return true; }
     bool returnsInMemory() { return en.returnsInMemory(); }
-    mixin TypeDefaults!(false, true);
+    mixin TypeDefaults!(true);
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       if (base.valueType() !is this) {
         logln("assumefail ", base);
@@ -236,7 +234,7 @@ class EnumWrapper : Expr {
   override {
     EnumWrapper dup() { return this; }
     IType valueType() { return fastalloc!(EnumWrapperType)(en); }
-    void emitLLVM(LLVMFile lf) { }
+    void emitLLVM(LLVMFile lf) { push(lf, "void"); }
   }
 }
 

@@ -31,9 +31,13 @@ import tools.log;
 class RelMember : Expr, Named, RelTransformable {
   string name;
   IType type;
-  int offset;
+  int index;
+  string makeOffset(Structure base) {
+    auto type = base.llvmType();
+    return qformat("ptrtoint(", this.type.llvmType(), "* getelementptr(", type, "* null, i32 0, i32 ", index, ") to i32)");
+  }
   override {
-    string toString() { return Format("["[], name, ": "[], type, " @"[], offset, "]"[]); }
+    string toString() { return Format("["[], name, ": "[], type, " @"[], index, "]"[]); }
     IType valueType() { return type; }
     void emitLLVM(LLVMFile lf) {
       logln("Untransformed rel member "[], this, ": cannot emit. "[]);
@@ -45,33 +49,34 @@ class RelMember : Expr, Named, RelTransformable {
       return fastcast!(Object) (mkMemberAccess(base, name));
     }
   }
-  this(string name, IType type, int offset) {
+  this(string name, IType type, int index) {
     this.name = name;
     this.type = type;
-    this.offset = offset;
+    this.index = index;
   }
   this(string name, IType type, Namespace ns) {
     this(name, type, 0);
-    auto st = fastcast!(Structure)~ ns;
+    auto sl = fastcast!(StructLike)~ ns;
     
     string stname;
-    if (st) {
-      if (st.immutableNow)
-        throw new Exception(Format("Cannot add "[], this, " to "[], st, ": size already used. "[]));
-      if (st.isUnion) offset = 0;
-      else offset = st._size();
-      stname = st.name;
-    } else offset = (fastcast!(IType)~ ns).size();
+    if (sl) {
+      if (sl.immutableNow)
+        throw new Exception(Format("Cannot add "[], this, " to "[], sl, ": size already fixed. "[]));
+      index = sl.numMembers();
+      stname = sl.getIdentifier();
+    } else {
+      todo(qformat("unno how to add rel member to ", ns));
+    }
     
     // alignment
     bool isAligned = true;
-    if (st && st.packed) isAligned = false;
+    if (sl && sl.isPacked) isAligned = false;
     
-    if (isAligned) {
+    /*if (isAligned) {
       doAlign(offset, type);
       if (st && st.minAlign > 1) offset = roundTo(offset, st.minAlign);
-    }
-    if (!this.name) this.name = qformat("_anon_struct_member_"[], st.field.length, "_of_"[], type.mangle());
+    }*/
+    if (!this.name) this.name = qformat("_anon_struct_member_"[], sl.numMembers(), "_of_"[], type.mangle());
     ns.add(this);
   }
   override RelMember dup() { return this; }
@@ -82,14 +87,14 @@ class RelMemberLV : RelMember, LValue {
     logln("Untransformed rel member "[], this, ": cannot emit location. "[]);
     fail;
   }
-  RelMemberLV dup() { return new RelMemberLV(name, type, offset); }
-  this(string name, IType type, int offs) { super(name, type, offs); }
+  RelMemberLV dup() { return new RelMemberLV(name, type, index); }
+  this(string name, IType type, int index) { super(name, type, index); }
   this(string name, IType type, Namespace ns) { super(name, type, ns); }
 }
 
 extern(C) Expr _make_tupleof(Structure str, Expr ex);
-class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, SelfAdding {
-  mixin TypeDefaults!(true, false);
+class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, SelfAdding, StructLike {
+  mixin TypeDefaults!(false);
   string name;
   bool isUnion, packed, isTempStruct;
   /*
@@ -101,10 +106,21 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     where the assignment to bogus, combined with the retroactive size change of A,
     overwrites the previously-unknown int bar in meep.
   */
-  bool immutableNow;
+  bool isImmutableNow;
   int cached_length, cached_size;
   mixin ImporterImpl!();
   NSCache!(string, RelMember) rmcache;
+  string offsetOfNext(IType it) {
+    auto types = structDecompose(typeToLLVM(this));
+    types ~= typeToLLVM(it);
+    string strtype;
+    foreach (ty; types) {
+      if (strtype) strtype ~= ", ";
+      strtype ~= ty;
+    }
+    strtype = "{"~strtype~"}";
+    return lloffset(strtype, types[$-1], types.length-1);
+  }
   override {
     bool addsSelf() { return true; }
     bool isPointerLess() {
@@ -117,8 +133,56 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
       select((string, RelMember member) { complete &= member.type.isComplete(); });
       return complete;
     }
-    bool returnsInMemory() {
-      return true;
+    bool returnsInMemory() { return true; }
+    bool immutableNow() { return isImmutableNow; }
+    bool isPacked() { return packed; }
+    string llvmType() {
+      if (isUnion) {
+        auto sz = llvmSize();
+        return qformat("[", sz, " x i8]");
+      }
+      string list;
+      select((string, RelMember member) {
+        if (list.length && member.index == 0) return; // freak of nature
+        if (list.length) list ~= ", ";
+        list ~= typeToLLVM(member.type, true);
+      });
+      return qformat("{", list, "}");
+    }
+    string llvmSize() {
+      {
+        int num;
+        string size;
+        select((string, RelMember member) { num++; if (num == 1) size = member.type.llvmSize(); });
+        if (num == 1) return size;
+      }
+      if (isUnion) {
+        string len = "0";
+        select((string, RelMember member) {
+          len = llmax(len, member.type.llvmSize());
+        });
+        // logln("Structure::llvmSize for union ", this.name, " (oh noo): ", len.length);
+        return len;
+      }
+      {
+        int count;
+        string size;
+        bool sameSize = true;
+        select((string, RelMember member) {
+          auto msize = member.type.llvmSize();
+          if (!sameSize || !size || msize != size) {
+            if (!size) { size = msize; count = 1; }
+            else {
+              // hax
+              if (member.name != "self") sameSize = false;
+            }
+          }
+          else count++;
+        });
+        if (sameSize) return llmul(qformat(count), size);
+      }
+      auto ty = llvmType();
+      return readllex(qformat("ptrtoint(", ty, "* getelementptr(", ty, "* null, i32 1) to i32)"));
     }
   }
   Structure dup() {
@@ -127,26 +191,22 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     res.field = field.dup;
     res.rebuildCache();
     res.isUnion = isUnion; res.packed = packed; res.isTempStruct = isTempStruct;
-    res.immutableNow = immutableNow;
+    res.isImmutableNow = isImmutableNow;
     res.cached_length = cached_length; res.cached_size = cached_size;
     return res;
   }
-  int _size() {
+  int numMembers() {
     int res;
-    select((string, RelMember member) {
-      if (Single!(Void) == member.type) return;
-      auto end = member.offset + member.type.size;
-      if (end > res) res = end;
-    }, &rmcache);
+    select((string, RelMember member) { res++; }, &rmcache);
     return res;
   }
-  int size() {
-    immutableNow = true;
+  int length() {
+    isImmutableNow = true;
     if (field.length == cached_length)
       if (cached_size) return cached_size;
-    auto res = _size();
+    auto res = numMembers();
 	// auto pre = res;
-    doAlign(res, this);
+    // doAlign(res, this);
     // if (res != pre) logln(pre, " -> "[], res, ": "[], this);
     cached_size = res;
     cached_length = field.length;
@@ -197,9 +257,6 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
       if (type) type_mangle = type.mangle() ~ "_";
       return sup.mangle(name, null)~"_"~type_mangle~name;
     }
-    Stuple!(IType, string, int)[] stackframe() {
-      return selectMap!(RelMember, "stuple($.type, $.name, $.offset)"[]);
-    }
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
       if (str == "tupleof") {
         return fastcast!(Object) (_make_tupleof(this, base));
@@ -216,12 +273,12 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
       if (!str) return false;
       if (str is this) return true;
       if (str.mangle() != mangle()) return false;
-      if (str.size != size) return false;
+      if (str.length != length) return false;
       auto n1 = str.names(), n2 = names();
       if (n1.length != n2.length) return false;
       foreach (i, n; n1) if (n != n2[i]) return false;
       auto t1 = str.types(), t2 = types();
-      foreach (i, v; t1) if (v.size != t2[i].size) return false;
+      foreach (i, v; t1) if (v.llvmType() != t2[i].llvmType()) return false;
       return true;
     }
     string toString() {
@@ -231,7 +288,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
           if (auto n = fastcast!(Named) (elem._1)) {
             string id = n.getIdentifier();
             if (auto rm = fastcast!(RelMember) (elem._1))
-              id = Format(id, "<"[], rm.valueType().size, ">@"[], rm.offset);
+              id = Format(id, "<"[], rm.valueType().llvmType(), ">@"[], rm.index);
             names ~= id;
           }
         return Format("{struct "[], names.join(", "[]), "}"[]);
@@ -357,23 +414,10 @@ mixin DefaultParser!(gotStructDef!(true), "struct_member.struct"[]);
 class StructLiteral : Expr {
   Structure st;
   Expr[] exprs;
-  int[] offsets;
-  final void validate() {
-    int offset = valueType().size;
-    foreach_reverse (i, ex; exprs) {
-      int wanted_pos = offsets[i];
-      int emit_pos = wanted_pos + ex.valueType().size;
-      if (emit_pos > offset) { logln(i, ": for ", st, ": ", emit_pos, " > ", offset, " (", offsets, "): ", exprs); fail; }
-      offset = wanted_pos;
-    }
-  }
-  this(Structure st, Expr[] exprs, int[] offsets) {
-    if (exprs.length && !offsets.length) fail;
+  this(Structure st, Expr[] exprs) {
     this.st = st;
     foreach (ex; exprs) if (!ex) fail;
-    this.offsets = offsets.dup;
     this.exprs = exprs.dup;
-    validate();
   }
   private this() { }
   mixin defaultIterate!(exprs);
@@ -382,34 +426,32 @@ class StructLiteral : Expr {
     StructLiteral dup() {
       auto res = new StructLiteral;
       res.st = st;
-      res.offsets = offsets;
       res.exprs = exprs.dup;
       foreach (ref entry; res.exprs) entry = entry.dup;
       return res;
     }
     IType valueType() { return st; }
     void emitLLVM(LLVMFile lf) {
-      validate();
-      todo("StructLiteral::emitLLVM");
-      /*mixin(mustOffset("st.size"[]));
-      int offset = valueType().size;
-      foreach_reverse (i, ex; exprs) {
-        int wanted_pos = offsets[i];
-        int emit_pos = wanted_pos + ex.valueType().size;
-        if (emit_pos < offset) lf.salloc(offset - emit_pos);
-        ex.emitLLVM(lf);
-        offset = wanted_pos;
+      string[] parts;
+      // logln("slit ", exprs);
+      foreach (ex; exprs) {
+        auto ta = typeToLLVM(ex.valueType()), tb = typeToLLVM(ex.valueType(), true);
+        if (ta == tb) {
+          parts ~= ta;
+          parts ~= save(lf, ex);
+        } else {
+          parts ~= tb;
+          llcast(lf, ta, tb, save(lf, ex));
+          parts ~= lf.pop();
+        }
       }
-      if (offset) lf.salloc(offset);*/
+      formTuple(lf, parts);
     }
   }
 }
 
 import ast.pointer;
 class MemberAccess_Expr : Expr, HasInfo {
-  // be warned: if this is constructed manually, does _not_ have to be a struct!
-  // this specifically applies when optimizing away recursive member accesses,
-  // in which case this may become a RelMember access to .. any type.
   Expr base;
   RelMember stm;
   string name;
@@ -452,116 +494,23 @@ class MemberAccess_Expr : Expr, HasInfo {
     IType valueType() { return stm.type; }
     import tools.base;
     void emitLLVM(LLVMFile lf) {
-      todo("MemberAccess_Expr::emitLLVM");
-      /*auto st = base.valueType();
-      if (auto lv = fastcast!(LValue)~ base) {
-        if (stm.type.size <= 16) {
-          lf.comment("emit location for member access to "[], stm.name, " @"[], stm.offset);
-          lv.emitLocation(lf);
-          lf.comment("pop and dereference"[]);
-          if (isARM) {
-            lf.popStack("r0"[], nativePtrSize);
-            int sz = stm.type.size;
-            if (sz == 2) {
-              lf.salloc(2);
-              lf.mmove2(qformat("[r0, #"[], stm.offset, "]"[]), "r1"[]);
-              lf.mmove2("r1"[], "[sp]"[]);
-            } else if (sz % 4 == 0) {
-              for (int i = sz / 4 - 1; i >= 0; --i) {
-                lf.mmove4(qformat("[r0, #"[], i * 4 + stm.offset, "]"[]), "r1"[]);
-                lf.pushStack("r1"[], 4);
-              }
-            } else {
-              logln(this, " with "[], stm);
-              fail;
-            }
-          } else {
-            lf.popStack("%eax"[], nativePtrSize);
-            lf.comment("push back "[], stm.type.size);
-            lf.pushStack(Format(stm.offset, "(%eax)"[]), stm.type.size);
-            lf.nvm("%eax"[]);
-          }
-        } else {
-          mkVar(lf, stm.type, true, (Variable var) {
-            iparse!(Statement, "copy_struct_member"[], "tree.semicol_stmt.expr"[])
-            ("memcpy(tempvarp, varp + offset, size)"[],
-              "tempvarp"[], reinterpret_cast(voidp, fastalloc!(RefExpr)(var)),
-              "varp"[], reinterpret_cast(voidp, fastalloc!(RefExpr)(lv)),
-              "size"[], mkInt(stm.type.size),
-              "offset"[], mkInt(stm.offset)
-            ).emitLLVM(lf);
-          });
-        }
-      } else {
-        if (isARM) {
-          base.emitLLVM(lf);
-          if (stm.type.size == 4) {
-            lf.mmove4(qformat("[sp, #"[], stm.offset, "]"[]), "r0"[]);
-            lf.sfree(st.size);
-            lf.pushStack("r0"[], 4);
-            return;
-          }
-          if (stm.type.size == 8) {
-            lf.mmove4(qformat("[sp, #"[], stm.offset, "]"[]), "r0"[]);
-            lf.mmove4(qformat("[sp, #"[], stm.offset + 4, "]"[]), "r1"[]);
-            lf.sfree(st.size);
-            lf.pushStack("r1"[], 4);
-            lf.pushStack("r0"[], 4);
-            return;
-          }
-          logln("--"[], stm);
-          fail;
-        }
-        // if (stm.type.size != 4) fail;
-        // logln("full emit - worrying. "[], base, " SELECTING "[], stm);
-        // fail;
-        assert(stm.type.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16, Format("Asked for "[], stm, " in "[], base.valueType(), "; bad size; cannot get "[], stm.type.size(), " from non-lvalue ("[], !fastcast!(LValue) (base), "[]) of "[], base.valueType().size(), ". "[]));
-        auto bvt = base.valueType();
-        lf.comment("emit semi-structure of "[], bvt, " for member access"[]);
-        if (auto rce = fastcast!(RCE)~ base) bvt = rce.from.valueType();
-        auto filler = alignStackFor(bvt, lf);
-        base.emitLLVM(lf);
-        lf.comment("store member and free: "[], stm.name);
-        if (stm.type.size == 1)
-          lf.mmove1(Format(stm.offset, "(%esp)"[]), "%dl"[]);
-        if (stm.type.size == 2)
-          lf.mmove2(Format(stm.offset, "(%esp)"[]), "%dx"[]);
-        if (stm.type.size >= 4)
-          lf.mmove4(Format(stm.offset, "(%esp)"[]), "%edx"[]);
-        if (stm.type.size >= 8)
-          lf.mmove4(Format(stm.offset + 4, "(%esp)"[]), "%ecx"[]);
-        if (stm.type.size >= 12)
-          lf.mmove4(Format(stm.offset + 8, "(%esp)"[]), "%eax"[]);
-        if (stm.type.size == 16)
-          lf.mmove4(Format(stm.offset + 12, "(%esp)"[]), "%ebx"[]);
-        lf.sfree(st.size);
-        lf.sfree(filler);
-        lf.comment("repush member"[]);
-        if (stm.type.size == 16) {
-          lf.pushStack("%ebx"[], 4);
-          lf.nvm("%ebx"[]);
-        }
-        if (stm.type.size >= 12) {
-          lf.pushStack("%eax"[], 4);
-          lf.nvm("%eax"[]);
-        }
-        if (stm.type.size >= 8) {
-          lf.pushStack("%ecx"[], 4);
-          lf.nvm("%ecx"[]);
-        }
-        if (stm.type.size >= 4) {
-          lf.pushStack("%edx"[], 4);
-          lf.nvm("%edx"[]);
-        }
-        if (stm.type.size == 2) {
-          lf.pushStack("%dx"[], 2);
-          lf.nvm("%dx"[]);
-        }
-        if (stm.type.size == 1) {
-          lf.pushStack("%dl"[], 1);
-          lf.nvm("%dl"[]);
-        }
-      }*/
+      auto bvt = base.valueType();
+      auto bs = typeToLLVM(bvt);
+      auto src = save(lf, base);
+      if (fastcast!(Structure)(bvt).isUnion) {
+        auto mt = typeToLLVM(stm.type);
+        auto tmp = alloca(lf, "1", bs);
+        put(lf, "store ", bs, " ", src, ", ", bs, "* ", tmp);
+        load(lf, "load ", mt, "* ", bitcastptr(lf, bs, mt, tmp));
+        return;
+      }
+      // put(lf, "; mae ", this);
+      // put(lf, "; to ", stm, " into ", typeToLLVM(bvt), " (", bvt, ")");
+      if (name == "self") fail; // ast.vector done a baad baad thing
+      auto ex = save(lf, "extractvalue ", typeToLLVM(bvt), " ", src, ", ", stm.index);
+      auto from = typeToLLVM(stm.type, true), to = typeToLLVM(stm.type);
+      if (from == to) { push(lf, ex); }
+      else { llcast(lf, from, to, ex); }
     }
   }
 }
@@ -576,25 +525,19 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
     MemberAccess_LValue create() { return new MemberAccess_LValue; }
     MemberAccess_LValue dup() { return fastcast!(MemberAccess_LValue) (super.dup()); }
     void emitLocation(LLVMFile lf) {
-      todo("MemberAccess_LValue::emitLocation");
-      /*auto st = fastcast!(Structure)~ base.valueType();
-      int[] offs;
-      if (st) offs = st.selectMap!(RelMember, "$.offset"[]);
-      lf.comment("emit location for member address of '"[], stm.name, "' @"[], stm.offset, " of "[], offs);
-      (fastcast!(LValue)~ base).emitLocation(lf);
-      if (stm.offset) {
-        lf.comment("add offset "[], stm.offset);
-        if (isARM) {
-          (fastalloc!(IntExpr)(stm.offset)).emitLLVM(lf);
-          lf.popStack("r1"[], 4);
-          lf.mmove4("[sp]"[], "r0"[]);
-          // lf.mmove4(Format("#"[], stm.offset), "r1"[]);
-          lf.mathOp("add"[], "r0"[], "r1"[], "r0"[]);
-          lf.mmove4("r0"[], "[sp]"[]);
-        } else {
-          lf.mathOp("addl"[], Format("$"[], stm.offset), "(%esp)"[]);
-        }
-      }*/
+      (fastcast!(LValue)(base)).emitLocation(lf);
+      auto ls = lf.pop();
+      if (fastcast!(Structure)(base.valueType()).isUnion) {
+        auto mt = typeToLLVM(stm.type);
+        push(lf, bitcastptr(lf, typeToLLVM(base.valueType()), mt, ls));
+        return;
+      }
+      load(lf, "getelementptr inbounds ", typeToLLVM(base.valueType()), "* ", ls, ", i32 0, i32 ", stm.index);
+      auto restype = stm.type;
+      auto from = typeToLLVM(restype, true)~"*", to = typeToLLVM(restype)~"*";
+      if (from != to) {
+        llcast(lf, from, to, lf.pop(), qformat(nativePtrSize));
+      }
     }
   }
 }
@@ -617,26 +560,14 @@ static this() {
     if (auto mae = fastcast!(MemberAccess_Expr) (it)) {
       auto base = mae.base;
       auto basebackup = base;
-      // logln(mae.name, "::"[], mae.stm.type.size, " vs. "[], base.valueType().size);
-      if (mae.stm.type.size == base.valueType().size) {
+      bool deb;
+      /*if (mae.stm.name == "self") {
+        deb = true;
+      }*/
+      if (deb) logln("deb on");
+      if (mae.stm.type.llvmType() == base.valueType().llvmType()) {
+        if (deb) logln("deb early direct-match for ", mae, " => ", base);
         return fastcast!(Iterable) (foldex(reinterpret_cast(mae.stm.type, base)));
-      }
-      
-      {
-        Expr from;
-        if (auto mae2 = fastcast!(MemberAccess_Expr)~ base) from = base; // lol direct
-        if (auto c = fastcast!(RCL) (base)) from = c.from;
-        if (auto c = fastcast!(RCE) (base)) from = c.from;
-        if (from) {
-          if (auto m2 = fastcast!(MemberAccess_Expr)~ from) {
-            MemberAccess_Expr weird;
-            if (fastcast!(MemberAccess_LValue) (from)) weird = new MemberAccess_LValue;
-            else New(weird);
-            weird.base = m2.base;
-            weird.stm = fastalloc!(RelMember)(cast(string) null, mae.stm.type, mae.stm.offset + m2.stm.offset);
-            return fastcast!(Iterable) (foldex(weird));
-          }
-        }
       }
       
       Structure st;
@@ -645,7 +576,33 @@ static this() {
         st = fastcast!(Structure)~ rce.to;
       }
       
+      if (base.valueType() == mae.stm.type) {
+        if (deb) logln("deb direct-match for ", mae, " => ", base);
+        return base;
+      }
+      if (st && st.length == 1) {
+        if (deb) logln("deb foldopt cast ", st, " TO ", mae.stm.type);
+        return reinterpret_cast(mae.stm.type, base);
+      }
+      {
+        if (deb) {
+          logln("deb bvt = ", base.valueType());
+          logln("being ", base.valueType().llvmSize());
+          logln("  and ", mae.stm.type.llvmSize());
+        }
+        auto sx = fastcast!(Structure)(base.valueType());
+        if (sx && sx.llvmSize() == mae.stm.type.llvmSize()) { // close enough
+          return reinterpret_cast(mae.stm.type, base);
+        }
+      }
+      if (deb) {
+        logln("deb with ", mae.stm, " into ", st);
+        logln("deb BASE = ", fastcast!(Object)(base).classinfo.name, " ", base);
+      }
       if (auto sl = fastcast!(StructLiteral)~ base) {
+        /*foreach (expr; sl.exprs) {
+          logln("  ", expr);
+        }*/
         if (!mae.intendedForSplit && sl.exprs.length > 1) {
           bool cheap = true;
           foreach (ref ex; sl.exprs) {
@@ -666,14 +623,12 @@ static this() {
           // TODO: assert: struct member offsets identical!
         }
         if (st) st.select((string, RelMember member) {
-          if (member.type == mae.stm.type && member.offset == mae.stm.offset) {
+          if (member.type == mae.stm.type && member.index == mae.stm.index && mae.valueType() == sl.exprs[i].valueType()) {
             res = sl.exprs[i];
-            // who cares!
-            // if (mae.valueType() != res.valueType())
-            //   logln("Type mismatch: "[], mae.valueType(), " vs. "[], res.valueType());
           }
           i++;
         }, &st.rmcache);
+        // logln(" => ", res);
         if (auto it = fastcast!(Iterable) (res))
           return it;
       }
@@ -865,13 +820,14 @@ static this() {
   implicits ~= delegate void(Expr ex, IType goal, void delegate(Expr) consider) {
     auto st = fastcast!(Structure) (goal);
     if (!st) return;
-    auto initval = reinterpret_cast(goal, fastalloc!(DataExpr)(goal.initval()));
+    auto initval = fastalloc!(ZeroInitializer)(goal);
     if (!showsAnySignOfHaving(initval, "init")) return;
-    auto res = tmpize_maybe(initval, delegate Expr(Expr initval) {
+    auto res = tmpize_maybe(initval, delegate Expr(Expr initval, LLVMRef lr) {
+      lr.type = goal;
       auto st = iparse!(Statement, "init_struct", "tree.stmt")
-                       (`initval.init arg;`,
-                        "initval", initval, "arg", ex);
-      return mkStatementAndExpr(st, initval);
+                       (`{ lr = initval; lr.init arg; }`,
+                        namespace(), "lr", lr, "initval", initval, "arg", ex);
+      return mkStatementAndExpr(st, lr);
     });
     consider(res);
   };

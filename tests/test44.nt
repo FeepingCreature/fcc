@@ -4,6 +4,7 @@ import std.fun;
 
 template take(T) {
   auto take(T t) {
+    writeln "take $(t[1])";
     alias Elem = type-of-elem t[0];
     Elem[auto~] res;
     for 0..t[1] {

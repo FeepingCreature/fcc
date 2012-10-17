@@ -21,10 +21,10 @@ class Range : Type, RichIterator, RangeIsh {
   }
   override {
     IType elemType() { return mkMemberAccess(new ast.base.Placeholder(wrapper), "cur"[]).valueType(); }
-    string toString() { return Format("RangeIter["[], size, "]("[], wrapper, ")"[]); }
-    int size() { return wrapper.size; }
+    string toString() { return Format("RangeIter["[], llvmSize, "](", wrapper, ")"); }
+    string llvmSize() { return wrapper.llvmSize(); }
+    string llvmType() { return wrapper.llvmType(); }
     string mangle() { return "range_over_"~wrapper.mangle(); }
-    ubyte[] initval() { return wrapper.initval(); }
     Expr currentValue(Expr ex) {
       return mkMemberAccess(castExprToWrapper(ex), "cur"[]);
     }
@@ -64,10 +64,10 @@ class ConstIntRange : Type, RichIterator, RangeIsh {
   this(int f, int t) { this.from = f; this.to = t; }
   override {
     IType elemType() { return Single!(SysInt); }
-    string toString() { return Format("ConstIntRange["[], size, "]()"[]); }
-    int size() { return nativeIntSize; }
+    string toString() { return Format("ConstIntRange["[], llvmSize, "]()"[]); }
+    string llvmSize() { return "4"; }
+    string llvmType() { return "i32"; }
     string mangle() { return Format("constint_range_"[], from, "_to_"[], to).replace("-"[], "_minus_"[]); }
-    ubyte[] initval() { return cast(ubyte[]) (&from)[0..1]; }
     Expr currentValue(Expr ex) {
       return reinterpret_cast(Single!(SysInt), ex);
     }
@@ -130,7 +130,7 @@ Expr mkRange(Expr from, Expr to) {
   fastalloc!(RelMember)("end"[], to.valueType(), wrapped);
   auto range = new Range;
   range.wrapper = wrapped;
-  return fastalloc!(RCE)(range, fastalloc!(StructLiteral)(wrapped, [from, to], [0, from.valueType().size]));
+  return fastalloc!(RCE)(range, fastalloc!(StructLiteral)(wrapped, [from, to]));
 }
 
 Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
@@ -168,9 +168,9 @@ class StructIterator : Type, Iterator {
                        ).valueType();
   }
   override {
-    int size() { return wrapped.size; }
+    string llvmSize() { return wrapped.llvmSize(); }
+    string llvmType() { return wrapped.llvmType(); }
     string mangle() { return "struct_iterator_"~wrapped.mangle(); }
-    ubyte[] initval() { return wrapped.initval; }
     IType elemType() { return _elemType; }
     Expr currentValue(Expr ex) {
       ex = reinterpret_cast(wrapped, ex);
@@ -326,14 +326,14 @@ class ForIter(I) : Type, I {
   }
   override {
     string toString() {
-      auto sizeinfo = Format(size, ":"[]);
-      (fastcast!(Structure)~ wrapper).select((string, RelMember rm) { sizeinfo ~= Format(" "[], rm.type.size); });
+      auto sizeinfo = Format(llvmSize(), ":"[]);
+      (fastcast!(Structure)~ wrapper).select((string, RelMember rm) { sizeinfo ~= Format(" "[], rm.type.llvmSize()); });
       return Format("ForIter["[], sizeinfo, "]("[], itertype, ": "[], ex.valueType(), "[]) var "[], cast(void*) var, " extra "[], cast(void*) extra);
     }
     IType elemType() { return ex.valueType(); }
-    int size() { return wrapper.size; }
+    string llvmSize() { return wrapper.llvmSize(); }
+    string llvmType() { return wrapper.llvmType(); }
     string mangle() { return Format("for_range_over_"[], wrapper.mangle(), "_var_"[], cast(size_t) var, "_extra_"[], cast(size_t) extra); }
-    ubyte[] initval() { return wrapper.initval(); }
     Cond testAdvance(LValue lv) {
       auto res = itertype.testAdvance(subexpr(castToWrapper(lv).dup));
       if (autofree) {
@@ -388,7 +388,7 @@ class ForIter(I) : Type, I {
         auto wr = castToWrapper(ex);
         auto st = fastcast!(Structure) (wrapper);
         auto slice = fastcast!(Expr) (itertype.slice(subexpr(wr.dup), from, to));
-        if (slice.valueType().size != st.selectMap!(RelMember, "$.type.size()")()[0]) {
+        if (slice.valueType().llvmType() != st.selectMap!(RelMember, "$.type.llvmType()")()[0]) {
           logln("Weird thing: slice type ", slice.valueType(), " differs from native slice ", st.selectMap!(RelMember, "$.type")()[0]);
           logln("you probably tried to slice a 'for' range over a const-int subrange with args that aren't const ints. ");
           logln("for compiler-internal reasons this cannot be supported. we apologize for the inconvenience. ");
@@ -397,7 +397,7 @@ class ForIter(I) : Type, I {
         Expr[] field = [slice, fastalloc!(Filler)(itertype.elemType())];
         if (extra) field ~= extra;
         return fastalloc!(RCE)(this,
-          fastalloc!(StructLiteral)(st, field, st.selectMap!(RelMember, "$.offset"[])()));
+          fastalloc!(StructLiteral)(st, field));
       }
     }
   }
@@ -408,14 +408,14 @@ class ScopeAndExpr : Expr {
   Expr ex;
   this(Scope sc, Expr ex) { this.sc = sc; this.ex = ex; }
   mixin defaultIterate!(sc, ex);
-  void fixUpVariables(int toDepth) {
+  /*void fixUpVariables(int toDepth) {
     int locallyAllocated;
     void rewriteVardeclStatement(ref Iterable it) {
       if (auto vd = fastcast!(VarDecl)(it)) {
         auto sz = vd.var.type.size;
-        locallyAllocated += sz;
-        auto newDepth = toDepth + locallyAllocated;
-        vd.var.baseOffset = -newDepth; // reallocate locally
+        locallyAllocated ++;
+        auto newIndex = toIndex + locallyAllocated;
+        vd.var.baseIndex = newIndex; // reallocate locally
       }
       it.iterate(&rewriteVardeclStatement);
     }
@@ -426,13 +426,12 @@ class ScopeAndExpr : Expr {
     // logln("  We are at ", toDepth);
     // logln("  and we get ", sc.field);
     // logln("  as well as ", sc._body);
-  }
+  }*/
   override {
     string toString() { return Format("sae("[], sc._body, ", "[], ex, ")"[]); }
     ScopeAndExpr dup() { return fastalloc!(ScopeAndExpr)(sc.dup, ex.dup); }
     IType valueType() { return ex.valueType(); }
     void emitLLVM(LLVMFile lf) {
-      todo("ScopeAndExpr::emitLLVM");
       // logln("We are at ", lf.currentStackDepth);
       // logln("and we get ", sc.field);
       // logln("as well as ", sc._body);
@@ -444,22 +443,24 @@ class ScopeAndExpr : Expr {
       // then the variable declarations will error! because the scope is actually at MASSIVELY the wrong offset
       // of course, hacking it like this will just bug silently so fuck you past me
       // sc._body = Single!(AggrStatement);
-      /*sc.id = getuid();
+      sc.id = getuid();
+      mixin(mustOffset("1"));
+      logln("ex = ", ex);
       if (Single!(Void) == ex.valueType()) {
-        mixin(mustOffset("0"[]));
-        fixUpVariables(lf.currentStackDepth);
+        // fixUpVariables(lf.currentStackDepth);
         auto dg = sc.open(lf)();
         ex.emitLLVM(lf);
         dg(false);
+        push(lf, "poison");
       } else {
-        mixin(mustOffset("ex.valueType().size"[]));
-        mkVar(lf, ex.valueType(), true, (Variable var) {
-          fixUpVariables(lf.currentStackDepth);
-          auto dg = sc.open(lf)();
-          emitAssign(lf, var, ex);
-          dg(false);
-        });
-      }*/
+        auto var = fastalloc!(LLVMRef)(ex.valueType());
+        var.allocate(lf);
+        scope(success) var.emitLLVM(lf);
+        // fixUpVariables(lf.currentStackDepth);
+        auto dg = sc.open(lf)();
+        emitAssign(lf, var, ex);
+        dg(false);
+      }
     }
   }
   static this() {
@@ -499,22 +500,6 @@ class ScopeAndExpr : Expr {
   }
 }
 
-class BogusIterator : Iterator, IType { // tag
-  override {
-    IType elemType() { assert(false); }
-    Expr currentValue(Expr) { assert(false); }
-    Cond testAdvance(LValue) { assert(false); }
-    int size() { assert(false); }
-    string mangle() { assert(false); }
-    ubyte[] initval() { assert(false); }
-    int opEquals(IType it) { assert(false); }
-    IType proxyType() { return null; }
-    bool isPointerLess() { assert(false); }
-    bool isComplete() { assert(false); }
-    bool returnsInMemory() { assert(false); }
-  }
-}
-
 Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   Expr sub, main;
   auto t2 = text;
@@ -533,7 +518,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Cannot find sub-iterator"[]);
   auto subx = sub;
   IType[] tried;
-  if (!gotImplicitCast(sub, Single!(BogusIterator), (Expr ex) { tried ~= ex.valueType(); return !!fastcast!(Iterator) (ex.valueType()); })) {
+  if (!gotImplicitCast(sub, Single!(HintType!(Iterator)), (Expr ex) { tried ~= ex.valueType(); return !!fastcast!(Iterator) (ex.valueType()); })) {
     string failtext = "Invalid sub-iterator: none of these are iterators: ";
     foreach (i, t; tried) { failtext ~= qformat("\n  "[], i, ": "[], t); }
     t2.failparse(failtext);
@@ -567,7 +552,6 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(backup);
   
   auto sc = new Scope;
-  sc.requiredDepth = int.max; // PROBABLY okay
   sc.configPosition(t2);
   namespace.set(sc);
   
@@ -593,40 +577,16 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     foriter.itertype = it;
     restype = foriter;
   }
-  // This probably won't help any but I'm gonna do it anyway.
-  Structure best;
-  int[] bsorting;
-  void tryIt(int[] sorting) {
-    auto test = fastalloc!(Structure)(cast(string) null);
-    void add(int i) {
-      switch (i) {
-        case 0: fastalloc!(RelMember)("subiter"[], sub.valueType(), test); break;
-        case 1: fastalloc!(RelMember)("var"[], it.elemType(), test); break;
-        case 2: fastalloc!(RelMember)("extra"[], extra.valueType(), test); break;
-      }
-    }
-    foreach (entry; sorting) add(entry);
-    if (!best) { best = test; bsorting = sorting; }
-    else if (test.size < best.size) { best = test; bsorting = sorting; }
-  }
-  if (extra) {
-    foreach (tri; [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]])
-      tryIt(tri);
-  } else {
-    tryIt([0, 1]);
-    tryIt([1, 0]);
-  }
+  auto str = fastalloc!(Structure)(cast(string) null);
+  fastalloc!(RelMember)("subiter"[], sub.valueType(), str);
+  fastalloc!(RelMember)("var"[], it.elemType(), str);
+  if (extra) fastalloc!(RelMember)("extra"[], extra.valueType(), str);
   Expr[] field;
-  void add(int i) {
-    switch (i) {
-      case 0: field ~= sub; break;
-      case 1: field ~= fastalloc!(Filler)(it.elemType()); break;
-      case 2: field ~= exEx; break;
-    }
-  }
-  foreach (entry; bsorting) add(entry);
-  ipt = stuple(best, fastalloc!(ScopeAndExpr)(sc, main), ph, extra);
-  return fastcast!(Object)~ reinterpret_cast(fastcast!(IType)~ restype, fastalloc!(StructLiteral)(best, field, best.selectMap!(RelMember, "$.offset"[])()));
+  field ~= sub;
+  field ~= fastalloc!(Filler)(it.elemType());
+  if (extra) field ~= exEx;
+  ipt = stuple(str, fastalloc!(ScopeAndExpr)(sc, main), ph, extra);
+  return fastcast!(Object)~ reinterpret_cast(fastcast!(IType)~ restype, fastalloc!(StructLiteral)(str, field));
 }
 mixin DefaultParser!(gotForIter, "tree.expr.iter.for"[], null, "["[]);
 static this() {
@@ -662,8 +622,8 @@ class IterLetCond(T) : Cond, NeedsConfig {
   mixin defaultIterate!(iter, target, iref, iref_pre);
   override void configure() { iref = lvize(iref_pre); }
   override void jumpOn(LLVMFile lf, bool cond, string dest) {
-    todo("IterLetCond!("~T.stringof~")::jumpOn");
-    /*if (!iref) {
+    mixin(mustOffset("0"));
+    if (!iref) {
       logln("in iter cond ", this);
       breakpoint;
       fail("iter cond not configured");
@@ -671,7 +631,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
     auto itype = fastcast!(Iterator) (resolveType(iter.valueType()));
     auto stepcond = itype.testAdvance(iref);
     auto value = itype.currentValue(iref);
-    auto skip = lf.genLabel();
+    auto skip = lf.allocLabel("iterletcond_skip");
     opt(stepcond);
     opt(value);
     if (cond) {
@@ -695,13 +655,12 @@ class IterLetCond(T) : Cond, NeedsConfig {
       }
     } else {
       value.emitLLVM(lf);
-      if (value.valueType() != Single!(Void))
-        lf.sfree(value.valueType().size);
+      lf.pop();
     }
     if (cond) {
-      lf.jump(dest); // now jump
-      lf.emitLabel(skip, !keepRegs, isForward); // otherwise nothing
-    }*/
+      jump(lf, dest);     // now jump
+      lf.emitLabel(skip); // otherwise nothing
+    }
   }
   override string toString() {
     if (target) return Format(target, " <- "[], iter);
@@ -787,7 +746,7 @@ withoutIterator:
   
   if (!needIterator && !fastcast!(Iterator) (iter.valueType())) return null;
   
-  if (!gotImplicitCast(iter, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+  if (!gotImplicitCast(iter, Single!(HintType!(Iterator)), (IType it) { return !!fastcast!(Iterator) (it); }))
     if (!needIterator) return null;
     else t2.failparse("Expected an iterator, not a "[], backup);
   
@@ -827,14 +786,14 @@ withoutIterator:
     Variable newvar;
     if (isRefDecl) {
       auto ty = fastalloc!(Pointer)(newVarType);
-      newvar = fastalloc!(Variable)(ty, cast(string) null, boffs(ty));
+      newvar = fastalloc!(Variable)(ty, framelength(), cast(string) null);
       sc.add(newvar); // still need to add the variable for stackframe layout purposes
       lv = fastalloc!(DerefExpr)(newvar);
       address_target = newvar;
       if (newVarName)
         sc.add(fastalloc!(LValueAlias)(lv, newVarName));
     } else {
-      newvar = fastalloc!(Variable)(newVarType, newVarName, boffs(newVarType));
+      newvar = fastalloc!(Variable)(newVarType, framelength(), newVarName);
       sc.add(newvar);
       lv = newvar;
     }
@@ -874,7 +833,7 @@ mixin DefaultParser!(gotIterCond!(true), "tree.expr.iter_loose"[], "220"[]);
 
 HintType!(Iterator) anyIteratorTypeHint;
 
-static this() {
+void setupIterIndex() {
   implicits ~= delegate Expr(Expr ex) {
     if (!fastcast!(Iterator) (ex.valueType())) return null;
     return cond2ex(fastalloc!(IterLetCond!(LValue))
@@ -936,23 +895,22 @@ class EvalIterator(T) : Expr, Statement {
     }
     string toString() { return Format("Eval("[], ex, ")"[]); }
     void emitLLVM(LLVMFile lf) {
-      todo("EvalIterator!("~T.stringof~")::emitLLVM");
-      /*int offs;
+      int offs;
       void emitStmtInto(Expr var, Expr ex2 = null) {
         if (!ex2) ex2 = ex;
         auto lv = fastcast!(LValue) (ex2);
         if (lv && var) {
           iparse!(Statement, "iter_array_eval_step_1"[], "tree.stmt"[])
                  (` { int i; while var[i++] <- _iter { } }`,
-                  "var"[], var, "_iter"[], lv, lf).emitLLVM(lf);
+                  namespace(), "var"[], var, "_iter"[], lv).emitLLVM(lf);
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_2"[], "tree.stmt"[])
                  (` { int i; auto temp = _iter; while var[i++] <- temp { } }`,
-                  "var"[], var, "_iter"[], ex2, lf).emitLLVM(lf);
+                  namespace(), "var"[], var, "_iter"[], ex2).emitLLVM(lf);
         } else {
           iparse!(Statement, "iter_eval_step_3"[], "tree.stmt"[])
                  (` { auto temp = _iter; while temp { } }`,
-                  "_iter"[], ex2, lf).emitLLVM(lf);
+                  namespace(), "_iter"[], ex2).emitLLVM(lf);
         }
       }
       void emitStmtConcat(Expr var) {
@@ -960,16 +918,16 @@ class EvalIterator(T) : Expr, Statement {
           iparse!(Statement, "iter_array_eval_step_4"[], "tree.stmt"[])
                  (` { type-of-elem _iter temp; while temp <- _iter { var ~= temp; } }`,
                   namespace(),
-                  "var"[], var, "_iter"[], lv, lf).emitLLVM(lf);
+                  "var"[], var, "_iter"[], lv).emitLLVM(lf);
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_5"[], "tree.stmt"[])
                  (` { auto temp = _iter; type-of-elem temp temp2; while temp2 <- temp { var ~= temp2; } }`,
                   namespace(),
-                  "var"[], var, "_iter"[], ex, lf).emitLLVM(lf);
+                  "var"[], var, "_iter"[], ex).emitLLVM(lf);
         } else {
           iparse!(Statement, "iter_eval_step_6"[], "tree.stmt"[])
                  (` { auto temp = _iter; while temp { } }`,
-                  "_iter"[], ex, lf).emitLLVM(lf);
+                  "_iter"[], ex).emitLLVM(lf);
         }
       }
       if (target) {
@@ -979,33 +937,35 @@ class EvalIterator(T) : Expr, Statement {
           emitStmtInto(null);
         else {
           static if (is(T == RichIterator)) {
-            mkVar(lf, valueType(), true, (Variable var) {
-              // manual lvize
-              mkVar(lf, ex.valueType(), true, (Variable lv) {
-                iparse!(Statement, "initLvVar"[], "tree.semicol_stmt.assign"[])
-                       (`lvvar = ex`,
-                        "lvvar"[], lv, "ex"[], ex).emitLLVM(lf);
-                iparse!(Statement, "initVar"[], "tree.semicol_stmt.assign"[])
-                       (`var = new elem[] len`,
-                        "var"[], var, "len"[], iter.length(lv), "elem"[], iter.elemType()).emitLLVM(lf);
-                emitStmtInto(var, lv);
-              });
-              lf.sfree(ex.valueType().size);
-            });
+            auto var = fastalloc!(LLVMRef)(valueType());
+            var.allocate(lf);
+            scope(success) var.emitLLVM(lf);
+            auto lv = fastalloc!(LLVMRef)(ex.valueType());
+            lv.allocate(lf);
+            emitAssign(lf, lv, ex);
+            // auto printf = sysmod.lookup("printf");
+            // buildFunCall(printf, mkTupleExpr(mkString("var = new elem[] %i due to "~qformat(iter)~" and len "~qformat(iter.length(lv))~"\n"), iter.length(lv)), "printf").emitLLVM(lf); lf.pop();
+            iparse!(Statement, "initVar"[], "tree.semicol_stmt.assign"[])
+                    (`var = new elem[] len`,
+                    "var"[], var, "len"[], iter.length(lv), "elem"[], iter.elemType()).emitLLVM(lf);
+            emitStmtInto(var, lv);
           } else {
-            mkVar(lf, fastalloc!(ExtArray)(iter.elemType(), true), false, (Variable var) {
-              emitStmtConcat(var);
-            });
+            auto ea = fastalloc!(ExtArray)(iter.elemType(), true);
+            auto var = fastalloc!(LLVMRef)(ea);
+            var.allocate(lf);
+            emitAssign(lf, var, fastalloc!(ZeroInitializer)(ea));
+            emitStmtConcat(var);
+            var.emitLLVM(lf);
           }
         }
-      }*/
+      }
     }
   }
 }
 
 Object gotIterEvalTail(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) {
+    if (!gotImplicitCast(ex, Single!(HintType!(Iterator)), (IType it) {
       return !!fastcast!(Iterator) (resolveType(it)); 
     })) return null;
     auto iter = fastcast!(Iterator) (resolveType(ex.valueType()));
@@ -1032,7 +992,7 @@ Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
   Expr target;
   if (rest(t2, "tree.expr _tree.expr.arith"[], &target) && t2.accept("="[])) {
     Expr value;
-    if (!rest(t2, "tree.expr"[], &value) || !gotImplicitCast(value, Single!(BogusIterator), (IType it) {
+    if (!rest(t2, "tree.expr"[], &value) || !gotImplicitCast(value, Single!(HintType!(Iterator)), (IType it) {
       auto ri = fastcast!(RichIterator)~ it;
       return ri && target.valueType() == fastalloc!(Array)(ri.elemType());
     })) {
@@ -1059,11 +1019,11 @@ Object gotElemTypeOf(ref string text, ParseCb cont, ParseCb rest) {
   if (ty) {
     ty = resolveType(ty);
     Expr pt = fastalloc!(PlaceholderToken)(ty, "elem-type-of temp"[]);
-    if (!gotImplicitCast(pt, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+    if (!gotImplicitCast(pt, Single!(HintType!(Iterator)), (IType it) { return !!fastcast!(Iterator) (it); }))
       text.failparse("Expected iterator, not "[], ty);
     it = fastcast!(Iterator) (pt.valueType());
   } else {
-    if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) { return !!fastcast!(Iterator) (it); }))
+    if (!gotImplicitCast(ex, Single!(HintType!(Iterator)), (IType it) { return !!fastcast!(Iterator) (it); }))
       text.failparse("Expected iterator, not "[], ex.valueType());
     it = fastcast!(Iterator) (ex.valueType());
   }

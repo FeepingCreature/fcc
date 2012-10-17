@@ -2,7 +2,7 @@ module ast.nestfun;
 
 import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.variable, ast.pointer, ast.structure, ast.namespace,
-       ast.vardecl, ast.parse, ast.assign, ast.constant, ast.dg,
+       ast.vardecl, ast.parse, ast.assign, ast.dg,
        ast.properties, ast.math, ast.fold;
 
 public import ast.fun: Argument;
@@ -16,6 +16,12 @@ class NestedFunction : Function {
   private this() { super(); }
   string cleaned_name() { return name.cleanup(); }
   override {
+    Expr getPointer() { return fastalloc!(FunSymbol)(this, voidp); }
+    Argument[] getParams(bool implicits) {
+      auto res = super.getParams(implicits);
+      if (implicits) res ~= Argument(voidp, "__base_ptr");
+      return res;
+    }
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
       return cleaned_name~"_of_"~type.mangle()~"_under_"~context.get!(Function).mangleSelf();
@@ -35,12 +41,10 @@ class NestedFunction : Function {
       return res;
     }
     int fixup() {
-      auto cur = super.fixup();
+      int id = super.fixup();
       inFixup = true; scope(exit) inFixup = false;
-      add(fastalloc!(Variable)(voidp, "__base_ptr"[], cur));
-      _framestart += 4;
-      cur += 4;
-      return cur;
+      // add(fastalloc!(Variable)(voidp, id++, "__base_ptr"));
+      return id;
     }
   }
   import tools.log;

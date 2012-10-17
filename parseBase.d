@@ -1098,8 +1098,21 @@ string startsWith(string text, string match)
   return text[match.length .. $];
 }
 
+string hex(ubyte u) {
+  auto hs = "0123456789ABCDEF";
+  return ""~hs[u>>8]~hs[u&0xf];
+}
+
 string cleanup(string s) {
-  return s.replace("-", "_dash_");
+  string res;
+  foreach (b; cast(ubyte[]) s) {
+    if (b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9' || b == '_') {
+      res ~= b;
+    } else {
+      res ~= "_"~hex(b)~"_";
+    }
+  }
+  return res;
 }
 
 bool acceptLeftArrow(ref string text) {

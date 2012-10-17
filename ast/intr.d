@@ -7,8 +7,7 @@ class Interrupt : Statement {
   this(int i) { which = i; }
   Interrupt dup() { return this; }
   override void emitLLVM(LLVMFile lf) {
-    todo("Interupt::emitLLVM");
-    // lf.put("int $"[], which);
+    put(lf, `call void asm sideeffect "int $$`, which, `", ""()`);
   }
   mixin defaultIterate!();
 }

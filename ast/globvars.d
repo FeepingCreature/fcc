@@ -12,7 +12,7 @@ class GlobVar : LValue, Named, IsMangled {
   bool weak;
   GlobVar dup() { return this; /* invariant */ }
   string getInit() {
-    if (!initval) return null;
+    if (!initval) return "zeroinitializer";
     auto l = fastcast!(Literal) (initval);
     assert(!!l, Format(initval, " is not constant! "[]));
     return l.getValue();
@@ -28,6 +28,12 @@ class GlobVar : LValue, Named, IsMangled {
     return name.replace("-"[], "_dash_"[]);
   }
   string manglecache;
+  void checkDecl(LLVMFile lf) {
+    auto mang = mangleSelf();
+    if (once(lf, "globvar ", mang)) {
+      lf.decls[mang] = qformat("@", mang, " = external global ", typeToLLVM(type));
+    }
+  }
   override {
     string mangleSelf() {
       if (!manglecache)
@@ -38,56 +44,12 @@ class GlobVar : LValue, Named, IsMangled {
     IType valueType() { return type; }
     string getIdentifier() { return cleanedName(); }
     void emitLLVM(LLVMFile lf) {
-      todo("GlobVar::emitLLVM");
-      /*if (!type.size) return; // hah
-      if (isARM) {
-        lf.mmove4(qformat("="[], mangleSelf()), "r2"[]);
-        if (tls) {
-          lf.mmove4("=_sys_tls_data_start"[], "r3"[]);
-          lf.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
-          lf.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
-        }
-        armpush(lf, "r2"[], type.size);
-        return;
-      }
-      if (tls) {
-        lf.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
-        lf.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
-        lf.mathOp("addl"[], "%esi"[], "%eax"[]);
-        lf.pushStack("(%eax)"[], type.size);
-      }
-      else {
-        lf.mmove4("$"~mangleSelf(), "%eax"[]);
-        lf.pushStack("(%eax)"[], type.size);
-        // lf.pushStack(mangleSelf(), type.size);
-      }*/
+      checkDecl(lf);
+      load(lf, "load ", typeToLLVM(type), "* @", mangleSelf());
     }
     void emitLocation(LLVMFile lf) {
-      todo("GlobVar::emitLocation");
-      /*if (!type.size) {
-        lf.mmove4("$0"[], "%eax"[]); // lol
-        lf.pushStack("%eax"[], 4);
-        return;
-      }
-      if (isARM) {
-        lf.mmove4(qformat("="[], mangleSelf()), "r2"[]);
-        if (tls) {
-          lf.mmove4("=_sys_tls_data_start"[], "r3"[]);
-          lf.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
-          lf.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
-        }
-        lf.pushStack("r2"[], 4);
-        return;
-      }
-      if (tls) {
-        lf.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
-        lf.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
-        lf.mathOp("addl"[], "%esi"[], "%eax"[]);
-        lf.pushStack("%eax"[], nativePtrSize);
-        lf.nvm("%eax"[]);
-      } else {
-        lf.pushStack(qformat("$"[], mangleSelf()), nativePtrSize);
-      }*/
+      checkDecl(lf);
+      push(lf, "@", mangleSelf());
     }
     string toString() { return Format("global "[], ns.get!(Module)().name, "."[], name, " of "[], type); }
   }
@@ -116,7 +78,15 @@ class GlobVarDecl : Statement, IsMangled {
     }
     string toString() { return Format("declare "[], tls?"tls ":""[], vars); }
     void emitLLVM(LLVMFile lf) {
-      todo("GlobVarDecl::emitLLVM");
+      foreach (var; vars) if (var.type.llvmSize() != "0") {
+        string linkage;
+        if (var.weak) linkage = "weak_odr ";
+        putSection(lf, "module", "@", var.mangleSelf(), " = "~linkage~"global ", typeToLLVM(var.type), " ", var.getInit());
+        lf.undecls[var.mangleSelf()] = true;
+      }
+      if (tls) {
+        logln("TODO tls");
+      }
       /*if (tls) {
         foreach (var; vars)
           with (var) if (type.size)

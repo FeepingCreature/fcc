@@ -2,8 +2,6 @@ module ast.literal_string;
 
 import ast.base, ast.literals, ast.pointer, ast.arrays, ast.static_arrays, ast.stringparse;
 
-static int string_counter;
-
 class StringExpr : Expr, HasInfo, Dependency {
   string str;
   bool generated;
@@ -12,13 +10,13 @@ class StringExpr : Expr, HasInfo, Dependency {
   mixin defaultIterate!();
   string name_used;
   void selectName(LLVMFile lf) {
-    todo("StringExpr::selectName");
-    /*if (!name_used) {
-      name_used = lf.allocConstant(Format("string_constant_"[], string_counter ++), cast(ubyte[]) str);
-    }*/
+    if (!name_used) {
+      name_used = lf.allocData("string_constant_", cast(ubyte[]) str ~ cast(ubyte) 0);
+    }
   }
   Expr getPointer() {
-    return reinterpret_cast(Single!(Pointer, Single!(Char)), fastalloc!(LateSymbol)(this, &selectName, &name_used)); 
+    return reinterpret_cast(Single!(Pointer, Single!(Char)),
+      fastalloc!(LateSymbol)(this, fastalloc!(Pointer)(fastalloc!(StaticArray)(Single!(Char), str.length + 1)), &selectName, &name_used));
   }
   override {
     string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }
@@ -26,16 +24,13 @@ class StringExpr : Expr, HasInfo, Dependency {
     string toString() { return '"'~str.replace("\n"[], "\\n"[])~'"'; }
     // default action: place in string segment, load address on stack
     void emitLLVM(LLVMFile lf) {
-      // if (name_used == "string_constant_232"[]) fail;
-      todo("StringExpr::emitLLVM");
-      /*getPointer().emitLLVM(lf);
-      (mkInt(str.length)).emitLLVM(lf);*/
+      auto p = getPointer();
+      formTuple(lf, "i32", qformat(str.length), typeToLLVM(p.valueType()), save(lf, p));
     }
     void emitDependency(LLVMFile lf) {
-      todo("StringExpr::emitDependency");
-      /*selectName(lf);
-      lf.allocConstant(name_used, cast(ubyte[]) str, true);
-      lf.markWeak(name_used);*/
+      if (!name_used) selectName(lf);
+      else lf.allocData(name_used, cast(ubyte[]) str~ cast(ubyte) 0);
+      // lf.markWeak(name_used);
     }
     // IType valueType() { return fastalloc!(StaticArray)(Single!(Char), str.length); }
     IType valueType() { return Single!(Array, Single!(Char)); }
