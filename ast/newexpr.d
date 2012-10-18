@@ -51,7 +51,11 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
     mixin(mustOffset("1"));
     auto res = fastalloc!(LLVMRef)(cr);
     res.allocate(lf);
-    scope(success) res.emitLLVM(lf);
+    res.begin(lf);
+    scope(success) {
+      res.emitLLVM(lf);
+      res.end(lf);
+    }
     
     mixin(mustOffset("0"));
     iparse!(Statement, "new_class"[], "tree.stmt"[])

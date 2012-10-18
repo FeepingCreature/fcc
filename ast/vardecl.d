@@ -117,6 +117,7 @@ LValue mkRef(LLVMFile lf, Expr ex, ref void delegate() post) {
   
   auto lr = fastalloc!(LLVMRef)(ex.valueType());
   lr.allocate(lf);
+  lr.begin(lf);
   emitAssign(lf, lr, ex);
   return lr;
 }
@@ -207,8 +208,12 @@ class WithTempExpr : Expr {
       // logln("set val(", val.count, ") str to '", val.str, "'");
       if (lltemp.type) {
         lltemp.allocate(lf);
+        lltemp.begin(lf);
       }
       superthing.emitLLVM(lf);
+      if (lltemp.type) {
+        lltemp.end(lf);
+      }
     }
   }
 }

@@ -137,6 +137,8 @@ Expr simpleFormat(Expr ex) {
       mixin(mustOffset("1"));
       auto var = fastalloc!(LLVMRef)(Single!(Array, Single!(Char)));
       var.allocate(lf);
+      var.begin(lf); scope(success) var.end(lf);
+      
       scope(success) var.emitLLVM(lf);
       iparse!(Scope, "!safecode_gen_array_format", "tree.scope")
       (`{

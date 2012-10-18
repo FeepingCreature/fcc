@@ -580,7 +580,11 @@ class SumExpr : Expr {
       mixin(mustOffset("1"));
       auto var = fastalloc!(LLVMRef)(iter.elemType());
       var.allocate(lf);
-      scope(success) var.emitLLVM(lf);
+      var.begin(lf);
+      scope(success) {
+        var.emitLLVM(lf);
+        var.end(lf);
+      }
       
       if (auto ri = fastcast!(RichIterator)~ iter) {
         // unroll. TODO: decide when.

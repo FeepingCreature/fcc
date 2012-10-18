@@ -829,6 +829,9 @@ class VecOp : Expr {
       
       auto var = fastalloc!(LLVMRef)(valueType());
       var.allocate(lf);
+      var.begin(lf);
+      scope(success) var.end(lf);
+      
       scope(success) var.emitLLVM(lf);
       
       auto entries = getTupleEntries(

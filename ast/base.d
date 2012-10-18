@@ -827,6 +827,7 @@ class LLVMRef : LValue {
   string location;
   IType type;
   int count;
+  int state;
   this() {
     count = lr_count ++;
     // if (count == 124) fail;
@@ -835,10 +836,33 @@ class LLVMRef : LValue {
   mixin defaultIterate!();
   void allocate(LLVMFile lf) {
     if (location) fail;
+    if (state != 0) fail;
+    state = 1;
+    
     if (Single!(Void) == type) return;
-    auto llt = typeToLLVM(type);
-    location = alloca(lf, "1", llt);
-    location = bitcastptr(lf, llt, typeToLLVM(type), location);
+    location = alloca(lf, "1", typeToLLVM(type));
+  }
+  void begin(LLVMFile lf) {
+    if (state != 1) fail;
+    state = 2;
+    
+    if (Single!(Void) == type) return;
+    if (!location) fail;
+    auto i8loc = bitcastptr(lf, typeToLLVM(type), "i8", location);
+    if (once(lf, "intrinsic llvm.lifetime.start"))
+      lf.decls["llvm.lifetime.start"] = "declare void @llvm.lifetime.start(i64, i8* nocapture)";
+    put(lf, "call void @llvm.lifetime.start(i64 ", type.llvmSize(), ", i8* ", i8loc, ")");
+  }
+  void end(LLVMFile lf) {
+    if (state != 2) fail;
+    state = 3;
+    
+    if (Single!(Void) == type) return;
+    if (!location) fail;
+    auto i8loc = bitcastptr(lf, typeToLLVM(type), "i8", location);
+    if (once(lf, "intrinsic llvm.lifetime.end"))
+      lf.decls["llvm.lifetime.end"] = "declare void @llvm.lifetime.end(i64, i8* nocapture)";
+    put(lf, "call void @llvm.lifetime.end(i64 ", type.llvmSize(), ", i8* ", i8loc, ")");
   }
   override {
     string toString() { return qformat("llref(", type, ")"); }
@@ -846,10 +870,12 @@ class LLVMRef : LValue {
     IType valueType() { if (!type) fail; return type; }
     void emitLLVM(LLVMFile lf) {
       if (!location) fail;
+      if (state != 2) fail;
       load(lf, "load ", typeToLLVM(type), "* ", location);
     }
     void emitLocation(LLVMFile lf) {
       if (!location) fail;
+      if (state != 2) fail;
       push(lf, location);
     }
   }

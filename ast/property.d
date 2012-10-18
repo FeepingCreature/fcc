@@ -48,8 +48,10 @@ class Property : MValue, RelTransformable {
         res.allocate(lf);
         // logln("::"[], buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(res)), "property-get-pointer-call"[]));
         // logln(fastcast!(Object) (buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(res)), "property-get-pointer-call"[])).classinfo.name);
+        res.begin(lf);
         (buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(res)), "property-get-pointer-call"[])).emitLLVM(lf);
         res.emitLLVM(lf);
+        res.end(lf);
       } else {
         (buildFunCall(getter, mkTupleExpr(), "property-call"[])).emitLLVM(lf);
       }

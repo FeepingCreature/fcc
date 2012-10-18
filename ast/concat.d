@@ -79,10 +79,14 @@ class ConcatChain : Expr {
       offset.allocate(lf);
       total .allocate(lf);
       cache .allocate(lf);
+      
+      offset.begin(lf); scope(success) offset.end(lf);
       // initialize to 0
       emitAssign(lf, offset, fastalloc!(ZeroInitializer)(Single!(SysInt)));
+      total.begin(lf); scope(success) total.end(lf);
       emitAssign(lf, total, mkInt(known_len));
       int cacheId = 0;
+      cache.begin(lf); scope(success) cache.end(lf);
       foreach (array; arrays) {
         if (array.valueType() == type.elemType) continue;
         if (isLiteral(array)) continue;
@@ -92,6 +96,7 @@ class ConcatChain : Expr {
         // total = total + cache[i].length
         emitAssign(lf, total, lookupOp("+"[], total, getArrayLength(cachepos)));
       }
+      res.begin(lf); scope(success) res.end(lf);
       iparse!(Statement, "alloc_array"[], "tree.semicol_stmt.assign"[])
       (
         "res = new T[] total"[],

@@ -455,9 +455,13 @@ class ScopeAndExpr : Expr {
       } else {
         auto var = fastalloc!(LLVMRef)(ex.valueType());
         var.allocate(lf);
-        scope(success) var.emitLLVM(lf);
+        scope(success) {
+          var.emitLLVM(lf);
+          var.end(lf);
+        }
         // fixUpVariables(lf.currentStackDepth);
         auto dg = sc.open(lf)();
+        var.begin(lf);
         emitAssign(lf, var, ex);
         dg(false);
       }
@@ -939,9 +943,16 @@ class EvalIterator(T) : Expr, Statement {
           static if (is(T == RichIterator)) {
             auto var = fastalloc!(LLVMRef)(valueType());
             var.allocate(lf);
-            scope(success) var.emitLLVM(lf);
+            var.begin(lf);
+            scope(success) {
+              var.emitLLVM(lf);
+              var.end(lf);
+            }
             auto lv = fastalloc!(LLVMRef)(ex.valueType());
             lv.allocate(lf);
+            lv.begin(lf);
+            scope(success) lv.end(lf);
+            
             emitAssign(lf, lv, ex);
             // auto printf = sysmod.lookup("printf");
             // buildFunCall(printf, mkTupleExpr(mkString("var = new elem[] %i due to "~qformat(iter)~" and len "~qformat(iter.length(lv))~"\n"), iter.length(lv)), "printf").emitLLVM(lf); lf.pop();
@@ -953,9 +964,11 @@ class EvalIterator(T) : Expr, Statement {
             auto ea = fastalloc!(ExtArray)(iter.elemType(), true);
             auto var = fastalloc!(LLVMRef)(ea);
             var.allocate(lf);
+            var.begin(lf);
             emitAssign(lf, var, fastalloc!(ZeroInitializer)(ea));
             emitStmtConcat(var);
             var.emitLLVM(lf);
+            var.end(lf);
           }
         }
       }

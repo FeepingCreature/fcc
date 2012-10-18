@@ -533,7 +533,7 @@ class CondExpr : Expr {
       } else {
         auto res = fastalloc!(LLVMRef)(Single!(SysInt));
         res.allocate(lf);
-      
+        
         auto mns = fastalloc!(MiniNamespace)("!safecode condexpr");
         mns.sup = namespace();
         namespace.set(mns);
@@ -542,6 +542,7 @@ class CondExpr : Expr {
         configure(cd);
         
         auto close = sc.open(lf)();
+        res.begin(lf);
         (mkAssignment(res, mkInt(0))).emitLLVM(lf);
         auto skip = lf.allocLabel("skip");
         cd.jumpOn(lf, false, skip);
@@ -550,6 +551,7 @@ class CondExpr : Expr {
         close(false);
         
         res.emitLLVM(lf);
+        res.end(lf);
       }
     }
   }
