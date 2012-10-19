@@ -108,6 +108,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
   */
   bool isImmutableNow;
   int cached_length, cached_size;
+  string cached_llvm_type;
   mixin ImporterImpl!();
   NSCache!(string, RelMember) rmcache;
   string offsetOfNext(IType it) {
@@ -145,17 +146,21 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     bool immutableNow() { return isImmutableNow; }
     bool isPacked() { return packed; }
     string llvmType() {
-      if (isUnion) {
-        auto sz = llvmSize();
-        return qformat("[", sz, " x i8]");
+      if (!cached_llvm_type) {
+        if (isUnion) {
+          auto sz = llvmSize();
+          cached_llvm_type = qformat("[", sz, " x i8]");
+        } else {
+          string list;
+          select((string, RelMember member) {
+            if (list.length && member.index == 0) return; // freak of nature
+            if (list.length) list ~= ", ";
+            list ~= typeToLLVM(member.type, true);
+          });
+          cached_llvm_type = qformat("{", list, "}");
+        }
       }
-      string list;
-      select((string, RelMember member) {
-        if (list.length && member.index == 0) return; // freak of nature
-        if (list.length) list ~= ", ";
-        list ~= typeToLLVM(member.type, true);
-      });
-      return qformat("{", list, "}");
+      return cached_llvm_type;
     }
     string llvmSize() {
       {
@@ -201,6 +206,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     res.isUnion = isUnion; res.packed = packed; res.isTempStruct = isTempStruct;
     res.isImmutableNow = isImmutableNow;
     res.cached_length = cached_length; res.cached_size = cached_size;
+    res.cached_llvm_type = cached_llvm_type;
     return res;
   }
   int numMembers() {
@@ -307,6 +313,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     }
     bool isTempNamespace() { return isTempStruct; }
     void __add(string name, Object obj) {
+      cached_llvm_type = null;
       auto ex = fastcast!(Expr) (obj);
       if (ex && fastcast!(Variadic) (ex.valueType())) throw new Exception("Variadic tuple: Wtf is wrong with you. "[]);
       super.__add(name, obj);
@@ -444,17 +451,18 @@ class StructLiteral : Expr {
     }
     IType valueType() { return st; }
     void emitLLVM(LLVMFile lf) {
-      string[] parts;
+      auto parts = new string[exprs.length*2];
       // logln("slit ", exprs);
-      foreach (ex; exprs) {
+      // fill in reverse to conform with previous fcc's behavior
+      foreach_reverse (i, ex; exprs) {
         auto ta = typeToLLVM(ex.valueType()), tb = typeToLLVM(ex.valueType(), true);
         if (ta == tb) {
-          parts ~= ta;
-          parts ~= save(lf, ex);
+          parts[i*2] = ta;
+          parts[i*2+1] = save(lf, ex);
         } else {
-          parts ~= tb;
+          parts[i*2] = tb;
           llcast(lf, ta, tb, save(lf, ex));
-          parts ~= lf.pop();
+          parts[i*2+1] = lf.pop();
         }
       }
       formTuple(lf, parts);

@@ -672,7 +672,6 @@ class NamedNull : NoOp, Named, SelfAdding {
 }
 
 extern(C) void printThing(LLVMFile lf, string s, Expr ex);
-extern(C) string[] structDecompose(string str);
 
 class VoidExpr : Expr {
   override {

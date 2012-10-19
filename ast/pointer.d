@@ -6,6 +6,7 @@ import dwarf2;
 class Pointer_ : Type, Dwarf2Encodable {
   IType target;
   this(IType t) { target = forcedConvert(t); }
+  string targettypecmp, lltypecache;
   override {
     IType proxyType() { if (auto tp = target.proxyType()) return new Pointer(tp); return null; }
     int opEquals(IType ty) {
@@ -17,7 +18,12 @@ class Pointer_ : Type, Dwarf2Encodable {
     string llvmSize() { if (nativePtrSize == 4) return "4"; if (nativePtrSize == 8) return "8"; assert(false); }
     // string llvmType() { return typeToLLVM(target) ~ "*"; }
     string llvmType() {
-      return typeToLLVM(target)~"*"; // hax
+      auto tt = typeToLLVM(target);
+      if (targettypecmp != tt) {
+        targettypecmp = tt;
+        lltypecache = qformat(tt, "*");
+      }
+      return lltypecache;
     }
     string mangle() { return qformat("ptrto_", target.mangle()); }
     string toString() { return Format(target, "*"[]); }

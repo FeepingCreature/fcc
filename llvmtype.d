@@ -96,7 +96,7 @@ string eatType(ref string s) {
     }
   }
   matchType;
-  return res;
+  return res.strip();
 }
 
 string[] getVecTypes(string str) {

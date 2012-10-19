@@ -9,6 +9,7 @@ class Array_ : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
   this() { }
   this(IType et) { elemType = forcedConvert(et); }
   IType proxyCache;
+  string elemtypecmp, lltypecache;
   override {
     // bool isComplete() { return elemType.isComplete; }
     bool isComplete() { return true; /* size not determined by element size! */ }
@@ -18,8 +19,14 @@ class Array_ : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
       fail;
     }
     string llvmType() {
-      if (nativePtrSize == 4) return qformat("{i32, ", typeToLLVM(fastalloc!(Pointer)(elemType)), "}");
-      fail;
+      auto tt = elemType.llvmType();
+      if (elemtypecmp != tt) {
+        elemtypecmp = tt;
+        
+        if (nativePtrSize == 4) lltypecache = qformat("{i32, ", typeToLLVM(fastalloc!(Pointer)(elemType)), "}");
+        else fail;
+      }
+      return lltypecache;
     }
     bool isTempNamespace() { return false; }
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {

@@ -70,6 +70,8 @@ class Semaphore {
   void release() { sem_post(&hdl); }
 }
 
+vec4f aligntest_a, aligntest_b;
+
 extern(C) void* __start_routine(void* p) {
   void* ptemp = p; // will be top of the stack, so ..
   /*asm "popl %eax";
@@ -117,7 +119,14 @@ void startThread(void delegate() dg) {
   (int dataStart, int dataEnd) = setupTLSSize();
   alias dataSize = dataEnd - dataStart;
   auto oldArea = _threadlocal[dataStart..dataEnd];
-  auto newArea = (sys.malloc(dataSize) - dataStart)[0 .. dataEnd];
+  auto newArea = (sys.malloc(dataSize+16) - dataStart)[0 .. dataEnd];
+  // align new area to preserve 16-byte alignment of old area
+  alias matches = int:newArea.ptr&0xf == int:_threadlocal&0xf;
+  for 0..16 {
+    if (matches) break;
+    newArea.ptr ++;
+  }
+  if (!matches) { writeln "feep fails at math because he thought this was impossible"; int i; i /= i; }
   
   auto
     localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
@@ -310,6 +319,7 @@ class LoopPool {
     for 0..i addThread();
   }
   void threadFun(int thr-id) {
+    { auto tmp = aligntest_b; aligntest_a = tmp; }
     while true {
       s.claim;
       int myId;

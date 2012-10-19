@@ -357,7 +357,7 @@ abstract class BinopExpr : Expr, HasInfo {
     this.e1 = e1;
     this.e2 = e2;
     this.op = op;
-    if (qformat(this).length > 16384) {
+    debug if (qformat(this).length > 16384) {
       logln("uh oh ", this);
       fail;
     }

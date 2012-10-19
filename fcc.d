@@ -459,7 +459,7 @@ extern(C) void llcast(LLVMFile lf, string from, string to, string v, string from
           }
         }
       }
-      if (from.endsWith(">")) {
+      if (llvmTypeIs16Aligned(from)) {
         auto ap = alloca(lf, "1", from);
         auto fs = bitcastptr(lf, from, to, ap);
         put(lf, "store ", from, " ", v, ", ", from, "* ", ap);

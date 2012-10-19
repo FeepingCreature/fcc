@@ -7,12 +7,48 @@ string datalayout;
 string xbreak;
 string preserve;
 
+void own_append(T, U)(ref T array, U value) {
+  auto backup = array;
+  array ~= value;
+  if (backup.ptr !is array.ptr) delete backup;
+}
+
+struct TextAppender {
+  string[][] superlist;
+  string[] fragmentlist;
+  void opCatAssign(string s) {
+    own_append(fragmentlist, s);
+  }
+  void opCatAssign(TextAppender ta) {
+    own_append(superlist, fragmentlist);
+    own_append(superlist, ta.superlist);
+    own_append(superlist, ta.fragmentlist);
+    fragmentlist = null;
+  }
+  void clear() {
+    superlist = null;
+    fragmentlist = null;
+  }
+  void opAssign(void* p) { // = null
+    if (p) fail;
+    clear;
+  }
+  void flush(void delegate(string) dg) {
+    foreach (array; superlist) foreach (fragment; array)
+      dg(fragment);
+    foreach (fragment; fragmentlist)
+      dg(fragment);
+    clear;
+  }
+}
+
 class LLVMFile {
   bool optimize, debugmode, profilemode;
   string fn;
   string[] sectionNameStack;
-  string[string] sectionStore;
-  string curSection, curSectionName;
+  TextAppender[string] sectionStore;
+  TextAppender curSection;
+  string curSectionName;
   
   bool[string] doOnce;
   
@@ -30,7 +66,7 @@ class LLVMFile {
     curSectionName = name;
     curSection = null;
   }
-  string endSection(string s) {
+  TextAppender endSection(string s) {
     if (curSectionName != s) fail;
     auto res = curSection;
     if (!sectionNameStack) {
@@ -44,7 +80,10 @@ class LLVMFile {
     sectionStore.remove(curSectionName);
     return res;
   }
-  void put(string s) { // TODO builder of some kind
+  void put(TextAppender app) {
+    curSection ~= app;
+  }
+  void put(string s) {
     curSection ~= s;
   }
   void putSection(string sec, string s) { // TODO builder some more
@@ -54,11 +93,13 @@ class LLVMFile {
       put(s);
       return;
     }
+    if (!(sec in sectionStore))
+      sectionStore[sec] = TextAppender();
     sectionStore[sec] ~= s;
   }
   void dumpLLVM(void delegate(string) write) {
-    if (!curSection) fail;
-    write(curSection);
+    if (!curSectionName) fail;
+    curSection.flush(write);
   }
   
   string[] exprs;
@@ -233,14 +274,14 @@ string alloca(LLVMFile lf, string size, string type = null) {
   auto ap = lf.getVar();
   if (!type) type = "i8";
   string mode;
-  if (type.endsWith(">")) mode = ", align 16";
+  if (llvmTypeIs16Aligned(type)) mode = ", align 16";
   putSection(lf, "function_allocas", ap, " = alloca ", type, ", i32 ", size, mode);
   // auto ap = save(lf, "alloca i8, i32 ", size);
   return ap;
 }
 
-void checkcasttypes(string from, string to) {
-  if (from.endsWith("}*") && to.endsWith(">*")) {
+void checkcastptrtypes(string from, string to) {
+  if (llvmTypeIs16Aligned(from) != llvmTypeIs16Aligned(to)) {
     logln("Cannot safely cast struct pointers to vector pointers as they have differing alignment");
     logln("  from: ", from);
     logln("    to: ", to);
@@ -248,9 +289,13 @@ void checkcasttypes(string from, string to) {
   }
 }
 
+void checkcasttypes(string from, string to) {
+  checkcastptrtypes(from~"*", to~"*");
+}
+
 string bitcastptr(LLVMFile lf, string from, string to, string v) {
   if (from.endsWith("}") && to.endsWith(">"))
-    checkcasttypes(from~"*", to~"*");
+    checkcastptrtypes(from, to);
   return save(lf, "bitcast ", from, "* ", v, " to ", to, "*");
 }
 
@@ -288,4 +333,22 @@ string readllex(string expr) {
   // logln("record ", res, " ", expr);
   excache[expr] = res;
   return res;
+}
+
+extern(C) string[] structDecompose(string str);
+bool llvmTypeIs16Aligned(string s) {
+  // TODO parse for vec3/vec4
+  if (s.endsWith(">")) return true;
+  // pointer targets may require 16-alignment
+  // however, the pointer itself doesn't
+  if (s.endsWith("*")) return false; 
+  if (s.endsWith("}")) {
+    auto members = structDecompose(s);
+    // logln("decompose ", s, " to ", members);
+    foreach (m; members) if (llvmTypeIs16Aligned(m)) return true;
+    return false;
+  }
+  // logln(s);
+  // fail;
+  return false;
 }

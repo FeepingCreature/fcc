@@ -389,12 +389,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       lf.beginSection("function_head");
       scope(success) {
         auto data = lf.endSection("function_head");
-        put(lf, data);
+        lf.put(data);
       }
       lf.beginSection("function_allocas");
       scope(success) {
         auto data = lf.endSection("function_allocas");
-        put(lf, data);
+        lf.put(data);
       }
       auto retstr = typeToLLVM(type.ret);
       string argstr;
@@ -449,7 +449,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
           auto argpconv = bitcastptr(lf, argtype, argtype2, argp);
           put(lf, "store ", argtype2, " %arg", i, ", ", argtype2, "* ", argpconv);
         }
-        put(lf, data);
+        lf.put(data);
       }
       
       // logln("todo dwarf");
