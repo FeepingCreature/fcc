@@ -4,11 +4,6 @@ import ast.base, ast.opers, ast.literals, parseBase, ast.casting, ast.static_arr
 
 import dwarf2, tools.log;
 class Variable : LValue, Named {
-  string address() {
-    todo("Variable::address");
-    return null;
-    // return Format(baseOffset, "(%ebp)"[]);
-  }
   override {
     void emitLLVM(LLVMFile lf) {
       if (!stacktype) fail;
@@ -70,26 +65,5 @@ class Variable : LValue, Named {
       */
       todo("Variable::registerDwarf2");
     }
-  }
-}
-
-class StackOffsetLocation : Expr {
-  int offs;
-  IType type;
-  this(int o, IType t) { offs = o; type = t; }
-  mixin defaultIterate!();
-  override {
-    StackOffsetLocation dup() { return fastalloc!(StackOffsetLocation)(offs, type); }
-    IType valueType() { return type; }
-    void emitLLVM(LLVMFile lf) {
-      todo("StackOffsetLocation::emitLLVM");
-      /*if (isARM) {
-        lookupOp("+", new Register!("ebp"), mkInt(offs)).emitLLVM(lf);
-      } else {
-        lf.loadAddress(qformat(offs, "(%ebp)"), "%eax");
-        lf.pushStack("%eax", nativePtrSize);
-      }*/     
-    }
-    string toString() { return qformat(type, ": stack[", offs, "]"); }
   }
 }

@@ -346,35 +346,6 @@ static this() {
   };
 }
 
-void loadFloatEx(Expr ex, LLVMFile lf) {
-  todo("loadFloatEx");
-  /*if (auto lv = fastcast!(CValue)~ ex) {
-    lv.emitLocation(lf);
-    lf.popStack("%eax"[], nativePtrSize);
-    lf.loadFloat("(%eax)"[]);
-    lf.nvm("%eax"[]);
-  } else {
-    int toFree = 4 + alignStackFor(ex.valueType(), lf);
-    ex.emitLLVM(lf);
-    lf.loadFloat("(%esp)"[]);
-    lf.sfree(toFree);
-  }*/
-}
-
-void loadDoubleEx(Expr ex, LLVMFile lf) {
-  todo("loadDoubleEx");
-  /*if (auto cv = fastcast!(CValue)~ ex) {
-    cv.emitLocation(lf);
-    lf.popStack("%eax"[], nativePtrSize);
-    lf.loadDouble("(%eax)"[]);
-    lf.nvm("%eax"[]);
-  } else {
-    ex.emitLLVM(lf);
-    lf.loadDouble("(%esp)"[]);
-    lf.sfree(8);
-  }*/
-}
-
 abstract class BinopExpr : Expr, HasInfo {
   Expr e1, e2;
   string op;
@@ -770,78 +741,6 @@ Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
   t2.failparse("Found no lookup match for negation/inversion of "[], ex.valueType());
 }
 mixin DefaultParser!(gotPrefixExpr, "tree.expr.prefix"[], "213"[]);
-
-class FSqrtExpr : Expr {
-  Expr sup;
-  this(Expr ex) { sup = ex; }
-  mixin defaultIterate!(sup);
-  override {
-    IType valueType() { return Single!(Float); }
-    FSqrtExpr dup() { return fastalloc!(FSqrtExpr)(sup.dup); }
-    void emitLLVM(LLVMFile lf) {
-      todo("FSqrtExpr::emitLLVM");
-      /*mixin(mustOffset("4"[]));
-      sup.emitLLVM(lf);
-      lf.loadFloat("(%esp)"[]);
-      lf.floatMath("fsqrt"[], false);
-      lf.storeFloat("(%esp)"[]);*/
-    }
-  }
-}
-
-class FSinExpr : Expr {
-  Expr sup;
-  this(Expr ex) { sup = ex; }
-  mixin defaultIterate!(sup);
-  override {
-    IType valueType() { return Single!(Float); }
-    FSinExpr dup() { return fastalloc!(FSinExpr)(sup.dup); }
-    void emitLLVM(LLVMFile lf) {
-      todo("FSinExpr::emitLLVM");
-      /*mixin(mustOffset("4"[]));
-      sup.emitLLVM(lf);
-      lf.loadFloat("(%esp)"[]);
-      lf.fpuOp("fsin"[]);
-      lf.storeFloat("(%esp)"[]);*/
-    }
-  }
-}
-
-class FAbsFExpr : Expr {
-  Expr sup;
-  this(Expr ex) { sup = ex; }
-  mixin defaultIterate!(sup);
-  override {
-    IType valueType() { return Single!(Float); }
-    FAbsFExpr dup() { return fastalloc!(FAbsFExpr)(sup.dup); }
-    void emitLLVM(LLVMFile lf) {
-      todo("FAbsFExpr::emitLLVM");
-      /*mixin(mustOffset("4"[]));
-      sup.emitLLVM(lf);
-      lf.loadFloat("(%esp)"[]);
-      lf.fpuOp("fabs"[]);
-      lf.storeFloat("(%esp)"[]);*/
-    }
-  }
-}
-
-class SSESqrtExpr : Expr {
-  Expr sup;
-  this(Expr ex) { sup = ex; }
-  mixin defaultIterate!(sup);
-  override {
-    IType valueType() { return Single!(Float); }
-    FSqrtExpr dup() { return fastalloc!(FSqrtExpr)(sup.dup); }
-    void emitLLVM(LLVMFile lf) {
-      todo("SSESqrtExpr::emitLLVM");
-      /*mixin(mustOffset("4"[]));
-      sup.emitLLVM(lf);
-      lf.SSEOp("movd"[], "(%esp)"[], "%xmm0"[], true /* ignore stack alignment * /);
-      lf.SSEOp("sqrtss"[], "%xmm0"[], "%xmm0"[]);
-      lf.SSEOp("movd"[], "%xmm0"[], "(%esp)"[], true);*/
-    }
-  }
-}
 
 class IntrinsicExpr : Expr {
   string name;
