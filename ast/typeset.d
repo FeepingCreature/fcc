@@ -6,8 +6,8 @@ class Typeset : Type, RelNamespace {
   Tuple tup;
   mixin MyThis!("tup"[]);
   override {
-    int size() { return tup.size; }
-    ubyte[] initval() { return tup.initval; }
+    string llvmType() { return tup.llvmType(); }
+    string llvmSize() { return tup.llvmSize(); }
     int opEquals(IType it) {
       auto tys = fastcast!(Typeset) (resolveType(it));
       if (!tys) return false;

@@ -7,10 +7,10 @@ class AggrStatement : Statement {
   this(Statement[] stmts) { this.stmts = stmts; }
   this() { }
   mixin defaultIterate!(stmts);
-  override void emitAsm(AsmFile af) {
+  override void emitLLVM(LLVMFile lf) {
     foreach (i, stmt; stmts) {
-      // logln("aggr @", af.currentStackDepth, " [", i+1, "/", stmts.length, "] ", stmt/*, " - ", stmts*/);
-      stmt.emitAsm(af);
+      // logln("aggr @", lf.currentStackDepth, " [", i+1, "/", stmts.length, "] ", stmt/*, " - ", stmts*/);
+      stmt.emitLLVM(lf);
     }
   }
   mixin DefaultDup!();

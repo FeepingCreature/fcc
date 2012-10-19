@@ -29,13 +29,13 @@ class Enum : Namespace, RelNamespace, IType, Named, ExprLikeThingy {
   }
   override {
     string getIdentifier() { return name; }
-    int size() { return base.size(); }
     string mangle() { return sup.mangle(null, null)~"_enum_"~name; }
-    ubyte[] initval() { return base.initval; }
     bool isPointerLess() { return base.isPointerLess(); }
     bool isComplete() { return true; }
     bool returnsInMemory() { return base.returnsInMemory(); }
-    mixin TypeDefaults!(false, true);
+    string llvmType() { return base.llvmType(); }
+    string llvmSize() { return base.llvmSize(); }
+    mixin TypeDefaults!(true);
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       if (base && name == "toString") {
         auto res = fastcast!(Function) (sup.lookup(getToStringFunName()));
@@ -64,10 +64,6 @@ class Enum : Namespace, RelNamespace, IType, Named, ExprLikeThingy {
     }
     string mangle(string name, IType type) {
       fail; // what are you DOING
-      return null;
-    }
-    Stuple!(IType, string, int)[] stackframe() {
-      fail; // AAAAAAHHH STOP IIT
       return null;
     }
   }

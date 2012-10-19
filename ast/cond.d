@@ -19,7 +19,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   IType hdltype = fastcast!(IType) (sysmod.lookup("_Handler"[])), objtype = fastcast!(ClassRef) (sysmod.lookup("Object"[]));
   string hdlmarker = Format("__hdlmarker_var_special_"[], getuid());
   assert(!namespace().lookup(hdlmarker));
-  auto hdlvar = fastalloc!(Variable)(hdltype, hdlmarker, boffs(hdltype));
+  auto hdlvar = fastalloc!(Variable)(hdltype, framelength(), hdlmarker);
   auto csc = fastcast!(Scope)~ namespace();
   assert(!!csc);
   auto hdlst = fastalloc!(VarDecl)(hdlvar);
@@ -46,7 +46,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
     nf.addStatement(sc);
     namespace.set(sc);
     
-    auto objvar = fastalloc!(Variable)(it, cast(string) null, boffs(it));
+    auto objvar = fastalloc!(Variable)(it, framelength(), cast(string) null);
     sc.addStatement(fastalloc!(VarDecl)(objvar, reinterpret_cast(it, fastcast!(Expr)~ nf.lookup("_obj"[], true))));
     sc.add(objvar);
     {
@@ -86,7 +86,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   {
     auto setup_st =
-      iparse!(Statement, "gr_setup_1"[], "tree.stmt"[])
+      iparse!(Statement, "var_setup_1"[], "tree.stmt"[])
              (`
              {
                var.id = class-id type;
@@ -95,7 +95,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
                var.delimit = _cm;
                __hdl__ = &var;
              }`,
-             "var"[], hdlvar, "type"[], it, "fn"[], nf);
+             namespace(), "var"[], hdlvar, "type"[], it, "fn"[], nf);
     assert(!!setup_st);
     csc.addStatement(setup_st);
   }
@@ -119,7 +119,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr"[], &ex) || !gotImplicitCast(ex, &isString))
     assert(false);
   IType cmtype = fastcast!(IType)~ sysmod.lookup("_CondMarker"[]);
-  auto cmvar = fastalloc!(Variable)(cmtype, cast(string) null, boffs(cmtype));
+  auto cmvar = fastalloc!(Variable)(cmtype, framelength(), cast(string) null);
   
   IType argType; string argName, classTypeId;
   if (t2.accept("("[])) {
@@ -151,10 +151,10 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                if (_record) var.guard_id = _record.dg;
                var.old_hdl = __hdl__;
                var.param_id = id;
-               var.esi = _esi; // for win32
+               var.threadlocal = _threadlocal; // for win32
                _cm = &var;
              }`,
-             "var"[], cmvar, "nex"[], ex, "id"[], mkString(classTypeId));
+             namespace(), "var"[], cmvar, "nex"[], ex, "id"[], mkString(classTypeId));
     assert(!!setup_st);
     csc.addStatement(setup_st);
   }
@@ -166,7 +166,6 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   }
   auto ifs = new IfStatement;
   ifs.wrapper = new Scope;
-  ifs.wrapper.requiredDepthDebug ~= " (ast.cond:168)";
   ifs.test = iparse!(Cond, "cm_cond"[], "cond"[])
                     (`setjmp &(var.target)`,
                      "var"[], cmvar);
@@ -178,11 +177,11 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(nsbackup);
   namespace.set(sc);
   
-  sc.addStatement(iparse!(Statement, "reset_esi"[], "tree.stmt"[])
-                         (`_esi = var.esi;`,
-                          "var"[], cmvar));
+  sc.addStatement(iparse!(Statement, "reset_threadlocal"[], "tree.stmt"[])
+                         (`_threadlocal = var.threadlocal;`,
+                          namespace(), "var"[], cmvar));
   if (argType) {
-    auto var = fastalloc!(Variable)(argType, argName, boffs(argType));
+    auto var = fastalloc!(Variable)(argType, framelength(), argName);
     auto vd = fastalloc!(VarDecl)(var);
     sc.add(var);
     sc.addStatement(vd);
@@ -191,7 +190,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
         (`{
             var = at: handler-argument-variable;
             if !var raise new Error "Bad parameter type for exit: expected $(string-of at), got $(handler-argument-variable?.toString():\"(null)\")";
-          }`, "var"[], var, "at"[], argType)
+          }`, sc, "var"[], var, "at"[], argType)
     );
   }
   if (!t2.accept(";"[])) {

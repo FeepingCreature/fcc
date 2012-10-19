@@ -53,13 +53,13 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (type && type != initval.valueType())
         text.failparse("Type mismatch: declared ", type, " but got ", initval.valueType());
       type = initval.valueType();
-      var = fastalloc!(Variable)(type, cast(string) null, boffs(type));
+      var = fastalloc!(Variable)(type, framelength(), cast(string) null);
     } else {
       if (!type) {
         if (!initval) text.failparse("internal compiler bug - no init no type");
         type = initval.valueType();
       }
-      var = fastalloc!(Variable)(type, name, boffs(type));
+      var = fastalloc!(Variable)(type, framelength(), name);
     }
     if (fastcast!(Void) (resolveType(type))) {
       text.failparse("Cannot declare variable of type "[], type, " which is void"[]);

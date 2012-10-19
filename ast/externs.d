@@ -14,26 +14,23 @@ class ExternCGlobVar : LValue, Named {
     this.name = n;
     ns = namespace();
   }
+  void checkSection(LLVMFile lf, string lltype) {
+    if (once(lf, "symbol ", name)) {
+      putSection(lf, "module", "@", name, " = external global ", lltype);
+    }
+  }
   override {
     IType valueType() { return type; }
     string getIdentifier() { return name; }
-    void emitAsm(AsmFile af) {
-      if (isARM) {
-        if (type.size != 4) fail;
-        af.mmove4(qformat("="[], name), "r0"[]);
-        af.mmove4("[r0]"[], "r0"[]);
-        af.pushStack("r0"[], 4);
-      } else {
-        af.pushStack(name, type.size);
-      }
+    void emitLLVM(LLVMFile lf) {
+      auto lltype = typeToLLVM(type);
+      checkSection(lf, lltype);
+      load(lf, "load ", lltype, "* @", name);
     }
-    void emitLocation(AsmFile af) {
-      if (isARM) {
-        af.loadAddress(qformat("#"[], name), "r0"[]);
-        af.pushStack("r0"[], 4);
-      } else {
-        af.pushStack(qformat("$"[], name), nativePtrSize);
-      }
+    void emitLocation(LLVMFile lf) {
+      auto lltype = typeToLLVM(type);
+      checkSection(lf, lltype);
+      push(lf, "@", name);
     }
     string toString() { return Format("extern(C) global "[], ns.get!(Module)().name, "."[], name, " of "[], type); }
   }
@@ -46,9 +43,7 @@ Object gotMarkStdCall(ref string text, ParseCb cont, ParseCb rest) {
   auto fp = fastcast!(FunctionPointer) (resolveType(ty));
   if (!fp)
     text.failparse(ty, " is not a function pointer! "[]);
-  auto fp2 = new FunctionPointer;
-  fp2.ret = fp.ret;
-  fp2.args = fp.args;
+  auto fp2 = new FunctionPointer(fp.ret, fp.args);
   fp2.stdcall = true;
   return fp2;
 }
@@ -117,6 +112,10 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     auto t3 = t2;
     Object obj;
     if (!rest(t3, "tree.toplevel"[], &obj)) return false;
+    if (auto im = fastcast!(IsMangled)(obj)) {
+      im.markExternC();
+    }
+    // logln("FALLTHROUGH TO ", obj);
     t2 = t3;
     return true;
   }

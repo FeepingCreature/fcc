@@ -2,11 +2,11 @@ module ast.base;
 
 int xpar = -1; // for debugging. see xpar_bisect.nt
 
-public import asmfile, ast.types, parseBase, errors, tools.log: logln;
+public import llvmfile, ast.types, parseBase, errors, tools.log: logln;
 
 public import casts, alloc, quickformat;
 
-import tools.base: Format, New, This_fn, rmSpace;
+import tools.base: fail, find, Format, New, This_fn, rmSpace, Stuple, slice, endsWith;
 import tools.ctfe: ctReplace;
 
 const string EXT = ".nt";
@@ -17,6 +17,8 @@ bool doBreak;
 void breakpoint() {
   if (doBreak) asm { int 3; }
 }
+
+const string tlsbase = "_threadlocal";
 
 bool isWindoze() {
   return platform_prefix.find("mingw"[]) != -1;
@@ -40,12 +42,12 @@ interface Iterable {
 }
 
 interface Tree : Iterable {
-  void emitAsm(AsmFile);
+  void emitLLVM(LLVMFile);
   Tree dup();
 }
 
 interface Setupable {
-  void setup(AsmFile); // register globals and such
+  void setup(LLVMFile); // register globals and such
 }
 void delegate(Setupable) registerSetupable;
 
@@ -60,9 +62,7 @@ interface HandlesEmits {
   bool handledEmit(Tree tr);
 }
 
-interface IsMangled { string mangleSelf(); void markWeak(); }
-
-interface FrameRoot { int framestart(); } // Function
+interface IsMangled { string mangleSelf(); void markWeak(); void markExternC(); }
 
 // pointer for structs, ref for classes
 interface hasRefType {
@@ -191,7 +191,7 @@ interface Literal {
 
 class NoOp : Statement {
   NoOp dup() { return this; }
-  override void emitAsm(AsmFile af) { }
+  override void emitLLVM(LLVMFile lf) { }
   mixin defaultIterate!();
 }
 
@@ -202,7 +202,7 @@ interface Expr : Tree {
 
 // has a pointer, but please don't modify it - ie. string literals
 interface CValue : Expr {
-  void emitLocation(AsmFile);
+  void emitLocation(LLVMFile);
   override CValue dup();
 }
 
@@ -213,7 +213,7 @@ interface LValue : CValue {
 
 // more than rvalue, less than lvalue
 interface MValue : Expr {
-  void emitAssignment(AsmFile); // eat value from stack and store
+  void emitAssignment(LLVMFile); // eat value from stack and store
   override MValue dup();
 }
 
@@ -223,7 +223,7 @@ class Placeholder : Expr {
   mixin defaultIterate!();
   this(IType type) { this.type = type; }
   override IType valueType() { return type; }
-  override void emitAsm(AsmFile af) { }
+  override void emitLLVM(LLVMFile lf) { fail; }
   private this() { }
   mixin DefaultDup!();
 }
@@ -236,7 +236,9 @@ class Filler : Expr {
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { af.salloc(type.size); }
+    void emitLLVM(LLVMFile lf) {
+      push(lf, "zeroinitializer");
+    }
   }
 }
 
@@ -248,7 +250,7 @@ interface Formatable {
 /// Emitting this sets up FLAGS.
 /// TODO: how does this work on non-x86?
 interface Cond : Iterable {
-  void jumpOn(AsmFile af, bool cond, string dest);
+  void jumpOn(LLVMFile lf, bool cond, string dest);
   override Cond dup();
 }
 
@@ -260,12 +262,17 @@ class Register(string Reg) : Expr, IRegister {
   override string getReg() { return Reg; }
   mixin defaultIterate!();
   override IType valueType() { return Single!(SysInt); }
-  override void emitAsm(AsmFile af) {
-    if (isARM && Reg == "ebp"[]) {
+  override void emitLLVM(LLVMFile lf) {
+    if (Reg == "ebp") {
+      load(lf, "ptrtoint i8* %__stackframe to i32");
+      return;
+    }
+    todo("Register!("~Reg~")::emitLLVM");
+    /*if (isARM && Reg == "ebp"[]) {
       af.pushStack("fp"[], 4);
       return;
     }
-    af.pushStack("%"~Reg, 4);
+    af.pushStack("%"~Reg, 4);*/
   }
   override Register dup() { return this; }
 }
@@ -305,9 +312,9 @@ string mustOffset(string value, string _hash = null) {
   else hash = "__start_offs";
   
   return (`
-    auto OFFS = af.currentStackDepth;
-    scope(success) if (af.currentStackDepth != OFFS + `~value~`) {
-      logln("Stack offset violated: got "[], af.currentStackDepth, "; expected "[], OFFS, " + "[], `~value~`);
+    auto OFFS = lf.exprs.length;
+    scope(success) if (lf.exprs.length != OFFS + `~value~`) {
+      logln("llvm expr stack unexpected outcome: got "[], lf.exprs.length, "; expected "[], OFFS, " + "[], `~value~`);
       fail();
     }`).ctReplace("\n"[], ""[], "OFFS"[], hash); // fix up line numbers!
 }
@@ -315,15 +322,15 @@ string mustOffset(string value, string _hash = null) {
 class CallbackExpr : Expr, HasInfo {
   IType type;
   Expr ex; // held for dg so it can iterate properly
-  void delegate(Expr, AsmFile) dg;
+  void delegate(Expr, LLVMFile) dg;
   string info;
-  this(string info, IType type, Expr ex, void delegate(Expr, AsmFile) dg) {
+  this(string info, IType type, Expr ex, void delegate(Expr, LLVMFile) dg) {
     this.info = info; this.type = type; this.ex = ex; this.dg = dg;
   }
   override {
     string getInfo() { return info; }
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { dg(ex, af); }
+    void emitLLVM(LLVMFile lf) { dg(ex, lf); }
     string toString() { return Format("callback<"[], ex, ">"[]); }
     mixin defaultIterate!(ex);
   }
@@ -332,9 +339,32 @@ class CallbackExpr : Expr, HasInfo {
 }
 
 interface ScopeLike {
-  int framesize();
+  Stuple!(IType, string)[] stackframe();
   Statement[] getGuards();
   int[] getGuardOffsets();
+}
+
+int framelength2(ScopeLike sl) {
+  return sl.stackframe().length;
+}
+
+string frametype2(ScopeLike sl) {
+  string type;
+  foreach (entry; sl.stackframe()) {
+    if (type) type ~= ", ";
+    type ~= typeToLLVM(entry._0);
+  }
+  return qformat("{", type, "}");
+}
+
+string lltypesize(string type) {
+  if (type.endsWith("}") || type.startsWith("%")) return qformat("ptrtoint(", type, "* getelementptr(", type, "* null, i32 1) to i32)");
+  logln("llsize(", type, ")");
+  fail;
+}
+
+string lloffset(string type, string type2, int offs) {
+  return readllex(qformat("ptrtoint(", type2, "* getelementptr(", type, "* null, i32 0, i32 ", offs, ") to i32)"));
 }
 
 template DefaultScopeLikeGuards() {
@@ -415,20 +445,20 @@ template StatementAndT(T) {
       string toString() { return Format(NAME, " "[], marker, "{"[], first, second, "}"[]); }
       StatementAndT dup() { return fastalloc!(StatementAndT)(first.dup, fastcast!(T) (second.dup)); }
       IType valueType() { return second.valueType(); }
-      void emitAsm(AsmFile af) {
+      void emitLLVM(LLVMFile lf) {
         sae_debugme(this, marker);
-        if (check) first.emitAsm(af);
-        second.emitAsm(af);
+        if (check) first.emitLLVM(lf);
+        second.emitLLVM(lf);
       }
-      static if (is(T: LValue)) void emitLocation(AsmFile af) {
+      static if (is(T: LValue)) void emitLocation(LLVMFile lf) {
         sae_debugme(this, marker);
-        if (check) first.emitAsm(af);
-        fastcast!(T) (second).emitLocation(af);
+        if (check) first.emitLLVM(lf);
+        fastcast!(T) (second).emitLocation(lf);
       }
-      static if (is(T: MValue)) void emitAssignment(AsmFile af) {
+      static if (is(T: MValue)) void emitAssignment(LLVMFile lf) {
         sae_debugme(this, marker);
-        if (check) first.emitAsm(af);
-        fastcast!(T) (second).emitAssignment(af);
+        if (check) first.emitLLVM(lf);
+        fastcast!(T) (second).emitAssignment(lf);
       }
     }
   }
@@ -468,7 +498,7 @@ class PlaceholderToken : Expr, HasInfo {
   mixin defaultIterate!();
   override {
     IType valueType() { return type; }
-    void emitAsm(AsmFile af) { logln("DIAF "[], info, " of "[], type); fail; assert(false); }
+    void emitLLVM(LLVMFile lf) { logln("DIAF "[], info, " of "[], type); fail; assert(false); }
     string toString() { return Format("PlaceholderToken("[], info, ")"[]); }
     string getInfo() { return info; }
   }
@@ -477,15 +507,13 @@ class PlaceholderToken : Expr, HasInfo {
 class PlaceholderTokenLV : PlaceholderToken, LValue {
   PlaceholderTokenLV dup() { return this; }
   this(IType type, string info) { super(type, info); }
-  override void emitLocation(AsmFile af) { assert(false); }
+  override void emitLocation(LLVMFile lf) { assert(false); }
   override string toString() { return Format("PlaceholderLV("[], info, ")"[]); }
 }
 
 interface ForceAlignment {
   int alignment(); // return 0 if don't need special alignment after all
 }
-
-extern(C) int align_boffs(IType t, int curdepth = -1);
 
 int delegate(IType)[] alignChecks;
 
@@ -509,26 +537,10 @@ int needsAlignment(IType it) {
   it = resolveType(it);
   if (auto fa = fastcast!(ForceAlignment) (it))
     if (auto res = fa.alignment()) return store(res);
-  if (it.size > limit) return store(limit);
-  else return store(it.size);
-}
-
-void doAlign(ref int offset, IType type) {
-  int to = needsAlignment(type);
-  if (!to) return; // what. 
-  offset = roundTo(offset, to);
-}
-
-int getFillerFor(IType t, int depth) {
-  if (Single!(Void) == t) return 0;
-  auto nd = -align_boffs(t, depth) - t.size;
-  return nd - depth;
-}
-
-int alignStackFor(IType t, AsmFile af) {
-  auto delta = getFillerFor(t, af.currentStackDepth);
-  af.salloc(delta);
-  return delta;
+  todo(qformat("needsAlignment(", it, ")"));
+  return 0;
+  // if (it.size > limit) return store(limit);
+  // else return store(it.size);
 }
 
 version(Windows) { }
@@ -578,7 +590,7 @@ template logSmart(bool Mode) {
   }
 }
 
-extern(C) void _line_numbered_statement_emitAsm(LineNumberedStatement, AsmFile);
+extern(C) void _line_numbered_statement_emitLLVM(LineNumberedStatement, LLVMFile);
 
 interface LineNumberedStatement : Statement {
 	LineNumberedStatement dup();
@@ -597,8 +609,8 @@ class LineNumberedStatementClass : LineNumberedStatement {
     line = pos._0;
     name = pos._2;
   }
-  override void emitAsm(AsmFile af) {
-    _line_numbered_statement_emitAsm(this, af);
+  override void emitLLVM(LLVMFile lf) {
+    _line_numbered_statement_emitLLVM(this, lf);
   }
 }
 
@@ -634,7 +646,6 @@ IType forcedConvert(IType it) {
 
 Object[string] internals; // parsed for in ast.intrinsic
 
-import tools.base: Stuple;
 TLS!(Stuple!(string, IType)) templInstOverride;
 static this() { New(templInstOverride); }
 
@@ -646,7 +657,7 @@ TLS!(bool) lenient;
 static this() { New(lenient); }
 
 interface Dependency {
-  void emitDependency(AsmFile af);
+  void emitDependency(LLVMFile lf);
 }
 
 extern(C) int atoi(char*);
@@ -660,82 +671,15 @@ class NamedNull : NoOp, Named, SelfAdding {
   override bool addsSelf() { return true; }
 }
 
-void armpush(AsmFile af, string base, int size, int offset = 0) {
-  if (size == 1) {
-    af.mmove1(qformat("["[], base, "[], #"[], offset, "]"[]), "r0"[]);
-    af.salloc(1);
-    af.mmove1("r0"[], "[sp]"[]); // full stack
-    return;
-  }
-  if (size == 2) {
-    af.mmove2(qformat("["[], base, "[], #"[], offset, "]"[]), "r0"[]);
-    af.salloc(2);
-    af.mmove2("r0"[], "[sp]"[]); // full stack
-    return;
-  }
-  if (size % 4 || !size) { logln("!! "[], size); fail; }
-  for (int i = size / 4 - 1; i >= 0; --i) {
-    af.mmove4(qformat("["[], base, "[], #"[], offset + i * 4, "]"[]), "r0"[]);
-    af.pushStack("r0"[], 4);
-  }
-}
-
-void armpop(AsmFile af, string base, int size, int offset = 0) {
-  if (base == "r0"[]) { logln("bad register use"[]); fail; }
-  if (size == 1) {
-    af.mmove1("[sp]"[], "r0"[]);
-    af.sfree(1);
-    af.mmove1("r0"[], qformat("["[], base, "[], #"[], offset, "]"[]));
-    return;
-  }
-  if (size == 2) {
-    af.mmove2("[sp]"[], "r0"[]);
-    af.sfree(2);
-    af.mmove2("r0"[], qformat("["[], base, "[], #"[], offset, "]"[]));
-    return;
-  }
-  if (size % 4 || !size) { logln("!! "[], size); fail; }
-  for (int i = 0; i < size / 4; ++i) {
-    af.popStack("r0"[], 4);
-    af.mmove4("r0"[], qformat("["[], base, "[], #"[], offset + i * 4, "]"[]));
-  }
-}
-extern(C) void printThing(AsmFile af, string s, Expr ex);
+extern(C) void printThing(LLVMFile lf, string s, Expr ex);
+extern(C) string[] structDecompose(string str);
 
 class VoidExpr : Expr {
   override {
     mixin defaultIterate!();
     VoidExpr dup() { return this; }
     IType valueType() { return Single!(Void); }
-    void emitAsm(AsmFile af) { }
-  }
-}
-
-class OffsetExpr : LValue {
-  int offset;
-  IType type;
-  this(int o, IType i) { offset = o; type = i; }
-  mixin defaultIterate!();
-  override {
-    string toString() {
-      if (offset == int.max)
-        return Format("open offset<"[], type, ">"[]);
-      return Format("offset<"[], type, "> at "[], offset);
-    }
-    OffsetExpr dup() { return this; } // can't dup, is a marker
-    IType valueType() { return type; }
-    void emitAsm(AsmFile af) {
-      if (offset == int.max) fail;
-      if (isARM) {
-        armpush(af, "fp"[], type.size, offset);
-      } else {
-        af.pushStack(qformat(offset, "(%ebp)"[]), type.size);
-      }
-    }
-    void emitLocation(AsmFile af) {
-      af.loadOffsetAddress(af.stackbase, offset, af.regs[0]);
-      af.pushStack(af.regs[0], 4);
-    }
+    void emitLLVM(LLVMFile lf) { push(lf, "void"); }
   }
 }
 
@@ -797,12 +741,14 @@ Expr buildFunCall(Object obj, Expr arg, string info) {
 }
 
 // for internal structs, to avoid the need to know the return type upfront
+// TODO check if this still needed
 class NoNoDontReturnInMemoryWrapper : Type {
   IType sup;
   this(IType sup) { this.sup = sup; }
   override {
     string mangle() { return "dontreturninmemory_"~sup.mangle(); }
-    int size() { return sup.size(); }
+    string llvmSize() { return sup.llvmSize(); }
+    string llvmType() { return sup.llvmType(); }
     bool returnsInMemory() { return false; }
   }
 }
@@ -824,9 +770,232 @@ interface RangeIsh {
   Expr getEnd(Expr base);
 }
 
+interface StructLike : Named {
+  bool immutableNow();
+  bool isPacked();
+  int numMembers();
+}
+
 static this() {
   alignChecks ~= (IType it) {
     if (isWindoze() && Single!(Double) == resolveType(it)) return 8;
     return 0;
   };
+}
+
+int llval_count;
+class LLVMValue : Expr {
+  string str;
+  IType type;
+  int count;
+  this(string s, IType type = null) {
+    str = s;
+    if (!type) type = Single!(SysInt);
+    this.type = type;
+    this.count = llval_count++;
+    // if (count == 5961) fail;
+  }
+  mixin defaultIterate!();
+  override {
+    string toString() { return qformat("ll(", str, ")"); }
+    LLVMValue dup() { return this; }
+    IType valueType() { return type; }
+    void emitLLVM(LLVMFile lf) {
+      if (!str) {
+        logln("llval(", count, ") of ", type, " not initialized");
+        fail;
+      }
+      lf.push(str);
+    }
+  }
+}
+
+class ZeroInitializer : Expr {
+  IType type;
+  this(IType type) { this.type = type; }
+  mixin defaultIterate!();
+  override {
+    string toString() { return "{0}"; }
+    ZeroInitializer dup() { return fastalloc!(ZeroInitializer)(type); }
+    IType valueType() { return type; }
+    void emitLLVM(LLVMFile lf) {
+      push(lf, " zeroinitializer");
+    }
+  }
+}
+
+int lr_count;
+class LLVMRef : LValue {
+  string location;
+  IType type;
+  int count;
+  int state;
+  this() {
+    count = lr_count ++;
+    // if (count == 124) fail;
+  }
+  this(IType it) { this(); type = it; }
+  mixin defaultIterate!();
+  void allocate(LLVMFile lf) {
+    if (location) fail;
+    if (state != 0) fail;
+    state = 1;
+    
+    if (Single!(Void) == type) return;
+    location = alloca(lf, "1", typeToLLVM(type));
+  }
+  void begin(LLVMFile lf) {
+    if (state != 1) fail;
+    state = 2;
+    
+    if (Single!(Void) == type) return;
+    if (!location) fail;
+    auto i8loc = bitcastptr(lf, typeToLLVM(type), "i8", location);
+    if (once(lf, "intrinsic llvm.lifetime.start"))
+      lf.decls["llvm.lifetime.start"] = "declare void @llvm.lifetime.start(i64, i8* nocapture)";
+    put(lf, "call void @llvm.lifetime.start(i64 ", type.llvmSize(), ", i8* ", i8loc, ")");
+  }
+  void end(LLVMFile lf) {
+    if (state != 2) fail;
+    state = 3;
+    
+    if (Single!(Void) == type) return;
+    if (!location) fail;
+    auto i8loc = bitcastptr(lf, typeToLLVM(type), "i8", location);
+    if (once(lf, "intrinsic llvm.lifetime.end"))
+      lf.decls["llvm.lifetime.end"] = "declare void @llvm.lifetime.end(i64, i8* nocapture)";
+    put(lf, "call void @llvm.lifetime.end(i64 ", type.llvmSize(), ", i8* ", i8loc, ")");
+  }
+  override {
+    string toString() { return qformat("llref(", type, ")"); }
+    LLVMRef dup() { return this; }
+    IType valueType() { if (!type) fail; return type; }
+    void emitLLVM(LLVMFile lf) {
+      if (!location) fail;
+      if (state != 2) fail;
+      load(lf, "load ", typeToLLVM(type), "* ", location);
+    }
+    void emitLocation(LLVMFile lf) {
+      if (!location) fail;
+      if (state != 2) fail;
+      push(lf, location);
+    }
+  }
+}
+
+extern(C) Expr llvmvalstr(string s);
+
+Expr llvmval(T...)(T t) {
+  return llvmvalstr(qformat(t));
+}
+
+bool isnum(string s, out int i) {
+  auto var = s.my_atoi();
+  if (qformat(var) == s) {
+    i = var;
+    return true;
+  }
+  return false;
+}
+
+string lladd(string a, string b) {
+  int k, l;
+  if (isnum(a, k) && isnum(b, l)) return qformat(k+l);
+  return qformat("add (i32 ", a, ", i32 ", b, ")");
+}
+string llsub(string a, string b) {
+  int k, l;
+  if (isnum(a, k) && isnum(b, l)) return qformat(k-l);
+  return qformat("sub (i32 ", a, ", i32 ", b, ")");
+}
+string llmul(string a, string b) {
+  int k, l;
+  if (isnum(a, k) && isnum(b, l)) return qformat(k*l);
+  return qformat("mul (i32 ", a, ", i32 ", b, ")");
+}
+string lldiv(string a, string b) {
+  int k, l;
+  if (isnum(a, k) && isnum(b, l)) return qformat(k/l);
+  return qformat("div (i32 ", a, ", i32 ", b, ")");
+}
+bool llmax_decompose_first(string s, out int i, out string k) {
+  if (auto rest = s.startsWith("select(i1 icmp sgt(i32 ")) {
+    auto num = rest.slice(" ").my_atoi();
+    auto reconstruct_a = qformat(num);
+    auto start = qformat("select(i1 icmp sgt(i32 ", reconstruct_a, ", i32 ");
+    if (auto rest2 = s.startsWith(start)) {
+      auto twoblength = s.length - start.length - "), i32 ".length - reconstruct_a.length - ", i32 ".length - ")".length;
+      auto blength = twoblength / 2;
+      auto b = rest2[0..blength];
+      if (s == qformat(start, b, "), i32 ", reconstruct_a, ", i32 ", b, ")")) {
+        i = num;
+        k = b;
+        return true;
+      } else {
+        logln("bad reconstruct: ", s, " TO ", b);
+        fail;
+      }
+    }
+  }
+  return false;
+}
+bool is_structsize(string s, out string res) {
+  if (auto rest = s.startsWith("i32 ptrtoint(")) {
+    auto r2len = rest.length - "* getelementptr(".length - "* null, i32 1) to i32)".length;
+    auto rlen = r2len / 2;
+    auto r = rest[0..rlen];
+    if (s == qformat("i32 ptrtoint(", r, "* getelementptr(", r, "* null, i32 1) to i32)")) {
+      res = r;
+      return true;
+    } else {
+      logln("bad reconstruct: ", s, " to ", r);
+      fail;
+    }
+  }
+  return false;
+}
+string llmax(string a, string b) {
+  if (a == b) return a;
+  int k, l; string k2, l2;
+  if (isnum(a, k) && isnum(b, l)) return qformat((k>l)?k:l);
+  if (!isnum(a, k) && isnum(b, l)) { auto temp = a; a = b; b = temp; }
+  if (isnum(a, k) && k <= 4 && b.find("i32") != -1) return b; // HAAAAAAAAAAX
+  if (is_structsize(a, k2) && is_structsize(b, l2)) {
+    if (k2.startsWith(l2)) return k2;
+    if (l2.startsWith(k2)) return l2;
+  }
+  if (llmax_decompose_first(b, l, l2)) {
+    if (isnum(a, k)) {
+      return llmax(qformat((k>l)?k:l), l2);
+    } else {
+      return llmax(qformat(l), a, l2);
+    }
+  }
+  /*if (isnum(a, k) || isnum(b, l)) {
+    logln("llmax(", a, ", ", b, ")");
+  }*/
+  auto expr = qformat("select(i1 icmp sgt(i32 ", a, ", i32 ", b, "), i32 ", a, ", i32 ", b, ")");
+  if (expr.length < 512) return expr;
+  return readllex(expr);
+}
+string llmax(string a, string b, string c) { return llmax(a, llmax(b, c)); }
+
+string llAlign(string a, IType it) {
+  auto sz = it.llvmSize();
+  return llmul(lldiv(lladd(a, llsub(sz, "1")), sz), sz);
+}
+
+// for unruly identifiers
+string refcompress(string s) {
+  string res;
+  int[string] seen;
+  void add(string s) { if (res) res ~= "_"; res ~= s; }
+  foreach (i, part; s.split("_")) {
+    if (auto prev = part in seen) {
+      auto d = i - *prev;
+      add(qformat("b", d));
+    } else add(part);
+    seen[part] = i;
+  }
+  return res;
 }

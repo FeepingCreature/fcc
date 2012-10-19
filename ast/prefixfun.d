@@ -1,6 +1,6 @@
 module ast.prefixfun;
 
-import ast.fun, ast.base, ast.namespace, ast.tuples;
+import ast.fun, ast.base, ast.namespace, ast.tuples, ast.structure;
 
 // basically this code is massively unstable and probably a wellspring of bugs
 // but it works for now.
@@ -31,8 +31,10 @@ class PrefixFunction : Function {
     // Expr getPointer() { logln("Can't get pointer to prefix-extended function! "[]); assert(false); }
     Expr getPointer() { return supfun.getPointer(); }
     string toString() { return Format("prefix "[], prefix, " to "[], super.toString()); }
-    Argument[] getParams() {
-      auto res = supfun.getParams();
+    Argument[] getParams(bool implicits) {
+      if (implicits) return supfun.getParams(true);
+      
+      auto res = supfun.getParams(false);
       if (res.length > 1) return fixupArgs(res[1..$]);
       
       auto tup = fastcast!(Tuple) (res[0].type);
@@ -67,9 +69,8 @@ class PrefixFunction : Function {
     PrefixCall mkCall() { return fastalloc!(PrefixCall)(this, prefix, supfun.mkCall()); }
     int fixup() { assert(false); } // this better be extern(C)
     string exit() { assert(false); }
-    int framestart() { assert(false); }
-    void emitAsm(AsmFile af) { assert(false); }
-    Stuple!(IType, string, int)[] stackframe() { assert(false); }
+    void emitLLVM(LLVMFile lf) { assert(false); }
+    Stuple!(IType, string)[] stackframe() { assert(false); }
     Object lookup(string name, bool local = false) { assert(false); }
   }
 }
@@ -94,8 +95,21 @@ class PrefixCall : FunCall {
     sup.iterate(dg, mode);
     super.iterate(dg, mode);
   }
-  override void emitWithArgs(AsmFile af, Expr[] args) {
-    sup.emitWithArgs(af, prefix ~ args);
+  override void emitWithArgs(LLVMFile lf, Expr[] args) {
+    auto res = fun.getParams(true);
+    // Argument[] tlsptr;
+    if (res.length && res[$-1].name == tlsbase) {
+      // tlsptr = res[$-1..$];
+      res = res[0..$-1];
+    }
+    if (res.length > 1) { sup.emitWithArgs(lf, prefix~args); return; }
+    
+    if (!res.length) fail;
+    auto tup = fastcast!(Tuple) (res[0].type);
+    if (!tup) { sup.emitWithArgs(lf, prefix~args); return; }
+    auto nargs = new Expr[1];
+    nargs[0] = mkTupleExpr(prefix~args);
+    sup.emitWithArgs(lf, nargs);
   }
   override string toString() { return Format("prefixcall("[], fun, " [prefix] "[], prefix, " [rest] "[], sup, ": "[], super.getParams(), ")"[]); }
   override IType valueType() { return sup.valueType(); }

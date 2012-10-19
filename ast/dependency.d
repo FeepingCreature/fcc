@@ -45,7 +45,7 @@ class CodeDependency : Expr, Named {
   override {
     string getIdentifier() { return get_id(info); }
     IType valueType() { return Single!(Void); }
-    void emitAsm(AsmFile af) { assert(false); }
+    void emitLLVM(LLVMFile lf) { assert(false); }
     CodeDependency dup() { return this; }
   }
 }

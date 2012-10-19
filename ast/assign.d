@@ -19,6 +19,7 @@ class _Assignment(T) : LineNumberedStatementClass {
       logln(" of "[], t.valueType());
       logln(" <- "[], e.valueType());
       breakpoint();
+      asm { int 3; }
       throw new Exception("Assignment type mismatch! "[]);
     }
     target = t;
@@ -28,69 +29,17 @@ class _Assignment(T) : LineNumberedStatementClass {
   mixin DefaultDup!();
   mixin defaultIterate!(target, value);
   override string toString() { return Format(target, " := "[], value, "; "[]); }
-  override void emitAsm(AsmFile af) {
-    super.emitAsm(af);
-    if (!isARM && value.valueType().size % 4 == 0) {
-      static if (is(T: LValue)) {
-        if (auto srclv = fastcast!(LValue) (value)) {
-          mixin(mustOffset("0"[]));
-          target.emitLocation(af);
-          srclv.emitLocation(af);
-          af.popStack("%eax"[], nativePtrSize);
-          af.popStack("%ecx"[], nativePtrSize);
-          // ebx = src, ecx = target
-          auto sz = value.valueType().size;
-          for (int i = 0; i < sz / 4; ++i) {
-            af.mmove4(qformat(i*4, "(%eax)"[]), "%ebx"[]);
-            af.mmove4("%ebx"[], qformat(i*4, "(%ecx)"[]));
-            af.nvm("%ebx"[]);
-          }
-          return;
-        }
-      }
-    }
-    if (blind) {
-      value.emitAsm(af);
-      static if (is(T: MValue))
-        target.emitAssignment(af);
-      else {
-        target.emitLocation(af);
-        if (isARM) {
-          af.popStack("r2"[], 4);
-          armpop(af, "r2"[], value.valueType().size);
-        } else {
-          af.popStack("%edx"[], nativePtrSize);
-          af.popStack("(%edx)"[], value.valueType().size);
-          af.nvm("%edx"[]);
-        }
-      }
+  override void emitLLVM(LLVMFile lf) {
+    super.emitLLVM(lf);
+    
+    push(lf, save(lf, value));
+    static if (is(T: MValue)) {
+      target.emitAssignment(lf);
     } else {
-      mixin(mustOffset("0"[]));
-      int filler;
-      auto vt = value.valueType();
-      {
-        filler = alignStackFor(vt, af);
-        mixin(mustOffset("vt.size"[]));
-        value.emitAsm(af);
-      }
-      static if (is(T: MValue)) {{ // Double-brackets. Trust me.
-        mixin(mustOffset("-vt.size"[]));
-        target.emitAssignment(af);
-      }} else {
-        {
-          mixin(mustOffset("nativePtrSize"[]));
-          target.emitLocation(af);
-        }
-        if (isARM) {
-          af.popStack("r2"[], 4);
-          armpop(af, "r2"[], vt.size);
-        } else {
-          af.popStack("%edx"[], nativePtrSize);
-          af.popStack("(%edx)"[], vt.size);
-          af.nvm("%edx"[]);
-        }
-      }
-      af.sfree(filler);
+      target.emitLocation(lf);
+      auto dest = lf.pop(), src = lf.pop();
+      if (value.valueType().llvmSize() != "0")
+        put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
     }
   }
 }
@@ -179,7 +128,7 @@ Statement mkAssignment(Expr to, Expr from) {
   fail;
 }
 
-void emitAssign(AsmFile af, LValue target, Expr source, bool force = false, bool blind = false) {
+void emitAssign(LLVMFile lf, LValue target, Expr source, bool force = false, bool blind = false) {
   scope as = new Assignment(target, source, force, blind);
-  as.emitAsm(af);
+  as.emitLLVM(lf);
 }

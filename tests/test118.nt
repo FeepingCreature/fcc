@@ -3,6 +3,8 @@ module test118;
 alias NestDg = as_type(x) void delegate(int delegate(x));
 
 int testfun(NestDg dg) {
+  printf("hi %p", _threadlocal);
+  writeln "testfun($dg)";
   int test2(NestDg dg) { return 4; }
   dg(&test2);
   dg(&test2);

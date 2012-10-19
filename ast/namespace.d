@@ -1,6 +1,7 @@
 module ast.namespace;
 
 import ast.base;
+import tools.base, tools.functional;
 
 T aadup(T)(T t) {
   T res;
@@ -192,9 +193,13 @@ class Namespace {
           }
           bool found;
           foreach (ref entry; field) {
-            if (entry._1 is thing) {
-              assert(entry._0 == name);
+            // check name too, because we might have added that thing before via alias
+            if (entry._1 is thing && entry._0 == name) {
               entry._1 = fastcast!(Object) (et.extend(eo));
+              if (!entry._1) {
+                logln("add failure: ", name, " and ", et);
+                fail;
+              }
               found = true;
               break;
             }
@@ -253,7 +258,10 @@ class Namespace {
     _add(name, fastcast!(Object)~ n);
   }
   typeof(field) getCheckpt() { return field; }
-  void setCheckpt(typeof(field) field) { this.field = field.dup; rebuildCache(); /* prevent clobbering */ }
+  void setCheckpt(typeof(field) field) {
+    this.field = field.dup;
+    rebuildCache(); /* prevent clobbering */
+  }
   Object lookupInField(string name) {
     if (field.length > cachepoint) {
       if (auto p = name in field_cache) return *p;
@@ -278,12 +286,22 @@ class Namespace {
     return null;
   }
   abstract string mangle(string name, IType type);
-  abstract Stuple!(IType, string, int)[] stackframe();
+}
+
+void nsfix(Tree tr, Namespace from, Namespace to) {
+  if (auto ns = fastcast!(Namespace)(tr))
+    if (ns.sup is from) ns.sup = to;
+  
+  void iter(ref Iterable it) {
+    if (auto ns = fastcast!(Namespace)(it))
+      if (ns.sup is from) ns.sup = to;
+    it.iterate(&iter);
+  }
+  tr.iterate(&iter);
 }
 
 class NoNameSpace : Namespace {
   override string mangle(string name, IType type) { assert(false); }
-  override Stuple!(IType, string, int)[] stackframe() { assert(false); }
 }
 
 interface RelNamespace {
@@ -312,37 +330,26 @@ interface ExprLikeThingy { }
 
 extern(C) Namespace __getSysmod();
 
+extern(C) Stuple!(IType, string)[] _mns_stackframe(Namespace sup, typeof(Namespace.field));
+
 class MiniNamespace : Namespace, ScopeLike, Named {
   string id;
   this(string id) { this.id = id; }
   bool internalMode;
-  int fs = -1, fs2;
   override {
     string getIdentifier() { return id; }
     string mangle(string name, IType type) {
       if (type) return id~"_"~name~"_of_"~type.mangle();
       else return id~"_"~name;
     }
-    Stuple!(IType, string, int)[] stackframe() {
-      assert(false); // wtfux.
+    Stuple!(IType, string)[] stackframe() {
+      return _mns_stackframe(sup, field);
     }
     mixin DefaultScopeLikeGuards!();
-    string toString() { return qformat("mini[", id, "](", framesize(), ") <- ", sup); }
+    string toString() { return qformat("mini[", id, "](", stackframe().length, ") <- ", sup); }
     void _add(string name, Object obj) {
       if (sup && !internalMode) sup._add(name, obj);
       else super.__add(name, obj);
-    }
-    int framesize() {
-      if (fs != -1) return fs;
-      if (auto sl = fastcast!(ScopeLike)~ sup) {
-        auto supsz = sl.framesize();
-        if (supsz == -1) return -1;
-        if (fs2) return fs2 + supsz;
-        else return supsz;
-      } else {
-        return -1;
-        // throw new Exception(Format("No metric for framesize of "[], id, ": sup is "[], sup, "."[]));
-      }
     }
     Object lookup(string name, bool local = false) {
       auto res = super.lookup(name, local);
@@ -367,7 +374,7 @@ template iparse(R, string id, string rule, bool mustParse = true, bool optres = 
     scope(exit) bench[id] += sec() - start;
     auto popCache = pushCache(); scope(exit) popCache();
     
-    static if (is(T[$-1] == AsmFile)) alias T[0 .. $-1] T2;
+    static if (is(T[$-1] == LLVMFile)) alias T[0 .. $-1] T2;
     else alias T T2;
     
     static if (T2.length && is(T2[0]: Namespace)) alias T2[1 .. $] T3;
@@ -392,7 +399,8 @@ template iparse(R, string id, string rule, bool mustParse = true, bool optres = 
         allInternal = _t[1];
         auto t = _t[2 .. $];
       } else static if (T2.length > 1 && is(T2[1]: int)) {
-        myns.fs2 = _t[1];
+        todo("fs2 unsupport");
+        // myns.fs2 = _t[1];
         auto t = _t[2 .. $];
       } else {
         auto t = _t[1 .. $];
@@ -408,8 +416,10 @@ template iparse(R, string id, string rule, bool mustParse = true, bool optres = 
       myns.add(t[i*2], t[i*2+1]);
     }
     
-    static if (is(T[$-1] == AsmFile)) {
-      myns.fs = t[$-1].currentStackDepth;
+    static if (is(T[$-1] == LLVMFile)) {
+      static assert(false, "TODO: LLVMFile");
+      todo("fs set");
+      // myns.fs = t[$-1].currentStackDepth;
     }
     
     myns.internalMode = allInternal;
@@ -456,11 +466,10 @@ class LengthOverride : Namespace, ScopeLike {
   Expr len;
   this(Namespace sup, Expr ex) { this.sup = sup; len = ex; }
   override {
-    int framesize() { return sup.get!(ScopeLike).framesize(); }
     Statement[] getGuards() { return sup.get!(ScopeLike).getGuards(); }
     int[] getGuardOffsets() { return sup.get!(ScopeLike).getGuardOffsets(); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
-    Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
+    Stuple!(IType, string)[] stackframe() { return sup.get!(ScopeLike).stackframe(); }
     string toString() { return Format("[$ = "[], len, "] <- "[], sup); }
     Object lookup(string name, bool local = false) {
       if (name == "$"[]) return fastcast!(Object)~ len;
@@ -537,7 +546,7 @@ template ImporterImpl(alias parseme = noop) {
     
     foreach (ns; static_imports) if (auto imod = fastcast!(IModule) (ns)) {
       static if (debug_lookup) logln("2: "[], name, " in "[], ns, "?"[]);
-      if (auto lname = name.startsWith(imod.getIdentifier()).startsWith("."[])) {
+      if (auto lname = parseBase.startsWith(parseBase.startsWith(name, imod.getIdentifier()), ".")) {
         if (auto res = ns.lookup(lname)) return res;
       }
     }
@@ -577,4 +586,23 @@ interface ISafeSpaceTag { }
 extern(C) bool C_showsAnySignOfHaving(Expr ex, string thing);
 bool showsAnySignOfHaving(Expr ex, string thing) {
   return C_showsAnySignOfHaving(ex, thing);
+}
+
+int framelength() {
+  return framelength2(namespace().get!(ScopeLike));
+}
+
+string frametype() {
+  return frametype2(namespace().get!(ScopeLike));
+}
+
+string frametypePlus(IType it) {
+  string type;
+  foreach (entry; namespace().get!(ScopeLike).stackframe()) {
+    if (type) type ~= ", ";
+    type ~= typeToLLVM(entry._0);
+  }
+  if (type) type ~= ", ";
+  type ~= typeToLLVM(it);
+  return qformat("{", type, "}");
 }

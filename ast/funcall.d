@@ -13,7 +13,7 @@ class NamedArg : Expr {
     IType valueType() { return base.valueType(); }
     NamedArg dup() { return fastalloc!(NamedArg)(name, reltext, base.dup); }
     mixin defaultIterate!(base);
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       reltext.failparse("Named argument ", name, " could not be assigned to a function call! ");
     }
   }
@@ -51,6 +51,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   Expr[string] nameds;
   bool changed;
   void removeNameds(ref Iterable it) {
+    // logln("removeNameds <", fastcast!(Object)(it).classinfo.name, " ", it, ">");
     if (fastcast!(Variable) (it)) return;
     if (auto ex = fastcast!(Expr)~ it) {
       auto tup = fastcast!(AstTuple) (ex.valueType());
@@ -249,7 +250,6 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   }
   foreach (arg2; args) recurse(arg2);
   if (flat.length) {
-    // logln("flattened to ", flat);
     // text.failparse("Extraneous parameters to '", info(), "' of ", params, ": ", args);
     text.setError("Extraneous parameters to '"[], info(), "' of "[], params, ": "[], args);
     return false;
@@ -319,10 +319,13 @@ bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseC
 
 extern(C) Expr _buildFunCall(Object obj, Expr arg, string info) {
   auto fun = fastcast!(Function) (obj);
-  if (!fun) fail;
+  if (!fun) {
+    logln("you want me to call a ", obj, "?");
+    fail;
+  }
   auto fc = fun.mkCall();
   Statement[] inits;
-  if (!matchedCallWith(arg, fun.getParams(), fc.params, inits, info))
+  if (!matchedCallWith(arg, fun.getParams(false), fc.params, inits, info))
     return null;
   if (!inits.length) return fc;
   else if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
@@ -345,16 +348,16 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       bool precise = true;
       retry_match:
       Function[] candidates;
-      typeof(fun.getParams())[] parsets, candsets;
+      typeof(fun.getParams(false))[] parsets, candsets;
       foreach (osfun; os.funs) {
         auto t3 = t2;
         Statement[] inits;
         // logln(t3.nextText(), ": consider ", osfun);
-        if (matchCall(t3, osfun.name, osfun.getParams(), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall)) {
+        if (matchCall(t3, osfun.name, osfun.getParams(false), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall)) {
           candidates ~= osfun;
-          candsets ~= osfun.getParams();
+          candsets ~= osfun.getParams(false);
         }
-        parsets ~= osfun.getParams();
+        parsets ~= osfun.getParams(false);
       }
       if (!candidates) {
         if (precise) { precise = false; goto retry_match; } // none _quite_ match ..
@@ -369,7 +372,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       fun = candidates[0];
     } else return null;
     auto fc = fun.mkCall();
-    auto params = fun.getParams();
+    auto params = fun.getParams(false);
     resetError();
     bool result;
     Statement[] inits;
@@ -405,9 +408,9 @@ class FpCall : Expr {
   this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(fp, params);
-  override void emitAsm(AsmFile af) {
+  override void emitLLVM(LLVMFile lf) {
     auto fntype = fastcast!(FunctionPointer)~ fp.valueType();
-    callFunction(af, fntype.ret, true, fntype.stdcall, params, fp);
+    callFunction(lf, fntype.ret, true, fntype.stdcall, params, fp);
   }
   override IType valueType() {
     return (fastcast!(FunctionPointer)~ fp.valueType()).ret;
@@ -445,9 +448,9 @@ class DgCall : Expr {
   Expr[] params;
   mixin DefaultDup!();
   mixin defaultIterate!(dg, params);
-  override void emitAsm(AsmFile af) {
+  override void emitLLVM(LLVMFile lf) {
     auto dgtype = fastcast!(Delegate) (resolveType(dg.valueType()));
-    callDg(af, dgtype.ret, params, dg);
+    callDg(lf, dgtype.ret, params, dg);
   }
   override IType valueType() {
     return (fastcast!(Delegate) (resolveType(dg.valueType()))).ret;
@@ -457,16 +460,13 @@ class DgCall : Expr {
   }
 }
 
-HintType!(Delegate) anyDelegateTypeHint;
-
 Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
     if (t2.cantBeCall()) return null;
     
     Delegate dgtype;
-    if (!anyDelegateTypeHint) New(anyDelegateTypeHint);
-    if (!gotImplicitCast(ex, anyDelegateTypeHint, (IType it) { dgtype = fastcast!(Delegate) (it); return !!dgtype; }))
+    if (!gotImplicitCast(ex, Single!(HintType!(Delegate)), (IType it) { dgtype = fastcast!(Delegate) (it); return !!dgtype; }))
       return null;
     
     auto dc = new DgCall;
@@ -481,7 +481,7 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     return fastcast!(Object) (res);
   };
 }
-mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall");
+mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.fpz_dgcall"); // put this after fpcall
 
 import ast.literal_string, ast.modules;
 
@@ -512,10 +512,10 @@ static this() {
 }
 
 // helper for ast.fun
-extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name) {
+extern(C) void funcall_emit_fun_end_guard(LLVMFile lf, string name) {
   (fastalloc!(ExprStatement)(buildFunCall(
     sysmod.lookup("missed_return"),
     fastalloc!(StringExpr)(name),
     "missed return signal"
-  ))).emitAsm(af);
+  ))).emitLLVM(lf);
 }

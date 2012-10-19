@@ -15,64 +15,19 @@ void fixupMain() {
     namespace.set(cmain);
     
     sc.addStatement(fastalloc!(ReturnStmt)(fastalloc!(CallbackExpr)("main"[], Single!(SysInt), cast(Expr) null,
-    stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, AsmFile af) {
-      // set up first tls pointer
-      if (isARM) {
-        af.mmove4("=_sys_tls_data_start"[], "r4"[]);
-      } else {
-        af.mmove4("$_sys_tls_data_start"[], "%esi"[]);
-      }
-      if (af.currentStackDepth != 4 && !isARM) // scrap space for ReturnStmt
-        throw new Exception(Format("stack depth assumption violated ("[], af.currentStackDepth, ")"[]));
-      // time for MAGIC
-      int magic;
+    stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, LLVMFile lf) {
+      sc.add(tlsbase, fastalloc!(Symbol)("_sys_tls_data_start", Single!(Void)));
       Expr cvar, pvar;
       if (isWinMain) {
         cvar = mkInt(1); pvar = fastalloc!(RefExpr)(fastcast!(CValue) (sc.lookup("cmdline"[])));
       } else {
         cvar = fastcast!(Expr) (sc.lookup("argc"[])); pvar = fastcast!(Expr) (sc.lookup("argv"[]));
       }
-      if (isARM) {
-        buildFunCall(
-          fastcast!(Function) (sysmod.lookup("main2"[])),
-          mkTupleExpr(cvar, pvar),
-          "main2 aligned call"
-        ).emitAsm(af);
-      } else {
-        cvar.emitAsm(af);
-        pvar.emitAsm(af);
-        magic = isWinMain?4:4; // stack aligned -> call(<-4) -> push ebp
-        af.popStack("%eax"[], nativePtrSize);
-        af.popStack("%edx"[], 4);
-        af.mathOp("andl"[], "$-16"[], "%esp"[]); // This is where the magic happens,
-        af.salloc(magic); // magic constant align pretend-base to 16
-        af.pushStack("%ebp"[], nativePtrSize);
-        af.mmove4("%esp"[], "%ebp"[]);
-        af.pushStack("%edx"[], 4);
-        af.pushStack("%eax"[], nativePtrSize);
-        af.flush; // avoid problems when force changing the stack depth
-        af.currentStackDepth = nativePtrSize * 2;
-        auto ncvar = fastalloc!(DerefExpr)(lookupOp("-"[],
-          reinterpret_cast(Single!(Pointer, Single!(SysInt)), Single!(RegExpr, "%ebp"[])),
-          mkInt(1) // Pointer math!
-        ));
-        auto npvar = fastalloc!(DerefExpr)(lookupOp("-"[],
-          reinterpret_cast(Single!(Pointer, Single!(Pointer, Single!(Pointer, Single!(Char)))), Single!(RegExpr, "%ebp"[])),
-          mkInt(2)
-        ));
-        buildFunCall(
-          fastcast!(Function) (sysmod.lookup("main2"[])),
-          mkTupleExpr(ncvar, npvar),
-          "main2 aligned call"
-        ).emitAsm(af);
-        // undo the alignment
-        af.popStack("%eax"[], 4);
-        af.sfree(af.currentStackDepth);
-        af.popStack("%ebp"[], nativePtrSize);
-        af.mmove4("%ebp"[], "%esp"[]);
-        af.currentStackDepth = 4;
-        af.pushStack("%eax"[], 4); // return this
-      }
+      buildFunCall(
+        fastcast!(Function) (sysmod.lookup("main2"[])),
+        mkTupleExpr(cvar, pvar),
+        "main2 aligned call"
+      ).emitLLVM(lf);
     })));
   }
   auto backupmod = current_module();

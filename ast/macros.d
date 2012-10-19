@@ -11,7 +11,7 @@ import tools.base: This;
 class Swap : Statement {
   LValue lv1, lv2;
   MValue mv1, mv2;
-  int sz;
+  string sz;
   this(LValue lv1, LValue lv2) {
     this.lv1 = lv1;
     this.lv2 = lv2;
@@ -20,7 +20,7 @@ class Swap : Statement {
       logln("halt: swap(", lv1, ", ", lv2, ")");
       fail;
     }
-    sz = vt1.size;
+    sz = vt1.llvmSize();
   }
   this(MValue mv1, MValue mv2) {
     this.mv1 = mv1;
@@ -30,7 +30,7 @@ class Swap : Statement {
       logln("halt: swap(", mv1, ", ", mv2, ")");
       fail;
     }
-    sz = vt1.size;
+    sz = vt1.llvmSize();
   }
   mixin defaultIterate!(lv1, lv2, mv1, mv2);
   override {
@@ -38,41 +38,46 @@ class Swap : Statement {
       if (mv1) return fastalloc!(Swap)(mv1.dup, mv2.dup);
       else return fastalloc!(Swap)(lv1.dup, lv2.dup);
     }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       if (mv1) {
-        mv1.emitAsm(af);
-        mv2.emitAsm(af);
-        mv1.emitAssignment(af);
-        mv2.emitAssignment(af);
+        mv1.emitLLVM(lf);
+        mv2.emitLLVM(lf);
+        mv1.emitAssignment(lf);
+        mv2.emitAssignment(lf);
         return;
       }
-      lv1.emitLocation(af);
-      lv2.emitLocation(af);
-      af.popStack("%eax", 4);
-      af.popStack("%ebx", 4);
+      // TODO do better maybe
+      lv1.emitLLVM(lf);
+      lv2.emitLLVM(lf);
+      (fastalloc!(LValueAsMValue)(lv1)).emitAssignment(lf);
+      (fastalloc!(LValueAsMValue)(lv2)).emitAssignment(lf);
+      /*lv1.emitLocation(lf);
+      lv2.emitLocation(lf);
+      lf.popStack("%eax", 4);
+      lf.popStack("%ebx", 4);
       int sz = sz;
       int offs;
       if (sz % 4 == 0) {
         while (sz) {
-          af.mmove4(qformat(offs, "(%eax)"[]), "%ecx");
-          af.mmove4(qformat(offs, "(%ebx)"[]), "%edx");
-          af.mmove4("%ecx", qformat(offs, "(%ebx)"[]));
-          af.mmove4("%edx", qformat(offs, "(%eax)"[])); // faster than af.swap!
+          lf.mmove4(qformat(offs, "(%eax)"[]), "%ecx");
+          lf.mmove4(qformat(offs, "(%ebx)"[]), "%edx");
+          lf.mmove4("%ecx", qformat(offs, "(%ebx)"[]));
+          lf.mmove4("%edx", qformat(offs, "(%eax)"[])); // faster than lf.swap!
           offs += 4;
           sz -= 4;
         }
       } else {
         while (sz) {
-          af.mmove1(qformat(offs, "(%eax)"[]), "%cl");
-          af.mmove1(qformat(offs, "(%ebx)"[]), "%dl");
-          af.mmove1("%cl", qformat(offs, "(%ebx)"[]));
-          af.mmove1("%dl", qformat(offs, "(%eax)"[])); // faster than af.swap!
+          lf.mmove1(qformat(offs, "(%eax)"[]), "%cl");
+          lf.mmove1(qformat(offs, "(%ebx)"[]), "%dl");
+          lf.mmove1("%cl", qformat(offs, "(%ebx)"[]));
+          lf.mmove1("%dl", qformat(offs, "(%eax)"[])); // faster than lf.swap!
           offs ++;
           sz --;
         }
       }
-      af.nvm("%eax");
-      af.nvm("%ebx");
+      lf.nvm("%eax");
+      lf.nvm("%ebx");*/
     }
   }
 }
@@ -171,13 +176,11 @@ extern(C) void fcc_initTenth() {
     }
     auto ifs = new IfStatement;
     ifs.wrapper = new Scope;
-    ifs.wrapper.requiredDepthDebug ~= " (ast.macros:144)";
     ifs.test = cd;
     namespace.set(ifs.wrapper);
     
     auto branch1 = new Scope;
     ifs.branch1 = branch1;
-    branch1.requiredDepthDebug ~= " (ast.macros:150)";
     namespace.set(branch1);
     
     scope(exit) namespace.set(ifs.wrapper.sup);
@@ -297,7 +300,7 @@ extern(C) void fcc_initTenth() {
   rootctx.add("make-temporary", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'make-temporary': 1 expected");
     mixin(chaincast("ty: Arg for make-temporary: args[0]->TypeEntity: %.ty"));
-    auto var = fastalloc!(Variable)(ty, cast(string) null, boffs(ty));
+    auto var = fastalloc!(Variable)(ty, framelength(), cast(string) null);
     auto vd = fastalloc!(VarDecl)(var);
     auto sc = namespace().get!(Scope);
     sc.add(var);
@@ -363,8 +366,8 @@ extern(C) void fcc_initTenth() {
   }));
   rootctx.add("size-of", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'size-of': 1 expected (type)");
-    mixin(chaincast("ty: Arg to 'pointer-to': args[0]->TypeEntity: %.ty"));
-    return fastalloc!(Integer)(ty.size());
+    mixin(chaincast("ty: Arg to 'size-of': args[0]->TypeEntity: %.ty"));
+    return fastalloc!(ItrEntity)(llvmval(ty.llvmSize()));
   }));
   rootctx.add("make-add", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-add': 2 expected (expr, expr), not ", args);
@@ -392,7 +395,6 @@ extern(C) void fcc_initTenth() {
   rootctx.add("with-scope", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'with-scope': 1 expected");
     auto sc = new Scope;
-    sc.requiredDepthDebug ~= " (ast.macros:with-scope)";
     namespace.set(sc);
     scope(exit) namespace.set(sc.sup);
     auto thing = args[0].eval(ctx);

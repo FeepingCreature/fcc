@@ -41,16 +41,19 @@ class Property : MValue, RelTransformable {
         return getter.type.ret;
       }
     }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("valueType().size"[]));
+    void emitLLVM(LLVMFile lf) {
+      mixin(mustOffset("1"));
       if (Single!(Void) == getter.type.ret) {
-        mkVar(af, fastcast!(Pointer) (getter.type.params[0].type).target, false, (Variable var) {
-          // logln("::"[], buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(var)), "property-get-pointer-call"[]));
-          // logln(fastcast!(Object) (buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(var)), "property-get-pointer-call"[])).classinfo.name);
-          (buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(var)), "property-get-pointer-call"[])).emitAsm(af);
-        });
+        auto res = fastalloc!(LLVMRef)(valueType());
+        res.allocate(lf);
+        // logln("::"[], buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(res)), "property-get-pointer-call"[]));
+        // logln(fastcast!(Object) (buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(res)), "property-get-pointer-call"[])).classinfo.name);
+        res.begin(lf);
+        (buildFunCall(getter, mkTupleExpr(fastalloc!(RefExpr)(res)), "property-get-pointer-call"[])).emitLLVM(lf);
+        res.emitLLVM(lf);
+        res.end(lf);
       } else {
-        (buildFunCall(getter, mkTupleExpr(), "property-call"[])).emitAsm(af);
+        (buildFunCall(getter, mkTupleExpr(), "property-call"[])).emitLLVM(lf);
       }
     }
     Object transform(Expr ex) {
@@ -61,7 +64,7 @@ class Property : MValue, RelTransformable {
         ex = reinterpret_cast(ph.type, fastalloc!(RefExpr)(fastcast!(CValue) (ex))); // we're a data member, so we get the dereferenced version, but we need the reference version!
       }
       if (ph.type != ex.valueType()) {
-        logln("Weird: "[], ph.type, " vs. "[], ex.valueType(), " - "[], ph.type.size, " vs "[], ex.valueType().size);
+        logln("Weird: "[], ph.type, " vs. "[], ex.valueType(), " - "[], ph.type.llvmSize(), " vs "[], ex.valueType().llvmSize());
         fail;
       }
       void replace(ref Iterable it) {
@@ -74,11 +77,10 @@ class Property : MValue, RelTransformable {
       s2.iterate(&replace, IterMode.Semantic);
       return fastalloc!(Property)(g2, s2);
     }
-    void emitAssignment(AsmFile af) {
+    void emitAssignment(LLVMFile lf) {
       auto type = setter.type.params[0].type;
-      auto var = fastalloc!(OffsetExpr)(-af.currentStackDepth, type);
-      (buildFunCall(setter, var, "property-write-call"[])).emitAsm(af);
-      af.sfree(type.size);
+      (buildFunCall(setter, fastalloc!(LLVMValue)(lf.pop(), type), "property-write-call"[])).emitLLVM(lf);
+      lf.pop();
     }
   }
 }

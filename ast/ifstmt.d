@@ -9,21 +9,19 @@ class IfStatement : LineNumberedStatementClass {
   mixin DefaultDup!();
   mixin defaultIterate!(test, wrapper, branch1, branch2);
   string toString() { return Format("if "[], test, " "[], branch1, " else "[], branch2); }
-  override void emitAsm(AsmFile af) {
-    super.emitAsm(af);
-    auto past1 = af.genLabel(), past2 = af.genLabel();
-    auto dg = wrapper.open(af)();
-      test.jumpOn(af, false, past1);
-      branch1.emitAsm(af);
-      auto backupStack = af.currentStackDepth;
-      if (branch2) { dg(true); af.jump(past2); }
-      af.currentStackDepth = backupStack;
-      af.emitLabel(past1, !keepRegs, isForward);
+  override void emitLLVM(LLVMFile lf) {
+    super.emitLLVM(lf);
+    auto past1 = lf.allocLabel(), past2 = lf.allocLabel();
+    auto dg = wrapper.open(lf)();
+      test.jumpOn(lf, false, past1);
+      branch1.emitLLVM(lf);
+      if (branch2) { dg(true); jump(lf, past2); }
+      lf.emitLabel(past1, true);
     dg(false);
     
     if (branch2) {
-      branch2.emitAsm(af);
-      af.emitLabel(past2, !keepRegs, isForward);
+      branch2.emitLLVM(lf);
+      lf.emitLabel(past2, true);
     }
   }
 }

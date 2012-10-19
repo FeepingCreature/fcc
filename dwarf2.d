@@ -1,8 +1,8 @@
 module dwarf2;
 
-import asmfile, quickformat, parseBase;
+import llvmfile, quickformat, parseBase;
 import tools.ctfe: ctTableUnroll;
-import tools.base: Stuple, stuple;
+import tools.base: Stuple, stuple, fail, New;
 import tools.log;
 
 // _ATE to prevent collision with AT

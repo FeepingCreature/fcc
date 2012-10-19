@@ -22,13 +22,14 @@ class SAIndexExpr : Expr {
     SAIndexExpr dup() { return fastalloc!(SAIndexExpr)(ex.dup, pos.dup); }
     IType valueType() { return (fastcast!(StaticArray)~ ex.valueType()).elemType; }
     import ast.vardecl, ast.assign;
-    void emitAsm(AsmFile af) {
-      mkVar(af, valueType(), true, (Variable var) {
-        auto v2 = fastalloc!(Variable)(ex.valueType(), cast(string) null, boffs(ex.valueType(), af.currentStackDepth));
-        ex.emitAsm(af);
-        emitAssign(af, var, getIndex(v2, pos));
-        af.sfree(ex.valueType().size);
-      });
+    void emitLLVM(LLVMFile lf) {
+      todo("SAIndexExpr::emitLLVM");
+      /*mkVar(lf, valueType(), true, (Variable var) {
+        auto v2 = fastalloc!(Variable)(ex.valueType(), cast(string) null, boffs(ex.valueType(), lf.currentStackDepth));
+        ex.emitLLVM(lf);
+        emitAssign(lf, var, getIndex(v2, pos));
+        lf.sfree(ex.valueType().size);
+      });*/
     }
   }
 }
@@ -147,11 +148,11 @@ class PA_Access : LValue {
     string toString() { return Format(ptr, "["[], pos, "]"[]); }
     IType valueType() { return (fastcast!(Pointer)~ ptr.valueType()).target; }
     // TODO generic case
-    void emitAsm(AsmFile af) {
-      (fastalloc!(DerefExpr)(lookupOp("+", ptr, pos))).emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      (fastalloc!(DerefExpr)(lookupOp("+", ptr, pos))).emitLLVM(lf);
     }
-    void emitLocation(AsmFile af) {
-      (lookupOp("+", ptr, pos)).emitAsm(af);
+    void emitLocation(LLVMFile lf) {
+      (lookupOp("+", ptr, pos)).emitLLVM(lf);
     }
   }
 }
@@ -164,7 +165,7 @@ Object gotPointerIndexAccess(ref string text, ParseCb cont, ParseCb rest) {
     
     if (rest(t2, "tree.expr"[], &pos) && t2.accept("]")) {
       if (fastcast!(RangeIsh)~ pos.valueType()) return null; // belongs to slice
-      if (pos.valueType().size() != 4) throw new Exception(Format("Invalid index: ", pos));
+      if (pos.valueType().llvmSize() != "i32") throw new Exception(Format("Invalid index: ", pos));
       text = t2;
       return new PA_Access (ex, pos);
     } else return null;

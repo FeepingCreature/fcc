@@ -140,8 +140,8 @@ class DependencyEntry : Tree {
   mixin defaultIterate!();
   DependencyEntry dup() { return this; }
   string toString() { return Format("<dep "[], sup, ">"[]); }
-  void emitAsm(AsmFile af) {
-    sup.emitDependency(af);
+  void emitLLVM(LLVMFile lf) {
+    sup.emitDependency(lf);
   }
 }
 
@@ -310,10 +310,6 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
         }
       } else mangl = this.type.mangle();
       return sup.mangle(name, type)~"__"~"templinst_"~parent.name.cleanup()~"_with_"~mangl;
-    }
-    Stuple!(IType, string, int)[] stackframe() {
-      if (embedded) return context.stackframe();
-      assert(false);
     }
   }
 }

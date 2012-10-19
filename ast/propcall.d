@@ -30,7 +30,7 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
       return fastalloc!(PrefixTemplate)(firstParam, templ);
     }
     PrefixFunction processFun(Function fun) {
-      auto params = fun.getParams();
+      auto params = fun.getParams(false);
       if (!params.length) return null;
       auto pt = params[0].type;
       if (incompat(fpvt, pt)) {
@@ -77,7 +77,6 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
     }
     string toString() { return Format("fpos of a "[], fpvt); }
     string mangle(string name, IType type) { return sup.mangle(name, type); }
-    Stuple!(IType, string, int)[] stackframe() { return sup.stackframe(); }
     bool isPointerLess() { return fpvt.isPointerLess(); }
     bool isComplete() { return fpvt.isComplete(); }
     bool returnsInMemory() { return fpvt.returnsInMemory(); }
@@ -88,9 +87,9 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
       return lookupInternal(name, false, isDirectLookup);
     }
     bool isTempNamespace() { return true; }
-    int size() { return fpvt.size(); }
+    string llvmType() { return fpvt.llvmType(); }
+    string llvmSize() { return fpvt.llvmSize(); }
     string mangle() { return fpvt.mangle(); /* equivalent */ }
-    ubyte[] initval() { return fpvt.initval(); }
     int opEquals(IType it) { return it is this; }
     IType proxyType() { return null; }
   }
@@ -110,7 +109,7 @@ class MyPlaceholderExpr : Expr {
         fpos.fpvt = fpos.firstParam.valueType();
       }
     }
-    void emitAsm(AsmFile af) { fpos.firstParam.emitAsm(af); }
+    void emitLLVM(LLVMFile lf) { fpos.firstParam.emitLLVM(lf); }
     MyPlaceholderExpr dup() { assert(false); }
     IType valueType() { return fpos; }
   }

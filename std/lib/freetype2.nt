@@ -24,31 +24,32 @@ extern(C) {
 }
 extern(System) {
   void* memalloc(FT_Memory mem, size_t size) {
-    auto oesi = _esi; onSuccess _esi = oesi;
-    _esi = mem.user;
+    auto _threadlocal = mem.user;
     return .mem.malloc int:size;
   }
   void memfree(FT_Memory mem, void* block) {
-    auto oesi = _esi; onSuccess _esi = oesi;
-    _esi = mem.user;
+    auto _threadlocal = mem.user;
     .mem.free block;
   }
   void* memrealloc(FT_Memory mem, size_t cur_size, new_size, void* block) {
-    auto oesi = _esi; onSuccess _esi = oesi;
-    _esi = mem.user;
-    return .mem.realloc(block, new_size);
+    auto _threadlocal = mem.user;
+    // return .mem.realloc(block, new_size);
+    auto res = .mem.malloc(int: new_size);
+    memcpy(res, block, int: cur_size);
+    .mem.free(block);
+    return res;
   }
 }
 
 void init() {
   FTcheck FT_Init_FreeType &library;
-  /*auto mem = new FT_MemoryRec_;
-  mem.user = _esi;
+  auto mem = new FT_MemoryRec_;
+  mem.user = _threadlocal;
   mem.alloc = void*: &memalloc;
   mem.free = void*: &memfree;
   mem.realloc = void*: &memrealloc;
   FTcheck FT_New_Library(mem, &library);
-  FT_Add_Default_Modules (library);*/
+  FT_Add_Default_Modules (library);
 }
 
 struct FontStyle {

@@ -7,7 +7,7 @@ import c.gc, std.thread;
 pragma(lib, "gc");
 
 extern(C) void* memset(void* s, int c, size_t n);
-void* myDebugRealloc(void* a, size_t b) { return GC_debug_realloc(a, int:b, "", 0); }
+// void* myDebugRealloc(void* a, size_t b) { return GC_debug_realloc(a, int:b, "", 0); }
 void* myDebugMalloc(int a) { return GC_debug_malloc(a, "", 0); }
 void* myDebugCalloc(int a, b) { return myDebugMalloc(a * b); }
 void* myDebugCallocAtomic(int a) {
@@ -16,15 +16,15 @@ void* myDebugCallocAtomic(int a) {
     printf("Allocation failed!");
     _interrupt 3;
   }
-  memset(res, 0, size_t:a);
+  memset(res, 0, a);
   return res;
 }
 
-void* myRealloc(void* a, size_t b) { return GC_realloc(a, int:b); }
+// void* myRealloc(void* a, size_t b) { return GC_realloc(a, int:b); }
 void* myMalloc(int a) { return GC_malloc(a); }
 void* myCallocAtomic(int a) {
   auto res = GC_malloc_atomic(a);
-  memset(res, 0, size_t:a);
+  memset(res, 0, a);
   return res;
 }
 void* myCalloc(int a, b) {
@@ -42,7 +42,7 @@ platform(default) {
     GC_register_my_thread(&gsb);
     // writeln "register stack base $(stack-base) (ebp $(_ebp))";
     // register my TLS segment as a root
-    GC_add_roots(_esi, _esi + tls_size);
+    GC_add_roots(_threadlocal, _threadlocal + tls_size);
   }
 }
 
@@ -55,22 +55,22 @@ platform(i686-mingw32) {
     static if (is-defined GC_register_my_thread) {
       GC_register_my_thread(&gsb);
     }
-    GC_add_roots(_esi, _esi + tls_size);
+    GC_add_roots(_threadlocal, _threadlocal + tls_size);
   }
 }
 
 /*Function: initBoehm
 Initialize and enable the Boehm GC*/
 void initBoehm(bool debugMode = false) {
-  (mem.malloc_dg, mem.calloc_atomic_dg, mem.calloc_dg, mem.realloc_dg, mem.free_dg)
-    = [(&myMalloc,      &myCallocAtomic,      &myCalloc,      &myRealloc,      &GC_free),
-       (&myDebugMalloc, &myDebugCallocAtomic, &myDebugCalloc, &myDebugRealloc, &GC_debug_free)
+  (mem.malloc_dg, mem.calloc_atomic_dg, mem.calloc_dg, /*mem.realloc_dg, */mem.free_dg)
+    = [(&myMalloc,      &myCallocAtomic,      &myCalloc,      /*&myRealloc,      */&GC_free),
+       (&myDebugMalloc, &myDebugCallocAtomic, &myDebugCalloc, /*&myDebugRealloc, */&GC_debug_free)
       ][debugMode];
   GC_init;
   static if (is-defined GC_allow_register_threads) {
     GC_allow_register_threads;
   }
-  GC_add_roots(_esi, _esi + tls_size); // remind me why I need to do this
+  GC_add_roots(_threadlocal, _threadlocal + tls_size); // remind me why I need to do this
   auto oldDg = onThreadCreation;
   onThreadCreation = new delegate void(void* stackbase) {
     register_thread(stackbase);

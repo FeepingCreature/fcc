@@ -5,6 +5,8 @@ import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun,
   ast.tenth;
 
+import tools.functional: map;
+
 /*
   An abstract function is a function that does not define a body.
   An abstract class is a class that declares abstract member functions,
@@ -12,6 +14,14 @@ import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   Abstract classes must be declared with the 'abstract' keyword.
   Abstract classes can not be allocated.
  */
+
+string datatollvm(LLVMFile lf, string ident, ubyte[] s) {
+  return qformat("bitcast([", s.length, " x i8]* @", allocConstant(lf, ident, cast(ubyte[]) s, true), " to i8*)");
+}
+
+string datatollvm(LLVMFile lf, string ident, string[] arr) {
+  return qformat("bitcast([", arr.length, " x i32]* @", allocLongstant(lf, ident, arr, true), " to i8*)");
+}
 
 struct RelFunSet {
   Stuple!(RelFunction, string, IType[])[] set;
@@ -65,7 +75,7 @@ class VTable {
   bool defines(Function fun) {
     foreach (f2; funs) {
       if (f2.name == fun.name &&
-          Arglist_eq(f2.getParams(), fun.getParams())) return true;
+          Arglist_eq(f2.getParams(false), fun.getParams(false))) return true;
     }
     return false;
   }
@@ -122,11 +132,12 @@ class LazyDeltaInt : Expr {
   this(int delegate() dg, int d = 0) { this.dg = dg; delta = d; }
   mixin defaultIterate!();
   override {
+    string toString() { return qformat("ldi(", dg(), " + ", delta, ")"); }
     IType valueType() { return Single!(SysInt); }
     LazyDeltaInt dup() { return new LazyDeltaInt(dg, delta); }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       auto res = dg() + delta;
-      af.pushStack(qformat("$", res), 4);
+      push(lf, res);
     }
   }
 }
@@ -147,12 +158,13 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   string name;
   bool predecl;
   mixin TypeDefaults!();
-  override int size() { assert(false); }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!();
   override {
-    void emitAsm(AsmFile af) { }
+    void emitLLVM(LLVMFile lf) { }
+    string llvmSize() { assert(false); }
+    string llvmType() { assert(false); }
     bool isTempNamespace() { return false; }
     bool isPointerLess() { return false; }
     bool isComplete() { return true; }
@@ -162,9 +174,9 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   string toString() { return "interface "~name; }
   string mangle() { return qformat("interface_", mangle_id); }
   override string mangle(string name, IType type) { assert(false); }
-  override Stuple!(IType, string, int)[] stackframe() { assert(false); }
   bool weak;
   override void markWeak() { weak = true; }
+  override void markExternC() { }
   override string mangleSelf() { return mangle(); }
   Function[] funs;
   Intf[] parents;
@@ -196,39 +208,44 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   int own_offset;
   void initOffset() { own_offset = clsize() - funs.length; }
   // offset is size of preceding data, in steps of nativePtrSize
-  string[] genVTable(ref int offset, RelFunSet overrides) {
+  string[] genVTable(ref string offset, RelFunSet overrides, LLVMFile lf) {
     string[] res;
-    if (!parents.length)
-      res ~= Format("-"[], offset++);
+    if (!parents.length) {
+      res ~= qformat("inttoptr(i32 -", offset, " to i8*)");
+      offset = lladd(offset, "1");
+    }
     else {
-      res = parents[0].genVTable(offset, overrides);
+      res = parents[0].genVTable(offset, overrides, lf);
       foreach (par; parents[1 .. $])
-        res ~= par.genVTable(offset, overrides);
+        res ~= par.genVTable(offset, overrides, lf);
     }
     
     foreach (fun; funs)
-      if (auto rel = overrides.hasLike(fun))
-        res ~= rel.mangleSelf();
-      else
+      if (auto rel = overrides.hasLike(fun)) {
+        auto fmn = rel.mangleSelf();
+        auto reltype = typeToLLVM(rel.getPointer().valueType());
+        res ~= qformat("bitcast(", reltype, " @", fmn, " to i8*)");
+        if (lf) lf.decls[fmn] = declare(rel, fmn);
+      } else
         throw new Exception(
           Format("Cannot generate classinfo for "[], this.name,
             ": "[], fun.name, " not overridden. "[]));
     
     return res;
   }
-  string getIntfinfoDataPtr(AsmFile af) {
+  string getIntfinfoDataPtr(LLVMFile lf) {
     auto prefix = mangle_id;
     string[] res;
     res ~= qformat(this.name.length);
-    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name, false, true);
+    res ~= qformat("ptrtoint(i8* ", datatollvm(lf, prefix~"_name", cast(ubyte[]) this.name), " to i32)");
     {
       string[] pp;
       foreach (intf; parents)
-        pp ~= intf.getIntfinfoDataPtr(af);
+        pp ~= intf.getIntfinfoDataPtr(lf);
       res ~= qformat(pp.length);
-      res ~= af.allocLongstant(prefix~"_parents", pp, false, true);
+      res ~= qformat("ptrtoint(i8* ", datatollvm(lf, prefix~"_parents", pp), " to i32)");
     }
-    return af.allocLongstant(prefix~"_intfinfo", res, false, true);
+    return qformat("ptrtoint(i8* ", datatollvm(lf, prefix~"_intfinfo", res), " to i32)");
   }
   import ast.index;
   Object lookupIntf(string name, Expr intp) {
@@ -317,8 +334,10 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
     string toString() { return Format("ref ", myClass); }
     bool addsSelf() { return true; }
     string getIdentifier() { return myClass.name; }
-    int size() { return nativePtrSize; }
+    string llvmSize() { if (nativePtrSize == 4) return "4"; fail; }
+    string llvmType() { if (nativePtrSize == 4) return "i8*"; fail; }
     void markWeak() { myClass.markWeak(); }
+    void markExternC() { }
     string mangle() { return "ref_"~myClass.mangle(); }
     string mangleSelf() { return mangle(); }
     bool returnsInMemory() { return false; }
@@ -333,7 +352,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
                     (`obj.toString()`, "obj"[], lvize(ex));
     }
     ClassRef dup() { return fastalloc!(ClassRef)(myClass.dup); }
-    void emitAsm(AsmFile af) { myClass.emitAsm(af); }
+    void emitLLVM(LLVMFile lf) { myClass.emitLLVM(lf); }
     void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myClass.iterate(dg, mode); }
   }
 }
@@ -347,8 +366,10 @@ class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, Expr
     string getIdentifier() { return myIntf.name; }
     bool isPointerLess() { return false; }
     bool addsSelf() { return true; }
-    int size() { return nativePtrSize; }
+    string llvmSize() { if (nativePtrSize == 4) return "4"; fail; }
+    string llvmType() { if (nativePtrSize == 4) return "i8*"; fail; }
     void markWeak() { } // nothing emitted, ergo no-op
+    void markExternC() { }
     string mangle() { return "intfref_"~myIntf.mangle(); }
     string mangleSelf() { return mangle(); }
     int opEquals(IType type) {
@@ -356,7 +377,7 @@ class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, Expr
       return myIntf.mangleSelf() == (fastcast!(IntfRef) (resolveType(type))).myIntf.mangleSelf(); // cheap hack to match obsoleted types (TODO fix properly)
     }
     IntfRef dup() { return fastalloc!(IntfRef)(myIntf.dup); }
-    void emitAsm(AsmFile af) { myIntf.emitAsm(af); }
+    void emitLLVM(LLVMFile lf) { myIntf.emitLLVM(lf); }
     void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myIntf.iterate(dg, mode); }
   }
 }
@@ -365,13 +386,16 @@ class SuperType : IType, RelNamespace {
   ClassRef baseType;
   this(ClassRef cr) { baseType = cr; }
   override {
-    int size() { return baseType.size(); }
     string toString() { return Format(baseType, ".super ("[], baseType.myClass.parent.myfuns.funs, ")"[]); }
     string mangle() { return Format("_super_"[], baseType.mangle()); }
-    ubyte[] initval() { logln("Excuse me what are you doing declaring variables of super-type you weirdo"[]); fail; return null; }
     int opEquals(IType it) { return false; /* wut */ }
     bool isPointerLess() { return false; }
     bool returnsInMemory() { assert(false); }
+    string llvmSize() {
+      if (nativePtrSize == 4) return "4";
+      fail;
+    }
+    string llvmType() { return "invalid"; }
     override bool isComplete() { return true; }
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       auto sup2 = fastcast!(SuperType) (base.valueType());
@@ -392,7 +416,7 @@ class SuperType : IType, RelNamespace {
 }
 
 import ast.modules, ast.returns, ast.scopes, ast.stringparse;
-class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
+class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   VTable myfuns;
   Structure data;
   string name;
@@ -401,6 +425,12 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   // specified by inheritance. This avoids cases where a function is intended
   // to be overridden but is accidentally added as a new class function.
   bool overridingFunctionState;
+  override {
+    bool immutableNow() { return data.immutableNow(); }
+    bool isPacked() { return data.isPacked(); }
+    int numMembers() { return data.numMembers(); }
+    string getIdentifier() { return name; }
+  }
   Function[] getAbstractFuns() {
     parseMe();
     Function[] res;
@@ -455,6 +485,26 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
         fastcast!(Module) (current_module()).entries ~= rf;
       }
     }
+  }
+  string offset_cached;
+  bool cached_offset;
+  string offsetOfVTable() {
+    parseMe;
+    if (cached_offset) return offset_cached;
+    if (!finalized) {
+      offset_cached = data.offsetOfNext(voidp);
+      // need to add those now or risk invalidating our offset later
+      // Note that it is NOT a problem if members get added
+      // after the slot pointers, because as of now the interface
+      // offset is fixed and cached.
+      addSlotPointers;
+      finalized = true;
+      // logln(name, ": for ", data, ", offset of next voidp is ", offset_cached);
+      cached_offset = true;
+      return offset_cached;
+    }
+    logln(name, ": queried offsetOfVTable but already finalized");
+    fail;
   }
   void parseMe() {
     if (!coarseSrc || !coarseCtx || !coarseMod) {
@@ -548,6 +598,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     if (!cl2) return false;
     return mangle() == cl2.mangle();
   }
+  override string llvmSize() { /*logln("class size => ", classSize(true));*/ return classSize(true); }
+  override string llvmType() { return data.llvmType(); }
   override bool isPointerLess() { return false; }
   override bool isComplete() { return true; }
   void getIntfLeaves(void delegate(Intf) dg) {
@@ -600,6 +652,13 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     }
   }
   bool finalized;
+  void addSlotPointers() {
+    if (iparents.length) {
+      getIntfLeaves((Intf) {
+        fastalloc!(RelMember)(cast(string) null, voidp, data);
+      });
+    }
+  }
   void genDefaultFuns() {
     if (sysmod && parent /* exclude Object */) {
       IType[1] tostring_ret;
@@ -648,16 +707,16 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       namespace.set(sc);
       // TODO: switch
       auto as = new AggrStatement;
-      int intf_offset;
+      string intf_offset;
       auto streq = sysmod.lookup("streq"[]);
       assert(!!streq);
       void handleIntf(Intf intf) {
         // logln(name, ": offset for intf "[], intf.name, ": "[], intf_offset);
         as.stmts ~= iparse!(Statement, "cast_branch_intf"[], "tree.stmt"[])(`if (streq(id, _test)) return void*:(void**:this + offs);`[],
-          namespace(), "_test"[], mkString(intf.mangle_id), "offs"[], mkInt(intf_offset)
+          namespace(), "_test"[], mkString(intf.mangle_id), "offs"[], llvmval(intf_offset)
         );
         if (intf.parents) foreach (ip; intf.parents) handleIntf(ip);
-        else intf_offset ++;
+        else intf_offset = lladd(intf_offset, "1");
       }
       void handleClass(Class cl) {
         as.stmts ~= fastcast!(Statement) (runTenthPure((void delegate(string,Object) dg) {
@@ -671,9 +730,10 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
             '(make-return (reinterpret-cast (pointer-to (basic-type 'void)) this)))
         `)));
         if (cl.parent) handleClass(cl.parent);
-        intf_offset = cl.classSize(false);
-        doAlign(intf_offset, voidp);
-        intf_offset /= 4;
+        intf_offset = cl.offsetOfVTable();
+        // intf_offset = cl.classSize(false);
+        intf_offset = llAlign(intf_offset, voidp);
+        intf_offset = lldiv(intf_offset, "4");
         foreach (intf; cl.iparents)
           handleIntf(intf);
       }
@@ -688,7 +748,6 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   void finalize() {
     fixupInterfaceAbstracts;
     genDefaultFuns;
-    finalized = true;
     getClassinfo; // no-op to generate stuff
   }
   mixin TypeDefaults!();
@@ -704,8 +763,8 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
   LazyDeltaInt ownClassinfoLength() { // skipping interfaces
     return new LazyDeltaInt(&getFinalClassinfoLengthValue);
   }
-  // array of .long-size literals; $ denotes a value, otherwise function - you know, gas syntax
-  string[] getVTable(RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
+  // array of function pointers
+  string[] getVTable(LLVMFile lf = null, RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
     parseMe;
     RelFunSet copy;
     copy.fillIn (loverrides);
@@ -719,47 +778,56 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     
     string[] res;
     // Liskov at work
-    if (parent) res = parent.getVTable(copy);
+    if (parent) res = parent.getVTable(lf, copy);
     
     foreach (fun; myfuns.funs) {
       if (auto f2 = copy.hasLike(fun)) // if a child class overrode this, use its relfun
-        res ~= f2.mangleSelf();
-      else
-        res ~= fun.mangleSelf();
+        fun = f2;
+      auto fmn = fun.mangleSelf();
+      auto funtype = typeToLLVM(fun.getPointer().valueType());
+      res ~= qformat("bitcast(", funtype, " @", fmn, " to i8*)");
+      if (lf) lf.decls[fmn] = declare(fun, fmn);
     }
     
     // interfaces
     if (iparents.length) {
-      int offset = classSize(false);
-      doAlign(offset, voidp);
-      offset /= 4; // steps of (void*).sizeof
+      string offset = offsetOfVTable();
+      // string offset = classSize(false);
+      offset = llAlign(offset, voidp);
+      offset = lldiv(offset, voidp.llvmSize()); // steps of (void*).sizeof
       foreach (intf; iparents)
-        res ~= intf.genVTable(offset, copy);
+        res ~= intf.genVTable(offset, copy, lf);
     }
     
     return res;
   }
   
-  string[] getClassinfo() {
+  string[] getClassinfo(LLVMFile lf = null) {
     string[] res;
-    res ~= cd_name();
-    res ~= getVTable();
+    res ~= "@"~cd_name();
+    res ~= getVTable(lf);
     return res;
   }
-  string[] getClassinfoData(AsmFile af) {
+  string[] getClassinfoData(LLVMFile lf) {
     auto prefix = cd_name();
     string[] res;
-    res ~= qformat(this.name.length);
-    res ~= af.allocConstant(prefix~"_name", cast(ubyte[]) this.name, false, true);
-    if (parent) res ~= parent.cd_name();
-    else res ~= "0";
+    res ~= qformat("inttoptr(i32 ", this.name.length, " to i8*)");
+    auto data = cast(ubyte[]) this.name~cast(ubyte) 0;
+    res ~= datatollvm(lf, prefix~"_name", data);
+    if (parent) {
+      auto cd_name = parent.cd_name();
+      res ~= "@"~cd_name;
+      if (!(cd_name in lf.decls))
+        lf.decls[cd_name] = qformat(res[$-1], " = external global i8");
+    }
+    else res ~= "inttoptr(i32 0 to i8*)";
     {
       string[] iplist;
       foreach (intf; iparents) {
-        iplist ~= intf.getIntfinfoDataPtr(af);
+        iplist ~= intf.getIntfinfoDataPtr(lf);
       }
-      res ~= qformat(iplist.length);
-      res ~= af.allocLongstant(prefix~"_iparents", iplist, false, true);
+      res ~= qformat("inttoptr(i32 ", iplist.length, " to i8*)");
+      res ~= datatollvm(lf, prefix~"_iparents", iplist);
     }
     return res;
   }
@@ -771,14 +839,26 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     foreach (ipar; iparents) if (ipar.declares(fun.name)) return true;
     return false;
   }
-  int classSize(bool withInterfaces) {
+  string classSize(bool withInterfaces) {
     parseMe;
-    auto parentsize = parent?parent.classSize(true):0;
-    auto res = max(voidp.size, parentsize, data.size());
-    if (withInterfaces && iparents.length) {
-      doAlign(res, voidp);
-      getIntfLeaves((Intf) { res += voidp.size; });
+    auto parentsize = parent?parent.classSize(true):"0";
+    auto res = llmax(voidp.llvmSize(), parentsize, data.llvmSize());
+    if (iparents.length) {
+      if (!finalized) {
+        if (withInterfaces) {
+          getIntfLeaves((Intf) { res = lladd(res, voidp.llvmSize()); });
+        }
+      } else {
+        if (!withInterfaces) {
+          // interfaces are already included in the data
+          // thus, we actually need to SUBTRACT them back out in this case
+          // res = llAlign(res, voidp);
+          // getIntfLeaves((Intf) { res = lladd(res, voidp.llvmSize()); });
+          getIntfLeaves((Intf) { res = llsub(res, voidp.llvmSize()); });
+        }
+      }
     }
+    // logln(name, " class size = ", res, " for data ", data.llvmType());
     return res;
   }
   // TODO
@@ -789,22 +869,20 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
     IType getRefType() {
       return fastalloc!(ClassRef)(this);
     }
-    void emitAsm(AsmFile af) {
-      auto name = vt_name().dup;
-      auto cd = cd_name().dup;
-      if (weak) {
-        af.weak_longstants[name] = getClassinfo().dup;
-        af.weak_longstants[cd]   = getClassinfoData(af).dup;
-      } else {
-        af.longstants[name] = getClassinfo().dup;
-        af.longstants[cd]   = getClassinfoData(af).dup;
+    void emitLLVM(LLVMFile lf) {
+      if (once(lf, "oop ", mangle())) {
+        auto name = vt_name().dup;
+        auto cd = cd_name().dup;
+        lf.undecls[name] = true;
+        lf.undecls[cd] = true;
+        auto ci = getClassinfo(lf), cda = getClassinfoData(lf);
+        string flags;
+        if (weak) flags ~= "weak_odr ";
+        putSection(lf, "module", "@", name, ".full = "~flags~"global ", toLLVMArray(-1, ci));
+        putSection(lf, "module", "@", cd  , ".full = "~flags~"global ", toLLVMArray(-1, cda));
+        putSection(lf, "module", "@", name, " = alias "~flags~"i8* bitcast([", ci.length, " x i8*]* @", name, ".full to i8*)");
+        putSection(lf, "module", "@", cd, " = alias "~flags~"i8* bitcast([", cda.length, " x i8*]* @", cd, ".full to i8*)");
       }
-    }
-    int size() {
-      // we return partial size so the struct thinks we contain our parent's struct
-      // and thus puts its members at the right position
-      if (!finalized) return classSize (false);
-      return classSize (true);
     }
     void _add(string name, Object obj) {
       assert(!finalized, "Adding "~name~" to already-finalized class. "[]);
@@ -834,13 +912,13 @@ class Class : Namespace, RelNamespace, IType, Tree, hasRefType {
       }
       return qfinalize();
     }
-    Stuple!(IType, string, int)[] stackframe() {
+    /*Stuple!(IType, string)[] stackframe() {
       parseMe;
-      Stuple!(IType, string, int)[] res;
+      Stuple!(IType, string)[] res;
       if (parent) res = parent.stackframe();
-      res ~= selectMap!(RelMember, "stuple($.type, $.name, $.offset)"[]);
+      res ~= selectMap!(RelMember, "stuple($.type, $.name)"[]);
       return res;
-    }
+    }*/
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
       if (!base) {
         if (str == "__name"[]) // T.name
@@ -1081,7 +1159,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
     backup.add(intf.getRefType()); // support interface A { A foo(); }
   if (predecl) { text = t2; return intf.getRefType(); }
   while (true) {
-    auto fun = new Function;
+    auto fun = new NestedFunction(intf);
     if (t2.accept("}"[])) break;
     Object obj;
     if (gotGenericFunDecl(fun, cast(Namespace) null, false, t2, cont, rest)) {
@@ -1125,12 +1203,13 @@ void doImplicitClassCast(Expr ex, IType target, void delegate(Expr) dg) {
     if (cl.parent) {
       testClass(reinterpret_cast_safe(cl.parent.getRefType(), ex));
     }
-    int offs = cl.classSize (false);
-    doAlign(offs, voidp);
-    offs /= 4;
+    // string offs = cl.classSize(false);
+    string offs = cl.offsetOfVTable();
+    offs = llAlign(offs, voidp);
+    offs = lldiv(offs, "4");
     foreach (id, par; cl.iparents) {
-      auto iex = reinterpret_cast_safe(fastalloc!(IntfRef)(par), lookupOp("+"[], reinterpret_cast(voidpp, ex), mkInt(offs)));
-      par.getLeaves((Intf) { offs++; });
+      auto iex = reinterpret_cast_safe(fastalloc!(IntfRef)(par), lookupOp("+"[], reinterpret_cast(voidpp, ex), llvmval(offs)));
+      par.getLeaves((Intf) { offs = lladd(offs, "1"); });
       testIntf(iex);
     }
   }

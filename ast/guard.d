@@ -31,7 +31,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
       auto ex = fastcast!(Expr) (ns.lookup(id));
       if (!ex) t2.failparse("Unknown identifier '"~id~"' for capture, or not expression"[]);
       auto ty = ex.valueType();
-      auto var = fastalloc!(Variable)(ty, cast(string) null, boffs(ty));
+      auto var = fastalloc!(Variable)(ty, framelength(), cast(string) null);
       
       auto sc = ns.get!(Scope);
       if (!sc) {
@@ -60,7 +60,6 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   
   if (type == "onSuccess" || type == "onExit"[]) {
     auto popCache = pushCache(); scope(exit) popCache();
-    genRetvalHolder(sc);
     if (!rest(t3, "tree.stmt"[], &st1))
       t3.failparse("No statement matched for "[], type, " in scope context"[]);
     sc.addGuard(st1);
@@ -88,7 +87,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord"[]);
     assert(!!grtype);
     {
-      auto gr = fastalloc!(Variable)(grtype, cast(string) null, boffs(grtype));
+      auto gr = fastalloc!(Variable)(grtype, framelength(), cast(string) null);
       auto gd = fastalloc!(VarDecl)(gr);
       gd.initInit;
       sc.addStatement(gd);
@@ -103,7 +102,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
                    var.prev = _record;
                    _record = &var;
                  }`,
-                 "var"[], gr, "fun"[], nf);
+                 namespace(), "var"[], gr, "fun"[], nf);
         assert(!!setup_st);
         sc.addStatement(setup_st);
       }
@@ -145,22 +144,20 @@ class Scoped(T) : T, IScoped {
   mixin DefaultDup!();
   mixin defaultIterate!(sup);
   override {
-    void emitAsm(AsmFile af) { assert(false); }
+    void emitLLVM(LLVMFile lf) { assert(false); }
     IType valueType() { return sup.valueType(); }
     Expr getSup() { return sup; }
     Expr getAssign() { return newval; }
     static if (is(T: LValue)) {
-      void emitLocation(AsmFile af) { assert(false); }
+      void emitLocation(LLVMFile lf) { assert(false); }
     }
     static if (is(T: MValue)) {
-      void emitAssignment(AsmFile af) { assert(false); }
+      void emitAssignment(LLVMFile lf) { assert(false); }
     }
   }
 }
 
 Expr genScoped(Expr ex, Expr newval = null) {
-  if (auto sc = namespace().get!(Scope)) genRetvalHolder(sc); // make sure we can place the ensuing scope gard properly
-  else { logln("uh-oh "[], namespace()); fail; }
   if (auto mv = fastcast!(MValue) (ex)) return new Scoped!(MValue)(mv, newval);
   if (auto lv = fastcast!(LValue) (ex)) return new Scoped!(LValue)(lv, newval);
   throw new Exception(Format("cannot scope "[], ex));

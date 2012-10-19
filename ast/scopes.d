@@ -8,7 +8,38 @@ class Mew : LineNumberedStatementClass {
 	void iterate(void delegate(ref Iterable), IterMode mode = IterMode.Lexical) { assert(false); }
 }
 
-void fixupEBP(ref Iterable itr, Expr ebp) {
+class SuperContextAccess : LValue {
+  Expr baseptr;
+  IType valuetype;
+  string type;
+  int index;
+  this(Expr bp, IType vt, string t, int i) {
+    this.baseptr = bp;
+    this.valuetype = vt;
+    this.type = t;
+    this.index = i;
+  }
+  mixin defaultIterate!(baseptr);
+  override {
+    string toString() { return qformat("[", valuetype, " @", index, "](", type, " ", baseptr, ")"); }
+    SuperContextAccess dup() {
+      return fastalloc!(SuperContextAccess)(baseptr.dup, valuetype, type, index); 
+    }
+    IType valueType() { return valuetype; }
+    void emitLLVM(LLVMFile lf) {
+      emitLocation(lf);
+      load(lf, "load ", typeToLLVM(valuetype), "* ", lf.pop());
+    }
+    void emitLocation(LLVMFile lf) {
+      auto bs = save(lf, baseptr);
+      auto cs = save(lf, "bitcast ", typeToLLVM(baseptr.valueType()), " ", bs, " to ", type, "*");
+      load(lf, "getelementptr  inbounds ", type, "* ", cs, ", i32 0, i32 ", index);
+    }
+  }
+}
+
+void fixupEBP(ref Iterable itr, Expr baseptr) {
+  auto outer_itr = itr;
   bool needsDup, checkDup;
   void convertToDeref(ref Iterable itr) {
     // do this first so that variable initializers get fixed up
@@ -18,6 +49,9 @@ void fixupEBP(ref Iterable itr, Expr ebp) {
       if (checkDup) needsDup = true;
       else {
         auto type = var.valueType();
+        auto nuex = fastalloc!(SuperContextAccess)(baseptr, type, var.stacktype, var.baseIndex);
+        itr = fastcast!(Iterable)(nuex);
+        /*auto type = var.valueType();
         // *type*:(void*:ebp + baseOffset)
         auto nuex = fastalloc!(DerefExpr)(
           reinterpret_cast(fastalloc!(Pointer)(type),
@@ -27,23 +61,28 @@ void fixupEBP(ref Iterable itr, Expr ebp) {
             )
           )
         );
-        itr = fastcast!(Iterable) (nuex);
+        itr = fastcast!(Iterable) (nuex);*/
       }
     } else if (auto r = fastcast!(Register!("ebp"[])) (itr)) {
+      // will be replaced with our new stackptr, so it's okay
+      // logln("wat (confused by ebp in ", outer_itr, ")");
+      // fail;
       if (checkDup) needsDup = true;
-      else itr = fastcast!(Iterable) (reinterpret_cast(r.valueType(), ebp));
+      else itr = fastcast!(Iterable) (reinterpret_cast(r.valueType(), baseptr));
     }
   }
   checkDup = true;
   convertToDeref(itr);
   checkDup = false;
   if (needsDup) {
+    // logln("FIXUP: before ", itr);
     itr = itr.dup;
     convertToDeref(itr);
+    // logln("FIXUP: after ", itr);
   }
 }
 
-extern(C) void genRetvalHolder(Scope sc);
+extern(C) void recordFrame(Scope sc);
 
 import ast.aggregate, dwarf2;
 class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
@@ -53,9 +92,6 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   int[] guard_offsets;
   ulong id;
   bool needEntryLabel;
-  int pad_framesize;
-  int requiredDepth; // sanity checking
-  string requiredDepthDebug;
   static int scope_count;
   int count;
   mixin defaultIterate!(_body, guards);
@@ -82,15 +118,7 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     }
   }
   void addGuard(Statement st) {
-    auto depth = framesize();
-    if (auto sc = fastcast!(Scope) (st)) {
-      if (depth != sc.requiredDepth) {
-        logln("sc: ", sc);
-        fail;
-      }
-    }
     guards ~= st;
-    guard_offsets ~= depth;
   }
   void addStatementToFront(Statement st) {
     if (auto as = fastcast!(AggrStatement) (_body)) as.stmts = st ~ as.stmts;
@@ -104,25 +132,22 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   }
   string entry() { return Format(".L"[], id, "_entry"[]); }
   string exit() { return Format(".L"[], id, "_exit"[]); }
-  string toString() { return Format("scope("[], framesize(), " ", count, ") <- "[], sup); }
+  bool tostringing;
+  string toString() {
+    if (tostringing) return Format("scope(", framelength2(this), " ", count, ")");
+    tostringing = true;
+    scope(exit) tostringing = false;
+    return Format("scope(", framelength2(this), " ", count, " ", field, ") <- ", sup);
+  }
   this() {
     count = scope_count ++;
-    // if (count == 3951) fail;
+    // if (count == 5902) asm { int 3; }
     id = getuid();
     sup = namespace();
     New(lnsc);
-    recalcRequiredDepth;
-  }
-  void recalcRequiredDepth() {
-    requiredDepth = framesize();
-    if (requiredDepth == -1) {
-      requiredDepth = int.max;
-    }
-    // requiredDepthDebug = Format(this);
   }
   void setSup(Namespace ns) {
     sup = ns;
-    recalcRequiredDepth;
   }
   override Scope dup() {
     auto backup = namespace();
@@ -136,84 +161,41 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     res.guard_offsets = guard_offsets.dup;
     res.id = getuid();
     res.lnsc = lnsc;
-    res.requiredDepth = requiredDepth;
-    res.requiredDepthDebug = "[dup]"~requiredDepthDebug;
+    nsfix(res, this, res);
     return res;
-  }
-  override int framesize() {
-    int res;
-    if (auto sl = fastcast!(ScopeLike)~ sup) {
-      auto supsz = sl.framesize();
-      if (supsz == -1) return -1;
-      res += supsz;
-    }
-    foreach (obj; field) {
-      if (auto var = fastcast!(Variable)~ obj._1) {
-        res += getFillerFor(var.type, res);
-        res += var.type.size;
-      }
-    }
-    res += pad_framesize;
-    if (isARM) {
-      while (res % 4 != 0) res ++;
-    }
-    return res;
-  }
-  // frame offset caused by parameters
-  int framestart() {
-    return get!(FrameRoot).framestart();
-  }
-  override void __add(string name, Object obj) {
-    debug if (auto var1 = fastcast!(Variable) (obj)) {
-      auto from = var1.baseOffset, to = from + var1.type.size;
-      foreach (obj2; field) {
-        if (auto var2 = fastcast!(Variable) (obj2._1)) {
-          auto from2 = var2.baseOffset, to2 = from2 + var2.type.size;
-          if (!(from2 >= to || from >= to2)) {
-            logln("tried to add variable overlapping existing variable");
-            logln("existing (", from2, "..", to2, "): ", obj2);
-            logln("new      (", from, "..", to, "): ", obj);
-            fail;
-          }
-        }
-      }
-    }
-    super.__add(name, obj);
   }
   bool emitted;
   // assume the same scope won't be opened twice
-  int active_checkpt;
   Namespace active_backup_ns;
-  AsmFile active_af;
+  LLVMFile active_lf;
   Dwarf2Section active_backup_sect;
   void open3(bool onlyCleanup) {
-    auto af = active_af;
+    auto lf = active_lf;
     if (!onlyCleanup) {
-      if (af.dwarf2) {
-        af.markLabelInUse(exit());
-      }
-      af.emitLabel(exit(), !keepRegs, isForward);
-      if (af.dwarf2) {
-        af.dwarf2.closeUntil(active_backup_sect);
-      }
+      /*if (lf.dwarf2) {
+        lf.markLabelInUse(exit());
+      }*/
+      lf.emitLabel(exit(), true);
+      /*if (lf.dwarf2) {
+        lf.dwarf2.closeUntil(active_backup_sect);
+      }*/
     }
     foreach_reverse(i, guard; guards) {
-      af.restoreCheckptStack(guard_offsets[i]);
-      guard.emitAsm(af);
+      guard.emitLLVM(lf);
     }
     
-    af.restoreCheckptStack(active_checkpt);
+    recordFrame(this);
     if (!onlyCleanup) namespace.set(active_backup_ns);
   }
   void delegate(bool onlyCleanup) open2() {
     if (_body) {
-      _body.emitAsm(active_af);
+      _body.emitLLVM(active_lf);
     }
     return &open3;
   }
   // continuations good
-  void delegate(bool onlyCleanup) delegate() open(AsmFile af) {
-    lnsc.emitAsm(af);
+  void delegate(bool onlyCleanup) delegate() open(LLVMFile lf) {
+    // lnsc.emitLLVM(lf);
     // logln(lnsc.name, ":"[], lnsc.line, ": start("[], count, "[]) "[], this);
     if (emitted) {
       logln("double emit scope ("[], count, "[]) "[], _body);
@@ -221,37 +203,28 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     }
     emitted = true;
     // TODO: check for -g?
-    Dwarf2Section backup_sect;
-    if (af.dwarf2) {
-      auto dwarf2 = af.dwarf2;
+    /*Dwarf2Section backup_sect;
+    if (lf.dwarf2) {
+      auto dwarf2 = lf.dwarf2;
       auto sect = fastalloc!(Dwarf2Section)(dwarf2.cache.getKeyFor("lexical block"[]));
       backup_sect = dwarf2.current;
       sect.data ~= qformat(".long\t"[], entry());
       sect.data ~= qformat(".long\t"[], exit());
       dwarf2.open(sect);
-    }
-    if (needEntryLabel || af.dwarf2) af.emitLabel(entry(), !keepRegs, !isForward);
-    auto checkpt = af.checkptStack(), backup = namespace();
+    }*/
+    // if (needEntryLabel || lf.dwarf2) lf.emitLabel(entry(), !keepRegs, !isForward);
+    if (needEntryLabel) lf.emitLabel(entry());
+    auto backup = namespace();
     namespace.set(this);
     // sanity checking
-    if (requiredDepth != int.max && af.currentStackDepth != requiredDepth) {
-      logln("Scope emit failure: expected stack depth ", requiredDepth, ", but got ", af.currentStackDepth);
-      logln("was: ", requiredDepthDebug);
-      logln(" is: ", this);
-      logln("mew: ", _body);
-      logln("nyan: ", sup.field);
-      logln("fs: ", framesize());
-      fail;
-    }
-    active_checkpt = checkpt;
     active_backup_ns = backup;
-    active_af = af;
-    active_backup_sect = backup_sect;
+    active_lf = lf;
+    // active_backup_sect = backup_sect;
     return &open2;
   }
   override {
-    void emitAsm(AsmFile af) {
-      open(af)()(false); // lol
+    void emitLLVM(LLVMFile lf) {
+      open(lf)()(false); // lol
     }
     Object lookup(string name, bool local = false) {
       bool pointless;
@@ -275,16 +248,15 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
       // fail;
       return sup.mangle(name, type) ~ "_local";
     }
-    Stuple!(IType, string, int)[] stackframe() {
-      typeof(sup.stackframe()) res;
-      if (sup) res = sup.stackframe();
+    Stuple!(IType, string)[] stackframe() {
+      Stuple!(IType, string)[] res;
+      if (sup) res = sup.get!(ScopeLike).stackframe();
       foreach (obj; field)
         if (auto var = fastcast!(Variable)~ obj._1)
-          res ~= stuple(var.type, var.name, var.baseOffset);
+          res ~= stuple(var.type, var.name);
       return res;
     }
   }
-  int frame_end() { int res; foreach (entry; stackframe()) { res = min(res, entry._2); } return res; }
 }
 
 // gotScope moved to fcc.d

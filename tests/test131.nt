@@ -2,7 +2,8 @@ module test131;
 
 void main() {
   byte b = -35;
-  assert(int:b == -35);
   ubyte ub = 200;
+  writeln "$(int:b) $(int:ub)";
+  assert(int:b == -35);
   assert(int:ub == 200);
 }

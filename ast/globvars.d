@@ -12,7 +12,7 @@ class GlobVar : LValue, Named, IsMangled {
   bool weak;
   GlobVar dup() { return this; /* invariant */ }
   string getInit() {
-    if (!initval) return null;
+    if (!initval) return "zeroinitializer";
     auto l = fastcast!(Literal) (initval);
     assert(!!l, Format(initval, " is not constant! "[]));
     return l.getValue();
@@ -28,6 +28,14 @@ class GlobVar : LValue, Named, IsMangled {
     return name.replace("-"[], "_dash_"[]);
   }
   string manglecache;
+  void checkDecl(LLVMFile lf) {
+    auto mang = mangleSelf();
+    string sectioninfo;
+    if (tls) sectioninfo = ", section \"tlsvars\"";
+    if (once(lf, "symbol ", mang)) {
+      lf.decls[mang] = qformat("@", mang, " = external global ", typeToLLVM(type), sectioninfo);
+    }
+  }
   override {
     string mangleSelf() {
       if (!manglecache)
@@ -35,56 +43,35 @@ class GlobVar : LValue, Named, IsMangled {
       return manglecache;
     }
     void markWeak() { weak = true; }
+    void markExternC() { fail; }
     IType valueType() { return type; }
     string getIdentifier() { return cleanedName(); }
-    void emitAsm(AsmFile af) {
-      if (!type.size) return; // hah
-      if (isARM) {
-        af.mmove4(qformat("="[], mangleSelf()), "r2"[]);
-        if (tls) {
-          af.mmove4("=_sys_tls_data_start"[], "r3"[]);
-          af.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
-          af.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
-        }
-        armpush(af, "r2"[], type.size);
-        return;
-      }
-      if (tls) {
-        af.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
-        af.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
-        af.mathOp("addl"[], "%esi"[], "%eax"[]);
-        af.pushStack("(%eax)"[], type.size);
-      }
-      else {
-        af.mmove4("$"~mangleSelf(), "%eax"[]);
-        af.pushStack("(%eax)"[], type.size);
-        // af.pushStack(mangleSelf(), type.size);
-      }
+    void emitLLVM(LLVMFile lf) {
+      emitLocation(lf);
+      load(lf, "load ", typeToLLVM(type), "* ", lf.pop());
     }
-    void emitLocation(AsmFile af) {
-      if (!type.size) {
-        af.mmove4("$0"[], "%eax"[]); // lol
-        af.pushStack("%eax"[], 4);
-        return;
-      }
-      if (isARM) {
-        af.mmove4(qformat("="[], mangleSelf()), "r2"[]);
-        if (tls) {
-          af.mmove4("=_sys_tls_data_start"[], "r3"[]);
-          af.mathOp("sub"[], "r2"[], "r2"[], "r3"[]);
-          af.mathOp("add"[], "r2"[], "r2"[], "r4"[]);
-        }
-        af.pushStack("r2"[], 4);
-        return;
-      }
+    void emitLocation(LLVMFile lf) {
+      checkDecl(lf);
+      push(lf, "@", mangleSelf());
       if (tls) {
-        af.mmove4(qformat("$"[], mangleSelf()), "%eax"[]);
-        af.mathOp("subl"[], "$_sys_tls_data_start"[], "%eax"[]);
-        af.mathOp("addl"[], "%esi"[], "%eax"[]);
-        af.pushStack("%eax"[], nativePtrSize);
-        af.nvm("%eax"[]);
-      } else {
-        af.pushStack(qformat("$"[], mangleSelf()), nativePtrSize);
+        string v = lf.pop();
+        auto tlsinfo = fastcast!(Expr) (namespace().lookup(tlsbase));
+        if (!tlsinfo) {
+          logln("Cannot emit global variable ", name, ": no tls variable found under ", namespace());
+          fail;
+        }
+        auto datastart = save(lf, fastalloc!(Symbol)("_sys_tls_data_start", Single!(Void)));
+        datastart = save(lf, "ptrtoint i8* ", datastart, " to %size_t");
+        
+        tlsinfo.emitLLVM(lf);
+        string tls = lf.pop();
+        tls = save(lf, "ptrtoint i8* ", tls, " to %size_t");
+        
+        v = save(lf, "ptrtoint ", typeToLLVM(type), "* ", v, " to %size_t");
+        v = save(lf, "sub %size_t ", v, ", ", datastart);
+        v = save(lf, "add %size_t ", v, ", ", tls);
+        v = save(lf, "inttoptr %size_t ", v, " to ", typeToLLVM(type), "*");
+        push(lf, v);
       }
     }
     string toString() { return Format("global "[], ns.get!(Module)().name, "."[], name, " of "[], type); }
@@ -93,7 +80,6 @@ class GlobVar : LValue, Named, IsMangled {
 
 class GlobVarDecl : Statement, IsMangled {
   GlobVar[] vars;
-  bool tls;
   mixin defaultIterate!();
   override {
     string mangleSelf() {
@@ -102,6 +88,9 @@ class GlobVarDecl : Statement, IsMangled {
     void markWeak() {
       foreach (var; vars) var.markWeak();
     }
+    void markExternC() {
+      fail;
+    }
     typeof(this) dup() {
       auto res = new GlobVarDecl;
       foreach (var; vars) {
@@ -109,19 +98,20 @@ class GlobVarDecl : Statement, IsMangled {
         v2.weak = var.weak;
         res.vars ~= v2;
       }
-      res.tls = tls;
       return res;
     }
-    string toString() { return Format("declare "[], tls?"tls ":""[], vars); }
-    void emitAsm(AsmFile af) {
-      if (tls) {
-        foreach (var; vars)
-          with (var) if (type.size)
-            af.addTLS(mangleSelf(), type.size, getInit(), var.weak);
-      } else {
-        foreach (var; vars)
-          with (var) if (type.size)
-            af.globvars[mangleSelf()] = stuple(type.size, getInit(), var.weak);
+    string toString() { return Format("declare ", vars); }
+    void emitLLVM(LLVMFile lf) {
+      foreach (var; vars) if (var.type.llvmSize() != "0") {
+        string linkage;
+        if (var.weak) linkage = "weak_odr ";
+        string sectioninfo;
+        if (var.tls) sectioninfo = ", section \"tlsvars\"";
+        auto mangle = var.mangleSelf();
+        string section = "module";
+        if (var.tls) section = "tlsdefs";
+        putSection(lf, section, "@", mangle, " = "~linkage~"global ", typeToLLVM(var.type), " ", var.getInit(), sectioninfo);
+        lf.undecls[mangle] = true;
       }
     }
   }
@@ -136,7 +126,6 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("shared"[])) shared = true;
   if (!rest(t2, "type"[], &ty)) return null;
   auto gvd = new GlobVarDecl;
-  gvd.tls = !shared;
   auto ns = namespace();
   string t3; Expr initval;
   if (
@@ -155,7 +144,7 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       t2.accept(","[]),
       {
         if (initval) opt(initval);
-        gvd.vars ~= fastalloc!(GlobVar)(ty, name, ns, gvd.tls, initval);
+        gvd.vars ~= fastalloc!(GlobVar)(ty, name, ns, !shared, initval);
         initval = null;
       },
       false

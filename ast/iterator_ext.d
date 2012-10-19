@@ -19,12 +19,12 @@ class ArrayIterator : Type, RichIterator, IArrayIterator {
     }
     IType elemType() { return arr.elemType; }
     string toString() { return Format("ArrayIterator[", tup, "]"); }
-    int size() { return tup.size; }
+    string llvmSize() { return tup.llvmSize(); }
+    string llvmType() { return tup.llvmType(); }
     string mangle() { return qformat("array_iterate_", tup.mangle()); }
-    ubyte[] initval() { return tup.initval(); }
     
     Cond testAdvance(LValue lv) {
-      auto entries = getTupleEntries(reinterpret_cast(tup, lv));
+      auto entries = getTupleEntries(reinterpret_cast(tup, lv), null, true);
       auto arrlv = entries[0], idxlv = entries[1];
       auto next = lookupOp("+", idxlv, mkInt(1));
       auto st = mkAssignment(idxlv, next);
@@ -32,23 +32,23 @@ class ArrayIterator : Type, RichIterator, IArrayIterator {
       return new StatementAndCond(st, cd);
     }
     Expr currentValue(Expr ex) {
-      auto entries = getTupleEntries(reinterpret_cast(tup, ex));
+      auto entries = getTupleEntries(reinterpret_cast(tup, ex), null, true);
       return lookupOp("index", entries[0], entries[1]);
     }
     Expr length(Expr ex) {
-      auto entries = getTupleEntries(reinterpret_cast(tup, ex));
+      auto entries = getTupleEntries(reinterpret_cast(tup, ex), null, true);
       return lookupOp("-",
         getArrayLength(entries[0]),
         lookupOp("+", mkInt(1), entries[1]));
     }
     Expr index(Expr ex, Expr pos) {
-      auto entries = getTupleEntries(reinterpret_cast(tup, ex));
+      auto entries = getTupleEntries(reinterpret_cast(tup, ex), null, true);
       return lookupOp("index",
         entries[0],
         lookupOp("+", pos, lookupOp("+", entries[1], mkInt(1))));
     }
     Expr slice(Expr ex, Expr from, Expr to) {
-      auto entries = getTupleEntries(reinterpret_cast(tup, ex));
+      auto entries = getTupleEntries(reinterpret_cast(tup, ex), null, true);
       return reinterpret_cast(this, mkTupleExpr(
         mkArraySlice(entries[0], from, to),
         entries[1]));
@@ -85,7 +85,7 @@ static this() {
   }
   implicits ~= delegate Expr(Expr ex, IType expect) {
     if (!sysmod) return null; // required
-    if (!expect || !fastcast!(Iterator) (expect))
+    if (!expect || !fastcast!(HintType!(Iterator)) (expect))
       return null;
     auto evt = ex.valueType();
     if (fastcast!(StaticArray) (evt) && !fastcast!(CValue) (ex)) { // cannot slice, use fallback
@@ -96,7 +96,8 @@ static this() {
     if (!arr) return null;
     auto itr = new ArrayIterator(arr);
     ex = mkTupleExpr(ex, mkInt(-1));
-    return reinterpret_cast(itr, ex);
+    auto res = reinterpret_cast(itr, ex);
+    return res;
   };
 }
 
@@ -109,13 +110,14 @@ class CrossIndexExpr : Expr {
   override {
     typeof(this) dup() { return new typeof(this) (cross, ex.dup, idx.dup); }
     IType valueType() { return mkTuple(cross.myTypes()); }
-    void emitAsm(AsmFile af) {
-      auto len = cross.myTypes().length, tup = cross.castToTuple(ex);
+    void emitLLVM(LLVMFile lf) {
+      todo("CrossIndexExpr::emitLLVM");
+      /*auto len = cross.myTypes().length, tup = cross.castToTuple(ex);
       auto lenex = mkInt(len);
-      mkVar(af, valueType(), true, (Variable var) {
+      mkVar(lf, valueType(), true, (Variable var) {
         auto root = iparse!(Scope, "cross_index_init"[], "tree.stmt"[])
                           (`{ auto count = idx; }`,
-                            "tup"[], tup, "idx"[], idx, af);
+                            "tup"[], tup, "idx"[], idx, lf);
         auto count = fastcast!(LValue)~ root.lookup("count"[]);
         assert(!!count);
         for (int i = len - 1; i >= 0; --i) {
@@ -137,8 +139,8 @@ class CrossIndexExpr : Expr {
             lookupOp("/"[], count, len)
           ));
         }
-        root.emitAsm(af);
-      });
+        root.emitLLVM(lf);
+      });*/
     }
   }
   static this() {
@@ -196,32 +198,32 @@ class Cross : Type, RichIterator {
     IType elemType() {
       return mkTuple(myTypes());
     }
-    string toString() { return Format("Cross["[], size, "]("[], elemType, ")"[]); }
-    int size() { return tup.size; }
+    string toString() { return Format("Cross["[], llvmSize(), "]("[], elemType, ")"[]); }
+    string llvmType() { return tup.llvmType(); }
+    string llvmSize() { return tup.llvmSize(); }
     string mangle() { return "cross_over_"~tup.mangle(); }
-    ubyte[] initval() { return tup.initval(); }
     Cond testAdvance(LValue lv) {
       auto types = myTypes(), tup = castToTuple(lv);
       auto root = iparse!(IfStatement, "cross_iterate_init"[], "tree.stmt"[])
-                         (`if (!tup[0]) { tup[0] = true; } else {}`, "tup"[], tup);
+                         (`if (!tup[0]) { tup[0] = true; } else {}`, namespace(), "tup"[], tup);
       foreach (i, type; types) {
-        (fastcast!(Scope) (root.branch1)).addStatement(iparse!(Statement, "cross_iterate_init_specific"[], "tree.stmt"[])
+        auto br1 = fastcast!(Scope)(root.branch1);
+        br1.addStatement(iparse!(Statement, "cross_iterate_init_specific"[], "tree.stmt"[])
                                          (`{ eval tup[1+i] <- tup[1+len+i]; }`,
-                                          "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(types.length)));
+                                          br1, "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(types.length)));
       }
       IfStatement current;
       // build if tree
       foreach_reverse (i, type; types) {
+        Scope sc;
+        if (current) sc = fastcast!(Scope)(current.branch2);
+        else sc = fastcast!(Scope)(root.branch2);
+        
         auto myIf = iparse!(IfStatement, "cross_iterate_step"[], "tree.stmt"[])
                            (`if (tup[1+i] <- tup[1+len+i]) { } else { tup[1+len+i] = tup[1+len*2+i]; eval tup[1+i] <- tup[1+len+i]; }`,
-                            "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(types.length));
-        if (!current) {
-          (fastcast!(Scope) (root.branch2)).addStatement(myIf);
-          current = myIf;
-        } else {
-          (fastcast!(Scope) (current.branch2)).addStatement(myIf);
-          current = myIf;
-        }
+                            sc, "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(types.length));
+        sc.addStatement(myIf);
+        current = myIf;
       }
       auto term = iparse!(Statement, "cross_finalize"[], "tree.stmt"[])
                          (`tup[0] = false; `,
@@ -261,7 +263,7 @@ class Cross : Type, RichIterator {
       }
       if (staticlength != -1)
         return mkInt(staticlength);
-      assert(!!res);
+      if (!res) fail;
       return res;
     }
     Expr index(Expr ex, Expr pos) {
@@ -301,7 +303,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
     foreach (ref ex2; getTupleEntries(ex)) {
       opt(ex2);
       // logln("got tuple entry "[], ex2);
-      if (!gotImplicitCast(ex2, Single!(BogusIterator), isRichIterator))
+      if (!gotImplicitCast(ex2, Single!(HintType!(Iterator)), isRichIterator))
         return false;
     }
     return true;
@@ -311,7 +313,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
     opt(entry);
-    gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
+    gotImplicitCast(entry, Single!(HintType!(Iterator)), isRichIterator);
   }
   return fastcast!(Object)~ mkCross(list);
 }
@@ -334,10 +336,10 @@ class Zip(T) : Type, T {
   }
   override {
     IType elemType() { return mkTuple(myTypes()); }
-    string toString() { return Format("Zip["[], size, "]("[], tup.types, ")"[]); }
-    int size() { return tup.size; }
+    string toString() { return Format("Zip["[], llvmSize(), "]("[], tup.types, ")"[]); }
+    string llvmType() { return tup.llvmType(); }
+    string llvmSize() { return tup.llvmSize(); }
     string mangle() { return qformat("zip_over_", tup.mangle()); }
-    ubyte[] initval() { return tup.initval(); }
     Cond testAdvance(LValue lv) {
       Cond res;
       auto types = myTypes(), tup = castToTuple(lv);
@@ -365,25 +367,24 @@ class Zip(T) : Type, T {
         auto types = myTypes();
         auto tup = castToTuple(ex);
         auto sc = fastalloc!(Scope)();
-        sc.requiredDepth = int.max;
         
         auto backup = namespace();
         scope(exit) namespace.set(backup);
         namespace.set(sc);
         
-        Expr transform(Expr ex) {
-          return lvize((fastcast!(RichIterator) (resolveType(ex.valueType()))).length(ex));
+        Expr len(Expr ex) {
+          return (fastcast!(RichIterator) (resolveType(ex.valueType()))).length(ex);
         }
-        return fastalloc!(ScopeAndExpr)(sc, tmpize_maybe(tup, delegate Expr(Expr tup) {
-          auto entries = getTupleEntries(tup);
-          auto res = transform(entries[0]);
+        return tmpize_maybe(tup, delegate Expr(Expr tup) {
+          auto entries = getTupleEntries(tup, null, true);
+          auto res = len(entries[0]);
           
           foreach (entry; entries[1..$]) {
             res = iparse!(Expr, "zip_min_len", "tree.expr")
-                         (`[r, e][e<r]`, sc, "r", res, "e", transform(entry));
+                         (`[r, e][e<r]`, sc, "r", res, "e", len(entry));
           }
-          return res;
-        }));
+          return fastalloc!(ScopeAndExpr)(sc, res);
+        });
       }
       Expr index(Expr ex, Expr pos) {
         auto types = myTypes(), tup = castToTuple(ex);
@@ -427,7 +428,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
       opt(ex2);
-      if (!gotImplicitCast(ex2, Single!(BogusIterator), isIterator))
+      if (!gotImplicitCast(ex2, Single!(HintType!(Iterator)), isIterator))
         return false;
       auto test = ex2;
       if (!gotImplicitCast(test, isRichIterator))
@@ -442,8 +443,8 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
     opt(entry);
-    if (rich) gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
-    else gotImplicitCast(entry, Single!(BogusIterator), isIterator);
+    if (rich) gotImplicitCast(entry, Single!(HintType!(Iterator)), isRichIterator);
+    else gotImplicitCast(entry, Single!(HintType!(Iterator)), isIterator);
   }
   return fastcast!(Object)~ mkZip(list, rich);
 }
@@ -464,9 +465,9 @@ class Cat(T) : Type, T {
   override {
     IType elemType() { return myType; }
     string toString() { return Format("Cat("[], tup.types, ")"[]); }
-    int size() { return tup.size; }
+    string llvmType() { return tup.llvmType(); }
+    string llvmSize() { return tup.llvmSize(); }
     string mangle() { return "cat_over_"~tup.mangle(); }
-    ubyte[] initval() { return tup.initval(); }
     Cond testAdvance(LValue lv) {
       auto len = (tup.types.length - 1) / 2;
       auto tup = castToTuple(lv);
@@ -544,7 +545,7 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
       opt(ex2);
-      if (!gotImplicitCast(ex2, Single!(BogusIterator), isIterator))
+      if (!gotImplicitCast(ex2, Single!(HintType!(Iterator)), isIterator))
         return false;
       merge(fastcast!(Iterator) (ex2.valueType()));
       auto test = ex2;
@@ -560,8 +561,8 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
     opt(entry);
-    if (rich) gotImplicitCast(entry, Single!(BogusIterator), isRichIterator);
-    else gotImplicitCast(entry, Single!(BogusIterator), isIterator);
+    if (rich) gotImplicitCast(entry, Single!(HintType!(Iterator)), isRichIterator);
+    else gotImplicitCast(entry, Single!(HintType!(Iterator)), isIterator);
   }
   return fastcast!(Object) (mkCat(valueType, list, rich));
 }
@@ -575,40 +576,47 @@ class SumExpr : Expr {
   SumExpr dup() { return fastalloc!(SumExpr)(iter, ex.dup); }
   override {
     IType valueType() { return iter.elemType(); }
-    void emitAsm(AsmFile af) {
-      mkVar(af, iter.elemType(), true, (Variable var) {
-        if (auto ri = fastcast!(RichIterator)~ iter) {
-          // unroll. TODO: decide when.
-          auto stmt = iparse!(Statement, "sum_1"[], "tree.stmt"[])
-          (`
-          {
-            auto i2 = iter;
-            T temp;
-            eval var <- i2;
-            int left = i2.length / 4;
-            for 0..left {
-              eval auto val <- i2; var += val;
-              eval val <- i2; var += val;
-              eval val <- i2; var += val;
-              eval val <- i2; var += val;
-            }
-            while temp <- i2 { var += temp; }
-          } `, "iter"[], ex, "T"[], iter.elemType(), "var"[], var, af);
-          // opt(stmt);
-          stmt.emitAsm(af);
-        } else {
-          auto stmt = iparse!(Statement, "sum_2"[], "tree.stmt"[])
-          (`
-          {
-            auto i2 = iter;
-            T temp;
-            eval var <- i2;
-            while temp <- i2 { var += temp; }
-          }`, "iter"[], ex, "T"[], iter.elemType(), "var"[], var, af);
-          // opt(stmt);
-          stmt.emitAsm(af);
-        }
-      });
+    void emitLLVM(LLVMFile lf) {
+      mixin(mustOffset("1"));
+      auto var = fastalloc!(LLVMRef)(iter.elemType());
+      var.allocate(lf);
+      var.begin(lf);
+      scope(success) {
+        var.emitLLVM(lf);
+        var.end(lf);
+      }
+      
+      if (auto ri = fastcast!(RichIterator)~ iter) {
+        // unroll. TODO: decide when.
+        auto stmt = iparse!(Statement, "sum_1"[], "tree.stmt"[])
+        (`
+        {
+          auto i2 = iter;
+          T temp;
+          eval var <- i2;
+          int left = i2.length / 4;
+          for 0..left {
+            eval auto val <- i2; var += val;
+            eval val <- i2; var += val;
+            eval val <- i2; var += val;
+            eval val <- i2; var += val;
+          }
+          while temp <- i2 { var += temp; }
+        } `, namespace(), "iter"[], ex, "T"[], iter.elemType(), "var"[], var);
+        // opt(stmt);
+        stmt.emitLLVM(lf);
+      } else {
+        auto stmt = iparse!(Statement, "sum_2"[], "tree.stmt"[])
+        (`
+        {
+          auto i2 = iter;
+          T temp;
+          eval var <- i2;
+          while temp <- i2 { var += temp; }
+        }`, namespace(), "iter"[], ex, "T"[], iter.elemType(), "var"[], var);
+        // opt(stmt);
+        stmt.emitLLVM(lf);
+      }
     }
   }
 }
@@ -621,7 +629,7 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   IType[] tried;
-  if (!gotImplicitCast(ex, Single!(BogusIterator), (IType it) { tried ~= it; return !!fastcast!(RichIterator) (it); }))
+  if (!gotImplicitCast(ex, Single!(HintType!(Iterator)), (IType it) { tried ~= it; return !!fastcast!(RichIterator) (it); }))
     text.failparse("Cannot convert "[], ex, " to valid iterator"[]);
   
   return fastalloc!(SumExpr)(fastcast!(RichIterator)~ ex.valueType(), ex);
@@ -638,7 +646,7 @@ Object gotXIterator(ref string text, ParseCb cont, ParseCb rest) {
     if (!iter) return null;
     
     auto alreadyIterator = iter;
-    if (gotImplicitCast(alreadyIterator, Single!(BogusIterator), (IType it) {
+    if (gotImplicitCast(alreadyIterator, Single!(HintType!(Iterator)), (IType it) {
       return !!fastcast!(Iterator) (it);
     })) {
       text = t2;

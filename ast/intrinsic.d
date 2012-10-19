@@ -19,7 +19,7 @@ void setupSysmods() {
       void* malloc(int);
       void* calloc(int, int);
       void free(void*);
-      void* realloc(void* ptr, size_t size);
+      void* memset(void* s, int c, int n);
       void* memcpy(void* dest, src, int n);
       int memcmp(void* s1, s2, int n);
       int snprintf(char* str, int size, char* format, ...);
@@ -32,6 +32,36 @@ void setupSysmods() {
       int strlen(char*);
       long __divdi3(long numerator, denominator);
     }
+    platform(!*-mingw*) {
+      extern(C) int posix_memalign(void**, int, int);
+      void* alloc16(int size) {
+        void* res;
+        if auto res = posix_memalign(&res, 16, size) {
+          printf("malloc(%i) failed with %i\n", size, res);
+          int i;
+          i /= i;
+        }
+        return res;
+      }
+      void free16(void* ptr) { free(ptr); }
+    }
+    platform(*-mingw*) {
+      void* alloc16(int size) {
+        // hax!
+        // if we overallocate by 16, we will always have at least
+        // 4 bytes of unused space. we use this space to 
+        // save the original pointer for latter retrieval
+        // and passing to free.
+        auto pre = malloc(size+16);
+        // align to next 16-bit boundary
+        auto resptr = void*: (((int:pre + 16) / 16) * 16);
+        (void**:resptr)[-1] = pre;
+        return resptr;
+      }
+      void free16(void* ptr) {
+        free ((void**: ptr)[-1]); // retrieve original pointer
+      }
+    }
     bool streq(char[] a, b) {
       if a.length != b.length return false;
       for (int i = 0; i < a.length; ++i)
@@ -42,6 +72,7 @@ void setupSysmods() {
       alias value-of = *T*:null;
     }
     void* memcpy2(void* dest, src, int n) {
+      //  printf("memcpy2(%p, %p, %i)\n", dest, src, n);
       return memcpy(dest, src, n);
     }
     context mem {
@@ -49,19 +80,21 @@ void setupSysmods() {
       void* delegate(int, int)      calloc_dg;
       void* delegate(int)           calloc_atomic_dg; // allocate data, ie. memory containing no pointers
       void delegate(void*)          free_dg;
-      void* delegate(void*, size_t) realloc_dg;
       void* malloc (int i)             { return malloc_dg(i); }
       void* calloc_atomic (int i)      { if (!calloc_atomic_dg) return calloc(i, 1); return calloc_atomic_dg(i); }
       void* calloc (int i, int k)      { return calloc_dg(i, k); }
       void  free   (void* p)           { free_dg(p); }
-      void* realloc(void* p, size_t s) { return realloc_dg(p, s); }
       /*MARKER*/
     }
     void mem_init() {
-      mem. malloc_dg = &malloc;
-      mem. calloc_dg = &calloc;
-      mem.   free_dg = &free;
-      mem.realloc_dg = &realloc;
+      mem. malloc_dg = \(int i) { return alloc16 i; }
+      mem. calloc_dg = \(int i, k) {
+        // printf("calloc(%i, %i)\n", i, k);
+        auto res = alloc16 (i * k);
+        memset(res, 0, i*k);
+        return res; 
+      }
+      mem.   free_dg = \(void* p) { return free16 p; }
     }
     alias string = char[]; // must be post-marker for free() to work properly
     struct FrameInfo {
@@ -146,6 +179,7 @@ void setupSysmods() {
     template append3e(T) {
       T[auto ~] append3e(T[auto ~]* l, T r) {
         // printf("hi, append3e here - incoming %d, add 1\n", l.length);
+        if (l.length > 10_000_000) { int i; i /= i; }
         return append3!T(l, (&r)[0..1]);
       }
     }
@@ -172,14 +206,12 @@ void setupSysmods() {
       printf ("please increase the snprintf buffer %i\n", length);
       *int*:null=0;
     }
-    platform(!arm*) {
-      alias vec2f = vec(float, 2);
-      alias vec3f = vec(float, 3);
-      alias vec4f = vec(float, 4);
-      alias vec2d = vec(double, 2);
-      alias vec3d = vec(double, 3);
-      alias vec4d = vec(double, 4);
-    }
+    alias vec2f = vec(float, 2);
+    alias vec3f = vec(float, 3);
+    alias vec4f = vec(float, 4);
+    alias vec2d = vec(double, 2);
+    alias vec3d = vec(double, 3);
+    alias vec4d = vec(double, 4);
     alias vec2i = vec(int, 2);
     alias vec3i = vec(int, 3);
     alias vec4i = vec(int, 4);
@@ -229,13 +261,16 @@ void setupSysmods() {
       snprintf(res.ptr, res.length, "%f", d);
       return res[0..$-1];
     }
-    platform(!arm*) {
-      string ftoa(float f) {
+    string ftoa(float f) {
+      platform(!arm*) {
         short backup = fpucw;
         fpucw = short:(fpucw | 0b111_111); // mask nans
         string res = dtoa double:f;
         fpucw = backup;
         return res;
+      }
+      platform(arm*) {
+        return dtoa double:f;
       }
     }
     /*MARKER2*/
@@ -255,6 +290,9 @@ void setupSysmods() {
     }
     void* _fcc_dynamic_cast(void* ex, string id, int isIntf) {
       if (!ex) return null;
+      // writeln "_fcc_dynamic_cast($id) obj $ex";
+      // if (!isIntf) writeln "being $(Object: ex)";
+      // else writeln "being intf";
       if (isIntf) ex = void*:(void**:ex + **int**:ex);
       auto obj = Object: ex;
       // writeln "dynamic cast: obj $ex to $id => $(obj.dynamicCastTo id)";
@@ -291,7 +329,7 @@ void setupSysmods() {
         return eval !!obj.dynamicCastTo(id);
       }
     }
-
+    
     _Handler* __hdl__;
     
     void* _cm;
@@ -302,7 +340,7 @@ void setupSysmods() {
       _CondMarker* prev;
       jmp_buf target;
       string param_id;
-      void* esi;
+      void* threadlocal;
       bool accepts(Object obj) {
         if (!param_id.length) return !obj;
         else return !!obj?.dynamicCastTo param_id;
@@ -397,7 +435,7 @@ void setupSysmods() {
     }
     void raise(UnrecoverableError err) {
       auto cur = __hdl__;
-      if (!cur) asm `~"`"~`int $3`~"`"~`;
+      if (!cur) { int i; i /= i; }
       while cur {
         if cur.accepts(err) cur.dg(err);
         cur = cur.prev;
@@ -454,28 +492,27 @@ void setupSysmods() {
       memcpy(res, ptr, length);
       return res;
     }
-    platform(!arm*) {
-      int fastfloor(float f) {
-        alias magicdelta = 0.000000015;
-        alias roundeps = 0.5 - magicdelta;
-        alias magic = 6755399441055744.0;
-        double d = double:f - roundeps + magic;
-        return (int*:&d)[0];
+    int fastfloor(float f) {
+      writeln "fastfloor should never be called directly! ";
+      writeln "there's supposed to be an opt rule that replaces this call with an llvm intrinsic";
+      writeln "but for some reason it did not trigger. ";
+      writeln "please file a bug report.";
+      writeln "the program will now terminate";
+      _interrupt 3;
+    }
+    void fastfloor3f(vec3f v, vec3i* res) {
+      if (true || v.x >= 1<<31 || v.y >= 1<<31 || v.z >= 1<<31) { // cvttps2dq will fail
+        res.x = fastfloor(v.x);
+        res.y = fastfloor(v.y);
+        res.z = fastfloor(v.z);
+        return;
       }
-      void fastfloor3f(vec3f v, vec3i* res) {
-        (vec4f*: &v).w = 0; // prevent fp error
-        if (v.x >= 1<<31 || v.y >= 1<<31 || v.z >= 1<<31) { // cvttps2dq will fail
-          res.x = fastfloor(v.x);
-          res.y = fastfloor(v.y);
-          res.z = fastfloor(v.z);
-          return;
-        }
-        xmm[4] = v;
-        asm "cvttps2dq %xmm4, %xmm5";`"
-        asm `psrld $31, %xmm4`;"`
-        asm "psubd %xmm4, %xmm5";
-        *res = vec3i:xmm[5];
-      }
+      (vec4f*: &v).w = 0; // prevent fp error
+      /*xmm[4] = v;
+      asm "cvttps2dq %xmm4, %xmm5";`"
+      asm `psrld $31, %xmm4`;"`
+      asm "psubd %xmm4, %xmm5";
+      *res = vec3i:xmm[5];*/
     }
     struct RefCounted {
       void delegate() onZero;
@@ -524,9 +561,9 @@ void setupSysmods() {
       for auto mod <- __modules if mod.name == name return mod;
       raise new Error "No such module: $name";
     }
-    extern(C) void __setupModuleInfo();
+    extern(C) void __setupModuleInfo(void* _threadlocal);
     void constructModules() {
-      for auto mod <- __modules {
+      for auto mod <- __modules.iterator {
         for auto str <- mod._imports
           mod.imports ~= lookupInfo str;
       }
@@ -538,7 +575,9 @@ void setupSysmods() {
         for auto constr <- mod.constructors
           constr();
       }
-      for auto mod <- __modules callConstructors mod;
+      for auto mod <- __modules {
+        callConstructors mod;
+      }
     }
     platform(default) {
       pragma(lib, "pthread");
@@ -584,7 +623,7 @@ void setupSysmods() {
           }
           already_handling_segfault = true;
           onExit already_handling_segfault = false;
-          _esi = c.pthread.pthread_getspecific(tls_pointer);
+          auto _threadlocal = c.pthread.pthread_getspecific(tls_pointer);
           if (preallocated_sigsegv) raise preallocated_sigsegv;
           raise new LinuxSignal "SIGSEGV";
         }
@@ -631,13 +670,14 @@ void setupSysmods() {
     /* shared TODO figure out why this crashes */ string executable;
     shared int __argc;
     shared char** __argv;
+    extern(C) byte _sys_tls_data_start;
     int main2(int argc, char** argv) {
       __argc = argc; __argv = argv;
       
       mem_init();
       platform(default) {
         pthread_key_create(&tls_pointer, null);
-        c.pthread.pthread_setspecific(tls_pointer, _esi);
+        c.pthread.pthread_setspecific(tls_pointer, _threadlocal);
         setup-segfault-handler();
         preallocated_sigsegv = new LinuxSignal "SIGSEGV";
       }
@@ -655,7 +695,7 @@ void setupSysmods() {
       }
       define-exit "main-return" return errnum;
       
-      __setupModuleInfo();
+      __setupModuleInfo(_threadlocal);
       constructModules();
       
       platform(x86) {
@@ -749,9 +789,11 @@ void finalizeSysmod(Module mainmod) {
     extern_c = true;
     type = new FunctionType;
     type.ret = Single!(Void);
+    type.params ~= Argument(voidp, "_threadlocal");
     sup = mainmod;
     coarseSrc = "{}".dup;
     coarseModule = mainmod;
+    fixup();
     parseMe();
   }
   mainmod.entries ~= setupfun;
@@ -771,9 +813,9 @@ void finalizeSysmod(Module mainmod) {
   auto backup = namespace();
   scope(exit) namespace.set(backup);
   namespace.set(sc);
-  auto var = fastalloc!(Variable)(modtype, cast(string) null, boffs(modtype));
+  auto var = fastalloc!(Variable)(modtype, framelength(), cast(string) null);
   sc.add(var);
-  auto count = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt)));
+  auto count = fastalloc!(Variable)(Single!(SysInt), framelength(), cast(string) null);
   sc.add(count);
   auto vs = fastalloc!(VarDecl)(var);
   vs.initInit;
@@ -797,8 +839,8 @@ void finalizeSysmod(Module mainmod) {
       symdend = reinterpret_cast(voidp, mkInt(0));
       compiled = mkInt(0);
     } else {
-      symdstart = fastalloc!(Symbol)("_sys_tls_data_"~fltname~"_start");
-      symdend = fastalloc!(Symbol)("_sys_tls_data_"~fltname~"_end");
+      symdstart = fastalloc!(Symbol)("_sys_tls_data_"~fltname~"_start", Single!(Void));
+      symdend = fastalloc!(Symbol)("_sys_tls_data_"~fltname~"_end", Single!(Void));
       compiled = mkInt(1);
     }
     sc.addStatement(
@@ -806,7 +848,8 @@ void finalizeSysmod(Module mainmod) {
              (`{
                  var = new ModuleInfo(name, sourcefile, symdstart, symdend, bool:compiled);
                  __modules = __modules ~ var;
-               }` , "var", var, "name", mkString(mod.name),
+               }`,sc,
+                  "var", var, "name", mkString(mod.name),
                   "symdstart", symdstart,
                   "symdend", symdend,
                   "compiled", compiled,
@@ -846,7 +889,7 @@ void finalizeSysmod(Module mainmod) {
         sc.addStatement(
           iparse!(Statement, "init_mod_classes", "tree.stmt")
                 (`var.classes ~= classp;`, sc,
-                  "var", var, "classp", new Symbol(cl.cd_name())));
+                  "var", var, "classp", new Symbol(cl.cd_name(), Single!(Void))));
       }
     }
     version(CustomDebugInfo) {
@@ -871,14 +914,15 @@ class CPUIDExpr : Expr {
   override {
     CPUIDExpr dup() { return fastalloc!(CPUIDExpr)(which); }
     IType valueType() { return mkTuple(Single!(SysInt), Single!(SysInt), Single!(SysInt), Single!(SysInt)); }
-    void emitAsm(AsmFile af) {
-      which.emitAsm(af);
-      af.popStack("%eax", 4);
-      af.put("cpuid");
-      af.pushStack("%edx", 4);
-      af.pushStack("%ecx", 4);
-      af.pushStack("%ebx", 4);
-      af.pushStack("%eax", 4);
+    void emitLLVM(LLVMFile lf) {
+      todo("CPUIDExpr::emitLLVM");
+      /*which.emitLLVM(lf);
+      lf.popStack("%eax", 4);
+      lf.put("cpuid");
+      lf.pushStack("%edx", 4);
+      lf.pushStack("%ecx", 4);
+      lf.pushStack("%ebx", 4);
+      lf.pushStack("%eax", 4);*/
     }
   }
 }
@@ -899,11 +943,11 @@ class RDTSCExpr : Expr {
   mixin defaultIterate!();
   override {
     RDTSCExpr dup() { return this; }
-    IType valueType() { return mkTuple(Single!(Long)); }
-    void emitAsm(AsmFile af) {
-      af.put("rdtsc");
-      af.pushStack("%edx", 4);
-      af.pushStack("%eax", 4);
+    IType valueType() { return Single!(Long); }
+    void emitLLVM(LLVMFile lf) {
+      auto f = save(lf, "alloca i64, i32 1");
+      put(lf, `call void asm sideeffect "rdtsc; movl %eax, ($0); movl %edx, 4($0)", "r"(i64* `, f, `)`);
+      load(lf, "load i64* ", f);
     }
   }
 }
@@ -918,14 +962,12 @@ class MXCSR : MValue {
   override {
     MXCSR dup() { return this; }
     IType valueType() { return Single!(SysInt); }
-    void emitAsm(AsmFile af) {
-      af.salloc(4);
-      af.put("stmxcsr (%esp)");
+    void emitLLVM(LLVMFile lf) {
+      load(lf, `call i32 asm sideeffect "subl $$4, %esp; stmxcsr (%esp); popl $0", "=r"()`);
     }
   }
-  void emitAssignment(AsmFile af) {
-    af.put("ldmxcsr (%esp)");
-    af.sfree(4);
+  void emitAssignment(LLVMFile lf) {
+    put(lf, `call void asm sideeffect "pushl $0; ldmxcsr (%esp); addl $$4, %esp", "r"(i32 `, lf.pop, `)`);
   }
 }
 
@@ -939,14 +981,12 @@ class FPUCW : MValue {
   override {
     FPUCW dup() { return this; }
     IType valueType() { return Single!(Short); }
-    void emitAsm(AsmFile af) {
-      af.salloc(2);
-      af.put("fstcw (%esp)");
+    void emitLLVM(LLVMFile lf) {
+      load(lf, `call i16 asm "subl $$2, %esp; fstcw (%esp); popw $0", "=r"()`);
     }
   }
-  void emitAssignment(AsmFile af) {
-    af.put("fldcw (%esp)");
-    af.sfree(2);
+  void emitAssignment(LLVMFile lf) {
+    put(lf, `call void asm "pushw $0; fldcw (%esp); addl $$2, %esp", "r"(i16 `, lf.pop, `)`);
   }
 }
 
@@ -964,8 +1004,19 @@ class RegExpr : MValue {
     string toString() { return qformat("<reg ", reg, ">"); }
     RegExpr dup() { return this; }
     IType valueType() { return voidp; }
-    void emitAsm(AsmFile af) { if (isARM && reg == "%ebp") reg = "fp"; af.pushStack(reg, nativePtrSize); }
-    void emitAssignment(AsmFile af) { af.popStack(reg, nativePtrSize); }
+    void emitLLVM(LLVMFile lf) {
+      if (reg == "%ebp") {
+        lf.push("%__stackframe");
+        return;
+      }
+      todo(qformat("RegExpr(", reg, ")::emitLLVM"));
+      // if (isARM && reg == "%ebp") reg = "fp"; lf.pushStack(reg, nativePtrSize);
+    }
+    void emitAssignment(LLVMFile lf) {
+      logln("RegExpr::emitAssignment to ", reg);
+      fail;
+      // lf.popStack(reg, nativePtrSize);
+    }
   }
 }
 
@@ -975,6 +1026,7 @@ Object gotEBP(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotEBP, "tree.expr.ebp", "24045", "_ebp");
 
 Object gotESI(ref string text, ParseCb cont, ParseCb rest) {
+  text.failparse("no longer relevant in llvm, use _threadlocal instead");
   return Single!(RegExpr, "%esi");
 }
 mixin DefaultParser!(gotESI, "tree.expr.esi", "24046", "_esi");
@@ -989,7 +1041,11 @@ class Assembly : LineNumberedStatementClass {
   this(string s) { text = s; }
   mixin defaultIterate!();
   override Assembly dup() { return this; }
-  override void emitAsm(AsmFile af) { super.emitAsm(af); af.put(text); }
+  override void emitLLVM(LLVMFile lf) {
+    super.emitLLVM(lf);
+    // todo("Assembly::emitLLVM .. :sigh:");
+    put(lf, "call void asm sideeffect \"", text.replace("$", "$$"), "\", \"\"()");
+  }
 }
 
 import ast.literal_string, ast.fold;
@@ -1013,8 +1069,9 @@ class ConstantDefinition : Tree {
   string name;
   string[] values;
   this(string n, string[] v) { name = n; values = v; }
-  void emitAsm(AsmFile af) {
-    af.allocLongstant(name, values, true);
+  void emitLLVM(LLVMFile lf) {
+    preserve ~= ","~name;
+    allocLongstant(lf, name, values, false);
   }
   ConstantDefinition dup() { assert(false); }
   mixin defaultIterate!();

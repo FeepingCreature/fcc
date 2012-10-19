@@ -4,8 +4,6 @@ import ast.base, ast.namespace, ast.parse, ast.fold, ast.fun;
 
 import tools.ctfe, tools.threadpool;
 
-alias asmfile.startsWith startsWith;
-
 string[] include_path;
 
 bool dumpXMLRep;
@@ -35,7 +33,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
   Tree[] entries;
   Setupable[] setupable;
   bool parsingDone;
-  AsmFile inProgress; // late to the party;
+  LLVMFile inProgress; // late to the party;
   bool _hasDebug = true;
   Module[] getAllModuleImports() {
     Module[] res;
@@ -93,12 +91,37 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     }
     Module dup() { assert(false, "What the hell are you doing, man. "[]); }
     string getIdentifier() { return name; }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
+      lf.beginSection("module");
+      put(lf, `target datalayout = "`, datalayout, `"`);
+      put(lf, `target triple = "i386-pc-linux-gnu"`);
+      put(lf, `%size_t = type i32`);
+      scope(success) {
+        auto tlsbase = qformat("_sys_tls_data_", name.replace(".", "_").replace("-", "_dash_"));
+        put(lf, "@", tlsbase, "_start = global i8 0, section \"tlsvars\"");
+        if (name == "sys") {
+          put(lf, `@_sys_tls_data_start = global i8 0, section "tlsvars"`);
+          lf.undecls["_sys_tls_data_start"] = true;
+        }
+        if ("tlsdefs" in lf.sectionStore) {
+          lf.put(lf.sectionStore["tlsdefs"]);
+          lf.sectionStore.remove("tlsdefs"); 
+        }
+        put(lf, "@", tlsbase, "_end   = global i8 0, section \"tlsvars\"");
+        lf.undecls[qformat(tlsbase, "_start")] = true;
+        lf.undecls[qformat(tlsbase, "_end"  )] = true;
+        foreach (key, value; lf.decls) {
+          if (!(key in lf.undecls)) {
+            put(lf, value);
+          }
+        }
+      }
+      
       auto backup = current_module();
       scope(exit) current_module.set(backup);
       current_module.set(this);
-      inProgress = af;
-      foreach (s; setupable) s.setup(af);
+      inProgress = lf;
+      foreach (s; setupable) s.setup(lf);
       scope(exit) inProgress = null;
       
       int i; // NOTE: not a foreach! entries may yet grow.
@@ -106,22 +129,10 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
         auto entry = entries[i++];
         // logln("emit entry "[], entry);
         if (fastcast!(NoOp) (entry)) continue;
-        // globvars don't write any code!
-        // keep our assembly clean. :D
-        if ((fastcast!(Object) (entry)).classinfo.name != "ast.globvars.GlobVarDecl" && splitIntoSections) {
-          auto codename = Format("index_"[], i);
-          if (auto mang = fastcast!(IsMangled) (entry)) codename = mang.mangleSelf();
-          if (isWindoze())
-            af.put(".section .text."[], codename, ", \"ax\""[]);
-          else if (isARM)
-            {}
-          else
-            af.put(".section .text."[], codename, ", \"ax\", @progbits"[]);
-        }
         opt(entry);
-        entry.emitAsm(af);
+        entry.emitLLVM(lf);
       }
-      if (!isARM) af.put(".section .text"[]);
+      // if (!isARM) lf.put(".section .text"[]);
       doneEmitting = true;
       checkImportsUsage;
     }
@@ -131,14 +142,13 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     Object lookup(string name, bool local = false) {
       if (auto res = super.lookup(name)) return res;
       
-      if (auto lname = name.startsWith(this.name).startsWith("."[]))
+      if (auto lname = parseBase.startsWith(parseBase.startsWith(name, this.name), "."))
         if (auto res = super.lookup(lname)) return res;
       
       return lookupInImports(name, local);
     }
     string toString() { return "module "~name; }
   }
-  override Stuple!(IType, string, int)[] stackframe() { assert(false); }
 }
 
 static this() {

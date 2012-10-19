@@ -10,8 +10,8 @@ class TrueCond : Cond {
   mixin defaultIterate!();
   override {
     string toString() { return Format("true"[]); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      if (cond) af.jump(dest);
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      if (cond) jump(lf, dest);
     }
   }
 }
@@ -21,8 +21,8 @@ class FalseCond : Cond {
   mixin defaultIterate!();
   override {
     string toString() { return Format("false"[]); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      if (!cond) af.jump(dest);
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      if (!cond) jump(lf, dest);
     }
   }
 }
@@ -35,7 +35,7 @@ Cond exprwrap(Expr ex) {
       continue;
     }
     if (auto sl = fastcast!(StructLiteral) (ex)) {
-      if (sl.exprs.length == 1 && sl.offsets[0] == 0) {
+      if (sl.exprs.length == 1) {
         ex = sl.exprs[0];
         continue;
       }
@@ -59,18 +59,16 @@ class ExprWrap : Cond {
   mixin defaultIterate!(ex);
   override {
     string toString() { return Format("!!"[], ex); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      mixin(mustOffset("0"[]));
-      ex.emitAsm(af);
-      with (af) {
-        popStack(regs[0], 4);
-        compare(regs[0], regs[0], true);
-        nvm(regs[0]);
-        if (cond)
-          jumpOn(true, false, true, dest); // Jump on !=0
-        else
-          jumpOn(false, true, false, dest); // jump on 0.
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      ex = reinterpret_cast(Single!(SysInt), ex);
+      auto v = save(lf, ex);
+      if (cond) { // jump on != 0
+        v = save(lf, "icmp ne i32 0, ", v);
+      } else { // jump on 0
+        v = save(lf, "icmp eq i32 0, ", v);
       }
+      push(lf, v);
+      .jumpOn(lf, dest);
     }
   }
 }
@@ -83,10 +81,10 @@ class StatementAndCond : Cond {
   mixin defaultIterate!(first, second);
   override {
     string toString() { return Format("{ "[], first, " "[], second, " }"[]); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      mixin(mustOffset("0"[]));
-      first.emitAsm(af);
-      second.jumpOn(af, cond, dest);
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
+      mixin(mustOffset("0"));
+      first.emitLLVM(lf);
+      second.jumpOn(lf, cond, dest);
     }
   }
 }
@@ -113,11 +111,12 @@ class Compare : Cond, Expr {
     return res;
   }
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
-    if (e1.valueType().size != 4 /or/ 8) {
+    auto t1 = e1.valueType(), t2 = e2.valueType();
+    if (t1.llvmSize() != "4" && t1.llvmType() != "double") {
       logln("Invalid comparison parameter: "[], e1.valueType());
       fail;
     }
-    if (e2.valueType().size != 4 /or/ 8) {
+    if (t2.llvmSize() != "4" && t2.llvmType() != "double") {
       logln("Invalid comparison parameter: "[], e2.valueType());
       fail;
     }
@@ -157,8 +156,8 @@ class Compare : Cond, Expr {
     return !!(Single!(Double) == e1.valueType());
   }
   void prelude() {
-    assert(e1.valueType().size == 4 /or/ 8);
-    assert(e2.valueType().size == 4 /or/ 8);
+    assert(e1.valueType().llvmType() == "i32");
+    assert(e2.valueType().llvmType() == "i32");
     if (fastcast!(IntExpr) (e1) && !fastcast!(IntExpr) (e2))
       flip;
     if (Single!(Float) == e1.valueType() && Single!(Float) != e2.valueType()) {
@@ -170,43 +169,28 @@ class Compare : Cond, Expr {
       e1 = fastalloc!(IntAsFloat)(e1);
     }
   }
-  private void emitComparison(AsmFile af) { with (af) {
-    mixin(mustOffset("0"[]));
-    prelude;
-    if (isARM) {
-      if (isDouble) {
-        fail;
-        return;
-      }
-      if (isFloat) {
-        fail;
-        return;
-      }
+  void emitWith(LLVMFile lf, bool s, bool e, bool g) {
+    if (falseOverride || trueOverride) {
+      todo("Compare with override");
     }
-    if (isDouble) {
-      e2.emitAsm(af); loadDouble("(%esp)"[]); sfree(8);
-      e1.emitAsm(af); loadDouble("(%esp)"[]); sfree(8);
-      compareFloat("%st(1)"[], useIVariant);
-    } else if (isFloat) {
-      e2.emitAsm(af); loadFloat("(%esp)"[]); sfree(4);
-      e1.emitAsm(af); loadFloat("(%esp)"[]); sfree(4);
-      compareFloat("%st(1)"[], useIVariant);
-      // e1.emitAsm(af); e2.emitAsm(af);
-      // SSEOp("movd"[], "(%esp)"[], "%xmm1"[], true /* ignore alignment */); sfree(4);
-      // SSEOp("movd"[], "(%esp)"[], "%xmm0"[], true); sfree(4);
-      // SSEOp("comiss"[], "%xmm1"[], "%xmm0"[]);
-    } else if (auto ie = fastcast!(IntExpr) (e2)) {
-      e1.emitAsm(af);
-      popStack(regs[0], 4);
-      compare(regs[0], number(ie.num));
-    } else {
-      e2.emitAsm(af);
-      e1.emitAsm(af);
-      popStack(regs[3], 4);
-      popStack(regs[0], 4);
-      compare(regs[3], regs[0]);
+    auto v1 = save(lf, e1), v2 = save(lf, e2);
+    string ftest, itest;
+    if (!s && !e && !g) { ftest ="false";itest = "false"; }
+    if (!s && !e &&  g) { ftest = "ogt"; itest = "sgt"; }
+    if (!s &&  e && !g) { ftest = "oeq"; itest = "eq"; }
+    if (!s &&  e &&  g) { ftest = "oge"; itest = "sge"; }
+    if ( s && !e && !g) { ftest = "olt"; itest = "slt"; }
+    if ( s && !e &&  g) { ftest = "one"; itest = "ne"; }
+    if ( s &&  e && !g) { ftest = "ole"; itest = "sle"; }
+    if ( s &&  e &&  g) { ftest = "true";itest = "true"; }
+    if (isFloat()) load(lf, "fcmp ", ftest, " float ", v1, ", ", v2);
+    else if (isDouble()) load(lf, "fcmp ", ftest, " double ", v1, ", ", v2);
+    else {
+      if (itest == "true") load(lf, "i1 1");
+      else if (itest == "false") load(lf, "i1 0");
+      else load(lf, "icmp ", itest, " ", typeToLLVM(e1.valueType()), " ", v1, ", ", v2);
     }
-  }}
+  }
   override {
     IType valueType() {
       if (falseOverride && trueOverride) {
@@ -215,49 +199,18 @@ class Compare : Cond, Expr {
       }
       return Single!(SysInt);
     }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("valueType().size"[]));
-      if (falseOverride && trueOverride) {
-        falseOverride.emitAsm(af);
-        trueOverride.emitAsm(af);
-      }
-      emitComparison(af);
-      if (isARM) { af.put("mrs r0, cpsr"[]); }
-      auto s = smaller, e = equal, g = greater;
-      if (falseOverride && trueOverride) {
-        if (isARM) {
-          af.mmove4("[sp]"[], "r3"[]);
-          af.mmove4("[sp,#4]"[], "r2"[]);
-        } else {
-          // DO NOT POP! POP IS MOVE/SFREE! SFREE OVERWRITES COMPARISON!
-          af.mmove4( "(%esp)"[], "%edx"[]);
-          af.mmove4("4(%esp)"[], "%ecx"[]);
-        }
-      } else {
-        af.mmove4(af.number(1), af.regs[3]);
-        af.mmove4(af.number(0), af.regs[2]);
-      }
-      if (isARM) { af.put("msr cpsr, r0"[]); }
-      // can't use eax, moveOnFloat needs ax .. or does it? (SSE mode)
-      if (isFloat || isDouble)
-        af.moveOnFloat(s, e, g, af.regs[3], af.regs[2], /* convert */ !useIVariant);
-      else
-        af.cmov(s, e, g, af.regs[3], af.regs[2]);
-      // now can safely free.
-      if (falseOverride && trueOverride)
-        af.sfree(8);
-      af.pushStack(af.regs[2], 4);
+    void emitLLVM(LLVMFile lf) {
+      emitWith(lf, smaller, equal, greater);
+      load(lf, "zext i1 ", lf.pop(), " to i32");
     }
-    void jumpOn(AsmFile af, bool cond, string dest) {
-      emitComparison(af);
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
       auto s = smaller, e = equal, g = greater;
+      // TODO: integrate negation
       if (!cond) { // negate
-        s = !s; e = !e; g = !g; // TODO: validate
+        s = !s; e = !e; g = !g;
       }
-      if (isFloat || isDouble)
-        af.jumpOnFloat(s, e, g, dest, /* convert */ !useIVariant);
-      else
-        af.jumpOn(s, e, g, dest);
+      emitWith(lf, s, e, g);
+      .jumpOn(lf, dest);
     }
   }
 }
@@ -267,7 +220,7 @@ Object gotIntExpr(ref string text, ParseCb cont, ParseCb rest) {
   IType[] its;
   if (!rest(text, "tree.expr"[], &res))
     return null;
-  if (!gotImplicitCast(res, (IType it) { its ~= it; return it.size == 4; })) {
+  if (!gotImplicitCast(res, (IType it) { its ~= it; return it.llvmType() == "i32"; })) {
     text.setError("Neither of those was int sized: "[], its);
     return null;
   }
@@ -282,8 +235,8 @@ class NegCond : Cond {
   mixin defaultIterate!(c);
   this(Cond c) { this.c = c; if (!c) fail; }
   override string toString() { return Format("!("[], c, ")"[]); }
-  override void jumpOn(AsmFile af, bool cond, string dest) {
-    c.jumpOn(af, !cond, dest);
+  override void jumpOn(LLVMFile lf, bool cond, string dest) {
+    c.jumpOn(lf, !cond, dest);
   }
 }
 
@@ -414,10 +367,12 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   if (identical) {
     if (not) op = "!=";
     else op = "==";
-    auto vts = ex1.valueType().size;
+    auto vt = ex1.valueType().llvmType();
     IType cmptype;
-    if (vts == 4) cmptype = Single!(SysInt);
-    else cmptype = fastalloc!(StaticArray)(Single!(Byte), vts);
+    if (vt == "i32" || vt == "i8*") cmptype = Single!(SysInt);
+    else {
+      todo(qformat("comparison of ", ex1.valueType(), " ", vt));
+    }
     // force value comparison
     ex1 = reinterpret_cast(cmptype, ex1);
     ex2 = reinterpret_cast(cmptype, ex2);
@@ -447,27 +402,27 @@ class BooleanOp(string Which) : Cond, HasInfo {
   override {
     string getInfo()  { return Which; }
     string toString() { return Format(Which, "("[], c1, ", "[], c2, ")"[]); }
-    void jumpOn(AsmFile af, bool cond, string dest) {
+    void jumpOn(LLVMFile lf, bool cond, string dest) {
       static if (Which == "&&"[]) {
         if (cond) {
-          auto past = af.genLabel();
-          c1.jumpOn(af, false, past);
-          c2.jumpOn(af, true, dest);
-          af.emitLabel(past, !keepRegs, isForward);
+          auto past = lf.allocLabel("past_bool");
+          c1.jumpOn(lf, false, past);
+          c2.jumpOn(lf, true, dest);
+          lf.emitLabel(past, true);
         } else {
-          c1.jumpOn(af, false, dest);
-          c2.jumpOn(af, false, dest);
+          c1.jumpOn(lf, false, dest);
+          c2.jumpOn(lf, false, dest);
         }
       } else
       static if (Which == "||"[]) {
         if (cond) {
-          c1.jumpOn(af, true, dest);
-          c2.jumpOn(af, true, dest);
+          c1.jumpOn(lf, true, dest);
+          c2.jumpOn(lf, true, dest);
         } else {
-          auto past = af.genLabel();
-          c1.jumpOn(af, true, past);
-          c2.jumpOn(af, false, dest);
-          af.emitLabel(past, !keepRegs, isForward);
+          auto past = lf.allocLabel("past_bool");
+          c1.jumpOn(lf, true, past);
+          c2.jumpOn(lf, false, dest);
+          lf.emitLabel(past, true);
         }
       } else
       static assert(false, "unknown boolean op: "~Which);
@@ -572,30 +527,31 @@ class CondExpr : Expr {
     string toString() { return Format("eval "[], cd); }
     IType valueType() { return fastcast!(IType) (sysmod.lookup("bool"[])); }
     CondExpr dup() { return fastalloc!(CondExpr)(cd.dup); }
-    void emitAsm(AsmFile af) {
-      if (auto ex = cast(Expr) cd) {
-        ex.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      if (auto ex = fastcast!(Expr)(cd)) {
+        ex.emitLLVM(lf);
       } else {
-        mkVar(af, Single!(SysInt), true, (Variable var) {
-          mixin(mustOffset("0"[]));
-          auto backup = namespace();
-          scope(exit) namespace.set(backup);
-          
-          auto mns = fastalloc!(MiniNamespace)("!safecode condexpr");
-          namespace.set(mns);
-          auto sc = fastalloc!(Scope)();
-          namespace.set(sc);
-          mns.fs = af.currentStackDepth;
-          configure(cd);
-          
-          auto close = sc.open(af)();
-          (mkAssignment(var, mkInt(0))).emitAsm(af);
-          auto skip = af.genLabel();
-          cd.jumpOn(af, false, skip);
-          (mkAssignment(var, mkInt(1))).emitAsm(af);
-          af.emitLabel(skip);
-          close(false);
-        });
+        auto res = fastalloc!(LLVMRef)(Single!(SysInt));
+        res.allocate(lf);
+        
+        auto mns = fastalloc!(MiniNamespace)("!safecode condexpr");
+        mns.sup = namespace();
+        namespace.set(mns);
+        auto sc = fastalloc!(Scope)();
+        namespace.set(sc);
+        configure(cd);
+        
+        auto close = sc.open(lf)();
+        res.begin(lf);
+        (mkAssignment(res, mkInt(0))).emitLLVM(lf);
+        auto skip = lf.allocLabel("skip");
+        cd.jumpOn(lf, false, skip);
+        (mkAssignment(res, mkInt(1))).emitLLVM(lf);
+        lf.emitLabel(skip, true);
+        close(false);
+        
+        res.emitLLVM(lf);
+        res.end(lf);
       }
     }
   }

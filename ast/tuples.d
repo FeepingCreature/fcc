@@ -1,6 +1,7 @@
 module ast.tuples;
 
 import ast.base, ast.structure, ast.namespace, ast.casting, ast.opers;
+import tools.functional: map, apply;
 
 /++
   1. A tuple behaves like a struct
@@ -17,7 +18,6 @@ class Tuple : Type, RelNamespace {
   NSCache!(int) offsetcache;
   this() { }
   IType[] types() { return wrapped.selectMap!(RelMember, "$.type")(&typecache); }
-  int[] offsets() { return wrapped.selectMap!(RelMember, "$.offset")(&offsetcache); }
   override {
     bool isTempNamespace() { return false; }
     Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
@@ -27,10 +27,14 @@ class Tuple : Type, RelNamespace {
       if (auto res = wrapped.lookupRel(str, reinterpret_cast(wrapped, base), isDirectLookup)) return res;
       return null;
     }
-    int size() { return wrapped.size; }
+    string llvmSize() { return wrapped.llvmSize(); }
+    string llvmType() { return wrapped.llvmType(); }
     bool isComplete() { return wrapped.isComplete; }
-    string mangle() { return "tuple_"~wrapped.mangle(); }
-    ubyte[] initval() { return wrapped.initval(); }
+    string mangle() {
+      string res = "tuple_";
+      wrapped.select((string, RelMember member) { res = qformat(res, "_", member.type.mangle); });
+      return res;
+    }
     string toString() { string res; foreach (i, ty; types()) { if (i) res ~= ", "; res ~= Format(ty); if (names && names[i]) res ~= Format(" ", names[i]); } return "(" ~ res ~ ")"; }
     int opEquals(IType it) {
       if (!super.opEquals(it)) return false;
@@ -143,29 +147,24 @@ class RefTuple : MValue {
       return fastalloc!(RefTuple)(newlist);
     }
     IType valueType() { return baseTupleType; }
-    void emitAsm(AsmFile af) {
-      mkTupleValueExpr(getAsExprs).emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      mkTupleValueExpr(getAsExprs).emitLLVM(lf);
     }
     string toString() {
       return Format("reftuple("[], mvs, ")"[]);
     }
-    void emitAssignment(AsmFile af) {
-      mixin(mustOffset("-valueType().size"[]));
-      auto tup = fastcast!(Tuple)~ baseTupleType;
-      
-      auto offsets = tup.offsets();
-      int data_offs;
+    void emitAssignment(LLVMFile lf) {
+      auto var = lf.pop();
+      auto vartype = typeToLLVM(baseTupleType);
       foreach (i, target; mvs) {
-        if (offsets[i] != data_offs) {
-          assert(offsets[i] > data_offs);
-          af.sfree(offsets[i] - data_offs);
+        mixin(mustOffset("0"));
+        load(lf, "extractvalue ", vartype, " ", var, ", ", i);
+        auto tt = target.valueType(), tsa = typeToLLVM(tt, true), tsb = typeToLLVM(tt);
+        if (tsa != tsb) {
+          llcast(lf, tsa, tsb, lf.pop(), target.valueType().llvmSize());
         }
-        mixin(mustOffset("-target.valueType().size"[]));
-        target.emitAssignment(af);
-        data_offs += target.valueType().size;
+        target.emitAssignment(lf);
       }
-      if (tup.size != data_offs)
-        af.sfree(tup.size - data_offs);
     }
   }
 }
@@ -242,7 +241,7 @@ static this() {
 
 Expr mkTupleValueExpr(Expr[] exprs...) {
   auto tup = mkTuple(exprs /map/ (Expr ex) { return ex.valueType(); });
-  return fastalloc!(RCE)(tup, fastalloc!(StructLiteral)(tup.wrapped, exprs.dup, tup.offsets));
+  return fastalloc!(RCE)(tup, fastalloc!(StructLiteral)(tup.wrapped, exprs.dup));
 }
 
 class LValueAsMValue : MValue {
@@ -252,15 +251,11 @@ class LValueAsMValue : MValue {
   override {
     LValueAsMValue dup() { return fastalloc!(LValueAsMValue)(sup.dup); }
     string toString() { return Format("lvtomv("[], sup, ")"[]); }
-    void emitAsm(AsmFile af) { sup.emitAsm(af); }
+    void emitLLVM(LLVMFile lf) { sup.emitLLVM(lf); }
     IType valueType() { return sup.valueType(); }
     import ast.assign;
-    void emitAssignment(AsmFile af) {
-      (fastalloc!(Assignment)(
-        sup,
-        fastalloc!(Placeholder)(sup.valueType()),
-        false, true
-      )).emitAsm(af);
+    void emitAssignment(LLVMFile lf) {
+      emitAssign(lf, sup, fastalloc!(LLVMValue)(lf.pop(), sup.valueType()));
     }
   }
 }

@@ -6,7 +6,9 @@ class Interrupt : Statement {
   int which;
   this(int i) { which = i; }
   Interrupt dup() { return this; }
-  override void emitAsm(AsmFile af) { af.put("int $"[], which); }
+  override void emitLLVM(LLVMFile lf) {
+    put(lf, `call void asm sideeffect "int $$`, which, `", ""()`);
+  }
   mixin defaultIterate!();
 }
 

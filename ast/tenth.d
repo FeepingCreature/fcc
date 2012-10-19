@@ -1,7 +1,7 @@
 module ast.tenth;
 
 import ast.base, ast.types;
-import tools.base: This, This_fn, rmSpace;
+import tools.base: This, This_fn, rmSpace, slice;
 
 class TenthException : Exception {
   this(string s) { super("TenthException: "~s); }

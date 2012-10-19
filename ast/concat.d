@@ -42,90 +42,88 @@ class ConcatChain : Expr {
   override {
     IType valueType() { return type; }
     string toString() { return Format("~"[], arrays); }
-    void emitAsm(AsmFile af) {
-      mixin(mustOffset("valueType().size"[]));
-      mkVar(af, type, true, (Variable var) {
-        mixin(mustOffset("0"[]));
-        auto sc = new Scope;
-        namespace.set(sc);
-        scope(exit) namespace.set(sc.sup);
-        sc.requiredDepth = af.currentStackDepth;
+    void emitLLVM(LLVMFile lf) {
+      mixin(mustOffset("1"));
+      
+      string lit;
+      bool isLiteral(Expr ex) {
+        if (auto se = fastcast!(StringExpr) (ex)) {
+          lit = se.str;
+          return true;
+        }
+        return false;
+      }
+      
+      int cacheNeeded;
+      foreach (ref array; arrays) {
+        opt(array);
+        if (array.valueType() != type.elemType && !isLiteral(array)) cacheNeeded ++;
+      }
         
-        sc._body = Single!(NoOp);
-        auto dg = sc.open(af);
-        scope(exit) dg()(false);
-        
-        string lit;
-        bool isLiteral(Expr ex) {
-          if (auto se = fastcast!(StringExpr) (ex)) {
-            lit = se.str;
-            return true;
-          }
-          return false;
+      auto sa = fastalloc!(StaticArray)(valueType(), cacheNeeded);
+      auto
+        offset = fastalloc!(LLVMRef)(Single!(SysInt)),
+        total  = fastalloc!(LLVMRef)(Single!(SysInt)),
+        cache  = fastalloc!(LLVMRef)(sa),
+        res    = fastalloc!(LLVMRef)(type);
+      
+      int known_len;
+      foreach (array; arrays) {
+        if (array.valueType() == type.elemType) { known_len ++; }
+        else if (isLiteral(array)) {
+          known_len += lit.length;
         }
-        
-        int cacheNeeded;
-        foreach (ref array; arrays) {
-          opt(array);
-          if (array.valueType() != type.elemType && !isLiteral(array)) cacheNeeded ++;
+      }
+      
+      res   .allocate(lf);
+      offset.allocate(lf);
+      total .allocate(lf);
+      cache .allocate(lf);
+      
+      offset.begin(lf); scope(success) offset.end(lf);
+      // initialize to 0
+      emitAssign(lf, offset, fastalloc!(ZeroInitializer)(Single!(SysInt)));
+      total.begin(lf); scope(success) total.end(lf);
+      emitAssign(lf, total, mkInt(known_len));
+      int cacheId = 0;
+      cache.begin(lf); scope(success) cache.end(lf);
+      foreach (array; arrays) {
+        if (array.valueType() == type.elemType) continue;
+        if (isLiteral(array)) continue;
+        // cache[i] = array
+        auto cachepos = getIndex(cache, mkInt(cacheId++));
+        emitAssign(lf, cachepos, array);
+        // total = total + cache[i].length
+        emitAssign(lf, total, lookupOp("+"[], total, getArrayLength(cachepos)));
+      }
+      res.begin(lf); scope(success) res.end(lf);
+      iparse!(Statement, "alloc_array"[], "tree.semicol_stmt.assign"[])
+      (
+        "res = new T[] total"[],
+        "res"[], res, "T"[], type.elemType,
+        "total"[], total
+      ).emitLLVM(lf);
+      cacheId = 0;
+      foreach (array; arrays) {
+        if (array.valueType() == type.elemType) {
+          /// res[offset] = cache[i];
+          emitAssign(lf, getIndex(res, offset), reinterpret_cast(type.elemType, array));
+          /// offset = offset + 1
+          emitAssign(lf, offset, lookupOp("+"[], offset, mkInt(1)));
+        } else {
+          Expr c;
+          if (isLiteral(array)) c = array;
+          else c = getIndex(cache, mkInt(cacheId ++));
+          auto len = getArrayLength(c);
+          auto end = lookupOp("+", offset, len);
+          opt(end);
+          /// res[offset .. offset + cache[i].length] = cache[i];
+          optst(getSliceAssign(mkArraySlice(res, offset, end), c)).emitLLVM(lf);
+          /// offset = offset + cache[i].length;
+          emitAssign(lf, offset, end);
         }
-          
-        auto sa = fastalloc!(StaticArray)(valueType(), cacheNeeded);
-        auto
-          offset = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), af.currentStackDepth)),
-          total  = fastalloc!(Variable)(Single!(SysInt), cast(string) null, boffs(Single!(SysInt), af.currentStackDepth + nativeIntSize)),
-          cache  = fastalloc!(Variable)(sa,              cast(string) null, boffs(sa             , af.currentStackDepth + nativeIntSize * 2));
-        
-        int known_len;
-        foreach (array; arrays) {
-          if (array.valueType() == type.elemType) { known_len ++; }
-          else if (isLiteral(array)) {
-            known_len += lit.length;
-          }
-        }
-
-        auto od = fastalloc!(VarDecl)(offset);
-        od.initInit;
-        od.emitAsm(af);
-        (fastalloc!(VarDecl)(total, mkInt(known_len))).emitAsm(af);
-        (fastalloc!(VarDecl)(cache)).emitAsm(af);
-        int cacheId = 0;
-        foreach (array; arrays) {
-          if (array.valueType() == type.elemType) continue;
-          if (isLiteral(array)) continue;
-          // cache[i] = array
-          auto cachepos = getIndex(cache, mkInt(cacheId++));
-          emitAssign(af, cachepos, array);
-          // total = total + cache[i].length
-          emitAssign(af, total, lookupOp("+"[], total, getArrayLength(cachepos)));
-        }
-        iparse!(Statement, "alloc_array"[], "tree.semicol_stmt.assign"[])
-        (
-          "var = new T[] total"[],
-          "var"[], var, "T"[], type.elemType,
-          "total"[], total
-        ).emitAsm(af);
-        cacheId = 0;
-        foreach (array; arrays) {
-          if (array.valueType() == type.elemType) {
-            /// var[offset] = cache[i];
-            emitAssign(af, getIndex(var, offset), reinterpret_cast(type.elemType, array));
-            /// offset = offset + 1
-            emitAssign(af, offset, lookupOp("+"[], offset, mkInt(1)));
-          } else {
-            Expr c;
-            if (isLiteral(array)) c = array;
-            else c = getIndex(cache, mkInt(cacheId ++));
-            auto len = getArrayLength(c);
-            auto end = lookupOp("+", offset, len);
-            opt(end);
-            /// var[offset .. offset + cache[i].length] = cache[i];
-            optst(getSliceAssign(mkArraySlice(var, offset, end), c)).emitAsm(af);
-            /// offset = offset + cache[i].length;
-            emitAssign(af, offset, end);
-          }
-        }
-      });
+      }
+      res.emitLLVM(lf);
     }
   }
 }

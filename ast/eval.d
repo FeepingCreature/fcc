@@ -14,7 +14,7 @@ Object gotEval(ref string text, ParseCb cont, ParseCb rest) {
   
   text = t2;
   if (auto fun = fastcast!(Function)~ obj) {
-    if (fun.getParams().length)
+    if (fun.getParams(false).length)
       throw new Exception("Cannot evaluate function with parameters! "[]);
     return fun.mkCall();
   }

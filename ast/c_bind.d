@@ -5,7 +5,7 @@ import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays,
   ast.externs, ast.stringparse, ast.literals, ast.tuples: AstTuple = Tuple;
 
 import tools.compat, tools.functional, alloc;
-alias asmfile.startsWith startsWith;
+alias parseBase.startsWith startsWith;
 
 string buf;
 int bufbase;
@@ -58,7 +58,7 @@ version(Windows) {
     BOOL CreateProcessA(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD, PVOID, LPCSTR, STARTUPINFOA*, PROCESS_INFORMATION*);
   }
   extern(C) int _open_osfhandle(HANDLE, int = 0);
-  string readback(string cmd) {
+  extern(C) string readback(string cmd) {
     SECURITY_ATTRIBUTES attr;
     attr.nLength = SECURITY_ATTRIBUTES.sizeof;
     attr.bInheritHandle = true;
@@ -92,7 +92,7 @@ version(Windows) {
     int close(int);
   }
   
-  string readback(string cmd) {
+  extern(C) string readback(string cmd) {
     // logln("> ", cmd);
     int[2] fd; // read end, write end
     if (-1 == pipe(fd.ptr)) throw new Exception(Format("Can't open pipe! "));
@@ -123,8 +123,8 @@ class LateType : IType {
       throw new Exception(Format("Couldn't resolve ", this));
   }
   override {
-    int size() { needMe; return me.size; }
-    ubyte[] initval() { needMe; return me.initval; }
+    string llvmSize() { needMe; return me.llvmSize; }
+    string llvmType() { needMe; return me.llvmType; }
     bool isPointerLess() { needMe; return me.isPointerLess(); }
     bool isComplete() { return !!me; } // TODO: ??
     bool returnsInMemory() { needMe; return me.returnsInMemory(); }
@@ -657,7 +657,7 @@ src_cleanup_redo: // count, then copy
               static if (debugStructs) logln("sizeof loop match failed");
               goto giveUp1;
             }
-            auto translated = Format(sty.size);
+            auto translated = Format(guessSize(sty));
             st2 = st2[0 .. pos] ~ translated ~ st2[pos .. $].between(")", "");
             // logln("st2 => ", st2);
           }
@@ -790,7 +790,7 @@ src_cleanup_redo: // count, then copy
             if (st2.accept(")")) break;
             goto giveUp;
           }
-          target = fastalloc!(FunctionPointer)(ret, args);
+          target = fastalloc!(FunctionPointer)(ret, args, true);
           stmt = st2;
           goto typedef_done;
         }
@@ -809,7 +809,7 @@ src_cleanup_redo: // count, then copy
         } while (st2.accept(","));
         if (!st2.accept(")")) goto giveUp;
         // logln("get function pointer named ", name, " (ret ", target, ") , params ", args, " @", st2);
-        target = fastalloc!(FunctionPointer)(target, args);
+        target = fastalloc!(FunctionPointer)(target, args, true);
         stmt = st2;
       }
       string typename = name;
@@ -915,9 +915,7 @@ src_cleanup_redo: // count, then copy
         if (Single!(Short) == resolveType(arg))
           arg = Single!(SysInt);
       if (funptr_mode) {
-        auto fptype = new FunctionPointer;
-        fptype.ret = ret;
-        fptype.args = args /map/ (IType it) { return Argument(it); };
+        auto fptype = new FunctionPointer(ret, args /map/ (IType it) { return Argument(it); }, true);
         fptype.stdcall = useStdcall;
         auto ec = fastalloc!(ExternCGlobVar)(fptype, name);
         add(name, ec);

@@ -233,7 +233,7 @@ class Area {
     auto fillfun = fillfun;
     int x = from-x;
     while delta-- {
-      xmm[6] = fillfun(x++, y);
+      /*xmm[6] = fillfun(x++, y);
       xmm[7] = vec4f(0xff, 0xff00, 0, 0);
       xmm[6] = xmm[6].zyxw; // BGRA
       xmm[4] = xmm[6] * xmm[7];
@@ -245,7 +245,15 @@ class Area {
       asm "cvttps2dq %xmm5, %xmm7";
       asm `psrld $31, %xmm5`;
       asm "psubd %xmm5, %xmm7";
-      auto i1 = vec3i:xmm[6], i2 = vec3i:xmm[7];
+      auto i1 = vec3i:xmm[6], i2 = vec3i:xmm[7];*/
+      vec4f xmm6 = fillfun(x++, y);
+      vec4f xmm7 = vec4f(0xff, 0xff00, 0, 0);
+      xmm6 = xmm6.zyxw; // BGRA
+      vec4f xmm4 = xmm6*xmm7;
+      xmm6 = xmm6.zwxy;
+      vec4f xmm5 = xmm6*xmm7;
+      fastfloor3f(xmm4.xyz, &vec3i i1);
+      fastfloor3f(xmm5.xyz, &vec3i i2);
       int i = 0;
       i += i2.x & 0xff;
       i += i2.y & 0xff00;

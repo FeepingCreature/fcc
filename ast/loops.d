@@ -6,8 +6,8 @@ import ast.iterator, ast.int_literal, ast.fold, ast.tuples, ast.tuple_access;
 // TODO: come up with a way to emit guards for a jump. this is necessary for continue/break to work correctly.
 
 interface Breakable {
-  Stuple!(string, int) getContinueLabel();
-  Stuple!(string, int) getBreakLabel();
+  string getContinueLabel();
+  string getBreakLabel();
   Statement[] getOutsideGuards(); // guards at the point of exit; ie. break
   Statement[] getInsideGuards(); // guards at the point of loop end; ie. continue
 }
@@ -17,11 +17,10 @@ static this() { New(breakable_context); }
 
 template DefaultBreakableImpl() {
   string chosenContinueLabel, chosenBreakLabel;
-  int continueDepth, breakDepth;
   Statement[] outsideGuards, insideGuards;
   override {
-    Stuple!(string, int) getContinueLabel() { return stuple(chosenContinueLabel, continueDepth); }
-    Stuple!(string, int) getBreakLabel() { return stuple(chosenBreakLabel, breakDepth); }
+    string getContinueLabel() { return chosenContinueLabel; }
+    string getBreakLabel() { return chosenBreakLabel; }
     Statement[] getOutsideGuards() { return outsideGuards; }
     Statement[] getInsideGuards() { return insideGuards; }
   }
@@ -41,17 +40,16 @@ class WhileStatement : Statement, Breakable {
   mixin defaultIterate!(cond, _body);
   mixin DefaultBreakableImpl!();
   override {
-    void emitAsm(AsmFile af) {
-      auto start = af.genLabel(), done = af.genLabel();
-      continueDepth = breakDepth = af.currentStackDepth;
+    void emitLLVM(LLVMFile lf) {
+      auto start = lf.allocLabel("while_start"), done = lf.allocLabel("while_end");
       chosenContinueLabel = start;
       chosenBreakLabel = done;
-      af.emitLabel(start, !keepRegs, !isForward);
-      cond.jumpOn(af, false, done);
-      _body.emitAsm(af);
+      lf.emitLabel(start);
+      cond.jumpOn(lf, false, done);
+      _body.emitLLVM(lf);
       // TODO: rerun cond? check complexity?
-      af.jump(start);
-      af.emitLabel(done, !keepRegs, isForward);
+      jump(lf, start);
+      lf.emitLabel(done, true);
     }
     string toString() { return Format("while("[], cond, "[]) { "[], _body._body, "}"[]); }
   }
@@ -91,9 +89,9 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   if (isStatic) {
     auto aggr = fastcast!(AggrStatement)(sc._body);
-    if (!aggr) fail(Format("Malformed static while: "[], sc._body));
+    if (!aggr) fail(Format("Ma(lf)ormed static while: "[], sc._body));
     if (!fastcast!(VarDecl) (aggr.stmts[0]))
-      fail(Format("Malformed static while (2): "[], aggr.stmts));
+      fail(Format("Ma(lf)ormed static while (2): "[], aggr.stmts));
     aggr.stmts = null; // remove loop variable declaration/s
     
     auto backupfield = sc.field;
@@ -152,27 +150,22 @@ class ForStatement : Statement, Breakable {
   mixin DefaultDup!();
   mixin DefaultBreakableImpl!();
   mixin defaultIterate!(decl, cond, step, _body);
-  override void emitAsm(AsmFile af) {
-    auto backup = af.checkptStack();
-    scope(exit)
-      af.restoreCheckptStack(backup);
+  override void emitLLVM(LLVMFile lf) {
+    // logln("start depth is "[], lf.currentStackDepth);
+    decl.emitLLVM(lf);
     
-    // logln("start depth is "[], af.currentStackDepth);
-    decl.emitAsm(af);
-    
-    continueDepth = breakDepth = af.currentStackDepth;
-    
-    auto start = af.genLabel(), done = af.genLabel(), cont = af.genLabel();
+    auto start = lf.allocLabel("for_start"), done = lf.allocLabel("for_done"), cont = lf.allocLabel("for_cont");
     chosenContinueLabel = cont;
     chosenBreakLabel = done;
     
-    af.emitLabel(start, !keepRegs, !isForward);
-    cond.jumpOn(af, false, done);
-    _body.emitAsm(af);
-    af.emitLabel(cont, !keepRegs, isForward);
-    step.emitAsm(af);
-    af.jump(start);
-    af.emitLabel(done, !keepRegs, isForward);
+    lf.emitLabel(start);
+    put(lf, "; jump on ", cond);
+    cond.jumpOn(lf, false, done);
+    _body.emitLLVM(lf);
+    lf.emitLabel(cont, true);
+    step.emitLLVM(lf);
+    jump(lf, start);
+    lf.emitLabel(done, true);
   }
 }
 
@@ -180,15 +173,20 @@ import ast.namespace;
 Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("("[])) return null;
-  auto fs = new ForStatement, check = namespace().getCheckpt();
-  auto sl = namespace().get!(ScopeLike);
-  fs.outsideGuards = sl.getGuards();
+  
+  auto sc = fastalloc!(Scope)();
+  auto backup = namespace();
+  scope(exit) namespace.set(backup);
+  namespace.set(sc);
+  
+  auto fs = new ForStatement;
+  fs.outsideGuards = sc.getGuards();
   if (rest(t2, "tree.stmt.vardecl"[], &fs.decl) &&
       rest(t2, "cond"[], &fs.cond) && (configure(fs.cond), true) && t2.accept(";"[]) &&
       rest(t2, "tree.semicol_stmt"[], &fs.step) && t2.accept(")"[])
     )
   {
-    fs.insideGuards = sl.getGuards();
+    fs.insideGuards = sc.getGuards();
     
     auto brbackup = *breakable_context.ptr();
     *breakable_context.ptr() = stuple(fastcast!(Breakable)(fs), namespace().get!(Function));
@@ -198,8 +196,9 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Failed to parse 'for' body"[]);
     
     text = t2;
-    namespace().setCheckpt(check);
-    return fs;
+    
+    sc.addStatement(fs);
+    return sc;
   } else t2.failparse("Failed to parse 'for' statement"[]);
 }
 mixin DefaultParser!(gotForStmt, "tree.stmt.for"[], "142"[], "for"[]);
@@ -209,16 +208,14 @@ class DoWhileExt : Statement {
   Cond cond;
   mixin DefaultDup!();
   mixin defaultIterate!(first, second, cond);
-  override void emitAsm(AsmFile af) {
-    mixin(mustOffset("0"[]));
+  override void emitLLVM(LLVMFile lf) {
+    mixin(mustOffset("0"));
     first.needEntryLabel = true;
-    auto fdg = first.open(af)(); // open and body
-    auto atJump = af.checkptStack();
-    cond.jumpOn(af, false, first.exit());
-    second.emitAsm(af);
+    auto fdg = first.open(lf)(); // open and body
+    cond.jumpOn(lf, false, first.exit());
+    second.emitLLVM(lf);
     fdg(true); // close before jump! variables must be cleaned up .. don't set the label though
-    af.jump(first.entry());
-    af.restoreCheckptStack(atJump, true);
+    jump(lf, first.entry());
     fdg(false); // close for real
   }
 }
@@ -262,26 +259,13 @@ class ExecGuardsAndJump : Statement {
     ExecGuardsAndJump dup() {
       return this; // no mutable parts, no iteration
     }
-    void emitAsm(AsmFile af) {
-      auto depth = af.checkptStack();
-      // reset the stack so we can emit regular scope guards after us;
-      // despite the utter pointlessness of cleaning up after an unconditional jump,
-      // appearances must be honoured.
-      // the optimizer can remove all that crud anyway.
-      scope(success) af.restoreCheckptStack(depth, true);
-      
-      string targetlabel; int targetdepth;
-      ptuple(targetlabel, targetdepth) = modeContinue?brk.getContinueLabel():brk.getBreakLabel();
+    void emitLLVM(LLVMFile lf) {
+      string targetlabel = modeContinue?brk.getContinueLabel():brk.getBreakLabel();
       foreach_reverse (i, stmt; guards) {
-        auto delta = af.currentStackDepth - offsets[i];
-        if (delta) {
-          af.restoreCheckptStack(offsets[i]);
-        }
         // justification for dup see class ReturnStmt in ast.returns
-        stmt.dup().emitAsm(af);
+        stmt.dup().emitLLVM(lf);
       }
-      af.restoreCheckptStack(targetdepth);
-      af.jump(targetlabel);
+      jump(lf, targetlabel);
     }
   }
 }

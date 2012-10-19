@@ -13,11 +13,12 @@ Square root. Gets inlined. */
 float sqrt(float f) {
   short status;
   float local = f;
-  asm "fld (%esp)";
+  fail("Expected to compile sqrt to intrinsic");
+  asm "flds (%esp)";
   asm "fsqrt";
   asm "fxam";
   asm "fstsw 6(%esp)";
-  asm "fstp (%esp)";
+  asm "fstps (%esp)";
   if (status & 0b0000_0101__0000_0000 == (0b101 << 8)) { int i = 0; i /= i; } // infty
   return local;
 }
@@ -75,13 +76,15 @@ The sine function*/
 float sin(float f) {
   short status;
   float local = f;
-  asm "fld (%esp)";
+  fail("Expected to compile sin to intrinsic");
+  // this won't even work under llvm >.<
+  asm "flds (%esp)";
   asm "fxam";
   asm "fstsw 6(%esp)"; // 4-aligned
   if (status & 0b0000_0101__0000_0000 == 0b101 << 8) { int i = 0; i /= i; } // infty
   asm "fsin";
   asm "fstsw 6(%esp)"; // also 4-aligned
-  asm "fstp (%esp)";
+  asm "fstps (%esp)";
   if (status & 0b0000_0100__0000_0000) { int i = 0; i /= i; }
   return local;
 }
@@ -91,13 +94,14 @@ The cosine function*/
 float cos(float f) {
   short status;
   float local = f;
-  asm "fld (%esp)";
+  fail("Expected to compile cos to intrinsic");
+  asm "flds (%esp)";
   asm "fxam";
   asm "fstsw 6(%esp)"; // 4-aligned
   if (status & 0b0000_0101__0000_0000 == 0b101 << 8) { int i = 0; i /= i; } // infty
   asm "fcos";
   asm "fstsw 6(%esp)"; // 4-aligned
-  asm "fstp (%esp)";
+  asm "fstps (%esp)";
   if (status & 0b0000_0100__0000_0000) { int i = 0; i /= i; }
   return local;
 }
@@ -135,6 +139,8 @@ float atan(float x) { return atanf x; }
 int abs(int i) { if i < 0 return -i; return i; }
 /*Function: abs*/
 float abs(float f) { if f < 0 return -f; return f; }
+/*Function: abs*/
+double abs(double d) { if d < 0 return -d; return d; }
 
 /*Function: bound
   Limits f to {from, to} by clamping*/
@@ -167,7 +173,7 @@ alias PI180 = PI/180.0;
 /*Alias: pow*/
 alias pow = powf;
 /*Alias: log*/
-alias log = logf;
+alias _Clog = log, log = _Clog, log = logf;
 /*Alias: log2*/
 alias log2 = log2f;
 // float log(float f) { return logf f; }

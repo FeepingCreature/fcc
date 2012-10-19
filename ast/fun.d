@@ -1,7 +1,10 @@
 module ast.fun;
 
-import ast.namespace, ast.base, ast.variable, asmfile, ast.types, ast.scopes,
-  ast.constant, ast.pointer, ast.literals, ast.vardecl, ast.assign;
+import ast.namespace, ast.base, ast.variable, llvmfile, ast.types, ast.scopes,
+  ast.pointer, ast.literals, ast.vardecl, ast.assign;
+
+private alias parseBase.startsWith startsWith;
+private alias parseBase.endsWith endsWith;
 
 import tools.functional;
 import dwarf2;
@@ -11,9 +14,7 @@ interface StoresDebugState {
   bool hasDebug();
 }
 
-extern(C) void alignment_emitAligned(Expr ex, AsmFile af);
-
-alias asmfile.startsWith startsWith;
+extern(C) void alignment_emitAligned(Expr ex, LLVMFile lf);
 
 struct Argument {
   IType type;
@@ -32,35 +33,54 @@ struct Argument {
   }
 }
 
+string declare(Function fun, string name) {
+  string argstr;
+  foreach (par; fun.getParams(true)) {
+    if (argstr) argstr ~= ", ";
+    argstr ~= typeToLLVM(par.type, true);
+  }
+  return qformat("declare ", typeToLLVM(fun.type.ret), " @", name, "(", argstr, ")");
+}
+
 class FunSymbol : Symbol {
   Function fun;
+  IType nested;
   string getName() {
     string res = fun.mangleSelf();
     if (fun.type.stdcall) {
-      int size;
+      // todo("find a way to compute (guess?) stdcall size");
+      /*int size;
       foreach (entry; fun.type.params) {
         auto sz = entry.type.size();
         if (sz < 4) sz = 4;
         size += sz;
       }
-      res ~= qformat("@"[], size);
+      res ~= qformat("@"[], size);*/
     }
     return res;
   }
-  this(Function fun) {
+  this(Function fun, IType nested = null) {
     this.fun = fun;
-    super();
+    this.nested = nested;
+    if (fastcast!(Object)(fun).classinfo.name.find("nestfun") != -1 && !nested)
+      fail;
+    super(null, fun.type);
   }
-  private this() { }
-  mixin DefaultDup!();
-  string toString() { return qformat("symbol<"[], fun, ">"[]); }
+  override FunSymbol dup() {
+    return new FunSymbol(fun, nested);
+  }
+  override void emitLLVM(LLVMFile lf) {
+    if (once(lf, "symbol ", getName())) {
+      lf.decls[getName()] = declare(fun, getName());
+    }
+    push(lf, "@", getName());
+  }
+  string toString() { return qformat("funsymbol<"[], fun, ">"[]); }
   IType vt_cache;
   override IType valueType() {
     if (!vt_cache) {
-      auto fp = new FunctionPointer;
-      fp.ret = fun.type.ret;
-      fp.args = fun.type.params;
-      fp.args ~= Argument(Single!(SysInt));
+      auto fp = new FunctionPointer(fun);
+      if (nested) fp.args ~= Argument(nested);
       fp.stdcall = fun.type.stdcall;
       vt_cache = fp;
     }
@@ -70,12 +90,19 @@ class FunSymbol : Symbol {
 
 extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
-extern(C) void funcall_emit_fun_end_guard(AsmFile af, string name);
+extern(C) void funcall_emit_fun_end_guard(LLVMFile lf, string name);
 
-TLS!(Function) current_emitting_function;
-static this() { New(current_emitting_function); }
+extern(C) void recordFrame(Scope sc) {
+  auto fun = sc.get!(Function);
+  if (!fun) {
+    logln("no fun under ", sc);
+    fail;
+  }
+  // logln("record for ", fun.name, ": ", frametype2(sc));
+  fun.llvmFrameTypes ~= frametype2(sc);
+}
 
-class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Extensible, ScopeLike, EmittingContext, Importer {
+class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, ScopeLike, EmittingContext, Importer {
   string name;
   Expr getPointer() {
     return fastalloc!(FunSymbol)(this);
@@ -86,14 +113,15 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   FunctionType type;
   Tree tree;
   bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false;
-  void markWeak() { weak = true; }
+  override void markWeak() { weak = true; }
+  override void markExternC() { extern_c = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
     // else to be defined in subclasses
   }
   string toString() { return qformat("fun "[], name, " "[], type, " <- "[], sup); }
+  string[] llvmFrameTypes;
   // add parameters to namespace
-  int _framestart;
   string coarseSrc;
   IModule coarseModule;
   bool inEmitAsm, inParse, inFixup /* suppress fixup -> add -> lookup -> parseMe chain */;
@@ -150,8 +178,13 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       t2.failparse("Unknown text! ");
   }
   mixin ImporterImpl!(parseMe);
-  Function alloc() { return new Function; }
-  Argument[] getParams() { return type.params; }
+  Argument[] getParams(bool implicits) {
+    if (implicits) {
+      if (!extern_c && (!type.params.length || Single!(Variadic) != type.params[$-1].type))
+        return type.params ~ Argument(voidp, tlsbase);
+    }
+    return type.params;
+  }
   Function flatdup() { // NEVER dup the tree!
     auto res = alloc();
     res.name = name;
@@ -161,7 +194,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     res.tree = tree;
     res.coarseSrc = coarseSrc;
     res.coarseModule = coarseModule;
-    res._framestart = _framestart;
     res.sup = sup;
     res.field = field;
     res.rebuildCache;
@@ -169,7 +201,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   }
   Function dup() {
     auto res = flatdup();
-    if (tree) res.tree = tree.dup;
+    if (tree) {
+      res.tree = tree.dup;
+      nsfix(res.tree, this, res);
+    }
     res.coarseSrc = coarseSrc;
     return res;
   }
@@ -179,48 +214,28 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     return res;
   }
   int fixup() {
+    int res;
     inFixup = true; scope(exit) inFixup = false;
-    // cdecl: 0 old ebp, 4 return address, 8 parameters
-    int cur;
-    if (isARM) {
-      add(fastalloc!(Variable)(Single!(SizeT), "__old_ebp"[], -4));
-      add(fastalloc!(Variable)(Single!(SizeT), "__fun_ret"[], 0));
-      cur = _framestart = 4;
-    } else {
-      add(fastalloc!(Variable)(Single!(SizeT), "__old_ebp"[], 0));
-      add(fastalloc!(Variable)(Single!(SizeT), "__fun_ret"[], 4));
-      cur = _framestart = 8;
-      if (isWindoze() && extern_c) {
-        // ebx backup
-        add(fastalloc!(Variable)(Single!(SizeT), "__ebx_backup"[], -4));
-      }
-    }
-    if (type.ret && type.ret.returnsInMemory()) {
-      auto pt = fastalloc!(Pointer)(type.ret);
-      add(fastalloc!(Variable)(pt, "__return_pointer", cur));
-      _framestart += pt.size;
-      cur += pt.size;
-    }
-    // TODO: 16-byte? alignment
-    foreach (param; type.params) {
+    
+    auto backup = namespace(); scope(exit) namespace.set(backup);
+    namespace.set(this);
+    
+    foreach (param; getParams(true)) {
       auto pt = param.type;
       if (!pt) {
         logln("Function parameter type still undefined in ", name, ": ", param.name);
         asm { int 3; }
         // throw new Exception(qformat("Function parameter type still undefined in ", name, ": ", param.name));
       }
-      _framestart += pt.size;
-      add(fastalloc!(Variable)(pt, param.name, cur));
-      cur += pt.size;
-      cur = (cur + 3) & ~3; // round to 4
+      add(fastalloc!(Variable)(pt, res++, param.name));
     }
     if (!releaseMode) {
-      if (tree) {
+      if (tree) { // already parsed, too late to fix up
         logln(tree);
         fail;
       }
     }
-    return cur;
+    return res;
   }
   string cleaned_name() { return name.cleanup(); }
   string pretty_name() {
@@ -240,12 +255,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   override { // ScopeLike
     Statement[] getGuards() { return null; }
     int[] getGuardOffsets() { return null; }
-    int framesize() {
-      /* mixed frame on arm */
-      if (isARM) return 4;
-      else if (isWindoze() && extern_c) return 4; // ebx backup
-      else return 0;
-    }
   }
   string fqn() {
     return get!(IModule).getIdentifier()~"."~name;
@@ -265,19 +274,29 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       return "main";
     } else if (name == "__win_main") {
       if (platform_prefix == "i686-mingw32-") {
-        cached_selfmangle = "_WinMain@16";
+        // cached_selfmangle = "_WinMain@16";
+        cached_selfmangle = "_WinMain";
       } else {
         cached_selfmangle = "_WinMain_not_relevant_on_this_architecture";
       }
     } else
       cached_selfmangle = cleaned_name~"_"~sup.mangle(null, type);
+    if (cached_selfmangle.length > 252) {
+      cached_selfmangle = refcompress(cached_selfmangle);
+    }
     return cached_selfmangle;
   }
   string exit() { return mangleSelf() ~ "_exit_label"; }
   void addStatement(Statement st) {
     if (!tree) {
       if (auto sc = fastcast!(Scope) (st)) { tree = sc; return; }
-      else tree = new Scope;
+      else {
+        auto backup = namespace();
+        scope(exit) namespace.set(backup);
+        namespace.set(this);
+        
+        tree = fastalloc!(Scope)();
+      }
     }
     if (!fastcast!(Scope) (tree)) {
       logln(this);
@@ -285,8 +304,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
     }
     fastcast!(Scope) (tree).addStatement(st);
   }
-  void dwarfOpen(AsmFile af) {
-    auto dwarf2 = af.dwarf2;
+  void dwarfOpen(LLVMFile lf) {
+    todo("Function::dwarfOpen");
+    /*auto dwarf2 = lf.dwarf2;
     if (dwarf2) {
       auto sect = fastalloc!(Dwarf2Section)(
         dwarf2.cache.getKeyFor("subprogram"));
@@ -294,14 +314,14 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
         data ~= ".byte\t0x1"; // external
         data ~= dwarf2.strings.addString(pretty_name().replace("\"", "\\\""));
         data ~= qformat(".int\t"[],
-          hex(af.getFileId(
+          hex(lf.getFileId(
             current_module().filename())));
-        data ~= ".int\t0x0 /* line: todo */";
-        data ~= ".byte\t0x1 /* prototyped */";
+        data ~= ".int\t0x0 /* line: todo * /";
+        data ~= ".byte\t0x1 /* prototyped * /";
         sect.data ~= qformat(".long\t.LFB"[], idnum);
         data ~= qformat(".long\t.LFE"[], idnum);
-        data ~= qformat(".byte\t1\t/* location description is one entry long */"[]);
-        data ~= qformat(".byte\t"[], hex(DW.OP_reg5), "\t/* ebp */"[]);
+        data ~= qformat(".byte\t1\t/* location description is one entry long * /"[]);
+        data ~= qformat(".byte\t"[], hex(DW.OP_reg5), "\t/* ebp * /"[]);
       }
       dwarf2.open(sect);
     }
@@ -316,13 +336,14 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
       foreach (param; type.params) if (param.name) if (auto var = fastcast!(Variable) (lookup(param.name, true))) {
         var.registerDwarf2(dwarf2);
       }
-    }
+    }*/
   }
-  void dwarfClose(AsmFile af) {
-    if (af.dwarf2) {
-      af.dwarf2.close;
-      af.dwarf2.close;
-    }
+  void dwarfClose(LLVMFile lf) {
+    todo("Function::dwarfClose");
+    /*if (lf.dwarf2) {
+      lf.dwarf2.close;
+      lf.dwarf2.close;
+    }*/
   }
   string fun_start_sym() { return qformat(".LFB"[], idnum); }
   string fun_end_sym() { return qformat(".LFE"[], idnum); }
@@ -332,208 +353,203 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, FrameRoot, Exten
   string linedebug(int id) {
     return qformat(".DebugInfo_"[], idnum, "_Line_"[], id);
   }
-  void add_line_number(AsmFile af, int line) {
-    af.put(linedebug(linecounter++), ":"[]);
-    linenumbers ~= line;
+  void add_line_number(LLVMFile lf, int line) {
+    todo("Function::add_line_number");
+    /*lf.put(linedebug(linecounter++), ":"[]);
+    linenumbers ~= line;*/
   }
   override {
-    int framestart() { return _framestart; }
     bool addsSelf() { return true; }
     string mangle(string name, IType type) {
       return mangleSelf() ~ "_" ~ name;
     }
     string getIdentifier() { return name; }
-    void emitAsm(AsmFile af) {
+    void emitLLVM(LLVMFile lf) {
       auto cef_backup = current_emitting_function();
       current_emitting_function.set(this);
       scope(exit) current_emitting_function.set(cef_backup);
       
-      auto backup_opt = af.optimize, backup_rm = releaseMode, backup_dbg = af.debugMode;
-      auto backup_dwarf = af.dwarf2;
-      scope(exit) {
-        af.optimize = backup_opt;
-        releaseMode = backup_rm;
-        af.debugMode = backup_dbg;
-        af.dwarf2 = backup_dwarf;
-      }
-      
       parseMe();
-      if (optimize) {
-        af.flush();
-        af.optimize = true;
-        // still emit line number info when -g is on, even in pragma(fast)
-        // af.debugMode = false;
-        // ...... why?
-        af.debugMode = false;
-        af.dwarf2 = null;
-      }
+      
+      // record initial frame
+      auto argframetype = frametype2(this);
+      llvmFrameTypes ~= argframetype;
       
       inEmitAsm = true;
       scope(exit) inEmitAsm = false;
       
-      if (af.floatStackDepth) {
-        logln("garbage float stack when start-emitting ", this);
+      if (lf.exprs.length) {
+        logln("garbage llvm expr stack when emitting ", this, ": ", lf.exprs);
         fail;
       }
       
       auto fmn = mangleSelf(); // full mangled name
-      af.put(".p2align 4"[]);
-      if (isWindoze()) {
-        af.put(".section .text$section_for_"[], fmn, ", \"ax\""[]);
-        af.put(".linkonce discard"[]);
-        af.put(".globl "[], fmn);
-      } else {
-        af.put(".global "[], fmn);
-        if (weak) af.put(".weak "[], fmn);
+      
+      // function_head is used for the definition of the stackframe
+      lf.beginSection("function_head");
+      scope(success) {
+        auto data = lf.endSection("function_head");
+        put(lf, data);
       }
-      if (isWindoze()) {
-        af.put(".def "[], fmn, "; .val "[], fmn, "; .scl 2; .type 32; .endef"[]);
-      } else {
-        if (isARM)
-          af.put(".type "[], fmn, ", %function"[]);
-        else
-          af.put(".type "[], fmn, ", @function"[]);
+      lf.beginSection("function_allocas");
+      scope(success) {
+        auto data = lf.endSection("function_allocas");
+        put(lf, data);
       }
+      auto retstr = typeToLLVM(type.ret);
+      string argstr;
+      foreach (i, arg; getParams(true)) {
+        if (argstr) argstr ~= ", ";
+        argstr = qformat(argstr, typeToLLVM(arg.type, true), " %arg", i);
+      }
+      lf.undecls[fmn] = true;
       
-      dwarfOpen(af);
-      scope(exit) dwarfClose(af);
+      string linkage, flags;
+      if (weak) linkage = "weak_odr ";
+      if (extern_c) {
+        flags ~= "noinline ";
+      }
+      if (name == "__fcc_main") flags ~= "noinline ";
+      // flags ~= "fastcc ";
+      put(lf, "define ", linkage, retstr, " @", fmn, "(", argstr, ") ", flags, "{");
+      scope(success) put(lf, "}");
+      if (extern_c) preserve ~= ","~fmn;
       
-      af.put(fmn, ":"[]); // not really a label
-      af.put(".global "[], fun_start_sym());
-      af.put(fun_start_sym(), ":"[]);
-      // af.put(".cfi_startproc"[]);
-      
-      af.jump_barrier();
-      
-      int psize;
-      if (isARM) {
-        // reconstruct a linear stackframe
-        if (lookup("__base_ptr")) psize += 4;
-        foreach (param; type.params) {
-          psize += param.type.size;
+      lf.beginSection("function");
+      scope(success) {
+        auto data = lf.endSection("function");
+        bool[string] accounted;
+        string allocsize;
+        outer:foreach (type; llvmFrameTypes) {
+          if (type in accounted) continue;
+          // remove types that are prefix structs of another type
+          if (auto mid = type.startsWith("{").endsWith("}")) {
+            foreach (t2; llvmFrameTypes) if (auto m2 = t2.startsWith("{").endsWith("}")) {
+              if (m2.startsWith(mid).startsWith(",")) continue outer;
+            }
+          }
+          auto oldsize = allocsize.length;
+          if (!allocsize) allocsize = lltypesize(type);
+          else allocsize = llmax(allocsize, lltypesize(type));
+          // else allocsize = lladd(allocsize, lltypesize(type)); // Blame LLVM for this shit
+          /*if (allocsize.length != oldsize) {
+            logln("+", this.name, " ", type);
+          }*/
+          if (allocsize.length > 1024*1024) fail;
+          accounted[type] = true;
         }
-        if (psize <= 16 && psize%4 != 0) {
-          logln("bad size ", type.params);
-          // fail;
+        allocsize = readllex(allocsize);
+        put(lf, "%__stackframe = alloca i8, i32 ", allocsize, ", align 16");
+        // fill stackframe for params
+        auto stackp = bitcastptr(lf, "i8", argframetype, "%__stackframe");
+        foreach (i, arg; getParams(true)) {
+          auto argp = save(lf, "getelementptr inbounds ", argframetype, "* ", stackp, ", i32 0, i32 ", i);
+          auto argtype = typeToLLVM(arg.type);
+          auto argtype2 = typeToLLVM(arg.type, true);
+          auto argpconv = bitcastptr(lf, argtype, argtype2, argp);
+          put(lf, "store ", argtype2, " %arg", i, ", ", argtype2, "* ", argpconv);
         }
-        if (psize >= 16) af.pushStack("r3", 4);
-        if (psize >= 12) af.pushStack("r2", 4);
-        if (psize >= 8)  af.pushStack("r1", 4);
-        if (psize >= 4)  af.pushStack("r0", 4);
-        af.pushStack("fp, lr", 8);
-        af.put("add fp, sp, #4"[]);
-      } else {
-        af.pushStack("%ebp", nativePtrSize);
-        af.mmove4("%esp", "%ebp");
-        if (isWindoze() && extern_c) { af.pushStack("%ebx", nativePtrSize); }
-        if (af.profileMode)
-          af.put("call mcount"[]);
+        put(lf, data);
       }
       
-      auto backup = af.currentStackDepth;
-      scope(exit) af.currentStackDepth = backup;
-      af.currentStackDepth = framesize();
+      // logln("todo dwarf");
+      // dwarfOpen(lf);
+      // scope(exit) dwarfClose(lf);
+      
+      /*lf.put(fmn, ":"[]); // not really a label
+      lf.put(".global "[], fun_start_sym());
+      lf.put(fun_start_sym(), ":"[]);
+      // lf.put(".cfi_startproc"[]);
+      
+      lf.jump_barrier();*/
+      
+      // if (lf.profileMode)
+      //   lf.put("call mcount"[]);
+      
       if (!tree) { logln("Tree for ", this, " not generated! :( "); fail; }
       
       auto backupns = namespace();
       scope(exit) namespace.set(backupns);
       namespace.set(this);
       
-      tree.emitAsm(af);
+      tree.emitLLVM(lf);
       
-      if (type.ret != Single!(Void)) {
-        funcall_emit_fun_end_guard (af, name);
+      if (type.ret != Single!(Void) && !extern_c) {
+        funcall_emit_fun_end_guard (lf, name);
       }
       
-      af.emitLabel(exit(), keepRegs, isForward);
+      lf.emitLabel(exit(), true);
       
-      // af.mmove4("%ebp", "%esp");
-      // af.popStack("%ebp", nativePtrSize);
-      if (isARM) {
-        af.put("sub sp, fp, #4"[]);
-        af.popStack("fp, lr", 8);
-        if (psize >= 16) af.sfree(16);
-        else if (psize >= 12) af.sfree(12);
-        else if (psize >= 8) af.sfree(8);
-        else if (psize >= 4) af.sfree(4);
+      if (type.ret == Single!(Void)) {
+        put(lf, "ret void");
+      } else if (extern_c) {
+        put(lf, "ret ", typeToLLVM(type.ret), " zeroinitializer");
       } else {
-        if (isWindoze() && extern_c) { af.mmove4("-4(%ebp)", "%ebx"); }
-        af.put("leave"[]);
+        put(lf, "unreachable");
       }
+      // lf.mmove4("%ebp", "%esp");
+      // lf.popStack("%ebp", nativePtrSize);
+      /*if (isWindoze() && extern_c) { lf.mmove4("-4(%ebp)", "%ebx"); }
+      lf.put("leave"[]);
       
-      af.jump_barrier();
-      if (isARM) {
-        af.put("bx lr"[]);
-        af.pool;
+      lf.jump_barrier();
+      if (type.ret.returnsInMemory()) {
+        lf.put("ret $4"); // clean off pointer
       } else {
-        if (type.ret.returnsInMemory()) {
-          af.put("ret $4"); // clean off pointer
-        } else {
-          af.put("ret");
-        }
-      }
-      if (isARM) {
-        af.put(".ltorg"[]);
+        lf.put("ret");
       }
       
-      af.put(".global "[], fun_end_sym());
-      af.put(fun_end_sym(), ":"[]);
+      lf.put(".global "[], fun_end_sym());
+      lf.put(fun_end_sym(), ":"[]);
       
       if (!isWindoze())
-        af.put(".size "[], fmn, ", .-"[], fmn);
+        lf.put(".size "[], fmn, ", .-"[], fmn);
       
-      if (isWindoze()) af.put(".section .text$debug_section_"[], fmn, ", \"r\""[]);
-      af.put(".global "[], fun_linenr_sym());
-      af.put(fun_linenr_sym(), ":"[]);
-      af.put(".long "[], linecounter);
+      if (isWindoze()) lf.put(".section .text$debug_section_"[], fmn, ", \"r\""[]);
+      lf.put(".global "[], fun_linenr_sym());
+      lf.put(fun_linenr_sym(), ":"[]);
+      lf.put(".long "[], linecounter);
       for (int i = 0; i < linecounter; ++i) {
-        af.put(".long "[], linedebug(i));
-        af.put(".long "[], linenumbers[i]);
-      }
-      
-      if (isWindoze()) {
-        af.put(".section rodata");
-      }
-      
-      if (af.floatStackDepth) {
-        logln("leftover float stack when end-emitting ", this);
-        fail;
-      }
-      if (optimize) {
-        af.flush;
-      }
-      // af.put(".cfi_endproc"[]);
+        lf.put(".long "[], linedebug(i));
+        lf.put(".long "[], linenumbers[i]);
+      }*/
     }
-
-    Stuple!(IType, string, int)[] stackframe() {
-      Stuple!(IType, string, int)[] res;
+    
+    Stuple!(IType, string)[] stackframe() {
+      Stuple!(IType, string)[] res;
+      foreach (arg; getParams(true)) {
+        res ~= stuple(arg.type, arg.name);
+      }
+      /*
       foreach (obj; field)
-        if (auto var = fastcast!(Variable)~ obj._1)
-          res ~= stuple(var.type, var.name, var.baseOffset);
+        if (auto var = fastcast!(Variable)(obj._1))
+          res ~= stuple(var.type, var.name);
+      */
       return res;
     }
-  }
-  override Object lookup(string name, bool local = false) {
-    parseMe;
-    if (auto res = super.lookup(name, true)) return res;
-    if (auto res = lookupInImports(name, local)) return res;
-    if (local) return null;
-    return super.lookup(name, local);
-  }
-  override Extensible extend(Extensible e2) {
-    auto fun2 = fastcast!(Function) (e2);
-    if (!fun2) {
-      auto os2 = fastcast!(OverloadSet) (e2);
-      if (!os2) {
-        throw new Exception(Format("Can't overload function "
-          "with non-function/overload set: ", this, " with ", e2, "!"
-        ));
-      }
-      return fastalloc!(OverloadSet)(name, this ~ os2.funs);
+    Object lookup(string name, bool local = false) {
+      parseMe;
+      if (auto res = super.lookup(name, true)) return res;
+      if (auto res = lookupInImports(name, local)) return res;
+      if (local) return null;
+      return super.lookup(name, local);
     }
-    return fastalloc!(OverloadSet)(name, this, fun2);
+    Extensible extend(Extensible e2) {
+      auto fun2 = fastcast!(Function) (e2);
+      if (!fun2) {
+        auto os2 = fastcast!(OverloadSet) (e2);
+        if (!os2) {
+          throw new Exception(Format("Can't overload function "
+            "with non-function/overload set: ", this, " with ", e2, "!"
+          ));
+        }
+        return fastalloc!(OverloadSet)(name, this ~ os2.funs);
+      }
+      return fastalloc!(OverloadSet)(name, this, fun2);
+    }
+    Extensible simplify() { return this; }
   }
-  override Extensible simplify() { return this; }
+  Function alloc() { return new Function; }
 }
 
 void mkAbstract(Function fun) {
@@ -541,12 +557,15 @@ void mkAbstract(Function fun) {
   if (auto that = namespace().lookup("this"[]))
     fun.addStatement(
       iparse!(Statement, "undefined_function"[], "tree.stmt"[])
-            (`raise new Error "Function $this::$fun is not implemented";`, "fun"[], mkString(fun.name), "this"[], that));
+            (`raise new Error "Function $this::$fun is not implemented";`, fun, "fun"[], mkString(fun.name), "this"[], that));
   else
     fun.addStatement(
       iparse!(Statement, "undefined_function"[], "tree.stmt"[])
-            (`raise new Error "Function $fun is not implemented";`, "fun"[], mkString(fun.toString())));
+            (`raise new Error "Function $fun is not implemented";`, fun, "fun"[], mkString(fun.toString())));
 }
+
+TLS!(Function) current_emitting_function;
+static this() { New(current_emitting_function); }
 
 class OverloadSet : Named, Extensible {
   string name;
@@ -587,11 +606,14 @@ class OverloadSet : Named, Extensible {
   }
 }
 
+int fc_count;
 class FunCall : Expr {
   Expr[] params;
   Function fun;
   Statement setup;
   Expr[] getParams() { return params; }
+  int count;
+  this() { count = fc_count++; }
   FunCall construct() { return new FunCall; }
   FunCall dup() {
     auto res = construct;
@@ -605,16 +627,14 @@ class FunCall : Expr {
     fun.iterate(dg, IterMode.Semantic);
     defaultIterate!(params, setup).iterate(dg);
   }
-  void emitWithArgs(AsmFile af, Expr[] args) {
-    if (setup) setup.emitAsm(af);
-    auto size = (Single!(Void) == fun.type.ret)?0:fun.type.ret.size;
-    mixin(mustOffset("size"));
-    callFunction(af, fun.type.ret, fun.extern_c, fun.type.stdcall, args, fun.getPointer());
+  void emitWithArgs(LLVMFile lf, Expr[] args) {
+    if (setup) setup.emitLLVM(lf);
+    callFunction(lf, fun.type.ret, fun.extern_c, fun.type.stdcall, args, fun.getPointer());
   }
-  override void emitAsm(AsmFile af) {
-    emitWithArgs(af, params);
+  override void emitLLVM(LLVMFile lf) {
+    emitWithArgs(lf, params);
   }
-  override string toString() { return Format("(", fun.name, "(", params, "))"); }
+  override string toString() { return Format(count, " (", fun.name, "(", params, "))"); }
   override IType valueType() {
     if (!fun.type.ret) {
       if (fun.coarseSrc) {
@@ -632,8 +652,9 @@ class FunCall : Expr {
   }
 }
 
-void handleReturn(IType ret, AsmFile af) {
-  if (Single!(Void) == ret) return;
+void handleReturn(IType ret, LLVMFile lf) {
+  todo("handleReturn");
+  /*if (Single!(Void) == ret) return;
   if (ret.returnsInMemory()) {
     // the funcall routine already allocated space for us in just
     // the right spot, so we actually have nothing left to do.
@@ -641,208 +662,124 @@ void handleReturn(IType ret, AsmFile af) {
   }
   if (isARM) {
     if (ret.size == 2) {
-      af.salloc(2);
-      af.mmove2("r0", "[sp]");
+      lf.salloc(2);
+      lf.mmove2("r0", "[sp]");
       return;
     }
     if (ret.size == 4) {
-      af.pushStack("r0", 4);
+      lf.pushStack("r0", 4);
       return;
     }
     if (ret.size == 8) {
-      af.pushStack("r3", 4);
-      af.pushStack("r0", 4);
+      lf.pushStack("r3", 4);
+      lf.pushStack("r0", 4);
       return;
     }
     if (ret.size == 12) {
-      af.pushStack("r3", 4);
-      af.pushStack("r2", 4);
-      af.pushStack("r0", 4);
+      lf.pushStack("r3", 4);
+      lf.pushStack("r2", 4);
+      lf.pushStack("r0", 4);
       return;
     }
     if (ret.size == 16) {
-      af.pushStack("r3", 4);
-      af.pushStack("r2", 4);
-      af.pushStack("r1", 4);
-      af.pushStack("r0", 4);
+      lf.pushStack("r3", 4);
+      lf.pushStack("r2", 4);
+      lf.pushStack("r1", 4);
+      lf.pushStack("r0", 4);
       return;
     }
     logln(ret);
     fail;
   }
   if (Single!(Float) == ret) {
-    af.salloc(4);
-    af.storeFloat("(%esp)");
+    lf.salloc(4);
+    lf.storeFloat("(%esp)");
     return;
   }
   if (Single!(Double) == ret) {
-    af.salloc(8);
-    af.storeDouble("(%esp)");
+    lf.salloc(8);
+    lf.storeDouble("(%esp)");
     return;
   }
   if (ret.size >= 8) {
-    af.pushStack("%edx", 4);
-    af.nvm("%edx");
+    lf.pushStack("%edx", 4);
+    lf.nvm("%edx");
   }
   if (ret.size >= 12) {
-    af.pushStack("%ecx", 4);
-    af.nvm("%ecx");
+    lf.pushStack("%ecx", 4);
+    lf.nvm("%ecx");
   }
   if (ret.size == 16) {
-    af.pushStack("%ebx", 4);
-    af.nvm("%ebx");
+    lf.pushStack("%ebx", 4);
+    lf.nvm("%ebx");
   }
   if (ret.size >= 4) {
-    af.pushStack("%eax", 4);
-    af.nvm("%eax");
+    lf.pushStack("%eax", 4);
+    lf.nvm("%eax");
   } else if (ret.size == 2) {
-    af.pushStack("%ax", 2);
-    af.nvm("%ax");
+    lf.pushStack("%ax", 2);
+    lf.nvm("%ax");
   } else if (ret.size == 1) {
-    af.pushStack("%al", 1);
-    af.nvm("%al");
-  }
+    lf.pushStack("%al", 1);
+    lf.nvm("%al");
+  }*/
 }
 
 import tools.log, ast.fold;
-void callFunction(AsmFile af, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
-  if (!ret) throw new Exception("Tried to call function but return type not yet known! ");
-  auto size = (Single!(Void) == ret)?0:ret.size;
-  mixin(mustOffset("size"));
-  {
-    // logln("CALL ", fp, " ", params, " => ", ret);
-    string name;
-    opt(fp);
-    if (auto s = fastcast!(Symbol) (fp)) name = s.getName();
-    else name = "(nil)";
-    
-    ret = resolveType(ret);
-    if (!(ret.size == 1 /or/ 2 /or/ 4 /or/ 8 /or/ 12 /or/ 16 || cast(Void) ret))
-      throw new Exception(Format("Return bug: ", ret, " from ", name, ": ",
-      ret.size, " is ", (fastcast!(Object)~ ret).classinfo.name));
-    debug af.comment("Begin call to "[], name);
-    
-    bool returnInMemory = ret.returnsInMemory();
-    string ret_location;
-    if (returnInMemory) {
-      af.salloc(ret.size);
-      ret_location = qformat(-af.currentStackDepth, "(%ebp)");
-    }
-    
-    bool backupESI = external && name != "setjmp";
-    backupESI &= !isARM();
-    
-    if (backupESI) af.pushStack("%esi", nativePtrSize);
-    if (isARM) { af.pushStack("r5", 4); } // used for call
-    
-    int paramsize;
-    foreach (param; params) {
-      auto sz = param.valueType().size;
-      if (sz && sz < 4) sz = 4; // cdecl
-      paramsize += sz;
-    }
-    paramsize += af.floatStackDepth * 8;
-    
-    // distance to alignment border
-    auto align_offset = af.currentStackDepth + esp_alignment_delta;
-    if (returnInMemory) align_offset += 4;
-    // what do we have to do to align the callsite?
-    auto alignCall = 16 - (align_offset + paramsize) % 16;
-    if (alignCall == 16) alignCall = 0;
-    // logln("at call to ", name, ", depth is ", af.currentStackDepth, " and ", align_offset, " and ", alignCall, " due to ", paramsize);
-    af.salloc(alignCall);
-    
-    auto restore = af.floatStackDepth;
-    while (af.floatStackDepth)
-      af.fpuToStack();
-    
-    {
-      mixin(mustOffset("0", "innerer"));
-      foreach_reverse (param; params) {
-        // af.comment("Push ", param);
-        // round to 4: cdecl treats <4b arguments as 4b (because push is 4b, presumably).
-        auto sz = param.valueType().size;
-        if (sz && sz < 4) af.salloc(4 - sz);
-        alignment_emitAligned(param, af);
-      }
-      
-      if (fp.valueType().size > nativePtrSize) { logln("bad function pointer: ", fp); fail; }
-      
-      int inRegisters;
-      if (isARM) {
-        int effectivesize;
-        foreach (param; params) effectivesize += param.valueType().size;
-        void doPop(string reg) {
-          // TODO: account for things like char
-          if (effectivesize >= 4) {
-            af.popStack(reg, 4);
-            inRegisters += 4;
-            effectivesize -= 4;
-          }
-        }
-        fp.emitAsm(af);
-        af.popStack("r5", 4); // must not be r0-r3 or r4!
-        doPop("r0");
-        doPop("r1");
-        doPop("r2");
-        doPop("r3");
-      }
-      
-      if (isARM) {
-        af.call("r5");
-      } else {
-        {
-          mixin(mustOffset("nativePtrSize", "innerest"));
-          fp.emitAsm(af);
-        }
-        af.popStack("%eax", 4);
-        // af.put("test $15, %esp; jz 1f; call abort; 1:");
-        if (ret_location) {
-          af.loadAddress(ret_location, "%ebx");
-          af.pushStack("%ebx", 4);
-        }
-        if (af.currentStackDepth % 16 != 8) {
-          logln("at call, depth is ", af.currentStackDepth, " ", af.currentStackDepth % 16);
-          logln("thus, unaligned! :o");
-          fail;
-        }
-        af.call("%eax");
-        if (ret_location) {
-          // eaten by callee
-          af.currentStackDepth -= 4;
-        }
-      }
-      
-      foreach (param; params) {
-        if (param.valueType() != Single!(Void)) {
-          auto sz = param.valueType().size;
-          if (sz && sz < 4) sz = 4;
-          if (stdcall) {
-            af.currentStackDepth -= sz;
-          } else {
-            af.sfree(sz);
-          }
-        }
-      }
-      af.salloc(inRegisters); // hax
-    }
-    
-    bool returnsFPU = Single!(Float) == ret || Single!(Double) == ret;
-    if (returnsFPU)
-      af.floatStackDepth ++;
-    
-    while (restore--) {
-      af.stackToFpu();
-      if (returnsFPU)
-        af.fpuOp("fxch");
-    }
-    af.sfree(alignCall);
-    
-    if (backupESI) af.popStack("%esi", nativePtrSize);
-    if (isARM) af.popStack("r5", 4);
+void callFunction(LLVMFile lf, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
+  mixin(mustOffset("1"));
+  auto fpv = save(lf, fp);
+  string[] parlist;
+  foreach (par; params) {
+    auto pvt = par.valueType();
+    auto para = typeToLLVM(pvt), parb = typeToLLVM(pvt, true);
+    llcast(lf, para, parb, save(lf, par), pvt.llvmSize());
+    parlist ~= qformat(parb, " ", lf.pop());
   }
+  auto fptr = fastcast!(FunctionPointer)(fp.valueType());
+  if (!fptr) fail;
   
-  handleReturn(ret, af);
+  auto fptype = typeToLLVM(fptr);
+  if (!fptr.no_tls_ptr && !fptype.endsWith("...)*")) {
+    auto tlsptr = fastcast!(Expr)(namespace().lookup(tlsbase));
+    if (!tlsptr) {
+      throw new Exception(qformat("No TLS pointer found under ", namespace()));
+    }
+    parlist ~= qformat("i8* ", save(lf, tlsptr));
+  }
+  string flags;
+  // if (!external) flags = "fastcc";
+  if (stdcall) flags = "x86_stdcallcc";
+  if (params.length == 1) {
+    IType farg;
+    bool shh_its_okay;
+    if (fptr.args.length == 1) {
+      farg = fptr.args[0].type;
+    } else if (fptr.args.length == 2 && Single!(Variadic) == fptr.args[1].type) {
+      shh_its_okay = true;
+    } else {
+      logln("calling ", fptr);
+      logln("with ", params);
+      fail;
+    }
+    if (!shh_its_okay) {
+      auto ftype = typeToLLVM(farg);
+      auto atype = typeToLLVM(params[0].valueType());
+      if (atype != ftype) {
+        logln("Mismatching types");
+        logln("call: ", typeToLLVM(fp.valueType()), " ", fp.valueType());
+        logln("with: ", atype, " ", params[0].valueType());
+        fail;
+      }
+    }
+  }
+  auto callstr = qformat("call ", flags, " ", fptype, " ", fpv, "(", parlist.join(", "), ")");
+  if (Single!(Void) == ret) {
+    put(lf, callstr);
+    lf.push("void");
+  } else {
+    load(lf, callstr);
+  }
 }
 
 class FunctionType : ast.types.Type {
@@ -865,10 +802,8 @@ class FunctionType : ast.types.Type {
     if (!ret) return true;
     return args_open();
   }
-  override int size() {
-    fail;
-    assert(false);
-  }
+  override string llvmSize() { fail; return null; }
+  override string llvmType() { fail; return null; }
   IType[] types() {
     auto res = new IType[params.length];
     foreach (i, entry; params) res[i] = entry.type;
@@ -984,10 +919,6 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       t2.gotParlist(_params, rest, true) || shortform
     )
   {
-    if (ret) {
-      auto sz = ret.size();
-      if (sz > 16) t3.failparse("Return type must not be >16 bytes"[]);
-    }
     static if (is(typeof(_fun()))) auto fun = _fun();
     else auto fun = _fun;
     New(fun.type);
@@ -1076,22 +1007,49 @@ mixin DefaultParser!(gotFunDef!(true), "tree.fundef_externc"[]);
 
 // ensuing code gleefully copypasted from nestfun
 // yes I wrote delegates first. how about that.
-class FunctionPointer : ast.types.Type {
+class FunctionPointer : ast.types.Type, ExternAware {
   IType ret;
   Argument[] args;
-  bool stdcall;
-  this() { }
+  bool stdcall, no_tls_ptr;
+  Function delayfun;
   string toString() { return Format(ret, " function("[], args, ")"[], stdcall?" stdcall":""[]); }
-  this(IType ret, Argument[] args) {
+  this(IType ret, Argument[] args, bool no_tls_ptr = false) {
+    if (!ret) fail;
     this.ret = ret;
     this.args = args.dup;
+    this.no_tls_ptr = no_tls_ptr;
   }
   this(Function fun) {
+    delayfun = fun;
     ret = fun.type.ret;
     args = fun.type.params.dup;
+    if (fun.extern_c) no_tls_ptr = true;
   }
-  override int size() {
-    return nativePtrSize;
+  override void markExternC() {
+    no_tls_ptr = true;
+  }
+  override string llvmSize() {
+    if (nativePtrSize == 4) return "4";
+    if (nativePtrSize == 8) return "8";
+    fail;
+  }
+  override string llvmType() {
+    if (!ret) ret = delayfun.type.ret;
+    if (!ret) fail;
+    string res = typeToLLVM(ret) ~ "(";
+    foreach (i, ref arg; args) {
+      if (!arg.type) arg.type = delayfun.type.params[i].type;
+      if (i) res ~= ", ";
+      res ~= typeToLLVM(arg.type, true);
+    }
+    // tls pointer
+    if (!no_tls_ptr && !stdcall && !res.endsWith("...")) {
+      if (args.length) res ~= ", ";
+      res ~= typeToLLVM(voidp, true);
+    }
+    
+    res ~= ")*";
+    return res;
   }
   int opEquals(IType type2) {
     auto t2 = resolveType(type2);
@@ -1135,9 +1093,9 @@ class FunRefExpr : Expr, Literal {
       if (!typecache) typecache = fastalloc!(FunctionPointer)(fun);
       return typecache;
     }
-    void emitAsm(AsmFile af) {
-      auto c = new Constant(fun.mangleSelf());
-      c.emitAsm(af);
+    void emitLLVM(LLVMFile lf) {
+      auto c = new FunSymbol(fun);
+      c.emitLLVM(lf);
       delete c;
     }
     string getValue() { return fun.mangleSelf(); }
@@ -1153,10 +1111,7 @@ static this() {
       t2.gotParlist(list, rest, false)
     ) {
       text = t2;
-      auto res = new FunctionPointer;
-      res.ret = cur;
-      res.args = list.dup;
-      return res;
+      return fastalloc!(FunctionPointer)(cur, list.dup);
     } else return null;
   };
 }
