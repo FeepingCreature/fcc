@@ -93,7 +93,7 @@ class RelMemberLV : RelMember, LValue {
 }
 
 extern(C) Expr _make_tupleof(Structure str, Expr ex);
-class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, SelfAdding, StructLike {
+class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, SelfAdding, StructLike, ExternAware {
   mixin TypeDefaults!(false);
   string name;
   bool isUnion, packed, isTempStruct;
@@ -122,6 +122,14 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     return lloffset(strtype, types[$-1], types.length-1);
   }
   override {
+    void markExternC() {
+      foreach (entry; field) {
+        auto obj = entry._1;
+        if (auto ex = fastcast!(Expr)(obj)) obj = fastcast!(Object)(ex.valueType());
+        if (auto eat = fastcast!(ExternAware)(obj))
+          eat.markExternC();
+      }
+    }
     bool addsSelf() { return true; }
     bool isPointerLess() {
       bool pointerless = true;
@@ -288,7 +296,8 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
           if (auto n = fastcast!(Named) (elem._1)) {
             string id = n.getIdentifier();
             if (auto rm = fastcast!(RelMember) (elem._1))
-              id = Format(id, "<"[], rm.valueType().llvmType(), ">@"[], rm.index);
+              // id = Format(id, "<"[], rm.valueType().llvmType(), ">@"[], rm.index);
+              id = Format(id, "<"[], rm.valueType(), ">@"[], rm.index);
             names ~= id;
           }
         return Format("{struct "[], names.join(", "[]), "}"[]);
@@ -363,7 +372,10 @@ class NoOpMangleHack : Statement, IsMangled {
   override string mangleSelf() { return sup.mangle(); }
   override void markWeak() {
     foreach (entry; sup.field)
-      if (auto mg = fastcast!(IsMangled) (entry._1)) mg.markWeak();
+      if (auto mg = fastcast!(IsMangled)(entry._1)) mg.markWeak();
+  }
+  override void markExternC() {
+    sup.markExternC();
   }
 }
 
@@ -535,6 +547,7 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
       load(lf, "getelementptr inbounds ", typeToLLVM(base.valueType()), "* ", ls, ", i32 0, i32 ", stm.index);
       auto restype = stm.type;
       auto from = typeToLLVM(restype, true)~"*", to = typeToLLVM(restype)~"*";
+      // logln("emitLocation of mal to ", base.valueType());
       if (from != to) {
         llcast(lf, from, to, lf.pop(), qformat(nativePtrSize));
       }

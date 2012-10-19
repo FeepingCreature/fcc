@@ -19,9 +19,7 @@ shared int tls_size;
 
 extern(C) int _sys_tls_data_start;
 (int, int) setupTLSSize() {
-  writeln "TODO setupTLSSize()";
-  return (0, 0);
-  /*int dataStart = 0x7fffffff, dataEnd;
+  int dataStart = 0x7fffffff, dataEnd;
   auto
     localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
     localEnd = [for mod <- __modules: int:mod.dataEnd - int:&_sys_tls_data_start],
@@ -34,7 +32,7 @@ extern(C) int _sys_tls_data_start;
     }
   }
   alias dataSize = dataEnd - dataStart; tls_size = dataSize;
-  return (dataStart, dataEnd);*/
+  return (dataStart, dataEnd);
 }
 
 void delegate(void*) onThreadCreation;
@@ -93,7 +91,7 @@ extern(C) void* __start_routine(void* p) {
   }*/
   {
     auto arg = *(void delegate(), void*, int, Semaphore)*:ptemp;
-    // _esi = arg[1];
+    auto _threadlocal = arg[1];
     mxcsr = arg[2];
     setupStackBase;
     arg[3].release;
@@ -118,7 +116,7 @@ void startThread(void delegate() dg) {
   arg[0] = dg;
   (int dataStart, int dataEnd) = setupTLSSize();
   alias dataSize = dataEnd - dataStart;
-  /*auto oldArea = _esi[dataStart..dataEnd];
+  auto oldArea = _threadlocal[dataStart..dataEnd];
   auto newArea = (sys.malloc(dataSize) - dataStart)[0 .. dataEnd];
   
   auto
@@ -127,9 +125,9 @@ void startThread(void delegate() dg) {
     localRange = zip(localStart, localEnd);
   
   for (auto range <- localRange) {
-    newArea[range[0] .. range[1]] = _esi[range[0] .. range[1]];
+    newArea[range[0] .. range[1]] = _threadlocal[range[0] .. range[1]];
   }
-  arg[1] = newArea.ptr;*/
+  arg[1] = newArea.ptr;
   arg[2] = mxcsr;
   arg[3] = new Semaphore;
   

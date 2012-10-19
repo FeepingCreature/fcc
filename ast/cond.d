@@ -151,7 +151,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                if (_record) var.guard_id = _record.dg;
                var.old_hdl = __hdl__;
                var.param_id = id;
-               // var.esi = _esi; // for win32
+               var.threadlocal = _threadlocal; // for win32
                _cm = &var;
              }`,
              namespace(), "var"[], cmvar, "nex"[], ex, "id"[], mkString(classTypeId));
@@ -177,9 +177,9 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) namespace.set(nsbackup);
   namespace.set(sc);
   
-  // sc.addStatement(iparse!(Statement, "reset_esi"[], "tree.stmt"[])
-  //                        (`_esi = var.esi;`,
-  //                         "var"[], cmvar));
+  sc.addStatement(iparse!(Statement, "reset_threadlocal"[], "tree.stmt"[])
+                         (`_threadlocal = var.threadlocal;`,
+                          namespace(), "var"[], cmvar));
   if (argType) {
     auto var = fastalloc!(Variable)(argType, framelength(), argName);
     auto vd = fastalloc!(VarDecl)(var);

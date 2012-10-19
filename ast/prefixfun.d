@@ -97,6 +97,11 @@ class PrefixCall : FunCall {
   }
   override void emitWithArgs(LLVMFile lf, Expr[] args) {
     auto res = fun.getParams(true);
+    // Argument[] tlsptr;
+    if (res.length && res[$-1].name == tlsbase) {
+      // tlsptr = res[$-1..$];
+      res = res[0..$-1];
+    }
     if (res.length > 1) { sup.emitWithArgs(lf, prefix~args); return; }
     
     if (!res.length) fail;

@@ -42,8 +42,7 @@ platform(default) {
     GC_register_my_thread(&gsb);
     // writeln "register stack base $(stack-base) (ebp $(_ebp))";
     // register my TLS segment as a root
-    writeln "TODO register_thread tls";
-    // GC_add_roots(_esi, _esi + tls_size);
+    GC_add_roots(_threadlocal, _threadlocal + tls_size);
   }
 }
 
@@ -56,8 +55,7 @@ platform(i686-mingw32) {
     static if (is-defined GC_register_my_thread) {
       GC_register_my_thread(&gsb);
     }
-    writeln "TODO register_thread tls";
-    // GC_add_roots(_esi, _esi + tls_size);
+    GC_add_roots(_threadlocal, _threadlocal + tls_size);
   }
 }
 
@@ -72,8 +70,7 @@ void initBoehm(bool debugMode = false) {
   static if (is-defined GC_allow_register_threads) {
     GC_allow_register_threads;
   }
-  writeln "TODO initBoehm tls";
-  // GC_add_roots(_esi, _esi + tls_size); // remind me why I need to do this
+  GC_add_roots(_threadlocal, _threadlocal + tls_size); // remind me why I need to do this
   auto oldDg = onThreadCreation;
   onThreadCreation = new delegate void(void* stackbase) {
     register_thread(stackbase);

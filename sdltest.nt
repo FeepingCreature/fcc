@@ -74,7 +74,7 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
   auto start = time(int*: null);
   float t = 0;
   int fps;
-  // auto tp = new ThreadPool(4);
+  auto tp = new ThreadPool(4);
   void run() {
     t += 0.02;
     void calc(int from, int to) {
@@ -103,10 +103,10 @@ void sdlfun(vec3f delegate(float, float, float) dg) {
       void delegate() myApply(int from, int to, void delegate(int, int) dg) {
         return new delegate void() { return dg(from, to); };
       }
-      myApply(from, to, &calc)();
-      // tp.addTask myApply(from, to, &calc);
+      // myApply(from, to, &calc)();
+      tp.addTask myApply(from, to, &calc);
     }
-    // tp.waitComplete;
+    tp.waitComplete;
     fps ++;
   }
   auto last = time(null), tstart = last;

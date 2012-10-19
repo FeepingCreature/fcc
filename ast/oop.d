@@ -176,6 +176,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   override string mangle(string name, IType type) { assert(false); }
   bool weak;
   override void markWeak() { weak = true; }
+  override void markExternC() { }
   override string mangleSelf() { return mangle(); }
   Function[] funs;
   Intf[] parents;
@@ -336,6 +337,7 @@ class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, Is
     string llvmSize() { if (nativePtrSize == 4) return "4"; fail; }
     string llvmType() { if (nativePtrSize == 4) return "i8*"; fail; }
     void markWeak() { myClass.markWeak(); }
+    void markExternC() { }
     string mangle() { return "ref_"~myClass.mangle(); }
     string mangleSelf() { return mangle(); }
     bool returnsInMemory() { return false; }
@@ -367,6 +369,7 @@ class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, Expr
     string llvmSize() { if (nativePtrSize == 4) return "4"; fail; }
     string llvmType() { if (nativePtrSize == 4) return "i8*"; fail; }
     void markWeak() { } // nothing emitted, ergo no-op
+    void markExternC() { }
     string mangle() { return "intfref_"~myIntf.mangle(); }
     string mangleSelf() { return mangle(); }
     int opEquals(IType type) {

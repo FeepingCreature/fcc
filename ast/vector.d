@@ -394,9 +394,9 @@ class FastVec3Norm : Expr {
     IType valueType() { return vec; }
     void emitLLVM(LLVMFile lf) {
       auto b2 = base;
-      logln("FROM: ", base);
+      // logln("FROM: ", base);
       opt(b2);
-      logln("  TO: ", b2);
+      // logln("  TO: ", b2);
       auto bv = save(lf, base);
       auto bt = typeToLLVM(base.valueType());
       // logln("emit ", base, " being ", base.valueType());

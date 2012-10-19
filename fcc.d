@@ -732,7 +732,8 @@ void postprocessModule(Module mod, LLVMFile lf) {
     }
     it.iterate(&recurse);
   }
-  if (isWindoze()) mod.iterate(&recurse);
+  // TODO check if necessary
+  // if (isWindoze()) mod.iterate(&recurse);
   // result: mostly below 7
   // gatherSizeStats(mod);
 }

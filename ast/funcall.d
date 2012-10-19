@@ -460,16 +460,13 @@ class DgCall : Expr {
   }
 }
 
-HintType!(Delegate) anyDelegateTypeHint;
-
 Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
     if (t2.cantBeCall()) return null;
     
     Delegate dgtype;
-    if (!anyDelegateTypeHint) New(anyDelegateTypeHint);
-    if (!gotImplicitCast(ex, anyDelegateTypeHint, (IType it) { dgtype = fastcast!(Delegate) (it); return !!dgtype; }))
+    if (!gotImplicitCast(ex, Single!(HintType!(Delegate)), (IType it) { dgtype = fastcast!(Delegate) (it); return !!dgtype; }))
       return null;
     
     auto dc = new DgCall;
@@ -484,7 +481,7 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     return fastcast!(Object) (res);
   };
 }
-mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.dgcall");
+mixin DefaultParser!(gotDgCallExpr, "tree.rhs_partial.fpz_dgcall"); // put this after fpcall
 
 import ast.literal_string, ast.modules;
 

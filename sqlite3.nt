@@ -11,8 +11,8 @@ extern(C) {
   int sqlite3_bind_blob(sqlite3_stmt*, int, void*, int, void function(void*));
 }
 
-int callback(void* esiState, int argc, char** argv, char** colName) using (scoped _esi, scoped _ebx) {
-  _esi = esiState;
+int callback(void* threadinfo, int argc, char** argv, char** colName) {
+  auto _threadlocal = threadinfo;
   while int i <- 0..argc {
     writeln "$(CToString colName[i]) = $(CToString argv[i])";
   }

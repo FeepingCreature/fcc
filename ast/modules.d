@@ -95,10 +95,19 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       lf.beginSection("module");
       put(lf, `target datalayout = "`, datalayout, `"`);
       put(lf, `target triple = "i386-pc-linux-gnu"`);
+      put(lf, `%size_t = type i32`);
       scope(success) {
         auto tlsbase = qformat("_sys_tls_data_", name.replace(".", "_").replace("-", "_dash_"));
-        put(lf, "@", tlsbase, "_start = global i8 0");
-        put(lf, "@", tlsbase, "_end   = global i8 0");
+        put(lf, "@", tlsbase, "_start = global i8 0, section \"tlsvars\"");
+        if (name == "sys") {
+          put(lf, `@_sys_tls_data_start = global i8 0, section "tlsvars"`);
+          lf.undecls["_sys_tls_data_start"] = true;
+        }
+        if ("tlsdefs" in lf.sectionStore) {
+          lf.put(lf.sectionStore["tlsdefs"]);
+          lf.sectionStore.remove("tlsdefs"); 
+        }
+        put(lf, "@", tlsbase, "_end   = global i8 0, section \"tlsvars\"");
         lf.undecls[qformat(tlsbase, "_start")] = true;
         lf.undecls[qformat(tlsbase, "_end"  )] = true;
         foreach (key, value; lf.decls) {

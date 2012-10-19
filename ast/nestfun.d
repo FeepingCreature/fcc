@@ -18,8 +18,11 @@ class NestedFunction : Function {
   override {
     Expr getPointer() { return fastalloc!(FunSymbol)(this, voidp); }
     Argument[] getParams(bool implicits) {
-      auto res = super.getParams(implicits);
-      if (implicits) res ~= Argument(voidp, "__base_ptr");
+      auto res = super.getParams(false);
+      if (implicits) {
+        res ~= Argument(voidp, "__base_ptr");
+        res ~= Argument(voidp, tlsbase);
+      }
       return res;
     }
     string toString() { return "nested "~super.toString(); }
@@ -264,6 +267,29 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotDgRefExpr, "tree.expr.dg_ref"[], "210"[], "&"[]);
 
+class LateLookupExpr : Expr {
+  IType type;
+  string name;
+  this(string n, IType t) { name = n; type = t; }
+  mixin defaultIterate!();
+  override {
+    IType valueType() { return type; }
+    LateLookupExpr dup() { return fastalloc!(LateLookupExpr)(name, type); }
+    void emitLLVM(LLVMFile lf) {
+      auto real_ex = fastcast!(Expr)(namespace().lookup(name));
+      if (!real_ex) {
+        logln("LateLookupExpr: no '", name, "' found at ", namespace());
+        fail;
+      }
+      if (real_ex.valueType() != type) {
+        logln("LateLookupExpr: real expr for '", name, "' had wrong type: ", real_ex.valueType());
+        fail;
+      }
+      real_ex.emitLLVM(lf);
+    }
+  }
+}
+
 import ast.int_literal;
 // &fun as dg
 class FunPtrAsDgExpr(T) : T {
@@ -273,7 +299,8 @@ class FunPtrAsDgExpr(T) : T {
     this.ex = ex;
     fp = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
     if (!fp) { logln(ex); logln(fp); fail; }
-    super(ex, mkInt(0));
+    auto tlsptr = fastalloc!(LateLookupExpr)(tlsbase, voidp);
+    super(ex, tlsptr); // this call will have the tls pointer twice - but, meh!
   }
   void iterate(void delegate(ref Itr) dg, IterMode mode = IterMode.Lexical) {
     super.iterate(dg, mode);

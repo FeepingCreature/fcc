@@ -15,7 +15,7 @@ class ExternCGlobVar : LValue, Named {
     ns = namespace();
   }
   void checkSection(LLVMFile lf, string lltype) {
-    if (once(lf, "c global ", name)) {
+    if (once(lf, "symbol ", name)) {
       putSection(lf, "module", "@", name, " = external global ", lltype);
     }
   }
@@ -112,6 +112,10 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     auto t3 = t2;
     Object obj;
     if (!rest(t3, "tree.toplevel"[], &obj)) return false;
+    if (auto im = fastcast!(IsMangled)(obj)) {
+      im.markExternC();
+    }
+    // logln("FALLTHROUGH TO ", obj);
     t2 = t3;
     return true;
   }

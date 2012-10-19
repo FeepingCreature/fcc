@@ -30,8 +30,10 @@ class GlobVar : LValue, Named, IsMangled {
   string manglecache;
   void checkDecl(LLVMFile lf) {
     auto mang = mangleSelf();
-    if (once(lf, "globvar ", mang)) {
-      lf.decls[mang] = qformat("@", mang, " = external global ", typeToLLVM(type));
+    string sectioninfo;
+    if (tls) sectioninfo = ", section \"tlsvars\"";
+    if (once(lf, "symbol ", mang)) {
+      lf.decls[mang] = qformat("@", mang, " = external global ", typeToLLVM(type), sectioninfo);
     }
   }
   override {
@@ -41,15 +43,36 @@ class GlobVar : LValue, Named, IsMangled {
       return manglecache;
     }
     void markWeak() { weak = true; }
+    void markExternC() { fail; }
     IType valueType() { return type; }
     string getIdentifier() { return cleanedName(); }
     void emitLLVM(LLVMFile lf) {
-      checkDecl(lf);
-      load(lf, "load ", typeToLLVM(type), "* @", mangleSelf());
+      emitLocation(lf);
+      load(lf, "load ", typeToLLVM(type), "* ", lf.pop());
     }
     void emitLocation(LLVMFile lf) {
       checkDecl(lf);
       push(lf, "@", mangleSelf());
+      if (tls) {
+        string v = lf.pop();
+        auto tlsinfo = fastcast!(Expr) (namespace().lookup(tlsbase));
+        if (!tlsinfo) {
+          logln("Cannot emit global variable ", name, ": no tls variable found under ", namespace());
+          fail;
+        }
+        auto datastart = save(lf, fastalloc!(Symbol)("_sys_tls_data_start", Single!(Void)));
+        datastart = save(lf, "ptrtoint i8* ", datastart, " to %size_t");
+        
+        tlsinfo.emitLLVM(lf);
+        string tls = lf.pop();
+        tls = save(lf, "ptrtoint i8* ", tls, " to %size_t");
+        
+        v = save(lf, "ptrtoint ", typeToLLVM(type), "* ", v, " to %size_t");
+        v = save(lf, "sub %size_t ", v, ", ", datastart);
+        v = save(lf, "add %size_t ", v, ", ", tls);
+        v = save(lf, "inttoptr %size_t ", v, " to ", typeToLLVM(type), "*");
+        push(lf, v);
+      }
     }
     string toString() { return Format("global "[], ns.get!(Module)().name, "."[], name, " of "[], type); }
   }
@@ -57,7 +80,6 @@ class GlobVar : LValue, Named, IsMangled {
 
 class GlobVarDecl : Statement, IsMangled {
   GlobVar[] vars;
-  bool tls;
   mixin defaultIterate!();
   override {
     string mangleSelf() {
@@ -66,6 +88,9 @@ class GlobVarDecl : Statement, IsMangled {
     void markWeak() {
       foreach (var; vars) var.markWeak();
     }
+    void markExternC() {
+      fail;
+    }
     typeof(this) dup() {
       auto res = new GlobVarDecl;
       foreach (var; vars) {
@@ -73,29 +98,21 @@ class GlobVarDecl : Statement, IsMangled {
         v2.weak = var.weak;
         res.vars ~= v2;
       }
-      res.tls = tls;
       return res;
     }
-    string toString() { return Format("declare "[], tls?"tls ":""[], vars); }
+    string toString() { return Format("declare ", vars); }
     void emitLLVM(LLVMFile lf) {
       foreach (var; vars) if (var.type.llvmSize() != "0") {
         string linkage;
         if (var.weak) linkage = "weak_odr ";
-        putSection(lf, "module", "@", var.mangleSelf(), " = "~linkage~"global ", typeToLLVM(var.type), " ", var.getInit());
-        lf.undecls[var.mangleSelf()] = true;
+        string sectioninfo;
+        if (var.tls) sectioninfo = ", section \"tlsvars\"";
+        auto mangle = var.mangleSelf();
+        string section = "module";
+        if (var.tls) section = "tlsdefs";
+        putSection(lf, section, "@", mangle, " = "~linkage~"global ", typeToLLVM(var.type), " ", var.getInit(), sectioninfo);
+        lf.undecls[mangle] = true;
       }
-      if (tls) {
-        logln("TODO tls");
-      }
-      /*if (tls) {
-        foreach (var; vars)
-          with (var) if (type.size)
-            lf.addTLS(mangleSelf(), type.size, getInit(), var.weak);
-      } else {
-        foreach (var; vars)
-          with (var) if (type.size)
-            lf.globvars[mangleSelf()] = stuple(type.size, getInit(), var.weak);
-      }*/
     }
   }
 }
@@ -109,7 +126,6 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("shared"[])) shared = true;
   if (!rest(t2, "type"[], &ty)) return null;
   auto gvd = new GlobVarDecl;
-  gvd.tls = !shared;
   auto ns = namespace();
   string t3; Expr initval;
   if (
@@ -128,7 +144,7 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       t2.accept(","[]),
       {
         if (initval) opt(initval);
-        gvd.vars ~= fastalloc!(GlobVar)(ty, name, ns, gvd.tls, initval);
+        gvd.vars ~= fastalloc!(GlobVar)(ty, name, ns, !shared, initval);
         initval = null;
       },
       false

@@ -19,7 +19,6 @@ void setupSysmods() {
       void* malloc(int);
       void* calloc(int, int);
       void free(void*);
-      int posix_memalign(void**, int, int);
       void* memset(void* s, int c, int n);
       void* memcpy(void* dest, src, int n);
       int memcmp(void* s1, s2, int n);
@@ -32,6 +31,36 @@ void setupSysmods() {
       RenameIdentifier sqrt C_sqrt;
       int strlen(char*);
       long __divdi3(long numerator, denominator);
+    }
+    platform(!*-mingw*) {
+      extern(C) int posix_memalign(void**, int, int);
+      void* alloc16(int size) {
+        void* res;
+        if auto res = posix_memalign(&res, 16, size) {
+          printf("malloc(%i) failed with %i\n", size, res);
+          int i;
+          i /= i;
+        }
+        return res;
+      }
+      void free16(void* ptr) { free(ptr); }
+    }
+    platform(*-mingw*) {
+      void* alloc16(int size) {
+        // hax!
+        // if we overallocate by 16, we will always have at least
+        // 4 bytes of unused space. we use this space to 
+        // save the original pointer for latter retrieval
+        // and passing to free.
+        auto pre = malloc(size+16);
+        // align to next 16-bit boundary
+        auto resptr = void*: (((int:pre + 16) / 16) * 16);
+        (void**:resptr)[-1] = pre;
+        return resptr;
+      }
+      void free16(void* ptr) {
+        free ((void**: ptr)[-1]); // retrieve original pointer
+      }
     }
     bool streq(char[] a, b) {
       if a.length != b.length return false;
@@ -58,28 +87,14 @@ void setupSysmods() {
       /*MARKER*/
     }
     void mem_init() {
-      mem. malloc_dg = \(int i) {
-        void* res;
-        if auto res = posix_memalign(&res, 16, i) {
-          printf("malloc(%i) failed with %i\n", i, res);
-          int i;
-          i /= i;
-        }
-        return res;
-      }
+      mem. malloc_dg = \(int i) { return alloc16 i; }
       mem. calloc_dg = \(int i, k) {
         // printf("calloc(%i, %i)\n", i, k);
-        if (i*k > 100_000_000) { int i; i /= i; }
-        void* res;
-        if auto res = posix_memalign(&res, 16, i*k) {
-          printf("calloc(%i, %i) failed with %i\n", i, k, res);
-          int i;
-          i /= i;
-        }
+        auto res = alloc16 (i * k);
         memset(res, 0, i*k);
         return res; 
       }
-      mem.   free_dg = &free;
+      mem.   free_dg = \(void* p) { return free16 p; }
     }
     alias string = char[]; // must be post-marker for free() to work properly
     struct FrameInfo {
@@ -325,7 +340,7 @@ void setupSysmods() {
       _CondMarker* prev;
       jmp_buf target;
       string param_id;
-      void* esi;
+      void* threadlocal;
       bool accepts(Object obj) {
         if (!param_id.length) return !obj;
         else return !!obj?.dynamicCastTo param_id;
@@ -546,7 +561,7 @@ void setupSysmods() {
       for auto mod <- __modules if mod.name == name return mod;
       raise new Error "No such module: $name";
     }
-    extern(C) void __setupModuleInfo();
+    extern(C) void __setupModuleInfo(void* _threadlocal);
     void constructModules() {
       for auto mod <- __modules.iterator {
         for auto str <- mod._imports
@@ -560,7 +575,9 @@ void setupSysmods() {
         for auto constr <- mod.constructors
           constr();
       }
-      for auto mod <- __modules callConstructors mod;
+      for auto mod <- __modules {
+        callConstructors mod;
+      }
     }
     platform(default) {
       pragma(lib, "pthread");
@@ -606,7 +623,7 @@ void setupSysmods() {
           }
           already_handling_segfault = true;
           onExit already_handling_segfault = false;
-          // _esi = c.pthread.pthread_getspecific(tls_pointer);
+          auto _threadlocal = c.pthread.pthread_getspecific(tls_pointer);
           if (preallocated_sigsegv) raise preallocated_sigsegv;
           raise new LinuxSignal "SIGSEGV";
         }
@@ -653,14 +670,15 @@ void setupSysmods() {
     /* shared TODO figure out why this crashes */ string executable;
     shared int __argc;
     shared char** __argv;
+    extern(C) byte _sys_tls_data_start;
     int main2(int argc, char** argv) {
       __argc = argc; __argv = argv;
       
       mem_init();
       platform(default) {
         pthread_key_create(&tls_pointer, null);
-        // c.pthread.pthread_setspecific(tls_pointer, _esi);
-        // setup-segfault-handler();
+        c.pthread.pthread_setspecific(tls_pointer, _threadlocal);
+        setup-segfault-handler();
         preallocated_sigsegv = new LinuxSignal "SIGSEGV";
       }
       
@@ -677,7 +695,7 @@ void setupSysmods() {
       }
       define-exit "main-return" return errnum;
       
-      __setupModuleInfo();
+      __setupModuleInfo(_threadlocal);
       constructModules();
       
       platform(x86) {
@@ -771,9 +789,11 @@ void finalizeSysmod(Module mainmod) {
     extern_c = true;
     type = new FunctionType;
     type.ret = Single!(Void);
+    type.params ~= Argument(voidp, "_threadlocal");
     sup = mainmod;
     coarseSrc = "{}".dup;
     coarseModule = mainmod;
+    fixup();
     parseMe();
   }
   mainmod.entries ~= setupfun;
@@ -1006,7 +1026,7 @@ Object gotEBP(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotEBP, "tree.expr.ebp", "24045", "_ebp");
 
 Object gotESI(ref string text, ParseCb cont, ParseCb rest) {
-  text.failparse("no longer relevant in llvm");
+  text.failparse("no longer relevant in llvm, use _threadlocal instead");
   return Single!(RegExpr, "%esi");
 }
 mixin DefaultParser!(gotESI, "tree.expr.esi", "24046", "_esi");

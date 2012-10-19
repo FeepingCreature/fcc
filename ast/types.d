@@ -21,6 +21,10 @@ extern(C) string typeToLLVM(IType it, bool subst = false);
 
 interface ReferenceType { } // tag for if(foo) checks
 
+interface ExternAware {
+  void markExternC();
+}
+
 import tools.log;
 // Strips out type-alias and the like
 IType resolvecache;

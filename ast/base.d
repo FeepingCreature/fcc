@@ -18,6 +18,8 @@ void breakpoint() {
   if (doBreak) asm { int 3; }
 }
 
+const string tlsbase = "_threadlocal";
+
 bool isWindoze() {
   return platform_prefix.find("mingw"[]) != -1;
 }
@@ -60,7 +62,7 @@ interface HandlesEmits {
   bool handledEmit(Tree tr);
 }
 
-interface IsMangled { string mangleSelf(); void markWeak(); }
+interface IsMangled { string mangleSelf(); void markWeak(); void markExternC(); }
 
 // pointer for structs, ref for classes
 interface hasRefType {

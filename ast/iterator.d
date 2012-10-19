@@ -408,44 +408,14 @@ class ScopeAndExpr : Expr {
   Expr ex;
   this(Scope sc, Expr ex) { this.sc = sc; this.ex = ex; }
   mixin defaultIterate!(sc, ex);
-  /*void fixUpVariables(int toDepth) {
-    int locallyAllocated;
-    void rewriteVardeclStatement(ref Iterable it) {
-      if (auto vd = fastcast!(VarDecl)(it)) {
-        auto sz = vd.var.type.size;
-        locallyAllocated ++;
-        auto newIndex = toIndex + locallyAllocated;
-        vd.var.baseIndex = newIndex; // reallocate locally
-      }
-      it.iterate(&rewriteVardeclStatement);
-    }
-    if (auto ib = fastcast!(Itr) (sc._body)) {
-      rewriteVardeclStatement(ib);
-      sc._body = fastcast!(Statement) (ib);
-    }
-    // logln("  We are at ", toDepth);
-    // logln("  and we get ", sc.field);
-    // logln("  as well as ", sc._body);
-  }*/
   override {
     string toString() { return Format("sae("[], sc._body, ", "[], ex, ")"[]); }
     ScopeAndExpr dup() { return fastalloc!(ScopeAndExpr)(sc.dup, ex.dup); }
     IType valueType() { return ex.valueType(); }
     void emitLLVM(LLVMFile lf) {
-      // logln("We are at ", lf.currentStackDepth);
-      // logln("and we get ", sc.field);
-      // logln("as well as ", sc._body);
-      
-      // logln("emit "[], this);
-      // dirty, dirty hackaround (!)
-      // TODO: discover why the fuck this what wtf help
-      // okay. basically, what's going on here is if we leave the body
-      // then the variable declarations will error! because the scope is actually at MASSIVELY the wrong offset
-      // of course, hacking it like this will just bug silently so fuck you past me
-      // sc._body = Single!(AggrStatement);
       sc.id = getuid();
       mixin(mustOffset("1"));
-      logln("ex = ", ex);
+      // logln("ex = ", ex);
       if (Single!(Void) == ex.valueType()) {
         // fixUpVariables(lf.currentStackDepth);
         auto dg = sc.open(lf)();

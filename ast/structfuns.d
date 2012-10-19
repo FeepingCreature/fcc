@@ -105,8 +105,11 @@ class RelFunction : Function, RelTransformable, HasInfo {
     RelFunction alloc() { return new RelFunction; }
     Expr getPointer() { return fastalloc!(FunSymbol)(this, fastcast!(hasRefType)(context).getRefType()); }
     Argument[] getParams(bool implicits) {
-      auto res = super.getParams(implicits);
-      if (implicits) res ~= Argument(fastcast!(hasRefType)(context).getRefType(), "__base_ptr");
+      auto res = super.getParams(false);
+      if (implicits) {
+        res ~= Argument(fastcast!(hasRefType)(context).getRefType(), "__base_ptr");
+        res ~= Argument(voidp, tlsbase);
+      }
       return res;
     }
     RelFunction flatdup() {

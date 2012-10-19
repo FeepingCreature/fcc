@@ -7,6 +7,7 @@ class PassthroughWeakNoOp : NoOp, IsMangled {
   this(IsMangled[] targets...) { this.targets = targets.dup; }
   string mangleSelf() { return null; }
   void markWeak() { foreach (tar; targets) tar.markWeak(); }
+  void markExternC() { foreach (tar; targets) tar.markExternC(); }
 }
 
 import tools.log;
@@ -38,7 +39,6 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   auto gvd = new GlobVarDecl;
-  gvd.tls = true;
   auto ctxvar = fastalloc!(GlobVar)(st, name, namespace(), true, cast(Expr) null);
   gvd.vars ~= ctxvar;
   namespace().add(ctxvar);

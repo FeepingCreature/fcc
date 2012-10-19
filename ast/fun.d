@@ -48,7 +48,7 @@ class FunSymbol : Symbol {
   string getName() {
     string res = fun.mangleSelf();
     if (fun.type.stdcall) {
-      todo("find a way to compute (guess?) stdcall size");
+      // todo("find a way to compute (guess?) stdcall size");
       /*int size;
       foreach (entry; fun.type.params) {
         auto sz = entry.type.size();
@@ -81,10 +81,6 @@ class FunSymbol : Symbol {
     if (!vt_cache) {
       auto fp = new FunctionPointer(fun);
       if (nested) fp.args ~= Argument(nested);
-      // logln("for ", fastcast!(Object)(fun).classinfo.name, " ", fun, "?");
-      /*if (fastcast!(Object)(fun).classinfo.name != "ast.fun.Function") {
-        fp.args ~= Argument(Single!(SysInt));
-      }*/
       fp.stdcall = fun.type.stdcall;
       vt_cache = fp;
     }
@@ -117,7 +113,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   FunctionType type;
   Tree tree;
   bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false;
-  void markWeak() { weak = true; }
+  override void markWeak() { weak = true; }
+  override void markExternC() { extern_c = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
     // else to be defined in subclasses
@@ -181,7 +178,13 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       t2.failparse("Unknown text! ");
   }
   mixin ImporterImpl!(parseMe);
-  Argument[] getParams(bool implicits) { return type.params; }
+  Argument[] getParams(bool implicits) {
+    if (implicits) {
+      if (!extern_c && (!type.params.length || Single!(Variadic) != type.params[$-1].type))
+        return type.params ~ Argument(voidp, tlsbase);
+    }
+    return type.params;
+  }
   Function flatdup() { // NEVER dup the tree!
     auto res = alloc();
     res.name = name;
@@ -227,7 +230,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       add(fastalloc!(Variable)(pt, res++, param.name));
     }
     if (!releaseMode) {
-      if (tree) {
+      if (tree) { // already parsed, too late to fix up
         logln(tree);
         fail;
       }
@@ -271,7 +274,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       return "main";
     } else if (name == "__win_main") {
       if (platform_prefix == "i686-mingw32-") {
-        cached_selfmangle = "_WinMain@16";
+        // cached_selfmangle = "_WinMain@16";
+        cached_selfmangle = "_WinMain";
       } else {
         cached_selfmangle = "_WinMain_not_relevant_on_this_architecture";
       }
@@ -403,7 +407,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       string linkage, flags;
       if (weak) linkage = "weak_odr ";
       if (extern_c) {
-        linkage = "linkonce ";
         flags ~= "noinline ";
       }
       if (name == "__fcc_main") flags ~= "noinline ";
@@ -733,10 +736,21 @@ void callFunction(LLVMFile lf, IType ret, bool external, bool stdcall, Expr[] pa
     llcast(lf, para, parb, save(lf, par), pvt.llvmSize());
     parlist ~= qformat(parb, " ", lf.pop());
   }
+  auto fptr = fastcast!(FunctionPointer)(fp.valueType());
+  if (!fptr) fail;
+  
+  auto fptype = typeToLLVM(fptr);
+  if (!fptr.no_tls_ptr && !fptype.endsWith("...)*")) {
+    auto tlsptr = fastcast!(Expr)(namespace().lookup(tlsbase));
+    if (!tlsptr) {
+      throw new Exception(qformat("No TLS pointer found under ", namespace()));
+    }
+    parlist ~= qformat("i8* ", save(lf, tlsptr));
+  }
   string flags;
   // if (!external) flags = "fastcc";
+  if (stdcall) flags = "x86_stdcallcc";
   if (params.length == 1) {
-    auto fptr = fastcast!(FunctionPointer)(fp.valueType());
     IType farg;
     bool shh_its_okay;
     if (fptr.args.length == 1) {
@@ -759,7 +773,7 @@ void callFunction(LLVMFile lf, IType ret, bool external, bool stdcall, Expr[] pa
       }
     }
   }
-  auto callstr = qformat("call ", flags, " ", typeToLLVM(fp.valueType()), " ", fpv, "(", parlist.join(", "), ")");
+  auto callstr = qformat("call ", flags, " ", fptype, " ", fpv, "(", parlist.join(", "), ")");
   if (Single!(Void) == ret) {
     put(lf, callstr);
     lf.push("void");
@@ -993,21 +1007,26 @@ mixin DefaultParser!(gotFunDef!(true), "tree.fundef_externc"[]);
 
 // ensuing code gleefully copypasted from nestfun
 // yes I wrote delegates first. how about that.
-class FunctionPointer : ast.types.Type {
+class FunctionPointer : ast.types.Type, ExternAware {
   IType ret;
   Argument[] args;
-  bool stdcall;
+  bool stdcall, no_tls_ptr;
   Function delayfun;
   string toString() { return Format(ret, " function("[], args, ")"[], stdcall?" stdcall":""[]); }
-  this(IType ret, Argument[] args) {
+  this(IType ret, Argument[] args, bool no_tls_ptr = false) {
     if (!ret) fail;
     this.ret = ret;
     this.args = args.dup;
+    this.no_tls_ptr = no_tls_ptr;
   }
   this(Function fun) {
     delayfun = fun;
     ret = fun.type.ret;
     args = fun.type.params.dup;
+    if (fun.extern_c) no_tls_ptr = true;
+  }
+  override void markExternC() {
+    no_tls_ptr = true;
   }
   override string llvmSize() {
     if (nativePtrSize == 4) return "4";
@@ -1023,6 +1042,12 @@ class FunctionPointer : ast.types.Type {
       if (i) res ~= ", ";
       res ~= typeToLLVM(arg.type, true);
     }
+    // tls pointer
+    if (!no_tls_ptr && !stdcall && !res.endsWith("...")) {
+      if (args.length) res ~= ", ";
+      res ~= typeToLLVM(voidp, true);
+    }
+    
     res ~= ")*";
     return res;
   }

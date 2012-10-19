@@ -790,7 +790,7 @@ src_cleanup_redo: // count, then copy
             if (st2.accept(")")) break;
             goto giveUp;
           }
-          target = fastalloc!(FunctionPointer)(ret, args);
+          target = fastalloc!(FunctionPointer)(ret, args, true);
           stmt = st2;
           goto typedef_done;
         }
@@ -809,7 +809,7 @@ src_cleanup_redo: // count, then copy
         } while (st2.accept(","));
         if (!st2.accept(")")) goto giveUp;
         // logln("get function pointer named ", name, " (ret ", target, ") , params ", args, " @", st2);
-        target = fastalloc!(FunctionPointer)(target, args);
+        target = fastalloc!(FunctionPointer)(target, args, true);
         stmt = st2;
       }
       string typename = name;
@@ -915,7 +915,7 @@ src_cleanup_redo: // count, then copy
         if (Single!(Short) == resolveType(arg))
           arg = Single!(SysInt);
       if (funptr_mode) {
-        auto fptype = new FunctionPointer(ret, args /map/ (IType it) { return Argument(it); });
+        auto fptype = new FunctionPointer(ret, args /map/ (IType it) { return Argument(it); }, true);
         fptype.stdcall = useStdcall;
         auto ec = fastalloc!(ExternCGlobVar)(fptype, name);
         add(name, ec);

@@ -48,6 +48,8 @@ class LLVMFile {
     curSection ~= s;
   }
   void putSection(string sec, string s) { // TODO builder some more
+    // logln(fn, "(", curSectionName, "): put into ", sec, ": ", s);
+    if (!curSectionName) fail;
     if (curSectionName == sec) {
       put(s);
       return;
