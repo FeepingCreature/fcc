@@ -10,18 +10,7 @@ vec3f cross3f(vec3f a, vec3f b) { pragma(fast); return a.yzx * b.zxy - a.zxy * b
 
 /*Function: sqrt
 Square root. Gets inlined. */
-float sqrt(float f) {
-  short status;
-  float local = f;
-  fail("Expected to compile sqrt to intrinsic");
-  asm "flds (%esp)";
-  asm "fsqrt";
-  asm "fxam";
-  asm "fstsw 6(%esp)";
-  asm "fstps (%esp)";
-  if (status & 0b0000_0101__0000_0000 == (0b101 << 8)) { int i = 0; i /= i; } // infty
-  return local;
-}
+alias sqrt = sqrtf;
 
 // http://www.lomont.org/math/papers/2003/invsqrt.pdf
 float fastinvsqrt(float f) {
@@ -73,37 +62,31 @@ vec3f rotate3f(vec3f vec, vec3f axis, float angle) using vec {
 
 /*Function: sin
 The sine function*/
-float sin(float f) {
-  short status;
-  float local = f;
-  fail("Expected to compile sin to intrinsic");
-  // this won't even work under llvm >.<
-  asm "flds (%esp)";
-  asm "fxam";
-  asm "fstsw 6(%esp)"; // 4-aligned
-  if (status & 0b0000_0101__0000_0000 == 0b101 << 8) { int i = 0; i /= i; } // infty
-  asm "fsin";
-  asm "fstsw 6(%esp)"; // also 4-aligned
-  asm "fstps (%esp)";
-  if (status & 0b0000_0100__0000_0000) { int i = 0; i /= i; }
-  return local;
+float sin(float x) {
+  // thanks to devmaster.net/forums/topic/4648-fast-and-accurate-sinecosine/ 
+  alias B = 4/PI;
+  alias C = -4/(PI*PI);
+  
+  // wrap to -PI .. PI
+  x += PI; // wrap to 0..2PI
+  x -= 2*PI*floorf(x/(2*PI));
+  x -= PI; // and back
+  
+  float y = B * x + C * x * abs x;
+  
+  // #ifdef EXTRA_PRECISION
+  //  alias Q = 0.775;
+      alias P = 0.225;
+
+      y = P * (y * abs y - y) + y;   // Q * y + P * y * abs(y)
+  // #endif
+  return y;
 }
 
 /*Function: cos
 The cosine function*/
-float cos(float f) {
-  short status;
-  float local = f;
-  fail("Expected to compile cos to intrinsic");
-  asm "flds (%esp)";
-  asm "fxam";
-  asm "fstsw 6(%esp)"; // 4-aligned
-  if (status & 0b0000_0101__0000_0000 == 0b101 << 8) { int i = 0; i /= i; } // infty
-  asm "fcos";
-  asm "fstsw 6(%esp)"; // 4-aligned
-  asm "fstps (%esp)";
-  if (status & 0b0000_0100__0000_0000) { int i = 0; i /= i; }
-  return local;
+float cos(float x) {
+  return sin $ PI/2 - x;
 }
 
 /*Function: half
@@ -174,10 +157,14 @@ alias PI180 = PI/180.0;
 alias pow = powf;
 /*Alias: log*/
 alias _Clog = log, log = _Clog, log = logf;
+/*Alias: log*/
+alias log = logf;
 /*Alias: log2*/
 alias log2 = log2f;
-// float log(float f) { return logf f; }
-// float pow(float a, b) { return powf (a, b); }
+/*Alias: exp*/
+alias exp = expf;
+/*Alias: exp2*/
+alias exp2 = exp2f;
 /*Alias: atan2*/
 alias atan2 = atan2f;
 /*Alias: asin*/

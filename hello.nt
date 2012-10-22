@@ -24,4 +24,8 @@ void main(string[] args) {
   writeln "$(itest.length) $(itest2.length)";
   auto points = itest.eval[];
   writeln "$(points.length)";
+  import std.fun;
+  auto ex = "minecraft".map \(char c) -> (char:"z")-(c-(char:"a"));
+  writeln "$ex";
+  float f = 2f % 3f;
 }

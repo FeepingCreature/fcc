@@ -947,21 +947,24 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
   if (system(llvmlink.toStringz()))
     throw new Exception("llvm-link failed");
   
+  string llc_optflags;
   if (optimize) {
     void optrun(string flags, string marker = null) {
       if (marker) marker ~= ".";
       string optfile = ".obj/"~output~".opt."~marker~"bc";
-      string myflags = flags;
-      string optline = "opt "~flags~" -o "~optfile~" "~linkedfile;
+      string optline = "opt "~flags~"-o "~optfile~" "~linkedfile;
       logSmart!(false)("> ", optline);
       if (system(optline.toStringz()))
         throw new Exception("opt failed");
       linkedfile = optfile;
     }
-    optrun("-internalize -internalize-public-api-list=main"~preserve~" -O3 -std-compile-opts -std-link-opts");
+    string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -tailcallopt ";
+    string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
+    optrun("-internalize -std-compile-opts -std-link-opts "~optflags);
+    llc_optflags = optflags;
   }
   string objfile = ".obj/"~output~".o";
-  string llcline = "llc -filetype=obj -o "~objfile~" "~linkedfile;
+  string llcline = "llc "~llc_optflags~"-filetype=obj -o "~objfile~" "~linkedfile;
   logSmart!(false)("> ", llcline);
   if (system(llcline.toStringz()))
     throw new Exception("llc failed");

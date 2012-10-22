@@ -21,6 +21,7 @@ class PNGWriter {
   void init(void delegate(string) writefun) {
     ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, null, null, null);
     if (!ptr) raise new Error "failed to initialize libpng";
+    // png_set_compression_level(ptr, 0);
     infoptr = png_create_info_struct (ptr);
     if (!infoptr) raise new Error "failed to create libpng info struct";
     auto data = new (void*, void delegate(string));
