@@ -1,7 +1,7 @@
 module llvmfile;
 
 import std.string: find, atoi, strip;
-import tools.base: slice, endsWith;
+import tools.base: slice, endsWith, Stuple, stuple;
 
 string datalayout;
 string xbreak;
@@ -13,32 +13,63 @@ void own_append(T, U)(ref T array, U value) {
   if (backup.ptr !is array.ptr) delete backup;
 }
 
+string[][][int] freelist;
+Stuple!(string[], int) allocTup(int i) {
+  if (auto p = i in freelist) {
+    auto res = (*p)[0];
+    (*p) = (*p)[1..$];
+    if (!(*p).length) freelist.remove(i);
+    // logln("allocNewList cached(", i, ")");
+    return stuple(res, 0);
+  }
+  // logln("allocNewList(", i, ")");
+  return stuple(new string[i], 0);
+}
+void listfree(string[] arr) {
+  auto len = arr.length;
+  // logln("listfree(", len, ")");
+  if (auto p = len in freelist) (*p) ~= arr;
+  else {
+    freelist[len] = null;
+    freelist[len] ~= arr;
+  }
+}
+
 struct TextAppender {
-  string[][] superlist;
-  string[] fragmentlist;
+  Stuple!(string[], int)[] superlist;
+  int i = 16;
+  void allocNewList() {
+    superlist ~= allocTup(i);
+    i *= 2;
+  }
   void opCatAssign(string s) {
-    own_append(fragmentlist, s);
+    if (!superlist) allocNewList;
+    auto sl = &superlist[$-1];
+    if (sl._1 == sl._0.length) {
+      allocNewList;
+      sl = &superlist[$-1];
+    }
+    sl._0[sl._1++] = s;
   }
   void opCatAssign(TextAppender ta) {
-    own_append(superlist, fragmentlist);
     own_append(superlist, ta.superlist);
-    own_append(superlist, ta.fragmentlist);
-    fragmentlist = null;
   }
   void clear() {
     superlist = null;
-    fragmentlist = null;
+  }
+  void free() {
+    foreach (tup; superlist) listfree(tup._0);
+    delete superlist;
+    clear;
   }
   void opAssign(void* p) { // = null
     if (p) fail;
     clear;
   }
   void flush(void delegate(string) dg) {
-    foreach (array; superlist) foreach (fragment; array)
+    foreach (array; superlist) foreach (fragment; array._0[0..array._1])
       dg(fragment);
-    foreach (fragment; fragmentlist)
-      dg(fragment);
-    clear;
+    free;
   }
 }
 
@@ -65,6 +96,12 @@ class LLVMFile {
     }
     curSectionName = name;
     curSection = null;
+  }
+  void free() {
+    if (sectionStore.keys.length) {
+      logln("Leftover sections: ", sectionStore.keys);
+    }
+    curSection.free;
   }
   TextAppender endSection(string s) {
     if (curSectionName != s) fail;
@@ -311,18 +348,21 @@ void todo(string msg = null) {
   fail;
 }
 
+int i;
 extern(C) string readback(string);
+extern(C) string canonify(string);
 string[string] excache;
 string readllex(string expr) {
-  if (auto p = expr in excache) return *p;
+  auto key = canonify(expr);
+  if (auto p = key in excache) return *p;
   {
     auto num = expr.atoi();
     if (qformat(num) == expr) {
-      excache[expr] = expr;
+      excache[key] = expr;
       return expr;
     }
   }
-  auto code = "target datalayout = \""~datalayout~"\" define i32 @foo() { ret i32 "~expr~" }";
+  auto code = "target datalayout = \""~datalayout~"\" define i32 @foo() { ret i32 "~key~" }";
   auto res = readback("echo '"~code~"' |opt -std-compile-opts -S |grep 'ret i32' |sed -e 's/.*i32//'");
   if (qformat(res.atoi()) != res.strip()) {
     logln("from ", code);
@@ -330,9 +370,14 @@ string readllex(string expr) {
     fail;
   }
   res = res.strip();
-  // logln("record ", res, " ", expr);
-  excache[expr] = res;
+  // logln(i++, ": record ", res, " ", key);
+  excache[key] = res;
   return res;
+}
+
+string llexcachecheck(string key) {
+  if (auto p = key in excache) return *p;
+  return key;
 }
 
 extern(C) string[] structDecompose(string str);

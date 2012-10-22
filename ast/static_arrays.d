@@ -193,7 +193,7 @@ Object gotSALiteral(ref string text, ParseCb cont, ParseCb rest) {
     {
       IType[] types;
       if (!type) type = ex.valueType();
-      else if (!gotImplicitCast(ex, (IType it) { types ~= it; return test(it == type); }))
+      else if (!gotImplicitCast(ex, (IType it) { types ~= it; return test(it == type); }, false))
         t2.failparse("Invalid SA literal member; none of "[], types, " match "[], type);
       opt(ex);
       if (auto ie = fastcast!(IntExpr) (ex)) statics ~= ie.num;

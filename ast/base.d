@@ -696,6 +696,17 @@ interface WithAware {
   Object forWith();
 }
 
+// object that is created a lot and that we may be interested in cleaning up if it's not needed
+interface Temporary {
+  void cleanup(bool deeply);
+  void markNeeded();
+}
+
+void cleanupex(Expr ex, bool deeply) {
+  if (auto t = fastcast!(Temporary)(ex))
+    t.cleanup(deeply);
+}
+
 // cheap to access multiple times, cheap to flatten into tuple
 enum CheapMode { Multiple, Flatten }
 extern(C) bool _is_cheap(Expr ex, CheapMode mode);
@@ -954,6 +965,8 @@ bool is_structsize(string s, out string res) {
   return false;
 }
 string llmax(string a, string b) {
+  // a = llexcachecheck(a); // doesn't help
+  // b = llexcachecheck(b);
   if (a == b) return a;
   int k, l; string k2, l2;
   if (isnum(a, k) && isnum(b, l)) return qformat((k>l)?k:l);
@@ -973,6 +986,10 @@ string llmax(string a, string b) {
   /*if (isnum(a, k) || isnum(b, l)) {
     logln("llmax(", a, ", ", b, ")");
   }*/
+  /*auto sz1 = readllex(a);
+  auto sz2 = readllex(b);
+  if (isnum(sz1, k) && isnum(sz2, l)) return qformat((k>l)?k:l);
+  fail;*/
   auto expr = qformat("select(i1 icmp sgt(i32 ", a, ", i32 ", b, "), i32 ", a, ", i32 ", b, ")");
   if (expr.length < 512) return expr;
   return readllex(expr);

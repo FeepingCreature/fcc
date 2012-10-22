@@ -2,7 +2,7 @@ module llvmtype;
 
 import casts, llvmfile, quickformat;
 import ast.base, ast.int_literal, ast.types, ast.pointer, ast.static_arrays, ast.arrays, ast.fun;
-import tools.log, tools.base: strip, startsWith, endsWith;
+import tools.log, tools.base: strip, startsWith, endsWith, between;
 
 extern(C) string typeToLLVM(IType it, bool subst = false) {
   // logln("typeToLLVM ", it);
@@ -111,8 +111,8 @@ string[] getVecTypes(string str) {
 }
 
 extern(C) string[] structDecompose(string str) {
-  auto main = str.startsWith("{").endsWith("}");
-  if (!main) fail;
+  auto main = str.startsWith("{").endsWith("}").strip();
+  if (!main) return null;
   string[] res;
   while (main.length) {
     res ~= eatType(main);
@@ -125,4 +125,96 @@ extern(C) string[] structDecompose(string str) {
     fail;
   }
   return res[];
+}
+
+// produce a type that has the same layout as s, but with simplified types.
+// for instance, changing any pointer to i8*.
+string canonifyType(string s) {
+  s = s.strip();
+  if (s.endsWith("*")) return "i32";
+  if (s.endsWith("}")) {
+    scope types = structDecompose(s);
+    string res;
+    foreach (type; types) {
+      if (res) res ~= ", ";
+      res ~= canonifyType(type);
+    }
+    return qformat("{", res, "}");
+  }
+  return s;
+}
+
+string eat_canonify(ref string s) {
+  void eat(ref string s, string mark) {
+    if (auto rest = s.startsWith(mark)) s = rest;
+    else { logln("?", mark, " #### ", s); fail; }
+  }
+  if (auto rest = s.startsWith("ptrtoint(")) {
+    auto desttype = eatType(rest);
+    eat(rest, "getelementptr(");
+    auto srctype = eatType(rest);
+    eat(rest, "null");
+    if (auto r2 = desttype.endsWith("*")) desttype = r2;
+    else fail;
+    if (auto r2 = srctype.endsWith("*")) srctype = r2;
+    else fail;
+    if (auto r2 = rest.startsWith(", i32 1) to i32)")) {
+      s = r2;
+      if (srctype != desttype) fail;
+      desttype = canonifyType(desttype);
+      srctype = canonifyType(srctype);
+      return qformat("ptrtoint(", desttype, "* getelementptr(", srctype, "* null, i32 1) to i32)");
+    }
+    auto mew = rest.between("", ") to i32)");
+    if (mew && mew.find("(") == -1 && mew.find(")") == -1) { // easy fallback
+      s = rest.between(") to i32)", "");
+      return qformat("ptrtoint(", desttype, "* getelementptr(", srctype, "* null", mew, ") to i32)");
+    }
+    logln("? ", rest);
+    fail;
+  }
+  if (auto rest = s.startsWith("select(i1 icmp sgt(i32 ")) {
+    auto va = eat_canonify(rest);
+    eat(rest, ", i32 ");
+    auto vb = eat_canonify(rest);
+    eat(rest, "), i32 ");
+    auto va2 = eat_canonify(rest);
+    if (va != va2) {
+      logln("VA  ", va);
+      logln("VA2 ", va2);
+      fail;
+    }
+    eat(rest, ", i32 ");
+    auto vb2 = eat_canonify(rest);
+    if (vb != vb2) {
+      logln("VB  ", vb);
+      logln("VB2 ", vb2);
+      fail;
+    }
+    eat(rest, ")");
+    s = rest;
+    return qformat("select(i1 icmp sgt(i32 ", va, ", i32 ", vb, "), i32 ", va, ", i32 ", vb, ")");
+  }
+  {
+    auto s1 = s.between("", ","), s2 = s.between("", ")");
+    string str = s;
+    if (s1 && s1.length < str.length) str = s1;
+    if (s2 && s2.length < str.length) str = s2;
+    auto testnum = str.my_atoi(), test = qformat(testnum);
+    if (auto rest = s.startsWith(test)) {
+      s = rest;
+      return test;
+    }
+  }
+  logln("? canonify ", s);
+  fail;
+}
+
+extern(C) string canonify(string s) {
+  auto res = eat_canonify(s);
+  if (s.length) {
+    logln("? ", s);
+    fail;
+  }
+  return res;
 }

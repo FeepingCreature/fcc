@@ -252,9 +252,9 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
         if (fastcast!(Namespace) (it) || fastcast!(RelNamespace) (it) || fastcast!(SemiRelNamespace) (it)) {
           spaces ~= fastcast!(Object) (it);
           values ~= ex;
-        }
+        } else cleanupex(ex, true);
         return false;
-      });
+      }, false);
     } else {
       if (auto ns = fastcast!(Namespace) (obj)) {
         spaces ~= obj; values ~= null;

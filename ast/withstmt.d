@@ -109,7 +109,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
           if (auto srns = fastcast!(SemiRelNamespace) (it)) rns = srns.resolve();
           if (rns) rnslist ~= stuple(rns, reinterpret_cast(it, ex));
           return false;
-        });
+        }, false);
         if (fastcast!(Pointer) (ex2.valueType())) {
           ex2 = fastalloc!(DerefExpr)(ex2);
           continue;

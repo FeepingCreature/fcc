@@ -49,7 +49,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
         else t2.failparse("Could not get variable initializer");
       }
       IType[] tried;
-      if (vartype && !dontInit && !gotImplicitCast(ex, vartype, (IType it) { tried ~= it; return test(vartype == it); })) {
+      if (vartype && !dontInit && !gotImplicitCast(ex, vartype, (IType it) { tried ~= it; return test(vartype == it); }, false)) {
         t2.failparse("Couldn't init var: none of ", tried, " matched ", vartype);
       }
       

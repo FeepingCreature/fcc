@@ -108,7 +108,9 @@ class ExtArray : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
       fail;
     }
     string llvmType() {
-      if (nativePtrSize == 4) return qformat("{i32, i32, ", typeToLLVM(fastalloc!(Pointer)(elemType)), "}");
+      scope p = new Pointer(elemType);
+      // auto p = fastalloc!(Pointer)(elemType);
+      if (nativePtrSize == 4) return qformat("{i32, i32, ", typeToLLVM(p), "}");
       fail;
     }
     string mangle() {

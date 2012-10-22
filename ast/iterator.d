@@ -492,7 +492,7 @@ Object gotForIter(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Cannot find sub-iterator"[]);
   auto subx = sub;
   IType[] tried;
-  if (!gotImplicitCast(sub, Single!(HintType!(Iterator)), (Expr ex) { tried ~= ex.valueType(); return !!fastcast!(Iterator) (ex.valueType()); })) {
+  if (!gotImplicitCast(sub, Single!(HintType!(Iterator)), (IType it) { tried ~= it; return !!fastcast!(Iterator) (it); }, false)) {
     string failtext = "Invalid sub-iterator: none of these are iterators: ";
     foreach (i, t; tried) { failtext ~= qformat("\n  "[], i, ": "[], t); }
     t2.failparse(failtext);

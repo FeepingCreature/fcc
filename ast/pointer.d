@@ -151,16 +151,12 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   
-  IType[] tried;
   if (!gotImplicitCast(ex, (Expr ex) {
     auto f = forcedConvert(ex);
     opt(f);
     unrollSAE(f);
-    tried ~= f.valueType();
     return test(fastcast!(CValue)~ f);
   })) {
-    // logln("Can't take reference: "[], ex,
-    //   " does not become a cvalue ("[], tried, ")"[]);
     text.setError("Can't take reference: expression does not seem to have an address"[]);
     return null;
   }

@@ -39,7 +39,9 @@ string declare(Function fun, string name) {
     if (argstr) argstr ~= ", ";
     argstr ~= typeToLLVM(par.type, true);
   }
-  return qformat("declare ", typeToLLVM(fun.type.ret), " @", name, "(", argstr, ")");
+  string callconv;
+  if (fun.type.stdcall) callconv = "x86_stdcallcc ";
+  return qformat("declare ", callconv, typeToLLVM(fun.type.ret), " @", name, "(", argstr, ")");
 }
 
 class FunSymbol : Symbol {

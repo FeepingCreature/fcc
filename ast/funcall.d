@@ -171,7 +171,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
             else
               text.failparse("Couldn't match named argument ", name, " of ", backup.valueType(), " exactly to function call '", info(), "', ", type, ".");
         } else {
-          if (!gotImplicitCast(ex, type, (IType it) { tried ~= it; return test(it == type); }))
+          if (!gotImplicitCast(ex, type, (IType it) { tried ~= it; return test(it == type); }, false))
             if (probe)
               return false;
             else
@@ -192,7 +192,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
             else
               text.failparse("Couldn't match default argument for ", name, ": ", tuple.initEx.valueType(), " exactly to ", type, ".");
         } else {
-          if (!gotImplicitCast(ex, type, (IType it) { tried ~= it; return test(it == type); }))
+          if (!gotImplicitCast(ex, type, (IType it) { tried ~= it; return test(it == type); }, false))
             if (probe)
               return false;
             else
@@ -218,7 +218,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
       tried ~= it;
       // logln(" !! is ", it, " == ", type, "? ", test(it == type));
       return test(it == type);
-    })) {
+    }, false)) {
       Expr[] list;
       if (gotImplicitCast(ex, Single!(HintType!(Tuple)), (IType it) { return !!fastcast!(Tuple) (it); }) && (list = flatten(ex), !!list)) {
         args = list ~ args;

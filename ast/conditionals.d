@@ -220,7 +220,7 @@ Object gotIntExpr(ref string text, ParseCb cont, ParseCb rest) {
   IType[] its;
   if (!rest(text, "tree.expr"[], &res))
     return null;
-  if (!gotImplicitCast(res, (IType it) { its ~= it; return it.llvmType() == "i32"; })) {
+  if (!gotImplicitCast(res, (IType it) { its ~= it; return it.llvmType() == "i32"; }, false)) {
     text.setError("Neither of those was int sized: "[], its);
     return null;
   }

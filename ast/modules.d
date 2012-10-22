@@ -96,6 +96,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       put(lf, `target datalayout = "`, datalayout, `"`);
       put(lf, `target triple = "i386-pc-linux-gnu"`);
       put(lf, `%size_t = type i32`);
+      // put(lf, `!0 = metadata !{ float 2.5 } ; maximum acceptable inaccuracy in a float op tagged with !0`);
       scope(success) {
         auto tlsbase = qformat("_sys_tls_data_", name.replace(".", "_").replace("-", "_dash_"));
         put(lf, "@", tlsbase, "_start = global i8 0, section \"tlsvars\"");

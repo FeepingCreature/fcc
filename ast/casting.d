@@ -291,7 +291,7 @@ import tools.threads: TLS;
 import ast.namespace;
 TLS!(IType[]) gotImplicitCast_visited_cache; // we go in here a lot, so this pays off
 static this() { New(gotImplicitCast_visited_cache, { return &(new Stuple!(IType[]))._0; }); }
-bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
+bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int mayFreeRejects = 1) {
   if (!ex) fail;
   auto ns = namespace();
   if (!ns) namespace.set(new NoNameSpace); // lots of stuff does namespace().get!() .. pacify it
@@ -311,6 +311,10 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
     foreach (t2; visited[0 .. visited_offs]) if (t2 == t1) return true;
     return false;
   }
+  
+  Stuple!(Temporary, int)[] cleanups;
+  scope(success) foreach (c; cleanups) c._0.cleanup(c._1 == 1);
+  
   Expr recurse(Expr ex) {
     Expr[] recurseInto;
     foreach (dg; implicits) {
@@ -337,8 +341,11 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
       });
       if (res) return res;
     }
-    foreach (entry; recurseInto)
+    foreach (entry; recurseInto) {
       if (auto res = recurse(entry)) return res;
+      if (mayFreeRejects) if (auto t = fastcast!(Temporary)(entry))
+        own_append(cleanups, stuple(t, mayFreeRejects));
+    }
     return null;
   }
   if (accept(ex)) return true;
@@ -348,20 +355,20 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept) {
   else return false;
 }
 
-bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept) {
-  return gotImplicitCast(ex, null, accept);
+bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept, bool mayFreeRejects = true) {
+  return gotImplicitCast(ex, null, accept, mayFreeRejects);
 }
 
-bool gotImplicitCast(ref Expr ex, IType want, bool delegate(IType) accept) {
+bool gotImplicitCast(ref Expr ex, IType want, bool delegate(IType) accept, bool mayFreeRejects = true) {
   return gotImplicitCast(ex, want, (Expr ex) {
     return accept(ex.valueType());
-  });
+  }, 2-mayFreeRejects);
 }
 
-bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept) {
+bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept, bool mayFreeRejects = true) {
   return gotImplicitCast(ex, null, (Expr ex) {
     return accept(ex.valueType());
-  });
+  }, 2-mayFreeRejects);
 }
 
 Expr[] getAllImplicitCasts(Expr ex) {

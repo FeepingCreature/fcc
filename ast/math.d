@@ -500,8 +500,14 @@ class AsmFloatBinopExpr : BinopExpr {
         case "-": cmd = "sub"; break;
         case "*": cmd = "mul"; break;
         case "/": cmd = "div"; break;
-        case "%": cmd = "rem"; break;
+        case "%": // TODO check for x87
+          // the reason for this is that frem gets compiled to fmodf which is slow on x86.
+          // shame, llvm.
+          load(lf, "tail call float asm \"1: fprem\nfnstsw %ax\nsahf\njp 1b\", \"={st},{st},{st(1)},~{ax},~{fpsr},~{flags},~{dirflag}\"(float ", v1, ", float ", v2, ")");
+          return;
+          // cmd = "rem"; break;
       }
+      // load(lf, "f", cmd, " float ", v1, ", ", v2, ", !fpmath !0");
       load(lf, "f", cmd, " float ", v1, ", ", v2);
     }
   }
@@ -527,6 +533,7 @@ class AsmFloatBinopExpr : BinopExpr {
         case "-": return fastalloc!(FloatExpr)(fe1.f - fe2.f);
         case "*": return fastalloc!(FloatExpr)(fe1.f * fe2.f);
         case "/": return fastalloc!(FloatExpr)(fe1.f / fe2.f);
+        case "%": return fastalloc!(FloatExpr)(fe1.f % fe2.f);
         default: assert(false, "can't opt/eval (float) "~afbe.op);
       }
       return null;
@@ -550,7 +557,7 @@ class AsmDoubleBinopExpr : BinopExpr {
         case "-": cmd = "sub"; break;
         case "*": cmd = "mul"; break;
         case "/": cmd = "div"; break;
-        case "%": assert(false, "Modulo not supported on floats. "[]);
+        case "%": cmd = "rem"; break;
       }
       load(lf, "f", cmd, " double ", v1, ", ", v2);
     }
@@ -744,19 +751,29 @@ mixin DefaultParser!(gotPrefixExpr, "tree.expr.prefix"[], "213"[]);
 
 class IntrinsicExpr : Expr {
   string name;
-  Expr sup;
+  Expr[] args;
   IType vt;
-  this(string name, Expr ex, IType vt) { this.name = name; sup = ex; this.vt = vt; }
-  mixin defaultIterate!(sup);
+  this(string name, Expr[] exs, IType vt) { this.name = name; args = exs; this.vt = vt; }
+  mixin defaultIterate!(args);
   override {
     IType valueType() { return vt; }
-    IntrinsicExpr dup() { return fastalloc!(IntrinsicExpr)(name, sup, vt); }
-    string toString() { return qformat(name, " ", sup); }
+    IntrinsicExpr dup() { return fastalloc!(IntrinsicExpr)(name, args.dup, vt); }
+    string toString() { return qformat(name, "(", args, ")"); }
     void emitLLVM(LLVMFile lf) {
       if (once(lf, "intrinsic ", name)) {
-        lf.decls[name] = qformat("declare float @", name, " (", typeToLLVM(sup.valueType()), ")");
+        string argstr;
+        foreach (arg; args) {
+          if (argstr.length) argstr ~= ", ";
+          argstr ~= typeToLLVM(arg.valueType());
+        }
+        lf.decls[name] = qformat("declare float @", name, " (", argstr, ")");
       }
-      load(lf, "call ", typeToLLVM(vt), " @", name, " (", typeToLLVM(sup.valueType()), " ", save(lf, sup), ")");
+      string argstr;
+      foreach (arg; args) {
+        if (argstr.length) argstr ~= ", ";
+        argstr ~= qformat(typeToLLVM(arg.valueType()), " ", save(lf, arg));
+      }
+      load(lf, "call ", typeToLLVM(vt), " @", name, " (", argstr, ")");
     }
   }
 }
@@ -772,30 +789,51 @@ static this() {
     auto arg = foldex(fc.getParams()[0]);
     return fastalloc!(FAbsFExpr)(arg);
   };*/
-  Itr substfun(bool delegate(string, Module) dg, Expr delegate(Expr) dgex, Itr it) {
+  Itr substfun(int arity, bool delegate(Function, Module) dg, Expr delegate(Expr[]) dgex, Itr it) {
     auto fc = fastcast!(FunCall)(it);
     if (!fc) return null;
-    if (fc.getParams().length != 1) return null;
+    if (fc.getParams().length != arity) return null;
     auto mod = fastcast!(Module)(fc.fun.sup);
     if (!mod) return null;
-    if (!dg(fc.fun.name, mod)) return null;
-    return dgex(foldex(fc.getParams()[0]));
+    if (!dg(fc.fun, mod)) return null;
+    
+    // auto res = dgex(foldex(fc.getParams()[0]));
+    auto pars = fc.getParams();
+    foreach (ref par; pars) par = foldex(par);
+    auto res = dgex(pars);
+    // logln("subst with ", res);
+    return res;
   }
-  foldopt ~= &substfun /fix/ stuple((string name, Module mod) {
-    return name == "fastfloor" && mod is sysmod;
-  }, delegate Expr(Expr arg) {
+  foldopt ~= &substfun /fix/ stuple(1, (Function fun, Module mod) {
+    return fun.name == "fastfloor" && mod is sysmod;
+  }, delegate Expr(Expr[] args) {
     return fastalloc!(FPAsInt)(lookupOp("+",
-      fastalloc!(IntrinsicExpr)("llvm.floor.f32"[], arg, Single!(Float)),
+      fastalloc!(IntrinsicExpr)("llvm.floor.f32"[], args, Single!(Float)),
       fastalloc!(FloatExpr)(0.25)));
   });
-  void addIntr(string funname, string modname, IType ret, string intrin) {
-    foldopt ~= &substfun /fix/ stuple(stuple(funname, modname) /apply/ (string funname, string modname, string name, Module mod) {
-      return (funname == name || qformat("[wrap]", funname) == name) && mod.name == modname;
-    }, stuple(intrin, ret) /apply/ delegate Expr(string intrin, IType ret, Expr arg) {
-      return fastalloc!(IntrinsicExpr)(intrin, arg, ret);
+  foldopt ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
+    return (fun.name == "copysignf" || fun.name == "[wrap]copysignf") && fun.extern_c;
+  }, delegate Expr(Expr[] args) {
+    auto Int = Single!(SysInt), Float = Single!(Float);
+    return reinterpret_cast(Float, lookupOp("|",
+      lookupOp("&", reinterpret_cast(Int, args[0]), mkInt(0x7fff_ffff)),
+      lookupOp("&", reinterpret_cast(Int, args[1]), mkInt(0x8000_0000))
+    ));
+  });
+  void addCIntrin(int arity, string funname, IType ret, string intrin) {
+    foldopt ~= &substfun /fix/ stuple(arity, stuple(funname) /apply/ (string funname, Function fun, Module mod) {
+      return (fun.name == funname || fun.name == qformat("[wrap]", funname)) && fun.extern_c;
+    }, stuple(intrin, ret) /apply/ delegate Expr(string intrin, IType ret, Expr[] args) {
+      return fastalloc!(IntrinsicExpr)(intrin, args, ret);
     });
   }
-  addIntr("sqrt", "std.math", Single!(Float), "llvm.sqrt.f32");
-  addIntr("sin" , "std.math", Single!(Float),  "llvm.sin.f32" );
-  addIntr("cos" , "std.math", Single!(Float),  "llvm.cos.f32" );
+  addCIntrin(1, "sqrtf" , Single!(Float), "llvm.sqrt.f32");
+  // do in software, intrinsic is slow
+  // addCIntrin(1, "sinf"  , Single!(Float), "llvm.sin.f32");
+  // addCIntrin(1, "cosf"  , Single!(Float), "llvm.cos.f32");
+  addCIntrin(1, "floorf", Single!(Float), "llvm.floor.f32");
+  addCIntrin(1, "fabsf" , Single!(Float), "llvm.fabs.f32");
+  addCIntrin(1, "exp"   , Single!(Float), "llvm.exp.f32");
+  addCIntrin(1, "log"   , Single!(Float), "llvm.log.f32");
+  addCIntrin(2, "powf"  , Single!(Float), "llvm.pow.f32");
 }

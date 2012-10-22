@@ -688,24 +688,25 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   string member;
   if (!t2.gotIdentifier(member)) return null;
   
-  Expr ex;
   Expr[] alts;
   IType[] spaces;
   if (first_ex) {
-    ex = first_ex;
+    Expr ex = first_ex;
     auto ex3 = ex;
+    Expr[] cleanups;
     gotImplicitCast(ex3, (Expr ex) {
-      {
-        auto vt = ex.valueType();
-        if (auto srn = fastcast!(SemiRelNamespace) (vt))
-          vt = fastcast!(IType) (srn.resolve());
-        if (auto rn = fastcast!(RelNamespace) (vt)) {
-          alts ~= ex;
-          spaces ~= vt;
-        }
-      }
+      auto vt = ex.valueType();
+      if (auto srn = fastcast!(SemiRelNamespace) (vt))
+        vt = fastcast!(IType) (srn.resolve());
+      if (auto rn = fastcast!(RelNamespace) (vt)) {
+        alts ~= ex;
+        spaces ~= vt;
+      } else own_append(cleanups, ex);
       return false;
-    });
+    }, false);
+    foreach (c; cleanups) cleanupex(c, true);
+    cleanups = null;
+    
     ex3 = ex;
     gotImplicitCast(ex3, (Expr ex) {
       auto ex4 = depointer(ex);
@@ -717,12 +718,15 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
           if (auto rn = fastcast!(RelNamespace) (vt)) {
             alts ~= ex;
             spaces ~= vt;
-          }
+          } else own_append(cleanups, ex);
           return false;
-        });
-      }
+        }, false);
+      } else own_append(cleanups, ex);
       return false;
-    });
+    }, false);
+    foreach (c; cleanups) cleanupex(c, true);
+    cleanups = null;
+    
   } else {
     if (auto ty = fastcast!(IType) (lhs_partial())) {
       auto vt = resolveType(ty);
@@ -741,11 +745,15 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   auto backupmember = member;
   auto backupt2 = t2;
+  Expr ex;
 try_next_alt:
   member = backupmember; // retry from start again
   t2 = backupt2;
   if (!alts.length)
     return null;
+  
+  if (ex) if (auto tmp = fastcast!(Temporary)(ex)) tmp.cleanup(true);
+  
   ex = alts[0]; alts = alts[1 .. $];
   auto space = spaces[0]; spaces = spaces[1 .. $];
   

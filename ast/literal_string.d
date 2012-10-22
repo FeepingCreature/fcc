@@ -24,7 +24,11 @@ class StringExpr : Expr, HasInfo, Dependency {
     string toString() { return '"'~str.replace("\n"[], "\\n"[])~'"'; }
     // default action: place in string segment, load address on stack
     void emitLLVM(LLVMFile lf) {
-      auto p = getPointer();
+      scope sa = new StaticArray(Single!(Char), str.length + 1);
+      scope pt = new Pointer(sa);
+      scope ls = new LateSymbol(this, pt, &selectName, &name_used);
+      scope p = reinterpret_cast(Single!(Pointer, Single!(Char)), ls);
+      // auto p = getPointer();
       formTuple(lf, "i32", qformat(str.length), typeToLLVM(p.valueType()), save(lf, p));
     }
     void emitDependency(LLVMFile lf) {

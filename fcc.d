@@ -259,10 +259,10 @@ static this() {
       res = buildFunCall(sysmod.lookup("_mod"), mkTupleExpr(ex1, ex2), "_mod");
     }
     if (!res) res = fastalloc!(AsmIntBinopExpr)(ex1, ex2, op);
-    if (qformat(res).find("+ 0) + 0) + 0) + 0) + 0) + 0) + 0)") != -1) {
+    /*if (qformat(res).find("+ 0) + 0) + 0) + 0) + 0) + 0) + 0)") != -1) {
       logln("?? ", res);
       fail;
-    }
+    }*/
     if (b1 && b2) res = reinterpret_cast(fastcast!(IType) (sysmod.lookup("bool")), res);
     return res;
   }
@@ -837,6 +837,7 @@ string delegate() compile(string file, CompileSettings cs) {
     scope f = fastalloc!(BufferedFile)(srcname, FileMode.OutNew);
     auto len_emit = time({
       lf.dumpLLVM((string s) { f.write(cast(ubyte[]) s); });
+      lf.free;
     }) / 1_000_000f;
     f.close;
     string flags;

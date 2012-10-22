@@ -79,7 +79,7 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     }
     
     auto ret = resolveType(fun.type.ret);
-    if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == ret); })) {
+    if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == ret); }, false)) {
       return rs;
     }
     else {

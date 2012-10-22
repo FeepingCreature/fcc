@@ -109,7 +109,7 @@ import ast.vardecl;
 Statement getSliceAssign(Expr slice, Expr array) {
   IType elemtype;
   IType[] tried;
-  if (!gotImplicitCast(array, (IType it) { tried ~= it; return fastcast!(StaticArray)~ it || fastcast!(Array)~ it; })) {
+  if (!gotImplicitCast(array, (IType it) { tried ~= it; return fastcast!(StaticArray)~ it || fastcast!(Array)~ it; }, false)) {
     throw new Exception(Format("Can't assign to slice: "[], array, "; none of "[], tried, " fit. "[]));
   }
   auto avt = resolveType(array.valueType());
@@ -141,7 +141,7 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
         t2.failparse("Expected ; after slice assignment"[]);
       auto svt = resolveType(src.valueType());
       IType[] tried;
-      if (!gotImplicitCast(src, (IType it) { auto rit = resolveType(it); tried ~= rit; return test(ar == rit); })) {
+      if (!gotImplicitCast(src, (IType it) { auto rit = resolveType(it); tried ~= rit; return test(ar == rit); }, false)) {
         auto mesg = Format("Mismatching types in slice assignment: ", ar, " = ", svt, ", tried ", tried);
         if (fastcast!(Array)(svt)
          || fastcast!(ExtArray)(svt))

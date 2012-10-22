@@ -629,7 +629,7 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   }
   IType[] tried;
-  if (!gotImplicitCast(ex, Single!(HintType!(Iterator)), (IType it) { tried ~= it; return !!fastcast!(RichIterator) (it); }))
+  if (!gotImplicitCast(ex, Single!(HintType!(Iterator)), (IType it) { tried ~= it; return !!fastcast!(RichIterator) (it); }, false))
     text.failparse("Cannot convert "[], ex, " to valid iterator"[]);
   
   return fastalloc!(SumExpr)(fastcast!(RichIterator)~ ex.valueType(), ex);
@@ -684,7 +684,7 @@ Object gotXIterator(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotXIterator, "tree.rhs_partial.x_iter"[]);
 
 import ast.templ, ast.parse, ast.structure, ast.oop;
-StructIterator[IType] cache;
+StructIterator[string] cache;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto mns = namespace().get!(MiniNamespace);
@@ -692,11 +692,17 @@ static this() {
       return null; // only allow this conversion in user code
     }
     auto evt = ex.valueType();
-    if (auto p = evt in cache) { if (!*p) return null; return reinterpret_cast(*p, ex); }
+    auto key = evt.mangle();
+    if (auto p = key in cache) { if (!*p) return null; return reinterpret_cast(*p, ex); }
+    
+    if (auto tmp = fastcast!(Temporary)(ex)) {
+      tmp.markNeeded();
+    }
+    
     auto st = fastcast!(Structure)~ evt;
     auto cr = fastcast!(ClassRef)~ evt;
     auto ir = fastcast!(IntfRef)~ evt;
-    const string FAIL = "{ cache[evt] = null; return null; }";
+    const string FAIL = "{ cache[key] = null; return null; }";
     if (!st && !cr && !ir) mixin(FAIL);
     if (st && !(
       st.lookupRel("value"[], ex) &&
@@ -712,7 +718,7 @@ static this() {
       mixin(FAIL);
     auto si = fastalloc!(StructIterator)(evt);
     Expr res = reinterpret_cast(si, ex);
-    cache[evt] = si;
+    cache[key] = si;
     return res;
   };
 }

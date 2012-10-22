@@ -915,7 +915,7 @@ src_cleanup_redo: // count, then copy
         if (Single!(Short) == resolveType(arg))
           arg = Single!(SysInt);
       if (funptr_mode) {
-        auto fptype = new FunctionPointer(ret, args /map/ (IType it) { return Argument(it); }, true);
+        auto fptype = new FunctionPointer(ret, args /map/ (IType it) { return Argument(it); });
         fptype.stdcall = useStdcall;
         auto ec = fastalloc!(ExternCGlobVar)(fptype, name);
         add(name, ec);

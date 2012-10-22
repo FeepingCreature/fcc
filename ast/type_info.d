@@ -84,7 +84,7 @@ Object gotRetType(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   Expr temp = fastalloc!(Placeholder)(ty);
   IType[] tried;
-  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!fastcast!(FunctionPointer) (it) || !!fastcast!(Delegate) (it); }))
+  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!fastcast!(FunctionPointer) (it) || !!fastcast!(Delegate) (it); }, false))
     text.failparse(ty, " is not function-like; tried "[], tried);
   auto fun = fastcast!(FunctionPointer)~ temp.valueType(), dg = fastcast!(Delegate)~ temp.valueType();
   if (fun) return fastcast!(Object)~ fun.ret;
@@ -99,7 +99,7 @@ Object gotParamTypes(ref string text, ParseCb cont, ParseCb rest) {
     return null;
   Expr temp = fastalloc!(Placeholder)(ty);
   IType[] tried;
-  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!fastcast!(FunctionPointer) (it) || !! fastcast!(Delegate) (it); }))
+  if (!gotImplicitCast(temp, (IType it) { tried ~= it; return !!fastcast!(FunctionPointer) (it) || !! fastcast!(Delegate) (it); }, false))
     text.failparse(ty, " is not function-like; tried "[], tried);
   auto fun = fastcast!(FunctionPointer)~ temp.valueType(), dg = fastcast!(Delegate)~ temp.valueType();
   IType flatten(IType it) {

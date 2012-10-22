@@ -95,11 +95,24 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
   }
 }
 
+int alloccount, freecount;
+
 // haaack.
-class MyPlaceholderExpr : Expr {
+class MyPlaceholderExpr : Expr, Temporary {
   FirstParamOverrideSpace fpos;
+  bool needed; // must not free!
   this(typeof(fpos) fpos) { this.fpos = fpos; }
   override {
+    void cleanup(bool deeply) {
+      if (needed) return;
+      if (deeply) {
+        freecount++;
+        delete fpos;
+        // logln("-", alloccount, " +", freecount);
+      }
+      delete this;
+    }
+    void markNeeded() { needed = true; }
     string toString() { return Format("propcall form for "[], fpos.firstParam); }
     void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
       Iterable forble = fpos.firstParam, forble2 = forble;
@@ -120,6 +133,8 @@ void setupPropCall() {
   implicits ~= delegate Expr(Expr ex, IType it) {
     if (fastcast!(MyPlaceholderExpr) (ex)) return null;
     if (it) return null; // we want a specific type - no sense in trying the overrides
+    alloccount ++;
+    // if (alloccount - freecount > 1900) fail;
     return fastalloc!(MyPlaceholderExpr)(fastalloc!(FirstParamOverrideSpace)(forcedConvert(ex)));
   };
 }
