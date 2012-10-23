@@ -30,26 +30,33 @@ class WhileStatement : Statement, Breakable {
   Scope _body;
   Cond cond;
   Scope sup;
+  Scope elsecmd;
   override WhileStatement dup() {
     auto res = new WhileStatement;
     res._body = _body.dup;
     res.cond = cond.dup;
     res.sup = sup; // goes upwards - don't dup!
+    if (elsecmd) res.elsecmd = elsecmd.dup;
     return res;
   }
-  mixin defaultIterate!(cond, _body);
+  mixin defaultIterate!(cond, _body, elsecmd);
   mixin DefaultBreakableImpl!();
   override {
     void emitLLVM(LLVMFile lf) {
-      auto start = lf.allocLabel("while_start"), done = lf.allocLabel("while_end");
+      auto start = lf.allocLabel("while_start"), done = lf.allocLabel("while_done"), end = lf.allocLabel("while_end");
+      if (!elsecmd) end = done;
       chosenContinueLabel = start;
-      chosenBreakLabel = done;
+      chosenBreakLabel = end;
       lf.emitLabel(start);
       cond.jumpOn(lf, false, done);
       _body.emitLLVM(lf);
       // TODO: rerun cond? check complexity?
       jump(lf, start);
       lf.emitLabel(done, true);
+      if (elsecmd) {
+        elsecmd.emitLLVM(lf);
+        lf.emitLabel(end, true);
+      }
     }
     string toString() { return Format("while("[], cond, "[]) { "[], _body._body, "}"[]); }
   }
@@ -133,6 +140,11 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
       if (forMode) return null;
       t2.failparse("Couldn't parse while body"[]);
     }
+    if (t2.accept("then")) {
+      if (!rest(t2, "tree.scope", &ws.elsecmd)) {
+        t2.failparse("Couldn't parse while-then statement");
+      }
+    }
     sc.addStatement(ws);
   }
   text = t2;
@@ -147,16 +159,18 @@ class ForStatement : Statement, Breakable {
   Cond cond;
   Statement step;
   Scope _body;
+  Scope elsecmd;
   mixin DefaultDup!();
   mixin DefaultBreakableImpl!();
-  mixin defaultIterate!(decl, cond, step, _body);
+  mixin defaultIterate!(decl, cond, step, _body, elsecmd);
   override void emitLLVM(LLVMFile lf) {
     // logln("start depth is "[], lf.currentStackDepth);
     decl.emitLLVM(lf);
     
-    auto start = lf.allocLabel("for_start"), done = lf.allocLabel("for_done"), cont = lf.allocLabel("for_cont");
+    auto start = lf.allocLabel("for_start"), done = lf.allocLabel("for_done"), cont = lf.allocLabel("for_cont"), end = lf.allocLabel("for_end");
     chosenContinueLabel = cont;
-    chosenBreakLabel = done;
+    if (!elsecmd) end = done;
+    chosenBreakLabel = end;
     
     lf.emitLabel(start);
     put(lf, "; jump on ", cond);
@@ -166,6 +180,10 @@ class ForStatement : Statement, Breakable {
     step.emitLLVM(lf);
     jump(lf, start);
     lf.emitLabel(done, true);
+    if (elsecmd) {
+      elsecmd.emitLLVM(lf);
+      lf.emitLabel(end, true);
+    }
   }
 }
 
@@ -195,6 +213,11 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
     if (!rest(t2, "tree.scope"[], &fs._body))
       t2.failparse("Failed to parse 'for' body"[]);
     
+    if (t2.accept("then")) {
+      if (!rest(t2, "tree.scope", &fs.elsecmd)) {
+        t2.failparse("Failed to parse for-else statement");
+      }
+    }
     text = t2;
     
     sc.addStatement(fs);

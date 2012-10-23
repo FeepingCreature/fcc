@@ -1,0 +1,19 @@
+module test141;
+
+void main() {
+  {
+    bool success;
+    for 0..5 { } then success = true;
+    assert success;
+  }
+  {
+    bool success;
+    for (int i = 0; i < 5; ++i) { } then success = true;
+    assert success;
+  }
+  {
+    bool success = true;
+    for 0..5 break; then success = false;
+    assert success;
+  }
+}
