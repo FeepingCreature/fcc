@@ -1,7 +1,7 @@
 module std.smtp;
 
-import std.string, std.file, std.socket, std.stream, std.hash.base64;
-import c.openssl.(ssl, crypto, err);
+import std.string, std.socket, std.stream, std.hash.base64;
+import c.openssl.(ssl, err);
 
 pragma(pkg-config, "openssl");
 

@@ -38,6 +38,9 @@ class TcpAddress : Address {
     using saddr {
       addrinfo* addr;
       getaddrinfo(toStringz dns, null, null, &addr);
+      if (!addr) {
+        fail "Could not resolve $dns";
+      }
       *sockaddr*:&saddr = *addr.ai_addr;
       sin_family = AF_INET;
       sin_port = htons(port);

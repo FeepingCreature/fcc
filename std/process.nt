@@ -187,14 +187,22 @@ string read-gdb-backtrace(int skipFirst = 8) {
   return null;
 }
 
-void*[] get-raw-backtrace() {
-  void*[auto~] res;
-  void** cur-bp = _ebp;
-  while (cur-bp) {
-    res ~= cur-bp[1];
-    cur-bp = void**: cur-bp[0];
-  }
+(string fun, string pos)[] read-fcc-backtrace() {
+  (string, string)[auto~] res;
+  auto cur = sys.frameinfo;
+  int i;
+  while (cur) { res ~= cur.(fun, pos); cur = cur.prev; }
   return res[];
+}
+
+string read-pretty-fcc-backtrace() {
+  char[auto~] res;
+  scope trace = read-fcc-backtrace();
+  for auto cur <- trace && int i <- ints {
+    res ~= "#$i\tin $(cur.fun) $(cur.pos)\n";
+  }
+  if (!res) return null;
+  return res[0..$-1]; // cut out final \n
 }
 
 void findFunction(void* ip, (string, string, int)* res) {
@@ -216,43 +224,6 @@ void findFunction(void* ip, (string, string, int)* res) {
   }
   *res = (string:null, string:null, 0);
   return;
-}
-
-/*Function: get-backtrace
-  Returns an array of (void*, string, string, int) describing the backtrace of the current thread.
-  The meaning of the tuple is (ip, function, filename, line number).
-  Due to the custom debug info, the function/filename/line number info only works with Neat functions.
-  This was done so the backtraces would be maximally useful on Windows as well as Linux, which have
-  incompatible and hard-to-parse debug formats.*/
-auto get-backtrace() {
-  (void*, string, string, int)[auto~] res;
-  if (false) return res[]; // provide return type
-  scope temp = get-raw-backtrace();
-  for auto bp <- temp {
-    findFunction (bp, &(string, string, int) position);
-    res ~= position.(bp, _0, _1?.(replace(".", "/") ~ ".nt"), _2);
-  }
-  return res[];
-}
-
-/*Function: print-backtrace
-  Prints a backtrace of the current thread. The format is similar to gdb. */
-void print-backtrace() {
-  for auto tup <- get-backtrace() && int i <- ints {
-    if (tup[1]) {
-      if (tup[2]) {
-        if (tup[3]) {
-          writeln tup.("#$i\t$_0 in $_1 at $_2:$_3");
-        } else {
-          writeln tup.("#$i\t$_0 in $_1 at $_2");
-        }
-      } else {
-        writeln tup.("#$i\t$_0 in $_1");
-      }
-    } else {
-      writeln tup.("#$i\t$_0 in ??");
-    }
-  }
 }
 
 void dumpGraphReverse(void delegate(void delegate(string, string, string=null)) dg) {

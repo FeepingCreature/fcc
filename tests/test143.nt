@@ -1,6 +1,6 @@
 module test143;
 
-import std.smtp, std.string, std.file, std.process;
+import std.smtp, std.process;
 
 void main() {
   if (getenv("TESTSUITE")) return;
