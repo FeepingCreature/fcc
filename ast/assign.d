@@ -38,8 +38,13 @@ class _Assignment(T) : LineNumberedStatementClass {
     } else {
       target.emitLocation(lf);
       auto dest = lf.pop(), src = lf.pop();
-      if (value.valueType().llvmSize() != "0")
-        put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
+      if (value.valueType().llvmSize() != "0") {
+        // use addrspace(1) to preserve null accesses so they can crash properly
+        auto basetype = typeToLLVM(target.valueType());
+        dest = save(lf, "bitcast ", basetype, "* ", dest, " to ", basetype, " addrspace(1)", "*");
+        put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", basetype, " addrspace(1)", "* ", dest);
+        // put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
+      }
     }
   }
 }

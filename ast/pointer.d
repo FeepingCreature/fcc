@@ -94,7 +94,13 @@ class DerefExpr : LValue, HasInfo {
     string getInfo() { return Format("count: "[], count); }
     IType valueType() { return fastcast!(Pointer) (resolveType(src.valueType())).target; }
     void emitLLVM(LLVMFile lf) {
-      load(lf, "load ", typeToLLVM(src.valueType), " ", save(lf, src));
+      auto ptrtype = typeToLLVM(src.valueType);
+      // use addrspace(1) to preserve null accesses so they can crash properly
+      auto fixedtype = ptrtype[0..$-1]~" addrspace(1)"~"*";
+      auto c = save(lf, src);
+           c = save(lf, "bitcast ", ptrtype, " ", c, " to ", fixedtype);
+      load(lf, "load ", fixedtype, " ", c);
+      // load(lf, "load ", typeToLLVM(src.valueType), " ", save(lf, src));
     }
     void emitLocation(LLVMFile lf) {
       src.emitLLVM(lf);
