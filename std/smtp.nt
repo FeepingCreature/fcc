@@ -1,0 +1,100 @@
+module std.smtp;
+
+import std.string, std.file, std.socket, std.stream, std.hash.base64;
+import c.openssl.(ssl, crypto, err);
+
+pragma(pkg-config, "openssl");
+
+void sendmail(string from, to, subject, content, host, logindata, bool dbg = false) {
+  auto sock = connect(host, 25);
+  Iterator!string readline = castIter!string readsocket sock #.splitAt "\r\n";
+  
+  ref mode = *new string;
+  mode = "tcp";
+  void dbgwrite(string s) if (dbg) writeln "$mode> $s";
+  void dbgread(string s) if (dbg) writeln "$mode< $s";
+  
+  void delegate(string) sendline = \(string s) {
+    dbgwrite s;
+    sock.sendAll ubyte[]: s;
+    sock.sendAll ubyte[]: "\r\n";
+  }
+  void expectline(string start) {
+    auto got = string line <- readline;
+    if !got || !line.startsWith(start) {
+      fail "Received unexpected data: $line";
+    }
+    dbgread line;
+  }
+  expectline "220";
+  
+  void read250s() {
+    while (string line <- readline) {
+      dbgread line;
+      if (line.startsWith "250-") continue;
+      if (line.startsWith "250 ") break;
+      fail "Received unexpected data: $line";
+    }
+  }
+  
+  sendline "EHLO 127.0.0.1";
+  read250s; // a bunch of 250- followed by one 250␣
+  
+  void ssl-assert(bool b) {
+    if (!b) {
+      ERR_print_errors_fp(stderr);
+      fail;
+    }
+  }
+  sendline "STARTTLS";
+  expectline "220 "; // ready to start tls
+  auto close = \{ sock.close; };
+  onExit close();
+  using prefix SSL_ {
+    SSL_library_init;
+    load_error_strings;
+    auto method = SSLv3_client_method();
+    auto ctx = CTX_new method;
+    ssl-assert !!ctx;
+    auto ssl = SSL_new ctx;
+    ssl-assert !!ssl;
+    ssl-assert !!ssl.set_fd sock.sockfd;
+    ssl-assert (ssl.connect >= 1);
+    if (dbg) writeln "SSL session set up. ";
+    sendline = new \(string s) {
+      dbgwrite s;
+      void writeAll(string s) while (s.length) {
+        auto res = ssl.write(s.ptr, s.length);
+        ssl-assert(res > 0);
+        s = s[res .. $];
+      }
+      writeAll s;
+      writeAll "\r\n";
+    };
+    readline = castIter!string readDg new \(ubyte[] field) {
+      auto res = ssl.read(field.ptr, field.length);
+      ssl-assert(res > 0);
+      return res; 
+    } #.splitAt "\r\n";
+    mode = "ssl";
+    close = new \{ ssl-assert(ssl.shutdown() != -1); close(); };
+  }
+  // now over ssl
+  sendline "EHLO 127.0.0.1";
+  read250s;
+  
+  string (user, pass) = logindata.split(":").(_0, _1);
+  string userpass = encode ubyte[]:"$user\x00$user\x00$pass";
+  sendline "AUTH PLAIN $userpass";
+  expectline "235";
+  sendline "MAIL FROM:<$user>"; expectline "250";
+  sendline "RCPT TO:<$to>"; expectline "250";
+  sendline "DATA"; expectline "354";
+  sendline "From: <$user>";
+  sendline "To: <$to>";
+  sendline "Subject: $subject";
+  sendline "";
+  sendline content;
+  sendline "."; expectline "250";
+  sendline "QUIT"; expectline "221";
+}

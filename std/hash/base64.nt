@@ -1,0 +1,29 @@
+module std.hash.base64;
+
+void base64_enc_partial(ubyte a, ubyte b, ubyte c, string dest) {
+  int id = (a << 16) | (b << 8) | c;
+  alias field = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  dest[0] = field[id >> 18];
+  dest[1] = field[(id&0x3f000) >> 12];
+  dest[2] = field[(id&0xfc0) >> 6];
+  dest[3] = field[id&0x3f];
+}
+
+string encode(ubyte[] data) {
+  auto full = data.length / 3, rest = data[full * 3 .. $];
+  auto res = new char[] full * 4 + [0,4][!!rest.length];
+  for int i <- 0..full {
+    base64_enc_partial(data[i*3], data[i*3+1], data[i*3+2], res[i*4 .. i*4+4]);
+  }
+  if (rest.length) {
+    assert(rest.length == 1 || rest.length == 2);
+    if (rest.length == 1) {
+      base64_enc_partial(rest[0], 0, 0, res[full * 4 .. $]);
+      return res[0 .. $-2]; // we had enough bits to partially fill two bytes of the result (8 < 12)
+    } else {
+      base64_enc_partial(rest[0], rest[1], 0, res[full * 4 .. $]);
+      return res[0 .. $-1]; // enough for 3 bytes (16 < 18)
+    }
+  }
+  return res;
+}
