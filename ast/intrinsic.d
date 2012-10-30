@@ -46,6 +46,7 @@ void setupSysmods() {
     }
     platform(*-mingw*) {
       void* alloc16(int size) {
+        if (!size) return null;
         // hax!
         // if we overallocate by 16, we will always have at least
         // 4 bytes of unused space. we use this space to 
@@ -58,6 +59,7 @@ void setupSysmods() {
         return resptr;
       }
       void free16(void* ptr) {
+        if (!ptr) return;
         free ((void**: ptr)[-1]); // retrieve original pointer
       }
     }
@@ -663,21 +665,26 @@ void setupSysmods() {
       shared DWORD tls_pointer;
       alias PEXCEPTION_HANDLER = EXCEPTION_DISPOSITION function(_EXCEPTION_RECORD*, _EXCEPTION_REGISTRATION*, _CONTEXT*, _EXCEPTION_RECORD*);
       shared _EXCEPTION_REGISTRATION reg;
-      void seghandle_userspace() {
+      int errcode;
+      extern(C) void seghandle_userspace() {
         auto _threadlocal = TlsGetValue(tls_pointer);
         _check_handling;
         already_handling_segfault = true;
         onExit already_handling_segfault = false;
-        if (preallocated_sigsegv) raise preallocated_sigsegv;
-        raise new MemoryAccessError "Access Violation";
+        
+        if (errcode == STATUS_ACCESS_VIOLATION) {
+          if (preallocated_sigsegv) raise preallocated_sigsegv;
+          raise new MemoryAccessError "Access Violation";
+        }
+        raise new Error "Windows SEH Code $(void*:errcode)";
       }
       EXCEPTION_DISPOSITION seghandle(_EXCEPTION_RECORD* record, void* establisher_frame, _CONTEXT* context, void* dispatcher_context) {
-        // printf("seghandle(%p (%p), %p, %p, %p)\n", record, record.ExceptionCode, establisher_frame, context, dispatcher_context);
-        if (record.ExceptionCode == STATUS_ACCESS_VIOLATION) {
-          context.Eip = DWORD: &seghandle_userspace; // rewrite for return-to-lib
-          return ExceptionContinueExecution;
-        }
-        return ExceptionContinueSearch;
+        printf("seghandle(%p (%p), %p, %p, %p)\n", record, record.ExceptionCode, establisher_frame, context, dispatcher_context);
+        auto _threadlocal = TlsGetValue(tls_pointer);
+        errcode = record.ExceptionCode;
+        context.Eip = DWORD: &seghandle_userspace; // rewrite for return-to-lib
+        return ExceptionContinueExecution; // and jump!
+        // return ExceptionContinueSearch;
       }
     }
     extern(C) {
@@ -733,7 +740,7 @@ void setupSysmods() {
         if (!!mem.calloc_dg) writeln "Unhandled error: '$(err.toString())'. ";
         else writeln "Unhandled error: memory context compromised"; // huh.
         
-        platform(*-mingw32) { _interrupt 3; }
+        // platform(*-mingw32) { _interrupt 3; }
         errnum = 1;
         // _interrupt 3;
         invoke-exit "main-return";

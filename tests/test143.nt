@@ -1,16 +1,18 @@
 module test143;
 
-import std.smtp, std.process;
-
 void main() {
+  import std.process;
   if (getenv("TESTSUITE")) return;
-  sendmail(
-    host => "smtp.example.com",
-    logindata => "user:pass",
-    from => "user",
-    to => "to",
-    subject => "this is a test",
-    content => "hello world! :D",
-    dbg => true
-  );
+  set-handler (Error err) {
+    import std.smtp;
+    sendmail(
+      host => "smtp.example.com",
+      logindata => "user:pass",
+      from => "user",
+      to => "to",
+      subject => "this is a test",
+      content => "hello world! :D",
+      dbg => true
+    );
+  }
 }

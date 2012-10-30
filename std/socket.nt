@@ -2,7 +2,7 @@
 Wraps the BSD Sockets API*/
 module std.socket;
 
-import std.string, c.unistd;
+import std.string, c.unistd, c.errno;
 platform(*-mingw32) {
   pragma(define, "_WIN32_WINNT=0x0501"); // target xp
   import c.winsock2, c.ws2tcpip;
@@ -10,7 +10,7 @@ platform(*-mingw32) {
   void init() { WSAStartup(2<<8 | 2, &WSADATA bogus); }
 }
 platform(default) {
-  import c.sys.socket, c.netdb, c.string, c.errno;
+  import c.sys.socket, c.netdb, c.string;
 }
 
 /*Class: Address

@@ -449,8 +449,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       
       string linkage, flags;
       if (weak)
-        if (isWindoze()) linkage = "linker_private_weak ";
-        else linkage = "linkonce_odr ";
+        // linkage = "linkonce_odr ";
+        linkage = "weak_odr ";
       if (extern_c) {
         flags ~= "noinline ";
       }

@@ -580,11 +580,12 @@ void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
     }
     string name; int line;
     lns.getInfo(name, line);
-    if (!name /*|| name.startsWith("<internal")*/) return;
+    if (!name || name.startsWith("<internal")) return;
     /*if (fname == "raise") {
       logln("emit line number assignment at ", lns, " ", frameinfo, " in ", namespace());
       logln("@", name, ":", line);
     }*/
+    if (name.find("/std/") != -1) name = "std/"~name.between("/std/", "");
     emitAssign(lf, pos, mkString(qformat(name, ":", line)));
   } /*else if (fname == "raise") {
     logln("bad bad no frameinfo");
@@ -961,11 +962,13 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
   string fixedfile = linkedfile;
   if (isWindoze()) {
     fixedfile = ".obj/"~output~".fixed.bc";
-    string fixup = "< "~linkedfile~" llvm-dis |sed -e s/^define\\ linker_private_weak\\ /define\\ private\\ /g |llvm-as -o "~fixedfile;
+    string fixup = "< "~linkedfile~" llvm-dis |sed -e s/^define\\ weak_odr\\ /define\\ /g |llvm-as -o "~fixedfile;
     logSmart!(false)("> ", fixup);
     if (system(fixup.toStringz()))
       throw new Exception("llvm fixup failed");
   }
+  
+  const string cpu = "core2";
   
   string llc_optflags;
   if (optimize) {
@@ -980,12 +983,12 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -tailcallopt ";
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
-    optrun("-internalize -std-compile-opts -std-link-opts "~optflags);
+    optrun("-mcpu="~cpu~" -internalize -std-compile-opts -std-link-opts "~optflags);
     llc_optflags = optflags;
   }
   string objfile = ".obj/"~output~".o";
   // -mattr=-avx,-sse41 
-  string llcline = "llc "~llc_optflags~"-filetype=obj -o "~objfile~" "~fixedfile;
+  string llcline = "llc -mcpu="~cpu~" "~llc_optflags~"-filetype=obj -o "~objfile~" "~fixedfile;
   logSmart!(false)("> ", llcline);
   if (system(llcline.toStringz()))
     throw new Exception("llc failed");
