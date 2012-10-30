@@ -9,6 +9,8 @@ int fac(int i) {
   }
 }
 
+extern(C) char* getenv(char* c);
+
 void main(string[] args) {
   printf("Hello World %i fac %i\n", 5, fac(5));
   writeln "Hello World";
@@ -28,4 +30,6 @@ void main(string[] args) {
   auto ex = "minecraft".map \(char c) -> (char:"z")-(c-(char:"a"));
   writeln "$ex";
   float f = 2f % 3f;
+  import std.process;
+  writeln readback("cat", ["6"]);
 }

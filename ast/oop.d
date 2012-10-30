@@ -877,7 +877,8 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         lf.undecls[cd] = true;
         auto ci = getClassinfo(lf), cda = getClassinfoData(lf);
         string flags;
-        if (weak) flags ~= "weak_odr ";
+        // if (weak)
+          flags ~= "weak_odr ";
         putSection(lf, "module", "@", name, ".full = "~flags~"global ", toLLVMArray(-1, ci));
         putSection(lf, "module", "@", cd  , ".full = "~flags~"global ", toLLVMArray(-1, cda));
         putSection(lf, "module", "@", name, " = alias "~flags~"i8* bitcast([", ci.length, " x i8*]* @", name, ".full to i8*)");
@@ -938,7 +939,6 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       
       if (auto res = data.lookup(str, true)) {
         if (auto rm = fastcast!(RelTransformable) (res)) {
-          // logln("transform "[], rm, " with "[], base);
           return rm.transform(fastalloc!(DerefExpr)(reinterpret_cast(fastalloc!(Pointer)(data), base)));
         }
         return fastcast!(Object)~ res;
@@ -1070,8 +1070,10 @@ ClassRef parseClassBody(ref string text, ParseCb cont, ParseCb rest, string name
   cl.coarseCtx = namespace();
   cl.coarseMod = current_module();
   
+  // cl.parseMe();
+  
   text = t2;
-  return fastcast!(ClassRef) (cl.getRefType());
+  return classref;
 }
 
 // copypaste from ast/structure.d :(

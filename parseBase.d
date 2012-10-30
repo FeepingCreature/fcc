@@ -132,7 +132,12 @@ bool gotInt(ref string text, out int i) {
       }
       gotSomeDigits = true;
       assert(ub < factor[scheme]);
-      res = res * factor[scheme] + ub;
+      long nres = cast(long) res * cast(long) factor[scheme] + cast(long) ub;
+      if (cast(int) nres != nres && cast(uint) nres != nres) {
+        text.setError("Number too large for 32-bit integer representation");
+        return false;
+      } 
+      res = cast(int) nres;
     }
     return gotSomeDigits;
   }

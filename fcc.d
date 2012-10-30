@@ -177,9 +177,11 @@ extern(C) bool C_showsAnySignOfHaving(Expr ex, string thing) {
 extern(C) Stuple!(IType, string)[] _mns_stackframe(Namespace sup, typeof(Namespace.field) field) {
   Stuple!(IType, string)[] res;
   if (sup) res = sup.get!(ScopeLike).stackframe();
-  foreach (obj; field)
+  // variables added to a MiniNamespace are probably taken
+  // from elsewhere and are **NOT** part of the stackframe!
+  /*foreach (obj; field)
     if (auto var = fastcast!(Variable) (obj._1))
-      res ~= stuple(var.type, var.name);
+      res ~= stuple(var.type, var.name);*/
   return res;
 }
 
@@ -947,16 +949,25 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
   if (system(llvmlink.toStringz()))
     throw new Exception("llvm-link failed");
   
+  string fixedfile = linkedfile;
+  if (isWindoze()) {
+    fixedfile = ".obj/"~output~".fixed.bc";
+    string fixup = "< "~linkedfile~" llvm-dis |sed -e s/^define\\ linker_private_weak\\ /define\\ private\\ /g |llvm-as -o "~fixedfile;
+    logSmart!(false)("> ", fixup);
+    if (system(fixup.toStringz()))
+      throw new Exception("llvm fixup failed");
+  }
+  
   string llc_optflags;
   if (optimize) {
     void optrun(string flags, string marker = null) {
       if (marker) marker ~= ".";
       string optfile = ".obj/"~output~".opt."~marker~"bc";
-      string optline = "opt "~flags~"-o "~optfile~" "~linkedfile;
+      string optline = "opt "~flags~"-lint -o "~optfile~" "~fixedfile;
       logSmart!(false)("> ", optline);
       if (system(optline.toStringz()))
         throw new Exception("opt failed");
-      linkedfile = optfile;
+      fixedfile = optfile;
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -tailcallopt ";
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
@@ -964,12 +975,17 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
     llc_optflags = optflags;
   }
   string objfile = ".obj/"~output~".o";
-  string llcline = "llc "~llc_optflags~"-filetype=obj -o "~objfile~" "~linkedfile;
+  // -mattr=-avx,-sse41 
+  string llcline = "llc "~llc_optflags~"-filetype=obj -o "~objfile~" "~fixedfile;
   logSmart!(false)("> ", llcline);
   if (system(llcline.toStringz()))
     throw new Exception("llc failed");
   
-  string linkflags = "-m32 -Wl,--gc-sections -L/usr/local/lib";
+  string locallibfolder;
+  if (platform_prefix) {
+    locallibfolder = qformat("-L/usr/", platform_prefix[0..$-1], "/lib/ ");
+  }
+  string linkflags = "-m32 -Wl,--gc-sections "~locallibfolder~"-L/usr/local/lib";
   string cmdline = my_prefix()~"gcc "~linkflags~" -o "~output~" "~objfile~" ";
   foreach (larg; linkerArgs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
@@ -1120,7 +1136,7 @@ int main(string[] args) {
   initCastTable(); // NOT in static this!
   log_threads = false;
   // New(tp, 4);
-  datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a128:128:128-a0:0:64-f80:32:32-n8:16:32-S128";
+  datalayout = "e-p:32:32:32-p1:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a128:128:128-a0:0:64-f80:32:32-n8:16:32-S128";
   auto exec = args.take();
   justAcceptedCallback = stuple(0, cast(typeof(sec())) 0) /apply/ (ref int prevHalfway, ref typeof(sec()) lastProg, string s) {
     // rate limit

@@ -260,6 +260,7 @@ src_cleanup_redo: // count, then copy
     if (text.startsWith("(")) return null; // shortcut
     bool unsigned;
     if (accept("_Bool")) return Single!(Char);
+    if (accept("DWORD")) return Single!(SysInt);
     if (accept("unsigned")) unsigned = true;
     else {
       accept("signed");
@@ -834,6 +835,10 @@ src_cleanup_redo: // count, then copy
         goto redo2;
       }
       if (stmt.accept("[")) goto giveUp;
+      if (stmt.accept(",")) {
+        // logln("giving up on ", stmt);
+        goto typedef_done;
+      }
       if (stmt.length) {
         auto st4 = stmt;
         if (st4.accept("__attribute__") && st4.accept("((")
@@ -908,6 +913,7 @@ src_cleanup_redo: // count, then copy
         if (auto ty = matchParam(stmt)) args ~= ty;
         else break;
       }
+      // logln(name, "@ ", stmt, ", got ", args);
       if (!stmt.accept(")")) goto giveUp;
       if (args.length == 1 && Single!(Void) == args[0])
         args = null; // C is stupid.
@@ -920,7 +926,7 @@ src_cleanup_redo: // count, then copy
         auto ec = fastalloc!(ExternCGlobVar)(fptype, name);
         add(name, ec);
       } else {
-        auto fun = new Function;
+        auto fun = fastalloc!(Function)();
         fun.name = name;
         fun.extern_c = true;
         fun.type = new FunctionType;

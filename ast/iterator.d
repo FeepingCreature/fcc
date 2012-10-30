@@ -722,7 +722,7 @@ withoutIterator:
   
   if (!gotImplicitCast(iter, Single!(HintType!(Iterator)), (IType it) { return !!fastcast!(Iterator) (it); }))
     if (!needIterator) return null;
-    else t2.failparse("Expected an iterator, not a "[], backup);
+    else t2.failparse("Expected an iterator, not a "[], backup, " of ", backup.valueType());
   
   // insert declaration into current scope.
   // NOTE: this here is the reason why everything that tests a cond has to have its own scope.

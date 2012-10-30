@@ -85,7 +85,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     }
     mod.entries ~= fastcast!(Tree) (nf);
     auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord"[]);
-    assert(!!grtype);
+    if (!grtype) fail;
     {
       auto gr = fastalloc!(Variable)(grtype, framelength(), cast(string) null);
       auto gd = fastalloc!(VarDecl)(gr);

@@ -21,6 +21,7 @@ platform(default) {
   }
   import c.signal, c.sys.wait, c.poll;
   class ReadbackStream : Iterator!string {
+    alias implicit-cast = join this;
     int x 2 hdl_sysward, hdl_selfward;
     bool hup, done; int fdslength;
     string infotext;

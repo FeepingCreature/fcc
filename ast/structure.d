@@ -836,13 +836,21 @@ static this() {
       if (t2.eatDash(id)) goto retry;
     return null;
   };
-  implicits ~= delegate void(Expr ex, IType goal, void delegate(Expr) consider) {
-    auto st = fastcast!(Structure) (ex.valueType());
-    if (!st) return;
+  implicits ~= delegate void(Expr ex, IType goal, void delegate(Expr, int) consider) {
+    auto vt = ex.valueType();
+    
+    RelNamespace rn;
+    if (auto rns = fastcast!(RelNamespace)(vt))
+      rn = rns;
+    else if (auto srns = fastcast!(SemiRelNamespace)(vt))
+      rn = srns.resolve();
+    
+    if (!rn) return;
     for (int i = 1; true; i++) {
-      if (auto res = fastcast!(Expr) (st.lookupRel("implicit-cast"~(i>1?Format("-"[], i):""[]), ex))) {
+      // logln("  ", rn, ": lookup ", "implicit-cast"~(i>1?Format("-"[], i):""[]), " => ", rn.lookupRel("implicit-cast"~(i>1?Format("-"[], i):""[]), ex));
+      if (auto res = fastcast!(Expr) (rn.lookupRel("implicit-cast"~(i>1?Format("-"[], i):""[]), ex))) {
         // if (!goal || res.valueType() == goal) consider(res);
-        consider(res);
+        consider(res, 1); // slightly worse score: prefer other alternatives
       } else return;
     }
   };

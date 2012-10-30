@@ -94,7 +94,14 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     void emitLLVM(LLVMFile lf) {
       lf.beginSection("module");
       put(lf, `target datalayout = "`, datalayout, `"`);
-      put(lf, `target triple = "i386-pc-linux-gnu"`);
+      if (platform_prefix) {
+        auto triple = platform_prefix[0..$-1];
+        auto parts = triple.split("-");
+        if (parts.length == 2) triple = qformat(parts[0], "-pc-", parts[1]);
+        put(lf, `target triple = "`, triple, `"`);
+      } else {
+        put(lf, `target triple = "i386-pc-linux-gnu"`);
+      }
       put(lf, `%size_t = type i32`);
       // put(lf, `!0 = metadata !{ float 2.5 } ; maximum acceptable inaccuracy in a float op tagged with !0`);
       scope(success) {

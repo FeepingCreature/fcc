@@ -85,14 +85,14 @@ Expr optex(Expr ex) {
   return ex;
 }
 
-Itr[void*] optimized;
+// Itr[void*] optimized;
 void opt_itr(ref Itr it) {
   auto p = cast(void*) it;
-  scope(success) optimized[p] = it;
+  // scope(success) optimized[p] = it;
   
   void fun(ref Itr it) {
     auto p = cast(void*) it;
-    if (auto ip = p in optimized) { it = *ip; return; }
+    // if (auto ip = p in optimized) { it = *ip; return; }
     
     while (true) {
       it.iterate(&fun);

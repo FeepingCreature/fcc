@@ -4,8 +4,8 @@ import std.file, c.ucontext, c.sys.mman;
 
 extern(C) void makecontext(ucontext_t* ucp, void function() func, int argc, ...);
 
-void call(void delegate() dg, void* threadlocal) {
-  _threadlocal = threadlocal;
+extern(C) void call(void delegate() dg, void* threadlocal) {
+  auto _threadlocal = threadlocal;
   dg();
 }
 

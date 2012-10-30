@@ -38,8 +38,7 @@ void setupSysmods() {
         void* res;
         if auto res = posix_memalign(&res, 16, size) {
           printf("malloc(%i) failed with %i\n", size, res);
-          int i;
-          i /= i;
+          _interrupt 3;
         }
         return res;
       }
@@ -101,7 +100,7 @@ void setupSysmods() {
       string fun, pos;
       FrameInfo* prev;
     }
-    FrameInfo *stackframe;
+    FrameInfo *frameinfo;
     template sys_array_cast(T) {
       template sys_array_cast(U) {
         T sys_array_cast(U u) {
@@ -204,7 +203,7 @@ void setupSysmods() {
       int length = snprintf(foo.ptr, foo.length, "%lli", l);
       if (length > 0) return foo[0 .. length];
       printf ("please increase the snprintf buffer %i\n", length);
-      *int*:null=0;
+      _interrupt 3;
     }
     alias vec2f = vec(float, 2);
     alias vec3f = vec(float, 3);
@@ -235,8 +234,8 @@ void setupSysmods() {
         char* _tmpfname;
       }
       // extern(C) __FILE* _iob;
-      extern(C) __FILE** __imp___iob;
-      alias _iob = *__imp___iob;
+      extern(C) __FILE** _imp___iob;
+      alias _iob = *_imp___iob;
       alias stdin  = void*:&_iob[0];
       alias stdout = void*:&_iob[1];
       alias stderr = void*:&_iob[2];
@@ -346,6 +345,7 @@ void setupSysmods() {
         else return !!obj?.dynamicCastTo param_id;
       }
       void jump() {
+        // printf("execute jump to %.*s\n", name);
         if (!guard_id.fun) {
           while _record { _record.dg(); _record = _record.prev; }
         } else {
@@ -375,7 +375,7 @@ void setupSysmods() {
       }
       if needsResult {
         writeln "No exit matched $s!";
-        *int*:null = 0;
+        _interrupt 3;
       }
       // writeln "no matches";
       return _CondMarker*:null;
@@ -410,6 +410,9 @@ void setupSysmods() {
     class LinuxSignal : Error {
       void init(string s) { super.init "LinuxSignal: $s"; }
     }
+    class MemoryAccessError : Error {
+      void init(string s) { super.init "MemoryAccessError: $s"; }
+    }
     class BoundsError : UnrecoverableError {
       void init(string s) super.init s;
       string toString() { return "BoundsError: $(super.toString())"; }
@@ -435,6 +438,7 @@ void setupSysmods() {
     }
     void raise(UnrecoverableError err) {
       auto cur = __hdl__;
+      // printf("raise here: %p %p\n", cur, &__hdl__);
       if (!cur) { int i; i /= i; }
       while cur {
         if cur.accepts(err) cur.dg(err);
@@ -711,7 +715,9 @@ void setupSysmods() {
         }
       }
     }
-    int __c_main(int argc, char** argv) { // handle the callstack frame 16-byte alignment
+    extern(C) int mcheck(int);
+    extern(C) int __c_main(int argc, char** argv) { // handle the callstack frame 16-byte alignment
+      // mcheck(0);
     }
     int __win_main(void* instance, prevInstance, char* cmdline, int cmdShow) {
     }
@@ -771,8 +777,10 @@ void setupSysmods() {
     int _mod(int a, b) { return _xdiv(a, b)[1]; }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
-    sourcefiles["<internal:sys>"] = src;
+    sourcefiles["sys.nt"] = src;
   auto sysmodmod = fastcast!(Module) (parse(src, "tree.module"));
+  if (isWindoze())
+    sysmodmod._add("_fs0", fastalloc!(FS0)());
   sysmodmod.splitIntoSections = true;
   sysmod = sysmodmod;
 }
@@ -994,6 +1002,23 @@ Object gotFPUCW(ref string text, ParseCb cont, ParseCb rest) {
   return Single!(FPUCW);
 }
 mixin DefaultParser!(gotFPUCW, "tree.expr.fpucw", "24051", "fpucw");
+
+// FS:0 for SEH under Windows
+class FS0 : MValue {
+  mixin defaultIterate!();
+  const fs0expr = "i8* addrspace(257)* inttoptr(i32 0 to i8* addrspace(257)*)";
+  override {
+    string toString() { return "FS:0"; }
+    FS0 dup() { return this; }
+    IType valueType() { return voidp; }
+    void emitLLVM(LLVMFile lf) {
+      load(lf, "load ", fs0expr);
+    }
+    void emitAssignment(LLVMFile lf) {
+      put(lf, "store ", typeToLLVM(valueType()), " ", lf.pop(), ", ", fs0expr);
+    }
+  }
+}
 
 import ast.tuples;
 class RegExpr : MValue {

@@ -94,7 +94,10 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   bool needEntryLabel;
   static int scope_count;
   int count;
-  mixin defaultIterate!(_body, guards);
+  // mixin defaultIterate!(_body, guards);
+  override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
+    defaultIterate!(_body, guards).iterate(dg, mode);
+  }
   override void configPosition(string str) {
 		lnsc.configPosition(str);
   }
@@ -108,7 +111,7 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     else return guard_offsets;
   }
   void addStatement(Statement st) {
-    if (auto as = fastcast!(AggrStatement) (_body)) as.stmts ~= st;
+    if (auto as = fastcast!(AggrStatement)(_body)) as.stmts ~= st;
     else if (!_body) _body = st;
     else {
       auto as = new AggrStatement;
@@ -183,7 +186,9 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     foreach_reverse(i, guard; guards) {
       guard.emitLLVM(lf);
     }
-    
+    // logln("record ", this);
+    // logln("having been ", _body);
+    // logln("guards ", guards);
     recordFrame(this);
     if (!onlyCleanup) namespace.set(active_backup_ns);
   }

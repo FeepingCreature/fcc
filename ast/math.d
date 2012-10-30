@@ -824,6 +824,10 @@ static this() {
     foldopt ~= &substfun /fix/ stuple(arity, stuple(funname) /apply/ (string funname, Function fun, Module mod) {
       return (fun.name == funname || fun.name == qformat("[wrap]", funname)) && fun.extern_c;
     }, stuple(intrin, ret) /apply/ delegate Expr(string intrin, IType ret, Expr[] args) {
+      foreach (ref arg; args) {
+        if (!gotImplicitCast(arg, ret, (IType it) { return test(ret == it); }))
+          throw new Exception("invalid argument for intrinsic");
+      }
       return fastalloc!(IntrinsicExpr)(intrin, args, ret);
     });
   }

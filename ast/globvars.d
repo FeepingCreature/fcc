@@ -110,7 +110,7 @@ class GlobVarDecl : Statement, IsMangled {
         auto mangle = var.mangleSelf();
         string section = "module";
         if (var.tls) section = "tlsdefs";
-        putSection(lf, section, "@", mangle, " = "~linkage~"global ", typeToLLVM(var.type), " ", var.getInit(), sectioninfo);
+        putSection(lf, section, "@", mangle, " = "~linkage~"global ", typeToLLVM(var.type), " ", var.getInit(), sectioninfo, ", align 16");
         lf.undecls[mangle] = true;
       }
     }

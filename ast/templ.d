@@ -10,7 +10,7 @@ extern(C) bool _isITemplate(Object obj) { return !!fastcast!(ITemplate)(obj); }
 
 interface ITemplateX : ITemplate { // extended template-like
   bool isAliasTemplate();
-  TemplateInstance getInstance(IType type, ParseCb rest);
+  TemplateInstance getInstance(IType type, ParseCb rest, bool forceNew = false);
   TemplateInstance getInstance(Tree tr, ParseCb rest);
   Object postprocess(Object obj);
 }
@@ -28,8 +28,8 @@ class RelTemplate : ITemplateX {
     Object getInstanceIdentifier(IType it, ParseCb rest, string name) {
       return postprocess(sup.getInstanceIdentifier(it, rest, name));
     }
-    TemplateInstance getInstance(IType type, ParseCb rest) {
-      return sup.getInstance(type, rest);
+    TemplateInstance getInstance(IType type, ParseCb rest, bool forceNew = false) {
+      return sup.getInstance(type, rest, forceNew);
     }
     TemplateInstance getInstance(Tree tr, ParseCb rest) {
       return sup.getInstance(tr, rest);
@@ -62,8 +62,8 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
     Object transform(Expr base) {
       return fastalloc!(RelTemplate)(this, base);
     }
-    TemplateInstance getInstance(IType type, ParseCb rest) {
-      assert(!isAlias);
+    TemplateInstance getInstance(IType type, ParseCb rest, bool forceNew = false) {
+      if (isAlias) fail;
       type = resolveType(type);
       if (auto tup = fastcast!(Tuple) (type)) {
         IType[] resolved;
@@ -236,11 +236,13 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
       auto popCache = pushCache(); scope(exit) popCache();
       Object obj;
       
+      // logln("Context: ", context);
       while (true) {
         if (auto tl = fastcast!(TemplateInstance) (context)) {
           context = tl.context;
         } else break;
       }
+      // logln(" -> ", context);
       
       string parsemode;
       if (fastcast!(Module) (context))
@@ -409,6 +411,17 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
       }
       auto fun = fastcast!(Function) (res);
       if (!fun) { return null; }
+      if (!fun.type.ret) {
+        if (fun.coarseSrc) fun.parseMe;
+        else {
+          logln("wat 1 ", fun);
+          fail;
+        }
+        if (!fun.type.ret) {
+          logln("wat 2 ", fun);
+          fail;
+        }
+      }
       text = t2;
       auto fc = buildFunCall(fun, nex, "template_call");
       if (!fc) {

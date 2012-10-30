@@ -41,7 +41,9 @@ string declare(Function fun, string name) {
   }
   string callconv;
   if (fun.type.stdcall) callconv = "x86_stdcallcc ";
-  return qformat("declare ", callconv, typeToLLVM(fun.type.ret), " @", name, "(", argstr, ")");
+  string flags;
+  if (name == "setjmp") flags = " returns_twice";
+  return qformat("declare ", callconv, typeToLLVM(fun.type.ret), " @", name, "(", argstr, ")", flags);
 }
 
 class FunSymbol : Symbol {
@@ -100,7 +102,14 @@ extern(C) void recordFrame(Scope sc) {
     logln("no fun under ", sc);
     fail;
   }
-  // logln("record for ", fun.name, ": ", frametype2(sc));
+  /*if (fun.name == "btoa") {
+    string stackinfo;
+    foreach (entry; sc.stackframe()) {
+      if (stackinfo) stackinfo ~= ", ";
+      stackinfo ~= qformat(entry._0, ": ", entry._1);
+    }
+    logln("record for ", fun.name, " (", fun.getParams(true), "): ", frametype2(sc), " from ", stackinfo, ": ", sc.field);
+  }*/
   fun.llvmFrameTypes ~= frametype2(sc);
 }
 
@@ -216,6 +225,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     return res;
   }
   int fixup() {
+    if (field.length) fail;
     int res;
     inFixup = true; scope(exit) inFixup = false;
     
@@ -264,23 +274,23 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   string cached_selfmangle;
   override string mangleSelf() {
     if (cached_selfmangle) return cached_selfmangle;
-    if (extern_c) {
-      auto res = cleaned_name;
-      if (platform_prefix == "i686-mingw32-") {
-        res = "_"~res;
-        if (res == "_setjmp") res = "__setjmp"; // lol wat.
-      }
-      cached_selfmangle = res;
-    } else if (name == "__c_main") {
+    if (name == "__c_main") {
+      if (isWindoze()) { cached_selfmangle = "main_dont_use_on_this_platform"; return cached_selfmangle; }
       cached_selfmangle = "main";
       return "main";
     } else if (name == "__win_main") {
       if (platform_prefix == "i686-mingw32-") {
         // cached_selfmangle = "_WinMain@16";
-        cached_selfmangle = "_WinMain";
+        cached_selfmangle = "WinMain";
       } else {
         cached_selfmangle = "_WinMain_not_relevant_on_this_architecture";
       }
+    } else if (extern_c) {
+      auto res = cleaned_name;
+      if (platform_prefix.find("mingw") != -1) {
+        if (res == "setjmp") res = "_setjmp"; // lol wat.
+      }
+      cached_selfmangle = res;
     } else
       cached_selfmangle = cleaned_name~"_"~sup.mangle(null, type);
     if (cached_selfmangle.length > 252) {
@@ -399,6 +409,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         lf.put(data);
       }
       auto retstr = typeToLLVM(type.ret);
+      
       string argstr;
       foreach (i, arg; getParams(true)) {
         if (argstr) argstr ~= ", ";
@@ -407,11 +418,14 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       lf.undecls[fmn] = true;
       
       string linkage, flags;
-      if (weak) linkage = "weak_odr ";
+      if (weak)
+        if (isWindoze()) linkage = "linker_private_weak ";
+        else linkage = "linkonce_odr ";
       if (extern_c) {
         flags ~= "noinline ";
       }
       if (name == "__fcc_main") flags ~= "noinline ";
+      if (type.stdcall) linkage = "x86_stdcallcc ";
       // flags ~= "fastcc ";
       put(lf, "define ", linkage, retstr, " @", fmn, "(", argstr, ") ", flags, "{");
       scope(success) put(lf, "}");
@@ -519,14 +533,21 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     
     Stuple!(IType, string)[] stackframe() {
       Stuple!(IType, string)[] res;
+      auto pars = getParams(true);
       foreach (arg; getParams(true)) {
         res ~= stuple(arg.type, arg.name);
       }
-      /*
       foreach (obj; field)
-        if (auto var = fastcast!(Variable)(obj._1))
-          res ~= stuple(var.type, var.name);
-      */
+        if (auto var = fastcast!(Variable)(obj._1)) {
+          // register all vars that are not arg holders
+          // this gives us the best of both worlds: it allows us to function
+          // while executing fixup, and creates correct results afterwards.
+          bool found;
+          foreach (arg; pars)
+            if (arg.name == var.name) { found = true; break; }
+          if (!found)
+            res ~= stuple(var.type, var.name);
+        }
       return res;
     }
     Object lookup(string name, bool local = false) {
@@ -742,7 +763,7 @@ void callFunction(LLVMFile lf, IType ret, bool external, bool stdcall, Expr[] pa
   if (!fptr) fail;
   
   auto fptype = typeToLLVM(fptr);
-  if (!fptr.no_tls_ptr && !fptype.endsWith("...)*")) {
+  if (!fptr.no_tls_ptr && !fptr.stdcall && !fptype.endsWith("...)*")) {
     auto tlsptr = fastcast!(Expr)(namespace().lookup(tlsbase));
     if (!tlsptr) {
       throw new Exception(qformat("No TLS pointer found under ", namespace()));
@@ -929,7 +950,10 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
     fun.name = forcename?forcename:fun_name;
     fun.reassign = reassign;
     fun.sup = sup_override ? sup_override : ns;
-    
+    if (fun.name == "__win_main") {
+      fun.type.stdcall = true;
+      fun.extern_c = true;
+    }
     auto backup = namespace();
     namespace.set(fun);
     scope(exit) namespace.set(backup);

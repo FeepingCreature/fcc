@@ -1,6 +1,6 @@
 module ast.main;
 
-import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace,
+import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace, ast.aggregate,
   ast.scopes, ast.arrays, ast.returns, ast.parse, ast.pointer, ast.opers,
   ast.casting, ast.int_literal, ast.funcall, ast.tuples, ast.returns, ast.literals;
 
@@ -45,9 +45,26 @@ void fixupMain() {
   if (!main2) { logln("fail 10"[]); fail(); }
   main2.parseMe;
   auto sc = fastcast!(Scope)~ main2.tree;
+retry:
   if (!sc) { logln("fail 11: "[], main2.tree); fail(); }
   auto argvar = fastcast!(Expr)~ sc.lookup("args"[]);
-  if (!argvar) { logln("fail 12: "[], sc.field, " "[], main2.field); fail(); }
+  if (!argvar) {
+    auto as = fastcast!(AggrStatement)(sc._body);
+    if (as) {
+      if (as.stmts.length) {
+        auto sc2 = fastcast!(Scope)(as.stmts[$-1]);
+        if (sc2) {
+          sc = sc2;
+          goto retry;
+        }
+      }
+      logln("dbg: ");
+      foreach (i, st; as.stmts) {
+        logln("  ", i, ": ", st);
+      }
+    }
+    logln("fail 12: "[], sc.field, " "[], main2.field, " and ", sc._body); fail();
+  }
   auto cvar = fastcast!(Expr)~ sc.lookup("argc"[]), pvar = fastcast!(Expr)~ sc.lookup("argv"[]);
   if (!gotMain) {
     logln("main function not found! "[]);

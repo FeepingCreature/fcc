@@ -36,6 +36,10 @@ struct PreallocatedField(int StaticSize, T) {
   int length;
   T[StaticSize] static_;
   T[][] dynamics_;
+  void clean() {
+    dynamics_ = null;
+    length = 0;
+  }
   int opApply(int delegate(ref T t) dg) {
     outer:for (int i = 0; i < length; ++i) {
       if (i < static_.length) {
@@ -61,7 +65,7 @@ struct PreallocatedField(int StaticSize, T) {
     foreach (entry; *this) {
       if (first) first = false;
       else res ~= ", ";
-      res ~= Format(entry);
+      res ~= qformat(entry._0, ": ", entry._1);
     }
     return res ~ "]";
   }
@@ -339,8 +343,9 @@ class MiniNamespace : Namespace, ScopeLike, Named {
   override {
     string getIdentifier() { return id; }
     string mangle(string name, IType type) {
-      if (type) return id~"_"~name~"_of_"~type.mangle();
-      else return id~"_"~name;
+      auto clean_id = id.replace("!", "").replace(" ", "_");
+      if (type) return clean_id~"_"~name~"_of_"~type.mangle();
+      else return clean_id~"_"~name;
     }
     Stuple!(IType, string)[] stackframe() {
       return _mns_stackframe(sup, field);
@@ -357,6 +362,7 @@ class MiniNamespace : Namespace, ScopeLike, Named {
         auto sysmod = __getSysmod();
         if (sysmod) res = sysmod.lookup(name, local);
       }
+      if (!res && sup) res = sup.lookup(name, local);
       // logln("mini lookup "[], name, " => "[], res);
       return res;
     }
@@ -386,6 +392,11 @@ template iparse(R, string id, string rule, bool mustParse = true, bool optres = 
     static assert(T4.length % 2 == 0);
     
     auto myns = fastalloc!(MiniNamespace)(id);
+    // at exit, stop matching lookups with internal members
+    // this is for when we're parsing sub-scopes underneath us
+    // but the main MiniNamespace parsing is over. 
+    // this pretty much only happens in fun.d:function_open.
+    scope(exit) myns.field.clean;
     
     auto backup = namespace();
     namespace.set(myns);
@@ -413,7 +424,8 @@ template iparse(R, string id, string rule, bool mustParse = true, bool optres = 
     // compile-time for loop LALZ
     foreach (i, bogus; T4[0 .. $/2]) {
       if (!t[i*2+1]) fail;
-      myns.add(t[i*2], t[i*2+1]);
+      // dup because arguments may be static char arrays
+      myns.add(t[i*2].dup, t[i*2+1]);
     }
     
     static if (is(T[$-1] == LLVMFile)) {
