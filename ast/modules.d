@@ -41,7 +41,11 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     foreach (ns; getImports())
       if (auto mod = fastcast!(Module) (ns))
         res ~= mod;
-    foreach (entry; entries) {
+    int i;
+    // don't foreach!
+    // getImports may parseme, may add more entries.
+    while (i < entries.length) {
+      auto entry = entries[i++];
       if (auto imp = fastcast!(Importer) (entry))
         foreach (ns; imp.getImports())
           if (auto mod = fastcast!(Module) (ns))

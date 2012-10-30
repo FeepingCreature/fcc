@@ -100,9 +100,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
       foreach (entry; emat_alias)
         if (entry._1 == tr) { ti = entry._0; break; }
       if (!ti) {
-        if (name == "join") logln("ALLOC");
         ti = fastalloc!(TemplateInstance)(this, tr, rest);
-        if (name == "join") logln(name, ": tree alloc with ", tr, ": ", ti);
       }
       ti.emitCopy();
       return ti;
