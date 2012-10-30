@@ -172,13 +172,39 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     inParse = true;
     scope(exit) inParse = false;
     
+    if (lookup("__frameinfo", true) && lookup(tlsbase, true)) {
+      // logln("add for ", this.name);
+      auto pre_sc = iparse
+      !(Scope, "!safecode function_open", "tree.scope")
+        (`{
+            // printf("do it %.*s with %p\n", fun, _threadlocal);
+            __frameinfo.fun = fun;
+            __frameinfo.pos = pos;
+            __frameinfo.prev = sys.frameinfo;
+            sys.frameinfo = &__frameinfo;
+            onExit {
+              // printf("clean up %.*s\n", fun);
+              sys.frameinfo = __frameinfo.prev;
+            }
+          }
+        `, this,
+          "fun", mkString(fqn()),
+          "pos", mkString(""));
+      if (!pre_sc) fail;
+      addStatement(pre_sc);
+    }/* else if (lookup(tlsbase, true)) logln("don't add for ", this.name, " because no _threadlocal");
+    else logln("don't add for ", this.name, " because no __frameinfo");*/
+    
+    if (tree) namespace.set(fastcast!(Scope)(tree));
+    
     auto s = sup;
     auto stmt = fastcast!(Statement) (parse(t2, "tree.scope"));
     if (!stmt) {
       // fail();
       t2.failparse("Couldn't parse function scope");
     }
-    addStatement(stmt);
+    if (tree) fastcast!(Scope)(tree).addStatement(stmt);
+    else addStatement(stmt);
     opt(tree);
     
     if (!type.ret)
@@ -240,6 +266,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         // throw new Exception(qformat("Function parameter type still undefined in ", name, ": ", param.name));
       }
       add(fastalloc!(Variable)(pt, res++, param.name));
+    }
+    if (auto fi = fastcast!(IType)(sysmod.lookup("FrameInfo"))) {
+      // logln("add frame info to ", name);
+      add(fastalloc!(Variable)(fi, res++, "__frameinfo"));
     }
     if (!releaseMode) {
       if (tree) { // already parsed, too late to fix up
@@ -974,6 +1004,14 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       if (Naked || text.accept(";"[])) return fun;
       else t2.failparse("Expected ';'"[]);
     } else {
+      // if we have a thread pointer..
+      {
+        auto pars = fun.getParams(true);
+        if (pars.length && pars[$-1].name == tlsbase) {
+          // generate an exception record
+          if (fun.tree) fail; // wat
+        }
+      }
       auto t4 = text;
       // if ret is null(auto), cannot wait to parse scope until later since we need the full type NOW
       // do we really, though? We can grab it when we need it ..

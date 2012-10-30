@@ -583,6 +583,14 @@ void setupSysmods() {
         callConstructors mod;
       }
     }
+    shared Error preallocated_sigsegv;
+    bool already_handling_segfault;
+    void _check_handling() {
+      if (already_handling_segfault) {
+        writeln "A segfault has occurred while handling a previous segfault. Error handling is compromised; program will exit. ";
+        exit(1);
+      }
+    }
     platform(default) {
       pragma(lib, "pthread");
       static import c.pthread, c.signal;
@@ -594,8 +602,6 @@ void setupSysmods() {
         if (sigaction(c.signal.SIGSEGV, &sa, null) == -1)
           raise new Error "failed to setup SIGSEGV handler";
       }
-      bool already_handling_segfault;
-      shared LinuxSignal preallocated_sigsegv;
       extern(C) {
         enum X86Registers {
           GS, FS, ES, DS, EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX, TRAPNO, ERR, EIP, CS, EFL, UESP, SS
@@ -617,19 +623,16 @@ void setupSysmods() {
           // move stackframe down one
           // at this point, the stackframe is [ebp]
           // we need to make it [eax][ebp] because eax is storing our correct return address
-          asm "movl (%esp), %ebx";        // store our prev-ebp
-          asm "movl %eax, (%esp)";        // replace with eax (proper return address)
-          asm "pushl %ebx";               // save prev-ebp four bytes deeper.. 
-          asm "mov %esp, %ebp";           // and update stackbase
-          if (already_handling_segfault) {
-            writeln "A segfault has occurred while handling a previous segfault. Error handling is compromised; program will exit. ";
-            exit(1);
-          }
+          // asm "movl (%esp), %ebx";        // store our prev-ebp
+          // asm "movl %eax, (%esp)";        // replace with eax (proper return address)
+          // asm "pushl %ebx";               // save prev-ebp four bytes deeper.. 
+          // asm "mov %esp, %ebp";           // and update stackbase
+          auto _threadlocal = c.pthread.pthread_getspecific(tls_pointer);
+          _check_handling;
           already_handling_segfault = true;
           onExit already_handling_segfault = false;
-          auto _threadlocal = c.pthread.pthread_getspecific(tls_pointer);
           if (preallocated_sigsegv) raise preallocated_sigsegv;
-          raise new LinuxSignal "SIGSEGV";
+          raise new MemoryAccessError "Segmentation Fault";
         }
         void seghandle(int sig, void* si, void* unused) {
           auto uc = ucontext*: unused;
@@ -652,6 +655,30 @@ void setupSysmods() {
         int sigaction(int sig, _sigaction* act, _sigaction* oact);
       }
       shared c.pthread.pthread_key_t tls_pointer;
+    }
+    platform(*-mingw32*) {
+      pragma(include_prepend, "winbase.h < excpt.h");
+      import c.windows, c.excpt;
+      alias DWORD = int;
+      shared DWORD tls_pointer;
+      alias PEXCEPTION_HANDLER = EXCEPTION_DISPOSITION function(_EXCEPTION_RECORD*, _EXCEPTION_REGISTRATION*, _CONTEXT*, _EXCEPTION_RECORD*);
+      shared _EXCEPTION_REGISTRATION reg;
+      void seghandle_userspace() {
+        auto _threadlocal = TlsGetValue(tls_pointer);
+        _check_handling;
+        already_handling_segfault = true;
+        onExit already_handling_segfault = false;
+        if (preallocated_sigsegv) raise preallocated_sigsegv;
+        raise new MemoryAccessError "Access Violation";
+      }
+      EXCEPTION_DISPOSITION seghandle(_EXCEPTION_RECORD* record, void* establisher_frame, _CONTEXT* context, void* dispatcher_context) {
+        // printf("seghandle(%p (%p), %p, %p, %p)\n", record, record.ExceptionCode, establisher_frame, context, dispatcher_context);
+        if (record.ExceptionCode == STATUS_ACCESS_VIOLATION) {
+          context.Eip = DWORD: &seghandle_userspace; // rewrite for return-to-lib
+          return ExceptionContinueExecution;
+        }
+        return ExceptionContinueSearch;
+      }
     }
     extern(C) {
       int getpid();
@@ -683,7 +710,21 @@ void setupSysmods() {
         pthread_key_create(&tls_pointer, null);
         c.pthread.pthread_setspecific(tls_pointer, _threadlocal);
         setup-segfault-handler();
-        preallocated_sigsegv = new LinuxSignal "SIGSEGV";
+        preallocated_sigsegv = new MemoryAccessError "Segmentation Fault";
+      }
+      platform(*-mingw32*) {
+        tls_pointer = TlsAlloc();
+        if (tls_pointer == TLS_OUT_OF_INDEXES)
+          fail "TlsAlloc failed";
+        TlsSetValue(tls_pointer, _threadlocal);
+        _EXCEPTION_REGISTRATION reg;
+        reg.prev = _fs0;
+        reg.handler = type-of reg.handler: &seghandle;
+        _fs0 = &reg;
+        onExit {
+          _fs0 = reg.prev;
+        }
+        preallocated_sigsegv = new MemoryAccessError "Access Violation";
       }
       
       int errnum;

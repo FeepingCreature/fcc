@@ -564,24 +564,33 @@ mixin DefaultParser!(gotScope, "tree.scope");
 
 extern(C)
 void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
-  // logln("todo _line_numbered_statement_emitLLVM");
-  return;
-  /*with (lns) {
+  // if (!lf.debugMode) return;
+  auto frameinfo = fastcast!(LValue)(namespace().lookup("__frameinfo", true));
+  auto fname = namespace().get!(Function).name;
+  if (frameinfo) {
+    auto lr = fastcast!(RelNamespace)(frameinfo.valueType());
+    if (!lr) {
+      logln("no relnamespace: ", frameinfo);
+      fail; 
+    }
+    auto pos = fastcast!(LValue)(lr.lookupRel("pos", frameinfo));
+    if (!pos) {
+      logln("no pos in: ", lr);
+      fail;
+    }
     string name; int line;
     lns.getInfo(name, line);
-    if (!name) return;
-    if (name.startsWith("<internal")) return;
-    if (auto id = lf.getFileId(name)) {
-      if (lf.debugMode) {
-        lf.put(".loc ", id, " ", line, " ", 0);
-        if (!name.length) fail("TODO");
-        lf.put(comment(" being '"), name, "' at ", lf.currentStackDepth);
-      }
-      version(CustomDebugInfo) if (auto fun = current_emitting_function()) {
-        fun.add_line_number(lf, line);
-      }
-    }
+    if (!name /*|| name.startsWith("<internal")*/) return;
+    /*if (fname == "raise") {
+      logln("emit line number assignment at ", lns, " ", frameinfo, " in ", namespace());
+      logln("@", name, ":", line);
+    }*/
+    emitAssign(lf, pos, mkString(qformat(name, ":", line)));
+  } /*else if (fname == "raise") {
+    logln("bad bad no frameinfo");
+    fail;
   }*/
+  return;
 }
 
 extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
