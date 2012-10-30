@@ -201,33 +201,43 @@ import tools.base: toDg;
 
 // implicit conversions
 struct implicits { static {
-  void delegate(Expr, IType, bool delegate(Expr))[] dgs;
+  void delegate(Expr, IType, bool delegate(Expr, int))[] dgs;
+  void opCatAssign(void delegate(Expr, IType, bool delegate(Expr, int)) dg) {
+    dgs ~= dg;
+  }
+  void opCatAssign(void delegate(Expr, IType, void delegate(Expr, int)) dg) {
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr, int) dg2) {
+      dg(ex, it, (Expr ex, int delta) { dg2(ex, delta); });
+    };
+  }
   void opCatAssign(void delegate(Expr, IType, void delegate(Expr)) dg) {
-    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
-      dg(ex, it, (Expr ex) { dg2(ex); });
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr, int) dg2) {
+      dg(ex, it, (Expr ex) { dg2(ex, 0); });
     };
   }
   void opCatAssign(void delegate(Expr, IType, bool delegate(Expr)) dg) {
-    dgs ~= dg;
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr, int) dg2) {
+      dg(ex, it, (Expr ex) { return dg2(ex, 0); });
+    };
   }
   void opCatAssign(void delegate(Expr, bool delegate(Expr)) dg) {
-    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
-      dg(ex, dg2);
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr, int) dg2) {
+      dg(ex, (Expr ex) { return dg2(ex, 0); });
     };
   }
   void opCatAssign(void delegate(Expr, void delegate(Expr)) dg) {
-    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
-      dg(ex, (Expr ex) { dg2(ex); });
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr, int) dg2) {
+      dg(ex, (Expr ex) { dg2(ex, 0); });
     };
   }
   void opCatAssign(Expr delegate(Expr) dg) {
-    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
-      if (auto res = dg(ex)) dg2(res);
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr, int) dg2) {
+      if (auto res = dg(ex)) dg2(res, 0);
     };
   }
   void opCatAssign(Expr delegate(Expr, IType) dg) {
-    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr) dg2) {
-      if (auto res = dg(ex, it)) dg2(res);
+    dgs ~= dg /apply/ function void(typeof(dg) dg, Expr ex, IType it, bool delegate(Expr, int) dg2) {
+      if (auto res = dg(ex, it)) dg2(res, 0);
     };
   }
   void opCatAssign(Expr function(Expr) fn) {
@@ -291,8 +301,9 @@ import tools.threads: TLS;
 import ast.namespace;
 TLS!(IType[]) gotImplicitCast_visited_cache; // we go in here a lot, so this pays off
 static this() { New(gotImplicitCast_visited_cache, { return &(new Stuple!(IType[]))._0; }); }
-bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int mayFreeRejects = 1) {
+bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int mayFreeRejects = 1, int* scorep = null) {
   if (!ex) fail;
+  if (scorep) *scorep = 2;
   auto ns = namespace();
   if (!ns) namespace.set(new NoNameSpace); // lots of stuff does namespace().get!() .. pacify it
   scope(exit) namespace.set(ns);
@@ -315,11 +326,12 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int ma
   Stuple!(Temporary, int)[] cleanups;
   scope(success) foreach (c; cleanups) c._0.cleanup(c._1 == 1);
   
-  Expr recurse(Expr ex) {
+  Expr recurse(Expr ex, int score, int* score_res) {
     Expr[] recurseInto;
+    int[] scoredelta;
     foreach (dg; implicits) {
       Expr res;
-      dg(ex, want, (Expr ce) {
+      dg(ex, want, (Expr ce, int newscore /* quality of match */) {
         if (res || haveVisited(ce)) {
           /*
           logln("ignore ", ce.valueType());
@@ -334,15 +346,17 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int ma
         }
         addVisitor(ce.valueType());
         recurseInto ~= ce;
+        scoredelta ~= newscore;
         if (accept(ce)) {
           res = ce;
+          if (score_res) *score_res = score + newscore;
         }
         return true;
       });
       if (res) return res;
     }
-    foreach (entry; recurseInto) {
-      if (auto res = recurse(entry)) return res;
+    foreach (i, entry; recurseInto) {
+      if (auto res = recurse(entry, score + scoredelta[i], score_res)) return res;
       if (mayFreeRejects) if (auto t = fastcast!(Temporary)(entry))
         own_append(cleanups, stuple(t, mayFreeRejects));
     }
@@ -351,24 +365,24 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int ma
   if (accept(ex)) return true;
   auto dcme = fastcast!(DontCastMeExpr) (ex);
   if (dcme) return false;
-  if (auto res = recurse(ex)) { ex = res; return true; }
+  if (auto res = recurse(ex, 0, scorep)) { ex = res; return true; }
   else return false;
 }
 
-bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept, bool mayFreeRejects = true) {
-  return gotImplicitCast(ex, null, accept, mayFreeRejects);
+bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept, bool mayFreeRejects = true, int* scorep = null) {
+  return gotImplicitCast(ex, null, accept, mayFreeRejects, scorep);
 }
 
-bool gotImplicitCast(ref Expr ex, IType want, bool delegate(IType) accept, bool mayFreeRejects = true) {
+bool gotImplicitCast(ref Expr ex, IType want, bool delegate(IType) accept, bool mayFreeRejects = true, int* scorep = null) {
   return gotImplicitCast(ex, want, (Expr ex) {
     return accept(ex.valueType());
-  }, 2-mayFreeRejects);
+  }, 2-mayFreeRejects, scorep);
 }
 
-bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept, bool mayFreeRejects = true) {
+bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept, bool mayFreeRejects = true, int* scorep = null) {
   return gotImplicitCast(ex, null, (Expr ex) {
     return accept(ex.valueType());
-  }, 2-mayFreeRejects);
+  }, 2-mayFreeRejects, scorep);
 }
 
 Expr[] getAllImplicitCasts(Expr ex) {
@@ -382,7 +396,7 @@ Expr[] getAllImplicitCasts(Expr ex) {
   void recurse(Expr ex) {
     auto start = res.length;
     foreach (dg; implicits) {
-      dg(ex, null, (Expr ce) {
+      dg(ex, null, (Expr ce, int delta) {
         if (haveVisited(ce)) return false;
         visited ~= ce.valueType();
         res ~= ce;

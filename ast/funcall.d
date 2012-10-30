@@ -47,7 +47,7 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_1", "115"); // must be high-priority (above arith) to override subtraction.
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be below arith too, to be usable in stuff like paren-less calls
 
-bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, lazy string info, string text = null, bool probe = false, bool exact = false) {
+bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, lazy string info, string text = null, bool probe = false, bool exact = false, int* scorep = null) {
   Expr[string] nameds;
   bool changed;
   void removeNameds(ref Iterable it) {
@@ -214,11 +214,13 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     
     opt(ex);
     
+    int score;
+    
     if (exact ? (ex.valueType() != type) : !gotImplicitCast(ex, type, (IType it) {
       tried ~= it;
       // logln(" !! is ", it, " == ", type, "? ", test(it == type));
       return test(it == type);
-    }, false)) {
+    }, false, &score)) {
       Expr[] list;
       if (gotImplicitCast(ex, Single!(HintType!(Tuple)), (IType it) { return !!fastcast!(Tuple) (it); }) && (list = flatten(ex), !!list)) {
         args = list ~ args;
@@ -240,6 +242,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
           "tried:\n", formatlines(relevant(tried)));
       }
     }
+    if (scorep) *scorep += score;
     res ~= ex;
   }
   Expr[] flat;
@@ -275,7 +278,7 @@ bool cantBeCall(string s) {
 
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
-bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseCb rest, ref Expr[] res, out Statement[] inits, bool test, bool precise, bool allowAutoCall) {
+bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseCb rest, ref Expr[] res, out Statement[] inits, bool test, bool precise, bool allowAutoCall, int* scorep = null) {
   string infocache;
   string info() { if (!infocache) infocache = lazy_info(); return infocache; }
   
@@ -311,7 +314,7 @@ bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseC
       else if (allowAutoCall) arg = mkTupleExpr();
       else return false;
     }
-    if (!matchedCallWith(arg, params, res, inits, info(), backup_text, test, precise)) return false;
+    if (!matchedCallWith(arg, params, res, inits, info(), backup_text, test, precise, scorep)) return false;
     text = t2;
     return true;
   }
@@ -349,13 +352,16 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       retry_match:
       Function[] candidates;
       typeof(fun.getParams(false))[] parsets, candsets;
+      int[] scores;
       foreach (osfun; os.funs) {
         auto t3 = t2;
         Statement[] inits;
         // logln(t3.nextText(), ": consider ", osfun);
-        if (matchCall(t3, osfun.name, osfun.getParams(false), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall)) {
+        int score;
+        if (matchCall(t3, osfun.name, osfun.getParams(false), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall, &score)) {
           candidates ~= osfun;
           candsets ~= osfun.getParams(false);
+          scores ~= score;
         }
         parsets ~= osfun.getParams(false);
       }
@@ -365,9 +371,20 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
         t2.failparse("Unable to call '", os.name, "': matched none of ", parsets);
       }
       if (candidates.length > 1) {
-        // ambiguity is still ambiguous even if expr has alternatives to a call
+        // try to select the expr with the lowest score
+        int lowest = int.max;
+        foreach (score; scores) if (score < lowest) lowest = score;
+        // exclude candidates with larger scores
+        auto backup = candidates, scores_backup = scores;
+        candidates = null; scores = null;
+        foreach (i, score; scores_backup) if (score == lowest) {
+          candidates ~= backup[i];
+          scores ~= score;
+        }
+      }
+      if (candidates.length > 1) {
         t2.failparse("Unable to call '", os.name,
-          "': ambiguity between ", candsets, " btw ", os.funs);
+          "': ambiguity between ", candsets, " btw ", os.funs, " of score ", scores[0]);
       }
       fun = candidates[0];
     } else return null;
