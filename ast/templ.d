@@ -53,6 +53,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
     Stuple!(TemplateInstance, IType)[] emat_type; // past tense of emit
     Stuple!(TemplateInstance, Tree)[] emat_alias;
   }
+  bool[IType] hacked_it;
   this() {
     resetDgs ~= &resetme;
     context = namespace();
@@ -71,7 +72,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
         type = mkTuple(resolved);
       }
       TemplateInstance ti;
-      foreach (ref entry; emat_type) {
+      if (!forceNew) foreach (ref entry; emat_type) {
         debug if ((qformat(entry._1) == qformat(type)) != (entry._1.mangle() == type.mangle())) {
           logln("1: ", entry._1, ": ", entry._1.mangle());
           logln("2: ", type, ": ", type.mangle());
@@ -86,24 +87,46 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
         }
       }
       if (!ti) {
+        // if (name == "join") logln(name, ": type alloc with ", type);
         ti = fastalloc!(TemplateInstance)(this, type, rest);
+        // if (name == "join") logln(name, ": type alloc => ", ti);
       }
       ti.emitCopy();
       return ti;
     }
     TemplateInstance getInstance(Tree tr, ParseCb rest) {
-      assert(isAlias);
+      if (!isAlias) fail;
       TemplateInstance ti;
       foreach (entry; emat_alias)
         if (entry._1 == tr) { ti = entry._0; break; }
       if (!ti) {
+        if (name == "join") logln("ALLOC");
         ti = fastalloc!(TemplateInstance)(this, tr, rest);
+        if (name == "join") logln(name, ": tree alloc with ", tr, ": ", ti);
       }
       ti.emitCopy();
       return ti;
     }
     Object getInstanceIdentifier(IType type, ParseCb rest, string name) {
-      return getInstance(type, rest).lookup(name, true);
+      bool forceNew;
+      start:
+      auto res = getInstance(type, rest, forceNew).lookup(name, true);
+      // logln("res = ", res);
+      if (auto fun = fastcast!(Function)(res)) if (!fun.type.ret) {
+        if (forceNew) {
+          logln("wat 3 ", fun);
+          fail;
+        }
+        forceNew = true;
+        foreach (key, value; hacked_it)
+          if (key == type) {
+            logln("Tried to hack around circular dependency by double-instantiating ", name, ", but it still went circular. Giving up. ");
+            throw new Exception("Fuck. ");
+          }
+        hacked_it[type] = true;
+        goto start;
+      }
+      return res;
     }
     string getIdentifier() { return name; }
     bool addsSelf() { return true; }
