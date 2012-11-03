@@ -83,6 +83,12 @@ class Socket {
   void init() {
     sockfd = socket (AF_INET, SOCK_STREAM, 0);
   }
+  /*Function: init*/
+  void init(string domain, short port) {
+    init;
+    scope ta = new TcpAddress(domain, port);
+    open ta;
+  }
   (bool got, float value) myTimeout;
   /*Function: setTimeout
   Sets a timeout for socket read/write operations (in seconds)*/

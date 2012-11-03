@@ -622,13 +622,6 @@ void setupSysmods() {
           __sigset_t sigmask;
         }
         void seghandle_userspace() {
-          // move stackframe down one
-          // at this point, the stackframe is [ebp]
-          // we need to make it [eax][ebp] because eax is storing our correct return address
-          // asm "movl (%esp), %ebx";        // store our prev-ebp
-          // asm "movl %eax, (%esp)";        // replace with eax (proper return address)
-          // asm "pushl %ebx";               // save prev-ebp four bytes deeper.. 
-          // asm "mov %esp, %ebp";           // and update stackbase
           auto _threadlocal = c.pthread.pthread_getspecific(tls_pointer);
           _check_handling;
           already_handling_segfault = true;
@@ -639,8 +632,12 @@ void setupSysmods() {
         void seghandle(int sig, void* si, void* unused) {
           auto uc = ucontext*: unused;
           ref gregs = uc.mcontext.gregs;
-          ref eip = void*:gregs[X86Registers.EIP], eax = void*:gregs[X86Registers.EAX];
-          eax = eip;
+          ref
+            eip = void*:gregs[X86Registers.EIP],
+            esp = void**:gregs[X86Registers.ESP];
+          // imitate the effects of "call seghandle_userspace"
+          esp --;
+          *esp = eip;
           eip = void*: &seghandle_userspace; // return like call
         }
         struct __sigset_t {
@@ -679,10 +676,17 @@ void setupSysmods() {
         raise new Error "Windows SEH Code $(void*:errcode)";
       }
       EXCEPTION_DISPOSITION seghandle(_EXCEPTION_RECORD* record, void* establisher_frame, _CONTEXT* context, void* dispatcher_context) {
-        printf("seghandle(%p (%p), %p, %p, %p)\n", record, record.ExceptionCode, establisher_frame, context, dispatcher_context);
+        // printf("seghandle(%p (%p), %p, %p, %p)\n", record, record.ExceptionCode, establisher_frame, context, dispatcher_context);
         auto _threadlocal = TlsGetValue(tls_pointer);
         errcode = record.ExceptionCode;
-        context.Eip = DWORD: &seghandle_userspace; // rewrite for return-to-lib
+        ref
+          esp = void**:context.Esp,
+          eip = void* :context.Eip;
+        // imitate the effects of "call seghandle_userspace"
+        // stack grows down under windows
+        esp --;
+        *esp = eip;
+        eip = void*: &seghandle_userspace; // rewrite for return-to-lib
         return ExceptionContinueExecution; // and jump!
         // return ExceptionContinueSearch;
       }
