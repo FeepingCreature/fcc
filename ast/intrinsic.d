@@ -498,14 +498,8 @@ void setupSysmods() {
       memcpy(res, ptr, length);
       return res;
     }
-    int fastfloor(float f) {
-      writeln "fastfloor should never be called directly! ";
-      writeln "there's supposed to be an opt rule that replaces this call with an llvm intrinsic";
-      writeln "but for some reason it did not trigger. ";
-      writeln "please file a bug report.";
-      writeln "the program will now terminate";
-      _interrupt 3;
-    }
+    extern(C) float floorf(float);
+    int fastfloor(float f) { return int:(floorf(f) + 0.25); }
     void fastfloor3f(vec3f v, vec3i* res) {
       if (true || v.x >= 1<<31 || v.y >= 1<<31 || v.z >= 1<<31) { // cvttps2dq will fail
         res.x = fastfloor(v.x);

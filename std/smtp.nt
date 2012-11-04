@@ -6,13 +6,13 @@ import c.openssl.(ssl, err);
 pragma(pkg-config, "openssl");
 
 void sendmail(string from, to, subject, content, host, logindata, bool dbg = false) {
-  auto sock = connect(host, 25);
+  auto sock = new Socket(host, 25);
   Iterator!string readline = castIter!string readsocket sock #.splitAt "\r\n";
   
   ref mode = *new string;
   mode = "tcp";
-  void dbgwrite(string s) if (dbg) writeln "$mode> $s";
-  void dbgread(string s) if (dbg) writeln "$mode< $s";
+  void dbgwrite(string s) if (dbg) writeln "$mode --> $s";
+  void dbgread(string s) if (dbg) writeln "$mode <-- $s";
   
   void delegate(string) sendline = \(string s) {
     dbgwrite s;

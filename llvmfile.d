@@ -1,6 +1,6 @@
 module llvmfile;
 
-import std.string: find, atoi, strip;
+import std.string: find, atoi, strip, replace;
 import tools.base: slice, endsWith, Stuple, stuple;
 
 string datalayout;
@@ -363,7 +363,9 @@ string readllex(string expr) {
     }
   }
   auto code = "target datalayout = \""~datalayout~"\" define i32 @foo() { ret i32 "~key~" }";
-  auto res = readback("echo '"~code~"' |opt -std-compile-opts -S |grep 'ret i32' |sed -e 's/.*i32//'");
+  auto res = readback("sh -c \"echo '"
+    ~code.replace("\\", "\\\\").replace("\"", "\\\"")
+    ~"' |opt -std-compile-opts -S |grep 'ret i32' |sed -e 's/.*i32//'\"");
   if (qformat(res.atoi()) != res.strip()) {
     logln("from ", code);
     logln("to ", res);

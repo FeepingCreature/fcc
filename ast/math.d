@@ -804,13 +804,15 @@ static this() {
     // logln("subst with ", res);
     return res;
   }
-  foldopt ~= &substfun /fix/ stuple(1, (Function fun, Module mod) {
-    return fun.name == "fastfloor" && mod is sysmod;
-  }, delegate Expr(Expr[] args) {
-    return fastalloc!(FPAsInt)(lookupOp("+",
-      fastalloc!(IntrinsicExpr)("llvm.floor.f32"[], args, Single!(Float)),
-      fastalloc!(FloatExpr)(0.25)));
-  });
+  if (!isWindoze()) {
+    foldopt ~= &substfun /fix/ stuple(1, (Function fun, Module mod) {
+      return fun.name == "fastfloor" && mod is sysmod;
+    }, delegate Expr(Expr[] args) {
+      return fastalloc!(FPAsInt)(lookupOp("+",
+        fastalloc!(IntrinsicExpr)("llvm.floor.f32"[], args, Single!(Float)),
+        fastalloc!(FloatExpr)(0.25)));
+    });
+  }
   foldopt ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
     return (fun.name == "copysignf" || fun.name == "[wrap]copysignf") && fun.extern_c;
   }, delegate Expr(Expr[] args) {
@@ -835,7 +837,9 @@ static this() {
   // do in software, intrinsic is slow
   // addCIntrin(1, "sinf"  , Single!(Float), "llvm.sin.f32");
   // addCIntrin(1, "cosf"  , Single!(Float), "llvm.cos.f32");
-  addCIntrin(1, "floorf", Single!(Float), "llvm.floor.f32");
+  if (!isWindoze()) {
+    addCIntrin(1, "floorf", Single!(Float), "llvm.floor.f32");
+  }
   addCIntrin(1, "fabsf" , Single!(Float), "llvm.fabs.f32");
   addCIntrin(1, "exp"   , Single!(Float), "llvm.exp.f32");
   addCIntrin(1, "log"   , Single!(Float), "llvm.log.f32");

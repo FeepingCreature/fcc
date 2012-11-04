@@ -30,6 +30,6 @@ void main(string[] args) {
   auto ex = "minecraft".map \(char c) -> (char:"z")-(c-(char:"a"));
   writeln "$ex";
   float f = 2f % 3f;
-  import std.process;
-  writeln readback("cat", ["6"]);
+  // import std.process;
+  // writeln readback("cat", ["6"]);
 }

@@ -964,7 +964,8 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
     fixedfile = ".obj/"~output~".fixed.bc";
     string fixup = "< "~linkedfile~" llvm-dis |sed -e s/^define\\ weak_odr\\ /define\\ /g |llvm-as -o "~fixedfile;
     logSmart!(false)("> ", fixup);
-    if (system(fixup.toStringz()))
+    string shmode = "sh -c \""~replace(replace(fixup, "\\", "\\\\"), "\"", "\\\"")~"\"";
+    if (system(shmode.toStringz()))
       throw new Exception("llvm fixup failed");
   }
   
