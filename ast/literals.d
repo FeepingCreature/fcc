@@ -96,6 +96,7 @@ Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (ch1 == '.' && ch2 != '.')
         return null;
     }
+    if (t2.length >= 1 && t2[0] == 'e') return null; // 1e5 is float/double, not int
     if (t2.accept("K")) i *= 1024;
     else if (t2.accept("M")) i *= 1024*1024;
     else if (t2.accept("G")) i *= 1024*1024*1024;

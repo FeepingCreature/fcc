@@ -1,6 +1,6 @@
 module ast.float_literal;
 
-import ast.base;
+import ast.base, std.math: pow;
 
 bool gotDouble(ref string text, ref double d) {
   auto t2 = text;
@@ -17,6 +17,7 @@ bool gotDouble(ref string text, ref double d) {
     int dig = digit - '0';
     d = d * 10 + dig;
   }
+  if (t2.length && t2[0] == 'e') goto scientific;
   if (!t2.length || t2.take() != '.') return false;
   double weight = 0.1;
   bool gotDigit;
@@ -30,6 +31,14 @@ bool gotDouble(ref string text, ref double d) {
   }
   if (!gotDigit) return false;
   if (neg) d = -d;
+  if (t2.length && t2[0] == 'e') goto scientific;
+  text = t2;
+  return true;
+scientific:
+  if (t2.take() != 'e') t2.failparse("wat");
+  int exp;
+  if (!gotInt(t2, exp)) return false;
+  d *= pow(cast(real) 10, cast(real) exp);
   text = t2;
   return true;
 }
