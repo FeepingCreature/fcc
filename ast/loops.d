@@ -294,6 +294,8 @@ class ExecGuardsAndJump : Statement {
 }
 
 Object gotContinueOrBreak(bool gotContinue)(ref string text, ParseCb cont, ParseCb rest) {
+  auto t2 = text;
+  if (t2.accept("-")) return null; // break-prefix-in-variable
   auto brc = *breakable_context.ptr();
   auto fun = namespace().get!(Function);
   if (fun !is brc._1 || !brc._0)
