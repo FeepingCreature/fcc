@@ -564,7 +564,7 @@ mixin DefaultParser!(gotScope, "tree.scope");
 
 extern(C)
 void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
-  // if (!lf.debugMode) return;
+  if (!lf.debugmode) return;
   auto frameinfo = fastcast!(LValue)(namespace().lookup("__frameinfo", true));
   auto fname = namespace().get!(Function).name;
   if (frameinfo) {

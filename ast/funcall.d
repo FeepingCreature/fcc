@@ -253,8 +253,10 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   }
   foreach (arg2; args) recurse(arg2);
   if (flat.length) {
-    // text.failparse("Extraneous parameters to '", info(), "' of ", params, ": ", args);
-    text.setError("Extraneous parameters to '"[], info(), "' of "[], params, ": "[], args);
+    IType[] types;
+    foreach (a; flat) types ~= a.valueType();
+    // text.failparse("Extraneous parameters to '", info(), "' of ", params, ": ", types);
+    text.setError("Extraneous parameters to '"[], info(), "' of "[], params, ": "[], types);
     return false;
   }
   if (nameds.length) {
