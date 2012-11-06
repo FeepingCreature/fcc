@@ -174,24 +174,26 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     
     if (lookup("__frameinfo", true) && lookup(tlsbase, true)) {
       // logln("add for ", this.name);
-      auto pre_sc = iparse
-      !(Scope, "!safecode function_open", "tree.scope")
-        (`{
-            // printf("do it %.*s with %p\n", fun, _threadlocal);
-            __frameinfo.fun = fun;
-            __frameinfo.pos = pos;
-            __frameinfo.prev = sys.frameinfo;
-            sys.frameinfo = &__frameinfo;
-            onExit {
-              // printf("clean up %.*s\n", fun);
-              sys.frameinfo = __frameinfo.prev;
+      if (!releaseMode) {
+        auto pre_sc = iparse
+        !(Scope, "!safecode function_open", "tree.scope")
+          (`{
+              // printf("do it %.*s with %p\n", fun, _threadlocal);
+              __frameinfo.fun = fun;
+              __frameinfo.pos = pos;
+              __frameinfo.prev = sys.frameinfo;
+              sys.frameinfo = &__frameinfo;
+              onExit {
+                // printf("clean up %.*s\n", __frameinfo.fun);
+                sys.frameinfo = __frameinfo.prev;
+              }
             }
-          }
-        `, this,
-          "fun", mkString(fqn()),
-          "pos", mkString(""));
-      if (!pre_sc) fail;
-      addStatement(pre_sc);
+          `, this,
+            "fun", mkString(fqn()),
+            "pos", mkString(""));
+        if (!pre_sc) fail;
+        addStatement(pre_sc);
+      }
     }/* else if (lookup(tlsbase, true)) logln("don't add for ", this.name, " because no _threadlocal");
     else logln("don't add for ", this.name, " because no __frameinfo");*/
     
@@ -796,7 +798,8 @@ void callFunction(LLVMFile lf, IType ret, bool external, bool stdcall, Expr[] pa
   if (!fptr.no_tls_ptr && !fptr.stdcall && !fptype.endsWith("...)*")) {
     auto tlsptr = fastcast!(Expr)(namespace().lookup(tlsbase));
     if (!tlsptr) {
-      throw new Exception(qformat("No TLS pointer found under ", namespace()));
+      logln("No TLS pointer found under ", namespace(), ", calling ", fp);
+      fail;
     }
     parlist ~= qformat("i8* ", save(lf, tlsptr));
   }
