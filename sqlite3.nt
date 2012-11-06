@@ -12,7 +12,7 @@ extern(C) {
 }
 
 int callback(void* threadinfo, int argc, char** argv, char** colName) {
-  auto _threadlocal = threadinfo;
+  auto _threadlocal = getThreadlocal;
   while int i <- 0..argc {
     writeln "$(CToString colName[i]) = $(CToString argv[i])";
   }

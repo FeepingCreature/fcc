@@ -4,8 +4,8 @@ import std.file, c.ucontext, c.sys.mman;
 
 extern(C) void makecontext(ucontext_t* ucp, void function() func, int argc, ...);
 
-extern(C) void call(void delegate() dg, void* threadlocal) {
-  auto _threadlocal = threadlocal;
+extern(C) void call(void delegate() dg, void* meh) {
+  auto _threadlocal = getThreadlocal;
   dg();
 }
 
@@ -27,7 +27,7 @@ class Coroutine {
     stack = ptr[0..stacksize];
     if (getcontext(&ctx) == -1) raise new ErrnoError;
     ctx.uc_stack.(ss_sp, ss_size, ss_flags) = (stack.ptr, stacksize, 0);
-    makecontext(&ctx, void function(): &call, size-of (void delegate(), void*)/size-of int, &run, _threadlocal);
+    makecontext(&ctx, void function(): &call, size-of (void delegate(), void*)/size-of int, &run, null);
   }
   void enter() {
     ucontext_t prev;

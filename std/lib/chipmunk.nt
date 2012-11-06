@@ -30,20 +30,20 @@ double cpBodyGetMass(cpBody* body) {
   return body.m;
 }
 extern(C) void arbiter_iterfunc(cpBody* body, cpArbiter* arbiter, void* data) {
-  ref info = *(void* threadlocal, void delegate(cpBody*, cpArbiter*) dg)*:data;
-  auto _threadlocal = info.threadlocal;
+  ref info = *(void delegate(cpBody*, cpArbiter*) dg)*:data;
+  auto _threadlocal = getThreadlocal;
   info.dg(body, arbiter);
 }
 void cpBodyEachArbiter(cpBody* body, void delegate(cpBody*, cpArbiter*) dg) {
-  auto tup = (_threadlocal, dg);
+  auto tup = dg;
   c.chipmunk.chipmunk.cpBodyEachArbiter(body, &arbiter_iterfunc, void*: &tup);
 }
 extern(C) void bodyshape_iterfunc(cpBody* body, cpShape* shape, void* data) {
-  ref info = *(void* threadlocal, void delegate(cpBody*, cpShape*) dg)*:data;
-  auto _threadlocal = info.threadlocal;
+  ref info = *(void delegate(cpBody*, cpShape*) dg)*:data;
+  auto _threadlocal = getThreadlocal;
   info.dg(body, shape);
 }
 void cpBodyEachShape(cpBody *body, void delegate(cpBody*, cpShape*) dg) {
-  auto tup = (_threadlocal, dg);
+  auto tup = dg;
   c.chipmunk.chipmunk.cpBodyEachShape(body, &bodyshape_iterfunc, void*: &tup);
 }

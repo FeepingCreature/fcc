@@ -12,9 +12,9 @@ void main(int argc, char** argv) {
     if (i < 4) invoke-exit("start");
   }
   define-exit "start" {
-    writeln "Nonlocal entry. ";
+    printf "Nonlocal entry. \n";
   }
-  writeln "$(i++)";
+  printf("%i\n", i++);
   onExit writeln ("Failure guard called! ");
   raise new Garble;
 }

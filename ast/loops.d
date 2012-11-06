@@ -226,20 +226,28 @@ Object gotForStmt(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotForStmt, "tree.stmt.for"[], "142"[], "for"[]);
 
-class DoWhileExt : Statement {
-  Scope first, second;
+class DoWhileExt : Statement, Breakable {
+  Scope first, second, elsecmd;
   Cond cond;
   mixin DefaultDup!();
+  mixin DefaultBreakableImpl!();
   mixin defaultIterate!(first, second, cond);
   override void emitLLVM(LLVMFile lf) {
     mixin(mustOffset("0"));
+    
+    auto end = lf.allocLabel("extfor_end");
+    
     first.needEntryLabel = true;
+    chosenContinueLabel = first.entry();
+    chosenBreakLabel = end;
     auto fdg = first.open(lf)(); // open and body
     cond.jumpOn(lf, false, first.exit());
     second.emitLLVM(lf);
     fdg(true); // close before jump! variables must be cleaned up .. don't set the label though
     jump(lf, first.entry());
     fdg(false); // close for real
+    if (elsecmd) elsecmd.emitLLVM(lf);
+    lf.emitLabel(end, true);
   }
 }
 
@@ -251,6 +259,10 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   sc.configPosition(t2);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
+  
+  auto brbackup = *breakable_context.ptr();
+  *breakable_context.ptr() = stuple(fastcast!(Breakable)(dw), namespace().get!(Function));
+  scope(exit) *breakable_context.ptr() = brbackup;
   
   if (!rest(t2, "tree.scope"[], &dw.first))
     t2.failparse("Couldn't parse scope after do"[]);
@@ -265,6 +277,12 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   if (!rest(t2, "tree.scope"[], &dw.second))
     t2.failparse("do/while extended second scope not matched"[]);
+  
+  if (t2.accept("then")) {
+    if (!rest(t2, "tree.scope", &dw.elsecmd)) {
+      t2.failparse("Failed to parse do-while-do-else statement");
+    }
+  }
   text = t2;
   sc.addStatement(dw);
   return sc;

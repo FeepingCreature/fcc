@@ -1,10 +1,13 @@
 module ast.main;
 
 import ast.base, ast.fun, ast.intrinsic, ast.modules, ast.namespace, ast.aggregate,
-  ast.scopes, ast.arrays, ast.returns, ast.parse, ast.pointer, ast.opers,
+  ast.scopes, ast.arrays, ast.returns, ast.parse, ast.pointer, ast.opers, ast.variable, ast.vardecl,
   ast.casting, ast.int_literal, ast.funcall, ast.tuples, ast.returns, ast.literals;
 
+bool fixed;
 void fixupMain() {
+  if (fixed) return;
+  fixed = true;
   void fixupSpecificMain(Function cmain, bool isWinMain) {
     cmain.parseMe;
     auto sc = fastcast!(Scope) (cmain.tree);
@@ -14,9 +17,14 @@ void fixupMain() {
     scope(exit) namespace.set(backup);
     namespace.set(cmain);
     
+    // initialize main thread tls; preserve globals as "sane copy"
+    auto tlsvar = fastalloc!(Variable)(voidp, framelength(), tlsbase);
+    sc.add(tlsbase, tlsvar);
+    sc.addStatement(fastalloc!(VarDecl)(tlsvar, buildFunCall(fastcast!(Function)(sysmod.lookup("copy_tls")), mkTupleExpr(), "main copy tls")));
+    
     sc.addStatement(fastalloc!(ReturnStmt)(fastalloc!(CallbackExpr)("main"[], Single!(SysInt), cast(Expr) null,
     stuple(sc, isWinMain) /apply/ (Scope sc, bool isWinMain, Expr bogus, LLVMFile lf) {
-      sc.add(tlsbase, fastalloc!(Symbol)("_sys_tls_data_start", Single!(Void)));
+      
       Expr cvar, pvar;
       if (isWinMain) {
         cvar = mkInt(1); pvar = fastalloc!(RefExpr)(fastcast!(CValue) (sc.lookup("cmdline"[])));

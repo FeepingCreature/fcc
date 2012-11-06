@@ -191,8 +191,6 @@ void main(string[] args) {
     GetWindowSize(wnd, &int width, &int height);
     reshape(wnd, width, height);
     
-    wnd.SetWindowUserPointer (_threadlocal);
-    
     wnd.SetInputMode (KEY_REPEAT, true);
     SwapInterval 1;
     

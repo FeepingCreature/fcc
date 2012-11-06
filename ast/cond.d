@@ -149,6 +149,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                var.prev = _cm;
                var.name = nex;
                if (_record) var.guard_id = _record.dg;
+               // printf("unroll up to %p\n", _record);
                var.old_hdl = __hdl__;
                var.param_id = id;
                var.threadlocal = _threadlocal; // for win32

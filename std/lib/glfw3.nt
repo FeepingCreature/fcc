@@ -23,31 +23,31 @@ int delegate(GLFWwindow) windowCloseCallback;
 
 extern(C) {
   void WindowSizeCallback(GLFWwindow wnd, int w, h) {
-    auto _threadlocal = glfwGetWindowUserPointer(wnd);
+    auto _threadlocal = getThreadlocal;
     windowSizeCallback?(wnd, w, h);
   }
   void KeyCallback(GLFWwindow wnd, int k, action) {
-    auto _threadlocal = glfwGetWindowUserPointer(wnd);
+    auto _threadlocal = getThreadlocal;
     keyCallback?(wnd, k, action);
   }
   void CharCallback(GLFWwindow wnd, int k) {
-    auto _threadlocal = glfwGetWindowUserPointer(wnd);
+    auto _threadlocal = getThreadlocal;
     charCallback?(wnd, k);
   }
   void CursorPosCallback(GLFWwindow wnd, int x, y) {
-    auto _threadlocal = glfwGetWindowUserPointer(wnd);
+    auto _threadlocal = getThreadlocal;
     cursorPosCallback?(wnd, x, y);
   }
   void MouseButtonCallback(GLFWwindow wnd, int a, b) {
-    auto _threadlocal = glfwGetWindowUserPointer(wnd);
+    auto _threadlocal = getThreadlocal;
     mouseButtonCallback?(wnd, a, b);
   }
   void ScrollCallback(GLFWwindow wnd, double x, y) {
-    auto _threadlocal = glfwGetWindowUserPointer(wnd);
+    auto _threadlocal = getThreadlocal;
     scrollCallback?(wnd, x, y);
   }
   int WindowCloseCallback(GLFWwindow wnd) {
-    auto _threadlocal = glfwGetWindowUserPointer(wnd);
+    auto _threadlocal = getThreadlocal;
     return windowCloseCallback?(wnd);
   }
 }
@@ -174,8 +174,6 @@ class GLFWWindow : GLWindow {
     handle = CreateWindow (w, h, WINDOWED, toStringz title, null);
     if (!handle) raise new GLFWError "Failed to open GLFW window";
     MakeContextCurrent handle;
-    
-    handle.SetWindowUserPointer (_threadlocal);
     
     handle.SetInputMode (KEY_REPEAT, true);
     // SwapInterval 0;

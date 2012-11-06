@@ -84,11 +84,11 @@ class Options {
     int argc = args.length + 1;
     char** argv = new char*[] argc #.ptr;
     argv[0] = toStringz executable;
-    for (int i, string arg) <- zip(1..-1, args)
-      argv[i] = toStringz arg;
+    for (int i, string arg) <- zip(ints, args)
+      argv[i+1] = toStringz arg;
     
     c.getopt.option[auto~] options;
-    for (int count, Option opt) <- zip(0..-1, this.options) {
+    for (int count, Option opt) <- zip(ints, this.options) {
       if (opt.longopt) {
         c.getopt.option longop;
         longop.(name,                  has_arg,                                                            flag,      val) =

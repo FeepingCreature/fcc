@@ -924,11 +924,10 @@ class EvalIterator(T) : Expr, Statement {
             scope(success) lv.end(lf);
             
             emitAssign(lf, lv, ex);
-            // auto printf = sysmod.lookup("printf");
-            // buildFunCall(printf, mkTupleExpr(mkString("var = new elem[] %i due to "~qformat(iter)~" and len "~qformat(iter.length(lv))~"\n"), iter.length(lv)), "printf").emitLLVM(lf); lf.pop();
             iparse!(Statement, "initVar"[], "tree.semicol_stmt.assign"[])
                     (`var = new elem[] len`,
                     "var"[], var, "len"[], iter.length(lv), "elem"[], iter.elemType()).emitLLVM(lf);
+            // buildFunCall(sysmod.lookup("printf"), mkTupleExpr(mkString("var (%i, %p) = new elem[] %i due to "~qformat(iter)~" and len "~qformat(iter.length(lv))~"\n"), var, iter.length(lv)), "printf").emitLLVM(lf); lf.pop();
             emitStmtInto(var, lv);
           } else {
             auto ea = fastalloc!(ExtArray)(iter.elemType(), true);

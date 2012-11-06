@@ -28,7 +28,7 @@ void main(string[] args) {
   writeln "$(points.length)";
   import std.fun;
   auto ex = "minecraft".map \(char c) -> (char:"z")-(c-(char:"a"));
-  writeln "$ex";
+  writeln "$ex $(ex.eval[])";
   float f = 2f % 3f;
   // import std.process;
   // writeln readback("cat", ["6"]);

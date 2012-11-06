@@ -15,7 +15,8 @@ void setupSysmods() {
     alias ints = 0..int.max;
     extern(C) {
       void puts(char*);
-      void printf(char*, ...);
+      int printf(char*, ...);
+      int fprintf(void*, char*, ...);
       void* malloc(int);
       void* calloc(int, int);
       void free(void*);
@@ -72,7 +73,7 @@ void setupSysmods() {
     template value-of(T) {
       alias value-of = *T*:null;
     }
-    void* memcpy2(void* dest, src, int n) {
+    extern(C) void* memcpy2(void* dest, src, int n) {
       //  printf("memcpy2(%p, %p, %i)\n", dest, src, n);
       return memcpy(dest, src, n);
     }
@@ -90,8 +91,8 @@ void setupSysmods() {
     void mem_init() {
       mem. malloc_dg = \(int i) { return alloc16 i; }
       mem. calloc_dg = \(int i, k) {
-        // printf("calloc(%i, %i)\n", i, k);
         auto res = alloc16 (i * k);
+        // printf("calloc(%i, %i): %p\n", i, k, res);
         memset(res, 0, i*k);
         return res; 
       }
@@ -223,6 +224,28 @@ void setupSysmods() {
     extern(C) int fflush(void*);
     platform(default) {
       extern(C) void* stdin, stdout, stderr;
+      extern(C) int pthread_self();
+    }
+    template aligned16malloc(alias Alloc) {
+      void* aligned16malloc(int sz) {
+        if (!sz) return null;
+        // hax! (cp from mingw)
+        // if we overallocate by 16, we will always have at least
+        // 4 bytes of unused space. we use this space to 
+        // save the original pointer for latter retrieval
+        // and passing to free.
+        auto pre = Alloc(sz+16);
+        // align to next 16-bit boundary
+        auto resptr = void*: (((int:pre + 16) / 16) * 16);
+        (void**:resptr)[-1] = pre; // store original pointer
+        return resptr;
+      }
+    }
+    template aligned16free(alias Free) {
+      void aligned16free(void* ptr) {
+        if (!ptr) return;
+        Free ((void**: ptr)[-1]); // retrieve original pointer
+      }
     }
     platform(*-mingw*) {
       struct __FILE {
@@ -333,6 +356,13 @@ void setupSysmods() {
     
     _Handler* __hdl__;
     
+    extern(C) void checkBalance(void* rec, vp, string info) {
+      if (rec != vp) {
+        fprintf(stderr, "Record balance mismatch: %p vs %p at %.*s", rec, vp, info);
+        _interrupt 3;
+      }
+    }
+    
     void* _cm;
     struct _CondMarker {
       string name;
@@ -349,10 +379,11 @@ void setupSysmods() {
       void jump() {
         // printf("execute jump to %.*s\n", name);
         if (!guard_id.fun) {
-          while _record { _record.dg(); _record = _record.prev; }
+          while _record { /*printf("unroll all: %p\n", _record);*/ _record.dg(); _record = _record.prev; }
         } else {
           // TODO: dg comparisons
-          while (_record.dg.fun != guard_id.fun) && (_record.dg.data != guard_id.data) {
+          while (_record.dg.fun != guard_id.fun) || (_record.dg.data != guard_id.data) {
+            // printf("invoke dg of %p\n", _record);
             _record.dg();
             _record = _record.prev;
           }
@@ -598,6 +629,12 @@ void setupSysmods() {
         if (sigaction(c.signal.SIGSEGV, &sa, null) == -1)
           raise new Error "failed to setup SIGSEGV handler";
       }
+      void* getThreadlocal() {
+          return c.pthread.pthread_getspecific(tls_pointer);
+      }
+      void setThreadlocal(void* p) {
+        c.pthread.pthread_setspecific(tls_pointer, p);
+      }
       extern(C) {
         enum X86Registers {
           GS, FS, ES, DS, EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX, TRAPNO, ERR, EIP, CS, EFL, UESP, SS
@@ -616,7 +653,7 @@ void setupSysmods() {
           __sigset_t sigmask;
         }
         void seghandle_userspace() {
-          auto _threadlocal = c.pthread.pthread_getspecific(tls_pointer);
+          auto _threadlocal = getThreadlocal;
           _check_handling;
           already_handling_segfault = true;
           onExit already_handling_segfault = false;
@@ -657,8 +694,14 @@ void setupSysmods() {
       alias PEXCEPTION_HANDLER = EXCEPTION_DISPOSITION function(_EXCEPTION_RECORD*, _EXCEPTION_REGISTRATION*, _CONTEXT*, _EXCEPTION_RECORD*);
       shared _EXCEPTION_REGISTRATION reg;
       int errcode;
+      void* getThreadlocal() {
+        return TlsGetValue(tls_pointer);
+      }
+      void setThreadlocal(void* p) {
+        TlsSetValue(tls_pointer, p);
+      }
       extern(C) void seghandle_userspace() {
-        auto _threadlocal = TlsGetValue(tls_pointer);
+        auto _threadlocal = getThreadlocal;
         _check_handling;
         already_handling_segfault = true;
         onExit already_handling_segfault = false;
@@ -703,17 +746,60 @@ void setupSysmods() {
         // system("gdb /proc/self/exe -p \$(/proc/self/stat |awk '{print \$1}')");
       }
     }
-    /* shared TODO figure out why this crashes */ string executable;
+    shared string executable;
     shared int __argc;
     shared char** __argv;
     extern(C) byte _sys_tls_data_start;
+    
+    shared int tls_size;
+    
+    extern(C) (int, int) setupTLSSize() {
+      int dataStart = 0x7fffffff, dataEnd;
+      auto
+        localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
+        localEnd = [for mod <- __modules: int:mod.dataEnd - int:&_sys_tls_data_start],
+        localRange = zip(localStart, localEnd);
+      for (auto tup <- zip(__modules, localRange)) {
+        alias mod = tup[0], range = tup[1];
+        if (mod.compiled) {
+          if (range[0] < dataStart) dataStart = range[0];
+          if (range[1] > dataEnd) dataEnd = range[1];
+        }
+      }
+      alias dataSize = dataEnd - dataStart; tls_size = dataSize;
+      return (dataStart, dataEnd);
+    }
+    extern(C) void* copy_tls() {
+      (int dataStart, int dataEnd) = setupTLSSize();
+      alias dataSize = dataEnd - dataStart;
+      void* sourceptr = void*: &_sys_tls_data_start;
+      auto oldArea = sourceptr[dataStart..dataEnd];
+      auto newArea = (malloc(dataSize+16) - dataStart)[0 .. dataEnd];
+      // align new area to preserve 16-byte alignment of old area
+      alias matches = int:newArea.ptr&0xf == int:sourceptr&0xf;
+      for 0..16 {
+        if (matches) break;
+        newArea.ptr ++;
+      }
+      if (!matches) { fprintf(stderr, "feep fails at math because he thought this was impossible\n"); int i; i /= i; }
+      
+      auto
+        localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
+        localEnd = [for mod <- __modules: int:mod.dataEnd - int:&_sys_tls_data_start],
+        localRange = zip(localStart, localEnd);
+      
+      for (auto range <- localRange) {
+        newArea[range[0] .. range[1]] = sourceptr[range[0] .. range[1]];
+      }
+      return newArea.ptr;
+    }
     int main2(int argc, char** argv) {
       __argc = argc; __argv = argv;
       
       mem_init();
       platform(default) {
         pthread_key_create(&tls_pointer, null);
-        c.pthread.pthread_setspecific(tls_pointer, _threadlocal);
+        setThreadlocal _threadlocal;
         setup-segfault-handler();
         preallocated_sigsegv = new MemoryAccessError "Segmentation Fault";
       }
@@ -721,7 +807,7 @@ void setupSysmods() {
         tls_pointer = TlsAlloc();
         if (tls_pointer == TLS_OUT_OF_INDEXES)
           fail "TlsAlloc failed";
-        TlsSetValue(tls_pointer, _threadlocal);
+        setThreadlocal _threadlocal;
         _EXCEPTION_REGISTRATION reg;
         reg.prev = _fs0;
         reg.handler = type-of reg.handler: &seghandle;

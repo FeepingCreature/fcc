@@ -2,7 +2,7 @@ module ast.guard;
 
 import
   ast.parse, ast.base, ast.namespace, ast.scopes,
-  ast.assign, ast.nestfun, ast.modules,
+  ast.assign, ast.nestfun, ast.modules, ast.literals,
   ast.variable, ast.vardecl, ast.fun, ast.casting,
   ast.aliasing;
 
@@ -101,15 +101,17 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
                    var.dg = &fun;
                    var.prev = _record;
                    _record = &var;
+                   // fprintf(stderr, "%i set %p (%.*s)\n", pthread_self(), &var, text);
                  }`,
-                 namespace(), "var"[], gr, "fun"[], nf);
+                 namespace(), "var"[], gr, "fun"[], nf/*, "text", mkString(namespace().get!(Function).getIdentifier())*/);
         assert(!!setup_st);
         sc.addStatement(setup_st);
       }
       {
         auto setup_st =
           iparse!(Statement, "gr_setup_2"[], "tree.stmt"[])
-                 (`onSuccess _record = _record.prev; `, namespace());
+                 (`onSuccess { /*checkBalance(_record, &var, text); fprintf(stderr, "%i end %p (%.*s)\n", pthread_self(), &var, text2); */ _record = _record.prev; }`,
+                  namespace(), "var", gr/*, "text", mkString(qformat(namespace())), "text2", mkString(namespace().get!(Function).getIdentifier())*/);
         assert(!!setup_st);
         // no need to add, is NoOp
       }

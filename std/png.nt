@@ -4,13 +4,15 @@ import c.png;
 pragma(lib, "png");
 
 extern(C) void callback_write(png_structp png_ptr, png_bytep data, png_size_t length) {
-  (void* _threadlocal, void delegate(string) write_dg) = *(void*, void delegate(string))*: png_get_io_ptr(png_ptr);
+  void* _threadlocal = getThreadlocal();
+  void delegate(string) write_dg = *void delegate(string)*: png_get_io_ptr(png_ptr);
   write_dg(data[0..length]);
 }
 
 // TODO
 extern(C) void callback_flush(png_structp png_ptr) {
-  (void* _threadlocal, void delegate(string) write_dg) = *(void*, void delegate(string))*: png_get_io_ptr(png_ptr);
+  void* _threadlocal = getThreadlocal();
+  void delegate(string) write_dg = *void delegate(string)*: png_get_io_ptr(png_ptr);
 }
 
 defmode PNG p "prefix png_ prefix PNG_ first-arg p";
@@ -24,8 +26,8 @@ class PNGWriter {
     // png_set_compression_level(ptr, 0);
     infoptr = png_create_info_struct (ptr);
     if (!infoptr) raise new Error "failed to create libpng info struct";
-    auto data = new (void*, void delegate(string));
-    *data = (_threadlocal, writefun);
+    auto data = new void delegate(string);
+    *data = writefun;
     png_set_write_fn(ptr, void*: data, &callback_write, &callback_flush);
   }
   void configure(int w, h) using mode PNG ptr {
