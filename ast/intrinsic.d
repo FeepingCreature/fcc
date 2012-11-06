@@ -629,7 +629,7 @@ void setupSysmods() {
         if (sigaction(c.signal.SIGSEGV, &sa, null) == -1)
           raise new Error "failed to setup SIGSEGV handler";
       }
-      void* getThreadlocal() {
+      extern(C) void* getThreadlocal() {
           return c.pthread.pthread_getspecific(tls_pointer);
       }
       void setThreadlocal(void* p) {
@@ -694,7 +694,7 @@ void setupSysmods() {
       alias PEXCEPTION_HANDLER = EXCEPTION_DISPOSITION function(_EXCEPTION_RECORD*, _EXCEPTION_REGISTRATION*, _CONTEXT*, _EXCEPTION_RECORD*);
       shared _EXCEPTION_REGISTRATION reg;
       int errcode;
-      void* getThreadlocal() {
+      extern(C) void* getThreadlocal() {
         return TlsGetValue(tls_pointer);
       }
       void setThreadlocal(void* p) {
