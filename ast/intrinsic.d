@@ -222,7 +222,7 @@ void setupSysmods() {
     alias vec4l = vec(long, 4);
     extern(C) int fgetc(void*);
     extern(C) int fflush(void*);
-    platform(default) {
+    platform(!*-mingw*) {
       extern(C) void* stdin, stdout, stderr;
       extern(C) int pthread_self();
     }
@@ -905,8 +905,6 @@ void setupSysmods() {
       }
       return (res, a);
     }
-    int _idiv(int a, b) { return _xdiv(a, b)[0]; }
-    int _mod(int a, b) { return _xdiv(a, b)[1]; }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["sys.nt"] = src;

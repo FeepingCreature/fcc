@@ -83,7 +83,8 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
         t4.failparse("No statement matched for "[], type, " in exception guard context"[]);
       nf.addStatement(st2);
     }
-    mod.entries ~= fastcast!(Tree) (nf);
+    namespace().get!(Function).dependents ~= nf;
+    
     auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord"[]);
     if (!grtype) fail;
     {

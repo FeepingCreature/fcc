@@ -124,10 +124,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   FunctionType type;
   Tree tree;
   bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false;
+  Function[] dependents; // functions that are only needed inside this function and thus should get emitted into the same module.
   override void markWeak() { weak = true; }
   override void markExternC() { extern_c = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
+    defaultIterate!(dependents).iterate(dg, mode);
     // else to be defined in subclasses
   }
   string toString() { return qformat("fun "[], name, " "[], type, " <- "[], sup); }
@@ -416,6 +418,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       scope(exit) current_emitting_function.set(cef_backup);
       
       parseMe();
+      
+      foreach (dep; dependents) dep.emitLLVM(lf);
       
       // record initial frame
       auto argframetype = frametype2(this);
