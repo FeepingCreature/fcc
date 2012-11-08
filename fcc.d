@@ -250,16 +250,6 @@ static this() {
       if (!ie2) { ntcache = ntcached = true; return true; }
       ntcached = true; ntcache = false; return false;
     }
-    if (isARM && op == "/" && nontrivial()) {
-      if (!sysmod.lookup("_idiv")) {
-        logln("too early for division");
-        fail;
-      }
-      res = buildFunCall(sysmod.lookup("_idiv"), mkTupleExpr(ex1, ex2), "_idiv");
-    }
-    if (isARM && op == "%" && nontrivial()) {
-      res = buildFunCall(sysmod.lookup("_mod"), mkTupleExpr(ex1, ex2), "_mod");
-    }
     if (!res) res = fastalloc!(AsmIntBinopExpr)(ex1, ex2, op);
     /*if (qformat(res).find("+ 0) + 0) + 0) + 0) + 0) + 0) + 0)") != -1) {
       logln("?? ", res);
@@ -960,7 +950,11 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
   }
   if (saveTemps) fullcommand ~= " |tee "~linkedfile;
   
-  const string cpu = "core2";
+  string cpu = "core2";
+  if (isARM) cpu = null;
+  
+  string cpumode;
+  if (cpu) cpumode = "-mcpu="~cpu~" ";
   
   string llc_optflags;
   if (optimize) {
@@ -972,12 +966,12 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -tailcallopt ";
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
-    optrun("-mcpu="~cpu~" -internalize -std-compile-opts -std-link-opts "~optflags);
+    optrun(cpumode~"-internalize -std-compile-opts -std-link-opts "~optflags);
     llc_optflags = optflags;
   }
   string objfile = ".obj/"~output~".o";
   // -mattr=-avx,-sse41 
-  fullcommand ~= " |llc - -mcpu="~cpu~" "~llc_optflags~"-filetype=obj -o "~objfile;
+  fullcommand ~= " |llc - "~cpumode~llc_optflags~"-filetype=obj -o "~objfile;
   logSmart!(false)("> ", fullcommand);
   if (system(fullcommand.toStringz()))
     throw new Exception("link failed");
@@ -986,7 +980,9 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
   if (platform_prefix) {
     locallibfolder = qformat("-L/usr/", platform_prefix[0..$-1], "/lib/ ");
   }
-  string linkflags = "-m32 -Wl,--gc-sections "~locallibfolder~"-L/usr/local/lib";
+  string mode;
+  if (!isARM()) mode = "-m32 ";
+  string linkflags = mode~"-Wl,--gc-sections "~locallibfolder~"-L/usr/local/lib";
   string cmdline = my_prefix()~"gcc "~linkflags~" -o "~output~" "~objfile~" ";
   foreach (larg; linkerArgs ~ extra_linker_args) cmdline ~= larg ~ " ";
   logSmart!(false)("> ", cmdline);
