@@ -922,6 +922,10 @@ Module[] modlist;
 import ast.fun, ast.scopes, ast.namespace,
        ast.variable, ast.vardecl, ast.literals;
 void finalizeSysmod(Module mainmod) {
+  auto backupmod = current_module();
+  scope(exit) current_module.set(backupmod);
+  current_module.set(fastcast!(IModule)(mainmod));
+  
   // auto setupfun = fastcast!(Function) (sysmod.lookup("__setupModuleInfo"));
   auto setupfun = new Function;
   with (setupfun) {
@@ -964,8 +968,6 @@ void finalizeSysmod(Module mainmod) {
   sc.addStatement(vs);
   sc.addStatement(cs);
   
-  auto backupmod = current_module();
-  scope(exit) current_module.set(backupmod);
   current_module.set(fastcast!(IModule) (mainmod));
   
   modlist = list;

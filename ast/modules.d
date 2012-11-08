@@ -163,7 +163,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       
       return lookupInImports(name, local);
     }
-    string toString() { return "module "~name; }
+    string toString() { return "module "~name~(alreadyEmat?" [done]":""); }
   }
 }
 
