@@ -297,6 +297,8 @@ void unknownId(string id, string text, bool fail = false) {
   } else {
     msg = qformat("unknown identifier: '", id, "'");
   }
-  if (fail) text.failparse(msg);
-  else text.setError(msg);
+  if (fail) {
+    resetError();
+    text.failparse(msg);
+  } else text.setError(msg);
 }

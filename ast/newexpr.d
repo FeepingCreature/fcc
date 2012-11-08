@@ -13,7 +13,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "type"[], &obj)) {
     string id;
     auto t3 = t2;
-    if (t2.gotIdentifier(id, true) && !namespace().lookup(id)) {
+    if (t2.gotIdentifier(id, true) && !namespace().lookup(id) && id != "delegate") {
       unknownId(id, t2, true);
     }
     return null;
