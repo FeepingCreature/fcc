@@ -290,10 +290,13 @@ string locate_name(string name) {
   return res;
 }
 
-void unknownId(string id, string text) {
+void unknownId(string id, string text, bool fail = false) {
+  string msg;
   if (auto hint = locate_name(id)) {
-    text.setError("unknown identifier: '", id, "', appears in ", hint);
+    msg = qformat("unknown identifier: '", id, "', appears in ", hint);
   } else {
-    text.setError("unknown identifier: '", id, "'");
+    msg = qformat("unknown identifier: '", id, "'");
   }
+  if (fail) text.failparse(msg);
+  else text.setError(msg);
 }

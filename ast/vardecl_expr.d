@@ -103,7 +103,7 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (t2.accept(")"[])) break;
       if (firstTime) firstTime = false;
       else {
-        if (!t2.accept(","[])) t2.failparse("Comma expected"[]);
+        if (!t2.accept(","[])) { t2.setError("Comma expected"[]); return null; }
       }
       if (!t2.gotIdentifier(name)) t2.failparse("Identifier expected"[]);
       Statement st; Expr ex;
