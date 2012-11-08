@@ -248,7 +248,7 @@ Object gotNewValueExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   IType ty;
   if (!rest(t2, "type"[], &ty))
-    t2.failparse("Ma(lf)ormed value-new"[]);
+    t2.failparse("Malformed value-new"[]);
   
   text = t2;
   

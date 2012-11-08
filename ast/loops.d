@@ -96,9 +96,9 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   if (isStatic) {
     auto aggr = fastcast!(AggrStatement)(sc._body);
-    if (!aggr) fail(Format("Ma(lf)ormed static while: "[], sc._body));
+    if (!aggr) fail(Format("Malformed static while: "[], sc._body));
     if (!fastcast!(VarDecl) (aggr.stmts[0]))
-      fail(Format("Ma(lf)ormed static while (2): "[], aggr.stmts));
+      fail(Format("Malformed static while (2): "[], aggr.stmts));
     aggr.stmts = null; // remove loop variable declaration/s
     
     auto backupfield = sc.field;
