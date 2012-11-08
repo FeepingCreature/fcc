@@ -36,6 +36,10 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
   LLVMFile inProgress; // late to the party;
   bool _hasDebug = true;
   Module[] getAllModuleImports() {
+    auto backup = current_module();
+    scope(exit) current_module.set(backup);
+    current_module.set(this);
+    
     Module[] res;
     res ~= fastcast!(Module) (sysmod);
     foreach (ns; getImports())

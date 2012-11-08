@@ -97,7 +97,7 @@ version(Windows) {
     int[2] fd; // read end, write end
     if (-1 == pipe(fd.ptr)) throw new Exception(Format("Can't open pipe! "));
     scope(exit) close(fd[0]);
-    auto cmdstr = Format(cmd, " >&"[], fd[1], " &"[]);
+    auto cmdstr = qformat(cmd, " >&"[], fd[1], " &"[]);
     system(toStringz(cmdstr));
     close(fd[1]);
     scope fs = fastalloc!(CFile)(fdopen(fd[0], "r"), FileMode.In);

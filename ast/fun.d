@@ -156,10 +156,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
      * for instance if it's a template
      * ON THE OTHER HAND, sometimes this helps prevent linker errors.
      * Compromise: override iff the coarse module has not yet been emat
+     * 11-8-12 NO COMPROMISE NO SURRENDER. (also this breaks incremental build)
+     * If there are errors, fix them at the source.
      **/
-    auto backupmod = current_module();
+    /*auto backupmod = current_module();
     scope(exit) current_module.set(backupmod);
-    if (!coarseModule.getDoneEmitting()) current_module.set(coarseModule);
+    if (!coarseModule.getDoneEmitting()) current_module.set(coarseModule);*/
     
     // logln("parse function ", name, " in ", coarseContext, ": ", coarseSrc.ptr);
     
