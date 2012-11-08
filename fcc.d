@@ -426,9 +426,9 @@ extern(C) void llcast(LLVMFile lf, string from, string to, string v, string from
       if ((from.endsWith("}") || from.endsWith(">"))&& (to.endsWith("}") || to.endsWith(">"))) {
         bool fromIsStruct = !!from.endsWith("}"), toIsStruct = !!to.endsWith("}");
         string[] a, b;
-        if (fromIsStruct) a = llvmtype.structDecompose(from);
+        if (fromIsStruct) llvmtype.structDecompose(from, (string s) { a ~= s; });
         else a = getVecTypes(from);
-        if (  toIsStruct) b = llvmtype.structDecompose(  to);
+        if (  toIsStruct) llvmtype.structDecompose(  to, (string s) { b ~= s; });
         else b = getVecTypes(  to);
         if (a.length == b.length) {
           bool samelayout = true;
@@ -857,11 +857,9 @@ string delegate() compile(string file, CompileSettings cs) {
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     string cmdline = Format("llvm-as ", flags, "-o ", objname, " ", srcname, " 2>&1");
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
-    synchronized {
-      if (system(cmdline.toStringz())) {
-        logln("ERROR: Compilation failed! ");
-        exit(1);
-      }
+    if (system(cmdline.toStringz())) {
+      logln("ERROR: Compilation failed! ");
+      exit(1);
     }
     mod.alreadyEmat = true;
     return objname;

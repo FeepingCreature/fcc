@@ -35,9 +35,63 @@ void listfree(string[] arr) {
   }
 }
 
+template ForwardToList(string name, alias P, alias M, R, T...) {
+  mixin(`R `~name~`(T t) {
+    if (P) (*P).`~name~`(t);
+    M.`~name~`(t);
+  }`);
+}
+
+struct AppenderList {
+  TextAppender me;
+  AppenderList* prev;
+  string toString() { if (prev) return qformat(*prev, " -> ", me); return qformat(me); }
+  mixin ForwardToList!("free",     prev, me, void);
+  mixin ForwardToList!("flush",    prev, me, void, void delegate(string));
+  void setBottom(AppenderList* to) {
+    auto cur = this;
+    while (cur.prev) cur = cur.prev;
+    cur.prev = to;
+  }
+  void opCatAssign(string s) {
+    me ~= s;
+  }
+}
+
+template ForwardToPtr(string name, alias P, R, T...) {
+  mixin(`R `~name~`(T t) {
+    if (P) (*P).`~name~`(t);
+  }`);
+}
+
+struct SuperAppender {
+  AppenderList* ptr;
+  mixin ForwardToPtr!("free",     ptr, void);
+  mixin ForwardToPtr!("flush",    ptr, void, void delegate(string));
+  string toString() { if (!ptr) return "{}"; return qformat("{", *ptr, "}"); }
+  void opAssign(void* p) {
+    if (p) fail;
+    ptr = null;
+  }
+  void setBottom(AppenderList* ap) {
+    if (!ptr) ptr = ap;
+    else ptr.setBottom(ap);
+  }
+  void opCatAssign(string s) {
+    if (!ptr) ptr = new AppenderList;
+    (*ptr) ~= s;
+  }
+  void opCatAssign(SuperAppender sa) {
+    if (ptr && ptr is sa.ptr) asm { int 3; }
+    sa.setBottom(ptr);
+    ptr = sa.ptr;
+  }
+}
+
 struct TextAppender {
   Stuple!(string[], int)[] superlist;
   int i = 16;
+  string toString() { return qformat(superlist); }
   void allocNewList() {
     superlist ~= allocTup(i);
     i *= 2;
@@ -50,9 +104,6 @@ struct TextAppender {
       sl = &superlist[$-1];
     }
     sl._0[sl._1++] = s;
-  }
-  void opCatAssign(TextAppender ta) {
-    own_append(superlist, ta.superlist);
   }
   void clear() {
     superlist = null;
@@ -77,8 +128,8 @@ class LLVMFile {
   bool optimize, debugmode, profilemode;
   string fn;
   string[] sectionNameStack;
-  TextAppender[string] sectionStore;
-  TextAppender curSection;
+  SuperAppender[string] sectionStore;
+  SuperAppender curSection;
   string curSectionName;
   
   bool[string] doOnce;
@@ -103,7 +154,7 @@ class LLVMFile {
     }
     curSection.free;
   }
-  TextAppender endSection(string s) {
+  SuperAppender endSection(string s) {
     if (curSectionName != s) fail;
     auto res = curSection;
     if (!sectionNameStack) {
@@ -117,7 +168,7 @@ class LLVMFile {
     sectionStore.remove(curSectionName);
     return res;
   }
-  void put(TextAppender app) {
+  void put(SuperAppender app) {
     curSection ~= app;
   }
   void put(string s) {
@@ -131,7 +182,7 @@ class LLVMFile {
       return;
     }
     if (!(sec in sectionStore))
-      sectionStore[sec] = TextAppender();
+      sectionStore[sec] = SuperAppender();
     sectionStore[sec] ~= s;
   }
   void dumpLLVM(void delegate(string) write) {
@@ -382,7 +433,8 @@ string llexcachecheck(string key) {
   return key;
 }
 
-extern(C) string[] structDecompose(string str);
+alias void delegate(string) structDecompose_dg;
+extern(C) void structDecompose(string str, structDecompose_dg);
 bool llvmTypeIs16Aligned(string s) {
   // TODO parse for vec3/vec4
   if (s.endsWith(">")) return true;
@@ -390,10 +442,9 @@ bool llvmTypeIs16Aligned(string s) {
   // however, the pointer itself doesn't
   if (s.endsWith("*")) return false; 
   if (s.endsWith("}")) {
-    auto members = structDecompose(s);
-    // logln("decompose ", s, " to ", members);
-    foreach (m; members) if (llvmTypeIs16Aligned(m)) return true;
-    return false;
+    bool res;
+    structDecompose(s, (string s) { if (llvmTypeIs16Aligned(s)) res = true; });
+    return res;
   }
   // logln(s);
   // fail;

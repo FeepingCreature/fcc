@@ -221,7 +221,8 @@ class Symbol : Expr {
   }
   Symbol dup() { return new Symbol(getName(), type); }
   mixin defaultIterate!();
-  override IType valueType() { return fastalloc!(Pointer)(type); }
+  IType typecache;
+  override IType valueType() { if (!typecache) typecache = fastalloc!(Pointer)(type); return typecache; }
   override void emitLLVM(LLVMFile lf) {
     auto ts = typeToLLVM(type);
     if (ts == "void") { ts = "i8"; }

@@ -1102,23 +1102,26 @@ class FunctionPointer : ast.types.Type, ExternAware {
     if (nativePtrSize == 8) return "8";
     fail;
   }
+  string ltcache;
   override string llvmType() {
-    if (!ret) ret = delayfun.type.ret;
-    if (!ret) fail;
-    string res = typeToLLVM(ret) ~ "(";
-    foreach (i, ref arg; args) {
-      if (!arg.type) arg.type = delayfun.type.params[i].type;
-      if (i) res ~= ", ";
-      res ~= typeToLLVM(arg.type, true);
+    if (!ltcache) {
+      if (!ret) ret = delayfun.type.ret;
+      if (!ret) fail;
+      ltcache = typeToLLVM(ret) ~ "(";
+      foreach (i, ref arg; args) {
+        if (!arg.type) arg.type = delayfun.type.params[i].type;
+        if (i) ltcache ~= ", ";
+        ltcache ~= typeToLLVM(arg.type, true);
+      }
+      // tls pointer
+      if (!no_tls_ptr && !stdcall && !ltcache.endsWith("...")) {
+        if (args.length) ltcache ~= ", ";
+        ltcache ~= typeToLLVM(voidp, true);
+      }
+      
+      ltcache ~= ")*";
     }
-    // tls pointer
-    if (!no_tls_ptr && !stdcall && !res.endsWith("...")) {
-      if (args.length) res ~= ", ";
-      res ~= typeToLLVM(voidp, true);
-    }
-    
-    res ~= ")*";
-    return res;
+    return ltcache;
   }
   int opEquals(IType type2) {
     auto t2 = resolveType(type2);

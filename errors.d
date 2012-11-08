@@ -12,6 +12,18 @@ string mystripl(string s) {
   return s;
 }
 
+string mystrip(string s) {
+  while (s.length && (
+    s[0] == ' '  || s[0] == '\t' ||
+    s[0] == '\n' || s[0] == '\r'
+  )) s = s[1 .. $];
+  while (s.length && (
+    s[$-1] == ' '  || s[$-1] == '\t' ||
+    s[$-1] == '\n' || s[$-1] == '\r'
+  )) s = s[0 .. $-1];
+  return s;
+}
+
 string nextText(string s, int i = 100) {
   if (s.length > i) s = s[0 .. i];
   return s.replace("\n"[], "\\"[]);

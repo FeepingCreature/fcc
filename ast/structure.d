@@ -108,19 +108,22 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
   */
   bool isImmutableNow;
   int cached_length, cached_size;
-  string cached_llvm_type;
+  string cached_llvm_type, cached_llvm_size;
   mixin ImporterImpl!();
   NSCache!(string, RelMember) rmcache;
   string offsetOfNext(IType it) {
-    auto types = structDecompose(typeToLLVM(this));
-    types ~= typeToLLVM(it);
+    int len;
     string strtype;
-    foreach (ty; types) {
+    void append(string ty) {
+      len ++;
       if (strtype) strtype ~= ", ";
       strtype ~= ty;
     }
+    structDecompose(typeToLLVM(this), &append);
+    auto thingy = typeToLLVM(it);
+    append(thingy);
     strtype = "{"~strtype~"}";
-    return lloffset(strtype, types[$-1], types.length-1);
+    return lloffset(strtype, thingy, len-1);
   }
   override {
     void markExternC() {
@@ -163,6 +166,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
       return cached_llvm_type;
     }
     string llvmSize() {
+      if (cached_llvm_size) return cached_llvm_size;
       {
         int num;
         string size;
@@ -195,7 +199,8 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
         if (sameSize) return llmul(qformat(count), size);
       }
       auto ty = llvmType();
-      return readllex(qformat("ptrtoint(", ty, "* getelementptr(", ty, "* null, i32 1) to i32)"));
+      cached_llvm_size = readllex(qformat("ptrtoint(", ty, "* getelementptr(", ty, "* null, i32 1) to i32)"));
+      return cached_llvm_size;
     }
   }
   Structure dup() {
@@ -207,6 +212,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     res.isImmutableNow = isImmutableNow;
     res.cached_length = cached_length; res.cached_size = cached_size;
     res.cached_llvm_type = cached_llvm_type;
+    res.cached_llvm_size = cached_llvm_size;
     return res;
   }
   int numMembers() {
@@ -314,6 +320,7 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     bool isTempNamespace() { return isTempStruct; }
     void __add(string name, Object obj) {
       cached_llvm_type = null;
+      cached_llvm_size = null;
       auto ex = fastcast!(Expr) (obj);
       if (ex && fastcast!(Variadic) (ex.valueType())) throw new Exception("Variadic tuple: Wtf is wrong with you. "[]);
       super.__add(name, obj);

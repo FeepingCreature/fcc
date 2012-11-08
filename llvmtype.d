@@ -2,7 +2,8 @@ module llvmtype;
 
 import casts, llvmfile, quickformat;
 import ast.base, ast.int_literal, ast.types, ast.pointer, ast.static_arrays, ast.arrays, ast.fun;
-import tools.log, tools.base: strip, startsWith, endsWith, between;
+import tools.log, tools.base: strip, between;
+import parseBase: startsWith, endsWith;
 
 extern(C) string typeToLLVM(IType it, bool subst = false) {
   // logln("typeToLLVM ", it);
@@ -45,9 +46,15 @@ extern(C) Expr llvmvalstr(string s) {
 
 string eatType(ref string s) {
   auto first_s = s;
-  s = s.strip();
-  string res;
-  bool eat(string mark) { s = s.strip(); if (auto rest = s.startsWith(mark)) { s = rest; res ~= " "; res ~= mark; res ~= " "; return true; } return false; }
+  s = s.mystripl();
+  bool eat(string mark) {
+    s = s.mystripl();
+    if (auto rest = s.startsWith(mark)) {
+      s = rest;
+      return true;
+    }
+    return false; 
+  }
   string base;
   void matchType() {
     if (eat("{")) {
@@ -96,7 +103,7 @@ string eatType(ref string s) {
     }
   }
   matchType;
-  return res.strip();
+  return first_s.ptr[0..s.ptr-first_s.ptr].mystrip();
 }
 
 string[] getVecTypes(string str) {
@@ -110,12 +117,12 @@ string[] getVecTypes(string str) {
   return res;
 }
 
-extern(C) string[] structDecompose(string str) {
+alias void delegate(string) structDecompose_dg;
+extern(C) void structDecompose(string str, structDecompose_dg dg) {
   auto main = str.startsWith("{").endsWith("}").strip();
-  if (!main) return null;
-  string[] res;
+  if (!main) return;
   while (main.length) {
-    res ~= eatType(main);
+    dg(eatType(main));
     main = main.strip();
     if (auto rest = main.startsWith(",")) { main = rest; continue; }
     break;
@@ -124,23 +131,30 @@ extern(C) string[] structDecompose(string str) {
     logln("unexpected text in struct ", str, ": ", main);
     fail;
   }
-  return res[];
 }
 
 // produce a type that has the same layout as s, but with simplified types.
 // for instance, changing any pointer to i8*.
-string canonifyType(string s) {
+string canonifyType(string s, bool dryrun = false) {
   s = s.strip();
   if (s.endsWith("*")) return "i32";
   if (s.endsWith("}")) {
-    scope types = structDecompose(s);
+    bool changed;
+    structDecompose(s, (string type) {
+      if (changed) return; // no need to test further
+      if (canonifyType(type, true)) changed = true;
+    });
+    if (dryrun) return changed?"y":null;
+    else if (!changed) return s;
+    
     string res;
-    foreach (type; types) {
+    structDecompose(s, (string type) {
       if (res) res ~= ", ";
       res ~= canonifyType(type);
-    }
+    });
     return qformat("{", res, "}");
   }
+  if (dryrun) return null;
   return s;
 }
 

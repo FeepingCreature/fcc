@@ -113,6 +113,9 @@ void qformat_append(T...)(T t) {
       if (obj) qappend(prestuff[i]); // use cache from earlier
       else { qappend(typeof(entry).stringof); qappend(":null"); }
     }
+    else static if (is(typeof(entry.toString()))) {
+      qappend(entry.toString());
+    }
     else static assert(false, "not supported in qformat: "~typeof(entry).stringof);
   }
 }
