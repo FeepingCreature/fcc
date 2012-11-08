@@ -951,21 +951,14 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
       foreach (obj; objects)
         unlink(obj.toStringz());
   string linkedfile = ".obj/"~output~".all.bc";
-  string llvmlink = "llvm-link -o "~linkedfile~" ";
-  foreach (obj; objects) llvmlink ~= obj ~ " ";
-  logSmart!(false)("> ", llvmlink);
-  if (system(llvmlink.toStringz()))
-    throw new Exception("llvm-link failed");
+  string fullcommand = "llvm-link ";
+  foreach (obj; objects) fullcommand ~= obj ~ " ";
   
-  string fixedfile = linkedfile;
+  //string fixedfile = linkedfile;
   if (isWindoze()) {
-    fixedfile = ".obj/"~output~".fixed.bc";
-    string fixup = "< "~linkedfile~" llvm-dis |sed -e s/^define\\ weak_odr\\ /define\\ /g |llvm-as -o "~fixedfile;
-    logSmart!(false)("> ", fixup);
-    string shmode = "sh -c \""~replace(replace(fixup, "\\", "\\\\"), "\"", "\\\"")~"\"";
-    if (system(shmode.toStringz()))
-      throw new Exception("llvm fixup failed");
+    fullcommand ~= " |llvm-dis - |sed -e s/^define\\ weak_odr\\ /define\\ /g |llvm-as";
   }
+  if (saveTemps) fullcommand ~= " |tee "~linkedfile;
   
   const string cpu = "core2";
   
@@ -974,11 +967,8 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
     void optrun(string flags, string marker = null) {
       if (marker) marker ~= ".";
       string optfile = ".obj/"~output~".opt."~marker~"bc";
-      string optline = "opt "~flags~"-lint -o "~optfile~" "~fixedfile;
-      logSmart!(false)("> ", optline);
-      if (system(optline.toStringz()))
-        throw new Exception("opt failed");
-      fixedfile = optfile;
+      fullcommand ~= " |opt "~flags~"-lint -";
+      if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -tailcallopt ";
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
@@ -987,10 +977,10 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
   }
   string objfile = ".obj/"~output~".o";
   // -mattr=-avx,-sse41 
-  string llcline = "llc -mcpu="~cpu~" "~llc_optflags~"-filetype=obj -o "~objfile~" "~fixedfile;
-  logSmart!(false)("> ", llcline);
-  if (system(llcline.toStringz()))
-    throw new Exception("llc failed");
+  fullcommand ~= " |llc - -mcpu="~cpu~" "~llc_optflags~"-filetype=obj -o "~objfile;
+  logSmart!(false)("> ", fullcommand);
+  if (system(fullcommand.toStringz()))
+    throw new Exception("link failed");
   
   string locallibfolder;
   if (platform_prefix) {
