@@ -142,29 +142,6 @@ class LazyDeltaInt : Expr {
   }
 }
 
-class BasePassthrough : Expr, RelTransformable {
-  IType it;
-  Expr val;
-  this(IType it, Expr val = null) { this.it = it; this.val = val; }
-  mixin defaultIterate!(val);
-  override {
-    BasePassthrough dup() { return fastalloc!(BasePassthrough)(it, val?val.dup:null); }
-    IType valueType() { return it; }
-    Object transform(Expr base) {
-      auto res = dup;
-      if (val) fail;
-      auto lv = fastcast!(LValue)(base);
-      if (!lv) fail;
-      res.val = reinterpret_cast(it, fastalloc!(RefExpr)(lv));
-      return res;
-    }
-    void emitLLVM(LLVMFile lf) {
-      if (!val) throw new Exception(qformat(this, ": cannot emit: untransformed"));
-      val.emitLLVM(lf);
-    }
-  }
-}
-
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     auto ldi = fastcast!(LazyDeltaInt)(it);
@@ -1014,7 +991,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     }
     Object lookup(string id, bool local = false) {
       parseMe;
-      if (id == "this") return fastalloc!(BasePassthrough)(getRefType());
+      if (id == "this") return fastalloc!(LazyThisExpr)(getRefType());
       if (auto res = data.lookup(id, local)) return res;
       if (local) return null;
       if (auto rn = fastcast!(RelNamespace) (sup)) {

@@ -1,6 +1,6 @@
 module ast.structfuns;
 
-import ast.fun, ast.nestfun, ast.base, ast.structure, ast.variable,
+import ast.fun, ast.nestfun, ast.base, ast.structure, ast.variable, ast.casting,
   ast.properties, ast.pointer, ast.dg, ast.namespace, tools.base: This,
   This_fn, rmSpace;
 
@@ -212,14 +212,39 @@ class RelFunction : Function, RelTransformable, HasInfo {
   }
 }
 
+class LazyThisExpr : Expr, RelTransformable {
+  IType it;
+  Expr val;
+  this(IType it, Expr val = null) { this.it = it; this.val = val; }
+  mixin defaultIterate!(val);
+  override {
+    LazyThisExpr dup() { return fastalloc!(LazyThisExpr)(it, val?val.dup:null); }
+    IType valueType() { return it; }
+    string toString() { return qformat("this ", it); }
+    Object transform(Expr base) {
+      auto res = dup;
+      if (val) fail;
+      auto lv = fastcast!(LValue)(base);
+      if (!lv) fail;
+      res.val = reinterpret_cast(it, fastalloc!(RefExpr)(lv));
+      return res;
+    }
+    void emitLLVM(LLVMFile lf) {
+      if (!val) throw new Exception(qformat(this, ": cannot emit: untransformed"));
+      val.emitLLVM(lf);
+    }
+  }
+}
+
 // &foo.fun, stolen from ast.nestfun
 class StructFunRefExpr : mkDelegate {
   RelFunction fun;
   this(RelFunction fun) {
     this.fun = fun;
     // logln("base ptr is "[], fun.baseptr);
-    if (!fun.baseptr)
-      fail;
+    if (!fun.baseptr) {
+      fun = fastcast!(RelFunction)(fun.transform(fastalloc!(DerefExpr)(fastalloc!(LazyThisExpr)(fastalloc!(Pointer)(fun.basetype)))));
+    }
     super(fun.getPointer(), fastalloc!(RefExpr)(fastcast!(CValue)~ fun.baseptr));
   }
   override typeof(this) dup() { return new typeof(this)(fun); }

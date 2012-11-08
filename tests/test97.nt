@@ -5,6 +5,9 @@ import std.process;
 enum Foo { Foo, Bar, Baz }
 
 void main() {
+  assert(Foo.parse "Foo" == Foo.Foo);
+  assert(Foo.parse "Bar" == Foo.Bar);
+  assert(Foo.parse "Baz" == Foo.Baz);
   if (getenv("TESTSUITE")) return;
   auto line = readln();
   auto val = Foo.parse line;

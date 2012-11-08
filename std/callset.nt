@@ -21,6 +21,7 @@ template CallSet(T) {
         void call(%ARG%) {
           for auto dg <- dgs dg?(%ARGVAL%);
         }
+        alias implicit-cast = &call;
         void add(DG dg) {
           for ref dg2 <- dgs
             if (!dg2) { dg2 = dg; return; }

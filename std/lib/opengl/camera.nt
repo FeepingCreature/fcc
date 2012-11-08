@@ -128,12 +128,12 @@ template EgoCam(T) {
     float turnX, turnY;
     void init(vec3f p, float x, y) { (pos, turnX, turnY) = (p, x, y); super.init(); }
     void init() { init(vec3f(0), 0, 0); }
-    void turn-left(float f) { onMovement.call(); turnX += f; }
+    void turn-left(float f) { onMovement(); turnX += f; }
     alias lowlimit = -PI / 2 + 0.1;
     alias highlimit = PI / 2 - 0.1;
-    void turn-up(float f) { onMovement.call(); turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
-    void move-forward(float f) { onMovement.call(); pos += dir * f; }
-    void move-left(float f) { onMovement.call(); pos += left * f; }
+    void turn-up(float f) { onMovement(); turnY -= f; if (turnY < lowlimit) turnY = lowlimit; if (turnY > highlimit) turnY = highlimit; }
+    void move-forward(float f) { onMovement(); pos += dir * f; }
+    void move-left(float f) { onMovement(); pos += left * f; }
     alias dir = vec3f.Z.rotate3f(vec3f.X, turnY).rotate3f(vec3f.Y, turnX).normalize3f;
     alias left = vec3f.Y.cross3f(dir).normalize3f;
     alias calc = `
@@ -166,18 +166,18 @@ template OrbitCam(T) {
     float distance;
     void init(vec3f p, t, float fov = 45f) { super.init(); this.fov = fov; (pos, lookat) = (p, t); distance = |lookat - pos|; writeln "inited to $this"; }
     void move(vec3f v) {
-      onMovement.call();
+      onMovement();
       pos += v;
       lookat += v;
     }
     void turn-left(float f) {
-      onMovement.call();
+      onMovement();
       auto delta = lookat - pos;
       delta = delta.rotate3f(vec3f.Y, f);
       pos = lookat - delta;
     }
     void turn-up(float f) {
-      onMovement.call();
+      onMovement();
       auto delta = lookat - pos;
       delta = delta.rotate3f(delta.cross3f(up).normalized, f);
       delta *= distance / |delta|;

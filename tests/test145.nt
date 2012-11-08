@@ -1,0 +1,11 @@
+module test145;
+
+struct A {
+  void hello() { writeln "Hello World"; }
+  alias implicit-cast = &hello;
+}
+
+void main() {
+  A a;
+  a();
+}
