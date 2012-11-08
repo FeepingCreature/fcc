@@ -1,0 +1,8 @@
+module test146;
+
+void main() {
+  (int, float)[] arr;
+  arr ~= (2, 3f);
+  arr ~= (4, 5f);
+  for auto (i, f) <- arr { assert(i == 2); assert(f == 3f); break; }
+}
