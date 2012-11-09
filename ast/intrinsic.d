@@ -587,7 +587,13 @@ void setupSysmods() {
         return "[module $name imports $([for m <- imports: m.name].eval[]) ($functions)]";
       }
     }
+    
     shared ModuleInfo[auto~] __modules;
+    
+    extern(C) int __module_map_length;
+    extern(C) void* __module_map;
+    alias __static_modules = [for i <- 0..__module_map_length: (void* dataStart, void* dataEnd): ((void**:&__module_map)[i*2], (void**:&__module_map)[i*2+1])];
+    
     ModuleInfo lookupInfo(string name) {
       for auto mod <- __modules if mod.name == name return mod;
       raise new Error "No such module: $name";
@@ -753,16 +759,14 @@ void setupSysmods() {
     
     shared int tls_size;
     
-    extern(C) int __module_map_length;
-    extern(C) void* __module_map;
     extern(C) (int, int) setupTLSSize() {
       int dataStart = 0x7fff_ffff, dataEnd;
-      alias __modules = [for i <- 0..__module_map_length: (void* dataStart, void* dataEnd): ((void**:&__module_map)[i*2], (void**:&__module_map)[i*2+1])];
+      
       auto
-        localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
-        localEnd = [for mod <- __modules: int:mod.dataEnd - int:&_sys_tls_data_start],
+        localStart = [for mod <- __static_modules: int:mod.dataStart - int:&_sys_tls_data_start],
+        localEnd = [for mod <- __static_modules: int:mod.dataEnd - int:&_sys_tls_data_start],
         localRange = zip(localStart, localEnd);
-      for (auto tup <- zip(__modules, localRange)) {
+      for (auto tup <- zip(__static_modules, localRange)) {
         alias mod = tup[0], range = tup[1];
         if (range[0] < dataStart) dataStart = range[0];
         if (range[1] > dataEnd)   dataEnd   = range[1];
@@ -785,8 +789,8 @@ void setupSysmods() {
       if (!matches) { fprintf(stderr, "feep fails at math because he thought this was impossible\n"); int i; i /= i; }
       
       auto
-        localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
-        localEnd = [for mod <- __modules: int:mod.dataEnd - int:&_sys_tls_data_start],
+        localStart = [for mod <- __static_modules: int:mod.dataStart - int:&_sys_tls_data_start],
+        localEnd = [for mod <- __static_modules: int:mod.dataEnd - int:&_sys_tls_data_start],
         localRange = zip(localStart, localEnd);
       
       for (auto range <- localRange) {
