@@ -262,7 +262,9 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   if (nameds.length) {
     string fninfo = info();
     if (!fninfo) fninfo = "function";
-    throw new Exception(Format(fninfo, " has no arguments named "[], nameds.keys));
+    // throw new Exception(Format(fninfo, " has no arguments named "[], nameds.keys));
+    text.setError(fninfo, " has no arguments named "[], nameds.keys);
+    return false;
   }
   return true;
 }
