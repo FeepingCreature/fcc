@@ -72,6 +72,10 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
     static int funId;
     synchronized
       nf.name = Format("guardfn_"[], funId++);
+    /*if (nf.name == "guardfn_2") {
+      logln("add nf to ", namespace().get!(Function), " (sc ", sc, ")");
+      asm { int 3; }
+    }*/
     {
       auto popCache = pushCache(); scope(exit) popCache();
       auto backup = namespace();

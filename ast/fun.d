@@ -239,6 +239,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     res.coarseModule = coarseModule;
     res.sup = sup;
     res.field = field;
+    res.dependents = dependents;
     res.rebuildCache;
     return res;
   }
