@@ -752,7 +752,7 @@ void lazySysmod() {
 bool allowProgbar = true;
 
 struct CompileSettings {
-  bool saveTemps, optimize, debugMode, profileMode, singlethread;
+  bool saveTemps, optimize, preopt, debugMode, profileMode, singlethread;
 }
 
 // structural verifier
@@ -845,7 +845,12 @@ string delegate() compile(string file, CompileSettings cs) {
     string flags;
     // if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
-    string cmdline = Format("llvm-as ", flags, "-o ", objname, " ", srcname, " 2>&1");
+    string cmdline;
+    if (cs.preopt) {
+      cmdline = Format("opt -Os ", flags, "-o ", objname, " ", srcname, " 2>&1");
+    } else {
+      cmdline = Format("llvm-as ", flags, "-o ", objname, " ", srcname, " 2>&1");
+    }
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
     if (system(cmdline.toStringz())) {
       logln("ERROR: Compilation failed! ");
@@ -1194,6 +1199,7 @@ int main(string[] args) {
     }
     if (arg == "--loop" || arg == "-F") {
       willLoop = true;
+      cs.preopt = true; // makes incremental linking faster
       continue;
     }
     if (arg == "-sig") {
