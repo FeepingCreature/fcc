@@ -1,6 +1,6 @@
 module ast.intrinsic;
 
-import ast.modules, ast.pointer, ast.base, ast.oop, ast.casting, ast.static_arrays;
+import ast.modules, ast.pointer, ast.base, ast.oop, ast.casting, ast.static_arrays, ast.parse;
 // not static this() to work around a precedence bug in phobos. called from main.
 void setupSysmods() {
   if (sysmod) return;
@@ -753,18 +753,19 @@ void setupSysmods() {
     
     shared int tls_size;
     
+    extern(C) int __module_map_length;
+    extern(C) void* __module_map;
     extern(C) (int, int) setupTLSSize() {
-      int dataStart = 0x7fffffff, dataEnd;
+      int dataStart = 0x7fff_ffff, dataEnd;
+      alias __modules = [for i <- 0..__module_map_length: (void* dataStart, void* dataEnd): ((void**:&__module_map)[i*2], (void**:&__module_map)[i*2+1])];
       auto
         localStart = [for mod <- __modules: int:mod.dataStart - int:&_sys_tls_data_start],
         localEnd = [for mod <- __modules: int:mod.dataEnd - int:&_sys_tls_data_start],
         localRange = zip(localStart, localEnd);
       for (auto tup <- zip(__modules, localRange)) {
         alias mod = tup[0], range = tup[1];
-        if (mod.compiled) {
-          if (range[0] < dataStart) dataStart = range[0];
-          if (range[1] > dataEnd) dataEnd = range[1];
-        }
+        if (range[0] < dataStart) dataStart = range[0];
+        if (range[1] > dataEnd)   dataEnd   = range[1];
       }
       alias dataSize = dataEnd - dataStart; tls_size = dataSize;
       return (dataStart, dataEnd);
@@ -969,6 +970,21 @@ void finalizeSysmod(Module mainmod) {
   current_module.set(fastcast!(IModule) (mainmod));
   
   modlist = list;
+  
+  sc.addStatement(fastalloc!(ExprStatement)(fastalloc!(CallbackExpr)("gen module info", Single!(Void), cast(Expr) null,
+  list /apply/ (Module[] list, Expr bogus, LLVMFile lf) {
+    string[] strlist;
+    foreach (mod; list) if (!mod.dontEmit) {
+      auto fltname = mod.name.replace(".", "_").replace("-", "_dash_");
+      auto name = "_sys_tls_data_"~fltname;
+      auto start = name ~ "_start";
+      auto end = name ~ "_end";
+      strlist ~= qformat("i8* @", start, ", i8* @", end);
+    }
+    putSection(lf, "module", "@__module_map = constant [", strlist.length * 2, " x i8*] ", strlist);
+    putSection(lf, "module", "@__module_map_length = constant i32 ", strlist.length);
+    push(lf, "undef");
+  })));
   
   foreach (mod; list) {
     auto mname = mod.name;
