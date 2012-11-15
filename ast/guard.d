@@ -162,6 +162,9 @@ class Scoped(T) : T, IScoped, RelNamespace {
       if (name == "commit") {
         return fastcast!(Object)(mkStatementAndExpr(mkAssignment(backupvar, base), Single!(VoidExpr)));
       }
+      if (name == "rollback") {
+        return fastcast!(Object)(mkStatementAndExpr(mkAssignment(base, backupvar), Single!(VoidExpr)));
+      }
       return null;
     }
     bool isTempNamespace() { return true; }
