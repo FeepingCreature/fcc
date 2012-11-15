@@ -1,6 +1,6 @@
 module ast.funcall;
 
-import ast.fun, ast.base, ast.vardecl, ast.aggregate, ast.structure, ast.namespace;
+import ast.fun, ast.base, ast.vardecl, ast.aggregate, ast.structure, ast.namespace, ast.nestfun, ast.structfuns, ast.pointer;
 
 alias ast.fun.Argument Argument;
 
@@ -47,7 +47,23 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_1", "115"); // must be high-priority (above arith) to override subtraction.
 mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be below arith too, to be usable in stuff like paren-less calls
 
-bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, lazy string info, string text = null, bool probe = false, bool exact = false, int* scorep = null) {
+bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, Function fun, lazy string info, string text = null, bool probe = false, bool exact = false, int* scorep = null) {
+  
+  auto r = extractBaseRef(fun);
+  
+  Expr fixup_init_ex(Expr ex) {
+    void check(ref Iterable it) {
+      if (auto rm = fastcast!(RelTransformable)(it)) {
+        it = fastcast!(Iterable)(rm.transform(r));
+      }
+      it.iterate(&check);
+    }
+    auto it = fastcast!(Iterable)(ex);
+    check(it);
+    ex = fastcast!(Expr)(it);
+    return ex;
+  }
+  
   Expr[string] nameds;
   bool changed;
   void removeNameds(ref Iterable it) {
@@ -183,7 +199,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     }
     if (!flatArgsLength()) {
       if (tuple.initEx) {
-        auto ex = tuple.initEx;
+        auto ex = fixup_init_ex(tuple.initEx);
         IType[] tried;
         if (exact) {
           if (ex.valueType() != type)
@@ -280,37 +296,57 @@ bool cantBeCall(string s) {
   return s.accept(".") || s.accept("{");
 }
 
+Expr extractBaseRef(Function fun) {
+  if (auto rf = fastcast!(RelFunction)(fun)) {
+    return rf.baseptr;
+  }
+  if (auto pf_nf = fastcast!(PointerFunction!(NestedFunction))(fun)) {
+    auto ex = pf_nf.ptr;
+    if (auto dce = fastcast!(DgConstructExpr)(ex)) {
+      return fastalloc!(DerefExpr)(dce.data);
+    }
+    return null;
+  }
+  // if ((cast(Object)fun).classinfo.name != "ast.fun.Function")
+  //   logln((cast(Object)fun).classinfo.name, " ", fun);
+  return null;
+}
+
 import ast.properties;
 import ast.tuple_access, ast.tuples, ast.casting, ast.fold, ast.tuples: AstTuple = Tuple;
-bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseCb rest, ref Expr[] res, out Statement[] inits, bool test, bool precise, bool allowAutoCall, int* scorep = null) {
+bool matchCall(ref string text, Function fun, lazy string lazy_info, Argument[] params, ParseCb rest, ref Expr[] res, out Statement[] inits, bool test, bool precise, bool allowAutoCall, int* scorep = null) {
   string infocache;
   string info() { if (!infocache) infocache = lazy_info(); return infocache; }
   
   int neededParams;
   foreach (par; params) if (!par.initEx) neededParams ++;
+  
+  bool paramless;
   if (!neededParams) {
     auto t2 = text;
     // paramless call
-    if (t2.accept(";")) return true;
+    if (t2.accept(";")) paramless = true;
   }
   Expr arg;
+  
   auto backup_text = text; 
   if (!backup_text.length) return false; // wat
   
-  bool isTuple;
-  {
-    auto t2 = text;
-    if (t2.accept("(")) isTuple = true;
-  }
+  auto t2 = text;
   
-  // Only do this if we actually expect a tuple _literal_
-  // properties on tuple _variables_ are valid!
-  auto backup = *propcfg.ptr();
-  scope(exit) *propcfg.ptr() = backup;
-  if (isTuple) propcfg().withTuple = false;
-  
-  {
-    auto t2 = text;
+  if (paramless) arg = mkTupleExpr();
+  else {
+    bool isTuple;
+    {
+      auto t3 = text;
+      if (t3.accept("(")) isTuple = true;
+    }
+
+    // Only do this if we actually expect a tuple _literal_
+    // properties on tuple _variables_ are valid!
+    auto backup = *propcfg.ptr();
+    scope(exit) *propcfg.ptr() = backup;
+    if (isTuple) propcfg().withTuple = false;
     
     if (!rest(t2, "tree.expr.cond.other"[], &arg) && !rest(t2, "tree.expr _tree.expr.arith"[], &arg)) {
       if (params.length) return false;
@@ -318,10 +354,10 @@ bool matchCall(ref string text, lazy string lazy_info, Argument[] params, ParseC
       else if (allowAutoCall) arg = mkTupleExpr();
       else return false;
     }
-    if (!matchedCallWith(arg, params, res, inits, info(), backup_text, test, precise, scorep)) return false;
-    text = t2;
-    return true;
   }
+  if (!matchedCallWith(arg, params, res, inits, fun, info(), backup_text, test, precise, scorep)) return false;
+  text = t2;
+  return true;
 }
 
 extern(C) Expr _buildFunCall(Object obj, Expr arg, string info) {
@@ -332,7 +368,7 @@ extern(C) Expr _buildFunCall(Object obj, Expr arg, string info) {
   }
   auto fc = fun.mkCall();
   Statement[] inits;
-  if (!matchedCallWith(arg, fun.getParams(false), fc.params, inits, info))
+  if (!matchedCallWith(arg, fun.getParams(false), fc.params, inits, fun, info))
     return null;
   if (!inits.length) return fc;
   else if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
@@ -362,7 +398,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
         Statement[] inits;
         // logln(t3.nextText(), ": consider ", osfun);
         int score;
-        if (matchCall(t3, osfun.name, osfun.getParams(false), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall, &score)) {
+        if (matchCall(t3, osfun, osfun.name, osfun.getParams(false), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall, &score)) {
           candidates ~= osfun;
           candsets ~= osfun.getParams(false);
           scores ~= score;
@@ -400,7 +436,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr res = fc;
     auto t4 = t2;
     try {
-      result = matchCall(t2, fun.name, params, rest, fc.params, inits, false, false, !exprHasAlternativesToACall);
+      result = matchCall(t2, fun, fun.name, params, rest, fc.params, inits, false, false, !exprHasAlternativesToACall);
       if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
       if (inits.length) res = mkStatementAndExpr(inits[0], foldex(fc));
       else res = foldex(res);
@@ -451,7 +487,7 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     fc.fp = ex;
     
     Statement[] inits;
-    if (!matchCall(t2, Format("delegate "[], ex.valueType()), fptype.args, rest, fc.params, inits, false, false, false))
+    if (!matchCall(t2, fastalloc!(PointerFunction!(Function))(ex), Format("delegate "[], ex.valueType()), fptype.args, rest, fc.params, inits, false, false, false))
       return null;
     
     text = t2;
@@ -493,7 +529,7 @@ Object gotDgCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto dc = new DgCall;
     dc.dg = ex;
     Statement[] inits;
-    if (!matchCall(t2, Format("delegate "[], ex.valueType()), dgtype.args, rest, dc.params, inits, false, false, false))
+    if (!matchCall(t2, fastalloc!(PointerFunction!(NestedFunction))(ex), Format("delegate "[], ex.valueType()), dgtype.args, rest, dc.params, inits, false, false, false))
       return null;
     text = t2;
     Expr res = dc;

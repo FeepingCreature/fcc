@@ -5,7 +5,7 @@ module std.callset;
     CallSet!void foo;
     ...
     foo.add \{};
-    foo.call();
+    foo();
 **/
 
 template CallSet(T) {

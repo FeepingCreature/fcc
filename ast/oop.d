@@ -98,7 +98,7 @@ class VTable {
                         fastalloc!(Pointer)(fastalloc!(Pointer)(fun.typeAsFp())),
                         classref)),
                     mkInt(id+base))),
-                reinterpret_cast(voidp, classref));
+                reinterpret_cast(fastalloc!(Pointer)(parent.data), classref));
             })
           );
       }
@@ -993,6 +993,8 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       parseMe;
       if (id == "this") return fastalloc!(LazyThisExpr)(getRefType());
       if (auto res = data.lookup(id, local)) return res;
+      // fallback
+      if (auto res = lookupRel(id, fastalloc!(LazyThisExpr)(getRefType()))) return res;
       if (local) return null;
       if (auto rn = fastcast!(RelNamespace) (sup)) {
         if (ctx) {

@@ -847,7 +847,7 @@ string delegate() compile(string file, CompileSettings cs) {
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     string cmdline;
     if (cs.preopt) {
-      cmdline = Format("opt -Os ", flags, "-o ", objname, " ", srcname, " 2>&1");
+      cmdline = Format("opt ", flags, "-o ", objname, " ", srcname, " 2>&1");
     } else {
       cmdline = Format("llvm-as ", flags, "-o ", objname, " ", srcname, " 2>&1");
     }

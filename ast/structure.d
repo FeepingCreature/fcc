@@ -496,7 +496,7 @@ class MemberAccess_Expr : Expr, HasInfo {
     this.name = name;
     this();
     auto ns = fastcast!(Namespace) (base.valueType());
-    if (!ns) { logln("Base is not NS-typed: "[], base.valueType()); fail; }
+    if (!ns) { logln("Base is not NS-typed: "[], base.valueType(), " being ", base); fail; }
     stm = fastcast!(RelMember) (ns.lookup(name));
     if (!stm) {
       logln("No member '"[], name, "' in "[], base.valueType(), "!"[]);

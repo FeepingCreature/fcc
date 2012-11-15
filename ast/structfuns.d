@@ -223,7 +223,8 @@ class LazyThisExpr : Expr, RelTransformable {
     string toString() { return qformat("this ", it); }
     Object transform(Expr base) {
       auto res = dup;
-      if (val) fail;
+      // if (val) fail;
+      if (val) return this;
       auto lv = fastcast!(LValue)(base);
       if (!lv) fail;
       res.val = reinterpret_cast(it, fastalloc!(RefExpr)(lv));
