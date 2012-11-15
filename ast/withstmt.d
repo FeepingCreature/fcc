@@ -64,8 +64,13 @@ class WithStmt : Namespace, Statement, ScopeLike {
       ex = isc.getSup;
       auto vt = ex.valueType();
       
+      if (auto rns = fastcast!(RelNamespace)(isc)) { // for adding stuff like commit/rollback
+        rnslist ~= stuple(rns, ex);
+      }
+      
       // genRetvalHolder(sc);
       auto backupvar = fastalloc!(Variable)(vt, framelength(), cast(string) null);
+      isc.setBackupVar(backupvar);
       sc.add(backupvar);
       sc.addStatement(fastalloc!(VarDecl)(backupvar, ex));
       sc.addGuard(mkAssignment(ex, backupvar));
@@ -90,7 +95,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
     
     ex = context;
     
-    if (!isc) { // IScoped does not do implicit namespace merge!
+    if (!isc) { // IScoped does its own namespace merge
       rns = fastcast!(RelNamespace) (ex.valueType());
       
       if (auto srns = fastcast!(SemiRelNamespace) (ex.valueType())) rns = srns.resolve();

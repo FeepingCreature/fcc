@@ -139,12 +139,13 @@ mixin DefaultParser!(gotGuard, "tree.stmt.guard"[], "17"[]);
 interface IScoped {
   Expr getSup();
   Expr getAssign();
+  void setBackupVar(Expr ex);
 }
 
 import ast.tuples: LValueAsMValue;
-class Scoped(T) : T, IScoped {
+class Scoped(T) : T, IScoped, RelNamespace {
   T sup;
-  Expr newval;
+  Expr newval, backupvar;
   static assert(is(T: LValue) || is(T: MValue));
   this(T t, Expr newval) { sup = t; this.newval = newval; }
   private this() { }
@@ -154,7 +155,16 @@ class Scoped(T) : T, IScoped {
     void emitLLVM(LLVMFile lf) { assert(false); }
     IType valueType() { return sup.valueType(); }
     Expr getSup() { return sup; }
+    void setBackupVar(Expr ex) { backupvar = ex; }
     Expr getAssign() { return newval; }
+    // relnamespace
+    Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
+      if (name == "commit") {
+        return fastcast!(Object)(mkStatementAndExpr(mkAssignment(backupvar, base), Single!(VoidExpr)));
+      }
+      return null;
+    }
+    bool isTempNamespace() { return true; }
     static if (is(T: LValue)) {
       void emitLocation(LLVMFile lf) { assert(false); }
     }

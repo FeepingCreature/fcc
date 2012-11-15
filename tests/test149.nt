@@ -1,0 +1,14 @@
+module test149;
+
+void main() {
+  int i;
+  using scoped i = 2 {
+    i ++;
+  }
+  assert(!i);
+  using scoped i = 2 {
+    i ++;
+    commit;
+  }
+  assert(i == 3);
+}
