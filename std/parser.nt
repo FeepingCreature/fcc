@@ -1,0 +1,39 @@
+module std.parser;
+
+import std.string;
+
+context parser {
+  string text;
+  void cleanup() {
+    // strip, eat comments
+    do {
+      text = text.strip();
+    } while (text.startsWith "/*") {
+      text = text.between("*/", "");
+    }
+  }
+  bool accept(string match) using scoped text {
+    cleanup;
+    if (auto rest = text.startsWith(match)) text = rest;
+    else return false;
+    commit;
+    return true;
+  }
+  bool done() {
+    cleanup;
+    return !text.length;
+  }
+  string gotIdentifier() {
+    auto backup = text;
+    cleanup;
+    string eatAlpha() {
+      if (!text.length) return null;
+      string res;
+      if ("a" <= text[0] <= "z" || "A" <= text[0] <= "Z") (res, text) = text[(0..1, 1..$)];
+      return res;
+    }
+    char[auto~] res;
+    while auto ch = eatAlpha() res ~= ch;
+    return res[];
+  }
+}
