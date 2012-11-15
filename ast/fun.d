@@ -125,7 +125,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   Tree tree;
   bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false;
   Function[] dependents; // functions that are only needed inside this function and thus should get emitted into the same module.
-  override void markWeak() { weak = true; }
+  override void markWeak() { weak = true; foreach (dep; dependents) dep.markWeak; }
   override void markExternC() { extern_c = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     if (mode == IterMode.Lexical) { parseMe; defaultIterate!(tree).iterate(dg, mode); }
@@ -138,6 +138,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   string coarseSrc;
   IModule coarseModule;
   bool inEmitAsm, inParse, inFixup /* suppress fixup -> add -> lookup -> parseMe chain */;
+  bool leaveFragmentText; // set coarseSrc to leftover text when done - for supporting void foo() statement_here; type funs
+  bool alreadyEmat; // debugging
   override bool isBeingEmat() { return inEmitAsm; }
   void parseMe() {
     if (!coarseSrc) return;
@@ -150,6 +152,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     scope(exit) namespace.set(backup);
     if (tree) namespace.set(fastcast!(Scope) (tree));
     else namespace.set(this);
+    
+    // backup for pragma(fast);
+    auto modebackup = releaseMode;
+    scope(exit) releaseMode = modebackup;
     
     /**
      * No! Bad! Wrong!
@@ -176,8 +182,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     inParse = true;
     scope(exit) inParse = false;
     
+    // if (this.name == "assert") logln("add? for ", this, " (", releaseMode, ") - ", lookup("__frameinfo", true), " - ", lookup(tlsbase, true));
     if (lookup("__frameinfo", true) && lookup(tlsbase, true)) {
-      // logln("add for ", this.name);
       if (!releaseMode) {
         auto pre_sc = iparse
         !(Scope, "!safecode function_open", "tree.scope")
@@ -216,9 +222,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     if (!type.ret)
       type.ret = Single!(Void); // implicit return
     
-    t2 = t2.mystripl();
-    if (t2.length)
-      t2.failparse("Unknown text! ");
+    auto t3 = t2.mystripl();
+    if (t3.length) {
+      if (leaveFragmentText) coarseSrc = t2;
+      else t3.failparse("Unknown text! ");
+    }
   }
   mixin ImporterImpl!(parseMe);
   Argument[] getParams(bool implicits) {
@@ -239,7 +247,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     res.coarseModule = coarseModule;
     res.sup = sup;
     res.field = field;
-    res.dependents = dependents;
+    res.dependents = dependents.dup;
     res.rebuildCache;
     return res;
   }
@@ -249,6 +257,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       res.tree = tree.dup;
       nsfix(res.tree, this, res);
     }
+    foreach (ref dep; dependents) dep = dep.dup;
     res.coarseSrc = coarseSrc;
     return res;
   }
@@ -419,6 +428,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       scope(exit) current_emitting_function.set(cef_backup);
       
       parseMe();
+      
+      if (alreadyEmat) {
+        logln("tried to emit twice: ", this);
+        asm { int 3; }
+      }
+      alreadyEmat = true;
       
       foreach (dep; dependents) dep.emitLLVM(lf);
       
@@ -1042,19 +1057,20 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
         if (fun.type.args_open) {
           t2.failparse("Could not delay function parsing but type not yet known");
         }
-        t2 = text;
-        if (t2.accept(";"[])) { // undefined function
-          text = t2;
+        if (text.accept(";"[])) { // undefined function
           mkAbstract(fun);
           return fun;
         }
-        Scope sc;
-        if (rest(text, "tree.scope"[], &sc)) {
-          if (!fun.type.ret)
-            fun.type.ret = Single!(Void); // implicit return
-          fun.addStatement(sc);
-          return fun;
-        } else text.failparse("Couldn't parse function scope"[]);
+        fun.coarseSrc = text;
+        fun.leaveFragmentText = true;
+        // logln("coarse = ", text.nextText());
+        fun.parseMe;
+        text = fun.coarseSrc;
+        // logln("skip to ", text.nextText());
+        fun.coarseSrc = null;
+        if (!fun.type.ret)
+          fun.type.ret = Single!(Void); // implicit return
+        return fun;
       }
     }
   } else return null;

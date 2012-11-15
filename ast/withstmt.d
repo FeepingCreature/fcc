@@ -178,8 +178,8 @@ class WithStmt : Namespace, Statement, ScopeLike {
         auto ex = new Exception(Format(
           "Use of '", name, "' shadows outside identifier. "
           "Please disambiguate using '.', 'this' or 'that'."
-          // "\nThe shadowed value is : '", supres, "'."
-          // "\nThe local value is    : '", res, "'."
+          "\nThe shadowed value is : '", supres, "'."
+          "\nThe local value is    : '", res, "'."
         ));
         // logln(ex); fail;
         throw ex;

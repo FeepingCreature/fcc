@@ -228,6 +228,7 @@ bool hadABracket(string s) {
 // multiple semicolons can be substituted with a single one
 // and "}" counts as "};"
 bool acceptTerminatorSoft(ref string s) {
+  if (!s.ptr) return true; // yeagh. Just assume it worked and leave me alone.
   if (s.accept(";")) return true;
   auto s2 = (s.ptr - 1)[0..s.length + 1];
   if (s2.accept(";") || s2.accept("}")) return true;

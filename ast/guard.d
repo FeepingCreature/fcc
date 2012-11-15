@@ -143,7 +143,7 @@ interface IScoped {
 }
 
 import ast.tuples: LValueAsMValue;
-class Scoped(T) : T, IScoped, RelNamespace {
+class Scoped(T) : T, IScoped, RelNamespace, ISafeSpaceTag /* allow commit/rollback to shadow identifiers */ {
   T sup;
   Expr newval, backupvar;
   static assert(is(T: LValue) || is(T: MValue));
