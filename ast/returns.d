@@ -12,10 +12,10 @@ class ReturnStmt : Statement {
     value = ex; this();
   }
   private this() { }
-  mixin DefaultDup!();
-  mixin defaultIterate!(value);
   Statement[] guards;
   int[] guard_offsets;
+  mixin DefaultDup!();
+  mixin defaultIterate!(value);
   void setGuards(Scope sc) {
     guards = sc.getGuards();
     guard_offsets = sc.getGuardOffsets();

@@ -292,18 +292,6 @@ class Namespace {
   abstract string mangle(string name, IType type);
 }
 
-void nsfix(Tree tr, Namespace from, Namespace to) {
-  if (auto ns = fastcast!(Namespace)(tr))
-    if (ns.sup is from) ns.sup = to;
-  
-  void iter(ref Iterable it) {
-    if (auto ns = fastcast!(Namespace)(it))
-      if (ns.sup is from) ns.sup = to;
-    it.iterate(&iter);
-  }
-  tr.iterate(&iter);
-}
-
 class NoNameSpace : Namespace {
   override string mangle(string name, IType type) { assert(false); }
 }

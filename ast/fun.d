@@ -102,13 +102,13 @@ extern(C) void recordFrame(Scope sc) {
     logln("no fun under ", sc);
     fail;
   }
-  /*if (fun.name == "btoa") {
+  /*if (fun.mangleSelf() == "reverse_module_std_0E_util__of_function_of_rich_auto_array_of_tuple__ref_module_gui_0E_base_Widget_int__templinst_reverse_with_rich_auto_array_of_tuple__ref_module_gui_0E_base_Widget_int") {
     string stackinfo;
     foreach (entry; sc.stackframe()) {
       if (stackinfo) stackinfo ~= ", ";
       stackinfo ~= qformat(entry._0, ": ", entry._1);
     }
-    logln("record for ", fun.name, " (", fun.getParams(true), "): ", frametype2(sc), " from ", stackinfo, ": ", sc.field);
+    logln("record for ", cast(void*) fun, " ", fun.name, /*" (", fun.getParams(true), "), * /": ", frametype2(sc), " from ", stackinfo, ": ", sc.field);
   }*/
   fun.llvmFrameTypes ~= frametype2(sc);
 }
@@ -244,6 +244,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     res.extern_c = extern_c;
     res.tree = tree;
     res.coarseSrc = coarseSrc;
+    res.llvmFrameTypes = llvmFrameTypes;
     res.coarseModule = coarseModule;
     res.sup = sup;
     res.field = field;
@@ -254,8 +255,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   Function dup() {
     auto res = flatdup();
     if (tree) {
+      auto backup = namespace();
+      scope(exit) namespace.set(backup);
+      namespace.set(res);
       res.tree = tree.dup;
-      nsfix(res.tree, this, res);
     }
     foreach (ref dep; dependents) dep = dep.dup;
     res.coarseSrc = coarseSrc;
@@ -508,6 +511,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
           if (allocsize.length > 1024*1024) fail;
           accounted[type] = true;
         }
+        /*if (fmn == "reverse_module_std_0E_util__of_function_of_rich_auto_array_of_tuple__ref_module_gui_0E_base_Widget_int__templinst_reverse_with_rich_auto_array_of_tuple__ref_module_gui_0E_base_Widget_int") {
+          logln("alloc (", cast(void*) this, ") ", readllex(allocsize), " - ", allocsize);
+          logln("due to ", llvmFrameTypes);
+          asm { int 3; }
+        }*/
         allocsize = readllex(allocsize);
         put(lf, "%__stackframe = alloca i8, i32 ", allocsize, ", align 16");
         // fill stackframe for params

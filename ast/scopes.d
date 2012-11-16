@@ -155,16 +155,16 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   override Scope dup() {
     auto backup = namespace();
     scope(exit) namespace.set(backup);
-    namespace.set(sup);
     
     auto res = new Scope;
     res.field = field.dup;
+    
+    namespace.set(res);
     if (_body) res._body = _body.dup;
     foreach (guard; guards) res.guards ~= guard.dup;
     res.guard_offsets = guard_offsets.dup;
     res.id = getuid();
     res.lnsc = lnsc;
-    nsfix(res, this, res);
     return res;
   }
   bool emitted;

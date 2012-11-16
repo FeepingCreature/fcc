@@ -37,11 +37,15 @@ class WithStmt : Namespace, Statement, ScopeLike {
   mixin defaultIterate!(vd, sc);
   override WithStmt dup() {
     auto res = new WithStmt;
+    res.sup = namespace();
+    
+    auto backup = namespace();
+    scope(exit) namespace.set(backup);
+    namespace.set(res);
+    
     res.rns = rns; res.rnslist = rnslist;
     res.ns = ns; res.vd = vd; res.context = context.dup;
     res.sc = sc.dup;
-    res.sup = sup;
-    nsfix(res.sc, this, res);
     res.isc = isc;
     res.temps = temps;
     return res;

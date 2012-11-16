@@ -843,6 +843,7 @@ string delegate() compile(string file, CompileSettings cs) {
     }) / 1_000_000f;
     f.close;
     string flags;
+    // flags = "-O3 -lint ";
     // if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     string cmdline;
