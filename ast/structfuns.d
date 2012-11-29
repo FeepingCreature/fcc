@@ -101,14 +101,18 @@ class RelFunction : Function, RelTransformable, HasInfo {
     basetype = fastcast!(IType)~ rn;
     assert(!!basetype);
   }
+  Argument[] argcache_impl;
   override {
     RelFunction alloc() { return new RelFunction; }
     Expr getPointer() { return fastalloc!(FunSymbol)(this, fastcast!(hasRefType)(context).getRefType()); }
     Argument[] getParams(bool implicits) {
+      if (argcache_impl && implicits) return argcache_impl;
+      
       auto res = super.getParams(false);
       if (implicits) {
         res ~= Argument(fastcast!(hasRefType)(context).getRefType(), "__base_ptr");
         res ~= Argument(voidp, tlsbase);
+        argcache_impl = res;
       }
       return res;
     }

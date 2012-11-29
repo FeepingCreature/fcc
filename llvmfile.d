@@ -126,7 +126,7 @@ struct TextAppender {
 
 class LLVMFile {
   bool optimize, debugmode, profilemode;
-  string fn;
+  string fn, fid;
   string[] sectionNameStack;
   SuperAppender[string] sectionStore;
   SuperAppender curSection;
@@ -139,6 +139,8 @@ class LLVMFile {
     this.debugmode = debugmode;
     this.profilemode = profilemode;
     this.fn = filename;
+    this.fid = fn.endsWith(".nt").replace("/", "_");
+    assert(!!fid);
   }
   void beginSection(string name) {
     if (curSectionName) {
@@ -232,16 +234,21 @@ class LLVMFile {
     if (!base) base = "label_";
     return qformat(base, count++);
   }
-  string allocData(string base, ubyte[] data) {
-    auto name = qformat(base, count++);
-    string dataf;
-    foreach (value; data) {
-      if (dataf) dataf ~= ", ";
-      dataf ~= qformat("i8 ", value);
+  string allocData(string base, ubyte[] data, bool addnum = true) {
+    auto name = base;
+    if (addnum) name = qformat(name, "_", fid, count++);
+    
+    if (once(name)) {
+      string dataf;
+      foreach (value; data) {
+        if (dataf) dataf ~= ", ";
+        dataf ~= qformat("i8 ", value);
+      }
+      // decls[name] = qformat("@", name, " = private constant [", data.length, " x i8] [", dataf, "], align 1");
+      .putSection(this, "module", "@", name, " = private constant [", data.length, " x i8] [", dataf, "], align 1");
+      // .putSection(this, "module", "@", name, ".full = private constant [", data.length, " x i8] [", dataf, "], align 1");
+      // .putSection(this, "module", "@", name, " = global i8* bitcast([", data.length, " x i8]* @", name, ".full to i8*)");
     }
-    .putSection(this, "module", "@", name, " = private constant [", data.length, " x i8] [", dataf, "], align 1");
-    // .putSection(this, "module", "@", name, ".full = private constant [", data.length, " x i8] [", dataf, "], align 1");
-    // .putSection(this, "module", "@", name, " = global i8* bitcast([", data.length, " x i8]* @", name, ".full to i8*)");
     return name;
   }
   bool once(string s) {
@@ -414,9 +421,18 @@ string readllex(string expr) {
     }
   }
   auto code = "target datalayout = \""~datalayout~"\" define i32 @foo() { ret i32 "~key~" }";
-  auto res = readback("sh -c \"echo '"
-    ~code.replace("\\", "\\\\").replace("\"", "\\\"")
-    ~"' |opt -std-compile-opts -S |grep 'ret i32' |sed -e 's/.*i32//'\"");
+  auto c2 = code.replace("\\", "\\\\");
+  auto c3 = c2.replace("\"", "\\\"");
+  auto c4 = "sh -c \"echo '"
+    ~c3
+    ~"' |opt -std-compile-opts -S |grep 'ret i32' |sed -e 's/.*i32//'\"";
+  scope(exit) {
+    delete c4;
+    if (c3 !is c2) delete c3;
+    if (c2 !is code) delete c2;
+    delete code;
+  }
+  auto res = readback(c4);
   if (qformat(res.atoi()) != res.strip()) {
     logln("from ", code);
     logln("to ", res);

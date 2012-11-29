@@ -33,7 +33,7 @@ class StringExpr : Expr, HasInfo, Dependency {
     }
     void emitDependency(LLVMFile lf) {
       if (!name_used) selectName(lf);
-      else lf.allocData(name_used, cast(ubyte[]) str~ cast(ubyte) 0);
+      else lf.allocData(name_used, cast(ubyte[]) str~ cast(ubyte) 0, false);
       // lf.markWeak(name_used);
     }
     // IType valueType() { return fastalloc!(StaticArray)(Single!(Char), str.length); }

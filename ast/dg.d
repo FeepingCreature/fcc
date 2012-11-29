@@ -63,6 +63,10 @@ class DgConstructExpr : mkDelegate {
   }
 }
 
+extern(C) Expr C_mkDgConstructExpr(Expr r, Expr ptrval) {
+  return fastalloc!(DgConstructExpr)(r, ptrval);
+}
+
 // close fp over ptr to dg
 Object gotFpCloseExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

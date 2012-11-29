@@ -27,7 +27,7 @@ class NestedFunction : Function {
     }
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
-      return cleaned_name~"_of_"~type.mangle()~"_under_"~context.get!(Function).mangleSelf();
+      return qformat(cleaned_name, "_of_", type.mangle(), "_under_", context.get!(Function).mangleSelf());
     }
     NestedFunction alloc() { return new NestedFunction; }
     NestedFunction flatdup() {
@@ -441,6 +441,10 @@ class PointerFunction(T) : T {
       return Format("*"[], ptr);
     }
   }
+}
+
+extern(C) Function C_mkPFNestFun(Expr dgex) {
+  return fastalloc!(PointerFunction!(NestedFunction))(dgex);
 }
 
 Object gotFpDerefExpr(ref string text, ParseCb cont, ParseCb rest) {

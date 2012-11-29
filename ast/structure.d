@@ -676,6 +676,8 @@ Expr mkMemberAccess(Expr strct, string name) {
   else                              return new MemberAccess_Expr  (strct, name);
 }
 
+extern(C) Expr C_mkMemberAccess(Expr strct, string name) { return mkMemberAccess(strct, name); }
+
 Expr depointer(Expr ex) {
   while (true) {
     if (auto ptr = fastcast!(Pointer) (resolveType(ex.valueType()))) {
@@ -756,8 +758,9 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
 try_next_alt:
   member = backupmember; // retry from start again
   t2 = backupt2;
-  if (!alts.length)
+  if (!alts.length) {
     return null;
+  }
   
   if (ex) if (auto tmp = fastcast!(Temporary)(ex)) tmp.cleanup(true);
   
@@ -791,21 +794,21 @@ retry:
   if (!m) {
     if (t2.eatDash(member)) { goto retry; }
     string mesg, name;
-    auto info = Format(pre_ex.valueType());
+    /*auto info = Format(pre_ex.valueType());
     if (info.length > 64) info = info[0..64] ~ " [snip]";
     if (auto st = fastcast!(Structure) (resolveType(fastcast!(IType) (rn)))) {
       name = st.name;
       /*logln("alts1 "[]);
       foreach (i, alt; alts)
-        logln("  "[], i, ": "[], alt);*/
-      mesg = Format(member, " is not a member of "[], pre_ex.valueType(), "[], containing "[], st.names);
+        logln("  "[], i, ": "[], alt);* /
+      mesg = qformat(member, " is not a member of "[], info, ", containing "[], st.names);
     } else {
       /*logln("alts2: "[]);
       foreach (i, alt; alts)
-        logln("  "[], i, ": "[], alt);*/
-      mesg = Format(member, " is not a member of non-struct "[], info);
+        logln("  "[], i, ": "[], alt);* /
+      mesg = qformat(member, " is not a member of non-struct "[], info);
     }
-    text.setError(mesg);
+    text.setError(mesg);*/
     goto try_next_alt;
   }
   text = t2;

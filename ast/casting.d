@@ -122,8 +122,9 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
   try {
     if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex) || !gotImplicitCast(ex, dest, (IType it) { return test(it == dest); })) {
       if (!ex)
-	t2.failparse("Cannot parse cast source");
-      t2.setError("can't get "[], ex.valueType(), " into "[], dest);
+        t2.failparse("Cannot parse cast source");
+      // t2.setError("can't get "[], ex.valueType(), " into "[], dest);
+      t2.setError("types don't match");
       return null;
     }
   } catch (Exception ex) {

@@ -83,6 +83,7 @@ Stuple!(float, string) lookupProgress(string text) {
   return stuple(0f, cast(string) null);
 }
 
+string[string] keymemo; // sigh..
 // row, col, file
 Stuple!(int, ptrdiff_t, string, string) lookupPos(string text) {
   eatComments(text);
@@ -97,7 +98,9 @@ Stuple!(int, ptrdiff_t, string, string) lookupPos(string text) {
         i++;
         continue;
       }
-      return stuple(i + 1, text.ptr - line.ptr, key.dup, line);
+      if (auto p = key in keymemo) key = *p;
+      else { key = key.dup; keymemo[key] = key; /* what .. */ }
+      return stuple(i + 1, text.ptr - line.ptr, key, line);
     }
     assert(false);
   }

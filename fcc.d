@@ -837,13 +837,14 @@ string delegate() compile(string file, CompileSettings cs) {
       if (!cs.saveTemps)
         unlink(srcname.toStringz());
     scope f = fastalloc!(BufferedFile)(srcname, FileMode.OutNew);
+    scope(exit) delete f.buffer; // yuck
     auto len_emit = time({
       lf.dumpLLVM((string s) { f.write(cast(ubyte[]) s); });
       lf.free;
     }) / 1_000_000f;
     f.close;
     string flags;
-    // flags = "-O3 -lint ";
+    if (cs.preopt) flags = "-O3 -lint ";
     // if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     string cmdline;
@@ -1182,7 +1183,7 @@ int main(string[] args) {
   auto ar = args;
   bool runMe;
   CompileSettings cs;
-  if (isWindoze()) {
+  if (isWindoze() || true) {
     // TODO: fix TLS under Windows (wtf is wrong with it!)
     cs.singlethread = true;
   }

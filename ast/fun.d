@@ -1,7 +1,7 @@
 module ast.fun;
 
 import ast.namespace, ast.base, ast.variable, llvmfile, ast.types, ast.scopes,
-  ast.pointer, ast.literals, ast.vardecl, ast.assign;
+  ast.pointer, ast.literals, ast.vardecl, ast.assign, ast.casting;
 
 private alias parseBase.startsWith startsWith;
 private alias parseBase.endsWith endsWith;
@@ -113,6 +113,12 @@ extern(C) void recordFrame(Scope sc) {
   fun.llvmFrameTypes ~= frametype2(sc);
 }
 
+extern(C) {
+  void addFailureFun(Function fun);
+  Expr C_mkMemberAccess(Expr strct, string name);
+  Expr C_mkDgConstructExpr(Expr r, Expr ptrval);
+  Function C_mkPFNestFun(Expr dgex);
+}
 class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, ScopeLike, EmittingContext, Importer {
   string name;
   Expr getPointer() {
@@ -183,26 +189,35 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     scope(exit) inParse = false;
     
     // if (this.name == "assert") logln("add? for ", this, " (", releaseMode, ") - ", lookup("__frameinfo", true), " - ", lookup(tlsbase, true));
-    if (lookup("__frameinfo", true) && lookup(tlsbase, true)) {
+    if (lookup("__frameinfo", true) && lookup(tlsbase, true) && sysmod.lookup("__popFrameInfo")) {
       if (!releaseMode) {
-        auto pre_sc = iparse
-        !(Scope, "!safecode function_open", "tree.scope")
-          (`{
-              // printf("do it %.*s with %p\n", fun, _threadlocal);
-              __frameinfo.fun = fun;
-              __frameinfo.pos = pos;
-              __frameinfo.prev = sys.frameinfo;
-              sys.frameinfo = &__frameinfo;
-              onExit {
-                // printf("clean up %.*s\n", __frameinfo.fun);
-                sys.frameinfo = __frameinfo.prev;
-              }
-            }
-          `, this,
-            "fun", mkString(fqn()),
-            "pos", mkString(""));
-        if (!pre_sc) fail;
-        addStatement(pre_sc);
+        auto infovar = fastcast!(LValue)(lookup("__frameinfo", true));
+        auto sys_frameinfo = fastcast!(Expr)(sysmod.lookup("frameinfo"));
+        
+        // __frameinfo.fun = fqn()
+        addStatement(mkAssignment(C_mkMemberAccess(infovar, "fun"), mkString(fqn())));
+        // __frameinfo.pos = ""
+        addStatement(mkAssignment(C_mkMemberAccess(infovar, "pos"), mkString("")));
+        // __frameinfo.prev = frameinfo
+        addStatement(mkAssignment(C_mkMemberAccess(infovar, "prev"), sys_frameinfo));
+        // frameinfo = &__frameinfo
+        addStatement(mkAssignment(sys_frameinfo, fastalloc!(RefExpr)(infovar)));
+        
+        auto popFrameInfo = fastcast!(Function)(sysmod.lookup("__popFrameInfo"));
+        if (!popFrameInfo) fail;
+        
+        auto r = fastalloc!(FunRefExpr)(popFrameInfo);
+        auto ptrval = reinterpret_cast(voidp, fastalloc!(RefExpr)(infovar));
+        auto dgex = C_mkDgConstructExpr(r, ptrval);
+        auto pfun = C_mkPFNestFun(dgex);
+        
+        auto sc = fastcast!(Scope)(tree);
+        if (!sc) fail;
+        namespace.set(sc);
+        // onSuccess frameinfo = __frameinfo.prev
+        sc.addGuard(mkAssignment(fastcast!(Expr)(sysmod.lookup("frameinfo")), C_mkMemberAccess(infovar, "prev")));
+        // onFailure frameinfo = __frameinfo.prev
+        addFailureFun(pfun);
       }
     }/* else if (lookup(tlsbase, true)) logln("don't add for ", this.name, " because no _threadlocal");
     else logln("don't add for ", this.name, " because no __frameinfo");*/
@@ -347,7 +362,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     }
     return cached_selfmangle;
   }
-  string exit() { return mangleSelf() ~ "_exit_label"; }
+  string exit() { return qformat(mangleSelf(), "_exit_label"[]); }
   void addStatement(Statement st) {
     if (!tree) {
       if (auto sc = fastcast!(Scope) (st)) { tree = sc; return; }
@@ -1184,12 +1199,12 @@ class FunRefExpr : Expr, Literal {
   Function fun;
   this(Function fun) { this.fun = fun; }
   private this() { }
-  mixin DefaultDup!();
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     fun.iterate(dg, IterMode.Semantic);
   }
   IType typecache;
   override {
+    override FunRefExpr dup() { return fastalloc!(FunRefExpr)(fun); }
     IType valueType() {
       if (!typecache) typecache = fastalloc!(FunctionPointer)(fun);
       return typecache;

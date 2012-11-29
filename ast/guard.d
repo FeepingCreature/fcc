@@ -6,6 +6,42 @@ import
   ast.variable, ast.vardecl, ast.fun, ast.casting,
   ast.aliasing;
 
+extern(C) void addFailureFun(Function fun) {
+  auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord"[]);
+  if (!grtype) fail;
+  auto sc = namespace().get!(Scope);
+  {
+    auto gr = fastalloc!(Variable)(grtype, framelength(), cast(string) null);
+    auto gd = fastalloc!(VarDecl)(gr);
+    gd.initInit;
+    sc.addStatement(gd);
+    auto sl = namespace().get!(ScopeLike);
+    namespace().add(gr);
+    {
+      auto setup_st =
+        iparse!(Statement, "gr_setup_1"[], "tree.stmt"[])
+                (`
+                {
+                  var.dg = &fun;
+                  var.prev = _record;
+                  _record = &var;
+                  // fprintf(stderr, "%i set %p (%.*s)\n", pthread_self(), &var, text);
+                }`,
+                namespace(), "var"[], gr, "fun"[], fun/*, "text", mkString(namespace().get!(Function).getIdentifier())*/);
+      assert(!!setup_st);
+      sc.addStatement(setup_st);
+    }
+    {
+      auto setup_st =
+        iparse!(Statement, "gr_setup_2"[], "tree.stmt"[])
+                (`onSuccess { /*checkBalance(_record, &var, text); fprintf(stderr, "%i end %p (%.*s)\n", pthread_self(), &var, text2); */ _record = _record.prev; }`,
+                namespace(), "var", gr/*, "text", mkString(qformat(namespace())), "text2", mkString(namespace().get!(Function).getIdentifier())*/);
+      assert(!!setup_st);
+      // no need to add, is NoOp
+    }
+  }
+}
+
 Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string type;
@@ -88,39 +124,7 @@ Object gotGuard(ref string text, ParseCb cont, ParseCb rest) {
       nf.addStatement(st2);
     }
     namespace().get!(Function).dependents ~= nf;
-    
-    auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord"[]);
-    if (!grtype) fail;
-    {
-      auto gr = fastalloc!(Variable)(grtype, framelength(), cast(string) null);
-      auto gd = fastalloc!(VarDecl)(gr);
-      gd.initInit;
-      sc.addStatement(gd);
-      auto sl = namespace().get!(ScopeLike);
-      namespace().add(gr);
-      {
-        auto setup_st =
-          iparse!(Statement, "gr_setup_1"[], "tree.stmt"[])
-                 (`
-                 {
-                   var.dg = &fun;
-                   var.prev = _record;
-                   _record = &var;
-                   // fprintf(stderr, "%i set %p (%.*s)\n", pthread_self(), &var, text);
-                 }`,
-                 namespace(), "var"[], gr, "fun"[], nf/*, "text", mkString(namespace().get!(Function).getIdentifier())*/);
-        assert(!!setup_st);
-        sc.addStatement(setup_st);
-      }
-      {
-        auto setup_st =
-          iparse!(Statement, "gr_setup_2"[], "tree.stmt"[])
-                 (`onSuccess { /*checkBalance(_record, &var, text); fprintf(stderr, "%i end %p (%.*s)\n", pthread_self(), &var, text2); */ _record = _record.prev; }`,
-                  namespace(), "var", gr/*, "text", mkString(qformat(namespace())), "text2", mkString(namespace().get!(Function).getIdentifier())*/);
-        assert(!!setup_st);
-        // no need to add, is NoOp
-      }
-    }
+    addFailureFun(nf);
   }
   if (st1 && st2 && st1 is st2) {
 		t2.failparse("Failed to produce different sts! "[]);
