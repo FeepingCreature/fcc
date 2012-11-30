@@ -275,14 +275,27 @@ static this() {
     Pointer e1pt;
     if (auto p = fastcast!(Pointer) (resolveTup(ex2.valueType()))) {
       if (op == "-") {
-        return null; // wut
+        // return null; // wut
+        // pointer - pointer is defined! (if they have the same types)
+        auto p2 = fastcast!(Pointer)(resolveTup(ex1.valueType()));
+        if (p != p2) return null;
+      } else {
+        swap(ex1, ex2);
+        e1pt = p;
       }
-      swap(ex1, ex2);
-      e1pt = p;
     }
     if (!e1pt) e1pt = fastcast!(Pointer) (resolveTup(ex1.valueType()));
     if (!e1pt) return null;
-    if (isPointer(ex2.valueType())) return null;
+    auto e2pt = fastcast!(Pointer) (resolveTup(ex2.valueType()));
+    if (e2pt) {
+      return handleIntMath("/",
+        handleIntMath("-",
+          reinterpret_cast(Single!(SysInt), ex1),
+          reinterpret_cast(Single!(SysInt), ex2)
+        ),
+        llvmval(e1pt.target.llvmSize())
+      );
+    }
     if (fastcast!(Float) (ex2.valueType())) {
       logln(ex1, " ", op, " ", ex2, "; WTF?! ");
       logln("is ", ex1.valueType(), " and ", ex2.valueType());

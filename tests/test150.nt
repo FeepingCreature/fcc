@@ -1,0 +1,6 @@
+module test150;
+
+void main() {
+  int a, b;
+  assert(&b - &a == 1);
+}
