@@ -344,6 +344,7 @@ src_cleanup_redo: // count, then copy
     if (!ty) return null;
     text = t2;
     text.accept("__restrict");
+    text.accept("const");
     text.accept("__const");
     string id;
     gotIdentifier(text, id);
