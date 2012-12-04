@@ -88,6 +88,32 @@ void setupSysmods() {
       void  free   (void* p)           { free_dg(p); }
       /*MARKER*/
     }
+    shared (void*, int)[auto~] _allocations; // no need for tls: is only valid during startup
+    void tracked_mem_init() { // like mem_init but with tracking
+      mem.malloc_dg = \(int i) {
+        auto res = alloc16 i;
+        if i using scoped mem {
+          mem_init; // switch to untracked mem for this, to prevent recursionage
+          _allocations ~= (res, i);
+        }
+        return res;
+      }
+      mem.calloc_dg = \(int i, k) {
+        auto res = alloc16 (i * k);
+        memset(res, 0, i*k);
+        if i * k using scoped mem {
+          mem_init;
+          _allocations ~= (res, i * k);
+        }
+        return res;
+      }
+      mem.free_dg = \(void* p) {
+        for ref pair <- _allocations
+          if pair[0] == p pair = (null, 0);
+        free16 p;
+      }
+      mem.calloc_atomic_dg = null;
+    }
     void mem_init() {
       mem. malloc_dg = \(int i) { return alloc16 i; }
       mem. calloc_dg = \(int i, k) {
@@ -97,6 +123,7 @@ void setupSysmods() {
         return res; 
       }
       mem.   free_dg = \(void* p) { return free16 p; }
+      mem.calloc_atomic_dg = null;
     }
     alias string = char[]; // must be post-marker for free() to work properly
     struct FrameInfo {
@@ -778,6 +805,19 @@ void setupSysmods() {
       alias dataSize = dataEnd - dataStart; tls_size = dataSize;
       return (dataStart, dataEnd);
     }
+    void add_tls_tracking() {
+      // copypaste from below
+      auto
+        localStart = [for mod <- __static_modules: int:mod.dataStart - int:&_sys_tls_data_start],
+        localEnd = [for mod <- __static_modules: int:mod.dataEnd - int:&_sys_tls_data_start],
+        localRange = zip(localStart, localEnd);
+      using scoped mem {
+        mem_init();
+        for auto range <- localRange {
+          _allocations ~= (_threadlocal + range[0], range[1] - range[0]);
+        }
+      }
+    }
     extern(C) void* copy_tls() {
       (int dataStart, int dataEnd) = setupTLSSize();
       alias dataSize = dataEnd - dataStart;
@@ -805,7 +845,8 @@ void setupSysmods() {
     int main2(int argc, char** argv) {
       __argc = argc; __argv = argv;
       
-      mem_init();
+      tracked_mem_init();
+      add_tls_tracking();
       platform(default) {
         pthread_key_create(&tls_pointer, null);
         setThreadlocal _threadlocal;
@@ -855,6 +896,7 @@ void setupSysmods() {
           args[i++] = arg[0 .. strlen(arg)];
         }
       }
+      mem_init();
     }
     extern(C) int mcheck(int);
     extern(C) int __c_main(int argc, char** argv) { // handle the callstack frame 16-byte alignment

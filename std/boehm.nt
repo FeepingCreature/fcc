@@ -10,11 +10,16 @@ extern(C) void* memset(void* s, int c, size_t n);
 void* simple_debug_malloc(int i) { return GC_debug_malloc(i, "", 0); }
 void* simple_debug_malloc_atomic(int i) { return GC_debug_malloc_atomic(i, "", 0); }
 void* myDebugMalloc(int a) { return (aligned16malloc!simple_debug_malloc) a; }
-void* myDebugCalloc(int a, b) { return myDebugMalloc(a * b); }
+void* myDebugCalloc(int a, b) {
+  auto res = myDebugMalloc(a * b);
+  memset(res, 0, a * b);
+  return res;
+}
 void* myDebugCallocAtomic(int a) {
   auto res = (aligned16malloc!simple_debug_malloc_atomic) a;
   if (!res) {
-    printf("Allocation failed!");
+    if (!a) return null;
+    printf("Allocation failed: myDebugCallocAtomic(%i)\n", a);
     _interrupt 3;
   }
   memset(res, 0, a);
@@ -33,8 +38,7 @@ void* myCallocAtomic(int a) {
 void* myCalloc(int a, b) {
   auto len = a * b;
   auto res = myMalloc(len);
-  auto bp = ubyte*:res;
-  for 0..len { *(bp++) = ubyte:0; }
+  memset(res, 0, len);
   return res;
 }
 
@@ -73,10 +77,13 @@ void initBoehm(bool debugMode = false) {
   static if (is-defined GC_allow_register_threads) {
     GC_allow_register_threads;
   }
-  GC_add_roots(_threadlocal, _threadlocal + tls_size); // remind me why I need to do this
+  // register all the pre-main roots
+  for auto pair <- sys._allocations
+    GC_add_roots(pair[0], pair[0] + pair[1]);
   auto oldDg = onThreadCreation;
   onThreadCreation = new delegate void(void* stackbase) {
     register_thread(stackbase);
     if (oldDg) { oldDg(stackbase); }
   };
+  // GC_disable();
 }
