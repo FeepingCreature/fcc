@@ -1015,3 +1015,7 @@ string refcompress(string s) {
   }
   return res;
 }
+
+struct PropArgs {
+  bool withTuple = true, withCall = true, withCallOnTuple = true;
+}

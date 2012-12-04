@@ -3,16 +3,22 @@ module ast.properties_parse;
 import ast.base, ast.fun, ast.properties, ast.parse, ast.casting, ast.math;
 
 import tools.base, tools.log;
-Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
+Object getProperties(ref string text, Object sup, PropArgs args,
   ParseCb cont, ParseCb rest, bool rawmode = false)
 {
+  auto withTuple = args.withTuple;
+  auto withCall = args.withCall;
+  auto withCallOnTuple = args.withCallOnTuple;
   string longest; Object res;
   // check all possible continuations
+  
+  bool isTuple;
   auto ex = fastcast!(Expr) (sup);
-  if (!withTuple) {
-    if (ex && fastcast!(AstTuple) (ex.valueType()))
+  if (ex && fastcast!(AstTuple) (ex.valueType()))
+    if (!withTuple)
       return null; // don't
-  }
+    else
+      isTuple = true;
   
   void cleanup(ref Object obj) {
     if (auto ex = fastcast!(Expr) (obj)) {
@@ -41,8 +47,8 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
         break;
       }
       string match = "tree.rhs_partial";
-      if (!withCall)
-        match ~= " >tree.rhs_partial.funcall";
+      if (!withCall || !withCallOnTuple && isTuple)
+        match ~= " >tree.rhs_partial.funcall >tree.rhs_partial.fpz_dgcall";
       if (auto nl = rest(t2, match)) {
         matched = true;
         cleanup(nl);
@@ -73,11 +79,11 @@ Object getProperties(ref string text, Object sup, bool withTuple, bool withCall,
   return res;
 }
 
-void withPropcfg(void delegate(bool, bool) dg) {
+void withPropcfg(void delegate(PropArgs) dg) {
   auto myArgs = *propcfg.ptr();
   *propcfg.ptr() = Init!(PropArgs);
   scope(exit) *propcfg.ptr() = myArgs;
-  dg(myArgs.withTuple, myArgs.withCall);
+  dg(myArgs);
 }
 
 static this() {
@@ -94,10 +100,10 @@ Object gotProperties(ref string text, ParseCb cont, ParseCb rest) {
   auto rawmode = text.rawmode();
   
   Object res;
-  withPropcfg((bool withTuple, bool withCall) {
+  withPropcfg((PropArgs args) {
     Object sup;
     if (!cont(text, &sup)) return;
-    res = getProperties(text, sup, withTuple, withCall, cont, rest, rawmode);
+    res = getProperties(text, sup, args, cont, rest, rawmode);
   });
   return res;
 }

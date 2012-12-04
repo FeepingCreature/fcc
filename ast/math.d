@@ -3,8 +3,8 @@ module ast.math;
 import ast.base, ast.namespace, ast.parse;
 import tools.base: This, This_fn, rmSpace, and, or, find, todg, fix;
 
-Object function(ref string, Object, bool, bool, ParseCb, ParseCb, bool rawmode = false) getPropertiesFn;
-void function(void delegate(bool, bool)) withPropcfgFn;
+Object function(ref string, Object, PropArgs, ParseCb, ParseCb, bool rawmode = false) getPropertiesFn;
+void function(void delegate(PropArgs)) withPropcfgFn;
 
 class IntAsFloat : Expr {
   Expr i;
@@ -705,9 +705,9 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
     t2backup = t2;
     if (octoless || !t2.accept("#"[])) break;
     
-    withPropcfgFn((bool withTuple, bool withCall) {
+    withPropcfgFn((PropArgs args) {
       if (auto res = getPropertiesFn(
-          t2, fastcast!(Object) (curOp), withTuple, withCall, cont, rest
+          t2, fastcast!(Object) (curOp), args, cont, rest
         )
       )
         if (auto res2 = fastcast!(Expr) (res)) {

@@ -1,6 +1,6 @@
 module ast.ifstmt;
 
-import ast.base, ast.scopes, ast.conditionals, ast.parse;
+import ast.base, ast.scopes, ast.conditionals, ast.parse, ast.properties;
 
 class IfStatement : LineNumberedStatementClass {
   Scope wrapper;
@@ -60,8 +60,17 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   ifs.configPosition(text);
   ifs.wrapper = new Scope;
   namespace.set(ifs.wrapper);
-  if (!rest(t2, "cond"[], &ifs.test))
-    t2.failparse("Couldn't get if condition"[]);
+  
+  {
+    auto backup = *propcfg.ptr();
+    scope(exit) *propcfg.ptr() = backup;
+    // if (foo) bar == if (foo) { bar; }, not if (foo bar)!
+    // don't try to interpret as a call if our prop starts with an ast tuple
+    propcfg.ptr().withCallOnTuple = false;
+    
+    if (!rest(t2, "cond"[], &ifs.test))
+      t2.failparse("Couldn't get if condition"[]);
+  }
   configure(ifs.test);
   if (!rest(t2, "tree.scope"[], &ifs.branch1))
     t2.failparse("Couldn't get if branch"[]);

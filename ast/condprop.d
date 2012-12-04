@@ -21,7 +21,7 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
     
     return fastcast!(Object) (tmpize(ex_to_tmp, delegate Expr(Expr base, LLVMRef llout) {
       if (indirected) base = fastalloc!(DerefExpr)(base);
-      auto proprest_obj = getProperties(t2, fastcast!(Object) (base), true, true, cont, rest);
+      auto proprest_obj = getProperties(t2, fastcast!(Object) (base), Init!(PropArgs), cont, rest);
       auto proprest = fastcast!(Expr) (proprest_obj);
       if (!proprest_obj || !proprest)
         t2.failparse("couldn't get continuing property for "[], base, " - "[], proprest_obj);
