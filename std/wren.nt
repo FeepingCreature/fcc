@@ -61,13 +61,6 @@ class Integer : Thing {
   string toString() { return "$num"; }
 }
 
-class String : Thing {
-  string s;
-  void init(string s) this.s = s;
-  Thing eval(Namespace) { return this; }
-  string toString() { return "\"$s\""; }
-}
-
 class Vec2f : Thing {
   vec2f value;
   void init(vec2f v) value = v;
@@ -117,6 +110,8 @@ template Array(T) {
   }
 }
 
+alias String = Array!char;
+
 IArray array-from-thing(Thing t) {
   if (auto num = Number:t) using new Array!float null {
     value ~= num.num;
@@ -155,28 +150,28 @@ template neat-to-wren(T) {
       return new ObjectThing t;
       alias match-found = true;
     }
-    static if (implicitly-converts-to int t) {
+    static if (!is-defined match-found && implicitly-converts-to int t) {
       return new Integer t;
       alias match-found = true;
     }
-    static if (implicitly-converts-to float t) {
+    static if (!is-defined match-found && implicitly-converts-to float t) {
       return new Number t;
       alias match-found = true;
     }
-    static if (implicitly-converts-to vec2f t) {
+    static if (!is-defined match-found && implicitly-converts-to vec2f t) {
       return new Vec2f t;
       alias match-found = true;
     }
-    static if (implicitly-converts-to vec3f t) {
+    static if (!is-defined match-found && implicitly-converts-to vec3f t) {
       return new Vec3f t;
       alias match-found = true;
     }
-    static if (type-is array T) {
+    static if (!is-defined match-found && type-is array T) {
       alias AT = type-of t[0];
       return new Array!AT t;
       alias match-found = true;
     }
-    static if (type-is delegate T) || (type-is function T) {
+    static if !is-defined match-found && (type-is delegate T || type-is function T) {
       return new Function("neat wrapper for $(string-of T)", new delegate Thing(Thing[] args) {
         alias PT = ParamTypes T;
         PT neatargs;
