@@ -15,7 +15,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
   if (!t2.gotIdentifier(name)) return null;
-  auto st = fastalloc!(Structure)(namespace().mangle(name~"_data_struct"[], null));
+  auto st = fastalloc!(Structure)(/*namespace().mangle(*/name~"_data_struct"[]/*, null)*/);
   st.sup = namespace();
   
   // Copypasted from ast.structure
@@ -44,6 +44,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   namespace().add(ctxvar);
   
   IsMangled[] mangles;
+  mangles ~= ctxvar;
   foreach (entry; st.field) if (auto m = fastcast!(IsMangled) (entry._1)) mangles ~= m;
   
   text = t2;
