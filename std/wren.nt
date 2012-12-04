@@ -102,7 +102,7 @@ template Array(T) {
     void init(T[] t) { value = t; }
     Thing eval(Namespace ns) { assert(false, "cannot evaluate array"); }
     Thing getIndex(int i) {
-      return neat-to-repl value[i];
+      return neat-to-wren value[i];
     }
     IArray concat(IArray b) {
       auto arr = Array:b;
@@ -137,16 +137,16 @@ template Reference(T) {
   class Reference : Thing, Assignable {
     T* ptr;
     void init(T* t) { ptr = t; }
-    Thing eval(Namespace) { return neat-to-repl *ptr; }
+    Thing eval(Namespace) { return neat-to-wren *ptr; }
     void assign(Thing newval) {
-      *ptr = repl-to-neat!T newval;
+      *ptr = wren-to-neat!T newval;
     }
     string toString() { return "&$(*ptr)"; }
   }
 }
 
-template neat-to-repl(T) {
-  Thing neat-to-repl(T t) {
+template neat-to-wren(T) {
+  Thing neat-to-wren(T t) {
     static if (implicitly-converts-to Thing t) {
       return t;
       alias match-found = true;
@@ -177,41 +177,41 @@ template neat-to-repl(T) {
       alias match-found = true;
     }
     static if (type-is delegate T) || (type-is function T) {
-      return new Function("neat-wrapper", new delegate Thing(Thing[] args) {
+      return new Function("neat wrapper for $(string-of T)", new delegate Thing(Thing[] args) {
         alias PT = ParamTypes T;
         PT neatargs;
         static if (type-is tuple PT) {
-          if (args.length != neatargs.length) error "Neat function $(string-of PT) called with too many arguments: $args";
+          if (args.length != neatargs.length) error "Neat function $(string-of T) called with wrong number of arguments: $args";
           static if neatargs.length {
             static for int i <- 0..neatargs.length {
-              neatargs[i] = repl-to-neat!type-of neatargs[i] args[i];
+              neatargs[i] = wren-to-neat!type-of neatargs[i] args[i];
             }
             alias call = t neatargs;
           } else {
             alias call = t();
           }
         } else {
-          if (args.length != 1) error "Neat function $(string-of PT) called with too many arguments: $args";
-          neatargs = repl-to-neat!type-of neatargs args[0];
+          if (args.length != 1) error "Neat function $(string-of T) called with wrong number of arguments: $args";
+          neatargs = wren-to-neat!type-of neatargs args[0];
           alias call = t neatargs;
         }
         static if (types-equal (void, type-of call)) {
           call;
           return .t;
         } else {
-          return neat-to-repl call;
+          return neat-to-wren call;
         }
       });
       alias match-found = true;
     }
     static if (!is-defined match-found) {
-      pragma(fail, string-of type-of t ~ ": can't convert to repl form");
+      pragma(fail, string-of type-of t ~ ": can't convert to wren form");
     }
   }
 }
 
-template repl-to-neat(T) {
-  T repl-to-neat(Thing thing) {
+template wren-to-neat(T) {
+  T wren-to-neat(Thing thing) {
     static if (type-is class T) || (type-is interface T) {
       if (auto as = Assignable: thing) thing = thing.eval(null); // get at the juicy value beneath
       if (auto ot = ObjectThing: thing) {
@@ -227,8 +227,14 @@ template repl-to-neat(T) {
       else error "Can't create $(string-of T) ($(string-of AT)) from $thing";
       alias match-found = true;
     }
+    static if (types-equal(vec3f, T)) {
+      if (auto v3 = Vec3f: thing)
+        return v3.value;
+      else error "Can't create vec3f from $thing";
+      alias match-found = true;
+    }
     static if (!is-defined match-found) {
-      pragma(fail, string-of T ~ ": can't create from repl form");
+      pragma(fail, string-of T ~ ": can't create from wren form");
     }
   }
 }
@@ -278,6 +284,7 @@ class List : Thing {
     if !list.length error "Cannot evaluate $this: list empty";
     auto op = Operator: auto first = list[0].eval(ns);
     if !op error "Cannot evaluate $this: first entry is not an operator (function), but $(first?.toString():\"null\")";
+    // writeln "Evaluate $this";
     return op.call (list[1..$], ns);
   }
   string toString() {
