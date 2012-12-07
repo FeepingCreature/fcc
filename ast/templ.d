@@ -225,7 +225,7 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
       void addDependencies(ref Iterable it) {
         it.iterate(&addDependencies);
         if (auto dep = fastcast!(Dependency) (it)) {
-          mod.entries ~= fastalloc!(DependencyEntry)(dep);
+          mod.addEntry(fastalloc!(DependencyEntry)(dep));
         }
       }
       addDependencies(outer);
@@ -233,13 +233,13 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
     if (weakOnly) {
       foreach (inst; instRes) if (auto fun = fastcast!(Function) (inst)) if (fun.weak) {
         auto copy = fun.dup;
-        mod.entries ~= fastcast!(Tree) (copy);
+        mod.addEntry(fastcast!(Tree) (copy));
         handleDeps(copy);
       }
     } else {
       foreach (inst; instRes) {
         auto copy = fastcast!(Tree) (inst).dup;
-        mod.entries ~= copy;
+        mod.addEntry(copy);
         handleDeps(fastcast!(Iterable) (copy));
       }
     }
@@ -301,7 +301,7 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
           /*if (auto fun = fastcast!(Function)~ tr)
             logln("add ", fun.mangleSelf(), " to ", current_module().name,
               ", at ", current_module().entries.length, "; ", cast(void*) current_module());*/
-          // current_module().entries ~= tr;
+          // current_module().addEntry(tr);
           // addExtra(mg);
           if (!mg) { logln("!! ", tr); fail; }
           instRes ~= mg;
@@ -326,7 +326,7 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
         } else {
           if (auto ptr = tr in mangcache) mangl = *ptr;
           else {
-            auto id = Format("tree_"[], mangcache.length);
+            auto id = qformat("tree_", mangletree(tr));
             mangcache[tr] = id;
             mangl = id;
           }

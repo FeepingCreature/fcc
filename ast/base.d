@@ -687,6 +687,7 @@ interface IModule : Named {
   string modname();
   bool getDontEmit();
   bool getDoneEmitting();
+  void addEntry(Tree);
 }
 
 TLS!(IModule) current_module;
@@ -964,6 +965,9 @@ bool is_structsize(string s, out string res) {
   }
   return false;
 }
+
+import cache;
+
 string llmax(string a, string b) {
   // a = llexcachecheck(a); // doesn't help
   // b = llexcachecheck(b);
@@ -991,7 +995,7 @@ string llmax(string a, string b) {
   if (isnum(sz1, k) && isnum(sz2, l)) return qformat((k>l)?k:l);
   fail;*/
   auto expr = qformat("select(i1 icmp sgt(i32 ", a, ", i32 ", b, "), i32 ", a, ", i32 ", b, ")");
-  if (expr.length < 512) return expr;
+  // if (expr.length < 512) return expr;
   return readllex(expr);
 }
 string llmax(string a, string b, string c) { return llmax(a, llmax(b, c)); }
@@ -1018,4 +1022,14 @@ string refcompress(string s) {
 
 struct PropArgs {
   bool withTuple = true, withCall = true, withCallOnTuple = true;
+}
+
+extern(C) string mangletree(Tree tr);
+
+template memoize(alias Fun, alias Var, string Name) {
+  mixin(`
+    Ret!(typeof(&Fun)) `~Name~`(Params!(typeof(&Fun)) par) {
+      if (!Var) Var = Fun(par);
+      return Var;
+    }`);
 }

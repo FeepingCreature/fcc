@@ -48,7 +48,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   foreach (entry; st.field) if (auto m = fastcast!(IsMangled) (entry._1)) mangles ~= m;
   
   text = t2;
-  fastcast!(Module) (current_module()).entries ~= gvd;
+  current_module().addEntry(gvd);
   return fastalloc!(PassthroughWeakNoOp)(mangles);
 }
 mixin DefaultParser!(gotContext, "tree.toplevel.context"[], null, "context"[]);

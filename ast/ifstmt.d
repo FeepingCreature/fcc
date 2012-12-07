@@ -9,6 +9,7 @@ class IfStatement : LineNumberedStatementClass {
   mixin DefaultDup!();
   mixin defaultIterate!(test, wrapper, branch1, branch2);
   string toString() { return Format("if "[], test, " "[], branch1, " else "[], branch2); }
+  this() { }
   override void emitLLVM(LLVMFile lf) {
     super.emitLLVM(lf);
     auto past1 = lf.allocLabel(), past2 = lf.allocLabel();
@@ -56,9 +57,9 @@ import ast.namespace;
 Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto pos1 = text.retreat(2);
   string t2 = text;
-  auto ifs = new IfStatement;
+  auto ifs = fastalloc!(IfStatement)();
   ifs.configPosition(text);
-  ifs.wrapper = new Scope;
+  ifs.wrapper = fastalloc!(Scope)();
   namespace.set(ifs.wrapper);
   
   {
@@ -117,7 +118,7 @@ Object gotStaticIf(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
       static if (Stmt) { res = branch2.parseFullAggregateBody(rest); }
       else { res = Single!(NoOp); branch2.parseGlobalBody(rest, Stmt); }
     } else {
-      res = new NoOp;
+      res = Single!(NoOp);
     }
   } else {
     text.failparse("condition not static: "[], test);

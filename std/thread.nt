@@ -208,7 +208,9 @@ class ThreadPool {
         (dg, readqueue) = readqueue[(0, 1..$)];
       }
       set-handler (UnrecoverableError err) {
-        gdb-print-backtrace;
+        // gdb-print-backtrace;
+        import std.process;
+        writeln read-pretty-fcc-backtrace();
         writeln "Unhandled error in task: '$err'. ";
         
         invoke-exit "task-continue";

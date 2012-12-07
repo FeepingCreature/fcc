@@ -104,7 +104,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     Function fun;
     if (!rest(t3, "tree.fundef_externc"[], &fun)) return false;
     // logln("got fundef "[], fun.name);
-    fastcast!(Module) (current_module()).entries ~= fun;
+    current_module().addEntry(fun);
     t2 = t3;
     return true;
   }

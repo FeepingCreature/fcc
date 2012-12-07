@@ -147,7 +147,7 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     // if (count == 5902) asm { int 3; }
     id = getuid();
     sup = namespace();
-    New(lnsc);
+    lnsc = fastalloc!(Mew)();
   }
   void setSup(Namespace ns) {
     sup = ns;

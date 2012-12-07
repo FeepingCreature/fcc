@@ -81,15 +81,13 @@ class FunSymbol : Symbol {
   }
   string toString() { return qformat("funsymbol<"[], fun, ">"[]); }
   IType vt_cache;
-  override IType valueType() {
-    if (!vt_cache) {
-      auto fp = new FunctionPointer(fun);
-      if (nested) fp.args ~= Argument(nested);
-      fp.stdcall = fun.type.stdcall;
-      vt_cache = fp;
-    }
-    return vt_cache;
+  IType _valueType() {
+    auto fp = new FunctionPointer(fun);
+    if (nested) fp.args ~= Argument(nested);
+    fp.stdcall = fun.type.stdcall;
+    return fp;
   }
+  override mixin memoize!(_valueType, vt_cache, "valueType");
 }
 
 extern(C) Object nf_fixup__(Object obj, Expr mybase);
@@ -440,7 +438,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       return mangleSelf() ~ "_" ~ name;
     }
     string getIdentifier() { return name; }
-    void emitLLVM(LLVMFile lf) {
+    void emitLLVM(LLVMFile lf) { if (once(lf, "fun "~mangleSelf())) {
       auto cef_backup = current_emitting_function();
       current_emitting_function.set(this);
       scope(exit) current_emitting_function.set(cef_backup);
@@ -606,7 +604,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         lf.put(".long "[], linedebug(i));
         lf.put(".long "[], linenumbers[i]);
       }*/
-    }
+    }}
     
     Stuple!(IType, string)[] stackframe() {
       Stuple!(IType, string)[] res;
@@ -649,7 +647,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     }
     Extensible simplify() { return this; }
   }
-  Function alloc() { return new Function; }
+  Function alloc() { return fastalloc!(Function)(); }
 }
 
 void mkAbstract(Function fun) {
@@ -1038,7 +1036,8 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
     
     if (fun.name == "main"[]) {
       if (gotMain) {
-        t2.failparse("Main already defined! "[]);
+        asm { int 3; }
+        t2.failparse("Main already defined: ", gotMain);
       }
       gotMain = fun;
       fun.name = "__fcc_main";
@@ -1111,7 +1110,7 @@ Object gotGenericFunDeclNaked(T)(T fun, Namespace sup_override, bool addToNamesp
 }
 
 Object gotFunDef(bool ExternC)(ref string text, ParseCb cont, ParseCb rest) {
-  auto fun = new Function;
+  auto fun = fastalloc!(Function)();
   fun.extern_c = ExternC;
   return gotGenericFunDef(fun, cast(Namespace) null, true, text, cont, rest);
 }
@@ -1180,10 +1179,17 @@ class FunctionPointer : ast.types.Type, ExternAware {
   string manglecache;
   override string mangle() {
     if (manglecache) return manglecache;
-    auto res = "fp_ret_"~ret.mangle()~"_args";
-    if (!args.length) res ~= "_none";
-    else foreach (arg; args)
-      res ~= "_"~arg.type.mangle();
+    
+    scope arginfo = new string[args.length];
+    foreach (i, arg; args) arginfo[i] = arg.type.mangle();
+    string retmang = ret.mangle();
+    
+    qappend("fp_ret_", retmang, "_args");
+    if (!args.length) qappend("_none");
+    else foreach (arg; arginfo) {
+      qappend("_", arg);
+    }
+    auto res = qfinalize();
     manglecache = res;
     return res;
   }

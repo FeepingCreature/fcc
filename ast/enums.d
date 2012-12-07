@@ -131,7 +131,7 @@ grabIdentifier:
     fun.name = name;
     fun.fixup;
     en.sup.add(fun);
-    (fastcast!(Module) (current_module())).entries ~= fun;
+    current_module().addEntry(fun);
     auto backup2 = namespace();
     scope(exit) namespace.set(backup2);
     namespace.set(fun);

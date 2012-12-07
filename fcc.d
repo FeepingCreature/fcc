@@ -20,7 +20,7 @@ mixin(expandImport(`ast.[
   enums, import_parse, pragmas, trivial, fp, expr_statement,
   typeset, dependency, prefixfun,
   macros, tenth, vardecl_expr, vardecl_parse, property, condprop],
-  casts, llvmtype`));
+  casts, llvmtype, cache`));
 
 alias ast.tuples.resolveTup resolveTup;
 alias ast.c_bind.readback readback;
@@ -74,6 +74,27 @@ string[] processCArgs(string[] ar) {
     res ~= arg;
   }
   return res;
+}
+
+string[Tree] ids;
+
+extern(C) string mangletree(Tree tr) {
+  if (auto ea = fastcast!(ExprAlias)(tr))
+    return "ea_"~mangletree(ea.base);
+  if (auto rce = fastcast!(RCE)(tr))
+    return "rce_"~rce.to.mangle()~"_"~mangletree(rce.from);
+  if (auto ie = fastcast!(IntExpr)(tr))
+    return qformat("ie_", ie.num);
+  if (auto se = fastcast!(StringExpr)(tr))
+    return qformat("se_", cleanup(se.str));
+  synchronized {
+    if (auto p = tr in ids) return *p;
+    auto res = qformat("uniquetree_", ids.length);
+    ids[tr] = res;
+    return res;
+  }
+  logln("tr: ", fastcast!(Object)(tr).classinfo.name, " ", tr);
+  asm { int 3; }
 }
 
 static this() {
@@ -551,7 +572,7 @@ Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
   // end copypaste
   
   if (auto res = rest(text, "tree.stmt.aggregate")) return res; // always scope anyway
-  auto sc = new Scope;
+  auto sc = fastalloc!(Scope)();
   sc.configPosition(text);
   
   namespace.set(sc);
@@ -755,6 +776,8 @@ void postprocessModule(Module mod, LLVMFile lf) {
 
 bool ematSysmod;
 
+bool delegate(Module) dontReemit;
+
 bool initedSysmod;
 void lazySysmod() {
   if (initedSysmod) return;
@@ -797,8 +820,31 @@ void verify(Iterable it) {
   logln(res.length, " markers checked, no collisions. ");
 }
 
+string get_llc_cmd(bool optimize, bool saveTemps, ref string fullcommand) {
+  string cpu = "core2";
+  if (isARM) cpu = null;
+  
+  string cpumode;
+  if (cpu) cpumode = "-mcpu="~cpu~" ";
+  
+  string llc_optflags;
+  if (optimize) {
+    void optrun(string flags, string marker = null) {
+      if (marker) marker ~= ".";
+      string optfile = ".obj/"~output~".opt."~marker~"bc";
+      fullcommand ~= " |opt "~flags~"-lint -";
+      if (saveTemps) fullcommand ~= " |tee "~optfile;
+    }
+    string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -tailcallopt ";
+    string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
+    optrun(cpumode~"-internalize -std-compile-opts -std-link-opts "~optflags);
+    llc_optflags = optflags;
+  }
+  return cpumode~llc_optflags;
+}
+
 extern(C) int mkdir(char*, int);
-string delegate() compile(string file, CompileSettings cs) {
+string delegate() compile(string file, CompileSettings cs, bool force = false) {
   scope(failure)
     logSmart!(false)("While compiling ", file);
   while (file.startsWith("./")) file = file[2 .. $];
@@ -807,11 +853,12 @@ string delegate() compile(string file, CompileSettings cs) {
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
     srcname = ".obj/" ~ end ~ ".ll";
-    objname = ".obj/" ~ end ~ ".bc";
+    // objname = ".obj/" ~ end ~ ".bc";
+    objname = ".obj/" ~ end ~ ".o";
     auto path = srcname[0 .. srcname.rfind("/")];
     string mew = ".";
     foreach (component; path.split("/")) {
-      mew = mew.sub(component);
+      mew = mew.qsub(component);
       mkdir(toStringz(mew), 0755);
     }
   } else assert(false);
@@ -824,8 +871,11 @@ string delegate() compile(string file, CompileSettings cs) {
   bool fresh = true;
   auto mod = lookupMod(modname);
   if (!mod) throw new Exception(Format("No such module: ", modname));
-  if (mod.alreadyEmat) return objname /apply/ (string objname) { return objname; }; // fresh
   if (mod.dontEmit) return null;
+  if (mod.alreadyEmat || !force && dontReemit && dontReemit(mod)) {
+    // mod.doneEmitting = true;
+    return objname /apply/ (string objname) { return objname; }; // fresh
+  }
   fixupMain();
   auto len_parse = sec() - start_parse;
   double len_opt;
@@ -857,15 +907,19 @@ string delegate() compile(string file, CompileSettings cs) {
     }) / 1_000_000f;
     f.close;
     string flags;
-    if (cs.preopt) flags = "-O3 -lint ";
+    if (false && cs.preopt) flags = "-O3 -lint ";
     // if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     string cmdline;
     if (cs.preopt) {
-      cmdline = Format("opt ", flags, "-o ", objname, " ", srcname, " 2>&1");
+      cmdline = Format("opt ", flags);
     } else {
-      cmdline = Format("llvm-as ", flags, "-o ", objname, " ", srcname, " 2>&1");
+      cmdline = Format("llvm-as ", flags);
     }
+    // cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
+    string bogus;
+    cmdline ~= Format("-o - ", srcname, " |llc -march=x86 - "~get_llc_cmd(cs.optimize, cs.saveTemps, bogus)~"-filetype=obj -o ", objname);
+    
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
     if (system(cmdline.toStringz())) {
       logln("ERROR: Compilation failed! ");
@@ -884,8 +938,8 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   lazySysmod();
   setupStaticBoolLits();
   auto start = lookupMod(modname);
-  
   done[start.name] = true; // mark here to unbreak circular import of main file (really only relevant for testsuite)
+  
   todo ~= start.getAllModuleImports();
   while (todo.length) {
     auto cur = todo.take();
@@ -897,7 +951,7 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   }
   
   finalizeSysmod(start);
-  auto firstObj = compile(file, cs);
+  auto firstObj = compile(file, cs, true);
   assemble(firstObj);
 }
 
@@ -960,41 +1014,27 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
     if (!saveTemps)
       foreach (obj; objects)
         unlink(obj.toStringz());
-  string linkedfile = ".obj/"~output~".all.bc";
-  string fullcommand = "llvm-link ";
-  foreach (obj; objects) fullcommand ~= obj ~ " ";
+  // string linkedfile = ".obj/"~output~".all.bc";
+  string linkedfile = ".obj/"~output~".all.o";
+  // string fullcommand = "llvm-link ";
+  string objlist;
+  foreach (obj; objects) objlist ~= obj ~ " ";
+  /*string fullcommand = "gcc " ~ objlist;
   
   //string fixedfile = linkedfile;
-  if (isWindoze()) {
+  if (false && isWindoze()) {
     fullcommand ~= " |llvm-dis - |sed -e s/^define\\ weak_odr\\ /define\\ /g |llvm-as";
   }
   if (saveTemps) fullcommand ~= " |tee "~linkedfile;
   
-  string cpu = "core2";
-  if (isARM) cpu = null;
-  
-  string cpumode;
-  if (cpu) cpumode = "-mcpu="~cpu~" ";
-  
-  string llc_optflags;
-  if (optimize) {
-    void optrun(string flags, string marker = null) {
-      if (marker) marker ~= ".";
-      string optfile = ".obj/"~output~".opt."~marker~"bc";
-      fullcommand ~= " |opt "~flags~"-lint -";
-      if (saveTemps) fullcommand ~= " |tee "~optfile;
-    }
-    string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -tailcallopt ";
-    string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
-    optrun(cpumode~"-internalize -std-compile-opts -std-link-opts "~optflags);
-    llc_optflags = optflags;
-  }
   string objfile = ".obj/"~output~".o";
   // -mattr=-avx,-sse41 
-  fullcommand ~= " |llc - "~cpumode~llc_optflags~"-filetype=obj -o "~objfile;
+  fullcommand ~= " |llc - "~get_llc_cmd(optimize, saveTemps, fullcommand)~"-filetype=obj -o "~objfile;
   logSmart!(false)("> ", fullcommand);
   if (system(fullcommand.toStringz()))
     throw new Exception("link failed");
+  */
+  string objfile = objlist;
   
   string locallibfolder;
   if (platform_prefix) {
@@ -1024,49 +1064,38 @@ version(Windows) {
   }
 }
 
-import memconserve_stdfile;
-alias memconserve_stdfile.exists exists;
-alias memconserve_stdfile.getTimes getTimes;
-void loop(string start,
+alias ast.modules.exists exists;
+
+void incbuild(string start,
           CompileSettings cs, bool runMe)
 {
-  string toModule(string file) { return file.replace("/", ".").endsWith(EXT); }
   string undo(string mod) {
     return mod.replace(".", "/") ~ EXT;
   }
-  void translate(string file, ref string obj, ref string src) {
+  void translate(string file, ref string obj, ref string asmf) {
     if (auto pre = file.endsWith(EXT)) {
-      src = ".obj/" ~ pre ~ ".ll";
-      obj = ".obj/" ~ pre ~ ".bc";
+      asmf = ".obj/" ~ pre ~ ".ll";
+      // obj  = ".obj/" ~ pre ~ ".bc";
+      obj = ".obj/" ~ pre ~ ".o";
     } else assert(false);
   }
-  bool isUpToDate(Module mod) {
-    auto file = mod.name.undo();
-    string obj, src;
-    file.translate(obj, src);
-    if (!obj.exists()) return false;
-    if (!file.exists()) {
-      foreach (entry; include_path)
-        if (entry.sub(file).exists()) { file = entry.sub(file); break; }
-    }
-    long created1, accessed1, modified1, created2, accessed2, modified2;
-    file.getTimes(created1, accessed1, modified1);
-    obj.getTimes(created2, accessed2, modified2);
-    return modified1 < modified2;
-  }
-  void invalidate(string file) {
-    auto modname = file.toModule();
-    if (auto p = modname in ast.modules.cache) {
-      p.isValid = false;
-    }
-    ast.modules.cache.remove(modname);
-  }
-  bool[string] checked;
   bool[string] checking;
   bool needsRebuild(Module mod) {
-    // if (mod.name == "sys") logln("needsRebuild? ", mod.name, " ", mod.dontEmit, " ", mod is sysmod, " ", isUpToDate(mod), " ", !!(mod.name in checking), " ", mod.getAllModuleImports());
     if (mod.dontEmit) return false;
-    if (mod is sysmod || !isUpToDate(mod)) return true;
+    
+    auto file = mod.name.undo();
+    string obj, asmf;
+    file.translate(obj, asmf);
+    file = findfile(file);
+    
+    auto start2 = findfile(start);
+    if (file == start2) return false; // this gets emitted last! don't reparse regardless
+    if (!obj.exists()) return true;
+    
+    // if (mod.name != "sys")
+    //   logln("needsRebuild? ", file, " ", start2, " ", mod.dontEmit, " ", mod is sysmod, " ", isUpToDate(file, obj), " ", !!(mod.name in checking), " ", mod.getAllModuleImports());
+    
+    if (mod is sysmod || !isUpToDate(file, obj)) return true;
     if (mod.name in checking) return false; // break the circle
     checking[mod.name] = true;
     scope(exit) checking.remove(mod.name);
@@ -1074,51 +1103,21 @@ void loop(string start,
       if (mod2 !is sysmod && needsRebuild(mod2)) return true;
     return false;
   }
-  bool pass1 = true;
-  rereadMod = delegate bool(Module mod) {
-    if (pass1) return false;
-    if (mod.name in checked) return false;
-    auto res = needsRebuild(mod);
-    checked[mod.name] = true;
-    return res;
+  dontReemit = delegate bool(Module mod) {
+    return !needsRebuild(mod);
   };
-  while (true) {
-    lazySysmod();
-    try {
-      string[] objs = start.compileWithDepends(cs);
-      objs.link(cs.optimize, true);
-    } catch (Exception ex) {
-      logSmart!(false) (ex);
-      goto retry;
-    }
-    if (runMe) {
-      auto cmd = "./"~output;
-      version(Windows) cmd = output;
-      logSmart!(false)("> ", cmd); system(toStringz(cmd));
-    }
-  retry:
-    pass1 = false;
-    checked = null;
-    checking = null;
-    gotMain = null;
-    resetTemplates();
-    version(Windows) { if (system("pause")) return; }
-    else {
-      if (!sigmode) {
-        logln("please press return to continue. ");
-        if (system("read"))
-          return;
-      } else {
-        logln("Waiting for refcc");
-        sigset_t waitset;
-        
-        sigemptyset(&waitset);
-        sigaddset(&waitset, SIGXCPU);
-        sigprocmask(SIG_BLOCK, &waitset, null);
-        int sig;
-        sigwait(&waitset, &sig);
-      }
-    }
+  lazySysmod();
+  try {
+    string[] objs = start.compileWithDepends(cs);
+    objs.link(cs.optimize, true);
+  } catch (Exception ex) {
+    logSmart!(false) (ex);
+    return;
+  }
+  if (runMe) {
+    auto cmd = "./"~output;
+    version(Windows) cmd = output;
+    logSmart!(false)("> ", cmd); system(toStringz(cmd));
   }
 }
 
@@ -1141,7 +1140,9 @@ version(Windows) {
 }
 
 int main(string[] args) {
+  // std.gc.disable();
   string execpath;
+  scope(exit) save_cache();
   if ("/proc/self/exe".exists()) execpath = myRealpath("/proc/self/exe");
   else execpath = myRealpath(args[0]);
   execpath = execpath[0 .. execpath.rfind(pathsep) + 1];
@@ -1200,7 +1201,7 @@ int main(string[] args) {
     // TODO: fix TLS under Windows (wtf is wrong with it!)
     cs.singlethread = true;
   }
-  bool willLoop;
+  bool incremental;
   ar = processCArgs(ar);
   while (ar.length) {
     auto arg = ar.take();
@@ -1213,7 +1214,7 @@ int main(string[] args) {
       continue;
     }
     if (arg == "--loop" || arg == "-F") {
-      willLoop = true;
+      incremental = true;
       cs.preopt = true; // makes incremental linking faster
       continue;
     }
@@ -1291,7 +1292,7 @@ int main(string[] args) {
       if (!output) output = base;
       if (isWindoze()) output ~= ".exe";
       if (!mainfile) mainfile = arg;
-      if (!willLoop) {
+      if (!incremental) {
         try objects ~= arg.compileWithDepends(cs);
         catch (Exception ex) { logSmart!(false) (ex.toString()); return 1; }
       }
@@ -1301,19 +1302,19 @@ int main(string[] args) {
     return 1;
   }
   if (!output) output = "exec";
-  if (willLoop) {
-    loop(mainfile, cs, runMe);
+  if (incremental) {
+    incbuild(mainfile, cs, runMe);
     return 0;
   }
   objects.link(cs.optimize, cs.saveTemps);
   scope(exit) if (accesses.length) logln("access info: ", accesses);
   if (runMe) {
-	auto cmd = "./"~output;
-	version(Windows) cmd = output;
-	logSmart!(false)("> ", cmd);
-	auto res = system(toStringz(cmd));
-	if (res < 256) return res;
-	return (res & 0xff00) >> 8;
+    auto cmd = "./"~output;
+    version(Windows) cmd = output;
+    logSmart!(false)("> ", cmd);
+    auto res = system(toStringz(cmd));
+    if (res < 256) return res;
+    return (res & 0xff00) >> 8;
   }
   return 0;
 }

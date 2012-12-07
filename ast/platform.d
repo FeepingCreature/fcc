@@ -20,7 +20,7 @@ void parseGlobalBody(ref string src, ParseCb rest, bool stmt) {
           if (auto n = fastcast!(Named) (obj))
             if (!addsSelf(obj))
               ns.add(n);
-          if (auto tr = fastcast!(Tree) (obj)) mod.entries ~= tr;
+          if (auto tr = fastcast!(Tree) (obj)) mod.addEntry(tr);
         }
       }
     ))

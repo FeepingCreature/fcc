@@ -672,8 +672,8 @@ static this() {
 }
 
 Expr mkMemberAccess(Expr strct, string name) {
-  if (auto lv = fastcast!(LValue)~ strct) return new MemberAccess_LValue(lv, name);
-  else                              return new MemberAccess_Expr  (strct, name);
+  if(auto lv=fastcast!(LValue)(strct)) return fastalloc!(MemberAccess_LValue)(lv, name);
+  else                                 return fastalloc!(MemberAccess_Expr  )(strct, name);
 }
 
 extern(C) Expr C_mkMemberAccess(Expr strct, string name) { return mkMemberAccess(strct, name); }
@@ -708,8 +708,8 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (auto srn = fastcast!(SemiRelNamespace) (vt))
         vt = fastcast!(IType) (srn.resolve());
       if (auto rn = fastcast!(RelNamespace) (vt)) {
-        alts ~= ex;
-        spaces ~= vt;
+        own_append(alts, ex);
+        own_append(spaces, vt);
       } else own_append(cleanups, ex);
       return false;
     }, false);
@@ -725,8 +725,8 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
           if (auto srn = fastcast!(SemiRelNamespace) (vt))
             vt = fastcast!(IType) (srn.resolve());
           if (auto rn = fastcast!(RelNamespace) (vt)) {
-            alts ~= ex;
-            spaces ~= vt;
+            own_append(alts, ex);
+            own_append(spaces, vt);
           } else own_append(cleanups, ex);
           return false;
         }, false);
@@ -743,8 +743,8 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
         vt = fastcast!(IType) (srn.resolve());
       
       if (fastcast!(Namespace) (vt) || fastcast!(RelNamespace) (vt)) {
-        alts ~= null;
-        spaces ~= vt;
+        own_append(alts, cast(Expr) null);
+        own_append(spaces, vt);
       }
     }
   }

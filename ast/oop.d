@@ -88,7 +88,7 @@ class VTable {
         if (base == -1) // lazy init
           base = (parent.parent?parent.parent.getClassinfo().length:1);
         res ~= 
-          new PointerFunction!(NestedFunction) (
+          fastalloc!(PointerFunction!(NestedFunction)) (
             tmpize_maybe(classref, delegate Expr(Expr classref) {
               return fastalloc!(DgConstructExpr)(
                 fastalloc!(DerefExpr)(
@@ -134,7 +134,7 @@ class LazyDeltaInt : Expr {
   override {
     string toString() { return qformat("ldi(", dg(), " + ", delta, ")"); }
     IType valueType() { return Single!(SysInt); }
-    LazyDeltaInt dup() { return new LazyDeltaInt(dg, delta); }
+    LazyDeltaInt dup() { return fastalloc!(LazyDeltaInt)(dg, delta); }
     void emitLLVM(LLVMFile lf) {
       auto res = dg() + delta;
       push(lf, res);
@@ -258,10 +258,10 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         auto pp_fntype = fastalloc!(Pointer)(fastalloc!(Pointer)(fntype));
         auto pp_int = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
         // *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
-        set ~= new PointerFunction!(NestedFunction) (
+        set ~= fastalloc!(PointerFunction!(NestedFunction)) (
           tmpize_maybe(intp, delegate Expr(Expr intp) {
             return fastalloc!(DgConstructExpr)(
-              new PA_Access(fastalloc!(DerefExpr)(reinterpret_cast(pp_fntype, intp)), mkInt(id + own_offset)),
+              fastalloc!(PA_Access)(fastalloc!(DerefExpr)(reinterpret_cast(pp_fntype, intp)), mkInt(id + own_offset)),
               lookupOp("+"[],
                 reinterpret_cast(fastalloc!(Pointer)(voidp), intp),
                 fastalloc!(DerefExpr)(fastalloc!(DerefExpr)(reinterpret_cast(pp_int, intp)))
@@ -304,9 +304,9 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         // *(*fntype**:classref)[id + offs].toDg(void*:classref)
         auto fntype = fun.getPointer().valueType();
         auto pp_fntype = fastalloc!(Pointer)(fastalloc!(Pointer)(fntype));
-        return new PointerFunction!(NestedFunction)(
+        return fastalloc!(PointerFunction!(NestedFunction))(
           fastalloc!(DgConstructExpr)(
-            new PA_Access(fastalloc!(DerefExpr)(reinterpret_cast(pp_fntype, classref)), lookupOp("+"[], offs, mkInt(id + own_offset))),
+            fastalloc!(PA_Access)(fastalloc!(DerefExpr)(reinterpret_cast(pp_fntype, classref)), lookupOp("+"[], offs, mkInt(id + own_offset))),
             reinterpret_cast(voidp, classref)
           )
         );
@@ -482,7 +482,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         
         rf.fixup;
         mkAbstract(rf);
-        fastcast!(Module) (current_module()).entries ~= rf;
+        current_module().addEntry(rf);
       }
     }
   }
@@ -541,8 +541,10 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     
     auto backupmod = current_module();
     scope(exit) current_module.set(backupmod);
-    current_module.set(coarseMod);
-    coarseMod = null;
+    if (!weak) {
+      current_module.set(coarseMod);
+      coarseMod = null;
+    }
     
     auto popCache = pushCache(); scope(exit) popCache();
     
@@ -648,7 +650,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     sup = namespace();
     auto mod = fastcast!(Module) (current_module());
     if (namespace() !is mod) {
-      mod.entries ~= this;
+      mod.addEntry(this);
     }
   }
   bool finalized;
@@ -672,7 +674,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       }
       if (!hasToStringOverride) {
         auto rf = fastalloc!(RelFunction)(this);
-        New(rf.type);
+        rf.type = fastalloc!(FunctionType)();
         rf.name = "toString";
         rf.type.ret = Single!(Array, Single!(Char));
         rf.sup = this;
@@ -686,7 +688,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         
         rf.fixup;
         rf.addStatement(fastalloc!(ReturnStmt)(mkString(name)));
-        fastcast!(Module) (current_module()).entries ~= rf;
+        current_module().addEntry(rf);
       }
     }
     {
@@ -703,10 +705,10 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       namespace.set(rf);
       rf.fixup;
       
-      auto sc = new Scope;
+      auto sc = fastalloc!(Scope)();
       namespace.set(sc);
       // TODO: switch
-      auto as = new AggrStatement;
+      auto as = fastalloc!(AggrStatement)();
       string intf_offset;
       auto streq = sysmod.lookup("streq"[]);
       assert(!!streq);
@@ -741,7 +743,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       as.stmts ~= fastalloc!(ReturnStmt)(fastcast!(Expr) (sysmod.lookup("null"[])));
       sc._body = as;
       rf.addStatement(sc);
-      fastcast!(Module) (current_module()).entries ~= rf;
+      current_module().addEntry(rf);
     }
   }
   // add interface refs
@@ -761,7 +763,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     return res;
   }
   LazyDeltaInt ownClassinfoLength() { // skipping interfaces
-    return new LazyDeltaInt(&getFinalClassinfoLengthValue);
+    return fastalloc!(LazyDeltaInt)(&getFinalClassinfoLengthValue);
   }
   // array of function pointers
   string[] getVTable(LLVMFile lf = null, RelFunSet loverrides = Init!(RelFunSet)) { // local overrides
@@ -817,8 +819,9 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     if (parent) {
       auto cd_name = parent.cd_name();
       res ~= "@"~cd_name;
-      if (!(cd_name in lf.decls))
-        lf.decls[cd_name] = qformat(res[$-1], " = external global i8");
+      parent.emitLLVM(lf); // it's weak, don't bother
+      // if (!(cd_name in lf.decls))
+      //   lf.decls[cd_name] = qformat(res[$-1], " = external global i8");
     }
     else res ~= "inttoptr(i32 0 to i8*)";
     {
@@ -1164,7 +1167,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
     backup.add(intf.getRefType()); // support interface A { A foo(); }
   if (predecl) { text = t2; return intf.getRefType(); }
   while (true) {
-    auto fun = new NestedFunction(intf);
+    auto fun = fastalloc!(NestedFunction)(intf);
     if (t2.accept("}"[])) break;
     Object obj;
     if (gotGenericFunDecl(fun, cast(Namespace) null, false, t2, cont, rest)) {

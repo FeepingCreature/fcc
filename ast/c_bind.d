@@ -7,28 +7,34 @@ import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays,
 import tools.compat, tools.functional, alloc;
 alias parseBase.startsWith startsWith;
 
+import cache;
+alias memconserve_stdfile.exists exists;
+
 string buf;
 int bufbase;
 int buflen;
 string readStream(InputStream IS) {
   const SIZE = 65536; // enough?
-  if (!buf) { buf = new char[SIZE]; buflen = SIZE; }
+  // if (!buf) { buf = new char[SIZE]; buflen = SIZE; }
   int reslen;
   ubyte[SIZE] buffer = void;
   int i;
   do {
     i = IS.read(buffer);
     if (i < 0) throw new Exception(Format("Read error: ", i));
-    while ((buf.length - bufbase) < reslen + i) {
+    /*while ((buf.length - bufbase) < reslen + i) {
       buflen *= 2;
       buf = buf[bufbase .. bufbase + reslen] ~ new char[buflen - bufbase - reslen];
       bufbase = 0;
     }
-    buf[bufbase .. $][reslen .. reslen + i] = cast(string) buffer[0 .. i];
+    buf[bufbase .. $][reslen .. reslen + i] = cast(string) buffer[0 .. i];*/
+    buf ~= cast(string) buffer[0 .. i];
     reslen += i;
   } while (i);
-  auto res = buf[bufbase .. $][0 .. reslen];
-  bufbase += reslen;
+  // auto res = buf[bufbase .. $][0 .. reslen];
+  auto res = buf;
+  buf = null;
+  // bufbase += reslen;
   return res;
 }
 
@@ -922,7 +928,7 @@ src_cleanup_redo: // count, then copy
         if (Single!(Short) == resolveType(arg))
           arg = Single!(SysInt);
       if (funptr_mode) {
-        auto fptype = new FunctionPointer(ret, args /map/ (IType it) { return Argument(it); });
+        auto fptype = fastalloc!(FunctionPointer)(ret, args /map/ (IType it) { return Argument(it); });
         fptype.stdcall = useStdcall;
         auto ec = fastalloc!(ExternCGlobVar)(fptype, name);
         add(name, ec);
@@ -930,7 +936,7 @@ src_cleanup_redo: // count, then copy
         auto fun = fastalloc!(Function)();
         fun.name = name;
         fun.extern_c = true;
-        fun.type = new FunctionType;
+        fun.type = fastalloc!(FunctionType)();
         fun.type.ret = ret;
         fun.type.params = args /map/ (IType it) { return Argument(it); };
         fun.type.stdcall = useStdcall;

@@ -10,7 +10,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   
   Scope sc;
   if (cached_sc) { sc = cached_sc; sc = sc._ctor(); cached_sc = null; }
-  else { sc = new Scope; }
+  else { sc = fastalloc!(Scope)(); }
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   
@@ -66,7 +66,7 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("auto declaration must have initializer");
     }
     
-    auto var = new Variable;
+    auto var = fastalloc!(Variable)();
     VarDecl vd;
     if (!isRefDecl)
       var.name = varname;

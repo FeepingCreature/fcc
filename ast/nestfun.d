@@ -105,7 +105,7 @@ Object gotNestedFunDef(ref string text, ParseCb cont, ParseCb rest) {
     // do this HERE, so we get the right context
     // and don't accidentally see variables defined further down!
     res.parseMe;
-    mod.entries ~= fastcast!(Tree)~ res;
+    mod.addEntry(res);
     return Single!(NoOp);
   } else return null;
 }
@@ -158,7 +158,7 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
       res.addStatement(sc2);
       
       text = t2;
-      mod.entries ~= fastcast!(Tree) (res);
+      mod.addEntry(fastcast!(Tree) (res));
       return fastalloc!(NestFunRefExpr)(res);
     }
     return null;
@@ -169,11 +169,11 @@ tryRegularDg:
   auto res = fastcast!(NestedFunction) (gotGenericFunDef(nf, mod, true, t2, cont, rest, name, shortform /* true when using the backslash-shortcut */));
   if (!res)
     t2.failparse("Could not parse delegate literal"[]);
-  if (mod.alreadyEmat) {
+  if (mod.doneEmitting) {
     t2.failparse("Internal compiler error: attempted to add nested dg literal to a module that was already emat: ", mod);
   }
   text = t2;
-  mod.entries ~= fastcast!(Tree)~ res;
+  mod.addEntry(fastcast!(Tree) (res));
   return fastalloc!(NestFunRefExpr)(res);
 }
 mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral"[], "2402"[]);
@@ -191,7 +191,7 @@ Object gotNestedFnLiteral(ref string text, ParseCb cont, ParseCb rest) {
   if (!res)
     t2.failparse("Could not parse delegate literal"[]);
   text = t2;
-  mod.entries ~= fastcast!(Tree)~ res;
+  mod.addEntry(fastcast!(Tree) (res));
   return fastalloc!(FunRefExpr)(res);
 }
 mixin DefaultParser!(gotNestedFnLiteral, "tree.expr.fnliteral"[], "2403"[], "function"[]);
@@ -403,7 +403,7 @@ class PointerFunction(T) : T {
     static if (is(typeof(super(null)))) super(null);
     this.ptr = ptr;
     this.setup = setup;
-    New(type);
+    type = fastalloc!(FunctionType)();
     auto dg = fastcast!(Delegate)~ ptr.valueType(), fp = fastcast!(FunctionPointer)~ ptr.valueType();
     if (dg) {
       type.ret = dg.ret;

@@ -13,7 +13,7 @@ class IntAsFloat : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(i);
   override {
-    string toString() { return Format("float("[], i, ")"[]); }
+    string toString() { return qformat("float:", i); }
     IType valueType() { return Single!(Float); }
     void emitLLVM(LLVMFile lf) {
       load(lf, "sitofp i32 ", save(lf, i), " to float");
@@ -28,7 +28,7 @@ class LongAsDouble : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(l);
   override {
-    string toString() { return Format("double("[], l, ")"[]); }
+    string toString() { return qformat("double:", l); }
     IType valueType() { return Single!(Double); }
     void emitLLVM(LLVMFile lf) {
       load(lf, "sitofp i64 ", save(lf, l), " to double");
@@ -43,7 +43,7 @@ class LongAsInt : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(l);
   override {
-    string toString() { return Format("int(", l, ")"); }
+    string toString() { return qformat("int:", l); }
     IType valueType() { return Single!(SysInt); }
     void emitLLVM(LLVMFile lf) {
       load(lf, "trunc i64 ", save(lf, l), " to i32");
@@ -108,7 +108,7 @@ class IntAsLong : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(i);
   override {
-    string toString() { return Format("long("[], i, ")"[]); }
+    string toString() { return qformat("long:", i); }
     IType valueType() { return Single!(Long); }
     void emitLLVM(LLVMFile lf) {
       load(lf, "sext i32 ", save(lf, i), " to i64");
@@ -191,6 +191,7 @@ class FloatAsDouble : Expr {
   mixin DefaultDup!();
   mixin defaultIterate!(f);
   override {
+    string toString() { return qformat("double:", f); }
     IType valueType() { return Single!(Double); }
     void emitLLVM(LLVMFile lf) {
       load(lf, "fpext float ", save(lf, f), " to double");

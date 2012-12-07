@@ -70,7 +70,12 @@ struct W {
 import c.math, c.fenv, c.unistd, c.stdlib, c.time;
 
 void sdlfun(vec3f delegate(float, float, float) dg) {
-  surf = SDL_SetVideoMode(1200, 900, 32, 0);
+  auto surf = SDL_SetVideoMode(1200, 900, 32, 0);
+  if (!surf) {
+    writeln "Cannot allocate SDL surface";
+    fail;
+  }
+  .surf = surf;
   auto start = time(int*: null);
   float t = 0;
   int fps;

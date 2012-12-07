@@ -1,18 +1,10 @@
 module ast.modules;
 
-import ast.base, ast.namespace, ast.parse, ast.fold, ast.fun;
+import cache, ast.base, ast.namespace, ast.parse, ast.fold, ast.fun;
 
 import tools.ctfe, tools.threadpool;
 
-string[] include_path;
-
 bool dumpXMLRep;
-
-static this() {
-  include_path ~= "/usr/local/include";
-  include_path ~= "/usr/include";
-  version(Windows) include_path ~= "/mingw/include";
-}
 
 Threadpool tp;
 
@@ -23,6 +15,9 @@ extern(C) void check_imports_usage(string info, Namespace[] imports, bool[] impo
       logSmart!(false)("WARN:"[], info, ": import "[], mod.name, " never used. "[]);
   }
 }
+
+import memconserve_stdfile;
+alias memconserve_stdfile.exists exists;
 
 class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, EmittingContext {
   string name;
@@ -40,6 +35,15 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     scope(exit) current_module.set(backup);
     current_module.set(this);
     
+    if (sourcefile) if (auto cache = read_cache("module imports", sourcefile)) {
+      Module[] res;
+      while (cache) {
+        auto entry = slice(cache, ",");
+        res ~= lookupMod(entry);
+      }
+      return res;
+    }
+    
     Module[] res;
     res ~= fastcast!(Module) (sysmod);
     foreach (ns; getImports())
@@ -55,6 +59,13 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
           if (auto mod = fastcast!(Module) (ns))
             res ~= mod;
     }
+    
+    if (sourcefile) {
+      string[] names;
+      foreach (entry; res) names ~= entry.name;
+      write_cache("module imports", sourcefile, names.join(","));
+    }
+    
     return res;
   }
   bool isValid; // still in the build list; set to false if superceded by a newer Module
@@ -77,6 +88,13 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     if (inProgress) s.setup(inProgress);
   }
   override {
+    void addEntry(Tree tr) {
+      if (doneEmitting) {
+        logln("Internal compiler error: cannot add to ", name, ", already emat: ", tr);
+        asm { int 3; }
+      }
+      entries ~= tr;
+    }
     bool isBeingEmat() { return !!inProgress; }
     void _add(string name, Object obj) {
       if (auto fn = fastcast!(Function)(obj)) {
@@ -173,14 +191,13 @@ static this() {
 
 extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace
 
-Module[string] cache;
+Module[string] modcache;
 
 Lock cachelock; // also covers currentlyParsing
 bool[string] currentlyParsing;
 
 static this() { New(cachelock); }
 
-bool delegate(Module) rereadMod;
 // some module names may require special handling
 // for instance, c.*
 Module delegate(string) specialHandler;
@@ -195,7 +212,7 @@ static this() {
   });
 }
 
-import tools.base: read, castLike, exists, sub;
+import tools.base: read, castLike, sub;
 string[] module_stack;
 Module[string] modules_wip;
 Module lookupMod(string name) {
@@ -235,12 +252,9 @@ Module lookupMod(string name) {
       }
       break;
     }
-    if (auto p = name in cache) {
-      // return *p; // BAD!
-      if (!rereadMod || !rereadMod(*p)) {
-        res = *p;
-        return;
-      }
+    if (auto p = name in modcache) {
+      res = *p;
+      return;
     }
     currentlyParsing[name] = true;
   };
@@ -275,7 +289,7 @@ Module lookupMod(string name) {
       file.failparse("Failed to parse module"[]);
   }
   cachelock.Synchronized = {
-    cache[name] = mod;
+    modcache[name] = mod;
   };
   return mod;
 }
@@ -283,7 +297,7 @@ Module lookupMod(string name) {
 string locate_name(string name) {
   string res;
   cachelock.Synchronized = {
-    foreach (key, value; ast.modules.cache) {
+    foreach (key, value; modcache) {
       if (value.lookup(name, true)) { if (res.length) res ~= ", "; res ~= key; }
     }
   };

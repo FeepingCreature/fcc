@@ -218,7 +218,7 @@ IType arrayAsStruct(IType base, bool rich) {
     
     res.add(fun);
     fun.weak = true;
-    mod.entries ~= fun;
+    mod.addEntry(fun);
   }
   cache ~= stuple(base, rich, mod, fastcast!(IType) (res));
   isArrayStructType[res] = true;
@@ -293,7 +293,8 @@ class ArrayLength_Base : Expr {
     return Single!(SysInt); // TODO: size_t when unsigned conversion works
   }
   void emitLLVM(LLVMFile lf) {
-    (new MemberAccess_Expr(arrayToStruct(array), "length"[])).emitLLVM(lf);
+    scope mae = new MemberAccess_Expr(arrayToStruct(array), "length"[]);
+    mae.emitLLVM(lf);
   }
   mixin defaultIterate!(array);
   mixin DefaultDup!();

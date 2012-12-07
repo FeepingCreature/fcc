@@ -1,6 +1,6 @@
 module memconserve_stdfile;
 
-import std.file, std.date, std.string;
+import quickformat, std.file, std.date, std.string;
 
 // std.file with more delete()
 
@@ -60,8 +60,7 @@ version(Win32) {
   import std.c.unix.unix, std.c.stdlib;
   void getTimes(string name, out d_time ftc, out d_time fta, out d_time ftm)
   {
-    auto namez = toStringz(name);
-    scope(exit) delete namez;
+    auto namez = qformat(name, "\0").ptr;
     
     struct_stat statbuf;
     if (unix.stat(namez, &statbuf))
@@ -105,8 +104,7 @@ version(Win32) {
   }
   int exists(char[] name)
   {
-    auto nameptr = toStringz(name);
-    scope(exit) delete nameptr;
+    auto nameptr = qformat(name, "\0").ptr;
     return access(nameptr, 0) == 0;
   }
 }

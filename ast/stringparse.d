@@ -3,7 +3,7 @@ module ast.stringparse;
 import ast.base, parseBase;
 
 bool gotString(ref string text, ref string res,
-  string sep = "\""[], bool alreadyMatched = false)
+  string sep = "\""[], bool alreadyMatched = false, bool ignoreRes = false)
 {
   auto t2 = text;
   if (!alreadyMatched && !t2.accept(sep)) return false;
@@ -20,9 +20,9 @@ bool gotString(ref string text, ref string res,
     auto ch = xtake();
     if (ch == '\\' && sep != "`") {
       auto ch2 = xtake();
-      if (ch2 == 'n') { ba ~= cast(ubyte[]) "\n"; }
-      else if (ch2 == 'r') { ba ~= cast(ubyte[]) "\r"; }
-      else if (ch2 == 't') { ba ~= cast(ubyte[]) "\t"; }
+      if (ch2 == 'n') { if (!ignoreRes) ba ~= cast(ubyte[]) "\n"; }
+      else if (ch2 == 'r') { if (!ignoreRes) ba ~= cast(ubyte[]) "\r"; }
+      else if (ch2 == 't') { if (!ignoreRes) ba ~= cast(ubyte[]) "\t"; }
       else if (ch2 == 'x') {
         int h2i(char c) {
           if (c >= '0' && c <= '9') return c - '0';
@@ -31,12 +31,12 @@ bool gotString(ref string text, ref string res,
           assert(false);
         }
         auto h1 = xtake(), h2 = xtake(); 
-        ba ~= h2i(h1) * 16 + h2i(h2);
+        if (!ignoreRes) ba ~= h2i(h1) * 16 + h2i(h2);
       }
       else ba ~= ch2;
     } else ba ~= ch;
   }
-  res = cast(string) ba;
+  if (!ignoreRes) res = cast(string) ba;
   text = t2;
   return true;
 }
@@ -72,12 +72,12 @@ string coarseLexScope(ref string text, bool forceMatch = false, bool includeBrac
     else if (ch == '}') depth--;
     else if (ch == '"') {
       string bogus;
-      if (!gotString(local, bogus, "\""[], true))
+      if (!gotString(local, bogus, "\""[], true, true))
         if (forceMatch) local.failparse("COARSE: Couldn't match string! "[]);
         else return null;
     } else if (ch == '`') {
       string bogus;
-      if (!gotString(local, bogus, "`"[], true))
+      if (!gotString(local, bogus, "`"[], true, true))
         if (forceMatch) local.failparse("COARSE: Couldn't match literal string! "[]);
         else return null;
     }

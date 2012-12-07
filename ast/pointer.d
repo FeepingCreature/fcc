@@ -1,14 +1,16 @@
 module ast.pointer;
 
-import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace;
+import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace, Ret, Params;
 
 import dwarf2;
 class Pointer_ : Type, Dwarf2Encodable {
   IType target;
   this(IType t) { target = forcedConvert(t); }
+  IType proxycache;
   string targettypecmp, lltypecache;
+  IType _proxyType() { if (auto tp = target.proxyType()) return fastalloc!(Pointer)(tp); return null; }
   override {
-    IType proxyType() { if (auto tp = target.proxyType()) return new Pointer(tp); return null; }
+    mixin memoize!(_proxyType, proxycache, "proxyType");
     int opEquals(IType ty) {
       ty = resolveType(ty);
       if (!super.opEquals(ty)) return false;
@@ -96,7 +98,7 @@ class DerefExpr : LValue, HasInfo {
     void emitLLVM(LLVMFile lf) {
       auto ptrtype = typeToLLVM(src.valueType);
       // use addrspace(1) to preserve null accesses so they can crash properly
-      auto fixedtype = ptrtype[0..$-1]~" addrspace(1)"~"*";
+      auto fixedtype = qformat(ptrtype[0..$-1], " addrspace(1)*");
       auto c = save(lf, src);
            c = save(lf, "bitcast ", ptrtype, " ", c, " to ", fixedtype);
       load(lf, "load ", fixedtype, " ", c);

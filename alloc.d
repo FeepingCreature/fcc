@@ -20,7 +20,7 @@ void* allocate(void[] init) {
     *p = blksz;
     memory = new void[blksz];*/
     // memory = new void[8192];
-    memory = (cast(void*) std.c.stdlib.malloc(8192))[0..8192];
+    memory = (cast(void*) std.c.stdlib.malloc(1048576))[0..1048576];
     addRange(memory.ptr, memory.ptr + memory.length);
   }
   auto data = memory[0..sz];
@@ -30,8 +30,13 @@ void* allocate(void[] init) {
   return data.ptr;
 }
 
-const string opttypes = `
+/*const string opttypes = `
   Pointer, ReinterpretCast, ExtArray, FirstParamOverrideSpace, MyPlaceholderExpr, AsmIntBinopExpr, RelMember, StaticArray
+`;*/
+const string opttypes = `
+  FirstParamOverrideSpace, Structure, MiniNamespace, RelFunction, ReinterpretCast, Scope, Pointer, ClassRef, RelMember, StaticArray, Function, FunctionPointer, PointerFunction,
+  Tuple, DerefExpr, MemberAccess_LValue, MyPlaceholderExpr, MemberAccess_Expr, DgCallable, Symbol, FunSymbol, PrefixFunction, IntfRef, RefExpr, ExprAlias,
+  LazyDeltaInt, TypeAlias
 `;
 
 string fixstring(string s) {
@@ -56,7 +61,7 @@ template fastalloc(T) {
   T fastalloc(U...)(U u) {
     // use of class allocator actually gives negligible to no benefit.
     // so keep it off for now.
-    return new T(u);
+    // return new T(u);
     T res;
     mixin("static if ("~genCondition()~") {
       // logln(\"## \", T.stringof);

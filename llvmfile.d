@@ -406,6 +406,8 @@ void todo(string msg = null) {
   fail;
 }
 
+import cache;
+
 int i;
 extern(C) string readback(string);
 extern(C) string canonify(string);
@@ -420,6 +422,16 @@ string readllex(string expr) {
       return expr;
     }
   }
+  
+  auto cachekey = expr;
+  if (cachekey.find("\n") != -1) {
+    logln("!? ", cachekey);
+    fail;
+  }
+  // TODO include datalayout in key if we ever support x86_64
+  if (auto cache = read_cache(cachekey, null))
+    return cache;
+  
   auto code = "target datalayout = \""~datalayout~"\" define i32 @foo() { ret i32 "~key~" }";
   auto c2 = code.replace("\\", "\\\\");
   auto c3 = c2.replace("\"", "\\\"");
@@ -441,6 +453,7 @@ string readllex(string expr) {
   res = res.strip();
   // logln(i++, ": record ", res, " ", key);
   excache[key] = res;
+  write_cache(cachekey, null, res);
   return res;
 }
 

@@ -989,18 +989,20 @@ void finalizeSysmod(Module mainmod) {
     fixup();
     parseMe();
   }
-  mainmod.entries ~= setupfun;
+  mainmod.addEntry(setupfun);
   auto sc = fastcast!(Scope) (setupfun.tree);
   Module[] list;
-  Module[] left;
-  bool[string] done;
-  left ~= mainmod;
-  while (left.length) {
-    auto mod = left.take();
-    if (mod.name in done) continue;
-    list ~= mod;
-    done[mod.name] = true;
-    left ~= mod.getAllModuleImports();
+  list ~= mainmod;
+  bool[string] checked;
+  int i;
+  while (i < list.length) {
+    auto mod = list[i++];
+    foreach (mod2; mod.getAllModuleImports()) {
+      if (!(mod2.name in checked)) {
+        list ~= mod2;
+        checked[mod2.name] = true;
+      }
+    }
   }
   auto modtype = fastcast!(ClassRef) (sysmod.lookup("ModuleInfo"));
   auto backup = namespace();
@@ -1026,9 +1028,9 @@ void finalizeSysmod(Module mainmod) {
     string[] strlist;
     foreach (mod; list) if (!mod.dontEmit) {
       auto fltname = mod.name.replace(".", "_").replace("-", "_dash_");
-      auto name = "_sys_tls_data_"~fltname;
-      auto start = name ~ "_start";
-      auto end = name ~ "_end";
+      auto name = qformat("_sys_tls_data_", fltname);
+      auto start = qformat(name, "_start");
+      auto end = qformat(name, "_end");
       strlist ~= qformat("i8* @", start, ", i8* @", end);
     }
     putSection(lf, "module", "@__module_map = constant [", strlist.length * 2, " x i8*] ", strlist);
@@ -1045,8 +1047,8 @@ void finalizeSysmod(Module mainmod) {
       symdend = reinterpret_cast(voidp, mkInt(0));
       compiled = mkInt(0);
     } else {
-      symdstart = fastalloc!(Symbol)("_sys_tls_data_"~fltname~"_start", Single!(Void));
-      symdend = fastalloc!(Symbol)("_sys_tls_data_"~fltname~"_end", Single!(Void));
+      symdstart = fastalloc!(Symbol)(qformat("_sys_tls_data_", fltname, "_start"), Single!(Void));
+      symdend = fastalloc!(Symbol)(qformat("_sys_tls_data_", fltname, "_end"), Single!(Void));
       compiled = mkInt(1);
     }
     sc.addStatement(
@@ -1095,7 +1097,7 @@ void finalizeSysmod(Module mainmod) {
         sc.addStatement(
           iparse!(Statement, "init_mod_classes", "tree.stmt")
                 (`var.classes ~= classp;`, sc,
-                  "var", var, "classp", new Symbol(cl.cd_name(), Single!(Void))));
+                  "var", var, "classp", fastalloc!(Symbol)(cl.cd_name(), Single!(Void))));
       }
     }
     version(CustomDebugInfo) {
@@ -1205,6 +1207,7 @@ mixin DefaultParser!(gotFPUCW, "tree.expr.fpucw", "24051", "fpucw");
 class FS0 : MValue {
   mixin defaultIterate!();
   const fs0expr = "i8* addrspace(257)* inttoptr(i32 0 to i8* addrspace(257)*)";
+  this() { }
   override {
     string toString() { return "FS:0"; }
     FS0 dup() { return this; }

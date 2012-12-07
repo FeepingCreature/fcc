@@ -29,7 +29,7 @@ Statement parseFullAggregateBody(ref string src, ParseCb rest) {
 
 Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
-  auto sc = new Scope;
+  auto sc = fastalloc!(Scope)();
   sc.configPosition(t2);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);

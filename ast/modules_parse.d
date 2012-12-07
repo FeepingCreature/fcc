@@ -160,7 +160,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
           if (!addsSelf(obj))
             mod.add(n);
         if (auto tr = fastcast!(Tree) (obj))
-          mod.entries ~= tr;
+          mod.addEntry(tr);
       }
     )
   ) {

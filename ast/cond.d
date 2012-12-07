@@ -34,7 +34,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   synchronized
     nf.name = Format("hdlfn_"[], hdlId++);
   nf.sup = mod;
-  mod.entries ~= fastcast!(Tree)~ nf;
+  mod.addEntry(fastcast!(Tree) (nf));
   {
     auto backup = namespace();
     scope(exit) namespace.set(backup);
@@ -76,7 +76,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
                           }`, namespace(), "hdlvar"[], lookup(hdlmarker)));
       hdlvar.name = null; // marker string not needed
     }
-    mod.entries ~= fastcast!(Tree)~ nf2;
+    mod.addEntry(fastcast!(Tree) (nf2));
     sc.add(nf2);
     
     Scope sc2;

@@ -140,3 +140,25 @@ string qjoin(string[] args) {
     qappend(arg);
   return qfinalize();
 }
+
+// copied mostly from tools.base
+string qsub(string a, string b, bool safe = false) {
+  if (safe)
+    if (b == ".." || b.startsWith("../") || b.endsWith("/..") || b.find("/../") != -1)
+      throw new Exception("Security problem: attempt to exploit .sub to reach higher folder");
+  if (auto pre = a.endsWith(sep)) a = a[0 .. $ - sep.length];
+  while (true) {
+    if (auto rest = b.startsWith("..")) {
+      if (a.find(sep) == -1) {
+        if (a == "." || a == "..") break;
+        else a = ".";
+      }
+      else if (a[a.rfind(sep) + 1 .. $] == "..") break;
+      else a = a[0 .. a.rfind(sep)];
+      b = rest;
+      if (auto n = b.startsWith("/")) b = n;
+    } else break;
+  }
+  if (a == ".") a = null;
+  if (!a.length || !b.length || a.endsWith(sep)) return qformat(a, b); else return qformat(a, sep, b);
+}
