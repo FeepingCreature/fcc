@@ -136,6 +136,8 @@ static this() {
   };
 }
 
+extern(C) IType resolveTup(IType, bool onlyIfChanged = false);
+
 import ast.modules;
 Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -145,6 +147,7 @@ Object gotAlias(ref string text, ParseCb cont, ParseCb rest) {
 redo:
   Expr ex;
   IType ty;
+  TypeAlias ta;
   Object obj;
   
   bool strict, raw;
@@ -163,13 +166,12 @@ redo:
     }
     return false;
   }
-  auto ta = fastalloc!(TypeAlias)(cast(IType) null, id, strict);
   
   if (rest(t3, "type"[], &ty) && gotTerm()) {
-    ta.base = ty;
+    if (auto tup = resolveTup(ty, true)) ty = tup;
+    ta = fastalloc!(TypeAlias)(ty, id, strict);
     t2 = t3;
   } else {
-    ta = null;
     t3 = t2;
     string id2;
     if (t3.gotIdentifier(id2, true) && gotTerm()) {
