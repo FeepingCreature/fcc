@@ -1,0 +1,7 @@
+module test153;
+
+void main() {
+  void foo(void delegate(string) dg) { dg "Hello World"; }
+  void bar((string) s) { writeln "$s"; }
+  foo &bar;
+}

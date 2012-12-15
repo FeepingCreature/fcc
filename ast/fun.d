@@ -947,6 +947,8 @@ class FunctionType : ast.types.Type {
   }
 }
 
+extern(C) IType resolveTup(IType, bool onlyIfChanged = false);
+
 bool gotParlist(ref string str, ref Argument[] res, ParseCb rest, bool allowNull) {
   auto t2 = str;
   IType ptype, lastType;
@@ -964,7 +966,7 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest, bool allowNull
   
   if (t2.bjoin(
         ( // can omit types for subsequent parameters
-          test(ptype = fastcast!(IType)~ rest(t2, "type")) || test(ptype = lastType) || allowNull
+          { ptype = fastcast!(IType)(rest(t2, "type")); if (auto r2=ptype?resolveTup(ptype, true):null) ptype = r2; return test(ptype); }() || test(ptype = lastType) || allowNull
         ) && (
           t2.gotIdentifier(parname) || ((parname = null), true)
         ) && (
