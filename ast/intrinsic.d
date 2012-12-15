@@ -212,7 +212,7 @@ void setupSysmods() {
     template append3e(T) {
       T[auto ~] append3e(T[auto ~]* l, T r) {
         // printf("hi, append3e here - incoming %d, add 1\n", l.length);
-        if (l.length > 10_000_000) { int i; i /= i; }
+        // if (l.length > 10_000_000) { int i; i /= i; }
         return append3!T(l, (&r)[0..1]);
       }
     }
