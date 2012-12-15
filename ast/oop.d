@@ -4,6 +4,7 @@ import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.namespace, ast.structure, ast.structfuns, ast.pointer,
   ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun,
   ast.tenth;
+import tools.base: ptuple;
 
 import tools.functional: map;
 
@@ -425,6 +426,10 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   // specified by inheritance. This avoids cases where a function is intended
   // to be overridden but is accidentally added as a new class function.
   bool overridingFunctionState;
+  // if true, newly added functions must be overridden in child classes. That is,
+  // they count as abstract even when they have an implementation.
+  // This allows default implementations that can be called via super.
+  bool abstractFunctionState;
   override {
     bool immutableNow() { return data.immutableNow(); }
     bool isPacked() { return data.isPacked(); }
@@ -563,21 +568,26 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     
     if (!t2.accept("{"[])) t2.failparse("Missing opening bracket for class def"[]);
     
-    bool parsed(bool matchGroup = true, bool overrideKeyword = false) {
+    bool parsed(bool matchGroup = true, bool overrideKeyword = false, bool abstractKeyword = false) {
       if (matchGroup) {
         while (true) {
-          if (parsed(false, overrideKeyword)) continue;
+          if (parsed(false, overrideKeyword, abstractKeyword)) continue;
           if (t2.accept("}")) return true;
           t2.failparse("expected class statement or closing bracket");
         }
       } else {
         if (t2.accept("override")) {
           bool isGroup = t2.accept("{");
-          return parsed(isGroup, true);
+          return parsed(isGroup, true, abstractKeyword);
         }
-        auto backup = overridingFunctionState;
-        scope(exit) overridingFunctionState = backup;
+        if (t2.accept("abstract")) {
+          bool isGroup = t2.accept("{");
+          return parsed(isGroup, overrideKeyword, true);
+        }
+        auto backup = stuple(overridingFunctionState, abstractFunctionState);
+        scope(exit) ptuple(overridingFunctionState, abstractFunctionState) = backup;
         overridingFunctionState = overrideKeyword;
+        abstractFunctionState = abstractKeyword;
         auto t3 = t2;
         try if (matchStructBodySegment(t2, this, null, false, false)) return true;
         catch (Exception ex) {
@@ -892,6 +902,10 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       assert(!finalized, "Adding "~name~" to already-finalized class. "[]);
       if (auto fun = fastcast!(Function) (obj)) fun.sup = this;
       if (auto rf = fastcast!(RelFunction) (obj)) {
+        if (abstractFunctionState)
+          rf.isabstract = true; // DO NOT add the default disclaimed that the function is not implemented!
+                                 // abstract functions - as opposed to *functions in abstract classes* -
+                                 // can have code!
         if (funAlreadyDefinedAbove(rf))
           overrides.add(name, rf);
         else {

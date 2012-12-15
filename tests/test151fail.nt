@@ -1,0 +1,12 @@
+module test151;
+
+abstract class A {
+  abstract void foo() { writeln "Hello World";  }
+}
+
+class B : A { }
+
+void main() {
+  auto b = new B;
+  b.foo();
+}

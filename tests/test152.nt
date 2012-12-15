@@ -1,0 +1,14 @@
+module test152;
+
+abstract class A {
+  abstract void foo() { writeln "Hello World"; }
+}
+
+class B : A {
+  void foo() { super.foo(); }
+}
+
+void main() {
+  A b = new B;
+  b.foo();
+}
