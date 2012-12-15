@@ -208,7 +208,7 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
   Namespace ns = namespace();
   bool gotDot;
   if (t2.accept(".")) { gotDot = true; ns = ns.get!(Module); } // module-scope lookup
-  if (t2.gotIdentifier(name, true)) {
+  if (t2.gotIdentifier(name, true) && !(name in reserved)) {
     int dot_end;
     while (dot_end < name.length) {
       // for each dot-separated component .. 

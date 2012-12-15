@@ -442,7 +442,7 @@ template iparse(R, string id, string rule, bool mustParse = true, bool optres = 
 
 Object gotNamedType(ref string text, ParseCb cont, ParseCb rest) {
   string id, t2 = text;
-  if (t2.gotIdentifier(id, true)) {
+  if (t2.gotIdentifier(id, true) && !(id in reserved)) {
     retry:
     try if (auto obj = namespace().lookup(id)) {
       if (auto type = fastcast!(IType) (obj)) {

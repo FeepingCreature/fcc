@@ -297,12 +297,12 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, b
     cur = t2.decode(idx);
   } while (isValid(cur));
   // prev_idx now is the start of the first invalid character
-  ident = t2[0 .. prev_idx];
-   text = t2[prev_idx .. $];
   /*if (ident in reserved) {
-    logln("reject ", ident);
+    // logln("reject ", ident);
     return false;
   }*/
+  ident = t2[0 .. prev_idx];
+  text = t2[prev_idx .. $];
   return true;
 }
 
@@ -312,6 +312,8 @@ static this() {
   reserved["return"] = true;
   reserved["function"] = true;
   reserved["delegate"] = true;
+  reserved["type-of"] = true;
+  reserved["string-of"] = true;
 }
 
 // This isn't a symbol! Maybe I was wrong about the dash .. 

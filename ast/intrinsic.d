@@ -1,6 +1,6 @@
 module ast.intrinsic;
 
-import ast.modules, ast.pointer, ast.base, ast.oop, ast.casting, ast.static_arrays, ast.parse;
+import ast.modules, ast.pointer, ast.base, ast.oop, ast.casting, ast.static_arrays, ast.parse, ast.dg;
 // not static this() to work around a precedence bug in phobos. called from main.
 void setupSysmods() {
   if (sysmod) return;
@@ -1334,6 +1334,27 @@ Object gotConstant(ref string text, ParseCb cont, ParseCb rest) {
   return fastalloc!(ConstantDefinition)(name, values);
 }
 mixin DefaultParser!(gotConstant, "tree.toplevel.constant", null, "__defConstant");
+
+Object gotTerriblePapplyHack(ref string text, ParseCb cont, ParseCb rest) {
+  Expr ex;
+  if (!rest(text, "tree.expr _tree.expr.arith", &ex)) text.failparse("expression expected");
+  auto dg = fastcast!(Delegate)(resolveType(ex.valueType()));
+  if (!dg) text.failparse("__internal_flatten parameter is not delegate");
+  auto args = dg.args();
+  if (args.length != 1) text.failparse("__internal_flatten parameter has too many parts");
+  auto arg = args[0];
+  if (arg.initEx) text.failparse("__internal_flatten parameter has initializer");
+  Argument[] resargs;
+  if (auto tup = fastcast!(Tuple)(resolveType(arg.type))) {
+    foreach (part; tup.types())
+      resargs ~= Argument(part);
+  } else {
+    resargs ~= arg;
+  }
+  auto dg2 = fastalloc!(Delegate)(dg.ret(), resargs);
+  return fastcast!(Object)(reinterpret_cast(dg2, ex));
+}
+mixin DefaultParser!(gotTerriblePapplyHack, "tree.expr.terrible_papply_hack", "3322", "__internal_flatten");
 
 Object gotInternal(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
