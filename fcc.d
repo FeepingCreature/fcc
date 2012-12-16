@@ -1080,6 +1080,9 @@ void incbuild(string start,
     } else assert(false);
   }
   bool[string] checking;
+  bool[string] neededRebuild; // prevent issue where we rebuild a mod, after which
+                              // it obviously needs no further rebuild, // preventing
+                              // another module from realizing that it needs to be rebuilt also
   bool needsRebuild(Module mod) {
     if (mod.dontEmit) return false;
     
@@ -1090,17 +1093,20 @@ void incbuild(string start,
     
     auto start2 = findfile(start);
     if (file == start2) return false; // this gets emitted last! don't reparse regardless
-    if (!obj.exists()) return true;
+    if (!obj.exists()) { neededRebuild[mod.sourcefile] = true; return true; }
     
     // if (mod.name != "sys")
     //   logln("needsRebuild? ", file, " ", start2, " ", mod.dontEmit, " ", mod is sysmod, " ", isUpToDate(file, obj), " ", !!(mod.name in checking), " ", mod.getAllModuleImports());
     
-    if (mod is sysmod || !isUpToDate(file, obj)) return true;
+    if (mod is sysmod || !isUpToDate(file, obj)) { neededRebuild[mod.sourcefile] = true; return true; }
     if (mod.name in checking) return false; // break the circle
     checking[mod.name] = true;
     scope(exit) checking.remove(mod.name);
     foreach (mod2; mod.getAllModuleImports())
-      if (mod2 !is sysmod && needsRebuild(mod2)) return true;
+      if (mod2 !is sysmod && (mod2.sourcefile in neededRebuild || needsRebuild(mod2))) {
+        neededRebuild[mod.sourcefile] = true;
+        return true;
+      }
     return false;
   }
   dontReemit = delegate bool(Module mod) {
