@@ -2,7 +2,7 @@ module ast.stringex;
 
 import
   ast.base, ast.parse, ast.concat, ast.namespace, ast.scopes, ast.static_arrays, ast.assign, ast.structure,
-  ast.literal_string, ast.arrays, ast.vardecl, ast.pointer, ast.casting, ast.stringparse, tools.base: take;
+  ast.literal_string, ast.arrays, ast.vardecl, ast.pointer, ast.casting, ast.stringparse, ast.oop, tools.base: take;
 
 Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   Expr strlit;
@@ -159,6 +159,12 @@ Expr simpleFormat(Expr ex) {
     });
   }
   auto obj = fastcast!(IType) (sysmod.lookup("Object"));
+  
+  // done separately because the interface->object cast crashes if it's null!
+  if (gotImplicitCast(ex, Single!(HintType!(IntfRef)), (IType it) { return test(fastcast!(IntfRef)(resolveType(it))); })) {
+    return iparse!(Expr, "gen_intf_toString_call", "tree.expr")
+                  (`i?.(obj:that#.toString()):"null"`, namespace(), "i"[], ex, "obj", obj);
+  }
   if (gotImplicitCast(ex, obj, (IType it) { return test(it == obj); })) {
     return iparse!(Expr, "gen_obj_toString_call", "tree.expr")
                   (`obj?.toString():"null"`, namespace(), "obj"[], ex);
