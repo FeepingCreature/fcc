@@ -50,6 +50,12 @@ template hashptr_fnv(PTR) {
       return;
       bool matched;
     }
+    // TODO interface Hashed { uint hash(); } or in Object
+    static if (!is-defined matched && (type-is interface T || type-is class T)) {
+      mixin FNVStep.replace("%V", "*int*:&t");
+      return;
+      bool matched;
+    }
     static if (!is-defined matched) {
       pragma(fail, string-of T ~ ": how do I hash web?");
     }
@@ -61,6 +67,19 @@ template hashptr(PTR) {
     int res = FNV_offset;
     hashptr_fnv!PTR(ptr, &res);
     return res;
+  }
+}
+
+template eq(T) {
+  bool eq(T* ap, bp) {
+    alias a = *ap, b = *bp;
+    static if (!is-defined matched && (type-is interface T || type-is class T)) {
+      return a is b;
+      bool matched;
+    }
+    static if (!is-defined matched) {
+      return a == b;
+    }
   }
 }
 
@@ -115,7 +134,7 @@ template Hashmap(T) {
       alias k = Key:*kp;
       auto pos = (hashptr &k) % backing.length;
       while (isset[pos]) {
-        if (backing[pos].key == k) {
+        if (eq!Key(&backing[pos].key, &k)) {
           isset[pos] = false;
           return;
         }
@@ -129,8 +148,7 @@ template Hashmap(T) {
       if (!backing.length) return null;
       auto pos = (hashptr &k) % backing.length;
       while (isset[pos]) {
-        if (backing[pos].key == k) {
-          // writeln "for $k: $(backing[pos].key)";
+        if (eq!Key(&backing[pos].key, &k)) {
           return &backing[pos].value;
         }
         if (++pos == backing.length) pos = 0;
