@@ -331,6 +331,8 @@ bool isStaticFalse(Cond cd) {
   return isStaticFalse(ew.ex);
 }
 
+extern(C) void oop_is_comparable_sanity_check(string text, Expr ex1, Expr ex2);
+
 import ast.casting, ast.opers;
 Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -373,6 +375,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     else {
       todo(qformat("comparison of ", ex1.valueType(), " ", vt));
     }
+    oop_is_comparable_sanity_check(text, ex1, ex2);
     // force value comparison
     ex1 = reinterpret_cast(cmptype, ex1);
     ex2 = reinterpret_cast(cmptype, ex2);
