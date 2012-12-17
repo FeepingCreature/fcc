@@ -212,7 +212,8 @@ template wren-to-neat(T) {
       if (auto ot = ObjectThing: thing) {
         if (auto res = T: ot.obj) return res;
       }
-      error "Can't convert to $(string-of T): $thing";
+      return null;
+      // error "Can't convert to $(string-of T): $thing";
       alias match-found = true;
     }
     static if (type-is array T) {
