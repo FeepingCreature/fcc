@@ -1274,12 +1274,32 @@ static this() {
   };
 }
 
+// do the two interfaces occupy the same hierarchy line, ie. slot?
+// (for instance, due to being first in one another's inheritance line)
+bool are_of_one_hierarchy_line(IntfRef a, IntfRef b) {
+  auto i1 = a.myIntf, i2 = b.myIntf;
+  if (i1 == i2) return true;
+  auto cur = i1;
+  while (cur.parents.length) {
+    cur = cur.parents[0];
+    if (cur == i2) return true;
+  }
+  cur = i2;
+  while (cur.parents.length) {
+    cur = cur.parents[0];
+    if (i1 == cur) return true;
+  }
+  return false;
+}
+
 extern(C) void oop_is_comparable_sanity_check(string text, Expr ex1, Expr ex2) {
   auto t1 = resolveType(ex1.valueType()), t2 = resolveType(ex2.valueType());
   auto c1 = fastcast!(ClassRef)(t1), c2 = fastcast!(ClassRef)(t2);
   auto i1 = fastcast!(IntfRef)(t1), i2 = fastcast!(IntfRef)(t2);
   if (!c1 && !i1 || !c2 && !i2) return; // if either is neither class nor intf ..
   if (c1 && c2) return; // if both are classes ..
-  if (i1 && i2 && i1 == i2) return; // or the same interface ..
+  if (i1 && i2) { // or of the same interface inheritance line ..
+    if (are_of_one_hierarchy_line(i1, i2)) return;
+  }
   text.failparse("Cannot value-compare ", t1, " and ", t2, ": class/interface or interface/interface type mismatch, comparison is always false");
 }

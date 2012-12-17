@@ -449,7 +449,7 @@ extern(C) Function C_mkPFNestFun(Expr dgex) {
 
 Object gotFpDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr"[], &ex)) return null;
+  if (!rest(text, "tree.expr _tree.expr.arith"[], &ex)) return null;
   auto fp = fastcast!(FunctionPointer)~ ex.valueType(), dg = fastcast!(Delegate)~ ex.valueType();
   if (!fp && !dg) return null;
   
