@@ -448,7 +448,7 @@ import ast.parse;
 // separate because does clever allocation mojo .. eventually
 Object gotArrayLength(ref string text, ParseCb cont, ParseCb rest) {
   return lhs_partial.using = delegate Object(Expr ex) {
-    return fastcast!(Object) (lookupOp("length"[], ex));
+    return fastcast!(Object) (text.lookupOp("length"[], true, ex));
   };
 }
 mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.a_array_length"[], null, ".length"[]);
