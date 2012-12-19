@@ -312,6 +312,7 @@ void unknownId(string id, string text, bool fail = false) {
     msg = qformat("unknown identifier: '", id, "'");
   }
   if (fail) {
+    // asm { int 3; }
     resetError();
     text.failparse(msg);
   } else text.setError(msg);

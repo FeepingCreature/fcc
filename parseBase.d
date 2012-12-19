@@ -302,6 +302,7 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, b
     return false;
   }*/
   ident = t2[0 .. prev_idx];
+  if (ident == "λ") return false;
   text = t2[prev_idx .. $];
   return true;
 }

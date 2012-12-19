@@ -8,7 +8,7 @@ typedef int v4si __attribute__ ((vector_size (16)));
 typedef struct {
   int offsets[8][2][4];
   unsigned char *perm, *mperm; // perm mod 12
-} NoiseContext;
+} NoiseContext __attribute__((aligned (16)));
 
 #define LET(A, B) typeof(B) A = B
 
@@ -18,8 +18,8 @@ typedef struct {
 
 #define isum(V) ({ int i[4]; *(typeof(V)*) &i = V; i[0] + i[1] + i[2]; })
 
-#define sum3(V) ({ float f[4]; *(typeof(V)*) &f = V; f[0] + f[1] + f[2]; })
-#define sum4(V) ({ float f[4]; *(typeof(V)*) &f = V; f[0] + f[1] + f[2] + f[3]; })
+#define sum3(V) ({ float __attribute__((aligned (16))) f[4]; *(typeof(V)*) &f = V; f[0] + f[1] + f[2]; })
+#define sum4(V) ({ float __attribute__((aligned (16))) f[4]; *(typeof(V)*) &f = V; f[0] + f[1] + f[2] + f[3]; })
 
 void permsetup(NoiseContext *nc) {
   int i, k, l;
