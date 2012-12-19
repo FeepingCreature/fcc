@@ -83,12 +83,14 @@ template eq(T) {
   }
 }
 
+enum SetState : bool { NotSet, Set, Deleted }
+
 template Hashmap(T) {
   alias Key = T[0], Value = T[1];
   alias α = 0.5;
   struct Hashmap {
     (Key key, Value value)[] backing;
-    bool[] isset;
+    SetState[] isset;
     int length;
     float load() {
       pragma(fast);
@@ -98,7 +100,7 @@ template Hashmap(T) {
     void iterate(void delegate(Key*, Value*) dg) {
       pragma(fast);
       for ref entry <- backing && int i <- ints
-        if (isset[i]) dg (&entry[0], &entry[1]);
+        if (isset[i] == SetState.Set) dg (&entry[0], &entry[1]);
     }
     void iterate(void delegate(Key, Value) dg) {
       iterate \(Key* kp, Value* vp) { dg(*kp, *vp); }
@@ -122,12 +124,14 @@ template Hashmap(T) {
         realloc newsize;
       }
       auto pos = (hashptr &k) % backing.length;
-      while (isset[pos] && !eq!Key(&backing[pos].key, &k)) {
+      while (isset[pos] == SetState.Set && !eq!Key(&backing[pos].key, &k)) {
         if (++pos == backing.length) pos = 0;
       }
       backing[pos] = (k, v);
-      isset[pos] = true;
-      length ++;
+      if (isset[pos] != SetState.Set) {
+        isset[pos] = SetState.Set;
+        length ++;
+      }
       return &backing[pos].value;
     }
     void remove(Key k) { return remove(&k); }
@@ -136,9 +140,9 @@ template Hashmap(T) {
       if (!backing.length) return;
       alias k = Key:*kp;
       auto pos = (hashptr &k) % backing.length;
-      while (isset[pos]) {
-        if (eq!Key(&backing[pos].key, &k)) {
-          isset[pos] = false;
+      while (isset[pos] != SetState.NotSet) {
+        if (isset[pos] == SetState.Set && eq!Key(&backing[pos].key, &k)) {
+          isset[pos] = SetState.Deleted;
           return;
         }
         if (++pos == backing.length) pos = 0;
@@ -150,8 +154,8 @@ template Hashmap(T) {
       alias k = *kp;
       if (!backing.length) return null;
       auto pos = (hashptr &k) % backing.length;
-      while (isset[pos]) {
-        if (eq!Key(&backing[pos].key, &k)) {
+      while (isset[pos] != SetState.NotSet) {
+        if (isset[pos] == SetState.Set && eq!Key(&backing[pos].key, &k)) {
           return &backing[pos].value;
         }
         if (++pos == backing.length) pos = 0;
