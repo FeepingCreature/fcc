@@ -1033,3 +1033,19 @@ template memoize(alias Fun, alias Var, string Name) {
       return Var;
     }`);
 }
+
+class NamedArg : Expr {
+  Expr base;
+  string name, reltext;
+  this(string name, string text, Expr base) { this.name = name; this.reltext = text; this.base = base; }
+  override {
+    string toString() { return Format(name, " => "[], base); }
+    IType valueType() { return base.valueType(); }
+    NamedArg dup() { return fastalloc!(NamedArg)(name, reltext, base.dup); }
+    mixin defaultIterate!(base);
+    void emitLLVM(LLVMFile lf) {
+      base.emitLLVM(lf);
+      // reltext.failparse("Named argument ", name, " could not be assigned to a function call! ");
+    }
+  }
+}

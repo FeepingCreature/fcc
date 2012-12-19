@@ -4,21 +4,6 @@ import ast.fun, ast.base, ast.vardecl, ast.aggregate, ast.structure, ast.namespa
 
 alias ast.fun.Argument Argument;
 
-class NamedArg : Expr {
-  Expr base;
-  string name, reltext;
-  this(string name, string text, Expr base) { this.name = name; this.reltext = text; this.base = base; }
-  override {
-    string toString() { return Format(name, " => "[], base); }
-    IType valueType() { return base.valueType(); }
-    NamedArg dup() { return fastalloc!(NamedArg)(name, reltext, base.dup); }
-    mixin defaultIterate!(base);
-    void emitLLVM(LLVMFile lf) {
-      reltext.failparse("Named argument ", name, " could not be assigned to a function call! ");
-    }
-  }
-}
-
 IType[] relevant(IType[] array) {
   IType[] res;
   foreach (it; array)
