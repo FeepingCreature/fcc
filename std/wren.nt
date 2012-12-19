@@ -223,6 +223,18 @@ template wren-to-neat(T) {
       else error "Can't create $(string-of T) ($(string-of AT)) from $thing";
       alias match-found = true;
     }
+    static if (types-equal(float, T)) {
+      if (auto n = Number: thing)
+        return n.num;
+      else error "Can't create float from $thing";
+      alias match-found = true;
+    }
+    static if (types-equal(vec2f, T)) {
+      if (auto v2 = Vec2f: thing)
+        return v2.value;
+      else error "Can't create vec2f from $thing";
+      alias match-found = true;
+    }
     static if (types-equal(vec3f, T)) {
       if (auto v3 = Vec3f: thing)
         return v3.value;
@@ -436,4 +448,9 @@ void init() {
   auto arr = new Thing[] 1;
   arr[0] = nil;
   t = new List arr;
+}
+
+bool is-nil(Thing t) {
+  auto l = List:t;
+  return l && !l.list;
 }
