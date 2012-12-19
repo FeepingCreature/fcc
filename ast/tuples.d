@@ -240,7 +240,10 @@ static this() {
 }
 
 Expr mkTupleValueExpr(Expr[] exprs...) {
-  auto tup = mkTuple(exprs /map/ (Expr ex) { return ex.valueType(); });
+  auto tup = mkTuple(
+    exprs /map/ (Expr ex) { return ex.valueType(); },
+    exprs /map/ (Expr ex) { if (auto na = fastcast!(NamedArg)(ex)) return na.name; return cast(string) null; }
+  );
   return fastalloc!(RCE)(tup, fastalloc!(StructLiteral)(tup.wrapped, exprs.dup));
 }
 

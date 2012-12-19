@@ -26,6 +26,39 @@ Expr mkTupleIndexAccess(Expr tuple, int pos, bool intendedForSplit = false) {
   return reinterpret_cast(types[pos], res);
 }
 
+// we can safely assume here that any tmpizing measures have already been taken
+// and that our base expr is already multi-access/single-access safe,
+// since we get called only from getTupleEntries, which handles that stuff.
+Expr tuple_access_opt(Expr ex) {
+  if (auto rce = fastcast!(RCE)(ex)) {
+    auto cur = ex;
+    while (true) {
+      if (auto rce2 = fastcast!(RCE)(cur)) cur = rce2.from;
+      else break;
+    }
+    if (auto mae = fastcast!(MemberAccess_Expr)(cur)) {
+      auto base = mae.base;
+      while (true) {
+        if (auto rce2 = fastcast!(RCE)(base)) base = rce2.from;
+        else break;
+      }
+      if (auto sl = fastcast!(StructLiteral)(base)) {
+        if (sl.valueType() == mae.base.valueType())
+          return sl.exprs[mae.stm.index];
+        logln(" ---- ", sl.valueType());
+        logln(" ---- ", mae.base.valueType());
+        logln(sl.exprs);
+        logln(mae.stm);
+      }
+      // logln(">> ", (cast(Object) base).classinfo.name, " ", base);
+      // asm { int 3; }
+    }
+  }
+  return ex;
+  // logln((cast(Object) ex).classinfo.name, " ", ex);
+  // asm { int 3; }
+}
+
 import ast.modules;
 // Note: if you use this method, you MUST make use of each returned expr,
 // or else be sure that your base expression has NO side effects for partial evaluation.
@@ -57,7 +90,7 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
         if (st2 && ex2) {
           if (isCheap(ex2)) {
             *late_init = st2;
-            return ex2;
+            return tuple_access_opt(ex2);
           }
         }
       }
@@ -66,7 +99,7 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
       }
       // force allocation
       ex = tmpize_if_possible(ex, late_init);
-      return ex;
+      return tuple_access_opt(ex);
     }
     if (!initst) {
       tuple = mkcheap(tuple);
@@ -78,7 +111,7 @@ Expr[] getTupleEntries(Expr tuple, Statement* initst = null, bool dontLvize = fa
   }
   Expr[] res;
   for (int i = 0; i < count; ++i)
-    res ~= mkTupleIndexAccess(tuple, i, true);
+    res ~= tuple_access_opt(mkTupleIndexAccess(tuple, i, true));
   return res;
 }
 

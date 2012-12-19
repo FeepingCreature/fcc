@@ -69,7 +69,6 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
           scope(exit) changed = backup;
           
           foreach (ref subexpr; exprs) {
-            opt(subexpr);
             auto sit = fastcast!(Iterable) (subexpr);
             removeNameds(sit);
             subexpr = fastcast!(Expr) (sit);
@@ -115,7 +114,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
         // fail;
         throw new Exception(Format("Leftover named-arg found! ", na, " (couldn't remove)"));
       }
-      it.iterate(&checkNameds);
+      if (fastcast!(AstTuple)(it)) it.iterate(&checkNameds);
       // logln("</", (cast(Object) it).classinfo.name, ">");
     }
     checkNameds(forble);
@@ -203,8 +202,11 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
         continue;
       }
       if (probe) return false;
-      if (text)
+      if (text) {
+        if (nameds) 
+          text.failparse("Not enough parameters for '", info(), "'; left over ", type, " or unable to assign named parameters");
         text.failparse("Not enough parameters for '", info(), "'; left over ", type, "!");
+      }
       logln("Not enough parameters for '", info(), "'; left over ", type, "!");
       fail;
     }
