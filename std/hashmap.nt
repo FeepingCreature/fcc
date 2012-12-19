@@ -122,7 +122,7 @@ template Hashmap(T) {
         realloc newsize;
       }
       auto pos = (hashptr &k) % backing.length;
-      while (isset[pos]) {
+      while (isset[pos] && !eq!Key(&backing[pos].key, &k)) {
         if (++pos == backing.length) pos = 0;
       }
       backing[pos] = (k, v);
