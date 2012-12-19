@@ -27,7 +27,7 @@ struct MD5Hash {
     if (t) {
       ubyte* p = &in[t];
       t = 64 - t;
-      if (len < 3) {
+      if (len < t) {
         p[0..len] = data;
         return;
       }
@@ -151,6 +151,7 @@ struct MD5Hash {
     buf[2] += c;
     buf[3] += d;
   }
+  alias onUsing = init, onExit = finalize;
 }
 
 string format-hash(ubyte[] hash) {
