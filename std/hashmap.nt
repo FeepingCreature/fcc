@@ -100,6 +100,9 @@ template Hashmap(T) {
       for ref entry <- backing && int i <- ints
         if (isset[i]) dg (&entry[0], &entry[1]);
     }
+    void iterate(void delegate(Key, Value) dg) {
+      iterate \(Key* kp, Value* vp) { dg(*kp, *vp); }
+    }
     void realloc(int newsize) {
       pragma(fast);
       type-of this newmap;
