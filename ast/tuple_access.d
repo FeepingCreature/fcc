@@ -45,18 +45,18 @@ Expr tuple_access_opt(Expr ex) {
       if (auto sl = fastcast!(StructLiteral)(base)) {
         if (sl.valueType() == mae.base.valueType())
           return sl.exprs[mae.stm.index];
-        logln(" ---- ", sl.valueType());
-        logln(" ---- ", mae.base.valueType());
-        logln(sl.exprs);
-        logln(mae.stm);
+        // logln(" ---- ", sl.valueType());
+        // logln(" ---- ", mae.base.valueType());
+        // logln(sl.exprs);
+        // logln(mae.stm);
       }
       // logln(">> ", (cast(Object) base).classinfo.name, " ", base);
       // asm { int 3; }
     }
   }
-  return ex;
   // logln((cast(Object) ex).classinfo.name, " ", ex);
   // asm { int 3; }
+  return ex;
 }
 
 import ast.modules;
