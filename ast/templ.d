@@ -167,7 +167,7 @@ class DependencyEntry : Tree {
 }
 
 import ast.structure, ast.scopes, ast.literal_string;
-class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
+class TemplateInstance : Namespace, HandlesEmits, ModifiesName, IsMangled {
   Namespace context;
   union {
     IType type;
@@ -317,7 +317,9 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
       if (parent.isAlias) return Format("Instance of "[], parent, " ("[], tr, ") <- "[], sup);
       else return Format("Instance of "[], parent, " ("[], type, ") <- "[], sup);
     }
-    string mangle(string name, IType type) {
+    void markWeak() { } // templates are always weak
+    void markExternC() { assert(false, "TODO"); }
+    string mangleSelf() {
       string mangl;
       if (parent.isAlias) {
         if (auto fun = fastcast!(Function)~ tr) {
@@ -332,7 +334,16 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName {
           }
         }
       } else mangl = this.type.mangle();
-      return sup.mangle(name, type)~"__"~"templinst_"~parent.name.cleanup()~"_with_"~mangl;
+      if (parent.context) {
+        if (auto m = parent.context.get!(IsMangled))
+          return qformat("templinst_", parent.name.cleanup(), "_under_", m.mangleSelf(), "_with_", mangl);
+        if (auto n = parent.context.get!(Named))
+          return qformat("templinst_", parent.name.cleanup(), "_under_", n.getIdentifier(), "_with_", mangl);
+      }
+      return qformat("templinst_", parent.name.cleanup(), "_with_", mangl);
+    }
+    string mangle(string name, IType type) {
+      return sup.mangle(name, type)~"__"~mangleSelf();
     }
   }
 }

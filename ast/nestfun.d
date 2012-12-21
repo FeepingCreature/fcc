@@ -27,7 +27,7 @@ class NestedFunction : Function {
     }
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
-      return qformat(cleaned_name, "_of_", type.mangle(), "_under_", context.get!(Function).mangleSelf());
+      return qformat(cleaned_name, "_of_", type.mangle(), "_under_", context.get!(IsMangled).mangleSelf());
     }
     NestedFunction alloc() { return new NestedFunction; }
     NestedFunction flatdup() {
