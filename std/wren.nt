@@ -287,12 +287,12 @@ class Escape : Thing {
 
 class List : Thing {
   Thing[] list;
-  void init(Thing[] l) list = l;
+  void init(Thing[] l) { list = l; }
   Thing eval(Namespace ns) {
     if !list.length error "Cannot evaluate $this: list empty";
+    // writeln "Evaluate $this";
     auto op = Operator: auto first = list[0].eval(ns);
     if !op error "Cannot evaluate $this: first entry is not an operator (function), but $(first?.toString():\"null\")";
-    // writeln "Evaluate $this";
     return op.call (list[1..$], ns);
   }
   string toString() {
@@ -361,15 +361,19 @@ bool accept(string* text, string match) {
   return false;
 }
 
+extern(C) float strtof(char* sptr, char** endptr);
 bool gotNum(string* text, float* num) {
   float res = 0;
   auto t2 = *text #.strip();
-  char[auto~] n;
+  scope char[auto~] n;
   while (t2.length && ("0" <= t2[0] <= "9" || t2[0] == "." || t2[0] == "-")) {
     n ~= t2[0]; t2 = t2[1..$];
   }
   if (!n.length) return false;
-  *num = n[].atof();
+  scope nptr = toStringz n[];
+  char* endptr;
+  *num = nptr.strtof(&endptr);
+  if (endptr !is nptr + n.length) return false;
   *text = t2;
   return true;
 }
