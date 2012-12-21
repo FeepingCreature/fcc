@@ -93,7 +93,7 @@ template Array(T) {
   class Array : Thing, IArray {
     T[] value;
     void init(T[] t) { value = t; }
-    Thing eval(Namespace ns) { assert(false, "cannot evaluate array"); }
+    Thing eval(Namespace ns) { return this; } // value type
     Thing getIndex(int i) {
       return neat-to-wren value[i];
     }
