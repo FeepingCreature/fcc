@@ -241,6 +241,19 @@ template wren-to-neat(T) {
       else error "Can't create vec3f from $thing";
       alias match-found = true;
     }
+    static if (type-is tuple T) {
+      T res;
+      
+      auto li = List: thing;
+      if !li || li.list.length != res.length
+        error "Can't create $(string-of T) from $thing";
+      
+      static for int i <- 0..res.length {
+        res[i] = .wren-to-neat!type-of res[i] li.list[i];
+      }
+      return res;
+      alias match-found = true;
+    }
     static if (!is-defined match-found) {
       pragma(fail, string-of T ~ ": can't create from wren form");
     }
