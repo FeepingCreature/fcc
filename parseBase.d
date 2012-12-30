@@ -13,7 +13,7 @@ version(Windows) {
   extern(C) int bcmp(char*, char*, int);
 }
 
-version(Windows) { } else pragma(set_attribute, faststreq_samelen_nonz, optimize("-O3"));
+version(Windows) { } else pragma(set_attribute, faststreq_samelen_nonz, optimize("-fomit-frame-pointer"));
 int faststreq_samelen_nonz(string a, string b) {
   // the chance of this happening is approximately 0.1% (I benched it)
   // as such, it's not worth it
@@ -35,7 +35,7 @@ int faststreq_samelen_nonz(string a, string b) {
   return (ai & mask) == (bi & mask);
 }
 
-version(Windows) { } else pragma(set_attribute, faststreq, optimize("-O3"));
+// version(Windows) { } else pragma(set_attribute, faststreq, optimize("-O3"));
 int faststreq(string a, string b) {
   if (a.length != b.length) return false;
   if (!b.length) return true;
@@ -91,7 +91,7 @@ struct SpeedCache {
 
 enum Scheme { Binary, Octal, Decimal, Hex }
 bool gotInt(ref string text, out int i) {
-  auto t2 = text.mystripl();
+  auto t2 = text;
   t2.eatComments();
   if (auto rest = t2.startsWith("-")) {
     return gotInt(rest, i)
@@ -161,22 +161,101 @@ bool gotInt(ref string text, out int i) {
 import tools.compat: replace;
 import tools.base: Stuple, stuple;
 
-string matchOneOf(dstring list, string var) {
-  string res;
+string returnTrueIf(dstring list, string var) {
+  string res = "switch ("~var~") {";
   foreach (dchar d; list) {
-    if (res.length) res ~= " || ";
     string myu; myu ~= d;
-    res ~= "("~var~" == '"~myu~"')";
+    res ~= "case '"~myu~"': return true;";
   }
+  res ~= "default: break; }";
   return res;
+}
+
+// copypasted from phobos to enable inlining
+version(Windows) { } else pragma(set_attribute, decode, optimize("-fomit-frame-pointer"));
+dchar decode(char[] s, ref size_t idx) {
+  size_t len = s.length;
+  dchar V;
+  size_t i = idx;
+  char u = s[i];
+  
+  if (u & 0x80)
+  {
+    uint n;
+    char u2;
+
+    /* The following encodings are valid, except for the 5 and 6 byte
+      * combinations:
+      *  0xxxxxxx
+      *  110xxxxx 10xxxxxx
+      *  1110xxxx 10xxxxxx 10xxxxxx
+      *  11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+      *  111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+      *  1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+      */
+    for (n = 1; ; n++)
+    {
+      if (n > 4) goto Lerr; // only do the first 4 of 6 encodings
+      if (((u << n) & 0x80) == 0) {
+        if (n == 1) goto Lerr;
+        break;
+      }
+    }
+
+    // Pick off (7 - n) significant bits of B from first byte of octet
+    V = cast(dchar)(u & ((1 << (7 - n)) - 1));
+
+    if (i + (n - 1) >= len) goto Lerr; // off end of string
+
+    /* The following combinations are overlong, and illegal:
+      *  1100000x (10xxxxxx)
+      *  11100000 100xxxxx (10xxxxxx)
+      *  11110000 1000xxxx (10xxxxxx 10xxxxxx)
+      *  11111000 10000xxx (10xxxxxx 10xxxxxx 10xxxxxx)
+      *  11111100 100000xx (10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx)
+      */
+    u2 = s[i + 1];
+    if ((u & 0xFE) == 0xC0 ||
+        (u == 0xE0 && (u2 & 0xE0) == 0x80) ||
+        (u == 0xF0 && (u2 & 0xF0) == 0x80) ||
+        (u == 0xF8 && (u2 & 0xF8) == 0x80) ||
+        (u == 0xFC && (u2 & 0xFC) == 0x80))
+        goto Lerr;                      // overlong combination
+
+    for (uint j = 1; j != n; j++)
+    {
+      u = s[i + j];
+      if ((u & 0xC0) != 0x80) goto Lerr;                  // trailing bytes are 10xxxxxx
+      V = (V << 6) | (u & 0x3F);
+    }
+    // if (!isValidDchar(V)) goto Lerr;
+    i += n;
+  } else {
+    V = cast(dchar) u;
+    i++;
+  }
+
+  idx = i;
+  return V;
+
+Lerr:
+  //printf("\ndecode: idx = %d, i = %d, length = %d s = \n'%.*s'\n%x\n'%.*s'\n", idx, i, s.length, s, s[i], s[i .. length]);
+  throw new UtfException("4invalid UTF-8 sequence", i);
 }
 
 // TODO: unicode
 bool isNormal(dchar c) {
-  return (c >= 'a' && c <= 'z') ||
-         (c >= 'A' && c <= 'Z') ||
-         (c >= '0' && c <= '9') ||
-         mixin(matchOneOf("_" "αβγδεζηθικλμνξοπρσςτυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ" "µð", "c"));
+  if (c < 128) {
+    return (c >= 'a' && c <= 'z') ||
+           (c >= 'A' && c <= 'Z') ||
+           (c >= '0' && c <= '9') ||
+           c == '_';
+  }
+  mixin(returnTrueIf(
+    "µð" // different mu
+    "αβγδεζηθικλμνξοπρσςτυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ"
+    , "c"));
+  return false;
 }
 
 string lastAccepted, lastAccepted_stripped;
@@ -192,13 +271,13 @@ template acceptT(bool USECACHE) {
       if (s.ptr == lastAccepted.ptr && s.length == lastAccepted.length) {
         s2 = lastAccepted_stripped;
       } else {
-        s2 = s.mystripl();
+        s2 = s;
         s2.eatComments();
         lastAccepted = s;
         lastAccepted_stripped = s2;
       }
     } else {
-      s2 = s.mystripl();
+      s2 = s;
       s2.eatComments();
     }
     
@@ -278,8 +357,9 @@ bool many(ref string s, lazy bool b, void delegate() dg = null, string abort = n
 }
 
 import std.utf;
+version(Windows) { } else pragma(set_attribute, gotIdentifier, optimize("-fomit-frame-pointer"));
 bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, bool acceptNumbers = false) {
-  auto t2 = text.mystripl();
+  auto t2 = text;
   t2.eatComments();
   bool isValid(dchar d, bool first = false) {
     return isNormal(d) || (!first && d == '-') || (acceptDots && d == '.');
@@ -295,7 +375,8 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, b
     prev_idx = idx;
     if (idx == t2.length) break;
     cur = t2.decode(idx);
-  } while (isValid(cur));
+  // } while (isValid(cur));
+  } while (isNormal(cur) || (cur == '-') || (acceptDots && cur == '.'));
   // prev_idx now is the start of the first invalid character
   /*if (ident in reserved) {
     // logln("reject ", ident);
@@ -303,6 +384,28 @@ bool gotIdentifier(ref string text, out string ident, bool acceptDots = false, b
   }*/
   ident = t2[0 .. prev_idx];
   if (ident == "λ") return false;
+  text = t2[prev_idx .. $];
+  return true;
+}
+
+bool isCNormal(char ch) {
+  return ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9';
+}
+
+bool gotCIdentifier(ref string text, out string ident) {
+  auto t2 = text;
+  t2.eatComments();
+  if (t2.length && t2[0] >= '0' && t2[0] <= '9') { return false; /* identifiers must not start with numbers */ }
+  size_t idx = 0;
+  if (!t2.length || !isCNormal(t2[idx++])) return false;
+  size_t prev_idx = 0;
+  dchar cur;
+  do {
+    prev_idx = idx;
+    if (idx == t2.length) break;
+    cur = t2[idx++];
+  } while (isCNormal(cur));
+  ident = t2[0 .. prev_idx];
   text = t2[prev_idx .. $];
   return true;
 }
@@ -467,7 +570,7 @@ string matchrule_static(string rules) {
 }
 
 // cases: smaller, greater, equal, before, after
-version(Windows) { } else pragma(set_attribute, fun, optimize("-O3"));
+// version(Windows) { } else pragma(set_attribute, fun, optimize("-O3"));
 bool fun(Stuple!(RuleData)* data, string text) {
   auto op1 = data._1;
   if (op1 && !op1(text)) return false;
@@ -1004,21 +1107,28 @@ template _parse(bool Verbose) {
       }
     }
     auto tx = text;
-    tx = tx.mystripl();
     tx.eatComments();
+    if (!tx.length) return null;
     bool tried;
     foreach (j, ref parser; parsers[offs..$]) {
       i = j;
       
-      auto id = parser.id;
-      
       // auto tx = text;
       // skip early. accept is slightly faster than cond.
       // if (parser.key && !.accept(tx, parser.key)) continue;
-      if (parser.key && !tx.startsWith(parser.key)) continue;
+      if (parser.key.ptr) {
+        auto pk = parser.key;
+        if (tx.length < pk.length) continue;
+        if (pk.length >= 4) {
+          if (*cast(int*) pk.ptr != *cast(int*) tx.ptr) continue;
+        }
+        if (tx[0..pk.length] != pk) continue;
+      }
       
       // rulestack ~= stuple(id, text);
       // scope(exit) rulestack = rulestack[0 .. $-1];
+      
+      auto id = parser.id;
       
       if (cond(id)) {
         static if (Verbose) {
@@ -1074,7 +1184,7 @@ template _parse(bool Verbose) {
     }
     return null;
   }
-  version(Windows) { } else pragma(set_attribute, parse, optimize("-O3", "-fno-tree-vrp"));
+  // version(Windows) { } else pragma(set_attribute, parse, optimize("-O3", "-fno-tree-vrp"));
 }
 
 string condStr;

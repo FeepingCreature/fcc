@@ -542,15 +542,15 @@ class MemberAccess_Expr : Expr, HasInfo {
   }
 }
 
-class MemberAccess_LValue : MemberAccess_Expr, LValue {
+class MemberAccess_LValue_ : MemberAccess_Expr, LValue {
   int id;
   this(LValue base, string name) {
     super(fastcast!(Expr)~ base, name);
   }
   this() { }
   override {
-    MemberAccess_LValue create() { return new MemberAccess_LValue; }
-    MemberAccess_LValue dup() { return fastcast!(MemberAccess_LValue) (super.dup()); }
+    MemberAccess_LValue_ create() { return new MemberAccess_LValue_; }
+    MemberAccess_LValue_ dup() { return fastcast!(MemberAccess_LValue_) (super.dup()); }
     void emitLocation(LLVMFile lf) {
       (fastcast!(LValue)(base)).emitLocation(lf);
       auto ls = lf.pop();
@@ -568,6 +568,12 @@ class MemberAccess_LValue : MemberAccess_Expr, LValue {
       }
     }
   }
+}
+
+final class MemberAccess_LValue : MemberAccess_LValue_ {
+  static const isFinal = true;
+  this(LValue base, string name) { super(base, name); }
+  this() { super(); }
 }
 
 import ast.fold, ast.casting;
@@ -676,6 +682,7 @@ Expr mkMemberAccess(Expr strct, string name) {
   else                                 return fastalloc!(MemberAccess_Expr  )(strct, name);
 }
 
+pragma(set_attribute, C_mkMemberAccess, externally_visible);
 extern(C) Expr C_mkMemberAccess(Expr strct, string name) { return mkMemberAccess(strct, name); }
 
 Expr depointer(Expr ex) {

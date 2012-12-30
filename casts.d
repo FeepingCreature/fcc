@@ -187,7 +187,7 @@ void initCastTable() {
 const getIdCacheSize = 1; // more is sliightly slower, less is way slower
 Stuple!(void*, int)[getIdCacheSize] getIdCache;
 int getIdLoopPtr;
-version(Windows) { } else pragma(set_attribute, getId, optimize("-O3"));
+// version(Windows) { } else pragma(set_attribute, getId, optimize("-O3"));
 int getId(ClassInfo ci) {
   auto cp = cast(void*) ci;
   static if (getIdCacheSize) foreach (i, bogus; Repeat!(void, getIdCacheSize)) {
@@ -224,6 +224,23 @@ struct _fastcast(T) {
     if (!u) return null;
     static assert (!is(U == void*));
     
+    Object obj;
+    
+    const string fillObj = `
+    {static if (!is(U: Object)) { // interface
+      auto ptr = **cast(Interface***) u;
+      void* vp = *cast(void**) &u - ptr.offset;
+      obj = *cast(Object*) &vp;
+    } else {
+      void* vp = *cast(void**) &u;
+      obj = *cast(Object*) &vp; // prevent a redundant D cast
+    }}`;
+    static if (is(typeof(T.isFinal)) && T.isFinal) {
+      // deterministic
+      mixin(fillObj);
+      if (obj.classinfo !is T.classinfo) return null;
+      return *cast(T*)&obj;
+    }
     // logln("Cast "[], (cast(Object) u).classinfo.name);
     // this doesn't do much but I'm leaving it in so you don't think I didn't think of it.
     static if (is(U: T) && !is(T: Object)) {{ // liskov says we can do this deterministically
@@ -240,15 +257,7 @@ struct _fastcast(T) {
     if (!idtable.length)
       return cast(T) u; // not initialized yet (called from a static constructor?)
     fastcast_marker();
-    Object obj;
-    static if (!is(U: Object)) { // interface
-      auto ptr = **cast(Interface***) u;
-      void* vp = *cast(void**) &u - ptr.offset;
-      obj = *cast(Object*) &vp;
-    } else {
-      void* vp = *cast(void**) &u;
-      obj = *cast(Object*) &vp; // prevent a redundant D cast
-    }
+    if (!obj) mixin(fillObj);
     static if (is(T == Object)) return obj;
     // implicit downcast - make sure we want a class!
     static if (is(U: T) && is(T: Object)) { return *cast(T*) &obj; }

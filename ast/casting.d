@@ -76,7 +76,8 @@ template ReinterpretCast(T) {
       }
     }
   } else static if (is(T==LValue)) {
-    class ReinterpretCast : ReinterpretCast!(CValue), T {
+    final class ReinterpretCast : ReinterpretCast!(CValue), T {
+      static const isFinal = true;
       mixin ReinterpretCast_Contents!(T);
     }
   } else {
@@ -413,7 +414,7 @@ Expr[] getAllImplicitCasts(Expr ex) {
   return res;
 }
 
-class ShortToIntCast : Expr {
+class ShortToIntCast_ : Expr {
   Expr sh;
   this(Expr sh) { this.sh = sh; }
   private this() { }
@@ -426,6 +427,11 @@ class ShortToIntCast : Expr {
     }
     string toString() { return Format("int:"[], sh); }
   }
+}
+
+final class ShortToIntCast : ShortToIntCast_ {
+  static const isFinal = true;
+  this(Expr sh) { super(sh); }
 }
 
 class ByteToShortCast : Expr {

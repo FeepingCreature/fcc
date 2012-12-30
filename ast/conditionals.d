@@ -48,7 +48,7 @@ Cond exprwrap(Expr ex) {
 }
 
 import ast.structure;
-class ExprWrap : Cond {
+class ExprWrap_ : Cond {
   Expr ex;
   this(Expr ex) {
     this.ex = ex;
@@ -71,6 +71,11 @@ class ExprWrap : Cond {
       .jumpOn(lf, dest);
     }
   }
+}
+
+final class ExprWrap : ExprWrap_ {
+  static const isFinal = true;
+  this(Expr ex) { super(ex); }
 }
 
 class StatementAndCond : Cond {

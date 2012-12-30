@@ -10,7 +10,7 @@ import tools.functional: map, apply;
   4. A tuple is matched via '()' and ','.
 ++/
 
-class Tuple : Type, RelNamespace {
+class Tuple_ : Type, RelNamespace {
   /// 1.
   Structure wrapped;
   string[] names;
@@ -49,6 +49,10 @@ class Tuple : Type, RelNamespace {
       return true;
     }
   }
+}
+
+final class Tuple : Tuple_ {
+  static const isFinal = true;
 }
 
 Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {

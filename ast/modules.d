@@ -8,6 +8,7 @@ bool dumpXMLRep;
 
 Threadpool tp;
 
+pragma(set_attribute, check_imports_usage, externally_visible);
 extern(C) void check_imports_usage(string info, Namespace[] imports, bool[] importsUsed) {
   foreach (i, ns; imports) if (auto mod = fastcast!(Module) (ns)) {
     // importing module with constructor can be valid reason to import never-used module.
@@ -30,7 +31,10 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
   bool parsingDone;
   LLVMFile inProgress; // late to the party;
   bool _hasDebug = true;
+  Module[] imports_cache;
   Module[] getAllModuleImports() {
+    if (imports_cache) return imports_cache;
+    
     auto backup = current_module();
     scope(exit) current_module.set(backup);
     current_module.set(this);
@@ -41,6 +45,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
         auto entry = slice(cache, ",");
         res ~= lookupMod(entry);
       }
+      imports_cache = res;
       return res;
     }
     
@@ -66,6 +71,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       write_cache("module imports", sourcefile, names.join(","));
     }
     
+    imports_cache = res;
     return res;
   }
   bool isValid; // still in the build list; set to false if superceded by a newer Module
@@ -189,6 +195,7 @@ static this() {
   registerSetupable = (Setupable s) { (fastcast!(Module) (current_module())).addSetupable(s); };
 }
 
+pragma(set_attribute, __getSysmod, externally_visible);
 extern(C) Namespace __getSysmod() { return sysmod; } // for ast.namespace
 
 Module[string] modcache;
@@ -294,11 +301,17 @@ Module lookupMod(string name) {
   return mod;
 }
 
+string[string] locatecache;
 string locate_name(string name) {
   string res;
   cachelock.Synchronized = {
-    foreach (key, value; modcache) {
-      if (value.lookup(name, true)) { if (res.length) res ~= ", "; res ~= key; }
+    if (auto p = name in locatecache) res = *p;
+    else {
+      foreach (key, value; modcache) {
+        if (value.lookup(name, true)) { if (res.length) res ~= ", "; res ~= key; }
+      }
+      if (!res.length) res = "";
+      locatecache[name] = res;
     }
   };
   return res;

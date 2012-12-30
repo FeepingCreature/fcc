@@ -1,7 +1,7 @@
 module cache;
 
 import quickformat;
-import tools.base: read, write, split, join, slice, fail, mkdir;
+import tools.base: read, write, split, join, slice, fail, mkdir, stuple, Stuple, ptuple;
 import tools.log: logln;
 
 string[] include_path;
@@ -39,19 +39,28 @@ long atol(string s) {
   return atoll(cstr.ptr);
 }
 
+string[string] findfile_cache;
 string findfile(string file) {
-  if (file.exists()) return file;
-  foreach (entry; include_path)
-    if (entry.qsub(file).exists()) return entry.qsub(file);
-  return null;
+  if (auto p = file in findfile_cache) return *p;
+  string res;
+  if (file.exists()) res = file;
+  else {
+    foreach (entry; include_path)
+      if (entry.qsub(file).exists()) {
+        res = entry.qsub(file);
+        break;
+      }
+  }
+  findfile_cache[file] = res;
+  return res;
 }
 
 bool cachefile_read;
 string[string] cachedata;
 
 void check_cache() {
-  if (!cachefile.exists()) return;
   if (!cachefile_read) {
+    if (!cachefile.exists()) return;
     foreach (line; (cast(string) read(cachefile)).split("\n")) {
       auto lkey = line.slice("=");
       cachedata[lkey] = line;
@@ -60,23 +69,30 @@ void check_cache() {
   }
 }
 
+Stuple!(long, long, long)[string] times_cache;
+void getTimes_cached(string file, ref long c, ref long a, ref long m) {
+  if (auto p = file in times_cache) { ptuple(c, a, m) = *p; return; }
+  file.getTimes(c, a, m);
+  times_cache[file] = stuple(c, a, m);
+}
+
 const cachefile = ".obj/cache.txt";
 string read_cache(string key, string filekey) {
   if (filekey) {
     filekey = findfile(filekey);
-    if (!filekey || !filekey.exists()) {
+    if (!filekey) {
       logln("?? '", filekey, "'");
       fail;
     }
   }
-  if (!cachefile.exists()) return null;
   check_cache();
+  if (!cachefile_read) return null;
   
   if (filekey) {
     auto age = qformat("age ", filekey, " ", key);
     if (!(age in cachedata)) return null;
     long created, accessed, modified;
-    filekey.getTimes(created, accessed, modified);
+    filekey.getTimes_cached(created, accessed, modified);
     long mod2 = cachedata[age].atol();
     if (older(modified, mod2)) // if the cache is older than our file
       return null;

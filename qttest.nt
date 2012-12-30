@@ -94,13 +94,13 @@ void main(string[] args) {
   prog.call(`setValue$`, [void*:60]);
   using new QtObject("QSplitter", `$`, [void*:0]) {
     using auto sp = new QtObject("QSplitter") {
-      call(`addWidget#`, qbutton);
-      call(`addWidget#`, qlabel);
-      call(`addWidget#`, qgv);
+      that.call(`addWidget#`, qbutton);
+      that.call(`addWidget#`, qlabel);
+      that.call(`addWidget#`, qgv);
     }
-    call(`addWidget#`, sp);
-    call(`addWidget#`, prog);
-    call(`show`);
+    that.call(`addWidget#`, sp);
+    that.call(`addWidget#`, prog);
+    that.call(`show`);
   }
   writeln "exec";
   int ret = int:qapp.call(`exec`);

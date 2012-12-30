@@ -5,6 +5,7 @@ import ast.base, ast.int_literal, ast.types, ast.pointer, ast.static_arrays, ast
 import tools.log, tools.base: strip, between;
 import parseBase: startsWith, endsWith;
 
+pragma(set_attribute, typeToLLVM, externally_visible);
 extern(C) string typeToLLVM(IType it, bool subst = false) {
   // logln("typeToLLVM ", it);
   if (!it) fail;
@@ -30,6 +31,7 @@ extern(C) string typeToLLVM(IType it, bool subst = false) {
   return it.llvmType();
 }
 
+pragma(set_attribute, guessSize, externally_visible);
 extern(C) int guessSize(IType it) {
   if (auto ie = fastcast!(IntExpr)(llvmval(it.llvmSize()))) {
     return ie.num;
@@ -38,6 +40,7 @@ extern(C) int guessSize(IType it) {
   return 0;
 }
 
+pragma(set_attribute, llvmvalstr, externally_visible);
 extern(C) Expr llvmvalstr(string s) {
   auto val = my_atoi(s);
   if (qformat(val) == s) return mkInt(val);
@@ -118,6 +121,7 @@ string[] getVecTypes(string str) {
 }
 
 alias void delegate(string) structDecompose_dg;
+pragma(set_attribute, structDecompose, externally_visible);
 extern(C) void structDecompose(string str, structDecompose_dg dg) {
   auto main = str.startsWith("{").endsWith("}").strip();
   if (!main) return;
@@ -224,6 +228,7 @@ string eat_canonify(ref string s) {
   fail;
 }
 
+pragma(set_attribute, canonify, externally_visible);
 extern(C) string canonify(string s) {
   auto res = eat_canonify(s);
   if (s.length) {

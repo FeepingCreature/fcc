@@ -1,4 +1,4 @@
-module fastalloc;
+module alloc;
 
 import tools.base, tools.log, tools.threads;
 

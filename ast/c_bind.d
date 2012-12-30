@@ -251,13 +251,12 @@ src_cleanup_redo: // count, then copy
   IType matchSimpleType(ref string text) {
     bool accept(string s) {
       auto t2 = text;
-      while (s.length) {
-        string part1, part2;
-        if (!s.gotIdentifier(part1)) return false;
-        if (!t2.gotIdentifier(part2)) return false;
-        if (part1 != part2) return false;
-        s = s.strip();
-      }
+      // if (auto rest = t2.startsWith(s)) { text = rest; return true; }
+      // t2.eatComments();
+      // if (auto rest = t2.startsWith(s)) { text = rest; return true; }
+      string part2;
+      if (!t2.gotCIdentifier(part2)) return false;
+      if (s != part2) return false;
       text = t2;
       return true;
     }

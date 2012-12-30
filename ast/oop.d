@@ -257,7 +257,6 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         if (!intp) return fun;
         auto fntype = fun.getPointer().valueType();
         auto pp_fntype = fastalloc!(Pointer)(fastalloc!(Pointer)(fntype));
-        auto pp_int = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
         // *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
         set ~= fastalloc!(PointerFunction!(NestedFunction)) (
           tmpize_maybe(intp, delegate Expr(Expr intp) {
@@ -265,7 +264,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
               fastalloc!(PA_Access)(fastalloc!(DerefExpr)(reinterpret_cast(pp_fntype, intp)), mkInt(id + own_offset)),
               lookupOp("+"[],
                 reinterpret_cast(fastalloc!(Pointer)(voidp), intp),
-                fastalloc!(DerefExpr)(fastalloc!(DerefExpr)(reinterpret_cast(pp_int, intp)))
+                fastalloc!(DerefExpr)(fastalloc!(DerefExpr)(reinterpret_cast(intpp, intp)))
               )
             );
           })
@@ -1200,10 +1199,13 @@ mixin DefaultParser!(gotIntfDef, "tree.typedef.intf"[], null, "interface"[]);
 
 import ast.casting, ast.opers;
 
-alias Single!(Pointer, Single!(Pointer, Single!(Void))) voidpp;
+Pointer voidpp, intpp;
+static this() {
+  voidpp = new Pointer(new Pointer(new Void));
+  intpp  = new Pointer(new Pointer(new SysInt));
+}
 
 Expr intfToClass(Expr ex) {
-  auto intpp = Single!(Pointer, Single!(Pointer, Single!(SysInt)));
   return reinterpret_cast(fastcast!(IType) (sysmod.lookup("Object"[])), lookupOp("+"[], reinterpret_cast(voidpp, ex), fastalloc!(DerefExpr)(fastalloc!(DerefExpr)(reinterpret_cast(intpp, ex)))));
 }
 
@@ -1292,6 +1294,7 @@ bool are_of_one_hierarchy_line(IntfRef a, IntfRef b) {
   return false;
 }
 
+pragma(set_attribute, oop_is_comparable_sanity_check, externally_visible);
 extern(C) void oop_is_comparable_sanity_check(string text, Expr ex1, Expr ex2) {
   auto t1 = resolveType(ex1.valueType()), t2 = resolveType(ex2.valueType());
   auto c1 = fastcast!(ClassRef)(t1), c2 = fastcast!(ClassRef)(t2);

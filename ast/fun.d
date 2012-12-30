@@ -94,6 +94,7 @@ extern(C) Object nf_fixup__(Object obj, Expr mybase);
 
 extern(C) void funcall_emit_fun_end_guard(LLVMFile lf, string name);
 
+pragma(set_attribute, recordFrame, externally_visible);
 extern(C) void recordFrame(Scope sc) {
   auto fun = sc.get!(Function);
   if (!fun) {

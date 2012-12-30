@@ -347,6 +347,7 @@ bool matchCall(ref string text, Function fun, lazy string lazy_info, Argument[] 
   return true;
 }
 
+pragma(set_attribute, _buildFunCall, externally_visible);
 extern(C) Expr _buildFunCall(Object obj, Expr arg, string info) {
   auto fun = fastcast!(Function) (obj);
   if (!fun) {
@@ -556,6 +557,7 @@ static this() {
 }
 
 // helper for ast.fun
+pragma(set_attribute, funcall_emit_fun_end_guard, externally_visible);
 extern(C) void funcall_emit_fun_end_guard(LLVMFile lf, string name) {
   (fastalloc!(ExprStatement)(buildFunCall(
     sysmod.lookup("missed_return"),

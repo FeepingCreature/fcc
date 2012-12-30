@@ -5,7 +5,7 @@ import ast.types, ast.base, parseBase, tools.base: This, This_fn, rmSpace, Ret, 
 import dwarf2;
 class Pointer_ : Type, Dwarf2Encodable {
   IType target;
-  this(IType t) { target = forcedConvert(t); }
+  this(IType t) { target = forcedConvert(t); if (!target) asm { int 3; } }
   IType proxycache;
   string targettypecmp, lltypecache;
   IType _proxyType() { if (auto tp = target.proxyType()) return fastalloc!(Pointer)(tp); return null; }
@@ -46,6 +46,7 @@ class Pointer_ : Type, Dwarf2Encodable {
 }
 
 final class Pointer : Pointer_ {
+  static const isFinal = true;
   this(IType t) { super(t); }
 }
 

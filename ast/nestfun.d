@@ -443,6 +443,7 @@ class PointerFunction(T) : T {
   }
 }
 
+pragma(set_attribute, C_mkPFNestFun, externally_visible);
 extern(C) Function C_mkPFNestFun(Expr dgex) {
   return fastalloc!(PointerFunction!(NestedFunction))(dgex);
 }

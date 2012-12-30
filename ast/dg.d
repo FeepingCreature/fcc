@@ -63,6 +63,7 @@ class DgConstructExpr : mkDelegate {
   }
 }
 
+pragma(set_attribute, C_mkDgConstructExpr, externally_visible);
 extern(C) Expr C_mkDgConstructExpr(Expr r, Expr ptrval) {
   return fastalloc!(DgConstructExpr)(r, ptrval);
 }
@@ -85,7 +86,7 @@ Object gotFpCloseExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotFpCloseExpr, "tree.rhs_partial.fpclose"[], null, null, true);
 
-class Delegate : Type {
+class Delegate_ : Type {
   FunctionType ft;
   final IType ret() { return ft.ret; }
   final Argument[] args() { return ft.params; }
@@ -140,6 +141,13 @@ class Delegate : Type {
       return true;
     }
   }
+}
+
+final class Delegate : Delegate_ {
+  static const isFinal = true;
+  this() { super(); }
+  this(IType ret, Argument[] args) { super(ret, args); }
+  this(FunctionType ft) { super(ft); }
 }
 
 IType dgAsStructType(Delegate dgtype) {

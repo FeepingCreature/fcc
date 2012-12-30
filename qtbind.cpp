@@ -9,9 +9,7 @@
 #include <vector>
 #include <stdio.h>
 
-#define ALIGNED __attribute__ ((force_align_arg_pointer))
-#define LET(A, B) typeof(B) A = (B)
-#define EXPORT extern "C" ALIGNED
+#define EXPORT extern "C"
 
 using namespace std;
 

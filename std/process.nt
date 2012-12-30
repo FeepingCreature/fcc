@@ -246,10 +246,10 @@ void dumpGraph(void delegate(void delegate(string, string, string=null)) dg, boo
   }
   scope Link[auto~] links;
   int countSources(string s) {
-    int res;
-    for ref link <- links
-      if (link.from == s) res ++;
-    return res;
+    return sum [for link <- links: link.from == s];
+  }
+  int countDests(string s) {
+    return sum [for link <- links: link.to == s];
   }
   void callback(string from, to, style = null) {
     add-word from;
@@ -264,7 +264,7 @@ void dumpGraph(void delegate(void delegate(string, string, string=null)) dg, boo
     else writeln "  $(clean word._0) [label=\"$(word._0)\"]; ";
   }
   for auto link <- links {
-    float len = countSources(link.from) - 1 # * 0.4 # + 2;
+    float len = countSources(link.from) + countDests(link.to) # - 2 # * 0.25 # + 1;
     float weight = 1 / len, fatness = weight * 3;
     string color = "black";
     if (fatness < 1) {
@@ -309,7 +309,8 @@ void dumpModuleGraph(bool includeStdMods = false) {
   }
 }
 
-void dumpClassGraph(bool includeStdMods = false, includeObject = false) {
+// dump class graph (connected to referenceClass)
+void dumpClassGraph(string referenceClass = null, bool includeStdMods = false, includeObject = false) {
   bool included(ModuleInfo mod) {
     return includeStdMods || !mod.name.startsWith "std.";
   }

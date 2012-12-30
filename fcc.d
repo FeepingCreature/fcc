@@ -78,6 +78,7 @@ string[] processCArgs(string[] ar) {
 
 string[Tree] ids;
 
+pragma(set_attribute, mangletree, externally_visible);
 extern(C) string mangletree(Tree tr) {
   if (auto ea = fastcast!(ExprAlias)(tr))
     return "ea_"~mangletree(ea.base);
@@ -181,6 +182,7 @@ static this() {
 alias ast.parse.startsWith startsWith;
 
 // from ast.namespace
+pragma(set_attribute, C_showsAnySignOfHaving, externally_visible);
 extern(C) bool C_showsAnySignOfHaving(Expr ex, string thing) {
   if (fastcast!(MyPlaceholderExpr) (ex)) return false; // nuh-uh.
   auto it = ex.valueType();
@@ -195,6 +197,7 @@ extern(C) bool C_showsAnySignOfHaving(Expr ex, string thing) {
   return false;
 }
 
+pragma(set_attribute, _mns_stackframe, externally_visible);
 extern(C) Stuple!(IType, string)[] _mns_stackframe(Namespace sup, typeof(Namespace.field) field) {
   Stuple!(IType, string)[] res;
   if (sup) res = sup.get!(ScopeLike).stackframe();
@@ -228,6 +231,7 @@ static this() {
   setupPropCall();
 }
 
+pragma(set_attribute, rt_print, externally_visible);
 extern(C) void rt_print(LLVMFile lf, string s) {
   auto printf = sysmod.lookup("printf");
   buildFunCall(printf, mkString(s~"\n"), "printf").emitLLVM(lf);
@@ -250,7 +254,76 @@ static this() {
 }
 
 // from ast.math
-static this() {
+
+import ast.modules, ast.prefixfun;
+void ast_math_constr() {
+  /*foldopt ~= delegate Itr(Itr it) {
+    auto fc = fastcast!(FunCall) (it);
+    if (!fc) return null;
+    bool isFabsMath;
+    auto mod = fastcast!(Module) (fc.fun.sup);
+    if (fc.fun.name != "fabsf"[] || !fc.fun.extern_c) return null;
+    auto arg = foldex(fc.getParams()[0]);
+    return fastalloc!(FAbsFExpr)(arg);
+  };*/
+  Itr substfun(int arity, bool delegate(Function, Module) dg, Expr delegate(Expr[]) dgex, Itr it) {
+    auto ftest = it.classinfo is FunCall.classinfo || it.classinfo is PrefixCall.classinfo;
+    if (!ftest) return null;
+    auto fc = fastcast!(FunCall)(it);
+    if (!fc) return null;
+    if (fc.getParams().length != arity) return null;
+    auto mod = fastcast!(Module)(fc.fun.sup);
+    if (!mod) return null;
+    if (!dg(fc.fun, mod)) return null;
+    
+    // auto res = dgex(foldex(fc.getParams()[0]));
+    auto pars = fc.getParams();
+    foreach (ref par; pars) par = foldex(par);
+    auto res = dgex(pars);
+    // logln("subst with ", res);
+    return res;
+  }
+  if (!isWindoze()) {
+    foldopt ~= &substfun /fix/ stuple(1, (Function fun, Module mod) {
+      return fun.name == "fastfloor" && mod is sysmod;
+    }, delegate Expr(Expr[] args) {
+      return fastalloc!(FPAsInt)(lookupOp("+",
+        fastalloc!(IntrinsicExpr)("llvm.floor.f32"[], args, Single!(Float)),
+        fastalloc!(FloatExpr)(0.25)));
+    });
+  }
+  foldopt ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
+    return (fun.name == "copysignf" || fun.name == "[wrap]copysignf") && fun.extern_c;
+  }, delegate Expr(Expr[] args) {
+    auto Int = Single!(SysInt), Float = Single!(Float);
+    return reinterpret_cast(Float, lookupOp("|",
+      lookupOp("&", reinterpret_cast(Int, args[0]), mkInt(0x7fff_ffff)),
+      lookupOp("&", reinterpret_cast(Int, args[1]), mkInt(0x8000_0000))
+    ));
+  });
+  void addCIntrin(int arity, string funname, IType ret, string intrin) {
+    foldopt ~= &substfun /fix/ stuple(arity, stuple(funname) /apply/ (string funname, Function fun, Module mod) {
+      return (fun.name == funname || fun.name == qformat("[wrap]", funname)) && fun.extern_c;
+    }, stuple(intrin, ret) /apply/ delegate Expr(string intrin, IType ret, Expr[] args) {
+      foreach (ref arg; args) {
+        if (!gotImplicitCast(arg, ret, (IType it) { return test(ret == it); }))
+          throw new Exception("invalid argument for intrinsic");
+      }
+      return fastalloc!(IntrinsicExpr)(intrin, args, ret);
+    });
+  }
+  addCIntrin(1, "sqrtf" , Single!(Float), "llvm.sqrt.f32");
+  // do in software, intrinsic is slow
+  // addCIntrin(1, "sinf"  , Single!(Float), "llvm.sin.f32");
+  // addCIntrin(1, "cosf"  , Single!(Float), "llvm.cos.f32");
+  if (!isWindoze()) {
+    addCIntrin(1, "floorf", Single!(Float), "llvm.floor.f32");
+  }
+  addCIntrin(1, "fabsf" , Single!(Float), "llvm.fabs.f32");
+  addCIntrin(1, "exp"   , Single!(Float), "llvm.exp.f32");
+  addCIntrin(1, "log"   , Single!(Float), "llvm.log.f32");
+  addCIntrin(2, "powf"  , Single!(Float), "llvm.pow.f32");
+  
   bool isInt(IType it) { return test(Single!(SysInt) == it); }
   bool isFloat(IType it) { return test(Single!(Float) == it); }
   bool isDouble(IType it) { return test(Single!(Double) == it); }
@@ -386,6 +459,7 @@ static this() {
   defineOps(&handlePointerMath, true);
 }
 
+pragma(set_attribute, printThing, externally_visible);
 extern(C) void printThing(LLVMFile lf, string s, Expr ex) {
   (buildFunCall(sysmod.lookup("printf"), mkTupleExpr(mkString(s), ex), "mew")).emitLLVM(lf);
 }
@@ -437,12 +511,14 @@ mixin DefaultParser!(gotAsType, "type.as_type", "8", "as_type");
 // from ast.casting
 import llvmfile, ast.vardecl;
 alias ast.types.typeToLLVM typeToLLVM;
+pragma(set_attribute, _reinterpret_cast_expr, externally_visible);
 extern(C) void _reinterpret_cast_expr(RCE rce, LLVMFile lf) {
   auto from = typeToLLVM(rce.from.valueType()), to = typeToLLVM(rce.to);
   string v = save(lf, rce.from);
   // logln("rce ", rce, " (", rce.from.valueType(), ", ", rce.to, "): ", from, " -> ", to);
   llcast(lf, from, to, v, rce.from.valueType().llvmSize());
 }
+pragma(set_attribute, llcast, externally_visible);
 extern(C) void llcast(LLVMFile lf, string from, string to, string v, string fromsize = null) {
   if (from != to) {
     checkcasttypes(from, to);
@@ -507,6 +583,7 @@ extern(C) void llcast(LLVMFile lf, string from, string to, string v, string from
   push(lf, v);
 }
 
+pragma(set_attribute, _exactly_equals, externally_visible);
 extern(C) bool _exactly_equals(IType a, IType b) {
   auto pa = fastcast!(Pointer)~ a, pb = fastcast!(Pointer)~ b;
   if (pa && pb) return _exactly_equals(pa.target, pb.target);
@@ -586,6 +663,7 @@ Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
 mixin DefaultParser!(gotScope, "tree.scope");
 
 
+pragma(set_attribute, _line_numbered_statement_emitLLVM, externally_visible);
 extern(C)
 void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
   if (!lf.debugmode || releaseMode) return;
@@ -618,6 +696,7 @@ void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
   return;
 }
 
+pragma(set_attribute, _is_cheap, externally_visible);
 extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
   bool cheaprecurse(Expr ex) {
     // Not sure if valid, but needed for prefix(foo_).(bar) .. maybe add a flag for that case
@@ -670,6 +749,7 @@ extern(C) bool _is_cheap(Expr ex, CheapMode mode) {
 }
 
 // from ast.vardecl
+pragma(set_attribute, _tmpize_maybe, externally_visible);
 extern(C) Expr _tmpize_maybe(Expr thing, E2ERdg dg, bool force) {
   if (auto ea = fastcast!(ExprAlias) (thing)) thing = ea.base;
   if (!force) {
@@ -1146,7 +1226,8 @@ version(Windows) {
 }
 
 int main(string[] args) {
-  // std.gc.disable();
+  ast_math_constr();
+  std.gc.disable();
   string execpath;
   scope(exit) save_cache();
   if ("/proc/self/exe".exists()) execpath = myRealpath("/proc/self/exe");
@@ -1163,10 +1244,6 @@ int main(string[] args) {
   datalayout = "e-p:32:32:32-p1:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a128:128:128-a0:0:64-f80:32:32-n8:16:32-S128";
   auto exec = args.take();
   justAcceptedCallback = stuple(0, cast(typeof(sec())) 0) /apply/ (ref int prevHalfway, ref typeof(sec()) lastProg, string s) {
-    // rate limit
-    auto t = sec();
-    if (abs(t - lastProg) < 0.02) return;
-    lastProg = t;
     
     auto info = lookupProgress(s);
     if (info._1.endsWith(EXT)) {
@@ -1179,6 +1256,12 @@ int main(string[] args) {
         int proglen = ProgbarLength - info._1.length - 4;
         auto halfway = cast(int) (info._0 * proglen);
         if (halfway == prevHalfway) return;
+        
+        // rate limit
+        auto t = sec();
+        if (abs(t - lastProg) < 0.02) return;
+        lastProg = t;
+        
         prevHalfway = halfway;
         logSmart!(true) (info._1, "    ", renderProgbar(proglen, halfway));
       }
@@ -1310,6 +1393,7 @@ int main(string[] args) {
   if (!output) output = "exec";
   if (incremental) {
     incbuild(mainfile, cs, runMe);
+    exit(0); // don't run final gc because we don't rely on that behavior
     return 0;
   }
   objects.link(cs.optimize, cs.saveTemps);
@@ -1322,5 +1406,6 @@ int main(string[] args) {
     if (res < 256) return res;
     return (res & 0xff00) >> 8;
   }
+  exit(0);
   return 0;
 }

@@ -2,7 +2,7 @@ module ast.static_arrays;
 
 import ast.base, ast.types, dwarf2;
 
-class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
+class StaticArray_ : Type, ForceAlignment, Dwarf2Encodable {
   IType elemType;
   int length;
   this() { }
@@ -40,6 +40,12 @@ class StaticArray : Type, ForceAlignment, Dwarf2Encodable {
       return sect;*/
     }
   }
+}
+
+final class StaticArray : StaticArray_ {
+  static const isFinal = true;
+  this() { }
+  this(IType et, int len) { elemType = et; length = len; }
 }
 
 import ast.fold;

@@ -394,6 +394,7 @@ static this() {
   });
 }
 
+pragma(set_attribute, _make_tupleof, externally_visible);
 extern(C) Expr _make_tupleof(Structure str, Expr ex) {
   auto ml = str.members();
   Expr[] reslist;
