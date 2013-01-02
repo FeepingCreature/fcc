@@ -287,10 +287,22 @@ class TextureAtlas {
   vec2i cursor;
   int current-height;
   alias current-free = backing.size - cursor;
+  (vec2i from, vec2i size)[auto~] allocated;
   void linebreak() {
     cursor.x = 0;
     cursor.y += current-height;
     current-height = 0;
+  }
+  bool overlapsAny(vec2i from, size) {
+    auto to = from + size;
+    for ref rect <- allocated {
+      auto rect-to = rect.(from + size);
+      if ((to.x > rect.from.x && from.x < rect-to.x)
+        &&(to.y > rect.from.y && from.y < rect-to.y)) {
+        return true;
+      }
+    }
+    return false;
   }
   SubTexture alloc(int w, h) {
     w += 2; // leave some edge space
@@ -298,7 +310,13 @@ class TextureAtlas {
     if (w > backing.width) fail "Backing texture not large enough for $((w,h))";
     if (w > current-free.x) linebreak;
     if (h > current-free.y) fail "Ran out of vertical space while allocating $((w,h))";
-    auto st = new SubTexture(backing, from => cursor + 1, size => vec2i(w - 2, h - 2));
+    auto rect = (from => cursor, size => vec2i(w, h));
+    while (rect.from.y > 0 && !overlapsAny rect.(from => from, size => size)) {
+      rect.from.y --;
+      h --;
+    }
+    auto st = new SubTexture(backing, from => rect.from + 1, size => rect.size - 2); // center
+    allocated ~= rect;
     cursor.x += w;
     current-height = [current-height, h][current-height < h];
     return st;
@@ -329,7 +347,7 @@ TextureCache cache;
 void initCache() {
   if cache return;
   using new TextureAtlas {
-    backing = new Texture (512, 512, vec4f[]: null);
+    backing = new Texture (256, 256, vec4f[]: null);
     backing.mode = TexMode.Nearest;
     backing.upload;
     cache = new TextureCache that;
