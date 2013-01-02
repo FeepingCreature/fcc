@@ -15,15 +15,15 @@ void cfgNote(Note res, float freq, float len) {
 }
 
 void main(string[] args) {
-  Sound snd;
+  SoundOutput snd;
   if (args.length && args[0] == "-oss") {
     args = args[1 .. $];
-    snd = new OSSSound("/dev/dsp");
+    snd = new OSSOutput("/dev/dsp");
   } else if (args.length && args[0] == "-wav") {
     args = args[1 .. $];
     snd = new WAVCreator "out.wav";
   } else
-    snd = new AlsaSound("default");
+    snd = new AlsaOutput("default");
   
   snd.open();
   float delegate(float) dg;
@@ -143,8 +143,8 @@ void main(string[] args) {
       writeln "$track_id: $trklen b";
       track_id ++;
       auto track = that[0 .. trklen]; step trklen;
-      byte[] takeTrack(int i) {
-        (byte[] res, track) = track[(0..i, i..$)];
+      ubyte[] takeTrack(int i) {
+        (ubyte[] res, track) = track[(0..i, i..$)];
         return res;
       }
       int pos;
@@ -164,7 +164,7 @@ void main(string[] args) {
         }
         int delta = readVarLen();
         /*if (delta < 1024)*/ pos += delta;
-        byte cmd;
+        ubyte cmd;
         if (track[0] & 0x80) {
           cmd = takeTrack(1)[0];
           lastCmd = cmd;
@@ -172,7 +172,7 @@ void main(string[] args) {
         if (cmd == 0xff) {
           byte subcmd = takeTrack(1)[0];
           int len = readVarLen();
-          byte[] subdata = takeTrack(len);
+          ubyte[] subdata = takeTrack(len);
           // writeln "@$pos: SPECIAL $subcmd, $(subdata.length)";
           if (subcmd == 81) {
             int spd = subdata[0] << 16 + subdata[1] << 8 + subdata[2];
