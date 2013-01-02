@@ -60,12 +60,12 @@ string[string] cachedata;
 
 void check_cache() {
   if (!cachefile_read) {
+    cachefile_read = true;
     if (!cachefile.exists()) return;
     foreach (line; (cast(string) read(cachefile)).split("\n")) {
       auto lkey = line.slice("=");
       cachedata[lkey] = line;
     }
-    cachefile_read = true;
   }
 }
 
@@ -116,7 +116,7 @@ import tools.time: sec;
 void write_cache(string key, string filekey, string data) {
   if (filekey) {
     filekey = findfile(filekey);
-    if (!filekey || !filekey.exists()) {
+    if (!filekey) {
       logln("!! ", filekey);
       fail;
     }

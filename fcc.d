@@ -915,7 +915,7 @@ string get_llc_cmd(bool optimize, bool saveTemps, ref string fullcommand) {
       fullcommand ~= " |opt "~flags~"-lint -";
       if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
-    string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -tailcallopt ";
+    string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -vectorize-loops -tailcallopt ";
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
     optrun(cpumode~"-internalize -std-compile-opts -std-link-opts "~optflags);
     llc_optflags = optflags;
@@ -1226,6 +1226,13 @@ version(Windows) {
 }
 
 int main(string[] args) {
+  auto res = main2(args);
+  // don't run final gc because we don't rely on that behavior
+  exit(res);
+  return res;
+}
+
+int main2(string[] args) {
   ast_math_constr();
   std.gc.disable();
   string execpath;
@@ -1393,7 +1400,6 @@ int main(string[] args) {
   if (!output) output = "exec";
   if (incremental) {
     incbuild(mainfile, cs, runMe);
-    exit(0); // don't run final gc because we don't rely on that behavior
     return 0;
   }
   objects.link(cs.optimize, cs.saveTemps);
@@ -1406,6 +1412,5 @@ int main(string[] args) {
     if (res < 256) return res;
     return (res & 0xff00) >> 8;
   }
-  exit(0);
   return 0;
 }
