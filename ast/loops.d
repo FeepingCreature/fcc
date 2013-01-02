@@ -242,7 +242,7 @@ class DoWhileExt : Statement, Breakable {
     chosenBreakLabel = end;
     auto fdg = first.open(lf)(); // open and body
     cond.jumpOn(lf, false, first.exit());
-    second.emitLLVM(lf);
+    if (second) second.emitLLVM(lf);
     fdg(true); // close before jump! variables must be cleaned up .. don't set the label though
     jump(lf, first.entry());
     fdg(false); // close for real
@@ -275,7 +275,8 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Could not match do/while cond"[]);
   configure(dw.cond);
   
-  if (!rest(t2, "tree.scope"[], &dw.second))
+  if (t2.accept(";")) dw.second = null;
+  else if (!rest(t2, "tree.scope"[], &dw.second))
     t2.failparse("do/while extended second scope not matched"[]);
   
   if (t2.accept("then")) {
