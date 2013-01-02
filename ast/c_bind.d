@@ -1034,22 +1034,6 @@ void performCImport(string name) {
 }
 
 import ast.fold, ast.literal_string;
-Object gotCImport(ref string text, ParseCb cont, ParseCb rest) {
-  if (!text.accept("c_include")) return null;
-  Expr ex;
-  if (!rest(text, "tree.expr"[], &ex))
-    text.failparse("Couldn't find c_import string expr");
-  if (!text.accept(";")) text.failparse("Missing trailing semicolon");
-  opt(ex);
-  auto str = fastcast!(StringExpr) (ex);
-  if (!str)
-    text.failparse(ex, " is not a string");
-  performCImport(str.str);
-  return Single!(NoOp);
-}
-mixin DefaultParser!(gotCImport, "tree.toplevel.c_import");
-
-import ast.fold, ast.literal_string;
 Object gotSpecialCallback(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto dg = *specialCallback();
