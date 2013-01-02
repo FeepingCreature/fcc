@@ -310,7 +310,6 @@ string locate_name(string name) {
       foreach (key, value; modcache) {
         if (value.lookup(name, true)) { if (res.length) res ~= ", "; res ~= key; }
       }
-      if (!res.length) res = "";
       locatecache[name] = res;
     }
   };

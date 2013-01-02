@@ -1,6 +1,6 @@
 module ast.mixins;
 
-import ast.base, ast.parse, ast.literal_string, ast.fold, ast.casting, ast.aggregate_parse, ast.platform, ast.aliasing, ast.namespace;
+import ast.base, ast.parse, ast.literal_string, ast.fold, ast.casting, ast.aggregate_parse, ast.platform, ast.aliasing, ast.namespace, ast.structure;
 
 Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -63,12 +63,20 @@ Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest)
     } else static if (submode == "tree.toplevel") {
       res = Single!(NoOp);
       src.parseGlobalBody(rest, false);
+    } else static if (submode == "struct_member") {
+      auto st = fastcast!(Namespace)(namespace().get!(StructLike)());
+      if (!st) src.failparse("No struct under ", namespace());
+      if (!src.matchStructBodySegment(st, &rest))
+        src.failparse("Couldn't parse mixin string for struct segment");
+      if (src.mystripl().length)
+        src.failparse("Unknown text found for struct segment");
+      res = Single!(NamedNull); // added directly
     } else {
       if (!rest(src, submode, &res))
-        src.failparse("Couldn't parse mixin string for stmt"[]);
+        src.failparse("Couldn't parse mixin string for ", submode);
       if (src.mystripl().length)
         src.failparse("Unknown text found for stmt. "[]);
-      }
+    }
   } catch (Exception ex) {
     t2.failparse("Executing mixin '"[], src.nextText(), "': "[], ex);
   }
