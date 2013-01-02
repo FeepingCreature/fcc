@@ -12,12 +12,15 @@ class ThreadedOutput : SoundOutput {
     maxOutstandingSamples = 32768;
     m = new Mutex;
     gotData = new Semaphore;
+    finishedUp = new Semaphore;
+    active = true;
     tp.addTask &playBuffer;
   }
   void wait() sleep(0.01);
+  bool active;
   void playBuffer() {
     using LockedMutex:m {
-      while (true) {
+      while (active) {
         using UnlockedMutex:m gotData.claim();
         scope data = buffer.popTail();
         bufferlen -= data.length;
@@ -25,11 +28,12 @@ class ThreadedOutput : SoundOutput {
         using UnlockedMutex:m sup.dump data;
       }
     }
+    finishedUp.release();
   }
   DoubleLinkedList!(Sample[]) buffer;
   int bufferlen;
   Mutex m;
-  Semaphore gotData;
+  Semaphore gotData, finishedUp;
   void block() {
     using LockedMutex:m {
       while (bufferlen) using UnlockedMutex:m wait;
@@ -37,7 +41,7 @@ class ThreadedOutput : SoundOutput {
   }
   override {
     void open() sup.open;
-    void close() { block; sup.close; }
+    void close() { block; active = false; finishedUp.claim(); sup.close; }
     void writeCopydump(int len) {
       if (!len) return;
       auto copy = copydump[0..len].dup;
