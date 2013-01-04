@@ -68,11 +68,39 @@ class NestedFunction : Function {
     auto _res = context.lookup(name, false);
     auto res = fastcast!(Expr) (_res);
     auto fun = fastcast!(Function) (_res);
-    auto nf = fastcast!(NestedFunction) (fun), prev_nf = fastcast!(PointerFunction!(NestedFunction)) (fun);
-    if (nf && !prev_nf) {
-      // massive hack
-      // this basically serves to introduce the EBP into the lookup, so that we can properly fix it up
-      fun = new PointerFunction!(NestedFunction)(fastalloc!(NestFunRefExpr)(nf));
+    Function doBasePointerFixup(Function fun) {
+      auto nf = fastcast!(NestedFunction) (fun), prev_nf = fastcast!(PointerFunction!(NestedFunction)) (fun);
+      if (nf && !prev_nf) {
+        // massive hack
+        // this basically serves to introduce the EBP into the lookup, so that we can properly fix it up
+        fun = new PointerFunction!(NestedFunction)(fastalloc!(NestFunRefExpr)(nf));
+      }
+      return fun;
+    }
+    
+    Expr ebp;
+    void checkEBP() {
+      // pointer to our immediate parent's base.
+      // since this is a variable also, nesting rewrite will work correctly here
+      ebp = fastcast!(Expr) (lookup("__base_ptr"[], true));
+      if (!ebp) {
+        logln("no base pointer found in "[], this, "!!"[]);
+        fail;
+      }
+    }
+    
+    if (fun) fun = doBasePointerFixup(fun);
+    else if (auto set = fastcast!(OverloadSet) (_res)) {
+      Function[] funs2;
+      foreach (fun2; set.funs) funs2 ~= doBasePointerFixup(fun2);
+      foreach (ref fun2; funs2) {
+        auto itr = fastcast!(Iterable) (fun2);
+        if (!itr) fail;
+        checkEBP;
+        fixupEBP(itr, ebp);
+        fun2 = fastcast!(Function) (itr);
+      }
+      _res = new OverloadSet(set.name, funs2);
     }
     if (!_res) {
       _res = lookupInImports(name, local);
@@ -80,14 +108,8 @@ class NestedFunction : Function {
     if (!res && !fun) return _res;
     if (res) _res = fastcast!(Object) (res);
     if (fun) _res = fastcast!(Object) (fun);
-    // pointer to our immediate parent's base.
-    // since this is a variable also, nesting rewrite will work correctly here
-    auto ebp = fastcast!(Expr) (lookup("__base_ptr"[], true));
-    if (!ebp) {
-      logln("no base pointer found in "[], this, "!!"[]);
-      fail;
-    }
     auto itr = fastcast!(Iterable) (_res);
+    checkEBP;
     fixupEBP(itr, ebp);
     return fastcast!(Object) (itr);
   }
