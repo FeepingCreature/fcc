@@ -55,10 +55,13 @@ mixin DefaultParser!(gotTypeStringof, "tree.expr.stringof"[], "232"[], "string-o
 Object gotTypeMangle(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;
+  IsMangled im;
   if (!rest(t2, "type"[], &ty))
-    t2.failparse("Could not get type for mangle-of"[]);
+    if (!rest(t2, "tree.expr.named"[], &im))
+      t2.failparse("Could not get type or obj for mangle-of"[]);
   text = t2;
-  return fastcast!(Object)~ mkString(ty.mangle());
+  if (ty) fastcast!(Object) (mkString(ty.mangle()));
+  return fastcast!(Object) (mkString(im.mangleSelf()));
 }
 mixin DefaultParser!(gotTypeMangle, "tree.expr.type_mangleof"[], "233"[], "mangle-of"[]);
 

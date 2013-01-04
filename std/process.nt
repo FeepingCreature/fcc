@@ -120,7 +120,8 @@ platform(default) {
             assert(input.value.length != 0, "input claimed to advance but data is null");
             inbuffer = input.value;
           }
-          auto res = write inbuffer.(hdl_sysward[1], ptr, length);
+          import std.math;
+          auto res = write inbuffer.(hdl_sysward[1], ptr, min(4096, length));
           if res < 0
             raise new ReadbackError "Writing to stream failed! ";
           inbuffer = inbuffer[res .. $];
@@ -191,13 +192,23 @@ string read-gdb-backtrace(int skipFirst = 8) {
   (string, string)[auto~] res;
   auto cur = sys.frameinfo;
   int i;
-  while (cur) { res ~= cur.(fun, pos); cur = cur.prev; }
+  while (cur) {
+    // writeln "cur = $cur";
+    if (0 <= int:cur < 0x0000_1000) {
+      writeln "Invalid stackframe: $(cur), $(_threadlocal)";
+      return res[];
+    }
+    res ~= cur.(fun, pos);
+    cur = cur.prev;
+  }
   return res[];
 }
 
 string read-pretty-fcc-backtrace() {
   char[auto~] res;
+  // writeln "read backtrace";
   scope trace = read-fcc-backtrace();
+  // writeln "done";
   for auto cur <- trace && int i <- ints {
     res ~= "#$i\tin $(cur.fun) $(cur.pos)\n";
   }

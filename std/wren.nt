@@ -150,6 +150,11 @@ template neat-to-wren(T) {
       return new ObjectThing t;
       alias match-found = true;
     }
+    static if (!is-defined match-found && types-equal (bool, T)) {
+      if (t) return .t;
+      else return nil;
+      alias match-found = true;
+    }
     static if (!is-defined match-found && implicitly-converts-to int t) {
       return new Integer t;
       alias match-found = true;
@@ -221,6 +226,12 @@ template wren-to-neat(T) {
       if (auto arr = Array!AT: thing)
         return arr.value;
       else error "Can't create $(string-of T) ($(string-of AT)) from $thing";
+      alias match-found = true;
+    }
+    static if (types-equal(bool, T)) {
+      if (is-nil thing) return false;
+      if (is-t thing) return true;
+      error "Can't create bool from $thing: neither nil nor t";
       alias match-found = true;
     }
     static if (types-equal(float, T)) {
@@ -467,7 +478,12 @@ void init() {
   t = new List arr;
 }
 
-bool is-nil(Thing t) {
-  auto l = List:t;
+bool is-nil(Thing th) {
+  auto l = List:th;
   return l && !l.list;
+}
+
+bool is-t(Thing th) {
+  auto l = List:th;
+  return l && l.list.(length == 1 && is-nil _0);
 }

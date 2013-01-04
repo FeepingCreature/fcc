@@ -355,13 +355,11 @@ void initCache() {
 }
 
 import std.lib.opengl.texture;
-(SubTexture tex, vec2i offs)[] layoutText(Font font, string text, Settings settings, int* widthp, maxheightp, baselinep) {
-  pragma(fast);
-  ref width = *widthp;
-  ref maxheight = *maxheightp;
-  ref baseline = *baselinep;
+(SubTexture tex, vec2i offs)[] layoutText(Font font, string text, Settings settings, int* widthp, heightp, baselinep, bool allowNewlines = true) {
+  ref width = *widthp, height = *heightp, baseline = *baselinep;
   initCache;
-  maxheight = 0;
+  (width, height) = (0, 0);
+  int maxheight = 0;
   baseline = 0;
   FontStyle fs;
   fs.color = settings.fore;
@@ -381,8 +379,38 @@ import std.lib.opengl.texture;
   scope it2 = new UTF8Decoder text;
   scope it3 = new UTF8Iterator text;
   int bottomdist = 99999;
+  
+  int linestart, lineshift;
+  void flush() {
+    width = width.max$ pos.x + overhang;
+    // writeln "flush: pos $pos => $(vec2i(0, pos.y + maxheight))";
+    pos = vec2i(0, pos.y + maxheight);
+    height += maxheight;
+    maxheight = 0;
+    baseline = 0;
+    alias line = res[linestart..$];
     
+    if (line.length) {
+      line[0][1].y += lineshift;
+      lineshift = 0;
+    }
+    
+    if (bottomdist != 99999 && bottomdist > 0) {
+      if (debugme) writeln "$text: correct by $bottomdist";
+      for ref sub <- line {
+        // sub[1].y += bottomdist;
+      }
+      if (debugme) writeln "=> $res";
+    }
+    linestart = res.length;
+  }
   for (int prev-ch, int ch, string str, int i) <- zip(it1, it2, it3, ints) {
+    if (ch == "\n") {
+      assert allowNewlines;
+      flush;
+    }
+    if (str == "\t") { str = " "; ch = " "; } // TODO tabbing
+    if (str == "\r") { str = " "; ch = " "; }
     font.getCharSize(ch, str, fs, &int width, &int height);
     if (debugme) writeln "$str => $((width, height))";
     
@@ -400,13 +428,16 @@ import std.lib.opengl.texture;
       
       auto box = font.getControlBox(ch);
       if (box[0].y < bottomdist) bottomdist = box[0].y;
-      if (debugme) writeln "box $box $bottomdist";
+      if (debugme) writeln "$str: box $box $bottomdist";
       
-      auto shift = box[0].(vec2i(x, -y)); // box is up from baseline!
-      if (shift.y > 0) height -= shift.y;
+      auto shift = vec2i(box[0].x, -box[1].y); // box is up from baseline!
+      if (shift.y < 0) lineshift = lineshift.max -shift.y;
+      // if (shift.y > 0) height -= shift.y;
       
-      if (height > maxheight) maxheight = height;
-      if (shift.y > baseline) baseline = shift.y;
+      maxheight = maxheight.max $ (box[1] - box[0]).y;
+      // maxheight .= max box[1].y; // TODO?
+      
+      // if (shift.y > baseline) baseline = shift.y;
       
       pos += shift;
       
@@ -422,14 +453,10 @@ import std.lib.opengl.texture;
     }
     first = false;
   }
-  if (bottomdist != 99999 && bottomdist > 0) {
-    if (debugme) writeln "$text: correct by $bottomdist";
-    for ref sub <- res {
-      sub[1].y += bottomdist;
-    }
-    if (debugme) writeln "=> $res";
-  }
-  if (debugme) writeln "$text maxheight = $maxheight";
-  width = pos.x + overhang;
+  /**/
+  if (debugme) writeln "$text maxheight = $maxheight $pos";
+  flush;
+  if (debugme) writeln "rendering $text: height = $height, final pos $pos, $((width, height))";
+  // writeln "res = $(res[])";
   return res[];
 }

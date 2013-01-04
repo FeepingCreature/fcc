@@ -54,3 +54,27 @@ class UTF8Decoder : Iterator!int {
     return true;
   }
 }
+
+string encode(int codepoint) {
+  alias cp = codepoint;
+  char[auto~] res;
+  int sizecode;
+  if (cp < 1<<7) sizecode = 0;
+  else if (cp < 1<<11) sizecode = 1;
+  else if (cp < 1<<16) sizecode = 2;
+  else if (cp < 1<<21) sizecode = 3;
+  else if (cp < 1<<26) sizecode = 4;
+  else if (cp < 1<<31) sizecode = 5;
+  else assert(false, "invalid Unicode codepoint: $codepoint");
+  
+  if (!sizecode) res ~= char:ubyte:cp;
+  else {
+    res ~= char:ubyte:$ 0b1111_1100 << (5 - sizecode) | (cp >> 6 * sizecode);
+    if (sizecode > 4) res ~= char:ubyte:$ 0b1000_0000 | (cp >> 24) & 0b0011_1111;
+    if (sizecode > 3) res ~= char:ubyte:$ 0b1000_0000 | (cp >> 18) & 0b0011_1111;
+    if (sizecode > 2) res ~= char:ubyte:$ 0b1000_0000 | (cp >> 12) & 0b0011_1111;
+    if (sizecode > 1) res ~= char:ubyte:$ 0b1000_0000 | (cp >>  6) & 0b0011_1111;
+    if (sizecode > 0) res ~= char:ubyte:$ 0b1000_0000 | (cp >>  0) & 0b0011_1111;
+  }
+  return res[];
+}

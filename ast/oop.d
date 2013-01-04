@@ -1008,6 +1008,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     Object lookup(string id, bool local = false) {
       parseMe;
       if (id == "this") return fastalloc!(LazyThisExpr)(getRefType());
+      if (id == "super") return fastcast!(Object) (parent);
       if (auto res = data.lookup(id, local)) return res;
       // fallback
       if (auto res = lookupRel(id, fastalloc!(LazyThisExpr)(getRefType()))) return res;

@@ -137,7 +137,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     defaultIterate!(dependents).iterate(dg, mode);
     // else to be defined in subclasses
   }
-  string toString() { return qformat("fun "[], name, " "[], type, " <- "[], sup); }
+  string toString() { return qformat("fun "[], name, " "[], type/*, " <- "[], sup*/); }
   string[] llvmFrameTypes;
   // add parameters to namespace
   string coarseSrc;
@@ -187,7 +187,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     inParse = true;
     scope(exit) inParse = false;
     
-    // if (this.name == "assert") logln("add? for ", this, " (", releaseMode, ") - ", lookup("__frameinfo", true), " - ", lookup(tlsbase, true));
+    // if (this.name == "assert")
+      // logln("add? for ", this, " (", releaseMode, ") - ", lookup("__frameinfo", true), " - ", lookup(tlsbase, true));
     if (lookup("__frameinfo", true) && lookup(tlsbase, true) && sysmod.lookup("__popFrameInfo")) {
       if (!releaseMode) {
         auto infovar = fastcast!(LValue)(lookup("__frameinfo", true));

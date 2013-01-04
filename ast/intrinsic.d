@@ -494,6 +494,7 @@ void setupSysmods() {
       }
     }
     void raise(Signal sig) {
+      // printf("Raise1 %.*s\n", sig.toString());
       auto cur = __hdl__;
       while cur {
         if cur.accepts(sig) cur.dg(sig);
@@ -501,6 +502,7 @@ void setupSysmods() {
       }
     }
     void raise(UnrecoverableError err) {
+      // printf("Raise2 %.*s given %p\n", err.toString(), frameinfo.prev);
       auto cur = __hdl__;
       // printf("raise here: %p %p\n", cur, &__hdl__);
       if (!cur) { int i; i /= i; }
@@ -508,7 +510,9 @@ void setupSysmods() {
         if cur.accepts(err) cur.dg(err);
         cur = cur.prev;
       }
+      // printf("gdb-print-backtrace\n");
       gdb-print-backtrace();
+      // printf("exit\n");
       writeln "Unhandled condition: $(err.toString()). ";
       exit 1;
     }
@@ -744,12 +748,13 @@ void setupSysmods() {
         onExit already_handling_segfault = false;
         
         if (errcode == STATUS_ACCESS_VIOLATION) {
+          // printf("seghandle_userspace and %p\n", frameinfo);
           if (preallocated_sigsegv) raise preallocated_sigsegv;
           raise new MemoryAccessError "Access Violation";
         }
         raise new Error "Windows SEH Code $(void*:errcode)";
       }
-      EXCEPTION_DISPOSITION seghandle(_EXCEPTION_RECORD* record, void* establisher_frame, _CONTEXT* context, void* dispatcher_context) {
+      extern(C) EXCEPTION_DISPOSITION seghandle(_EXCEPTION_RECORD* record, void* establisher_frame, _CONTEXT* context, void* dispatcher_context) {
         // printf("seghandle(%p (%p), %p, %p, %p)\n", record, record.ExceptionCode, establisher_frame, context, dispatcher_context);
         auto _threadlocal = TlsGetValue(tls_pointer);
         errcode = record.ExceptionCode;

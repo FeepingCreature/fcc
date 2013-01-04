@@ -117,16 +117,20 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
         }
       }
     }
-    if (auto cr = fastcast!(ClassRef) (res)) {
+    Class cl;
+    if (auto _cl = fastcast!(Class) (res)) cl = _cl;
+    if (auto cr = fastcast!(ClassRef) (res)) cl = cr.myClass;
+    if (cl) {
       // special handling
-      cr.myClass.parseMe;
-      foreach (fun; cr.myClass.myfuns.funs) {
+      cl.parseMe;
+      foreach (fun; cl.myfuns.funs) {
         if (fun.name == s) {
           fun.parseMe;
           return fun;
         }
       }
-      return cr.myClass.data.lookup(s, local);
+      if (auto res = cl.data.lookup(s, local)) return res;
+      return cl.lookup(s, local);
     }
     if (auto ns = fastcast!(Namespace) (res))
       return ns.lookup(s, local);
@@ -181,6 +185,6 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
     text = t2;
     return Single!(NoOp); // satisfied
   }
-  text.failparse("Dependency '", se.str, "' not provided by ", start_ident);
+  text.failparse("Dependency '", se.str, "' not provided by ", start_ident, " (", res, ")");
 }
 mixin DefaultParser!(gotDepend, "tree.semicol_stmt.depend", "111", "depend");

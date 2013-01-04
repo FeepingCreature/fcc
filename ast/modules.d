@@ -41,12 +41,16 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     
     if (sourcefile) if (auto cache = read_cache("module imports", sourcefile)) {
       Module[] res;
+      bool failed;
       while (cache) {
         auto entry = slice(cache, ",");
-        res ~= lookupMod(entry);
+        try res ~= lookupMod(entry);
+        catch (Exception ex) { failed = true; break; } // don't use cache if it leads to errors
       }
-      imports_cache = res;
-      return res;
+      if (!failed) {
+        imports_cache = res;
+        return res;
+      }
     }
     
     Module[] res;

@@ -933,8 +933,8 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
     srcname = ".obj/" ~ end ~ ".ll";
-    // objname = ".obj/" ~ end ~ ".bc";
-    objname = ".obj/" ~ end ~ ".o";
+    if (isWindoze) objname = ".obj/" ~ end ~ ".bc";
+    else           objname = ".obj/" ~ end ~ ".o";
     auto path = srcname[0 .. srcname.rfind("/")];
     string mew = ".";
     foreach (component; path.split("/")) {
@@ -996,9 +996,12 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     } else {
       cmdline = Format("llvm-as ", flags);
     }
-    // cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
-    string bogus;
-    cmdline ~= Format("-o - ", srcname, " |llc -march=x86 - "~get_llc_cmd(cs.optimize, cs.saveTemps, bogus)~"-filetype=obj -o ", objname);
+    if (isWindoze) {
+      cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
+    } else {
+      string bogus;
+      cmdline ~= Format("-o - ", srcname, " |llc -march=x86 - "~get_llc_cmd(cs.optimize, cs.saveTemps, bogus)~"-filetype=obj -o ", objname);
+    }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
     if (system(cmdline.toStringz())) {
@@ -1095,26 +1098,27 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
       foreach (obj; objects)
         unlink(obj.toStringz());
   // string linkedfile = ".obj/"~output~".all.bc";
-  string linkedfile = ".obj/"~output~".all.o";
-  // string fullcommand = "llvm-link ";
-  string objlist;
+  string linkedfile;
+  if (isWindoze) linkedfile = ".obj/"~output~".all.bc";
+  else linkedfile = ".obj/"~output~".all.o";
+  
+  string objfile, objlist;
   foreach (obj; objects) objlist ~= obj ~ " ";
-  /*string fullcommand = "gcc " ~ objlist;
-  
-  //string fixedfile = linkedfile;
-  if (false && isWindoze()) {
-    fullcommand ~= " |llvm-dis - |sed -e s/^define\\ weak_odr\\ /define\\ /g |llvm-as";
+  if (!isWindoze) {
+    objfile = objlist;
+  } else {
+    string fullcommand = "llvm-link "~objlist;
+    
+    fullcommand ~= " |llvm-dis - |sed -e s/^define\\ weak_odr\\ /define\\ /g -e s/=\\ weak_odr\\ /=\\ /g |llvm-as";
+    if (saveTemps) fullcommand ~= " |tee "~linkedfile;
+    
+    objfile = ".obj/"~output~".o";
+    // -mattr=-avx,-sse41 
+    fullcommand ~= " |llc - "~get_llc_cmd(optimize, saveTemps, fullcommand)~"-filetype=obj -o "~objfile;
+    logSmart!(false)("> ", fullcommand);
+    if (system(fullcommand.toStringz()))
+      throw new Exception("link failed");
   }
-  if (saveTemps) fullcommand ~= " |tee "~linkedfile;
-  
-  string objfile = ".obj/"~output~".o";
-  // -mattr=-avx,-sse41 
-  fullcommand ~= " |llc - "~get_llc_cmd(optimize, saveTemps, fullcommand)~"-filetype=obj -o "~objfile;
-  logSmart!(false)("> ", fullcommand);
-  if (system(fullcommand.toStringz()))
-    throw new Exception("link failed");
-  */
-  string objfile = objlist;
   
   string locallibfolder;
   if (platform_prefix) {

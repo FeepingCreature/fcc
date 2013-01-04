@@ -124,7 +124,7 @@ template Hashmap(T) {
         realloc newsize;
       }
       auto pos = (hashptr &k) % backing.length;
-      while (isset[pos] == SetState.Set && !eq!Key(&backing[pos].key, &k)) {
+      while (isset[pos] == SetState.Set && !eq!Key(&backing[pos][0], &k)) {
         if (++pos == backing.length) pos = 0;
       }
       backing[pos] = (k, v);
@@ -132,7 +132,7 @@ template Hashmap(T) {
         isset[pos] = SetState.Set;
         length ++;
       }
-      return &backing[pos].value;
+      return &backing[pos][1];
     }
     void remove(Key k) { return remove(&k); }
     void remove(Key* kp) {
@@ -141,7 +141,7 @@ template Hashmap(T) {
       alias k = Key:*kp;
       auto pos = (hashptr &k) % backing.length;
       while (isset[pos] != SetState.NotSet) {
-        if (isset[pos] == SetState.Set && eq!Key(&backing[pos].key, &k)) {
+        if (isset[pos] == SetState.Set && eq!Key(&backing[pos][0], &k)) {
           isset[pos] = SetState.Deleted;
           return;
         }
@@ -155,8 +155,8 @@ template Hashmap(T) {
       if (!backing.length) return null;
       auto pos = (hashptr &k) % backing.length;
       while (isset[pos] != SetState.NotSet) {
-        if (isset[pos] == SetState.Set && eq!Key(&backing[pos].key, &k)) {
-          return &backing[pos].value;
+        if (isset[pos] == SetState.Set && eq!Key(&backing[pos][0], &k)) {
+          return &backing[pos][1];
         }
         if (++pos == backing.length) pos = 0;
       }

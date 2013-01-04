@@ -78,7 +78,7 @@ class GLFWWindow : GLWindow {
   int w, h;
   vec2i size() { return vec2i(w, h); }
   void key(GLFWwindow window, int k, int action) {
-    if (window != handle) raise new Error "wat";
+    if (window != handle) raise new Error "Called key() with $(window) but handle is $(handle)";
     // writeln "$k with $action";
     void set(Key code) {
       if (key-held.length < code + 1) key-held ~= new bool[] code + 1 - key-held.length;
@@ -122,23 +122,23 @@ class GLFWWindow : GLWindow {
   }
   string queuedInput;
   void handleChar(GLFWwindow window, int k) {
-    if (window != handle) raise new Error "wat";
-    auto ch = char:byte:k;
-    auto asUTF8 = &ch #[0..1]; // THIS IS SO WRONG. TODO fix.
+    if (window != handle) raise new Error "Called handleChar() with $(window) but handle is $(handle)";
     // don't callback yet; we're called from C so we can't trust the alignment
-    queuedInput ~= asUTF8;
+    import std.unicode;
+    scope ch = encode k;
+    queuedInput ~= ch;
   }
   void reshape(GLFWwindow window, int width, height) {
-    if (window != handle) raise new Error "wat";
+    if (handle && window != handle) raise new Error "Called reshape() with $(window) but handle is $(handle)";
     (w, h) = (width, height);
     glViewport(0, 0, width, height);
   }
   void mousepos(GLFWwindow window, int x, y) {
-    if (window != handle) raise new Error "wat";
+    if (window != handle) raise new Error "Called mousepos() with $(window) but handle is $(handle)";
     mouse-pos = vec2i(x, y);
   }
   void mousebutton(GLFWwindow window, int button, action) {
-    if (window != handle) raise new Error "wat";
+    if (window != handle) raise new Error "Called mousebutton() with $(window) but handle is $(handle)";
     if (action) buttons[button].(clicked, pressed) = (true, true);
     else buttons[button].(released, pressed) = (true, false);
   }
