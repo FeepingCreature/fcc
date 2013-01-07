@@ -535,6 +535,8 @@ static this() {
   foldopt ~= delegate Itr(Itr it) {
     auto fc = fastcast!(FunCall) (it);
     if (!fc) return null;
+    // if (fc.fun.name.find("replace") != -1)
+    //   logln(fc.fun.name, " - ", fastcast!(Module) (fc.fun.sup), " - ", sysmod, " - ", fastcast!(Module)(fc.fun.sup) is sysmod, " and ", fc.getParams());
     if (fc.fun.name != "replace"[] /or/ "[wrap]replace"[]) return null;
     auto smod = fastcast!(Module) (fc.fun.sup);
     if (!smod || !sysmod || smod !is sysmod) return null;

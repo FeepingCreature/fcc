@@ -75,6 +75,13 @@ class Vec3f : Thing {
   string toString() { return "vec3f($(value.x), $(value.y), $(value.z))"; }
 }
 
+class Vec4f : Thing {
+  vec4f value;
+  void init(vec4f v) value = v;
+  Thing eval(Namespace) { return this; }
+  string toString() { return "vec4f($(value.x), $(value.y), $(value.z), $(value.w))"; }
+}
+
 interface IArray : Thing {
   Thing getIndex(int i);
   int getLength();
@@ -125,6 +132,10 @@ IArray array-from-thing(Thing t) {
     value ~= vec.value;
     return that;
   }
+  if (auto vec = Vec4f:t) using new Array!vec4f null {
+    value ~= vec.value;
+    return that;
+  }
   raise new Error "Cannot construct array from $t";
 }
 
@@ -169,6 +180,10 @@ template neat-to-wren(T) {
     }
     static if (!is-defined match-found && implicitly-converts-to vec3f t) {
       return new Vec3f t;
+      alias match-found = true;
+    }
+    static if (!is-defined match-found && implicitly-converts-to vec4f t) {
+      return new Vec4f t;
       alias match-found = true;
     }
     static if (!is-defined match-found && type-is array T) {
@@ -250,6 +265,12 @@ template wren-to-neat(T) {
       if (auto v3 = Vec3f: thing)
         return v3.value;
       else error "Can't create vec3f from $thing";
+      alias match-found = true;
+    }
+    static if (types-equal(vec4f, T)) {
+      if (auto v4 = Vec4f: thing)
+        return v4.value;
+      else error "Can't create vec4f from $thing";
       alias match-found = true;
     }
     static if (type-is tuple T) {
