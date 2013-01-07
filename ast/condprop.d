@@ -31,7 +31,7 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
           t2.failparse("Else property expected"[]);
       }
       auto prvt = proprest.valueType();
-      if (elsecase && elsecase.valueType() != prvt) {
+      if (elsecase && !gotImplicitCast(elsecase, prvt, (IType it) { return test(it == prvt); })) {
         t2.failparse("Mismatched types: "[], prvt, " and "[], elsecase.valueType());
       }
       
