@@ -822,9 +822,13 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   string[] getClassinfoData(LLVMFile lf) {
     auto prefix = cd_name();
     string[] res;
+    // string name
     res ~= qformat("inttoptr(i32 ", this.name.length, " to i8*)");
     auto data = cast(ubyte[]) this.name~cast(ubyte) 0;
     res ~= datatollvm(lf, prefix~"_name", data);
+    // int size
+    res ~= qformat("inttoptr(i32 ", llvmSize(), " to i8*)");
+    // ClassData* parent
     if (parent) {
       auto cd_name = parent.cd_name();
       res ~= "@"~cd_name;
