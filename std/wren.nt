@@ -50,9 +50,10 @@ class Token : Thing {
 class Number : Thing {
   float num;
   void init(float f) num = f;
-  Thing eval(Namespace) { return this; }
+  Thing eval(Namespace) { return number-eval?this:this; } // trap for C coders
   string toString() { return "$num"; }
 }
+Thing delegate(Number) number-eval;
 
 class Integer : Thing {
   int num;
@@ -301,6 +302,13 @@ class ObjectThing : Thing {
 
 interface Operator {
   Thing call(Thing[] args, Namespace ns);
+  /**
+    is called with rest of list, unevaluated
+    calls back all things that may be evalled later
+    provided callback can be invoked for any name to get a "marker" indicating the origin of the name
+    markers shall be identical for names that resolve to the same thing, or null for names not overridden.
+  **/
+  void boundnames(Thing[] args, Thing delegate(Thing, Object delegate(string)) dg);
 }
 
 class Function : Thing, Operator {
@@ -309,13 +317,22 @@ class Function : Thing, Operator {
   Thing delegate(Thing[], Namespace) fn2;
   void init(string s, Thing delegate(Thing[]) dg) (info, fn) = (s, dg);
   void init(string s, Thing delegate(Thing[], Namespace) dg) (info, fn2) = (s, dg);
+  void boundnames(Thing[] args, Thing delegate(Thing, Object delegate(string)) dg) {
+    // (<fun> args) does not affect the lexical evaluation of args at all
+    for ref arg <- args
+      arg = dg(arg, λ(string s) { return Object:null; });
+  }
   Thing call(Thing[] list, Namespace ns) {
     onFailure writeln "while calling $info";
     scope Thing[auto~] args;
     for auto thing <- list
       args ~= thing.eval ns;
+    return direct-call(args[], ns);
+  }
+  // call without evaluating
+  Thing direct-call(Thing[] args, Namespace ns) {
     if (fn2) return fn2 (args[], ns);
-    return fn args[];
+    else return fn args[];
   }
   Thing eval(Namespace) {
     error "Cannot evaluate $this";
@@ -338,6 +355,11 @@ class List : Thing {
     // writeln "Evaluate $this";
     auto op = Operator: auto first = list[0].eval(ns);
     if !op error "Cannot evaluate $this: first entry is not an operator (function), but $(first?.toString():\"null\")";
+    {
+      auto tok = Token:list[0];
+      if (!Function:op && !tok)
+        error "Sanity failure in $this: first entry is not token, but does not resolve to function; instead, $op. This breaks no-rebinding-operators.";
+    }
     return op.call (list[1..$], ns);
   }
   string toString() {

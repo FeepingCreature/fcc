@@ -144,6 +144,10 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
         new PlaceholderToken(it, "gotDepend lookup")
       ); // it's okay, it's just a CodeDependency
     }
+    if (auto ex = fastcast!(Expr)(res)) {
+      res = fastcast!(Object)(ex.valueType());
+      return llookup(s, local);
+    }
     return null;
   }
   auto start_ident = ident;

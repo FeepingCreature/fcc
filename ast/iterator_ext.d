@@ -692,8 +692,6 @@ static this() {
       return null; // only allow this conversion in user code
     }
     auto evt = ex.valueType();
-    auto key = evt.mangle();
-    if (auto p = key in cache) { if (!*p) return null; return reinterpret_cast(*p, ex); }
     
     if (auto tmp = fastcast!(Temporary)(ex)) {
       tmp.markNeeded();
@@ -702,8 +700,12 @@ static this() {
     auto st = fastcast!(Structure)~ evt;
     auto cr = fastcast!(ClassRef)~ evt;
     auto ir = fastcast!(IntfRef)~ evt;
+    if (!st && !cr && !ir) return null;
+    
+    auto key = evt.mangle();
+    if (auto p = key in cache) { if (!*p) return null; return reinterpret_cast(*p, ex); }
+    
     const string FAIL = "{ cache[key] = null; return null; }";
-    if (!st && !cr && !ir) mixin(FAIL);
     if (st && !(
       st.lookupRel("value"[], ex) &&
       st.lookupRel("advance"[], ex)))

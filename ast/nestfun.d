@@ -3,7 +3,7 @@ module ast.nestfun;
 import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.variable, ast.pointer, ast.structure, ast.namespace,
        ast.vardecl, ast.parse, ast.assign, ast.dg,
-       ast.properties, ast.math, ast.fold;
+       ast.properties, ast.math, ast.fold, ast.tuples;
 
 public import ast.fun: Argument;
 import ast.aliasing, ast.casting, ast.opers;
@@ -383,7 +383,8 @@ static this() {
     }
     return null;
   };
-  implicits ~= delegate Expr(Expr ex) {
+  implicits ~= delegate Expr(Expr ex, IType dest) {
+    if (fastcast!(HintType!(Tuple))(dest)) return null; // what
     auto nfr = fastcast!(NestFunRefExpr) (ex);
     if (!nfr) {
       auto dg = fastcast!(Delegate) (resolveType(ex.valueType()));
@@ -396,6 +397,7 @@ static this() {
     }
     auto fun = nfr.fun;
     if (!fun.type.ret) {
+      // scope(failure) logln("test? dest ", dest);
       fun.parseMe;
       if (fun.type.ret)
         return ex;

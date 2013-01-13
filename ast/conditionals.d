@@ -374,7 +374,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
   if (identical) {
     if (not) op = "!=";
     else op = "==";
-    auto vt = ex1.valueType().llvmType();
+    auto vt = typeToLLVM(ex1.valueType());
     IType cmptype;
     if (vt == "i32" || vt == "i8*") cmptype = Single!(SysInt);
     else {

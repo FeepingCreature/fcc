@@ -67,7 +67,7 @@ void setupSysmods() {
     bool streq(char[] a, b) {
       if a.length != b.length return false;
       for (int i = 0; i < a.length; ++i)
-        if a[i] != b[i] return false;
+        if a.ptr[i] != b.ptr[i] return false; // already checked length
       return true;
     }
     template value-of(T) {

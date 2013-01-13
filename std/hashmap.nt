@@ -148,11 +148,17 @@ template Hashmap(T) {
         if (++pos == backing.length) pos = 0;
       }
     }
-    Value* get(Key k) { return get &k; }
-    Value* get(Key* kp) {
+    // if allocate is true, get returns a pointer to a fresh slot if not found
+    Value* get(Key k, bool allocate = false) { return get (&k, allocate); }
+    Value* get(Key* kp, bool allocate = false) {
       pragma(fast);
       alias k = *kp;
-      if (!backing.length) return null;
+      if (!backing.length) {
+        if (allocate) { 
+          insert(kp, &Value nv);
+          return get kp;
+        } else return null;
+      }
       auto pos = (hashptr &k) % backing.length;
       while (isset[pos] != SetState.NotSet) {
         if (isset[pos] == SetState.Set && eq!Key(&backing[pos][0], &k)) {
@@ -160,7 +166,10 @@ template Hashmap(T) {
         }
         if (++pos == backing.length) pos = 0;
       }
-      return null;
+      if (allocate) {
+        insert(kp, &Value nv);
+        return get kp;
+      } else return null;
     }
   }
 }
