@@ -115,7 +115,11 @@ class Delegate_ : Type {
       todo("Delegate::llvmType"); return null;
     }
     string mangle() {
-      if (!ret) throw new Exception("Could not mangle delegate: return type indeterminate");
+      if (!ret) {
+        // throw new Exception("Could not mangle delegate: return type indeterminate");
+        logln("Could not mangle delegate: return type indeterminate");
+        fail;
+      }
       auto res = "dg_ret_"~((ret is this)?"self":ret.mangle())~"_args";
       if (!args.length) res ~= "_none";
       else foreach (arg; args)

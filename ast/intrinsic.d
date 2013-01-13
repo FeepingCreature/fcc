@@ -78,14 +78,15 @@ void setupSysmods() {
       return memcpy(dest, src, n);
     }
     context mem {
+      provide "defines malloc, calloc, calloc_atomic, free";
       void* delegate(int)           malloc_dg;
       void* delegate(int, int)      calloc_dg;
       void* delegate(int)           calloc_atomic_dg; // allocate data, ie. memory containing no pointers
-      void delegate(void*)          free_dg;
+      void delegate(void*, int sz = 0) free_dg;
       void* malloc (int i)             { return malloc_dg(i); }
       void* calloc_atomic (int i)      { if (!calloc_atomic_dg) return calloc(i, 1); return calloc_atomic_dg(i); }
       void* calloc (int i, int k)      { return calloc_dg(i, k); }
-      void  free   (void* p)           { free_dg(p); }
+      void  free   (void* p, int sz = 0){free_dg(p, sz); }
       /*MARKER*/
     }
     shared (void*, int)[auto~] _allocations; // no need for tls: is only valid during startup
@@ -107,7 +108,7 @@ void setupSysmods() {
         }
         return res;
       }
-      mem.free_dg = \(void* p) {
+      mem.free_dg = \(void* p, int sz = 0) {
         for ref pair <- _allocations
           if pair[0] == p pair = (null, 0);
         free16 p;
@@ -122,7 +123,7 @@ void setupSysmods() {
         memset(res, 0, i*k);
         return res; 
       }
-      mem.   free_dg = \(void* p) { return free16 p; }
+      mem.   free_dg = \(void* p, int sz = 0) { return free16 p; }
       mem.calloc_atomic_dg = null;
     }
     alias string = char[]; // must be post-marker for free() to work properly
@@ -196,7 +197,7 @@ void setupSysmods() {
           res[0 .. l.length] = (*l)[];
           // printf("free %d, %p (cap %d)\n", l.length, l.ptr, l.capacity);
           if l.length && l.capacity // otherwise, initialized from slice
-            mem.free(void*:l.ptr);
+            mem.free(void*:l.ptr, l.capacity * size-of T);
           // printf("done\n");
           res[l.length .. size] = r;
           return res;
@@ -335,13 +336,14 @@ void setupSysmods() {
     }
     struct ClassData {
       string name;
+      int size;
       ClassData* parent;
       InterfaceData*[] iparents;
     }
     class Object {
       alias classinfo = ***ClassData***: &__vtable;
       string toString() return "Object";
-      void free() mem.free void*:this; // wow.
+      void free() mem.free (void*:this, classinfo.size); // "free this". wow.
     }
     void* _fcc_dynamic_cast(void* ex, string id, int isIntf) {
       if (!ex) return null;

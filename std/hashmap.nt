@@ -97,13 +97,13 @@ template Hashmap(T) {
       if (!backing.length) return 1;
       return length * 1f / backing.length;
     }
+    void iterate(void delegate(Key, Value) dg) {
+      iterate \(Key* kp, Value* vp) { dg(*kp, *vp); }
+    }
     void iterate(void delegate(Key*, Value*) dg) {
       pragma(fast);
       for ref entry <- backing && int i <- ints
         if (isset[i] == SetState.Set) dg (&entry[0], &entry[1]);
-    }
-    void iterate(void delegate(Key, Value) dg) {
-      iterate \(Key* kp, Value* vp) { dg(*kp, *vp); }
     }
     void realloc(int newsize) {
       pragma(fast);

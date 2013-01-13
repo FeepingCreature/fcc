@@ -224,9 +224,9 @@ IType arrayAsStruct(IType base, bool rich) {
   isArrayStructType[res] = true;
   mkFun("free"[], Single!(Void), delegate Tree() {
     if (rich) return iparse!(Statement, "array_free"[], "tree.stmt"[])
-                  (`{ mem.free(void*:ptr); ptr = null; length = 0; capacity = 0; }`, namespace());
+                  (`{ mem.free(void*:ptr, capacity * sz); ptr = null; length = 0; capacity = 0; }`, namespace(), "sz", llvmval(base.llvmSize()));
     else return iparse!(Statement, "array_free"[], "tree.stmt"[])
-                  (`{ mem.free(void*:ptr); ptr = null; length = 0; }`, namespace());
+                  (`{ mem.free(void*:ptr, length * sz); ptr = null; length = 0; }`, namespace(), "sz", llvmval(base.llvmSize()));
   });
   if (!rich) {
     auto propbackup = propcfg().withTuple;

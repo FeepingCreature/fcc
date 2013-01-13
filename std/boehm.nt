@@ -25,8 +25,8 @@ void* myDebugCallocAtomic(int a) {
   memset(res, 0, a);
   return res;
 }
-void myDebugFree(void* vp) { aligned16free!GC_debug_free vp; }
-void myFree(void* vp) { aligned16free!GC_free vp; }
+void myDebugFree(void* vp, int sz = 0) { aligned16free!GC_debug_free vp; }
+void myFree(void* vp, int sz = 0) { aligned16free!GC_free vp; }
 
 // void* myRealloc(void* a, size_t b) { return GC_realloc(a, int:b); }
 void* myMalloc(int a) { return aligned16malloc!GC_malloc a; }
