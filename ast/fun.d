@@ -196,8 +196,12 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         
         // __frameinfo.fun = fqn()
         addStatement(mkAssignment(C_mkMemberAccess(infovar, "fun"), mkString(fqn())));
-        // __frameinfo.pos = ""
-        addStatement(mkAssignment(C_mkMemberAccess(infovar, "pos"), mkString("")));
+        // __frameinfo.pos = "initialpos"
+        {
+          auto pos = lookupPos(t2);
+          auto line = pos._0, name = pos._2;
+          addStatement(mkAssignment(C_mkMemberAccess(infovar, "pos"), mkString(qformat(name, ":", line))));
+        }
         // __frameinfo.prev = frameinfo
         addStatement(mkAssignment(C_mkMemberAccess(infovar, "prev"), sys_frameinfo));
         // frameinfo = &__frameinfo
