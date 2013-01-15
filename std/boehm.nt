@@ -73,6 +73,7 @@ void initBoehm(bool debugMode = false) {
     = [(&myMalloc,      &myCallocAtomic,      &myCalloc,      /*&myRealloc,      */&myFree),
        (&myDebugMalloc, &myDebugCallocAtomic, &myDebugCalloc, /*&myDebugRealloc, */&myDebugFree)
       ][debugMode];
+  mem.autoclean = false; // memory is cleaned up, but not SCOPE based. This is for stuff like scope pools.
   GC_init;
   static if (is-defined GC_allow_register_threads) {
     GC_allow_register_threads;

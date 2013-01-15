@@ -86,11 +86,12 @@ void setupSysmods() {
       return memcpy(dest, src, n);
     }
     context mem {
-      provide "defines malloc, calloc, calloc_atomic, free";
+      provide "defines malloc, calloc, calloc_atomic, free, autoclean";
       void* delegate(int)           malloc_dg;
       void* delegate(int, int)      calloc_dg;
       void* delegate(int)           calloc_atomic_dg; // allocate data, ie. memory containing no pointers
       void delegate(void*, int sz = 0) free_dg;
+      bool autoclean; // allocated memory is cleaned up somewhere scoped-bound
       void* malloc (int i)             { return malloc_dg(i); }
       void* calloc_atomic (int i)      { if (!calloc_atomic_dg) return calloc(i, 1); return calloc_atomic_dg(i); }
       void* calloc (int i, int k)      { return calloc_dg(i, k); }
@@ -99,6 +100,7 @@ void setupSysmods() {
     }
     shared (void*, int)[auto~] _allocations; // no need for tls: is only valid during startup
     void tracked_mem_init() { // like mem_init but with tracking
+      mem.autoclean = false;
       mem.malloc_dg = \(int i) {
         auto res = alloc16 i;
         if i using scoped mem {
@@ -124,6 +126,7 @@ void setupSysmods() {
       mem.calloc_atomic_dg = null;
     }
     void mem_init() {
+      mem. autoclean = false;
       mem. malloc_dg = \(int i) { return alloc16 i; }
       mem. calloc_dg = \(int i, k) {
         auto res = alloc16 (i * k);
@@ -439,14 +442,16 @@ void setupSysmods() {
     Object handler-argument-variable;
     
     _CondMarker* _lookupCM(string s, _Handler* h, bool needsResult) {
-      // writeln "look up condition marker for $s";
+      // printf("look up condition marker for %.*s\n", s);
       auto cur = _CondMarker*:_cm;
-      // if (h) writeln "h is $h, elements $(h.(id, prev, delimit, dg)), cur $cur";
+      // if (h) printf("h is %p, elements (%.*s, %p, %p, (%p, %p)), cur %p\n", h, h.(id, prev, delimit, dg), cur);
+      _CondMarker* res;
       while (cur && (!h || void*:cur != h.delimit)) {
-        // writeln "is it $(cur.name)?";
-        if (cur.name == s) return cur;
+        // printf("is it %.*s?\n", cur.name);
+        if (cur.name == s) res = cur; // return the "upmost" marker that's still ahead of delimit
         cur = cur.prev;
       }
+      if (res) return res;
       if needsResult {
         writeln "No exit matched $s!";
         _interrupt 3;
@@ -476,7 +481,7 @@ void setupSysmods() {
       void init(string s) super.init "UnrecoverableError: $s";
     }
     class Error : UnrecoverableError { // haha abuse of oop
-      void init(string s) super.init "Error: $s";
+      void init(string s) msg = "Error: $s";
     }
     class Signal : Condition {
       void init(string s) { super.init "Signal: $s"; }
@@ -549,7 +554,8 @@ void setupSysmods() {
     }
     void[] fastdupv(void[] v) {
       void[] res;
-      if (v.length > BLOCKSIZE) {
+      // if autoclean is true, can't rely on memory to stick around so can't use cache
+      if (v.length > BLOCKSIZE || mem.autoclean) {
         res = mem.malloc(v.length)[0..v.length];
       } else {
         if (dupvcache.length && dupvcache.length < v.length) {

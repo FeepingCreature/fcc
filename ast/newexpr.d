@@ -239,7 +239,7 @@ Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   auto nf = re.fun.context.get!(Function);
   auto frame = frametype2(re.fun.context.get!(ScopeLike)), size = lltypesize(frame);
-  // logln("frame range for dg allocation: "[], start, " .. "[], end, " for "[], re.fun.name);
+  // logln("frame range for dg allocation: "[], size, " for ", frame, " of ", re.fun.name);
   auto framestartp = reinterpret_cast(voidp, re.base);
   auto array = mkPointerSlice(framestartp, mkInt(0), llvmval(size));
   auto array2p = getArrayPtr(buildFunCall(
