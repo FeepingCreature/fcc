@@ -66,9 +66,17 @@ void setupSysmods() {
     }
     bool streq(char[] a, b) {
       if a.length != b.length return false;
-      for (int i = 0; i < a.length; ++i)
+      while (a.length >= 4) {
+        if ((int*:a.ptr)[0] != (int*:b.ptr)[0]) return false;
+        a = a[4..$]; b = b[4..$];
+      }
+      if (a.length == 0) return true;
+      else if (a.length == 1) return a[0] == b[0];
+      else if (a.length == 2) return a[0] == b[0] && a[1] == b[1];
+      else return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
+      /*for (int i = 0; i < a.length; ++i)
         if a.ptr[i] != b.ptr[i] return false; // already checked length
-      return true;
+      return true;*/
     }
     template value-of(T) {
       alias value-of = *T*:null;
