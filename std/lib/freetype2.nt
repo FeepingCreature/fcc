@@ -405,12 +405,15 @@ import std.lib.opengl.texture;
     linestart = res.length;
   }
   for (int prev-ch, int ch, string str, int i) <- zip(it1, it2, it3, ints) {
+    bool newline;
     if (ch == "\n") {
       assert allowNewlines;
-      flush;
+      newline = true;
+      str = " "; ch = " ";
     }
+    onSuccess if (newline) flush;
+    
     if (str == "\t") { str = " "; ch = " "; } // TODO tabbing
-    if (str == "\r") { str = " "; ch = " "; }
     font.getCharSize(ch, str, fs, &int width, &int height);
     if (debugme) writeln "$str => $((width, height))";
     

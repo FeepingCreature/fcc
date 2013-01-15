@@ -509,7 +509,7 @@ class AsmFloatBinopExpr : BinopExpr {
           // cmd = "rem"; break;
       }
       // load(lf, "f", cmd, " float ", v1, ", ", v2, ", !fpmath !0");
-      load(lf, "f", cmd, " float ", v1, ", ", v2);
+      load(lf, "f", cmd, " fast float ", v1, ", ", v2);
     }
   }
   static this() {

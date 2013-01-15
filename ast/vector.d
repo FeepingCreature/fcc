@@ -827,6 +827,28 @@ class VecOp : Expr {
       while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }
       auto e1v = fastcast!(Vector)~ t1, e2v = fastcast!(Vector)~ t2;
       
+      if (e1v && e2v && e1v == e2v) {
+        auto s1 = save(lf, ex1);
+        auto s2 = save(lf, ex2);
+        string llop;
+        switch (op) {
+          case "+": llop = "add"; break;
+          case "-": llop = "sub"; break;
+          case "*": llop = "mul"; break;
+          case "/": llop = "div"; break;
+          default: break;
+        }
+        if (fastcast!(Float)(e1v.base) || fastcast!(Double)(e1v.base) || fastcast!(Real)(e1v.base)) {
+          llop = "f"~llop~" fast";
+        } else if (fastcast!(SysInt)(e1v.base)) {
+          
+        } else llop = null;
+        if (llop) {
+          load(lf, llop, " ", e1v.llvmType(), " ", s1, ", ", s2);
+          return;
+        }
+      }
+      
       auto var = fastalloc!(LLVMRef)(valueType());
       var.allocate(lf);
       var.begin(lf);
@@ -891,7 +913,7 @@ static this() {
     else { len = v2v.len; real_len = v2v.real_len; }
     
     IType type;
-    if (v1v is v2v && v1v == v2v) type = v1v.base;
+    if (v1v is v2v || (v1v && v2v && v1v == v2v)) type = v1v.base;
     else {
       auto l1 = lhs; if (v1v) l1 = getTupleEntries(reinterpret_cast(v1v.asFilledTup, lhs), null, true)[0];
       auto r1 = rhs; if (v2v) r1 = getTupleEntries(reinterpret_cast(v2v.asFilledTup, rhs), null, true)[0];

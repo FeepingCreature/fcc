@@ -915,7 +915,7 @@ string get_llc_cmd(bool optimize, bool saveTemps, ref string fullcommand) {
       fullcommand ~= " |opt "~flags~"-lint -";
       if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
-    string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast -vectorize -vectorize-loops -tailcallopt ";
+    string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast "/*-vectorize */"-vectorize-loops -tailcallopt ";
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
     optrun(cpumode~"-internalize -std-compile-opts -std-link-opts "~optflags);
     llc_optflags = optflags;
@@ -933,8 +933,10 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
     srcname = ".obj/" ~ end ~ ".ll";
-    if (isWindoze) objname = ".obj/" ~ end ~ ".bc";
-    else           objname = ".obj/" ~ end ~ ".o";
+    if (isWindoze || cs.optimize)
+      objname = ".obj/" ~ end ~ ".bc";
+    else
+      objname = ".obj/" ~ end ~ ".o";
     auto path = srcname[0 .. srcname.rfind("/")];
     string mew = ".";
     foreach (component; path.split("/")) {
@@ -991,16 +993,16 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     // if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
     string cmdline;
-    if (cs.preopt) {
+    if (cs.preopt && !cs.optimize) {
       cmdline = Format("opt ", flags);
     } else {
       cmdline = Format("llvm-as ", flags);
     }
-    if (isWindoze) {
+    if (isWindoze || cs.optimize) {
       cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
     } else {
       string bogus;
-      cmdline ~= Format("-o - ", srcname, " |llc -march=x86 - "~get_llc_cmd(cs.optimize, cs.saveTemps, bogus)~"-filetype=obj -o ", objname);
+      cmdline ~= Format("-o - ", srcname, " |opt -march=x86 - "~get_llc_cmd(cs.optimize, cs.saveTemps, bogus)~" |llc -march=x86 - -filetype=obj -o ", objname);
     }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
@@ -1099,12 +1101,12 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
         unlink(obj.toStringz());
   // string linkedfile = ".obj/"~output~".all.bc";
   string linkedfile;
-  if (isWindoze) linkedfile = ".obj/"~output~".all.bc";
+  if (isWindoze || optimize) linkedfile = ".obj/"~output~".all.bc";
   else linkedfile = ".obj/"~output~".all.o";
   
   string objfile, objlist;
   foreach (obj; objects) objlist ~= obj ~ " ";
-  if (!isWindoze) {
+  if (!isWindoze && !optimize) {
     objfile = objlist;
   } else {
     string fullcommand = "llvm-link "~objlist;
@@ -1159,8 +1161,10 @@ void incbuild(string start,
   void translate(string file, ref string obj, ref string asmf) {
     if (auto pre = file.endsWith(EXT)) {
       asmf = ".obj/" ~ pre ~ ".ll";
-      // obj  = ".obj/" ~ pre ~ ".bc";
-      obj = ".obj/" ~ pre ~ ".o";
+      if (isWindoze() || cs.optimize)
+        obj  = ".obj/" ~ pre ~ ".bc";
+      else
+        obj = ".obj/" ~ pre ~ ".o";
     } else assert(false);
   }
   bool[string] checking;

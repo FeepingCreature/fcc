@@ -333,14 +333,14 @@ string toLLVMArray(T)(int size, T[] arr) {
 string allocConstant(LLVMFile lf, string name, ubyte[] data, bool priv) {
   lf.undecls[name] = true;
   if (once(lf, "constant ", name))
-    putSection(lf, "module", "@", name, " = "~(priv?"private ":" ")~"constant ", toLLVMArray(1, data), ", align 16");
+    putSection(lf, "module", "@", name, " = "~(priv?"private ":" ")~"unnamed_addr constant ", toLLVMArray(1, data), ", align 16");
   return name;
 }
 
 string allocLongstant(LLVMFile lf, string name, string[] data, bool priv) {
   lf.undecls[name] = true;
   if (once(lf, "longstant ", name))
-    putSection(lf, "module", "@", name, " = "~(priv?"private ":" ")~"constant ", toLLVMArray(4, data), ", align 16");
+    putSection(lf, "module", "@", name, " = "~(priv?"private ":" ")~"unnamed_addr constant ", toLLVMArray(4, data), ", align 16");
   return name;
 }
 
