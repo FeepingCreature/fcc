@@ -53,44 +53,18 @@ class Semaphore {
 vec4f aligntest_a, aligntest_b;
 
 extern(C) void* __start_routine(void* p) {
-  void* ptemp = p; // will be top of the stack, so ..
-  /*asm "popl %eax";
-  asm "movl %esp, %ebx";
-  asm `andl $0xfffffff0, %esp`;
-  platform(*-mingw32) {
-    asm `subl $4, %esp`; // alignment
+  auto arg = *(void delegate(), void*, int, Semaphore, type-of mem)*:p;
+  auto _threadlocal = arg[1];
+  setThreadlocal _threadlocal;
+  mxcsr = arg[2];
+  mem = arg[4];
+  setupStackBase;
+  arg[3].release;
+  dupvcache = null;
+  if (onThreadCreation) {
+    onThreadCreation(_ebp);
   }
-  // asm `subl $8, %esp`; // alignment
-  asm "pushl %ebx";
-  asm "pushl %ebp";
-  asm "pushl %eax";
-  asm "movl %esp, %ebp";
-  platform(default) {
-    asm `addl $4, %ebp`;
-  }
-  platform(*-mingw32) {
-    asm `addl $8, %ebp`;
-  }*/
-  {
-    auto arg = *(void delegate(), void*, int, Semaphore, type-of mem)*:ptemp;
-    auto _threadlocal = arg[1];
-    setThreadlocal _threadlocal;
-    mxcsr = arg[2];
-    mem = arg[4];
-    setupStackBase;
-    arg[3].release;
-    dupvcache = null;
-    if (onThreadCreation) {
-      onThreadCreation(_ebp);
-    }
-    arg[0]();
-  }
-  // and undo
-  /*asm `addl $4, %esp`; // undo pushl %eax
-  asm "popl %ebp";
-  asm "popl %ebx";
-  asm "movl %ebx, %esp";
-  asm `pushl $0`; // undo popl %eax; pointer not needed anymore.*/
+  arg[0]();
   return null;
 }
 
