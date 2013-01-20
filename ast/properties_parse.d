@@ -75,7 +75,12 @@ Object getProperties(ref string text, Object sup, PropArgs args,
   } else */if (!rawmode) check(sup, text);
   
   assert(!res || longest);
-  if (longest) text = longest;
+  if (longest) {
+    auto t2 = longest;
+    if (t2.accept(".") && !t2.accept("."))
+      longest.failparse("unknown property or identifier");
+    text = longest;
+  }
   return res;
 }
 

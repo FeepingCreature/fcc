@@ -917,7 +917,9 @@ string get_llc_cmd(bool optimize, bool saveTemps, ref string fullcommand) {
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast "/*-vectorize */"-vectorize-loops -tailcallopt ";
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
-    optrun(cpumode~"-internalize -std-compile-opts -std-link-opts "~optflags);
+    string passflags = "-std-compile-opts ";
+    if (!isWindoze()) passflags ~= "-internalize -std-link-opts "; // don't work under win32 (LLVMMMM :shakes fist:)
+    optrun(cpumode~passflags~optflags);
     llc_optflags = optflags;
   }
   return cpumode~llc_optflags;
@@ -1006,9 +1008,9 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
-    if (system(cmdline.toStringz())) {
-      logln("ERROR: Compilation failed! ");
-      exit(1);
+    if (auto res = system(cmdline.toStringz())) {
+      logln("ERROR: Compilation failed with ", res, " ", getErrno());
+      exit(res);
     }
     mod.alreadyEmat = true;
     return objname;

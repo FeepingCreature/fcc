@@ -323,7 +323,7 @@ class Function : Thing, Operator {
       arg = dg(arg, λ(string s) { return Object:null; });
   }
   Thing call(Thing[] list, Namespace ns) {
-    onFailure writeln "while calling $info";
+    // onFailure writeln "while calling $info";
     scope Thing[auto~] args;
     for auto thing <- list
       args ~= thing.eval ns;

@@ -125,7 +125,7 @@ Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (!ex)
         t2.failparse("Cannot parse cast source");
       // t2.setError("can't get "[], ex.valueType(), " into "[], dest);
-      t2.setError("types don't match");
+      t2.setError("types don't match in explicit-cast: ", ex.valueType(), " into ", dest);
       return null;
     }
   } catch (Exception ex) {

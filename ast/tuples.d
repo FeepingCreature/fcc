@@ -65,14 +65,23 @@ Object gotBraceExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   if (!rest(t2, "tree.expr"[], &obj))
     return null;
-  if (!(globmode ^ !fastcast!(Expr) (obj)))
+  if (globmode == !fastcast!(Expr) (obj))
     return null;
   if (globmode || t2.accept(")"[])) {
     text = t2;
     return obj;
   } else {
-    if (!t2.accept(","[]))
+    if (!t2.accept(","[])) {
+      if (!globmode) {
+        auto t3 = text;
+        IType throwaway;
+        if (t3.accept("(") && rest(t3, "type", &throwaway)) {
+          return null; // not supposed to be an expr tuple
+        }
+        t2.failparse("Expected closing paren");
+      }
       t2.setError("Failed to match single-tuple"[]);
+    }
     return null;
   }
 }
@@ -340,8 +349,10 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (!rest(t2, "tree.expr"[], &ex))
         t2.failparse("tuple failed"[]);
     } else if (exprs.length) {
-      if (!t2.accept(","[]))
+      if (!t2.accept(","[])) {
+        t2.setError("expected comma or closing paren");
         return null;
+      }
       if (!rest(t2, "tree.expr"[], &ex))
         return null;
     } else {
