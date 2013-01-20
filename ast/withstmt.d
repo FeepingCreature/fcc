@@ -26,6 +26,7 @@ bool same(Object a, Object b) {
   return false;
 }
 
+import ast.structure;
 class WithStmt : Namespace, Statement, ScopeLike {
   RelNamespace rns;
   Stuple!(RelNamespace, Expr) [] rnslist;
@@ -84,9 +85,11 @@ class WithStmt : Namespace, Statement, ScopeLike {
       assert(!!fastcast!(LValue) (ex) || !!fastcast!(MValue) (ex), Format(ex, " which is ", isc, ".getSup; is not an LValue/MValue. Halp. "));
     }
     
+    auto mv = fastcast!(MValue)(ex);
+    
     if (auto lv = fastcast!(LValue)~ ex) {
       context = lv;
-    } else if (auto mv = fastcast!(MValue)~ ex) {
+    } else if (mv && !fastcast!(Structure)(resolveType(ex.valueType()))) {
       context = mv;
     } else if (ex.valueType() == Single!(Void)) {
       context = ex; // hackaround :)
