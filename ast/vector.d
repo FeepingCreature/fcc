@@ -966,6 +966,9 @@ static this() {
   defineOp("%"[], "%" /apply/ &handleVecOp);
   defineOp("&"[], "&" /apply/ &handleVecOp);
   defineOp("|"[], "|" /apply/ &handleVecOp);
+  defineOp("<<"[],"<<"/apply/ &handleVecOp);
+  defineOp(">>"[],">>"/apply/ &handleVecOp);
+  defineOp(">>>"[],">>>"/apply/ &handleVecOp);
   defineOp("=="[], &handleVecEquals);
   defineOp("<"[], &handleVecSmaller);
   /*foldopt ~= delegate Itr(Itr it) {
