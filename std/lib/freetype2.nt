@@ -323,7 +323,7 @@ class TextureAtlas {
   }
 }
 
-alias Settings = (int size, vec4f fore, vec4f back, bool bold, bool italic);
+alias Settings = (int size, vec4f fore, vec4f back, bool bold, bool italic, vec2i minsize);
 
 class TextureCache {
   TextureAtlas back;
@@ -355,18 +355,12 @@ void initCache() {
 }
 
 import std.lib.opengl.texture;
-(SubTexture tex, vec2i offs)[] layoutText(Font font, string text, Settings settings, int* widthp, heightp, baselinep, bool allowNewlines = true) {
+(SubTexture tex, vec2i offs)[] layoutText(Font font, string text, Settings delegate() settings_dg, int* widthp, heightp, baselinep, bool allowNewlines = true) {
   ref width = *widthp, height = *heightp, baseline = *baselinep;
   initCache;
   (width, height) = (0, 0);
   int maxheight = 0;
   baseline = 0;
-  FontStyle fs;
-  fs.color = settings.fore;
-  fs.bgcol = settings.back;
-  fs.chars = 1;
-  fs.bold  = settings.bold;
-  fs.italic = settings.italic;
   bool first = true;
   vec2i pos, prev-pos;
   bool debugme = false;
@@ -414,6 +408,16 @@ import std.lib.opengl.texture;
     onSuccess if (newline) flush;
     
     if (str == "\t") { str = " "; ch = " "; } // TODO tabbing
+    
+    auto settings = settings_dg();
+    
+    FontStyle fs;
+    fs.color = settings.fore;
+    fs.bgcol = settings.back;
+    fs.chars = 1;
+    fs.bold  = settings.bold;
+    fs.italic = settings.italic;
+    
     font.getCharSize(ch, str, fs, &int width, &int height);
     if (debugme) writeln "$str => $((width, height))";
     
@@ -430,6 +434,8 @@ import std.lib.opengl.texture;
       }
       
       auto box = font.getControlBox(ch);
+      // box[1] = box[0] + (box[1] - box[0]).(vec2i(max(x, settings.minsize.x), max(y, settings.minsize.y)));
+      
       if (box[0].y < bottomdist) bottomdist = box[0].y;
       if (debugme) writeln "$str: box $box $bottomdist";
       
@@ -450,7 +456,9 @@ import std.lib.opengl.texture;
       pos -= shift;
       
       auto step = font.getAdvance(ch);
-      pos += step.(vec2i(x >> 6, y >> 6));
+      step >>= 6;
+      step.x = max(step.x, settings.minsize.x);
+      pos += step;
       overhang = 0;
       if (settings.italic) overhang += 2;
     }

@@ -309,7 +309,7 @@ int main(string[] args) {
     that.var = 14;
     writeln("now it's $(that.var)");
   }
-  writeln("now back to $$ctest.var. ");
+  writeln("now back to $(ctest.var). ");
   void memtest() using sys.mem {
     writeln("memtest! ");
     auto p = that.malloc(16);
@@ -485,7 +485,7 @@ int main(string[] args) {
     printf("comparison 0x%08x\n", float:15);
     writeln("u.i is $$void*:u.I");
     auto tuple = (2, 3);
-    writeln("Tuple is $$tuple[0], $$tuple[1]. ");
+    writeln("Tuple is $(tuple[0]), $(tuple[1]). ");
     int pow2(int i) {
       int res = 1;
       while (i--) res = res * 2;

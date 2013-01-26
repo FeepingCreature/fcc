@@ -522,7 +522,7 @@ pragma(set_attribute, llcast, externally_visible);
 extern(C) void llcast(LLVMFile lf, string from, string to, string v, string fromsize = null) {
   if (from != to) {
     checkcasttypes(from, to);
-    if (from.endsWith("}") || from.endsWith("]") || from.endsWith(">") || to.endsWith("}")) {
+    if (from.endsWith("}") || from.endsWith("]") || from.endsWith(">") || to.endsWith("}") || to.endsWith("]")) {
       if ((from.endsWith("}") || from.endsWith(">"))&& (to.endsWith("}") || to.endsWith(">"))) {
         bool fromIsStruct = !!from.endsWith("}"), toIsStruct = !!to.endsWith("}");
         string[] a, b;
@@ -1171,7 +1171,7 @@ void incbuild(string start,
   }
   bool[string] checking;
   bool[string] neededRebuild; // prevent issue where we rebuild a mod, after which
-                              // it obviously needs no further rebuild, // preventing
+                              // it obviously needs no further rebuild, preventing
                               // another module from realizing that it needs to be rebuilt also
   bool needsRebuild(Module mod) {
     if (mod.dontEmit) return false;
