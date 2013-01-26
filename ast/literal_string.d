@@ -11,12 +11,12 @@ class StringExpr : Expr, HasInfo, Dependency {
   string name_used;
   void selectName(LLVMFile lf) {
     if (!name_used) {
-      name_used = lf.allocData("string_constant_", cast(ubyte[]) str ~ cast(ubyte) 0);
+      name_used = lf.allocData(qformat("string_constant_", str.length), cast(ubyte[]) str ~ cast(ubyte) 0);
     }
   }
   Expr getPointer() {
     return reinterpret_cast(Single!(Pointer, Single!(Char)),
-      fastalloc!(LateSymbol)(this, fastalloc!(Pointer)(fastalloc!(StaticArray)(Single!(Char), str.length + 1)), &selectName, &name_used));
+      fastalloc!(LateSymbol)(this, fastalloc!(Pointer)(fastalloc!(StaticArray)(Single!(Char), str.length + 1)), &emitDependency, &name_used));
   }
   override {
     string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }
@@ -26,7 +26,7 @@ class StringExpr : Expr, HasInfo, Dependency {
     void emitLLVM(LLVMFile lf) {
       scope sa = new StaticArray(Single!(Char), str.length + 1);
       scope pt = new Pointer(sa);
-      scope ls = new LateSymbol(this, pt, &selectName, &name_used);
+      scope ls = new LateSymbol(this, pt, &emitDependency, &name_used);
       scope p = reinterpret_cast(Single!(Pointer, Single!(Char)), ls);
       // auto p = getPointer();
       formTuple(lf, "i32", qformat(str.length), typeToLLVM(p.valueType()), save(lf, p));

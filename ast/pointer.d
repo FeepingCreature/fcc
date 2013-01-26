@@ -249,7 +249,8 @@ class LateSymbol : Expr {
   override IType valueType() { return type; }
   override string toString() { return qformat("(", type, ") ", *name); }
   override void emitLLVM(LLVMFile lf) {
-    if (!*name) dg(lf);
+    // if (!*name) dg(lf);
+    dg(lf);
     if (!*name) {
       logln("wat");
       fail;
