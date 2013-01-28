@@ -186,6 +186,7 @@ static this() {
 import ast.tuples;
 static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb rest) {
+    cur = ast.tuples.resolveTup(cur);
     IType ptype;
     Argument[] list;
     auto t2 = text;

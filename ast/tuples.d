@@ -381,32 +381,52 @@ static this() {
   };
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb cont, ParseCb rest) {
     auto t2 = text;
-    Expr len;
+    Expr index;
     if (!t2.accept("["[])) return null;
     
-    auto tup = fastcast!(Tuple) (cur);
+    auto tup = fastcast!(Tuple) (resolveTup(cur));
     if (!tup)
       return null;
     
-    if (!rest(t2, "tree.expr"[], &len)) return null;
+    {
+      auto backup = namespace();
+      scope(exit) namespace.set(backup);
+      namespace.set(new LengthOverride(backup, new IntExpr(tup.wrapped.length())));
+      if (!rest(t2, "tree.expr"[], &index)) return null;
+    }
     if (!t2.accept("]"[]))
-      t2.failparse("Expected closing ']' for tuple index access"[]);
+      t2.failparse("Expected closing ']' for tuple index/slice access"[]);
+    
+    auto slice = index;
+    if (gotImplicitCast(slice, (IType it) { return test(fastcast!(RangeIsh) (it)); })) {
+      // see tuple_access.d:"index"
+      auto rish = fastcast!(RangeIsh) (slice.valueType()),
+        from = rish.getPos(slice),
+        to   = rish.getEnd(slice);
+      opt(from); opt(to);
+      
+      auto ifrom = fastcast!(IntExpr) (from), ito = fastcast!(IntExpr) (to);
+      if (!ifrom || !ito) text.failparse("tuple slice argument is not constant");
+      
+      text = t2;
+      if (ifrom.num == ito.num) return mkTuple();
+      return mkTuple(tup.wrapped.slice(ifrom.num, ito.num).types);
+    }
     
     auto types = tup.types();
     if (!types.length) return null; // cannot possibly mean a type-tuple tuple access
     
-    auto backup_len = len;
-    if (!gotImplicitCast(len, (IType it) { return test(Single!(SysInt) == it); }))
-      t2.failparse("Need int for tuple index access, not "[], backup_len);
-    opt(len);
-    len = foldex(len);
-    if (auto ie = fastcast!(IntExpr) (len)) {
+    auto backup_index = index;
+    if (!gotImplicitCast(index, (IType it) { return test(Single!(SysInt) == it); }))
+      t2.failparse("Need int for tuple index access, not "[], backup_index);
+    opt(index);
+    if (auto ie = fastcast!(IntExpr) (index)) {
       text = t2;
       if (ie.num >= types.length) {
         text.failparse(ie.num, " too large for tuple of "[], types.length, "!"[]);
       }
       return types[ie.num];
     } else
-      t2.failparse("Need foldable constant for tuple index access, not "[], len);
+      t2.failparse("Need foldable constant for tuple index access, not "[], index);
   };
 }
