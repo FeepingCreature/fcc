@@ -1035,7 +1035,7 @@ void genCompilesWithDepends(string file, CompileSettings cs, void delegate(strin
   
   todo ~= start.getAllModuleImports();
   while (todo.length) {
-    auto cur = todo.take();
+    auto cur = todo.takeFromEnd();
     if (cur.name in done) continue;
     if (auto nuMod = compile(cur.name.replace(".", "/") ~ EXT, cs))
       assemble(nuMod);
@@ -1053,7 +1053,7 @@ string[] compileWithDepends(string file, CompileSettings cs) {
   int waits;
   auto seph = new Semaphore;
   void process(string delegate() dg) {
-    if (cs.singlethread) objs ~= dg();
+    if (cs.singlethread && false) objs ~= dg();
     else {
       synchronized {
         waits++;
@@ -1200,6 +1200,7 @@ void incbuild(string start,
     scope(exit) checking.remove(mod.name);
     foreach (mod2; mod.getAllModuleImports())
       if (mod2 !is sysmod && (mod2.sourcefile in neededRebuild || needsRebuild(mod2))) {
+        // logln("need to rebuild ", mod.name, " because of ", mod2.name, ", which it depends on");
         neededRebuild[mod.sourcefile] = true;
         return true;
       }

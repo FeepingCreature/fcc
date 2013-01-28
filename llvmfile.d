@@ -15,12 +15,14 @@ void own_append(T, U)(ref T array, U value) {
 
 string[][][int] freelist;
 Stuple!(string[], int) allocTup(int i) {
-  if (auto p = i in freelist) {
-    auto res = (*p)[0];
-    (*p) = (*p)[1..$];
-    if (!(*p).length) freelist.remove(i);
-    // logln("allocNewList cached(", i, ")");
-    return stuple(res, 0);
+  synchronized {
+    if (auto p = i in freelist) {
+      auto res = (*p)[0];
+      (*p) = (*p)[1..$];
+      if (!(*p).length) freelist.remove(i);
+      // logln("allocNewList cached(", i, ")");
+      return stuple(res, 0);
+    }
   }
   // logln("allocNewList(", i, ")");
   return stuple(new string[i], 0);
@@ -28,10 +30,12 @@ Stuple!(string[], int) allocTup(int i) {
 void listfree(string[] arr) {
   auto len = arr.length;
   // logln("listfree(", len, ")");
-  if (auto p = len in freelist) (*p) ~= arr;
-  else {
-    freelist[len] = null;
-    freelist[len] ~= arr;
+  synchronized {
+    if (auto p = len in freelist) (*p) ~= arr;
+    else {
+      freelist[len] = null;
+      freelist[len] ~= arr;
+    }
   }
 }
 
