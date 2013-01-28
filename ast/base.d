@@ -119,7 +119,7 @@ string genIterates(int params) {
     res ~= "alias A"~ctToString(i);
   }
   res ~= ") {
-    override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {";
+    /*override*/ void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {";
   for (int i = 0; i < params; ++i) {
     res ~= `
       {

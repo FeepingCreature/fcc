@@ -6,18 +6,17 @@ import tools.base: This, This_fn, rmSpace, and, or, find, todg, fix;
 Object function(ref string, Object, PropArgs, ParseCb, ParseCb, bool rawmode = false) getPropertiesFn;
 void function(void delegate(PropArgs)) withPropcfgFn;
 
-class IntAsFloat : Expr {
+final class IntAsFloat : Expr {
+  static const isFinal = true;
   Expr i;
   this(Expr i) { this.i = i; assert(Single!(SysInt) == i.valueType()); }
   private this() { }
-  mixin DefaultDup!();
+  IntAsFloat dup() { return new IntAsFloat(i.dup()); }
   mixin defaultIterate!(i);
-  override {
-    string toString() { return qformat("float:", i); }
-    IType valueType() { return Single!(Float); }
-    void emitLLVM(LLVMFile lf) {
-      load(lf, "sitofp i32 ", save(lf, i), " to float");
-    }
+  string toString() { return qformat("float:", i); }
+  IType valueType() { return Single!(Float); }
+  void emitLLVM(LLVMFile lf) {
+    load(lf, "sitofp i32 ", save(lf, i), " to float");
   }
 }
 

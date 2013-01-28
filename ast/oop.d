@@ -127,19 +127,18 @@ class VTable {
   }
 }
 
-class LazyDeltaInt : Expr {
+final class LazyDeltaInt : Expr {
+  static const isFinal = true;
   int delegate() dg;
   int delta;
   this(int delegate() dg, int d = 0) { this.dg = dg; delta = d; }
   mixin defaultIterate!();
-  override {
-    string toString() { return qformat("ldi(", dg(), " + ", delta, ")"); }
-    IType valueType() { return Single!(SysInt); }
-    LazyDeltaInt dup() { return fastalloc!(LazyDeltaInt)(dg, delta); }
-    void emitLLVM(LLVMFile lf) {
-      auto res = dg() + delta;
-      push(lf, res);
-    }
+  string toString() { return qformat("ldi(", dg(), " + ", delta, ")"); }
+  IType valueType() { return Single!(SysInt); }
+  LazyDeltaInt dup() { return fastalloc!(LazyDeltaInt)(dg, delta); }
+  void emitLLVM(LLVMFile lf) {
+    auto res = dg() + delta;
+    push(lf, res);
   }
 }
 

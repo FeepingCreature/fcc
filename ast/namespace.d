@@ -330,7 +330,7 @@ extern(C) Namespace __getSysmod();
 
 extern(C) Stuple!(IType, string)[] _mns_stackframe(Namespace sup, typeof(Namespace.field));
 
-class MiniNamespace : Namespace, ScopeLike, Named {
+class _MiniNamespace : Namespace, ScopeLike, Named {
   string id;
   this(string id) { this.id = id; }
   bool internalMode;
@@ -361,6 +361,11 @@ class MiniNamespace : Namespace, ScopeLike, Named {
       return res;
     }
   }
+}
+
+final class MiniNamespace : _MiniNamespace {
+  static const isFinal = true;
+  this(string s) { super(s); }
 }
 
 // internal miniparse wrapper

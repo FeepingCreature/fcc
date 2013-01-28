@@ -93,7 +93,8 @@ class RelMemberLV : RelMember, LValue {
 }
 
 extern(C) Expr _make_tupleof(Structure str, Expr ex);
-class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, SelfAdding, StructLike, ExternAware {
+final class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, SelfAdding, StructLike, ExternAware {
+  static const isFinal = true;
   mixin TypeDefaults!(false);
   string name;
   bool isUnion, packed, isTempStruct;
@@ -125,83 +126,81 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     strtype = "{"~strtype~"}";
     return lloffset(strtype, thingy, len-1);
   }
-  override {
-    void markExternC() {
-      foreach (entry; field) {
-        auto obj = entry._1;
-        if (auto ex = fastcast!(Expr)(obj)) obj = fastcast!(Object)(ex.valueType());
-        if (auto eat = fastcast!(ExternAware)(obj))
-          eat.markExternC();
-      }
+  void markExternC() {
+    foreach (entry; field) {
+      auto obj = entry._1;
+      if (auto ex = fastcast!(Expr)(obj)) obj = fastcast!(Object)(ex.valueType());
+      if (auto eat = fastcast!(ExternAware)(obj))
+        eat.markExternC();
     }
-    bool addsSelf() { return true; }
-    bool isPointerLess() {
-      bool pointerless = true;
-      select((string, RelMember member) { pointerless &= member.type.isPointerLess(); });
-      return pointerless;
-    }
-    bool isComplete() {
-      bool complete = true;
-      select((string, RelMember member) { complete &= member.type.isComplete(); });
-      return complete;
-    }
-    bool returnsInMemory() { return true; }
-    bool immutableNow() { return isImmutableNow; }
-    bool isPacked() { return packed; }
-    string llvmType() {
-      if (!cached_llvm_type) {
-        if (isUnion) {
-          auto sz = llvmSize();
-          cached_llvm_type = qformat("[", sz, " x i8]");
-        } else {
-          string list;
-          select((string, RelMember member) {
-            if (list.length && member.index == 0) return; // freak of nature
-            if (list.length) list ~= ", ";
-            list ~= typeToLLVM(member.type, true);
-          });
-          cached_llvm_type = qformat("{", list, "}");
-        }
-      }
-      return cached_llvm_type;
-    }
-    string llvmSize() {
-      if (cached_llvm_size) return cached_llvm_size;
-      {
-        int num;
-        string size;
-        select((string, RelMember member) { num++; if (num == 1) size = member.type.llvmSize(); });
-        if (num == 1) return size;
-      }
+  }
+  bool addsSelf() { return true; }
+  bool isPointerLess() {
+    bool pointerless = true;
+    select((string, RelMember member) { pointerless &= member.type.isPointerLess(); });
+    return pointerless;
+  }
+  bool isComplete() {
+    bool complete = true;
+    select((string, RelMember member) { complete &= member.type.isComplete(); });
+    return complete;
+  }
+  bool returnsInMemory() { return true; }
+  bool immutableNow() { return isImmutableNow; }
+  bool isPacked() { return packed; }
+  string llvmType() {
+    if (!cached_llvm_type) {
       if (isUnion) {
-        string len = "0";
+        auto sz = llvmSize();
+        cached_llvm_type = qformat("[", sz, " x i8]");
+      } else {
+        string list;
         select((string, RelMember member) {
-          len = llmax(len, member.type.llvmSize());
+          if (list.length && member.index == 0) return; // freak of nature
+          if (list.length) list ~= ", ";
+          list ~= typeToLLVM(member.type, true);
         });
-        // logln("Structure::llvmSize for union ", this.name, " (oh noo): ", len.length);
-        return len;
+        cached_llvm_type = qformat("{", list, "}");
       }
-      {
-        int count;
-        string size;
-        bool sameSize = true;
-        select((string, RelMember member) {
-          auto msize = member.type.llvmSize();
-          if (!sameSize || !size || msize != size) {
-            if (!size) { size = msize; count = 1; }
-            else {
-              // hax
-              if (member.name != "self") sameSize = false;
-            }
-          }
-          else count++;
-        });
-        if (sameSize) return llmul(qformat(count), size);
-      }
-      auto ty = llvmType();
-      cached_llvm_size = readllex(qformat("ptrtoint(", ty, "* getelementptr(", ty, "* null, i32 1) to i32)"));
-      return cached_llvm_size;
     }
+    return cached_llvm_type;
+  }
+  string llvmSize() {
+    if (cached_llvm_size) return cached_llvm_size;
+    {
+      int num;
+      string size;
+      select((string, RelMember member) { num++; if (num == 1) size = member.type.llvmSize(); });
+      if (num == 1) return size;
+    }
+    if (isUnion) {
+      string len = "0";
+      select((string, RelMember member) {
+        len = llmax(len, member.type.llvmSize());
+      });
+      // logln("Structure::llvmSize for union ", this.name, " (oh noo): ", len.length);
+      return len;
+    }
+    {
+      int count;
+      string size;
+      bool sameSize = true;
+      select((string, RelMember member) {
+        auto msize = member.type.llvmSize();
+        if (!sameSize || !size || msize != size) {
+          if (!size) { size = msize; count = 1; }
+          else {
+            // hax
+            if (member.name != "self") sameSize = false;
+          }
+        }
+        else count++;
+      });
+      if (sameSize) return llmul(qformat(count), size);
+    }
+    auto ty = llvmType();
+    cached_llvm_size = readllex(qformat("ptrtoint(", ty, "* getelementptr(", ty, "* null, i32 1) to i32)"));
+    return cached_llvm_size;
   }
   Structure dup() {
     auto res = fastalloc!(Structure)(name);
@@ -269,62 +268,60 @@ class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Importer, S
     }
     return manglecache;
   }
-  override {
-    IType getRefType() { return fastalloc!(Pointer)(this); }
-    string getIdentifier() { return name; }
-    string mangle(string name, IType type) {
-      string type_mangle;
-      if (type) type_mangle = type.mangle() ~ "_";
-      return sup.mangle(name, null)~"_"~type_mangle~name;
+  IType getRefType() { return fastalloc!(Pointer)(this); }
+  string getIdentifier() { return name; }
+  string mangle(string name, IType type) {
+    string type_mangle;
+    if (type) type_mangle = type.mangle() ~ "_";
+    return sup.mangle(name, null)~"_"~type_mangle~name;
+  }
+  Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
+    if (str == "tupleof") {
+      return fastcast!(Object) (_make_tupleof(this, base));
     }
-    Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
-      if (str == "tupleof") {
-        return fastcast!(Object) (_make_tupleof(this, base));
-      }
-      auto res = lookup(str, true);
-      if (auto rt = fastcast!(RelTransformable) (res))
-        return fastcast!(Object) (rt.transform(base));
-      return res;
+    auto res = lookup(str, true);
+    if (auto rt = fastcast!(RelTransformable) (res))
+      return fastcast!(Object) (rt.transform(base));
+    return res;
+  }
+  // Let two structs be equal if their names and sizes are equal
+  // and all their members are of the same size
+  int opEquals(IType it) {
+    auto str = fastcast!(Structure)~ it;
+    if (!str) return false;
+    if (str is this) return true;
+    if (str.mangle() != mangle()) return false;
+    if (str.length != length) return false;
+    auto n1 = str.names(), n2 = names();
+    if (n1.length != n2.length) return false;
+    foreach (i, n; n1) if (n != n2[i]) return false;
+    auto t1 = str.types(), t2 = types();
+    foreach (i, v; t1) if (v.llvmType() != t2[i].llvmType()) return false;
+    return true;
+  }
+  string toString() {
+    if (!name) {
+      string[] names;
+      foreach (elem; field)
+        if (auto n = fastcast!(Named) (elem._1)) {
+          string id = n.getIdentifier();
+          if (auto rm = fastcast!(RelMember) (elem._1))
+            // id = Format(id, "<"[], rm.valueType().llvmType(), ">@"[], rm.index);
+            id = Format(id, "<"[], rm.valueType(), ">@"[], rm.index);
+          names ~= id;
+        }
+      return Format("{struct "[], names.join(", "[]), "}"[]);
     }
-    // Let two structs be equal if their names and sizes are equal
-    // and all their members are of the same size
-    int opEquals(IType it) {
-      auto str = fastcast!(Structure)~ it;
-      if (!str) return false;
-      if (str is this) return true;
-      if (str.mangle() != mangle()) return false;
-      if (str.length != length) return false;
-      auto n1 = str.names(), n2 = names();
-      if (n1.length != n2.length) return false;
-      foreach (i, n; n1) if (n != n2[i]) return false;
-      auto t1 = str.types(), t2 = types();
-      foreach (i, v; t1) if (v.llvmType() != t2[i].llvmType()) return false;
-      return true;
-    }
-    string toString() {
-      if (!name) {
-        string[] names;
-        foreach (elem; field)
-          if (auto n = fastcast!(Named) (elem._1)) {
-            string id = n.getIdentifier();
-            if (auto rm = fastcast!(RelMember) (elem._1))
-              // id = Format(id, "<"[], rm.valueType().llvmType(), ">@"[], rm.index);
-              id = Format(id, "<"[], rm.valueType(), ">@"[], rm.index);
-            names ~= id;
-          }
-        return Format("{struct "[], names.join(", "[]), "}"[]);
-      }
-      if (auto mn = get!(ModifiesName)) return mn.modify(name);
-      return name;
-    }
-    bool isTempNamespace() { return isTempStruct; }
-    void __add(string name, Object obj) {
-      cached_llvm_type = null;
-      cached_llvm_size = null;
-      auto ex = fastcast!(Expr) (obj);
-      if (ex && fastcast!(Variadic) (ex.valueType())) throw new Exception("Variadic tuple: Wtf is wrong with you. "[]);
-      super.__add(name, obj);
-    }
+    if (auto mn = get!(ModifiesName)) return mn.modify(name);
+    return name;
+  }
+  bool isTempNamespace() { return isTempStruct; }
+  void __add(string name, Object obj) {
+    cached_llvm_type = null;
+    cached_llvm_size = null;
+    auto ex = fastcast!(Expr) (obj);
+    if (ex && fastcast!(Variadic) (ex.valueType())) throw new Exception("Variadic tuple: Wtf is wrong with you. "[]);
+    super.__add(name, obj);
   }
 }
 

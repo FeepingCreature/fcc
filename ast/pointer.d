@@ -53,7 +53,7 @@ final class Pointer : Pointer_ {
 alias Single!(Pointer, Single!(Void)) voidp;
 
 // &foo
-class RefExpr : Expr {
+class RefExpr_ : Expr {
   CValue src;
   int counter;
   static int pointer_counter;
@@ -77,6 +77,11 @@ class RefExpr : Expr {
       return Format("&"[], src);
     }
   }
+}
+
+final class RefExpr : RefExpr_ {
+  static const isFinal = true;
+  this(CValue cv) { super(cv); }
 }
 
 // *foo

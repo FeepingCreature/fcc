@@ -73,11 +73,10 @@ class MValueAlias : ExprAlias, MValue {
   override MValueAlias dup() { return fastalloc!(MValueAlias)(base.dup, name); }
 }
 
-class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
+class _TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
   IType base;
   bool strict;
   string name;
-  mixin This!("base, name, strict = false"[]);
   override {
     bool isComplete() {
       // break circles
@@ -126,6 +125,11 @@ class TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
       return (fastcast!(Dwarf2Encodable) (resolveType(base))).encode(dwarf2);
     }
   }
+}
+
+final class TypeAlias : _TypeAlias {
+  static const isFinal = true;
+  mixin This!("base, name, strict = false"[]);
 }
 
 static this() {
