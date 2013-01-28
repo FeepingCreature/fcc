@@ -457,67 +457,6 @@ bool verboseParser = false;
 
 string[bool delegate(string)] condInfo;
 
-alias Tuple!(string, bool delegate(string), ubyte, bool)
-  RuleData;
-
-const RULEPTR_SIZE_HAX = (Stuple!(int, RuleData)).sizeof;
-void[RULEPTR_SIZE_HAX][] slab;
-int slab_freeptr = -1, slab_top;
-
-struct RuleStruct(alias A) {
-  Stuple!(RuleData) tuple;
-  bool fun(Params!(typeof(&A))[1 .. $] rest) {
-    return A(&tuple, rest);
-  }
-}
-
-template allocRuleData(alias A) {
-  bool delegate(Params!(typeof(&A))[1 .. $])
-  allocRuleData(RuleData rd, ref int id) {
-    void* res;
-    if (slab_freeptr != -1) {
-      auto ptr = slab[slab_freeptr].ptr;
-      *cast(int*) ptr = id;
-      res = ptr + 4;
-      
-      id = slab_freeptr;
-      slab_freeptr = *cast(int*) res;
-    } else {
-      if (!slab) slab = new void[RULEPTR_SIZE_HAX][65536];
-      if (slab_top >= slab.length) slab.length = slab.length * 2;
-      
-      auto ptr = slab[slab_top].ptr;
-      *cast(int*) ptr = id;
-      res = ptr + 4;
-      
-      id = slab_top++;
-    }
-    auto strp = cast(RuleStruct!(A)*) res;
-    strp.tuple = stuple(rd);
-    return &strp.fun;
-  }
-}
-
-Object ardlock;
-static this() { New(ardlock); }
-
-void freeRuleData(int offs) {
-  const string SRC = `
-    auto ptr = slab[offs].ptr;
-    auto data = ptr + 4;
-    *cast(int*) data = slab_freeptr;
-    slab_freeptr = offs;
-    auto prevId = *cast(int*) ptr;
-    if (prevId != -1) freeRuleData(prevId);
-  `;
-  // logln("free ", offs);
-  version(MT) {
-    synchronized(ardlock) { mixin(SRC); }
-  } else {
-    mixin(SRC);
-  }
-}
-
 bool sectionStartsWith(string section, string rule) {
   if (section.length == rule.length && section.faststreq_samelen_nonz(rule)) return true;
   if (section.length < rule.length) return false;
@@ -569,42 +508,10 @@ string matchrule_static(string rules) {
   return falsestr ~ "delegate bool("~preparams~"string text) { \n" ~ res ~ "return true; \n}";
 }
 
-// cases: smaller, greater, equal, before, after
-// version(Windows) { } else pragma(set_attribute, fun, optimize("-O3"));
-bool fun(Stuple!(RuleData)* data, string text) {
-  auto op1 = data._1;
-  if (op1 && !op1(text)) return false;
-  // avoid allocation from ~"."
-  auto rule = data._0, cases = data._2;
-  if ((cases&4) && text == rule)
-    return true;
-  
-  bool startswith = text.sectionStartsWith(rule);
-  if ((cases&1) && startswith) // all "below" in the tree
-    return true;
-  if ((cases&2) && !startswith) // arguable
-    return true;
-  
-  auto hit = &data._3;
-  if (cases&8) {
-    if (startswith)
-      *hit = true;
-    return !*hit;
-  }
-  if (cases&16) {
-    if (startswith)
-      *hit = true;
-    else return *hit;
-  }
-  if (cases&32) {
-    if (startswith)
-      *hit = true;
-    return *hit;
-  }
-  return false;
-}
+bool delegate(string)[string] rulefuns;
 
-bool delegate(string) matchrule(string rules, ref int id) {
+bool delegate(string) matchrule(string rules) {
+  if (auto p = rules in rulefuns) return *p;
   bool delegate(string) res;
   auto rules_backup = rules;
   while (rules.length) {
@@ -628,23 +535,35 @@ bool delegate(string) matchrule(string rules, ref int id) {
     // different modes
     assert((smaller || greater || equal) ^ before ^ after ^ after_incl);
     
-    alias allocRuleData!(fun) ard;
-    const string src = `
-      res = ard(
-        rule, res,
-        (smaller<<0) | (greater<<1) | (equal<<2) | (before<<3) | (after<<4) | (after_incl<<5),
-        false, id
-      );
-    `;
-    version (MT) {
-      synchronized(ardlock) {
-        mixin(src);
+    res = stuple(smaller, greater, equal, before, after, after_incl, rule, res, false) /apply/
+    (bool smaller, bool greater, bool equal, bool before, bool after, bool after_incl, string rule, bool delegate(string) prev, ref bool hit, string text) {
+      // logln(smaller, " ", greater, " ", equal, " ", before, " ", after, " ", after_incl, " ", hit, " and ", rule, " onto ", text, ":", text.sectionStartsWith(rule));
+      if (prev && !prev(text)) return false;
+      if (equal && text == rule) return true;
+      
+      bool startswith = text.sectionStartsWith(rule);
+      if (smaller && startswith) return true; // all "below" in the tree
+      if (greater && !startswith) return true; // arguable
+      
+      if (before) {
+        if (startswith)
+          hit = true;
+        return !hit;
       }
-    } else {
-      mixin(src);
-    }
-    // logln("allocate ", id);
+      if (after) {
+        if (startswith)
+          hit = true;
+        else return hit;
+      }
+      if (after_incl) {
+        if (startswith)
+          hit = true;
+        return hit;
+      }
+      return false;
+    };
   }
+  rulefuns[rules_backup] = res;
   return res;
 }
 
@@ -677,15 +596,10 @@ struct ParseCb {
   bool delegate(string) cur;
   Object opCall(T...)(ref string text, T t) {
     bool delegate(string) matchdg;
-    int delid = -1;
-    
-    scope(exit)
-      if (delid != -1)
-        freeRuleData (delid);
     
     static if (T.length && is(T[0]: char[])) {
       alias T[1..$] Rest1;
-      matchdg = matchrule(t[0], delid);
+      matchdg = matchrule(t[0]);
       auto rest1 = t[1..$];
     } else static if (T.length && is(T[0] == bool delegate(string))) {
       alias T[1..$] Rest1;
@@ -743,10 +657,6 @@ struct ParseCb {
       auto backup = text;
       static if (is(typeof(callback))) {
         auto res = fastcast!(MustType) (dg(text, matchdg, myAccept));
-        if (delid != -1) {
-          freeRuleData (delid);
-          delid = -1;
-        }
         if (!res) text = backup;
         else callback(res);
         return fastcast!(Object) (res);
@@ -959,6 +869,7 @@ void delegate(string) justAcceptedCallback;
 int[string] idepth;
 
 Parser[] parsers;
+Parser[][bool delegate(string)] prefiltered_parsers;
 string[string] prec; // precedence mapping
 Object sync;
 
@@ -1047,6 +958,8 @@ import quicksort: qsort_ = qsort;
 import tools.time: sec, µsec;
 void resort() {
   parsers.qsort_(&idSmaller);
+  prefiltered_parsers = null; // invalid; regenerate
+  rulefuns = null; // also reset this to regenerate the closures
   listModified = false;
 }
 
@@ -1071,7 +984,6 @@ template _parse(bool Verbose) {
     static if (Verbose)
       logln("BEGIN PARSE '", text.nextText(16), "'");
     
-    ubyte[RULEPTR_SIZE_HAX] cond_copy = void;
     ParseCb cont = void, rest = void;
     cont.dg = null; // needed for null check further in
     int i = void;
@@ -1106,11 +1018,20 @@ template _parse(bool Verbose) {
         // min_speed *= 1.01;
       }
     }
+    
+    Parser[] pref_parsers;
+    if (auto p = cond in prefiltered_parsers) pref_parsers = *p;
+    else {
+      foreach (parser; parsers) if (cond(parser.id)) pref_parsers ~= parser;
+      prefiltered_parsers[cond] = pref_parsers;
+    }
+    
     auto tx = text;
     tx.eatComments();
     if (!tx.length) return null;
     bool tried;
-    foreach (j, ref parser; parsers[offs..$]) {
+    // logln("use ", pref_parsers /map/ ex!("p -> p.id"), " [", offs, "..", pref_parsers.length, "]");
+    foreach (j, ref parser; pref_parsers[offs..$]) {
       i = j;
       
       // auto tx = text;
@@ -1130,52 +1051,48 @@ template _parse(bool Verbose) {
       
       auto id = parser.id;
       
-      if (cond(id)) {
-        static if (Verbose) {
-          if (!(id in idepth)) idepth[id] = 0;
-          idepth[id] ++;
-          scope(exit) idepth[id] --;
-          logln("TRY PARSER [", idepth[id], " ", id, "] for '", text.nextText(16), "'");
-        }
-        
-        matched = true;
-        
-        if (!cont.dg) {
-          cond_copy[] = (cast(ubyte*) cond.ptr)[0 .. RULEPTR_SIZE_HAX];
-          cond.ptr = cond_copy.ptr;
-          cont.dg = &cont_dg;
-          cont.cur = cond;
-          rest.dg = &rest_dg;
-          rest.cur = cond;
-        }
-        
-        auto backup = text;
-        if (auto res = parser.match(text, accept, cont, rest)) {
-          auto ctl = ParseCtl.AcceptAbort;
-          if (accept) {
-            ctl = accept(res);
-            static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "]: control flow ", ctl.decode);
-            if (ctl == ParseCtl.RejectAbort || ctl.state == 3) {
-              static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] rejected (", ctl.reason, "): ", Format(res));
-              text = backup;
-              if (ctl == ParseCtl.RejectAbort) return null;
-              continue;
-            }
-          }
-          static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
-          if (ctl == ParseCtl.AcceptAbort) {
-            if (justAcceptedCallback) justAcceptedCallback(text);
-            return res;
-          }
-          if (text.ptr > longestMatchStr.ptr) {
-            longestMatchStr = text;
-            longestMatchRes = res;
-          }
-        } else {
-          static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] failed");
-        }
-        text = backup;
+      static if (Verbose) {
+        if (!(id in idepth)) idepth[id] = 0;
+        idepth[id] ++;
+        scope(exit) idepth[id] --;
+        logln("TRY PARSER [", idepth[id], " ", id, "] for '", text.nextText(16), "'");
       }
+      
+      matched = true;
+      
+      if (!cont.dg) {
+        cont.dg = &cont_dg;
+        cont.cur = cond;
+        rest.dg = &rest_dg;
+        rest.cur = cond;
+      }
+      
+      auto backup = text;
+      if (auto res = parser.match(text, accept, cont, rest)) {
+        auto ctl = ParseCtl.AcceptAbort;
+        if (accept) {
+          ctl = accept(res);
+          static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "]: control flow ", ctl.decode);
+          if (ctl == ParseCtl.RejectAbort || ctl.state == 3) {
+            static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] rejected (", ctl.reason, "): ", Format(res));
+            text = backup;
+            if (ctl == ParseCtl.RejectAbort) return null;
+            continue;
+          }
+        }
+        static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
+        if (ctl == ParseCtl.AcceptAbort) {
+          if (justAcceptedCallback) justAcceptedCallback(text);
+          return res;
+        }
+        if (text.ptr > longestMatchStr.ptr) {
+          longestMatchStr = text;
+          longestMatchRes = res;
+        }
+      } else {
+        static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] failed");
+      }
+      text = backup;
     }
     if (longestMatchRes) {
       text = longestMatchStr;
@@ -1192,12 +1109,7 @@ Object parse(ref string text, string cond) {
   condStr = cond;
   scope(exit) condStr = null;
   
-  int delid = -1;
-  scope(exit)
-    if (delid != -1)
-      freeRuleData(delid);
-  
-  try mixin(parsecall.ctReplace("%", "text, matchrule(cond, delid)"));
+  try mixin(parsecall.ctReplace("%", "text, matchrule(cond)"));
   catch (ParseEx pe) { pe.addRule(cond); throw pe; }
   catch (Exception ex) throw new Exception(Format("Matching rule '"~cond~"': ", ex));
 }
@@ -1212,9 +1124,9 @@ void noMoreHeredoc(string text) {
 string startsWith(string text, string match)
 {
   if (text.length < match.length) return null;
-  if (!match.length) return text;
-  if (!text[0..match.length].faststreq_samelen_nonz(match)) return null;
-  return text[match.length .. $];
+  // if (!match.length) return text; // doesn't actually happen
+  if (!text.ptr[0..match.length].faststreq_samelen_nonz(match)) return null;
+  return text.ptr[match.length .. text.length];
 }
 
 string hex(ubyte u) {

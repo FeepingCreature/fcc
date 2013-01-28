@@ -1012,9 +1012,15 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       logln("ERROR: Compilation failed with ", res, " ", getErrno());
       exit(res);
     }
-    mod.alreadyEmat = true;
     return objname;
   };
+}
+
+T takeFromEnd(T)(ref T[] array) {
+  if (!array.length) fail;
+  auto res = array[$-1];
+  array = array[0..$-1];
+  return res;
 }
 
 void genCompilesWithDepends(string file, CompileSettings cs, void delegate(string delegate()) assemble) {

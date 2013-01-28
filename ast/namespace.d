@@ -30,6 +30,7 @@ struct NSCache(T...) {
     T[0][] field;
   else
     Stuple!(T)[] field;
+  int length;
 }
 
 struct PreallocatedField(int StaticSize, T) {
@@ -148,7 +149,7 @@ class Namespace {
     mod_hash ++;
   }
   typeof(mixin(S.ctReplace("$"[], "(fastcast!(T)~ field[0]._1)"[])))[] selectMap(T, string S)(NSCache!(typeof(mixin(S.ctReplace("$"[], "(fastcast!(T)~ field[0]._1)"[]))))* cachep = null) {
-    if (cachep && cachep.hash == mod_hash) return cachep.field;
+    if (cachep && cachep.hash == mod_hash) return cachep.field[0..cachep.length];
     int count;
     foreach (entry; field) if (fastcast!(T)~ entry._1) count++;
     alias typeof(mixin(S.ctReplace("$"[], "(fastcast!(T)~ field[0]._1)"[]))) restype;
@@ -157,24 +158,29 @@ class Namespace {
     foreach (entry; field)
       if (auto t = fastcast!(T)~ entry._1)
         res[i++] = mixin(S.ctReplace("$"[], "t"[]));
-    if (cachep) { cachep.hash = mod_hash; cachep.field = res; }
+    if (cachep) { cachep.hash = mod_hash; cachep.field = res; cachep.length = count; }
     return res;
   }
   void select(T)(void delegate(string, T) dg, NSCache!(string, T)* cachep = null) {
     if (cachep) {
-      if (cachep.hash != mod_hash) {
+      if (cachep.hash == mod_hash) {
+        foreach (entry; cachep.field[0..cachep.length])
+          dg(entry._0, entry._1);
+      } else {
+        int count;
+        foreach (entry; field) if (auto t = fastcast!(T) (entry._1)) count++;
+        if (cachep.field.length < count) cachep.field.length = count;
+        cachep.length = count;
         int i;
         foreach (entry; field)
           if (auto t = fastcast!(T) (entry._1)) {
             auto data = stuple(entry._0, t);
-            if (i < cachep.field.length) cachep.field[i++] = data;
-            else { i++; cachep.field ~= data; }
+            assert(i < cachep.field.length);
+            cachep.field[i++] = data;
+            dg(entry._0, t);
           }
-        cachep.field = cachep.field[0..i];
         cachep.hash = mod_hash;
       }
-      foreach (entry; cachep.field)
-        dg(entry._0, entry._1);
     } else {
       foreach (entry; field)
         if (auto t = fastcast!(T) (entry._1))

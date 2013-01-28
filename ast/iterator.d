@@ -8,6 +8,8 @@ import
   ast.scopes, ast.static_arrays, ast.aggregate, ast.vardecl,
   ast.aliasing, ast.opers, ast.arrays, ast.modules;
 
+import tools.base: between;
+
 class Range : Type, RichIterator, RangeIsh {
   IType wrapper;
   LValue castToWrapper(LValue lv) {
@@ -675,8 +677,11 @@ Object gotIterCond(bool expressionTargetAllowed = true)(ref string text, ParseCb
         return null; // this is PROBABLY safe
     }
     if (t2.accept("ref"[])) isRefDecl = true;
-    else if (!t2.accept("auto"[]) && !rest(t2, "type"[], &newVarType))
-      goto withoutIterator;
+    else if (!t2.accept("auto"[])) {
+      auto terrible_performance_improvement_hack = t2.between("", ";").find("<-") == -1;
+      if (terrible_performance_improvement_hack || !rest(t2, "type"[], &newVarType))
+        goto withoutIterator;
+    }
     string newVarName;
     if (t2.gotIdentifier(newVarName)) {
       newVarNames ~= newVarName;

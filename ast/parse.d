@@ -32,8 +32,7 @@ struct lhs_partial {
 }
 
 static this() {
-  int ignore = -1; // leak memory .. meh
-  globalStateMatchers ~= matchrule("tree.rhs_partial", ignore);
+  globalStateMatchers ~= matchrule("tree.rhs_partial");
 }
 
 class ExprStatement : LineNumberedStatementClass {
