@@ -75,13 +75,15 @@ class Texture : ITexture {
     if (!id) GenTextures(1, &id);
     bind;
     using TEXTURE_2D {
+      bool allocated_translation; // only free translated_data that we actually allocated ourselves
       if (!translated_data) {
         auto data = new int[] this.data.length;
         fast_vec4f_to_ints(this.data, data);
         translated_data = ubyte[]: data;
+        allocated_translation = true;
         if (!this.data) translated_data = null;
       }
-      onExit translated_data.free;
+      onExit if allocated_translation translated_data.free;
       
       auto param2 = LINEAR;
       if (mode == TexMode.Nearest) param2 = NEAREST;
