@@ -1252,6 +1252,10 @@ int main2(string[] args) {
   datalayout = "e-p:32:32:32-p1:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a128:128:128-a0:0:64-f80:32:32-n8:16:32-S128";
   auto exec = args.take();
   justAcceptedCallback = stuple(0, cast(typeof(sec())) 0) /apply/ (ref int prevHalfway, ref typeof(sec()) lastProg, string s) {
+    // rate limit
+    auto t = sec();
+    if (abs(t - lastProg) < 0.02) return;
+    lastProg = t;
     
     auto info = lookupProgress(s);
     if (info._1.endsWith(EXT)) {
@@ -1264,11 +1268,6 @@ int main2(string[] args) {
         int proglen = ProgbarLength - info._1.length - 4;
         auto halfway = cast(int) (info._0 * proglen);
         if (halfway == prevHalfway) return;
-        
-        // rate limit
-        auto t = sec();
-        if (abs(t - lastProg) < 0.02) return;
-        lastProg = t;
         
         prevHalfway = halfway;
         logSmart!(true) (info._1, "    ", renderProgbar(proglen, halfway));
