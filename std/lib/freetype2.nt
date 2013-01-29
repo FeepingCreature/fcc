@@ -437,13 +437,14 @@ import std.lib.opengl.texture;
       // box[1] = box[0] + (box[1] - box[0]).(vec2i(max(x, settings.minsize.x), max(y, settings.minsize.y)));
       
       if (box[0].y < bottomdist) bottomdist = box[0].y;
+      
       if (debugme) writeln "$str: box $box $bottomdist";
       
       auto shift = vec2i(box[0].x, -box[1].y); // box is up from baseline!
       if (shift.y < 0) lineshift = lineshift.max -shift.y;
       // if (shift.y > 0) height -= shift.y;
       
-      maxheight = maxheight.max $ (box[1] - box[0]).y;
+      maxheight = maxheight.max((box[1] - box[0]).y).max(settings.minsize.y);
       // maxheight .= max box[1].y; // TODO?
       
       // if (shift.y > baseline) baseline = shift.y;
