@@ -168,7 +168,6 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     bool isTempNamespace() { return false; }
     bool isPointerLess() { return false; }
     bool isComplete() { return true; }
-    bool returnsInMemory() { return false; }
   }
   IntfRef getRefType() { return fastalloc!(IntfRef)(this); }
   string toString() { return "interface "~name; }
@@ -389,7 +388,6 @@ class SuperType : IType, RelNamespace {
     string mangle() { return Format("_super_"[], baseType.mangle()); }
     int opEquals(IType it) { return false; /* wut */ }
     bool isPointerLess() { return false; }
-    bool returnsInMemory() { assert(false); }
     string llvmSize() {
       if (nativePtrSize == 4) return "4";
       fail;
@@ -630,7 +628,6 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   }
   override string mangle() { return mangle_id; }
   override Class dup() { return this; }
-  override bool returnsInMemory() { return false; }
   bool isTempNamespace() { return false; }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, null);

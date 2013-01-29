@@ -136,10 +136,6 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     Stuple!(IType, string)[] stackframe() { return (fastcast!(ScopeLike)(sup)).stackframe(); }
     string toString() { return Format("ModeSpace ("[], firstParam?firstParam.valueType():null, ")" /*" <- ", sup*/); }
     bool isTempNamespace() { return true; }
-    bool returnsInMemory() {
-      if (firstParam) return firstParam.valueType().returnsInMemory();
-      return false;
-    }
     string llvmType() {
       if (firstParam) return firstParam.valueType().llvmType();
       return "{}";

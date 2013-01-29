@@ -18,7 +18,6 @@ class UnAlignedPlaceholder : IType {
     IType proxyType() { return null; }
     bool isPointerLess() { return base.isPointerLess(); }
     bool isComplete() { return base.isComplete(); }
-    bool returnsInMemory() { return base.returnsInMemory(); }
     string toString() { return qformat("unaligned ", base); }
   }
 }

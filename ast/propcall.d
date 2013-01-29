@@ -79,7 +79,6 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
     string mangle(string name, IType type) { return sup.mangle(name, type); }
     bool isPointerLess() { return fpvt.isPointerLess(); }
     bool isComplete() { return fpvt.isComplete(); }
-    bool returnsInMemory() { return fpvt.returnsInMemory(); }
     Object lookup(string name, bool local = false) {
       return lookupInternal(name, local, true);
     }

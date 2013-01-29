@@ -751,19 +751,6 @@ Expr buildFunCall(Object obj, Expr arg, string info) {
   return _buildFunCall(obj, arg, info);
 }
 
-// for internal structs, to avoid the need to know the return type upfront
-// TODO check if this still needed
-class NoNoDontReturnInMemoryWrapper : Type {
-  IType sup;
-  this(IType sup) { this.sup = sup; }
-  override {
-    string mangle() { return "dontreturninmemory_"~sup.mangle(); }
-    string llvmSize() { return sup.llvmSize(); }
-    string llvmType() { return sup.llvmType(); }
-    bool returnsInMemory() { return false; }
-  }
-}
-
 interface Iterator {
   IType elemType();
   Cond testAdvance(LValue); // false => couldn't get a value

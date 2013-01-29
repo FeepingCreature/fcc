@@ -145,7 +145,6 @@ final class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Impor
     select((string, RelMember member) { complete &= member.type.isComplete(); });
     return complete;
   }
-  bool returnsInMemory() { return true; }
   bool immutableNow() { return isImmutableNow; }
   bool isPacked() { return packed; }
   string llvmType() {

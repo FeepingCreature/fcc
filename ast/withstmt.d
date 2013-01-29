@@ -226,7 +226,6 @@ class EnumWrapperType : RelNamespace, IType {
     IType proxyType() { return null; }
     bool isPointerLess() { return true; }
     bool isComplete() { return true; }
-    bool returnsInMemory() { return en.returnsInMemory(); }
     mixin TypeDefaults!(true);
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       if (base.valueType() !is this) {

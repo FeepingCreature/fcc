@@ -67,16 +67,7 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     auto temp = rs.value;
     
     // auto deduction!
-    if (!fun.type.ret) {
-      auto vt = rs.value.valueType();
-      if (vt.returnsInMemory()) {
-        // AAAAAAAAAAAAAAAAAaaaaaaaaaaaaaaaaaaaaa
-        // panic panic panic
-        vt = fastalloc!(NoNoDontReturnInMemoryWrapper)(vt);
-        rs.value = reinterpret_cast(vt, rs.value);
-      }
-      fun.type.ret = rs.value.valueType();
-    }
+    if (!fun.type.ret) fun.type.ret = rs.value.valueType();
     
     auto ret = resolveType(fun.type.ret);
     if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == ret); }, false)) {

@@ -237,22 +237,6 @@ extern(C) void rt_print(LLVMFile lf, string s) {
   buildFunCall(printf, mkString(s~"\n"), "printf").emitLLVM(lf);
 }
 
-static this() {
-  forcedConversionDg = forcedConversionDg /apply/ delegate Expr(Expr delegate(Expr) prev, Expr ex) {
-    if (prev) ex = prev(ex);
-    if (auto nono = fastcast!(NoNoDontReturnInMemoryWrapper)(ex.valueType())) {
-      return forcedConvert(reinterpret_cast(nono.sup, ex));
-    }
-    return ex;
-  };
-  forcedTypeConversionDg = forcedTypeConversionDg /apply/ delegate IType(IType delegate(IType) prev, IType it) {
-    if (prev) it = prev(it);
-    if (auto nono = fastcast!(NoNoDontReturnInMemoryWrapper)(it))
-      return forcedConvert(nono.sup);
-    return it;
-  };
-}
-
 // from ast.math
 
 import ast.modules, ast.prefixfun;

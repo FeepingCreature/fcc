@@ -590,11 +590,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       lf.put("leave"[]);
       
       lf.jump_barrier();
-      if (type.ret.returnsInMemory()) {
-        lf.put("ret $4"); // clean off pointer
-      } else {
-        lf.put("ret");
-      }
+      lf.put("ret");
       
       lf.put(".global "[], fun_end_sym());
       lf.put(fun_end_sym(), ":"[]);
@@ -759,11 +755,6 @@ class FunCall : Expr {
 void handleReturn(IType ret, LLVMFile lf) {
   todo("handleReturn");
   /*if (Single!(Void) == ret) return;
-  if (ret.returnsInMemory()) {
-    // the funcall routine already allocated space for us in just
-    // the right spot, so we actually have nothing left to do.
-    return;
-  }
   if (isARM) {
     if (ret.size == 2) {
       lf.salloc(2);

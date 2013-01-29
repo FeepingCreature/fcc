@@ -88,7 +88,6 @@ class _TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
     bool addsSelf() { return true; }
     string getIdentifier() { return name; }
     bool isPointerLess() { return base.isPointerLess(); }
-    bool returnsInMemory() { return base.returnsInMemory(); }
     string llvmType() { return base.llvmType(); }
     string llvmSize() { return base.llvmSize(); }
     string mangle() {

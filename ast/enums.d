@@ -32,7 +32,6 @@ class Enum : Namespace, RelNamespace, IType, Named, ExprLikeThingy {
     string mangle() { return sup.mangle(null, null)~"_enum_"~name; }
     bool isPointerLess() { return base.isPointerLess(); }
     bool isComplete() { return true; }
-    bool returnsInMemory() { return base.returnsInMemory(); }
     string llvmType() { return base.llvmType(); }
     string llvmSize() { return base.llvmSize(); }
     mixin TypeDefaults!(true);
