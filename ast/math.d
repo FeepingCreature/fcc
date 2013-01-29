@@ -20,18 +20,17 @@ final class IntAsFloat : Expr {
   }
 }
 
-class LongAsDouble : Expr {
+final class LongAsDouble : Expr {
+  static const isFinal = true;
   Expr l;
   this(Expr l) { this.l = l; assert(Single!(Long) == l.valueType()); }
   private this() { }
-  mixin DefaultDup!();
+  LongAsDouble dup() { return fastalloc!(LongAsDouble)(l.dup()); }
   mixin defaultIterate!(l);
-  override {
-    string toString() { return qformat("double:", l); }
-    IType valueType() { return Single!(Double); }
-    void emitLLVM(LLVMFile lf) {
-      load(lf, "sitofp i64 ", save(lf, l), " to double");
-    }
+  string toString() { return qformat("double:", l); }
+  IType valueType() { return Single!(Double); }
+  void emitLLVM(LLVMFile lf) {
+    load(lf, "sitofp i64 ", save(lf, l), " to double");
   }
 }
 

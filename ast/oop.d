@@ -323,61 +323,57 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   }
 }
 
-class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy, ReferenceType {
+final class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy, ReferenceType {
+  static const isFinal = true;
+  
   Class myClass;
   this(Class cl) { myClass = cl; if (!cl) fail; }
-  override {
-    bool isPointerLess() { return false; }
-    RelNamespace resolve() { return myClass; }
-    string toString() { return Format("ref ", myClass); }
-    bool addsSelf() { return true; }
-    string getIdentifier() { return myClass.name; }
-    string llvmSize() { if (nativePtrSize == 4) return "4"; fail; }
-    string llvmType() { if (nativePtrSize == 4) return "i8*"; fail; }
-    void markWeak() { myClass.markWeak(); }
-    void markExternC() { }
-    string mangle() { return "ref_"~myClass.mangle(); }
-    string mangleSelf() { return mangle(); }
-    bool returnsInMemory() { return false; }
-    int opEquals(IType type) {
-      if (!super.opEquals(type)) return false;
-      // logln("test "[], type, " against "[], this);
-      // return myClass == (fastcast!(ClassRef) (resolveType(type))).myClass;
-      return myClass.mangle() == (fastcast!(ClassRef) (resolveType(type))).myClass.mangle(); // see IntfRef
-    }
-    Expr format(Expr ex) {
-      return iparse!(Expr, "gen_obj_toString_call_again_o_o"[], "tree.expr"[])
-                    (`obj.toString()`, "obj"[], lvize(ex));
-    }
-    ClassRef dup() { return fastalloc!(ClassRef)(myClass.dup); }
-    void emitLLVM(LLVMFile lf) { myClass.emitLLVM(lf); }
-    void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myClass.iterate(dg, mode); }
+  bool isPointerLess() { return false; }
+  RelNamespace resolve() { return myClass; }
+  string toString() { return Format("ref ", myClass); }
+  bool addsSelf() { return true; }
+  string getIdentifier() { return myClass.name; }
+  string llvmSize() { if (nativePtrSize == 4) return "4"; fail; }
+  string llvmType() { if (nativePtrSize == 4) return "i8*"; fail; }
+  void markWeak() { myClass.markWeak(); }
+  void markExternC() { }
+  string mangle() { return "ref_"~myClass.mangle(); }
+  string mangleSelf() { return mangle(); }
+  Expr format(Expr ex) {
+    return iparse!(Expr, "gen_obj_toString_call_again_o_o"[], "tree.expr"[])
+                  (`obj.toString()`, "obj"[], lvize(ex));
+  }
+  void emitLLVM(LLVMFile lf) { myClass.emitLLVM(lf); }
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myClass.iterate(dg, mode); }
+  ClassRef dup() { return fastalloc!(ClassRef)(myClass.dup); }
+  int opEquals(IType type) {
+    if (!super.opEquals(type)) return false;
+    return myClass.mangle() == (fastcast!(ClassRef) (resolveType(type))).myClass.mangle(); // see IntfRef
   }
 }
 
-class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy, ReferenceType {
+final class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled, ExprLikeThingy, ReferenceType {
+  static const isFinal = true;
   Intf myIntf;
   this(Intf i) { myIntf = i; }
-  override {
-    RelNamespace resolve() { return myIntf; }
-    string toString() { return Format("ref "[], myIntf); }
-    string getIdentifier() { return myIntf.name; }
-    bool isPointerLess() { return false; }
-    bool addsSelf() { return true; }
-    string llvmSize() { if (nativePtrSize == 4) return "4"; fail; }
-    string llvmType() { if (nativePtrSize == 4) return "i8*"; fail; }
-    void markWeak() { } // nothing emitted, ergo no-op
-    void markExternC() { }
-    string mangle() { return "intfref_"~myIntf.mangle(); }
-    string mangleSelf() { return mangle(); }
-    int opEquals(IType type) {
-      if (!super.opEquals(type)) return false;
-      return myIntf.mangleSelf() == (fastcast!(IntfRef) (resolveType(type))).myIntf.mangleSelf(); // cheap hack to match obsoleted types (TODO fix properly)
-    }
-    IntfRef dup() { return fastalloc!(IntfRef)(myIntf.dup); }
-    void emitLLVM(LLVMFile lf) { myIntf.emitLLVM(lf); }
-    void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myIntf.iterate(dg, mode); }
+  RelNamespace resolve() { return myIntf; }
+  string toString() { return Format("ref "[], myIntf); }
+  string getIdentifier() { return myIntf.name; }
+  bool isPointerLess() { return false; }
+  bool addsSelf() { return true; }
+  string llvmSize() { if (nativePtrSize == 4) return "4"; fail; }
+  string llvmType() { if (nativePtrSize == 4) return "i8*"; fail; }
+  void markWeak() { } // nothing emitted, ergo no-op
+  void markExternC() { }
+  string mangle() { return "intfref_"~myIntf.mangle(); }
+  string mangleSelf() { return mangle(); }
+  int opEquals(IType type) {
+    if (!super.opEquals(type)) return false;
+    return myIntf.mangleSelf() == (fastcast!(IntfRef) (resolveType(type))).myIntf.mangleSelf(); // cheap hack to match obsoleted types (TODO fix properly)
   }
+  IntfRef dup() { return fastalloc!(IntfRef)(myIntf.dup); }
+  void emitLLVM(LLVMFile lf) { myIntf.emitLLVM(lf); }
+  void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myIntf.iterate(dg, mode); }
 }
 
 class SuperType : IType, RelNamespace {

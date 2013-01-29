@@ -13,24 +13,8 @@ Expr[] genInitPattern(int i, int len) {
   return res;
 }
 
-class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
-  IType base;
-  Tuple asTup;
-  Tuple asFilledTup; // including filler for vec3f
-  Structure asStruct;
-  int len;
-  override int alignment() {
-    todo(qformat("what is alignment of ", base));
-    // if (base.size < 4 || len < 3) return 4;
-    return 16;
-  }
-  override bool isPointerLess() { return base.isPointerLess(); }
-  // quietly treat n-size as n+1-size
-  bool extend() { return len == 3 && (Single!(Float) == base || Single!(SysInt) == base || Single!(Double) == base); }
-  int real_len() {
-    if (extend) return len + 1;
-    return len;
-  }
+final class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
+  static const isFinal = true;
   this(IType it, int i) {
     this.base = it;
     this.len = i;
@@ -44,74 +28,89 @@ class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
       asFilledTup = asTup;
     asStruct = mkVecStruct(this);
   }
-  override {
-    string mangle() { return qformat("vec_"[], len, "_"[], base.mangle()); }
-    string toString() { return qformat("vec("[], base, ", "[], len, ")"[]); }
-    bool isTempNamespace() { return false; }
-    string llvmType() {
-      return qformat("<", real_len(), " x ", typeToLLVM(base), ">"); 
+  IType base;
+  Tuple asTup;
+  Tuple asFilledTup; // including filler for vec3f
+  Structure asStruct;
+  int len;
+  int alignment() {
+    todo(qformat("what is alignment of ", base));
+    // if (base.size < 4 || len < 3) return 4;
+    return 16;
+  }
+  bool isPointerLess() { return base.isPointerLess(); }
+  // quietly treat n-size as n+1-size
+  bool extend() { return len == 3 && (Single!(Float) == base || Single!(SysInt) == base || Single!(Double) == base); }
+  int real_len() {
+    if (extend) return len + 1;
+    return len;
+  }
+  string mangle() { return qformat("vec_"[], len, "_"[], base.mangle()); }
+  string toString() { return qformat("vec("[], base, ", "[], len, ")"[]); }
+  bool isTempNamespace() { return false; }
+  string llvmType() {
+    return qformat("<", real_len(), " x ", typeToLLVM(base), ">"); 
+  }
+  string llvmSize() {
+    return asFilledTup.llvmSize();
+  }
+  int opEquals(IType it) {
+    auto vec = fastcast!(Vector) (resolveType(it));
+    if (!vec) return false;
+    return vec.base == base && vec.len == len;
+  }
+  Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
+    if (!base) {
+      if (len > 0 && str == "X") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(0, len)), this));
+      if (len > 1 && str == "Y") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(1, len)), this));
+      if (len > 2 && str == "Z") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(2, len)), this));
+      if (len > 3 && str == "W") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(3, len)), this));
+      return null;
     }
-    string llvmSize() {
-      return asFilledTup.llvmSize();
+    if (len > 4) return null;
+    bool isValidChar(char c) {
+      if (len >= 1 && c == 'x') return true;
+      if (len >= 2 && c == 'y') return true;
+      if (len >= 3 && c == 'z') return true;
+      if (len == 4 && c == 'w') return true;
+      return false;
     }
-    int opEquals(IType it) {
-      auto vec = fastcast!(Vector) (resolveType(it));
-      if (!vec) return false;
-      return vec.base == base && vec.len == len;
-    }
-    Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
-      if (!base) {
-        if (len > 0 && str == "X") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(0, len)), this));
-        if (len > 1 && str == "Y") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(1, len)), this));
-        if (len > 2 && str == "Z") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(2, len)), this));
-        if (len > 3 && str == "W") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(3, len)), this));
-        return null;
-      }
-      if (len > 4) return null;
-      bool isValidChar(char c) {
-        if (len >= 1 && c == 'x') return true;
-        if (len >= 2 && c == 'y') return true;
-        if (len >= 3 && c == 'z') return true;
-        if (len == 4 && c == 'w') return true;
-        return false;
-      }
-      foreach (ch; str) if (!isValidChar(ch)) return null;
-      // if (auto res = getSSESwizzle(this, base, str)) return fastcast!(Object) (res);
-      Expr generate(Expr ex) {
-        if (str.length == 1) {
-          auto ch = str[0];
-          if (ch == 'x') return mkTupleIndexAccess(ex, 0);
-          if (ch == 'y') return mkTupleIndexAccess(ex, 1);
-          if (ch == 'z') return mkTupleIndexAccess(ex, 2);
-          if (ch == 'w') return mkTupleIndexAccess(ex, 3);
-          assert(false);
-        }
-        auto parts = getTupleEntries(ex, null, true);
-        Expr[] exprs;
-        foreach (ch; str) {
-              if (ch == 'x') exprs ~= parts[0];
-          else if (ch == 'y') exprs ~= parts[1];
-          else if (ch == 'z') exprs ~= parts[2];
-          else if (ch == 'w') exprs ~= parts[3];
-          else assert(false);
-        }
-        if (exprs.length == 1) return exprs[0];
-        if (exprs.length > 4) throw new Exception("Cannot use swizzle to create vector larger than four elements");
-        auto new_vec = mkVec(this.base, exprs.length);
-        if (new_vec.extend) exprs ~= fastalloc!(ZeroInitializer)(this.base);
-        return reinterpret_cast(new_vec, mkTupleExpr(exprs));
-      }
-      // no need for caching in this case
+    foreach (ch; str) if (!isValidChar(ch)) return null;
+    // if (auto res = getSSESwizzle(this, base, str)) return fastcast!(Object) (res);
+    Expr generate(Expr ex) {
       if (str.length == 1) {
-        return fastcast!(Object) (generate(reinterpret_cast(asFilledTup, base)));
+        auto ch = str[0];
+        if (ch == 'x') return mkTupleIndexAccess(ex, 0);
+        if (ch == 'y') return mkTupleIndexAccess(ex, 1);
+        if (ch == 'z') return mkTupleIndexAccess(ex, 2);
+        if (ch == 'w') return mkTupleIndexAccess(ex, 3);
+        assert(false);
       }
-      if (auto lv = fastcast!(LValue) (base)) {
-        return fastcast!(Object)~ tmpize_maybe(fastalloc!(RefExpr)(lv), (Expr ex) {
-          return generate(fastalloc!(DerefExpr)(reinterpret_cast(fastalloc!(Pointer)(asFilledTup), ex)));
-        });
+      auto parts = getTupleEntries(ex, null, true);
+      Expr[] exprs;
+      foreach (ch; str) {
+            if (ch == 'x') exprs ~= parts[0];
+        else if (ch == 'y') exprs ~= parts[1];
+        else if (ch == 'z') exprs ~= parts[2];
+        else if (ch == 'w') exprs ~= parts[3];
+        else assert(false);
       }
-      return fastcast!(Object)~tmpize_maybe(reinterpret_cast(asFilledTup, base), &generate);
+      if (exprs.length == 1) return exprs[0];
+      if (exprs.length > 4) throw new Exception("Cannot use swizzle to create vector larger than four elements");
+      auto new_vec = mkVec(this.base, exprs.length);
+      if (new_vec.extend) exprs ~= fastalloc!(ZeroInitializer)(this.base);
+      return reinterpret_cast(new_vec, mkTupleExpr(exprs));
     }
+    // no need for caching in this case
+    if (str.length == 1) {
+      return fastcast!(Object) (generate(reinterpret_cast(asFilledTup, base)));
+    }
+    if (auto lv = fastcast!(LValue) (base)) {
+      return fastcast!(Object)~ tmpize_maybe(fastalloc!(RefExpr)(lv), (Expr ex) {
+        return generate(fastalloc!(DerefExpr)(reinterpret_cast(fastalloc!(Pointer)(asFilledTup), ex)));
+      });
+    }
+    return fastcast!(Object)~tmpize_maybe(reinterpret_cast(asFilledTup, base), &generate);
   }
 }
 

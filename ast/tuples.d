@@ -139,45 +139,44 @@ mixin DefaultParser!(gotTupleType, "type.tuple"[], "37"[], "("[]);
 
 import ast.assign;
 
-class RefTuple : MValue {
+final class RefTuple : MValue {
   IType baseTupleType;
   MValue[] mvs;
   mixin defaultIterate!(mvs);
+  static const isFinal = true;
+  this(MValue[] mvs...) {
+    this.mvs = mvs.dup;
+    baseTupleType = mkTupleValueExpr(getAsExprs()).valueType();
+  }
+  RefTuple dup() {
+    auto newlist = mvs.dup;
+    foreach (ref entry; newlist) entry = entry.dup;
+    return fastalloc!(RefTuple)(newlist);
+  }
   IType[] types() { return (fastcast!(Tuple) (baseTupleType)).types(); }
   Expr[] getAsExprs() {
     auto exprs = new Expr[mvs.length];
     foreach (i, mv; mvs) exprs[i] = mv;
     return exprs;
   }
-  this(MValue[] mvs...) {
-    this.mvs = mvs.dup;
-    baseTupleType = mkTupleValueExpr(getAsExprs()).valueType();
+  IType valueType() { return baseTupleType; }
+  void emitLLVM(LLVMFile lf) {
+    mkTupleValueExpr(getAsExprs).emitLLVM(lf);
   }
-  override {
-    RefTuple dup() {
-      auto newlist = mvs.dup;
-      foreach (ref entry; newlist) entry = entry.dup;
-      return fastalloc!(RefTuple)(newlist);
-    }
-    IType valueType() { return baseTupleType; }
-    void emitLLVM(LLVMFile lf) {
-      mkTupleValueExpr(getAsExprs).emitLLVM(lf);
-    }
-    string toString() {
-      return Format("reftuple("[], mvs, ")"[]);
-    }
-    void emitAssignment(LLVMFile lf) {
-      auto var = lf.pop();
-      auto vartype = typeToLLVM(baseTupleType);
-      foreach (i, target; mvs) {
-        mixin(mustOffset("0"));
-        load(lf, "extractvalue ", vartype, " ", var, ", ", i);
-        auto tt = target.valueType(), tsa = typeToLLVM(tt, true), tsb = typeToLLVM(tt);
-        if (tsa != tsb) {
-          llcast(lf, tsa, tsb, lf.pop(), target.valueType().llvmSize());
-        }
-        target.emitAssignment(lf);
+  string toString() {
+    return Format("reftuple("[], mvs, ")"[]);
+  }
+  void emitAssignment(LLVMFile lf) {
+    auto var = lf.pop();
+    auto vartype = typeToLLVM(baseTupleType);
+    foreach (i, target; mvs) {
+      mixin(mustOffset("0"));
+      load(lf, "extractvalue ", vartype, " ", var, ", ", i);
+      auto tt = target.valueType(), tsa = typeToLLVM(tt, true), tsb = typeToLLVM(tt);
+      if (tsa != tsb) {
+        llcast(lf, tsa, tsb, lf.pop(), target.valueType().llvmSize());
       }
+      target.emitAssignment(lf);
     }
   }
 }
