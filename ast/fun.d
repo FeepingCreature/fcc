@@ -553,13 +553,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       // dwarfOpen(lf);
       // scope(exit) dwarfClose(lf);
       
-      /*lf.put(fmn, ":"[]); // not really a label
-      lf.put(".global "[], fun_start_sym());
-      lf.put(fun_start_sym(), ":"[]);
-      // lf.put(".cfi_startproc"[]);
-      
-      lf.jump_barrier();*/
-      
       // if (lf.profileMode)
       //   lf.put("call mcount"[]);
       
@@ -584,28 +577,6 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       } else {
         put(lf, "unreachable");
       }
-      // lf.mmove4("%ebp", "%esp");
-      // lf.popStack("%ebp", nativePtrSize);
-      /*if (isWindoze() && extern_c) { lf.mmove4("-4(%ebp)", "%ebx"); }
-      lf.put("leave"[]);
-      
-      lf.jump_barrier();
-      lf.put("ret");
-      
-      lf.put(".global "[], fun_end_sym());
-      lf.put(fun_end_sym(), ":"[]);
-      
-      if (!isWindoze())
-        lf.put(".size "[], fmn, ", .-"[], fmn);
-      
-      if (isWindoze()) lf.put(".section .text$debug_section_"[], fmn, ", \"r\""[]);
-      lf.put(".global "[], fun_linenr_sym());
-      lf.put(fun_linenr_sym(), ":"[]);
-      lf.put(".long "[], linecounter);
-      for (int i = 0; i < linecounter; ++i) {
-        lf.put(".long "[], linedebug(i));
-        lf.put(".long "[], linenumbers[i]);
-      }*/
     }}
     
     Stuple!(IType, string)[] stackframe() {
@@ -750,74 +721,6 @@ class FunCall : Expr {
     }
     return fun.type.ret;
   }
-}
-
-void handleReturn(IType ret, LLVMFile lf) {
-  todo("handleReturn");
-  /*if (Single!(Void) == ret) return;
-  if (isARM) {
-    if (ret.size == 2) {
-      lf.salloc(2);
-      lf.mmove2("r0", "[sp]");
-      return;
-    }
-    if (ret.size == 4) {
-      lf.pushStack("r0", 4);
-      return;
-    }
-    if (ret.size == 8) {
-      lf.pushStack("r3", 4);
-      lf.pushStack("r0", 4);
-      return;
-    }
-    if (ret.size == 12) {
-      lf.pushStack("r3", 4);
-      lf.pushStack("r2", 4);
-      lf.pushStack("r0", 4);
-      return;
-    }
-    if (ret.size == 16) {
-      lf.pushStack("r3", 4);
-      lf.pushStack("r2", 4);
-      lf.pushStack("r1", 4);
-      lf.pushStack("r0", 4);
-      return;
-    }
-    logln(ret);
-    fail;
-  }
-  if (Single!(Float) == ret) {
-    lf.salloc(4);
-    lf.storeFloat("(%esp)");
-    return;
-  }
-  if (Single!(Double) == ret) {
-    lf.salloc(8);
-    lf.storeDouble("(%esp)");
-    return;
-  }
-  if (ret.size >= 8) {
-    lf.pushStack("%edx", 4);
-    lf.nvm("%edx");
-  }
-  if (ret.size >= 12) {
-    lf.pushStack("%ecx", 4);
-    lf.nvm("%ecx");
-  }
-  if (ret.size == 16) {
-    lf.pushStack("%ebx", 4);
-    lf.nvm("%ebx");
-  }
-  if (ret.size >= 4) {
-    lf.pushStack("%eax", 4);
-    lf.nvm("%eax");
-  } else if (ret.size == 2) {
-    lf.pushStack("%ax", 2);
-    lf.nvm("%ax");
-  } else if (ret.size == 1) {
-    lf.pushStack("%al", 1);
-    lf.nvm("%al");
-  }*/
 }
 
 import tools.log, ast.fold;
