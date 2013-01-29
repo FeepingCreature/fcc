@@ -420,12 +420,16 @@ class AsmIntBinopExpr : BinopExpr {
       void checkZero(string kind, int num) {
         if (!num) throw new Exception(Format("Could not compute "~kind~": division by zero"[]));
       }
+      void checkOverflow(string kind, int n1, int n2) {
+        if (n1 == -2147483648 && n2 == -1)
+          throw new Exception("Could not compute -2147483648 " ~ kind ~ "-1: integer overflow (INT_MIN has no positive equivalent)");
+      }
       switch (aibe.op) {
         case "+": return mkInt(ie1.num + ie2.num);
         case "-": return mkInt(ie1.num - ie2.num);
         case "*": return mkInt(ie1.num * ie2.num);
-        case "/": checkZero("division"[], ie2.num); return mkInt(ie1.num / ie2.num);
-        case "%": checkZero("modulo"[], ie2.num); return mkInt(ie1.num % ie2.num);
+        case "/": checkZero("division"[], ie2.num); checkOverflow("/", ie1.num, ie2.num); return mkInt(ie1.num / ie2.num);
+        case "%": checkZero("modulo"[], ie2.num); checkOverflow("%", ie1.num, ie2.num); return mkInt(ie1.num % ie2.num);
         case "<<": return mkInt(ie1.num << ie2.num);
         case ">>": return mkInt(ie1.num >> ie2.num);
         case "&": return mkInt(ie1.num & ie2.num);
