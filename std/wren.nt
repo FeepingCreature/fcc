@@ -462,6 +462,10 @@ Thing parse(string* text) {
   if (text.accept("'")) {
     return new Escape (parse text);
   }
+  if (text.accept(";")) {
+    *text = *text #.between("\n", ""); // eat a line
+    return parse(text); // and retry
+  }
   auto t2 = *text #.strip();
   char[auto~] token;
   while (t2.length && t2[0] != " " && t2[0] != ")" && t2[0] != "(" && t2[0] != "\r" && t2[0] != "\n") {
