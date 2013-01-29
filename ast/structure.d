@@ -860,11 +860,15 @@ static this() {
     
     if (!rn) return;
     for (int i = 1; true; i++) {
-      // logln("  ", rn, ": lookup ", "implicit-cast"~(i>1?Format("-"[], i):""[]), " => ", rn.lookupRel("implicit-cast"~(i>1?Format("-"[], i):""[]), ex));
-      if (auto res = fastcast!(Expr) (rn.lookupRel("implicit-cast"~(i>1?Format("-"[], i):""[]), ex))) {
+      string castname;
+      if (i > 1) castname = qformat("implicit-cast-", i);
+      else castname = "implicit-cast";
+      if (showsAnySignOfHaving(ex, castname)) if (auto res = fastcast!(Expr) (rn.lookupRel(castname, ex))) {
         // if (!goal || res.valueType() == goal) consider(res);
         consider(res, 1); // slightly worse score: prefer other alternatives
-      } else return;
+        continue;
+      }
+      return;
     }
   };
   implicits ~= delegate void(Expr ex, IType goal, void delegate(Expr) consider) {
