@@ -1,0 +1,6 @@
+module test158;
+
+void main() {
+  class A { }
+  (A, B) foo;
+}
