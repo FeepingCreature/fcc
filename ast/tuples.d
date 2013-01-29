@@ -123,7 +123,7 @@ Object gotTupleType(ref string text, ParseCb cont, ParseCb rest) {
   string ident;
   IType lastTypeAdded;
   if (t2.bjoin(
-        (rest(t2, "type"[], &ty) || (ty = lastTypeAdded, ty)) && (t2.gotIdentifier(ident) || (ident = null, true)),
+        (rest(t2, "type"[], &ty) /*|| (ty = lastTypeAdded, ty)*/) && (t2.gotIdentifier(ident) || (ident = null, true)),
         t2.accept(","[]),
         { types ~= ty; lastTypeAdded = ty; names ~= ident; }
       ) &&

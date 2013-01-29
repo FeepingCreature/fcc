@@ -1,6 +1,7 @@
-module test158;
+module test158fail;
 
 void main() {
   class A { }
-  (A, B) foo;
+  (A, A) foo;
+  (A, B) bar;
 }
