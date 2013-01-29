@@ -245,6 +245,7 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
       auto r2 = fastcast!(Namespace) (get!(IModule)).lookup(name, false);
       if (r2 is res) return null; // nonlocal
       auto itr = fastcast!(Iterable) (res);
+      if (!itr) { logln("weird-ass: ", res, " but not iterable"); fail; }
       fixupEBP(itr, base);
       return fastcast!(Object) (itr);
     }

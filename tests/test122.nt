@@ -5,14 +5,16 @@ void main() {
     (float f, float g) = (3, 4);
     f = 3;
   }
-  {
+  // Those should NOT work! They're too ambiguous, since it's unclear if g is meant to be a type or a name.
+  // (yes I've had issues with that)
+  /*{
     (float f, g) tup;
     tup.f = 3;
   }
   {
     (float f, g) tup = (2, 4);
     tup.f = 3;
-  }
+  }*/
   {
     float (f, g);
     f = 3;

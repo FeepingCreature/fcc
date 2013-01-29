@@ -638,12 +638,18 @@ void mkAbstract(Function fun) {
 TLS!(Function) current_emitting_function;
 static this() { New(current_emitting_function); }
 
-class OverloadSet : Named, Extensible {
+class OverloadSet : Named, Extensible, Iterable {
   string name;
   Function[] funs;
   this(string n, Function[] f...) {
     name = n;
     foreach (fun; f) add(fun);
+  }
+  mixin defaultIterate!(funs);
+  OverloadSet dup() {
+    Function[] f2;
+    foreach (fun; funs) f2 ~= fun.dup();
+    return fastalloc!(OverloadSet)(name, f2);
   }
   override string toString() { return Format("overload of ", funs); }
   void add(Function f) {
