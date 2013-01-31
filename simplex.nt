@@ -2,8 +2,11 @@ module simplex;
 
 import std.math;
 
-int[] perm, mperm; // perm mod 12
+/** based, indirectly and directly, on http://webstaff.itn.liu.se/~stegu/aqsis/DSOs/DSOnoises.html **/
+
+int[] perm, mperm, mperm32; // perm mod 12, 32
 vec3i x 12 grad3;
+vec4i x 32 grad4;
 
 bool setupPerm;
 
@@ -36,7 +39,7 @@ vec3i x 2[] offsets;
 
 void permsetup() {
   setupPerm = true;
-  (perm, mperm) = (new int[] 256) x 2;
+  (perm, mperm, mperm32) = (new int[] 256) x 3;
   int seed = 34;
   auto gen = new KISS;
   gen.seed(seed);
@@ -47,25 +50,27 @@ void permsetup() {
     // perm[i] = (gen.rand() & 0x7fff_ffff) % 256;
     perm[i] = newperms[i];
     mperm[i] = perm[i] % 12;
+    mperm32[i] = perm[i] % 32;
   }
   int i;
-  alias values = [1, 1, 0,
-                 -1, 1, 0,
-                  1,-1, 0,
-                 -1,-1, 0,
-                 
-                  1, 0, 1,
-                 -1, 0, 1,
-                  1, 0,-1,
-                 -1, 0,-1,
-                 
-                  0, 1, 1,
-                  0,-1, 1,
-                  0, 1,-1,
-                  0,-1,-1];
+  alias values3 = [1, 1, 0,  -1, 1, 0,  1,-1, 0,  -1,-1, 0,
+                  1, 0, 1,  -1, 0, 1,  1, 0,-1,  -1, 0,-1,
+                  0, 1, 1,   0,-1, 1,  0, 1,-1,   0,-1,-1];
   while ((int k, int l), int idx) <- zip (cross (0..12, 0..3), ints) {
-    grad3[k][l] = values[idx];
+    grad3[k][l] = values3[idx];
   }
+  alias values4 = [ 0, 1, 1, 1,  0, 1, 1,-1,  0, 1,-1, 1,  0, 1,-1,-1,
+                    0,-1, 1, 1,  0,-1, 1,-1,  0,-1,-1, 1,  0,-1,-1,-1,
+                    1, 0, 1, 1,  1, 0, 1,-1,  1, 0,-1, 1,  1, 0,-1,-1,
+                   -1, 0, 1, 1, -1, 0, 1,-1, -1, 0,-1, 1, -1, 0,-1,-1,
+                    1, 1, 0, 1,  1, 1, 0,-1,  1,-1, 0, 1,  1,-1, 0,-1,
+                   -1, 1, 0, 1, -1, 1, 0,-1, -1,-1, 0, 1, -1,-1, 0,-1,
+                    1, 1, 1, 0,  1, 1,-1, 0,  1,-1, 1, 0,  1,-1,-1, 0,
+                   -1, 1, 1, 0, -1, 1,-1, 0, -1,-1, 1, 0, -1,-1,-1, 0];
+  while ((int k, int l), int idx) <- zip (cross (0..32, 0..4), ints) {
+    grad4[k][l] = values4[idx];
+  }
+  
   offsets = new vec3i x 2[] 8;
   offsets[0] = [vec3i.X, vec3i(1, 1, 0)];
   offsets[1] = [vec3i.Y, vec3i(1, 1, 0)];
@@ -202,13 +207,13 @@ class SimplexNoise {
   void init(int delegate() rng) {
     configNoiseContext(&nc, rng);
   }
-  float eval(float x, y, z) {
+  float eval(float x, y, z, vec3f* δ = null) {
     // return noise3_asm(x, y, z, &nc);
-    return noise3(vec3f(x, y, z));
+    return noise3(vec3f(x, y, z), δ);
   }
 }
 
-float noise3(vec3f v) {
+float noise3(vec3f v, vec3f* δ = null) {
   vec3f x 4  vs = void;
   vec3f vsum = void;
   int x 4  gi = void;
@@ -228,8 +233,7 @@ float noise3(vec3f v) {
   vec4f xmm5 = xmm6.yzz;
   // this is correct, I worked it out
   // mask = [0b100_110, 0b010_110, 0, 0b010_011, 0b100_101, 0, 0b001_101, 0b001_011][(eval xmm[4] < xmm[5]) & 0b0111];
-  auto opp = &offsets[(eval xmm4 < xmm5) & 0b0111];
-  alias op = *opp;
+  ref op = offsets[(eval xmm4 < xmm5) & 0b0111];
   alias offs1 = op[0];
   alias offs2 = op[1];
   vs[1] -= vec3f(offs1);
@@ -246,26 +250,27 @@ float noise3(vec3f v) {
     gi[2] = mperm[(lperm[(lperm[(kk+k2)&0xff]+jj+j2)&0xff]+ii+i2)&0xff];
     gi[3] = mperm[(lperm[(lperm[(kk+1 )&0xff]+jj+1 )&0xff]+ii+1 )&0xff];
   }
-  vec3f current = void;
   vec4f factors = void, res = void;
-  auto pair = [1f, -1f, -1f];
+  // auto pair = [1f, -1f, -1f];
   while (int c <- 0..4) {
-    auto vscp = &vs[c];
-    alias vsc = *vscp;
-    current = vsc;
-    current *= current;
-    factors[c] = 0.6f - current.sum;
+    ref vsc = vs[c];
+    factors[c] = 0.6f - (vsc*vsc).sum;
     if (factors[c] >= 0) {
-      auto id = gi[c];
-      res[c] = (vsc[id >> 3] * pair[id&1]) + (vsc[((id >> 2) | (id >> 3)) & 1 + 1] * pair[id&2]);
+      res[c] = vsc * grad3[gi[c]] #.sum;
+      // res[c] = (vsc[id >> 3] * pair[id&1]) + (vsc[((id >> 2) | (id >> 3)) & 1 + 1] * pair[id&2]);
     } else {
       factors[c] = 0;
       res[c] = 0;
     }
   }
-  xmm4 = factors;
-  xmm4 *= xmm4;
-  xmm4 *= xmm4;
-  res *= xmm4;
-  return 0.5f + 16.0f*res.sum;
+  vec4f factors2 = factors * factors;
+  vec4f factors4 = factors2 * factors2;
+  res *= factors4;
+  if (δ) {
+    vec3f Δ = vec3f 0;
+    for int c <- 0..4
+      Δ += -8f * factors2[c] * factors[c] * vs[c] * (grad3[gi[c]]*vs[c]).sum + grad3[gi[c]] * factors4[c];
+    *δ = Δ;
+  }
+  return (1f + 28f * res.sum) / 2f;
 }
