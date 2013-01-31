@@ -77,10 +77,10 @@ static this() {
     opt(len);
     if (auto ie = fastcast!(IntExpr) (len)) {
       return iparse!(Expr, "array_iterate_int"[], "tree.expr.iter.for"[])
-                    (`[for i <- 0..len extra arr: extra[i]]`, namespace(), "arr"[], ex, "len"[], ie);
+                    (`[for i <- 0..len extra arr: extra.ptr[i]]`, namespace(), "arr"[], ex, "len"[], ie);
     } else {
       return tmpize_maybe(ex, (Expr ex) { return iparse!(Expr, "array_iterate"[], "tree.expr.iter.for"[])
-                         (`[for i <- 0..arr.length extra arr: extra[i]]`, namespace(), "arr"[], ex); });
+                         (`[for i <- 0..arr.length extra arr: extra.ptr[i]]`, namespace(), "arr"[], ex); });
     }
   }
   implicits ~= delegate Expr(Expr ex, IType expect) {
