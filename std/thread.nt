@@ -155,49 +155,56 @@ class ThreadPool {
   int tasksLeft, numThreads;
   void delegate(int)[] readqueue, readqueue-full;
   void delegate(int)[auto~] writequeue;
+  bool invoked; // if true, threadpool is intended to run threadless, executing tasks by direct invocation
   /*Function: init*/
-  void init() {
+  void init(bool invoked = false) {
     New &readlock;
     New &writelock;
     New &m;
     New &s;
     New &t;
+    this.invoked = invoked;
+  }
+  void invoke() {
+    assert invoked;
+    using LockedMutex:m while tasksLeft using UnlockedMutex:m {
+      threadFunOnce 0;
+      waitOneComplete; // bookkeeping
+    }
+  }
+  void threadFunOnce(int id) {
+    s.claim();
+    void delegate(int) dg;
+    using LockedMutex:readlock {
+      if (!readqueue.length) {
+        readqueue-full.free;
+        using LockedMutex:writelock {
+          readqueue = writequeue[];
+          readqueue-full = readqueue;
+          writequeue = type-of writequeue: type-of readqueue: null;
+        }
+      }
+      (dg, readqueue) = readqueue[(0, 1..$)];
+    }
+    set-handler (UnrecoverableError err) {
+      // gdb-print-backtrace;
+      import std.process;
+      writeln read-pretty-fcc-backtrace();
+      writeln "Unhandled error in task: '$err'. ";
+      
+      invoke-exit "invoke-return";
+    }
+    define-exit "invoke-return" return;
+    onExit t.release();
+    dg(id);
   }
   void threadFun(int id) {
-    /*if (int:_ebp & 0xf != 0x8) {
-      writeln "FEEEP! YOU BROKE THE FUCKING THREAD FRAME ALIGNMENT AGAIN. $(_ebp) ";
-      *int*:null=0;
-    }*/
-    while (true) {
-      s.claim;
-      void delegate(int) dg;
-      using LockedMutex:readlock {
-        if (!readqueue.length) {
-          readqueue-full.free;
-          using LockedMutex:writelock {
-            readqueue = writequeue[];
-            readqueue-full = readqueue;
-            writequeue = type-of writequeue: type-of readqueue: null;
-          }
-        }
-        (dg, readqueue) = readqueue[(0, 1..$)];
-      }
-      set-handler (UnrecoverableError err) {
-        // gdb-print-backtrace;
-        import std.process;
-        writeln read-pretty-fcc-backtrace();
-        writeln "Unhandled error in task: '$err'. ";
-        
-        invoke-exit "task-continue";
-      }
-      define-exit "task-continue" continue;
-      onExit t.release();
-      dg(id);
-    }
+    while (true) threadFunOnce id;
   }
   /*Function: addThread
   Starts a new thread and adds it to the pool*/
   void addThread() {
+    assert ! invoked;
     int thr-id = numThreads ++;
     auto tf = &threadFun;
     startThread new delegate void() { tf(thr-id); };
@@ -208,14 +215,19 @@ class ThreadPool {
     init();
     for (0..i) addThread();
   }
+  void waitOneComplete() {
+    using LockedMutex:m {
+      assert !! tasksLeft;
+      using UnlockedMutex:m t.claim;
+      tasksLeft --;
+    }
+  }
   /*Function: waitComplete
   Wait until all tasks have been completed. */
   void waitComplete() {
     using LockedMutex:m {
       while (tasksLeft) { 
-        this.m.unlock;
-        t.claim;
-        this.m.lock;
+        using UnlockedMutex:m t.claim;
         tasksLeft --;
       }
     }
@@ -223,7 +235,7 @@ class ThreadPool {
   /*Function: addTask
   Adds a task to be executed. The task is called with the id of the thread that's executing it. */
   void addTask(void delegate(int) dg) {
-    if (!numThreads) { dg(0); return; }
+    if (!numThreads && !invoked) { dg(0); return; }
     using LockedMutex:m tasksLeft ++;
     using LockedMutex:writelock writequeue ~= dg;
     s.release;
@@ -231,7 +243,7 @@ class ThreadPool {
   /*Function: addTask
   Adds a task to be executed. */
   void addTask(void delegate() dg) {
-    if (!numThreads) { dg(); return; }
+    if (!numThreads && !invoked) { dg(); return; }
     addTask new delegate void(int) { dg(); };
   }
 }
