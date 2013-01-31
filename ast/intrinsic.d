@@ -685,6 +685,8 @@ void setupSysmods() {
         sa.sigaction = &seghandle;
         if (sigaction(c.signal.SIGSEGV, &sa, null) == -1)
           raise new Error "failed to setup SIGSEGV handler";
+        // if (sigaction(c.signal.SIGFPE, &sa, null) == -1)
+        //   raise new Error "failed to setup SIGFPE handler";
       }
       extern(C) void* getThreadlocal() {
           return c.pthread.pthread_getspecific(tls_pointer);

@@ -52,7 +52,7 @@ class WrenRepl : ListNamespace {
         continue;
       }
       auto thing = parse &input;
-      if ((string inp = input.strip()).length) {
+      if ((string inp = input.commentstrip()).length) {
         define-exit "print-error" (WrenInputError) {
           writeln "Error: unknown input: '$inp'";
           continue;

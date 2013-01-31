@@ -422,7 +422,7 @@ class AsmIntBinopExpr : BinopExpr {
       }
       void checkOverflow(string kind, int n1, int n2) {
         if (n1 == -2147483648 && n2 == -1)
-          throw new Exception("Could not compute -2147483648 " ~ kind ~ "-1: integer overflow (INT_MIN has no positive equivalent)");
+          throw new Exception("Could not compute -2147483648 " ~ kind ~ " -1: integer overflow (INT_MIN has no positive equivalent in two's complement)");
       }
       switch (aibe.op) {
         case "+": return mkInt(ie1.num + ie2.num);

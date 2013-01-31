@@ -13,28 +13,12 @@ interface ITexture {
 enum TexMode { MipMapped, Linear, Nearest }
 
 void fast_vec4f_to_ints(vec4f[] vecs, int[] ints) {
-  pragma(fast);
   for (int i = 0; i < vecs.length; ++i) {
     ref v = vecs[i];
     ref res = ints[i];
-    // xmm[4] = v * vec4f(255);
-    // asm `cvttps2dq %xmm4, %xmm5`;
-    // vec4i iv = vec4i:xmm[5];
     auto mul = v * vec4f(255);
     vec4i iv = vec4i(int:mul.x, int:mul.y, int:mul.z, int:mul.w);
     res = iv.x | iv.y << 8 | iv.z << 16 | iv.w << 24;
-    /*asm `movsbl 4(%esp), %eax`;
-    asm `movsbl 8(%esp), %ecx`;
-    asm `shll $8, %eax`;
-    asm `shll $16, %ecx`;
-    asm `orl %ecx, %eax`;
-    asm `movsbl (%esp), %ecx`;
-    asm `movsbl 12(%esp), %edx`;
-    asm `orl %ecx, %eax`;
-    asm `shll $24, %edx`;
-    asm `orl %edx, %eax`;
-    asm `movl %eax, (%esp)`;
-    res = iv.x;*/
   }
 }
 

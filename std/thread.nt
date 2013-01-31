@@ -44,10 +44,11 @@ class Semaphore {
   sem_t hdl;
   /*Function: init*/
   void init() { sem_init(&hdl, false, 0); }
+  import std.file, c.errno;
   /*Function: claim*/
-  void claim() { sem_wait(&hdl); }
+  void claim() { while (sem_wait(&hdl) == -1) { if (errno == EINTR) continue; raise new ErrnoError("sem_wait"); } }
   /*Function: release*/
-  void release() { sem_post(&hdl); }
+  void release() { while (sem_post(&hdl) == -1) { if (errno == EINTR) continue; raise new ErrnoError("sem_wait"); } }
 }
 
 vec4f aligntest_a, aligntest_b;
