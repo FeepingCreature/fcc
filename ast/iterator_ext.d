@@ -33,7 +33,7 @@ class ArrayIterator : Type, RichIterator, IArrayIterator {
     }
     Expr currentValue(Expr ex) {
       auto entries = getTupleEntries(reinterpret_cast(tup, ex), null, true);
-      return lookupOp("index", entries[0], entries[1]);
+      return lookupOp("index", mkMemberAccess(arrayToStruct(entries[0]), "ptr"), entries[1]);
     }
     Expr length(Expr ex) {
       auto entries = getTupleEntries(reinterpret_cast(tup, ex), null, true);
@@ -44,7 +44,7 @@ class ArrayIterator : Type, RichIterator, IArrayIterator {
     Expr index(Expr ex, Expr pos) {
       auto entries = getTupleEntries(reinterpret_cast(tup, ex), null, true);
       return lookupOp("index",
-        entries[0],
+        mkMemberAccess(arrayToStruct(entries[0]), "ptr"),
         lookupOp("+", pos, lookupOp("+", entries[1], mkInt(1))));
     }
     Expr slice(Expr ex, Expr from, Expr to) {
