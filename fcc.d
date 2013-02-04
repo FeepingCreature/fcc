@@ -978,11 +978,11 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     if (false && cs.preopt) flags = "-O3 -lint ";
     // if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
-    string cmdline;
+    string cmdline = "set -o pipefail; ";
     if (cs.preopt && !cs.optimize) {
-      cmdline = Format("opt ", flags);
+      cmdline ~= Format("opt ", flags);
     } else {
-      cmdline = Format("llvm-as ", flags);
+      cmdline ~= Format("llvm-as ", flags);
     }
     if (isWindoze || cs.optimize) {
       cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
@@ -1101,7 +1101,7 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
   if (!isWindoze && !optimize) {
     objfile = objlist;
   } else {
-    string fullcommand = "llvm-link "~objlist;
+    string fullcommand = "set -o pipefail; llvm-link "~objlist;
     
     fullcommand ~= " |llvm-dis - |sed -e s/^define\\ weak_odr\\ /define\\ /g -e s/=\\ weak_odr\\ /=\\ /g |llvm-as";
     if (saveTemps) fullcommand ~= " |tee "~linkedfile;
