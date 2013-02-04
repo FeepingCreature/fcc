@@ -8,8 +8,9 @@ class Variable : LValue, Named {
     void emitLLVM(LLVMFile lf) {
       if (!stacktype) fail;
       auto stackp = bitcastptr(lf, "i8", stacktype, "%__stackframe");
-      auto varp = save(lf, "getelementptr inbounds ", stacktype, "* ", stackp, ", i32 0, i32 ", baseIndex);
-      load(lf, "load ", typeToLLVM(type), "* ", varp);
+      load(lf, "getelementptr inbounds ", stacktype, "* ", stackp, ", i32 0, i32 ", baseIndex);
+      // logln(lf.count, ":", lf.fid, ": ", stacktype, " and ", type, " -- ", typeToLLVM(type), ", ", typeToLLVM(type, true));
+      load(lf, "load ", typeToLLVM(type), "* ", lf.pop());
     }
     void emitLocation(LLVMFile lf) {
       if (!stacktype) fail;
@@ -30,6 +31,7 @@ class Variable : LValue, Named {
     name = s;
     baseIndex = i;
     stacktype = frametypePlus(type);
+    // logln(":", name, ": ", stacktype, " for ", type, " @", baseIndex);
   }
   override string getIdentifier() { return name; }
   // Variable has no modifiable sub-expressions,

@@ -159,6 +159,7 @@ class ModeSpace : RelNamespace, ScopeLike, IType /* hack for using with using */
     bool isComplete() { if (!firstParam) return true; return firstParam.valueType().isComplete; }
     mixin DefaultScopeLikeGuards!();
     Object lookupRel(string name, Expr context, bool isDirectLookup = true) {
+      if (name == "__base_ptr") return null; // HACK
       Object funfilt(Object obj, bool allowUnchangedOverload) {
         bool foundAnyFirstParSubsts;
         OverloadSet handleFun(ref Function fun) {

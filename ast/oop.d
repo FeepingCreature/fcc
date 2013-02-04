@@ -1006,9 +1006,9 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       if (id == "this") return fastalloc!(LazyThisExpr)(getRefType());
       if (id == "super") return fastcast!(Object) (parent);
       if (auto res = data.lookup(id, local)) return res;
+      if (local) return null;
       // fallback
       if (auto res = lookupRel(id, fastalloc!(LazyThisExpr)(getRefType()))) return res;
-      if (local) return null;
       if (auto rn = fastcast!(RelNamespace) (sup)) {
         if (ctx) {
           auto bp = fastcast!(Expr) (namespace().lookup("__base_ptr"[], true));

@@ -558,7 +558,7 @@ class MemberAccess_LValue_ : MemberAccess_Expr, LValue {
       load(lf, "getelementptr inbounds ", typeToLLVM(base.valueType()), "* ", ls, ", i32 0, i32 ", stm.index);
       auto restype = stm.type;
       auto from = typeToLLVM(restype, true)~"*", to = typeToLLVM(restype)~"*";
-      // logln("emitLocation of mal to ", base.valueType());
+      // logln(lf.count, ": emitLocation of mal to ", base.valueType(), ", from ", from, ", to ", to);
       if (from != to) {
         llcast(lf, from, to, lf.pop(), qformat(nativePtrSize));
       }

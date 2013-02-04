@@ -110,7 +110,8 @@ class RelFunction : Function, RelTransformable, HasInfo {
       
       auto res = super.getParams(false);
       if (implicits) {
-        res ~= Argument(fastcast!(hasRefType)(context).getRefType(), "__base_ptr");
+        // res ~= Argument(fastcast!(hasRefType)(context).getRefType(), "__base_ptr");
+        res ~= Argument(voidp, "__base_ptr");
         res ~= Argument(voidp, tlsbase);
         argcache_impl = res;
       }
@@ -178,7 +179,8 @@ class RelFunction : Function, RelTransformable, HasInfo {
     import ast.aliasing;
     int fixup() {
       auto id = super.fixup();
-      if (!fastcast!(hasRefType) (context))
+      auto hrt = fastcast!(hasRefType) (context);
+      if (!hrt)
         logln("bad context: "[], context, " is not reftype"[]);
       
       auto bp = fastcast!(Expr)(lookup("__base_ptr"));
@@ -196,12 +198,19 @@ class RelFunction : Function, RelTransformable, HasInfo {
     }
     Object lookup(string name, bool local = false) {
       auto res = super.lookup(name, true);
-      if (res) return res;
+      if (res) {
+        if (name == "__base_ptr") {
+          // :sigh: I'm pretty sure this has more casts than function calls.
+          res = fastcast!(Object)(reinterpret_cast((fastcast!(hasRefType) (context)).getRefType(), fastcast!(Expr)(res)));
+        }
+        return res;
+      }
       else if (local) return null;
       
       if (!bp_cache) {
         auto bp = fastcast!(Expr) (lookup("__base_ptr"[], true));
         if (bp) {
+          // bp = fastcast!(Expr) (reinterpret_cast((fastcast!(hasRefType) (context)).getRefType(), bp));
           if (auto ptr = fastcast!(Pointer) (bp.valueType())) bp = fastalloc!(DerefExpr)(bp);
           bp_cache = bp;
         }
