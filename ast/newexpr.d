@@ -38,15 +38,31 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   PlaceholderTokenLV res_token;
   New(res_token, it, "early constructor call"[]);
   try {
-    if (initParam) {
+    auto ns = namespace(), class_ns = cr.myClass.coarseCtx;
+    // use an init_Foo factory constructor override
+    // logln("look for init_"~cr.myClass.name~" in ", class_ns);
+    auto exoinit = class_ns.lookup("init_"~cr.myClass.name);
+    // don't match factory constructor from inside itself (DWIM)
+    if (exoinit && exoinit !is ns.get!(Function)) {
+      // logln(" => ", exoinit, ", compare ", ns.get!(Function));
+      if (!initParam) {
+        return fastcast!(Object)(
+          iparse!(Expr, "call_exoconstructor_override1", "tree.expr _tree.expr.arith")
+                 (`exoinit()`, "exoinit", exoinit));
+      } else {
+        return fastcast!(Object)(
+          iparse!(Expr, "call_exoconstructor_override2", "tree.expr _tree.expr.arith")
+                 (`exoinit ex`, "exoinit", exoinit, "ex", initParam));
+      }
+    } else if (initParam) {
       protConstCall =
         iparse!(Expr, "call_constructor_early", "tree.expr _tree.expr.arith")
-               (`res.init ex`, namespace(),
+               (`res.init ex`, ns,
                 "res"[], res_token, "ex"[], initParam);
     } else if (cr.myClass.lookupRel("init", res_token)) {
       protConstCall =
         iparse!(Expr, "call_constructor_early_void", "tree.expr _tree.expr.arith")
-               (`res.init()`, namespace(),
+               (`res.init()`, ns,
                 "res"[], res_token);
     }
   } catch (Exception ex) {

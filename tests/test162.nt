@@ -1,0 +1,16 @@
+module test162;
+
+class A { void init(int q) { assert(q == 2); } }
+class B : A { void init() { } }
+A init_A(int which) {
+  writeln "init_A with $which";
+  assert(which != 2);
+  if (which == 0) return new A 2; // ensure init_A does not recurse
+  return new B;
+}
+
+void main() {
+  auto a = new A(0), b = new A(1);
+  assert(!!B:b, "b fail");
+  assert(!B:a, "a fail");
+}

@@ -534,7 +534,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     auto backup = namespace();
     scope(exit) namespace.set(backup);
     namespace.set(coarseCtx);
-    coarseCtx = null;
+    // coarseCtx = null;
     
     auto backupmod = current_module();
     scope(exit) current_module.set(backupmod);
