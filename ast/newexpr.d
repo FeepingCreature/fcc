@@ -45,15 +45,18 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
     // don't match factory constructor from inside itself (DWIM)
     if (exoinit && exoinit !is ns.get!(Function)) {
       // logln(" => ", exoinit, ", compare ", ns.get!(Function));
+      Expr res;
       if (!initParam) {
-        return fastcast!(Object)(
-          iparse!(Expr, "call_exoconstructor_override1", "tree.expr _tree.expr.arith")
-                 (`exoinit()`, "exoinit", exoinit));
+        res = iparse!(Expr, "call_exoconstructor_override1", "tree.expr _tree.expr.arith")
+                     (`exoinit()`, "exoinit", exoinit);
       } else {
-        return fastcast!(Object)(
-          iparse!(Expr, "call_exoconstructor_override2", "tree.expr _tree.expr.arith")
-                 (`exoinit ex`, "exoinit", exoinit, "ex", initParam));
+        res = iparse!(Expr, "call_exoconstructor_override2", "tree.expr _tree.expr.arith")
+                     (`exoinit ex`, "exoinit", exoinit, "ex", initParam);
       }
+      if (!gotImplicitCast(res, cr, (IType it) { return test(cr == it); })) {
+        text.failparse("Class constructor module level factory override does not return subtype of ", cr.myClass.name, " (iow wtf are you doiiing)");
+      }
+      return fastcast!(Object)(res);
     } else if (initParam) {
       protConstCall =
         iparse!(Expr, "call_constructor_early", "tree.expr _tree.expr.arith")

@@ -1,0 +1,8 @@
+module test163fail;
+
+class A { }
+Object init_A() { return new Object; }
+
+void main() {
+  Object a = new A;
+}
