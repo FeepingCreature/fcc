@@ -228,7 +228,12 @@ IType arrayAsStruct(IType base, bool rich) {
     else return iparse!(Statement, "array_free"[], "tree.stmt"[])
                   (`{ mem.free(void*:ptr, length * sz); ptr = null; length = 0; }`, namespace(), "sz", llvmval(base.llvmSize()));
   });
-  if (!rich) {
+  if (rich) {
+    mkFun("clear"[], Single!(Void), delegate Tree() {
+      return iparse!(Statement, "array_clear"[], "tree.stmt"[])
+                    (`length = 0;`, namespace());
+    });
+  } else {
     auto propbackup = propcfg().withTuple;
     propcfg().withTuple = true;
     scope(exit) propcfg().withTuple = propbackup;

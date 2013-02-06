@@ -113,6 +113,10 @@ template Hashmap(T) {
       iterate(\(Key* kp, Value* vp) newmap.insert(kp, vp););
       this = newmap;
     }
+    void clear() {
+      length = 0;
+      for ref state <- isset state = SetState.NotSet;
+    }
     Value* insert(Key k, Value v) { return insert(&k, &v); }
     Value* insert(Key* kp, Value* vp) {
       pragma(fast);
