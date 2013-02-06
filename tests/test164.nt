@@ -1,0 +1,9 @@
+module test164;
+
+interface I { void foo(); }
+class A : I { void foo() { writeln "A::foo()"; } }
+interface K : I { }
+class B : A, K { }
+
+void main() {
+}

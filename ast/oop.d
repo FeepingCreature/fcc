@@ -443,9 +443,18 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         if (fun.isabstract) res ~= fun;
       }
     foreach (intf; iparents) foreach (ifun; intf.getAbstractFuns()) {
+      bool replaced;
       if (auto f2 = overrides.hasLike(ifun)) {
         ifun = f2;
+        replaced = true;
       }
+      // use parent overrides to satisfy interface functions (see getVTable)
+      auto par = parent;
+      if (!replaced) while (par) {
+        if (auto f2 = par.overrides.hasLike(ifun)) { ifun = f2; break; }
+        par = par.parent;
+      }
+      
       if (ifun.isabstract || (!ifun.tree && !ifun.coarseSrc && !ifun.inParse)) {
         res ~= ifun;
       }
