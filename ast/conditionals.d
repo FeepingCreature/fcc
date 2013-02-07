@@ -248,7 +248,8 @@ class NegCond : Cond {
 Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (t2.accept("is")) return null; // "dg !is dg2" is "!(dg is dg2)", not "dg (!is (dg2))"
+  auto t3 = t2;
+  if (t3.accept("is") && !t3.accept("-")) return null; // "dg !is dg2" is "!(dg is dg2)", not "dg (!is (dg2))" - but also allow is-foo
   if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
     t2.failparse("Couldn't match condition to negate"[]);
   text = t2;
