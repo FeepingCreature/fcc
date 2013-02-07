@@ -1,0 +1,7 @@
+module test165;
+
+void main() {
+  void delegate() dg;
+  assert(dg is dg);
+  assert(!(dg !is dg));
+}
