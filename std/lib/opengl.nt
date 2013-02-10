@@ -51,6 +51,120 @@ template PrimitiveContext(alias A) {
   }
 }
 
+interface ITexture {
+  void register();
+  void bind();
+  void upload();
+  void coord(vec2f);
+  vec2f getSize();
+}
+
+interface FastITexture : ITexture { // has a coord() that supports saving to fastgl
+  GLuint getUnderlyingTexID();
+}
+
+import std.hashmap, std.matrix;
+/**
+If this is enabled, it indicates that no OpenGL state changes will be done
+except by Neat library functions. This allows us to forgo redundant state changes
+and cache the results of OpenGL queries.**/
+context fastgl {
+  int _fast;
+  alias fast = _fast > 0;
+  void onUsing() {
+    if (!(_fast ++)) {
+      texid = 0;
+      capstates.clear;
+      matrix = Matrix4x4-ident;
+      cur-color = vec4f(1);
+    }
+  }
+  void onExit() {
+    if (!(-- _fast)) {
+      flush-tex;
+    }
+  }
+  
+  // last set state of OpenGL capabilities (glEnable/glDisable)
+  Hashmap!(int, GLboolean) capstates;
+  
+  GLuint texid; // last bound OpenGL texture ID
+  void set-texid(GLuint newid) {
+    if (texid == newid) return;
+    // flush-tex; // nope - this is the state machine cache, not the vbo cache
+    texid = newid;
+  }
+  
+  // TODO support
+  // context vbocache {
+    GLuint vbo-texid;
+    void delegate(void delegate()) vbo-wrap-dg;
+    
+    void set-tex(FastITexture fit) {
+      auto fid = fit.getUnderlyingTexID();
+      if (vbo-texid != fid) { flush-tex; }
+      vbo-texid = fid;
+    }
+    void flush-tex() { flush-vbo; }
+    
+    void set-wrap(type-of vbo-wrap-dg dg) {
+      if (dg !is vbo-wrap-dg) {
+        flush-dg;
+      }
+      vbo-wrap-dg = dg;
+    }
+    void flush-dg() { flush-vbo; }
+    
+    Matrix4x4 matrix;
+    
+    vec4f cur-color;
+    vec2f[auto~] texcoords;
+    vec3f[auto~] vertices;
+    vec4f[auto~] colors;
+    
+    void vertex(float x, y = 0, z = 0) {
+      colors ~= cur-color;
+      vertices ~= matrix.multiply(vec3f(x, y, z), w => 1);
+    }
+    void color(vec4f v) { cur-color = v; }
+    void flush-vbo() {
+      assert(texcoords.length == vertices.length);
+      if (!texcoords.length) return;
+      // writeln "vbo flush $(texcoords.length) on $vbo-texid";
+      using mode GL {
+        if (vbo-texid) BindTexture(TEXTURE_2D, vbo-texid);
+        auto doit = λ{
+          /*using glWithCap!TEXTURE_2D using Quads {
+            for auto tc <- texcoords && auto v <- vertices {
+              TexCoord2f tc; Vertex3f v;
+            }
+          }*/
+          EnableClientState VERTEX_ARRAY;
+          EnableClientState TEXTURE_COORD_ARRAY;
+          EnableClientState COLOR_ARRAY;
+          onSuccess {
+            DisableClientState VERTEX_ARRAY;
+            DisableClientState TEXTURE_COORD_ARRAY;
+            DisableClientState COLOR_ARRAY;
+          }
+          TexCoordPointer(2, GL_FLOAT, size-of vec2f, texcoords.ptr);
+          VertexPointer(3, GL_FLOAT, size-of vec3f, vertices.ptr);
+          ColorPointer(4, GL_FLOAT, size-of vec4f, colors.ptr);
+          using WithCap!TEXTURE_2D DrawArrays(QUADS, 0, texcoords.length);
+        }
+        
+        if (vbo-wrap-dg) vbo-wrap-dg(doit);
+        else doit();
+      }
+      texcoords.clear;
+      vertices.clear;
+      colors.clear;
+      vbo-texid = 0;
+      vbo-wrap-dg = null;
+    }
+  // }
+}
+
 alias Points = PrimitiveContext!GL_POINTS;
 
 alias Lines = PrimitiveContext!GL_LINES;
@@ -103,7 +217,19 @@ context glModelviewMatrix {
 template glWithCap(alias Cap) {
   GLboolean[auto~] capstack;
   context glWithCap {
-    void onUsing() { auto state = glIsEnabled Cap; if (!state) glEnable Cap; capstack ~= state; }
+    void onUsing() {
+      GLboolean state;
+      if (fastgl.fast && auto p = fastgl.capstates.get(Cap)) {
+        state = *p;
+      } else {
+        state = glIsEnabled Cap;
+      }
+      if (!state) glEnable Cap;
+      if (fastgl.fast) {
+        fastgl.capstates.insert(Cap, true);
+      }
+      capstack ~= state;
+    }
     void onExit() { auto prev = capstack.popEnd(); if (!prev) glDisable Cap; }
   }
 }

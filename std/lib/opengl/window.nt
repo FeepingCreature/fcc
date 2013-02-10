@@ -24,6 +24,7 @@ enum Key {
 
 abstract class GLWindow {
   void delegate()[] context-callbacks;
+  int framecount;
   void addCallback(void delegate() dg) {
     context-callbacks ~= dg;
     if (isSetUp()) dg();
@@ -45,7 +46,9 @@ abstract class GLWindow {
     if idelta.x || idelta.y
       warp $ size() / 2;
   }
-  void update();
+  void update() {
+    framecount ++;
+  }
   void close();
   struct Button {
     bool pressed, clicked, released;

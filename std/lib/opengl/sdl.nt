@@ -70,6 +70,7 @@ class SDLWindow : GLWindow {
   }
   vec2i size() { return vec2i surf.(w, h); }
   void update() {
+    super.update();
     .update surf;
     mouse-pressed = .mouse-pressed;
     mouse-pos = std.lib.sdl_base.mouse-pos;

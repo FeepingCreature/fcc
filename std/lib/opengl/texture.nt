@@ -2,14 +2,6 @@ module std.lib.opengl.texture;
 
 import std.lib.opengl.(,window);
 
-interface ITexture {
-  void register();
-  void bind();
-  void upload();
-  void coord(vec2f);
-  vec2f getSize();
-}
-
 enum TexMode { MipMapped, Linear, Nearest }
 
 void fast_vec4f_to_ints(vec4f[] vecs, int[] ints) {
@@ -22,7 +14,7 @@ void fast_vec4f_to_ints(vec4f[] vecs, int[] ints) {
   }
 }
 
-class Texture : ITexture {
+class Texture : FastITexture {
   int width, height;
   alias size = vec2i(width, height);
   vec4f[] data;
@@ -47,6 +39,7 @@ class Texture : ITexture {
     init(w, h, \(float u,v) { return vec4f(dg(u,v).(x,y,z,1)); });
   }
   GLuint id;
+  override GLuint getUnderlyingTexID() return id;
   void register() {
     glwindow.addCallback &upload;
   }
@@ -54,7 +47,13 @@ class Texture : ITexture {
     if (data) data.free;
     if (translated_data) translated_data.free;
   }
-  void bind() using mode GL { TEXTURE_2D.BindTexture id; }
+  void bind() using mode GL {
+    if (fastgl.fast) {
+      if (id == fastgl.texid) return;
+      fastgl.set-texid id;
+    }
+    TEXTURE_2D.BindTexture id;
+  }
   void upload() using mode GL {
     if (!id) GenTextures(1, &id);
     bind;
@@ -83,7 +82,10 @@ class Texture : ITexture {
       TEXTURE_MAG_FILTER.TexParameteri param2;
     }
   }
-  void coord(vec2f v) { glTexCoord2f v; }
+  void coord(vec2f v) {
+    if (fastgl.fast) fastgl.texcoords ~= v;
+    else glTexCoord2f v;
+  }
   vec2f getSize() { return vec2f(width, height); }
 }
 
@@ -103,7 +105,9 @@ class SubTexture : ITexture {
   void bind() sup.bind;
   void upload() fail;
   void coord(vec2f v) {
-    glTexCoord2f $ fromdiv + $ sizediv * v;
+    auto v2 = fromdiv + $ sizediv * v;
+    if (fastgl.fast) fastgl.texcoords ~= v2;
+    else glTexCoord2f v2;
   }
   vec2f getSize() { return size; }
   void overwrite(vec4f[] data) {
@@ -120,4 +124,14 @@ class SubTexture : ITexture {
       gl-check;
     }
   }
+}
+
+SubTexture init_SubTexture(ITexture sup, vec2i from, size) {
+  alias tup = (sup, from, size);
+  if (auto fite = FastITexture:sup) {
+    return new class : SubTexture, FastITexture {
+      override GLuint getUnderlyingTexID() return (FastITexture:sup).getUnderlyingTexID();
+    } tup;
+  }
+  return new SubTexture tup;
 }

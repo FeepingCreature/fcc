@@ -183,6 +183,7 @@ class GLFWWindow : GLWindow {
   }
   bool isSetUp() { return is-set-up; }
   void update() using mode GLFW {
+    super.update();
     for ref button <- buttons {
       button.(clicked, released) = (false, false);
     }

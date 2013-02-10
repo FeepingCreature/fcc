@@ -1,6 +1,6 @@
 module std.lib.opengl.camera;
 
-import std.math, std.lib.opengl;
+import std.math, std.lib.opengl.(, window);
 
 abstract class Camera {
   vec3f pos;
@@ -94,10 +94,30 @@ template WorldCam(T) {
       vert.Rotatef vec3f.Y;
       Translatef (-pos);
     }
+    import std.matrix;
+    (Matrix4x4 mat, int frameplusone) unrotate_cache;
     void unrotate() using mode GL {
-      auto origin = invert(vec3f(0), => transforms);
-      apply;
-      Translatef origin;
+      if (fastgl.fast) {
+        // assumption: no in-frame movement
+        alias c = unrotate_cache;
+        if (c.frameplusone != glwindow.framecount + 1) {
+          mixin calc;
+          c.mat = Matrix4x4-ident;
+          c.mat.rotate(vert, -vec3f.Y);
+          c.mat.rotate(horz, -vec3f.X);
+          c.frameplusone = glwindow.framecount + 1;
+        }
+        fastgl.matrix.multiply &c.mat;
+        return;
+      }
+      // Huh. No idea what this was about.
+      // if you find out: DOCUMENT!
+      // auto origin = invert(vec3f(0), => transforms);
+      // apply;
+      // Translatef origin;
+      // mixin calc;
+      // vert.Rotatef -vec3f.Y;
+      // horz.Rotatef -vec3f.X;
       mixin calc;
       vert.Rotatef -vec3f.Y;
       horz.Rotatef -vec3f.X;
@@ -145,8 +165,13 @@ template EgoCam(T) {
     }
     void unrotate() using mode GL {
       mixin calc;
-      Rotatef (angle2, -vec3f.Y);
-      Rotatef (angle1, -vec3f.X);
+      if (fastgl.fast) {
+        fastgl.matrix.rotate(angle2, -vec3f.Y);
+        fastgl.matrix.rotate(angle1, -vec3f.X);
+      } else {
+        Rotatef (angle2, -vec3f.Y);
+        Rotatef (angle1, -vec3f.X);
+      }
     }
   }
 }
@@ -175,3 +200,5 @@ template OrbitCam(T) {
     }
   }
 }
+
+alias disregard-this-its-just-here-to-instantiate-worldcam-so-fcc-doesnt-fuzz-about-the-quote-unnecessary-unquote-window-import = WorldCam!PerspectiveCam;

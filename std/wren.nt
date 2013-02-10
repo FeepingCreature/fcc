@@ -478,10 +478,6 @@ Thing parse(string* text) {
   return new Token token[];
 }
 
-bool matches(string name, match) {
-  return name == match;
-}
-
 class MultiNamespace : Namespace {
   Namespace[auto~] set;
   void add(Namespace ns) { set ~= ns; }
@@ -502,7 +498,7 @@ class ListNamespace : Namespace {
   }
   Thing lookup(string match) {
     for ref entry <- list
-      if (entry[1].matches match)
+      if (entry[1] == match)
         return entry[0];
     return null;
   }
