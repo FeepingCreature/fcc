@@ -30,42 +30,32 @@ abstract class PerspectiveCam : Camera {
   }
   void unrotate();
   vec3f invert(vec3f v, bool transforms = false) using mode GL {
-    float x 16 mvmat;
-    GetFloatv(MODELVIEW_MATRIX, mvmat.ptr);
+    GetFloatv(MODELVIEW_MATRIX, Matrix4x4 mvmat);
     if (transforms) {
-      float x 16 origmat;
+      Matrix4x4 origmat;
       using ModelviewMatrix {
         apply;
-        GetFloatv(MODELVIEW_MATRIX, origmat.ptr);
+        GetFloatv(MODELVIEW_MATRIX, origmat);
       }
-      void transpose(float x 16* matp) {
-        float x 16 temp = void;
-        alias mat = *matp;
-        for int i <- 0..4 {
-          temp[i]      = mat[i*4];
-          temp[i + 4]  = mat[i*4 + 1];
-          temp[i + 8]  = mat[i*4 + 2];
-          temp[i + 12] = mat[i*4 + 3];
-        }
-        mat = temp;
-      }
-      matrix4x4-invert &origmat;
-      return mat-multiply(origmat, mat-multiply(mvmat, vec4f(v, 1))).(xyz/w);
+      origmat.invert;
+      origmat.multiply &mvmat;
+      // TODO figure out why need w => 1
+      return origmat.multiply (v, w => 1);
     } else {
       v = v * 2 - 1;
       v.y = -v.y; // Oh OpenGL.
-      matrix4x4-invert &mvmat;
-      float x 16 prmat;
-      GetFloatv(PROJECTION_MATRIX, prmat.ptr);
-      matrix4x4-invert &prmat;
-      return mat-multiply(mvmat, mat-multiply(prmat, vec4f(v, 1))).(xyz/w);
+      mvmat.invert;
+      GetFloatv(PROJECTION_MATRIX, Matrix4x4 prmat);
+      prmat.invert;
+      mvmat.multiply &prmat;
+      return mvmat.multiply (v, w => 1);
     }
   }
   vec3f apply(vec3f v) using mode GL {
-    float x 16 mvmat, prmat;
-    GetFloatv(MODELVIEW_MATRIX, mvmat.ptr);
-    GetFloatv(PROJECTION_MATRIX, prmat.ptr);
-    auto res = mat-multiply(prmat, mat-multiply(mvmat, vec4f(v, 1))).(xyz/w);
+    GetFloatv(MODELVIEW_MATRIX, Matrix4x4 mvmat);
+    GetFloatv(PROJECTION_MATRIX, Matrix4x4 prmat);
+    prmat.multiply &mvmat;
+    auto res = prmat.multiply (v, w => 1);
     res.y = -res.y;
     res = res * 0.5 + 0.5;
     return res;
