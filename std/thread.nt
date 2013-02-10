@@ -76,7 +76,11 @@ void startThread(void delegate() dg) {
   arg[1] = copy_tls;
   arg[2] = mxcsr;
   arg[3] = new Semaphore;
-  arg[4] = mem;
+  if (!mem.autoclean) { // some special handler, probably leftover tracked_mem because we're called from a void init(). HACK fix
+    using scoped mem { mem_init; arg[4] = mem; }
+  } else { // PROBABLY sane
+    arg[4] = mem;
+  }
   
   auto res = pthread_create(&buf, null, &__start_routine, &arg);
   arg[3].claim;
