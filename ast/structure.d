@@ -357,10 +357,7 @@ bool matchStructBodySegment(ref string text, Namespace ns,
         { names ~= strname; types ~= strtype; }
       ) && text.accept(";"[])) {
       foreach (i, strname; names)
-        if (alwaysReference)
-          fastalloc!(RelMemberLV)(strname, types[i], ns);
-        else
-          fastalloc!(RelMember)(strname, types[i], ns);
+        fastalloc!(RelMemberLV)(strname, types[i], ns);
       names = null; types = null;
       return true;
     }

@@ -620,6 +620,46 @@ static this() {
   });
 }
 
+// for ast.aliasing
+pragma(set_attribute, convertLvToExpr, externally_visible);
+extern(C) Iterable convertLvToExpr(Iterable itr) {
+  void recurse(ref Iterable it) {
+    if (auto rm = fastcast!(RelMemberLV)(it)) {
+      it = fastalloc!(RelMember)(rm.name, rm.type, rm.index);
+      return;
+    }
+    if (auto lvamv = fastcast!(LValueAsMValue)(it)) {
+      it = lvamv.sup;
+      recurse(it);
+      return;
+    }
+    if (auto rt = fastcast!(RefTuple)(it)) {
+      auto exprs = rt.getAsExprs();
+      foreach (ref ex; exprs) { auto i = fastcast!(Iterable)(ex); recurse(i); ex = fastcast!(Expr)(i); }
+      it = mkTupleValueExpr(exprs);
+      return;
+    }
+    if (auto rcl = fastcast!(RCL)(it)) {
+      Iterable thing = rcl.from;
+      recurse(thing);
+      it = fastalloc!(RCE)(rcl.to, fastcast!(Expr)(thing));
+      return;
+    }
+    if (auto lva = fastcast!(CValueAlias)(it)) {
+      Iterable thing = lva.base;
+      recurse(thing);
+      it = fastalloc!(ExprAlias)(fastcast!(Expr)(thing), lva.name);
+      return;
+    }
+    // logln("don't know how to handle ", fastcast!(Object)(it).classinfo.name, " ", it);
+    it.iterate(&recurse);
+    return;
+    fail;
+  }
+  recurse(itr);
+  return itr;
+}
+
 // from ast.scopes
 Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
   // Copypasted from ast.structure

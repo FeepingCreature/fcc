@@ -60,6 +60,7 @@ final class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
     return vec.base == base && vec.len == len;
   }
   Object lookupRel(string str, Expr base, bool isDirectLookup = true) {
+    // logln("vector rel lookup ", str);
     if (!base) {
       if (len > 0 && str == "X") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(0, len)), this));
       if (len > 1 && str == "Y") return fastcast!(Object) (constructVector(mkTupleValueExpr(genInitPattern(1, len)), this));
@@ -337,6 +338,7 @@ Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true, bool
   assert(false);
 }
 
+import ast.properties;
 Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   IType ty;

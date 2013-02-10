@@ -5,6 +5,7 @@ import ast.base, ast.parse, ast.structure, ast.namespace, ast.properties,
 
 import dwarf2;
 
+extern(C) Iterable convertLvToExpr(Iterable);
 class ExprAlias : RelTransformable, Named, Expr {
   Expr base;
   string name;
@@ -27,18 +28,30 @@ class ExprAlias : RelTransformable, Named, Expr {
         return mkStatementAndExpr(st, ex);
       }
       
-      bool needsTransform;
+      bool needsTransform, needsExprConversion;
       dg = (ref Iterable iter) {
         iter.iterate(dg);
-        if (auto rt = fastcast!(RelTransformable) (iter))
+        if (auto rt = fastcast!(RelTransformable) (iter)) {
+          if (fastcast!(CValue)(iter)) {
+            auto thing = rt.transform(relbase);
+            if (!fastcast!(CValue)(thing)) {
+              // logln("needs expr conversion because ", thing, " is not a cvalue while ", iter, " was:");
+              // logln("  ", it);
+              needsExprConversion = true;
+            }
+          }
           needsTransform = true;
+        }
       };
       dg(it);
       if (!needsTransform) return fastcast!(Object) (finalize(base));
       
       it = it.dup;
+      if (needsExprConversion) it = convertLvToExpr(it);
       dg = (ref Iterable iter) {
+        // logln("recurse[", needsExprConversion, "] ", iter);
         iter.iterate(dg);
+        // logln("check[", needsExprConversion, "] ", iter);
         if (auto rt = fastcast!(RelTransformable) (iter))
           iter = fastcast!(Iterable) (rt.transform(relbase));
       };
