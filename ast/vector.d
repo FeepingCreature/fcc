@@ -353,6 +353,11 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
     // logln("fail 2 @", t2.nextText());
     return null;
   }
+  
+  auto backup = *propcfg.ptr();
+  scope(exit) *propcfg.ptr() = backup;
+  propcfg().withTuple = false;
+  
   Expr ex;
   if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) return null;
   try {
