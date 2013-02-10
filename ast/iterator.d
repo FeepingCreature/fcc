@@ -875,17 +875,17 @@ class EvalIterator(T) : Expr, Statement {
     string toString() { return Format("Eval("[], ex, ")"[]); }
     void emitLLVM(LLVMFile lf) {
       int offs;
-      void emitStmtInto(Expr var, Expr ex2 = null) {
+      void emitStmtInto(Expr var, Expr ex2 = null, bool checkArray = true) {
         if (!ex2) ex2 = ex;
         auto lv = fastcast!(LValue) (ex2);
         if (lv && var) {
           iparse!(Statement, "iter_array_eval_step_1"[], "tree.stmt"[])
                  (` { int i; while var[i++] <- _iter { } }`,
-                  namespace(), "var"[], var, "_iter"[], lv).emitLLVM(lf);
+                  namespace(), "var"[], checkArray?var:getArrayPtr(var), "_iter"[], lv).emitLLVM(lf);
         } else if (var) {
           iparse!(Statement, "iter_array_eval_step_2"[], "tree.stmt"[])
                  (` { int i; auto temp = _iter; while var[i++] <- temp { } }`,
-                  namespace(), "var"[], var, "_iter"[], ex2).emitLLVM(lf);
+                  namespace(), "var"[], checkArray?var:getArrayPtr(var), "_iter"[], ex2).emitLLVM(lf);
         } else {
           iparse!(Statement, "iter_eval_step_3"[], "tree.stmt"[])
                  (` { auto temp = _iter; while temp { } }`,
@@ -933,7 +933,7 @@ class EvalIterator(T) : Expr, Statement {
                     (`var = new elem[] len`,
                     "var"[], var, "len"[], iter.length(lv), "elem"[], iter.elemType()).emitLLVM(lf);
             // buildFunCall(sysmod.lookup("printf"), mkTupleExpr(mkString("var (%i, %p) = new elem[] %i due to "~qformat(iter)~" and len "~qformat(iter.length(lv))~"\n"), var, iter.length(lv)), "printf").emitLLVM(lf); lf.pop();
-            emitStmtInto(var, lv);
+            emitStmtInto(var, lv, false);
           } else {
             auto ea = fastalloc!(ExtArray)(iter.elemType(), true);
             auto var = fastalloc!(LLVMRef)(ea);
