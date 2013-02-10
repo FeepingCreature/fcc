@@ -924,7 +924,7 @@ void verify(Iterable it) {
   logln(res.length, " markers checked, no collisions. ");
 }
 
-string get_llc_cmd(bool optimize, bool saveTemps, ref string fullcommand) {
+string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string fullcommand) {
   string cpu = "core2";
   if (isARM) cpu = null;
   
@@ -943,6 +943,7 @@ string get_llc_cmd(bool optimize, bool saveTemps, ref string fullcommand) {
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
     string passflags = "-std-compile-opts ";
     if (!isWindoze()) passflags ~= "-internalize -std-link-opts "; // don't work under win32 (LLVMMMM :shakes fist:)
+    if (debugmode) optflags ~= "-disable-fp-elim ";
     optrun(cpumode~passflags~optflags);
     llc_optflags = optflags;
   }
@@ -1028,7 +1029,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
     } else {
       string bogus;
-      cmdline ~= Format("-o - ", srcname, " |opt -march=x86 - "~get_llc_cmd(cs.optimize, cs.saveTemps, bogus)~" |llc -march=x86 - -filetype=obj -o ", objname);
+      cmdline ~= Format("-o - ", srcname, " |opt -march=x86 - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus)~" |llc -march=x86 - -filetype=obj -o ", objname);
     }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
@@ -1125,7 +1126,7 @@ void dumpXML() {
   std.c.stdio.fflush(stdout);
 }
 
-void link(string[] objects, bool optimize, bool saveTemps = false) {
+void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = false) {
   if (dumpXMLRep) dumpXML();
   scope(success)
     if (!saveTemps)
@@ -1148,7 +1149,7 @@ void link(string[] objects, bool optimize, bool saveTemps = false) {
     
     objfile = ".obj/"~output~".o";
     // -mattr=-avx,-sse41 
-    fullcommand ~= " |llc - "~get_llc_cmd(optimize, saveTemps, fullcommand)~"-filetype=obj -o "~objfile;
+    fullcommand ~= " |llc - "~get_llc_cmd(optimize, debugmode, saveTemps, fullcommand)~"-filetype=obj -o "~objfile;
     logSmart!(false)("> ", fullcommand);
     if (system(fullcommand.toStringz()))
       throw new Exception("link failed");
@@ -1236,7 +1237,7 @@ void incbuild(string start,
   lazySysmod();
   try {
     string[] objs = start.compileWithDepends(cs);
-    objs.link(cs.optimize, true);
+    objs.link(cs.optimize, cs.debugMode, true);
   } catch (Exception ex) {
     logSmart!(false) (ex);
     return;
@@ -1442,7 +1443,7 @@ int main2(string[] args) {
     incbuild(mainfile, cs, runMe);
     return 0;
   }
-  objects.link(cs.optimize, cs.saveTemps);
+  objects.link(cs.optimize, cs.debugMode, cs.saveTemps);
   scope(exit) if (accesses.length) logln("access info: ", accesses);
   if (runMe) {
     auto cmd = "./"~output;
