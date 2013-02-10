@@ -1,0 +1,106 @@
+module std.matrix;
+
+import std.math;
+
+// 4x4 is column-major just like OpenGL (yes yes)
+struct Matrix4x4 {
+  vec4f x 4 columns-vec;
+  alias values = float x 16: columns-vec;
+  alias columns = float x 4 x 4: values;
+  alias tuple = values[(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15)];
+  alias rows = values[((0,4,8,12),(1,5,9,13),(2,6,10,14),(3,7,11,15))];
+  alias implicit-cast = values.ptr;
+  void multiply(Matrix4x4* arg) {
+    // decompile/backport of http://dumpz.org/16559/ without permission of Konstantin Qew[erty] Evdokimenko, please don't sue us
+    alias cols1 = columns-vec, cols2 = arg.columns-vec;
+    Matrix4x4 res = void;
+    for int i <- 0..4 {
+      res.columns-vec[i] = cols2[i].(cols1.(_0 * xxxx + _1 * yyyy + _2 * zzzz + _3 * wwww));
+    }
+    this = res;
+  }
+  string toString() { using values return "\n($_0 $_4 $_8 $_12)\n($_1 $_5 $_9 $_13)\n($_2 $_6 $_10 $_14)\n($_3 $_7 $_11 $_15)"; }
+  // see man glTranslatef, glRotatef, glScalef
+  void translate(vec3f to) {
+    /*
+    Matrix4x4 transmat;
+    transmat.rows = (
+      (1f, 0f, 0f, to.x),
+      (0f, 1f, 0f, to.y),
+      (0f, 0f, 1f, to.z),
+      (0f, 0f, 0f, 1f  ));
+    multiply &transmat;
+    */
+    // shortcut
+    columns-vec[3] = multiply vec4f(to, 1f);
+  }
+  void invert() {
+    Matrix4x4 res = Matrix4x4-ident;
+    void dividecol(int l, float factor) {
+      for int i <- 0..4 {
+        columns[l][i] /= factor;
+        res.columns[l][i] /= factor;
+      }
+    }
+    void subtractcol(int src, dst, float factor) {
+      for int i <- 0..4 {
+        columns[dst][i] -= columns[src][i] * factor;
+        res.columns[dst][i] -= res.columns[src][i] * factor;
+      }
+    }
+    for int i <- 0..4 {
+      dividecol(i, columns[i][i]); // bring to 1
+      for int k <- 0..4 if (k != i) {
+        subtractcol(i, k, columns[k][i]);
+      }
+    }
+    auto ident = Matrix4x4-ident;
+    if (this.tuple != ident.tuple) {
+      writeln "invert ended up with confused $this";
+      assert(false);
+    }
+    this = res;
+  }
+  void rotate(float angle, vec3f axis) {
+    angle *= float:PI180;
+    Matrix4x4 rotmat;
+    axis /= vec3f |axis|;
+    auto c = cos angle, s = sin angle;
+    /*
+    rotmat.rows = axis.(
+      (x*x*(1-c)+c,   x*y*(1-c)-z*s, x*z*(1-c)+y*s, 0f),
+      (y*x*(1-c)+z*s, y*y*(1-c)+c,   y*z*(1-c)-x*s, 0f),
+      (x*z*(1-c)-y*s, y*z*(1-c)+x*s, z*z*(1-c)+c,   0f),
+      (0f,            0f,            0f,            1f));
+    */
+    auto oneminusc = vec3f(1-c);
+    rotmat.columns-vec = axis.([
+      vec4f(xyx*xxz*oneminusc + vec3f(   c,  z*s, -y*s), 0f),
+      vec4f(xyy*yyz*oneminusc + vec3f(-z*s,    c,  x*s), 0f),
+      vec4f(xyz*zzz*oneminusc + vec3f( y*s, -x*s,    c), 0f),
+      vec4f.W]);
+    multiply &rotmat;
+  }
+  void scale(vec3f factor) {
+    Matrix4x4 scalemat;
+    scalemat.rows = factor.(
+      (x , 0f, 0f, 0f),
+      (0f,  y, 0f, 0f),
+      (0f, 0f,  z, 0f),
+      (0f, 0f, 0f, 1f));
+    multiply &scalemat;
+  }
+  vec3f multiply(vec3f v, float w = 1) {
+    auto m = multiply(vec4f(v, w));
+    // renormalize - TODO figure out why xyz/w doesn't SSE
+    return m.(xyz/vec3f w);
+  }
+  vec4f multiply(vec4f v) {
+    return v.(columns-vec.(_0*xxxx + _1*yyyy + _2*zzzz + _3*wwww));
+  }
+}
+
+alias Matrix4x4-ident = Matrix4x4:(1f,0f,0f,0f,
+                                   0f,1f,0f,0f,
+                                   0f,0f,1f,0f,
+                                   0f,0f,0f,1f);
