@@ -74,6 +74,7 @@ final class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
       if (len >= 2 && c == 'y') return true;
       if (len >= 3 && c == 'z') return true;
       if (len == 4 && c == 'w') return true;
+      if (c == '0' || c == '1') return true;
       return false;
     }
     foreach (ch; str) if (!isValidChar(ch)) return null;
@@ -94,9 +95,11 @@ final class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
         else if (ch == 'y') exprs ~= parts[1];
         else if (ch == 'z') exprs ~= parts[2];
         else if (ch == 'w') exprs ~= parts[3];
+        else if (ch == '0') exprs ~= fastalloc!(FloatExpr)(0);
+        else if (ch == '1') exprs ~= fastalloc!(FloatExpr)(1);
         else assert(false);
       }
-      if (exprs.length == 1) return exprs[0];
+      assert(exprs.length > 1);
       if (exprs.length > 4) throw new Exception("Cannot use swizzle to create vector larger than four elements");
       auto new_vec = mkVec(this.base, exprs.length);
       if (new_vec.extend) exprs ~= fastalloc!(ZeroInitializer)(this.base);
