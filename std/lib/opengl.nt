@@ -10,6 +10,7 @@ public import c.GL.gl;
 public import c.GL.glu;
 public import c.GL.glext;
 public import std.lib.opengl.rgbcolor;
+import std.string;
 
 platform(i686-mingw32) {
   pragma(lib, "opengl32");
@@ -21,6 +22,9 @@ platform(i686-mingw32) {
   alias glGenBuffers    = *lookupFun!void function(GLsizei, GLuint*) "glGenBuffers";
   alias glDeleteBuffers = *lookupFun!void function(GLsizei, GLuint*) "glDeleteBuffers";
   alias glBindBuffer    = *lookupFun!void function(GLenum, GLuint) "glBindBuffer";
+  alias glMapBuffer     = *lookupFun!void* function(GLenum, GLenum) "glMapBuffer";
+  alias glMapBufferRange= *lookupFun!void* function(GLenum, GLintptr, GLsizeiptr, GLbitfield) "glMapBufferRange";
+  alias glUnmapBuffer   = *lookupFun!bool function(GLenum) "glUnmapBuffer";
   alias glBufferData    = *lookupFun!void function(GLenum, GLsizeiptr, void*, GLenum) "glBufferData";
   alias glBufferSubData = *lookupFun!void function(GLenum, GLintptr, GLsizeiptr, void*) "glBufferSubData";
   static if (!is-defined GL_ARRAY_BUFFER) {

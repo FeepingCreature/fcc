@@ -32,4 +32,5 @@ void main(string[] args) {
   float f = 2f % 3f;
   // import std.process;
   // writeln readback("cat", ["6"]);
+  int a = -360 % 360;
 }

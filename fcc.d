@@ -1035,7 +1035,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
     if (auto res = system(cmdline.toStringz())) {
       logln("ERROR: Compilation failed with ", res, " ", getErrno());
-      exit(res);
+      exit(1);
     }
     return objname;
   };
