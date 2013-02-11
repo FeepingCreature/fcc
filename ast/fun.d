@@ -85,6 +85,7 @@ class FunSymbol : Symbol {
     auto fp = new FunctionPointer(fun);
     if (nested) fp.args ~= Argument(nested);
     fp.stdcall = fun.type.stdcall;
+    fp.no_tls_ptr = fun.extern_c;
     return fp;
   }
   override mixin memoize!(_valueType, vt_cache, "valueType");
@@ -855,7 +856,14 @@ class FunctionType : ast.types.Type {
 
 extern(C) IType resolveTup(IType, bool onlyIfChanged = false);
 
-bool gotParlist(ref string str, ref Argument[] res, ParseCb rest, bool allowNull) {
+bool gotParlist(ref string str, ref Argument[] res, ParseCb rest, bool allowNull, bool extern_c = false) {
+  IType fixup(IType it) {
+    if (extern_c) {
+      if (auto fp = fastcast!(FunctionPointer)(it))
+        fp.no_tls_ptr = true;
+    }
+    return it;
+  }
   auto t2 = str;
   IType ptype, lastType;
   string parname;
@@ -879,7 +887,7 @@ bool gotParlist(ref string str, ref Argument[] res, ParseCb rest, bool allowNull
           gotInitializer(t2, init) || ((init = null), true)
         ),
         t2.accept(","[]),
-        { lastType = ptype; if (ptype || parname) res ~= Argument(ptype, parname, init); }
+        { lastType = ptype; if (ptype || parname) res ~= Argument(fixup(ptype), parname, init); }
       ) &&
       t2.accept(")"[])
   ) {
@@ -922,12 +930,12 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
       (
         forcename || t2.gotIdentifier(fun_name)
       )
-      &&
-      t2.gotParlist(_params, rest, true) || shortform
     )
   {
     static if (is(typeof(_fun()))) auto fun = _fun();
     else auto fun = _fun;
+    if (!t2.gotParlist(_params, rest, true, fun.extern_c) && !shortform)
+      return null;
     New(fun.type);
     fun.type.ret = ret;
     fun.type.params = _params;
@@ -936,7 +944,7 @@ Object gotGenericFun(T, bool Decl, bool Naked = false)(T _fun, Namespace sup_ove
     fun.sup = sup_override ? sup_override : ns;
     if (fun.name == "__win_main") {
       fun.type.stdcall = true;
-      fun.extern_c = true;
+      fun.markExternC();
     }
     auto backup = namespace();
     namespace.set(fun);

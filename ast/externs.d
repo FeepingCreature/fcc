@@ -66,13 +66,13 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   string tx;
   bool grabFun() {
     auto fun = new Function;
-    fun.extern_c = true;
+    fun.markExternC;
     New(fun.type);
     fun.type.stdcall = isStdcall;
     auto t3 = t2;
     if (test(fun.type.ret = fastcast!(IType)~ rest(t3, "type"[])) &&
         t3.gotIdentifier(fun.name) &&
-        t3.gotParlist(fun.type.params, rest, false) &&
+        t3.gotParlist(fun.type.params, rest, false, true) &&
         t3.accept(";"[])
       )
     {
