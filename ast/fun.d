@@ -137,7 +137,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     defaultIterate!(dependents).iterate(dg, mode);
     // else to be defined in subclasses
   }
-  string toString() { return qformat("fun "[], name, " "[], type/*, " <- "[], sup*/); }
+  string toString() { return qformat("fun "[], fqn(), " "[], type/*, " <- "[], sup*/); }
   string[] llvmFrameTypes;
   // add parameters to namespace
   string coarseSrc;
@@ -1032,7 +1032,7 @@ class FunctionPointer : ast.types.Type, ExternAware {
   Argument[] args;
   bool stdcall, no_tls_ptr;
   Function delayfun;
-  string toString() { return Format(ret, " function("[], args, ")"[], stdcall?" stdcall":""[]); }
+  string toString() { return Format(ret, " function("[], args, ")"[], stdcall?" stdcall":"", no_tls_ptr?" no tls":""); }
   this(IType ret, Argument[] args, bool no_tls_ptr = false) {
     if (!ret) fail;
     this.ret = ret;
@@ -1082,6 +1082,7 @@ class FunctionPointer : ast.types.Type, ExternAware {
     if (args.length != ft.args.length) return false;
     foreach (i, p; args) if (p.type != ft.args[i].type) return false;
     if (stdcall != ft.stdcall) return false;
+    if (no_tls_ptr != ft.no_tls_ptr) return false;
     return true;
   }
   string manglecache;
@@ -1097,6 +1098,7 @@ class FunctionPointer : ast.types.Type, ExternAware {
     else foreach (arg; arginfo) {
       qappend("_", arg);
     }
+    if (no_tls_ptr) qappend("_notls");
     auto res = qfinalize();
     manglecache = res;
     return res;
@@ -1118,7 +1120,8 @@ class FunRefExpr : Expr, Literal {
   }
   IType typecache;
   override {
-    override FunRefExpr dup() { return fastalloc!(FunRefExpr)(fun); }
+    string toString() { return qformat("&", fun); }
+    FunRefExpr dup() { return fastalloc!(FunRefExpr)(fun); }
     IType valueType() {
       if (!typecache) typecache = fastalloc!(FunctionPointer)(fun);
       return typecache;

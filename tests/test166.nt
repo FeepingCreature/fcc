@@ -1,0 +1,23 @@
+module test166;
+
+import std.math, std.string;
+
+template Test(A) {
+  auto Test(A a) {
+    alias fun = a[1];
+    alias args = ParamTypes type-of fun;
+    auto nested = new \{
+      args bogus;
+      writeln string-of a[1](bogus);
+      if (a[0]) {
+        assert !(string-of a[1](bogus)).find "no tls";
+      }
+    };
+    nested();
+  }
+}
+
+void main() {
+  Test (false, &exp);
+  Test (true, &sin);
+}

@@ -453,6 +453,10 @@ class FpCall : Expr {
   this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(fp, params);
+  string toString() {
+    auto fntype = fastcast!(FunctionPointer) (fp.valueType());
+    return qformat("pointer call<", fntype, "> ", fp, " ", params);
+  }
   override void emitLLVM(LLVMFile lf) {
     auto fntype = fastcast!(FunctionPointer)~ fp.valueType();
     callFunction(lf, fntype.ret, true, fntype.stdcall, params, fp);
