@@ -102,7 +102,7 @@ class GlobVarDecl : Statement, IsMangled {
     }
     string toString() { return Format("declare ", vars); }
     void emitLLVM(LLVMFile lf) {
-      foreach (var; vars) if (var.type.llvmSize() != "0") {
+      foreach (var; vars) /*if (var.type.llvmSize() != "0")*/ {
         string linkage;
         if (var.weak) linkage = "weak_odr ";
         string sectioninfo;
