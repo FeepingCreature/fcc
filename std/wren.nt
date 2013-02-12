@@ -250,6 +250,19 @@ template wren-to-neat(T) {
       error "Can't create bool from $thing: neither nil nor t";
       alias match-found = true;
     }
+    static if (types-equal(int, T)) {
+      if (auto i = Integer: thing) {
+        return i.num;
+      }
+      if (auto n = Number: thing) {
+        import std.math;
+        if (abs(int:n.num - n.num) > 0.001)
+          error "Cannot convert to int: $thing";
+        return int:n.num;
+      }
+      else error "Can't create int from $thing";
+      alias match-found = true;
+    }
     static if (types-equal(float, T)) {
       if (auto n = Number: thing)
         return n.num;
@@ -447,10 +460,10 @@ bool gotNum(string* text, float* num) {
 
 Thing parse(string* text) {
   if (text.accept "(") {
-    Thing[] things;
+    Thing[auto~] things;
     while (!text.accept ")")
       things ~= parse text;
-    return new List things;
+    return new List things[];
   }
   if (gotNum(text, &float f)) {
     return new Number f;
