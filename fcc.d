@@ -1029,7 +1029,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
     } else {
       string bogus;
-      cmdline ~= Format("-o - ", srcname, " |opt -march=x86 - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus)~" |llc -march=x86 - -filetype=obj -o ", objname);
+      cmdline ~= Format("-o - ", srcname, " |opt -march=x86 - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus)~" |llc -mattr=-avx,-avx2,-sse41 -march=x86 - -filetype=obj -o ", objname);
     }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
@@ -1149,7 +1149,7 @@ void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = fals
     
     objfile = ".obj/"~output~".o";
     // -mattr=-avx,-sse41 
-    fullcommand ~= " |llc - "~get_llc_cmd(optimize, debugmode, saveTemps, fullcommand)~"-filetype=obj -o "~objfile;
+    fullcommand ~= " |llc - -mattr=-avx,-avx2,-sse41 "~get_llc_cmd(optimize, debugmode, saveTemps, fullcommand)~"-filetype=obj -o "~objfile;
     logSmart!(false)("> ", fullcommand);
     if (system(fullcommand.toStringz()))
       throw new Exception("link failed");
