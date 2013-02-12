@@ -979,6 +979,12 @@ void setupSysmods() {
       }
       return (res, a);
     }
+    template toDg(T) {
+      auto toDg(T t) {
+        alias args = ParamTypes T;
+        return __internal_flatten new λ(ParamTypes T args) -> t args;
+      }
+    }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["sys.nt"] = src;

@@ -316,6 +316,7 @@ class FunPtrAsDgExpr(T) : T {
     this.ex = ex;
     fp = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
     if (!fp) { logln(ex); logln(fp); fail; }
+    if (!fp.no_tls_ptr) asm { int 3; } // BADWRONG: THIS BREAKS UNDER MULTITHREADING
     auto tlsptr = fastalloc!(LateLookupExpr)(tlsbase, voidp);
     super(ex, tlsptr); // this call will have the tls pointer twice - but, meh!
   }
@@ -401,7 +402,7 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     auto fp = fastcast!(FunctionPointer) (resolveType(ex.valueType()));
-    if (!fp) return null;
+    if (!fp || !fp.no_tls_ptr) return null; // can't convert tls ptr fun to dg
     if (fastcast!(Literal)~ ex)
       return new FunPtrAsDgExpr!(LitTemp)(ex);
     else
