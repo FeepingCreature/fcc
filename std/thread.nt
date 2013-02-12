@@ -54,11 +54,12 @@ class Semaphore {
 vec4f aligntest_a, aligntest_b;
 
 extern(C) void* __start_routine(void* p) {
-  auto arg = *(void delegate(), void*, int, Semaphore, type-of mem)*:p;
+  auto arg = *(void delegate(), void*, int, Semaphore, type-of mem, type-of onThreadCreation)*:p;
   auto _threadlocal = arg[1];
   setThreadlocal _threadlocal;
   mxcsr = arg[2];
   mem = arg[4];
+  onThreadCreation = arg[5];
   setupStackBase;
   arg[3].release;
   dupvcache = null;
@@ -71,16 +72,17 @@ extern(C) void* __start_routine(void* p) {
 
 void startThread(void delegate() dg) {
   pthread_t buf;
-  (void delegate(), void*, int, Semaphore, type-of mem) arg;
+  (void delegate(), void*, int, Semaphore, type-of mem, type-of onThreadCreation) arg;
   arg[0] = dg;
   arg[1] = copy_tls;
   arg[2] = mxcsr;
   arg[3] = new Semaphore;
-  if (!mem.autoclean) { // some special handler, probably leftover tracked_mem because we're called from a void init(). HACK fix
+  if (mem.special_magic) { // some special handler, probably leftover tracked_mem because we're called from a void init(). HACK fix
     using scoped mem { mem_init; arg[4] = mem; }
   } else { // PROBABLY sane
     arg[4] = mem;
   }
+  arg[5] = onThreadCreation;
   
   auto res = pthread_create(&buf, null, &__start_routine, &arg);
   arg[3].claim;

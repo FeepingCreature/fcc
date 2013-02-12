@@ -86,21 +86,21 @@ void setupSysmods() {
       return memcpy(dest, src, n);
     }
     context mem {
-      provide "defines malloc, calloc, calloc_atomic, free, autoclean";
+      provide "defines malloc, calloc, calloc_atomic, free, special_magic";
       void* delegate(int)           malloc_dg;
       void* delegate(int, int)      calloc_dg;
       void* delegate(int)           calloc_atomic_dg; // allocate data, ie. memory containing no pointers
       void delegate(void*, int sz = 0) free_dg;
-      bool autoclean; // allocated memory is cleaned up somewhere scoped-bound
+      bool special_magic; // allocated memory is cleaned up somewhere scoped-bound
       void* malloc (int i)             { return malloc_dg(i); }
       void* calloc_atomic (int i)      { if (!calloc_atomic_dg) return calloc(i, 1); return calloc_atomic_dg(i); }
       void* calloc (int i, int k)      { return calloc_dg(i, k); }
-      void  free   (void* p, int sz = 0){free_dg(p, sz); }
+      void  free   (void* p, int sz = 0){ free_dg(p, sz); }
       /*MARKER*/
     }
     shared (void*, int)[auto~] _allocations; // no need for tls: is only valid during startup
     void tracked_mem_init() { // like mem_init but with tracking
-      mem.autoclean = false;
+      mem.special_magic = true;
       mem.malloc_dg = \(int i) {
         auto res = alloc16 i;
         if i using scoped mem {
@@ -126,7 +126,7 @@ void setupSysmods() {
       mem.calloc_atomic_dg = null;
     }
     void mem_init() {
-      mem. autoclean = false;
+      mem. special_magic = false;
       mem. malloc_dg = \(int i) { return alloc16 i; }
       mem. calloc_dg = \(int i, k) {
         auto res = alloc16 (i * k);
@@ -280,14 +280,14 @@ void setupSysmods() {
         auto pre = Alloc(sz+16);
         // align to next 16-bit boundary
         auto resptr = void*: (((int:pre + 16) / 16) * 16);
-        (void**:resptr)[-1] = pre; // store original pointer
+        (int*:resptr)[-1] = resptr - pre; // store delta to original pointer
         return resptr;
       }
     }
     template aligned16free(alias Free) {
       void aligned16free(void* ptr) {
         if (!ptr) return;
-        Free ((void**: ptr)[-1]); // retrieve original pointer
+        Free (ptr - (int*: ptr)[-1]); // retrieve original pointer
       }
     }
     platform(*-mingw*) {
@@ -554,11 +554,11 @@ void setupSysmods() {
     }
     void[] fastdupv(void[] v) {
       void[] res;
-      // if autoclean is true, can't rely on memory to stick around so can't use cache
-      if (v.length > BLOCKSIZE || mem.autoclean) {
+      // if special_magic is true, can't rely on memory to stick around so can't use cache
+      if (v.length > BLOCKSIZE || mem.special_magic) {
         res = mem.malloc(v.length)[0..v.length];
       } else {
-        if (dupvcache.length && dupvcache.length < v.length) {
+        if (dupvcache.length < v.length) {
           dupvcache = null;
         }
         if (!dupvcache.length) {
@@ -689,7 +689,7 @@ void setupSysmods() {
         //   raise new Error "failed to setup SIGFPE handler";
       }
       extern(C) void* getThreadlocal() {
-          return c.pthread.pthread_getspecific(tls_pointer);
+        return c.pthread.pthread_getspecific(tls_pointer);
       }
       void setThreadlocal(void* p) {
         c.pthread.pthread_setspecific(tls_pointer, p);

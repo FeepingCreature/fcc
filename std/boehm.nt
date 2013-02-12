@@ -2,11 +2,13 @@
 The Boehm GC*/
 module std.boehm; // use Boehm GC
 
+pragma(define, "GC_THREADS");
 import c.gc, std.thread;
 
 pragma(lib, "gc");
 
 extern(C) void* memset(void* s, int c, size_t n);
+extern(C) int pthread_self();
 void* simple_debug_malloc(int i) { return GC_debug_malloc(i, "", 0); }
 void* simple_debug_malloc_atomic(int i) { return GC_debug_malloc_atomic(i, "", 0); }
 void* myDebugMalloc(int a) { return (aligned16malloc!simple_debug_malloc) a; }
@@ -22,7 +24,9 @@ void* myDebugCallocAtomic(int a) {
     printf("Allocation failed: myDebugCallocAtomic(%i)\n", a);
     _interrupt 3;
   }
+  // printf("%i:1 tls ptr = %p, frameinfo = %p, _record = %p @%p, _handler = %p, _cm %p, memset %p from 0 to %i\n", pthread_self(), _threadlocal, frameinfo, _record, &_record, __hdl__, _cm, res, a);
   memset(res, 0, a);
+  // printf("%i:2 tls ptr = %p, frameinfo = %p, _record = %p @%p, _handler = %p, _cm %p\n", pthread_self(), _threadlocal, frameinfo, _record, &_record, __hdl__, _cm);
   return res;
 }
 void myDebugFree(void* vp, int sz = 0) { aligned16free!GC_debug_free vp; }
@@ -42,14 +46,30 @@ void* myCalloc(int a, b) {
   return res;
 }
 
+void addTLSRanges() {
+  // copypaste from sysmod
+  auto
+    localStart = [for mod <- __static_modules: int:mod.dataStart - int:&_sys_tls_data_start],
+    localEnd = [for mod <- __static_modules: int:mod.dataEnd - int:&_sys_tls_data_start],
+    localRange = zip(localStart, localEnd);
+  for auto range <- localRange && auto mod <- __modules {
+    if (range[1] - range[0] == 1) continue;
+    // writeln "$(mod.name): register range $(range[0])..$(range[1]) in $(_threadlocal)";
+    GC_add_roots(_threadlocal + range[0], _threadlocal + range[1]);
+  }
+}
+
 platform(default) {
   void register_thread(void* stackbase /* ignored for known thread base */) {
     GC_stack_base gsb;
     gsb.mem_base = stack-base;
-    GC_register_my_thread(&gsb);
+    static if (is-defined GC_register_my_thread) {
+      GC_register_my_thread(&gsb);
+    }
     // writeln "register stack base $(stack-base) (ebp $(_ebp))";
-    // register my TLS segment as a root
-    GC_add_roots(_threadlocal, _threadlocal + tls_size);
+    // register my TLS segments as roots
+    // GC_add_roots(_threadlocal, _threadlocal + tls_size);
+    addTLSRanges;
   }
 }
 
@@ -70,21 +90,25 @@ platform(i686-mingw32) {
 Initialize and enable the Boehm GC*/
 void initBoehm(bool debugMode = false) {
   (mem.malloc_dg, mem.calloc_atomic_dg, mem.calloc_dg, /*mem.realloc_dg, */mem.free_dg)
-    = [(&myMalloc,      &myCallocAtomic,      &myCalloc,      /*&myRealloc,      */&myFree),
-       (&myDebugMalloc, &myDebugCallocAtomic, &myDebugCalloc, /*&myDebugRealloc, */&myDebugFree)
+    = [(toDg &myMalloc,      toDg &myCallocAtomic,      toDg &myCalloc,      /*toDg &myRealloc,      */toDg &myFree),
+       (toDg &myDebugMalloc, toDg &myDebugCallocAtomic, toDg &myDebugCalloc, /*toDg &myDebugRealloc, */toDg &myDebugFree)
       ][debugMode];
-  mem.autoclean = false; // memory is cleaned up, but not SCOPE based. This is for stuff like scope pools.
+  mem.special_magic = false; // memory is cleaned up, but not SCOPE based. This is for stuff like scope pools.
   GC_init;
+  GC_disable;
   static if (is-defined GC_allow_register_threads) {
     GC_allow_register_threads;
   }
+  
   // register all the pre-main roots
   for auto pair <- sys._allocations
     GC_add_roots(pair[0], pair[0] + pair[1]);
+  
   auto oldDg = onThreadCreation;
   onThreadCreation = new delegate void(void* stackbase) {
     register_thread(stackbase);
     if (oldDg) { oldDg(stackbase); }
   };
-  // GC_disable();
+  dupvcache = null;
+  GC_enable;
 }
