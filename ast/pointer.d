@@ -137,6 +137,15 @@ static this() {
     }
     return null;
   };
+  // LOL, good luck working out when this is useful (and yes it is)
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto de = fastcast!(DerefExpr) (it)) {
+      if (auto re = fastcast!(RefExpr) (de.src)) {
+        return fastcast!(Itr) (re.src);
+      }
+    }
+    return null;
+  };
   // Pointers must NOT autocast to void* unless expected!
   implicits ~= delegate Expr(Expr ex, IType target) {
     if (!target) return null;

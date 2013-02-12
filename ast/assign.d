@@ -51,7 +51,7 @@ class _Assignment(T) : LineNumberedStatementClass {
 
 alias _Assignment!(LValue) Assignment;
 alias _Assignment!(MValue) AssignmentM;
-import ast.casting;
+import ast.casting, ast.fold;
 Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue lv; MValue mv;
@@ -69,6 +69,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     
     auto bexup = ex;
     bool thereWereAssignables;
+    opt(ex);
     if (!gotImplicitCast(ex, value.valueType(), (Expr ex) {
       if (!fastcast!(LValue) (ex) && !fastcast!(MValue) (ex))
         return false;
