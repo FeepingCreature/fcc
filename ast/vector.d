@@ -89,14 +89,19 @@ final class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
         assert(false);
       }
       auto parts = getTupleEntries(ex, null, true);
+      Expr mknum(int num) {
+        if (fastcast!(Float)(this.base)) return fastalloc!(FloatExpr)(num);
+        if (fastcast!(SysInt)(this.base)) return fastalloc!(IntExpr)(num);
+        throw new Exception(qformat("Don't know how to create constant ", num, " for type ", this.base));
+      }
       Expr[] exprs;
       foreach (ch; str) {
             if (ch == 'x') exprs ~= parts[0];
         else if (ch == 'y') exprs ~= parts[1];
         else if (ch == 'z') exprs ~= parts[2];
         else if (ch == 'w') exprs ~= parts[3];
-        else if (ch == '0') exprs ~= fastalloc!(FloatExpr)(0);
-        else if (ch == '1') exprs ~= fastalloc!(FloatExpr)(1);
+        else if (ch == '0') exprs ~= mknum(0);
+        else if (ch == '1') exprs ~= mknum(1);
         else assert(false);
       }
       assert(exprs.length > 1);
