@@ -35,6 +35,7 @@ abstract class GLWindow {
   void setup(vec2i size = vec2i(640, 480));
   bool isSetUp();
   vec2i size();
+  alias aspect = size().(x * 1f / y);
   void claim-cursor();
   void release-cursor();
   bool cursor-claimed();
