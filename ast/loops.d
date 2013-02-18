@@ -15,6 +15,8 @@ interface Breakable {
 TLS!(Stuple!(Breakable, Function)) breakable_context;
 static this() { New(breakable_context); }
 
+// NOTE: needs special attention, when dupping, to replace any references
+// to it with the dupped version - see substituteBrkRef()
 template DefaultBreakableImpl() {
   string chosenContinueLabel, chosenBreakLabel;
   Statement[] outsideGuards, insideGuards;
@@ -26,14 +28,28 @@ template DefaultBreakableImpl() {
   }
 }
 
+void substituteBrkRef(Scope sc, Breakable what, Breakable substwith) {
+  void recurse(ref Iterable it) {
+    if (auto egj = fastcast!(ExecGuardsAndJump)(it)) {
+      if (egj.brk is what) {
+        it = fastalloc!(ExecGuardsAndJump)(egj.guards, egj.offsets, egj.modeContinue, substwith);
+        return;
+      }
+    }
+    it.iterate(&recurse);
+  }
+  sc.iterate(&recurse);
+}
+
 class WhileStatement : Statement, Breakable {
   Scope _body;
   Cond cond;
   Scope sup;
   Scope elsecmd;
   override WhileStatement dup() {
-    auto res = new WhileStatement;
+    auto res = fastalloc!(WhileStatement)();
     res._body = _body.dup;
+    substituteBrkRef(res._body, this, res);
     res.cond = cond.dup;
     res.sup = sup; // goes upwards - don't dup!
     if (elsecmd) res.elsecmd = elsecmd.dup;
@@ -160,7 +176,16 @@ class ForStatement : Statement, Breakable {
   Statement step;
   Scope _body;
   Scope elsecmd;
-  mixin DefaultDup!();
+  override ForStatement dup() {
+    auto res = fastalloc!(ForStatement)();
+    res.decl = decl.dup;
+    res.cond = cond.dup;
+    res.step = step.dup;
+    res._body = _body.dup;
+    substituteBrkRef(res._body, this, res);
+    if (res.elsecmd) res.elsecmd = elsecmd.dup;
+    return res;
+  }
   mixin DefaultBreakableImpl!();
   mixin defaultIterate!(decl, cond, step, _body, elsecmd);
   override void emitLLVM(LLVMFile lf) {
@@ -229,7 +254,16 @@ mixin DefaultParser!(gotForStmt, "tree.stmt.for"[], "142"[], "for"[]);
 class DoWhileExt : Statement, Breakable {
   Scope first, second, elsecmd;
   Cond cond;
-  mixin DefaultDup!();
+  override DoWhileExt dup() {
+    auto res = fastalloc!(DoWhileExt)();
+    res.first = first.dup;
+    substituteBrkRef(res.first, this, res);
+    res.second = second.dup;
+    substituteBrkRef(res.second, this, res);
+    res.cond = cond.dup;
+    if (elsecmd) res.elsecmd = elsecmd.dup;
+    return res;
+  }
   mixin DefaultBreakableImpl!();
   mixin defaultIterate!(first, second, cond);
   override void emitLLVM(LLVMFile lf) {
@@ -303,6 +337,10 @@ class ExecGuardsAndJump : Statement {
     }
     void emitLLVM(LLVMFile lf) {
       string targetlabel = modeContinue?brk.getContinueLabel():brk.getBreakLabel();
+      if (!targetlabel) {
+        logln("bad: break/continue context not initialized - break/continue in invalid loop? ", cast(void*) brk, " ", brk);
+        asm { int 3; }
+      }
       foreach_reverse (i, stmt; guards) {
         // justification for dup see class ReturnStmt in ast.returns
         stmt.dup().emitLLVM(lf);
