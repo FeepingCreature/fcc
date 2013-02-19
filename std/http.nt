@@ -51,7 +51,7 @@ ubyte[] download(string url, void delegate(string) onRedirect = null, int timeou
 
 (ubyte[], string)[auto~] cache;
 import std.thread;
-Mutex cachelock;
+shared Mutex cachelock;
 
 void init() cachelock = new Mutex;
 

@@ -110,7 +110,7 @@ template QueryIterator(T) {
       }
       if res == SQLITE_BUSY raise new SQLiteBusy;
       if res != SQLITE_ROW
-        raise new SQLiteError "Failed to iterate query '$sql': $res";
+        raise new SQLiteError "Failed to iterate query '$sql': $res: $(CToString sqlite3_errmsg db.db)";
       static if type-is tuple T {
         static if value.length {
           static while int i <- 0 .. value.length {

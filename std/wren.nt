@@ -192,6 +192,14 @@ template neat-to-wren(T) {
       return new Array!AT t;
       alias match-found = true;
     }
+    static if (!is-defined match-found && type-is tuple T) {
+      Thing[auto~] entries;
+      static for int i <- 0..t.length {
+        entries ~= .neat-to-wren t[i];
+      }
+      return new List entries[];
+      alias match-found = true;
+    }
     static if !is-defined match-found && (type-is delegate T || type-is function T) {
       return new Function("neat wrapper for $(string-of T)", new delegate Thing(Thing[] args) {
         alias PT = ParamTypes T;
@@ -215,7 +223,7 @@ template neat-to-wren(T) {
           call;
           return .t;
         } else {
-          return neat-to-wren call;
+          return .neat-to-wren call;
         }
       });
       alias match-found = true;
@@ -295,9 +303,28 @@ template wren-to-neat(T) {
         error "Can't create $(string-of T) from $thing";
       
       static for int i <- 0..res.length {
-        res[i] = .wren-to-neat!type-of res[i] li.list[i];
+        alias restype = type-of res[i];
+        res[i] = .wren-to-neat!restype li.list[i];
       }
       return res;
+      alias match-found = true;
+    }
+    static if (type-is delegate T) {
+      auto fn = Function: thing;
+      if !fn error "Can't create $(string-of T) from $thing: not a Function";
+      alias Ret = ReturnType T, Par = ParamTypes T;
+      return __internal_flatten new delegate Ret(Par p) {
+        Thing[auto~] neatargs;
+        static if (type-is tuple Par) {
+          static for int i <- 0..p.length {
+            neatargs ~= neat-to-wren p[i];
+          }
+        } else {
+          neatargs ~= neat-to-wren p;
+        }
+        auto res = fn.call (neatargs[], scripts);
+        return (.wren-to-neat!Ret) res;
+      }
       alias match-found = true;
     }
     static if (!is-defined match-found) {
@@ -525,6 +552,8 @@ class ListNamespace : Namespace {
       dg pair[(1, 0)];
   }
 }
+
+ListNamespace scripts; // default namespace
 
 shared Thing nil, t;
 void init() {
