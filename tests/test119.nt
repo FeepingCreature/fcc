@@ -1,22 +1,24 @@
 module test119;
 
-int foo(as_type(x) void delegate(int delegate(x)) dg) {
-  dg \(as_type(x) void delegate(int delegate(x)) dg) { return 3; }
-  dg \(as_type(x) void delegate(int delegate(x)) dg) { return 4; }
-  return 5;
-}
-
-int bar(as_type(x) void delegate(int delegate(x)) dg) {
-  dg \(dg) { return 3; }
-  dg \(dg) { return 4; }
-  return 5;
-}
-
 void main() {
+  
+  int foo(as_type(x) void delegate(int delegate(x)) dg) {
+    dg \(as_type(x) void delegate(int delegate(x)) dg) { return 3; }
+    dg \(as_type(x) void delegate(int delegate(x)) dg) { return 4; }
+    return 5;
+  }
+  
+  int bar(as_type(x) void delegate(int delegate(x)) dg) {
+    dg \(dg) { return 3; }
+    dg \(dg) { return 4; }
+    return 5;
+  }
+  
   void print(int delegate(as_type(x) void delegate(int delegate(x))) dg) {
     auto res = dg &print;
     writeln ": $res";
   }
+  
   writeln "--foo &print--";
   foo &print;
   writeln "--print &foo--";
