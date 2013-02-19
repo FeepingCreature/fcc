@@ -146,6 +146,10 @@ template head(T) {
   }
 }
 
+template tail(T) {
+  T tail(T t) { assert !! auto ignore <- t; return t; }
+}
+
 macro("tree.expr.flatten_tuple", "331") `
   (if
     (not (matched-text "__flatten_tuple"))

@@ -5,9 +5,20 @@ template DoubleLinkedList(T) {
     T data;
     Data* prev, next;
   }
+  class DLLIterator {
+    Data* cur, start;
+    alias value = cur.data;
+    void init(Data* d) start = d;
+    bool advance() {
+      if (!cur) cur = start;
+      else cur = cur.next;
+      return !!cur;
+    }
+  }
   struct DoubleLinkedList {
     Data* head, tail;
     alias hasData = !!head;
+    alias iterator = new DLLIterator tail;
     void pushHead(T t) {
       auto wasHead = head;
       head = new Data;
@@ -44,3 +55,76 @@ template DoubleLinkedList(T) {
     }
   }
 }
+
+template irefs(T) {
+  class refs_class {
+    type-of (*T*:null).iterator t;
+    int index;
+    type-of-elem t * value;
+    bool advance() {
+      if (!auto ignore <- t) return false;
+      value = &t.value;
+      return true;
+    }
+  }
+  refs_class irefs(T _t) using new refs_class { that.t = _t.iterator; index = 0; return that; }
+}
+
+template UnrolledDoubleLinkedList(T) {
+  alias PageSize = 4096;
+  alias Length = PageSize / size-of T;
+  struct UnrolledDoubleLinkedList {
+    // data, from (inclusive), to (exclusive)
+    DoubleLinkedList!(T x Length, int, int) backing;
+    class UDLLIterator {
+      type-of (irefs backing.iterator) rbacking;
+      int i;
+      alias value = *rbacking.value #[0][i];
+      void init(type-of rbacking rbacking) { this.rbacking = rbacking; this.i = int.max; }
+      bool advance() {
+        if (i != int.max) {
+          i++;
+          if (i < (*rbacking.value)._2) return true;
+        }
+        do {
+          if (!rbacking.advance()) return false;
+        } while ((*rbacking.value).(_1 == _2)); // skip empty entries until we reach a nonempty or the end
+        // now set i to from
+        i = (*rbacking.value)[1];
+        return true;
+      }
+    }
+    alias iterator = new UDLLIterator irefs backing.iterator;
+    void pushHead(T t) {
+      if (backing.(!hasData || head.data.(_2 == Length))) {
+        T x Length init;
+        backing.pushHead(init, 0, 0);
+      }
+      backing.head.data.(_0[_2]) = t;
+      backing.head.data._2 ++;
+    }
+    void pushTail(T t) {
+      if (backing.(!hasData || tail.data.(_1 == 0))) {
+        T x Length init;
+        backing.pushTail(init, Length, Length);
+      }
+      backing.tail.data._1 --;
+      backing.tail.data.(_0[_1]) = t;
+    }
+    T popHead() {
+      while (backing.(head && head.data.(_1 == _2))) backing.popHead;
+      assert !! backing.hasData;
+      backing.head.data._2 --;
+      return backing.head.data.(_0[_2]);
+    }
+    T popTail() {
+      while (backing.(tail && tail.data.(_1 == _2))) backing.popTail;
+      assert !! backing.hasData;
+      auto res = backing.tail.data.(_0[_1]);
+      backing.tail.data._1 ++;
+      return res;
+    }
+  }
+}
+
+alias Deque = UnrolledDoubleLinkedList;
