@@ -112,7 +112,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       }
       auto tt = fastcast!(Expr) (transformed).valueType();
       auto bt = bp.valueType();
-      if (!gotImplicitCast(bp, (IType it) { return !!(it == tt); })) {
+      if (!gotImplicitCast(bp, tt, (IType it) { return !!(it == tt); })) {
         text.failparse("Could not convert class context into appropriate "
         "allocation context for subclass: ", bt, " does not cast to ", tt);
       }
