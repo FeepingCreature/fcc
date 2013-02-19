@@ -964,6 +964,19 @@ void setupSysmods() {
       }
       refs_class refs(T _t) using new refs_class { t = _t; index = 0; return that; }
     }
+    template irefs(T) {
+      class refs_class {
+        type-of (*T*:null).iterator t;
+        int index;
+        type-of-elem t * value;
+        bool advance() {
+          if (!auto ignore <- t) return false;
+          value = &t.value;
+          return true;
+        }
+      }
+      refs_class irefs(T _t) using new refs_class { that.t = _t.iterator; index = 0; return that; }
+    }
     (int, int) _xdiv(int a, b) {
       if (b > a) return (0, a);
       int mask = 1, res;
