@@ -191,12 +191,14 @@ class StructIterator : Type, Iterator {
 }
 
 static this() {
-  /*implicits ~= delegate Expr(Expr ex) {
+  // this was commented out to work around a really bad bug
+  // if you find what the bug is: DOCUMENT IT HERE. Don't just silently comment it out!
+  implicits ~= delegate Expr(Expr ex) {
     if (auto si = fastcast!(StructIterator) (ex.valueType())) {
       return reinterpret_cast(si.wrapped, ex);
     }
     return null;
-  };*/
+  };
 }
 
 import tools.base: This, This_fn, rmSpace, PTuple, Stuple, ptuple, stuple;
