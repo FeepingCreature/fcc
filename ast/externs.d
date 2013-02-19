@@ -49,6 +49,18 @@ Object gotMarkStdCall(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotMarkStdCall, "type.mark_stdcall"[], "911"[], "_markStdCall"[]);
 
+// so templates can mark us as weak - see NoOpMangleHack in ast/structure.d
+class NoOpIsMangledHack : Statement, IsMangled {
+  IsMangled[] ims;
+  this(IsMangled[] ims) { this.ims = ims; }
+  NoOpIsMangledHack dup() { return this; }
+  override void emitLLVM(LLVMFile lf) { }
+  mixin defaultIterate!();
+  override string mangleSelf() { assert(false); }
+  override void markWeak() { foreach (im; ims) im.markWeak(); }
+  override void markExternC() { foreach (im; ims) im.markExternC(); }
+}
+
 import ast.modules;
 Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -64,6 +76,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
   }
   if (!t2.accept(")"[])) return null;
   string tx;
+  IsMangled[] ims;
   bool grabFun() {
     auto fun = new Function;
     fun.markExternC;
@@ -77,6 +90,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
       )
     {
       t2 = t3;
+      ims ~= fun;
       namespace().add(fun);
       return true;
     } else {
@@ -104,6 +118,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     Function fun;
     if (!rest(t3, "tree.fundef_externc"[], &fun)) return false;
     // logln("got fundef "[], fun.name);
+    ims ~= fun;
     current_module().addEntry(fun);
     t2 = t3;
     return true;
@@ -113,6 +128,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     Object obj;
     if (!rest(t3, "tree.toplevel"[], &obj)) return false;
     if (auto im = fastcast!(IsMangled)(obj)) {
+      ims ~= im;
       im.markExternC();
     }
     // logln("FALLTHROUGH TO ", obj);
@@ -130,6 +146,7 @@ Object gotExtern(ref string text, ParseCb cont, ParseCb rest) {
     success:;
   } else if (!grabFun() && !grabVar() && !grabFunDef()) fail;
   text = t2;
-  return Single!(NoOp);
+  // return Single!(NoOp);
+  return fastalloc!(NoOpIsMangledHack)(ims);
 }
 mixin DefaultParser!(gotExtern, "tree.toplevel.extern_c"[]);
