@@ -476,7 +476,7 @@ class Cat(T) : Type, T {
       Scope curBranch = res_st;
       for (int i = 0; i < len; ++i) {
         auto ifst = iparse!(IfStatement, "cat_step"[], "tree.stmt"[])
-                           (`if tup[1+len+i] && tup[0] <- tup[1+i] { } else { tup[1+len+i] = false; }`,
+                           (`if tup[1+len+i] && auto temp <- tup[1+i] { tup[0] = temp; } else { tup[1+len+i] = false; }`,
                              curBranch, "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(len)
                            );
         curBranch.addStatement(ifst);
@@ -538,7 +538,22 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
     auto et = resolveType(itr.elemType);
     if (!valueType) { valueType = et; return; }
     if (et == valueType) return;
-    text.failparse("Could not merge "[], et, " into "[], valueType);
+    
+    bool merges_1, merges_2; int score_1, score_2;
+    
+    Expr test1 = new PlaceholderToken(valueType, "merge test 1");
+    if (gotImplicitCast(test1, et, (IType it) { return test(it == et); }, 1, &score_1))
+      merges_1 = true;
+    
+    Expr test2 = new PlaceholderToken(et, "merge test 2");
+    if (gotImplicitCast(test2, valueType, (IType it) { return test(it == valueType); }, 1, &score_2))
+      merges_2 = true;
+    
+    bool both = merges_1 && merges_2;
+    // try first one first
+    if (merges_2 && !merges_1 || (both && score_2 < score_1)) { return; } // valueType is our merge
+    if (merges_1 && !merges_2 || (both && score_1 < score_2)) { valueType = et; return; }
+    text.failparse("Could not merge "[], et, " into "[], valueType, ": ", merges_1, "(", score_1, "), ", merges_2, "(", score_2, ")");
   }
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = fastcast!(Tuple)~ ex.valueType();

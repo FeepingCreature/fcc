@@ -10,7 +10,6 @@ public import c.GL.gl;
 public import c.GL.glu;
 public import c.GL.glext;
 public import std.lib.opengl.rgbcolor;
-import std.string;
 
 platform(i686-mingw32) {
   pragma(lib, "opengl32");

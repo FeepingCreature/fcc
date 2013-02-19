@@ -147,14 +147,16 @@ static this() {
     return null;
   };
   // Pointers must NOT autocast to void* unless expected!
-  implicits ~= delegate Expr(Expr ex, IType target) {
-    if (!target) return null;
+  implicits ~= delegate void(Expr ex, IType target, void delegate(Expr, int) consider) {
+    if (!target) return;
     if (auto p = fastcast!(Pointer) (resolveType(ex.valueType()))) {
       if (!isVoidP(p) && isVoidP(target)) {
-        return dcm(reinterpret_cast(voidp, ex));
+        /* This is something of a fallback.
+           As such, give it a lower score. */
+        consider(dcm(reinterpret_cast(voidp, ex)), 1);
       }
     }
-    return null;
+    return;
   };
   implicits ~= delegate Expr(Expr ex, IType expect) {
     if (isVoidP(ex.valueType()) && fastcast!(Pointer) (resolveType(expect))) {
