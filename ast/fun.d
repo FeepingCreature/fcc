@@ -353,8 +353,8 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         cached_selfmangle = "WinMain";
       } else {
         cached_selfmangle = "_WinMain_not_relevant_on_this_architecture";
-      }
-    } else if (extern_c) {
+      } // still mangle extern(C) functions if they're in a template and have implementations
+    } else if (extern_c && !(weak && (tree || coarseSrc))) {
       auto res = cleaned_name;
       if (platform_prefix.find("mingw") != -1) {
         if (res == "setjmp") res = "_setjmp"; // lol wat.
