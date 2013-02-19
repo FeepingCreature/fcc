@@ -1,10 +1,8 @@
-module gtk;
+module std.lib.gtk;
 
 pragma(pkg-config, "gtk+-2.0");
 
 public import c.gtk.gtk;
-
-import std.string;
 
 alias gtcic = g_type_check_instance_cast;
 
@@ -31,8 +29,8 @@ defmode GDK_PIXBUF_LOADER "gobject-helper";
 
 (void*, void*, void*)[~] store;
 
-template call-dg-esi(T) {
-  ReturnType T call-dg-esi (GtkObject* obj, void* data) {
+template call-dg-threadlocal(T) {
+  extern(C) ReturnType T call-dg-threadlocal (GtkObject* obj, void* data) {
     alias ret = ReturnType T;
     alias paramless = !!types-equal(ParamTypes T, ParamTypes void delegate());
     static if paramless {
@@ -41,15 +39,13 @@ template call-dg-esi(T) {
       auto tup = *(ret delegate(ParamTypes T), void*)*: data;
     }
     
-    auto backup_esi = _esi;
-    onSuccess _esi = backup_esi;
-    _esi = tup[1];
+    auto _threadlocal = tup[1];
     
     static if types-equal(ret, void) {
       static if paramless {
         tup[0] ();
       } else {
-        tup[0] obj;
+        tup[0] ParamTypes T: obj;
       }
     } else {
       static if paramless {
@@ -64,8 +60,9 @@ template call-dg-esi(T) {
 template g_signal_connect(T) {
   // void g_signal_connect (GtkObject* w, string s, void delegate(GtkObject*) dg) {
   void g_signal_connect (T t) {
-    store ~= (void*, void*, void*): (t[2], _esi);
-    auto dgvalue = &(call-dg-esi!type-of t[2]);
-    g_signal_connect_data (gpointer: t[0], toStringz t[1], GCallback: dgvalue, &store[$-1], null, 0);
+    store ~= (void*, void*, void*): (t[2], _threadlocal);
+    auto fn = &(call-dg-threadlocal!type-of t[2]);
+    import std.string;
+    g_signal_connect_data (gpointer: t[0], toStringz t[1], GCallback: fn, &store[$-1], null, 0);
   }
 }
