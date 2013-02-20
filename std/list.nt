@@ -5,10 +5,9 @@ template DoubleLinkedList(T) {
     T data;
     Data* prev, next;
   }
-  class DLLIterator {
+  struct DLLIterator {
     Data* cur, start;
     alias value = cur.data;
-    void init(Data* d) start = d;
     bool advance() {
       if (!cur) cur = start;
       else cur = cur.next;
@@ -18,7 +17,7 @@ template DoubleLinkedList(T) {
   struct DoubleLinkedList {
     Data* head, tail;
     alias hasData = !!head;
-    alias iterator = new DLLIterator tail;
+    alias iterator = DLLIterator:(null, tail);
     void pushHead(T t) {
       auto wasHead = head;
       head = new Data;
@@ -59,28 +58,34 @@ template DoubleLinkedList(T) {
 template UnrolledDoubleLinkedList(T) {
   alias PageSize = 4096;
   alias Length = PageSize / size-of T;
+  struct Reference {
+    T* ptr;
+    alias implicit-cast = *ptr;
+  }
+  alias BackingT = DoubleLinkedList!(T x Length, int, int);
+  alias example = *BackingT*:null;
+  struct UDLLIterator {
+    type-of (irefs example.iterator) rbacking;
+    int i;
+    alias value = *rbacking.value #[0][i];
+    void init(type-of rbacking rbacking) { this.rbacking = rbacking; this.i = int.max; }
+    bool advance() {
+      if (i != int.max) {
+        i++;
+        if (i < (*rbacking.value)._2) return true;
+      }
+      do {
+        if (!rbacking.advance()) return false;
+      } while ((*rbacking.value).(_1 == _2)); // skip empty entries until we reach a nonempty or the end
+      // now set i to from
+      i = (*rbacking.value)[1];
+      return true;
+    }
+  }
   struct UnrolledDoubleLinkedList {
     // data, from (inclusive), to (exclusive)
-    DoubleLinkedList!(T x Length, int, int) backing;
-    class UDLLIterator {
-      type-of (irefs backing.iterator) rbacking;
-      int i;
-      alias value = *rbacking.value #[0][i];
-      void init(type-of rbacking rbacking) { this.rbacking = rbacking; this.i = int.max; }
-      bool advance() {
-        if (i != int.max) {
-          i++;
-          if (i < (*rbacking.value)._2) return true;
-        }
-        do {
-          if (!rbacking.advance()) return false;
-        } while ((*rbacking.value).(_1 == _2)); // skip empty entries until we reach a nonempty or the end
-        // now set i to from
-        i = (*rbacking.value)[1];
-        return true;
-      }
-    }
-    alias iterator = new UDLLIterator irefs backing.iterator;
+    BackingT backing;
+    alias iterator = UDLLIterator:irefs backing.iterator;
     void pushHead(T t) {
       if (backing.(!hasData || head.data.(_2 == Length))) {
         T x Length init;
@@ -96,6 +101,12 @@ template UnrolledDoubleLinkedList(T) {
       }
       backing.tail.data._1 --;
       backing.tail.data.(_0[_1]) = t;
+    }
+    Reference getHead() {
+      assert(backing.hasData);
+      auto cur = backing.head;
+      while (cur && cur.data.(_1 == _2)) cur = cur.prev;
+      return Reference:cur.data.(&_0[_2 - 1]);
     }
     T popHead() {
       while (backing.(head && head.data.(_1 == _2))) backing.popHead;

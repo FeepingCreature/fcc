@@ -952,7 +952,7 @@ void setupSysmods() {
       raise new FailError s;
     }
     template refs(T) {
-      class refs_class {
+      struct refs_iterator {
         T t;
         int index;
         type-of-elem t* value;
@@ -962,10 +962,10 @@ void setupSysmods() {
           return true;
         }
       }
-      refs_class refs(T _t) using new refs_class { t = _t; index = 0; return that; }
+      refs_iterator refs(T _t) { refs_iterator res; res.t = _t; res.index = 0; return res; }
     }
     template irefs(T) {
-      class refs_class {
+      struct irefs_iterator {
         type-of (*T*:null).iterator t;
         int index;
         type-of-elem t * value;
@@ -975,7 +975,7 @@ void setupSysmods() {
           return true;
         }
       }
-      refs_class irefs(T _t) using new refs_class { that.t = _t.iterator; index = 0; return that; }
+      irefs_iterator irefs(T _t) { irefs_iterator res; res.t = _t.iterator; res.index = 0; return res; }
     }
     (int, int) _xdiv(int a, b) {
       if (b > a) return (0, a);
