@@ -147,7 +147,7 @@ final class TypeAlias : _TypeAlias {
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     if (auto ea = fastcast!(ExprAlias) (it)) {
-      return fastcast!(Iterable) (ea.base);
+      return fastcast!(Iterable) (ea.base.dup);
     } else return null;
   };
 }
