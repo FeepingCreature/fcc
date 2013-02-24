@@ -498,7 +498,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       if (weak)
         // linkage = "linkonce_odr ";
         linkage = "weak_odr ";
-      if (extern_c) {
+      if (extern_c || lf.profilemode) {
         flags ~= "noinline ";
       }
       if (name == "__fcc_main") flags ~= "noinline ";
