@@ -70,15 +70,16 @@ template UnrolledDoubleLinkedList(T) {
     alias value = *rbacking.value #[0][i];
     void init(type-of rbacking rbacking) { this.rbacking = rbacking; this.i = int.max; }
     bool advance() {
+      alias rval = *rbacking.value;
       if (i != int.max) {
         i++;
-        if (i < (*rbacking.value)._2) return true;
+        if (i < rval[2]) return true;
       }
       do {
         if (!rbacking.advance()) return false;
-      } while ((*rbacking.value).(_1 == _2)); // skip empty entries until we reach a nonempty or the end
+      } while (rval[1] == rval[2]); // skip empty entries until we reach a nonempty or the end
       // now set i to from
-      i = (*rbacking.value)[1];
+      i = rval[1];
       return true;
     }
   }
