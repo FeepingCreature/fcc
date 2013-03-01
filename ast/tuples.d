@@ -344,16 +344,18 @@ Object gotTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     Expr ex;
     if (exprs.length > 1) {
       if (!t2.accept(","[]))
-        t2.failparse("tuple failed; comma expected"[]);
+        t2.failparse("expected comma when parsing tuple"[]);
+      resetError;
       if (!rest(t2, "tree.expr"[], &ex))
-        t2.failparse("tuple failed"[]);
+        t2.failparse("failed to parse tuple"[]);
     } else if (exprs.length) {
       if (!t2.accept(","[])) {
         t2.setError("expected comma or closing paren");
         return null;
       }
+      resetError;
       if (!rest(t2, "tree.expr"[], &ex))
-        return null;
+        t2.failparse("failed to parse tuple");
     } else {
       if (!rest(t2, "tree.expr"[], &ex))
         return null;
