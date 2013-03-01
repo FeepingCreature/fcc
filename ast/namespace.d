@@ -287,7 +287,8 @@ class Namespace {
     debug { float temp; if (name.gotFloat(temp)) fail; }
     if (auto res = lookupInField(name)) return res;
     if (!local && sup) {
-      if (auto p = name in supcache) return *p;
+      // macros bypass cache because they need special import-used marking logic
+      if (!parseBase.startsWith(name, "__tenth")) if (auto p = name in supcache) return *p;
       auto res = sup.lookup(name, false);
       supcache[name] = res;
       // logln(" => ", supcache.length, " ", name);
@@ -501,6 +502,8 @@ interface Importer {
   Object lookupInImports(string name, bool local);
 }
 
+TLS!(bool) peeky_lookup; // hack for ast.macros
+
 extern(C) void check_imports_usage(string info, Namespace[] imports, bool[] importsUsed);
 void noop() { }
 template ImporterImpl(alias parseme = noop) {
@@ -571,7 +574,10 @@ template ImporterImpl(alias parseme = noop) {
     foreach (i, ns; imports) {
       static if (debug_lookup) logln("3: "[], name, " in "[], ns, "?"[]);
       if (auto res = ns.lookup(name, true)) {
-        *getPtrResizing(importsUsed, i) = true;
+        if (*peeky_lookup.ptr()) {
+        } else {
+          *getPtrResizing(importsUsed, i) = true;
+        }
         addres(res, ns);
       }
     }

@@ -163,6 +163,7 @@ static this() {
 
 static this() {
   New(namespace, { return cast(Namespace) null; });
+  New(peeky_lookup, { return new bool; });
   New(current_module, { return cast(IModule) null; });
   // placed here because it needs some circular importage
   foldopt ~= delegate Itr(Itr it) {

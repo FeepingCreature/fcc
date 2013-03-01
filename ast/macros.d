@@ -521,16 +521,25 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto mac = fastcast!(TenthMacro) (obj);
   // imports can be found in functions ..
-  auto fun = namespace().get!(Function);
   Object findme;
-  if (fun) { findme = fun.lookup(mac.identifier, false); }
-  if (!findme) {
-    // .. and modules.
-    auto mod = namespace().get!(Module);
-    if (!mod) return null; // iparse, probably - no need for macros
-    findme = mod.lookup(mac.identifier, false);
+  bool checkLookup() {
+    findme = null;
+    if (auto fun = namespace().get!(Function)) { findme = fun.lookup(mac.identifier, false); }
+    if (!findme) {
+      // .. and modules.
+      auto mod = namespace().get!(Module);
+      if (!mod) return false; // iparse, probably - no need for macros
+      findme = mod.lookup(mac.identifier, false);
+    }
+    if (findme !is mac) return false; // check if we're in scope
+    return true;
   }
-  if (findme !is mac) return null; // check if we're in scope
+  {
+    auto backup = *peeky_lookup.ptr();
+    scope(exit) *peeky_lookup.ptr() = backup;
+    *peeky_lookup.ptr() = true;
+    if (!checkLookup()) return null;
+  }
   if (mac.key && !t2.accept(mac.key)) return null;
   auto ent = mac.root;
   fcc_initTenth;
@@ -652,6 +661,7 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   }));
   auto res = ent.eval(ctx);
   if (isNil(res)) return null;
+  checkLookup; // yes this import is used
   auto ie = fastcast!(ItrEntity) (res);
   if (!ie) tnte("Macro must evaluate to tree, not ", res);
   text = t2;
