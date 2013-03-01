@@ -4,12 +4,14 @@ import ast.base, parseBase, ast.fun, ast.namespace, ast.pointer, ast.stringparse
 
 import tools.base: endsWith;
 
-void parseGlobalBody(ref string src, ParseCb rest, bool stmt) {
+PassthroughWeakNoOp parseGlobalBody(ref string src, ParseCb rest, bool stmt) {
   Object obj;
+  IsMangled[] mangles;
   auto ns = namespace(), mod = fastcast!(Module) (current_module());
   if (!src.many(
       !!rest(src, stmt?"tree.stmt":"tree.toplevel"[], &obj),
       {
+        if (auto im = fastcast!(IsMangled)(obj)) mangles ~= im;
         if (stmt) {
           if (auto st = fastcast!(Statement) (obj)) {
             auto sc = fastcast!(Scope) (ns);
@@ -29,6 +31,7 @@ void parseGlobalBody(ref string src, ParseCb rest, bool stmt) {
   if (src.mystripl().length) {
     src.failparse("Unknown statement. "[]);
   }
+  return fastalloc!(PassthroughWeakNoOp)(mangles);
 }
 
 import ast.modules;

@@ -112,11 +112,11 @@ Object gotStaticIf(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   
   if (isStaticTrue(test)) {
     static if (Stmt) { res = branch1.parseFullAggregateBody(rest); }
-    else { res = Single!(NoOp); branch1.parseGlobalBody(rest, Stmt); }
+    else { res = branch1.parseGlobalBody(rest, Stmt); }
   } else if (isStaticFalse(test)) {
     if (branch2) {
       static if (Stmt) { res = branch2.parseFullAggregateBody(rest); }
-      else { res = Single!(NoOp); branch2.parseGlobalBody(rest, Stmt); }
+      else { res = branch2.parseGlobalBody(rest, Stmt); }
     } else {
       res = Single!(NoOp);
     }

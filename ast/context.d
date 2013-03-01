@@ -2,14 +2,6 @@ module ast.context;
 
 import ast.base, ast.parse, ast.structure, ast.namespace, ast.modules, ast.pointer, ast.globvars;
 
-class PassthroughWeakNoOp : NoOp, IsMangled {
-  IsMangled[] targets;
-  this(IsMangled[] targets...) { this.targets = targets.dup; }
-  string mangleSelf() { return null; }
-  void markWeak() { foreach (tar; targets) tar.markWeak(); }
-  void markExternC() { foreach (tar; targets) tar.markExternC(); }
-}
-
 import tools.log;
 Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

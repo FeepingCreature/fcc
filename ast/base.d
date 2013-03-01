@@ -671,6 +671,14 @@ class NamedNull : NoOp, Named, SelfAdding {
   override bool addsSelf() { return true; }
 }
 
+class PassthroughWeakNoOp : NoOp, IsMangled {
+  IsMangled[] targets;
+  this(IsMangled[] targets...) { this.targets = targets.dup; }
+  string mangleSelf() { return null; }
+  void markWeak() { foreach (tar; targets) tar.markWeak(); }
+  void markExternC() { foreach (tar; targets) tar.markExternC(); }
+}
+
 extern(C) void printThing(LLVMFile lf, string s, Expr ex);
 
 class VoidExpr : Expr {
