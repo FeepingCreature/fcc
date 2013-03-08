@@ -442,6 +442,9 @@ void setupSysmods() {
     
     Object handler-argument-variable;
     
+    interface Duplicable {
+      Object dup();
+    }
     _CondMarker* _lookupCM(string s, _Handler* h, bool needsResult) {
       // printf("look up condition marker for %.*s\n", s);
       auto cur = _CondMarker*:_cm;
