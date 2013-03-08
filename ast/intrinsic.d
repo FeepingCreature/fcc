@@ -66,6 +66,7 @@ void setupSysmods() {
     }
     bool streq(char[] a, b) {
       if a.length != b.length return false;
+      if a.ptr == b.ptr return true;
       while (a.length >= 4) {
         if ((int*:a.ptr)[0] != (int*:b.ptr)[0]) return false;
         a = a[4..$]; b = b[4..$];
