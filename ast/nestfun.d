@@ -145,7 +145,8 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   bool shortform;
   if (!t2.accept("delegate"[])) {
     if (t2.accept("\\") || t2.accept("λ")) {
-      synchronized name = Format("__nested_dg_literal_"[], i++);
+      auto pos = lookupPos(text);
+      synchronized name = Format("__nested_dg_literal_"[], i++, "_line_", pos._0);
       auto t3 = t2;
       nf = fastalloc!(NestedFunction)(sc);
       auto res = fastcast!(NestedFunction) (gotGenericFunDeclNaked(nf, mod, true, t3, cont, rest, name, true));
