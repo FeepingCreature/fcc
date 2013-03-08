@@ -870,7 +870,7 @@ static this() {
   };
   implicits ~= delegate void(Expr ex, IType goal, void delegate(Expr) consider) {
     auto st = fastcast!(Structure) (goal);
-    if (!st) return;
+    if (!st || st == resolveTup(ex.valueType())) return;
     auto initval = fastalloc!(ZeroInitializer)(goal);
     if (!showsAnySignOfHaving(initval, "init")) return;
     auto res = tmpize_maybe(initval, delegate Expr(Expr initval, LLVMRef lr) {

@@ -41,15 +41,60 @@ struct RelFunSet {
     foreach (i, v; a) if (v && v != b[i]) return false;
     return true;
   }
-  RelFunction lookup(string st, IType[] types) {
+  static bool is_covariant(IType base, IType specialized) {
+    if (base == specialized) return true;
+    auto cr_base = fastcast!(ClassRef)(base);
+    auto ir_base = fastcast!(IntfRef)(base);
+    if (!cr_base && !ir_base) return false;
+    auto cr_specialized = fastcast!(ClassRef)(specialized);
+    auto ir_specialized = fastcast!(IntfRef)(specialized);
+    if (!cr_specialized && !ir_specialized) return false;
+    Class cl_base, cl_specialized; Intf if_base, if_specialized;
+    if (cr_base) cl_base = cr_base.myClass;
+    if (ir_base) if_base = ir_base.myIntf;
+    if (cr_specialized) cl_specialized = cr_specialized.myClass;
+    if (ir_specialized) if_specialized = ir_specialized.myIntf;
+    while (cl_specialized) {
+      if (cl_base && cl_base == cl_specialized) return true;
+      cl_specialized = cl_specialized.parent;
+    }
+    while (if_specialized) {
+      if (if_base && if_base == if_specialized) return true;
+      if_specialized = if_specialized.parents.length?if_specialized.parents[0]:null;
+    }
+    return false;
+  }
+  static bool IType_eq_covar_contravar(IType[] test, IType[] constraint) {
+    if (test.length != constraint.length) return false;
+    // _0, that is, return type, is covariant, that is, narrowing; meaning that
+    // it is sufficient that test[0] can bitcast to constraint[0] without fail.
+    // Such as with classes and their parents.
+    // if class A {} and class B:A {}, then B foo() may override A foo()
+    // since every B is-an A.
+    // nulls act as wildcards..
+    if (test[0] && constraint[0] && !is_covariant(test[0], constraint[0])) return false;
+    // Arguments are contravariant.
+    foreach (i, v; test[1..$]) if (v && constraint[i+1] && !is_covariant(constraint[i+1], v)) return false;
+    return true;
+    
+  }
+  RelFunction lookup(string st, IType[] types, bool upwards) {
     foreach (entry; set) {
-      if (entry._1 == st && IType_eq(entry._2, types))
+      /*if (entry._1 == st)
+        logln("lookup(", st, ", ", types, ") [", upwards, "] against ", entry._2, ": ", upwards
+          ?IType_eq_covar_contravar(entry._2, types)
+          :IType_eq_covar_contravar(types, entry._2));*/
+      if (entry._1 == st && (
+        upwards
+          ?IType_eq_covar_contravar(entry._2, types)
+          :IType_eq_covar_contravar(types, entry._2)
+      ))
         return entry._0;
     }
     return null;
   }
-  RelFunction hasLike(Function f) {
-    return lookup(f.name, f.type.alltypes());
+  RelFunction hasLike(Function f, bool upwards) {
+    return lookup(f.name, f.type.alltypes(), upwards);
   }
   void add(string name, RelFunction rf) {
     set ~= stuple(rf, name, rf.type.alltypes());
@@ -57,7 +102,7 @@ struct RelFunSet {
   // append to set those of rfs.set _not_ yet in set
   void fillIn(RelFunSet rfs) {
     foreach (entry; rfs.set) {
-      if (!lookup(entry._1, entry._2))
+      if (!lookup(entry._1, entry._2, true))
         set ~= entry;
     }
   }
@@ -88,7 +133,7 @@ class VTable {
         if (!classref) return fun;
         if (base == -1) // lazy init
           base = (parent.parent?parent.parent.getClassinfo().length:1);
-        res ~= 
+        Function pf =
           fastalloc!(PointerFunction!(NestedFunction)) (
             tmpize_maybe(classref, delegate Expr(Expr classref) {
               return fastalloc!(DgConstructExpr)(
@@ -102,6 +147,8 @@ class VTable {
                 reinterpret_cast(fastalloc!(Pointer)(parent.data), classref));
             })
           );
+        pf.name = name;
+        res ~= pf;
       }
     // logln(parent.name, ": "[], name, " => "[], res);
     if (res.length == 1) return fastcast!(Object) (res[0]);
@@ -220,7 +267,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
     }
     
     foreach (fun; funs)
-      if (auto rel = overrides.hasLike(fun)) {
+      if (auto rel = overrides.hasLike(fun, false)) {
         auto fmn = rel.mangleSelf();
         auto reltype = typeToLLVM(rel.getPointer().valueType());
         res ~= qformat("bitcast(", reltype, " @", fmn, " to i8*)");
@@ -256,7 +303,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         auto fntype = fun.getPointer().valueType();
         auto pp_fntype = fastalloc!(Pointer)(fastalloc!(Pointer)(fntype));
         // *(*fntype**:intp)[id].toDg(void**:intp + **int**:intp)
-        set ~= fastalloc!(PointerFunction!(NestedFunction)) (
+        Function pf = fastalloc!(PointerFunction!(NestedFunction)) (
           tmpize_maybe(intp, delegate Expr(Expr intp) {
             return fastalloc!(DgConstructExpr)(
               fastalloc!(PA_Access)(fastalloc!(DerefExpr)(reinterpret_cast(pp_fntype, intp)), mkInt(id + own_offset)),
@@ -267,6 +314,8 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
             );
           })
         );
+        pf.name = name;
+        set ~= pf;
       }
     }
     if (!set) return null;
@@ -302,12 +351,14 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
         // *(*fntype**:classref)[id + offs].toDg(void*:classref)
         auto fntype = fun.getPointer().valueType();
         auto pp_fntype = fastalloc!(Pointer)(fastalloc!(Pointer)(fntype));
-        return fastalloc!(PointerFunction!(NestedFunction))(
+        Function pf = fastalloc!(PointerFunction!(NestedFunction))(
           fastalloc!(DgConstructExpr)(
             fastalloc!(PA_Access)(fastalloc!(DerefExpr)(reinterpret_cast(pp_fntype, classref)), lookupOp("+"[], offs, mkInt(id + own_offset))),
             reinterpret_cast(voidp, classref)
           )
         );
+        pf.name = name;
+        return pf;
       }
     }
     scope(exit) delete offs;
@@ -437,21 +488,21 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     // or inherits an interface without implementing its functions.
     if (parent)
       foreach (fun; parent.getAbstractFuns()) {
-        if (auto f2 = overrides.hasLike(fun)) {
+        if (auto f2 = overrides.hasLike(fun, false)) {
           fun = f2;
         }
         if (fun.isabstract) res ~= fun;
       }
     foreach (intf; iparents) foreach (ifun; intf.getAbstractFuns()) {
       bool replaced;
-      if (auto f2 = overrides.hasLike(ifun)) {
+      if (auto f2 = overrides.hasLike(ifun, false)) {
         ifun = f2;
         replaced = true;
       }
       // use parent overrides to satisfy interface functions (see getVTable)
       auto par = parent;
       if (!replaced) while (par) {
-        if (auto f2 = par.overrides.hasLike(ifun)) { ifun = f2; break; }
+        if (auto f2 = par.overrides.hasLike(ifun, false)) { ifun = f2; break; }
         par = par.parent;
       }
       
@@ -675,10 +726,10 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     if (sysmod && parent /* exclude Object */) {
       IType[1] tostring_ret;
       tostring_ret[0] = Single!(Array, Single!(Char));
-      bool hasToStringOverride = !!overrides.lookup("toString"[], tostring_ret[]);
+      bool hasToStringOverride = !!overrides.lookup("toString"[], tostring_ret[], false);
       auto cur = this;
       while (cur.parent) {
-        auto tsv = fastcast!(RelFunction) (cur.overrides.lookup("toString"[], tostring_ret[]));
+        auto tsv = fastcast!(RelFunction) (cur.overrides.lookup("toString"[], tostring_ret[], false));
         hasToStringOverride |= tsv && !tsv.autogenerated;
         cur = cur.parent;
       }
@@ -793,7 +844,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     if (parent) res = parent.getVTable(lf, copy);
     
     foreach (fun; myfuns.funs) {
-      if (auto f2 = copy.hasLike(fun)) // if a child class overrode this, use its relfun
+      if (auto f2 = copy.hasLike(fun, false)) // if a child class overrode this, use its relfun
         fun = f2;
       auto fmn = fun.mangleSelf();
       auto funtype = typeToLLVM(fun.getPointer().valueType());
@@ -987,14 +1038,28 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
           ext = e;
         }
       }
-      if (auto res = myfuns.lookup(str, base)) {
+      // make sure we use the "recentmost" version of our function
+      Object replaceWithOverrides(Object obj) {
+        if (!obj) return null;
+        // TODO handle sets
+        auto fun = fastcast!(Function)(obj);
+        if (!fun) return obj;
+        if (auto f2 = overrides.hasLike(fun, false)) {
+          fun = fun.flatdup;
+          fun.type = f2.type; // HACK this is pretty horrible.
+          // logln(this.name, ": replaced ", str, " with ", fun.type);
+        }//  else logln(this.name, ": no override for ", str);
+        return fun;
+      }
+      if (auto res = replaceWithOverrides(myfuns.lookup(str, base))) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
           extend(ext2);
         } else return res;
       }
       auto cl_offset = ownClassinfoLength();
       foreach (intf; iparents) {
-        if (auto res = intf.lookupClass(str, cl_offset.dup, base)) {
+        if (auto res = replaceWithOverrides(intf.lookupClass(str, cl_offset.dup, base))) {
+          // logln(this.name, " ", str, " => ", (fastcast!(Function)(res)).type);
           auto obj = fastcast!(Object) (res);
           if (auto ext2 = fastcast!(Extensible) (res)) {
             extend(ext2);
@@ -1003,7 +1068,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         cl_offset.delta += intf.clsize;
       }
       delete cl_offset;
-      if (parent) if (auto res = parent.lookupRel(str, base, isDirectLookup)) {
+      if (parent) if (auto res = replaceWithOverrides(parent.lookupRel(str, base, isDirectLookup))) {
         if (auto ext2 = fastcast!(Extensible) (res)) {
           extend(ext2);
         } else return res;
