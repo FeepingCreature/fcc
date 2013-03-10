@@ -144,14 +144,6 @@ struct UnlockedMutex {
   void onExit() __m.lock();
 }
 
-template New(T) {
-  void New(T t) {
-    alias obj = *t;
-    alias classtype = type-of obj;
-    obj = new classtype;
-  }
-}
-
 /*Class: ThreadPool
 A classic thread pool. Keeps a queue of tasks to be executed on a first-come, first-serve basis. 
 */

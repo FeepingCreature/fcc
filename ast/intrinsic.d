@@ -1002,6 +1002,21 @@ void setupSysmods() {
         return __internal_flatten new λ(ParamTypes T args) -> t args;
       }
     }
+    template New(T) {
+      void New(T t) {
+        static if (type-is tuple T) {
+          alias obj = *(t[0]);
+          alias classtype = type-of obj;
+          static if (!type-is class classtype) { pragma(fail, ((string-of classtype)~" is not a class: cannot New()")); }
+          obj = new classtype t[1..$];
+        } else {
+          alias obj = *t;
+          alias classtype = type-of obj;
+          static if (!type-is class classtype) { pragma(fail, ((string-of classtype)~" is not a class: cannot New()")); }
+          obj = new classtype;
+        }
+      }
+    }
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["sys.nt"] = src;
