@@ -380,6 +380,10 @@ template iparse(R, string id, string rule, bool mustParse = true, bool optres = 
     scope(exit) bench[id] += sec() - start;
     auto popCache = pushCache(); scope(exit) popCache();
     
+    auto errinfo = *error.ptr();
+    scope(exit) *error.ptr() = errinfo;
+    resetError();
+    
     static if (is(T[$-1] == LLVMFile)) alias T[0 .. $-1] T2;
     else alias T T2;
     
