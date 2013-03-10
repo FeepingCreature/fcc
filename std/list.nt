@@ -107,7 +107,15 @@ template UnrolledDoubleLinkedList(T) {
       assert(backing.hasData);
       auto cur = backing.head;
       while (cur && cur.data.(_1 == _2)) cur = cur.prev;
+      assert(!!cur);
       return Reference:cur.data.(&_0[_2 - 1]);
+    }
+    Reference getTail() {
+      assert(backing.hasData);
+      auto cur = backing.tail;
+      while (cur && cur.data.(_1 == _2)) cur = cur.next;
+      assert(!!cur, "Can't get tail: UDLL empty");
+      return Reference:cur.data.(&_0[_1]);
     }
     T popHead() {
       while (backing.(head && head.data.(_1 == _2))) backing.popHead;
