@@ -69,7 +69,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
       if (auto tup = fastcast!(Tuple) (type)) {
         IType[] resolved;
         foreach (t2; tup.types) resolved ~= resolveType(t2);
-        type = mkTuple(resolved);
+        type = mkTuple(resolved, tup.names);
       }
       TemplateInstance ti;
       if (!forceNew) foreach (ref entry; emat_type) {
