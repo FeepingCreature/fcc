@@ -353,7 +353,7 @@ void setupSysmods() {
       InterfaceData*[] iparents;
     }
     class Object {
-      alias classinfo = ***ClassData***: &__vtable;
+      alias classinfo = **ClassData***: &__vtable;
       string toString() return "Object";
       void free() mem.free (void*:this, classinfo.size); // "free this". wow.
     }
