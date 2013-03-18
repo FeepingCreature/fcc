@@ -546,6 +546,7 @@ void setupSysmods() {
     // range, references
     (void[], int)[auto~] dupv_archive;
     void dupvfree(void* p) {
+      p = (void**:p)[-1];
       for (int i = dupv_archive.length - 1; i >= 0; --i) {
         ref entry = dupv_archive[i];
         if (!entry[1]) continue;
@@ -557,12 +558,16 @@ void setupSysmods() {
       }
     }
     void[] fastdupv(void[] v) {
+      assert ((int:v.ptr)&0b11 == 0); // must be 4-aligned
       void[] res;
+      // use the same hack as alloc16 - overalloc by 16 so we can match the
+      // alignment of v and keep a pointer to the original around in the start
+      int toalloc = v.length + 16;
       // if special_magic is true, can't rely on memory to stick around so can't use cache
       if (v.length > BLOCKSIZE || mem.special_magic) {
-        res = mem.malloc(v.length)[0..v.length];
+        res = mem.malloc(toalloc)[0..toalloc];
       } else {
-        if (dupvcache.length < v.length) {
+        if (dupvcache.length < toalloc) {
           dupvcache = null;
         }
         if (!dupvcache.length) {
@@ -572,12 +577,17 @@ void setupSysmods() {
           dupvcache = new void[] BLOCKSIZE;
           initial_dupvcache = dupvcache;
         }
-        res = dupvcache[0 .. v.length];
-        dupvcache = dupvcache[v.length .. $];
+        res = dupvcache[0 .. toalloc];
+        dupvcache = dupvcache[toalloc .. $];
         referents ++;
       }
-      res[] = v;
-      return res;
+      // alloc res to v
+      auto original_res = res;
+      do res = res[4..$];
+      while (int:res.ptr & 0b1111 != int:v.ptr & 0b1111);
+      (void**:res.ptr)[-1] = original_res.ptr; // store original pointer
+      res[0..v.length] = v;
+      return res[0..v.length];
     }
     void* dupv(void* ptr, int length) {
       auto res = mem.malloc(length);

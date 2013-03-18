@@ -517,7 +517,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     return getAbstractFuns().length > 0;
   }
   bool declared_abstract;
-   
+  
   Intf[] iparents;
   RelMember ctx; // context of parent reference
   Expr delegate(Expr) ctxFixup;
