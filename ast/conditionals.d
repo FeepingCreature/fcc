@@ -97,13 +97,15 @@ class StatementAndCond : Cond {
 const bool useIVariant = true;
 
 class Compare : Cond, Expr {
-  Expr e1; bool smaller, equal, greater; Expr e2;
+  // NEEDS "not" to handle float math correctly - !< is not the same as >=
+  Expr e1; bool not, smaller, equal, greater; Expr e2;
   Expr falseOverride, trueOverride;
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(e1, e2, falseOverride, trueOverride);
   string toString() {
     string res;
+    if (not) res ~= "!";
     if (smaller) res ~= "<";
     if (equal) res ~= "=";
     if (greater) res ~= ">";
@@ -125,14 +127,8 @@ class Compare : Cond, Expr {
       logln("Invalid comparison parameter: "[], e2.valueType());
       fail;
     }
-    if (not) {
-      not = !not;
-      smaller = !smaller;
-      equal = !equal;
-      greater = !greater;
-    }
     this.e1 = e1;
-    this.smaller = smaller; this.equal = equal; this.greater = greater;
+    this.not = not; this.smaller = smaller; this.equal = equal; this.greater = greater;
     this.e2 = e2;
   }
   this(Expr e1, string str, Expr e2) {
@@ -174,20 +170,28 @@ class Compare : Cond, Expr {
       e1 = fastalloc!(IntAsFloat)(e1);
     }
   }
-  void emitWith(LLVMFile lf, bool s, bool e, bool g) {
+  void emitWith(LLVMFile lf, bool n, bool s, bool e, bool g) {
     if (falseOverride || trueOverride) {
       todo("Compare with override");
     }
     auto v1 = save(lf, e1), v2 = save(lf, e2);
     string ftest, itest;
-    if (!s && !e && !g) { ftest ="false";itest = "false"; }
-    if (!s && !e &&  g) { ftest = "ogt"; itest = "sgt"; }
-    if (!s &&  e && !g) { ftest = "oeq"; itest = "eq"; }
-    if (!s &&  e &&  g) { ftest = "oge"; itest = "sge"; }
-    if ( s && !e && !g) { ftest = "olt"; itest = "slt"; }
-    if ( s && !e &&  g) { ftest = "one"; itest = "ne"; }
-    if ( s &&  e && !g) { ftest = "ole"; itest = "sle"; }
-    if ( s &&  e &&  g) { ftest = "true";itest = "true"; }
+    if (!n && !s && !e && !g) { itest = "false";ftest = "false";} // unfulfillable
+    if (!n && !s && !e &&  g) { itest = "sgt";  ftest = "ogt";  } // greater
+    if (!n && !s &&  e && !g) { itest = "eq";   ftest = "oeq";  } // equal
+    if (!n && !s &&  e &&  g) { itest = "sge";  ftest = "oge";  } // greater or equal
+    if (!n &&  s && !e && !g) { itest = "slt";  ftest = "olt";  } // smaller
+    if (!n &&  s && !e &&  g) { itest = "ne";   ftest = "one";  } // smaller or greater
+    if (!n &&  s &&  e && !g) { itest = "sle";  ftest = "ole";  } // smaller or equal
+    if (!n &&  s &&  e &&  g) { itest = "true"; ftest = "ord";  } // smaller, greater or equal
+    if ( n && !s && !e && !g) { itest = "true"; ftest = "true"; } // unfalsifiable
+    if ( n && !s && !e &&  g) { itest = "sle";  ftest = "ule";  } // not greater
+    if ( n && !s &&  e && !g) { itest = "ne";   ftest = "une";  } // not equal
+    if ( n && !s &&  e &&  g) { itest = "slt";  ftest = "ult";  } // not equal or greater
+    if ( n &&  s && !e && !g) { itest = "sge";  ftest = "uge";  } // not smaller
+    if ( n &&  s && !e &&  g) { itest = "eq";   ftest = "ueq";  } // not smaller or greater
+    if ( n &&  s &&  e && !g) { itest = "sgt";  ftest = "ugt";  } // not smaller or equal
+    if ( n &&  s &&  e &&  g) { itest = "false";ftest = "uno";  } // not smaller, equal or greater
     if (isFloat()) load(lf, "fcmp ", ftest, " float ", v1, ", ", v2);
     else if (isDouble()) load(lf, "fcmp ", ftest, " double ", v1, ", ", v2);
     else {
@@ -205,16 +209,17 @@ class Compare : Cond, Expr {
       return Single!(SysInt);
     }
     void emitLLVM(LLVMFile lf) {
-      emitWith(lf, smaller, equal, greater);
+      emitWith(lf, not, smaller, equal, greater);
       load(lf, "zext i1 ", lf.pop(), " to i32");
     }
     void jumpOn(LLVMFile lf, bool cond, string dest) {
-      auto s = smaller, e = equal, g = greater;
+      auto n = not, s = smaller, e = equal, g = greater;
       // TODO: integrate negation
       if (!cond) { // negate
-        s = !s; e = !e; g = !g;
+        // s = !s; e = !e; g = !g; 
+        n = !n;
       }
-      emitWith(lf, s, e, g);
+      emitWith(lf, n, s, e, g);
       .jumpOn(lf, dest);
     }
   }

@@ -154,6 +154,7 @@ void setupConditionalOpt() {
     if (cmp.smaller && i1.num < i2.num) result = true;
     if (cmp.equal && i1.num == i2.num) result = true;
     if (cmp.greater && i1.num > i2.num) result = true;
+    if (cmp.not) result = !result;
     Expr res;
     if (result) {
       if (cmp.trueOverride) res = cmp.trueOverride;
