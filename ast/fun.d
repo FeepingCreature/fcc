@@ -16,6 +16,14 @@ interface StoresDebugState {
 
 extern(C) void alignment_emitAligned(Expr ex, LLVMFile lf);
 
+string typeToLLVMRet(IType type, bool subst = false) {
+  if (subst) {
+    type = resolveType(type);
+    if (Single!(Void) == type) return "void"; // no {} hack
+  }
+  return typeToLLVM(type, subst);
+}
+
 struct Argument {
   IType type;
   string name;
@@ -43,7 +51,7 @@ string declare(Function fun, string name) {
   if (fun.type.stdcall) callconv = "x86_stdcallcc ";
   string flags;
   if (name == "setjmp") flags = " returns_twice";
-  return qformat("declare ", callconv, typeToLLVM(fun.type.ret), " @", name, "(", argstr, ")", flags);
+  return qformat("declare ", callconv, typeToLLVMRet(fun.type.ret, true), " @", name, "(", argstr, ")", flags);
 }
 
 class FunSymbol : Symbol {
@@ -485,7 +493,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         auto data = lf.endSection("function_allocas");
         lf.put(data);
       }
-      auto retstr = typeToLLVM(type.ret);
+      auto retstr = typeToLLVMRet(type.ret, true);
       
       string argstr;
       foreach (i, arg; getParams(true)) {
@@ -574,7 +582,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       if (type.ret == Single!(Void)) {
         put(lf, "ret void");
       } else if (extern_c) {
-        put(lf, "ret ", typeToLLVM(type.ret), " zeroinitializer");
+        put(lf, "ret ", typeToLLVMRet(type.ret, true), " zeroinitializer");
       } else {
         put(lf, "unreachable");
       }
@@ -785,6 +793,8 @@ void callFunction(LLVMFile lf, IType ret, bool external, bool stdcall, Expr[] pa
     lf.push("void");
   } else {
     load(lf, callstr);
+    auto from = typeToLLVMRet(ret, true), to = typeToLLVMRet(ret);
+    llcast(lf, from, to, lf.pop());
   }
 }
 
@@ -1066,7 +1076,7 @@ class FunctionPointer : ast.types.Type, ExternAware {
     if (!ltcache) {
       if (!ret) ret = delayfun.type.ret;
       if (!ret) fail;
-      ltcache = typeToLLVM(ret) ~ "(";
+      ltcache = typeToLLVMRet(ret, true) ~ "(";
       foreach (i, ref arg; args) {
         if (!arg.type) arg.type = delayfun.type.params[i].type;
         if (i) ltcache ~= ", ";

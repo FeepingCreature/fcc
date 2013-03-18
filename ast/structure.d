@@ -526,7 +526,8 @@ class MemberAccess_Expr : Expr, HasInfo {
       }
       // put(lf, "; mae ", this);
       // put(lf, "; to ", stm, " into ", typeToLLVM(bvt), " (", bvt, ")");
-      if (name == "self") fail; // ast.vector done a baad baad thing
+      // don't want to fall over and die if user code has a variable called "self"
+      // if (name == "self") fail; // ast.vector done a baad baad thing
       auto ex = save(lf, "extractvalue ", typeToLLVM(bvt), " ", src, ", ", stm.index);
       auto from = typeToLLVM(stm.type, true), to = typeToLLVM(stm.type);
       if (from == to) { push(lf, ex); }

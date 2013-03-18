@@ -43,7 +43,9 @@ class ReturnStmt : Statement {
         }
         put(lf, "ret void");
       } else {
-        put(lf, "ret ", typeToLLVM(value.valueType()), " ", lf.pop());
+        auto from = typeToLLVMRet(value.valueType()), to = typeToLLVMRet(value.valueType(), true);
+        llcast(lf, from, to, lf.pop());
+        put(lf, "ret ", to, " ", lf.pop());
       }
     } else emitGuards();
     // TODO: stack cleanup token here

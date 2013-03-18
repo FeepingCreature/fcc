@@ -383,7 +383,7 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     else op = "==";
     auto vt = typeToLLVM(ex1.valueType());
     IType cmptype;
-    if (vt == "i32" || vt == "i8*") cmptype = Single!(SysInt);
+    if (vt == "i32" || vt.endsWith("*")) cmptype = Single!(SysInt);
     else if (vt == "{i8*, i8*}") cmptype = Single!(Long);
     else {
       todo(qformat("comparison of ", ex1.valueType(), " ", vt));
