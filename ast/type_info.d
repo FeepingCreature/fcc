@@ -179,6 +179,7 @@ Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("vector")) mode = "vector";
   if (t2.accept("struct")) mode = "struct";
   if (t2.accept("pointer")) mode = "pointer";
+  if (t2.accept("iterable")) mode = "iterable";
   if (!mode) t2.failparse("type-is expected type qualifier");
   IType ty;
   if (!rest(t2, "type"[], &ty))
@@ -197,6 +198,7 @@ Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
     case "vector": res = !!fastcast!(Vector) (ty); break;
     case "struct": res = !!fastcast!(Structure) (ty); break;
     case "pointer": res = !!fastcast!(Pointer) (ty); break;
+    case "iterable": res = !!fastcast!(Iterator) (ty); break;
   }
   setupStaticBoolLits;
   Expr ex;

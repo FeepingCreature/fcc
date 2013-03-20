@@ -176,18 +176,22 @@ alias acos = acosf;
 Returns the smaller of its two parameters*/
 template min(T) {
   auto min(T t) {
-    static if (t.length != 2) {
-      pragma(fail, string-of type-of t~": please only pass two parameters to min");
-    }
-    // TODO: generically distribute over vectors
-    static if (types-equal(vec2f, T[0])) {
-      return vec2f(.min(t[0].x, t[1].x), .min(t[0].y, t[1].y));
+    static if (type-is iterable T) {
+      return minlist t;
     } else {
-      static if (types-equal(vec3f, T[0])) {
-        return vec3f(.min(t[0].x, t[1].x), .min(t[0].y, t[1].y), .min(t[0].z, t[1].z));
+      static if (t.length != 2) {
+        pragma(fail, string-of type-of t~": please only pass two parameters to min");
+      }
+      // TODO: generically distribute over vectors
+      static if (types-equal(vec2f, T[0])) {
+        return vec2f(.min(t[0].x, t[1].x), .min(t[0].y, t[1].y));
       } else {
-        if (t[0] > t[1]) return t[1];
-        return t[0];
+        static if (types-equal(vec3f, T[0])) {
+          return vec3f(.min(t[0].x, t[1].x), .min(t[0].y, t[1].y), .min(t[0].z, t[1].z));
+        } else {
+          if (t[0] > t[1]) return t[1];
+          return t[0];
+        }
       }
     }
   }
@@ -197,17 +201,21 @@ template min(T) {
 Returns the larger of its two parameters*/
 template max(T) {
   auto max(T t) {
-    static if (t.length != 2) {
-      pragma(fail, string-of type-of t~": please only pass two parameters to max");
-    }
-    static if (types-equal(vec2f, T[0])) {
-      return vec2f(.max(t[0].x, t[1].x), .max(t[0].y, t[1].y));
+    static if (type-is iterable T) {
+      return maxlist t;
     } else {
-      static if (types-equal(vec3f, T[0])) {
-        return vec3f(.max(t[0].x, t[1].x), .max(t[0].y, t[1].y), .max(t[0].z, t[1].z));
+      static if (t.length != 2) {
+        pragma(fail, string-of type-of t~": please only pass two parameters to max");
+      }
+      static if (types-equal(vec2f, T[0])) {
+        return vec2f(.max(t[0].x, t[1].x), .max(t[0].y, t[1].y));
       } else {
-        if (t[0] > t[1]) return t[0];
-        return t[1];
+        static if (types-equal(vec3f, T[0])) {
+          return vec3f(.max(t[0].x, t[1].x), .max(t[0].y, t[1].y), .max(t[0].z, t[1].z));
+        } else {
+          if (t[0] > t[1]) return t[0];
+          return t[1];
+        }
       }
     }
   }
