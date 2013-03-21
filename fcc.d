@@ -930,7 +930,7 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
   if (isARM) cpu = null;
   
   string cpumode;
-  if (cpu) cpumode = "-mcpu="~cpu~" ";
+  if (cpu && llvmver() != "3.1") cpumode = "-mcpu="~cpu~" ";
   
   string llc_optflags;
   if (optimize) {
@@ -941,10 +941,13 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
       if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math -fp-contract=fast "/*-vectorize */"-vectorize-loops -tailcallopt ";
-    string optflags = "-internalize-public-api-list=main"~preserve~" -O3 "~fpmathopts;
+    string optflags = "-internalize-public-api-list=main"~preserve~" -O3 ";
+    if (llvmver() != "3.1") {
+      optflags ~= fpmathopts;
+    }
     string passflags = "-std-compile-opts ";
     if (!isWindoze()) passflags ~= "-internalize -std-link-opts "; // don't work under win32 (LLVMMMM :shakes fist:)
-    if (debugmode) optflags ~= "-disable-fp-elim ";
+    if (debugmode && llvmver() != "3.1") optflags ~= "-disable-fp-elim ";
     optrun(cpumode~passflags~optflags);
     llc_optflags = optflags;
   }
@@ -1030,10 +1033,14 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       cmdline ~= Format("-o ", objname, " ", srcname, " 2>&1");
     } else {
       string bogus;
-      cmdline ~= Format("-o - ", srcname, " |opt -march=x86 - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus)~" |llc -mattr=-avx,-avx2,-sse41 -march=x86 - -filetype=obj -o ", objname);
+      string march;
+      if (llvmver() == "3.1") { }
+      else march = "-march=x86";
+      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus)~" |llc -mattr=-avx,-avx2,-sse41 -march=x86 - -filetype=obj -o ", objname);
     }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
+    cmdline = "/bin/bash -c \""~cmdline.replace("\"", "\\\"")~"\"";
     if (auto res = system(cmdline.toStringz())) {
       logln("ERROR: Compilation failed with ", res, " ", getErrno());
       exit(1);

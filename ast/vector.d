@@ -853,7 +853,11 @@ class VecOp : Expr {
           default: break;
         }
         if (fastcast!(Float)(e1v.base) || fastcast!(Double)(e1v.base) || fastcast!(Real)(e1v.base)) {
-          llop = "f"~llop~" fast";
+          if (llvmver() == "3.1") {
+            llop = "f"~llop;
+          } else {
+            llop = "f"~llop~" fast";
+          }
         } else if (fastcast!(SysInt)(e1v.base)) {
           
         } else llop = null;

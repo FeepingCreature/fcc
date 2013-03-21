@@ -1,11 +1,14 @@
 module llvmfile;
 
 import std.string: find, atoi, strip, replace;
-import tools.base: slice, endsWith, Stuple, stuple;
+import tools.base: slice, endsWith, Stuple, stuple, between;
 
 string datalayout;
 string xbreak;
 string preserve;
+
+Object freelist_sync;
+static this() { freelist_sync = new Object; }
 
 void own_append(T, U)(ref T array, U value) {
   auto backup = array;
@@ -15,7 +18,7 @@ void own_append(T, U)(ref T array, U value) {
 
 string[][][int] freelist;
 Stuple!(string[], int) allocTup(int i) {
-  synchronized {
+  synchronized(freelist_sync) {
     if (auto p = i in freelist) {
       auto res = (*p)[0];
       (*p) = (*p)[1..$];
@@ -30,7 +33,7 @@ Stuple!(string[], int) allocTup(int i) {
 void listfree(string[] arr) {
   auto len = arr.length;
   // logln("listfree(", len, ")");
-  synchronized {
+  synchronized(freelist_sync) {
     if (auto p = len in freelist) (*p) ~= arr;
     else {
       freelist[len] = null;
@@ -464,6 +467,17 @@ string readllex(string expr) {
 string llexcachecheck(string key) {
   if (auto p = key in excache) return *p;
   return key;
+}
+
+string llvmver_cache;
+string llvmver() {
+  if (llvmver_cache) return llvmver_cache;
+  auto res = readback("opt --version").between("LLVM version ", "\n");
+  // possible values
+  // 3.1
+  // 3.3svn
+  llvmver_cache = res;
+  return res;
 }
 
 alias void delegate(string) structDecompose_dg;
