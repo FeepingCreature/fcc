@@ -37,20 +37,26 @@ Parameters:
 template map(T) {
   alias steptype = type-of value-of!T[1] value-of!type-of-elem value-of!T[0];
   
-  class mapIterator : Iterator!steptype {
-    type-of value-of!T[0].iterator iter;
-    T[1] transform;
-    bool advance() {
-      if (auto val <- iter) { value = transform val; return true; }
-      free;
-      return false;
+  static if (!types-equal (steptype, void)) {
+    class mapIterator : Iterator!steptype {
+      type-of value-of!T[0].iterator iter;
+      T[1] transform;
+      bool advance() {
+        if (auto val <- iter) { value = transform val; return true; }
+        free;
+        return false;
+      }
     }
   }
-  mapIterator map(T t) {
-    auto res = new mapIterator;
-    res.iter = type-of res.iter: t[0].iterator;
-    res.transform = t[1];
-    return res;
+  auto map(T t) {
+    static if (types-equal (steptype, void)) {
+      for auto value <- t[0] t[1] value;
+    } else {
+      auto res = new mapIterator;
+      res.iter = type-of res.iter: t[0].iterator;
+      res.transform = t[1];
+      return res;
+    }
   }
 }
 
