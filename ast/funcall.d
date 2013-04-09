@@ -219,11 +219,20 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     
     int score;
     
-    if (exact ? (ex.valueType() != type) : !gotImplicitCast(ex, type, (IType it) {
-      tried ~= it;
-      // logln(" !! is ", it, " == ", type, "? ", test(it == type));
-      return test(it == type);
-    }, false, &score)) {
+    bool matches;
+    if (exact) matches = test(ex.valueType() == type);
+    else {
+      try matches = gotImplicitCast(ex, type, (IType it) {
+          tried ~= it;
+          // logln(" !! is ", it, " == ", type, "? ", test(it == type));
+          return test(it == type);
+        }, false, &score);
+      catch (Exception ex) {
+        text.failparse("While attempting to cast to ", type, ": ", ex);
+      }
+    }
+    
+    if (!matches) {
       Expr[] list;
       if (gotImplicitCast(ex, Single!(HintType!(Tuple)), (IType it) { return !!fastcast!(Tuple) (it); }) && (list = flatten(ex), !!list)) {
         args = list ~ args;

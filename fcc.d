@@ -661,6 +661,103 @@ extern(C) Iterable convertLvToExpr(Iterable itr) {
   return itr;
 }
 
+// from ast.structure
+static this() {
+  typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
+    Object nscur = fastcast!(Object) (resolveType(cur));
+    while (true) {
+      if (auto srn = fastcast!(SemiRelNamespace) (nscur)) {
+        nscur = fastcast!(Object) (srn.resolve());
+        continue;
+      }
+      break;
+    }
+    
+    auto ns = fastcast!(Namespace) (nscur);
+    if (!ns) return null;
+    
+    auto t2 = text;
+    if (!t2.accept("."[])) return null;
+    
+    string id;
+    if (!t2.gotIdentifier(id)) return null;
+    retry:
+      // logln("Try to "[], id, " into "[], ns);
+      // logln(" => "[], ns.lookup(id), "[], left "[], t2.nextText());
+      if (auto ty = fastcast!(IType) (ns.lookup(id))) {
+        // logln("return "[], ty);
+        text = t2;
+        return ty;
+      }
+      if (t2.eatDash(id)) goto retry;
+    return null;
+  };
+  implicits ~= delegate void(Expr ex, IType goal, void delegate(Expr, int) consider) {
+    auto vt = ex.valueType();
+    
+    RelNamespace rn;
+    if (auto rns = fastcast!(RelNamespace)(vt))
+      rn = rns;
+    else if (auto srns = fastcast!(SemiRelNamespace)(vt))
+      rn = srns.resolve();
+    
+    if (!rn) return;
+    for (int i = 1; true; i++) {
+      string castname;
+      if (i > 1) castname = qformat("implicit-cast-", i);
+      else castname = "implicit-cast";
+      if (showsAnySignOfHaving(ex, castname)) if (auto res = fastcast!(Expr) (rn.lookupRel(castname, ex))) {
+        // if (!goal || res.valueType() == goal) consider(res);
+        consider(res, 1); // slightly worse score: prefer other alternatives
+        continue;
+      }
+      return;
+    }
+  };
+  implicits ~= delegate void(Expr ex, IType goal, void delegate(Expr) consider) {
+    auto st = fastcast!(Structure) (goal);
+    if (!st || st == resolveTup(ex.valueType())) return;
+    auto initval = fastalloc!(ZeroInitializer)(goal);
+    if (!showsAnySignOfHaving(initval, "init")) return;
+    {
+      RelNamespace rns;
+      if (auto srns = fastcast!(SemiRelNamespace)(goal)) rns = srns.resolve();
+      if (!rns) rns = fastcast!(RelNamespace)(goal);
+      if (rns) {
+        auto thing = rns.lookupRel("init", initval);
+        bool testfun(Function fun) {
+          auto fc = fun.mkCall();
+          Statement[] inits;
+          if (!matchedCallWith(ex, fun.getParams(false), fc.params, inits, fun, "init call test", null, true)) {
+            // logln("init call test failed: for ", ex.valueType(), " onto ", fun.getParams(false));
+            return false;
+          }
+          // logln("init call test succeeded: for ", ex.valueType(), " onto ", fun.getParams(false));
+          return true;
+        }
+        auto fun = fastcast!(Function)(thing);
+        if (fun && !testfun(fun)) return;
+        auto set = fastcast!(OverloadSet)(thing);
+        if (set) {
+          bool oneMatched;
+          foreach (fun2; set.funs) if (testfun(fun2)) oneMatched = true;
+          if (!oneMatched) return;
+        }
+        if (!fun && !set) { logln("?? ", thing); fail; }
+      }
+    }
+    auto res = tmpize_maybe(initval, delegate Expr(Expr initval, LLVMRef lr) {
+      lr.type = goal;
+      auto st = iparse!(Statement, "init_struct", "tree.stmt")
+                       (`{ lr = initval; lr.init arg; }`,
+                        namespace(), "lr", lr, "initval", initval, "arg", ex);
+      return mkStatementAndExpr(st, lr);
+    });
+    consider(res);
+  };
+}
+
+
 // from ast.scopes
 Object gotScope(ref string text, ParseCb cont, ParseCb rest) {
   // Copypasted from ast.structure
