@@ -115,6 +115,7 @@ bool gotInt(ref string text, out int i) {
   }
   
   int res;
+  bool must_uint;
   bool getDigits(Scheme scheme) {
     static int[4] factor = [2, 8, 10, 16];
     bool gotSomeDigits = false;
@@ -133,7 +134,8 @@ bool gotInt(ref string text, out int i) {
       gotSomeDigits = true;
       assert(ub < factor[scheme]);
       long nres = cast(long) res * cast(long) factor[scheme] + cast(long) ub;
-      if (cast(int) nres != nres && cast(uint) nres != nres) {
+      if (cast(long) cast(int) nres != nres) must_uint = true; // prevent this check from passing once via uint, once via int. See test169fail.nt
+      if ((must_uint || cast(long) cast(int) nres != nres) && cast(long) cast(uint) nres != nres) {
         text.setError("Number too large for 32-bit integer representation");
         return false;
       } 
