@@ -68,6 +68,7 @@ platform(*-mingw32) {
 
 class SocketError : Error {
   void init(int i) { super.init("socket operation failed: $i"); }
+  void init(string s) { super.init "socket operation failed: $s"; }
 }
 
 /*Class: Socket

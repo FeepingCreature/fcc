@@ -1,0 +1,18 @@
+module test170fail;
+
+class A {
+  void init(int i) { }
+}
+
+class B : A {
+}
+
+class C : A {
+  void init(string s) { super.init(0); }
+}
+
+void main() {
+  auto a = new A 5;
+  auto b = new B 5;
+  auto c = new C 5;
+}

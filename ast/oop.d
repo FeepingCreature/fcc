@@ -1039,7 +1039,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         }
       }
       // make sure we use the "recentmost" version of our function
-      Object replaceWithOverrides(Object obj) {
+      Object replaceWithOverrides(Object obj, bool orNull = false) {
         if (!obj) return null;
         // TODO handle sets
         auto fun = fastcast!(Function)(obj);
@@ -1048,7 +1048,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
           fun = fun.flatdup;
           fun.type = f2.type; // HACK this is pretty horrible.
           // logln(this.name, ": replaced ", str, " with ", fun.type);
-        }//  else logln(this.name, ": no override for ", str);
+        } else if (orNull) return null;
         return fun;
       }
       if (auto res = replaceWithOverrides(myfuns.lookup(str, base))) {
@@ -1068,10 +1068,15 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         cl_offset.delta += intf.clsize;
       }
       delete cl_offset;
-      if (parent) if (auto res = replaceWithOverrides(parent.lookupRel(str, base, isDirectLookup))) {
-        if (auto ext2 = fastcast!(Extensible) (res)) {
-          extend(ext2);
-        } else return res;
+      // super constructors are masked!! only do this for constructors
+      // if we actually override one.
+      if (parent) {
+        auto supfun = parent.lookupRel(str, base, isDirectLookup);
+        if (auto res = replaceWithOverrides(supfun, str == "init")) {
+          if (auto ext2 = fastcast!(Extensible) (res)) {
+            extend(ext2);
+          } else return res;
+        }
       }
       return fastcast!(Object) (ext);
     }

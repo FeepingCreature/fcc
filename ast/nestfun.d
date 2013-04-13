@@ -438,8 +438,8 @@ class PointerFunction(T) : T {
       fail;
     }
   }
-  override PointerFunction flatdup() { return fastalloc!(PointerFunction)(ptr.dup, setup); }
-  override PointerFunction dup() { return fastalloc!(PointerFunction)(ptr.dup, setup); }
+  override PointerFunction flatdup() { auto res = fastalloc!(PointerFunction)(ptr.dup, setup); res.name = name; return res; }
+  override PointerFunction dup() { auto res = fastalloc!(PointerFunction)(ptr.dup, setup); res.name = name; return res; }
   override {
     FunCall mkCall() {
       if (fastcast!(Delegate)~ ptr.valueType()) {
