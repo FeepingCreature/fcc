@@ -130,6 +130,7 @@ context fastgl {
       vertices ~= matrix.multiply(vec3f(x, y, z), w => 1);
     }
     void color(vec4f v) { cur-color = v; }
+    provide "flush calls clear, not free";
     void flush-vbo() {
       assert(texcoords.length == vertices.length);
       if (!texcoords.length) return;
@@ -180,6 +181,7 @@ alias TriangleFan = PrimitiveContext!GL_TRIANGLE_FAN;
 // deprecated in GL3
 alias Quads = PrimitiveContext!GL_QUADS;
 alias QuadStrip = PrimitiveContext!GL_QUAD_STRIP;
+alias Polygon = PrimitiveContext!GL_POLYGON;
 
 context glMatrix {
   void pushAll() using mode GL {
@@ -217,6 +219,21 @@ context glModelviewMatrix {
   alias onExit  = pop ();
 }
 
+template glCap(alias Cap) {
+  static if (Cap == GL_COLOR_ARRAY || Cap == GL_EDGE_FLAG_ARRAY || Cap == GL_INDEX_ARRAY || Cap == GL_NORMAL_ARRAY
+  || Cap == GL_TEXTURE_COORD_ARRAY || Cap == GL_VERTEX_ARRAY) {
+    context glCap {
+      alias Enable = glEnableClientState;
+      alias Disable = glDisableClientState;
+    }
+  } else {
+    context glCap {
+      alias Enable = glEnable;
+      alias Disable = glDisable;
+    }
+  }
+}
+
 template glWithCap(alias Cap) {
   GLboolean[auto~] capstack;
   context glWithCap {
@@ -227,21 +244,21 @@ template glWithCap(alias Cap) {
       } else {
         state = glIsEnabled Cap;
       }
-      if (!state) glEnable Cap;
+      if (!state) (glCap!Cap).Enable(Cap);
       if (fastgl.fast) {
         fastgl.capstates.insert(Cap, true);
       }
       capstack ~= state;
     }
-    void onExit() { auto prev = capstack.popEnd(); if (!prev) glDisable Cap; }
+    void onExit() { auto prev = capstack.popEnd(); if (!prev) (glCap!Cap).Disable(Cap); }
   }
 }
 
 template glWithoutCap(alias Cap) {
   GLboolean[auto~] capstack;
   context glWithoutCap {
-    void onUsing() { auto state = glIsEnabled Cap; if (state) glDisable Cap; capstack ~= state; }
-    void onExit() { auto prev = capstack.popEnd(); if (prev) glEnable Cap; }
+    void onUsing() { auto state = glIsEnabled Cap; if (state) (glCap!Cap).Disable(Cap); capstack ~= state; }
+    void onExit() { auto prev = capstack.popEnd(); if (prev) (glCap!Cap).Enable(Cap); }
   }
 }
 

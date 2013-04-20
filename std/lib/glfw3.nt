@@ -158,9 +158,10 @@ class GLFWWindow : GLWindow {
     onFailure Terminate;
     
     WindowHint(DEPTH_BITS, 16);
+    WindowHint(STENCIL_BITS, 8);
     (w, h) = size;
     if (!title) title = "GLFW Window";
-
+    
     windowSizeCallback = &reshape;
     keyCallback = &key;
     charCallback = &handleChar;
@@ -174,6 +175,11 @@ class GLFWWindow : GLWindow {
     handle = CreateWindow (w, h, WINDOWED, toStringz title, null);
     if (!handle) raise new GLFWError "Failed to open GLFW window";
     MakeContextCurrent handle;
+    
+    glGetIntegerv(GL_STENCIL_BITS, &int stencil);
+    if (stencil < 8) raise new GLFWError "Unable to create GLFW window with 8 stencil bits: only got $stencil";
+    glGetIntegerv(GL_DEPTH_BITS, &int depth);
+    if (depth < 16) raise new GLFWError "Unable to create GLFW window with 16 depth buffer bits: only got $depth";
     
     handle.SetInputMode (KEY_REPEAT, true);
     // SwapInterval 0;

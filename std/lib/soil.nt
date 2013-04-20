@@ -15,7 +15,7 @@ class SOILTexture : Texture {
   string file;
   ubyte[] imgdata;
   void init(string f) { file = f; super.init(); }
-  void init(ubyte[] d) { imgdata = d; super.init(); }
+  void init(ubyte[] d) { assert !! d; imgdata = d; super.init(); }
   void upload() using mode GL {
     if (file) {
       id = prefix(SOIL_).(
@@ -31,7 +31,7 @@ class SOILTexture : Texture {
           LOAD_AUTO,
           CREATE_NEW_ID,
           FLAG_MIPMAPS));
-    }
+    } else raise new Error "SOILTexture initialized neither with file data nor image data - what?";
     if (!id) raise new SOILError file;
     bind;
     TEXTURE_2D.GetTexLevelParameteriv(0, TEXTURE_WIDTH, &width);

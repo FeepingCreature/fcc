@@ -34,6 +34,9 @@ struct Matrix4x4 {
     // shortcut
     columns-vec[3] = multiply vec4f(to, 1f);
   }
+  void transpose() {
+    tuple[((0,1,2,3),(4,5,6,7),(8,9,10,11),(12,13,14,15))] = rows;
+  }
   void invert() {
     Matrix4x4 res = Matrix4x4-ident;
     void dividecol(int l, float factor) {
@@ -93,7 +96,8 @@ struct Matrix4x4 {
   vec3f multiply(vec3f v, float w = 1) {
     auto m = multiply(vec4f(v, w));
     // renormalize - TODO figure out why xyz/w doesn't SSE
-    return m.(xyz/vec3f w);
+    if (w == 0) return m.xyz;
+    else return m.(xyz/vec3f w);
   }
   vec4f multiply(vec4f v) {
     return v.(columns-vec.(_0*xxxx + _1*yyyy + _2*zzzz + _3*wwww));

@@ -10,8 +10,13 @@ smaller - the comparison function
 array - the array to sort*/
 template qsort(T) {
   void qsort(T data) {
-    alias smaller = data[0];
-    alias array = data[1];
+    static if (type-is delegate type-of data[1]) {
+      alias array = data[0];
+      alias smaller = data[1];
+    } else {
+      alias smaller = data[0];
+      alias array = data[1];
+    }
     void qsort_recurse(int from, to) {
       if (to == from || to == from + 1) return;
       if (to == from + 2) {

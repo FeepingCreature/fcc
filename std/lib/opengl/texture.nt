@@ -98,6 +98,9 @@ class SubTexture : ITexture {
     this.sup = sup;
     this.from = from;
     this.size = size;
+    predivide;
+  }
+  void predivide() {
     sizediv = size / sup.getSize();
     fromdiv = from / sup.getSize();
   }

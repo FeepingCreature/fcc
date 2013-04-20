@@ -222,3 +222,55 @@ template reverse(T) {
     return that;
   }
 }
+
+template maximize(T) {
+  auto maximize(T pair) {
+    static if (pair.length != 2) {
+      pragma(fail, ("maximize must take two parameters, not "~string-of T));
+    }
+    float max = -float.max;
+    type-of-elem pair[0] res;
+    bool succeeded;
+    for auto value <- pair[0] if ((auto v = pair[1] value) > max) {
+      max = v;
+      res = value;
+      succeeded = true;
+    }
+    assert succeeded;
+    return res;
+  }
+}
+
+template minimize(T) {
+  auto minimize(T pair) {
+    static if (pair.length != 2) {
+      pragma(fail, ("minimize must take two parameters, not "~string-of T));
+    }
+    float min = float.max;
+    type-of-elem pair[0] res;
+    bool succeeded;
+    for auto value <- pair[0] if ((auto v = pair[1] value) < min) {
+      min = v;
+      res = value;
+      succeeded = true;
+    }
+    assert succeeded;
+    return res;
+  }
+}
+
+// list.findFirstThat condition
+template findFirstThat(T) {
+  alias Element = type-of-elem T[0];
+  struct Maybe {
+    Element value;
+    bool valid;
+    Element getvalue() { assert valid; return value; }
+    alias implicit-cast = valid;
+    alias implicit-cast-2 = getvalue();
+  }
+  auto findFirstThat(T pair) {
+    for auto value <- pair[0] if (pair[1] value) return Maybe:(value, true);
+    return Maybe:(Element throwaway, false);
+  }
+}

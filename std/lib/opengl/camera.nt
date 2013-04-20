@@ -1,6 +1,6 @@
 module std.lib.opengl.camera;
 
-import std.math, std.lib.opengl.(, window);
+import std.math, std.matrix, std.lib.opengl.(, window);
 
 abstract class Camera {
   vec3f pos;
@@ -29,26 +29,38 @@ abstract class PerspectiveCam : Camera {
     gluPerspective args;
   }
   void unrotate();
+  // cache assumption: matrices are consistent per frame
+  (Matrix4x4 mat, int frameplusone) invert_transforms_cache, invert_notransforms_cache;
   vec3f invert(vec3f v, bool transforms = false) using mode GL {
     GetFloatv(MODELVIEW_MATRIX, Matrix4x4 mvmat);
     if (transforms) {
-      Matrix4x4 origmat;
-      using ModelviewMatrix {
-        apply;
-        GetFloatv(MODELVIEW_MATRIX, origmat);
+      alias c = invert_transforms_cache;
+      if (c.frameplusone != glwindow.framecount + 1) {
+        Matrix4x4 origmat;
+        using ModelviewMatrix {
+          apply;
+          GetFloatv(MODELVIEW_MATRIX, origmat);
+          c.frameplusone = glwindow.framecount + 1;
+        }
+        origmat.invert;
+        origmat.multiply &mvmat;
+        c.mat = origmat;
       }
-      origmat.invert;
-      origmat.multiply &mvmat;
       // TODO figure out why need w => 1
-      return origmat.multiply (v, w => 1);
+      return c.mat.multiply (v, w => 1);
     } else {
       v = v * 2 - 1;
       v.y = -v.y; // Oh OpenGL.
-      mvmat.invert;
-      GetFloatv(PROJECTION_MATRIX, Matrix4x4 prmat);
-      prmat.invert;
-      mvmat.multiply &prmat;
-      return mvmat.multiply (v, w => 1);
+      alias c = invert_notransforms_cache;
+      if (c.frameplusone != glwindow.framecount + 1) {
+        mvmat.invert;
+        GetFloatv(PROJECTION_MATRIX, Matrix4x4 prmat);
+        prmat.invert;
+        mvmat.multiply &prmat;
+        c.mat = mvmat;
+      }
+      // return mvmat.multiply (v, w => 1);
+      return c.mat.multiply (v, w => 1);
     }
   }
   vec3f apply(vec3f v) using mode GL {
@@ -94,7 +106,6 @@ template WorldCam(T) {
       vert.Rotatef vec3f.Y;
       Translatef (-pos);
     }
-    import std.matrix;
     (Matrix4x4 mat, int frameplusone) unrotate_cache;
     void unrotate() using mode GL {
       if (fastgl.fast) {
