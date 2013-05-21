@@ -138,21 +138,36 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotArrayAccess, "tree.rhs_partial.array_access", null, "[");
 
+import ast.math;
 // Pointer access as array
 class PA_Access : LValue {
   Expr ptr, pos;
   mixin MyThis!("ptr, pos");
   mixin DefaultDup!();
   mixin defaultIterate!(ptr, pos);
+  Expr pointer_offset() {
+    // return lookupOp("+", ptr, pos);
+    return reinterpret_cast(
+      ptr.valueType(),
+      new AsmIntBinopExpr(
+        reinterpret_cast(Single!(SysInt), ptr),
+        new AsmIntBinopExpr(
+          pos,
+          llvmval(valueType().llvmSize()),
+          "*"
+        ),
+        "+"
+      )
+    );
+  }
   override {
     string toString() { return Format(ptr, "["[], pos, "]"[]); }
     IType valueType() { return (fastcast!(Pointer)~ ptr.valueType()).target; }
-    // TODO generic case
     void emitLLVM(LLVMFile lf) {
-      (fastalloc!(DerefExpr)(lookupOp("+", ptr, pos))).emitLLVM(lf);
+      (fastalloc!(DerefExpr)(pointer_offset())).emitLLVM(lf);
     }
     void emitLocation(LLVMFile lf) {
-      (lookupOp("+", ptr, pos)).emitLLVM(lf);
+      pointer_offset().emitLLVM(lf);
     }
   }
 }

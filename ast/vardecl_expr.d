@@ -12,7 +12,7 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (t3.accept("("[]) && t3.accept(")"[])) /* THIS IS NOT A GOOD THING THIS IS BAD AND WRONG */
       return null; // whew.
   }
-  if (parsingCHeader()) return null;
+  if (parsingCHeader() || !namespace().get!(ScopeLike)) return null;
   bool isRefDecl;
   if (!t2.accept("auto"[])) {
     if (t2.accept("ref")) isRefDecl = true;
@@ -58,6 +58,7 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (!type) {
         if (!initval) text.failparse("internal compiler bug - no init no type");
         type = initval.valueType();
+        if (!initval) text.failparse("internal compiler bug - no init no type even now");
       }
       var = fastalloc!(Variable)(type, framelength(), name);
     }

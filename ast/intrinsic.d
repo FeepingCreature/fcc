@@ -521,7 +521,7 @@ void setupSysmods() {
       }
     }
     void raise(UnrecoverableError err) {
-      // printf("Raise2 %.*s given %p\n", err.toString(), frameinfo.prev);
+      // printf("raise2 %.*s given %p\n", err.toString(), frameinfo.prev);
       auto cur = __hdl__;
       // printf("raise here: %p %p\n", cur, &__hdl__);
       if (!cur) { int i; i /= i; }

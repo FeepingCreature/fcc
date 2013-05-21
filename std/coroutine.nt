@@ -8,6 +8,11 @@ extern(C) void call(void delegate() dg, (void*, type-of mem)* newdata) {
   auto _threadlocal = (*newdata)[0];
   mem = (*newdata)[1];
   dupvcache = null;
+  set-handler (UnrecoverableError err) {
+    import std.process;
+    writeln "$(read-pretty-fcc-backtrace())\n!\t$err";
+    _interrupt 3;
+  }
   dg();
 }
 

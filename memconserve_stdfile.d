@@ -60,13 +60,17 @@ version(Win32) {
   import std.c.unix.unix, std.c.stdlib;
   void getTimes(string name, out d_time ftc, out d_time fta, out d_time ftm)
   {
-    auto namez = qformat(name, "\0").ptr;
+    auto namez = cast(char*) std.c.stdlib.malloc(name.length + 1);
+    scope(success) std.c.stdlib.free(namez);
+    namez[0..name.length] = name;
+    namez[name.length] = cast(char) 0;
     
     struct_stat statbuf;
     if (unix.stat(namez, &statbuf))
     {
       throw new FileException(name, getErrno());
     }
+    
     version (GNU)
     {
       ftc = cast(d_time)statbuf.st_ctime * std.date.TicksPerSecond;
@@ -104,7 +108,11 @@ version(Win32) {
   }
   int exists(char[] name)
   {
-    auto nameptr = qformat(name, "\0").ptr;
-    return access(nameptr, 0) == 0;
+    auto np = cast(char*) std.c.stdlib.malloc(name.length + 1);
+    np[0..name.length] = name;
+    np[name.length] = cast(char) 0;
+    auto res = access(np, 0) == 0;
+    std.c.stdlib.free(np);
+    return res;
   }
 }

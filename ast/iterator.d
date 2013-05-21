@@ -610,8 +610,9 @@ class IterLetCond(T) : Cond, NeedsConfig {
     auto stepcond = itype.testAdvance(iref);
     auto value = itype.currentValue(iref);
     auto skip = lf.allocLabel("iterletcond_skip");
-    opt(stepcond);
-    opt(value);
+    // TODO check if actually necessary!
+    // opt(stepcond);
+    // opt(value);
     if (cond) {
       // if jump fails, value is available; write it, then jump
       stepcond.jumpOn(lf, false, skip);

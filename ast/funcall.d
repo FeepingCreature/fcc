@@ -215,7 +215,8 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     auto ex = args.take();
     auto backup = ex;
     
-    opt(ex);
+    // WHY?!
+    // opt(ex);
     
     int score;
     
