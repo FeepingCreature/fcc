@@ -121,7 +121,6 @@ template curry(T) {
     PList pars;
     template CurryStep(alias A) {
       auto CurryStep(PList[A] par) {
-        pragma(msg, ("currystep("~string-of A~")"));
         pars[A] = par;
         static if (A == pars.length - 1) {
           return fun pars;
@@ -133,7 +132,6 @@ template curry(T) {
     alias implicit-cast = &CurryStep!0;
   }
   auto curry(T t) {
-    pragma(msg, ("curry("~string-of T~")"));
     CurryStore cs;
     cs.fun = t;
     return cs;
