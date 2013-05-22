@@ -239,7 +239,13 @@ class LazyThisExpr : Expr, RelTransformable {
       // if (val) fail;
       if (val) return this;
       auto lv = fastcast!(LValue)(base);
-      if (!lv) fail;
+      if (!lv) {
+        // logln("Base is not an lvalue in LTE transform: ", base);
+        // logln("value: ", val);
+        // fail;
+        // TODO WARN This is DEFINITELY wrong and will break with any but the most trivial cases.
+        lv = lvize(base);
+      }
       res.val = reinterpret_cast(it, fastalloc!(RefExpr)(lv));
       return res;
     }

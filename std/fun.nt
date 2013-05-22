@@ -113,3 +113,29 @@ template selectAs(T) {
     return res;
   }
 }
+
+template curry(T) {
+  struct CurryStore {
+    T fun;
+    alias PList = ParamTypes T;
+    PList pars;
+    template CurryStep(alias A) {
+      auto CurryStep(PList[A] par) {
+        pragma(msg, ("currystep("~string-of A~")"));
+        pars[A] = par;
+        static if (A == pars.length - 1) {
+          return fun pars;
+        } else {
+          return &CurryStep!(A+1);
+        }
+      }
+    }
+    alias implicit-cast = &CurryStep!0;
+  }
+  auto curry(T t) {
+    pragma(msg, ("curry("~string-of T~")"));
+    CurryStore cs;
+    cs.fun = t;
+    return cs;
+  }
+}

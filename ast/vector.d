@@ -401,7 +401,10 @@ class FastVec3Sum : Expr {
 
 class FastVec3Norm : Expr {
   Expr base; IType vec;
-  this(Expr b, IType v) { base = b; vec = v; }
+  this(Expr b, IType v) {
+    base = b;
+    vec = v;
+  }
   override {
     mixin defaultIterate!(base);
     FastVec3Norm dup() { return fastalloc!(FastVec3Norm)(base.dup, vec); }
@@ -859,7 +862,7 @@ class VecOp : Expr {
             llop = "f"~llop~" fast";
           }
         } else if (fastcast!(SysInt)(e1v.base)) {
-          
+          if (llop == "div") llop = "sdiv";
         } else llop = null;
         if (llop) {
           load(lf, llop, " ", e1v.llvmType(), " ", s1, ", ", s2);

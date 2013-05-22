@@ -46,6 +46,8 @@ class RelMember : Expr, Named, RelTransformable {
     mixin defaultIterate!();
     string getIdentifier() { return name; }
     Object transform(Expr base) {
+      if (type.llvmSize() == base.valueType().llvmSize())
+        return fastcast!(Object) (reinterpret_cast(type, base));
       return fastcast!(Object) (mkMemberAccess(base, name));
     }
   }
