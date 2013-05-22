@@ -114,6 +114,13 @@ template selectAs(T) {
   }
 }
 
+/*Template: curry
+  Takes a function with multiple parameters and returns a function that takes
+  the first parameter and returns a function that takes the second, and so on.
+  The last parameter causes the original function to be called.
+  
+Parameters:
+  fp - Pointer to a function to be curried */
 template curry(T) {
   struct CurryStore {
     T fun;
