@@ -412,7 +412,7 @@ bool gotCIdentifier(ref string text, out string ident) {
   return true;
 }
 
-bool[string] reserved;
+bool[string] reserved, reservedPropertyNames;
 static this() {
   reserved["auto"] = true;
   reserved["return"] = true;
@@ -420,6 +420,8 @@ static this() {
   reserved["delegate"] = true;
   reserved["type-of"] = true;
   reserved["string-of"] = true;
+  reservedPropertyNames["eval"] = true;
+  reservedPropertyNames["iterator"] = true;
 }
 
 // This isn't a symbol! Maybe I was wrong about the dash .. 

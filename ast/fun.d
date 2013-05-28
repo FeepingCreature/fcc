@@ -146,7 +146,11 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     defaultIterate!(dependents).iterate(dg, mode);
     // else to be defined in subclasses
   }
-  string toString() { return qformat("fun "[], fqn(), " "[], type/*, " <- "[], sup*/); }
+  string toString() {
+    if (get!(IModule)) return fqn();
+    else return name;
+    // return qformat("fun "[], fqn(), " "[], type/*, " <- "[], sup*/);
+  }
   string[] llvmFrameTypes;
   // add parameters to namespace
   string coarseSrc;

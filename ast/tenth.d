@@ -114,7 +114,7 @@ Entity _parseTenth(ref string src) {
   }
   if (src.accept("\"")) {
     auto mew = src.slice("\"");
-    return fastalloc!(Escape)(fastalloc!(Token)(mew)); // haaaaax
+    return fastalloc!(Escape)(fastalloc!(Token)(mew.replace("\\n", "\n"))); // haaaaax
   }
   if (src.accept("(")) {
     Entity[] res;

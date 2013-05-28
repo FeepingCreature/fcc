@@ -109,7 +109,7 @@ class Compare : Cond, Expr {
     if (smaller) res ~= "<";
     if (equal) res ~= "=";
     if (greater) res ~= ">";
-    if (!smaller && !greater) res ~= "=";
+    if (!smaller && !greater && !not) res ~= "=";
     res ~= "(";
     res ~= (fastcast!(Object)~ e1).toString();
     res ~= ", ";

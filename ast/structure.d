@@ -758,10 +758,13 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto backupmember = member;
   auto backupt2 = t2;
   Expr ex;
+  string mesg;
 try_next_alt:
   member = backupmember; // retry from start again
   t2 = backupt2;
   if (!alts.length) {
+    if (!(member in reservedPropertyNames))
+      text.setError(mesg);
     return null;
   }
   
@@ -796,22 +799,21 @@ retry:
   auto m = rn.lookupRel(member, ex);
   if (!m) {
     if (t2.eatDash(member)) { goto retry; }
-    string mesg, name;
-    /*auto info = Format(pre_ex.valueType());
+    auto info = Format(pre_ex.valueType());
     if (info.length > 64) info = info[0..64] ~ " [snip]";
     if (auto st = fastcast!(Structure) (resolveType(fastcast!(IType) (rn)))) {
-      name = st.name;
+      // name = st.name;
       /*logln("alts1 "[]);
       foreach (i, alt; alts)
-        logln("  "[], i, ": "[], alt);* /
+        logln("  "[], i, ": "[], alt);*/
       mesg = qformat(member, " is not a member of "[], info, ", containing "[], st.names);
     } else {
       /*logln("alts2: "[]);
       foreach (i, alt; alts)
-        logln("  "[], i, ": "[], alt);* /
+        logln("  "[], i, ": "[], alt);*/
       mesg = qformat(member, " is not a member of non-struct "[], info);
     }
-    text.setError(mesg);*/
+    // text.setError(mesg);
     goto try_next_alt;
   }
   text = t2;

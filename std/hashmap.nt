@@ -83,7 +83,7 @@ template eq(T) {
   }
 }
 
-enum SetState : bool { NotSet, Set, Deleted }
+enum SetState { NotSet, Set, Deleted }
 
 template Hashmap(T) {
   alias Key = T[0], Value = T[1];
@@ -102,8 +102,10 @@ template Hashmap(T) {
     }
     void iterate(void delegate(Key*, Value*) dg) {
       pragma(fast);
-      for ref entry <- backing && int i <- ints
-        if (isset[i] == SetState.Set) dg (&entry[0], &entry[1]);
+      for int i <- 0..backing.length if (isset[i] == SetState.Set) {
+        alias entry = backing[i];
+        dg (&entry[0], &entry[1]);
+      }
     }
     void realloc(int newsize) {
       pragma(fast);

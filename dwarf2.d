@@ -356,7 +356,7 @@ class Dwarf2Controller {
     int sum;
     int q;
     string[] res;
-    void addLine(string s) {
+    /+void addLine(string s) {
       if (count) sum++;
       else res[q++] = s;
     }
@@ -396,7 +396,7 @@ class Dwarf2Controller {
     generate();
     res = new string[sum];
     count = false;
-    generate();
+    generate();+/
     return res;
   }
 }

@@ -307,7 +307,8 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     namespace.set(fastalloc!(WithSpace)(spaces, ex, values));
     
     Object res;
-    if (!rest(text, "tree.expr _tree.expr.arith"[], &res) && !rest(text, "cond"[], &res))
+    // if (!rest(text, "tree.expr _tree.expr.arith"[], &res) && !rest(text, "cond"[], &res))
+    if (!rest(text, "tree.expr.tuple"[], &res) && !rest(text, "cond"[], &res))
       text.failparse("Couldn't get with-tuple expr"[]);
     res = fixup(res);
     if (wte) {

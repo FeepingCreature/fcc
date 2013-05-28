@@ -346,7 +346,11 @@ class _MiniNamespace : Namespace, ScopeLike, Named {
       return _mns_stackframe(sup, field);
     }
     mixin DefaultScopeLikeGuards!();
-    string toString() { return qformat("mini[", id, "](", stackframe().length, ") <- ", sup); }
+    string toString() {
+      if (!sup.get!(ScopeLike)())
+        return qformat("mini[", id, "](-) <- ", sup);
+      return qformat("mini[", id, "](", stackframe().length, ") <- ", sup);
+    }
     void _add(string name, Object obj) {
       if (sup && !internalMode) sup._add(name, obj);
       else super.__add(name, obj);
