@@ -1,0 +1,53 @@
+module std.macros.where;
+
+macro("tree.stmt.where", "413", "where") `
+  (if
+    (not (and
+      (def 'location (make-string (get-location)))
+      (def 'cd (parse-cond))
+      (def 'st (parse-stmt))))
+    'nil
+    '(last
+      (def 'indent (lambda '(str) '(strexreplace (strexreplace str "\n" "\n  ") "§" "")))
+      (def 'decompose (lambda '(c cont)
+        '(if (decompose-and c 'a 'b)
+          '(make-if (make-not a)
+            '(decompose a (lambda '(msg)
+              '(cont (make-concat (indent msg) "\nthus " (make-repr c) " was false"))))
+            '(make-if (make-not b)
+              '(decompose b (lambda '(msg)
+                '(cont (make-concat (indent msg) "\nthus " (make-repr c) " was false"))))))
+          '(if (decompose-or c 'a 'b)
+            '(make-if (make-not a)
+              '(make-if (make-not b)
+                '(decompose a (lambda '(msg1)
+                  '(decompose b (lambda '(msg2)
+                    '(cont (make-concat
+                      (indent msg1)
+                      (indent (strexreplace msg2 "§" "and "))
+                      "\nthus " (make-repr c) " was false"))))))))
+            '(if (decompose-compare c 'a 'b)
+              '(last
+                (def 'ex (reinterpret-cast (lookup "bool") (make-condexpr c)))
+                (cont (make-concat
+                  "\n§" (make-repr c) " was " (make-format ex)
+                  (if (is-const-int a)
+                    '(if (is-const-int b)
+                      '""
+                      '(make-concat " (" (make-repr b) " = " (make-format b) ")"))
+                    '(if (is-const-int b)
+                      '(make-concat " (" (make-repr a) " = " (make-format a) ")")
+                      '(make-concat " ("
+                        (make-repr a) " = " (make-format a)
+                        ", " (make-repr b) " = " (make-format b)
+                        ")"))))))
+              '(last
+                (def 'ex (if (decompose-exprwrap c 'cex) 'cex '(reinterpret-cast (lookup "bool") (make-condexpr c))))
+                (cont (make-concat "\n§" (make-repr c) " was " (make-format ex)))))))))
+      (make-if (make-not cd)
+        '(decompose cd (lambda '(msg)
+          '(make-exprstatement (make-call (lookup "assert") (make-tuple-expr (list
+            (reinterpret-cast (lookup "bool") (make-int 0))
+            (make-concat "Failed: at " location (strexreplace msg "§" ""))))))))
+        'st)))
+`;

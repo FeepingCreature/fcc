@@ -1027,6 +1027,7 @@ void setupSysmods() {
         }
       }
     }
+    public import std.macros.where; // just so dang useful
   `.dup; // make sure we get different string on subsequent calls
   synchronized(SyncObj!(sourcefiles))
     sourcefiles["sys.nt"] = src;
