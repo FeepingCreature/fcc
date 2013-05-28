@@ -1,10 +1,11 @@
 module ast.macros;
 
 import ast.tenth;
-import parseBase, ast.base, ast.literal_string, ast.tuples, ast.fun, ast.funcall,
-       ast.namespace, ast.tuple_access, ast.variable, ast.vardecl, ast.scopes,
-       ast.aggregate, ast.assign, ast.ifstmt, ast.literals, ast.pointer, ast.casting,
-       ast.opers, ast.conditionals, ast.returns, ast.nulls, ast.iterator;
+import parseBase, ast.parse, ast.base, ast.literal_string, ast.tuples, ast.fun,
+       ast.funcall, ast.namespace, ast.tuple_access, ast.variable, ast.vardecl,
+       ast.scopes, ast.aggregate, ast.assign, ast.ifstmt, ast.literals,
+       ast.pointer, ast.casting, ast.opers, ast.conditionals, ast.returns,
+       ast.nulls, ast.iterator, ast.stringex;
 
 import tools.base: This;
 
@@ -134,6 +135,36 @@ extern(C) void fcc_initTenth() {
     mixin(chaincast("ex: Arg for 'make-exprwrap': args[0]->ItrEntity: %.itr->Expr"));
     return fastalloc!(ItrEntity)(fastalloc!(ExprWrap)(ex));
   }));
+  rootctx.add("decompose-exprwrap", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'decompose-exprwrap': 2 expected");
+    mixin(chaincast("itr: First arg for 'decompose-exprwrap': args[0]->ItrEntity: %.itr"));
+    mixin(chaincast("id: Second arg to 'decompose-exprwrap': args[1]->Token: %.name"));
+    if (auto ew = fastcast!(ExprWrap)(itr)) {
+      ctx.add(id, fastalloc!(ItrEntity)(ew.ex));
+      return NonNilEnt;
+    } else return NilEnt;
+  }));
+  rootctx.add("decompose-compare", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 3) tnte("Wrong number of args to 'decompose-compare': 3 expected");
+    mixin(chaincast("itr: First arg for 'decompose-compare': args[0]->ItrEntity: %.itr"));
+    mixin(chaincast("id1: Second arg to 'decompose-compare': args[1]->Token: %.name"));
+    mixin(chaincast("id2: Third arg to 'decompose-compare': args[2]->Token: %.name"));
+    if (auto cmp = fastcast!(Compare)(itr)) {
+      ctx.add(id1, fastalloc!(ItrEntity)(cmp.e1));
+      ctx.add(id2, fastalloc!(ItrEntity)(cmp.e2));
+      return NonNilEnt;
+    } else return NilEnt;
+  }));
+  rootctx.add("make-condexpr", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'make-condexpr': 1 expected");
+    mixin(chaincast("cd: Arg for 'make-condexpr': args[0]->ItrEntity: %.itr->Cond"));
+    return fastalloc!(ItrEntity)(fastalloc!(CondExpr)(cd));
+  }));
+  rootctx.add("make-exprstatement", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'make-exprstatement': 1 expected");
+    mixin(chaincast("ex: Arg for 'make-exprstatement': args[0]->ItrEntity: %.itr->Expr"));
+    return fastalloc!(ItrEntity)(fastalloc!(ExprStatement)(ex));
+  }));
   rootctx.add("make-int", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'make-int': 1 expected");
     mixin(chaincast("num: First arg for 'make-int': args[0]->Integer: %.value"));
@@ -166,8 +197,57 @@ extern(C) void fcc_initTenth() {
     mixin(chaincast("cd2: Second arg for 'make-and': args[1]->ItrEntity: %.itr->Cond"));
     return fastalloc!(ItrEntity)(fastalloc!(AndOp)(cd1, cd2));
   }));
+  rootctx.add("make-not", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'make-not': 1 expected");
+    mixin(chaincast("cd: First arg for 'make-not': args[0]->ItrEntity: %.itr->Cond"));
+    return fastalloc!(ItrEntity)(fastalloc!(NegCond)(cd));
+  }));
+  rootctx.add("decompose-and", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 3) tnte("Wrong number of args to 'decompose-and': 3 expected");
+    mixin(chaincast("cd: First arg for 'decompose-and': args[0]->ItrEntity: %.itr->Cond"));
+    mixin(chaincast("id1: Second arg to 'decompose-and': args[1]->Token: %.name"));
+    mixin(chaincast("id2: Third arg to 'decompose-and': args[2]->Token: %.name"));
+    if (auto ao = fastcast!(AndOp)(cd)) {
+      ctx.add(id1, fastalloc!(ItrEntity)(ao.c1));
+      ctx.add(id2, fastalloc!(ItrEntity)(ao.c2));
+      return NonNilEnt;
+    } else return NilEnt;
+  }));
+  rootctx.add("decompose-or", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 3) tnte("Wrong number of args to 'decompose-or': 3 expected");
+    mixin(chaincast("cd: First arg for 'decompose-or': args[0]->ItrEntity: %.itr->Cond"));
+    mixin(chaincast("id1: Second arg to 'decompose-or': args[1]->Token: %.name"));
+    mixin(chaincast("id2: Third arg to 'decompose-or': args[2]->Token: %.name"));
+    if (auto oo = fastcast!(OrOp)(cd)) {
+      ctx.add(id1, fastalloc!(ItrEntity)(oo.c1));
+      ctx.add(id2, fastalloc!(ItrEntity)(oo.c2));
+      return NonNilEnt;
+    } else return NilEnt;
+  }));
+  rootctx.add("make-concat", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (!args.length) tnte("Wrong number of args to 'make-concat': at least 1 expected");
+    Expr res;
+    foreach (arg; args) {
+      if (auto ie = fastcast!(ItrEntity)(arg)) {
+        auto ex = fastcast!(Expr)(ie.itr);
+        if (ex) {
+          if (!res) res = ex;
+          else res = lookupOp("~", res, ex);
+          continue;
+        }
+      } else if (auto tok = fastcast!(Token)(arg)) {
+        auto str = tok.name;
+        auto ex = mkString(str);
+        if (!res) res = ex;
+        else res = lookupOp("~", res, ex);
+        continue;
+      }
+      tnte("Argument to make-concat was neither expr nor string: ", arg);
+    }
+    return fastalloc!(ItrEntity)(res);
+  }));
   rootctx.add("make-if", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
-    if (args.length != 2) tnte("Wrong number of args to 'make-if': 2 expected");
+    if (args.length != 2 && args.length != 3) tnte("Wrong number of args to 'make-if': 2 or 3 expected");
     mixin(chaincast("it: First arg for 'make-if': args[0]->ItrEntity: %.itr"));
     Cond cd = fastcast!(Cond) (it);
     if (!cd) {
@@ -179,14 +259,24 @@ extern(C) void fcc_initTenth() {
     ifs.test = cd;
     namespace.set(ifs.wrapper);
     
-    auto branch1 = new Scope;
-    ifs.branch1 = branch1;
-    namespace.set(branch1);
-    
-    scope(exit) namespace.set(ifs.wrapper.sup);
-    
-    mixin(chaincast("st: Second arg for 'make-if', evaluated: args[1].eval(ctx)->ItrEntity: %.itr->Statement"));
-    branch1.addStatement(st);
+    {
+      auto branch1 = new Scope;
+      ifs.branch1 = branch1;
+      namespace.set(branch1);
+      scope(exit) namespace.set(ifs.wrapper.sup);
+      
+      mixin(chaincast("st: Second arg for 'make-if', evaluated: args[1].eval(ctx)->ItrEntity: %.itr->Statement"));
+      branch1.addStatement(st);
+    }
+    if (args.length == 3) {
+      auto branch2 = new Scope;
+      ifs.branch2 = branch2;
+      namespace.set(branch2);
+      scope(exit) namespace.set(ifs.wrapper.sup);
+      
+      mixin(chaincast("st: Third arg for 'make-if', evaluated: args[2].eval(ctx)->ItrEntity: %.itr->Statement"));
+      branch2.addStatement(st);
+    }
     
     return fastalloc!(ItrEntity)(ifs);
   }));
@@ -214,9 +304,12 @@ extern(C) void fcc_initTenth() {
   rootctx.add("lookup", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to lookup: 1 expected");
     mixin(chaincast("tok: Arg for lookup: args[0]->Token: %.name"));
-    auto res = fastcast!(Tree) (namespace().lookup(tok));
+    auto res = namespace().lookup(tok);
     if (!res) tnte("No such object: ", tok);
-    return fastalloc!(ItrEntity)(res);
+    auto tr = fastcast!(Tree)(res), ty = fastcast!(IType)(res);
+    if (tr) return fastalloc!(ItrEntity)(tr);
+    if (ty) return fastalloc!(TypeEntity)(ty);
+    tnte("Unknown kind of thing: ", tok, " = ", res);
   }));
   rootctx.add("not", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'not': 1 expected");
@@ -289,6 +382,22 @@ extern(C) void fcc_initTenth() {
   rootctx.add("eval", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'eval': 1 expected");
     return args[0].eval(ctx);
+  }));
+  // string literal subexpression replace
+  rootctx.add("strexreplace", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 3) tnte("Wrong number of args to 'replace': 3 expected: text, what, with");
+    mixin(chaincast("text: First arg for 'replace': args[0]->ItrEntity: %.itr->Expr"));
+    mixin(chaincast("what: Second arg for 'replace': args[1]->Token: %.name"));
+    mixin(chaincast("rept: Third arg for 'replace': args[2]->Token: %.name"));
+    void repl(ref Iterable it) {
+      if (auto se = fastcast!(StringExpr)(it)) {
+        it = fastalloc!(StringExpr)(replace(se.str, what, rept));
+      }
+      it.iterate(&repl);
+    }
+    auto it = fastcast!(Iterable)(text.dup());
+    repl(it);
+    return fastalloc!(ItrEntity)(it);
   }));
   rootctx.add("if", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 3) tnte("Wrong number of args to 'if': 3 expected");
@@ -461,6 +570,11 @@ extern(C) void fcc_initTenth() {
     mixin(chaincast("ty: Arg to 'is-const-int-range': args[0]->TypeEntity: %.ty"));
     return fastcast!(ConstIntRange)(resolveType(ty))?NonNilEnt:NilEnt;
   }));
+  rootctx.add("is-const-int", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of args to 'is-const-int': 1 expected");
+    mixin(chaincast("ex: Arg to 'is-const-int': args[0]->ItrEntity: %.itr->Expr"));
+    return fastcast!(IntExpr)(ex)?NonNilEnt:NilEnt;
+  }));
   rootctx.add("access-const-int-range", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'access-const-int-range': 1 expected");
     mixin(chaincast("ty: Arg to 'access-const-int-range': args[0]->TypeEntity: %.ty"));
@@ -557,6 +671,17 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     logln(t2.nextText());
     logln(args);
     return NonNilEnt;
+  }));
+  // make representation
+  ctx.add("make-repr", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of arguments to 'make-repr': 1 expected");
+    mixin(chaincast("itr: First argument for 'make-repr': args[0]->ItrEntity: %.itr"));
+    return fastalloc!(ItrEntity)(mkString(prettyprint(itr)));
+  }));
+  ctx.add("make-format", new DgCallable(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 1) tnte("Wrong number of arguments to 'make-format': 1 expected");
+    mixin(chaincast("ex: First argument for 'make-format': args[0]->ItrEntity: %.itr -> Expr"));
+    return fastalloc!(ItrEntity)(simpleFormat(ex));
   }));
   ctx.add("parse-ident", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length) tnte("Too many arguments to parse-ident: 0 expected");
@@ -658,6 +783,11 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     t2 = sourcestack[$-1];
     sourcestack = sourcestack[0..$-1];
     return res;
+  }));
+  ctx.add("get-location", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length) tnte("Wrong number of args to 'get-location': 0 expected");
+    auto tup = lookupPos(t2);
+    return fastalloc!(Token)(qformat(tup._2, ":", tup._0, ":", tup._1));
   }));
   auto res = ent.eval(ctx);
   if (isNil(res)) return null;
