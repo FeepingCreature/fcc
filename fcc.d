@@ -210,6 +210,51 @@ extern(C) Stuple!(IType, string)[] _mns_stackframe(Namespace sup, typeof(Namespa
   return res;
 }
 
+// text, "is binop safe"
+alias Stuple!(string, bool) pptype;
+pptype prettyprint_rec(Iterable itr) {
+  pptype format_bin(string op, pptype s1, pptype s2) {
+    string res;
+    if (s1._1) res ~= s1._0;
+    else res ~= "("~s1._0~")";
+    res ~= " " ~ op ~ " ";
+    if (s2._1) res ~= s2._0;
+    else res ~= "("~s2._0~")";
+    return stuple(res, false);
+  }
+  if (auto co = fastcast!(Compare)(itr)) {
+    string op;
+    if (co.not) op ~= "!";
+    if (co.smaller) op~= "<";
+    if (co.equal) op ~= "=";
+    if (co.greater) op ~= ">";
+    if (co.equal && !co.smaller && !co.greater && !co.not) op ~= "=";
+    return format_bin(op, prettyprint_rec(co.e1), prettyprint_rec(co.e2));
+  }
+  if (auto ao = fastcast!(AndOp)(itr)) {
+    return format_bin("&&", prettyprint_rec(ao.c1), prettyprint_rec(ao.c2));
+  }
+  if (auto ao = fastcast!(OrOp)(itr)) {
+    return format_bin("||", prettyprint_rec(ao.c1), prettyprint_rec(ao.c2));
+  }
+  if (auto va = fastcast!(Variable)(itr)) {
+    return stuple(va.name, true);
+  }
+  if (auto ie = fastcast!(IntExpr)(itr)) {
+    return stuple(qformat(ie.num), true);
+  }
+  if (auto ew = fastcast!(ExprWrap)(itr)) {
+    return prettyprint_rec(ew.ex);
+  }
+  return stuple(qformat("TODO ", fastcast!(Object)(itr).classinfo.name, " ", itr), false);
+}
+
+// see ast.base
+pragma(set_attribute, prettyprint, externally_visible);
+extern(C) string prettyprint(Iterable itr) {
+  return prettyprint_rec(itr)._0;
+}
+
 // from ast.fun
 static this() {
   // Assumption: SysInt is size_t.

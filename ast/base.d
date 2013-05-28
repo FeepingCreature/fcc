@@ -1044,3 +1044,5 @@ class NamedArg : Expr {
     }
   }
 }
+
+extern(C) string prettyprint(Iterable itr);

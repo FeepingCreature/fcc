@@ -484,7 +484,7 @@ class MemberAccess_Expr : Expr, HasInfo {
   static int mae_counter;
   this() {
     counter = mae_counter ++;
-    // if (counter == 2017) fail;
+    // if (counter == 13255) fail;
   }
   this(Expr base, string name) {
     this.base = base;
