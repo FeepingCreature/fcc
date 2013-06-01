@@ -182,12 +182,14 @@ class Socket {
     that.boundAddr = this.boundAddr.dup;
     auto hdl = that.boundAddr.getAddrHandle();
     int gotLength = hdl[1];
+    auto fam = hdl[0].sa_family;
     that.sockfd = .accept(this.sockfd, hdl[0], &gotLength);
     if (that.sockfd == -1) {
       raise new Error "While accepting connections on $(this.sockfd): $(CToString strerror errno)";
     }
-    if (gotLength != hdl[1])
-      raise new Error "Accepted socket address was of different type than listening socket: $gotLength, but expected $(hdl[1])! ";
+    if (hdl[0].sa_family != fam || gotLength > hdl[1])
+      raise new Error ("Accepted socket address was of incompatible type to listening socket: "
+        ~"$(hdl[0].sa_family) ($gotLength), but expected $(fam) ($(hdl[1]))! ");
     return that;
   }
 }

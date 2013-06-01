@@ -1,68 +1,124 @@
 module cairotest;
 
-import sdl, std.math, std.lib.opengl, std.lib.cairo, std.lib.opengl.sdl, std.time;
+import sdl, std.math, std.lib.cairo, std.time;
 
 pragma(lib, "cairo");
 
 void main() using mode cairo {
   writeln "Open SDL Window .. ";
-  auto wnd = new SDLWindow;
-  wnd.context-callbacks ~= \using mode GL{
-    MatrixMode PROJECTION; LoadIdentity;
-    MatrixMode MODELVIEW; LoadIdentity;
-    Disable DEPTH_TEST;
-  };
-  writeln "got $wnd";
-  auto backup =
-    (glXGetCurrentDisplay(), glXGetCurrentDrawable(), glXGetCurrentContext());
-  auto dev = cairo_glx_device_create (backup[0], backup[2]);
-  glXMakeCurrent backup;
+  screen(640, 480);
   
-  writeln "create surf for $dev";
-  writeln "post: $(glXGetCurrentContext()), $(glXGetCurrentDisplay())";
-  auto surface = cairo_gl_surface_create_for_window
-    (dev, backup[1], wnd.size());
+  auto surface = cairo_image_surface_create_for_data (display.surf.back.pixels,
+    CAIRO_FORMAT_RGB24, display.surf.back.(w, h, pitch));
   
-  float f = 0;
+  struct Node {
+    vec2f pos;
+    vec2f motion;
+    float prop;
+    int[auto~] neighbors;
+  }
+  
+  Node[auto~] grid;
+  
+  int size = 100;
+  
+  import std.random;
+  for int y <- 0..size for int x <- 0..size {
+    Node n;
+    n.pos = vec2f(x, y) / size;
+    int id = y * size + x;
+    if (x < size-1) n.neighbors ~= id+1;
+    if (x > 0)      n.neighbors ~= id-1;
+    if (y < size-1) n.neighbors ~= id+size;
+    if (y > 0)      n.neighbors ~= id-size;
+    if (x > 0 && y > 0) n.neighbors ~= id-size-1;
+    if (x > 0 && y < size-1) n.neighbors ~= id+size-1;
+    if (x < size-1 && y > 0) n.neighbors ~= id-size+1;
+    if (x < size-1 && y < size-1) n.neighbors ~= id+size+1;
+    n.prop = (randf(deflt) - 0.5) * 0.01;
+    grid ~= n;
+  }
+  
+  void rebalance() {
+    vec2f offset, offsetd;
+    for ref node <- grid { offset += node.pos; offsetd += node.motion; }
+    offset /= grid.length;
+    offsetd /= grid.length;
+    offset -= vec2f 0.5;
+    for ref node <- grid { node.pos -= offset; node.motion -= offsetd; }
+  }
+  
+  float f = 0.0001;
+  void step() {
+    f *= 0.96;
+    scope tensions = new vec2f[] grid.length;
+    for ref node <- grid && ref tension <- tensions using node {
+      for auto n <- neighbors {
+        ref node2 = grid[n];
+        
+        {
+          auto delta = node2.motion - motion;
+          auto wanted-delta = vec2f(0);
+          auto wanted-motion = node2.motion;
+          tension += (wanted-motion - motion) * 0.001;
+        }
+        
+        {
+          auto prop = node2.prop;
+          auto dir = node2.pos - pos;
+          if (|dir| > 0.01 && |dir| < 0.05) {
+            dir = dir / |dir|;
+            tension += dir * prop * f;
+          }
+        }
+      }
+    }
+    for ref node <- grid && ref tension <- tensions using node {
+      motion += tension;
+      pos += motion;
+    }
+  }
+  
+  import std.thread;
+  auto tp = new ThreadPool 1;
+  tp.addTask λ {
+    auto rng = getPRNG(23);
+    float f;
+    while true {
+      f += 0.001;
+      step;
+      rebalance;
+    }
+  }
+  
   void draw() {
-    f += 0.1;
-    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glLoadIdentity();
     using mode cairo-context cairo_create surface {
       onSuccess destroy; // social commentary lol
-      set_source_rgb (0, 0.1, 0.1);
+      set_source_rgb (0.1, 0.1, 0.2);
       paint;
-      auto p  = vec2f(25.6 , 128.0),
-           p1 = vec2f(102.4, 230.4),
-           p2 = vec2f(153.6, 25.6 ),
-           p3 = vec2f(230.4, 128.0);
       
-      move_to p;
-      curve_to (p1, p2, p3);
-      set_source_rgb (1.0, 1.0, 1.0);
-      set_line_width 10;
-      stroke;
-      
-      set_source_rgba (1, 0.2, 0.2, 0.6);
-      set_line_width 6;
-      move_to p;   line_to p1;
-      move_to p2;  line_to p3;
-      stroke;
-      
-      set_source_rgb (1, 1, 0.8);
-      set_line_width 1;
-      auto center = vec2f(320, 240);
-      int i;
-      while float it <- [for x <- 0 .. 180*4: x / 4.0] {
-        auto delta = vec2f(sin(it * PI / 180) * 200, cos(it * PI / 180) * 200);
-        delta *= (0.5 + 0.5 * sin (f * it * PI / 180 + f));
-        move_to (center - delta);
-        line_to (center + delta);
-        // if ((++i) % 5 == 0) stroke;
+      vec2f translate(vec2f v) {
+        auto edge = vec2f(20, 20);
+        return edge + (vec2f(640, 480) - edge * 2) * v;
       }
-      stroke;
+      
+      for ref node <- grid {
+        if (size <= 30) {
+          set_source_rgb (1, 1, 0.8);
+          set_line_width 1;
+          arc(translate node.pos, 5, 0, PI2);
+          stroke;
+        }
+        
+        for auto n <- node.neighbors {
+          set_source_rgb (1, 1, 0.8);
+          set_line_width $ 10f / size;
+          move_to translate node.pos;
+          line_to translate grid[n].pos;
+          stroke;
+        }
+      }
     }
-    cairo_gl_surface_swapbuffers surface;
   }
   
   int fps, lastTime = time null;
@@ -73,7 +129,7 @@ void main() using mode cairo {
       writeln "$fps fps";
       fps = 0; lastTime = time null;
     }
-    wnd.update;
+    flip;
     return false;
   }
   while !update() { }

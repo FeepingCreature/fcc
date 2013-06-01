@@ -531,9 +531,32 @@ class MultiNamespace : Namespace {
   }
 }
 
+class EntryNotFound : Error {
+  void init() { super.init "Entry not found"; }
+}
+
+template removeFirstFromUnordered(T) {
+  auto removeFirstFromUnordered(T t) {
+    alias list = *t;
+    return new λ(bool delegate(type-of-elem list) pred) {
+      for auto entry <- list && int i <- ints if pred entry {
+        list[(i, $-1)] = list[($-1, i)];
+        list.popEnd;
+        return;
+      }
+      raise new EntryNotFound;
+    };
+  }
+}
+
 class ListNamespace : Namespace {
   (Thing, string)[auto~] list;
+  void remove(string name) {
+    removeFirstFromUnordered &list λ(entry) { return entry[1] == name; }
+  }
   void add(string name, Thing t) {
+    for auto entry <- list if entry[1] == name
+      fail "Cannot double-add '$name'";
     list ~= (t, name);
   }
   Thing lookup(string match) {
@@ -580,4 +603,9 @@ string commentstrip(string s) {
     else break;
   }
   return s;
+}
+
+string wren-string-serialize(string s) {
+  // TODO does this actually work? add Wren parser testcase
+  return "\"" ~ s.replace("\\", "\\\\").replace("\"", "\\\"") ~ "\"";
 }

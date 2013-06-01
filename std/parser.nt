@@ -4,10 +4,12 @@ import std.string;
 
 context parser {
   string text;
+  string delegate(string) stripOverride;
   void cleanup() {
     // strip, eat comments
     do {
-      text = text.strip();
+      if (stripOverride) text = stripOverride text;
+      else text = text.strip();
     } while (text.startsWith "/*") {
       text = text.between("*/", "");
     }

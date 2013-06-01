@@ -13,46 +13,52 @@ platform(!*-mingw32) {
 
 defmode GLFW "prefix GLFW_ prefix glfw";
 
-void delegate(GLFWwindow, int, int) windowSizeCallback;
-void delegate(GLFWwindow, int, int) keyCallback;
-void delegate(GLFWwindow, int) charCallback;
-void delegate(GLFWwindow, int, int) cursorPosCallback;
-void delegate(GLFWwindow, int, int) mouseButtonCallback;
-void delegate(GLFWwindow, double, double) scrollCallback;
-int delegate(GLFWwindow) windowCloseCallback;
+static if (types-equal(GLFWwindow, void)) {
+  alias GLFWWinType = GLFWwindow*;
+} else {
+  alias GLFWWinType = GLFWwindow;
+}
+
+void delegate(GLFWWinType, int, int) windowSizeCallback;
+void delegate(GLFWWinType, int, int) keyCallback;
+void delegate(GLFWWinType, int) charCallback;
+void delegate(GLFWWinType, int, int) cursorPosCallback;
+void delegate(GLFWWinType, int, int) mouseButtonCallback;
+void delegate(GLFWWinType, double, double) scrollCallback;
+void delegate(GLFWWinType) windowCloseCallback;
 
 extern(C) {
-  void WindowSizeCallback(GLFWwindow wnd, int w, h) {
+  void WindowSizeCallback(GLFWWinType wnd, int w, h) {
     auto _threadlocal = getThreadlocal;
     windowSizeCallback?(wnd, w, h);
   }
-  void KeyCallback(GLFWwindow wnd, int k, action) {
+  void KeyCallback(GLFWWinType wnd, int k, action) {
     auto _threadlocal = getThreadlocal;
     keyCallback?(wnd, k, action);
   }
-  void CharCallback(GLFWwindow wnd, int k) {
+  void CharCallback(GLFWWinType wnd, int k) {
     auto _threadlocal = getThreadlocal;
     charCallback?(wnd, k);
   }
-  void CursorPosCallback(GLFWwindow wnd, int x, y) {
+  void CursorPosCallback(GLFWWinType wnd, double x, y) {
     auto _threadlocal = getThreadlocal;
-    cursorPosCallback?(wnd, x, y);
+    cursorPosCallback?(wnd, int:x, int:y);
   }
-  void MouseButtonCallback(GLFWwindow wnd, int a, b) {
+  void MouseButtonCallback(GLFWWinType wnd, int a, b) {
     auto _threadlocal = getThreadlocal;
     mouseButtonCallback?(wnd, a, b);
   }
-  void ScrollCallback(GLFWwindow wnd, double x, y) {
+  void ScrollCallback(GLFWWinType wnd, double x, y) {
     auto _threadlocal = getThreadlocal;
     scrollCallback?(wnd, x, y);
   }
-  int WindowCloseCallback(GLFWwindow wnd) {
+  void WindowCloseCallback(GLFWWinType wnd) {
     auto _threadlocal = getThreadlocal;
     return windowCloseCallback?(wnd);
   }
 }
 
-void initCallbacks() using mode GLFW {
+void initCallbacks(GLFWWinType handle) using mode GLFW using handle {
   SetWindowSizeCallback &WindowSizeCallback;
   SetKeyCallback &KeyCallback;
   SetCharCallback &CharCallback;
@@ -66,18 +72,22 @@ import std.lib.opengl.window;
 
 class GLFWError : Error {
   void init(string s) using mode GLFW {
-    auto num = GetError();
-    import std.string;
-    auto text = CToString ErrorString num;
-    super.init "GLFWError: $s: $num($text)";
+    static if (is-defined GetError) {
+      auto num = GetError();
+      import std.string;
+      auto text = CToString ErrorString num;
+      super.init "GLFWError: $s: $num($text)";
+     } else {
+      super.init "GLFWError: $s";
+     }
   }
 }
 
 class GLFWWindow : GLWindow {
-  GLFWwindow handle;
+  GLFWWinType handle;
   int w, h;
   vec2i size() { return vec2i(w, h); }
-  void key(GLFWwindow window, int k, int action) {
+  void key(GLFWWinType window, int k, int action) {
     if (window != handle) raise new Error "Called key() with $(window) but handle is $(handle)";
     // writeln "$k with $action";
     void set(Key code) {
@@ -121,31 +131,31 @@ class GLFWWindow : GLWindow {
     }
   }
   string queuedInput;
-  void handleChar(GLFWwindow window, int k) {
+  void handleChar(GLFWWinType window, int k) {
     if (window != handle) raise new Error "Called handleChar() with $(window) but handle is $(handle)";
     // don't callback yet; we're called from C so we can't trust the alignment
     import std.unicode;
     scope ch = encode k;
     queuedInput ~= ch;
   }
-  void reshape(GLFWwindow window, int width, height) {
+  void reshape(GLFWWinType window, int width, height) {
     if (handle && window != handle) raise new Error "Called reshape() with $(window) but handle is $(handle)";
     (w, h) = (width, height);
     glViewport(0, 0, width, height);
   }
-  void mousepos(GLFWwindow window, int x, y) {
+  void mousepos(GLFWWinType window, int x, y) {
     if (window != handle) raise new Error "Called mousepos() with $(window) but handle is $(handle)";
     mouse-pos = vec2i(x, y);
   }
-  void mousebutton(GLFWwindow window, int button, action) {
+  void mousebutton(GLFWWinType window, int button, action) {
     if (window != handle) raise new Error "Called mousebutton() with $(window) but handle is $(handle)";
     if (action) buttons[button].(clicked, pressed) = (true, true);
     else buttons[button].(released, pressed) = (true, false);
   }
-  void scroll(GLFWwindow window, double x, y) {
+  void scroll(GLFWWinType window, double x, y) {
     scroll-state += vec2i(int:x, int:y);
   }
-  int closedfn(GLFWwindow window) { closed = true; return true; }
+  void closedfn(GLFWWinType window) { closed = true; }
   bool is-set-up, closed;
   string title;
   void setTitle(string s) {
@@ -169,19 +179,20 @@ class GLFWWindow : GLWindow {
     mouseButtonCallback = &mousebutton;
     scrollCallback = &scroll;
     windowCloseCallback = &closedfn;
-    initCallbacks();
     
     import std.string;
-    handle = CreateWindow (w, h, WINDOWED, toStringz title, null);
+    handle = CreateWindow (w, h, toStringz title, null, null);
     if (!handle) raise new GLFWError "Failed to open GLFW window";
     MakeContextCurrent handle;
+    
+    initCallbacks handle;
     
     glGetIntegerv(GL_STENCIL_BITS, &int stencil);
     if (stencil < 8) raise new GLFWError "Unable to create GLFW window with 8 stencil bits: only got $stencil";
     glGetIntegerv(GL_DEPTH_BITS, &int depth);
     if (depth < 16) raise new GLFWError "Unable to create GLFW window with 16 depth buffer bits: only got $depth";
     
-    handle.SetInputMode (KEY_REPEAT, true);
+    handle.SetInputMode (REPEAT, true);
     // SwapInterval 0;
     
     is-set-up = true;

@@ -59,7 +59,7 @@ interface ITexture {
   void bind();
   void upload();
   void coord(vec2f);
-  vec2f getSize();
+  vec2i getSize();
 }
 
 interface FastITexture : ITexture { // has a coord() that supports saving to fastgl

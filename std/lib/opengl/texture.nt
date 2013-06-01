@@ -43,6 +43,14 @@ class Texture : FastITexture {
   void register() {
     glwindow.addCallback &upload;
   }
+  void free() {
+    cleanup();
+    if (id) using mode GL {
+      DeleteTextures(1, &id);
+      id = 0;
+    }
+    super.free();
+  }
   void cleanup() {
     if (data) data.free;
     if (translated_data) translated_data.free;
@@ -86,7 +94,7 @@ class Texture : FastITexture {
     if (fastgl.fast) fastgl.texcoords ~= v;
     else glTexCoord2f v;
   }
-  vec2f getSize() { return vec2f(width, height); }
+  vec2i getSize() { return vec2i(width, height); }
 }
 
 class SubTexture : ITexture {
@@ -94,25 +102,34 @@ class SubTexture : ITexture {
   vec2i from, size;
   string toString() return "SubTexture($sup, $from +$size)";
   vec2f sizediv, fromdiv;
+  bool supzero;
   void init(ITexture sup, vec2i from, size) {
+    // TODO combine subtextures
     this.sup = sup;
     this.from = from;
     this.size = size;
     predivide;
   }
   void predivide() {
-    sizediv = size / sup.getSize();
-    fromdiv = from / sup.getSize();
+    auto supsz = sup.getSize();
+    supzero = false;
+    if (supsz.(x == 0 || y == 0)) {
+      supzero = true;
+      return;
+    }
+    sizediv = size / vec2f supsz;
+    fromdiv = from / vec2f supsz;
   }
   void register() fail;
   void bind() sup.bind;
   void upload() fail;
   void coord(vec2f v) {
-    auto v2 = fromdiv + $ sizediv * v;
-    if (fastgl.fast) fastgl.texcoords ~= v2;
-    else glTexCoord2f v2;
+    vec2f v2;
+    if (supzero) v2 = vec2f 0;
+    else v2 = fromdiv + $ sizediv * v;
+    sup.coord v2;
   }
-  vec2f getSize() { return size; }
+  vec2i getSize() { return size; }
   void overwrite(vec4f[] data) {
     if (data.length != size.(x*y)) fail "Bad data length for overwriting $this ($(data.length))";
     using mode GL {

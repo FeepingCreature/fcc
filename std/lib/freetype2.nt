@@ -75,7 +75,13 @@ struct MyGlyph {
 
 class Font {
   FT_Face face;
-  void init(ubyte[] data, int size, int dpi) using mode FT {
+  int size, dpi;
+  string name;
+  override string toString() { return "Font($name: $size, $dpi)"; }
+  void init(string name, ubyte[] data, int size, int dpi) using mode FT {
+    assert (size > 0);
+    assert (name.length > 0);
+    this.(name, size, dpi) = (name, size, dpi);
     FTcheck New_Memory_Face(library, data.(char*:ptr, length), 0, &face);
     // FTcheck Set_Pixel_Sizes(face, 0, size);
     FTcheck Set_Char_Size(face, 0, size*64, dpi, dpi);
@@ -113,6 +119,7 @@ class Font {
     return res;
   }
   void getCharSize(int ch, string str, FontStyle style, int* wp, hp) {
+    if (style.color.x < -1000000) fail;
     auto key = (ch, style);
     if (auto p = charsizecache.get(&key)) { (*wp, *hp) = *p; return; }
     toBuffer(str, [style], &int width, &int height, dontRender => true);
@@ -270,7 +277,9 @@ class Font {
           a = pow(a, 1/3.0);
           auto me = style.color * vec4f(1f, 1f, 1f, a);
           if (dx !< 0 && dx < w && dy !<0 && dy < h) {
-            if (a != 0 && vecs[i].w == 0) vecs[i] += me;
+            if (a != 0 && vecs[i].w == 0) {
+	      vecs[i] += me;
+	    }
           }
         }
       }
@@ -286,12 +295,33 @@ class TextureAtlas {
   Texture backing;
   vec2i cursor;
   int current-height;
+  void delegate() onReallocate;
   alias current-free = backing.size - cursor;
   (vec2i from, vec2i size)[auto~] allocated;
+  void init() { init-texture vec2i(32, 16); }
+  void init-texture(vec2i size) {
+    backing = new Texture (size, vec4f[]: null);
+    // backing.mode = TexMode.Nearest;
+    backing.mode = TexMode.Linear;
+    backing.upload;
+  }
   void linebreak() {
     cursor.x = 0;
     cursor.y += current-height;
     current-height = 0;
+  }
+  void increase-size() {
+    allocated.free;
+    assert(allocated.length == 0);
+    
+    cursor = vec2i 0;
+    current-height = 0;
+    
+    auto size = backing.getSize();
+    
+    // backing.free();
+    init-texture (size * 2);
+    onReallocate?();
   }
   bool overlapsAny(vec2i from, size) {
     auto to = from + size;
@@ -305,17 +335,22 @@ class TextureAtlas {
     return false;
   }
   SubTexture alloc(int w, h) {
-    w += 2; // leave some edge space
-    h += 2; // likewise
+    w += 4; // leave some edge space
+    h += 4; // likewise
     if (w > backing.width) fail "Backing texture not large enough for $((w,h))";
     if (w > current-free.x) linebreak;
-    if (h > current-free.y) fail "Ran out of vertical space while allocating $((w,h))";
+    if (h > current-free.y) {
+      // fail "Ran out of vertical space while allocating $((w,h))";
+      increase-size;
+      return alloc(w - 4, h - 4);
+    }
     auto rect = (from => cursor, size => vec2i(w, h));
+    // TODO binary search
     while (rect.from.y > 0 && !overlapsAny rect.(from => from, size => size)) {
       rect.from.y --;
       h --;
     }
-    auto st = new SubTexture(backing, from => rect.from + 1, size => rect.size - 2); // center
+    auto st = new SubTexture(backing, from => rect.from + 2, size => rect.size - 4); // center
     allocated ~= rect;
     cursor.x += w;
     current-height = [current-height, h][current-height < h];
@@ -327,9 +362,12 @@ alias Settings = (int size, vec4f fore, vec4f back, bool bold, bool italic, vec2
 
 class TextureCache {
   TextureAtlas back;
-  void init(TextureAtlas ta) back = ta;
-  alias Key = (int, Settings);
+  alias Key = (int, string, Settings);
   Hashmap!(Key, SubTexture) allocated;
+  void init() {
+    back = new TextureAtlas;
+    back.onReallocate = new λ{ allocated.clear(); }
+  }
   SubTexture alloc(int w, h, Key key, bool* was-in-cache) {
     *was-in-cache = false;
     if (auto p = allocated.get(&key)) {
@@ -346,12 +384,7 @@ class TextureCache {
 TextureCache cache;
 void initCache() {
   if cache return;
-  using new TextureAtlas {
-    backing = new Texture (256, 256, vec4f[]: null);
-    backing.mode = TexMode.Nearest;
-    backing.upload;
-    cache = new TextureCache that;
-  }
+  cache = new TextureCache;
 }
 
 import std.lib.opengl.texture;
@@ -418,10 +451,11 @@ import std.lib.opengl.texture;
     fs.bold  = settings.bold;
     fs.italic = settings.italic;
     
+    if (settings.fore.x < -10000) fail;
     font.getCharSize(ch, str, fs, &int width, &int height);
-    if (debugme) writeln "$str => $((width, height))";
+    if (debugme) writeln "$str => $((width, height)) on $font";
     
-    using cache.alloc(width, height, (ch, settings), &bool was-found) {
+    using cache.alloc(width, height, (ch, font.name, settings), &bool was-found) {
       if (!was-found) {
         auto buf = font.toBuffer(str, [fs], null, null);
         overwrite buf;

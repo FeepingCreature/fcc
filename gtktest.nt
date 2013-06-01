@@ -1,6 +1,6 @@
 module gtktest;
 
-import gtk;
+import std.lib.gtk;
 
 import std.string, std.file;
 

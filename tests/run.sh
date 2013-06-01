@@ -11,7 +11,8 @@ do
   set +m
   exec 3>&2
   exec 2>/dev/null
-  fcc -g -O -run $file >/dev/null
+  # I have a broken cpu/mainboard.
+  fcc -g -O -run $file >/dev/null || fcc -g -O -run $file >/dev/null
   res=$?
   exec 2>&3
   exec 3>&-

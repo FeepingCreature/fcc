@@ -150,17 +150,14 @@ template tail(T) {
   T tail(T t) { assert !! auto ignore <- t; return t; }
 }
 
-macro("tree.expr.flatten_tuple", "331") `
-  (if
-    (not (matched-text "__flatten_tuple"))
-    'nil
-    '(last
-      (def 'tup (parse-tuple))
-      (def 'unroll (lambda '(e)
-        '(if (not (is-tuple e))
-          'e
-          '(for (tuple-exprs e) 'e2 '(unroll e2)))))
-      (make-tuple-expr (flatten (unroll tup)))))
+macro("tree.expr.flatten_tuple", "331", "__flatten_tuple") `
+  (last
+    (def 'tup (parse-tuple))
+    (def 'unroll (lambda '(e)
+      '(if (not (is-tuple e))
+        'e
+        '(for (tuple-exprs e) 'e2 '(unroll e2)))))
+    (make-tuple-expr (flatten (unroll tup))))
 `;
 
 template apply(T) {
