@@ -213,6 +213,7 @@ extern(C) Stuple!(IType, string)[] _mns_stackframe(Namespace sup, typeof(Namespa
 // text, "is binop safe"
 alias Stuple!(string, bool) pptype;
 pptype prettyprint_rec(Iterable itr) {
+  opt(itr);
   pptype format_bin(string op, pptype s1, pptype s2) {
     string res;
     if (s1._1) res ~= s1._0;
@@ -245,6 +246,17 @@ pptype prettyprint_rec(Iterable itr) {
   }
   if (auto ew = fastcast!(ExprWrap)(itr)) {
     return prettyprint_rec(ew.ex);
+  }
+  if (auto rce = fastcast!(RCE)(itr)) {
+    auto res = prettyprint_rec(rce.from);
+    auto ex = rce.from;
+    if (gotImplicitCast(ex, rce.to, (IType it) { return test(it == rce.to); }))
+      return res; // implicit cast
+    res._0 = fastcast!(Object)(rce.to).toString()~":"~res._0;
+    return res;
+  }
+  if (auto ea = fastcast!(ExprAlias)(itr)) {
+    return stuple(ea.name, true);
   }
   return stuple(qformat("TODO ", fastcast!(Object)(itr).classinfo.name, " ", itr), false);
 }

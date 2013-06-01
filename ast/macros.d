@@ -573,6 +573,10 @@ extern(C) void fcc_initTenth() {
   rootctx.add("is-const-int", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'is-const-int': 1 expected");
     mixin(chaincast("ex: Arg to 'is-const-int': args[0]->ItrEntity: %.itr->Expr"));
+    while (true) {
+      if (auto rce = fastcast!(RCE)(ex)) { ex = rce.from; continue; }
+      break;
+    }
     return fastcast!(IntExpr)(ex)?NonNilEnt:NilEnt;
   }));
   rootctx.add("access-const-int-range", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
