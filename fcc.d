@@ -297,8 +297,6 @@ void ast_math_constr() {
     return fastalloc!(FAbsFExpr)(arg);
   };*/
   Itr substfun(int arity, bool delegate(Function, Module) dg, Expr delegate(Expr[]) dgex, Itr it) {
-    auto ftest = it.classinfo is FunCall.classinfo || it.classinfo is PrefixCall.classinfo;
-    if (!ftest) return null;
     auto fc = fastcast!(FunCall)(it);
     if (!fc) return null;
     if (fc.getParams().length != arity) return null;

@@ -603,8 +603,8 @@ void setupSysmods() {
         res.z = fastfloor(v.z);
         return;
       }
-      (vec4f*: &v).w = 0; // prevent fp error
-      /*xmm[4] = v;
+      /*(vec4f*: &v).w = 0; // prevent fp error
+      xmm[4] = v;
       asm "cvttps2dq %xmm4, %xmm5";`"
       asm `psrld $31, %xmm4`;"`
       asm "psubd %xmm4, %xmm5";
