@@ -1,0 +1,7 @@
+module test174;
+
+void main() {
+  Object f(bool b) { return null; }
+  void test(Object o) { }
+  test true?.f();
+}

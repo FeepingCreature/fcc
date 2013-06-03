@@ -8,12 +8,11 @@ import
 Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   return lhs_partial.using = delegate Object(Expr ex) {
-    auto nullthing = fastcast!(Expr) (sysmod.lookup("null"[]));
+    auto boolthing = fastcast!(IType) (sysmod.lookup("bool"));
     ex = forcedConvert(ex);
-    auto evt = ex.valueType();
-    auto testthing = nullthing;
-    if (!gotImplicitCast(testthing, evt, (IType it) { return test(it == evt); }))
-      return null;
+    auto condtest = iparse!(Cond, "cp_cond_test"[], "cond"[], false /* may fail */)
+                       (`ex`, "ex", ex);
+    if (!condtest) return null;
     
     auto ex_to_tmp = ex;
     bool indirected;
