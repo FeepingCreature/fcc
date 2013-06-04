@@ -346,12 +346,28 @@ src_cleanup_redo: // count, then copy
     auto t2 = text;
     IType ty = matchType(t2);
     if (!ty) return null;
-    text = t2;
-    text.accept("__restrict");
-    text.accept("const");
-    text.accept("__const");
+    t2.accept("__restrict");
+    t2.accept("const");
+    t2.accept("__const");
     string id;
-    gotIdentifier(text, id);
+    if (!gotIdentifier(t2, id)) {
+      if (t2.accept("(") && t2.accept("*")) {
+        gotIdentifier(t2, id);
+        if (!t2.accept(")") || !t2.accept("(")) {
+          return null;
+        }
+        Argument[] args;
+        while (!t2.accept(")")) {
+          auto p = t2.matchParam();
+          if (!p) return null;
+          args ~= Argument(p);
+        }
+        t2.accept(",");
+        text = t2;
+        return fastalloc!(FunctionPointer)(ty, args, true);
+      }
+    }
+    text = t2;
     if (auto sa = fastcast!(StaticArray)~ resolveType(ty)) {
       ty = fastalloc!(Pointer)(sa.elemType);
     }
@@ -362,6 +378,15 @@ src_cleanup_redo: // count, then copy
     }
     text.accept(",");
     return ty;
+  }
+  bool useStdcall;
+  void eatAttribute(ref string s) {
+    retry: s = s.strip();
+    if (auto rest = s.startsWith("__attribute__"[])) {
+      if (rest.between("((", "))") == "__stdcall__") useStdcall = true;
+      s = rest.between(") ", "");
+      goto retry;
+    }
   }
   Stuple!(string[], string)[string] macros;
   bool[char*] loopbreaker; // recursion loop avoidance, lol
@@ -867,6 +892,7 @@ src_cleanup_redo: // count, then copy
             }
           }
         }
+        stmt.eatAttribute();
         if (stmt.strip().length) {
           // logln("LEFTOVER: ", stmt);
           // logln("(target ", target, " = ", name, ")");
@@ -876,19 +902,11 @@ src_cleanup_redo: // count, then copy
       
     typedef_done:
       auto ta = fastalloc!(TypeAlias)(target, name);
+      // logln("add ", name, " = ", ta);
       cache[name] = ta;
       continue;
     }
     
-    bool useStdcall;
-    void eatAttribute(ref string s) {
-      retry: s = s.strip();
-      if (auto rest = s.startsWith("__attribute__"[])) {
-        if (rest.between("((", "))") == "__stdcall__") useStdcall = true;
-        s = rest.between(") ", "");
-        goto retry;
-      }
-    }
     stmt.accept("extern");
     stmt.eatAttribute();
     
