@@ -273,7 +273,7 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName, IsMangled {
       if (fastcast!(Class) (context))
         parsemode = "struct_member";
       if (fastcast!(Scope) (context)) {
-        parsemode = "tree.stmt.nested_fundef";
+        parsemode = "tree.stmt";
         embedded = true;
       }
       if (!parsemode) {
@@ -336,7 +336,7 @@ class TemplateInstance : Namespace, HandlesEmits, ModifiesName, IsMangled {
       } else mangl = this.type.mangle();
       if (parent.context) {
         if (auto m = parent.context.get!(IsMangled))
-          return qformat("templinst_", parent.name.cleanup(), /*"_under_", m.mangleSelf(),*/ "_with_", mangl);
+          return qformat("templinst_", parent.name.cleanup(), "_under_", m.mangleSelf(), "_with_", mangl);
         if (auto n = parent.context.get!(Named))
           return qformat("templinst_", parent.name.cleanup(), "_under_", n.getIdentifier(), "_with_", mangl);
       }
