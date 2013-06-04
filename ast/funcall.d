@@ -181,7 +181,8 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
         continue;
       }
     }
-    if (!flatArgsLength()) {
+    if (!flatArgsLength() && flatLength(fastalloc!(Placeholder)(tuple.type))) {
+      // logln("args.length = 0 for ", arg, " at ", i, " in ", params);
       if (tuple.initEx) {
         auto ex = fixup_init_ex(tuple.initEx);
         IType[] tried;
