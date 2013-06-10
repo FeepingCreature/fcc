@@ -105,6 +105,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
   override {
     RelFunction alloc() { return fastalloc!(RelFunction)(); }
     Expr getPointer() { return fastalloc!(FunSymbol)(this, fastcast!(hasRefType)(context).getRefType()); }
+    bool isInternal() { return true; }
     Argument[] getParams(bool implicits) {
       if (argcache_impl && implicits) return argcache_impl;
       

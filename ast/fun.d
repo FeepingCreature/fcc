@@ -451,6 +451,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     /*lf.put(linedebug(linecounter++), ":"[]);
     linenumbers ~= line;*/
   }
+  bool isInternal() { return false; }
   override {
     bool addsSelf() { return true; }
     string mangle(string name, IType type) {
@@ -515,7 +516,10 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       }
       if (name == "__fcc_main") flags ~= "noinline ";
       if (type.stdcall) linkage = "x86_stdcallcc ";
-      // flags ~= "fastcc ";
+      if (isInternal()) {
+        if (type.stdcall) fail; // incompatible. what r u doing?
+        linkage ~= "fastcc ";
+      }
       put(lf, "define ", linkage, retstr, " @", fmn, "(", argstr, ") ", flags, "{");
       scope(success) put(lf, "}");
       if (extern_c) preserve ~= ","~fmn;
@@ -719,7 +723,7 @@ class FunCall : Expr {
   }
   void emitWithArgs(LLVMFile lf, Expr[] args) {
     if (setup) setup.emitLLVM(lf);
-    callFunction(lf, fun.type.ret, fun.extern_c, fun.type.stdcall, args, fun.getPointer());
+    callFunction(lf, fun.type.ret, false, fun.type.stdcall, args, fun.getPointer());
   }
   override void emitLLVM(LLVMFile lf) {
     emitWithArgs(lf, params);
@@ -743,7 +747,7 @@ class FunCall : Expr {
 }
 
 import tools.log, ast.fold;
-void callFunction(LLVMFile lf, IType ret, bool external, bool stdcall, Expr[] params, Expr fp) {
+void callFunction(LLVMFile lf, IType ret, bool internal, bool stdcall, Expr[] params, Expr fp) {
   mixin(mustOffset("1"));
   auto fpv = save(lf, fp);
   string[] parlist;
@@ -766,7 +770,7 @@ void callFunction(LLVMFile lf, IType ret, bool external, bool stdcall, Expr[] pa
     parlist ~= qformat("i8* ", save(lf, tlsptr));
   }
   string flags;
-  // if (!external) flags = "fastcc";
+  if (internal) flags = "fastcc";
   if (stdcall) flags = "x86_stdcallcc";
   if (params.length == 1) {
     IType farg;

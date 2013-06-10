@@ -22,6 +22,7 @@ class PrefixFunction : Function {
     extern_c = true; // sooorta.
   }
   private this() { }
+  override bool isInternal() { return supfun.isInternal(); }
   Argument[] fixupArgs(Argument[] arg) {
     if (fixupDefaultArgs) fixupDefaultArgs(arg);
     return arg;

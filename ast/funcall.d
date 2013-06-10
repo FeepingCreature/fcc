@@ -470,7 +470,7 @@ class FpCall : Expr {
   }
   override void emitLLVM(LLVMFile lf) {
     auto fntype = fastcast!(FunctionPointer)~ fp.valueType();
-    callFunction(lf, fntype.ret, true, fntype.stdcall, params, fp);
+    callFunction(lf, fntype.ret, false, fntype.stdcall, params, fp);
   }
   override IType valueType() {
     return (fastcast!(FunctionPointer)~ fp.valueType()).ret;

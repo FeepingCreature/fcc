@@ -16,6 +16,7 @@ class NestedFunction : Function {
   private this() { super(); }
   string cleaned_name() { return name.cleanup(); }
   override {
+    bool isInternal() { return true; }
     Expr getPointer() { return fastalloc!(FunSymbol)(this, voidp); }
     Argument[] getParams(bool implicits) {
       auto res = super.getParams(false);
