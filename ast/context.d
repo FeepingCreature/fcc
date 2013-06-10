@@ -5,6 +5,9 @@ import ast.base, ast.parse, ast.structure, ast.namespace, ast.modules, ast.point
 import tools.log;
 Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
+  bool isTLS = true;
+  if (t2.accept("shared")) isTLS = false;
+  if (!t2.accept("context")) return null;
   string name;
   if (!t2.gotIdentifier(name)) return null;
   auto st = fastalloc!(Structure)(/*namespace().mangle(*/name~"_data_struct"[]/*, null)*/);
@@ -31,7 +34,7 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   auto gvd = new GlobVarDecl;
-  auto ctxvar = fastalloc!(GlobVar)(st, name, namespace(), true, cast(Expr) null);
+  auto ctxvar = fastalloc!(GlobVar)(st, name, namespace(), isTLS, cast(Expr) null);
   gvd.vars ~= ctxvar;
   namespace().add(ctxvar);
   
@@ -43,4 +46,4 @@ Object gotContext(ref string text, ParseCb cont, ParseCb rest) {
   current_module().addEntry(gvd);
   return fastalloc!(PassthroughWeakNoOp)(mangles);
 }
-mixin DefaultParser!(gotContext, "tree.toplevel.context"[], null, "context"[]);
+mixin DefaultParser!(gotContext, "tree.toplevel.context");
