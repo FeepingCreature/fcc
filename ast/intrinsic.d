@@ -490,8 +490,10 @@ void setupSysmods() {
     class Signal : Condition {
       void init(string s) { super.init "Signal: $s"; }
     }
+    int lastLinuxSignalRaised;
     class LinuxSignal : Error {
-      void init(string s) { super.init "LinuxSignal: $s"; }
+      int id;
+      void init(string s, int id) { this.id = id; super.init "LinuxSignal: $s"; }
     }
     class MemoryAccessError : Error {
       void init(string s) { super.init "MemoryAccessError: $s"; }
@@ -696,9 +698,11 @@ void setupSysmods() {
         c.signal._sigaction sa;
         sa.flags = c.signal.SA_SIGINFO;
         sigemptyset (&sa.mask);
-        sa.sigaction = &seghandle;
+        sa.sigaction = &sighandle;
         if (sigaction(c.signal.SIGSEGV, &sa, null) == -1)
           raise new Error "failed to setup SIGSEGV handler";
+        if (sigaction(c.signal.SIGINT, &sa, null) == -1)
+          raise new Error "failed to setup SIGINT handler";
         // if (sigaction(c.signal.SIGFPE, &sa, null) == -1)
         //   raise new Error "failed to setup SIGFPE handler";
       }
@@ -733,7 +737,11 @@ void setupSysmods() {
           if (preallocated_sigsegv) raise preallocated_sigsegv;
           raise new MemoryAccessError "Segmentation Fault";
         }
-        void seghandle(int sig, void* si, void* unused) {
+        void sighandle_userspace() {
+          auto _threadlocal = getThreadlocal;
+          raise new LinuxSignal ("Signal $(lastLinuxSignalRaised)", lastLinuxSignalRaised);
+        }
+        void sighandle(int sig, void* si, void* unused) {
           auto uc = ucontext*: unused;
           ref gregs = uc.mcontext.gregs;
           ref
@@ -742,7 +750,13 @@ void setupSysmods() {
           // imitate the effects of "call seghandle_userspace"
           esp --;
           *esp = eip;
-          eip = void*: &seghandle_userspace; // return like call
+          // return like call
+          if (sig == c.signal.SIGSEGV) eip = void*: &seghandle_userspace;
+          else {
+            auto _threadlocal = getThreadlocal;
+            lastLinuxSignalRaised = sig;
+            eip = void*: &sighandle_userspace;
+          }
         }
         struct __sigset_t {
           byte x 128 __val;
