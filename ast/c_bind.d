@@ -126,7 +126,8 @@ class LateType : IType {
   void needMe() {
     if (!me) tryResolve();
     if (!me)
-      throw new Exception(Format("Couldn't resolve ", this));
+      me = Single!(Void); // fallback assumption.
+      // throw new Exception(Format("Couldn't resolve ", this));
   }
   override {
     string llvmSize() { needMe; return me.llvmSize; }
@@ -217,7 +218,7 @@ src_cleanup_redo: // count, then copy
   // no need to remove comments; the preprocessor already did that
   auto statements = newsrc.split(";") /map/ &strip;
   // mini parser
-  Named[string] cache;
+  auto cachep = &(new Stuple!(Named[string]))._0;
   auto myNS = fastalloc!(MiniNamespace)("parse_header"[]);
   myNS.sup = namespace();
   myNS.internalMode = true;
@@ -240,7 +241,7 @@ src_cleanup_redo: // count, then copy
     // logln("add ", name, " <- ", n);
     myNS._add(name, fastcast!(Object)(n));
     if (auto ns = fastcast!(Namespace) (n)) ns.sup = null; // lol
-    cache[name] = n;
+    (*cachep)[name] = n;
   }
   
   void delegate()[] resolves;
@@ -288,11 +289,11 @@ src_cleanup_redo: // count, then copy
       string name;
       if (!text.gotIdentifier(name))
         return Single!(Void);
-      if (auto p = name in cache) return fastcast!(IType)~ *p;
+      if (auto p = name in *cachep) return fastcast!(IType)~ *p;
       else {
         auto lt = fastalloc!(LateType)(name);
-        auto dg = stuple(lt, name, &cache) /apply/
-        delegate void(LateType lt, string name, typeof(cache)* cachep) {
+        auto dg = stuple(lt, name, cachep) /apply/
+        delegate void(LateType lt, string name, typeof(cachep) cachep) {
           if (auto p = name in *cachep) {
             lt.me = fastcast!(IType)~ *p;
             if (auto al = fastcast!(TypeAlias) (lt.me))
@@ -321,9 +322,9 @@ src_cleanup_redo: // count, then copy
     }
     string id;
     if (!text.gotIdentifier(id)) return null;
-    if (auto p = id in cache) return fastcast!(IType) (*p);
+    if (auto p = id in *cachep) return fastcast!(IType) (*p);
     if (auto ty = fastcast!(IType) (namespace().lookup(id, true))) {
-      if (auto n = fastcast!(Named) (ty)) cache[id] = n;
+      if (auto n = fastcast!(Named) (ty)) (*cachep)[id] = n;
       return ty;
     }
     return null;
@@ -443,7 +444,7 @@ src_cleanup_redo: // count, then copy
         if (ident[0] == '1' && (ident[1] == 'e' || ident[1] == 'E'))
           if (ident[2] == '+' || ident[2] == '-') return false;
       }
-      if (auto p = ident in cache) {
+      if (auto p = ident in *cachep) {
         if (auto ex = fastcast!(Expr)~ *p) {
           res = ex;
           source = null;
@@ -903,7 +904,7 @@ src_cleanup_redo: // count, then copy
     typedef_done:
       auto ta = fastalloc!(TypeAlias)(target, name);
       // logln("add ", name, " = ", ta);
-      cache[name] = ta;
+      (*cachep)[name] = ta;
       continue;
     }
     
@@ -965,7 +966,7 @@ src_cleanup_redo: // count, then copy
     // logln("Gave up on |", stmt, "| ", start);
   }
   auto ns = myNS.sup;
-  foreach (key, value; cache) {
+  foreach (key, value; *cachep) {
     if (ns.lookup(key)) {
       // logln("Skip ", key, " as duplicate. ");
       continue;
@@ -973,7 +974,7 @@ src_cleanup_redo: // count, then copy
     // logln("Add ", value);
     ns.add(key, value);
   }
-  // logSmart!(false)("# Got ", cache.length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
+  // logSmart!(false)("# Got ", (*cachep).length, " definitions from ", filename, " in ", sec() - start_time, "s. ");
 }
 
 string[] defines;
