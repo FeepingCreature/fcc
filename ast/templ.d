@@ -45,7 +45,6 @@ class RelTemplate : ITemplateX, Iterable {
         auto itr = fastcast!(Iterable) (obj);
         if (itr) {
           fixupEBP(itr, ex);
-          logln(itr);
           return fastcast!(Object)(itr);
         }
       }
