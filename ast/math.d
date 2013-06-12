@@ -85,6 +85,16 @@ static this() {
     }
     return null;
   };
+  foldopt ~= delegate Itr(Itr it) {
+    if (auto bt = fastcast!(ByteToIntCast)(it)) {
+      if (auto rce = fastcast!(RCE)(bt.b)) {
+        if (auto ilab = fastcast!(IntLiteralAsByte)(rce.from)) {
+          return ilab.ie;
+        }
+      }
+    }
+    return null;
+  };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != resolveType(ex.valueType())) return null;
     return fastalloc!(IntAsFloat)(ex);

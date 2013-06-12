@@ -60,7 +60,7 @@ Object gotStringLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotStringLiteralExpr, "tree.expr.literal_string"[], "551"[], "`"[]);
 
-import ast.casting, ast.fold;
+import ast.casting, ast.fold, ast.math;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (resolveType(ex.valueType()) != Single!(Array, Single!(Char)))
@@ -76,7 +76,7 @@ static this() {
       return null;
     if (auto str = fastcast!(StringExpr) (ex)) {
       if (!str.generated && str.str.length == 1)
-        return reinterpret_cast(Single!(Char), fastalloc!(DataExpr)(cast(ubyte[]) str.str));
+        return reinterpret_cast(Single!(Char), fastalloc!(IntLiteralAsByte)(fastalloc!(IntExpr)(str.str[0])));
     }
     return null;
   };
