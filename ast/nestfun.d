@@ -5,6 +5,16 @@ import ast.fun, ast.stackframe, ast.scopes, ast.base,
        ast.vardecl, ast.parse, ast.assign, ast.dg,
        ast.properties, ast.math, ast.fold, ast.tuples;
 
+Function doBasePointerFixup(Function fun) {
+  auto nf = fastcast!(NestedFunction) (fun), prev_nf = fastcast!(PointerFunction!(NestedFunction)) (fun);
+  if (nf && !prev_nf) {
+    // massive hack
+    // this basically serves to introduce the EBP into the lookup, so that we can properly fix it up
+    fun = new PointerFunction!(NestedFunction)(fastalloc!(NestFunRefExpr)(nf));
+  }
+  return fun;
+}
+
 public import ast.fun: Argument;
 import ast.aliasing, ast.casting, ast.opers;
 class NestedFunction : Function {
@@ -69,15 +79,6 @@ class NestedFunction : Function {
     auto _res = context.lookup(name, false);
     auto res = fastcast!(Expr) (_res);
     auto fun = fastcast!(Function) (_res);
-    Function doBasePointerFixup(Function fun) {
-      auto nf = fastcast!(NestedFunction) (fun), prev_nf = fastcast!(PointerFunction!(NestedFunction)) (fun);
-      if (nf && !prev_nf) {
-        // massive hack
-        // this basically serves to introduce the EBP into the lookup, so that we can properly fix it up
-        fun = new PointerFunction!(NestedFunction)(fastalloc!(NestFunRefExpr)(nf));
-      }
-      return fun;
-    }
     
     Expr ebp;
     void checkEBP() {
@@ -106,7 +107,7 @@ class NestedFunction : Function {
     if (!_res) {
       _res = lookupInImports(name, local);
     }
-    if (!res && !fun) return _res;
+    if (!res && !fun && !fastcast!(Iterable)(_res)) return _res;
     if (res) _res = fastcast!(Object) (res);
     if (fun) _res = fastcast!(Object) (fun);
     auto itr = fastcast!(Iterable) (_res);

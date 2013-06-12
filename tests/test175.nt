@@ -1,0 +1,14 @@
+module test175;
+
+void main() {
+  int i;
+  writeln "i $i at $(&i)";
+  template temp(T) { void temp() { i = 5; writeln "i $i at $(&i) $(string-of i)"; } }
+  void foo() {
+    writeln "call $(string-of &temp!int)";
+    temp!int();
+  }
+  foo();
+  writeln "$i";
+  if (i != 5) exit(1);
+}

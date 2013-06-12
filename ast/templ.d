@@ -1,6 +1,6 @@
 module ast.templ;
 
-import ast.base, ast.parse, ast.modules, ast.namespace, ast.fun, ast.oop;
+import ast.base, ast.parse, ast.modules, ast.namespace, ast.fun, ast.oop, ast.nestfun;
 
 interface ITemplate : Named {
   Object getInstanceIdentifier(IType it, ParseCb rest, string name);
@@ -18,11 +18,15 @@ interface ITemplateX : ITemplate { // extended template-like
 void delegate()[] resetDgs;
 void resetTemplates() { foreach (dg; resetDgs) dg(); }
 
-class RelTemplate : ITemplateX {
+class RelTemplate : ITemplateX, Iterable {
   Template sup;
   Expr ex;
-  this(Template t, Expr e) { sup = t; ex = e; }
+  bool fixupme; // nested function template
+  this(Template t, Expr e, bool fum = false) { sup = t; ex = e; fixupme = fum; }
+  mixin defaultIterate!(ex);
   override {
+    string toString() { return qformat("RelTemplate<", sup, ", ", ex, ">"); }
+    RelTemplate dup() { return fastalloc!(RelTemplate)(sup, ex.dup, fixupme); }
     bool isAliasTemplate() { return sup.isAliasTemplate(); }
     string getIdentifier() { return sup.getIdentifier(); }
     Object getInstanceIdentifier(IType it, ParseCb rest, string name) {
@@ -35,6 +39,16 @@ class RelTemplate : ITemplateX {
       return sup.getInstance(tr, rest);
     }
     Object postprocess(Object obj) {
+      if (auto f = fastcast!(Function)(obj))
+        obj = fastcast!(Object)(doBasePointerFixup(f));
+      if (fixupme) {
+        auto itr = fastcast!(Iterable) (obj);
+        if (itr) {
+          fixupEBP(itr, ex);
+          logln(itr);
+          return fastcast!(Object)(itr);
+        }
+      }
       auto rt = fastcast!(RelTransformable) (obj);
       if (!rt) return obj;
       return rt.transform(ex);
@@ -143,10 +157,15 @@ Object gotTemplate(bool ReturnNoOp)(ref string text, ParseCb cont, ParseCb rest)
     t2.failparse("Failed parsing template header");
   t2.noMoreHeredoc();
   tmpl.source = t2.coarseLexScope(true, false);
+  ITemplateX itmpl = tmpl;
+  if (fastcast!(Scope)(namespace())) { // nested
+    // introduce ebp so that nested functions will resolve properly
+    itmpl = fastalloc!(RelTemplate)(tmpl, fastalloc!(Register!("ebp"))(), true);
+  }
   text = t2;
-  namespace().add(tmpl.name, tmpl);
+  namespace().add(tmpl.name, itmpl);
   static if (ReturnNoOp) return Single!(NoOp);
-  else return tmpl;
+  else return fastcast!(Object)(itmpl);
 }
 // a_ so this comes first .. lol
 mixin DefaultParser!(gotTemplate!(false), "tree.toplevel.a_template", null, "template");
