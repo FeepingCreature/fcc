@@ -474,7 +474,7 @@ Structure mkVecStruct(Vector vec) {
   
   {
     Expr sum;
-    if (false && vec.len == 3 && Single!(Float) == vec.base) {
+    if (vec.len == 3 && Single!(Float) == vec.base) {
       sum = fastalloc!(FastVec3Sum)(fastcast!(Expr) (res.lookup("self")));
     } else {
       sum = fastcast!(Expr)~ res.lookup("x");
