@@ -9,7 +9,7 @@ pragma(set_attribute, typeToLLVM, externally_visible);
 extern(C) string typeToLLVM(IType it, bool subst = false) {
   // logln("typeToLLVM ", it);
   if (!it) fail;
-  if (Single!(Pointer, Single!(Void)) == it) return "i8*";
+  if (it == Single!(Pointer, Single!(Void))) return "i8*";
   if (subst) { // asked to substitute a simpler type
     it = resolveType(it);
     if (Single!(Void) == it) return "{}"; // weirdo.

@@ -276,7 +276,7 @@ class LValueAsMValue : MValue {
 }
 
 extern(C) IType resolveTup(IType it, bool onlyIfChanged = false) {
-  auto res = resolveType(it);
+  auto res = resolveType(it, true);
   if (auto tup = fastcast!(Tuple) (res)) {
     auto types = tup.types();
     if (types.length == 1) return types[0];

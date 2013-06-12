@@ -27,17 +27,9 @@ interface ExternAware {
 import tools.log;
 // Strips out type-alias and the like
 IType resolvecache;
-IType resolveType(IType t) {
-  if (t is resolvecache) return t; // shortcut for repeated call
-  while (t) {
-    if (auto tp = t.proxyType()) {
-      t = tp;
-      continue;
-    }
-    break;
-  }
-  resolvecache = t;
-  return t;
+extern(C) IType ast_types_resolveType(IType t, bool carefully = false);
+IType resolveType(IType t, bool carefully = false) {
+  return ast_types_resolveType(t, carefully);
 }
 
 template TypeDefaults(bool OPEQUALS = true) {

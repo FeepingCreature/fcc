@@ -26,6 +26,23 @@ alias ast.tuples.resolveTup resolveTup;
 alias ast.c_bind.readback readback;
 // placed here to resolve circular dependency issues
 import ast.parse, ast.namespace, ast.scopes;
+// from ast.types
+pragma(set_attribute, ast_types_resolveType, externally_visible);
+extern(C) IType ast_types_resolveType(IType t, bool carefully = false) {
+  if (t is resolvecache) return t; // shortcut for repeated call
+  while (t) {
+    // avoid poking LateTypes if not needed.
+    if (carefully) if (auto lt = fastcast!(LateType)(t)) return lt;
+    if (auto tp = t.proxyType()) {
+      t = tp;
+      continue;
+    }
+    break;
+  }
+  resolvecache = t;
+  return t;
+}
+
 // from ast.modules_parse
 mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
 
