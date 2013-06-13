@@ -112,25 +112,25 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   
   if (isStatic) {
     auto aggr = fastcast!(AggrStatement)(sc._body);
-    if (!aggr) fail(Format("Malformed static while: "[], sc._body));
+    if (!aggr) text.failparse(Format("Malformed static while: "[], sc._body));
     if (!fastcast!(VarDecl) (aggr.stmts[0]))
-      fail(Format("Malformed static while (2): "[], aggr.stmts));
+      text.failparse(Format("Malformed static while (2): "[], aggr.stmts));
     aggr.stmts = null; // remove loop variable declaration/s
     
     auto backupfield = sc.field;
     Expr iter_expr;
     if (auto ilc = fastcast!(IterLetCond!(LValue)) (ws.cond)) iter_expr = ilc.iter;
     if (auto imc = fastcast!(IterLetCond!(MValue)) (ws.cond)) iter_expr = imc.iter;
-    if (!iter_expr) fail(Format("Could not interpret static-loop expression: ", ws.cond));
+    if (!iter_expr) text.failparse(Format("Could not interpret static-loop expression: ", ws.cond));
     
     auto iter = fastcast!(RichIterator) (iter_expr.valueType());
-    if (!iter) fail("static-loop expression not an iteratr! "[]);
+    if (!iter) text.failparse("static-loop expression not an iteratr! "[]);
     
     auto len = fastcast!(IntExpr)~ foldex(iter.length(iter_expr));
     // logln("foldex length is "[], foldex(iter.length(iter_expr)));
-    if (!len) fail("static-loop iterator length is not constant int! "[]);
+    if (!len) text.failparse("static-loop iterator length is not constant int! "[]);
     string t3;
-    if (!len.num) fail("static-loop must not be empty");
+    if (!len.num) text.failparse("static-loop must not be empty");
     for (int i = 0; i < len.num; ++i) {
       auto ival = foldex(iter.index(iter_expr, mkInt(i)));
       string t4 = t2;
