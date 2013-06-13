@@ -102,8 +102,9 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
         fastalloc!(DerefExpr)(reinterpret_cast(fastalloc!(Pointer)(cr.myClass.data), res))
       );
       Expr bp;
+      if (!cr.myClass.ctxBase) fail;
       if (Single!(Pointer, Single!(Void)) == cr.myClass.rtpt)
-        bp = fastalloc!(LLVMValue)("%__stackframe", Single!(Pointer, Single!(Void)));
+        bp = reinterpret_cast(voidp, cr.myClass.ctxBase);
       else
         bp = fastcast!(Expr) (namespace().lookup("__base_ptr"[]));
       if (!bp) {

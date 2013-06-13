@@ -520,12 +520,20 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   
   Intf[] iparents;
   RelMember ctx; // context of parent reference
+  // initialized to stackbase
+  // this allows class allocation to work when the class has been
+  // declared in a higher scope.
+  Expr ctxBase;
   Expr delegate(Expr) ctxFixup;
   IType rtpt;
   
   string coarseSrc;
   Namespace coarseCtx;
   IModule coarseMod;
+  
+  mixin DefaultDup!();
+  mixin defaultIterate!(ctxBase);
+  
   void fixupInterfaceAbstracts() {
     auto abstracts = getAbstractFuns();
     foreach (fun; abstracts) {
@@ -683,8 +691,8 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       (fastcast!(IsMangled) (tup._0)).markWeak();
   }
   override string mangle() { return mangle_id; }
-  override Class dup() { return this; }
   bool isTempNamespace() { return false; }
+  private this() { }
   this(string name, Class parent) {
     mangle_id = namespace().mangle(name, null);
     auto root = fastcast!(ClassRef)  (sysmod?sysmod.lookup("Object"[]):null);
@@ -707,6 +715,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     if (auto it = RefToParentType()) {
       rtpt = it;
       ctxFixup = *RefToParentModify.ptr();
+      ctxBase = fastalloc!(Register!("ebp"))();
     }
     sup = namespace();
     auto mod = fastcast!(Module) (current_module());
@@ -929,8 +938,6 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     // logln(name, " class size = ", res, " for data ", data.llvmType());
     return res;
   }
-  // TODO
-  mixin defaultIterate!();
   string vt_name() { return "vtable_"~mangle(); }
   string cd_name() { return "classdata_"~mangle(); }
   override {
