@@ -1,0 +1,8 @@
+module test157;
+
+void main() {
+  long foo = long:1 << long:63;
+  writeln "$foo";
+  foo = foo % long:-1;
+  writeln "$foo";
+}

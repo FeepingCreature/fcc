@@ -1,0 +1,5 @@
+module test169fail;
+
+void main() {
+  int i = 0xffffffffffffffff;
+}

@@ -1,0 +1,10 @@
+module test161;
+
+void main() {
+  int[auto~] array;
+  array ~= 5; array ~= 6; array ~= 7;
+  assert(array.capacity == 4);
+  array.clear;
+  assert(array.length == 0);
+  assert(array.capacity == 4);
+}

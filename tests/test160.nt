@@ -1,0 +1,6 @@
+module test160;
+
+void main() {
+  auto foo = size-of ();
+  writeln "$foo";
+}

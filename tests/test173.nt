@@ -1,0 +1,7 @@
+module test173;
+
+void main() {
+  ubyte ub = 0xfe;
+  writeln "$(int:ub)";
+  assert(ub == 0xfe);
+}

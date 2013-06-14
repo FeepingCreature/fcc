@@ -1,0 +1,8 @@
+module test172;
+
+void main() {
+  class A { vec2i alp; void init() { alp = vec2i(5, 15); } }
+  auto a = new A;
+  alias expr = a?.alp.(vec2i that):vec2i(20, 24);
+  assert(expr.x == 5 && expr.y == 15);
+}

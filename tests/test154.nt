@@ -1,0 +1,8 @@
+module test154;
+
+void foo(int a, z) { }
+
+void main() {
+  alias mew = b => 4;
+  foo(2, mew);
+}

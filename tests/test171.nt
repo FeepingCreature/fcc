@@ -1,0 +1,16 @@
+module test171;
+
+void main() {
+  int a = 7;
+  class C { int mew() { writeln "2 a? $a"; return a; } }
+  auto cx = new C;
+  writeln "0 a? $(cx.mew()) also $(cx.__context) and $(_ebp)";
+  auto foo() {
+    auto c = new C;
+    writeln "1 a? $a also $(c.__context) and $(__base_ptr) but $(_ebp)";
+    return c;
+  }
+  int res = foo().mew();
+  writeln "3 a? $res";
+  assert(res == 7);
+}

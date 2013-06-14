@@ -1,0 +1,5 @@
+module test168;
+
+void main() {
+  assert(float.nan !<>= 1f);
+}

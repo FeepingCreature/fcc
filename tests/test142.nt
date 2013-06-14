@@ -1,0 +1,14 @@
+module test142;
+
+import std.process;
+
+void main() {
+  // test segfault recovery
+  set-handler (MemoryAccessError err) {
+    writeln "memory access error. returning. ";
+    writeln "$(read-pretty-fcc-backtrace())";
+    invoke-exit "return";
+  }
+  define-exit "return" return;
+  *int*:0 = 0;
+}

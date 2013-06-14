@@ -1,0 +1,15 @@
+module test156;
+
+interface A { void foo(); }
+
+interface B : A { void bar(); }
+
+class CA : A { void foo() { writeln "foo from CA"; } }
+
+class CB : CA, B { void foo() super.foo(); void bar() { writeln "bar from CB"; } }
+
+void main() {
+  auto cb = new CB;
+  cb.foo();
+  cb.bar();
+}

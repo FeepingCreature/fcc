@@ -1,0 +1,8 @@
+module test148;
+
+struct S { int i; void foo(int k = 1) { } }
+
+void main() {
+  S s;
+  s.foo;
+}

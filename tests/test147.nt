@@ -1,0 +1,27 @@
+module test147;
+
+class A {
+  int i;
+  void init(int k = i+5) { writeln "$k"; assert(k == 5); }
+  void foo(int k = i+8) { writeln "$k"; assert(k == 8); }
+}
+
+class B {
+  int i;
+  int foo() { i = 4; return 4; }
+  void init(int k = foo() + 4) { assert(i == 4); assert(k == 8); }
+}
+
+struct C {
+  int i;
+  void foo(int k = i + 13) { writeln "$k"; assert(k == i + 13); }
+}
+
+void main() {
+  auto a = new A;
+  a.foo();
+  auto b = new B;
+  C c;
+  c.i = 21;
+  c.foo();
+}

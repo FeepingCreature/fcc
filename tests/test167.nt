@@ -1,0 +1,13 @@
+module test167;
+
+import std.util;
+
+void main() {
+  int six = [4, 5, 6].maximize λ(int i) -> i;
+  assert(six == 6);
+  int five = [4, 5, 4].findFirstThat λ(int i) -> i > 4;
+  assert(five == 5);
+  auto x = [4, 5, 4].findFirstThat λ(int i) -> i > 5;
+  assert !x;
+  if (x) int i = x;
+}

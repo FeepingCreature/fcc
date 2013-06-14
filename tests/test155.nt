@@ -1,0 +1,7 @@
+module test155;
+
+void main() {
+  int i;
+  do i++; while (i < 10);
+  assert(i == 10);
+}
