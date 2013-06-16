@@ -531,7 +531,23 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   Namespace coarseCtx;
   IModule coarseMod;
   
-  mixin DefaultDup!();
+  override Class dup() {
+    parseMe;
+    auto res = new Class;
+    foreach (i, v; this.tupleof) {
+      static if (is(typeof(v[0].dup))) {
+        res.tupleof[i] = new typeof(v[0])[this.tupleof[i].length];
+        foreach (k, ref entry; res.tupleof[i])
+          entry = this.tupleof[i][k].dup;
+      } else static if (is(typeof(v.dup))) {
+        if (this.tupleof[i])
+          res.tupleof[i] = this.tupleof[i].dup;
+      } else {
+        res.tupleof[i] = this.tupleof[i];
+      }
+    }
+    return res;
+  }
   mixin defaultIterate!(ctxBase);
   
   void fixupInterfaceAbstracts() {
