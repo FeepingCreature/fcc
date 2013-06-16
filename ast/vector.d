@@ -114,11 +114,6 @@ final class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
     if (str.length == 1) {
       return fastcast!(Object) (generate(reinterpret_cast(asFilledTup, base)));
     }
-    if (auto lv = fastcast!(LValue) (base)) {
-      return fastcast!(Object)~ tmpize_maybe(fastalloc!(RefExpr)(lv), (Expr ex) {
-        return generate(fastalloc!(DerefExpr)(reinterpret_cast(fastalloc!(Pointer)(asFilledTup), ex)));
-      });
-    }
     return fastcast!(Object)~tmpize_maybe(reinterpret_cast(asFilledTup, base), &generate);
   }
 }
@@ -553,10 +548,6 @@ static this() {
           assert(entries.length == 4);
           return mkTupleExpr(entries[0], entries[1], entries[2]);
         }
-        if (auto lv = fastcast!(LValue) (ex))
-          return tmpize_maybe(fastalloc!(RefExpr)(lv), (Expr ex) {
-            return generate(fastalloc!(DerefExpr)(reinterpret_cast(fastalloc!(Pointer)(vec.asFilledTup), ex)));
-          });
         auto filled = reinterpret_cast(vec.asFilledTup, ex);
         return tmpize_maybe(filled, &generate);
       } else
@@ -654,132 +645,6 @@ bool emitUnalignedAddr(LLVMFile lf, Expr src, ref bool wasAligned) {
     cv.emitLocation(lf);
     return true;
   } else return false;
-}
-
-bool gotSSEVecOp(LLVMFile lf, Expr op1, Expr op2, Expr res, string op) {
-  todo("gotSSEVecOp");
-  return false;
-  /*mixin(mustOffset("0"[]));
-  checkVecs;
-  if (op1.valueType() != vec3f && op1.valueType() != vec4f
-   || op2.valueType() != vec3f && op2.valueType() != vec4f
-   || op1.valueType() != op2.valueType())
-    return false;
-  if (op != "+"[] /or/ "-"[] /or/ "*"[] /or/ "/"[] /or/ "^"[]) return false;
-  void packLoad(string dest, string scrap1, string scrap2) {
-    lf.popStack("%eax"[], 4);
-    // lf.SSEOp("movaps"[], "(%eax)"[], dest);
-    // recommended by the intel core opt manual, 3-50
-    // also benchmarked and YES it's faster .. IFF there's a dependency.
-    lf.movd("(%eax)"[], dest);
-    lf.movd("8(%eax)"[], scrap1);
-    lf.SSEOp("punpckldq"[], scrap1, dest); // can't do directly! punpckldq requires alignment; movd doesn't.
-    lf.movd("4(%eax)"[], scrap1);
-    lf.movd("12(%eax)"[], scrap2);
-    lf.SSEOp("punpckldq"[], scrap2, scrap1);
-    lf.SSEOp("punpckldq"[], scrap1, dest);
-  }
-  auto var1 = fastcast!(Variable) (op1), var2 = fastcast!(Variable) (op2);
-  bool alignedVar1 = var1 && ((var1.baseOffset - esp_alignment_delta) & 15) == 0;
-  bool alignedVar2 = var2 && ((var2.baseOffset - esp_alignment_delta) & 15) == 0;
-  void load(Expr src, string to, string scrap1 = null, string scrap2 = null) {
-    bool wasAligned;
-    if (auto addr = getAddr(lf, src)) lf.SSEOp("movaps"[], addr, to);
-    else if (emitUnalignedAddr(lf, src, wasAligned)) {
-      lf.popStack("%eax"[], 4);
-      lf.SSEOp(wasAligned?"movaps"[]:"movups"[], "(%eax)"[], to);
-    } else {
-      // logln("src is "[], (cast(Object) src).classinfo.name, ", "[], src);
-      src.emitLLVM(lf);
-      if (scrap1 && scrap2 && false) {
-        lf.pushStack("%esp"[], 4);
-        packLoad(to, scrap1, scrap2);
-      } else {
-        lf.SSEOp("movaps", "(%esp)", to);
-      }
-      lf.sfree(16);
-    }
-  }
-  string srcOp = "%xmm1";
-  if (alignedVar1 && alignedVar2) {
-    var1.emitLocation(lf);
-    var2.emitLocation(lf);
-    /+packLoad("%xmm1"[], "%xmm0"[], "%xmm2"[]);
-    packLoad("%xmm0"[], "%xmm2"[], "%xmm3"[]);+/
-    lf.popStack("%eax"[], 4);
-    lf.popStack("%edx"[], 4);
-    lf.SSEOp("movaps"[], "(%eax)"[], "%xmm1"[]);
-    lf.SSEOp("movaps"[], "(%edx)"[], "%xmm0"[]);
-    lf.salloc(16);
-  }
-  if (alignedVar1 && !alignedVar2) {
-    lf.salloc(12);
-    var1.emitLocation(lf);
-    load(op2, "%xmm1"[], "%xmm2"[], "%xmm3"[]);
-    // logln("param 2 is "[], op2, "[], what to do .. "[]);
-    packLoad("%xmm0"[], "%xmm2"[], "%xmm3"[]);
-    // lf.popStack("%eax"[], 4);
-    // lf.SSEOp("movaps"[], "(%eax)"[], "%xmm0"[]);
-    lf.salloc(4);
-  }
-  if (!alignedVar1 && alignedVar2) {
-    lf.salloc(12);
-    var2.emitLocation(lf);
-    load(op1, "%xmm0"[], "%xmm2"[], "%xmm3"[]);
-    // logln("param 1 is "[], op1, "[], what to do .. "[]);
-    packLoad("%xmm1"[], "%xmm2"[], "%xmm3"[]);
-    // lf.popStack("%eax"[], 4);
-    // lf.SSEOp("movaps"[], "(%eax)"[], "%xmm1"[]);
-    lf.salloc(4);
-  }
-  if (!alignedVar1 && !alignedVar2) {
-    string prep1; bool prep1u, prep1u_align;
-    if (auto addr = getAddr(lf, op1)) prep1 = addr;
-    else if (emitUnalignedAddr(lf, op1, prep1u_align)) prep1u = true; // don't pop into register yet!!
-    else op1.emitLLVM(lf);
-    bool wasAligned;
-    if (auto s = getAddr(lf, op2)) srcOp = s;
-    else if (emitUnalignedAddr(lf, op2, wasAligned)) {
-      if (prep1u) { lf.sfree(8); emitUnalignedAddr(lf, op2, wasAligned); } // resort
-      lf.popStack("%eax"[], 4);
-      lf.SSEOp(wasAligned?"movaps"[]:"movups"[], "(%eax)"[], "%xmm1"[]);
-      if (prep1u) { emitUnalignedAddr(lf, op1, prep1u_align); }
-    } else {
-      // logln("op2 is "[], (cast(Object) op2).classinfo.name, ", "[], op2);
-      if (prep1u) { lf.sfree(4); } // force unload
-      op2.emitLLVM(lf);
-      lf.SSEOp("movaps"[], "(%esp)"[], "%xmm1"[]);
-      lf.sfree(16);
-      if (prep1u) emitUnalignedAddr(lf, op1, prep1u_align); // reemit
-    }
-    if (prep1) lf.SSEOp("movaps"[], prep1, "%xmm0"[]);
-    else if (prep1u) {
-      lf.popStack("%edx"[], 4);
-      lf.SSEOp(prep1u_align?"movaps"[]:"movups"[], "(%edx)"[], "%xmm0"[]);
-    } else {
-      // logln("op1 is "[], (cast(Object) op1).classinfo.name, ", "[], op1);
-      lf.SSEOp("movaps"[], "(%esp)"[], "%xmm0"[]);
-      lf.sfree(16);
-    }
-    lf.salloc(16);
-  }
-  string sse;
-  if (op == "+"[]) sse = "addps";
-  if (op == "-"[]) sse = "subps";
-  if (op == "*"[]) sse = "mulps";
-  if (op == "/"[]) sse = "divps";
-  if (op == "^"[]) sse = "xorps";
-  lf.SSEOp(sse, srcOp, "%xmm0"[]);
-  // lf.nvm("%xmm1"[]); // tend to get in the way
-  lf.SSEOp("movaps"[], "%xmm0"[], "(%esp)"[]);
-  // lf.nvm("%xmm0"[]); // rarely helps
-  mixin(mustOffset("-16"[]));
-  if (auto lv = cast(LValue) res) {
-    emitAssign(lf, lv, fastalloc!(Placeholder)(op1.valueType()), false, true);
-  } else if (auto mv = cast(MValue) res) {
-    mv.emitAssignment(lf);
-  } else fail;
-  return true;*/
 }
 
 class Vec4fSmaller : Expr {
