@@ -3,6 +3,8 @@ module sdl;
 public import std.lib.sdl_base;
 import std.string;
 
+extern(C) int abs(int d);
+
 int floatToIntColor(vec3f col) {
   vec3i ii = vec3i(0xff0000, 0xff00, 0xff);
   vec3f ff = vec3f(0xff0000, 0xff00, 0xff);

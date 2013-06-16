@@ -212,8 +212,11 @@ string concat(string[] strs) {
 }
 
 import c.stdlib;
+extern(C) double atof(char*);
+extern(C) int atoi(char*);
 alias c_atoi = atoi;
-alias c_atof = atof;
+RenameIdentifier atof c_atof;
+RenameIdentifier atoi c_atoi;
 
 /*Function: atoi*/
 int atoi(string s) {

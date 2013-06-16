@@ -41,7 +41,7 @@ context parser {
     while auto ch = eatAlpha() res ~= ch;
     return res[];
   }
-  int getNumber() {
+  bool gotNumber(int* ip) {
     cleanup;
     bool eatDigit(int* ip) {
       alias i = *ip;
@@ -56,8 +56,12 @@ context parser {
     int res;
     bool mew;
     while eatDigit(&int d) { mew = true; res = res * 10 + d; }
-    if (!mew) fail "could not parse number";
-    return res;
+    if (!mew) return false;
+    *ip = res; return true;
+  }
+  int getNumber() {
+    if (gotNumber &int i) return i;
+    fail "could not parse number";
   }
   string gotString(string sep = "\"") {
     using scoped text {

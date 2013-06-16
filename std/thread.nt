@@ -5,7 +5,7 @@ module std.thread;
 import c.pthread;
 
 platform(*-mingw*) {
-  pragma(lib, "pthreadGC2d");
+  pragma(lib, "pthreadGC2");
 }
 
 extern(C) {

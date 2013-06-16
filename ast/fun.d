@@ -49,6 +49,10 @@ string declare(Function fun, string name) {
   }
   string callconv;
   if (fun.type.stdcall) callconv = "x86_stdcallcc ";
+  if (fun.isInternal()) {
+    if (callconv) fail;
+    callconv = "fastcc ";
+  }
   string flags;
   if (name == "setjmp") flags = " returns_twice";
   return qformat("declare ", callconv, typeToLLVMRet(fun.type.ret, true), " @", name, "(", argstr, ")", flags);

@@ -1110,7 +1110,8 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
       if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math "
-      "-fp-contract=fast "/*-vectorize */"-vectorize-loops -vectorize-slp -vectorize-slp-aggressive -tailcallopt ";
+      "-fp-contract=fast "/*-vectorize */"-vectorize-loops -vectorize-slp -vectorize-slp-aggressive ";
+    if (!isWindoze()) fpmathopts ~= "-tailcallopt "; // TODO figure out why
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 ";
     if (llvmver() != "3.1") {
       optflags ~= fpmathopts;

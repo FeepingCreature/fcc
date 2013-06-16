@@ -274,6 +274,8 @@ template wren-to-neat(T) {
     static if (types-equal(float, T)) {
       if (auto n = Number: thing)
         return n.num;
+      if (auto i = Integer: thing)
+        return i.num;
       else error "Can't create float from $thing";
       alias match-found = true;
     }

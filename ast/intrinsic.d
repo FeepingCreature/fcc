@@ -303,8 +303,8 @@ void setupSysmods() {
         char* _tmpfname;
       }
       // extern(C) __FILE* _iob;
-      extern(C) __FILE** _imp___iob;
-      alias _iob = *_imp___iob;
+      extern(C) __FILE* _imp___iob;
+      alias _iob = _imp___iob;
       alias stdin  = void*:&_iob[0];
       alias stdout = void*:&_iob[1];
       alias stderr = void*:&_iob[2];
