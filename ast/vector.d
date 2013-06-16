@@ -190,23 +190,35 @@ class SSEIntToFloat : Expr {
 class MultiplesExpr : Expr {
   Expr base;
   Vector type;
-  int vecsize;
-  this(Expr b, int sz) {
+  int vecsize, real_vecsize;
+  bool careful;
+  this(Expr b, int sz, int realsz = -1, bool careful = false) {
+    if (realsz == -1) realsz = sz;
     this.base = b;
     this.vecsize = sz;
-    this.type = fastalloc!(Vector)(b.valueType(), sz);
+    this.real_vecsize = realsz;
+    this.careful = careful;
+    this.type = fastalloc!(Vector)(b.valueType(), realsz);
   }
   mixin defaultIterate!(base);
   override {
-    MultiplesExpr dup() { return fastalloc!(MultiplesExpr)(base.dup, vecsize); }
+    MultiplesExpr dup() { return fastalloc!(MultiplesExpr)(base.dup, vecsize, real_vecsize); }
     IType valueType() { return type; }
     void emitLLVM(LLVMFile lf) {
       auto b = save(lf, base);
-      string bs = typeToLLVM(base.valueType());
+      auto bv = base.valueType();
+      string bs = typeToLLVM(bv);
       string ms = typeToLLVM(valueType());
       string res = "undef";
       for (int i = 0; i < vecsize; ++i) {
         res = save(lf, "insertelement ", ms, " ", res, ", ", bs, " ", b, ", i32 ", i);
+      }
+      // fill up
+      for (int i = vecsize; i < real_vecsize; ++i) {
+        if (careful && (Single!(Float) == bv || Single!(SysInt) == bv || Single!(Double) == bv))
+          res = save(lf, "insertelement ", ms, " ", res, ", ", bs, " ", ((Single!(SysInt) == bv)?"1":"1.0"), ", i32 ", i); // make safe for division
+        else
+          res = save(lf, "insertelement ", ms, " ", res, ", ", bs, " undef, i32 ", i);
       }
       push(lf, res);
     }
@@ -700,6 +712,32 @@ class VecOp : Expr {
     this.type = it; this.len = len;
     this.ex1 = ex1; this.ex2 = ex2;
     this.op = op; this.real_len = real_len;
+    normalize;
+  }
+  // convert float args to vectors and such
+  void normalize() {
+    auto e1v = resolveType(ex1.valueType());
+    auto e2v = resolveType(ex2.valueType());
+    auto v1 = fastcast!(Vector)(e1v), v2 = fastcast!(Vector)(e2v);
+    if (v1 && v2 && v1 == v2) return;
+    if (!v1 && !v2) return;
+    if (v2 && e1v == v2.base) {
+      ex1 = fastalloc!(MultiplesExpr)(ex1, v2.len, v2.real_len);
+      return;
+    }
+    if (v1 && e2v == v1.base) {
+      ex2 = fastalloc!(MultiplesExpr)(ex2, v1.len, v1.real_len, op == "/");
+      return;
+    }
+    auto ee1 = ex1, ee2 = ex2;
+    if (v2 && gotImplicitCast(ee1, v2.base, (IType it) { return test(v2.base == it); })) {
+      ex1 = fastalloc!(MultiplesExpr)(ee1, v2.len, v2.real_len);
+      return;
+    }
+    if (v1 && gotImplicitCast(ee2, v1.base, (IType it) { return test(v1.base == it); })) {
+      ex2 = fastalloc!(MultiplesExpr)(ee2, v1.len, v1.real_len, op == "/");
+      return;
+    }
   }
   override {
     string toString() { return Format("("[], ex1, " "[], op, " "[], ex2, ")"[]); }
@@ -709,7 +747,7 @@ class VecOp : Expr {
       while (pretransform(ex1, t1) || pretransform(ex2, t2)) { }
       auto e1v = fastcast!(Vector)~ t1, e2v = fastcast!(Vector)~ t2;
       
-      if (e1v && e2v && e1v == e2v) {
+      if (e1v && e2v && e1v.llvmType() == e2v.llvmType()) {
         auto s1 = save(lf, ex1);
         auto s2 = save(lf, ex2);
         string llop;
@@ -718,6 +756,8 @@ class VecOp : Expr {
           case "-": llop = "sub"; break;
           case "*": llop = "mul"; break;
           case "/": llop = "div"; break;
+          case "&": llop = "and"; break;
+          case "|": llop = "or" ; break;
           default: break;
         }
         if (fastcast!(Float)(e1v.base) || fastcast!(Double)(e1v.base) || fastcast!(Real)(e1v.base)) {
@@ -749,23 +789,22 @@ class VecOp : Expr {
       ), null, true);
       void delegate() dg1, dg2;
       mixin(mustOffset("0"));
-      // logln("SSE vec op: "[], ex1, ", "[], ex2, " and "[], op);
-      // SSE needs no temps!
-      if (true || !gotSSEVecOp(lf, ex1, ex2, fastcast!(Expr) (var), op)) {
-        /*auto filler1 = alignStackFor(t1, lf); */auto v1 = mkTemp(lf, ex1, dg1);
-        /*auto filler2 = alignStackFor(t2, lf); */auto v2 = mkTemp(lf, ex2, dg2);
-        for (int i = 0; i < len; ++i) {
-          Expr l1 = v1, l2 = v2;
-          if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1), null, true)[i];
-          if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2), null, true)[i];
-          emitAssign(lf, fastcast!(LValue) (entries[i]), lookupOp(op, l1, l2));
-        }
-        for (int i = len; i < real_len; ++i) {
-          emitAssign(lf, fastcast!(LValue) (entries[i]), fastalloc!(ZeroInitializer)(entries[i].valueType()));
-        }
-        if (dg2) dg2(); // lf.sfree(filler2);
-        if (dg1) dg1(); // lf.sfree(filler1);
+      // logln("SSE vec op: "[], ex1.valueType(), ", "[], ex2.valueType(), " and "[], op);
+      // asm { int 3; }
+      // weird cases fallback
+      /*auto filler1 = alignStackFor(t1, lf); */auto v1 = mkTemp(lf, ex1, dg1);
+      /*auto filler2 = alignStackFor(t2, lf); */auto v2 = mkTemp(lf, ex2, dg2);
+      for (int i = 0; i < len; ++i) {
+        Expr l1 = v1, l2 = v2;
+        if (e1v) l1 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e1v.asFilledTup, fastcast!(LValue)~ v1), null, true)[i];
+        if (e2v) l2 = getTupleEntries(reinterpret_cast(fastcast!(IType)~ e2v.asFilledTup, fastcast!(LValue)~ v2), null, true)[i];
+        emitAssign(lf, fastcast!(LValue) (entries[i]), lookupOp(op, l1, l2));
       }
+      /*for (int i = len; i < real_len; ++i) {
+        emitAssign(lf, fastcast!(LValue) (entries[i]), fastalloc!(ZeroInitializer)(entries[i].valueType()));
+      }*/
+      if (dg2) dg2(); // lf.sfree(filler2);
+      if (dg1) dg1(); // lf.sfree(filler1);
     }
   }
 }
