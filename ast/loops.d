@@ -41,7 +41,7 @@ void substituteBrkRef(Scope sc, Breakable what, Breakable substwith) {
   sc.iterate(&recurse);
 }
 
-class WhileStatement : Statement, Breakable {
+class WhileStatement : LineNumberedStatementClass, Breakable {
   Scope _body;
   Cond cond;
   Scope sup;
@@ -59,6 +59,7 @@ class WhileStatement : Statement, Breakable {
   mixin DefaultBreakableImpl!();
   override {
     void emitLLVM(LLVMFile lf) {
+      super.emitLLVM(lf);
       auto start = lf.allocLabel("while_start"), done = lf.allocLabel("while_done"), end = lf.allocLabel("while_end");
       if (!elsecmd) end = done;
       chosenContinueLabel = start;
@@ -92,7 +93,8 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto ws = new WhileStatement;
   auto sc = new Scope;
   ws.outsideGuards = sc.getGuards();
-  sc.configPosition (t2);
+  ws.configPosition (text);
+  sc.configPosition (text);
   ws.sup = sc;
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
@@ -290,7 +292,7 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto dw = new DoWhileExt;
   
   auto sc = new Scope;
-  sc.configPosition(t2);
+  sc.configPosition(text);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   

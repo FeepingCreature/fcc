@@ -132,18 +132,24 @@ struct TextAppender {
 }
 
 class LLVMFile {
-  bool optimize, debugmode, profilemode;
+  bool optimize, debugmode, debugmode_dwarf, profilemode;
+  string currentFunctionDwarfMetadata;
+  string[] dwarf_subprogs; // add one for every function we emit
   string fn, fid;
   string[] sectionNameStack;
   SuperAppender[string] sectionStore;
   SuperAppender curSection;
+  TextAppender metadata;
+  int metadata_count;
   string curSectionName;
+  string curSectionAnnotation;
   
   bool[string] doOnce;
   
-  this(bool optimize, bool debugmode, bool profilemode, string filename) {
+  this(bool optimize, bool debugmode, bool debugmode_dwarf, bool profilemode, string filename) {
     this.optimize = optimize;
     this.debugmode = debugmode;
+    this.debugmode_dwarf = debugmode_dwarf;
     this.profilemode = profilemode;
     this.fn = filename;
     this.fid = fn.endsWith(".nt").replace("/", "_");
@@ -156,6 +162,7 @@ class LLVMFile {
     }
     curSectionName = name;
     curSection = null;
+    curSectionAnnotation = null;
   }
   void free() {
     if (sectionStore.keys.length) {
@@ -166,6 +173,7 @@ class LLVMFile {
   SuperAppender endSection(string s) {
     if (curSectionName != s) fail;
     auto res = curSection;
+    curSectionAnnotation = null;
     if (!sectionNameStack) {
       curSectionName = null;
       curSection = null;
@@ -176,6 +184,11 @@ class LLVMFile {
     curSection = sectionStore[curSectionName];
     sectionStore.remove(curSectionName);
     return res;
+  }
+  string addMetadata(string data) {
+    auto id = metadata_count++;
+    metadata ~= qformat("!", id, " = metadata !{", data, "}\n");
+    return qformat("!", id);
   }
   void put(SuperAppender app) {
     curSection ~= app;
@@ -197,6 +210,7 @@ class LLVMFile {
   void dumpLLVM(void delegate(string) write) {
     if (!curSectionName) fail;
     curSection.flush(write);
+    metadata.flush(write); // at the end
   }
   
   string[] exprs;
@@ -219,7 +233,7 @@ class LLVMFile {
   void emitLabel(string l, bool forwardsOnly = false) {
     if (forwardsOnly && !(l in targeted)) return; // not used
     .put(this, "br label %", l);
-    .put(this, l, ":");
+    put(l); put(":\n");
   }
   int getId() { return count++; }
   string getVar() { return qformat("%var", getId()); }
@@ -271,9 +285,14 @@ bool once(T...)(LLVMFile lf, T t) {
 
 import quickformat;
 
+void setFunctionAnnotation(LLVMFile lf, string s) {
+  lf.curSectionAnnotation = s;
+}
+
 void put(T...)(LLVMFile lf, T t) {
   static if (is(T: string)) lf.put(t);
   else lf.put(qformat(t));
+  if (lf.curSectionAnnotation) lf.put(lf.curSectionAnnotation);
   lf.put("\n");
 }
 
@@ -285,6 +304,10 @@ void putSection(T...)(LLVMFile lf, string section, T t) {
   static if (is(T: string)) lf.putSection(section, t);
   else lf.putSection(section, qformat(t));
   lf.putSection(section, "\n");
+}
+
+string addMetadata(T...)(LLVMFile lf, T t) {
+  return lf.addMetadata(qformat(t));
 }
 
 // template so we can use Expr without importing base

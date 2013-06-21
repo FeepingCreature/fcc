@@ -143,6 +143,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   Tree tree;
   bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false;
   Function[] dependents; // functions that are only needed inside this function and thus should get emitted into the same module.
+  string dwarfMetadata;
   override void markWeak() { weak = true; foreach (dep; dependents) dep.markWeak; }
   override void markExternC() { extern_c = true; }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
@@ -504,12 +505,36 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       }
       auto retstr = typeToLLVMRet(type.ret, true);
       
-      string argstr;
+      string argstr, argtypestr;
       foreach (i, arg; getParams(true)) {
         if (argstr) argstr ~= ", ";
+        if (argtypestr) argtypestr ~= ", ";
         argstr = qformat(argstr, typeToLLVM(arg.type, true), " %arg", i);
+        if (lf.debugmode_dwarf) {
+          argtypestr ~= typeToLLVM(arg.type, true);
+        }
       }
       lf.undecls[fmn] = true;
+      
+      if (lf.debugmode_dwarf) {
+        auto mod = coarseModule;
+        if (!mod) mod = get!(IModule);
+        auto file = addMetadata(lf, `metadata !"`, mod.filename(), `", null`);
+        dwarfMetadata = addMetadata(lf, "i32 786478, metadata ", file, ", ",
+          "metadata ", addMetadata(lf, "i32 786473, metadata ", file), ", ",
+          `metadata !"`, fqn(), `", metadata !"`, mangleSelf(), `", `,
+          `metadata !"", `,
+          "i32 0, ", // TODO line number
+          `null, `, // TODO type
+          `i1 false, i1 true, i32 0, i32 0, null, i32 0, i1 false, `,
+          retstr, ` (`, argtypestr, `)* @`, fmn, `, `,
+          `null, null, null, `,
+          `i32 0` // TODO first line of function
+        );
+        lf.dwarf_subprogs ~= "metadata "~dwarfMetadata;
+        lf.currentFunctionDwarfMetadata = dwarfMetadata;
+      }
+      scope(exit) if (lf.debugmode_dwarf) lf.currentFunctionDwarfMetadata = null;
       
       string linkage, flags;
       if (weak)

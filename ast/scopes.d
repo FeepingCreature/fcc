@@ -101,7 +101,7 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   override void configPosition(string str) {
 		lnsc.configPosition(str);
   }
-  override void getInfo(ref string n, ref int l) { lnsc.getInfo(n, l); }
+  override void getInfo(ref string n, ref int l, ref int c) { lnsc.getInfo(n, l, c); }
   Statement[] getGuards() {
     if (auto sl = fastcast!(ScopeLike) (sup)) return sl.getGuards() ~ guards;
     else return guards;

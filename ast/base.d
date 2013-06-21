@@ -595,18 +595,19 @@ extern(C) void _line_numbered_statement_emitLLVM(LineNumberedStatement, LLVMFile
 interface LineNumberedStatement : Statement {
 	LineNumberedStatement dup();
 	void configPosition(string text);
-	void getInfo(ref string name, ref int line);
+	void getInfo(ref string name, ref int line, ref int column);
 }
 
 class LineNumberedStatementClass : LineNumberedStatement {  
-  int line;
+  int line, column;
   string name;
   abstract LineNumberedStatement dup();
   abstract void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical);
-  override void getInfo(ref string n, ref int l) { n = name; l = line; }
+  override void getInfo(ref string n, ref int l, ref int c) { n = name; l = line; c = column; }
   override void configPosition(string text) {   
     auto pos = lookupPos(text);
     line = pos._0;
+    column = pos._1;
     name = pos._2;
   }
   override void emitLLVM(LLVMFile lf) {

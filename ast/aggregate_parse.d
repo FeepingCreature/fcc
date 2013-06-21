@@ -30,7 +30,7 @@ Statement parseFullAggregateBody(ref string src, ParseCb rest) {
 Object gotAggregateStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto sc = fastalloc!(Scope)();
-  sc.configPosition(t2);
+  sc.configPosition(text);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   if (auto as = t2.parseAggregateBody(rest, false, (Statement st) { sc._body = st; })) {
@@ -54,7 +54,7 @@ mixin DefaultParser!(gotAggregateStmt, "tree.stmt.aggregate"[], "131"[], "{"[]);
 Object gotRestStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto sc = new Scope;
-  sc.configPosition(t2);
+  sc.configPosition(text);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
   auto as = new AggrStatement;

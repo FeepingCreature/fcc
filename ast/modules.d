@@ -91,7 +91,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     //                      needed by sysmod; avoid circle
     isValid = true;
   }
-  override string filename() { return name.replace("."[], "/"[]) ~ EXT; }
+  override string filename() { return sourcefile; }
   override string modname() { return name; }
   void addSetupable(Setupable s) {
     setupable ~= s;
@@ -175,6 +175,17 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
         if (fastcast!(NoOp) (entry)) continue;
         opt(entry);
         entry.emitLLVM(lf);
+      }
+      
+      if (lf.debugmode_dwarf) {
+        auto zero = addMetadata(lf, "i32 0");
+        auto subproglist = addMetadata(lf, lf.dwarf_subprogs.join(", ")); 
+        put(lf, "!llvm.dbg.cu = !{", addMetadata(lf,
+          "i32 786449, "
+          "metadata ", addMetadata(lf, `metadata !"`, sourcefile, `", null`), `, `,
+          `i32 2, metadata !"fcc", i1 false, metadata !"", i32 0`
+          `, metadata `, zero, `, metadata `, zero, `, metadata `, subproglist,
+          `, metadata `, zero, `, metadata `, zero, `, metadata !""`), "}");
       }
       // if (!isARM) lf.put(".section .text"[]);
       doneEmitting = true;

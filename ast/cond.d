@@ -42,7 +42,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
     nf.fixup;
     
     auto sc = new Scope;
-    sc.configPosition(t2);
+    sc.configPosition(text);
     nf.addStatement(sc);
     namespace.set(sc);
     

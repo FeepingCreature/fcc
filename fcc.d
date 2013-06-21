@@ -860,6 +860,15 @@ mixin DefaultParser!(gotScope, "tree.scope");
 pragma(set_attribute, _line_numbered_statement_emitLLVM, externally_visible);
 extern(C)
 void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
+  if (lf.debugmode_dwarf) {
+    auto f = lf.currentFunctionDwarfMetadata;
+    string name; int line, column;
+    lns.getInfo(name, line, column);
+    if (line || column) {
+      setFunctionAnnotation(lf, qformat(`, !dbg `, addMetadata(lf, `i32 `, line, `, i32 `, column, `, metadata `, f, `, null`)));
+    }
+  }
+  
   if (!lf.debugmode || releaseMode) return;
   auto frameinfo = fastcast!(LValue)(namespace().lookup("__frameinfo", true));
   auto fname = namespace().get!(Function).name;
@@ -874,8 +883,8 @@ void _line_numbered_statement_emitLLVM(LineNumberedStatement lns, LLVMFile lf) {
       logln("no pos in: ", lr);
       fail;
     }
-    string name; int line;
-    lns.getInfo(name, line);
+    string name; int line, column;
+    lns.getInfo(name, line, column);
     if (!name || name.startsWith("<internal")) return;
     /*if (fname == "raise") {
       logln("emit line number assignment at ", lns, " ", frameinfo, " in ", namespace());
@@ -1062,7 +1071,7 @@ void lazySysmod() {
 bool allowProgbar = true;
 
 struct CompileSettings {
-  bool saveTemps, optimize, preopt, debugMode, profileMode, singlethread;
+  bool saveTemps, optimize, preopt, debugMode, debugModeDwarf, profileMode, singlethread;
 }
 
 // structural verifier
@@ -1130,7 +1139,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
   scope(failure)
     logSmart!(false)("While compiling ", file);
   while (file.startsWith("./")) file = file[2 .. $];
-  auto lf = fastalloc!(LLVMFile)(cs.optimize, cs.debugMode, cs.profileMode, file);
+  auto lf = fastalloc!(LLVMFile)(cs.optimize, cs.debugMode, cs.debugModeDwarf, cs.profileMode, file);
   lazySysmod();
   string srcname, objname;
   if (auto end = file.endsWith(EXT)) {
@@ -1570,6 +1579,10 @@ int main2(string[] args) {
     }
     if (arg == "-g") {
       cs.debugMode = true;
+      continue;
+    }
+    if (arg == "-gc") {
+      cs.debugModeDwarf = true;
       continue;
     }
     if (arg == "-pg") {
