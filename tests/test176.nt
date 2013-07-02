@@ -1,0 +1,7 @@
+module test176;
+
+import std.util;
+void main() {
+  int[] foo; foo ~= [1,2,3,4,5];
+  assert $ (reverse foo).eval[] == [5,4,3,2,1];
+}

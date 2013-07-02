@@ -202,21 +202,28 @@ template rapply(T) {
 
 template reverse(T) {
   alias IT = type-of-elem T;
-  class rev : Iterator!IT {
-    IT[] back;
+  struct rev {
+    IT value;
     int pos;
+    IT[] back;
+    bool allocatedBack;
     bool advance() {
-      if (pos == -1) { free; return false; }
+      if (pos == -1) { if (allocatedBack) back.free; return false; }
       value = back[pos];
       pos--;
       if (pos == -1) back.free;
       return true;
     }
   }
-  auto reverse(T t) using new rev {
-    back = t.iterator.eval[];
-    pos = back.length - 1;
-    return that;
+  auto reverse(T t) {
+    rev r;
+    static if (implicitly-converts-to IT[] t) {
+      r.(back, allocatedBack) = (t, false);
+    } else {
+      r.(back, allocatedBack) = (t.iterator.eval[], true);
+    }
+    r.pos = r.back.length - 1;
+    return r;
   }
 }
 
