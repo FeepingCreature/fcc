@@ -211,7 +211,7 @@ template reverse(T) {
       if (pos == -1) { if (allocatedBack) back.free; return false; }
       value = back[pos];
       pos--;
-      if (pos == -1) back.free;
+      if (pos == -1 && allocatedBack) back.free;
       return true;
     }
   }
