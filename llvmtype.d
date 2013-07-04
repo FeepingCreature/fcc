@@ -9,9 +9,10 @@ pragma(set_attribute, typeToLLVM, externally_visible);
 extern(C) string typeToLLVM(IType it, bool subst = false) {
   // logln("typeToLLVM ", it);
   if (!it) fail;
-  if (it == Single!(Pointer, Single!(Void))) return "i8*";
+  auto rt = resolveType(it);
+  if (rt == Single!(Pointer, Single!(Void))) return "i8*";
   if (subst) { // asked to substitute a simpler type
-    it = resolveType(it);
+    it = rt;
     if (Single!(Void) == it) return "{}"; // weirdo.
     if (auto arr = fastcast!(Array)(it)) {
       return typeToLLVM(Single!(Array, Single!(Byte)));
