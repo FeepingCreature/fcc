@@ -26,7 +26,6 @@ class Archive {
     files.iterate dg;
   }
   void open(void delegate(void*, void*) dg) {
-    files.clear;
     using mode archive_read {
       auto arch = _new();
       arch._support_filter_all();
@@ -50,6 +49,7 @@ class Archive {
     ubyte[] res;
     bool hit;
     open λ(arch, entry) {
+      if hit return;
       auto str = CToString entry.archive_entry_pathname();
       if (str != s) return;
       import std.stream;
