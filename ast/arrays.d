@@ -23,7 +23,7 @@ class Array_ : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
       if (elemtypecmp != tt) {
         elemtypecmp = tt;
         
-        if (nativePtrSize == 4) lltypecache = qformat("{i32, ", typeToLLVM(fastalloc!(Pointer)(elemType)), "}");
+        if (nativePtrSize == 4) lltypecache = qformat("{i32, ", typeToLLVM(fastalloc!(Pointer)(elemType), true), "}");
         else fail;
       }
       return lltypecache;
@@ -110,7 +110,7 @@ class ExtArray : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
     string llvmType() {
       scope p = new Pointer(elemType);
       // auto p = fastalloc!(Pointer)(elemType);
-      if (nativePtrSize == 4) return qformat("{i32, i32, ", typeToLLVM(p), "}");
+      if (nativePtrSize == 4) return qformat("{i32, i32, ", typeToLLVM(p, true), "}");
       fail;
     }
     string mangle() {
@@ -364,11 +364,14 @@ class ArrayMaker : Expr {
     // logln("LEN ", length);
     auto ps = save(lf, ptr);
     auto ls = save(lf, length);
+    auto pv = ptr.valueType();
+    auto from = typeToLLVM(pv), to = typeToLLVM(pv, true);
+    auto ps2 = save(lf, "bitcast ", from, " ", ps, " to ", to);
     if (cap) {
       auto cs = save(lf, cap);
-      formTuple(lf, "i32", cs, "i32", ls, typeToLLVM(ptr.valueType()), ps);
+      formTuple(lf, "i32", cs, "i32", ls, to, ps2);
     } else {
-      formTuple(lf, "i32", ls, typeToLLVM(ptr.valueType()), ps);
+      formTuple(lf, "i32", ls, to, ps2);
     }
   }
 }
@@ -478,7 +481,7 @@ class ArrayExtender : Expr {
       // extract length, ptr
       auto l = save(lf, "extractvalue ", art, " ", ars, ", 0");
       auto p = save(lf, "extractvalue ", art, " ", ars, ", 1");
-      formTuple(lf, "i32", exs, "i32", l, typeToLLVM(fastalloc!(Pointer)(baseType)), p);
+      formTuple(lf, "i32", exs, "i32", l, typeToLLVM(fastalloc!(Pointer)(baseType), true), p);
     }
   }
 }
