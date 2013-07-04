@@ -1,0 +1,63 @@
+module std.lib.archive;
+
+import c.(archive, archive_entry);
+pragma(lib, "archive");
+import std.string, std.hashmap;
+
+defmode archive_read "prefix archive prefix archive_read";
+
+class Archive {
+  ubyte[] data;
+  Hashmap!(string, bool) files;
+  void check(int i) {
+    if (i != ARCHIVE_OK)
+      raise new Error "check failed: $i";
+  }
+  void init(ubyte[] data) {
+    this.data = data;
+    open λ(arch, entry) {
+      auto str = CToString entry.archive_entry_pathname() #.dup;
+      bool dir;
+      if (auto head = str.endsWith "/") { dir = true; str = head; }
+      files.insert(str, dir);
+    }
+  }
+  void list(void delegate(string, bool) dg) {
+    files.iterate dg;
+  }
+  void open(void delegate(void*, void*) dg) {
+    files.clear;
+    using mode archive_read {
+      auto arch = _new();
+      arch._support_filter_all();
+      arch._support_format_all();
+      check arch._open_memory(data.(ptr, length));
+      auto entry = _entry_new();
+      while (arch._next_header2(entry) == ARCHIVE_OK) {
+        dg(arch, entry);
+        arch._data_skip();
+        _entry_clear entry;
+      }
+      entry._entry_free();
+      check arch._free();
+    }
+  }
+  bool exists(string s, bool* isdir) {
+    if (auto v = files.get(s)) { *isdir = *v; return true; }
+    return false;
+  }
+  ubyte[] load(string s) {
+    ubyte[] res;
+    bool hit;
+    open λ(arch, entry) {
+      auto str = CToString entry.archive_entry_pathname();
+      if (str != s) return;
+      import std.stream;
+      scope i = readDg λ(ubyte[] ub) { return arch.archive_read_data ub.(ptr, length); };
+      res = join i;
+      hit = true;
+    }
+    assert hit;
+    return res;
+  }
+}
