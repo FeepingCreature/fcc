@@ -92,7 +92,7 @@ Object gotImport(bool ReturnNamed)(ref string text, ParseCb cont, ParseCb rest) 
     while (test) {
       Namespace[] list = test.getImports();
       foreach (entry; list) if (auto mod = fastcast!(Module) (entry)) {
-        if (mod.name == newmod.name) text.failparse("Duplicate import"[]);
+        if (mod.name == newmod.name) original_text.failparse("Duplicate import"[]);
       }
       bool succeed;
       if (auto ns = fastcast!(Namespace) (test)) if (ns.sup) { test = ns.sup.get!(Importer); succeed = true; }
