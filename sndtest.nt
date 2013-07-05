@@ -27,9 +27,6 @@ void main(string[] args) {
   
   snd.open();
   float delegate(float) dg;
-  float x 12  scale;
-  for int i <- 0..12
-    scale[i] = pow(pow(2, 1/12f), i);
   
   (Note, float)[] notelist;
   void addNoteAt(float start, float freq, float length, bool useSine = false) {
@@ -45,6 +42,7 @@ void main(string[] args) {
   }
   void addNoteAtRef(float* pp, float freq, float len, bool useSine = false) {
     alias pos = *pp;
+    // writeln "$pos: $freq for $len";
     addNoteAt(pos, freq, len, useSine);
     pos += len;
   }
@@ -58,65 +56,109 @@ void main(string[] args) {
   }
   void sortList() { qsort(\((Note, float) a, b) -> a[1] < b[1], notelist); }
   void addTrack(string notes) {
-    float baseFreq = 220;
+    float offs = 0;
+    // With a frequency around 261.626 Hz, middle C is designated C4 
+    float baseFreq = 261.626;
     float len = 0.3705;
     int octaves; // int so it doesn't get fucked up by repeated mul/div
-    float lenf = 1;
-    float offs = 0;
-    alias state = (baseFreq, len, lenf, offs);
-    type-of state[] stack;
-    char lastChar; bool lastSharp;
+    int lenscale = 4;
     bool useSine;
-    while notes.length {
-      if auto rest = notes.startsWith "len=" {
-        (string lenstr, notes) = rest.slice ";";
-        len = lenstr.atof();
-      }
-      if auto rest = notes.startsWith "in=" {
-        (string instr, notes) = rest.slice ";";
-        useSine = eval instr == "sine";
-      }
-      (char cur, notes) = notes[(0, 1..$)];
-      bool sharp;
-      if notes.length && notes[0] == "#" {
-        sharp = true;
-      }
-      if cur == "."[0] { lenf *= 0.5; }
-      else {
-        auto l = len * (2 - lenf);
-        void handleChar(char ch) {
-          for auto tup <- [("c", 0), ("d", 2), ("e", 4), ("f", 5), ("g", 7), ("a", 9), ("b", 10), ("h", 11)]
-            if ch == tup[0][0] addNoteAtRef(&offs, baseFreq * scale[(tup[1] + sharp)%$], l, useSine);
-          if      ch == "_" offs += l;
-          else if ch == ">" octaves ++;
-          else if ch == "<" octaves --;
-          else if ch == "+" len *= 2;
-          else if ch == "-" len /= 2;
-          else if ch == "[" stack ~= (baseFreq, len, lenf, offs);
-          else if ch == "]" stack = stack[0 .. $-1];
-          else if ch == "," (baseFreq, len, lenf, offs) = stack[$-1];
-        }
-        if (cur >= "0" && cur <= "9") {
-          int num = cur - "0";
-          while notes.length && notes[0] >= "0" && notes[0] <= "9" {
-            num = num * 10 + (notes[0] - "0");
-            notes = notes[1 .. $];
-          }
-          for 0..(num - 1) {
-            sharp = lastSharp;
-            handleChar lastChar;
-            sharp = false;
-          }
-        } else handleChar cur;
-        lastChar = cur; lastSharp = sharp;
-        lenf = 1;
-        baseFreq = 220 * pow(2, octaves);
-      }
-      if sharp notes = notes[1 .. $];
+    int note;
+    float note-len;
+    bool note-set;
+    bool note-sharp, note-flat;
+    int note-octave;
+    void resetNote() {
+      note-set = false;
+      note-len = 1f/lenscale;
+      note-sharp = false;
+      note-flat = false;
+      note-octave = octaves;
     }
+    float x 14 scale;
+    for int i <- 0..14
+      scale[i] = pow(pow(2, 1/12f), i - 1);
+    void flushNote() {
+      if (!note-set) return;
+      if (note == -1) {
+        offs += note-len;
+      } else {
+        // writeln "add $baseFreq * 2^$(note-octave) = $(pow(2, note-octave)) * 12root2 ^ $(note + note-sharp - note-flat) = $(scale[note+note-sharp-note-flat+1]) for $note-len";
+        addNoteAtRef(&offs, baseFreq * pow(2, note-octave) * scale[note + note-sharp - note-flat + 1], note-len, useSine);
+      }
+      resetNote;
+    }
+    resetNote;
+    while true {
+      notes.strip;
+      if (!notes.length) break;
+      if auto rest = notes.startsWith "t" {
+        (string tempo, notes) = rest.slice " ";
+        len = (60 / tempo.atof()) / 4;
+        continue;
+      }
+      if auto rest = notes.startsWith "l" {
+        (string len, notes) = rest.slice " ";
+        lenscale = len.atoi();
+        continue;
+      }
+      if auto rest = notes.startsWith "o" {
+        (string oct, notes) = rest.slice " ";
+        octaves = oct.atoi() - 4;
+        continue;
+      }
+      bool hit;
+      for auto tup <- [("r", -1), ("c", 0), ("d", 2), ("e", 4), ("f", 5), ("g", 7), ("a", 9), ("b", 10), ("h", 11)] {
+        if auto rest = notes.startsWith tup[0] {
+          notes = rest;
+          flushNote;
+          note = tup[1];
+          note-set = true;
+          note-octave = octaves;
+          hit = true;
+        }
+      }
+      if (hit) continue;
+      alias notes-start-with-digit = notes[0] >= "0" && notes[0] <= "9";
+      if (notes-start-with-digit) {
+        int num = notes[0] - "0";
+        notes = notes[1..$];
+        
+        while notes.length && notes-start-with-digit {
+          num = num * 10 + (notes[0] - "0");
+          notes = notes[1..$];
+        }
+        note-len = 1f / num;
+        continue;
+      }
+      auto cur = notes[0];
+      notes = notes[1..$];
+      if (cur == ".") {
+        note-len *= 1.5;
+        continue;
+      }
+      if (cur == "#" || cur == "+") {
+        note-sharp = true;
+        continue;
+      }
+      if (cur == "-") {
+        note-flat = true;
+        continue;
+      }
+      if (cur == ">") {
+        octaves ++;
+        continue;
+      }
+      if (cur == "<") {
+        octaves --;
+        continue;
+      }
+      if (cur == " ") continue;
+      writeln "unknown cmd '$cur' at $notes";
+      exit(1);
+    }
+    flushNote;
   }
-  // addTrack "<a>e<h>ec-de+dg-aeh>c<h->c<h+agegde+.c<-h+ a>e<h>ec-de+dg-aeh>c<h->c<h+ag++a";
-  // addTrack "<+fgaefgaefgaefg+a";
   void addMidiTrack(string fn) using fn.readAll() {
     void step(int i) {
       that = that[i .. $];
