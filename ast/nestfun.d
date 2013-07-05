@@ -102,7 +102,7 @@ class NestedFunction : Function {
         fixupEBP(itr, ebp);
         fun2 = fastcast!(Function) (itr);
       }
-      _res = new OverloadSet(set.name, funs2);
+      return new OverloadSet(set.name, funs2);
     }
     if (!_res) {
       _res = lookupInImports(name, local);
