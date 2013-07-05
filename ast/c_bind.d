@@ -191,8 +191,9 @@ src_cleanup_redo: // count, then copy
   void flushBuffer() { foreach (def; buffer) { addSrc(def); addSrc(";"); } delete buffer; buffer = null; }
   while (src.length) {
     string line;
-    void advance() { line = src.slice("\n"[]).chomp(); }
+    void advance() { line = src.slice("\n"[]).mystripl(); }
     advance;
+    // logln("-- ", inEnum, " ", line);
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
     if (line.startsWith("}")) { inEnum = false; addSrc(line); flushBuffer; continue; }
@@ -529,6 +530,7 @@ src_cleanup_redo: // count, then copy
   while (statements.length) {
     auto stmt = statements.take(), start = stmt;
     // logln(filename, "> ", stmt);
+    useStdcall = false;
     stmt.accept("__extension__");
     if (stmt.accept("#define")) {
       if (stmt.accept("__")) continue; // internal
