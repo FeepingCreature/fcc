@@ -14,7 +14,11 @@ Searches for a substring.
 Returns: a value that casts to true if result was found, and to int to give the position where it was found.*/
 FindResult find(string text, string match) {
   for (int i = 0; i <= text.length - match.length; ++i) {
-    if (text[i .. i+match.length] == match) return FindResult:i;
+    // not worth to call glibc so often
+    // if (text[i .. i+match.length] == match) return FindResult:i;
+    for (int k = 0; k < match.length; ++k) {
+      if (text.ptr[i+k] != match.ptr[k]) break;
+    } then return FindResult:i;
   }
   return FindResult:-1;
 }
@@ -23,7 +27,11 @@ FindResult find(string text, string match) {
 Like find, but searches from the back*/
 FindResult rfind(string text, string match) {
   for (int i = text.length - match.length; i >= 0; --i) {
-    if (text[i .. i+match.length] == match) return FindResult:i;
+    // not worth to call glibc so often
+    // if (text[i .. i+match.length] == match) return FindResult:i;
+    for (int k = 0; k < match.length; ++k) {
+      if (text.ptr[i+k] != match.ptr[k]) break;
+    } then return FindResult:i;
   }
   return FindResult:-1;
 }

@@ -977,7 +977,6 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       }
     }
     void _add(string name, Object obj) {
-      assert(!finalized, "Adding "~name~" to already-finalized class. "[]);
       if (auto fun = fastcast!(Function) (obj)) fun.sup = this;
       if (auto rf = fastcast!(RelFunction) (obj)) {
         if (abstractFunctionState)
@@ -995,6 +994,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
           myfuns.funs ~= rf;
         }
       } else {
+        assert(!finalized, "Adding "~name~" to already-finalized class. "[]);
         data._add(name, obj);
       }
     }

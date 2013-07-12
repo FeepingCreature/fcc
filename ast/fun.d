@@ -254,7 +254,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     }
     if (tree) fastcast!(Scope)(tree).addStatement(stmt);
     else addStatement(stmt);
-    opt(tree);
+    // opt(tree); // maybe don't need to do. maybe never need to do.
     
     if (!type.ret)
       type.ret = Single!(Void); // implicit return

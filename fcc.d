@@ -275,6 +275,9 @@ pptype prettyprint_rec(Iterable itr) {
   if (auto ea = fastcast!(ExprAlias)(itr)) {
     return stuple(ea.name, true);
   }
+  if (auto sae = fastcast!(StatementAndExpr)(itr)) {
+    return stuple(qformat("{", sae.first, sae.second, "}"), false);
+  }
   return stuple(qformat("TODO ", fastcast!(Object)(itr).classinfo.name, " ", itr), false);
 }
 

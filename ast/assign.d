@@ -69,7 +69,8 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
     
     auto bexup = ex;
     bool thereWereAssignables;
-    opt(ex);
+    // don't comment in without documenting why!
+    // opt(ex);
     if (!gotImplicitCast(ex, value.valueType(), (Expr ex) {
       if (!fastcast!(LValue) (ex) && !fastcast!(MValue) (ex))
         return false;
