@@ -26,23 +26,81 @@ void error(string s) { raise new WrenError s; }
 
 interface Thing;
 
+class Context {
+  Context sup;
+  Thing[] things;
+  string toString() {
+    if (!sup) return "$things";
+    return "$things <- $sup";
+  }
+}
+
+interface Thing {
+  Thing eval(Context);
+  string toString();
+}
+
+abstract class Primitive : Thing {
+  Thing eval(Context) { return this; }
+}
+
+interface Assignable {
+  void assign(Context, Thing newval);
+}
+
+// allows us to track per-lambda stackframe size in the resolve phase
+// so we can allocate the context slots
+class ContextStats {
+  int depth, max-depth;
+  Slot alloc() {
+    auto res = new Slot(index => depth, 0);
+    depth ++;
+    if (depth > max-depth) max-depth = depth;
+    return res;
+  }
+  void free(Slot s) {
+    depth --;
+    if (s.index != depth) raise new Error "Slots must be freed in order of allocation: tried to free $(s.index) but we're at $depth";
+  }
+}
+
+interface Operator {
+  Thing resolve(Thing[] args, ContextStats stats, Thing delegate(string), Thing delegate(Thing, ContextStats, Thing delegate(string)) recurse);
+  Thing call(Thing[] args, Context ct);
+}
+
+class Slot : Thing, Assignable {
+  // frame recursion depth, frame field index
+  int depth, index;
+  void init(int depth, index) this.(depth, index) = (depth, index);
+  Thing read(Context c) {
+    int d = depth;
+    while (d--) c = c.sup;
+    // if (index >= c.things.length) _interrupt 3;
+    return c.things[index];
+  }
+  void write(Context c, Thing t) {
+    int d = depth;
+    while (d--) c = c.sup;
+    c.things[index] = t;
+  }
+  override {
+    string toString() { return "[$depth:$index]"; }
+    Thing eval(Context c) { return read(c); }
+    void assign(Context c, Thing newval) { write(c, newval); }
+  }
+}
+
 interface Namespace {
   Thing lookup(string match);
   void iterate(void delegate(string, Thing) dg);
 }
 
-interface Thing {
-  Thing eval(Namespace);
-  string toString();
-}
-
 class Token : Thing {
   string name;
   void init(string s) name = s;
-  Thing eval(Namespace ns) {
-    auto res = ns.lookup name;
-    if (!res) error "Cannot evaluate $this: no $name found in $ns";
-    return res;
+  Thing eval(Context) {
+    error "Unresolved Token:'$name'";
   }
   string toString() { return "$name"; }
 }
@@ -50,36 +108,32 @@ class Token : Thing {
 class Number : Thing {
   float num;
   void init(float f) num = f;
-  Thing eval(Namespace) { return number-eval?this:this; } // trap for C coders
+  Thing eval(Context) { return number-eval?this:this; } // trap for C coders
   string toString() { return "$num"; }
 }
 Thing delegate(Number) number-eval;
 
-class Integer : Thing {
+class Integer : Primitive {
   int num;
   void init(int i) num = i;
-  Thing eval(Namespace) { return this; }
   string toString() { return "$num"; }
 }
 
-class Vec2f : Thing {
+class Vec2f : Primitive {
   vec2f value;
   void init(vec2f v) value = v;
-  Thing eval(Namespace) { return this; }
   string toString() { return "vec2f($(value.x), $(value.y))"; }
 }
 
-class Vec3f : Thing {
+class Vec3f : Primitive {
   vec3f value;
   void init(vec3f v) value = v;
-  Thing eval(Namespace) { return this; }
   string toString() { return "vec3f($(value.x), $(value.y), $(value.z))"; }
 }
 
-class Vec4f : Thing {
+class Vec4f : Primitive {
   vec4f value;
   void init(vec4f v) value = v;
-  Thing eval(Namespace) { return this; }
   string toString() { return "vec4f($(value.x), $(value.y), $(value.z), $(value.w))"; }
 }
 
@@ -89,19 +143,14 @@ interface IArray : Thing {
   IArray concat(IArray);
 }
 
-interface Assignable {
-  void assign(Thing newval);
-}
-
 interface WrenObject {
   Thing lookup(string name);
 }
 
 template Array(T) {
-  class Array : Thing, IArray {
+  class Array : Primitive, IArray {
     T[] value;
     void init(T[] t) { value = t; }
-    Thing eval(Namespace ns) { return this; } // value type
     Thing getIndex(int i) {
       return neat-to-wren value[i];
     }
@@ -144,8 +193,8 @@ template Reference(T) {
   class Reference : Thing, Assignable {
     T* ptr;
     void init(T* t) { ptr = t; }
-    Thing eval(Namespace) { return neat-to-wren *ptr; }
-    void assign(Thing newval) {
+    Thing eval(Context) { return neat-to-wren *ptr; }
+    void assign(Context c, Thing newval) {
       *ptr = wren-to-neat!T newval;
     }
     string toString() { return "&$(*ptr)"; }
@@ -324,7 +373,7 @@ template wren-to-neat(T) {
         } else {
           neatargs ~= neat-to-wren p;
         }
-        auto res = fn.call (neatargs[], scripts);
+        auto res = fn.call (neatargs[], null);
         return (.wren-to-neat!Ret) res;
       }
       alias match-found = true;
@@ -335,74 +384,63 @@ template wren-to-neat(T) {
   }
 }
 
-class ObjectThing : Thing {
+class ObjectThing : Primitive {
   Object obj;
   void init(Object obj) { this.obj = obj; if (!obj) error "Tried to make null ObjectThing"; }
-  Thing eval(Namespace) { return this; }
   string toString() { return "$obj"; }
-}
-
-interface Operator {
-  Thing call(Thing[] args, Namespace ns);
-  /**
-    is called with rest of list, unevaluated
-    calls back all things that may be evalled later
-    provided callback can be invoked for any name to get a "marker" indicating the origin of the name
-    markers shall be identical for names that resolve to the same thing, or null for names not overridden.
-  **/
-  void boundnames(Thing[] args, Thing delegate(Thing, Object delegate(string)) dg);
 }
 
 class Function : Thing, Operator {
   string info;
   Thing delegate(Thing[]) fn;
-  Thing delegate(Thing[], Namespace) fn2;
+  Thing delegate(Thing[], Context) fn2;
   void init(string s, Thing delegate(Thing[]) dg) (info, fn) = (s, dg);
-  void init(string s, Thing delegate(Thing[], Namespace) dg) (info, fn2) = (s, dg);
-  void boundnames(Thing[] args, Thing delegate(Thing, Object delegate(string)) dg) {
-    // (<fun> args) does not affect the lexical evaluation of args at all
-    for ref arg <- args
-      arg = dg(arg, λ(string s) { return Object:null; });
+  void init(string s, Thing delegate(Thing[], Context) dg) (info, fn2) = (s, dg);
+  override {
+    // no-op because pure functions don't modify the environment of their args
+    Thing resolve(Thing[] args, ContextStats stats, Thing delegate(string) lookup,
+                  Thing delegate(Thing, ContextStats, Thing delegate(string)) recurse) {
+      Thing[auto~] resolvedArgs;
+      for auto arg <- args
+        resolvedArgs ~= recurse(arg, stats, lookup);
+      return new List(Thing[]:null ~ this ~ resolvedArgs[]);
+    }
+    Thing eval(Context) {
+      error "Cannot evaluate $this";
+    }
+    string toString() { return "{$info}"; }
   }
-  Thing call(Thing[] list, Namespace ns) {
+  Thing call(Thing[] list, Context c) {
     // onFailure writeln "while calling $info";
-    scope Thing[auto~] args;
+    scope Thing[auto~] trueArgs;
     for auto thing <- list
-      args ~= thing.eval ns;
-    return direct-call(args[], ns);
+      trueArgs ~= thing.eval c;
+    return direct-call(trueArgs[], c);
   }
   // call without evaluating
-  Thing direct-call(Thing[] args, Namespace ns) {
-    if (fn2) return fn2 (args[], ns);
+  Thing direct-call(Thing[] args, Context c) {
+    if (fn2) return fn2 (args[], c);
     else return fn args[];
   }
-  Thing eval(Namespace) {
-    error "Cannot evaluate $this";
-  }
-  string toString() { return "{$info}"; }
 }
 
 class Escape : Thing {
   Thing inside;
   void init(Thing t) inside = t;
-  Thing eval(Namespace) { return inside; }
+  Thing eval(Context) { return inside; }
   string toString() { return "'$inside"; }
 }
 
 class List : Thing {
   Thing[] list;
   void init(Thing[] l) { list = l; }
-  Thing eval(Namespace ns) {
+  Thing eval(Context c) {
     if !list.length error "Cannot evaluate $this: list empty";
     // writeln "Evaluate $this";
-    auto op = Operator: auto first = list[0].eval(ns);
-    if !op error "Cannot evaluate $this: first entry is not an operator (function), but $(first?.toString():\"null\")";
-    {
-      auto tok = Token:list[0];
-      if (!Function:op && !tok)
-        error "Sanity failure in $this: first entry is not token, but does not resolve to function; instead, $op. This breaks no-rebinding-operators.";
-    }
-    return op.call (list[1..$], ns);
+    auto op = Operator: list[0];
+    if (!op) op = Operator: Function: list[0].eval c;
+    if !op error "Cannot evaluate $this: first entry is not an operator (function), but $(list[0]?.toString():\"null\")";
+    return op.call (list[1..$], c);
   }
   string toString() {
     char[auto~] res;
@@ -420,10 +458,10 @@ class IntValue : Thing, Assignable {
   int* target;
   void init(int* ip) target = ip;
   string toString() { return "<ref $(*target)>"; }
-  Thing eval(Namespace ns) {
+  Thing eval(Context c) {
     return new Number(*target);
   }
-  void assign(Thing t) {
+  void assign(Context c, Thing t) {
     auto n = Number:t;
     if !n error "Cannot assign: $t is not a number";
     *target = int: n.num;
@@ -434,10 +472,10 @@ class FloatValue : Thing, Assignable {
   float* target;
   void init(float* fp) target = fp;
   string toString() { return "<ref $(*target)>"; }
-  Thing eval(Namespace ns) {
+  Thing eval(Context c) {
     return new Number(*target);
   }
-  void assign(Thing t) {
+  void assign(Context c, Thing t) {
     auto n = Number:t;
     if !n error "Cannot assign: $t is not a number";
     *target = float: n.num;
@@ -448,7 +486,7 @@ class ObjectValue : Thing {
   Object* target;
   void init(Object* op) target = op;
   string toString() { return "<ref $(*target)>"; }
-  Thing eval(Namespace ns) {
+  Thing eval(Context c) {
     return new String "$(*target)";
   }
 }
@@ -457,7 +495,7 @@ class DataArray : Thing {
   (int, void*)* target;
   void init((int, void*)* ap) target = ap;
   string toString() { return "<data-array $(*target#[0]): $(*target#[1])>"; }
-  Thing eval(Namespace ns) {
+  Thing eval(Context c) {
     error "Cannot evaluate data-array";
   }
 }
@@ -576,6 +614,36 @@ class ListNamespace : Namespace {
     for auto pair <- list
       dg pair[(1, 0)];
   }
+}
+
+Thing resolve(Thing t, Namespace ns, ContextStats cs = null) {
+  // Thing resolve(Thing[] args, ContextStats, Thing delegate(string), Thing delegate(Thing, ContextStats, Thing delegate(string)) recurse);
+  Thing recurse(Thing t, ContextStats cs, Thing delegate(string) lookup) {
+    if (auto tok = Token: t) {
+      auto res = lookup(tok.name);
+      if (!res) error "Couldn't resolve '$(tok.name)'";
+      if (Primitive:res || Slot:res || Operator:res) return res; // not necessary to escape
+      return new Escape res; // instead of Token -> Thing, do [Thing] -> Thing
+    }
+    if ((auto list = List: t) && list.list.length) {
+      auto op = Operator: auto rec = recurse(list.list[0], cs, lookup);
+      // if (!op) error "First element of list was not an operator: $t to $rec";
+      if (op) return op.resolve(list.list[1..$], cs, lookup, &recurse);
+      // if it's not an op, assume it's a function
+      return new List $ [rec] ~ [for l <- list.list[1..$]: recurse(l, cs, lookup)].eval[];
+    }
+    return t;
+  }
+  return recurse(t, cs, &ns.lookup);
+}
+
+Thing evalme(Thing t, Namespace ns) {
+  scope cs = new ContextStats;
+  auto t2 = resolve(t, ns, cs);
+  scope confield = new Thing[] cs.max-depth;
+  scope con = new Context;
+  con.things = confield;
+  return t2.eval(con);
 }
 
 ListNamespace scripts; // default namespace
