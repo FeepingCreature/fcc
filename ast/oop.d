@@ -16,12 +16,12 @@ import tools.functional: map;
   Abstract classes can not be allocated.
  */
 
-string datatollvm(LLVMFile lf, string ident, ubyte[] s) {
-  return qformat("bitcast([", s.length, " x i8]* @", allocConstant(lf, ident, cast(ubyte[]) s, true), " to i8*)");
+string datatollvm(LLVMFile lf, string ident, ubyte[] s, bool weak = false) {
+  return qformat("bitcast([", s.length, " x i8]* @", allocConstant(lf, ident, cast(ubyte[]) s, true, weak), " to i8*)");
 }
 
-string datatollvm(LLVMFile lf, string ident, string[] arr) {
-  return qformat("bitcast([", arr.length, " x i32]* @", allocLongstant(lf, ident, arr, true), " to i8*)");
+string datatollvm(LLVMFile lf, string ident, string[] arr, bool weak = false) {
+  return qformat("bitcast([", arr.length, " x i32]* @", allocLongstant(lf, ident, arr, true, weak), " to i8*)");
 }
 
 struct RelFunSet {
@@ -209,7 +209,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   mixin DefaultDup!();
   mixin defaultIterate!();
   override {
-    void emitLLVM(LLVMFile lf) { }
+    void emitLLVM(LLVMFile lf) { getIntfinfoDataPtr(lf); /* generate data ptr */ }
     string llvmSize() { assert(false); }
     string llvmType() { assert(false); }
     bool isTempNamespace() { return false; }
@@ -291,7 +291,10 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
       res ~= qformat(pp.length);
       res ~= qformat("ptrtoint(i8* ", datatollvm(lf, prefix~"_parents", pp), " to i32)");
     }
-    return qformat("ptrtoint(i8* ", datatollvm(lf, prefix~"_intfinfo", res), " to i32)");
+    return qformat("ptrtoint(i8* ", datatollvm(lf, prefix~"_intfinfo", res, true), " to i32)");
+  }
+  Expr if_info() {
+    return fastalloc!(ClassInfoThing)(qformat("bitcast ([4 x i32]* @", mangle_id, "_intfinfo", " to i8*)"), this);
   }
   import ast.index;
   Object lookupIntf(string name, Expr intp) {
@@ -459,6 +462,22 @@ class SuperType : IType, RelNamespace {
   }
 }
 
+class ClassInfoThing : Expr {
+  Tree dep;
+  LLVMValue val;
+  mixin defaultIterate!(val);
+  this(string str, Tree dep) { val = fastalloc!(LLVMValue)(str, voidp); this.dep = dep; }
+  this(LLVMValue val, Tree dep) { this.val = val; this.dep = dep; }
+  override {
+    ClassInfoThing dup() { return fastalloc!(ClassInfoThing)(val.dup, dep); }
+    IType valueType() { return voidp; }
+    void emitLLVM(LLVMFile lf) {
+      dep.emitLLVM(lf);
+      val.emitLLVM(lf);
+    }
+  }
+}
+
 import ast.modules, ast.returns, ast.scopes, ast.stringparse;
 class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   VTable myfuns;
@@ -473,6 +492,11 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   // they count as abstract even when they have an implementation.
   // This allows default implementations that can be called via super.
   bool abstractFunctionState;
+  // final classes can not be inherited
+  // this allows us to optimize on the assumption that a reference to this class
+  // has static-known classinfo, for instance, cast to final and method
+  // call on final
+  bool finalClass;
   override {
     bool immutableNow() { return data.immutableNow(); }
     bool isPacked() { return data.isPacked(); }
@@ -782,7 +806,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       New(rf.type);
       rf.name = "dynamicCastTo";
       rf.type.ret = voidp;
-      rf.type.params ~= Argument(Single!(Array, Single!(Char)), "id"[]);
+      rf.type.params ~= Argument(voidp, "id"[]);
       rf.sup = this;
       (fastcast!(IsMangled) (rf)).markWeak();
       add(rf);
@@ -800,21 +824,20 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       assert(!!streq);
       void handleIntf(Intf intf) {
         // logln(name, ": offset for intf "[], intf.name, ": "[], intf_offset);
-        as.stmts ~= iparse!(Statement, "cast_branch_intf"[], "tree.stmt"[])(`if (streq(id, _test)) return void*:(void**:this + offs);`[],
-          namespace(), "_test"[], mkString(intf.mangle_id), "offs"[], llvmval(intf_offset)
+        as.stmts ~= iparse!(Statement, "cast_branch_intf"[], "tree.stmt"[])(`if (id is _test) return void*:(void**:this + offs);`[],
+          namespace(), "_test"[], intf.if_info(), "offs"[], llvmval(intf_offset)
         );
         if (intf.parents) foreach (ip; intf.parents) handleIntf(ip);
         else intf_offset = lladd(intf_offset, "1");
       }
       void handleClass(Class cl) {
         as.stmts ~= fastcast!(Statement) (runTenthPure((void delegate(string,Object) dg) {
-          dg("id"[], rf.lookup("id"[]));
+          dg("id"[], fastcast!(Object)(reinterpret_cast(Single!(SysInt), fastcast!(Expr)(rf.lookup("id"[])))));
           dg("this"[], rf.lookup("this"[]));
-          dg("_test"[], fastcast!(Object) (mkString(cl.mangle_id)));
-          dg("streq"[], sysmod.lookup("streq"[]));
+          dg("_test"[], fastcast!(Object)(reinterpret_cast(Single!(SysInt), cl.cd_info())));
         }, parseTenth(`
           (make-if
-            (make-exprwrap (make-call streq (make-tuple-expr (list id _test))))
+            (make-equal id _test)
             '(make-return (reinterpret-cast (pointer-to (basic-type 'void)) this)))
         `)));
         if (cl.parent) handleClass(cl.parent);
@@ -956,6 +979,9 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   }
   string vt_name() { return "vtable_"~mangle(); }
   string cd_name() { return "classdata_"~mangle(); }
+  Expr cd_info() {
+    return fastalloc!(ClassInfoThing)("@" ~ cd_name(), this);
+  }
   override {
     IType getRefType() {
       return fastalloc!(ClassRef)(this);
@@ -968,8 +994,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
         lf.undecls[cd] = true;
         auto ci = getClassinfo(lf), cda = getClassinfoData(lf);
         string flags;
-        // if (weak)
-          flags ~= "weak_odr ";
+        flags ~= "weak_odr ";
         putSection(lf, "module", "@", name, ".full = "~flags~"global ", toLLVMArray(-1, ci));
         putSection(lf, "module", "@", cd  , ".full = "~flags~"global ", toLLVMArray(-1, cda));
         putSection(lf, "module", "@", name, " = alias "~flags~"i8* bitcast([", ci.length, " x i8*]* @", name, ".full to i8*)");
@@ -1150,7 +1175,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
   }
 }
 
-ClassRef parseClassBody(ref string text, ParseCb cont, ParseCb rest, string name, bool hadAbstract = false) {
+ClassRef parseClassBody(ref string text, ParseCb cont, ParseCb rest, string name, bool hadAbstract = false, bool hadFinal = false) {
   auto t2 = text;
   auto t3 = t2;
   string sup;
@@ -1168,8 +1193,10 @@ ClassRef parseClassBody(ref string text, ParseCb cont, ParseCb rest, string name
         if (!cr && !ir) throw new Exception("Cannot inherit from "~sup~": not a class or interface. "[]);
         if (ir) supints ~= ir.myIntf;
         else {
-          if (ir) t3.failparse("Class must come first in inheritance spec"[]);
+          if (supints) t3.failparse("Class must come first in inheritance spec"[]);
           if (supclass) t3.failparse("Multiple inheritance is not supported"[]);
+          if (cr.myClass.finalClass)
+            t3.failparse("Cannot inherit from final class"[]);
           supclass = cr.myClass;
         }
       },
@@ -1177,6 +1204,7 @@ ClassRef parseClassBody(ref string text, ParseCb cont, ParseCb rest, string name
   )) t3.failparse("Invalid inheritance spec"[]);
   New(cl, name, supclass);
   cl.declared_abstract = hadAbstract;
+  cl.finalClass = hadFinal;
   cl.iparents = supints;
   
   auto classref = fastcast!(ClassRef) (cl.getRefType());
@@ -1198,11 +1226,21 @@ ClassRef parseClassBody(ref string text, ParseCb cont, ParseCb rest, string name
 Object gotClassDef(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   string name;
-  bool isabstract;
-  if (t2.accept("abstract"[])) isabstract = true;
+  bool isabstract, isfinal;
+  while (true) {
+    if (t2.accept("abstract"[])) {
+      isabstract = true;
+      continue;
+    }
+    if (t2.accept("final"[])) {
+      isfinal = true;
+      continue;
+    }
+    break;
+  }
   if (!t2.accept("class"[])) return null;
   if (!t2.gotIdentifier(name)) return null;
-  if (auto res = parseClassBody(t2, cont, rest, name, isabstract)) {
+  if (auto res = parseClassBody(t2, cont, rest, name, isabstract, isfinal)) {
     text = t2;
     return res;
   }
@@ -1361,16 +1399,23 @@ static this() {
       return fastcast!(ClassRef) (resolveType(it)) || fastcast!(IntfRef) (resolveType(it));
     }))
       return null;
-    string dest_id;
-    if (auto cr = fastcast!(ClassRef) (resolveType(dest))) dest_id = cr.myClass.mangle_id;
-    else dest_id = (fastcast!(IntfRef) (resolveType(dest))).myIntf.mangle_id;
+    Expr dest_id;
+    dest = resolveType(dest);
+    if (auto cr = fastcast!(ClassRef) (dest)) dest_id = cr.myClass.cd_info();
+    else dest_id = (fastcast!(IntfRef) (dest)).myIntf.if_info();
     
     bool isIntf;
     if (fastcast!(IntfRef) (resolveType(ex.valueType()))) isIntf = true;
     ex = reinterpret_cast(voidp, ex);
+    if (auto cr = fastcast!(ClassRef) (dest)) if (cr.myClass.finalClass) {
+      return iparse!(Expr, "cast_call"[], "tree.expr"[])
+        ("Dest:_fcc_dynamic_cast_to_final(ex, id, isIntf)"[],
+          "ex"[], ex, "Dest"[], dest, "id"[], dest_id, "isIntf"[], mkInt(isIntf)
+        );
+    }
     return iparse!(Expr, "cast_call"[], "tree.expr"[])
       ("Dest:_fcc_dynamic_cast(ex, id, isIntf)"[],
-        "ex"[], ex, "Dest"[], dest, "id"[], mkString(dest_id), "isIntf"[], mkInt(isIntf)
+        "ex"[], ex, "Dest"[], dest, "id"[], dest_id, "isIntf"[], mkInt(isIntf)
       );
   };
 }

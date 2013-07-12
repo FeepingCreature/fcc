@@ -76,16 +76,17 @@ class Slot : Thing, Assignable {
   Thing read(Context c) {
     int d = depth;
     while (d--) c = c.sup;
-    // if (index >= c.things.length) _interrupt 3;
-    return c.things[index];
+    if (index >= c.things.length) fail;
+    return c.things.ptr[index];
   }
   void write(Context c, Thing t) {
     int d = depth;
     while (d--) c = c.sup;
-    c.things[index] = t;
+    if (index >= c.things.length) fail;
+    c.things.ptr[index] = t;
   }
   override {
-    string toString() { return "[$depth:$index]"; }
+    string toString() { return "λ$depth,$index"; }
     Thing eval(Context c) { return read(c); }
     void assign(Context c, Thing newval) { write(c, newval); }
   }
@@ -105,7 +106,7 @@ class Token : Thing {
   string toString() { return "$name"; }
 }
 
-class Number : Thing {
+final class Number : Thing {
   float num;
   void init(float f) num = f;
   Thing eval(Context) { return number-eval?this:this; } // trap for C coders
@@ -113,25 +114,25 @@ class Number : Thing {
 }
 Thing delegate(Number) number-eval;
 
-class Integer : Primitive {
+final class Integer : Primitive {
   int num;
   void init(int i) num = i;
   string toString() { return "$num"; }
 }
 
-class Vec2f : Primitive {
+final class Vec2f : Primitive {
   vec2f value;
   void init(vec2f v) value = v;
   string toString() { return "vec2f($(value.x), $(value.y))"; }
 }
 
-class Vec3f : Primitive {
+final class Vec3f : Primitive {
   vec3f value;
   void init(vec3f v) value = v;
   string toString() { return "vec3f($(value.x), $(value.y), $(value.z))"; }
 }
 
-class Vec4f : Primitive {
+final class Vec4f : Primitive {
   vec4f value;
   void init(vec4f v) value = v;
   string toString() { return "vec4f($(value.x), $(value.y), $(value.z), $(value.w))"; }
@@ -148,7 +149,7 @@ interface WrenObject {
 }
 
 template Array(T) {
-  class Array : Primitive, IArray {
+  final class Array : Primitive, IArray {
     T[] value;
     void init(T[] t) { value = t; }
     Thing getIndex(int i) {
@@ -384,13 +385,13 @@ template wren-to-neat(T) {
   }
 }
 
-class ObjectThing : Primitive {
+final class ObjectThing : Primitive {
   Object obj;
   void init(Object obj) { this.obj = obj; if (!obj) error "Tried to make null ObjectThing"; }
   string toString() { return "$obj"; }
 }
 
-class Function : Thing, Operator {
+final class Function : Thing, Operator {
   string info;
   Thing delegate(Thing[]) fn;
   Thing delegate(Thing[], Context) fn2;
@@ -408,13 +409,13 @@ class Function : Thing, Operator {
     Thing eval(Context) {
       error "Cannot evaluate $this";
     }
-    string toString() { return "{$info}"; }
+    string toString() { return "<$info>"; }
   }
   Thing call(Thing[] list, Context c) {
     // onFailure writeln "while calling $info";
-    scope Thing[auto~] trueArgs;
-    for auto thing <- list
-      trueArgs ~= thing.eval c;
+    scope trueArgs = new Thing[] list.length;
+    for auto thing <- list && ref arg <- trueArgs
+      arg = thing.eval c;
     return direct-call(trueArgs[], c);
   }
   // call without evaluating
@@ -424,21 +425,22 @@ class Function : Thing, Operator {
   }
 }
 
-class Escape : Thing {
+final class Escape : Thing {
   Thing inside;
   void init(Thing t) inside = t;
   Thing eval(Context) { return inside; }
   string toString() { return "'$inside"; }
 }
 
-class List : Thing {
+final class List : Thing {
   Thing[] list;
-  void init(Thing[] l) { list = l; }
+  Operator opcache;
+  void init(Thing[] l) { list = l; if (l.length) opcache = Operator: l[0]; }
   Thing eval(Context c) {
     if !list.length error "Cannot evaluate $this: list empty";
     // writeln "Evaluate $this";
-    auto op = Operator: list[0];
-    if (!op) op = Operator: Function: list[0].eval c;
+    auto op = opcache;
+    if (!op) op = Operator: Function: list.ptr[0].eval c;
     if !op error "Cannot evaluate $this: first entry is not an operator (function), but $(list[0]?.toString():\"null\")";
     return op.call (list[1..$], c);
   }
@@ -454,7 +456,7 @@ class List : Thing {
   }
 }
 
-class IntValue : Thing, Assignable {
+final class IntValue : Thing, Assignable {
   int* target;
   void init(int* ip) target = ip;
   string toString() { return "<ref $(*target)>"; }
@@ -468,7 +470,7 @@ class IntValue : Thing, Assignable {
   }
 }
 
-class FloatValue : Thing, Assignable {
+final class FloatValue : Thing, Assignable {
   float* target;
   void init(float* fp) target = fp;
   string toString() { return "<ref $(*target)>"; }
@@ -482,7 +484,7 @@ class FloatValue : Thing, Assignable {
   }
 }
 
-class ObjectValue : Thing {
+final class ObjectValue : Thing {
   Object* target;
   void init(Object* op) target = op;
   string toString() { return "<ref $(*target)>"; }
@@ -491,7 +493,7 @@ class ObjectValue : Thing {
   }
 }
 
-class DataArray : Thing {
+final class DataArray : Thing {
   (int, void*)* target;
   void init((int, void*)* ap) target = ap;
   string toString() { return "<data-array $(*target#[0]): $(*target#[1])>"; }

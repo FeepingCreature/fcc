@@ -76,7 +76,7 @@ Object gotClassId(ref string text, ParseCb cont, ParseCb rest) {
   if (ir) it = ir.myIntf;
   if (!cl && !it) return null;
   text = t2;
-  return fastcast!(Object)~ mkString(cl?cl.mangle_id:it.mangle_id);
+  return fastcast!(Object)~ reinterpret_cast(fastalloc!(Pointer)(fastcast!(IType)(sysmod.lookup("ClassData"))), (cl?cl.cd_info():it.if_info()));
 }
 mixin DefaultParser!(gotClassId, "tree.expr.classid"[], "234"[], "class-id"[]);
 

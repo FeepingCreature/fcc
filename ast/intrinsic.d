@@ -357,7 +357,7 @@ void setupSysmods() {
       string toString() return "Object";
       void free() mem.free (void*:this, classinfo.size); // "free this". wow.
     }
-    void* _fcc_dynamic_cast(void* ex, string id, int isIntf) {
+    void* _fcc_dynamic_cast(void* ex, ClassData* id, int isIntf) {
       if (!ex) return null;
       // writeln "_fcc_dynamic_cast($id) obj $ex";
       // if (!isIntf) writeln "being $(Object: ex)";
@@ -366,6 +366,13 @@ void setupSysmods() {
       auto obj = Object: ex;
       // writeln "dynamic cast: obj $ex to $id => $(obj.dynamicCastTo id)";
       return obj.dynamicCastTo id;
+    }
+    void* _fcc_dynamic_cast_to_final(void* ex, ClassData* id, int isIntf) {
+      if (!ex) return null;
+      if (isIntf) ex = void*:(void**:ex + **int**:ex);
+      auto obj = Object: ex;
+      if (obj.classinfo is id) return ex;
+      return null;
     }
     struct _GuardRecord {
       void delegate() dg;
@@ -390,7 +397,7 @@ void setupSysmods() {
     import std.c.setjmp; // for conditions
     
     struct _Handler {
-      string id;
+      ClassData* id;
       _Handler* prev;
       void* delimit;
       void delegate(Object) dg;
@@ -415,10 +422,10 @@ void setupSysmods() {
       _Handler* old_hdl;
       _CondMarker* prev;
       jmp_buf target;
-      string param_id;
+      ClassData* param_id;
       void* threadlocal;
       bool accepts(Object obj) {
-        if (!param_id.length) return !obj;
+        if (!param_id) return !obj;
         else return !!obj?.dynamicCastTo param_id;
       }
       void jump() {

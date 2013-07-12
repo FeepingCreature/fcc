@@ -1,15 +1,15 @@
 module std.tag;
 
 interface Tagged {
-  Object offers(string name);
+  Object offers(ClassData* cd);
 }
 
-Object offers-name(string mangle, Object obj) {
-  if obj.dynamicCastTo(mangle)
+Object offers-id(ClassData* id, Object obj) {
+  if obj.dynamicCastTo(id)
     return obj;
   
   if auto t = Tagged: obj
-    return t.offers mangle;
+    return t.offers id;
   
   return null;
 }
@@ -17,7 +17,7 @@ Object offers-name(string mangle, Object obj) {
 template offers(T) {
   T offers(Object obj) {
     if !obj return null;
-    if (auto res = T: offers-name (T.__mangle, obj))
+    if (auto res = T: offers-id (class-id T, obj))
       return res;
     return null;
   }

@@ -484,6 +484,12 @@ extern(C) void fcc_initTenth() {
     mixin(chaincast("ex2: Second arg to 'make-add': args[1]->ItrEntity: %.itr->Expr"));
     return fastalloc!(ItrEntity)(lookupOp("+", ex1, ex2));
   }));
+  rootctx.add("make-equal", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 2) tnte("Wrong number of args to 'make-equal': 2 expected (expr, expr), not ", args);
+    mixin(chaincast("ex1:  First arg to 'make-equal': args[0]->ItrEntity: %.itr->Expr"));
+    mixin(chaincast("ex2: Second arg to 'make-equal': args[1]->ItrEntity: %.itr->Expr"));
+    return fastalloc!(ItrEntity)(compare("=", ex1, ex2));
+  }));
   rootctx.add("make-assignment", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-assignment': 2 expected");
     mixin(chaincast("dest: First arg for make-assignment: args[0]->ItrEntity: %.itr->Expr"));

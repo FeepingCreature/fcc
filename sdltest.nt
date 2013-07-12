@@ -272,9 +272,9 @@ int main(string[] args) {
   dgx(3);
   (&cl.foo)(4);
   writeln "Alloc subclass. ";
-  auto sub = new Subclass;
-  writeln "Do sup cast";
-  auto sup = Class:sub;
+  Class sup = new Subclass;
+  writeln "Do sub cast";
+  auto sub = Subclass:sup;
   writeln("sup is $$void*:sup");
   sup.foo(-5);
   writeln("sub is $$void*:sub");

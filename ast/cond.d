@@ -4,7 +4,7 @@ module ast.cond;
 import
   ast.base, ast.parse, ast.oop, ast.namespace, ast.modules, ast.vardecl,
   ast.variable, ast.scopes, ast.nestfun, ast.casting, ast.arrays,
-  ast.aliasing, ast.fun, ast.literals;
+  ast.aliasing, ast.fun, ast.literals, ast.pointer;
 // I'm sorry this is so ugly.
 Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text;
@@ -121,14 +121,13 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
   IType cmtype = fastcast!(IType)~ sysmod.lookup("_CondMarker"[]);
   auto cmvar = fastalloc!(Variable)(cmtype, framelength(), cast(string) null);
   
-  IType argType; string argName, classTypeId;
+  IType argType; string argName;
   if (t2.accept("("[])) {
     if (!rest(t2, "type"[], &argType))
       t2.failparse("Exit parameter type expected"[]);
     auto cr = fastcast!(ClassRef) (argType), ir = fastcast!(IntfRef) (argType);
     if (!cr && !ir)
       t2.failparse("Class or intf type expected"[]);
-    classTypeId = cr?cr.myClass.mangle_id:ir.myIntf.mangle_id;
     
     t2.gotIdentifier(argName);
     if (!t2.accept(")"[]))
@@ -151,11 +150,13 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
                if (_record) var.guard_id = _record.dg;
                // printf("unroll up to %p\n", _record);
                var.old_hdl = __hdl__;
-               var.param_id = id;
+               static if (type-is class atype) {
+                var.param_id = class-id atype;
+              }
                var.threadlocal = _threadlocal; // for win32
                _cm = &var;
              }`,
-             namespace(), "var"[], cmvar, "nex"[], ex, "id"[], mkString(classTypeId));
+             namespace(), "var"[], cmvar, "nex"[], ex, "atype"[], argType?argType:voidp);
     assert(!!setup_st);
     csc.addStatement(setup_st);
   }
