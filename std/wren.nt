@@ -23,6 +23,7 @@ class WrenError : Error {
 }
 
 void error(string s) { raise new WrenError s; }
+pragma(noreturn, "error");
 
 interface Thing;
 

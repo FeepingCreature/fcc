@@ -54,7 +54,8 @@ string declare(Function fun, string name) {
     callconv = "fastcc ";
   }
   string flags;
-  if (name == "setjmp") flags = " returns_twice";
+  if (name == "setjmp") flags ~= " returns_twice";
+  if (fun.noreturn) flags ~= " noreturn";
   return qformat("declare ", callconv, typeToLLVMRet(fun.type.ret, true), " @", name, "(", argstr, ")", flags);
 }
 
@@ -141,7 +142,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   this() { idnum = funid_count ++; }
   FunctionType type;
   Tree tree;
-  bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false;
+  bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false, noreturn = false;
   Function[] dependents; // functions that are only needed inside this function and thus should get emitted into the same module.
   string dwarfMetadata;
   override void markWeak() { weak = true; foreach (dep; dependents) dep.markWeak; }
@@ -278,6 +279,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     res.name = name;
     res.type = type;
     res.weak = weak;
+    res.noreturn = noreturn;
     res.extern_c = extern_c;
     res.tree = tree;
     res.coarseSrc = coarseSrc;
@@ -543,6 +545,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       if (extern_c || lf.profilemode) {
         flags ~= "noinline ";
       }
+      if (noreturn) flags ~= "noreturn ";
       if (name == "__fcc_main") flags ~= "noinline ";
       if (type.stdcall) linkage = "x86_stdcallcc ";
       if (isInternal()) {
@@ -752,7 +755,7 @@ class FunCall : Expr {
   }
   void emitWithArgs(LLVMFile lf, Expr[] args) {
     if (setup) setup.emitLLVM(lf);
-    callFunction(lf, fun.type.ret, false, fun.type.stdcall, args, fun.getPointer());
+    callFunction(lf, fun.type.ret, false, fun.type.stdcall, args, fun.getPointer(), fun.noreturn);
   }
   override void emitLLVM(LLVMFile lf) {
     emitWithArgs(lf, params);
@@ -776,7 +779,7 @@ class FunCall : Expr {
 }
 
 import tools.log, ast.fold;
-void callFunction(LLVMFile lf, IType ret, bool internal, bool stdcall, Expr[] params, Expr fp) {
+void callFunction(LLVMFile lf, IType ret, bool internal, bool stdcall, Expr[] params, Expr fp, bool noreturn = false) {
   mixin(mustOffset("1"));
   auto fpv = save(lf, fp);
   string[] parlist;
@@ -798,9 +801,11 @@ void callFunction(LLVMFile lf, IType ret, bool internal, bool stdcall, Expr[] pa
     }
     parlist ~= qformat("i8* ", save(lf, tlsptr));
   }
-  string flags;
-  if (internal) flags = "fastcc";
-  if (stdcall) flags = "x86_stdcallcc";
+  string callcc, flags;
+  if (internal) callcc = "fastcc";
+  if (stdcall) callcc = "x86_stdcallcc";
+  
+  if (noreturn) flags ~= " noreturn";
   if (params.length == 1) {
     IType farg;
     bool shh_its_okay;
@@ -824,10 +829,11 @@ void callFunction(LLVMFile lf, IType ret, bool internal, bool stdcall, Expr[] pa
       }
     }
   }
-  auto callstr = qformat("call ", flags, " ", fptype, " ", fpv, "(", parlist.join(", "), ")");
+  auto callstr = qformat("call ", callcc, " ", fptype, " ", fpv, "(", parlist.join(", "), ")", flags);
   if (Single!(Void) == ret) {
     put(lf, callstr);
     lf.push("void");
+    if (noreturn) put(lf, "unreachable");
   } else {
     load(lf, callstr);
     auto from = typeToLLVMRet(ret, true), to = typeToLLVMRet(ret);

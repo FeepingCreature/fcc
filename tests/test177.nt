@@ -1,0 +1,13 @@
+module test177;
+
+void foo() { fail; }
+pragma(noreturn, "foo");
+
+void main() {
+  {
+    set-handler (UnrecoverableError e) { invoke-exit "return"; }
+    define-exit "return" return;
+    foo();
+  }
+  fail;
+}

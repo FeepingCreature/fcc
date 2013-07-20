@@ -521,14 +521,6 @@ void setupSysmods() {
         return ar.ptr + pos;
       }
     }
-    void raise(Signal sig) {
-      // printf("Raise1 %.*s\n", sig.toString());
-      auto cur = __hdl__;
-      while cur {
-        if cur.accepts(sig) cur.dg(sig);
-        cur = cur.prev;
-      }
-    }
     void raise(UnrecoverableError err) {
       // printf("raise2 %.*s given %p\n", err.toString(), frameinfo.prev);
       auto cur = __hdl__;
@@ -543,6 +535,17 @@ void setupSysmods() {
       // printf("exit\n");
       writeln "Unhandled condition: $(err.toString()). ";
       exit 1;
+    }
+    pragma(noreturn, "raise");
+    // This one CAN return! Put it after the pragma!
+    // (remember, neat parsing order is well-defined)
+    void raise(Signal sig) {
+      // printf("Raise1 %.*s\n", sig.toString());
+      auto cur = __hdl__;
+      while cur {
+        if cur.accepts(sig) cur.dg(sig);
+        cur = cur.prev;
+      }
     }
     class MissedReturnError : UnrecoverableError {
       void init(string name) { super.init("End of $name reached without return"); }
@@ -986,6 +989,7 @@ void setupSysmods() {
     void fail(string s) {
       raise new FailError s;
     }
+    pragma(noreturn, "fail");
     template refs(T) {
       struct refs_iterator {
         T t;

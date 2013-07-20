@@ -381,11 +381,12 @@ src_cleanup_redo: // count, then copy
     text.accept(",");
     return ty;
   }
-  bool useStdcall;
+  bool useStdcall, noreturn;
   void eatAttribute(ref string s) {
     retry: s = s.strip();
     if (auto rest = s.startsWith("__attribute__"[])) {
       if (rest.between("((", "))") == "__stdcall__") useStdcall = true;
+      if (rest.between("((", "))") == "__noreturn__") noreturn = true;
       s = rest.between(") ", "");
       goto retry;
     }
@@ -531,6 +532,7 @@ src_cleanup_redo: // count, then copy
     auto stmt = statements.take(), start = stmt;
     // logln(filename, "> ", stmt);
     useStdcall = false;
+    noreturn = false;
     stmt.accept("__extension__");
     if (stmt.accept("#define")) {
       if (stmt.accept("__")) continue; // internal
@@ -960,6 +962,7 @@ src_cleanup_redo: // count, then copy
         fun.type.params = args /map/ (IType it) { return Argument(it); };
         fun.type.stdcall = useStdcall;
         fun.sup = null;
+        fun.noreturn = noreturn;
         add(name, fun);
       }
       continue;

@@ -120,6 +120,8 @@ static this() {
   setupIndex();
   setupIterIndex();
   setupConditionalOpt();
+  bool isStringLiteral(Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }
+  
   pragmas["fast"] = delegate Object(Expr ex) {
     if (ex) throw new Exception("pragma 'fast' does not take arguments");
     auto fun = namespace().get!(Function);
@@ -128,8 +130,22 @@ static this() {
     releaseMode = true; // it'll be restored at the end of the function - no harm
     return Single!(NoOp);
   };
+  pragmas["noreturn"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, &isStringLiteral))
+      throw new Exception("pragma 'noreturn' expects name of function");
+    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    auto obj = namespace().lookup(str);
+    if (!obj) throw new Exception("pragma 'noreturn' cannot find '"~str~"'");
+    if (auto os = fastcast!(OverloadSet) (obj)) {
+      foreach (fun; os.funs) fun.noreturn = true;
+    } else {
+      auto fun = fastcast!(Function)(obj);
+      if (!fun) throw new Exception("pragma 'noreturn' expects function, not "~obj.classinfo.name);
+      fun.noreturn = true;
+    }
+    return Single!(NoOp);
+  };
   // Link with this library
-  bool isStringLiteral(Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }
   pragmas["lib"] = delegate Object(Expr ex) {
     if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("Lib name expected. ");
