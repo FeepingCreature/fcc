@@ -25,7 +25,10 @@ class WrenError : Error {
 void error(string s) { raise new WrenError s; }
 pragma(noreturn, "error");
 
-interface Thing;
+abstract class Thing {
+  Thing eval(Context);
+  string toString();
+}
 
 class Context {
   Context sup;
@@ -34,11 +37,6 @@ class Context {
     if (!sup) return "$things";
     return "$things <- $sup";
   }
-}
-
-interface Thing {
-  Thing eval(Context);
-  string toString();
 }
 
 abstract class Primitive : Thing {
@@ -139,7 +137,7 @@ final class Vec4f : Primitive {
   string toString() { return "vec4f($(value.x), $(value.y), $(value.z), $(value.w))"; }
 }
 
-interface IArray : Thing {
+abstract class IArray : Thing {
   Thing getIndex(int i);
   int getLength();
   IArray concat(IArray);
@@ -150,7 +148,8 @@ interface WrenObject {
 }
 
 template Array(T) {
-  final class Array : Primitive, IArray {
+  final class Array : IArray {
+    Thing eval(Context) { return this; }
     T[] value;
     void init(T[] t) { value = t; }
     Thing getIndex(int i) {
@@ -392,8 +391,30 @@ final class ObjectThing : Primitive {
   string toString() { return "$obj"; }
 }
 
+// TODO stack allocation wrapper (std.util?)
+// Note: cannot be auto~ because otherwise allocated bits will go out of scope while still used
+// TODO reference counted retirement tracking so we know when to free
+// or maybe just let it leak, it shouldn't be much
+Thing[~] funcall_source;
+int funcall_base;
+Thing[] allocThingArray(int i) {
+  while (funcall_source.length < funcall_base + i) funcall_source ~= null;
+  onSuccess funcall_base += i;
+  return funcall_source[funcall_base .. funcall_base + i];
+}
+void freeThingArray(Thing[] t) {
+  // otherwise, allocThingArray has reallocated since then
+  if (size_t:funcall_source.ptr <= size_t:t.ptr < size_t:funcall_source.(ptr+length)) {
+    if (t.(ptr+length) !is funcall_source.ptr + funcall_base)
+      fail "Tried to free scoped array in the wrong order";
+  }
+  if (t.length > funcall_base) fail "tried to free $(t.length) but only $(funcall_base) allocated"; // what
+  funcall_base -= t.length;
+}
+
 final class Function : Thing, Operator {
   string info;
+  // WARN: Thing[] argument is freed after the call!
   Thing delegate(Thing[]) fn;
   Thing delegate(Thing[], Context) fn2;
   void init(string s, Thing delegate(Thing[]) dg) (info, fn) = (s, dg);
@@ -405,6 +426,7 @@ final class Function : Thing, Operator {
       Thing[auto~] resolvedArgs;
       for auto arg <- args
         resolvedArgs ~= recurse(arg, stats, lookup);
+      
       return new List(Thing[]:null ~ this ~ resolvedArgs[]);
     }
     Thing eval(Context) {
@@ -414,9 +436,12 @@ final class Function : Thing, Operator {
   }
   Thing call(Thing[] list, Context c) {
     // onFailure writeln "while calling $info";
-    scope trueArgs = new Thing[] list.length;
+    auto trueArgs = allocThingArray list.length;
+    onSuccess freeThingArray trueArgs;
+    
     for auto thing <- list && ref arg <- trueArgs
       arg = thing.eval c;
+    
     return direct-call(trueArgs[], c);
   }
   // call without evaluating
