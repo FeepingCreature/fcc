@@ -100,6 +100,7 @@ class Compare : Cond, Expr {
   // NEEDS "not" to handle float math correctly - !< is not the same as >=
   Expr e1; bool not, smaller, equal, greater; Expr e2;
   Expr falseOverride, trueOverride;
+  bool signed;
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(e1, e2, falseOverride, trueOverride);
@@ -117,7 +118,8 @@ class Compare : Cond, Expr {
     res ~= ")";
     return res;
   }
-  this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2) {
+  this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2, bool signed = true) {
+    this.signed = signed;
     auto t1 = e1.valueType(), t2 = e2.valueType();
     if (t1.llvmSize() != "4" && t1.llvmType() != "double") {
       logln("Invalid comparison parameter: "[], e1.valueType());
@@ -131,7 +133,7 @@ class Compare : Cond, Expr {
     this.not = not; this.smaller = smaller; this.equal = equal; this.greater = greater;
     this.e2 = e2;
   }
-  this(Expr e1, string str, Expr e2) {
+  this(Expr e1, string str, Expr e2, bool signed = true) {
     auto backup = str;
     bool not, smaller, greater, equal;
     if (auto rest = str.startsWith("!"[])) { not =      true; str = rest; }
@@ -144,7 +146,7 @@ class Compare : Cond, Expr {
     }
     if (str.length)
       throw new Exception("Not a valid condition string: "~backup~". "[]);
-    this(e1, not, smaller, equal, greater, e2);
+    this(e1, not, smaller, equal, greater, e2, signed);
   }
   void flip() {
     swap(e1, e2);
@@ -159,7 +161,9 @@ class Compare : Cond, Expr {
   void prelude() {
     assert(e1.valueType().llvmType() == "i32");
     assert(e2.valueType().llvmType() == "i32");
-    if (fastcast!(IntExpr) (e1) && !fastcast!(IntExpr) (e2))
+    bool intThing1 = fastcast!(IntExpr)(e1) || fastcast!(SizeT)(e1);
+    bool intThing2 = fastcast!(IntExpr)(e2) || fastcast!(SizeT)(e2);
+    if (intThing1 && !intThing2)
       flip;
     if (Single!(Float) == e1.valueType() && Single!(Float) != e2.valueType()) {
       assert(Single!(SysInt) == e2.valueType());
@@ -176,22 +180,22 @@ class Compare : Cond, Expr {
     }
     auto v1 = save(lf, e1), v2 = save(lf, e2);
     string ftest, itest;
-    if (!n && !s && !e && !g) { itest = "false";ftest = "false";} // unfulfillable
-    if (!n && !s && !e &&  g) { itest = "sgt";  ftest = "ogt";  } // greater
-    if (!n && !s &&  e && !g) { itest = "eq";   ftest = "oeq";  } // equal
-    if (!n && !s &&  e &&  g) { itest = "sge";  ftest = "oge";  } // greater or equal
-    if (!n &&  s && !e && !g) { itest = "slt";  ftest = "olt";  } // smaller
-    if (!n &&  s && !e &&  g) { itest = "ne";   ftest = "one";  } // smaller or greater
-    if (!n &&  s &&  e && !g) { itest = "sle";  ftest = "ole";  } // smaller or equal
-    if (!n &&  s &&  e &&  g) { itest = "true"; ftest = "ord";  } // smaller, greater or equal
-    if ( n && !s && !e && !g) { itest = "true"; ftest = "true"; } // unfalsifiable
-    if ( n && !s && !e &&  g) { itest = "sle";  ftest = "ule";  } // not greater
-    if ( n && !s &&  e && !g) { itest = "ne";   ftest = "une";  } // not equal
-    if ( n && !s &&  e &&  g) { itest = "slt";  ftest = "ult";  } // not equal or greater
-    if ( n &&  s && !e && !g) { itest = "sge";  ftest = "uge";  } // not smaller
-    if ( n &&  s && !e &&  g) { itest = "eq";   ftest = "ueq";  } // not smaller or greater
-    if ( n &&  s &&  e && !g) { itest = "sgt";  ftest = "ugt";  } // not smaller or equal
-    if ( n &&  s &&  e &&  g) { itest = "false";ftest = "uno";  } // not smaller, equal or greater
+    if (!n && !s && !e && !g) { itest = "false";             ftest = "false";} // unfulfillable
+    if (!n && !s && !e &&  g) { itest = signed?"sgt":"ugt";  ftest = "ogt";  } // greater
+    if (!n && !s &&  e && !g) { itest = "eq";                ftest = "oeq";  } // equal
+    if (!n && !s &&  e &&  g) { itest = signed?"sge":"uge";  ftest = "oge";  } // greater or equal
+    if (!n &&  s && !e && !g) { itest = signed?"slt":"ult";  ftest = "olt";  } // smaller
+    if (!n &&  s && !e &&  g) { itest = "ne";                ftest = "one";  } // smaller or greater
+    if (!n &&  s &&  e && !g) { itest = signed?"sle":"ule";  ftest = "ole";  } // smaller or equal
+    if (!n &&  s &&  e &&  g) { itest = "true";              ftest = "ord";  } // smaller, greater or equal
+    if ( n && !s && !e && !g) { itest = "true";              ftest = "true"; } // unfalsifiable
+    if ( n && !s && !e &&  g) { itest = signed?"sle":"ule";  ftest = "ule";  } // not greater
+    if ( n && !s &&  e && !g) { itest = "ne";                ftest = "une";  } // not equal
+    if ( n && !s &&  e &&  g) { itest = signed?"slt":"ult";  ftest = "ult";  } // not equal or greater
+    if ( n &&  s && !e && !g) { itest = signed?"sge":"uge";  ftest = "uge";  } // not smaller
+    if ( n &&  s && !e &&  g) { itest = "eq";                ftest = "ueq";  } // not smaller or greater
+    if ( n &&  s &&  e && !g) { itest = signed?"sgt":"ugt";  ftest = "ugt";  } // not smaller or equal
+    if ( n &&  s &&  e &&  g) { itest = "false";             ftest = "uno";  } // not smaller, equal or greater
     if (isFloat()) load(lf, "fcmp ", ftest, " float ", v1, ", ", v2);
     else if (isDouble()) load(lf, "fcmp ", ftest, " double ", v1, ", ", v2);
     else {
@@ -277,6 +281,13 @@ Cond compare(string op, Expr ex1, Expr ex2) {
     bool isInt(IType it) { return !!fastcast!(SysInt) (resolveType(it)); }
     if (gotImplicitCast(ie1, Single!(SysInt), &isInt) && gotImplicitCast(ie2, Single!(SysInt), &isInt)) {
       return fastalloc!(Compare)(ie1, not, smaller, equal, greater, ie2);
+    }
+  }
+  {
+    auto se1 = ex1, se2 = ex2;
+    bool isSizeT(IType it) { return !!fastcast!(SizeT) (resolveType(it)); }
+    if (gotImplicitCast(se1, Single!(SizeT), &isSizeT) && gotImplicitCast(se2, Single!(SizeT), &isSizeT)) {
+      return fastalloc!(Compare)(se1, not, smaller, equal, greater, se2, false);
     }
   }
   {
