@@ -520,7 +520,7 @@ class AsmFloatBinopExpr : BinopExpr {
           return;
           // cmd = "rem"; break;
       }
-      if (llvmver() == "3.1") {
+      if (llvmver() == "3.1" || llvmver() == "3.2") {
         load(lf, "f", cmd, " float ", v1, ", ", v2);
       } else {
         load(lf, "f", cmd, " fast float ", v1, ", ", v2);

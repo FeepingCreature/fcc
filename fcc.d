@@ -1122,13 +1122,15 @@ void verify(Iterable it) {
   logln(res.length, " markers checked, no collisions. ");
 }
 
-string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string fullcommand) {
-  string cpu = "core2";
+string cpumode() {
+  // string cpu = "i686";
+  string cpu = "nocona";
   if (isARM) cpu = null;
-  
-  string cpumode;
-  if (cpu && llvmver() != "3.1") cpumode = "-mcpu="~cpu~" ";
-  
+  if (cpu && llvmver() != "3.1") return "-mcpu="~cpu~" ";
+  return "";
+}
+
+string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string fullcommand) {
   string llc_optflags;
   if (optimize) {
     void optrun(string flags, string marker = null) {
@@ -1138,19 +1140,27 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
       if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math "
-      "-fp-contract=fast "/*-vectorize */"-vectorize-loops -vectorize-slp -vectorize-slp-aggressive ";
+      "-fp-contract=fast "/*-vectorize */"-vectorize-loops ";
     if (!isWindoze()) fpmathopts ~= "-tailcallopt "; // TODO figure out why
     string optflags = "-internalize-public-api-list=main"~preserve~" -O3 ";
     if (llvmver() != "3.1") {
       optflags ~= fpmathopts;
     }
+    if (llvmver() != "3.1" && llvmver() != "3.2") {
+      optflags ~= "-vectorize-slp -vectorize-slp-aggressive ";
+    }
     string passflags = "-std-compile-opts ";
     if (!isWindoze()) passflags ~= "-internalize -std-link-opts "; // don't work under win32 (LLVMMMM :shakes fist:)
     if (debugmode && llvmver() != "3.1") optflags ~= "-disable-fp-elim ";
-    optrun(cpumode~passflags~optflags);
+    optrun(cpumode()~passflags~optflags);
     llc_optflags = optflags;
   }
-  return cpumode~llc_optflags;
+  return cpumode()~llc_optflags;
+}
+
+int bashsystem(string s) {
+  s = "/bin/bash -c \""~s.replace("\"", "\\\"")~"\"";
+  return system(s.toStringz());
 }
 
 extern(C) int mkdir(char*, int);
@@ -1234,13 +1244,13 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       string bogus;
       string march;
       if (llvmver() == "3.1") { }
-      else march = "-march=x86";
-      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus)~" |llc -mattr=-avx,-avx2,-sse41 -march=x86 - -filetype=obj -o ", objname);
+      else if (isARM) march="-march=arm ";
+      else march = "-mattr=-avx,-avx2,-sse41 -march=x86 ";
+      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus)~" |llc "~march~cpumode()~"- -filetype=obj -o ", objname);
     }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
-    cmdline = "/bin/bash -c \""~cmdline.replace("\"", "\\\"")~"\"";
-    if (auto res = system(cmdline.toStringz())) {
+    if (auto res = bashsystem(cmdline)) {
       logln("ERROR: Compilation failed with ", res, " ", getErrno());
       exit(1);
     }
@@ -1358,7 +1368,7 @@ void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = fals
     // -mattr=-avx,-sse41 
     fullcommand ~= " |llc - -mattr=-avx,-avx2,-sse41 "~get_llc_cmd(optimize, debugmode, saveTemps, fullcommand)~"-filetype=obj -o "~objfile;
     logSmart!(false)("> ", fullcommand);
-    if (system(fullcommand.toStringz()))
+    if (bashsystem(fullcommand))
       throw new Exception("link failed");
   }
   
@@ -1523,21 +1533,6 @@ int main2(string[] args) {
     }
   };
   string[] objects;
-  // pre-pass
-  {
-    auto ar = args;
-    while (ar.length) {
-      auto arg = ar.take();
-      if (arg == "-xpar") {
-        xpar = ar.take().my_atoi();
-        continue;
-      }
-      if (arg == "-xbreak") {
-        xbreak = ar.take();
-        continue;
-      }
-    }
-  }
   auto ar = args;
   bool runMe;
   CompileSettings cs;
@@ -1547,8 +1542,17 @@ int main2(string[] args) {
   }
   bool incremental;
   ar = processCArgs(ar);
+  string[] ar2;
   while (ar.length) {
     auto arg = ar.take();
+    if (arg == "-xpar") {
+      my_atoi(ar.take(), xpar);
+      continue;
+    }
+    if (arg == "-xbreak") {
+      xbreak = ar.take();
+      continue;
+    }
     if (arg == "-break") {
       doBreak = true;
       continue;
@@ -1617,10 +1621,6 @@ int main2(string[] args) {
       releaseMode = true;
       continue;
     }
-    if (arg == "-xpar" || arg == "-xbreak") {
-      ar.take();
-      continue;
-    }
     if (arg == "-dump-graphs") {
       genGraph("fcc.mods.dot", true, false);
       genGraph("fcc.classes.dot", false, true);
@@ -1636,18 +1636,25 @@ int main2(string[] args) {
       dumpXMLRep = true;
       continue;
     }
-    if (auto base = arg.endsWith(EXT)) {
-      if (!output) output = base;
-      if (isWindoze()) output ~= ".exe";
-      if (!mainfile) mainfile = arg;
-      if (!incremental) {
-        try objects ~= arg.compileWithDepends(cs);
-        catch (Exception ex) { logSmart!(false) (ex.toString()); return 1; }
-      }
-      continue;
+    if (arg.endsWith(EXT)) { ar2 ~= arg; continue; }
+    if (arg.startsWith("-")) {
+      logln("Unknown flag: ", arg);
+      return 1;
     }
-    logln("Invalid argument: ", arg);
-    return 1;
+    logln("Unknown filetype: ", arg);
+    ar2 ~= arg;
+  }
+  args = ar2;
+  // Now only sourcefiles are left (see loop above)
+  foreach (sourcefile; args) {
+    auto base = sourcefile.endsWith(EXT);
+    if (!output) output = base;
+    if (isWindoze()) output ~= ".exe";
+    if (!mainfile) mainfile = sourcefile;
+    if (!incremental) {
+      try objects ~= sourcefile.compileWithDepends(cs);
+      catch (Exception ex) { logSmart!(false) (ex.toString()); return 1; }
+    }
   }
   if (!output) output = "exec";
   if (incremental) {
