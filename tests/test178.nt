@@ -1,0 +1,15 @@
+module test178;
+
+void main() {
+  alias S = `
+  a = a + 1;
+  a = a * 2;
+`;
+  int a = 5;
+  void test(bool b) { assert(b); }
+  static if (true) {
+    mixin S;
+    writeln "test $a";
+    test(a == 12);
+  }
+}
