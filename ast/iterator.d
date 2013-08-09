@@ -30,7 +30,6 @@ class Range : Type, RichIterator, RangeIsh {
     Expr currentValue(Expr ex) {
       return mkMemberAccess(castExprToWrapper(ex), "cur"[]);
     }
-    import ast.conditionals: Compare;
     Cond testAdvance(LValue lv) {
       return iparse!(Cond, "test_advance_range"[], "cond"[])
                     ("++lv.cur < lv.end"[], "lv"[], castToWrapper(lv));

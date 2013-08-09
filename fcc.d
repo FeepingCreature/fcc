@@ -309,13 +309,13 @@ static this() {
   Expr fpeq(bool neg, Expr ex1, Expr ex2) {
     auto fp1 = fastcast!(FunctionPointer) (ex1.valueType()), fp2 = fastcast!(FunctionPointer) (ex2.valueType());
     if (!fp1 || !fp2) return null;
-    return fastalloc!(CondExpr)(fastalloc!(Compare)(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
+    return fastalloc!(Compare)(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2));
   }
   Expr ptreq(bool neg, Expr ex1, Expr ex2) {
     auto p1 = fastcast!(Pointer) (resolveType(ex1.valueType())), p2 = fastcast!(Pointer) (resolveType(ex2.valueType()));
     if (!p1 || !p2) return null;
     // assert(p1.target == p2.target, Format("Cannot compare ", p1, " and ", p2));
-    return fastalloc!(CondExpr)(fastalloc!(Compare)(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2)));
+    return fastalloc!(Compare)(reinterpret_cast(Single!(SysInt), ex1), neg, false, true, false, reinterpret_cast(Single!(SysInt), ex2));
   }
   defineOp("==", false /apply/  &fpeq);
   defineOp("==", false /apply/ &ptreq);
@@ -697,13 +697,13 @@ static this() {
               e1p = reinterpret_cast(voidp, getArrayPtr(ex1)), e2p = reinterpret_cast(voidp, getArrayPtr(ex2)),
               mcl = lookupOp("*", e1l, llvmval(a1.elemType.llvmSize()));
         return fastalloc!(CondExpr)(fastalloc!(AndOp)(
-          fastalloc!(Compare)(e1l, "==", e2l),
-          fastalloc!(Compare)(mkInt(0), "==", buildFunCall(
+          exprwrap(fastalloc!(Compare)(e1l, "==", e2l)),
+          exprwrap(fastalloc!(Compare)(mkInt(0), "==", buildFunCall(
             sysmod.lookup("memcmp"),
             mkTupleExpr(e1p, e2p, mcl),
             "memcmp for array equal"
-          )
-        )));
+          )))
+        ));
         // return iparse!(Expr, "array_eq"[], "tree.expr.eval.cond"[])
         //               (`eval (e1l == e2l && memcmp(e1p, e2p, mcl) == 0)`,
         //                "e1l", e1l, "e2l", e2l, "e1p", e1p, "e2p", e2p, "mcl", mcl);

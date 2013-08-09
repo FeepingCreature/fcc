@@ -3,7 +3,7 @@ module ast.oop;
 import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.namespace, ast.structure, ast.structfuns, ast.pointer,
   ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun,
-  ast.tenth;
+  ast.tenth, ast.conditionals;
 import tools.base: ptuple;
 
 import tools.functional: map;
@@ -1352,7 +1352,12 @@ void doImplicitClassCast(Expr ex, IType target, void delegate(Expr) dg) {
     auto intf = (fastcast!(IntfRef)~ ex.valueType()).myIntf;
     int offs = 0;
     foreach (id, par; intf.parents) {
-      auto nex = reinterpret_cast_safe(fastalloc!(IntfRef)(par), lookupOp("+"[], reinterpret_cast(voidpp, ex), mkInt(offs)));
+      auto nex = tmpize_maybe(ex, (Expr ex) {
+        auto cmp = new Compare(reinterpret_cast(Single!(SysInt), ex), "!=", mkInt(0));
+        cmp. trueOverride = lookupOp("+", reinterpret_cast(voidpp, ex), mkInt(offs));
+        cmp.falseOverride = reinterpret_cast(voidpp, mkInt(0));
+        return reinterpret_cast_safe(fastalloc!(IntfRef)(par), cmp);
+      });
       par.getLeaves((Intf) { offs++; });
       testIntf(nex);
     }
@@ -1369,7 +1374,12 @@ void doImplicitClassCast(Expr ex, IType target, void delegate(Expr) dg) {
     offs = llAlign(offs, voidp);
     offs = lldiv(offs, "4");
     foreach (id, par; cl.iparents) {
-      auto iex = reinterpret_cast_safe(fastalloc!(IntfRef)(par), lookupOp("+"[], reinterpret_cast(voidpp, ex), llvmval(offs)));
+      auto iex = tmpize_maybe(ex, (Expr ex) {
+        auto cmp = new Compare(reinterpret_cast(Single!(SysInt), ex), "!=", mkInt(0));
+        cmp. trueOverride = lookupOp("+", reinterpret_cast(voidpp, ex), llvmval(offs));
+        cmp.falseOverride = reinterpret_cast(voidpp, mkInt(0));
+        return reinterpret_cast_safe(fastalloc!(IntfRef)(par), cmp);
+      });
       par.getLeaves((Intf) { offs = lladd(offs, "1"); });
       testIntf(iex);
     }

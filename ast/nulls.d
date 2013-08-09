@@ -53,7 +53,7 @@ Cond testNeq(Expr ex1, Expr ex2) {
   auto e1vt = ex1.valueType(), e2vt = ex2.valueType();
   assert(e1vt.llvmType() == e2vt.llvmType());
   if (e1vt.llvmSize() == "4")
-    return fastalloc!(Compare)(ex1, true, false, true, false, ex2);
+    return exprwrap(fastalloc!(Compare)(ex1, true, false, true, false, ex2));
   if (e1vt.llvmSize() != "8" && e1vt.llvmSize() != "12") {
     logln("wat ", e1vt.llvmType(), " being ", e1vt.llvmSize());
     fail;

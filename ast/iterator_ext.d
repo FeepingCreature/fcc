@@ -28,7 +28,7 @@ class ArrayIterator : Type, RichIterator, IArrayIterator {
       auto arrlv = entries[0], idxlv = entries[1];
       auto next = lookupOp("+", idxlv, mkInt(1));
       auto st = mkAssignment(idxlv, next);
-      Cond cd = fastalloc!(Compare)(idxlv, "<", getArrayLength(arrlv));
+      Cond cd = exprwrap(fastalloc!(Compare)(idxlv, "<", getArrayLength(arrlv)));
       return new StatementAndCond(st, cd);
     }
     Expr currentValue(Expr ex) {

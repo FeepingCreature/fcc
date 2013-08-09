@@ -1,0 +1,13 @@
+module test179;
+
+interface A { }
+
+final class B : A { int x; }
+
+void main() {
+  Object obj = null;
+  auto b = B:obj;
+  assert(b is null);
+  auto a = A:b;
+  assert(a is null, "a is instead $(int:a)");
+}

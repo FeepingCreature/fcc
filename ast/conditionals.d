@@ -96,13 +96,18 @@ class StatementAndCond : Cond {
 
 const bool useIVariant = true;
 
-class Compare : Cond, Expr {
+class Compare : Expr {
   // NEEDS "not" to handle float math correctly - !< is not the same as >=
   Expr e1; bool not, smaller, equal, greater; Expr e2;
   Expr falseOverride, trueOverride;
   bool signed;
   private this() { }
-  mixin DefaultDup!();
+  override Compare dup() {
+    auto res = new Compare(e1.dup, not, smaller, equal, greater, e2.dup, signed);
+    if (falseOverride) res.falseOverride = falseOverride.dup;
+    if ( trueOverride) res. trueOverride =  trueOverride.dup;
+    return res;
+  }
   mixin defaultIterate!(e1, e2, falseOverride, trueOverride);
   string toString() {
     string res;
@@ -116,6 +121,8 @@ class Compare : Cond, Expr {
     res ~= ", ";
     res ~= (fastcast!(Object)~ e2).toString();
     res ~= ")";
+    if ( trueOverride) { res ~= "?"; res ~= (fastcast!(Object)( trueOverride)).toString(); }
+    if (falseOverride) { res ~= ":"; res ~= (fastcast!(Object)(falseOverride)).toString(); }
     return res;
   }
   this(Expr e1, bool not, bool smaller, bool equal, bool greater, Expr e2, bool signed = true) {
@@ -175,9 +182,6 @@ class Compare : Cond, Expr {
     }
   }
   void emitWith(LLVMFile lf, bool n, bool s, bool e, bool g) {
-    if (falseOverride || trueOverride) {
-      todo("Compare with override");
-    }
     auto v1 = save(lf, e1), v2 = save(lf, e2);
     string ftest, itest;
     if (!n && !s && !e && !g) { itest = "false";             ftest = "false";} // unfulfillable
@@ -203,20 +207,37 @@ class Compare : Cond, Expr {
       else if (itest == "false") load(lf, "i1 0");
       else load(lf, "icmp ", itest, " ", typeToLLVM(e1.valueType()), " ", v1, ", ", v2);
     }
+    if (falseOverride || trueOverride) {
+      if (!(falseOverride && trueOverride)) {
+        fail;
+      }
+      auto fe = save(lf, falseOverride);
+      auto te = save(lf, trueOverride);
+      load(lf, "select i1 ", lf.pop(), ", ",
+        typeToLLVM( trueOverride.valueType()), " ", te, ", ",
+        typeToLLVM(falseOverride.valueType()), " ", fe);
+    }
   }
   override {
     IType valueType() {
-      if (falseOverride && trueOverride) {
+      if (falseOverride || trueOverride) {
+        assert(falseOverride && trueOverride);
         assert(falseOverride.valueType() == trueOverride.valueType());
-        return falseOverride.valueType();
+        auto res = falseOverride.valueType();
+        return res;
       }
+      if (auto b = fastcast!(IType)(sysmod.lookup("bool"))) return b; // TODO cache
       return Single!(SysInt);
     }
     void emitLLVM(LLVMFile lf) {
-      emitWith(lf, not, smaller, equal, greater);
-      load(lf, "zext i1 ", lf.pop(), " to i32");
+      if (falseOverride  || trueOverride) {
+        emitWith(lf, not, smaller, equal, greater);
+      } else {
+        emitWith(lf, not, smaller, equal, greater);
+        load(lf, "zext i1 ", lf.pop(), " to i32");
+      }
     }
-    void jumpOn(LLVMFile lf, bool cond, string dest) {
+    /*void jumpOn(LLVMFile lf, bool cond, string dest) {
       auto n = not, s = smaller, e = equal, g = greater;
       // TODO: integrate negation
       if (!cond) { // negate
@@ -225,7 +246,7 @@ class Compare : Cond, Expr {
       }
       emitWith(lf, n, s, e, g);
       .jumpOn(lf, dest);
-    }
+    }*/
   }
 }
 
@@ -280,28 +301,28 @@ Cond compare(string op, Expr ex1, Expr ex2) {
     auto ie1 = ex1, ie2 = ex2;
     bool isInt(IType it) { return !!fastcast!(SysInt) (resolveType(it)); }
     if (gotImplicitCast(ie1, Single!(SysInt), &isInt) && gotImplicitCast(ie2, Single!(SysInt), &isInt)) {
-      return fastalloc!(Compare)(ie1, not, smaller, equal, greater, ie2);
+      return exprwrap(fastalloc!(Compare)(ie1, not, smaller, equal, greater, ie2));
     }
   }
   {
     auto se1 = ex1, se2 = ex2;
     bool isSizeT(IType it) { return !!fastcast!(SizeT) (resolveType(it)); }
     if (gotImplicitCast(se1, Single!(SizeT), &isSizeT) && gotImplicitCast(se2, Single!(SizeT), &isSizeT)) {
-      return fastalloc!(Compare)(se1, not, smaller, equal, greater, se2, false);
+      return exprwrap(fastalloc!(Compare)(se1, not, smaller, equal, greater, se2, false));
     }
   }
   {
     auto fe1 = ex1, fe2 = ex2;
     bool isFloat(IType it) { return !!fastcast!(Float) (resolveType(it)); }
     if (gotImplicitCast(fe1, Single!(Float), &isFloat) && gotImplicitCast(fe2, Single!(Float), &isFloat)) {
-      return fastalloc!(Compare)(fe1, not, smaller, equal, greater, fe2);
+      return exprwrap(fastalloc!(Compare)(fe1, not, smaller, equal, greater, fe2));
     }
   }
   {
     auto de1 = ex1, de2 = ex2;
     bool isDouble(IType it) { return !!fastcast!(Double) (resolveType(it)); }
     if (gotImplicitCast(de1, Single!(Double), &isDouble) && gotImplicitCast(de2, Single!(Double), &isDouble)) {
-      return fastalloc!(Compare)(de1, not, smaller, equal, greater, de2);
+      return exprwrap(fastalloc!(Compare)(de1, not, smaller, equal, greater, de2));
     }
   }
   return ex2cond(lookupOp(op, ex1, ex2));
@@ -379,13 +400,11 @@ Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Could not parse second operator for comparison"[]);
   }
   auto finalize = delegate Expr(Cond cd) { return cond2ex(cd); };
-  if (auto ce = fastcast!(CondExpr)(ex2)) {
-    if (auto cmp2 = fastcast!(Compare) (ce.cd)) {
-      ex2 = cmp2.e1;
-      finalize = cmp2 /apply/ delegate Expr(Compare cmp2, Cond cd) {
-        return cond2ex(fastalloc!(BooleanOp!("&&"[]))(cd, cmp2));
-      };
-    }
+  if (auto cmp2 = fastcast!(Compare) (ex2)) {
+    ex2 = cmp2.e1;
+    finalize = cmp2 /apply/ delegate Expr(Compare cmp2, Cond cd) {
+      return cond2ex(fastalloc!(BooleanOp!("&&"[]))(cd, exprwrap(cmp2)));
+    };
   }
   auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
   if (op == "=") op = "==";

@@ -39,8 +39,8 @@ void setupConditionalOpt() {
       if (!mulie || mulie.num != 4) return null;
       auto ic = fastcast!(RCE) (aibe2.e1);
       if (!ic || Single!(SysInt) != ic.to) return null;
-      auto ce = fastcast!(CondExpr) (ic.from);
-      if (!ce) return null;
+      auto cmp = fastcast!(Compare) (ic.from);
+      if (!cmp || cmp.falseOverride || cmp.trueOverride) return null;
       
       auto re = fastcast!(RefExpr) (rci.from);
       if (!re) return null;
@@ -56,8 +56,6 @@ void setupConditionalOpt() {
       if (salit.exs[0].valueType().llvmType() != "i32" || salit.exs[1].valueType().llvmType != "i32")
         return null;
       
-      auto cmp = fastcast!(Compare) (ce.cd);
-      if (!cmp) return null;
       // logln("salit "[], salit.exs, " INDEX "[], ce.cd);
       cmp = cmp.dup;
       cmp.falseOverride = salit.exs[0];
@@ -165,6 +163,6 @@ void setupConditionalOpt() {
       else if (False) res = False;
       else return null;
     }
-    return ex2cond(res);
+    return res;
   };
 }

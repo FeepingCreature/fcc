@@ -106,8 +106,8 @@ void opt_itr(ref Itr it) {
 
 void opt(T)(ref T t) {
   Itr it = fastcast!(Itr) (t);
-  if (!it) fail;
+  if (!it) fail(Format(T.stringof, " is not Iterable"));
   opt_itr(it);
   t = fastcast!(T) (it);
-  if (!t) fail;
+  if (!t) fail(Format(T.stringof, " back-cast failed from ", it));
 }
