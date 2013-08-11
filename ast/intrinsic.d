@@ -240,6 +240,16 @@ void setupSysmods() {
       }
       return res;
     }
+    string utoa(size_t s) {
+      if s == 0 return "0";
+      string res;
+      while s {
+        string prefix = "0123456789"[s%10 .. s%10+1];
+        res = prefix ~ res;
+        s /= 10;
+      }
+      return res;
+    }
     string btoa(bool b) {
       if b return "true";
       return "false";
@@ -317,6 +327,9 @@ void setupSysmods() {
       char[auto~] buffer;
       while (!buffer.length || buffer[$-1] != "\n") { buffer ~= char:byte:fgetc(stdin); }
       return buffer[0..$-1];
+    }
+    void write(string line) {
+      printf("%.*s", line.length, line.ptr);
     }
     void writeln(string line) {
       printf("%.*s\n", line.length, line.ptr);
