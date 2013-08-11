@@ -278,3 +278,65 @@ template findFirstThat(T) {
     return Maybe:(Element throwaway, false);
   }
 }
+
+template roll(T) {
+  alias E = type-of-elem value-of!T;
+  struct rolliter {
+    bool left; 
+    E subst;
+    E value;
+    type-of (value-of!T).iterator sup;
+    int stepid, width;
+    bool done;
+    bool advance() {
+      if (done) return false;
+      if (left) {
+        if (stepid == 0) {
+          // throw one away
+          if (!auto bogus <- sup) { done = true; return false; }
+        }
+        if (stepid == width - 1) {
+          value = subst;
+          stepid = 0;
+        } else {
+          if (auto v <- sup) {
+            value = v;
+            stepid ++;
+          } else {
+            done = true;
+            return false;
+          }
+        }
+      } else {
+        if (stepid == 0) {
+          value = subst;
+          stepid ++;
+          return true;
+        }
+        if (auto v <- sup) {
+          value = v;
+        } else {
+          done = true;
+          return false;
+        }
+        if (stepid == width - 1) {
+          // discard one
+          if (!auto bogus <- sup) { done = true; return false; }
+          stepid = 0;
+        } else {
+          stepid ++;
+        }
+      }
+      return true;
+    }
+  }
+  struct rollwrap {
+    T t;
+    auto opCall(E subst, int width, bool left) {
+      rolliter r;
+      r.(left, subst, sup, width) = (left, subst, t.iterator, width);
+      return r;
+    }
+  }
+  auto roll(T t) { return rollwrap:t; }
+}
