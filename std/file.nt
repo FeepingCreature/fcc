@@ -1,4 +1,4 @@
-/*Title: std.file
+  /*Title: std.file
 File I/O*/
 module std.file;
 
@@ -82,13 +82,16 @@ class WriterError : Error {
   void init() { super.init "WriterError"; }
 }
 
+extern(C) int write(int fd, void* buf, int count);
+RenameIdentifier write C_write;
+
 class writer {
   int hdl;
   void init(int hdl) this.hdl = hdl;
   void init(string file) hdl = open(file, O_RDWR | O_CREAT | O_TRUNC);
   void step(ubyte[] data) {
     while data.length {
-      auto res = write(hdl, data.ptr, data.length);
+      auto res = C_write(hdl, data.ptr, data.length);
       if res == -1 { perror "While writing $(data.length) bytes to $hdl".toStringz(); raise (new WriterError); }
       data = data[res .. $];
     }

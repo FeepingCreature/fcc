@@ -121,7 +121,7 @@ platform(default) {
             inbuffer = input.value;
           }
           import std.math;
-          auto res = write inbuffer.(hdl_sysward[1], ptr, min(4096, length));
+          auto res = C_write inbuffer.(hdl_sysward[1], ptr, min(4096, length));
           if res < 0
             raise new ReadbackError "Writing to stream failed! ";
           inbuffer = inbuffer[res .. $];
