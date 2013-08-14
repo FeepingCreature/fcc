@@ -75,14 +75,16 @@ class CValueAlias : ExprAlias, CValue {
   override CValueAlias dup() { return fastalloc!(CValueAlias)(base.dup, name); }
 }
 
-class LValueAlias : CValueAlias, LValue {
+final class LValueAlias : CValueAlias, LValue {
+  static const isFinal = true;
   mixin MyThis!("super(base, name)"[]);
   override LValueAlias dup() { return fastalloc!(LValueAlias)(base.dup, name); }
 }
 
-class MValueAlias : ExprAlias, MValue {
+final class MValueAlias : ExprAlias, MValue {
+  static const isFinal = true;
   mixin MyThis!("super(base, name)"[]);
-  override void emitAssignment(LLVMFile lf) { (fastcast!(MValue)~ base).emitAssignment(lf); }
+  void emitAssignment(LLVMFile lf) { (fastcast!(MValue)~ base).emitAssignment(lf); }
   override MValueAlias dup() { return fastalloc!(MValueAlias)(base.dup, name); }
 }
 

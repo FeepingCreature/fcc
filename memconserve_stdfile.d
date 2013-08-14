@@ -6,6 +6,7 @@ import quickformat, std.file, std.date, std.string;
 
 version(Win32) {
   import std.c.windows.windows;
+  extern(C) void abort();
   void getTimes(char[] name, out d_time ftc, out d_time fta, out d_time ftm)
   {
     HANDLE findhndl;

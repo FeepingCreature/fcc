@@ -43,8 +43,8 @@ extern(C) int guessSize(IType it) {
 
 pragma(set_attribute, llvmvalstr, externally_visible);
 extern(C) Expr llvmvalstr(string s) {
-  auto val = my_atoi(s);
-  if (qformat(val) == s) return mkInt(val);
+  int val;
+  if (my_atoi(s, val)) return mkInt(val);
   return fastalloc!(LLVMValue)(s);
 }
 
@@ -67,7 +67,8 @@ string eatType(ref string s) {
     }
     if (eat("<")) {
       auto t = s;
-      auto num = t.slice("x").my_atoi();
+      int num;
+      my_atoi(t.slice("x"), num);
       if (!eat(qformat(num)) || !eat("x")) {
         logln("weird vector ", first_s, " at ", s);
         fail;
@@ -81,7 +82,8 @@ string eatType(ref string s) {
     }
     if (eat("[")) {
       auto t = s;
-      auto num = t.slice("x").my_atoi();
+      int num;
+      my_atoi(t.slice("x"), num);
       if (!eat(qformat(num)) || !eat("x")) {
         logln("weird SA ", first_s, " at ", s);
         fail;
@@ -113,7 +115,8 @@ string eatType(ref string s) {
 string[] getVecTypes(string str) {
   if (auto rest = str.startsWith("<")) str = rest;
   else fail;
-  int len = str.slice("x").my_atoi();
+  int len;
+  my_atoi(str.slice("x"), len);
   auto type = str.endsWith(">").strip();
   if (!type) fail;
   string[] res = new string[len];
@@ -219,7 +222,9 @@ string eat_canonify(ref string s) {
     string str = s;
     if (s1 && s1.length < str.length) str = s1;
     if (s2 && s2.length < str.length) str = s2;
-    auto testnum = str.my_atoi(), test = qformat(testnum);
+    int testnum;
+    my_atoi(str, testnum);
+    auto test = qformat(testnum);
     if (auto rest = s.startsWith(test)) {
       s = rest;
       return test;

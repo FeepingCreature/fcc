@@ -33,4 +33,7 @@ void main(string[] args) {
   // import std.process;
   // writeln readback("cat", ["6"]);
   int a = -360 % 360;
+  auto qq = (2, 3, 4);
+  qq[0..2] = (4, 5);
+  writeln "$qq";
 }

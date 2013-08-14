@@ -41,7 +41,12 @@ long atol(string s) {
 
 string[string] findfile_cache;
 string findfile(string file) {
-  if (auto p = file in findfile_cache) return *p;
+  if (auto p = file in findfile_cache) {
+    if (!*p) {
+      fail(qformat("lookup for ", file, " returned in null from cache"));
+    }
+    return *p;
+  }
   string res;
   if (file.exists()) res = file;
   else {
@@ -50,8 +55,12 @@ string findfile(string file) {
         res = entry.qsub(file);
         break;
       }
+    if (!res) {
+      fail(qformat("File not found: ", file, ", in path ", include_path));
+    }
   }
   findfile_cache[file] = res;
+  if (!res) fail(qformat("lookup for ", file, " returned in uncached null"));
   return res;
 }
 

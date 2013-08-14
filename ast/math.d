@@ -73,7 +73,7 @@ static this() {
     return null;
   };
   foldopt ~= delegate Itr(Itr it) {
-    if (auto fc = fastcast!(FunCall) (it)) {
+    if (auto fc = fastcast_direct!(FunCall)(it)) {
       if (fc.fun.extern_c && fc.fun.name == "sqrtf"[]) {
         assert(fc.params.length == 1);
         auto fe = fc.params[0];

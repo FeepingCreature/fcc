@@ -662,9 +662,20 @@ interface Dependency {
 }
 
 extern(C) int atoi(char*);
-int my_atoi(string s) {
-  auto mew = qformat(s, "\x00"[]);
-  return atoi(mew.ptr);
+bool my_atoi(string s, out int i) {
+  s = s.mystripl();
+  if (!s.length) return false;
+  if (s == "0") return true;
+  bool neg;
+  if (s[0] == '-') { s = s[1..$]; neg = true; }
+  if (!s.length) return false;
+  foreach (ch; s) {
+    if (ch < '0' || ch > '9') return false;
+    byte b = ch - '0';
+    i = i * 10 + b;
+  }
+  if (neg) i = -i;
+  return true;
 }
 
 class NamedNull : NoOp, Named, SelfAdding {
@@ -740,11 +751,7 @@ interface ModifiesName {
 
 bool readIndexShorthand(string name, ref int i) {
   auto idxstr = name.startsWith("_"[]);
-  if (!idxstr) return false;
-  auto idx = my_atoi(idxstr);
-  if (idxstr != Format(idx))
-    return false;
-  i = idx;
+  if (!idxstr || !my_atoi(idxstr, i)) return false;
   return true;
 }
 
@@ -896,14 +903,7 @@ Expr llvmval(T...)(T t) {
   return llvmvalstr(qformat(t));
 }
 
-bool isnum(string s, out int i) {
-  auto var = s.my_atoi();
-  if (qformat(var) == s) {
-    i = var;
-    return true;
-  }
-  return false;
-}
+bool isnum(string s, out int i) { return my_atoi(s, i); }
 
 string lladd(string a, string b) {
   int k, l;
@@ -927,7 +927,8 @@ string lldiv(string a, string b) {
 }
 bool llmax_decompose_first(string s, out int i, out string k) {
   if (auto rest = s.startsWith("select(i1 icmp sgt(i32 ")) {
-    auto num = rest.slice(" ").my_atoi();
+    int num;
+    my_atoi(rest.slice(" "), num);
     auto reconstruct_a = qformat(num);
     auto start = qformat("select(i1 icmp sgt(i32 ", reconstruct_a, ", i32 ");
     if (auto rest2 = s.startsWith(start)) {

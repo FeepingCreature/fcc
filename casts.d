@@ -101,7 +101,7 @@ const string[] quicklist = [
 
 Stuple!(void*, int)[] idtable;
 
-int xor;
+int xor, idmask;
 const uint knuthMagic = 2654435761;
 
 const cachesize = 1; // tested and best .. 0 is way slower, 2 is slightly slower.
@@ -139,7 +139,7 @@ void initCastTable() {
     }
     ci ~= cl;
   }
-  int bestXOR, bestXORSize = int.max;
+  int bestXOR, bestXORSize = int.max, bestMask;
   auto rng = fastalloc!(Mersenne)(23);
   auto backing_pretable = new bool[1024];
   bool[] pretable;
@@ -151,36 +151,35 @@ void initCastTable() {
   for (int i = 0; i < 512; ++i) {
     // lol
     xor = rng();
-    auto cursize = quicklist.length;
+    // auto cursize = quicklist.length;
+    int cursize = 2, curmask = 1;
     outer:
     resize_pretable(cursize);
     resetHash();
     foreach (int id, entry; ci) {
       auto pos = hash(cast(void*) entry) % pretable.length;
       if (pretable[pos]) {
-        cursize ++;
+        // cursize ++;
+        cursize *= 2; curmask = (curmask << 1) | 1;
         if (cursize >= bestXORSize) break;
         goto outer;
       }
       pretable[pos] = true;
     }
     if (cursize < bestXORSize) {
-      bestXORSize = cursize;
       bestXOR = xor;
+      bestXORSize = cursize;
+      bestMask = curmask;
     }
   }
   xor = bestXOR;
   idtable.length = bestXORSize;
-  if (PredictedTableLength != -1 && idtable.length != PredictedTableLength) {
-    logln("please update pred const to "[], idtable.length);
-    asm { int 3; }
-  }
+  idmask = bestMask;
+  
   memset(idtable.ptr, 0, idtable.length * typeof(idtable[0]).sizeof);
   resetHash();
   foreach (int i, entry; ci) {
-    static if (PredictedTableLength == -1) int len = idtable.length;
-    else const len = PredictedTableLength;
-    idtable[hash(cast(void*) entry) % len] = stuple(cast(void*) entry, i);
+    idtable[hash(cast(void*) entry) & idmask] = stuple(cast(void*) entry, i);
   }
 }
 
@@ -195,9 +194,7 @@ int getId(ClassInfo ci) {
     if (getIdCache[idx]._0 == cp)
       return getIdCache[idx]._1;
   }
-  static if (PredictedTableLength == -1) int len = idtable.length;
-  else const len = PredictedTableLength;
-  auto entry = idtable.ptr[hash(cp) % len];
+  auto entry = idtable.ptr[hash(cp) & idmask];
   int res = (entry._0 == cp)?entry._1:-1;
   static if (getIdCacheSize) {
     auto p = &getIdCache[getIdLoopPtr];
@@ -210,9 +207,25 @@ int getId(ClassInfo ci) {
   return res;
 }
 
-const PredictedTableLength = -1;
-
 extern(C) void fastcast_marker() { }
+
+template fastcast_direct(T) {
+  T fastcast_direct(U)(U u) {
+    Object obj = void;
+    // stolen from fastcast
+    static if (!is(U: Object)) { // interface
+      auto ptr = **cast(Interface***) u;
+      void* vp = cast(void*) u - ptr.offset;
+      obj = *cast(Object*) &vp;
+    } else {
+      void* vp = cast(void*) u;
+      obj = *cast(Object*) &vp;
+    }
+    
+    if (obj.classinfo !is typeid(T)) return null;
+    return *cast(T*) &obj; // prevent a redundant D cast
+  }
+}
 
 struct _fastcast(T) {
   const ptrdiff_t INVALID = 0xffff; // magic numbah
@@ -229,10 +242,10 @@ struct _fastcast(T) {
     const string fillObj = `
     {static if (!is(U: Object)) { // interface
       auto ptr = **cast(Interface***) u;
-      void* vp = *cast(void**) &u - ptr.offset;
+      void* vp = cast(void*) u - ptr.offset;
       obj = *cast(Object*) &vp;
     } else {
-      void* vp = *cast(void**) &u;
+      void* vp = cast(void*) u;
       obj = *cast(Object*) &vp; // prevent a redundant D cast
     }}`;
     static if (is(typeof(T.isFinal)) && T.isFinal) {

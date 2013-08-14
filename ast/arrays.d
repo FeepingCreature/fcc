@@ -84,6 +84,7 @@ class Array_ : Type, RelNamespace, Dwarf2Encodable, ReferenceType {
 }
 
 final class Array : Array_ {
+  static const isFinal = true;
   this() { super(); }
   this(IType it) { super(it); }
 }

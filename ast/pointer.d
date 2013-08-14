@@ -85,7 +85,7 @@ final class RefExpr : RefExpr_ {
 }
 
 // *foo
-class DerefExpr : LValue, HasInfo {
+class DerefExpr_ : LValue, HasInfo {
   Expr src;
   int count;
   static int de_count;
@@ -115,6 +115,11 @@ class DerefExpr : LValue, HasInfo {
     }
   }
   string toString() { return Format("*"[], src); }
+}
+
+final class DerefExpr : DerefExpr_ {
+  static const isFinal = true;
+  this(Expr ex) { super(ex); }
 }
 
 bool isVoidP(IType it) {

@@ -39,17 +39,21 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     scope(exit) current_module.set(backup);
     current_module.set(this);
     
-    if (sourcefile) if (auto cache = read_cache("module imports", sourcefile)) {
-      Module[] res;
-      bool failed;
-      while (cache) {
-        auto entry = slice(cache, ",");
-        try res ~= lookupMod(entry);
-        catch (Exception ex) { failed = true; break; } // don't use cache if it leads to errors
-      }
-      if (!failed) {
-        imports_cache = res;
-        return res;
+    if (sourcefile) {
+      string relevant_file = sourcefile;
+      if (sourcefile == "sys.nt") relevant_file = "fcc.exe";
+      if (auto cache = read_cache("module imports", relevant_file)) {
+        Module[] res;
+        bool failed;
+        while (cache) {
+          auto entry = slice(cache, ",");
+          try res ~= lookupMod(entry);
+          catch (Exception ex) { failed = true; break; } // don't use cache if it leads to errors
+        }
+        if (!failed) {
+          imports_cache = res;
+          return res;
+        }
       }
     }
     
@@ -72,7 +76,9 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
     if (sourcefile) {
       string[] names;
       foreach (entry; res) names ~= entry.name;
-      write_cache("module imports", sourcefile, names.join(","));
+      string relevant_file = sourcefile;
+      if (sourcefile == "sys.nt") relevant_file = "fcc.exe";
+      write_cache("module imports", relevant_file, names.join(","));
     }
     
     imports_cache = res;

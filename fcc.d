@@ -345,7 +345,7 @@ void ast_math_constr() {
     return fastalloc!(FAbsFExpr)(arg);
   };*/
   Itr substfun(int arity, bool delegate(Function, Module) dg, Expr delegate(Expr[]) dgex, Itr it) {
-    auto fc = fastcast!(FunCall)(it);
+    auto fc = fastcast_direct!(FunCall)(it);
     if (!fc) return null;
     if (fc.getParams().length != arity) return null;
     auto mod = fastcast!(Module)(fc.fun.sup);
@@ -1130,14 +1130,17 @@ string cpumode() {
   return "";
 }
 
-string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string fullcommand) {
+string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string fullcommand, ref string tempfile) {
   string llc_optflags;
   if (optimize) {
     void optrun(string flags, string marker = null) {
       if (marker) marker ~= ".";
       string optfile = ".obj/"~output~".opt."~marker~"bc";
-      fullcommand ~= " |opt "~flags~"-lint -";
-      if (saveTemps) fullcommand ~= " |tee "~optfile;
+      string tempfile2 = ".obj/_all3.bc";
+      assert(tempfile != tempfile2);
+      fullcommand ~= " opt "~flags~"-lint "~tempfile~" -o "~tempfile2~"&&";
+      tempfile = tempfile2;
+      // if (saveTemps) fullcommand ~= " |tee "~optfile;
     }
     string fpmathopts = "-enable-fp-mad -enable-no-infs-fp-math -enable-no-nans-fp-math -enable-unsafe-fp-math "
       "-fp-contract=fast "/*-vectorize */"-vectorize-loops ";
@@ -1159,7 +1162,8 @@ string get_llc_cmd(bool optimize, bool debugmode, bool saveTemps, ref string ful
 }
 
 int bashsystem(string s) {
-  s = "/bin/bash -c \""~s.replace("\"", "\\\"")~"\"";
+  if (!isWindoze())
+    s = "/bin/bash -c \"set -o pipefail; " ~ s.replace("\"", "\\\"")~"\"";
   return system(s.toStringz());
 }
 
@@ -1232,7 +1236,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
     if (false && cs.preopt) flags = "-O3 -lint ";
     // if (platform_prefix.startsWith("arm-")) flags = "-meabi=5";
     // auto cmdline = Format(my_prefix(), "as ", flags, " -o ", objname, " ", srcname, " 2>&1");
-    string cmdline = "set -o pipefail; ";
+    string cmdline;
     if (cs.preopt && !cs.optimize) {
       cmdline ~= Format("opt ", flags);
     } else {
@@ -1246,7 +1250,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       if (llvmver() == "3.1") { }
       else if (isARM) march="-march=arm ";
       else march = "-mattr=-avx,-avx2,-sse41 -march=x86 ";
-      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus)~" |llc "~march~cpumode()~"- -filetype=obj -o ", objname);
+      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus, bogus)~" |llc "~march~cpumode()~"- -filetype=obj -o ", objname);
     }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
@@ -1359,14 +1363,16 @@ void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = fals
   if (!isWindoze && !optimize) {
     objfile = objlist;
   } else {
-    string fullcommand = "set -o pipefail; llvm-link "~objlist;
+    string fullcommand = "llvm-link "~objlist~" -o .obj/_all.bc && ";
     
-    fullcommand ~= " |llvm-dis - |sed -e s/^define\\ weak_odr\\ /define\\ /g -e s/=\\ weak_odr\\ /=\\ /g |llvm-as";
-    if (saveTemps) fullcommand ~= " |tee "~linkedfile;
+    string curtemp = ".obj/_all2.bc";
+    fullcommand ~= "llvm-dis .obj/_all.bc -o - |sed -e \"s/^define weak_odr /define /g\" -e \"s/= weak_odr /= /g\" |llvm-as - -o "~curtemp~"&&";
+    // if (saveTemps) fullcommand ~= " |tee "~linkedfile;
     
     objfile = ".obj/"~output~".o";
     // -mattr=-avx,-sse41 
-    fullcommand ~= " |llc - -mattr=-avx,-avx2,-sse41 "~get_llc_cmd(optimize, debugmode, saveTemps, fullcommand)~"-filetype=obj -o "~objfile;
+    auto llc_cmd = get_llc_cmd(optimize, debugmode, saveTemps, fullcommand, curtemp);
+    fullcommand ~= "llc "~curtemp~" -mattr=-avx,-avx2,-sse41 "~llc_cmd~"-filetype=obj -o "~objfile;
     logSmart!(false)("> ", fullcommand);
     if (bashsystem(fullcommand))
       throw new Exception("link failed");
@@ -1421,12 +1427,15 @@ void incbuild(string start,
   bool[string] neededRebuild; // prevent issue where we rebuild a mod, after which
                               // it obviously needs no further rebuild, preventing
                               // another module from realizing that it needs to be rebuilt also
-  bool needsRebuild(Module mod) {
+  bool[string] needsRebuildCache;
+  bool delegate(Module) needsRebuild;
+  bool _needsRebuild(Module mod) {
     if (mod.dontEmit) return false;
     
     auto file = mod.name.undo();
     string obj, asmf;
     file.translate(obj, asmf);
+    if (file == "sys.nt") file = "fcc.exe"; // contained within
     file = findfile(file);
     
     auto start2 = findfile(start);
@@ -1448,9 +1457,17 @@ void incbuild(string start,
       }
     return false;
   }
+  needsRebuild = delegate bool(Module mod) {
+    if (auto p = mod.name in needsRebuildCache) return *p;
+    auto res = _needsRebuild(mod);
+    needsRebuildCache[mod.name] = res;
+    return res;
+  };
+  auto drbackup = dontReemit;
   dontReemit = delegate bool(Module mod) {
     return !needsRebuild(mod);
   };
+  scope(exit) dontReemit = drbackup;
   lazySysmod();
   try {
     string[] objs = start.compileWithDepends(cs);
