@@ -57,7 +57,7 @@ abstract class GLWindow {
   Button x 5 buttons;
   vec2i mouse-pos;
   vec2i scroll-state;
-  bool[] key-held, key-pressed, key-released;
+  bool[] key-held, key-pressed, key-repeated, key-released;
   CallSet!string onTextInput;
 }
 
@@ -68,6 +68,15 @@ GLWindow glwindow;
 bool key-pressed(Key k) {
   if (k >= glwindow.key-pressed.length) return false;
   return glwindow.key-pressed[k];
+}
+
+bool key-repeated(Key k) {
+  if (k >= glwindow.key-repeated.length) return false;
+  return glwindow.key-repeated[k];
+}
+
+bool key-pressed-or-repeated(Key k) {
+  return key-pressed k || key-repeated k;
 }
 
 bool key-held(Key k) {

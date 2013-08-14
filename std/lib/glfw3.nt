@@ -91,13 +91,16 @@ class GLFWWindow : GLWindow {
     if (window != handle) raise new Error "Called key() with $(window) but handle is $(handle)";
     // writeln "$k with $action";
     void set(Key code) {
-      if (key-held.length < code + 1) key-held ~= new bool[] code + 1 - key-held.length;
-      if (key-pressed.length < code + 1) key-pressed ~= new bool[] code + 1 - key-pressed.length;
+      if (key-held    .length < code + 1) key-held     ~= new bool[] code + 1 - key-held    .length;
+      if (key-pressed .length < code + 1) key-pressed  ~= new bool[] code + 1 - key-pressed .length;
+      if (key-repeated.length < code + 1) key-repeated ~= new bool[] code + 1 - key-repeated.length;
       if (key-released.length < code + 1) key-released ~= new bool[] code + 1 - key-released.length;
       
       if (action == GLFW_PRESS) {
         key-held[code] = true;
         key-pressed[code] = true;
+      } else if (action == GLFW_REPEAT) {
+        key-repeated[code] = true;
       } else {
         key-held[code] = false;
         key-released[code] = true;
@@ -204,8 +207,10 @@ class GLFWWindow : GLWindow {
     for ref button <- buttons {
       button.(clicked, released) = (false, false);
     }
+    // once-off events; reset to false
     key-pressed[] = [for key-pressed: false];
     key-released[] = [for key-released: false];
+    key-repeated[] = [for key-repeated: false];
     scroll-state = vec2i 0;
     SwapBuffers handle;
     PollEvents;

@@ -87,10 +87,10 @@ void sendmail(string from, to, subject, content, host, logindata, bool dbg = fal
   string userpass = encode ubyte[]:"$user\x00$user\x00$pass";
   sendline "AUTH PLAIN $userpass";
   expectline "235";
-  sendline "MAIL FROM:<$user>"; expectline "250";
+  sendline "MAIL FROM:<$from>"; expectline "250";
   sendline "RCPT TO:<$to>"; expectline "250";
   sendline "DATA"; expectline "354";
-  sendline "From: <$user>";
+  sendline "From: <$from>";
   sendline "To: <$to>";
   sendline "Subject: $subject";
   sendline "";
