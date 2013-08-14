@@ -4,55 +4,58 @@ module std.hashmap;
 alias FNV_prime = 16777619;
 alias FNV_offset = 2166136261;
 alias FNVStep = `
-  i = i xor (%V);
-  i = i * FNV_prime;
+  s = s xor (%V);
+  s = s * FNV_prime;
 `;
+
 template hashptr_fnv(PTR) {
-  void hashptr_fnv(PTR ptr, int* ip) {
+  void hashptr_fnv(PTR ptr, size_t* sp) {
     pragma(fast);
+    
     alias t = *ptr;
     alias T = type-of t;
-    alias i = *ip;
+    alias s = *sp;
+    
     static if (types-equal (T, int)) {
-      mixin FNVStep.replace("%V", "t");
+      mixin FNVStep.replace("%V", "size_t:t");
       return;
       bool matched;
     }
     static if (types-equal (T, float) || types-equal (T, bool) || type-is pointer T) {
-      mixin FNVStep.replace("%V", "*int*:&t");
+      mixin FNVStep.replace("%V", "*size_t*:&t");
       return;
       bool matched;
     }
     static if (!is-defined matched && (type-is tuple T || type-is vector T)) {
       static for (int i <- 0..t.length)
-        .hashptr_fnv!type-of &t[i] (&t[i], ip);
+        .hashptr_fnv!type-of &t[i] (&t[i], sp);
       return;
       bool matched;
     }
     static if (!is-defined matched && type-is struct T) {
       static for (int i <- 0..t.tupleof.length) {
         alias entry = t.tupleof[i];
-        .hashptr_fnv!type-of &entry (&entry, ip);
+        .hashptr_fnv!type-of &entry (&entry, sp);
       }
       return;
       bool matched;
     }
     static if (!is-defined matched && types-equal (T, string)) {
       string str = t, rest;
-      int last;
+      size_t last;
       if (str.length % 4 != 0) {
         auto marker = str.length - str.length % 4;
         (str, rest) = str[(0..marker, marker..$)];
-        for auto ub <- ubyte[]:rest last = (last << 8) + ub;
+        for auto ub <- ubyte[]:rest last = (last << 8) + size_t:int:ub;
       }
-      for int v <- int[]:str mixin FNVStep.replace("%V", "v");
+      for size_t v <- size_t[]:str mixin FNVStep.replace("%V", "v");
       mixin FNVStep.replace("%V", "last");
       return;
       bool matched;
     }
     // TODO interface Hashed { uint hash(); } or in Object
     static if (!is-defined matched && (type-is interface T || type-is class T)) {
-      mixin FNVStep.replace("%V", "*int*:&t");
+      mixin FNVStep.replace("%V", "*size_t*:&t");
       return;
       bool matched;
     }
@@ -63,8 +66,8 @@ template hashptr_fnv(PTR) {
 }
 
 template hashptr(PTR) {
-  int hashptr(PTR ptr) {
-    int res = FNV_offset;
+  size_t hashptr(PTR ptr) {
+    size_t res = FNV_offset;
     hashptr_fnv!PTR(ptr, &res);
     return res;
   }
@@ -129,9 +132,9 @@ template Hashmap(T) {
         if (!newsize) newsize = 16;
         realloc newsize;
       }
-      auto pos = (hashptr &k) % backing.length;
+      auto pos = (hashptr &k) % size_t:backing.length;
       while (isset[pos] == SetState.Set && !eq!Key(&backing[pos][0], &k)) {
-        if (++pos == backing.length) pos = 0;
+        if (++pos == size_t:backing.length) pos = 0;
       }
       backing[pos] = (k, v);
       if (isset[pos] != SetState.Set) {
@@ -145,13 +148,13 @@ template Hashmap(T) {
       pragma(fast);
       if (!backing.length) return;
       alias k = Key:*kp;
-      auto pos = (hashptr &k) % backing.length;
+      auto pos = (hashptr &k) % size_t:backing.length;
       while (isset[pos] != SetState.NotSet) {
         if (isset[pos] == SetState.Set && eq!Key(&backing[pos][0], &k)) {
           isset[pos] = SetState.Deleted;
           return;
         }
-        if (++pos == backing.length) pos = 0;
+        if (++pos == size_t:backing.length) pos = 0;
       }
     }
     // if allocate is true, get returns a pointer to a fresh slot if not found
@@ -165,12 +168,12 @@ template Hashmap(T) {
           return get kp;
         } else return null;
       }
-      auto pos = (hashptr &k) % backing.length;
+      auto pos = (hashptr &k) % size_t:backing.length;
       while (isset[pos] != SetState.NotSet) {
         if (isset[pos] == SetState.Set && eq!Key(&backing[pos][0], &k)) {
           return &backing[pos][1];
         }
-        if (++pos == backing.length) pos = 0;
+        if (++pos == size_t:backing.length) pos = 0;
       }
       if (allocate) {
         insert(kp, &Value nv);

@@ -294,38 +294,38 @@ static this() {
       return null;
     return fastalloc!(DoubleAsFloat)(ex);
   };
-  implicits ~= delegate Expr(Expr ex) {
-    if (Single!(Double) != ex.valueType()) return null;
-    opt(ex);
-    auto dex = fastcast!(DoubleExpr) (ex);
-    if (!dex) return null;
-    return fastalloc!(FloatExpr)(cast(float) dex.d);
-  };
-  implicits ~= delegate Expr(Expr ex, IType desired) {
-    if (Single!(SysInt) != ex.valueType()) return null;
-    opt(ex);
-    auto ie = fastcast!(IntExpr) (ex);
-    if (!ie) return null;
-    if (ie.num > 65535 || ie.num < -32767) {
-      if (desired && Single!(Short) == desired)
-        throw new Exception(Format(ie.num, " does not fit into short"));
-      return null;
-    }
-    return fastalloc!(IntLiteralAsShort)(ie);
-  };
   implicits ~= delegate void(Expr ex, IType desired, void delegate(Expr) dg) {
-    if (Single!(SysInt) != ex.valueType()) return;
+    auto vt = ex.valueType();
+    bool isDouble = !!(Single!(Double) == vt);
+    bool isSysInt = !isDouble && Single!(SysInt) == vt;
+    if (!isDouble && !isSysInt) return;
+    
     opt(ex);
-    auto ie = fastcast!(IntExpr) (ex);
-    if (!ie) return;
-    if (ie.num > 255 || ie.num < -127) {
-      if (desired && Single!(Byte) == desired)
-        throw new Exception(Format(ie.num, " does not fit into byte"));
-      return;
+    
+    if (isDouble) {
+      auto dex = fastcast!(DoubleExpr)(ex);
+      if (dex) dg(fastalloc!(FloatExpr)(cast(float) dex.d));
     }
-    auto litbyte = fastalloc!(IntLiteralAsByte)(ie);
-    dg(litbyte);
-    dg(reinterpret_cast(Single!(UByte), litbyte));
+    if (isSysInt) {
+      auto ie = fastcast!(IntExpr)(ex);
+      if (ie) {
+        if (ie.num > 0xffff || ie.num < -0x7fff) {
+          if (desired && Single!(Short) == desired)
+            throw new Exception(Format(ie.num, " does not fit into short"));
+        }
+        dg(fastalloc!(IntLiteralAsShort)(ie)); // TODO what .. make this ShortLiteral o.o
+        if (ie.num > 0xff || ie.num < -0x7f) {
+          if (desired && Single!(Byte) == desired)
+            throw new Exception(Format(ie.num, " does not fit into byte"));
+        }
+        auto litbyte = fastalloc!(IntLiteralAsByte)(ie);
+        dg(litbyte);
+        dg(reinterpret_cast(Single!(UByte), litbyte));
+        if (ie.num >= 0 && ie.num <= int.max) {
+          dg(reinterpret_cast(Single!(SizeT), ex));
+        }
+      }
+    }
   };
   converts ~= delegate Expr(Expr ex, IType it) {
     if (Single!(SysInt) != resolveTup(ex.valueType()))
@@ -392,11 +392,13 @@ abstract class BinopExpr : Expr, HasInfo {
 }
 
 class AsmIntBinopExpr : BinopExpr {
-  this(Expr e1, Expr e2, string op) {
+  bool unsigned;
+  this(Expr e1, Expr e2, string op, bool unsigned = false) {
     super(e1, e2, op);
+    this.unsigned = unsigned;
   }
   private this() { super(); }
-  AsmIntBinopExpr dup() { return fastalloc!(AsmIntBinopExpr)(e1.dup, e2.dup, op); }
+  AsmIntBinopExpr dup() { return fastalloc!(AsmIntBinopExpr)(e1.dup, e2.dup, op, unsigned); }
   override {
     void emitLLVM(LLVMFile lf) {
       auto v1 = save(lf, e1), v2 = save(lf, e2);
@@ -405,7 +407,7 @@ class AsmIntBinopExpr : BinopExpr {
         case "+": cmd = "add"; break;
         case "-": cmd = "sub"; break;
         case "*": cmd = "mul"; break;
-        case "/": cmd = "sdiv"; break;
+        case "/": cmd = unsigned?"udiv":"sdiv"; break;
         case "xor":cmd= "xor"; break;
         case "&": cmd = "and"; break;
         case "|": cmd = "or" ; break;
@@ -461,7 +463,7 @@ class AsmIntUnaryExpr : Expr {
     IType valueType() { return ex.valueType(); }
     void emitLLVM(LLVMFile lf) {
       if (op == "-"[]) (fastalloc!(AsmIntBinopExpr)(mkInt(0), ex, "-")).emitLLVM(lf);
-      else if (op == "¬"[]) (fastalloc!(AsmIntBinopExpr)(mkInt(-1), ex, "xor")).emitLLVM(lf);
+      else if (op == "¬"[]) (fastalloc!(AsmIntBinopExpr)(mkInt(-1), ex, "xor", true)).emitLLVM(lf);
       else
       {
         logln("!! "[], op, " "[], ex);
@@ -498,7 +500,8 @@ class AsmLongUnaryExpr : Expr {
   }
 }
 
-class AsmFloatBinopExpr : BinopExpr {
+final class AsmFloatBinopExpr : BinopExpr {
+  static const isFinal = true;
   this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
   private this() { super(); }
   override {
@@ -558,7 +561,8 @@ class AsmFloatBinopExpr : BinopExpr {
 }
 
 // copypasta from float
-class AsmDoubleBinopExpr : BinopExpr {
+final class AsmDoubleBinopExpr : BinopExpr {
+  static const isFinal = true;
   this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
   private this() { super(); }
   override {

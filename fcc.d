@@ -401,6 +401,7 @@ void ast_math_constr() {
   addCIntrin(2, "powf"  , Single!(Float), "llvm.pow.f32");
   
   bool isInt(IType it) { return test(Single!(SysInt) == it); }
+  bool isSizeT(IType it) { return test(Single!(SizeT) == it); }
   bool isFloat(IType it) { return test(Single!(Float) == it); }
   bool isDouble(IType it) { return test(Single!(Double) == it); }
   bool isLong(IType it) { return test(Single!(Long) == it); }
@@ -408,8 +409,14 @@ void ast_math_constr() {
   bool isBool(IType it) { if (!sysmod) return false; return test(it == fastcast!(IType)(sysmod.lookup("bool"))); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
     bool b1 = isBool(ex1.valueType()), b2 = isBool(ex2.valueType());
-    if (!gotImplicitCast(ex1, Single!(SysInt), &isInt) || !gotImplicitCast(ex2, Single!(SysInt), &isInt))
+    Expr i1 = ex1, i2 = ex2, u1 = ex1, u2 = ex2;
+    if (!gotImplicitCast(i1, Single!(SysInt), &isInt  )) i1 = null;
+    if (!gotImplicitCast(u1, Single!(SizeT),  &isSizeT)) u1 = null;
+    if (!gotImplicitCast(i2, Single!(SysInt), &isInt  )) i2 = null;
+    if (!gotImplicitCast(u2, Single!(SizeT),  &isSizeT)) u2 = null;
+    if (!i1 && !u1 || !i2 && !u2)
       return null;
+    if (!(i1 && i2 || u1 && u2)) return null; // cannot mix
     Expr res;
     bool ntcache, ntcached;
     bool nontrivial() {
@@ -420,16 +427,20 @@ void ast_math_constr() {
       if (!ie2) { ntcache = ntcached = true; return true; }
       ntcached = true; ntcache = false; return false;
     }
-    if (!res) res = fastalloc!(AsmIntBinopExpr)(ex1, ex2, op);
+    if (!res) {
+      if (i1 && i2)
+        res = fastalloc!(AsmIntBinopExpr)(i1, i2, op, false);
+      else
+        res = fastalloc!(AsmIntBinopExpr)(u1, u2, op, true);
     /*if (qformat(res).find("+ 0) + 0) + 0) + 0) + 0) + 0) + 0)") != -1) {
       logln("?? ", res);
-      fail;
-    }*/
+      fail;*/
+    }
     if (b1 && b2) res = reinterpret_cast(fastcast!(IType) (sysmod.lookup("bool")), res);
     return res;
   }
-  Expr handleIntUnary(string op, Expr ex) {
-    if (!gotImplicitCast(ex, Single!(SysInt), &isInt))
+  Expr handleSizeTUnary(string op, Expr ex) {
+    if (!gotImplicitCast(ex, Single!(SizeT), &isSizeT))
       return null;
     return fastalloc!(AsmIntUnaryExpr)(ex, op);
   }
@@ -478,7 +489,7 @@ void ast_math_constr() {
       ex2 = handleIntMath("*", ex2, llvmval(e1pt.target.llvmSize()));
     }
     if (!ex2) return null;
-    return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SysInt), ex1), ex2));
+    return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SizeT), ex1), reinterpret_cast(Single!(SizeT), ex2)));
   }
   Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
     if (Single!(Double) == ex1.valueType()) {
@@ -525,7 +536,7 @@ void ast_math_constr() {
     foreach (op; ops)
       defineOp(op, op /apply/ dg);
   }
-  defineOp("¬", "¬" /apply/ &handleIntUnary);
+  defineOp("¬", "¬" /apply/ &handleSizeTUnary);
   defineOp("¬", "¬" /apply/ &handleLongUnary);
   defineOp("-", &handleNeg);
   defineOps(&handleIntMath);

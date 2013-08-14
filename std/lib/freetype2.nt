@@ -61,7 +61,7 @@ struct FontStyle {
     if (bold) res ~= "bold, ";
     if (italic) res ~= "italic, ";
     if (underlined) res ~= "underlined, ";
-    res ~= "$color, length $chars]";
+    res ~= "$color, $bgcol, length $chars]";
     return res;
   }
 }
@@ -95,6 +95,7 @@ class Font {
   Hashmap!(int, vec2i) advancecache;
   Hashmap!(int, (vec2i, vec2i)) controlboxcache;
   Hashmap!((int, FontStyle), (int, int)) charsizecache;
+  Hashmap!(string, size_t) charsizetestcache;
   vec2i getAdvance(int ch) using mode FT {
     if (auto p = advancecache.get(ch)) return *p;
     auto index = Get_Char_Index(face, FT_ULong:ch);
@@ -123,6 +124,12 @@ class Font {
     auto key = (ch, style);
     if (auto p = charsizecache.get(&key)) { (*wp, *hp) = *p; return; }
     toBuffer(str, [style], &int width, &int height, dontRender => true);
+    
+    hashptr_fnv!type-of &key (&key, &size_t s = FNV_offset);
+    if (auto id = charsizetestcache.get "$key")
+      writeln "insert new $key BUT ALREADY IN TESTCACHE ($width, $height) as $(*id): ours is $s";
+    charsizetestcache.insert("$key", s);
+    
     charsizecache.insert(&key, &auto size = (width, height));
     (*wp, *hp) = size;
   }

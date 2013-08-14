@@ -80,6 +80,9 @@ Expr simpleFormat(Expr ex) {
   if (Single!(SysInt) == type || Single!(Short) == type || Single!(Byte) == type) {
     return buildFunCall(sysmod.lookup("itoa"), ex, "itoa");
   }
+  if (Single!(SizeT) == type) {
+    return buildFunCall(sysmod.lookup("utoa"), ex, "utoa");
+  }
   if (Single!(Long) == type) {
     return buildFunCall(sysmod.lookup("ltoa"), ex, "ltoa");
   }

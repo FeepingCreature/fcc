@@ -88,7 +88,8 @@ mixin DefaultParser!(gotDoubleExpr, "tree.expr.literal.double", "545");
 Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
   int i;
   auto t2 = text;
-  if (t2.gotInt(i)) {
+  bool isUint;
+  if (t2.gotInt(i, &isUint)) {
     // allow for a..b .. HAX!
     if (t2.length >= 2) {
       auto t3 = t2;
@@ -101,7 +102,7 @@ Object gotLiteralExpr(ref string text, ParseCb cont, ParseCb rest) {
     else if (t2.accept("M")) i *= 1024*1024;
     else if (t2.accept("G")) i *= 1024*1024*1024;
     text = t2;
-    return fastcast!(Object)(mkInt(i));
+    return fastcast!(Object)(mkInt(i, isUint));
   } else return null;
 }
 

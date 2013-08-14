@@ -4,16 +4,16 @@ import std.random.base;
 
 class MersenneTwister : IRandom {
   int index;
-  int x 624  state;
+  size_t x 624  state;
   void init(int seed = 23) {
-    state[0] = seed;
+    state[0] = size_t:seed;
     for int i <- 1..state.length
-      state[i] = 1812433253 * (state[i-1] xor (state[i-1] << 30)) + i;
+      state[i] = 1812433253 * (state[i-1] xor (state[i-1] << 30)) + size_t:i;
   }
   void generateNumbers() {
     auto sp0 = &state[0], sp1 = sp0, sp2 = sp0 + 1, sp3 = sp0 + 397, spe = sp0 + state.length;
     for 0..state.length {
-      int y = (*sp1) & 0x8000_0000 | (*sp2) & 0x7fff_ffff;
+      auto y = (*sp1) & 0x8000_0000 | (*sp2) & 0x7fff_ffff;
       (*sp1) = (*sp3) xor (y >> 1);
       // the things we do to avoid branches
       (*sp1) xor= 0x9908_b0df * (y & 1);
@@ -24,17 +24,17 @@ class MersenneTwister : IRandom {
   }
   int rand() {
     if !index generateNumbers;
-    int y = state[index++];
+    auto y = state[index++];
     index %= 624;
     y xor= (y >> 11);
     y xor= (y << 7) & 0x9d2c_5680;
     y xor= (y << 15) & 0xefc6_0000;
     y xor= (y >> 18);
-    return y;
+    return int:y;
   }
   void init(IRandom ir) {
     for int i <- 0..state.length
-      state[i] = ir.rand();
+      state[i] = size_t:ir.rand();
   }
 }
 

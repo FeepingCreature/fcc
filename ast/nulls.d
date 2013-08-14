@@ -115,12 +115,14 @@ extern(C) Cond _testTrue(Expr ex, bool nonzeroPreferred = false) {
     return null;
   }
   Cond testBool() {
-    auto ex2 = ex, ex3 = ex; // test for int-like
+    auto ex2 = ex, ex3 = ex, ex4 = ex; // test for int-like
     IType[] _tried;
     IType Bool = fastcast!(IType) (sysmod.lookup("bool"[]));
     if (gotImplicitCast(ex2,         Bool   , (IType it) { _tried ~= it; return .test(it == Bool); }, false) || (ex2 = null, false)
-      ||gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return .test(Single!(SysInt) == it); }, false) || (ex3 = null, false)) {
+      ||gotImplicitCast(ex3, Single!(SysInt), (IType it) { _tried ~= it; return .test(Single!(SysInt) == it); }, false) || (ex3 = null, false)
+      ||gotImplicitCast(ex4, Single!(SizeT),  (IType it) { _tried ~= it; return .test(Single!(SizeT) == it); }, false) || (ex4 = null, false)) {
       if (!ex2) ex2 = ex3;
+      if (!ex2) ex2 = ex4;
       if (auto ce = fastcast!(CondExpr) (ex2)) return ce.cd;
       return exprwrap(ex2);
       // return fastalloc!(Compare)(ex2, true, false, true, false, mkInt(0)); // ex2 <> 0

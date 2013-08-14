@@ -41,7 +41,7 @@ void setupIndex() {
     if (!fastcast!(StaticArray) (e1v) && !fastcast!(Array) (e1v) && !fastcast!(ExtArray) (e1v) && !fastcast!(Pointer) (e1v))
       return null;
     IType[] tried;
-    if (!gotImplicitCast(e2, (IType it) { tried ~= it; return !!(Single!(SysInt) == it); }))
+    if (!gotImplicitCast(e2, (IType it) { tried ~= it; return Single!(SysInt) == it || Single!(SizeT) == it; }))
       return null;
     if (auto dcme = fastcast!(DontCastMeExpr) (e2)) e2 = dcme.sup;
     if (fastcast!(StaticArray) (e1v) && !fastcast!(CValue) (e1)) {
@@ -121,7 +121,7 @@ Object gotArrayAccess(ref string text, ParseCb cont, ParseCb rest) {
         bool hasScope = !!namespace().get!(Scope);
         bool poi = !!fastcast!(Pointer) (ex.valueType());
         bool stat = !!fastcast!(StaticArray) (ex.valueType());
-        if (isArrayOrPtr && !poi && !stat && !releaseMode && hasScope && fastcast!(SysInt)(posvt)) {
+        if (isArrayOrPtr && !poi && !stat && !releaseMode && hasScope && (fastcast!(SysInt)(posvt) || fastcast!(SizeT)(posvt))) {
           auto errorpos = lookupPos(text);
           string info = Format(errorpos._2, ":", errorpos._0, ":", errorpos._1);
           res = iparse!(Expr, "check_bound", "tree.expr")

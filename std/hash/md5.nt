@@ -5,8 +5,8 @@ extern(C) void* memset(void* s, int c, int n);
 // ported from http://www.fourmilab.ch/md5/
 struct MD5Hash {
   ubyte x 16 hash;
-  int x 4 buf;
-  int x 2 bits;
+  size_t x 4 buf;
+  size_t x 2 bits;
   ubyte x 64 in;
   void init() {
     buf[(0,1,2,3)] = (0x67452301,0xefcdab89,0x98badcfe,0x10325476);
@@ -18,8 +18,8 @@ struct MD5Hash {
     finalize;
   }
   void update(ubyte[] data) {
-    int t = bits[0];
-    alias len = data.length;
+    size_t t = bits[0];
+    alias len = size_t:data.length;
     bits[0] = t + (len << 3);
     if (bits[0] < t) bits[1] ++;
     bits[1] += len >> 29;
@@ -28,19 +28,19 @@ struct MD5Hash {
       ubyte* p = &in[t];
       t = 64 - t;
       if (len < t) {
-        p[0..len] = data;
+        p[0..int:len] = data;
         return;
       }
-      p[0..t] = data[0..t];
+      p[0..int:t] = data[0..int:t];
       transform();
-      data = data[t .. $];
+      data = data[int:t .. $];
     }
     while (len >= 64) {
       in[] = data[0..64];
       transform();
       data = data[64 .. $];
     }
-    in[0..len] = data;
+    in[0..int:len] = data;
   }
   void finalize() {
     auto count = (bits[0] >>> 3) &0x3f;
@@ -49,26 +49,26 @@ struct MD5Hash {
     ++p;
     count = 64 - 1 - count;
     if (count < 8) {
-      memset(p, 0, count);
+      memset(p, 0, int:count);
       transform();
       memset(&in[0], 0, 56);
     } else {
-      memset(p, 0, count - 8);
+      memset(p, 0, int:count - 8);
     }
-    (int*:&in[0])[(14, 15)] = bits[(0, 1)];
+    (size_t*:&in[0])[(14, 15)] = bits[(0, 1)];
     transform();
     hash[] = (ubyte*:buf)[0..16];
   }
   void transform() {
     // buf, in
-    int (a, b, c, d) = buf[(0, 1, 2, 3)];
+    size_t (a, b, c, d) = buf[(0, 1, 2, 3)];
     alias f1 = `(#z xor $ #x & $ #y xor #z)`;
     alias f2 = `(#y xor $ #z & $ #x xor #y)`;
     alias f3 = `(#x xor #y xor #z)`;
     alias f4 = `(#y xor $ #x | ¬ #z)`;
     alias md5step = `{
       %w += mixin(%f.replace("#x", "%x").replace("#y", "%y").replace("#z", "%z")) + %data; %w = (%w << %s) | (%w >>> (32-%s)); %w += %x; }`;
-    alias in = int*:&in[0];
+    alias in = size_t*:&in[0];
     alias list = (
     ("f1", "a", "b", "c", "d", "in[0] + 0xd76aa478", "7"),
     ("f1", "d", "a", "b", "c", "in[1] + 0xe8c7b756", "12"),

@@ -815,7 +815,7 @@ void setupSysmods() {
         already_handling_segfault = true;
         onExit already_handling_segfault = false;
         
-        if (errcode == STATUS_ACCESS_VIOLATION) {
+        if (errcode == int:STATUS_ACCESS_VIOLATION) {
           // printf("seghandle_userspace and %p\n", frameinfo);
           if (preallocated_sigsegv) raise preallocated_sigsegv;
           raise new MemoryAccessError "Access Violation";

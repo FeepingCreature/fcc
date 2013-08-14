@@ -90,7 +90,7 @@ struct SpeedCache {
 }
 
 enum Scheme { Binary, Octal, Decimal, Hex }
-bool gotInt(ref string text, out int i) {
+bool gotInt(ref string text, out int i, bool* unsigned = null) {
   auto t2 = text;
   t2.eatComments();
   if (auto rest = t2.startsWith("-")) {
@@ -141,6 +141,7 @@ bool gotInt(ref string text, out int i) {
       } 
       res = cast(int) nres;
     }
+    if (gotSomeDigits && unsigned) *unsigned = must_uint;
     return gotSomeDigits;
   }
 

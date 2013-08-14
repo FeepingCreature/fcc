@@ -11,7 +11,7 @@ int floatToIntColor(vec3f col) {
   vec3i i = void;
   fastfloor3f (col * ff, &i);
   // make sure we get opacity
-  return (i & ii).sum + 0xff00_0000;
+  return (i & ii).sum + int:0xff00_0000;
 }
 
 int floatToIntColor(vec4f col) {
@@ -501,7 +501,7 @@ Area screen13(int w, h, bool fullscreen = false, bool surface = false,
   if fullscreen cfg |= SDL_WINDOW_FULLSCREEN;
   Surface surf;
   if surface
-    surf = new Surface SDL_CreateRGBSurface(cfg, w, h, 32, 0xff0000, 0xff00, 0xff, 0xff00_0000);
+    surf = new Surface SDL_CreateRGBSurface(cfg, w, h, 32, 0xff0000, 0xff00, 0xff, int:0xff00_0000);
   else {
     auto window = SDL_CreateWindow("SDL window", SDL_WINDOWPOS_UNDEFINED x 2, w, h, cfg);
     surf = new WindowSurface13 SDL_GetWindowSurface(window);
@@ -554,7 +554,7 @@ Area screen(int w, h, bool fullscreen = false, bool surface = false,
   
   SDL_Surface* surf;
   if surface
-    surf = SDL_CreateRGBSurface(cfg, w, h, 32, 0xff0000, 0xff00, 0xff, 0xff00_0000);
+    surf = SDL_CreateRGBSurface(cfg, w, h, 32, 0xff0000, 0xff00, 0xff, int:0xff00_0000);
   else
     surf = SDL_SetVideoMode(w, h, 32, cfg);
   if (fullscreen) {
