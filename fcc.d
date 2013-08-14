@@ -692,12 +692,13 @@ extern(C) bool _exactly_equals(IType a, IType b) {
 
 // from ast.arrays
 static this() {
-  defineOp("=="[], delegate Expr(Expr ex1, Expr ex2) {
-    bool isArray(IType it) { return !!fastcast!(Array) (it); }
+  defineOp("==", delegate Expr(Expr ex1, Expr ex2) {
+    bool isArray(IType it) { return !!fastcast!(Array) (resolveType(it)); }
     auto oex1 = ex1, oex2 = ex2;
-    if (!gotImplicitCast(ex1, &isArray) || !gotImplicitCast(ex2, &isArray))
+    if (!gotImplicitCast(ex1, Single!(HintType!(Array)), &isArray) || !gotImplicitCast(ex2, Single!(HintType!(Array)), &isArray)) {
       return null;
-    auto a1 = fastcast!(Array) (ex1.valueType());
+    }
+    auto a1 = fastcast!(Array) (resolveType(ex1.valueType()));
     {
       bool cres;
       if (constantStringsCompare(oex1, oex2, &cres)) return cres?True:False;
