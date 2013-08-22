@@ -203,7 +203,7 @@ void setupSysmods() {
           if (size > newsize) newsize = size;
           auto full = new T[] newsize;
           // printf("allocated %p as %d\n", full.ptr, full.length);
-          T[auto ~] res = T[auto~]:(full[0 .. size]);
+          T[auto ~] res = full[0 .. size];
           res.capacity = newsize;
           res[0 .. l.length] = (*l)[];
           // printf("free %d, %p (cap %d)\n", l.length, l.ptr, l.capacity);
@@ -213,7 +213,7 @@ void setupSysmods() {
           res[l.length .. size] = r;
           return res;
         } else {
-          T[auto ~] res = T[auto~]:l.ptr[0 .. l.length + r.length]; // make space
+          T[auto ~] res = l.ptr[0 .. l.length + r.length]; // make space
           res.capacity = l.capacity;
           l.capacity = 0; // claimed!
           res[l.length .. res.length] = r;

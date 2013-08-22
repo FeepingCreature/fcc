@@ -234,7 +234,8 @@ IType arrayAsStruct(IType base, bool rich) {
       return iparse!(Statement, "array_clear"[], "tree.stmt"[])
                     (`length = 0;`, namespace());
     });
-  } else {
+  }
+  {
     auto propbackup = propcfg().withTuple;
     propcfg().withTuple = true;
     scope(exit) propcfg().withTuple = propbackup;
@@ -464,17 +465,19 @@ mixin DefaultParser!(gotArrayLength, "tree.rhs_partial.a_array_length"[], null, 
 
 class ArrayExtender : Expr {
   Expr array, ext;
+  bool autoarray;
   IType baseType, cachedType;
-  this(Expr a, Expr e) {
+  this(Expr a, Expr e, bool automatic = false) {
     array = a;
     ext = e;
+    autoarray = automatic;
     baseType = (fastcast!(Pointer) (getArrayPtr(array).valueType())).target;
   }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(array, ext);
   override {
-    IType valueType() { if (!cachedType) cachedType = fastalloc!(ExtArray)(baseType, false); return cachedType; }
+    IType valueType() { if (!cachedType) cachedType = fastalloc!(ExtArray)(baseType, autoarray); return cachedType; }
     void emitLLVM(LLVMFile lf) {
       auto ars = save(lf, array); // length, ptr
       auto art = typeToLLVM(array.valueType());
@@ -501,12 +504,13 @@ static this() {
       return arrayToStruct!(Expr) (ex);
     }
   };
-  implicits ~= delegate Expr(Expr ex, IType it) {
-    if (!fastcast!(Array) (ex.valueType())) return null;
-    if (it && Single!(HintType!(Array)) != it && Single!(HintType!(ExtArray)) != it) return null;
+  implicits ~= delegate void(Expr ex, IType it, void delegate(Expr) consider) {
+    if (!fastcast!(Array) (ex.valueType())) return;
+    if (it && Single!(HintType!(Array)) != it && Single!(HintType!(ExtArray)) != it) return;
     // if (!isTrivial(ex)) ex = lvize(ex);
     // equiv to extended with 0 cap
-    return fastalloc!(ArrayExtender)(ex, mkInt(0));
+    consider(fastalloc!(ArrayExtender)(ex, mkInt(0)));
+    consider(fastalloc!(ArrayExtender)(ex, mkInt(0), true)); // try [auto~]
   };
 }
 
