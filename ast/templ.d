@@ -55,6 +55,19 @@ class RelTemplate : ITemplateX, Iterable {
   }
 }
 
+// value-equal
+import ast.literals;
+bool vequals(Tree t1, Tree t2) {
+  auto o1 = fastcast!(Object)(t1), o2 = fastcast!(Object)(t2);
+  if (o1.classinfo !is o2.classinfo) return false;
+  if (auto ie = fastcast!(IntExpr)(o1)) {
+    return ie.num == fastcast!(IntExpr)(o2).num;
+  }
+  // logln(" -- ", o1.classinfo.name, " ", o1);
+  // fail;
+  return t1 == t2;
+}
+
 class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in structs */ {
   string name;
   string param;
@@ -109,9 +122,13 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
     }
     TemplateInstance getInstance(Tree tr, ParseCb rest) {
       if (!isAlias) fail;
+      if (auto ex = fastcast!(Expr)(tr))
+        tr = forcedConvert(ex); // (int) to int -- wtf TODO do this earlier
+      opt(tr);
       TemplateInstance ti;
-      foreach (entry; emat_alias)
-        if (entry._1 == tr) { ti = entry._0; break; }
+      foreach (entry; emat_alias) {
+        if (vequals(entry._1, tr)) { ti = entry._0; break; }
+      }
       if (!ti) {
         ti = fastalloc!(TemplateInstance)(this, tr, rest);
       }
