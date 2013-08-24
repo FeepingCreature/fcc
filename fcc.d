@@ -1420,7 +1420,7 @@ version(Windows) {
 
 alias ast.modules.exists exists;
 
-void incbuild(string start,
+int incbuild(string start,
           CompileSettings cs, bool runMe)
 {
   string undo(string mod) {
@@ -1486,13 +1486,17 @@ void incbuild(string start,
     objs.link(cs.optimize, cs.debugMode, true);
   } catch (Exception ex) {
     logSmart!(false) (ex);
-    return;
+    return 1;
   }
   if (runMe) {
     auto cmd = "./"~output;
     version(Windows) cmd = output;
-    logSmart!(false)("> ", cmd); system(toStringz(cmd));
+    logSmart!(false)("> ", cmd);
+    auto res = system(toStringz(cmd));
+    if (res > 255) res = (res & 0xff00) >> 8; // wexitstatus
+    return res;
   }
+  return 0;
 }
 
 version(Windows) { const string pathsep = "\\"; }
@@ -1687,8 +1691,7 @@ int main2(string[] args) {
   }
   if (!output) output = "exec";
   if (incremental) {
-    incbuild(mainfile, cs, runMe);
-    return 0;
+    return incbuild(mainfile, cs, runMe);
   }
   objects.link(cs.optimize, cs.debugMode, cs.saveTemps);
   scope(exit) if (accesses.length) logln("access info: ", accesses);
