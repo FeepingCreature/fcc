@@ -333,7 +333,6 @@ bool matchStructBodySegment(ref string text, Namespace ns,
   namespace.set(ns);
   scope(exit) namespace.set(backup);
   
-  Named smem;
   string t2;
   string[] names; IType[] types;
   string strname; IType strtype;
@@ -347,8 +346,10 @@ bool matchStructBodySegment(ref string text, Namespace ns,
   
   bool expr() {
     auto backup = text;
-    if (test(smem = fastcast!(Named)(match(text, "struct_member")))) {
-      if (!addsSelf(smem)) ns.add(smem);
+    Object obj;
+    if (test(obj = match(text, "struct_member"))) {
+      auto smem = fastcast!(Named)(obj);
+      if (smem && !addsSelf(smem)) ns.add(smem);
       return true;
     }
     text = backup;

@@ -1,6 +1,6 @@
 module ast.templ;
 
-import ast.base, ast.parse, ast.modules, ast.namespace, ast.fun, ast.oop, ast.nestfun;
+import ast.base, ast.parse, ast.modules, ast.namespace, ast.fun, ast.oop, ast.nestfun, ast.fold;
 
 interface ITemplate : Named {
   Object getInstanceIdentifier(IType it, ParseCb rest, string name);

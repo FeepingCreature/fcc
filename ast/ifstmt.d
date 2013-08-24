@@ -89,8 +89,8 @@ Object gotIfStmt(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIfStmt, "tree.stmt.if"[], "19"[], "if"[]);
 
-import ast.fold, ast.stringparse, ast.aggregate_parse, ast.platform;
-Object gotStaticIf(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
+import ast.fold, ast.stringparse, ast.aggregate_parse, ast.platform, ast.structure;
+Object gotStaticIf(int Mode)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Cond test;
   if (!rest(t2, "cond"[], &test))
@@ -111,12 +111,18 @@ Object gotStaticIf(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   auto popCache = pushCache(); scope(exit) popCache();
   
   if (isStaticTrue(test)) {
-    static if (Stmt) { res = branch1.parseFullAggregateBody(rest); }
-    else { res = branch1.parseGlobalBody(rest, Stmt); }
+    static if (Mode == 2) { res = branch1.parseFullAggregateBody(rest); }
+    else static if (Mode == 1) {
+      matchStructBodySegment(branch1, namespace(), &rest, false, true);
+      res = Single!(NoOp);
+    } else { res = branch1.parseGlobalBody(rest, false); }
   } else if (isStaticFalse(test)) {
     if (branch2) {
-      static if (Stmt) { res = branch2.parseFullAggregateBody(rest); }
-      else { res = branch2.parseGlobalBody(rest, Stmt); }
+      static if (Mode == 2) { res = branch2.parseFullAggregateBody(rest); }
+      else static if (Mode == 1) {
+        matchStructBodySegment(branch2, namespace(), &rest, false, true);
+        res = Single!(NoOp);
+      } else { res = branch2.parseGlobalBody(rest, false); }
     } else {
       res = Single!(NoOp);
     }
@@ -127,5 +133,6 @@ Object gotStaticIf(bool Stmt)(ref string text, ParseCb cont, ParseCb rest) {
   text = t3;
   return fastcast!(Object) (res);
 }
-mixin DefaultParser!(gotStaticIf!(false), "tree.toplevel.a_static_if", null, "static if"); // sort first because is also cheap to exclude
-mixin DefaultParser!(gotStaticIf!(true) , "tree.stmt.static_if", "190", "static if");
+mixin DefaultParser!(gotStaticIf!(0), "tree.toplevel.a_static_if", null, "static if"); // sort first because is also cheap to exclude
+mixin DefaultParser!(gotStaticIf!(1), "struct_member.a_static_if", null, "static if");
+mixin DefaultParser!(gotStaticIf!(2) , "tree.stmt.static_if", "190", "static if");

@@ -14,9 +14,11 @@ PassthroughWeakNoOp parseGlobalBody(ref string src, ParseCb rest, bool stmt) {
         if (auto im = fastcast!(IsMangled)(obj)) mangles ~= im;
         if (stmt) {
           if (auto st = fastcast!(Statement) (obj)) {
-            auto sc = fastcast!(Scope) (ns);
-            if (!sc) fail;
-            sc.addStatement(st);
+            if (!fastcast!(NoOp)(st)) {
+              auto sc = fastcast!(Scope) (ns);
+              if (!sc) fail(qformat("ns was a ", fastcast!(Object)(namespace()).classinfo.name, " ", ns, ", not a Scope that we can add ", st, " to"));
+              sc.addStatement(st);
+            }
           }
         } else {
           if (auto n = fastcast!(Named) (obj))
