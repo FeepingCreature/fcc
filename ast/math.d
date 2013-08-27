@@ -413,8 +413,8 @@ class AsmIntBinopExpr : BinopExpr {
         case "|": cmd = "or" ; break;
         case "%": cmd = "urem";break;
         case "<<":cmd = "shl"; break;
-        case ">>":cmd = "ashr";break;
-        case ">>>":cmd= "lshr";break;
+        case ">>":cmd = "ashr";break; // arithmetic shift
+        case ">>>":cmd= "lshr";break; // logical shift
       }
       load(lf, cmd, " i32 ", v1, ", ", v2);
       assert(e1.valueType().llvmType() == "i32");

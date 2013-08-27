@@ -16,7 +16,7 @@ Expr[] genInitPattern(int i, int len) {
 final class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
   static const isFinal = true;
   this(IType it, int i) {
-    this.base = it;
+    this.base = resolveType(it);
     this.len = i;
     IType[] mew;
     for (int k = 0; k < i; ++k)
@@ -30,7 +30,7 @@ final class Vector : Type, RelNamespace, ForceAlignment, ExprLikeThingy {
   }
   IType base;
   Tuple asTup;
-  Tuple asFilledTup; // including filler for vec3f
+  Tuple asFilledTup; // including filler for vec3f/vec3i
   Structure asStruct;
   int len;
   int alignment() {
@@ -533,6 +533,28 @@ Structure mkVecStruct(Vector vec) {
   return res;
 }
 
+class FPVecAsInt : Expr {
+  Expr ex; Vector v;
+  this(Vector v, Expr ex) {
+    this.ex = ex;
+    this.v = v;
+    assert(Single!(Float) == v.base);
+  }
+  private this() { }
+  mixin DefaultDup;
+  mixin defaultIterate!(ex);
+  override {
+    string toString() { return Format("vec", v.len, "i: ", ex); }
+    IType valueType() { return fastalloc!(Vector)(Single!(SysInt), v.len); }
+    void emitLLVM(LLVMFile lf) {
+      string from, to;
+      from = qformat("<", v.len, " x float>");
+      to   = qformat("<", v.len, " x i32>");
+      load(lf, "fptosi ", from, " ", save(lf, ex), " to ", to);
+    }
+  }
+}
+
 import ast.casting, ast.static_arrays;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
@@ -571,7 +593,7 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     auto vec = fastcast!(Vector) (resolveType(ex.valueType()));
     if (!vec) return null;
-    if (!fastcast!(SysInt) (resolveType(vec.base))) return null;
+    if (Single!(SysInt) != vec.base) return null;
     auto to = fastalloc!(Vector)(Single!(Float), vec.len);
     return fastcast!(Expr) (constructVector(mkTupleValueExpr(getTupleEntries(reinterpret_cast(vec.asFilledTup, ex), null, true)[0..vec.len]), to, false));
   };
@@ -587,6 +609,14 @@ static this() {
       }
     }
     return;
+  };
+  // vecf to veci
+  converts ~= delegate Expr(Expr ex, IType) {
+    auto ty = resolveType(ex.valueType());
+    auto v = fastcast!(Vector)(ty);
+    if (!v) return null;
+    if (Single!(Float) != v.base) return null;
+    return fastalloc!(FPVecAsInt)(v, ex);
   };
 }
 
@@ -758,10 +788,13 @@ class VecOp : Expr {
           case "/": llop = "div"; break;
           case "&": llop = "and"; break;
           case "|": llop = "or" ; break;
+          case "<<": llop = "shl"; break;
+          case ">>": llop = "ashr"; break;
+          case ">>>": llop = "lshr"; break;
           default: break;
         }
         if (fastcast!(Float)(e1v.base) || fastcast!(Double)(e1v.base) || fastcast!(Real)(e1v.base)) {
-          if (llvmver() == "3.1") {
+          if (llvmver() == "3.1" || llvmver() == "3.2") {
             llop = "f"~llop;
           } else {
             llop = "f"~llop~" fast";

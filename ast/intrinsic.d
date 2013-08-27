@@ -618,16 +618,18 @@ void setupSysmods() {
       memcpy(res, ptr, length);
       return res;
     }
-    extern(C) float floorf(float);
-    int fastfloor(float f) { return int:(floorf(f) + 0.25); }
+    int fastfloor(float f) { return (int:f) - (*int*:&f) >> 31; }
     void fastfloor3f(vec3f v, vec3i* res) {
-      if (true || v.x >= 1<<31 || v.y >= 1<<31 || v.z >= 1<<31) { // cvttps2dq will fail
-        res.x = fastfloor(v.x);
-        res.y = fastfloor(v.y);
-        res.z = fastfloor(v.z);
-        return;
+      if (v.x > int.max || v.y > int.max || v.z > int.max) {
+        fail("fastfloor3f int conversion requested but there is actually no int equivalent for $v");
       }
-      /*(vec4f*: &v).w = 0; // prevent fp error
+      (vec4f*: &v).w = 0; // prevent fp error
+      vec4i i = vec4i: *(vec4f*:&v); // cvttps2dq
+      vec4i signs = *(vec4i*: &v) >>> vec4i(31); // logical shift sign bit into bit0
+      // sign=1 means negative, so subtract that 1 to make -6.5 <> -6 <> -7
+      *(vec4i*: res) = (i - signs);
+      // should be same assembly
+      /*
       xmm[4] = v;
       asm "cvttps2dq %xmm4, %xmm5";`"
       asm `psrld $31, %xmm4`;"`
