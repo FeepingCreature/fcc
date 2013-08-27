@@ -521,17 +521,21 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       if (lf.debugmode_dwarf) {
         auto mod = coarseModule;
         if (!mod) mod = get!(IModule);
-        auto file = addMetadata(lf, `metadata !"`, mod.filename(), `", null`);
+        auto file = addMetadata(lf, `metadata !"`, mod.filename().filenamepart(), `", metadata !"`, mod.filename().dirpart(), `"`);
+        auto type = addMetadata(lf, `i32 786453, ` // dw_tag_subroutine_type
+          // TODO
+          `i32 0, i32 0, metadata !"", i32 0, i64 0, i64 0, i64 0, i32 0, null, null, i32 0, i32 0`
+        );
         dwarfMetadata = addMetadata(lf, "i32 786478, metadata ", file, ", ",
           "metadata ", addMetadata(lf, "i32 786473, metadata ", file), ", ",
           `metadata !"`, fqn(), `", metadata !"`, mangleSelf(), `", `,
           `metadata !"", `,
-          "i32 0, ", // TODO line number
-          `null, `, // TODO type
-          `i1 false, i1 true, i32 0, i32 0, null, i32 0, i1 false, `,
+          "i32 1, ", // TODO line number
+          "metadata ", type, ", ",
+          `i1 false, i1 true, i32 0, i32 0, null, i32 256, i1 false, `,
           retstr, ` (`, argtypestr, `)* @`, fmn, `, `,
-          `null, null, null, `,
-          `i32 0` // TODO first line of function
+          `null, null, metadata `, addMetadata(lf, "i32 0"), `, `,
+          `i32 1` // TODO first line of function
         );
         lf.dwarf_subprogs ~= "metadata "~dwarfMetadata;
         lf.currentFunctionDwarfMetadata = dwarfMetadata;

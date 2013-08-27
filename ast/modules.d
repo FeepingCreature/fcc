@@ -186,9 +186,12 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       if (lf.debugmode_dwarf) {
         auto zero = addMetadata(lf, "i32 0");
         auto subproglist = addMetadata(lf, lf.dwarf_subprogs.join(", ")); 
+        auto dsourcefile = sourcefile; // debug sourcefile
+        if (!dsourcefile.length) dsourcefile = "fuckllvmanditsretardedinterpretationofquotecorrectunquotedwarf.nt"; 
+        
         put(lf, "!llvm.dbg.cu = !{", addMetadata(lf,
           "i32 786449, "
-          "metadata ", addMetadata(lf, `metadata !"`, sourcefile, `", null`), `, `,
+          "metadata ", addMetadata(lf, `metadata !"`, dsourcefile.filenamepart(), `",  metadata !"`, dsourcefile.dirpart(), `"`), `, `,
           `i32 2, metadata !"fcc", i1 false, metadata !"", i32 0`
           `, metadata `, zero, `, metadata `, zero, `, metadata `, subproglist,
           `, metadata `, zero, `, metadata `, zero, `, metadata !""`), "}");

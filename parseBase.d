@@ -1154,3 +1154,15 @@ string cleanup(string s) {
 bool acceptLeftArrow(ref string text) {
   return text.accept("<-") || text.accept("←");
 }
+
+string filenamepart(string path) {
+  if (path.find("/") == -1) return path;
+  auto rpos = path.rfind("/");
+  return path[rpos + 1 .. $];
+}
+
+string dirpart(string path) {
+  if (path.find("/") == -1) return null;
+  auto rpos = path.rfind("/");
+  return path[0 .. rpos];
+}

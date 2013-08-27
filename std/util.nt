@@ -91,7 +91,7 @@ template FeedIterator(T) {
       
       // TODO: do this in the compiler
       auto backup = source.capacity;
-      source = T[auto~]: source[1..$];
+      source = source[1..$]; // resets capacity to 0 because casts via T[]
       source.capacity = backup - 1;
       
       return true;

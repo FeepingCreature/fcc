@@ -1261,8 +1261,10 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       string march;
       if (llvmver() == "3.1") { }
       else if (isARM) march="-march=arm ";
-      else march = "-mattr=-avx,-avx2,-sse41 -march=x86 ";
-      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~get_llc_cmd(cs.optimize, cs.debugMode, cs.saveTemps, bogus, bogus)~" |llc "~march~cpumode()~"- -filetype=obj -o ", objname);
+      else march = "-mattr=-avx,-avx2 -march=x86 ";
+      if (cs.debugModeDwarf) march ~= "-disable-fp-elim ";
+      auto llcflags = get_llc_cmd(cs.optimize, cs.debugMode || cs.debugModeDwarf, cs.saveTemps, bogus, bogus);
+      cmdline ~= Format("-o - ", srcname, " |opt "~march~" - "~llcflags~" |llc "~march~cpumode()~"- -filetype=obj -o ", objname);
     }
     
     logSmart!(false)("> (", len_parse, "s,", len_gen, "s,", len_emit, "s) ", cmdline);
@@ -1384,7 +1386,7 @@ void link(string[] objects, bool optimize, bool debugmode, bool saveTemps = fals
     objfile = ".obj/"~output~".o";
     // -mattr=-avx,-sse41 
     auto llc_cmd = get_llc_cmd(optimize, debugmode, saveTemps, fullcommand, curtemp);
-    fullcommand ~= "llc "~curtemp~" -mattr=-avx,-avx2,-sse41 "~llc_cmd~"-filetype=obj -o "~objfile;
+    fullcommand ~= "llc "~curtemp~" -mattr=-avx,-avx2 "~llc_cmd~"-filetype=obj -o "~objfile;
     logSmart!(false)("> ", fullcommand);
     if (bashsystem(fullcommand))
       throw new Exception("link failed");
@@ -1483,7 +1485,7 @@ int incbuild(string start,
   lazySysmod();
   try {
     string[] objs = start.compileWithDepends(cs);
-    objs.link(cs.optimize, cs.debugMode, true);
+    objs.link(cs.optimize, cs.debugMode || cs.debugModeDwarf, true);
   } catch (Exception ex) {
     logSmart!(false) (ex);
     return 1;
@@ -1693,7 +1695,7 @@ int main2(string[] args) {
   if (incremental) {
     return incbuild(mainfile, cs, runMe);
   }
-  objects.link(cs.optimize, cs.debugMode, cs.saveTemps);
+  objects.link(cs.optimize, cs.debugMode || cs.debugModeDwarf, cs.saveTemps);
   scope(exit) if (accesses.length) logln("access info: ", accesses);
   if (runMe) {
     auto cmd = "./"~output;

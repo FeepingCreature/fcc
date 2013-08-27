@@ -197,7 +197,10 @@ final class Structure : Namespace, RelNamespace, IType, Named, hasRefType, Impor
         }
         else count++;
       });
-      if (size && sameSize) return llmul(qformat(count), size);
+      if (size && sameSize) {
+        cached_llvm_size = llmul(qformat(count), size);
+        return cached_llvm_size;
+      }
     }
     auto ty = llvmType();
     cached_llvm_size = readllex(qformat("ptrtoint(", ty, "* getelementptr(", ty, "* null, i32 1) to i32)"));
