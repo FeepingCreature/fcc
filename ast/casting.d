@@ -375,16 +375,28 @@ bool gotImplicitCast(ref Expr ex, bool delegate(Expr) accept, bool mayFreeReject
   return gotImplicitCast(ex, null, accept, mayFreeRejects, scorep);
 }
 
+bool gotImplicitCast(ref Expr ex, bool function(Expr) accept, bool mayFreeRejects = true, int* scorep = null) {
+  return gotImplicitCast(ex, (Expr e) { return accept(e); }, mayFreeRejects, scorep);
+}
+
 bool gotImplicitCast(ref Expr ex, IType want, bool delegate(IType) accept, bool mayFreeRejects = true, int* scorep = null) {
   return gotImplicitCast(ex, want, (Expr ex) {
     return accept(ex.valueType());
   }, 2-mayFreeRejects, scorep);
 }
 
+bool gotImplicitCast(ref Expr ex, IType want, bool function(Expr) accept, bool mayFreeRejects = true, int* scorep = null) {
+  return gotImplicitCast(ex, want, (Expr e) { return accept(e); }, mayFreeRejects, scorep);
+}
+
 bool gotImplicitCast(ref Expr ex, bool delegate(IType) accept, bool mayFreeRejects = true, int* scorep = null) {
   return gotImplicitCast(ex, null, (Expr ex) {
     return accept(ex.valueType());
   }, 2-mayFreeRejects, scorep);
+}
+
+bool gotImplicitCast(ref Expr ex, bool function(IType) accept, bool mayFreeRejects = true, int* scorep = null) {
+  return gotImplicitCast(ex, (IType it) { return accept(it); }, mayFreeRejects, scorep);
 }
 
 Expr[] getAllImplicitCasts(Expr ex) {

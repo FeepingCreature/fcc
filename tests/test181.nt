@@ -1,0 +1,9 @@
+module test181;
+
+void main() {
+  void foo() {
+    depend caller "has a cookie";
+  }
+  provide "has a cookie";
+  foo();
+}

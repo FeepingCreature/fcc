@@ -44,7 +44,11 @@ class ExprStatement : LineNumberedStatementClass {
   override string toString() { return Format(ex); }
   override void emitLLVM(LLVMFile lf) {
     super.emitLLVM(lf);
-    save(lf, ex);
+    try {
+      save(lf, ex);
+    } catch (Exception ex) {
+      source.failparse("while emitting: ", ex);
+    }
   }
 }
 

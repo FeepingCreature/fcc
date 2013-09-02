@@ -598,13 +598,14 @@ interface LineNumberedStatement : Statement {
 	void getInfo(ref string name, ref int line, ref int column);
 }
 
-class LineNumberedStatementClass : LineNumberedStatement {  
+class LineNumberedStatementClass : LineNumberedStatement {
   int line, column;
-  string name;
+  string name, source;
   abstract LineNumberedStatement dup();
   abstract void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical);
   override void getInfo(ref string n, ref int l, ref int c) { n = name; l = line; c = column; }
   override void configPosition(string text) {   
+    source = text;
     auto pos = lookupPos(text);
     line = pos._0;
     column = pos._1;

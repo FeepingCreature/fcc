@@ -1,0 +1,8 @@
+module test182fail;
+
+void main() {
+  void foo() {
+    depend caller "oh woe not implemented";
+  }
+  foo();
+}

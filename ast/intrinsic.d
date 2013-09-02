@@ -625,7 +625,7 @@ void setupSysmods() {
       }
       (vec4f*: &v).w = 0; // prevent fp error
       vec4i i = vec4i: *(vec4f*:&v); // cvttps2dq
-      vec4i signs = *(vec4i*: &v) >>> vec4i(31); // logical shift sign bit into bit0
+      vec4i signs = *(vec4i*: &v) >>> 31; // logical shift sign bit into bit0
       // sign=1 means negative, so subtract that 1 to make -6.5 <> -6 <> -7
       *(vec4i*: res) = (i - signs);
       // should be same assembly

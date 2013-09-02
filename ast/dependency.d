@@ -50,12 +50,13 @@ class CodeDependency : Expr, Named {
   }
 }
 
+bool isString(IType it) { return test(Single!(Array, Single!(Char)) == resolveType(it)); }
+
 Object gotProvide(bool Statement)(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
   bool removed;
   if (t2.accept("removed")) removed = true;
-  bool isString(IType it) { return test(Single!(Array, Single!(Char)) == resolveType(it)); }
   if (!rest(t2, "tree.expr"[], &ex) || !gotImplicitCast(ex, &isString))
     text.failparse("Expected string for 'provide'. ");
   auto se = fastcast!(StringExpr) (foldex(ex));
@@ -98,6 +99,20 @@ import ast.oop;
 Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
+  
+  if (t2.accept("caller")) {
+    if (!rest(t2, "tree.expr"[], &ex) || !gotImplicitCast(ex, &isString))
+      text.failparse("Expected string for 'depend caller'. ");
+    auto se = fastcast!(StringExpr) (foldex(ex));
+    if (!se) text.failparse("Expected constant string argument for 'depend caller'. ");
+    
+    auto f = namespace().get!(Function);
+    if (!f) text.failparse("No function context found: cannot add caller dependency");
+    
+    text = t2;
+    f.calldeps ~= se.str;
+    return Single!(NoOp);
+  }
   
   string ident;
   if (!t2.gotIdentifier(ident, true))
@@ -192,3 +207,21 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   text.failparse("Dependency '", se.str, "' not provided by ", start_ident, " (", res, ")");
 }
 mixin DefaultParser!(gotDepend, "tree.semicol_stmt.depend", "111", "depend");
+
+// called from Function.mkCall
+extern(C) void dependency_checkCallerDeps(string[] strs) {
+  if (!strs) return;
+  auto fun = namespace().get!(Function);
+  if (!fun) {
+    logln("WARN: function '", fun.name, "' has caller dependency but is called from context that does not support 'provide'!");
+    return;
+  }
+  foreach (str; strs) {
+    auto name = get_id(str);
+    auto test = fun.lookup(name, true);
+    if (!test) {
+      throw new Exception(qformat("dependency check failed: '", fun.name, "' does not implement \"", str, "\""));
+    }
+  }
+}
+pragma(set_attribute, dependency_checkCallerDeps, externally_visible);

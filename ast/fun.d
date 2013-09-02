@@ -15,6 +15,7 @@ interface StoresDebugState {
 }
 
 extern(C) void alignment_emitAligned(Expr ex, LLVMFile lf);
+extern(C) void dependency_checkCallerDeps(string[]);
 
 string typeToLLVMRet(IType type, bool subst = false) {
   if (subst) {
@@ -144,6 +145,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
   Tree tree;
   bool extern_c = false, weak = false, reassign = false, isabstract = false, optimize = false, noreturn = false;
   Function[] dependents; // functions that are only needed inside this function and thus should get emitted into the same module.
+  string[] calldeps; // dependency tracker: dependencies that must be satisfied in functions that want to call this one
   string dwarfMetadata;
   override void markWeak() { weak = true; foreach (dep; dependents) dep.markWeak; }
   override void markExternC() { extern_c = true; }
@@ -762,6 +764,7 @@ class FunCall : Expr {
     callFunction(lf, fun.type.ret, false, fun.type.stdcall, args, fun.getPointer(), fun.noreturn);
   }
   override void emitLLVM(LLVMFile lf) {
+    dependency_checkCallerDeps(fun.calldeps);
     emitWithArgs(lf, params);
   }
   override string toString() { return Format(count, " (", fun.name, "(", params, "))"); }
