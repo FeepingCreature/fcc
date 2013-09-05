@@ -764,6 +764,7 @@ class FunCall : Expr {
     callFunction(lf, fun.type.ret, false, fun.type.stdcall, args, fun.getPointer(), fun.noreturn);
   }
   override void emitLLVM(LLVMFile lf) {
+    // if (!fun.tree) fun.parseMe; // TODO figure out what this breaks
     dependency_checkCallerDeps(fun.calldeps);
     emitWithArgs(lf, params);
   }

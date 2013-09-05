@@ -5,11 +5,14 @@ import ast.fun, ast.base, ast.namespace, ast.tuples, ast.structure;
 // basically this code is massively unstable and probably a wellspring of bugs
 // but it works for now.
 // if it breaks, put the blame squarely on me. fair?
-class PrefixFunction : Function {
+class PrefixFunction : Function, Scored {
   Expr prefix;
   Function supfun;
+  int score; // used for overload resolution, smaller is better
+  override int getScore() { return score; }
   void delegate(Argument[]) fixupDefaultArgs;
-  this(Expr prefix, Function sup, void delegate(Argument[]) fda = null) {
+  this(Expr prefix, Function sup, void delegate(Argument[]) fda = null, int score = 0) {
+    this.score = score;
     this.prefix = prefix;
     this.type = sup.type;
     this.name = "[wrap]"~sup.name;

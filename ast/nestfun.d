@@ -20,6 +20,9 @@ import ast.aliasing, ast.casting, ast.opers;
 class NestedFunction : Function {
   Namespace context;
   this(Namespace context) {
+    if (context) if (auto supfun = context.get!(Function)) {
+      if (supfun.weak) markWeak();
+    }
     this.context = context;
     this();
   }

@@ -71,13 +71,6 @@ static this() {
     } else
       t2.failparse("Need foldable constant for static array, not "[], len);
   };
-  implicits ~= delegate Expr(Expr ex) {
-    if (!fastcast!(StaticArray) (resolveType(ex.valueType()))) return null;
-    opt(ex);
-    if (!fastcast!(CValue) (ex))
-      return null;
-    return getSAPtr(ex);
-  };
 }
 
 import ast.parse, ast.int_literal;

@@ -78,6 +78,11 @@ void configure(Iterable it) {
   fun(it);
 }
 
+// used when there are multiple elements, of which we may prefer one
+interface Scored {
+  int getScore(); // smaller is better
+}
+
 template MyThis(string S) {
   mixin(This_fn(rmSpace!(S)));
   private this() { }

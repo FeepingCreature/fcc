@@ -398,6 +398,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
         // logln(t3.nextText(), ": consider ", osfun);
         int score;
         if (matchCall(t3, osfun, osfun.name, osfun.getParams(false), rest, osfun.mkCall().params, inits, true, precise, !exprHasAlternativesToACall, &score)) {
+          if (auto scd = fastcast!(Scored)(osfun)) score = scd.getScore(); // give preference to function's own score
           candidates ~= osfun;
           candsets ~= osfun.getParams(false);
           scores ~= score;
@@ -423,7 +424,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
       }
       if (candidates.length > 1) {
         t2.failparse("Unable to call '", os.name,
-          "': ambiguity between ", candsets, " btw ", os.funs, " of score ", scores[0]);
+          "': ambiguity between ", candsets, " btw ", os.funs, " of score ", scores);
       }
       fun = candidates[0];
     } else return null;

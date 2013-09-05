@@ -858,6 +858,19 @@ static this() {
     });
     consider(res);
   };
+  implicits ~= delegate void(Expr ex, void delegate(Expr) consider) {
+    auto sa = fastcast!(StaticArray) (resolveType(ex.valueType()));
+    if (!sa) return;
+    opt(ex);
+    if (!fastcast!(CValue) (ex))
+      return;
+    // try (array.ptr, array.length) for C compat
+    // DOES NOT WORK because the function cast-test logic doesn't combine with the tuple-distribute logic
+    // TODO fix if you have a week free
+    // consider(mkTupleExpr(getSAPtr(ex), mkInt(sa.length)));
+    // try array.ptr
+    consider(getSAPtr(ex));
+  };
 }
 
 

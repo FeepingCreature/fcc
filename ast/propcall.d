@@ -38,12 +38,24 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
         // fail;
         return null;
       }
+      
+      int score = 2;
       auto ex2 = firstParam;
-      if (!gotImplicitCast(ex2, (IType it) { return test(it == pt); })) {
-        // logln("no cast from "[], firstParam, " to "[], pt);
-        return null;
+      if (!gotImplicitCast(ex2, (IType it) { return exactlyEquals(it, pt); })) {
+        // slightly less preferred because slightly worse match
+        // this gets important when resolving ambiguities in overloads
+        score = 3;
+        ex2 = firstParam;
+        // try weaker test
+        if (!gotImplicitCast(ex2, (IType it) { return test(it == pt); })) {
+          // logln("no cast from "[], firstParam, " to "[], pt);
+          return null;
+        }
       }
-      return fastalloc!(PrefixFunction)(ex2, fun);
+      // logln(firstParam.valueType(), " to ", pt, " with ", score);
+      // logln("test: ", exactlyEquals(firstParam.valueType(), pt));
+      return fastalloc!(PrefixFunction)(
+        ex2, fun, cast(void delegate(Argument[])) null, score);
     }
     if (auto fun = fastcast!(Function) (res)) {
       if (auto res2 = processFun(fun)) {
