@@ -64,7 +64,10 @@ string[] processCArgs(string[] ar) {
   while (ar.length) {
     auto arg = ar.take();
     if (arg == "-pthread") continue; // silently ignore;
-    if (arg.startsWith("-D")) continue;
+    if (auto define = arg.startsWith("-D").strip()) {
+      synchronized(defines_sync) defines ~= define.strip();
+      continue;
+    }
     if (auto rest = arg.startsWith("-l").strip()) {
       if (!rest.length) rest = ar.take();
       linkerArgs ~= "-l"~rest;
@@ -167,7 +170,20 @@ static this() {
     if (lines[$-1] == "pkg-config FAILED") {
       throw new Exception("While evaluating pkg-config pragma for "~pkgname~": "~lines[$-2]);
     }
-    processCArgs (lines[0].split(" "));
+    foreach (line; lines)
+      processCArgs (line.split(" "));
+    return Single!(NoOp);
+  };
+  pragmas["config"] = delegate Object(Expr ex) {
+    if (!gotImplicitCast(ex, &isStringLiteral))
+      throw new Exception("pragma(config,...) config script identifier expected. ");
+    auto configname = fastcast!(StringExpr) (foldex(ex)).str;
+    auto lines = readback("sh -c '"~configname~"-config --cflags --libs 2>&1 || echo config FAILED'").strip().split("\n");
+    if (lines[$-1] == "config FAILED") {
+      throw new Exception("While evaluating config pragma for "~configname~"-config: "~lines[$-2]);
+    }
+    foreach (line; lines)
+      processCArgs (line.split(" "));
     return Single!(NoOp);
   };
   pragmas["binary"] = delegate Object(Expr ex) {
