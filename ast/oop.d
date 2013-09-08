@@ -1334,6 +1334,12 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotIntfDef, "tree.typedef.intf"[], null, "interface"[]);
 
+Object gotIntfDefStmt(ref string text, ParseCb cont, ParseCb rest) {
+  if (!gotIntfDef(text, cont, rest)) return null;
+  return Single!(NoOp);
+}
+mixin DefaultParser!(gotIntfDefStmt, "tree.stmt.intf"[], "3121"[], "interface"[]);
+
 import ast.casting, ast.opers;
 
 Pointer voidpp, intpp;
