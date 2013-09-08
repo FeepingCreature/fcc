@@ -1,0 +1,9 @@
+module test183;
+
+void main() {
+  string a = "Hello World";
+  string b = a;
+  assert(a is b);
+  b = "Hello "~"World";
+  assert(a !is b);
+}
