@@ -292,6 +292,9 @@ Object gotDoWhileExtStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto dw = new DoWhileExt;
   
   auto sc = new Scope;
+  dw.outsideGuards = sc.getGuards();
+  dw.insideGuards = dw.outsideGuards; // no initial condition == no difference here
+  
   sc.configPosition(text);
   namespace.set(sc);
   scope(exit) namespace.set(sc.sup);
@@ -364,9 +367,10 @@ Object gotContinueOrBreak(bool gotContinue)(ref string text, ParseCb cont, Parse
   auto guards2 = gotContinue?brc._0.getInsideGuards():brc._0.getOutsideGuards();
   if (guards2.length > guards.length)
     text.failparse("Invalid guard structure: "[], guards, " vs. "[], guards2);
-  foreach (i, guard; guards2)
+  // wtf noop? o . o TODO figure out what I wanted here
+  /*foreach (i, guard; guards2)
     if (guard !is guards2[i])
-      text.failparse("Invalid guard structure: "[], guards, " vs. "[], guards2, " at "[], i);
+      text.failparse("Invalid guard structure: "[], guards, " vs. "[], guards2, " at "[], i);*/
   auto gos = sl.getGuardOffsets();
   return fastalloc!(ExecGuardsAndJump)(guards[guards2.length .. $], gos[guards2.length .. $], gotContinue, brc._0);
 }
