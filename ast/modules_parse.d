@@ -122,6 +122,10 @@ mixin DefaultParser!(gotImport!(true), "struct_member.import");
 
 Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
   auto t2 = text;
+  if (!t2.accept("module")) {
+    t2.setError("missing module statement");
+    return null;
+  }
   Structure st;
   Module mod;
   auto backup = namespace.ptr();
@@ -176,7 +180,7 @@ Object gotModule(ref string text, ParseCb cont, ParseCb restart) {
     return mod;
   } else t2.failparse("Failed to parse module"[]);
 }
-mixin DefaultParser!(gotModule, "tree.module"[], null, "module"[]);
+mixin DefaultParser!(gotModule, "tree.module");
 
 Object gotRename(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;

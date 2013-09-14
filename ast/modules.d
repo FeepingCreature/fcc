@@ -315,9 +315,9 @@ Module lookupMod(string name) {
       sourcefiles[fn] = file;
     mod = fastcast!(Module) (parse(file, "tree.module"[]));
     if (!mod)
-      file.failparse("Could not parse module"[]);
+      file.failparse("Could not parse module");
     if (file.strip().length)
-      file.failparse("Failed to parse module"[]);
+      file.failparse("Failed to parse module");
   }
   cachelock.Synchronized = {
     modcache[name] = mod;
