@@ -486,6 +486,10 @@ string readllex(string expr) {
   }
   auto res = readback(c4);
   if (qformat(res.atoi()) != res.strip()) {
+    if (!res.strip().length) {
+      logln("opt not found or produced no output. Do you have LLVM installed?");
+      fail;
+    }
     logln("from ", code);
     logln("to ", res);
     fail;
