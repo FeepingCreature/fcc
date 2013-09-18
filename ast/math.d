@@ -462,11 +462,11 @@ class AsmIntUnaryExpr : Expr {
     AsmIntUnaryExpr dup() { return fastalloc!(AsmIntUnaryExpr)(ex.dup, op); }
     IType valueType() { return ex.valueType(); }
     void emitLLVM(LLVMFile lf) {
-      if (op == "-"[]) (fastalloc!(AsmIntBinopExpr)(mkInt(0), ex, "-")).emitLLVM(lf);
-      else if (op == "¬"[]) (fastalloc!(AsmIntBinopExpr)(mkInt(-1), ex, "xor", true)).emitLLVM(lf);
+      if (op == "-") (fastalloc!(AsmIntBinopExpr)(mkInt(0), ex, "-")).emitLLVM(lf);
+      else if (op == "¬") (fastalloc!(AsmIntBinopExpr)(mkInt(-1), ex, "xor", true)).emitLLVM(lf);
       else
       {
-        logln("!! "[], op, " "[], ex);
+        logln("!! ", op, " ", ex);
         fail;
       }
     }
@@ -482,20 +482,15 @@ class AsmLongUnaryExpr : Expr {
     AsmLongUnaryExpr dup() { return fastalloc!(AsmLongUnaryExpr)(ex.dup, op); }
     IType valueType() { return ex.valueType(); }
     void emitLLVM(LLVMFile lf) {
-      todo("AsmLongUnaryExpr::emitLLVM");
-      /*ex.emitLLVM(lf);
-      if (op == "-"[]) {
-        lf.put("negl 4(%esp)"[]);
-        lf.put("notl (%esp)"[]);
+      auto v = save(lf, ex);
+      if (op == "-") {
+        load(lf, "sub i64 0, ", v);
       } else if (op == "¬"[]) {
-        lf.put("notl 4(%esp)"[]);
-        lf.put("notl (%esp)"[]);
-      }
-      else
-      {
+        load(lf, "xor i64 -1, ", v);
+      } else {
         logln("!! "[], op, " "[], ex);
         fail;
-      }*/
+      }
     }
   }
 }
