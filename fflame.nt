@@ -1,16 +1,40 @@
 module fflame;
 
-import sdl, std.random, std.math, std.thread, std.time, std.string;
+import sdl, std.random, std.math, std.thread, std.time, std.string, std.png, std.file, std.getopt;
 
-extern(C) int SDL_SaveBMP_RW(SDL_Surface*, void*, int);
-extern(C) void* SDL_RWFromFile(char* file, mode);
-void saveBMP(Area area, string s) { 
+alias threadcount = 6;
+
+void writeln2(string s) {
+  fprintf(stderr, "%.*s\n", s);
+}
+
+void savePNG(Area area, string s) { 
   auto p = toStringz s;  
   onSuccess mem.free p;  
-  auto res = SDL_SaveBMP_RW (area.surf.back, SDL_RWFromFile (p, "wb"), 1);
-  if res == -1 {
-    writeln "error - $(CToString SDL_GetError())";
-    _interrupt 3;
+  
+  scope ubyte[auto~] file;
+  PNGWriter writer;
+  if (s == "-") {
+    writer = new PNGWriter λ(string s) { fwrite(s.ptr, 1, s.length, stdout); };
+  } else {
+    writer = new PNGWriter λ(string s) { file ~= ubyte[]: s; };
+  }
+  writer.configure(area.w, area.h);
+  
+  scope ubyte[auto~] linebuf;
+  for int i <- 0..area.h {
+    int[] line = area.surf.back.(int*:pixels + i * pitch / 4)[0..area.w];
+    for auto v <- line {
+      alias ar = *ubyte x 4*: &v;
+      linebuf ~= ar.([_2, _1, _0]);
+      linebuf ~= ubyte:0xff; // alpha
+    }
+    writer.writeLine linebuf[];
+    linebuf.clear;
+  }
+  writer.end;
+  if (s != "-") {
+    s.writeAll file[];
   }
 }  
 
@@ -37,66 +61,130 @@ class FPUEx : Error {
 FPUEx _fpuex;
 void init() { _fpuex = new FPUEx; }
 
-extern(C) void function(int) signal(int, void function(int) fn);
-alias SIGFPE = 8;
-void sigfun(int i) {
-  raise _fpuex;
-}
+(vec4f, int)[auto~] threadbuffer;
 
 void main(string[] args) {
+  auto fpmask = (FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
+  fpucw = short:(fpucw & short:int:¬fpmask);
+  
   // args = ["1", "1", "1", "1000000", "throwaway"];
   // int w = 640, h = 480;
   int w = 1280, h = 720;
   bool fs = false;
   string targetfile;
-  if (args.length  && args[0] == "full") { (w, h, fs, args, targetfile) = (1920, 1080, true, args[1..$], "full.bmp"); }
-  set-handler (SDLQuit) invoke-exit "return";
-  define-exit "return" return;
-  
-  auto fpmask = (FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
-  fpucw = short:(fpucw & ¬fpmask);
-  signal(SIGFPE, &sigfun);
-  
-  void delegate(vec2f*)[auto~] funlist;
-  
-  funlist ~= delegate void(vec2f* fp) { };
-  funlist ~= delegate void(vec2f* fp) { ref f = *fp; f = vec2f(sin f.x, sin f.y); };
-  funlist ~= delegate void(vec2f* fp) { ref f = *fp; f = f / f.lensq; };
-  funlist ~= delegate void(vec2f* fp) { ref f = *fp; using f:: auto r2 = lensq, s = sin r2, c = cos r2; that = vec2f(x * s - y * c, x * c + y * s); };
-  // (x - y) * (x + y) = x*x + x*y - y*x - y*y
-  // funlist ~= delegate vec2f(vec2f f) using f { return vec2f((x - y) * (x + y), 2 * x * y) / sqrt lensq; };
-  funlist ~= delegate void(vec2f* fp) { ref f = *fp; auto fprod = f * f; float len = std.math.sqrt fprod.(x+y); f = vec2f(fprod.(x-y), 2*f.(x*y)) / len; };
-  
   int seed;
-  if args.length (seed, args) = (args[0].atoi(), args[1..$]);
-  auto rng = getPRNG seed;
+  bool html = false;
   
   IRandom rng2, rng3;
   float mul = 1;
   int iterlimit;
   
-  if args.length {
-    if (args[0].find(":") == -1) {
-      (int num, args) = (args[0].atoi(), args[1..$]);
-      if num
-        rng2 = getPRNG num;
-    } else {
-      (string arg, args) = args[(0, 1..$)];
-      string (a, b) = slice(arg, ":");
-      rng2 = getPRNG a.atoi();
-      rng3 = getPRNG b.atoi();
-    }
-  }
+  set-handler (SDLQuit) invoke-exit "return";
+  define-exit "return" return;
+  
   float xatof(string s) {
     if s.find(":") == -1 return s.atof();
     string (a, b) = slice(s, ":");
     return atoi a * 1f / atoi b;
   }
-  if args.length (mul, args) = (xatof(args[0]), args[1..$]);
-  if args.length (iterlimit, args) = (args[0].atoi(), args[1..$]);
-  if args.length (targetfile, args) = args[(0, 1..$)];
   
-  bool hidden = eval targetfile && !fs;
+  using new Options {
+    addLong("full", "f", λ{
+      (w, h) = (1920, 1080);
+      fs = true;
+    });
+    addLong("seed", "e", λ(string s) { seed = s.atoi(); });
+    addLong("sub", "u", λ(string s) {
+      if (s.find(":")) {
+        string (a, b) = slice(s, ":");
+        rng2 = getPRNG a.atoi();
+        rng3 = getPRNG b.atoi();
+      } else {
+        rng2 = getPRNG s.atoi();
+      }
+    });
+    addLong("mul", "m", λ(string s) { mul = s.xatof(); });
+    addLong("iters", "i", λ(string s) { iterlimit = s.atoi(); });
+    addLong("output", "o", λ(string s) { targetfile = s; });
+    addLong("html", "x", λ{ html = true; });
+    addLong("size", "s", λ(string s) {
+      if (!s.find("x")) raise new Error "Invalid syntax: expected --size widthxheight not '$s'";
+      (w, h) = slice(s, "x").(_0.atoi(), _1.atoi());
+    });
+    addLong("help", "h", λ{
+      writeln2
+"Usage: $executable
+    -f, --full            : fullscreen mode
+    -e, --seed num        : main rng seed. Specifies the image.
+    -u, --sub [a|a:b]     : subimage chain subseeds
+    -m, --mul i:total     : transition subimage as fraction
+    -i, --iters n         : number of iterations before exiting
+    -s, --size wxh        : target image size
+    -o, --output file.png : png file to save to
+    -x, --html            : print progress as html/js progress bar
+    -h, --help            : this screen";
+      exit(1);
+    });
+    
+    args = process args;
+    if (html) assert(targetfile != "-");
+  }
+  
+  alias atan2 = fast_atan2f;
+  vec2f linear_0(vec2f f) { return f; }
+  vec2f sinusoidal_1(vec2f f) { return vec2f(sin f.x, sin f.y); }
+  vec2f spherical_2(vec2f f) { return f / f.lensq; }
+  vec2f swirl_3(vec2f f) using f { auto r2 = lensq, s = sin r2, c = cos r2; return vec2f(x * s - y * c, x * c + y * s); }
+  vec2f horseshoe_4(vec2f f) { return f.(vec2f((x - y) * (x + y), 2 * x * y)) / |f|; }
+  vec2f polar_5(vec2f f) { auto θ = atan2(f.y, f.x); return vec2f(θ/π, (|f|) - 1); }
+  vec2f handkerchief_6(vec2f f) { auto θ = atan2(f.y, f.x), r = |f|; return r * vec2f(sin(θ + r), cos(θ - r)); }
+  vec2f heart_7(vec2f f) { auto θ = atan2(f.y, f.x), r = |f|, θr = θ * r; return r * vec2f(sin θr, -cos θr); }
+  vec2f disc_8(vec2f f) { auto θ = atan2(f.y, f.x), r = |f|, θr = θ * r; return (θ / π) * vec2f(sin θr, cos θr); }
+  vec2f spiral_9(vec2f f) { auto θ = atan2(f.y, f.x), r = |f|; return (1/r) * vec2f(cos θ + sin r, sin θ - cos r); }
+  vec2f hyperbolic_10(vec2f f) { auto θ = atan2(f.y, f.x), r = |f|; return vec2f((sin θ) / r, r * cos θ); }
+  vec2f diamond_11(vec2f f) { auto θ = atan2(f.y, f.x), r = |f|; return vec2f(sin θ * cos r, cos θ * sin r); }
+  // 12 ex TODO
+  // 13 julia TODO
+  vec2f bent_14(vec2f f) using f {
+    if (x > 0)
+      if (y > 0) return f;
+      else return vec2f(x, y/2);
+    else
+      if (y > 0) return vec2f(2*x, y);
+      else return vec2f(2*x, y/2);
+  }
+  // 15 waves TODO
+  vec2f fisheye_16(vec2f f) { auto r = |f|; return (2 / (r+1)) * f.yx; }
+  // 17 popcorn TODO
+  vec2f exponential_18(vec2f f) using f { return exp(x - 1) * (π * y).(vec2f(cos(), sin())); }
+  vec2f power_19(vec2f f) { auto θ = atan2(f.y, f.x), r = |f|, s = sin θ, c = cos θ; return pow(r, s) * vec2f(c, s); }
+  // 20 cosine TODO
+  // 21 rings TODO
+  // 22 fan TODO
+  // 23 blob TODO
+  // 24 pdj TODO
+  // 25 fan2 TODO
+  // 26 rings2 TODO
+  vec2f eyefish_27(vec2f f) { auto r = |f|; return (2 / (r+1)) * f; }
+  vec2f bubble_28(vec2f f) { auto r = |f|; return (4 / (r*r+4)) * f; }
+  vec2f cylinder_29(vec2f f) { return vec2f(sin f.x, f.y); }
+  // 30..48 TODO
+  vec2f cross_48(vec2f f) using f { return sqrt(1/(x*x - y*y).(that*that)) * f; }
+  
+  vec2f delegate(vec2f)[auto~] funlist;
+  funlist ~= [
+    &linear_0, &sinusoidal_1, &spherical_2, &swirl_3, &horseshoe_4, &polar_5, &handkerchief_6, &heart_7,
+    &disc_8, &spiral_9, &hyperbolic_10, &diamond_11,
+    &bent_14,
+    &fisheye_16,
+    &exponential_18, &power_19,
+    &eyefish_27, &bubble_28, &cylinder_29,
+    &cross_48
+  ];
+  
+  auto rng = getPRNG seed;
+  
+  bool hidden = targetfile && !fs;
   
   auto surf = screen (w, h, fullscreen => fs, surface => hidden);
   
@@ -104,7 +192,7 @@ void main(string[] args) {
   vec3f rand3f() { return vec3f(randf(rng) x 3); }
   vec4f rand4f() { return vec4f(randf(rng) x 4); }
   
-  vec2f delegate(vec2f) transform(void delegate(vec2f*) dg) {
+  vec2f delegate(vec2f) transform(vec2f delegate(vec2f) dg) {
     float x 12 factors;
     /*for int i <- 0..12 {
       factors[i] = randf(rng) * 4 - 2;
@@ -140,13 +228,12 @@ void main(string[] args) {
           factors[i] += (randf(rng2) - 0.5) * 2 * mul;
       }
     }
-    auto meep = funlist;
     return new delegate vec2f(vec2f v) {
       ref f = factors;
       vec2f v2 = void;
       v2.x = v.x * f[0] + v.y * f[1] + f[2];
       v2.y = v.x * f[3] + v.y * f[4] + f[5];
-      dg(&v2);
+      v2 = dg v2;
       v2.x -= f[8];
       v2.y -= f[11];
       v.x = v2.x * f[6] + v2.y * f[7];
@@ -158,84 +245,187 @@ void main(string[] args) {
   }
   
   (vec4f, vec2f delegate(vec2f))[] funs;
-  for 0..rng.rand()%5 + 2 {
-    auto fun = transform funlist[rng.rand()%$];
-    auto esi = _esi;
-    funs ~= (rand4f(), new delegate vec2f(vec2f p) { auto backup = _esi; onSuccess _esi = backup; _esi = esi; return fun p; });
+  for 0..rng.rand()%4 + 2 {
+    int numfuns = rng.rand() % 5 + 1;
+    alias randfun = transform funlist[rng.rand()%$];
+    alias randf = randf(rng);
+    if (rng.rand() % 3 == 1) { // special mix
+      auto f1 = randfun, f2 = randfun, fmix = randfun;
+      funs ~= (rand4f(), new λ(vec2f p) {
+        auto mix = fmix p;
+        return f1 p * mix.x + f2 p * mix.y;
+      });
+      continue;
+    }
+    
+    vec2f delegate(vec2f)[auto~] randfuns;
+    float[auto~] weights;
+    for 0..numfuns {
+      randfuns ~= randfun;
+      weights ~= randf;
+    }
+    using sum weights for ref w <- weights w /= that;
+    funs ~= (rand4f(), new λ(vec2f p) {
+      vec2f res = vec2f 0;
+      for auto f <- randfuns && auto w <- weights
+        res += f p * w;
+      return res;
+    });
   }
   
-  auto field = new vec4f[] w * h + 1;
-  if (int:field.ptr & 15) field.ptr = vec4f*:((int:field.ptr + 16) & ¬15);
-  for int i <- 0..field.length field[i] = vec4f(0);
+  auto field = new vec4f[] w * h;
+  // 0 by default
+  // field[] = [for field: vec4f(0)];
+  auto fieldlock = new Mutex;
+  
+  /**
+   * instead of a sum of reciprocals
+   * ie. 1/a + 1/b + 1/c + 1/d
+   * you can compute two sequences, called p(product) and s(sum)
+   * starting with p=1 and s=0
+   * and for each var (a, b, c ...)
+   * let (p', s') = (var p, var s + p)
+   * ending with s / p
+   * example
+   * _: (1, 0) = 1
+   * a: (a, 1) = 1/a
+   * b: (a b, a + b) = 1/a + 1/b
+   * c: (a b c, c (a + b) + a b) = (ca + cb + ab)/abc = 1/a + 1/b + 1/c
+   * and so on.
+   * [edit] HOWEVER, THIS IS SLOWER SOMEHOW. So nevermind.
+   **/
+  // auto productfield = new float[] w * h;
+  // productfield[] = [for productfield: 1f];
+  
 
   long iters; int nanfails; long misses;
-  auto tp = new ThreadPool(4);
-  void runSteps(int count, IRandom rng) {
+  auto tp = new ThreadPool(6);
+  // NOTE: count is a MINIMUM.
+  void runSteps(int count, IRandom rng, bool precise) {
     set-handler (FPUEx fe) invoke-exit "reset-pos";
     float randf() { return (rng.rand() & 0x7fff_ffff) * 1f / 0x7fff_ffff; }
     auto pos = vec2f(0), col = vec4f(0);
-    iters += count;
     int w = w, h = h; // local copies
     auto scale = vec2f(w, h) / 4f;
     int start, mchange;
     onSuccess misses += mchange;
+    alias graceperiod = 20; // give color time to stabilize
+    void grace() {
+      for 0..graceperiod {
+        auto index = rng.rand() % funs.length; // not worth it to speed up
+        ref fun = funs[index];
+        col = (col + fun[0]) * vec4f(0.5);
+        pos = fun[1] pos;
+      }
+    }
+    
+    ref buffer = threadbuffer;
+    
     define-exit "reset-pos" {
       pos = vec2f(randf() x 2); col = vec4f(0);
       feclearexcept fpmask;
       nanfails ++;
     }
-    
-    int graceperiod = 20; // give color time to stabilize
-    // done this way so reset-pos can resume correctly
-    for start <- start..count {
-      // hopelessly out of bounds
-      if (pos.lensq > 1000000000000.0) { pos = vec2f(randf() x 2); col = vec4f(0); graceperiod = 20; }
-      auto index = rng.rand() % funs.length;
-      ref fun = funs[index];
-      col = (col + fun[0]) * vec4f(0.5);
-      pos = fun[1] pos;
-      if graceperiod graceperiod--;
-      else {
-        int ix = int:((pos.x + 2) * scale.x), iy = int:((pos.y + 2) * scale.y);
+    // hit by exit
+    grace;
+    // loop used as a continue point for going for another spin (if the lock is busy)
+    // TODO implement goto
+    while true {
+      auto end = start + 16384;
+      if (precise && end > count) end = count; // limit iterations
+      iters += end - start;
+      for start <- start..end {
+        // hopelessly out of bounds
+        if (pos.lensq > 1000000000000.0) { pos = vec2f(randf() x 2); col = vec4f(0); grace; }
+        auto index = rng.rand() % funs.length;
+        ref fun = funs[index];
+        col = (col + fun[0]) * vec4f(0.5);
+        pos = fun[1] pos;
+        int (ix, iy) = ((pos + 2) * scale).(int:x, int:y);
         mchange ++;
         if (ix >= 0 && iy >= 0 && ix < w && iy < h) {
           mchange --;
-          ref f = field[iy * w + ix];
-          f += col.(vec4f(x, y, z, 1/w));
+          auto index = iy * w + ix;
+          // doing it at the end is SLIGHTLY faster
+          buffer ~= col.(vec4f(x, y, z, 1/w), index);
+          // ref f = field[index];
+          // f += col.(vec4f(x, y, z, 1/w));
+          // ref p = productfield[index];
+          // f = vec4f(f.xyz + col.xyz, col.w * f.w + p);
+          // p *= col.w;
         }
       }
+      start = end;
+      if (!fieldlock.tryLock()) {
+        if (precise && start == count) fieldlock.lock; // time to stop
+        else continue; // twiddle our thumbs
+      }
+      for ref pair <- buffer {
+        alias col = pair[0], index = pair[1];
+        ref f = field[index];
+        f += col;
+      }
+      fieldlock.unlock();
+      buffer.clear;
+      if (start >= count) break;
     }
   }
   bool shutdown;
-  void worker(IRandom rng) while !shutdown runSteps(16384, rng);
+  void worker(IRandom rng) while !shutdown runSteps(1024*1024, rng, precise => false);
   void startWorker(IRandom rng) { auto worker = &worker; tp.addTask new delegate void() worker rng;; }
   onExit {
     shutdown = true;
     if !iterlimit tp.waitComplete;
-    writeln "shut down. ";
+    writeln2 "shut down. ";
   }
   if iterlimit {
-    writeln "start 4 $(iterlimit / 4)-workers";
-    for 0..4{
+    writeln2 "start $threadcount $(iterlimit / threadcount)-workers";
+    for 0..threadcount {
       auto dg = &runSteps;
       auto subrng = getPRNG rng;
-      auto count = iterlimit / 4;
-      tp.addTask new delegate void() dg (count, subrng);;
+      auto count = iterlimit / threadcount;
+      tp.addTask new delegate void() dg (count, subrng, precise => true);
     }
   } else {
-    for 0..4 startWorker getPRNG rng;
+    for 0..threadcount startWorker getPRNG rng;
   }
   auto start = sec();
+  auto htmlpollpool = new ThreadPool 1;
+  bool running = true;
+  if (html) {
+    htmlpollpool.addTask λ{
+      string curProgress;
+      void updateProgress(string s) {
+        if (s == curProgress) return;
+        curProgress = s;
+        writeln "<script type=\"text/javascript\">
+          $(`$`)(\"#progress\").html(\"$s\");
+        </script>";
+        fflush stdout;
+      }
+      while (running) {
+        sleep 0.1;
+        auto f = double:iters / iterlimit;
+        updateProgress "$(int:(f*100+0.25))%";
+      }
+    }
+  }
+  onExit if (html) {
+    running = false;
+    htmlpollpool.waitComplete;
+  }
   while true {
-    if iterlimit { writeln "wait for threadpool completion"; tp.waitComplete; writeln "done"; }
+    if iterlimit { writeln2 "wait for threadpool completion"; tp.waitComplete; writeln2 "done"; }
     float basefactor = float:(double:iters / (w * h));
     auto δ = float:(sec() - start);
     if basefactor > 0.01 && δ != 0 {
-      writeln "base factor $basefactor; $(basefactor/δ)/s - $iters; $(double:iters/δ)/s, $nanfails nans, $(double:misses * 100.0 / double:iters)% misses";
+      writeln2 "base factor $basefactor; $(basefactor/δ)/s - $iters; $(double:iters/δ)/s, $nanfails nans, $(double:misses * 100.0 / double:iters)% misses";
       for (int y, int x) <- cross(0..h, 0..w) {
         auto f = field[y * w + x];
+        // auto p = productfield[y * w + x];
         if f[1] > 0.01 {
           auto c = f;
+          // c.w /= p;
           float count = f[1] / basefactor;
           c = c * log(count + 1) / c.w;
           c *= 0.707;
@@ -246,7 +436,7 @@ void main(string[] args) {
         }
       }
     }
-    if (targetfile) { surf.saveBMP targetfile; }
+    if (targetfile) { surf.savePNG targetfile; }
     if (!targetfile || fs) flip;
     if iterlimit return;
   }
