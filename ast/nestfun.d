@@ -41,7 +41,11 @@ class NestedFunction : Function {
     }
     string toString() { return "nested "~super.toString(); }
     string mangleSelf() {
-      return qformat(cleaned_name, "_of_", type.mangle(), "_under_", context.get!(IsMangled).mangleSelf());
+      string supmang;
+      if (auto ctx = context.get!(IsMangled)) supmang = ctx.mangleSelf();
+      else if (auto ctx = context.get!(IType)) supmang = ctx.mangle();
+      else assert(false, qformat("confusing context: ", context));
+      return qformat(cleaned_name, "_of_", type.mangle(), "_under_", supmang);
     }
     NestedFunction alloc() { return new NestedFunction; }
     NestedFunction flatdup() {
@@ -71,17 +75,6 @@ class NestedFunction : Function {
       if (res) return res;
       if (local) return null;
     }
-    // The reason we don't use sup here
-    // is that nested functions are actually regular functions
-    // declared at the top-level
-    // that just HAPPEN to take an extra parameter
-    // that points to the ebp of the lexically surrounding function
-    // because of this, they must be compiled as if they're toplevel funs
-    // but _lookup_ must proceed as if they're nested.
-    // thus, sup vs. context.
-    auto _res = context.lookup(name, false);
-    auto res = fastcast!(Expr) (_res);
-    auto fun = fastcast!(Function) (_res);
     
     Expr ebp;
     void checkEBP() {
@@ -93,6 +86,27 @@ class NestedFunction : Function {
         fail;
       }
     }
+    
+    Object _res;
+    auto rn = fastcast!(RelNamespace)(context);
+    auto rt = fastcast!(hasRefType)(context);
+    if (rn && rt) { // "static" lambda in class or struct
+      // will get fixed up to __base_ptr, lol (total cheat)
+      Expr base = reinterpret_cast(rt.getRefType(), new Register!("ebp"));
+      _res = rn.lookupRel(name, base);
+    } else {
+      // The reason we don't use sup here
+      // is that nested functions are actually regular functions
+      // declared at the top-level
+      // that just HAPPEN to take an extra parameter
+      // that points to the ebp of the lexically surrounding function
+      // because of this, they must be compiled as if they're toplevel funs
+      // but _lookup_ must proceed as if they're nested.
+      // thus, sup vs. context.
+      _res = context.lookup(name, false);
+    }
+    auto res = fastcast!(Expr) (_res);
+    auto fun = fastcast!(Function) (_res);
     
     if (fun) fun = doBasePointerFixup(fun);
     else if (auto set = fastcast!(OverloadSet) (_res)) {
@@ -148,12 +162,30 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
   string name;
   static int i;
   bool shortform;
+  
+  Namespace context = sc;
+  Expr contextptr = new Register!("ebp");
+  
   if (!t2.accept("delegate"[])) {
+    bool staticMode;
+    if (t2.accept("static")) staticMode = true;
     if (t2.accept("\\") || t2.accept("λ")) {
       auto pos = lookupPos(text);
       synchronized name = Format("__nested_dg_literal_"[], i++, "_line_", pos._0);
       auto t3 = t2;
-      nf = fastalloc!(NestedFunction)(sc);
+      
+      if (staticMode) {
+        context = context.get!(Function).sup;
+        if (fastcast!(Module)(context)) {
+          t2.failparse("what even happened there at ", sc);
+        }
+        contextptr = fastcast!(Expr)(sc.lookup("__base_ptr", true));
+        if (!contextptr) {
+          t2.failparse("failed to find context pointer");
+        }
+      }
+      
+      nf = fastalloc!(NestedFunction)(context);
       auto res = fastcast!(NestedFunction) (gotGenericFunDeclNaked(nf, mod, true, t3, cont, rest, name, true));
       if (!t3.accept("->"[])) {
         t3.setError("missing result-arrow for lambda"[]);
@@ -182,13 +214,13 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
       
       text = t2;
       mod.addEntry(fastcast!(Tree) (res));
-      return fastalloc!(NestFunRefExpr)(res);
+      return fastalloc!(NestFunRefExpr)(res, contextptr);
     }
     return null;
   }
   synchronized name = Format("__nested_dg_literal_"[], i++);
 tryRegularDg:
-  if (!nf) nf = fastalloc!(NestedFunction)(sc);
+  if (!nf) nf = fastalloc!(NestedFunction)(context);
   auto res = fastcast!(NestedFunction) (gotGenericFunDef(nf, mod, true, t2, cont, rest, name, shortform /* true when using the backslash-shortcut */));
   if (!res)
     t2.failparse("Could not parse delegate literal"[]);
@@ -197,7 +229,7 @@ tryRegularDg:
   }
   text = t2;
   mod.addEntry(fastcast!(Tree) (res));
-  return fastalloc!(NestFunRefExpr)(res);
+  return fastalloc!(NestFunRefExpr)(res, contextptr);
 }
 mixin DefaultParser!(gotNestedDgLiteral, "tree.expr.dgliteral"[], "2402"[]);
 

@@ -32,8 +32,8 @@ class SuperContextAccess : LValue {
     }
     void emitLocation(LLVMFile lf) {
       auto bs = save(lf, baseptr);
-      auto cs = save(lf, "bitcast ", typeToLLVM(baseptr.valueType()), " ", bs, " to ", type, "*");
-      load(lf, "getelementptr  inbounds ", type, "* ", cs, ", i32 0, i32 ", index);
+      llcast(lf, typeToLLVM(baseptr.valueType()), type ~ "*", bs);
+      load(lf, "getelementptr  inbounds ", type, "* ", lf.pop(), ", i32 0, i32 ", index);
     }
   }
 }
