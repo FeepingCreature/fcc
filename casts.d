@@ -222,7 +222,7 @@ template fastcast_direct(T) {
       obj = *cast(Object*) &vp;
     }
     
-    if (obj.classinfo !is typeid(T)) return null;
+    if (obj.classinfo !is T.classinfo) return null;
     return *cast(T*) &obj; // prevent a redundant D cast
   }
 }
