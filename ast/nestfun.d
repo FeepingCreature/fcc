@@ -94,7 +94,8 @@ class NestedFunction : Function {
       // will get fixed up to __base_ptr, lol (total cheat)
       Expr base = reinterpret_cast(rt.getRefType(), new Register!("ebp"));
       _res = rn.lookupRel(name, base);
-    } else {
+    }
+    if (!_res) {
       // The reason we don't use sup here
       // is that nested functions are actually regular functions
       // declared at the top-level

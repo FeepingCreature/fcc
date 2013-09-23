@@ -1,11 +1,13 @@
 module test186;
 
+void mywriteln(string s) writeln s;
+
 class A {
   int i;
   int delegate() foo() {
     writeln "in foo: __base_ptr = $(void*:__base_ptr) and $(string-of i)";
     writeln "in foo: i is $i";
-    return static λ{ writeln "in lambda: __base_ptr = $(void*:__base_ptr) and $(string-of i)"; writeln "in lambda: i is $i"; return i; }
+    return static λ{ mywriteln "in lambda: __base_ptr = $(void*:__base_ptr) and $(string-of i)"; writeln "in lambda: i is $i"; return i; }
   }
 }
 
@@ -16,7 +18,7 @@ void main() {
   assert(dg.data is a, "dg is $dg a is $(void*:a)");
   assert(dg() == a.i);
   int x = 3;
-  auto dg2 = λ{ int x = 5; return static λ{ return x; } }();
+  auto dg2 = λ{ int x = 5; return static λ{ mywriteln "meep"; return x; } }();
   int testx = dg2();
   assert(testx == 3);
   writeln "test186 succeeded";
