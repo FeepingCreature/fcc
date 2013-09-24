@@ -49,8 +49,9 @@ string declare(Function fun, string name) {
     argstr ~= typeToLLVM(par.type, true);
   }
   string callconv;
-  if (fun.type.stdcall) callconv = "x86_stdcallcc ";
-  if (fun.isInternal()) {
+  if (isARM()) callconv = "arm_aapcs_vfpcc ";
+  else if (fun.type.stdcall) callconv = "x86_stdcallcc ";
+  else if (fun.isInternal()) {
     if (callconv) fail;
     callconv = "fastcc ";
   }
@@ -553,8 +554,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
       }
       if (noreturn) flags ~= "noreturn ";
       if (name == "__fcc_main") flags ~= "noinline ";
-      if (type.stdcall) linkage = "x86_stdcallcc ";
-      if (isInternal()) {
+      if (isARM()) linkage ~= "arm_aapcs_vfpcc ";
+      else if (type.stdcall) linkage = "x86_stdcallcc ";
+      else if (isInternal()) {
         if (type.stdcall) fail; // incompatible. what r u doing?
         linkage ~= "fastcc ";
       }
@@ -810,8 +812,9 @@ void callFunction(LLVMFile lf, IType ret, bool internal, bool stdcall, Expr[] pa
     parlist ~= qformat("i8* ", save(lf, tlsptr));
   }
   string callcc, flags;
-  if (internal) callcc = "fastcc";
-  if (stdcall) callcc = "x86_stdcallcc";
+  if (isARM()) callcc = "arm_aapcs_vfpcc";
+  else if (stdcall) callcc = "x86_stdcallcc";
+  else if (internal) callcc = "fastcc";
   
   if (noreturn) flags ~= " noreturn";
   if (params.length == 1) {

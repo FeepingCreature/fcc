@@ -13,7 +13,7 @@ bool isWindoze() {
 }
 
 bool isARM() {
-  return !!platform_prefix.startsWith("arm-"[]);
+  return !!platform_prefix.startsWith("arm"[]);
 }
 
 version(Windows) static this() { platform_prefix = "i686-mingw32-"; }

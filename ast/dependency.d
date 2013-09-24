@@ -115,8 +115,8 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   string ident;
-  if (!t2.gotIdentifier(ident, true))
-    t2.failparse("Expected target identifier for 'depend'. ");
+  t2.gotIdentifier(ident, true);
+    // t2.failparse("Expected target identifier for 'depend'. ");
   // resolve
   Object res = namespace();
   Object llookup(string s, bool local = false) {

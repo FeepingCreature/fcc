@@ -1307,7 +1307,7 @@ string delegate() compile(string file, CompileSettings cs, bool force = false) {
       string bogus;
       string march;
       if (llvmver() == "3.1") { }
-      else if (isARM) march="-march=arm ";
+      else if (isARM) march="-march=arm -float-abi=hard -mcpu=arm1176jzf-s -mattr=+vfp2 ";
       else march = "-mattr=-avx,-avx2 -march=x86 ";
       if (cs.debugModeDwarf) march ~= "-disable-fp-elim ";
       auto llcflags = get_llc_cmd(cs.optimize, cs.debugMode || cs.debugModeDwarf, cs.saveTemps, bogus, bogus);
@@ -1655,7 +1655,7 @@ int main2(string[] args) {
       continue;
     }
     if (auto rest = arg.startsWith("-platform=")) {
-      if (rest == "arm") rest = "arm-none-linux-gnueabi";
+      if (rest == "arm") rest = "armv6j-hardfloat-linux-gnueabi"; // like razpi
       platform_prefix = rest~"-";
       logln("Use platform '", platform_prefix, "'");
       foreach (ref entry; include_path) {
@@ -1663,6 +1663,7 @@ int main2(string[] args) {
           entry = "/usr/"~rest~"/include"; // fix up
         }
       }
+      include_path ~= "/usr/"~rest~"/usr/include";
       continue;
     }
     if (arg == "-save-temps" || arg == "-S") {
