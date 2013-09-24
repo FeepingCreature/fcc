@@ -1,0 +1,23 @@
+module test187;
+
+import std.lib.opengl;
+
+class A { int i; }
+
+A a;
+
+class B using a {
+  int foo() { return i; }
+}
+
+class C using mode GL {
+  void foo() { Enable DEPTH_TEST; }
+}
+
+void main() {
+  a = new A;
+  a.i = 9;
+  auto b = new B;
+  int i = b.foo();
+  assert(i == 9);
+}

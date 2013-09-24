@@ -3,7 +3,7 @@ module ast.oop;
 import ast.parse, ast.base, ast.dg, ast.int_literal, ast.fun,
   ast.namespace, ast.structure, ast.structfuns, ast.pointer,
   ast.arrays, ast.aggregate, ast.literals, ast.slice, ast.nestfun,
-  ast.tenth, ast.conditionals;
+  ast.tenth, ast.conditionals, ast.withstmt;
 import tools.base: ptuple;
 
 import tools.functional: map;
@@ -666,6 +666,18 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     scope(exit) *RefToParentModify.ptr() = rtpmbackup;
     *RefToParentModify.ptr() = delegate Expr(Expr baseref) { return baseref; /* no-op, classes are already ref */ };
     
+    WithStmt usingws;
+    
+    if (t2.accept("using")) {
+      Expr uex = fastcast!(Expr)(parse(t2, "tree.expr"));
+      if (uex) {
+        usingws = fastalloc!(WithStmt)(uex);
+        usingws.sup = sup;
+        sup = usingws;
+      } else {
+        t2.failparse("no using-expr matched");
+      }
+    }
     if (!t2.accept("{"[])) t2.failparse("Missing opening bracket for class def"[]);
     
     bool parsed(bool matchGroup = true, bool overrideKeyword = false, bool abstractKeyword = false) {
@@ -1299,7 +1311,7 @@ Object gotIntfDef(ref string text, ParseCb cont, ParseCb rest) {
     )) t3.failparse("Invalid interface inheritance spec"[]);
   }
   bool predecl;
-  if (!t2.accept("{"[]) && !(t2.accept(";"[]) && (predecl = true, true))) t2.failparse("Missing opening bracket for class def"[]);
+  if (!t2.accept("{"[]) && !(t2.accept(";"[]) && (predecl = true, true))) t2.failparse("Missing opening bracket for intf def"[]);
   auto intf = fastalloc!(Intf)(name);
   intf.sup = namespace();
   intf.parents = supints;
