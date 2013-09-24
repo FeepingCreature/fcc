@@ -93,6 +93,7 @@ platform(default) {
   struct pthread_mutex_t { ubyte x 40  filler; }
   extern(C) int pthread_mutex_init (pthread_mutex_t*, void*);
   extern(C) int pthread_mutex_lock (pthread_mutex_t*);
+  extern(C) int pthread_mutex_trylock (pthread_mutex_t*);
   extern(C) int pthread_mutex_unlock (pthread_mutex_t*);
   struct pthread_rwlock_t { ubyte x 56  filler; }
   extern(C) {
@@ -111,6 +112,13 @@ class Mutex {
   void init() { pthread_mutex_init (&mutex, null); }
   /*Function: lock*/
   void lock() { pthread_mutex_lock &mutex; }
+  /*Function: tryLock*/
+  bool tryLock() {
+    int res = pthread_mutex_trylock &mutex;
+    // return 0 if acquired
+    if (res == 0) return true;
+    return false;
+  }
   /*Function: unlock*/
   void unlock() { pthread_mutex_unlock &mutex; }
 }
