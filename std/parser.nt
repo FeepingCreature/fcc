@@ -32,16 +32,23 @@ context parser {
   string gotIdentifier() {
     cleanup;
     int len;
-    bool checkAlpha() {
+    bool checkAlphaIsh() {
       if (len >= text.length) return false;
       if ("a" <= text[len] <= "z" || "A" <= text[len] <= "Z") return true;
+      if (text[len] == "_") return true;
       return false;
     }
-    while checkAlpha() len ++;
+    while checkAlphaIsh() len ++;
     if (!len) return null;
     auto res = text[0 .. len];
     text = text[len .. $];
     return res;
+  }
+  string gotNumberStr() {
+    cleanup;
+    auto start = text;
+    if (!gotNumber(&int bogus)) return null;
+    return start[0 .. text.ptr - start.ptr];
   }
   bool gotNumber(int* ip) {
     cleanup;

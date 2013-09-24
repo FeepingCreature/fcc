@@ -26,8 +26,46 @@ void error(string s) { raise new WrenError s; }
 pragma(noreturn, "error");
 
 abstract class Thing {
-  Thing eval(Context);
+  Thing eval(Context, GlobalSpace);
   string toString();
+}
+
+abstract class EvalLessThing : Thing {
+  override Thing eval(Context, GlobalSpace) {
+    error "cannot evaluate $this";
+  }
+}
+
+/**
+ globals design
+ scenario:
+  module A imports B imports D
+  module A imports C imports D
+  ( D declares itself as "D" halfway in; B and C's imports happen under different filenames )
+  "define" inserts into global namespace.
+  define:
+    resolve: (define a foo) reserves place for modulename-a
+**/
+
+class GlobalSpace {
+  (string, Thing)[] things;
+  void init(ContextStats cs) {
+    things = [for name <- cs.namedGlobals: (name, Thing:null)].eval[];
+  }
+  Thing lookup(string s) { // TODO hashmap
+    for ref pair <- things if pair[0] == s return pair[1];
+    error "No such global: $s";
+  }
+  Thing lookup(int i) {
+    if !(0 <= i < things.length)
+      error "invalid global index: $i into $(things.length)";
+    return things[i][1];
+  }
+  void set(int i, Thing t) {
+    if !(0 <= i < things.length)
+      error "invalid global index: $i into $(things.length)";
+    things[i][1] = t;
+  }
 }
 
 class Context {
@@ -40,17 +78,39 @@ class Context {
 }
 
 abstract class Primitive : Thing {
-  Thing eval(Context) { return this; }
+  Thing eval(Context, GlobalSpace) { return this; }
 }
 
 interface Assignable {
-  void assign(Context, Thing newval);
+  void assign(Context, GlobalSpace, Thing newval);
 }
 
 // allows us to track per-lambda stackframe size in the resolve phase
 // so we can allocate the context slots
 class ContextStats {
   int depth, max-depth;
+  string[auto~] namedGlobals;
+  // used when we have to reset the state for a module import
+  Thing delegate(string) outer-lookup-dg;
+  void init(Thing delegate(string) dg) {
+    outer-lookup-dg = dg;
+  }
+  void initGlobalsFrom(ContextStats cs) {
+    namedGlobals = cs.namedGlobals.dup;
+  }
+  void replaceWithGlobalsFrom(ContextStats cs) {
+    namedGlobals.free;
+    namedGlobals = cs.namedGlobals;
+  }
+  GlobalSlot getGlobal(string name) { // TODO use hashtable
+    for int i <- ints && auto glob <- namedGlobals
+      if (glob == name) return new GlobalSlot i;
+    
+    return null;
+  }
+  void allocGlobal(string name) {
+    namedGlobals ~= name;
+  }
   Slot alloc() {
     auto res = new Slot(index => depth, 0);
     depth ++;
@@ -65,10 +125,14 @@ class ContextStats {
 
 interface Operator {
   Thing resolve(Thing[] args, ContextStats stats, Thing delegate(string), Thing delegate(Thing, ContextStats, Thing delegate(string)) recurse);
-  Thing call(Thing[] args, Context ct);
+  Thing call(Thing[] args, Context c, GlobalSpace gs);
+  // return true if the stuff below us in our "list" opens a new scope
+  // for instance, for (lambda).
+  // this allows optimizations to detect when two slots are the same.
+  bool createsNewSlotScope();
 }
 
-class Slot : Thing, Assignable {
+final class Slot : Thing/*, Assignable*/ {
   // frame recursion depth, frame field index
   int depth, index;
   void init(int depth, index) this.(depth, index) = (depth, index);
@@ -78,6 +142,7 @@ class Slot : Thing, Assignable {
     if (index >= c.things.length) fail;
     return c.things.ptr[index];
   }
+  bool sameSlot(Slot s) { return depth == s.depth && index == s.index; }
   void write(Context c, Thing t) {
     int d = depth;
     while (d--) c = c.sup;
@@ -86,8 +151,21 @@ class Slot : Thing, Assignable {
   }
   override {
     string toString() { return "λ$depth,$index"; }
-    Thing eval(Context c) { return read(c); }
-    void assign(Context c, Thing newval) { write(c, newval); }
+    Thing eval(Context c, GlobalSpace) { return read(c); }
+    // void assign(Context c, GlobalSpace, Thing newval) { write(c, newval); }
+  }
+}
+
+class GlobalSlot : Thing, Assignable {
+  int id;
+  bool fixedUseWrite;
+  void init(int id, bool fixedUseWrite = false) { this.id = id; this.fixedUseWrite = fixedUseWrite; }
+  Thing read(GlobalSpace gs) { assert(!fixedUseWrite); return gs.lookup(id); }
+  void write(GlobalSpace gs, Thing t) { gs.set(id, t); }
+  override {
+    string toString() { return "global($id)"; }
+    Thing eval(Context, GlobalSpace gs) { return read(gs); }
+    void assign(Context, GlobalSpace gs, Thing newval) { write(gs, newval); }
   }
 }
 
@@ -99,19 +177,17 @@ interface Namespace {
 class Token : Thing {
   string name;
   void init(string s) name = s;
-  Thing eval(Context) {
+  Thing eval(Context, GlobalSpace) {
     error "Unresolved Token:'$name'";
   }
   string toString() { return "$name"; }
 }
 
-final class Number : Thing {
+final class Number : Primitive {
   float num;
   void init(float f) num = f;
-  Thing eval(Context) { return number-eval?this:this; } // trap for C coders
   string toString() { return "$num"; }
 }
-Thing delegate(Number) number-eval;
 
 final class Integer : Primitive {
   int num;
@@ -149,7 +225,7 @@ interface WrenObject {
 
 template Array(T) {
   final class Array : IArray {
-    Thing eval(Context) { return this; }
+    Thing eval(Context, GlobalSpace) { return this; }
     T[] value;
     void init(T[] t) { value = t; }
     Thing getIndex(int i) {
@@ -194,8 +270,8 @@ template Reference(T) {
   class Reference : Thing, Assignable {
     T* ptr;
     void init(T* t) { ptr = t; }
-    Thing eval(Context) { return neat-to-wren *ptr; }
-    void assign(Context c, Thing newval) {
+    Thing eval(Context, GlobalSpace) { return neat-to-wren *ptr; }
+    void assign(Context c, GlobalSpace gs, Thing newval) {
       *ptr = wren-to-neat!T newval;
     }
     string toString() { return "&$(*ptr)"; }
@@ -287,7 +363,7 @@ template neat-to-wren(T) {
 template wren-to-neat(T) {
   T wren-to-neat(Thing thing) {
     static if (type-is class T) || (type-is interface T) {
-      if (auto as = Assignable: thing) thing = thing.eval(null); // get at the juicy value beneath
+      if (auto as = Assignable: thing) thing = thing.eval(null, null); // get at the juicy value beneath
       if (auto ot = ObjectThing: thing) {
         if (auto res = T: ot.obj) return res;
       }
@@ -374,7 +450,7 @@ template wren-to-neat(T) {
         } else {
           neatargs ~= neat-to-wren p;
         }
-        auto res = fn.call (neatargs[], null);
+        auto res = fn.call (neatargs[], null, null); // TODO how get globalspace here
         return (.wren-to-neat!Ret) res;
       }
       alias match-found = true;
@@ -412,13 +488,13 @@ void freeThingArray(Thing[] t) {
   funcall_base -= t.length;
 }
 
-final class Function : Thing, Operator {
+final class Function : EvalLessThing, Operator {
   string info;
   // WARN: Thing[] argument is freed after the call!
   Thing delegate(Thing[]) fn;
-  Thing delegate(Thing[], Context) fn2;
+  Thing delegate(Thing[], Context, GlobalSpace) fn2;
   void init(string s, Thing delegate(Thing[]) dg) (info, fn) = (s, dg);
-  void init(string s, Thing delegate(Thing[], Context) dg) (info, fn2) = (s, dg);
+  void init(string s, Thing delegate(Thing[], Context, GlobalSpace) dg) (info, fn2) = (s, dg);
   override {
     // no-op because pure functions don't modify the environment of their args
     Thing resolve(Thing[] args, ContextStats stats, Thing delegate(string) lookup,
@@ -427,26 +503,36 @@ final class Function : Thing, Operator {
       for auto arg <- args
         resolvedArgs ~= recurse(arg, stats, lookup);
       
-      return new List(Thing[]:null ~ this ~ resolvedArgs[]);
+      return new List([Thing:this] ~ resolvedArgs[]);
     }
-    Thing eval(Context) {
-      error "Cannot evaluate $this";
+    string toString() {
+      if (info.(length && (_0 == "<" || _0 == ">")))
+        return "<'$info'>";
+      return "<$info>";
     }
-    string toString() { return "<$info>"; }
+    bool createsNewSlotScope() { return false; }
   }
-  Thing call(Thing[] list, Context c) {
+  Thing call(Thing[] list, Context c, GlobalSpace gs) {
     // onFailure writeln "while calling $info";
+    
+    // special case for speed
+    if (list.length == 1) {
+      auto ev = list[0].eval (c, gs);
+      return direct-call((&ev)[0..1], c, gs);
+    }
+    
     auto trueArgs = allocThingArray list.length;
-    onSuccess freeThingArray trueArgs;
+    onExit freeThingArray trueArgs;
     
-    for auto thing <- list && ref arg <- trueArgs
-      arg = thing.eval c;
+    for auto thing <- list && ref arg <- trueArgs {
+      arg = thing.eval (c, gs);
+    }
     
-    return direct-call(trueArgs[], c);
+    return direct-call(trueArgs[], c, gs);
   }
   // call without evaluating
-  Thing direct-call(Thing[] args, Context c) {
-    if (fn2) return fn2 (args[], c);
+  Thing direct-call(Thing[] args, Context c, GlobalSpace gs) {
+    if (fn2) return fn2 (args[], c, gs);
     else return fn args[];
   }
 }
@@ -454,7 +540,7 @@ final class Function : Thing, Operator {
 final class Escape : Thing {
   Thing inside;
   void init(Thing t) inside = t;
-  Thing eval(Context) { return inside; }
+  Thing eval(Context, GlobalSpace) { return inside; }
   string toString() { return "'$inside"; }
 }
 
@@ -462,13 +548,13 @@ final class List : Thing {
   Thing[] list;
   Operator opcache;
   void init(Thing[] l) { list = l; if (l.length) opcache = Operator: l[0]; }
-  Thing eval(Context c) {
+  Thing eval(Context c, GlobalSpace gs) {
     if !list.length error "Cannot evaluate $this: list empty";
     // writeln "Evaluate $this";
     auto op = opcache;
-    if (!op) op = Operator: Function: list.ptr[0].eval c;
-    if !op error "Cannot evaluate $this: first entry is not an operator (function), but $(list[0]?.toString():\"null\")";
-    return op.call (list[1..$], c);
+    if (!op) op = Operator: Function: list.ptr[0].eval (c, gs);
+    if (!op) error "Cannot evaluate $this: first entry is not an operator (function), but $(list[0]?.toString():\"null\") - $(list[0]?.eval(c, gs)?.toString():\"null\")";
+    return op.call (list[1..$], c, gs);
   }
   string toString() {
     char[auto~] res;
@@ -486,10 +572,10 @@ final class IntValue : Thing, Assignable {
   int* target;
   void init(int* ip) target = ip;
   string toString() { return "<ref $(*target)>"; }
-  Thing eval(Context c) {
+  Thing eval(Context, GlobalSpace) {
     return new Number(*target);
   }
-  void assign(Context c, Thing t) {
+  void assign(Context, GlobalSpace, Thing t) {
     auto n = Number:t;
     if !n error "Cannot assign: $t is not a number";
     *target = int: n.num;
@@ -500,10 +586,10 @@ final class FloatValue : Thing, Assignable {
   float* target;
   void init(float* fp) target = fp;
   string toString() { return "<ref $(*target)>"; }
-  Thing eval(Context c) {
+  Thing eval(Context, GlobalSpace) {
     return new Number(*target);
   }
-  void assign(Context c, Thing t) {
+  void assign(Context, GlobalSpace, Thing t) {
     auto n = Number:t;
     if !n error "Cannot assign: $t is not a number";
     *target = float: n.num;
@@ -514,18 +600,15 @@ final class ObjectValue : Thing {
   Object* target;
   void init(Object* op) target = op;
   string toString() { return "<ref $(*target)>"; }
-  Thing eval(Context c) {
+  Thing eval(Context, GlobalSpace) {
     return new String "$(*target)";
   }
 }
 
-final class DataArray : Thing {
+final class DataArray : EvalLessThing {
   (int, void*)* target;
   void init((int, void*)* ap) target = ap;
   string toString() { return "<data-array $(*target#[0]): $(*target#[1])>"; }
-  Thing eval(Context c) {
-    error "Cannot evaluate data-array";
-  }
 }
 
 import std.string;
@@ -644,13 +727,24 @@ class ListNamespace : Namespace {
   }
 }
 
-Thing resolve(Thing t, Namespace ns, ContextStats cs = null) {
+string current_module;
+string[auto~] imported_modules;
+
+void mangles(string s, void delegate(string) dg) {
+  if (!current_module) { dg s; return; }
+  dg "module_$(current_module)_identifier_$s";
+  for auto imp <- imported_modules {
+    dg "module_$(imp)_identifier_$s";
+  }
+}
+
+Thing resolve(Thing t, Thing delegate(string) lookup, ContextStats cs) {
   // Thing resolve(Thing[] args, ContextStats, Thing delegate(string), Thing delegate(Thing, ContextStats, Thing delegate(string)) recurse);
   Thing recurse(Thing t, ContextStats cs, Thing delegate(string) lookup) {
     if (auto tok = Token: t) {
       auto res = lookup(tok.name);
       if (!res) error "Couldn't resolve '$(tok.name)'";
-      if (Primitive:res || Slot:res || Operator:res) return res; // not necessary to escape
+      if (Primitive:res || Slot:res || GlobalSlot:res || Operator:res) return res; // not necessary to escape
       return new Escape res; // instead of Token -> Thing, do [Thing] -> Thing
     }
     if ((auto list = List: t) && list.list.length) {
@@ -662,16 +756,65 @@ Thing resolve(Thing t, Namespace ns, ContextStats cs = null) {
     }
     return t;
   }
-  return recurse(t, cs, &ns.lookup);
+  return recurse(t, cs, lookup);
 }
 
-Thing evalme(Thing t, Namespace ns) {
-  scope cs = new ContextStats;
-  auto t2 = resolve(t, ns, cs);
+template walk_tag(T) {
+  reassign Thing walk_tag(Thing thing, T t, T delegate(Thing, T) updateTag, Thing delegate(Thing, T) transform) {
+    Thing recurse(Thing thing, T t) {
+      auto nt = updateTag(thing, t);
+      if (auto list = List:thing) {
+        auto nlist = list.list.dup;
+        bool changed;
+        for ref entry <- nlist {
+          auto nentry = recurse(entry, nt);
+          if (nentry !is entry) {
+            changed = true;
+            entry = nentry;
+          }
+        }
+        if (changed) thing = new List nlist;
+        else nlist.free;
+      }
+      return (transform(thing, t))?.(that):thing;
+    }
+    return recurse(thing, t);
+  }
+}
+
+reassign Thing walk(Thing t, Thing delegate(Thing) dg) {
+  struct Nothing { } Nothing nothing;
+  return walk_tag!Nothing(t, nothing, λ(Thing, Nothing) -> nothing, λ(Thing t, Nothing) { return dg t; });
+}
+
+Thing delegate(Thing)[auto~] opts;
+
+Thing optimize(Thing t) {
+  for auto opt <- opts t = opt t;
+  return t;
+}
+
+Thing glookup(string id, ContextStats cs, Thing delegate(string) sup = null) {
+  Thing glob;
+  mangles(id, λ(string s) { if (!glob && auto gnew = cs.getGlobal s) glob = gnew; });
+  if (glob) return glob;
+  if (!sup) sup = cs.outer-lookup-dg;
+  return sup(id);
+}
+
+// gsdg is so the global space can be used for latter function calls!
+Thing evalme(Thing t, Thing delegate(string) lookup-dg, void delegate(GlobalSpace) gsdg = null) {
+  scope cs = new ContextStats lookup-dg;
+  Thing lookup(string id) { return glookup(id, cs, lookup-dg); }
+  auto t2 = optimize resolve(t, &lookup, cs);
   scope confield = new Thing[] cs.max-depth;
   scope con = new Context;
+  
+  auto gs = new GlobalSpace cs;
+  onSuccess if (gsdg) gsdg gs; else gs.free;
+  
   con.things = confield;
-  return t2.eval(con);
+  return t2.eval(con, gs);
 }
 
 ListNamespace scripts; // default namespace
