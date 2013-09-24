@@ -13,7 +13,7 @@ platform(!*-mingw32) {
 
 defmode GLFW "prefix GLFW_ prefix glfw";
 
-static if (types-equal(GLFWwindow, void)) {
+static if (types-equal weak (GLFWwindow, void)) {
   alias GLFWWinType = GLFWwindow*;
 } else {
   alias GLFWWinType = GLFWwindow;

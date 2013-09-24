@@ -1,7 +1,7 @@
 module llvmtype;
 
 import casts, llvmfile, quickformat;
-import ast.base, ast.int_literal, ast.types, ast.pointer, ast.static_arrays, ast.arrays, ast.fun;
+import ast.base, ast.int_literal, ast.types, ast.pointer, ast.static_arrays, ast.arrays, ast.fun, ast.aliasing;
 import tools.log, tools.base: strip, between;
 import parseBase: startsWith, endsWith;
 
@@ -9,7 +9,7 @@ pragma(set_attribute, typeToLLVM, externally_visible);
 extern(C) string typeToLLVM(IType it, bool subst = false) {
   // logln("typeToLLVM ", it);
   if (!it) fail;
-  auto rt = resolveType(it);
+  auto rt = resolveTypeHard(it);
   if (rt == Single!(Pointer, Single!(Void))) return "i8*";
   if (subst) { // asked to substitute a simpler type
     it = rt;

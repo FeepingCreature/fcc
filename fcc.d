@@ -28,8 +28,8 @@ alias ast.c_bind.readback readback;
 import ast.parse, ast.namespace, ast.scopes;
 // from ast.types
 pragma(set_attribute, ast_types_resolveType, externally_visible);
-extern(C) IType ast_types_resolveType(IType t, bool carefully = false) {
-  if (t is resolvecache) return t; // shortcut for repeated call
+extern(C) IType ast_types_resolveType(IType t, bool carefully = false, bool hard = false) {
+  if (!hard && t is resolvecache) return t; // shortcut for repeated call
   while (t) {
     // avoid poking LateTypes if not needed.
     if (carefully) if (auto lt = fastcast!(LateType)(t)) return lt;
@@ -37,9 +37,23 @@ extern(C) IType ast_types_resolveType(IType t, bool carefully = false) {
       t = tp;
       continue;
     }
+    if (hard) {
+      if (auto ta = fastcast!(TypeAlias)(t)) {
+        assert(ta.strictFrom || ta.strictTo);
+        t = ta.base;
+        continue;
+      }
+      if (auto poi = fastcast!(Pointer)(t)) {
+        auto br = resolveTypeHard(poi.target, carefully);
+        if (br !is poi.target) {
+          t = fastalloc!(Pointer)(br);
+          continue;
+        }
+      }
+    }
     break;
   }
-  resolvecache = t;
+  resolvecache = hard?null:t;
   return t;
 }
 
@@ -375,7 +389,10 @@ void ast_math_constr() {
     // logln("subst with ", res);
     return res;
   }
-  if (!isWindoze()) {
+  // NO
+  // fastfloor is fast
+  // floorf is slow >.<
+  /*if (!isWindoze()) {
     foldopt ~= &substfun /fix/ stuple(1, (Function fun, Module mod) {
       return fun.name == "fastfloor" && mod is sysmod;
     }, delegate Expr(Expr[] args) {
@@ -383,7 +400,7 @@ void ast_math_constr() {
         fastalloc!(IntrinsicExpr)("llvm.floor.f32"[], args, Single!(Float)),
         fastalloc!(FloatExpr)(0.25)));
     });
-  }
+  }*/
   foldopt ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
     return (fun.name == "copysignf" || fun.name == "[wrap]copysignf") && fun.extern_c;
   }, delegate Expr(Expr[] args) {
@@ -405,6 +422,7 @@ void ast_math_constr() {
     });
   }
   addCIntrin(1, "sqrtf" , Single!(Float), "llvm.sqrt.f32");
+  addCIntrin(1, "sqrt"  , Single!(Double), "llvm.sqrt.f64");
   // do in software, intrinsic is slow
   // addCIntrin(1, "sinf"  , Single!(Float), "llvm.sin.f32");
   // addCIntrin(1, "cosf"  , Single!(Float), "llvm.cos.f32");
@@ -422,7 +440,7 @@ void ast_math_constr() {
   bool isDouble(IType it) { return test(Single!(Double) == it); }
   bool isLong(IType it) { return test(Single!(Long) == it); }
   bool isPointer(IType it) { return test(fastcast!(Pointer)~ it); }
-  bool isBool(IType it) { if (!sysmod) return false; return test(it == fastcast!(IType)(sysmod.lookup("bool"))); }
+  bool isBool(IType it) { if (!sysmod) return false; return exactlyEquals(it, fastcast!(IType)(sysmod.lookup("bool"))); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
     bool b1 = isBool(ex1.valueType()), b2 = isBool(ex2.valueType());
     Expr i1 = ex1, i2 = ex2, u1 = ex1, u2 = ex2;
@@ -596,7 +614,7 @@ Object gotAsType(ref string text, ParseCb cont, ParseCb rest) {
   } else {
     if (!text.gotIdentifier(ident)) text.failparse("Identifier expected for as_type");
   }
-  auto ta = fastalloc!(TypeAlias)(cast(IType) null, ident, false);
+  auto ta = fastalloc!(TypeAlias)(cast(IType) null, ident);
   {
     auto as_type_ns = fastalloc!(MiniNamespace)("as_type_ident_override");
     as_type_ns.sup = namespace();
@@ -1478,7 +1496,9 @@ int incbuild(string start,
     auto file = mod.name.undo();
     string obj, asmf;
     file.translate(obj, asmf);
-    if (file == "sys.nt") file = "fcc.exe"; // contained within
+    if (file == "sys.nt")
+      if (isWindoze()) file = "fcc.exe"; // contained within
+      else file = "fcc";
     file = findfile(file);
     
     auto start2 = findfile(start);

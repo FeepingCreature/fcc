@@ -19,6 +19,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   ubyte[] buf;
   void flush() { if (!buf) return; res.addArray(fastalloc!(StringExpr)(cast(string) buf)); buf = null; }
   ubyte xtake() {
+    if (!str.length) fail;
     auto res = (cast(ubyte[]) str)[0];
     str = cast(string) (cast(ubyte[]) str)[1..$];
     return res;

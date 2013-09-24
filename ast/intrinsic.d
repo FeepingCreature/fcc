@@ -7,7 +7,8 @@ void setupSysmods() {
   string src = `
     module sys;
     pragma(lib, "m");
-    alias strict bool = int;
+    // can't treat int as bool, can treat bool as int
+    alias strict(to) bool = int;
     alias true = bool:1;
     alias false = bool:0;
     alias null = void*:0;
@@ -618,7 +619,7 @@ void setupSysmods() {
       memcpy(res, ptr, length);
       return res;
     }
-    int fastfloor(float f) { return (int:f) - (*int*:&f) >> 31; }
+    int fastfloor(float f) { return (int:f) - (*int*:&f) >>> 31; }
     void fastfloor3f(vec3f v, vec3i* res) {
       if (v.x > int.max || v.y > int.max || v.z > int.max) {
         fail("fastfloor3f int conversion requested but there is actually no int equivalent for $v");

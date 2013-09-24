@@ -69,7 +69,8 @@ float sin(float x) {
   
   // wrap to -PI .. PI
   x += PI; // wrap to 0..2PI
-  x -= 2*PI*floorf(x/(2*PI));
+  // x -= 2*PI*floorf(x/(2*PI));
+  x -= 2*PI*fastfloor(x/(2*PI));
   x -= PI; // and back
   
   float y = B * x + C * x * abs x;

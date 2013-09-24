@@ -906,7 +906,21 @@ src_cleanup_redo: // count, then copy
       }
       
     typedef_done:
-      auto ta = fastalloc!(TypeAlias)(target, name);
+      bool strict;
+      auto rt = resolveTypeHard(target, true);
+      // strict |= test(Single!(Void) == rt);
+      auto test = rt;
+      while (true) {
+        if (auto pt = fastcast!(Pointer)(test)) {
+          test = resolveTypeHard(pt.target, true);
+          continue;
+        }
+        break;
+      }
+      auto lt = fastcast!(LateType)(test);
+      strict |= lt && !lt.me;
+      // logln(name, " strict? ", strict, " on ", rt);
+      auto ta = fastalloc!(TypeAlias)(target, name, false, strict);
       // logln("add ", name, " = ", ta);
       (*cachep)[name] = ta;
       continue;
@@ -1037,7 +1051,7 @@ void performCImport(string name) {
   }
   string filename = findfile(name);
   string extra;
-  if (!isARM) extra = " -m32";
+  if (!isARM()) extra = " -m32";
   synchronized(defines_sync) {
     extra ~= (defines /map/ (string s) { return " -D"~s; }).join("");
     if (name in prepend) extra ~= " "~(prepend[name] /map/ &findfile).join(" ");

@@ -37,7 +37,7 @@ class SAIndexExpr : Expr {
 import ast.tuples, ast.tuple_access;
 void setupIndex() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
-    auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());
+    auto e1v = resolveTypeHard(e1.valueType()), e2v = resolveType(e2.valueType());
     if (!fastcast!(StaticArray) (e1v) && !fastcast!(Array) (e1v) && !fastcast!(ExtArray) (e1v) && !fastcast!(Pointer) (e1v))
       return null;
     IType[] tried;
@@ -49,7 +49,7 @@ void setupIndex() {
     }
     if (fastcast!(Pointer)~ e1v)
       return fastalloc!(DerefExpr)(lookupOp("+", e1, e2));
-    return getIndex(e1, e2);
+    return getIndex(reinterpret_cast(e1v, e1), e2);
   });
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
     auto e1v = resolveType(e1.valueType()), e2v = resolveType(e2.valueType());

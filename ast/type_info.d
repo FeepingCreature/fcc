@@ -126,7 +126,9 @@ mixin DefaultParser!(gotParamTypes, "type.fun_param_type"[], "52"[], "ParamTypes
 import ast.conditionals;
 Object gotTypesEqual(ref string text, ParseCb cont, ParseCb rest) {
   IType ty;
+  bool weak;
   auto t2 = text;
+  if (t2.accept("weak")) weak = true;
   if (!t2.accept("("[]))
     t2.failparse("Opening parenthesis expected"[]);
   setupStaticBoolLits;
@@ -138,9 +140,16 @@ Object gotTypesEqual(ref string text, ParseCb cont, ParseCb rest) {
       t2.failparse("Comma expected"[]);
     if (!rest(t2, "type"[], &ty2))
       t2.failparse("Expect type parameter for types-equal! "[]);
-    if (!ty) ty = resolveType(ty2);
-    else if (ty != resolveType(ty2))
-      res = fastcast!(Object)(False);
+    if (weak) {
+      // if weak, then hard. IRONY
+      if (!ty) ty = resolveTypeHard(ty2);
+      else if (ty != resolveTypeHard(ty2))
+        res = fastcast!(Object)(False);
+    } else {
+      if (!ty) ty = resolveType(ty2);
+      else if (ty != resolveType(ty2))
+        res = fastcast!(Object)(False);
+    }
   }
   if (!res) res = fastcast!(Object)(True);
   text = t2;

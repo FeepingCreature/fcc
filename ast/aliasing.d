@@ -90,7 +90,9 @@ final class MValueAlias : ExprAlias, MValue {
 
 class _TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
   IType base;
-  bool strict;
+  // strictFrom: can't implicitly cast TA to base
+  // strictTo: can't implicitly cast base to TA
+  bool strictFrom, strictTo;
   string name;
   override {
     bool isComplete() {
@@ -114,14 +116,18 @@ class _TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
     string toString() {
       if (alreadyRecursing(this)) return qformat("recursive ", name);
       pushRecurse(this); scope(exit) popRecurse();
-      return Format(name, ":", base);
+      string strict;
+      if (strictFrom && strictTo) strict = "strict ";
+      else if (strictFrom) strict = "strict(from) ";
+      else if (strictTo) strict = "strict(to) ";
+      return Format(strict, name, ":", base);
     }
     int opEquals(IType ty) {
       if (ty is this) return true;
       if (alreadyRecursing(this, ty)) return true; // break loop
       pushRecurse(this, ty); scope(exit) popRecurse();
       auto ta2 = fastcast!(TypeAlias) (ty);
-      if (strict) {
+      if (strictFrom || strictTo) {
         if (!ta2) return false;
         return name == ta2.name && base == ta2.base;
       }
@@ -130,7 +136,7 @@ class _TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
       // then fall back to resolved check
       return resolveType(base).opEquals(resolveType(ty));
     }
-    IType proxyType() { if (strict) return null; return base; }
+    IType proxyType() { if (strictFrom || strictTo) return null; return base; }
     bool canEncode() {
       auto d2e = fastcast!(Dwarf2Encodable)(resolveType(base));
       return d2e && d2e.canEncode();
@@ -143,7 +149,7 @@ class _TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
 
 final class TypeAlias : _TypeAlias {
   static const isFinal = true;
-  mixin This!("base, name, strict = false"[]);
+  mixin This!("base, name, strictFrom = false, strictTo = false"[]);
 }
 
 static this() {
@@ -168,8 +174,22 @@ redo:
   TypeAlias ta;
   Object obj;
   
-  bool strict, raw;
-  if (t2.accept("strict"[])) strict = true;
+  bool strictFrom, strictTo, raw;
+  if (t2.accept("strict")) {
+    auto t3 = t2;
+    if (t3.accept("(") && t3.accept("from") && t3.accept(")")) {
+      t2 = t3;
+      strictFrom = true;
+    } else {
+      t3 = t2;
+      if (t3.accept("(") && t3.accept("to") && t3.accept(")")) {
+        t2 = t3;
+        strictTo = true;
+      } else {
+        strictFrom = strictTo = true;
+      }
+    }
+  }
   if (t2.accept("raw"[]))    raw = true;
   
   if (!(t2.gotIdentifier(id) &&
@@ -187,7 +207,7 @@ redo:
   
   if (rest(t3, "type"[], &ty) && gotTerm()) {
     if (auto tup = resolveTup(ty, true)) ty = tup;
-    ta = fastalloc!(TypeAlias)(ty, id, strict);
+    ta = fastalloc!(TypeAlias)(ty, id, strictFrom, strictTo);
     t2 = t3;
   } else {
     t3 = t2;
@@ -219,7 +239,7 @@ redo:
   text = t2;
   auto cv = fastcast!(CValue)~ ex, mv = fastcast!(MValue)~ ex, lv = fastcast!(LValue)~ ex;
   if (ex) {
-    if (strict) t2.failparse("no such thing as strict expr-alias"[]);
+    if (strictFrom || strictTo) t2.failparse("no such thing as strict expr-alias"[]);
     ExprAlias res;
     if (lv) res = fastalloc!(LValueAlias)(lv, id);
     else if (mv) res = fastalloc!(MValueAlias)(mv, id);
@@ -240,10 +260,10 @@ mixin DefaultParser!(gotAlias, "tree.toplevel.alias"[], null, "alias"[]);
 
 import ast.casting;
 static this() {
-  // type alias implicitly casts to parent type
+  // type alias implicitly casts to parent type (if not strictFrom)
   implicits ~= delegate Expr(Expr ex) {
     auto ta = fastcast!(TypeAlias) (ex.valueType());
-    if (!ta || !ta.strict) return null;
+    if (!ta || ta.strictFrom) return null;
     return reinterpret_cast(ta.base, ex);
   };
 }

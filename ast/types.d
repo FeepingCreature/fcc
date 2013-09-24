@@ -27,9 +27,14 @@ interface ExternAware {
 import tools.log;
 // Strips out type-alias and the like
 IType resolvecache;
-extern(C) IType ast_types_resolveType(IType t, bool carefully = false);
+extern(C) IType ast_types_resolveType(IType t, bool carefully = false, bool hard = false);
 IType resolveType(IType t, bool carefully = false) {
   return ast_types_resolveType(t, carefully);
+}
+
+// resolve for semantics, with no heed paid to strictness
+IType resolveTypeHard(IType t, bool carefully = false) {
+  return ast_types_resolveType(t, carefully, true);
 }
 
 template TypeDefaults(bool OPEQUALS = true) {
