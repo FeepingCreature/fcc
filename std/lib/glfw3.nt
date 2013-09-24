@@ -159,19 +159,22 @@ class GLFWWindow : GLWindow {
     scroll-state += vec2i(int:x, int:y);
   }
   void closedfn(GLFWWinType window) { closed = true; }
-  bool is-set-up, closed;
+  bool is-set-up, closed, debugflag;
   string title;
   void setTitle(string s) {
     import std.string;
     handle.glfwSetWindowTitle(auto ptr = toStringz s);
     mem.free ptr;
   }
+  void setDebugFlag(bool d) { debugflag = d; }
   void setup(vec2i size) using mode GLFW {
     if (!Init()) raise new GLFWError "Failed to init GLFW";
     onFailure Terminate;
     
     WindowHint(DEPTH_BITS, 16);
     WindowHint(STENCIL_BITS, 8);
+    WindowHint(OPENGL_DEBUG_CONTEXT, debugflag);
+    
     (w, h) = size;
     if (!title) title = "GLFW Window";
     

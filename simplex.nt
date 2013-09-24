@@ -272,5 +272,5 @@ float noise3(vec3f v, vec3f* δ = null) {
       Δ += -8f * factors2[c] * factors[c] * vs[c] * (grad3[gi[c]]*vs[c]).sum + grad3[gi[c]] * factors4[c];
     *δ = Δ;
   }
-  return (1f + 28f * res.sum) / 2f;
+  return (1f + 32f * res.sum) / 2f;
 }
