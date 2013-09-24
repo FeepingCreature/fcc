@@ -47,6 +47,6 @@ class PNGWriter {
   }
   void end() using mode PNG ptr {
     write_end (infoptr);
-    destroy_write_struct(&ptr, &infoptr);
+    destroy_write_struct(png_structpp:&ptr, png_infopp:&infoptr);
   }
 }
