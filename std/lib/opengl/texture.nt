@@ -20,7 +20,8 @@ class Texture : FastITexture {
   vec4f[] data;
   ubyte[] translated_data;
   TexMode mode;
-  void init() { mode = TexMode.MipMapped; register; }
+  GLuint format;
+  void init() { format = GL_RGBA; mode = TexMode.MipMapped; register; }
   void init(int w, h, vec4f[] data) { init(); this.(width,height,data) = (w,h,data); }
   void init(int w, h, vec3f[] data) this.init(w, h, vec4f[]: data);
   void init(int w, h, vec4f delegate(float, float) dg) {
@@ -79,12 +80,17 @@ class Texture : FastITexture {
       auto param2 = LINEAR;
       if (mode == TexMode.Nearest) param2 = NEAREST;
       
-      alias tup = (RGBA, UNSIGNED_BYTE, void*:translated_data.ptr);
+      alias tup = (format, UNSIGNED_BYTE, void*:translated_data.ptr);
+      
+      int intform;
+      if (format == RGBA) intform = 4;
+      else intform = format;
+      
       if (mode == TexMode.MipMapped) {
-        gluBuild2DMipmaps (4, size, tup);
+        gluBuild2DMipmaps (intform, size, tup);
         TEXTURE_MIN_FILTER.TexParameteri LINEAR_MIPMAP_LINEAR;
       } else {
-        TexImage2D (0, 4, size, 0, tup);
+        TexImage2D (0, intform, size, 0, tup);
         TEXTURE_MIN_FILTER.TexParameteri param2;
       }
       TEXTURE_MAG_FILTER.TexParameteri param2;
