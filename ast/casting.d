@@ -305,7 +305,6 @@ TLS!(IType[]) gotImplicitCast_visited_cache; // we go in here a lot, so this pay
 static this() { New(gotImplicitCast_visited_cache, { return &(new Stuple!(IType[]))._0; }); }
 bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int mayFreeRejects = 1, int* scorep = null) {
   if (!ex) fail;
-  if (scorep) *scorep = 2;
   auto ns = namespace();
   if (!ns) namespace.set(new NoNameSpace); // lots of stuff does namespace().get!() .. pacify it
   scope(exit) namespace.set(ns);
@@ -365,9 +364,10 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int ma
     return null;
   }
   if (accept(ex)) return true;
+  if (scorep) *scorep = 2;
   auto dcme = fastcast!(DontCastMeExpr) (ex);
   if (dcme) return false;
-  if (auto res = recurse(ex, 0, scorep)) { ex = res; return true; }
+  if (auto res = recurse(ex, scorep?*scorep:0, scorep)) { ex = res; return true; }
   else return false;
 }
 

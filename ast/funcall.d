@@ -226,12 +226,13 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     else {
       try matches = gotImplicitCast(ex, type, (IType it) {
           tried ~= it;
-          // logln(ex, " !! is ", it, " == ", type, "? ", test(it == type));
+          // logln(ex, " !! is ", it, " == ", type, "? ", test(it == type), " with ", score);
           return test(it == type);
         }, false, &score);
       catch (Exception ex) {
         text.failparse("While attempting to cast to ", type, ": ", ex);
       }
+      // logln("score = ", score);
     }
     
     if (!matches) {
@@ -256,6 +257,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
           "tried:\n", formatlines(relevant(tried)));
       }
     }
+    // if (scorep) logln("add to ", *scorep, ": ", score);
     if (scorep) *scorep += score;
     res ~= ex;
   }
@@ -402,9 +404,11 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
           candidates ~= osfun;
           candsets ~= osfun.getParams(false);
           scores ~= score;
+          score = 0;
         }
         parsets ~= osfun.getParams(false);
       }
+      // logln("candy: ", candidates /map/ (Function f) { return f.type; }, " - ", scores);
       if (!candidates) {
         if (precise) { precise = false; goto retry_match; } // none _quite_ match ..
         if (exprHasAlternativesToACall) return null;
@@ -422,6 +426,7 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
           scores ~= score;
         }
       }
+      // logln("candy after lowscore: ", candidates);
       if (candidates.length > 1) {
         t2.failparse("Unable to call '", os.name,
           "': ambiguity between ", candsets, " btw ", os.funs, " of score ", scores);
