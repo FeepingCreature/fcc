@@ -527,7 +527,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
         auto file = addMetadata(lf, `metadata !"`, mod.filename().filenamepart(), `", metadata !"`, mod.filename().dirpart(), `"`);
         auto type = addMetadata(lf, `i32 786453, ` // dw_tag_subroutine_type
           // TODO
-          `i32 0, i32 0, metadata !"", i32 0, i64 0, i64 0, i64 0, i32 0, null, null, i32 0, i32 0`
+          `i32 0, null, metadata !"", i32 0, i64 0, i64 0, i64 0, i32 0, null, null, i32 0, i32 0`
         );
         dwarfMetadata = addMetadata(lf, "i32 786478, metadata ", file, ", ",
           "metadata ", addMetadata(lf, "i32 786473, metadata ", file), ", ",
