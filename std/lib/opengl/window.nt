@@ -23,11 +23,15 @@ enum Key {
 }
 
 abstract class GLWindow {
-  void delegate()[] context-callbacks;
+  CallSet!void context-callbacks;
   int framecount;
-  void addCallback(void delegate() dg) {
-    context-callbacks ~= dg;
+  int addCallback(void delegate() dg) {
+    auto res = context-callbacks.add dg;
     if (isSetUp()) dg();
+    return res;
+  }
+  void removeCallback(int id) {
+    context-callbacks.remove id;
   }
   void init() {
     mouse-pos = vec2i(-1, -1);

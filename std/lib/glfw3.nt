@@ -202,7 +202,7 @@ class GLFWWindow : GLWindow {
     // SwapInterval 0;
     
     is-set-up = true;
-    for (auto dg <- context-callbacks) dg();
+    context-callbacks.call();
   }
   bool isSetUp() { return is-set-up; }
   void update() using mode GLFW {

@@ -18,18 +18,48 @@ template CallSet(T) {
     template CallSet(U) {
       struct CallSet {
         DG[auto~] dgs;
+        int linkedstart;
+        alias lsvalue = linkedstart - 1; // so that default (0) becomes -1
+        void setls(int i) { linkedstart = i + 1; }
         void call(%ARG%) {
-          for auto dg <- dgs dg?(%ARGVAL%);
+          // data may be nonnull because linked freelist hack
+          for auto dg <- dgs if (dg.fun is null) dg(%ARGVAL%);
         }
         alias implicit-cast = &call;
-        void add(DG dg) {
-          for ref dg2 <- dgs
-            if (!dg2) { dg2 = dg; return; }
+        int add(DG dg) {
+          // if freelist is not empty
+          if (lsvalue != -1) {
+            // save current freelist head
+            int curhead = lsvalue;
+            ref listdg = dgs[lsvalue];
+            // unwrap linked list
+            // (set the new head)
+            setls int:listdg.data;
+            listdg = dg;
+            // return id we saved to
+            return curhead;
+          }
+          // otherwise append
           dgs ~= dg;
+          // and return end
+          return dgs.length - 1;
+        }
+        void remove(int id) {
+          ref thatdg = dgs[id];
+          // use the dg we just removed as the current freelist head
+          thatdg.fun = null;
+          // point at the previous freelist head
+          thatdg.data = void*: lsvalue;
+          // and set id
+          setls id;
         }
         void remove(DG dg) {
-          for ref dg2 <- dgs
-            if ((void*,void*):dg == (void*,void*):dg2) dg2 = null;
+          for int i <- ints && ref dg2 <- dgs {
+            if (dg is dg2) {
+              remove i;
+              return;
+            }
+          }
         }
       }
     }

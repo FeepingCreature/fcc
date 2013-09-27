@@ -62,7 +62,7 @@ class SDLWindow : GLWindow {
       // IMPORTANT: init gl FIRST
       resizeWindow (w, h);
       is-set-up = true;
-      for (auto dg <- context-callbacks) dg();
+      context-callbacks.call();
       return res;
     }
     regenSurf = new &regen;
