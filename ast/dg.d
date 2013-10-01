@@ -18,6 +18,7 @@ class mkDelegate : Expr {
     this.data = data;
   }
   mixin defaultIterate!(ptr, data);
+  mixin defaultCollapse!();
   override string toString() { return Format("dg(ptr="[], ptr, "[], data="[], data, ")"[]); }
   override void emitLLVM(LLVMFile lf) {
     auto i8ds = save(lf, reinterpret_cast(voidp, data));

@@ -40,6 +40,7 @@ class Variable : LValue, Named {
   // TODO: find some way to make this safe(r)
   override Variable dup() { return this; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   string toString() {
     if (name) return name;
     return Format("[ var of "[], type, " at "[], baseIndex, "]"[]);

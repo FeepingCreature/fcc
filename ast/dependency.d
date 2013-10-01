@@ -42,6 +42,7 @@ class CodeDependency : Expr, Named {
   this(string i) { info = i; }
   string toString() { return qformat("dep ", info); }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     string getIdentifier() { return get_id(info); }
     IType valueType() { return Single!(Void); }

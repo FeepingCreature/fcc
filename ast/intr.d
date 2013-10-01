@@ -16,6 +16,7 @@ class Interrupt : Statement {
     }
   }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
 }
 
 Object gotIntrStmt(ref string text, ParseCb cont, ParseCb rest) {

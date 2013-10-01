@@ -258,6 +258,7 @@ class NestedCall : FunCall {
     defaultIterate!(dg, ebp).iterate(dg2, mode);
     super.iterate(dg2, mode);
   }
+  mixin defaultCollapse!();
   this() { ebp = new Register!("ebp"[]); }
   string toString() { return Format("dg "[], dg, "- "[], super.toString()); }
   override NestedCall construct() { return new NestedCall; }
@@ -328,6 +329,7 @@ class LateLookupExpr : Expr {
   string name;
   this(string n, IType t) { name = n; type = t; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     IType valueType() { return type; }
     LateLookupExpr dup() { return fastalloc!(LateLookupExpr)(name, type); }
@@ -363,6 +365,7 @@ class FunPtrAsDgExpr(T) : T {
     super.iterate(dg, mode);
     defaultIterate!(ex).iterate(dg, mode);
   }
+  mixin defaultCollapse!();
   override string toString() {
     return Format("dg("[], fp, ")"[]);
   }
@@ -458,6 +461,7 @@ class PointerFunction(T) : T {
     defaultIterate!(ptr, setup).iterate(dg, mode);
     super.iterate(dg, IterMode.Semantic);
   }
+  mixin defaultCollapse!();
   this(Expr ptr, Statement setup = null) {
     static if (is(typeof(super(null)))) super(null);
     this.ptr = ptr;

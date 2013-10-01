@@ -8,6 +8,7 @@ class ExternCGlobVar : LValue, Named {
   string name;
   Namespace ns;
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   ExternCGlobVar dup() { return this; /* invariant */ }
   this(IType t, string n) {
     this.type = t;
@@ -56,6 +57,7 @@ class NoOpIsMangledHack : Statement, IsMangled {
   NoOpIsMangledHack dup() { return this; }
   override void emitLLVM(LLVMFile lf) { }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override string mangleSelf() { assert(false); }
   override void markWeak() { foreach (im; ims) im.markWeak(); }
   override void markExternC() { foreach (im; ims) im.markExternC(); }

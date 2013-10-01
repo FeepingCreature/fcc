@@ -41,6 +41,7 @@ class ExprStatement : LineNumberedStatementClass {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
   override string toString() { return Format(ex); }
   override void emitLLVM(LLVMFile lf) {
     super.emitLLVM(lf);

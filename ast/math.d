@@ -13,6 +13,7 @@ final class IntAsFloat : Expr {
   private this() { }
   IntAsFloat dup() { return new IntAsFloat(i.dup()); }
   mixin defaultIterate!(i);
+  mixin defaultCollapse!();
   string toString() { return qformat("float:", i); }
   IType valueType() { return Single!(Float); }
   void emitLLVM(LLVMFile lf) {
@@ -27,6 +28,7 @@ final class LongAsDouble : Expr {
   private this() { }
   LongAsDouble dup() { return fastalloc!(LongAsDouble)(l.dup()); }
   mixin defaultIterate!(l);
+  mixin defaultCollapse!();
   string toString() { return qformat("double:", l); }
   IType valueType() { return Single!(Double); }
   void emitLLVM(LLVMFile lf) {
@@ -40,6 +42,7 @@ class LongAsInt : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(l);
+  mixin defaultCollapse!();
   override {
     string toString() { return qformat("int:", l); }
     IType valueType() { return Single!(SysInt); }
@@ -49,25 +52,34 @@ class LongAsInt : Expr {
   }
 }
 
+Expr mkIntAsFloat(Expr ex) {
+  ex = foldex(ex);
+  if (auto ie = fastcast!(IntExpr) (ex)) return fastalloc!(FloatExpr)(ie.num);
+  return fastalloc!(IntAsFloat)(ex);
+}
+
 import ast.casting, ast.fold, ast.literals, ast.fun;
 extern(C) float sqrtf(float);
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     if (auto iaf = fastcast!(IntAsFloat) (it)) {
       if (auto ie = fastcast!(IntExpr) (iaf.i)) {
+        // logln("1 this case is never supposed to happen anymore: ", it);fail;
         return fastalloc!(FloatExpr)(ie.num);
       }
     }
     if (auto lad = fastcast!(LongAsDouble) (it)) {
       if (auto ial = fastcast!(IntAsLong) (lad.l)) {
         if (auto ie = fastcast!(IntExpr) (ial.i)) {
+          // logln("2 this case is never supposed to happen anymore: ", it);fail;
           return fastalloc!(DoubleExpr)(ie.num);
         }
       }
     }
     if (auto fad = fastcast!(FloatAsDouble) (it)) {
       if (auto fe = fastcast!(FloatExpr) (fad.f)) {
-        return fastalloc!(DoubleExpr) (fe.f);
+        // logln("3 this case is never supposed to happen anymore: ", it);fail;
+        return fastalloc!(DoubleExpr)(fe.f);
       }
     }
     return null;
@@ -97,10 +109,13 @@ static this() {
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != resolveType(ex.valueType())) return null;
-    return fastalloc!(IntAsFloat)(ex);
+    return mkIntAsFloat(ex);
   };
   converts ~= delegate Expr(Expr ex, IType it) {
     if (Single!(Long) != resolveType(ex.valueType())) return null;
+    if (auto ial = fastcast!(IntAsLong) (ex))
+      if (auto ie = fastcast!(IntExpr) (ial.i))
+        return fastalloc!(DoubleExpr)(ie.num);
     return fastalloc!(LongAsDouble)(ex);
   };
   converts ~= delegate Expr(Expr ex, IType it) {
@@ -115,6 +130,7 @@ class IntAsLong : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(i);
+  mixin defaultCollapse!();
   override {
     string toString() { return qformat("long:", i); }
     IType valueType() { return Single!(Long); }
@@ -146,6 +162,7 @@ class FPAsInt : Expr {
   private this() { }
   mixin DefaultDup;
   mixin defaultIterate!(fp);
+  mixin defaultCollapse!();
   override {
     string toString() { if (lng) return Format("long:"[], fp); else return Format("int:"[], fp); }
     IType valueType() { return lng?Single!(Long):Single!(SysInt); }
@@ -198,6 +215,7 @@ class FloatAsDouble : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(f);
+  mixin defaultCollapse!();
   override {
     string toString() { return qformat("double:", f); }
     IType valueType() { return Single!(Double); }
@@ -216,6 +234,7 @@ class DoubleAsFloat : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(d);
+  mixin defaultCollapse!();
   override {
     IType valueType() { return Single!(Float); }
     string toString() { return Format("float:"[], d); }
@@ -231,6 +250,7 @@ class IntLiteralAsShort : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ie);
+  mixin defaultCollapse!();
   override {
     IType valueType() { return Single!(Short); }
     string toString() { return Format("short:"[], ie); }
@@ -246,6 +266,7 @@ class IntLiteralAsByte : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ie);
+  mixin defaultCollapse!();
   override {
     IType valueType() { return Single!(Byte); }
     string toString() { return Format("byte:"[], ie); }
@@ -261,6 +282,7 @@ class IntAsShort : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
   override {
     IType valueType() { return Single!(Short); }
     string toString() { return Format("short:"[], ex); }
@@ -276,6 +298,7 @@ class ShortAsByte : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
   override {
     IType valueType() { return Single!(Byte); }
     void emitLLVM(LLVMFile lf) {
@@ -287,6 +310,9 @@ class ShortAsByte : Expr {
 static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(Float) != ex.valueType()) return null;
+    
+    if (auto fe = fastcast!(FloatExpr) (ex))
+      return fastalloc!(DoubleExpr) (fe.f);
     return fastalloc!(FloatAsDouble)(ex);
   };
   converts ~= delegate Expr(Expr ex, IType it) {
@@ -300,7 +326,16 @@ static this() {
     bool isSysInt = !isDouble && Single!(SysInt) == vt;
     if (!isDouble && !isSysInt) return;
     
+    /*auto oldex = ex;
     opt(ex);
+    if (ex !is oldex) {
+      auto testex = foldex(oldex);
+      if (testex is oldex) {
+        logln("change achieved with opt but not fold: ", oldex, " to ", ex);
+        fail;
+      }
+    }*/
+    ex = mustCast!(Expr)(foldex(ex));
     
     if (isDouble) {
       auto dex = fastcast!(DoubleExpr)(ex);
@@ -373,6 +408,7 @@ abstract class BinopExpr : Expr, HasInfo {
   }
   protected this() {}
   mixin defaultIterate!(e1, e2);
+  mixin defaultCollapse!();
   override {
     string toString() {
       return Format("("[], e1, " "[], op, " "[], e2, ")"[]);
@@ -458,6 +494,7 @@ class AsmIntUnaryExpr : Expr {
   string op;
   this(Expr e, string o) { ex = e; op = o; }
   mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
   override {
     AsmIntUnaryExpr dup() { return fastalloc!(AsmIntUnaryExpr)(ex.dup, op); }
     IType valueType() { return ex.valueType(); }
@@ -478,6 +515,7 @@ class AsmLongUnaryExpr : Expr {
   string op;
   this(Expr e, string o) { ex = e; op = o; }
   mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
   override {
     AsmLongUnaryExpr dup() { return fastalloc!(AsmLongUnaryExpr)(ex.dup, op); }
     IType valueType() { return ex.valueType(); }
@@ -771,6 +809,7 @@ class IntrinsicExpr : Expr {
   IType vt;
   this(string name, Expr[] exs, IType vt) { this.name = name; args = exs; this.vt = vt; }
   mixin defaultIterate!(args);
+  mixin defaultCollapse!();
   override {
     IType valueType() { return vt; }
     IntrinsicExpr dup() { return fastalloc!(IntrinsicExpr)(name, args.dup, vt); }

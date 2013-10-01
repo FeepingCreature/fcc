@@ -44,6 +44,7 @@ class RelMember : Expr, Named, RelTransformable {
       fail;
     }
     mixin defaultIterate!();
+    mixin defaultCollapse!();
     string getIdentifier() { return name; }
     Object transform(Expr base) {
       if (type.llvmSize() == base.valueType().llvmSize())
@@ -382,6 +383,7 @@ class NoOpMangleHack : Statement, IsMangled {
   NoOpMangleHack dup() { return this; }
   override void emitLLVM(LLVMFile lf) { }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override string mangleSelf() { return sup.mangle(); }
   override void markWeak() {
     foreach (entry; sup.field)
@@ -446,6 +448,7 @@ class StructLiteral : Expr {
   }
   private this() { }
   mixin defaultIterate!(exprs);
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("literal "[], st, " {"[], exprs, "}"[]); }
     StructLiteral dup() {
@@ -512,6 +515,7 @@ class MemberAccess_Expr : Expr, HasInfo {
     return res;
   }
   mixin defaultIterate!(base);
+  mixin defaultCollapse!();
   override {
     import tools.log;
     string toString() {

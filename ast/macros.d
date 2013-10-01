@@ -34,6 +34,7 @@ class Swap : Statement {
     sz = vt1.llvmSize();
   }
   mixin defaultIterate!(lv1, lv2, mv1, mv2);
+  mixin defaultCollapse!();
   override {
     Swap dup() {
       if (mv1) return fastalloc!(Swap)(mv1.dup, mv2.dup);

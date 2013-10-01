@@ -15,6 +15,7 @@ class DoubleExpr : Expr, Literal {
   }
   this(double d) { this.d = d; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   string name_used;
   override {
     DoubleExpr dup() { return fastalloc!(DoubleExpr)(d); }
@@ -47,6 +48,7 @@ class FloatExpr : Expr, Literal {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   string name_used;
   override {
     string toString() { return Format(f); }
@@ -122,6 +124,7 @@ class CValueAsPointer : Expr {
   }
   override typeof(this) dup() { return new typeof(this) (sup.dup); }
   mixin defaultIterate!(sup);
+  mixin defaultCollapse!();
   override IType valueType() {
     if (auto sa = fastcast!(StaticArray) (resolveType(sup.valueType())))
       return fastalloc!(Pointer)(sa.elemType);

@@ -155,6 +155,7 @@ class Scoped(T) : T, IScoped, RelNamespace, ISafeSpaceTag /* allow commit/rollba
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(sup);
+  mixin defaultCollapse!();
   override {
     void emitLLVM(LLVMFile lf) { assert(false); }
     IType valueType() { return sup.valueType(); }

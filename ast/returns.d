@@ -16,6 +16,7 @@ class ReturnStmt : Statement {
   int[] guard_offsets;
   mixin DefaultDup!();
   mixin defaultIterate!(value);
+  mixin defaultCollapse!();
   void setGuards(Scope sc) {
     guards = sc.getGuards();
     guard_offsets = sc.getGuardOffsets();

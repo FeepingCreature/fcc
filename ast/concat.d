@@ -24,6 +24,7 @@ class ConcatChain : Expr {
   }
   mixin DefaultDup!();
   mixin defaultIterate!(arrays);
+  mixin defaultCollapse!();
   void addArray(Expr ex) {
     Expr nuArray;
     if (fastcast!(StaticArray)~ ex.valueType()) nuArray = staticToArray(ex);

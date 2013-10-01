@@ -8,6 +8,7 @@ class GlobVar : LValue, Named, IsMangled {
   bool tls;
   Namespace ns;
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   Expr initval;
   bool weak;
   GlobVar dup() { return this; /* invariant */ }
@@ -81,6 +82,7 @@ class GlobVar : LValue, Named, IsMangled {
 class GlobVarDecl : Statement, IsMangled {
   GlobVar[] vars;
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     string mangleSelf() {
       return vars[0].mangleSelf();

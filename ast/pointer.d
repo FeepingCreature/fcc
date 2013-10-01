@@ -64,6 +64,7 @@ class RefExpr_ : Expr {
   }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
+  mixin defaultCollapse!();
   IType type_cache;
   override {
     IType valueType() {
@@ -98,6 +99,7 @@ class DerefExpr_ : LValue, HasInfo {
   private this() { count = de_count ++; }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
+  mixin defaultCollapse!();
   override {
     string getInfo() { return Format("count: "[], count); }
     IType valueType() { return fastcast!(Pointer) (resolveType(src.valueType())).target; }
@@ -245,6 +247,7 @@ class Symbol : Expr {
   }
   Symbol dup() { return new Symbol(getName(), type); }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   IType typecache;
   override IType valueType() { if (!typecache) typecache = fastalloc!(Pointer)(type); return typecache; }
   override void emitLLVM(LLVMFile lf) {
@@ -267,6 +270,7 @@ class LateSymbol : Expr {
   private this() { }
   LateSymbol dup() { return fastalloc!(LateSymbol)(referent, type, dg, name); }
   mixin defaultIterate!(referent);
+  mixin defaultCollapse!();
   override IType valueType() { return type; }
   override string toString() { return qformat("(", type, ") ", *name); }
   override void emitLLVM(LLVMFile lf) {

@@ -194,6 +194,7 @@ class DependencyEntry : Tree {
   Dependency sup;
   this(Dependency dep) { sup = dep; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   DependencyEntry dup() { return this; }
   string toString() { return Format("<dep "[], sup, ">"[]); }
   void emitLLVM(LLVMFile lf) {

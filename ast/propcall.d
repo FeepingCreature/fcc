@@ -133,6 +133,7 @@ class MyPlaceholderExpr : Expr, Temporary {
         fpos.fpvt = fpos.firstParam.valueType();
       }
     }
+    mixin defaultCollapse!();
     void emitLLVM(LLVMFile lf) { fpos.firstParam.emitLLVM(lf); }
     MyPlaceholderExpr dup() { assert(false); }
     IType valueType() { return fpos; }

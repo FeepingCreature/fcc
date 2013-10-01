@@ -20,6 +20,7 @@ class IntExpr : Expr, Literal, HasInfo {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!();
+  mixin defaultCollapse!();
 }
 
 IntExpr[int] cache;

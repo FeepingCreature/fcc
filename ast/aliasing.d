@@ -12,6 +12,7 @@ class ExprAlias : RelTransformable, Named, Expr {
   mixin MyThis!("base, name"[]);
   mixin DefaultDup!();
   mixin defaultIterate!(base);
+  mixin defaultCollapse!();
   override {
     string getIdentifier() { return name; }
     Object transform(Expr relbase) {

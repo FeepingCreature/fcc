@@ -8,6 +8,7 @@ import
 class TrueCond : Cond {
   mixin DefaultDup!();
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("true"[]); }
     void jumpOn(LLVMFile lf, bool cond, string dest) {
@@ -19,6 +20,7 @@ class TrueCond : Cond {
 class FalseCond : Cond {
   mixin DefaultDup!();
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("false"[]); }
     void jumpOn(LLVMFile lf, bool cond, string dest) {
@@ -57,6 +59,7 @@ class ExprWrap_ : Cond {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("!!"[], ex); }
     void jumpOn(LLVMFile lf, bool cond, string dest) {
@@ -84,6 +87,7 @@ class StatementAndCond : Cond {
   mixin MyThis!("first, second"[]);
   mixin DefaultDup!();
   mixin defaultIterate!(first, second);
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("{ "[], first, " "[], second, " }"[]); }
     void jumpOn(LLVMFile lf, bool cond, string dest) {
@@ -109,6 +113,7 @@ class Compare : Expr {
     return res;
   }
   mixin defaultIterate!(e1, e2, falseOverride, trueOverride);
+  mixin defaultCollapse!();
   string toString() {
     string res;
     if (not) res ~= "!";
@@ -174,11 +179,11 @@ class Compare : Expr {
       flip;
     if (Single!(Float) == e1.valueType() && Single!(Float) != e2.valueType()) {
       assert(Single!(SysInt) == e2.valueType());
-      e2 = fastalloc!(IntAsFloat)(e2);
+      e2 = mkIntAsFloat(e2);
     }
     if (Single!(Float) == e2.valueType() && Single!(Float) != e1.valueType()) {
       assert(Single!(SysInt) == e1.valueType());
-      e1 = fastalloc!(IntAsFloat)(e1);
+      e1 = mkIntAsFloat(e1);
     }
   }
   void emitWith(LLVMFile lf, bool n, bool s, bool e, bool g) {
@@ -268,6 +273,7 @@ class NegCond : Cond {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(c);
+  mixin defaultCollapse!();
   this(Cond c) { this.c = c; if (!c) fail; }
   override string toString() { return Format("!("[], c, ")"[]); }
   override void jumpOn(LLVMFile lf, bool cond, string dest) {
@@ -445,6 +451,7 @@ class BooleanOp(string Which) : Cond, HasInfo {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(c1, c2);
+  mixin defaultCollapse!();
   override {
     string getInfo()  { return Which; }
     string toString() { return Format(Which, "("[], c1, ", "[], c2, ")"[]); }
@@ -569,6 +576,7 @@ class CondExpr : Expr {
     if (!cd) fail;
   }
   mixin defaultIterate!(cd);
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("eval "[], cd); }
     IType valueType() { return fastcast!(IType) (sysmod.lookup("bool"[])); }

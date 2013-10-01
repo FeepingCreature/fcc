@@ -56,6 +56,7 @@ class WhileStatement : LineNumberedStatementClass, Breakable {
     return res;
   }
   mixin defaultIterate!(cond, _body, elsecmd);
+  mixin defaultCollapse!();
   mixin DefaultBreakableImpl!();
   override {
     void emitLLVM(LLVMFile lf) {
@@ -190,6 +191,7 @@ class ForStatement : Statement, Breakable {
   }
   mixin DefaultBreakableImpl!();
   mixin defaultIterate!(decl, cond, step, _body, elsecmd);
+  mixin defaultCollapse!();
   override void emitLLVM(LLVMFile lf) {
     // logln("start depth is "[], lf.currentStackDepth);
     decl.emitLLVM(lf);
@@ -268,6 +270,7 @@ class DoWhileExt : Statement, Breakable {
   }
   mixin DefaultBreakableImpl!();
   mixin defaultIterate!(first, second, cond);
+  mixin defaultCollapse!();
   override void emitLLVM(LLVMFile lf) {
     mixin(mustOffset("0"));
     
@@ -335,6 +338,7 @@ class ExecGuardsAndJump : Statement {
   bool modeContinue;
   Breakable brk;
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   mixin MyThis!("guards, offsets, modeContinue, brk"[]);
   override {
     ExecGuardsAndJump dup() {

@@ -8,6 +8,7 @@ class IfStatement : LineNumberedStatementClass {
   Cond test;
   mixin DefaultDup!();
   mixin defaultIterate!(test, wrapper, branch1, branch2);
+  mixin defaultCollapse!();
   string toString() { return Format("if "[], test, " "[], branch1, " else "[], branch2); }
   this() { }
   override void emitLLVM(LLVMFile lf) {

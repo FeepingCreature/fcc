@@ -131,7 +131,7 @@ Expr mkRange(Expr from, Expr to) {
   fastalloc!(RelMember)("end"[], to.valueType(), wrapped);
   auto range = new Range;
   range.wrapper = wrapped;
-  return fastalloc!(RCE)(range, fastalloc!(StructLiteral)(wrapped, [from, to]));
+  return reinterpret_cast(range, fastalloc!(StructLiteral)(wrapped, [from, to]));
 }
 
 Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
@@ -399,7 +399,7 @@ class ForIter(I) : Type, I {
         }
         Expr[] field = [slice, fastalloc!(Filler)(itertype.elemType())];
         if (extra) field ~= extra;
-        return fastalloc!(RCE)(this,
+        return reinterpret_cast(this,
           fastalloc!(StructLiteral)(st, field));
       }
     }
@@ -411,6 +411,7 @@ class ScopeAndExpr : Expr {
   Expr ex;
   this(Scope sc, Expr ex) { this.sc = sc; this.ex = ex; }
   mixin defaultIterate!(sc, ex);
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("sae("[], sc._body, ", "[], ex, ")"[]); }
     ScopeAndExpr dup() { return fastalloc!(ScopeAndExpr)(sc.dup, ex.dup); }
@@ -597,6 +598,7 @@ class IterLetCond(T) : Cond, NeedsConfig {
   }
   mixin DefaultDup!();
   mixin defaultIterate!(iter, target, iref, iref_pre);
+  mixin defaultCollapse!();
   override void configure() { iref = lvize(iref_pre); }
   override void jumpOn(LLVMFile lf, bool cond, string dest) {
     mixin(mustOffset("0"));
@@ -864,6 +866,7 @@ class EvalIterator(T) : Expr, Statement {
     return res;
   }
   mixin defaultIterate!(ex, target);
+  mixin defaultCollapse!();
   override {
     IType valueType() {
       if (Single!(Void) == iter.elemType())

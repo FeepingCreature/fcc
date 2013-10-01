@@ -143,6 +143,7 @@ final class RefTuple : MValue {
   IType baseTupleType;
   MValue[] mvs;
   mixin defaultIterate!(mvs);
+  mixin defaultCollapse!();
   static const isFinal = true;
   this(MValue[] mvs...) {
     this.mvs = mvs.dup;
@@ -263,6 +264,7 @@ class LValueAsMValue : MValue {
   LValue sup;
   mixin MyThis!("sup"[]);
   mixin defaultIterate!(sup);
+  mixin defaultCollapse!();
   override {
     LValueAsMValue dup() { return fastalloc!(LValueAsMValue)(sup.dup); }
     string toString() { return Format("lvtomv("[], sup, ")"[]); }

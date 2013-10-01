@@ -36,6 +36,7 @@ class WithStmt : Namespace, Statement, ScopeLike {
   Scope sc;
   IScoped isc;
   mixin defaultIterate!(vd, sc);
+  mixin defaultCollapse!();
   override WithStmt dup() {
     auto res = new WithStmt;
     res.sup = namespace();
@@ -242,6 +243,7 @@ class EnumWrapper : Expr {
   Enum en;
   this(Enum en) { this.en = en; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     EnumWrapper dup() { return this; }
     IType valueType() { return fastalloc!(EnumWrapperType)(en); }

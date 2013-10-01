@@ -304,6 +304,7 @@ class ArrayLength_Base : Expr {
     mae.emitLLVM(lf);
   }
   mixin defaultIterate!(array);
+  mixin defaultCollapse!();
   mixin DefaultDup!();
 }
 
@@ -347,6 +348,7 @@ class ArrayMaker : Expr {
   mixin MyThis!("ptr, length, cap = null"[]);
   mixin DefaultDup!();
   mixin defaultIterate!(ptr, length, cap);
+  mixin defaultCollapse!();
   IType elemType() {
     return (fastcast!(Pointer) (resolveType(ptr.valueType()))).target;
   }
@@ -387,6 +389,7 @@ class AllocStaticArray : Expr {
     st = fastcast!(StaticArray) (sa.valueType());
   }
   mixin defaultIterate!(sa);
+  mixin defaultCollapse!();
   override {
     AllocStaticArray dup() { return fastalloc!(AllocStaticArray)(sa.dup); }
     IType valueType() { return fastalloc!(Array)(st.elemType); }
@@ -476,6 +479,7 @@ class ArrayExtender : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(array, ext);
+  mixin defaultCollapse!();
   override {
     IType valueType() { if (!cachedType) cachedType = fastalloc!(ExtArray)(baseType, autoarray); return cachedType; }
     void emitLLVM(LLVMFile lf) {

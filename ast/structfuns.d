@@ -31,6 +31,7 @@ class RelFunCall : FunCall, RelTransformable {
     baseptr = ex;
   }
   mixin defaultIterate!(baseptr, params);
+  mixin defaultCollapse!();
   override RelFunCall dup() {
     auto res = fastalloc!(RelFunCall)(baseptr?baseptr.dup:null);
     res.fun = fun;
@@ -164,6 +165,7 @@ class RelFunction : Function, RelTransformable, HasInfo {
     super.iterate(dg, mode);
     defaultIterate!(baseptr).iterate(dg, mode);
   }
+  mixin defaultCollapse!();
   override {
     string mangleSelf() {
       return qformat(basetype.mangle(), "_", super.mangleSelf());
@@ -231,6 +233,7 @@ class LazyThisExpr : Expr, RelTransformable {
   Expr val;
   this(IType it, Expr val = null) { this.it = it; this.val = val; }
   mixin defaultIterate!(val);
+  mixin defaultCollapse!();
   override {
     LazyThisExpr dup() { return fastalloc!(LazyThisExpr)(it, val?val.dup:null); }
     IType valueType() { return it; }

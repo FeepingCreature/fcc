@@ -155,6 +155,7 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     defaultIterate!(dependents).iterate(dg, mode);
     // else to be defined in subclasses
   }
+  mixin defaultCollapse!();
   string toString() {
     if (get!(IModule)) return fqn();
     else return name;
@@ -761,6 +762,7 @@ class FunCall : Expr {
     fun.iterate(dg, IterMode.Semantic);
     defaultIterate!(params, setup).iterate(dg);
   }
+  mixin defaultCollapse!();
   void emitWithArgs(LLVMFile lf, Expr[] args) {
     if (setup) setup.emitLLVM(lf);
     callFunction(lf, fun.type.ret, false, fun.type.stdcall, args, fun.getPointer(), fun.noreturn);
@@ -1190,6 +1192,7 @@ class FunRefExpr : Expr, Literal {
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     fun.iterate(dg, IterMode.Semantic);
   }
+  mixin defaultCollapse!();
   IType typecache;
   override {
     string toString() { return qformat("&", fun); }

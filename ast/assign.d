@@ -28,6 +28,7 @@ class _Assignment(T) : LineNumberedStatementClass {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(target, value);
+  mixin defaultCollapse!();
   override string toString() { return Format(target, " := "[], value, "; "[]); }
   override void emitLLVM(LLVMFile lf) {
     super.emitLLVM(lf);

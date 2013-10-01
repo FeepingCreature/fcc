@@ -57,6 +57,7 @@ class PrefixFunction : Function, Scored {
       }
       super.iterate(dg, mode);
     }
+    mixin defaultCollapse!();
     PrefixFunction flatdup() {
       PrefixFunction res = cast(PrefixFunction) cast(void*) super.flatdup();
       res.prefix = prefix.dup;
@@ -99,6 +100,7 @@ class PrefixCall : FunCall {
     sup.iterate(dg, mode);
     super.iterate(dg, mode);
   }
+  mixin defaultCollapse!();
   override void emitWithArgs(LLVMFile lf, Expr[] args) {
     auto res = fun.getParams(true);
     // Argument[] tlsptr;

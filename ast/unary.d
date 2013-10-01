@@ -11,6 +11,7 @@ class PrePostOpExpr(bool Post, bool Inc) : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
   override {
     IType valueType() { return ex.valueType(); }
     void emitLLVM(LLVMFile lf) {

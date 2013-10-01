@@ -133,6 +133,7 @@ class SSESwizzle : Expr {
   }
   private this() { }
   mixin defaultIterate!(sup);
+  mixin defaultCollapse!();
   mixin DefaultDup!();
   override {
     IType valueType() { return type; }
@@ -175,6 +176,7 @@ class SSEIntToFloat : Expr {
   Expr base;
   this(Expr b) { base = b; }
   mixin defaultIterate!(base);
+  mixin defaultCollapse!();
   SSEIntToFloat dup() { return fastalloc!(SSEIntToFloat)(base.dup()); }
   override {
     IType valueType() { checkVecs(); return vec3f; }
@@ -201,6 +203,7 @@ class MultiplesExpr : Expr {
     this.type = fastalloc!(Vector)(b.valueType(), realsz);
   }
   mixin defaultIterate!(base);
+  mixin defaultCollapse!();
   override {
     MultiplesExpr dup() { return fastalloc!(MultiplesExpr)(base.dup, vecsize, real_vecsize); }
     IType valueType() { return type; }
@@ -243,6 +246,7 @@ class AlignedVec4Literal : Expr, Literal {
   override {
     string toString() { return qformat(type, " (", base, " x ", len, ")"); }
     mixin defaultIterate!(base);
+    mixin defaultCollapse!();
     typeof(this) dup() { return new typeof(this) (type, base, len); }
     IType valueType() { return type; }
     string getValue() { assert(false, "Use getID instead! "); }
@@ -390,6 +394,7 @@ class FastVec3Sum : Expr {
   this(Expr b) { base = b; }
   override {
     mixin defaultIterate!(base);
+    mixin defaultCollapse!();
     FastVec3Sum dup() { return fastalloc!(FastVec3Sum)(base.dup); }
     IType valueType() { return Single!(Float); }
     void emitLLVM(LLVMFile lf) {
@@ -414,6 +419,7 @@ class FastVec3Norm : Expr {
   }
   override {
     mixin defaultIterate!(base);
+    mixin defaultCollapse!();
     FastVec3Norm dup() { return fastalloc!(FastVec3Norm)(base.dup, vec); }
     IType valueType() { return vec; }
     void emitLLVM(LLVMFile lf) {
@@ -543,6 +549,7 @@ class FPVecAsInt : Expr {
   private this() { }
   mixin DefaultDup;
   mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("vec", v.len, "i: ", ex); }
     IType valueType() { return fastalloc!(Vector)(Single!(SysInt), v.len); }
@@ -693,6 +700,7 @@ class Vec4fSmaller : Expr {
   Expr ex1, ex2;
   this(Expr e1, Expr e2) { this.ex1 = e1; this.ex2 = e2; }
   mixin defaultIterate!(ex1, ex2);
+  mixin defaultCollapse!();
   mixin DefaultDup!();
   private this() { }
   override {
@@ -736,6 +744,7 @@ class VecOp : Expr {
   Expr ex1, ex2;
   string op;
   mixin defaultIterate!(ex1, ex2);
+  mixin defaultCollapse!();
   mixin DefaultDup!();
   private this() { }
   this(IType it, int len, int real_len, Expr ex1, Expr ex2, string op) {
@@ -851,6 +860,7 @@ class FailExpr : Expr {
     IType valueType() { if (typeMaybe) return typeMaybe; fail(); return null; }
     void emitLLVM(LLVMFile lf) { fail(); }
     mixin defaultIterate!();
+    mixin defaultCollapse!();
     FailExpr dup() { return this; }
   }
 }

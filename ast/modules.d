@@ -131,6 +131,7 @@ class Module : NamespaceImporter, IModule, Tree, Named, StoresDebugState, Emitti
       current_module.set(this);
       defaultIterate!(entries).iterate(dg);
     }
+    mixin defaultCollapse!();
     Module dup() { assert(false, "What the hell are you doing, man. "[]); }
     string getIdentifier() { return name; }
     void emitLLVM(LLVMFile lf) {

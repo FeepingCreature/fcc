@@ -118,6 +118,7 @@ class DataExpr : CValue {
   this(ubyte[] ub) { data = ub; this(); }
   this() { }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     DataExpr dup() { return fastalloc!(DataExpr)(data); }
     IType valueType() { return fastalloc!(StaticArray)(Single!(UByte), data.length); }
@@ -148,6 +149,7 @@ class SALiteralExpr : Expr {
   this(IType type, Expr[] exprs...) { this.type = type; exs = exprs.dup; }
   mixin DefaultDup!();
   mixin defaultIterate!(exs);
+  mixin defaultCollapse!();
   IType type;
   override {
     IType valueType() { return fastalloc!(StaticArray)(type, exs.length); }

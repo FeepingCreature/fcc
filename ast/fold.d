@@ -30,7 +30,7 @@ Itr fold(Itr i) {
 
 Expr inner_foldex(Expr ex) {
   if (!ex) return null;
-  auto itr = fastcast!(Itr) (ex);
+  auto itr = fastcast!(Itr) (mustCast!(Expr)(ex.collapse()));
   itr = fold(itr);
   ex = fastcast!(Expr) (itr);
   return ex;

@@ -47,6 +47,7 @@ class VarDecl : LineNumberedStatementClass, HasInfo {
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     defaultIterate!(initval).iterate(dg, mode);
   }
+  mixin defaultCollapse!();
   bool hasInitializer() {
     return !!initval;
   }
@@ -182,6 +183,7 @@ class WithTempExpr : Expr {
   bool isValid() { return !!superthing; }
   protected this() { }
   mixin defaultIterate!(thing, superthing);
+  mixin defaultCollapse!();
   override {
     string toString() {
       return Format("<with temp "[], thing, ": "[], superthing, ">"[]);

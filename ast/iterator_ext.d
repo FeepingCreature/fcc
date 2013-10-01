@@ -107,6 +107,7 @@ class CrossIndexExpr : Expr {
   Expr ex, idx;
   this(Cross cross, Expr ex, Expr idx) { this.cross = cross; this.ex = ex; this.idx = idx; }
   mixin defaultIterate!(ex, idx);
+  mixin defaultCollapse!();
   override {
     typeof(this) dup() { return new typeof(this) (cross, ex.dup, idx.dup); }
     IType valueType() { return mkTuple(cross.myTypes()); }
@@ -290,7 +291,7 @@ Expr mkCross(Expr[] exprs) {
   
   auto cross = new Cross;
   cross.tup = fastcast!(Tuple) (tuptype);
-  return fastalloc!(RCE)(cross, tup);
+  return reinterpret_cast(cross, tup);
 }
 
 Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
@@ -410,11 +411,11 @@ Expr mkZip(Expr[] exprs, bool rich) {
   if (rich) {
     auto zip = new Zip!(RichIterator);
     zip.tup = fastcast!(Tuple)~ tup.valueType();
-    return fastalloc!(RCE)(zip, tup);
+    return reinterpret_cast(zip, tup);
   } else {
     auto zip = new Zip!(Iterator);
     zip.tup = fastcast!(Tuple)~ tup.valueType();
-    return fastalloc!(RCE)(zip, tup);
+    return reinterpret_cast(zip, tup);
   }
 }
 
@@ -519,12 +520,12 @@ Expr mkCat(IType type, Expr[] exprs, bool rich) {
     auto cat = new Cat!(RichIterator);
     cat.myType = type;
     cat.tup = fastcast!(Tuple)~ tup.valueType();
-    return fastalloc!(RCE)(cat, tup);
+    return reinterpret_cast(cat, tup);
   } else {
     auto cat = new Cat!(Iterator);
     cat.myType = type;
     cat.tup = fastcast!(Tuple)~ tup.valueType();
-    return fastalloc!(RCE)(cat, tup);
+    return reinterpret_cast(cat, tup);
   }
 }
 
@@ -588,6 +589,7 @@ class SumExpr : Expr {
   Expr ex;
   mixin MyThis!("iter, ex"[]);
   mixin defaultIterate!(ex);
+  mixin defaultCollapse!();
   SumExpr dup() { return fastalloc!(SumExpr)(iter, ex.dup); }
   override {
     IType valueType() { return iter.elemType(); }

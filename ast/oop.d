@@ -180,6 +180,7 @@ final class LazyDeltaInt : Expr {
   int delta;
   this(int delegate() dg, int d = 0) { this.dg = dg; delta = d; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   string toString() { return qformat("ldi(", dg(), " + ", delta, ")"); }
   IType valueType() { return Single!(SysInt); }
   LazyDeltaInt dup() { return fastalloc!(LazyDeltaInt)(dg, delta); }
@@ -208,6 +209,7 @@ class Intf : Namespace, IType, Tree, RelNamespace, IsMangled, hasRefType {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     void emitLLVM(LLVMFile lf) { getIntfinfoDataPtr(lf); /* generate data ptr */ }
     string llvmSize() { assert(false); }
@@ -399,6 +401,7 @@ final class ClassRef : Type, SemiRelNamespace, Formatable, Tree, Named, SelfAddi
   }
   void emitLLVM(LLVMFile lf) { myClass.emitLLVM(lf); }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myClass.iterate(dg, mode); }
+  mixin defaultCollapse!();
   ClassRef dup() { return fastalloc!(ClassRef)(myClass.dup); }
   int opEquals(IType type) {
     if (!super.opEquals(type)) return false;
@@ -428,6 +431,7 @@ final class IntfRef : Type, SemiRelNamespace, Tree, Named, SelfAdding, IsMangled
   IntfRef dup() { return fastalloc!(IntfRef)(myIntf.dup); }
   void emitLLVM(LLVMFile lf) { myIntf.emitLLVM(lf); }
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) { myIntf.iterate(dg, mode); }
+  mixin defaultCollapse!();
 }
 
 class SuperType : IType, RelNamespace {
@@ -466,6 +470,7 @@ class ClassInfoThing : Expr {
   Tree dep;
   LLVMValue val;
   mixin defaultIterate!(val);
+  mixin defaultCollapse!();
   this(string str, Tree dep) { val = fastalloc!(LLVMValue)(str, voidp); this.dep = dep; }
   this(LLVMValue val, Tree dep) { this.val = val; this.dep = dep; }
   override {
@@ -573,6 +578,7 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
     return res;
   }
   mixin defaultIterate!(ctxBase);
+  mixin defaultCollapse!();
   
   void fixupInterfaceAbstracts() {
     auto abstracts = getAbstractFuns();

@@ -17,6 +17,7 @@ class SAIndexExpr : Expr {
   Expr ex, pos;
   this(Expr ex, Expr pos) { this.ex = ex; this.pos = pos; }
   mixin defaultIterate!(ex, pos);
+  mixin defaultCollapse!();
   override {
     string toString() { return Format(ex, "["[], pos, "]"[]); }
     SAIndexExpr dup() { return fastalloc!(SAIndexExpr)(ex.dup, pos.dup); }
@@ -145,6 +146,7 @@ class PA_Access : LValue {
   mixin MyThis!("ptr, pos");
   mixin DefaultDup!();
   mixin defaultIterate!(ptr, pos);
+  mixin defaultCollapse!();
   Expr pointer_offset() {
     // return lookupOp("+", ptr, pos);
     return reinterpret_cast(

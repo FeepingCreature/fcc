@@ -32,6 +32,7 @@ class Property : MValue, RelTransformable {
     }
   }
   mixin defaultIterate!(getter, setter);
+  mixin defaultCollapse!();
   override {
     Property dup() { return fastalloc!(Property)(getter.dup, setter.dup, ph); }
     IType valueType() {

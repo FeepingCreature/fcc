@@ -34,6 +34,7 @@ class FullSlice : Expr {
     }
   }
   mixin defaultIterate!(sup);
+  mixin defaultCollapse!();
   override {
     FullSlice dup() { return fastalloc!(FullSlice)(sup.dup); }
     IType valueType() { return type; }

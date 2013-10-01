@@ -1229,6 +1229,7 @@ import ast.tuples;
 class CPUIDExpr : Expr {
   Expr which;
   mixin defaultIterate!(which);
+  mixin defaultCollapse!();
   this(Expr ex) { which = ex; }
   override {
     CPUIDExpr dup() { return fastalloc!(CPUIDExpr)(which); }
@@ -1260,6 +1261,7 @@ mixin DefaultParser!(gotCPUID, "tree.expr.cpuid", "24044", "cpuid");
 
 class RDTSCExpr : Expr {
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     RDTSCExpr dup() { return this; }
     IType valueType() { return Single!(Long); }
@@ -1278,6 +1280,7 @@ mixin DefaultParser!(gotRDTSC, "tree.expr.rdtsc", "2404", "rdtsc");
 
 class MXCSR : MValue {
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     MXCSR dup() { return this; }
     IType valueType() { return Single!(SysInt); }
@@ -1297,6 +1300,7 @@ mixin DefaultParser!(gotMXCSR, "tree.expr.mxcsr", "2405", "mxcsr");
 
 class FPUCW : MValue {
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     FPUCW dup() { return this; }
     IType valueType() { return Single!(Short); }
@@ -1317,6 +1321,7 @@ mixin DefaultParser!(gotFPUCW, "tree.expr.fpucw", "24051", "fpucw");
 // FS:0 for SEH under Windows
 class FS0 : MValue {
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   const fs0expr = "i8* addrspace(257)* inttoptr(i32 0 to i8* addrspace(257)*)";
   this() { }
   override {
@@ -1337,6 +1342,7 @@ class RegExpr : MValue {
   string reg;
   this(string r) { reg = r; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     string toString() { return qformat("<reg ", reg, ">"); }
     RegExpr dup() { return this; }
@@ -1377,6 +1383,7 @@ class Assembly : LineNumberedStatementClass {
   string text;
   this(string s) { text = s; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override Assembly dup() { return this; }
   override void emitLLVM(LLVMFile lf) {
     super.emitLLVM(lf);
@@ -1412,6 +1419,7 @@ class ConstantDefinition : Tree {
   }
   ConstantDefinition dup() { assert(false); }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
 }
 
 Object gotConstant(ref string text, ParseCb cont, ParseCb rest) {

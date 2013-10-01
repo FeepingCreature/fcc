@@ -8,6 +8,7 @@ class StringExpr : Expr, HasInfo, Dependency {
   this() { }
   this(string s, bool g = true) { str = s; generated = g; this(); }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   string name_used;
   void selectName(LLVMFile lf) {
     if (!name_used) {

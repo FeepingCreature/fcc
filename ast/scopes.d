@@ -4,8 +4,9 @@ import ast.base, ast.namespace, ast.variable, ast.pointer, ast.casting, ast.oper
 import parseBase, tools.base: apply;
 
 class Mew : LineNumberedStatementClass {
-	LineNumberedStatement dup() { assert(false); }
-	void iterate(void delegate(ref Iterable), IterMode mode = IterMode.Lexical) { assert(false); }
+  LineNumberedStatement dup() { assert(false); }
+  void iterate(void delegate(ref Iterable), IterMode mode = IterMode.Lexical) { assert(false); }
+  Tree collapse() { assert(false); }
 }
 
 class SuperContextAccess : LValue {
@@ -20,6 +21,7 @@ class SuperContextAccess : LValue {
     this.index = i;
   }
   mixin defaultIterate!(baseptr);
+  mixin defaultCollapse!();
   override {
     string toString() { return qformat("[", valuetype, " @", index, "](", type, " ", baseptr, ")"); }
     SuperContextAccess dup() {
@@ -98,6 +100,7 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     defaultIterate!(_body, guards).iterate(dg, mode);
   }
+  mixin defaultCollapse!();
   override void configPosition(string str) {
 		lnsc.configPosition(str);
   }

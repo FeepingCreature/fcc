@@ -34,6 +34,13 @@ template ReinterpretCast_Contents(T) {
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     auto backup = from;
     defaultIterate!(from).iterate(dg, mode);
+    /*if (from !is backup) {
+      if (auto rce = fastcast!(RCE)(from)) {
+        logln("substituted ", backup);
+        logln("into ", from);
+        fail;
+      }
+    }*/
     auto new_from_test = fastcast!(T) (from);
     if (!new_from_test/* || from.valueType().size != backup.valueType().size*/) {
       // Liskov, if already deceased, is getting quite a spin here.
@@ -44,6 +51,7 @@ template ReinterpretCast_Contents(T) {
       fail;
     }
   }
+  mixin defaultCollapse!();
   override {
     static if (is(typeof((fastcast!(T)~ from).emitLocation(null))))
       void emitLocation(LLVMFile lf) {
@@ -100,10 +108,15 @@ import ast.fold;
 static this() {
   foldopt ~= delegate Itr(Itr it) {
     if (auto rce = fastcast!(RCE) (it)) {
-      if (exactlyEquals(rce.from.valueType(), rce.to))
+      if (exactlyEquals(rce.from.valueType(), rce.to)) {
+        // logln("this case should be unable to occur: ", rce.from, " into ", rce.to);
+        // fail;
         return rce.from;
+      }
       
       if (auto rce2 = fastcast!(RCE) (rce.from)) {
+        // logln("this case should be unable to occur: ", it);
+        // fail;
         return reinterpret_cast(rce.to, rce2.from);
       }
     }
@@ -258,6 +271,7 @@ class DontCastMeExpr : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(sup);
+  mixin defaultCollapse!();
   override {
     IType valueType() { return sup.valueType(); }
     void emitLLVM(LLVMFile lf) { sup.emitLLVM(lf); }
@@ -432,6 +446,7 @@ class ShortToIntCast_ : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(sh);
+  mixin defaultCollapse!();
   override {
     IType valueType() { return Single!(SysInt); }
     void emitLLVM(LLVMFile lf) {
@@ -463,6 +478,7 @@ class ByteToShortCast : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(b);
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("short:"[], b); }
     IType valueType() { return Single!(Short); }
@@ -490,6 +506,7 @@ class ByteToIntCast : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(b);
+  mixin defaultCollapse!();
   override {
     string toString() { return Format("int:"[], b); }
     IType valueType() { return Single!(SysInt); }
@@ -500,7 +517,22 @@ class ByteToIntCast : Expr {
   }
 }
 
+Expr reinterpret_cast_preliminary(IType to, Expr from, bool safe /* not used yet, DOCUMENT _safe */) {
+  from = foldex(from);
+  
+  // breaks "alias foo = bar => 2;"
+  /*if (exactlyEquals(from.valueType(), to))
+    return from;*/
+  
+  if (auto rce = fastcast!(RCE)(from)) {
+    return reinterpret_cast(to, rce.from);
+  }
+  return null;
+}
+
 Expr reinterpret_cast(IType to, Expr from) {
+  if (auto res = reinterpret_cast_preliminary(to, from, false)) return res;
+  
   if (auto lv = fastcast!(LValue) (from))
     return fastalloc!(RCL)(to, lv);
   if (auto cv = fastcast!(CValue) (from))
@@ -512,6 +544,8 @@ Expr reinterpret_cast(IType to, Expr from) {
 
 // don't allow write access
 Expr reinterpret_cast_safe(IType to, Expr from) {
+  if (auto res = reinterpret_cast_preliminary(to, from, true)) return res;
+  
   if (auto cv = fastcast!(CValue) (from))
     return fastalloc!(RCC)(to, cv);
   return fastalloc!(RCE)(to, from);

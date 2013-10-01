@@ -44,6 +44,15 @@ interface Iterable {
 interface Tree : Iterable {
   void emitLLVM(LLVMFile);
   Tree dup();
+  // returns a version that is semantically identical (emits the same LLVM code)
+  // but structurally simplified.
+  /// Why not collapse everything from the start?
+  // Sometimes there's semantic information that's required for parsing
+  // but not code generation, such as tuple labels.
+  /// Why not use foldex/opt?
+  // This is faster. Basically, it replaces every foldopt that starts with 
+  // > auto thing = fastcast!(Thing)(it); if (!thing) return null;
+  Tree collapse();
 }
 
 interface Setupable {
@@ -169,8 +178,17 @@ string genIterates(int params) {
   ";
   return res ~ genIterates(params - 1);
 }
-
 mixin(genIterates(9));
+
+template defaultCollapse(T...) {
+  static assert(!T.length);
+  static if (is(typeof(this):Tree)) { alias Tree RetType; }
+  else static if (is(typeof(this):Cond)) { alias Cond RetType; }
+  else alias typeof(this) RetType;
+  /*override*/ RetType collapse() {
+    return this;
+  }
+}
 
 interface Named {
   string getIdentifier();
@@ -198,6 +216,7 @@ class NoOp : Statement {
   NoOp dup() { return this; }
   override void emitLLVM(LLVMFile lf) { }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
 }
 
 interface Expr : Tree {
@@ -226,6 +245,7 @@ interface MValue : Expr {
 class Placeholder : Expr {
   IType type;
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   this(IType type) { this.type = type; }
   override IType valueType() { return type; }
   override void emitLLVM(LLVMFile lf) { fail; }
@@ -239,6 +259,7 @@ class Filler : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     IType valueType() { return type; }
     void emitLLVM(LLVMFile lf) {
@@ -257,6 +278,7 @@ interface Formatable {
 interface Cond : Iterable {
   void jumpOn(LLVMFile lf, bool cond, string dest);
   override Cond dup();
+  Cond collapse(); // like Tree
 }
 
 interface IRegister {
@@ -266,6 +288,7 @@ interface IRegister {
 class Register(string Reg) : Expr, IRegister {
   override string getReg() { return Reg; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override IType valueType() { return Single!(SysInt); }
   override void emitLLVM(LLVMFile lf) {
     if (Reg == "ebp") {
@@ -338,6 +361,7 @@ class CallbackExpr : Expr, HasInfo {
     void emitLLVM(LLVMFile lf) { dg(ex, lf); }
     string toString() { return Format("callback<"[], ex, ">"[]); }
     mixin defaultIterate!(ex);
+    mixin defaultCollapse!();
   }
   private this() { }
   mixin DefaultDup!();
@@ -435,6 +459,7 @@ template StatementAndT(T) {
       sae_markercheck(marker);
     }
     mixin defaultIterate!(first, second);
+    mixin defaultCollapse!();
     bool once;
     bool check() {
       sae_markercheck(marker);
@@ -501,6 +526,7 @@ class PlaceholderToken : Expr, HasInfo {
   this(IType type, string info) { this.type = type; this.info = info; }
   PlaceholderToken dup() { return this; } // IMPORTANT.
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     IType valueType() { return type; }
     void emitLLVM(LLVMFile lf) { logln("DIAF "[], info, " of "[], type); fail; assert(false); }
@@ -702,6 +728,7 @@ extern(C) void printThing(LLVMFile lf, string s, Expr ex);
 class VoidExpr : Expr {
   override {
     mixin defaultIterate!();
+    mixin defaultCollapse!();
     VoidExpr dup() { return this; }
     IType valueType() { return Single!(Void); }
     void emitLLVM(LLVMFile lf) { push(lf, "void"); }
@@ -816,6 +843,7 @@ class LLVMValue : Expr {
     // if (count == 5961) fail;
   }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     string toString() { return qformat("ll(", str, ")"); }
     LLVMValue dup() { return this; }
@@ -834,6 +862,7 @@ class ZeroInitializer : Expr {
   IType type;
   this(IType type) { this.type = type; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   override {
     string toString() { return "{0}"; }
     ZeroInitializer dup() { return fastalloc!(ZeroInitializer)(type); }
@@ -856,6 +885,7 @@ class LLVMRef : LValue {
   }
   this(IType it) { this(); type = it; }
   mixin defaultIterate!();
+  mixin defaultCollapse!();
   void allocate(LLVMFile lf) {
     if (location) fail;
     if (state != 0) fail;
@@ -1046,6 +1076,7 @@ class NamedArg : Expr {
     IType valueType() { return base.valueType(); }
     NamedArg dup() { return fastalloc!(NamedArg)(name, reltext, base.dup); }
     mixin defaultIterate!(base);
+    mixin defaultCollapse!();
     void emitLLVM(LLVMFile lf) {
       base.emitLLVM(lf);
       // reltext.failparse("Named argument ", name, " could not be assigned to a function call! ");
@@ -1054,3 +1085,15 @@ class NamedArg : Expr {
 }
 
 extern(C) string prettyprint(Iterable itr);
+
+template mustCast(T) {
+  T mustCast(U)(U u) {
+    auto res = fastcast!(T)(u);
+    if (!res) {
+      logln("Failed to convert to ", T.stringof, ": ");
+      logln("> ", u);
+      fail;
+    }
+    return res;
+  }
+}

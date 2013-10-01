@@ -7,6 +7,7 @@ class AggrStatement : Statement {
   this(Statement[] stmts) { this.stmts = stmts; }
   this() { }
   mixin defaultIterate!(stmts);
+  mixin defaultCollapse!();
   override void emitLLVM(LLVMFile lf) {
     foreach (i, stmt; stmts) {
       // logln("aggr @", lf.currentStackDepth, " [", i+1, "/", stmts.length, "] ", stmt/*, " - ", stmts*/);
