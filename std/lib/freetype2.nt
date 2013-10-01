@@ -275,7 +275,7 @@ class Font {
             i = w*dy + dx, u = bbox.yMax - (face.underline_position/64f);
           if (style.underlined) {
             auto na = 1f/abs(dy-u);
-            na *= na*na*na; // Naaa naaaaa naaaaaa nananaaaaaaa
+            na *= na*na*na; // Naaa naa naa nananaaa
             if (na>0.1f) {
               if (na>1f) na=1f;
               if (na>a) a=na;
