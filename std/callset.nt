@@ -23,7 +23,7 @@ template CallSet(T) {
         void setls(int i) { linkedstart = i + 1; }
         void call(%ARG%) {
           // data may be nonnull because linked freelist hack
-          for auto dg <- dgs if (dg.fun is null) dg(%ARGVAL%);
+          for auto dg <- dgs if (dg.fun !is null) dg(%ARGVAL%);
         }
         alias implicit-cast = &call;
         int add(DG dg) {
