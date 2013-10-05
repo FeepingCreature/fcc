@@ -180,14 +180,82 @@ string genIterates(int params) {
 }
 mixin(genIterates(9));
 
+extern(C) Expr C_foldex(Expr, bool);
+
 template defaultCollapse(T...) {
   static assert(!T.length);
   static if (is(typeof(this):Tree)) { alias Tree RetType; }
   else static if (is(typeof(this):Cond)) { alias Cond RetType; }
   else alias typeof(this) RetType;
   /*override*/ RetType collapse() {
+    const debugmode = false;
+    static if (debugmode && is(typeof(this): Expr)) {
+      Expr nex = ast.base.C_foldex(this, false);
+      if (nex !is fastcast!(Expr)(this)) {
+        Expr ex = this;
+        // D bughunting debris. See casts.d "cast(T) cast(Object) "
+        /*logln(typeof(this).stringof);
+        logln("test: ", cast(void*) ex, " ", cast(void*) this);
+        logln("1: ", cast(void*) fastcast!(Expr)(fastcast!(Itr)(this)));
+        logln("1: ", cast(void*) fastcast!(Expr)(this));
+        logln("2: ", cast(void*) cast(Expr) cast(Itr) this);
+        logln("2: ", cast(void*) cast(Expr) this);
+        logln("3: ", cast(void*) cast(Expr) cast(Itr) cast(Object) this);
+        logln("3: ", cast(void*) cast(Expr) cast(Object) this);
+        logln("of course: ", typeof(this).stringof, " and ", this.classinfo.name, " and ", fastcast!(Object)(this).classinfo.name);*/
+        logln("Move foldex into collapse in ", typeof(this).stringof, "!");
+        logln("from: ", cast(void*)(fastcast!(Expr)~this), " ", this.classinfo.name, " ", this);
+        logln("to  : ", cast(void*)(fastcast!(Expr)~nex), " ", (fastcast!(Object)(nex)).classinfo.name, " ", nex);
+        Itr cur = this;
+        while (true) {
+          auto start = cur;
+          foreach (dg; foldopt) {
+            if (auto res = dg(cur)) {
+              logln("modified by");
+              asm { int 3; }
+              dg(cur);
+              cur = res;
+            }
+          }
+          if (cur is start) break;
+        }
+        fail;
+      }
+    }
     return this;
   }
+}
+
+// caching not worth it (I tried)
+Tree collapse(Tree t) {
+retry:
+  auto nt = t.collapse();
+  if (t is nt) return t;
+  // logln("from: ", t);
+  // logln("to: ", nt);
+  t = nt;
+  goto retry;
+}
+
+Cond collapse(Cond cd) {
+retry:
+  auto nc = cd.collapse();
+  if (nc is cd) return cd;
+  cd = nc;
+  goto retry;
+}
+
+Expr collapse(Expr ex) {
+  auto res = mustCast!(Expr)(collapse(fastcast!(Tree)(ex)));
+  debug {
+    if (ex.valueType() != res.valueType()) {
+      logln("collapse has violated type consistency: "[], ex, " => "[], res);
+      logln("from: ", (cast(Object)(ex.valueType())).classinfo.name, " ", ex.valueType());
+      logln("to: ", (cast(Object)(res.valueType())).classinfo.name, " ", res.valueType());
+      fail;
+    }
+  }
+  return res;
 }
 
 interface Named {
@@ -887,7 +955,7 @@ class LLVMRef : LValue {
   mixin defaultIterate!();
   mixin defaultCollapse!();
   void allocate(LLVMFile lf) {
-    if (location) fail;
+    if (location) { logln("double emit? ", this); fail; }
     if (state != 0) fail;
     state = 1;
     
@@ -1096,4 +1164,8 @@ template mustCast(T) {
     }
     return res;
   }
+}
+
+interface ArrayLiteralExpr {
+  int getLength();
 }

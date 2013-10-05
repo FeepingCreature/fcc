@@ -100,7 +100,7 @@ class PrefixCall : FunCall {
     sup.iterate(dg, mode);
     super.iterate(dg, mode);
   }
-  mixin defaultCollapse!();
+  Tree collapse() { return this; }
   override void emitWithArgs(LLVMFile lf, Expr[] args) {
     auto res = fun.getParams(true);
     // Argument[] tlsptr;

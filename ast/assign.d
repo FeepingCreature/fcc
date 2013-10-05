@@ -18,8 +18,8 @@ class _Assignment(T) : LineNumberedStatementClass {
       logln("Can't assign: "[], t);
       logln(" of "[], t.valueType());
       logln(" <- "[], e.valueType());
+      logln("(", resolveType(tvt), ", ", resolveType(evt), ")");
       breakpoint();
-      asm { int 3; }
       throw new Exception("Assignment type mismatch! "[]);
     }
     target = t;

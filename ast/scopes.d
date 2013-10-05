@@ -23,7 +23,7 @@ class SuperContextAccess : LValue {
   mixin defaultIterate!(baseptr);
   mixin defaultCollapse!();
   override {
-    string toString() { return qformat("[", valuetype, " @", index, "](", type, " ", baseptr, ")"); }
+    string toString() { return qformat("[", valuetype, " @", index, "](", /*type, " ", */baseptr, ")"); }
     SuperContextAccess dup() {
       return fastalloc!(SuperContextAccess)(baseptr.dup, valuetype, type, index); 
     }

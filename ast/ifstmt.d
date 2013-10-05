@@ -98,7 +98,7 @@ Object gotStaticIf(int Mode)(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Couldn't get static-if condition"[]);
   string branch1, branch2;
   t2.noMoreHeredoc();
-  opt(test);
+  test = .collapse(test);
   
   auto t3 = t2;
   
@@ -128,7 +128,9 @@ Object gotStaticIf(int Mode)(ref string text, ParseCb cont, ParseCb rest) {
       res = Single!(NoOp);
     }
   } else {
-    text.failparse("condition not static: "[], test);
+    auto dtest = test.dup;
+    opt(test);
+    text.failparse("condition not static: "[], dtest, "\n => ", test);
   }
   
   text = t3;

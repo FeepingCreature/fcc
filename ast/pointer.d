@@ -64,7 +64,12 @@ class RefExpr_ : Expr {
   }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (auto de = fastcast!(DerefExpr) (.collapse(fastcast!(Expr)(src)))) {
+      return de.src;
+    }
+    return this;
+  }
   IType type_cache;
   override {
     IType valueType() {
@@ -99,6 +104,13 @@ class DerefExpr_ : LValue, HasInfo {
   private this() { count = de_count ++; }
   mixin DefaultDup!();
   mixin defaultIterate!(src);
+  Expr collapse() {
+    // LOL, good luck working out when this is useful (and yes it is)
+    if (auto re = fastcast!(RefExpr) (.collapse(src))) {
+      return re.src;
+    }
+    return this;
+  }
   mixin defaultCollapse!();
   override {
     string getInfo() { return Format("count: "[], count); }
@@ -135,23 +147,6 @@ static this() {
   typeModlist ~= delegate IType(ref string text, IType cur, ParseCb, ParseCb) {
     if (text.accept("*"[])) { return fastalloc!(Pointer)(cur); }
     else return null;
-  };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto re = fastcast!(RefExpr) (it)) {
-      if (auto de = fastcast!(DerefExpr) (re.src)) {
-        return fastcast!(Itr) (de.src);
-      }
-    }
-    return null;
-  };
-  // LOL, good luck working out when this is useful (and yes it is)
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto de = fastcast!(DerefExpr) (it)) {
-      if (auto re = fastcast!(RefExpr) (de.src)) {
-        return fastcast!(Itr) (re.src);
-      }
-    }
-    return null;
   };
   // Pointers must NOT autocast to void* unless expected!
   implicits ~= delegate void(Expr ex, IType target, void delegate(Expr, int) consider) {

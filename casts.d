@@ -24,7 +24,7 @@ const string[] quicklist = [
   "ast.casting.ReinterpretCast!(LValue).ReinterpretCast"[],
   "ast.variable.Variable"[],
   "ast.arrays.ExtArray"[],
-  "ast.math.IntLiteralAsShort"[],
+  "ast.casting.IntLiteralAsShort"[],
   "ast.fun.FunCall"[],
   "ast.modules.Module"[],
   "ast.types.Byte"[],

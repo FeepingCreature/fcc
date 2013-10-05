@@ -1,10 +1,10 @@
 module ast.guard;
 
 import
-  ast.parse, ast.base, ast.namespace, ast.scopes,
+  ast.parse, ast.base, ast.namespace, ast.assign, ast.scopes,
   ast.assign, ast.nestfun, ast.modules, ast.literals,
   ast.variable, ast.vardecl, ast.fun, ast.casting,
-  ast.aliasing;
+  ast.aliasing, ast.structure, ast.pointer, ast.aggregate;
 
 extern(C) void addFailureFun(Function fun) {
   auto grtype = fastcast!(IType)~ sysmod.lookup("_GuardRecord"[]);

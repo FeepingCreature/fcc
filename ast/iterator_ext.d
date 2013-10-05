@@ -60,12 +60,12 @@ static this() {
   isRichIterator = delegate bool(IType it) { return !!fastcast!(RichIterator) (it); };
   isIterator = delegate bool(IType it) { return !!fastcast!(Iterator) (it); };
   defineOp("x"[], delegate Expr(Expr ex1, Expr ex2) {
-    if (!gotImplicitCast(ex2, (Expr ex) { return !!fastcast!(IntExpr) (fold(ex)); }))
+    if (!gotImplicitCast(ex2, (Expr ex) { return !!fastcast!(IntExpr) (collapse(ex)); }))
       return null;
     auto ex22 = ex2;
-    if (gotImplicitCast(ex22, (Expr ex) { return !!fastcast!(ast.iterator.Range) (fold(ex)); }))
+    if (gotImplicitCast(ex22, (Expr ex) { return !!fastcast!(ast.iterator.Range) (collapse(ex)); }))
       ex2 = ex22;
-    auto count = (fastcast!(IntExpr)~ fold(ex2)).num;
+    auto count = (fastcast!(IntExpr) (collapse(ex2))).num;
     assert(count > 0);
     Expr[] rep;
     while (count--) rep ~= ex1.dup;
@@ -148,7 +148,7 @@ class CrossIndexExpr : Expr {
     foldopt ~= delegate Itr(Itr it) {
       auto cie = fastcast!(CrossIndexExpr) (it);
       if (!cie) return null;
-      auto ide = fastcast!(IntExpr) (foldex(cie.idx));
+      auto ide = fastcast!(IntExpr) (.collapse(cie.idx));
       if (!ide) return null;
       auto idx = ide.num;
       
@@ -157,8 +157,7 @@ class CrossIndexExpr : Expr {
       foreach (iter; iters) {
         auto ri = fastcast!(RichIterator)~ iter.valueType();
         if (!ri) return null;
-        auto lex = fastcast!(IntExpr)~
-          foldex(ri.length(iter));
+        auto lex = fastcast!(IntExpr) (.collapse(ri.length(iter)));
         if (!lex) return null;
         lengths ~= lex.num;
       }
@@ -167,7 +166,7 @@ class CrossIndexExpr : Expr {
       foreach_reverse (i, iter; iters) {
         auto ri = fastcast!(RichIterator)~ iter.valueType();
         auto lidx = idx % lengths[i];
-        res = foldex(ri.index(iter, mkInt(lidx))) ~ res;
+        res = .collapse(ri.index(iter, mkInt(lidx))) ~ res;
         idx /= lengths[i];
       }
       

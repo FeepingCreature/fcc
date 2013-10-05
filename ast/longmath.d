@@ -8,6 +8,7 @@ import
 class AsmLongBinopExpr : BinopExpr {
   this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
   private this() { super(); }
+  mixin defaultCollapse!(); // TODO fold
   override {
     AsmLongBinopExpr dup() { return fastalloc!(AsmLongBinopExpr)(e1.dup, e2.dup, op); }
     void emitLLVM(LLVMFile lf) {

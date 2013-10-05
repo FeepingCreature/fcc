@@ -411,7 +411,7 @@ class ScopeAndExpr : Expr {
   Expr ex;
   this(Scope sc, Expr ex) { this.sc = sc; this.ex = ex; }
   mixin defaultIterate!(sc, ex);
-  mixin defaultCollapse!();
+  Expr collapse() { return this; } // no check
   override {
     string toString() { return Format("sae("[], sc._body, ", "[], ex, ")"[]); }
     ScopeAndExpr dup() { return fastalloc!(ScopeAndExpr)(sc.dup, ex.dup); }

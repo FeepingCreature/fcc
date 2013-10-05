@@ -762,7 +762,7 @@ class FunCall : Expr {
     fun.iterate(dg, IterMode.Semantic);
     defaultIterate!(params, setup).iterate(dg);
   }
-  mixin defaultCollapse!();
+  Tree collapse() { return this; } // no check
   void emitWithArgs(LLVMFile lf, Expr[] args) {
     if (setup) setup.emitLLVM(lf);
     callFunction(lf, fun.type.ret, false, fun.type.stdcall, args, fun.getPointer(), fun.noreturn);

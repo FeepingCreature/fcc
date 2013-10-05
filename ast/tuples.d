@@ -323,7 +323,7 @@ Expr mkTupleExpr(Expr[] exprs...) {
     arr.length = 0;
     allMValues = true;
     foreach (ref ex; exprs) {
-      opt(ex);
+      ex = collapse(ex);
       if (auto mv = toMValue (ex)) arr ~= mv;
       else { allMValues = false; break; }
     }

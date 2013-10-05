@@ -12,7 +12,8 @@ class ExprAlias : RelTransformable, Named, Expr {
   mixin MyThis!("base, name"[]);
   mixin DefaultDup!();
   mixin defaultIterate!(base);
-  mixin defaultCollapse!();
+  // dup to prevent double-emit issues
+  Expr collapse() { if (_is_cheap(base, CheapMode.Multiple)) return base; else return base.dup; }
   override {
     string getIdentifier() { return name; }
     Object transform(Expr relbase) {
@@ -60,7 +61,7 @@ class ExprAlias : RelTransformable, Named, Expr {
       return fastcast!(Object) (finalize(fastcast!(Expr) (it)));
     }
     void emitLLVM(LLVMFile lf) {
-      fail; // Should never happen - the below foldopt should substitute them
+      fail; // Should never happen - our collapse should substitute them
       base.emitLLVM(lf); // may work .. or not.
     }
     IType valueType() { return base.valueType(); }
@@ -151,14 +152,6 @@ class _TypeAlias : Named, IType, SelfAdding, Dwarf2Encodable {
 final class TypeAlias : _TypeAlias {
   static const isFinal = true;
   mixin This!("base, name, strictFrom = false, strictTo = false"[]);
-}
-
-static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto ea = fastcast!(ExprAlias) (it)) {
-      return fastcast!(Iterable) (ea.base.dup);
-    } else return null;
-  };
 }
 
 extern(C) IType resolveTup(IType, bool onlyIfChanged = false);

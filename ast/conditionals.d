@@ -59,7 +59,19 @@ class ExprWrap_ : Cond {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(ex);
-  mixin defaultCollapse!();
+  Cond collapse() {
+    if (auto ce = fastcast!(CondExpr)(.collapse(ex)))
+      return ce.cd;
+    setupStaticBoolLits();
+    auto ex = .collapse(ex);
+    if (isStaticTrue(ex)) return cTrue;
+    if (isStaticFalse(ex)) return cFalse;
+    if (auto ie = fastcast!(IntExpr)(ex))
+      if (ie.num) return cTrue;
+      else return cFalse;
+    
+    return this;
+  }
   override {
     string toString() { return Format("!!"[], ex); }
     void jumpOn(LLVMFile lf, bool cond, string dest) {
@@ -113,7 +125,39 @@ class Compare : Expr {
     return res;
   }
   mixin defaultIterate!(e1, e2, falseOverride, trueOverride);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    auto e1 = .collapse(e1);
+    auto e2 = .collapse(e2);
+    auto i1 = fastcast!(IntExpr) (e1);
+    auto i2 = fastcast!(IntExpr) (e2);
+    if (auto ce1 = fastcast!(CondExpr) (e1)) {
+      Cond cd = ce1.cd;
+      if (isStaticTrue (cd)) i1 = mkInt(1);
+      if (isStaticFalse(cd)) i1 = mkInt(0);
+    }
+    if (auto ce2 = fastcast!(CondExpr) (e2)) {
+      Cond cd = ce2.cd;
+      if (isStaticTrue (cd)) i2 = mkInt(1);
+      if (isStaticFalse(cd)) i2 = mkInt(0);
+    }
+    if (!i1 || !i2) return this;
+    bool result;
+    if (smaller && i1.num < i2.num) result = true;
+    if (equal   && i1.num== i2.num) result = true;
+    if (greater && i1.num > i2.num) result = true;
+    if (not) result = !result;
+    Expr res;
+    if (result) {
+      if (trueOverride) res = trueOverride;
+      else if (True) res = True;
+      else return this;
+    } else {
+      if (falseOverride) res = falseOverride;
+      else if (False) res = False;
+      else return this;
+    }
+    return res;
+  }
   string toString() {
     string res;
     if (not) res ~= "!";
@@ -273,7 +317,13 @@ class NegCond : Cond {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(c);
-  mixin defaultCollapse!();
+  Cond collapse() {
+    auto sub = .collapse(c);
+    setupStaticBoolLits();
+    if (isStaticTrue(sub)) return cFalse;
+    if (isStaticFalse(sub)) return cTrue;
+    return this;
+  }
   this(Cond c) { this.c = c; if (!c) fail; }
   override string toString() { return Format("!("[], c, ")"[]); }
   override void jumpOn(LLVMFile lf, bool cond, string dest) {
@@ -347,11 +397,17 @@ void setupStaticBoolLits() {
 import ast.fold, ast.static_arrays;
 bool isStaticTrue(Expr ex) {
   if (ex is True) return true;
+  if (auto ie = fastcast!(IntExpr)(ex))
+    if (ie.num) return true;
   if (auto rce = fastcast!(RCE) (ex)) {
     if (fastcast!(IType) (sysmod.lookup("bool")) == rce.to) {
       if (auto ie = fastcast!(IntExpr) (rce.from))
         if (ie.num == 1) return true;
     }
+  }
+  if (ex !is .collapse(ex)) {
+    logln("called with uncollapsed expr");
+    fail;
   }
   return false;
 }
@@ -360,11 +416,13 @@ bool isStaticTrue(Cond cd) {
   if (fastcast!(TrueCond) (cd)) return true;
   auto ew = fastcast!(ExprWrap) (cd);
   if (!ew) return false;
-  return isStaticTrue(ew.ex);
+  return isStaticTrue(.collapse(ew.ex));
 }
 
 bool isStaticFalse(Expr ex) {
   if (ex is False) return true;
+  if (auto ie = fastcast!(IntExpr)(ex))
+    if (!ie.num) return true;
   if (auto rce = fastcast!(RCE) (ex)) {
     if (fastcast!(IType) (sysmod.lookup("bool")) == rce.to) {
       if (auto ie = fastcast!(IntExpr) (rce.from))
@@ -378,7 +436,7 @@ bool isStaticFalse(Cond cd) {
   if (fastcast!(FalseCond) (cd)) return true;
   auto ew = fastcast!(ExprWrap) (cd);
   if (!ew) return false;
-  return isStaticFalse(ew.ex);
+  return isStaticFalse(.collapse(ew.ex));
 }
 
 extern(C) void oop_is_comparable_sanity_check(string text, Expr ex1, Expr ex2);
@@ -451,7 +509,24 @@ class BooleanOp(string Which) : Cond, HasInfo {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(c1, c2);
-  mixin defaultCollapse!();
+  Cond collapse() {
+    setupStaticBoolLits();
+    auto c1 = .collapse(c1), c2 = .collapse(c2);
+    static if (Which == "&&") {
+      if (isStaticTrue(c1)) return c2; // true&&x => x
+      else if (isStaticFalse(c1)) return cFalse; // false&&x => false
+      
+      if (isStaticTrue(c2)) return c1; // x&&true => x
+      // else if it's static false, we still have to evaluate c1
+    } else static if (Which == "||") {
+      if (isStaticTrue(c1)) return cTrue; // cond2 doesn't matter
+      else if (isStaticFalse(c1)) return c2; // false||x => x
+      
+      if (isStaticFalse(c2)) return c1; // x||false => x
+      // else if it's static true, we still have to evaluate c1
+    }
+    return this;
+  }
   override {
     string getInfo()  { return Which; }
     string toString() { return Format(Which, "("[], c1, ", "[], c2, ")"[]); }
@@ -576,7 +651,11 @@ class CondExpr : Expr {
     if (!cd) fail;
   }
   mixin defaultIterate!(cd);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (auto ew = fastcast!(ExprWrap)(.collapse(cd)))
+      return ew.ex;
+    return this;
+  }
   override {
     string toString() { return Format("eval "[], cd); }
     IType valueType() { return fastcast!(IType) (sysmod.lookup("bool"[])); }

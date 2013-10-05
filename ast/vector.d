@@ -638,9 +638,9 @@ Object gotVecType(ref string text, ParseCb cont, ParseCb rest) {
       !rest(t2, "tree.expr"[], &len) ||
       !t2.accept(")"[]))
     t2.failparse("Fail to parse vector"[]);
-  auto ie = fastcast!(IntExpr)~ fold(len);
+  auto ie = fastcast!(IntExpr) (collapse(len));
   if (!ie)
-    text.failparse("Size parameter to vec not foldable or int"[]);
+    text.failparse("Size parameter to vec does not reduce to integer"[]);
   text = t2;
   return mkVec(it, ie.num);
 }

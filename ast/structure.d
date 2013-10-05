@@ -448,7 +448,12 @@ class StructLiteral : Expr {
   }
   private this() { }
   mixin defaultIterate!(exprs);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (exprs.length == 1) {
+      return reinterpret_cast(st, .collapse(exprs[0]));
+    }
+    return this;
+  }
   override {
     string toString() { return Format("literal "[], st, " {"[], exprs, "}"[]); }
     StructLiteral dup() {
@@ -515,18 +520,96 @@ class MemberAccess_Expr : Expr, HasInfo {
     return res;
   }
   mixin defaultIterate!(base);
+  Expr collapse() {
+    auto nbase = base;
+    bool deb;
+    /*if (stm.name == "self") {
+      deb = true;
+    }*/
+    if (deb) logln("deb on");
+    if (stm.type.llvmType() == base.valueType().llvmType()) {
+      if (deb) logln("deb early direct-match for ", this, " => ", base);
+      return reinterpret_cast(stm.type, base);
+    }
+    
+    Structure st;
+    if (auto rce = fastcast!(RCE)~ nbase) {
+      nbase = rce.from;
+      st = fastcast!(Structure)~ rce.to;
+    }
+    
+    if (nbase.valueType() == stm.type) {
+      if (deb) logln("deb direct-match for ", this, " => ", nbase);
+      return nbase;
+    }
+    if (st && st.length == 1) {
+      if (deb) logln("deb foldopt cast ", st, " TO ", stm.type);
+      return reinterpret_cast(stm.type, nbase);
+    }
+    {
+      if (deb) {
+        logln("deb bvt = ", nbase.valueType());
+        logln("being ", nbase.valueType().llvmSize());
+        logln("  and ", stm.type.llvmSize());
+      }
+      auto sx = fastcast!(Structure)(nbase.valueType());
+      if (sx && sx.llvmSize() == stm.type.llvmSize()) { // close enough
+        return reinterpret_cast(stm.type, nbase);
+      }
+    }
+    if (deb) {
+      logln("deb with ", stm, " into ", st);
+      logln("deb BASE = ", fastcast!(Object)(nbase).classinfo.name, " ", nbase);
+    }
+    if (auto sl = fastcast!(StructLiteral)~ nbase) {
+      /*foreach (expr; sl.exprs) {
+        logln("  ", expr);
+      }*/
+      if (!intendedForSplit && sl.exprs.length > 1) {
+        bool cheap = true;
+        foreach (ref ex; sl.exprs) {
+          // if it was for multiple access, it'd already have checked for that separately
+          if (!_is_cheap(ex, CheapMode.Flatten)) {
+            // logln("not cheap: "[], ex);
+            cheap = false;
+            break;
+          }
+        }
+        if (!cheap) return this; // may be side effects of other expressions in the SL
+      }
+      Expr res;
+      int i;
+      if (!st)
+        st = fastcast!(Structure)~ base.valueType();
+      else {
+        // TODO: assert: struct member offsets identical!
+      }
+      if (st) st.select((string, RelMember member) {
+        if (member.type == stm.type && member.index == stm.index && valueType() == sl.exprs[i].valueType()) {
+          res = sl.exprs[i];
+        }
+        i++;
+      }, &st.rmcache);
+      // logln(" => ", res);
+      if (auto tr = fastcast!(Tree) (res))
+        return tr;
+    }
+    
+    return this;
+  }
   mixin defaultCollapse!();
   override {
     import tools.log;
     string toString() {
-      return qformat(counter, " ("[], base, "[])."[], name);
+      return qformat(counter, " ("[], base, ")."[], name);
     }
     IType valueType() { return stm.type; }
     import tools.base;
     void emitLLVM(LLVMFile lf) {
-      auto bvt = base.valueType();
+      auto bvt = resolveType(base.valueType());
       auto bs = typeToLLVM(bvt);
       auto src = save(lf, base);
+      // logln("1 bvt for ", this, " = ", fastcast!(Object)(bvt).classinfo.name, " ", bvt);
       if (fastcast!(Structure)(bvt).isUnion) {
         auto mt = typeToLLVM(stm.type);
         auto tmp = alloca(lf, "1", bs);
@@ -558,15 +641,17 @@ class MemberAccess_LValue_ : MemberAccess_Expr, LValue {
     void emitLocation(LLVMFile lf) {
       (fastcast!(LValue)(base)).emitLocation(lf);
       auto ls = lf.pop();
-      if (fastcast!(Structure)(base.valueType()).isUnion) {
+      auto bvt = resolveType(base.valueType());
+      // logln("2 bvt for ", this, " = ", fastcast!(Object)(bvt).classinfo.name, " ", bvt);
+      if (fastcast!(Structure)(bvt).isUnion) {
         auto mt = typeToLLVM(stm.type);
-        push(lf, bitcastptr(lf, typeToLLVM(base.valueType()), mt, ls));
+        push(lf, bitcastptr(lf, typeToLLVM(bvt), mt, ls));
         return;
       }
-      load(lf, "getelementptr inbounds ", typeToLLVM(base.valueType()), "* ", ls, ", i32 0, i32 ", stm.index);
+      load(lf, "getelementptr inbounds ", typeToLLVM(bvt), "* ", ls, ", i32 0, i32 ", stm.index);
       auto restype = stm.type;
       auto from = typeToLLVM(restype, true)~"*", to = typeToLLVM(restype)~"*";
-      // logln(lf.count, ": emitLocation of mal to ", base.valueType(), ", from ", from, ", to ", to);
+      // logln(lf.count, ": emitLocation of mal to ", bvt, ", from ", from, ", to ", to);
       if (from != to) {
         llcast(lf, from, to, lf.pop(), qformat(nativePtrSize));
       }
@@ -582,97 +667,6 @@ final class MemberAccess_LValue : MemberAccess_LValue_ {
 
 import ast.fold, ast.casting;
 static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto r = fastcast!(RCE) (it)) {
-      if (auto lit = fastcast!(StructLiteral)~ r.from) {
-        if (lit.exprs.length == 1) {
-          if (lit.exprs[0].valueType() == r.to)
-            return fastcast!(Itr) (lit.exprs[0]); // pointless keeping a cast
-          return reinterpret_cast(r.to, lit.exprs[0]);
-        }
-      }
-    }
-    return null;
-  };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto mae = fastcast!(MemberAccess_Expr) (it)) {
-      auto base = mae.base;
-      auto basebackup = base;
-      bool deb;
-      /*if (mae.stm.name == "self") {
-        deb = true;
-      }*/
-      if (deb) logln("deb on");
-      if (mae.stm.type.llvmType() == base.valueType().llvmType()) {
-        if (deb) logln("deb early direct-match for ", mae, " => ", base);
-        return fastcast!(Iterable) (foldex(reinterpret_cast(mae.stm.type, base)));
-      }
-      
-      Structure st;
-      if (auto rce = fastcast!(RCE)~ base) {
-        base = rce.from;
-        st = fastcast!(Structure)~ rce.to;
-      }
-      
-      if (base.valueType() == mae.stm.type) {
-        if (deb) logln("deb direct-match for ", mae, " => ", base);
-        return base;
-      }
-      if (st && st.length == 1) {
-        if (deb) logln("deb foldopt cast ", st, " TO ", mae.stm.type);
-        return reinterpret_cast(mae.stm.type, base);
-      }
-      {
-        if (deb) {
-          logln("deb bvt = ", base.valueType());
-          logln("being ", base.valueType().llvmSize());
-          logln("  and ", mae.stm.type.llvmSize());
-        }
-        auto sx = fastcast!(Structure)(base.valueType());
-        if (sx && sx.llvmSize() == mae.stm.type.llvmSize()) { // close enough
-          return reinterpret_cast(mae.stm.type, base);
-        }
-      }
-      if (deb) {
-        logln("deb with ", mae.stm, " into ", st);
-        logln("deb BASE = ", fastcast!(Object)(base).classinfo.name, " ", base);
-      }
-      if (auto sl = fastcast!(StructLiteral)~ base) {
-        /*foreach (expr; sl.exprs) {
-          logln("  ", expr);
-        }*/
-        if (!mae.intendedForSplit && sl.exprs.length > 1) {
-          bool cheap = true;
-          foreach (ref ex; sl.exprs) {
-            // if it was for multiple access, it'd already have checked for that separately
-            if (!_is_cheap(ex, CheapMode.Flatten)) {
-              // logln("not cheap: "[], ex);
-              cheap = false;
-              break;
-            }
-          }
-          if (!cheap) return null; // may be side effects of other expressions in the SL
-        }
-        Expr res;
-        int i;
-        if (!st)
-          st = fastcast!(Structure)~ base.valueType();
-        else {
-          // TODO: assert: struct member offsets identical!
-        }
-        if (st) st.select((string, RelMember member) {
-          if (member.type == mae.stm.type && member.index == mae.stm.index && mae.valueType() == sl.exprs[i].valueType()) {
-            res = sl.exprs[i];
-          }
-          i++;
-        }, &st.rmcache);
-        // logln(" => ", res);
-        if (auto it = fastcast!(Iterable) (res))
-          return it;
-      }
-    }
-    return null;
-  };
   alignChecks ~= (IType it) {
     if (auto st = fastcast!(Structure) (it)) {
       return needsAlignmentStruct(st);
@@ -805,6 +799,7 @@ retry:
     return m;
   }
   auto m = rn.lookupRel(member, ex);
+  // logln("::: ", m, " ", (fastcast!(Expr)(m))?(fastcast!(Expr)(m)).valueType():null);
   if (!m) {
     if (t2.eatDash(member)) { goto retry; }
     auto info = Format(pre_ex.valueType());

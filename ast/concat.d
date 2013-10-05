@@ -3,7 +3,7 @@ module ast.concat;
 import
   ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal,
   ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index, ast.tuples, ast.pointer,
-  ast.assign, ast.opers, ast.slice, ast.fold, ast.literal_string, ast.literals, tools.base: take;
+  ast.assign, ast.opers, ast.slice, ast.literal_string, ast.literals, tools.base: take;
 
 class ConcatChain : Expr {
   Array type;
@@ -24,12 +24,22 @@ class ConcatChain : Expr {
   }
   mixin DefaultDup!();
   mixin defaultIterate!(arrays);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (type == Single!(Array, Single!(Char))) {
+      string res;
+      foreach (ex2; arrays) {
+        if (auto se = fastcast!(StringExpr) (.collapse(ex2))) res ~= se.str;
+        else return this;
+      }
+      return fastalloc!(StringExpr)(res);
+    }
+    return this;
+  }
   void addArray(Expr ex) {
     Expr nuArray;
     if (fastcast!(StaticArray)~ ex.valueType()) nuArray = staticToArray(ex);
     else nuArray = ex;
-    opt(nuArray);
+    nuArray = .collapse(nuArray);
     if (arrays.length) {
       auto se1 = fastcast!(StringExpr) (arrays[$-1]);
       auto se2 = fastcast!(StringExpr) (nuArray);
@@ -57,7 +67,6 @@ class ConcatChain : Expr {
       
       int cacheNeeded;
       foreach (ref array; arrays) {
-        opt(array);
         if (array.valueType() != type.elemType && !isLiteral(array)) cacheNeeded ++;
       }
         
@@ -116,10 +125,9 @@ class ConcatChain : Expr {
           if (isLiteral(array)) c = array;
           else c = getIndex(cache, mkInt(cacheId ++));
           auto len = getArrayLength(c);
-          auto end = lookupOp("+", offset, len);
-          opt(end);
+          auto end = .collapse(lookupOp("+", offset, len));
           /// res[offset .. offset + cache[i].length] = cache[i];
-          optst(getSliceAssign(mkArraySlice(res, offset, end), c)).emitLLVM(lf);
+          getSliceAssign(mkArraySlice(res, offset, end), c).emitLLVM(lf);
           /// offset = offset + cache[i].length;
           emitAssign(lf, offset, end);
         }
@@ -259,18 +267,6 @@ static this() {
       ex1.valueType(), " and "[], ex2.valueType()));
     // return null;
   });
-  // fold string concats
-  foldopt ~= delegate Itr(Itr it) {
-    auto cc = fastcast!(ConcatChain) (it);
-    if (!cc) return null;
-    if (cc.type != Single!(Array, Single!(Char))) return null;
-    string res;
-    foreach (ex2; cc.arrays) {
-      if (auto se = fastcast!(StringExpr) (ex2)) res ~= se.str;
-      else return null;
-    }
-    return fastalloc!(StringExpr)(res);
-  };
 }
 
 import ast.casting;

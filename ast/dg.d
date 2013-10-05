@@ -18,6 +18,11 @@ class mkDelegate : Expr {
     this.data = data;
   }
   mixin defaultIterate!(ptr, data);
+  Expr collapse() {
+    if (this.classinfo is mkDelegate.classinfo || this.classinfo is DgConstructExpr.classinfo)
+      return reinterpret_cast(valueType(), mkTupleExpr(ptr, data));
+    return this;
+  }
   mixin defaultCollapse!();
   override string toString() { return Format("dg(ptr="[], ptr, "[], data="[], data, ")"[]); }
   override void emitLLVM(LLVMFile lf) {
@@ -25,14 +30,6 @@ class mkDelegate : Expr {
     auto i8ps = save(lf, reinterpret_cast(voidp, ptr));
     formTuple(lf, "i8*", i8ps, "i8*", i8ds);
   }
-}
-
-static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    auto dgx = fastcast!(mkDelegate) (it);
-    if (!dgx || dgx.classinfo != mkDelegate.classinfo && dgx.classinfo != DgConstructExpr.classinfo) return null;
-    return reinterpret_cast(dgx.valueType(), mkTupleExpr(dgx.ptr, dgx.data));
-  };
 }
 
 import tools.log;

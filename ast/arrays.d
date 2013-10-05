@@ -304,7 +304,11 @@ class ArrayLength_Base : Expr {
     mae.emitLLVM(lf);
   }
   mixin defaultIterate!(array);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (auto ale = fastcast!(ArrayLiteralExpr)(array))
+      return mkInt(ale.getLength());
+    return this;
+  }
   mixin DefaultDup!();
 }
 
@@ -433,8 +437,8 @@ static this() {
 Expr getArrayLength(Expr ex) {
   if (auto sa = fastcast!(StaticArray) (resolveType(ex.valueType())))
     return mkInt(sa.length);
-  if (auto lv = fastcast!(LValue) (ex)) return new ArrayLength!(MValue) (lv);
-  else return new ArrayLength!(Expr) (ex);
+  if (auto lv = fastcast!(LValue) (ex)) return fastalloc!(ArrayLength!(MValue))(lv);
+  else return fastalloc!(ArrayLength!(Expr))(ex);
 }
 
 Expr getArrayPtr(Expr ex) {

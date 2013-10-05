@@ -1,6 +1,6 @@
 module ast.casting;
 
-import ast.base, ast.parse;
+import ast.base, ast.parse, ast.int_literal;
 
 class RC {
   Expr from;
@@ -51,7 +51,15 @@ template ReinterpretCast_Contents(T) {
       fail;
     }
   }
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (from.valueType() == to) {
+      return from;
+    }
+    if (auto rce2 = fastcast!(RCE) (.collapse(from))) {
+      return reinterpret_cast(to, .collapse(rce2.from));
+    }
+    return this;
+  }
   override {
     static if (is(typeof((fastcast!(T)~ from).emitLocation(null))))
       void emitLocation(LLVMFile lf) {
@@ -103,26 +111,6 @@ extern(C) void _reinterpret_cast_expr(RCE, LLVMFile);
 extern(C) bool _exactly_equals(IType a, IType b);
 
 bool exactlyEquals(IType a, IType b) { return _exactly_equals(a, b); }
-
-import ast.fold;
-static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto rce = fastcast!(RCE) (it)) {
-      if (exactlyEquals(rce.from.valueType(), rce.to)) {
-        // logln("this case should be unable to occur: ", rce.from, " into ", rce.to);
-        // fail;
-        return rce.from;
-      }
-      
-      if (auto rce2 = fastcast!(RCE) (rce.from)) {
-        // logln("this case should be unable to occur: ", it);
-        // fail;
-        return reinterpret_cast(rce.to, rce2.from);
-      }
-    }
-    return null;
-  };
-}
 
 // casts to types that'd be implicit-converted anyway
 Object gotExplicitDefaultCastExpr(ref string text, ParseCb cont, ParseCb rest) {
@@ -362,10 +350,14 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int ma
         addVisitor(ce.valueType());
         recurseInto ~= ce;
         scoredelta ~= newscore;
+        
+        auto backup = score_res?*score_res:0;
+        if (score_res) *score_res = score + newscore;
+        
         if (accept(ce)) {
           res = ce;
-          if (score_res) *score_res = score + newscore;
-        }
+        } else
+          if (score_res) *score_res = backup; // undo
         return true;
       });
       if (res) return res;
@@ -440,12 +432,50 @@ Expr[] getAllImplicitCasts(Expr ex) {
   return res;
 }
 
+class IntLiteralAsShort : Expr {
+  IntExpr ie;
+  this(IntExpr ie) { this.ie = ie; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(ie);
+  mixin defaultCollapse!();
+  override {
+    IType valueType() { return Single!(Short); }
+    string toString() { return Format("short:"[], ie); }
+    void emitLLVM(LLVMFile lf) {
+      push(lf, ie.num);
+    }
+  }
+}
+
+class IntLiteralAsByte : Expr {
+  IntExpr ie;
+  this(IntExpr ie) { this.ie = ie; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(ie);
+  mixin defaultCollapse!();
+  override {
+    IType valueType() { return Single!(Byte); }
+    string toString() { return Format("byte:"[], ie); }
+    void emitLLVM(LLVMFile lf) {
+      push(lf, ie.num);
+    }
+  }
+}
+
 class ShortToIntCast_ : Expr {
   Expr sh;
   this(Expr sh) { this.sh = sh; }
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(sh);
+  Expr collapse() {
+    if (auto bsc = fastcast!(ByteToShortCast) (sh)) {
+      return new ByteToIntCast (bsc.b);
+    }
+    return this;
+  }
   mixin defaultCollapse!();
   override {
     IType valueType() { return Single!(SysInt); }
@@ -506,7 +536,14 @@ class ByteToIntCast : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(b);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (auto rce = fastcast!(RCE)(.collapse(b))) {
+      if (auto ilab = fastcast!(IntLiteralAsByte)(.collapse(rce.from))) {
+        return ilab.ie;
+      }
+    }
+    return this;
+  }
   override {
     string toString() { return Format("int:"[], b); }
     IType valueType() { return Single!(SysInt); }
@@ -517,22 +554,7 @@ class ByteToIntCast : Expr {
   }
 }
 
-Expr reinterpret_cast_preliminary(IType to, Expr from, bool safe /* not used yet, DOCUMENT _safe */) {
-  from = foldex(from);
-  
-  // breaks "alias foo = bar => 2;"
-  /*if (exactlyEquals(from.valueType(), to))
-    return from;*/
-  
-  if (auto rce = fastcast!(RCE)(from)) {
-    return reinterpret_cast(to, rce.from);
-  }
-  return null;
-}
-
 Expr reinterpret_cast(IType to, Expr from) {
-  if (auto res = reinterpret_cast_preliminary(to, from, false)) return res;
-  
   if (auto lv = fastcast!(LValue) (from))
     return fastalloc!(RCL)(to, lv);
   if (auto cv = fastcast!(CValue) (from))
@@ -544,8 +566,6 @@ Expr reinterpret_cast(IType to, Expr from) {
 
 // don't allow write access
 Expr reinterpret_cast_safe(IType to, Expr from) {
-  if (auto res = reinterpret_cast_preliminary(to, from, true)) return res;
-  
   if (auto cv = fastcast!(CValue) (from))
     return fastalloc!(RCC)(to, cv);
   return fastalloc!(RCE)(to, from);
@@ -557,14 +577,6 @@ static this() {
     auto tp = ex.valueType().proxyType();
     if (!tp) return null;
     return reinterpret_cast(resolveType(tp), ex);
-  };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto sic = fastcast!(ShortToIntCast) (it)) {
-      if (auto bsc = fastcast!(ByteToShortCast) (sic.sh)) {
-        return new ByteToIntCast (bsc.b);
-      }
-    }
-    return null;
   };
   implicits ~= delegate Expr(Expr ex) {
     auto evt = ex.valueType();

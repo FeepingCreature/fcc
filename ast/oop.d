@@ -180,6 +180,7 @@ final class LazyDeltaInt : Expr {
   int delta;
   this(int delegate() dg, int d = 0) { this.dg = dg; delta = d; }
   mixin defaultIterate!();
+  Expr collapse() { return mkInt(dg() + delta); }
   mixin defaultCollapse!();
   string toString() { return qformat("ldi(", dg(), " + ", delta, ")"); }
   IType valueType() { return Single!(SysInt); }
@@ -188,15 +189,6 @@ final class LazyDeltaInt : Expr {
     auto res = dg() + delta;
     push(lf, res);
   }
-}
-
-static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    auto ldi = fastcast!(LazyDeltaInt)(it);
-    if (!ldi) return null;
-    auto val = ldi.dg() + ldi.delta;
-    return mkInt(val);
-  };
 }
 
 // lookupRel in interfaces/classes takes the class *reference*.
@@ -440,7 +432,7 @@ class SuperType : IType, RelNamespace {
   override {
     string toString() { return Format(baseType, ".super ("[], baseType.myClass.parent.myfuns.funs, ")"[]); }
     string mangle() { return Format("_super_"[], baseType.mangle()); }
-    int opEquals(IType it) { return false; /* wut */ }
+    int opEquals(IType it) { return fastcast!(SuperType)(it) is this; }
     bool isPointerLess() { return false; }
     string llvmSize() {
       if (nativePtrSize == 4) return "4";

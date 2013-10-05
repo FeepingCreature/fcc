@@ -138,7 +138,7 @@ Object gotGlobVarDecl(ref string text, ParseCb cont, ParseCb rest) {
           t3 = t2, t3.accept("="[])
           && rest(t3, "tree.expr"[], &initval) && gotImplicitCast(initval, (Expr ex) {
             return ex.valueType() == ty
-                   && !! fastcast!(Literal) (fold(ex));
+                   && !! fastcast!(Literal) (collapse(ex));
           })
           && (t2 = t3, true)
         ) || true

@@ -122,7 +122,7 @@ class LateType : IType {
   void delegate() tryResolve;
   bool release;
   this(string n) { name = n; }
-  string toString() { if (!me) return Format("(LateType ("[], name, "), unresolved)"); return Format("(LateType ", me, ")"); }
+  string toString() { if (!me) return Format("(LateType ("[], name, "), unresolved)"); return name; }
   void needMe() {
     if (!me) tryResolve();
     if (!me)

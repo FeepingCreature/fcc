@@ -2,7 +2,7 @@ module ast.literal_string;
 
 import ast.base, ast.literals, ast.pointer, ast.arrays, ast.static_arrays, ast.stringparse;
 
-class StringExpr : Expr, HasInfo, Dependency {
+class StringExpr : Expr, HasInfo, Dependency, ArrayLiteralExpr {
   string str;
   bool generated;
   this() { }
@@ -22,6 +22,7 @@ class StringExpr : Expr, HasInfo, Dependency {
   override {
     string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }
     StringExpr dup() { return fastalloc!(StringExpr)(str, generated); }
+    int getLength() { return str.length; }
     string toString() { return '"'~str.replace("\n"[], "\\n"[])~'"'; }
     // default action: place in string segment, load address on stack
     void emitLLVM(LLVMFile lf) {
@@ -85,14 +86,5 @@ static this() {
     if (resolveType(ex.valueType()) != Single!(Char))
       return null;
     return reinterpret_cast(Single!(Byte), ex);
-  };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto al = fastcast!(ArrayLength_Base)(it)) {
-      opt(al.array);
-      if (auto se = fastcast!(StringExpr) (al.array)) {
-        return mkInt(se.str.length);
-      }
-    }
-    return null;
   };
 }

@@ -13,7 +13,12 @@ final class IntAsFloat : Expr {
   private this() { }
   IntAsFloat dup() { return new IntAsFloat(i.dup()); }
   mixin defaultIterate!(i);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (auto ie = fastcast!(IntExpr) (.collapse(i))) {
+      return fastalloc!(FloatExpr)(ie.num);
+    }
+    return this;
+  }
   string toString() { return qformat("float:", i); }
   IType valueType() { return Single!(Float); }
   void emitLLVM(LLVMFile lf) {
@@ -28,7 +33,14 @@ final class LongAsDouble : Expr {
   private this() { }
   LongAsDouble dup() { return fastalloc!(LongAsDouble)(l.dup()); }
   mixin defaultIterate!(l);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (auto ial = fastcast!(IntAsLong) (.collapse(l))) {
+      if (auto ie = fastcast!(IntExpr) (.collapse(ial.i))) {
+        return fastalloc!(DoubleExpr)(ie.num);
+      }
+    }
+    return this;
+  }
   string toString() { return qformat("double:", l); }
   IType valueType() { return Single!(Double); }
   void emitLLVM(LLVMFile lf) {
@@ -53,7 +65,7 @@ class LongAsInt : Expr {
 }
 
 Expr mkIntAsFloat(Expr ex) {
-  ex = foldex(ex);
+  ex = collapse(ex);
   if (auto ie = fastcast!(IntExpr) (ex)) return fastalloc!(FloatExpr)(ie.num);
   return fastalloc!(IntAsFloat)(ex);
 }
@@ -61,29 +73,6 @@ Expr mkIntAsFloat(Expr ex) {
 import ast.casting, ast.fold, ast.literals, ast.fun;
 extern(C) float sqrtf(float);
 static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto iaf = fastcast!(IntAsFloat) (it)) {
-      if (auto ie = fastcast!(IntExpr) (iaf.i)) {
-        // logln("1 this case is never supposed to happen anymore: ", it);fail;
-        return fastalloc!(FloatExpr)(ie.num);
-      }
-    }
-    if (auto lad = fastcast!(LongAsDouble) (it)) {
-      if (auto ial = fastcast!(IntAsLong) (lad.l)) {
-        if (auto ie = fastcast!(IntExpr) (ial.i)) {
-          // logln("2 this case is never supposed to happen anymore: ", it);fail;
-          return fastalloc!(DoubleExpr)(ie.num);
-        }
-      }
-    }
-    if (auto fad = fastcast!(FloatAsDouble) (it)) {
-      if (auto fe = fastcast!(FloatExpr) (fad.f)) {
-        // logln("3 this case is never supposed to happen anymore: ", it);fail;
-        return fastalloc!(DoubleExpr)(fe.f);
-      }
-    }
-    return null;
-  };
   foldopt ~= delegate Itr(Itr it) {
     if (auto fc = fastcast_direct!(FunCall)(it)) {
       if (fc.fun.extern_c && fc.fun.name == "sqrtf"[]) {
@@ -93,16 +82,6 @@ static this() {
           return null;
         opt(fe);
         return fastalloc!(FloatExpr)(sqrtf((fastcast!(FloatExpr) (fe)).f));
-      }
-    }
-    return null;
-  };
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto bt = fastcast!(ByteToIntCast)(it)) {
-      if (auto rce = fastcast!(RCE)(bt.b)) {
-        if (auto ilab = fastcast!(IntLiteralAsByte)(rce.from)) {
-          return ilab.ie;
-        }
       }
     }
     return null;
@@ -215,7 +194,12 @@ class FloatAsDouble : Expr {
   private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(f);
-  mixin defaultCollapse!();
+  Expr collapse() {
+    if (auto fe = fastcast!(FloatExpr) (.collapse(f))) {
+      return fastalloc!(DoubleExpr)(fe.f);
+    }
+    return this;
+  }
   override {
     string toString() { return qformat("double:", f); }
     IType valueType() { return Single!(Double); }
@@ -240,38 +224,6 @@ class DoubleAsFloat : Expr {
     string toString() { return Format("float:"[], d); }
     void emitLLVM(LLVMFile lf) {
       load(lf, "fptrunc double ", save(lf, d), " to float");
-    }
-  }
-}
-
-class IntLiteralAsShort : Expr {
-  IntExpr ie;
-  this(IntExpr ie) { this.ie = ie; }
-  private this() { }
-  mixin DefaultDup!();
-  mixin defaultIterate!(ie);
-  mixin defaultCollapse!();
-  override {
-    IType valueType() { return Single!(Short); }
-    string toString() { return Format("short:"[], ie); }
-    void emitLLVM(LLVMFile lf) {
-      push(lf, ie.num);
-    }
-  }
-}
-
-class IntLiteralAsByte : Expr {
-  IntExpr ie;
-  this(IntExpr ie) { this.ie = ie; }
-  private this() { }
-  mixin DefaultDup!();
-  mixin defaultIterate!(ie);
-  mixin defaultCollapse!();
-  override {
-    IType valueType() { return Single!(Byte); }
-    string toString() { return Format("byte:"[], ie); }
-    void emitLLVM(LLVMFile lf) {
-      push(lf, ie.num);
     }
   }
 }
@@ -335,7 +287,7 @@ static this() {
         fail;
       }
     }*/
-    ex = mustCast!(Expr)(foldex(ex));
+    ex = collapse(ex);
     
     if (isDouble) {
       auto dex = fastcast!(DoubleExpr)(ex);
@@ -408,7 +360,6 @@ abstract class BinopExpr : Expr, HasInfo {
   }
   protected this() {}
   mixin defaultIterate!(e1, e2);
-  mixin defaultCollapse!();
   override {
     string toString() {
       return Format("("[], e1, " "[], op, " "[], e2, ")"[]);
@@ -435,6 +386,32 @@ class AsmIntBinopExpr : BinopExpr {
   }
   private this() { super(); }
   AsmIntBinopExpr dup() { return fastalloc!(AsmIntBinopExpr)(e1.dup, e2.dup, op, unsigned); }
+  Expr collapse() {
+    auto ie1 = fastcast!(IntExpr)(.collapse(e1));
+    if (!ie1) return this;
+    auto ie2 = fastcast!(IntExpr)(.collapse(e2));
+    if (!ie2) return this;
+    void checkZero(string kind, int num) {
+      if (!num) throw new Exception(Format("Could not compute "~kind~": division by zero"[]));
+    }
+    void checkOverflow(string kind, int n1, int n2) {
+      if (n1 == -2147483648 && n2 == -1)
+        throw new Exception("Could not compute -2147483648 " ~ kind ~ " -1: integer overflow (INT_MIN has no positive equivalent in two's complement)");
+    }
+    switch (op) {
+      case "+": return mkInt(ie1.num + ie2.num);
+      case "-": return mkInt(ie1.num - ie2.num);
+      case "*": return mkInt(ie1.num * ie2.num);
+      case "/": checkZero("division"[], ie2.num); checkOverflow("/", ie1.num, ie2.num); return mkInt(ie1.num / ie2.num);
+      case "%": checkZero("modulo"[], ie2.num); checkOverflow("%", ie1.num, ie2.num); return mkInt(ie1.num % ie2.num);
+      case "<<": return mkInt(ie1.num << ie2.num);
+      case ">>": return mkInt(ie1.num >> ie2.num);
+      case "&": return mkInt(ie1.num & ie2.num);
+      case "|": return mkInt(ie1.num | ie2.num);
+      case "xor": return mkInt(ie1.num ^ ie2.num);
+      default: assert(false, "can't opt/eval (int) "~op);
+    }
+  }
   override {
     void emitLLVM(LLVMFile lf) {
       auto v1 = save(lf, e1), v2 = save(lf, e2);
@@ -456,36 +433,6 @@ class AsmIntBinopExpr : BinopExpr {
       assert(e1.valueType().llvmType() == "i32");
       assert(e2.valueType().llvmType() == "i32");
     }
-  }
-  static this() {
-    foldopt ~= delegate Itr(Itr it) {
-      auto aibe = fastcast!(AsmIntBinopExpr) (it);
-      if (!aibe) return null;
-      auto ie1 = fastcast!(IntExpr) (aibe.e1);
-      if (!ie1) return null;
-      auto ie2 = fastcast!(IntExpr) (aibe.e2);
-      if (!ie2) return null;
-      void checkZero(string kind, int num) {
-        if (!num) throw new Exception(Format("Could not compute "~kind~": division by zero"[]));
-      }
-      void checkOverflow(string kind, int n1, int n2) {
-        if (n1 == -2147483648 && n2 == -1)
-          throw new Exception("Could not compute -2147483648 " ~ kind ~ " -1: integer overflow (INT_MIN has no positive equivalent in two's complement)");
-      }
-      switch (aibe.op) {
-        case "+": return mkInt(ie1.num + ie2.num);
-        case "-": return mkInt(ie1.num - ie2.num);
-        case "*": return mkInt(ie1.num * ie2.num);
-        case "/": checkZero("division"[], ie2.num); checkOverflow("/", ie1.num, ie2.num); return mkInt(ie1.num / ie2.num);
-        case "%": checkZero("modulo"[], ie2.num); checkOverflow("%", ie1.num, ie2.num); return mkInt(ie1.num % ie2.num);
-        case "<<": return mkInt(ie1.num << ie2.num);
-        case ">>": return mkInt(ie1.num >> ie2.num);
-        case "&": return mkInt(ie1.num & ie2.num);
-        case "|": return mkInt(ie1.num | ie2.num);
-        case "xor": return mkInt(ie1.num ^ ie2.num);
-        default: assert(false, "can't opt/eval (int) "~aibe.op);
-      }
-    };
   }
 }
 
@@ -563,33 +510,29 @@ final class AsmFloatBinopExpr : BinopExpr {
       }
     }
   }
-  static this() {
-    foldopt ~= delegate Itr(Itr it) {
-      auto afbe = fastcast!(AsmFloatBinopExpr) (it);
-      if (!afbe) return null;
-      auto
-        e1 = afbe.e1, fe1 = fastcast!(FloatExpr) (e1),
-        e2 = afbe.e2, fe2 = fastcast!(FloatExpr) (e2);
-      if (!fe1 || !fe2) {
-        if (afbe.op == "/" && fe2) { // optimize constant division into multiplication
-          auto val = fe2.f;
-          if (val == 0) throw new Exception("division by zero");
-          return fastalloc!(AsmFloatBinopExpr)(e1, fastalloc!(FloatExpr)(1f / val), "*");
-        }
-        if (e1 !is afbe.e1 || e2 !is afbe.e2)
-          return fastalloc!(AsmFloatBinopExpr)(e1, e2, afbe.op);
-        return null;
+  Expr collapse() {
+    auto
+      e1 = .collapse(e1), fe1 = fastcast!(FloatExpr) (e1),
+      e2 = .collapse(e2), fe2 = fastcast!(FloatExpr) (e2);
+    if (!fe1 || !fe2) {
+      if (op == "/" && fe2) { // optimize constant division into multiplication
+        auto val = fe2.f;
+        if (val == 0) throw new Exception("division by zero");
+        return fastalloc!(AsmFloatBinopExpr)(e1, fastalloc!(FloatExpr)(1f / val), "*");
       }
-      switch (afbe.op) {
-        case "+": return fastalloc!(FloatExpr)(fe1.f + fe2.f);
-        case "-": return fastalloc!(FloatExpr)(fe1.f - fe2.f);
-        case "*": return fastalloc!(FloatExpr)(fe1.f * fe2.f);
-        case "/": return fastalloc!(FloatExpr)(fe1.f / fe2.f);
-        case "%": return fastalloc!(FloatExpr)(fe1.f % fe2.f);
-        default: assert(false, "can't opt/eval (float) "~afbe.op);
-      }
-      return null;
-    };
+      if (e1 !is this.e1 || e2 !is this.e2)
+        return fastalloc!(AsmFloatBinopExpr)(e1, e2, op);
+      
+      return this;
+    }
+    switch (op) {
+      case "+": return fastalloc!(FloatExpr)(fe1.f + fe2.f);
+      case "-": return fastalloc!(FloatExpr)(fe1.f - fe2.f);
+      case "*": return fastalloc!(FloatExpr)(fe1.f * fe2.f);
+      case "/": return fastalloc!(FloatExpr)(fe1.f / fe2.f);
+      case "%": return fastalloc!(FloatExpr)(fe1.f % fe2.f);
+      default: assert(false, "can't opt/eval (float) "~op);
+    }
   }
 }
 
@@ -598,6 +541,29 @@ final class AsmDoubleBinopExpr : BinopExpr {
   static const isFinal = true;
   this(Expr e1, Expr e2, string op) { super(e1, e2, op); }
   private this() { super(); }
+  Expr collapse() {
+    auto
+      e1 = .collapse(e1), de1 = fastcast!(DoubleExpr) (e1),
+      e2 = .collapse(e2), de2 = fastcast!(DoubleExpr) (e2);
+    if (!de1 || !de2) {
+      if (op == "/" && de2) { // see above
+        auto val = de2.d;
+        if (val == 0) throw new Exception("division by zero");
+        return fastalloc!(AsmDoubleBinopExpr)(e1, fastalloc!(DoubleExpr)(1.0 / val), "*");
+      }
+      if (e1 !is this.e1 || e2 !is this.e2)
+        return fastalloc!(AsmDoubleBinopExpr)(e1, e2, op);
+      
+      return this;
+    }
+    switch (op) {
+      case "+": return fastalloc!(DoubleExpr)(de1.d + de2.d);
+      case "-": return fastalloc!(DoubleExpr)(de1.d - de2.d);
+      case "*": return fastalloc!(DoubleExpr)(de1.d * de2.d);
+      case "/": return fastalloc!(DoubleExpr)(de1.d / de2.d);
+      default: assert(false, "can't opt/eval (double) "~op);
+    }
+  }
   override {
     AsmDoubleBinopExpr dup() { return fastalloc!(AsmDoubleBinopExpr)(e1.dup, e2.dup, op); }
     void emitLLVM(LLVMFile lf) {
@@ -614,33 +580,6 @@ final class AsmDoubleBinopExpr : BinopExpr {
       }
       load(lf, "f", cmd, " double ", v1, ", ", v2);
     }
-  }
-  static this() {
-    foldopt ~= delegate Itr(Itr it) {
-      auto adbe = fastcast!(AsmDoubleBinopExpr) (it);
-      if (!adbe) return null;
-      auto
-        e1 = adbe.e1, de1 = fastcast!(DoubleExpr)~ e1,
-        e2 = adbe.e2, de2 = fastcast!(DoubleExpr)~ e2;
-      if (!de1 || !de2) {
-        if (adbe.op == "/" && de2) { // see above
-          auto val = de2.d;
-          if (val == 0) throw new Exception("division by zero");
-          return fastalloc!(AsmDoubleBinopExpr)(e1, fastalloc!(DoubleExpr)(1.0 / val), "*");
-        }
-        if (e1 !is adbe.e1 || e2 !is adbe.e2)
-          return fastalloc!(AsmDoubleBinopExpr)(e1, e2, adbe.op);
-        return null;
-      }
-      switch (adbe.op) {
-        case "+": return fastalloc!(DoubleExpr)(de1.d + de2.d);
-        case "-": return fastalloc!(DoubleExpr)(de1.d - de2.d);
-        case "*": return fastalloc!(DoubleExpr)(de1.d * de2.d);
-        case "/": return fastalloc!(DoubleExpr)(de1.d / de2.d);
-        default: assert(false, "can't opt/eval (double) "~adbe.op);
-      }
-      return null;
-    };
   }
 }
 
