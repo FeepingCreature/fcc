@@ -834,17 +834,27 @@ class Class : Namespace, StructLike, RelNamespace, IType, Tree, hasRefType {
       assert(!!streq);
       void handleIntf(Intf intf) {
         // logln(name, ": offset for intf "[], intf.name, ": "[], intf_offset);
-        as.stmts ~= iparse!(Statement, "cast_branch_intf"[], "tree.stmt"[])(`if (id is _test) return void*:(void**:this + offs);`[],
+        /*as.stmts ~= iparse!(Statement, "cast_branch_intf"[], "tree.stmt"[])(`if (id is _test) return void*:(void**:this + offs);`[],
           namespace(), "_test"[], intf.if_info(), "offs"[], llvmval(intf_offset)
-        );
+        );*/
+        as.stmts ~= fastcast!(Statement) (runTenthPure((void delegate(string,Object) dg) {
+          dg("id", fastcast!(Object)(reinterpret_cast(Single!(SysInt), fastcast!(Expr)(rf.lookup("id"[])))));
+          dg("this", rf.lookup("this"));
+          dg("_test", fastcast!(Object)(reinterpret_cast(Single!(SysInt), intf.if_info())));
+          dg("offs", fastcast!(Object)(llvmval(intf_offset)));
+        }, parseTenth(`
+          (make-if
+            (make-equal id _test)
+            '(make-return (reinterpret-cast (pointer-to (basic-type 'void)) (make-add (reinterpret-cast (pointer-to (pointer-to (basic-type 'void))) this) offs))))
+        `)));
         if (intf.parents) foreach (ip; intf.parents) handleIntf(ip);
         else intf_offset = lladd(intf_offset, "1");
       }
       void handleClass(Class cl) {
         as.stmts ~= fastcast!(Statement) (runTenthPure((void delegate(string,Object) dg) {
-          dg("id"[], fastcast!(Object)(reinterpret_cast(Single!(SysInt), fastcast!(Expr)(rf.lookup("id"[])))));
-          dg("this"[], rf.lookup("this"[]));
-          dg("_test"[], fastcast!(Object)(reinterpret_cast(Single!(SysInt), cl.cd_info())));
+          dg("id", fastcast!(Object)(reinterpret_cast(Single!(SysInt), fastcast!(Expr)(rf.lookup("id")))));
+          dg("this", rf.lookup("this"));
+          dg("_test", fastcast!(Object)(reinterpret_cast(Single!(SysInt), cl.cd_info())));
         }, parseTenth(`
           (make-if
             (make-equal id _test)
@@ -1391,10 +1401,10 @@ void doImplicitClassCast(Expr ex, IType target, void delegate(Expr) dg) {
     offs = lldiv(offs, "4");
     foreach (id, par; cl.iparents) {
       auto iex = tmpize_maybe(ex, (Expr ex) {
-        auto cmp = new Compare(reinterpret_cast(Single!(SysInt), ex), "!=", mkInt(0));
+        auto cmp = fastalloc!(Compare)(reinterpret_cast(Single!(SysInt), ex), "!=", mkInt(0));
         cmp. trueOverride = lookupOp("+", reinterpret_cast(voidpp, ex), llvmval(offs));
         cmp.falseOverride = reinterpret_cast(voidpp, mkInt(0));
-        return reinterpret_cast_safe(fastalloc!(IntfRef)(par), cmp);
+        return reinterpret_cast_safe(par.getRefType(), cmp);
       });
       par.getLeaves((Intf) { offs = lladd(offs, "1"); });
       testIntf(iex);

@@ -18,8 +18,8 @@ extern(C) void addFailureFun(Function fun) {
     auto sl = namespace().get!(ScopeLike);
     namespace().add(gr);
     {
-      auto setup_st =
-        iparse!(Statement, "gr_setup_1"[], "tree.stmt"[])
+      Statement[] stmts;
+      /*stmts ~= iparse!(Statement, "gr_setup_1"[], "tree.stmt"[])
                 (`
                 {
                   var.dg = &fun;
@@ -27,9 +27,16 @@ extern(C) void addFailureFun(Function fun) {
                   _record = &var;
                   // fprintf(stderr, "%i set %p (%.*s)\n", pthread_self(), &var, text);
                 }`,
-                namespace(), "var"[], gr, "fun"[], fun/*, "text", mkString(namespace().get!(Function).getIdentifier())*/);
-      assert(!!setup_st);
-      sc.addStatement(setup_st);
+                namespace(), "var"[], gr, "fun"[], fun/*, "text", mkString(namespace().get!(Function).getIdentifier())* /);*/
+      auto funref = iparse!(Expr, "gr_setup_1"[], "tree.expr >tree.expr.arith"[])
+                           (`&fun`, "fun"[], fun);
+      assert(!!funref);
+      auto _record = fastcast!(Expr)(namespace().lookup("_record"));
+      assert(!!_record);
+      stmts ~= mkAssignment(mkMemberAccess(gr, "dg"), funref);
+      stmts ~= mkAssignment(mkMemberAccess(gr, "prev"), _record);
+      stmts ~= mkAssignment(_record, fastalloc!(RefExpr)(gr));
+      sc.addStatement(new AggrStatement(stmts));
     }
     {
       auto setup_st =
