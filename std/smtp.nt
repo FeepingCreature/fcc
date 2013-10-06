@@ -77,7 +77,7 @@ void sendmail(string from, to, subject, content, host, logindata, bool dbg = fal
       return res; 
     } #.splitAt "\r\n";
     mode = "ssl";
-    close = new \{ ssl-assert(ssl.shutdown() != -1); close(); };
+    close = new \{ ssl-assert(shutdown ssl != -1); close(); };
   }
   // now over ssl
   sendline "EHLO 127.0.0.1";

@@ -41,8 +41,9 @@ class Texture : FastITexture {
   }
   GLuint id;
   override GLuint getUnderlyingTexID() return id;
+  int registerId;
   void register() {
-    glwindow.addCallback &upload;
+    registerId = glwindow.addCallback &upload;
   }
   void free() {
     cleanup();
@@ -50,6 +51,7 @@ class Texture : FastITexture {
       DeleteTextures(1, &id);
       id = 0;
     }
+    glwindow.removeCallback registerId;
     super.free();
   }
   void cleanup() {
@@ -90,6 +92,7 @@ class Texture : FastITexture {
         gluBuild2DMipmaps (intform, size, tup);
         TEXTURE_MIN_FILTER.TexParameteri LINEAR_MIPMAP_LINEAR;
       } else {
+        TexParameteri (TEXTURE_MAX_LEVEL, 0); 
         TexImage2D (0, intform, size, 0, tup);
         TEXTURE_MIN_FILTER.TexParameteri param2;
       }

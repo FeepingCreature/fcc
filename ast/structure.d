@@ -79,7 +79,10 @@ class RelMember : Expr, Named, RelTransformable {
       doAlign(offset, type);
       if (st && st.minAlign > 1) offset = roundTo(offset, st.minAlign);
     }*/
-    if (!this.name) this.name = qformat("_anon_struct_member_"[], sl.numMembers(), "_of_"[], type.mangle());
+    // type may be incomplete, such as as_type(x) (int, x)*
+    // if we require a type mangle here, we're forced to make up a name in ast.tuples
+    // so, don't.
+    if (!this.name) this.name = qformat("_anon_struct_member_"[], sl.numMembers()/*, "_of_"[], type.mangle()*/);
     ns.add(this);
   }
   override RelMember dup() { return this; }

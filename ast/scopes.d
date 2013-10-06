@@ -245,10 +245,17 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
     Object lookupRel(string name, Expr base, bool isDirectLookup = true) {
       auto res = lookup(name, false);
       if (!res) return null;
-      auto r2 = fastcast!(Namespace) (get!(IModule)).lookup(name, false);
-      if (r2 is res) return null; // nonlocal
+      // look for possible import
+      Namespace test = this;
+      while (test && test.sup) {
+        auto imp = test.sup.get!(Importer);
+        if (!imp) break;
+        auto above = imp.lookupInImports(name, false);
+        if (above is res) return null; // nonlocal
+        test = fastcast!(Namespace)(imp);
+      }
       auto itr = fastcast!(Iterable) (res);
-      if (!itr) { logln("weird-ass: ", res, " but not iterable"); fail; }
+      if (!itr) { logln("weird-ass: ", res, " but not iterable - ", isDirectLookup); fail; }
       fixupEBP(itr, base);
       return fastcast!(Object) (itr);
     }

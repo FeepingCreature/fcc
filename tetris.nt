@@ -215,7 +215,7 @@ void main() {
   void scorePhase() { // 1
     tb.removeFullLines();
     if (!tryRemakeCurrentBlock())
-      raise-error new Error "you lose lol"; // lol
+      raise new Error "you lose lol"; // lol
     phase = 0; // and go back to dropPhase.
   }
   // The main action of the game.

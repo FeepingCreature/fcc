@@ -286,6 +286,10 @@ pptype prettyprint_rec(Iterable itr) {
     else res ~= "("~s2._0~")";
     return stuple(res, false);
   }
+  string parenwrap(pptype pair) {
+    if (!pair._1) return qformat("(", pair._0, ")");
+    return pair._0;
+  }
   if (auto co = fastcast!(Compare)(itr)) {
     string op;
     if (co.not) op ~= "!";
@@ -323,6 +327,22 @@ pptype prettyprint_rec(Iterable itr) {
   }
   if (auto sae = fastcast!(StatementAndExpr)(itr)) {
     return stuple(qformat("{", sae.first, sae.second, "}"), false);
+  }
+  if (auto de = fastcast!(DerefExpr)(itr)) {
+    return stuple(qformat("*", parenwrap(prettyprint_rec(de.src))), true);
+  }
+  if (auto re = fastcast!(RefExpr)(itr)) {
+    return stuple(qformat("&", parenwrap(prettyprint_rec(re.src))), true);
+  }
+  if (auto mae = fastcast!(MemberAccess_Expr)(itr)) {
+    auto base = mae.base;
+    loopstart:
+    // (*foo).bar == foo.bar
+    if (auto de = fastcast!(DerefExpr)(base)) {
+      base = de.src;
+      goto loopstart;
+    }
+    return stuple(qformat(parenwrap(prettyprint_rec(base)), ".", mae.stm.name), true);
   }
   return stuple(qformat("TODO ", fastcast!(Object)(itr).classinfo.name, " ", itr), false);
 }
@@ -426,10 +446,13 @@ void ast_math_constr() {
   // do in software, intrinsic is slow
   // addCIntrin(1, "sinf"  , Single!(Float), "llvm.sin.f32");
   // addCIntrin(1, "cosf"  , Single!(Float), "llvm.cos.f32");
-  if (!isWindoze()) {
-    addCIntrin(1, "floorf", Single!(Float), "llvm.floor.f32");
+  // not supported on it
+  if (llvmver() != "3.1") {
+    if (!isWindoze()) {
+      addCIntrin(1, "floorf", Single!(Float), "llvm.floor.f32");
+    }
+    addCIntrin(1, "fabsf" , Single!(Float), "llvm.fabs.f32");
   }
-  addCIntrin(1, "fabsf" , Single!(Float), "llvm.fabs.f32");
   addCIntrin(1, "exp"   , Single!(Float), "llvm.exp.f32");
   addCIntrin(1, "log"   , Single!(Float), "llvm.log.f32");
   addCIntrin(2, "powf"  , Single!(Float), "llvm.pow.f32");
@@ -443,14 +466,21 @@ void ast_math_constr() {
   bool isBool(IType it) { if (!sysmod) return false; return exactlyEquals(it, fastcast!(IType)(sysmod.lookup("bool"))); }
   Expr handleIntMath(string op, Expr ex1, Expr ex2) {
     bool b1 = isBool(ex1.valueType()), b2 = isBool(ex2.valueType());
-    Expr i1 = ex1, i2 = ex2, u1 = ex1, u2 = ex2;
+    Expr i1 = ex1, i2 = ex2, u1, u2;
     if (!gotImplicitCast(i1, Single!(SysInt), &isInt  )) i1 = null;
-    if (!gotImplicitCast(u1, Single!(SizeT),  &isSizeT)) u1 = null;
     if (!gotImplicitCast(i2, Single!(SysInt), &isInt  )) i2 = null;
-    if (!gotImplicitCast(u2, Single!(SizeT),  &isSizeT)) u2 = null;
-    if (!i1 && !u1 || !i2 && !u2)
-      return null;
-    if (!(i1 && i2 || u1 && u2)) return null; // cannot mix
+    // delay as far as possible
+    void initU1() { if (u1) return; u1 = ex1; if (!gotImplicitCast(u1, Single!(SizeT),  &isSizeT)) u1 = null; }
+    void initU2() { if (u2) return; u2 = ex2; if (!gotImplicitCast(u2, Single!(SizeT),  &isSizeT)) u2 = null; }
+    // if (!i1 && !u1 || !i2 && !u2) return null;
+    if (!i1) { initU1; if (!u1) return null; }
+    if (!i2) { initU2; if (!u2) return null; }
+    // if (!(i1 && i2 || u1 && u2)) return null; // cannot mix
+    if (!(i1 && i2)) {
+      initU1;
+      initU2;
+      if (!(u1 && u2)) return null;
+    }
     Expr res;
     bool ntcache, ntcached;
     bool nontrivial() {
@@ -716,12 +746,19 @@ extern(C) bool _exactly_equals(IType a, IType b) {
     return it;
   }   
   auto
+   ta = fastcast!(ast.tuples.Tuple)(resolveMyType(a)),
+   tb = fastcast!(ast.tuples.Tuple)(resolveMyType(b));
+  if ( ta &&  tb) return ta is tb;
+  if (!ta &&  tb) return false;
+  if ( ta && !tb) return false;
+  
+  auto
     ca = fastcast!(TypeAlias) (resolveMyType(a)),
     cb = fastcast!(TypeAlias) (resolveMyType(b));
   if (!ca && !cb) return test(a == b);
   if ( ca && !cb) return false;
   if (!ca &&  cb) return false;
-  if ( ca &&  cb) return (ca.name == cb.name) && ca.base == cb.base;
+  if ( ca &&  cb) return (ca.name == cb.name) && _exactly_equals(ca.base, cb.base);
 }
 
 // from ast.arrays

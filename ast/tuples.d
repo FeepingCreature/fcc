@@ -109,7 +109,8 @@ Tuple mkTuple(IType[] types, string[] names) {
     if (names && names[i])
       fastalloc!(RelMember)(names[i], type, tup.wrapped);
     else
-      fastalloc!(RelMember)(qformat("tuple_member_"[], i), type, tup.wrapped);
+      // fastalloc!(RelMember)(qformat("tuple_member_"[], i), type, tup.wrapped);
+      fastalloc!(RelMember)(cast(string) null, type, tup.wrapped);
   }
   if (hash) tupcache[hash] = tup;
   return tup;
