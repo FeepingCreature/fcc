@@ -227,12 +227,12 @@ template fastcast_direct(T) {
   }
 }
 
+template staticCastCache(T, U) {
+  int cache = -1;
+}
 struct _fastcast(T) {
   const ptrdiff_t INVALID = 0xffff; // magic numbah
   static ptrdiff_t[quicklist.length] offsets;
-  template staticCache(U) {
-    int cache = -1;
-  }
   T opCall(U)(U u) {
     if (!u) return null;
     static assert (!is(U == void*));
@@ -256,13 +256,27 @@ struct _fastcast(T) {
     }
     // logln("Cast "[], (cast(Object) u).classinfo.name);
     // this doesn't do much but I'm leaving it in so you don't think I didn't think of it.
-    static if (is(U: T) && !is(T: Object)) {{ // liskov says we can do this deterministically
+    // ACTUALLY NO BAD BAD NO
+    // THERE ARE SITUATIONS (IN D) WHERE THIS **DOES NOT** HOLD
+    // WE *ALWAYS* HAVE TO USE THE ACTUAL CLASS OF THE OBJECT AS THE HASH KEY.
+    // I don't understand the situation yet so I'm not quite certain if D fucks up horribly
+    // or if my understanding of interface liskov semantics is just flawed. I
+    // hope the latter because this is BIG.
+    static if (false && is(U: T) && !is(T: Object)) {{ // liskov says we can do this deterministically
       // direct parent of interface cast
-      int hint = staticCache!(U).cache;
+      int hint = staticCastCache!(T, U).cache;
       if (hint == -1) {
-        auto dest = cast(T) u;
+        // cast(Object) necessary to work around D bug
+        auto dest = cast(T) cast(Object) u;
         hint = cast(void*) dest - cast(void*) u;
-        staticCache!(U).cache = hint;
+        staticCastCache!(T, U).cache = hint;
+      } else {
+        auto dest = cast(T) cast(Object) u;
+        auto newhint = cast(void*) dest - cast(void*) u;
+        if (hint != newhint) {
+          logln("wat ", hint, " - ", newhint, " ", T.stringof, " ", U.stringof);
+          asm { int 3; }
+        }
       }
       auto temp = cast(void*) u + hint;
       return *cast(T*) &temp;
@@ -278,13 +292,14 @@ struct _fastcast(T) {
     auto id = getId(info);
     if (id == -1) {
       // logln("Boring cast: "[], info.name);
-      return cast(T) u;
+      return cast(T) cast(Object) u;
     }
     auto hint = offsets[id];
     if (hint == INVALID) return null;
     if (!hint) {
-      auto res = cast(T) obj;
-      if (res) 
+      // cast(Object) necessary to work around D bug
+      auto res = cast(T) cast(Object) obj;
+      if (res)
         offsets[id] = (cast(void*) res - cast(void*) obj) + 1;
       else
         offsets[id] = INVALID;
