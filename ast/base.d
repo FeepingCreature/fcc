@@ -1003,37 +1003,51 @@ class LLVMRef : LValue {
 
 extern(C) Expr llvmvalstr(string s);
 
+string cqformat(int i) {
+  switch (i) {
+    case -1: return "-1";
+    case 0 : return  "0"; case  1: return  "1"; case  2: return  "2"; case  3: return  "3";
+    case 4 : return  "4"; case  5: return  "5"; case  6: return  "6"; case  7: return  "7";
+    case 8 : return  "8"; case  9: return  "9"; case 10: return "10"; case 11: return "11";
+    case 12: return "12"; case 13: return "13"; case 14: return "14"; case 15: return "15";
+    case 16: return "16"; case 17: return "17"; case 18: return "18"; case 19: return "19";
+    default: return qformat(i);
+  }
+}
+
 Expr llvmval(T...)(T t) {
-  return llvmvalstr(qformat(t));
+  static if (is(T == string)) return llvmvalstr(t);
+  else static if (is(T == int)) return llvmvalstr(cqformat(t));
+  else return llvmvalstr(qformat(t));
 }
 
 bool isnum(string s, out int i) { return my_atoi(s, i); }
 
 string lladd(string a, string b) {
   int k, l;
-  if (isnum(a, k) && isnum(b, l)) return qformat(k+l);
+  if (isnum(a, k) && isnum(b, l)) return cqformat(k+l);
   return qformat("add (i32 ", a, ", i32 ", b, ")");
 }
 string llsub(string a, string b) {
   int k, l;
-  if (isnum(a, k) && isnum(b, l)) return qformat(k-l);
+  if (isnum(a, k) && isnum(b, l)) return cqformat(k-l);
   return qformat("sub (i32 ", a, ", i32 ", b, ")");
 }
 string llmul(string a, string b) {
   int k, l;
-  if (isnum(a, k) && isnum(b, l)) return qformat(k*l);
+  if (isnum(a, k) && isnum(b, l)) return cqformat(k*l);
   return qformat("mul (i32 ", a, ", i32 ", b, ")");
 }
 string lldiv(string a, string b) {
   int k, l;
-  if (isnum(a, k) && isnum(b, l)) return qformat(k/l);
+  if (isnum(a, k) && isnum(b, l)) return cqformat(k/l);
   return qformat("div (i32 ", a, ", i32 ", b, ")");
 }
 bool llmax_decompose_first(string s, out int i, out string k) {
   if (auto rest = s.startsWith("select(i1 icmp sgt(i32 ")) {
     int num;
     my_atoi(rest.slice(" "), num);
-    auto reconstruct_a = qformat(num);
+    auto reconstruct_a = cqformat(num);
     auto start = qformat("select(i1 icmp sgt(i32 ", reconstruct_a, ", i32 ");
     if (auto rest2 = s.startsWith(start)) {
       auto twoblength = s.length - start.length - "), i32 ".length - reconstruct_a.length - ", i32 ".length - ")".length;
@@ -1074,7 +1088,7 @@ string llmax(string a, string b) {
   // b = llexcachecheck(b);
   if (a == b) return a;
   int k, l; string k2, l2;
-  if (isnum(a, k) && isnum(b, l)) return qformat((k>l)?k:l);
+  if (isnum(a, k) && isnum(b, l)) return cqformat((k>l)?k:l);
   if (!isnum(a, k) && isnum(b, l)) { auto temp = a; a = b; b = temp; }
   if (isnum(a, k) && k <= 4 && b.find("i32") != -1) return b; // HAAAAAAAAAAX
   if (is_structsize(a, k2) && is_structsize(b, l2)) {
@@ -1083,9 +1097,9 @@ string llmax(string a, string b) {
   }
   if (llmax_decompose_first(b, l, l2)) {
     if (isnum(a, k)) {
-      return llmax(qformat((k>l)?k:l), l2);
+      return llmax(cqformat((k>l)?k:l), l2);
     } else {
-      return llmax(qformat(l), a, l2);
+      return llmax(cqformat(l), a, l2);
     }
   }
   /*if (isnum(a, k) || isnum(b, l)) {
@@ -1093,7 +1107,7 @@ string llmax(string a, string b) {
   }*/
   /*auto sz1 = readllex(a);
   auto sz2 = readllex(b);
-  if (isnum(sz1, k) && isnum(sz2, l)) return qformat((k>l)?k:l);
+  if (isnum(sz1, k) && isnum(sz2, l)) return cqformat((k>l)?k:l);
   fail;*/
   auto expr = qformat("select(i1 icmp sgt(i32 ", a, ", i32 ", b, "), i32 ", a, ", i32 ", b, ")");
   // if (expr.length < 512) return expr;
