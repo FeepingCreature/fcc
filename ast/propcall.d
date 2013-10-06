@@ -50,13 +50,13 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
       
       int score = 2;
       auto ex2 = firstParam;
-      if (!gotImplicitCast(ex2, (IType it) { return exactlyEquals(it, pt); })) {
+      if (!gotImplicitCast(ex2, pt, (IType it) { return exactlyEquals(it, pt); })) {
         // slightly less preferred because slightly worse match
         // this gets important when resolving ambiguities in overloads
         score = 3;
         ex2 = firstParam;
         // try weaker test
-        if (!gotImplicitCast(ex2, (IType it) { return test(it == pt); })) {
+        if (!gotImplicitCast(ex2, pt, (IType it) { return test(it == pt); })) {
           // logln("no cast from "[], firstParam, " to "[], pt);
           return null;
         }
@@ -151,11 +151,12 @@ class MyPlaceholderExpr : Expr, Temporary {
 
 // SUCH a hack. (do this last, save some time)
 void setupPropCall() {
-  implicits ~= delegate Expr(Expr ex, IType it) {
-    if (fastcast!(MyPlaceholderExpr) (ex)) return null;
-    if (it) return null; // we want a specific type - no sense in trying the overrides
+  implicits ~= delegate void(Expr ex, IType it, void delegate(Expr, int) accept) {
+    if (fastcast!(MyPlaceholderExpr) (ex)) return;
+    if (it) return; // we want a specific type - no sense in trying the overrides
     alloccount ++;
     // if (alloccount - freecount > 1900) fail;
-    return fastalloc!(MyPlaceholderExpr)(fastalloc!(FirstParamOverrideSpace)(forcedConvert(ex)));
+    // deprioritize implcalls in the cast order
+    accept(fastalloc!(MyPlaceholderExpr)(fastalloc!(FirstParamOverrideSpace)(forcedConvert(ex))), 1);
   };
 }
