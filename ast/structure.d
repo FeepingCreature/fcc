@@ -707,10 +707,12 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
   
   Expr[] alts;
   IType[] spaces;
+  int[] scores;
   if (first_ex) {
     Expr ex = first_ex;
     auto ex3 = ex;
     Expr[] cleanups;
+    int score;
     gotImplicitCast(ex3, (Expr ex) {
       auto vt = ex.valueType();
       if (auto srn = fastcast!(SemiRelNamespace) (vt))
@@ -718,9 +720,10 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (auto rn = fastcast!(RelNamespace) (vt)) {
         own_append(alts, ex);
         own_append(spaces, vt);
+        own_append(scores, score);
       } else own_append(cleanups, ex);
       return false;
-    }, false);
+    }, false, &score);
     foreach (c; cleanups) cleanupex(c, true);
     cleanups = null;
     
@@ -735,9 +738,10 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
           if (auto rn = fastcast!(RelNamespace) (vt)) {
             own_append(alts, ex);
             own_append(spaces, vt);
+            own_append(scores, score);
           } else own_append(cleanups, ex);
           return false;
-        }, false);
+        }, false, &score);
       } else own_append(cleanups, ex);
       return false;
     }, false);
@@ -753,11 +757,31 @@ Object gotMemberExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (fastcast!(Namespace) (vt) || fastcast!(RelNamespace) (vt)) {
         own_append(alts, cast(Expr) null);
         own_append(spaces, vt);
+        own_append(scores, 0);
       }
     }
   }
   if (!alts.length) {
     return null;
+  }
+  
+  // insertion sort by scores
+  for (int cur = 1; cur < scores.length - 1; cur ++) {
+    auto myalt = alts[cur], myspace = spaces[cur], myscore = scores[cur];
+    int backwards = cur - 1;
+    while (backwards >= 0 && scores[backwards] > myscore) {
+      // shift backwards to the right to make space
+      alts[backwards+1] = alts[backwards];
+      spaces[backwards+1] = spaces[backwards];
+      scores[backwards+1] = scores[backwards];
+      backwards --;
+    }
+    // insert
+    if (backwards+1 < cur) {
+      alts[backwards+1] = myalt;
+      spaces[backwards+1] = myspace;
+      scores[backwards+1] = myscore;
+    }
   }
   
   auto backupmember = member;
@@ -773,10 +797,15 @@ try_next_alt:
     return null;
   }
   
+  // logln("try ", alts[0], " from ", alts, " ", scores);
+  // logln(":: ", spaces[0]);
+  // scope(exit) logln(":: exit");
+  
   if (ex) if (auto tmp = fastcast!(Temporary)(ex)) tmp.cleanup(true);
   
   ex = alts[0]; alts = alts[1 .. $];
   auto space = spaces[0]; spaces = spaces[1 .. $];
+  scores = scores[1 .. $];
   
   auto pre_ex = ex;
   
