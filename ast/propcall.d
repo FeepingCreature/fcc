@@ -24,8 +24,17 @@ class FirstParamOverrideSpace : Namespace, RelNamespace, IType, WithAware, ISafe
   IType fpvt;
   bool implicit;
   this(Expr firstParam) { this.firstParam = firstParam; sup = namespace(); fpvt = firstParam.valueType(); }
+  Object[string] lookupsupcache;
   Object lookupInternal(string name, bool local = false, bool isDirectLookup = true) {
-    auto res = sup.lookup(name, local);
+    Object res;
+    if (!local) {
+      if (auto p = name in lookupsupcache) res = *p;
+      else {
+        res = sup.lookup(name, local);
+        lookupsupcache[name] = res;
+      }
+    } else res = sup.lookup(name, local);
+      
     if (isDirectLookup) if (auto templ = fastcast!(Template) (res)) {
       return fastalloc!(PrefixTemplate)(firstParam, templ);
     }
