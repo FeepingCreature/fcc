@@ -19,7 +19,7 @@ extern(C) void addFailureFun(Function fun) {
     namespace().add(gr);
     {
       Statement[] stmts;
-      /*stmts ~= iparse!(Statement, "gr_setup_1"[], "tree.stmt"[])
+      /*stmts ~= iparse!(Statement, "gr_setup_1"[], "tree.stmt"[], dontopt)
                 (`
                 {
                   var.dg = &fun;
@@ -28,7 +28,7 @@ extern(C) void addFailureFun(Function fun) {
                   // fprintf(stderr, "%i set %p (%.*s)\n", pthread_self(), &var, text);
                 }`,
                 namespace(), "var"[], gr, "fun"[], fun/*, "text", mkString(namespace().get!(Function).getIdentifier())* /);*/
-      auto funref = iparse!(Expr, "gr_setup_1"[], "tree.expr >tree.expr.arith"[])
+      auto funref = iparse!(Expr, "gr_setup_1"[], "tree.expr >tree.expr.arith"[], dontopt)
                            (`&fun`, "fun"[], fun);
       assert(!!funref);
       auto _record = fastcast!(Expr)(namespace().lookup("_record"));
@@ -40,7 +40,7 @@ extern(C) void addFailureFun(Function fun) {
     }
     {
       auto setup_st =
-        iparse!(Statement, "gr_setup_2"[], "tree.stmt"[])
+        iparse!(Statement, "gr_setup_2"[], "tree.stmt"[], dontopt)
                 (`onSuccess { /*checkBalance(_record, &var, text); fprintf(stderr, "%i end %p (%.*s)\n", pthread_self(), &var, text2); */ _record = _record.prev; }`,
                 namespace(), "var", gr/*, "text", mkString(qformat(namespace())), "text2", mkString(namespace().get!(Function).getIdentifier())*/);
       assert(!!setup_st);

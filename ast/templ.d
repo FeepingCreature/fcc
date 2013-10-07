@@ -122,9 +122,9 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
     }
     TemplateInstance getInstance(Tree tr, ParseCb rest) {
       if (!isAlias) fail;
-      if (auto ex = fastcast!(Expr)(tr))
-        tr = forcedConvert(ex); // (int) to int -- wtf TODO do this earlier
-      opt(tr);
+      if (auto ex = fastcast!(Expr)(tr)) {
+        tr = collapse(forcedConvert(ex)); // (int) to int -- wtf TODO do this earlier
+      }
       TemplateInstance ti;
       foreach (entry; emat_alias) {
         if (vequals(entry._1, tr)) { ti = entry._0; break; }

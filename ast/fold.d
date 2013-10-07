@@ -94,10 +94,14 @@ Expr optex(Expr ex) {
   return ex;
 }
 
-// Itr[void*] optimized;
+Itr[void*] optimized;
 void opt_itr(ref Itr it) {
   auto p = cast(void*) it;
-  // scope(success) optimized[p] = it;
+  /*scope(success) optimized[p] = it;
+  if (p in optimized) {
+    logln("double optimizing ", it);
+    // asm { int 3; }
+  }*/
   
   void fun(ref Itr it) {
     auto p = cast(void*) it;

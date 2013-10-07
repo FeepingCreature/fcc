@@ -31,7 +31,7 @@ class RelFunCall : FunCall, RelTransformable {
     baseptr = ex;
   }
   mixin defaultIterate!(baseptr, params);
-  mixin defaultCollapse!();
+  Tree collapse() { return this; } // don't do the FunCall name replacers
   override RelFunCall dup() {
     auto res = fastalloc!(RelFunCall)(baseptr?baseptr.dup:null);
     res.fun = fun;

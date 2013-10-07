@@ -261,6 +261,7 @@ class NestedCall : FunCall {
   mixin defaultCollapse!();
   this() { ebp = new Register!("ebp"[]); }
   string toString() { return Format("dg "[], dg, "- "[], super.toString()); }
+  Tree collapse() { return this; } // don't do the FunCall name replacers
   override NestedCall construct() { return new NestedCall; }
   override NestedCall dup() {
     NestedCall res = fastcast!(NestedCall) (super.dup());

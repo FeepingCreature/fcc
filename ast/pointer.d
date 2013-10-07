@@ -179,8 +179,7 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   if (!gotImplicitCast(ex, (Expr ex) {
-    auto f = forcedConvert(ex);
-    opt(f);
+    auto f = collapse(forcedConvert(ex));
     unrollSAE(f);
     return test(fastcast!(CValue)~ f);
   })) {
@@ -189,8 +188,7 @@ Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   text = t2;
-  auto thing = forcedConvert(ex);
-  opt(thing);
+  auto thing = collapse(forcedConvert(ex));
   Statement st;
   if (auto _st = unrollSAE(thing)) st = _st;
   auto cv = fastcast!(CValue) (thing);

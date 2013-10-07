@@ -385,18 +385,14 @@ extern(C) void rt_print(LLVMFile lf, string s) {
 
 import ast.modules, ast.prefixfun;
 void ast_math_constr() {
-  /*foldopt ~= delegate Itr(Itr it) {
-    auto fc = fastcast!(FunCall) (it);
-    if (!fc) return null;
+  /*funcall_folds ~= delegate Expr(FunCall fc) {
     bool isFabsMath;
     auto mod = fastcast!(Module) (fc.fun.sup);
     if (fc.fun.name != "fabsf"[] || !fc.fun.extern_c) return null;
     auto arg = foldex(fc.getParams()[0]);
     return fastalloc!(FAbsFExpr)(arg);
   };*/
-  Itr substfun(int arity, bool delegate(Function, Module) dg, Expr delegate(Expr[]) dgex, Itr it) {
-    auto fc = fastcast_direct!(FunCall)(it);
-    if (!fc) return null;
+  Expr substfun(int arity, bool delegate(Function, Module) dg, Expr delegate(Expr[]) dgex, FunCall fc) {
     if (fc.getParams().length != arity) return null;
     auto mod = fastcast!(Module)(fc.fun.sup);
     if (!mod) return null;
@@ -413,7 +409,7 @@ void ast_math_constr() {
   // fastfloor is fast
   // floorf is slow >.<
   /*if (!isWindoze()) {
-    foldopt ~= &substfun /fix/ stuple(1, (Function fun, Module mod) {
+    funcall_folds ~= &substfun /fix/ stuple(1, (Function fun, Module mod) {
       return fun.name == "fastfloor" && mod is sysmod;
     }, delegate Expr(Expr[] args) {
       return fastalloc!(FPAsInt)(lookupOp("+",
@@ -421,7 +417,7 @@ void ast_math_constr() {
         fastalloc!(FloatExpr)(0.25)));
     });
   }*/
-  foldopt ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
+  funcall_folds ~= &substfun /fix/ stuple(2, (Function fun, Module mod) {
     return (fun.name == "copysignf" || fun.name == "[wrap]copysignf") && fun.extern_c;
   }, delegate Expr(Expr[] args) {
     auto Int = Single!(SysInt), Float = Single!(Float);
@@ -431,7 +427,7 @@ void ast_math_constr() {
     ));
   });
   void addCIntrin(int arity, string funname, IType ret, string intrin) {
-    foldopt ~= &substfun /fix/ stuple(arity, stuple(funname) /apply/ (string funname, Function fun, Module mod) {
+    funcall_folds ~= &substfun /fix/ stuple(arity, stuple(funname) /apply/ (string funname, Function fun, Module mod) {
       return (fun.name == funname || fun.name == qformat("[wrap]", funname)) && fun.extern_c;
     }, stuple(intrin, ret) /apply/ delegate Expr(string intrin, IType ret, Expr[] args) {
       foreach (ref arg; args) {
@@ -932,7 +928,7 @@ static this() {
   implicits ~= delegate void(Expr ex, void delegate(Expr) consider) {
     auto sa = fastcast!(StaticArray) (resolveType(ex.valueType()));
     if (!sa) return;
-    opt(ex);
+    ex = collapse(ex);
     if (!fastcast!(CValue) (ex))
       return;
     // try (array.ptr, array.length) for C compat

@@ -74,7 +74,6 @@ static this() {
   Expr fallback_array_iteration(Expr ex) {
     Statement init;
     auto len = iparse!(Expr, "array_length"[], "tree.expr"[])(`arr.length`, "arr"[], ex);
-    opt(len);
     if (auto ie = fastcast!(IntExpr) (len)) {
       return iparse!(Expr, "array_iterate_int"[], "tree.expr.iter.for"[])
                     (`[for i <- 0..len extra arr: extra.ptr[i]]`, namespace(), "arr"[], ex, "len"[], ie);
@@ -249,9 +248,8 @@ class Cross : Type, RichIterator {
       foreach (i, type; types) {
         auto entry = iparse!(Expr, "cross_subcond_for_len"[], "tree.expr"[])
                            (`tup[i + len*2 + 1]`, "tup"[], tup, "i"[], mkInt(i), "len"[], mkInt(types.length));
-        auto len = (fastcast!(RichIterator)~ entry.valueType()).length(entry);
+        auto len = collapse((fastcast!(RichIterator)~ entry.valueType()).length(entry));
         if (staticlength != -1) {
-          opt(len);
           if (auto ie = fastcast!(IntExpr) (len)) {
             staticlength *= ie.num;
           } else {
@@ -301,7 +299,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
     foreach (ref ex2; getTupleEntries(ex)) {
-      opt(ex2);
+      ex2 = collapse(ex2);
       // logln("got tuple entry "[], ex2);
       if (!gotImplicitCast(ex2, Single!(HintType!(Iterator)), isRichIterator))
         return false;
@@ -312,7 +310,7 @@ Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
-    opt(entry);
+    entry = collapse(entry);
     gotImplicitCast(entry, Single!(HintType!(Iterator)), isRichIterator);
   }
   return fastcast!(Object)~ mkCross(list);
@@ -427,7 +425,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
-      opt(ex2);
+      ex2 = collapse(ex2);
       if (!gotImplicitCast(ex2, Single!(HintType!(Iterator)), isIterator))
         return false;
       auto test = ex2;
@@ -442,7 +440,7 @@ Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
-    opt(entry);
+    entry = collapse(entry);
     if (rich) gotImplicitCast(entry, Single!(HintType!(Iterator)), isRichIterator);
     else gotImplicitCast(entry, Single!(HintType!(Iterator)), isIterator);
   }
@@ -559,7 +557,7 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
     if (!tup) return false;
     foreach (ex2; getTupleEntries(ex)) {
-      opt(ex2);
+      ex2 = collapse(ex2);
       if (!gotImplicitCast(ex2, Single!(HintType!(Iterator)), isIterator))
         return false;
       merge(fastcast!(Iterator) (ex2.valueType()));
@@ -575,7 +573,7 @@ Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
   
   auto list = getTupleEntries(ex);
   foreach (ref entry; list) {// cast for rilz
-    opt(entry);
+    entry = collapse(entry);
     if (rich) gotImplicitCast(entry, Single!(HintType!(Iterator)), isRichIterator);
     else gotImplicitCast(entry, Single!(HintType!(Iterator)), isIterator);
   }
@@ -619,7 +617,6 @@ class SumExpr : Expr {
           }
           while temp <- i2 { var += temp; }
         } `, namespace(), "iter"[], ex, "T"[], iter.elemType(), "var"[], var);
-        // opt(stmt);
         stmt.emitLLVM(lf);
       } else {
         auto stmt = iparse!(Statement, "sum_2"[], "tree.stmt"[])
@@ -630,7 +627,6 @@ class SumExpr : Expr {
           eval var <- i2;
           while temp <- i2 { var += temp; }
         }`, namespace(), "iter"[], ex, "T"[], iter.elemType(), "var"[], var);
-        // opt(stmt);
         stmt.emitLLVM(lf);
       }
     }

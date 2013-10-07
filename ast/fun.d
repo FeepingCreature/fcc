@@ -741,6 +741,8 @@ class OverloadSet : Named, Extensible, Iterable {
   }
 }
 
+Expr delegate(FunCall)[] funcall_folds;
+
 int fc_count;
 class FunCall : Expr {
   Expr[] params;
@@ -762,7 +764,12 @@ class FunCall : Expr {
     fun.iterate(dg, IterMode.Semantic);
     defaultIterate!(params, setup).iterate(dg);
   }
-  Tree collapse() { return this; } // no check
+  Tree collapse() {
+    foreach (dg; funcall_folds) {
+      if (auto res = dg(this)) return res;
+    }
+    return this;
+  }
   void emitWithArgs(LLVMFile lf, Expr[] args) {
     if (setup) setup.emitLLVM(lf);
     callFunction(lf, fun.type.ret, false, fun.type.stdcall, args, fun.getPointer(), fun.noreturn);

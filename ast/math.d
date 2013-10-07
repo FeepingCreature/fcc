@@ -73,18 +73,13 @@ Expr mkIntAsFloat(Expr ex) {
 import ast.casting, ast.fold, ast.literals, ast.fun;
 extern(C) float sqrtf(float);
 static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    if (auto fc = fastcast_direct!(FunCall)(it)) {
-      if (fc.fun.extern_c && fc.fun.name == "sqrtf"[]) {
-        assert(fc.params.length == 1);
-        auto fe = fc.params[0];
-        if (!gotImplicitCast(fe, (Expr ex) { opt(ex); return test(fastcast!(FloatExpr) (ex)); }))
-          return null;
-        opt(fe);
-        return fastalloc!(FloatExpr)(sqrtf((fastcast!(FloatExpr) (fe)).f));
-      }
-    }
-    return null;
+  funcall_folds ~= delegate Expr(FunCall fc) {
+    if (!fc.fun.extern_c || fc.fun.name != "sqrtf") return null;
+    assert(fc.params.length == 1);
+    auto fe = fc.params[0];
+    if (!gotImplicitCast(fe, (Expr ex) { return test(fastcast!(FloatExpr)(collapse(ex))); }))
+      return null;
+    return fastalloc!(FloatExpr)(sqrtf((fastcast!(FloatExpr)(collapse(fe))).f));
   };
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(SysInt) != resolveType(ex.valueType())) return null;

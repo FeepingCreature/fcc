@@ -217,7 +217,9 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
     auto backup = ex;
     
     // because reasons. KEEP IN.
-    opt(ex);
+    // opt(ex);
+    // DONT TELL ME WHAT TO DO
+    ex = collapse(ex);
     
     int score;
     
@@ -555,9 +557,7 @@ import ast.literal_string, ast.modules;
 
 static this() {
   // allow use of .replace in mixins
-  foldopt ~= delegate Itr(Itr it) {
-    auto fc = fastcast!(FunCall) (it);
-    if (!fc) return null;
+  funcall_folds ~= delegate Expr(FunCall fc) {
     // if (fc.fun.name.find("replace") != -1)
     //   logln(fc.fun.name, " - ", fastcast!(Module) (fc.fun.sup), " - ", sysmod, " - ", fastcast!(Module)(fc.fun.sup) is sysmod, " and ", fc.getParams());
     if (fc.fun.name != "replace"[] /or/ "[wrap]replace"[]) return null;
@@ -570,7 +570,7 @@ static this() {
     }
     string[3] str;
     foreach (i, arg; args) {
-      if (auto se = fastcast!(StringExpr) (arg)) str[i] = se.str;
+      if (auto se = fastcast!(StringExpr) (collapse(arg))) str[i] = se.str;
       else {
         // logln("couldn't fold properly because arg was ", arg);
         // fail;

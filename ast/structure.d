@@ -487,6 +487,10 @@ class StructLiteral : Expr {
   }
 }
 
+interface IRefTuple {
+  MValue[] getMVs();
+}
+
 import ast.pointer;
 class MemberAccess_Expr : Expr, HasInfo {
   Expr base;
@@ -524,7 +528,7 @@ class MemberAccess_Expr : Expr, HasInfo {
   }
   mixin defaultIterate!(base);
   Expr collapse() {
-    auto nbase = base;
+    auto nbase = .collapse(base);
     bool deb;
     /*if (stm.name == "self") {
       deb = true;
@@ -537,7 +541,7 @@ class MemberAccess_Expr : Expr, HasInfo {
     
     Structure st;
     if (auto rce = fastcast!(RCE)~ nbase) {
-      nbase = rce.from;
+      nbase = .collapse(rce.from);
       st = fastcast!(Structure)~ rce.to;
     }
     
@@ -596,6 +600,33 @@ class MemberAccess_Expr : Expr, HasInfo {
       // logln(" => ", res);
       if (auto tr = fastcast!(Tree) (res))
         return tr;
+    }
+    
+    if (auto rt = fastcast!(IRefTuple)(nbase)) {
+      if (!st) fail;
+      auto members = st.members();
+    retry:
+      auto mvs = rt.getMVs();
+      if (members.length > 1 && mvs.length == 1) {
+        rt = fastcast!(IRefTuple) (.collapse(fastcast!(Expr)(mvs[0])));
+        if (rt) goto retry;
+        else return this; // TODO: I don't get this. 
+      }
+      if (!rt || mvs.length != members.length) {
+        logln("ref tuple not large enough for this cast! ");
+        logln(rt, " but ", members);
+        fail;
+      }
+      int offs = -1;
+      foreach (id, entry; members) if (entry is stm) { offs = id; break; }
+      if (offs == -1) {
+        // this can happen, for instance, if we
+        // (erroneously!) collapsed two maes, one of which 
+        // was larger -
+        // for example, (a, (b, c)) accessing 'b' won't be found in the outer tuple
+        fail;
+      }
+      return fastcast!(Tree) (mvs[offs]);
     }
     
     return this;

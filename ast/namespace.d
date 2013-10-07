@@ -378,6 +378,7 @@ float[string] bench;
 import tools.time, ast.fold;
 const bool canFail = false;
 alias TTTuple!(true, false) dontopt;
+alias TTTuple!(true, true) doopt;
 template iparse(R, string id, string rule, bool mustParse = true, bool optres = true) {
   R iparse(T...)(string text, T _t) {
     auto start = sec();

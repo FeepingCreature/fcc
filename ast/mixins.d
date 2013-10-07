@@ -8,13 +8,9 @@ Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (!rest(t2, "tree.expr"[], &ex)) 
     t2.failparse("Couldn't match mixin string! "[]);
   auto ex2 = ex;
-  if (!gotImplicitCast(ex2, (Expr ex) {
-    opt(ex);
-    return !!fastcast!(StringExpr) (ex);
-  }))
-    t2.failparse("Couldn't mixin: Not a string constant: "[], ex);
-  opt(ex2);
-  auto se = fastcast!(StringExpr) (ex2);
+  if (!gotImplicitCast(ex2, (Expr ex) { return !!fastcast!(StringExpr) (collapse(ex)); }))
+    t2.failparse("Couldn't mixin: Not a string constant: "[], collapse(ex));
+  auto se = fastcast!(StringExpr) (collapse(ex2));
   auto src = se.str;
   Object res;
   auto popCache = pushCache(); scope(exit) popCache();
@@ -37,17 +33,13 @@ Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest)
   if (!rest(t2, "tree.expr"[], &ex)) 
     t2.failparse("Couldn't match mixin string! "[]);
   auto ex2 = ex;
-  if (!gotImplicitCast(ex2, (Expr ex) {
-    opt(ex);
-    return !!fastcast!(StringExpr) (ex);
-  }))
-    t2.failparse("Couldn't mixin: Not a string constant: "[], ex);
+  if (!gotImplicitCast(ex2, (Expr ex) { return !!fastcast!(StringExpr) (collapse(ex)); }))
+    t2.failparse("Couldn't mixin: Not a string constant: "[], collapse(ex));
   static if (submode != "tree.stmt") {
     if (!t2.accept(";"))
       t2.failparse("semicolon expected");
   }
-  opt(ex2);
-  auto se = fastcast!(StringExpr) (ex2);
+  auto se = fastcast!(StringExpr) (collapse(ex2));
   auto src = se.str;
   if (!src.length) {
     text = t2;

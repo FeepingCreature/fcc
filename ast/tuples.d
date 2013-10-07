@@ -140,7 +140,7 @@ mixin DefaultParser!(gotTupleType, "type.tuple"[], "37"[], "("[]);
 
 import ast.assign;
 
-final class RefTuple : MValue {
+final class RefTuple : MValue, IRefTuple {
   IType baseTupleType;
   MValue[] mvs;
   mixin defaultIterate!(mvs);
@@ -150,6 +150,7 @@ final class RefTuple : MValue {
     this.mvs = mvs.dup;
     baseTupleType = mkTupleValueExpr(getAsExprs()).valueType();
   }
+  MValue[] getMVs() { return mvs; }
   RefTuple dup() {
     auto newlist = mvs.dup;
     foreach (ref entry; newlist) entry = entry.dup;
@@ -185,39 +186,6 @@ final class RefTuple : MValue {
 
 import ast.aggregate;
 static this() {
-  foldopt ~= delegate Itr(Itr it) {
-    auto mae = fastcast!(MemberAccess_Expr) (it);
-    if (!mae) return null;
-    auto rc = fastcast!(RCE)~ mae.base;
-    if (!rc) return null;
-    auto rt = fastcast!(RefTuple) (rc.from);
-    auto str = fastcast!(Structure)~ rc.to;
-    if (!rt || !str) return null;
-    retry:
-    // logln("member access to a "[], rc, " - "[], mae.stm);
-    auto mbs = str.members();
-    if (mbs.length > 1 && rt.mvs.length == 1) {
-      rt = fastcast!(RefTuple) (rt.mvs[0]);
-      if (rt) goto retry;
-      else return null; // TODO: I don't get this. 
-    }
-    if (!rt || rt.mvs.length != mbs.length) {
-      return null; // :(
-      logln("ref tuple not large enough for this cast! "[]);
-      logln(rt, " but "[], mbs);
-      fail;
-    }
-    int offs = -1;
-    foreach (id, entry; mbs) if (entry is mae.stm) { offs = id; break; }
-    if (offs == -1) {
-      // this can happen, for instance, if we
-      // (erroneously!) collapsed two maes, one of which 
-      // was larger -
-      // for example, (a, (b, c)) accessing 'b' won't be found in the outer tuple
-      return null;
-    }
-    return fastcast!(Itr) (rt.mvs[offs]);
-  };
   // translate mvalue tuple assignment into sequence of separate assignments
   foldopt ~= delegate Itr(Itr it) {
     auto am = fastcast!(AssignmentM) (it);

@@ -67,7 +67,7 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (resolveType(ex.valueType()) != Single!(Array, Single!(Char)))
       return null;
-    opt(ex);
+    ex = collapse(ex);
     if (fastcast!(StringExpr) (ex)) {
       return getArrayPtr(ex);
     }

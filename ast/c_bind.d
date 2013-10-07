@@ -407,8 +407,7 @@ src_cleanup_redo: // count, then copy
       if (s2.accept("(") && (ty = matchType(s2), ty) && s2.accept(")") && readCExpr(s2, res)) {
         IType alt;
         if (Single!(Char) == ty) alt = Single!(Byte); // same type in C
-        res = forcedConvert(res);
-        opt(res);
+        res = collapse(forcedConvert(res));
         // res = reinterpret_cast(ty, res);
         if (!gotImplicitCast(res, ty, (IType it) { return test(it == ty || alt && it == alt); }))
           return false;
@@ -496,7 +495,7 @@ src_cleanup_redo: // count, then copy
         // logln("macro fail ", str);
         return false;
       }
-      opt(res);
+      res = collapse(res);
       // logln(ident, " -- ", backup, " (args ", tup._0, ", str ", tup._1, ") => ", objs, " => ", res);
       source = s2;
       return true;
@@ -623,12 +622,11 @@ src_cleanup_redo: // count, then copy
             // logln("--", entry);
             goto giveUp;
           }
-          opt(ex);
+          ex = collapse(ex);
           cur = ex;
         }
         elems ~= fastalloc!(ExprAlias)(cur, id);
-        cur = lookupOp("+", cur, mkInt(1));
-        opt(cur);
+        cur = collapse(lookupOp("+", cur, mkInt(1)));
       }
       // logln("Got from enum: ", elems);
       stmt = stmt.between("}", "");
@@ -708,7 +706,7 @@ src_cleanup_redo: // count, then copy
           st3 = st3.replace("(int)", ""); // hax
           if (gotIdentifier(st3, name3) && st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
             redo:
-            opt(size);
+            size = collapse(size);
             if (fastcast!(AstTuple)~ size.valueType()) {
               // unwrap "(foo)"
               logln("at ", st2.nextText(), ":");
@@ -858,7 +856,7 @@ src_cleanup_redo: // count, then copy
       auto st3 = stmt;
       if (st3.accept("[") && readCExpr(st3, size) && st3.accept("]")) {
         redo3:
-        opt(size);
+        size = collapse(size);
         // unwrap "(bar)" again
         if (fastcast!(AstTuple)~ size.valueType()) {
           size = (fastcast!(StructLiteral)~ (fastcast!(RCE)~ size).from).exprs[$-1];
@@ -1004,17 +1002,17 @@ import ast.pragmas;
 static this() {
   New(defines_sync);
   pragmas["define"] = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, (Expr ex) { opt(ex); return !!fastcast!(StringExpr) (ex); }))
+    if (!gotImplicitCast(ex, (Expr ex) { ex = collapse(ex); return !!fastcast!(StringExpr) (ex); }))
       throw new Exception("String expected for pragma(define, ...)");
-    opt(ex);
+    ex = collapse(ex);
     string str = (fastcast!(StringExpr) (ex)).str;
     synchronized(defines_sync) defines ~= str.strip();
     return Single!(NoOp);
   };
   pragmas["include_prepend"] = delegate Object(Expr ex) {
-    if (!gotImplicitCast(ex, (Expr ex) { opt(ex); return !!fastcast!(StringExpr) (ex); }))
+    if (!gotImplicitCast(ex, (Expr ex) { ex = collapse(ex); return !!fastcast!(StringExpr) (ex); }))
       throw new Exception("\"file1 < file2\" string expected for pragma(include_prepend, ...)");
-    opt(ex);
+    ex = collapse(ex);
     string str = (fastcast!(StringExpr) (ex)).str;
     auto file1 = str.slice("<").strip(), file2 = str.strip();
     if (!file1.length || !file2.length) 

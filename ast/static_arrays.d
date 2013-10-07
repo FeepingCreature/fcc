@@ -63,7 +63,6 @@ static this() {
     auto backup_len = len_ex;
     if (!gotImplicitCast(len_ex, (IType it) { return test(Single!(SysInt) == it); }))
       t2.failparse("Need int for static array, not "[], backup_len);
-    opt(len_ex);
     auto len = collapse(len_ex);
     if (auto ie = fastcast!(IntExpr) (len)) {
       text = t2;

@@ -146,7 +146,8 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   bool isByte(IType it) { return !!fastcast!(Byte) (it); }
   gotImplicitCast(from, &notATuple);
   gotImplicitCast(to  , &notATuple);
-  opt(from); opt(to);
+  from = collapse(from);
+  to = collapse(to);
   if (auto sl = fastcast!(StringExpr) (from)) if (sl.str.length == 1) gotImplicitCast(from, &isByte);
   if (auto sl = fastcast!(StringExpr) (to))   if (sl.str.length == 1) gotImplicitCast(to,   &isByte);
   auto ifrom = fastcast!(IntExpr) (from), ito = fastcast!(IntExpr) (to);
