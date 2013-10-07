@@ -1,6 +1,6 @@
 module ast.intrinsic;
 
-import ast.modules, ast.pointer, ast.base, ast.oop, ast.casting, ast.static_arrays, ast.parse, ast.dg;
+import ast.modules, ast.pointer, ast.base, ast.oop, ast.casting, ast.static_arrays, ast.parse, ast.dg, ast.arrays;
 // not static this() to work around a precedence bug in phobos. called from main.
 void setupSysmods() {
   if (sysmod) return;
@@ -667,13 +667,21 @@ void setupSysmods() {
       string name, sourcefile;
       void* dataStart, dataEnd;
       bool compiled; // does this have an .o file?
-      void init(string a, b, void* c, d, bool e) (name, sourcefile, dataStart, dataEnd, compiled) = (a, b, c, d, e);
-      void function()[auto~] constructors;
+      void init(string a, b, void* c, d, bool e, void function()[] co, string[] i, FunctionInfo[] f, ClassData*[] cl) {
+        (name, sourcefile, dataStart, dataEnd, compiled) = (a, b, c, d, e);
+        // (base*: dupv (ptr, length * size-of base))[0 .. length]
+        // no .dup yet for some reason
+        constructors = (void function()*: dupv(co.(ptr, length * size-of type-of *ptr)))[0 .. co.length];
+        _imports = (string*: dupv(i.(ptr, length * size-of string)))[0 .. i.length];
+        functions = (FunctionInfo*: dupv(f.(ptr, length * size-of FunctionInfo)))[0 .. f.length];
+        classes = (ClassData**: dupv(cl.(ptr, length * size-of ClassData*)))[0 .. cl.length];
+      }
+      void function()[] constructors;
       bool constructed;
       string[] _imports;
-      FunctionInfo[auto~] functions;
+      FunctionInfo[] functions;
       ModuleInfo[auto~] imports;
-      ClassData*[auto~] classes;
+      ClassData*[] classes;
       string toString() {
         if !functions return "[module $name imports $([for m <- imports: m.name].eval[])]";
         return "[module $name imports $([for m <- imports: m.name].eval[]) ($functions)]";
@@ -1121,14 +1129,9 @@ void finalizeSysmod(Module mainmod) {
   namespace.set(sc);
   auto var = fastalloc!(Variable)(modtype, framelength(), cast(string) null);
   sc.add(var);
-  auto count = fastalloc!(Variable)(Single!(SysInt), framelength(), cast(string) null);
-  sc.add(count);
   auto vs = fastalloc!(VarDecl)(var);
   vs.initInit;
-  auto cs = fastalloc!(VarDecl)(count);
-  cs.initInit;
   sc.addStatement(vs);
-  sc.addStatement(cs);
   
   current_module.set(fastcast!(IModule) (mainmod));
   
@@ -1149,6 +1152,7 @@ void finalizeSysmod(Module mainmod) {
     push(lf, "undef");
   })));
   
+  Expr[] tuples;
   foreach (mod; list) {
     auto mname = mod.name;
     auto fltname = mname.replace(".", "_").replace("-", "_dash_");
@@ -1162,56 +1166,45 @@ void finalizeSysmod(Module mainmod) {
       symdend = fastalloc!(Symbol)(qformat("_sys_tls_data_", fltname, "_end"), Single!(Void));
       compiled = mkInt(1);
     }
-    sc.addStatement(
-      iparse!(Statement, "init_modinfo", "tree.stmt")
-             (`{
-                 var = new ModuleInfo(name, sourcefile, symdstart, symdend, bool:compiled);
-                 __modules = __modules ~ var;
-               }`,sc,
-                  "var", var, "name", mkString(mod.name),
-                  "symdstart", symdstart,
-                  "symdend", symdend,
-                  "compiled", compiled,
-                  "sourcefile", mkString(mod.sourcefile)
-            )
-    );
+    
     Expr[] constrs;
     foreach (fun; mod.constrs) {
       constrs ~= fastalloc!(FunRefExpr)(fun);
     }
-    sc.addStatement(
-      iparse!(Statement, "init_mod_constr", "tree.stmt")
-              (`var.constructors ~= funs;
-              `, sc, "var", var, "funs", fastalloc!(SALiteralExpr)(fastalloc!(FunctionPointer)(Single!(Void), cast(Argument[]) null), constrs))
-    );
+    
+    Expr[] impstrings;
     auto imps = mod.getAllModuleImports();
-    sc.addStatement(
-      iparse!(Statement, "init_mod_import_list", "tree.stmt")
-             (`var._imports = new string[] len; `,
-              "var", var, "len", mkInt(imps.length))
-    );
-    sc.addStatement(
-      iparse!(Statement, "init_mod_count_var", "tree.stmt")
-             (`c = 0; `, sc, "c", count)
-    );
-    foreach (_mod2; imps) if (auto mod2 = fastcast!(Module) (_mod2)) {
-      sc.addStatement(
-        iparse!(Statement, "init_mod_imports", "tree.stmt")
-               (`var._imports[c++] = mod2;`, sc,
-                "var", var, "c", count, "mod2", mkString(mod2.name)));
-    }
+    foreach (_mod2; imps) if (auto mod2 = fastcast!(Module) (_mod2))
+      impstrings ~= mkString(mod2.name);
+    
+    Expr[] classptrs;
+    auto classdata = fastcast!(IType)(sysmod.lookup("ClassData"));
+    
     foreach (entry; mod.entries) {
       Class cl;
       if (auto cr = fastcast!(ClassRef) (entry)) cl = cr.myClass;
       else if (auto entry_cl = fastcast!(Class) (entry)) cl = entry_cl;
       if (cl) {
-        sc.addStatement(
-          iparse!(Statement, "init_mod_classes", "tree.stmt")
-                (`var.classes ~= classp;`, sc,
-                  "var", var, "classp", fastalloc!(Symbol)(cl.cd_name(), Single!(Void))));
+        classptrs ~= reinterpret_cast(fastalloc!(Pointer)(classdata), fastalloc!(Symbol)(cl.cd_name(), Single!(Void)));
       }
     }
-    version(CustomDebugInfo) {
+    
+    Expr[] constrexprs;
+    constrexprs ~= mkString(mod.name);
+    constrexprs ~= mkString(mod.sourcefile);
+    constrexprs ~= symdstart;
+    constrexprs ~= symdend;
+    constrexprs ~= reinterpret_cast(fastcast!(IType)(sysmod.lookup("bool")), compiled);
+    constrexprs ~= staticToArray(mkSALit(fastalloc!(FunctionPointer)(Single!(Void), cast(Argument[]) null), constrs));
+    constrexprs ~= staticToArray(mkSALit(Single!(Array, Single!(Char)), impstrings));
+    Expr nulf = fastcast!(Expr)(sysmod.lookup("null"));
+    IType cmp = fastalloc!(Array)(fastcast!(IType)(sysmod.lookup("FunctionInfo")));
+    if (!gotImplicitCast(nulf, cmp, (IType it) { return test(it == cmp); })) fail;
+    constrexprs ~= nulf;
+    constrexprs ~= staticToArray(mkSALit(fastalloc!(Pointer)(classdata), classptrs));
+    tuples ~= mkTupleExpr(constrexprs);
+    // version(CustomDebugInfo) {
+    static if (false) { // TODO fix
       foreach (entry; mod.entries) if (auto fun = fastcast!(Function) (entry)) if (!fun.extern_c) {
         sc.addStatement(
           iparse!(Statement, "init_fun_list", "tree.stmt")
@@ -1222,7 +1215,17 @@ void finalizeSysmod(Module mainmod) {
       }
     }
   }
-  opt(setupfun);
+  auto sa = mkSALit(tuples[0].valueType(), tuples);
+  sc.addStatement(
+    iparse!(Statement, "init_modinfo", "tree.stmt")
+           (`{ for auto tup <- sa
+               __modules ~= new ModuleInfo tup;
+             }`,sc,
+               "sa", staticToArray(sa)
+           )
+  );
+  // too slow
+  // opt(setupfun);
 }
 
 import ast.tuples;
