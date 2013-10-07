@@ -154,6 +154,7 @@ class Template : ITemplateX, SelfAdding, RelTransformable /* for templates in st
         hacked_it[type] = true;
         goto start;
       }
+      hacked_it.remove(type);
       return res;
     }
     string getIdentifier() { return name; }
