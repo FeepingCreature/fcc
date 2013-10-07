@@ -690,51 +690,53 @@ struct Parser {
 // stuff that it's unsafe to memoize due to side effects
 bool delegate(string)[] globalStateMatchers;
 
-void delegate()[] _pushCache, _popCache;
+int cachedepth;
+int[] cachecount;
+static this() { cachecount = new int[8]; }
 
 void delegate() pushCache() {
-  foreach (dg; _pushCache) dg();
-  return _popCache /apply/ delegate void(void delegate()[] dgs) {
-    foreach (dg; dgs) dg();
-  };
+  cachedepth ++;
+  if (cachecount.length <= cachedepth) cachecount.length = cachedepth + 1;
+  cachecount[cachedepth] ++;
+  return { cachedepth --; };
 }
 
-struct Stack(T) {
+struct Stash(T) {
   const StaticSize = 4;
   T[StaticSize] static_backing_array;
+  int[StaticSize] static_backing_lastcount;
   T[] backing_array;
-  int curDepth;
-  void push(ref T t) {
-    scope(success) curDepth ++;
+  int[] backing_lastcount;
+  T* getPointerInternal(ref int* countp) {
+    int i = cachedepth;
+    if (i < StaticSize) {
+      countp = &static_backing_lastcount[i];
+      return &static_backing_array[i];
+    }
+    i -= StaticSize;
     
-    int cd = curDepth;
-    if (cd < StaticSize) {
-      static_backing_array[cd] = t;
-      return;
+    if (!backing_array.length) {
+      backing_array    .length = 1;
+      backing_lastcount.length = 1;
     }
     
-    cd -= StaticSize;
+    while (i >= backing_array.length) {
+      backing_array    .length = backing_array    .length * 2;
+      backing_lastcount.length = backing_lastcount.length * 2;
+    }
     
-    if (!backing_array.length) backing_array.length = 1;
-    
-    if (cd == backing_array.length)
-      backing_array.length = backing_array.length * 2;
-    
-    backing_array[cd] = t;
+    countp = &backing_lastcount[i];
+    return &backing_array[i];
   }
-  void pop(ref T t) {
-    curDepth --;
-    if (curDepth < 0) fail;
-    
-    int cd = curDepth;
-    if (cd < StaticSize) {
-      t = static_backing_array[cd];
-      return;
+  T* getPointer() {
+    int* countp;
+    auto p = getPointerInternal(countp);
+    int cmp = cachecount[cachedepth];
+    if (*countp != cmp) {
+      *countp = cmp;
+      *p = Init!(T);
     }
-    
-    cd -= StaticSize;
-    
-    t = backing_array[cd];
+    return p;
   }
 }
 
@@ -761,20 +763,10 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
     static this() {
       static if (Key) reserve(Key);
     }
-    final void push() {
-      stack.push(cache);
-      cache = Init!(typeof(cache));
-    }
-    final void pop() {
-      stack.pop(cache);
-    }
     this(Object obj = null) {
       info = obj;
       foreach (dg; globalStateMatchers)
         if (dg(Id)) { dontMemoMe = true; break; }
-      
-      _pushCache ~= &push;
-      _popCache ~= &pop;
     }
     Parser genParser() {
       Parser res;
@@ -799,8 +791,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
       }
     } else {
       // Stuple!(Object, char*)[char*] cache;
-      SpeedCache cache;
-      Stack!(typeof(cache)) stack;
+      Stash!(SpeedCache) cachestash;
       Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
         auto t2 = text;
         if (.accept(t2, "]")) return null; // never a valid start
@@ -815,14 +806,15 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
           return res;
         }
         auto ptr = t2.ptr;
-        if (auto p = ptr in cache) {
+        auto cache = cachestash.getPointer();
+        if (auto p = ptr in *cache) {
           if (!p._1) text = null;
           else text = p._1[0 .. t2.ptr + t2.length - p._1];
           return p._0;
         }
         static if (Key) if (!.accept(t2, Key)) return null;
         auto res = fnredir(t2, accept, cont, rest);
-        cache[ptr] = stuple(res, t2.ptr);
+        (*cache)[ptr] = stuple(res, t2.ptr);
         if (res) text = t2;
         return res;
       }
