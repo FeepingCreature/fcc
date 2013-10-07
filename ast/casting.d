@@ -317,7 +317,7 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int ma
   void addVisitor(IType it) {
     if (visited_offs < visited.length)
       visited[visited_offs++] = it;
-    else { visited ~= it; visited_offs ++; }
+    else { own_append(visited, it); visited_offs ++; }
   }
   // want = resolveType(want);
   bool haveVisited(Expr ex) {
@@ -348,8 +348,9 @@ bool gotImplicitCast(ref Expr ex, IType want, bool delegate(Expr) accept, int ma
           return false;
         }
         addVisitor(ce.valueType());
-        recurseInto ~= ce;
-        scoredelta ~= newscore;
+        
+        own_append(recurseInto, ce);
+        own_append(scoredelta, newscore);
         
         auto backup = score_res?*score_res:0;
         if (score_res) *score_res = score + newscore;
@@ -418,8 +419,8 @@ Expr[] getAllImplicitCasts(Expr ex) {
     foreach (dg; implicits) {
       dg(ex, null, (Expr ce, int delta) {
         if (haveVisited(ce)) return false;
-        visited ~= ce.valueType();
-        res ~= ce;
+        own_append(visited, ce.valueType());
+        own_append(res, ce);
         return true;
       });
     }
@@ -427,7 +428,7 @@ Expr[] getAllImplicitCasts(Expr ex) {
       recurse(entry);
   }
   auto dcme = fastcast!(DontCastMeExpr) (ex);
-  res ~= ex;
+  own_append(res, ex);
   if (!dcme) recurse(ex);
   return res;
 }
