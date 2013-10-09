@@ -205,7 +205,7 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
       if (probe) return false;
       if (text) {
         if (nameds) 
-          text.failparse("Not enough parameters for '", info(), "'; left over ", type, " or unable to assign named parameters");
+          text.failparse("Not enough parameters for '", info(), "'; left over ", type, " or unable to assign named parameters ", nameds.keys);
         text.failparse("Not enough parameters for '", info(), "'; left over ", type, "!");
       }
       logln("Not enough parameters for '", info(), "'; left over ", type, "!");
