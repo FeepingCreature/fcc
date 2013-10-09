@@ -1,0 +1,7 @@
+module test189;
+
+void main() {
+  alias test = (a => 4, b => 5);
+  void foo(int b, a) { assert(b == 5 && a == 4); }
+  foo test;
+}

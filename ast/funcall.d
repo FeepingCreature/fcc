@@ -54,9 +54,9 @@ bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[
   void removeNameds(ref Iterable it) {
     // logln("removeNameds <", fastcast!(Object)(it).classinfo.name, " ", it, ">");
     if (fastcast!(Variable) (it)) return;
-    if (auto ex = fastcast!(Expr)~ it) {
-      auto tup = fastcast!(AstTuple) (ex.valueType());
-      if (tup) {
+    if (auto ex = fastcast!(Expr) (it)) {
+      ex = collapse(ex); // resolve alias
+      if (auto tup = fastcast!(AstTuple) (ex.valueType())) {
         bool canHaveNameds = true;
         if (fastcast!(StatementAndExpr) (ex)) canHaveNameds = false;
         if (canHaveNameds) {
