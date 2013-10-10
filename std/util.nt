@@ -147,7 +147,13 @@ template head(T) {
 }
 
 template tail(T) {
-  T tail(T t) { assert !! auto ignore <- t; return t; }
+  T tail(T t) {
+    static if (type-is array T) {
+      return t[1..$];
+    } else {
+      assert !! auto ignore <- t; return t;
+    }
+  }
 }
 
 macro("tree.expr.flatten_tuple", "331", "__flatten_tuple") `
