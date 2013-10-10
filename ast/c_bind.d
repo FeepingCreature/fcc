@@ -373,7 +373,7 @@ src_cleanup_redo: // count, then copy
         }
         t2.accept(",");
         text = t2;
-        return fastalloc!(FunctionPointer)(ty, args, true);
+        return fastalloc!(FunctionPointer)(ty, Cfilter(args), true);
       }
     }
     text = t2;
@@ -831,7 +831,9 @@ src_cleanup_redo: // count, then copy
             if (st2.accept(")")) break;
             goto giveUp;
           }
-          target = fastalloc!(FunctionPointer)(ret, args, true);
+          auto fp = fastalloc!(FunctionPointer)(ret, Cfilter(args), true);
+          fp.stdcall = useStdcall;
+          target = fp;
           stmt = st2;
           goto typedef_done;
         }
@@ -850,7 +852,7 @@ src_cleanup_redo: // count, then copy
         } while (st2.accept(","));
         if (!st2.accept(")")) goto giveUp;
         // logln("get function pointer named ", name, " (ret ", target, ") , params ", args, " @", st2);
-        target = fastalloc!(FunctionPointer)(target, args, true);
+        target = fastalloc!(FunctionPointer)(target, Cfilter(args), true);
         stmt = st2;
       }
       string typename = name;
@@ -962,13 +964,14 @@ src_cleanup_redo: // count, then copy
       }
       // logln(name, "@ ", stmt, ", got ", args);
       if (!stmt.accept(")")) goto giveUp;
-      if (args.length == 1 && Single!(Void) == args[0])
-        args = null; // C is stupid.
-      foreach (ref arg; args)
+      // Wait. What?
+      // is this an old assumption to fix bad C ABI support? Take it out for now.
+      // DO NOT REENABLE WITHOUT COMMENTING WHY
+      /*foreach (ref arg; args)
         if (Single!(Short) == resolveType(arg))
-          arg = Single!(SysInt);
+          arg = Single!(SysInt);*/
       if (funptr_mode) {
-        auto fptype = fastalloc!(FunctionPointer)(ret, args /map/ (IType it) { return Argument(it); }, true);
+        auto fptype = fastalloc!(FunctionPointer)(ret, Cfilter(args /map/ (IType it) { return Argument(it); }), true);
         fptype.stdcall = useStdcall;
         auto ec = fastalloc!(ExternCGlobVar)(fptype, name);
         add(name, ec);
@@ -978,7 +981,7 @@ src_cleanup_redo: // count, then copy
         fun.extern_c = true;
         fun.type = fastalloc!(FunctionType)();
         fun.type.ret = ret;
-        fun.type.params = args /map/ (IType it) { return Argument(it); };
+        fun.type.params = Cfilter(args /map/ (IType it) { return Argument(it); });
         fun.type.stdcall = useStdcall;
         fun.sup = null;
         fun.noreturn = noreturn;
@@ -1108,4 +1111,10 @@ static this() {
     performCImport(hfile);
     return mod;
   };
+}
+
+// Oh C. Oh C, oh C.
+Argument[] Cfilter(Argument[] arg) {
+  if (arg.length == 1 && arg[0].type == Single!(Void)) return null;
+  return arg;
 }
