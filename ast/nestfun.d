@@ -485,7 +485,8 @@ class PointerFunction(T) : T {
   override PointerFunction dup() { auto res = fastalloc!(PointerFunction)(ptr.dup, setup); res.name = name; return res; }
   override {
     FunCall mkCall() {
-      if (fastcast!(Delegate)~ ptr.valueType()) {
+      auto vt = resolveType(ptr.valueType());
+      if (fastcast!(Delegate)(vt)) {
         auto res = new NestedCall;
         res.fun = this;
         res.dg = ptr;

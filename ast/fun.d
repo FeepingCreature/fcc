@@ -81,8 +81,10 @@ class FunSymbol : Symbol {
   this(Function fun, IType nested = null) {
     this.fun = fun;
     this.nested = nested;
-    if (fastcast!(Object)(fun).classinfo.name.find("nestfun") != -1 && !nested)
+    if (fastcast!(Object)(fun).classinfo.name.find("nestfun") != -1 && !nested) {
+      logln("the FUCK?! ", fun);
       fail;
+    }
     super(null, fun.type);
   }
   override FunSymbol dup() {
@@ -808,7 +810,7 @@ void callFunction(LLVMFile lf, IType ret, bool internal, bool stdcall, Expr[] pa
     llcast(lf, para, parb, save(lf, par), pvt.llvmSize());
     parlist ~= qformat(parb, " ", lf.pop());
   }
-  auto fptr = fastcast!(FunctionPointer)(fp.valueType());
+  auto fptr = fastcast!(FunctionPointer)(resolveType(fp.valueType()));
   if (!fptr) fail;
   
   auto fptype = typeToLLVM(fptr);

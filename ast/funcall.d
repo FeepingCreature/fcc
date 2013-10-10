@@ -469,20 +469,23 @@ mixin DefaultParser!(gotCallExpr, "tree.rhs_partial.funcall");
 class FpCall : Expr {
   Expr fp;
   Expr[] params;
-  this() { }
+  this(Expr ex) { fp = ex; }
+  private this() { }
   mixin DefaultDup!();
   mixin defaultIterate!(fp, params);
   mixin defaultCollapse!();
   string toString() {
-    auto fntype = fastcast!(FunctionPointer) (fp.valueType());
+    auto fntype = fastcast!(FunctionPointer) (resolveType(fp.valueType()));
     return qformat("pointer call<", fntype, "> ", fp, " ", params);
   }
   override void emitLLVM(LLVMFile lf) {
-    auto fntype = fastcast!(FunctionPointer)~ fp.valueType();
+    auto fntype = fastcast!(FunctionPointer) (resolveType(fp.valueType()));
     callFunction(lf, fntype.ret, false, fntype.stdcall, params, fp);
   }
   override IType valueType() {
-    return (fastcast!(FunctionPointer)~ fp.valueType()).ret;
+    auto fpt = fastcast!(FunctionPointer)(resolveType(fp.valueType()));
+    if (!fpt) fail;
+    return fpt.ret;
   }
 }
 
@@ -495,8 +498,7 @@ Object gotFpCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (!gotImplicitCast(ex, Single!(HintType!(FunctionPointer)), (IType it) { fptype = fastcast!(FunctionPointer) (it); return !!fptype; }))
       return null;
     
-    auto fc = new FpCall;
-    fc.fp = ex;
+    auto fc = fastalloc!(FpCall)(ex);
     
     Statement[] inits;
     if (!matchCall(t2, fastalloc!(PointerFunction!(Function))(ex), Format("delegate "[], ex.valueType()), fptype.args, rest, fc.params, inits, false, false, false))

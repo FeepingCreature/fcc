@@ -390,6 +390,8 @@ src_cleanup_redo: // count, then copy
   }
   bool useStdcall, noreturn;
   void eatAttribute(ref string s) {
+    useStdcall = false;
+    noreturn = false;
     retry: s = s.strip();
     if (auto rest = s.startsWith("__attribute__"[])) {
       if (rest.between("((", "))") == "__stdcall__") useStdcall = true;
@@ -496,7 +498,7 @@ src_cleanup_redo: // count, then copy
         myNS2._add(args[k], arg);
       }
       // auto popCache = pushCache(); scope(exit) popCache();
-      scope(exit) str = str.dup; // faster because string is small
+      str = str.dup; // faster because string is small
       
       if (!readCExpr(str, res)) {
         // logln("macro fail ", str);
@@ -814,7 +816,9 @@ src_cleanup_redo: // count, then copy
       }
       {
         auto st2 = stmt;
-        if (st2.accept("(") && st2.accept("*") && gotIdentifier(st2, name) && st2.accept(")")) {
+        // Wtf, glew
+        bool ateAttribute(ref string s) { s.eatAttribute(); return true; }
+        if (st2.accept("(") && st2.ateAttribute() && st2.accept("*") && gotIdentifier(st2, name) && st2.accept(")")) {
           if (!st2.accept("(")) goto giveUp;
           IType ret = target; Argument[] args;
           while (true) {
