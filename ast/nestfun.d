@@ -455,7 +455,7 @@ static this() {
 
 // *fp
 // TODO: this cannot work; it's too simple.
-class PointerFunction(T) : T {
+class PointerFunction(T) : T, IPointerFunction {
   Expr ptr;
   Statement setup;
   override void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
@@ -463,12 +463,14 @@ class PointerFunction(T) : T {
     super.iterate(dg, IterMode.Semantic);
   }
   mixin defaultCollapse!();
+  override Expr getFunctionPointer() { return ptr; }
   this(Expr ptr, Statement setup = null) {
     static if (is(typeof(super(null)))) super(null);
     this.ptr = ptr;
     this.setup = setup;
     type = fastalloc!(FunctionType)();
-    auto dg = fastcast!(Delegate)~ ptr.valueType(), fp = fastcast!(FunctionPointer)~ ptr.valueType();
+    auto vt = resolveType(ptr.valueType());
+    auto dg = fastcast!(Delegate)(vt), fp = fastcast!(FunctionPointer)(vt);
     if (dg) {
       type.ret = dg.ret;
       type.params = dg.args.dup;
@@ -477,7 +479,7 @@ class PointerFunction(T) : T {
       type.params = fp.args.dup;
       type.stdcall = fp.stdcall;
     } else {
-      logln("TYPE "[], ptr.valueType());
+      logln("TYPE "[], vt);
       fail;
     }
   }

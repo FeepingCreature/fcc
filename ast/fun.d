@@ -1193,6 +1193,11 @@ class FunctionPointer : ast.types.Type, ExternAware {
   }
 }
 
+// helper for ast.nestfun
+interface IPointerFunction {
+  Expr getFunctionPointer();
+}
+
 // &fun
 class FunRefExpr : Expr, Literal {
   Function fun;
@@ -1201,7 +1206,11 @@ class FunRefExpr : Expr, Literal {
   void iterate(void delegate(ref Iterable) dg, IterMode mode = IterMode.Lexical) {
     fun.iterate(dg, IterMode.Semantic);
   }
-  mixin defaultCollapse!();
+  Tree collapse() {
+    if (auto ip = fastcast!(IPointerFunction)(.collapse(fun)))
+      return ip.getFunctionPointer(); // &*fun
+    return this;
+  }
   IType typecache;
   override {
     string toString() { return qformat("&", fun); }
