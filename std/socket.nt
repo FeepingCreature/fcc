@@ -83,6 +83,7 @@ class Socket {
   /*Function: init*/
   void init() {
     sockfd = socket (AF_INET, SOCK_STREAM, 0);
+    linger(true, 30); // default: linger 30s
   }
   /*Function: init*/
   void init(string domain, short port) {
@@ -106,6 +107,14 @@ class Socket {
     platform(default) {
       setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &b, size-of bool);
     }
+  }
+  /*Function: linger
+  On close(), linger up to t seconds or until all data has been transmitted.*/
+  void linger(bool dolinger, int t) {
+    c.sys.socket.linger l;
+    l.l_onoff = dolinger;
+    l.l_linger = t;
+    setsockopt(sockfd, SOL_SOCKET, SO_LINGER, &l, size-of c.sys.socket.linger);
   }
   // alias isOpen = sockfd;
   /*Function: open*/
