@@ -330,14 +330,33 @@ platform(*-mingw*) {
 
 extern(C) int rename(char*, char*);
 RenameIdentifier rename C_rename;
+void C_renamewrap(string oldname, newname) {
+  scope p1 = toStringz oldname, p2 = toStringz newname;
+  auto res = C_rename(p1, p2);
+  if (res) raise new Error "Couldn't rename '$oldname' to '$newname': $res";
+}
 /*
   Function: rename
   Renames a file
 */
 void rename(string oldname, newname) {
-  scope p1 = toStringz oldname, p2 = toStringz newname;
-  auto res = C_rename(p1, p2);
-  if (res) raise new Error "Couldn't rename '$oldname' to '$newname': $res";
+  platform(default) {
+    C_renamewrap(oldname, newname);
+    return;
+  }
+  platform(*-mingw*) {
+    // win32 does not support atomic rename
+    // this is not quite atomic, but hopefully sufficiently atomic :v
+    if (exists newname) {
+      scope tempname = "$newname.tmp"; // keep around in case rename fails
+      C_renamewrap(newname, tempname);
+      C_renamewrap(oldname, newname);
+      // can safely unlink now
+      unlink tempname;
+    } else {
+      C_renamewrap(oldname, newname);
+    }
+  }
 }
 
 extern(C) int unlink(char*);
