@@ -69,7 +69,7 @@ class Player {
     }
     decide [
       ("Potion Regen: current level $(
-        select-skill \"regen\")",
+        select-skill `regen`)",
         \() increase-skill "regen"; )
     ];
   }

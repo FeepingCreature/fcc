@@ -553,7 +553,7 @@ final class List : Thing {
     // writeln "Evaluate $this";
     auto op = opcache;
     if (!op) op = Operator: Function: list.ptr[0].eval (c, gs);
-    if (!op) error "Cannot evaluate $this: first entry is not an operator (function), but $(list[0]?.toString():\"null\") - $(list[0]?.eval(c, gs)?.toString():\"null\")";
+    if (!op) error "Cannot evaluate $this: first entry is not an operator (function), but $(list[0]?.toString():`null`) - $(list[0]?.eval(c, gs)?.toString():`null`)";
     return op.call (list[1..$], c, gs);
   }
   string toString() {

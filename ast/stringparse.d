@@ -2,27 +2,24 @@ module ast.stringparse;
 
 import ast.base, parseBase;
 
-bool gotString(ref string text, ref string res,
-  string sep = "\""[], bool alreadyMatched = false, bool ignoreRes = false)
-{
-  auto t2 = text;
-  if (!alreadyMatched && !t2.accept(sep)) return false;
-  ubyte[] ba;
-  while (true) {
-    if (!t2.length) return false;
-    // if (t2.accept(sep)) break; // eats comments in strings
-    if (auto rest = t2.startsWith(sep)) { t2 = rest; break; }
-    byte xtake() {
-      auto res = (cast(byte[]) t2)[0];
-      t2 = cast(string) (cast(byte[]) t2)[1..$];
-      return res;
-    }
+string filterEscapes(string s) {
+  auto backup = s;
+  ubyte[] res;
+  byte xtake() {
+    if (!s.length) fail;
+    auto res = (cast(byte[]) s)[0];
+    s = cast(string) (cast(byte[]) s)[1..$];
+    return res;
+  }
+  bool purestr = true;
+  while (s.length) {
     auto ch = xtake();
-    if (ch == '\\' && sep != "`") {
+    if (ch == '\\') {
+      purestr = false;
       auto ch2 = xtake();
-      if (ch2 == 'n') { if (!ignoreRes) ba ~= cast(ubyte[]) "\n"; }
-      else if (ch2 == 'r') { if (!ignoreRes) ba ~= cast(ubyte[]) "\r"; }
-      else if (ch2 == 't') { if (!ignoreRes) ba ~= cast(ubyte[]) "\t"; }
+      if (ch2 == 'n') { res ~= cast(ubyte[]) "\n"; }
+      else if (ch2 == 'r') { res ~= cast(ubyte[]) "\r"; }
+      else if (ch2 == 't') { res ~= cast(ubyte[]) "\t"; }
       else if (ch2 == 'x') {
         int h2i(char c) {
           if (c >= '0' && c <= '9') return c - '0';
@@ -31,12 +28,47 @@ bool gotString(ref string text, ref string res,
           assert(false);
         }
         auto h1 = xtake(), h2 = xtake(); 
-        if (!ignoreRes) ba ~= h2i(h1) * 16 + h2i(h2);
-      }
-      else ba ~= ch2;
-    } else ba ~= ch;
+        res ~= h2i(h1) * 16 + h2i(h2);
+      } else res ~= ch2;
+    } else res ~= ch;
   }
-  if (!ignoreRes) res = cast(string) ba;
+  if (purestr) { delete res; return backup; }
+  return cast(string) res;
+}
+
+bool gotString(ref string text, ref string res,
+  string sep = "\""[], bool alreadyMatched = false, bool ignoreRes = false, bool doFilterEscapes = true)
+{
+  auto t2 = text;
+  if (!alreadyMatched && !t2.accept(sep)) return false;
+  auto stringstart = t2;
+  
+  if (sep == "`") doFilterEscapes = false;
+  if (sep.length != 1) fail;
+  
+  int matchlength;
+  byte xtake() {
+    auto res = (cast(byte[]) t2)[0];
+    t2 = cast(string) (cast(byte[]) t2)[1..$];
+    matchlength ++;
+    return res;
+  }
+  
+  while (true) {
+    if (!t2.length) return false;
+    // if (t2.accept(sep)) break; // eats comments in strings
+    if (auto rest = t2.startsWith(sep)) { t2 = rest; break; }
+    auto ch = xtake();
+    if (ch == '\\' && sep != "`") {
+      auto ch2 = xtake();
+    }
+  }
+  string str = stringstart[0..matchlength];
+  if (str.ptr + str.length + 1 !is t2.ptr) fail;
+  if (!ignoreRes) {
+    res = str;
+    if (doFilterEscapes) res = res.filterEscapes();
+  }
   text = t2;
   return true;
 }

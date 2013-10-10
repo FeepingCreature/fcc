@@ -5,19 +5,14 @@ import
   ast.literal_string, ast.arrays, ast.vardecl, ast.pointer, ast.casting, ast.stringparse, ast.oop, tools.base: take;
 
 Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
-  Expr strlit;
   auto t2 = text;
   // if (!t2.accept("^")) return null;
-  {
-    string st;
-    if (!gotString(t2, st)) return null;
-    strlit = fastalloc!(StringExpr)(st, false);
-  }
+  string str;
+  if (!gotString(t2, str, "\"", /*alreadyMatched*/false, /*ignoreRes*/false, /*doFilterEscapes*/false)) return null;
   text = t2;
-  auto str = (fastcast!(StringExpr)~ strlit).str;
   auto res = fastalloc!(ConcatChain)(fastalloc!(StringExpr)(""[]));
   ubyte[] buf;
-  void flush() { if (!buf) return; res.addArray(fastalloc!(StringExpr)(cast(string) buf)); buf = null; }
+  void flush() { if (!buf) return; res.addArray(fastalloc!(StringExpr)(filterEscapes(cast(string) buf))); buf = null; }
   ubyte xtake() {
     if (!str.length) fail;
     auto res = (cast(ubyte[]) str)[0];
@@ -69,7 +64,7 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
         throw new Exception(Format("Can't format ", ex, " of ", ex.valueType()));
     }
   }
-  if (!extended) return fastcast!(Object)~ strlit;
+  if (!extended) return fastalloc!(StringExpr)(filterEscapes(backup), false);
   flush;
   return res;
 }

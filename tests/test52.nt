@@ -4,5 +4,5 @@ import std.string, std.process;
 ubyte[] download(string url) { return ubyte[]: join readback("wget", ["-q", "-O-", url]); }
 
 void main() {
-  writeln "$(string:download \"http://www.google.de\")";
+  writeln "$(string:download `http://www.google.de`)";
 }

@@ -2,5 +2,5 @@ module test22;
 
 void main() {
   for (int bottles = 99; bottles > 0; --bottles)
-    writeln "$bottles bottles of beer on the wall, $bottles of beer. Take one down, pass it around, $(bottles - 1) $([\"bottles\", \"bottle\"][bottles == 2]) of beer on the wall. ";
+    writeln "$bottles bottles of beer on the wall, $bottles of beer. Take one down, pass it around, $(bottles - 1) $([`bottles`, `bottle`][bottles == 2]) of beer on the wall. ";
 }

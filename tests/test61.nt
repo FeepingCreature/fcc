@@ -2,6 +2,6 @@ module test61;
 import std.file;
 
 void main() {
-  writeln "$(listDirectory \".\")";
+  writeln "$(listDirectory `.`)";
   // makeDirectory ("mew", user|group|world);
 }

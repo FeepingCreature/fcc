@@ -118,11 +118,17 @@ string reverseLookupPos(int row, int col, string file) {
 class ParseEx : Exception {
   string pos;
   string[] rules;
-  this(string pos, string s) { this.pos = pos; super(s); }
+  this(string pos, string s) {
+    // auto test = lookupPos(pos);
+    // if (test._2 == "<unknown>") asm { int 3; }
+    this.pos = pos; super(s);
+  }
   void addRule(string s) { rules ~= s; }
   string toString() {
     auto info = lookupPos(pos);
-    if (info._2 == "<unknown>"[]) info._2 = "@`"~pos.nextText()~"`";
+    if (info._2 == "<unknown>") {
+      info._2 = "@`"~pos.nextText()~"`";
+    }
     string res;
     if (info._3) {
       auto prefix = "At line: ";

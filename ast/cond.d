@@ -70,7 +70,7 @@ Object gotHdlStmt(ref string text, ParseCb cont, ParseCb rest) {
                         (`{
                             auto cm = _lookupCM(n, &hdlvar, true);
                             if (!cm.accepts(obj))
-                              raise new Error "Couldn't invoke $n: bad argument: $(obj?.toString():\"null\")";
+                              raise new Error "Couldn't invoke $n: bad argument: $(obj?.toString():`"`"`null`"`"`)";
                             handler-argument-variable = obj;
                             cm.jump();
                           }`, namespace(), "hdlvar"[], lookup(hdlmarker)));
