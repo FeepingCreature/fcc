@@ -455,11 +455,20 @@ src_cleanup_redo: // count, then copy
           if (ident[2] == '+' || ident[2] == '-') return false;
       }
       if (auto p = ident in *cachep) {
-        if (auto ex = fastcast!(Expr)~ *p) {
+        if (auto ex = fastcast!(Expr)(*p)) {
           res = ex;
           source = null;
           return true;
         }
+        // force this into an Expr format by funptring it
+        // this will be turned back into a Function in readCObj
+        if (auto fun = fastcast!(Function)(*p)) {
+          res = fastalloc!(FunRefExpr)(fun);
+          source = null;
+          return true;
+        }
+        logln("not an expr: ", *p);
+        fail;
         return false;
       }
       // logln("IDENT ", ident);
@@ -472,9 +481,12 @@ src_cleanup_redo: // count, then copy
       Object[] objs;
       while (true) {
         Expr ex;
+        string ident2;
         if (readCExpr(s2, ex)) objs ~= fastcast!(Object) (ex);
         else if (auto ty = matchType(s2)) objs ~= fastcast!(Object) (ty);
-        else {
+        else if (s2.gotCIdentifier(ident2) && ident2 in *cachep) {
+          objs ~= fastcast!(Object)((*cachep)[ident2]);
+        } else {
           // logln("macro arg fail ", s2);
           return false;
         }
@@ -534,6 +546,18 @@ src_cleanup_redo: // count, then copy
     catch (Exception ex) return false; // no biggie
     if (!res) return false;
     source = s2;
+    return true;
+  }
+  bool readCObj(ref string source, ref Object obj) {
+    Expr ex;
+    if (!readCExpr(source, ex)) return false;
+    // of course, this breaks #define foo &bar
+    // do we care? we don't care because literally nobody does that.
+    if (auto fre = fastcast!(FunRefExpr)(ex)) {
+      obj = fre.fun;
+    } else {
+      obj = fastcast!(Object)(ex);
+    }
     return true;
   }
   while (statements.length) {
@@ -597,13 +621,30 @@ src_cleanup_redo: // count, then copy
         }
         stmt = backup;
         try {
-          if (!readCExpr(stmt, ex) || stmt.mystripl().length)
+          Object obj;
+          if (!readCObj(stmt, obj) || stmt.mystripl().length)
             goto giveUp;
+          ex = fastcast!(Expr)(obj);
+          if (!ex) {
+            auto fun = fastcast!(Function)(obj);
+            if (!fun) fail;
+            // logln("obj got ", fun);
+            add(fun.name, fun);
+            continue;
+          }
         } catch (Exception ex) {
           goto giveUp;
         }
       }
     gotEx:
+      auto vt = ex.valueType();
+      if (auto fp = fastcast!(FunctionPointer)(resolveType(vt))) {
+        // you almost certainly want this to act like a function, don't you?
+        auto pf = fastalloc!(PointerFunction!(Function)) (ex);
+        // logln("pf got ", pf);
+        add(id, pf);
+        continue;
+      }
       auto ea = fastalloc!(ExprAlias)(ex, id);
       // logln("got ", ea);
       add(id, ea);
