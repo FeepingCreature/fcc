@@ -2,7 +2,8 @@ module ast.c_bind;
 
 // Optimized for GL.h and SDL.h; may not work for others!! 
 import ast.base, ast.modules, ast.structure, ast.casting, ast.static_arrays,
-  ast.externs, ast.stringparse, ast.literals, ast.tuples: AstTuple = Tuple;
+  ast.externs, ast.stringparse, ast.literals, ast.nestfun,
+  ast.tuples: AstTuple = Tuple;
 
 import tools.compat, tools.functional, alloc;
 alias parseBase.startsWith startsWith;
@@ -174,21 +175,24 @@ Named[string] global_c_memo_cache;
 
 void parseHeader(string filename, string src) {
   auto start_time = sec();
-  int newsrc_length;
-  string newsrc;
+  int newsrc_length, newsrc_defines_length;
+  string newsrc, newsrc_defines;
   auto backup_src = src;
 src_cleanup_redo: // count, then copy
   src = backup_src;
-  void addSrc(string text) {
-    if (!newsrc) newsrc_length += text.length;
+  void addSrc(string text, ref int len, ref string str) {
+    if (!str) len += text.length;
     else {
-      newsrc[newsrc_length .. newsrc_length + text.length] = text;
-      newsrc_length += text.length;
+      str[len .. len + text.length] = text;
+      len += text.length;
     }
   }
+  // Shuffle #defines to the end so that they can see functions that were declared after them
+  void addSrc_Main(string text) { addSrc(text, newsrc_length, newsrc); }
+  void addSrc_Defines(string text) { addSrc(text, newsrc_defines_length, newsrc_defines); }
   bool inEnum;
   string[] buffer;
-  void flushBuffer() { foreach (def; buffer) { addSrc(def); addSrc(";"); } delete buffer; buffer = null; }
+  void flushBuffer() { foreach (def; buffer) { addSrc_Defines(def); addSrc_Defines(";"); } delete buffer; buffer = null; }
   while (src.length) {
     string line;
     void advance() { line = src.slice("\n"[]).mystripl(); }
@@ -196,9 +200,9 @@ src_cleanup_redo: // count, then copy
     // logln("-- ", inEnum, " ", line);
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
-    if (line.startsWith("}")) { inEnum = false; addSrc(line); flushBuffer; continue; }
+    if (line.startsWith("}")) { inEnum = false; addSrc_Main(line); flushBuffer; continue; }
     if (line.startsWith("#")) {
-      if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else { addSrc(line); addSrc(";"); } }
+      if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else { addSrc_Defines(line); addSrc_Defines(";"); } }
       continue;
     }
     if (line.startsWith("static inline")) {
@@ -209,13 +213,16 @@ src_cleanup_redo: // count, then copy
       } while (!line.startsWith("#") && !line.startsWith("}"));
       continue;
     }
-    addSrc(line); addSrc(" ");
+    addSrc_Main(line); addSrc_Main(" ");
   }
   if (!newsrc) {
     newsrc = new char[newsrc_length];
     newsrc_length = 0;
+    newsrc_defines = new char[newsrc_defines_length];
+    newsrc_defines_length = 0;
     goto src_cleanup_redo;
   }
+  newsrc ~= newsrc_defines;
   // no need to remove comments; the preprocessor already did that
   auto statements = newsrc.split(";") /map/ &strip;
   // mini parser
