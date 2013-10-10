@@ -1233,11 +1233,15 @@ static this() {
     IType ptype;
     Argument[] list;
     auto t2 = text;
+    bool extern_C;
+    // TODO mark recursively for stuff inside an extern(C) block
+    // but how? maybe look at the actual text position?
+    if (t2.accept("__extern_C")) extern_C = true;
     if (t2.accept("function"[]) &&
       t2.gotParlist(list, rest, false)
     ) {
       text = t2;
-      return fastalloc!(FunctionPointer)(cur, list.dup);
+      return fastalloc!(FunctionPointer)(cur, list.dup, extern_C);
     } else return null;
   };
 }
