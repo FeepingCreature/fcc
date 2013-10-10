@@ -14,27 +14,16 @@ public import std.lib.opengl.rgbcolor;
 platform(i686-mingw32) {
   pragma(lib, "opengl32");
   pragma(lib, "glu32");
-  extern(Windows) void* wglGetProcAddress(char*);
-  template lookupFun(T) {
-    _markStdCall T lookupFun(char* c) { return _markStdCall T:wglGetProcAddress(c); }
-  }
-  alias glGenBuffers    = *lookupFun!void function(GLsizei, GLuint*) "glGenBuffers";
-  alias glDeleteBuffers = *lookupFun!void function(GLsizei, GLuint*) "glDeleteBuffers";
-  alias glBindBuffer    = *lookupFun!void function(GLenum, GLuint) "glBindBuffer";
-  alias glMapBuffer     = *lookupFun!void* function(GLenum, GLenum) "glMapBuffer";
-  alias glMapBufferRange= *lookupFun!void* function(GLenum, GLintptr, GLsizeiptr, GLbitfield) "glMapBufferRange";
-  alias glUnmapBuffer   = *lookupFun!bool function(GLenum) "glUnmapBuffer";
-  alias glBufferData    = *lookupFun!void function(GLenum, GLsizeiptr, void*, GLenum) "glBufferData";
-  alias glBufferSubData = *lookupFun!void function(GLenum, GLintptr, GLsizeiptr, void*) "glBufferSubData";
-  static if (!is-defined GL_ARRAY_BUFFER) {
-    alias GL_ARRAY_BUFFER = GLenum: 0x8892;
-    alias GL_ELEMENT_ARRAY_BUFFER = GLenum: 0x8893;
-    alias GL_STREAM_DRAW  = 0x88E0, GL_STREAM_READ  = 0x88E1, GL_STREAM_COPY  = 0x88E2,
-          GL_STATIC_DRAW  = 0x88E4, GL_STATIC_READ  = 0x88E5, GL_STATIC_COPY  = 0x88E6,
-          GL_DYNAMIC_DRAW = 0x88E8, GL_DYNAMIC_READ = 0x88E9, GL_DYNAMIC_COPY = 0x88EA;
-    alias GL_PIXEL_UNPACK_BUFFER = 0x88EC;
-    alias GL_MAP_WRITE_BIT = 0x0002, GL_MAP_INVALIDATE_BUFFER_BIT = 0x0008;
-    alias GL_READ_ONLY = 0x88B8, GL_WRITE_ONLY = 0x88B9, GL_READ_WRITE = 0x88BA;
+  pragma(lib, "glew32");
+  public import c.glewhack; // Why, glew? Why?!
+  void initGL() {
+    import std.string;
+    writeln "> initialize GLEW";
+    glewExperimental = true; // ??
+    auto err = glewInit();
+    if (err != GLEW_OK) {
+      raise new Error CToString glewGetErrorString err;
+    }
   }
 }
 
@@ -46,6 +35,7 @@ platform(default) {
   template lookupFun(T) {
     T lookupFun(char* c) { return T:glXGetProcAddress(c); }
   }
+  void initGL() { } // only needed under windows to bring up GLEW
 }
 
 defmode GL "prefix GL_ prefix gl suffix _ARB suffix ARB";
