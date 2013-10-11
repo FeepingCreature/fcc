@@ -1,6 +1,6 @@
 module test37;
 
-import postgres;
+import std.lib.postgres;
 
 void main() {
   using new Database "host=localhost user=feep dbname=quest"::

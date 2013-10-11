@@ -1,0 +1,95 @@
+module std.lib.postgres;
+
+import c.libpq-fe;
+import std.string;
+
+extern(C) PGresult *PQexecParams(PGconn *conn, char* command, int nParams, Oid* paramTypes, char** paramValues, int* paramLengths, int* paramFormats, int resultFormat);
+
+alias empty-tuple-value = (0, 0)[0..0];
+
+pragma(lib, "pq");
+
+class DatabaseSup {
+  PGconn* handle;
+}
+
+template Result(T) {
+  class Result : Iterator!T {
+    DatabaseSup db;
+    PGresult* handle;
+    int i, count;
+    void check() {
+      auto ptr = PQresultErrorMessage handle;
+      string str;
+      if ptr str = ptr[0..strlen ptr];
+      if (str.length) raise new PostgresError "While iterating result: $str";
+    }
+    void init(type-of handle handle) { check; this.handle = handle; count = PQntuples handle; check; }
+    void clear() PQclear handle;
+    bool advance() {
+      if i == count return false;
+      onSuccess i++;
+      static if type-is tuple T { alias len = value.length; }
+      else { alias len = 1; }
+      static if len != 0 {
+        static for int k <- 0..len {
+          auto ptr = PQgetvalue (handle, i, k);
+          check;
+          auto str = ptr[0..strlen ptr];
+          
+          static if type-is tuple T { alias Type = T[k]; }
+          else { alias Type = T; }
+          
+          alias ASSIGN = "static if type-is tuple T { value[k] = ?; } else { value = ?; }";
+          static if (types-equal(Type, float)) { mixin(ASSIGN.replace("?", "atof str")); }
+          static if (types-equal(Type, int)) { mixin(ASSIGN.replace("?", "atoi str")); }
+          static if (types-equal(Type, string)) { mixin(ASSIGN.replace("?", "str")); }
+          static if (!types-equal(Type, float) && !types-equal(Type, int) && !types-equal(Type, string)) { No matching type found! }
+        }
+      }
+      return true;
+    }
+  }
+}
+
+class PostgresError : Error {
+  void init(string s) super.init "PostgresError: $s";
+}
+
+class Database : DatabaseSup {
+  void check() {
+    auto ptr = PQerrorMessage handle;
+    string str;
+    if ptr str = ptr[0..strlen ptr];
+    if (str.length) raise new PostgresError "$str";
+  }
+  void init(string connstr) {
+    handle = PQconnectdb toStringz connstr;
+    check;
+  }
+  void fini() {
+    PQfinish handle;
+    handle = null;
+  }
+  template exec(U) {
+    template exec(T) {
+      auto exec(U u) {
+        static if type-is tuple U { string sql = u[0]; }
+        else { string sql = u; }
+        
+        static if type-is tuple U { alias rest = u[1..$]; }
+        else { alias rest = empty-tuple-value; }
+        
+        auto values = new char*[] rest.length;
+        onExit values.free;
+        static if rest.length {
+          static for int i <- 0..rest.length {
+            values[i] = toStringz "$(rest[i])";
+          }
+        }
+        
+        return new Result!T PQexecParams (handle, toStringz sql, rest.length, null, values.ptr, null, null, 0);
+      }
+    }
+  }
+}
