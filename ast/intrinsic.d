@@ -518,6 +518,10 @@ void setupSysmods() {
     class MemoryAccessError : Error {
       void init(string s) { super.init "MemoryAccessError: $s"; }
     }
+    class NullPointerError : MemoryAccessError {
+      void init(string s) { super.init "NullPointerError: $s"; }
+      void init() { init "null pointer accessed"; }
+    }
     class BoundsError : UnrecoverableError {
       void init(string s) super.init s;
       string toString() { return "BoundsError: $(super.toString())"; }
@@ -716,7 +720,7 @@ void setupSysmods() {
         callConstructors mod;
       }
     }
-    shared Error preallocated_sigsegv;
+    shared Error preallocated_sigsegv, preallocated_nullfault;
     bool already_handling_segfault;
     void _check_handling() {
       if (already_handling_segfault) {
@@ -745,6 +749,7 @@ void setupSysmods() {
       void setThreadlocal(void* p) {
         c.pthread.pthread_setspecific(tls_pointer, p);
       }
+      void* errptr;
       extern(C) {
         enum X86Registers {
           GS, FS, ES, DS, EDI, ESI, EBP, ESP, EBX, EDX, ECX, EAX, TRAPNO, ERR, EIP, CS, EFL, UESP, SS
@@ -754,6 +759,11 @@ void setupSysmods() {
           void* fpregs;
           size_t oldmask;
           size_t cr2;
+        }
+        struct siginfo_t {
+          int si_signo, si_errno, si_code;
+          void* si_addr;
+          // some more stuff
         }
         struct ucontext {
           size_t flags;
@@ -767,14 +777,19 @@ void setupSysmods() {
           _check_handling;
           already_handling_segfault = true;
           onExit already_handling_segfault = false;
-          if (preallocated_sigsegv) raise preallocated_sigsegv;
+          if (preallocated_sigsegv) {
+            if (errptr is null) raise preallocated_nullfault;
+            raise preallocated_sigsegv;
+          }
+          if (errptr is null)
+            raise new NullPointerError;
           raise new MemoryAccessError "Segmentation Fault";
         }
         void sighandle_userspace() {
           auto _threadlocal = getThreadlocal;
           raise new LinuxSignal ("Signal $(lastLinuxSignalRaised)", lastLinuxSignalRaised);
         }
-        void sighandle(int sig, void* si, void* unused) {
+        void sighandle(int sig, siginfo_t* si, void* unused) {
           auto uc = ucontext*: unused;
           ref gregs = uc.mcontext.gregs;
           ref
@@ -783,10 +798,12 @@ void setupSysmods() {
           // imitate the effects of "call seghandle_userspace"
           esp --;
           *esp = eip;
+          auto _threadlocal = getThreadlocal;
           // return like call
-          if (sig == c.signal.SIGSEGV) eip = void*: &seghandle_userspace;
-          else {
-            auto _threadlocal = getThreadlocal;
+          if (sig == c.signal.SIGSEGV) {
+            errptr = si.si_addr;
+            eip = void*: &seghandle_userspace;
+          } else {
             lastLinuxSignalRaised = sig;
             eip = void*: &sighandle_userspace;
           }
@@ -795,7 +812,7 @@ void setupSysmods() {
           byte x 128 __val;
         }
         struct _sigaction {
-          void function(int, void*, void*) sigaction;
+          void function(int, siginfo_t*, void*) sigaction;
           __sigset_t mask;
           int flags;
           void function() restorer;
@@ -814,6 +831,7 @@ void setupSysmods() {
       alias PEXCEPTION_HANDLER = EXCEPTION_DISPOSITION function(_EXCEPTION_RECORD*, _EXCEPTION_REGISTRATION*, _CONTEXT*, _EXCEPTION_RECORD*);
       shared _EXCEPTION_REGISTRATION reg;
       int errcode;
+      void* errptr;
       extern(C) void* getThreadlocal() {
         return TlsGetValue(tls_pointer);
       }
@@ -828,7 +846,12 @@ void setupSysmods() {
         
         if (errcode == int:STATUS_ACCESS_VIOLATION) {
           // printf("seghandle_userspace and %p\n", frameinfo);
-          if (preallocated_sigsegv) raise preallocated_sigsegv;
+          if (preallocated_sigsegv) {
+            if (errptr is null) raise preallocated_nullfault;
+            raise preallocated_sigsegv;
+          }
+          if (errptr is null)
+            raise new NullPointerError;
           raise new MemoryAccessError "Access Violation";
         }
         raise new Error "Windows SEH Code $(void*:errcode)";
@@ -837,6 +860,7 @@ void setupSysmods() {
         // printf("seghandle(%p (%p), %p, %p, %p)\n", record, record.ExceptionCode, establisher_frame, context, dispatcher_context);
         auto _threadlocal = TlsGetValue(tls_pointer);
         errcode = record.ExceptionCode;
+        errptr = void*: record.ExceptionInformation[1];
         ref
           esp = void**:context.Esp,
           eip = void* :context.Eip;
@@ -936,6 +960,7 @@ void setupSysmods() {
         setThreadlocal _threadlocal;
         setup-segfault-handler();
         preallocated_sigsegv = new MemoryAccessError "Segmentation Fault";
+        preallocated_nullfault = new NullPointerError;
       }
       platform(*-mingw32*) {
         tls_pointer = TlsAlloc();
@@ -950,6 +975,7 @@ void setupSysmods() {
           _fs0 = reg.prev;
         }
         preallocated_sigsegv = new MemoryAccessError "Access Violation";
+        preallocated_nullfault = new NullPointerError;
       }
       
       int errnum;
