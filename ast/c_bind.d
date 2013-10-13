@@ -175,24 +175,25 @@ Named[string] global_c_memo_cache;
 
 void parseHeader(string filename, string src) {
   auto start_time = sec();
-  int newsrc_length, newsrc_defines_length;
-  string newsrc, newsrc_defines;
+  int newsrc_length;
+  string newsrc;
   auto backup_src = src;
 src_cleanup_redo: // count, then copy
   src = backup_src;
-  void addSrc(string text, ref int len, ref string str) {
-    if (!str) len += text.length;
+  void addSrc(string text) {
+    if (!newsrc) newsrc_length += text.length;
     else {
-      str[len .. len + text.length] = text;
-      len += text.length;
+      newsrc[newsrc_length .. newsrc_length + text.length] = text;
+      newsrc_length += text.length;
     }
   }
-  // Shuffle #defines to the end so that they can see functions that were declared after them
-  void addSrc_Main(string text) { addSrc(text, newsrc_length, newsrc); }
-  void addSrc_Defines(string text) { addSrc(text, newsrc_defines_length, newsrc_defines); }
+  string[string] cpp_defines;
   bool inEnum;
   string[] buffer;
-  void flushBuffer() { foreach (def; buffer) { addSrc_Defines(def); addSrc_Defines(";"); } delete buffer; buffer = null; }
+  void flushBuffer() {
+    foreach (def; buffer) { addSrc(def); addSrc(";"); }
+    delete buffer; buffer = null;
+  }
   while (src.length) {
     string line;
     void advance() { line = src.slice("\n"[]).mystripl(); }
@@ -200,9 +201,16 @@ src_cleanup_redo: // count, then copy
     // logln("-- ", inEnum, " ", line);
     // special handling for fenv.h; shuffle #defines past the enum
     if (line.startsWith("enum")) inEnum = true;
-    if (line.startsWith("}")) { inEnum = false; addSrc_Main(line); flushBuffer; continue; }
+    if (line.startsWith("}")) { inEnum = false; addSrc(line); flushBuffer; continue; }
     if (line.startsWith("#")) {
-      if (line.startsWith("#define")) { if (inEnum) buffer ~= line; else { addSrc_Defines(line); addSrc_Defines(";"); } }
+      if (auto rest = line.startsWith("#define")) {
+        if (newsrc) {
+          string id;
+          if (!rest.gotIdentifier(id)) fail; // what
+          if (!rest.mystripl().length) continue; // ignore this kind of #define.
+          cpp_defines[id] = rest; // DO NOT STRIP, breaks macro/ () distinction
+        }
+      }
       continue;
     }
     if (line.startsWith("static inline")) {
@@ -213,18 +221,16 @@ src_cleanup_redo: // count, then copy
       } while (!line.startsWith("#") && !line.startsWith("}"));
       continue;
     }
-    addSrc_Main(line); addSrc_Main(" ");
+    addSrc(line); addSrc(" ");
   }
   if (!newsrc) {
     newsrc = new char[newsrc_length];
     newsrc_length = 0;
-    newsrc_defines = new char[newsrc_defines_length];
-    newsrc_defines_length = 0;
     goto src_cleanup_redo;
   }
-  newsrc ~= newsrc_defines;
   // no need to remove comments; the preprocessor already did that
   auto statements = newsrc.split(";") /map/ &strip;
+  // write("dump.txt", qformat(statements).replace(", ", "\n"));
   // mini parser
   auto cachep = &(new Stuple!(Named[string]))._0;
   auto myNS = fastalloc!(MiniNamespace)("parse_header"[]);
@@ -403,6 +409,7 @@ src_cleanup_redo: // count, then copy
   Stuple!(string[], string)[string] macros;
   bool[char*] loopbreaker; // recursion loop avoidance, lol
   bool readCExpr(ref string source, ref Expr res) {
+    // logln("readCExpr ", source);
     source = mystripl(source);
     if (!source.length) return false;
     auto s2 = source;
@@ -410,20 +417,29 @@ src_cleanup_redo: // count, then copy
     if (source.endsWith("_TYPE"[]) || s2.matchType()) return false;
     int i;
     s2 = source;
+    // (foo)
     {
       IType ty;
       auto s3 = s2;
-      if (s2.accept("(") && (ty = matchType(s2), ty) && s2.accept(")") && readCExpr(s2, res)) {
+      if (s3.accept("(") && (ty = matchType(s3), ty) && s3.accept(")") && readCExpr(s3, res)) {
         IType alt;
         if (Single!(Char) == ty) alt = Single!(Byte); // same type in C
         res = collapse(forcedConvert(res));
         // res = reinterpret_cast(ty, res);
         if (!gotImplicitCast(res, ty, (IType it) { return test(it == ty || alt && it == alt); }))
           return false;
-        source = s2;
+        source = s3;
         return true;
       }
-      s2 = s3;
+    }
+    {
+      auto s3 = s2;
+      Expr res2;
+      if (s3.accept("(") && readCExpr(s3, res2) && s3.accept(")")) {
+        res = res2;
+        source = s3;
+        return true;
+      }
     }
     if (s2.accept("'")) { // char
       if (!s2.length) return false;
@@ -509,8 +525,7 @@ src_cleanup_redo: // count, then copy
         // logln(args[k], " -> ", arg);
         myNS2._add(args[k], arg);
       }
-      // auto popCache = pushCache(); scope(exit) popCache();
-      str = str.dup; // faster because string is small
+      auto popCache = pushCache(); scope(exit) popCache();
       
       if (!readCExpr(str, res)) {
         // logln("macro fail ", str);
@@ -542,12 +557,17 @@ src_cleanup_redo: // count, then copy
     auto lenbackup = *lenient.ptr();
     *lenient.ptr() = true;
     scope(exit) *lenient.ptr() = lenbackup;
+    auto s3 = s2;
     try res = fastcast!(Expr) (parse(s2, mixin(c_tree_expr_matcher)));
-    catch (Exception ex) return false; // no biggie
+    catch (Exception ex) {
+      // logln("subparse ", s3, " => ", ex);
+      return false; // no biggie
+    }
+    // logln("subparse ", s3, " => ", res);
     if (!res) return false;
     source = s2;
     return true;
-  }
+  };
   bool readCObj(ref string source, ref Object obj) {
     Expr ex;
     if (!readCExpr(source, ex)) return false;
@@ -566,90 +586,6 @@ src_cleanup_redo: // count, then copy
     useStdcall = false;
     noreturn = false;
     stmt.accept("__extension__");
-    if (stmt.accept("#define")) {
-      if (stmt.accept("__")) continue; // internal
-      string id;
-      Expr ex;
-      if (!stmt.gotIdentifier(id)) goto giveUp;
-      if (!stmt.strip().length) continue; // ignore this kind of #define.
-      // logln("parse expr ", stmt, "; id '", id, "'");
-      auto backup = stmt;
-      void eatSuffix(ref string s) {
-        if (s.accept("LL")) return;
-        if (s.accept("L")) return;
-        if (s.accept("U")) return;
-      }
-      if (!gotIntExpr(stmt, ex) || (eatSuffix(stmt), false) || stmt.strip().length) {
-        stmt = backup;
-        string[] macroArgs;
-        bool isMacroParams(ref string s) {
-          auto s2 = s;
-          // NOT accept(): spacing matters!
-          // it's only a macro if the () comes directly after the name!
-          if (!s2.startsWith("("[])) return false;
-          s2 = s2[1..$];
-          while (true) {
-            string id;
-            if (!s2.gotIdentifier(id)) break;
-            macroArgs ~= id;
-            if (!s2.accept(",")) break;
-          }
-          if (!s2.accept(")")) return false;
-          s = s2;
-          return true;
-        }
-        if (isMacroParams(stmt)) {
-          macros[id] = stuple(macroArgs, stmt);
-          // logln("macro: ", id, " (", macroArgs, ") => ", stmt);
-          continue;
-        }
-        stmt = backup;
-        if (auto ty = matchType(stmt)) {
-          if (!stmt.mystripl().length) {
-            auto ta = fastalloc!(TypeAlias)(ty, id);
-            add(id, ta);
-            continue;
-          }
-        }
-        stmt = backup;
-        if (stmt.accept("\"")) {
-          string res;
-          if (gotString(stmt, res, "\"", true) && !stmt.mystripl().length) {
-            ex = mkString(res);
-            goto gotEx;
-          }
-        }
-        stmt = backup;
-        try {
-          Object obj;
-          if (!readCObj(stmt, obj) || stmt.mystripl().length)
-            goto giveUp;
-          ex = fastcast!(Expr)(obj);
-          if (!ex) {
-            auto fun = fastcast!(Function)(obj);
-            if (!fun) fail;
-            // logln("obj got ", fun);
-            add(fun.name, fun);
-            continue;
-          }
-        } catch (Exception ex) {
-          goto giveUp;
-        }
-      }
-    gotEx:
-      auto vt = ex.valueType();
-      if (auto fp = fastcast!(FunctionPointer)(resolveType(vt))) {
-        // you almost certainly want this to act like a function, don't you?
-        auto pf = fastalloc!(PointerFunction!(Function)) (ex);
-        // logln("pf got ", pf);
-        add(id, pf);
-        continue;
-      }
-      auto ea = fastalloc!(ExprAlias)(ex, id);
-      // logln("got ", ea);
-      add(id, ea);
-      continue;
-    }
     bool isTypedef;
     if (stmt.accept("typedef")) isTypedef = true;
     if (stmt.accept("enum")) {
@@ -1036,6 +972,111 @@ src_cleanup_redo: // count, then copy
     }
     giveUp:;
     // logln("Gave up on |", stmt, "| ", start);
+  }
+  bool removed_resolvable_exprs() {
+    string[string] newdefines;
+    bool gotAny;
+    foreach (key, value; cpp_defines) {
+      void add2(Named named) { add(key, named); gotAny = true; }
+      Expr ex;
+      try {
+        Object obj;
+        auto stmt = value;
+        if (!readCObj(stmt, obj) || stmt.mystripl().length) {
+          goto giveUp;
+        }
+        ex = fastcast!(Expr)(obj);
+        if (!ex) {
+          auto fun = fastcast!(Function)(obj);
+          if (!fun) fail;
+          // logln("obj got ", fun);
+          add2(fun);
+          continue;
+        }
+      } catch (Exception ex) {
+        goto giveUp;
+      }
+      auto vt = ex.valueType();
+      if (auto fp = fastcast!(FunctionPointer)(resolveType(vt))) {
+        // you almost certainly want this to act like a function, don't you?
+        auto pf = fastalloc!(PointerFunction!(Function)) (ex);
+        // logln("pf got ", pf);
+        add2(pf);
+        continue;
+      }
+      auto ea = fastalloc!(ExprAlias)(ex, key);
+      // logln("got ", ea);
+      add2(ea);
+      continue;
+    giveUp:
+      newdefines[key] = value;
+    }
+    cpp_defines = newdefines;
+    return gotAny;
+  }
+  bool removed_resolvable_types() {
+    string[string] newdefines; bool gotAny;
+    foreach (key, value; cpp_defines) {
+      void add2(Named named) { add(key, named); gotAny = true; }
+      auto stmt = value;
+      if (auto ty = matchType(stmt)) {
+        if (!stmt.mystripl().length) {
+          auto ta = fastalloc!(TypeAlias)(ty, key);
+          add(key, ta);
+          continue;
+        }
+      }
+      newdefines[key] = value; // failed to do anything with
+    }
+    cpp_defines = newdefines;
+    return gotAny;
+  }
+  void remove_macros() {
+    string[string] newdefines;
+    foreach (key, value; cpp_defines) {
+      string[] macroArgs;
+      bool isMacroParams(ref string s) {
+        auto s2 = s;
+        // NOT accept(): spacing matters!
+        // it's only a macro if the () comes directly after the name!
+        if (!s2.startsWith("("[])) return false;
+        s2 = s2[1..$];
+        while (true) {
+          string id;
+          if (!s2.gotIdentifier(id)) break;
+          macroArgs ~= id;
+          if (!s2.accept(",")) break;
+        }
+        if (!s2.accept(")")) return false;
+        s = s2;
+        return true;
+      }
+      if (isMacroParams(value)) {
+        macros[key] = stuple(macroArgs, value);
+        continue;
+      }
+      newdefines[key] = value;
+    }
+    cpp_defines = newdefines;
+  }
+  // being string-based, this step is not dependent on other #defines
+  remove_macros;
+  
+  bool try_exprs = true, try_types = true;
+  while (true) {
+    if (try_types)
+      if (removed_resolvable_types()) try_exprs = true;
+      else try_types = false;
+    if (!try_exprs && !try_types) break;
+    
+    if (try_exprs)
+      if (removed_resolvable_exprs()) try_types = true;
+      else try_exprs = false; // no point unless we get an expr
+    if (!try_exprs && !try_types) break; // nothing left to do
+  }
+  if (cpp_defines.length) {
+    // logln("leftover unresolved defines: ", cpp_defines);
+    // fail;
   }
   auto ns = myNS.sup;
   foreach (key, value; *cachep) {
