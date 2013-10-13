@@ -728,7 +728,7 @@ void setupSysmods() {
         exit(1);
       }
     }
-    alias _null_grace_zone = 1024;
+    alias _null_dead_zone = 4096;
     platform(default) {
       pragma(lib, "pthread");
       static import c.pthread, c.signal;
@@ -778,7 +778,7 @@ void setupSysmods() {
           _check_handling;
           already_handling_segfault = true;
           onExit already_handling_segfault = false;
-          bool isnullp = 0 <= int:errptr < _null_grace_zone;
+          bool isnullp = 0 <= int:errptr < _null_dead_zone;
           if (preallocated_sigsegv) {
             if (isnullp) raise preallocated_nullfault;
             raise preallocated_sigsegv;
@@ -848,7 +848,7 @@ void setupSysmods() {
         
         if (errcode == int:STATUS_ACCESS_VIOLATION) {
           // printf("seghandle_userspace and %p\n", frameinfo);
-          bool isnullp = 0 <= int:errptr < _null_grace_zone;
+          bool isnullp = 0 <= int:errptr < _null_dead_zone;
           if (preallocated_sigsegv) {
             if (isnullp) raise preallocated_nullfault;
             raise preallocated_sigsegv;
