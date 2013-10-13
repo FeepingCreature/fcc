@@ -77,18 +77,21 @@ class Database : DatabaseSup {
         static if type-is tuple U { string sql = u[0]; }
         else { string sql = u; }
         
-        static if type-is tuple U { alias rest = u[1..$]; }
-        else { alias rest = empty-tuple-value; }
+        static if type-is tuple U { alias rest = u[1 .. u.length], len = u.length - 1; }
+        else { alias rest = empty-tuple-value, len = 0; }
         
-        auto values = new char*[] rest.length;
-        onExit values.free;
-        static if rest.length {
-          static for int i <- 0..rest.length {
-            values[i] = toStringz "$(rest[i])";
+        scope values = new char*[] len;
+        static if len {
+          static for int i <- 0..len {
+            static if type-is tuple type-of rest {
+              values[i] = toStringz "$(rest[i])";
+            } else {
+              values[i] = toStringz "$(rest)";
+            }
           }
         }
         
-        return new Result!T PQexecParams (handle, toStringz sql, rest.length, null, values.ptr, null, null, 0);
+        return new Result!T PQexecParams (handle, toStringz sql, len, null, values.ptr, null, null, 0);
       }
     }
   }

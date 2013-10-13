@@ -1221,7 +1221,10 @@ ClassRef parseClassBody(ref string text, ParseCb cont, ParseCb rest, string name
         }
       },
       false
-  )) t3.failparse("Invalid inheritance spec"[]);
+    )) t3.failparse("Invalid inheritance spec"[]);
+  
+  t3 = t2;
+  
   New(cl, name, supclass);
   cl.declared_abstract = hadAbstract;
   cl.finalClass = hadFinal;
@@ -1285,6 +1288,7 @@ Object gotAnonymousClassType(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("-"[])) return null; // class-stuff
   string bogus;
   if (t2.gotIdentifier(bogus)) return null; // NON-anonymous class!
+  if (t2.accept(")")) return null;
   if (isabstract)
     text.failparse("Anonymous classes must not be abstract"[]);
   string name;

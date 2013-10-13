@@ -191,7 +191,7 @@ Object gotExitStmt(ref string text, ParseCb cont, ParseCb rest) {
       !(Statement, "cm_cast"[], "tree.scope"[])
         (`{
             var = at: handler-argument-variable;
-            if !var raise new Error "Bad parameter type for exit: expected $(string-of at), got $(handler-argument-variable?.toString():\"(null)\")";
+            if !var raise new Error "Bad parameter type for exit: expected $(string-of at), got $(handler-argument-variable?.toString():`"`"`(null)`"`"`)";
           }`, sc, "var"[], var, "at"[], argType)
     );
   }

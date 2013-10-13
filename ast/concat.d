@@ -263,6 +263,7 @@ static this() {
     // logln("ex2: "[], ex2.valueType());
     // fail;
     // throw new Exception("Concatenation error"[]);
+    // TODO better error if ex1 is not an array
     throw new Exception(Format("Concatenation error: incompatible types: "[],
       ex1.valueType(), " and "[], ex2.valueType()));
     // return null;

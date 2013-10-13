@@ -18,7 +18,7 @@ class EvalException : Error { }
 void mustAccept(string* sp, string m) {
   alias s = *sp;
   if !s.startsWith m {
-    raise-error new AcceptException "Expected '$m' at '$s'!";
+    raise new AcceptException "Expected '$m' at '$s'!";
   }
   s = s[m.length .. $].strip();
 }
@@ -35,7 +35,7 @@ int eval-expr(string* sp,
   alias s = *sp;
   auto dgs = (read-input, read-reg, set-output, set-reg);
   if !s.length {
-    raise-error new EvalException "No input text. ";
+    raise new EvalException "No input text. ";
   }
   if s[0].isNum() {
     int len = 1;
@@ -71,7 +71,7 @@ int eval-expr(string* sp,
       set = set-output;
     }
     if (!set) {
-      raise-error new EvalException "Could not match output at $rest. ";
+      raise new EvalException "Could not match output at $rest. ";
     }
     sp.mustAccept ",";
     auto value = eval-expr(sp, dgs);
@@ -110,9 +110,9 @@ int eval-expr(string* sp,
     auto val = eval-expr(&rest, dgs);
     (&rest).mustAccept ")";
     s = rest;
-    return ¬val;
+    return int:¬val;
   }
-  raise-error new EvalException "Could not parse '$s'!";
+  raise new EvalException "Could not parse '$s'!";
 }
 
 int eval-exprs(string* sp,
@@ -127,20 +127,19 @@ int eval-exprs(string* sp,
   return res;
 }
 
-import gtk;
+import std.lib.gtk;
 
 extern(C) int printf(char*, ...);
 
 int main (int argc, char** argv) {
   gtk_init (&argc, &argv);
-  auto window = gtk_window_new GTK_WINDOW_TOPLEVEL;
+  auto window = GTK_WINDOW _new GTK_WINDOW_TOPLEVEL;
   
-  g_signal_connect (window.gtkCastObject(), "destroy", delegate void(GtkObject*) { writeln "destroy. "; gtk_main_quit(); });
+  g_signal_connect (window, "destroy", delegate void(GtkObject*) { writeln "destroy. "; gtk_main_quit(); });
   
-  window.gtkCastContainer().gtk_container_set_border_width 10;
+  window.set_border_width 10;
   
-  GtkWidget* full_box, inputs_box, outputs_box, regs_box;
-  full_box = gtk_hbox_new ();
+  auto full_box = GTK_HBOX _new();
   (inputs_box, outputs_box, regs_box)
            = gtk_vbox_new() x 3;
   

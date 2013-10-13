@@ -613,6 +613,12 @@ class MemberAccess_Expr : Expr, HasInfo {
         else return this; // TODO: I don't get this. 
       }
       if (!rt || mvs.length != members.length) {
+        // this can happen if we're in a situation where
+        // we're casting a reftuple to a completely different type
+        // like (delegate, something) to (void*, void*, void*)
+        // but! if this can happen, doesn't mean that this optimization is fundamentally flawed?
+        // NOPE, because we is-compare entry and stm.
+        return this;
         logln("ref tuple not large enough for this cast! ");
         logln(rt, " but ", members);
         fail;

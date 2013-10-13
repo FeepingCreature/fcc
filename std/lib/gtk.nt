@@ -4,8 +4,13 @@ pragma(pkg-config, "gtk+-2.0");
 
 public import c.gtk.gtk;
 
+// GTK3 compat
+// alias GtkObject = GObject;
+// alias gtk_object_get_type = g_object_get_type;
+
 alias gtcic = g_type_check_instance_cast;
 
+// TODO interfaces
 defmode GTK_OBJECT "gobject-helper";
   defmode GTK_WIDGET "gobject-helper <GTK_OBJECT>";
     defmode GTK_CONTAINER "gobject-helper <GTK_WIDGET>";
@@ -14,13 +19,17 @@ defmode GTK_OBJECT "gobject-helper";
         defmode GTK_BUTTON "gobject-helper <GTK_BIN>";
         defmode GTK_SCROLLED_WINDOW "gobject-helper <GTK_BIN>";
         defmode GTK_VIEWPORT "gobject-helper <GTK_BIN>";
+        defmode GTK_ALIGNMENT "gobject-helper <GTK_BIN>";
       defmode GTK_BOX "gobject-helper <GTK_CONTAINER>";
+        defmode GTK_HBOX "gobject-helper[GtkHBox] <GTK_BOX>";
         defmode GTK_VBOX "gobject-helper[GtkVBox] <GTK_BOX>";
       defmode GTK_TEXT_VIEW "gobject-helper <GTK_CONTAINER>";
       defmode GTK_TREE_VIEW "gobject-helper <GTK_CONTAINER>";
+      defmode GTK_TABLE "gobject-helper <GTK_CONTAINER>";
     defmode GTK_ENTRY "gobject-helper <GTK_WIDGET>";
     defmode GTK_MISC "gobject-helper <GTK_WIDGET>";
       defmode GTK_IMAGE "gobject-helper <GTK_MISC>";
+      defmode GTK_LABEL "gobject-helper <GTK_MISC>";
   defmode GTK_CELL_RENDERER "gobject-helper <GTK_OBJECT>";
     defmode GTK_CELL_RENDERER_TEXT "gobject-helper <GTK_CELL_RENDERER>";
 defmode GTK_TREE_VIEW_COLUMN "gobject-helper";
@@ -33,28 +42,24 @@ defmode GDK_PIXBUF_LOADER "gobject-helper";
 (void*, void*, void*)[~] store;
 
 template call-dg-threadlocal(T) {
-  extern(C) ReturnType T call-dg-threadlocal (GtkObject* obj, void* data) {
+  extern(C) ReturnType T call-dg-threadlocal (GtkWidget* widget, ParamTypes T tup, void* data) {
     alias ret = ReturnType T;
-    alias paramless = !!types-equal(ParamTypes T, ParamTypes void delegate());
-    static if paramless {
-      auto tup = *(ret delegate(), void*)*: data;
-    } else {
-      auto tup = *(ret delegate(ParamTypes T), void*)*: data;
-    }
+    alias paramless = !!types-equal(ParamTypes T, ());
+    auto pair = *(T, void*)*: data;
     
-    auto _threadlocal = tup[1];
+    auto _threadlocal = pair[1];
     
     static if types-equal(ret, void) {
       static if paramless {
-        tup[0] ();
+        pair[0] ();
       } else {
-        tup[0] ParamTypes T: obj;
+        pair[0] tup;
       }
     } else {
       static if paramless {
-        return tup[0] ();
+        return pair[0] ();
       } else {
-        return tup[0] obj;
+        return pair[0] tup;
       }
     }
   }
@@ -66,6 +71,18 @@ template g_signal_connect(T) {
     store ~= (void*, void*, void*): (t[2], _threadlocal);
     auto fn = &(call-dg-threadlocal!type-of t[2]);
     import std.string;
-    g_signal_connect_data (gpointer: t[0], toStringz t[1], GCallback: fn, &store[$-1], null, 0);
+    // TODO cache all this
+    auto gtype = (GTypeClass*:(GTypeInstance*: t[0]).g_class).g_type;
+    auto sname = toStringz t[1];
+    auto sgn = g_signal_lookup(sname, gtype);
+    if (!sgn) fail "signal not found";
+    g_signal_query(sgn, &GSignalQuery query);
+    alias Par = ParamTypes T[2];
+    static if (type-is tuple Par) { alias len = (Par par).length; }
+    else { alias len = 1; }
+    if (query.n_params != len) {
+      fail "invalid number of parameters for signal \"$(t[1])\": expected $(query.n_params), got $len";
+    }
+    g_signal_connect_data (gpointer: t[0], sname, GCallback: fn, &store[$-1], null, 0);
   }
 }

@@ -23,7 +23,11 @@ Object gotStringEx(ref string text, ParseCb cont, ParseCb rest) {
   auto backup = str;
   while (str.length) {
     auto ch = xtake();
-    if (ch != '$') buf ~= ch;
+    if (ch == '\\') { // eat, will filterEscapes later
+      auto ch2 = xtake();
+      buf ~= ch;
+      buf ~= ch2;
+    } else if (ch != '$') buf ~= ch;
     else {
       extended = true;
       flush;
