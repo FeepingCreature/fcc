@@ -1,0 +1,8 @@
+module test191;
+
+void main() {
+  set-handler (NullPointerError) invoke-exit "return";
+  define-exit "return" return;
+  int* ip = int*:57; // still in the 1024-byte null "grace zone"
+  *ip = 5;
+}

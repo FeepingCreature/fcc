@@ -728,6 +728,7 @@ void setupSysmods() {
         exit(1);
       }
     }
+    alias _null_grace_zone = 1024;
     platform(default) {
       pragma(lib, "pthread");
       static import c.pthread, c.signal;
@@ -777,11 +778,12 @@ void setupSysmods() {
           _check_handling;
           already_handling_segfault = true;
           onExit already_handling_segfault = false;
+          bool isnullp = 0 <= int:errptr < _null_grace_zone;
           if (preallocated_sigsegv) {
-            if (errptr is null) raise preallocated_nullfault;
+            if (isnullp) raise preallocated_nullfault;
             raise preallocated_sigsegv;
           }
-          if (errptr is null)
+          if (isnullp)
             raise new NullPointerError;
           raise new MemoryAccessError "Segmentation Fault";
         }
@@ -846,11 +848,12 @@ void setupSysmods() {
         
         if (errcode == int:STATUS_ACCESS_VIOLATION) {
           // printf("seghandle_userspace and %p\n", frameinfo);
+          bool isnullp = 0 <= int:errptr < _null_grace_zone;
           if (preallocated_sigsegv) {
-            if (errptr is null) raise preallocated_nullfault;
+            if (isnullp) raise preallocated_nullfault;
             raise preallocated_sigsegv;
           }
-          if (errptr is null)
+          if (isnullp)
             raise new NullPointerError;
           raise new MemoryAccessError "Access Violation";
         }

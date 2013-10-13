@@ -1,0 +1,8 @@
+module test190;
+
+void main() {
+  set-handler (NullPointerError) invoke-exit "return";
+  define-exit "return" return;
+  int* ip;
+  *ip = 5;
+}
