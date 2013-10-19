@@ -112,7 +112,7 @@ grabIdentifier:
       t2.failparse("Enum value of "[], backupval.valueType(), " did not match "[],
                     base);
   } else {
-    val = foldex(lookupOp("+"[], val, one));
+    val = collapse(lookupOp("+"[], val, one));
   }
   en.addEntry(idname, val);
   if (t2.accept(","[])) goto grabIdentifier;

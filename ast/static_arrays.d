@@ -59,7 +59,7 @@ static this() {
       IType bogus;
       if (rest(t2, "type", &bogus)) return null;
     }
-    if (!rest(t2, "tree.expr _tree.expr.arith"[], &len_ex)) return null;
+    if (!rest(t2, "tree.expr _tree.expr.bin"[], &len_ex)) return null;
     auto backup_len = len_ex;
     if (!gotImplicitCast(len_ex, (IType it) { return test(Single!(SysInt) == it); }))
       t2.failparse("Need int for static array, not "[], backup_len);

@@ -3,6 +3,7 @@ module ast.conditionals;
 
 import
   ast.base, ast.namespace, ast.parse, ast.math, ast.assign, ast.scopes,
+  ast.casting, ast.opers,
   tools.base: This, This_fn, rmSpace;
 
 class TrueCond : Cond {
@@ -336,7 +337,7 @@ Object gotNegate(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t3 = t2;
   if (t3.accept("is") && !t3.accept("-")) return null; // "dg !is dg2" is "!(dg is dg2)", not "dg (!is (dg2))" - but also allow is-foo
-  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
+  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex))
     t2.failparse("Couldn't match condition to negate"[]);
   text = t2;
   return fastcast!(Object)(cond2ex(fastalloc!(NegCond)(ex2cond(ex, true))));
@@ -381,7 +382,8 @@ Cond compare(string op, Expr ex1, Expr ex2) {
       return exprwrap(fastalloc!(Compare)(de1, not, smaller, equal, greater, de2));
     }
   }
-  return ex2cond(lookupOp(op, ex1, ex2));
+  return null; // use lookupOp directly instead
+  // return ex2cond(lookupOp(op, ex1, ex2));
 }
 
 import ast.modules;
@@ -441,62 +443,58 @@ bool isStaticFalse(Cond cd) {
 
 extern(C) void oop_is_comparable_sanity_check(string text, Expr ex1, Expr ex2);
 
-import ast.casting, ast.opers;
-Object gotCompare(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  bool not, smaller, equal, greater, identical;
-  Expr ex1, ex2;
-  if (!rest(t2, "tree.expr _tree.expr.cond"[], &ex1)) return null;
-  // oopsie-daisy, iterator assign is not the same as "smaller than negative"!
-  if (t2.acceptLeftArrow()) return null;
-  if (t2.accept("!"[])) not = true;
-  if (t2.accept("<"[])) smaller = true;
-  if (t2.accept(">"[])) greater = true;
-  if ((not || smaller || greater) && t2.accept("=") || t2.accept("=="))
-    equal = true;
-  if (!smaller && !greater && !equal && t2.accept("is"))
-    identical = true;
-  
-  if (!not && !smaller && !greater && !equal && !identical)
-    return null;
-  
-  if (!rest(t2, "tree.expr ,tree.expr.cond.compare"[], &ex2)) {
-    t2.failparse("Could not parse second operator for comparison"[]);
-  }
-  auto finalize = delegate Expr(Cond cd) { return cond2ex(cd); };
-  if (auto cmp2 = fastcast!(Compare) (ex2)) {
-    ex2 = cmp2.e1;
-    finalize = cmp2 /apply/ delegate Expr(Compare cmp2, Cond cd) {
-      return cond2ex(fastalloc!(BooleanOp!("&&"[]))(cd, exprwrap(cmp2)));
-    };
-  }
-  auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
-  if (op == "=") op = "==";
-  if (identical) {
-    if (not) op = "!=";
-    else op = "==";
-    auto vt = typeToLLVM(ex1.valueType());
-    IType cmptype;
-    if (vt == "i32" || vt.endsWith("*")) cmptype = Single!(SysInt);
-    else if (vt == "{i8*, i8*}" || vt == "{i32, i8*}") cmptype = Single!(Long);
-    else {
-      todo(qformat("comparison of ", ex1.valueType(), " ", vt));
+static this() {
+  Expr defineOpFn(bool not, bool smaller, bool greater, bool equal, bool identical, Expr ex1, Expr ex2) {
+    auto finalize = delegate Expr(Cond cd) { return cond2ex(cd); };
+    if (auto cmp1 = fastcast!(Compare) (ex1)) {
+      ex1 = cmp1.e2;
+      finalize = cmp1 /apply/ delegate Expr(Compare cmp1, Cond cd) {
+        return cond2ex(fastalloc!(BooleanOp!("&&"[]))(exprwrap(cmp1), cd));
+      };
     }
-    oop_is_comparable_sanity_check(text, ex1, ex2);
-    // force value comparison
-    ex1 = reinterpret_cast(cmptype, ex1);
-    ex2 = reinterpret_cast(cmptype, ex2);
+    auto op = (not?"!":"")~(smaller?"<":"")~(greater?">":"")~(equal?"=":"");
+    if (op == "=") op = "==";
+    if (identical) {
+      if (not) op = "!=";
+      else op = "==";
+      auto vt = typeToLLVM(ex1.valueType());
+      IType cmptype;
+      if (vt == "i32" || vt.endsWith("*")) cmptype = Single!(SysInt);
+      else if (vt == "{i8*, i8*}" || vt == "{i32, i8*}") cmptype = Single!(Long);
+      else {
+        todo(qformat("comparison of ", ex1.valueType(), " ", vt));
+      }
+      // oop_is_comparable_sanity_check(text, ex1, ex2);
+      // force value comparison
+      ex1 = reinterpret_cast(cmptype, ex1);
+      ex2 = reinterpret_cast(cmptype, ex2);
+      if (auto res = finalize(compare(op, ex1, ex2))) return res;
+      return lookupOp(op, ex1, ex2);
+    }
+    return finalize(compare(op, ex1, ex2));
   }
-  try {
-    auto res = fastcast!(Object) (finalize(compare(op, ex1, ex2)));
-    if (!res) text.failparse("Undefined comparison"[]);
-    text = t2;
-    return res;
-  } catch (Exception ex) {
-    text.failparse(ex);
-  }
+  /*
+  "=="[], "!="[], "is"[], "!is"[],
+   "<"[], ">"[], "<="[], ">="[], "<>="[],
+  "!<"[],"!>"[],"!<="[],"!>="[],"!<>="[],
+  */
+  //                      not   smallergreaterequalidentical
+  defineOp("=="  ,stuple(false,false,false,true ,false) /apply/ &defineOpFn);
+  defineOp("is"  ,stuple(false,false,false,false,true ) /apply/ &defineOpFn);
+  defineOp("<"   ,stuple(false,true ,false,false,false) /apply/ &defineOpFn);
+  defineOp(">"   ,stuple(false,false,true ,false,false) /apply/ &defineOpFn);
+  defineOp("<="  ,stuple(false,true ,false,true ,false) /apply/ &defineOpFn);
+  defineOp(">="  ,stuple(false,false,true ,true ,false) /apply/ &defineOpFn);
+  defineOp("<>=" ,stuple(false,true ,true ,true ,false) /apply/ &defineOpFn);
+  
+  defineOp("!="  ,stuple(true ,false,false,true ,false) /apply/ &defineOpFn);
+  defineOp("!is" ,stuple(true ,false,false,false,true ) /apply/ &defineOpFn);
+  defineOp("!<"  ,stuple(true ,true ,false,false,false) /apply/ &defineOpFn);
+  defineOp("!>"  ,stuple(true ,false,true ,false,false) /apply/ &defineOpFn);
+  defineOp("!<=" ,stuple(true ,true ,false,true ,false) /apply/ &defineOpFn);
+  defineOp("!>=" ,stuple(true ,false,true ,true ,false) /apply/ &defineOpFn);
+  defineOp("!<>=",stuple(true ,true ,true ,true ,false) /apply/ &defineOpFn);
 }
-mixin DefaultParser!(gotCompare, "tree.expr.cond.compare"[], "71"[]);
 
 import ast.literals;
 class BooleanOp(string Which) : Cond, HasInfo {
@@ -581,35 +579,13 @@ Expr cond2ex(Cond cd) {
 alias BooleanOp!("&&"[]) AndOp;
 alias BooleanOp!("||"[]) OrOp;
 
-Object gotBoolOpExpr(string Op, alias Class)(ref string text, ParseCb cont, ParseCb rest) {
-  auto t2 = text;
-  Expr ex;
-  if (!cont(t2, &ex)) return null;
-  auto old_ex = ex;
-  auto t3 = t2;
-  while (t3.accept(Op)) {
-    Expr ex2;
-    // trust me
-    auto popCache = pushCache(); scope(exit) popCache();
-    if (!cont(t3, &ex2)) {
-      // t2.failparse("Couldn't get second cond after '"[], Op, "'"[]);
-      t2.setError("Couldn't get second cond after '"[], Op, "'"[]);
-      break;
-    }
-    try ex = cond2ex(fastalloc!(Class)(ex2cond(ex), ex2cond(ex2)));
-    catch (Exception ex) {
-      t2.failparse(ex);
-    }
-    t2 = t3;
-  }
-  if (old_ex is ex) return null; // only matched one
-  text = t2;
-  return fastcast!(Object) (ex);
-}
-mixin DefaultParser!(gotBoolOpExpr!("&&"[], AndOp), "tree.expr.cond.bin.and"[], "2"[]);
-mixin DefaultParser!(gotBoolOpExpr!("||"[], OrOp), "tree.expr.cond.bin.or"[], "1"[]);
 static this() {
-  addPrecedence("tree.expr.cond.bin"[], "101"[]);
+  defineOp("&&", delegate Expr(Expr ex1, Expr ex2) {
+    return cond2ex(fastalloc!(AndOp)(ex2cond(ex1), ex2cond(ex2)));
+  });
+  defineOp("||", delegate Expr(Expr ex1, Expr ex2) {
+    return cond2ex(fastalloc!(OrOp)(ex2cond(ex1), ex2cond(ex2)));
+  });
 }
 
 Object gotBraces(ref string text, ParseCb cont, ParseCb rest) {
@@ -701,10 +677,6 @@ Object gotCondAsExpr(ref string text, ParseCb cont, ParseCb rest) {
   return fastalloc!(CondExpr)(cd);
 }
 mixin DefaultParser!(gotCondAsExpr, "tree.expr.eval.cond"[], null, "eval"[]);
-
-static this() {
-  addPrecedence("tree.expr.cond"[], "120"[]);
-}
 
 Expr longOp(string Code)(Expr e1, Expr e2) {
   bool isLong(Expr ex) { return test(Single!(Long) == resolveType(ex.valueType())); }

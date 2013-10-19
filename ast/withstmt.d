@@ -258,7 +258,7 @@ Object gotWithStmt(ref string text, ParseCb cont, ParseCb rest) {
   IType it;
   string t3;
   if (rest(t2, "type", &it) && fastcast!(Enum) (it)) {
-  } else if (rest(t2, "tree.expr _tree.expr.arith", &ex) &&
+  } else if (rest(t2, "tree.expr _tree.expr.bin", &ex) &&
     (t3 = t2, true) && t3.accept("{")) {
   } else {
     t2 = text;

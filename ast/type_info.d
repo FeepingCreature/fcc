@@ -8,7 +8,7 @@ import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop, a
 Object gotTypeof(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  string match = "tree.expr _tree.expr.arith";
+  string match = "tree.expr _tree.expr.bin";
   
   if (!rest(t2, match, &ex))
     t2.failparse("Failed to parse typeof expression"[]);
@@ -34,7 +34,7 @@ Object gotTypeStringof(ref string text, ParseCb cont, ParseCb rest) {
   bool detailed;
   if (t2.accept("detailed"[])) detailed = true;
   Object obj;
-  if (!rest(t2, "type"[], &obj) && !rest(t2, "tree.expr _tree.expr.arith"[], &obj))
+  if (!rest(t2, "type"[], &obj) && !rest(t2, "tree.expr _tree.expr.bin"[], &obj))
     return null;
   if (fastcast!(Iterable) (obj)) opt(obj);
   text = t2;

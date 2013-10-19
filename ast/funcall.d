@@ -29,8 +29,8 @@ Object gotNamedArg(ref string text, ParseCb cont, ParseCb rest) {
   text = t2;
   return res;
 }
-mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_1", "115"); // must be high-priority (above arith) to override subtraction.
-mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be below arith too, to be usable in stuff like paren-less calls
+mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_1", "115"); // must be high-priority (above bin) to override subtraction.
+mixin DefaultParser!(gotNamedArg, "tree.expr.named_arg_2", "221"); // must be below bin too, to be usable in stuff like paren-less calls
 
 bool matchedCallWith(Expr arg, Argument[] params, ref Expr[] res, out Statement[] inits, Function fun, lazy string info, string text = null, bool probe = false, bool exact = false, int* scorep = null) {
   
@@ -350,7 +350,7 @@ bool matchCall(ref string text, Function fun, lazy string lazy_info, Argument[] 
     scope(exit) *propcfg.ptr() = backup;
     if (isTuple) propcfg().withTuple = false;
     
-    if (!rest(t2, "tree.expr.cond.other"[], &arg) && !rest(t2, "tree.expr _tree.expr.arith"[], &arg)) {
+    if (!rest(t2, "tree.expr _tree.expr.bin"[], &arg)) {
       if (params.length) return false;
       else if (info().startsWith("delegate"[])) return false;
       else if (allowAutoCall) arg = mkTupleExpr();

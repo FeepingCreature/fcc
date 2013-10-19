@@ -582,21 +582,44 @@ BinopExpr delegate(Expr, Expr, string) mkLongExpr;
 
 extern(C) IType resolveTup(IType, bool onlyIfChanged = false);
 
-static this() { addPrecedence("tree.expr.arith"[], "12"[]); }
+static this() {
+  addPrecedence("tree.expr.bin"[], "12"[]);
+}
 
 const oplist = [
+  "||"[], "&&"[],
+  "=="[], "!="[], "is"[], "!is"[],
+   "<="[], ">="[], "<>="[], "<"[], ">"[], 
+  "!<="[],"!>="[],"!<>="[],"!<"[],"!>"[],
+  "~"[],
   "+"[], "-"[], "*"[], "/"[],
   "xor"[], "|"[], "&"[], "%"[],
   "<<"[], ">>>"[], ">>"[], "^"[], "x"
 ];
 
-const oplevel = [
-  1, 1, 2, 2,
-  3, 4, 5, 6,
-  7, 7, 7, 8, 8
+const opMayAssign = [
+  1, 1,
+  0, 0, 0, 0,
+  0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0,
+  1,
+  1, 1, 1, 1,
+  1, 1, 1, 1,
+  1, 1, 1, 1, 0
 ];
 
-const lvcount = 9;
+const oplevel = [
+  1, 2,
+  3, 3, 3, 3,
+  3, 3, 3, 3, 3,
+  3, 3, 3, 3, 3,
+  4,
+  5, 5, 6, 6,
+  7, 8, 9, 10,
+  11, 11, 11, 12, 12
+];
+
+const lvcount = 13;
 
 TLS!(string) octoless_marker;
 static this() { New(octoless_marker); }
@@ -611,8 +634,8 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
   bool octoless;
   if (*octoless_marker.ptr() is text)
     octoless = true;
-  foreach (op; oplist) {
-    if (op == "x"[]) continue; // what, no, bad idea
+  foreach (i, op; oplist) {
+    if (!opMayAssign[i]) continue;
     auto t3 = t2;
     if (t3.accept(op) && t3.accept("="[])) {
       Expr src;
@@ -641,8 +664,8 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
             t3 = t2;
             opName = oplist[k]; _i = i;
             bool accepted = t3.accept(opName);
-            if (opName == "x"[]) accepted &= !t3.startsWith("-"[]); // x-something is an identifier!
-            if (t3.startsWith(opName)) accepted = false;
+            if (opName == "x") accepted &= !t3.startsWith("-"); // x-something is an identifier!
+            if (t3.startsWith(opName)) accepted = false; // ++, --, && etc
             if (accepted) {
               goto accepted_handler;
             }
@@ -709,7 +732,7 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
 }
 
 import ast.pointer, ast.opers, tools.base: swap;
-mixin DefaultParser!(gotMathExpr, "tree.expr.arith.ops"[], "31"[]);
+mixin DefaultParser!(gotMathExpr, "tree.expr.bin.math"[], "31"[]);
 
 Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -719,7 +742,7 @@ Object gotPrefixExpr(ref string text, ParseCb cont, ParseCb rest) {
     if (!t2.accept("¬")/* && !t2.accept("neg"[])*/) return null;
   }
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
+  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex)) {
     if (*lenient.ptr()) return null; // maybe in a C-expr?
     t2.failparse("Found no expression for negation"[]);
   }

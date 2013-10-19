@@ -57,7 +57,7 @@ Object gotAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   LValue lv; MValue mv;
   Expr ex;
-  if (rest(t2, "tree.expr _tree.expr.arith"[], &ex) && t2.accept("="[])) {
+  if (rest(t2, "tree.expr _tree.expr.bin"[], &ex) && t2.accept("="[])) {
     Expr value;
     IType[] its;
     if (!rest(t2, "tree.expr"[], &value)) {

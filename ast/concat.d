@@ -1,9 +1,9 @@
 module ast.concat;
 
 import
-  ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal,
+  ast.base, ast.parse, ast.arrays, ast.static_arrays, ast.int_literal, ast.casting,
   ast.vardecl, ast.scopes, ast.aggregate, ast.namespace, ast.index, ast.tuples, ast.pointer,
-  ast.assign, ast.opers, ast.slice, ast.literal_string, ast.literals, tools.base: take;
+  ast.assign, ast.opers, ast.slice, ast.literal_string, ast.literals, ast.fold, tools.base: take;
 
 class ConcatChain : Expr {
   Array type;
@@ -127,7 +127,9 @@ class ConcatChain : Expr {
           auto len = getArrayLength(c);
           auto end = .collapse(lookupOp("+", offset, len));
           /// res[offset .. offset + cache[i].length] = cache[i];
-          getSliceAssign(mkArraySlice(res, offset, end), c).emitLLVM(lf);
+          auto stmt = getSliceAssign(mkArraySlice(res, offset, end), c);
+          opt(stmt);
+          stmt.emitLLVM(lf);
           /// offset = offset + cache[i].length;
           emitAssign(lf, offset, end);
         }
@@ -269,33 +271,3 @@ static this() {
     // return null;
   });
 }
-
-import ast.casting;
-Object gotConcatChain(ref string text, ParseCb cont, ParseCb rest) {
-  Expr op, op2;
-  auto t2 = text;
-  IType elemtype;
-  if (!cont(t2, &op)) return null;
-  auto first = op;
-  try {
-    retry:
-    auto t3 = t2;
-    if (t3.accept("~="[]) && rest(t3, "tree.expr"[], &op2)) {
-      op = lookupOp("~="[], op, op2);
-      if (!op) return null;
-      t2 = t3;
-      goto retry;
-    }
-    if (t2.accept("~"[]) && cont(t2, &op2)) {
-      op = lookupOp("~"[], op, op2);
-      if (!op) return null;
-      goto retry;
-    }
-  } catch (Exception ex) {
-    t2.failparse("Could not concatenate: "[], ex);
-  }
-  if (op is first) return null;
-  text = t2;
-  return fastcast!(Object)~ op;
-}
-mixin DefaultParser!(gotConcatChain, "tree.expr.arith.concat"[], "305"[]);

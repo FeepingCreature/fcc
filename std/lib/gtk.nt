@@ -20,6 +20,7 @@ defmode GTK_OBJECT "gobject-helper";
         defmode GTK_SCROLLED_WINDOW "gobject-helper <GTK_BIN>";
         defmode GTK_VIEWPORT "gobject-helper <GTK_BIN>";
         defmode GTK_ALIGNMENT "gobject-helper <GTK_BIN>";
+        defmode GTK_EVENT_BOX "gobject-helper <GTK_BIN>";
       defmode GTK_BOX "gobject-helper <GTK_CONTAINER>";
         defmode GTK_HBOX "gobject-helper[GtkHBox] <GTK_BOX>";
         defmode GTK_VBOX "gobject-helper[GtkVBox] <GTK_BOX>";
@@ -35,6 +36,7 @@ defmode GTK_OBJECT "gobject-helper";
 defmode GTK_TREE_VIEW_COLUMN "gobject-helper";
 defmode GTK_TREE_MODEL "gobject-helper";
 defmode GTK_TREE_STORE "gobject-helper";
+defmode GTK_TREE_SELECTION "gobject-helper";
 defmode GTK_TEXT_BUFFER "gobject-helper";
 
 defmode GDK_PIXBUF_LOADER "gobject-helper";

@@ -28,7 +28,7 @@ extern(C) void addFailureFun(Function fun) {
                   // fprintf(stderr, "%i set %p (%.*s)\n", pthread_self(), &var, text);
                 }`,
                 namespace(), "var"[], gr, "fun"[], fun/*, "text", mkString(namespace().get!(Function).getIdentifier())* /);*/
-      auto funref = iparse!(Expr, "gr_setup_1"[], "tree.expr >tree.expr.arith"[], dontopt)
+      auto funref = iparse!(Expr, "gr_setup_1"[], "tree.expr _tree.expr.bin"[], dontopt)
                            (`&fun`, "fun"[], fun);
       assert(!!funref);
       auto _record = fastcast!(Expr)(namespace().lookup("_record"));

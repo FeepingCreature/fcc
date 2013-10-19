@@ -960,16 +960,21 @@ void resort() {
   listModified = false;
 }
 
-// manually inline because gdc is a poopyhead
-const string parsecall = `
-  if (verboseParser) return _parse!(true).parse(%);
-  else return _parse!(false).parse(%);
-`;
-
 Object parse(ref string text, bool delegate(string) cond,
     int offs = 0, ParseCtl delegate(Object) accept = null)
 {
-  mixin(parsecall.ctReplace("%", "text, cond, offs, accept"));
+  if (verboseParser) return _parse!(true).parse(text, cond, offs, accept);
+  else return _parse!(false).parse(text, cond, offs, accept);
+}
+
+string condStr;
+Object parse(ref string text, string cond) {
+  condStr = cond;
+  scope(exit) condStr = null;
+  
+  try return parse(text, matchrule(cond));
+  catch (ParseEx pe) { pe.addRule(cond); throw pe; }
+  catch (Exception ex) throw new Exception(Format("Matching rule '"~cond~"': ", ex));
 }
 
 template _parse(bool Verbose) {
@@ -985,12 +990,10 @@ template _parse(bool Verbose) {
     cont.dg = null; // needed for null check further in
     int i = void;
     Object cont_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
-      // return .parse(text, cond, offs + i + 1, accept);
-      mixin(parsecall.ctReplace("%", "text, cond, offs + i + 1, accept"));
+      return parse(text, cond, offs + i + 1, accept); // same verbosity - it's a global flag
     }
     Object rest_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
-      // return .parse(text, cond, accept);
-      mixin(parsecall.ctReplace("%", "text, cond, 0, accept"));
+      return parse(text, cond, 0, accept);
     }
     
     Object longestMatchRes;
@@ -1099,16 +1102,6 @@ template _parse(bool Verbose) {
     return null;
   }
   // version(Windows) { } else pragma(set_attribute, parse, optimize("-O3", "-fno-tree-vrp"));
-}
-
-string condStr;
-Object parse(ref string text, string cond) {
-  condStr = cond;
-  scope(exit) condStr = null;
-  
-  try mixin(parsecall.ctReplace("%", "text, matchrule(cond)"));
-  catch (ParseEx pe) { pe.addRule(cond); throw pe; }
-  catch (Exception ex) throw new Exception(Format("Matching rule '"~cond~"': ", ex));
 }
 
 bool test(T)(T t) { if (t) return true; else return false; }

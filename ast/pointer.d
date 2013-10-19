@@ -170,10 +170,11 @@ static this() {
 
 import ast.fold, ast.casting;
 Object gotRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (text.startsWith("&")) return null;
   auto t2 = text;
   
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex)) {
+  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex)) {
     text.setError("Address operator found but nothing to take address matched"[]);
     return null;
   }
@@ -204,7 +205,7 @@ Object gotDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
+  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex))
     t2.failparse("Dereference operator found but no expression matched"[]);
   
   if (!gotImplicitCast(ex, (IType it) { return !!fastcast!(Pointer) (it); })) {
@@ -258,11 +259,10 @@ class LateSymbol : Expr {
   void delegate(LLVMFile) dg;
   string* name;
   IType type;
-  Expr referent; // expr that we reference, so that iteration can see it
-  this(Expr referent, IType type, void delegate(LLVMFile) dg, string* name) { this.referent = referent; this.type = type; this.dg = dg; this.name = name; }
+  this(IType type, void delegate(LLVMFile) dg, string* name) { this.type = type; this.dg = dg; this.name = name; }
   private this() { }
-  LateSymbol dup() { return fastalloc!(LateSymbol)(referent, type, dg, name); }
-  mixin defaultIterate!(referent);
+  LateSymbol dup() { return fastalloc!(LateSymbol)(type, dg, name); }
+  mixin defaultIterate!();
   mixin defaultCollapse!();
   override IType valueType() { return type; }
   override string toString() { return qformat("(", type, ") ", *name); }

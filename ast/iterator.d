@@ -139,7 +139,7 @@ Object gotRangeIter(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!cont(t2, &from)) return null;
   if (!t2.accept(".."[])) return null;
-  if (!rest(t2, "tree.expr ,tree.expr.arith", &to))
+  if (!rest(t2, "tree.expr ,tree.expr.bin", &to))
     t2.failparse("Unable to acquire second ha(lf) of range def"[]);
   text = t2;
   bool notATuple(IType it) { return !fastcast!(Tuple) (it); }
@@ -656,7 +656,7 @@ Object gotIterCond(bool expressionTargetAllowed = true)(ref string text, ParseCb
   string[] newVarNames; IType newVarType;
   bool needIterator;
   bool isRefDecl;
-  const string myTE = "tree.expr _tree.expr.arith _tree.expr.iter_loose";
+  const string myTE = "tree.expr _tree.expr.bin _tree.expr.iter_loose";
   bool wantTargetDecl = true;
   if (expressionTargetAllowed) {
     Object obj;
@@ -719,7 +719,7 @@ withoutIterator:
     
     if (ty) *templInstOverride.ptr() = stuple(t2, ty);
     
-    if (!rest(t2, "tree.expr >tree.expr.cond >tree.expr.arith"[], &iter)) {
+    if (!rest(t2, "tree.expr >tree.expr.bin"[], &iter)) {
       
       if (needIterator) t2.failparse("Can't parse iterator"[]);
       else return null;
@@ -983,7 +983,7 @@ import tools.log;
 Object gotIteratorAssign(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr target;
-  if (rest(t2, "tree.expr _tree.expr.arith"[], &target) && t2.accept("="[])) {
+  if (rest(t2, "tree.expr _tree.expr.bin"[], &target) && t2.accept("="[])) {
     Expr value;
     if (!rest(t2, "tree.expr"[], &value) || !gotImplicitCast(value, Single!(HintType!(Iterator)), (IType it) {
       auto ri = fastcast!(RichIterator)~ it;
@@ -1004,7 +1004,7 @@ Object gotElemTypeOf(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
   IType ty;
-  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
+  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex))
     if (!rest(t2, "type"[], &ty))
       t2.failparse("Failed to parse type-of-elem"[]);
   

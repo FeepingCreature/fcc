@@ -77,7 +77,7 @@ void setupIndex() {
   defineOp("index", delegate Expr(Expr e1, Expr e2) {
     if (!showsAnySignOfHaving(e1, "opIndex"))
       return null;
-    if (auto res = iparse!(Expr, "index_overload", "tree.expr _tree.expr.arith")
+    if (auto res = iparse!(Expr, "index_overload", "tree.expr _tree.expr.bin")
                           (`e1.opIndex e2`, "e1", e1, "e2", e2)) {
       return res;
     }

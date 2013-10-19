@@ -69,7 +69,7 @@ class Mode {
           res.firstParam = ex;
         } else {
           res.firstParam =
-            iparse!(Expr, "gobject-hack"[], "tree.expr _tree.expr.arith"[])
+            iparse!(Expr, "gobject-hack"[], "tree.expr _tree.expr.bin"[])
                    (cast_expr,
                     namespace(), "obj"[], ex);
         }
@@ -290,7 +290,7 @@ Object gotModeDef(ref string text, ParseCb cont, ParseCb rest) {
   Expr str;
   if (!rest(text, "tree.expr"[], &str))
     text.failparse("Couldn't get string param for mode def. "[]);
-  auto sex = fastcast!(StringExpr)~ foldex(str);
+  auto sex = fastcast!(StringExpr)(collapse(str));
   if (!sex)
     text.failparse("String literal expected! "[]);
   namespace().add(ident, fastalloc!(Mode)(sex.str, par, ident));
@@ -308,7 +308,7 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
   if (!t2.gotIdentifier(name))
     if (!gotMode || namespace().lookup("mode"[])) return null;
     else t2.failparse("Mode name expected"[]);
-  auto mode = cast(Mode) namespace().lookup(name);
+  auto mode = fastcast!(Mode)(namespace().lookup(name));
   if (!mode)
     if (gotMode) text.failparse(name~" is not a mode! "[]);
     else return null;
@@ -334,7 +334,7 @@ Object gotMode(ref string text, ParseCb cont, ParseCb rest) {
     }
     
     if (text.accept("("[])) opened = true;
-    if (!rest(text, "tree.expr _tree.expr.arith"[], &arg))
+    if (!rest(text, "tree.expr _tree.expr.bin"[], &arg))
       text.failparse("Couldn't get mode argument! "[]);
     if (opened && !text.accept(")"[]))
       text.failparse("Closing paren expected"[]);

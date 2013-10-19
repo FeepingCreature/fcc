@@ -71,7 +71,7 @@ Object gotInvokeRepl(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   auto repl = mkVarFor(
-    iparse!(Expr, "inst_repl"[], "tree.expr _tree.expr.arith"[])
+    iparse!(Expr, "inst_repl"[], "tree.expr _tree.expr.bin"[])
            (`new repl new intf`,
             "repl"[], repltype, "intf"[], intftype));
   

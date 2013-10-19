@@ -293,7 +293,7 @@ Expr mkCross(Expr[] exprs) {
 
 Object gotIteratorCross(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr ,tree.expr.arith"[], &ex))
+  if (!rest(text, "tree.expr ,tree.expr.bin"[], &ex))
     text.failparse("Could not match expr for cross"[]);
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
     auto tup = fastcast!(Tuple)~ ex.valueType();
@@ -418,7 +418,7 @@ Expr mkZip(Expr[] exprs, bool rich) {
 
 Object gotIteratorZip(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr ,tree.expr.arith"[], &ex))
+  if (!rest(text, "tree.expr ,tree.expr.bin"[], &ex))
     text.failparse("Could not match expr for zip"[]);
   bool rich = true;
   if (!gotImplicitCast(ex, delegate bool(Expr ex) {
@@ -528,7 +528,7 @@ Expr mkCat(IType type, Expr[] exprs, bool rich) {
 
 Object gotIteratorCat(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr ,tree.expr.arith"[], &ex))
+  if (!rest(text, "tree.expr ,tree.expr.bin"[], &ex))
     text.failparse("Could not match exprs for cat"[]);
   bool rich = true;
   IType valueType;
@@ -636,7 +636,7 @@ class SumExpr : Expr {
 import ast.vardecl;
 Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr ,tree.expr.arith"[], &ex)) {
+  if (!rest(text, "tree.expr ,tree.expr.bin"[], &ex)) {
     text.setError("Could not match expr for sum"[]);
     return null;
   }

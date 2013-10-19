@@ -46,7 +46,9 @@ class FullSlice : Expr {
       auto tp = alloca(lf, "1", svts);
       put(lf, "store ", svts, " ", save(lf, sup), ", ", svts, "* ", tp);
       auto temp = fastalloc!(DerefExpr)(fastalloc!(LLVMValue)(tp, fastalloc!(Pointer)(svt)));
-      mkArraySlice(temp, mkInt(0), getArrayLength(temp)).emitLLVM(lf);
+      auto slice = mkArraySlice(temp, mkInt(0), getArrayLength(temp));
+      opt(slice);
+      slice.emitLLVM(lf);
     }
   }
 }
@@ -132,7 +134,7 @@ import ast.namespace, tools.log;
 Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr dest, src;
-  if (rest(t2, "tree.expr _tree.expr.arith"[], &dest) && t2.accept("="[])) {
+  if (rest(t2, "tree.expr _tree.expr.bin"[], &dest) && t2.accept("="[])) {
     if (fastcast!(LValue)~ dest) return null; // leave to normal assignment
     auto ar = fastcast!(Array)~ resolveType(dest.valueType());
     if (!ar) return null;
@@ -157,7 +159,7 @@ Object gotSliceAssignment(ref string text, ParseCb cont, ParseCb rest) {
     } else t2.failparse("Failed to parse slice-assignment value"[]);
   } else return null;
 }
-mixin DefaultParser!(gotSliceAssignment, "tree.semicol_stmt.assign_slice"[], "10"[]);
+mixin DefaultParser!(gotSliceAssignment, "tree.semicol_stmt.assign_slice"[], "105"[]);
 
 void setupSlice2() {
   implicits ~= delegate Expr(Expr ex) {

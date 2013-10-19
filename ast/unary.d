@@ -52,7 +52,7 @@ Object gotPostIncExpr(ref string text, ParseCb cont, ParseCb rest) {
     return new PrePostOpExpr!(true, false)(op);
   } else return null;
 }
-mixin DefaultParser!(gotPostIncExpr, "tree.expr.arith.postincdec"[], "25"[]);
+mixin DefaultParser!(gotPostIncExpr, "tree.expr.postincdec"[], "12101"[]);
 
 Object gotPreIncExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr op;
@@ -76,4 +76,4 @@ Object gotPreIncExpr(ref string text, ParseCb cont, ParseCb rest) {
     return new PrePostOpExpr!(false, false)(op);
   } else return null;
 }
-mixin DefaultParser!(gotPreIncExpr, "tree.expr.arith.preincdec"[], "26"[]);
+mixin DefaultParser!(gotPreIncExpr, "tree.expr.preincdec"[], "12102"[]);

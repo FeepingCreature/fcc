@@ -129,8 +129,8 @@ Object gotWhileStmt(ref string text, ParseCb cont, ParseCb rest) {
     auto iter = fastcast!(RichIterator) (iter_expr.valueType());
     if (!iter) text.failparse("static-loop expression not an iteratr! "[]);
     
-    auto len = fastcast!(IntExpr)~ foldex(iter.length(iter_expr));
-    // logln("foldex length is "[], foldex(iter.length(iter_expr)));
+    auto len = fastcast!(IntExpr) (collapse(iter.length(iter_expr)));
+    // logln("collapse length is "[], collapse(iter.length(iter_expr)));
     if (!len) text.failparse("static-loop iterator length is not constant int! "[]);
     string t3;
     if (!len.num) text.failparse("static-loop must not be empty");

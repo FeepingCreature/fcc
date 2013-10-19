@@ -302,6 +302,7 @@ class NestFunRefExpr : mkDelegate {
     return Format("&"[], fun, " ("[], super.data, ")"[]);
   }
   // TODO: emit asm directly in case of PointerFunction.
+  // NOTE: when you define your own emitLLVM, define your own collapse() too?
   override IType valueType() {
     return fastalloc!(Delegate)(fun.type);
   }
@@ -309,6 +310,7 @@ class NestFunRefExpr : mkDelegate {
 }
 
 Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (text.startsWith("&")) return null; // a && b is not a (&(&b))!!
   string ident;
   NestedFunction nf;
   
@@ -316,7 +318,7 @@ Object gotDgRefExpr(ref string text, ParseCb cont, ParseCb rest) {
   propcfg().withCall = false;
   scope(exit) propcfg().withCall = propbackup;
   
-  if (!rest(text, "tree.expr _tree.expr.arith"[], &nf))
+  if (!rest(text, "tree.expr _tree.expr.bin"[], &nf))
     return null;
   
   if (auto pnf = cast(PointerFunction!(NestedFunction)) nf) return fastcast!(Object)~ pnf.ptr;
@@ -517,7 +519,7 @@ extern(C) Function C_mkPFNestFun(Expr dgex) {
 
 Object gotFpDerefExpr(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr _tree.expr.arith"[], &ex)) return null;
+  if (!rest(text, "tree.expr _tree.expr.bin"[], &ex)) return null;
   auto fp = fastcast!(FunctionPointer)~ ex.valueType(), dg = fastcast!(Delegate)~ ex.valueType();
   if (!fp && !dg) return null;
   

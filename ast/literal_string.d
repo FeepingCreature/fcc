@@ -1,6 +1,6 @@
 module ast.literal_string;
 
-import ast.base, ast.literals, ast.pointer, ast.arrays, ast.static_arrays, ast.stringparse;
+import ast.base, ast.literals, ast.pointer, ast.arrays, ast.static_arrays, ast.stringparse, ast.tuples;
 
 class StringExpr : Expr, HasInfo, Dependency, ArrayLiteralExpr {
   string str;
@@ -17,7 +17,7 @@ class StringExpr : Expr, HasInfo, Dependency, ArrayLiteralExpr {
   }
   Expr getPointer() {
     return reinterpret_cast(Single!(Pointer, Single!(Char)),
-      fastalloc!(LateSymbol)(this, fastalloc!(Pointer)(fastalloc!(StaticArray)(Single!(Char), str.length + 1)), &emitDependency, &name_used));
+      fastalloc!(LateSymbol)(fastalloc!(Pointer)(fastalloc!(StaticArray)(Single!(Char), str.length + 1)), &emitDependency, &name_used));
   }
   override {
     string getInfo() { return "'"~toString()[1 .. $-1]~"'"; }
@@ -28,7 +28,7 @@ class StringExpr : Expr, HasInfo, Dependency, ArrayLiteralExpr {
     void emitLLVM(LLVMFile lf) {
       scope sa = new StaticArray(Single!(Char), str.length + 1);
       scope pt = new Pointer(sa);
-      scope ls = new LateSymbol(this, pt, &emitDependency, &name_used);
+      scope ls = new LateSymbol(pt, &emitDependency, &name_used);
       scope p = reinterpret_cast(Single!(Pointer, Single!(Char)), ls);
       // auto p = getPointer();
       formTuple(lf, "i32", qformat(str.length), typeToLLVM(p.valueType()), save(lf, p));

@@ -14,8 +14,8 @@ context parser {
       text = text.between("*/", "");
     }
   }
-  bool accept(string match) using scoped text {
-    cleanup;
+  bool accept(string match, bool cleanup = true) using scoped text {
+    if (cleanup) parser.cleanup;
     if (auto rest = text.startsWith(match)) text = rest;
     else return false;
     commit;

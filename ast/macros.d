@@ -489,7 +489,7 @@ extern(C) void fcc_initTenth() {
     if (args.length != 2) tnte("Wrong number of args to 'make-equal': 2 expected (expr, expr), not ", args);
     mixin(chaincast("ex1:  First arg to 'make-equal': args[0]->ItrEntity: %.itr->Expr"));
     mixin(chaincast("ex2: Second arg to 'make-equal': args[1]->ItrEntity: %.itr->Expr"));
-    return fastalloc!(ItrEntity)(compare("=", ex1, ex2));
+    return fastalloc!(ItrEntity)(ex2cond(lookupOp("==", ex1, ex2)));
   }));
   rootctx.add("make-assignment", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'make-assignment': 2 expected");
@@ -704,7 +704,7 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
   ctx.add("parse-tuple", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length) tnte("Too many arguments to parse-tuple: 0 expected");
     Expr tup;
-    if (!rest(t2, "tree.expr _tree.expr.arith", &tup)
+    if (!rest(t2, "tree.expr _tree.expr.bin", &tup)
      || !fastcast!(Tuple) (resolveType(tup.valueType())))
       t2.failparse("Tuple expected");
     return fastalloc!(ItrEntity)(tup);
@@ -812,20 +812,20 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
 Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
   if (!text.accept("("[])) text.failparse("Opening paren expected. ");
   StringExpr rulename, ruleid, prematch;
-  if (!rest(text, "tree.expr _tree.expr.arith"[], &rulename))
+  if (!rest(text, "tree.expr _tree.expr.bin"[], &rulename))
     text.failparse("Rule name expected");
   if (!text.accept(","[]))
     text.failparse("Comma expected");
-  if (!rest(text, "tree.expr _tree.expr.arith"[], &ruleid))
+  if (!rest(text, "tree.expr _tree.expr.bin"[], &ruleid))
     text.failparse("Rule ID expected");
   if (text.accept(","[])) {
-    if (!rest(text, "tree.expr _tree.expr.arith"[], &prematch))
+    if (!rest(text, "tree.expr _tree.expr.bin"[], &prematch))
       text.failparse("Pre-match string expected");
   }
   if (!text.accept(")"[]))
     text.failparse("Closing paren expected. ");
   StringExpr src;
-  if (!rest(text, "tree.expr _tree.expr.arith"[], &src))
+  if (!rest(text, "tree.expr _tree.expr.bin"[], &src))
     text.failparse("Expected source string");
   if (!text.accept(";"[]))
     text.failparse("Closing semicolon expected");

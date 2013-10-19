@@ -26,7 +26,7 @@ Object gotCondProperty(ref string text, ParseCb cont, ParseCb rest) {
         t2.failparse("couldn't get continuing property for "[], base, " - "[], proprest_obj);
       Expr elsecase;
       if (t2.accept(":"[])) {
-        if (!rest(t2, "tree.expr _tree.expr.arith"[], &elsecase))
+        if (!rest(t2, "tree.expr _tree.expr.bin"[], &elsecase))
           t2.failparse("Else property expected"[]);
       }
       auto prvt = proprest.valueType();

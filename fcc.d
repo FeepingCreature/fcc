@@ -137,7 +137,7 @@ static this() {
   setupIndex();
   setupIterIndex();
   setupConditionalOpt();
-  bool isStringLiteral(Expr ex) { return !!fastcast!(StringExpr) (foldex(ex)); }
+  bool isStringLiteral(Expr ex) { return !!fastcast!(StringExpr) (collapse(ex)); }
   
   pragmas["fast"] = delegate Object(Expr ex) {
     if (ex) throw new Exception("pragma 'fast' does not take arguments");
@@ -150,7 +150,7 @@ static this() {
   pragmas["noreturn"] = delegate Object(Expr ex) {
     if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("pragma 'noreturn' expects name of function");
-    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    string str = (fastcast!(StringExpr) (collapse(ex))).str;
     auto obj = namespace().lookup(str);
     if (!obj) throw new Exception("pragma 'noreturn' cannot find '"~str~"'");
     if (auto os = fastcast!(OverloadSet) (obj)) {
@@ -166,7 +166,7 @@ static this() {
   pragmas["lib"] = delegate Object(Expr ex) {
     if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("Lib name expected. ");
-    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    string str = (fastcast!(StringExpr) (collapse(ex))).str;
     string newarg = "-l" ~ str;
     // only add once .. becomes relevant in incremental mode
     foreach (arg; extra_linker_args) if (arg == newarg) {
@@ -179,7 +179,7 @@ static this() {
   pragmas["pkg-config"] = delegate Object(Expr ex) {
     if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("pkg-config packet identifier expected. ");
-    auto pkgname = fastcast!(StringExpr) (foldex(ex)).str;
+    auto pkgname = fastcast!(StringExpr) (collapse(ex)).str;
     auto lines = readback("sh -c 'pkg-config --cflags --libs "~pkgname~" 2>&1 || echo pkg-config FAILED'").strip().split("\n");
     if (lines[$-1] == "pkg-config FAILED") {
       throw new Exception("While evaluating pkg-config pragma for "~pkgname~": "~lines[$-2]);
@@ -191,7 +191,7 @@ static this() {
   pragmas["config"] = delegate Object(Expr ex) {
     if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("pragma(config,...) config script identifier expected. ");
-    auto configname = fastcast!(StringExpr) (foldex(ex)).str;
+    auto configname = fastcast!(StringExpr) (collapse(ex)).str;
     auto lines = readback("sh -c '"~configname~"-config --cflags --libs 2>&1 || echo config FAILED'").strip().split("\n");
     if (lines[$-1] == "config FAILED") {
       throw new Exception("While evaluating config pragma for "~configname~"-config: "~lines[$-2]);
@@ -203,16 +203,16 @@ static this() {
   pragmas["binary"] = delegate Object(Expr ex) {
     if (!gotImplicitCast(ex, &isStringLiteral))
       throw new Exception("Binary name expected. ");
-    output = (fastcast!(StringExpr) (foldex(ex))).str;
+    output = (fastcast!(StringExpr) (collapse(ex))).str;
     if (isWindoze()) output ~= ".exe";
     return Single!(NoOp);
   };
   pragmas["linker"] = delegate Object(Expr ex) {
     if (!gotImplicitCast(ex, (Expr ex) {
-      return !!fastcast!(StringExpr) (foldex(ex));
+      return !!fastcast!(StringExpr) (collapse(ex));
     }))
       throw new Exception("Linker argument expected. ");
-    string str = (fastcast!(StringExpr) (foldex(ex))).str;
+    string str = (fastcast!(StringExpr) (collapse(ex))).str;
     string newarg = "-Wl,"~str;
     // only add once .. becomes relevant in incremental mode
     foreach (arg; extra_linker_args) if (arg == newarg) {
@@ -389,7 +389,7 @@ void ast_math_constr() {
     bool isFabsMath;
     auto mod = fastcast!(Module) (fc.fun.sup);
     if (fc.fun.name != "fabsf"[] || !fc.fun.extern_c) return null;
-    auto arg = foldex(fc.getParams()[0]);
+    auto arg = collapse(fc.getParams()[0]);
     return fastalloc!(FAbsFExpr)(arg);
   };*/
   Expr substfun(int arity, bool delegate(Function, Module) dg, Expr delegate(Expr[]) dgex, FunCall fc) {
@@ -398,9 +398,9 @@ void ast_math_constr() {
     if (!mod) return null;
     if (!dg(fc.fun, mod)) return null;
     
-    // auto res = dgex(foldex(fc.getParams()[0]));
+    // auto res = dgex(collapse(fc.getParams()[0]));
     auto pars = fc.getParams();
-    foreach (ref par; pars) par = foldex(par);
+    foreach (ref par; pars) par = collapse(par);
     auto res = dgex(pars);
     // logln("subst with ", res);
     return res;
@@ -481,9 +481,9 @@ void ast_math_constr() {
     bool ntcache, ntcached;
     bool nontrivial() {
       if (ntcached) return ntcache;
-      auto ie1 = fastcast!(IntExpr) (foldex(ex1));
+      auto ie1 = fastcast!(IntExpr) (collapse(ex1));
       if (!ie1) { ntcache = ntcached = true; return true; }
-      auto ie2 = fastcast!(IntExpr) (foldex(ex2));
+      auto ie2 = fastcast!(IntExpr) (collapse(ex2));
       if (!ie2) { ntcache = ntcached = true; return true; }
       ntcached = true; ntcache = false; return false;
     }
@@ -553,13 +553,13 @@ void ast_math_constr() {
   }
   Expr handleFloatMath(string op, Expr ex1, Expr ex2) {
     if (Single!(Double) == ex1.valueType()) {
-      ex1 = foldex(ex1);
+      ex1 = collapse(ex1);
       if (!fastcast!(DoubleExpr) (ex1))
         return null;
     }
     
     if (Single!(Double) == ex2.valueType()) {
-      ex2 = foldex(ex2);
+      ex2 = collapse(ex2);
       if (!fastcast!(DoubleExpr) (ex2))
         return null;
     }
@@ -614,8 +614,9 @@ extern(C) void printThing(LLVMFile lf, string s, Expr ex) {
 // from ast.fun
 import ast.casting;
 Object gotFunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (text.startsWith("&")) return null;
   Object obj;
-  if (!rest(text, "tree.expr _tree.expr.arith"[], &obj)) return null;
+  if (!rest(text, "tree.expr _tree.expr.bin"[], &obj)) return null;
   if (auto fun = fastcast!(Function) (obj)) {
     return fastalloc!(FunRefExpr)(fun);
   }

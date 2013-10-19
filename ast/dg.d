@@ -18,12 +18,8 @@ class mkDelegate : Expr {
     this.data = data;
   }
   mixin defaultIterate!(ptr, data);
-  Expr collapse() {
-    if (this.classinfo is mkDelegate.classinfo || this.classinfo is DgConstructExpr.classinfo)
-      return reinterpret_cast(valueType(), mkTupleExpr(ptr, data));
-    return this;
-  }
   mixin defaultCollapse!();
+  // Tree collapse() { return reinterpret_cast(valueType(), mkTupleExpr(ptr, data)); }
   override string toString() { return Format("dg(ptr="[], ptr, "[], data="[], data, ")"[]); }
   override void emitLLVM(LLVMFile lf) {
     auto i8ds = save(lf, reinterpret_cast(voidp, data));
@@ -197,10 +193,16 @@ static this() {
   };
 }
 
-import ast.assign, ast.fold;
 void callDg(LLVMFile lf, IType ret, Expr[] params, Expr dg) {
-  auto dgs = dgAsStruct(dg);
-  auto dgst = fastalloc!(LLVMValue)(save(lf, dgs), dgs.valueType());
-  auto fun = mkMemberAccess(dgst, "fun"), data = mkMemberAccess(dgst, "data");
+  auto dgs = collapse(dgAsStruct(dg));
+  Expr fun, data;
+  if (_is_cheap(dgs, CheapMode.Flatten)) {
+    fun  = collapse(mkMemberAccess(dgs, "fun"));
+    data = collapse(mkMemberAccess(dgs, "data"));
+  } else {
+    auto dgst = fastalloc!(LLVMValue)(save(lf, dgs), dgs.valueType());
+    fun = mkMemberAccess(dgst, "fun");
+    data = mkMemberAccess(dgst, "data");
+  }
   callFunction(lf, ret, true, false, params ~ data, fun);
 }

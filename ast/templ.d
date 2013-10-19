@@ -396,7 +396,7 @@ Object gotTemplateInst(bool RHSMode)(ref string text, ParseCb cont, ParseCb rest
     if (t.isAliasTemplate()) {
       Tree tr;
       // try plain named first
-      if (!rest(t2, "tree.expr.named"[], &tr) && !rest(t2, "tree.expr _tree.expr.arith"[], &tr))
+      if (!rest(t2, "tree.expr.named"[], &tr) && !rest(t2, "tree.expr _tree.expr.bin"[], &tr))
         t2.failparse("Couldn't match tree object for instantiation");
       inst = t.getInstance(tr, rest);
     } else {
@@ -455,7 +455,7 @@ Object gotIFTI(ref string text, ParseCb cont, ParseCb rest) {
       scope(exit) propcfg().withTuple = backup;
       if (argIsTuple) propcfg().withTuple = false;
       
-      if (!rest(t2, "tree.expr _tree.expr.arith"[], &nex)) return null;
+      if (!rest(t2, "tree.expr _tree.expr.bin"[], &nex)) return null;
     }
     
     auto io = *templInstOverride.ptr(); // first level

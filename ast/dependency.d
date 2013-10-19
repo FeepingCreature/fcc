@@ -60,7 +60,7 @@ Object gotProvide(bool Statement)(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("removed")) removed = true;
   if (!rest(t2, "tree.expr"[], &ex) || !gotImplicitCast(ex, &isString))
     text.failparse("Expected string for 'provide'. ");
-  auto se = fastcast!(StringExpr) (foldex(ex));
+  auto se = fastcast!(StringExpr) (collapse(ex));
   if (!se)
     text.failparse("Expected constant string argument for 'provide'. ");
   
@@ -75,7 +75,7 @@ Object gotProvide(bool Statement)(ref string text, ParseCb cont, ParseCb rest) {
     Expr rex;
     if (!rest(t2, "tree.expr"[], &rex) || !gotImplicitCast(rex, &isString))
     text.failparse("Expected second string for 'provide removed'. ");
-    auto se2 = fastcast!(StringExpr) (foldex(rex));
+    auto se2 = fastcast!(StringExpr) (collapse(rex));
     if (!se2)
       text.failparse("Expected second constant string argument for 'provide removed'. ");
     
@@ -92,7 +92,7 @@ Object gotProvide(bool Statement)(ref string text, ParseCb cont, ParseCb rest) {
     return cd;
   }
 }
-mixin DefaultParser!(gotProvide!(true), "tree.semicol_stmt.provide", "112", "provide");
+mixin DefaultParser!(gotProvide!(true), "tree.semicol_stmt.provide", "107", "provide");
 mixin DefaultParser!(gotProvide!(false), "tree.toplevel.a_provide", null, "provide");
 mixin DefaultParser!(gotProvide!(false), "struct_member.provide", null, "provide");
 
@@ -104,7 +104,7 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("caller")) {
     if (!rest(t2, "tree.expr"[], &ex) || !gotImplicitCast(ex, &isString))
       text.failparse("Expected string for 'depend caller'. ");
-    auto se = fastcast!(StringExpr) (foldex(ex));
+    auto se = fastcast!(StringExpr) (collapse(ex));
     if (!se) text.failparse("Expected constant string argument for 'depend caller'. ");
     
     auto f = namespace().get!(Function);
@@ -191,7 +191,7 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   bool isString(IType it) { return test(Single!(Array, Single!(Char)) == resolveType(it)); }
   if (!rest(t2, "tree.expr"[], &ex) || !gotImplicitCast(ex, &isString))
     text.failparse("Expected provide string for 'depend'. ");
-  auto se = fastcast!(StringExpr) (foldex(ex));
+  auto se = fastcast!(StringExpr) (collapse(ex));
   if (!se)
     text.failparse("Expected constant string argument for 'provide'. ");
   
@@ -207,7 +207,7 @@ Object gotDepend(ref string text, ParseCb cont, ParseCb rest) {
   }
   text.failparse("Dependency '", se.str, "' not provided by ", start_ident, " (", res, ")");
 }
-mixin DefaultParser!(gotDepend, "tree.semicol_stmt.depend", "111", "depend");
+mixin DefaultParser!(gotDepend, "tree.semicol_stmt.depend", "106", "depend");
 
 // called from Function.mkCall
 extern(C) void dependency_checkCallerDeps(string[] strs) {

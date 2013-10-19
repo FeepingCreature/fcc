@@ -307,7 +307,7 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     namespace.set(fastalloc!(WithSpace)(spaces, ex, values));
     
     Object res;
-    // if (!rest(text, "tree.expr _tree.expr.arith"[], &res) && !rest(text, "cond"[], &res))
+    // if (!rest(text, "tree.expr _tree.expr.bin"[], &res) && !rest(text, "cond"[], &res))
     if (!rest(text, "tree.expr.tuple"[], &res) && !rest(text, "cond"[], &res))
       text.failparse("Couldn't get with-tuple expr"[]);
     res = fixup(res);
@@ -366,7 +366,7 @@ static this() {
         auto ent1 = getTupleEntries(ex1), ent2 = getTupleEntries(ex2);
         foreach (i, se1; ent1) {
           auto se2 = ent2[i];
-          auto cmp = compare("==", se1, se2);
+          auto cmp = ex2cond(lookupOp("==", se1, se2));
           if (!res) res = cmp;
           else res = fastalloc!(AndOp)(res, cmp);
         }
@@ -385,7 +385,7 @@ static this() {
         auto ml1 = str1.members(), ml2 = str2.members();
         foreach (i, m1; ml1) {
           auto m2 = ml2[i];
-          auto cmp = compare("==", fastcast!(Expr) (m1.transform(ex1)), fastcast!(Expr) (m2.transform(ex2)));
+          auto cmp = ex2cond(lookupOp("==", fastcast!(Expr) (m1.transform(ex1)), fastcast!(Expr) (m2.transform(ex2))));
           if (!res) res = cmp;
           else res = fastalloc!(AndOp)(res, cmp);
         }

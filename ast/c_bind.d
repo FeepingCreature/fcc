@@ -263,17 +263,32 @@ src_cleanup_redo: // count, then copy
     foreach (dg; resolves)
       dg();
   IType matchSimpleType(ref string text) {
+    string cache_text, cache_ident, cache_t2; bool cache_res;
     bool accept(string s) {
       auto t2 = text;
       // if (auto rest = t2.startsWith(s)) { text = rest; return true; }
       // t2.eatComments();
       // if (auto rest = t2.startsWith(s)) { text = rest; return true; }
       string part2;
-      if (!t2.gotCIdentifier(part2)) return false;
+      if (text is cache_text) {
+        if (!cache_res) return false;
+        part2 = cache_ident;
+        t2 = cache_t2;
+      } else {
+        cache_text = text;
+        if (!t2.gotCIdentifier(part2)) {
+          cache_res = false;
+          return false;
+        }
+        cache_t2 = t2;
+        cache_ident = part2;
+        cache_res = true;
+      }
       if (s != part2) return false;
       text = t2;
       return true;
     }
+    string accept_cache, accept_ident, accept_res_cache; bool accept_res;
     text = text.mystripl();
     if (auto rest = text.startsWith("...")) { text = rest; return Single!(Variadic); }
     if (text.startsWith("(")) return null; // shortcut

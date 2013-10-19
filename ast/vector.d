@@ -378,7 +378,7 @@ Object gotVecConstructor(ref string text, ParseCb cont, ParseCb rest) {
   propcfg().withTuple = false;
   
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex)) return null;
+  if (!rest(t2, "tree.expr _tree.expr.bin", &ex)) return null;
   try {
     if (auto res = constructVector(ex, vec)) {
       text = t2;
@@ -910,7 +910,7 @@ static this() {
     auto list1 = getTupleEntries(reinterpret_cast(v1.asFilledTup, e1))[0..v1.len];
     auto list2 = getTupleEntries(reinterpret_cast(v2.asFilledTup, e2))[0..v2.len];
     for (int i = 0; i < v1.len; ++i) {
-      auto subcond = compare("=="[], list1[i], list2[i]);
+      auto subcond = ex2cond(lookupOp("=="[], list1[i], list2[i]));
       if (!res) res = subcond;
       else res = new BooleanOp!("&&"[])(res, subcond);
     }

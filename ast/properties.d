@@ -25,7 +25,7 @@ Object gotLVize(ref string text, ParseCb cont, ParseCb rest) {
   scope(exit) *propcfg.ptr() = backup;
   propcfg.ptr().withTuple = false;
   
-  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
+  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex))
     t2.failparse("Expected expression for lvize"[]);
   text = t2;
   return fastcast!(Object) (lvize(ex));

@@ -283,12 +283,13 @@ class StructFunRefExpr : mkDelegate {
 }
 
 Object gotStructfunRefExpr(ref string text, ParseCb cont, ParseCb rest) {
+  if (text.startsWith("&")) return null; // a && b != a & &b
   string ident;
   RelFunction rf;
   auto propbackup = propcfg().withCall;
   propcfg().withCall = false;
   scope(exit) propcfg().withCall = propbackup;
-  if (!rest(text, "tree.expr _tree.expr.arith"[], &rf))
+  if (!rest(text, "tree.expr _tree.expr.bin"[], &rf))
     return null;
   
   return fastalloc!(StructFunRefExpr)(rf);

@@ -28,7 +28,7 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   
   Expr initParam;
-  rest(t2, "tree.expr _tree.expr.arith"[], &initParam);
+  rest(t2, "tree.expr _tree.expr.bin"[], &initParam);
   
   if (cr && cr.myClass.isabstract())
     text.failparse("cannot instantiate abstract class: unimplemented ", cr.myClass.getAbstractFuns());
@@ -47,10 +47,10 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       // logln(" => ", exoinit, ", compare ", ns.get!(Function));
       Expr res;
       if (!initParam) {
-        res = iparse!(Expr, "call_exoconstructor_override1", "tree.expr _tree.expr.arith")
+        res = iparse!(Expr, "call_exoconstructor_override1", "tree.expr _tree.expr.bin")
                      (`exoinit()`, "exoinit", exoinit);
       } else {
-        res = iparse!(Expr, "call_exoconstructor_override2", "tree.expr _tree.expr.arith")
+        res = iparse!(Expr, "call_exoconstructor_override2", "tree.expr _tree.expr.bin")
                      (`exoinit ex`, "exoinit", exoinit, "ex", initParam);
       }
       if (!gotImplicitCast(res, cr, (IType it) { return test(cr == it); })) {
@@ -59,12 +59,12 @@ Object gotNewClassExpr(ref string text, ParseCb cont, ParseCb rest) {
       return fastcast!(Object)(res);
     } else if (initParam) {
       protConstCall =
-        iparse!(Expr, "call_constructor_early", "tree.expr _tree.expr.arith")
+        iparse!(Expr, "call_constructor_early", "tree.expr _tree.expr.bin")
                (`res.init ex`, ns,
                 "res"[], res_token, "ex"[], initParam);
     } else if (cr.myClass.lookupRel("init", res_token)) {
       protConstCall =
-        iparse!(Expr, "call_constructor_early_void", "tree.expr _tree.expr.arith")
+        iparse!(Expr, "call_constructor_early_void", "tree.expr _tree.expr.bin")
                (`res.init()`, ns,
                 "res"[], res_token);
     }
@@ -194,7 +194,7 @@ Object gotNewArrayExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto arr = fastcast!(Array) (base), ea = fastcast!(ExtArray) (base);
   if (!arr && !ea) return null;
   Expr len;
-  if (!rest(t2, "tree.expr _tree.expr.arith.concat"[], &len))
+  if (!rest(t2, "tree.expr"[], &len))
     t2.failparse("Expected length for array-new"[]);
   auto backuplen = len;
   if (!gotImplicitCast(len, (IType it) { return !!fastcast!(SysInt) (it); }))
@@ -241,7 +241,7 @@ Object gotNewDelegateExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (t2.accept("-")) return null; // new-baz
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith"[], &ex))
+  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex))
     return null;
   
   auto re = fastcast!(NestFunRefExpr) (ex);

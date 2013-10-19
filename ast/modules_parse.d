@@ -238,6 +238,10 @@ Object gotNamed(ref string text, ParseCb cont, ParseCb rest) {
           if (t2.accept(":"[])) return null; // HACK: oops, was a cast
           if (!fastcast!(ExprLikeThingy)(resolveType(ty)))
             return null; // Positively NOT an expr, and not a thingy either.
+          auto t3 = text;
+          IType bogus;
+          if (t3.rest("type", &bogus) && t3.accept(":"))
+            return null; // more HACK
         }
         if (gotDot) if (!text.accept("."[]))
           text.failparse("No dot?! "[]);

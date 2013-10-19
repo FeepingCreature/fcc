@@ -1282,7 +1282,7 @@ class CPUIDExpr : Expr {
 Object gotCPUID(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+  if (!rest(t2, "tree.expr _tree.expr.bin", &ex))
     t2.failparse("Expected numeric parameter for cpuid to %eax");
   if (ex.valueType() != Single!(SysInt))
     t2.failparse("Expected number for cpuid, but got ", ex.valueType(), "!");
@@ -1428,7 +1428,7 @@ import ast.literal_string, ast.fold;
 Object gotAsm(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
   auto t2 = text;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+  if (!rest(t2, "tree.expr _tree.expr.bin", &ex))
     t2.failparse("Expected string literal for asm! ");
   opt(ex);
   auto lit = fastcast!(StringExpr) (ex);
@@ -1458,7 +1458,7 @@ Object gotConstant(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   if (!t2.accept("(")) t2.failparse("Opening paren required. ");
   Expr nex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &nex)
+  if (!rest(t2, "tree.expr _tree.expr.bin", &nex)
    || !gotImplicitCast(nex, (Expr ex) { opt(ex); return !!fastcast!(StringExpr) (ex); }))
     t2.failparse("Expected name for constant! ");
   opt(nex);
@@ -1488,7 +1488,7 @@ mixin DefaultParser!(gotConstant, "tree.toplevel.constant", null, "__defConstant
 
 Object gotTerriblePapplyHack(ref string text, ParseCb cont, ParseCb rest) {
   Expr ex;
-  if (!rest(text, "tree.expr _tree.expr.arith", &ex)) text.failparse("expression expected");
+  if (!rest(text, "tree.expr _tree.expr.bin", &ex)) text.failparse("expression expected");
   auto dg = fastcast!(Delegate)(resolveType(ex.valueType()));
   if (!dg) text.failparse("__internal_flatten parameter is not delegate");
   auto args = dg.args();
@@ -1510,7 +1510,7 @@ mixin DefaultParser!(gotTerriblePapplyHack, "tree.expr.terrible_papply_hack", "3
 Object gotInternal(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr _tree.expr.arith", &ex))
+  if (!rest(t2, "tree.expr _tree.expr.bin", &ex))
     t2.failparse("Expected expr string for internal lookup");
   opt(ex);
   auto t = fastcast!(StringExpr) (ex);

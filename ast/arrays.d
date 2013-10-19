@@ -1,6 +1,6 @@
 module ast.arrays;
 
-import ast.base, ast.types, ast.static_arrays, ast.returns, tools.base: This, This_fn, rmSpace;
+import ast.base, ast.types, ast.static_arrays, ast.returns, ast.tuples, tools.base: This, This_fn, rmSpace;
 
 import dwarf2;
 // ptr, length
@@ -352,7 +352,15 @@ class ArrayMaker : Expr {
   mixin MyThis!("ptr, length, cap = null"[]);
   mixin DefaultDup!();
   mixin defaultIterate!(ptr, length, cap);
-  mixin defaultCollapse!();
+  override Expr collapse() {
+    Expr res;
+    if (cap) {
+      res = mkTupleValueExpr(cap, length, ptr);
+    } else {
+      res = mkTupleValueExpr(length, ptr);
+    }
+    return reinterpret_cast(valueType(), res);
+  }
   IType elemType() {
     return (fastcast!(Pointer) (resolveType(ptr.valueType()))).target;
   }
@@ -367,20 +375,7 @@ class ArrayMaker : Expr {
   }
   import ast.vardecl, ast.assign;
   override void emitLLVM(LLVMFile lf) {
-    // logln("emit array maker ", count);
-    // logln("PTR ", ptr, "  ", ptr.valueType());
-    // logln("LEN ", length);
-    auto ps = save(lf, ptr);
-    auto ls = save(lf, length);
-    auto pv = ptr.valueType();
-    auto from = typeToLLVM(pv), to = typeToLLVM(pv, true);
-    auto ps2 = save(lf, "bitcast ", from, " ", ps, " to ", to);
-    if (cap) {
-      auto cs = save(lf, cap);
-      formTuple(lf, "i32", cs, "i32", ls, to, ps2);
-    } else {
-      formTuple(lf, "i32", ls, to, ps2);
-    }
+    assert(false, "this should have got collapsed");
   }
 }
 
