@@ -309,10 +309,22 @@ static this() {
   };
 }
 
+bool gotAsBase(ref Expr ex, Vector vec) {
+  auto ex2 = ex;
+  if (gotImplicitCast(ex2, (IType it) { return test(it == vec); })) {
+    // do nothing, we already match vec format
+  } else if (gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
+    ex = ex2;
+    return true;
+  }
+  return false;
+}
+
 Object constructVector(Expr base, Vector vec, bool allowCastVecTest = true, bool canfail = false) {
   auto ex2 = base;
-  if (allowCastVecTest && gotImplicitCast(ex2, (IType it) { return test(it == vec.base); })) {
-    return fastalloc!(MultiplesExpr)(ex2, vec.len);
+  if (allowCastVecTest) {
+    if (gotAsBase(ex2, vec))
+      return fastalloc!(MultiplesExpr)(ex2, vec.len);
   }
   checkVecs();
   if (vec == vec3f && base.valueType() == vec3i) {
@@ -768,14 +780,27 @@ class VecOp : Expr {
       ex2 = fastalloc!(MultiplesExpr)(ex2, v1.len, v1.real_len, op == "/");
       return;
     }
-    auto ee1 = ex1, ee2 = ex2;
-    if (v2 && gotImplicitCast(ee1, v2.base, (IType it) { return test(v2.base == it); })) {
-      ex1 = fastalloc!(MultiplesExpr)(ee1, v2.len, v2.real_len);
-      return;
+    { // try to implcast nonvector to vector
+      auto ee1 = ex1, ee2 = ex2;
+      if (v2 && gotImplicitCast(ee1, (IType it) { return test(it == v2); })) {
+        ex1 = ee1;
+        return;
+      }
+      if (v1 && gotImplicitCast(ee2, (IType it) { return test(it == v1); })) {
+        ex2 = ee2;
+        return;
+      }
     }
-    if (v1 && gotImplicitCast(ee2, v1.base, (IType it) { return test(v1.base == it); })) {
-      ex2 = fastalloc!(MultiplesExpr)(ee2, v1.len, v1.real_len, op == "/");
-      return;
+    { // try to implcast nonvector to vector base
+      auto ee1 = ex1, ee2 = ex2;
+      if (v2 && gotAsBase(ee1, v2)) {
+        ex1 = fastalloc!(MultiplesExpr)(ee1, v2.len, v2.real_len);
+        return;
+      }
+      if (v1 && gotAsBase(ee2, v1)) {
+        ex2 = fastalloc!(MultiplesExpr)(ee2, v1.len, v1.real_len, op == "/");
+        return;
+      }
     }
   }
   override {
