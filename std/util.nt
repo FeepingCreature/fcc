@@ -86,13 +86,10 @@ template FeedIterator(T) {
     void write(T t) { source ~= t; }
     bool canAdvance() { return source.length > 0; }
     bool advance() {
-      if (!source.length) raise new Error "Feed iterator: buffer empty";
-      value = source[0];
+      if (offset >= source.length) raise new BoundsError "Feed iterator: buffer empty";
+      value = source[offset];
       
-      // TODO: do this in the compiler
-      auto backup = source.capacity;
-      source = source[1..$]; // resets capacity to 0 because casts via T[]
-      source.capacity = backup - 1;
+      offset = offset + 1;
       
       return true;
     }
@@ -128,7 +125,7 @@ template take(T) {
     Elem[auto~] res;
     for 0..t[1] {
       if auto val <- t[0] res ~= val;
-      else raise new Error "Not enough elements available to take $(t[1])";
+      else raise new BoundsError "Not enough elements available to take $(t[1])";
     }
     return res[];
   }
@@ -142,7 +139,7 @@ template head(T) {
         free;
       }
       return val;
-    } else raise new Error "No elements left in $t";
+    } else raise new BoundsError "No elements left in $t";
   }
 }
 

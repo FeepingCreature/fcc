@@ -116,11 +116,16 @@ template Hashmap(T) {
       newmap.backing = new type-of backing newsize;
       newmap.isset = new type-of isset newsize;
       iterate(\(Key* kp, Value* vp) newmap.insert(kp, vp););
+      free;
       this = newmap;
     }
     void clear() {
       length = 0;
       for ref state <- isset state = SetState.NotSet;
+    }
+    void free() {
+      backing.free;
+      isset.free;
     }
     Value* insert(Key k, Value v) { return insert(&k, &v); }
     Value* insert(Key* kp, Value* vp) {

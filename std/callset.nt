@@ -12,7 +12,9 @@ template CallSet(T) {
   static if (types-equal (T, void)) {
     alias DG = void delegate();
   } else {
-    alias DG = void delegate(T);
+    // alias DG = void delegate(T);
+    auto foob() { return λ(T) { }; }
+    alias DG = type-of __internal_flatten foob(); // HAAAAX
   }
   alias callset-str = `
     template CallSet(U) {
