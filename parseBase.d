@@ -572,31 +572,10 @@ bool delegate(string) matchrule(string rules) {
   return res;
 }
 
-struct ParseCtl {
-  int state;
-  string reason;
-  const ParseCtl AcceptAbort = {0}, RejectAbort = {1}, AcceptCont = {2};
-  static ParseCtl RejectCont(string reason) {
-    ParseCtl res;
-    res.state = 3;
-    res.reason = reason;
-    return res;
-  }
-  string decode() {
-    switch (state) {
-      case 0: return "AcceptAbort";
-      case 1: return "RejectAbort";
-      case 2: return "AcceptCont";
-      case 3: return "RejectCont:"~reason;
-    }
-  }
-}
-
 import tools.functional;
 struct ParseCb {
   Object delegate(ref string text,
-    bool delegate(string),
-    ParseCtl delegate(Object) accept
+    bool delegate(string)
   ) dg;
   bool delegate(string) cur;
   Object opCall(T...)(ref string text, T t) {
@@ -616,63 +595,33 @@ struct ParseCb {
       alias t rest1;
     }
     
-    static if (Rest1.length && is(typeof(rest1[$-1](null))) && !is(Ret!(Rest1[$-1]) == void)) {
-      static assert(is(typeof(rest1[$-1](null)) == bool) || is(typeof(rest1[$-1](null)) == ParseCtl),
-        "Bad accept return type: "~typeof(rest1[$-1](null)).stringof);
-      static assert(is(typeof(cast(Params!(Rest1[$-1])[0]) new Object)), "Bad accept params: "~Params!(Rest1[$-1]).stringof);
-      alias Params!(Rest1[$-1])[0] MustType;
-      alias Rest1[0 .. $-1] Rest2;
-      auto accept = rest1[$-1];
-      auto rest2 = rest1[0 .. $-1];
-      static if (Rest2.length == 1 && is(typeof(*rest2[0])))
-        static assert(is(Params!(Rest1[$-1]) == Tuple!(typeof(*rest2[0]))), "ParseCb mismatch: "~Params!(Rest1[$-1]).stringof~" != "~Tuple!(typeof(*rest2[0])).stringof);
-    } else {
-      bool delegate(Object) accept;
-      alias Rest1 Rest2;
-      alias rest1 rest2;
+    static if (Rest1.length == 1 && is(typeof(*rest1[0])) && !is(MustType))
+      alias typeof(*rest1[0]) MustType;
+    static if (Rest1.length == 1 && is(Rest1[0] == delegate)) {
+      alias Params!(Rest1[0])[0] MustType;
+      auto callback = rest1[0];
     }
     
-    static if (Rest2.length == 1 && is(typeof(*rest2[0])) && !is(MustType))
-      alias typeof(*rest2[0]) MustType;
-    static if (Rest2.length == 1 && is(Rest2[0] == delegate)) {
-      alias Params!(Rest2[0])[0] MustType;
-      auto callback = rest2[0];
-    }
-    auto myAccept = delegate ParseCtl(Object obj) {
-      static if (is(MustType)) {
-        auto casted = fastcast!(MustType) (obj);
-      } else {
-        auto casted = obj;
-      }
-      if (!casted) {
-        // logln("Reject ", obj, "; doesn't match ", typeof(casted).stringof, ".");
-        return ParseCtl.RejectCont(null/*Format(obj, " doesn't match ", typeof(casted).stringof)*/);
-      }
-      static if (is(typeof(accept(casted)) == bool)) {
-        return (!accept || accept(casted))?ParseCtl.AcceptAbort:ParseCtl.RejectCont(Format("accept dg to bool returned false"));
-      }
-      static if (is(typeof(accept(casted)) == ParseCtl)) {
-        return accept?accept(casted):ParseCtl.AcceptAbort;
-      }
-      return ParseCtl.AcceptAbort;
-    };
-    
-    static if (Rest2.length == 1 && is(typeof(*rest2[0])) || is(typeof(callback))) {
-      // only accept-test objects that match the type
+    static if (Rest1.length == 1 && is(typeof(*rest1[0])) || is(typeof(callback))) {
       auto backup = text;
       static if (is(typeof(callback))) {
-        auto res = fastcast!(MustType) (dg(text, matchdg, myAccept));
+        // if the type doesn't match, error?
+        auto res = dg(text, matchdg);
         if (!res) text = backup;
-        else callback(res);
+        else {
+          auto t = fastcast!(MustType) (res);
+          if (!t) backup.failparse("Type (", MustType.stringof, ") not matched: ", res);
+          callback(t);
+        }
         return fastcast!(Object) (res);
       } else {
-        *rest2[0] = fastcast!(typeof(*rest2[0])) (dg(text, matchdg, myAccept));
-        if (!*rest2[0]) text = backup;
-        return fastcast!(Object) (*rest2[0]);
+        *rest1[0] = fastcast!(typeof(*rest1[0])) (dg(text, matchdg));
+        if (!*rest1[0]) text = backup;
+        return fastcast!(Object) (*rest1[0]);
       }
     } else {
-      static assert(!Rest2.length, "Left: "~Rest2.stringof~" of "~T.stringof);
-      return dg(text, matchdg, myAccept);
+      static assert(!Rest1.length, "Left: "~Rest1.stringof~" of "~T.stringof);
+      return dg(text, matchdg);
     }
   }
 }
@@ -682,7 +631,6 @@ struct Parser {
   string key, id;
   Object delegate
     (ref string text, 
-     ParseCtl delegate(Object) accept,
      ParseCb cont,
      ParseCb rest) match;
 }
@@ -775,33 +723,29 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
       res.match = &match;
       return res;
     }
-    Object fnredir(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
-      static if (is(typeof((&Fn)(info, text, accept, cont, rest))))
-        return Fn(info, text, accept, cont, rest);
+    Object fnredir(ref string text, ParseCb cont, ParseCb rest) {
+      static if (is(typeof((&Fn)(info, text, cont, rest))))
+        return Fn(info, text, cont, rest);
       else static if (is(typeof((&Fn)(info, text, cont, rest))))
         return Fn(info, text, cont, rest);
-      else static if (is(typeof((&Fn)(text, accept, cont, rest))))
-        return Fn(text, accept, cont, rest);
+      else static if (is(typeof((&Fn)(text, cont, rest))))
+        return Fn(text, cont, rest);
       else
         return Fn(text, cont, rest);
     }
     static if (!Memoize) {
-      Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
-        return fnredir(text, accept, cont, rest);
+      Object match(ref string text, ParseCb cont, ParseCb rest) {
+        return fnredir(text, cont, rest);
       }
     } else {
       // Stuple!(Object, char*)[char*] cache;
       Stash!(SpeedCache) cachestash;
-      Object match(ref string text, ParseCtl delegate(Object) accept, ParseCb cont, ParseCb rest) {
+      Object match(ref string text, ParseCb cont, ParseCb rest) {
         auto t2 = text;
         if (.accept(t2, "]")) return null; // never a valid start
-        bool acceptRelevant;
-        static if (is(typeof((&Fn)(t2, accept, cont, rest))))
-          acceptRelevant = true;
-        acceptRelevant &= !!accept;
-        if (acceptRelevant || dontMemoMe) {
+        if (dontMemoMe) {
           static if (Key) if (!.accept(t2, Key)) return null;
-          auto res = fnredir(t2, accept, cont, rest);
+          auto res = fnredir(t2, cont, rest);
           if (res) text = t2;
           return res;
         }
@@ -813,7 +757,7 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
           return p._0;
         }
         static if (Key) if (!.accept(t2, Key)) return null;
-        auto res = fnredir(t2, accept, cont, rest);
+        auto res = fnredir(t2, cont, rest);
         (*cache)[ptr] = stuple(res, t2.ptr);
         if (res) text = t2;
         return res;
@@ -961,10 +905,10 @@ void resort() {
 }
 
 Object parse(ref string text, bool delegate(string) cond,
-    int offs = 0, ParseCtl delegate(Object) accept = null)
+    int offs = 0)
 {
-  if (verboseParser) return _parse!(true).parse(text, cond, offs, accept);
-  else return _parse!(false).parse(text, cond, offs, accept);
+  if (verboseParser) return _parse!(true).parse(text, cond, offs);
+  else return _parse!(false).parse(text, cond, offs);
 }
 
 string condStr;
@@ -979,7 +923,7 @@ Object parse(ref string text, string cond) {
 
 template _parse(bool Verbose) {
   Object parse(ref string text, bool delegate(string) cond,
-      int offs = 0, ParseCtl delegate(Object) accept = null) {
+      int offs = 0) {
     if (!text.length) return null;
     if (listModified) resort;
     bool matched;
@@ -989,15 +933,13 @@ template _parse(bool Verbose) {
     ParseCb cont = void, rest = void;
     cont.dg = null; // needed for null check further in
     int i = void;
-    Object cont_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
-      return parse(text, cond, offs + i + 1, accept); // same verbosity - it's a global flag
+    Object cont_dg(ref string text, bool delegate(string) cond) {
+      return parse(text, cond, offs + i + 1); // same verbosity - it's a global flag
     }
-    Object rest_dg(ref string text, bool delegate(string) cond, ParseCtl delegate(Object) accept) {
-      return parse(text, cond, 0, accept);
+    Object rest_dg(ref string text, bool delegate(string) cond) {
+      return parse(text, cond, 0);
     }
     
-    Object longestMatchRes;
-    string longestMatchStr = text;
     const ProfileMode = false;
     static if (ProfileMode) {
       auto start_time = µsec();
@@ -1068,36 +1010,14 @@ template _parse(bool Verbose) {
       }
       
       auto backup = text;
-      if (auto res = parser.match(text, accept, cont, rest)) {
-        auto ctl = ParseCtl.AcceptAbort;
-        if (accept) {
-          ctl = accept(res);
-          static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "]: control flow ", ctl.decode);
-          if (ctl == ParseCtl.RejectAbort || ctl.state == 3) {
-            static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] rejected (", ctl.reason, "): ", Format(res));
-            text = backup;
-            if (ctl == ParseCtl.RejectAbort) return null;
-            continue;
-          }
-        }
+      if (auto res = parser.match(text, cont, rest)) {
         static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] succeeded with ", res, ", left '", text.nextText(16), "'");
-        if (ctl == ParseCtl.AcceptAbort) {
-          if (justAcceptedCallback) justAcceptedCallback(text);
-          return res;
-        }
-        if (text.ptr > longestMatchStr.ptr) {
-          longestMatchStr = text;
-          longestMatchRes = res;
-        }
+        if (justAcceptedCallback) justAcceptedCallback(text);
+        return res;
       } else {
         static if (Verbose) logln("    PARSER [", idepth[id], " ", id, "] failed");
       }
       text = backup;
-    }
-    if (longestMatchRes) {
-      text = longestMatchStr;
-      if (justAcceptedCallback) justAcceptedCallback(text);
-      return longestMatchRes;
     }
     return null;
   }
