@@ -58,7 +58,7 @@ extern(C) IType ast_types_resolveType(IType t, bool carefully = false, bool hard
 }
 
 // from ast.modules_parse
-mixin DefaultParser!(gotNamed, "tree.expr.named", "24");
+mixin DefaultParser!(gotNamed, "tree.expr.named", "25");
 
 const ProgbarLength = 60;
 
