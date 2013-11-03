@@ -1,0 +1,17 @@
+module test192;
+
+import std.coroutine, std.macros.distribute;
+
+void main() {
+  int a = 3, b = 5;
+  bool done;
+  auto dg = feed!string λ(string delegate() get) {
+    assert $ get() == "Hello ";
+    assert $ get() == "3";
+    assert $ get() == " World ";
+    assert $ get() == "5";
+    done = true;
+  };
+  distribute dg "Hello $a World $b";
+  assert done;
+}

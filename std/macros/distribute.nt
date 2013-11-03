@@ -1,0 +1,8 @@
+module std.macros.distribute;
+
+macro("tree.semicol_stmt.distribute", "5", "distribute") `
+  (last
+    (def 'fun (parse-obj "tree.expr _tree.expr.properties"))
+    (def 'str (parse-expr))
+    (make-aggregate (decompose-concat str 'x '(make-exprstatement (make-call fun x)))))
+`;  
