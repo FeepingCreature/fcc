@@ -5,7 +5,7 @@ import parseBase, ast.parse, ast.base, ast.literal_string, ast.tuples, ast.fun,
        ast.funcall, ast.namespace, ast.tuple_access, ast.variable, ast.vardecl,
        ast.scopes, ast.aggregate, ast.assign, ast.ifstmt, ast.literals,
        ast.pointer, ast.casting, ast.opers, ast.conditionals, ast.returns,
-       ast.nulls, ast.iterator, ast.stringex;
+       ast.nulls, ast.iterator, ast.stringex, ast.concat, ast.nestfun, ast.dg;
 
 import tools.base: This;
 
@@ -127,9 +127,36 @@ extern(C) void fcc_initTenth() {
   }));
   rootctx.add("make-call", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to make-call: 2 expected");
-    mixin(chaincast("fun: First arg for make-call: args[0]->ItrEntity: %.itr->Function"));
+    mixin(chaincast("itr: First arg for make-call: args[0]->ItrEntity: %.itr"));
     mixin(chaincast("ex: Second arg for make-call: args[1]->ItrEntity: %.itr->Expr"));
-    return fastalloc!(ItrEntity)(buildFunCall(fun, ex, "tenth-call"));
+    if (auto fun = fastcast!(Function)(itr)) {
+      return fastalloc!(ItrEntity)(buildFunCall(fun, ex, "tenth-call"));
+    }
+    auto fex = fastcast!(Expr)(itr);
+    if (!fex) tnte("First arg for make-call is neither a Function nor an Expr");
+    auto fex2 = fex;
+    if (gotImplicitCast(fex2, Single!(HintType!(FunctionPointer)), (IType it) {
+      return !!fastcast!(FunctionPointer)(it);
+    }))
+    {
+      return fastalloc!(ItrEntity)(buildFunCall(
+        fastalloc!(PointerFunction!(Function))(fex2),
+        ex,
+        "tenth-fp-call"
+      ));
+    }
+    fex2 = fex;
+    if (gotImplicitCast(fex2, Single!(HintType!(Delegate)), (IType it) {
+      return !!fastcast!(Delegate)(it);
+    }))
+    {
+      return fastalloc!(ItrEntity)(buildFunCall(
+        fastalloc!(PointerFunction!(NestedFunction))(fex2),
+        ex,
+        "tenth-dg-call"
+      ));
+    }
+    tnte("First arg to make-call is not Function, Fp or Delegate, but: ", fex);
   }));
   rootctx.add("make-exprwrap", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 1) tnte("Wrong number of args to 'make-exprwrap': 1 expected");
@@ -224,6 +251,24 @@ extern(C) void fcc_initTenth() {
       ctx.add(id2, fastalloc!(ItrEntity)(oo.c2));
       return NonNilEnt;
     } else return NilEnt;
+  }));
+  rootctx.add("decompose-concat", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 3) tnte("Wrong number of args to 'decompose-concat': 3 expected");
+    mixin(chaincast("con: First arg for 'decompose-concat': args[0]->ItrEntity: %.itr->Expr"));
+    mixin(chaincast("ident: Second arg to 'decompose-concat': args[1]->Token: %.name"));
+    
+    auto concatloopct = new PassthroughContext(ctx);
+    
+    con = collapse(con);
+    auto cch = fastcast!(ConcatChain)(collapse(con));
+    if (!cch) tnte("Argument to decompose-concat is not a concat chain: ", con);
+    
+    auto res = new Entity[cch.arrays.length];
+    foreach (i, arr; cch.arrays) {
+      concatloopct.addDirectly(ident, fastalloc!(ItrEntity)(arr));
+      res[i] = args[2].eval(concatloopct);
+    }
+    return fastalloc!(List)(res);
   }));
   rootctx.add("make-concat", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (!args.length) tnte("Wrong number of args to 'make-concat': at least 1 expected");
@@ -719,6 +764,17 @@ Object runTenth(Object obj, ref string text, ParseCb cont, ParseCb rest) {
     }
     if (!rest(t2, match, &ex)) t2.failparse("Expression expected");
     return fastalloc!(ItrEntity)(ex);
+  }));
+  ctx.add("parse-obj", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
+    if (args.length != 0 && args.length != 1) tnte("Too many arguments to parse-obj: 0 or 1 (string) expected");
+    Iterable itr;
+    string match = "tree.expr _tree.expr.bin";
+    if (args.length == 1) {
+      mixin(chaincast("m: Argument to parse-expr: args[0]->Token: %.name"));
+      match = m;
+    }
+    if (!rest(t2, match, &itr)) t2.failparse("Expression expected");
+    return fastalloc!(ItrEntity)(itr);
   }));
   ctx.add("can-implicit-cast", fastalloc!(DgCallable)(delegate Entity(Context ctx, Entity[] args) {
     if (args.length != 2) tnte("Wrong number of args to 'can-implicit-cast', expected type expr");
