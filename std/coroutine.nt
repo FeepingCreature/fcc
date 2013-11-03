@@ -72,3 +72,21 @@ template setupCoIterator(T) {
     } (&res, &done, coro);
   }
 }
+
+template feed(T) {
+  void delegate(T) feed(void delegate(T delegate() yield) dg) {
+    ref data = (new (T, ()))._0;
+    auto coro = new Coroutine new λ(void delegate() yield) {
+      dg λ{
+        yield();
+        return data;
+      }
+      yield(); fail;
+    };
+    coro.enter; // prime
+    return new λ(T t) {
+      data = t;
+      coro.enter;
+    }
+  }
+}
