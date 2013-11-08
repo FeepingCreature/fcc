@@ -543,12 +543,14 @@ void ast_math_constr() {
       // fail();
       throw new Exception("Invalid pointer op");
     }
+    Expr ex2index = ex2; // ex2 without the * size step
     if (auto ie = fastcast!(IntExpr) (ex2)) { // shortcut
       ex2 = llvmval(llmul(qformat(ie.num), e1pt.target.llvmSize()));
     } else {
       ex2 = handleIntMath("*", ex2, llvmval(e1pt.target.llvmSize()));
     }
     if (!ex2) return null;
+    if (op == "+") return fastalloc!(RefExpr)(fastalloc!(PointerIndexAccess)(ex1, ex2index));
     return reinterpret_cast(ex1.valueType(), handleIntMath(op, reinterpret_cast(Single!(SizeT), ex1), reinterpret_cast(Single!(SizeT), ex2)));
   }
   Expr handleFloatMath(string op, Expr ex1, Expr ex2) {

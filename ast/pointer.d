@@ -279,3 +279,30 @@ class LateSymbol : Expr {
     push(lf, "@", *name);
   }
 }
+
+class PointerIndexAccess : LValue {
+  Pointer ptrtype;
+  Expr ptr, index;
+  this(Expr ptr, Expr index) {
+    if (auto ptr = fastcast!(Pointer)(resolveType(ptr.valueType()))) {
+      ptrtype = ptr;
+    } else fail(qformat(ptr.valueType(), " not a pointer"));
+    this.ptr = ptr;
+    this.index = index;
+  }
+  mixin defaultIterate!(ptr, index);
+  mixin defaultCollapse!(); // TODO if index is statically 0, optimize to *base?
+  override {
+    IType valueType() { return ptrtype.target; }
+    PointerIndexAccess dup() { return fastalloc!(PointerIndexAccess)(ptr.dup, index.dup); }
+    string toString() { return qformat("(", ptr, ")[", index, "]"); }
+    void emitLocation(LLVMFile lf) {
+      auto lp = save(lf, ptr), li = save(lf, index);
+      load(lf, "getelementptr inbounds ", typeToLLVM(ptrtype), " ", lp, ", i32 ", li);
+    }
+    void emitLLVM(LLVMFile lf) {
+      emitLocation(lf);
+      load(lf, "load ", typeToLLVM(ptrtype), " ", lf.pop());
+    }
+  }
+}
