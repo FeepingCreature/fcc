@@ -55,6 +55,10 @@ template CallSet(T) {
           // and set id
           setls id;
         }
+        void clear() {
+          linkedstart = 0;
+          dgs.clear; // keep capacity, reset length
+        }
         void remove(DG dg) {
           for int i <- ints && ref dg2 <- dgs {
             if (dg is dg2) {
