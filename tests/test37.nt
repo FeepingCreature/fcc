@@ -1,8 +1,9 @@
 module test37;
 
-import std.lib.postgres;
+import std.lib.postgres, std.process;
 
 void main() {
+  if (getenv("TESTSUITE")) return;
   using new Database "host=localhost user=feep dbname=quest"::
   onSuccess fini;
   writeln "DB open";
