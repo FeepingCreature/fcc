@@ -54,7 +54,14 @@ class RelFunCall : FunCall, RelTransformable {
       logln("Untransformed rel-funcall: "[], this);
       fail;
     }
-    if (auto lv = fastcast!(LValue) (baseptr)) {
+    /*
+      okay this bit of code is definitely more hacky than it looks
+      (and it looks pretty hacky)
+      I think it's related to how in structs, "this" is a reference, not a pointer.
+      (and what a horrible mistake that turned out to be, TODO fix)
+      so we need to take the refexpr to get it back to a pointer for the dg
+    */
+    if (auto lv = fastcast!(LValue)(baseptr)) {
       callDg(lf, fun.type.ret, params,
         fastalloc!(DgConstructExpr)(fun.getPointer(), fastalloc!(RefExpr)(lv)));
     } else {

@@ -42,9 +42,12 @@ class _Assignment(T) : LineNumberedStatementClass {
       if (value.valueType().llvmSize() != "0") {
         // use addrspace(1) to preserve null accesses so they can crash properly
         auto basetype = typeToLLVM(target.valueType());
-        dest = save(lf, "bitcast ", basetype, "* ", dest, " to ", basetype, " addrspace(1)", "*");
-        put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", basetype, " addrspace(1)", "* ", dest);
-        // put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
+        if (true) {
+          dest = save(lf, "bitcast ", basetype, "* ", dest, " to ", basetype, " addrspace(1)", "*");
+          put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", basetype, " addrspace(1)", "* ", dest);
+        } else {
+          put(lf, "store ", typeToLLVM(value.valueType()), " ", src, ", ", typeToLLVM(target.valueType()), "* ", dest);
+        }
       }
     }
   }

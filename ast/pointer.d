@@ -62,8 +62,8 @@ class RefExpr_ : Expr {
     counter = pointer_counter ++;
     // if (counter == 5101) fail;
   }
-  mixin DefaultDup!();
   mixin defaultIterate!(src);
+  override RefExpr_ dup() { return fastalloc!(RefExpr)(src.dup); } // alloc RefExpr, not RefExpr_!
   Expr collapse() {
     if (auto de = fastcast!(DerefExpr) (.collapse(fastcast!(Expr)(src)))) {
       return de.src;
@@ -102,8 +102,8 @@ class DerefExpr_ : LValue, HasInfo {
       throw new Exception(Format("Can't dereference non-pointer: "[], src));
   }
   private this() { count = de_count ++; }
-  mixin DefaultDup!();
   mixin defaultIterate!(src);
+  override DerefExpr_ dup() { return fastalloc!(DerefExpr)(src.dup); }
   Expr collapse() {
     // LOL, good luck working out when this is useful (and yes it is)
     if (auto re = fastcast!(RefExpr) (.collapse(src))) {
@@ -118,11 +118,14 @@ class DerefExpr_ : LValue, HasInfo {
     void emitLLVM(LLVMFile lf) {
       auto ptrtype = typeToLLVM(src.valueType);
       // use addrspace(1) to preserve null accesses so they can crash properly
-      auto fixedtype = qformat(ptrtype[0..$-1], " addrspace(1)*");
-      auto c = save(lf, src);
-           c = save(lf, "bitcast ", ptrtype, " ", c, " to ", fixedtype);
-      load(lf, "load ", fixedtype, " ", c);
-      // load(lf, "load ", typeToLLVM(src.valueType), " ", save(lf, src));
+      if (true) {
+        auto fixedtype = qformat(ptrtype[0..$-1], " addrspace(1)*");
+        auto c = save(lf, src);
+             c = save(lf, "bitcast ", ptrtype, " ", c, " to ", fixedtype);
+        load(lf, "load ", fixedtype, " ", c);
+      } else {
+        load(lf, "load ", typeToLLVM(src.valueType), " ", save(lf, src));
+      }
     }
     void emitLocation(LLVMFile lf) {
       src.emitLLVM(lf);
