@@ -1379,7 +1379,7 @@ Expr intfToClass(Expr ex) {
 void doImplicitClassCast(Expr ex, IType target, void delegate(Expr) dg) {
   void testIntf(Expr ex) {
     dg(ex);
-    auto intf = (fastcast!(IntfRef)~ ex.valueType()).myIntf;
+    auto intf = (fastcast!(IntfRef) (resolveType(ex.valueType()))).myIntf;
     int offs = 0;
     foreach (id, par; intf.parents) {
       auto nex = tmpize_maybe(ex, (Expr ex) {
@@ -1394,7 +1394,7 @@ void doImplicitClassCast(Expr ex, IType target, void delegate(Expr) dg) {
   }
   void testClass(Expr ex) {
     dg(ex);
-    auto cl = (fastcast!(ClassRef) (ex.valueType())).myClass;
+    auto cl = (fastcast!(ClassRef) (resolveType(ex.valueType()))).myClass;
     if (!cl.parent && !cl.iparents) return; // just to clarify
     if (cl.parent) {
       testClass(reinterpret_cast_safe(cl.parent.getRefType(), ex));
@@ -1414,7 +1414,8 @@ void doImplicitClassCast(Expr ex, IType target, void delegate(Expr) dg) {
       testIntf(iex);
     }
   }
-  auto cr = fastcast!(ClassRef)(ex.valueType()), ir = fastcast!(IntfRef)(ex.valueType());
+  auto evt = resolveType(ex.valueType());
+  auto cr = fastcast!(ClassRef)(evt), ir = fastcast!(IntfRef)(evt);
   if (!cr && !ir) return;
   if (target) {
     auto crt = fastcast!(ClassRef)(target), irt = fastcast!(IntfRef)(target);
@@ -1427,7 +1428,7 @@ void doImplicitClassCast(Expr ex, IType target, void delegate(Expr) dg) {
 import ast.casting, ast.fold, tools.base: todg;
 static this() {
   implicits ~= delegate Expr(Expr ex) {
-    if (fastcast!(IntfRef)~ ex.valueType())
+    if (fastcast!(IntfRef) (resolveType(ex.valueType())))
       return intfToClass(ex);
     return null;
   };
