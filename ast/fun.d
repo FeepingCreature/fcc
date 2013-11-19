@@ -1,7 +1,7 @@
 module ast.fun;
 
 import ast.namespace, ast.base, ast.variable, llvmfile, ast.types, ast.scopes,
-  ast.pointer, ast.literals, ast.vardecl, ast.assign, ast.casting;
+  ast.pointer, ast.literals, ast.vardecl, ast.assign, ast.casting, ast.dominf;
 
 private alias parseBase.startsWith startsWith;
 private alias parseBase.endsWith endsWith;
@@ -263,7 +263,9 @@ class Function : Namespace, Tree, Named, SelfAdding, IsMangled, Extensible, Scop
     else addStatement(stmt);
     // opt(tree); // maybe don't need to do. maybe never need to do.
     
-    if (!type.ret)
+    if (type.ret)
+      type.ret = finalizeMergeType(type.ret);
+    else
       type.ret = Single!(Void); // implicit return
     
     auto t3 = t2.mystripl();
@@ -795,7 +797,9 @@ class FunCall : Expr {
         fail;
       }
     }
-    return fun.type.ret;
+    // make sure we get the actual target type
+    // resolves issues with auto return type recursion
+    return finalizeMergeType(fun.type.ret);
   }
 }
 

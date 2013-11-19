@@ -542,7 +542,7 @@ class MemberAccess_Expr : Expr, HasInfo {
     Structure st;
     if (auto rce = fastcast!(RCE)~ nbase) {
       nbase = .collapse(rce.from);
-      st = fastcast!(Structure)~ rce.to;
+      st = fastcast!(Structure) (resolveType(rce.to));
     }
     
     if (nbase.valueType() == stm.type) {
@@ -587,7 +587,7 @@ class MemberAccess_Expr : Expr, HasInfo {
       Expr res;
       int i;
       if (!st)
-        st = fastcast!(Structure)~ base.valueType();
+        st = fastcast!(Structure) (resolveType(base.valueType()));
       else {
         // TODO: assert: struct member offsets identical!
       }
@@ -603,7 +603,10 @@ class MemberAccess_Expr : Expr, HasInfo {
     }
     
     if (auto rt = fastcast!(IRefTuple)(nbase)) {
-      if (!st) fail;
+      if (!st) {
+        logln("what? ", nbase, " but! ", resolveType(base.valueType()));
+        fail;
+      }
       auto members = st.members();
     retry:
       auto mvs = rt.getMVs();

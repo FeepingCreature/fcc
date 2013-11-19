@@ -1,0 +1,16 @@
+module test193;
+
+interface I { int test(); }
+class A : I { int test() { return 5; } }
+class B : I { int test() { return 6; } }
+
+void main() {
+  auto test = λ{
+    if (0) return null;
+    // if (0) return new Object; // should unify with void*
+    if (0) return new A;
+    return new B;
+  }
+  writeln "unified to $(string-of type-of test())";
+  writeln "and $(test().test())";
+}

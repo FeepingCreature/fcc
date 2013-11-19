@@ -54,7 +54,7 @@ class ReturnStmt : Statement {
   }
 }
 
-import ast.casting;
+import ast.casting, ast.dominf;
 Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   auto rs = new ReturnStmt(null);
@@ -70,15 +70,16 @@ Object gotRetStmt(ref string text, ParseCb cont, ParseCb rest) {
     auto temp = rs.value;
     
     // auto deduction!
-    if (!fun.type.ret) fun.type.ret = rs.value.valueType();
-    
-    auto ret = resolveType(fun.type.ret);
-    if (gotImplicitCast(rs.value, fun.type.ret, (IType it) { tried ~= it; return test(it == ret); }, false)) {
-      return rs;
+    if (!fun.type.ret) fun.type.ret = new InferredSupertype(&rs.value);
+    else if (auto ut = fastcast!(InferredSupertype)(fun.type.ret)) {
+      ut.addValue(&rs.value);
+    } else {
+      auto ret = resolveType(fun.type.ret);
+      if (!gotImplicitCast(rs.value, ret, (IType it) { tried ~= it; return test(it == ret); }, false)) {
+        text.failparse("Could not convert to return type "[], fun.type.ret, "; expression had the type "[], temp.valueType());
+      }
     }
-    else {
-      text.failparse("Could not convert to return type "[], fun.type.ret, "; expression had the type "[], temp.valueType());
-    }
+    return rs;
   }
   
   if (!fun.type.ret) fun.type.ret = Single!(Void);
