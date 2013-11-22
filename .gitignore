@@ -2,4 +2,7 @@ fcc
 *.dot
 parsers.txt
 tools
-
+*~
+.obj*
+*anim
+doc
