@@ -210,11 +210,12 @@ template reverse(T) {
     int pos;
     IT[] back;
     bool allocatedBack;
+    void free() { if (allocatedBack) { back.free; allocatedBack = false; } }
     bool advance() {
-      if (pos == -1) { if (allocatedBack) back.free; return false; }
+      if (pos == -1) { free; return false; }
       value = back[pos];
       pos--;
-      if (pos == -1 && allocatedBack) back.free;
+      if (pos == -1 && allocatedBack) free;
       return true;
     }
   }
@@ -223,7 +224,11 @@ template reverse(T) {
     static if (implicitly-converts-to IT[] t) {
       r.(back, allocatedBack) = (t, false);
     } else {
-      r.(back, allocatedBack) = (t.iterator.eval[], true);
+      static if (implicitly-converts-to IT[auto~] t || implicitly-converts-to IT[~] t) {
+        r.(back, allocatedBack) = (t[], false);
+      } else {
+        r.(back, allocatedBack) = (t.iterator.eval[], true);
+      }
     }
     r.pos = r.back.length - 1;
     return r;

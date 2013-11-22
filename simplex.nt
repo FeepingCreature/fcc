@@ -37,7 +37,8 @@ class KISS {
 
 vec3i x 2[] offsets;
 
-void permsetup() {
+void permsetup() using scoped mem {
+  if (mem.special_magic) mem_init; // no pointers anyway, so gc won't care
   setupPerm = true;
   (perm, mperm, mperm32) = (new int[] 256) x 3;
   int seed = 34;
