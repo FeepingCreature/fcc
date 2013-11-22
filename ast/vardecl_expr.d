@@ -121,5 +121,5 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   if (setVar) return fastalloc!(StatementAndExpr)(setVar, res);
   else return fastcast!(Object) (res);
 }
-mixin DefaultParser!(gotVarDeclExpr, "tree.expr.vardecl"[], "28"[]);
+mixin DefaultParser!(gotVarDeclExpr, "tree.expr.vardecl", "28", null, true, true);
 

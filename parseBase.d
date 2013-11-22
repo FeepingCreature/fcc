@@ -74,13 +74,14 @@ struct SpeedCache {
   tools.base.Stuple!(char*, Object, char*)[24] cache;
   int curPos;
   tools.base.Stuple!(Object, char*)* opIn_r(char* p) {
-    int i = curPos - 1;
-    if (i == -1) i = cache.length - 1;
-    while (i != curPos) {
+    int start = curPos - 1;
+    if (start == -1) start += cache.length;
+    int i = start;
+    do {
       if (cache[i]._0 == p)
         return cast(tools.base.Stuple!(Object, char*)*) &cache[i]._1;
-      if (--i < 0) i += cache.length;
-    }
+      if (--i == -1) i += cache.length;
+    } while (i != start);
     return null;
   }
   void opIndexAssign(tools.base.Stuple!(Object, char*) thing, char* idx) {
@@ -704,7 +705,7 @@ void reserve(string key) {
   reserved[key] = true;
 }
 
-template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
+template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key, bool MemoizeForever) {
   final class DefaultParserImpl {
     Object info;
     bool dontMemoMe;
@@ -739,7 +740,11 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
       }
     } else {
       // Stuple!(Object, char*)[char*] cache;
-      Stash!(SpeedCache) cachestash;
+      static if (MemoizeForever) {
+        Stash!(Stuple!(Object, char*)[char*]) cachestash;
+      } else {
+        Stash!(SpeedCache) cachestash;
+      }
       Object match(ref string text, ParseCb cont, ParseCb rest) {
         auto t2 = text;
         if (.accept(t2, "]")) return null; // never a valid start
@@ -769,10 +774,10 @@ template DefaultParserImpl(alias Fn, string Id, bool Memoize, string Key) {
 import tools.threads, tools.compat: rfind;
 static this() { New(sync); }
 
-template DefaultParser(alias Fn, string Id, string Prec = null, string Key = null, bool Memoize = true) {
+template DefaultParser(alias Fn, string Id, string Prec = null, string Key = null, bool Memoize = true, bool MemoizeForever = false) {
   static this() {
-    static if (Prec) addParser((new DefaultParserImpl!(Fn, Id, Memoize, Key)).genParser(), Prec);
-    else addParser((new DefaultParserImpl!(Fn, Id, Memoize, Key)).genParser());
+    static if (Prec) addParser((new DefaultParserImpl!(Fn, Id, Memoize, Key, MemoizeForever)).genParser(), Prec);
+    else addParser((new DefaultParserImpl!(Fn, Id, Memoize, Key, MemoizeForever)).genParser());
   }
 }
 

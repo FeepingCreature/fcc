@@ -892,7 +892,7 @@ Object gotMacroStmt(ref string text, ParseCb cont, ParseCb rest) {
     auto mac = fastalloc!(TenthMacro)(ent, prematch?prematch.str:null);
     obj = mac;
   }
-  auto parser = (new DefaultParserImpl!(runTenth, null, true, null)(obj)).genParser();
+  auto parser = (new DefaultParserImpl!(runTenth, null, true, null, false)(obj)).genParser();
   parser.id = rulename.str;
   if (prematch)
     parser.key = prematch.str;
