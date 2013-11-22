@@ -187,3 +187,17 @@ template Hashmap(T) {
     }
   }
 }
+
+template Hashset(T) {
+  struct Nothing { }
+  struct Hashset {
+    Hashmap!(T, Nothing) back;
+    void iterate(void delegate(T) dg) { back.iterate λ(T* t, Nothing*) { dg(*t); } }
+    void iterate(void delegate(T*) dg) { back.iterate λ(T* t, Nothing*) { dg(t); } }
+    void add(T t) { back.insert(&t, &Nothing nothing); }
+    void remove(T t) { back.remove(&t); }
+    bool has(T t) { return !!back.get(&t); }
+    void clear() { back.clear; }
+    void free() { back.free; }
+  }
+}
