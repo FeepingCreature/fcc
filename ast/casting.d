@@ -477,7 +477,6 @@ class ShortToIntCast_ : Expr {
     }
     return this;
   }
-  mixin defaultCollapse!();
   override {
     IType valueType() { return Single!(SysInt); }
     void emitLLVM(LLVMFile lf) {
@@ -490,6 +489,27 @@ class ShortToIntCast_ : Expr {
 final class ShortToIntCast : ShortToIntCast_ {
   static const isFinal = true;
   this(Expr sh) { super(sh); }
+}
+
+class UShortToIntCast_ : Expr {
+  Expr ush;
+  this(Expr ush) { this.ush = ush; }
+  private this() { }
+  mixin DefaultDup!();
+  mixin defaultIterate!(ush);
+  mixin defaultCollapse!();
+  override {
+    IType valueType() { return Single!(SysInt); }
+    void emitLLVM(LLVMFile lf) {
+      load(lf, "zext i16 ", save(lf, ush), " to i32");
+    }
+    string toString() { return Format("int:"[], ush); }
+  }
+}
+
+final class UShortToIntCast : UShortToIntCast_ {
+  static const isFinal = true;
+  this(Expr ush) { super(ush); }
 }
 
 class ByteToShortCast : Expr {
@@ -589,6 +609,12 @@ static this() {
   implicits ~= delegate Expr(Expr ex) {
     if (Single!(Short) == ex.valueType())
       return fastalloc!(ShortToIntCast)(ex);
+    else
+      return null;
+  };
+  implicits ~= delegate Expr(Expr ex) {
+    if (Single!(UShort) == ex.valueType())
+      return fastalloc!(UShortToIntCast)(ex);
     else
       return null;
   };

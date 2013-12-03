@@ -183,6 +183,13 @@ final class Short : Type {
   override bool isPointerLess() { return true; }
 }
 
+final class UShort : Type {
+  override string llvmSize() { return "2"; }
+  override string llvmType() { return "i16"; }
+  override string mangle() { return "ushort"; }
+  override bool isPointerLess() { return true; }
+}
+
 class SysInt_ : Type, Dwarf2Encodable {
   override string llvmSize() { if (nativeIntSize == 4) return "4"; if (nativeIntSize == 8) return "8"; assert(false); }
   override string llvmType() { if (nativeIntSize == 4) return "i32"; if (nativeIntSize == 8) return "i64"; assert(false); }
@@ -261,10 +268,11 @@ const string BasicTypeTable = `
   size_t | SizeT
   int    | SysInt
   long   | Long
-  short  | Short
   char   | Char
   byte   | Byte
   ubyte  | UByte
+  short  | Short
+  ushort | UShort
   float  | Float
   double | Double
   real   | Real
