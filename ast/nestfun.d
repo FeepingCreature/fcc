@@ -176,15 +176,15 @@ Object gotNestedDgLiteral(ref string text, ParseCb cont, ParseCb rest) {
       auto t3 = t2;
       
       if (staticMode) {
-        auto sl = context.get!(StructLike);
-        if (!sl) {
-          t2.failparse("No surrounding class/struct body found");
+        if (auto sl = context.get!(StructLike)) {
+          context = fastcast!(Namespace)(sl);
+        } else { // static in nested function
+          context = context.get!(Function).sup;
+          if (fastcast!(Module)(context)) {
+            t2.failparse("what even happened there at ", sc);
+          }
         }
-        context = fastcast!(Namespace)(sl);
-        // context = context.get!(Function).sup;
-        // if (fastcast!(Module)(context)) {
-        //   t2.failparse("what even happened there at ", sc);
-        // }
+        
         contextptr = fastcast!(Expr)(sc.lookup("__base_ptr", true));
         if (!contextptr) {
           t2.failparse("failed to find context pointer");
