@@ -1660,7 +1660,7 @@ int main2(string[] args) {
     // TODO: fix TLS under Windows (wtf is wrong with it!)
     cs.singlethread = true;
   }
-  bool incremental;
+  bool incremental, showHelp;
   ar = processCArgs(ar);
   string[] ar2;
   while (ar.length) {
@@ -1671,6 +1671,10 @@ int main2(string[] args) {
     }
     if (arg == "-xbreak") {
       xbreak = ar.take();
+      continue;
+    }
+    if (arg == "-h" || arg == "-help" || arg == "--help") {
+      showHelp = true;
       continue;
     }
     if (arg == "-break") {
@@ -1766,6 +1770,17 @@ int main2(string[] args) {
     ar2 ~= arg;
   }
   args = ar2;
+  if (!args.length || showHelp) {
+    logln( "usage: fcc [parameters] mainfile.nt" );
+    logln( "  -o <file>: output. Defaults to 'mainfile'." );
+    logln( "  -release : skip array bounds checks" );
+    logln( "  -O       : optimize with LLVM" );
+    logln( "  -g       : neat debug info" );
+    logln( "  -gc      : C debug info" );
+    logln( "  -F       : incremental build mode" );
+    logln( "  -run     : execute the program after it has built" );
+    return 0;
+  }
   // Now only sourcefiles are left (see loop above)
   foreach (sourcefile; args) {
     auto base = sourcefile.endsWith(EXT);
