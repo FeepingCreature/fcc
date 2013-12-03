@@ -2,8 +2,9 @@
 // int[] foo; foo #.maximize λ(int x) -> x;
 module ast.forex;
 
-import parseBase;
-import ast.base, ast.casting, ast.namespace, ast.scopes, ast.returns, ast.modules;
+import parseBase, ast.base;
+import ast.casting, ast.namespace, ast.scopes, ast.returns;
+import ast.modules, ast.iterator;
 import ast.fun, ast.nestfun;
 Object gotForEx(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -20,6 +21,10 @@ Object gotForEx(ref string text, ParseCb cont, ParseCb rest) {
     string fun_name;
     if (!t2.gotIdentifier(fun_name))
       break;
+    if (fun_name == "as") { // rename
+      if (!t2.gotIdentifier(label)) t2.failparse("'as' expected new identifier");
+      else continue;
+    }
     
     // belongs inside the loop because we'll repeat it for the next loop pass
     // using the new arg1
@@ -30,6 +35,11 @@ Object gotForEx(ref string text, ParseCb cont, ParseCb rest) {
     
     auto itr = fastcast!(Iterator)(resolveType(arg1.valueType()));
     IType argtype = itr.elemType();
+    
+    if (fun_name == "eval") { // #.eval
+      arg1 = fastalloc!(EvalIterator!(Iterator))(arg1, itr);
+      continue;
+    }
     
     auto sc = namespace().get!(Scope);
     

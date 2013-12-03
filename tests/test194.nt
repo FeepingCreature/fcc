@@ -5,4 +5,6 @@ import std.fun, std.util;
 void main() {
   assert(6 == for x in [4, 5, 6] maximize x);
   assert(5 == for x in [4, 5, 6] select x < 6 maximize x);
+  assert(5 == for x in [4, 5, 6] select x < 6 as y maximize y);
+  assert(types-equal(int[], type-of (for x in [4, 5, 6] map x + 2 eval)[]));
 }
