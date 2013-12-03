@@ -18,7 +18,7 @@ mixin(expandImport(`ast.[
   propcall, properties_parse, main, alignment, modules_parse,
   platform, math, longmath, base, mixins, int_literal, static_arrays,
   enums, import_parse, pragmas, trivial, fp, expr_statement,
-  typeset, dependency, prefixfun,
+  typeset, dependency, prefixfun, forex, dominf,
   macros, tenth, vardecl_expr, vardecl_parse, property, condprop],
   casts, llvmtype, cache`));
 
