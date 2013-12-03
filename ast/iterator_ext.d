@@ -22,6 +22,12 @@ class ArrayIterator : Type, RichIterator, IArrayIterator {
     string llvmSize() { return tup.llvmSize(); }
     string llvmType() { return tup.llvmType(); }
     string mangle() { return qformat("array_iterate_", tup.mangle()); }
+    int opEquals(IType it) {
+      if (auto ai2 = fastcast!(ArrayIterator)(it)) {
+        return arr == ai2.arr;
+      }
+      return false;
+    }
     
     Cond testAdvance(LValue lv) {
       auto entries = getTupleEntries(reinterpret_cast(tup, lv), null, true);

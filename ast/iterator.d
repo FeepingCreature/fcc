@@ -186,6 +186,12 @@ class StructIterator : Type, Iterator {
                     (`evaluate (lv.advance)`,
                      "lv"[], lv);
     }
+    int opEquals(IType it) {
+      if (auto si2 = fastcast!(StructIterator)(it)) {
+        return si2.wrapped == wrapped;
+      }
+      return false;
+    }
     string toString() { return Format("si "[], wrapped); }
   }
 }
