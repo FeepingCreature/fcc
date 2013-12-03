@@ -18,6 +18,8 @@ Object gotForEx(ref string text, ParseCb cont, ParseCb rest) {
     t2.failparse("Expected start iterator for 'for' expression");
   
   while (true) {
+    auto t3 = t2;
+    
     string fun_name;
     if (!t2.gotIdentifier(fun_name))
       break;
@@ -35,6 +37,7 @@ Object gotForEx(ref string text, ParseCb cont, ParseCb rest) {
     
     auto itr = fastcast!(Iterator)(resolveType(arg1.valueType()));
     IType argtype = itr.elemType();
+    // logln("at ", t2.nextText(), ": argtype = ", argtype);
     
     if (fun_name == "eval") { // #.eval
       arg1 = fastalloc!(EvalIterator!(Iterator))(arg1, itr);
@@ -67,7 +70,7 @@ Object gotForEx(ref string text, ParseCb cont, ParseCb rest) {
       
       Expr return_ex;
       if (!rest(t2, "tree.expr", &return_ex))
-        t2.failparse("'for' expr lambda expression failed to match");
+        t3.failparse("'for' expr lambda expression failed to match");
       
       nf.type.ret = return_ex.valueType();
       
@@ -80,13 +83,17 @@ Object gotForEx(ref string text, ParseCb cont, ParseCb rest) {
     arg2 = fastalloc!(NestFunRefExpr)(nf);
     
     auto callme = sc.lookup(fun_name, false);
-    if (!callme) t2.failparse("unknown identifier '", fun_name, "'");
+    if (!callme) t3.failparse("unknown identifier '", fun_name, "'");
     
-    auto call = iparse!(Expr, "forex call", "tree.expr")
-                       (`fun (arg1, arg2)`,
-                        "fun", callme, "arg1", arg1, "arg2", arg2);
-    
-    arg1 = call;
+    try {
+      auto call = iparse!(Expr, "forex call", "tree.expr")
+                         (`fun (arg1, arg2)`,
+                          "fun", callme, "arg1", arg1, "arg2", arg2);
+      
+      arg1 = call;
+    } catch (Exception ex) {
+      t3.failparse("while trying to generate for expression: ", ex);
+    }
   }
   
   text = t2;
