@@ -3,7 +3,9 @@ module ast.vardecl;
 import ast.assign, ast.base, ast.namespace, ast.scopes, ast.casting, ast.static_arrays, tools.base: Range;
 public import ast.variable;
 
-int vardecl_marker;
+int vardecl_marker, anonvar;
+
+string getAnonvarId() { synchronized return qformat("anon_var_", anonvar ++); }
 
 import dwarf2;
 class VarDecl : LineNumberedStatementClass, HasInfo {

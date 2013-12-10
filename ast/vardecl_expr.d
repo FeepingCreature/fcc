@@ -1,7 +1,7 @@
 module ast.vardecl_expr;
 
 import ast.scopes, ast.namespace, ast.casting, ast.base, ast.types, ast.parse, ast.vardecl, ast.tuples,
-       ast.assign, ast.aggregate, ast.c_bind, ast.pointer, ast.aliasing;
+       ast.assign, ast.aggregate, ast.c_bind, ast.pointer, ast.aliasing, ast.arrays, ast.dg;
 
 Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
@@ -13,10 +13,11 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
       return null; // whew.
   }
   if (parsingCHeader() || !namespace().get!(ScopeLike)) return null;
-  bool isRefDecl;
+  bool isRefDecl, isScopeDecl;
   if (!t2.accept("auto"[])) {
+    if (t2.accept("scope")) isScopeDecl = true;
     if (t2.accept("ref")) isRefDecl = true;
-    if (!rest(t2, "type"[], &type) && !isRefDecl) return null;
+    if (!rest(t2, "type"[], &type) && !isRefDecl && !isScopeDecl) return null;
   }
   if (t2.accept(":"[])) return null; // cast
   bool completeDeclaration(Statement* st, Expr* ex) {
@@ -81,6 +82,20 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
     } else {
       *ex = var;
     }
+    if (isScopeDecl) {
+      auto thing = *ex;
+      auto vt = resolveType(thing.valueType());
+      if (fastcast!(Array) (vt) || fastcast!(ExtArray) (vt) || showsAnySignOfHaving(thing, "free")) {
+        sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
+                          (`thing.free;`, "thing", thing));
+      } else if (fastcast!(Delegate) (vt)) {
+        sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
+                          (`dupvfree thing.data;`, "thing", thing));
+      } else {
+        sc.addGuard(iparse!(Statement, "scope_guard", "tree.stmt")
+                          (`mem.free thing;`, "thing", thing));
+      }
+    }
     auto vd = fastalloc!(VarDecl)(var);
     vd.configPosition(text);
     sc.addStatement(vd);
@@ -94,8 +109,13 @@ Object gotVarDeclExpr(ref string text, ParseCb cont, ParseCb rest) {
   }
   Statement setVar;
   Expr res;
+  auto t3 = t2;
   if (t2.gotIdentifier(name)) {
     if (!completeDeclaration(&setVar, &res)) return null;
+  } else if (t3.accept("=")) { // scope = foo syntax to create an unnamed variable
+    name = getAnonvarId();
+    if (!completeDeclaration(&setVar, &res))
+      t2.failparse("could not complete anonymous variable declaration");
   } else if (t2.accept("("[])) {
     bool firstTime = true;
     bool wasAuto = !type;

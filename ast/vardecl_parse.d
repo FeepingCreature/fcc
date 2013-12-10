@@ -1,9 +1,11 @@
 module ast.vardecl_parse;
 
-import parseBase, ast.base, ast.vardecl, ast.aliasing, ast.namespace, ast.expr_statement, ast.arrays,
-       ast.casting, ast.pointer, ast.aggregate, ast.scopes, ast.types, ast.dg, ast.tuples, tools.compat: find;
+import parseBase, ast.base, ast.vardecl, ast.aliasing, ast.namespace, ast.expr_statement,
+       ast.types, ast.dg, ast.pointer, ast.arrays, ast.tuples, ast.tuple_access,
+       ast.casting, ast.aggregate, ast.scopes, tools.compat: find;
 
 Scope cached_sc;
+// TODO unify with vardecl_expr
 Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   string t2 = text, varname;
   bool isRefDecl, isScopeDecl;
@@ -30,12 +32,26 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
   if (t2.accept("("[])) mixin(abort); // compound var expr
   
   while (true) {
+    bool exportNamedTupleMembers;
     if (!t2.gotIdentifier(varname, true)) {
-      if (vartype && fastcast!(Tuple) (vartype)) { // might be a (vardecl) form tuple!
-        t2.setError("Could not get variable identifier");
-        return null;
+      auto t3 = t2;
+      if ((vartype || isRefDecl || isScopeDecl) && t3.accept("="))
+      { /* nameless variable */
+        // logln("nameless? but ", vartype, ", ", isRefDecl, ", ", isScopeDecl, " at ", t2.nextText());
+        // nameless tuple decls are "transparent"
+        // (int a, int) = (2, 3); a = 4;
+        // this is mainly to make up for the ambiguity with (int a, int b) = (2, 3);
+        // which becomes an anonymous named tuple decl instead of a tuple of variable decls
+        // (the two cases should be functionally indistinguishable)
+        exportNamedTupleMembers = true;
+        varname = getAnonvarId();
+      } else {
+        if (vartype && fastcast!(Tuple) (vartype)) { // might be a (vardecl) form tuple!
+          t2.setError("Could not get variable identifier");
+          return null;
+        }
+        t2.failparse("Could not get variable identifier"[]);
       }
-      t2.failparse("Could not get variable identifier"[]);
     }
     if (t2.acceptLeftArrow()) mixin(abort); // is an iterator-construct
     Expr ex;
@@ -107,6 +123,15 @@ Object gotVarDecl(ref string text, ParseCb cont, ParseCb rest) {
                           (`mem.free var;`, "var", var));
       }
     }
+    if (exportNamedTupleMembers) {
+      if (auto tup = fastcast!(Tuple)(var.valueType())) {
+        auto members = getTupleEntries(var);
+        foreach (i, name; tup.names) if (name) {
+          sc.add(fastalloc!(LValueAlias)(members[i], name));
+        }
+      }
+    }
+    
     if (t2.acceptTerminatorSoft()) break;
     if (t2.accept(","[])) continue;
     t2.failparse("Unexpected text in auto expr"[]);
