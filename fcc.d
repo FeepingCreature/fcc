@@ -606,6 +606,21 @@ void ast_math_constr() {
   defineOps(&handleDoubleMath);
   defineOps(&handleLongMath);
   defineOps(&handlePointerMath, true);
+  defineOp("^", delegate Expr(Expr ex1, Expr ex2) {
+    if (gotImplicitCast(ex2, Single!(SysInt), &isInt)) {
+      if (auto ie = fastcast!(IntExpr)(collapse(ex2))) {
+        if (ie.num == 0) return fastalloc!(IntExpr)(1);
+        return tmpize_maybe(ex1, (Expr ex1) { // a^3 should only evaluate a once!
+          auto res = ex1;
+          for (int i = 1; i < ie.num; ++i) {
+            res = lookupOp("*", res, ex1);
+          }
+          return res;
+        });
+      }
+    }
+    return null;
+  });
 }
 
 pragma(set_attribute, printThing, externally_visible);

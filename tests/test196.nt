@@ -1,0 +1,16 @@
+module test196;
+
+void main() {
+  assert(2^0 == 1);
+  assert(2^1 == 2);
+  assert(2^2 == 4);
+  assert(2^3 == 8);
+  assert(2^4 == 16);
+  // a^2 should only evaluate a once!
+  {
+    int i;
+    int a() { writeln "$i a"; i++; return 2; }
+    assert(a()^2 == 4);
+    assert(i == 1);
+  }
+}
