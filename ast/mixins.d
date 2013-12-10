@@ -5,7 +5,7 @@ import ast.base, ast.parse, ast.literal_string, ast.fold, ast.casting, ast.aggre
 Object gotMixinExpr(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr"[], &ex)) 
+  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex)) 
     t2.failparse("Couldn't match mixin string! "[]);
   auto ex2 = ex;
   if (!gotImplicitCast(ex2, (Expr ex) { return !!fastcast!(StringExpr) (collapse(ex)); }))
@@ -30,7 +30,7 @@ mixin DefaultParser!(gotMixinExpr, "tree.expr.mixin"[], "222"[], "mixin"[]);
 Object gotMixinStmt(string submode)(ref string text, ParseCb cont, ParseCb rest) {
   auto t2 = text;
   Expr ex;
-  if (!rest(t2, "tree.expr"[], &ex)) 
+  if (!rest(t2, "tree.expr _tree.expr.bin"[], &ex)) 
     t2.failparse("Couldn't match mixin string! "[]);
   auto ex2 = ex;
   if (!gotImplicitCast(ex2, (Expr ex) { return !!fastcast!(StringExpr) (collapse(ex)); }))
