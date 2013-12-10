@@ -444,15 +444,12 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
     auto t4 = t2;
     try {
       result = matchCall(t2, fun, fun.name, params, rest, fc.params, inits, false, false, !exprHasAlternativesToACall);
-      if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
-      if (inits.length) res = mkStatementAndExpr(inits[0], foldex(fc));
-      else res = foldex(res);
     }
     catch (ParseEx pe) text.failparse("cannot call: ", pe);
     catch (Exception ex) text.failparse("cannot call: ", ex);
     if (!result) {
       if (t2.accept("("))
-        t2.failparse("Failed to call function with ", params);
+        t2.failparse("Failed to call function of ", params, ": call did not match");
       auto t3 = t2;
       int neededParams;
       foreach (param; params) if (!param.initEx) neededParams ++;
@@ -460,6 +457,9 @@ Object gotCallExpr(ref string text, ParseCb cont, ParseCb rest) {
         t2.failparse("Failed to build paramless call");
       }
     }
+    if (inits.length > 1) inits = [fastalloc!(AggrStatement)(inits)];
+    if (inits.length) res = mkStatementAndExpr(inits[0], foldex(fc));
+    else res = foldex(res);
     text = t2;
     return fastcast!(Object) (res);
   };

@@ -75,7 +75,9 @@ extern(C) float sqrtf(float);
 static this() {
   funcall_folds ~= delegate Expr(FunCall fc) {
     if (!fc.fun.extern_c || fc.fun.name != "sqrtf") return null;
-    assert(fc.params.length == 1);
+    if (fc.params.length != 1) {
+      fail(qformat("how did you permit a function call to sqrtf with args.length != 1?! : ", fc));
+    }
     auto fe = fc.params[0];
     if (!gotImplicitCast(fe, (Expr ex) { return test(fastcast!(FloatExpr)(collapse(ex))); }))
       return null;
@@ -690,10 +692,16 @@ Object gotMathExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (!recursed) return null;
       auto op2 = lookupOp(opName, true, op, recursed);
       if (!op2) {
-        if( recursed)
+        bool mayBeValid;
+        // if (foo) *bar = 5;
+        if (fastcast!(Pointer)(resolveType(recursed.valueType())) && opName == "*") mayBeValid = true;
+        if (!mayBeValid) {
+          backupt2.failparse("Undefined operation: ", op.valueType(), " ", opName, " ", recursed.valueType());
+        } else {
           backupt2.setError("Undefined operation: ", op.valueType(), " ", opName, " ", recursed.valueType());
-        t2 = backupt2;
-        return null;
+          t2 = backupt2;
+          return null;
+        }
       }
       op = op2;
     } catch (Exception ex) t2.failparse(ex);
