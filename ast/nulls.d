@@ -98,13 +98,13 @@ extern(C) Cond _testTrue(Expr ex, bool nonzeroPreferred = false) {
       auto i1 = e1.valueType(), i2 = e2.valueType();
       Expr e1t;
       if (gotImplicitCast(e1, i2, (IType it) {
-  auto e2t = e2;
-  auto res = gotImplicitCast(e2t, it, (IType it2) {
-    overlaps ~= stuple(it,  it2);
-    return .test(it == it2);
-  });
-  if (res) cmp2 = e2t;
-  return res;
+        auto e2t = e2;
+        auto res = gotImplicitCast(e2t, it, (IType it2) {
+          overlaps ~= stuple(it,  it2);
+          return .test(it == it2);
+        });
+        if (res) cmp2 = e2t;
+        return res;
       })) { cmp1 = e1; }
     }
     test(ex, n);
