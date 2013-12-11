@@ -825,7 +825,7 @@ class VecOp : Expr {
           case "<<": llop = "shl"; break;
           case ">>": llop = "ashr"; break;
           case ">>>": llop = "lshr"; break;
-          default: break;
+          default: fail("vector op "~op~" not implemented!");
         }
         if (fastcast!(Float)(e1v.base) || fastcast!(Double)(e1v.base) || fastcast!(Real)(e1v.base)) {
           if (llvmver() == "3.1" || llvmver() == "3.2") {
@@ -955,7 +955,8 @@ static this() {
   defineOp("+"[], "+" /apply/ &handleVecOp);
   defineOp("*"[], "*" /apply/ &handleVecOp);
   defineOp("/"[], "/" /apply/ &handleVecOp);
-  defineOp("^"[], "^" /apply/ &handleVecOp);
+  // what does that even mean
+  // defineOp("^"[], "^" /apply/ &handleVecOp);
   defineOp("%"[], "%" /apply/ &handleVecOp);
   defineOp("&"[], "&" /apply/ &handleVecOp);
   defineOp("|"[], "|" /apply/ &handleVecOp);
