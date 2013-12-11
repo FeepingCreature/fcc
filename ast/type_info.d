@@ -1,6 +1,6 @@
 module ast.type_info;
 
-import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop, ast.vector, ast.structure, ast.pointer;
+import ast.types, ast.base, ast.parse, ast.int_literal, ast.literals, ast.oop, ast.vector, ast.structure, ast.pointer, ast.iterator_ext;
 
 // Most of those must come before tree.expr.named
 // due to dash-parsing rules!
@@ -207,7 +207,11 @@ Object gotTypeIs(ref string text, ParseCb cont, ParseCb rest) {
     case "vector": res = !!fastcast!(Vector) (ty); break;
     case "struct": res = !!fastcast!(Structure) (ty); break;
     case "pointer": res = !!fastcast!(Pointer) (ty); break;
-    case "iterable": res = !!fastcast!(Iterator) (ty); break;
+    // case "iterable": res = !!fastcast!(Iterator) (ty); break;
+    case "iterable": // adjective, not noun
+      Expr sample = fastalloc!(PlaceholderToken)(ty, "iterable test");
+      res = !!tryConvertToIterator(sample);
+      break;
   }
   setupStaticBoolLits;
   Expr ex;

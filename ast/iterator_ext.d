@@ -654,6 +654,38 @@ Object gotSum(ref string text, ParseCb cont, ParseCb rest) {
 }
 mixin DefaultParser!(gotSum, "tree.expr.iter.sum"[], null, "sum"[]);
 
+Expr tryConvertToIterator(Expr ex) {
+  auto alreadyIterator = ex;
+  bool isIter(IType it) { return !!fastcast!(Iterator) (it); }
+  if (gotImplicitCast(alreadyIterator, Single!(HintType!(Iterator)), &isIter)) {
+    return alreadyIterator;
+  }
+  auto thingy = fastcast!(Object) (ex.valueType());
+  bool delegate(string) lookup;
+  Namespace _ns; RelNamespace _rns;
+  bool fun_ns(string id) { return test(_ns.lookup(id)); }
+  bool fun_rns(string id) { return test(_rns.lookupRel(id, ex)); }
+  if (auto srn = fastcast!(SemiRelNamespace) (thingy)) thingy = fastcast!(Object) (srn.resolve());
+  if (auto ns = fastcast!(Namespace)~ thingy) { _ns = ns; lookup = &fun_ns; }
+  else if (auto rn = fastcast!(RelNamespace)~ thingy) { _rns = rn; lookup = &fun_rns; }
+  if (!lookup || !lookup("value"[]) || !lookup("advance"[])) {
+    return null;
+  }
+  // logln("try "[], t2.nextText(), "; "[], thingy);
+  auto test1 = iparse!(Expr, "si_test_step", "tree.expr"[])
+                      (`evaluate (ex.value)`[], "ex"[], ex);
+  auto test2 = iparse!(Cond, "si_test_ivalid"[], "cond"[])
+                      (`evaluate (ex.advance)`[], "ex"[], ex);
+  if (!test1 || !test2) {
+    logln("test failed: "[], !test1, ", "[], !test2);
+    fail;
+  }
+  auto si = fastalloc!(StructIterator)(ex.valueType());
+  Expr res = reinterpret_cast(si, ex);
+  // logln(" => "[], res);
+  return res;
+}
+
 import ast.templ, ast.iterator;
 // struct iterator or explicit iterator cast
 Object gotXIterator(ref string text, ParseCb cont, ParseCb rest) {
@@ -662,41 +694,13 @@ Object gotXIterator(ref string text, ParseCb cont, ParseCb rest) {
     if (!t2.accept(".iterator"[])) return null; // Because fuck you.
     auto iter = fastcast!(Expr) (obj);
     if (!iter) return null;
-    
-    auto alreadyIterator = iter;
-    if (gotImplicitCast(alreadyIterator, Single!(HintType!(Iterator)), (IType it) {
-      return !!fastcast!(Iterator) (it);
-    })) {
+    if (auto res = tryConvertToIterator(iter)) {
       text = t2;
-      return fastcast!(Object) (alreadyIterator);
-    }
-    
-    auto thingy = fastcast!(Object)~ iter.valueType();
-    bool delegate(string) lookup;
-    Namespace _ns; RelNamespace _rns;
-    bool fun_ns(string id) { return test(_ns.lookup(id)); }
-    bool fun_rns(string id) { return test(_rns.lookupRel(id, null)); }
-    if (auto srn = fastcast!(SemiRelNamespace) (thingy)) thingy = fastcast!(Object) (srn.resolve());
-    if (auto ns = fastcast!(Namespace)~ thingy) { _ns = ns; lookup = &fun_ns; }
-    else if (auto rn = fastcast!(RelNamespace)~ thingy) { _rns = rn; lookup = &fun_rns; }
-    if (!lookup || !lookup("value"[]) || !lookup("advance"[])) {
+      return fastcast!(Object)(res);
+    } else {
       text.setError(obj, " does not form a valid iterator: value or advance missing. "[]);
       return null;
     }
-    // logln("try "[], t2.nextText(), "; "[], thingy);
-    auto test1 = iparse!(Expr, "si_test_step"[], "tree.expr"[])
-                      (`evaluate (iter.value)`, "iter"[], iter);
-    auto test2 = iparse!(Cond, "si_test_ivalid"[], "cond"[])
-                      (`evaluate (iter.advance)`, "iter"[], iter);
-    if (!test1 || !test2) {
-      logln("test failed: "[], !test1, ", "[], !test2);
-      fail;
-    }
-    text = t2;
-    auto si = fastalloc!(StructIterator)(iter.valueType());
-    auto res = fastcast!(Object)~ reinterpret_cast(si, iter);
-    // logln(" => "[], res);
-    return res;
   };
 }
 mixin DefaultParser!(gotXIterator, "tree.rhs_partial.x_iter"[]);
