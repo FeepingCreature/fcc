@@ -246,22 +246,38 @@ template max(T) {
   }
 }
 
+template failtype(T) {
+  T failtype() {
+    static if (types-equal (T, float)) {
+      return float.nan; // will fail all comparisons, so is okay
+    } else {
+      fail "Iterator was empty";
+    }
+  }
+}
+
 /*Template: minlist
 Returns the smallest entry of the iterable argument*/
 template minlist(T) {
-  type-of-elem value-of!T minlist(T t) {
-    eval auto res <- t;
-    while auto r2 <- t if r2 < res res = r2;
-    return res;
+  alias R = type-of-elem value-of!T;
+  R minlist(T t) {
+    auto iter = t.iterator;
+    if (auto res <- iter) {
+      while auto r2 <- iter if r2 < res res = r2;
+      return res;
+    } else return failtype!R(); // :(
   }
 }
 
 /*Template: maxlist
 Returns the largest entry of the iterable argument*/
 template maxlist(T) {
-  type-of-elem value-of!T maxlist(T t) {
-    eval auto res <- t;
-    while auto r2 <- t if r2 > res res = r2;
-    return res;
+  alias R = type-of-elem value-of!T;
+  R maxlist(T t) {
+    auto iter = t.iterator;
+    if (auto res <- iter) {
+      while auto r2 <- iter if r2 > res res = r2;
+      return res;
+    } else return failtype!R(); // :(
   }
 }
