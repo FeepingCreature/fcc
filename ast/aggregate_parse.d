@@ -21,6 +21,7 @@ Statement parseAggregateBody(ref string text, ParseCb rest, bool error = false, 
 Statement parseFullAggregateBody(ref string src, ParseCb rest) {
   auto sc = namespace().get!(Scope);
   parseAggregateBody(src, rest, true, &sc.addStatement);
+  src.eatComments();
   src = src.mystripl();
   if (src.length) {
     src.failparse("unknown text in aggregate body");
