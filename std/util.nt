@@ -2,6 +2,16 @@
 Iterator-related helper functions*/
 module std.util;
 
+template Maybe(T) {
+  struct Maybe {
+    T value;
+    bool valid;
+    T getvalue() { assert valid; return value; }
+    alias implicit-cast = valid;
+    alias implicit-cast-2 = getvalue();
+  }
+}
+
 /*Template: once
 For any value, forms an iterator that yields only that value, exactly once. */
 template once(T) {
@@ -248,8 +258,7 @@ template maximize(T) {
       res = value;
       succeeded = true;
     }
-    assert succeeded;
-    return res;
+    return Maybe!type-of res: (res, succeeded);
   }
 }
 
@@ -266,24 +275,16 @@ template minimize(T) {
       res = value;
       succeeded = true;
     }
-    assert succeeded;
-    return res;
+    return Maybe!type-of res: (res, succeeded);
   }
 }
 
 // list.findFirstThat condition
 template findFirstThat(T) {
   alias Element = type-of-elem T[0];
-  struct Maybe {
-    Element value;
-    bool valid;
-    Element getvalue() { assert valid; return value; }
-    alias implicit-cast = valid;
-    alias implicit-cast-2 = getvalue();
-  }
   auto findFirstThat(T pair) {
-    for auto value <- pair[0] if (pair[1] value) return Maybe:(value, true);
-    return Maybe:(Element throwaway, false);
+    for auto value <- pair[0] if (pair[1] value) return Maybe!Element: (value, true);
+    return Maybe!Element: (Element throwaway, false);
   }
 }
 
