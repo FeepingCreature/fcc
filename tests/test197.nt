@@ -1,0 +1,7 @@
+module test197;
+
+import std.string;
+
+void main() {
+  assert("Hello World".(startsWith "Hell" && startsWith "Hello"));
+}
