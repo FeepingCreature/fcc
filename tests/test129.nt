@@ -9,6 +9,6 @@ S test() { return 2f; }
 S test2() { return 5; }
 
 void main() {
-  assert(test().f == 2f);
-  assert(test2().f == float:5);
+  assert(test().f == 2f, "test -- $(test().f)");
+  assert(test2().f == float:5, "test2 -- $(test2().f)");
 }

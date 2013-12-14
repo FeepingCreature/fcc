@@ -181,17 +181,24 @@ class WithTempExpr : Expr {
     lltemp = fastalloc!(LLVMRef)();
     this.thing = thing;
   }
+  this() { }
+  void copy(WithTempExpr wte) {
+    val        = wte.val;
+    lltemp     = wte.lltemp;
+    thing      = wte.thing;
+    superthing = wte.superthing;
+  }
   // did the dg() succeed?
   bool isValid() { return !!superthing; }
-  protected this() { }
   mixin defaultIterate!(thing, superthing);
   mixin defaultCollapse!();
+  WithTempExpr create() { return fastalloc!(WithTempExpr)(); }
   override {
     string toString() {
       return Format("<with temp "[], thing, ": "[], superthing, ">"[]);
     }
-    WithTempExpr dup() {
-      auto res = new WithTempExpr;
+    Expr dup() {
+      auto res = create();
       res.val = fastalloc!(LLVMValue)(cast(string) null, val.type);
       res.lltemp = fastalloc!(LLVMRef)();
       if (lltemp.type) res.lltemp.type = lltemp.type;
@@ -215,6 +222,35 @@ class WithTempExpr : Expr {
         lltemp.begin(lf);
       }
       superthing.emitLLVM(lf);
+      if (lltemp.type) {
+        lltemp.end(lf);
+      }
+    }
+  }
+}
+
+class WithTempMValue : WithTempExpr, MValue {
+  bool alreadyUsed;
+  this(Expr thing) { super(thing); }
+  this() { }
+  override {
+    MValue dup() { return fastcast!(MValue)(super.dup()); } // type works out due to create()
+    WithTempExpr create() { return fastalloc!(WithTempMValue)(); }
+    string toString() { return Format("<with temp (mvalue) "[], thing, ": "[], superthing, ">"[]); }
+    void emitLLVM(LLVMFile lf) {
+      if (alreadyUsed) fail; alreadyUsed = true;
+      super.emitLLVM(lf);
+    }
+    void emitAssignment(LLVMFile lf) {
+      if (alreadyUsed) fail; alreadyUsed = true;
+      auto supermv = fastcast!(MValue)(superthing);
+      if (!supermv) fail;
+      val.str = save(lf, thing);
+      if (lltemp.type) {
+        lltemp.allocate(lf);
+        lltemp.begin(lf);
+      }
+      supermv.emitAssignment(lf);
       if (lltemp.type) {
         lltemp.end(lf);
       }

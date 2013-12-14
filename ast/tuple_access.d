@@ -236,41 +236,20 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
       if (!t2.accept("("[])) return null;
     }
     auto ex = fastcast!(Expr) (obj);
-    Statement initLv;
     WithTempExpr wte; // Careful!!
     if (ex) {
       ex = forcedConvert(ex);
       if (!_is_cheap(ex, CheapMode.Multiple)) {
-        if (fastcast!(Variable) (ex)) {
-          // I guess we don't need to do anything in this case.
-        } else if (auto lv = fastcast!(LValue) (ex)) {
-          ex = fastalloc!(DerefExpr)(lvize(fastalloc!(RefExpr)(lv), &initLv));
+        if (auto lv = fastcast!(LValue) (ex)) {
+          wte = fastalloc!(WithTempExpr)(fastalloc!(RefExpr)(lv));
+          ex = fastalloc!(DerefExpr)(wte.val);
         } else {
-          if (namespace().get!(Scope)) {
-            ex = lvize(ex, &initLv);
-            ex = fastalloc!(RCE)(ex.valueType(), ex, true); // make sure it's treated as an expr!
-          } else {
-            wte = fastalloc!(WithTempExpr)(ex);
-            ex = wte.val;
-          }
+          wte = fastalloc!(WithTempExpr)(ex);
+          ex = wte.val;
         }
       }
       while (fastcast!(Pointer) (resolveType(ex.valueType())))
         ex = fastalloc!(DerefExpr)(ex);
-    }
-    
-    Object fixup(Object obj) {
-      if (!initLv) return obj;
-      if (auto cd = fastcast!(Cond) (obj))
-        return fastalloc!(StatementAndCond)(initLv, cd);
-      if (auto ex = fastcast!(Expr) (obj)) {
-        // // TODO: fix function call tuple flattening so this is feasible again
-        return fastcast!(Object) (mkStatementAndExpr(initLv, ex));
-        // namespace().get!(Scope).addStatement(initLv);
-        // return fastcast!(Object) (ex);
-      }
-      logln("cannot fixup: unknown "[], obj);
-      fail;
     }
     
     if (auto it = fastcast!(IType) (obj))
@@ -310,10 +289,15 @@ Object gotWithTupleExpr(ref string text, ParseCb cont, ParseCb rest) {
     // if (!rest(text, "tree.expr _tree.expr.bin"[], &res) && !rest(text, "cond"[], &res))
     if (!rest(text, "tree.expr.tuple"[], &res) && !rest(text, "cond"[], &res))
       text.failparse("Couldn't get with-tuple expr"[]);
-    res = fixup(res);
     if (wte) {
       auto rex = fastcast!(Expr) (res);
       if (!rex) text.failparse("Bad: used non-expr in context where expr is sole viable option"[]);
+      if (auto mv = fastcast!(MValue) (rex)) {
+        // hax
+        auto mvwte = fastalloc!(WithTempMValue)();
+        mvwte.copy(wte);
+        wte = mvwte;
+      }
       wte.superthing = rex;
       return wte;
     }

@@ -7,7 +7,7 @@ import classgraph;
 static import std.gc;
 
 mixin(expandImport(`ast.[
-  aggregate_parse, returns, ifstmt, loops, assign,
+  aggregate, aggregate_parse, returns, ifstmt, loops, assign,
   structure, variable, fun, unary, arrays, index, slice,
   nestfun, structfuns, type_info, aliasing, oop, dg,
   newexpr, guard, withstmt, templ, globvars, context,
@@ -919,12 +919,16 @@ static this() {
     if (!st || st == resolveTup(ex.valueType())) return;
     auto initval = fastalloc!(ZeroInitializer)(goal);
     if (!showsAnySignOfHaving(initval, "init")) return;
-    {
-      RelNamespace rns;
-      if (auto srns = fastcast!(SemiRelNamespace)(goal)) rns = srns.resolve();
-      if (!rns) rns = fastcast!(RelNamespace)(goal);
-      if (rns) {
-        auto thing = rns.lookupRel("init", initval);
+    
+    auto res = tmpize_maybe(initval, delegate Expr(Expr initval, LLVMRef lr) {
+      // don't force function call into tuple decomposition via a separate variable
+      // which has issues and is being phased out
+      return tmpize_maybe(ex, delegate Expr(Expr ex) {
+        lr.type = goal;
+        
+        auto thing = st.lookupRel("init", lr);
+        Expr matchedCall;
+        
         bool testfun(Function fun) {
           auto fc = fun.mkCall();
           Statement[] inits;
@@ -932,28 +936,29 @@ static this() {
             // logln("init call test failed: for ", ex.valueType(), " onto ", fun.getParams(false));
             return false;
           }
+          matchedCall = fc;
           // logln("init call test succeeded: for ", ex.valueType(), " onto ", fun.getParams(false));
           return true;
         }
         auto fun = fastcast!(Function)(thing);
-        if (fun && !testfun(fun)) return;
+        if (fun && !testfun(fun)) return null;
         auto set = fastcast!(OverloadSet)(thing);
         if (set) {
           bool oneMatched;
-          foreach (fun2; set.funs) if (testfun(fun2)) oneMatched = true;
-          if (!oneMatched) return;
+          foreach (fun2; set.funs) if (testfun(fun2)) { oneMatched = true; break; }
+          if (!oneMatched) return null;
         }
         if (!fun && !set) { logln("?? ", thing); fail; }
-      }
-    }
-    auto res = tmpize_maybe(initval, delegate Expr(Expr initval, LLVMRef lr) {
-      lr.type = goal;
-      auto st = iparse!(Statement, "init_struct", "tree.stmt")
-                       (`{ lr = initval; lr.init arg; }`,
-                        namespace(), "lr", lr, "initval", initval, "arg", ex);
-      return mkStatementAndExpr(st, lr);
+        
+        auto as = fastalloc!(AggrStatement)();
+        // init struct
+        as.stmts ~= mkAssignment(lr, initval);
+        // call init
+        as.stmts ~= fastalloc!(ExprStatement)(matchedCall);
+        return mkStatementAndExpr(as, lr);
+      });
     });
-    consider(res);
+    if (res) consider(res);
   };
   implicits ~= delegate void(Expr ex, void delegate(Expr) consider) {
     auto sa = fastcast!(StaticArray) (resolveType(ex.valueType()));

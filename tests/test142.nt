@@ -9,6 +9,6 @@ void main() {
     writeln "$(read-pretty-fcc-backtrace())";
     invoke-exit "return";
   }
-  define-exit "return" return;
+  define-exit "return" { writeln "returned."; return; }
   *int*:0 = 0;
 }
