@@ -345,10 +345,14 @@ void setupSysmods() {
     }
     string ftoa(float f) {
       platform(!arm*) {
-        short backup = fpucw;
-        fpucw = short:(fpucw | 0b111_111); // mask nans
+        // there's some sort of freak bug in llvm involving reorders past asm statements
+        // despite being declared sideeffectful
+        // and I just cannot be fucking arsed to track it down
+        // TODO retest this maybe somewhere in 2014 when llvm got their shit together
+        // short backup = fpucw;
+        // fpucw = short:(fpucw | 0b111_111); // mask nans
         string res = dtoa double:f;
-        fpucw = backup;
+        // fpucw = backup;
         return res;
       }
       platform(arm*) {

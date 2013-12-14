@@ -147,7 +147,7 @@ class Scope : Namespace, ScopeLike, RelNamespace, LineNumberedStatement {
   }
   this() {
     count = scope_count ++;
-    // if (count == 5902) asm { int 3; }
+    // if (count == 8546) asm { int 3; }
     id = getuid();
     sup = namespace();
     lnsc = fastalloc!(Mew)();
